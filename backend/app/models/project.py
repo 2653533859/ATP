@@ -1,0 +1,29 @@
+from sqlalchemy import String, Text, ForeignKey, Integer
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.models.base import Base, TimestampMixin
+
+
+class Project(Base, TimestampMixin):
+    __tablename__ = "projects"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+
+    modules: Mapped[list["Module"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+
+
+class Module(Base, TimestampMixin):
+    __tablename__ = "modules"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("modules.id"))
+    sort_order: Mapped[int] = mapped_column(Integer, default=0)
+
+    project: Mapped["Project"] = relationship(back_populates="modules")
+    children: Mapped[list["Module"]] = relationship(back_populates="parent")
+    parent: Mapped["Module | None"] = relationship(back_populates="children", remote_side="Module.id")
+    cases: Mapped[list["TestCase"]] = relationship(back_populates="module", cascade="all, delete-orphan")
