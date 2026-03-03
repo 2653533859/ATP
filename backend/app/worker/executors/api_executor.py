@@ -5,6 +5,15 @@ from jsonpath_ng import parse as jp_parse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.case import TestRun, TestCase, StepResult, RunStatus
+from app.core.redis_client import publish_run_event
+
+
+async def _safe_publish_run_event(run_id: int, payload: dict) -> None:
+    try:
+        await publish_run_event(run_id, payload)
+    except Exception:
+        # 实时通知是 best-effort，不影响执行结果落库
+        return
 
 
 async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_vars: dict):
@@ -108,10 +117,33 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
         step_result.error_message = error_msg
         await db.commit()
 
+        # 推送步骤结果
+        await _safe_publish_run_event(run.id, {
+            "type": "step_result",
+            "run_id": run.id,
+            "step": {
+                "step_index": idx,
+                "name": step_result.name,
+                "status": step_status.value,
+                "duration_ms": step_result.duration_ms,
+                "request_data": request_data,
+                "response_data": response_data,
+                "error_message": error_msg,
+            },
+        })
+
     total_ms = int((time.monotonic() - total_start) * 1000)
     run.status = RunStatus.passed if all_passed else RunStatus.failed
     run.duration_ms = total_ms
     await db.commit()
+
+    # 推送执行完成
+    await _safe_publish_run_event(run.id, {
+        "type": "completed",
+        "run_id": run.id,
+        "status": run.status.value,
+        "duration_ms": total_ms,
+    })
 
 
 def _render(template: str, context: dict) -> str:

@@ -4,6 +4,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import select
 
 from app.api.v1.router import router
+from app.api.v1.ws import ws_router
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine
 from app.core.security import hash_password
@@ -57,6 +58,7 @@ app.add_middleware(
 )
 
 app.include_router(router)
+app.include_router(ws_router)  # WebSocket 路由，路径以 /ws/ 开头
 
 
 @app.get("/health")
