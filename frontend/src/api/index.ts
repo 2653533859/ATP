@@ -37,6 +37,24 @@ export const runApi = {
   get: (id: number) => http.get(`/runs/${id}`),
 }
 
+export const scriptApi = {
+  upload: (caseId: number, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post(`/cases/${caseId}/script`, form)
+  },
+  get: (caseId: number) =>
+    http.get<any, { content: string; exists: boolean; script_path?: string }>(`/cases/${caseId}/script`),
+  saveContent: (caseId: number, content: string) => {
+    const blob = new Blob([content], { type: 'text/x-python' })
+    const file = new File([blob], 'test_case.py', { type: 'text/x-python' })
+    const form = new FormData()
+    form.append('file', file)
+    return http.post(`/cases/${caseId}/script`, form)
+  },
+  delete: (caseId: number) => http.delete(`/cases/${caseId}/script`),
+}
+
 export const environmentApi = {
   list: (projectId: number) =>
     http.get<any, any[]>('/environments', { params: { project_id: projectId } }),

@@ -1,7 +1,7 @@
 # ATP 项目任务跟踪
 
 **最后更新**: 2026-03-04
-**当前阶段**: Phase 1 - 基础框架（MVP）→ Phase 2 Web UI 测试
+**当前阶段**: Phase 2 - Web UI 测试（脚本模式）
 
 > 状态说明：
 > - `[ ]` 待开始
@@ -89,22 +89,22 @@
 
 ### 2.1 脚本存储
 
-- [ ] 配置 MinIO 客户端（Python `minio` SDK）
-- [ ] 实现脚本文件上传到 MinIO（`POST /api/v1/cases/{id}/script`）
-- [ ] 实现脚本文件下载/预览接口
-- [ ] 前端：集成 Monaco Editor 在线代码编辑器
-- [ ] 前端：脚本上传与在线编辑页面
+- [x] 配置 MinIO 客户端（Python `minio` SDK）
+- [x] 实现脚本文件上传到 MinIO（`POST /api/v1/cases/{id}/script`）
+- [x] 实现脚本文件下载/预览接口
+- [x] 前端：集成 Monaco Editor 在线代码编辑器
+- [x] 前端：脚本上传与在线编辑页面
 
 ### 2.2 Playwright 执行器
 
 - [ ] 在 Worker Docker 镜像中安装 Playwright + Chromium
-- [ ] 实现 pytest 脚本执行器
-  - [ ] 从 MinIO 下载脚本到临时目录
-  - [ ] 调用 `pytest --json-report` 命令执行
-  - [ ] 解析 `pytest-json-report` 结果，映射到平台数据结构
-  - [ ] 收集失败截图，上传到 MinIO
-  - [ ] 清理临时目录
-- [ ] 实现执行配置：浏览器类型 / 无头模式 / 分辨率 / 超时
+- [x] 实现 pytest 脚本执行器
+  - [x] 从 MinIO 下载脚本到临时目录
+  - [x] 调用 `pytest --json-report` 命令执行
+  - [x] 解析 `pytest-json-report` 结果，映射到平台数据结构
+  - [x] 收集失败截图，上传到 MinIO
+  - [x] 清理临时目录
+- [x] 实现执行配置：浏览器类型 / 无头模式 / 分辨率 / 超时
 
 ### 2.3 Web 用例低代码模式
 

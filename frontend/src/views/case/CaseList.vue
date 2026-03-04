@@ -31,14 +31,17 @@
             <a-select-option value="android">Android UI</a-select-option>
           </a-select>
         </a-space>
-        <a-button
-          type="primary"
-          :disabled="!selectedModuleId"
-          @click="openCreate"
-        >
-          <PlusOutlined />
-          新建用例
-        </a-button>
+        <a-dropdown :disabled="!selectedModuleId">
+          <template #overlay>
+            <a-menu>
+              <a-menu-item key="api" @click="openCreate('api')">接口测试</a-menu-item>
+              <a-menu-item key="web" @click="openCreate('web')">Web UI</a-menu-item>
+            </a-menu>
+          </template>
+          <a-button type="primary" :disabled="!selectedModuleId">
+            <PlusOutlined /> 新建用例 <DownOutlined />
+          </a-button>
+        </a-dropdown>
       </div>
 
       <!-- 无模块选中提示 -->
@@ -89,12 +92,21 @@
       </a-table>
     </div>
 
-    <!-- 用例表单抽屉 -->
+    <!-- 用例表单抽屉 (API) -->
     <CaseFormDrawer
       :open="drawerOpen"
       :module-id="selectedModuleId"
       :edit-case="editingCase"
       @close="drawerOpen = false"
+      @saved="onSaved"
+    />
+
+    <!-- Web UI 用例抽屉 -->
+    <WebCaseDrawer
+      :open="webDrawerOpen"
+      :module-id="selectedModuleId"
+      :edit-case="webEditingCase"
+      @close="webDrawerOpen = false"
       @saved="onSaved"
     />
 
@@ -124,10 +136,11 @@
 import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { PlusOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DownOutlined } from '@ant-design/icons-vue'
 import { caseApi, environmentApi } from '@/api'
 import ModuleTree from '@/components/common/ModuleTree.vue'
 import CaseFormDrawer from '@/components/common/CaseFormDrawer.vue'
+import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -140,6 +153,8 @@ const searchText = ref('')
 const filterType = ref<string | undefined>(undefined)
 const drawerOpen = ref(false)
 const editingCase = ref<any>(null)
+const webDrawerOpen = ref(false)
+const webEditingCase = ref<any>(null)
 const runningId = ref<number | null>(null)
 
 // -- Run environment selection --
@@ -191,14 +206,24 @@ function onModuleSelect(id: number | null) {
   if (id) loadCases()
 }
 
-function openCreate() {
-  editingCase.value = null
-  drawerOpen.value = true
+function openCreate(type: string) {
+  if (type === 'web') {
+    webEditingCase.value = null
+    webDrawerOpen.value = true
+  } else {
+    editingCase.value = null
+    drawerOpen.value = true
+  }
 }
 
 function openEdit(c: any) {
-  editingCase.value = c
-  drawerOpen.value = true
+  if (c.case_type === 'web') {
+    webEditingCase.value = c
+    webDrawerOpen.value = true
+  } else {
+    editingCase.value = c
+    drawerOpen.value = true
+  }
 }
 
 function onSaved() {
