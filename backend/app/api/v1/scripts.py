@@ -9,7 +9,7 @@ from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
-from app.core.minio_client import upload_bytes, read_bytes, delete_file, presigned_url
+from app.core.minio_client import ensure_bucket, upload_bytes, read_bytes, delete_file
 from app.models.case import TestCase, CaseType
 from app.api.deps import get_current_user
 from app.models.user import User
@@ -28,7 +28,7 @@ async def upload_script(
     case_id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    _: User = Depends(get_current_user),
 ):
     case = await db.get(TestCase, case_id)
     if not case:
@@ -41,6 +41,7 @@ async def upload_script(
         raise HTTPException(status_code=413, detail="脚本文件超过 1MB 限制")
 
     object_name = _script_object_name(case_id)
+    ensure_bucket()
     upload_bytes(object_name, content, content_type="text/x-python")
 
     # 将 script_path 写入 case.config

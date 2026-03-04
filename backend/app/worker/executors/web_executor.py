@@ -47,10 +47,18 @@ async def run_web_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
         return
 
     browser = cfg.get("browser", "chromium")
+    if browser != "chromium":
+        logger.warning("run %s requested unsupported browser '%s', fallback to chromium", run.id, browser)
+        browser = "chromium"
     headless = cfg.get("headless", True)
     viewport_width = cfg.get("viewport", {}).get("width", 1280)
     viewport_height = cfg.get("viewport", {}).get("height", 720)
-    timeout_sec = cfg.get("timeout", 60)
+    try:
+        timeout_sec = int(cfg.get("timeout", 60))
+    except (TypeError, ValueError):
+        timeout_sec = 60
+    if timeout_sec < 1:
+        timeout_sec = 1
 
     tmpdir = Path(tempfile.mkdtemp(prefix=f"atp_run_{run.id}_"))
     total_start = time.monotonic()
@@ -102,16 +110,54 @@ def browser_context_args(browser_context_args):
             f"--output={screenshot_dir}",
             "--json-report",
             f"--json-report-file={report_file}",
-            f"--timeout={timeout_sec}",
             "-v",
             "--tb=short",
         ]
 
         env = {**os.environ, "PYTHONPATH": str(tmpdir)}
-        proc = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: subprocess.run(cmd, capture_output=True, text=True, env=env, cwd=str(tmpdir)),
-        )
+        try:
+            proc = await asyncio.get_event_loop().run_in_executor(
+                None,
+                lambda: subprocess.run(
+                    cmd,
+                    capture_output=True,
+                    text=True,
+                    env=env,
+                    cwd=str(tmpdir),
+                    timeout=timeout_sec,
+                ),
+            )
+        except subprocess.TimeoutExpired:
+            timeout_msg = f"脚本执行超时（>{timeout_sec}秒）"
+            step_result = StepResult(
+                run_id=run.id,
+                step_index=0,
+                name="脚本执行",
+                status=RunStatus.error,
+                duration_ms=int((time.monotonic() - total_start) * 1000),
+                error_message=timeout_msg,
+            )
+            db.add(step_result)
+            await db.commit()
+            await _safe_publish(run.id, {
+                "type": "step_result",
+                "run_id": run.id,
+                "step": {
+                    "step_index": 0,
+                    "name": "脚本执行",
+                    "status": RunStatus.error.value,
+                    "duration_ms": step_result.duration_ms,
+                    "request_data": None,
+                    "response_data": None,
+                    "error_message": timeout_msg,
+                },
+            })
+            run.status = RunStatus.error
+            run.error_message = timeout_msg
+            run.duration_ms = step_result.duration_ms
+            await db.commit()
+            await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
+            return
 
         # ── 4. 解析 pytest-json-report ────────────────────────────
         all_passed = True

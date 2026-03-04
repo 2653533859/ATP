@@ -41,9 +41,10 @@
           <a-form-item label="浏览器">
             <a-select v-model:value="cfg.browser" style="width: 100%">
               <a-select-option value="chromium">Chromium</a-select-option>
-              <a-select-option value="firefox">Firefox</a-select-option>
-              <a-select-option value="webkit">WebKit (Safari)</a-select-option>
             </a-select>
+            <div style="margin-top: 6px; color: #999; font-size: 12px">
+              当前 Worker 镜像仅内置 Chromium
+            </div>
           </a-form-item>
         </a-col>
         <a-col :span="6">
@@ -113,7 +114,7 @@
 
         <a-spin :spinning="loadingScript">
           <MonacoEditor
-            v-model:value="scriptContent"
+            v-model="scriptContent"
             height="420px"
             language="python"
           />
@@ -191,7 +192,7 @@ watch(() => props.open, async (v) => {
     form.description = props.editCase.description ?? ''
     form.tags = props.editCase.tags ?? []
     const c = props.editCase.config ?? {}
-    cfg.browser = c.browser ?? 'chromium'
+    cfg.browser = 'chromium'
     cfg.headless = c.headless ?? true
     cfg.timeout = c.timeout ?? 60
     cfg.viewportWidth = c.viewport?.width ?? 1280
