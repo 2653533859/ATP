@@ -97,6 +97,26 @@
       @close="drawerOpen = false"
       @saved="onSaved"
     />
+
+    <!-- 执行环境选择 Modal -->
+    <a-modal
+      v-model:open="runModalOpen"
+      title="选择执行环境"
+      ok-text="执行"
+      cancel-text="取消"
+      :confirm-loading="runConfirming"
+      @ok="confirmRun"
+    >
+      <p style="margin-bottom: 12px; color: #666">可选择一个环境，变量将自动注入到用例执行中。</p>
+      <a-select
+        v-model:value="runEnvId"
+        placeholder="不使用环境"
+        allow-clear
+        style="width: 100%"
+        :options="runEnvOptions"
+        :loading="runEnvLoading"
+      />
+    </a-modal>
   </div>
 </template>
 
@@ -105,7 +125,7 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
-import { caseApi } from '@/api'
+import { caseApi, environmentApi } from '@/api'
 import ModuleTree from '@/components/common/ModuleTree.vue'
 import CaseFormDrawer from '@/components/common/CaseFormDrawer.vue'
 
@@ -121,6 +141,14 @@ const filterType = ref<string | undefined>(undefined)
 const drawerOpen = ref(false)
 const editingCase = ref<any>(null)
 const runningId = ref<number | null>(null)
+
+// -- Run environment selection --
+const runModalOpen = ref(false)
+const runEnvId = ref<number | null>(null)
+const runEnvOptions = ref<Array<{ label: string; value: number }>>([])
+const runEnvLoading = ref(false)
+const runConfirming = ref(false)
+const pendingRunCase = ref<any>(null)
 
 const columns = [
   { title: '用例名称', dataIndex: 'name', key: 'name', ellipsis: true },
@@ -150,6 +178,8 @@ async function loadCases() {
       module_id: selectedModuleId.value,
       case_type: filterType.value,
     })
+  } catch (e: any) {
+    message.error(e ?? '加载用例列表失败')
   } finally {
     loading.value = false
   }
@@ -176,22 +206,51 @@ function onSaved() {
 }
 
 async function handleRun(c: any) {
+  pendingRunCase.value = c
+  runEnvId.value = null
+  runModalOpen.value = true
+  runEnvLoading.value = true
+  try {
+    const envs = await environmentApi.list(projectId)
+    runEnvOptions.value = envs.map((e: any) => ({ label: e.name, value: e.id }))
+  } catch {
+    runEnvOptions.value = []
+    message.warning('加载环境列表失败，将不使用环境执行')
+  } finally {
+    runEnvLoading.value = false
+  }
+}
+
+async function confirmRun() {
+  const c = pendingRunCase.value
+  if (!c) return
+  runConfirming.value = true
   runningId.value = c.id
   try {
-    const run = await caseApi.run(c.id) as any
+    const payload: { env_id?: number } = {}
+    if (runEnvId.value) {
+      payload.env_id = runEnvId.value
+    }
+    const run = await caseApi.run(c.id, payload) as any
+    runModalOpen.value = false
     message.success('已触发执行，正在跳转报告页')
     router.push(`/runs/${run.id}`)
   } catch (e: any) {
     message.error(e ?? '执行触发失败')
   } finally {
+    runConfirming.value = false
     runningId.value = null
   }
 }
 
 async function handleDelete(id: number) {
-  await caseApi.delete(id)
-  message.success('已删除')
-  loadCases()
+  try {
+    await caseApi.delete(id)
+    message.success('已删除')
+    loadCases()
+  } catch (e: any) {
+    message.error(e ?? '删除用例失败')
+  }
 }
 </script>
 

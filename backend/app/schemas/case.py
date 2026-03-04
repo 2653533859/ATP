@@ -37,7 +37,7 @@ class TestCaseOut(BaseModel):
 
 # ── TestRun ──────────────────────────────────────────────
 class RunTriggerRequest(BaseModel):
-    environment: str | None = None
+    env_id: int | None = None
     extra_vars: dict = {}
 
 

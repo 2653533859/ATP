@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.user import User
 from app.models.case import TestCase, TestRun, RunStatus
+from app.models.environment import Environment, EnvVariable
 from app.schemas.case import TestCaseCreate, TestCaseUpdate, TestCaseOut, RunTriggerRequest, TestRunOut
 from app.api.deps import get_current_user
 from app.worker.tasks import run_test_case
@@ -88,18 +89,35 @@ async def trigger_run(
     if not case:
         raise HTTPException(status_code=404, detail="用例不存在")
 
+    # Load environment variables if env_id is provided
+    env_name: str | None = None
+    merged_vars = dict(body.extra_vars)
+
+    if body.env_id is not None:
+        env = await db.get(Environment, body.env_id)
+        if not env:
+            raise HTTPException(status_code=404, detail="环境不存在")
+        env_name = env.name
+
+        result = await db.execute(
+            select(EnvVariable).where(EnvVariable.env_id == env.id)
+        )
+        env_vars = {v.key: v.value for v in result.scalars().all()}
+        # Environment variables as base, extra_vars override
+        merged_vars = {**env_vars, **body.extra_vars}
+
     run = TestRun(
         case_id=case_id,
         triggered_by=current_user.id,
         status=RunStatus.pending,
-        environment=body.environment,
+        environment=env_name,
     )
     db.add(run)
     await db.commit()
     await db.refresh(run)
 
     # 异步发送给 Celery Worker
-    run_test_case.delay(run.id, body.extra_vars)
+    run_test_case.delay(run.id, merged_vars)
 
     return run
 

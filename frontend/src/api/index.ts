@@ -28,11 +28,24 @@ export const caseApi = {
   get: (id: number) => http.get(`/cases/${id}`),
   update: (id: number, data: object) => http.patch(`/cases/${id}`, data),
   delete: (id: number) => http.delete(`/cases/${id}`),
-  run: (id: number, data?: { environment?: string; extra_vars?: object }) =>
+  run: (id: number, data?: { env_id?: number; extra_vars?: object }) =>
     http.post(`/cases/${id}/run`, data ?? {}),
 }
 
 export const runApi = {
   list: (params?: { case_id?: number }) => http.get<any, any[]>('/runs', { params }),
   get: (id: number) => http.get(`/runs/${id}`),
+}
+
+export const environmentApi = {
+  list: (projectId: number) =>
+    http.get<any, any[]>('/environments', { params: { project_id: projectId } }),
+  create: (data: { name: string; description?: string; project_id: number }) =>
+    http.post('/environments', data),
+  update: (id: number, data: { name?: string; description?: string }) =>
+    http.patch(`/environments/${id}`, data),
+  delete: (id: number) => http.delete(`/environments/${id}`),
+  getVariables: (id: number) => http.get<any, any[]>(`/environments/${id}/variables`),
+  saveVariables: (id: number, data: { variables: Array<{ key: string; value: string; is_secret: boolean }> }) =>
+    http.put(`/environments/${id}/variables`, data),
 }
