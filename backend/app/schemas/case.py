@@ -35,6 +35,10 @@ class TestCaseOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TestCaseDetailOut(TestCaseOut):
+    config: dict = {}
+
+
 # ── TestRun ──────────────────────────────────────────────
 class RunTriggerRequest(BaseModel):
     env_id: int | None = None

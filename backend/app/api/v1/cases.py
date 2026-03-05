@@ -7,7 +7,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.case import TestCase, TestRun, RunStatus
 from app.models.environment import Environment, EnvVariable
-from app.schemas.case import TestCaseCreate, TestCaseUpdate, TestCaseOut, RunTriggerRequest, TestRunOut
+from app.schemas.case import TestCaseCreate, TestCaseUpdate, TestCaseOut, TestCaseDetailOut, RunTriggerRequest, TestRunOut
 from app.api.deps import get_current_user
 from app.worker.tasks import run_test_case
 
@@ -34,7 +34,7 @@ async def list_cases(
     return cases
 
 
-@router.post("/cases", response_model=TestCaseOut, status_code=status.HTTP_201_CREATED)
+@router.post("/cases", response_model=TestCaseDetailOut, status_code=status.HTTP_201_CREATED)
 async def create_case(
     body: TestCaseCreate,
     db: AsyncSession = Depends(get_db),
@@ -47,7 +47,7 @@ async def create_case(
     return case
 
 
-@router.get("/cases/{case_id}", response_model=TestCaseOut)
+@router.get("/cases/{case_id}", response_model=TestCaseDetailOut)
 async def get_case(case_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
     case = await db.get(TestCase, case_id)
     if not case:
@@ -55,7 +55,7 @@ async def get_case(case_id: int, db: AsyncSession = Depends(get_db), _=Depends(g
     return case
 
 
-@router.patch("/cases/{case_id}", response_model=TestCaseOut)
+@router.patch("/cases/{case_id}", response_model=TestCaseDetailOut)
 async def update_case(
     case_id: int, body: TestCaseUpdate, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)
 ):
