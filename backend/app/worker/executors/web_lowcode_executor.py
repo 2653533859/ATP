@@ -23,6 +23,7 @@ Web UI 低代码执行器（Playwright 直接 API 调用）
 import asyncio
 import logging
 import re
+import shutil
 import tempfile
 import time
 from pathlib import Path
@@ -185,6 +186,8 @@ async def run_web_lowcode(
     total_start = time.monotonic()
     all_passed = True
     browser: Browser | None = None
+    browser_context: BrowserContext | None = None
+    pw = None
     video_url: str | None = None
     video_dir = Path(tempfile.mkdtemp(prefix=f"atp_video_{run.id}_"))
 
@@ -270,16 +273,18 @@ async def run_web_lowcode(
 
     finally:
         # 关闭 context 以确保录像写入完成
-        try:
-            await browser_context.close()
-        except Exception:
-            pass
+        if browser_context:
+            try:
+                await browser_context.close()
+            except Exception:
+                pass
         if browser:
             await browser.close()
-        try:
-            await pw.stop()
-        except Exception:
-            pass
+        if pw:
+            try:
+                await pw.stop()
+            except Exception:
+                pass
 
         # 上传录像到 MinIO
         try:
@@ -294,7 +299,6 @@ async def run_web_lowcode(
         except Exception as e:
             logger.warning("Video upload failed for run %s: %s", run.id, e)
         finally:
-            import shutil
             shutil.rmtree(video_dir, ignore_errors=True)
 
     total_ms = int((time.monotonic() - total_start) * 1000)
