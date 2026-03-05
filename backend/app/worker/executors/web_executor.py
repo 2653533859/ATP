@@ -107,6 +107,7 @@ def browser_context_args(browser_context_args):
             str(local_script),
             f"--browser={browser}",
             "--screenshot=on",          # playwright-pytest：始终截图
+            "--video=on",               # playwright-pytest：始终录像
             f"--output={screenshot_dir}",
             "--json-report",
             f"--json-report-file={report_file}",
@@ -263,11 +264,29 @@ def browser_context_args(browser_context_args):
         run.error_message = str(e)[:500]
 
     finally:
+        # 上传录像到 MinIO（pytest-playwright 生成 .webm 文件）
+        video_url = None
+        try:
+            video_files = list(screenshot_dir.glob("**/*.webm")) if screenshot_dir.exists() else []
+            if video_files:
+                video_path = video_files[0]
+                obj_name = f"videos/runs/{run.id}/recording.webm"
+                await asyncio.get_event_loop().run_in_executor(
+                    None, upload_file, obj_name, str(video_path), "video/webm"
+                )
+                video_url = presigned_url(obj_name)
+        except Exception as e:
+            logger.warning("Video upload failed for run %s: %s", run.id, e)
+
         shutil.rmtree(tmpdir, ignore_errors=True)
 
     total_ms = int((time.monotonic() - total_start) * 1000)
     run.status = RunStatus.passed if all_passed else RunStatus.failed
     run.duration_ms = total_ms
+    run.result_summary = {
+        **(run.result_summary or {}),
+        **({"video_url": video_url} if video_url else {}),
+    }
     await db.commit()
 
     await _safe_publish(run.id, {
@@ -275,4 +294,5 @@ def browser_context_args(browser_context_args):
         "run_id": run.id,
         "status": run.status.value,
         "duration_ms": total_ms,
+        **({"video_url": video_url} if video_url else {}),
     })

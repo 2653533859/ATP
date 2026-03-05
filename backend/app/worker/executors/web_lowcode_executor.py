@@ -23,13 +23,15 @@ Web UI 低代码执行器（Playwright 直接 API 调用）
 import asyncio
 import logging
 import re
+import tempfile
 import time
+from pathlib import Path
 from typing import Any
 
 from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.minio_client import upload_bytes, presigned_url
+from app.core.minio_client import upload_bytes, upload_file, presigned_url
 from app.core.redis_client import publish_run_event
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
 
@@ -183,6 +185,8 @@ async def run_web_lowcode(
     total_start = time.monotonic()
     all_passed = True
     browser: Browser | None = None
+    video_url: str | None = None
+    video_dir = Path(tempfile.mkdtemp(prefix=f"atp_video_{run.id}_"))
 
     try:
         pw = await async_playwright().start()
@@ -192,6 +196,8 @@ async def run_web_lowcode(
         )
         browser_context: BrowserContext = await browser.new_context(
             viewport={"width": viewport_w, "height": viewport_h},
+            record_video_dir=str(video_dir),
+            record_video_size={"width": viewport_w, "height": viewport_h},
         )
         page: Page = await browser_context.new_page()
 
@@ -263,6 +269,11 @@ async def run_web_lowcode(
         run.error_message = str(e)[:500]
 
     finally:
+        # 关闭 context 以确保录像写入完成
+        try:
+            await browser_context.close()
+        except Exception:
+            pass
         if browser:
             await browser.close()
         try:
@@ -270,9 +281,29 @@ async def run_web_lowcode(
         except Exception:
             pass
 
+        # 上传录像到 MinIO
+        try:
+            video_files = list(video_dir.glob("*.webm"))
+            if video_files:
+                video_path = video_files[0]
+                obj_name = f"videos/runs/{run.id}/recording.webm"
+                await asyncio.get_event_loop().run_in_executor(
+                    None, upload_file, obj_name, str(video_path), "video/webm"
+                )
+                video_url = presigned_url(obj_name)
+        except Exception as e:
+            logger.warning("Video upload failed for run %s: %s", run.id, e)
+        finally:
+            import shutil
+            shutil.rmtree(video_dir, ignore_errors=True)
+
     total_ms = int((time.monotonic() - total_start) * 1000)
     run.status = RunStatus.passed if all_passed else RunStatus.failed
     run.duration_ms = total_ms
+    run.result_summary = {
+        **(run.result_summary or {}),
+        **({"video_url": video_url} if video_url else {}),
+    }
     await db.commit()
 
     await _safe_publish(run.id, {
@@ -280,4 +311,5 @@ async def run_web_lowcode(
         "run_id": run.id,
         "status": run.status.value,
         "duration_ms": total_ms,
+        **({"video_url": video_url} if video_url else {}),
     })

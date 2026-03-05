@@ -7,6 +7,7 @@ export type WsMessage = {
   run_id: number
   status?: string
   duration_ms?: number
+  video_url?: string
   step?: {
     step_index: number
     name: string
@@ -15,6 +16,7 @@ export type WsMessage = {
     request_data: Record<string, any> | null
     response_data: Record<string, any> | null
     error_message: string | null
+    screenshot_url: string | null
   }
 }
 
