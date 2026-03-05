@@ -67,3 +67,13 @@ export const environmentApi = {
   saveVariables: (id: number, data: { variables: Array<{ key: string; value: string; is_secret: boolean }> }) =>
     http.put(`/environments/${id}/variables`, data),
 }
+
+export const deviceApi = {
+  list: (params?: { status_filter?: string }) =>
+    http.get<any, any[]>('/devices', { params }),
+  scan: () => http.post<any, any[]>('/devices/scan'),
+  get: (id: number) => http.get('/devices/' + id),
+  update: (id: number, data: { name?: string; description?: string }) =>
+    http.patch(`/devices/${id}`, data),
+  delete: (id: number) => http.delete(`/devices/${id}`),
+}

@@ -40,6 +40,11 @@ const router = createRouter({
           name: 'environments',
           component: () => import('@/views/system/EnvironmentList.vue'),
         },
+        {
+          path: 'devices',
+          name: 'devices',
+          component: () => import('@/views/device/DeviceList.vue'),
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

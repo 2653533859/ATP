@@ -5,7 +5,7 @@ celery_app = Celery(
     "atp",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.worker.tasks"],
+    include=["app.worker.tasks", "app.worker.tasks_device"],
 )
 
 celery_app.conf.update(
@@ -16,4 +16,10 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     worker_prefetch_multiplier=1,
+    beat_schedule={
+        "scan-adb-devices": {
+            "task": "scan_adb_devices",
+            "schedule": settings.ADB_SCAN_INTERVAL,
+        },
+    },
 )

@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     FIRST_ADMIN_PASSWORD: str = "Admin@123456"
     FIRST_ADMIN_EMAIL: str = "admin@example.com"
 
+    # ADB
+    ADB_SCAN_ENABLED: bool = True  # 设为 False 可关闭定时扫描（纯 Web 测试环境）
+    ADB_SCAN_INTERVAL: int = 15  # 设备扫描间隔（秒）
+
     @property
     def DATABASE_URL(self) -> str:
         return (
