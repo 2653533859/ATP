@@ -45,6 +45,16 @@ const router = createRouter({
           name: 'devices',
           component: () => import('@/views/device/DeviceList.vue'),
         },
+        {
+          path: 'apks',
+          name: 'apks',
+          component: () => import('@/views/apk/ApkList.vue'),
+        },
+        {
+          path: 'suites',
+          name: 'suites',
+          component: () => import('@/views/suite/SuiteList.vue'),
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

@@ -36,6 +36,7 @@
             <a-menu>
               <a-menu-item key="api" @click="openCreate('api')">接口测试</a-menu-item>
               <a-menu-item key="web" @click="openCreate('web')">Web UI</a-menu-item>
+              <a-menu-item key="android" @click="openCreate('android')">Android UI</a-menu-item>
             </a-menu>
           </template>
           <a-button type="primary" :disabled="!selectedModuleId">
@@ -110,6 +111,15 @@
       @saved="onSaved"
     />
 
+    <!-- Android UI 用例抽屉 -->
+    <AndroidCaseDrawer
+      :open="androidDrawerOpen"
+      :module-id="selectedModuleId"
+      :edit-case="androidEditingCase"
+      @close="androidDrawerOpen = false"
+      @saved="onSaved"
+    />
+
     <!-- 执行环境选择 Modal -->
     <a-modal
       v-model:open="runModalOpen"
@@ -141,6 +151,7 @@ import { caseApi, environmentApi } from '@/api'
 import ModuleTree from '@/components/common/ModuleTree.vue'
 import CaseFormDrawer from '@/components/common/CaseFormDrawer.vue'
 import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
+import AndroidCaseDrawer from '@/views/case/AndroidCaseDrawer.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -155,6 +166,8 @@ const drawerOpen = ref(false)
 const editingCase = ref<any>(null)
 const webDrawerOpen = ref(false)
 const webEditingCase = ref<any>(null)
+const androidDrawerOpen = ref(false)
+const androidEditingCase = ref<any>(null)
 const runningId = ref<number | null>(null)
 
 // -- Run environment selection --
@@ -210,6 +223,9 @@ function openCreate(type: string) {
   if (type === 'web') {
     webEditingCase.value = null
     webDrawerOpen.value = true
+  } else if (type === 'android') {
+    androidEditingCase.value = null
+    androidDrawerOpen.value = true
   } else {
     editingCase.value = null
     drawerOpen.value = true
@@ -220,6 +236,9 @@ function openEdit(c: any) {
   if (c.case_type === 'web') {
     webEditingCase.value = c
     webDrawerOpen.value = true
+  } else if (c.case_type === 'android') {
+    androidEditingCase.value = c
+    androidDrawerOpen.value = true
   } else {
     editingCase.value = c
     drawerOpen.value = true

@@ -17,9 +17,17 @@
           <PlayCircleOutlined />
           <span>执行记录</span>
         </a-menu-item>
+        <a-menu-item key="/suites">
+          <AppstoreOutlined />
+          <span>测试套件</span>
+        </a-menu-item>
         <a-menu-item key="/devices">
           <MobileOutlined />
           <span>设备管理</span>
+        </a-menu-item>
+        <a-menu-item key="/apks">
+          <AndroidOutlined />
+          <span>APK 管理</span>
         </a-menu-item>
         <a-sub-menu key="system">
           <template #icon><SettingOutlined /></template>
@@ -49,7 +57,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ProjectOutlined, PlayCircleOutlined, SettingOutlined, MobileOutlined } from '@ant-design/icons-vue'
+import { ProjectOutlined, PlayCircleOutlined, SettingOutlined, MobileOutlined, AndroidOutlined, AppstoreOutlined } from '@ant-design/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()

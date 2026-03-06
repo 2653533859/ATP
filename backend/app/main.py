@@ -14,6 +14,8 @@ from app.models.project import Project, Module  # noqa: F401
 from app.models.case import TestCase, TestRun, StepResult  # noqa: F401
 from app.models.environment import Environment, EnvVariable  # noqa: F401
 from app.models.device import Device  # noqa: F401
+from app.models.apk import Apk  # noqa: F401
+from app.models.suite import TestSuite, SuiteRun  # noqa: F401
 
 
 async def _init_admin():
