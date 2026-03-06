@@ -76,4 +76,35 @@ export const deviceApi = {
   update: (id: number, data: { name?: string; description?: string }) =>
     http.patch(`/devices/${id}`, data),
   delete: (id: number) => http.delete(`/devices/${id}`),
+  screenshot: (id: number) =>
+    http.get<any, Blob>(`/devices/${id}/screenshot`, { responseType: 'blob' }),
+  screenshotUrl: (id: number) => `/api/v1/devices/${id}/screenshot`,
+  screenStreamUrl: (id: number, fps?: number) =>
+    `/api/v1/devices/${id}/screen${fps ? `?fps=${fps}` : ''}`,
+}
+
+export const apkApi = {
+  list: (params?: { project_id?: number }) =>
+    http.get<any, any[]>('/apks', { params }),
+  get: (id: number) => http.get('/apks/' + id),
+  upload: (data: FormData) => http.post('/apks', data),
+  update: (id: number, data: { description?: string; package_name?: string; version_name?: string; version_code?: number }) =>
+    http.patch(`/apks/${id}`, data),
+  delete: (id: number) => http.delete(`/apks/${id}`),
+  download: (id: number) =>
+    http.get<any, { url: string; filename: string }>(`/apks/${id}/download`),
+}
+
+export const suiteApi = {
+  list: (params?: { project_id?: number }) =>
+    http.get<any, any[]>('/suites', { params }),
+  get: (id: number) => http.get('/suites/' + id),
+  create: (data: object) => http.post('/suites', data),
+  update: (id: number, data: object) => http.patch(`/suites/${id}`, data),
+  delete: (id: number) => http.delete(`/suites/${id}`),
+  run: (id: number, data?: { env_id?: number; extra_vars?: object }) =>
+    http.post(`/suites/${id}/run`, data ?? {}),
+  listRuns: (params?: { suite_id?: number }) =>
+    http.get<any, any[]>('/suite-runs', { params }),
+  getRun: (id: number) => http.get('/suite-runs/' + id),
 }

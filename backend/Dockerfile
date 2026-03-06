@@ -4,7 +4,7 @@ WORKDIR /app
 
 # 系统依赖
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc libpq-dev \
+    gcc libpq-dev android-tools-adb \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .

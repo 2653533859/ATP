@@ -51,6 +51,14 @@
 
         <template v-if="column.key === 'action'">
           <a-space>
+            <a-button
+              v-if="record.status === 'online'"
+              type="link"
+              size="small"
+              @click="openMirror(record)"
+            >
+              <EyeOutlined /> 镜像
+            </a-button>
             <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
             <a-popconfirm title="确认删除该设备记录？" @confirm="handleDelete(record.id)">
               <a-button type="link" size="small" danger>删除</a-button>
@@ -78,13 +86,42 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <!-- 屏幕镜像 Modal -->
+    <a-modal
+      v-model:open="mirrorOpen"
+      :title="`屏幕镜像 - ${mirrorDevice?.brand ?? ''} ${mirrorDevice?.model ?? ''}`"
+      width="420"
+      :footer="null"
+      :destroy-on-close="true"
+      @cancel="closeMirror"
+    >
+      <div class="mirror-container">
+        <img
+          v-if="mirrorSrc"
+          :src="mirrorSrc"
+          alt="设备屏幕"
+          class="mirror-img"
+          @error="onMirrorError"
+        />
+        <div v-else class="mirror-placeholder">
+          <a-spin tip="正在连接设备..." />
+        </div>
+      </div>
+      <div class="mirror-footer">
+        <a-button size="small" @click="refreshMirror">
+          <ReloadOutlined /> 刷新截图
+        </a-button>
+        <span style="color: #999; font-size: 12px">自动刷新中（约 2 FPS）</span>
+      </div>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { ReloadOutlined } from '@ant-design/icons-vue'
+import { ReloadOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { deviceApi } from '@/api'
 
 const devices = ref<any[]>([])
@@ -97,13 +134,22 @@ const saving = ref(false)
 const editingId = ref<number | null>(null)
 const editForm = ref({ name: '', description: '' })
 
+// 屏幕镜像
+const mirrorOpen = ref(false)
+const mirrorDevice = ref<any>(null)
+const mirrorSrc = ref<string | null>(null)
+let mirrorTimer: ReturnType<typeof setInterval> | null = null
+let mirrorObjectUrl: string | null = null
+let mirrorRefreshing = false
+let mirrorSession = 0
+
 const columns = [
   { title: '设备信息', key: 'device_info', width: 240 },
   { title: '状态', key: 'status', width: 100 },
   { title: '系统版本', key: 'os', width: 200 },
   { title: '分辨率', dataIndex: 'resolution', key: 'resolution', width: 120 },
   { title: '最后在线', key: 'last_seen', width: 170 },
-  { title: '操作', key: 'action', width: 140, fixed: 'right' as const },
+  { title: '操作', key: 'action', width: 180, fixed: 'right' as const },
 ]
 
 function statusBadge(s: string) {
@@ -177,7 +223,65 @@ async function handleDelete(id: number) {
   }
 }
 
+// ── 屏幕镜像 ──
+function openMirror(record: any) {
+  mirrorDevice.value = record
+  mirrorOpen.value = true
+  mirrorSession += 1
+  void refreshMirror(mirrorSession)
+  // 定时刷新截图（轮询模式，兼容性好）
+  mirrorTimer = setInterval(() => {
+    void refreshMirror(mirrorSession)
+  }, 500)
+}
+
+function closeMirror() {
+  mirrorSession += 1
+  mirrorOpen.value = false
+  mirrorDevice.value = null
+  mirrorSrc.value = null
+  mirrorRefreshing = false
+  revokeMirrorObjectUrl()
+  if (mirrorTimer) {
+    clearInterval(mirrorTimer)
+    mirrorTimer = null
+  }
+}
+
+function revokeMirrorObjectUrl() {
+  if (mirrorObjectUrl) {
+    URL.revokeObjectURL(mirrorObjectUrl)
+    mirrorObjectUrl = null
+  }
+}
+
+async function refreshMirror(sessionId = mirrorSession) {
+  if (!mirrorDevice.value || mirrorRefreshing || sessionId !== mirrorSession) return
+  mirrorRefreshing = true
+  try {
+    const blob = await deviceApi.screenshot(mirrorDevice.value.id)
+    if (!mirrorOpen.value || sessionId !== mirrorSession) return
+
+    const nextUrl = URL.createObjectURL(blob)
+    revokeMirrorObjectUrl()
+    mirrorObjectUrl = nextUrl
+    mirrorSrc.value = nextUrl
+  } catch (_e) {
+    // 截图失败时保留最后一帧
+  } finally {
+    mirrorRefreshing = false
+  }
+}
+
+function onMirrorError() {
+  // 截图失败时不清空，保留最后一帧
+}
+
 onMounted(loadDevices)
+
+onUnmounted(() => {
+  closeMirror()
+})
 </script>
 
 <style scoped>
@@ -190,5 +294,32 @@ onMounted(loadDevices)
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+.mirror-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 400px;
+  background: #000;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.mirror-img {
+  max-width: 100%;
+  max-height: 600px;
+  object-fit: contain;
+}
+.mirror-placeholder {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  height: 400px;
+  color: #999;
+}
+.mirror-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 12px;
 }
 </style>
