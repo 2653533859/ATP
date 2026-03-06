@@ -1,0 +1,76 @@
+from pydantic import BaseModel
+from datetime import datetime
+from app.models.plan import PlanStatus, ScheduleType, TriggerType, PlanRunStatus
+
+
+class PlanSuiteItem(BaseModel):
+    suite_id: int
+    sort: int = 0
+
+
+class TestPlanCreate(BaseModel):
+    name: str
+    description: str | None = None
+    project_id: int
+    suite_ids: list[PlanSuiteItem] = []
+    schedule_type: ScheduleType = ScheduleType.manual
+    cron_expression: str | None = None
+    is_enabled: bool = True
+    env_id: int | None = None
+
+
+class TestPlanUpdate(BaseModel):
+    name: str | None = None
+    description: str | None = None
+    suite_ids: list[PlanSuiteItem] | None = None
+    schedule_type: ScheduleType | None = None
+    cron_expression: str | None = None
+    is_enabled: bool | None = None
+    env_id: int | None = None
+    status: PlanStatus | None = None
+
+
+class TestPlanOut(BaseModel):
+    id: int
+    name: str
+    description: str | None
+    project_id: int
+    status: PlanStatus
+    creator_id: int
+    suite_ids: list[dict]
+    schedule_type: ScheduleType
+    cron_expression: str | None
+    webhook_secret: str | None
+    is_enabled: bool
+    env_id: int | None
+    last_run_at: datetime | None
+    next_run_at: datetime | None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PlanRunTrigger(BaseModel):
+    env_id: int | None = None
+    extra_vars: dict = {}
+
+
+class WebhookTriggerRequest(BaseModel):
+    plan_id: int
+    extra_vars: dict = {}
+
+
+class PlanRunOut(BaseModel):
+    id: int
+    plan_id: int
+    triggered_by: int | None
+    trigger_type: TriggerType
+    status: PlanRunStatus
+    duration_ms: int | None
+    error_message: str | None
+    suite_run_ids: list[dict]
+    result_summary: dict
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

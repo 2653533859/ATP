@@ -21,5 +21,9 @@ celery_app.conf.update(
             "task": "scan_adb_devices",
             "schedule": settings.ADB_SCAN_INTERVAL,
         },
+        "check-cron-plans": {
+            "task": "check_cron_plans",
+            "schedule": 60.0,
+        },
     },
 )

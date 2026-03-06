@@ -22,3 +22,4 @@ playwright==1.49.0
 uiautomator2==3.2.1
 flower==2.0.1
 jsonpath-ng==1.7.0
+croniter==3.0.3

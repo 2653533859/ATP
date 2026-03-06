@@ -27,6 +27,9 @@
             @change="loadCases"
           >
             <a-select-option value="api">接口测试</a-select-option>
+            <a-select-option value="graphql">GraphQL</a-select-option>
+            <a-select-option value="websocket">WebSocket</a-select-option>
+            <a-select-option value="grpc">gRPC</a-select-option>
             <a-select-option value="web">Web UI</a-select-option>
             <a-select-option value="android">Android UI</a-select-option>
           </a-select>
@@ -35,6 +38,9 @@
           <template #overlay>
             <a-menu>
               <a-menu-item key="api" @click="openCreate('api')">接口测试</a-menu-item>
+              <a-menu-item key="graphql" @click="openCreate('graphql')">GraphQL</a-menu-item>
+              <a-menu-item key="websocket" @click="openCreate('websocket')">WebSocket</a-menu-item>
+              <a-menu-item key="grpc" @click="openCreate('grpc')">gRPC</a-menu-item>
               <a-menu-item key="web" @click="openCreate('web')">Web UI</a-menu-item>
               <a-menu-item key="android" @click="openCreate('android')">Android UI</a-menu-item>
             </a-menu>
@@ -98,6 +104,7 @@
       :open="drawerOpen"
       :module-id="selectedModuleId"
       :edit-case="editingCase"
+      :default-case-type="createCaseType"
       @close="drawerOpen = false"
       @saved="onSaved"
     />
@@ -164,6 +171,7 @@ const searchText = ref('')
 const filterType = ref<string | undefined>(undefined)
 const drawerOpen = ref(false)
 const editingCase = ref<any>(null)
+const createCaseType = ref('api')
 const webDrawerOpen = ref(false)
 const webEditingCase = ref<any>(null)
 const androidDrawerOpen = ref(false)
@@ -192,10 +200,10 @@ const filteredCases = computed(() =>
 )
 
 function typeLabel(t: string) {
-  return { api: '接口测试', web: 'Web UI', android: 'Android' }[t] ?? t
+  return { api: '接口测试', graphql: 'GraphQL', websocket: 'WebSocket', grpc: 'gRPC', web: 'Web UI', android: 'Android' }[t] ?? t
 }
 function typeColor(t: string) {
-  return { api: 'geekblue', web: 'purple', android: 'green' }[t] ?? 'default'
+  return { api: 'geekblue', graphql: 'orange', websocket: 'cyan', grpc: 'red', web: 'purple', android: 'green' }[t] ?? 'default'
 }
 
 async function loadCases() {
@@ -228,6 +236,7 @@ function openCreate(type: string) {
     androidDrawerOpen.value = true
   } else {
     editingCase.value = null
+    createCaseType.value = type
     drawerOpen.value = true
   }
 }

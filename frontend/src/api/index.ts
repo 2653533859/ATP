@@ -108,3 +108,17 @@ export const suiteApi = {
     http.get<any, any[]>('/suite-runs', { params }),
   getRun: (id: number) => http.get('/suite-runs/' + id),
 }
+
+export const planApi = {
+  list: (params?: { project_id?: number }) =>
+    http.get<any, any[]>('/plans', { params }),
+  get: (id: number) => http.get('/plans/' + id),
+  create: (data: object) => http.post('/plans', data),
+  update: (id: number, data: object) => http.patch(`/plans/${id}`, data),
+  delete: (id: number) => http.delete(`/plans/${id}`),
+  run: (id: number, data?: { env_id?: number; extra_vars?: object }) =>
+    http.post(`/plans/${id}/run`, data ?? {}),
+  listRuns: (params?: { plan_id?: number }) =>
+    http.get<any, any[]>('/plan-runs', { params }),
+  getRun: (id: number) => http.get('/plan-runs/' + id),
+}

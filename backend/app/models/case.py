@@ -9,6 +9,9 @@ class CaseType(str, enum.Enum):
     api = "api"
     web = "web"
     android = "android"
+    graphql = "graphql"
+    websocket = "websocket"
+    grpc = "grpc"
 
 
 class CaseStatus(str, enum.Enum):
