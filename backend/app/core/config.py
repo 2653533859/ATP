@@ -40,6 +40,9 @@ class Settings(BaseSettings):
     ADB_SCAN_ENABLED: bool = True  # 设为 False 可关闭定时扫描（纯 Web 测试环境）
     ADB_SCAN_INTERVAL: int = 15  # 设备扫描间隔（秒）
 
+    # CI/CD Webhook
+    WEBHOOK_API_KEY: str = "atp-webhook-key-change-in-production"
+
     @property
     def DATABASE_URL(self) -> str:
         return (

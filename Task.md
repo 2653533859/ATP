@@ -190,10 +190,10 @@
 
 ### 4.4 CI/CD 集成
 
-- [ ] 实现 Webhook 触发接口（`POST /api/v1/webhook/trigger`，API Key 认证）
-- [ ] 测试结果支持 JUnit XML 格式导出（供 Jenkins 解析）
-- [ ] 提供 GitLab CI `.gitlab-ci.yml` 模板示例
-- [ ] 编写 CI/CD 集成文档
+- [x] 实现 Webhook 触发接口（`POST /api/v1/webhook/trigger`，API Key 认证）
+- [x] 测试结果支持 JUnit XML 格式导出（供 Jenkins 解析）
+- [x] 提供 GitLab CI `.gitlab-ci.yml` 模板示例
+- [x] 编写 CI/CD 集成文档
 
 ### 4.5 通知集成
 
