@@ -198,6 +198,19 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict):
             suite_run.result_summary = counts
             await db.commit()
 
+            # 发送通知
+            try:
+                from app.services.notifier import send_notifications
+                await send_notifications(db, suite.project_id, {
+                    "title": f"测试套件「{suite.name}」执行完成",
+                    "status": suite_run.status.value,
+                    **counts,
+                    "duration_ms": total_ms,
+                    "trigger_type": "manual",
+                })
+            except Exception as e:
+                logger.warning(f"Suite notification failed: {e}")
+
     asyncio.run(_execute())
 
 
@@ -296,6 +309,19 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict):
                 except Exception:
                     pass
             await db.commit()
+
+            # 发送通知
+            try:
+                from app.services.notifier import send_notifications
+                await send_notifications(db, plan.project_id, {
+                    "title": f"测试计划「{plan.name}」执行完成",
+                    "status": plan_run.status.value,
+                    **counts,
+                    "duration_ms": total_ms,
+                    "trigger_type": plan_run.trigger_type.value,
+                })
+            except Exception as e:
+                logger.warning(f"Plan notification failed: {e}")
 
     asyncio.run(_execute())
 

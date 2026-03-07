@@ -41,6 +41,11 @@ const router = createRouter({
           component: () => import('@/views/system/EnvironmentList.vue'),
         },
         {
+          path: 'system/notifications',
+          name: 'notifications',
+          component: () => import('@/views/system/NotificationList.vue'),
+        },
+        {
           path: 'devices',
           name: 'devices',
           component: () => import('@/views/device/DeviceList.vue'),

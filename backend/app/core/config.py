@@ -43,6 +43,15 @@ class Settings(BaseSettings):
     # CI/CD Webhook
     WEBHOOK_API_KEY: str = "atp-webhook-key-change-in-production"
 
+    # SMTP 邮件通知
+    SMTP_HOST: str = ""
+    SMTP_PORT: int = 465
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = ""
+    SMTP_SSL: bool = True
+    SMTP_TLS: bool = False
+
     @property
     def DATABASE_URL(self) -> str:
         return (

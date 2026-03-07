@@ -12,6 +12,10 @@ class Project(Base, TimestampMixin):
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
 
     modules: Mapped[list["Module"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    notifications: Mapped[list["NotificationConfig"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
 
 
 class Module(Base, TimestampMixin):

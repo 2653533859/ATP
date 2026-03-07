@@ -15,6 +15,7 @@ from app.models.case import TestCase, TestRun, StepResult  # noqa
 from app.models.environment import Environment, EnvVariable  # noqa
 from app.models.suite import TestSuite, SuiteRun  # noqa
 from app.models.plan import TestPlan, PlanRun  # noqa
+from app.models.notification import NotificationConfig  # noqa
 
 config = context.config
 if config.config_file_name is not None:

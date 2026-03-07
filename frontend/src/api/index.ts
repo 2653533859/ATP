@@ -122,3 +122,13 @@ export const planApi = {
     http.get<any, any[]>('/plan-runs', { params }),
   getRun: (id: number) => http.get('/plan-runs/' + id),
 }
+
+export const notificationApi = {
+  list: (params?: { project_id?: number }) =>
+    http.get<any, any[]>('/notifications', { params }),
+  get: (id: number) => http.get('/notifications/' + id),
+  create: (data: object) => http.post('/notifications', data),
+  update: (id: number, data: object) => http.patch(`/notifications/${id}`, data),
+  delete: (id: number) => http.delete(`/notifications/${id}`),
+  test: (id: number) => http.post(`/notifications/${id}/test`),
+}

@@ -37,6 +37,7 @@
           <template #icon><SettingOutlined /></template>
           <template #title>系统管理</template>
           <a-menu-item key="/system/environments">环境管理</a-menu-item>
+          <a-menu-item key="/system/notifications">通知配置</a-menu-item>
         </a-sub-menu>
       </a-menu>
     </a-layout-sider>

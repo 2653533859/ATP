@@ -1,5 +1,5 @@
 from fastapi import APIRouter
-from app.api.v1 import auth, projects, cases, environments, scripts, devices, apks, device_mirror, suites, plans, webhook, exports
+from app.api.v1 import auth, projects, cases, environments, scripts, devices, apks, device_mirror, suites, plans, webhook, exports, notifications
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(auth.router)
@@ -14,3 +14,4 @@ router.include_router(suites.router)
 router.include_router(plans.router)
 router.include_router(webhook.router)
 router.include_router(exports.router)
+router.include_router(notifications.router)
