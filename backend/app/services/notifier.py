@@ -22,6 +22,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
+from app.core.encryption import decrypt_config
 from app.models.notification import NotificationConfig, NotifyChannel
 
 logger = logging.getLogger(__name__)
@@ -53,12 +54,13 @@ async def send_notifications(db: AsyncSession, project_id: int, summary: dict):
 
     for cfg in configs:
         try:
+            real_config = decrypt_config(cfg.config)
             if cfg.channel == NotifyChannel.email:
-                await _send_email(cfg.config, summary)
+                await _send_email(real_config, summary)
             elif cfg.channel == NotifyChannel.wechat:
-                await _send_wechat(cfg.config, summary)
+                await _send_wechat(real_config, summary)
             elif cfg.channel == NotifyChannel.dingtalk:
-                await _send_dingtalk(cfg.config, summary)
+                await _send_dingtalk(real_config, summary)
         except Exception as e:
             logger.error(f"通知发送失败 [{cfg.channel.value}] config_id={cfg.id}: {e}")
 

@@ -52,6 +52,19 @@ class Settings(BaseSettings):
     SMTP_SSL: bool = True
     SMTP_TLS: bool = False
 
+    # Encryption
+    ENCRYPTION_KEY: str = ""  # Fernet key; leave empty to auto-derive from APP_SECRET_KEY
+
+    # File retention
+    FILE_RETENTION_DAYS: int = 30  # MinIO 中截图/报告文件保留天数
+
+    # Rate limiting
+    RATE_LIMIT_LOGIN: str = "5/minute"
+    RATE_LIMIT_WEBHOOK: str = "30/minute"
+
+    # Logging
+    LOG_LEVEL: str = ""  # DEBUG/INFO/WARNING/ERROR; 留空按 APP_ENV 自动选择
+
     @property
     def DATABASE_URL(self) -> str:
         return (

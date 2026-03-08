@@ -90,6 +90,9 @@
               >
                 执行
               </a-button>
+              <a-button type="link" size="small" @click="openHistory(record.id)">
+                <HistoryOutlined /> 历史
+              </a-button>
               <a-popconfirm title="确认删除该用例？" @confirm="handleDelete(record.id)">
                 <a-button type="link" size="small" danger>删除</a-button>
               </a-popconfirm>
@@ -146,19 +149,28 @@
         :loading="runEnvLoading"
       />
     </a-modal>
+
+    <!-- 版本历史抽屉 -->
+    <CaseHistoryDrawer
+      :open="historyOpen"
+      :case-id="historyCaseId"
+      @close="historyOpen = false"
+      @rolled="loadCases"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { PlusOutlined, DownOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DownOutlined, HistoryOutlined } from '@ant-design/icons-vue'
 import { caseApi, environmentApi } from '@/api'
 import ModuleTree from '@/components/common/ModuleTree.vue'
 import CaseFormDrawer from '@/components/common/CaseFormDrawer.vue'
 import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
 import AndroidCaseDrawer from '@/views/case/AndroidCaseDrawer.vue'
+import CaseHistoryDrawer from '@/views/case/CaseHistoryDrawer.vue'
 
 const route = useRoute()
 const router = useRouter()
@@ -177,6 +189,8 @@ const webEditingCase = ref<any>(null)
 const androidDrawerOpen = ref(false)
 const androidEditingCase = ref<any>(null)
 const runningId = ref<number | null>(null)
+const historyOpen = ref(false)
+const historyCaseId = ref<number | null>(null)
 
 // -- Run environment selection --
 const runModalOpen = ref(false)
@@ -192,7 +206,7 @@ const columns = [
   { title: '标签', key: 'tags', width: 200 },
   { title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', width: 170,
     customRender: ({ text }: any) => text?.slice(0, 19).replace('T', ' ') },
-  { title: '操作', key: 'action', width: 160, fixed: 'right' },
+  { title: '操作', key: 'action', width: 220, fixed: 'right' },
 ]
 
 const filteredCases = computed(() =>
@@ -225,6 +239,16 @@ function onModuleSelect(id: number | null) {
   selectedModuleId.value = id
   cases.value = []
   if (id) loadCases()
+}
+
+function applyRouteModuleSelection() {
+  const moduleId = Number(route.query.module_id)
+  if (!Number.isInteger(moduleId) || moduleId <= 0) {
+    return
+  }
+
+  selectedModuleId.value = moduleId
+  void loadCases()
 }
 
 function openCreate(type: string) {
@@ -305,6 +329,19 @@ async function handleDelete(id: number) {
     message.error(e ?? '删除用例失败')
   }
 }
+
+function openHistory(caseId: number) {
+  historyCaseId.value = caseId
+  historyOpen.value = true
+}
+
+watch(() => route.query.module_id, () => {
+  applyRouteModuleSelection()
+})
+
+onMounted(() => {
+  applyRouteModuleSelection()
+})
 </script>
 
 <style scoped>

@@ -1,7 +1,14 @@
 <template>
   <div>
     <h2>执行记录</h2>
-    <a-table :columns="columns" :data-source="runs" :loading="loading" row-key="id">
+    <a-table
+      :columns="columns"
+      :data-source="runs"
+      :loading="loading"
+      :pagination="pagination"
+      row-key="id"
+      @change="handleTableChange"
+    >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'status'">
           <a-tag :color="statusColor(record.status)">{{ record.status }}</a-tag>
@@ -15,13 +22,21 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { runApi } from '@/api'
 
 const router = useRouter()
 const runs = ref<any[]>([])
 const loading = ref(false)
+
+const pagination = reactive({
+  current: 1,
+  pageSize: 20,
+  total: 0,
+  showSizeChanger: true,
+  showTotal: (total: number) => `共 ${total} 条`,
+})
 
 const columns = [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
@@ -39,7 +54,19 @@ function statusColor(status: string) {
 
 async function loadRuns() {
   loading.value = true
-  try { runs.value = await runApi.list() } finally { loading.value = false }
+  try {
+    const res = await runApi.list({ page: pagination.current, page_size: pagination.pageSize })
+    runs.value = res.items
+    pagination.total = res.total
+  } finally {
+    loading.value = false
+  }
+}
+
+function handleTableChange(pag: any) {
+  pagination.current = pag.current
+  pagination.pageSize = pag.pageSize
+  loadRuns()
 }
 
 onMounted(loadRuns)

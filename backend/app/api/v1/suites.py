@@ -18,6 +18,7 @@ from app.core.database import get_db
 from app.models.suite import TestSuite, SuiteRun, SuiteRunStatus
 from app.models.project import Project
 from app.models.environment import Environment, EnvVariable
+from app.core.encryption import decrypt_env_vars
 from app.models.user import User
 from app.schemas.suite import (
     TestSuiteCreate, TestSuiteUpdate, TestSuiteOut,
@@ -139,7 +140,7 @@ async def trigger_suite_run(
         result = await db.execute(
             select(EnvVariable).where(EnvVariable.env_id == env.id)
         )
-        env_vars = {v.key: v.value for v in result.scalars().all()}
+        env_vars = decrypt_env_vars(result.scalars().all())
         merged_vars = {**env_vars, **body.extra_vars}
 
     suite_run = SuiteRun(

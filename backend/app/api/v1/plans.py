@@ -19,6 +19,7 @@ from app.core.database import get_db
 from app.models.plan import TestPlan, PlanRun, PlanRunStatus, ScheduleType, TriggerType
 from app.models.project import Project
 from app.models.environment import Environment, EnvVariable
+from app.core.encryption import decrypt_env_vars
 from app.models.user import User
 from app.schemas.plan import (
     TestPlanCreate, TestPlanUpdate, TestPlanOut,
@@ -158,7 +159,7 @@ async def trigger_plan_run(
         result = await db.execute(
             select(EnvVariable).where(EnvVariable.env_id == env.id)
         )
-        env_vars = {v.key: v.value for v in result.scalars().all()}
+        env_vars = decrypt_env_vars(result.scalars().all())
         merged_vars = {**env_vars, **body.extra_vars}
 
     plan_run = PlanRun(
@@ -202,7 +203,7 @@ async def webhook_trigger(
             result = await db.execute(
                 select(EnvVariable).where(EnvVariable.env_id == env.id)
             )
-            env_vars = {v.key: v.value for v in result.scalars().all()}
+            env_vars = decrypt_env_vars(result.scalars().all())
             merged_vars = {**env_vars, **body.extra_vars}
 
     plan_run = PlanRun(

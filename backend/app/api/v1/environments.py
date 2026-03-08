@@ -12,6 +12,7 @@ from app.schemas.environment import (
     EnvVariableOut,
 )
 from app.api.deps import get_current_user
+from app.core.encryption import encrypt
 
 router = APIRouter(tags=["环境管理"])
 
@@ -108,7 +109,10 @@ async def save_variables(
     # Insert new variables
     new_vars = []
     for item in body.variables:
-        var = EnvVariable(env_id=env_id, **item.model_dump())
+        data = item.model_dump()
+        if data.get("is_secret") and data.get("value"):
+            data["value"] = encrypt(data["value"])
+        var = EnvVariable(env_id=env_id, **data)
         db.add(var)
         new_vars.append(var)
 

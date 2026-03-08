@@ -1,0 +1,87 @@
+import asyncio
+import sys
+import types
+from pathlib import Path
+
+import pytest
+from fastapi import HTTPException
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+
+def _fake_get_current_user():
+    return None
+
+
+def _fake_require_engineer():
+    return None
+
+
+sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
+sys.modules["app.api.deps"] = types.SimpleNamespace(
+    get_current_user=_fake_get_current_user,
+    require_engineer=_fake_require_engineer,
+)
+
+from app.api.v1 import mock_rules
+from app.models.mock import MockMethod
+from app.schemas.mock import MockRuleCreate, MockRuleUpdate
+
+
+class _FakeDB:
+    def __init__(self, project=None):
+        self._project = project
+        self.added = []
+        self.committed = False
+
+    async def get(self, model, _pk):
+        if getattr(model, "__name__", "") == "Project":
+            return self._project
+        return None
+
+    def add(self, obj):
+        self.added.append(obj)
+
+    async def commit(self):
+        self.committed = True
+
+    async def refresh(self, obj):
+        if getattr(obj, "id", None) is None:
+            obj.id = 101
+
+
+def test_mock_rule_create_normalizes_path():
+    body = MockRuleCreate(
+        name="rule",
+        project_id=1,
+        method=MockMethod.GET,
+        path="api/pay",
+    )
+
+    assert body.path == "/api/pay"
+
+
+
+def test_mock_rule_update_normalizes_path():
+    body = MockRuleUpdate(path="health/check")
+
+    assert body.path == "/health/check"
+
+
+
+def test_create_mock_rule_returns_404_for_missing_project():
+    body = MockRuleCreate(
+        name="rule",
+        project_id=999,
+        method=MockMethod.GET,
+        path="/api/pay",
+    )
+    db = _FakeDB(project=None)
+    current_user = types.SimpleNamespace(id=7)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(mock_rules.create_mock_rule(body=body, db=db, current_user=current_user))
+
+    assert exc.value.status_code == 404
+    assert not db.added
+    assert db.committed is False

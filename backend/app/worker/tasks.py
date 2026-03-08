@@ -10,6 +10,7 @@ from app.worker.executors.android_lowcode_executor import run_android_lowcode
 from app.worker.dispatch import is_web_lowcode_config
 from app.models.case import CaseType
 from app.core.redis_client import publish_run_event
+from app.core.encryption import decrypt_env_vars
 import asyncio
 import logging
 
@@ -451,7 +452,7 @@ def check_cron_plans():
                         ev_result = await db.execute(
                             select(EnvVariable).where(EnvVariable.env_id == env.id)
                         )
-                        merged_vars = {v.key: v.value for v in ev_result.scalars().all()}
+                        merged_vars = decrypt_env_vars(ev_result.scalars().all())
 
                 plan_run = PlanRun(
                     plan_id=plan.id,

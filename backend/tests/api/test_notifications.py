@@ -149,3 +149,38 @@ def test_create_notification_returns_404_for_missing_project():
         asyncio.run(notifications.create_notification(body=body, db=db, _=None))
 
     assert exc.value.status_code == 404
+
+
+def test_update_notification_preserves_masked_sensitive_fields_without_double_encryption(monkeypatch):
+    def fake_decrypt_config(config):
+        assert config == {"webhook_url": "cipher-webhook", "secret": "cipher-secret", "keyword": "old"}
+        return {"webhook_url": "https://qy.example/hook", "secret": "top-secret", "keyword": "old"}
+
+    def fake_encrypt_config(config):
+        result = dict(config)
+        for key in ("webhook_url", "secret"):
+            if key in result:
+                result[key] = f"enc:{result[key]}"
+        return result
+
+    monkeypatch.setattr(notifications, "decrypt_config", fake_decrypt_config)
+    monkeypatch.setattr(notifications, "encrypt_config", fake_encrypt_config)
+
+    cfg = _FakeNotificationConfig(
+        id=5,
+        name="Ops Bot",
+        project_id=2,
+        channel=NotifyChannel.dingtalk,
+        config={"webhook_url": "cipher-webhook", "secret": "cipher-secret", "keyword": "old"},
+        is_enabled=True,
+    )
+    db = _FakeDB(cfg=cfg)
+    body = notifications.NotificationConfigUpdate(
+        config={"webhook_url": "******", "secret": "******", "keyword": "release"},
+    )
+
+    result = asyncio.run(notifications.update_notification(cfg_id=5, body=body, db=db, _=None))
+
+    assert result.config["webhook_url"] == "enc:https://qy.example/hook"
+    assert result.config["secret"] == "enc:top-secret"
+    assert result.config["keyword"] == "release"

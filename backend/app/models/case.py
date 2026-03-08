@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import String, Text, ForeignKey, JSON, Enum, Integer
+from sqlalchemy import String, Text, ForeignKey, JSON, Enum, Integer, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
 from app.models.project import Module  # noqa: F401 - 确保关系加载
@@ -45,6 +45,7 @@ class TestCase(Base, TimestampMixin):
 
     module: Mapped["Module"] = relationship(back_populates="cases")
     runs: Mapped[list["TestRun"]] = relationship(back_populates="case", cascade="all, delete-orphan")
+    snapshots: Mapped[list["CaseSnapshot"]] = relationship(back_populates="case", cascade="all, delete-orphan")
 
 
 class TestRun(Base, TimestampMixin):
@@ -80,3 +81,21 @@ class StepResult(Base, TimestampMixin):
     error_message: Mapped[str | None] = mapped_column(Text)
 
     run: Mapped["TestRun"] = relationship(back_populates="steps")
+
+
+class CaseSnapshot(Base, TimestampMixin):
+    __tablename__ = "case_snapshots"
+    __table_args__ = (
+        UniqueConstraint("case_id", "version", name="uq_case_snapshots_case_id_version"),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    case_id: Mapped[int] = mapped_column(ForeignKey("test_cases.id", ondelete="CASCADE"), nullable=False)
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    tags: Mapped[list] = mapped_column(JSON, default=list)
+    config: Mapped[dict] = mapped_column(JSON, default=dict)
+    updated_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+
+    case: Mapped["TestCase"] = relationship(back_populates="snapshots")

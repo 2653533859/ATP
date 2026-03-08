@@ -16,6 +16,10 @@ class Project(Base, TimestampMixin):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    bug_trackers: Mapped[list["BugTracker"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
 
 
 class Module(Base, TimestampMixin):

@@ -1,0 +1,26 @@
+import enum
+from sqlalchemy import String, Text, ForeignKey, JSON, Enum, Boolean
+from sqlalchemy.orm import Mapped, mapped_column, relationship
+from app.models.base import Base, TimestampMixin
+
+
+class TrackerType(str, enum.Enum):
+    jira = "jira"
+    zentao = "zentao"
+
+
+class BugTracker(Base, TimestampMixin):
+    __tablename__ = "bug_trackers"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), nullable=False)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
+    tracker_type: Mapped[TrackerType] = mapped_column(Enum(TrackerType), nullable=False)
+    is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+
+    # 配置 JSON，结构因类型而异：
+    # jira:   {"base_url": "https://xxx.atlassian.net", "email": "...", "api_token": "...", "project_key": "ATP"}
+    # zentao: {"base_url": "http://zentao.xxx.com", "account": "...", "password": "...", "product_id": 1}
+    config: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    project: Mapped["Project"] = relationship(back_populates="bug_trackers")  # noqa: F821

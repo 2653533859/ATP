@@ -97,3 +97,9 @@ def presigned_url(object_name: str, expires_seconds: int = 3600 * 24) -> str:
 def delete_file(object_name: str) -> None:
     client = get_client()
     client.remove_object(settings.MINIO_BUCKET, object_name)
+
+
+def list_objects(prefix: str = "") -> list:
+    """列出指定前缀下的所有对象"""
+    client = get_client()
+    return list(client.list_objects(settings.MINIO_BUCKET, prefix=prefix, recursive=True))

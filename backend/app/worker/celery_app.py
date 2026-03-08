@@ -5,7 +5,7 @@ celery_app = Celery(
     "atp",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.worker.tasks", "app.worker.tasks_device"],
+    include=["app.worker.tasks", "app.worker.tasks_device", "app.worker.tasks_cleanup"],
 )
 
 celery_app.conf.update(
@@ -16,6 +16,11 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     worker_prefetch_multiplier=1,
+    # 资源隔离: 单任务最大执行时间 30 分钟，软限制 25 分钟
+    task_time_limit=1800,
+    task_soft_time_limit=1500,
+    # 每个 worker 处理 50 个任务后回收，防止内存泄漏
+    worker_max_tasks_per_child=50,
     beat_schedule={
         "scan-adb-devices": {
             "task": "scan_adb_devices",
@@ -24,6 +29,10 @@ celery_app.conf.update(
         "check-cron-plans": {
             "task": "check_cron_plans",
             "schedule": 60.0,
+        },
+        "cleanup-expired-files": {
+            "task": "cleanup_expired_files",
+            "schedule": 86400.0,  # 每 24 小时执行一次
         },
     },
 )

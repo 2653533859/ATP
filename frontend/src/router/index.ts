@@ -13,8 +13,13 @@ const router = createRouter({
     {
       path: '/',
       component: () => import('@/layouts/MainLayout.vue'),
-      redirect: '/projects',
+      redirect: '/dashboard',
       children: [
+        {
+          path: 'dashboard',
+          name: 'dashboard',
+          component: () => import('@/views/dashboard/DashboardView.vue'),
+        },
         {
           path: 'projects',
           name: 'projects',
@@ -46,6 +51,11 @@ const router = createRouter({
           component: () => import('@/views/system/NotificationList.vue'),
         },
         {
+          path: 'system/bug-trackers',
+          name: 'bug-trackers',
+          component: () => import('@/views/system/BugTrackerList.vue'),
+        },
+        {
           path: 'devices',
           name: 'devices',
           component: () => import('@/views/device/DeviceList.vue'),
@@ -64,6 +74,11 @@ const router = createRouter({
           path: 'plans',
           name: 'plans',
           component: () => import('@/views/plan/PlanList.vue'),
+        },
+        {
+          path: 'mock-rules',
+          name: 'mock-rules',
+          component: () => import('@/views/mock/MockRuleList.vue'),
         },
       ],
     },

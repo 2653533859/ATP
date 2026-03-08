@@ -3,16 +3,18 @@ CI/CD Webhook 触发接口
 
 POST /webhook/trigger   通用 Webhook 触发（API Key 认证）
 """
-from fastapi import APIRouter, Depends, Header, HTTPException, status
+from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.rate_limit import limiter
 from app.models.suite import TestSuite, SuiteRun, SuiteRunStatus
 from app.models.plan import TestPlan, PlanRun, PlanRunStatus, TriggerType
 from app.models.environment import Environment, EnvVariable
+from app.core.encryption import decrypt_env_vars
 
 router = APIRouter(tags=["Webhook"])
 
@@ -42,7 +44,9 @@ def _verify_api_key(x_api_key: str = Header(...)):
     response_model=WebhookTriggerResponse,
     status_code=status.HTTP_202_ACCEPTED,
 )
+@limiter.limit(settings.RATE_LIMIT_WEBHOOK)
 async def webhook_trigger(
+    request: Request,
     body: WebhookTriggerBody,
     db: AsyncSession = Depends(get_db),
     _api_key: str = Depends(_verify_api_key),
@@ -67,7 +71,7 @@ async def webhook_trigger(
         result = await db.execute(
             select(EnvVariable).where(EnvVariable.env_id == env.id)
         )
-        env_vars = {v.key: v.value for v in result.scalars().all()}
+        env_vars = decrypt_env_vars(result.scalars().all())
         merged_vars = {**env_vars, **body.extra_vars}
 
     if body.target_type == "suite":

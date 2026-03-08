@@ -7,6 +7,20 @@ const http = axios.create({
   timeout: 30000,
 })
 
+export function getBackendOrigin() {
+  const configuredOrigin = import.meta.env.VITE_BACKEND_ORIGIN?.trim()
+  if (configuredOrigin) {
+    return configuredOrigin.replace(/\/+$/, '')
+  }
+
+  const baseURL = http.defaults.baseURL ?? ''
+  if (/^https?:\/\//.test(baseURL)) {
+    return new URL(baseURL).origin
+  }
+
+  return import.meta.env.DEV ? 'http://localhost:8000' : window.location.origin
+}
+
 // 请求拦截：自动携带 Token
 http.interceptors.request.use((config) => {
   const auth = useAuthStore()

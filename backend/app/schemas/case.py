@@ -39,6 +39,29 @@ class TestCaseDetailOut(TestCaseOut):
     config: dict = {}
 
 
+# ── CaseSnapshot ────────────────────────────────────────
+class CaseSnapshotOut(BaseModel):
+    id: int
+    case_id: int
+    version: int
+    name: str
+    description: str | None
+    tags: list[str]
+    config: dict
+    updated_by: int
+    updated_by_name: str = ""
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PaginatedSnapshotsOut(BaseModel):
+    items: list[CaseSnapshotOut]
+    total: int
+    page: int
+    page_size: int
+
+
 # ── TestRun ──────────────────────────────────────────────
 class RunTriggerRequest(BaseModel):
     env_id: int | None = None
@@ -72,3 +95,10 @@ class TestRunOut(BaseModel):
     steps: list[StepResultOut] = []
 
     model_config = {"from_attributes": True}
+
+
+class PaginatedRunsOut(BaseModel):
+    items: list[TestRunOut]
+    total: int
+    page: int
+    page_size: int

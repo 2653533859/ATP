@@ -30,11 +30,22 @@ export const caseApi = {
   delete: (id: number) => http.delete(`/cases/${id}`),
   run: (id: number, data?: { env_id?: number; extra_vars?: object }) =>
     http.post(`/cases/${id}/run`, data ?? {}),
+  listSnapshots: (caseId: number, params?: { page?: number; page_size?: number }) =>
+    http.get<any, { items: any[]; total: number; page: number; page_size: number }>(
+      `/cases/${caseId}/snapshots`, { params },
+    ),
+  rollback: (caseId: number, snapshotId: number) =>
+    http.post(`/cases/${caseId}/rollback/${snapshotId}`),
 }
 
 export const runApi = {
-  list: (params?: { case_id?: number }) => http.get<any, any[]>('/runs', { params }),
+  list: (params?: { case_id?: number; page?: number; page_size?: number }) =>
+    http.get<any, { items: any[]; total: number; page: number; page_size: number }>('/runs', { params }),
   get: (id: number) => http.get(`/runs/${id}`),
+  exportHtml: (id: number) =>
+    http.get<any, Blob>(`/runs/${id}/export/html`, { responseType: 'blob' }),
+  exportPdf: (id: number) =>
+    http.get<any, Blob>(`/runs/${id}/export/pdf`, { responseType: 'blob' }),
 }
 
 export const scriptApi = {
@@ -131,4 +142,44 @@ export const notificationApi = {
   update: (id: number, data: object) => http.patch(`/notifications/${id}`, data),
   delete: (id: number) => http.delete(`/notifications/${id}`),
   test: (id: number) => http.post(`/notifications/${id}/test`),
+}
+
+export const statisticsApi = {
+  overview: (params?: { project_id?: number; days?: number }) =>
+    http.get<any, { total_cases: number; total_runs: number; pass_rate: number; recent_runs_7d: number }>(
+      '/statistics/overview', { params },
+    ),
+  passRateTrend: (params?: { project_id?: number; days?: number; case_type?: string }) =>
+    http.get<any, Array<{ date: string; total: number; passed: number; rate: number }>>(
+      '/statistics/pass-rate-trend', { params },
+    ),
+  durationTrend: (params?: { project_id?: number; days?: number; case_type?: string }) =>
+    http.get<any, Array<{ date: string; avg_duration_ms: number; max_duration_ms: number; run_count: number }>>(
+      '/statistics/duration-trend', { params },
+    ),
+  failureTop: (params?: { project_id?: number; days?: number; top?: number }) =>
+    http.get<any, Array<{ case_id: number; project_id: number; module_id: number; case_name: string; case_type: string; failure_count: number }>>(
+      '/statistics/failure-top', { params },
+    ),
+}
+
+export const mockRuleApi = {
+  list: (params?: { project_id?: number }) =>
+    http.get<any, any[]>('/mock-rules', { params }),
+  get: (id: number) => http.get('/mock-rules/' + id),
+  create: (data: object) => http.post('/mock-rules', data),
+  update: (id: number, data: object) => http.patch(`/mock-rules/${id}`, data),
+  delete: (id: number) => http.delete(`/mock-rules/${id}`),
+  logs: (projectId: number) => http.get<any, any[]>(`/mock-rules/logs/${projectId}`),
+}
+
+export const bugTrackerApi = {
+  list: (params?: { project_id?: number }) =>
+    http.get<any, any[]>('/bug-trackers', { params }),
+  get: (id: number) => http.get('/bug-trackers/' + id),
+  create: (data: object) => http.post('/bug-trackers', data),
+  update: (id: number, data: object) => http.patch(`/bug-trackers/${id}`, data),
+  delete: (id: number) => http.delete(`/bug-trackers/${id}`),
+  createBug: (runId: number, data: { tracker_id: number; step_index?: number }) =>
+    http.post<any, { bug_id: string; bug_url: string; title: string }>(`/runs/${runId}/create-bug`, data),
 }

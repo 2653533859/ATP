@@ -1,12 +1,20 @@
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
 from sqlalchemy import select
 
 from app.api.v1.router import router
 from app.api.v1.ws import ws_router
+from app.api.v1.mock_server import router as mock_router
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine
+from app.core.logging import setup_logging
+from app.core.rate_limit import limiter
+from app.middleware.csrf import CSRFMiddleware
+from app.middleware.trace import TraceMiddleware
 from app.core.security import hash_password
 from app.models.base import Base
 from app.models.user import User, UserRole  # noqa: F401
@@ -17,6 +25,9 @@ from app.models.device import Device  # noqa: F401
 from app.models.apk import Apk  # noqa: F401
 from app.models.suite import TestSuite, SuiteRun  # noqa: F401
 from app.models.notification import NotificationConfig  # noqa: F401
+from app.models.mock import MockRule  # noqa: F401
+from app.models.bug_tracker import BugTracker  # noqa: F401
+from app.models.audit import AuditLog  # noqa: F401
 
 
 async def _init_admin():
@@ -36,6 +47,8 @@ async def _init_admin():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging()
+
     # 启动时兜底建表，避免首次部署无迁移文件时业务初始化直接失败。
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
@@ -53,6 +66,9 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.CORS_ORIGINS,
@@ -60,9 +76,12 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(CSRFMiddleware)
+app.add_middleware(TraceMiddleware)
 
 app.include_router(router)
 app.include_router(ws_router)  # WebSocket 路由，路径以 /ws/ 开头
+app.include_router(mock_router)  # Mock 服务，路径以 /mock/ 开头
 
 
 @app.get("/health")

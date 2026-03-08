@@ -20,6 +20,8 @@ from app.schemas.notification import (
 )
 from app.api.deps import require_engineer
 
+from app.core.encryption import SENSITIVE_KEYS, mask_config, encrypt_config, decrypt_config
+
 router = APIRouter(tags=["通知配置"])
 
 
@@ -37,13 +39,19 @@ async def create_notification(
         name=body.name,
         project_id=body.project_id,
         channel=body.channel,
-        config=body.config,
+        config=encrypt_config(body.config),
         is_enabled=body.is_enabled,
     )
     db.add(cfg)
     await db.commit()
     await db.refresh(cfg)
     return cfg
+
+
+def _mask_notification(cfg: NotificationConfig) -> dict:
+    data = NotificationConfigOut.model_validate(cfg).model_dump()
+    data["config"] = mask_config(data.get("config", {}))
+    return data
 
 
 @router.get("/notifications", response_model=list[NotificationConfigOut])
@@ -56,7 +64,7 @@ async def list_notifications(
     if project_id is not None:
         q = q.where(NotificationConfig.project_id == project_id)
     result = await db.execute(q)
-    return result.scalars().all()
+    return [_mask_notification(c) for c in result.scalars().all()]
 
 
 @router.get("/notifications/{cfg_id}", response_model=NotificationConfigOut)
@@ -68,7 +76,7 @@ async def get_notification(
     cfg = await db.get(NotificationConfig, cfg_id)
     if not cfg:
         raise HTTPException(status_code=404, detail="通知配置不存在")
-    return cfg
+    return _mask_notification(cfg)
 
 
 @router.patch("/notifications/{cfg_id}", response_model=NotificationConfigOut)
@@ -83,6 +91,14 @@ async def update_notification(
         raise HTTPException(status_code=404, detail="通知配置不存在")
 
     for k, v in body.model_dump(exclude_none=True).items():
+        if k == "config" and isinstance(v, dict):
+            existing_plain = decrypt_config(cfg.config or {})
+            merged = dict(existing_plain)
+            for config_key, config_value in v.items():
+                if config_key in SENSITIVE_KEYS and config_value == "******":
+                    continue
+                merged[config_key] = config_value
+            v = encrypt_config(merged)
         setattr(cfg, k, v)
     await db.commit()
     await db.refresh(cfg)
@@ -128,12 +144,13 @@ async def test_notification(
     }
 
     try:
+        real_config = decrypt_config(cfg.config)
         if cfg.channel == NotifyChannel.email:
-            await _send_email(cfg.config, test_summary)
+            await _send_email(real_config, test_summary)
         elif cfg.channel == NotifyChannel.wechat:
-            await _send_wechat(cfg.config, test_summary)
+            await _send_wechat(real_config, test_summary)
         elif cfg.channel == NotifyChannel.dingtalk:
-            await _send_dingtalk(cfg.config, test_summary)
+            await _send_dingtalk(real_config, test_summary)
         return {"message": "测试通知已发送"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"通知发送失败: {str(e)}")
