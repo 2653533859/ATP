@@ -1,6 +1,7 @@
 import asyncio
 import sys
 import types
+from datetime import datetime, timezone
 from pathlib import Path
 
 from sqlalchemy import UniqueConstraint
@@ -14,8 +15,9 @@ sys.modules["app.worker.tasks"] = types.SimpleNamespace(
 )
 
 from app.api.v1 import cases
+from app.models.bootstrap import load_all_models
 from app.models.case import CaseSnapshot, TestCase
-from app.schemas.case import TestCaseUpdate
+from app.schemas.case import RunTriggerRequest, TestCaseUpdate, TestRunOut
 
 
 class _FakeResult:
@@ -68,6 +70,40 @@ class _FakeDB:
         return None
 
     async def refresh(self, _obj):
+        return None
+
+
+class _FakeRunQueryResult:
+    def __init__(self, run_obj):
+        self.run_obj = run_obj
+
+    def scalar_one(self):
+        return self.run_obj
+
+
+class _TriggerRunDB(_FakeDB):
+    def __init__(self, case_obj=None, env_obj=None, loaded_run=None):
+        super().__init__(case_obj=case_obj)
+        self.env_obj = env_obj
+        self.loaded_run = loaded_run
+
+    async def get(self, model, _pk):
+        model_name = getattr(model, "__name__", "")
+        if model_name == "TestCase":
+            return self.case_obj
+        if model_name == "Environment":
+            return self.env_obj
+        return None
+
+    async def execute(self, stmt):
+        self.executed.append(stmt)
+        return _FakeRunQueryResult(self.loaded_run)
+
+    async def refresh(self, obj):
+        obj.id = 21
+        obj.result_summary = {}
+        obj.created_at = datetime.now(timezone.utc)
+        obj.steps = []
         return None
 
 
@@ -146,3 +182,42 @@ def test_rollback_case_uses_reserved_snapshot_version(monkeypatch):
 
     assert result.name == 'snap-name'
     assert db.added[0].version == 12
+
+
+def test_trigger_run_returns_serialized_schema(monkeypatch):
+    load_all_models()
+    case_obj = types.SimpleNamespace(id=5)
+    loaded_run = types.SimpleNamespace(
+        id=21,
+        case_id=5,
+        triggered_by=9,
+        status=cases.RunStatus.pending,
+        environment=None,
+        duration_ms=None,
+        error_message=None,
+        result_summary={},
+        created_at=datetime.now(timezone.utc),
+        steps=[],
+    )
+    db = _TriggerRunDB(case_obj=case_obj, loaded_run=loaded_run)
+    delayed = {}
+
+    monkeypatch.setattr(
+        cases,
+        "run_test_case",
+        types.SimpleNamespace(delay=lambda run_id, extra_vars: delayed.update(run_id=run_id, extra_vars=extra_vars)),
+    )
+
+    result = asyncio.run(
+        cases.trigger_run(
+            case_id=5,
+            body=RunTriggerRequest(extra_vars={"base_url": "http://backend:8000"}),
+            db=db,
+            current_user=types.SimpleNamespace(id=9),
+        )
+    )
+
+    assert isinstance(result, TestRunOut)
+    assert result.id == 21
+    assert result.steps == []
+    assert delayed == {"run_id": 21, "extra_vars": {"base_url": "http://backend:8000"}}

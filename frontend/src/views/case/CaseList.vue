@@ -1,108 +1,152 @@
 <template>
   <div class="case-page">
-    <!-- 左侧：模块树 -->
-    <div class="side-panel">
-      <ModuleTree
-        :project-id="projectId"
-        @select="onModuleSelect"
-      />
-    </div>
-
-    <!-- 右侧：用例列表 -->
-    <div class="main-panel">
-      <!-- 工具栏 -->
-      <div class="toolbar">
-        <a-space>
-          <a-input-search
-            v-model:value="searchText"
-            placeholder="搜索用例名称"
-            style="width: 240px"
-            @search="loadCases"
-          />
-          <a-select
-            v-model:value="filterType"
-            placeholder="用例类型"
-            allow-clear
-            style="width: 130px"
-            @change="loadCases"
-          >
-            <a-select-option value="api">接口测试</a-select-option>
-            <a-select-option value="graphql">GraphQL</a-select-option>
-            <a-select-option value="websocket">WebSocket</a-select-option>
-            <a-select-option value="grpc">gRPC</a-select-option>
-            <a-select-option value="web">Web UI</a-select-option>
-            <a-select-option value="android">Android UI</a-select-option>
-          </a-select>
-        </a-space>
-        <a-dropdown :disabled="!selectedModuleId">
-          <template #overlay>
-            <a-menu>
-              <a-menu-item key="api" @click="openCreate('api')">接口测试</a-menu-item>
-              <a-menu-item key="graphql" @click="openCreate('graphql')">GraphQL</a-menu-item>
-              <a-menu-item key="websocket" @click="openCreate('websocket')">WebSocket</a-menu-item>
-              <a-menu-item key="grpc" @click="openCreate('grpc')">gRPC</a-menu-item>
-              <a-menu-item key="web" @click="openCreate('web')">Web UI</a-menu-item>
-              <a-menu-item key="android" @click="openCreate('android')">Android UI</a-menu-item>
-            </a-menu>
-          </template>
-          <a-button type="primary" :disabled="!selectedModuleId">
-            <PlusOutlined /> 新建用例 <DownOutlined />
-          </a-button>
-        </a-dropdown>
+    <div class="page-header">
+      <div>
+        <h2>统一用例管理</h2>
+        <p>在一个页面内切换项目、管理模块、维护用例并直接执行。</p>
       </div>
-
-      <!-- 无模块选中提示 -->
-      <a-result
-        v-if="!selectedModuleId"
-        status="info"
-        title="请先在左侧选择模块"
-        sub-title="选中模块后可查看和管理该模块下的用例"
-        style="padding-top: 80px"
-      />
-
-      <!-- 用例表格 -->
-      <a-table
-        v-else
-        :columns="columns"
-        :data-source="filteredCases"
-        :loading="loading"
-        row-key="id"
-        size="middle"
-        :pagination="{ pageSize: 20, showSizeChanger: true }"
-      >
-        <template #bodyCell="{ column, record }">
-          <template v-if="column.key === 'case_type'">
-            <a-tag :color="typeColor(record.case_type)">{{ typeLabel(record.case_type) }}</a-tag>
-          </template>
-
-          <template v-if="column.key === 'tags'">
-            <a-tag v-for="t in record.tags" :key="t" color="blue">{{ t }}</a-tag>
-          </template>
-
-          <template v-if="column.key === 'action'">
-            <a-space>
-              <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-              <a-button
-                type="link"
-                size="small"
-                :loading="runningId === record.id"
-                @click="handleRun(record)"
-              >
-                执行
-              </a-button>
-              <a-button type="link" size="small" @click="openHistory(record.id)">
-                <HistoryOutlined /> 历史
-              </a-button>
-              <a-popconfirm title="确认删除该用例？" @confirm="handleDelete(record.id)">
-                <a-button type="link" size="small" danger>删除</a-button>
-              </a-popconfirm>
-            </a-space>
-          </template>
-        </template>
-      </a-table>
+      <a-space wrap>
+        <a-select
+          v-model:value="selectedProjectId"
+          placeholder="请选择项目"
+          style="width: 240px"
+          :options="projectOptions"
+          allow-clear
+          @change="handleProjectChange"
+        />
+        <a-button @click="router.push({ name: 'projects' })">项目管理</a-button>
+        <a-button @click="refreshCurrentProject" :disabled="!selectedProjectId">刷新</a-button>
+      </a-space>
     </div>
 
-    <!-- 用例表单抽屉 (API) -->
+    <template v-if="selectedProjectId">
+      <a-row :gutter="[16, 16]" class="summary-row">
+        <a-col :xs="24" :sm="8">
+          <a-card>
+            <a-statistic title="当前项目" :value="currentProjectName" />
+          </a-card>
+        </a-col>
+        <a-col :xs="12" :sm="8">
+          <a-card>
+            <a-statistic title="模块数" :value="moduleCount" />
+          </a-card>
+        </a-col>
+        <a-col :xs="12" :sm="8">
+          <a-card>
+            <a-statistic title="当前结果集用例数" :value="cases.length" />
+          </a-card>
+        </a-col>
+      </a-row>
+
+      <div class="workspace">
+        <div class="side-panel">
+          <div class="side-title">
+            <span>模块目录</span>
+            <a-button type="link" size="small" :disabled="!selectedModuleId" @click="clearModuleFilter">
+              查看全部
+            </a-button>
+          </div>
+          <ModuleTree
+            :key="selectedProjectId"
+            :project-id="selectedProjectId"
+            @select="onModuleSelect"
+          />
+        </div>
+
+        <div class="main-panel">
+          <div class="toolbar">
+            <a-space wrap>
+              <a-input-search
+                v-model:value="searchText"
+                placeholder="搜索用例名称"
+                style="width: 240px"
+              />
+              <a-select
+                v-model:value="filterType"
+                placeholder="用例类型"
+                allow-clear
+                style="width: 130px"
+                @change="loadCases"
+              >
+                <a-select-option value="api">接口测试</a-select-option>
+                <a-select-option value="graphql">GraphQL</a-select-option>
+                <a-select-option value="websocket">WebSocket</a-select-option>
+                <a-select-option value="grpc">gRPC</a-select-option>
+                <a-select-option value="web">Web UI</a-select-option>
+                <a-select-option value="android">Android UI</a-select-option>
+              </a-select>
+              <a-tag color="blue">{{ selectedModuleId ? `当前模块：${activeModuleName}` : '当前模块：全部' }}</a-tag>
+            </a-space>
+            <a-dropdown :disabled="!selectedModuleId">
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item key="api" @click="openCreate('api')">接口测试</a-menu-item>
+                  <a-menu-item key="graphql" @click="openCreate('graphql')">GraphQL</a-menu-item>
+                  <a-menu-item key="websocket" @click="openCreate('websocket')">WebSocket</a-menu-item>
+                  <a-menu-item key="grpc" @click="openCreate('grpc')">gRPC</a-menu-item>
+                  <a-menu-item key="web" @click="openCreate('web')">Web UI</a-menu-item>
+                  <a-menu-item key="android" @click="openCreate('android')">Android UI</a-menu-item>
+                </a-menu>
+              </template>
+              <a-button type="primary" :disabled="!selectedModuleId">
+                <PlusOutlined /> 新建用例 <DownOutlined />
+              </a-button>
+            </a-dropdown>
+          </div>
+
+          <a-table
+            :columns="columns"
+            :data-source="filteredCases"
+            :loading="loading"
+            row-key="id"
+            size="middle"
+            :pagination="{ pageSize: 20, showSizeChanger: true }"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'module'">
+                <span>{{ moduleNameMap[record.module_id] ?? `模块 #${record.module_id}` }}</span>
+              </template>
+
+              <template v-if="column.key === 'case_type'">
+                <a-tag :color="typeColor(record.case_type)">{{ typeLabel(record.case_type) }}</a-tag>
+              </template>
+
+              <template v-if="column.key === 'tags'">
+                <a-tag v-for="t in record.tags" :key="t" color="blue">{{ t }}</a-tag>
+              </template>
+
+              <template v-if="column.key === 'action'">
+                <a-space>
+                  <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
+                  <a-button
+                    type="link"
+                    size="small"
+                    :loading="runningId === record.id"
+                    @click="handleRun(record)"
+                  >
+                    执行
+                  </a-button>
+                  <a-button type="link" size="small" @click="openHistory(record.id)">
+                    <HistoryOutlined /> 历史
+                  </a-button>
+                  <a-popconfirm title="确认删除该用例？" @confirm="handleDelete(record.id)">
+                    <a-button type="link" size="small" danger>删除</a-button>
+                  </a-popconfirm>
+                </a-space>
+              </template>
+            </template>
+          </a-table>
+        </div>
+      </div>
+    </template>
+
+    <a-result
+      v-else
+      status="info"
+      title="请选择一个项目"
+      sub-title="选择项目后即可统一管理该项目下的模块与用例，并直接触发执行。"
+    />
+
     <CaseFormDrawer
       :open="drawerOpen"
       :module-id="selectedModuleId"
@@ -112,7 +156,6 @@
       @saved="onSaved"
     />
 
-    <!-- Web UI 用例抽屉 -->
     <WebCaseDrawer
       :open="webDrawerOpen"
       :module-id="selectedModuleId"
@@ -121,16 +164,15 @@
       @saved="onSaved"
     />
 
-    <!-- Android UI 用例抽屉 -->
     <AndroidCaseDrawer
       :open="androidDrawerOpen"
       :module-id="selectedModuleId"
+      :project-id="selectedProjectId"
       :edit-case="androidEditingCase"
       @close="androidDrawerOpen = false"
       @saved="onSaved"
     />
 
-    <!-- 执行环境选择 Modal -->
     <a-modal
       v-model:open="runModalOpen"
       title="选择执行环境"
@@ -150,7 +192,6 @@
       />
     </a-modal>
 
-    <!-- 版本历史抽屉 -->
     <CaseHistoryDrawer
       :open="historyOpen"
       :case-id="historyCaseId"
@@ -165,7 +206,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, DownOutlined, HistoryOutlined } from '@ant-design/icons-vue'
-import { caseApi, environmentApi } from '@/api'
+import { caseApi, environmentApi, projectApi } from '@/api'
 import ModuleTree from '@/components/common/ModuleTree.vue'
 import CaseFormDrawer from '@/components/common/CaseFormDrawer.vue'
 import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
@@ -174,8 +215,10 @@ import CaseHistoryDrawer from '@/views/case/CaseHistoryDrawer.vue'
 
 const route = useRoute()
 const router = useRouter()
-const projectId = Number(route.params.projectId)
 
+const projects = ref<any[]>([])
+const selectedProjectId = ref<number | null>(null)
+const moduleNameMap = ref<Record<number, string>>({})
 const cases = ref<any[]>([])
 const loading = ref(false)
 const selectedModuleId = ref<number | null>(null)
@@ -192,7 +235,6 @@ const runningId = ref<number | null>(null)
 const historyOpen = ref(false)
 const historyCaseId = ref<number | null>(null)
 
-// -- Run environment selection --
 const runModalOpen = ref(false)
 const runEnvId = ref<number | null>(null)
 const runEnvOptions = ref<Array<{ label: string; value: number }>>([])
@@ -202,56 +244,200 @@ const pendingRunCase = ref<any>(null)
 
 const columns = [
   { title: '用例名称', dataIndex: 'name', key: 'name', ellipsis: true },
+  { title: '模块', key: 'module', width: 180 },
   { title: '类型', key: 'case_type', width: 110 },
   { title: '标签', key: 'tags', width: 200 },
-  { title: '更新时间', dataIndex: 'updated_at', key: 'updated_at', width: 170,
-    customRender: ({ text }: any) => text?.slice(0, 19).replace('T', ' ') },
+  {
+    title: '更新时间',
+    dataIndex: 'updated_at',
+    key: 'updated_at',
+    width: 170,
+    customRender: ({ text }: any) => text?.slice(0, 19).replace('T', ' '),
+  },
   { title: '操作', key: 'action', width: 220, fixed: 'right' },
 ]
 
-const filteredCases = computed(() =>
-  cases.value.filter(c => !searchText.value || c.name.includes(searchText.value)),
+const projectOptions = computed(() =>
+  projects.value.map((project: any) => ({ label: project.name, value: project.id })),
 )
 
-function typeLabel(t: string) {
-  return { api: '接口测试', graphql: 'GraphQL', websocket: 'WebSocket', grpc: 'gRPC', web: 'Web UI', android: 'Android' }[t] ?? t
+const currentProjectName = computed(() =>
+  projects.value.find((project: any) => project.id === selectedProjectId.value)?.name ?? '-',
+)
+
+const moduleCount = computed(() => Object.keys(moduleNameMap.value).length)
+
+const activeModuleName = computed(() =>
+  selectedModuleId.value ? (moduleNameMap.value[selectedModuleId.value] ?? `模块 #${selectedModuleId.value}`) : '全部模块',
+)
+
+const filteredCases = computed(() =>
+  cases.value.filter((testCase) => !searchText.value || testCase.name.includes(searchText.value)),
+)
+
+function parsePositiveInt(value: unknown): number | null {
+  const raw = Array.isArray(value) ? value[0] : value
+  const parsed = Number(raw)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
-function typeColor(t: string) {
-  return { api: 'geekblue', graphql: 'orange', websocket: 'cyan', grpc: 'red', web: 'purple', android: 'green' }[t] ?? 'default'
+
+function flattenModules(nodes: any[], acc: Record<number, string> = {}) {
+  for (const node of nodes) {
+    acc[node.id] = node.name
+    if (Array.isArray(node.children) && node.children.length) {
+      flattenModules(node.children, acc)
+    }
+  }
+  return acc
+}
+
+function typeLabel(type: string) {
+  return {
+    api: '接口测试',
+    graphql: 'GraphQL',
+    websocket: 'WebSocket',
+    grpc: 'gRPC',
+    web: 'Web UI',
+    android: 'Android',
+  }[type] ?? type
+}
+
+function typeColor(type: string) {
+  return {
+    api: 'geekblue',
+    graphql: 'orange',
+    websocket: 'cyan',
+    grpc: 'red',
+    web: 'purple',
+    android: 'green',
+  }[type] ?? 'default'
+}
+
+async function loadProjects() {
+  try {
+    projects.value = await projectApi.list()
+  } catch (error: any) {
+    message.error(error ?? '加载项目列表失败')
+    projects.value = []
+  }
+}
+
+async function loadModules() {
+  if (!selectedProjectId.value) {
+    moduleNameMap.value = {}
+    return
+  }
+
+  try {
+    const tree = await projectApi.getModules(selectedProjectId.value)
+    moduleNameMap.value = flattenModules(tree)
+    if (selectedModuleId.value && !moduleNameMap.value[selectedModuleId.value]) {
+      selectedModuleId.value = null
+    }
+  } catch (error: any) {
+    moduleNameMap.value = {}
+    message.error(error ?? '加载模块树失败')
+  }
 }
 
 async function loadCases() {
-  if (!selectedModuleId.value) return
+  if (!selectedProjectId.value) {
+    cases.value = []
+    return
+  }
+
   loading.value = true
   try {
     cases.value = await caseApi.list({
-      module_id: selectedModuleId.value,
+      project_id: selectedProjectId.value,
+      module_id: selectedModuleId.value ?? undefined,
       case_type: filterType.value,
     })
-  } catch (e: any) {
-    message.error(e ?? '加载用例列表失败')
+  } catch (error: any) {
+    message.error(error ?? '加载用例列表失败')
+    cases.value = []
   } finally {
     loading.value = false
   }
 }
 
-function onModuleSelect(id: number | null) {
-  selectedModuleId.value = id
-  cases.value = []
-  if (id) loadCases()
-}
+function syncRoute() {
+  const query: Record<string, string> = {}
+  if (selectedProjectId.value) {
+    query.project_id = String(selectedProjectId.value)
+  }
+  if (selectedModuleId.value) {
+    query.module_id = String(selectedModuleId.value)
+  }
 
-function applyRouteModuleSelection() {
-  const moduleId = Number(route.query.module_id)
-  if (!Number.isInteger(moduleId) || moduleId <= 0) {
+  const currentProjectId = parsePositiveInt(route.query.project_id) ?? parsePositiveInt(route.params.projectId)
+  const currentModuleId = parsePositiveInt(route.query.module_id)
+  if (currentProjectId === selectedProjectId.value && currentModuleId === selectedModuleId.value) {
     return
   }
 
+  void router.replace({ name: 'cases', query })
+}
+
+async function applyRouteSelection(useDefaultProject = false) {
+  const routeProjectId = parsePositiveInt(route.query.project_id) ?? parsePositiveInt(route.params.projectId)
+  const routeModuleId = parsePositiveInt(route.query.module_id)
+  const fallbackProjectId = useDefaultProject ? (projects.value[0]?.id ?? null) : selectedProjectId.value
+  const nextProjectId = routeProjectId ?? fallbackProjectId
+  const projectChanged = nextProjectId !== selectedProjectId.value
+
+  selectedProjectId.value = nextProjectId
+
+  if (projectChanged) {
+    selectedModuleId.value = null
+    await loadModules()
+  }
+
+  if (!selectedProjectId.value) {
+    cases.value = []
+    return
+  }
+
+  if (!projectChanged && Object.keys(moduleNameMap.value).length === 0) {
+    await loadModules()
+  }
+
+  selectedModuleId.value = routeModuleId && moduleNameMap.value[routeModuleId] ? routeModuleId : null
+  await loadCases()
+
+  if (!routeProjectId && selectedProjectId.value) {
+    syncRoute()
+  }
+}
+
+function handleProjectChange(projectId: number | null) {
+  selectedProjectId.value = projectId
+  selectedModuleId.value = null
+  syncRoute()
+}
+
+function onModuleSelect(moduleId: number | null) {
   selectedModuleId.value = moduleId
+  syncRoute()
+}
+
+function clearModuleFilter() {
+  selectedModuleId.value = null
+  syncRoute()
+}
+
+function refreshCurrentProject() {
+  void loadProjects()
+  void loadModules()
   void loadCases()
 }
 
 function openCreate(type: string) {
+  if (!selectedModuleId.value) {
+    message.warning('请先选择一个模块再创建用例')
+    return
+  }
+
   if (type === 'web') {
     webEditingCase.value = null
     webDrawerOpen.value = true
@@ -265,31 +451,33 @@ function openCreate(type: string) {
   }
 }
 
-function openEdit(c: any) {
-  if (c.case_type === 'web') {
-    webEditingCase.value = c
+function openEdit(testCase: any) {
+  if (testCase.case_type === 'web') {
+    webEditingCase.value = testCase
     webDrawerOpen.value = true
-  } else if (c.case_type === 'android') {
-    androidEditingCase.value = c
+  } else if (testCase.case_type === 'android') {
+    androidEditingCase.value = testCase
     androidDrawerOpen.value = true
   } else {
-    editingCase.value = c
+    editingCase.value = testCase
     drawerOpen.value = true
   }
 }
 
 function onSaved() {
-  loadCases()
+  void loadCases()
 }
 
-async function handleRun(c: any) {
-  pendingRunCase.value = c
+async function handleRun(testCase: any) {
+  if (!selectedProjectId.value) return
+
+  pendingRunCase.value = testCase
   runEnvId.value = null
   runModalOpen.value = true
   runEnvLoading.value = true
   try {
-    const envs = await environmentApi.list(projectId)
-    runEnvOptions.value = envs.map((e: any) => ({ label: e.name, value: e.id }))
+    const environments = await environmentApi.list(selectedProjectId.value)
+    runEnvOptions.value = environments.map((item: any) => ({ label: item.name, value: item.id }))
   } catch {
     runEnvOptions.value = []
     message.warning('加载环境列表失败，将不使用环境执行')
@@ -299,34 +487,35 @@ async function handleRun(c: any) {
 }
 
 async function confirmRun() {
-  const c = pendingRunCase.value
-  if (!c) return
+  const testCase = pendingRunCase.value
+  if (!testCase) return
+
   runConfirming.value = true
-  runningId.value = c.id
+  runningId.value = testCase.id
   try {
     const payload: { env_id?: number } = {}
     if (runEnvId.value) {
       payload.env_id = runEnvId.value
     }
-    const run = await caseApi.run(c.id, payload) as any
+    const run = await caseApi.run(testCase.id, payload) as any
     runModalOpen.value = false
     message.success('已触发执行，正在跳转报告页')
-    router.push(`/runs/${run.id}`)
-  } catch (e: any) {
-    message.error(e ?? '执行触发失败')
+    void router.push(`/runs/${run.id}`)
+  } catch (error: any) {
+    message.error(error ?? '执行触发失败')
   } finally {
     runConfirming.value = false
     runningId.value = null
   }
 }
 
-async function handleDelete(id: number) {
+async function handleDelete(caseId: number) {
   try {
-    await caseApi.delete(id)
+    await caseApi.delete(caseId)
     message.success('已删除')
-    loadCases()
-  } catch (e: any) {
-    message.error(e ?? '删除用例失败')
+    await loadCases()
+  } catch (error: any) {
+    message.error(error ?? '删除用例失败')
   }
 }
 
@@ -335,38 +524,94 @@ function openHistory(caseId: number) {
   historyOpen.value = true
 }
 
-watch(() => route.query.module_id, () => {
-  applyRouteModuleSelection()
-})
+watch(
+  () => [route.params.projectId, route.query.project_id, route.query.module_id].join('|'),
+  () => {
+    void applyRouteSelection(false)
+  },
+)
 
-onMounted(() => {
-  applyRouteModuleSelection()
+onMounted(async () => {
+  await loadProjects()
+  await applyRouteSelection(true)
 })
 </script>
 
 <style scoped>
 .case-page {
   display: flex;
+  flex-direction: column;
   gap: 16px;
-  height: 100%;
 }
+
+.page-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.page-header h2 {
+  margin: 0;
+}
+
+.page-header p {
+  margin: 6px 0 0;
+  color: #666;
+}
+
+.summary-row :deep(.ant-statistic-content) {
+  font-size: 24px;
+}
+
+.workspace {
+  display: flex;
+  gap: 16px;
+  min-height: 560px;
+}
+
 .side-panel {
-  width: 220px;
+  width: 260px;
   flex-shrink: 0;
-  border-right: 1px solid #f0f0f0;
-  padding-right: 16px;
+  border: 1px solid #f0f0f0;
+  border-radius: 10px;
+  padding: 16px;
   overflow-y: auto;
 }
+
+.side-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 12px;
+  font-weight: 600;
+}
+
 .main-panel {
   flex: 1;
-  overflow: hidden;
   display: flex;
   flex-direction: column;
   gap: 12px;
 }
+
 .toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 960px) {
+  .page-header,
+  .workspace,
+  .toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .side-panel {
+    width: 100%;
+  }
 }
 </style>

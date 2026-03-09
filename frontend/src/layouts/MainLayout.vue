@@ -17,6 +17,10 @@
           <ProjectOutlined />
           <span>项目管理</span>
         </a-menu-item>
+        <a-menu-item key="/cases">
+          <ProfileOutlined />
+          <span>用例管理</span>
+        </a-menu-item>
         <a-menu-item key="/runs">
           <PlayCircleOutlined />
           <span>执行记录</span>
@@ -71,7 +75,7 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
-import { ProjectOutlined, PlayCircleOutlined, SettingOutlined, MobileOutlined, AndroidOutlined, AppstoreOutlined, ClockCircleOutlined, DashboardOutlined, ApiOutlined } from '@ant-design/icons-vue'
+import { ProjectOutlined, ProfileOutlined, PlayCircleOutlined, SettingOutlined, MobileOutlined, AndroidOutlined, AppstoreOutlined, ClockCircleOutlined, DashboardOutlined, ApiOutlined } from '@ant-design/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = useRouter()

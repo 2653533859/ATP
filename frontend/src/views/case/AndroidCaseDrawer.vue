@@ -170,6 +170,7 @@ const route = useRoute()
 const props = defineProps<{
   open: boolean
   moduleId: number | null
+  projectId?: number | null
   editCase?: any
 }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
@@ -253,7 +254,8 @@ async function loadDevices() {
 async function loadApks() {
   apksLoading.value = true
   try {
-    const projectId = Number(route.params.projectId)
+    const routeProjectId = Number(route.params.projectId || route.query.project_id)
+    const projectId = props.projectId ?? (Number.isFinite(routeProjectId) ? routeProjectId : undefined)
     apks.value = await apkApi.list(projectId ? { project_id: projectId } : undefined)
     const map: Record<number, string> = {}
     for (const a of apks.value) {

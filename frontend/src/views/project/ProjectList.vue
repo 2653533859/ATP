@@ -8,7 +8,7 @@
     <a-spin :spinning="loading">
       <a-row :gutter="[16, 16]">
         <a-col v-for="p in projects" :key="p.id" :span="8">
-          <a-card hoverable :title="p.name" @click="router.push({ name: 'cases', params: { projectId: p.id } })">
+          <a-card hoverable :title="p.name" @click="router.push({ name: 'cases', query: { project_id: String(p.id) } })">
             <p>{{ p.description || '暂无描述' }}</p>
             <template #extra>
               <a-button type="link" danger @click.stop="handleDelete(p.id)">删除</a-button>

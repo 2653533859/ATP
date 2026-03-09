@@ -70,7 +70,18 @@ async def delete_project(project_id: int, db: AsyncSession = Depends(get_db), _=
 
 # ── Modules ──────────────────────────────────────────────
 def _build_tree(modules: list[Module]) -> list[ModuleTree]:
-    id_map = {m.id: ModuleTree.model_validate(m) for m in modules}
+    id_map = {
+        m.id: ModuleTree(
+            id=m.id,
+            name=m.name,
+            project_id=m.project_id,
+            parent_id=m.parent_id,
+            sort_order=m.sort_order,
+            created_at=m.created_at,
+            children=[],
+        )
+        for m in modules
+    }
     roots = []
     for node in id_map.values():
         if node.parent_id and node.parent_id in id_map:

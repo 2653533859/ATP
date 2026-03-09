@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.models.user import User
 from app.models.case import TestCase, TestRun, RunStatus, CaseSnapshot
+from app.models.project import Module
 from app.models.environment import Environment, EnvVariable
 from app.core.encryption import decrypt_env_vars
 from app.services.audit import write_audit_log
@@ -35,6 +36,7 @@ async def _next_snapshot_version(db: AsyncSession, case_id: int) -> int:
 
 @router.get("/cases", response_model=list[TestCaseOut])
 async def list_cases(
+    project_id: int | None = Query(None),
     module_id: int | None = Query(None),
     case_type: str | None = Query(None),
     tag: str | None = Query(None),
@@ -42,6 +44,8 @@ async def list_cases(
     _=Depends(get_current_user),
 ):
     q = select(TestCase)
+    if project_id:
+        q = q.join(Module, TestCase.module_id == Module.id).where(Module.project_id == project_id)
     if module_id:
         q = q.where(TestCase.module_id == module_id)
     if case_type:
@@ -260,8 +264,10 @@ async def trigger_run(
 
     # 异步发送给 Celery Worker
     run_test_case.delay(run.id, merged_vars)
-
-    return run
+    result = await db.execute(
+        select(TestRun).where(TestRun.id == run.id).options(selectinload(TestRun.steps))
+    )
+    return TestRunOut.model_validate(result.scalar_one())
 
 
 @router.get("/runs", response_model=PaginatedRunsOut)

@@ -22,7 +22,7 @@ export const moduleApi = {
 }
 
 export const caseApi = {
-  list: (params?: { module_id?: number; case_type?: string; tag?: string }) =>
+  list: (params?: { project_id?: number; module_id?: number; case_type?: string; tag?: string }) =>
     http.get<any, any[]>('/cases', { params }),
   create: (data: object) => http.post('/cases', data),
   get: (id: number) => http.get(`/cases/${id}`),

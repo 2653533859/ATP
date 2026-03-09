@@ -286,13 +286,15 @@ function goToCaseManagement(targetProjectId?: number, targetModuleId?: number) {
   if (targetProjectId) {
     void router.push({
       name: 'cases',
-      params: { projectId: targetProjectId },
-      query: targetModuleId ? { module_id: String(targetModuleId) } : undefined,
+      query: {
+        project_id: String(targetProjectId),
+        ...(targetModuleId ? { module_id: String(targetModuleId) } : {}),
+      },
     })
     return
   }
 
-  void router.push({ name: 'projects' })
+  void router.push({ name: 'cases' })
 }
 
 function handleFailureClick(params: any) {

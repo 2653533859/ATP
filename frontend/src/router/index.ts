@@ -26,8 +26,13 @@ const router = createRouter({
           component: () => import('@/views/project/ProjectList.vue'),
         },
         {
-          path: 'projects/:projectId/cases',
+          path: 'cases',
           name: 'cases',
+          component: () => import('@/views/case/CaseList.vue'),
+        },
+        {
+          path: 'projects/:projectId/cases',
+          name: 'project-cases',
           component: () => import('@/views/case/CaseList.vue'),
         },
         {
