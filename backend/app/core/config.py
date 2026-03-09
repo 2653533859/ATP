@@ -57,6 +57,9 @@ class Settings(BaseSettings):
 
     # File retention
     FILE_RETENTION_DAYS: int = 30  # MinIO 中截图/报告文件保留天数
+    STALE_PENDING_CLEANUP_ENABLED: bool = True
+    STALE_PENDING_TIMEOUT_MINUTES: int = 120
+    STALE_PENDING_CLEANUP_INTERVAL_SECONDS: int = 600
 
     # Rate limiting
     RATE_LIMIT_LOGIN: str = "5/minute"

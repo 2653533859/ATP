@@ -9,12 +9,15 @@ from app.worker.executors.android_executor import run_android_case
 from app.worker.executors.android_lowcode_executor import run_android_lowcode
 from app.worker.dispatch import is_web_lowcode_config
 from app.models.case import CaseType
+from app.models.bootstrap import load_all_models
 from app.core.redis_client import publish_run_event
 from app.core.encryption import decrypt_env_vars
-import asyncio
 import logging
+from app.worker.async_runner import run_async
 
 logger = logging.getLogger(__name__)
+
+load_all_models()
 
 
 async def _safe_publish_run_event(run_id: int, payload: dict) -> None:
@@ -83,7 +86,7 @@ def run_test_case(self, run_id: int, extra_vars: dict):
                     "type": "completed", "run_id": run_id, "status": "error",
                 })
 
-    asyncio.run(_execute())
+    run_async(_execute())
 
 
 @celery_app.task(bind=True, name="run_test_suite")
@@ -212,7 +215,7 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict):
             except Exception as e:
                 logger.warning(f"Suite notification failed: {e}")
 
-    asyncio.run(_execute())
+    run_async(_execute())
 
 
 @celery_app.task(bind=True, name="run_test_plan")
@@ -324,7 +327,7 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict):
             except Exception as e:
                 logger.warning(f"Plan notification failed: {e}")
 
-    asyncio.run(_execute())
+    run_async(_execute())
 
 
 async def _execute_suite_inline(db, suite_run, suite, extra_vars):
@@ -475,4 +478,4 @@ def check_cron_plans():
                 run_test_plan.delay(plan_run.id, merged_vars)
                 logger.info(f"Cron triggered plan {plan.id} -> PlanRun {plan_run.id}")
 
-    asyncio.run(_check())
+    run_async(_check())

@@ -34,5 +34,9 @@ celery_app.conf.update(
             "task": "cleanup_expired_files",
             "schedule": 86400.0,  # 每 24 小时执行一次
         },
+        "cleanup-stale-pending-runs": {
+            "task": "cleanup_stale_pending_runs",
+            "schedule": settings.STALE_PENDING_CLEANUP_INTERVAL_SECONDS,
+        },
     },
 )
