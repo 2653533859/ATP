@@ -166,6 +166,7 @@ python -m pytest backend/tests -q
 - 产品需求与整体范围：`PRD.md`
 - CI/CD 集成说明：`docs/cicd-integration.md`
 - Windows 本地运行说明：`docs/windows-local-run.md`
+- 前端到后端再到 Worker 的调用链：`docs/backend-request-flow.md`
 
 ## 说明
 
