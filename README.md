@@ -124,6 +124,16 @@ docker compose up --build
 
 首次启动会根据 `.env` 中的 `FIRST_ADMIN_*` 自动创建管理员账号。
 
+### 3. 复用外部 PostgreSQL / Redis / MinIO 启动
+
+如果基础设施已经在外部环境运行，不要直接使用默认的 `docker-compose.yml`。仓库已提供只启动应用服务的 compose 文件：
+
+```bash
+docker compose -f docker-compose.app.yml up --build -d
+```
+
+说明见：`docs/external-infra-run.md`
+
 ## 常用开发命令
 
 ### 前端

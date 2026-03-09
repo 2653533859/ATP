@@ -12,22 +12,16 @@ from app.api.v1.mock_server import router as mock_router
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine
 from app.core.logging import setup_logging
+from app.core.minio_client import ensure_bucket
 from app.core.rate_limit import limiter
 from app.middleware.csrf import CSRFMiddleware
 from app.middleware.trace import TraceMiddleware
 from app.core.security import hash_password
 from app.models.base import Base
-from app.models.user import User, UserRole  # noqa: F401
-from app.models.project import Project, Module  # noqa: F401
-from app.models.case import TestCase, TestRun, StepResult  # noqa: F401
-from app.models.environment import Environment, EnvVariable  # noqa: F401
-from app.models.device import Device  # noqa: F401
-from app.models.apk import Apk  # noqa: F401
-from app.models.suite import TestSuite, SuiteRun  # noqa: F401
-from app.models.notification import NotificationConfig  # noqa: F401
-from app.models.mock import MockRule  # noqa: F401
-from app.models.bug_tracker import BugTracker  # noqa: F401
-from app.models.audit import AuditLog  # noqa: F401
+from app.models.bootstrap import load_all_models
+from app.models.user import User, UserRole
+
+load_all_models()
 
 
 async def _init_admin():
@@ -52,6 +46,9 @@ async def lifespan(app: FastAPI):
     # 启动时兜底建表，避免首次部署无迁移文件时业务初始化直接失败。
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+
+    # 启动时确保默认对象存储 bucket 可用，避免首次上传时才暴露配置问题。
+    ensure_bucket()
 
     # 启动时执行业务初始化
     await _init_admin()

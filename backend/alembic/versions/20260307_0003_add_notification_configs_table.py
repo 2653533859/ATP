@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -18,7 +19,13 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-notify_channel_enum = sa.Enum("email", "wechat", "dingtalk", name="notifychannel")
+notify_channel_enum = postgresql.ENUM(
+    "email",
+    "wechat",
+    "dingtalk",
+    name="notifychannel",
+    create_type=False,
+)
 
 
 def upgrade() -> None:
