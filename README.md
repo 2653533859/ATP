@@ -165,6 +165,7 @@ python -m pytest backend/tests -q
 - 当前进度与模块完成度：`Task.md`
 - 产品需求与整体范围：`PRD.md`
 - CI/CD 集成说明：`docs/cicd-integration.md`
+- Windows 本地运行说明：`docs/windows-local-run.md`
 
 ## 说明
 
