@@ -581,6 +581,7 @@ import { ref, reactive, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons-vue'
 import { caseApi } from '@/api'
+import type { CaseSavePayload, CaseType } from '@/api'
 import KvEditor from '@/components/common/KvEditor.vue'
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
@@ -589,7 +590,7 @@ const props = defineProps<{
   open: boolean
   moduleId: number | null
   editCase?: any
-  defaultCaseType?: string
+  defaultCaseType?: CaseType
 }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
 
@@ -601,11 +602,11 @@ const wsActiveTab = ref('headers')
 const formRef = ref()
 
 // 基本信息
-const form = reactive({
+const form = reactive<{ name: string; description: string; case_type: CaseType; tags: string[] }>({
   name: '',
   description: '',
   case_type: 'api',
-  tags: [] as string[],
+  tags: [],
 })
 
 // 接口测试配置
@@ -915,7 +916,7 @@ async function handleSave() {
   }
   saving.value = true
   try {
-    const payload = {
+    const payload: CaseSavePayload = {
       name: form.name,
       description: form.description,
       case_type: form.case_type,

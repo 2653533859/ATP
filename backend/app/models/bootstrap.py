@@ -2,7 +2,7 @@ def load_all_models() -> None:
     """Import every mapped model so SQLAlchemy metadata is complete before use."""
     from app.models.user import User, UserRole
     from app.models.project import Project, Module
-    from app.models.case import TestCase, TestRun, StepResult, CaseSnapshot
+    from app.models.case import TestCase, CaseStep, TestRun, StepResult, CaseSnapshot
     from app.models.environment import Environment, EnvVariable
     from app.models.device import Device
     from app.models.apk import Apk
@@ -19,6 +19,7 @@ def load_all_models() -> None:
         Project,
         Module,
         TestCase,
+        CaseStep,
         TestRun,
         StepResult,
         CaseSnapshot,

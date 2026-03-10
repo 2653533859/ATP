@@ -8,6 +8,7 @@ class Project(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
+    project_code: Mapped[str | None] = mapped_column(String(32), unique=True)
     description: Mapped[str | None] = mapped_column(Text)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
 
@@ -27,6 +28,7 @@ class Module(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(128), nullable=False)
+    module_code: Mapped[str | None] = mapped_column(String(32))
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
     parent_id: Mapped[int | None] = mapped_column(ForeignKey("modules.id"))
     sort_order: Mapped[int] = mapped_column(Integer, default=0)

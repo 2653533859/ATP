@@ -1,5 +1,121 @@
 import http from './http'
 
+export type CasePriority = 'P0' | 'P1' | 'P2' | 'P3'
+export type CaseLevel = 'smoke' | 'core' | 'regression' | 'extended'
+export type ReviewStatus = 'pending' | 'approved' | 'rejected'
+export type AutomationStatus = 'manual' | 'semi_auto' | 'auto'
+export type CaseStatus = 'draft' | 'active' | 'deprecated'
+export type CaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android'
+
+export interface ProjectItem {
+  id: number
+  name: string
+  project_code?: string | null
+  description?: string | null
+  owner_id: number
+  created_at: string
+  updated_at: string
+}
+
+export interface ModuleTreeItem {
+  id: number
+  name: string
+  module_code?: string | null
+  project_id: number
+  parent_id?: number | null
+  sort_order: number
+  created_at: string
+  children: ModuleTreeItem[]
+}
+
+export interface CaseStepItem {
+  id?: number
+  step_no?: number
+  action: string
+  test_data?: string | null
+  expected_result?: string | null
+  is_key_step?: boolean
+  remarks?: string | null
+  created_at?: string
+  updated_at?: string
+}
+
+export interface CaseSummaryItem {
+  id: number
+  name: string
+  description?: string | null
+  case_code: string
+  summary: string
+  case_type: CaseType
+  status: CaseStatus
+  priority: CasePriority
+  case_level: CaseLevel
+  review_status: ReviewStatus
+  automation_status: AutomationStatus
+  tags: string[]
+  module_id: number
+  creator_id: number
+  owner_id?: number | null
+  is_ready_for_execution: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface CaseDetailItem extends CaseSummaryItem {
+  preconditions: string[]
+  postconditions: string[]
+  submitted_at?: string | null
+  reviewed_at?: string | null
+  reviewed_by?: number | null
+  review_comment?: string | null
+  steps: CaseStepItem[]
+  config: Record<string, unknown>
+}
+
+export interface CaseSnapshotItem {
+  id: number
+  case_id: number
+  version: number
+  name: string
+  description?: string | null
+  tags: string[]
+  config: Record<string, unknown>
+  snapshot_data: Record<string, unknown>
+  updated_by: number
+  updated_by_name: string
+  created_at: string
+}
+
+export interface CaseQueryParams {
+  project_id?: number
+  module_id?: number
+  case_type?: CaseType
+  priority?: CasePriority
+  status?: CaseStatus
+  review_status?: ReviewStatus
+  automation_status?: AutomationStatus
+  owner_id?: number
+  tag?: string
+  keyword?: string
+}
+
+export interface CaseSavePayload {
+  name: string
+  description?: string
+  summary?: string
+  case_type?: CaseType
+  module_id?: number
+  tags?: string[]
+  preconditions?: string[]
+  postconditions?: string[]
+  priority?: CasePriority
+  case_level?: CaseLevel
+  owner_id?: number | null
+  automation_status?: AutomationStatus
+  steps?: CaseStepItem[]
+  config?: Record<string, unknown>
+}
+
 export const authApi = {
   login: (username: string, password: string) =>
     http.post<any, { access_token: string; refresh_token: string }>('/auth/login', { username, password }),
@@ -8,34 +124,40 @@ export const authApi = {
 }
 
 export const projectApi = {
-  list: () => http.get<any, any[]>('/projects'),
-  create: (data: { name: string; description?: string }) => http.post('/projects', data),
-  update: (id: number, data: object) => http.patch(`/projects/${id}`, data),
+  list: () => http.get<any, ProjectItem[]>('/projects'),
+  create: (data: { name: string; description?: string; project_code?: string }) => http.post('/projects', data),
+  update: (id: number, data: { name?: string; description?: string; project_code?: string }) => http.patch(`/projects/${id}`, data),
   delete: (id: number) => http.delete(`/projects/${id}`),
-  getModules: (projectId: number) => http.get<any, any[]>(`/projects/${projectId}/modules`),
+  getModules: (projectId: number) => http.get<any, ModuleTreeItem[]>(`/projects/${projectId}/modules`),
 }
 
 export const moduleApi = {
-  create: (data: object) => http.post('/modules', data),
-  update: (id: number, data: object) => http.patch(`/modules/${id}`, data),
+  create: (data: { name: string; module_code?: string; project_id: number; parent_id?: number | null; sort_order?: number }) => http.post('/modules', data),
+  update: (id: number, data: { name?: string; module_code?: string; parent_id?: number | null; sort_order?: number }) => http.patch(`/modules/${id}`, data),
   delete: (id: number) => http.delete(`/modules/${id}`),
 }
 
 export const caseApi = {
-  list: (params?: { project_id?: number; module_id?: number; case_type?: string; tag?: string }) =>
-    http.get<any, any[]>('/cases', { params }),
-  create: (data: object) => http.post('/cases', data),
-  get: (id: number) => http.get(`/cases/${id}`),
-  update: (id: number, data: object) => http.patch(`/cases/${id}`, data),
+  list: (params?: CaseQueryParams) =>
+    http.get<any, CaseSummaryItem[]>('/cases', { params }),
+  create: (data: CaseSavePayload) => http.post<any, CaseDetailItem>('/cases', data),
+  get: (id: number) => http.get<any, CaseDetailItem>(`/cases/${id}`),
+  update: (id: number, data: CaseSavePayload) => http.patch<any, CaseDetailItem>(`/cases/${id}`, data),
   delete: (id: number) => http.delete(`/cases/${id}`),
+  copy: (id: number) => http.post<any, CaseDetailItem>(`/cases/${id}/copy`),
+  submitReview: (id: number, data?: { comment?: string }) => http.post<any, CaseDetailItem>(`/cases/${id}/submit-review`, data ?? {}),
+  approve: (id: number, data?: { comment?: string }) => http.post<any, CaseDetailItem>(`/cases/${id}/approve`, data ?? {}),
+  reject: (id: number, data?: { comment?: string }) => http.post<any, CaseDetailItem>(`/cases/${id}/reject`, data ?? {}),
+  deprecate: (id: number, data?: { comment?: string }) => http.post<any, CaseDetailItem>(`/cases/${id}/deprecate`, data ?? {}),
+  reactivate: (id: number, data?: { comment?: string }) => http.post<any, CaseDetailItem>(`/cases/${id}/reactivate`, data ?? {}),
   run: (id: number, data?: { env_id?: number; extra_vars?: object }) =>
     http.post(`/cases/${id}/run`, data ?? {}),
   listSnapshots: (caseId: number, params?: { page?: number; page_size?: number }) =>
-    http.get<any, { items: any[]; total: number; page: number; page_size: number }>(
+    http.get<any, { items: CaseSnapshotItem[]; total: number; page: number; page_size: number }>(
       `/cases/${caseId}/snapshots`, { params },
     ),
   rollback: (caseId: number, snapshotId: number) =>
-    http.post(`/cases/${caseId}/rollback/${snapshotId}`),
+    http.post<any, CaseDetailItem>(`/cases/${caseId}/rollback/${snapshotId}`),
 }
 
 export const runApi = {

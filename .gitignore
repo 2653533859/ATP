@@ -6,6 +6,7 @@ backend/venv/
 
 frontend/node_modules/
 frontend/dist/
+.local-run/
 
 .DS_Store
 Thumbs.db

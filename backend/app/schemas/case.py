@@ -1,22 +1,67 @@
-from pydantic import BaseModel
 from datetime import datetime
-from app.models.case import CaseType, RunStatus
+from typing import Literal
+
+from pydantic import BaseModel, Field
+
+from app.models.case import CaseStatus, CaseType, RunStatus
 
 
-# ── TestCase ─────────────────────────────────────────────
+CasePriority = Literal["P0", "P1", "P2", "P3"]
+CaseLevel = Literal["smoke", "core", "regression", "extended"]
+ReviewStatus = Literal["pending", "approved", "rejected"]
+AutomationStatus = Literal["manual", "semi_auto", "auto"]
+
+
+class CaseStepBase(BaseModel):
+    action: str
+    test_data: str | None = None
+    expected_result: str | None = None
+    is_key_step: bool = False
+    remarks: str | None = None
+
+
+class CaseStepCreate(CaseStepBase):
+    step_no: int | None = Field(default=None, ge=1)
+
+
+class CaseStepOut(CaseStepBase):
+    id: int
+    step_no: int
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class TestCaseCreate(BaseModel):
     name: str
     description: str | None = None
+    summary: str | None = None
     case_type: CaseType
     module_id: int
-    tags: list[str] = []
-    config: dict = {}
+    tags: list[str] = Field(default_factory=list)
+    preconditions: list[str] = Field(default_factory=list)
+    postconditions: list[str] = Field(default_factory=list)
+    priority: CasePriority = "P2"
+    case_level: CaseLevel = "regression"
+    owner_id: int | None = None
+    automation_status: AutomationStatus = "auto"
+    steps: list[CaseStepCreate] = Field(default_factory=list)
+    config: dict = Field(default_factory=dict)
 
 
 class TestCaseUpdate(BaseModel):
     name: str | None = None
     description: str | None = None
+    summary: str | None = None
     tags: list[str] | None = None
+    preconditions: list[str] | None = None
+    postconditions: list[str] | None = None
+    priority: CasePriority | None = None
+    case_level: CaseLevel | None = None
+    owner_id: int | None = None
+    automation_status: AutomationStatus | None = None
+    steps: list[CaseStepCreate] | None = None
     config: dict | None = None
 
 
@@ -24,11 +69,19 @@ class TestCaseOut(BaseModel):
     id: int
     name: str
     description: str | None
+    case_code: str
+    summary: str
     case_type: CaseType
-    status: str
+    status: CaseStatus
+    priority: CasePriority
+    case_level: CaseLevel
+    review_status: ReviewStatus
+    automation_status: AutomationStatus
     tags: list[str]
     module_id: int
     creator_id: int
+    owner_id: int | None
+    is_ready_for_execution: bool
     created_at: datetime
     updated_at: datetime
 
@@ -36,10 +89,16 @@ class TestCaseOut(BaseModel):
 
 
 class TestCaseDetailOut(TestCaseOut):
-    config: dict = {}
+    preconditions: list[str] = Field(default_factory=list)
+    postconditions: list[str] = Field(default_factory=list)
+    submitted_at: datetime | None = None
+    reviewed_at: datetime | None = None
+    reviewed_by: int | None = None
+    review_comment: str | None = None
+    steps: list[CaseStepOut] = Field(default_factory=list)
+    config: dict = Field(default_factory=dict)
 
 
-# ── CaseSnapshot ────────────────────────────────────────
 class CaseSnapshotOut(BaseModel):
     id: int
     case_id: int
@@ -48,6 +107,7 @@ class CaseSnapshotOut(BaseModel):
     description: str | None
     tags: list[str]
     config: dict
+    snapshot_data: dict = Field(default_factory=dict)
     updated_by: int
     updated_by_name: str = ""
     created_at: datetime
@@ -62,10 +122,13 @@ class PaginatedSnapshotsOut(BaseModel):
     page_size: int
 
 
-# ── TestRun ──────────────────────────────────────────────
+class CaseWorkflowRequest(BaseModel):
+    comment: str | None = None
+
+
 class RunTriggerRequest(BaseModel):
     env_id: int | None = None
-    extra_vars: dict = {}
+    extra_vars: dict = Field(default_factory=dict)
 
 
 class StepResultOut(BaseModel):
@@ -92,7 +155,7 @@ class TestRunOut(BaseModel):
     error_message: str | None
     result_summary: dict
     created_at: datetime
-    steps: list[StepResultOut] = []
+    steps: list[StepResultOut] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

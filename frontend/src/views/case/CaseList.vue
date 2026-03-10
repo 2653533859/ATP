@@ -2,20 +2,20 @@
   <div class="case-page">
     <div class="page-header">
       <div>
-        <h2>统一用例管理</h2>
-        <p>在一个页面内切换项目、管理模块、维护用例并直接执行。</p>
+        <h2>Case Management</h2>
+        <p>Manage standardized cases by project and module, then review or run them from one place.</p>
       </div>
       <a-space wrap>
         <a-select
           v-model:value="selectedProjectId"
-          placeholder="请选择项目"
+          placeholder="Select project"
           style="width: 240px"
           :options="projectOptions"
           allow-clear
           @change="handleProjectChange"
         />
-        <a-button @click="router.push({ name: 'projects' })">项目管理</a-button>
-        <a-button @click="refreshCurrentProject" :disabled="!selectedProjectId">刷新</a-button>
+        <a-button @click="router.push({ name: 'projects' })">Projects</a-button>
+        <a-button :disabled="!selectedProjectId" @click="refreshCurrentProject">Refresh</a-button>
       </a-space>
     </div>
 
@@ -23,17 +23,17 @@
       <a-row :gutter="[16, 16]" class="summary-row">
         <a-col :xs="24" :sm="8">
           <a-card>
-            <a-statistic title="当前项目" :value="currentProjectName" />
+            <a-statistic title="Project" :value="currentProjectName" />
           </a-card>
         </a-col>
         <a-col :xs="12" :sm="8">
           <a-card>
-            <a-statistic title="模块数" :value="moduleCount" />
+            <a-statistic title="Modules" :value="moduleCount" />
           </a-card>
         </a-col>
         <a-col :xs="12" :sm="8">
           <a-card>
-            <a-statistic title="当前结果集用例数" :value="cases.length" />
+            <a-statistic title="Visible cases" :value="filteredCases.length" />
           </a-card>
         </a-col>
       </a-row>
@@ -41,9 +41,9 @@
       <div class="workspace">
         <div class="side-panel">
           <div class="side-title">
-            <span>模块目录</span>
+            <span>Modules</span>
             <a-button type="link" size="small" :disabled="!selectedModuleId" @click="clearModuleFilter">
-              查看全部
+              View all
             </a-button>
           </div>
           <ModuleTree
@@ -54,45 +54,93 @@
         </div>
 
         <div class="main-panel">
-          <div class="toolbar">
-            <a-space wrap>
-              <a-input-search
-                v-model:value="searchText"
-                placeholder="搜索用例名称"
-                style="width: 240px"
-              />
-              <a-select
-                v-model:value="filterType"
-                placeholder="用例类型"
-                allow-clear
-                style="width: 130px"
-                @change="loadCases"
-              >
-                <a-select-option value="api">接口测试</a-select-option>
-                <a-select-option value="graphql">GraphQL</a-select-option>
-                <a-select-option value="websocket">WebSocket</a-select-option>
-                <a-select-option value="grpc">gRPC</a-select-option>
-                <a-select-option value="web">Web UI</a-select-option>
-                <a-select-option value="android">Android UI</a-select-option>
-              </a-select>
-              <a-tag color="blue">{{ selectedModuleId ? `当前模块：${activeModuleName}` : '当前模块：全部' }}</a-tag>
-            </a-space>
-            <a-dropdown :disabled="!selectedModuleId">
-              <template #overlay>
-                <a-menu>
-                  <a-menu-item key="api" @click="openCreate('api')">接口测试</a-menu-item>
-                  <a-menu-item key="graphql" @click="openCreate('graphql')">GraphQL</a-menu-item>
-                  <a-menu-item key="websocket" @click="openCreate('websocket')">WebSocket</a-menu-item>
-                  <a-menu-item key="grpc" @click="openCreate('grpc')">gRPC</a-menu-item>
-                  <a-menu-item key="web" @click="openCreate('web')">Web UI</a-menu-item>
-                  <a-menu-item key="android" @click="openCreate('android')">Android UI</a-menu-item>
-                </a-menu>
-              </template>
-              <a-button type="primary" :disabled="!selectedModuleId">
-                <PlusOutlined /> 新建用例 <DownOutlined />
-              </a-button>
-            </a-dropdown>
-          </div>
+          <a-card class="toolbar-card" :bordered="false">
+            <div class="toolbar">
+              <a-space wrap>
+                <a-input-search
+                  v-model:value="keyword"
+                  placeholder="Search name, code, or summary"
+                  style="width: 260px"
+                  allow-clear
+                  @search="handleSearch"
+                />
+                <a-select
+                  v-model:value="filterType"
+                  placeholder="Type"
+                  allow-clear
+                  style="width: 130px"
+                  :options="caseTypeOptions"
+                  @change="loadCases"
+                />
+                <a-select
+                  v-model:value="filterPriority"
+                  placeholder="Priority"
+                  allow-clear
+                  style="width: 120px"
+                  :options="priorityOptions"
+                  @change="loadCases"
+                />
+                <a-select
+                  v-model:value="filterLevel"
+                  placeholder="Level"
+                  allow-clear
+                  style="width: 140px"
+                >
+                  <a-select-option value="smoke">smoke</a-select-option>
+                  <a-select-option value="core">core</a-select-option>
+                  <a-select-option value="regression">regression</a-select-option>
+                  <a-select-option value="extended">extended</a-select-option>
+                </a-select>
+                <a-select
+                  v-model:value="filterStatus"
+                  placeholder="Status"
+                  allow-clear
+                  style="width: 120px"
+                  :options="statusOptions"
+                  @change="loadCases"
+                />
+                <a-select
+                  v-model:value="filterReviewStatus"
+                  placeholder="Review"
+                  allow-clear
+                  style="width: 140px"
+                  :options="reviewStatusOptions"
+                  @change="loadCases"
+                />
+                <a-select
+                  v-model:value="filterAutomationStatus"
+                  placeholder="Automation"
+                  allow-clear
+                  style="width: 140px"
+                  :options="automationStatusOptions"
+                  @change="loadCases"
+                />
+                <a-button @click="handleSearch">Search</a-button>
+                <a-button @click="handleResetFilters">Reset</a-button>
+              </a-space>
+
+              <a-space wrap>
+                <a-tag color="blue">
+                  {{ selectedModuleId ? `Module: ${activeModuleName}` : 'Module: All' }}
+                </a-tag>
+                <a-dropdown :disabled="!selectedModuleId">
+                  <template #overlay>
+                    <a-menu>
+                      <a-menu-item key="api" @click="openCreate('api')">API</a-menu-item>
+                      <a-menu-item key="graphql" @click="openCreate('graphql')">GraphQL</a-menu-item>
+                      <a-menu-item key="websocket" @click="openCreate('websocket')">WebSocket</a-menu-item>
+                      <a-menu-item key="grpc" @click="openCreate('grpc')">gRPC</a-menu-item>
+                      <a-menu-item key="web" @click="openCreate('web')">Web UI</a-menu-item>
+                      <a-menu-item key="android" @click="openCreate('android')">Android UI</a-menu-item>
+                    </a-menu>
+                  </template>
+                  <a-button type="primary" :disabled="!selectedModuleId">
+                    <PlusOutlined /> New case <DownOutlined />
+                  </a-button>
+                </a-dropdown>
+              </a-space>
+            </div>
+          </a-card>
 
           <a-table
             :columns="columns"
@@ -101,37 +149,128 @@
             row-key="id"
             size="middle"
             :pagination="{ pageSize: 20, showSizeChanger: true }"
+            :scroll="{ x: 1500 }"
           >
             <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'module'">
-                <span>{{ moduleNameMap[record.module_id] ?? `模块 #${record.module_id}` }}</span>
-              </template>
-
-              <template v-if="column.key === 'case_type'">
-                <a-tag :color="typeColor(record.case_type)">{{ typeLabel(record.case_type) }}</a-tag>
-              </template>
-
-              <template v-if="column.key === 'tags'">
-                <a-tag v-for="t in record.tags" :key="t" color="blue">{{ t }}</a-tag>
-              </template>
-
-              <template v-if="column.key === 'action'">
-                <a-space>
-                  <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-                  <a-button
-                    type="link"
-                    size="small"
-                    :loading="runningId === record.id"
-                    @click="handleRun(record)"
-                  >
-                    执行
+              <template v-if="column.key === 'name'">
+                <div class="case-name-cell">
+                  <a-button type="link" class="case-link" @click="openDetail(record.id)">
+                    {{ record.name }}
                   </a-button>
-                  <a-button type="link" size="small" @click="openHistory(record.id)">
-                    <HistoryOutlined /> 历史
-                  </a-button>
-                  <a-popconfirm title="确认删除该用例？" @confirm="handleDelete(record.id)">
-                    <a-button type="link" size="small" danger>删除</a-button>
-                  </a-popconfirm>
+                  <div class="case-summary">
+                    {{ record.case_code }} ? {{ record.summary || 'No summary' }}
+                  </div>
+                  <div v-if="record.tags.length" class="case-tags">
+                    <a-tag v-for="tag in record.tags.slice(0, 3)" :key="tag" color="blue">
+                      {{ tag }}
+                    </a-tag>
+                    <a-tag v-if="record.tags.length > 3">+{{ record.tags.length - 3 }}</a-tag>
+                  </div>
+                </div>
+              </template>
+
+              <template v-else-if="column.key === 'module'">
+                <span>{{ moduleNameMap[record.module_id] ?? `Module #${record.module_id}` }}</span>
+              </template>
+
+              <template v-else-if="column.key === 'case_type'">
+                <a-tag :color="caseTypeColor(record.case_type)">{{ caseTypeLabel(record.case_type) }}</a-tag>
+              </template>
+
+              <template v-else-if="column.key === 'priority'">
+                <a-tag :color="priorityColor(record.priority)">{{ record.priority }}</a-tag>
+              </template>
+
+              <template v-else-if="column.key === 'case_level'">
+                <a-tag>{{ record.case_level }}</a-tag>
+              </template>
+
+              <template v-else-if="column.key === 'review_status'">
+                <a-tag :color="reviewStatusColor(record.review_status)">
+                  {{ reviewStatusLabel(record.review_status) }}
+                </a-tag>
+              </template>
+
+              <template v-else-if="column.key === 'status'">
+                <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
+              </template>
+
+              <template v-else-if="column.key === 'automation_status'">
+                <a-tag :color="automationStatusColor(record.automation_status)">
+                  {{ record.automation_status }}
+                </a-tag>
+              </template>
+
+              <template v-else-if="column.key === 'updated_at'">
+                {{ formatDateTime(record.updated_at) }}
+              </template>
+
+              <template v-else-if="column.key === 'action'">
+                <a-space wrap size="small">
+                  <a-button type="link" size="small" @click="openDetail(record.id)">Detail</a-button>
+                  <a-button type="link" size="small" @click="openEdit(record)">Edit</a-button>
+                  <a-tooltip :title="record.is_ready_for_execution ? 'Run this case' : 'Only approved auto or semi-auto cases can run'">
+                    <a-button
+                      type="link"
+                      size="small"
+                      :loading="runningId === record.id"
+                      :disabled="!record.is_ready_for_execution"
+                      @click="handleRun(record)"
+                    >
+                      Run
+                    </a-button>
+                  </a-tooltip>
+                  <a-dropdown>
+                    <a-button type="link" size="small">
+                      More <DownOutlined />
+                    </a-button>
+                    <template #overlay>
+                      <a-menu>
+                        <a-menu-item key="copy" @click="handleCopy(record.id)">Copy</a-menu-item>
+                        <a-menu-item key="history" @click="openHistory(record.id)">
+                          <HistoryOutlined /> History
+                        </a-menu-item>
+                        <a-menu-divider />
+                        <a-menu-item
+                          v-if="canSubmitReview(record)"
+                          key="submit-review"
+                          @click="handleWorkflow(record, 'submitReview')"
+                        >
+                          Submit review
+                        </a-menu-item>
+                        <a-menu-item
+                          v-if="canApprove(record)"
+                          key="approve"
+                          @click="handleWorkflow(record, 'approve')"
+                        >
+                          Approve
+                        </a-menu-item>
+                        <a-menu-item
+                          v-if="canReject(record)"
+                          key="reject"
+                          @click="handleWorkflow(record, 'reject')"
+                        >
+                          Reject
+                        </a-menu-item>
+                        <a-menu-item
+                          v-if="canDeprecate(record)"
+                          key="deprecate"
+                          @click="handleWorkflow(record, 'deprecate')"
+                        >
+                          Deprecate
+                        </a-menu-item>
+                        <a-menu-item
+                          v-if="canReactivate(record)"
+                          key="reactivate"
+                          @click="handleWorkflow(record, 'reactivate')"
+                        >
+                          Reactivate
+                        </a-menu-item>
+                        <a-menu-divider />
+                        <a-menu-item key="delete" @click="confirmDelete(record)">Delete</a-menu-item>
+                      </a-menu>
+                    </template>
+                  </a-dropdown>
                 </a-space>
               </template>
             </template>
@@ -143,8 +282,8 @@
     <a-result
       v-else
       status="info"
-      title="请选择一个项目"
-      sub-title="选择项目后即可统一管理该项目下的模块与用例，并直接触发执行。"
+      title="Select a project"
+      sub-title="Choose a project to manage its modules and standardized cases."
     />
 
     <CaseFormDrawer
@@ -175,16 +314,16 @@
 
     <a-modal
       v-model:open="runModalOpen"
-      title="选择执行环境"
-      ok-text="执行"
-      cancel-text="取消"
+      title="Select environment"
+      ok-text="Run"
+      cancel-text="Cancel"
       :confirm-loading="runConfirming"
       @ok="confirmRun"
     >
-      <p style="margin-bottom: 12px; color: #666">可选择一个环境，变量将自动注入到用例执行中。</p>
+      <p class="run-tip">Pick an environment for this run, or leave it empty to run without one.</p>
       <a-select
         v-model:value="runEnvId"
-        placeholder="不使用环境"
+        placeholder="No environment"
         allow-clear
         style="width: 100%"
         :options="runEnvOptions"
@@ -196,7 +335,7 @@
       :open="historyOpen"
       :case-id="historyCaseId"
       @close="historyOpen = false"
-      @rolled="loadCases"
+      @rolled="handleHistoryRolled"
     />
   </div>
 </template>
@@ -204,33 +343,86 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
-import { PlusOutlined, DownOutlined, HistoryOutlined } from '@ant-design/icons-vue'
+import { message, Modal } from 'ant-design-vue'
+import { DownOutlined, HistoryOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { caseApi, environmentApi, projectApi } from '@/api'
+import type {
+  AutomationStatus,
+  CaseLevel,
+  CasePriority,
+  CaseQueryParams,
+  CaseStatus,
+  CaseSummaryItem,
+  CaseType,
+  ModuleTreeItem,
+  ProjectItem,
+  ReviewStatus,
+} from '@/api'
 import ModuleTree from '@/components/common/ModuleTree.vue'
 import CaseFormDrawer from '@/components/common/CaseFormDrawer.vue'
 import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
 import AndroidCaseDrawer from '@/views/case/AndroidCaseDrawer.vue'
 import CaseHistoryDrawer from '@/views/case/CaseHistoryDrawer.vue'
 
+type WorkflowAction = 'submitReview' | 'approve' | 'reject' | 'deprecate' | 'reactivate'
+
 const route = useRoute()
 const router = useRouter()
 
-const projects = ref<any[]>([])
+const caseTypeOptions: Array<{ label: string; value: CaseType }> = [
+  { label: 'API', value: 'api' },
+  { label: 'GraphQL', value: 'graphql' },
+  { label: 'WebSocket', value: 'websocket' },
+  { label: 'gRPC', value: 'grpc' },
+  { label: 'Web UI', value: 'web' },
+  { label: 'Android UI', value: 'android' },
+]
+
+const priorityOptions: Array<{ label: string; value: CasePriority }> = [
+  { label: 'P0', value: 'P0' },
+  { label: 'P1', value: 'P1' },
+  { label: 'P2', value: 'P2' },
+  { label: 'P3', value: 'P3' },
+]
+
+const statusOptions: Array<{ label: string; value: CaseStatus }> = [
+  { label: 'Draft', value: 'draft' },
+  { label: 'Active', value: 'active' },
+  { label: 'Deprecated', value: 'deprecated' },
+]
+
+const reviewStatusOptions: Array<{ label: string; value: ReviewStatus }> = [
+  { label: 'Pending', value: 'pending' },
+  { label: 'Approved', value: 'approved' },
+  { label: 'Rejected', value: 'rejected' },
+]
+
+const automationStatusOptions: Array<{ label: string; value: AutomationStatus }> = [
+  { label: 'manual', value: 'manual' },
+  { label: 'semi_auto', value: 'semi_auto' },
+  { label: 'auto', value: 'auto' },
+]
+
+const projects = ref<ProjectItem[]>([])
 const selectedProjectId = ref<number | null>(null)
 const moduleNameMap = ref<Record<number, string>>({})
-const cases = ref<any[]>([])
+const cases = ref<CaseSummaryItem[]>([])
 const loading = ref(false)
 const selectedModuleId = ref<number | null>(null)
-const searchText = ref('')
-const filterType = ref<string | undefined>(undefined)
+const keyword = ref('')
+const filterType = ref<CaseType | undefined>(undefined)
+const filterPriority = ref<CasePriority | undefined>(undefined)
+const filterLevel = ref<CaseLevel | undefined>(undefined)
+const filterStatus = ref<CaseStatus | undefined>(undefined)
+const filterReviewStatus = ref<ReviewStatus | undefined>(undefined)
+const filterAutomationStatus = ref<AutomationStatus | undefined>(undefined)
 const drawerOpen = ref(false)
-const editingCase = ref<any>(null)
-const createCaseType = ref('api')
+const editingCase = ref<CaseSummaryItem | null>(null)
+const createCaseType = ref<CaseType>('api')
 const webDrawerOpen = ref(false)
-const webEditingCase = ref<any>(null)
+const webEditingCase = ref<CaseSummaryItem | null>(null)
 const androidDrawerOpen = ref(false)
-const androidEditingCase = ref<any>(null)
+const androidEditingCase = ref<CaseSummaryItem | null>(null)
 const runningId = ref<number | null>(null)
 const historyOpen = ref(false)
 const historyCaseId = ref<number | null>(null)
@@ -240,39 +432,37 @@ const runEnvId = ref<number | null>(null)
 const runEnvOptions = ref<Array<{ label: string; value: number }>>([])
 const runEnvLoading = ref(false)
 const runConfirming = ref(false)
-const pendingRunCase = ref<any>(null)
+const pendingRunCase = ref<CaseSummaryItem | null>(null)
 
 const columns = [
-  { title: '用例名称', dataIndex: 'name', key: 'name', ellipsis: true },
-  { title: '模块', key: 'module', width: 180 },
-  { title: '类型', key: 'case_type', width: 110 },
-  { title: '标签', key: 'tags', width: 200 },
-  {
-    title: '更新时间',
-    dataIndex: 'updated_at',
-    key: 'updated_at',
-    width: 170,
-    customRender: ({ text }: any) => text?.slice(0, 19).replace('T', ' '),
-  },
-  { title: '操作', key: 'action', width: 220, fixed: 'right' },
+  { title: 'Case', key: 'name', width: 320 },
+  { title: 'Module', key: 'module', width: 160 },
+  { title: 'Type', key: 'case_type', width: 110 },
+  { title: 'Priority', key: 'priority', width: 100 },
+  { title: 'Level', key: 'case_level', width: 120 },
+  { title: 'Review', key: 'review_status', width: 120 },
+  { title: 'Status', key: 'status', width: 120 },
+  { title: 'Automation', key: 'automation_status', width: 130 },
+  { title: 'Updated at', key: 'updated_at', width: 180 },
+  { title: 'Actions', key: 'action', width: 280, fixed: 'right' },
 ]
 
 const projectOptions = computed(() =>
-  projects.value.map((project: any) => ({ label: project.name, value: project.id })),
+  projects.value.map((project) => ({ label: project.name, value: project.id })),
 )
 
 const currentProjectName = computed(() =>
-  projects.value.find((project: any) => project.id === selectedProjectId.value)?.name ?? '-',
+  projects.value.find((project) => project.id === selectedProjectId.value)?.name ?? '-',
 )
 
 const moduleCount = computed(() => Object.keys(moduleNameMap.value).length)
 
 const activeModuleName = computed(() =>
-  selectedModuleId.value ? (moduleNameMap.value[selectedModuleId.value] ?? `模块 #${selectedModuleId.value}`) : '全部模块',
+  selectedModuleId.value ? (moduleNameMap.value[selectedModuleId.value] ?? `Module #${selectedModuleId.value}`) : 'All',
 )
 
 const filteredCases = computed(() =>
-  cases.value.filter((testCase) => !searchText.value || testCase.name.includes(searchText.value)),
+  cases.value.filter((testCase) => !filterLevel.value || testCase.case_level === filterLevel.value),
 )
 
 function parsePositiveInt(value: unknown): number | null {
@@ -281,7 +471,7 @@ function parsePositiveInt(value: unknown): number | null {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-function flattenModules(nodes: any[], acc: Record<number, string> = {}) {
+function flattenModules(nodes: ModuleTreeItem[], acc: Record<number, string> = {}) {
   for (const node of nodes) {
     acc[node.id] = node.name
     if (Array.isArray(node.children) && node.children.length) {
@@ -291,18 +481,15 @@ function flattenModules(nodes: any[], acc: Record<number, string> = {}) {
   return acc
 }
 
-function typeLabel(type: string) {
-  return {
-    api: '接口测试',
-    graphql: 'GraphQL',
-    websocket: 'WebSocket',
-    grpc: 'gRPC',
-    web: 'Web UI',
-    android: 'Android',
-  }[type] ?? type
+function formatDateTime(value?: string | null) {
+  return value ? value.slice(0, 19).replace('T', ' ') : '-'
 }
 
-function typeColor(type: string) {
+function caseTypeLabel(type: CaseType) {
+  return caseTypeOptions.find((item) => item.value === type)?.label ?? type
+}
+
+function caseTypeColor(type: CaseType) {
   return {
     api: 'geekblue',
     graphql: 'orange',
@@ -313,11 +500,80 @@ function typeColor(type: string) {
   }[type] ?? 'default'
 }
 
+function priorityColor(priority: CasePriority) {
+  return {
+    P0: 'red',
+    P1: 'orange',
+    P2: 'gold',
+    P3: 'default',
+  }[priority]
+}
+
+function reviewStatusLabel(status: ReviewStatus) {
+  return {
+    pending: 'Pending',
+    approved: 'Approved',
+    rejected: 'Rejected',
+  }[status]
+}
+
+function reviewStatusColor(status: ReviewStatus) {
+  return {
+    pending: 'processing',
+    approved: 'success',
+    rejected: 'error',
+  }[status]
+}
+
+function statusLabel(status: CaseStatus) {
+  return {
+    draft: 'Draft',
+    active: 'Active',
+    deprecated: 'Deprecated',
+  }[status]
+}
+
+function statusColor(status: CaseStatus) {
+  return {
+    draft: 'default',
+    active: 'success',
+    deprecated: 'warning',
+  }[status]
+}
+
+function automationStatusColor(status: AutomationStatus) {
+  return {
+    manual: 'default',
+    semi_auto: 'processing',
+    auto: 'success',
+  }[status]
+}
+
+function canSubmitReview(testCase: CaseSummaryItem) {
+  return testCase.status !== 'deprecated' && testCase.review_status !== 'pending'
+}
+
+function canApprove(testCase: CaseSummaryItem) {
+  return testCase.status !== 'deprecated' && testCase.review_status === 'pending'
+}
+
+function canReject(testCase: CaseSummaryItem) {
+  return testCase.review_status === 'pending'
+}
+
+function canDeprecate(testCase: CaseSummaryItem) {
+  return testCase.status !== 'deprecated'
+}
+
+function canReactivate(testCase: CaseSummaryItem) {
+  return testCase.status === 'deprecated' && testCase.review_status === 'approved'
+}
+
 async function loadProjects() {
   try {
     projects.value = await projectApi.list()
   } catch (error: any) {
-    message.error(error ?? '加载项目列表失败')
+    message.error(error ?? 'Failed to load projects')
     projects.value = []
   }
 }
@@ -336,7 +592,7 @@ async function loadModules() {
     }
   } catch (error: any) {
     moduleNameMap.value = {}
-    message.error(error ?? '加载模块树失败')
+    message.error(error ?? 'Failed to load modules')
   }
 }
 
@@ -348,13 +604,19 @@ async function loadCases() {
 
   loading.value = true
   try {
-    cases.value = await caseApi.list({
+    const params: CaseQueryParams = {
       project_id: selectedProjectId.value,
       module_id: selectedModuleId.value ?? undefined,
       case_type: filterType.value,
-    })
+      priority: filterPriority.value,
+      status: filterStatus.value,
+      review_status: filterReviewStatus.value,
+      automation_status: filterAutomationStatus.value,
+      keyword: keyword.value.trim() || undefined,
+    }
+    cases.value = await caseApi.list(params)
   } catch (error: any) {
-    message.error(error ?? '加载用例列表失败')
+    message.error(error ?? 'Failed to load cases')
     cases.value = []
   } finally {
     loading.value = false
@@ -426,15 +688,30 @@ function clearModuleFilter() {
   syncRoute()
 }
 
-function refreshCurrentProject() {
-  void loadProjects()
-  void loadModules()
+async function refreshCurrentProject() {
+  await loadProjects()
+  await loadModules()
+  await loadCases()
+}
+
+function handleSearch() {
   void loadCases()
 }
 
-function openCreate(type: string) {
+function handleResetFilters() {
+  keyword.value = ''
+  filterType.value = undefined
+  filterPriority.value = undefined
+  filterLevel.value = undefined
+  filterStatus.value = undefined
+  filterReviewStatus.value = undefined
+  filterAutomationStatus.value = undefined
+  void loadCases()
+}
+
+function openCreate(type: CaseType) {
   if (!selectedModuleId.value) {
-    message.warning('请先选择一个模块再创建用例')
+    message.warning('Select a module before creating a case')
     return
   }
 
@@ -451,7 +728,7 @@ function openCreate(type: string) {
   }
 }
 
-function openEdit(testCase: any) {
+function openEdit(testCase: CaseSummaryItem) {
   if (testCase.case_type === 'web') {
     webEditingCase.value = testCase
     webDrawerOpen.value = true
@@ -464,12 +741,25 @@ function openEdit(testCase: any) {
   }
 }
 
+function openDetail(caseId: number) {
+  const query: Record<string, string> = {}
+  if (selectedProjectId.value) {
+    query.project_id = String(selectedProjectId.value)
+  }
+  if (selectedModuleId.value) {
+    query.module_id = String(selectedModuleId.value)
+  }
+  void router.push({ name: 'case-detail', params: { caseId: String(caseId) }, query })
+}
+
 function onSaved() {
   void loadCases()
 }
 
-async function handleRun(testCase: any) {
-  if (!selectedProjectId.value) return
+async function handleRun(testCase: CaseSummaryItem) {
+  if (!selectedProjectId.value) {
+    return
+  }
 
   pendingRunCase.value = testCase
   runEnvId.value = null
@@ -480,7 +770,7 @@ async function handleRun(testCase: any) {
     runEnvOptions.value = environments.map((item: any) => ({ label: item.name, value: item.id }))
   } catch {
     runEnvOptions.value = []
-    message.warning('加载环境列表失败，将不使用环境执行')
+    message.warning('Failed to load environments, run will continue without one')
   } finally {
     runEnvLoading.value = false
   }
@@ -488,7 +778,9 @@ async function handleRun(testCase: any) {
 
 async function confirmRun() {
   const testCase = pendingRunCase.value
-  if (!testCase) return
+  if (!testCase) {
+    return
+  }
 
   runConfirming.value = true
   runningId.value = testCase.id
@@ -499,29 +791,79 @@ async function confirmRun() {
     }
     const run = await caseApi.run(testCase.id, payload) as any
     runModalOpen.value = false
-    message.success('已触发执行，正在跳转报告页')
+    message.success('Run started, opening the report')
     void router.push(`/runs/${run.id}`)
   } catch (error: any) {
-    message.error(error ?? '执行触发失败')
+    message.error(error ?? 'Failed to start run')
   } finally {
     runConfirming.value = false
     runningId.value = null
   }
 }
 
-async function handleDelete(caseId: number) {
+async function handleCopy(caseId: number) {
   try {
-    await caseApi.delete(caseId)
-    message.success('已删除')
+    const copied = await caseApi.copy(caseId)
+    message.success(`Copied case ${copied.case_code}`)
+    await loadCases()
+    openDetail(copied.id)
+  } catch (error: any) {
+    message.error(error ?? 'Failed to copy case')
+  }
+}
+
+async function handleWorkflow(testCase: CaseSummaryItem, action: WorkflowAction) {
+  try {
+    switch (action) {
+      case 'submitReview':
+        await caseApi.submitReview(testCase.id)
+        message.success('Review submitted')
+        break
+      case 'approve':
+        await caseApi.approve(testCase.id)
+        message.success('Case approved')
+        break
+      case 'reject':
+        await caseApi.reject(testCase.id)
+        message.success('Case rejected')
+        break
+      case 'deprecate':
+        await caseApi.deprecate(testCase.id)
+        message.success('Case deprecated')
+        break
+      case 'reactivate':
+        await caseApi.reactivate(testCase.id)
+        message.success('Case reactivated')
+        break
+    }
     await loadCases()
   } catch (error: any) {
-    message.error(error ?? '删除用例失败')
+    message.error(error ?? 'Workflow action failed')
   }
+}
+
+function confirmDelete(testCase: CaseSummaryItem) {
+  Modal.confirm({
+    title: `Delete case "${testCase.name}"?`,
+    content: 'This action cannot be undone.',
+    okText: 'Delete',
+    cancelText: 'Cancel',
+    okType: 'danger',
+    async onOk() {
+      await caseApi.delete(testCase.id)
+      message.success('Case deleted')
+      await loadCases()
+    },
+  })
 }
 
 function openHistory(caseId: number) {
   historyCaseId.value = caseId
   historyOpen.value = true
+}
+
+function handleHistoryRolled() {
+  void loadCases()
 }
 
 watch(
@@ -577,6 +919,7 @@ onMounted(async () => {
   border-radius: 10px;
   padding: 16px;
   overflow-y: auto;
+  background: #fff;
 }
 
 .side-title {
@@ -594,12 +937,43 @@ onMounted(async () => {
   gap: 12px;
 }
 
+.toolbar-card :deep(.ant-card-body) {
+  padding: 14px 16px;
+}
+
 .toolbar {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
   gap: 12px;
   flex-wrap: wrap;
+}
+
+.case-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.case-link {
+  padding-inline: 0;
+  font-weight: 600;
+}
+
+.case-summary {
+  color: #666;
+  font-size: 12px;
+}
+
+.case-tags {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.run-tip {
+  margin-bottom: 12px;
+  color: #666;
 }
 
 @media (max-width: 960px) {

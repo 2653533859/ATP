@@ -5,17 +5,20 @@ from datetime import datetime
 # ── Project ─────────────────────────────────────────────
 class ProjectCreate(BaseModel):
     name: str
+    project_code: str | None = None
     description: str | None = None
 
 
 class ProjectUpdate(BaseModel):
     name: str | None = None
+    project_code: str | None = None
     description: str | None = None
 
 
 class ProjectOut(BaseModel):
     id: int
     name: str
+    project_code: str | None
     description: str | None
     owner_id: int
     created_at: datetime
@@ -27,6 +30,7 @@ class ProjectOut(BaseModel):
 # ── Module ───────────────────────────────────────────────
 class ModuleCreate(BaseModel):
     name: str
+    module_code: str | None = None
     project_id: int
     parent_id: int | None = None
     sort_order: int = 0
@@ -34,6 +38,7 @@ class ModuleCreate(BaseModel):
 
 class ModuleUpdate(BaseModel):
     name: str | None = None
+    module_code: str | None = None
     parent_id: int | None = None
     sort_order: int | None = None
 
@@ -41,6 +46,7 @@ class ModuleUpdate(BaseModel):
 class ModuleOut(BaseModel):
     id: int
     name: str
+    module_code: str | None
     project_id: int
     parent_id: int | None
     sort_order: int

@@ -11,7 +11,7 @@ from app.models.base import Base
 # 导入所有模型以确保 metadata 包含全部表
 from app.models.user import User  # noqa
 from app.models.project import Project, Module  # noqa
-from app.models.case import TestCase, TestRun, StepResult  # noqa
+from app.models.case import TestCase, CaseStep, TestRun, StepResult, CaseSnapshot  # noqa
 from app.models.environment import Environment, EnvVariable  # noqa
 from app.models.suite import TestSuite, SuiteRun  # noqa
 from app.models.plan import TestPlan, PlanRun  # noqa

@@ -1,79 +1,19 @@
-# ATP Windows 本地运行说明
+﻿# ATP Windows 本地单命令启动
 
-适用场景：
+本文档说明如何在 Windows 本地用一条命令启动 ATP 的前后端开发栈，同时连接运行在 WSL / Linux Docker 主机上的 PostgreSQL、Redis、MinIO。
 
-- 前端、后端、Celery Worker 在 Windows 本机运行
-- PostgreSQL、Redis、MinIO 通过 Docker Desktop 启动
+## 适用场景
+
+- 前端、后端、Celery Worker、Celery Beat 运行在 Windows 本机
+- PostgreSQL、Redis、MinIO 运行在 WSL / Linux Docker 主机
+- 当前已验证的远端主机地址：`172.26.202.29`
 - Android 真机通过 Windows 本机 `adb` 直连
 
-这种方式比“整套服务都跑在 Docker 容器里”更适合本地开发和真机联调，因为 `worker` 可以直接访问 Windows 上连接的手机。
+这种模式适合本地开发与联调：Windows 侧进程直接访问真机与浏览器，基础设施继续复用 Linux Docker 环境。
 
-## 1. 前置准备
+## 一次性准备
 
-请先安装并确认以下命令可用：
-
-- `Docker Desktop`
-- `Python 3.12`
-- `Node.js 20+`
-- `Git`
-- `adb`（Android Platform Tools，只有 Android 真机调试时必需）
-
-可用下面的命令快速检查：
-
-```powershell
-docker --version
-python --version
-node --version
-npm --version
-adb version
-```
-
-## 2. 准备项目配置
-
-在项目根目录执行：
-
-```powershell
-cd F:\csh\MyProjectAutoTest\ATP
-Copy-Item .env.example .env
-```
-
-然后编辑根目录 `.env`，至少修改这些值：
-
-- `APP_SECRET_KEY`
-- `POSTGRES_PASSWORD`
-- `MINIO_ROOT_PASSWORD`
-- `FIRST_ADMIN_PASSWORD`
-
-本地开发时，建议确认以下配置为本机地址：
-
-```env
-POSTGRES_HOST=localhost
-REDIS_HOST=localhost
-MINIO_HOST=localhost
-APP_CORS_ORIGINS=http://localhost:5173,http://localhost,http://127.0.0.1:5173
-```
-
-## 3. 启动基础设施
-
-本地开发只需要先拉起数据库、Redis、MinIO：
-
-```powershell
-docker compose up -d postgres redis minio
-```
-
-检查容器状态：
-
-```powershell
-docker compose ps
-```
-
-常用访问地址：
-
-- MinIO Console: `http://localhost:9001`
-
-## 4. 安装后端依赖
-
-在新的 PowerShell 窗口执行：
+### 1. 后端依赖
 
 ```powershell
 cd F:\csh\MyProjectAutoTest\ATP\backend
@@ -84,130 +24,174 @@ pip install -r requirements.txt
 playwright install chromium
 ```
 
-如果 PowerShell 拒绝执行激活脚本，可临时执行：
-
-```powershell
-Set-ExecutionPolicy -Scope Process Bypass
-```
-
-## 5. 安装前端依赖
-
-在新的 PowerShell 窗口执行：
+### 2. 前端依赖
 
 ```powershell
 cd F:\csh\MyProjectAutoTest\ATP\frontend
 npm ci
 ```
 
-如果 `npm ci` 因锁文件或网络问题失败，再执行：
+如果锁文件和当前环境不一致，再执行：
 
 ```powershell
 npm install
 ```
 
-## 6. 启动项目服务
+### 3. 本地环境变量
 
-建议打开 4 个 PowerShell 窗口，分别启动以下进程。
-
-### 6.1 启动后端 API
+先复制本地环境文件：
 
 ```powershell
-cd F:\csh\MyProjectAutoTest\ATP\backend
-.\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload
+cd F:\csh\MyProjectAutoTest\ATP
+Copy-Item .env.example .env
 ```
 
-后端健康检查地址：
+然后按你的本地私有凭据修改 `.env`。不要把密码提交进仓库。
 
-- `http://localhost:8000/health`
+连接 WSL / Linux Docker 主机时，至少确认这些配置指向远端地址：
 
-### 6.2 启动 Celery Worker
+```env
+POSTGRES_HOST=172.26.202.29
+REDIS_HOST=172.26.202.29
+MINIO_HOST=172.26.202.29
+APP_CORS_ORIGINS=http://127.0.0.1:5173,http://localhost:5173
+```
+
+如果你的 Redis、PostgreSQL、MinIO 端口不是默认值，再同步补齐：
+
+```env
+POSTGRES_PORT=5432
+REDIS_PORT=6379
+MINIO_PORT=9000
+```
+
+## 单命令启动
+
+在项目根目录执行：
 
 ```powershell
-cd F:\csh\MyProjectAutoTest\ATP\backend
-.\.venv\Scripts\Activate.ps1
-celery -A app.worker.celery_app worker --loglevel=info --pool=solo
+cd F:\csh\MyProjectAutoTest\ATP
+.\local-dev.cmd
 ```
 
-这里使用 `--pool=solo`，避免当前项目里的异步数据库任务在 Windows 本地开发时出现进程池兼容问题。
-
-### 6.3 启动 Celery Beat
+默认等价于：
 
 ```powershell
-cd F:\csh\MyProjectAutoTest\ATP\backend
-.\.venv\Scripts\Activate.ps1
-celery -A app.worker.celery_app beat --loglevel=info
+.\local-dev.cmd up
 ```
 
-### 6.4 启动前端
+脚本会按顺序启动：
+
+- Backend API
+- Celery Worker
+- Celery Beat
+- Frontend Vite
+
+同时会自动：
+
+- 把运行日志写入 `F:\csh\MyProjectAutoTest\ATP\.local-run`
+- 为每个服务写入 PID 文件，避免重复拉起
+- 在 `status` / `down` 时优先按 PID 托管进程
+
+## 常用命令
+
+启动：
 
 ```powershell
-cd F:\csh\MyProjectAutoTest\ATP\frontend
-npm run dev
+.\local-dev.cmd up
 ```
 
-前端开发地址：
-
-- `http://localhost:5173`
-
-## 7. 数据库初始化
-
-首次使用新数据库时，建议手动执行一次迁移：
+停止：
 
 ```powershell
-cd F:\csh\MyProjectAutoTest\ATP\backend
-.\.venv\Scripts\Activate.ps1
-alembic upgrade head
+.\local-dev.cmd down
 ```
 
-当前项目启动时仍保留了建表兜底逻辑，首次启动后也会自动创建管理员账号和默认对象存储 bucket，但开发环境下仍建议显式执行迁移，避免数据库状态不一致。
+重启：
 
-## 8. Android 真机联调
+```powershell
+.\local-dev.cmd restart
+```
 
-如果你要在本机开发环境里调 Android 用例，按下面检查：
+查看状态：
 
-1. 手机开启开发者选项和 USB 调试
-2. 用 USB 连接到 Windows
-3. 在 PowerShell 验证：
+```powershell
+.\local-dev.cmd status
+```
+
+查看日志：
+
+```powershell
+.\local-dev.cmd logs
+```
+
+## 启动后检查
+
+正常情况下可以直接访问：
+
+- 后端健康检查：`http://127.0.0.1:8000/health`
+- 前端登录页：`http://127.0.0.1:5173/login`
+
+也可以再执行：
+
+```powershell
+.\local-dev.cmd status
+```
+
+## 日志与 PID 文件
+
+脚本会在 `F:\csh\MyProjectAutoTest\ATP\.local-run` 下生成：
+
+- `backend.pid`
+- `worker.pid`
+- `beat.pid`
+- `frontend.pid`
+- `backend-*.out.log` / `backend-*.err.log`
+- `worker-*.out.log` / `worker-*.err.log`
+- `beat-*.out.log` / `beat-*.err.log`
+- `frontend-*.out.log` / `frontend-*.err.log`
+
+说明：
+
+- PID 文件用于稳定识别当前脚本启动的进程
+- `logs` 命令默认读取每个服务最新一份日志
+- 即使日志文件滚动，旧日志也会保留，方便排查历史问题
+
+## 常见问题
+
+### 1. `up` 提示缺少依赖
+
+按报错信息补齐：
+
+- `backend\.venv\Scripts\python.exe` 不存在：先完成后端虚拟环境安装
+- `frontend\node_modules\vite\bin\vite.js` 不存在：先在 `frontend` 执行 `npm ci`
+- `node.exe` 不存在：安装 Node.js 20+
+
+### 2. 端口被占用
+
+如果 `8000` 或 `5173` 被其他进程占用，脚本会直接报错并打印 PID。先释放端口，再重试：
+
+```powershell
+Get-NetTCPConnection -LocalPort 8000,5173 -ErrorAction SilentlyContinue | Select-Object LocalPort, OwningProcess
+```
+
+### 3. 远端基础设施连不通
+
+优先检查 Windows 到 WSL / Linux 主机网络是否可达：
+
+```powershell
+Test-NetConnection 172.26.202.29 -Port 5432
+Test-NetConnection 172.26.202.29 -Port 6379
+Test-NetConnection 172.26.202.29 -Port 9000
+```
+
+### 4. Android 真机不显示
 
 ```powershell
 adb devices
 ```
 
-如果能看到设备序列号，平台里的设备扫描和 Android 执行器才能正常工作。
-
-这种本机运行模式的优势是：
-
-- `worker` 直接调用 Windows 本机 `adb`
-- 不需要处理 Docker 容器访问 USB 设备的问题
-- 真机联调稳定性通常高于容器方案
-
-## 9. 常见问题
-
-### 9.1 前端构建或类型检查提示缺少 `vue-echarts` / `echarts`
-
-先在 `frontend/` 目录执行：
-
-```powershell
-npm ci
-```
-
-如果依赖仍不完整，再执行：
-
-```powershell
-npm install
-```
-
-### 9.2 `adb devices` 看不到手机
-
-优先检查：
-
-- USB 调试是否已授权
-- 数据线是否支持传输
-- Windows 设备管理器中驱动是否正常
-- 是否有其他 ADB 进程占用
-
-必要时可重启 ADB：
+如果看不到设备，再重启 ADB：
 
 ```powershell
 adb kill-server
@@ -215,30 +199,16 @@ adb start-server
 adb devices
 ```
 
-### 9.3 Worker 启动了，但任务一直不执行
+## 推荐用法
 
-先确认：
+日常开发建议固定使用下面这一组命令：
 
-- `redis` 容器正常
-- `worker` 进程确实已启动
-- 启动命令带了 `--pool=solo`
+```powershell
+cd F:\csh\MyProjectAutoTest\ATP
+.\local-dev.cmd up
+.\local-dev.cmd status
+.\local-dev.cmd logs
+.\local-dev.cmd down
+```
 
-### 9.4 MinIO 无法上传文件
-
-检查：
-
-- `MINIO_HOST` 是否为 `localhost`
-- `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` 是否正确
-- `http://localhost:9001` 是否可访问
-
-## 10. 推荐的本地开发模式
-
-如果你既要改页面，又要联调 Android 设备，推荐采用下面的组合：
-
-- 前端：Windows 本机运行
-- 后端：Windows 本机运行
-- Worker / Beat：Windows 本机运行
-- PostgreSQL / Redis / MinIO：Docker Desktop 运行
-- Android 手机：直接接入 Windows，通过本机 `adb` 管理
-
-这也是当前项目在 Windows 环境下最实用、排障成本最低的开发方式。
+这样能保持本地启动链路稳定、可回收、易排障。
