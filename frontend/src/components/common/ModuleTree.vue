@@ -1,10 +1,22 @@
 <template>
   <div class="module-tree">
     <div class="tree-header">
-      <span class="tree-title">模块目录</span>
-      <a-tooltip title="新建根模块">
-        <PlusOutlined class="tree-add-btn" @click="showAddModal(null)" />
-      </a-tooltip>
+      <span class="tree-title">{{ title }}</span>
+      <div class="tree-header-actions">
+        <a-button
+          v-if="showReset"
+          type="link"
+          size="small"
+          class="tree-reset-btn"
+          :disabled="resetDisabled"
+          @click="emit('reset')"
+        >
+          查看全部
+        </a-button>
+        <a-tooltip title="新建根模块">
+          <PlusOutlined class="tree-add-btn" @click="showAddModal(null)" />
+        </a-tooltip>
+      </div>
     </div>
 
     <a-spin :spinning="loading" size="small">
@@ -63,8 +75,17 @@ import { Empty, message } from 'ant-design-vue'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { projectApi, moduleApi } from '@/api'
 
-const props = defineProps<{ projectId: number }>()
-const emit = defineEmits<{ select: [moduleId: number | null] }>()
+const props = withDefaults(defineProps<{
+  projectId: number
+  title?: string
+  showReset?: boolean
+  resetDisabled?: boolean
+}>(), {
+  title: '模块目录',
+  showReset: false,
+  resetDisabled: true,
+})
+const emit = defineEmits<{ select: [moduleId: number | null]; reset: [] }>()
 
 const treeData = ref<any[]>([])
 const loading = ref(false)
@@ -140,9 +161,18 @@ defineExpose({ reload: loadModules })
   display: flex;
   justify-content: space-between;
   align-items: center;
+  gap: 8px;
   padding: 0 4px 12px;
   font-weight: 600;
   color: #1f1f1f;
+}
+.tree-header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tree-reset-btn {
+  padding-inline: 0;
 }
 .tree-add-btn {
   cursor: pointer;
