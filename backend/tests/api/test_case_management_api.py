@@ -120,6 +120,9 @@ class _UpdateDB:
     def add(self, obj):
         self.added.append(obj)
 
+    async def flush(self):
+        return None
+
     async def commit(self):
         self.case_obj.updated_at = _now()
 
@@ -270,3 +273,4 @@ def test_get_case_detail_normalizes_legacy_json_lists():
     payload = cases.TestCaseDetailOut.model_validate(result)
     assert payload.preconditions == []
     assert payload.postconditions == []
+

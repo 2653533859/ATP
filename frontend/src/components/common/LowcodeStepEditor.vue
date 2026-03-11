@@ -29,7 +29,7 @@
                 size="small"
                 placeholder="步骤名称"
                 style="width: 200px"
-                @change="emitUpdate"
+                @input="emitUpdate"
               />
               <a-select
                 v-model:value="step.action"
@@ -55,7 +55,7 @@
               <a-input
                 v-model:value="step.params.url"
                 placeholder="https://example.com  (支持 {{VAR}} 变量)"
-                @change="emitUpdate"
+                @input="emitUpdate"
               />
             </a-form-item>
           </template>
@@ -66,7 +66,7 @@
               <a-input
                 v-model:value="step.params.selector"
                 placeholder="CSS 选择器或 Playwright 定位器 (如 text=登录)"
-                @change="emitUpdate"
+                @input="emitUpdate"
               />
             </a-form-item>
           </template>
@@ -79,7 +79,7 @@
                   <a-input
                     v-model:value="step.params.selector"
                     placeholder="CSS 选择器"
-                    @change="emitUpdate"
+                    @input="emitUpdate"
                   />
                 </a-form-item>
               </a-col>
@@ -88,7 +88,7 @@
                   <a-input
                     v-model:value="step.params.value"
                     placeholder="要输入的文本 (支持 {{VAR}})"
-                    @change="emitUpdate"
+                    @input="emitUpdate"
                   />
                 </a-form-item>
               </a-col>
@@ -101,7 +101,7 @@
               <a-input
                 v-model:value="step.params.text"
                 placeholder="页面应包含的文本内容"
-                @change="emitUpdate"
+                @input="emitUpdate"
               />
             </a-form-item>
           </template>
@@ -112,7 +112,7 @@
               <a-input
                 v-model:value="step.params.selector"
                 placeholder="断言该元素可见"
-                @change="emitUpdate"
+                @input="emitUpdate"
               />
             </a-form-item>
           </template>
@@ -144,7 +144,7 @@
                   <a-input
                     v-model:value="step.params.selector"
                     placeholder="<select> 元素选择器"
-                    @change="emitUpdate"
+                    @input="emitUpdate"
                   />
                 </a-form-item>
               </a-col>
@@ -153,7 +153,7 @@
                   <a-input
                     v-model:value="step.params.value"
                     placeholder="option 的 value"
-                    @change="emitUpdate"
+                    @input="emitUpdate"
                   />
                 </a-form-item>
               </a-col>
@@ -168,7 +168,7 @@
                   <a-input
                     v-model:value="step.params.key"
                     placeholder="如 Enter、Tab、Escape"
-                    @change="emitUpdate"
+                    @input="emitUpdate"
                   />
                 </a-form-item>
               </a-col>
@@ -177,7 +177,7 @@
                   <a-input
                     v-model:value="step.params.selector"
                     placeholder="可选，留空则对整个页面按键"
-                    @change="emitUpdate"
+                    @input="emitUpdate"
                   />
                 </a-form-item>
               </a-col>
@@ -190,7 +190,7 @@
               <a-input
                 v-model:value="step.params.selector"
                 placeholder="鼠标悬停的目标元素"
-                @change="emitUpdate"
+                @input="emitUpdate"
               />
             </a-form-item>
           </template>
@@ -248,11 +248,26 @@ const defaultParams: Record<string, () => Record<string, any>> = {
 }
 
 function toInternal(items: Array<{ action: string; name: string; params: Record<string, any> }>): StepDef[] {
-  return items.map((item) => ({
-    ...item,
-    params: { ...item.params },
-    _key: keyCounter++,
-  }))
+  const keyPool = new Map<string, number[]>()
+
+  for (const step of steps.value) {
+    const signature = JSON.stringify(toExternal([step])[0])
+    const keys = keyPool.get(signature) ?? []
+    keys.push(step._key)
+    keyPool.set(signature, keys)
+  }
+
+  return items.map((item) => {
+    const params = { ...item.params }
+    const signature = JSON.stringify({ action: item.action, name: item.name, params })
+    const reusableKey = keyPool.get(signature)?.shift()
+
+    return {
+      ...item,
+      params,
+      _key: reusableKey ?? keyCounter++,
+    }
+  })
 }
 
 function toExternal(items: StepDef[]): Array<{ action: string; name: string; params: Record<string, any> }> {
@@ -261,10 +276,18 @@ function toExternal(items: StepDef[]): Array<{ action: string; name: string; par
 
 const steps = ref<StepDef[]>([])
 
+function isSameSteps(items: Array<{ action: string; name: string; params: Record<string, any> }>) {
+  return JSON.stringify(items) === JSON.stringify(toExternal(steps.value))
+}
+
 watch(
   () => props.modelValue,
   (val) => {
-    steps.value = toInternal(val || [])
+    const nextSteps = val || []
+    if (isSameSteps(nextSteps)) {
+      return
+    }
+    steps.value = toInternal(nextSteps)
   },
   { immediate: true },
 )

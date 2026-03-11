@@ -4,6 +4,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+from app.worker import async_runner
 from app.worker.async_runner import reset_worker_loop, run_async
 
 
@@ -29,3 +30,21 @@ def test_run_async_recreates_closed_loop():
     second = run_async(_current_loop())
 
     assert first is not second
+
+
+def test_create_worker_loop_uses_windows_proactor_policy(monkeypatch):
+    created = object()
+
+    class _FakePolicy:
+        def new_event_loop(self):
+            return created
+
+    monkeypatch.setattr(async_runner.sys, "platform", "win32")
+    monkeypatch.setattr(
+        async_runner.asyncio,
+        "WindowsProactorEventLoopPolicy",
+        lambda: _FakePolicy(),
+        raising=False,
+    )
+
+    assert async_runner._create_worker_loop() is created

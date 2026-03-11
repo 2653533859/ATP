@@ -204,18 +204,24 @@ def _normalize_steps(body_steps: list[object], case_type: CaseType, config: dict
     return normalized
 
 
-def _replace_case_steps(case: TestCase, steps_payload: list[dict]) -> None:
-    case.steps = [
-        CaseStep(
-            step_no=step["step_no"],
-            action=step["action"],
-            test_data=step.get("test_data"),
-            expected_result=step.get("expected_result"),
-            is_key_step=step.get("is_key_step", False),
-            remarks=step.get("remarks"),
-        )
-        for step in steps_payload
-    ]
+async def _replace_case_steps(db: AsyncSession, case: TestCase, steps_payload: list[dict]) -> None:
+    if case.id is not None and case.steps:
+        case.steps.clear()
+        await db.flush()
+
+    case.steps.extend(
+        [
+            CaseStep(
+                step_no=step["step_no"],
+                action=step["action"],
+                test_data=step.get("test_data"),
+                expected_result=step.get("expected_result"),
+                is_key_step=step.get("is_key_step", False),
+                remarks=step.get("remarks"),
+            )
+            for step in steps_payload
+        ]
+    )
 
 
 async def _next_snapshot_version(db: AsyncSession, case_id: int) -> int:
@@ -367,7 +373,7 @@ async def create_case(
         postconditions=list(body.postconditions),
         config=copy.deepcopy(body.config),
     )
-    _replace_case_steps(case, steps_payload)
+    await _replace_case_steps(db, case, steps_payload)
     db.add(case)
     await db.commit()
     case = await _get_case_detail_or_404(db, case.id)
@@ -424,12 +430,13 @@ async def update_case(
         case.config = copy.deepcopy(payload["config"])
 
     if "steps" in payload:
-        _replace_case_steps(
+        await _replace_case_steps(
+            db,
             case,
             _normalize_steps(payload["steps"] or [], case.case_type, case.config or {}, payload.get("name") or case.name),
         )
     elif "config" in payload:
-        _replace_case_steps(case, _normalize_steps([], case.case_type, case.config or {}, case.name))
+        await _replace_case_steps(db, case, _normalize_steps([], case.case_type, case.config or {}, case.name))
 
     if case.review_status == "approved":
         _reset_review_after_edit(case)
@@ -465,7 +472,7 @@ async def copy_case(
         postconditions=_normalize_string_list(source.postconditions),
         config=copy.deepcopy(source.config or {}),
     )
-    _replace_case_steps(cloned, _serialize_steps(source.steps or []))
+    await _replace_case_steps(db, cloned, _serialize_steps(source.steps or []))
     db.add(cloned)
     await db.commit()
     return await _get_case_detail_or_404(db, cloned.id)
@@ -659,7 +666,11 @@ async def rollback_case(
     case.postconditions = _normalize_string_list(data.get("postconditions", []))
     case.tags = _normalize_string_list(data.get("tags", snapshot.tags or []))
     case.config = copy.deepcopy(data.get("config", snapshot.config or {}))
-    _replace_case_steps(case, data.get("steps") or _derive_steps_from_config(case.case_type, case.config, case.name))
+    await _replace_case_steps(
+        db,
+        case,
+        data.get("steps") or _derive_steps_from_config(case.case_type, case.config, case.name),
+    )
     await db.commit()
     return await _get_case_detail_or_404(db, case_id)
 

@@ -42,6 +42,11 @@ logger = logging.getLogger(__name__)
 VAR_PATTERN = re.compile(r"\{\{(\w+)\}\}")
 
 
+def _format_exception_message(exc: Exception) -> str:
+    message = str(exc).strip()
+    return message if message else type(exc).__name__
+
+
 def _replace_vars(text: str, context: dict[str, str]) -> str:
     """替换 {{VAR}} 占位符"""
     if not text:
@@ -269,7 +274,7 @@ async def run_web_lowcode(
     except Exception as e:
         logger.exception("web_lowcode run %s error: %s", run.id, e)
         all_passed = False
-        run.error_message = str(e)[:500]
+        run.error_message = _format_exception_message(e)[:500]
 
     finally:
         # 关闭 context 以确保录像写入完成
