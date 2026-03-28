@@ -23,17 +23,21 @@ sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=_fake_get_current_user,
     require_engineer=_fake_require_engineer,
 )
+sys.modules["app.core.minio_client"] = types.SimpleNamespace(read_bytes=lambda _name: b"img")
 
 from app.api.v1 import bug_trackers
+from app.models.bug_tracker import TrackerType
 
 
 class _FakeDB:
-    def __init__(self, *, run, tracker, case, module):
+    def __init__(self, *, run, tracker, case, module, step=None):
         self._run = run
         self._tracker = tracker
         self._case = case
         self._module = module
+        self._step = step
         self.committed = False
+        self.execute_calls = 0
 
     async def get(self, model, _pk):
         model_name = getattr(model, "__name__", "")
@@ -47,6 +51,14 @@ class _FakeDB:
             return self._module
         return None
 
+    async def execute(self, _stmt):
+        self.execute_calls += 1
+        return types.SimpleNamespace(
+            scalar_one_or_none=lambda: self._step,
+            scalars=lambda: types.SimpleNamespace(first=lambda: self._step),
+            first=lambda: (self._tracker, self._module),
+        )
+
     async def commit(self):
         self.committed = True
 
@@ -59,7 +71,7 @@ def test_create_bug_from_run_rejects_tracker_from_other_project(monkeypatch):
 
     db = _FakeDB(
         run=types.SimpleNamespace(id=5, case_id=9, environment="test", error_message="boom", result_summary={}),
-        tracker=types.SimpleNamespace(id=3, project_id=2, tracker_type=types.SimpleNamespace(value="jira"), config={}, is_enabled=True),
+        tracker=types.SimpleNamespace(id=3, project_id=2, tracker_type=types.SimpleNamespace(value="jira"), config={}, field_mapping={}, is_enabled=True),
         case=types.SimpleNamespace(id=9, module_id=7, name="支付失败"),
         module=types.SimpleNamespace(id=7, project_id=1),
     )
@@ -71,3 +83,157 @@ def test_create_bug_from_run_rejects_tracker_from_other_project(monkeypatch):
     assert exc.value.status_code == 400
     assert db.committed is False
 
+
+def test_test_bug_tracker_connection_returns_false_on_error(monkeypatch):
+    async def fake_test_connection(*_args, **_kwargs):
+        raise RuntimeError("auth failed")
+
+    monkeypatch.setattr(bug_trackers, "test_connection", fake_test_connection)
+    body = bug_trackers.BugTrackerConnectionTestRequest(tracker_type=TrackerType.jira, config={})
+
+    result = asyncio.run(bug_trackers.test_bug_tracker_connection(body=body, _=None))
+
+    assert result.ok is False
+    assert "auth failed" in result.message
+
+
+def test_test_bug_tracker_connection_uses_decrypted_saved_config(monkeypatch):
+    captured = {}
+
+    async def fake_test_connection(tracker_type, config):
+        captured["tracker_type"] = tracker_type
+        captured["config"] = config
+        return {"ok": True, "message": "ok"}
+
+    monkeypatch.setattr(bug_trackers, "test_connection", fake_test_connection)
+
+    tracker = types.SimpleNamespace(
+        id=3,
+        project_id=1,
+        tracker_type=TrackerType.jira,
+        config=bug_trackers.encrypt_config(
+            {
+                "base_url": "https://jira.example.com",
+                "email": "qa@example.com",
+                "api_token": "plain-token",
+                "project_key": "ATP",
+            }
+        ),
+        field_mapping={},
+        is_enabled=True,
+    )
+    db = _FakeDB(run=None, tracker=tracker, case=None, module=None)
+    body = bug_trackers.BugTrackerConnectionTestRequest(
+        tracker_id=3,
+        tracker_type=TrackerType.jira,
+        config={},
+    )
+
+    result = asyncio.run(bug_trackers.test_bug_tracker_connection(body=body, db=db, _=None))
+
+    assert result.ok is True
+    assert captured["tracker_type"] == "jira"
+    assert captured["config"]["api_token"] == "plain-token"
+    assert captured["config"]["base_url"] == "https://jira.example.com"
+
+
+def test_create_bug_from_run_returns_duplicate_without_creating(monkeypatch):
+    async def fake_find_duplicate_bug(**_kwargs):
+        return {"bug_id": "ATP-12", "bug_url": "https://jira/browse/ATP-12", "title": "[ATP] 支付失败 执行失败"}
+
+    async def fake_create_bug(**_kwargs):
+        raise AssertionError("duplicate should short-circuit create")
+
+    monkeypatch.setattr(bug_trackers, "find_duplicate_bug", fake_find_duplicate_bug)
+    monkeypatch.setattr(bug_trackers, "create_bug", fake_create_bug)
+
+    run = types.SimpleNamespace(id=5, case_id=9, environment="test", error_message="boom", result_summary={})
+    db = _FakeDB(
+        run=run,
+        tracker=types.SimpleNamespace(id=3, project_id=1, tracker_type=types.SimpleNamespace(value="jira"), config={}, field_mapping={}, is_enabled=True),
+        case=types.SimpleNamespace(id=9, module_id=7, name="支付失败"),
+        module=types.SimpleNamespace(id=7, project_id=1),
+    )
+    body = bug_trackers.CreateBugRequest(tracker_id=3)
+
+    result = asyncio.run(bug_trackers.create_bug_from_run(run_id=5, body=body, db=db, _=None))
+
+    assert result.duplicate_of == "ATP-12"
+    assert result.attachment_uploaded is False
+    assert run.result_summary["bug"]["bug_id"] == "ATP-12"
+    assert run.result_summary["bug"]["duplicate_of"] == "ATP-12"
+    assert run.result_summary["bug"]["tracker_id"] == 3
+    assert db.committed is True
+
+
+def test_get_run_bug_status_updates_result_summary(monkeypatch):
+    async def fake_get_bug_status(**_kwargs):
+        return {"bug_id": "99", "status": "closed", "bug_url": "https://jira/browse/99"}
+
+    monkeypatch.setattr(bug_trackers, "get_bug_status", fake_get_bug_status)
+
+    run = types.SimpleNamespace(id=5, case_id=9, result_summary={"bug": {"bug_id": "99", "bug_url": "https://jira/browse/99", "title": "bug"}})
+    tracker = types.SimpleNamespace(id=3, project_id=1, tracker_type=types.SimpleNamespace(value="jira"), config={}, field_mapping={}, is_enabled=True)
+    db = _FakeDB(
+        run=run,
+        tracker=tracker,
+        case=types.SimpleNamespace(id=9, module_id=7, name="支付失败"),
+        module=types.SimpleNamespace(id=7, project_id=1),
+    )
+
+    result = asyncio.run(bug_trackers.get_run_bug_status(run_id=5, db=db, _=None))
+
+    assert result.status == "closed"
+    assert run.result_summary["bug"]["status"] == "closed"
+    assert db.committed is True
+
+
+def test_get_run_bug_status_prefers_persisted_tracker_id(monkeypatch):
+    captured = {}
+
+    async def fake_get_bug_status(**kwargs):
+        captured.update(kwargs)
+        return {"bug_id": "99", "status": "open", "bug_url": "https://github/issues/99"}
+
+    monkeypatch.setattr(bug_trackers, "get_bug_status", fake_get_bug_status)
+
+    run = types.SimpleNamespace(
+        id=5,
+        case_id=9,
+        result_summary={
+            "bug": {
+                "bug_id": "99",
+                "bug_url": "https://github/issues/99",
+                "title": "bug",
+                "tracker_id": 3,
+            }
+        },
+    )
+    tracker = types.SimpleNamespace(
+        id=3,
+        project_id=1,
+        tracker_type=TrackerType.github,
+        config=bug_trackers.encrypt_config(
+            {
+                "base_url": "https://api.github.com",
+                "owner": "octo-org",
+                "repo": "atp",
+                "token": "ghp_secret",
+            }
+        ),
+        field_mapping={},
+        is_enabled=True,
+    )
+    db = _FakeDB(
+        run=run,
+        tracker=tracker,
+        case=types.SimpleNamespace(id=9, module_id=7, name="支付失败"),
+        module=types.SimpleNamespace(id=7, project_id=1),
+    )
+
+    result = asyncio.run(bug_trackers.get_run_bug_status(run_id=5, db=db, _=None))
+
+    assert result.status == "open"
+    assert captured["tracker_type"] == "github"
+    assert captured["config"]["token"] == "ghp_secret"
+    assert db.execute_calls == 0

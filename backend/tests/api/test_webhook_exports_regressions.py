@@ -158,3 +158,23 @@ def test_export_run_junit_reports_run_failure_without_steps():
     failure = testcase.find("failure")
     assert failure is not None
     assert "executor bootstrap failed" in (failure.attrib.get("message") or "")
+
+
+def test_build_report_html_renders_single_run_report():
+    run = _FakeRun(status="passed", error_message="")
+    run.created_at = None
+    step = types.SimpleNamespace(
+        step_index=0,
+        name="打开页面",
+        status=types.SimpleNamespace(value="passed"),
+        duration_ms=120,
+        request_data=None,
+        response_data=None,
+        error_message=None,
+        screenshot_url=None,
+    )
+
+    html = asyncio.run(exports._build_report_html(run, [step], "登录用例", "web"))
+
+    assert "登录用例" in html
+    assert "打开页面" in html

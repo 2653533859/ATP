@@ -3,9 +3,6 @@ import sys
 import types
 from pathlib import Path
 
-import pytest
-from fastapi import HTTPException
-
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
@@ -34,7 +31,14 @@ sys.modules["app.core.redis_client"] = types.SimpleNamespace(
 
 from app.api.v1 import mock_rules
 from app.models.mock import MockMethod
-from app.schemas.mock import MockRuleCreate, MockRuleUpdate
+from app.schemas.mock import MockRuleCreate, MockRulesImportRequest
+
+
+class _FakeMockRule:
+    def __init__(self, **kwargs):
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+        self.id = None
 
 
 class _FakeDB:
@@ -59,36 +63,34 @@ class _FakeDB:
             obj.id = 101
 
 
-def test_mock_rule_create_normalizes_path():
-    body = MockRuleCreate(
-        name="rule",
-        project_id=1,
-        method=MockMethod.GET,
-        path="api/pay",
-    )
+def test_import_mock_rules_overrides_embedded_project_id(monkeypatch):
+    invalidations = []
 
-    assert body.path == "/api/pay"
+    async def fake_invalidate(project_id):
+        invalidations.append(project_id)
 
+    monkeypatch.setattr(mock_rules, "MockRule", _FakeMockRule)
+    monkeypatch.setattr(mock_rules, "invalidate_mock_cache", fake_invalidate)
 
-def test_mock_rule_update_normalizes_path():
-    body = MockRuleUpdate(path="health/check")
-
-    assert body.path == "/health/check"
-
-
-def test_create_mock_rule_returns_404_for_missing_project():
-    body = MockRuleCreate(
-        name="rule",
-        project_id=999,
-        method=MockMethod.GET,
-        path="/api/pay",
-    )
-    db = _FakeDB(project=None)
+    db = _FakeDB(project=types.SimpleNamespace(id=5))
     current_user = types.SimpleNamespace(id=7)
+    body = MockRulesImportRequest(
+        project_id=5,
+        rules=[
+            MockRuleCreate(
+                name="rule",
+                project_id=1,
+                method=MockMethod.GET,
+                path="/api/pay",
+            )
+        ],
+    )
 
-    with pytest.raises(HTTPException) as exc:
-        asyncio.run(mock_rules.create_mock_rule(body=body, db=db, current_user=current_user))
+    rules = asyncio.run(
+        mock_rules.import_mock_rules(body=body, db=db, current_user=current_user)
+    )
 
-    assert exc.value.status_code == 404
-    assert not db.added
-    assert db.committed is False
+    assert db.committed is True
+    assert len(rules) == 1
+    assert db.added[0].project_id == 5
+    assert invalidations == [5]

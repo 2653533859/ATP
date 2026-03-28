@@ -7,6 +7,7 @@ from app.models.base import Base, TimestampMixin
 class TrackerType(str, enum.Enum):
     jira = "jira"
     zentao = "zentao"
+    github = "github"
 
 
 class BugTracker(Base, TimestampMixin):
@@ -21,6 +22,8 @@ class BugTracker(Base, TimestampMixin):
     # 配置 JSON，结构因类型而异：
     # jira:   {"base_url": "https://xxx.atlassian.net", "email": "...", "api_token": "...", "project_key": "ATP"}
     # zentao: {"base_url": "http://zentao.xxx.com", "account": "...", "password": "...", "product_id": 1}
+    # github: {"base_url": "https://api.github.com", "owner": "foo", "repo": "bar", "token": "..."}
     config: Mapped[dict] = mapped_column(JSON, default=dict)
+    field_mapping: Mapped[dict] = mapped_column(JSON, default=dict)
 
     project: Mapped["Project"] = relationship(back_populates="bug_trackers")  # noqa: F821

@@ -38,7 +38,7 @@ def decrypt(ciphertext: str) -> str:
 
 # 各配置类型中需要加密的字段
 SENSITIVE_KEYS = {
-    "api_token", "password", "secret",
+    "api_token", "password", "secret", "token",
     "webhook_url",  # webhook URL 包含 access_token
 }
 
