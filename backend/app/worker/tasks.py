@@ -1,14 +1,5 @@
 from app.worker.celery_app import celery_app
-from app.worker.executors.api_executor import run_api_case
-from app.worker.executors.graphql_executor import run_graphql_case
-from app.worker.executors.websocket_executor import run_websocket_case
-from app.worker.executors.grpc_executor import run_grpc_case
-from app.worker.executors.web_executor import run_web_case
-from app.worker.executors.web_lowcode_executor import run_web_lowcode
-from app.worker.executors.android_executor import run_android_case
-from app.worker.executors.android_lowcode_executor import run_android_lowcode
-from app.worker.dispatch import is_web_lowcode_config
-from app.models.case import CaseType
+from app.worker.case_dispatch import dispatch_case
 from app.models.bootstrap import load_all_models
 from app.core.redis_client import publish_run_event
 from app.core.encryption import decrypt_env_vars
@@ -49,31 +40,8 @@ def run_test_case(self, run_id: int, extra_vars: dict):
                 # 通知前端开始执行（发布失败不影响执行状态）
                 await _safe_publish_run_event(run_id, {"type": "run_status", "run_id": run_id, "status": "running"})
 
-                if case.case_type == CaseType.api:
-                    await run_api_case(db, run, case, extra_vars)
-                elif case.case_type == CaseType.graphql:
-                    await run_graphql_case(db, run, case, extra_vars)
-                elif case.case_type == CaseType.websocket:
-                    await run_websocket_case(db, run, case, extra_vars)
-                elif case.case_type == CaseType.grpc:
-                    await run_grpc_case(db, run, case, extra_vars)
-                elif case.case_type == CaseType.web:
-                    # 低代码模式（config 中有 steps）vs 脚本模式（config 中有 script_path）
-                    cfg = case.config or {}
-                    if is_web_lowcode_config(cfg):
-                        await run_web_lowcode(db, run, case, extra_vars)
-                    else:
-                        await run_web_case(db, run, case, extra_vars)
-                elif case.case_type == CaseType.android:
-                    cfg = case.config or {}
-                    if is_web_lowcode_config(cfg):
-                        await run_android_lowcode(db, run, case, extra_vars)
-                    else:
-                        await run_android_case(db, run, case, extra_vars)
-                else:
-                    run.status = RunStatus.error
-                    run.error_message = f"执行器尚未实现: {case.case_type}"
-                    await db.commit()
+                dispatched = await dispatch_case(db, run, case, extra_vars)
+                if not dispatched:
                     await _safe_publish_run_event(run_id, {
                         "type": "completed", "run_id": run_id, "status": "error",
                     })
@@ -150,30 +118,7 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict):
                     case_run.status = RunStatus.running
                     await db.commit()
 
-                    if case.case_type == CaseType.api:
-                        await run_api_case(db, case_run, case, extra_vars)
-                    elif case.case_type == CaseType.graphql:
-                        await run_graphql_case(db, case_run, case, extra_vars)
-                    elif case.case_type == CaseType.websocket:
-                        await run_websocket_case(db, case_run, case, extra_vars)
-                    elif case.case_type == CaseType.grpc:
-                        await run_grpc_case(db, case_run, case, extra_vars)
-                    elif case.case_type == CaseType.web:
-                        cfg = case.config or {}
-                        if is_web_lowcode_config(cfg):
-                            await run_web_lowcode(db, case_run, case, extra_vars)
-                        else:
-                            await run_web_case(db, case_run, case, extra_vars)
-                    elif case.case_type == CaseType.android:
-                        cfg = case.config or {}
-                        if is_web_lowcode_config(cfg):
-                            await run_android_lowcode(db, case_run, case, extra_vars)
-                        else:
-                            await run_android_case(db, case_run, case, extra_vars)
-                    else:
-                        case_run.status = RunStatus.error
-                        case_run.error_message = f"执行器尚未实现: {case.case_type}"
-                        await db.commit()
+                    await dispatch_case(db, case_run, case, extra_vars)
                 except Exception as e:
                     logger.exception(f"Suite case {case_id} run failed: {e}")
                     case_run.status = RunStatus.error
@@ -373,30 +318,7 @@ async def _execute_suite_inline(db, suite_run, suite, extra_vars):
             case_run.status = RunStatus.running
             await db.commit()
 
-            if case.case_type == CaseType.api:
-                await run_api_case(db, case_run, case, extra_vars)
-            elif case.case_type == CaseType.graphql:
-                await run_graphql_case(db, case_run, case, extra_vars)
-            elif case.case_type == CaseType.websocket:
-                await run_websocket_case(db, case_run, case, extra_vars)
-            elif case.case_type == CaseType.grpc:
-                await run_grpc_case(db, case_run, case, extra_vars)
-            elif case.case_type == CaseType.web:
-                cfg = case.config or {}
-                if is_web_lowcode_config(cfg):
-                    await run_web_lowcode(db, case_run, case, extra_vars)
-                else:
-                    await run_web_case(db, case_run, case, extra_vars)
-            elif case.case_type == CaseType.android:
-                cfg = case.config or {}
-                if is_web_lowcode_config(cfg):
-                    await run_android_lowcode(db, case_run, case, extra_vars)
-                else:
-                    await run_android_case(db, case_run, case, extra_vars)
-            else:
-                case_run.status = RunStatus.error
-                case_run.error_message = f"执行器尚未实现: {case.case_type}"
-                await db.commit()
+            await dispatch_case(db, case_run, case, extra_vars)
         except Exception as e:
             logger.exception(f"Plan->Suite case {case_id} run failed: {e}")
             case_run.status = RunStatus.error

@@ -17,7 +17,6 @@ from app.core.rate_limit import limiter
 from app.middleware.csrf import CSRFMiddleware
 from app.middleware.trace import TraceMiddleware
 from app.core.security import hash_password
-from app.models.base import Base
 from app.models.bootstrap import load_all_models
 from app.models.user import User, UserRole
 
@@ -43,9 +42,12 @@ async def _init_admin():
 async def lifespan(app: FastAPI):
     setup_logging()
 
-    # 启动时兜底建表，避免首次部署无迁移文件时业务初始化直接失败。
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
+    # 默认只通过 Alembic 管理表结构；仅在显式允许时才执行兜底建表。
+    if settings.APP_AUTO_CREATE_TABLES:
+        from app.models.base import Base
+
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
     # 启动时确保默认对象存储 bucket 可用，避免首次上传时才暴露配置问题。
     ensure_bucket()

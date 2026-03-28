@@ -46,7 +46,7 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 
 ### 已实现但未完全收口
 
-- 数据库迁移能力已存在，但首建流程仍保留启动时 `create_all` 兜底，尚未完全收敛为纯 Alembic 驱动
+- 数据库迁移能力已存在，当前默认要求先执行 Alembic；仅在显式打开 `APP_AUTO_CREATE_TABLES=true` 时保留兜底建表
 - 测试计划前端页面已实现，但 Cron 仍为文本输入，尚未做到可视化配置
 - Android Worker 已内置 `adb` 与 Playwright/Chromium，但“通过容器稳定连接宿主机真机”的联调验证仍缺明确落地记录
 
@@ -100,6 +100,19 @@ Copy-Item .env.example .env
 - `MINIO_ROOT_PASSWORD`
 - `FIRST_ADMIN_PASSWORD`
 
+数据库初始化默认走 Alembic，而不是应用启动时自动建表：
+
+```bash
+cd backend
+alembic upgrade head
+```
+
+只有在本地临时排障或首次手工引导且明确知道风险时，才建议短暂开启：
+
+```env
+APP_AUTO_CREATE_TABLES=true
+```
+
 如需邮件通知，还需配置：
 
 - `SMTP_HOST`
@@ -151,6 +164,7 @@ npm run build
 ```bash
 cd backend
 python -m pip install -r requirements.txt
+alembic upgrade head
 uvicorn app.main:app --reload
 ```
 

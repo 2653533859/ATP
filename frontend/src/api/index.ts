@@ -6,6 +6,12 @@ export type ReviewStatus = 'pending' | 'approved' | 'rejected'
 export type AutomationStatus = 'manual' | 'semi_auto' | 'auto'
 export type CaseStatus = 'draft' | 'active' | 'deprecated'
 export type CaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android'
+export type SuiteStatus = 'active' | 'archived'
+export type SuiteRunStatus = 'pending' | 'running' | 'passed' | 'failed' | 'error'
+export type PlanStatus = 'draft' | 'active' | 'archived'
+export type ScheduleType = 'manual' | 'cron' | 'webhook'
+export type TriggerType = 'manual' | 'cron' | 'webhook'
+export type PlanRunStatus = 'pending' | 'running' | 'passed' | 'failed' | 'error'
 
 export interface ProjectItem {
   id: number
@@ -15,6 +21,15 @@ export interface ProjectItem {
   owner_id: number
   created_at: string
   updated_at: string
+}
+
+export interface EnvironmentItem {
+  id: number
+  name: string
+  description?: string | null
+  project_id: number
+  created_at?: string
+  updated_at?: string
 }
 
 export interface ModuleTreeItem {
@@ -116,6 +131,95 @@ export interface CaseSavePayload {
   config?: Record<string, unknown>
 }
 
+export interface SuiteCaseRef {
+  case_id: number
+  sort: number
+}
+
+export interface SuiteItem {
+  id: number
+  name: string
+  description?: string | null
+  project_id: number
+  status: SuiteStatus
+  creator_id: number
+  case_ids: SuiteCaseRef[]
+  parameterization?: Record<string, unknown> | null
+  config: Record<string, unknown>
+  created_at: string
+  updated_at: string
+}
+
+export interface SuiteSavePayload {
+  name: string
+  description?: string | null
+  project_id?: number
+  case_ids: SuiteCaseRef[]
+  parameterization?: Record<string, unknown> | null
+  config?: Record<string, unknown>
+}
+
+export interface SuiteRunItem {
+  id: number
+  suite_id: number
+  triggered_by: number
+  status: SuiteRunStatus
+  environment?: string | null
+  duration_ms?: number | null
+  error_message?: string | null
+  result_summary: Record<string, number>
+  case_run_ids: Array<Record<string, unknown>>
+  created_at: string
+}
+
+export interface PlanSuiteRef {
+  suite_id: number
+  sort: number
+}
+
+export interface PlanItem {
+  id: number
+  name: string
+  description?: string | null
+  project_id: number
+  status: PlanStatus
+  creator_id: number
+  suite_ids: PlanSuiteRef[]
+  schedule_type: ScheduleType
+  cron_expression?: string | null
+  webhook_secret?: string | null
+  is_enabled: boolean
+  env_id?: number | null
+  last_run_at?: string | null
+  next_run_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PlanSavePayload {
+  name: string
+  description?: string | null
+  project_id?: number
+  suite_ids: PlanSuiteRef[]
+  schedule_type: ScheduleType
+  cron_expression?: string | null
+  is_enabled: boolean
+  env_id?: number | null
+}
+
+export interface PlanRunItem {
+  id: number
+  plan_id: number
+  triggered_by?: number | null
+  trigger_type: TriggerType
+  status: PlanRunStatus
+  duration_ms?: number | null
+  error_message?: string | null
+  suite_run_ids: Array<Record<string, unknown>>
+  result_summary: Record<string, number>
+  created_at: string
+}
+
 export const authApi = {
   login: (username: string, password: string) =>
     http.post<any, { access_token: string; refresh_token: string }>('/auth/login', { username, password }),
@@ -190,7 +294,7 @@ export const scriptApi = {
 
 export const environmentApi = {
   list: (projectId: number) =>
-    http.get<any, any[]>('/environments', { params: { project_id: projectId } }),
+    http.get<any, EnvironmentItem[]>('/environments', { params: { project_id: projectId } }),
   create: (data: { name: string; description?: string; project_id: number }) =>
     http.post('/environments', data),
   update: (id: number, data: { name?: string; description?: string }) =>
@@ -230,30 +334,30 @@ export const apkApi = {
 
 export const suiteApi = {
   list: (params?: { project_id?: number }) =>
-    http.get<any, any[]>('/suites', { params }),
-  get: (id: number) => http.get('/suites/' + id),
-  create: (data: object) => http.post('/suites', data),
-  update: (id: number, data: object) => http.patch(`/suites/${id}`, data),
+    http.get<any, SuiteItem[]>('/suites', { params }),
+  get: (id: number) => http.get<any, SuiteItem>('/suites/' + id),
+  create: (data: SuiteSavePayload) => http.post<any, SuiteItem>('/suites', data),
+  update: (id: number, data: SuiteSavePayload) => http.patch<any, SuiteItem>(`/suites/${id}`, data),
   delete: (id: number) => http.delete(`/suites/${id}`),
   run: (id: number, data?: { env_id?: number; extra_vars?: object }) =>
-    http.post(`/suites/${id}/run`, data ?? {}),
+    http.post<any, SuiteRunItem>(`/suites/${id}/run`, data ?? {}),
   listRuns: (params?: { suite_id?: number }) =>
-    http.get<any, any[]>('/suite-runs', { params }),
-  getRun: (id: number) => http.get('/suite-runs/' + id),
+    http.get<any, SuiteRunItem[]>('/suite-runs', { params }),
+  getRun: (id: number) => http.get<any, SuiteRunItem>('/suite-runs/' + id),
 }
 
 export const planApi = {
   list: (params?: { project_id?: number }) =>
-    http.get<any, any[]>('/plans', { params }),
-  get: (id: number) => http.get('/plans/' + id),
-  create: (data: object) => http.post('/plans', data),
-  update: (id: number, data: object) => http.patch(`/plans/${id}`, data),
+    http.get<any, PlanItem[]>('/plans', { params }),
+  get: (id: number) => http.get<any, PlanItem>('/plans/' + id),
+  create: (data: PlanSavePayload) => http.post<any, PlanItem>('/plans', data),
+  update: (id: number, data: PlanSavePayload) => http.patch<any, PlanItem>(`/plans/${id}`, data),
   delete: (id: number) => http.delete(`/plans/${id}`),
   run: (id: number, data?: { env_id?: number; extra_vars?: object }) =>
-    http.post(`/plans/${id}/run`, data ?? {}),
+    http.post<any, PlanRunItem>(`/plans/${id}/run`, data ?? {}),
   listRuns: (params?: { plan_id?: number }) =>
-    http.get<any, any[]>('/plan-runs', { params }),
-  getRun: (id: number) => http.get('/plan-runs/' + id),
+    http.get<any, PlanRunItem[]>('/plan-runs', { params }),
+  getRun: (id: number) => http.get<any, PlanRunItem>('/plan-runs/' + id),
 }
 
 export const notificationApi = {

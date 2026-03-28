@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     APP_ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     APP_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     APP_CORS_ORIGINS: str = "http://localhost:5173,http://localhost:80"
+    APP_AUTO_CREATE_TABLES: bool = False
 
     # Database
     POSTGRES_HOST: str = "localhost"

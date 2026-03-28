@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from app.models.suite import SuiteStatus, SuiteRunStatus
 
@@ -12,9 +12,9 @@ class TestSuiteCreate(BaseModel):
     name: str
     description: str | None = None
     project_id: int
-    case_ids: list[SuiteCaseItem] = []
+    case_ids: list[SuiteCaseItem] = Field(default_factory=list)
     parameterization: dict | None = None
-    config: dict = {}
+    config: dict = Field(default_factory=dict)
 
 
 class TestSuiteUpdate(BaseModel):
@@ -44,7 +44,7 @@ class TestSuiteOut(BaseModel):
 
 class SuiteRunTrigger(BaseModel):
     env_id: int | None = None
-    extra_vars: dict = {}
+    extra_vars: dict = Field(default_factory=dict)
 
 
 class SuiteRunOut(BaseModel):

@@ -167,37 +167,51 @@
 import { ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
+import type {
+  EnvironmentItem,
+  PlanItem,
+  PlanRunItem,
+  ProjectItem,
+  ScheduleType,
+  SuiteItem,
+} from '@/api'
 import { planApi, projectApi, suiteApi, environmentApi } from '@/api'
 
-const plans = ref<any[]>([])
+type SelectOption = { label: string; value: number }
+
+function getErrorMessage(error: unknown, fallback: string) {
+  return typeof error === 'string' ? error : fallback
+}
+
+const plans = ref<PlanItem[]>([])
 const loading = ref(false)
 const projectId = ref<number | undefined>(undefined)
-const projectOptions = ref<Array<{ label: string; value: number }>>([])
+const projectOptions = ref<SelectOption[]>([])
 
 const formOpen = ref(false)
 const isEdit = ref(false)
 const saving = ref(false)
-const editingPlan = ref<any>(null)
+const editingPlan = ref<PlanItem | null>(null)
 const runningId = ref<number | null>(null)
 
 const selectedSuiteIds = ref<number[]>([])
-const suiteOptions = ref<Array<{ label: string; value: number }>>([])
+const suiteOptions = ref<SelectOption[]>([])
 const suitesLoading = ref(false)
 
-const envOptions = ref<Array<{ label: string; value: number }>>([])
+const envOptions = ref<SelectOption[]>([])
 const envLoading = ref(false)
 
 const form = ref({
   name: '',
   description: '',
-  schedule_type: 'manual',
+  schedule_type: 'manual' as ScheduleType,
   cron_expression: '',
   is_enabled: true,
   env_id: null as number | null,
 })
 
 const runsOpen = ref(false)
-const planRuns = ref<any[]>([])
+const planRuns = ref<PlanRunItem[]>([])
 const runsLoading = ref(false)
 
 const columns = [
@@ -215,8 +229,12 @@ const runColumns = [
   { title: '状态', key: 'status', width: 90 },
   { title: '结果', key: 'summary', width: 120 },
   { title: '耗时', key: 'duration_ms', width: 90 },
-  { title: '时间', dataIndex: 'created_at', width: 170,
-    customRender: ({ text }: any) => text?.slice(0, 19).replace('T', ' ') },
+  {
+    title: '时间',
+    dataIndex: 'created_at',
+    width: 170,
+    customRender: ({ text }: { text?: string }) => formatTime(text ?? ''),
+  },
 ]
 
 function scheduleLabel(t: string) {
@@ -235,8 +253,11 @@ function formatTime(t: string) {
 onMounted(async () => {
   try {
     const projects = await projectApi.list()
-    projectOptions.value = projects.map((p: any) => ({ label: p.name, value: p.id }))
-  } catch { /* ignore */ }
+    projectOptions.value = projects.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
+  } catch (error: unknown) {
+    projectOptions.value = []
+    message.error(getErrorMessage(error, '加载项目列表失败'))
+  }
 })
 
 async function loadPlans() {
@@ -244,7 +265,7 @@ async function loadPlans() {
   loading.value = true
   try {
     plans.value = await planApi.list({ project_id: projectId.value })
-  } catch { message.error('加载计划列表失败') }
+  } catch (error: unknown) { message.error(getErrorMessage(error, '加载计划列表失败')) }
   finally { loading.value = false }
 }
 
@@ -253,8 +274,11 @@ async function loadSuites() {
   suitesLoading.value = true
   try {
     const list = await suiteApi.list({ project_id: projectId.value })
-    suiteOptions.value = list.map((s: any) => ({ label: s.name, value: s.id }))
-  } catch { /* ignore */ }
+    suiteOptions.value = list.map((s: SuiteItem) => ({ label: s.name, value: s.id }))
+  } catch (error: unknown) {
+    suiteOptions.value = []
+    message.error(getErrorMessage(error, '加载套件列表失败'))
+  }
   finally { suitesLoading.value = false }
 }
 
@@ -263,8 +287,11 @@ async function loadEnvs() {
   envLoading.value = true
   try {
     const list = await environmentApi.list(projectId.value)
-    envOptions.value = list.map((e: any) => ({ label: e.name, value: e.id }))
-  } catch { /* ignore */ }
+    envOptions.value = list.map((e: EnvironmentItem) => ({ label: e.name, value: e.id }))
+  } catch (error: unknown) {
+    envOptions.value = []
+    message.error(getErrorMessage(error, '加载环境列表失败'))
+  }
   finally { envLoading.value = false }
 }
 
@@ -278,7 +305,7 @@ function openCreate() {
   loadEnvs()
 }
 
-function openEdit(record: any) {
+function openEdit(record: PlanItem) {
   isEdit.value = true
   editingPlan.value = record
   form.value = {
@@ -287,9 +314,9 @@ function openEdit(record: any) {
     schedule_type: record.schedule_type,
     cron_expression: record.cron_expression ?? '',
     is_enabled: record.is_enabled,
-    env_id: record.env_id,
+    env_id: record.env_id ?? null,
   }
-  selectedSuiteIds.value = (record.suite_ids || []).map((s: any) => s.suite_id)
+  selectedSuiteIds.value = (record.suite_ids || []).map((s) => s.suite_id)
   formOpen.value = true
   loadSuites()
   loadEnvs()
@@ -314,7 +341,7 @@ async function handleSave() {
       is_enabled: form.value.is_enabled,
       env_id: form.value.env_id,
     }
-    if (isEdit.value) {
+    if (isEdit.value && editingPlan.value) {
       await planApi.update(editingPlan.value.id, payload)
     } else {
       await planApi.create({ ...payload, project_id: projectId.value })
@@ -322,17 +349,17 @@ async function handleSave() {
     message.success(isEdit.value ? '更新成功' : '创建成功')
     formOpen.value = false
     loadPlans()
-  } catch { message.error('保存失败') }
+  } catch (error: unknown) { message.error(getErrorMessage(error, '保存失败')) }
   finally { saving.value = false }
 }
 
-async function handleRun(record: any) {
+async function handleRun(record: PlanItem) {
   runningId.value = record.id
   try {
     await planApi.run(record.id)
     message.success('已触发执行')
     loadPlans()
-  } catch { message.error('执行触发失败') }
+  } catch (error: unknown) { message.error(getErrorMessage(error, '执行触发失败')) }
   finally { runningId.value = null }
 }
 
@@ -341,15 +368,15 @@ async function handleDelete(id: number) {
     await planApi.delete(id)
     message.success('已删除')
     loadPlans()
-  } catch { message.error('删除失败') }
+  } catch (error: unknown) { message.error(getErrorMessage(error, '删除失败')) }
 }
 
-async function viewRuns(record: any) {
+async function viewRuns(record: PlanItem) {
   runsOpen.value = true
   runsLoading.value = true
   try {
     planRuns.value = await planApi.listRuns({ plan_id: record.id })
-  } catch { message.error('加载执行记录失败') }
+  } catch (error: unknown) { message.error(getErrorMessage(error, '加载执行记录失败')) }
   finally { runsLoading.value = false }
 }
 

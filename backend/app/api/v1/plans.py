@@ -16,9 +16,10 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.models.environment import Environment, EnvVariable
 from app.models.plan import TestPlan, PlanRun, PlanRunStatus, ScheduleType, TriggerType
 from app.models.project import Project
-from app.models.environment import Environment, EnvVariable
+from app.models.suite import TestSuite
 from app.core.encryption import decrypt_env_vars
 from app.models.user import User
 from app.schemas.plan import (
@@ -30,6 +31,52 @@ from app.api.deps import get_current_user, require_engineer
 router = APIRouter(tags=["测试计划"])
 
 
+def _normalize_suite_items(suite_items: list[object]) -> list[dict]:
+    return [
+        item if isinstance(item, dict) else item.model_dump()
+        for item in suite_items
+    ]
+
+
+async def _validate_plan_suite_ids(db: AsyncSession, project_id: int, suite_items: list[object]) -> list[dict]:
+    normalized = _normalize_suite_items(suite_items)
+    suite_ids = [item["suite_id"] for item in normalized]
+
+    if len(suite_ids) != len(set(suite_ids)):
+        raise HTTPException(status_code=400, detail="计划中包含重复套件")
+
+    if not suite_ids:
+        return normalized
+
+    result = await db.execute(select(TestSuite).where(TestSuite.id.in_(suite_ids)))
+    suites = result.scalars().all()
+    suite_map = {suite.id: suite for suite in suites}
+
+    missing_suite_id = next((suite_id for suite_id in suite_ids if suite_id not in suite_map), None)
+    if missing_suite_id is not None:
+        raise HTTPException(status_code=400, detail=f"测试套件不存在: {missing_suite_id}")
+
+    wrong_project_suite_id = next(
+        (suite_id for suite_id in suite_ids if suite_map[suite_id].project_id != project_id),
+        None,
+    )
+    if wrong_project_suite_id is not None:
+        raise HTTPException(status_code=400, detail=f"测试套件 {wrong_project_suite_id} 不属于当前项目")
+
+    return normalized
+
+
+async def _validate_plan_environment(db: AsyncSession, project_id: int, env_id: int | None) -> None:
+    if env_id is None:
+        return
+
+    env = await db.get(Environment, env_id)
+    if not env:
+        raise HTTPException(status_code=404, detail="环境不存在")
+    if env.project_id != project_id:
+        raise HTTPException(status_code=400, detail=f"环境 {env_id} 不属于当前项目")
+
+
 @router.post("/plans", response_model=TestPlanOut, status_code=status.HTTP_201_CREATED)
 async def create_plan(
     body: TestPlanCreate,
@@ -39,12 +86,14 @@ async def create_plan(
     project = await db.get(Project, body.project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
+    suite_ids = await _validate_plan_suite_ids(db, body.project_id, body.suite_ids)
+    await _validate_plan_environment(db, body.project_id, body.env_id)
 
     plan = TestPlan(
         name=body.name,
         description=body.description,
         project_id=body.project_id,
-        suite_ids=[item.model_dump() for item in body.suite_ids],
+        suite_ids=suite_ids,
         schedule_type=body.schedule_type,
         cron_expression=body.cron_expression,
         is_enabled=body.is_enabled,
@@ -102,10 +151,9 @@ async def update_plan(
 
     update_data = body.model_dump(exclude_none=True)
     if "suite_ids" in update_data:
-        update_data["suite_ids"] = [
-            item if isinstance(item, dict) else item.model_dump()
-            for item in update_data["suite_ids"]
-        ]
+        update_data["suite_ids"] = await _validate_plan_suite_ids(db, plan.project_id, update_data["suite_ids"])
+    if "env_id" in update_data:
+        await _validate_plan_environment(db, plan.project_id, update_data["env_id"])
     for k, v in update_data.items():
         setattr(plan, k, v)
 

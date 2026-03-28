@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
 from app.models.plan import PlanStatus, ScheduleType, TriggerType, PlanRunStatus
 
@@ -12,7 +12,7 @@ class TestPlanCreate(BaseModel):
     name: str
     description: str | None = None
     project_id: int
-    suite_ids: list[PlanSuiteItem] = []
+    suite_ids: list[PlanSuiteItem] = Field(default_factory=list)
     schedule_type: ScheduleType = ScheduleType.manual
     cron_expression: str | None = None
     is_enabled: bool = True
@@ -53,12 +53,12 @@ class TestPlanOut(BaseModel):
 
 class PlanRunTrigger(BaseModel):
     env_id: int | None = None
-    extra_vars: dict = {}
+    extra_vars: dict = Field(default_factory=dict)
 
 
 class WebhookTriggerRequest(BaseModel):
     plan_id: int
-    extra_vars: dict = {}
+    extra_vars: dict = Field(default_factory=dict)
 
 
 class PlanRunOut(BaseModel):

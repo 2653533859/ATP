@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
+from starlette.requests import Request
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -16,6 +17,17 @@ sys.modules["app.api.deps"] = types.SimpleNamespace(
 )
 
 from app.api.v1 import exports, webhook
+
+
+def _fake_request() -> Request:
+    return Request(
+        {
+            "type": "http",
+            "method": "POST",
+            "path": "/webhook/trigger",
+            "headers": [],
+        }
+    )
 
 
 class _FakeScalarResult:
@@ -111,7 +123,7 @@ def test_webhook_suite_trigger_uses_valid_user_reference(monkeypatch):
     db = _FakeWebhookDB(suite=_FakeSuite(creator_id=99), env=None)
     body = webhook.WebhookTriggerBody(target_type="suite", target_id=11, extra_vars={})
 
-    asyncio.run(webhook.webhook_trigger(body=body, db=db, _api_key="ok"))
+    asyncio.run(webhook.webhook_trigger(request=_fake_request(), body=body, db=db, _api_key="ok"))
 
     assert db.added, "应创建 SuiteRun"
     assert db.added[0].triggered_by == 99
@@ -124,7 +136,7 @@ def test_webhook_trigger_rejects_unknown_env_id():
     )
 
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(webhook.webhook_trigger(body=body, db=db, _api_key="ok"))
+        asyncio.run(webhook.webhook_trigger(request=_fake_request(), body=body, db=db, _api_key="ok"))
 
     assert exc.value.status_code == 404
 

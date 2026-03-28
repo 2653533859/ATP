@@ -301,11 +301,22 @@ import { computed, onMounted, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { HolderOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import draggable from 'vuedraggable'
-import type { CasePriority, CaseStatus, CaseSummaryItem, CaseType, ModuleTreeItem } from '@/api'
+import type {
+  CasePriority,
+  CaseStatus,
+  CaseSummaryItem,
+  CaseType,
+  EnvironmentItem,
+  ModuleTreeItem,
+  ProjectItem,
+  SuiteItem,
+  SuiteRunItem,
+} from '@/api'
 import { suiteApi, projectApi, caseApi, environmentApi } from '@/api'
 
 type CaseSelectionScope = 'all' | 'selected' | 'unselected'
 type CaseReadyFilter = 'all' | 'ready' | 'not_ready'
+type SelectOption = { label: string; value: number }
 
 interface ModuleTreeOption {
   title: string
@@ -314,8 +325,12 @@ interface ModuleTreeOption {
   children?: ModuleTreeOption[]
 }
 
-const suites = ref<any[]>([])
-const projects = ref<any[]>([])
+function getErrorMessage(error: unknown, fallback: string) {
+  return typeof error === 'string' ? error : fallback
+}
+
+const suites = ref<SuiteItem[]>([])
+const projects = ref<ProjectItem[]>([])
 const loading = ref(false)
 const projectFilter = ref<number | undefined>(undefined)
 
@@ -339,16 +354,16 @@ const moduleNameMap = ref<Record<number, string>>({})
 // Run
 const runModalOpen = ref(false)
 const runEnvId = ref<number | null>(null)
-const runEnvOptions = ref<Array<{ label: string; value: number }>>([])
+const runEnvOptions = ref<SelectOption[]>([])
 const runEnvLoading = ref(false)
 const runConfirming = ref(false)
 const runningId = ref<number | null>(null)
-const pendingRunSuite = ref<any>(null)
+const pendingRunSuite = ref<SuiteItem | null>(null)
 
 // Run records
 const runsDrawerOpen = ref(false)
 const runsDrawerTitle = ref('')
-const suiteRuns = ref<any[]>([])
+const suiteRuns = ref<SuiteRunItem[]>([])
 const runsLoading = ref(false)
 
 const columns = [
@@ -641,7 +656,12 @@ function runStatusBadge(s: string) {
 }
 
 async function loadProjects() {
-  try { projects.value = await projectApi.list() } catch { /* ignore */ }
+  try {
+    projects.value = await projectApi.list()
+  } catch (error: unknown) {
+    projects.value = []
+    message.error(getErrorMessage(error, '加载项目列表失败'))
+  }
 }
 
 async function loadSuites() {
@@ -650,8 +670,8 @@ async function loadSuites() {
     suites.value = await suiteApi.list(
       projectFilter.value ? { project_id: projectFilter.value } : undefined,
     )
-  } catch (e: any) {
-    message.error(e ?? '加载套件列表失败')
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, '加载套件列表失败'))
   } finally {
     loading.value = false
   }
@@ -673,10 +693,11 @@ async function loadCases(projectId = formProjectId.value) {
     availableCases.value = cases
     moduleTree.value = moduleTreeData
     moduleNameMap.value = flattenModules(moduleTreeData)
-  } catch {
+  } catch (error: unknown) {
     availableCases.value = []
     moduleTree.value = []
     moduleNameMap.value = {}
+    message.error(getErrorMessage(error, '加载可选用例失败'))
   } finally {
     casesLoading.value = false
   }
@@ -696,11 +717,11 @@ function openCreate() {
   formOpen.value = true
 }
 
-async function openEdit(record: any) {
+async function openEdit(record: SuiteItem) {
   formProjectId.value = record.project_id
   editingId.value = record.id
   form.value = { name: record.name, description: record.description ?? '' }
-  selectedCaseIds.value = (record.case_ids || []).map((c: any) => c.case_id)
+  selectedCaseIds.value = (record.case_ids || []).map((c) => c.case_id)
   caseKeyword.value = ''
   caseModuleFilter.value = undefined
   caseTypeFilter.value = undefined
@@ -762,15 +783,15 @@ async function persistSuite() {
       await suiteApi.create({
         name: form.value.name,
         description: form.value.description,
-        project_id: formProjectId.value,
+        project_id: formProjectId.value ?? undefined,
         case_ids: caseIds,
       })
       message.success('套件已创建')
     }
     formOpen.value = false
     loadSuites()
-  } catch (e: any) {
-    message.error(e ?? '保存失败')
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, '保存失败'))
   } finally {
     saving.value = false
   }
@@ -792,16 +813,17 @@ function removeSelectedCase(caseId: number) {
   selectedCaseIds.value = selectedCaseIds.value.filter((id) => id !== caseId)
 }
 
-async function handleRun(record: any) {
+async function handleRun(record: SuiteItem) {
   pendingRunSuite.value = record
   runEnvId.value = null
   runModalOpen.value = true
   runEnvLoading.value = true
   try {
     const envs = await environmentApi.list(record.project_id)
-    runEnvOptions.value = envs.map((e: any) => ({ label: e.name, value: e.id }))
-  } catch {
+    runEnvOptions.value = envs.map((e: EnvironmentItem) => ({ label: e.name, value: e.id }))
+  } catch (error: unknown) {
     runEnvOptions.value = []
+    message.error(getErrorMessage(error, '加载执行环境失败'))
   } finally {
     runEnvLoading.value = false
   }
@@ -820,22 +842,23 @@ async function confirmRun() {
     message.success('套件执行已触发')
     // 打开执行记录
     viewRuns(s)
-  } catch (e: any) {
-    message.error(e ?? '执行触发失败')
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, '执行触发失败'))
   } finally {
     runConfirming.value = false
     runningId.value = null
   }
 }
 
-async function viewRuns(record: any) {
+async function viewRuns(record: SuiteItem) {
   runsDrawerTitle.value = record.name
   runsDrawerOpen.value = true
   runsLoading.value = true
   try {
     suiteRuns.value = await suiteApi.listRuns({ suite_id: record.id })
-  } catch {
+  } catch (error: unknown) {
     suiteRuns.value = []
+    message.error(getErrorMessage(error, '加载执行记录失败'))
   } finally {
     runsLoading.value = false
   }
@@ -846,8 +869,8 @@ async function handleDelete(id: number) {
     await suiteApi.delete(id)
     message.success('已删除')
     loadSuites()
-  } catch (e: any) {
-    message.error(e ?? '删除失败')
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, '删除失败'))
   }
 }
 

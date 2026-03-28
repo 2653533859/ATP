@@ -21,6 +21,7 @@ python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
 pip install -r requirements.txt
+alembic upgrade head
 playwright install chromium
 ```
 
@@ -55,6 +56,7 @@ POSTGRES_HOST=172.26.202.29
 REDIS_HOST=172.26.202.29
 MINIO_HOST=172.26.202.29
 APP_CORS_ORIGINS=http://127.0.0.1:5173,http://localhost:5173
+APP_AUTO_CREATE_TABLES=false
 ```
 
 如果你的 Redis、PostgreSQL、MinIO 端口不是默认值，再同步补齐：
@@ -64,6 +66,11 @@ POSTGRES_PORT=5432
 REDIS_PORT=6379
 MINIO_PORT=9000
 ```
+
+说明：
+
+- 默认要求先执行 `alembic upgrade head` 完成建表或迁移
+- `APP_AUTO_CREATE_TABLES=true` 只建议用于本地临时排障，不建议作为日常启动路径
 
 ## 单命令启动
 

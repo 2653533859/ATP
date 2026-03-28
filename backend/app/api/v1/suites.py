@@ -13,10 +13,12 @@ GET    /suite-runs/{id}     套件执行记录详情
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.models.suite import TestSuite, SuiteRun, SuiteRunStatus
+from app.models.case import TestCase
 from app.models.project import Project
+from app.models.suite import TestSuite, SuiteRun, SuiteRunStatus
 from app.models.environment import Environment, EnvVariable
 from app.core.encryption import decrypt_env_vars
 from app.models.user import User
@@ -29,6 +31,49 @@ from app.api.deps import get_current_user, require_engineer
 router = APIRouter(tags=["测试套件"])
 
 
+def _normalize_case_items(case_items: list[object]) -> list[dict]:
+    return [
+        item if isinstance(item, dict) else item.model_dump()
+        for item in case_items
+    ]
+
+
+async def _validate_suite_case_ids(db: AsyncSession, project_id: int, case_items: list[object]) -> list[dict]:
+    normalized = _normalize_case_items(case_items)
+    case_ids = [item["case_id"] for item in normalized]
+
+    if len(case_ids) != len(set(case_ids)):
+        raise HTTPException(status_code=400, detail="套件中包含重复用例")
+
+    if not case_ids:
+        return normalized
+
+    result = await db.execute(
+        select(TestCase)
+        .options(selectinload(TestCase.module))
+        .where(TestCase.id.in_(case_ids))
+    )
+    cases = result.scalars().all()
+    case_map = {case.id: case for case in cases}
+
+    missing_case_id = next((case_id for case_id in case_ids if case_id not in case_map), None)
+    if missing_case_id is not None:
+        raise HTTPException(status_code=400, detail=f"用例不存在: {missing_case_id}")
+
+    wrong_project_case_id = next(
+        (
+            case_id
+            for case_id in case_ids
+            if getattr(getattr(case_map[case_id], "module", None), "project_id", None) != project_id
+        ),
+        None,
+    )
+    if wrong_project_case_id is not None:
+        raise HTTPException(status_code=400, detail=f"用例 {wrong_project_case_id} 不属于当前项目")
+
+    return normalized
+
+
 @router.post("/suites", response_model=TestSuiteOut, status_code=status.HTTP_201_CREATED)
 async def create_suite(
     body: TestSuiteCreate,
@@ -38,12 +83,13 @@ async def create_suite(
     project = await db.get(Project, body.project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
+    case_ids = await _validate_suite_case_ids(db, body.project_id, body.case_ids)
 
     suite = TestSuite(
         name=body.name,
         description=body.description,
         project_id=body.project_id,
-        case_ids=[item.model_dump() for item in body.case_ids],
+        case_ids=case_ids,
         parameterization=body.parameterization,
         config=body.config,
         creator_id=current_user.id,
@@ -92,10 +138,7 @@ async def update_suite(
 
     update_data = body.model_dump(exclude_none=True)
     if "case_ids" in update_data:
-        update_data["case_ids"] = [
-            item if isinstance(item, dict) else item.model_dump()
-            for item in update_data["case_ids"]
-        ]
+        update_data["case_ids"] = await _validate_suite_case_ids(db, suite.project_id, update_data["case_ids"])
     for k, v in update_data.items():
         setattr(suite, k, v)
     await db.commit()
