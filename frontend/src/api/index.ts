@@ -159,6 +159,23 @@ export interface SuiteSavePayload {
   config?: Record<string, unknown>
 }
 
+export interface SuiteRunCaseItem {
+  case_id: number
+  case_name?: string
+  run_id?: number | null
+  status: SuiteRunStatus | string
+  error?: string
+}
+
+export interface SuiteRunSummary {
+  total?: number
+  passed?: number
+  failed?: number
+  error?: number
+  skipped?: number
+  [key: string]: unknown
+}
+
 export interface SuiteRunItem {
   id: number
   suite_id: number
@@ -167,8 +184,8 @@ export interface SuiteRunItem {
   environment?: string | null
   duration_ms?: number | null
   error_message?: string | null
-  result_summary: Record<string, number>
-  case_run_ids: Array<Record<string, unknown>>
+  result_summary: SuiteRunSummary
+  case_run_ids: SuiteRunCaseItem[]
   created_at: string
 }
 
@@ -189,6 +206,7 @@ export interface PlanItem {
   cron_expression?: string | null
   webhook_secret?: string | null
   is_enabled: boolean
+  auto_create_bugs: boolean
   env_id?: number | null
   last_run_at?: string | null
   next_run_at?: string | null
@@ -204,7 +222,26 @@ export interface PlanSavePayload {
   schedule_type: ScheduleType
   cron_expression?: string | null
   is_enabled: boolean
+  auto_create_bugs?: boolean
   env_id?: number | null
+}
+
+export interface PlanRunAutoBugItem {
+  case_id: number
+  bug_id: string
+  bug_url?: string
+  duplicate?: boolean
+  attachment_uploaded?: boolean
+}
+
+export interface PlanRunSummary {
+  total?: number
+  passed?: number
+  failed?: number
+  error?: number
+  auto_bugs?: PlanRunAutoBugItem[]
+  auto_bugs_error?: string
+  [key: string]: unknown
 }
 
 export interface PlanRunItem {
@@ -216,8 +253,96 @@ export interface PlanRunItem {
   duration_ms?: number | null
   error_message?: string | null
   suite_run_ids: Array<Record<string, unknown>>
-  result_summary: Record<string, number>
+  result_summary: PlanRunSummary
   created_at: string
+}
+
+export interface StatisticsExecutorTopItem {
+  user_id: number | null
+  username: string
+  run_count: number
+}
+
+export interface StatisticsTriggerTypeStatItem {
+  trigger_type: TriggerType
+  count: number
+}
+
+export interface StatisticsAggregateTrendItem {
+  date: string
+  total: number
+  passed: number
+  rate: number
+}
+
+export interface MockRuleItem {
+  id: number
+  name: string
+  project_id: number
+  method: string
+  path: string
+  status_code: number
+  response_headers: Record<string, string>
+  response_body: string | null
+  match_conditions: Record<string, Record<string, string>>
+  delay_ms: number
+  is_enabled: boolean
+  render_template: boolean
+  record_requests: boolean
+  version: number
+  recorded_samples: Array<Record<string, unknown>>
+  creator_id: number
+  created_at: string
+  updated_at: string
+}
+
+export type BugTrackerType = 'jira' | 'zentao' | 'github'
+
+export interface BugTrackerItem {
+  id: number
+  name: string
+  project_id: number
+  tracker_type: BugTrackerType
+  config: Record<string, unknown>
+  field_mapping: Record<string, unknown>
+  is_enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface BugLinkInfo {
+  bug_id: string
+  bug_url: string
+  title: string
+  duplicate_of?: string | null
+  attachment_uploaded?: boolean
+  status?: string | null
+}
+
+export interface RunStepItem {
+  step_index: number
+  name: string
+  status: string
+  duration_ms: number | null
+  request_data: Record<string, unknown> | null
+  response_data: Record<string, unknown> | null
+  error_message: string | null
+  screenshot_url: string | null
+}
+
+export interface RunDetailItem {
+  id: number
+  case_id: number
+  status: string
+  environment?: string | null
+  duration_ms?: number | null
+  error_message?: string | null
+  result_summary: Record<string, unknown>
+  created_at: string
+  steps: RunStepItem[]
+  case_name?: string
+  project_id?: number
+  case?: { name?: string }
 }
 
 export const authApi = {
@@ -267,7 +392,7 @@ export const caseApi = {
 export const runApi = {
   list: (params?: { case_id?: number; page?: number; page_size?: number }) =>
     http.get<any, { items: any[]; total: number; page: number; page_size: number }>('/runs', { params }),
-  get: (id: number) => http.get(`/runs/${id}`),
+  get: (id: number) => http.get<any, RunDetailItem>(`/runs/${id}`),
   exportHtml: (id: number) =>
     http.get<any, Blob>(`/runs/${id}/export/html`, { responseType: 'blob' }),
   exportPdf: (id: number) =>
@@ -344,6 +469,10 @@ export const suiteApi = {
   listRuns: (params?: { suite_id?: number }) =>
     http.get<any, SuiteRunItem[]>('/suite-runs', { params }),
   getRun: (id: number) => http.get<any, SuiteRunItem>('/suite-runs/' + id),
+  exportRunHtml: (id: number) =>
+    http.get<any, Blob>(`/suite-runs/${id}/export/html`, { responseType: 'blob' }),
+  exportRunPdf: (id: number) =>
+    http.get<any, Blob>(`/suite-runs/${id}/export/pdf`, { responseType: 'blob' }),
 }
 
 export const planApi = {
@@ -358,6 +487,10 @@ export const planApi = {
   listRuns: (params?: { plan_id?: number }) =>
     http.get<any, PlanRunItem[]>('/plan-runs', { params }),
   getRun: (id: number) => http.get<any, PlanRunItem>('/plan-runs/' + id),
+  exportRunHtml: (id: number) =>
+    http.get<any, Blob>(`/plan-runs/${id}/export/html`, { responseType: 'blob' }),
+  exportRunPdf: (id: number) =>
+    http.get<any, Blob>(`/plan-runs/${id}/export/pdf`, { responseType: 'blob' }),
 }
 
 export const notificationApi = {
@@ -383,29 +516,43 @@ export const statisticsApi = {
     http.get<any, Array<{ date: string; avg_duration_ms: number; max_duration_ms: number; run_count: number }>>(
       '/statistics/duration-trend', { params },
     ),
-  failureTop: (params?: { project_id?: number; days?: number; top?: number }) =>
+  failureTop: (params?: { project_id?: number; days?: number; top?: number; case_type?: string }) =>
     http.get<any, Array<{ case_id: number; project_id: number; module_id: number; case_name: string; case_type: string; failure_count: number }>>(
       '/statistics/failure-top', { params },
     ),
+  executorTop: (params?: { project_id?: number; days?: number; top?: number; case_type?: string }) =>
+    http.get<any, StatisticsExecutorTopItem[]>('/statistics/executor-top', { params }),
+  triggerTypeStats: (params?: { project_id?: number; days?: number }) =>
+    http.get<any, StatisticsTriggerTypeStatItem[]>('/statistics/trigger-type-stats', { params }),
+  planTrend: (params?: { project_id?: number; days?: number }) =>
+    http.get<any, StatisticsAggregateTrendItem[]>('/statistics/plan-trend', { params }),
+  suiteTrend: (params?: { project_id?: number; days?: number }) =>
+    http.get<any, StatisticsAggregateTrendItem[]>('/statistics/suite-trend', { params }),
 }
 
 export const mockRuleApi = {
   list: (params?: { project_id?: number }) =>
-    http.get<any, any[]>('/mock-rules', { params }),
-  get: (id: number) => http.get('/mock-rules/' + id),
-  create: (data: object) => http.post('/mock-rules', data),
-  update: (id: number, data: object) => http.patch(`/mock-rules/${id}`, data),
+    http.get<any, MockRuleItem[]>('/mock-rules', { params }),
+  get: (id: number) => http.get<any, MockRuleItem>('/mock-rules/' + id),
+  create: (data: object) => http.post<any, MockRuleItem>('/mock-rules', data),
+  update: (id: number, data: object) => http.patch<any, MockRuleItem>(`/mock-rules/${id}`, data),
   delete: (id: number) => http.delete(`/mock-rules/${id}`),
   logs: (projectId: number) => http.get<any, any[]>(`/mock-rules/logs/${projectId}`),
+  exportRules: (projectId: number) => http.get<any, { project_id: number; rules: MockRuleItem[] }>(`/mock-rules/export/${projectId}`),
+  importRules: (data: { project_id: number; rules: any[] }) => http.post<any, MockRuleItem[]>('/mock-rules/import', data),
 }
 
 export const bugTrackerApi = {
   list: (params?: { project_id?: number }) =>
-    http.get<any, any[]>('/bug-trackers', { params }),
-  get: (id: number) => http.get('/bug-trackers/' + id),
-  create: (data: object) => http.post('/bug-trackers', data),
-  update: (id: number, data: object) => http.patch(`/bug-trackers/${id}`, data),
+    http.get<any, BugTrackerItem[]>('/bug-trackers', { params }),
+  get: (id: number) => http.get<any, BugTrackerItem>('/bug-trackers/' + id),
+  create: (data: object) => http.post<any, BugTrackerItem>('/bug-trackers', data),
+  update: (id: number, data: object) => http.patch<any, BugTrackerItem>(`/bug-trackers/${id}`, data),
   delete: (id: number) => http.delete(`/bug-trackers/${id}`),
+  testConnection: (data: { tracker_id?: number; tracker_type: BugTrackerType; config: object }) =>
+    http.post<any, { ok: boolean; message: string }>('/bug-trackers/test-connection', data),
+  getBugStatus: (runId: number) =>
+    http.get<any, { bug_id: string; status: string; bug_url?: string }>(`/runs/${runId}/bug-status`),
   createBug: (runId: number, data: { tracker_id: number; step_index?: number }) =>
-    http.post<any, { bug_id: string; bug_url: string; title: string }>(`/runs/${runId}/create-bug`, data),
+    http.post<any, { bug_id: string; bug_url: string; title: string; duplicate_of?: string | null; attachment_uploaded?: boolean }>(`/runs/${runId}/create-bug`, data),
 }

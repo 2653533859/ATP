@@ -18,7 +18,15 @@
       </a-row>
     </a-spin>
 
-    <a-modal v-model:open="showCreate" title="新建项目" @ok="handleCreate">
+    <a-modal
+      v-model:open="showCreate"
+      title="新建项目"
+      :confirm-loading="saving"
+      :mask-closable="!saving"
+      :keyboard="!saving"
+      @ok="handleCreate"
+      @cancel="handleCancel"
+    >
       <a-form :model="form" layout="vertical">
         <a-form-item label="项目名称" required>
           <a-input v-model:value="form.name" />
@@ -36,10 +44,12 @@ import { ref, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { projectApi } from '@/api'
+import { getProjectErrorMessage } from './project-errors'
 
 const router = useRouter()
 const projects = ref<any[]>([])
 const loading = ref(false)
+const saving = ref(false)
 const showCreate = ref(false)
 const form = reactive({ name: '', description: '' })
 
@@ -47,25 +57,56 @@ async function loadProjects() {
   loading.value = true
   try {
     projects.value = await projectApi.list()
+  } catch (error) {
+    message.error(getProjectErrorMessage(error, '加载项目列表失败'))
   } finally {
     loading.value = false
   }
 }
 
-async function handleCreate() {
-  if (!form.name.trim()) { message.warning('请输入项目名称'); return }
-  await projectApi.create({ name: form.name, description: form.description })
-  message.success('创建成功')
-  showCreate.value = false
+function resetForm() {
   form.name = ''
   form.description = ''
-  await loadProjects()
+}
+
+function handleCancel() {
+  if (saving.value) {
+    return
+  }
+
+  showCreate.value = false
+  resetForm()
+}
+
+async function handleCreate() {
+  if (saving.value) {
+    return
+  }
+
+  if (!form.name.trim()) { message.warning('请输入项目名称'); return }
+
+  saving.value = true
+  try {
+    await projectApi.create({ name: form.name.trim(), description: form.description.trim() || undefined })
+    message.success('创建成功')
+    showCreate.value = false
+    resetForm()
+    await loadProjects()
+  } catch (error) {
+    message.error(getProjectErrorMessage(error, '创建项目失败'))
+  } finally {
+    saving.value = false
+  }
 }
 
 async function handleDelete(id: number) {
-  await projectApi.delete(id)
-  message.success('已删除')
-  await loadProjects()
+  try {
+    await projectApi.delete(id)
+    message.success('已删除')
+    await loadProjects()
+  } catch (error) {
+    message.error(getProjectErrorMessage(error, '删除项目失败'))
+  }
 }
 
 onMounted(loadProjects)

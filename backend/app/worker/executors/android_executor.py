@@ -56,6 +56,28 @@ def _install_apk(serial: str, apk_path: str, timeout: int = 120) -> tuple[bool, 
         return False, str(e)[:500]
 
 
+def _check_device_reachable(serial: str, timeout: int = 10) -> tuple[bool, str]:
+    """执行前校验设备是否可达，并给出更明确的排障提示"""
+    cmd = ["adb", "-s", serial, "get-state"]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
+        stdout = (proc.stdout or "").strip()
+        stderr = (proc.stderr or "").strip()
+        if proc.returncode == 0 and stdout == "device":
+            return True, "设备在线"
+        if stdout == "offline":
+            return False, f"设备 {serial} 当前处于 offline，请检查 USB/TCP 连接后重试"
+        if stdout == "unauthorized":
+            return False, f"设备 {serial} 未授权，请在手机上确认 USB 调试授权"
+        return False, f"设备 {serial} 不可用：{stderr or stdout or '未知状态'}"
+    except subprocess.TimeoutExpired:
+        return False, f"检查设备 {serial} 状态超时（>{timeout}秒）"
+    except FileNotFoundError:
+        return False, "adb 命令未找到，请确认 worker 镜像或本地环境已安装 adb"
+    except Exception as e:
+        return False, str(e)[:500]
+
+
 async def run_android_case(
     db: AsyncSession,
     run: TestRun,
@@ -80,6 +102,19 @@ async def run_android_case(
         return
 
     apk_object_name = cfg.get("apk_object_name")  # MinIO path of APK
+    reachable, device_message = await asyncio.get_event_loop().run_in_executor(
+        None, _check_device_reachable, device_serial
+    )
+    if not reachable:
+        run.status = RunStatus.error
+        run.error_message = (
+            f"Android 设备不可达：{device_message}。"
+            "若使用 Docker worker 连接宿主机真机，建议先在宿主机执行 adb tcpip 5555、adb connect <device-ip>:5555，"
+            "并确保 worker 与宿主机网络互通。"
+        )
+        await db.commit()
+        await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
+        return
     try:
         timeout_sec = int(cfg.get("timeout", 120))
     except (TypeError, ValueError):

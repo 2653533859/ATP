@@ -51,6 +51,7 @@ class TestPlan(Base, TimestampMixin):
     cron_expression: Mapped[str | None] = mapped_column(String(128))
     webhook_secret: Mapped[str | None] = mapped_column(String(64))
     is_enabled: Mapped[bool] = mapped_column(Boolean, default=True)
+    auto_create_bugs: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # 环境配置
     env_id: Mapped[int | None] = mapped_column(ForeignKey("environments.id"))

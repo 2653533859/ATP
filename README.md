@@ -4,9 +4,9 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 
 ## 当前状态
 
-- 当前仓库已经进入“可运行的 Phase 4”阶段，不再只是 PRD/规划稿。
-- 前后端、任务调度、对象存储、通知集成、测试套件、测试计划等核心模块均已有实现。
-- 本 README 与 `Task.md` 已按当前仓库实际实现状态同步；其中 `[~]` 表示基础能力已落地，但仍存在已知缺口。
+- 当前仓库已具备统一自动化测试平台的主线能力，不再是规划稿或仅验证单点功能的原型。
+- 前后端、任务调度、对象存储、通知集成、测试套件、测试计划、报告导出、缺陷跟踪、统计看板、Mock 能力与 Android 联调说明均已落地。
+- 当前剩余工作已从“主线功能缺失”转为“持续优化项”，例如 Android 环境稳定性验证、部署运维打磨与少量工程化尾项。
 
 ## 已实现能力
 
@@ -47,18 +47,26 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 ### 已实现但未完全收口
 
 - 数据库迁移能力已存在，当前默认要求先执行 Alembic；仅在显式打开 `APP_AUTO_CREATE_TABLES=true` 时保留兜底建表
-- 测试计划前端页面已实现，但 Cron 仍为文本输入，尚未做到可视化配置
-- Android Worker 已内置 `adb` 与 Playwright/Chromium，但“通过容器稳定连接宿主机真机”的联调验证仍缺明确落地记录
+- Android 真机能力已具备 ADB 扫描、执行器、截图/镜像与 ADB over TCP 联调说明；若使用 Docker Worker，仍需结合宿主机网络环境完成最终连通验证
+- 统计看板、Mock Server、用例版本历史、报告导出、缺陷跟踪等模块已落地基础能力，仍有若干体验、联调与工程化收口项待继续完善
 
-### 尚未实现的功能
+### 已实现的增强能力
 
-- 统计看板（聚合接口 + ECharts 页面）
-- 内置 Mock Server 与规则管理页面
+- 统计看板：后端聚合接口 + 前端 ECharts 页面，支持按项目、时间范围、用例类型筛选，并为高频查询增加短 TTL 缓存；新增执行人 Top、触发方式分布、计划/套件趋势
+- 内置 Mock Server 与规则管理页面，支持路径模板匹配、条件响应、批量导入导出、最近请求日志、匹配缓存、响应模板、请求样本录制与规则版本号管理
 - 用例版本历史 / 回滚
-- 报告导出为 HTML / PDF
-- Jira / 禅道缺陷跟踪集成
+- 报告导出为 HTML / PDF，且支持单用例 / 套件 / 计划维度 JUnit XML 与 HTML/PDF 导出
+- Jira / 禅道 / GitHub Issues 缺陷跟踪增强：连接测试、重复缺陷检测、截图附件上传、字段映射、状态同步、自动创建缺陷与页面联动展示
+- 套件 / 计划运行结果展示增强：支持套件级 case run 明细查看、计划级自动缺陷结果展示
 - 敏感配置加密、接口限流、索引审查、大报告分页优化、Worker 资源隔离
 - 结构化日志统一收集、截图/报告文件清理任务、一键部署脚本
+- Android 真机联调沉淀：执行前设备可达性校验、ADB over TCP 联调说明、Docker worker 连接建议
+
+### 当前仍建议继续完善的方向
+
+- Android 真机在不同宿主机 / Docker 网络环境下的稳定性验证与排障经验沉淀
+- 部署、运维与性能优化的持续打磨
+- 少量页面的工程化类型收口与体验细节优化
 
 ## 项目结构
 
@@ -180,6 +188,8 @@ python -m pytest backend/tests -q
 - 产品需求与整体范围：`PRD.md`
 - CI/CD 集成说明：`docs/cicd-integration.md`
 - Windows 本地运行说明：`docs/windows-local-run.md`
+- Android 真机联调说明：`docs/android-device-debugging.md`
+- 外部基础设施运行说明：`docs/external-infra-run.md`
 - 前端到后端再到 Worker 的调用链：`docs/backend-request-flow.md`
 
 ## 说明

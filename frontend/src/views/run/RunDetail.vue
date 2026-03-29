@@ -51,11 +51,13 @@
               </template>
             </span>
           </a-descriptions-item>
-          <a-descriptions-item v-if="run.result_summary?.bug" label="关联缺陷" :span="2">
-            <a :href="run.result_summary.bug.bug_url" target="_blank">
-              <LinkOutlined /> {{ run.result_summary.bug.bug_id }}
+          <a-descriptions-item v-if="bugInfo" label="关联缺陷" :span="2">
+            <a :href="bugInfo.bug_url" target="_blank">
+              <LinkOutlined /> {{ bugInfo.bug_id }}
             </a>
-            <span style="margin-left: 8px; color: #666">{{ run.result_summary.bug.title }}</span>
+            <span style="margin-left: 8px; color: #666">{{ bugInfo.title }}</span>
+            <a-tag v-if="bugInfo.status" style="margin-left: 8px">{{ bugInfo.status }}</a-tag>
+            <a-button size="small" type="link" :loading="bugStatusRefreshing" @click="refreshBugStatus">刷新状态</a-button>
           </a-descriptions-item>
         </a-descriptions>
 
@@ -91,12 +93,12 @@
         </div>
 
         <!-- 录像播放 -->
-        <div v-if="run.result_summary?.video_url" class="video-section">
+        <div v-if="videoUrl" class="video-section">
           <a-divider orientation="left" style="margin: 16px 0 12px">
             <VideoCameraOutlined /> 执行录像
           </a-divider>
           <video
-            :src="run.result_summary.video_url"
+            :src="videoUrl"
             controls
             class="video-player"
           >
@@ -233,7 +235,7 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
 import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined } from '@ant-design/icons-vue'
-import { runApi, bugTrackerApi } from '@/api'
+import { runApi, bugTrackerApi, type BugLinkInfo, type BugTrackerItem, type RunDetailItem, type RunStepItem } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
 
@@ -242,8 +244,8 @@ const route = useRoute()
 const auth = useAuthStore()
 const runId = Number(route.params.runId)
 
-const run = ref<any>(null)
-const steps = ref<any[]>([])
+const run = ref<RunDetailItem | null>(null)
+const steps = ref<RunStepItem[]>([])
 const loading = ref(false)
 const expandedKeys = ref<number[]>([])
 const exportingHtml = ref(false)
@@ -254,6 +256,7 @@ const bugStepIndex = ref<number | undefined>(undefined)
 const bugTrackerOptions = ref<Array<{ label: string; value: number }>>([])
 const bugTrackerLoading = ref(false)
 const bugCreating = ref(false)
+const bugStatusRefreshing = ref(false)
 const expandedErrors = reactive(new Set<string>())
 let wsHandle: ReturnType<typeof createRunWebSocket> | null = null
 
@@ -279,12 +282,12 @@ function statusColor(status: string) {
   )
 }
 
-function formatJson(data: any) {
+function formatJson(data: Record<string, unknown> | null | undefined) {
   if (data == null) return '-'
   return JSON.stringify(data, null, 2)
 }
 
-function computeExpandedKeys(stepList: any[]) {
+function computeExpandedKeys(stepList: RunStepItem[]) {
   // 自动展开失败和异常步骤；如果全部通过则展开第一步
   const failedKeys = stepList
     .filter(s => s.status === 'failed' || s.status === 'error')
@@ -311,8 +314,9 @@ async function handleExportHtml() {
   try {
     const blob = await runApi.exportHtml(runId)
     downloadBlob(blob, `run-${runId}-report.html`)
-  } catch (e: any) {
-    message.error(e ?? '导出 HTML 失败')
+  } catch (e: unknown) {
+    const messageText = e instanceof Error ? e.message : ''
+    message.error(messageText || '导出 HTML 失败')
   } finally {
     exportingHtml.value = false
   }
@@ -335,12 +339,26 @@ const failedSteps = computed(() =>
   steps.value.filter(s => s.status === 'failed' || s.status === 'error'),
 )
 
+const caseDisplayName = computed(() => {
+  if (!run.value) return ''
+  return run.value.case_name || run.value.case?.name || `Case-${run.value.case_id}`
+})
+
+const bugInfo = computed<BugLinkInfo | null>(() => {
+  const info = run.value?.result_summary?.bug
+  return info && typeof info === 'object' ? info as BugLinkInfo : null
+})
+
+const videoUrl = computed(() => {
+  const value = run.value?.result_summary?.video_url
+  return typeof value === 'string' ? value : ''
+})
+
 const bugPreviewTitle = computed(() => {
   if (!run.value) return ''
-  const caseName = `Case-${run.value.case_id}`
-  let title = `[ATP] ${caseName}`
+  let title = `[ATP] ${caseDisplayName.value}`
   if (bugStepIndex.value !== undefined) {
-    const step = steps.value.find((s: any) => s.step_index === bugStepIndex.value)
+    const step = steps.value.find((s) => s.step_index === bugStepIndex.value)
     if (step?.name) title += ` - ${step.name}`
   }
   title += ' 执行失败'
@@ -351,11 +369,11 @@ const bugPreviewDesc = computed(() => {
   if (!run.value) return ''
   const lines: string[] = [
     `来自 ATP 自动化测试平台，执行记录 #${run.value.id}`,
-    `用例: Case-${run.value.case_id}`,
+    `用例: ${caseDisplayName.value}`,
     `环境: ${run.value.environment || '-'}`,
   ]
   if (bugStepIndex.value !== undefined) {
-    const step = steps.value.find((s: any) => s.step_index === bugStepIndex.value)
+    const step = steps.value.find((s) => s.step_index === bugStepIndex.value)
     if (step) {
       lines.push(`失败步骤: #${step.step_index + 1} ${step.name}`)
       if (step.error_message) {
@@ -381,10 +399,13 @@ async function openBugModal() {
 
   bugTrackerLoading.value = true
   try {
-    const trackers = await bugTrackerApi.list()
+    const trackers = await bugTrackerApi.list({ project_id: run.value?.project_id })
     bugTrackerOptions.value = trackers
-      .filter((t: any) => t.is_enabled)
-      .map((t: any) => ({ label: `${t.name} (${t.tracker_type === 'jira' ? 'Jira' : '禅道'})`, value: t.id }))
+      .filter((t: BugTrackerItem) => t.is_enabled)
+      .map((t: BugTrackerItem) => ({
+        label: `${t.name} (${t.tracker_type === 'jira' ? 'Jira' : t.tracker_type === 'github' ? 'GitHub Issues' : '禅道'})`,
+        value: t.id,
+      }))
   } catch {
     bugTrackerOptions.value = []
   } finally {
@@ -405,10 +426,23 @@ async function confirmCreateBug() {
     if (run.value) {
       run.value.result_summary = {
         ...(run.value.result_summary || {}),
-        bug: { bug_id: result.bug_id, bug_url: result.bug_url, title: bugPreviewTitle.value },
+        bug: {
+          ...(bugInfo.value || {}),
+          bug_id: result.bug_id,
+          bug_url: result.bug_url,
+          title: result.title || bugPreviewTitle.value,
+          duplicate_of: result.duplicate_of ?? null,
+          attachment_uploaded: result.attachment_uploaded ?? false,
+        },
       }
     }
-    message.success(`缺陷已创建: ${result.bug_id}`)
+    if (result.duplicate_of) {
+      message.warning(`检测到重复缺陷，已返回已有单号: ${result.duplicate_of}`)
+    } else if (result.attachment_uploaded) {
+      message.success(`缺陷已创建并上传截图: ${result.bug_id}`)
+    } else {
+      message.success(`缺陷已创建: ${result.bug_id}`)
+    }
     bugModalOpen.value = false
     window.open(result.bug_url, '_blank')
   } catch (e: any) {
@@ -427,9 +461,31 @@ async function confirmCreateBug() {
   }
 }
 
+async function refreshBugStatus() {
+  if (!run.value?.result_summary?.bug) return
+  bugStatusRefreshing.value = true
+  try {
+    const result = await bugTrackerApi.getBugStatus(runId)
+    run.value.result_summary = {
+      ...(run.value.result_summary || {}),
+      bug: {
+        ...(bugInfo.value || {}),
+        status: result.status,
+        bug_url: result.bug_url || bugInfo.value?.bug_url,
+      },
+    }
+    message.success(`缺陷状态已刷新：${result.status}`)
+  } catch (e: unknown) {
+    const messageText = e instanceof Error ? e.message : typeof e === 'string' ? e : ''
+    message.error(messageText || '刷新缺陷状态失败')
+  } finally {
+    bugStatusRefreshing.value = false
+  }
+}
+
 function applyWsMessage(msg: WsMessage) {
   if (msg.type === 'run_status') {
-    if (run.value) run.value.status = msg.status
+    if (run.value && msg.status) run.value.status = msg.status
     return
   }
 
@@ -447,7 +503,7 @@ function applyWsMessage(msg: WsMessage) {
 
   if (msg.type === 'completed') {
     if (run.value) {
-      run.value.status = msg.status
+      if (msg.status) run.value.status = msg.status
       if (msg.duration_ms != null) run.value.duration_ms = msg.duration_ms
       if (msg.video_url) {
         run.value.result_summary = {
@@ -467,7 +523,7 @@ onMounted(async () => {
 
   loading.value = true
   try {
-    const data = await runApi.get(runId) as any
+    const data = await runApi.get(runId) as RunDetailItem
     run.value = data
     steps.value = data.steps ?? []
     expandedKeys.value = computeExpandedKeys(steps.value)
@@ -477,12 +533,16 @@ onMounted(async () => {
 
   if (run.value?.status === 'pending' || run.value?.status === 'running') {
     wsHandle = createRunWebSocket(runId, applyWsMessage, () => {
-      runApi.get(runId).then((d: any) => {
+      runApi.get(runId).then((d: RunDetailItem) => {
         run.value = d
         steps.value = d.steps ?? []
         expandedKeys.value = computeExpandedKeys(steps.value)
       })
     })
+  }
+
+  if (run.value?.result_summary?.bug) {
+    void refreshBugStatus()
   }
 })
 

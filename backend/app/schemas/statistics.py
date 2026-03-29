@@ -29,3 +29,21 @@ class FailureTopItem(BaseModel):
     case_name: str
     case_type: str
     failure_count: int
+
+
+class ExecutorTopItem(BaseModel):
+    user_id: int | None
+    username: str
+    run_count: int
+
+
+class TriggerTypeStatItem(BaseModel):
+    trigger_type: str
+    count: int
+
+
+class AggregateTrendItem(BaseModel):
+    date: str
+    total: int
+    passed: int
+    rate: float

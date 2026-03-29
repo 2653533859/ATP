@@ -16,6 +16,7 @@ class TestPlanCreate(BaseModel):
     schedule_type: ScheduleType = ScheduleType.manual
     cron_expression: str | None = None
     is_enabled: bool = True
+    auto_create_bugs: bool = False
     env_id: int | None = None
 
 
@@ -26,6 +27,7 @@ class TestPlanUpdate(BaseModel):
     schedule_type: ScheduleType | None = None
     cron_expression: str | None = None
     is_enabled: bool | None = None
+    auto_create_bugs: bool | None = None
     env_id: int | None = None
     status: PlanStatus | None = None
 
@@ -42,6 +44,7 @@ class TestPlanOut(BaseModel):
     cron_expression: str | None
     webhook_secret: str | None
     is_enabled: bool
+    auto_create_bugs: bool
     env_id: int | None
     last_run_at: datetime | None
     next_run_at: datetime | None

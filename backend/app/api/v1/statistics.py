@@ -6,7 +6,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
+from app.core.redis_client import get_json_cache, set_json_cache
 from app.models.case import TestCase, TestRun, RunStatus, CaseType
+from app.models.plan import TestPlan, PlanRun, PlanRunStatus, TriggerType
+from app.models.suite import TestSuite, SuiteRun, SuiteRunStatus
 from app.models.project import Module
 from app.models.user import User
 from app.schemas.statistics import (
@@ -14,16 +17,27 @@ from app.schemas.statistics import (
     PassRateTrendItem,
     DurationTrendItem,
     FailureTopItem,
+    ExecutorTopItem,
+    TriggerTypeStatItem,
+    AggregateTrendItem,
 )
 
 router = APIRouter(tags=["statistics"])
 
 # 终态：只统计已结束的执行
 _FINISHED = [RunStatus.passed, RunStatus.failed, RunStatus.error]
+_PLAN_FINISHED = [PlanRunStatus.passed, PlanRunStatus.failed, PlanRunStatus.error]
+_SUITE_FINISHED = [SuiteRunStatus.passed, SuiteRunStatus.failed, SuiteRunStatus.error]
+_STATS_CACHE_TTL = 180
 
 
 def _since(days: int) -> datetime:
     return datetime.now(timezone.utc) - timedelta(days=days)
+
+
+def _cache_key(name: str, **kwargs) -> str:
+    items = ":".join(f"{key}={kwargs[key]}" for key in sorted(kwargs))
+    return f"atp:stats:{name}:{items}"
 
 
 def _apply_project_filter(stmt, project_id: int | None):
@@ -49,6 +63,18 @@ def _apply_run_filters(stmt, project_id: int | None, case_type: CaseType | None)
     return stmt
 
 
+def _apply_plan_run_project_filter(stmt, project_id: int | None):
+    if project_id is not None:
+        stmt = stmt.join(TestPlan, PlanRun.plan_id == TestPlan.id).where(TestPlan.project_id == project_id)
+    return stmt
+
+
+def _apply_suite_run_project_filter(stmt, project_id: int | None):
+    if project_id is not None:
+        stmt = stmt.join(TestSuite, SuiteRun.suite_id == TestSuite.id).where(TestSuite.project_id == project_id)
+    return stmt
+
+
 # ── 总览 ────────────────────────────────────────────────
 @router.get("/statistics/overview", response_model=OverviewOut)
 async def get_overview(
@@ -57,7 +83,11 @@ async def get_overview(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    # 总用例数
+    cache_key = _cache_key("overview", project_id=project_id, days=days)
+    cached = await get_json_cache(cache_key)
+    if cached is not None:
+        return OverviewOut(**cached)
+
     case_q = select(func.count(TestCase.id))
     if project_id is not None:
         case_q = (
@@ -69,7 +99,6 @@ async def get_overview(
 
     since = _since(days)
 
-    # 总执行次数 & 通过率
     run_q = select(
         func.count(TestRun.id),
         func.sum(sql_case((TestRun.status == RunStatus.passed, 1), else_=0)),
@@ -80,7 +109,6 @@ async def get_overview(
     total_passed = row[1] or 0
     pass_rate = round(total_passed / total_runs * 100, 1) if total_runs else 0.0
 
-    # 近 7 日执行次数
     recent_q = select(func.count(TestRun.id)).where(
         TestRun.status.in_(_FINISHED),
         TestRun.created_at >= _since(7),
@@ -88,12 +116,14 @@ async def get_overview(
     recent_q = _apply_project_filter(recent_q, project_id)
     recent_runs_7d = (await db.execute(recent_q)).scalar() or 0
 
-    return OverviewOut(
-        total_cases=total_cases,
-        total_runs=total_runs,
-        pass_rate=pass_rate,
-        recent_runs_7d=recent_runs_7d,
-    )
+    result = {
+        "total_cases": total_cases,
+        "total_runs": total_runs,
+        "pass_rate": pass_rate,
+        "recent_runs_7d": recent_runs_7d,
+    }
+    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    return OverviewOut(**result)
 
 
 # ── 通过率趋势 ──────────────────────────────────────────
@@ -105,6 +135,11 @@ async def get_pass_rate_trend(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
+    cache_key = _cache_key("pass-rate-trend", project_id=project_id, days=days, case_type=case_type.value if case_type else None)
+    cached = await get_json_cache(cache_key)
+    if cached is not None:
+        return [PassRateTrendItem(**item) for item in cached]
+
     since = _since(days)
     date_col = cast(TestRun.created_at, Date).label("date")
 
@@ -122,15 +157,17 @@ async def get_pass_rate_trend(
     stmt = _apply_run_filters(stmt, project_id, case_type)
 
     rows = (await db.execute(stmt)).all()
-    return [
-        PassRateTrendItem(
-            date=str(r.date),
-            total=r.total,
-            passed=r.passed,
-            rate=round(r.passed / r.total * 100, 1) if r.total else 0.0,
-        )
+    result = [
+        {
+            "date": str(r.date),
+            "total": r.total,
+            "passed": r.passed,
+            "rate": round(r.passed / r.total * 100, 1) if r.total else 0.0,
+        }
         for r in rows
     ]
+    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    return [PassRateTrendItem(**item) for item in result]
 
 
 # ── 执行时长趋势 ────────────────────────────────────────
@@ -142,6 +179,11 @@ async def get_duration_trend(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
+    cache_key = _cache_key("duration-trend", project_id=project_id, days=days, case_type=case_type.value if case_type else None)
+    cached = await get_json_cache(cache_key)
+    if cached is not None:
+        return [DurationTrendItem(**item) for item in cached]
+
     since = _since(days)
     date_col = cast(TestRun.created_at, Date).label("date")
 
@@ -164,15 +206,17 @@ async def get_duration_trend(
     stmt = _apply_run_filters(stmt, project_id, case_type)
 
     rows = (await db.execute(stmt)).all()
-    return [
-        DurationTrendItem(
-            date=str(r.date),
-            avg_duration_ms=round(float(r.avg_ms), 0),
-            max_duration_ms=int(r.max_ms),
-            run_count=r.cnt,
-        )
+    result = [
+        {
+            "date": str(r.date),
+            "avg_duration_ms": round(float(r.avg_ms), 0),
+            "max_duration_ms": int(r.max_ms),
+            "run_count": r.cnt,
+        }
         for r in rows
     ]
+    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    return [DurationTrendItem(**item) for item in result]
 
 
 # ── 失败 Top N ──────────────────────────────────────────
@@ -181,9 +225,15 @@ async def get_failure_top(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
     top: int = Query(10, ge=1, le=50),
+    case_type: CaseType | None = Query(None),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
+    cache_key = _cache_key("failure-top", project_id=project_id, days=days, top=top, case_type=case_type.value if case_type else None)
+    cached = await get_json_cache(cache_key)
+    if cached is not None:
+        return [FailureTopItem(**item) for item in cached]
+
     since = _since(days)
     fail_count = func.count(TestRun.id).label("failure_count")
 
@@ -209,16 +259,179 @@ async def get_failure_top(
 
     if project_id is not None:
         stmt = stmt.where(Module.project_id == project_id)
+    if case_type is not None:
+        stmt = stmt.where(TestCase.case_type == case_type)
 
     rows = (await db.execute(stmt)).all()
-    return [
-        FailureTopItem(
-            case_id=r.case_id,
-            project_id=r.project_id,
-            module_id=r.module_id,
-            case_name=r.case_name,
-            case_type=r.case_type.value if hasattr(r.case_type, "value") else str(r.case_type),
-            failure_count=r.failure_count,
-        )
+    result = [
+        {
+            "case_id": r.case_id,
+            "project_id": r.project_id,
+            "module_id": r.module_id,
+            "case_name": r.case_name,
+            "case_type": r.case_type.value if hasattr(r.case_type, "value") else str(r.case_type),
+            "failure_count": r.failure_count,
+        }
         for r in rows
     ]
+    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    return [FailureTopItem(**item) for item in result]
+
+
+@router.get("/statistics/executor-top", response_model=list[ExecutorTopItem])
+async def get_executor_top(
+    project_id: int | None = Query(None),
+    days: int = Query(30, ge=1, le=365),
+    top: int = Query(10, ge=1, le=50),
+    case_type: CaseType | None = Query(None),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    cache_key = _cache_key("executor-top", project_id=project_id, days=days, top=top, case_type=case_type.value if case_type else None)
+    cached = await get_json_cache(cache_key)
+    if cached is not None:
+        return [ExecutorTopItem(**item) for item in cached]
+
+    since = _since(days)
+    run_count = func.count(TestRun.id).label("run_count")
+    stmt = (
+        select(
+            User.id.label("user_id"),
+            User.username.label("username"),
+            run_count,
+        )
+        .join(User, TestRun.triggered_by == User.id)
+        .where(TestRun.status.in_(_FINISHED), TestRun.created_at >= since)
+        .group_by(User.id, User.username)
+        .order_by(run_count.desc(), User.id.asc())
+        .limit(top)
+    )
+    stmt = _apply_run_filters(stmt, project_id, case_type)
+
+    rows = (await db.execute(stmt)).all()
+    result = [
+        {
+            "user_id": r.user_id,
+            "username": r.username,
+            "run_count": r.run_count,
+        }
+        for r in rows
+    ]
+    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    return [ExecutorTopItem(**item) for item in result]
+
+
+@router.get("/statistics/trigger-type-stats", response_model=list[TriggerTypeStatItem])
+async def get_trigger_type_stats(
+    project_id: int | None = Query(None),
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    cache_key = _cache_key("trigger-type-stats", project_id=project_id, days=days)
+    cached = await get_json_cache(cache_key)
+    if cached is not None:
+        return [TriggerTypeStatItem(**item) for item in cached]
+
+    since = _since(days)
+    stmt = (
+        select(
+            PlanRun.trigger_type.label("trigger_type"),
+            func.count(PlanRun.id).label("count"),
+        )
+        .where(PlanRun.status.in_(_PLAN_FINISHED), PlanRun.created_at >= since)
+        .group_by(PlanRun.trigger_type)
+        .order_by(func.count(PlanRun.id).desc())
+    )
+    stmt = _apply_plan_run_project_filter(stmt, project_id)
+
+    rows = (await db.execute(stmt)).all()
+    result = [
+        {
+            "trigger_type": r.trigger_type.value if hasattr(r.trigger_type, "value") else str(r.trigger_type),
+            "count": r.count,
+        }
+        for r in rows
+    ]
+    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    return [TriggerTypeStatItem(**item) for item in result]
+
+
+@router.get("/statistics/plan-trend", response_model=list[AggregateTrendItem])
+async def get_plan_trend(
+    project_id: int | None = Query(None),
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    cache_key = _cache_key("plan-trend", project_id=project_id, days=days)
+    cached = await get_json_cache(cache_key)
+    if cached is not None:
+        return [AggregateTrendItem(**item) for item in cached]
+
+    since = _since(days)
+    date_col = cast(PlanRun.created_at, Date).label("date")
+    stmt = (
+        select(
+            date_col,
+            func.count(PlanRun.id).label("total"),
+            func.sum(sql_case((PlanRun.status == PlanRunStatus.passed, 1), else_=0)).label("passed"),
+        )
+        .where(PlanRun.status.in_(_PLAN_FINISHED), PlanRun.created_at >= since)
+        .group_by(date_col)
+        .order_by(date_col)
+    )
+    stmt = _apply_plan_run_project_filter(stmt, project_id)
+
+    rows = (await db.execute(stmt)).all()
+    result = [
+        {
+            "date": str(r.date),
+            "total": r.total,
+            "passed": r.passed or 0,
+            "rate": round((r.passed or 0) / r.total * 100, 1) if r.total else 0.0,
+        }
+        for r in rows
+    ]
+    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    return [AggregateTrendItem(**item) for item in result]
+
+
+@router.get("/statistics/suite-trend", response_model=list[AggregateTrendItem])
+async def get_suite_trend(
+    project_id: int | None = Query(None),
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    cache_key = _cache_key("suite-trend", project_id=project_id, days=days)
+    cached = await get_json_cache(cache_key)
+    if cached is not None:
+        return [AggregateTrendItem(**item) for item in cached]
+
+    since = _since(days)
+    date_col = cast(SuiteRun.created_at, Date).label("date")
+    stmt = (
+        select(
+            date_col,
+            func.count(SuiteRun.id).label("total"),
+            func.sum(sql_case((SuiteRun.status == SuiteRunStatus.passed, 1), else_=0)).label("passed"),
+        )
+        .where(SuiteRun.status.in_(_SUITE_FINISHED), SuiteRun.created_at >= since)
+        .group_by(date_col)
+        .order_by(date_col)
+    )
+    stmt = _apply_suite_run_project_filter(stmt, project_id)
+
+    rows = (await db.execute(stmt)).all()
+    result = [
+        {
+            "date": str(r.date),
+            "total": r.total,
+            "passed": r.passed or 0,
+            "rate": round((r.passed or 0) / r.total * 100, 1) if r.total else 0.0,
+        }
+        for r in rows
+    ]
+    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    return [AggregateTrendItem(**item) for item in result]

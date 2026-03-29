@@ -10,8 +10,19 @@
           style="width: 200px"
           :options="projectOptions"
         />
+        <a-select
+          v-model:value="caseType"
+          placeholder="全部类型"
+          allow-clear
+          style="width: 160px"
+          :options="caseTypeOptions"
+        />
         <a-select v-model:value="days" style="width: 120px" :options="dayOptions" />
       </a-space>
+    </div>
+
+    <div style="margin-bottom: 16px; color: #666; font-size: 13px">
+      当前筛选：{{ activeFilterText }}
     </div>
 
     <a-row :gutter="16" style="margin-bottom: 24px">
@@ -43,16 +54,14 @@
       </a-col>
     </a-row>
 
-    <!-- 空状态引导 -->
     <template v-if="!loading && overview.total_runs === 0">
       <a-card>
-        <a-empty description="还没有执行记录，去创建用例并执行吧">
+        <a-empty :description="emptyDescription">
           <a-button type="primary" @click="goToCaseManagement(projectId)">前往用例管理</a-button>
         </a-empty>
       </a-card>
     </template>
 
-    <!-- 图表区域 -->
     <template v-else>
       <a-spin :spinning="loading">
         <a-card title="通过率趋势" style="margin-bottom: 24px">
@@ -71,13 +80,39 @@
             </a-card>
           </a-col>
         </a-row>
+
+        <a-row :gutter="16" style="margin-top: 16px">
+          <a-col :xs="24" :md="12">
+            <a-card title="执行人 Top 10">
+              <v-chart :option="executorTopOption" style="height: 320px" autoresize />
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :md="12">
+            <a-card title="触发方式分布">
+              <v-chart :option="triggerTypeOption" style="height: 320px" autoresize />
+            </a-card>
+          </a-col>
+        </a-row>
+
+        <a-row :gutter="16" style="margin-top: 16px">
+          <a-col :xs="24" :md="12">
+            <a-card title="计划执行趋势">
+              <v-chart :option="planTrendOption" style="height: 320px" autoresize />
+            </a-card>
+          </a-col>
+          <a-col :xs="24" :md="12">
+            <a-card title="套件执行趋势">
+              <v-chart :option="suiteTrendOption" style="height: 320px" autoresize />
+            </a-card>
+          </a-col>
+        </a-row>
       </a-spin>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
@@ -89,15 +124,18 @@ import {
   TooltipComponent,
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { projectApi, statisticsApi } from '@/api'
+import { projectApi, statisticsApi, type StatisticsAggregateTrendItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem } from '@/api'
 
 use([CanvasRenderer, LineChart, BarChart, TitleComponent, TooltipComponent, GridComponent, LegendComponent])
 
 const router = useRouter()
 
+type DashboardCaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android'
+
 type DashboardParams = {
   project_id?: number
   days: number
+  case_type?: DashboardCaseType
 }
 
 type OverviewData = {
@@ -130,8 +168,27 @@ type FailureTopItem = {
   failure_count: number
 }
 
+type FailureTopChartPoint = {
+  value: number
+  _caseId: number
+  _projectId: number
+  _moduleId: number
+}
+
+type ExecutorTopItem = StatisticsExecutorTopItem
+
+type FailureChartClickParams = {
+  componentType?: string
+  data?: FailureTopChartPoint | null
+}
+
+type TriggerTypeStatItem = StatisticsTriggerTypeStatItem
+
+type AggregateTrendItem = StatisticsAggregateTrendItem
+
 const projectId = ref<number | undefined>(undefined)
 const days = ref(30)
+const caseType = ref<DashboardCaseType | undefined>(undefined)
 const loading = ref(false)
 const projectOptions = ref<Array<{ label: string; value: number }>>([])
 const dayOptions = [
@@ -139,14 +196,50 @@ const dayOptions = [
   { label: '近 30 天', value: 30 },
   { label: '近 90 天', value: 90 },
 ]
+const caseTypeOptions = [
+  { label: '全部类型', value: undefined },
+  { label: '接口', value: 'api' },
+  { label: 'GraphQL', value: 'graphql' },
+  { label: 'WebSocket', value: 'websocket' },
+  { label: 'gRPC', value: 'grpc' },
+  { label: 'Web', value: 'web' },
+  { label: 'Android', value: 'android' },
+]
+const caseTypeLabelMap: Record<string, string> = {
+  api: '接口',
+  graphql: 'GraphQL',
+  websocket: 'WebSocket',
+  grpc: 'gRPC',
+  web: 'Web',
+  android: 'Android',
+}
+const triggerTypeLabelMap: Record<string, string> = {
+  manual: '手动',
+  cron: '定时',
+  webhook: 'Webhook',
+}
+
+function getProjectLabel(id?: number) {
+  if (!id) return '全部项目'
+  return projectOptions.value.find(option => option.value === id)?.label ?? `项目 #${id}`
+}
+
+const activeFilterText = computed(() => {
+  const projectText = getProjectLabel(projectId.value)
+  const typeText = caseType.value ? caseTypeLabelMap[caseType.value] : '全部类型'
+  return `${projectText} / ${typeText} / 近 ${days.value} 天`
+})
+
+const emptyDescription = computed(() => {
+  return caseType.value
+    ? `当前筛选下还没有 ${caseTypeLabelMap[caseType.value]} 执行记录，去创建并执行对应类型用例吧`
+    : '还没有执行记录，去创建用例并执行吧'
+})
 
 function createEmptyOverview(): OverviewData {
   return { total_cases: 0, total_runs: 0, pass_rate: 0, recent_runs_7d: 0 }
 }
 
-/**
- * 生成从 startDate 到 endDate 的完整日期序列
- */
 function generateDateRange(startDate: string, endDate: string): string[] {
   const dates: string[] = []
   const current = new Date(startDate)
@@ -158,9 +251,6 @@ function generateDateRange(startDate: string, endDate: string): string[] {
   return dates
 }
 
-/**
- * 将稀疏的趋势数据补零为完整日期序列
- */
 function fillPassRateGaps(data: PassRateTrendItem[], numDays: number): PassRateTrendItem[] {
   if (data.length === 0) return []
 
@@ -282,6 +372,70 @@ function buildFailureTopOption(data: FailureTopItem[] = []) {
   }
 }
 
+function buildExecutorTopOption(data: ExecutorTopItem[] = []) {
+  const sorted = [...data].reverse()
+  return {
+    tooltip: { trigger: 'axis' as const },
+    grid: { left: '24%' },
+    xAxis: { type: 'value' as const, name: '执行次数' },
+    yAxis: {
+      type: 'category' as const,
+      data: sorted.map(item => item.username),
+    },
+    series: [
+      {
+        type: 'bar' as const,
+        data: sorted.map(item => item.run_count),
+        itemStyle: { color: '#1677ff' },
+      },
+    ],
+  }
+}
+
+function buildTriggerTypeOption(data: TriggerTypeStatItem[] = []) {
+  return {
+    tooltip: { trigger: 'item' as const },
+    legend: { bottom: 0 },
+    series: [
+      {
+        name: '触发方式',
+        type: 'pie' as const,
+        radius: ['45%', '70%'],
+        data: data.map(item => ({ value: item.count, name: triggerTypeLabelMap[item.trigger_type] ?? item.trigger_type })),
+      },
+    ],
+  }
+}
+
+function buildAggregateTrendOption(data: AggregateTrendItem[] = [], label: string) {
+  return {
+    tooltip: { trigger: 'axis' as const },
+    legend: { data: [`${label}通过率`, `${label}执行数`] },
+    xAxis: { type: 'category' as const, data: data.map(item => item.date) },
+    yAxis: [
+      { type: 'value' as const, name: '通过率(%)', min: 0, max: 100 },
+      { type: 'value' as const, name: '执行数' },
+    ],
+    series: [
+      {
+        name: `${label}通过率`,
+        type: 'line' as const,
+        smooth: true,
+        data: data.map(item => item.rate),
+        itemStyle: { color: '#722ed1' },
+        areaStyle: { color: 'rgba(114,46,209,0.15)' },
+      },
+      {
+        name: `${label}执行数`,
+        type: 'bar' as const,
+        yAxisIndex: 1,
+        data: data.map(item => item.total),
+        itemStyle: { color: 'rgba(114,46,209,0.3)' },
+      },
+    ],
+  }
+}
+
 function goToCaseManagement(targetProjectId?: number, targetModuleId?: number) {
   if (targetProjectId) {
     void router.push({
@@ -297,10 +451,10 @@ function goToCaseManagement(targetProjectId?: number, targetModuleId?: number) {
   void router.push({ name: 'cases' })
 }
 
-function handleFailureClick(params: any) {
-  // 点击柱状图跳转到已注册的用例管理页
-  if (params.componentType === 'series' && params.data?._caseId) {
-    goToCaseManagement(params.data._projectId, params.data._moduleId)
+function handleFailureClick(params: unknown) {
+  const event = params as FailureChartClickParams
+  if (event.componentType === 'series' && event.data?._caseId) {
+    goToCaseManagement(event.data._projectId, event.data._moduleId)
   }
 }
 
@@ -308,6 +462,10 @@ const overview = reactive(createEmptyOverview())
 const passRateOption = ref(buildPassRateOption())
 const durationOption = ref(buildDurationOption())
 const failureTopOption = ref(buildFailureTopOption())
+const executorTopOption = ref(buildExecutorTopOption())
+const triggerTypeOption = ref(buildTriggerTypeOption())
+const planTrendOption = ref(buildAggregateTrendOption([], '计划'))
+const suiteTrendOption = ref(buildAggregateTrendOption([], '套件'))
 
 function resetOverview() {
   Object.assign(overview, createEmptyOverview())
@@ -316,14 +474,22 @@ function resetOverview() {
 async function loadProjects() {
   try {
     const list = await projectApi.list()
-    projectOptions.value = list.map((project: any) => ({ label: project.name, value: project.id }))
+    projectOptions.value = list.map(project => ({ label: project.name, value: project.id }))
   } catch {
   }
 }
 
 async function loadAll() {
   loading.value = true
-  const params: DashboardParams = { project_id: projectId.value, days: days.value }
+  const params: DashboardParams = {
+    project_id: projectId.value,
+    days: days.value,
+    case_type: caseType.value,
+  }
+  const aggregateParams = {
+    project_id: projectId.value,
+    days: days.value,
+  }
 
   try {
     await Promise.all([
@@ -331,6 +497,10 @@ async function loadAll() {
       loadPassRateTrend(params),
       loadDurationTrend(params),
       loadFailureTop(params),
+      loadExecutorTop(params),
+      loadTriggerTypeStats(aggregateParams),
+      loadPlanTrend(aggregateParams),
+      loadSuiteTrend(aggregateParams),
     ])
   } finally {
     loading.value = false
@@ -368,14 +538,50 @@ async function loadDurationTrend(params: DashboardParams) {
 
 async function loadFailureTop(params: DashboardParams) {
   try {
-    const data = await statisticsApi.failureTop(params)
+    const data = await statisticsApi.failureTop({ ...params, top: 10 })
     failureTopOption.value = buildFailureTopOption(data)
   } catch {
     failureTopOption.value = buildFailureTopOption()
   }
 }
 
-watch([projectId, days], () => {
+async function loadExecutorTop(params: DashboardParams) {
+  try {
+    const data = await statisticsApi.executorTop({ ...params, top: 10 })
+    executorTopOption.value = buildExecutorTopOption(data)
+  } catch {
+    executorTopOption.value = buildExecutorTopOption()
+  }
+}
+
+async function loadTriggerTypeStats(params: { project_id?: number; days: number }) {
+  try {
+    const data = await statisticsApi.triggerTypeStats(params)
+    triggerTypeOption.value = buildTriggerTypeOption(data)
+  } catch {
+    triggerTypeOption.value = buildTriggerTypeOption()
+  }
+}
+
+async function loadPlanTrend(params: { project_id?: number; days: number }) {
+  try {
+    const data = await statisticsApi.planTrend(params)
+    planTrendOption.value = buildAggregateTrendOption(data, '计划')
+  } catch {
+    planTrendOption.value = buildAggregateTrendOption([], '计划')
+  }
+}
+
+async function loadSuiteTrend(params: { project_id?: number; days: number }) {
+  try {
+    const data = await statisticsApi.suiteTrend(params)
+    suiteTrendOption.value = buildAggregateTrendOption(data, '套件')
+  } catch {
+    suiteTrendOption.value = buildAggregateTrendOption([], '套件')
+  }
+}
+
+watch([projectId, days, caseType], () => {
   void loadAll()
 })
 

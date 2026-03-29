@@ -97,6 +97,7 @@ async def create_plan(
         schedule_type=body.schedule_type,
         cron_expression=body.cron_expression,
         is_enabled=body.is_enabled,
+        auto_create_bugs=body.auto_create_bugs,
         env_id=body.env_id,
         creator_id=current_user.id,
     )

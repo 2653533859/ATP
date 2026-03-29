@@ -206,6 +206,18 @@ adb start-server
 adb devices
 ```
 
+如果你准备让 Docker Worker 连接真机，建议继续切到 ADB over TCP：
+
+```powershell
+adb tcpip 5555
+adb connect <device-ip>:5555
+adb devices
+```
+
+确认设备状态为 `device`，且 serial 变成 `<device-ip>:5555` 后，再回到 ATP 中执行“扫描设备”。
+
+更完整说明见：`docs/android-device-debugging.md`
+
 ## 推荐用法
 
 日常开发建议固定使用下面这一组命令：

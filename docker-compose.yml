@@ -39,7 +39,10 @@ services:
       - backend
       - redis
     restart: unless-stopped
-    # 若需连接宿主机 Android 设备，使用 host 网络模式
+    # Android 真机联调建议：
+    # 1. 先在宿主机执行 `adb tcpip 5555` 和 `adb connect <device-ip>:5555`
+    # 2. 确保 worker 容器能访问宿主机 adb 可见的设备地址
+    # 3. 如本机 Docker 环境允许，可改用 host 网络模式减少桥接问题
     # network_mode: host
 
   # ── Celery Beat（定时任务）────────────────────────

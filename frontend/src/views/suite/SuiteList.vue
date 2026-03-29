@@ -272,7 +272,35 @@
         row-key="id"
         size="small"
         :pagination="false"
+        :expandedRowKeys="expandedSuiteRunKeys"
+        @expand="onSuiteRunExpand"
       >
+        <template #expandedRowRender="{ record }">
+          <div class="suite-run-cases-panel">
+            <template v-if="record.case_run_ids?.length">
+              <a-table
+                :columns="suiteRunCaseColumns"
+                :data-source="record.case_run_ids"
+                row-key="run_id"
+                size="small"
+                :pagination="false"
+              >
+                <template #bodyCell="{ column, record: caseRun }">
+                  <template v-if="column.key === 'status'">
+                    <a-tag :color="caseRun.status === 'passed' ? 'green' : caseRun.status === 'failed' ? 'red' : caseRun.status === 'error' ? 'orange' : 'default'">{{ caseRun.status }}</a-tag>
+                  </template>
+                  <template v-if="column.key === 'run_id'">
+                    <a v-if="caseRun.run_id" @click="goToRunDetail(caseRun.run_id)">{{ caseRun.run_id }}</a>
+                    <span v-else style="color: #999">-</span>
+                  </template>
+                </template>
+              </a-table>
+            </template>
+            <template v-else>
+              <a-empty description="暂无用例执行明细" :image="false" />
+            </template>
+          </div>
+        </template>
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'status'">
             <a-badge :status="runStatusBadge(record.status)" :text="record.status" />
@@ -284,11 +312,21 @@
               <a-tag v-if="record.result_summary.error" color="orange">{{ record.result_summary.error }} 错误</a-tag>
             </span>
           </template>
+          <template v-if="column.key === 'case_runs'">
+            <a-tag v-if="record.case_run_ids?.length" color="blue">{{ record.case_run_ids.length }} 条</a-tag>
+            <span v-else style="color: #999">-</span>
+          </template>
           <template v-if="column.key === 'duration'">
             {{ record.duration_ms ? (record.duration_ms / 1000).toFixed(1) + 's' : '-' }}
           </template>
           <template v-if="column.key === 'created'">
             {{ formatTime(record.created_at) }}
+          </template>
+          <template v-if="column.key === 'export'">
+            <a-space>
+              <a-button type="link" size="small" :loading="exportingSuiteRunHtmlId === record.id" @click="handleExportSuiteRunHtml(record.id)">HTML</a-button>
+              <a-button type="link" size="small" :loading="exportingSuiteRunPdfId === record.id" @click="handleExportSuiteRunPdf(record.id)">PDF</a-button>
+            </a-space>
           </template>
         </template>
       </a-table>
@@ -365,6 +403,9 @@ const runsDrawerOpen = ref(false)
 const runsDrawerTitle = ref('')
 const suiteRuns = ref<SuiteRunItem[]>([])
 const runsLoading = ref(false)
+const expandedSuiteRunKeys = ref<number[]>([])
+const exportingSuiteRunHtmlId = ref<number | null>(null)
+const exportingSuiteRunPdfId = ref<number | null>(null)
 
 const columns = [
   { title: '套件名称', dataIndex: 'name', key: 'name', ellipsis: true },
@@ -377,8 +418,17 @@ const columns = [
 const runColumns = [
   { title: '状态', key: 'status', width: 100 },
   { title: '结果', key: 'summary', width: 240 },
+  { title: '用例明细', key: 'case_runs', width: 120 },
   { title: '耗时', key: 'duration', width: 80 },
   { title: '执行时间', key: 'created', width: 170 },
+  { title: '导出', key: 'export', width: 160 },
+]
+
+const suiteRunCaseColumns = [
+  { title: '用例 ID', dataIndex: 'case_id', key: 'case_id', width: 90 },
+  { title: '用例名称', dataIndex: 'case_name', key: 'case_name', ellipsis: true },
+  { title: '状态', key: 'status', width: 100 },
+  { title: 'Run ID', key: 'run_id', width: 100 },
 ]
 
 const caseSelectColumns = [
@@ -854,6 +904,7 @@ async function viewRuns(record: SuiteItem) {
   runsDrawerTitle.value = record.name
   runsDrawerOpen.value = true
   runsLoading.value = true
+  expandedSuiteRunKeys.value = []
   try {
     suiteRuns.value = await suiteApi.listRuns({ suite_id: record.id })
   } catch (error: unknown) {
@@ -861,6 +912,53 @@ async function viewRuns(record: SuiteItem) {
     message.error(getErrorMessage(error, '加载执行记录失败'))
   } finally {
     runsLoading.value = false
+  }
+}
+
+function onSuiteRunExpand(expanded: boolean, record: SuiteRunItem) {
+  if (expanded) {
+    expandedSuiteRunKeys.value = [record.id]
+    return
+  }
+  expandedSuiteRunKeys.value = expandedSuiteRunKeys.value.filter(id => id !== record.id)
+}
+
+function goToRunDetail(runId: number) {
+  window.open(`/runs/${runId}`, '_blank')
+}
+
+function downloadBlob(blob: Blob, filename: string) {
+  const url = window.URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+  window.URL.revokeObjectURL(url)
+}
+
+async function handleExportSuiteRunHtml(runId: number) {
+  exportingSuiteRunHtmlId.value = runId
+  try {
+    const blob = await suiteApi.exportRunHtml(runId)
+    downloadBlob(blob, `suite-run-${runId}-report.html`)
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, '导出 HTML 失败'))
+  } finally {
+    exportingSuiteRunHtmlId.value = null
+  }
+}
+
+async function handleExportSuiteRunPdf(runId: number) {
+  exportingSuiteRunPdfId.value = runId
+  try {
+    const blob = await suiteApi.exportRunPdf(runId)
+    downloadBlob(blob, `suite-run-${runId}-report.pdf`)
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, '导出 PDF 失败'))
+  } finally {
+    exportingSuiteRunPdfId.value = null
   }
 }
 
@@ -890,6 +988,10 @@ onMounted(() => {
   display: flex;
   justify-content: space-between;
   align-items: center;
+}
+
+.suite-run-cases-panel {
+  padding: 8px 0;
 }
 .case-name-cell {
   display: flex;

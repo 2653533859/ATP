@@ -249,6 +249,90 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict):
             plan_run.suite_run_ids = suite_run_results
             plan_run.result_summary = counts
 
+            if plan.auto_create_bugs and suite_run_results:
+                try:
+                    from app.models.bug_tracker import BugTracker
+                    from app.services.bug_reporter import create_bug, find_duplicate_bug, upload_attachment, build_bug_description
+                    from app.core.minio_client import read_bytes
+                    from app.core.encryption import decrypt_config
+                    from app.api.v1.exports import _extract_minio_object
+                    bug_trackers_result = await db.execute(
+                        select(BugTracker).where(BugTracker.project_id == plan.project_id, BugTracker.is_enabled == True)
+                    )
+                    tracker = bug_trackers_result.scalars().first()
+                    bug_results = []
+                    if tracker:
+                        for suite_result in suite_run_results:
+                            suite_run_id = suite_result.get("suite_run_id")
+                            if not suite_run_id:
+                                continue
+                            suite_run = await db.get(SuiteRun, suite_run_id)
+                            for case_result in suite_run.case_run_ids or []:
+                                if case_result.get("status") not in {"failed", "error"}:
+                                    continue
+                                case_run_id = case_result.get("run_id")
+                                case_run = await db.get(TestRun, case_run_id) if case_run_id else None
+                                if not case_run:
+                                    continue
+                                case = await db.get(TestCase, case_result.get("case_id"))
+                                if not case:
+                                    continue
+                                title = f"[ATP] {case.name} 执行失败"
+                                duplicate = await find_duplicate_bug(
+                                    tracker.tracker_type.value,
+                                    decrypt_config(tracker.config),
+                                    title,
+                                )
+                                if duplicate:
+                                    bug_results.append({"case_id": case.id, "bug_id": duplicate["bug_id"], "duplicate": True})
+                                    continue
+                                description = build_bug_description(
+                                    run_id=case_run.id,
+                                    case_name=case.name,
+                                    environment=case_run.environment,
+                                    error_message=case_run.error_message,
+                                )
+                                created = await create_bug(
+                                    tracker.tracker_type.value,
+                                    decrypt_config(tracker.config),
+                                    title,
+                                    description,
+                                    tracker.field_mapping or {},
+                                )
+                                attachment_uploaded = False
+                                screenshot_url = None
+                                step_result_query = await db.execute(
+                                    select(__import__('app.models.case', fromlist=['StepResult']).StepResult)
+                                    .where(__import__('app.models.case', fromlist=['StepResult']).StepResult.run_id == case_run.id,
+                                           __import__('app.models.case', fromlist=['StepResult']).StepResult.screenshot_url.isnot(None))
+                                )
+                                first_step = step_result_query.scalars().first()
+                                screenshot_url = first_step.screenshot_url if first_step else None
+                                if screenshot_url:
+                                    object_name = _extract_minio_object(screenshot_url)
+                                    if object_name:
+                                        try:
+                                            attachment_uploaded = await upload_attachment(
+                                                tracker.tracker_type.value,
+                                                decrypt_config(tracker.config),
+                                                created["bug_id"],
+                                                f"run-{case_run.id}-screenshot.png",
+                                                read_bytes(object_name),
+                                            )
+                                        except Exception:
+                                            attachment_uploaded = False
+                                bug_results.append({
+                                    "case_id": case.id,
+                                    "bug_id": created["bug_id"],
+                                    "bug_url": created["bug_url"],
+                                    "duplicate": False,
+                                    "attachment_uploaded": attachment_uploaded,
+                                })
+                    plan_run.result_summary = {**counts, "auto_bugs": bug_results}
+                except Exception as e:
+                    logger.warning(f"Auto create bugs for plan failed: {e}")
+                    plan_run.result_summary = {**counts, "auto_bugs_error": str(e)[:500]}
+
             plan.last_run_at = datetime.now(timezone.utc)
             if plan.schedule_type.value == "cron" and plan.cron_expression:
                 try:
