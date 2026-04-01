@@ -1,6 +1,6 @@
 # ATP 项目任务跟踪
 
-**最后更新**: 2026-03-08
+**最后更新**: 2026-04-01
 **当前阶段**: Phase 5 - 完善与优化
 
 > 状态说明：
@@ -470,4 +470,81 @@
 - [ ] Kubernetes Helm Chart 部署方案
 - [ ] Prometheus + Grafana 监控集成（应用指标 + 基础设施指标）
 - [ ] 数据库自动备份脚本（pg_dump 定时备份到 MinIO）
+
+---
+
+## Android 专项测试中心
+
+> 实现时间：2026-03-30 ~ 2026-03-31
+
+### 数据模型层
+
+- [x] `MobileSpecialTask` — 专项任务（名称、类型、设备范围、APK配置、调度配置）
+- [x] `MobileSpecialRun` — 执行记录（状态、耗时、摘要JSON快照）
+- [x] `MobileMetricSample` — 指标采样（CPU/内存/FPS/电池，时间序列）
+- [x] `MobileIncident` — 异常事件（crash/ANR/Fatal日志/Watchdog）
+- [x] `MobileRunArtifact` — 报告产物（CSV/JSON/截图/日志/Trace文件）
+- [x] `GlobalVariable` — 全局变量库（项目级/全局，加密存储）
+- [x] Alembic 迁移文件
+
+### 执行器层
+
+- [x] `android_perf_executor.py` — 性能测试：周期性采样 CPU/内存/电池，写入指标样本，生成CSV
+- [x] `android_stability_executor.py` — 稳定性测试：Monkey随机探索 + logcat监控崩溃/ANR
+- [x] `android_fluency_executor.py` — 流畅度测试：场景化FPS采样 + jank计算
+- [x] `adb_client.py` — ADB命令构建器（meminfo/gfxinfo/cpuinfo/batterystats/logcat）
+- [x] `parsers.py` — 指标数据解析（meminfo/cpuinfo/gfxinfo/batterystats/logcat）
+- [x] `collectors.py` — 采样会话管理 + 设备就绪校验
+- [x] `aggregator.py` — 指标聚合 + 任务类型特定摘要计算
+
+### Celery 调度
+
+- [x] `tasks_mobile_special.py` — `run_mobile_special_task` 任务路由
+- [x] `check-mobile-special-schedules` — Cron表达式轮询定时触发
+- [x] `cleanup-stale-mobile-special-runs` — 超时运行记录清理
+
+### REST API
+
+- [x] Tasks CRUD + `POST /tasks/{id}/run` 触发执行
+- [x] Runs 查询 + `POST /runs/{id}/stop` 停止
+- [x] `GET /runs/{id}/samples` 指标样本
+- [x] `GET /runs/{id}/incidents` 异常事件
+- [x] `GET /runs/{id}/artifacts` 产物列表
+- [x] `GET /runs/{id}/export/csv` CSV导出
+- [x] `GET /runs/{id}/export/json` JSON完整报告导出
+- [x] `GET /statistics/overview` 总览统计
+- [x] `GET /statistics/trend` 每日趋势
+- [x] `GET /statistics/task-stats` 各任务统计
+- [x] GlobalVariable CRUD + Fernet加密
+
+### 前端页面
+
+- [x] 专项任务列表页（SpecialTaskListView.vue）— 项目/类型筛选、创建/编辑抽屉、执行/编辑/删除
+- [x] 报告中心（ReportCenterView.vue）— KPI卡片、14天趋势图、运行记录表、导出、停止
+- [x] 报告详情（ReportDetailView.vue）— 任务信息、KPI卡片、指标趋势图（ECharts）、异常事件表、报告文件表
+- [x] 全局变量库（GlobalVariableLibrary.vue）— 项目级/全局切换、加密值遮罩/显隐、新建/编辑/删除
+
+### 测试
+
+- [x] `test_mobile_special_migration.py` — 迁移文件测试（5个测试）
+- [x] `test_mobile_special_schema.py` — Schema验证测试（19个测试）
+- [x] `test_mobile_special_parsers.py` — 解析器单元测试（15个测试）
+- [x] `test_mobile_special_collectors.py` — 采样器测试（5个测试）
+- [x] `test_android_perf_executor.py` — 性能执行器测试（8个测试）
+- [x] `test_android_stability_executor.py` — 稳定性执行器测试（6个测试）
+- [x] `test_android_fluency_executor.py` — 流畅度执行器测试（6个测试）
+- [x] `test_mobile_special_tasks_api.py` — 任务API测试
+- [x] `test_global_variables_api.py` — 全局变量API测试
+- [x] `test_mobile_special_stats_api.py` — 统计Schema测试（3个测试）
+
+### 2026-04-01 回归修复收口
+
+- [x] 修复启动模型加载链路遗漏 `mobile_special_*` / `global_variables` 表注册的问题
+- [x] 修复专项任务启用调度时 `next_run_at` 未初始化，导致定时任务永不触发的问题
+- [x] 修复 worker 执行前未将 `device_id` 解析为设备 serial 的问题，并保留手动运行覆盖参数
+- [x] 修复统计接口在 SQLAlchemy 2.0 下 `case()` 调用方式不兼容导致报表中心加载失败的问题
+- [x] 修复全局变量读取接口返回密文的问题，支持默认脱敏与按需显式查看明文
+- [x] 修复稳定性执行器使用一次性 `logcat -d` 导致运行期间 crash/ANR 漏采集的问题
+- [x] 修复报告中心按任务类型筛选无效的问题，并完成后端测试与前端构建验证
+
 

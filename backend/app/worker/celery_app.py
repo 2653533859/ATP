@@ -5,7 +5,7 @@ celery_app = Celery(
     "atp",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.worker.tasks", "app.worker.tasks_device", "app.worker.tasks_cleanup"],
+    include=["app.worker.tasks", "app.worker.tasks_device", "app.worker.tasks_cleanup", "app.worker.tasks_mobile_special"],
 )
 
 celery_app.conf.update(
@@ -37,6 +37,14 @@ celery_app.conf.update(
         "cleanup-stale-pending-runs": {
             "task": "cleanup_stale_pending_runs",
             "schedule": settings.STALE_PENDING_CLEANUP_INTERVAL_SECONDS,
+        },
+        "check-mobile-special-schedules": {
+            "task": "check_mobile_special_schedules",
+            "schedule": 60.0,
+        },
+        "cleanup-stale-mobile-special-runs": {
+            "task": "cleanup_stale_mobile_special_runs",
+            "schedule": 1800.0,
         },
     },
 )

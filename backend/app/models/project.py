@@ -21,6 +21,10 @@ class Project(Base, TimestampMixin):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    mobile_special_tasks: Mapped[list["MobileSpecialTask"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
 
 
 class Module(Base, TimestampMixin):

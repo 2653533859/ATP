@@ -319,6 +319,103 @@ export interface BugLinkInfo {
   status?: string | null
 }
 
+// ---- Mobile Special Testing ----
+export type TaskType = 'performance' | 'stability' | 'fluency'
+export type SourceType = 'apk_only' | 'case' | 'suite' | 'monkey'
+export type DeviceScopeType = 'single_device' | 'device_group' | 'manual_pick'
+export type MobileRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stopped'
+export type MobileTriggerType = 'manual' | 'schedule' | 'webhook'
+export type IncidentType = 'crash' | 'anr' | 'fatal_log' | 'watchdog'
+export type ArtifactType = 'csv' | 'json' | 'screenshot' | 'raw_log' | 'trace'
+export type ScopeType = 'global' | 'project'
+
+export interface MobileSpecialTaskItem {
+  id: number
+  name: string
+  project_id: number
+  task_type: TaskType
+  source_type: SourceType
+  source_id?: number | null
+  device_scope_type: DeviceScopeType
+  device_id?: number | null
+  device_group_tag?: string | null
+  apk_id?: number | null
+  app_package?: string | null
+  config_json: Record<string, unknown>
+  schedule_enabled: boolean
+  cron_expression?: string | null
+  last_run_at?: string | null
+  next_run_at?: string | null
+  created_by?: number | null
+  updated_by?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MobileSpecialRunItem {
+  id: number
+  task_id: number
+  task_type: TaskType
+  status: MobileRunStatus
+  device_id?: number | null
+  device_serial?: string | null
+  apk_id?: number | null
+  app_package?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  duration_ms?: number | null
+  summary_json: Record<string, unknown>
+  config_snapshot: Record<string, unknown>
+  trigger_type: MobileTriggerType
+  triggered_by?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface MobileMetricSampleItem {
+  id: number
+  run_id: number
+  sample_time: string
+  metric_type: string
+  metric_value: number
+  source?: string | null
+  extra_json: Record<string, unknown>
+}
+
+export interface MobileIncidentItem {
+  id: number
+  run_id: number
+  incident_type: IncidentType
+  event_time: string
+  title?: string | null
+  detail?: string | null
+  process_name?: string | null
+  thread_name?: string | null
+  artifact_path?: string | null
+}
+
+export interface MobileRunArtifactItem {
+  id: number
+  run_id: number
+  artifact_type: ArtifactType
+  file_path: string
+  file_name: string
+  file_size?: number | null
+  created_at: string
+}
+
+export interface GlobalVariableItem {
+  id: number
+  scope_type: ScopeType
+  project_id?: number | null
+  key: string
+  value: string
+  is_secret: boolean
+  description?: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface RunStepItem {
   step_index: number
   name: string
@@ -555,4 +652,52 @@ export const bugTrackerApi = {
     http.get<any, { bug_id: string; status: string; bug_url?: string }>(`/runs/${runId}/bug-status`),
   createBug: (runId: number, data: { tracker_id: number; step_index?: number }) =>
     http.post<any, { bug_id: string; bug_url: string; title: string; duplicate_of?: string | null; attachment_uploaded?: boolean }>(`/runs/${runId}/create-bug`, data),
+}
+
+// ---- Mobile Special Testing ----
+export const mobileSpecialApi = {
+  // Tasks
+  listTasks: (params?: { project_id?: number; task_type?: TaskType }) =>
+    http.get<any, MobileSpecialTaskItem[]>('/mobile-special/tasks', { params }),
+  getTask: (id: number) => http.get<any, MobileSpecialTaskItem>(`/mobile-special/tasks/${id}`),
+  createTask: (data: object) => http.post<any, MobileSpecialTaskItem>('/mobile-special/tasks', data),
+  updateTask: (id: number, data: object) => http.patch<any, MobileSpecialTaskItem>(`/mobile-special/tasks/${id}`, data),
+  deleteTask: (id: number) => http.delete(`/mobile-special/tasks/${id}`),
+  triggerTask: (id: number, data?: { device_id?: number; app_package?: string }) =>
+    http.post<any, MobileSpecialRunItem>(`/mobile-special/tasks/${id}/run`, data ?? {}),
+  // Runs
+  listRuns: (params?: { task_id?: number; task_type?: TaskType; status_filter?: MobileRunStatus; project_id?: number; limit?: number; offset?: number }) =>
+    http.get<any, MobileSpecialRunItem[]>('/mobile-special/runs', { params }),
+  getRun: (id: number) => http.get<any, MobileSpecialRunItem>(`/mobile-special/runs/${id}`),
+  getRunSummary: (id: number) => http.get<any, Record<string, unknown>>(`/mobile-special/runs/${id}/summary`),
+  getRunSamples: (id: number, params?: { metric_type?: string; limit?: number }) =>
+    http.get<any, MobileMetricSampleItem[]>(`/mobile-special/runs/${id}/samples`, { params }),
+  getRunIncidents: (id: number) =>
+    http.get<any, MobileIncidentItem[]>(`/mobile-special/runs/${id}/incidents`),
+  getRunArtifacts: (id: number) =>
+    http.get<any, MobileRunArtifactItem[]>(`/mobile-special/runs/${id}/artifacts`),
+  stopRun: (id: number) => http.post<any, MobileSpecialRunItem>(`/mobile-special/runs/${id}/stop`),
+  // Export
+  exportRunCsv: (runId: number) =>
+    http.get<any, Blob>(`/mobile-special/runs/${runId}/export/csv`, { responseType: 'blob' }),
+  exportRunJson: (runId: number) =>
+    http.get<any, Blob>(`/mobile-special/runs/${runId}/export/json`, { responseType: 'blob' }),
+  // Statistics
+  getOverview: (params?: { project_id?: number; days?: number }) =>
+    http.get<any, { total_runs: number; completed_runs: number; failed_runs: number; running_runs: number; pass_rate: number; avg_duration_ms: number | null; total_incidents: number; recent_runs_7d: number }>('/mobile-special/statistics/overview', { params }),
+  getTrend: (params?: { project_id?: number; days?: number }) =>
+    http.get<any, Array<{ date: string; total: number; completed: number; failed: number; pass_rate: number }>>('/mobile-special/statistics/trend', { params }),
+  getTaskStats: (params?: { project_id?: number; days?: number; limit?: number }) =>
+    http.get<any, Array<{ task_id: number; task_name: string; task_type: string; total_runs: number; completed_runs: number; failed_runs: number; pass_rate: number; last_run_at: string | null }>>('/mobile-special/statistics/task-stats', { params }),
+}
+
+// ---- Global Variables ----
+export const globalVariableApi = {
+  list: (params?: { project_id?: number; scope_type?: ScopeType }) =>
+    http.get<any, GlobalVariableItem[]>('/global-variables', { params }),
+  get: (id: number, params?: { reveal_secret?: boolean }) =>
+    http.get<any, GlobalVariableItem>(`/global-variables/${id}`, { params }),
+  create: (data: object) => http.post<any, GlobalVariableItem>('/global-variables', data),
+  update: (id: number, data: object) => http.patch<any, GlobalVariableItem>(`/global-variables/${id}`, data),
+  delete: (id: number) => http.delete(`/global-variables/${id}`),
 }

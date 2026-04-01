@@ -90,6 +90,26 @@ const router = createRouter({
           name: 'mock-rules',
           component: () => import('@/views/mock/MockRuleList.vue'),
         },
+        {
+          path: 'mobile-special/tasks',
+          name: 'mobile-special-tasks',
+          component: () => import('@/views/mobile-special/SpecialTaskListView.vue'),
+        },
+        {
+          path: 'mobile-special/reports',
+          name: 'mobile-special-reports',
+          component: () => import('@/views/mobile-special/ReportCenterView.vue'),
+        },
+        {
+          path: 'mobile-special/reports/:runId',
+          name: 'mobile-special-report-detail',
+          component: () => import('@/views/mobile-special/ReportDetailView.vue'),
+        },
+        {
+          path: 'system/global-variables',
+          name: 'global-variables',
+          component: () => import('@/views/system/GlobalVariableLibrary.vue'),
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

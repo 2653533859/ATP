@@ -78,9 +78,11 @@ docker compose -f docker-compose.app.yml up --build -d  # app only (external inf
 - `api/v1/` — route modules registered in `router.py` (prefix `/api/v1`). WebSocket endpoint at `/ws/runs/{run_id}`
 - `api/deps.py` — `get_current_user()`, `require_roles()`, `require_admin` dependency injection
 - `services/` — business logic: ADB device sync, notifications, audit, bug reporter
+- `models/global_variable.py` — `GlobalVariable` model (scope: global/project, Fernet encryption for secret values)
+- `api/v1/global_variables.py` — REST endpoints for global variable CRUD
 - `worker/celery_app.py` — Celery instance
 - `worker/tasks.py` — `run_test_case` task dispatches to executors
-- `worker/executors/` — one executor per test type: `api_executor`, `web_executor`, `web_lowcode_executor`, `android_executor`, `android_lowcode_executor`, `graphql_executor`, `grpc_executor`, `websocket_executor`
+- `worker/executors/` — one executor per test type: `api_executor`, `web_executor`, `web_lowcode_executor`, `android_executor`, `android_lowcode_executor`, `graphql_executor`, `grpc_executor`, `websocket_executor`, `android_perf_executor`, `android_stability_executor`, `android_fluency_executor`
 
 ### Frontend Structure (`frontend/src/`)
 
@@ -90,7 +92,8 @@ docker compose -f docker-compose.app.yml up --build -d  # app only (external inf
 - `stores/auth.ts` — Pinia auth store (token/user/login/logout)
 - `utils/websocket.ts` — WebSocket wrapper with auto-reconnect
 - `layouts/MainLayout.vue` — sidebar + header + RouterView
-- `views/` — page components organized by feature: auth, project, case, run, suite, plan, device, apk, mock, dashboard, system
+- `views/` — page components organized by feature: auth, project, case, run, suite, plan, device, apk, mock, dashboard, system, mobile-special
+- `views/system/GlobalVariableLibrary.vue` — 全局变量库（项目级/全局变量，加密存储，查看/隐藏）
 - `components/common/` — shared components (ModuleTree, KvEditor, CaseFormDrawer, etc.)
 - Path alias: `@` maps to `src/`
 
@@ -119,6 +122,32 @@ Full stack (`docker-compose.yml`): frontend, backend, worker, beat, flower, post
 - Nginx in frontend container reverse-proxies `/api/` → backend:8000, `/ws/` → backend WebSocket
 - `docker-compose.dev.yml`: postgres + redis + minio only (for local dev)
 - `docker-compose.app.yml`: app services only (when infra is external)
+
+## Android 专项测试中心
+
+### Backend Structure
+
+- **Models**: `backend/app/models/mobile_special.py` — `MobileSpecialTask`, `MobileSpecialRun`, `MobileMetricSample`, `MobileIncident`, `MobileRunArtifact`
+- **Enums**: `TaskType` (performance/stability/fluency), `SourceType`, `DeviceScopeType`, `RunStatus`, `TriggerType`, `IncidentType`, `MetricType`, `ArtifactType`
+- **Schemas**: `backend/app/schemas/mobile_special.py` — Pydantic request/response schemas
+- **Executors**: `backend/app/worker/executors/android_perf_executor.py`, `android_stability_executor.py`, `android_fluency_executor.py`
+- **Tasks**: `backend/app/worker/tasks_mobile_special.py` — Celery task dispatch + schedule checker
+- **API**: `backend/app/api/v1/mobile_special.py` — REST endpoints (tasks CRUD, runs, samples, incidents, artifacts, export CSV/JSON, statistics)
+- **ADB Client**: `backend/app/services/mobile_special/adb_client.py` — ADB command builders
+- **Parsers**: `backend/app/services/mobile_special/parsers.py` — `parse_meminfo`, `parse_gfxinfo_framestats`, `parse_cpuinfo`, `parse_batterystats`, `parse_logcat_crash/anr`
+- **Collectors**: `backend/app/services/mobile_special/collectors.py` — `SamplingSession`, `PeriodicSampler`
+
+### Frontend Structure
+
+- `SpecialTaskListView.vue` — 专项任务列表页（项目/类型筛选、创建/编辑抽屉、触发执行）
+- `ReportCenterView.vue` — 报告中心（KPI卡片、趋势图、运行记录表、导出CSV/JSON）
+- `ReportDetailView.vue` — 报告详情（任务信息、KPI卡片、指标趋势图、异常事件表、报告文件表）
+
+### Task Config JSON Structure
+
+- **performance**: `{interval_seconds, duration_seconds, auto_start}`
+- **stability**: `{interval_seconds, duration_seconds, auto_start, operation_interval_ms}`
+- **fluency**: `{interval_seconds, duration_seconds, auto_start, stages: [{name, action, coords?}]}`
 
 ## Conventions
 

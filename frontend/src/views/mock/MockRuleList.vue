@@ -173,7 +173,7 @@
             placeholder='{"code": 0, "message": "success"}'
           />
           <div style="margin-top: 8px; color: #888; font-size: 12px">
-            模板开启后，可使用 <code>{{ '{{query.xxx}}' }}</code> / <code>{{ '{{headers.xxx}}' }}</code> / <code>{{ '{{body.xxx}}' }}</code> 引用请求数据。
+            模板开启后，可使用 <code v-pre>{{query.xxx}}</code> / <code v-pre>{{headers.xxx}}</code> / <code v-pre>{{body.xxx}}</code> 引用请求数据。
           </div>
         </a-form-item>
 

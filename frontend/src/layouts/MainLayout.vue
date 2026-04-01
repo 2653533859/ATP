@@ -45,12 +45,19 @@
           <ApiOutlined />
           <span>Mock 服务</span>
         </a-menu-item>
+        <a-sub-menu key="mobile-special">
+          <template #icon><MobileOutlined /></template>
+          <template #title>Android 专项</template>
+          <a-menu-item key="/mobile-special/tasks">专项任务</a-menu-item>
+          <a-menu-item key="/mobile-special/reports">报告中心</a-menu-item>
+        </a-sub-menu>
         <a-sub-menu key="system">
           <template #icon><SettingOutlined /></template>
           <template #title>系统管理</template>
           <a-menu-item key="/system/environments">环境管理</a-menu-item>
           <a-menu-item key="/system/notifications">通知配置</a-menu-item>
           <a-menu-item key="/system/bug-trackers">缺陷跟踪</a-menu-item>
+          <a-menu-item key="/system/global-variables">全局变量</a-menu-item>
         </a-sub-menu>
       </a-menu>
     </a-layout-sider>

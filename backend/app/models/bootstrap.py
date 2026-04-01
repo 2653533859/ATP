@@ -12,6 +12,14 @@ def load_all_models() -> None:
     from app.models.bug_tracker import BugTracker
     from app.models.audit import AuditLog
     from app.models.plan import TestPlan, PlanRun
+    from app.models.mobile_special import (
+        MobileSpecialTask,
+        MobileSpecialRun,
+        MobileMetricSample,
+        MobileIncident,
+        MobileRunArtifact,
+    )
+    from app.models.global_variable import GlobalVariable
 
     _ = (
         User,
@@ -35,4 +43,10 @@ def load_all_models() -> None:
         AuditLog,
         TestPlan,
         PlanRun,
+        MobileSpecialTask,
+        MobileSpecialRun,
+        MobileMetricSample,
+        MobileIncident,
+        MobileRunArtifact,
+        GlobalVariable,
     )
