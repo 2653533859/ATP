@@ -8,6 +8,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
+async def _fake_get_json(*a, **kw):
+    return None
+async def _fake_set_json(*a, **kw):
+    return None
+sys.modules["app.core.redis_client"] = types.SimpleNamespace(
+    get_json_cache=_fake_get_json,
+    set_json_cache=_fake_set_json,
+)
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=lambda: None,
     require_engineer=lambda: None,
@@ -118,3 +126,45 @@ class TestStatisticsQueries:
         )
 
         assert result == []
+
+
+
+class TestStatisticsCacheFallback:
+    def test_overview_falls_back_to_db_when_cache_is_unavailable(self, monkeypatch):
+        from app.api.v1 import mobile_special
+
+        async def boom_get(*_args, **_kwargs):
+            raise RuntimeError("redis down")
+
+        async def boom_set(*_args, **_kwargs):
+            raise RuntimeError("redis down")
+
+        monkeypatch.setattr(mobile_special, "get_json_cache", boom_get)
+        monkeypatch.setattr(mobile_special, "set_json_cache", boom_set)
+
+        values = iter([10, 8, 2, 0, 3000.5, 3, 5])
+
+        class FakeResult:
+            def __init__(self, value):
+                self._value = value
+
+            def scalar(self):
+                return self._value
+
+        class FakeDB:
+            async def execute(self, stmt):
+                return FakeResult(next(values))
+
+        result = asyncio.run(
+            mobile_special.get_mobile_special_overview(
+                project_id=None,
+                days=30,
+                db=FakeDB(),
+                _=None,
+            )
+        )
+
+        assert result["total_runs"] == 10
+        assert result["completed_runs"] == 8
+        assert result["failed_runs"] == 2
+        assert result["pass_rate"] == 80.0

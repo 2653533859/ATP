@@ -222,7 +222,7 @@ async function loadRuns() {
     params.limit = 100
 
     const data = await mobileSpecialApi.listRuns(params)
-    let filtered = data as MobileSpecialRunItem[]
+    let filtered = data as (MobileSpecialRunItem & { task_name?: string })[]
 
     if (dateRange.value && dateRange.value.length === 2) {
       const [start, end] = dateRange.value
@@ -233,19 +233,10 @@ async function loadRuns() {
       })
     }
 
-    const taskMap = new Map<number, string>()
-    const uniqueTaskIds = [...new Set(filtered.map(r => r.task_id))]
-    await Promise.all(
-      uniqueTaskIds.map(async id => {
-        try {
-          const task = await mobileSpecialApi.getTask(id)
-          taskMap.set(id, task.name)
-        } catch {
-          taskMap.set(id, `任务 #${id}`)
-        }
-      })
-    )
-    runs.value = filtered.map(r => ({ ...r, task_name: taskMap.get(r.task_id) || `任务 #${r.task_id}` }))
+    runs.value = filtered.map(r => ({
+      ...r,
+      task_name: r.task_name || `任务 #${r.task_id}`,
+    }))
 
     // Load trend data
     await loadTrend()

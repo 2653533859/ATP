@@ -10,6 +10,10 @@ backend/celerybeat-schedule.dir
 frontend/node_modules/
 frontend/dist/
 .local-run/
+.env.windows-wsl-backup
+frontend/preview*.log
+frontend/dist-check/
+*.bak
 
 .DS_Store
 Thumbs.db

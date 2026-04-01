@@ -8,6 +8,14 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
+async def _fake_get_json(*a, **kw):
+    return None
+async def _fake_set_json(*a, **kw):
+    return None
+sys.modules["app.core.redis_client"] = types.SimpleNamespace(
+    get_json_cache=_fake_get_json,
+    set_json_cache=_fake_set_json,
+)
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=lambda: None,
     require_engineer=lambda: None,
@@ -147,3 +155,63 @@ class TestMobileSpecialScheduleHelpers:
         task.schedule_enabled = False
         mobile_special._refresh_schedule_state(task)
         assert task.next_run_at is None
+
+
+
+class TestMobileSpecialRunList:
+    def test_build_run_list_item_uses_orm_object_fields(self):
+        from datetime import datetime, timezone
+        from app.api.v1 import mobile_special
+
+        run = types.SimpleNamespace(
+            id=1,
+            task_id=2,
+            task_type=TaskType.performance,
+            status=RunStatus.completed,
+            device_id=3,
+            device_serial="emulator-5554",
+            apk_id=None,
+            app_package="com.example.app",
+            started_at=datetime(2026, 4, 1, 10, 0, tzinfo=timezone.utc),
+            finished_at=datetime(2026, 4, 1, 10, 5, tzinfo=timezone.utc),
+            duration_ms=300000,
+            summary_json={},
+            config_snapshot={},
+            trigger_type=TriggerType.manual,
+            triggered_by=1,
+            created_at=datetime(2026, 4, 1, 10, 0, tzinfo=timezone.utc),
+            updated_at=datetime(2026, 4, 1, 10, 5, tzinfo=timezone.utc),
+        )
+
+        item = mobile_special._build_run_list_item(run, "专项任务A")
+
+        assert item.id == 1
+        assert item.status == RunStatus.completed
+        assert item.task_name == "专项任务A"
+
+    def test_list_runs_project_filter_reuses_existing_join(self):
+        from app.api.v1 import mobile_special
+
+        captured = {}
+
+        class FakeResult:
+            def all(self):
+                return []
+
+        class FakeDB:
+            async def execute(self, stmt):
+                captured["sql"] = str(stmt)
+                return FakeResult()
+
+        result = asyncio.run(
+            mobile_special.list_runs(
+                project_id=9,
+                limit=50,
+                offset=0,
+                db=FakeDB(),
+                _=None,
+            )
+        )
+
+        assert result == []
+        assert captured["sql"].count("JOIN mobile_special_tasks") == 1

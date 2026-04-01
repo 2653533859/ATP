@@ -1,4 +1,5 @@
 """Mobile Special Testing API endpoints."""
+import logging
 from datetime import datetime, timezone
 from typing import Optional
 
@@ -7,6 +8,7 @@ from sqlalchemy import select, func, case as sql_case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.redis_client import get_json_cache, set_json_cache
 from app.models.mobile_special import (
     MobileSpecialTask,
     MobileSpecialRun,
@@ -22,6 +24,7 @@ from app.schemas.mobile_special import (
     MobileSpecialTaskUpdate,
     MobileSpecialTaskOut,
     MobileSpecialRunOut,
+    MobileSpecialRunListItem,
     MobileMetricSampleOut,
     MobileIncidentOut,
     MobileRunArtifactOut,
@@ -30,6 +33,7 @@ from app.schemas.mobile_special import (
 from app.api.deps import get_current_user, require_engineer
 
 router = APIRouter(prefix="/mobile-special", tags=["Android专项测试"])
+logger = logging.getLogger(__name__)
 
 
 def _calc_next_run(cron_expression: str | None) -> datetime | None:
@@ -50,6 +54,35 @@ def _refresh_schedule_state(task: MobileSpecialTask) -> None:
         task.next_run_at = _calc_next_run(task.cron_expression)
     else:
         task.next_run_at = None
+
+
+_MOBILE_STATS_CACHE_TTL = 180
+
+
+def _mobile_stats_cache_key(name: str, **kwargs) -> str:
+    items = ":".join(f"{key}={kwargs[key]}" for key in sorted(kwargs))
+    return f"atp:mobile-stats:{name}:{items}"
+
+
+async def _safe_get_mobile_stats_cache(key: str):
+    try:
+        return await get_json_cache(key)
+    except Exception:
+        logger.warning("failed to get mobile stats cache: %s", key, exc_info=True)
+        return None
+
+
+async def _safe_set_mobile_stats_cache(key: str, value) -> None:
+    try:
+        await set_json_cache(key, value, _MOBILE_STATS_CACHE_TTL)
+    except Exception:
+        logger.warning("failed to set mobile stats cache: %s", key, exc_info=True)
+
+
+def _build_run_list_item(run: MobileSpecialRun, task_name: str | None) -> MobileSpecialRunListItem:
+    data = MobileSpecialRunOut.model_validate(run, from_attributes=True).model_dump()
+    data["task_name"] = task_name
+    return MobileSpecialRunListItem(**data)
 
 
 # ---- Task CRUD ----
@@ -204,7 +237,7 @@ async def stop_run(
 
 # ---- Runs / Reports ----
 
-@router.get("/runs", response_model=list[MobileSpecialRunOut])
+@router.get("/runs", response_model=list[MobileSpecialRunListItem])
 async def list_runs(
     task_id: Optional[int] = None,
     task_type: Optional[TaskType] = None,
@@ -217,7 +250,8 @@ async def list_runs(
 ):
     """List mobile special runs with filters."""
     q = (
-        select(MobileSpecialRun)
+        select(MobileSpecialRun, MobileSpecialTask.name.label("task_name"))
+        .outerjoin(MobileSpecialTask, MobileSpecialRun.task_id == MobileSpecialTask.id)
         .order_by(MobileSpecialRun.created_at.desc())
         .offset(offset)
         .limit(limit)
@@ -229,10 +263,14 @@ async def list_runs(
     if status_filter is not None:
         q = q.where(MobileSpecialRun.status == status_filter)
     if project_id is not None:
-        q = q.join(MobileSpecialTask).where(MobileSpecialTask.project_id == project_id)
+        q = q.where(MobileSpecialTask.project_id == project_id)
 
     result = await db.execute(q)
-    return result.scalars().all()
+    rows = result.all()
+    return [
+        _build_run_list_item(row[0], row.task_name)
+        for row in rows
+    ]
 
 
 @router.get("/runs/{run_id}", response_model=MobileSpecialRunOut)
@@ -461,6 +499,11 @@ async def get_mobile_special_overview(
     _=Depends(get_current_user),
 ):
     """Get overview statistics for mobile special testing."""
+    cache_key = _mobile_stats_cache_key("overview", project_id=project_id, days=days)
+    cached = await _safe_get_mobile_stats_cache(cache_key)
+    if cached is not None:
+        return cached
+
     from datetime import timedelta
     since = datetime.now(timezone.utc) - timedelta(days=days)
     since_7d = datetime.now(timezone.utc) - timedelta(days=7)
@@ -533,7 +576,7 @@ async def get_mobile_special_overview(
 
     pass_rate = round(completed_runs / total_runs * 100, 1) if total_runs > 0 else 0.0
 
-    return {
+    result = {
         "total_runs": total_runs,
         "completed_runs": completed_runs,
         "failed_runs": failed_runs,
@@ -543,6 +586,8 @@ async def get_mobile_special_overview(
         "total_incidents": total_incidents,
         "recent_runs_7d": recent_runs_7d,
     }
+    await _safe_set_mobile_stats_cache(cache_key, result)
+    return result
 
 
 @router.get("/statistics/trend", response_model=list[dict])
@@ -553,6 +598,11 @@ async def get_mobile_special_trend(
     _=Depends(get_current_user),
 ):
     """Get daily trend statistics for mobile special testing."""
+    cache_key = _mobile_stats_cache_key("trend", project_id=project_id, days=days)
+    cached = await _safe_get_mobile_stats_cache(cache_key)
+    if cached is not None:
+        return cached
+
     from datetime import timedelta
     from sqlalchemy import cast, Date
     since = datetime.now(timezone.utc) - timedelta(days=days)
@@ -578,7 +628,7 @@ async def get_mobile_special_trend(
         stmt = stmt.join(MobileSpecialTask).where(MobileSpecialTask.project_id == project_id)
 
     rows = (await db.execute(stmt)).all()
-    return [
+    result = [
         {
             "date": str(r.date),
             "total": r.total,
@@ -588,6 +638,8 @@ async def get_mobile_special_trend(
         }
         for r in rows
     ]
+    await _safe_set_mobile_stats_cache(cache_key, result)
+    return result
 
 
 @router.get("/statistics/task-stats", response_model=list[dict])
@@ -599,6 +651,11 @@ async def get_task_statistics(
     _=Depends(get_current_user),
 ):
     """Get per-task statistics summary."""
+    cache_key = _mobile_stats_cache_key("task-stats", project_id=project_id, days=days, limit=limit)
+    cached = await _safe_get_mobile_stats_cache(cache_key)
+    if cached is not None:
+        return cached
+
     from datetime import timedelta
     since = datetime.now(timezone.utc) - timedelta(days=days)
 
@@ -630,7 +687,7 @@ async def get_task_statistics(
         stmt = stmt.where(MobileSpecialTask.project_id == project_id)
 
     rows = (await db.execute(stmt)).all()
-    return [
+    result = [
         {
             "task_id": r.task_id,
             "task_name": r.task_name,
@@ -643,3 +700,5 @@ async def get_task_statistics(
         }
         for r in rows
     ]
+    await _safe_set_mobile_stats_cache(cache_key, result)
+    return result

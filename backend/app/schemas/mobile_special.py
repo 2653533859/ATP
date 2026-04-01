@@ -100,6 +100,11 @@ class MobileSpecialRunOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class MobileSpecialRunListItem(MobileSpecialRunOut):
+    """Extended run item for list views with task_name joined."""
+    task_name: Optional[str] = None
+
+
 class RunSummary(BaseModel):
     """Summary fields for a completed run. Fields vary by task_type."""
     # Performance metrics

@@ -370,6 +370,7 @@ export interface MobileSpecialRunItem {
   triggered_by?: number | null
   created_at: string
   updated_at: string
+  task_name?: string
 }
 
 export interface MobileMetricSampleItem {
