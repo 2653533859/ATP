@@ -22,4 +22,16 @@ export default defineConfig({
       },
     },
   },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vue-vendor': ['vue', 'vue-router', 'pinia'],
+          'ant-design': ['ant-design-vue'],
+          'echarts': ['echarts'],
+        },
+      },
+    },
+    chunkSizeWarningLimit: 600,
+  },
 })
