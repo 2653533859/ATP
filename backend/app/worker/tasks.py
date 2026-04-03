@@ -1,7 +1,7 @@
 from app.worker.celery_app import celery_app
 from app.worker.case_dispatch import dispatch_case
 from app.models.bootstrap import load_all_models
-from app.core.redis_client import publish_run_event
+from app.core.redis_client import publish_run_event, delete_json_cache_pattern
 from app.core.encryption import decrypt_env_vars
 import logging
 from app.worker.async_runner import run_async
@@ -16,6 +16,13 @@ async def _safe_publish_run_event(run_id: int, payload: dict) -> None:
         await publish_run_event(run_id, payload)
     except Exception:
         logger.exception(f"Failed to publish run event for run {run_id}: {payload.get('type')}")
+
+
+async def _safe_invalidate_stats_cache() -> None:
+    try:
+        await delete_json_cache_pattern("atp:stats:*")
+    except Exception:
+        logger.exception("Failed to invalidate stats cache")
 
 
 @celery_app.task(bind=True, name="run_test_case")
@@ -53,6 +60,8 @@ def run_test_case(self, run_id: int, extra_vars: dict):
                 await _safe_publish_run_event(run_id, {
                     "type": "completed", "run_id": run_id, "status": "error",
                 })
+            finally:
+                await _safe_invalidate_stats_cache()
 
     run_async(_execute())
 
@@ -159,6 +168,8 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict):
                 })
             except Exception as e:
                 logger.warning(f"Suite notification failed: {e}")
+            finally:
+                await _safe_invalidate_stats_cache()
 
     run_async(_execute())
 
@@ -355,6 +366,8 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict):
                 })
             except Exception as e:
                 logger.warning(f"Plan notification failed: {e}")
+            finally:
+                await _safe_invalidate_stats_cache()
 
     run_async(_execute())
 

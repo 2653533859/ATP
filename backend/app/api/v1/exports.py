@@ -14,12 +14,13 @@ import xml.etree.ElementTree as ET
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import Response
-from jinja2 import Template
+from jinja2 import Environment, select_autoescape
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.minio_client import read_bytes
+from app.core.object_refs import extract_object_name
 from app.models.case import TestRun, StepResult, TestCase
 from app.models.suite import SuiteRun
 from app.models.plan import PlanRun
@@ -227,8 +228,9 @@ async def export_plan_run_junit(
 # ── HTML / PDF 报告导出 ─────────────────────────────────────
 
 logger = logging.getLogger(__name__)
+_TEMPLATE_ENV = Environment(autoescape=select_autoescape(["html", "xml"]))
 
-_REPORT_TEMPLATE = Template("""\
+_REPORT_TEMPLATE = _TEMPLATE_ENV.from_string("""\
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -269,10 +271,10 @@ h2{font-size:18px;margin:24px 0 12px}
 <tr>
 <td>{{ step.step_index }}</td>
 <td>{{ step.name or '-' }}</td>
-<td><span class="badge badge-{{ step.status.value if step.status and step.status.value else step.status }}">{{ step.status.value if step.status and step.status.value else step.status }}</span></td>
+<td><span class="badge badge-{{ step.status }}">{{ step.status }}</span></td>
 <td>{{ '%.1fs' % ((step.duration_ms or 0) / 1000) }}</td>
 <td>{% if step.error_message %}<span class="error-box">{{ step.error_message }}</span>{% else %}<span class="muted">-</span>{% endif %}</td>
-<td>{% if step._screenshot_b64 %}<img class="screenshot" src="data:image/png;base64,{{ step._screenshot_b64 }}" alt="step screenshot" />{% else %}<span class="muted">-</span>{% endif %}</td>
+<td>{% if step.screenshot_b64 %}<img class="screenshot" src="data:image/png;base64,{{ step.screenshot_b64 }}" alt="step screenshot" />{% else %}<span class="muted">-</span>{% endif %}</td>
 </tr>
 {% endfor %}
 </tbody>
@@ -285,7 +287,7 @@ h2{font-size:18px;margin:24px 0 12px}
 </html>
 """)
 
-_AGGREGATE_REPORT_TEMPLATE = Template("""\
+_AGGREGATE_REPORT_TEMPLATE = _TEMPLATE_ENV.from_string("""\
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -383,41 +385,42 @@ h3{font-size:15px;margin:0}
 
 def _extract_minio_object(url: str) -> str | None:
     """从 MinIO presigned URL 或对象路径中提取 object name"""
-    if not url:
-        return None
-    # presigned URL 格式: http://host:port/bucket/object?X-Amz-...
-    # 直接存储的 object name 格式: screenshots/runs/1/step_0.png
-    if url.startswith("http"):
-        from urllib.parse import urlparse, unquote
-        path = urlparse(url).path  # /bucket/object/path
-        parts = path.split("/", 2)  # ['', 'bucket', 'object/path']
-        if len(parts) >= 3:
-            return unquote(parts[2])
-    return url
+    return extract_object_name(url)
+
+
+def _build_report_steps_view(steps: list[StepResult]) -> list[dict]:
+    rendered_steps: list[dict] = []
+    for step in steps:
+        screenshot_b64 = ""
+        if step.screenshot_url:
+            obj_name = _extract_minio_object(step.screenshot_url)
+            if obj_name:
+                try:
+                    img_bytes = read_bytes(obj_name)
+                    screenshot_b64 = base64.b64encode(img_bytes).decode()
+                except Exception:
+                    logger.warning(f"Failed to read screenshot: {obj_name}")
+        rendered_steps.append({
+            "step_index": step.step_index,
+            "name": step.name,
+            "status": getattr(step.status, "value", step.status),
+            "duration_ms": step.duration_ms,
+            "error_message": step.error_message,
+            "screenshot_b64": screenshot_b64,
+        })
+    return rendered_steps
 
 
 async def _build_report_html(run: TestRun, steps: list[StepResult], case_name: str, case_type: str = "") -> str:
     """构建 HTML 报告，截图内嵌为 base64"""
     from datetime import datetime, timezone, timedelta
 
-    # 尝试读取截图并转为 base64
-    for step in steps:
-        step._screenshot_b64 = ""  # type: ignore[attr-defined]
-        if step.screenshot_url:
-            obj_name = _extract_minio_object(step.screenshot_url)
-            if obj_name:
-                try:
-                    img_bytes = read_bytes(obj_name)
-                    step._screenshot_b64 = base64.b64encode(img_bytes).decode()  # type: ignore[attr-defined]
-                except Exception:
-                    logger.warning(f"Failed to read screenshot: {obj_name}")
-
     run_status = getattr(run.status, "value", str(run.status))
     tz_cst = timezone(timedelta(hours=8))
     html = _REPORT_TEMPLATE.render(
         run=run,
         run_status=run_status,
-        steps=steps,
+        steps=_build_report_steps_view(steps),
         case_name=case_name,
         case_type=case_type,
         now=datetime.now(tz_cst).strftime("%Y-%m-%d %H:%M:%S (UTC+8)"),

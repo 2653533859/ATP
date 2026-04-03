@@ -12,21 +12,20 @@ import sys
 from datetime import datetime, timezone
 
 from app.core.config import settings
+from app.core.tracing import get_trace_id
 
 
 class JSONFormatter(logging.Formatter):
     """将日志记录格式化为 JSON 行"""
 
     def format(self, record: logging.LogRecord) -> str:
-        from app.middleware.trace import trace_id_var
-
         log_entry = {
             "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "logger": record.name,
             "message": record.getMessage(),
         }
-        tid = trace_id_var.get("")
+        tid = get_trace_id()
         if tid:
             log_entry["trace_id"] = tid
         if record.exc_info and record.exc_info[0] is not None:
@@ -40,9 +39,7 @@ class DevFormatter(logging.Formatter):
     """开发环境可读格式，附带 trace_id"""
 
     def format(self, record: logging.LogRecord) -> str:
-        from app.middleware.trace import trace_id_var
-
-        tid = trace_id_var.get("")
+        tid = get_trace_id()
         tid_part = f" [{tid}]" if tid else ""
         ts = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         return f"{ts} {record.levelname:<8s} [{record.name}]{tid_part} {record.getMessage()}"
@@ -60,22 +57,24 @@ def _resolve_level() -> int:
 def setup_logging() -> None:
     """初始化全局日志配置，应在应用启动时调用"""
     root = logging.getLogger()
-
-    # 避免重复初始化
-    if root.handlers:
-        return
-
     level = _resolve_level()
     root.setLevel(level)
 
-    handler = logging.StreamHandler(sys.stdout)
-
+    formatter: logging.Formatter
     if settings.APP_ENV == "production":
-        handler.setFormatter(JSONFormatter())
+        formatter = JSONFormatter()
     else:
-        handler.setFormatter(DevFormatter())
+        formatter = DevFormatter()
 
-    root.addHandler(handler)
+    if root.handlers:
+        for handler in root.handlers:
+            handler.setLevel(level)
+            handler.setFormatter(formatter)
+    else:
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(level)
+        handler.setFormatter(formatter)
+        root.addHandler(handler)
 
     # 降低第三方库噪音
     for noisy in ("uvicorn.access", "httpx", "httpcore", "urllib3", "asyncio"):

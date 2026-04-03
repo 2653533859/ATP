@@ -85,7 +85,34 @@ def test_get_overview_uses_selected_days_for_run_metrics(monkeypatch):
     assert since_calls == [30, 7]
 
 
-def test_get_overview_returns_cached_result(monkeypatch):
+
+
+def test_get_overview_survives_cache_read_failure(monkeypatch):
+    async def fake_get_json_cache(*_args, **_kwargs):
+        raise RuntimeError("redis read failed")
+
+    async def fake_set_json_cache(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(statistics, "get_json_cache", fake_get_json_cache)
+    monkeypatch.setattr(statistics, "set_json_cache", fake_set_json_cache)
+    monkeypatch.setattr(statistics, "_since", lambda _days: datetime(2026, 3, 1, tzinfo=timezone.utc))
+
+    db = _FakeDB(
+        results=[
+            _FakeExecuteResult(scalar_value=12),
+            _FakeExecuteResult(one_value=(8, 6)),
+            _FakeExecuteResult(scalar_value=3),
+        ]
+    )
+
+    result = asyncio.run(statistics.get_overview(project_id=None, days=30, db=db, _=None))
+
+    assert result.total_cases == 12
+    assert result.total_runs == 8
+    assert result.pass_rate == 75.0
+
+
     async def fake_get_json_cache(*_args, **_kwargs):
         return {"total_cases": 5, "total_runs": 3, "pass_rate": 66.7, "recent_runs_7d": 2}
 
@@ -99,7 +126,34 @@ def test_get_overview_returns_cached_result(monkeypatch):
     assert db.statements == []
 
 
-def test_get_failure_top_includes_project_and_module_ids(monkeypatch):
+
+
+def test_get_overview_survives_cache_write_failure(monkeypatch):
+    async def fake_get_json_cache(*_args, **_kwargs):
+        return None
+
+    async def fake_set_json_cache(*_args, **_kwargs):
+        raise RuntimeError("redis write failed")
+
+    monkeypatch.setattr(statistics, "get_json_cache", fake_get_json_cache)
+    monkeypatch.setattr(statistics, "set_json_cache", fake_set_json_cache)
+    monkeypatch.setattr(statistics, "_since", lambda _days: datetime(2026, 3, 1, tzinfo=timezone.utc))
+
+    db = _FakeDB(
+        results=[
+            _FakeExecuteResult(scalar_value=12),
+            _FakeExecuteResult(one_value=(8, 6)),
+            _FakeExecuteResult(scalar_value=3),
+        ]
+    )
+
+    result = asyncio.run(statistics.get_overview(project_id=None, days=30, db=db, _=None))
+
+    assert result.total_cases == 12
+    assert result.total_runs == 8
+    assert result.pass_rate == 75.0
+
+
     fixed_since = datetime(2026, 3, 1, tzinfo=timezone.utc)
 
     async def fake_get_json_cache(*_args, **_kwargs):

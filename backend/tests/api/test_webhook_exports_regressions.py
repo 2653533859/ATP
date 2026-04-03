@@ -15,6 +15,10 @@ sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=lambda: None,
     require_engineer=lambda: None,
 )
+sys.modules["app.core.minio_client"] = types.SimpleNamespace(read_bytes=lambda *_args, **_kwargs: b"")
+sys.modules["app.core.rate_limit"] = types.SimpleNamespace(
+    limiter=types.SimpleNamespace(limit=lambda *_args, **_kwargs: (lambda func: func))
+)
 
 from app.api.v1 import exports, webhook
 
@@ -158,6 +162,16 @@ def test_export_run_junit_reports_run_failure_without_steps():
     failure = testcase.find("failure")
     assert failure is not None
     assert "executor bootstrap failed" in (failure.attrib.get("message") or "")
+
+
+def test_extract_minio_object_supports_presigned_url_and_object_key():
+    assert exports._extract_minio_object("screenshots/runs/1/step_0.png") == "screenshots/runs/1/step_0.png"
+    assert (
+        exports._extract_minio_object(
+            "http://minio:9000/atp/screenshots/runs/1/step_0.png?X-Amz-Signature=abc"
+        )
+        == "screenshots/runs/1/step_0.png"
+    )
 
 
 def test_build_report_html_renders_single_run_report():

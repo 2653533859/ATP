@@ -13,22 +13,22 @@
 ### 现状问题
 - 执行卡住时无法定位卡在哪一步（API、Celery Queue、Worker、Executor）
 - 失败日志分散在多个组件，关联困难
-- 无请求级别的上下文 ID
+- 当前已有请求级 `trace_id` 中间件（`backend/app/middleware/trace.py`），但尚未传递到 Celery / Worker / Run 记录
 
 ### 实施方案
 
 #### 1.1 请求上下文注入
 ```
-API 层 (api/v1/)        → 生成 trace_id，写入 Redis + 返回给前端
+API 层 (api/v1/)        → 复用现有 TraceMiddleware 生成 trace_id 并返回给前端
+                         → 在触发执行接口中透传到 Celery / Worker
                          → 附加 project_id、case_id、trigger_type 到 context
 ```
 
 **新增文件：**
 - `backend/app/core/tracing.py` — TraceContext 管理
-- `backend/app/core/celery_tracing.py` — Celery task 包装器
 
 **修改文件：**
-- `backend/app/api/v1/` — 所有 run trigger 接口注入 trace_id
+- `backend/app/api/v1/` — 所有 run trigger 接口注入/透传 trace_id
 - `backend/app/worker/tasks.py` — Celery task 接收并传递 trace_id
 
 #### 1.2 Celery Task 包装器
@@ -51,19 +51,19 @@ executor.finish()        → span: executor_end
 ```
 
 #### 1.4 Trace 存储与查询
-- 使用 Redis Stream 存储 trace 数据（TTL=7天）
-- 新增 API：`GET /api/v1/traces/{trace_id}` — 返回完整链路
-- 新增 API：`GET /api/v1/traces/{trace_id}/spans` — 返回所有 span
+- Q2 先以 `trace_id` 透传 + 结构化日志 + Run 记录关联为主
+- 如需查询接口，可基于已有 Run/SuiteRun/PlanRun 关联信息返回诊断视图
+- Redis Stream / spans 明细存储延后评估，避免与现有缓存/PubSub 共用 DB2 带来额外压力
 - 前端：运行详情页增加「链路追踪」Tab
 
 #### 1.5 前端展示
-- `frontend/src/views/run/RunDetailView.vue` — 新增 Trace 面板
+- `frontend/src/views/run/RunDetail.vue` — 新增 Trace 面板
 - 展示时间线：API → Queue → Worker → 各 Step 执行时长
 - 颜色标识：绿色=成功，红色=失败，灰色=进行中
 
 ### 依赖
-- Redis Stream（已部署，DB2 可复用）
-- Python 包：`opentracing` 或 `structlog`
+- 复用现有日志体系与 Flower/Celery 观测能力
+- 如后续做更完整 tracing，再评估 OpenTelemetry / Redis Stream
 
 ### 里程碑
 - [ ] 1.1 TraceContext 管理模块

@@ -7,6 +7,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.core.redis_client import get_json_cache, set_json_cache
+import logging
 from app.models.case import TestCase, TestRun, RunStatus, CaseType
 from app.models.plan import TestPlan, PlanRun, PlanRunStatus, TriggerType
 from app.models.suite import TestSuite, SuiteRun, SuiteRunStatus
@@ -23,6 +24,7 @@ from app.schemas.statistics import (
 )
 
 router = APIRouter(tags=["statistics"])
+logger = logging.getLogger(__name__)
 
 # 终态：只统计已结束的执行
 _FINISHED = [RunStatus.passed, RunStatus.failed, RunStatus.error]
@@ -38,6 +40,21 @@ def _since(days: int) -> datetime:
 def _cache_key(name: str, **kwargs) -> str:
     items = ":".join(f"{key}={kwargs[key]}" for key in sorted(kwargs))
     return f"atp:stats:{name}:{items}"
+
+
+async def _safe_get_stats_cache(key: str):
+    try:
+        return await get_json_cache(key)
+    except Exception:
+        logger.exception(f"Failed to read statistics cache: {key}")
+        return None
+
+
+async def _safe_set_stats_cache(key: str, value) -> None:
+    try:
+        await set_json_cache(key, value, _STATS_CACHE_TTL)
+    except Exception:
+        logger.exception(f"Failed to write statistics cache: {key}")
 
 
 def _apply_project_filter(stmt, project_id: int | None):
@@ -84,7 +101,7 @@ async def get_overview(
     _: User = Depends(get_current_user),
 ):
     cache_key = _cache_key("overview", project_id=project_id, days=days)
-    cached = await get_json_cache(cache_key)
+    cached = await _safe_get_stats_cache(cache_key)
     if cached is not None:
         return OverviewOut(**cached)
 
@@ -122,7 +139,7 @@ async def get_overview(
         "pass_rate": pass_rate,
         "recent_runs_7d": recent_runs_7d,
     }
-    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    await _safe_set_stats_cache(cache_key, result)
     return OverviewOut(**result)
 
 
@@ -136,7 +153,7 @@ async def get_pass_rate_trend(
     _: User = Depends(get_current_user),
 ):
     cache_key = _cache_key("pass-rate-trend", project_id=project_id, days=days, case_type=case_type.value if case_type else None)
-    cached = await get_json_cache(cache_key)
+    cached = await _safe_get_stats_cache(cache_key)
     if cached is not None:
         return [PassRateTrendItem(**item) for item in cached]
 
@@ -166,7 +183,7 @@ async def get_pass_rate_trend(
         }
         for r in rows
     ]
-    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    await _safe_set_stats_cache(cache_key, result)
     return [PassRateTrendItem(**item) for item in result]
 
 
@@ -180,7 +197,7 @@ async def get_duration_trend(
     _: User = Depends(get_current_user),
 ):
     cache_key = _cache_key("duration-trend", project_id=project_id, days=days, case_type=case_type.value if case_type else None)
-    cached = await get_json_cache(cache_key)
+    cached = await _safe_get_stats_cache(cache_key)
     if cached is not None:
         return [DurationTrendItem(**item) for item in cached]
 
@@ -215,7 +232,7 @@ async def get_duration_trend(
         }
         for r in rows
     ]
-    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    await _safe_set_stats_cache(cache_key, result)
     return [DurationTrendItem(**item) for item in result]
 
 
@@ -230,7 +247,7 @@ async def get_failure_top(
     _: User = Depends(get_current_user),
 ):
     cache_key = _cache_key("failure-top", project_id=project_id, days=days, top=top, case_type=case_type.value if case_type else None)
-    cached = await get_json_cache(cache_key)
+    cached = await _safe_get_stats_cache(cache_key)
     if cached is not None:
         return [FailureTopItem(**item) for item in cached]
 
@@ -274,7 +291,7 @@ async def get_failure_top(
         }
         for r in rows
     ]
-    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    await _safe_set_stats_cache(cache_key, result)
     return [FailureTopItem(**item) for item in result]
 
 
@@ -288,7 +305,7 @@ async def get_executor_top(
     _: User = Depends(get_current_user),
 ):
     cache_key = _cache_key("executor-top", project_id=project_id, days=days, top=top, case_type=case_type.value if case_type else None)
-    cached = await get_json_cache(cache_key)
+    cached = await _safe_get_stats_cache(cache_key)
     if cached is not None:
         return [ExecutorTopItem(**item) for item in cached]
 
@@ -317,7 +334,7 @@ async def get_executor_top(
         }
         for r in rows
     ]
-    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    await _safe_set_stats_cache(cache_key, result)
     return [ExecutorTopItem(**item) for item in result]
 
 
@@ -329,7 +346,7 @@ async def get_trigger_type_stats(
     _: User = Depends(get_current_user),
 ):
     cache_key = _cache_key("trigger-type-stats", project_id=project_id, days=days)
-    cached = await get_json_cache(cache_key)
+    cached = await _safe_get_stats_cache(cache_key)
     if cached is not None:
         return [TriggerTypeStatItem(**item) for item in cached]
 
@@ -353,7 +370,7 @@ async def get_trigger_type_stats(
         }
         for r in rows
     ]
-    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    await _safe_set_stats_cache(cache_key, result)
     return [TriggerTypeStatItem(**item) for item in result]
 
 
@@ -365,7 +382,7 @@ async def get_plan_trend(
     _: User = Depends(get_current_user),
 ):
     cache_key = _cache_key("plan-trend", project_id=project_id, days=days)
-    cached = await get_json_cache(cache_key)
+    cached = await _safe_get_stats_cache(cache_key)
     if cached is not None:
         return [AggregateTrendItem(**item) for item in cached]
 
@@ -393,7 +410,7 @@ async def get_plan_trend(
         }
         for r in rows
     ]
-    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    await _safe_set_stats_cache(cache_key, result)
     return [AggregateTrendItem(**item) for item in result]
 
 
@@ -405,7 +422,7 @@ async def get_suite_trend(
     _: User = Depends(get_current_user),
 ):
     cache_key = _cache_key("suite-trend", project_id=project_id, days=days)
-    cached = await get_json_cache(cache_key)
+    cached = await _safe_get_stats_cache(cache_key)
     if cached is not None:
         return [AggregateTrendItem(**item) for item in cached]
 
@@ -433,5 +450,5 @@ async def get_suite_trend(
         }
         for r in rows
     ]
-    await set_json_cache(cache_key, result, _STATS_CACHE_TTL)
+    await _safe_set_stats_cache(cache_key, result)
     return [AggregateTrendItem(**item) for item in result]

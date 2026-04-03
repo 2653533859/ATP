@@ -80,7 +80,7 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict):
 
 #### A.4 前端交互
 
-**修改文件**: `frontend/src/views/suite/SuiteForm.vue` (或现有编辑表单)
+**修改文件**: `frontend/src/views/suite/SuiteList.vue` (现有编辑表单入口)
 
 - 套件配置 Tab 增加执行模式选择（顺序/并行）
 - 并行模式显示最大并发数输入 + 失败策略选择
@@ -185,7 +185,7 @@ async def get_storage_stats(_: User = Depends(require_admin)):
 原方案(Q2-方向一)计划用 Redis Stream 存储 trace，但：
 - 项目已有 Flower 监控
 - Redis DB2 已被 Pub/Sub + 缓存共用，高频 trace 写入可能影响
-- 没有 trace_id 注入到 API 层
+- 当前已有请求级 `trace_id` 中间件（`backend/app/middleware/trace.py`），但尚未透传到 Celery / Worker / Run 记录
 
 ### 实施步骤（精简版，复用 Flower）
 
@@ -194,8 +194,8 @@ async def get_storage_stats(_: User = Depends(require_admin)):
 **修改文件**: `backend/app/core/tracing.py` (新建)
 
 ```python
-import uuid
 from contextvars import ContextVar
+import uuid
 
 trace_id_var: ContextVar[str] = ContextVar("trace_id", default="")
 
@@ -206,13 +206,12 @@ def generate_trace_id() -> str:
     return uuid.uuid4().hex[:16]
 ```
 
-**修改文件**: `backend/app/api/v1/suites.py`, `cases.py` 等触发接口
+**修改文件**: `backend/app/api/v1/suites.py`, `cases.py`, `plans.py`
 
-在触发执行的接口中注入 `X-Trace-ID` header 并写入响应：
+在触发执行的接口中复用现有 `TraceMiddleware` 生成的 `X-Trace-ID`，并透传到 Celery / Worker：
 ```python
-trace_id = generate_trace_id()
-trace_id_var.set(trace_id)
-# 写入 SuiteRun / TestRun 的 result_summary 中追溯
+trace_id = get_trace_id() or generate_trace_id()
+# 写入 SuiteRun / TestRun / PlanRun 的 trace_id 或 result_summary 中追溯
 ```
 
 #### C.2 Celery task 日志增强
@@ -229,22 +228,22 @@ logger.info(
 
 #### C.3 执行链路 API
 
-**新增文件**: `backend/app/api/v1/traces.py`
+**可选新增文件**: `backend/app/api/v1/traces.py`
 
 ```python
 @router.get("/traces/{trace_id}")
 async def get_trace(trace_id: str, ...):
-    # 从 Redis Stream 读取 trace events
-    # 返回格式: {"spans": [{"name": "...", "start": ..., "duration_ms": ...}]}
+    # Q2 先从 Run / SuiteRun / PlanRun 关联信息与结构化日志侧提供诊断视图
+    # Redis Stream / span 级明细存储延后评估
 ```
 
 #### C.4 前端 Trace 面板
 
-**修改文件**: `frontend/src/views/run/RunDetailView.vue`
+**修改文件**: `frontend/src/views/run/RunDetail.vue`
 
 - 新增 "链路追踪" Tab（折叠面板形式）
 - 展示时间线：API 触发 → Queue → Worker → 各 Step
-- 使用 Redis DB2 轮询（5s 间隔）获取 trace events
+- 优先基于已持久化的关联信息展示，必要时再补轻量轮询
 
 ### 里程碑
 
@@ -265,7 +264,7 @@ async def get_trace(trace_id: str, ...):
 - `cleanup_stale_mobile_special_runs` (tasks_mobile_special.py:173) — 清理超时 mobile special runs
 
 关键问题：
-1. **MinIO 文件无关联追踪**：截图/报告 URL 存在 DB 字段中（如 `screenshot_url`），删除 MinIO 文件后 DB 记录仍存在，访问时 404
+1. **MinIO 文件无关联追踪**：截图/报告 URL 或对象路径存在 DB 字段中（如 `screenshot_url`），删除 MinIO 文件后 DB 记录仍存在，访问时 404
 2. **DB 记录无清理**：终态（passed/failed/error）运行记录永远不删除，只清理 pending 超时
 3. **配置不灵活**：`FILE_RETENTION_DAYS` 是全局固定值，无法按项目/Bucket 差异化配置
 4. **清理无预览**：`cleanup_expired_files` 直接删除，没有管理员确认环节
@@ -383,7 +382,7 @@ def cleanup_old_completed_runs():
 | `backend/app/api/v1/storage.py` | 新建 | B, D |
 | `backend/app/models/storage_policy.py` | 新建 | D |
 | `backend/migrations/versions/..._add_stats_indexes.py` | 新建 | B |
-| `frontend/src/views/run/RunDetailView.vue` | 修改 | C |
+| `frontend/src/views/run/RunDetail.vue` | 修改 | C |
 | `frontend/src/views/system/StorageManagementView.vue` | 新建 | D |
 
 ---
