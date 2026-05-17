@@ -166,3 +166,26 @@ class PaginatedRunsOut(BaseModel):
     total: int
     page: int
     page_size: int
+
+
+class CaseBatchDeleteIn(BaseModel):
+    case_ids: list[int] = Field(min_length=1, max_length=500)
+
+
+class CaseBatchMoveIn(BaseModel):
+    case_ids: list[int] = Field(min_length=1, max_length=500)
+    target_module_id: int
+
+
+class CaseBatchOpOut(BaseModel):
+    requested: int
+    processed: int
+    skipped_ids: list[int] = Field(default_factory=list)
+
+
+class CaseBatchImportOut(BaseModel):
+    imported: int
+    skipped_count: int = 0
+    target_module_id: int
+    created_ids: list[int] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)

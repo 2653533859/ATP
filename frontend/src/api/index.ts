@@ -489,6 +489,18 @@ export interface StoragePolicyPayload {
   description?: string | null
 }
 
+export interface StorageAlertPayload {
+  bucket: string
+  total_bytes: number
+  total_gb: number
+  threshold_gb: number
+  triggered_at: string
+}
+
+export interface StorageAlertResponse {
+  alert: StorageAlertPayload | null
+}
+
 export interface GlobalVariableItem {
   id: number
   scope_type: ScopeType
@@ -570,6 +582,40 @@ export const caseApi = {
     ),
   rollback: (caseId: number, snapshotId: number) =>
     http.post<any, CaseDetailItem>(`/cases/${caseId}/rollback/${snapshotId}`),
+  batchDelete: (caseIds: number[]) =>
+    http.post<any, { requested: number; processed: number; skipped_ids: number[] }>(
+      '/cases/batch/delete',
+      { case_ids: caseIds },
+    ),
+  batchMove: (caseIds: number[], targetModuleId: number) =>
+    http.post<any, { requested: number; processed: number; skipped_ids: number[] }>(
+      '/cases/batch/move',
+      { case_ids: caseIds, target_module_id: targetModuleId },
+    ),
+  batchExportCsv: (caseIds: number[]) =>
+    http.get<any, Blob>('/cases/batch/export', {
+      params: { case_ids: caseIds.join(',') },
+      responseType: 'blob',
+    }),
+  batchExportZip: (caseIds: number[]) =>
+    http.get<any, Blob>('/cases/batch/export-zip', {
+      params: { case_ids: caseIds.join(',') },
+      responseType: 'blob',
+    }),
+  batchImportZip: (file: File, targetModuleId: number) => {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post<any, {
+      imported: number
+      skipped_count: number
+      target_module_id: number
+      created_ids: number[]
+      errors: string[]
+    }>('/cases/batch/import-zip', form, {
+      params: { target_module_id: targetModuleId },
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
 }
 
 export const runApi = {
@@ -656,6 +702,16 @@ export const suiteApi = {
     http.get<any, Blob>(`/suite-runs/${id}/export/html`, { responseType: 'blob' }),
   exportRunPdf: (id: number) =>
     http.get<any, Blob>(`/suite-runs/${id}/export/pdf`, { responseType: 'blob' }),
+  batchDelete: (suiteIds: number[]) =>
+    http.post<any, { requested: number; processed: number; skipped_ids: number[] }>(
+      '/suites/batch/delete',
+      { suite_ids: suiteIds },
+    ),
+  batchCopy: (suiteIds: number[], suffix = ' - 副本') =>
+    http.post<any, { requested: number; processed: number; skipped_ids: number[]; created_ids: number[] }>(
+      '/suites/batch/copy',
+      { suite_ids: suiteIds, suffix },
+    ),
 }
 
 export const planApi = {
@@ -674,6 +730,16 @@ export const planApi = {
     http.get<any, Blob>(`/plan-runs/${id}/export/html`, { responseType: 'blob' }),
   exportRunPdf: (id: number) =>
     http.get<any, Blob>(`/plan-runs/${id}/export/pdf`, { responseType: 'blob' }),
+  batchDelete: (planIds: number[]) =>
+    http.post<any, { requested: number; processed: number; skipped_ids: number[] }>(
+      '/plans/batch/delete',
+      { plan_ids: planIds },
+    ),
+  batchToggle: (planIds: number[], isEnabled: boolean) =>
+    http.post<any, { requested: number; processed: number; skipped_ids: number[] }>(
+      '/plans/batch/toggle',
+      { plan_ids: planIds, is_enabled: isEnabled },
+    ),
 }
 
 export const notificationApi = {
@@ -789,6 +855,7 @@ export const storageApi = {
   updatePolicy: (id: number, data: StoragePolicyPayload) =>
     http.patch<any, StoragePolicyItem>(`/storage/policies/${id}`, data),
   deletePolicy: (id: number) => http.delete(`/storage/policies/${id}`),
+  getAlert: () => http.get<any, StorageAlertResponse>('/storage/alert'),
 }
 
 // ---- Global Variables ----

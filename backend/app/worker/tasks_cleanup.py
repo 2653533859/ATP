@@ -280,6 +280,25 @@ def _cleanup_mobile_special_runs(session, cutoff: datetime, batch_size: int) -> 
     return {"runs": deleted_runs, "objects": deleted_objects}
 
 
+@celery_app.task(name="check_storage_usage")
+def check_storage_usage():
+    """检查 MinIO bucket 总大小，必要时写入/清除告警状态。"""
+    if (settings.STORAGE_ALERT_SIZE_GB or 0) <= 0:
+        return {"enabled": False}
+
+    import asyncio
+
+    from app.services.storage_alerts import check_and_record_alert
+
+    load_all_models()
+    try:
+        result = asyncio.run(check_and_record_alert())
+        return {"enabled": True, "alert": result}
+    except Exception:
+        logger.exception("Storage usage check failed")
+        return {"enabled": True, "alert": None, "error": True}
+
+
 @celery_app.task(name="cleanup_old_completed_runs")
 def cleanup_old_completed_runs():
     """删除超过保留期的终态运行记录及其关联文件。

@@ -16,6 +16,23 @@
       </a-button>
     </div>
 
+    <div v-if="selectedRowKeys.length" class="batch-bar">
+      <span style="color: #1890ff">已选择 {{ selectedRowKeys.length }} 项</span>
+      <a-space>
+        <a-button size="small" @click="handleBatchToggle(true)">批量启用</a-button>
+        <a-button size="small" @click="handleBatchToggle(false)">批量停用</a-button>
+        <a-popconfirm
+          :title="`确认删除选中的 ${selectedRowKeys.length} 个计划？`"
+          ok-text="删除"
+          cancel-text="取消"
+          @confirm="handleBatchDelete"
+        >
+          <a-button size="small" danger>批量删除</a-button>
+        </a-popconfirm>
+        <a-button size="small" type="link" @click="selectedRowKeys = []">取消选择</a-button>
+      </a-space>
+    </div>
+
     <a-table
       :columns="columns"
       :data-source="plans"
@@ -23,6 +40,7 @@
       row-key="id"
       size="middle"
       :pagination="{ pageSize: 20, showSizeChanger: true }"
+      :row-selection="{ selectedRowKeys, onChange: (keys: (string | number)[]) => (selectedRowKeys = keys as number[]) }"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'schedule_type'">
@@ -391,6 +409,7 @@ function parseCronPreset(expression: string | null | undefined): {
 
 const plans = ref<PlanItem[]>([])
 const loading = ref(false)
+const selectedRowKeys = ref<number[]>([])
 const projectId = ref<number | undefined>(undefined)
 const projectOptions = ref<SelectOption[]>([])
 
@@ -543,6 +562,30 @@ async function loadPlans() {
     message.error(getErrorMessage(error, '加载计划列表失败'))
   } finally {
     loading.value = false
+  }
+}
+
+async function handleBatchDelete() {
+  if (!selectedRowKeys.value.length) return
+  try {
+    const result = await planApi.batchDelete(selectedRowKeys.value)
+    message.success(`已删除 ${result.processed} / ${result.requested} 个计划`)
+    selectedRowKeys.value = []
+    await loadPlans()
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, '批量删除失败'))
+  }
+}
+
+async function handleBatchToggle(isEnabled: boolean) {
+  if (!selectedRowKeys.value.length) return
+  try {
+    const result = await planApi.batchToggle(selectedRowKeys.value, isEnabled)
+    message.success(`已${isEnabled ? '启用' : '停用'} ${result.processed} / ${result.requested} 个计划`)
+    selectedRowKeys.value = []
+    await loadPlans()
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, '批量操作失败'))
   }
 }
 

@@ -17,6 +17,22 @@
       </a-button>
     </div>
 
+    <div v-if="selectedRowKeys.length" class="batch-bar">
+      <span style="color: #1890ff">已选择 {{ selectedRowKeys.length }} 项</span>
+      <a-space>
+        <a-button size="small" @click="handleBatchCopy">批量复制</a-button>
+        <a-popconfirm
+          :title="`确认删除选中的 ${selectedRowKeys.length} 个套件？`"
+          ok-text="删除"
+          cancel-text="取消"
+          @confirm="handleBatchDelete"
+        >
+          <a-button size="small" danger>批量删除</a-button>
+        </a-popconfirm>
+        <a-button size="small" type="link" @click="selectedRowKeys = []">取消选择</a-button>
+      </a-space>
+    </div>
+
     <a-table
       :columns="columns"
       :data-source="suites"
@@ -24,6 +40,7 @@
       row-key="id"
       size="middle"
       :pagination="{ pageSize: 20 }"
+      :row-selection="{ selectedRowKeys, onChange: (keys: (string | number)[]) => (selectedRowKeys = keys as number[]) }"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'case_count'">
@@ -507,6 +524,7 @@ function createDefaultForm(): SuiteFormState {
 const suites = ref<SuiteItem[]>([])
 const projects = ref<ProjectItem[]>([])
 const loading = ref(false)
+const selectedRowKeys = ref<number[]>([])
 const projectFilter = ref<number | undefined>(undefined)
 
 // Form
@@ -962,6 +980,30 @@ async function loadSuites() {
     message.error(getErrorMessage(error, '加载套件列表失败'))
   } finally {
     loading.value = false
+  }
+}
+
+async function handleBatchDelete() {
+  if (!selectedRowKeys.value.length) return
+  try {
+    const result = await suiteApi.batchDelete(selectedRowKeys.value)
+    message.success(`已删除 ${result.processed} / ${result.requested} 个套件`)
+    selectedRowKeys.value = []
+    await loadSuites()
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, '批量删除失败'))
+  }
+}
+
+async function handleBatchCopy() {
+  if (!selectedRowKeys.value.length) return
+  try {
+    const result = await suiteApi.batchCopy(selectedRowKeys.value)
+    message.success(`已复制 ${result.processed} / ${result.requested} 个套件`)
+    selectedRowKeys.value = []
+    await loadSuites()
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, '批量复制失败'))
   }
 }
 

@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     RUN_CLEANUP_ENABLED: bool = True
     RUN_RETENTION_DAYS: int = 90
     RUN_CLEANUP_BATCH_SIZE: int = 500
+    # Storage alert (MinIO 使用率告警)
+    STORAGE_ALERT_SIZE_GB: float = 0.0  # 0 表示关闭告警
+    STORAGE_ALERT_INTERVAL_SECONDS: int = 3600
+    # 单次告警扫描的最大对象数；超过即放弃本次计算（保护 MinIO list_objects 性能）
+    STORAGE_ALERT_MAX_SCAN_OBJECTS: int = 100000
 
     # Rate limiting
     RATE_LIMIT_LOGIN: str = "5/minute"

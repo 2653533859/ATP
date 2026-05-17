@@ -144,6 +144,36 @@
           </a-card>
 
           <a-card class="table-card" :bordered="false">
+            <div v-if="selectedRowKeys.length" class="batch-bar">
+              <span style="color: #1890ff">已选择 {{ selectedRowKeys.length }} 项</span>
+              <a-space>
+                <a-button size="small" @click="handleBatchExport">导出 CSV</a-button>
+                <a-button size="small" @click="handleBatchExportZip">导出 ZIP</a-button>
+                <a-button size="small" @click="openBatchMove" :disabled="!selectedModuleId">
+                  批量移动
+                </a-button>
+                <a-popconfirm
+                  :title="`确认删除选中的 ${selectedRowKeys.length} 个用例？`"
+                  ok-text="删除"
+                  cancel-text="取消"
+                  @confirm="handleBatchDelete"
+                >
+                  <a-button size="small" danger>批量删除</a-button>
+                </a-popconfirm>
+                <a-button size="small" type="link" @click="selectedRowKeys = []">取消选择</a-button>
+              </a-space>
+            </div>
+            <div class="batch-bar" style="margin-bottom: 12px">
+              <span style="color: #888">导入用例 ZIP（目标模块：{{ activeModuleName }}）：</span>
+              <a-upload
+                :show-upload-list="false"
+                :before-upload="handleBatchImportBeforeUpload"
+                accept=".zip"
+                :disabled="!selectedModuleId"
+              >
+                <a-button size="small" :disabled="!selectedModuleId">导入 ZIP</a-button>
+              </a-upload>
+            </div>
             <a-table
               :columns="columns"
               :data-source="filteredCases"
@@ -152,6 +182,7 @@
               size="middle"
               :pagination="{ pageSize: 20, showSizeChanger: true }"
               :scroll="{ x: 1500 }"
+              :row-selection="{ selectedRowKeys, onChange: (keys: (string | number)[]) => (selectedRowKeys = keys as number[]) }"
             >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'name'">
@@ -334,6 +365,25 @@
       />
     </a-modal>
 
+    <a-modal
+      v-model:open="batchMoveOpen"
+      title="批量移动用例"
+      ok-text="确认移动"
+      cancel-text="取消"
+      :confirm-loading="batchMoveLoading"
+      @ok="submitBatchMove"
+    >
+      <p class="run-tip">选择目标模块，将把已选 {{ selectedRowKeys.length }} 个用例移动到该模块。</p>
+      <a-select
+        v-model:value="batchMoveTargetId"
+        placeholder="选择目标模块"
+        style="width: 100%"
+        :options="moduleSelectOptions"
+        show-search
+        :filter-option="(input: string, option: any) => option.label?.toLowerCase().includes(input.toLowerCase())"
+      />
+    </a-modal>
+
     <CaseHistoryDrawer
       :open="historyOpen"
       :case-id="historyCaseId"
@@ -427,6 +477,10 @@ const webEditingCase = ref<CaseSummaryItem | null>(null)
 const androidDrawerOpen = ref(false)
 const androidEditingCase = ref<CaseSummaryItem | null>(null)
 const runningId = ref<number | null>(null)
+const selectedRowKeys = ref<number[]>([])
+const batchMoveOpen = ref(false)
+const batchMoveTargetId = ref<number | null>(null)
+const batchMoveLoading = ref(false)
 const historyOpen = ref(false)
 const historyCaseId = ref<number | null>(null)
 
@@ -483,6 +537,13 @@ function flattenModules(nodes: ModuleTreeItem[], acc: Record<number, string> = {
   }
   return acc
 }
+
+const moduleSelectOptions = computed(() =>
+  Object.entries(moduleNameMap.value).map(([id, name]) => ({
+    value: Number(id),
+    label: name,
+  })),
+)
 
 function formatDateTime(value?: string | null) {
   return value ? value.slice(0, 19).replace('T', ' ') : '-'
@@ -875,6 +936,100 @@ function confirmDelete(testCase: CaseSummaryItem) {
       await loadCases()
     },
   })
+}
+
+async function handleBatchDelete() {
+  if (!selectedRowKeys.value.length) return
+  try {
+    const result = await caseApi.batchDelete(selectedRowKeys.value)
+    message.success(`已删除 ${result.processed} / ${result.requested} 个用例`)
+    selectedRowKeys.value = []
+    await loadCases()
+  } catch (e: any) {
+    message.error(e?.response?.data?.detail || e?.message || '批量删除失败')
+  }
+}
+
+async function handleBatchExport() {
+  if (!selectedRowKeys.value.length) return
+  try {
+    const blob = await caseApi.batchExportCsv(selectedRowKeys.value)
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `cases-export-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}.csv`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    message.success(`已导出 ${selectedRowKeys.value.length} 个用例`)
+  } catch (e: any) {
+    message.error(e?.response?.data?.detail || e?.message || '导出失败')
+  }
+}
+
+async function handleBatchExportZip() {
+  if (!selectedRowKeys.value.length) return
+  try {
+    const blob = await caseApi.batchExportZip(selectedRowKeys.value)
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `cases-export-${new Date().toISOString().slice(0, 19).replace(/[-:T]/g, '')}.zip`
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    message.success(`已导出 ${selectedRowKeys.value.length} 个用例 (ZIP)`)
+  } catch (e: any) {
+    message.error(e?.response?.data?.detail || e?.message || '导出失败')
+  }
+}
+
+function handleBatchImportBeforeUpload(file: File) {
+  if (!selectedModuleId.value) {
+    message.warning('请先选择目标模块')
+    return false
+  }
+  ;(async () => {
+    try {
+      const result = await caseApi.batchImportZip(file, selectedModuleId.value as number)
+      if (result.errors.length) {
+        message.warning(`导入完成：成功 ${result.imported} 个，跳过 ${result.skipped_count} 个`)
+      } else {
+        message.success(`已导入 ${result.imported} 个用例`)
+      }
+      await loadCases()
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || e?.message || '导入失败')
+    }
+  })()
+  return false
+}
+
+function openBatchMove() {
+  if (!selectedRowKeys.value.length) return
+  batchMoveTargetId.value = null
+  batchMoveOpen.value = true
+}
+
+async function submitBatchMove() {
+  if (!batchMoveTargetId.value) {
+    message.warning('请选择目标模块')
+    return
+  }
+  batchMoveLoading.value = true
+  try {
+    const result = await caseApi.batchMove(selectedRowKeys.value, batchMoveTargetId.value)
+    message.success(`已移动 ${result.processed} / ${result.requested} 个用例`)
+    batchMoveOpen.value = false
+    selectedRowKeys.value = []
+    await loadCases()
+  } catch (e: any) {
+    message.error(e?.response?.data?.detail || e?.message || '批量移动失败')
+  } finally {
+    batchMoveLoading.value = false
+  }
 }
 
 function openHistory(caseId: number) {

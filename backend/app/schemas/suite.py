@@ -61,3 +61,19 @@ class SuiteRunOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class SuiteBatchDeleteIn(BaseModel):
+    suite_ids: list[int] = Field(min_length=1, max_length=200)
+
+
+class SuiteBatchCopyIn(BaseModel):
+    suite_ids: list[int] = Field(min_length=1, max_length=200)
+    suffix: str = " - 副本"
+
+
+class SuiteBatchOpOut(BaseModel):
+    requested: int
+    processed: int
+    skipped_ids: list[int] = Field(default_factory=list)
+    created_ids: list[int] = Field(default_factory=list)

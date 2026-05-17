@@ -38,6 +38,10 @@ celery_app.conf.update(
             "task": "cleanup_old_completed_runs",
             "schedule": 86400.0,  # 每 24 小时执行一次
         },
+        "check-storage-usage": {
+            "task": "check_storage_usage",
+            "schedule": 3600.0,  # 每小时一次
+        },
         "cleanup-stale-pending-runs": {
             "task": "cleanup_stale_pending_runs",
             "schedule": settings.STALE_PENDING_CLEANUP_INTERVAL_SECONDS,

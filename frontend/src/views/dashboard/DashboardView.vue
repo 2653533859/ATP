@@ -1,5 +1,14 @@
 <template>
   <div>
+    <a-alert
+      v-if="storageAlert"
+      style="margin-bottom: 16px"
+      type="warning"
+      show-icon
+      :message="`存储使用率告警：${storageAlert.bucket} 当前已使用 ${storageAlert.total_gb} GB，已超过阈值 ${storageAlert.threshold_gb} GB`"
+      :description="`触发时间：${formatAlertTime(storageAlert.triggered_at)}。请到「存储管理」页面执行清理或调整策略。`"
+      closable
+    />
     <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center">
       <h2 style="margin: 0">统计看板</h2>
       <a-space>
@@ -124,7 +133,7 @@ import {
   TooltipComponent,
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { projectApi, statisticsApi, type StatisticsAggregateTrendItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem } from '@/api'
+import { projectApi, statisticsApi, storageApi, type StatisticsAggregateTrendItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
 
 use([CanvasRenderer, LineChart, BarChart, TitleComponent, TooltipComponent, GridComponent, LegendComponent])
 
@@ -190,6 +199,7 @@ const projectId = ref<number | undefined>(undefined)
 const days = ref(30)
 const caseType = ref<DashboardCaseType | undefined>(undefined)
 const loading = ref(false)
+const storageAlert = ref<StorageAlertPayload | null>(null)
 const projectOptions = ref<Array<{ label: string; value: number }>>([])
 const dayOptions = [
   { label: '近 7 天', value: 7 },
@@ -588,5 +598,24 @@ watch([projectId, days, caseType], () => {
 onMounted(() => {
   void loadProjects()
   void loadAll()
+  void loadStorageAlert()
 })
+
+async function loadStorageAlert() {
+  try {
+    const resp = await storageApi.getAlert()
+    storageAlert.value = resp?.alert ?? null
+  } catch {
+    storageAlert.value = null
+  }
+}
+
+function formatAlertTime(value?: string | null) {
+  if (!value) return '-'
+  try {
+    return new Date(value).toLocaleString()
+  } catch {
+    return value
+  }
+}
 </script>

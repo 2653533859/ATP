@@ -115,11 +115,22 @@ cd backend
 alembic upgrade head
 ```
 
+最新一次迁移引入了 `storage_policies` 表（D 方向 - 存储清理策略）与 `trace_id` 列（C 方向 - 链路追踪），升级到 `20260517_0017` 后即可启用。
+
 只有在本地临时排障或首次手工引导且明确知道风险时，才建议短暂开启：
 
 ```env
 APP_AUTO_CREATE_TABLES=true
 ```
+
+#### 清理与存储治理（可选调整）
+
+以下环境变量控制定期清理与告警，缺省值已是常规推荐：
+
+- `FILE_RETENTION_DAYS` — 旧版统一保留天数；可被启用的 `StoragePolicy` 覆盖
+- `RUN_CLEANUP_ENABLED` / `RUN_RETENTION_DAYS` / `RUN_CLEANUP_BATCH_SIZE` — 终态运行记录清理任务
+- `STORAGE_ALERT_SIZE_GB` — MinIO bucket 总大小阈值（GB），超过时给管理员发站内通知；`0` 关闭告警
+- `STORAGE_ALERT_INTERVAL_SECONDS` — 同一阈值告警最短间隔，默认 1 小时
 
 如需邮件通知，还需配置：
 

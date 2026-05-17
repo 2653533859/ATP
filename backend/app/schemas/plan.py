@@ -78,3 +78,18 @@ class PlanRunOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class PlanBatchDeleteIn(BaseModel):
+    plan_ids: list[int] = Field(min_length=1, max_length=200)
+
+
+class PlanBatchToggleIn(BaseModel):
+    plan_ids: list[int] = Field(min_length=1, max_length=200)
+    is_enabled: bool
+
+
+class PlanBatchOpOut(BaseModel):
+    requested: int
+    processed: int
+    skipped_ids: list[int] = Field(default_factory=list)

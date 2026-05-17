@@ -3,7 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_admin, require_engineer
+from app.api.deps import get_current_user, require_admin, require_engineer
 from app.core.database import get_db
 from app.models.storage_policy import StoragePolicy
 from app.models.user import User
@@ -19,6 +19,7 @@ from app.schemas.storage_policy import (
     StoragePolicyOut,
     StoragePolicyUpdateIn,
 )
+from app.services.storage_alerts import get_current_alert
 from app.services.storage_cleanup import execute_storage_cleanup, get_storage_stats, preview_storage_cleanup
 
 router = APIRouter(tags=["存储治理"])
@@ -135,3 +136,12 @@ async def delete_storage_policy(
     await db.delete(policy)
     await db.commit()
     return {"ok": True}
+
+
+@router.get("/storage/alert")
+async def storage_alert(
+    _: User = Depends(get_current_user),
+):
+    """返回当前存储告警状态，未告警时 alert 为 null。"""
+    alert = await get_current_alert()
+    return {"alert": alert}

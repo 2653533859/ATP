@@ -14,10 +14,14 @@ sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     require_admin=_fake_require_admin,
     require_engineer=_fake_require_engineer,
+    get_current_user=lambda: None,
 )
 sys.modules["app.core.minio_client"] = types.SimpleNamespace(
     list_objects=lambda prefix: [],
     delete_file=lambda object_name: None,
+)
+sys.modules["app.services.storage_alerts"] = types.SimpleNamespace(
+    get_current_alert=lambda: None,
 )
 
 # 创建 ORM 实例前需要让 SQLAlchemy mapper 完成全量配置

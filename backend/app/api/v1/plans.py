@@ -26,6 +26,7 @@ from app.models.user import User
 from app.schemas.plan import (
     TestPlanCreate, TestPlanUpdate, TestPlanOut,
     PlanRunTrigger, PlanRunOut, WebhookTriggerRequest,
+    PlanBatchDeleteIn, PlanBatchToggleIn, PlanBatchOpOut,
 )
 from app.api.deps import get_current_user, require_engineer
 
@@ -184,6 +185,59 @@ async def delete_plan(
         raise HTTPException(status_code=404, detail="测试计划不存在")
     await db.delete(plan)
     await db.commit()
+
+
+@router.post("/plans/batch/delete", response_model=PlanBatchOpOut)
+async def batch_delete_plans(
+    body: PlanBatchDeleteIn,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_engineer),
+):
+    requested_ids = list(dict.fromkeys(body.plan_ids))
+    rows = (
+        (await db.execute(select(TestPlan).where(TestPlan.id.in_(requested_ids))))
+        .scalars()
+        .all()
+    )
+    found_ids = {row.id for row in rows}
+    skipped_ids = [pid for pid in requested_ids if pid not in found_ids]
+    for plan in rows:
+        await db.delete(plan)
+    await db.commit()
+    return PlanBatchOpOut(
+        requested=len(requested_ids),
+        processed=len(rows),
+        skipped_ids=skipped_ids,
+    )
+
+
+@router.post("/plans/batch/toggle", response_model=PlanBatchOpOut)
+async def batch_toggle_plans(
+    body: PlanBatchToggleIn,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_engineer),
+):
+    requested_ids = list(dict.fromkeys(body.plan_ids))
+    rows = (
+        (await db.execute(select(TestPlan).where(TestPlan.id.in_(requested_ids))))
+        .scalars()
+        .all()
+    )
+    found_ids = {row.id for row in rows}
+    skipped_ids = [pid for pid in requested_ids if pid not in found_ids]
+    changed: list[int] = []
+    for plan in rows:
+        if plan.is_enabled != body.is_enabled:
+            plan.is_enabled = body.is_enabled
+            changed.append(plan.id)
+        else:
+            skipped_ids.append(plan.id)
+    await db.commit()
+    return PlanBatchOpOut(
+        requested=len(requested_ids),
+        processed=len(changed),
+        skipped_ids=skipped_ids,
+    )
 
 
 @router.post("/plans/{plan_id}/run", response_model=PlanRunOut, status_code=status.HTTP_202_ACCEPTED)

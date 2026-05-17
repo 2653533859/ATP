@@ -26,6 +26,7 @@ from app.models.user import User
 from app.schemas.suite import (
     TestSuiteCreate, TestSuiteUpdate, TestSuiteOut,
     SuiteRunTrigger, SuiteRunOut,
+    SuiteBatchCopyIn, SuiteBatchDeleteIn, SuiteBatchOpOut,
 )
 from app.api.deps import get_current_user, require_engineer
 
@@ -158,6 +159,69 @@ async def delete_suite(
         raise HTTPException(status_code=404, detail="套件不存在")
     await db.delete(suite)
     await db.commit()
+
+
+@router.post("/suites/batch/delete", response_model=SuiteBatchOpOut)
+async def batch_delete_suites(
+    body: SuiteBatchDeleteIn,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_engineer),
+):
+    requested_ids = list(dict.fromkeys(body.suite_ids))
+    rows = (
+        (await db.execute(select(TestSuite).where(TestSuite.id.in_(requested_ids))))
+        .scalars()
+        .all()
+    )
+    found_ids = {row.id for row in rows}
+    skipped_ids = [sid for sid in requested_ids if sid not in found_ids]
+
+    for suite in rows:
+        await db.delete(suite)
+    await db.commit()
+    return SuiteBatchOpOut(
+        requested=len(requested_ids),
+        processed=len(rows),
+        skipped_ids=skipped_ids,
+    )
+
+
+@router.post("/suites/batch/copy", response_model=SuiteBatchOpOut)
+async def batch_copy_suites(
+    body: SuiteBatchCopyIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_engineer),
+):
+    requested_ids = list(dict.fromkeys(body.suite_ids))
+    rows = (
+        (await db.execute(select(TestSuite).where(TestSuite.id.in_(requested_ids))))
+        .scalars()
+        .all()
+    )
+    found_ids = {row.id for row in rows}
+    skipped_ids = [sid for sid in requested_ids if sid not in found_ids]
+
+    created_ids: list[int] = []
+    for src in rows:
+        clone = TestSuite(
+            name=f"{src.name}{body.suffix}",
+            description=src.description,
+            project_id=src.project_id,
+            case_ids=list(src.case_ids or []),
+            parameterization=dict(src.parameterization or {}) if src.parameterization else {},
+            config=dict(src.config or {}),
+            creator_id=current_user.id,
+        )
+        db.add(clone)
+        await db.flush()
+        created_ids.append(clone.id)
+    await db.commit()
+    return SuiteBatchOpOut(
+        requested=len(requested_ids),
+        processed=len(created_ids),
+        skipped_ids=skipped_ids,
+        created_ids=created_ids,
+    )
 
 
 @router.post("/suites/{suite_id}/run", response_model=SuiteRunOut, status_code=status.HTTP_202_ACCEPTED)
