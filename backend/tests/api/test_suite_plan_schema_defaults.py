@@ -83,6 +83,7 @@ def test_suite_and_plan_out_serialization_shape_stays_compatible():
             "cron_expression": None,
             "webhook_secret": None,
             "is_enabled": True,
+            "auto_create_bugs": False,
             "env_id": None,
             "last_run_at": None,
             "next_run_at": None,

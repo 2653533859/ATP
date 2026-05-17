@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 import sys
 import types
 from datetime import datetime, timezone
@@ -10,11 +11,14 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 sys.modules["app.api.deps"] = types.SimpleNamespace(get_current_user=lambda: None)
 sys.modules["app.core.redis_client"] = types.SimpleNamespace(
+    delete_json_cache_pattern=lambda *args, **kwargs: None,
     get_json_cache=lambda *args, **kwargs: None,
     set_json_cache=lambda *args, **kwargs: None,
 )
+sys.modules.pop("app.api.v1.statistics", None)
+statistics = importlib.import_module("app.api.v1.statistics")
 
-from app.api.v1 import statistics
+from app.models.bootstrap import load_all_models
 
 
 class _FakeExecuteResult:
@@ -47,6 +51,29 @@ class _FakeDB:
     async def execute(self, stmt):
         self.statements.append(stmt)
         return self._results[len(self.statements) - 1]
+
+
+def test_invalidate_stats_cache_deletes_stats_pattern(monkeypatch):
+    deleted_patterns = []
+
+    async def fake_delete_json_cache_pattern(pattern: str):
+        deleted_patterns.append(pattern)
+
+    monkeypatch.setattr(statistics, "delete_json_cache_pattern", fake_delete_json_cache_pattern)
+
+    asyncio.run(statistics.invalidate_stats_cache())
+
+    assert deleted_patterns == ["atp:stats:*"]
+
+
+def test_invalidate_stats_cache_swallows_delete_failure(monkeypatch):
+    async def fake_delete_json_cache_pattern(_pattern: str):
+        raise RuntimeError("redis delete failed")
+
+    monkeypatch.setattr(statistics, "delete_json_cache_pattern", fake_delete_json_cache_pattern)
+
+    asyncio.run(statistics.invalidate_stats_cache())
+
 
 
 def test_get_overview_uses_selected_days_for_run_metrics(monkeypatch):
@@ -183,6 +210,91 @@ def test_get_overview_survives_cache_write_failure(monkeypatch):
     assert result[0].module_id == 5
 
 
+def test_get_pass_rate_trend_returns_daily_aggregate(monkeypatch):
+    load_all_models()
+    fixed_since = datetime(2026, 3, 1, tzinfo=timezone.utc)
+
+    async def fake_get_json_cache(*_args, **_kwargs):
+        return None
+
+    async def fake_set_json_cache(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(statistics, "_since", lambda _days: fixed_since)
+    monkeypatch.setattr(statistics, "get_json_cache", fake_get_json_cache)
+    monkeypatch.setattr(statistics, "set_json_cache", fake_set_json_cache)
+
+    row = types.SimpleNamespace(date="2026-03-20", total=4, passed=3)
+    db = _FakeDB(results=[_FakeExecuteResult.with_all([row])])
+
+    result = asyncio.run(
+        statistics.get_pass_rate_trend(
+            project_id=2,
+            days=30,
+            case_type=statistics.CaseType.api,
+            db=db,
+            _=None,
+        )
+    )
+
+    assert len(result) == 1
+    assert result[0].date == "2026-03-20"
+    assert result[0].total == 4
+    assert result[0].passed == 3
+    assert result[0].rate == 75.0
+    stmt = db.statements[0]
+    froms = str(stmt.get_final_froms())
+    assert "test_cases" in froms
+    assert "modules" in froms
+    where_parts = [str(clause) for clause in stmt._where_criteria]
+    assert any("project_id" in clause for clause in where_parts)
+    assert any("case_type" in clause for clause in where_parts)
+
+
+
+def test_get_duration_trend_returns_duration_aggregate(monkeypatch):
+    load_all_models()
+    fixed_since = datetime(2026, 3, 1, tzinfo=timezone.utc)
+
+    async def fake_get_json_cache(*_args, **_kwargs):
+        return None
+
+    async def fake_set_json_cache(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(statistics, "_since", lambda _days: fixed_since)
+    monkeypatch.setattr(statistics, "get_json_cache", fake_get_json_cache)
+    monkeypatch.setattr(statistics, "set_json_cache", fake_set_json_cache)
+
+    row = types.SimpleNamespace(date="2026-03-20", avg_ms=125.6, max_ms=320, cnt=4)
+    db = _FakeDB(results=[_FakeExecuteResult.with_all([row])])
+
+    result = asyncio.run(
+        statistics.get_duration_trend(
+            project_id=2,
+            days=30,
+            case_type=statistics.CaseType.api,
+            db=db,
+            _=None,
+        )
+    )
+
+    assert len(result) == 1
+    assert result[0].date == "2026-03-20"
+    assert result[0].avg_duration_ms == 126
+    assert result[0].max_duration_ms == 320
+    assert result[0].run_count == 4
+    stmt = db.statements[0]
+    froms = str(stmt.get_final_froms())
+    assert "test_cases" in froms
+    assert "modules" in froms
+    where_parts = [str(clause) for clause in stmt._where_criteria]
+    assert any("duration_ms" in clause for clause in where_parts)
+    assert any("project_id" in clause for clause in where_parts)
+    assert any("case_type" in clause for clause in where_parts)
+
+
+
 def test_get_executor_top_returns_executor_stats(monkeypatch):
     fixed_since = datetime(2026, 3, 1, tzinfo=timezone.utc)
 
@@ -233,6 +345,7 @@ def test_get_trigger_type_stats_returns_distribution(monkeypatch):
 
 
 def test_get_plan_trend_returns_daily_aggregate(monkeypatch):
+    load_all_models()
     fixed_since = datetime(2026, 3, 1, tzinfo=timezone.utc)
 
     async def fake_get_json_cache(*_args, **_kwargs):
@@ -248,13 +361,49 @@ def test_get_plan_trend_returns_daily_aggregate(monkeypatch):
     row = types.SimpleNamespace(date="2026-03-20", total=4, passed=3)
     db = _FakeDB(results=[_FakeExecuteResult.with_all([row])])
 
-    result = asyncio.run(statistics.get_plan_trend(project_id=None, days=30, db=db, _=None))
+    result = asyncio.run(statistics.get_plan_trend(project_id=9, days=30, db=db, _=None))
 
     assert len(result) == 1
     assert result[0].date == "2026-03-20"
     assert result[0].total == 4
     assert result[0].passed == 3
     assert result[0].rate == 75.0
+    stmt = db.statements[0]
+    assert "test_plans" in str(stmt.get_final_froms())
+    where_parts = [str(clause) for clause in stmt._where_criteria]
+    assert any("project_id" in clause for clause in where_parts)
+
+
+
+def test_get_suite_trend_returns_daily_aggregate(monkeypatch):
+    load_all_models()
+    fixed_since = datetime(2026, 3, 1, tzinfo=timezone.utc)
+
+    async def fake_get_json_cache(*_args, **_kwargs):
+        return None
+
+    async def fake_set_json_cache(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(statistics, "_since", lambda _days: fixed_since)
+    monkeypatch.setattr(statistics, "get_json_cache", fake_get_json_cache)
+    monkeypatch.setattr(statistics, "set_json_cache", fake_set_json_cache)
+
+    row = types.SimpleNamespace(date="2026-03-21", total=2, passed=None)
+    db = _FakeDB(results=[_FakeExecuteResult.with_all([row])])
+
+    result = asyncio.run(statistics.get_suite_trend(project_id=1, days=7, db=db, _=None))
+
+    assert len(result) == 1
+    assert result[0].date == "2026-03-21"
+    assert result[0].total == 2
+    assert result[0].passed == 0
+    assert result[0].rate == 0.0
+    stmt = db.statements[0]
+    assert "test_suites" in str(stmt.get_final_froms())
+    where_parts = [str(clause) for clause in stmt._where_criteria]
+    assert any("project_id" in clause for clause in where_parts)
+
 
 
 def test_get_suite_trend_returns_cached_result(monkeypatch):

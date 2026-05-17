@@ -106,6 +106,11 @@ const router = createRouter({
           component: () => import('@/views/mobile-special/ReportDetailView.vue'),
         },
         {
+          path: 'system/storage',
+          name: 'system-storage',
+          component: () => import('@/views/system/StorageManagementView.vue'),
+        },
+        {
           path: 'system/global-variables',
           name: 'global-variables',
           component: () => import('@/views/system/GlobalVariableLibrary.vue'),

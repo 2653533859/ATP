@@ -57,6 +57,7 @@
           <a-menu-item key="/system/environments">环境管理</a-menu-item>
           <a-menu-item key="/system/notifications">通知配置</a-menu-item>
           <a-menu-item key="/system/bug-trackers">缺陷跟踪</a-menu-item>
+          <a-menu-item key="/system/storage">存储管理</a-menu-item>
           <a-menu-item key="/system/global-variables">全局变量</a-menu-item>
         </a-sub-menu>
       </a-menu>

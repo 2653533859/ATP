@@ -73,6 +73,7 @@ class PlanRun(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     plan_id: Mapped[int] = mapped_column(ForeignKey("test_plans.id"), nullable=False)
     triggered_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    trace_id: Mapped[str | None] = mapped_column(String(64), index=True)
     trigger_type: Mapped[TriggerType] = mapped_column(Enum(TriggerType), default=TriggerType.manual)
     status: Mapped[PlanRunStatus] = mapped_column(Enum(PlanRunStatus), default=PlanRunStatus.pending)
     duration_ms: Mapped[int | None] = mapped_column(Integer)

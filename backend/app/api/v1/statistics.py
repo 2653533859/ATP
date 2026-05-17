@@ -5,8 +5,9 @@ from sqlalchemy import select, func, case as sql_case, cast, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.core.cache_decorator import cached_json
 from app.core.database import get_db
-from app.core.redis_client import get_json_cache, set_json_cache
+from app.core.redis_client import delete_json_cache_pattern, get_json_cache, set_json_cache
 import logging
 from app.models.case import TestCase, TestRun, RunStatus, CaseType
 from app.models.plan import TestPlan, PlanRun, PlanRunStatus, TriggerType
@@ -42,6 +43,29 @@ def _cache_key(name: str, **kwargs) -> str:
     return f"atp:stats:{name}:{items}"
 
 
+def _build_stats_cache_key(name: str, *fields: str):
+    def builder(**kwargs) -> str:
+        return _cache_key(name, **{field: kwargs.get(field) for field in fields})
+
+    return builder
+
+
+def _serialize_model(model):
+    return model.model_dump()
+
+
+def _deserialize_model(model_cls):
+    return lambda payload: model_cls(**payload)
+
+
+def _serialize_model_list(items):
+    return [item.model_dump() for item in items]
+
+
+def _deserialize_model_list(model_cls):
+    return lambda payload: [model_cls(**item) for item in payload]
+
+
 async def _safe_get_stats_cache(key: str):
     try:
         return await get_json_cache(key)
@@ -55,6 +79,13 @@ async def _safe_set_stats_cache(key: str, value) -> None:
         await set_json_cache(key, value, _STATS_CACHE_TTL)
     except Exception:
         logger.exception(f"Failed to write statistics cache: {key}")
+
+
+async def invalidate_stats_cache() -> None:
+    try:
+        await delete_json_cache_pattern("atp:stats:*")
+    except Exception:
+        logger.exception("Failed to invalidate statistics cache")
 
 
 def _apply_project_filter(stmt, project_id: int | None):
@@ -94,6 +125,13 @@ def _apply_suite_run_project_filter(stmt, project_id: int | None):
 
 # ── 总览 ────────────────────────────────────────────────
 @router.get("/statistics/overview", response_model=OverviewOut)
+@cached_json(
+    key_builder=_build_stats_cache_key("overview", "project_id", "days"),
+    serializer=_serialize_model,
+    deserializer=_deserialize_model(OverviewOut),
+    read_cache=_safe_get_stats_cache,
+    write_cache=_safe_set_stats_cache,
+)
 async def get_overview(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
@@ -145,6 +183,13 @@ async def get_overview(
 
 # ── 通过率趋势 ──────────────────────────────────────────
 @router.get("/statistics/pass-rate-trend", response_model=list[PassRateTrendItem])
+@cached_json(
+    key_builder=_build_stats_cache_key("pass-rate-trend", "project_id", "days", "case_type"),
+    serializer=_serialize_model_list,
+    deserializer=_deserialize_model_list(PassRateTrendItem),
+    read_cache=_safe_get_stats_cache,
+    write_cache=_safe_set_stats_cache,
+)
 async def get_pass_rate_trend(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
@@ -189,6 +234,13 @@ async def get_pass_rate_trend(
 
 # ── 执行时长趋势 ────────────────────────────────────────
 @router.get("/statistics/duration-trend", response_model=list[DurationTrendItem])
+@cached_json(
+    key_builder=_build_stats_cache_key("duration-trend", "project_id", "days", "case_type"),
+    serializer=_serialize_model_list,
+    deserializer=_deserialize_model_list(DurationTrendItem),
+    read_cache=_safe_get_stats_cache,
+    write_cache=_safe_set_stats_cache,
+)
 async def get_duration_trend(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
@@ -238,6 +290,13 @@ async def get_duration_trend(
 
 # ── 失败 Top N ──────────────────────────────────────────
 @router.get("/statistics/failure-top", response_model=list[FailureTopItem])
+@cached_json(
+    key_builder=_build_stats_cache_key("failure-top", "project_id", "days", "top", "case_type"),
+    serializer=_serialize_model_list,
+    deserializer=_deserialize_model_list(FailureTopItem),
+    read_cache=_safe_get_stats_cache,
+    write_cache=_safe_set_stats_cache,
+)
 async def get_failure_top(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
@@ -296,6 +355,13 @@ async def get_failure_top(
 
 
 @router.get("/statistics/executor-top", response_model=list[ExecutorTopItem])
+@cached_json(
+    key_builder=_build_stats_cache_key("executor-top", "project_id", "days", "top", "case_type"),
+    serializer=_serialize_model_list,
+    deserializer=_deserialize_model_list(ExecutorTopItem),
+    read_cache=_safe_get_stats_cache,
+    write_cache=_safe_set_stats_cache,
+)
 async def get_executor_top(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
@@ -339,6 +405,13 @@ async def get_executor_top(
 
 
 @router.get("/statistics/trigger-type-stats", response_model=list[TriggerTypeStatItem])
+@cached_json(
+    key_builder=_build_stats_cache_key("trigger-type-stats", "project_id", "days"),
+    serializer=_serialize_model_list,
+    deserializer=_deserialize_model_list(TriggerTypeStatItem),
+    read_cache=_safe_get_stats_cache,
+    write_cache=_safe_set_stats_cache,
+)
 async def get_trigger_type_stats(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
@@ -375,6 +448,13 @@ async def get_trigger_type_stats(
 
 
 @router.get("/statistics/plan-trend", response_model=list[AggregateTrendItem])
+@cached_json(
+    key_builder=_build_stats_cache_key("plan-trend", "project_id", "days"),
+    serializer=_serialize_model_list,
+    deserializer=_deserialize_model_list(AggregateTrendItem),
+    read_cache=_safe_get_stats_cache,
+    write_cache=_safe_set_stats_cache,
+)
 async def get_plan_trend(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
@@ -415,6 +495,13 @@ async def get_plan_trend(
 
 
 @router.get("/statistics/suite-trend", response_model=list[AggregateTrendItem])
+@cached_json(
+    key_builder=_build_stats_cache_key("suite-trend", "project_id", "days"),
+    serializer=_serialize_model_list,
+    deserializer=_deserialize_model_list(AggregateTrendItem),
+    read_cache=_safe_get_stats_cache,
+    write_cache=_safe_set_stats_cache,
+)
 async def get_suite_trend(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),

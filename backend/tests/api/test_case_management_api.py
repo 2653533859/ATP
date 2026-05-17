@@ -12,6 +12,13 @@ sys.modules["app.worker.tasks"] = types.SimpleNamespace(
     run_test_case=types.SimpleNamespace(delay=lambda *_args, **_kwargs: None)
 )
 
+
+async def _noop_invalidate_stats_cache():
+    return None
+
+
+sys.modules["app.api.v1.statistics"] = types.SimpleNamespace(invalidate_stats_cache=_noop_invalidate_stats_cache)
+
 from app.api.v1 import cases
 from app.models.bootstrap import load_all_models
 from app.models.case import CaseStatus, CaseStep, CaseType, TestCase
@@ -66,6 +73,7 @@ class _CreateDB:
     def __init__(self):
         self.case = None
         self.added = []
+        self.commit_calls = 0
 
     def add(self, obj):
         self.added.append(obj)
@@ -73,6 +81,7 @@ class _CreateDB:
             self.case = obj
 
     async def commit(self):
+        self.commit_calls += 1
         if self.case and self.case.id is None:
             self.case.id = 101
             self.case.created_at = _now()
@@ -112,10 +121,29 @@ class _DetailDB:
         return _DetailQueryResult(self.case_obj)
 
 
+class _DeleteDB:
+    def __init__(self, case_obj: TestCase | None):
+        self.case_obj = case_obj
+        self.deleted = []
+        self.commit_calls = 0
+
+    async def get(self, model, case_id):
+        assert model is TestCase
+        assert case_id == 7
+        return self.case_obj
+
+    async def delete(self, obj):
+        self.deleted.append(obj)
+
+    async def commit(self):
+        self.commit_calls += 1
+
+
 class _UpdateDB:
     def __init__(self, case_obj: TestCase):
         self.case_obj = case_obj
         self.added = []
+        self.commit_calls = 0
 
     def add(self, obj):
         self.added.append(obj)
@@ -124,6 +152,7 @@ class _UpdateDB:
         return None
 
     async def commit(self):
+        self.commit_calls += 1
         self.case_obj.updated_at = _now()
 
 
@@ -185,6 +214,64 @@ def test_create_case_persists_standardized_fields_and_ordered_steps(monkeypatch)
     assert result.summary == "User logs in successfully"
     assert [step.step_no for step in result.steps] == [1, 2]
     assert result.steps[0].action == "Send request"
+
+
+def test_create_case_invalidates_stats_cache(monkeypatch):
+    load_all_models()
+    db = _CreateDB()
+    current_user = types.SimpleNamespace(id=9, username="tester")
+    module = types.SimpleNamespace(
+        id=2,
+        name="Login",
+        module_code="LOGIN",
+        project=types.SimpleNamespace(id=1, name="ATP", project_code="ATP"),
+    )
+    invalidated = []
+
+    async def fake_module_loader(_db, module_id):
+        assert module_id == 2
+        return module
+
+    async def fake_case_code(_db, _module, case_type):
+        assert case_type == CaseType.api
+        return "ATP-LOGIN-API-0009"
+
+    async def fake_detail_loader(_db, case_id):
+        assert case_id == 101
+        return db.case
+
+    async def fake_invalidate_stats_cache():
+        invalidated.append(True)
+
+    monkeypatch.setattr(cases, "_get_module_for_case_code", fake_module_loader)
+    monkeypatch.setattr(cases, "_generate_case_code", fake_case_code)
+    monkeypatch.setattr(cases, "_get_case_detail_or_404", fake_detail_loader)
+    monkeypatch.setattr(cases, "invalidate_stats_cache", fake_invalidate_stats_cache)
+    monkeypatch.setattr(cases, "write_audit_log", lambda *_args, **_kwargs: asyncio.sleep(0))
+
+    asyncio.run(
+        cases.create_case(
+            body=TestCaseCreate(
+                name="Login API",
+                description="Verify login",
+                summary="User logs in successfully",
+                case_type=CaseType.api,
+                module_id=2,
+                priority="P0",
+                case_level="smoke",
+                preconditions=["User exists"],
+                postconditions=["Session issued"],
+                tags=["smoke"],
+                config={"steps": [{"action": "request", "params": {"url": "/login"}}]},
+                steps=[{"step_no": 1, "action": "Send request", "test_data": "POST /login"}],
+            ),
+            db=db,
+            current_user=current_user,
+        )
+    )
+
+    assert invalidated == [True]
+    assert db.commit_calls == 2
 
 
 def test_list_cases_supports_management_filters():
@@ -254,6 +341,36 @@ def test_update_case_resets_review_cycle_and_replaces_steps(monkeypatch):
     assert result.status == CaseStatus.draft
     assert [step.step_no for step in result.steps] == [1]
     assert result.steps[0].action == "Send new request"
+
+
+def test_delete_case_invalidates_stats_cache(monkeypatch):
+    load_all_models()
+    case_obj = _make_case()
+    db = _DeleteDB(case_obj)
+    invalidated = []
+    audit_calls = []
+
+    async def fake_invalidate_stats_cache():
+        invalidated.append(True)
+
+    async def fake_write_audit_log(*args, **kwargs):
+        audit_calls.append({"args": args, "kwargs": kwargs})
+
+    monkeypatch.setattr(cases, "invalidate_stats_cache", fake_invalidate_stats_cache)
+    monkeypatch.setattr(cases, "write_audit_log", fake_write_audit_log)
+
+    asyncio.run(
+        cases.delete_case(
+            case_id=7,
+            db=db,
+            current_user=types.SimpleNamespace(id=9, username="tester"),
+        )
+    )
+
+    assert db.deleted == [case_obj]
+    assert db.commit_calls == 1
+    assert len(audit_calls) == 1
+    assert invalidated == [True]
 
 
 

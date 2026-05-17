@@ -237,3 +237,57 @@ def test_get_run_bug_status_prefers_persisted_tracker_id(monkeypatch):
     assert captured["tracker_type"] == "github"
     assert captured["config"]["token"] == "ghp_secret"
     assert db.execute_calls == 0
+
+
+def test_create_bug_from_run_uploads_attachment_from_presigned_screenshot(monkeypatch):
+    captured = {}
+
+    async def fake_find_duplicate_bug(**_kwargs):
+        return None
+
+    async def fake_create_bug(**kwargs):
+        captured["create_bug"] = kwargs
+        return {"bug_id": "ATP-99", "bug_url": "https://jira/browse/ATP-99", "title": kwargs["title"]}
+
+    async def fake_upload_attachment(**kwargs):
+        captured["upload_attachment"] = kwargs
+        return True
+
+    monkeypatch.setattr(bug_trackers, "find_duplicate_bug", fake_find_duplicate_bug)
+    monkeypatch.setattr(bug_trackers, "create_bug", fake_create_bug)
+    monkeypatch.setattr(bug_trackers, "upload_attachment", fake_upload_attachment)
+    monkeypatch.setattr(bug_trackers, "decrypt_config", lambda value: value)
+    monkeypatch.setattr(bug_trackers, "read_bytes", lambda object_name: f"bytes:{object_name}".encode())
+
+    run = types.SimpleNamespace(id=5, case_id=9, environment="test", error_message="boom", result_summary={})
+    step = types.SimpleNamespace(
+        screenshot_url="http://minio:9000/atp/screenshots/runs/5/step_0.png?X-Amz-Signature=abc"
+    )
+    db = _FakeDB(
+        run=run,
+        tracker=types.SimpleNamespace(
+            id=3,
+            project_id=1,
+            tracker_type=types.SimpleNamespace(value="jira"),
+            config={"base_url": "https://jira.example.com"},
+            field_mapping={},
+            is_enabled=True,
+        ),
+        case=types.SimpleNamespace(id=9, module_id=7, name="支付失败"),
+        module=types.SimpleNamespace(id=7, project_id=1),
+        step=step,
+    )
+
+    result = asyncio.run(bug_trackers.create_bug_from_run(run_id=5, body=bug_trackers.CreateBugRequest(tracker_id=3), db=db, _=None))
+
+    assert result.bug_id == "ATP-99"
+    assert result.attachment_uploaded is True
+    assert captured["upload_attachment"] == {
+        "tracker_type": "jira",
+        "config": {"base_url": "https://jira.example.com"},
+        "bug_id": "ATP-99",
+        "filename": "run-5-screenshot.png",
+        "content": b"bytes:screenshots/runs/5/step_0.png",
+    }
+    assert run.result_summary["bug"]["attachment_uploaded"] is True
+    assert db.committed is True

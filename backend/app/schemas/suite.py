@@ -51,6 +51,7 @@ class SuiteRunOut(BaseModel):
     id: int
     suite_id: int
     triggered_by: int
+    trace_id: str | None = None
     status: SuiteRunStatus
     environment: str | None
     duration_ms: int | None

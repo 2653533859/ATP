@@ -8,6 +8,8 @@ export type CaseStatus = 'draft' | 'active' | 'deprecated'
 export type CaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android'
 export type SuiteStatus = 'active' | 'archived'
 export type SuiteRunStatus = 'pending' | 'running' | 'passed' | 'failed' | 'error'
+export type SuiteExecutionMode = 'sequential' | 'parallel'
+export type SuiteFailStrategy = 'fast-fail' | 'continue' | 'require-minimum-pass-rate'
 export type PlanStatus = 'draft' | 'active' | 'archived'
 export type ScheduleType = 'manual' | 'cron' | 'webhook'
 export type TriggerType = 'manual' | 'cron' | 'webhook'
@@ -136,6 +138,14 @@ export interface SuiteCaseRef {
   sort: number
 }
 
+export interface SuiteConfig {
+  execution_mode?: SuiteExecutionMode
+  max_workers?: number
+  fail_strategy?: SuiteFailStrategy
+  min_pass_rate?: number
+  [key: string]: unknown
+}
+
 export interface SuiteItem {
   id: number
   name: string
@@ -145,7 +155,7 @@ export interface SuiteItem {
   creator_id: number
   case_ids: SuiteCaseRef[]
   parameterization?: Record<string, unknown> | null
-  config: Record<string, unknown>
+  config: SuiteConfig
   created_at: string
   updated_at: string
 }
@@ -156,7 +166,7 @@ export interface SuiteSavePayload {
   project_id?: number
   case_ids: SuiteCaseRef[]
   parameterization?: Record<string, unknown> | null
-  config?: Record<string, unknown>
+  config?: SuiteConfig
 }
 
 export interface SuiteRunCaseItem {
@@ -180,6 +190,7 @@ export interface SuiteRunItem {
   id: number
   suite_id: number
   triggered_by: number
+  trace_id?: string | null
   status: SuiteRunStatus
   environment?: string | null
   duration_ms?: number | null
@@ -248,6 +259,7 @@ export interface PlanRunItem {
   id: number
   plan_id: number
   triggered_by?: number | null
+  trace_id?: string | null
   trigger_type: TriggerType
   status: PlanRunStatus
   duration_ms?: number | null
@@ -405,6 +417,78 @@ export interface MobileRunArtifactItem {
   created_at: string
 }
 
+export interface StoragePrefixStatItem {
+  prefix: string
+  object_count: number
+  total_bytes: number
+}
+
+export interface StorageStatsItem {
+  bucket: string
+  total_object_count: number
+  total_bytes: number
+  prefixes: StoragePrefixStatItem[]
+}
+
+export interface StorageObjectPreviewItem {
+  object_name: string
+  last_modified?: string | null
+  referenced_by_count: number
+}
+
+export interface StorageReferenceItem {
+  reference_type: string
+  record_id: number
+  field_name: string
+  object_name: string
+  repairable: boolean
+}
+
+export interface StorageCleanupPreviewItem {
+  prefixes: string[]
+  retention_days: number
+  scanned_object_count: number
+  expired_object_count: number
+  deletable_count: number
+  blocked_count: number
+  orphan_reference_count: number
+  deletable_objects: StorageObjectPreviewItem[]
+  blocked_objects: StorageObjectPreviewItem[]
+  orphan_references: StorageReferenceItem[]
+}
+
+export interface StorageCleanupExecuteItem {
+  requested_count: number
+  deleted_count: number
+  skipped_referenced_count: number
+  missing_count: number
+  repaired_reference_count: number
+  deleted_objects: string[]
+  skipped_objects: string[]
+  repaired_references: StorageReferenceItem[]
+}
+
+export interface StoragePolicyItem {
+  id: number
+  name: string
+  prefix: string
+  retention_days: number
+  max_size_gb?: number | null
+  enabled: boolean
+  description?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface StoragePolicyPayload {
+  name?: string
+  prefix?: string
+  retention_days?: number
+  max_size_gb?: number | null
+  enabled?: boolean
+  description?: string | null
+}
+
 export interface GlobalVariableItem {
   id: number
   scope_type: ScopeType
@@ -431,6 +515,7 @@ export interface RunStepItem {
 export interface RunDetailItem {
   id: number
   case_id: number
+  trace_id?: string | null
   status: string
   environment?: string | null
   duration_ms?: number | null
@@ -690,6 +775,20 @@ export const mobileSpecialApi = {
     http.get<any, Array<{ date: string; total: number; completed: number; failed: number; pass_rate: number }>>('/mobile-special/statistics/trend', { params }),
   getTaskStats: (params?: { project_id?: number; days?: number; limit?: number }) =>
     http.get<any, Array<{ task_id: number; task_name: string; task_type: string; total_runs: number; completed_runs: number; failed_runs: number; pass_rate: number; last_run_at: string | null }>>('/mobile-special/statistics/task-stats', { params }),
+}
+
+export const storageApi = {
+  stats: () => http.get<any, StorageStatsItem>('/storage/stats'),
+  previewCleanup: (data?: { prefixes?: string[]; retention_days?: number }) =>
+    http.post<any, StorageCleanupPreviewItem>('/storage/cleanup-preview', data ?? {}),
+  executeCleanup: (data: { object_names: string[]; repair_orphan_references?: boolean }) =>
+    http.post<any, StorageCleanupExecuteItem>('/storage/cleanup-execute', data),
+  listPolicies: () => http.get<any, StoragePolicyItem[]>('/storage/policies'),
+  createPolicy: (data: StoragePolicyPayload) =>
+    http.post<any, StoragePolicyItem>('/storage/policies', data),
+  updatePolicy: (id: number, data: StoragePolicyPayload) =>
+    http.patch<any, StoragePolicyItem>(`/storage/policies/${id}`, data),
+  deletePolicy: (id: number) => http.delete(`/storage/policies/${id}`),
 }
 
 // ---- Global Variables ----

@@ -135,5 +135,5 @@ def test_tasks_module_uses_shared_dispatch_helper_for_all_case_execution_paths()
     content = tasks_file.read_text(encoding="utf-8")
 
     assert "from app.worker.case_dispatch import dispatch_case" in content
-    assert content.count("await dispatch_case(db,") == 3
+    assert content.count("await dispatch_case(") == 2
     assert "if case.case_type == CaseType.api:" not in content

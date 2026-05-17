@@ -15,6 +15,9 @@ async def _fake_set_json(*a, **kw):
 sys.modules["app.core.redis_client"] = types.SimpleNamespace(
     get_json_cache=_fake_get_json,
     set_json_cache=_fake_set_json,
+    delete_json_cache=lambda *a, **kw: None,
+    delete_json_cache_pattern=lambda *a, **kw: None,
+    publish_run_event=lambda *a, **kw: None,
 )
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=lambda: None,

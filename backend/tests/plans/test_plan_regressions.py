@@ -20,6 +20,18 @@ from app.models.plan import TestPlan as PlanModel
 from app.schemas.plan import PlanRunTrigger
 
 
+class _FakePlanRun:
+    def __init__(self, **kwargs):
+        self.id = kwargs.get("id", 1)
+        self.created_at = kwargs.get("created_at")
+        self.duration_ms = kwargs.get("duration_ms")
+        self.error_message = kwargs.get("error_message")
+        self.result_summary = kwargs.get("result_summary", {})
+        self.suite_run_ids = kwargs.get("suite_run_ids", [])
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
 class _FakePlan:
     id = 1
     suite_ids = [{"suite_id": 101, "sort": 0}]
@@ -48,14 +60,45 @@ class _FakeDB:
         return None
 
 
-def test_manual_plan_run_invalid_env_id_returns_404():
-    # 无效 env_id 时应在创建 PlanRun 前直接失败
-    class _FakePlanRun:
-        def __init__(self, **kwargs):
-            self.id = 1
-            for k, v in kwargs.items():
-                setattr(self, k, v)
 
+
+def test_manual_plan_run_persists_and_dispatches_trace_id(monkeypatch):
+    delayed = {}
+    plans.PlanRun = _FakePlanRun
+    monkeypatch.setattr(plans, "get_trace_id", lambda: "trace-plan-1")
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.tasks",
+        types.SimpleNamespace(
+            run_test_plan=types.SimpleNamespace(
+                delay=lambda run_id, extra_vars, trace_id: delayed.update(
+                    run_id=run_id,
+                    extra_vars=extra_vars,
+                    trace_id=trace_id,
+                )
+            )
+        ),
+    )
+
+    db = _FakeDB(env_obj=None)
+    body = PlanRunTrigger(extra_vars={"commit": "abc"})
+    current_user = types.SimpleNamespace(id=7)
+
+    result = asyncio.run(
+        plans.trigger_plan_run(
+            plan_id=1,
+            body=body,
+            db=db,
+            current_user=current_user,
+        )
+    )
+
+    assert result.trace_id == "trace-plan-1"
+    assert delayed == {"run_id": 1, "extra_vars": {"commit": "abc"}, "trace_id": "trace-plan-1"}
+
+
+
+def test_manual_plan_run_invalid_env_id_returns_404():
     sys.modules["app.worker.tasks"] = types.SimpleNamespace(
         run_test_plan=types.SimpleNamespace(delay=lambda *_args, **_kwargs: None)
     )

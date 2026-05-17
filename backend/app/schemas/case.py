@@ -149,6 +149,7 @@ class TestRunOut(BaseModel):
     id: int
     case_id: int
     triggered_by: int
+    trace_id: str | None = None
     status: RunStatus
     environment: str | None
     duration_ms: int | None

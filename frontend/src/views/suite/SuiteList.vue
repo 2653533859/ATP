@@ -34,6 +34,20 @@
           {{ getProjectName(record.project_id) }}
         </template>
 
+        <template v-if="column.key === 'strategy'">
+          <a-space wrap :size="[4, 4]">
+            <a-tag :color="suiteExecutionModeColor(record.config?.execution_mode)">
+              {{ suiteExecutionModeLabel(record.config?.execution_mode) }}
+            </a-tag>
+            <a-tag :color="suiteFailStrategyColor(record.config?.fail_strategy)">
+              {{ suiteFailStrategyLabel(record.config?.fail_strategy) }}
+            </a-tag>
+            <a-tag v-if="normalizeSuiteConfig(record.config).execution_mode === 'parallel'" color="blue">
+              并发 {{ normalizeSuiteConfig(record.config).max_workers }}
+            </a-tag>
+          </a-space>
+        </template>
+
         <template v-if="column.key === 'created'">
           {{ formatTime(record.created_at) }}
         </template>
@@ -77,6 +91,45 @@
         </a-form-item>
         <a-form-item label="所属项目">
           <a-input :value="formProjectName" disabled />
+        </a-form-item>
+        <a-form-item label="执行策略">
+          <a-row :gutter="16">
+            <a-col :span="12">
+              <a-form-item label="执行模式">
+                <a-select v-model:value="form.config.execution_mode" :options="executionModeOptions" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="失败策略">
+                <a-select v-model:value="form.config.fail_strategy" :options="failStrategyOptions" />
+              </a-form-item>
+            </a-col>
+          </a-row>
+          <a-row v-if="form.config.execution_mode === 'parallel'" :gutter="16">
+            <a-col :span="12">
+              <a-form-item label="最大并发数">
+                <a-input-number
+                  v-model:value="form.config.max_workers"
+                  :min="1"
+                  :max="20"
+                  :precision="0"
+                  style="width: 100%"
+                />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item v-if="form.config.fail_strategy === 'require-minimum-pass-rate'" label="最低通过率">
+                <a-input-number
+                  v-model:value="form.config.min_pass_rate"
+                  :min="0"
+                  :max="1"
+                  :step="0.05"
+                  style="width: 100%"
+                />
+              </a-form-item>
+            </a-col>
+          </a-row>
+          <div class="suite-config-tip">{{ suiteConfigTip }}</div>
         </a-form-item>
         <a-form-item label="用例列表">
           <a-row :gutter="16">
@@ -263,7 +316,11 @@
       :open="runsDrawerOpen"
       :title="`执行记录 - ${runsDrawerTitle}`"
       width="700"
-      @close="runsDrawerOpen = false"
+      @close="() => {
+        runsDrawerOpen = false
+        activeRunsSuiteId = null
+        stopSuiteRunsRefresh()
+      }"
     >
       <a-table
         :columns="runColumns"
@@ -306,11 +363,39 @@
             <a-badge :status="runStatusBadge(record.status)" :text="record.status" />
           </template>
           <template v-if="column.key === 'summary'">
-            <span v-if="record.result_summary">
-              <a-tag color="green">{{ record.result_summary.passed ?? 0 }} 通过</a-tag>
-              <a-tag v-if="record.result_summary.failed" color="red">{{ record.result_summary.failed }} 失败</a-tag>
-              <a-tag v-if="record.result_summary.error" color="orange">{{ record.result_summary.error }} 错误</a-tag>
-            </span>
+            <div v-if="record.result_summary">
+              <a-space direction="vertical" style="width: 100%" :size="6">
+                <a-progress
+                  v-if="record.status === 'pending' || record.status === 'running'"
+                  :percent="getSuiteRunProgressPercent(record)"
+                  :status="getSuiteRunProgressStatus(record)"
+                  size="small"
+                />
+                <a-space v-if="record.status === 'pending' || record.status === 'running'" wrap :size="[4, 4]">
+                  <a-tag color="processing">
+                    进度 {{ getSuiteRunCompletedCount(record) }} / {{ getSuiteRunTotalCount(record) }}
+                  </a-tag>
+                </a-space>
+                <a-space wrap :size="[4, 4]">
+                  <a-tag color="green">{{ record.result_summary.passed ?? 0 }} 通过</a-tag>
+                  <a-tag v-if="record.result_summary.failed" color="red">{{ record.result_summary.failed }} 失败</a-tag>
+                  <a-tag v-if="record.result_summary.error" color="orange">{{ record.result_summary.error }} 错误</a-tag>
+                  <a-tag v-if="record.result_summary.skipped" color="default">{{ record.result_summary.skipped }} 跳过</a-tag>
+                  <a-tag :color="suiteExecutionModeColor(record.result_summary.execution_mode as SuiteConfig['execution_mode'])">
+                    {{ suiteExecutionModeLabel(record.result_summary.execution_mode as SuiteConfig['execution_mode']) }}
+                  </a-tag>
+                  <a-tag :color="suiteFailStrategyColor(record.result_summary.fail_strategy as SuiteConfig['fail_strategy'])">
+                    {{ suiteFailStrategyLabel(record.result_summary.fail_strategy as SuiteConfig['fail_strategy']) }}
+                  </a-tag>
+                  <a-tag v-if="record.result_summary.execution_mode === 'parallel'" color="blue">
+                    并发 {{ record.result_summary.max_workers ?? '-' }}
+                  </a-tag>
+                  <a-tag v-if="record.result_summary.fail_strategy === 'require-minimum-pass-rate'" color="purple">
+                    目标 {{ Number(record.result_summary.min_pass_rate ?? 0).toLocaleString('zh-CN', { style: 'percent', maximumFractionDigits: 0 }) }}
+                  </a-tag>
+                </a-space>
+              </a-space>
+            </div>
           </template>
           <template v-if="column.key === 'case_runs'">
             <a-tag v-if="record.case_run_ids?.length" color="blue">{{ record.case_run_ids.length }} 条</a-tag>
@@ -335,7 +420,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { HolderOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import draggable from 'vuedraggable'
@@ -347,6 +432,9 @@ import type {
   EnvironmentItem,
   ModuleTreeItem,
   ProjectItem,
+  SuiteConfig,
+  SuiteExecutionMode,
+  SuiteFailStrategy,
   SuiteItem,
   SuiteRunItem,
 } from '@/api'
@@ -355,6 +443,12 @@ import { suiteApi, projectApi, caseApi, environmentApi } from '@/api'
 type CaseSelectionScope = 'all' | 'selected' | 'unselected'
 type CaseReadyFilter = 'all' | 'ready' | 'not_ready'
 type SelectOption = { label: string; value: number }
+
+interface SuiteFormState {
+  name: string
+  description: string
+  config: Required<Pick<SuiteConfig, 'execution_mode' | 'max_workers' | 'fail_strategy' | 'min_pass_rate'>>
+}
 
 interface ModuleTreeOption {
   title: string
@@ -367,6 +461,49 @@ function getErrorMessage(error: unknown, fallback: string) {
   return typeof error === 'string' ? error : fallback
 }
 
+function createDefaultSuiteConfig(): SuiteFormState['config'] {
+  return {
+    execution_mode: 'sequential',
+    max_workers: 5,
+    fail_strategy: 'continue',
+    min_pass_rate: 0.8,
+  }
+}
+
+function normalizeSuiteConfig(config?: SuiteConfig | null): SuiteFormState['config'] {
+  const raw = config ?? {}
+  const execution_mode: SuiteExecutionMode = raw.execution_mode === 'parallel' ? 'parallel' : 'sequential'
+  const max_workersValue = Number(raw.max_workers)
+  const fail_strategy: SuiteFailStrategy =
+    raw.fail_strategy === 'fast-fail' ||
+    raw.fail_strategy === 'require-minimum-pass-rate' ||
+    raw.fail_strategy === 'continue'
+      ? raw.fail_strategy
+      : 'continue'
+  const min_pass_rate_value = Number(raw.min_pass_rate)
+
+  return {
+    execution_mode,
+    max_workers:
+      Number.isFinite(max_workersValue) && max_workersValue > 0
+        ? Math.min(20, Math.max(1, Math.round(max_workersValue)))
+        : 5,
+    fail_strategy,
+    min_pass_rate:
+      Number.isFinite(min_pass_rate_value)
+        ? Math.min(1, Math.max(0, min_pass_rate_value))
+        : 0.8,
+  }
+}
+
+function createDefaultForm(): SuiteFormState {
+  return {
+    name: '',
+    description: '',
+    config: createDefaultSuiteConfig(),
+  }
+}
+
 const suites = ref<SuiteItem[]>([])
 const projects = ref<ProjectItem[]>([])
 const loading = ref(false)
@@ -376,7 +513,7 @@ const projectFilter = ref<number | undefined>(undefined)
 const formOpen = ref(false)
 const saving = ref(false)
 const editingId = ref<number | null>(null)
-const form = ref({ name: '', description: '' })
+const form = ref<SuiteFormState>(createDefaultForm())
 const selectedCaseIds = ref<number[]>([])
 const availableCases = ref<CaseSummaryItem[]>([])
 const casesLoading = ref(false)
@@ -406,10 +543,13 @@ const runsLoading = ref(false)
 const expandedSuiteRunKeys = ref<number[]>([])
 const exportingSuiteRunHtmlId = ref<number | null>(null)
 const exportingSuiteRunPdfId = ref<number | null>(null)
+const activeRunsSuiteId = ref<number | null>(null)
+let suiteRunsRefreshTimer: ReturnType<typeof setInterval> | null = null
 
 const columns = [
   { title: '套件名称', dataIndex: 'name', key: 'name', ellipsis: true },
   { title: '项目', key: 'project', width: 150 },
+  { title: '执行策略', key: 'strategy', width: 260 },
   { title: '用例数', key: 'case_count', width: 100 },
   { title: '创建时间', key: 'created', width: 170 },
   { title: '操作', key: 'action', width: 220, fixed: 'right' as const },
@@ -417,7 +557,7 @@ const columns = [
 
 const runColumns = [
   { title: '状态', key: 'status', width: 100 },
-  { title: '结果', key: 'summary', width: 240 },
+  { title: '结果 / 策略', key: 'summary', width: 340 },
   { title: '用例明细', key: 'case_runs', width: 120 },
   { title: '耗时', key: 'duration', width: 80 },
   { title: '执行时间', key: 'created', width: 170 },
@@ -464,6 +604,17 @@ const caseReadyFilterOptions = [
   { label: '仅看未就绪', value: 'not_ready' },
 ] satisfies Array<{ label: string; value: CaseReadyFilter }>
 
+const executionModeOptions = [
+  { label: '顺序执行', value: 'sequential' },
+  { label: '并发执行', value: 'parallel' },
+] satisfies Array<{ label: string; value: SuiteExecutionMode }>
+
+const failStrategyOptions = [
+  { label: '继续执行', value: 'continue' },
+  { label: '失败即停', value: 'fast-fail' },
+  { label: '最低通过率', value: 'require-minimum-pass-rate' },
+] satisfies Array<{ label: string; value: SuiteFailStrategy }>
+
 const moduleDescendantMap = computed(() => buildModuleDescendantMap(moduleTree.value))
 
 const caseModuleTreeData = computed(() =>
@@ -476,6 +627,19 @@ const caseModuleTreeData = computed(() =>
 const formProjectName = computed(() => {
   if (!formProjectId.value) return '-'
   return getProjectName(formProjectId.value)
+})
+
+const suiteConfigTip = computed(() => {
+  if (form.value.config.execution_mode === 'sequential') {
+    return '保持串行执行，兼容当前默认行为。'
+  }
+  if (form.value.config.fail_strategy === 'fast-fail') {
+    return `每批最多并发 ${form.value.config.max_workers} 个用例，出现失败后停止后续批次。`
+  }
+  if (form.value.config.fail_strategy === 'require-minimum-pass-rate') {
+    return `每批最多并发 ${form.value.config.max_workers} 个用例，无法达到 ${(form.value.config.min_pass_rate * 100).toFixed(0)}% 通过率时提前停止。`
+  }
+  return `每批最多并发 ${form.value.config.max_workers} 个用例，失败后继续执行剩余批次。`
 })
 
 const filteredAvailableCases = computed(() => {
@@ -624,6 +788,30 @@ function readyColor(isReady: boolean) {
   return isReady ? 'success' : 'orange'
 }
 
+function suiteExecutionModeLabel(mode?: SuiteConfig['execution_mode']) {
+  return mode === 'parallel' ? '并发执行' : '顺序执行'
+}
+
+function suiteExecutionModeColor(mode?: SuiteConfig['execution_mode']) {
+  return mode === 'parallel' ? 'blue' : 'default'
+}
+
+function suiteFailStrategyLabel(strategy?: SuiteConfig['fail_strategy']) {
+  return {
+    'continue': '继续执行',
+    'fast-fail': '失败即停',
+    'require-minimum-pass-rate': '最低通过率',
+  }[strategy ?? 'continue'] ?? '继续执行'
+}
+
+function suiteFailStrategyColor(strategy?: SuiteConfig['fail_strategy']) {
+  return {
+    'continue': 'default',
+    'fast-fail': 'volcano',
+    'require-minimum-pass-rate': 'purple',
+  }[strategy ?? 'continue'] ?? 'default'
+}
+
 function getExecutionReason(item: Pick<CaseSummaryItem, 'status' | 'review_status' | 'automation_status'>) {
   if (item.status !== 'active') {
     return '状态不是 active'
@@ -705,6 +893,56 @@ function runStatusBadge(s: string) {
   return { pending: 'default', running: 'processing', passed: 'success', failed: 'error', error: 'warning' }[s] ?? 'default'
 }
 
+function getSuiteRunTotalCount(run: SuiteRunItem) {
+  const summaryTotal = Number(run.result_summary?.total)
+  if (Number.isFinite(summaryTotal) && summaryTotal > 0) {
+    return summaryTotal
+  }
+  return run.case_run_ids?.length ?? 0
+}
+
+function getSuiteRunCompletedCount(run: SuiteRunItem) {
+  const summary = run.result_summary ?? {}
+  const summaryCompleted = ['passed', 'failed', 'error', 'skipped']
+    .map((key) => Number(summary[key] ?? 0))
+    .filter((value) => Number.isFinite(value) && value > 0)
+    .reduce((total, value) => total + value, 0)
+
+  if (summaryCompleted > 0) {
+    return summaryCompleted
+  }
+  return run.case_run_ids?.length ?? 0
+}
+
+function getSuiteRunProgressPercent(run: SuiteRunItem) {
+  const total = getSuiteRunTotalCount(run)
+  if (total <= 0) {
+    return 0
+  }
+  return Math.min(100, Math.round((getSuiteRunCompletedCount(run) / total) * 100))
+}
+
+function getSuiteRunProgressStatus(run: SuiteRunItem) {
+  if (run.status === 'failed' || run.status === 'error') {
+    return 'exception'
+  }
+  if (run.status === 'passed') {
+    return 'success'
+  }
+  return 'active'
+}
+
+function hasActiveSuiteRuns(runs: SuiteRunItem[]) {
+  return runs.some((run) => run.status === 'pending' || run.status === 'running')
+}
+
+function stopSuiteRunsRefresh() {
+  if (suiteRunsRefreshTimer) {
+    clearInterval(suiteRunsRefreshTimer)
+    suiteRunsRefreshTimer = null
+  }
+}
+
 async function loadProjects() {
   try {
     projects.value = await projectApi.list()
@@ -756,7 +994,7 @@ async function loadCases(projectId = formProjectId.value) {
 function openCreate() {
   formProjectId.value = projectFilter.value ?? null
   editingId.value = null
-  form.value = { name: '', description: '' }
+  form.value = createDefaultForm()
   selectedCaseIds.value = []
   caseKeyword.value = ''
   caseModuleFilter.value = undefined
@@ -770,7 +1008,11 @@ function openCreate() {
 async function openEdit(record: SuiteItem) {
   formProjectId.value = record.project_id
   editingId.value = record.id
-  form.value = { name: record.name, description: record.description ?? '' }
+  form.value = {
+    name: record.name,
+    description: record.description ?? '',
+    config: normalizeSuiteConfig(record.config),
+  }
   selectedCaseIds.value = (record.case_ids || []).map((c) => c.case_id)
   caseKeyword.value = ''
   caseModuleFilter.value = undefined
@@ -822,11 +1064,13 @@ async function persistSuite() {
   saving.value = true
   try {
     const caseIds = selectedCaseIds.value.map((id, idx) => ({ case_id: id, sort: idx }))
+    const config = normalizeSuiteConfig(form.value.config)
     if (editingId.value) {
       await suiteApi.update(editingId.value, {
         name: form.value.name,
         description: form.value.description,
         case_ids: caseIds,
+        config,
       })
       message.success('保存成功')
     } else {
@@ -835,6 +1079,7 @@ async function persistSuite() {
         description: form.value.description,
         project_id: formProjectId.value ?? undefined,
         case_ids: caseIds,
+        config,
       })
       message.success('套件已创建')
     }
@@ -903,15 +1148,44 @@ async function confirmRun() {
 async function viewRuns(record: SuiteItem) {
   runsDrawerTitle.value = record.name
   runsDrawerOpen.value = true
-  runsLoading.value = true
+  activeRunsSuiteId.value = record.id
   expandedSuiteRunKeys.value = []
-  try {
-    suiteRuns.value = await suiteApi.listRuns({ suite_id: record.id })
-  } catch (error: unknown) {
+  await loadSuiteRuns(record.id, true)
+}
+
+async function loadSuiteRuns(suiteId = activeRunsSuiteId.value, showLoading = false) {
+  if (!suiteId) {
     suiteRuns.value = []
-    message.error(getErrorMessage(error, '加载执行记录失败'))
+    stopSuiteRunsRefresh()
+    return
+  }
+
+  if (showLoading) {
+    runsLoading.value = true
+  }
+
+  try {
+    const runs = await suiteApi.listRuns({ suite_id: suiteId })
+    suiteRuns.value = runs
+    if (runsDrawerOpen.value && hasActiveSuiteRuns(runs)) {
+      if (!suiteRunsRefreshTimer) {
+        suiteRunsRefreshTimer = setInterval(() => {
+          void loadSuiteRuns(suiteId, false)
+        }, 3000)
+      }
+    } else {
+      stopSuiteRunsRefresh()
+    }
+  } catch (error: unknown) {
+    if (showLoading) {
+      suiteRuns.value = []
+      message.error(getErrorMessage(error, '加载执行记录失败'))
+    }
+    stopSuiteRunsRefresh()
   } finally {
-    runsLoading.value = false
+    if (showLoading) {
+      runsLoading.value = false
+    }
   }
 }
 
@@ -976,6 +1250,10 @@ onMounted(() => {
   loadProjects()
   loadSuites()
 })
+
+onUnmounted(() => {
+  stopSuiteRunsRefresh()
+})
 </script>
 
 <style scoped>
@@ -1013,6 +1291,11 @@ onMounted(() => {
 .case-ready-reason {
   font-size: 12px;
   color: #d46b08;
+}
+.suite-config-tip {
+  margin-top: -4px;
+  font-size: 12px;
+  color: #8c8c8c;
 }
 .selected-case-panel {
   min-height: 330px;

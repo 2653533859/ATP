@@ -16,11 +16,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.encryption import decrypt_env_vars
+from app.core.tracing import get_trace_id
 from app.models.environment import Environment, EnvVariable
 from app.models.plan import TestPlan, PlanRun, PlanRunStatus, ScheduleType, TriggerType
 from app.models.project import Project
 from app.models.suite import TestSuite
-from app.core.encryption import decrypt_env_vars
 from app.models.user import User
 from app.schemas.plan import (
     TestPlanCreate, TestPlanUpdate, TestPlanOut,
@@ -214,6 +215,7 @@ async def trigger_plan_run(
     plan_run = PlanRun(
         plan_id=plan_id,
         triggered_by=current_user.id,
+        trace_id=get_trace_id() or None,
         trigger_type=TriggerType.manual,
         status=PlanRunStatus.pending,
     )
@@ -222,7 +224,7 @@ async def trigger_plan_run(
     await db.refresh(plan_run)
 
     from app.worker.tasks import run_test_plan
-    run_test_plan.delay(plan_run.id, merged_vars)
+    run_test_plan.delay(plan_run.id, merged_vars, plan_run.trace_id)
 
     return plan_run
 
@@ -258,6 +260,7 @@ async def webhook_trigger(
     plan_run = PlanRun(
         plan_id=plan.id,
         triggered_by=None,
+        trace_id=get_trace_id() or None,
         trigger_type=TriggerType.webhook,
         status=PlanRunStatus.pending,
     )
@@ -266,7 +269,7 @@ async def webhook_trigger(
     await db.refresh(plan_run)
 
     from app.worker.tasks import run_test_plan
-    run_test_plan.delay(plan_run.id, merged_vars)
+    run_test_plan.delay(plan_run.id, merged_vars, plan_run.trace_id)
 
     return plan_run
 

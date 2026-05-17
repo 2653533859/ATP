@@ -88,10 +88,10 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict):
 
 ### 里程碑
 
-- [ ] A.1 Suite.config 并发字段扩展
-- [ ] A.2 并发执行引擎（Celery group + chord）
-- [ ] A.3 SuiteRun 状态同步机制
-- [ ] A.4 前端并发配置 UI
+- [x] A.1 Suite.config 并发字段扩展
+- [x] A.2 并发执行引擎（实际实现：`tasks.py` 中以 `asyncio.gather` 按 `max_workers` 分批并发，未引入 Celery group/chord；满足分批并发 + fail_strategy 控制需求）
+- [x] A.3 SuiteRun 状态同步机制
+- [x] A.4 前端并发配置 UI
 
 ---
 
@@ -171,10 +171,10 @@ async def get_storage_stats(_: User = Depends(require_admin)):
 
 ### 里程碑
 
-- [ ] B.1 统一缓存装饰器
-- [ ] B.2 缓存失效机制
-- [ ] B.3 统计查询复合索引
-- [ ] B.4 MinIO 存储统计 API
+- [x] B.1 统一缓存装饰器（`backend/app/core/cache_decorator.py` 提供 `cached_json`，已在 `statistics.py` 全部 8 个统计接口落地）
+- [x] B.2 缓存失效机制
+- [x] B.3 统计查询复合索引
+- [x] B.4 MinIO 存储统计 API
 
 ---
 
@@ -247,10 +247,10 @@ async def get_trace(trace_id: str, ...):
 
 ### 里程碑
 
-- [ ] C.1 trace_id 注入框架
-- [ ] C.2 Task 日志结构化增强
-- [ ] C.3 Trace 查询 API
-- [ ] C.4 前端 Trace 面板
+- [x] C.1 trace_id 注入框架
+- [x] C.2 Task 日志结构化增强
+- [x] C.3 Trace 查询 API（`backend/app/api/v1/traces.py` 提供 `GET /traces/{trace_id}`，聚合 TestRun/SuiteRun/PlanRun）
+- [x] C.4 前端 Trace 面板
 
 ---
 
@@ -344,10 +344,10 @@ def cleanup_old_completed_runs():
 
 ### 里程碑
 
-- [ ] D.1 StoragePolicy 数据模型 + 迁移
-- [ ] D.2 同步清理任务（MinIO + DB 一致性）
-- [ ] D.3 DB 运行记录清理任务
-- [ ] D.4 前端存储管理页面
+- [x] D.1 StoragePolicy 数据模型 + 迁移（`backend/app/models/storage_policy.py` + Alembic `20260517_0017`；默认初始化 4 条策略：screenshots/30d、reports/90d、apks/180d、scripts/365d）
+- [x] D.2 同步清理任务（MinIO + DB 一致性）（`services/storage_cleanup.py` 提供 preview/execute/repair_orphan_references；`tasks_cleanup.cleanup_expired_files` 已切换到按 StoragePolicy 遍历，无策略时回退到 `DEFAULT_CLEANUP_PREFIXES`）
+- [x] D.3 DB 运行记录清理任务（`tasks_cleanup.cleanup_old_completed_runs`：按 `RUN_RETENTION_DAYS` 删除终态 PlanRun→SuiteRun→TestRun→MobileSpecialRun；删除 TestRun/MobileSpecialRun 前先回收 MinIO 截图/产物；分批 `RUN_CLEANUP_BATCH_SIZE` 控制事务大小）
+- [x] D.4 前端存储管理页面（新增"清理策略" CRUD 卡片 + 抽屉表单；清理范围 checkbox 自动从启用策略派生）
 
 ---
 

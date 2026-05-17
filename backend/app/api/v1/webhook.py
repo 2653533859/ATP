@@ -15,6 +15,7 @@ from app.models.suite import TestSuite, SuiteRun, SuiteRunStatus
 from app.models.plan import TestPlan, PlanRun, PlanRunStatus, TriggerType
 from app.models.environment import Environment, EnvVariable
 from app.core.encryption import decrypt_env_vars
+from app.core.tracing import get_trace_id
 
 router = APIRouter(tags=["Webhook"])
 
@@ -84,6 +85,7 @@ async def webhook_trigger(
         suite_run = SuiteRun(
             suite_id=suite.id,
             triggered_by=suite.creator_id,
+            trace_id=get_trace_id() or None,
             status=SuiteRunStatus.pending,
         )
         db.add(suite_run)
@@ -91,7 +93,7 @@ async def webhook_trigger(
         await db.refresh(suite_run)
 
         from app.worker.tasks import run_test_suite
-        run_test_suite.delay(suite_run.id, merged_vars)
+        run_test_suite.delay(suite_run.id, merged_vars, suite_run.trace_id)
 
         return WebhookTriggerResponse(
             run_id=suite_run.id,
@@ -110,6 +112,7 @@ async def webhook_trigger(
         plan_run = PlanRun(
             plan_id=plan.id,
             triggered_by=None,
+            trace_id=get_trace_id() or None,
             trigger_type=TriggerType.webhook,
             status=PlanRunStatus.pending,
         )
@@ -118,7 +121,7 @@ async def webhook_trigger(
         await db.refresh(plan_run)
 
         from app.worker.tasks import run_test_plan
-        run_test_plan.delay(plan_run.id, merged_vars)
+        run_test_plan.delay(plan_run.id, merged_vars, plan_run.trace_id)
 
         return WebhookTriggerResponse(
             run_id=plan_run.id,

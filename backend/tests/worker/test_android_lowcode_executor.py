@@ -13,7 +13,13 @@ sys.modules["app.core.minio_client"] = types.SimpleNamespace(
 )
 sys.modules.setdefault(
     "app.core.redis_client",
-    types.SimpleNamespace(publish_run_event=lambda *args, **kwargs: None),
+    types.SimpleNamespace(
+        publish_run_event=lambda *args, **kwargs: None,
+        get_json_cache=lambda *args, **kwargs: None,
+        set_json_cache=lambda *args, **kwargs: None,
+        delete_json_cache=lambda *args, **kwargs: None,
+        delete_json_cache_pattern=lambda *args, **kwargs: None,
+    ),
 )
 
 from app.worker.executors import android_lowcode_executor as executor

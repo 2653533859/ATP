@@ -8,7 +8,13 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
-sys.modules["app.core.redis_client"] = types.SimpleNamespace(publish_run_event=lambda *a, **kw: None)
+sys.modules["app.core.redis_client"] = types.SimpleNamespace(
+    publish_run_event=lambda *a, **kw: None,
+    get_json_cache=lambda *a, **kw: None,
+    set_json_cache=lambda *a, **kw: None,
+    delete_json_cache=lambda *a, **kw: None,
+    delete_json_cache_pattern=lambda *a, **kw: None,
+)
 
 
 class _DummyCeleryApp:

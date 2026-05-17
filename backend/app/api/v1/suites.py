@@ -16,11 +16,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
-from app.models.case import TestCase
-from app.models.project import Project
-from app.models.suite import TestSuite, SuiteRun, SuiteRunStatus
-from app.models.environment import Environment, EnvVariable
 from app.core.encryption import decrypt_env_vars
+from app.core.tracing import get_trace_id
+from app.models.case import TestCase
+from app.models.environment import Environment, EnvVariable
+from app.models.project import Project
+from app.models.suite import SuiteRun, SuiteRunStatus, TestSuite
 from app.models.user import User
 from app.schemas.suite import (
     TestSuiteCreate, TestSuiteUpdate, TestSuiteOut,
@@ -189,6 +190,7 @@ async def trigger_suite_run(
     suite_run = SuiteRun(
         suite_id=suite_id,
         triggered_by=current_user.id,
+        trace_id=get_trace_id() or None,
         status=SuiteRunStatus.pending,
         environment=env_name,
     )
@@ -198,7 +200,7 @@ async def trigger_suite_run(
 
     # 触发 Celery 任务
     from app.worker.tasks import run_test_suite
-    run_test_suite.delay(suite_run.id, merged_vars)
+    run_test_suite.delay(suite_run.id, merged_vars, suite_run.trace_id)
 
     return suite_run
 

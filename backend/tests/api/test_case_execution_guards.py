@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 import sys
 import types
 from datetime import datetime, timezone
@@ -7,15 +8,30 @@ from pathlib import Path
 import pytest
 from fastapi import HTTPException
 
+_REAL_TRACING = importlib.import_module("app.core.tracing")
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
+
+async def _noop_invalidate_stats_cache():
+    return None
+
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 sys.modules["app.api.deps"] = types.SimpleNamespace(get_current_user=lambda: None)
+sys.modules["app.api.v1.statistics"] = types.SimpleNamespace(invalidate_stats_cache=_noop_invalidate_stats_cache)
+sys.modules["app.core.tracing"] = types.SimpleNamespace(
+    get_trace_id=lambda: None,
+    generate_trace_id=lambda: "trace-test",
+    set_trace_id=lambda value: value,
+    reset_trace_id=lambda _token: None,
+)
 sys.modules["app.worker.tasks"] = types.SimpleNamespace(
     run_test_case=types.SimpleNamespace(delay=lambda *_args, **_kwargs: None)
 )
 
 from app.api.v1 import cases
+sys.modules["app.core.tracing"] = _REAL_TRACING
 from app.models.bootstrap import load_all_models
 from app.models.case import CaseStatus, CaseType, RunStatus, TestCase
 from app.schemas.case import RunTriggerRequest, TestRunOut
@@ -122,6 +138,7 @@ def test_trigger_run_accepts_ready_case_and_dispatches_worker(monkeypatch):
         id=21,
         case_id=5,
         triggered_by=9,
+        trace_id="trace-case-21",
         status=RunStatus.pending,
         environment=None,
         duration_ms=None,
@@ -135,8 +152,14 @@ def test_trigger_run_accepts_ready_case_and_dispatches_worker(monkeypatch):
 
     monkeypatch.setattr(
         cases,
+        "get_trace_id",
+        lambda: "trace-case-21",
+    )
+
+    monkeypatch.setattr(
+        cases,
         "run_test_case",
-        types.SimpleNamespace(delay=lambda run_id, extra_vars: delayed.update(run_id=run_id, extra_vars=extra_vars)),
+        types.SimpleNamespace(delay=lambda run_id, extra_vars, trace_id: delayed.update(run_id=run_id, extra_vars=extra_vars, trace_id=trace_id)),
     )
 
     result = asyncio.run(
@@ -150,4 +173,5 @@ def test_trigger_run_accepts_ready_case_and_dispatches_worker(monkeypatch):
 
     assert isinstance(result, TestRunOut)
     assert result.id == 21
-    assert delayed == {"run_id": 21, "extra_vars": {"base_url": "http://backend:8000"}}
+    assert result.trace_id == "trace-case-21"
+    assert delayed == {"run_id": 21, "extra_vars": {"base_url": "http://backend:8000"}, "trace_id": "trace-case-21"}

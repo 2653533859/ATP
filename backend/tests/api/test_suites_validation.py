@@ -37,6 +37,18 @@ class _ExecuteResult:
         return _ScalarResult(self._items)
 
 
+class _FakeSuiteRun:
+    def __init__(self, **kwargs):
+        self.id = kwargs.get("id")
+        self.created_at = kwargs.get("created_at")
+        self.duration_ms = kwargs.get("duration_ms")
+        self.error_message = kwargs.get("error_message")
+        self.result_summary = kwargs.get("result_summary", {})
+        self.case_run_ids = kwargs.get("case_run_ids", [])
+        for key, value in kwargs.items():
+            setattr(self, key, value)
+
+
 class _FakeDB:
     def __init__(self, *, project=None, suite=None, cases=None):
         self.project = project
@@ -63,7 +75,9 @@ class _FakeDB:
         if self.suite is not None and self.suite.id is None:
             self.suite.id = 501
 
-    async def refresh(self, _obj):
+    async def refresh(self, obj):
+        if getattr(obj, "id", None) is None:
+            obj.id = 501
         return None
 
 
@@ -99,6 +113,40 @@ def test_create_suite_persists_valid_ordered_case_ids():
 
     assert result.case_ids == [{"case_id": 12, "sort": 0}, {"case_id": 11, "sort": 1}]
     assert db.suite.case_ids == [{"case_id": 12, "sort": 0}, {"case_id": 11, "sort": 1}]
+
+
+def test_create_suite_persists_execution_config():
+    load_all_models()
+    db = _FakeDB(
+        project=_project(1),
+        cases=[_case(12, 1), _case(11, 1)],
+    )
+
+    result = asyncio.run(
+        suites.create_suite(
+            body=TestSuiteCreate(
+                name="Parallel Suite",
+                project_id=1,
+                case_ids=[
+                    {"case_id": 12, "sort": 0},
+                    {"case_id": 11, "sort": 1},
+                ],
+                config={
+                    "execution_mode": "parallel",
+                    "max_workers": 3,
+                    "fail_strategy": "require-minimum-pass-rate",
+                    "min_pass_rate": 0.75,
+                },
+            ),
+            db=db,
+            current_user=types.SimpleNamespace(id=7),
+        )
+    )
+
+    assert result.config["execution_mode"] == "parallel"
+    assert result.config["max_workers"] == 3
+    assert result.config["fail_strategy"] == "require-minimum-pass-rate"
+    assert result.config["min_pass_rate"] == 0.75
 
 
 def test_create_suite_rejects_missing_case_id():
@@ -171,3 +219,73 @@ def test_update_suite_rejects_case_from_another_project():
         )
 
     assert exc.value.status_code == 400
+
+
+def test_update_suite_updates_execution_config():
+    load_all_models()
+    suite = TestSuite(
+        id=33,
+        name="Smoke",
+        project_id=1,
+        creator_id=7,
+        config={"execution_mode": "sequential", "fail_strategy": "continue"},
+    )
+    db = _FakeDB(suite=suite, cases=[])
+
+    result = asyncio.run(
+        suites.update_suite(
+            suite_id=33,
+            body=TestSuiteUpdate(
+                config={
+                    "execution_mode": "parallel",
+                    "max_workers": 4,
+                    "fail_strategy": "fast-fail",
+                    "min_pass_rate": 0.5,
+                }
+            ),
+            db=db,
+            _=types.SimpleNamespace(id=7),
+        )
+    )
+
+
+
+def test_trigger_suite_run_persists_and_dispatches_trace_id(monkeypatch):
+    load_all_models()
+    delayed = {}
+    suite = _FakeSuiteRun(
+        id=33,
+        case_ids=[{"case_id": 12, "sort": 0}],
+        creator_id=7,
+    )
+    db = _FakeDB(suite=suite, cases=[])
+
+    monkeypatch.setattr(suites, "SuiteRun", _FakeSuiteRun)
+    monkeypatch.setattr(suites, "get_trace_id", lambda: "trace-suite-33")
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.tasks",
+        types.SimpleNamespace(
+            run_test_suite=types.SimpleNamespace(
+                delay=lambda run_id, extra_vars, trace_id: delayed.update(
+                    run_id=run_id,
+                    extra_vars=extra_vars,
+                    trace_id=trace_id,
+                )
+            )
+        ),
+    )
+
+    result = asyncio.run(
+        suites.trigger_suite_run(
+            suite_id=33,
+            body=suites.SuiteRunTrigger(extra_vars={"branch": "main"}),
+            db=db,
+            current_user=types.SimpleNamespace(id=9),
+        )
+    )
+
+    assert result.trace_id == "trace-suite-33"
+    assert result.id == 501
+    assert db.added[0].trace_id == "trace-suite-33"
+    assert delayed == {"run_id": 501, "extra_vars": {"branch": "main"}, "trace_id": "trace-suite-33"}

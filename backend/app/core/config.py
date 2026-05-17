@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     STALE_PENDING_CLEANUP_ENABLED: bool = True
     STALE_PENDING_TIMEOUT_MINUTES: int = 120
     STALE_PENDING_CLEANUP_INTERVAL_SECONDS: int = 600
+    # Run retention (终态运行记录清理)
+    RUN_CLEANUP_ENABLED: bool = True
+    RUN_RETENTION_DAYS: int = 90
+    RUN_CLEANUP_BATCH_SIZE: int = 500
 
     # Rate limiting
     RATE_LIMIT_LOGIN: str = "5/minute"

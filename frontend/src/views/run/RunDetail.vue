@@ -32,6 +32,9 @@
         <a-descriptions bordered :column="4" size="small" style="margin-bottom: 24px">
           <a-descriptions-item label="执行 ID">{{ run.id }}</a-descriptions-item>
           <a-descriptions-item label="用例 ID">{{ run.case_id }}</a-descriptions-item>
+          <a-descriptions-item label="Trace ID" :span="2">
+            <code>{{ run.trace_id || '-' }}</code>
+          </a-descriptions-item>
           <a-descriptions-item label="环境">{{ run.environment ?? '-' }}</a-descriptions-item>
           <a-descriptions-item label="耗时">
             {{ run.duration_ms != null ? `${run.duration_ms} ms` : (isRunning ? '执行中...' : '-') }}

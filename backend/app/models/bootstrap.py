@@ -20,6 +20,7 @@ def load_all_models() -> None:
         MobileRunArtifact,
     )
     from app.models.global_variable import GlobalVariable
+    from app.models.storage_policy import StoragePolicy
 
     _ = (
         User,
@@ -49,4 +50,5 @@ def load_all_models() -> None:
         MobileIncident,
         MobileRunArtifact,
         GlobalVariable,
+        StoragePolicy,
     )

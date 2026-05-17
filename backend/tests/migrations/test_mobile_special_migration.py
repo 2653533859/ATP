@@ -2,14 +2,14 @@ from pathlib import Path
 
 
 def test_mobile_special_migration_covers_task_type_enum():
-    """Verify the migration includes task_type enum values: performance, stability, fluency."""
+    """Verify the mobile special migration includes task_type enum values: performance, stability, fluency."""
     migration_dir = Path(__file__).resolve().parents[2] / "alembic" / "versions"
     content = "\n".join(file.read_text(encoding="utf-8") for file in sorted(migration_dir.glob("*.py")))
-    latest = sorted(migration_dir.glob("*.py"))[-1]
+    mobile_special_migration = migration_dir / "20260330_0014_add_mobile_special_domain.py"
 
-    # Must contain mobile_special domain
-    assert "mobile_special" in latest.read_text(encoding="utf-8").lower(), \
-        "Latest migration must contain mobile_special domain"
+    assert mobile_special_migration.exists(), "Mobile special migration must exist"
+    assert "mobile_special" in mobile_special_migration.read_text(encoding="utf-8").lower(), \
+        "Mobile special migration must contain mobile_special domain"
 
     # Must have task_type enum with required values
     for val in ("performance", "stability", "fluency"):
@@ -36,10 +36,10 @@ def test_mobile_special_migration_covers_metric_type_enum():
 
 
 def test_mobile_special_migration_covers_tables():
-    """Verify the migration creates required tables."""
+    """Verify the mobile special migration creates required tables."""
     migration_dir = Path(__file__).resolve().parents[2] / "alembic" / "versions"
-    latest = sorted(migration_dir.glob("*.py"))[-1]
-    content = latest.read_text(encoding="utf-8")
+    mobile_special_migration = migration_dir / "20260330_0014_add_mobile_special_domain.py"
+    content = mobile_special_migration.read_text(encoding="utf-8")
 
     required_tables = [
         "mobile_special_tasks",

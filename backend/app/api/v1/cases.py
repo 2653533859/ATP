@@ -11,6 +11,8 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import get_current_user
 from app.core.database import get_db
 from app.core.encryption import decrypt_env_vars
+from app.core.tracing import get_trace_id
+from app.api.v1.statistics import invalidate_stats_cache
 from app.models.case import CaseSnapshot, CaseStatus, CaseStep, CaseType, RunStatus, TestCase, TestRun
 from app.models.environment import Environment, EnvVariable
 from app.models.project import Module, Project
@@ -376,6 +378,7 @@ async def create_case(
     await _replace_case_steps(db, case, steps_payload)
     db.add(case)
     await db.commit()
+    await invalidate_stats_cache()
     case = await _get_case_detail_or_404(db, case.id)
     await write_audit_log(
         db,
@@ -475,6 +478,7 @@ async def copy_case(
     await _replace_case_steps(db, cloned, _serialize_steps(source.steps or []))
     db.add(cloned)
     await db.commit()
+    await invalidate_stats_cache()
     return await _get_case_detail_or_404(db, cloned.id)
 
 
@@ -499,6 +503,7 @@ async def delete_case(
         detail=f"删除用例: {case_name}",
     )
     await db.commit()
+    await invalidate_stats_cache()
 
 
 @router.post("/cases/{case_id}/submit-review", response_model=TestCaseDetailOut)
@@ -701,6 +706,7 @@ async def trigger_run(
     run = TestRun(
         case_id=case_id,
         triggered_by=current_user.id,
+        trace_id=get_trace_id() or None,
         status=RunStatus.pending,
         environment=env_name,
     )
@@ -708,7 +714,7 @@ async def trigger_run(
     await db.commit()
     await db.refresh(run)
 
-    run_test_case.delay(run.id, merged_vars)
+    run_test_case.delay(run.id, merged_vars, run.trace_id)
     result = await db.execute(select(TestRun).where(TestRun.id == run.id).options(selectinload(TestRun.steps)))
     return TestRunOut.model_validate(result.scalar_one())
 

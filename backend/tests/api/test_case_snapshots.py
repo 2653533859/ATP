@@ -8,6 +8,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 sys.modules["app.api.deps"] = types.SimpleNamespace(get_current_user=lambda: None)
+
+
+async def _noop_invalidate_stats_cache():
+    return None
+
+
+sys.modules["app.api.v1.statistics"] = types.SimpleNamespace(invalidate_stats_cache=_noop_invalidate_stats_cache)
 sys.modules["app.worker.tasks"] = types.SimpleNamespace(
     run_test_case=types.SimpleNamespace(delay=lambda *_args, **_kwargs: None)
 )
@@ -87,6 +94,9 @@ class _SnapshotDB:
 
     async def commit(self):
         self.case_obj.updated_at = _now()
+
+    async def flush(self):
+        return None
 
 
 class _RunQueryResult:
@@ -216,6 +226,7 @@ def test_trigger_run_returns_serialized_schema(monkeypatch):
         id=21,
         case_id=5,
         triggered_by=9,
+        trace_id="trace-case-21",
         status=RunStatus.pending,
         environment=None,
         duration_ms=None,
@@ -227,10 +238,12 @@ def test_trigger_run_returns_serialized_schema(monkeypatch):
     db = _TriggerRunDB(case_obj=case_obj, loaded_run=loaded_run)
     delayed = {}
 
+    monkeypatch.setattr(cases, "get_trace_id", lambda: "trace-case-21")
+
     monkeypatch.setattr(
         cases,
         "run_test_case",
-        types.SimpleNamespace(delay=lambda run_id, extra_vars: delayed.update(run_id=run_id, extra_vars=extra_vars)),
+        types.SimpleNamespace(delay=lambda run_id, extra_vars, trace_id: delayed.update(run_id=run_id, extra_vars=extra_vars, trace_id=trace_id)),
     )
 
     result = asyncio.run(
@@ -244,5 +257,6 @@ def test_trigger_run_returns_serialized_schema(monkeypatch):
 
     assert isinstance(result, TestRunOut)
     assert result.id == 21
+    assert result.trace_id == "trace-case-21"
     assert result.steps == []
-    assert delayed == {"run_id": 21, "extra_vars": {"base_url": "http://backend:8000"}}
+    assert delayed == {"run_id": 21, "extra_vars": {"base_url": "http://backend:8000"}, "trace_id": "trace-case-21"}

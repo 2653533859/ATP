@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
+from app.api.v1.statistics import invalidate_stats_cache
 from app.core.database import get_db
 from app.models.project import Module, Project
 from app.models.user import User
@@ -48,6 +49,7 @@ async def create_project(
     project = Project(**payload, owner_id=current_user.id)
     db.add(project)
     await db.commit()
+    await invalidate_stats_cache()
     await db.refresh(project)
     return project
 
@@ -89,6 +91,7 @@ async def delete_project(project_id: int, db: AsyncSession = Depends(get_db), _=
         raise HTTPException(status_code=404, detail="项目不存在")
     await db.delete(project)
     await db.commit()
+    await invalidate_stats_cache()
 
 
 def _build_tree(modules: list[Module]) -> list[ModuleTree]:
@@ -129,6 +132,7 @@ async def create_module(body: ModuleCreate, db: AsyncSession = Depends(get_db), 
     module = Module(**payload)
     db.add(module)
     await db.commit()
+    await invalidate_stats_cache()
     await db.refresh(module)
     return module
 
@@ -162,3 +166,4 @@ async def delete_module(module_id: int, db: AsyncSession = Depends(get_db), _=De
         raise HTTPException(status_code=404, detail="模块不存在")
     await db.delete(module)
     await db.commit()
+    await invalidate_stats_cache()

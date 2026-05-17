@@ -8,7 +8,7 @@ def test_model_bootstrap_imports_full_metadata_graph():
     expected_modules = [
         "from app.models.user import User, UserRole",
         "from app.models.project import Project, Module",
-        "from app.models.case import TestCase, TestRun, StepResult, CaseSnapshot",
+        "from app.models.case import TestCase, CaseStep, TestRun, StepResult, CaseSnapshot",
         "from app.models.environment import Environment, EnvVariable",
         "from app.models.device import Device",
         "from app.models.apk import Apk",
@@ -18,6 +18,8 @@ def test_model_bootstrap_imports_full_metadata_graph():
         "from app.models.bug_tracker import BugTracker",
         "from app.models.audit import AuditLog",
         "from app.models.plan import TestPlan, PlanRun",
+        "from app.models.mobile_special import (",
+        "from app.models.global_variable import GlobalVariable",
     ]
 
     for expected in expected_modules:

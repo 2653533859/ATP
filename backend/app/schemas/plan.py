@@ -68,6 +68,7 @@ class PlanRunOut(BaseModel):
     id: int
     plan_id: int
     triggered_by: int | None
+    trace_id: str | None = None
     trigger_type: TriggerType
     status: PlanRunStatus
     duration_ms: int | None
