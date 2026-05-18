@@ -203,7 +203,16 @@ python -m pytest backend/tests -q
 - 外部基础设施运行说明：`docs/external-infra-run.md`
 - 前端到后端再到 Worker 的调用链：`docs/backend-request-flow.md`
 
+## 持续集成
+
+仓库已配置 GitHub Actions（`.github/workflows/ci.yml`），在 `push` 到 `main` 与 `pull_request` 时并行执行：
+
+- **后端 pytest**：以 Postgres 16 + Redis 7 为 service container 运行 `backend/tests` 全量回归
+- **前端 type-check + build**：`vue-tsc --noEmit` 与 `vite build` 双重保障类型与产物
+
+同一分支的旧 CI 会自动取消，避免连续推送时的资源浪费。
+
 ## 说明
 
 - 当前通知会在“测试套件”和“测试计划”执行完成后触发；单用例通知暂不在当前范围内。
-- 前端已可构建运行，但生产包体积仍偏大，后续建议继续做代码拆分与按需加载优化。
+- 前端已通过 `manualChunks` 把 `ant-design-vue`、`echarts`、`@ant-design/icons-vue`、`vuedraggable`、`monaco-editor` 拆为独立 chunk，按路由懒加载；首屏只载入用到的部分。后续若进一步追求体积，可改为 `ant-design-vue` 按需引入（需移除 `main.ts` 中的全局 `app.use(Antd)`）。

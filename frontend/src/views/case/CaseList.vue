@@ -144,25 +144,21 @@
           </a-card>
 
           <a-card class="table-card" :bordered="false">
-            <div v-if="selectedRowKeys.length" class="batch-bar">
-              <span style="color: #1890ff">已选择 {{ selectedRowKeys.length }} 项</span>
-              <a-space>
-                <a-button size="small" @click="handleBatchExport">导出 CSV</a-button>
-                <a-button size="small" @click="handleBatchExportZip">导出 ZIP</a-button>
-                <a-button size="small" @click="openBatchMove" :disabled="!selectedModuleId">
-                  批量移动
-                </a-button>
-                <a-popconfirm
-                  :title="`确认删除选中的 ${selectedRowKeys.length} 个用例？`"
-                  ok-text="删除"
-                  cancel-text="取消"
-                  @confirm="handleBatchDelete"
-                >
-                  <a-button size="small" danger>批量删除</a-button>
-                </a-popconfirm>
-                <a-button size="small" type="link" @click="selectedRowKeys = []">取消选择</a-button>
-              </a-space>
-            </div>
+            <BatchOperationBar :selected-count="selectedRowKeys.length" @cancel="selectedRowKeys = []">
+              <a-button size="small" @click="handleBatchExport">导出 CSV</a-button>
+              <a-button size="small" @click="handleBatchExportZip">导出 ZIP</a-button>
+              <a-button size="small" @click="openBatchMove" :disabled="!selectedModuleId">
+                批量移动
+              </a-button>
+              <a-popconfirm
+                :title="`确认删除选中的 ${selectedRowKeys.length} 个用例？`"
+                ok-text="删除"
+                cancel-text="取消"
+                @confirm="handleBatchDelete"
+              >
+                <a-button size="small" danger>批量删除</a-button>
+              </a-popconfirm>
+            </BatchOperationBar>
             <div class="batch-bar" style="margin-bottom: 12px">
               <span style="color: #888">导入用例 ZIP（目标模块：{{ activeModuleName }}）：</span>
               <a-upload
@@ -416,6 +412,7 @@ import CaseFormDrawer from '@/components/common/CaseFormDrawer.vue'
 import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
 import AndroidCaseDrawer from '@/views/case/AndroidCaseDrawer.vue'
 import CaseHistoryDrawer from '@/views/case/CaseHistoryDrawer.vue'
+import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
 
 type WorkflowAction = 'submitReview' | 'approve' | 'reject' | 'deprecate' | 'reactivate'
 

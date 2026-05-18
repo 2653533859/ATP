@@ -17,21 +17,17 @@
       </a-button>
     </div>
 
-    <div v-if="selectedRowKeys.length" class="batch-bar">
-      <span style="color: #1890ff">已选择 {{ selectedRowKeys.length }} 项</span>
-      <a-space>
-        <a-button size="small" @click="handleBatchCopy">批量复制</a-button>
-        <a-popconfirm
-          :title="`确认删除选中的 ${selectedRowKeys.length} 个套件？`"
-          ok-text="删除"
-          cancel-text="取消"
-          @confirm="handleBatchDelete"
-        >
-          <a-button size="small" danger>批量删除</a-button>
-        </a-popconfirm>
-        <a-button size="small" type="link" @click="selectedRowKeys = []">取消选择</a-button>
-      </a-space>
-    </div>
+    <BatchOperationBar :selected-count="selectedRowKeys.length" @cancel="selectedRowKeys = []">
+      <a-button size="small" @click="handleBatchCopy">批量复制</a-button>
+      <a-popconfirm
+        :title="`确认删除选中的 ${selectedRowKeys.length} 个套件？`"
+        ok-text="删除"
+        cancel-text="取消"
+        @confirm="handleBatchDelete"
+      >
+        <a-button size="small" danger>批量删除</a-button>
+      </a-popconfirm>
+    </BatchOperationBar>
 
     <a-table
       :columns="columns"
@@ -456,6 +452,7 @@ import type {
   SuiteRunItem,
 } from '@/api'
 import { suiteApi, projectApi, caseApi, environmentApi } from '@/api'
+import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
 
 type CaseSelectionScope = 'all' | 'selected' | 'unselected'
 type CaseReadyFilter = 'all' | 'ready' | 'not_ready'

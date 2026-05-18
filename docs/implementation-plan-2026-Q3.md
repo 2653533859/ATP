@@ -188,7 +188,7 @@ POST /api/v1/ai/cases/confirm        把草稿写入 TestCase 表
 
 - [ ] H.1 plan 并发执行 + 测试
 - [ ] H.2 总量淘汰策略 + 测试
-- [ ] H.3 BatchOperationBar 抽取与四处接入
+- [x] H.3 BatchOperationBar 抽取与接入（已抽取 `frontend/src/components/common/BatchOperationBar.vue` 并接入 CaseList / SuiteList / PlanList；MockRuleList 暂未启用批量操作，待后续按需接入）
 
 ---
 

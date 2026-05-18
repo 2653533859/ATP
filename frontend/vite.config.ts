@@ -25,13 +25,21 @@ export default defineConfig({
   build: {
     rollupOptions: {
       output: {
-        manualChunks: {
-          'vue-vendor': ['vue', 'vue-router', 'pinia'],
-          'ant-design': ['ant-design-vue'],
-          'echarts': ['echarts'],
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('vue-router') || id.includes('/pinia/')) return 'vue-vendor'
+          if (/[\\/]node_modules[\\/]vue[\\/]/.test(id)) return 'vue-vendor'
+          if (id.includes('@ant-design/icons')) return 'ant-design-icons'
+          if (id.includes('ant-design-vue')) return 'ant-design'
+          if (id.includes('vue-echarts')) return 'echarts'
+          if (id.includes('echarts')) return 'echarts'
+          if (id.includes('vuedraggable') || id.includes('sortablejs')) return 'vuedraggable'
+          if (id.includes('monaco-editor') || id.includes('@monaco-editor')) return 'monaco'
+          if (id.includes('dayjs') || id.includes('axios')) return 'common-vendor'
+          return undefined
         },
       },
     },
-    chunkSizeWarningLimit: 600,
+    chunkSizeWarningLimit: 1500,
   },
 })

@@ -16,22 +16,18 @@
       </a-button>
     </div>
 
-    <div v-if="selectedRowKeys.length" class="batch-bar">
-      <span style="color: #1890ff">已选择 {{ selectedRowKeys.length }} 项</span>
-      <a-space>
-        <a-button size="small" @click="handleBatchToggle(true)">批量启用</a-button>
-        <a-button size="small" @click="handleBatchToggle(false)">批量停用</a-button>
-        <a-popconfirm
-          :title="`确认删除选中的 ${selectedRowKeys.length} 个计划？`"
-          ok-text="删除"
-          cancel-text="取消"
-          @confirm="handleBatchDelete"
-        >
-          <a-button size="small" danger>批量删除</a-button>
-        </a-popconfirm>
-        <a-button size="small" type="link" @click="selectedRowKeys = []">取消选择</a-button>
-      </a-space>
-    </div>
+    <BatchOperationBar :selected-count="selectedRowKeys.length" @cancel="selectedRowKeys = []">
+      <a-button size="small" @click="handleBatchToggle(true)">批量启用</a-button>
+      <a-button size="small" @click="handleBatchToggle(false)">批量停用</a-button>
+      <a-popconfirm
+        :title="`确认删除选中的 ${selectedRowKeys.length} 个计划？`"
+        ok-text="删除"
+        cancel-text="取消"
+        @confirm="handleBatchDelete"
+      >
+        <a-button size="small" danger>批量删除</a-button>
+      </a-popconfirm>
+    </BatchOperationBar>
 
     <a-table
       :columns="columns"
@@ -295,6 +291,7 @@ import type {
   SuiteItem,
 } from '@/api'
 import { environmentApi, planApi, projectApi, suiteApi } from '@/api'
+import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
 
 type SelectOption = { label: string; value: number }
 type CronMode = 'daily' | 'weekly' | 'custom'
