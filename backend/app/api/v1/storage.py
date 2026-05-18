@@ -20,7 +20,12 @@ from app.schemas.storage_policy import (
     StoragePolicyUpdateIn,
 )
 from app.services.storage_alerts import get_current_alert
-from app.services.storage_cleanup import execute_storage_cleanup, get_storage_stats, preview_storage_cleanup
+from app.services.storage_cleanup import (
+    execute_storage_cleanup,
+    get_storage_stats,
+    load_active_policies,
+    preview_storage_cleanup,
+)
 
 router = APIRouter(tags=["存储治理"])
 
@@ -48,13 +53,17 @@ async def storage_cleanup_preview(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_engineer),
 ):
-    return await db.run_sync(
-        lambda session: preview_storage_cleanup(
+    def _run(session):
+        policies = load_active_policies(session) if body.use_active_policies else []
+        if policies:
+            return preview_storage_cleanup(session, policies=policies)
+        return preview_storage_cleanup(
             session,
             prefixes=body.prefixes,
             retention_days=body.retention_days,
         )
-    )
+
+    return await db.run_sync(_run)
 
 
 @router.post("/storage/cleanup-execute", response_model=StorageCleanupExecuteOut)

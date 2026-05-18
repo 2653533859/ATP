@@ -199,6 +199,45 @@
         <a-form-item label="自动创建缺陷">
           <a-switch v-model:checked="form.auto_create_bugs" />
         </a-form-item>
+
+        <a-form-item label="执行策略">
+          <a-row :gutter="16">
+            <a-col :span="12">
+              <a-form-item label="执行模式">
+                <a-select v-model:value="form.config.execution_mode" :options="planExecutionModeOptions" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item label="失败策略">
+                <a-select v-model:value="form.config.fail_strategy" :options="planFailStrategyOptions" />
+              </a-form-item>
+            </a-col>
+          </a-row>
+          <a-row v-if="form.config.execution_mode === 'parallel' || form.config.fail_strategy === 'require-minimum-pass-rate'" :gutter="16">
+            <a-col v-if="form.config.execution_mode === 'parallel'" :span="12">
+              <a-form-item label="最大并发数">
+                <a-input-number
+                  v-model:value="form.config.max_workers"
+                  :min="1"
+                  :max="10"
+                  :precision="0"
+                  style="width: 100%"
+                />
+              </a-form-item>
+            </a-col>
+            <a-col v-if="form.config.fail_strategy === 'require-minimum-pass-rate'" :span="12">
+              <a-form-item label="最低通过率">
+                <a-input-number
+                  v-model:value="form.config.min_pass_rate"
+                  :min="0"
+                  :max="1"
+                  :step="0.05"
+                  style="width: 100%"
+                />
+              </a-form-item>
+            </a-col>
+          </a-row>
+        </a-form-item>
       </a-form>
     </a-modal>
 
@@ -285,9 +324,12 @@ import { PlusOutlined } from '@ant-design/icons-vue'
 import type {
   EnvironmentItem,
   PlanItem,
+  PlanConfig,
   PlanRunItem,
   ProjectItem,
   ScheduleType,
+  SuiteExecutionMode,
+  SuiteFailStrategy,
   SuiteItem,
 } from '@/api'
 import { environmentApi, planApi, projectApi, suiteApi } from '@/api'
@@ -295,6 +337,56 @@ import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
 
 type SelectOption = { label: string; value: number }
 type CronMode = 'daily' | 'weekly' | 'custom'
+
+interface PlanFormConfig {
+  execution_mode: SuiteExecutionMode
+  max_workers: number
+  fail_strategy: SuiteFailStrategy
+  min_pass_rate: number
+}
+
+function createDefaultPlanConfig(): PlanFormConfig {
+  return {
+    execution_mode: 'sequential',
+    max_workers: 3,
+    fail_strategy: 'continue',
+    min_pass_rate: 0.8,
+  }
+}
+
+function normalizePlanConfig(config?: PlanConfig | null): PlanFormConfig {
+  const raw = config ?? {}
+  const execution_mode: SuiteExecutionMode = raw.execution_mode === 'parallel' ? 'parallel' : 'sequential'
+  const max_workersValue = Number(raw.max_workers)
+  const fail_strategy: SuiteFailStrategy =
+    raw.fail_strategy === 'fast-fail' ||
+    raw.fail_strategy === 'require-minimum-pass-rate' ||
+    raw.fail_strategy === 'continue'
+      ? raw.fail_strategy
+      : 'continue'
+  const min_pass_rate_value = Number(raw.min_pass_rate)
+  return {
+    execution_mode,
+    max_workers: Number.isFinite(max_workersValue) && max_workersValue > 0
+      ? Math.min(Math.max(Math.trunc(max_workersValue), 1), 10)
+      : 3,
+    fail_strategy,
+    min_pass_rate: Number.isFinite(min_pass_rate_value)
+      ? Math.min(Math.max(min_pass_rate_value, 0), 1)
+      : 0.8,
+  }
+}
+
+const planExecutionModeOptions = [
+  { label: '顺序执行', value: 'sequential' },
+  { label: '并发执行', value: 'parallel' },
+] satisfies Array<{ label: string; value: SuiteExecutionMode }>
+
+const planFailStrategyOptions = [
+  { label: '继续执行', value: 'continue' },
+  { label: '失败即停', value: 'fast-fail' },
+  { label: '最低通过率', value: 'require-minimum-pass-rate' },
+] satisfies Array<{ label: string; value: SuiteFailStrategy }>
 
 const weekdayLabels: Record<number, string> = {
   0: '周日',
@@ -431,6 +523,7 @@ const form = ref({
   is_enabled: true,
   auto_create_bugs: false,
   env_id: null as number | null,
+  config: createDefaultPlanConfig(),
 })
 
 const cronMode = ref<CronMode>('daily')
@@ -617,7 +710,16 @@ async function loadEnvs() {
 function openCreate() {
   isEdit.value = false
   editingPlan.value = null
-  form.value = { name: '', description: '', schedule_type: 'manual', cron_expression: '', is_enabled: true, auto_create_bugs: false, env_id: null }
+  form.value = {
+    name: '',
+    description: '',
+    schedule_type: 'manual',
+    cron_expression: '',
+    is_enabled: true,
+    auto_create_bugs: false,
+    env_id: null,
+    config: createDefaultPlanConfig(),
+  }
   selectedSuiteIds.value = []
   resetCronEditor('0 9 * * *')
   formOpen.value = true
@@ -636,6 +738,7 @@ function openEdit(record: PlanItem) {
     is_enabled: record.is_enabled,
     auto_create_bugs: record.auto_create_bugs ?? false,
     env_id: record.env_id ?? null,
+    config: normalizePlanConfig(record.config ?? null),
   }
   resetCronEditor(record.cron_expression)
   selectedSuiteIds.value = (record.suite_ids || []).map((s) => s.suite_id)
@@ -673,6 +776,7 @@ async function handleSave() {
       is_enabled: form.value.is_enabled,
       auto_create_bugs: form.value.auto_create_bugs,
       env_id: form.value.env_id,
+      config: { ...form.value.config },
     }
     if (isEdit.value && editingPlan.value) {
       await planApi.update(editingPlan.value.id, payload)

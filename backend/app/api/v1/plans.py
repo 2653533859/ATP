@@ -101,6 +101,7 @@ async def create_plan(
         is_enabled=body.is_enabled,
         auto_create_bugs=body.auto_create_bugs,
         env_id=body.env_id,
+        config=body.config or {},
         creator_id=current_user.id,
     )
     # Webhook 类型自动生成 secret

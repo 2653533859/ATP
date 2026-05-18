@@ -88,6 +88,7 @@
           <a-descriptions :column="1" size="small">
             <a-descriptions-item label="扫描对象">{{ preview?.scanned_object_count ?? 0 }}</a-descriptions-item>
             <a-descriptions-item label="过期对象">{{ preview?.expired_object_count ?? 0 }}</a-descriptions-item>
+            <a-descriptions-item label="超量淘汰">{{ preview?.size_evicted_count ?? 0 }}</a-descriptions-item>
             <a-descriptions-item label="可删除">{{ preview?.deletable_count ?? 0 }}</a-descriptions-item>
             <a-descriptions-item label="被引用阻塞">{{ preview?.blocked_count ?? 0 }}</a-descriptions-item>
             <a-descriptions-item label="孤儿引用">{{ preview?.orphan_reference_count ?? 0 }}</a-descriptions-item>

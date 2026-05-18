@@ -32,6 +32,7 @@ class StorageStatsOut(BaseModel):
 class StorageCleanupPreviewIn(BaseModel):
     prefixes: list[str] = Field(default_factory=lambda: ["screenshots/", "reports/", "apks/", "scripts/"])
     retention_days: int | None = Field(default=None, ge=1, le=3650)
+    use_active_policies: bool = True
 
 
 class StorageCleanupPreviewOut(BaseModel):
@@ -42,6 +43,7 @@ class StorageCleanupPreviewOut(BaseModel):
     deletable_count: int
     blocked_count: int
     orphan_reference_count: int
+    size_evicted_count: int = 0
     deletable_objects: list[StorageObjectPreviewItem]
     blocked_objects: list[StorageObjectPreviewItem]
     orphan_references: list[StorageReferenceItem]

@@ -54,10 +54,10 @@ def test_mobile_special_migration_covers_tables():
 
 
 def test_mobile_special_migration_has_required_indexes():
-    """Verify the migration includes required indexes."""
+    """Verify the mobile special migration includes required indexes."""
     migration_dir = Path(__file__).resolve().parents[2] / "alembic" / "versions"
-    latest = sorted(migration_dir.glob("*.py"))[-1]
-    content = latest.read_text(encoding="utf-8")
+    mobile_special_migration = migration_dir / "20260330_0014_add_mobile_special_domain.py"
+    content = mobile_special_migration.read_text(encoding="utf-8")
 
     # Key indexes on foreign keys and time columns
     assert "create_index" in content or "index" in content.lower(), \

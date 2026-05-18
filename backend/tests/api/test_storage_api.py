@@ -93,7 +93,11 @@ def test_storage_cleanup_preview_delegates_to_service(monkeypatch):
 
     result = asyncio.run(
         storage.storage_cleanup_preview(
-            body=storage.StorageCleanupPreviewIn(prefixes=["reports/"], retention_days=10),
+            body=storage.StorageCleanupPreviewIn(
+                prefixes=["reports/"],
+                retention_days=10,
+                use_active_policies=False,
+            ),
             db=_FakeAsyncDB(None),
             _=None,
         )

@@ -205,6 +205,14 @@ export interface PlanSuiteRef {
   sort: number
 }
 
+export interface PlanConfig {
+  execution_mode?: SuiteExecutionMode
+  max_workers?: number
+  fail_strategy?: SuiteFailStrategy
+  min_pass_rate?: number
+  [key: string]: unknown
+}
+
 export interface PlanItem {
   id: number
   name: string
@@ -219,6 +227,7 @@ export interface PlanItem {
   is_enabled: boolean
   auto_create_bugs: boolean
   env_id?: number | null
+  config?: PlanConfig
   last_run_at?: string | null
   next_run_at?: string | null
   created_at: string
@@ -235,6 +244,7 @@ export interface PlanSavePayload {
   is_enabled: boolean
   auto_create_bugs?: boolean
   env_id?: number | null
+  config?: PlanConfig
 }
 
 export interface PlanRunAutoBugItem {
@@ -452,6 +462,7 @@ export interface StorageCleanupPreviewItem {
   deletable_count: number
   blocked_count: number
   orphan_reference_count: number
+  size_evicted_count?: number
   deletable_objects: StorageObjectPreviewItem[]
   blocked_objects: StorageObjectPreviewItem[]
   orphan_references: StorageReferenceItem[]

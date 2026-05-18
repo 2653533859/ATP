@@ -57,18 +57,24 @@ def test_cleanup_expired_files_iterates_active_policies(monkeypatch):
     from app.services.storage_cleanup import PolicyEntry
 
     policies = [
-        PolicyEntry(prefix="screenshots/", retention_days=15),
-        PolicyEntry(prefix="reports/", retention_days=60),
+        PolicyEntry(prefix="screenshots/", retention_days=15, max_size_gb=None),
+        PolicyEntry(prefix="reports/", retention_days=60, max_size_gb=2.0),
     ]
     monkeypatch.setattr(tasks_cleanup, "load_active_policies", lambda _: policies)
 
     preview_calls = []
     execute_calls = []
 
-    def fake_preview(current_session, *, prefixes, retention_days):
-        preview_calls.append({"prefixes": list(prefixes), "retention_days": retention_days})
+    def fake_preview(current_session, *, policies):
+        policy = policies[0]
+        preview_calls.append({
+            "prefix": policy.prefix,
+            "retention_days": policy.retention_days,
+            "max_size_gb": policy.max_size_gb,
+        })
         return types.SimpleNamespace(
-            deletable_objects=[types.SimpleNamespace(object_name=f"{prefixes[0]}a.bin")]
+            deletable_objects=[types.SimpleNamespace(object_name=f"{policy.prefix}a.bin")],
+            size_evicted_count=1 if policy.max_size_gb else 0,
         )
 
     def fake_execute(current_session, *, object_names, repair_orphan_references):
@@ -82,10 +88,10 @@ def test_cleanup_expired_files_iterates_active_policies(monkeypatch):
 
     result = tasks_cleanup.cleanup_expired_files()
 
-    assert result == {"deleted": 2, "policies": 2}
+    assert result == {"deleted": 2, "size_evicted": 1, "policies": 2}
     assert preview_calls == [
-        {"prefixes": ["screenshots/"], "retention_days": 15},
-        {"prefixes": ["reports/"], "retention_days": 60},
+        {"prefix": "screenshots/", "retention_days": 15, "max_size_gb": None},
+        {"prefix": "reports/", "retention_days": 60, "max_size_gb": 2.0},
     ]
     assert all(item["repair_orphan_references"] for item in execute_calls)
     assert session.closed is True
@@ -104,19 +110,25 @@ def test_cleanup_expired_files_falls_back_to_defaults_when_no_policy(monkeypatch
     )
     monkeypatch.setattr(tasks_cleanup, "load_active_policies", lambda _: [])
 
-    retentions = []
+    fallback_prefixes = []
 
-    def fake_preview(current_session, *, prefixes, retention_days):
-        retentions.append((tuple(prefixes), retention_days))
-        return types.SimpleNamespace(deletable_objects=[])
+    def fake_preview(current_session, *, policies):
+        policy = policies[0]
+        fallback_prefixes.append(policy.prefix)
+        assert policy.retention_days == 30
+        assert policy.max_size_gb is None
+        return types.SimpleNamespace(deletable_objects=[], size_evicted_count=0)
 
     monkeypatch.setattr(tasks_cleanup, "preview_storage_cleanup", fake_preview)
 
     result = tasks_cleanup.cleanup_expired_files()
 
-    assert result == {"deleted": 0, "policies": len(tasks_cleanup.DEFAULT_CLEANUP_PREFIXES)}
-    assert all(item[1] == 30 for item in retentions)
-    assert {item[0][0] for item in retentions} == set(tasks_cleanup.DEFAULT_CLEANUP_PREFIXES)
+    assert result == {
+        "deleted": 0,
+        "size_evicted": 0,
+        "policies": len(tasks_cleanup.DEFAULT_CLEANUP_PREFIXES),
+    }
+    assert set(fallback_prefixes) == set(tasks_cleanup.DEFAULT_CLEANUP_PREFIXES)
 
 
 def test_cleanup_stale_pending_runs_skip_when_disabled(monkeypatch):

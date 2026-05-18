@@ -11,6 +11,7 @@ from app.core.config import settings
 from app.models.bootstrap import load_all_models
 from app.services.storage_cleanup import (
     DEFAULT_CLEANUP_PREFIXES,
+    PolicyEntry,
     execute_storage_cleanup,
     load_active_policies,
     preview_storage_cleanup,
@@ -25,7 +26,11 @@ _STALE_PENDING_ERROR = (
 
 @celery_app.task(name="cleanup_expired_files")
 def cleanup_expired_files():
-    """按启用的 StoragePolicy 删除 MinIO 中过期且未被引用的对象。"""
+    """按启用的 StoragePolicy 删除 MinIO 中过期且未被引用的对象。
+
+    每条 policy 独立预览/执行：retention_days 与 max_size_gb 取并集，由
+    ``preview_storage_cleanup`` 统一计算淘汰对象集合。
+    """
     from app.core.database import sync_session_factory
 
     load_all_models()
@@ -33,17 +38,15 @@ def cleanup_expired_files():
     try:
         policies = load_active_policies(session)
         if not policies:
-            policies_repr = [(prefix, settings.FILE_RETENTION_DAYS) for prefix in DEFAULT_CLEANUP_PREFIXES]
-        else:
-            policies_repr = [(p.prefix, p.retention_days) for p in policies]
+            policies = [
+                PolicyEntry(prefix=prefix, retention_days=settings.FILE_RETENTION_DAYS, max_size_gb=None)
+                for prefix in DEFAULT_CLEANUP_PREFIXES
+            ]
 
         total_deleted = 0
-        for prefix, retention_days in policies_repr:
-            preview = preview_storage_cleanup(
-                session,
-                prefixes=[prefix],
-                retention_days=retention_days,
-            )
+        total_size_evicted = 0
+        for policy in policies:
+            preview = preview_storage_cleanup(session, policies=[policy])
             if not preview.deletable_objects:
                 continue
             result = execute_storage_cleanup(
@@ -52,19 +55,31 @@ def cleanup_expired_files():
                 repair_orphan_references=True,
             )
             total_deleted += result.deleted_count
+            total_size_evicted += preview.size_evicted_count
             logger.info(
-                "Cleanup prefix=%s retention=%d deleted=%d",
-                prefix,
-                retention_days,
+                "Cleanup prefix=%s retention=%d max_size_gb=%s deleted=%d size_evicted=%d",
+                policy.prefix,
+                policy.retention_days,
+                policy.max_size_gb,
                 result.deleted_count,
+                preview.size_evicted_count,
             )
 
-        logger.info("Cleanup finished: deleted %d expired files across %d policies", total_deleted, len(policies_repr))
-        return {"deleted": total_deleted, "policies": len(policies_repr)}
+        logger.info(
+            "Cleanup finished: deleted %d expired files (size-evicted %d) across %d policies",
+            total_deleted,
+            total_size_evicted,
+            len(policies),
+        )
+        return {
+            "deleted": total_deleted,
+            "size_evicted": total_size_evicted,
+            "policies": len(policies),
+        }
     except Exception:
         session.rollback()
         logger.exception("Expired file cleanup task failed")
-        return {"deleted": 0, "policies": 0}
+        return {"deleted": 0, "size_evicted": 0, "policies": 0}
     finally:
         session.close()
 

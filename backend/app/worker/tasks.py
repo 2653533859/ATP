@@ -66,6 +66,45 @@ def _suite_run_should_stop(counts: dict, total: int, fail_strategy: str, min_pas
     return (max_possible_passed / total) < min_pass_rate
 
 
+def _normalize_plan_config(config: dict | None) -> dict:
+    """与 _normalize_suite_config 一致的结构，但默认 max_workers=3
+    （计划内套件数通常远少于套件内用例数）。"""
+    raw = config if isinstance(config, dict) else {}
+    execution_mode = raw.get("execution_mode")
+    if execution_mode not in {"sequential", "parallel"}:
+        execution_mode = "sequential"
+
+    max_workers = raw.get("max_workers", 3)
+    try:
+        max_workers = int(max_workers)
+    except (TypeError, ValueError):
+        max_workers = 3
+    max_workers = max(1, min(max_workers, 10))
+
+    fail_strategy = raw.get("fail_strategy")
+    if fail_strategy not in {"fast-fail", "continue", "require-minimum-pass-rate"}:
+        fail_strategy = "continue"
+
+    min_pass_rate = raw.get("min_pass_rate", 0.8)
+    try:
+        min_pass_rate = float(min_pass_rate)
+    except (TypeError, ValueError):
+        min_pass_rate = 0.8
+    min_pass_rate = max(0.0, min(min_pass_rate, 1.0))
+
+    return {
+        "execution_mode": execution_mode,
+        "max_workers": max_workers,
+        "fail_strategy": fail_strategy,
+        "min_pass_rate": min_pass_rate,
+    }
+
+
+def _plan_run_should_stop(counts: dict, total: int, fail_strategy: str, min_pass_rate: float) -> bool:
+    """plan 级停止策略，逻辑与 _suite_run_should_stop 一致。"""
+    return _suite_run_should_stop(counts, total, fail_strategy, min_pass_rate)
+
+
 async def _create_case_run(db, suite_run, case_id: int):
     from app.models.case import TestRun, RunStatus
 
@@ -309,7 +348,7 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict, trace_id: str | No
 
 @celery_app.task(bind=True, name="run_test_plan")
 def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None = None):
-    """测试计划执行入口：按顺序依次执行计划内所有套件"""
+    """测试计划执行入口：按配置顺序或分批并发执行计划内所有套件"""
     from app.core.database import AsyncSessionLocal
     from app.models.plan import TestPlan, PlanRun, PlanRunStatus
     from app.models.suite import TestSuite, SuiteRun, SuiteRunStatus
@@ -340,65 +379,80 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                 await db.commit()
 
                 total_start = time.monotonic()
+                plan_config = _normalize_plan_config(plan.config)
                 suite_items = sorted(plan.suite_ids or [], key=lambda x: x.get("sort", 0))
+                total_suites = len(suite_items)
                 suite_run_results: list[dict] = []
                 counts = {"total": 0, "passed": 0, "failed": 0, "error": 0}
+                plan_meta = {
+                    "triggered_by": plan_run.triggered_by,
+                    "creator_id": plan.creator_id,
+                    "trace_id": plan_run.trace_id,
+                }
 
-                for item in suite_items:
-                    suite_id = item.get("suite_id")
-                    if not suite_id:
-                        continue
-
-                    suite = await db.get(TestSuite, suite_id)
-                    if not suite:
-                        suite_run_results.append({
-                            "suite_id": suite_id, "suite_run_id": None,
-                            "status": "error", "error": "套件不存在",
-                        })
-                        counts["error"] += 1
-                        counts["total"] += 1
-                        continue
-
-                    suite_run = SuiteRun(
-                        suite_id=suite_id,
-                        triggered_by=(
-                            plan_run.triggered_by
-                            if plan_run.triggered_by is not None
-                            else plan.creator_id
-                        ),
-                        trace_id=plan_run.trace_id,
-                        status=SuiteRunStatus.pending,
-                    )
-                    db.add(suite_run)
-                    await db.commit()
-                    await db.refresh(suite_run)
-
-                    try:
-                        await _execute_suite_inline(db, suite_run, suite, extra_vars)
-                    except Exception as e:
-                        logger.exception(f"Plan suite {suite_id} run failed: {e}")
-                        suite_run.status = SuiteRunStatus.error
-                        suite_run.error_message = str(e)[:500]
-                        await db.commit()
-
-                    await db.refresh(suite_run)
-                    status_str = suite_run.status.value
-                    suite_run_results.append({
-                        "suite_id": suite_id,
-                        "suite_name": suite.name,
-                        "suite_run_id": suite_run.id,
-                        "status": status_str,
-                    })
+                def _accumulate(result: dict) -> bool:
+                    """累计单个 suite 执行结果，返回是否应当提前停止。"""
+                    suite_run_results.append(result)
+                    status_str = result.get("status", "error")
                     counts["total"] += 1
                     if status_str in counts:
                         counts[status_str] += 1
+                    return _plan_run_should_stop(
+                        counts,
+                        total_suites,
+                        plan_config["fail_strategy"],
+                        plan_config["min_pass_rate"],
+                    )
+
+                valid_items = [item for item in suite_items if item.get("suite_id")]
+
+                if plan_config["execution_mode"] == "parallel" and len(valid_items) > 1:
+                    stopped = False
+                    for start in range(0, len(valid_items), plan_config["max_workers"]):
+                        batch = valid_items[start:start + plan_config["max_workers"]]
+                        batch_results = await asyncio.gather(*(
+                            _execute_plan_suite(
+                                plan_meta=plan_meta,
+                                suite_id=item["suite_id"],
+                                extra_vars=extra_vars,
+                            )
+                            for item in batch
+                        ))
+                        for result in batch_results:
+                            if _accumulate(result):
+                                stopped = True
+                                break
+                        if stopped:
+                            break
+                else:
+                    for item in valid_items:
+                        result = await _execute_plan_suite(
+                            plan_meta=plan_meta,
+                            suite_id=item["suite_id"],
+                            extra_vars=extra_vars,
+                        )
+                        if _accumulate(result):
+                            break
+
+                # 早停或并发批次结束后剩余未执行的 suite 标记为 skipped
+                executed_suite_ids = {r.get("suite_id") for r in suite_run_results}
+                for item in valid_items:
+                    suite_id = item["suite_id"]
+                    if suite_id in executed_suite_ids:
+                        continue
+                    suite_run_results.append({
+                        "suite_id": suite_id,
+                        "suite_run_id": None,
+                        "status": "skipped",
+                        "error": "已根据计划失败策略提前停止",
+                    })
 
                 total_ms = int((time.monotonic() - total_start) * 1000)
                 all_passed = counts["failed"] == 0 and counts["error"] == 0
                 plan_run.status = PlanRunStatus.passed if all_passed else PlanRunStatus.failed
                 plan_run.duration_ms = total_ms
                 plan_run.suite_run_ids = suite_run_results
-                plan_run.result_summary = counts
+                plan_run.result_summary = {**counts, **plan_config}
 
                 if plan.auto_create_bugs and suite_run_results:
                     try:
@@ -479,10 +533,10 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                                         "duplicate": False,
                                         "attachment_uploaded": attachment_uploaded,
                                     })
-                        plan_run.result_summary = {**counts, "auto_bugs": bug_results}
+                        plan_run.result_summary = {**counts, **plan_config, "auto_bugs": bug_results}
                     except Exception as e:
                         logger.warning(f"Auto create bugs for plan failed: {e}")
-                        plan_run.result_summary = {**counts, "auto_bugs_error": str(e)[:500]}
+                        plan_run.result_summary = {**counts, **plan_config, "auto_bugs_error": str(e)[:500]}
 
                 plan.last_run_at = datetime.now(timezone.utc)
                 if plan.schedule_type.value == "cron" and plan.cron_expression:
@@ -526,6 +580,61 @@ async def _execute_suite_inline(db, suite_run, suite, extra_vars):
     await _execute_suite_cases(db, suite_run, suite, extra_vars)
     suite_run.duration_ms = int((time.monotonic() - total_start) * 1000)
     await db.commit()
+
+
+async def _execute_plan_suite(
+    *,
+    plan_meta: dict,
+    suite_id: int,
+    extra_vars: dict,
+) -> dict:
+    """plan 内单个 suite 的独立执行入口。
+
+    每次调用使用独立的 ``AsyncSessionLocal``，便于在 plan 并发模式下安全并行
+    多个 suite。``plan_meta`` 必须包含 ``triggered_by`` / ``creator_id`` / ``trace_id``。
+    """
+    from app.core.database import AsyncSessionLocal
+    from app.models.suite import TestSuite, SuiteRun, SuiteRunStatus
+
+    async with AsyncSessionLocal() as db:
+        suite = await db.get(TestSuite, suite_id)
+        if not suite:
+            return {
+                "suite_id": suite_id,
+                "suite_run_id": None,
+                "status": "error",
+                "error": "套件不存在",
+            }
+
+        triggered_by = plan_meta.get("triggered_by")
+        if triggered_by is None:
+            triggered_by = plan_meta.get("creator_id")
+
+        suite_run = SuiteRun(
+            suite_id=suite_id,
+            triggered_by=triggered_by,
+            trace_id=plan_meta.get("trace_id"),
+            status=SuiteRunStatus.pending,
+        )
+        db.add(suite_run)
+        await db.commit()
+        await db.refresh(suite_run)
+
+        try:
+            await _execute_suite_inline(db, suite_run, suite, extra_vars)
+        except Exception as exc:
+            logger.exception(f"Plan suite {suite_id} run failed: {exc}")
+            suite_run.status = SuiteRunStatus.error
+            suite_run.error_message = str(exc)[:500]
+            await db.commit()
+
+        await db.refresh(suite_run)
+        return {
+            "suite_id": suite_id,
+            "suite_name": suite.name,
+            "suite_run_id": suite_run.id,
+            "status": suite_run.status.value,
+        }
 
 
 @celery_app.task(name="check_cron_plans")

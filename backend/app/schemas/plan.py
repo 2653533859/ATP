@@ -18,6 +18,7 @@ class TestPlanCreate(BaseModel):
     is_enabled: bool = True
     auto_create_bugs: bool = False
     env_id: int | None = None
+    config: dict = Field(default_factory=dict)
 
 
 class TestPlanUpdate(BaseModel):
@@ -30,6 +31,7 @@ class TestPlanUpdate(BaseModel):
     auto_create_bugs: bool | None = None
     env_id: int | None = None
     status: PlanStatus | None = None
+    config: dict | None = None
 
 
 class TestPlanOut(BaseModel):
@@ -46,6 +48,7 @@ class TestPlanOut(BaseModel):
     is_enabled: bool
     auto_create_bugs: bool
     env_id: int | None
+    config: dict = Field(default_factory=dict)
     last_run_at: datetime | None
     next_run_at: datetime | None
     created_at: datetime

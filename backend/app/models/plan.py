@@ -56,6 +56,13 @@ class TestPlan(Base, TimestampMixin):
     # 环境配置
     env_id: Mapped[int | None] = mapped_column(ForeignKey("environments.id"))
 
+    # 执行配置（与 TestSuite.config 一致风格）
+    # 结构: {"execution_mode": "sequential" | "parallel",
+    #         "max_workers": 3,
+    #         "fail_strategy": "fast-fail" | "continue" | "require-minimum-pass-rate",
+    #         "min_pass_rate": 0.8}
+    config: Mapped[dict] = mapped_column(JSON, default=dict)
+
     # 调度元数据
     last_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     next_run_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

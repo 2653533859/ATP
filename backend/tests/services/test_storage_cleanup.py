@@ -362,3 +362,108 @@ def test_execute_storage_cleanup_does_not_count_delete_failures_as_referenced_sk
     assert result.skipped_objects == ["screenshots/runs/1/delete-fail.png"]
     assert result.missing_count == 0
     assert session.commit_calls == 1
+
+
+def test_select_size_eviction_returns_empty_when_under_limit():
+    now = datetime(2026, 5, 18, tzinfo=timezone.utc)
+    objects = [
+        ("a", now - timedelta(days=2), 1024 ** 3),
+        ("b", now - timedelta(days=1), 1024 ** 3),
+    ]
+
+    # 总量 2GB，上限 5GB，无需淘汰
+    assert storage_cleanup._select_size_eviction(objects, 5 * 1024 ** 3) == set()
+
+
+def test_select_size_eviction_returns_empty_when_max_zero():
+    now = datetime(2026, 5, 18, tzinfo=timezone.utc)
+    objects = [("a", now, 1024 ** 3)]
+
+    assert storage_cleanup._select_size_eviction(objects, 0) == set()
+
+
+def test_select_size_eviction_picks_oldest_first():
+    base = datetime(2026, 5, 18, tzinfo=timezone.utc)
+    objects = [
+        ("newest", base - timedelta(days=1), 1024 ** 3),
+        ("oldest", base - timedelta(days=10), 1024 ** 3),
+        ("middle", base - timedelta(days=5), 1024 ** 3),
+    ]
+
+    # 总量 3GB，上限 1GB → 需要淘汰 2GB（两个最旧的）
+    evicted = storage_cleanup._select_size_eviction(objects, 1 * 1024 ** 3)
+    assert evicted == {"oldest", "middle"}
+
+
+def test_preview_storage_cleanup_evicts_when_size_exceeds_max(monkeypatch):
+    now = datetime(2026, 5, 18, tzinfo=timezone.utc)
+    new = now - timedelta(days=1)  # 在 retention 范围内
+    older = now - timedelta(days=5)
+
+    monkeypatch.setattr(storage_cleanup.settings, "FILE_RETENTION_DAYS", 30)
+    monkeypatch.setattr(
+        storage_cleanup.minio_client,
+        "list_objects",
+        lambda prefix: {
+            "screenshots/": [
+                _FakeObject("screenshots/keep.png", new, size=512 * 1024 ** 2),
+                _FakeObject("screenshots/evict-1.png", older, size=512 * 1024 ** 2),
+                _FakeObject("screenshots/evict-2.png", older - timedelta(days=1), size=512 * 1024 ** 2),
+            ],
+        }.get(prefix, []),
+    )
+    monkeypatch.setattr(storage_cleanup, "_cutoff", lambda retention_days=None: now - timedelta(days=30))
+
+    # 3 个对象总 1.5GB，max_size_gb=0.5 → 需要淘汰 1GB（最旧的 2 个）
+    policy = storage_cleanup.PolicyEntry(prefix="screenshots/", retention_days=30, max_size_gb=0.5)
+    responses = [[], [], [], [], [], []]
+    session = _FakeSession(responses=responses)
+
+    result = storage_cleanup.preview_storage_cleanup(session, policies=[policy])
+
+    assert result.size_evicted_count == 2
+    assert result.expired_object_count == 0  # 都在 retention 内
+    deletable_names = {item.object_name for item in result.deletable_objects}
+    assert deletable_names == {"screenshots/evict-1.png", "screenshots/evict-2.png"}
+
+
+def test_preview_storage_cleanup_unions_retention_and_size_eviction(monkeypatch):
+    now = datetime(2026, 5, 18, tzinfo=timezone.utc)
+    expired = now - timedelta(days=40)  # 超 retention
+    fresh = now - timedelta(days=1)
+
+    monkeypatch.setattr(storage_cleanup.settings, "FILE_RETENTION_DAYS", 30)
+    monkeypatch.setattr(
+        storage_cleanup.minio_client,
+        "list_objects",
+        lambda prefix: {
+            "screenshots/": [
+                _FakeObject("screenshots/expired.png", expired, size=100 * 1024 ** 2),
+                _FakeObject("screenshots/fresh-big-a.png", fresh, size=600 * 1024 ** 2),
+                _FakeObject("screenshots/fresh-big-b.png", fresh - timedelta(hours=1), size=600 * 1024 ** 2),
+            ],
+        }.get(prefix, []),
+    )
+    monkeypatch.setattr(storage_cleanup, "_cutoff", lambda retention_days=None: now - timedelta(days=30))
+
+    # expired.png 因 retention 淘汰；fresh-big-* 总 1.2GB > max 0.5GB → fresh-big-b 是最旧加入 size eviction
+    policy = storage_cleanup.PolicyEntry(prefix="screenshots/", retention_days=30, max_size_gb=0.5)
+    responses = [[], [], [], [], [], []]
+    session = _FakeSession(responses=responses)
+
+    result = storage_cleanup.preview_storage_cleanup(session, policies=[policy])
+
+    deletable_names = {item.object_name for item in result.deletable_objects}
+    # expired 因 retention 淘汰；fresh-big-a 不该被淘汰（最新的且未超过 retention 与 size 综合后）；fresh-big-b 因 size eviction 淘汰
+    # 单单 size eviction：max_size_bytes = 0.5GB ≈ 537MB；total = 100+600+600 = 1300MB
+    # 按 last_modified 升序排：expired(40d) → fresh-big-b(1d-1h) → fresh-big-a(1d)
+    # 累计：expired 100MB → total 1200，仍 > 537 → fresh-big-b 600MB → total 600，仍 > 537 → fresh-big-a 600 → total 0 ≤ 537 stop
+    # 所以 size_evicted = {expired, fresh-big-b, fresh-big-a}（但 expired 也已经在 retention 集合）
+    # 并集 = {expired, fresh-big-a, fresh-big-b}
+    assert deletable_names == {
+        "screenshots/expired.png",
+        "screenshots/fresh-big-a.png",
+        "screenshots/fresh-big-b.png",
+    }
+    assert result.expired_object_count == 1
+    assert result.size_evicted_count == 3  # 包含 expired 也参与了 size eviction

@@ -34,20 +34,31 @@ DEFAULT_CLEANUP_PREFIXES = ("screenshots/", "reports/", "apks/", "scripts/")
 class PolicyEntry:
     prefix: str
     retention_days: int
+    max_size_gb: float | None = None
 
 
 def load_active_policies(session: Session) -> list[PolicyEntry]:
     rows = session.execute(
-        select(StoragePolicy.prefix, StoragePolicy.retention_days).where(StoragePolicy.enabled.is_(True))
+        select(
+            StoragePolicy.prefix,
+            StoragePolicy.retention_days,
+            StoragePolicy.max_size_gb,
+        ).where(StoragePolicy.enabled.is_(True))
     ).all()
     entries: list[PolicyEntry] = []
-    for prefix, retention in rows:
+    for prefix, retention, max_size_gb in rows:
         normalized = (prefix or "").strip().lstrip("/")
         if not normalized:
             continue
         if not normalized.endswith("/"):
             normalized = f"{normalized}/"
-        entries.append(PolicyEntry(prefix=normalized, retention_days=int(retention)))
+        entries.append(
+            PolicyEntry(
+                prefix=normalized,
+                retention_days=int(retention),
+                max_size_gb=float(max_size_gb) if max_size_gb is not None else None,
+            )
+        )
     return entries
 
 
@@ -237,33 +248,75 @@ def preview_storage_cleanup(
     *,
     prefixes: Iterable[str] | None = None,
     retention_days: int | None = None,
+    policies: Iterable[PolicyEntry] | None = None,
 ) -> StorageCleanupPreviewOut:
-    normalized_prefixes = _normalize_prefixes(prefixes)
-    effective_retention_days = retention_days or settings.FILE_RETENTION_DAYS
-    cutoff = _cutoff(retention_days)
+    """生成清理预览。
+
+    支持两种调用模式：
+    - 旧模式：传 ``prefixes`` + ``retention_days``，所有 prefix 用同一 retention 阈值
+    - 新模式：传 ``policies``（每个 prefix 独立 retention，且可设 ``max_size_gb`` 总量上限）
+
+    新模式下 size 淘汰策略：单 prefix 内对象按 last_modified 升序累加 size，
+    超出 ``max_size_gb`` 的最旧若干个会被加入淘汰集合（与 retention 取并集）。
+    """
+    policy_list = list(policies) if policies is not None else None
+
+    if policy_list:
+        normalized_prefixes = [entry.prefix for entry in policy_list]
+        retention_by_prefix: dict[str, int] = {
+            entry.prefix: entry.retention_days for entry in policy_list
+        }
+        max_size_by_prefix: dict[str, float | None] = {
+            entry.prefix: entry.max_size_gb for entry in policy_list
+        }
+        effective_retention_days = max(retention_by_prefix.values()) if retention_by_prefix else (
+            retention_days or settings.FILE_RETENTION_DAYS
+        )
+    else:
+        normalized_prefixes = _normalize_prefixes(prefixes)
+        effective_retention_days = retention_days or settings.FILE_RETENTION_DAYS
+        retention_by_prefix = {p: effective_retention_days for p in normalized_prefixes}
+        max_size_by_prefix = {p: None for p in normalized_prefixes}
 
     objects_by_name: dict[str, datetime | None] = {}
+    objects_by_prefix: dict[str, list[tuple[str, datetime | None, int]]] = {}
     scanned_object_count = 0
     for prefix in normalized_prefixes:
+        bucket: list[tuple[str, datetime | None, int]] = []
         for obj in minio_client.list_objects(prefix=prefix):
             scanned_object_count += 1
-            objects_by_name[obj.object_name] = getattr(obj, "last_modified", None)
+            last_modified = getattr(obj, "last_modified", None)
+            size = int(getattr(obj, "size", 0) or 0)
+            objects_by_name[obj.object_name] = last_modified
+            bucket.append((obj.object_name, last_modified, size))
+        objects_by_prefix[prefix] = bucket
 
     references = collect_db_references(session)
     refs_by_object: dict[str, list[ObjectReference]] = {}
     for ref in references:
         refs_by_object.setdefault(ref.object_name, []).append(ref)
 
+    expired_names: set[str] = set()
+    size_evicted_names: set[str] = set()
+    for prefix, bucket in objects_by_prefix.items():
+        prefix_retention = retention_by_prefix.get(prefix, effective_retention_days)
+        cutoff = _cutoff(prefix_retention)
+        for object_name, last_modified, _size in bucket:
+            if last_modified is None or last_modified < cutoff:
+                expired_names.add(object_name)
+
+        max_gb = max_size_by_prefix.get(prefix)
+        if max_gb and max_gb > 0:
+            size_evicted_names.update(_select_size_eviction(bucket, int(max_gb * (1024 ** 3))))
+
+    candidate_names = expired_names | size_evicted_names
+
     deletable_objects: list[StorageObjectPreviewItem] = []
     blocked_objects: list[StorageObjectPreviewItem] = []
-    expired_object_count = 0
-    for object_name, last_modified in objects_by_name.items():
-        if last_modified and last_modified >= cutoff:
-            continue
-        expired_object_count += 1
+    for object_name in candidate_names:
         item = StorageObjectPreviewItem(
             object_name=object_name,
-            last_modified=last_modified,
+            last_modified=objects_by_name.get(object_name),
             referenced_by_count=len(refs_by_object.get(object_name, [])),
         )
         if item.referenced_by_count:
@@ -281,14 +334,41 @@ def preview_storage_cleanup(
         prefixes=normalized_prefixes,
         retention_days=effective_retention_days,
         scanned_object_count=scanned_object_count,
-        expired_object_count=expired_object_count,
+        expired_object_count=len(expired_names),
         deletable_count=len(deletable_objects),
         blocked_count=len(blocked_objects),
         orphan_reference_count=len(orphan_references),
+        size_evicted_count=len(size_evicted_names),
         deletable_objects=sorted(deletable_objects, key=lambda item: item.object_name),
         blocked_objects=sorted(blocked_objects, key=lambda item: item.object_name),
         orphan_references=orphan_references,
     )
+
+
+def _select_size_eviction(
+    objects: list[tuple[str, datetime | None, int]],
+    max_size_bytes: int,
+) -> set[str]:
+    """对单 prefix 内对象按 last_modified 升序，累计删除最旧的直到总量 ≤ max_size_bytes。"""
+    if max_size_bytes <= 0 or not objects:
+        return set()
+
+    total = sum(size for _name, _ts, size in objects)
+    if total <= max_size_bytes:
+        return set()
+
+    # 没有 last_modified 的视为最旧
+    sorted_objs = sorted(
+        objects,
+        key=lambda x: x[1] or datetime.min.replace(tzinfo=timezone.utc),
+    )
+    evicted: set[str] = set()
+    for name, _ts, size in sorted_objs:
+        if total <= max_size_bytes:
+            break
+        evicted.add(name)
+        total -= size
+    return evicted
 
 
 def _repair_reference(session: Session, ref: ObjectReference) -> bool:
