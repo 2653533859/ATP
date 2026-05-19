@@ -1,13 +1,13 @@
 <template>
   <div>
-    <a-page-header title="执行详情" @back="router.back()">
+    <a-page-header :title="t('run.detail_title')" @back="router.back()">
       <template #extra>
         <a-space>
           <a-button size="small" :loading="exportingHtml" @click="handleExportHtml">
-            <FileTextOutlined /> {{ exportingHtml ? '生成中...' : '导出 HTML' }}
+            <FileTextOutlined /> {{ exportingHtml ? t('run.generating') : t('run.export_html') }}
           </a-button>
           <a-button size="small" :loading="exportingPdf" @click="handleExportPdf">
-            <FilePdfOutlined /> {{ exportingPdf ? '正在生成 PDF...' : '导出 PDF' }}
+            <FilePdfOutlined /> {{ exportingPdf ? t('run.generating_pdf') : t('run.export_pdf') }}
           </a-button>
           <a-button
             v-if="canCreateBug && run && (run.status === 'failed' || run.status === 'error')"
@@ -16,7 +16,7 @@
             danger
             @click="openBugModal"
           >
-            <BugOutlined /> 创建缺陷
+            <BugOutlined /> {{ t('run.create_bug') }}
           </a-button>
           <a-tag v-if="run" :color="statusColor(run.status)" style="font-size: 14px">
             {{ run.status }}
@@ -30,56 +30,56 @@
       <template v-if="run">
         <!-- 基本信息 -->
         <a-descriptions bordered :column="4" size="small" style="margin-bottom: 24px">
-          <a-descriptions-item label="执行 ID">{{ run.id }}</a-descriptions-item>
-          <a-descriptions-item label="用例 ID">{{ run.case_id }}</a-descriptions-item>
-          <a-descriptions-item label="Trace ID" :span="2">
+          <a-descriptions-item :label="t('run.labels.run_id')">{{ run.id }}</a-descriptions-item>
+          <a-descriptions-item :label="t('run.labels.case_id')">{{ run.case_id }}</a-descriptions-item>
+          <a-descriptions-item :label="t('run.labels.trace_id')" :span="2">
             <code>{{ run.trace_id || '-' }}</code>
           </a-descriptions-item>
-          <a-descriptions-item label="环境">{{ run.environment ?? '-' }}</a-descriptions-item>
-          <a-descriptions-item label="耗时">
-            {{ run.duration_ms != null ? `${run.duration_ms} ms` : (isRunning ? '执行中...' : '-') }}
+          <a-descriptions-item :label="t('run.labels.environment')">{{ run.environment ?? '-' }}</a-descriptions-item>
+          <a-descriptions-item :label="t('run.labels.duration')">
+            {{ run.duration_ms != null ? `${run.duration_ms} ms` : (isRunning ? t('common.running') : '-') }}
           </a-descriptions-item>
-          <a-descriptions-item label="触发时间" :span="2">
+          <a-descriptions-item :label="t('run.labels.triggered_at')" :span="2">
             {{ run.created_at?.slice(0, 19).replace('T', ' ') }}
           </a-descriptions-item>
-          <a-descriptions-item v-if="run.error_message" label="错误信息" :span="2">
+          <a-descriptions-item v-if="run.error_message" :label="t('run.labels.error_message')" :span="2">
             <span style="color: #ff4d4f">
               <template v-if="run.error_message.length > 500 && !expandedErrors.has('run')">
                 {{ run.error_message.slice(0, 500) }}...
-                <a-button type="link" size="small" @click="expandedErrors.add('run')">展开全部</a-button>
+                <a-button type="link" size="small" @click="expandedErrors.add('run')">{{ t('run.expand_all') }}</a-button>
               </template>
               <template v-else>
                 {{ run.error_message }}
-                <a-button v-if="run.error_message.length > 500" type="link" size="small" @click="expandedErrors.delete('run')">收起</a-button>
+                <a-button v-if="run.error_message.length > 500" type="link" size="small" @click="expandedErrors.delete('run')">{{ t('run.collapse') }}</a-button>
               </template>
             </span>
           </a-descriptions-item>
-          <a-descriptions-item v-if="bugInfo" label="关联缺陷" :span="2">
+          <a-descriptions-item v-if="bugInfo" :label="t('run.labels.linked_bug')" :span="2">
             <a :href="bugInfo.bug_url" target="_blank">
               <LinkOutlined /> {{ bugInfo.bug_id }}
             </a>
             <span style="margin-left: 8px; color: #666">{{ bugInfo.title }}</span>
             <a-tag v-if="bugInfo.status" style="margin-left: 8px">{{ bugInfo.status }}</a-tag>
-            <a-button size="small" type="link" :loading="bugStatusRefreshing" @click="refreshBugStatus">刷新状态</a-button>
+            <a-button size="small" type="link" :loading="bugStatusRefreshing" @click="refreshBugStatus">{{ t('run.msg.refresh_status') }}</a-button>
           </a-descriptions-item>
         </a-descriptions>
 
         <!-- 步骤统计 -->
         <div class="steps-header">
-          <strong>步骤详情</strong>
+          <strong>{{ t('run.labels.steps') }}</strong>
           <span class="steps-summary">
-            共 {{ steps.length }} 步
+            {{ t('run.summary.total_steps', { count: steps.length }) }}
             <template v-if="stepStats.passed > 0">
-              <span class="stat-passed">{{ stepStats.passed }} 通过</span>
+              <span class="stat-passed">{{ t('run.summary.passed', { count: stepStats.passed }) }}</span>
             </template>
             <template v-if="stepStats.failed > 0">
-              <span class="stat-failed">{{ stepStats.failed }} 失败</span>
+              <span class="stat-failed">{{ t('run.summary.failed', { count: stepStats.failed }) }}</span>
             </template>
             <template v-if="stepStats.error > 0">
-              <span class="stat-error">{{ stepStats.error }} 异常</span>
+              <span class="stat-error">{{ t('run.summary.error', { count: stepStats.error }) }}</span>
             </template>
             <template v-if="stepStats.skipped > 0">
-              <span class="stat-skipped">{{ stepStats.skipped }} 跳过</span>
+              <span class="stat-skipped">{{ t('run.summary.skipped', { count: stepStats.skipped }) }}</span>
             </template>
           </span>
         </div>
@@ -98,14 +98,14 @@
         <!-- 录像播放 -->
         <div v-if="videoUrl" class="video-section">
           <a-divider orientation="left" style="margin: 16px 0 12px">
-            <VideoCameraOutlined /> 执行录像
+            <VideoCameraOutlined /> {{ t('run.labels.video') }}
           </a-divider>
           <video
             :src="videoUrl"
             controls
             class="video-player"
           >
-            您的浏览器不支持 video 标签
+            {{ t('run.no_video_support') }}
           </video>
         </div>
 
@@ -144,11 +144,11 @@
               <template #message>
                 <template v-if="step.error_message.length > 500 && !expandedErrors.has(`step-${step.step_index}`)">
                   {{ step.error_message.slice(0, 500) }}...
-                  <a-button type="link" size="small" @click="expandedErrors.add(`step-${step.step_index}`)">展开全部</a-button>
+                <a-button type="link" size="small" @click="expandedErrors.add(`step-${step.step_index}`)">{{ t('run.expand_all') }}</a-button>
                 </template>
                 <template v-else>
                   {{ step.error_message }}
-                  <a-button v-if="step.error_message.length > 500" type="link" size="small" @click="expandedErrors.delete(`step-${step.step_index}`)">收起</a-button>
+                  <a-button v-if="step.error_message.length > 500" type="link" size="small" @click="expandedErrors.delete(`step-${step.step_index}`)">{{ t('run.collapse') }}</a-button>
                 </template>
               </template>
             </a-alert>
@@ -156,7 +156,7 @@
             <!-- 截图展示 -->
             <div v-if="step.screenshot_url" class="screenshot-section">
               <div class="panel-label">
-                <CameraOutlined /> 截图
+                <CameraOutlined /> {{ t('run.labels.screenshot') }}
               </div>
               <a-image
                 :src="step.screenshot_url"
@@ -170,45 +170,45 @@
             <a-row :gutter="16" style="margin-top: 12px">
               <!-- 请求 -->
               <a-col :span="12">
-                <div class="panel-label">请求</div>
+                <div class="panel-label">{{ t('run.labels.request') }}</div>
                 <pre class="code-block">{{ formatJson(step.request_data) }}</pre>
               </a-col>
               <!-- 响应 -->
               <a-col :span="12">
-                <div class="panel-label">响应</div>
+                <div class="panel-label">{{ t('run.labels.response') }}</div>
                 <pre class="code-block">{{ formatJson(step.response_data) }}</pre>
               </a-col>
             </a-row>
           </a-collapse-panel>
         </a-collapse>
 
-        <a-empty v-else description="暂无步骤数据" :image="Empty.PRESENTED_IMAGE_SIMPLE" />
+        <a-empty v-else :description="t('run.empty_steps')" :image="Empty.PRESENTED_IMAGE_SIMPLE" />
       </template>
     </a-spin>
 
     <!-- 创建缺陷 Modal -->
     <a-modal
       v-model:open="bugModalOpen"
-      title="创建缺陷"
-      ok-text="创建"
-      cancel-text="取消"
+      :title="t('run.create_bug')"
+      :ok-text="t('common.create')"
+      :cancel-text="t('common.cancel')"
       :confirm-loading="bugCreating"
       @ok="confirmCreateBug"
     >
       <a-form layout="vertical">
-        <a-form-item label="缺陷跟踪平台">
+        <a-form-item :label="t('run.bug.tracker')">
           <a-select
             v-model:value="bugTrackerId"
-            placeholder="请选择"
+            :placeholder="t('common.search')"
             style="width: 100%"
             :options="bugTrackerOptions"
             :loading="bugTrackerLoading"
           />
         </a-form-item>
-        <a-form-item label="关联步骤（可选）">
+        <a-form-item :label="t('run.bug.related_step')">
           <a-select
             v-model:value="bugStepIndex"
-            placeholder="不指定（使用 Run 级错误）"
+            :placeholder="t('run.bug.no_step')"
             allow-clear
             style="width: 100%"
           >
@@ -222,11 +222,11 @@
           </a-select>
         </a-form-item>
       </a-form>
-      <a-divider v-if="bugPreviewTitle" style="margin: 12px 0 8px">即将创建的缺陷</a-divider>
+      <a-divider v-if="bugPreviewTitle" style="margin: 12px 0 8px">{{ t('run.bug.preview') }}</a-divider>
       <div v-if="bugPreviewTitle" class="bug-preview">
-        <div class="bug-preview-label">标题</div>
+        <div class="bug-preview-label">{{ t('run.bug.title') }}</div>
         <div class="bug-preview-value">{{ bugPreviewTitle }}</div>
-        <div class="bug-preview-label" style="margin-top: 8px">描述（摘要）</div>
+        <div class="bug-preview-label" style="margin-top: 8px">{{ t('run.bug.desc') }}</div>
         <pre class="bug-preview-value bug-preview-desc">{{ bugPreviewDesc }}</pre>
       </div>
     </a-modal>
@@ -238,12 +238,14 @@ import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
 import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined } from '@ant-design/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { runApi, bugTrackerApi, type BugLinkInfo, type BugTrackerItem, type RunDetailItem, type RunStepItem } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
 
 const router = useRouter()
 const route = useRoute()
+const { t } = useI18n()
 const auth = useAuthStore()
 const runId = Number(route.params.runId)
 
@@ -319,7 +321,7 @@ async function handleExportHtml() {
     downloadBlob(blob, `run-${runId}-report.html`)
   } catch (e: unknown) {
     const messageText = e instanceof Error ? e.message : ''
-    message.error(messageText || '导出 HTML 失败')
+    message.error(messageText || t('run.msg.export_html_failed'))
   } finally {
     exportingHtml.value = false
   }
@@ -331,7 +333,7 @@ async function handleExportPdf() {
     const blob = await runApi.exportPdf(runId)
     downloadBlob(blob, `run-${runId}-report.pdf`)
   } catch (e: any) {
-    message.error(e ?? '导出 PDF 失败')
+    message.error(e ?? t('run.msg.export_pdf_failed'))
   } finally {
     exportingPdf.value = false
   }
@@ -364,29 +366,29 @@ const bugPreviewTitle = computed(() => {
     const step = steps.value.find((s) => s.step_index === bugStepIndex.value)
     if (step?.name) title += ` - ${step.name}`
   }
-  title += ' 执行失败'
+  title += ` ${t('run.bug.title_suffix')}`
   return title
 })
 
 const bugPreviewDesc = computed(() => {
   if (!run.value) return ''
   const lines: string[] = [
-    `来自 ATP 自动化测试平台，执行记录 #${run.value.id}`,
-    `用例: ${caseDisplayName.value}`,
-    `环境: ${run.value.environment || '-'}`,
+    t('run.bug.desc_from', { id: run.value.id }),
+    t('run.bug.desc_case', { name: caseDisplayName.value }),
+    t('run.bug.desc_env', { environment: run.value.environment || '-' }),
   ]
   if (bugStepIndex.value !== undefined) {
     const step = steps.value.find((s) => s.step_index === bugStepIndex.value)
     if (step) {
-      lines.push(`失败步骤: #${step.step_index + 1} ${step.name}`)
+      lines.push(t('run.bug.desc_failed_step', { index: step.step_index + 1, name: step.name }))
       if (step.error_message) {
         const msg = step.error_message.length > 500 ? step.error_message.slice(0, 500) + '...' : step.error_message
-        lines.push(`\n错误信息:\n${msg}`)
+        lines.push(`\n${t('run.bug.desc_error')}\n${msg}`)
       }
     }
   } else if (run.value.error_message) {
     const msg = run.value.error_message.length > 500 ? run.value.error_message.slice(0, 500) + '...' : run.value.error_message
-    lines.push(`\n错误信息:\n${msg}`)
+    lines.push(`\n${t('run.bug.desc_error')}\n${msg}`)
   }
   return lines.join('\n')
 })
@@ -406,7 +408,7 @@ async function openBugModal() {
     bugTrackerOptions.value = trackers
       .filter((t: BugTrackerItem) => t.is_enabled)
       .map((t: BugTrackerItem) => ({
-        label: `${t.name} (${t.tracker_type === 'jira' ? 'Jira' : t.tracker_type === 'github' ? 'GitHub Issues' : '禅道'})`,
+        label: `${t.name} (${t.tracker_type === 'jira' ? 'Jira' : t.tracker_type === 'github' ? 'GitHub Issues' : 'Zentao'})`,
         value: t.id,
       }))
   } catch {
@@ -417,7 +419,7 @@ async function openBugModal() {
 }
 
 async function confirmCreateBug() {
-  if (!bugTrackerId.value) { message.warning('请选择缺陷跟踪平台'); return }
+  if (!bugTrackerId.value) { message.warning(t('run.msg.select_tracker')); return }
   bugCreating.value = true
   try {
     const payload: { tracker_id: number; step_index?: number } = { tracker_id: bugTrackerId.value }
@@ -440,24 +442,24 @@ async function confirmCreateBug() {
       }
     }
     if (result.duplicate_of) {
-      message.warning(`检测到重复缺陷，已返回已有单号: ${result.duplicate_of}`)
+      message.warning(t('run.msg.duplicate_bug', { id: result.duplicate_of }))
     } else if (result.attachment_uploaded) {
-      message.success(`缺陷已创建并上传截图: ${result.bug_id}`)
+      message.success(t('run.msg.bug_created_with_attachment', { id: result.bug_id }))
     } else {
-      message.success(`缺陷已创建: ${result.bug_id}`)
+      message.success(t('run.msg.bug_created', { id: result.bug_id }))
     }
     bugModalOpen.value = false
     window.open(result.bug_url, '_blank')
   } catch (e: any) {
     const msg = typeof e === 'string' ? e : e?.message || ''
     if (msg.includes('401') || msg.includes('认证') || msg.includes('Unauthorized')) {
-      message.error('缺陷平台认证失败，请检查配置中的用户名/密码/Token')
+      message.error(t('run.msg.bug_auth_failed'))
     } else if (msg.includes('timeout') || msg.includes('ETIMEDOUT') || msg.includes('超时')) {
-      message.error('连接缺陷平台超时，请检查网络或平台地址配置')
+      message.error(t('run.msg.bug_timeout'))
     } else if (msg.includes('404') || msg.includes('不存在')) {
-      message.error('缺陷平台项目不存在，请检查配置中的项目标识')
+      message.error(t('run.msg.bug_project_missing'))
     } else {
-      message.error(msg || '创建缺陷失败，请稍后重试')
+      message.error(msg || t('run.msg.create_bug_failed'))
     }
   } finally {
     bugCreating.value = false
@@ -477,10 +479,10 @@ async function refreshBugStatus() {
         bug_url: result.bug_url || bugInfo.value?.bug_url,
       },
     }
-    message.success(`缺陷状态已刷新：${result.status}`)
+    message.success(t('run.msg.bug_status_refreshed', { status: result.status }))
   } catch (e: unknown) {
     const messageText = e instanceof Error ? e.message : typeof e === 'string' ? e : ''
-    message.error(messageText || '刷新缺陷状态失败')
+    message.error(messageText || t('run.msg.refresh_bug_status_failed'))
   } finally {
     bugStatusRefreshing.value = false
   }

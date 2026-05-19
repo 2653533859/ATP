@@ -2,10 +2,10 @@
   <div style="display: flex; flex-direction: column; height: 100%">
     <!-- Header -->
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
-      <h2 style="margin: 0">专项测试任务</h2>
+      <h2 style="margin: 0">{{ t('mobile_special.tasks_title') }}</h2>
       <a-select
         v-model:value="selectedProjectId"
-        placeholder="选择项目"
+        :placeholder="t('mobile_special.select_project')"
         style="width: 220px"
         :options="projectOptions"
         allow-clear
@@ -13,14 +13,14 @@
       />
       <a-select
         v-model:value="selectedTaskType"
-        placeholder="任务类型"
+        :placeholder="t('mobile_special.task_type')"
         style="width: 140px"
         :options="taskTypeOptions"
         allow-clear
         @change="loadTasks"
       />
       <a-button type="primary" :disabled="!selectedProjectId" @click="openCreate">
-        新建任务
+        {{ t('mobile_special.new_task') }}
       </a-button>
     </div>
 
@@ -40,17 +40,17 @@
           </template>
           <template v-else-if="column.key === 'schedule_enabled'">
             <a-tag :color="record.schedule_enabled ? 'green' : 'default'">
-              {{ record.schedule_enabled ? '已启用' : '未启用' }}
+              {{ record.schedule_enabled ? t('mobile_special.enabled') : t('mobile_special.not_enabled') }}
             </a-tag>
           </template>
           <template v-else-if="column.key === 'last_run_at'">
             {{ record.last_run_at ? formatDate(record.last_run_at) : '-' }}
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-button type="primary" size="small" @click="triggerRun(record)">执行</a-button>
-            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-            <a-popconfirm title="确认删除此任务？" @confirm="handleDelete(record.id)">
-              <a-button type="link" size="small" danger>删除</a-button>
+            <a-button type="primary" size="small" @click="triggerRun(record)">{{ t('mobile_special.execute') }}</a-button>
+            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+            <a-popconfirm :title="t('mobile_special.confirm_delete_task')" @confirm="handleDelete(record.id)">
+              <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
             </a-popconfirm>
           </template>
         </template>
@@ -60,102 +60,102 @@
     <!-- Create/Edit Drawer -->
     <a-drawer
       v-model:open="drawerVisible"
-      :title="editingTask ? '编辑专项任务' : '新建专项任务'"
+      :title="editingTask ? t('mobile_special.edit_task') : t('mobile_special.new_task_full')"
       width="560"
       @close="resetForm"
     >
       <a-form :label-col="{ span: 6 }" layout="horizontal">
-        <a-form-item label="任务名称" required>
-          <a-input v-model:value="form.name" placeholder="如：性能摸底测试" />
+        <a-form-item :label="t('mobile_special.form.name')" required>
+          <a-input v-model:value="form.name" :placeholder="t('mobile_special.form.name_placeholder')" />
         </a-form-item>
 
-        <a-form-item label="任务类型" required>
-          <a-select v-model:value="form.task_type" placeholder="选择任务类型" :options="taskTypeOptions" />
+        <a-form-item :label="t('mobile_special.form.task_type')" required>
+          <a-select v-model:value="form.task_type" :placeholder="t('mobile_special.form.select_task_type')" :options="taskTypeOptions" />
         </a-form-item>
 
-        <a-form-item label="数据来源">
+        <a-form-item :label="t('mobile_special.form.source_type')">
           <a-select v-model:value="form.source_type" :options="sourceTypeOptions" />
         </a-form-item>
 
-        <a-divider>设备配置</a-divider>
+        <a-divider>{{ t('mobile_special.form.device_config') }}</a-divider>
 
-        <a-form-item label="设备范围">
+        <a-form-item :label="t('mobile_special.form.device_scope')">
           <a-select v-model:value="form.device_scope_type" :options="deviceScopeOptions" />
         </a-form-item>
 
-        <a-form-item v-if="form.device_scope_type === 'single_device'" label="选择设备">
+        <a-form-item v-if="form.device_scope_type === 'single_device'" :label="t('mobile_special.form.select_device')">
           <a-select
             v-model:value="form.device_id"
-            placeholder="选择设备"
+            :placeholder="t('mobile_special.form.select_device')"
             :options="deviceOptions"
             allow-clear
           />
         </a-form-item>
 
-        <a-form-item v-if="form.device_scope_type === 'device_group'" label="设备标签">
-          <a-input v-model:value="form.device_group_tag" placeholder="如 android-12" />
+        <a-form-item v-if="form.device_scope_type === 'device_group'" :label="t('mobile_special.form.device_tag')">
+          <a-input v-model:value="form.device_group_tag" :placeholder="t('mobile_special.form.device_tag_placeholder')" />
         </a-form-item>
 
-        <a-divider>应用配置</a-divider>
+        <a-divider>{{ t('mobile_special.form.app_config') }}</a-divider>
 
-        <a-form-item label="APK">
+        <a-form-item :label="t('mobile_special.form.apk')">
           <a-select
             v-model:value="form.apk_id"
-            placeholder="选择 APK"
+            :placeholder="t('mobile_special.form.select_apk')"
             :options="apkOptions"
             allow-clear
           />
         </a-form-item>
 
-        <a-form-item label="应用包名">
-          <a-input v-model:value="form.app_package" placeholder="如 com.example.app" />
+        <a-form-item :label="t('mobile_special.form.app_package')">
+          <a-input v-model:value="form.app_package" :placeholder="t('mobile_special.form.app_package_placeholder')" />
         </a-form-item>
 
-        <a-divider>执行配置</a-divider>
+        <a-divider>{{ t('mobile_special.form.execution_config') }}</a-divider>
 
-        <a-form-item label="采样间隔(秒)">
+        <a-form-item :label="t('mobile_special.form.sample_interval')">
           <a-input-number v-model:value="form.config_interval" :min="1" :max="300" style="width: 100%" />
         </a-form-item>
 
-        <a-form-item label="运行时长(秒)">
+        <a-form-item :label="t('mobile_special.form.duration')">
           <a-input-number v-model:value="form.config_duration" :min="10" :max="86400" style="width: 100%" />
         </a-form-item>
 
-        <a-form-item label="自动启动应用">
+        <a-form-item :label="t('mobile_special.form.auto_start')">
           <a-switch v-model:checked="form.config_auto_start" />
         </a-form-item>
 
         <template v-if="form.task_type === 'stability'">
-          <a-form-item label="操作间隔(ms)">
+          <a-form-item :label="t('mobile_special.form.operation_interval')">
             <a-input-number v-model:value="form.config_operation_interval" :min="100" :max="5000" style="width: 100%" />
           </a-form-item>
         </template>
 
         <template v-if="form.task_type === 'fluency'">
-          <a-form-item label="场景配置">
+          <a-form-item :label="t('mobile_special.form.stages')">
             <a-textarea
               v-model:value="form.config_stages"
               :rows="4"
-              placeholder='JSON 格式，如 [{"name":"启动","action":"start_app"},{"name":"滑动列表","action":"swipe","coords":{"x1":540,"y1":1000,"x2":540,"y2":500}}]'
+              :placeholder="t('mobile_special.form.stages_placeholder')"
             />
           </a-form-item>
         </template>
 
-        <a-divider>调度配置</a-divider>
+        <a-divider>{{ t('mobile_special.form.schedule_config') }}</a-divider>
 
-        <a-form-item label="启用调度">
+        <a-form-item :label="t('mobile_special.form.schedule_enabled')">
           <a-switch v-model:checked="form.schedule_enabled" />
         </a-form-item>
 
-        <a-form-item v-if="form.schedule_enabled" label="Cron 表达式">
-          <a-input v-model:value="form.cron_expression" placeholder="如 0 2 * * *" />
+        <a-form-item v-if="form.schedule_enabled" :label="t('mobile_special.form.cron')">
+          <a-input v-model:value="form.cron_expression" :placeholder="t('mobile_special.form.cron_placeholder')" />
         </a-form-item>
       </a-form>
 
       <template #footer>
         <a-space>
-          <a-button @click="drawerVisible = false">取消</a-button>
-          <a-button type="primary" :loading="saving" @click="handleSave">{{ editingTask ? '保存' : '创建' }}</a-button>
+          <a-button @click="drawerVisible = false">{{ t('common.cancel') }}</a-button>
+          <a-button type="primary" :loading="saving" @click="handleSave">{{ editingTask ? t('common.save') : t('common.create') }}</a-button>
         </a-space>
       </template>
     </a-drawer>
@@ -163,10 +163,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
+import { useI18n } from 'vue-i18n'
 import { projectApi, mobileSpecialApi, deviceApi, apkApi, type MobileSpecialTaskItem, type TaskType } from '@/api'
 
+const { t } = useI18n()
 const loading = ref(false)
 const saving = ref(false)
 const tasks = ref<MobileSpecialTaskItem[]>([])
@@ -178,33 +180,33 @@ const apkOptions = ref<Array<{ label: string; value: number }>>([])
 const selectedProjectId = ref<number | null>(null)
 const selectedTaskType = ref<TaskType | null>(null)
 
-const taskTypeOptions = [
-  { label: '性能测试', value: 'performance' },
-  { label: '稳定性测试', value: 'stability' },
-  { label: '流畅度测试', value: 'fluency' },
-]
+const taskTypeOptions = computed(() => [
+  { label: t('mobile_special.task_types.performance'), value: 'performance' },
+  { label: t('mobile_special.task_types.stability'), value: 'stability' },
+  { label: t('mobile_special.task_types.fluency'), value: 'fluency' },
+])
 
-const sourceTypeOptions = [
-  { label: '仅 APK', value: 'apk_only' },
-  { label: '用例驱动', value: 'case' },
-  { label: '套件驱动', value: 'suite' },
-  { label: 'Monkey 探索', value: 'monkey' },
-]
+const sourceTypeOptions = computed(() => [
+  { label: t('mobile_special.source_types.apk_only'), value: 'apk_only' },
+  { label: t('mobile_special.source_types.case'), value: 'case' },
+  { label: t('mobile_special.source_types.suite'), value: 'suite' },
+  { label: t('mobile_special.source_types.monkey'), value: 'monkey' },
+])
 
-const deviceScopeOptions = [
-  { label: '单设备', value: 'single_device' },
-  { label: '设备组', value: 'device_group' },
-  { label: '手动选择', value: 'manual_pick' },
-]
+const deviceScopeOptions = computed(() => [
+  { label: t('mobile_special.device_scopes.single_device'), value: 'single_device' },
+  { label: t('mobile_special.device_scopes.device_group'), value: 'device_group' },
+  { label: t('mobile_special.device_scopes.manual_pick'), value: 'manual_pick' },
+])
 
-const columns = [
-  { title: '任务名称', key: 'name', dataIndex: 'name' },
-  { title: '任务类型', key: 'task_type', dataIndex: 'task_type', width: 120 },
-  { title: '包名', key: 'app_package', dataIndex: 'app_package', width: 180, ellipsis: true },
-  { title: '调度', key: 'schedule_enabled', dataIndex: 'schedule_enabled', width: 100 },
-  { title: '上次执行', key: 'last_run_at', dataIndex: 'last_run_at', width: 160 },
-  { title: '操作', key: 'action', width: 180 },
-]
+const columns = computed(() => [
+  { title: t('mobile_special.columns.name'), key: 'name', dataIndex: 'name' },
+  { title: t('mobile_special.columns.task_type'), key: 'task_type', dataIndex: 'task_type', width: 120 },
+  { title: t('mobile_special.columns.app_package'), key: 'app_package', dataIndex: 'app_package', width: 180, ellipsis: true },
+  { title: t('mobile_special.columns.schedule'), key: 'schedule_enabled', dataIndex: 'schedule_enabled', width: 100 },
+  { title: t('mobile_special.columns.last_run_at'), key: 'last_run_at', dataIndex: 'last_run_at', width: 160 },
+  { title: t('mobile_special.columns.action'), key: 'action', width: 180 },
+])
 
 // Drawer state
 const drawerVisible = ref(false)
@@ -239,7 +241,7 @@ onMounted(async () => {
       await Promise.all([loadDevices(), loadApks(), loadTasks()])
     }
   } catch (e: any) {
-    message.error(e?.message || '加载失败')
+    message.error(e?.message || t('mobile_special.msg.load_failed'))
   }
 })
 
@@ -271,7 +273,7 @@ async function loadTasks() {
     }
     tasks.value = await mobileSpecialApi.listTasks(params)
   } catch (e: any) {
-    message.error(e?.message || '加载任务失败')
+    message.error(e?.message || t('mobile_special.msg.load_failed'))
   } finally {
     loading.value = false
   }
@@ -290,7 +292,11 @@ function taskTypeColor(type: string) {
 }
 
 function taskTypeLabel(type: string) {
-  return { performance: '性能', stability: '稳定性', fluency: '流畅度' }[type] || type
+  return {
+    performance: t('mobile_special.task_types.performance'),
+    stability: t('mobile_special.task_types.stability'),
+    fluency: t('mobile_special.task_types.fluency'),
+  }[type] || type
 }
 
 function openCreate() {
@@ -345,11 +351,11 @@ function resetForm() {
 
 async function handleSave() {
   if (!form.value.name.trim()) {
-    message.warning('请输入任务名称')
+    message.warning(t('mobile_special.form.name'))
     return
   }
   if (!selectedProjectId.value) {
-    message.warning('请先选择项目')
+    message.warning(t('mobile_special.select_project'))
     return
   }
 
@@ -360,7 +366,7 @@ async function handleSave() {
       try {
         stages = JSON.parse(form.value.config_stages)
       } catch {
-        message.warning('场景配置 JSON 格式错误')
+        message.warning(t('mobile_special.msg.save_failed'))
         saving.value = false
         return
       }
@@ -389,15 +395,15 @@ async function handleSave() {
 
     if (editingTask.value) {
       await mobileSpecialApi.updateTask(editingTask.value.id, data)
-      message.success('任务已更新')
+      message.success(t('mobile_special.msg.save_success'))
     } else {
       await mobileSpecialApi.createTask(data)
-      message.success('任务已创建')
+      message.success(t('mobile_special.msg.create_success'))
     }
     drawerVisible.value = false
     await loadTasks()
   } catch (e: any) {
-    message.error(e?.message || '保存任务失败')
+    message.error(e?.message || t('mobile_special.msg.save_failed'))
   } finally {
     saving.value = false
   }
@@ -406,19 +412,19 @@ async function handleSave() {
 async function triggerRun(task: MobileSpecialTaskItem) {
   try {
     const run = await mobileSpecialApi.triggerTask(task.id, {})
-    message.success(`任务已开始执行 (Run #${run.id})`)
+    message.success(`${t('mobile_special.msg.run_started')} (Run #${run.id})`)
   } catch (e: any) {
-    message.error(e?.message || '触发任务失败')
+    message.error(e?.message || t('mobile_special.msg.run_failed'))
   }
 }
 
 async function handleDelete(id: number) {
   try {
     await mobileSpecialApi.deleteTask(id)
-    message.success('任务已删除')
+    message.success(t('mobile_special.msg.delete_success'))
     await loadTasks()
   } catch (e: any) {
-    message.error(e?.message || '删除任务失败')
+    message.error(e?.message || t('mobile_special.msg.delete_failed'))
   }
 }
 </script>

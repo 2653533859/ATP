@@ -2,28 +2,28 @@
   <div style="display: flex; flex-direction: column; height: 100%">
     <!-- Header -->
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
-      <h2 style="margin: 0">环境管理</h2>
+      <h2 style="margin: 0">{{ t('system_pages.environment.title') }}</h2>
       <a-select
         v-model:value="selectedProjectId"
-        placeholder="选择项目"
+        :placeholder="t('mobile_special.select_project')"
         style="width: 220px"
         :options="projectOptions"
         @change="onProjectChange"
       />
       <a-button type="primary" :disabled="!selectedProjectId" @click="showCreateModal = true">
-        新建环境
+        {{ t('system_pages.environment.new') }}
       </a-button>
     </div>
 
     <a-spin :spinning="loading">
       <div v-if="!selectedProjectId">
-        <a-empty description="请先选择项目" />
+        <a-empty :description="t('system_pages.environment.select_project_first')" />
       </div>
 
       <div v-else style="display: flex; gap: 16px; min-height: 400px">
         <!-- Left: environment list -->
-        <a-card title="环境列表" style="width: 280px; flex-shrink: 0">
-          <a-empty v-if="environments.length === 0" description="暂无环境" />
+        <a-card :title="t('system_pages.environment.list_title')" style="width: 280px; flex-shrink: 0">
+          <a-empty v-if="environments.length === 0" :description="t('system_pages.environment.no_environments')" />
           <a-list v-else :data-source="environments" size="small">
             <template #renderItem="{ item }">
               <a-list-item
@@ -31,14 +31,14 @@
                 :style="{ background: selectedEnvId === item.id ? '#e6f4ff' : 'transparent' }"
                 @click="selectEnv(item)"
               >
-                <a-list-item-meta :title="item.name" :description="item.description || '无描述'" />
+                <a-list-item-meta :title="item.name" :description="item.description || t('system_pages.environment.no_description')" />
                 <template #actions>
-                  <a-button type="link" size="small" @click.stop="openEditModal(item)">编辑</a-button>
+                  <a-button type="link" size="small" @click.stop="openEditModal(item)">{{ t('common.edit') }}</a-button>
                   <a-popconfirm
-                    title="确认删除此环境？变量将一并删除"
+                    :title="t('system_pages.environment.confirm_delete')"
                     @confirm="handleDeleteEnv(item.id)"
                   >
-                    <a-button type="link" size="small" danger @click.stop>删除</a-button>
+                    <a-button type="link" size="small" danger @click.stop>{{ t('common.delete') }}</a-button>
                   </a-popconfirm>
                 </template>
               </a-list-item>
@@ -49,15 +49,15 @@
         <!-- Right: variable editor -->
         <a-card
           style="flex: 1"
-          :title="selectedEnv ? `变量 - ${selectedEnv.name}` : '环境变量'"
+          :title="selectedEnv ? t('system_pages.environment.variables_for', { name: selectedEnv.name }) : t('system_pages.environment.variables_title')"
         >
           <template v-if="!selectedEnvId">
-            <a-empty description="请在左侧选择环境" />
+            <a-empty :description="t('system_pages.environment.select_env_first')" />
           </template>
           <template v-else>
             <a-spin :spinning="varsLoading">
               <div style="margin-bottom: 12px">
-                <a-button type="dashed" @click="addVariable">添加变量</a-button>
+                <a-button type="dashed" @click="addVariable">{{ t('system_pages.environment.add_variable') }}</a-button>
               </div>
               <a-table
                 :data-source="editingVars"
@@ -68,29 +68,29 @@
               >
                 <template #bodyCell="{ column, record, index }">
                   <template v-if="column.key === 'key'">
-                    <a-input v-model:value="record.key" placeholder="变量名" />
+                    <a-input v-model:value="record.key" :placeholder="t('system_pages.environment.key_placeholder')" />
                   </template>
                   <template v-else-if="column.key === 'value'">
                     <a-input-password
                       v-if="record.is_secret"
                       v-model:value="record.value"
-                      :placeholder="record._wasSecret ? '留空则保留原值' : '变量值'"
+                      :placeholder="record._wasSecret ? t('system_pages.environment.keep_secret_placeholder') : t('system_pages.environment.value_placeholder')"
                     />
-                    <a-input v-else v-model:value="record.value" placeholder="变量值" />
+                    <a-input v-else v-model:value="record.value" :placeholder="t('system_pages.environment.value_placeholder')" />
                   </template>
                   <template v-else-if="column.key === 'is_secret'">
                     <a-switch v-model:checked="record.is_secret" />
                   </template>
                   <template v-else-if="column.key === 'action'">
                     <a-button type="link" danger size="small" @click="removeVariable(index)">
-                      删除
+                      {{ t('common.delete') }}
                     </a-button>
                   </template>
                 </template>
               </a-table>
               <div style="margin-top: 12px; text-align: right">
                 <a-button type="primary" :loading="saving" @click="handleSaveVars">
-                  保存变量
+                  {{ t('system_pages.environment.save_variables') }}
                 </a-button>
               </div>
             </a-spin>
@@ -102,17 +102,17 @@
     <!-- Create/Edit modal -->
     <a-modal
       v-model:open="showCreateModal"
-      :title="editingEnv ? '编辑环境' : '新建环境'"
+      :title="editingEnv ? t('system_pages.environment.edit') : t('system_pages.environment.new')"
       :confirm-loading="envSaving"
       @ok="handleSaveEnv"
       @cancel="resetEnvForm"
     >
       <a-form :label-col="{ span: 5 }">
-        <a-form-item label="名称">
-          <a-input v-model:value="envForm.name" placeholder="如：开发环境、测试环境" />
+        <a-form-item :label="t('common.name')">
+          <a-input v-model:value="envForm.name" :placeholder="t('system_pages.environment.name_placeholder')" />
         </a-form-item>
-        <a-form-item label="描述">
-          <a-textarea v-model:value="envForm.description" :rows="3" placeholder="环境说明（可选）" />
+        <a-form-item :label="t('common.description')">
+          <a-textarea v-model:value="envForm.description" :rows="3" :placeholder="t('system_pages.environment.desc_placeholder')" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -120,9 +120,12 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
+import { useI18n } from 'vue-i18n'
 import { projectApi, environmentApi } from '@/api'
+
+const { t } = useI18n()
 
 // -- Project selection --
 const projects = ref<any[]>([])
@@ -142,12 +145,12 @@ const saving = ref(false)
 const envSaving = ref(false)
 let varIdx = 0
 
-const varColumns = [
-  { title: '变量名', key: 'key', dataIndex: 'key', width: '30%' },
-  { title: '变量值', key: 'value', dataIndex: 'value', width: '35%' },
-  { title: '加密', key: 'is_secret', dataIndex: 'is_secret', width: '15%' },
-  { title: '操作', key: 'action', width: '20%' },
-]
+const varColumns = computed(() => [
+  { title: t('system_pages.environment.columns.key'), key: 'key', dataIndex: 'key', width: '30%' },
+  { title: t('system_pages.environment.columns.value'), key: 'value', dataIndex: 'value', width: '35%' },
+  { title: t('system_pages.environment.columns.secret'), key: 'is_secret', dataIndex: 'is_secret', width: '15%' },
+  { title: t('system_pages.environment.columns.action'), key: 'action', width: '20%' },
+])
 
 // -- Create/Edit env form --
 const showCreateModal = ref(false)
@@ -160,7 +163,7 @@ onMounted(async () => {
     projects.value = list
     projectOptions.value = list.map((p: any) => ({ label: p.name, value: p.id }))
   } catch (e: any) {
-    message.error(e ?? '加载项目失败')
+    message.error(e ?? t('system_pages.environment.msg.load_projects_failed'))
   }
 })
 
@@ -177,7 +180,7 @@ async function loadEnvironments() {
   try {
     environments.value = await environmentApi.list(selectedProjectId.value)
   } catch (e: any) {
-    message.error(e ?? '加载环境列表失败')
+    message.error(e ?? t('system_pages.environment.msg.load_envs_failed'))
   } finally {
     loading.value = false
   }
@@ -202,7 +205,7 @@ async function loadVariables() {
       _wasSecret: v.is_secret,
     }))
   } catch (e: any) {
-    message.error(e ?? '加载变量失败')
+    message.error(e ?? t('system_pages.environment.msg.load_vars_failed'))
   } finally {
     varsLoading.value = false
   }
@@ -229,7 +232,7 @@ async function handleSaveVars() {
   const keys = variables.map((v) => v.key)
   const duplicates = keys.filter((k, i) => keys.indexOf(k) !== i)
   if (duplicates.length > 0) {
-    message.warning(`存在重复的变量名: ${[...new Set(duplicates)].join(', ')}`)
+    message.warning(t('system_pages.environment.msg.duplicate_keys', { keys: [...new Set(duplicates)].join(', ') }))
     return
   }
 
@@ -238,17 +241,17 @@ async function handleSaveVars() {
     (v) => v.is_secret && v._wasSecret && v.value.trim() === '' && v.key.trim() !== ''
   )
   if (emptySecrets.length > 0) {
-    message.warning(`${emptySecrets.length} 个密钥变量值为空，请重新输入密钥值后再保存`)
+    message.warning(t('system_pages.environment.msg.empty_secrets', { count: emptySecrets.length }))
     return
   }
 
   saving.value = true
   try {
     await environmentApi.saveVariables(selectedEnvId.value, { variables })
-    message.success('变量已保存')
+    message.success(t('system_pages.environment.msg.variables_saved'))
     await loadVariables()
   } catch (e: any) {
-    message.error(e ?? '保存变量失败')
+    message.error(e ?? t('system_pages.environment.msg.save_vars_failed'))
   } finally {
     saving.value = false
   }
@@ -268,7 +271,7 @@ function resetEnvForm() {
 
 async function handleSaveEnv() {
   if (!envForm.value.name.trim()) {
-    message.warning('请输入环境名称')
+    message.warning(t('system_pages.environment.new'))
     return
   }
 
@@ -279,14 +282,14 @@ async function handleSaveEnv() {
         name: envForm.value.name.trim(),
         description: envForm.value.description.trim() || undefined,
       })
-      message.success('环境已更新')
+      message.success(t('system_pages.environment.msg.env_saved'))
     } else {
       await environmentApi.create({
         name: envForm.value.name.trim(),
         description: envForm.value.description.trim() || undefined,
         project_id: selectedProjectId.value!,
       })
-      message.success('环境已创建')
+      message.success(t('system_pages.environment.msg.env_saved'))
     }
     showCreateModal.value = false
     resetEnvForm()
@@ -299,7 +302,7 @@ async function handleSaveEnv() {
       }
     }
   } catch (e: any) {
-    message.error(e ?? '保存环境失败')
+    message.error(e ?? t('system_pages.environment.msg.save_env_failed'))
   } finally {
     envSaving.value = false
   }
@@ -308,7 +311,7 @@ async function handleSaveEnv() {
 async function handleDeleteEnv(id: number) {
   try {
     await environmentApi.delete(id)
-    message.success('环境已删除')
+    message.success(t('system_pages.environment.msg.env_deleted'))
     if (selectedEnvId.value === id) {
       selectedEnvId.value = null
       selectedEnv.value = null
@@ -316,7 +319,7 @@ async function handleDeleteEnv(id: number) {
     }
     await loadEnvironments()
   } catch (e: any) {
-    message.error(e ?? '删除环境失败')
+    message.error(e ?? t('system_pages.environment.msg.delete_env_failed'))
   }
 }
 </script>

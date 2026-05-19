@@ -2,7 +2,7 @@
   <div style="display: flex; flex-direction: column; height: 100%">
     <!-- Header -->
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
-      <h2 style="margin: 0">全局变量库</h2>
+      <h2 style="margin: 0">{{ t('system_pages.global_variable.title') }}</h2>
       <a-select
         v-model:value="selectedScope"
         style="width: 140px"
@@ -12,13 +12,13 @@
       <a-select
         v-if="selectedScope === 'project'"
         v-model:value="selectedProjectId"
-        placeholder="选择项目"
+        :placeholder="t('mobile_special.select_project')"
         style="width: 220px"
         :options="projectOptions"
         @change="loadVariables"
       />
       <a-button type="primary" :disabled="!canCreate" @click="openCreate">
-        新建变量
+        {{ t('system_pages.global_variable.new') }}
       </a-button>
     </div>
 
@@ -37,23 +37,23 @@
             <span v-if="record.is_secret">
               <span>{{ revealedValues[record.id] ?? record.value }}</span>
               <a-button type="link" size="small" @click="toggleReveal(record)">
-                {{ revealedValues[record.id] ? '隐藏' : '显示' }}
+                {{ revealedValues[record.id] ? t('system_pages.global_variable.hide') : t('system_pages.global_variable.show') }}
               </a-button>
             </span>
             <span v-else>{{ record.value }}</span>
           </template>
           <template v-else-if="column.key === 'is_secret'">
             <a-tag :color="record.is_secret ? 'red' : 'default'">
-              {{ record.is_secret ? '是' : '否' }}
+              {{ record.is_secret ? t('common.yes') : t('common.no') }}
             </a-tag>
           </template>
           <template v-else-if="column.key === 'scope_type'">
-            <a-tag>{{ record.scope_type === 'global' ? '全局' : '项目级' }}</a-tag>
+            <a-tag>{{ record.scope_type === 'global' ? t('system_pages.global_variable.global') : t('system_pages.global_variable.project') }}</a-tag>
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-            <a-popconfirm title="确认删除此变量？" @confirm="handleDelete(record.id)">
-              <a-button type="link" size="small" danger>删除</a-button>
+            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+            <a-popconfirm :title="t('system_pages.global_variable.confirm_delete')" @confirm="handleDelete(record.id)">
+              <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
             </a-popconfirm>
           </template>
         </template>
@@ -63,29 +63,29 @@
     <!-- Create/Edit Modal -->
     <a-modal
       v-model:open="showModal"
-      :title="editingVar ? '编辑变量' : '新建变量'"
+      :title="editingVar ? t('system_pages.global_variable.edit') : t('system_pages.global_variable.new')"
       :confirm-loading="saving"
       @ok="handleSave"
       @cancel="resetForm"
     >
       <a-form :label-col="{ span: 5 }" layout="horizontal">
-        <a-form-item label="名称" required>
-          <a-input v-model:value="form.key" placeholder="变量名，如 API_BASE_URL" />
+        <a-form-item :label="t('common.name')" required>
+          <a-input v-model:value="form.key" :placeholder="t('system_pages.global_variable.key_placeholder')" />
         </a-form-item>
-        <a-form-item label="值" required>
-          <a-input-password v-model:value="form.value" placeholder="变量值" />
+        <a-form-item :label="t('system_pages.global_variable.value')" required>
+          <a-input-password v-model:value="form.value" :placeholder="t('system_pages.global_variable.value_placeholder')" />
         </a-form-item>
-        <a-form-item label="加密存储">
+        <a-form-item :label="t('system_pages.global_variable.secret_storage')">
           <a-switch v-model:checked="form.is_secret" />
-          <span style="margin-left: 8px; color: #999">加密后存储，查看时需显</span>
+          <span style="margin-left: 8px; color: #999">{{ t('system_pages.global_variable.secret_hint') }}</span>
         </a-form-item>
-        <a-form-item label="描述">
-          <a-textarea v-model:value="form.description" :rows="2" placeholder="变量说明（可选）" />
+        <a-form-item :label="t('common.description')">
+          <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('system_pages.global_variable.desc_placeholder')" />
         </a-form-item>
-        <a-form-item v-if="selectedScope === 'project'" label="项目" required>
+        <a-form-item v-if="selectedScope === 'project'" :label="t('common.project')" required>
           <a-select
             v-model:value="form.project_id"
-            placeholder="选择所属项目"
+            :placeholder="t('system_pages.global_variable.select_project')"
             :options="projectOptions"
           />
         </a-form-item>
@@ -97,8 +97,10 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
+import { useI18n } from 'vue-i18n'
 import { globalVariableApi, projectApi, type GlobalVariableItem, type ScopeType } from '@/api'
 
+const { t } = useI18n()
 const loading = ref(false)
 const saving = ref(false)
 const variables = ref<GlobalVariableItem[]>([])
@@ -109,23 +111,23 @@ const selectedScope = ref<'global' | 'project'>('global')
 const selectedProjectId = ref<number | null>(null)
 const revealedValues = ref<Record<number, string>>({})
 
-const scopeOptions = [
-  { label: '全局', value: 'global' },
-  { label: '项目级', value: 'project' },
-]
+const scopeOptions = computed(() => [
+  { label: t('system_pages.global_variable.global'), value: 'global' },
+  { label: t('system_pages.global_variable.project'), value: 'project' },
+])
 
 const canCreate = computed(() => {
   return selectedScope.value === 'global' || selectedProjectId.value !== null
 })
 
-const columns = [
-  { title: '变量名', key: 'key', dataIndex: 'key', width: '25%' },
-  { title: '值', key: 'value', dataIndex: 'value', width: '30%' },
-  { title: '加密', key: 'is_secret', dataIndex: 'is_secret', width: '8%' },
-  { title: '类型', key: 'scope_type', dataIndex: 'scope_type', width: '10%' },
-  { title: '描述', key: 'description', dataIndex: 'description', ellipsis: true },
-  { title: '操作', key: 'action', width: '12%' },
-]
+const columns = computed(() => [
+  { title: t('system_pages.global_variable.columns.key'), key: 'key', dataIndex: 'key', width: '25%' },
+  { title: t('system_pages.global_variable.columns.value'), key: 'value', dataIndex: 'value', width: '30%' },
+  { title: t('system_pages.global_variable.columns.secret'), key: 'is_secret', dataIndex: 'is_secret', width: '8%' },
+  { title: t('system_pages.global_variable.columns.type'), key: 'scope_type', dataIndex: 'scope_type', width: '10%' },
+  { title: t('system_pages.global_variable.columns.description'), key: 'description', dataIndex: 'description', ellipsis: true },
+  { title: t('system_pages.global_variable.columns.action'), key: 'action', width: '12%' },
+])
 
 // Form state
 const showModal = ref(false)
@@ -145,7 +147,7 @@ onMounted(async () => {
     projects.value = list
     projectOptions.value = list.map((p: any) => ({ label: p.name, value: p.id }))
   } catch (e: any) {
-    message.error(e?.message || '加载项目失败')
+    message.error(e?.message || t('system_pages.global_variable.msg.load_projects_failed'))
   }
   await loadVariables()
 })
@@ -159,7 +161,7 @@ async function loadVariables() {
     }
     variables.value = await globalVariableApi.list(params)
   } catch (e: any) {
-    message.error(e?.message || '加载变量失败')
+    message.error(e?.message || t('system_pages.global_variable.msg.load_failed'))
   } finally {
     loading.value = false
   }
@@ -184,7 +186,7 @@ async function toggleReveal(record: GlobalVariableItem) {
     const detail = await globalVariableApi.get(record.id, { reveal_secret: true })
     revealedValues.value = { ...revealedValues.value, [record.id]: detail.value }
   } catch (e: any) {
-    message.error(e?.message || '读取变量失败')
+    message.error(e?.message || t('system_pages.global_variable.msg.reveal_failed'))
   }
 }
 
@@ -221,11 +223,11 @@ function resetForm() {
 
 async function handleSave() {
   if (!form.value.key.trim()) {
-    message.warning('请输入变量名')
+    message.warning(t('system_pages.global_variable.msg.key_required'))
     return
   }
   if (!form.value.value.trim()) {
-    message.warning('请输入变量值')
+    message.warning(t('system_pages.global_variable.msg.value_required'))
     return
   }
   saving.value = true
@@ -240,16 +242,16 @@ async function handleSave() {
     }
     if (editingVar.value) {
       await globalVariableApi.update(editingVar.value.id, data)
-      message.success('变量已更新')
+      message.success(t('system_pages.global_variable.msg.update_success'))
     } else {
       await globalVariableApi.create(data)
-      message.success('变量已创建')
+      message.success(t('system_pages.global_variable.msg.create_success'))
     }
     showModal.value = false
     resetForm()
     await loadVariables()
   } catch (e: any) {
-    message.error(e?.message || '保存变量失败')
+    message.error(e?.message || t('system_pages.global_variable.msg.save_failed'))
   } finally {
     saving.value = false
   }
@@ -258,10 +260,10 @@ async function handleSave() {
 async function handleDelete(id: number) {
   try {
     await globalVariableApi.delete(id)
-    message.success('变量已删除')
+    message.success(t('system_pages.global_variable.msg.delete_success'))
     await loadVariables()
   } catch (e: any) {
-    message.error(e?.message || '删除变量失败')
+    message.error(e?.message || t('system_pages.global_variable.msg.delete_failed'))
   }
 }
 </script>

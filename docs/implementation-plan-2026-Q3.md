@@ -122,10 +122,36 @@ POST /api/v1/ai/cases/confirm        把草稿写入 TestCase 表
 
 ### 里程碑
 
-- [ ] F.1 vue-i18n 集成 + 切换器
-- [ ] F.2 登录/导航/通用按钮翻译
-- [ ] F.3 业务页面逐步翻译（按需）
+- [x] F.1 vue-i18n 集成 + 切换器
+- [x] F.2 登录/导航/通用按钮翻译
+- [~] F.3 业务页面逐步翻译（按需）
 - [ ] F.4 后端通知模板 i18n 化
+
+### 当前迁移记录（2026-05-19）
+
+已完成前端页面迁移：
+
+- 基础与通用：登录页、导航栏、通用按钮、Dashboard、计划列表
+- 用例与执行：`CaseList.vue`、`RunList.vue`、`RunDetail.vue`
+- 套件：`SuiteList.vue`
+- Android 专项：`SpecialTaskListView.vue`
+- 系统设置：`EnvironmentList.vue`、`NotificationList.vue`、`GlobalVariableLibrary.vue`、`AILLMConfigList.vue`
+
+本轮新增 / 扩展词典：
+
+- `frontend/src/locales/zh-CN.ts`
+- `frontend/src/locales/en-US.ts`
+
+验证：
+
+- `npm run type-check` 通过（`vue-tsc --noEmit`）
+
+剩余迁移队列：
+
+- 用例详情与抽屉：`CaseDetail.vue`、`AIGenerateDrawer.vue`、`WebCaseDrawer.vue`、`AndroidCaseDrawer.vue`、`CaseHistoryDrawer.vue`
+- Android 专项报告：`ReportCenterView.vue`、`ReportDetailView.vue`
+- 系统设置：`StorageManagementView.vue`、`BugTrackerList.vue`
+- 组件级编辑器：`LowcodeStepEditor.vue`、`AndroidStepEditor.vue`、`ModuleTree.vue` 等公共组件中的可见文案
 
 ---
 

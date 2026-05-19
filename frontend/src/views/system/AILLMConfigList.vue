@@ -1,11 +1,11 @@
 <template>
   <div style="display: flex; flex-direction: column; height: 100%">
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
-      <h2 style="margin: 0">AI 模型配置</h2>
+      <h2 style="margin: 0">{{ t('system_pages.ai_llm.title') }}</h2>
       <span style="color: #888">
-        管理大模型 API Key 与端点，项目通过此配置调用 AI 用例生成
+        {{ t('system_pages.ai_llm.subtitle') }}
       </span>
-      <a-button type="primary" @click="openCreate">新建配置</a-button>
+      <a-button type="primary" @click="openCreate">{{ t('system_pages.ai_llm.new') }}</a-button>
     </div>
 
     <a-spin :spinning="loading">
@@ -21,23 +21,23 @@
           </template>
           <template v-else-if="column.key === 'enabled'">
             <a-tag :color="record.enabled ? 'green' : 'default'">
-              {{ record.enabled ? '启用' : '禁用' }}
+              {{ record.enabled ? t('common.enabled') : t('common.disabled') }}
             </a-tag>
           </template>
           <template v-else-if="column.key === 'has_api_key'">
             <a-tag :color="record.has_api_key ? 'blue' : 'red'">
-              {{ record.has_api_key ? '已录入' : '未录入' }}
+              {{ record.has_api_key ? t('system_pages.ai_llm.has_key') : t('system_pages.ai_llm.no_key') }}
             </a-tag>
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
+            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
             <a-popconfirm
-              :title="`确认删除配置 ${record.name}？`"
-              ok-text="删除"
-              cancel-text="取消"
+              :title="t('system_pages.ai_llm.confirm_delete', { name: record.name })"
+              :ok-text="t('common.delete')"
+              :cancel-text="t('common.cancel')"
               @confirm="handleDelete(record.id)"
             >
-              <a-button type="link" size="small" danger>删除</a-button>
+              <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
             </a-popconfirm>
           </template>
         </template>
@@ -46,40 +46,40 @@
 
     <a-modal
       v-model:open="showModal"
-      :title="editing ? `编辑配置: ${editing.name}` : '新建 AI 模型配置'"
+      :title="editing ? t('system_pages.ai_llm.edit_title', { name: editing.name }) : t('system_pages.ai_llm.new_full')"
       :confirm-loading="saving"
       width="600px"
       @ok="handleSave"
       @cancel="resetForm"
     >
       <a-form :label-col="{ span: 6 }" layout="horizontal">
-        <a-form-item label="名称" required>
-          <a-input v-model:value="form.name" placeholder="例如 deepseek-prod" />
+        <a-form-item :label="t('common.name')" required>
+          <a-input v-model:value="form.name" :placeholder="t('system_pages.ai_llm.name_placeholder')" />
         </a-form-item>
         <a-form-item label="Provider" required>
           <a-select
             v-model:value="form.provider"
             :options="providerOptions"
-            placeholder="选择模型供应商"
+            :placeholder="t('system_pages.ai_llm.provider_placeholder')"
           />
         </a-form-item>
-        <a-form-item :label="editing ? '新 API Key' : 'API Key'" :required="!editing">
+        <a-form-item :label="editing ? t('system_pages.ai_llm.api_key_new') : 'API Key'" :required="!editing">
           <a-input-password
             v-model:value="form.api_key"
-            :placeholder="editing ? '留空表示不修改现有 Key' : 'sk-... 或服务商 Token'"
+            :placeholder="editing ? t('system_pages.ai_llm.api_key_keep_placeholder') : t('system_pages.ai_llm.api_key_placeholder')"
             autocomplete="new-password"
           />
         </a-form-item>
         <a-form-item label="Endpoint">
           <a-input
             v-model:value="form.endpoint"
-            placeholder="留空使用默认（如 https://api.deepseek.com）"
+            :placeholder="t('system_pages.ai_llm.endpoint_placeholder')"
           />
         </a-form-item>
-        <a-form-item label="Model 名称" required>
-          <a-input v-model:value="form.model_name" placeholder="例如 deepseek-chat" />
+        <a-form-item :label="t('system_pages.ai_llm.model_name')" required>
+          <a-input v-model:value="form.model_name" :placeholder="t('system_pages.ai_llm.model_placeholder')" />
         </a-form-item>
-        <a-form-item label="默认参数 JSON">
+        <a-form-item :label="t('system_pages.ai_llm.default_params')">
           <a-textarea
             v-model:value="defaultParamsText"
             :rows="3"
@@ -89,11 +89,11 @@
             {{ defaultParamsError }}
           </span>
         </a-form-item>
-        <a-form-item label="启用">
+        <a-form-item :label="t('common.enabled')">
           <a-switch v-model:checked="form.enabled" />
         </a-form-item>
-        <a-form-item label="描述">
-          <a-textarea v-model:value="form.description" :rows="2" placeholder="可选说明" />
+        <a-form-item :label="t('common.description')">
+          <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('system_pages.ai_llm.desc_placeholder')" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -103,11 +103,14 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
+import { useI18n } from 'vue-i18n'
 import {
   aiLLMConfigApi,
   type AILLMConfigItem,
   type LLMProvider,
 } from '@/api'
+
+const { t } = useI18n()
 
 interface FormState {
   name: string
@@ -137,19 +140,19 @@ const form = ref<FormState>({
   description: '',
 })
 
-const providerOptions = [
+const providerOptions = computed(() => [
   { label: 'DeepSeek', value: 'deepseek' },
   { label: 'Claude (Anthropic)', value: 'claude' },
   { label: 'OpenAI', value: 'openai' },
-  { label: '通义千问 (Qwen / DashScope)', value: 'qwen' },
-  { label: '本地部署 (Ollama)', value: 'ollama' },
-]
+  { label: t('system_pages.ai_llm.providers.qwen_full'), value: 'qwen' },
+  { label: t('system_pages.ai_llm.providers.ollama_full'), value: 'ollama' },
+])
 
 const providerLabelMap: Record<LLMProvider, string> = {
   deepseek: 'DeepSeek',
   claude: 'Claude',
   openai: 'OpenAI',
-  qwen: '通义千问',
+  qwen: t('system_pages.ai_llm.providers.qwen'),
   ollama: 'Ollama',
 }
 
@@ -165,14 +168,14 @@ const providerLabel = (p: LLMProvider) => providerLabelMap[p] ?? p
 const providerColor = (p: LLMProvider) => providerColorMap[p] ?? 'default'
 
 const columns = computed(() => [
-  { title: '名称', dataIndex: 'name', key: 'name' },
+  { title: t('system_pages.ai_llm.columns.name'), dataIndex: 'name', key: 'name' },
   { title: 'Provider', key: 'provider' },
   { title: 'Model', dataIndex: 'model_name', key: 'model_name' },
   { title: 'Endpoint', dataIndex: 'endpoint', key: 'endpoint', ellipsis: true },
   { title: 'API Key', key: 'has_api_key', width: 100 },
-  { title: '状态', key: 'enabled', width: 80 },
-  { title: '描述', dataIndex: 'description', key: 'description', ellipsis: true },
-  { title: '操作', key: 'action', width: 140 },
+  { title: t('system_pages.ai_llm.columns.status'), key: 'enabled', width: 80 },
+  { title: t('system_pages.ai_llm.columns.description'), dataIndex: 'description', key: 'description', ellipsis: true },
+  { title: t('system_pages.ai_llm.columns.action'), key: 'action', width: 140 },
 ])
 
 async function loadConfigs() {
@@ -180,7 +183,7 @@ async function loadConfigs() {
   try {
     configs.value = await aiLLMConfigApi.list()
   } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? '加载失败')
+    message.error(e?.response?.data?.detail ?? t('system_pages.ai_llm.msg.load_failed'))
   } finally {
     loading.value = false
   }
@@ -228,24 +231,24 @@ function parseDefaultParams(): Record<string, unknown> | null {
   try {
     const parsed = JSON.parse(text)
     if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
-      defaultParamsError.value = '默认参数必须是 JSON 对象'
+      defaultParamsError.value = t('system_pages.ai_llm.msg.params_object_required')
       return null
     }
     defaultParamsError.value = ''
     return parsed as Record<string, unknown>
   } catch (e) {
-    defaultParamsError.value = '默认参数 JSON 解析失败'
+    defaultParamsError.value = t('system_pages.ai_llm.msg.params_parse_failed')
     return null
   }
 }
 
 async function handleSave() {
   if (!form.value.name.trim() || !form.value.model_name.trim()) {
-    message.warning('请填写名称与 Model 名称')
+    message.warning(t('system_pages.ai_llm.msg.required'))
     return
   }
   if (!editing.value && !form.value.api_key.trim()) {
-    message.warning('请输入 API Key')
+    message.warning(t('system_pages.ai_llm.msg.api_key_required'))
     return
   }
   const params = parseDefaultParams()
@@ -267,7 +270,7 @@ async function handleSave() {
         payload.api_key = form.value.api_key.trim()
       }
       await aiLLMConfigApi.update(editing.value.id, payload)
-      message.success('更新成功')
+      message.success(t('system_pages.ai_llm.msg.update_success'))
     } else {
       await aiLLMConfigApi.create({
         name: form.value.name.trim(),
@@ -279,13 +282,13 @@ async function handleSave() {
         enabled: form.value.enabled,
         description: form.value.description.trim() || null,
       })
-      message.success('创建成功')
+      message.success(t('system_pages.ai_llm.msg.create_success'))
     }
     showModal.value = false
     resetForm()
     await loadConfigs()
   } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? '保存失败')
+    message.error(e?.response?.data?.detail ?? t('system_pages.ai_llm.msg.save_failed'))
   } finally {
     saving.value = false
   }
@@ -294,10 +297,10 @@ async function handleSave() {
 async function handleDelete(id: number) {
   try {
     await aiLLMConfigApi.delete(id)
-    message.success('已删除')
+    message.success(t('system_pages.ai_llm.msg.delete_success'))
     await loadConfigs()
   } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? '删除失败')
+    message.error(e?.response?.data?.detail ?? t('system_pages.ai_llm.msg.delete_failed'))
   }
 }
 

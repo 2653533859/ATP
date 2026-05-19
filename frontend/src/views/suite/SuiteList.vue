@@ -4,7 +4,7 @@
       <a-space>
         <a-select
           v-model:value="projectFilter"
-          placeholder="选择项目"
+          :placeholder="t('suite.select_project')"
           allow-clear
           style="width: 200px"
           @change="loadSuites"
@@ -13,19 +13,19 @@
         </a-select>
       </a-space>
       <a-button type="primary" @click="openCreate" :disabled="!projectFilter">
-        <PlusOutlined /> 新建套件
+        <PlusOutlined /> {{ t('suite.new') }}
       </a-button>
     </div>
 
     <BatchOperationBar :selected-count="selectedRowKeys.length" @cancel="selectedRowKeys = []">
-      <a-button size="small" @click="handleBatchCopy">批量复制</a-button>
+      <a-button size="small" @click="handleBatchCopy">{{ t('suite.batch_copy') }}</a-button>
       <a-popconfirm
-        :title="`确认删除选中的 ${selectedRowKeys.length} 个套件？`"
-        ok-text="删除"
-        cancel-text="取消"
+        :title="t('suite.confirm_delete_batch', { count: selectedRowKeys.length })"
+        :ok-text="t('common.delete')"
+        :cancel-text="t('common.cancel')"
         @confirm="handleBatchDelete"
       >
-        <a-button size="small" danger>批量删除</a-button>
+        <a-button size="small" danger>{{ t('suite.batch_delete') }}</a-button>
       </a-popconfirm>
     </BatchOperationBar>
 
@@ -40,7 +40,7 @@
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'case_count'">
-          <a-tag color="blue">{{ (record.case_ids || []).length }} 个用例</a-tag>
+          <a-tag color="blue">{{ t('suite.case_count_tag', { count: (record.case_ids || []).length }) }}</a-tag>
         </template>
 
         <template v-if="column.key === 'project'">
@@ -56,7 +56,7 @@
               {{ suiteFailStrategyLabel(record.config?.fail_strategy) }}
             </a-tag>
             <a-tag v-if="normalizeSuiteConfig(record.config).execution_mode === 'parallel'" color="blue">
-              并发 {{ normalizeSuiteConfig(record.config).max_workers }}
+              {{ t('suite.parallel_workers_tag', { n: normalizeSuiteConfig(record.config).max_workers }) }}
             </a-tag>
           </a-space>
         </template>
@@ -67,18 +67,18 @@
 
         <template v-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
+            <a-button type="link" size="small" @click="openEdit(record)">{{ t('suite.actions.edit') }}</a-button>
             <a-button
               type="link"
               size="small"
               :loading="runningId === record.id"
               @click="handleRun(record)"
             >
-              执行
+              {{ t('suite.actions.run') }}
             </a-button>
-            <a-button type="link" size="small" @click="viewRuns(record)">记录</a-button>
-            <a-popconfirm title="确认删除该套件？" @confirm="handleDelete(record.id)">
-              <a-button type="link" size="small" danger>删除</a-button>
+            <a-button type="link" size="small" @click="viewRuns(record)">{{ t('suite.actions.records') }}</a-button>
+            <a-popconfirm :title="t('suite.confirm_delete_one')" @confirm="handleDelete(record.id)">
+              <a-button type="link" size="small" danger>{{ t('suite.actions.delete') }}</a-button>
             </a-popconfirm>
           </a-space>
         </template>
@@ -88,10 +88,10 @@
     <!-- 创建/编辑 Modal -->
     <a-modal
       v-model:open="formOpen"
-      :title="editingId ? '编辑套件' : '新建套件'"
+      :title="editingId ? t('suite.edit') : t('suite.new')"
       width="1080"
-      ok-text="保存"
-      cancel-text="取消"
+      :ok-text="t('common.save')"
+      :cancel-text="t('common.cancel')"
       :confirm-loading="saving"
       @ok="handleSave"
     >
@@ -436,6 +436,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { HolderOutlined, PlusOutlined } from '@ant-design/icons-vue'
+import { useI18n } from 'vue-i18n'
 import draggable from 'vuedraggable'
 import type {
   CasePriority,
@@ -453,6 +454,8 @@ import type {
 } from '@/api'
 import { suiteApi, projectApi, caseApi, environmentApi } from '@/api'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
+
+const { t } = useI18n()
 
 type CaseSelectionScope = 'all' | 'selected' | 'unselected'
 type CaseReadyFilter = 'all' | 'ready' | 'not_ready'
@@ -561,30 +564,30 @@ const exportingSuiteRunPdfId = ref<number | null>(null)
 const activeRunsSuiteId = ref<number | null>(null)
 let suiteRunsRefreshTimer: ReturnType<typeof setInterval> | null = null
 
-const columns = [
-  { title: '套件名称', dataIndex: 'name', key: 'name', ellipsis: true },
-  { title: '项目', key: 'project', width: 150 },
-  { title: '执行策略', key: 'strategy', width: 260 },
-  { title: '用例数', key: 'case_count', width: 100 },
-  { title: '创建时间', key: 'created', width: 170 },
-  { title: '操作', key: 'action', width: 220, fixed: 'right' as const },
-]
+const columns = computed(() => [
+  { title: t('suite.columns.name'), dataIndex: 'name', key: 'name', ellipsis: true },
+  { title: t('suite.columns.project'), key: 'project', width: 150 },
+  { title: t('suite.columns.strategy'), key: 'strategy', width: 260 },
+  { title: t('suite.columns.case_count'), key: 'case_count', width: 100 },
+  { title: t('suite.columns.created'), key: 'created', width: 170 },
+  { title: t('suite.columns.action'), key: 'action', width: 220, fixed: 'right' as const },
+])
 
-const runColumns = [
-  { title: '状态', key: 'status', width: 100 },
-  { title: '结果 / 策略', key: 'summary', width: 340 },
-  { title: '用例明细', key: 'case_runs', width: 120 },
-  { title: '耗时', key: 'duration', width: 80 },
-  { title: '执行时间', key: 'created', width: 170 },
-  { title: '导出', key: 'export', width: 160 },
-]
+const runColumns = computed(() => [
+  { title: t('suite.run_columns.status'), key: 'status', width: 100 },
+  { title: t('suite.run_columns.summary'), key: 'summary', width: 340 },
+  { title: t('suite.run_columns.case_runs'), key: 'case_runs', width: 120 },
+  { title: t('suite.run_columns.duration'), key: 'duration', width: 80 },
+  { title: t('suite.run_columns.created'), key: 'created', width: 170 },
+  { title: t('suite.run_columns.export'), key: 'export', width: 160 },
+])
 
-const suiteRunCaseColumns = [
-  { title: '用例 ID', dataIndex: 'case_id', key: 'case_id', width: 90 },
-  { title: '用例名称', dataIndex: 'case_name', key: 'case_name', ellipsis: true },
-  { title: '状态', key: 'status', width: 100 },
-  { title: 'Run ID', key: 'run_id', width: 100 },
-]
+const suiteRunCaseColumns = computed(() => [
+  { title: t('suite.case_columns.case_id'), dataIndex: 'case_id', key: 'case_id', width: 90 },
+  { title: t('suite.case_columns.case_name'), dataIndex: 'case_name', key: 'case_name', ellipsis: true },
+  { title: t('suite.case_columns.status'), key: 'status', width: 100 },
+  { title: t('suite.case_columns.run_id'), key: 'run_id', width: 100 },
+])
 
 const caseSelectColumns = [
   { title: '编号', dataIndex: 'case_code', key: 'case_code', width: 150 },
@@ -804,7 +807,7 @@ function readyColor(isReady: boolean) {
 }
 
 function suiteExecutionModeLabel(mode?: SuiteConfig['execution_mode']) {
-  return mode === 'parallel' ? '并发执行' : '顺序执行'
+  return mode === 'parallel' ? t('suite.execution_modes.parallel') : t('suite.execution_modes.sequential')
 }
 
 function suiteExecutionModeColor(mode?: SuiteConfig['execution_mode']) {
@@ -812,11 +815,8 @@ function suiteExecutionModeColor(mode?: SuiteConfig['execution_mode']) {
 }
 
 function suiteFailStrategyLabel(strategy?: SuiteConfig['fail_strategy']) {
-  return {
-    'continue': '继续执行',
-    'fast-fail': '失败即停',
-    'require-minimum-pass-rate': '最低通过率',
-  }[strategy ?? 'continue'] ?? '继续执行'
+  const key = strategy ?? 'continue'
+  return t(`suite.fail_strategies.${key}`)
 }
 
 function suiteFailStrategyColor(strategy?: SuiteConfig['fail_strategy']) {
@@ -963,7 +963,7 @@ async function loadProjects() {
     projects.value = await projectApi.list()
   } catch (error: unknown) {
     projects.value = []
-    message.error(getErrorMessage(error, '加载项目列表失败'))
+    message.error(getErrorMessage(error, t('suite.msg.load_projects_failed')))
   }
 }
 
@@ -974,7 +974,7 @@ async function loadSuites() {
       projectFilter.value ? { project_id: projectFilter.value } : undefined,
     )
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '加载套件列表失败'))
+    message.error(getErrorMessage(error, t('suite.msg.load_suites_failed')))
   } finally {
     loading.value = false
   }
@@ -984,11 +984,11 @@ async function handleBatchDelete() {
   if (!selectedRowKeys.value.length) return
   try {
     const result = await suiteApi.batchDelete(selectedRowKeys.value)
-    message.success(`已删除 ${result.processed} / ${result.requested} 个套件`)
+    message.success(t('suite.msg.batch_delete_success', { processed: result.processed, requested: result.requested }))
     selectedRowKeys.value = []
     await loadSuites()
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '批量删除失败'))
+    message.error(getErrorMessage(error, t('suite.msg.batch_delete_failed')))
   }
 }
 
@@ -996,11 +996,11 @@ async function handleBatchCopy() {
   if (!selectedRowKeys.value.length) return
   try {
     const result = await suiteApi.batchCopy(selectedRowKeys.value)
-    message.success(`已复制 ${result.processed} / ${result.requested} 个套件`)
+    message.success(t('suite.msg.batch_copy_success', { processed: result.processed, requested: result.requested }))
     selectedRowKeys.value = []
     await loadSuites()
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '批量复制失败'))
+    message.error(getErrorMessage(error, t('suite.msg.batch_copy_failed')))
   }
 }
 
@@ -1024,7 +1024,7 @@ async function loadCases(projectId = formProjectId.value) {
     availableCases.value = []
     moduleTree.value = []
     moduleNameMap.value = {}
-    message.error(getErrorMessage(error, '加载可选用例失败'))
+    message.error(getErrorMessage(error, t('suite.msg.load_cases_failed')))
   } finally {
     casesLoading.value = false
   }

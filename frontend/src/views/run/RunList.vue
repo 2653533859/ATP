@@ -1,6 +1,6 @@
 <template>
   <div>
-    <h2>执行记录</h2>
+    <h2>{{ t('run.list_title') }}</h2>
     <a-table
       :columns="columns"
       :data-source="runs"
@@ -14,7 +14,7 @@
           <a-tag :color="statusColor(record.status)">{{ record.status }}</a-tag>
         </template>
         <template v-if="column.key === 'action'">
-          <a-button type="link" @click="router.push(`/runs/${record.id}`)">查看详情</a-button>
+          <a-button type="link" @click="router.push(`/runs/${record.id}`)">{{ t('common.view_detail') }}</a-button>
         </template>
       </template>
     </a-table>
@@ -22,11 +22,13 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted } from 'vue'
+import { computed, ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { runApi } from '@/api'
 
 const router = useRouter()
+const { t } = useI18n()
 const runs = ref<any[]>([])
 const loading = ref(false)
 
@@ -35,18 +37,18 @@ const pagination = reactive({
   pageSize: 20,
   total: 0,
   showSizeChanger: true,
-  showTotal: (total: number) => `共 ${total} 条`,
+  showTotal: (total: number) => t('run.pagination_total', { total }),
 })
 
-const columns = [
-  { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
-  { title: '用例 ID', dataIndex: 'case_id', key: 'case_id' },
-  { title: '状态', key: 'status' },
-  { title: '环境', dataIndex: 'environment', key: 'environment' },
-  { title: '耗时(ms)', dataIndex: 'duration_ms', key: 'duration_ms' },
-  { title: '触发时间', dataIndex: 'created_at', key: 'created_at' },
-  { title: '操作', key: 'action' },
-]
+const columns = computed(() => [
+  { title: t('run.columns.id'), dataIndex: 'id', key: 'id', width: 80 },
+  { title: t('run.columns.case_id'), dataIndex: 'case_id', key: 'case_id' },
+  { title: t('run.columns.status'), key: 'status' },
+  { title: t('run.columns.environment'), dataIndex: 'environment', key: 'environment' },
+  { title: t('run.columns.duration_ms'), dataIndex: 'duration_ms', key: 'duration_ms' },
+  { title: t('run.columns.created_at'), dataIndex: 'created_at', key: 'created_at' },
+  { title: t('run.columns.action'), key: 'action' },
+])
 
 function statusColor(status: string) {
   return { passed: 'green', failed: 'red', running: 'blue', error: 'orange', pending: 'default' }[status] ?? 'default'

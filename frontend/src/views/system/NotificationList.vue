@@ -4,7 +4,7 @@
       <a-space>
         <a-select
           v-model:value="projectId"
-          placeholder="选择项目"
+          :placeholder="t('mobile_special.select_project')"
           style="width: 200px"
           allow-clear
           :options="projectOptions"
@@ -12,7 +12,7 @@
         />
       </a-space>
       <a-button type="primary" :disabled="!projectId" @click="openCreate">
-        <PlusOutlined /> 添加通知渠道
+        <PlusOutlined /> {{ t('system_pages.notification.add') }}
       </a-button>
     </div>
 
@@ -29,14 +29,14 @@
           <a-tag :color="channelColor(record.channel)">{{ channelLabel(record.channel) }}</a-tag>
         </template>
         <template v-if="column.key === 'is_enabled'">
-          <a-tag :color="record.is_enabled ? 'green' : 'default'">{{ record.is_enabled ? '启用' : '禁用' }}</a-tag>
+          <a-tag :color="record.is_enabled ? 'green' : 'default'">{{ record.is_enabled ? t('common.enabled') : t('common.disabled') }}</a-tag>
         </template>
         <template v-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-            <a-button type="link" size="small" :loading="testingId === record.id" @click="handleTest(record)">测试</a-button>
-            <a-popconfirm title="确认删除？" @confirm="handleDelete(record.id)">
-              <a-button type="link" size="small" danger>删除</a-button>
+            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+            <a-button type="link" size="small" :loading="testingId === record.id" @click="handleTest(record)">{{ t('system_pages.notification.test') }}</a-button>
+            <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
+              <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
             </a-popconfirm>
           </a-space>
         </template>
@@ -46,34 +46,34 @@
     <!-- 新建/编辑 Modal -->
     <a-modal
       v-model:open="formOpen"
-      :title="isEdit ? '编辑通知渠道' : '添加通知渠道'"
+      :title="isEdit ? t('system_pages.notification.edit') : t('system_pages.notification.add')"
       :confirm-loading="saving"
       width="560px"
       @ok="handleSave"
     >
       <a-form layout="vertical">
-        <a-form-item label="名称">
-          <a-input v-model:value="form.name" placeholder="如：项目群钉钉通知" />
+        <a-form-item :label="t('common.name')">
+          <a-input v-model:value="form.name" :placeholder="t('system_pages.notification.name_placeholder')" />
         </a-form-item>
 
-        <a-form-item label="通知渠道">
+        <a-form-item :label="t('system_pages.notification.channel')">
           <a-select v-model:value="form.channel" :disabled="isEdit" style="width: 100%">
-            <a-select-option value="email">邮件（SMTP）</a-select-option>
-            <a-select-option value="wechat">企业微信机器人</a-select-option>
-            <a-select-option value="dingtalk">钉钉机器人</a-select-option>
+            <a-select-option value="email">{{ t('system_pages.notification.channels.email_full') }}</a-select-option>
+            <a-select-option value="wechat">{{ t('system_pages.notification.channels.wechat_full') }}</a-select-option>
+            <a-select-option value="dingtalk">{{ t('system_pages.notification.channels.dingtalk_full') }}</a-select-option>
           </a-select>
         </a-form-item>
 
         <!-- 邮件配置 -->
         <template v-if="form.channel === 'email'">
-          <a-form-item label="收件人（每行一个邮箱）">
+          <a-form-item :label="t('system_pages.notification.recipients')">
             <a-textarea
               v-model:value="emailRecipients"
               :rows="3"
               placeholder="user1@example.com&#10;user2@example.com"
             />
           </a-form-item>
-          <a-form-item label="邮件主题前缀">
+          <a-form-item :label="t('system_pages.notification.subject_prefix')">
             <a-input v-model:value="emailSubjectPrefix" placeholder="[ATP]" />
           </a-form-item>
         </template>
@@ -90,12 +90,12 @@
           <a-form-item label="Webhook URL">
             <a-input v-model:value="dingtalkUrl" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." />
           </a-form-item>
-          <a-form-item label="签名密钥（可选）">
+          <a-form-item :label="t('system_pages.notification.dingtalk_secret')">
             <a-input v-model:value="dingtalkSecret" placeholder="SEC..." />
           </a-form-item>
         </template>
 
-        <a-form-item label="启用">
+        <a-form-item :label="t('common.enabled')">
           <a-switch v-model:checked="form.is_enabled" />
         </a-form-item>
       </a-form>
@@ -104,9 +104,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { notificationApi, projectApi } from '@/api'
 
 type NotificationChannel = 'email' | 'wechat' | 'dingtalk'
@@ -145,18 +146,23 @@ const emailSubjectPrefix = ref('[ATP]')
 const wechatUrl = ref('')
 const dingtalkUrl = ref('')
 const dingtalkSecret = ref('')
+const { t } = useI18n()
 
-const columns = [
-  { title: '名称', dataIndex: 'name', key: 'name', ellipsis: true },
-  { title: '渠道', key: 'channel', width: 130 },
-  { title: '状态', key: 'is_enabled', width: 80 },
-  { title: '更新时间', dataIndex: 'updated_at', width: 170,
+const columns = computed(() => [
+  { title: t('system_pages.notification.columns.name'), dataIndex: 'name', key: 'name', ellipsis: true },
+  { title: t('system_pages.notification.columns.channel'), key: 'channel', width: 130 },
+  { title: t('system_pages.notification.columns.status'), key: 'is_enabled', width: 80 },
+  { title: t('system_pages.notification.columns.updated_at'), dataIndex: 'updated_at', width: 170,
     customRender: ({ text }: any) => text?.slice(0, 19).replace('T', ' ') },
-  { title: '操作', key: 'action', width: 180, fixed: 'right' },
-]
+  { title: t('system_pages.notification.columns.action'), key: 'action', width: 180, fixed: 'right' as const },
+])
 
 function channelLabel(c: string) {
-  return { email: '邮件', wechat: '企业微信', dingtalk: '钉钉' }[c] ?? c
+  return {
+    email: t('system_pages.notification.channels.email'),
+    wechat: t('system_pages.notification.channels.wechat'),
+    dingtalk: t('system_pages.notification.channels.dingtalk'),
+  }[c] ?? c
 }
 function channelColor(c: string) {
   return { email: 'blue', wechat: 'green', dingtalk: 'geekblue' }[c] ?? 'default'
@@ -174,7 +180,7 @@ async function loadConfigs() {
   loading.value = true
   try {
     configs.value = await notificationApi.list({ project_id: projectId.value })
-  } catch { message.error('加载通知配置失败') }
+  } catch { message.error(t('system_pages.notification.msg.load_failed')) }
   finally { loading.value = false }
 }
 
@@ -234,18 +240,18 @@ function buildConfig(): Record<string, unknown> {
 }
 
 async function handleSave() {
-  if (!projectId.value && !isEdit.value) { message.warning('请先选择项目'); return }
-  if (!form.value.name) { message.warning('请输入名称'); return }
+  if (!projectId.value && !isEdit.value) { message.warning(t('system_pages.notification.msg.select_project')); return }
+  if (!form.value.name) { message.warning(t('system_pages.notification.msg.name_required')); return }
   if (form.value.channel === 'email' && !emailRecipients.value.trim()) {
-    message.warning('请至少填写一个收件人')
+    message.warning(t('system_pages.notification.msg.recipients_required'))
     return
   }
   if (form.value.channel === 'wechat' && !wechatUrl.value.trim()) {
-    message.warning('请输入企业微信 Webhook URL')
+    message.warning(t('system_pages.notification.msg.wechat_url_required'))
     return
   }
   if (form.value.channel === 'dingtalk' && !dingtalkUrl.value.trim()) {
-    message.warning('请输入钉钉 Webhook URL')
+    message.warning(t('system_pages.notification.msg.dingtalk_url_required'))
     return
   }
   saving.value = true
@@ -261,10 +267,10 @@ async function handleSave() {
     } else {
       await notificationApi.create({ ...payload, project_id: projectId.value })
     }
-    message.success(isEdit.value ? '更新成功' : '创建成功')
+    message.success(isEdit.value ? t('system_pages.notification.msg.update_success') : t('system_pages.notification.msg.create_success'))
     formOpen.value = false
     loadConfigs()
-  } catch { message.error('保存失败') }
+  } catch { message.error(t('system_pages.notification.msg.save_failed')) }
   finally { saving.value = false }
 }
 
@@ -272,17 +278,17 @@ async function handleTest(record: NotificationRecord) {
   testingId.value = record.id
   try {
     await notificationApi.test(record.id)
-    message.success('测试通知已发送')
-  } catch { message.error('测试发送失败') }
+    message.success(t('system_pages.notification.msg.test_success'))
+  } catch { message.error(t('system_pages.notification.msg.test_failed')) }
   finally { testingId.value = null }
 }
 
 async function handleDelete(id: number) {
   try {
     await notificationApi.delete(id)
-    message.success('已删除')
+    message.success(t('system_pages.notification.msg.delete_success'))
     loadConfigs()
-  } catch { message.error('删除失败') }
+  } catch { message.error(t('system_pages.notification.msg.delete_failed')) }
 }
 </script>
 
