@@ -5,23 +5,23 @@
       style="margin-bottom: 16px"
       type="warning"
       show-icon
-      :message="`存储使用率告警：${storageAlert.bucket} 当前已使用 ${storageAlert.total_gb} GB，已超过阈值 ${storageAlert.threshold_gb} GB`"
-      :description="`触发时间：${formatAlertTime(storageAlert.triggered_at)}。请到「存储管理」页面执行清理或调整策略。`"
+      :message="t('dashboard.storage_alert_msg', { bucket: storageAlert.bucket, total: storageAlert.total_gb, threshold: storageAlert.threshold_gb })"
+      :description="t('dashboard.storage_alert_desc', { at: formatAlertTime(storageAlert.triggered_at) })"
       closable
     />
     <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center">
-      <h2 style="margin: 0">统计看板</h2>
+      <h2 style="margin: 0">{{ t('dashboard.title') }}</h2>
       <a-space>
         <a-select
           v-model:value="projectId"
-          placeholder="全部项目"
+          :placeholder="t('dashboard.all_projects')"
           allow-clear
           style="width: 200px"
           :options="projectOptions"
         />
         <a-select
           v-model:value="caseType"
-          placeholder="全部类型"
+          :placeholder="t('dashboard.all_types')"
           allow-clear
           style="width: 160px"
           :options="caseTypeOptions"
@@ -31,24 +31,24 @@
     </div>
 
     <div style="margin-bottom: 16px; color: #666; font-size: 13px">
-      当前筛选：{{ activeFilterText }}
+      {{ t('dashboard.filter_label') }}：{{ activeFilterText }}
     </div>
 
     <a-row :gutter="16" style="margin-bottom: 24px">
       <a-col :xs="12" :sm="12" :md="6">
         <a-card>
-          <a-statistic title="总用例数" :value="overview.total_cases" />
+          <a-statistic :title="t('dashboard.total_cases')" :value="overview.total_cases" />
         </a-card>
       </a-col>
       <a-col :xs="12" :sm="12" :md="6">
         <a-card>
-          <a-statistic title="总执行次数" :value="overview.total_runs" />
+          <a-statistic :title="t('dashboard.total_runs')" :value="overview.total_runs" />
         </a-card>
       </a-col>
       <a-col :xs="12" :sm="12" :md="6">
         <a-card>
           <a-statistic
-            title="通过率"
+            :title="t('dashboard.pass_rate')"
             :value="overview.pass_rate"
             suffix="%"
             :precision="1"
@@ -58,7 +58,7 @@
       </a-col>
       <a-col :xs="12" :sm="12" :md="6">
         <a-card>
-          <a-statistic title="近 7 日执行" :value="overview.recent_runs_7d" />
+          <a-statistic :title="t('dashboard.recent_runs_7d')" :value="overview.recent_runs_7d" />
         </a-card>
       </a-col>
     </a-row>
@@ -66,25 +66,25 @@
     <template v-if="!loading && overview.total_runs === 0">
       <a-card>
         <a-empty :description="emptyDescription">
-          <a-button type="primary" @click="goToCaseManagement(projectId)">前往用例管理</a-button>
+          <a-button type="primary" @click="goToCaseManagement(projectId)">{{ t('dashboard.go_cases') }}</a-button>
         </a-empty>
       </a-card>
     </template>
 
     <template v-else>
       <a-spin :spinning="loading">
-        <a-card title="通过率趋势" style="margin-bottom: 24px">
+        <a-card :title="t('dashboard.charts.pass_rate_trend')" style="margin-bottom: 24px">
           <v-chart :option="passRateOption" style="height: 320px" autoresize />
         </a-card>
 
         <a-row :gutter="16">
           <a-col :xs="24" :md="12">
-            <a-card title="执行时长趋势">
+            <a-card :title="t('dashboard.charts.duration_trend')">
               <v-chart :option="durationOption" style="height: 320px" autoresize />
             </a-card>
           </a-col>
           <a-col :xs="24" :md="12">
-            <a-card title="失败 Top 10">
+            <a-card :title="t('dashboard.charts.failure_top')">
               <v-chart :option="failureTopOption" style="height: 320px" autoresize @click="handleFailureClick" />
             </a-card>
           </a-col>
@@ -92,12 +92,12 @@
 
         <a-row :gutter="16" style="margin-top: 16px">
           <a-col :xs="24" :md="12">
-            <a-card title="执行人 Top 10">
+            <a-card :title="t('dashboard.charts.executor_top')">
               <v-chart :option="executorTopOption" style="height: 320px" autoresize />
             </a-card>
           </a-col>
           <a-col :xs="24" :md="12">
-            <a-card title="触发方式分布">
+            <a-card :title="t('dashboard.charts.trigger_type')">
               <v-chart :option="triggerTypeOption" style="height: 320px" autoresize />
             </a-card>
           </a-col>
@@ -105,12 +105,12 @@
 
         <a-row :gutter="16" style="margin-top: 16px">
           <a-col :xs="24" :md="12">
-            <a-card title="计划执行趋势">
+            <a-card :title="t('dashboard.charts.plan_trend')">
               <v-chart :option="planTrendOption" style="height: 320px" autoresize />
             </a-card>
           </a-col>
           <a-col :xs="24" :md="12">
-            <a-card title="套件执行趋势">
+            <a-card :title="t('dashboard.charts.suite_trend')">
               <v-chart :option="suiteTrendOption" style="height: 320px" autoresize />
             </a-card>
           </a-col>
@@ -119,10 +119,12 @@
     </template>
   </div>
 </template>
+</template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart, BarChart } from 'echarts/charts'
@@ -138,6 +140,7 @@ import { projectApi, statisticsApi, storageApi, type StatisticsAggregateTrendIte
 use([CanvasRenderer, LineChart, BarChart, TitleComponent, TooltipComponent, GridComponent, LegendComponent])
 
 const router = useRouter()
+const { t, locale } = useI18n()
 
 type DashboardCaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android'
 
@@ -201,49 +204,42 @@ const caseType = ref<DashboardCaseType | undefined>(undefined)
 const loading = ref(false)
 const storageAlert = ref<StorageAlertPayload | null>(null)
 const projectOptions = ref<Array<{ label: string; value: number }>>([])
-const dayOptions = [
-  { label: '近 7 天', value: 7 },
-  { label: '近 30 天', value: 30 },
-  { label: '近 90 天', value: 90 },
-]
-const caseTypeOptions = [
-  { label: '全部类型', value: undefined },
-  { label: '接口', value: 'api' },
-  { label: 'GraphQL', value: 'graphql' },
-  { label: 'WebSocket', value: 'websocket' },
-  { label: 'gRPC', value: 'grpc' },
-  { label: 'Web', value: 'web' },
-  { label: 'Android', value: 'android' },
-]
-const caseTypeLabelMap: Record<string, string> = {
-  api: '接口',
-  graphql: 'GraphQL',
-  websocket: 'WebSocket',
-  grpc: 'gRPC',
-  web: 'Web',
-  android: 'Android',
-}
-const triggerTypeLabelMap: Record<string, string> = {
-  manual: '手动',
-  cron: '定时',
-  webhook: 'Webhook',
+const dayOptions = computed(() => [
+  { label: t('dashboard.last_7_days'), value: 7 },
+  { label: t('dashboard.last_30_days'), value: 30 },
+  { label: t('dashboard.last_90_days'), value: 90 },
+])
+const caseTypeOptions = computed(() => [
+  { label: t('dashboard.all_types'), value: undefined },
+  { label: t('dashboard.case_types.api'), value: 'api' },
+  { label: t('dashboard.case_types.graphql'), value: 'graphql' },
+  { label: t('dashboard.case_types.websocket'), value: 'websocket' },
+  { label: t('dashboard.case_types.grpc'), value: 'grpc' },
+  { label: t('dashboard.case_types.web'), value: 'web' },
+  { label: t('dashboard.case_types.android'), value: 'android' },
+])
+const caseTypeLabel = (type: string) => t(`dashboard.case_types.${type}`)
+const triggerTypeLabel = (type: string) => {
+  const key = `dashboard.trigger_types.${type}`
+  const translated = t(key)
+  return translated === key ? type : translated
 }
 
 function getProjectLabel(id?: number) {
-  if (!id) return '全部项目'
-  return projectOptions.value.find(option => option.value === id)?.label ?? `项目 #${id}`
+  if (!id) return t('dashboard.all_projects')
+  return projectOptions.value.find(option => option.value === id)?.label ?? `#${id}`
 }
 
 const activeFilterText = computed(() => {
   const projectText = getProjectLabel(projectId.value)
-  const typeText = caseType.value ? caseTypeLabelMap[caseType.value] : '全部类型'
-  return `${projectText} / ${typeText} / 近 ${days.value} 天`
+  const typeText = caseType.value ? caseTypeLabel(caseType.value) : t('dashboard.all_types')
+  return `${projectText} / ${typeText} / ${t('dashboard.filter_window', { days: days.value })}`
 })
 
 const emptyDescription = computed(() => {
   return caseType.value
-    ? `当前筛选下还没有 ${caseTypeLabelMap[caseType.value]} 执行记录，去创建并执行对应类型用例吧`
-    : '还没有执行记录，去创建用例并执行吧'
+    ? t('dashboard.empty_no_runs_typed', { type: caseTypeLabel(caseType.value) })
+    : t('dashboard.empty_no_runs')
 })
 
 function createEmptyOverview(): OverviewData {
@@ -304,15 +300,15 @@ function fillDurationGaps(data: DurationTrendItem[], numDays: number): DurationT
 function buildPassRateOption(data: PassRateTrendItem[] = []) {
   return {
     tooltip: { trigger: 'axis' as const },
-    legend: { data: ['通过率', '执行数'] },
+    legend: { data: [t('dashboard.charts.pass_rate'), t('dashboard.charts.run_count')] },
     xAxis: { type: 'category' as const, data: data.map(item => item.date) },
     yAxis: [
-      { type: 'value' as const, name: '通过率(%)', min: 0, max: 100 },
-      { type: 'value' as const, name: '执行数' },
+      { type: 'value' as const, name: t('dashboard.charts.pass_rate_y'), min: 0, max: 100 },
+      { type: 'value' as const, name: t('dashboard.charts.run_count') },
     ],
     series: [
       {
-        name: '通过率',
+        name: t('dashboard.charts.pass_rate'),
         type: 'line' as const,
         smooth: true,
         data: data.map(item => item.rate),
@@ -320,7 +316,7 @@ function buildPassRateOption(data: PassRateTrendItem[] = []) {
         areaStyle: { color: 'rgba(24,144,255,0.15)' },
       },
       {
-        name: '执行数',
+        name: t('dashboard.charts.run_count'),
         type: 'bar' as const,
         yAxisIndex: 1,
         data: data.map(item => item.total),
@@ -333,18 +329,18 @@ function buildPassRateOption(data: PassRateTrendItem[] = []) {
 function buildDurationOption(data: DurationTrendItem[] = []) {
   return {
     tooltip: { trigger: 'axis' as const, valueFormatter: (value: number) => `${value} ms` },
-    legend: { data: ['平均时长', '最大时长'] },
+    legend: { data: [t('dashboard.charts.avg_duration'), t('dashboard.charts.max_duration')] },
     xAxis: { type: 'category' as const, data: data.map(item => item.date) },
-    yAxis: { type: 'value' as const, name: '时长(ms)' },
+    yAxis: { type: 'value' as const, name: t('dashboard.charts.duration_y') },
     series: [
       {
-        name: '平均时长',
+        name: t('dashboard.charts.avg_duration'),
         type: 'bar' as const,
         data: data.map(item => item.avg_duration_ms),
         itemStyle: { color: '#52c41a' },
       },
       {
-        name: '最大时长',
+        name: t('dashboard.charts.max_duration'),
         type: 'line' as const,
         smooth: true,
         data: data.map(item => item.max_duration_ms),
@@ -360,7 +356,7 @@ function buildFailureTopOption(data: FailureTopItem[] = []) {
   return {
     tooltip: { trigger: 'axis' as const },
     grid: { left: '30%' },
-    xAxis: { type: 'value' as const, name: '失败次数' },
+    xAxis: { type: 'value' as const, name: t('dashboard.charts.failure_count') },
     yAxis: {
       type: 'category' as const,
       data: sorted.map(item => item.case_name.length > 15 ? item.case_name.slice(0, 15) + '...' : item.case_name),
@@ -387,7 +383,7 @@ function buildExecutorTopOption(data: ExecutorTopItem[] = []) {
   return {
     tooltip: { trigger: 'axis' as const },
     grid: { left: '24%' },
-    xAxis: { type: 'value' as const, name: '执行次数' },
+    xAxis: { type: 'value' as const, name: t('dashboard.charts.executor_count') },
     yAxis: {
       type: 'category' as const,
       data: sorted.map(item => item.username),
@@ -408,10 +404,10 @@ function buildTriggerTypeOption(data: TriggerTypeStatItem[] = []) {
     legend: { bottom: 0 },
     series: [
       {
-        name: '触发方式',
+        name: t('dashboard.charts.trigger_method'),
         type: 'pie' as const,
         radius: ['45%', '70%'],
-        data: data.map(item => ({ value: item.count, name: triggerTypeLabelMap[item.trigger_type] ?? item.trigger_type })),
+        data: data.map(item => ({ value: item.count, name: triggerTypeLabel(item.trigger_type) })),
       },
     ],
   }
@@ -420,15 +416,15 @@ function buildTriggerTypeOption(data: TriggerTypeStatItem[] = []) {
 function buildAggregateTrendOption(data: AggregateTrendItem[] = [], label: string) {
   return {
     tooltip: { trigger: 'axis' as const },
-    legend: { data: [`${label}通过率`, `${label}执行数`] },
+    legend: { data: [`${label} ${t('dashboard.charts.pass_rate_suffix')}`, `${label} ${t('dashboard.charts.run_count_suffix')}`] },
     xAxis: { type: 'category' as const, data: data.map(item => item.date) },
     yAxis: [
-      { type: 'value' as const, name: '通过率(%)', min: 0, max: 100 },
-      { type: 'value' as const, name: '执行数' },
+      { type: 'value' as const, name: t('dashboard.charts.pass_rate_y'), min: 0, max: 100 },
+      { type: 'value' as const, name: t('dashboard.charts.run_count') },
     ],
     series: [
       {
-        name: `${label}通过率`,
+        name: `${label} ${t('dashboard.charts.pass_rate_suffix')}`,
         type: 'line' as const,
         smooth: true,
         data: data.map(item => item.rate),
@@ -436,7 +432,7 @@ function buildAggregateTrendOption(data: AggregateTrendItem[] = [], label: strin
         areaStyle: { color: 'rgba(114,46,209,0.15)' },
       },
       {
-        name: `${label}执行数`,
+        name: `${label} ${t('dashboard.charts.run_count_suffix')}`,
         type: 'bar' as const,
         yAxisIndex: 1,
         data: data.map(item => item.total),
@@ -474,8 +470,8 @@ const durationOption = ref(buildDurationOption())
 const failureTopOption = ref(buildFailureTopOption())
 const executorTopOption = ref(buildExecutorTopOption())
 const triggerTypeOption = ref(buildTriggerTypeOption())
-const planTrendOption = ref(buildAggregateTrendOption([], '计划'))
-const suiteTrendOption = ref(buildAggregateTrendOption([], '套件'))
+const planTrendOption = ref(buildAggregateTrendOption([], t('dashboard.charts.plan')))
+const suiteTrendOption = ref(buildAggregateTrendOption([], t('dashboard.charts.suite')))
 
 function resetOverview() {
   Object.assign(overview, createEmptyOverview())
@@ -576,22 +572,27 @@ async function loadTriggerTypeStats(params: { project_id?: number; days: number 
 async function loadPlanTrend(params: { project_id?: number; days: number }) {
   try {
     const data = await statisticsApi.planTrend(params)
-    planTrendOption.value = buildAggregateTrendOption(data, '计划')
+    planTrendOption.value = buildAggregateTrendOption(data, t('dashboard.charts.plan'))
   } catch {
-    planTrendOption.value = buildAggregateTrendOption([], '计划')
+    planTrendOption.value = buildAggregateTrendOption([], t('dashboard.charts.plan'))
   }
 }
 
 async function loadSuiteTrend(params: { project_id?: number; days: number }) {
   try {
     const data = await statisticsApi.suiteTrend(params)
-    suiteTrendOption.value = buildAggregateTrendOption(data, '套件')
+    suiteTrendOption.value = buildAggregateTrendOption(data, t('dashboard.charts.suite'))
   } catch {
-    suiteTrendOption.value = buildAggregateTrendOption([], '套件')
+    suiteTrendOption.value = buildAggregateTrendOption([], t('dashboard.charts.suite'))
   }
 }
 
 watch([projectId, days, caseType], () => {
+  void loadAll()
+})
+
+// 语言切换：重新拉取数据以让 echarts 配置中的 t() 文案刷新
+watch(locale, () => {
   void loadAll()
 })
 
