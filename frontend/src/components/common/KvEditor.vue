@@ -1,5 +1,4 @@
 <template>
-  <!-- 可动态增减行的 Key-Value 编辑器，用于 Headers / Params -->
   <div class="kv-editor">
     <div v-for="(row, i) in rows" :key="i" class="kv-row">
       <a-input
@@ -17,7 +16,7 @@
       <MinusCircleOutlined class="kv-remove" @click="removeRow(i)" />
     </div>
     <a-button type="dashed" block size="small" @click="addRow">
-      <PlusOutlined /> 添加
+      <PlusOutlined /> {{ t('common.add') }}
     </a-button>
   </div>
 </template>
@@ -25,9 +24,11 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons-vue'
+import { useI18n } from 'vue-i18n'
 
 const props = defineProps<{ value: Record<string, string> }>()
 const emit = defineEmits<{ 'update:value': [v: Record<string, string>] }>()
+const { t } = useI18n()
 
 interface Row { key: string; value: string }
 const rows = ref<Row[]>([])

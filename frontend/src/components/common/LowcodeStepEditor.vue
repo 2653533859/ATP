@@ -2,14 +2,14 @@
   <div class="step-editor">
     <div class="step-toolbar">
       <a-button type="dashed" @click="addStep">
-        <PlusOutlined /> 添加步骤
+        <PlusOutlined /> {{ t('case.step_editor.add_step') }}
       </a-button>
       <span style="color: #999; font-size: 12px; margin-left: 8px">
-        拖拽左侧图标可调整步骤顺序
+        {{ t('case.lowcode_editor.drag_hint') }}
       </span>
     </div>
 
-    <a-empty v-if="steps.length === 0" description="暂无步骤，请点击上方按钮添加" />
+    <a-empty v-if="steps.length === 0" :description="t('case.lowcode_editor.empty')" />
 
     <draggable
       v-else
@@ -27,7 +27,7 @@
               <a-input
                 v-model:value="step.name"
                 size="small"
-                placeholder="步骤名称"
+                :placeholder="t('case.lowcode_editor.step_name')"
                 style="width: 200px"
                 @input="emitUpdate"
               />
@@ -54,7 +54,7 @@
             <a-form-item label="URL" :label-col="{ span: 3 }">
               <a-input
                 v-model:value="step.params.url"
-                placeholder="https://example.com  (支持 {{VAR}} 变量)"
+                :placeholder="t('case.lowcode_editor.url_placeholder')"
                 @input="emitUpdate"
               />
             </a-form-item>
@@ -62,10 +62,10 @@
 
           <!-- click -->
           <template v-else-if="step.action === 'click'">
-            <a-form-item label="选择器" :label-col="{ span: 3 }">
+            <a-form-item :label="t('case.lowcode_editor.selector')" :label-col="{ span: 3 }">
               <a-input
                 v-model:value="step.params.selector"
-                placeholder="CSS 选择器或 Playwright 定位器 (如 text=登录)"
+                :placeholder="t('case.lowcode_editor.selector_playwright_placeholder')"
                 @input="emitUpdate"
               />
             </a-form-item>
@@ -75,19 +75,19 @@
           <template v-else-if="step.action === 'fill'">
             <a-row :gutter="12">
               <a-col :span="12">
-                <a-form-item label="选择器" :label-col="{ span: 6 }">
+                <a-form-item :label="t('case.lowcode_editor.selector')" :label-col="{ span: 6 }">
                   <a-input
                     v-model:value="step.params.selector"
-                    placeholder="CSS 选择器"
+                    :placeholder="t('case.lowcode_editor.selector_placeholder')"
                     @input="emitUpdate"
                   />
                 </a-form-item>
               </a-col>
               <a-col :span="12">
-                <a-form-item label="输入值" :label-col="{ span: 6 }">
+                <a-form-item :label="t('case.lowcode_editor.input_value')" :label-col="{ span: 6 }">
                   <a-input
                     v-model:value="step.params.value"
-                    placeholder="要输入的文本 (支持 {{VAR}})"
+                    :placeholder="t('case.lowcode_editor.input_value_placeholder')"
                     @input="emitUpdate"
                   />
                 </a-form-item>
@@ -97,10 +97,10 @@
 
           <!-- assert_text -->
           <template v-else-if="step.action === 'assert_text'">
-            <a-form-item label="断言文本" :label-col="{ span: 3 }">
+            <a-form-item :label="t('case.lowcode_editor.assert_text')" :label-col="{ span: 3 }">
               <a-input
                 v-model:value="step.params.text"
-                placeholder="页面应包含的文本内容"
+                :placeholder="t('case.lowcode_editor.assert_text_placeholder')"
                 @input="emitUpdate"
               />
             </a-form-item>
@@ -108,10 +108,10 @@
 
           <!-- assert_visible -->
           <template v-else-if="step.action === 'assert_visible'">
-            <a-form-item label="选择器" :label-col="{ span: 3 }">
+            <a-form-item :label="t('case.lowcode_editor.selector')" :label-col="{ span: 3 }">
               <a-input
                 v-model:value="step.params.selector"
-                placeholder="断言该元素可见"
+                :placeholder="t('case.lowcode_editor.assert_visible_placeholder')"
                 @input="emitUpdate"
               />
             </a-form-item>
@@ -119,7 +119,7 @@
 
           <!-- wait -->
           <template v-else-if="step.action === 'wait'">
-            <a-form-item label="等待时间" :label-col="{ span: 3 }">
+            <a-form-item :label="t('case.lowcode_editor.wait_time')" :label-col="{ span: 3 }">
               <a-input-number
                 v-model:value="step.params.ms"
                 :min="100"
@@ -133,26 +133,26 @@
 
           <!-- screenshot -->
           <template v-else-if="step.action === 'screenshot'">
-            <a-alert message="此步骤将截取当前页面截图" type="info" show-icon />
+            <a-alert :message="t('case.lowcode_editor.screenshot_hint')" type="info" show-icon />
           </template>
 
           <!-- select -->
           <template v-else-if="step.action === 'select'">
             <a-row :gutter="12">
               <a-col :span="12">
-                <a-form-item label="选择器" :label-col="{ span: 6 }">
+                <a-form-item :label="t('case.lowcode_editor.selector')" :label-col="{ span: 6 }">
                   <a-input
                     v-model:value="step.params.selector"
-                    placeholder="<select> 元素选择器"
+                    :placeholder="t('case.lowcode_editor.select_placeholder')"
                     @input="emitUpdate"
                   />
                 </a-form-item>
               </a-col>
               <a-col :span="12">
-                <a-form-item label="选项值" :label-col="{ span: 6 }">
+                <a-form-item :label="t('case.lowcode_editor.option_value')" :label-col="{ span: 6 }">
                   <a-input
                     v-model:value="step.params.value"
-                    placeholder="option 的 value"
+                    :placeholder="t('case.lowcode_editor.option_value_placeholder')"
                     @input="emitUpdate"
                   />
                 </a-form-item>
@@ -164,19 +164,19 @@
           <template v-else-if="step.action === 'press'">
             <a-row :gutter="12">
               <a-col :span="12">
-                <a-form-item label="按键" :label-col="{ span: 6 }">
+                <a-form-item :label="t('case.lowcode_editor.key')" :label-col="{ span: 6 }">
                   <a-input
                     v-model:value="step.params.key"
-                    placeholder="如 Enter、Tab、Escape"
+                    :placeholder="t('case.lowcode_editor.key_placeholder')"
                     @input="emitUpdate"
                   />
                 </a-form-item>
               </a-col>
               <a-col :span="12">
-                <a-form-item label="目标元素" :label-col="{ span: 6 }">
+                <a-form-item :label="t('case.lowcode_editor.target_element')" :label-col="{ span: 6 }">
                   <a-input
                     v-model:value="step.params.selector"
-                    placeholder="可选，留空则对整个页面按键"
+                    :placeholder="t('case.lowcode_editor.target_element_placeholder')"
                     @input="emitUpdate"
                   />
                 </a-form-item>
@@ -186,10 +186,10 @@
 
           <!-- hover -->
           <template v-else-if="step.action === 'hover'">
-            <a-form-item label="选择器" :label-col="{ span: 3 }">
+            <a-form-item :label="t('case.lowcode_editor.selector')" :label-col="{ span: 3 }">
               <a-input
                 v-model:value="step.params.selector"
-                placeholder="鼠标悬停的目标元素"
+                :placeholder="t('case.lowcode_editor.hover_placeholder')"
                 @input="emitUpdate"
               />
             </a-form-item>
@@ -201,9 +201,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons-vue'
 import draggable from 'vuedraggable'
+import { useI18n } from 'vue-i18n'
 
 interface StepDef {
   action: string
@@ -218,21 +219,22 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: Array<{ action: string; name: string; params: Record<string, any> }>]
 }>()
+const { t } = useI18n()
 
 let keyCounter = 0
 
-const actionOptions = [
-  { label: '跳转 URL', value: 'goto' },
-  { label: '点击元素', value: 'click' },
-  { label: '输入文本', value: 'fill' },
-  { label: '断言文本', value: 'assert_text' },
-  { label: '断言可见', value: 'assert_visible' },
-  { label: '等待', value: 'wait' },
-  { label: '截图', value: 'screenshot' },
-  { label: '下拉选择', value: 'select' },
-  { label: '键盘按键', value: 'press' },
-  { label: '鼠标悬停', value: 'hover' },
-]
+const actionOptions = computed(() => [
+  { label: t('case.lowcode_editor.actions.goto'), value: 'goto' },
+  { label: t('case.lowcode_editor.actions.click'), value: 'click' },
+  { label: t('case.lowcode_editor.actions.fill'), value: 'fill' },
+  { label: t('case.lowcode_editor.actions.assert_text'), value: 'assert_text' },
+  { label: t('case.lowcode_editor.actions.assert_visible'), value: 'assert_visible' },
+  { label: t('case.lowcode_editor.actions.wait'), value: 'wait' },
+  { label: t('case.lowcode_editor.actions.screenshot'), value: 'screenshot' },
+  { label: t('case.lowcode_editor.actions.select'), value: 'select' },
+  { label: t('case.lowcode_editor.actions.press'), value: 'press' },
+  { label: t('case.lowcode_editor.actions.hover'), value: 'hover' },
+])
 
 const defaultParams: Record<string, () => Record<string, any>> = {
   goto: () => ({ url: '' }),
@@ -302,7 +304,7 @@ function addStep() {
     ...steps.value,
     {
       action,
-      name: `步骤 ${steps.value.length + 1}`,
+      name: t('case.step_editor.step_title', { index: steps.value.length + 1 }),
       params: defaultParams[action](),
       _key: keyCounter++,
     },

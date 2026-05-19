@@ -11,9 +11,9 @@
           :disabled="resetDisabled"
           @click="emit('reset')"
         >
-          查看全部
+          {{ t('common.view_all') }}
         </a-button>
-        <a-tooltip title="新建根模块">
+        <a-tooltip :title="t('case.module_tree.new_root')">
           <PlusOutlined class="tree-add-btn" @click="showAddModal(null)" />
         </a-tooltip>
       </div>
@@ -32,13 +32,13 @@
           <div class="tree-node">
             <span class="node-name">{{ node.name }}</span>
             <span class="node-actions" @click.stop>
-              <a-tooltip title="新建子模块">
+              <a-tooltip :title="t('case.module_tree.new_child')">
                 <PlusOutlined @click="showAddModal(node)" />
               </a-tooltip>
-              <a-tooltip title="删除模块">
+              <a-tooltip :title="t('case.module_tree.delete_module')">
                 <a-popconfirm
-                  title="删除后该模块下所有用例将被删除，确认？"
-                  ok-text="删除"
+                  :title="t('case.module_tree.delete_confirm')"
+                  :ok-text="t('common.delete')"
                   ok-type="danger"
                   @confirm="handleDelete(node)"
                 >
@@ -49,20 +49,19 @@
           </div>
         </template>
       </a-tree>
-      <a-empty v-else description="暂无模块" :image="Empty.PRESENTED_IMAGE_SIMPLE" />
+      <a-empty v-else :description="t('case.module_tree.empty')" :image="Empty.PRESENTED_IMAGE_SIMPLE" />
     </a-spin>
 
-    <!-- 新建模块弹窗 -->
     <a-modal
       v-model:open="addVisible"
-      :title="addParent ? `在「${addParent.name}」下新建子模块` : '新建根模块'"
+      :title="addParent ? t('case.module_tree.new_child_under', { name: addParent.name }) : t('case.module_tree.new_root')"
       width="400px"
       @ok="handleAdd"
       :confirm-loading="adding"
     >
       <a-input
         v-model:value="newModuleName"
-        placeholder="模块名称"
+        :placeholder="t('case.module_tree.module_name')"
         @pressEnter="handleAdd"
       />
     </a-modal>
@@ -70,9 +69,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { Empty, message } from 'ant-design-vue'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { projectApi, moduleApi } from '@/api'
 
 const props = withDefaults(defineProps<{
@@ -81,11 +81,13 @@ const props = withDefaults(defineProps<{
   showReset?: boolean
   resetDisabled?: boolean
 }>(), {
-  title: '模块目录',
+  title: undefined,
   showReset: false,
   resetDisabled: true,
 })
 const emit = defineEmits<{ select: [moduleId: number | null]; reset: [] }>()
+const { t } = useI18n()
+const title = computed(() => props.title ?? t('case.module_tree.title'))
 
 const treeData = ref<any[]>([])
 const loading = ref(false)
@@ -118,7 +120,7 @@ function showAddModal(parent: any) {
 
 async function handleAdd() {
   if (!newModuleName.value.trim()) {
-    message.warning('请输入模块名称')
+    message.warning(t('case.module_tree.msg.name_required'))
     return
   }
   adding.value = true
@@ -128,7 +130,7 @@ async function handleAdd() {
       project_id: props.projectId,
       parent_id: addParent.value?.id ?? null,
     })
-    message.success('创建成功')
+    message.success(t('case.module_tree.msg.create_success'))
     addVisible.value = false
     await loadModules()
   } finally {
@@ -138,7 +140,7 @@ async function handleAdd() {
 
 async function handleDelete(node: any) {
   await moduleApi.delete(node.id)
-  message.success('已删除')
+  message.success(t('case.module_tree.msg.delete_success'))
   if (selectedKeys.value.includes(node.id)) {
     selectedKeys.value = []
     emit('select', null)

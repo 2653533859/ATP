@@ -2,10 +2,10 @@
   <div style="display: flex; flex-direction: column; height: 100%">
     <!-- Header -->
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap">
-      <h2 style="margin: 0">专项测试报告</h2>
+      <h2 style="margin: 0">{{ t('mobile_special.reports.title') }}</h2>
       <a-select
         v-model:value="selectedProjectId"
-        placeholder="选择项目"
+        :placeholder="t('mobile_special.select_project')"
         style="width: 200px"
         :options="projectOptions"
         allow-clear
@@ -13,7 +13,7 @@
       />
       <a-select
         v-model:value="selectedTaskType"
-        placeholder="任务类型"
+        :placeholder="t('mobile_special.task_type')"
         style="width: 140px"
         :options="taskTypeOptions"
         allow-clear
@@ -21,7 +21,7 @@
       />
       <a-select
         v-model:value="selectedStatus"
-        placeholder="执行状态"
+        :placeholder="t('mobile_special.reports.status')"
         style="width: 120px"
         :options="statusOptions"
         allow-clear
@@ -29,7 +29,7 @@
       />
       <a-range-picker
         v-model:value="dateRange"
-        :placeholder="['开始日期', '结束日期']"
+        :placeholder="[t('mobile_special.reports.start_date'), t('mobile_special.reports.end_date')]"
         style="width: 260px"
         @change="loadRuns"
       />
@@ -38,27 +38,27 @@
     <!-- Overview KPI Cards -->
     <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px">
       <a-card size="small" :body-style="{ padding: '12px 16px' }">
-        <div style="color: #999; font-size: 12px; margin-bottom: 4px">总执行次数</div>
+        <div style="color: #999; font-size: 12px; margin-bottom: 4px">{{ t('mobile_special.reports.total_runs') }}</div>
         <div style="font-size: 24px; font-weight: 600; color: #1890ff">{{ overview.total_runs }}</div>
       </a-card>
       <a-card size="small" :body-style="{ padding: '12px 16px' }">
-        <div style="color: #999; font-size: 12px; margin-bottom: 4px">完成率</div>
+        <div style="color: #999; font-size: 12px; margin-bottom: 4px">{{ t('mobile_special.reports.completion_rate') }}</div>
         <div style="font-size: 24px; font-weight: 600; color: #52c41a">{{ overview.pass_rate }}%</div>
       </a-card>
       <a-card size="small" :body-style="{ padding: '12px 16px' }">
-        <div style="color: #999; font-size: 12px; margin-bottom: 4px">近7天执行</div>
+        <div style="color: #999; font-size: 12px; margin-bottom: 4px">{{ t('mobile_special.reports.recent_runs_7d') }}</div>
         <div style="font-size: 24px; font-weight: 600; color: #722ed1">{{ overview.recent_runs_7d }}</div>
       </a-card>
       <a-card size="small" :body-style="{ padding: '12px 16px' }">
-        <div style="color: #999; font-size: 12px; margin-bottom: 4px">失败次数</div>
+        <div style="color: #999; font-size: 12px; margin-bottom: 4px">{{ t('mobile_special.reports.failed_runs') }}</div>
         <div style="font-size: 24px; font-weight: 600; color: #ff4d4f">{{ overview.failed_runs }}</div>
       </a-card>
       <a-card size="small" :body-style="{ padding: '12px 16px' }">
-        <div style="color: #999; font-size: 12px; margin-bottom: 4px">异常事件</div>
+        <div style="color: #999; font-size: 12px; margin-bottom: 4px">{{ t('mobile_special.reports.incidents') }}</div>
         <div style="font-size: 24px; font-weight: 600; color: #faad14">{{ overview.total_incidents }}</div>
       </a-card>
       <a-card size="small" :body-style="{ padding: '12px 16px' }">
-        <div style="color: #999; font-size: 12px; margin-bottom: 4px">平均耗时</div>
+        <div style="color: #999; font-size: 12px; margin-bottom: 4px">{{ t('mobile_special.reports.avg_duration') }}</div>
         <div style="font-size: 24px; font-weight: 600; color: #13c2c2">
           {{ overview.avg_duration_ms ? (overview.avg_duration_ms / 1000).toFixed(1) + 's' : '-' }}
         </div>
@@ -68,9 +68,9 @@
     <!-- Trend Chart -->
     <a-card style="margin-bottom: 16px" :body-style="{ padding: '12px 16px' }">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px">
-        <span style="font-size: 14px; font-weight: 500">执行趋势（近14天）</span>
+        <span style="font-size: 14px; font-weight: 500">{{ t('mobile_special.reports.trend_title') }}</span>
         <span style="font-size: 12px; color: #999">
-          完成 {{ trendCompleted }} / 失败 {{ trendFailed }}
+          {{ t('mobile_special.reports.trend_summary', { completed: trendCompleted, failed: trendFailed }) }}
         </span>
       </div>
       <div ref="trendChartRef" style="width: 100%; height: 220px"></div>
@@ -98,13 +98,13 @@
             {{ record.started_at ? formatDate(record.started_at) : '-' }}
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-button type="primary" size="small" @click="viewDetail(record)">详情</a-button>
+            <a-button type="primary" size="small" @click="viewDetail(record)">{{ t('case.actions.detail') }}</a-button>
             <a-dropdown>
-              <a-button type="link" size="small">导出</a-button>
+              <a-button type="link" size="small">{{ t('common.export') }}</a-button>
               <template #overlay>
                 <a-menu>
-                  <a-menu-item key="csv" @click="exportCsv(record)">CSV 指标</a-menu-item>
-                  <a-menu-item key="json" @click="exportJson(record)">JSON 报告</a-menu-item>
+                  <a-menu-item key="csv" @click="exportCsv(record)">{{ t('mobile_special.reports.csv_metrics') }}</a-menu-item>
+                  <a-menu-item key="json" @click="exportJson(record)">{{ t('mobile_special.reports.json_report') }}</a-menu-item>
                 </a-menu>
               </template>
             </a-dropdown>
@@ -114,7 +114,7 @@
               size="small"
               danger
               @click="handleStop(record)"
-            >停止</a-button>
+            >{{ t('mobile_special.reports.stop') }}</a-button>
           </template>
         </template>
       </a-table>
@@ -123,14 +123,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import * as echarts from 'echarts'
 import type { ECharts, EChartsOption } from 'echarts'
 import { projectApi, mobileSpecialApi, type MobileSpecialRunItem, type TaskType, type MobileRunStatus } from '@/api'
 
 const router = useRouter()
+const { t, locale } = useI18n()
 const loading = ref(false)
 const runs = ref<MobileSpecialRunItem[]>([])
 const projectOptions = ref<Array<{ label: string; value: number }>>([])
@@ -146,33 +148,34 @@ const overview = ref({
 })
 const trendCompleted = ref(0)
 const trendFailed = ref(0)
+const latestTrend = ref<Array<{ date: string; total: number; completed: number; failed: number; pass_rate: number }>>([])
 
 const trendChartRef = ref<HTMLDivElement | null>(null)
 let trendChart: ECharts | null = null
 
-const taskTypeOptions = [
-  { label: '性能测试', value: 'performance' },
-  { label: '稳定性测试', value: 'stability' },
-  { label: '流畅度测试', value: 'fluency' },
-]
+const taskTypeOptions = computed(() => [
+  { label: t('mobile_special.task_types.performance'), value: 'performance' },
+  { label: t('mobile_special.task_types.stability'), value: 'stability' },
+  { label: t('mobile_special.task_types.fluency'), value: 'fluency' },
+])
 
-const statusOptions = [
-  { label: '已完成', value: 'completed' },
-  { label: '进行中', value: 'running' },
-  { label: '失败', value: 'failed' },
-  { label: '已停止', value: 'stopped' },
-]
+const statusOptions = computed(() => [
+  { label: t('mobile_special.statuses.completed'), value: 'completed' },
+  { label: t('mobile_special.statuses.running'), value: 'running' },
+  { label: t('mobile_special.statuses.failed'), value: 'failed' },
+  { label: t('mobile_special.statuses.stopped'), value: 'stopped' },
+])
 
-const columns = [
-  { title: '任务名称', key: 'task_name', dataIndex: 'task_name', width: 180, ellipsis: true },
-  { title: '类型', key: 'task_type', dataIndex: 'task_type', width: 100 },
-  { title: '状态', key: 'status', dataIndex: 'status', width: 90 },
-  { title: '设备', key: 'device_serial', dataIndex: 'device_serial', width: 140, ellipsis: true },
-  { title: '包名', key: 'app_package', dataIndex: 'app_package', width: 160, ellipsis: true },
-  { title: '耗时', key: 'duration', width: 90 },
-  { title: '开始时间', key: 'started_at', width: 160 },
-  { title: '操作', key: 'action', width: 200 },
-]
+const columns = computed(() => [
+  { title: t('mobile_special.columns.name'), key: 'task_name', dataIndex: 'task_name', width: 180, ellipsis: true },
+  { title: t('common.type'), key: 'task_type', dataIndex: 'task_type', width: 100 },
+  { title: t('common.status'), key: 'status', dataIndex: 'status', width: 90 },
+  { title: t('mobile_special.reports.device'), key: 'device_serial', dataIndex: 'device_serial', width: 140, ellipsis: true },
+  { title: t('mobile_special.columns.app_package'), key: 'app_package', dataIndex: 'app_package', width: 160, ellipsis: true },
+  { title: t('mobile_special.reports.duration'), key: 'duration', width: 90 },
+  { title: t('mobile_special.reports.started_at'), key: 'started_at', width: 160 },
+  { title: t('common.action'), key: 'action', width: 200 },
+])
 
 onMounted(async () => {
   try {
@@ -182,7 +185,7 @@ onMounted(async () => {
       selectedProjectId.value = list[0].id
     }
   } catch (e: any) {
-    message.error(e?.message || '加载项目失败')
+    message.error(e?.message || t('mobile_special.msg.load_projects_failed'))
   }
   await Promise.all([loadOverview(), loadRuns()])
   initTrendChart()
@@ -235,13 +238,13 @@ async function loadRuns() {
 
     runs.value = filtered.map(r => ({
       ...r,
-      task_name: r.task_name || `任务 #${r.task_id}`,
+      task_name: r.task_name || t('mobile_special.reports.task_fallback', { id: r.task_id }),
     }))
 
     // Load trend data
     await loadTrend()
   } catch (e: any) {
-    message.error(e?.message || '加载报告失败')
+    message.error(e?.message || t('mobile_special.reports.msg.load_failed'))
   } finally {
     loading.value = false
   }
@@ -255,6 +258,7 @@ async function loadTrend() {
     })
     trendCompleted.value = trend.reduce((sum, d) => sum + d.completed, 0)
     trendFailed.value = trend.reduce((sum, d) => sum + d.failed, 0)
+    latestTrend.value = trend
     updateTrendChart(trend)
   } catch { /* ignore */ }
 }
@@ -273,7 +277,7 @@ function updateTrendChart(trend: Array<{ date: string; total: number; completed:
 
   const option: EChartsOption = {
     tooltip: { trigger: 'axis' },
-    legend: { data: ['完成', '失败'], bottom: 0 },
+    legend: { data: [t('mobile_special.statuses.completed'), t('mobile_special.statuses.failed')], bottom: 0 },
     grid: { top: 10, right: 20, bottom: 36, left: 40 },
     xAxis: {
       type: 'category',
@@ -282,8 +286,8 @@ function updateTrendChart(trend: Array<{ date: string; total: number; completed:
     },
     yAxis: { type: 'value', minInterval: 1, axisLabel: { fontSize: 11 } },
     series: [
-      { name: '完成', type: 'bar', data: completedData, itemStyle: { color: '#52c41a' } },
-      { name: '失败', type: 'bar', data: failedData, itemStyle: { color: '#ff4d4f' } },
+      { name: t('mobile_special.statuses.completed'), type: 'bar', data: completedData, itemStyle: { color: '#52c41a' } },
+      { name: t('mobile_special.statuses.failed'), type: 'bar', data: failedData, itemStyle: { color: '#ff4d4f' } },
     ],
   }
 
@@ -295,7 +299,11 @@ function taskTypeColor(type: string) {
 }
 
 function taskTypeLabel(type: string) {
-  return { performance: '性能', stability: '稳定性', fluency: '流畅度' }[type] || type
+  return {
+    performance: t('mobile_special.task_types.performance'),
+    stability: t('mobile_special.task_types.stability'),
+    fluency: t('mobile_special.task_types.fluency'),
+  }[type] || type
 }
 
 function statusColor(status: string) {
@@ -303,7 +311,13 @@ function statusColor(status: string) {
 }
 
 function statusLabel(status: string) {
-  return { pending: '等待', running: '运行中', completed: '完成', failed: '失败', stopped: '已停止' }[status] || status
+  return {
+    pending: t('mobile_special.statuses.pending'),
+    running: t('mobile_special.statuses.running'),
+    completed: t('mobile_special.statuses.completed'),
+    failed: t('mobile_special.statuses.failed'),
+    stopped: t('mobile_special.statuses.stopped'),
+  }[status] || status
 }
 
 function formatDate(dateStr: string) {
@@ -323,9 +337,9 @@ async function exportCsv(record: MobileSpecialRunItem) {
     a.download = `mobile_run_${record.id}_metrics.csv`
     a.click()
     URL.revokeObjectURL(url)
-    message.success('CSV 已下载')
+    message.success(t('mobile_special.reports.msg.csv_downloaded'))
   } catch (e: any) {
-    message.error(e?.message || '导出失败')
+    message.error(e?.message || t('mobile_special.reports.msg.export_failed'))
   }
 }
 
@@ -338,20 +352,22 @@ async function exportJson(record: MobileSpecialRunItem) {
     a.download = `mobile_run_${record.id}_report.json`
     a.click()
     URL.revokeObjectURL(url)
-    message.success('JSON 已下载')
+    message.success(t('mobile_special.reports.msg.json_downloaded'))
   } catch (e: any) {
-    message.error(e?.message || '导出失败')
+    message.error(e?.message || t('mobile_special.reports.msg.export_failed'))
   }
 }
 
 async function handleStop(record: MobileSpecialRunItem) {
   try {
     await mobileSpecialApi.stopRun(record.id)
-    message.success('任务已停止')
+    message.success(t('mobile_special.reports.msg.stopped'))
     await loadRuns()
     await loadOverview()
   } catch (e: any) {
-    message.error(e?.message || '停止任务失败')
+    message.error(e?.message || t('mobile_special.reports.msg.stop_failed'))
   }
 }
+
+watch(locale, () => updateTrendChart(latestTrend.value))
 </script>

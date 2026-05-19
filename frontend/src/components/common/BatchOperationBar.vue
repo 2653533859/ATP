@@ -1,14 +1,16 @@
 <template>
   <div v-if="selectedCount > 0" class="batch-bar">
-    <span class="batch-bar-count">已选择 {{ selectedCount }} 项</span>
+    <span class="batch-bar-count">{{ t('common.selected_count', { count: selectedCount }) }}</span>
     <a-space>
       <slot />
-      <a-button size="small" type="link" @click="emit('cancel')">取消选择</a-button>
+      <a-button size="small" type="link" @click="emit('cancel')">{{ t('common.cancel_selection') }}</a-button>
     </a-space>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useI18n } from 'vue-i18n'
+
 defineProps<{
   selectedCount: number
 }>()
@@ -16,6 +18,8 @@ defineProps<{
 const emit = defineEmits<{
   (event: 'cancel'): void
 }>()
+
+const { t } = useI18n()
 </script>
 
 <style scoped>

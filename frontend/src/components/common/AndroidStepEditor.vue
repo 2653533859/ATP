@@ -2,14 +2,14 @@
   <div class="step-editor">
     <div class="step-toolbar">
       <a-button type="dashed" @click="addStep">
-        <PlusOutlined /> 添加步骤
+        <PlusOutlined /> {{ t('case.step_editor.add_step') }}
       </a-button>
       <span style="color: #999; font-size: 12px; margin-left: 8px">
-        拖拽左侧图标可调整步骤顺序
+        {{ t('case.lowcode_editor.drag_hint') }}
       </span>
     </div>
 
-    <a-empty v-if="steps.length === 0" description="暂无步骤，请点击上方按钮添加" />
+    <a-empty v-if="steps.length === 0" :description="t('case.lowcode_editor.empty')" />
 
     <draggable
       v-else
@@ -27,7 +27,7 @@
               <a-input
                 v-model:value="step.name"
                 size="small"
-                placeholder="步骤名称"
+                :placeholder="t('case.lowcode_editor.step_name')"
                 style="width: 200px"
                 @input="emitUpdate"
               />
@@ -53,12 +53,12 @@
           <template v-if="step.action === 'click'">
             <a-row :gutter="12">
               <a-col :span="8">
-                <a-form-item label="文本" :label-col="{ span: 8 }">
-                  <a-input v-model:value="step.params.text" placeholder="按钮文本" @input="emitUpdate" />
+                <a-form-item :label="t('case.android_editor.text')" :label-col="{ span: 8 }">
+                  <a-input v-model:value="step.params.text" :placeholder="t('case.android_editor.button_text_placeholder')" @input="emitUpdate" />
                 </a-form-item>
               </a-col>
               <a-col :span="8">
-                <a-form-item label="资源ID" :label-col="{ span: 8 }">
+                <a-form-item :label="t('case.android_editor.resource_id')" :label-col="{ span: 8 }">
                   <a-input v-model:value="step.params.resourceId" placeholder="com.app:id/btn" @input="emitUpdate" />
                 </a-form-item>
               </a-col>
@@ -89,7 +89,7 @@
                 </a-form-item>
               </a-col>
               <a-col :span="6">
-                <a-form-item label="时长(ms)" :label-col="{ span: 10 }">
+                <a-form-item :label="t('case.android_editor.duration_ms')" :label-col="{ span: 10 }">
                   <a-input-number v-model:value="step.params.duration" :min="300" style="width:100%" @change="emitUpdate" />
                 </a-form-item>
               </a-col>
@@ -100,32 +100,32 @@
           <template v-else-if="step.action === 'swipe'">
             <a-row :gutter="12">
               <a-col :span="8">
-                <a-form-item label="方向" :label-col="{ span: 8 }">
-                  <a-select v-model:value="step.params.direction" allow-clear placeholder="或用坐标" @change="emitUpdate">
-                    <a-select-option value="up">上滑</a-select-option>
-                    <a-select-option value="down">下滑</a-select-option>
-                    <a-select-option value="left">左滑</a-select-option>
-                    <a-select-option value="right">右滑</a-select-option>
+                <a-form-item :label="t('case.android_editor.direction')" :label-col="{ span: 8 }">
+                  <a-select v-model:value="step.params.direction" allow-clear :placeholder="t('case.android_editor.or_coordinates')" @change="emitUpdate">
+                    <a-select-option value="up">{{ t('case.android_editor.directions.up') }}</a-select-option>
+                    <a-select-option value="down">{{ t('case.android_editor.directions.down') }}</a-select-option>
+                    <a-select-option value="left">{{ t('case.android_editor.directions.left') }}</a-select-option>
+                    <a-select-option value="right">{{ t('case.android_editor.directions.right') }}</a-select-option>
                   </a-select>
                 </a-form-item>
               </a-col>
               <a-col :span="4">
-                <a-form-item label="起X" :label-col="{ span: 10 }">
+                <a-form-item :label="t('case.android_editor.start_x')" :label-col="{ span: 10 }">
                   <a-input-number v-model:value="step.params.x1" style="width:100%" @change="emitUpdate" />
                 </a-form-item>
               </a-col>
               <a-col :span="4">
-                <a-form-item label="起Y" :label-col="{ span: 10 }">
+                <a-form-item :label="t('case.android_editor.start_y')" :label-col="{ span: 10 }">
                   <a-input-number v-model:value="step.params.y1" style="width:100%" @change="emitUpdate" />
                 </a-form-item>
               </a-col>
               <a-col :span="4">
-                <a-form-item label="终X" :label-col="{ span: 10 }">
+                <a-form-item :label="t('case.android_editor.end_x')" :label-col="{ span: 10 }">
                   <a-input-number v-model:value="step.params.x2" style="width:100%" @change="emitUpdate" />
                 </a-form-item>
               </a-col>
               <a-col :span="4">
-                <a-form-item label="终Y" :label-col="{ span: 10 }">
+                <a-form-item :label="t('case.android_editor.end_y')" :label-col="{ span: 10 }">
                   <a-input-number v-model:value="step.params.y2" style="width:100%" @change="emitUpdate" />
                 </a-form-item>
               </a-col>
@@ -136,17 +136,17 @@
           <template v-else-if="step.action === 'input'">
             <a-row :gutter="12">
               <a-col :span="12">
-                <a-form-item label="输入内容" :label-col="{ span: 6 }">
-                  <a-input v-model:value="step.params.text" placeholder="要输入的文本" @input="emitUpdate" />
+                <a-form-item :label="t('case.android_editor.input_content')" :label-col="{ span: 6 }">
+                  <a-input v-model:value="step.params.text" :placeholder="t('case.android_editor.input_text_placeholder')" @input="emitUpdate" />
                 </a-form-item>
               </a-col>
               <a-col :span="8">
-                <a-form-item label="资源ID" :label-col="{ span: 8 }">
-                  <a-input v-model:value="step.params.resourceId" placeholder="目标输入框（可选）" @input="emitUpdate" />
+                <a-form-item :label="t('case.android_editor.resource_id')" :label-col="{ span: 8 }">
+                  <a-input v-model:value="step.params.resourceId" :placeholder="t('case.android_editor.target_input_placeholder')" @input="emitUpdate" />
                 </a-form-item>
               </a-col>
               <a-col :span="4">
-                <a-form-item label="清空" :label-col="{ span: 10 }">
+                <a-form-item :label="t('case.android_editor.clear')" :label-col="{ span: 10 }">
                   <a-switch v-model:checked="step.params.clear" size="small" @change="emitUpdate" />
                 </a-form-item>
               </a-col>
@@ -155,7 +155,7 @@
 
           <!-- press_key -->
           <template v-else-if="step.action === 'press_key'">
-            <a-form-item label="按键" :label-col="{ span: 3 }">
+            <a-form-item :label="t('case.lowcode_editor.key')" :label-col="{ span: 3 }">
               <a-select v-model:value="step.params.key" style="width: 200px" @change="emitUpdate">
                 <a-select-option value="HOME">HOME</a-select-option>
                 <a-select-option value="BACK">BACK</a-select-option>
@@ -164,8 +164,8 @@
                 <a-select-option value="RECENT">RECENT</a-select-option>
                 <a-select-option value="DELETE">DELETE</a-select-option>
                 <a-select-option value="POWER">POWER</a-select-option>
-                <a-select-option value="VOLUME_UP">音量+</a-select-option>
-                <a-select-option value="VOLUME_DOWN">音量-</a-select-option>
+                <a-select-option value="VOLUME_UP">{{ t('case.android_editor.volume_up') }}</a-select-option>
+                <a-select-option value="VOLUME_DOWN">{{ t('case.android_editor.volume_down') }}</a-select-option>
               </a-select>
             </a-form-item>
           </template>
@@ -174,13 +174,13 @@
           <template v-else-if="step.action === 'start_app'">
             <a-row :gutter="12">
               <a-col :span="12">
-                <a-form-item label="包名" :label-col="{ span: 6 }">
+                <a-form-item :label="t('case.mobile.package_name')" :label-col="{ span: 6 }">
                   <a-input v-model:value="step.params.package" placeholder="com.example.app" @input="emitUpdate" />
                 </a-form-item>
               </a-col>
               <a-col :span="12">
                 <a-form-item label="Activity" :label-col="{ span: 6 }">
-                  <a-input v-model:value="step.params.activity" placeholder="可选，如 .MainActivity" @input="emitUpdate" />
+                  <a-input v-model:value="step.params.activity" :placeholder="t('case.android_editor.activity_placeholder')" @input="emitUpdate" />
                 </a-form-item>
               </a-col>
             </a-row>
@@ -188,33 +188,32 @@
 
           <!-- stop_app -->
           <template v-else-if="step.action === 'stop_app'">
-            <a-form-item label="包名" :label-col="{ span: 3 }">
+            <a-form-item :label="t('case.mobile.package_name')" :label-col="{ span: 3 }">
               <a-input v-model:value="step.params.package" placeholder="com.example.app" @input="emitUpdate" />
             </a-form-item>
           </template>
 
           <!-- assert_text -->
           <template v-else-if="step.action === 'assert_text'">
-            <a-form-item label="预期文本" :label-col="{ span: 3 }">
-              <a-input v-model:value="step.params.text" placeholder="页面中应包含的文本" @input="emitUpdate" />
+            <a-form-item :label="t('case.android_editor.expected_text')" :label-col="{ span: 3 }">
+              <a-input v-model:value="step.params.text" :placeholder="t('case.android_editor.expected_text_placeholder')" @input="emitUpdate" />
             </a-form-item>
           </template>
 
           <!-- assert_element -->
           <template v-else-if="step.action === 'assert_element'">
-            <a-form-item label="资源ID" :label-col="{ span: 3 }">
+            <a-form-item :label="t('case.android_editor.resource_id')" :label-col="{ span: 3 }">
               <a-input v-model:value="step.params.resourceId" placeholder="com.app:id/element" @input="emitUpdate" />
             </a-form-item>
           </template>
 
           <!-- wait -->
           <template v-else-if="step.action === 'wait'">
-            <a-form-item label="等待时间(ms)" :label-col="{ span: 4 }">
+            <a-form-item :label="t('case.android_editor.wait_ms')" :label-col="{ span: 4 }">
               <a-input-number v-model:value="step.params.ms" :min="100" :step="500" style="width: 200px" @change="emitUpdate" />
             </a-form-item>
           </template>
 
-          <!-- screenshot: 无额外参数 -->
         </a-card>
       </template>
     </draggable>
@@ -222,9 +221,10 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons-vue'
 import draggable from 'vuedraggable'
+import { useI18n } from 'vue-i18n'
 
 interface StepDef {
   action: string
@@ -239,22 +239,23 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: Array<{ action: string; name: string; params: Record<string, any> }>]
 }>()
+const { t } = useI18n()
 
 let keyCounter = 0
 
-const actionOptions = [
-  { label: '点击', value: 'click' },
-  { label: '长按', value: 'long_click' },
-  { label: '滑动', value: 'swipe' },
-  { label: '输入文本', value: 'input' },
-  { label: '按键', value: 'press_key' },
-  { label: '启动应用', value: 'start_app' },
-  { label: '停止应用', value: 'stop_app' },
-  { label: '断言文本', value: 'assert_text' },
-  { label: '断言元素', value: 'assert_element' },
-  { label: '等待', value: 'wait' },
-  { label: '截图', value: 'screenshot' },
-]
+const actionOptions = computed(() => [
+  { label: t('case.android_editor.actions.click'), value: 'click' },
+  { label: t('case.android_editor.actions.long_click'), value: 'long_click' },
+  { label: t('case.android_editor.actions.swipe'), value: 'swipe' },
+  { label: t('case.android_editor.actions.input'), value: 'input' },
+  { label: t('case.android_editor.actions.press_key'), value: 'press_key' },
+  { label: t('case.android_editor.actions.start_app'), value: 'start_app' },
+  { label: t('case.android_editor.actions.stop_app'), value: 'stop_app' },
+  { label: t('case.android_editor.actions.assert_text'), value: 'assert_text' },
+  { label: t('case.android_editor.actions.assert_element'), value: 'assert_element' },
+  { label: t('case.android_editor.actions.wait'), value: 'wait' },
+  { label: t('case.android_editor.actions.screenshot'), value: 'screenshot' },
+])
 
 const defaultParams: Record<string, () => Record<string, any>> = {
   click: () => ({ text: '', resourceId: '', x: undefined, y: undefined }),
@@ -325,7 +326,7 @@ function addStep() {
     ...steps.value,
     {
       action,
-      name: `步骤 ${steps.value.length + 1}`,
+      name: t('case.step_editor.step_title', { index: steps.value.length + 1 }),
       params: defaultParams[action](),
       _key: keyCounter++,
     },

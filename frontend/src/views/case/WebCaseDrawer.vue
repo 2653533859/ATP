@@ -1,54 +1,52 @@
 <template>
   <a-drawer
     :open="open"
-    :title="isEdit ? '编辑 Web UI 用例' : '新建 Web UI 用例'"
+    :title="isEdit ? t('case.drawer.web.edit_title') : t('case.drawer.web.new_title')"
     width="960"
     :destroy-on-close="true"
     @close="emit('close')"
   >
     <a-form :model="form" layout="vertical" ref="formRef">
-      <!-- 基本信息 -->
-      <a-divider orientation="left">基本信息</a-divider>
+      <a-divider orientation="left">{{ t('case.detail.basic_info') }}</a-divider>
       <a-row :gutter="16">
         <a-col :span="16">
           <a-form-item
-            label="用例名称"
+            :label="t('case.drawer.case_name')"
             name="name"
-            :rules="[{ required: true, message: '请输入用例名称' }]"
+            :rules="[{ required: true, message: t('case.drawer.msg.name_required') }]"
           >
-            <a-input v-model:value="form.name" placeholder="用例名称" />
+            <a-input v-model:value="form.name" :placeholder="t('case.drawer.case_name')" />
           </a-form-item>
         </a-col>
         <a-col :span="8">
-          <a-form-item label="标签">
+          <a-form-item :label="t('case.detail.tags')">
             <a-select
               v-model:value="form.tags"
               mode="tags"
-              placeholder="输入后回车添加（如 smoke、p0）"
+              :placeholder="t('case.drawer.tags_placeholder')"
               :token-separators="[',']"
             />
           </a-form-item>
         </a-col>
       </a-row>
-      <a-form-item label="描述">
-        <a-textarea v-model:value="form.description" :rows="2" placeholder="可选" />
+      <a-form-item :label="t('common.description')">
+        <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('case.drawer.optional')" />
       </a-form-item>
 
-      <!-- 执行配置 -->
-      <a-divider orientation="left">执行配置</a-divider>
+      <a-divider orientation="left">{{ t('case.detail.execution_config') }}</a-divider>
       <a-row :gutter="16">
         <a-col :span="6">
-          <a-form-item label="浏览器">
+          <a-form-item :label="t('case.drawer.browser')">
             <a-select v-model:value="cfg.browser" style="width: 100%">
               <a-select-option value="chromium">Chromium</a-select-option>
             </a-select>
             <div style="margin-top: 6px; color: #999; font-size: 12px">
-              当前 Worker 镜像仅内置 Chromium
+              {{ t('case.drawer.web.chromium_only') }}
             </div>
           </a-form-item>
         </a-col>
         <a-col :span="6">
-          <a-form-item label="超时时间（秒）">
+          <a-form-item :label="t('case.drawer.timeout_seconds')">
             <a-input-number
               v-model:value="cfg.timeout"
               :min="10"
@@ -58,7 +56,7 @@
           </a-form-item>
         </a-col>
         <a-col :span="6">
-          <a-form-item label="视口宽度 (px)">
+          <a-form-item :label="t('case.drawer.viewport_width')">
             <a-input-number
               v-model:value="cfg.viewportWidth"
               :min="320"
@@ -68,7 +66,7 @@
           </a-form-item>
         </a-col>
         <a-col :span="6">
-          <a-form-item label="视口高度 (px)">
+          <a-form-item :label="t('case.drawer.viewport_height')">
             <a-input-number
               v-model:value="cfg.viewportHeight"
               :min="240"
@@ -78,35 +76,32 @@
           </a-form-item>
         </a-col>
       </a-row>
-      <a-form-item label="无头模式">
-        <a-switch v-model:checked="cfg.headless" checked-children="开启" un-checked-children="关闭" />
+      <a-form-item :label="t('case.drawer.headless')">
+        <a-switch v-model:checked="cfg.headless" :checked-children="t('common.enabled')" :un-checked-children="t('common.disabled')" />
         <span style="margin-left: 8px; color: #999; font-size: 12px">
-          关闭后浏览器将显示界面（仅本地部署时有效）
+          {{ t('case.drawer.web.headless_hint') }}
         </span>
       </a-form-item>
 
-      <!-- 测试模式切换 -->
-      <a-divider orientation="left">测试内容</a-divider>
-      <a-form-item label="编辑模式">
+      <a-divider orientation="left">{{ t('case.drawer.test_content') }}</a-divider>
+      <a-form-item :label="t('case.drawer.edit_mode')">
         <a-radio-group v-model:value="editMode" button-style="solid">
-          <a-radio-button value="lowcode">低代码</a-radio-button>
-          <a-radio-button value="script">脚本</a-radio-button>
+          <a-radio-button value="lowcode">{{ t('case.drawer.lowcode') }}</a-radio-button>
+          <a-radio-button value="script">{{ t('case.drawer.script') }}</a-radio-button>
         </a-radio-group>
         <span style="margin-left: 12px; color: #999; font-size: 12px">
-          {{ editMode === 'lowcode' ? '可视化配置步骤，无需编写代码' : '上传或编辑 pytest-playwright 脚本' }}
+          {{ editMode === 'lowcode' ? t('case.drawer.web.lowcode_hint') : t('case.drawer.web.script_hint') }}
         </span>
       </a-form-item>
 
-      <!-- 低代码模式 -->
       <template v-if="editMode === 'lowcode'">
         <LowcodeStepEditor v-model="lowcodeSteps" />
       </template>
 
-      <!-- 脚本模式 -->
       <template v-else>
         <a-alert
           v-if="!localCaseId"
-          message="请先点击「创建用例」保存基本信息，保存后可上传或编辑测试脚本"
+          :message="t('case.drawer.web.save_before_script')"
           type="info"
           show-icon
           style="margin-bottom: 0"
@@ -116,14 +111,14 @@
           <div class="script-toolbar">
             <a-upload :before-upload="handleUpload" :show-upload-list="false" accept=".py">
               <a-button :loading="uploading" size="small">
-                <UploadOutlined /> 上传脚本（.py）
+                <UploadOutlined /> {{ t('case.drawer.upload_script') }}
               </a-button>
             </a-upload>
             <span v-if="scriptPath" class="script-path-ok">
               <CheckCircleOutlined /> {{ scriptPath }}
             </span>
-            <span v-else class="script-path-empty">尚未上传脚本</span>
-            <a-tooltip title="脚本中每个 test_ 开头的函数对应报告中的一个步骤，需安装 pytest + pytest-playwright">
+            <span v-else class="script-path-empty">{{ t('case.drawer.no_script') }}</span>
+            <a-tooltip :title="t('case.drawer.web.script_tooltip')">
               <a-tag color="blue" style="cursor: default; margin-left: auto">pytest-playwright</a-tag>
             </a-tooltip>
           </div>
@@ -142,7 +137,7 @@
               :disabled="!scriptContent.trim()"
               @click="handleSaveScript"
             >
-              保存脚本修改
+              {{ t('case.drawer.save_script') }}
             </a-button>
           </div>
         </template>
@@ -151,9 +146,9 @@
 
     <template #footer>
       <a-space style="float: right">
-        <a-button @click="emit('close')">取消</a-button>
+        <a-button @click="emit('close')">{{ t('common.cancel') }}</a-button>
         <a-button type="primary" :loading="saving" @click="handleSave">
-          {{ localCaseId ? '保存配置' : '创建用例' }}
+          {{ localCaseId ? t('case.drawer.save_config') : t('case.drawer.create_case') }}
         </a-button>
       </a-space>
     </template>
@@ -164,6 +159,7 @@
 import { ref, reactive, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { UploadOutlined, CheckCircleOutlined } from '@ant-design/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { caseApi, scriptApi } from '@/api'
 import MonacoEditor from '@/components/common/MonacoEditor.vue'
 import LowcodeStepEditor from '@/components/common/LowcodeStepEditor.vue'
@@ -174,13 +170,13 @@ const props = defineProps<{
   editCase?: any
 }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
+const { t } = useI18n()
 
 const isEdit = ref(false)
 const saving = ref(false)
 const formRef = ref()
 const localCaseId = ref<number | null>(null)
 
-// 编辑模式: lowcode / script
 const editMode = ref<'lowcode' | 'script'>('lowcode')
 
 const form = reactive({
@@ -197,7 +193,6 @@ const cfg = reactive({
   viewportHeight: 720,
 })
 
-// 低代码步骤
 const lowcodeSteps = ref<Array<{ action: string; name: string; params: Record<string, any> }>>([])
 
 // Script
@@ -250,14 +245,14 @@ watch(() => props.open, async (v) => {
       detail = await caseApi.get(props.editCase.id) as any
     } catch {
       if (seq !== initSeq.value || !props.open) return
-      message.error('加载用例详情失败，已取消编辑')
+      message.error(t('case.drawer.web.msg.load_failed_cancel'))
       emit('close')
       return
     }
     if (seq !== initSeq.value || !props.open) return
 
     if (!hasOwn(detail, 'config')) {
-      message.error('用例详情缺少配置，已取消编辑')
+      message.error(t('case.drawer.web.msg.config_missing_cancel'))
       emit('close')
       return
     }
@@ -289,7 +284,6 @@ watch(editMode, async (mode) => {
     await loadScript()
     return
   }
-  // 低代码模式下清空脚本缓存，避免跨用例残留
   scriptContent.value = ''
 })
 
@@ -313,10 +307,10 @@ async function handleUpload(file: File) {
   try {
     const res = await scriptApi.upload(localCaseId.value, file) as any
     scriptPath.value = res.script_path
-    message.success('脚本上传成功')
+    message.success(t('case.drawer.msg.script_uploaded'))
     await loadScript()
   } catch (e: any) {
-    message.error(e ?? '上传失败')
+    message.error(e ?? t('case.drawer.msg.upload_failed'))
   } finally {
     uploading.value = false
   }
@@ -329,9 +323,9 @@ async function handleSaveScript() {
   try {
     const res = await scriptApi.saveContent(localCaseId.value, scriptContent.value) as any
     scriptPath.value = res.script_path
-    message.success('脚本已保存')
+    message.success(t('case.drawer.msg.script_saved'))
   } catch (e: any) {
-    message.error(e ?? '保存失败')
+    message.error(e ?? t('case.drawer.msg.save_failed'))
   } finally {
     savingScript.value = false
   }
@@ -349,7 +343,6 @@ function buildConfig() {
     return { ...base, steps: lowcodeSteps.value }
   }
 
-  // 脚本模式
   return {
     ...base,
     ...(scriptPath.value ? { script_path: scriptPath.value } : {}),
@@ -360,7 +353,7 @@ async function handleSave() {
   try { await formRef.value?.validate() } catch { return }
 
   if (editMode.value === 'lowcode' && lowcodeSteps.value.length === 0) {
-    message.warning('请至少添加一个步骤')
+    message.warning(t('case.drawer.web.msg.add_step_required'))
     return
   }
 
@@ -374,7 +367,7 @@ async function handleSave() {
         tags: form.tags,
         config,
       })
-      message.success('保存成功')
+      message.success(t('common.success'))
       emit('saved')
       emit('close')
     } else {
@@ -388,14 +381,14 @@ async function handleSave() {
       }) as any
       localCaseId.value = newCase.id
       isEdit.value = true
-      message.success('用例已创建')
+      message.success(t('case.drawer.msg.case_created'))
       emit('saved')
       if (editMode.value === 'lowcode') {
         emit('close')
       }
     }
   } catch (e: any) {
-    message.error(e ?? '保存失败')
+    message.error(e ?? t('case.drawer.msg.save_failed'))
   } finally {
     saving.value = false
   }

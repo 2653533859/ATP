@@ -1,37 +1,37 @@
 <template>
   <a-drawer
     :open="open"
-    :title="isEdit ? '编辑 Android 用例' : '新建 Android 用例'"
+    :title="isEdit ? t('case.drawer.android.edit_title') : t('case.drawer.android.new_title')"
     width="960"
     :destroy-on-close="true"
     @close="emit('close')"
   >
     <a-form :model="form" layout="vertical" ref="formRef">
-      <a-divider orientation="left">基础信息</a-divider>
+      <a-divider orientation="left">{{ t('case.detail.basic_info') }}</a-divider>
       <a-row :gutter="16">
         <a-col :span="16">
-          <a-form-item label="用例名称" name="name" :rules="[{ required: true, message: '请输入用例名称' }]">
-            <a-input v-model:value="form.name" placeholder="用例名称" />
+          <a-form-item :label="t('case.drawer.case_name')" name="name" :rules="[{ required: true, message: t('case.drawer.msg.name_required') }]">
+            <a-input v-model:value="form.name" :placeholder="t('case.drawer.case_name')" />
           </a-form-item>
         </a-col>
         <a-col :span="8">
-          <a-form-item label="标签">
-            <a-select v-model:value="form.tags" mode="tags" placeholder="输入后回车添加标签" :token-separators="[',']" />
+          <a-form-item :label="t('case.detail.tags')">
+            <a-select v-model:value="form.tags" mode="tags" :placeholder="t('case.drawer.tags_placeholder_simple')" :token-separators="[',']" />
           </a-form-item>
         </a-col>
       </a-row>
 
-      <a-form-item label="场景摘要">
-        <a-textarea v-model:value="form.summary" :rows="2" placeholder="描述业务目标和覆盖点" />
+      <a-form-item :label="t('case.drawer.scenario_summary')">
+        <a-textarea v-model:value="form.summary" :rows="2" :placeholder="t('case.drawer.scenario_summary_placeholder')" />
       </a-form-item>
 
-      <a-form-item label="描述">
-        <a-textarea v-model:value="form.description" :rows="2" placeholder="可选" />
+      <a-form-item :label="t('common.description')">
+        <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('case.drawer.optional')" />
       </a-form-item>
 
       <a-row :gutter="16">
         <a-col :span="8">
-          <a-form-item label="优先级">
+          <a-form-item :label="t('case.filters.priority')">
             <a-select v-model:value="form.priority">
               <a-select-option value="P0">P0</a-select-option>
               <a-select-option value="P1">P1</a-select-option>
@@ -41,7 +41,7 @@
           </a-form-item>
         </a-col>
         <a-col :span="8">
-          <a-form-item label="用例等级">
+          <a-form-item :label="t('case.drawer.case_level')">
             <a-select v-model:value="form.case_level">
               <a-select-option value="smoke">smoke</a-select-option>
               <a-select-option value="core">core</a-select-option>
@@ -51,7 +51,7 @@
           </a-form-item>
         </a-col>
         <a-col :span="8">
-          <a-form-item label="自动化状态">
+          <a-form-item :label="t('case.filters.automation_status')">
             <a-select v-model:value="form.automation_status">
               <a-select-option value="manual">manual</a-select-option>
               <a-select-option value="semi_auto">semi_auto</a-select-option>
@@ -63,27 +63,27 @@
 
       <a-row :gutter="16">
         <a-col :span="12">
-          <a-form-item label="前置条件">
-            <a-select v-model:value="form.preconditions" mode="tags" placeholder="输入后回车添加条件" />
+          <a-form-item :label="t('case.detail.preconditions')">
+            <a-select v-model:value="form.preconditions" mode="tags" :placeholder="t('case.drawer.conditions_placeholder')" />
           </a-form-item>
         </a-col>
         <a-col :span="12">
-          <a-form-item label="后置条件">
-            <a-select v-model:value="form.postconditions" mode="tags" placeholder="输入后回车添加条件" />
+          <a-form-item :label="t('case.detail.postconditions')">
+            <a-select v-model:value="form.postconditions" mode="tags" :placeholder="t('case.drawer.conditions_placeholder')" />
           </a-form-item>
         </a-col>
       </a-row>
 
-      <a-divider orientation="left">标准步骤</a-divider>
+      <a-divider orientation="left">{{ t('case.detail.standard_steps') }}</a-divider>
       <CaseStepEditor v-model="managementSteps" />
 
-      <a-divider orientation="left">执行配置</a-divider>
+      <a-divider orientation="left">{{ t('case.detail.execution_config') }}</a-divider>
       <a-row :gutter="16">
         <a-col :span="8">
-          <a-form-item label="目标设备">
+          <a-form-item :label="t('case.drawer.android.target_device')">
             <a-select
               v-model:value="cfg.device_serial"
-              placeholder="选择设备"
+              :placeholder="t('case.drawer.android.select_device')"
               allow-clear
               style="width: 100%"
               :loading="devicesLoading"
@@ -96,10 +96,10 @@
           </a-form-item>
         </a-col>
         <a-col :span="8">
-          <a-form-item label="安装 APK（可选）">
+          <a-form-item :label="t('case.drawer.android.install_apk')">
             <a-select
               v-model:value="cfg.apk_id"
-              placeholder="不安装 APK"
+              :placeholder="t('case.drawer.android.no_apk')"
               allow-clear
               style="width: 100%"
               :loading="apksLoading"
@@ -112,20 +112,20 @@
           </a-form-item>
         </a-col>
         <a-col :span="8">
-          <a-form-item label="超时时间（秒）">
+          <a-form-item :label="t('case.drawer.timeout_seconds')">
             <a-input-number v-model:value="cfg.timeout" :min="10" :max="600" style="width: 100%" />
           </a-form-item>
         </a-col>
       </a-row>
 
-      <a-divider orientation="left">自动化内容</a-divider>
-      <a-form-item label="编辑模式">
+      <a-divider orientation="left">{{ t('case.drawer.automation_content') }}</a-divider>
+      <a-form-item :label="t('case.drawer.edit_mode')">
         <a-radio-group v-model:value="editMode" button-style="solid">
-          <a-radio-button value="lowcode">低代码</a-radio-button>
-          <a-radio-button value="script">脚本</a-radio-button>
+          <a-radio-button value="lowcode">{{ t('case.drawer.lowcode') }}</a-radio-button>
+          <a-radio-button value="script">{{ t('case.drawer.script') }}</a-radio-button>
         </a-radio-group>
         <span class="mode-hint">
-          {{ editMode === 'lowcode' ? '通过可视步骤配置 Android 操作。' : '上传或编辑 uiautomator2 + pytest 脚本。' }}
+          {{ editMode === 'lowcode' ? t('case.drawer.android.lowcode_hint') : t('case.drawer.android.script_hint') }}
         </span>
       </a-form-item>
 
@@ -136,7 +136,7 @@
       <template v-else>
         <a-alert
           v-if="!localCaseId"
-          message="请先保存基础信息，保存后可上传或编辑测试脚本。"
+          :message="t('case.drawer.android.save_before_script')"
           type="info"
           show-icon
           style="margin-bottom: 0"
@@ -146,13 +146,13 @@
           <div class="script-toolbar">
             <a-upload :before-upload="handleUpload" :show-upload-list="false" accept=".py">
               <a-button :loading="uploading" size="small">
-                <UploadOutlined /> 上传脚本（.py）
+                <UploadOutlined /> {{ t('case.drawer.upload_script') }}
               </a-button>
             </a-upload>
             <span v-if="scriptPath" class="script-path-ok">
               <CheckCircleOutlined /> {{ scriptPath }}
             </span>
-            <span v-else class="script-path-empty">尚未上传脚本</span>
+            <span v-else class="script-path-empty">{{ t('case.drawer.no_script') }}</span>
             <a-tag color="green" class="script-tag">uiautomator2 + pytest</a-tag>
           </div>
 
@@ -162,7 +162,7 @@
 
           <div class="script-actions">
             <a-button :loading="savingScript" :disabled="!scriptContent.trim()" @click="handleSaveScript">
-              保存脚本修改
+              {{ t('case.drawer.save_script') }}
             </a-button>
           </div>
         </template>
@@ -171,9 +171,9 @@
 
     <template #footer>
       <a-space style="float: right">
-        <a-button @click="emit('close')">取消</a-button>
+        <a-button @click="emit('close')">{{ t('common.cancel') }}</a-button>
         <a-button type="primary" :loading="saving" @click="handleSave">
-          {{ localCaseId ? '保存配置' : '创建用例' }}
+          {{ localCaseId ? t('case.drawer.save_config') : t('case.drawer.create_case') }}
         </a-button>
       </a-space>
     </template>
@@ -185,6 +185,7 @@ import { reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { CheckCircleOutlined, UploadOutlined } from '@ant-design/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { apkApi, caseApi, deviceApi, scriptApi, type CaseStepItem } from '@/api'
 import CaseStepEditor from '@/components/case/CaseStepEditor.vue'
 import AndroidStepEditor from '@/components/common/AndroidStepEditor.vue'
@@ -197,6 +198,7 @@ interface AndroidStepDef {
 }
 
 const route = useRoute()
+const { t } = useI18n()
 
 const props = defineProps<{
   open: boolean
@@ -370,7 +372,7 @@ watch(
       if (seq !== initSeq.value || !props.open) {
         return
       }
-      message.error('加载用例详情失败')
+      message.error(t('case.detail.msg.load_failed'))
       emit('close')
     }
   },
@@ -395,10 +397,10 @@ async function handleUpload(file: File) {
   try {
     const response = await scriptApi.upload(localCaseId.value, file) as { script_path?: string }
     scriptPath.value = response.script_path ?? null
-    message.success('脚本上传成功')
+    message.success(t('case.drawer.msg.script_uploaded'))
     await loadScript()
   } catch (error) {
-    message.error(String(error ?? '上传失败'))
+    message.error(String(error ?? t('case.drawer.msg.upload_failed')))
   } finally {
     uploading.value = false
   }
@@ -413,9 +415,9 @@ async function handleSaveScript() {
   try {
     const response = await scriptApi.saveContent(localCaseId.value, scriptContent.value) as { script_path?: string }
     scriptPath.value = response.script_path ?? null
-    message.success('脚本已保存')
+    message.success(t('case.drawer.msg.script_saved'))
   } catch (error) {
-    message.error(String(error ?? '保存失败'))
+    message.error(String(error ?? t('case.drawer.msg.save_failed')))
   } finally {
     savingScript.value = false
   }
@@ -446,12 +448,12 @@ async function handleSave() {
   }
 
   if (editMode.value === 'lowcode' && lowcodeSteps.value.length === 0) {
-    message.warning('请至少维护一个自动化步骤')
+    message.warning(t('case.drawer.android.msg.automation_step_required'))
     return
   }
 
   if (managementSteps.value.length === 0) {
-    message.warning('请至少维护一个标准步骤')
+    message.warning(t('case.drawer.android.msg.standard_step_required'))
     return
   }
 
@@ -475,7 +477,7 @@ async function handleSave() {
 
     if (isEdit.value && localCaseId.value) {
       await caseApi.update(localCaseId.value, payload)
-      message.success('保存成功')
+      message.success(t('common.success'))
       emit('saved')
       emit('close')
       return
@@ -484,13 +486,13 @@ async function handleSave() {
     const newCase = await caseApi.create(payload)
     localCaseId.value = newCase.id
     isEdit.value = true
-    message.success('用例已创建')
+    message.success(t('case.drawer.msg.case_created'))
     emit('saved')
     if (editMode.value === 'lowcode') {
       emit('close')
     }
   } catch (error) {
-    message.error(String(error ?? '保存失败'))
+    message.error(String(error ?? t('case.drawer.msg.save_failed')))
   } finally {
     saving.value = false
   }

@@ -1,7 +1,7 @@
 <template>
   <a-drawer
     :open="open"
-    title="AI 生成用例"
+    :title="t('case.ai.title')"
     width="900px"
     :destroy-on-close="true"
     @close="$emit('close')"
@@ -9,16 +9,15 @@
     <a-alert
       v-if="moduleId == null"
       type="warning"
-      message="请先在左侧选择目标模块，再使用 AI 生成"
+      :message="t('case.ai.select_module_alert')"
       style="margin-bottom: 16px"
     />
 
-    <!-- Step 1: 解析接口文档 -->
-    <a-card title="① 提供接口来源（可选）" size="small" style="margin-bottom: 16px">
+    <a-card :title="t('case.ai.source_title')" size="small" style="margin-bottom: 16px">
       <a-radio-group v-model:value="sourceType" style="margin-bottom: 8px">
         <a-radio value="openapi">OpenAPI</a-radio>
         <a-radio value="postman">Postman Collection</a-radio>
-        <a-radio value="curl">cURL 命令</a-radio>
+        <a-radio value="curl">{{ t('case.ai.curl_command') }}</a-radio>
       </a-radio-group>
       <a-textarea
         v-model:value="schemaText"
@@ -27,13 +26,13 @@
       />
       <div style="margin-top: 8px; display: flex; gap: 8px; align-items: center">
         <a-button :loading="parsing" :disabled="!schemaText.trim()" @click="handleParse">
-          解析接口
+          {{ t('case.ai.parse') }}
         </a-button>
         <a-button v-if="parsedEndpoints.length" size="small" @click="clearParsed">
-          清空已解析
+          {{ t('case.ai.clear_parsed') }}
         </a-button>
         <span style="color: #888">
-          解析后可勾选接口提供给 AI；不提供接口也可仅凭「需求描述」生成
+          {{ t('case.ai.parse_hint') }}
         </span>
       </div>
       <a-alert
@@ -45,7 +44,7 @@
       />
     </a-card>
 
-    <a-card v-if="parsedEndpoints.length" title="② 选择接口" size="small" style="margin-bottom: 16px">
+    <a-card v-if="parsedEndpoints.length" :title="t('case.ai.select_endpoint_title')" size="small" style="margin-bottom: 16px">
       <a-table
         :data-source="parsedEndpoints"
         :columns="endpointColumns"
@@ -64,37 +63,37 @@
         </template>
       </a-table>
       <div style="margin-top: 8px; color: #888">
-        已选 {{ selectedEndpointKeys.length }} / {{ parsedEndpoints.length }} 个接口
+        {{ t('case.ai.selected_endpoint_count', { selected: selectedEndpointKeys.length, total: parsedEndpoints.length }) }}
       </div>
     </a-card>
 
-    <a-card title="③ 业务需求 & 生成参数" size="small" style="margin-bottom: 16px">
+    <a-card :title="t('case.ai.params_title')" size="small" style="margin-bottom: 16px">
       <a-form layout="vertical">
-        <a-form-item label="业务需求（推荐：补充覆盖场景、约束、目标用户）">
+        <a-form-item :label="t('case.ai.requirement_label')">
           <a-textarea
             v-model:value="userRequirement"
             :rows="4"
-            placeholder="例如：登录接口，包含正常登录、密码错误、账户锁定、记住我等场景"
+            :placeholder="t('case.ai.requirement_placeholder')"
           />
         </a-form-item>
         <a-row :gutter="12">
           <a-col :span="6">
-            <a-form-item label="用例类型">
+            <a-form-item :label="t('case.ai.case_type')">
               <a-select v-model:value="caseType" :options="caseTypeOptions" />
             </a-form-item>
           </a-col>
           <a-col :span="6">
-            <a-form-item label="优先级">
+            <a-form-item :label="t('case.filters.priority')">
               <a-select v-model:value="priority" :options="priorityOptions" />
             </a-form-item>
           </a-col>
           <a-col :span="6">
-            <a-form-item label="用例分级">
+            <a-form-item :label="t('case.ai.case_level')">
               <a-select v-model:value="caseLevel" :options="caseLevelOptions" />
             </a-form-item>
           </a-col>
           <a-col :span="6">
-            <a-form-item label="生成条数">
+            <a-form-item :label="t('case.ai.max_cases')">
               <a-input-number
                 v-model:value="maxCases"
                 :min="1"
@@ -111,10 +110,10 @@
             :disabled="!canGenerate"
             @click="handleGenerate"
           >
-            生成草稿
+            {{ t('case.ai.generate_drafts') }}
           </a-button>
           <span v-if="!canGenerate" style="margin-left: 12px; color: #faad14">
-            需要先选择模块，并提供接口或需求描述
+            {{ t('case.ai.generate_disabled_hint') }}
           </span>
         </div>
         <a-alert
@@ -129,7 +128,7 @@
 
     <a-card
       v-if="drafts.length"
-      :title="`④ 草稿（${drafts.length} 条）`"
+      :title="t('case.ai.drafts_title', { count: drafts.length })"
       size="small"
       style="margin-bottom: 16px"
     >
@@ -146,9 +145,9 @@
       >
         <template #expandedRowRender="{ record }">
           <div style="padding: 8px 0; background: #fafafa">
-            <p v-if="record.description"><b>描述：</b>{{ record.description }}</p>
+            <p v-if="record.description"><b>{{ t('case.ai.description_prefix') }}</b>{{ record.description }}</p>
             <p v-if="record.preconditions?.length">
-              <b>前置条件：</b>{{ (record.preconditions as string[]).join('；') }}
+              <b>{{ t('case.ai.preconditions_prefix') }}</b>{{ (record.preconditions as string[]).join(t('case.ai.list_separator')) }}
             </p>
             <a-table
               :data-source="record.steps"
@@ -167,9 +166,9 @@
           :disabled="!selectedDraftKeys.length || !moduleId"
           @click="handleSaveSelected"
         >
-          保存选中 ({{ selectedDraftKeys.length }})
+          {{ t('case.ai.save_selected', { count: selectedDraftKeys.length }) }}
         </a-button>
-        <a-button @click="resetGeneration">清空草稿</a-button>
+        <a-button @click="resetGeneration">{{ t('case.ai.clear_drafts') }}</a-button>
       </div>
     </a-card>
   </a-drawer>
@@ -178,6 +177,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import { useI18n } from 'vue-i18n'
 import {
   aiCaseGenerationApi,
   caseApi,
@@ -199,6 +199,8 @@ const emit = defineEmits<{
   (e: 'close'): void
   (e: 'saved'): void
 }>()
+
+const { t } = useI18n()
 
 const sourceType = ref<SchemaSourceType>('openapi')
 const schemaText = ref('')
@@ -223,51 +225,51 @@ const saving = ref(false)
 const placeholderForType = computed(() => {
   switch (sourceType.value) {
     case 'openapi':
-      return '粘贴 OpenAPI 3.x JSON 或 YAML 文档（包含 paths）'
+      return t('case.ai.placeholders.openapi')
     case 'postman':
-      return '粘贴 Postman Collection v2.1 导出的 JSON'
+      return t('case.ai.placeholders.postman')
     case 'curl':
-      return '粘贴单条 cURL 命令，例如：\ncurl -X POST "https://api.example.com/login" -H "..." --data \'{"x":1}\''
+      return t('case.ai.placeholders.curl')
     default:
       return ''
   }
 })
 
-const caseTypeOptions = [
-  { label: 'API', value: 'api' },
-  { label: 'GraphQL', value: 'graphql' },
-  { label: 'WebSocket', value: 'websocket' },
-  { label: 'gRPC', value: 'grpc' },
-  { label: 'Web UI', value: 'web' },
-  { label: 'Android UI', value: 'android' },
-]
+const caseTypeOptions = computed(() => [
+  { label: t('case.types.api'), value: 'api' },
+  { label: t('case.types.graphql'), value: 'graphql' },
+  { label: t('case.types.websocket'), value: 'websocket' },
+  { label: t('case.types.grpc'), value: 'grpc' },
+  { label: t('case.types.web'), value: 'web' },
+  { label: t('case.types.android'), value: 'android' },
+])
 const priorityOptions = ['P0', 'P1', 'P2', 'P3'].map((v) => ({ label: v, value: v }))
-const caseLevelOptions = [
-  { label: '冒烟', value: 'smoke' },
-  { label: '核心', value: 'core' },
-  { label: '回归', value: 'regression' },
-  { label: '扩展', value: 'extended' },
-]
+const caseLevelOptions = computed(() => [
+  { label: t('case.levels.smoke'), value: 'smoke' },
+  { label: t('case.levels.core'), value: 'core' },
+  { label: t('case.levels.regression'), value: 'regression' },
+  { label: t('case.levels.extended'), value: 'extended' },
+])
 
-const endpointColumns = [
+const endpointColumns = computed(() => [
   { title: 'Method', key: 'method', dataIndex: 'method', width: 90 },
   { title: 'Path', key: 'path', dataIndex: 'path' },
-  { title: '摘要', key: 'summary', dataIndex: 'summary', ellipsis: true },
-]
+  { title: t('case.detail.summary'), key: 'summary', dataIndex: 'summary', ellipsis: true },
+])
 
-const draftColumns = [
-  { title: '名称', dataIndex: 'name', key: 'name' },
-  { title: '摘要', dataIndex: 'summary', key: 'summary', ellipsis: true },
-  { title: '步骤数', key: 'stepCount', width: 80, customRender: ({ record }: any) => record.steps?.length ?? 0 },
-  { title: '优先级', dataIndex: 'priority', key: 'priority', width: 80 },
-]
+const draftColumns = computed(() => [
+  { title: t('common.name'), dataIndex: 'name', key: 'name' },
+  { title: t('case.detail.summary'), dataIndex: 'summary', key: 'summary', ellipsis: true },
+  { title: t('case.ai.step_count'), key: 'stepCount', width: 80, customRender: ({ record }: any) => record.steps?.length ?? 0 },
+  { title: t('case.filters.priority'), dataIndex: 'priority', key: 'priority', width: 80 },
+])
 
-const stepColumns = [
+const stepColumns = computed(() => [
   { title: '#', key: 'idx', width: 50, customRender: ({ index }: any) => index + 1 },
-  { title: '动作', dataIndex: 'action', key: 'action' },
-  { title: '测试数据', dataIndex: 'test_data', key: 'test_data', ellipsis: true },
-  { title: '期望结果', dataIndex: 'expected_result', key: 'expected_result', ellipsis: true },
-]
+  { title: t('case.ai.action'), dataIndex: 'action', key: 'action' },
+  { title: t('case.detail.test_data'), dataIndex: 'test_data', key: 'test_data', ellipsis: true },
+  { title: t('case.detail.expected_result'), dataIndex: 'expected_result', key: 'expected_result', ellipsis: true },
+])
 
 const draftRows = computed(() => drafts.value.map((d, i) => ({ ...d, rowKey: String(i) })))
 
@@ -301,12 +303,12 @@ async function handleParse() {
     selectedEndpointKeys.value = parsedEndpoints.value.map((e) => e.rowKey)
     parseWarnings.value = result.warnings ?? []
     if (parsedEndpoints.value.length === 0) {
-      message.warning('未解析到任何接口')
+      message.warning(t('case.ai.msg.no_endpoints'))
     } else {
-      message.success(`已解析 ${parsedEndpoints.value.length} 个接口`)
+      message.success(t('case.ai.msg.parsed', { count: parsedEndpoints.value.length }))
     }
   } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? '解析失败')
+    message.error(e?.response?.data?.detail ?? t('case.ai.msg.parse_failed'))
   } finally {
     parsing.value = false
   }
@@ -326,7 +328,7 @@ function resetGeneration() {
 
 async function handleGenerate() {
   if (props.projectId == null || props.moduleId == null) {
-    message.warning('请先选择项目与模块')
+    message.warning(t('case.ai.msg.select_project_module'))
     return
   }
   generating.value = true
@@ -350,12 +352,12 @@ async function handleGenerate() {
     selectedDraftKeys.value = drafts.value.map((_, i) => String(i))
     generateWarnings.value = result.warnings ?? []
     if (!drafts.value.length) {
-      message.warning('AI 未生成有效用例，请调整需求或换一组接口')
+      message.warning(t('case.ai.msg.no_drafts'))
     } else {
-      message.success(`AI 生成 ${drafts.value.length} 条草稿`)
+      message.success(t('case.ai.msg.generated', { count: drafts.value.length }))
     }
   } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? '生成失败')
+    message.error(e?.response?.data?.detail ?? t('case.ai.msg.generate_failed'))
   } finally {
     generating.value = false
   }
@@ -363,7 +365,7 @@ async function handleGenerate() {
 
 async function handleSaveSelected() {
   if (props.moduleId == null) {
-    message.warning('未选择模块')
+    message.warning(t('case.ai.msg.no_module'))
     return
   }
   const selectedSet = new Set(selectedDraftKeys.value)
@@ -397,16 +399,19 @@ async function handleSaveSelected() {
       })
       succeeded += 1
     } catch (e: any) {
-      failures.push(`${draft.name}: ${e?.response?.data?.detail ?? '保存失败'}`)
+      failures.push(`${draft.name}: ${e?.response?.data?.detail ?? t('case.ai.msg.save_failed')}`)
     }
   }
   saving.value = false
   if (succeeded) {
-    message.success(`保存成功 ${succeeded} 条`)
+    message.success(t('case.ai.msg.save_success', { count: succeeded }))
     emit('saved')
   }
   if (failures.length) {
-    message.error(`部分失败：${failures.slice(0, 2).join('；')}${failures.length > 2 ? ' …' : ''}`)
+    message.error(t('case.ai.msg.partial_failed', {
+      failures: failures.slice(0, 2).join(t('case.ai.list_separator')),
+      more: failures.length > 2 ? ' ...' : '',
+    }))
   }
   if (succeeded && !failures.length) {
     emit('close')
@@ -417,7 +422,7 @@ watch(
   () => props.open,
   (val) => {
     if (val) {
-      // 打开时不清空，保留上次输入便于继续；切换抽屉关闭后再清空
+      // Keep current input while open so users can continue editing.
     } else {
       schemaText.value = ''
       parsedEndpoints.value = []

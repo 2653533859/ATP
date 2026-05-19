@@ -132,19 +132,19 @@ async def test_notification(
     from app.services.notifier import _send_email, _send_wechat, _send_dingtalk
     from app.models.notification import NotifyChannel
 
-    test_summary = {
-        "title": "ATP 通知测试",
-        "status": "passed",
-        "total": 10,
-        "passed": 9,
-        "failed": 1,
-        "error": 0,
-        "duration_ms": 5000,
-        "trigger_type": "manual",
-    }
-
     try:
         real_config = decrypt_config(cfg.config)
+        language = real_config.get("language")
+        test_summary = {
+            "title": "ATP notification test" if language == "en-US" else "ATP 通知测试",
+            "status": "passed",
+            "total": 10,
+            "passed": 9,
+            "failed": 1,
+            "error": 0,
+            "duration_ms": 5000,
+            "trigger_type": "manual",
+        }
         if cfg.channel == NotifyChannel.email:
             await _send_email(real_config, test_summary)
         elif cfg.channel == NotifyChannel.wechat:

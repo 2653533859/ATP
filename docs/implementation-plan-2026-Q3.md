@@ -125,7 +125,7 @@ POST /api/v1/ai/cases/confirm        把草稿写入 TestCase 表
 - [x] F.1 vue-i18n 集成 + 切换器
 - [x] F.2 登录/导航/通用按钮翻译
 - [~] F.3 业务页面逐步翻译（按需）
-- [ ] F.4 后端通知模板 i18n 化
+- [x] F.4 后端通知模板 i18n 化
 
 ### 当前迁移记录（2026-05-19）
 
@@ -148,10 +148,37 @@ POST /api/v1/ai/cases/confirm        把草稿写入 TestCase 表
 
 剩余迁移队列：
 
-- 用例详情与抽屉：`CaseDetail.vue`、`AIGenerateDrawer.vue`、`WebCaseDrawer.vue`、`AndroidCaseDrawer.vue`、`CaseHistoryDrawer.vue`
+- 最终文案复核：`zh-CN.ts`、`en-US.ts`、已迁移页面与组件
 - Android 专项报告：`ReportCenterView.vue`、`ReportDetailView.vue`
 - 系统设置：`StorageManagementView.vue`、`BugTrackerList.vue`
 - 组件级编辑器：`LowcodeStepEditor.vue`、`AndroidStepEditor.vue`、`ModuleTree.vue` 等公共组件中的可见文案
+
+### 后续执行拆分
+
+| 批次 | 范围 | 主要文件 | 验收标准 |
+|------|------|----------|----------|
+| F.3.1 | 用例详情与历史 | `CaseDetail.vue`、`CaseHistoryDrawer.vue` | 已完成：详情页、复制/评审/执行、版本对比与回滚提示均支持中英文；`npm run type-check` 通过 |
+| F.3.2 | 用例编辑抽屉 | `AIGenerateDrawer.vue`、`WebCaseDrawer.vue`、`AndroidCaseDrawer.vue` | 已完成：AI 生成、Web 脚本/低代码、Android 表单主要可见文案走 locale；`npm run type-check` 通过 |
+| F.3.3 | Android 专项报告 | `ReportCenterView.vue`、`ReportDetailView.vue` | 已完成：筛选、统计卡、趋势图图例、异常事件、报告文件、导出/下载提示支持中英文；`npm run type-check` 通过 |
+| F.3.4 | 系统设置剩余页 | `StorageManagementView.vue`、`BugTrackerList.vue` | 已完成：存储策略/清理预览、缺陷跟踪表单、连接测试、确认弹窗支持中英文；`npm run type-check` 通过 |
+| F.3.5 | 公共组件 | `LowcodeStepEditor.vue`、`AndroidStepEditor.vue`、`ModuleTree.vue`、`KvEditor.vue`、`CaseStepEditor.vue`、`BatchOperationBar.vue` | 已完成：步骤类型、按钮、占位符、模块弹窗等复用文案走 locale；`npm run type-check` 通过 |
+| F.4 | 后端通知模板 | `services/notifier.py`、通知配置 schema/API/UI | 已完成：邮件、企业微信、钉钉通知可按配置语言发送；通知配置页可选择语言；通知相关后端测试通过 |
+| F.5 | 文案复核 | `zh-CN.ts`、`en-US.ts`、已迁移页面 | 进行中：F.3.1-F.4 目标页面与组件已完成扫描；剩余中文集中在设备、APK、Mock 等非本轮页面，下一轮继续迁移 |
+
+每个批次完成后执行：
+
+```bash
+cd frontend
+npm run type-check
+```
+
+最终收口检查：
+
+```bash
+rg "[一-龥]" frontend/src/views frontend/src/components
+```
+
+剩余结果应仅包含注释、中文业务示例或明确需要保留的中文样本文案。
 
 ---
 

@@ -295,9 +295,21 @@
 - [x] Android 专项任务页已迁移：`SpecialTaskListView.vue` 的任务筛选、表格列、任务表单、调度配置与执行/删除消息已接入 `t(...)`
 - [x] 系统管理部分页面已迁移：环境管理、通知配置、全局变量库、AI 模型配置已接入中英文文案
 - [x] 本轮迁移已通过 `npm run type-check`（`vue-tsc --noEmit`）
-- [~] 移动专项报告中心 / 报告详情、用例详情、AI 生成抽屉、Web/Android 用例抽屉、版本历史抽屉、存储管理、缺陷跟踪配置仍有 UI 硬编码文案待迁移
+- [~] 设备管理、APK 管理、Mock 服务等非本轮页面仍有 UI 硬编码文案待迁移
 - [ ] 后端通知模板 i18n 化：`services/notifier.py` 支持语言参数，通知配置增加语言字段
 - [ ] 英文文案复核：对业务术语、错误提示和 AI 生成相关提示进行二次校对
+
+#### 后续执行计划
+
+建议按页面耦合度和风险分批推进，单批完成后均执行 `npm run type-check`：
+
+1. [x] 用例详情与历史批次：`CaseDetail.vue`、`CaseHistoryDrawer.vue` 已迁移，详情页、复制/评审/执行弹窗、版本对比与回滚提示已接入中英文文案，并通过 `npm run type-check`。
+2. [x] 用例编辑抽屉批次：`AIGenerateDrawer.vue`、`WebCaseDrawer.vue`、`AndroidCaseDrawer.vue` 已迁移，AI 生成流程、Web 脚本/低代码配置、Android 配置表单主要可见文案已接入 locale，并通过 `npm run type-check`。
+3. [x] Android 专项报告批次：`ReportCenterView.vue`、`ReportDetailView.vue` 已迁移，报告筛选、统计卡、趋势图图例、异常事件、报告文件、导出/下载提示已接入中英文文案，并通过 `npm run type-check`。
+4. [x] 系统设置剩余批次：`StorageManagementView.vue`、`BugTrackerList.vue` 已迁移，存储策略、清理预览、缺陷跟踪表单、连接测试和删除确认已接入中英文文案，并通过 `npm run type-check`。
+5. [x] 公共组件批次：`LowcodeStepEditor.vue`、`AndroidStepEditor.vue`、`ModuleTree.vue`、`KvEditor.vue`、`CaseStepEditor.vue`、`BatchOperationBar.vue` 已迁移，复用按钮、占位符、步骤类型、模块弹窗文案已接入 locale，并通过 `npm run type-check`。
+6. [x] 后端通知模板批次：通知配置已增加语言选项，`services/notifier.py` 可根据配置生成中英文通知标题与正文；邮件、企业微信、钉钉通知均可按配置语言发送，并通过通知相关后端测试。
+7. [~] 文案复核批次：已执行 `rg "[一-龥]" frontend/src/views frontend/src/components` 收口扫描；本轮 F.3.1-F.4 目标页面与组件已清理，剩余集中在 `DeviceList.vue`、`ApkList.vue`、`MockRuleList.vue` 等非本轮页面，需作为下一轮前端 i18n 迁移继续跟踪。
 
 ---
 

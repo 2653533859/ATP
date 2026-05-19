@@ -70,6 +70,8 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 - 前端 i18n 剩余页面迁移：用例详情与抽屉、Android 专项报告中心 / 详情、存储管理、缺陷跟踪配置，以及部分公共步骤编辑器
 - 少量页面的工程化类型收口与体验细节优化
 
+后续 i18n 执行拆分与验收标准见：`Task.md` 的 `5.10 Q3 前端国际化 i18n` 与 `docs/implementation-plan-2026-Q3.md` 的 `方向 F`。
+
 ## 项目结构
 
 - `backend/`：FastAPI API、SQLAlchemy 模型、Celery 任务、执行器、服务层

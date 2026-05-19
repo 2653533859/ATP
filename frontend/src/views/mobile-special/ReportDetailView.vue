@@ -1,42 +1,39 @@
 <template>
   <div style="display: flex; flex-direction: column; height: 100%; overflow: auto">
-    <!-- Back button -->
     <div style="margin-bottom: 12px">
       <a-button type="link" @click="router.back()">
-        < Left 返回报告中心
+        {{ t('mobile_special.reports.back_to_center') }}
       </a-button>
     </div>
 
     <a-spin :spinning="loading">
       <template v-if="run">
-        <!-- Task Info Header -->
         <a-card style="margin-bottom: 16px" :body-style="{ padding: '16px 20px' }">
           <a-descriptions :column="{ xs: 1, sm: 2, md: 3 }" size="small">
-            <a-descriptions-item label="任务名称">{{ taskInfo?.name || '-' }}</a-descriptions-item>
-            <a-descriptions-item label="任务类型">
+            <a-descriptions-item :label="t('mobile_special.columns.name')">{{ taskInfo?.name || '-' }}</a-descriptions-item>
+            <a-descriptions-item :label="t('mobile_special.task_type')">
               <a-tag :color="taskTypeColor(run.task_type)">{{ taskTypeLabel(run.task_type) }}</a-tag>
             </a-descriptions-item>
-            <a-descriptions-item label="状态">
+            <a-descriptions-item :label="t('common.status')">
               <a-tag :color="statusColor(run.status)">{{ statusLabel(run.status) }}</a-tag>
             </a-descriptions-item>
-            <a-descriptions-item label="设备序列号">{{ run.device_serial || '-' }}</a-descriptions-item>
-            <a-descriptions-item label="应用包名">{{ run.app_package || '-' }}</a-descriptions-item>
-            <a-descriptions-item label="耗时">
+            <a-descriptions-item :label="t('mobile_special.reports.device_serial')">{{ run.device_serial || '-' }}</a-descriptions-item>
+            <a-descriptions-item :label="t('mobile_special.columns.app_package')">{{ run.app_package || '-' }}</a-descriptions-item>
+            <a-descriptions-item :label="t('mobile_special.reports.duration')">
               {{ run.duration_ms ? `${(run.duration_ms / 1000).toFixed(1)}s` : '-' }}
             </a-descriptions-item>
-            <a-descriptions-item label="开始时间">
+            <a-descriptions-item :label="t('mobile_special.reports.started_at')">
               {{ run.started_at ? formatDate(run.started_at) : '-' }}
             </a-descriptions-item>
-            <a-descriptions-item label="结束时间">
+            <a-descriptions-item :label="t('mobile_special.reports.finished_at')">
               {{ run.finished_at ? formatDate(run.finished_at) : '-' }}
             </a-descriptions-item>
-            <a-descriptions-item label="触发方式">
+            <a-descriptions-item :label="t('mobile_special.reports.trigger_type')">
               {{ triggerLabel(run.trigger_type) }}
             </a-descriptions-item>
           </a-descriptions>
         </a-card>
 
-        <!-- KPI Cards -->
         <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-bottom: 16px">
           <MetricKpiCard
             v-for="kpi in kpiCards"
@@ -48,15 +45,14 @@
           />
         </div>
 
-        <!-- Metric Trend Chart -->
         <a-card style="margin-bottom: 16px" :body-style="{ padding: '16px' }">
           <template #title>
-            <span style="font-size: 14px">指标趋势</span>
+            <span style="font-size: 14px">{{ t('mobile_special.reports.metric_trend') }}</span>
           </template>
           <div style="display: flex; gap: 12px; margin-bottom: 12px; flex-wrap: wrap">
             <a-select
               v-model:value="selectedMetricType"
-              placeholder="选择指标"
+              :placeholder="t('mobile_special.reports.select_metric')"
               style="width: 160px"
               :options="metricTypeOptions"
               @change="loadSamples"
@@ -65,10 +61,9 @@
           <div ref="trendChartRef" style="width: 100%; height: 280px"></div>
         </a-card>
 
-        <!-- Incidents Table -->
         <a-card style="margin-bottom: 16px" :body-style="{ padding: '0 16px 16px' }">
           <template #title>
-            <span style="font-size: 14px">异常事件 ({{ incidents.length }})</span>
+            <span style="font-size: 14px">{{ t('mobile_special.reports.incidents_title', { count: incidents.length }) }}</span>
           </template>
           <a-table
             v-if="incidents.length > 0"
@@ -95,15 +90,14 @@
               </template>
             </template>
           </a-table>
-          <a-empty v-else description="暂无异常事件" style="padding: 24px 0" />
+          <a-empty v-else :description="t('mobile_special.reports.no_incidents')" style="padding: 24px 0" />
         </a-card>
 
-        <!-- Artifacts -->
         <a-card :body-style="{ padding: '0 16px 16px' }">
           <template #title>
-            <span style="font-size: 14px; margin-right: 8px">报告文件 ({{ artifacts.length }})</span>
-            <a-button type="link" size="small" @click="doExportCsv">导出CSV</a-button>
-            <a-button type="link" size="small" @click="doExportJson">导出JSON</a-button>
+            <span style="font-size: 14px; margin-right: 8px">{{ t('mobile_special.reports.artifacts_title', { count: artifacts.length }) }}</span>
+            <a-button type="link" size="small" @click="doExportCsv">{{ t('mobile_special.reports.export_csv') }}</a-button>
+            <a-button type="link" size="small" @click="doExportJson">{{ t('mobile_special.reports.export_json') }}</a-button>
           </template>
           <a-table
             v-if="artifacts.length > 0"
@@ -124,23 +118,24 @@
                 {{ formatDate(record.created_at) }}
               </template>
               <template v-else-if="column.key === 'action'">
-                <a-button type="link" size="small" @click="downloadArtifact(record)">下载</a-button>
+                <a-button type="link" size="small" @click="downloadArtifact(record)">{{ t('mobile_special.reports.download') }}</a-button>
               </template>
             </template>
           </a-table>
-          <a-empty v-else description="暂无报告文件" style="padding: 24px 0" />
+          <a-empty v-else :description="t('mobile_special.reports.no_artifacts')" style="padding: 24px 0" />
         </a-card>
       </template>
 
-      <a-empty v-else description="报告不存在" style="padding: 48px 0" />
+      <a-empty v-else :description="t('mobile_special.reports.not_found')" style="padding: 48px 0" />
     </a-spin>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed } from 'vue'
+import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
+import { useI18n } from 'vue-i18n'
 import * as echarts from 'echarts'
 import type { ECharts, EChartsOption } from 'echarts'
 import {
@@ -152,7 +147,6 @@ import {
   type MobileRunArtifactItem,
 } from '@/api'
 
-// Simple KPI Card component inline
 const MetricKpiCard = {
   props: { label: String, value: [String, Number], unit: String, color: String },
   template: `
@@ -167,6 +161,7 @@ const MetricKpiCard = {
 
 const router = useRouter()
 const route = useRoute()
+const { t, locale } = useI18n()
 
 const loading = ref(false)
 const runId = computed(() => Number(route.params.runId))
@@ -180,26 +175,26 @@ const selectedMetricType = ref('mem_mb')
 const trendChartRef = ref<HTMLDivElement | null>(null)
 let trendChart: ECharts | null = null
 
-const metricTypeOptions = [
-  { label: '内存 (MB)', value: 'mem_mb' },
+const metricTypeOptions = computed(() => [
+  { label: t('mobile_special.reports.metrics.memory'), value: 'mem_mb' },
   { label: 'CPU (%)', value: 'cpu_pct' },
-  { label: '电池 (%)', value: 'battery_pct' },
+  { label: t('mobile_special.reports.metrics.battery'), value: 'battery_pct' },
   { label: 'FPS', value: 'fps' },
-]
+])
 
-const incidentColumns = [
-  { title: '类型', key: 'incident_type', width: 100 },
-  { title: '时间', key: 'event_time', width: 160 },
-  { title: '标题/详情', key: 'title' },
-]
+const incidentColumns = computed(() => [
+  { title: t('common.type'), key: 'incident_type', width: 100 },
+  { title: t('mobile_special.reports.time'), key: 'event_time', width: 160 },
+  { title: t('mobile_special.reports.title_detail'), key: 'title' },
+])
 
-const artifactColumns = [
-  { title: '类型', key: 'artifact_type', width: 100 },
-  { title: '文件名', key: 'file_name', dataIndex: 'file_name' },
-  { title: '大小', key: 'file_size', width: 100 },
-  { title: '时间', key: 'created_at', width: 160 },
-  { title: '操作', key: 'action', width: 80 },
-]
+const artifactColumns = computed(() => [
+  { title: t('common.type'), key: 'artifact_type', width: 100 },
+  { title: t('mobile_special.reports.file_name'), key: 'file_name', dataIndex: 'file_name' },
+  { title: t('mobile_special.reports.file_size'), key: 'file_size', width: 100 },
+  { title: t('mobile_special.reports.time'), key: 'created_at', width: 160 },
+  { title: t('common.action'), key: 'action', width: 80 },
+])
 
 const kpiCards = computed(() => {
   if (!samples.value.length) return []
@@ -216,12 +211,12 @@ const kpiCards = computed(() => {
   const fps = byType('fps')
 
   return [
-    ...(mem ? [{ label: '内存平均 (MB)', value: mem.avg.toFixed(1), unit: 'MB', color: '#1890ff' }] : []),
-    ...(cpu ? [{ label: 'CPU平均 (%)', value: cpu.avg.toFixed(1), unit: '%', color: '#faad14' }] : []),
-    ...(fps ? [{ label: '平均 FPS', value: fps.avg.toFixed(1), unit: '', color: '#52c41a' }] : []),
-    ...(fps ? [{ label: 'Jank 次数', value: summary.jank_count || 0, unit: '次', color: '#ff4d4f' }] : []),
-    ...(incidents.value.length ? [{ label: '异常事件', value: incidents.value.length, unit: '个', color: '#ff4d4f' }] : []),
-    ...(run.value?.duration_ms ? [{ label: '总耗时', value: (run.value.duration_ms / 1000).toFixed(1), unit: 's', color: '#722ed1' }] : []),
+    ...(mem ? [{ label: t('mobile_special.reports.kpi.memory_avg'), value: mem.avg.toFixed(1), unit: 'MB', color: '#1890ff' }] : []),
+    ...(cpu ? [{ label: t('mobile_special.reports.kpi.cpu_avg'), value: cpu.avg.toFixed(1), unit: '%', color: '#faad14' }] : []),
+    ...(fps ? [{ label: t('mobile_special.reports.kpi.fps_avg'), value: fps.avg.toFixed(1), unit: '', color: '#52c41a' }] : []),
+    ...(fps ? [{ label: t('mobile_special.reports.kpi.jank_count'), value: summary.jank_count || 0, unit: t('mobile_special.reports.units.times'), color: '#ff4d4f' }] : []),
+    ...(incidents.value.length ? [{ label: t('mobile_special.reports.incidents'), value: incidents.value.length, unit: t('mobile_special.reports.units.items'), color: '#ff4d4f' }] : []),
+    ...(run.value?.duration_ms ? [{ label: t('mobile_special.reports.kpi.total_duration'), value: (run.value.duration_ms / 1000).toFixed(1), unit: 's', color: '#722ed1' }] : []),
   ].slice(0, 6)
 })
 
@@ -263,7 +258,7 @@ async function loadAll() {
 
     updateTrendChart()
   } catch (e: any) {
-    message.error(e?.message || '加载报告详情失败')
+    message.error(e?.message || t('mobile_special.reports.msg.load_detail_failed'))
   } finally {
     loading.value = false
   }
@@ -279,7 +274,7 @@ async function loadSamples() {
     samples.value = data
     updateTrendChart()
   } catch (e: any) {
-    message.error(e?.message || '加载指标数据失败')
+    message.error(e?.message || t('mobile_special.reports.msg.load_metrics_failed'))
   }
 }
 
@@ -313,7 +308,7 @@ function updateTrendChart() {
     grid: { top: 10, right: 20, bottom: 30, left: 50 },
     xAxis: { type: 'category', data: times, axisLabel: { fontSize: 10, rotate: 30 } },
     yAxis: { type: 'value', axisLabel: { fontSize: 11, formatter: (v: number) => `${v}${unitMap[selectedMetricType.value] || ''}` } },
-    series: [{ name: metricTypeOptions.find(o => o.value === selectedMetricType.value)?.label || '', type: 'line', data: values, smooth: true, itemStyle: { color: colorMap[selectedMetricType.value] || '#1890ff' } }],
+    series: [{ name: metricTypeOptions.value.find(o => o.value === selectedMetricType.value)?.label || '', type: 'line', data: values, smooth: true, itemStyle: { color: colorMap[selectedMetricType.value] || '#1890ff' } }],
   }
 
   trendChart.setOption(option, true)
@@ -324,7 +319,11 @@ function taskTypeColor(type: string) {
 }
 
 function taskTypeLabel(type: string) {
-  return { performance: '性能', stability: '稳定性', fluency: '流畅度' }[type] || type
+  return {
+    performance: t('mobile_special.task_types.performance'),
+    stability: t('mobile_special.task_types.stability'),
+    fluency: t('mobile_special.task_types.fluency'),
+  }[type] || type
 }
 
 function statusColor(status: string) {
@@ -332,11 +331,21 @@ function statusColor(status: string) {
 }
 
 function statusLabel(status: string) {
-  return { pending: '等待', running: '运行中', completed: '完成', failed: '失败', stopped: '已停止' }[status] || status
+  return {
+    pending: t('mobile_special.statuses.pending'),
+    running: t('mobile_special.statuses.running'),
+    completed: t('mobile_special.statuses.completed'),
+    failed: t('mobile_special.statuses.failed'),
+    stopped: t('mobile_special.statuses.stopped'),
+  }[status] || status
 }
 
 function triggerLabel(type: string) {
-  return { manual: '手动', schedule: '调度', webhook: 'Webhook' }[type] || type
+  return {
+    manual: t('mobile_special.trigger_types.manual'),
+    schedule: t('mobile_special.trigger_types.schedule'),
+    webhook: 'Webhook',
+  }[type] || type
 }
 
 function incidentColor(type: string) {
@@ -344,11 +353,22 @@ function incidentColor(type: string) {
 }
 
 function incidentLabel(type: string) {
-  return { crash: '崩溃', anr: 'ANR', fatal_log: 'Fatal日志', watchdog: 'Watchdog' }[type] || type
+  return {
+    crash: t('mobile_special.incident_types.crash'),
+    anr: 'ANR',
+    fatal_log: t('mobile_special.incident_types.fatal_log'),
+    watchdog: 'Watchdog',
+  }[type] || type
 }
 
 function artifactLabel(type: string) {
-  return { csv: 'CSV', json: 'JSON', screenshot: '截图', raw_log: '日志', trace: 'Trace' }[type] || type
+  return {
+    csv: 'CSV',
+    json: 'JSON',
+    screenshot: t('mobile_special.artifact_types.screenshot'),
+    raw_log: t('mobile_special.artifact_types.raw_log'),
+    trace: 'Trace',
+  }[type] || type
 }
 
 function formatDate(dateStr: string) {
@@ -363,9 +383,9 @@ function formatFileSize(bytes: number) {
 
 async function downloadArtifact(record: MobileRunArtifactItem) {
   try {
-    message.info(`文件: ${record.file_name}，下载功能待后端提供`)
+    message.info(t('mobile_special.reports.msg.download_pending', { file: record.file_name }))
   } catch (e: any) {
-    message.error(e?.message || '下载失败')
+    message.error(e?.message || t('mobile_special.reports.msg.download_failed'))
   }
 }
 
@@ -379,9 +399,9 @@ async function doExportCsv() {
     a.download = `mobile_run_${run.value.id}_metrics.csv`
     a.click()
     URL.revokeObjectURL(url)
-    message.success('CSV 已下载')
+    message.success(t('mobile_special.reports.msg.csv_downloaded'))
   } catch (e: any) {
-    message.error(e?.message || '导出失败')
+    message.error(e?.message || t('mobile_special.reports.msg.export_failed'))
   }
 }
 
@@ -395,9 +415,11 @@ async function doExportJson() {
     a.download = `mobile_run_${run.value.id}_report.json`
     a.click()
     URL.revokeObjectURL(url)
-    message.success('JSON 已下载')
+    message.success(t('mobile_special.reports.msg.json_downloaded'))
   } catch (e: any) {
-    message.error(e?.message || '导出失败')
+    message.error(e?.message || t('mobile_special.reports.msg.export_failed'))
   }
 }
+
+watch(locale, () => updateTrendChart())
 </script>

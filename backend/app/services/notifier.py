@@ -27,6 +27,35 @@ from app.models.notification import NotificationConfig, NotifyChannel
 
 logger = logging.getLogger(__name__)
 
+SUPPORTED_LANGUAGES = {"zh-CN", "en-US"}
+
+LABELS = {
+    "zh-CN": {
+        "default_title": "ATP 测试执行完成",
+        "email_title": "测试执行完成",
+        "status": "状态",
+        "passed": "通过",
+        "failed": "失败",
+        "error": "错误",
+        "duration": "耗时",
+        "trigger": "触发",
+        "statuses": {"passed": "通过", "failed": "失败", "error": "异常"},
+        "triggers": {"manual": "手动", "cron": "定时", "webhook": "Webhook"},
+    },
+    "en-US": {
+        "default_title": "ATP test execution completed",
+        "email_title": "Test execution completed",
+        "status": "Status",
+        "passed": "Passed",
+        "failed": "Failed",
+        "error": "Errors",
+        "duration": "Duration",
+        "trigger": "Trigger",
+        "statuses": {"passed": "Passed", "failed": "Failed", "error": "Error"},
+        "triggers": {"manual": "Manual", "cron": "Scheduled", "webhook": "Webhook"},
+    },
+}
+
 
 async def send_notifications(db: AsyncSession, project_id: int, summary: dict):
     """
@@ -65,38 +94,58 @@ async def send_notifications(db: AsyncSession, project_id: int, summary: dict):
             logger.error(f"通知发送失败 [{cfg.channel.value}] config_id={cfg.id}: {e}")
 
 
-def _build_text(summary: dict) -> str:
+def _normalize_language(language: str | None) -> str:
+    return language if language in SUPPORTED_LANGUAGES else "zh-CN"
+
+
+def _labels(language: str | None) -> dict:
+    return LABELS[_normalize_language(language)]
+
+
+def _localized_value(labels: dict, group: str, value: str | None) -> str:
+    if not value:
+        return "-"
+    return labels.get(group, {}).get(value, value)
+
+
+def _build_text(summary: dict, language: str = "zh-CN") -> str:
     """构建纯文本通知内容"""
+    labels = _labels(language)
     status_emoji = {"passed": "✅", "failed": "❌", "error": "⚠️"}.get(summary.get("status", ""), "")
     duration = summary.get("duration_ms", 0)
     duration_str = f"{duration / 1000:.1f}s" if duration else "-"
+    status = _localized_value(labels, "statuses", summary.get("status"))
+    trigger = _localized_value(labels, "triggers", summary.get("trigger_type"))
 
     lines = [
-        f"{status_emoji} {summary.get('title', 'ATP 测试执行完成')}",
+        f"{status_emoji} {summary.get('title', labels['default_title'])}",
         f"",
-        f"状态: {summary.get('status', '-')}",
-        f"通过: {summary.get('passed', 0)} / {summary.get('total', 0)}",
-        f"失败: {summary.get('failed', 0)}",
-        f"错误: {summary.get('error', 0)}",
-        f"耗时: {duration_str}",
-        f"触发: {summary.get('trigger_type', '-')}",
+        f"{labels['status']}: {status}",
+        f"{labels['passed']}: {summary.get('passed', 0)} / {summary.get('total', 0)}",
+        f"{labels['failed']}: {summary.get('failed', 0)}",
+        f"{labels['error']}: {summary.get('error', 0)}",
+        f"{labels['duration']}: {duration_str}",
+        f"{labels['trigger']}: {trigger}",
     ]
     return "\n".join(lines)
 
 
-def _build_markdown(summary: dict) -> str:
+def _build_markdown(summary: dict, language: str = "zh-CN") -> str:
     """构建 Markdown 通知内容（用于企业微信/钉钉）"""
+    labels = _labels(language)
     status_emoji = {"passed": "✅", "failed": "❌", "error": "⚠️"}.get(summary.get("status", ""), "")
     duration = summary.get("duration_ms", 0)
     duration_str = f"{duration / 1000:.1f}s" if duration else "-"
+    status = _localized_value(labels, "statuses", summary.get("status"))
+    trigger = _localized_value(labels, "triggers", summary.get("trigger_type"))
 
     lines = [
-        f"### {status_emoji} {summary.get('title', 'ATP 测试执行完成')}",
-        f"> **状态**: {summary.get('status', '-')}",
-        f"> **通过**: {summary.get('passed', 0)} / {summary.get('total', 0)}",
-        f"> **失败**: {summary.get('failed', 0)}  **错误**: {summary.get('error', 0)}",
-        f"> **耗时**: {duration_str}",
-        f"> **触发**: {summary.get('trigger_type', '-')}",
+        f"### {status_emoji} {summary.get('title', labels['default_title'])}",
+        f"> **{labels['status']}**: {status}",
+        f"> **{labels['passed']}**: {summary.get('passed', 0)} / {summary.get('total', 0)}",
+        f"> **{labels['failed']}**: {summary.get('failed', 0)}  **{labels['error']}**: {summary.get('error', 0)}",
+        f"> **{labels['duration']}**: {duration_str}",
+        f"> **{labels['trigger']}**: {trigger}",
     ]
     return "\n".join(lines)
 
@@ -107,11 +156,13 @@ async def _send_email(config: dict, summary: dict):
     if not recipients:
         return
 
+    language = _normalize_language(config.get("language"))
+    labels = _labels(language)
     subject_prefix = config.get("subject_prefix", "[ATP]")
     status = summary.get("status", "unknown")
-    subject = f"{subject_prefix} {summary.get('title', '测试执行完成')} - {status.upper()}"
+    subject = f"{subject_prefix} {summary.get('title', labels['email_title'])} - {status.upper()}"
 
-    body = _build_text(summary)
+    body = _build_text(summary, language)
 
     msg = MIMEMultipart()
     msg["Subject"] = subject
@@ -155,7 +206,7 @@ async def _send_wechat(config: dict, summary: dict):
     payload = {
         "msgtype": "markdown",
         "markdown": {
-            "content": _build_markdown(summary),
+            "content": _build_markdown(summary, _normalize_language(config.get("language"))),
         },
     }
 
@@ -197,8 +248,8 @@ async def _send_dingtalk(config: dict, summary: dict):
     payload = {
         "msgtype": "markdown",
         "markdown": {
-            "title": summary.get("title", "ATP 测试执行完成"),
-            "text": _build_markdown(summary),
+            "title": summary.get("title", _labels(config.get("language"))["default_title"]),
+            "text": _build_markdown(summary, _normalize_language(config.get("language"))),
         },
     }
 

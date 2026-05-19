@@ -43,7 +43,6 @@
       </template>
     </a-table>
 
-    <!-- 新建/编辑 Modal -->
     <a-modal
       v-model:open="formOpen"
       :title="isEdit ? t('system_pages.notification.edit') : t('system_pages.notification.add')"
@@ -64,7 +63,13 @@
           </a-select>
         </a-form-item>
 
-        <!-- 邮件配置 -->
+        <a-form-item :label="t('system_pages.notification.language')">
+          <a-select v-model:value="notificationLanguage" style="width: 100%">
+            <a-select-option value="zh-CN">{{ t('lang.zh') }}</a-select-option>
+            <a-select-option value="en-US">{{ t('lang.en') }}</a-select-option>
+          </a-select>
+        </a-form-item>
+
         <template v-if="form.channel === 'email'">
           <a-form-item :label="t('system_pages.notification.recipients')">
             <a-textarea
@@ -78,14 +83,12 @@
           </a-form-item>
         </template>
 
-        <!-- 企业微信配置 -->
         <template v-if="form.channel === 'wechat'">
           <a-form-item label="Webhook URL">
             <a-input v-model:value="wechatUrl" placeholder="https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=..." />
           </a-form-item>
         </template>
 
-        <!-- 钉钉配置 -->
         <template v-if="form.channel === 'dingtalk'">
           <a-form-item label="Webhook URL">
             <a-input v-model:value="dingtalkUrl" placeholder="https://oapi.dingtalk.com/robot/send?access_token=..." />
@@ -140,12 +143,12 @@ const testingId = ref<number | null>(null)
 
 const form = ref<NotificationForm>({ name: '', channel: 'email', is_enabled: true })
 
-// 渠道特定字段
 const emailRecipients = ref('')
 const emailSubjectPrefix = ref('[ATP]')
 const wechatUrl = ref('')
 const dingtalkUrl = ref('')
 const dingtalkSecret = ref('')
+const notificationLanguage = ref<'zh-CN' | 'en-US'>('zh-CN')
 const { t } = useI18n()
 
 const columns = computed(() => [
@@ -190,6 +193,7 @@ function resetChannelFields() {
   wechatUrl.value = ''
   dingtalkUrl.value = ''
   dingtalkSecret.value = ''
+  notificationLanguage.value = 'zh-CN'
 }
 
 function openCreate() {
@@ -210,7 +214,9 @@ function openEdit(record: NotificationRecord) {
     subject_prefix?: string
     webhook_url?: string
     secret?: string
+    language?: 'zh-CN' | 'en-US'
   }
+  notificationLanguage.value = cfg.language === 'en-US' ? 'en-US' : 'zh-CN'
   if (record.channel === 'email') {
     emailRecipients.value = (cfg.recipients || []).join('\n')
     emailSubjectPrefix.value = cfg.subject_prefix || '[ATP]'
@@ -228,11 +234,12 @@ function buildConfig(): Record<string, unknown> {
     return {
       recipients: emailRecipients.value.split('\n').map(s => s.trim()).filter(Boolean),
       subject_prefix: emailSubjectPrefix.value || '[ATP]',
+      language: notificationLanguage.value,
     }
   } else if (form.value.channel === 'wechat') {
-    return { webhook_url: wechatUrl.value }
+    return { webhook_url: wechatUrl.value, language: notificationLanguage.value }
   } else if (form.value.channel === 'dingtalk') {
-    const cfg: Record<string, string> = { webhook_url: dingtalkUrl.value }
+    const cfg: Record<string, string> = { webhook_url: dingtalkUrl.value, language: notificationLanguage.value }
     if (dingtalkSecret.value) cfg.secret = dingtalkSecret.value
     return cfg
   }

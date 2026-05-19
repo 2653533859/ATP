@@ -49,7 +49,22 @@ def test_build_text_includes_summary_fields():
     assert "Nightly Plan" in content
     assert "3 / 5" in content
     assert "12.5s" in content
-    assert "cron" in content
+    assert "触发: 定时" in content
+
+
+def test_build_text_supports_english_labels():
+    content = notifier._build_text(_summary(), language="en-US")
+
+    assert "Status: Failed" in content
+    assert "Passed: 3 / 5" in content
+    assert "Trigger: Scheduled" in content
+
+
+def test_build_markdown_defaults_to_chinese_for_unknown_language():
+    content = notifier._build_markdown(_summary(), language="fr-FR")
+
+    assert "**状态**" in content
+    assert "**触发**: 定时" in content
 
 
 def test_send_notifications_dispatches_by_channel(monkeypatch):
@@ -69,7 +84,7 @@ def test_send_notifications_dispatches_by_channel(monkeypatch):
     monkeypatch.setattr(notifier, "_send_dingtalk", fake_dingtalk)
 
     configs = [
-        SimpleNamespace(id=1, channel=NotifyChannel.email, config={"recipients": ["a@test.com"]}),
+        SimpleNamespace(id=1, channel=NotifyChannel.email, config={"recipients": ["a@test.com"], "language": "en-US"}),
         SimpleNamespace(id=2, channel=NotifyChannel.wechat, config={"webhook_url": "https://qy.example"}),
         SimpleNamespace(id=3, channel=NotifyChannel.dingtalk, config={"webhook_url": "https://dt.example?access_token=1"}),
     ]
@@ -77,6 +92,7 @@ def test_send_notifications_dispatches_by_channel(monkeypatch):
     asyncio.run(notifier.send_notifications(_FakeDB(configs), 9, _summary()))
 
     assert [call[0] for call in calls] == ["email", "wechat", "dingtalk"]
+    assert calls[0][1]["language"] == "en-US"
 
 
 def test_wechat_sender_raises_when_provider_rejects(monkeypatch):
