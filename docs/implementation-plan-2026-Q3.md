@@ -84,11 +84,11 @@ POST /api/v1/ai/cases/confirm        把草稿写入 TestCase 表
 
 ### 里程碑
 
-- [ ] E.1 OpenAPI / Postman 解析器
-- [ ] E.2 LLM 客户端 + 提示词模板
-- [ ] E.3 三个生成 API
-- [ ] E.4 前端三步式向导
-- [ ] E.5 后端聚焦测试 + 配置文档更新
+- [x] E.1 OpenAPI / Postman 解析器（commit 4714fea）
+- [x] E.2 LLM 客户端 + 提示词模板（commit 4714fea，统一支持 DeepSeek/OpenAI/Qwen/Ollama + Claude）
+- [x] E.3 生成 API（parse-schema + generate，confirm 由前端直接调用 caseApi.create 替代）
+- [x] E.4 前端：AILLMConfigList（admin）+ AIGenerateDrawer（CaseList 入口） — commit 68374a5
+- [x] E.5 后端测试覆盖 40 用例（commit 4714fea）
 
 ---
 
@@ -186,8 +186,8 @@ POST /api/v1/ai/cases/confirm        把草稿写入 TestCase 表
 
 ### 里程碑
 
-- [ ] H.1 plan 并发执行 + 测试
-- [ ] H.2 总量淘汰策略 + 测试
+- [x] H.1 plan 并发执行 + 测试（commit a4b9d32：execution_mode/max_workers/fail_strategy；run_test_plan parallel 分支用独立 AsyncSession；8 个 worker 测试）
+- [x] H.2 总量淘汰策略 + 测试（commit a4b9d32：StoragePolicy.max_size_gb + `_select_size_eviction`；与 retention_days 取并集；5 个新测试）
 - [x] H.3 BatchOperationBar 抽取与接入（已抽取 `frontend/src/components/common/BatchOperationBar.vue` 并接入 CaseList / SuiteList / PlanList；MockRuleList 暂未启用批量操作，待后续按需接入）
 
 ---
@@ -253,5 +253,7 @@ Phase 4 (2-3 周)
 
 ## 当前进度记录
 
-- Q3 计划已生成，未启动实施
-- 等待 Phase 1（方向 E）准备 LLM 选型和接入授权
+- 方向 E（AI 用例生成）：已完成 — 后端 commit 4714fea + 前端 commit 68374a5
+- 方向 H（Q2 收口）：已完成 — H.1/H.2 commit a4b9d32，H.3 commit a060be4
+- 方向 F（i18n）：进行中 — F.1 集成 vue-i18n 基础设施 + 登录页迁移
+- 方向 G（OTel/Jaeger）：未启动，待 F 收口后切入

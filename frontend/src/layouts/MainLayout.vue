@@ -2,7 +2,7 @@
   <a-layout style="min-height: 100vh">
     <!-- 侧边栏 -->
     <a-layout-sider v-model:collapsed="collapsed" collapsible theme="dark">
-      <div class="logo">{{ collapsed ? 'ATP' : 'ATP 测试平台' }}</div>
+      <div class="logo">{{ collapsed ? t('layout.sider_title_short') : t('layout.sider_title_full') }}</div>
       <a-menu
         v-model:selectedKeys="selectedKeys"
         theme="dark"
@@ -11,55 +11,55 @@
       >
         <a-menu-item key="/dashboard">
           <DashboardOutlined />
-          <span>统计看板</span>
+          <span>{{ t('menu.dashboard') }}</span>
         </a-menu-item>
         <a-menu-item key="/projects">
           <ProjectOutlined />
-          <span>项目管理</span>
+          <span>{{ t('menu.projects') }}</span>
         </a-menu-item>
         <a-menu-item key="/cases">
           <ProfileOutlined />
-          <span>用例管理</span>
+          <span>{{ t('menu.cases') }}</span>
         </a-menu-item>
         <a-menu-item key="/runs">
           <PlayCircleOutlined />
-          <span>执行记录</span>
+          <span>{{ t('menu.runs') }}</span>
         </a-menu-item>
         <a-menu-item key="/suites">
           <AppstoreOutlined />
-          <span>测试套件</span>
+          <span>{{ t('menu.suites') }}</span>
         </a-menu-item>
         <a-menu-item key="/plans">
           <ClockCircleOutlined />
-          <span>测试计划</span>
+          <span>{{ t('menu.plans') }}</span>
         </a-menu-item>
         <a-menu-item key="/devices">
           <MobileOutlined />
-          <span>设备管理</span>
+          <span>{{ t('menu.devices') }}</span>
         </a-menu-item>
         <a-menu-item key="/apks">
           <AndroidOutlined />
-          <span>APK 管理</span>
+          <span>{{ t('menu.apks') }}</span>
         </a-menu-item>
         <a-menu-item key="/mock-rules">
           <ApiOutlined />
-          <span>Mock 服务</span>
+          <span>{{ t('menu.mock_rules') }}</span>
         </a-menu-item>
         <a-sub-menu key="mobile-special">
           <template #icon><MobileOutlined /></template>
-          <template #title>Android 专项</template>
-          <a-menu-item key="/mobile-special/tasks">专项任务</a-menu-item>
-          <a-menu-item key="/mobile-special/reports">报告中心</a-menu-item>
+          <template #title>{{ t('menu.mobile_special.title') }}</template>
+          <a-menu-item key="/mobile-special/tasks">{{ t('menu.mobile_special.tasks') }}</a-menu-item>
+          <a-menu-item key="/mobile-special/reports">{{ t('menu.mobile_special.reports') }}</a-menu-item>
         </a-sub-menu>
         <a-sub-menu key="system">
           <template #icon><SettingOutlined /></template>
-          <template #title>系统管理</template>
-          <a-menu-item key="/system/environments">环境管理</a-menu-item>
-          <a-menu-item key="/system/notifications">通知配置</a-menu-item>
-          <a-menu-item key="/system/bug-trackers">缺陷跟踪</a-menu-item>
-          <a-menu-item key="/system/storage">存储管理</a-menu-item>
-          <a-menu-item key="/system/global-variables">全局变量</a-menu-item>
-          <a-menu-item key="/system/ai-llm-configs">AI 模型配置</a-menu-item>
+          <template #title>{{ t('menu.system.title') }}</template>
+          <a-menu-item key="/system/environments">{{ t('menu.system.environments') }}</a-menu-item>
+          <a-menu-item key="/system/notifications">{{ t('menu.system.notifications') }}</a-menu-item>
+          <a-menu-item key="/system/bug-trackers">{{ t('menu.system.bug_trackers') }}</a-menu-item>
+          <a-menu-item key="/system/storage">{{ t('menu.system.storage') }}</a-menu-item>
+          <a-menu-item key="/system/global-variables">{{ t('menu.system.global_variables') }}</a-menu-item>
+          <a-menu-item key="/system/ai-llm-configs">{{ t('menu.system.ai_llm_configs') }}</a-menu-item>
         </a-sub-menu>
       </a-menu>
     </a-layout-sider>
@@ -68,8 +68,15 @@
       <!-- 顶栏 -->
       <a-layout-header class="header">
         <a-space style="float: right">
+          <a-select
+            :value="currentLocale"
+            size="small"
+            style="width: 110px"
+            :options="localeOptions"
+            @change="onLocaleChange"
+          />
           <span>{{ auth.user?.username }}</span>
-          <a-button type="text" @click="handleLogout">退出</a-button>
+          <a-button type="text" @click="handleLogout">{{ t('common.logout') }}</a-button>
         </a-space>
       </a-layout-header>
 
@@ -82,14 +89,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
+import { useI18n } from 'vue-i18n'
 import { ProjectOutlined, ProfileOutlined, PlayCircleOutlined, SettingOutlined, MobileOutlined, AndroidOutlined, AppstoreOutlined, ClockCircleOutlined, DashboardOutlined, ApiOutlined } from '@ant-design/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { getLocale, setLocale, type SupportedLocale } from '@/locales'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const { t } = useI18n()
 
 const collapsed = ref(false)
 const selectedKeys = ref([route.path])
@@ -103,6 +113,17 @@ function onMenuClick({ key }: { key: string }) {
 function handleLogout() {
   auth.logout()
   router.push({ name: 'login' })
+}
+
+const currentLocale = computed<SupportedLocale>(() => getLocale())
+
+const localeOptions = computed(() => [
+  { label: t('lang.zh'), value: 'zh-CN' },
+  { label: t('lang.en'), value: 'en-US' },
+])
+
+function onLocaleChange(value: SupportedLocale) {
+  setLocale(value)
 }
 </script>
 

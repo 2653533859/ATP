@@ -1,40 +1,60 @@
 <template>
   <div class="login-wrapper">
-    <a-card class="login-card" title="ATP 自动化测试平台">
+    <a-card class="login-card" :title="t('login.title')">
       <a-form :model="form" @finish="onFinish" layout="vertical">
-        <a-form-item name="username" :rules="[{ required: true, message: '请输入用户名' }]">
-          <a-input v-model:value="form.username" placeholder="用户名" size="large">
+        <a-form-item name="username" :rules="[{ required: true, message: t('login.required_username') }]">
+          <a-input v-model:value="form.username" :placeholder="t('login.username')" size="large">
             <template #prefix><UserOutlined /></template>
           </a-input>
         </a-form-item>
-        <a-form-item name="password" :rules="[{ required: true, message: '请输入密码' }]">
-          <a-input-password v-model:value="form.password" placeholder="密码" size="large">
+        <a-form-item name="password" :rules="[{ required: true, message: t('login.required_password') }]">
+          <a-input-password v-model:value="form.password" :placeholder="t('login.password')" size="large">
             <template #prefix><LockOutlined /></template>
           </a-input-password>
         </a-form-item>
         <a-form-item>
           <a-button type="primary" html-type="submit" :loading="loading" block size="large">
-            登录
+            {{ t('login.submit') }}
           </a-button>
         </a-form-item>
       </a-form>
+      <div class="lang-switch">
+        <a-radio-group
+          :value="currentLocale"
+          size="small"
+          button-style="solid"
+          @change="(e: any) => onLocaleChange(e.target.value)"
+        >
+          <a-radio-button value="zh-CN">{{ t('lang.zh') }}</a-radio-button>
+          <a-radio-button value="en-US">{{ t('lang.en') }}</a-radio-button>
+        </a-radio-group>
+      </div>
     </a-card>
   </div>
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
+import { useI18n } from 'vue-i18n'
 import { UserOutlined, LockOutlined } from '@ant-design/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { getLocale, setLocale, type SupportedLocale } from '@/locales'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const { t } = useI18n()
 
 const loading = ref(false)
 const form = reactive({ username: '', password: '' })
+
+const currentLocale = computed<SupportedLocale>(() => getLocale())
+
+function onLocaleChange(value: SupportedLocale) {
+  setLocale(value)
+}
 
 async function onFinish() {
   loading.value = true
@@ -43,7 +63,7 @@ async function onFinish() {
     const redirect = (route.query.redirect as string) || '/'
     await router.push(redirect)
   } catch (e: any) {
-    message.error(e ?? '登录失败')
+    message.error(e ?? t('login.failed'))
   } finally {
     loading.value = false
   }
@@ -61,5 +81,9 @@ async function onFinish() {
 .login-card {
   width: 400px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+}
+.lang-switch {
+  margin-top: 8px;
+  text-align: center;
 }
 </style>
