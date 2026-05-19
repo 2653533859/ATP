@@ -4,7 +4,7 @@
       <a-space>
         <a-select
           v-model:value="projectId"
-          placeholder="选择项目"
+          :placeholder="t('plan.select_project')"
           style="width: 200px"
           allow-clear
           :options="projectOptions"
@@ -12,20 +12,20 @@
         />
       </a-space>
       <a-button type="primary" @click="openCreate" :disabled="!projectId">
-        <PlusOutlined /> 新建计划
+        <PlusOutlined /> {{ t('plan.new') }}
       </a-button>
     </div>
 
     <BatchOperationBar :selected-count="selectedRowKeys.length" @cancel="selectedRowKeys = []">
-      <a-button size="small" @click="handleBatchToggle(true)">批量启用</a-button>
-      <a-button size="small" @click="handleBatchToggle(false)">批量停用</a-button>
+      <a-button size="small" @click="handleBatchToggle(true)">{{ t('plan.batch_enable') }}</a-button>
+      <a-button size="small" @click="handleBatchToggle(false)">{{ t('plan.batch_disable') }}</a-button>
       <a-popconfirm
-        :title="`确认删除选中的 ${selectedRowKeys.length} 个计划？`"
-        ok-text="删除"
-        cancel-text="取消"
+        :title="t('plan.confirm_delete_batch', { count: selectedRowKeys.length })"
+        :ok-text="t('common.delete')"
+        :cancel-text="t('common.cancel')"
         @confirm="handleBatchDelete"
       >
-        <a-button size="small" danger>批量删除</a-button>
+        <a-button size="small" danger>{{ t('plan.batch_delete') }}</a-button>
       </a-popconfirm>
     </BatchOperationBar>
 
@@ -47,11 +47,11 @@
         </template>
 
         <template v-if="column.key === 'is_enabled'">
-          <a-tag :color="record.is_enabled ? 'green' : 'default'">{{ record.is_enabled ? '启用' : '禁用' }}</a-tag>
+          <a-tag :color="record.is_enabled ? 'green' : 'default'">{{ record.is_enabled ? t('common.enabled') : t('common.disabled') }}</a-tag>
         </template>
 
         <template v-if="column.key === 'suites'">
-          <span>{{ (record.suite_ids || []).length }} 个套件</span>
+          <span>{{ t('plan.suite_count', { count: (record.suite_ids || []).length }) }}</span>
         </template>
 
         <template v-if="column.key === 'next_run_at'">
@@ -61,11 +61,11 @@
 
         <template v-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-            <a-button type="link" size="small" :loading="runningId === record.id" @click="handleRun(record)">执行</a-button>
-            <a-button type="link" size="small" @click="viewRuns(record)">记录</a-button>
-            <a-popconfirm title="确认删除该计划？" @confirm="handleDelete(record.id)">
-              <a-button type="link" size="small" danger>删除</a-button>
+            <a-button type="link" size="small" @click="openEdit(record)">{{ t('plan.actions.edit') }}</a-button>
+            <a-button type="link" size="small" :loading="runningId === record.id" @click="handleRun(record)">{{ t('plan.actions.run') }}</a-button>
+            <a-button type="link" size="small" @click="viewRuns(record)">{{ t('plan.actions.records') }}</a-button>
+            <a-popconfirm :title="t('plan.confirm_delete_one')" @confirm="handleDelete(record.id)">
+              <a-button type="link" size="small" danger>{{ t('plan.actions.delete') }}</a-button>
             </a-popconfirm>
           </a-space>
         </template>
@@ -74,7 +74,7 @@
 
     <a-modal
       v-model:open="formOpen"
-      :title="isEdit ? '编辑测试计划' : '新建测试计划'"
+      :title="isEdit ? t('plan.edit_full') : t('plan.new_full')"
       :confirm-loading="saving"
       width="640px"
       @ok="handleSave"
@@ -241,7 +241,7 @@
       </a-form>
     </a-modal>
 
-    <a-modal v-model:open="runsOpen" title="执行记录" width="800px" :footer="null">
+    <a-modal v-model:open="runsOpen" :title="t('plan.runs_modal_title')" width="800px" :footer="null">
       <a-table
         :columns="runColumns"
         :data-source="planRuns"
@@ -258,7 +258,7 @@
               <a-alert type="error" show-icon :message="record.result_summary.auto_bugs_error" />
             </template>
             <template v-else-if="record.result_summary?.auto_bugs?.length">
-              <div class="auto-bugs-title">自动创建缺陷结果</div>
+              <div class="auto-bugs-title">{{ t('plan.auto_bugs.title') }}</div>
               <a-table
                 :columns="autoBugColumns"
                 :data-source="record.result_summary.auto_bugs"
@@ -272,16 +272,16 @@
                     <span v-else>{{ autoBug.bug_id }}</span>
                   </template>
                   <template v-if="column.key === 'duplicate'">
-                    <a-tag :color="autoBug.duplicate ? 'orange' : 'green'">{{ autoBug.duplicate ? '重复命中' : '新建成功' }}</a-tag>
+                    <a-tag :color="autoBug.duplicate ? 'orange' : 'green'">{{ autoBug.duplicate ? t('plan.auto_bugs.duplicate_yes') : t('plan.auto_bugs.duplicate_no') }}</a-tag>
                   </template>
                   <template v-if="column.key === 'attachment_uploaded'">
-                    <a-tag :color="autoBug.attachment_uploaded ? 'blue' : 'default'">{{ autoBug.attachment_uploaded ? '已上传' : '未上传' }}</a-tag>
+                    <a-tag :color="autoBug.attachment_uploaded ? 'blue' : 'default'">{{ autoBug.attachment_uploaded ? t('plan.auto_bugs.attachment_yes') : t('plan.auto_bugs.attachment_no') }}</a-tag>
                   </template>
                 </template>
               </a-table>
             </template>
             <template v-else>
-              <a-empty description="没有自动创建缺陷记录" :image="false" />
+              <a-empty :description="t('plan.auto_bugs.empty')" :image="false" />
             </template>
           </div>
         </template>
@@ -294,12 +294,12 @@
           </template>
           <template v-if="column.key === 'summary'">
             <span v-if="record.result_summary">
-              {{ record.result_summary.passed || 0 }}/{{ record.result_summary.total || 0 }} 通过
+              {{ t('plan.runs_summary', { passed: record.result_summary.passed || 0, total: record.result_summary.total || 0 }) }}
             </span>
           </template>
           <template v-if="column.key === 'auto_bugs'">
-            <a-tag v-if="record.result_summary?.auto_bugs_error" color="red">异常</a-tag>
-            <a-tag v-else-if="record.result_summary?.auto_bugs?.length" color="blue">{{ record.result_summary.auto_bugs.length }} 条</a-tag>
+            <a-tag v-if="record.result_summary?.auto_bugs_error" color="red">{{ t('plan.auto_bugs.error_tag') }}</a-tag>
+            <a-tag v-else-if="record.result_summary?.auto_bugs?.length" color="blue">{{ t('plan.auto_bugs.count_tag', { count: record.result_summary.auto_bugs.length }) }}</a-tag>
             <span v-else style="color: #999">-</span>
           </template>
           <template v-if="column.key === 'duration_ms'">
@@ -321,6 +321,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
+import { useI18n } from 'vue-i18n'
 import type {
   EnvironmentItem,
   PlanItem,
@@ -334,6 +335,8 @@ import type {
 } from '@/api'
 import { environmentApi, planApi, projectApi, suiteApi } from '@/api'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
+
+const { t } = useI18n()
 
 type SelectOption = { label: string; value: number }
 type CronMode = 'daily' | 'weekly' | 'custom'
@@ -578,40 +581,42 @@ const expandedRunKeys = ref<number[]>([])
 const exportingPlanRunHtmlId = ref<number | null>(null)
 const exportingPlanRunPdfId = ref<number | null>(null)
 
-const columns = [
-  { title: '计划名称', dataIndex: 'name', key: 'name', ellipsis: true },
-  { title: '调度方式', key: 'schedule_type', width: 160 },
-  { title: '套件', key: 'suites', width: 90 },
-  { title: '状态', key: 'is_enabled', width: 80 },
-  { title: '下次执行', key: 'next_run_at', width: 170 },
-  { title: '操作', key: 'action', width: 220, fixed: 'right' },
-]
+const columns = computed(() => [
+  { title: t('plan.columns.name'), dataIndex: 'name', key: 'name', ellipsis: true },
+  { title: t('plan.columns.schedule_type'), key: 'schedule_type', width: 160 },
+  { title: t('plan.columns.suites'), key: 'suites', width: 90 },
+  { title: t('plan.columns.enabled'), key: 'is_enabled', width: 80 },
+  { title: t('plan.columns.next_run_at'), key: 'next_run_at', width: 170 },
+  { title: t('plan.columns.action'), key: 'action', width: 220, fixed: 'right' },
+])
 
-const runColumns = [
-  { title: 'ID', dataIndex: 'id', width: 60 },
-  { title: '触发方式', key: 'trigger_type', width: 100 },
-  { title: '状态', key: 'status', width: 90 },
-  { title: '结果', key: 'summary', width: 120 },
-  { title: '自动缺陷', key: 'auto_bugs', width: 120 },
-  { title: '耗时', key: 'duration_ms', width: 90 },
+const runColumns = computed(() => [
+  { title: t('plan.runs_columns.id'), dataIndex: 'id', width: 60 },
+  { title: t('plan.runs_columns.trigger_type'), key: 'trigger_type', width: 100 },
+  { title: t('plan.runs_columns.status'), key: 'status', width: 90 },
+  { title: t('plan.runs_columns.summary'), key: 'summary', width: 120 },
+  { title: t('plan.runs_columns.auto_bugs'), key: 'auto_bugs', width: 120 },
+  { title: t('plan.runs_columns.duration_ms'), key: 'duration_ms', width: 90 },
   {
-    title: '时间',
+    title: t('plan.runs_columns.time'),
     dataIndex: 'created_at',
     width: 170,
     customRender: ({ text }: { text?: string }) => formatTime(text ?? ''),
   },
-  { title: '导出', key: 'export', width: 160 },
-]
+  { title: t('plan.runs_columns.export'), key: 'export', width: 160 },
+])
 
-const autoBugColumns = [
-  { title: '用例 ID', dataIndex: 'case_id', key: 'case_id', width: 90 },
-  { title: '缺陷单号', key: 'bug_id', width: 180 },
-  { title: '结果', key: 'duplicate', width: 100 },
-  { title: '截图上传', key: 'attachment_uploaded', width: 100 },
-]
+const autoBugColumns = computed(() => [
+  { title: t('plan.auto_bugs.col_case_id'), dataIndex: 'case_id', key: 'case_id', width: 90 },
+  { title: t('plan.auto_bugs.col_bug_id'), key: 'bug_id', width: 180 },
+  { title: t('plan.auto_bugs.col_duplicate'), key: 'duplicate', width: 100 },
+  { title: t('plan.auto_bugs.col_attachment'), key: 'attachment_uploaded', width: 100 },
+])
 
-function scheduleLabel(t: string) {
-  return { manual: '手动', cron: '定时', webhook: 'Webhook' }[t] ?? t
+function scheduleLabel(type: string) {
+  const key = `plan.schedule_types.${type}`
+  const translated = t(key)
+  return translated === key ? type : translated
 }
 function scheduleColor(t: string) {
   return { manual: 'default', cron: 'blue', webhook: 'orange' }[t] ?? 'default'
@@ -659,11 +664,11 @@ async function handleBatchDelete() {
   if (!selectedRowKeys.value.length) return
   try {
     const result = await planApi.batchDelete(selectedRowKeys.value)
-    message.success(`已删除 ${result.processed} / ${result.requested} 个计划`)
+    message.success(t('plan.msg.batch_delete_success', { processed: result.processed, requested: result.requested }))
     selectedRowKeys.value = []
     await loadPlans()
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '批量删除失败'))
+    message.error(getErrorMessage(error, t('plan.msg.batch_delete_failed')))
   }
 }
 
@@ -671,11 +676,17 @@ async function handleBatchToggle(isEnabled: boolean) {
   if (!selectedRowKeys.value.length) return
   try {
     const result = await planApi.batchToggle(selectedRowKeys.value, isEnabled)
-    message.success(`已${isEnabled ? '启用' : '停用'} ${result.processed} / ${result.requested} 个计划`)
+    message.success(
+      t('plan.msg.batch_toggle_success', {
+        action: isEnabled ? t('common.enabled') : t('common.disabled'),
+        processed: result.processed,
+        requested: result.requested,
+      }),
+    )
     selectedRowKeys.value = []
     await loadPlans()
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '批量操作失败'))
+    message.error(getErrorMessage(error, t('plan.msg.batch_toggle_failed')))
   }
 }
 
