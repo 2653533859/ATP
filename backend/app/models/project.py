@@ -11,6 +11,7 @@ class Project(Base, TimestampMixin):
     project_code: Mapped[str | None] = mapped_column(String(32), unique=True)
     description: Mapped[str | None] = mapped_column(Text)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    ai_llm_config_id: Mapped[int | None] = mapped_column(ForeignKey("ai_llm_configs.id"))
 
     modules: Mapped[list["Module"]] = relationship(back_populates="project", cascade="all, delete-orphan")
     notifications: Mapped[list["NotificationConfig"]] = relationship(

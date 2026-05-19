@@ -7,12 +7,14 @@ class ProjectCreate(BaseModel):
     name: str
     project_code: str | None = None
     description: str | None = None
+    ai_llm_config_id: int | None = None
 
 
 class ProjectUpdate(BaseModel):
     name: str | None = None
     project_code: str | None = None
     description: str | None = None
+    ai_llm_config_id: int | None = None
 
 
 class ProjectOut(BaseModel):
@@ -21,6 +23,7 @@ class ProjectOut(BaseModel):
     project_code: str | None
     description: str | None
     owner_id: int
+    ai_llm_config_id: int | None = None
     created_at: datetime
     updated_at: datetime
 
