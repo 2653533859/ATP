@@ -138,6 +138,9 @@
                     <PlusOutlined /> 新建用例 <DownOutlined />
                   </a-button>
                 </a-dropdown>
+                <a-button :disabled="!selectedModuleId" @click="aiDrawerOpen = true">
+                  <ThunderboltOutlined /> AI 生成
+                </a-button>
               </a-space>
               </div>
             </div>
@@ -386,6 +389,14 @@
       @close="historyOpen = false"
       @rolled="handleHistoryRolled"
     />
+
+    <AIGenerateDrawer
+      :open="aiDrawerOpen"
+      :project-id="selectedProjectId"
+      :module-id="selectedModuleId"
+      @close="aiDrawerOpen = false"
+      @saved="onSaved"
+    />
   </div>
 </template>
 
@@ -393,7 +404,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
-import { DownOutlined, HistoryOutlined, PlusOutlined } from '@ant-design/icons-vue'
+import { DownOutlined, HistoryOutlined, PlusOutlined, ThunderboltOutlined } from '@ant-design/icons-vue'
 import { caseApi, environmentApi, projectApi } from '@/api'
 import type {
   AutomationStatus,
@@ -412,6 +423,7 @@ import CaseFormDrawer from '@/components/common/CaseFormDrawer.vue'
 import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
 import AndroidCaseDrawer from '@/views/case/AndroidCaseDrawer.vue'
 import CaseHistoryDrawer from '@/views/case/CaseHistoryDrawer.vue'
+import AIGenerateDrawer from '@/views/case/AIGenerateDrawer.vue'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
 
 type WorkflowAction = 'submitReview' | 'approve' | 'reject' | 'deprecate' | 'reactivate'
@@ -480,6 +492,7 @@ const batchMoveTargetId = ref<number | null>(null)
 const batchMoveLoading = ref(false)
 const historyOpen = ref(false)
 const historyCaseId = ref<number | null>(null)
+const aiDrawerOpen = ref(false)
 
 const runModalOpen = ref(false)
 const runEnvId = ref<number | null>(null)

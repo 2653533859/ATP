@@ -20,6 +20,7 @@ export interface ProjectItem {
   name: string
   project_code?: string | null
   description?: string | null
+  ai_llm_config_id?: number | null
   owner_id: number
   created_at: string
   updated_at: string
@@ -560,8 +561,10 @@ export const authApi = {
 
 export const projectApi = {
   list: () => http.get<any, ProjectItem[]>('/projects'),
-  create: (data: { name: string; description?: string; project_code?: string }) => http.post('/projects', data),
-  update: (id: number, data: { name?: string; description?: string; project_code?: string }) => http.patch(`/projects/${id}`, data),
+  create: (data: { name: string; description?: string; project_code?: string; ai_llm_config_id?: number | null }) =>
+    http.post('/projects', data),
+  update: (id: number, data: { name?: string; description?: string; project_code?: string; ai_llm_config_id?: number | null }) =>
+    http.patch(`/projects/${id}`, data),
   delete: (id: number) => http.delete(`/projects/${id}`),
   getModules: (projectId: number) => http.get<any, ModuleTreeItem[]>(`/projects/${projectId}/modules`),
 }
@@ -878,4 +881,134 @@ export const globalVariableApi = {
   create: (data: object) => http.post<any, GlobalVariableItem>('/global-variables', data),
   update: (id: number, data: object) => http.patch<any, GlobalVariableItem>(`/global-variables/${id}`, data),
   delete: (id: number) => http.delete(`/global-variables/${id}`),
+}
+
+// ---- AI LLM Config ----
+export type LLMProvider = 'deepseek' | 'claude' | 'openai' | 'qwen' | 'ollama'
+
+export interface AILLMConfigItem {
+  id: number
+  name: string
+  provider: LLMProvider
+  endpoint?: string | null
+  model_name: string
+  default_params: Record<string, unknown>
+  enabled: boolean
+  description?: string | null
+  has_api_key: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface AILLMConfigCreatePayload {
+  name: string
+  provider: LLMProvider
+  api_key: string
+  endpoint?: string | null
+  model_name: string
+  default_params?: Record<string, unknown>
+  enabled?: boolean
+  description?: string | null
+}
+
+export interface AILLMConfigUpdatePayload {
+  name?: string
+  provider?: LLMProvider
+  api_key?: string
+  endpoint?: string | null
+  model_name?: string
+  default_params?: Record<string, unknown>
+  enabled?: boolean
+  description?: string | null
+}
+
+export const aiLLMConfigApi = {
+  list: () => http.get<any, AILLMConfigItem[]>('/ai/llm-configs'),
+  get: (id: number) => http.get<any, AILLMConfigItem>(`/ai/llm-configs/${id}`),
+  create: (data: AILLMConfigCreatePayload) => http.post<any, AILLMConfigItem>('/ai/llm-configs', data),
+  update: (id: number, data: AILLMConfigUpdatePayload) =>
+    http.patch<any, AILLMConfigItem>(`/ai/llm-configs/${id}`, data),
+  delete: (id: number) => http.delete(`/ai/llm-configs/${id}`),
+}
+
+// ---- AI Case Generation ----
+export type SchemaSourceType = 'openapi' | 'postman' | 'curl'
+
+export interface AIEndpointParameter {
+  name: string
+  location: 'path' | 'query' | 'header' | 'body'
+  required: boolean
+  schema_type?: string | null
+  description?: string | null
+  example?: unknown
+}
+
+export interface AIEndpointSummary {
+  method: string
+  path: string
+  summary?: string | null
+  description?: string | null
+  operation_id?: string | null
+  tags: string[]
+  parameters: AIEndpointParameter[]
+  request_body_example?: unknown
+  response_example?: unknown
+}
+
+export interface AIParseSchemaPayload {
+  source_type: SchemaSourceType
+  content: string
+}
+
+export interface AIParseSchemaResult {
+  endpoints: AIEndpointSummary[]
+  warnings: string[]
+}
+
+export interface AICaseStepDraft {
+  action: string
+  test_data?: string | null
+  expected_result?: string | null
+  is_key_step?: boolean
+  remarks?: string | null
+}
+
+export interface AICaseDraft {
+  name: string
+  summary?: string | null
+  description?: string | null
+  case_type: CaseType
+  priority: CasePriority
+  case_level: CaseLevel
+  tags: string[]
+  preconditions: string[]
+  postconditions: string[]
+  steps: AICaseStepDraft[]
+  config: Record<string, unknown>
+}
+
+export interface AICaseGeneratePayload {
+  project_id: number
+  module_id: number
+  endpoints?: AIEndpointSummary[]
+  user_requirement?: string
+  case_type?: CaseType
+  priority?: CasePriority
+  case_level?: CaseLevel
+  max_cases?: number
+}
+
+export interface AICaseGenerateResult {
+  project_id: number
+  module_id: number
+  drafts: AICaseDraft[]
+  raw_response?: string | null
+  warnings: string[]
+}
+
+export const aiCaseGenerationApi = {
+  parseSchema: (data: AIParseSchemaPayload) =>
+    http.post<any, AIParseSchemaResult>('/ai/cases/parse-schema', data),
+  generate: (data: AICaseGeneratePayload) =>
+    http.post<any, AICaseGenerateResult>('/ai/cases/generate', data),
 }

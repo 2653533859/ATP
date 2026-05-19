@@ -115,6 +115,11 @@ const router = createRouter({
           name: 'global-variables',
           component: () => import('@/views/system/GlobalVariableLibrary.vue'),
         },
+        {
+          path: 'system/ai-llm-configs',
+          name: 'system-ai-llm-configs',
+          component: () => import('@/views/system/AILLMConfigList.vue'),
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
