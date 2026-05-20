@@ -312,7 +312,7 @@
 6. [x] 后端通知模板批次：通知配置已增加语言选项，`services/notifier.py` 可根据配置生成中英文通知标题与正文；邮件、企业微信、钉钉通知均可按配置语言发送，并通过通知相关后端测试。
 7. [x] 设备 / APK / Mock 批次：`DeviceList.vue`、`ApkList.vue`、`MockRuleList.vue` 已迁移，筛选、表格列、创建/编辑弹窗、状态标签、导入导出、屏幕镜像与消息提示已接入 locale；目标文件扫描无中文命中，并通过 `npm run type-check`。
 8. [x] 项目 / 计划补齐批次：`ProjectList.vue`、`PlanList.vue` 已迁移，项目卡片、AI 模型绑定、计划表单、Cron 编辑器、Webhook Secret、执行策略和消息提示已接入 locale；目标文件扫描无中文命中，并通过 `npm run type-check`。
-9. [~] 文案复核批次：已执行 `rg "[一-龥]" frontend/src/views frontend/src/components` 收口扫描；当前剩余可见中文主要集中在 `SuiteList.vue`、`CaseFormDrawer.vue`，需作为下一轮前端 i18n 迁移继续跟踪；`RunDetail.vue` / `DashboardView.vue` 剩余多为注释或后端错误字符串判断。
+9. [x] 文案复核批次：已完成 `SuiteList.vue` 与 `CaseFormDrawer.vue` 迁移，套件表单/弹窗/抽屉、用例表单 4 类 case_type 配置均已接入 locale；已执行 `rg "[一-龥]" frontend/src/views frontend/src/components` 收口扫描，剩余中文仅限开发注释与 `RunDetail.vue` 后端错误字符串匹配（`认证` / `超时` / `不存在`），无剩余可见中文 UI 文案。
 
 ---
 
