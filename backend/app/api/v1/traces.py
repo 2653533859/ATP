@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.api.deps import get_current_user
+from app.core.config import settings
 from app.core.database import get_db
 from app.models.case import TestRun
 from app.models.plan import PlanRun
@@ -12,6 +14,19 @@ from app.models.user import User
 from app.schemas.trace import TraceDetailOut
 
 router = APIRouter(tags=["链路追踪"])
+
+
+class TracingConfigOut(BaseModel):
+    jaeger_ui_url: str
+
+
+@router.get("/traces/config", response_model=TracingConfigOut)
+async def get_tracing_config(_: User = Depends(get_current_user)):
+    """返回前端展示"在 Jaeger 中打开"按钮所需的 UI 基础 URL。
+
+    `JAEGER_UI_URL` 为空时按钮在前端隐藏。
+    """
+    return TracingConfigOut(jaeger_ui_url=settings.JAEGER_UI_URL or "")
 
 
 @router.get("/traces/{trace_id}", response_model=TraceDetailOut)

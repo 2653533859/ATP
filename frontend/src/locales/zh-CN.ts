@@ -629,6 +629,7 @@ export default {
     generating: '生成中...',
     generating_pdf: '正在生成 PDF...',
     create_bug: '创建缺陷',
+    open_in_jaeger: '在 Jaeger 中打开',
     labels: {
       run_id: '执行 ID',
       case_id: '用例 ID',

@@ -36,6 +36,7 @@ sys.modules["app.core.tracing"] = types.SimpleNamespace(
     generate_trace_id=lambda: "trace-plan",
     set_trace_id=lambda value: value,
     reset_trace_id=lambda _token: None,
+    attach_app_trace_id_to_current_span=lambda *args, **kwargs: None,
 )
 sys.modules["app.worker.async_runner"] = types.SimpleNamespace(run_async=lambda coro: None)
 sys.modules.pop("app.worker.tasks", None)

@@ -629,6 +629,7 @@ export default {
     generating: 'Generating...',
     generating_pdf: 'Generating PDF...',
     create_bug: 'Create bug',
+    open_in_jaeger: 'Open in Jaeger',
     labels: {
       run_id: 'Run ID',
       case_id: 'Case ID',

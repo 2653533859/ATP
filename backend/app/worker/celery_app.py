@@ -1,4 +1,6 @@
 from celery import Celery
+from celery.signals import worker_process_init, worker_process_shutdown
+
 from app.core.config import settings
 
 celery_app = Celery(
@@ -56,3 +58,21 @@ celery_app.conf.update(
         },
     },
 )
+
+
+# OTel 必须在每个 worker 子进程内初始化（pre-fork 模型决定）。
+@worker_process_init.connect
+def _init_otel(**_kwargs):
+    from opentelemetry.instrumentation.celery import CeleryInstrumentor
+
+    from app.core.otel import init_tracer
+
+    init_tracer("atp-worker")
+    CeleryInstrumentor().instrument()
+
+
+@worker_process_shutdown.connect
+def _shutdown_otel(**_kwargs):
+    from app.core.otel import shutdown_tracer
+
+    shutdown_tracer()

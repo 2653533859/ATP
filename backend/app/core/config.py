@@ -78,6 +78,15 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = ""  # DEBUG/INFO/WARNING/ERROR; 留空按 APP_ENV 自动选择
 
+    # OpenTelemetry / Jaeger
+    # OTEL_EXPORTER_OTLP_ENDPOINT 留空时跳过 OTel 初始化（向后兼容纯 trace_id 模式）
+    OTEL_EXPORTER_OTLP_ENDPOINT: str = ""
+    OTEL_SERVICE_NAME: str = "atp-backend"
+    OTEL_TRACES_SAMPLER: str = "parentbased_traceidratio"
+    OTEL_TRACES_SAMPLER_ARG: float = 0.1
+    # Jaeger UI 基础 URL，前端展示"在 Jaeger 中打开"链接时使用；为空则不显示按钮
+    JAEGER_UI_URL: str = ""
+
     @property
     def DATABASE_URL(self) -> str:
         return (

@@ -1,6 +1,8 @@
 import uuid
 from contextvars import ContextVar, Token
 
+from opentelemetry import trace
+
 trace_id_var: ContextVar[str] = ContextVar("trace_id", default="")
 
 
@@ -28,3 +30,17 @@ def build_trace_context(*, trace_id: str | None = None, **extra: object) -> dict
         **context,
         **{key: value for key, value in extra.items() if value is not None},
     }
+
+
+def attach_app_trace_id_to_current_span(trace_id: str | None = None) -> None:
+    """把 application 层 trace_id 写入当前 OTel span 的 attribute。
+
+    便于在 Jaeger UI 通过 `app.trace_id` tag 反查到当前业务 trace。未启用 OTel 时
+    `get_current_span()` 返回 NonRecordingSpan，set_attribute 为 no-op。
+    """
+    tid = trace_id or get_trace_id()
+    if not tid:
+        return
+    span = trace.get_current_span()
+    span.set_attribute("app.trace_id", tid)
+

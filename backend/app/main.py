@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import select
@@ -13,6 +14,7 @@ from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine
 from app.core.logging import setup_logging
 from app.core.minio_client import ensure_bucket
+from app.core.otel import init_tracer, shutdown_tracer
 from app.core.rate_limit import limiter
 from app.middleware.csrf import CSRFMiddleware
 from app.middleware.trace import TraceMiddleware
@@ -41,6 +43,7 @@ async def _init_admin():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
+    init_tracer(settings.OTEL_SERVICE_NAME)
 
     # 默认只通过 Alembic 管理表结构；仅在显式允许时才执行兜底建表。
     if settings.APP_AUTO_CREATE_TABLES:
@@ -57,6 +60,7 @@ async def lifespan(app: FastAPI):
     yield
     # 关闭时执行
     await engine.dispose()
+    shutdown_tracer()
 
 
 app = FastAPI(
@@ -77,6 +81,10 @@ app.add_middleware(
 )
 app.add_middleware(CSRFMiddleware)
 app.add_middleware(TraceMiddleware)
+
+# 必须在路由注册后调用，以便自动埋 server span（包含路径模板）。
+# 即使 OTEL 未启用，该调用为 no-op，无运行时副作用。
+FastAPIInstrumentor.instrument_app(app)
 
 app.include_router(router)
 app.include_router(ws_router)  # WebSocket 路由，路径以 /ws/ 开头

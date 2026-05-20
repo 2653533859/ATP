@@ -212,10 +212,10 @@ rg "[一-龥]" frontend/src/views frontend/src/components
 
 ### 里程碑
 
-- [ ] G.1 OTel SDK 接入 + 配置开关
-- [ ] G.2 业务 span 埋点
-- [ ] G.3 Jaeger compose + 前端链接
-- [ ] G.4 文档说明（如何抓取 trace、性能影响、采样率配置）
+- [x] G.1 OTel SDK 接入 + 配置开关（2026-05-20）：新增 `backend/app/core/otel.py`，endpoint 为空时 no-op；`config.py` 增加 `OTEL_EXPORTER_OTLP_ENDPOINT` / `OTEL_SERVICE_NAME` / `OTEL_TRACES_SAMPLER` / `OTEL_TRACES_SAMPLER_ARG` / `JAEGER_UI_URL`；`requirements.txt` 增加 5 个 opentelemetry-* 包；`main.py` lifespan + `worker/celery_app.py` `worker_process_init` 信号双侧初始化；`tracing.py` 新增 `attach_app_trace_id_to_current_span`
+- [x] G.2 业务 span 埋点（2026-05-20）：`case_dispatch.py` 包 `executor.{type}` span（含 `.lowcode` 区分）；`api_executor.py` step loop 内 `step.{idx}` span 带 `http.*` / `step.*` attribute；`tasks.py` 三个 task 入口 attach application trace_id 到 Celery 自动创建的 task span
+- [x] G.3 Jaeger compose + 前端链接（2026-05-20）：`docker-compose.yml` 新增 jaeger 服务（all-in-one 1.62，端口 16686 / 4317）；backend / worker 默认 `OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317`；新增 `GET /traces/config` 端点；前端 `RunDetail.vue` 在 trace_id 旁加 "在 Jaeger 中打开" 链接（`app.trace_id` tag 检索）
+- [x] G.4 文档说明（2026-05-20）：新增 `docs/tracing-guide.md`，覆盖两类 trace_id 关系、启用方式、配置项、Jaeger UI 检索、采样与性能、dev/prod 差异、排查清单、源码索引
 
 ---
 
@@ -311,4 +311,8 @@ Phase 4 (2-3 周)
 - 方向 E（AI 用例生成）：已完成 — 后端 commit 4714fea + 前端 commit 68374a5
 - 方向 H（Q2 收口）：已完成 — H.1/H.2 commit a4b9d32，H.3 commit a060be4
 - 方向 F（i18n）：已完成 — F.1~F.5 全部收口（2026-05-20）；视图与公共组件已无可见中文 UI 文案，剩余仅限开发注释与后端错误字符串匹配
-- 方向 G（OTel/Jaeger）：未启动，将作为 Q3 收口最后一项推进
+- 方向 G（OTel/Jaeger）：已完成 — G.1~G.4 全部收口（2026-05-20）；OTel SDK + Jaeger 容器编排上线，Q3 plan 整体收口
+
+## Q3 收口声明
+
+2026-05-20：Q3 计划 4 个方向（E / H / F / G）全部完成。Q3 plan 关闭，后续优化项进入 Q4 规划。

@@ -34,6 +34,15 @@
           <a-descriptions-item :label="t('run.labels.case_id')">{{ run.case_id }}</a-descriptions-item>
           <a-descriptions-item :label="t('run.labels.trace_id')" :span="2">
             <code>{{ run.trace_id || '-' }}</code>
+            <a
+              v-if="jaegerSearchUrl"
+              :href="jaegerSearchUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+              style="margin-left: 8px"
+            >
+              <LinkOutlined /> {{ t('run.open_in_jaeger') }}
+            </a>
           </a-descriptions-item>
           <a-descriptions-item :label="t('run.labels.environment')">{{ run.environment ?? '-' }}</a-descriptions-item>
           <a-descriptions-item :label="t('run.labels.duration')">
@@ -239,7 +248,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
 import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { runApi, bugTrackerApi, type BugLinkInfo, type BugTrackerItem, type RunDetailItem, type RunStepItem } from '@/api'
+import { runApi, bugTrackerApi, tracingApi, type BugLinkInfo, type BugTrackerItem, type RunDetailItem, type RunStepItem } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
 
@@ -254,6 +263,15 @@ const steps = ref<RunStepItem[]>([])
 const loading = ref(false)
 const expandedKeys = ref<number[]>([])
 const exportingHtml = ref(false)
+const jaegerUiUrl = ref('')
+
+const jaegerSearchUrl = computed(() => {
+  const tid = run.value?.trace_id
+  const base = jaegerUiUrl.value
+  if (!tid || !base) return ''
+  const tags = encodeURIComponent(JSON.stringify({ 'app.trace_id': tid }))
+  return `${base.replace(/\/$/, '')}/search?tags=${tags}`
+})
 const exportingPdf = ref(false)
 const bugModalOpen = ref(false)
 const bugTrackerId = ref<number | undefined>(undefined)
@@ -524,6 +542,14 @@ function applyWsMessage(msg: WsMessage) {
 onMounted(async () => {
   if (auth.token && !auth.user) {
     await auth.fetchMe()
+  }
+
+  // Jaeger 跳转链接是 best-effort，配置缺失或接口失败都不影响详情页主流程
+  try {
+    const cfg = await tracingApi.getConfig()
+    jaegerUiUrl.value = cfg.jaeger_ui_url || ''
+  } catch {
+    jaegerUiUrl.value = ''
   }
 
   loading.value = true

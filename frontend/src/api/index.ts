@@ -1012,3 +1012,11 @@ export const aiCaseGenerationApi = {
   generate: (data: AICaseGeneratePayload) =>
     http.post<any, AICaseGenerateResult>('/ai/cases/generate', data),
 }
+
+export interface TracingConfig {
+  jaeger_ui_url: string
+}
+
+export const tracingApi = {
+  getConfig: () => http.get<any, TracingConfig>('/traces/config'),
+}

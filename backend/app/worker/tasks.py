@@ -6,7 +6,12 @@ from app.worker.case_dispatch import dispatch_case
 from app.models.bootstrap import load_all_models
 from app.core.redis_client import publish_run_event, delete_json_cache_pattern
 from app.core.encryption import decrypt_env_vars
-from app.core.tracing import generate_trace_id, reset_trace_id, set_trace_id
+from app.core.tracing import (
+    attach_app_trace_id_to_current_span,
+    generate_trace_id,
+    reset_trace_id,
+    set_trace_id,
+)
 from app.worker.async_runner import run_async
 
 logger = logging.getLogger(__name__)
@@ -247,6 +252,7 @@ def run_test_case(self, run_id: int, extra_vars: dict, trace_id: str | None = No
 
     async def _execute():
         token = set_trace_id(trace_id or generate_trace_id())
+        attach_app_trace_id_to_current_span()
         try:
             async with AsyncSessionLocal() as db:
                 run = await db.get(TestRun, run_id)
@@ -296,6 +302,7 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict, trace_id: str | No
 
     async def _execute():
         token = set_trace_id(trace_id or generate_trace_id())
+        attach_app_trace_id_to_current_span()
         try:
             async with AsyncSessionLocal() as db:
                 suite_run = await db.get(SuiteRun, suite_run_id)
@@ -357,6 +364,7 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
 
     async def _execute():
         token = set_trace_id(trace_id or generate_trace_id())
+        attach_app_trace_id_to_current_span()
         try:
             async with AsyncSessionLocal() as db:
                 plan_run = await db.get(PlanRun, plan_run_id)
