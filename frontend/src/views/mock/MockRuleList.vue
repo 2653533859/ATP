@@ -4,7 +4,7 @@
       <a-space>
         <a-select
           v-model:value="projectId"
-          placeholder="选择项目"
+          :placeholder="t('mock.select_project')"
           style="width: 200px"
           allow-clear
           :options="projectOptions"
@@ -13,16 +13,16 @@
       </a-space>
       <a-space>
         <a-button :disabled="!projectId" @click="handleExportRules">
-          导出规则
+          {{ t('mock.export_rules') }}
         </a-button>
         <a-upload :show-upload-list="false" accept="application/json" :before-upload="beforeImportRules">
-          <a-button :disabled="!projectId">导入规则</a-button>
+          <a-button :disabled="!projectId">{{ t('mock.import_rules') }}</a-button>
         </a-upload>
         <a-button :disabled="!projectId" @click="openLogs">
-          <UnorderedListOutlined /> 请求日志
+          <UnorderedListOutlined /> {{ t('mock.request_logs') }}
         </a-button>
         <a-button type="primary" :disabled="!projectId" @click="openCreate">
-          <PlusOutlined /> 添加 Mock 规则
+          <PlusOutlined /> {{ t('mock.add_rule') }}
         </a-button>
       </a-space>
     </div>
@@ -32,10 +32,10 @@
       type="info"
       show-icon
       style="margin-bottom: 0"
-      :message="`Mock 服务地址：${mockBaseUrl}`"
+      :message="t('mock.service_url', { url: mockBaseUrl })"
     >
       <template #description>
-        在测试用例中将请求地址指向此前缀即可使用 Mock 响应。支持路径模板如 <code>/api/users/{id}</code>，也支持按 query/header/body 条件分流响应。
+        {{ t('mock.service_desc_prefix') }} <code>/api/users/{id}</code>{{ t('mock.service_desc_suffix') }}
       </template>
     </a-alert>
 
@@ -58,20 +58,20 @@
           <span>{{ formatConditions(record.match_conditions) }}</span>
         </template>
         <template v-if="column.key === 'render_template'">
-          <a-tag :color="record.render_template ? 'blue' : 'default'">{{ record.render_template ? '开启' : '关闭' }}</a-tag>
+          <a-tag :color="record.render_template ? 'blue' : 'default'">{{ record.render_template ? t('common.enabled') : t('common.disabled') }}</a-tag>
         </template>
         <template v-if="column.key === 'record_requests'">
-          <a-tag :color="record.record_requests ? 'purple' : 'default'">{{ record.record_requests ? '开启' : '关闭' }}</a-tag>
+          <a-tag :color="record.record_requests ? 'purple' : 'default'">{{ record.record_requests ? t('common.enabled') : t('common.disabled') }}</a-tag>
         </template>
         <template v-if="column.key === 'is_enabled'">
-          <a-tag :color="record.is_enabled ? 'green' : 'default'">{{ record.is_enabled ? '启用' : '禁用' }}</a-tag>
+          <a-tag :color="record.is_enabled ? 'green' : 'default'">{{ record.is_enabled ? t('common.enabled') : t('common.disabled') }}</a-tag>
         </template>
         <template v-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-            <a-button type="link" size="small" @click="handleCopy(record)">复制</a-button>
-            <a-popconfirm title="确认删除？" @confirm="handleDelete(record.id)">
-              <a-button type="link" size="small" danger>删除</a-button>
+            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+            <a-button type="link" size="small" @click="handleCopy(record)">{{ t('mock.copy') }}</a-button>
+            <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
+              <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
             </a-popconfirm>
           </a-space>
         </template>
@@ -80,31 +80,31 @@
 
     <a-modal
       v-model:open="formOpen"
-      :title="isEdit ? '编辑 Mock 规则' : '添加 Mock 规则'"
+      :title="isEdit ? t('mock.edit_rule') : t('mock.add_rule')"
       :confirm-loading="saving"
       width="720px"
       @ok="handleSave"
     >
       <a-form layout="vertical">
-        <a-form-item label="规则名称">
-          <a-input v-model:value="form.name" placeholder="如：模拟支付成功" />
+        <a-form-item :label="t('mock.form.name')">
+          <a-input v-model:value="form.name" :placeholder="t('mock.placeholders.name')" />
         </a-form-item>
 
         <a-row :gutter="16">
           <a-col :span="8">
-            <a-form-item label="HTTP 方法">
+            <a-form-item :label="t('mock.form.method')">
               <a-select v-model:value="form.method" style="width: 100%">
                 <a-select-option value="GET">GET</a-select-option>
                 <a-select-option value="POST">POST</a-select-option>
                 <a-select-option value="PUT">PUT</a-select-option>
                 <a-select-option value="DELETE">DELETE</a-select-option>
                 <a-select-option value="PATCH">PATCH</a-select-option>
-                <a-select-option value="ANY">ANY（任意方法）</a-select-option>
+                <a-select-option value="ANY">{{ t('mock.any_method') }}</a-select-option>
               </a-select>
             </a-form-item>
           </a-col>
           <a-col :span="16">
-            <a-form-item label="请求路径">
+            <a-form-item :label="t('mock.form.path')">
               <a-input v-model:value="form.path" placeholder="/api/users/{id}" />
             </a-form-item>
           </a-col>
@@ -112,17 +112,17 @@
 
         <a-row :gutter="16">
           <a-col :span="8">
-            <a-form-item label="响应状态码">
+            <a-form-item :label="t('mock.form.status_code')">
               <a-input-number v-model:value="form.status_code" :min="100" :max="599" style="width: 100%" />
             </a-form-item>
           </a-col>
           <a-col :span="8">
-            <a-form-item label="模拟延迟 (ms)">
+            <a-form-item :label="t('mock.form.delay_ms')">
               <a-input-number v-model:value="form.delay_ms" :min="0" :max="30000" style="width: 100%" />
             </a-form-item>
           </a-col>
           <a-col :span="8">
-            <a-form-item label="启用">
+            <a-form-item :label="t('common.enabled')">
               <a-switch v-model:checked="form.is_enabled" />
             </a-form-item>
           </a-col>
@@ -130,29 +130,29 @@
 
         <a-row :gutter="16">
           <a-col :span="12">
-            <a-form-item label="模板渲染">
+            <a-form-item :label="t('mock.form.render_template')">
               <a-switch v-model:checked="form.render_template" />
             </a-form-item>
           </a-col>
           <a-col :span="12">
-            <a-form-item label="录制请求样本">
+            <a-form-item :label="t('mock.form.record_requests')">
               <a-switch v-model:checked="form.record_requests" />
             </a-form-item>
           </a-col>
         </a-row>
 
-        <a-divider orientation="left" style="font-size: 13px">条件响应</a-divider>
-        <a-form-item label="Query 条件 (JSON)">
+        <a-divider orientation="left" style="font-size: 13px">{{ t('mock.form.conditional_response') }}</a-divider>
+        <a-form-item :label="t('mock.form.query_conditions')">
           <a-textarea v-model:value="queryConditionsText" :rows="2" class="code-textarea" placeholder='{"scene": "success"}' />
         </a-form-item>
-        <a-form-item label="Header 条件 (JSON)">
+        <a-form-item :label="t('mock.form.header_conditions')">
           <a-textarea v-model:value="headerConditionsText" :rows="2" class="code-textarea" placeholder='{"x-env": "test"}' />
         </a-form-item>
-        <a-form-item label="Body 条件 (JSON)">
+        <a-form-item :label="t('mock.form.body_conditions')">
           <a-textarea v-model:value="bodyConditionsText" :rows="2" class="code-textarea" placeholder='{"status": "paid"}' />
         </a-form-item>
 
-        <a-form-item label="响应头 (JSON)">
+        <a-form-item :label="t('mock.form.response_headers')">
           <a-textarea
             v-model:value="headersText"
             :rows="2"
@@ -163,8 +163,8 @@
 
         <a-form-item>
           <template #label>
-            <span>响应体</span>
-            <a-button type="link" size="small" style="margin-left: 8px" @click="formatResponseBody">格式化 JSON</a-button>
+            <span>{{ t('mock.form.response_body') }}</span>
+            <a-button type="link" size="small" style="margin-left: 8px" @click="formatResponseBody">{{ t('mock.format_json') }}</a-button>
           </template>
           <a-textarea
             v-model:value="form.response_body"
@@ -173,11 +173,11 @@
             placeholder='{"code": 0, "message": "success"}'
           />
           <div style="margin-top: 8px; color: #888; font-size: 12px">
-            模板开启后，可使用 <code v-pre>{{query.xxx}}</code> / <code v-pre>{{headers.xxx}}</code> / <code v-pre>{{body.xxx}}</code> 引用请求数据。
+            {{ t('mock.template_hint_prefix') }} <code v-pre>{{query.xxx}}</code> / <code v-pre>{{headers.xxx}}</code> / <code v-pre>{{body.xxx}}</code> {{ t('mock.template_hint_suffix') }}
           </div>
         </a-form-item>
 
-        <a-form-item v-if="isEdit && form.record_requests" label="已录制样本">
+        <a-form-item v-if="isEdit && form.record_requests" :label="t('mock.form.recorded_samples')">
           <a-textarea :value="JSON.stringify(currentSamples, null, 2)" :rows="6" class="code-textarea" readonly />
         </a-form-item>
       </a-form>
@@ -185,11 +185,11 @@
 
     <a-drawer
       v-model:open="logsOpen"
-      title="Mock 请求日志"
+      :title="t('mock.request_logs')"
       width="600"
       :extra="undefined"
     >
-      <a-button style="margin-bottom: 12px" size="small" @click="refreshLogs">刷新</a-button>
+      <a-button style="margin-bottom: 12px" size="small" @click="refreshLogs">{{ t('common.refresh') }}</a-button>
       <a-table
         :columns="logColumns"
         :data-source="logs"
@@ -200,10 +200,10 @@
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'method'">
             <a-tag :color="methodColor(record.method)">{{ record.method }}</a-tag>
-          </template>
-          <template v-if="column.key === 'matched'">
-            <a-tag :color="record.matched ? 'green' : 'red'">{{ record.matched ? '命中' : '未命中' }}</a-tag>
-          </template>
+        </template>
+        <template v-if="column.key === 'matched'">
+            <a-tag :color="record.matched ? 'green' : 'red'">{{ record.matched ? t('mock.matched') : t('mock.not_matched') }}</a-tag>
+        </template>
           <template v-if="column.key === 'timestamp'">
             {{ record.timestamp?.slice(11, 19) }}
           </template>
@@ -217,6 +217,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, UnorderedListOutlined } from '@ant-design/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { mockRuleApi, projectApi, type MockRuleItem } from '@/api'
 import { getBackendOrigin } from '@/api/http'
 
@@ -240,6 +241,7 @@ interface MockRuleForm {
   response_body: string | null
 }
 
+const { t } = useI18n()
 const rules = ref<MockRuleRecord[]>([])
 const loading = ref(false)
 const projectId = ref<number | undefined>(undefined)
@@ -268,30 +270,30 @@ const mockBaseUrl = computed(() =>
   projectId.value ? `${getBackendOrigin()}/mock/${projectId.value}` : '',
 )
 
-const columns = [
-  { title: '名称', dataIndex: 'name', key: 'name', ellipsis: true },
-  { title: '方法', key: 'method', width: 90 },
-  { title: '路径', dataIndex: 'path', key: 'path', ellipsis: true },
-  { title: '条件', key: 'conditions', width: 180 },
-  { title: '版本', dataIndex: 'version', key: 'version', width: 70 },
-  { title: '模板', key: 'render_template', width: 70 },
-  { title: '录制', key: 'record_requests', width: 70 },
-  { title: '状态码', key: 'status_code', width: 80 },
-  { title: '延迟', dataIndex: 'delay_ms', width: 80, customRender: ({ text }: any) => `${text}ms` },
-  { title: '状态', key: 'is_enabled', width: 70 },
-  { title: '更新时间', dataIndex: 'updated_at', width: 170,
+const columns = computed(() => [
+  { title: t('mock.columns.name'), dataIndex: 'name', key: 'name', ellipsis: true },
+  { title: t('mock.columns.method'), key: 'method', width: 90 },
+  { title: t('mock.columns.path'), dataIndex: 'path', key: 'path', ellipsis: true },
+  { title: t('mock.columns.conditions'), key: 'conditions', width: 180 },
+  { title: t('mock.columns.version'), dataIndex: 'version', key: 'version', width: 70 },
+  { title: t('mock.columns.template'), key: 'render_template', width: 70 },
+  { title: t('mock.columns.recording'), key: 'record_requests', width: 70 },
+  { title: t('mock.columns.status_code'), key: 'status_code', width: 80 },
+  { title: t('mock.columns.delay'), dataIndex: 'delay_ms', width: 80, customRender: ({ text }: any) => `${text}ms` },
+  { title: t('mock.columns.status'), key: 'is_enabled', width: 70 },
+  { title: t('mock.columns.updated_at'), dataIndex: 'updated_at', width: 170,
     customRender: ({ text }: any) => text?.slice(0, 19).replace('T', ' ') },
-  { title: '操作', key: 'action', width: 160, fixed: 'right' as const },
-]
+  { title: t('mock.columns.action'), key: 'action', width: 160, fixed: 'right' as const },
+])
 
-const logColumns = [
-  { title: '方法', key: 'method', width: 80 },
-  { title: '路径', dataIndex: 'path', key: 'path', ellipsis: true },
-  { title: '状态', key: 'matched', width: 80 },
-  { title: '规则', dataIndex: 'rule_name', key: 'rule_name', ellipsis: true },
-  { title: '响应码', dataIndex: 'status_code', width: 70 },
-  { title: '时间', key: 'timestamp', width: 80 },
-]
+const logColumns = computed(() => [
+  { title: t('mock.log_columns.method'), key: 'method', width: 80 },
+  { title: t('mock.log_columns.path'), dataIndex: 'path', key: 'path', ellipsis: true },
+  { title: t('mock.log_columns.status'), key: 'matched', width: 80 },
+  { title: t('mock.log_columns.rule'), dataIndex: 'rule_name', key: 'rule_name', ellipsis: true },
+  { title: t('mock.log_columns.status_code'), dataIndex: 'status_code', width: 70 },
+  { title: t('mock.log_columns.time'), key: 'timestamp', width: 80 },
+])
 
 function getErrorMessage(error: unknown, fallback: string) {
   return typeof error === 'string' ? error : fallback
@@ -309,7 +311,7 @@ function formatConditions(conditions?: MatchConditions) {
   if (conditions?.query && Object.keys(conditions.query).length) parts.push(`Q:${Object.keys(conditions.query).length}`)
   if (conditions?.headers && Object.keys(conditions.headers).length) parts.push(`H:${Object.keys(conditions.headers).length}`)
   if (conditions?.body && Object.keys(conditions.body).length) parts.push(`B:${Object.keys(conditions.body).length}`)
-  return parts.length ? parts.join(' / ') : '无条件'
+  return parts.length ? parts.join(' / ') : t('mock.no_conditions')
 }
 
 function formatResponseBody() {
@@ -318,7 +320,7 @@ function formatResponseBody() {
     const parsed = JSON.parse(form.value.response_body)
     form.value.response_body = JSON.stringify(parsed, null, 2)
   } catch {
-    message.warning('响应体不是合法的 JSON，无法格式化')
+    message.warning(t('mock.msg.response_body_invalid_json'))
   }
 }
 
@@ -330,7 +332,7 @@ function parseJsonObject(text: string, fieldName: string) {
     }
     return value as Record<string, string>
   } catch {
-    throw new Error(`${fieldName} JSON 格式不正确`)
+    throw new Error(t('mock.msg.field_json_invalid', { field: fieldName }))
   }
 }
 
@@ -358,7 +360,7 @@ async function loadRules() {
     rules.value = await mockRuleApi.list({ project_id: projectId.value })
   } catch {
     rules.value = []
-    message.error(getErrorMessage(undefined, '加载 Mock 规则失败'))
+    message.error(getErrorMessage(undefined, t('mock.msg.load_failed')))
   }
   finally { loading.value = false }
 }
@@ -401,7 +403,7 @@ function handleCopy(record: MockRuleRecord) {
   isEdit.value = false
   editingId.value = null
   form.value = {
-    name: record.name + ' (副本)',
+    name: t('mock.copy_name', { name: record.name }),
     method: record.method,
     path: record.path,
     status_code: record.status_code,
@@ -420,20 +422,20 @@ function handleCopy(record: MockRuleRecord) {
 }
 
 async function handleSave() {
-  if (!form.value.name) { message.warning('请输入规则名称'); return }
-  if (!form.value.path) { message.warning('请输入请求路径'); return }
+  if (!form.value.name) { message.warning(t('mock.msg.name_required')); return }
+  if (!form.value.path) { message.warning(t('mock.msg.path_required')); return }
 
   let parsedHeaders: Record<string, string> = {}
   let matchConditions: MatchConditions
   try {
-    parsedHeaders = parseJsonObject(headersText.value, '响应头')
+    parsedHeaders = parseJsonObject(headersText.value, t('mock.form.response_headers_short'))
     matchConditions = {
-      query: parseJsonObject(queryConditionsText.value, 'Query 条件'),
-      headers: parseJsonObject(headerConditionsText.value, 'Header 条件'),
-      body: parseJsonObject(bodyConditionsText.value, 'Body 条件'),
+      query: parseJsonObject(queryConditionsText.value, t('mock.form.query_conditions_short')),
+      headers: parseJsonObject(headerConditionsText.value, t('mock.form.header_conditions_short')),
+      body: parseJsonObject(bodyConditionsText.value, t('mock.form.body_conditions_short')),
     }
   } catch (error: any) {
-    message.warning(error.message || 'JSON 格式不正确')
+    message.warning(error.message || t('mock.msg.json_invalid'))
     return
   }
 
@@ -457,11 +459,11 @@ async function handleSave() {
     } else {
       await mockRuleApi.create({ ...payload, project_id: projectId.value })
     }
-    message.success(isEdit.value ? '更新成功' : '创建成功')
+    message.success(isEdit.value ? t('mock.msg.update_success') : t('mock.msg.create_success'))
     formOpen.value = false
     void loadRules()
   } catch {
-    message.error(getErrorMessage(undefined, '保存失败'))
+    message.error(getErrorMessage(undefined, t('mock.msg.save_failed')))
   }
   finally { saving.value = false }
 }
@@ -469,10 +471,10 @@ async function handleSave() {
 async function handleDelete(id: number) {
   try {
     await mockRuleApi.delete(id)
-    message.success('已删除')
+    message.success(t('mock.msg.delete_success'))
     void loadRules()
   } catch {
-    message.error(getErrorMessage(undefined, '删除失败'))
+    message.error(getErrorMessage(undefined, t('mock.msg.delete_failed')))
   }
 }
 
@@ -481,9 +483,9 @@ async function handleExportRules() {
   try {
     const result = await mockRuleApi.exportRules(projectId.value)
     downloadJson(result, `mock-rules-project-${projectId.value}.json`)
-    message.success('导出成功')
+    message.success(t('mock.msg.export_success'))
   } catch {
-    message.error(getErrorMessage(undefined, '导出失败'))
+    message.error(getErrorMessage(undefined, t('mock.msg.export_failed')))
   }
 }
 
@@ -494,14 +496,14 @@ async function beforeImportRules(file: File) {
     const data = JSON.parse(text)
     const rules = Array.isArray(data.rules) ? data.rules : []
     if (rules.length === 0) {
-      message.warning('导入文件中没有可用的规则')
+      message.warning(t('mock.msg.import_empty'))
       return false
     }
     await mockRuleApi.importRules({ project_id: projectId.value, rules })
-    message.success('导入成功')
+    message.success(t('mock.msg.import_success'))
     void loadRules()
   } catch {
-    message.error(getErrorMessage(undefined, '导入失败，请检查 JSON 格式'))
+    message.error(getErrorMessage(undefined, t('mock.msg.import_failed')))
   }
   return false
 }
@@ -516,7 +518,7 @@ async function refreshLogs() {
   try {
     logs.value = await mockRuleApi.logs(projectId.value)
   } catch {
-    message.error(getErrorMessage(undefined, '加载日志失败'))
+    message.error(getErrorMessage(undefined, t('mock.msg.load_logs_failed')))
   }
 }
 </script>

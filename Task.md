@@ -295,8 +295,8 @@
 - [x] Android 专项任务页已迁移：`SpecialTaskListView.vue` 的任务筛选、表格列、任务表单、调度配置与执行/删除消息已接入 `t(...)`
 - [x] 系统管理部分页面已迁移：环境管理、通知配置、全局变量库、AI 模型配置已接入中英文文案
 - [x] 本轮迁移已通过 `npm run type-check`（`vue-tsc --noEmit`）
-- [~] 设备管理、APK 管理、Mock 服务等非本轮页面仍有 UI 硬编码文案待迁移
-- [ ] 后端通知模板 i18n 化：`services/notifier.py` 支持语言参数，通知配置增加语言字段
+- [x] 设备管理、APK 管理、Mock 服务已迁移：`DeviceList.vue`、`ApkList.vue`、`MockRuleList.vue` 的筛选、表格、弹窗、状态标签与消息提示已接入中英文文案
+- [x] 后端通知模板 i18n 化：`services/notifier.py` 支持语言参数，通知配置增加语言字段
 - [ ] 英文文案复核：对业务术语、错误提示和 AI 生成相关提示进行二次校对
 
 #### 后续执行计划
@@ -309,7 +309,8 @@
 4. [x] 系统设置剩余批次：`StorageManagementView.vue`、`BugTrackerList.vue` 已迁移，存储策略、清理预览、缺陷跟踪表单、连接测试和删除确认已接入中英文文案，并通过 `npm run type-check`。
 5. [x] 公共组件批次：`LowcodeStepEditor.vue`、`AndroidStepEditor.vue`、`ModuleTree.vue`、`KvEditor.vue`、`CaseStepEditor.vue`、`BatchOperationBar.vue` 已迁移，复用按钮、占位符、步骤类型、模块弹窗文案已接入 locale，并通过 `npm run type-check`。
 6. [x] 后端通知模板批次：通知配置已增加语言选项，`services/notifier.py` 可根据配置生成中英文通知标题与正文；邮件、企业微信、钉钉通知均可按配置语言发送，并通过通知相关后端测试。
-7. [~] 文案复核批次：已执行 `rg "[一-龥]" frontend/src/views frontend/src/components` 收口扫描；本轮 F.3.1-F.4 目标页面与组件已清理，剩余集中在 `DeviceList.vue`、`ApkList.vue`、`MockRuleList.vue` 等非本轮页面，需作为下一轮前端 i18n 迁移继续跟踪。
+7. [x] 设备 / APK / Mock 批次：`DeviceList.vue`、`ApkList.vue`、`MockRuleList.vue` 已迁移，筛选、表格列、创建/编辑弹窗、状态标签、导入导出、屏幕镜像与消息提示已接入 locale；目标文件扫描无中文命中，并通过 `npm run type-check`。
+8. [~] 文案复核批次：已执行 `rg "[一-龥]" frontend/src/views frontend/src/components` 收口扫描；当前剩余中文主要集中在 `CaseFormDrawer.vue`、`PlanList.vue`、`SuiteList.vue`、`ProjectList.vue` 等高耦合页面/组件，需作为下一轮前端 i18n 迁移继续跟踪。
 
 ---
 

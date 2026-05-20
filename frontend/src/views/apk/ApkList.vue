@@ -4,7 +4,7 @@
       <a-space>
         <a-select
           v-model:value="projectFilter"
-          placeholder="选择项目"
+          :placeholder="t('apk.select_project')"
           allow-clear
           style="width: 200px"
           @change="loadApks"
@@ -15,7 +15,7 @@
         </a-select>
       </a-space>
       <a-button type="primary" @click="uploadOpen = true">
-        <UploadOutlined /> 上传 APK
+        <UploadOutlined /> {{ t('apk.upload') }}
       </a-button>
     </div>
 
@@ -57,31 +57,30 @@
 
         <template v-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" size="small" @click="handleDownload(record)">下载</a-button>
-            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-            <a-popconfirm title="确认删除该 APK？" @confirm="handleDelete(record.id)">
-              <a-button type="link" size="small" danger>删除</a-button>
+            <a-button type="link" size="small" @click="handleDownload(record)">{{ t('apk.download') }}</a-button>
+            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+            <a-popconfirm :title="t('apk.confirm_delete')" @confirm="handleDelete(record.id)">
+              <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
             </a-popconfirm>
           </a-space>
         </template>
       </template>
     </a-table>
 
-    <!-- 上传 Modal -->
     <a-modal
       v-model:open="uploadOpen"
-      title="上传 APK"
-      ok-text="上传"
-      cancel-text="取消"
+      :title="t('apk.upload')"
+      :ok-text="t('apk.upload_action')"
+      :cancel-text="t('common.cancel')"
       :confirm-loading="uploading"
       :ok-button-props="{ disabled: !uploadForm.file || !uploadForm.project_id }"
       @ok="handleUpload"
     >
       <a-form layout="vertical">
-        <a-form-item label="所属项目" required>
+        <a-form-item :label="t('apk.fields.project')" required>
           <a-select
             v-model:value="uploadForm.project_id"
-            placeholder="选择项目"
+            :placeholder="t('apk.select_project')"
             style="width: 100%"
           >
             <a-select-option v-for="p in projects" :key="p.id" :value="p.id">
@@ -89,7 +88,7 @@
             </a-select-option>
           </a-select>
         </a-form-item>
-        <a-form-item label="APK 文件" required>
+        <a-form-item :label="t('apk.fields.file')" required>
           <a-upload
             :before-upload="beforeUpload"
             :max-count="1"
@@ -97,45 +96,44 @@
             :file-list="fileList"
             @remove="handleRemoveFile"
           >
-            <a-button><UploadOutlined /> 选择文件</a-button>
+            <a-button><UploadOutlined /> {{ t('apk.select_file') }}</a-button>
           </a-upload>
         </a-form-item>
-        <a-form-item label="包名">
+        <a-form-item :label="t('apk.fields.package_name')">
           <a-input v-model:value="uploadForm.package_name" placeholder="com.example.app" />
         </a-form-item>
-        <a-form-item label="版本号">
+        <a-form-item :label="t('apk.fields.version')">
           <a-space>
-            <a-input v-model:value="uploadForm.version_name" placeholder="版本名称 (如 1.0.0)" style="width: 160px" />
-            <a-input-number v-model:value="uploadForm.version_code" placeholder="版本代码" style="width: 140px" />
+            <a-input v-model:value="uploadForm.version_name" :placeholder="t('apk.placeholders.version_name')" style="width: 160px" />
+            <a-input-number v-model:value="uploadForm.version_code" :placeholder="t('apk.placeholders.version_code')" style="width: 140px" />
           </a-space>
         </a-form-item>
-        <a-form-item label="备注">
-          <a-textarea v-model:value="uploadForm.description" placeholder="APK 备注信息" :rows="2" />
+        <a-form-item :label="t('apk.fields.description')">
+          <a-textarea v-model:value="uploadForm.description" :placeholder="t('apk.placeholders.description')" :rows="2" />
         </a-form-item>
       </a-form>
     </a-modal>
 
-    <!-- 编辑 Modal -->
     <a-modal
       v-model:open="editOpen"
-      title="编辑 APK 信息"
-      ok-text="保存"
-      cancel-text="取消"
+      :title="t('apk.edit')"
+      :ok-text="t('common.save')"
+      :cancel-text="t('common.cancel')"
       :confirm-loading="saving"
       @ok="handleSave"
     >
       <a-form layout="vertical">
-        <a-form-item label="包名">
+        <a-form-item :label="t('apk.fields.package_name')">
           <a-input v-model:value="editForm.package_name" placeholder="com.example.app" />
         </a-form-item>
-        <a-form-item label="版本号">
+        <a-form-item :label="t('apk.fields.version')">
           <a-space>
-            <a-input v-model:value="editForm.version_name" placeholder="版本名称" style="width: 160px" />
-            <a-input-number v-model:value="editForm.version_code" placeholder="版本代码" style="width: 140px" />
+            <a-input v-model:value="editForm.version_name" :placeholder="t('apk.placeholders.version_name_short')" style="width: 160px" />
+            <a-input-number v-model:value="editForm.version_code" :placeholder="t('apk.placeholders.version_code')" style="width: 140px" />
           </a-space>
         </a-form-item>
-        <a-form-item label="备注">
-          <a-textarea v-model:value="editForm.description" placeholder="APK 备注信息" :rows="3" />
+        <a-form-item :label="t('apk.fields.description')">
+          <a-textarea v-model:value="editForm.description" :placeholder="t('apk.placeholders.description')" :rows="3" />
         </a-form-item>
       </a-form>
     </a-modal>
@@ -143,18 +141,19 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { UploadOutlined } from '@ant-design/icons-vue'
+import { useI18n } from 'vue-i18n'
 import type { UploadFile } from 'ant-design-vue'
 import { apkApi, projectApi } from '@/api'
 
+const { t } = useI18n()
 const apks = ref<any[]>([])
 const projects = ref<any[]>([])
 const loading = ref(false)
 const projectFilter = ref<number | undefined>(undefined)
 
-// 上传
 const uploadOpen = ref(false)
 const uploading = ref(false)
 const fileList = ref<UploadFile[]>([])
@@ -167,7 +166,6 @@ const uploadForm = ref({
   description: '',
 })
 
-// 编辑
 const editOpen = ref(false)
 const saving = ref(false)
 const editingId = ref<number | null>(null)
@@ -178,14 +176,14 @@ const editForm = ref({
   description: '',
 })
 
-const columns = [
-  { title: '文件名', key: 'filename', width: 260 },
-  { title: '项目', key: 'project', width: 150 },
-  { title: '版本', key: 'version', width: 160 },
-  { title: '大小', key: 'size', width: 100 },
-  { title: '上传时间', key: 'created', width: 170 },
-  { title: '操作', key: 'action', width: 180, fixed: 'right' as const },
-]
+const columns = computed(() => [
+  { title: t('apk.columns.filename'), key: 'filename', width: 260 },
+  { title: t('apk.columns.project'), key: 'project', width: 150 },
+  { title: t('apk.columns.version'), key: 'version', width: 160 },
+  { title: t('apk.columns.size'), key: 'size', width: 100 },
+  { title: t('apk.columns.created'), key: 'created', width: 170 },
+  { title: t('apk.columns.action'), key: 'action', width: 180, fixed: 'right' as const },
+])
 
 function formatSize(bytes: number) {
   if (bytes < 1024) return bytes + ' B'
@@ -216,7 +214,7 @@ async function loadProjects() {
   try {
     projects.value = await projectApi.list()
   } catch (e: any) {
-    message.error(e ?? '加载项目列表失败')
+    message.error(e ?? t('apk.msg.load_projects_failed'))
   }
 }
 
@@ -227,7 +225,7 @@ async function loadApks() {
       projectFilter.value ? { project_id: projectFilter.value } : undefined,
     )
   } catch (e: any) {
-    message.error(e ?? '加载 APK 列表失败')
+    message.error(e ?? t('apk.msg.load_failed'))
   } finally {
     loading.value = false
   }
@@ -248,12 +246,12 @@ async function handleUpload() {
     if (description) form.append('description', description)
 
     await apkApi.upload(form)
-    message.success('上传成功')
+    message.success(t('apk.msg.upload_success'))
     uploadOpen.value = false
     resetUploadForm()
     loadApks()
   } catch (e: any) {
-    message.error(e ?? '上传失败')
+    message.error(e ?? t('apk.msg.upload_failed'))
   } finally {
     uploading.value = false
   }
@@ -287,11 +285,11 @@ async function handleSave() {
   saving.value = true
   try {
     await apkApi.update(editingId.value, editForm.value)
-    message.success('保存成功')
+    message.success(t('apk.msg.save_success'))
     editOpen.value = false
     loadApks()
   } catch (e: any) {
-    message.error(e ?? '保存失败')
+    message.error(e ?? t('apk.msg.save_failed'))
   } finally {
     saving.value = false
   }
@@ -300,10 +298,10 @@ async function handleSave() {
 async function handleDelete(id: number) {
   try {
     await apkApi.delete(id)
-    message.success('已删除')
+    message.success(t('apk.msg.delete_success'))
     loadApks()
   } catch (e: any) {
-    message.error(e ?? '删除失败')
+    message.error(e ?? t('apk.msg.delete_failed'))
   }
 }
 
@@ -312,7 +310,7 @@ async function handleDownload(record: any) {
     const { url } = await apkApi.download(record.id)
     window.open(url, '_blank')
   } catch (e: any) {
-    message.error(e ?? '获取下载链接失败')
+    message.error(e ?? t('apk.msg.download_failed'))
   }
 }
 

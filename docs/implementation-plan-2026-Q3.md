@@ -163,7 +163,8 @@ POST /api/v1/ai/cases/confirm        把草稿写入 TestCase 表
 | F.3.4 | 系统设置剩余页 | `StorageManagementView.vue`、`BugTrackerList.vue` | 已完成：存储策略/清理预览、缺陷跟踪表单、连接测试、确认弹窗支持中英文；`npm run type-check` 通过 |
 | F.3.5 | 公共组件 | `LowcodeStepEditor.vue`、`AndroidStepEditor.vue`、`ModuleTree.vue`、`KvEditor.vue`、`CaseStepEditor.vue`、`BatchOperationBar.vue` | 已完成：步骤类型、按钮、占位符、模块弹窗等复用文案走 locale；`npm run type-check` 通过 |
 | F.4 | 后端通知模板 | `services/notifier.py`、通知配置 schema/API/UI | 已完成：邮件、企业微信、钉钉通知可按配置语言发送；通知配置页可选择语言；通知相关后端测试通过 |
-| F.5 | 文案复核 | `zh-CN.ts`、`en-US.ts`、已迁移页面 | 进行中：F.3.1-F.4 目标页面与组件已完成扫描；剩余中文集中在设备、APK、Mock 等非本轮页面，下一轮继续迁移 |
+| F.5.1 | 设备 / APK / Mock | `DeviceList.vue`、`ApkList.vue`、`MockRuleList.vue` | 已完成：筛选、表格、弹窗、状态标签、导入导出、屏幕镜像与消息提示走 locale；目标文件扫描无中文命中；`npm run type-check` 通过 |
+| F.5.2 | 文案复核 | `zh-CN.ts`、`en-US.ts`、已迁移页面 | 进行中：当前剩余中文主要集中在 `CaseFormDrawer.vue`、`PlanList.vue`、`SuiteList.vue`、`ProjectList.vue` 等高耦合页面/组件，下一轮继续迁移 |
 
 每个批次完成后执行：
 

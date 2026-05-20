@@ -4,18 +4,18 @@
       <a-space>
         <a-select
           v-model:value="statusFilter"
-          placeholder="设备状态"
+          :placeholder="t('device.status_filter')"
           allow-clear
           style="width: 130px"
           @change="loadDevices"
         >
-          <a-select-option value="online">在线</a-select-option>
-          <a-select-option value="offline">离线</a-select-option>
-          <a-select-option value="busy">执行中</a-select-option>
+          <a-select-option value="online">{{ t('device.statuses.online') }}</a-select-option>
+          <a-select-option value="offline">{{ t('device.statuses.offline') }}</a-select-option>
+          <a-select-option value="busy">{{ t('device.statuses.busy') }}</a-select-option>
         </a-select>
       </a-space>
       <a-button type="primary" :loading="scanning" @click="handleScan">
-        <ReloadOutlined /> 扫描设备
+        <ReloadOutlined /> {{ t('device.scan') }}
       </a-button>
     </div>
 
@@ -57,40 +57,38 @@
               size="small"
               @click="openMirror(record)"
             >
-              <EyeOutlined /> 镜像
+              <EyeOutlined /> {{ t('device.mirror') }}
             </a-button>
-            <a-button type="link" size="small" @click="openEdit(record)">编辑</a-button>
-            <a-popconfirm title="确认删除该设备记录？" @confirm="handleDelete(record.id)">
-              <a-button type="link" size="small" danger>删除</a-button>
+            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+            <a-popconfirm :title="t('device.confirm_delete')" @confirm="handleDelete(record.id)">
+              <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
             </a-popconfirm>
           </a-space>
         </template>
       </template>
     </a-table>
 
-    <!-- 编辑 Modal -->
     <a-modal
       v-model:open="editOpen"
-      title="编辑设备"
-      ok-text="保存"
-      cancel-text="取消"
+      :title="t('device.edit')"
+      :ok-text="t('common.save')"
+      :cancel-text="t('common.cancel')"
       :confirm-loading="saving"
       @ok="handleSave"
     >
       <a-form layout="vertical">
-        <a-form-item label="设备名称">
-          <a-input v-model:value="editForm.name" placeholder="自定义设备名称" />
+        <a-form-item :label="t('device.fields.name')">
+          <a-input v-model:value="editForm.name" :placeholder="t('device.placeholders.name')" />
         </a-form-item>
-        <a-form-item label="备注">
-          <a-textarea v-model:value="editForm.description" placeholder="设备备注信息" :rows="3" />
+        <a-form-item :label="t('device.fields.description')">
+          <a-textarea v-model:value="editForm.description" :placeholder="t('device.placeholders.description')" :rows="3" />
         </a-form-item>
       </a-form>
     </a-modal>
 
-    <!-- 屏幕镜像 Modal -->
     <a-modal
       v-model:open="mirrorOpen"
-      :title="`屏幕镜像 - ${mirrorDevice?.brand ?? ''} ${mirrorDevice?.model ?? ''}`"
+      :title="t('device.mirror_title', { name: `${mirrorDevice?.brand ?? ''} ${mirrorDevice?.model ?? ''}`.trim() })"
       width="420"
       :footer="null"
       :destroy-on-close="true"
@@ -100,30 +98,32 @@
         <img
           v-if="mirrorSrc"
           :src="mirrorSrc"
-          alt="设备屏幕"
+          :alt="t('device.screen_alt')"
           class="mirror-img"
           @error="onMirrorError"
         />
         <div v-else class="mirror-placeholder">
-          <a-spin tip="正在连接设备..." />
+          <a-spin :tip="t('device.connecting')" />
         </div>
       </div>
       <div class="mirror-footer">
         <a-button size="small" @click="refreshMirror">
-          <ReloadOutlined /> 刷新截图
+          <ReloadOutlined /> {{ t('device.refresh_screenshot') }}
         </a-button>
-        <span style="color: #999; font-size: 12px">自动刷新中（约 2 FPS）</span>
+        <span style="color: #999; font-size: 12px">{{ t('device.auto_refresh') }}</span>
       </div>
     </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { ReloadOutlined, EyeOutlined } from '@ant-design/icons-vue'
+import { useI18n } from 'vue-i18n'
 import { deviceApi } from '@/api'
 
+const { t } = useI18n()
 const devices = ref<any[]>([])
 const loading = ref(false)
 const scanning = ref(false)
@@ -134,7 +134,6 @@ const saving = ref(false)
 const editingId = ref<number | null>(null)
 const editForm = ref({ name: '', description: '' })
 
-// 屏幕镜像
 const mirrorOpen = ref(false)
 const mirrorDevice = ref<any>(null)
 const mirrorSrc = ref<string | null>(null)
@@ -143,21 +142,25 @@ let mirrorObjectUrl: string | null = null
 let mirrorRefreshing = false
 let mirrorSession = 0
 
-const columns = [
-  { title: '设备信息', key: 'device_info', width: 240 },
-  { title: '状态', key: 'status', width: 100 },
-  { title: '系统版本', key: 'os', width: 200 },
-  { title: '分辨率', dataIndex: 'resolution', key: 'resolution', width: 120 },
-  { title: '最后在线', key: 'last_seen', width: 170 },
-  { title: '操作', key: 'action', width: 180, fixed: 'right' as const },
-]
+const columns = computed(() => [
+  { title: t('device.columns.device_info'), key: 'device_info', width: 240 },
+  { title: t('device.columns.status'), key: 'status', width: 100 },
+  { title: t('device.columns.os'), key: 'os', width: 200 },
+  { title: t('device.columns.resolution'), dataIndex: 'resolution', key: 'resolution', width: 120 },
+  { title: t('device.columns.last_seen'), key: 'last_seen', width: 170 },
+  { title: t('device.columns.action'), key: 'action', width: 180, fixed: 'right' as const },
+])
 
 function statusBadge(s: string) {
   return { online: 'success', offline: 'default', busy: 'processing' }[s] ?? 'default'
 }
 
 function statusLabel(s: string) {
-  return { online: '在线', offline: '离线', busy: '执行中' }[s] ?? s
+  return {
+    online: t('device.statuses.online'),
+    offline: t('device.statuses.offline'),
+    busy: t('device.statuses.busy'),
+  }[s] ?? s
 }
 
 function formatTime(t: string) {
@@ -171,7 +174,7 @@ async function loadDevices() {
       statusFilter.value ? { status_filter: statusFilter.value } : undefined,
     )
   } catch (e: any) {
-    message.error(e ?? '加载设备列表失败')
+    message.error(e ?? t('device.msg.load_failed'))
   } finally {
     loading.value = false
   }
@@ -181,9 +184,9 @@ async function handleScan() {
   scanning.value = true
   try {
     devices.value = await deviceApi.scan()
-    message.success(`扫描完成，发现 ${devices.value.length} 台设备`)
+    message.success(t('device.msg.scan_success', { count: devices.value.length }))
   } catch (e: any) {
-    message.error(e ?? '设备扫描失败')
+    message.error(e ?? t('device.msg.scan_failed'))
   } finally {
     scanning.value = false
   }
@@ -203,11 +206,11 @@ async function handleSave() {
   saving.value = true
   try {
     await deviceApi.update(editingId.value, editForm.value)
-    message.success('保存成功')
+    message.success(t('device.msg.save_success'))
     editOpen.value = false
     loadDevices()
   } catch (e: any) {
-    message.error(e ?? '保存失败')
+    message.error(e ?? t('device.msg.save_failed'))
   } finally {
     saving.value = false
   }
@@ -216,20 +219,18 @@ async function handleSave() {
 async function handleDelete(id: number) {
   try {
     await deviceApi.delete(id)
-    message.success('已删除')
+    message.success(t('device.msg.delete_success'))
     loadDevices()
   } catch (e: any) {
-    message.error(e ?? '删除失败')
+    message.error(e ?? t('device.msg.delete_failed'))
   }
 }
 
-// ── 屏幕镜像 ──
 function openMirror(record: any) {
   mirrorDevice.value = record
   mirrorOpen.value = true
   mirrorSession += 1
   void refreshMirror(mirrorSession)
-  // 定时刷新截图（轮询模式，兼容性好）
   mirrorTimer = setInterval(() => {
     void refreshMirror(mirrorSession)
   }, 500)
@@ -267,14 +268,14 @@ async function refreshMirror(sessionId = mirrorSession) {
     mirrorObjectUrl = nextUrl
     mirrorSrc.value = nextUrl
   } catch (_e) {
-    // 截图失败时保留最后一帧
+    // Keep the last frame if screenshot refresh fails.
   } finally {
     mirrorRefreshing = false
   }
 }
 
 function onMirrorError() {
-  // 截图失败时不清空，保留最后一帧
+  // Keep the last frame when the image element reports an error.
 }
 
 onMounted(loadDevices)
