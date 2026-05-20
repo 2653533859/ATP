@@ -80,77 +80,77 @@
       @ok="handleSave"
     >
       <a-form :model="form" layout="vertical">
-        <a-form-item label="计划名称" :rules="[{ required: true }]">
-          <a-input v-model:value="form.name" placeholder="计划名称" />
+        <a-form-item :label="t('plan.form.name')" :rules="[{ required: true }]">
+          <a-input v-model:value="form.name" :placeholder="t('plan.form.name_placeholder')" />
         </a-form-item>
-        <a-form-item label="描述">
-          <a-textarea v-model:value="form.description" :rows="2" placeholder="可选" />
+        <a-form-item :label="t('common.description')">
+          <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('case.drawer.optional')" />
         </a-form-item>
 
-        <a-form-item label="测试套件">
+        <a-form-item :label="t('plan.form.suites')">
           <a-select
             v-model:value="selectedSuiteIds"
             mode="multiple"
-            placeholder="选择要包含的测试套件"
+            :placeholder="t('plan.form.select_suites')"
             :options="suiteOptions"
             :loading="suitesLoading"
             style="width: 100%"
           />
         </a-form-item>
 
-        <a-divider orientation="left" style="font-size: 13px">调度配置</a-divider>
-        <a-form-item label="调度方式">
+        <a-divider orientation="left" style="font-size: 13px">{{ t('plan.form.schedule_config') }}</a-divider>
+        <a-form-item :label="t('plan.form.schedule_type')">
           <a-radio-group v-model:value="form.schedule_type">
-            <a-radio-button value="manual">手动触发</a-radio-button>
-            <a-radio-button value="cron">定时 Cron</a-radio-button>
+            <a-radio-button value="manual">{{ t('plan.schedule_types.manual_trigger') }}</a-radio-button>
+            <a-radio-button value="cron">{{ t('plan.schedule_types.cron_full') }}</a-radio-button>
             <a-radio-button value="webhook">Webhook</a-radio-button>
           </a-radio-group>
         </a-form-item>
 
         <template v-if="form.schedule_type === 'cron'">
-          <a-form-item label="配置方式">
+          <a-form-item :label="t('plan.form.config_mode')">
             <a-radio-group v-model:value="cronMode">
-              <a-radio-button value="daily">每天</a-radio-button>
-              <a-radio-button value="weekly">每周</a-radio-button>
-              <a-radio-button value="custom">自定义 Cron</a-radio-button>
+              <a-radio-button value="daily">{{ t('plan.cron_modes.daily') }}</a-radio-button>
+              <a-radio-button value="weekly">{{ t('plan.cron_modes.weekly') }}</a-radio-button>
+              <a-radio-button value="custom">{{ t('plan.cron_modes.custom') }}</a-radio-button>
             </a-radio-group>
           </a-form-item>
 
           <a-row v-if="cronMode === 'daily'" :gutter="12">
             <a-col :span="12">
-              <a-form-item label="执行小时">
+              <a-form-item :label="t('plan.form.execution_hour')">
                 <a-select v-model:value="cronHour" :options="hourOptions" />
               </a-form-item>
             </a-col>
             <a-col :span="12">
-              <a-form-item label="执行分钟">
+              <a-form-item :label="t('plan.form.execution_minute')">
                 <a-select v-model:value="cronMinute" :options="minuteOptions" />
               </a-form-item>
             </a-col>
           </a-row>
 
           <template v-else-if="cronMode === 'weekly'">
-            <a-form-item label="执行星期">
+            <a-form-item :label="t('plan.form.execution_weekday')">
               <a-select v-model:value="cronWeekday" :options="weekdayOptions" />
             </a-form-item>
             <a-row :gutter="12">
               <a-col :span="12">
-                <a-form-item label="执行小时">
+                <a-form-item :label="t('plan.form.execution_hour')">
                   <a-select v-model:value="cronHour" :options="hourOptions" />
                 </a-form-item>
               </a-col>
               <a-col :span="12">
-                <a-form-item label="执行分钟">
+                <a-form-item :label="t('plan.form.execution_minute')">
                   <a-select v-model:value="cronMinute" :options="minuteOptions" />
                 </a-form-item>
               </a-col>
             </a-row>
           </template>
 
-          <a-form-item v-else label="Cron 表达式">
+          <a-form-item v-else :label="t('plan.form.cron_expression')">
             <a-input v-model:value="customCronExpression" placeholder="*/30 * * * *" />
             <div class="cron-help-text">
-              格式：分 时 日 月 周，例如 `0 8 * * 1-5` 表示工作日每天 8:00。
+              {{ t('plan.form.cron_help') }}
             </div>
           </a-form-item>
 
@@ -166,7 +166,7 @@
             type="info"
             show-icon
             style="margin-bottom: 16px"
-            :message="`Cron：${cronPreviewExpression}`"
+            :message="t('plan.form.cron_preview', { expression: cronPreviewExpression })"
             :description="cronDescription"
           />
         </template>
@@ -174,17 +174,17 @@
         <a-form-item v-if="form.schedule_type === 'webhook' && editingPlan?.webhook_secret" label="Webhook Secret">
           <a-input-group compact>
             <a-input :value="editingPlan.webhook_secret" readonly style="width: calc(100% - 80px); font-family: monospace; font-size: 12px" />
-            <a-button @click="copySecret">复制</a-button>
+            <a-button @click="copySecret">{{ t('plan.form.copy_secret') }}</a-button>
           </a-input-group>
           <div class="cron-help-text">
-            请求时带上 Header: X-Webhook-Secret: {{ editingPlan.webhook_secret?.slice(0, 8) }}...
+            {{ t('plan.form.webhook_secret_hint', { secret: editingPlan.webhook_secret?.slice(0, 8) }) }}
           </div>
         </a-form-item>
 
-        <a-form-item label="默认环境">
+        <a-form-item :label="t('plan.form.default_environment')">
           <a-select
             v-model:value="form.env_id"
-            placeholder="不使用环境"
+            :placeholder="t('plan.form.no_environment')"
             allow-clear
             style="width: 100%"
             :options="envOptions"
@@ -192,30 +192,30 @@
           />
         </a-form-item>
 
-        <a-form-item label="启用调度">
+        <a-form-item :label="t('plan.form.enable_schedule')">
           <a-switch v-model:checked="form.is_enabled" />
         </a-form-item>
 
-        <a-form-item label="自动创建缺陷">
+        <a-form-item :label="t('plan.form.auto_create_bugs')">
           <a-switch v-model:checked="form.auto_create_bugs" />
         </a-form-item>
 
-        <a-form-item label="执行策略">
+        <a-form-item :label="t('plan.form.execution_strategy')">
           <a-row :gutter="16">
             <a-col :span="12">
-              <a-form-item label="执行模式">
+              <a-form-item :label="t('plan.form.execution_mode')">
                 <a-select v-model:value="form.config.execution_mode" :options="planExecutionModeOptions" />
               </a-form-item>
             </a-col>
             <a-col :span="12">
-              <a-form-item label="失败策略">
+              <a-form-item :label="t('plan.form.fail_strategy')">
                 <a-select v-model:value="form.config.fail_strategy" :options="planFailStrategyOptions" />
               </a-form-item>
             </a-col>
           </a-row>
           <a-row v-if="form.config.execution_mode === 'parallel' || form.config.fail_strategy === 'require-minimum-pass-rate'" :gutter="16">
             <a-col v-if="form.config.execution_mode === 'parallel'" :span="12">
-              <a-form-item label="最大并发数">
+              <a-form-item :label="t('plan.form.max_workers')">
                 <a-input-number
                   v-model:value="form.config.max_workers"
                   :min="1"
@@ -226,7 +226,7 @@
               </a-form-item>
             </a-col>
             <a-col v-if="form.config.fail_strategy === 'require-minimum-pass-rate'" :span="12">
-              <a-form-item label="最低通过率">
+              <a-form-item :label="t('plan.form.min_pass_rate')">
                 <a-input-number
                   v-model:value="form.config.min_pass_rate"
                   :min="0"
@@ -380,39 +380,33 @@ function normalizePlanConfig(config?: PlanConfig | null): PlanFormConfig {
   }
 }
 
-const planExecutionModeOptions = [
-  { label: '顺序执行', value: 'sequential' },
-  { label: '并发执行', value: 'parallel' },
-] satisfies Array<{ label: string; value: SuiteExecutionMode }>
+const planExecutionModeOptions = computed<Array<{ label: string; value: SuiteExecutionMode }>>(() => [
+  { label: t('suite.execution_modes.sequential'), value: 'sequential' },
+  { label: t('suite.execution_modes.parallel'), value: 'parallel' },
+])
 
-const planFailStrategyOptions = [
-  { label: '继续执行', value: 'continue' },
-  { label: '失败即停', value: 'fast-fail' },
-  { label: '最低通过率', value: 'require-minimum-pass-rate' },
-] satisfies Array<{ label: string; value: SuiteFailStrategy }>
+const planFailStrategyOptions = computed<Array<{ label: string; value: SuiteFailStrategy }>>(() => [
+  { label: t('suite.fail_strategies.continue'), value: 'continue' },
+  { label: t('suite.fail_strategies.fast-fail'), value: 'fast-fail' },
+  { label: t('suite.fail_strategies.require-minimum-pass-rate'), value: 'require-minimum-pass-rate' },
+])
 
-const weekdayLabels: Record<number, string> = {
-  0: '周日',
-  1: '周一',
-  2: '周二',
-  3: '周三',
-  4: '周四',
-  5: '周五',
-  6: '周六',
+function weekdayLabel(day: number) {
+  return t(`plan.weekdays.${day}`)
 }
 
-const weekdayOptions = Object.entries(weekdayLabels).map(([value, label]) => ({
-  label,
-  value: Number(value),
-}))
-const hourOptions = Array.from({ length: 24 }, (_, value) => ({
-  label: `${String(value).padStart(2, '0')} 时`,
+const weekdayOptions = computed(() => Array.from({ length: 7 }, (_, value) => ({
+  label: weekdayLabel(value),
   value,
-}))
-const minuteOptions = Array.from({ length: 60 }, (_, value) => ({
-  label: `${String(value).padStart(2, '0')} 分`,
+})))
+const hourOptions = computed(() => Array.from({ length: 24 }, (_, value) => ({
+  label: t('plan.form.hour_option', { value: String(value).padStart(2, '0') }),
   value,
-}))
+})))
+const minuteOptions = computed(() => Array.from({ length: 60 }, (_, value) => ({
+  label: t('plan.form.minute_option', { value: String(value).padStart(2, '0') }),
+  value,
+})))
 
 function getErrorMessage(error: unknown, fallback: string) {
   return typeof error === 'string' ? error : fallback
@@ -446,17 +440,17 @@ function validateCronField(field: string, min: number, max: number): boolean {
 
 function validateCronExpression(expression: string) {
   const trimmed = expression.trim()
-  if (!trimmed) return '请输入 Cron 表达式'
+  if (!trimmed) return t('plan.cron_errors.required')
 
   const parts = trimmed.split(/\s+/)
-  if (parts.length !== 5) return 'Cron 表达式必须包含 5 段：分 时 日 月 周'
+  if (parts.length !== 5) return t('plan.cron_errors.parts')
 
   const [minute, hour, dayOfMonth, month, dayOfWeek] = parts
-  if (!validateCronField(minute, 0, 59)) return 'Cron 分钟段不合法'
-  if (!validateCronField(hour, 0, 23)) return 'Cron 小时段不合法'
-  if (!validateCronField(dayOfMonth, 1, 31)) return 'Cron 日期段不合法'
-  if (!validateCronField(month, 1, 12)) return 'Cron 月份段不合法'
-  if (!validateCronField(dayOfWeek, 0, 6)) return 'Cron 星期段不合法（0=周日，6=周六）'
+  if (!validateCronField(minute, 0, 59)) return t('plan.cron_errors.minute')
+  if (!validateCronField(hour, 0, 23)) return t('plan.cron_errors.hour')
+  if (!validateCronField(dayOfMonth, 1, 31)) return t('plan.cron_errors.day')
+  if (!validateCronField(month, 1, 12)) return t('plan.cron_errors.month')
+  if (!validateCronField(dayOfWeek, 0, 6)) return t('plan.cron_errors.weekday')
   return ''
 }
 
@@ -549,12 +543,12 @@ const cronValidationError = computed(() => {
 
 const cronDescription = computed(() => {
   if (form.value.schedule_type !== 'cron') return ''
-  if (cronValidationError.value) return '请先修正 Cron 配置'
+  if (cronValidationError.value) return t('plan.cron_descriptions.fix_first')
   const hh = String(cronHour.value).padStart(2, '0')
   const mm = String(cronMinute.value).padStart(2, '0')
-  if (cronMode.value === 'daily') return `每天 ${hh}:${mm} 执行`
-  if (cronMode.value === 'weekly') return `${weekdayLabels[cronWeekday.value]} ${hh}:${mm} 执行`
-  return '使用自定义 Cron 表达式执行'
+  if (cronMode.value === 'daily') return t('plan.cron_descriptions.daily', { time: `${hh}:${mm}` })
+  if (cronMode.value === 'weekly') return t('plan.cron_descriptions.weekly', { weekday: weekdayLabel(cronWeekday.value), time: `${hh}:${mm}` })
+  return t('plan.cron_descriptions.custom')
 })
 
 watch(
@@ -640,7 +634,7 @@ onMounted(async () => {
     projectOptions.value = projects.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
   } catch (error: unknown) {
     projectOptions.value = []
-    message.error(getErrorMessage(error, '加载项目列表失败'))
+    message.error(getErrorMessage(error, t('plan.msg.load_projects_failed')))
   }
 })
 
@@ -654,7 +648,7 @@ async function loadPlans() {
     plans.value = await planApi.list({ project_id: projectId.value })
   } catch (error: unknown) {
     plans.value = []
-    message.error(getErrorMessage(error, '加载计划列表失败'))
+    message.error(getErrorMessage(error, t('plan.msg.load_failed')))
   } finally {
     loading.value = false
   }
@@ -698,7 +692,7 @@ async function loadSuites() {
     suiteOptions.value = list.map((s: SuiteItem) => ({ label: s.name, value: s.id }))
   } catch (error: unknown) {
     suiteOptions.value = []
-    message.error(getErrorMessage(error, '加载套件列表失败'))
+    message.error(getErrorMessage(error, t('plan.msg.load_suites_failed')))
   } finally {
     suitesLoading.value = false
   }
@@ -712,7 +706,7 @@ async function loadEnvs() {
     envOptions.value = list.map((e: EnvironmentItem) => ({ label: e.name, value: e.id }))
   } catch (error: unknown) {
     envOptions.value = []
-    message.error(getErrorMessage(error, '加载环境列表失败'))
+    message.error(getErrorMessage(error, t('plan.msg.load_envs_failed')))
   } finally {
     envLoading.value = false
   }
@@ -760,11 +754,11 @@ function openEdit(record: PlanItem) {
 
 async function handleSave() {
   if (!form.value.name) {
-    message.warning('请输入计划名称')
+    message.warning(t('plan.msg.name_required'))
     return
   }
   if (selectedSuiteIds.value.length === 0) {
-    message.warning('请选择至少一个套件')
+    message.warning(t('plan.msg.suite_required'))
     return
   }
   if (form.value.schedule_type === 'cron') {
@@ -794,11 +788,11 @@ async function handleSave() {
     } else {
       await planApi.create({ ...payload, project_id: projectId.value })
     }
-    message.success(isEdit.value ? '更新成功' : '创建成功')
+    message.success(isEdit.value ? t('plan.msg.update_success') : t('plan.msg.create_success'))
     formOpen.value = false
     void loadPlans()
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '保存失败'))
+    message.error(getErrorMessage(error, t('plan.msg.save_failed')))
   } finally {
     saving.value = false
   }
@@ -808,10 +802,10 @@ async function handleRun(record: PlanItem) {
   runningId.value = record.id
   try {
     await planApi.run(record.id)
-    message.success('已触发执行')
+    message.success(t('plan.msg.run_started'))
     void loadPlans()
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '执行触发失败'))
+    message.error(getErrorMessage(error, t('plan.msg.run_failed')))
   } finally {
     runningId.value = null
   }
@@ -820,10 +814,10 @@ async function handleRun(record: PlanItem) {
 async function handleDelete(id: number) {
   try {
     await planApi.delete(id)
-    message.success('已删除')
+    message.success(t('plan.msg.delete_success'))
     void loadPlans()
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '删除失败'))
+    message.error(getErrorMessage(error, t('plan.msg.delete_failed')))
   }
 }
 
@@ -835,7 +829,7 @@ async function viewRuns(record: PlanItem) {
     planRuns.value = await planApi.listRuns({ plan_id: record.id })
   } catch (error: unknown) {
     planRuns.value = []
-    message.error(getErrorMessage(error, '加载执行记录失败'))
+    message.error(getErrorMessage(error, t('plan.msg.load_runs_failed')))
   } finally {
     runsLoading.value = false
   }
@@ -866,7 +860,7 @@ async function handleExportPlanRunHtml(runId: number) {
     const blob = await planApi.exportRunHtml(runId)
     downloadBlob(blob, `plan-run-${runId}-report.html`)
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '导出 HTML 失败'))
+    message.error(getErrorMessage(error, t('plan.msg.export_html_failed')))
   } finally {
     exportingPlanRunHtmlId.value = null
   }
@@ -878,7 +872,7 @@ async function handleExportPlanRunPdf(runId: number) {
     const blob = await planApi.exportRunPdf(runId)
     downloadBlob(blob, `plan-run-${runId}-report.pdf`)
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '导出 PDF 失败'))
+    message.error(getErrorMessage(error, t('plan.msg.export_pdf_failed')))
   } finally {
     exportingPlanRunPdfId.value = null
   }
@@ -887,7 +881,7 @@ async function handleExportPlanRunPdf(runId: number) {
 function copySecret() {
   if (editingPlan.value?.webhook_secret) {
     navigator.clipboard.writeText(editingPlan.value.webhook_secret)
-    message.success('已复制到剪贴板')
+    message.success(t('plan.msg.secret_copied'))
   }
 }
 </script>

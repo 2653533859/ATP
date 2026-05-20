@@ -1,21 +1,21 @@
 <template>
   <div>
     <div class="page-header">
-      <h2>项目列表</h2>
-      <a-button type="primary" @click="openCreate">新建项目</a-button>
+      <h2>{{ t('project.title') }}</h2>
+      <a-button type="primary" @click="openCreate">{{ t('project.new') }}</a-button>
     </div>
 
     <a-spin :spinning="loading">
       <a-row :gutter="[16, 16]">
         <a-col v-for="p in projects" :key="p.id" :span="8">
           <a-card hoverable :title="p.name" @click="router.push({ name: 'cases', query: { project_id: String(p.id) } })">
-            <p>{{ p.description || '暂无描述' }}</p>
+            <p>{{ p.description || t('project.no_description') }}</p>
             <p style="color: #888; font-size: 12px">
-              AI 模型：{{ llmConfigLabel(p.ai_llm_config_id) }}
+              {{ t('project.ai_model_label', { model: llmConfigLabel(p.ai_llm_config_id) }) }}
             </p>
             <template #extra>
-              <a-button type="link" @click.stop="openEdit(p)">编辑</a-button>
-              <a-button type="link" danger @click.stop="handleDelete(p.id)">删除</a-button>
+              <a-button type="link" @click.stop="openEdit(p)">{{ t('common.edit') }}</a-button>
+              <a-button type="link" danger @click.stop="handleDelete(p.id)">{{ t('common.delete') }}</a-button>
             </template>
           </a-card>
         </a-col>
@@ -24,7 +24,7 @@
 
     <a-modal
       v-model:open="showModal"
-      :title="editingId ? '编辑项目' : '新建项目'"
+      :title="editingId ? t('project.edit') : t('project.new')"
       :confirm-loading="saving"
       :mask-closable="!saving"
       :keyboard="!saving"
@@ -32,21 +32,21 @@
       @cancel="handleCancel"
     >
       <a-form :model="form" layout="vertical">
-        <a-form-item label="项目名称" required>
+        <a-form-item :label="t('project.name')" required>
           <a-input v-model:value="form.name" />
         </a-form-item>
-        <a-form-item label="描述">
+        <a-form-item :label="t('common.description')">
           <a-textarea v-model:value="form.description" :rows="3" />
         </a-form-item>
-        <a-form-item label="AI 模型配置">
+        <a-form-item :label="t('project.ai_model_config')">
           <a-select
             v-model:value="form.ai_llm_config_id"
-            placeholder="不绑定 AI 模型"
+            :placeholder="t('project.no_ai_model')"
             allow-clear
             :options="llmOptions"
           />
           <span style="color: #888; font-size: 12px">
-            选择后，本项目可使用 AI 用例生成（在系统管理 → AI 模型配置中维护）
+            {{ t('project.ai_model_hint') }}
           </span>
         </a-form-item>
       </a-form>
@@ -58,10 +58,12 @@
 import { ref, onMounted, reactive, computed } from 'vue'
 import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
+import { useI18n } from 'vue-i18n'
 import { aiLLMConfigApi, projectApi, type AILLMConfigItem, type ProjectItem } from '@/api'
 import { getProjectErrorMessage } from './project-errors'
 
 const router = useRouter()
+const { t } = useI18n()
 const projects = ref<ProjectItem[]>([])
 const llmConfigs = ref<AILLMConfigItem[]>([])
 const loading = ref(false)
@@ -87,7 +89,7 @@ const llmNameMap = computed(() => {
 })
 
 function llmConfigLabel(id?: number | null): string {
-  if (id == null) return '未绑定'
+  if (id == null) return t('project.unbound')
   return llmNameMap.value.get(id) ?? `#${id}`
 }
 
@@ -96,7 +98,7 @@ async function loadProjects() {
   try {
     projects.value = await projectApi.list()
   } catch (error) {
-    message.error(getProjectErrorMessage(error, '加载项目列表失败'))
+    message.error(getProjectErrorMessage(error, t('project.msg.load_failed')))
   } finally {
     loading.value = false
   }
@@ -106,9 +108,9 @@ async function loadLLMConfigs() {
   try {
     llmConfigs.value = await aiLLMConfigApi.list()
   } catch (error: any) {
-    // 非管理员调用会 403，静默处理：编辑表单仍能保存（仅看不到下拉）
+    // Non-admin users may receive 403; keep the form usable without the dropdown.
     if (error?.response?.status !== 403) {
-      message.error('加载 AI 模型配置失败')
+      message.error(t('project.msg.load_ai_failed'))
     }
   }
 }
@@ -142,7 +144,7 @@ function handleCancel() {
 async function handleSave() {
   if (saving.value) return
   if (!form.name.trim()) {
-    message.warning('请输入项目名称')
+    message.warning(t('project.msg.name_required'))
     return
   }
   saving.value = true
@@ -153,20 +155,20 @@ async function handleSave() {
         description: form.description.trim() || undefined,
         ai_llm_config_id: form.ai_llm_config_id,
       })
-      message.success('已更新')
+      message.success(t('project.msg.update_success'))
     } else {
       await projectApi.create({
         name: form.name.trim(),
         description: form.description.trim() || undefined,
         ai_llm_config_id: form.ai_llm_config_id,
       })
-      message.success('创建成功')
+      message.success(t('project.msg.create_success'))
     }
     showModal.value = false
     resetForm()
     await loadProjects()
   } catch (error) {
-    message.error(getProjectErrorMessage(error, '保存项目失败'))
+    message.error(getProjectErrorMessage(error, t('project.msg.save_failed')))
   } finally {
     saving.value = false
   }
@@ -175,10 +177,10 @@ async function handleSave() {
 async function handleDelete(id: number) {
   try {
     await projectApi.delete(id)
-    message.success('已删除')
+    message.success(t('project.msg.delete_success'))
     await loadProjects()
   } catch (error) {
-    message.error(getProjectErrorMessage(error, '删除项目失败'))
+    message.error(getProjectErrorMessage(error, t('project.msg.delete_failed')))
   }
 }
 

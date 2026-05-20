@@ -164,7 +164,8 @@ POST /api/v1/ai/cases/confirm        把草稿写入 TestCase 表
 | F.3.5 | 公共组件 | `LowcodeStepEditor.vue`、`AndroidStepEditor.vue`、`ModuleTree.vue`、`KvEditor.vue`、`CaseStepEditor.vue`、`BatchOperationBar.vue` | 已完成：步骤类型、按钮、占位符、模块弹窗等复用文案走 locale；`npm run type-check` 通过 |
 | F.4 | 后端通知模板 | `services/notifier.py`、通知配置 schema/API/UI | 已完成：邮件、企业微信、钉钉通知可按配置语言发送；通知配置页可选择语言；通知相关后端测试通过 |
 | F.5.1 | 设备 / APK / Mock | `DeviceList.vue`、`ApkList.vue`、`MockRuleList.vue` | 已完成：筛选、表格、弹窗、状态标签、导入导出、屏幕镜像与消息提示走 locale；目标文件扫描无中文命中；`npm run type-check` 通过 |
-| F.5.2 | 文案复核 | `zh-CN.ts`、`en-US.ts`、已迁移页面 | 进行中：当前剩余中文主要集中在 `CaseFormDrawer.vue`、`PlanList.vue`、`SuiteList.vue`、`ProjectList.vue` 等高耦合页面/组件，下一轮继续迁移 |
+| F.5.2 | 项目 / 计划补齐 | `ProjectList.vue`、`PlanList.vue` | 已完成：项目卡片、AI 模型绑定、计划表单、Cron 编辑器、Webhook Secret、执行策略和消息提示走 locale；目标文件扫描无中文命中；`npm run type-check` 通过 |
+| F.5.3 | 文案复核 | `zh-CN.ts`、`en-US.ts`、已迁移页面 | 进行中：当前剩余可见中文主要集中在 `SuiteList.vue`、`CaseFormDrawer.vue`，下一轮继续迁移；`RunDetail.vue` / `DashboardView.vue` 剩余多为注释或后端错误字符串判断 |
 
 每个批次完成后执行：
 
