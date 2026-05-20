@@ -1,51 +1,48 @@
 <template>
   <a-drawer
     :open="open"
-    :title="isEdit ? '编辑用例' : '新建用例'"
+    :title="isEdit ? t('case_form.title_edit') : t('case_form.title_create')"
     width="760"
     :destroy-on-close="true"
     @close="emit('close')"
   >
     <a-form :model="form" layout="vertical" ref="formRef">
-      <!-- ── 基本信息 ───────────────────────────────── -->
-      <a-divider orientation="left">基本信息</a-divider>
+      <a-divider orientation="left">{{ t('case_form.sections.basic_info') }}</a-divider>
       <a-row :gutter="16">
         <a-col :span="16">
-          <a-form-item label="用例名称" name="name" :rules="[{ required: true, message: '请输入用例名称' }]">
-            <a-input v-model:value="form.name" placeholder="用例名称" />
+          <a-form-item :label="t('case_form.basic.name_label')" name="name" :rules="[{ required: true, message: t('case_form.basic.name_required') }]">
+            <a-input v-model:value="form.name" :placeholder="t('case_form.basic.name_placeholder')" />
           </a-form-item>
         </a-col>
         <a-col :span="8">
-          <a-form-item label="用例类型" name="case_type">
+          <a-form-item :label="t('case_form.basic.type_label')" name="case_type">
             <a-select v-model:value="form.case_type" :disabled="isEdit">
-              <a-select-option value="api">接口测试</a-select-option>
-              <a-select-option value="graphql">GraphQL</a-select-option>
-              <a-select-option value="websocket">WebSocket</a-select-option>
-              <a-select-option value="grpc">gRPC</a-select-option>
-              <a-select-option value="web">Web UI</a-select-option>
-              <a-select-option value="android">Android UI</a-select-option>
+              <a-select-option value="api">{{ t('case_form.case_types.api') }}</a-select-option>
+              <a-select-option value="graphql">{{ t('case_form.case_types.graphql') }}</a-select-option>
+              <a-select-option value="websocket">{{ t('case_form.case_types.websocket') }}</a-select-option>
+              <a-select-option value="grpc">{{ t('case_form.case_types.grpc') }}</a-select-option>
+              <a-select-option value="web">{{ t('case_form.case_types.web') }}</a-select-option>
+              <a-select-option value="android">{{ t('case_form.case_types.android') }}</a-select-option>
             </a-select>
           </a-form-item>
         </a-col>
       </a-row>
-      <a-form-item label="标签">
+      <a-form-item :label="t('case_form.basic.tags_label')">
         <a-select
           v-model:value="form.tags"
           mode="tags"
-          placeholder="输入后回车添加标签（如 smoke、p0）"
+          :placeholder="t('case_form.basic.tags_placeholder')"
           :token-separators="[',']"
         />
       </a-form-item>
-      <a-form-item label="描述">
-        <a-textarea v-model:value="form.description" :rows="2" placeholder="可选" />
+      <a-form-item :label="t('case_form.basic.description_label')">
+        <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('case_form.basic.description_placeholder')" />
       </a-form-item>
 
-      <!-- ── 接口测试配置 ────────────────────────────── -->
       <template v-if="form.case_type === 'api'">
-        <a-divider orientation="left">请求配置</a-divider>
+        <a-divider orientation="left">{{ t('case_form.sections.request_config') }}</a-divider>
 
-        <!-- URL + Method -->
-        <a-form-item label="请求地址" :rules="[{ required: true, message: '请输入 URL' }]">
+        <a-form-item :label="t('case_form.api.url_label')" :rules="[{ required: true, message: t('case_form.api.url_required') }]">
           <a-input-group compact>
             <a-select v-model:value="cfg.method" style="width: 110px">
               <a-select-option v-for="m in HTTP_METHODS" :key="m" :value="m">{{ m }}</a-select-option>
@@ -54,19 +51,15 @@
           </a-input-group>
         </a-form-item>
 
-        <!-- Tabs: Headers / Params / Body / Auth -->
         <a-tabs v-model:activeKey="activeTab" size="small">
-          <!-- Headers -->
           <a-tab-pane key="headers" tab="Headers">
             <KvEditor v-model:value="cfg.headers" />
           </a-tab-pane>
 
-          <!-- Query Params -->
           <a-tab-pane key="params" tab="Params">
             <KvEditor v-model:value="cfg.params" />
           </a-tab-pane>
 
-          <!-- Body -->
           <a-tab-pane key="body" tab="Body">
             <a-radio-group v-model:value="cfg.body_type" size="small" style="margin-bottom: 8px">
               <a-radio-button value="none">None</a-radio-button>
@@ -84,105 +77,98 @@
             />
           </a-tab-pane>
 
-          <!-- Auth -->
           <a-tab-pane key="auth" tab="Auth">
-            <a-form-item label="认证方式">
+            <a-form-item :label="t('case_form.auth.label')">
               <a-select v-model:value="cfg.auth.type" style="width: 160px">
-                <a-select-option value="none">无</a-select-option>
-                <a-select-option value="bearer">Bearer Token</a-select-option>
-                <a-select-option value="basic">Basic Auth</a-select-option>
-                <a-select-option value="apikey">API Key</a-select-option>
+                <a-select-option value="none">{{ t('case_form.auth.none') }}</a-select-option>
+                <a-select-option value="bearer">{{ t('case_form.auth.bearer') }}</a-select-option>
+                <a-select-option value="basic">{{ t('case_form.auth.basic') }}</a-select-option>
+                <a-select-option value="apikey">{{ t('case_form.auth.apikey') }}</a-select-option>
               </a-select>
             </a-form-item>
             <template v-if="cfg.auth.type === 'bearer'">
               <a-form-item label="Token">
-                <a-input v-model:value="cfg.auth.token" placeholder="支持 {{variable}} 变量" />
+                <a-input v-model:value="cfg.auth.token" :placeholder="t('case_form.auth.token_placeholder', { variable: '{{variable}}' })" />
               </a-form-item>
             </template>
             <template v-if="cfg.auth.type === 'basic'">
-              <a-form-item label="用户名">
+              <a-form-item :label="t('case_form.auth.username_label')">
                 <a-input v-model:value="cfg.auth.username" />
               </a-form-item>
-              <a-form-item label="密码">
+              <a-form-item :label="t('case_form.auth.password_label')">
                 <a-input-password v-model:value="cfg.auth.password" />
               </a-form-item>
             </template>
             <template v-if="cfg.auth.type === 'apikey'">
-              <a-form-item label="Header 名称">
+              <a-form-item :label="t('case_form.auth.header_label')">
                 <a-input v-model:value="cfg.auth.header" placeholder="X-API-Key" />
               </a-form-item>
-              <a-form-item label="Key 值">
+              <a-form-item :label="t('case_form.auth.value_label')">
                 <a-input v-model:value="cfg.auth.value" />
               </a-form-item>
             </template>
           </a-tab-pane>
         </a-tabs>
 
-        <!-- 超时 -->
-        <a-form-item label="超时时间（秒）" style="margin-top: 16px">
+        <a-form-item :label="t('case_form.api.timeout_label')" style="margin-top: 16px">
           <a-input-number v-model:value="cfg.timeout" :min="1" :max="300" style="width: 120px" />
         </a-form-item>
 
-        <!-- ── 断言 ────────────────────────────────── -->
-        <a-divider orientation="left">断言</a-divider>
+        <a-divider orientation="left">{{ t('case_form.sections.assertions') }}</a-divider>
         <div v-for="(a, i) in cfg.assertions" :key="i" class="assertion-row">
-          <a-select v-model:value="a.target" style="width: 130px" placeholder="断言对象">
-            <a-select-option value="status_code">状态码</a-select-option>
-            <a-select-option value="body">响应体</a-select-option>
-            <a-select-option value="header">响应头</a-select-option>
-            <a-select-option value="duration">响应时间(ms)</a-select-option>
+          <a-select v-model:value="a.target" style="width: 130px" :placeholder="t('case_form.assertion.target_placeholder')">
+            <a-select-option value="status_code">{{ t('case_form.assertion.targets.status_code') }}</a-select-option>
+            <a-select-option value="body">{{ t('case_form.assertion.targets.body') }}</a-select-option>
+            <a-select-option value="header">{{ t('case_form.assertion.targets.header') }}</a-select-option>
+            <a-select-option value="duration">{{ t('case_form.assertion.targets.duration') }}</a-select-option>
           </a-select>
           <a-input
             v-if="a.target === 'body' || a.target === 'header'"
             v-model:value="a.expression"
-            placeholder="JSONPath / Header名"
+            :placeholder="t('case_form.assertion.expression_placeholder')"
             style="width: 160px"
           />
-          <a-select v-model:value="a.operator" style="width: 110px" placeholder="条件">
-            <a-select-option value="eq">等于</a-select-option>
-            <a-select-option value="contains">包含</a-select-option>
-            <a-select-option value="gt">大于</a-select-option>
-            <a-select-option value="lt">小于</a-select-option>
-            <a-select-option value="exists">存在</a-select-option>
+          <a-select v-model:value="a.operator" style="width: 110px" :placeholder="t('case_form.assertion.operator_placeholder')">
+            <a-select-option value="eq">{{ t('case_form.assertion.operators.eq') }}</a-select-option>
+            <a-select-option value="contains">{{ t('case_form.assertion.operators.contains') }}</a-select-option>
+            <a-select-option value="gt">{{ t('case_form.assertion.operators.gt') }}</a-select-option>
+            <a-select-option value="lt">{{ t('case_form.assertion.operators.lt') }}</a-select-option>
+            <a-select-option value="exists">{{ t('case_form.assertion.operators.exists') }}</a-select-option>
           </a-select>
           <a-input
             v-if="a.operator !== 'exists'"
             v-model:value="a.expected"
-            placeholder="期望值"
+            :placeholder="t('case_form.assertion.expected_placeholder')"
             style="flex: 1"
           />
           <MinusCircleOutlined class="remove-btn" @click="cfg.assertions.splice(i, 1)" />
         </div>
         <a-button type="dashed" size="small" @click="addAssertion">
-          <PlusOutlined /> 添加断言
+          <PlusOutlined /> {{ t('case_form.assertion.add') }}
         </a-button>
 
-        <!-- ── 变量提取 ─────────────────────────────── -->
-        <a-divider orientation="left">变量提取</a-divider>
+        <a-divider orientation="left">{{ t('case_form.sections.extractions') }}</a-divider>
         <div v-for="(e, i) in cfg.extractions" :key="i" class="assertion-row">
-          <a-input v-model:value="e.variable" placeholder="变量名" style="width: 140px" />
+          <a-input v-model:value="e.variable" :placeholder="t('case_form.extraction.variable_placeholder')" style="width: 140px" />
           <span style="padding: 0 8px; color: #999">=</span>
-          <a-input v-model:value="e.expression" placeholder="JSONPath（如 $.data.token）" style="flex: 1" />
+          <a-input v-model:value="e.expression" :placeholder="t('case_form.extraction.expression_placeholder_token')" style="flex: 1" />
           <MinusCircleOutlined class="remove-btn" @click="cfg.extractions.splice(i, 1)" />
         </div>
         <a-button type="dashed" size="small" @click="cfg.extractions.push({ variable: '', expression: '' })">
-          <PlusOutlined /> 添加变量提取
+          <PlusOutlined /> {{ t('case_form.extraction.add') }}
         </a-button>
       </template>
 
-      <!-- ── GraphQL 测试配置 ─────────────────────────── -->
       <template v-else-if="form.case_type === 'graphql'">
-        <a-divider orientation="left">GraphQL 配置</a-divider>
+        <a-divider orientation="left">{{ t('case_form.sections.graphql_config') }}</a-divider>
 
-        <!-- Endpoint -->
-        <a-form-item label="Endpoint" :rules="[{ required: true, message: '请输入 GraphQL 端点' }]">
+        <a-form-item :label="t('case_form.graphql.endpoint_label')" :rules="[{ required: true, message: t('case_form.graphql.endpoint_required') }]">
           <a-input v-model:value="gqlCfg.endpoint" placeholder="https://api.example.com/graphql" />
         </a-form-item>
 
-        <!-- Operation Type + Name -->
         <a-row :gutter="16">
           <a-col :span="8">
-            <a-form-item label="操作类型">
+            <a-form-item :label="t('case_form.graphql.operation_type_label')">
               <a-select v-model:value="gqlCfg.operation_type">
                 <a-select-option value="query">Query</a-select-option>
                 <a-select-option value="mutation">Mutation</a-select-option>
@@ -190,14 +176,13 @@
             </a-form-item>
           </a-col>
           <a-col :span="16">
-            <a-form-item label="Operation Name（可选）">
-              <a-input v-model:value="gqlCfg.operation_name" placeholder="如 GetUser" />
+            <a-form-item :label="t('case_form.graphql.operation_name_label')">
+              <a-input v-model:value="gqlCfg.operation_name" :placeholder="t('case_form.graphql.operation_name_placeholder')" />
             </a-form-item>
           </a-col>
         </a-row>
 
-        <!-- Query -->
-        <a-form-item label="Query / Mutation" :rules="[{ required: true, message: '请输入 GraphQL 查询' }]">
+        <a-form-item :label="t('case_form.graphql.query_label')" :rules="[{ required: true, message: t('case_form.graphql.query_required') }]">
           <a-textarea
             v-model:value="gqlCfg.query"
             :rows="8"
@@ -206,8 +191,7 @@
           />
         </a-form-item>
 
-        <!-- Variables -->
-        <a-form-item label="Variables（JSON）">
+        <a-form-item :label="t('case_form.graphql.variables_label')">
           <a-textarea
             v-model:value="gqlCfg.variables_text"
             :rows="4"
@@ -216,158 +200,148 @@
           />
         </a-form-item>
 
-        <!-- Tabs: Headers / Auth -->
         <a-tabs v-model:activeKey="gqlActiveTab" size="small">
           <a-tab-pane key="headers" tab="Headers">
             <KvEditor v-model:value="gqlCfg.headers" />
           </a-tab-pane>
           <a-tab-pane key="auth" tab="Auth">
-            <a-form-item label="认证方式">
+            <a-form-item :label="t('case_form.auth.label')">
               <a-select v-model:value="gqlCfg.auth.type" style="width: 160px">
-                <a-select-option value="none">无</a-select-option>
-                <a-select-option value="bearer">Bearer Token</a-select-option>
-                <a-select-option value="basic">Basic Auth</a-select-option>
-                <a-select-option value="apikey">API Key</a-select-option>
+                <a-select-option value="none">{{ t('case_form.auth.none') }}</a-select-option>
+                <a-select-option value="bearer">{{ t('case_form.auth.bearer') }}</a-select-option>
+                <a-select-option value="basic">{{ t('case_form.auth.basic') }}</a-select-option>
+                <a-select-option value="apikey">{{ t('case_form.auth.apikey') }}</a-select-option>
               </a-select>
             </a-form-item>
             <template v-if="gqlCfg.auth.type === 'bearer'">
               <a-form-item label="Token">
-                <a-input v-model:value="gqlCfg.auth.token" placeholder="支持 {{variable}} 变量" />
+                <a-input v-model:value="gqlCfg.auth.token" :placeholder="t('case_form.auth.token_placeholder', { variable: '{{variable}}' })" />
               </a-form-item>
             </template>
             <template v-if="gqlCfg.auth.type === 'basic'">
-              <a-form-item label="用户名">
+              <a-form-item :label="t('case_form.auth.username_label')">
                 <a-input v-model:value="gqlCfg.auth.username" />
               </a-form-item>
-              <a-form-item label="密码">
+              <a-form-item :label="t('case_form.auth.password_label')">
                 <a-input-password v-model:value="gqlCfg.auth.password" />
               </a-form-item>
             </template>
             <template v-if="gqlCfg.auth.type === 'apikey'">
-              <a-form-item label="Header 名称">
+              <a-form-item :label="t('case_form.auth.header_label')">
                 <a-input v-model:value="gqlCfg.auth.header" placeholder="X-API-Key" />
               </a-form-item>
-              <a-form-item label="Key 值">
+              <a-form-item :label="t('case_form.auth.value_label')">
                 <a-input v-model:value="gqlCfg.auth.value" />
               </a-form-item>
             </template>
           </a-tab-pane>
         </a-tabs>
 
-        <!-- 超时 -->
-        <a-form-item label="超时时间（秒）" style="margin-top: 16px">
+        <a-form-item :label="t('case_form.api.timeout_label')" style="margin-top: 16px">
           <a-input-number v-model:value="gqlCfg.timeout" :min="1" :max="300" style="width: 120px" />
         </a-form-item>
 
-        <!-- ── 断言 ────────────────────────────────── -->
-        <a-divider orientation="left">断言</a-divider>
+        <a-divider orientation="left">{{ t('case_form.sections.assertions') }}</a-divider>
         <div v-for="(a, i) in gqlCfg.assertions" :key="i" class="assertion-row">
-          <a-select v-model:value="a.target" style="width: 150px" placeholder="断言对象">
-            <a-select-option value="status_code">状态码</a-select-option>
-            <a-select-option value="body">响应体(data)</a-select-option>
-            <a-select-option value="header">响应头</a-select-option>
-            <a-select-option value="duration">响应时间(ms)</a-select-option>
-            <a-select-option value="graphql_errors">GraphQL Errors</a-select-option>
+          <a-select v-model:value="a.target" style="width: 150px" :placeholder="t('case_form.assertion.target_placeholder')">
+            <a-select-option value="status_code">{{ t('case_form.assertion.targets.status_code') }}</a-select-option>
+            <a-select-option value="body">{{ t('case_form.assertion.targets.body_data') }}</a-select-option>
+            <a-select-option value="header">{{ t('case_form.assertion.targets.header') }}</a-select-option>
+            <a-select-option value="duration">{{ t('case_form.assertion.targets.duration') }}</a-select-option>
+            <a-select-option value="graphql_errors">{{ t('case_form.assertion.targets.graphql_errors') }}</a-select-option>
           </a-select>
           <a-input
             v-if="a.target === 'body' || a.target === 'header'"
             v-model:value="a.expression"
-            placeholder="JSONPath / Header名"
+            :placeholder="t('case_form.assertion.expression_placeholder')"
             style="width: 160px"
           />
-          <a-select v-model:value="a.operator" style="width: 110px" placeholder="条件">
-            <a-select-option value="eq">等于</a-select-option>
-            <a-select-option value="contains">包含</a-select-option>
-            <a-select-option value="gt">大于</a-select-option>
-            <a-select-option value="lt">小于</a-select-option>
-            <a-select-option value="exists">存在</a-select-option>
-            <a-select-option v-if="a.target === 'graphql_errors'" value="not_exists">不存在</a-select-option>
+          <a-select v-model:value="a.operator" style="width: 110px" :placeholder="t('case_form.assertion.operator_placeholder')">
+            <a-select-option value="eq">{{ t('case_form.assertion.operators.eq') }}</a-select-option>
+            <a-select-option value="contains">{{ t('case_form.assertion.operators.contains') }}</a-select-option>
+            <a-select-option value="gt">{{ t('case_form.assertion.operators.gt') }}</a-select-option>
+            <a-select-option value="lt">{{ t('case_form.assertion.operators.lt') }}</a-select-option>
+            <a-select-option value="exists">{{ t('case_form.assertion.operators.exists') }}</a-select-option>
+            <a-select-option v-if="a.target === 'graphql_errors'" value="not_exists">{{ t('case_form.assertion.operators.not_exists') }}</a-select-option>
           </a-select>
           <a-input
             v-if="a.operator !== 'exists' && a.operator !== 'not_exists'"
             v-model:value="a.expected"
-            placeholder="期望值"
+            :placeholder="t('case_form.assertion.expected_placeholder')"
             style="flex: 1"
           />
           <MinusCircleOutlined class="remove-btn" @click="gqlCfg.assertions.splice(i, 1)" />
         </div>
         <a-button type="dashed" size="small" @click="addGqlAssertion">
-          <PlusOutlined /> 添加断言
+          <PlusOutlined /> {{ t('case_form.assertion.add') }}
         </a-button>
 
-        <!-- ── 变量提取 ─────────────────────────────── -->
-        <a-divider orientation="left">变量提取</a-divider>
+        <a-divider orientation="left">{{ t('case_form.sections.extractions') }}</a-divider>
         <div v-for="(e, i) in gqlCfg.extractions" :key="i" class="assertion-row">
-          <a-input v-model:value="e.variable" placeholder="变量名" style="width: 140px" />
+          <a-input v-model:value="e.variable" :placeholder="t('case_form.extraction.variable_placeholder')" style="width: 140px" />
           <span style="padding: 0 8px; color: #999">=</span>
-          <a-input v-model:value="e.expression" placeholder="JSONPath（如 $.data.user.name）" style="flex: 1" />
+          <a-input v-model:value="e.expression" :placeholder="t('case_form.extraction.expression_placeholder_user')" style="flex: 1" />
           <MinusCircleOutlined class="remove-btn" @click="gqlCfg.extractions.splice(i, 1)" />
         </div>
         <a-button type="dashed" size="small" @click="gqlCfg.extractions.push({ variable: '', expression: '' })">
-          <PlusOutlined /> 添加变量提取
+          <PlusOutlined /> {{ t('case_form.extraction.add') }}
         </a-button>
       </template>
 
-      <!-- ── WebSocket 测试配置 ────────────────────────── -->
       <template v-else-if="form.case_type === 'websocket'">
-        <a-divider orientation="left">WebSocket 配置</a-divider>
+        <a-divider orientation="left">{{ t('case_form.sections.websocket_config') }}</a-divider>
 
-        <!-- URL -->
-        <a-form-item label="WebSocket 地址" :rules="[{ required: true, message: '请输入 WS 地址' }]">
+        <a-form-item :label="t('case_form.websocket.url_label')" :rules="[{ required: true, message: t('case_form.websocket.url_required') }]">
           <a-input v-model:value="wsCfg.url" placeholder="wss://echo.example.com/ws" />
         </a-form-item>
 
-        <!-- Tabs: Headers / Auth -->
         <a-tabs v-model:activeKey="wsActiveTab" size="small">
           <a-tab-pane key="headers" tab="Headers">
             <KvEditor v-model:value="wsCfg.headers" />
           </a-tab-pane>
           <a-tab-pane key="auth" tab="Auth">
-            <a-form-item label="认证方式">
+            <a-form-item :label="t('case_form.auth.label')">
               <a-select v-model:value="wsCfg.auth.type" style="width: 160px">
-                <a-select-option value="none">无</a-select-option>
-                <a-select-option value="bearer">Bearer Token</a-select-option>
-                <a-select-option value="basic">Basic Auth</a-select-option>
-                <a-select-option value="apikey">API Key</a-select-option>
+                <a-select-option value="none">{{ t('case_form.auth.none') }}</a-select-option>
+                <a-select-option value="bearer">{{ t('case_form.auth.bearer') }}</a-select-option>
+                <a-select-option value="basic">{{ t('case_form.auth.basic') }}</a-select-option>
+                <a-select-option value="apikey">{{ t('case_form.auth.apikey') }}</a-select-option>
               </a-select>
             </a-form-item>
             <template v-if="wsCfg.auth.type === 'bearer'">
               <a-form-item label="Token">
-                <a-input v-model:value="wsCfg.auth.token" placeholder="支持 {{variable}} 变量" />
+                <a-input v-model:value="wsCfg.auth.token" :placeholder="t('case_form.auth.token_placeholder', { variable: '{{variable}}' })" />
               </a-form-item>
             </template>
             <template v-if="wsCfg.auth.type === 'basic'">
-              <a-form-item label="用户名"><a-input v-model:value="wsCfg.auth.username" /></a-form-item>
-              <a-form-item label="密码"><a-input-password v-model:value="wsCfg.auth.password" /></a-form-item>
+              <a-form-item :label="t('case_form.auth.username_label')"><a-input v-model:value="wsCfg.auth.username" /></a-form-item>
+              <a-form-item :label="t('case_form.auth.password_label')"><a-input-password v-model:value="wsCfg.auth.password" /></a-form-item>
             </template>
             <template v-if="wsCfg.auth.type === 'apikey'">
-              <a-form-item label="Header 名称"><a-input v-model:value="wsCfg.auth.header" placeholder="X-API-Key" /></a-form-item>
-              <a-form-item label="Key 值"><a-input v-model:value="wsCfg.auth.value" /></a-form-item>
+              <a-form-item :label="t('case_form.auth.header_label')"><a-input v-model:value="wsCfg.auth.header" placeholder="X-API-Key" /></a-form-item>
+              <a-form-item :label="t('case_form.auth.value_label')"><a-input v-model:value="wsCfg.auth.value" /></a-form-item>
             </template>
           </a-tab-pane>
         </a-tabs>
 
-        <!-- 连接超时 -->
-        <a-form-item label="连接超时（秒）" style="margin-top: 16px">
+        <a-form-item :label="t('case_form.websocket.timeout_label')" style="margin-top: 16px">
           <a-input-number v-model:value="wsCfg.timeout" :min="1" :max="300" style="width: 120px" />
         </a-form-item>
 
-        <!-- ── 消息序列 ──────────────────────────────── -->
-        <a-divider orientation="left">消息序列</a-divider>
+        <a-divider orientation="left">{{ t('case_form.sections.message_sequence') }}</a-divider>
         <div v-for="(m, mi) in wsCfg.messages" :key="mi" class="ws-message-block">
           <div class="ws-message-header">
             <a-tag :color="m.action === 'send' ? 'blue' : m.action === 'receive' ? 'green' : 'default'">
               #{{ mi + 1 }}
             </a-tag>
             <a-select v-model:value="m.action" style="width: 120px" size="small">
-              <a-select-option value="send">发送</a-select-option>
-              <a-select-option value="receive">接收</a-select-option>
-              <a-select-option value="disconnect">断开</a-select-option>
+              <a-select-option value="send">{{ t('case_form.websocket.actions.send') }}</a-select-option>
+              <a-select-option value="receive">{{ t('case_form.websocket.actions.receive') }}</a-select-option>
+              <a-select-option value="disconnect">{{ t('case_form.websocket.actions.disconnect') }}</a-select-option>
             </a-select>
             <MinusCircleOutlined class="remove-btn" @click="wsCfg.messages.splice(mi, 1)" />
           </div>
 
-          <!-- Send 配置 -->
           <template v-if="m.action === 'send'">
             <a-row :gutter="8" style="margin-top: 8px">
               <a-col :span="6">
@@ -380,108 +354,101 @@
                 <a-textarea
                   v-model:value="m.data"
                   :rows="2"
-                  placeholder='发送内容，支持 {{variable}}'
+                  :placeholder="t('case_form.websocket.data_placeholder', { variable: '{{variable}}' })"
                   style="font-family: monospace; font-size: 12px"
                 />
               </a-col>
             </a-row>
           </template>
 
-          <!-- Receive 配置 -->
           <template v-if="m.action === 'receive'">
-            <a-form-item label="接收超时（秒）" style="margin-top: 8px; margin-bottom: 8px">
+            <a-form-item :label="t('case_form.websocket.receive_timeout_label')" style="margin-top: 8px; margin-bottom: 8px">
               <a-input-number v-model:value="m.timeout" :min="1" :max="120" size="small" style="width: 100px" />
             </a-form-item>
 
-            <!-- 断言 -->
-            <div style="margin-bottom: 4px; font-weight: 500; font-size: 12px; color: #666">断言</div>
+            <div style="margin-bottom: 4px; font-weight: 500; font-size: 12px; color: #666">{{ t('case_form.sections.assertions') }}</div>
             <div v-for="(a, ai) in m.assertions" :key="ai" class="assertion-row">
               <a-select v-model:value="a.target" style="width: 100px" size="small">
-                <a-select-option value="body">消息体</a-select-option>
-                <a-select-option value="raw">原始文本</a-select-option>
+                <a-select-option value="body">{{ t('case_form.assertion.targets.message_body') }}</a-select-option>
+                <a-select-option value="raw">{{ t('case_form.assertion.targets.raw_text') }}</a-select-option>
               </a-select>
               <a-input
                 v-if="a.target === 'body'"
                 v-model:value="a.expression"
-                placeholder="JSONPath"
+                :placeholder="t('case_form.assertion.expression_jsonpath')"
                 size="small"
                 style="width: 130px"
               />
               <a-select v-model:value="a.operator" style="width: 90px" size="small">
-                <a-select-option value="eq">等于</a-select-option>
-                <a-select-option value="contains">包含</a-select-option>
-                <a-select-option value="exists">存在</a-select-option>
+                <a-select-option value="eq">{{ t('case_form.assertion.operators.eq') }}</a-select-option>
+                <a-select-option value="contains">{{ t('case_form.assertion.operators.contains') }}</a-select-option>
+                <a-select-option value="exists">{{ t('case_form.assertion.operators.exists') }}</a-select-option>
               </a-select>
               <a-input
                 v-if="a.operator !== 'exists'"
                 v-model:value="a.expected"
-                placeholder="期望值"
+                :placeholder="t('case_form.assertion.expected_placeholder')"
                 size="small"
                 style="flex: 1"
               />
               <MinusCircleOutlined class="remove-btn" @click="m.assertions.splice(ai, 1)" />
             </div>
             <a-button type="dashed" size="small" @click="m.assertions.push({ target: 'body', operator: 'eq', expected: '', expression: '' })" style="margin-bottom: 8px">
-              <PlusOutlined /> 断言
+              <PlusOutlined /> {{ t('case_form.assertion.add_short') }}
             </a-button>
 
-            <!-- 变量提取 -->
-            <div style="margin-bottom: 4px; font-weight: 500; font-size: 12px; color: #666">变量提取</div>
+            <div style="margin-bottom: 4px; font-weight: 500; font-size: 12px; color: #666">{{ t('case_form.sections.extractions') }}</div>
             <div v-for="(e, ei) in m.extractions" :key="ei" class="assertion-row">
-              <a-input v-model:value="e.variable" placeholder="变量名" size="small" style="width: 120px" />
+              <a-input v-model:value="e.variable" :placeholder="t('case_form.extraction.variable_placeholder')" size="small" style="width: 120px" />
               <span style="padding: 0 4px; color: #999">=</span>
-              <a-input v-model:value="e.expression" placeholder="JSONPath" size="small" style="flex: 1" />
+              <a-input v-model:value="e.expression" :placeholder="t('case_form.extraction.expression_placeholder_jsonpath')" size="small" style="flex: 1" />
               <MinusCircleOutlined class="remove-btn" @click="m.extractions.splice(ei, 1)" />
             </div>
             <a-button type="dashed" size="small" @click="m.extractions.push({ variable: '', expression: '' })">
-              <PlusOutlined /> 提取
+              <PlusOutlined /> {{ t('case_form.extraction.add_short') }}
             </a-button>
           </template>
         </div>
         <a-space style="margin-top: 8px">
           <a-button type="dashed" size="small" @click="addWsMessage('send')">
-            <PlusOutlined /> 添加发送
+            <PlusOutlined /> {{ t('case_form.websocket.add_send') }}
           </a-button>
           <a-button type="dashed" size="small" @click="addWsMessage('receive')">
-            <PlusOutlined /> 添加接收
+            <PlusOutlined /> {{ t('case_form.websocket.add_receive') }}
           </a-button>
         </a-space>
       </template>
 
-      <!-- ── gRPC 测试配置 ─────────────────────────────── -->
       <template v-else-if="form.case_type === 'grpc'">
-        <a-divider orientation="left">gRPC 配置</a-divider>
+        <a-divider orientation="left">{{ t('case_form.sections.grpc_config') }}</a-divider>
 
-        <!-- Target + TLS -->
         <a-row :gutter="16">
           <a-col :span="16">
-            <a-form-item label="Target 地址" :rules="[{ required: true, message: '请输入 gRPC 地址' }]">
+            <a-form-item :label="t('case_form.grpc.target_label')" :rules="[{ required: true, message: t('case_form.grpc.target_required') }]">
               <a-input v-model:value="grpcCfg.target" placeholder="localhost:50051" />
             </a-form-item>
           </a-col>
           <a-col :span="8">
-            <a-form-item label="TLS">
-              <a-switch v-model:checked="grpcCfg.use_tls" checked-children="TLS" un-checked-children="明文" />
+            <a-form-item :label="t('case_form.grpc.tls_label')">
+              <a-switch v-model:checked="grpcCfg.use_tls" :checked-children="t('case_form.grpc.tls_on')" :un-checked-children="t('case_form.grpc.tls_off')" />
             </a-form-item>
           </a-col>
         </a-row>
 
-        <!-- Service + Method -->
         <a-row :gutter="16">
           <a-col :span="12">
-            <a-form-item label="Service（含 package）" :rules="[{ required: true, message: '请输入 Service 名' }]">
+            <a-form-item :label="t('case_form.grpc.service_label')" :rules="[{ required: true, message: t('case_form.grpc.service_required') }]">
               <a-input v-model:value="grpcCfg.service" placeholder="package.ServiceName" />
             </a-form-item>
           </a-col>
           <a-col :span="12">
-            <a-form-item label="Method" :rules="[{ required: true, message: '请输入 Method 名' }]">
+            <a-form-item :label="t('case_form.grpc.method_label')" :rules="[{ required: true, message: t('case_form.grpc.method_required') }]">
               <a-input v-model:value="grpcCfg.method" placeholder="MethodName" />
             </a-form-item>
           </a-col>
         </a-row>
 
-        <!-- Proto 内容 -->
-        <a-form-item label="Proto 定义" :rules="[{ required: true, message: '请输入 .proto 内容' }]">
+        <a-form-item :label="t('case_form.grpc.proto_label')" :rules="[{ required: true, message: t('case_form.grpc.proto_required') }]">
           <a-textarea
             v-model:value="grpcCfg.proto_content"
             :rows="10"
@@ -490,8 +457,7 @@
           />
         </a-form-item>
 
-        <!-- Request JSON -->
-        <a-form-item label="Request JSON">
+        <a-form-item :label="t('case_form.grpc.request_json_label')">
           <a-textarea
             v-model:value="grpcCfg.request_json"
             :rows="5"
@@ -500,66 +466,61 @@
           />
         </a-form-item>
 
-        <!-- Metadata -->
-        <a-form-item label="Metadata（gRPC 头部）">
+        <a-form-item :label="t('case_form.grpc.metadata_label')">
           <KvEditor v-model:value="grpcCfg.metadata" />
         </a-form-item>
 
-        <!-- 超时 -->
-        <a-form-item label="超时时间（秒）">
+        <a-form-item :label="t('case_form.api.timeout_label')">
           <a-input-number v-model:value="grpcCfg.timeout" :min="1" :max="300" style="width: 120px" />
         </a-form-item>
 
-        <!-- ── 断言 ────────────────────────────────── -->
-        <a-divider orientation="left">断言</a-divider>
+        <a-divider orientation="left">{{ t('case_form.sections.assertions') }}</a-divider>
         <div v-for="(a, i) in grpcCfg.assertions" :key="i" class="assertion-row">
-          <a-select v-model:value="a.target" style="width: 140px" placeholder="断言对象">
-            <a-select-option value="body">响应体</a-select-option>
-            <a-select-option value="grpc_status">gRPC 状态</a-select-option>
-            <a-select-option value="duration">响应时间(ms)</a-select-option>
+          <a-select v-model:value="a.target" style="width: 140px" :placeholder="t('case_form.assertion.target_placeholder')">
+            <a-select-option value="body">{{ t('case_form.assertion.targets.body') }}</a-select-option>
+            <a-select-option value="grpc_status">{{ t('case_form.assertion.targets.grpc_status') }}</a-select-option>
+            <a-select-option value="duration">{{ t('case_form.assertion.targets.duration') }}</a-select-option>
           </a-select>
           <a-input
             v-if="a.target === 'body'"
             v-model:value="a.expression"
-            placeholder="JSONPath"
+            :placeholder="t('case_form.assertion.expression_jsonpath')"
             style="width: 150px"
           />
-          <a-select v-model:value="a.operator" style="width: 110px" placeholder="条件">
-            <a-select-option value="eq">等于</a-select-option>
-            <a-select-option value="contains">包含</a-select-option>
-            <a-select-option value="gt">大于</a-select-option>
-            <a-select-option value="lt">小于</a-select-option>
-            <a-select-option value="exists">存在</a-select-option>
+          <a-select v-model:value="a.operator" style="width: 110px" :placeholder="t('case_form.assertion.operator_placeholder')">
+            <a-select-option value="eq">{{ t('case_form.assertion.operators.eq') }}</a-select-option>
+            <a-select-option value="contains">{{ t('case_form.assertion.operators.contains') }}</a-select-option>
+            <a-select-option value="gt">{{ t('case_form.assertion.operators.gt') }}</a-select-option>
+            <a-select-option value="lt">{{ t('case_form.assertion.operators.lt') }}</a-select-option>
+            <a-select-option value="exists">{{ t('case_form.assertion.operators.exists') }}</a-select-option>
           </a-select>
           <a-input
             v-if="a.operator !== 'exists'"
             v-model:value="a.expected"
-            :placeholder="a.target === 'grpc_status' ? 'OK / NOT_FOUND / ...' : '期望值'"
+            :placeholder="a.target === 'grpc_status' ? t('case_form.assertion.grpc_status_placeholder') : t('case_form.assertion.expected_placeholder')"
             style="flex: 1"
           />
           <MinusCircleOutlined class="remove-btn" @click="grpcCfg.assertions.splice(i, 1)" />
         </div>
         <a-button type="dashed" size="small" @click="addGrpcAssertion">
-          <PlusOutlined /> 添加断言
+          <PlusOutlined /> {{ t('case_form.assertion.add') }}
         </a-button>
 
-        <!-- ── 变量提取 ─────────────────────────────── -->
-        <a-divider orientation="left">变量提取</a-divider>
+        <a-divider orientation="left">{{ t('case_form.sections.extractions') }}</a-divider>
         <div v-for="(e, i) in grpcCfg.extractions" :key="i" class="assertion-row">
-          <a-input v-model:value="e.variable" placeholder="变量名" style="width: 140px" />
+          <a-input v-model:value="e.variable" :placeholder="t('case_form.extraction.variable_placeholder')" style="width: 140px" />
           <span style="padding: 0 8px; color: #999">=</span>
-          <a-input v-model:value="e.expression" placeholder="JSONPath（如 $.name）" style="flex: 1" />
+          <a-input v-model:value="e.expression" :placeholder="t('case_form.extraction.expression_placeholder_name')" style="flex: 1" />
           <MinusCircleOutlined class="remove-btn" @click="grpcCfg.extractions.splice(i, 1)" />
         </div>
         <a-button type="dashed" size="small" @click="grpcCfg.extractions.push({ variable: '', expression: '' })">
-          <PlusOutlined /> 添加变量提取
+          <PlusOutlined /> {{ t('case_form.extraction.add') }}
         </a-button>
       </template>
 
-      <!-- ── Web / Android 占位 ────────────────────── -->
       <template v-else-if="form.case_type === 'web' || form.case_type === 'android'">
         <a-alert
-          :message="`${form.case_type === 'web' ? 'Web UI' : 'Android UI'} 用例配置将在后续阶段实现`"
+          :message="t('case_form.placeholder_alert', { type: form.case_type === 'web' ? t('case_form.case_types.web') : t('case_form.case_types.android') })"
           type="info"
           show-icon
           style="margin-top: 16px"
@@ -569,8 +530,8 @@
 
     <template #footer>
       <a-space style="float: right">
-        <a-button @click="emit('close')">取消</a-button>
-        <a-button type="primary" :loading="saving" @click="handleSave">保存</a-button>
+        <a-button @click="emit('close')">{{ t('case_form.buttons.cancel') }}</a-button>
+        <a-button type="primary" :loading="saving" @click="handleSave">{{ t('case_form.buttons.save') }}</a-button>
       </a-space>
     </template>
   </a-drawer>
@@ -579,10 +540,13 @@
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import { useI18n } from 'vue-i18n'
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons-vue'
 import { caseApi } from '@/api'
 import type { CaseSavePayload, CaseType } from '@/api'
 import KvEditor from '@/components/common/KvEditor.vue'
+
+const { t } = useI18n()
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 
@@ -601,7 +565,6 @@ const gqlActiveTab = ref('headers')
 const wsActiveTab = ref('headers')
 const formRef = ref()
 
-// 基本信息
 const form = reactive<{ name: string; description: string; case_type: CaseType; tags: string[] }>({
   name: '',
   description: '',
@@ -609,7 +572,6 @@ const form = reactive<{ name: string; description: string; case_type: CaseType; 
   tags: [],
 })
 
-// 接口测试配置
 const cfg = reactive({
   url: '',
   method: 'GET',
@@ -624,7 +586,6 @@ const cfg = reactive({
 })
 const formBody = ref<Record<string, string>>({})
 
-// GraphQL 测试配置
 const gqlCfg = reactive({
   endpoint: '',
   operation_type: 'query' as 'query' | 'mutation',
@@ -638,7 +599,6 @@ const gqlCfg = reactive({
   extractions: [] as any[],
 })
 
-// WebSocket 测试配置
 const wsCfg = reactive({
   url: '',
   headers: {} as Record<string, string>,
@@ -647,7 +607,6 @@ const wsCfg = reactive({
   messages: [] as any[],
 })
 
-// gRPC 测试配置
 const grpcCfg = reactive({
   target: '',
   use_tls: false,
@@ -702,7 +661,6 @@ watch(() => props.open, (v) => {
       extractions: step.extractions ? [...step.extractions] : [],
     })
 
-    // GraphQL 编辑回填
     if (c.case_type === 'graphql') {
       const vars = step.variables
       Object.assign(gqlCfg, {
@@ -719,7 +677,6 @@ watch(() => props.open, (v) => {
       })
     }
 
-    // WebSocket 编辑回填
     if (c.case_type === 'websocket') {
       Object.assign(wsCfg, {
         url: step.url ?? '',
@@ -737,7 +694,6 @@ watch(() => props.open, (v) => {
       })
     }
 
-    // gRPC 编辑回填
     if (c.case_type === 'grpc') {
       Object.assign(grpcCfg, {
         target: step.target ?? '',
@@ -844,7 +800,7 @@ function buildGrpcConfig() {
 function buildGraphqlConfig() {
   let variables: any = {}
   if (gqlCfg.variables_text.trim()) {
-    try { variables = JSON.parse(gqlCfg.variables_text) } catch { /* 保持空对象 */ }
+    try { variables = JSON.parse(gqlCfg.variables_text) } catch { /* keep empty */ }
   }
   return {
     steps: [{
@@ -875,7 +831,7 @@ function buildConfig() {
   }
   let body: any = cfg.body_type === 'form' ? { ...formBody.value } : cfg.body
   if (cfg.body_type === 'json' && typeof body === 'string') {
-    try { body = JSON.parse(body) } catch { /* 保持字符串 */ }
+    try { body = JSON.parse(body) } catch { /* keep string */ }
   }
   return {
     steps: [{
@@ -897,22 +853,22 @@ function buildConfig() {
 async function handleSave() {
   try { await formRef.value?.validate() } catch { return }
   if (form.case_type === 'api' && !cfg.url) {
-    message.warning('请输入请求地址')
+    message.warning(t('case_form.msg.url_required'))
     return
   }
   if (form.case_type === 'graphql') {
-    if (!gqlCfg.endpoint) { message.warning('请输入 GraphQL 端点'); return }
-    if (!gqlCfg.query.trim()) { message.warning('请输入 GraphQL Query'); return }
+    if (!gqlCfg.endpoint) { message.warning(t('case_form.msg.graphql_endpoint_required')); return }
+    if (!gqlCfg.query.trim()) { message.warning(t('case_form.msg.graphql_query_required')); return }
   }
   if (form.case_type === 'websocket') {
-    if (!wsCfg.url) { message.warning('请输入 WebSocket 地址'); return }
-    if (wsCfg.messages.length === 0) { message.warning('请添加至少一条消息'); return }
+    if (!wsCfg.url) { message.warning(t('case_form.msg.ws_url_required')); return }
+    if (wsCfg.messages.length === 0) { message.warning(t('case_form.msg.ws_messages_required')); return }
   }
   if (form.case_type === 'grpc') {
-    if (!grpcCfg.target) { message.warning('请输入 gRPC Target 地址'); return }
-    if (!grpcCfg.proto_content.trim()) { message.warning('请输入 Proto 定义'); return }
-    if (!grpcCfg.service) { message.warning('请输入 Service 名称'); return }
-    if (!grpcCfg.method) { message.warning('请输入 Method 名称'); return }
+    if (!grpcCfg.target) { message.warning(t('case_form.msg.grpc_target_required')); return }
+    if (!grpcCfg.proto_content.trim()) { message.warning(t('case_form.msg.grpc_proto_required')); return }
+    if (!grpcCfg.service) { message.warning(t('case_form.msg.grpc_service_required')); return }
+    if (!grpcCfg.method) { message.warning(t('case_form.msg.grpc_method_required')); return }
   }
   saving.value = true
   try {
@@ -929,7 +885,7 @@ async function handleSave() {
     } else {
       await caseApi.create(payload)
     }
-    message.success(isEdit.value ? '更新成功' : '创建成功')
+    message.success(isEdit.value ? t('case_form.msg.updated') : t('case_form.msg.created'))
     emit('saved')
     emit('close')
   } finally {

@@ -96,31 +96,31 @@
       @ok="handleSave"
     >
       <a-form layout="vertical">
-        <a-form-item label="套件名称" required>
-          <a-input v-model:value="form.name" placeholder="输入套件名称" />
+        <a-form-item :label="t('suite.form.name_label')" required>
+          <a-input v-model:value="form.name" :placeholder="t('suite.form.name_placeholder')" />
         </a-form-item>
-        <a-form-item label="描述">
-          <a-textarea v-model:value="form.description" :rows="2" placeholder="可选" />
+        <a-form-item :label="t('suite.form.description_label')">
+          <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('suite.form.description_placeholder')" />
         </a-form-item>
-        <a-form-item label="所属项目">
+        <a-form-item :label="t('suite.form.project_label')">
           <a-input :value="formProjectName" disabled />
         </a-form-item>
-        <a-form-item label="执行策略">
+        <a-form-item :label="t('suite.form.strategy_label')">
           <a-row :gutter="16">
             <a-col :span="12">
-              <a-form-item label="执行模式">
+              <a-form-item :label="t('suite.form.mode_label')">
                 <a-select v-model:value="form.config.execution_mode" :options="executionModeOptions" />
               </a-form-item>
             </a-col>
             <a-col :span="12">
-              <a-form-item label="失败策略">
+              <a-form-item :label="t('suite.form.fail_strategy_label')">
                 <a-select v-model:value="form.config.fail_strategy" :options="failStrategyOptions" />
               </a-form-item>
             </a-col>
           </a-row>
           <a-row v-if="form.config.execution_mode === 'parallel'" :gutter="16">
             <a-col :span="12">
-              <a-form-item label="最大并发数">
+              <a-form-item :label="t('suite.form.max_workers_label')">
                 <a-input-number
                   v-model:value="form.config.max_workers"
                   :min="1"
@@ -131,7 +131,7 @@
               </a-form-item>
             </a-col>
             <a-col :span="12">
-              <a-form-item v-if="form.config.fail_strategy === 'require-minimum-pass-rate'" label="最低通过率">
+              <a-form-item v-if="form.config.fail_strategy === 'require-minimum-pass-rate'" :label="t('suite.form.min_pass_rate_label')">
                 <a-input-number
                   v-model:value="form.config.min_pass_rate"
                   :min="0"
@@ -144,20 +144,20 @@
           </a-row>
           <div class="suite-config-tip">{{ suiteConfigTip }}</div>
         </a-form-item>
-        <a-form-item label="用例列表">
+        <a-form-item :label="t('suite.form.case_list_label')">
           <a-row :gutter="16">
             <a-col :span="16">
               <a-space direction="vertical" style="width: 100%" :size="12">
                 <a-space wrap style="width: 100%">
                   <a-input-search
                     v-model:value="caseKeyword"
-                    placeholder="搜索编号、名称、摘要或标签"
+                    :placeholder="t('suite.case_table.search_placeholder')"
                     allow-clear
                     style="width: 280px"
                   />
                   <a-tree-select
                     v-model:value="caseModuleFilter"
-                    placeholder="按模块筛选"
+                    :placeholder="t('suite.case_table.module_placeholder')"
                     allow-clear
                     show-search
                     tree-default-expand-all
@@ -167,7 +167,7 @@
                   />
                   <a-select
                     v-model:value="caseTypeFilter"
-                    placeholder="按类型筛选"
+                    :placeholder="t('suite.case_table.type_placeholder')"
                     allow-clear
                     style="width: 150px"
                     :options="caseTypeOptions"
@@ -184,7 +184,7 @@
                   />
                 </a-space>
                 <div class="case-filter-tip">
-                  默认仅展示可执行用例；切换到“全部用例”或“仅看未就绪”可查看禁选原因。
+                  {{ t('suite.case_table.filter_tip') }}
                 </div>
                 <a-table
                   row-key="id"
@@ -245,17 +245,17 @@
               <div class="selected-case-panel">
                 <div class="selected-case-title">
                   <span>
-                    已选用例
+                    {{ t('suite.selected.title') }}
                     <span class="selected-case-count">{{ selectedCaseItems.length }}</span>
                   </span>
-                  <span class="selected-case-tip">拖拽左侧图标排序</span>
+                  <span class="selected-case-tip">{{ t('suite.selected.drag_tip') }}</span>
                 </div>
                 <div v-if="selectedUnreadyCaseItems.length" class="selected-case-warning">
-                  当前包含 {{ selectedUnreadyCaseItems.length }} 个未就绪用例，保存时会二次确认。
+                  {{ t('suite.selected.unready_warning', { count: selectedUnreadyCaseItems.length }) }}
                 </div>
                 <a-empty
                   v-if="selectedCaseItems.length === 0"
-                  description="请在左侧选择用例"
+                  :description="t('suite.selected.empty')"
                   :image="false"
                 />
                 <draggable
@@ -287,16 +287,16 @@
                         </div>
                       </div>
                       <div class="selected-case-actions">
-                        <a-button type="text" size="small" :disabled="index === 0" @click="moveSelectedCase(index, -1)">上移</a-button>
-                        <a-button type="text" size="small" :disabled="index === selectedCaseListModel.length - 1" @click="moveSelectedCase(index, 1)">下移</a-button>
-                        <a-button type="text" size="small" danger @click="removeSelectedCase(c.id)">移除</a-button>
+                        <a-button type="text" size="small" :disabled="index === 0" @click="moveSelectedCase(index, -1)">{{ t('suite.selected.move_up') }}</a-button>
+                        <a-button type="text" size="small" :disabled="index === selectedCaseListModel.length - 1" @click="moveSelectedCase(index, 1)">{{ t('suite.selected.move_down') }}</a-button>
+                        <a-button type="text" size="small" danger @click="removeSelectedCase(c.id)">{{ t('suite.selected.remove') }}</a-button>
                       </div>
                     </div>
                   </template>
                 </draggable>
               </div>
               <div class="case-select-tip">
-                套件会按右侧顺序执行。支持拖拽、上移、下移三种调整方式。
+                {{ t('suite.selected.order_tip') }}
               </div>
             </a-col>
           </a-row>
@@ -307,16 +307,16 @@
     <!-- 执行环境选择 -->
     <a-modal
       v-model:open="runModalOpen"
-      title="选择执行环境"
-      ok-text="执行"
-      cancel-text="取消"
+      :title="t('suite.run_modal.title')"
+      :ok-text="t('suite.run_modal.ok')"
+      :cancel-text="t('suite.run_modal.cancel')"
       :confirm-loading="runConfirming"
       @ok="confirmRun"
     >
-      <p style="margin-bottom: 12px; color: #666">可选择一个环境，变量将注入到套件内所有用例。</p>
+      <p style="margin-bottom: 12px; color: #666">{{ t('suite.run_modal.tip') }}</p>
       <a-select
         v-model:value="runEnvId"
-        placeholder="不使用环境"
+        :placeholder="t('suite.run_modal.placeholder')"
         allow-clear
         style="width: 100%"
         :options="runEnvOptions"
@@ -327,7 +327,7 @@
     <!-- 执行记录 Drawer -->
     <a-drawer
       :open="runsDrawerOpen"
-      :title="`执行记录 - ${runsDrawerTitle}`"
+      :title="t('suite.runs.drawer_title', { name: runsDrawerTitle })"
       width="700"
       @close="() => {
         runsDrawerOpen = false
@@ -367,7 +367,7 @@
               </a-table>
             </template>
             <template v-else>
-              <a-empty description="暂无用例执行明细" :image="false" />
+              <a-empty :description="t('suite.runs.empty_cases')" :image="false" />
             </template>
           </div>
         </template>
@@ -386,14 +386,14 @@
                 />
                 <a-space v-if="record.status === 'pending' || record.status === 'running'" wrap :size="[4, 4]">
                   <a-tag color="processing">
-                    进度 {{ getSuiteRunCompletedCount(record) }} / {{ getSuiteRunTotalCount(record) }}
+                    {{ t('suite.runs.progress_tag', { done: getSuiteRunCompletedCount(record), total: getSuiteRunTotalCount(record) }) }}
                   </a-tag>
                 </a-space>
                 <a-space wrap :size="[4, 4]">
-                  <a-tag color="green">{{ record.result_summary.passed ?? 0 }} 通过</a-tag>
-                  <a-tag v-if="record.result_summary.failed" color="red">{{ record.result_summary.failed }} 失败</a-tag>
-                  <a-tag v-if="record.result_summary.error" color="orange">{{ record.result_summary.error }} 错误</a-tag>
-                  <a-tag v-if="record.result_summary.skipped" color="default">{{ record.result_summary.skipped }} 跳过</a-tag>
+                  <a-tag color="green">{{ t('suite.runs.passed_tag', { count: record.result_summary.passed ?? 0 }) }}</a-tag>
+                  <a-tag v-if="record.result_summary.failed" color="red">{{ t('suite.runs.failed_tag', { count: record.result_summary.failed }) }}</a-tag>
+                  <a-tag v-if="record.result_summary.error" color="orange">{{ t('suite.runs.error_tag', { count: record.result_summary.error }) }}</a-tag>
+                  <a-tag v-if="record.result_summary.skipped" color="default">{{ t('suite.runs.skipped_tag', { count: record.result_summary.skipped }) }}</a-tag>
                   <a-tag :color="suiteExecutionModeColor(record.result_summary.execution_mode as SuiteConfig['execution_mode'])">
                     {{ suiteExecutionModeLabel(record.result_summary.execution_mode as SuiteConfig['execution_mode']) }}
                   </a-tag>
@@ -401,17 +401,17 @@
                     {{ suiteFailStrategyLabel(record.result_summary.fail_strategy as SuiteConfig['fail_strategy']) }}
                   </a-tag>
                   <a-tag v-if="record.result_summary.execution_mode === 'parallel'" color="blue">
-                    并发 {{ record.result_summary.max_workers ?? '-' }}
+                    {{ t('suite.runs.parallel_tag', { n: record.result_summary.max_workers ?? '-' }) }}
                   </a-tag>
                   <a-tag v-if="record.result_summary.fail_strategy === 'require-minimum-pass-rate'" color="purple">
-                    目标 {{ Number(record.result_summary.min_pass_rate ?? 0).toLocaleString('zh-CN', { style: 'percent', maximumFractionDigits: 0 }) }}
+                    {{ t('suite.runs.target_tag', { percent: Number(record.result_summary.min_pass_rate ?? 0).toLocaleString(locale, { style: 'percent', maximumFractionDigits: 0 }) }) }}
                   </a-tag>
                 </a-space>
               </a-space>
             </div>
           </template>
           <template v-if="column.key === 'case_runs'">
-            <a-tag v-if="record.case_run_ids?.length" color="blue">{{ record.case_run_ids.length }} 条</a-tag>
+            <a-tag v-if="record.case_run_ids?.length" color="blue">{{ t('suite.runs.case_count_tag', { count: record.case_run_ids.length }) }}</a-tag>
             <span v-else style="color: #999">-</span>
           </template>
           <template v-if="column.key === 'duration'">
@@ -455,7 +455,7 @@ import type {
 import { suiteApi, projectApi, caseApi, environmentApi } from '@/api'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
 
-const { t } = useI18n()
+const { t, locale } = useI18n()
 
 type CaseSelectionScope = 'all' | 'selected' | 'unselected'
 type CaseReadyFilter = 'all' | 'ready' | 'not_ready'
@@ -589,49 +589,49 @@ const suiteRunCaseColumns = computed(() => [
   { title: t('suite.case_columns.run_id'), key: 'run_id', width: 100 },
 ])
 
-const caseSelectColumns = [
-  { title: '编号', dataIndex: 'case_code', key: 'case_code', width: 150 },
-  { title: '名称 / 摘要', key: 'name', width: 260 },
-  { title: '模块', key: 'module', width: 140 },
-  { title: '类型', key: 'case_type', width: 90 },
-  { title: '优先级', key: 'priority', width: 90 },
-  { title: '状态', key: 'status', width: 90 },
-  { title: '执行', key: 'ready', width: 100 },
-  { title: '未就绪原因', key: 'ready_reason', width: 220 },
-  { title: '标签', key: 'tags', width: 180 },
-]
+const caseSelectColumns = computed(() => [
+  { title: t('suite.case_table_columns.code'), dataIndex: 'case_code', key: 'case_code', width: 150 },
+  { title: t('suite.case_table_columns.name'), key: 'name', width: 260 },
+  { title: t('suite.case_table_columns.module'), key: 'module', width: 140 },
+  { title: t('suite.case_table_columns.type'), key: 'case_type', width: 90 },
+  { title: t('suite.case_table_columns.priority'), key: 'priority', width: 90 },
+  { title: t('suite.case_table_columns.status'), key: 'status', width: 90 },
+  { title: t('suite.case_table_columns.ready'), key: 'ready', width: 100 },
+  { title: t('suite.case_table_columns.ready_reason'), key: 'ready_reason', width: 220 },
+  { title: t('suite.case_table_columns.tags'), key: 'tags', width: 180 },
+])
 
-const caseTypeOptions = [
-  { label: '接口', value: 'api' },
-  { label: 'GraphQL', value: 'graphql' },
-  { label: 'WebSocket', value: 'websocket' },
-  { label: 'gRPC', value: 'grpc' },
-  { label: 'Web', value: 'web' },
-  { label: 'Android', value: 'android' },
-] satisfies Array<{ label: string; value: CaseType }>
+const caseTypeOptions = computed<Array<{ label: string; value: CaseType }>>(() => [
+  { label: t('suite.case_types.api'), value: 'api' },
+  { label: t('suite.case_types.graphql'), value: 'graphql' },
+  { label: t('suite.case_types.websocket'), value: 'websocket' },
+  { label: t('suite.case_types.grpc'), value: 'grpc' },
+  { label: t('suite.case_types.web'), value: 'web' },
+  { label: t('suite.case_types.android'), value: 'android' },
+])
 
-const caseSelectionScopeOptions = [
-  { label: '全部', value: 'all' },
-  { label: '仅看已选', value: 'selected' },
-  { label: '仅看未选', value: 'unselected' },
-] satisfies Array<{ label: string; value: CaseSelectionScope }>
+const caseSelectionScopeOptions = computed<Array<{ label: string; value: CaseSelectionScope }>>(() => [
+  { label: t('suite.case_selection_scope.all'), value: 'all' },
+  { label: t('suite.case_selection_scope.selected'), value: 'selected' },
+  { label: t('suite.case_selection_scope.unselected'), value: 'unselected' },
+])
 
-const caseReadyFilterOptions = [
-  { label: '全部用例', value: 'all' },
-  { label: '仅看可执行', value: 'ready' },
-  { label: '仅看未就绪', value: 'not_ready' },
-] satisfies Array<{ label: string; value: CaseReadyFilter }>
+const caseReadyFilterOptions = computed<Array<{ label: string; value: CaseReadyFilter }>>(() => [
+  { label: t('suite.case_ready_filter.all'), value: 'all' },
+  { label: t('suite.case_ready_filter.ready'), value: 'ready' },
+  { label: t('suite.case_ready_filter.not_ready'), value: 'not_ready' },
+])
 
-const executionModeOptions = [
-  { label: '顺序执行', value: 'sequential' },
-  { label: '并发执行', value: 'parallel' },
-] satisfies Array<{ label: string; value: SuiteExecutionMode }>
+const executionModeOptions = computed<Array<{ label: string; value: SuiteExecutionMode }>>(() => [
+  { label: t('suite.execution_modes.sequential'), value: 'sequential' },
+  { label: t('suite.execution_modes.parallel'), value: 'parallel' },
+])
 
-const failStrategyOptions = [
-  { label: '继续执行', value: 'continue' },
-  { label: '失败即停', value: 'fast-fail' },
-  { label: '最低通过率', value: 'require-minimum-pass-rate' },
-] satisfies Array<{ label: string; value: SuiteFailStrategy }>
+const failStrategyOptions = computed<Array<{ label: string; value: SuiteFailStrategy }>>(() => [
+  { label: t('suite.fail_strategies.continue'), value: 'continue' },
+  { label: t('suite.fail_strategies.fast-fail'), value: 'fast-fail' },
+  { label: t('suite.fail_strategies.require-minimum-pass-rate'), value: 'require-minimum-pass-rate' },
+])
 
 const moduleDescendantMap = computed(() => buildModuleDescendantMap(moduleTree.value))
 
@@ -648,16 +648,20 @@ const formProjectName = computed(() => {
 })
 
 const suiteConfigTip = computed(() => {
-  if (form.value.config.execution_mode === 'sequential') {
-    return '保持串行执行，兼容当前默认行为。'
+  const cfg = form.value.config
+  if (cfg.execution_mode === 'sequential') {
+    return t('suite.config_tips.sequential')
   }
-  if (form.value.config.fail_strategy === 'fast-fail') {
-    return `每批最多并发 ${form.value.config.max_workers} 个用例，出现失败后停止后续批次。`
+  if (cfg.fail_strategy === 'fast-fail') {
+    return t('suite.config_tips.fast_fail', { n: cfg.max_workers })
   }
-  if (form.value.config.fail_strategy === 'require-minimum-pass-rate') {
-    return `每批最多并发 ${form.value.config.max_workers} 个用例，无法达到 ${(form.value.config.min_pass_rate * 100).toFixed(0)}% 通过率时提前停止。`
+  if (cfg.fail_strategy === 'require-minimum-pass-rate') {
+    return t('suite.config_tips.min_pass_rate', {
+      n: cfg.max_workers,
+      percent: (cfg.min_pass_rate * 100).toFixed(0),
+    })
   }
-  return `每批最多并发 ${form.value.config.max_workers} 个用例，失败后继续执行剩余批次。`
+  return t('suite.config_tips.continue', { n: cfg.max_workers })
 })
 
 const filteredAvailableCases = computed(() => {
@@ -764,18 +768,19 @@ function getProjectName(id: number) {
   return projects.value.find(p => p.id === id)?.name ?? '-'
 }
 
-function typeLabel(t: CaseType | string) {
-  return {
-    api: '接口',
-    graphql: 'GraphQL',
-    websocket: 'WebSocket',
-    grpc: 'gRPC',
-    web: 'Web',
-    android: 'Android',
-  }[t] ?? t
+function typeLabel(typ: CaseType | string) {
+  const map: Record<string, string> = {
+    api: t('suite.case_types.api'),
+    graphql: t('suite.case_types.graphql'),
+    websocket: t('suite.case_types.websocket'),
+    grpc: t('suite.case_types.grpc'),
+    web: t('suite.case_types.web'),
+    android: t('suite.case_types.android'),
+  }
+  return map[typ] ?? typ
 }
 
-function typeColor(t: CaseType | string) {
+function typeColor(typ: CaseType | string) {
   return {
     api: 'geekblue',
     graphql: 'cyan',
@@ -783,7 +788,7 @@ function typeColor(t: CaseType | string) {
     grpc: 'volcano',
     web: 'purple',
     android: 'green',
-  }[t] ?? 'default'
+  }[typ] ?? 'default'
 }
 
 function priorityColor(priority: CasePriority | string) {
@@ -791,7 +796,12 @@ function priorityColor(priority: CasePriority | string) {
 }
 
 function statusLabel(status: CaseStatus | string) {
-  return { draft: '草稿', active: '生效', deprecated: '废弃' }[status] ?? status
+  const map: Record<string, string> = {
+    draft: t('suite.case_status.draft'),
+    active: t('suite.case_status.active'),
+    deprecated: t('suite.case_status.deprecated'),
+  }
+  return map[status] ?? status
 }
 
 function statusColor(status: CaseStatus | string) {
@@ -799,7 +809,7 @@ function statusColor(status: CaseStatus | string) {
 }
 
 function readyLabel(isReady: boolean) {
-  return isReady ? '可执行' : '未就绪'
+  return isReady ? t('suite.case_ready.ready') : t('suite.case_ready.not_ready')
 }
 
 function readyColor(isReady: boolean) {
@@ -829,22 +839,22 @@ function suiteFailStrategyColor(strategy?: SuiteConfig['fail_strategy']) {
 
 function getExecutionReason(item: Pick<CaseSummaryItem, 'status' | 'review_status' | 'automation_status'>) {
   if (item.status !== 'active') {
-    return '状态不是 active'
+    return t('suite.case_reason.status_not_active')
   }
   if (item.review_status !== 'approved') {
-    return '审核未通过'
+    return t('suite.case_reason.review_not_approved')
   }
   if (!['auto', 'semi_auto'].includes(item.automation_status)) {
-    return '不是自动化或半自动化'
+    return t('suite.case_reason.not_automation')
   }
   return '-'
 }
 
 function getExecutionHint(item: Pick<CaseSummaryItem, 'is_ready_for_execution' | 'status' | 'review_status' | 'automation_status'>) {
   if (item.is_ready_for_execution) {
-    return '满足执行前置校验，可直接加入套件执行。'
+    return t('suite.case_reason.hint_ready')
   }
-  return `${getExecutionReason(item)}，不能加入执行。`
+  return t('suite.case_reason.hint_not_ready', { reason: getExecutionReason(item) })
 }
 
 function flattenModules(nodes: ModuleTreeItem[], acc: Record<number, string> = {}) {
@@ -901,7 +911,7 @@ function buildModuleTreeOptions(
 }
 
 function getModuleName(moduleId: number) {
-  return moduleNameMap.value[moduleId] ?? `模块 #${moduleId}`
+  return moduleNameMap.value[moduleId] ?? t('suite.module_fallback', { id: moduleId })
 }
 
 function runStatusBadge(s: string) {
@@ -1067,15 +1077,15 @@ async function handleSave() {
     return
   }
   if (!form.value.name.trim()) {
-    message.warning('请输入套件名称')
+    message.warning(t('suite.msg.name_required'))
     return
   }
   if (!formProjectId.value) {
-    message.warning('请先选择项目')
+    message.warning(t('suite.msg.project_required'))
     return
   }
   if (selectedCaseIds.value.length === 0) {
-    message.warning('请至少选择一个用例')
+    message.warning(t('suite.msg.case_required'))
     return
   }
   if (selectedUnreadyCaseItems.value.length > 0) {
@@ -1086,10 +1096,12 @@ async function handleSave() {
     const restCount = selectedUnreadyCaseItems.value.length - 3
 
     Modal.confirm({
-      title: `当前包含 ${selectedUnreadyCaseItems.value.length} 个未就绪用例，是否继续保存？`,
-      content: restCount > 0 ? `${names} 等 ${restCount + 3} 个用例仍未就绪。` : `${names} 仍未就绪。`,
-      okText: '继续保存',
-      cancelText: '返回处理',
+      title: t('suite.confirm.unready_title', { count: selectedUnreadyCaseItems.value.length }),
+      content: restCount > 0
+        ? t('suite.confirm.unready_content_more', { names, total: restCount + 3 })
+        : t('suite.confirm.unready_content', { names }),
+      okText: t('suite.confirm.ok_text'),
+      cancelText: t('suite.confirm.cancel_text'),
       async onOk() {
         await persistSuite()
       },
@@ -1111,7 +1123,7 @@ async function persistSuite() {
         case_ids: caseIds,
         config,
       })
-      message.success('保存成功')
+      message.success(t('suite.msg.save_success'))
     } else {
       await suiteApi.create({
         name: form.value.name,
@@ -1120,12 +1132,12 @@ async function persistSuite() {
         case_ids: caseIds,
         config,
       })
-      message.success('套件已创建')
+      message.success(t('suite.msg.created'))
     }
     formOpen.value = false
     loadSuites()
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '保存失败'))
+    message.error(getErrorMessage(error, t('suite.msg.save_failed')))
   } finally {
     saving.value = false
   }
@@ -1157,7 +1169,7 @@ async function handleRun(record: SuiteItem) {
     runEnvOptions.value = envs.map((e: EnvironmentItem) => ({ label: e.name, value: e.id }))
   } catch (error: unknown) {
     runEnvOptions.value = []
-    message.error(getErrorMessage(error, '加载执行环境失败'))
+    message.error(getErrorMessage(error, t('suite.msg.load_environments_failed')))
   } finally {
     runEnvLoading.value = false
   }
@@ -1173,11 +1185,11 @@ async function confirmRun() {
     if (runEnvId.value) payload.env_id = runEnvId.value
     await suiteApi.run(s.id, payload)
     runModalOpen.value = false
-    message.success('套件执行已触发')
+    message.success(t('suite.msg.run_triggered'))
     // 打开执行记录
     viewRuns(s)
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '执行触发失败'))
+    message.error(getErrorMessage(error, t('suite.msg.run_failed')))
   } finally {
     runConfirming.value = false
     runningId.value = null
@@ -1218,7 +1230,7 @@ async function loadSuiteRuns(suiteId = activeRunsSuiteId.value, showLoading = fa
   } catch (error: unknown) {
     if (showLoading) {
       suiteRuns.value = []
-      message.error(getErrorMessage(error, '加载执行记录失败'))
+      message.error(getErrorMessage(error, t('suite.msg.load_runs_failed')))
     }
     stopSuiteRunsRefresh()
   } finally {
@@ -1257,7 +1269,7 @@ async function handleExportSuiteRunHtml(runId: number) {
     const blob = await suiteApi.exportRunHtml(runId)
     downloadBlob(blob, `suite-run-${runId}-report.html`)
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '导出 HTML 失败'))
+    message.error(getErrorMessage(error, t('suite.msg.export_html_failed')))
   } finally {
     exportingSuiteRunHtmlId.value = null
   }
@@ -1269,7 +1281,7 @@ async function handleExportSuiteRunPdf(runId: number) {
     const blob = await suiteApi.exportRunPdf(runId)
     downloadBlob(blob, `suite-run-${runId}-report.pdf`)
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '导出 PDF 失败'))
+    message.error(getErrorMessage(error, t('suite.msg.export_pdf_failed')))
   } finally {
     exportingSuiteRunPdfId.value = null
   }
@@ -1278,10 +1290,10 @@ async function handleExportSuiteRunPdf(runId: number) {
 async function handleDelete(id: number) {
   try {
     await suiteApi.delete(id)
-    message.success('已删除')
+    message.success(t('suite.msg.deleted'))
     loadSuites()
   } catch (error: unknown) {
-    message.error(getErrorMessage(error, '删除失败'))
+    message.error(getErrorMessage(error, t('suite.msg.delete_failed')))
   }
 }
 

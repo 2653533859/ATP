@@ -165,7 +165,7 @@ POST /api/v1/ai/cases/confirm        把草稿写入 TestCase 表
 | F.4 | 后端通知模板 | `services/notifier.py`、通知配置 schema/API/UI | 已完成：邮件、企业微信、钉钉通知可按配置语言发送；通知配置页可选择语言；通知相关后端测试通过 |
 | F.5.1 | 设备 / APK / Mock | `DeviceList.vue`、`ApkList.vue`、`MockRuleList.vue` | 已完成：筛选、表格、弹窗、状态标签、导入导出、屏幕镜像与消息提示走 locale；目标文件扫描无中文命中；`npm run type-check` 通过 |
 | F.5.2 | 项目 / 计划补齐 | `ProjectList.vue`、`PlanList.vue` | 已完成：项目卡片、AI 模型绑定、计划表单、Cron 编辑器、Webhook Secret、执行策略和消息提示走 locale；目标文件扫描无中文命中；`npm run type-check` 通过 |
-| F.5.3 | 文案复核 | `zh-CN.ts`、`en-US.ts`、已迁移页面 | 进行中：当前剩余可见中文主要集中在 `SuiteList.vue`、`CaseFormDrawer.vue`，下一轮继续迁移；`RunDetail.vue` / `DashboardView.vue` 剩余多为注释或后端错误字符串判断 |
+| F.5.3 | 文案复核 | `zh-CN.ts`、`en-US.ts`、已迁移页面 | 已完成（2026-05-20）：`SuiteList.vue` 全表单/Modal/Drawer 与六个 options 数组改为响应式 computed；`CaseFormDrawer.vue` 4 种 case_type 配置全量迁移；新增 `suite.form/config_tips/case_table/.../msg` 与 `case_form.*` 命名空间共 ~220 个键。剩余中文仅限开发注释与后端错误字符串匹配（`RunDetail.vue` 中 `msg.includes('认证'/'超时'/'不存在')`）。`npm run type-check` 通过 |
 
 每个批次完成后执行：
 
@@ -310,5 +310,5 @@ Phase 4 (2-3 周)
 
 - 方向 E（AI 用例生成）：已完成 — 后端 commit 4714fea + 前端 commit 68374a5
 - 方向 H（Q2 收口）：已完成 — H.1/H.2 commit a4b9d32，H.3 commit a060be4
-- 方向 F（i18n）：进行中 — F.1 集成 vue-i18n 基础设施 + 登录页迁移
-- 方向 G（OTel/Jaeger）：未启动，待 F 收口后切入
+- 方向 F（i18n）：已完成 — F.1~F.5 全部收口（2026-05-20）；视图与公共组件已无可见中文 UI 文案，剩余仅限开发注释与后端错误字符串匹配
+- 方向 G（OTel/Jaeger）：未启动，将作为 Q3 收口最后一项推进
