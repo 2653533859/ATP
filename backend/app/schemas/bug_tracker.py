@@ -55,6 +55,7 @@ class BugStatusOut(BaseModel):
 class CreateBugRequest(BaseModel):
     tracker_id: int
     step_index: int | None = None  # 可选，指定某个步骤；为空则取 run 级错误
+    override_product_id: str | None = None  # 禅道多产品场景，覆盖默认 product_id（可填 product_map key 或直接 id）
 
 
 class BugResultOut(BaseModel):

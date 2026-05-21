@@ -311,6 +311,7 @@ async def create_bug_from_run(
             title=title,
             description=description,
             field_mapping=tracker.field_mapping or {},
+            override_product_id=body.override_product_id,
         )
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"创建缺陷失败: {str(e)}")

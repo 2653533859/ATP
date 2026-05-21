@@ -8,6 +8,7 @@ class TrackerType(str, enum.Enum):
     jira = "jira"
     zentao = "zentao"
     github = "github"
+    gitlab = "gitlab"
 
 
 class BugTracker(Base, TimestampMixin):
@@ -21,8 +22,10 @@ class BugTracker(Base, TimestampMixin):
 
     # 配置 JSON，结构因类型而异：
     # jira:   {"base_url": "https://xxx.atlassian.net", "email": "...", "api_token": "...", "project_key": "ATP"}
-    # zentao: {"base_url": "http://zentao.xxx.com", "account": "...", "password": "...", "product_id": 1}
+    # zentao: {"base_url": "http://zentao.xxx.com", "account": "...", "password": "...", "product_id": 1,
+    #          "product_map": {"backend": 1, "frontend": 2}}   # 多产品支持，product_id 为默认
     # github: {"base_url": "https://api.github.com", "owner": "foo", "repo": "bar", "token": "..."}
+    # gitlab: {"base_url": "https://gitlab.com", "project_id": "group/project", "token": "..."}
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     field_mapping: Mapped[dict] = mapped_column(JSON, default=dict)
 

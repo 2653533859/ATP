@@ -20,6 +20,7 @@ async def create_bug(
     title: str,
     description: str,
     field_mapping: dict | None = None,
+    override_product_id: str | None = None,
 ) -> dict:
     """
     创建缺陷，返回 {"bug_id": "...", "bug_url": "...", "title": "..."}.
@@ -29,9 +30,14 @@ async def create_bug(
     if tracker_type == "jira":
         return await _create_jira_issue(config, title, description, field_mapping or {})
     elif tracker_type == "zentao":
-        return await _create_zentao_bug(config, title, description, field_mapping or {})
+        return await _create_zentao_bug(
+            config, title, description, field_mapping or {},
+            override_product_id=override_product_id,
+        )
     elif tracker_type == "github":
         return await _create_github_issue(config, title, description, field_mapping or {})
+    elif tracker_type == "gitlab":
+        return await _create_gitlab_issue(config, title, description, field_mapping or {})
     else:
         raise ValueError(f"不支持的缺陷跟踪平台: {tracker_type}")
 
@@ -43,6 +49,8 @@ async def test_connection(tracker_type: str, config: dict) -> dict:
         return await _test_zentao_connection(config)
     if tracker_type == "github":
         return await _test_github_connection(config)
+    if tracker_type == "gitlab":
+        return await _test_gitlab_connection(config)
     raise ValueError(f"不支持的缺陷跟踪平台: {tracker_type}")
 
 
@@ -53,6 +61,8 @@ async def find_duplicate_bug(tracker_type: str, config: dict, title: str) -> dic
         return await _find_zentao_duplicate(config, title)
     if tracker_type == "github":
         return await _find_github_duplicate(config, title)
+    if tracker_type == "gitlab":
+        return await _find_gitlab_duplicate(config, title)
     return None
 
 
@@ -73,6 +83,8 @@ async def get_bug_status(tracker_type: str, config: dict, bug_id: str) -> dict:
         return await _get_zentao_bug_status(config, bug_id)
     if tracker_type == "github":
         return await _get_github_issue_status(config, bug_id)
+    if tracker_type == "gitlab":
+        return await _get_gitlab_issue_status(config, bug_id)
     raise ValueError(f"不支持的缺陷跟踪平台: {tracker_type}")
 
 
@@ -237,9 +249,29 @@ def _apply_zentao_field_mapping(payload: dict, field_mapping: dict) -> None:
         payload[key] = value
 
 
-async def _create_zentao_bug(config: dict, title: str, description: str, field_mapping: dict) -> dict:
+def _resolve_zentao_product_id(config: dict, override: str | None) -> int | str:
+    """禅道多产品：优先 override，其次 config.product_id；override 可为 product_map 的 key 或直接的 id。"""
+    if override is None or override == "":
+        return config["product_id"]
+    product_map = config.get("product_map") or {}
+    if override in product_map:
+        return product_map[override]
+    # 数字字符串：直接转 int；否则原样返回（让禅道侧校验）
+    try:
+        return int(override)
+    except (TypeError, ValueError):
+        return override
+
+
+async def _create_zentao_bug(
+    config: dict,
+    title: str,
+    description: str,
+    field_mapping: dict,
+    override_product_id: str | None = None,
+) -> dict:
     base_url, token = await _zentao_get_token(config)
-    product_id = config["product_id"]
+    product_id = _resolve_zentao_product_id(config, override_product_id)
     headers = {"Token": token, "Content-Type": "application/json"}
     bug_payload = {
         "product": product_id,
@@ -330,6 +362,7 @@ async def _upload_zentao_attachment(config: dict, bug_id: str, filename: str, co
 
 # ── GitHub Issues ───────────────────────────────────────
 
+
 def _github_headers(config: dict) -> dict:
     token = config["token"]
     return {
@@ -402,6 +435,116 @@ async def _get_github_issue_status(config: dict, bug_id: str) -> dict:
         raise RuntimeError(f"GitHub 状态查询失败: HTTP {resp.status_code}")
     data = resp.json()
     return {"bug_id": bug_id, "status": data.get("state", "unknown"), "bug_url": data.get("html_url")}
+
+
+# ── GitLab Issues ───────────────────────────────────────
+
+
+def _gitlab_headers(config: dict) -> dict:
+    return {
+        "PRIVATE-TOKEN": config["token"],
+        "Content-Type": "application/json",
+    }
+
+
+def _gitlab_base_url(config: dict) -> str:
+    return config.get("base_url", "https://gitlab.com").rstrip("/")
+
+
+def _gitlab_project_path(config: dict) -> str:
+    """GitLab project_id 可以是数字或 group/repo 编码后形式。"""
+    from urllib.parse import quote
+
+    project_id = str(config["project_id"])
+    return quote(project_id, safe="")
+
+
+async def _test_gitlab_connection(config: dict) -> dict:
+    base_url = _gitlab_base_url(config)
+    project = _gitlab_project_path(config)
+    headers = _gitlab_headers(config)
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(f"{base_url}/api/v4/projects/{project}", headers=headers)
+    if resp.status_code != 200:
+        raise RuntimeError(f"GitLab 连接失败: HTTP {resp.status_code}")
+    data = resp.json()
+    return {"ok": True, "message": f"连接成功：{data.get('path_with_namespace', config['project_id'])}"}
+
+
+def _apply_gitlab_field_mapping(payload: dict, field_mapping: dict) -> None:
+    if not field_mapping:
+        return
+    if field_mapping.get("labels"):
+        payload["labels"] = ",".join(field_mapping["labels"])
+    if field_mapping.get("assignee_ids"):
+        payload["assignee_ids"] = field_mapping["assignee_ids"]
+    if field_mapping.get("milestone_id") is not None:
+        payload["milestone_id"] = field_mapping["milestone_id"]
+
+
+async def _create_gitlab_issue(config: dict, title: str, description: str, field_mapping: dict) -> dict:
+    base_url = _gitlab_base_url(config)
+    project = _gitlab_project_path(config)
+    headers = _gitlab_headers(config)
+    payload: dict[str, Any] = {"title": title, "description": description}
+    _apply_gitlab_field_mapping(payload, field_mapping)
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.post(
+            f"{base_url}/api/v4/projects/{project}/issues",
+            json=payload,
+            headers=headers,
+        )
+    if resp.status_code not in (200, 201):
+        detail = resp.text[:500]
+        logger.error(f"GitLab 创建 Issue 失败: HTTP {resp.status_code} - {detail}")
+        raise RuntimeError(f"GitLab 创建 Issue 失败: HTTP {resp.status_code}")
+    data = resp.json()
+    return {
+        "bug_id": str(data.get("iid", data.get("id", ""))),
+        "bug_url": data.get("web_url", ""),
+        "title": title,
+    }
+
+
+async def _find_gitlab_duplicate(config: dict, title: str) -> dict | None:
+    base_url = _gitlab_base_url(config)
+    project = _gitlab_project_path(config)
+    headers = _gitlab_headers(config)
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"{base_url}/api/v4/projects/{project}/issues",
+            params={"search": title, "in": "title", "per_page": 20},
+            headers=headers,
+        )
+    if resp.status_code != 200:
+        return None
+    for issue in resp.json():
+        if issue.get("title") == title:
+            return {
+                "bug_id": str(issue.get("iid", issue.get("id", ""))),
+                "bug_url": issue.get("web_url", ""),
+                "title": title,
+            }
+    return None
+
+
+async def _get_gitlab_issue_status(config: dict, bug_id: str) -> dict:
+    base_url = _gitlab_base_url(config)
+    project = _gitlab_project_path(config)
+    headers = _gitlab_headers(config)
+    async with httpx.AsyncClient(timeout=15) as client:
+        resp = await client.get(
+            f"{base_url}/api/v4/projects/{project}/issues/{bug_id}",
+            headers=headers,
+        )
+    if resp.status_code != 200:
+        raise RuntimeError(f"GitLab 状态查询失败: HTTP {resp.status_code}")
+    data = resp.json()
+    return {
+        "bug_id": bug_id,
+        "status": data.get("state", "unknown"),
+        "bug_url": data.get("web_url", ""),
+    }
 
 
 def build_bug_description(
