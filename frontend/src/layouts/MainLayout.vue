@@ -60,6 +60,7 @@
           <a-menu-item key="/system/storage">{{ t('menu.system.storage') }}</a-menu-item>
           <a-menu-item key="/system/global-variables">{{ t('menu.system.global_variables') }}</a-menu-item>
           <a-menu-item key="/system/ai-llm-configs">{{ t('menu.system.ai_llm_configs') }}</a-menu-item>
+          <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
         </a-sub-menu>
       </a-menu>
     </a-layout-sider>

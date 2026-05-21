@@ -1029,3 +1029,46 @@ export interface TracingConfig {
 export const tracingApi = {
   getConfig: () => http.get<any, TracingConfig>('/traces/config'),
 }
+
+// ─── P3.B 测试数据集 ───────────────────────────────────────
+export type DatasetFormat = 'csv' | 'json'
+
+export interface DatasetListItem {
+  id: number
+  name: string
+  description: string | null
+  project_id: number
+  format: DatasetFormat
+  row_count: number
+  creator_id: number
+  created_at: string
+  updated_at: string
+}
+
+export interface DatasetDetail {
+  id: number
+  name: string
+  description: string | null
+  project_id: number
+  format: DatasetFormat
+  rows: Record<string, unknown>[]
+  creator_id: number
+  created_at: string
+  updated_at: string
+}
+
+export const datasetApi = {
+  list: (projectId: number) =>
+    http.get<any, DatasetListItem[]>(`/projects/${projectId}/datasets`),
+  get: (id: number) => http.get<any, DatasetDetail>(`/datasets/${id}`),
+  create: (body: { name: string; project_id: number; description?: string; format?: DatasetFormat; rows?: Record<string, unknown>[] }) =>
+    http.post<any, DatasetDetail>('/datasets', body),
+  update: (id: number, body: { name?: string; description?: string; rows?: Record<string, unknown>[] }) =>
+    http.patch<any, DatasetDetail>(`/datasets/${id}`, body),
+  delete: (id: number) => http.delete<any, void>(`/datasets/${id}`),
+  upload: (id: number, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post<any, DatasetDetail>(`/datasets/${id}/upload`, form)
+  },
+}

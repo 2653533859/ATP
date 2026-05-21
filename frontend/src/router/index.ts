@@ -120,6 +120,11 @@ const router = createRouter({
           name: 'system-ai-llm-configs',
           component: () => import('@/views/system/AILLMConfigList.vue'),
         },
+        {
+          path: 'system/datasets',
+          name: 'system-datasets',
+          component: () => import('@/views/system/DatasetLibrary.vue'),
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

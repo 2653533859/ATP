@@ -23,6 +23,7 @@ def load_all_models() -> None:
     from app.models.global_variable import GlobalVariable
     from app.models.storage_policy import StoragePolicy
     from app.models.ai_llm_config import AILLMConfig
+    from app.models.dataset import TestDataset
 
     _ = (
         User,
@@ -55,4 +56,5 @@ def load_all_models() -> None:
         GlobalVariable,
         StoragePolicy,
         AILLMConfig,
+        TestDataset,
     )
