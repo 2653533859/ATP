@@ -6,13 +6,22 @@ GET /suite-runs/{id}/junit    套件执行结果 JUnit XML
 GET /plan-runs/{id}/junit     计划执行结果 JUnit XML
 GET /runs/{id}/export/html    执行报告 HTML（内嵌截图）
 GET /runs/{id}/export/pdf     执行报告 PDF
+POST /runs/export/zip         批量导出多个 run 的 HTML 报告为 ZIP
+
+E.1 模板可选：?template=summary|full（默认 full；summary 不渲染步骤请求/响应）
+E.1 自定义封面：?cover_title=xxx&cover_logo_url=https://...
+E.1 报告缓存：MinIO key reports/run-{id}/{template}-{updated_at}.html，命中直接返回
 """
 import base64
+import hashlib
+import io
 import logging
 import tempfile
 import xml.etree.ElementTree as ET
+import zipfile
+from datetime import datetime, timezone, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException, Query
 from fastapi.responses import Response
 from jinja2 import Environment, select_autoescape
 from sqlalchemy import select
@@ -235,12 +244,15 @@ _REPORT_TEMPLATE = _TEMPLATE_ENV.from_string("""\
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
-<title>{{ case_name }} - 执行报告</title>
+<title>{{ cover_title or (case_name ~ ' - 执行报告') }}</title>
 <style>
 *{margin:0;padding:0;box-sizing:border-box}
 body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;padding:32px;color:#333;background:#fff}
 h1{font-size:24px;margin-bottom:12px}
 h2{font-size:18px;margin:24px 0 12px}
+.cover{display:flex;align-items:center;gap:16px;margin-bottom:24px;padding-bottom:16px;border-bottom:2px solid #1890ff}
+.cover img{max-height:48px}
+.cover .title{font-size:22px;font-weight:600;color:#1890ff}
 .meta-table,.step-table{border-collapse:collapse;width:100%}
 .meta-table{margin-bottom:20px}
 .meta-table td,.meta-table th,.step-table td,.step-table th{border:1px solid #e8e8e8;padding:8px 12px;text-align:left;font-size:13px;vertical-align:top}
@@ -256,7 +268,20 @@ h2{font-size:18px;margin:24px 0 12px}
 </style>
 </head>
 <body>
-<h1>{{ case_name }} 执行报告</h1>
+{% if cover_title or cover_logo_url %}
+<div class="cover">
+  {% if cover_logo_url %}<img src="{{ cover_logo_url }}" alt="logo">{% endif %}
+  <div class="title">{{ cover_title or case_name }}</div>
+</div>
+{% endif %}
+<h1>{{ case_name }} 执行报告 {% if template_mode == 'summary' %}<span style="font-size:13px;color:#999">(简洁版)</span>{% endif %}</h1>
+{% if video_url %}
+<div style="margin:16px 0 24px">
+  <h2 style="margin-top:0">执行录像</h2>
+  <video controls preload="metadata" style="max-width:100%;border:1px solid #f0f0f0;border-radius:6px" src="{{ video_url }}"></video>
+  <p class="muted" style="margin-top:4px;font-size:12px">如视频无法播放，<a href="{{ video_url }}" target="_blank">点此直接下载</a></p>
+</div>
+{% endif %}
 <table class="meta-table">
 <tr><th>执行 ID</th><td>{{ run.id }}</td><th>状态</th><td><span class="badge badge-{{ run_status }}">{{ run_status }}</span></td></tr>
 <tr><th>用例类型</th><td>{{ case_type or '-' }}</td><th>耗时</th><td>{{ '%.1fs' % ((run.duration_ms or 0) / 1000) }}</td></tr>
@@ -265,7 +290,7 @@ h2{font-size:18px;margin:24px 0 12px}
 <h2>步骤明细</h2>
 {% if steps %}
 <table class="step-table">
-<thead><tr><th>序号</th><th>步骤</th><th>状态</th><th>耗时</th><th>错误信息</th><th>截图</th></tr></thead>
+<thead><tr><th>序号</th><th>步骤</th><th>状态</th><th>耗时</th>{% if template_mode != 'summary' %}<th>错误信息</th><th>截图</th>{% endif %}</tr></thead>
 <tbody>
 {% for step in steps %}
 <tr>
@@ -273,8 +298,10 @@ h2{font-size:18px;margin:24px 0 12px}
 <td>{{ step.name or '-' }}</td>
 <td><span class="badge badge-{{ step.status }}">{{ step.status }}</span></td>
 <td>{{ '%.1fs' % ((step.duration_ms or 0) / 1000) }}</td>
+{% if template_mode != 'summary' %}
 <td>{% if step.error_message %}<span class="error-box">{{ step.error_message }}</span>{% else %}<span class="muted">-</span>{% endif %}</td>
 <td>{% if step.screenshot_b64 %}<img class="screenshot" src="data:image/png;base64,{{ step.screenshot_b64 }}" alt="step screenshot" />{% else %}<span class="muted">-</span>{% endif %}</td>
+{% endif %}
 </tr>
 {% endfor %}
 </tbody>
@@ -411,21 +438,84 @@ def _build_report_steps_view(steps: list[StepResult]) -> list[dict]:
     return rendered_steps
 
 
-async def _build_report_html(run: TestRun, steps: list[StepResult], case_name: str, case_type: str = "") -> str:
-    """构建 HTML 报告，截图内嵌为 base64"""
-    from datetime import datetime, timezone, timedelta
+async def _build_report_html(
+    run: TestRun,
+    steps: list[StepResult],
+    case_name: str,
+    case_type: str = "",
+    template_mode: str = "full",
+    cover_title: str | None = None,
+    cover_logo_url: str | None = None,
+    include_video: bool = True,
+) -> str:
+    """构建 HTML 报告，截图内嵌为 base64。
 
+    template_mode: "full"（默认，含错误信息+截图）/ "summary"（仅步骤名+状态+耗时）
+    cover_title / cover_logo_url: 自定义封面标题与 Logo（E.1）
+    include_video: 若 run.result_summary.video_url 存在则嵌入 <video>（P1.1）；
+                   PDF 渲染路径应传 False（PDF 不支持视频）。
+    """
     run_status = getattr(run.status, "value", str(run.status))
     tz_cst = timezone(timedelta(hours=8))
+    rendered_steps = (
+        _build_report_steps_view(steps)
+        if template_mode == "full"
+        else [
+            {
+                "step_index": s.step_index,
+                "name": s.name,
+                "status": getattr(s.status, "value", s.status),
+                "duration_ms": s.duration_ms,
+                "error_message": None,
+                "screenshot_b64": "",
+            }
+            for s in steps
+        ]
+    )
+    video_url = None
+    if include_video:
+        summary = getattr(run, "result_summary", None) or {}
+        if isinstance(summary, dict):
+            candidate = summary.get("video_url")
+            if isinstance(candidate, str) and candidate:
+                video_url = candidate
     html = _REPORT_TEMPLATE.render(
         run=run,
         run_status=run_status,
-        steps=_build_report_steps_view(steps),
+        steps=rendered_steps,
         case_name=case_name,
         case_type=case_type,
+        template_mode=template_mode,
+        cover_title=cover_title,
+        cover_logo_url=cover_logo_url,
+        video_url=video_url,
         now=datetime.now(tz_cst).strftime("%Y-%m-%d %H:%M:%S (UTC+8)"),
     )
     return html
+
+
+def _report_cache_object_name(run: TestRun, template_mode: str, cover_signature: str) -> str:
+    """构造 MinIO 缓存 key。包含 updated_at（毫秒）+ template + cover hash，保证内容变化即失效。"""
+    ts = ""
+    if run.updated_at:
+        ts = run.updated_at.strftime("%Y%m%d%H%M%S%f")
+    suffix = hashlib.md5(f"{template_mode}|{cover_signature}|{ts}".encode()).hexdigest()[:12]
+    return f"reports/run-{run.id}/{template_mode}-{suffix}.html"
+
+
+def _try_read_cached_report(object_name: str) -> bytes | None:
+    try:
+        return read_bytes(object_name)
+    except Exception:
+        return None
+
+
+def _try_write_cached_report(object_name: str, html: str) -> None:
+    try:
+        from app.core.minio_client import upload_bytes
+        upload_bytes(object_name, html.encode("utf-8"), content_type="text/html; charset=utf-8")
+    except Exception as exc:
+        logger.warning(f"report cache write skipped: {exc}")
 
 
 async def _render_pdf_from_html(html: str) -> bytes:
@@ -561,13 +651,35 @@ async def _build_plan_run_report_html(db: AsyncSession, plan_run: PlanRun) -> st
 @router.get("/runs/{run_id}/export/html")
 async def export_run_html(
     run_id: int,
+    template: str = Query("full", pattern="^(full|summary)$"),
+    cover_title: str | None = Query(None, max_length=200),
+    cover_logo_url: str | None = Query(None, max_length=500),
+    use_cache: bool = Query(True, description="命中 MinIO 缓存则直接返回"),
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_user),
 ):
-    """导出执行报告为 HTML（截图内嵌 base64）"""
+    """导出执行报告为 HTML（截图内嵌 base64）。
+
+    E.1: template=summary 不渲染请求/响应/截图；cover_title/cover_logo_url 自定义封面；
+    use_cache=True 时命中 MinIO 缓存直接返回，缓存 key 含 updated_at 自动失效。
+    """
     run = await db.get(TestRun, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="执行记录不存在")
+
+    cover_sig = f"{cover_title or ''}|{cover_logo_url or ''}"
+    cache_obj = _report_cache_object_name(run, template, cover_sig)
+    if use_cache:
+        cached = _try_read_cached_report(cache_obj)
+        if cached:
+            return Response(
+                content=cached,
+                media_type="text/html; charset=utf-8",
+                headers={
+                    "Content-Disposition": f"attachment; filename=run-{run_id}-report.html",
+                    "X-Atp-Cache": "hit",
+                },
+            )
 
     result = await db.execute(
         select(StepResult).where(StepResult.run_id == run_id).order_by(StepResult.step_index)
@@ -578,17 +690,29 @@ async def export_run_html(
     case_name = case.name if case else f"Case-{run.case_id}"
     case_type = case.case_type.value if case else ""
 
-    html = await _build_report_html(run, list(steps), case_name, case_type)
+    html = await _build_report_html(
+        run, list(steps), case_name, case_type,
+        template_mode=template,
+        cover_title=cover_title,
+        cover_logo_url=cover_logo_url,
+    )
+    _try_write_cached_report(cache_obj, html)
     return Response(
         content=html,
         media_type="text/html; charset=utf-8",
-        headers={"Content-Disposition": f"attachment; filename=run-{run_id}-report.html"},
+        headers={
+            "Content-Disposition": f"attachment; filename=run-{run_id}-report.html",
+            "X-Atp-Cache": "miss",
+        },
     )
 
 
 @router.get("/runs/{run_id}/export/pdf")
 async def export_run_pdf(
     run_id: int,
+    template: str = Query("full", pattern="^(full|summary)$"),
+    cover_title: str | None = Query(None, max_length=200),
+    cover_logo_url: str | None = Query(None, max_length=500),
     db: AsyncSession = Depends(get_db),
     _=Depends(get_current_user),
 ):
@@ -606,13 +730,83 @@ async def export_run_pdf(
     case_name = case.name if case else f"Case-{run.case_id}"
     case_type = case.case_type.value if case else ""
 
-    html = await _build_report_html(run, list(steps), case_name, case_type)
+    html = await _build_report_html(
+        run, list(steps), case_name, case_type,
+        template_mode=template,
+        cover_title=cover_title,
+        cover_logo_url=cover_logo_url,
+        include_video=False,
+    )
     pdf_bytes = await _render_pdf_from_html(html)
 
     return Response(
         content=pdf_bytes,
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=run-{run_id}-report.pdf"},
+    )
+
+
+@router.post("/runs/export/zip")
+async def export_runs_zip(
+    payload: dict = Body(...),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """批量导出多个执行记录的 HTML 报告为 ZIP（E.1）。
+
+    body: {"run_ids": [int], "template": "full"|"summary", "cover_title": str?, "cover_logo_url": str?}
+    最多 50 个 run_id；逐个生成 HTML 后打包，缺失的 run 跳过并在 _missing.txt 中记录。
+    """
+    run_ids = payload.get("run_ids") or []
+    if not isinstance(run_ids, list) or not run_ids:
+        raise HTTPException(status_code=400, detail="run_ids 不能为空")
+    if len(run_ids) > 50:
+        raise HTTPException(status_code=400, detail="单次最多导出 50 条")
+
+    template_mode = payload.get("template", "full")
+    if template_mode not in ("full", "summary"):
+        raise HTTPException(status_code=400, detail="template 仅支持 full|summary")
+    cover_title = payload.get("cover_title")
+    cover_logo_url = payload.get("cover_logo_url")
+
+    buf = io.BytesIO()
+    missing: list[int] = []
+    with zipfile.ZipFile(buf, mode="w", compression=zipfile.ZIP_DEFLATED) as zf:
+        for rid in run_ids:
+            try:
+                rid_int = int(rid)
+            except (TypeError, ValueError):
+                missing.append(rid)
+                continue
+            run = await db.get(TestRun, rid_int)
+            if not run:
+                missing.append(rid_int)
+                continue
+            result = await db.execute(
+                select(StepResult).where(StepResult.run_id == rid_int).order_by(StepResult.step_index)
+            )
+            steps = result.scalars().all()
+            case = await db.get(TestCase, run.case_id)
+            case_name = case.name if case else f"Case-{run.case_id}"
+            case_type = case.case_type.value if case else ""
+            html = await _build_report_html(
+                run, list(steps), case_name, case_type,
+                template_mode=template_mode,
+                cover_title=cover_title,
+                cover_logo_url=cover_logo_url,
+            )
+            zf.writestr(f"run-{rid_int}-report.html", html)
+        if missing:
+            zf.writestr(
+                "_missing.txt",
+                "以下 run_id 未找到或无效：\n" + "\n".join(str(m) for m in missing),
+            )
+
+    buf.seek(0)
+    return Response(
+        content=buf.getvalue(),
+        media_type="application/zip",
+        headers={"Content-Disposition": "attachment; filename=runs-bundle.zip"},
     )
 
 
