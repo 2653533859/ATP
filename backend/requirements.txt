@@ -32,3 +32,5 @@ opentelemetry-sdk==1.29.0
 opentelemetry-exporter-otlp-proto-grpc==1.29.0
 opentelemetry-instrumentation-fastapi==0.50b0
 opentelemetry-instrumentation-celery==0.50b0
+prometheus-client==0.21.0
+prometheus-fastapi-instrumentator==7.0.0
