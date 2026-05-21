@@ -1,0 +1,8 @@
+[tool.pytest.ini_options]
+testpaths = ["backend/tests"]
+markers = [
+    "integration: 集成测试，需要真实 postgres/redis/minio（ATP_INTEGRATION_TESTS=1 跳过 conftest stub）",
+]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+]

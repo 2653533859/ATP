@@ -97,7 +97,7 @@ Q4 完成了"性能/运维下沉 + 长期收口"。Q5 定位为 **预留清账 +
 
 - [x] P2.1 sys.modules 污染收口（根级 conftest + `_ensure_stub_attrs` helper：4 个目标模块完整字段集 + 补齐不覆盖）
 - [x] P2.2 dockerfile/frontend 测试 cwd 修复（顺手在 P2.1 一并收口，新增 `tests/_paths.py` 提供 `repo_path()` 跨 cwd 路径）
-- [ ] P2.3 CI 集成测试环境
+- [~] P2.3 CI 集成测试环境（MVP 落地 2026-05-21：`.github/workflows/test-integration.yml` 启动 postgres+redis+minio + alembic upgrade head + 3 条关键路径 auth/case-run/mock-hit；根 conftest 加 `ATP_INTEGRATION_TESTS=1` 早退绕过 stub；nightly + workflow_dispatch 触发。后续可扩展 suite-run/plan-run/exports/retention 共 5-6 条）
 - [ ] P2.4 前端 E2E 5 条路径
 
 ---
@@ -173,5 +173,5 @@ Phase 3 (4-6 周)
 ## 当前进度记录
 
 - Phase 1：已完成（P1.1/P1.2/P1.3/P1.4 全部收口 2026-05-21；P1.4 MVP 保留 per-project 真实清理为下迭代）
-- Phase 2：进行中（P2.1/P2.2 合并收口 2026-05-21；`tests/` 全套 446 个全绿，无 ignore 项；P2.3/P2.4 待启动）
+- Phase 2：进行中（P2.1/P2.2 合并收口 2026-05-21；`tests/` 全套 446 个全绿，无 ignore 项；P2.3 MVP 落地 2026-05-21，P2.4 待启动）
 - Phase 3：未开始

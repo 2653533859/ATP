@@ -13,7 +13,11 @@ P2.1 收口对象：
 
 注意：celery / celery.utils.log 等 *不* 在根 conftest stub —— 因为 pytest.importorskip("celery") 会因此误判
 为"已安装"，导致依赖真实 Celery 的测试无法 skip。需要 celery stub 的测试请在自己文件内做（如 test_db_backup.py）。
+
+P2.3 集成测试模式：ATP_INTEGRATION_TESTS=1 时跳过所有 stub，让 backend/tests/integration/
+的用例拿到真 redis/minio/db 客户端。fixtures 在 backend/tests/integration/conftest.py 提供。
 """
+import os
 import sys
 import types
 
@@ -32,49 +36,52 @@ def _ensure_stub_attrs(module_name: str, defaults: dict) -> None:
             setattr(existing, name, value)
 
 
-# ── 立即应用所有 stub（必须在测试文件 import 之前）──────────────
+# ── 集成模式早退：不注入任何 stub ─────────────────────────────────
+_INTEGRATION_MODE = os.getenv("ATP_INTEGRATION_TESTS") == "1"
 
-_ensure_stub_attrs(
-    "app.core.minio_client",
-    {
-        "list_objects": lambda *_a, **_kw: [],
-        "delete_file": lambda *_a, **_kw: None,
-        "ensure_bucket": lambda: None,
-        "read_bytes": lambda *_a, **_kw: b"",
-        "upload_bytes": lambda *_a, **_kw: None,
-        "download_file": lambda *_a, **_kw: None,
-        "upload_file": lambda *_a, **_kw: None,
-        "presigned_url": lambda *_a, **_kw: "",
-        "get_client": lambda: None,
-    },
-)
+if not _INTEGRATION_MODE:
+    # ── 单元模式：立即应用所有 stub（必须在测试文件 import 之前）──
+    _ensure_stub_attrs(
+        "app.core.minio_client",
+        {
+            "list_objects": lambda *_a, **_kw: [],
+            "delete_file": lambda *_a, **_kw: None,
+            "ensure_bucket": lambda: None,
+            "read_bytes": lambda *_a, **_kw: b"",
+            "upload_bytes": lambda *_a, **_kw: None,
+            "download_file": lambda *_a, **_kw: None,
+            "upload_file": lambda *_a, **_kw: None,
+            "presigned_url": lambda *_a, **_kw: "",
+            "get_client": lambda: None,
+        },
+    )
 
-_ensure_stub_attrs(
-    "app.core.redis_client",
-    {
-        "get_json_cache": lambda *_a, **_kw: None,
-        "set_json_cache": lambda *_a, **_kw: None,
-        "delete_json_cache": lambda *_a, **_kw: None,
-        "delete_json_cache_pattern": lambda *_a, **_kw: None,
-        "publish_run_event": lambda *_a, **_kw: None,
-        "get_async_redis": lambda *_a, **_kw: None,
-    },
-)
+    _ensure_stub_attrs(
+        "app.core.redis_client",
+        {
+            "get_json_cache": lambda *_a, **_kw: None,
+            "set_json_cache": lambda *_a, **_kw: None,
+            "delete_json_cache": lambda *_a, **_kw: None,
+            "delete_json_cache_pattern": lambda *_a, **_kw: None,
+            "publish_run_event": lambda *_a, **_kw: None,
+            "get_async_redis": lambda *_a, **_kw: None,
+        },
+    )
 
-_ensure_stub_attrs(
-    "app.api.deps",
-    {
-        "get_current_user": lambda: None,
-        "require_engineer": lambda: None,
-        "require_admin": lambda: None,
-    },
-)
+    _ensure_stub_attrs(
+        "app.api.deps",
+        {
+            "get_current_user": lambda: None,
+            "require_engineer": lambda: None,
+            "require_admin": lambda: None,
+        },
+    )
 
-_ensure_stub_attrs(
-    "app.core.database",
-    {
-        "get_db": lambda: None,
-        "AsyncSessionLocal": lambda *_a, **_kw: None,
-        "engine": types.SimpleNamespace(dispose=lambda: None, sync_engine=None),
-    },
-)
+    _ensure_stub_attrs(
+        "app.core.database",
+        {
+            "get_db": lambda: None,
+            "AsyncSessionLocal": lambda *_a, **_kw: None,
+            "engine": types.SimpleNamespace(dispose=lambda: None, sync_engine=None),
+        },
+    )
