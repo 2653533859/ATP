@@ -1,0 +1,39 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "atp.fullname" . }}-beat
+  labels:
+    {{- include "atp.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "beat") | nindent 4 }}
+spec:
+  # Beat 必须单副本，避免重复触发定时任务
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: beat
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: beat
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: beat
+          image: "{{ .Values.image.repository }}/worker:{{ .Values.image.worker.tag }}"
+          imagePullPolicy: {{ .Values.image.worker.pullPolicy }}
+          command: ["celery", "-A", "app.worker.celery_app", "beat", "--loglevel=info"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "atp.fullname" . }}-config
+            - secretRef:
+                name: {{ include "atp.fullname" . }}-secret
+          resources:
+            {{- toYaml .Values.resources.beat | nindent 12 }}

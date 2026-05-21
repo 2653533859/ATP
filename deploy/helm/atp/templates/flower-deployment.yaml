@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "atp.fullname" . }}-flower
+  labels:
+    {{- include "atp.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "flower") | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas.flower }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: flower
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: flower
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: flower
+          image: "{{ .Values.image.repository }}/worker:{{ .Values.image.worker.tag }}"
+          imagePullPolicy: {{ .Values.image.worker.pullPolicy }}
+          command: ["celery", "-A", "app.worker.celery_app", "flower", "--port=5555"]
+          ports:
+            - name: http
+              containerPort: 5555
+          envFrom:
+            - configMapRef:
+                name: {{ include "atp.fullname" . }}-config
+            - secretRef:
+                name: {{ include "atp.fullname" . }}-secret
+          resources:
+            {{- toYaml .Values.resources.flower | nindent 12 }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "atp.fullname" . }}-flower
+  labels:
+    {{- include "atp.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "flower") | nindent 4 }}
+spec:
+  type: {{ .Values.service.flower.type }}
+  ports:
+    - port: {{ .Values.service.flower.port }}
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: {{ .Chart.Name }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: flower

@@ -1,13 +1,26 @@
 from celery import Celery
-from celery.signals import worker_process_init, worker_process_shutdown
+from celery.schedules import crontab
+from celery.signals import (
+    task_failure,
+    task_revoked,
+    worker_process_init,
+    worker_process_shutdown,
+)
 
 from app.core.config import settings
+from app.worker.timeout_alerts import on_task_failure, on_task_revoked
 
 celery_app = Celery(
     "atp",
     broker=settings.CELERY_BROKER_URL,
     backend=settings.CELERY_RESULT_BACKEND,
-    include=["app.worker.tasks", "app.worker.tasks_device", "app.worker.tasks_cleanup", "app.worker.tasks_mobile_special"],
+    include=[
+        "app.worker.tasks",
+        "app.worker.tasks_device",
+        "app.worker.tasks_cleanup",
+        "app.worker.tasks_mobile_special",
+        "app.worker.tasks_db_backup",
+    ],
 )
 
 celery_app.conf.update(
@@ -56,6 +69,16 @@ celery_app.conf.update(
             "task": "cleanup_stale_mobile_special_runs",
             "schedule": 1800.0,
         },
+        "backup-postgres-daily": {
+            "task": "backup_postgres_daily",
+            # 每日凌晨 03:17（错峰，避免与其他备份扎堆）
+            "schedule": crontab(hour=3, minute=17),
+        },
+        "backup-postgres-weekly": {
+            "task": "backup_postgres_weekly",
+            # 每周一凌晨 04:33
+            "schedule": crontab(hour=4, minute=33, day_of_week=1),
+        },
     },
 )
 
@@ -76,3 +99,17 @@ def _shutdown_otel(**_kwargs):
     from app.core.otel import shutdown_tracer
 
     shutdown_tracer()
+
+
+# Soft / Hard 超时告警桥接到独立 handler 模块（便于单测）
+@task_failure.connect
+def _on_task_failure(sender=None, task_id=None, exception=None, **_):
+    sender_name = getattr(sender, "name", str(sender))
+    on_task_failure(sender_name, task_id, exception)
+
+
+@task_revoked.connect
+def _on_task_revoked(sender=None, request=None, terminated=False, signum=None, expired=False, **_):
+    sender_name = getattr(sender, "name", str(sender))
+    task_id = getattr(request, "id", None) if request is not None else None
+    on_task_revoked(sender_name, task_id, terminated, signum, expired)

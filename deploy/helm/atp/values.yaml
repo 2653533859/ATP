@@ -1,0 +1,102 @@
+# ATP Helm values - 生产推荐起步配置
+
+image:
+  repository: registry.local/atp
+  backend:
+    tag: latest
+    pullPolicy: IfNotPresent
+  worker:
+    tag: latest
+    pullPolicy: IfNotPresent
+  frontend:
+    tag: latest
+    pullPolicy: IfNotPresent
+
+imagePullSecrets: []
+
+# 副本数
+replicas:
+  backend: 2
+  worker: 3
+  beat: 1   # 必须单副本，避免重复触发
+  flower: 1
+
+# 资源限制
+resources:
+  backend:
+    requests: {cpu: 200m, memory: 512Mi}
+    limits:   {cpu: 1000m, memory: 1Gi}
+  worker:
+    requests: {cpu: 500m, memory: 1Gi}
+    limits:   {cpu: 2000m, memory: 4Gi}
+  beat:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits:   {cpu: 200m, memory: 256Mi}
+  flower:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits:   {cpu: 200m, memory: 256Mi}
+
+# 非敏感环境变量（写入 ConfigMap）
+config:
+  APP_ENV: production
+  APP_AUTO_CREATE_TABLES: "false"
+  LOG_LEVEL: INFO
+  CELERY_CONCURRENCY: "4"
+  ADB_SCAN_ENABLED: "false"   # K8s 集群通常无真机
+  OTEL_SERVICE_NAME: atp-backend
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""
+  SLOW_QUERY_THRESHOLD_MS: "1000"
+  DB_BACKUP_ENABLED: "true"
+
+# 敏感凭证（写入 Secret）— 生产环境请通过外部 Secret 注入（如 ExternalSecrets / SOPS）
+secrets:
+  APP_SECRET_KEY: "change-me-in-production"
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: atp
+  POSTGRES_USER: atp
+  POSTGRES_PASSWORD: "change-me"
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: ""
+  MINIO_HOST: minio
+  MINIO_PORT: "9000"
+  MINIO_ROOT_USER: minioadmin
+  MINIO_ROOT_PASSWORD: "change-me"
+  MINIO_BUCKET: atp
+  ENCRYPTION_KEY: ""
+  WEBHOOK_API_KEY: "change-me"
+
+service:
+  backend:
+    type: ClusterIP
+    port: 8000
+  flower:
+    type: ClusterIP
+    port: 5555
+
+ingress:
+  enabled: true
+  className: nginx
+  host: atp.example.com
+  tls:
+    enabled: false
+    secretName: atp-tls
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 200m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+
+hpa:
+  backend:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  worker:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 80
+
+# 外部依赖：默认使用集群内 Service 引用，生产建议挂托管 RDS/ElastiCache/MinIO 集群
+# 本 Chart 不内置 PostgreSQL/Redis/MinIO Deployment，由运维侧通过 values 指向外部服务
