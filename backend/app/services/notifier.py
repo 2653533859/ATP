@@ -57,7 +57,12 @@ LABELS = {
 }
 
 
-async def send_notifications(db: AsyncSession, project_id: int, summary: dict):
+async def send_notifications(
+    db: AsyncSession,
+    project_id: int,
+    summary: dict,
+    report_html: str | None = None,
+):
     """
     向项目所有启用的通知渠道发送执行结果摘要。
 
@@ -72,6 +77,8 @@ async def send_notifications(db: AsyncSession, project_id: int, summary: dict):
         "duration_ms": 12345,
         "trigger_type": "manual" | "cron" | "webhook",
     }
+
+    report_html: 可选 HTML 报告正文；当某个 email 配置中 attach_html_report=True 时作为邮件正文。
     """
     result = await db.execute(
         select(NotificationConfig).where(
@@ -85,13 +92,36 @@ async def send_notifications(db: AsyncSession, project_id: int, summary: dict):
         try:
             real_config = decrypt_config(cfg.config)
             if cfg.channel == NotifyChannel.email:
-                await _send_email(real_config, summary)
+                email_html = report_html if real_config.get("attach_html_report") else None
+                await _send_email(real_config, summary, html_body=email_html)
             elif cfg.channel == NotifyChannel.wechat:
                 await _send_wechat(real_config, summary)
             elif cfg.channel == NotifyChannel.dingtalk:
                 await _send_dingtalk(real_config, summary)
         except Exception as e:
             logger.error(f"通知发送失败 [{cfg.channel.value}] config_id={cfg.id}: {e}")
+
+
+async def email_html_report_enabled(db: AsyncSession, project_id: int) -> bool:
+    """快速检查项目是否有任何启用了 attach_html_report 的邮件通知配置。
+
+    调用方据此决定是否提前生成 HTML 报告（避免无配置时浪费 CPU/IO）。
+    """
+    result = await db.execute(
+        select(NotificationConfig).where(
+            NotificationConfig.project_id == project_id,
+            NotificationConfig.is_enabled == True,  # noqa: E712
+            NotificationConfig.channel == NotifyChannel.email,
+        )
+    )
+    for cfg in result.scalars().all():
+        try:
+            real_config = decrypt_config(cfg.config)
+            if real_config.get("attach_html_report"):
+                return True
+        except Exception:
+            continue
+    return False
 
 
 def _normalize_language(language: str | None) -> str:
@@ -150,8 +180,12 @@ def _build_markdown(summary: dict, language: str = "zh-CN") -> str:
     return "\n".join(lines)
 
 
-async def _send_email(config: dict, summary: dict):
-    """通过 SMTP 发送邮件通知"""
+async def _send_email(config: dict, summary: dict, html_body: str | None = None):
+    """通过 SMTP 发送邮件通知。
+
+    html_body 存在时，邮件以 HTML 为主、纯文本摘要作为 alternative；
+    否则仅发送纯文本（兼容历史行为）。
+    """
     recipients = config.get("recipients", [])
     if not recipients:
         return
@@ -162,13 +196,22 @@ async def _send_email(config: dict, summary: dict):
     status = summary.get("status", "unknown")
     subject = f"{subject_prefix} {summary.get('title', labels['email_title'])} - {status.upper()}"
 
-    body = _build_text(summary, language)
+    text_body = _build_text(summary, language)
 
-    msg = MIMEMultipart()
-    msg["Subject"] = subject
-    msg["From"] = settings.SMTP_FROM
-    msg["To"] = ", ".join(recipients)
-    msg.attach(MIMEText(body, "plain", "utf-8"))
+    if html_body:
+        # 使用 multipart/alternative：客户端优先 HTML，纯文本作降级
+        msg = MIMEMultipart("alternative")
+        msg["Subject"] = subject
+        msg["From"] = settings.SMTP_FROM
+        msg["To"] = ", ".join(recipients)
+        msg.attach(MIMEText(text_body, "plain", "utf-8"))
+        msg.attach(MIMEText(html_body, "html", "utf-8"))
+    else:
+        msg = MIMEMultipart()
+        msg["Subject"] = subject
+        msg["From"] = settings.SMTP_FROM
+        msg["To"] = ", ".join(recipients)
+        msg.attach(MIMEText(text_body, "plain", "utf-8"))
 
     # 在线程池中执行同步 SMTP 操作
     import asyncio

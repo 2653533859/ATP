@@ -70,8 +70,8 @@ def test_build_markdown_defaults_to_chinese_for_unknown_language():
 def test_send_notifications_dispatches_by_channel(monkeypatch):
     calls = []
 
-    async def fake_email(config, summary):
-        calls.append(("email", config, summary["title"]))
+    async def fake_email(config, summary, html_body=None):
+        calls.append(("email", config, summary["title"], html_body))
 
     async def fake_wechat(config, summary):
         calls.append(("wechat", config, summary["title"]))
@@ -93,6 +93,7 @@ def test_send_notifications_dispatches_by_channel(monkeypatch):
 
     assert [call[0] for call in calls] == ["email", "wechat", "dingtalk"]
     assert calls[0][1]["language"] == "en-US"
+    assert calls[0][3] is None  # html_body 默认未启用
 
 
 def test_wechat_sender_raises_when_provider_rejects(monkeypatch):

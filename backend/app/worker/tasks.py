@@ -332,7 +332,17 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict, trace_id: str | No
                 counts = suite_run.result_summary or {}
 
                 try:
-                    from app.services.notifier import send_notifications
+                    from app.services.notifier import (
+                        email_html_report_enabled,
+                        send_notifications,
+                    )
+                    report_html = None
+                    if await email_html_report_enabled(db, suite.project_id):
+                        try:
+                            from app.api.v1.exports import _build_suite_run_report_html
+                            report_html = await _build_suite_run_report_html(db, suite_run)
+                        except Exception as exc:
+                            logger.warning(f"Suite report HTML build failed: {exc}")
                     await send_notifications(db, suite.project_id, {
                         "title": f"测试套件「{suite.name}」执行完成",
                         "status": suite_run.status.value,
@@ -342,7 +352,7 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict, trace_id: str | No
                         "error": counts.get("error", 0),
                         "duration_ms": suite_run.duration_ms,
                         "trigger_type": "manual",
-                    })
+                    }, report_html=report_html)
                 except Exception as e:
                     logger.warning(f"Suite notification failed: {e}")
                 finally:
@@ -558,14 +568,24 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
 
                 # 发送通知
                 try:
-                    from app.services.notifier import send_notifications
+                    from app.services.notifier import (
+                        email_html_report_enabled,
+                        send_notifications,
+                    )
+                    report_html = None
+                    if await email_html_report_enabled(db, plan.project_id):
+                        try:
+                            from app.api.v1.exports import _build_plan_run_report_html
+                            report_html = await _build_plan_run_report_html(db, plan_run)
+                        except Exception as exc:
+                            logger.warning(f"Plan report HTML build failed: {exc}")
                     await send_notifications(db, plan.project_id, {
                         "title": f"测试计划「{plan.name}」执行完成",
                         "status": plan_run.status.value,
                         **counts,
                         "duration_ms": total_ms,
                         "trigger_type": plan_run.trigger_type.value,
-                    })
+                    }, report_html=report_html)
                 except Exception as e:
                     logger.warning(f"Plan notification failed: {e}")
                 finally:
