@@ -659,6 +659,8 @@ export default {
       diagnosing: '正在调用 LLM 分析失败原因…',
       failed_fallback: 'LLM 调用失败，请稍后查看日志或手动重试。',
       skipped_no_config: '当前项目未配置 AI LLM，或未开启自愈功能。',
+      daily_limit_reached: '已达今日 LLM 调用上限，本次诊断已跳过。',
+      cache_hit: '缓存命中',
       status_pending: '诊断中',
       status_done: '已完成',
       status_failed: '失败',

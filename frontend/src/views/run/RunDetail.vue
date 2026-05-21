@@ -178,6 +178,13 @@
                     <a-tag :color="healingTagColor(step.healing_status)" style="margin-left: 8px">
                       {{ healingStatusLabel(step.healing_status) }}
                     </a-tag>
+                    <a-tag
+                      v-if="step.healing_cache_hit && step.healing_status === 'done'"
+                      color="purple"
+                      style="margin-left: 4px"
+                    >
+                      ⚡ {{ t('run.healing.cache_hit') }}
+                    </a-tag>
                   </span>
                 </template>
                 <div v-if="step.healing_status === 'pending'" class="healing-body healing-pending">
@@ -194,7 +201,9 @@
                 />
                 <a-empty
                   v-else-if="step.healing_status === 'skipped'"
-                  :description="t('run.healing.skipped_no_config')"
+                  :description="step.healing_suggestion === 'daily-limit-reached'
+                    ? t('run.healing.daily_limit_reached')
+                    : t('run.healing.skipped_no_config')"
                   :image="Empty.PRESENTED_IMAGE_SIMPLE"
                 />
               </a-collapse-panel>
@@ -582,6 +591,7 @@ function applyWsMessage(msg: WsMessage) {
         ...steps.value[idx],
         healing_status: msg.status,
         healing_suggestion: msg.suggestion ?? null,
+        healing_cache_hit: msg.cache_hit ?? false,
       }
     }
     return

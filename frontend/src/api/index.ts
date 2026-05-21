@@ -537,6 +537,7 @@ export interface RunStepItem {
   healing_suggestion?: string | null
   healing_status?: string | null
   healing_at?: string | null
+  healing_cache_hit?: boolean  // 仅运行时由 WS healing_suggestion 消息附带，不持久化
 }
 
 export interface RunDetailItem {

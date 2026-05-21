@@ -98,6 +98,8 @@ class Settings(BaseSettings):
     # P3.A AI 用例自愈：失败 step 异步诊断（依赖项目 ai_llm_config 已配置）
     AI_HEALING_ENABLED: bool = False  # 默认关闭，启用后失败 step 自动入队 LLM 诊断
     AI_HEALING_TIMEOUT_SECONDS: int = 60  # LLM 调用超时，避免诊断任务长时间挂起
+    AI_HEALING_DAILY_LIMIT: int = 100  # 每日 LLM 调用上限（0 = 不限）；超限走 skipped
+    AI_HEALING_CACHE_TTL_SECONDS: int = 3600  # 相同错误特征缓存复用 TTL（0 = 关闭缓存）
 
     # OpenTelemetry / Jaeger
     # OTEL_EXPORTER_OTLP_ENDPOINT 留空时跳过 OTel 初始化（向后兼容纯 trace_id 模式）

@@ -25,6 +25,7 @@ export type WsMessage = {
   step_id?: number
   step_index?: number
   suggestion?: string | null
+  cache_hit?: boolean
 }
 
 type MessageHandler = (msg: WsMessage) => void

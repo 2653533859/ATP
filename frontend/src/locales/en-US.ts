@@ -659,6 +659,8 @@ export default {
       diagnosing: 'Calling LLM to analyse failure…',
       failed_fallback: 'LLM call failed. Check logs or retry later.',
       skipped_no_config: 'No AI LLM configured for this project, or AI healing disabled.',
+      daily_limit_reached: 'Daily LLM call quota reached. Diagnosis skipped.',
+      cache_hit: 'cache hit',
       status_pending: 'Diagnosing',
       status_done: 'Done',
       status_failed: 'Failed',
