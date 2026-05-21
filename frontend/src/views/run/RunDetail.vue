@@ -470,6 +470,7 @@ async function confirmCreateBug() {
     window.open(result.bug_url, '_blank')
   } catch (e: any) {
     const msg = typeof e === 'string' ? e : e?.message || ''
+    // 双语 fallback：兼容后端返回中文/英文错误消息；待后端切到 error_code 后可清理
     if (msg.includes('401') || msg.includes('认证') || msg.includes('Unauthorized')) {
       message.error(t('run.msg.bug_auth_failed'))
     } else if (msg.includes('timeout') || msg.includes('ETIMEDOUT') || msg.includes('超时')) {

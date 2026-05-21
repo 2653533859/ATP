@@ -206,3 +206,56 @@ adb devices
 当前最推荐的落地方式是：
 
 **宿主机先完成 ADB over TCP 连接，再由 ATP Worker 复用该链路执行。**
+
+---
+
+## 七、宿主网络与 Docker 环境差异
+
+### 1. Docker Desktop vs Linux 宿主
+
+| 平台 | host 网络支持 | 推荐方案 |
+|------|---------------|---------|
+| Linux | 完整 | `network_mode: host` 最简单 |
+| Docker Desktop (Win/Mac) | 受限 | 优先用 ADB over TCP；宿主先 `adb connect`，容器复用 |
+
+Docker Desktop 因 VM 层隔离，容器无法直接探测物理网卡上的设备 IP。推荐让宿主机维护 ADB 连接，容器通过 `host.docker.internal:5555` 或显式宿主 IP 访问。
+
+### 2. 设备 IP 漂移
+
+设备在不同 Wi-Fi 网络或重启后 IP 可能变化。建议：
+
+- 路由器侧为设备 DHCP 绑定，固定 IP
+- 在 ATP 设备表中尽量记录"设备名 + 当前 IP" 双字段，便于运维识别
+
+### 3. 端口防火墙
+
+`adb tcpip 5555` 后，确认 5555 在防火墙放通：
+
+```bash
+# Linux
+sudo ufw allow 5555/tcp
+```
+
+```powershell
+# Windows
+New-NetFirewallRule -DisplayName "ADB TCP" -Direction Inbound -LocalPort 5555 -Protocol TCP -Action Allow
+```
+
+### 4. 一键诊断脚本
+
+复杂网络环境下，使用仓库自带的诊断脚本快速定位：
+
+```bash
+bash scripts/android-network-doctor.sh 192.168.1.100:5555
+```
+
+脚本顺序检查：adb 可执行 → 重启 adb server → connect → devices 列表 → shell 探活。每步输出 `[OK]/[FAIL]`，失败时打印针对性提示（重新 USB 授权 / 检查防火墙 / 切 host 网络等）。退出码 0 通过、1 任一失败。
+
+### 5. 经验排查清单
+
+| 现象 | 优先检查 |
+|------|---------|
+| 容器内 `adb connect` 一直 `cannot connect` | 防火墙、设备 IP 是否漂移、Docker Desktop 网络限制 |
+| `device` 在列表但 `shell` 失败 | USB 线缆抖动、设备 USB 调试被关、TCP 链路超时 |
+| 跨重启失联 | 设备没保持唤醒；建议执行时显式 `screen on` |
+| 多设备 serial 串号 | 始终用 `adb -s <serial>` 指明目标设备 |
