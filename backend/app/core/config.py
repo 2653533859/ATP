@@ -78,6 +78,23 @@ class Settings(BaseSettings):
     # Logging
     LOG_LEVEL: str = ""  # DEBUG/INFO/WARNING/ERROR; 留空按 APP_ENV 自动选择
 
+    # Slow query / Celery timeout 告警
+    SLOW_QUERY_LOG_ENABLED: bool = True
+    SLOW_QUERY_THRESHOLD_MS: int = 1000
+
+    # Case snapshot retention
+    CASE_SNAPSHOT_MAX_PER_CASE: int = 50
+
+    # Mock standalone port (>0 启用独立 FastAPI 子应用监听独立端口，仅含 /mock 路由)
+    # 当前实现保留为部署形态预留，启用方式见 docs/mock-standalone.md（待编写）
+    MOCK_STANDALONE_PORT: int = 0
+
+    # PostgreSQL 自动备份（F.2）
+    DB_BACKUP_ENABLED: bool = False  # 默认关闭，运维侧按需启用
+    DB_BACKUP_RETAIN_DAILY: int = 7  # 日备保留天数
+    DB_BACKUP_RETAIN_WEEKLY: int = 4  # 周备保留份数
+    DB_BACKUP_PREFIX: str = "pg-backups"  # MinIO 对象前缀
+
     # OpenTelemetry / Jaeger
     # OTEL_EXPORTER_OTLP_ENDPOINT 留空时跳过 OTel 初始化（向后兼容纯 trace_id 模式）
     OTEL_EXPORTER_OTLP_ENDPOINT: str = ""

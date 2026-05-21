@@ -79,46 +79,63 @@
 
         <a-row :gutter="16">
           <a-col :xs="24" :md="12">
-            <a-card :title="t('dashboard.charts.duration_trend')">
+            <LazyChartCard
+              :title="t('dashboard.charts.duration_trend')"
+              @visible="onChartVisible('duration', loadDurationTrend)"
+            >
               <v-chart :option="durationOption" style="height: 320px" autoresize />
-            </a-card>
+            </LazyChartCard>
           </a-col>
           <a-col :xs="24" :md="12">
-            <a-card :title="t('dashboard.charts.failure_top')">
+            <LazyChartCard
+              :title="t('dashboard.charts.failure_top')"
+              @visible="onChartVisible('failure', loadFailureTop)"
+            >
               <v-chart :option="failureTopOption" style="height: 320px" autoresize @click="handleFailureClick" />
-            </a-card>
+            </LazyChartCard>
           </a-col>
         </a-row>
 
         <a-row :gutter="16" style="margin-top: 16px">
           <a-col :xs="24" :md="12">
-            <a-card :title="t('dashboard.charts.executor_top')">
+            <LazyChartCard
+              :title="t('dashboard.charts.executor_top')"
+              @visible="onChartVisible('executor', loadExecutorTop)"
+            >
               <v-chart :option="executorTopOption" style="height: 320px" autoresize />
-            </a-card>
+            </LazyChartCard>
           </a-col>
           <a-col :xs="24" :md="12">
-            <a-card :title="t('dashboard.charts.trigger_type')">
+            <LazyChartCard
+              :title="t('dashboard.charts.trigger_type')"
+              @visible="onChartVisible('trigger', loadTriggerTypeStats)"
+            >
               <v-chart :option="triggerTypeOption" style="height: 320px" autoresize />
-            </a-card>
+            </LazyChartCard>
           </a-col>
         </a-row>
 
         <a-row :gutter="16" style="margin-top: 16px">
           <a-col :xs="24" :md="12">
-            <a-card :title="t('dashboard.charts.plan_trend')">
+            <LazyChartCard
+              :title="t('dashboard.charts.plan_trend')"
+              @visible="onChartVisible('plan', loadPlanTrend)"
+            >
               <v-chart :option="planTrendOption" style="height: 320px" autoresize />
-            </a-card>
+            </LazyChartCard>
           </a-col>
           <a-col :xs="24" :md="12">
-            <a-card :title="t('dashboard.charts.suite_trend')">
+            <LazyChartCard
+              :title="t('dashboard.charts.suite_trend')"
+              @visible="onChartVisible('suite', loadSuiteTrend)"
+            >
               <v-chart :option="suiteTrendOption" style="height: 320px" autoresize />
-            </a-card>
+            </LazyChartCard>
           </a-col>
         </a-row>
       </a-spin>
     </template>
   </div>
-</template>
 </template>
 
 <script setup lang="ts">
@@ -127,7 +144,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
-import { LineChart, BarChart } from 'echarts/charts'
+import { LineChart, BarChart, PieChart } from 'echarts/charts'
 import {
   GridComponent,
   LegendComponent,
@@ -135,19 +152,29 @@ import {
   TooltipComponent,
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import LazyChartCard from '@/components/dashboard/LazyChartCard.vue'
 import { projectApi, statisticsApi, storageApi, type StatisticsAggregateTrendItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
 
-use([CanvasRenderer, LineChart, BarChart, TitleComponent, TooltipComponent, GridComponent, LegendComponent])
+use([CanvasRenderer, LineChart, BarChart, PieChart, TitleComponent, TooltipComponent, GridComponent, LegendComponent])
 
 const router = useRouter()
 const { t, locale } = useI18n()
 
 type DashboardCaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android'
+type Aggregate = 'daily' | 'weekly'
 
 type DashboardParams = {
   project_id?: number
   days: number
   case_type?: DashboardCaseType
+}
+
+type TrendParams = DashboardParams & { aggregate: Aggregate }
+
+type AggregateParams = {
+  project_id?: number
+  days: number
+  aggregate: Aggregate
 }
 
 type OverviewData = {
@@ -208,6 +235,8 @@ const dayOptions = computed(() => [
   { label: t('dashboard.last_7_days'), value: 7 },
   { label: t('dashboard.last_30_days'), value: 30 },
   { label: t('dashboard.last_90_days'), value: 90 },
+  { label: t('dashboard.last_180_days'), value: 180 },
+  { label: t('dashboard.last_365_days'), value: 365 },
 ])
 const caseTypeOptions = computed(() => [
   { label: t('dashboard.all_types'), value: undefined },
@@ -224,6 +253,8 @@ const triggerTypeLabel = (type: string) => {
   const translated = t(key)
   return translated === key ? type : translated
 }
+
+const effectiveAggregate = computed<Aggregate>(() => (days.value > 90 ? 'weekly' : 'daily'))
 
 function getProjectLabel(id?: number) {
   if (!id) return t('dashboard.all_projects')
@@ -259,6 +290,8 @@ function generateDateRange(startDate: string, endDate: string): string[] {
 
 function fillPassRateGaps(data: PassRateTrendItem[], numDays: number): PassRateTrendItem[] {
   if (data.length === 0) return []
+  // 周聚合时不补零（密度本身就低，X 轴是周一日期）
+  if (effectiveAggregate.value === 'weekly') return data
 
   const today = new Date()
   const start = new Date(today)
@@ -279,6 +312,7 @@ function fillPassRateGaps(data: PassRateTrendItem[], numDays: number): PassRateT
 
 function fillDurationGaps(data: DurationTrendItem[], numDays: number): DurationTrendItem[] {
   if (data.length === 0) return []
+  if (effectiveAggregate.value === 'weekly') return data
 
   const today = new Date()
   const start = new Date(today)
@@ -473,8 +507,46 @@ const triggerTypeOption = ref(buildTriggerTypeOption())
 const planTrendOption = ref(buildAggregateTrendOption([], t('dashboard.charts.plan')))
 const suiteTrendOption = ref(buildAggregateTrendOption([], t('dashboard.charts.suite')))
 
+const loadedCharts = ref(new Set<string>())
+
+type ChartKey = 'duration' | 'failure' | 'executor' | 'trigger' | 'plan' | 'suite'
+
 function resetOverview() {
   Object.assign(overview, createEmptyOverview())
+}
+
+function currentDashboardParams(): DashboardParams {
+  return {
+    project_id: projectId.value,
+    days: days.value,
+    case_type: caseType.value,
+  }
+}
+
+function currentTrendParams(): TrendParams {
+  return { ...currentDashboardParams(), aggregate: effectiveAggregate.value }
+}
+
+function currentAggregateParams(): AggregateParams {
+  return {
+    project_id: projectId.value,
+    days: days.value,
+    aggregate: effectiveAggregate.value,
+  }
+}
+
+function onChartVisible(key: ChartKey, loader: () => Promise<void>) {
+  loadedCharts.value.add(key)
+  void loader()
+}
+
+const chartLoaders: Record<ChartKey, () => Promise<void>> = {
+  duration: () => loadDurationTrend(),
+  failure: () => loadFailureTop(),
+  executor: () => loadExecutorTop(),
+  trigger: () => loadTriggerTypeStats(),
+  plan: () => loadPlanTrend(),
+  suite: () => loadSuiteTrend(),
 }
 
 async function loadProjects() {
@@ -485,44 +557,39 @@ async function loadProjects() {
   }
 }
 
-async function loadAll() {
+async function loadFirstScreen() {
   loading.value = true
-  const params: DashboardParams = {
-    project_id: projectId.value,
-    days: days.value,
-    case_type: caseType.value,
-  }
-  const aggregateParams = {
-    project_id: projectId.value,
-    days: days.value,
-  }
-
   try {
     await Promise.all([
-      loadOverview(params),
-      loadPassRateTrend(params),
-      loadDurationTrend(params),
-      loadFailureTop(params),
-      loadExecutorTop(params),
-      loadTriggerTypeStats(aggregateParams),
-      loadPlanTrend(aggregateParams),
-      loadSuiteTrend(aggregateParams),
+      loadOverview(),
+      loadPassRateTrend(),
     ])
   } finally {
     loading.value = false
   }
 }
 
-async function loadOverview(params: DashboardParams) {
+async function refreshLoadedCharts() {
+  const tasks: Promise<void>[] = []
+  for (const key of loadedCharts.value) {
+    const loader = chartLoaders[key as ChartKey]
+    if (loader) tasks.push(loader())
+  }
+  if (tasks.length) await Promise.all(tasks)
+}
+
+async function loadOverview() {
+  const params = currentDashboardParams()
   try {
-    const data = await statisticsApi.overview(params)
+    const data = await statisticsApi.overview({ project_id: params.project_id, days: params.days })
     Object.assign(overview, data)
   } catch {
     resetOverview()
   }
 }
 
-async function loadPassRateTrend(params: DashboardParams) {
+async function loadPassRateTrend() {
+  const params = currentTrendParams()
   try {
     const data = await statisticsApi.passRateTrend(params)
     const filled = fillPassRateGaps(data, params.days)
@@ -532,7 +599,8 @@ async function loadPassRateTrend(params: DashboardParams) {
   }
 }
 
-async function loadDurationTrend(params: DashboardParams) {
+async function loadDurationTrend() {
+  const params = currentTrendParams()
   try {
     const data = await statisticsApi.durationTrend(params)
     const filled = fillDurationGaps(data, params.days)
@@ -542,7 +610,8 @@ async function loadDurationTrend(params: DashboardParams) {
   }
 }
 
-async function loadFailureTop(params: DashboardParams) {
+async function loadFailureTop() {
+  const params = currentDashboardParams()
   try {
     const data = await statisticsApi.failureTop({ ...params, top: 10 })
     failureTopOption.value = buildFailureTopOption(data)
@@ -551,7 +620,8 @@ async function loadFailureTop(params: DashboardParams) {
   }
 }
 
-async function loadExecutorTop(params: DashboardParams) {
+async function loadExecutorTop() {
+  const params = currentDashboardParams()
   try {
     const data = await statisticsApi.executorTop({ ...params, top: 10 })
     executorTopOption.value = buildExecutorTopOption(data)
@@ -560,16 +630,17 @@ async function loadExecutorTop(params: DashboardParams) {
   }
 }
 
-async function loadTriggerTypeStats(params: { project_id?: number; days: number }) {
+async function loadTriggerTypeStats() {
   try {
-    const data = await statisticsApi.triggerTypeStats(params)
+    const data = await statisticsApi.triggerTypeStats({ project_id: projectId.value, days: days.value })
     triggerTypeOption.value = buildTriggerTypeOption(data)
   } catch {
     triggerTypeOption.value = buildTriggerTypeOption()
   }
 }
 
-async function loadPlanTrend(params: { project_id?: number; days: number }) {
+async function loadPlanTrend() {
+  const params = currentAggregateParams()
   try {
     const data = await statisticsApi.planTrend(params)
     planTrendOption.value = buildAggregateTrendOption(data, t('dashboard.charts.plan'))
@@ -578,7 +649,8 @@ async function loadPlanTrend(params: { project_id?: number; days: number }) {
   }
 }
 
-async function loadSuiteTrend(params: { project_id?: number; days: number }) {
+async function loadSuiteTrend() {
+  const params = currentAggregateParams()
   try {
     const data = await statisticsApi.suiteTrend(params)
     suiteTrendOption.value = buildAggregateTrendOption(data, t('dashboard.charts.suite'))
@@ -587,18 +659,20 @@ async function loadSuiteTrend(params: { project_id?: number; days: number }) {
   }
 }
 
-watch([projectId, days, caseType], () => {
-  void loadAll()
+watch([projectId, days, caseType], async () => {
+  await loadFirstScreen()
+  await refreshLoadedCharts()
 })
 
 // 语言切换：重新拉取数据以让 echarts 配置中的 t() 文案刷新
-watch(locale, () => {
-  void loadAll()
+watch(locale, async () => {
+  await loadFirstScreen()
+  await refreshLoadedCharts()
 })
 
 onMounted(() => {
   void loadProjects()
-  void loadAll()
+  void loadFirstScreen()
   void loadStorageAlert()
 })
 

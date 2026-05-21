@@ -89,6 +89,8 @@ export default {
     last_7_days: 'Last 7 days',
     last_30_days: 'Last 30 days',
     last_90_days: 'Last 90 days',
+    last_180_days: 'Last 180 days',
+    last_365_days: 'Last 365 days',
     filter_label: 'Filters',
     filter_window: 'Last {days} days',
     total_cases: 'Total cases',

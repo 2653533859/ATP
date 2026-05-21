@@ -771,11 +771,11 @@ export const statisticsApi = {
     http.get<any, { total_cases: number; total_runs: number; pass_rate: number; recent_runs_7d: number }>(
       '/statistics/overview', { params },
     ),
-  passRateTrend: (params?: { project_id?: number; days?: number; case_type?: string }) =>
+  passRateTrend: (params?: { project_id?: number; days?: number; case_type?: string; aggregate?: 'daily' | 'weekly' }) =>
     http.get<any, Array<{ date: string; total: number; passed: number; rate: number }>>(
       '/statistics/pass-rate-trend', { params },
     ),
-  durationTrend: (params?: { project_id?: number; days?: number; case_type?: string }) =>
+  durationTrend: (params?: { project_id?: number; days?: number; case_type?: string; aggregate?: 'daily' | 'weekly' }) =>
     http.get<any, Array<{ date: string; avg_duration_ms: number; max_duration_ms: number; run_count: number }>>(
       '/statistics/duration-trend', { params },
     ),
@@ -787,9 +787,9 @@ export const statisticsApi = {
     http.get<any, StatisticsExecutorTopItem[]>('/statistics/executor-top', { params }),
   triggerTypeStats: (params?: { project_id?: number; days?: number }) =>
     http.get<any, StatisticsTriggerTypeStatItem[]>('/statistics/trigger-type-stats', { params }),
-  planTrend: (params?: { project_id?: number; days?: number }) =>
+  planTrend: (params?: { project_id?: number; days?: number; aggregate?: 'daily' | 'weekly' }) =>
     http.get<any, StatisticsAggregateTrendItem[]>('/statistics/plan-trend', { params }),
-  suiteTrend: (params?: { project_id?: number; days?: number }) =>
+  suiteTrend: (params?: { project_id?: number; days?: number; aggregate?: 'daily' | 'weekly' }) =>
     http.get<any, StatisticsAggregateTrendItem[]>('/statistics/suite-trend', { params }),
 }
 

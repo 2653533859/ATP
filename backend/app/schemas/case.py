@@ -122,6 +122,37 @@ class PaginatedSnapshotsOut(BaseModel):
     page_size: int
 
 
+class CaseSnapshotManualCreate(BaseModel):
+    """手动创建快照（不依赖编辑触发）。"""
+
+    remark: str | None = Field(default=None, description="可选备注，覆盖 snapshot_data.remark")
+
+
+class CaseSnapshotImport(BaseModel):
+    """从 JSON 导入快照内容（创建一个新版本，作为最高版本号）。"""
+
+    snapshot_data: dict
+    name: str | None = None
+    description: str | None = None
+    tags: list[str] = Field(default_factory=list)
+    config: dict = Field(default_factory=dict)
+
+
+class CaseCloneFromSnapshotRequest(BaseModel):
+    """从历史快照克隆为新用例（不影响原用例）。"""
+
+    module_id: int | None = Field(default=None, description="目标模块，默认沿用原用例")
+    name: str | None = Field(default=None, description="新用例名称，默认在原名后加副本标记")
+
+
+class CaseSnapshotDiffOut(BaseModel):
+    """两快照之间的字段级差异。"""
+
+    from_version: int
+    to_version: int
+    changes: dict
+
+
 class CaseWorkflowRequest(BaseModel):
     comment: str | None = None
 
@@ -145,6 +176,21 @@ class StepResultOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TestRunListItem(BaseModel):
+    id: int
+    case_id: int
+    triggered_by: int
+    trace_id: str | None = None
+    status: RunStatus
+    environment: str | None
+    duration_ms: int | None
+    error_message: str | None
+    result_summary: dict
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class TestRunOut(BaseModel):
     id: int
     case_id: int
@@ -162,10 +208,16 @@ class TestRunOut(BaseModel):
 
 
 class PaginatedRunsOut(BaseModel):
-    items: list[TestRunOut]
+    items: list[TestRunListItem]
     total: int
     page: int
     page_size: int
+
+
+class RunCursorPage(BaseModel):
+    items: list[TestRunListItem]
+    next_cursor: str | None = None
+    has_more: bool = False
 
 
 class CaseBatchDeleteIn(BaseModel):

@@ -419,3 +419,115 @@ def test_get_suite_trend_returns_cached_result(monkeypatch):
     assert result[0].date == "2026-03-21"
     assert result[0].rate == 100.0
     assert db.statements == []
+
+
+def test_stats_cache_ttl_is_five_minutes():
+    assert statistics._STATS_CACHE_TTL == 300
+
+
+def test_set_json_cache_called_exactly_once_per_request(monkeypatch):
+    """回归：去除函数体内冗余缓存逻辑后，单次请求只写一次 cache（装饰器内）。"""
+    set_calls = []
+    fixed_since = datetime(2026, 3, 1, tzinfo=timezone.utc)
+
+    async def fake_get(*_a, **_kw):
+        return None
+
+    async def fake_set(key, *_a, **_kw):
+        set_calls.append(key)
+
+    monkeypatch.setattr(statistics, "_since", lambda _: fixed_since)
+    monkeypatch.setattr(statistics, "get_json_cache", fake_get)
+    monkeypatch.setattr(statistics, "set_json_cache", fake_set)
+
+    db = _FakeDB(
+        results=[
+            _FakeExecuteResult(scalar_value=12),
+            _FakeExecuteResult(one_value=(8, 6)),
+            _FakeExecuteResult(scalar_value=3),
+        ]
+    )
+    asyncio.run(statistics.get_overview(project_id=None, days=30, db=db, _=None))
+
+    assert len(set_calls) == 1, f"Expected 1 cache write, got {len(set_calls)}: {set_calls}"
+
+
+def test_pass_rate_trend_weekly_uses_date_trunc(monkeypatch):
+    load_all_models()
+    fixed_since = datetime(2026, 3, 1, tzinfo=timezone.utc)
+
+    async def fake_get(*_a, **_kw):
+        return None
+
+    async def fake_set(*_a, **_kw):
+        return None
+
+    monkeypatch.setattr(statistics, "_since", lambda _: fixed_since)
+    monkeypatch.setattr(statistics, "get_json_cache", fake_get)
+    monkeypatch.setattr(statistics, "set_json_cache", fake_set)
+
+    db = _FakeDB(results=[_FakeExecuteResult.with_all([])])
+    asyncio.run(
+        statistics.get_pass_rate_trend(
+            project_id=None, days=180, case_type=None, aggregate="weekly", db=db, _=None
+        )
+    )
+    sql = str(db.statements[0]).lower()
+    assert "date_trunc" in sql
+
+
+def test_pass_rate_trend_daily_does_not_use_date_trunc(monkeypatch):
+    load_all_models()
+    fixed_since = datetime(2026, 3, 1, tzinfo=timezone.utc)
+
+    async def fake_get(*_a, **_kw):
+        return None
+
+    async def fake_set(*_a, **_kw):
+        return None
+
+    monkeypatch.setattr(statistics, "_since", lambda _: fixed_since)
+    monkeypatch.setattr(statistics, "get_json_cache", fake_get)
+    monkeypatch.setattr(statistics, "set_json_cache", fake_set)
+
+    db = _FakeDB(results=[_FakeExecuteResult.with_all([])])
+    asyncio.run(
+        statistics.get_pass_rate_trend(
+            project_id=None, days=30, case_type=None, aggregate="daily", db=db, _=None
+        )
+    )
+    sql = str(db.statements[0]).lower()
+    assert "date_trunc" not in sql
+
+
+def test_aggregate_in_cache_key_isolates_daily_and_weekly(monkeypatch):
+    """同一组 project/days/case_type 下，daily 与 weekly 应写到不同的 cache key。"""
+    writes = []
+
+    async def fake_get(*_a, **_kw):
+        return None
+
+    async def fake_set(key, *_a, **_kw):
+        writes.append(key)
+
+    fixed_since = datetime(2026, 3, 1, tzinfo=timezone.utc)
+    monkeypatch.setattr(statistics, "_since", lambda _: fixed_since)
+    monkeypatch.setattr(statistics, "get_json_cache", fake_get)
+    monkeypatch.setattr(statistics, "set_json_cache", fake_set)
+
+    db1 = _FakeDB(results=[_FakeExecuteResult.with_all([])])
+    db2 = _FakeDB(results=[_FakeExecuteResult.with_all([])])
+    asyncio.run(
+        statistics.get_pass_rate_trend(
+            project_id=1, days=30, case_type=None, aggregate="daily", db=db1, _=None
+        )
+    )
+    asyncio.run(
+        statistics.get_pass_rate_trend(
+            project_id=1, days=30, case_type=None, aggregate="weekly", db=db2, _=None
+        )
+    )
+    assert len(writes) == 2
+    assert writes[0] != writes[1]
+    assert "aggregate=daily" in writes[0]
+    assert "aggregate=weekly" in writes[1]

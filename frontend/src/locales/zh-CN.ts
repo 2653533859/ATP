@@ -89,6 +89,8 @@ export default {
     last_7_days: '近 7 天',
     last_30_days: '近 30 天',
     last_90_days: '近 90 天',
+    last_180_days: '近 180 天',
+    last_365_days: '近 365 天',
     filter_label: '当前筛选',
     filter_window: '近 {days} 天',
     total_cases: '总用例数',

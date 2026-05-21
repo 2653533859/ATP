@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy import select, func, case as sql_case, cast, Date
@@ -31,7 +32,7 @@ logger = logging.getLogger(__name__)
 _FINISHED = [RunStatus.passed, RunStatus.failed, RunStatus.error]
 _PLAN_FINISHED = [PlanRunStatus.passed, PlanRunStatus.failed, PlanRunStatus.error]
 _SUITE_FINISHED = [SuiteRunStatus.passed, SuiteRunStatus.failed, SuiteRunStatus.error]
-_STATS_CACHE_TTL = 180
+_STATS_CACHE_TTL = 300
 
 
 def _since(days: int) -> datetime:
@@ -68,17 +69,33 @@ def _deserialize_model_list(model_cls):
 
 async def _safe_get_stats_cache(key: str):
     try:
-        return await get_json_cache(key)
+        value = await get_json_cache(key)
+        result = "hit" if value is not None else "miss"
+        logger.debug("stats cache %s: %s", result, key)
+        try:
+            from app.core.metrics import STATS_CACHE
+
+            STATS_CACHE.labels(result=result).inc()
+        except Exception:
+            pass
+        return value
     except Exception:
-        logger.exception(f"Failed to read statistics cache: {key}")
+        logger.exception("Failed to read statistics cache: %s", key)
+        try:
+            from app.core.metrics import STATS_CACHE
+
+            STATS_CACHE.labels(result="error").inc()
+        except Exception:
+            pass
         return None
 
 
 async def _safe_set_stats_cache(key: str, value) -> None:
     try:
         await set_json_cache(key, value, _STATS_CACHE_TTL)
+        logger.debug("stats cache write: %s", key)
     except Exception:
-        logger.exception(f"Failed to write statistics cache: {key}")
+        logger.exception("Failed to write statistics cache: %s", key)
 
 
 async def invalidate_stats_cache() -> None:
@@ -88,8 +105,14 @@ async def invalidate_stats_cache() -> None:
         logger.exception("Failed to invalidate statistics cache")
 
 
+def _resolve_date_col(created_at_col, aggregate: str):
+    """daily → 按日 cast Date；weekly → 按周 date_trunc。返回值统一 label 为 'date'。"""
+    if aggregate == "weekly":
+        return func.date_trunc("week", created_at_col).label("date")
+    return cast(created_at_col, Date).label("date")
+
+
 def _apply_project_filter(stmt, project_id: int | None):
-    """按 project_id 过滤：TestRun → TestCase → Module → project_id（显式 JOIN）"""
     if project_id is not None:
         stmt = (
             stmt
@@ -101,7 +124,6 @@ def _apply_project_filter(stmt, project_id: int | None):
 
 
 def _apply_run_filters(stmt, project_id: int | None, case_type: CaseType | None):
-    """为基于 TestRun 的查询附加 project / case_type 过滤（显式 JOIN）"""
     if project_id is not None or case_type is not None:
         stmt = stmt.join(TestCase, TestRun.case_id == TestCase.id)
         if project_id is not None:
@@ -138,11 +160,6 @@ async def get_overview(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    cache_key = _cache_key("overview", project_id=project_id, days=days)
-    cached = await _safe_get_stats_cache(cache_key)
-    if cached is not None:
-        return OverviewOut(**cached)
-
     case_q = select(func.count(TestCase.id))
     if project_id is not None:
         case_q = (
@@ -171,20 +188,18 @@ async def get_overview(
     recent_q = _apply_project_filter(recent_q, project_id)
     recent_runs_7d = (await db.execute(recent_q)).scalar() or 0
 
-    result = {
-        "total_cases": total_cases,
-        "total_runs": total_runs,
-        "pass_rate": pass_rate,
-        "recent_runs_7d": recent_runs_7d,
-    }
-    await _safe_set_stats_cache(cache_key, result)
-    return OverviewOut(**result)
+    return OverviewOut(
+        total_cases=total_cases,
+        total_runs=total_runs,
+        pass_rate=pass_rate,
+        recent_runs_7d=recent_runs_7d,
+    )
 
 
 # ── 通过率趋势 ──────────────────────────────────────────
 @router.get("/statistics/pass-rate-trend", response_model=list[PassRateTrendItem])
 @cached_json(
-    key_builder=_build_stats_cache_key("pass-rate-trend", "project_id", "days", "case_type"),
+    key_builder=_build_stats_cache_key("pass-rate-trend", "project_id", "days", "case_type", "aggregate"),
     serializer=_serialize_model_list,
     deserializer=_deserialize_model_list(PassRateTrendItem),
     read_cache=_safe_get_stats_cache,
@@ -194,16 +209,12 @@ async def get_pass_rate_trend(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
     case_type: CaseType | None = Query(None),
+    aggregate: Literal["daily", "weekly"] = Query("daily"),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    cache_key = _cache_key("pass-rate-trend", project_id=project_id, days=days, case_type=case_type.value if case_type else None)
-    cached = await _safe_get_stats_cache(cache_key)
-    if cached is not None:
-        return [PassRateTrendItem(**item) for item in cached]
-
     since = _since(days)
-    date_col = cast(TestRun.created_at, Date).label("date")
+    date_col = _resolve_date_col(TestRun.created_at, aggregate)
 
     stmt = (
         select(
@@ -219,23 +230,21 @@ async def get_pass_rate_trend(
     stmt = _apply_run_filters(stmt, project_id, case_type)
 
     rows = (await db.execute(stmt)).all()
-    result = [
-        {
-            "date": str(r.date),
-            "total": r.total,
-            "passed": r.passed,
-            "rate": round(r.passed / r.total * 100, 1) if r.total else 0.0,
-        }
+    return [
+        PassRateTrendItem(
+            date=str(r.date)[:10],
+            total=r.total,
+            passed=r.passed,
+            rate=round(r.passed / r.total * 100, 1) if r.total else 0.0,
+        )
         for r in rows
     ]
-    await _safe_set_stats_cache(cache_key, result)
-    return [PassRateTrendItem(**item) for item in result]
 
 
 # ── 执行时长趋势 ────────────────────────────────────────
 @router.get("/statistics/duration-trend", response_model=list[DurationTrendItem])
 @cached_json(
-    key_builder=_build_stats_cache_key("duration-trend", "project_id", "days", "case_type"),
+    key_builder=_build_stats_cache_key("duration-trend", "project_id", "days", "case_type", "aggregate"),
     serializer=_serialize_model_list,
     deserializer=_deserialize_model_list(DurationTrendItem),
     read_cache=_safe_get_stats_cache,
@@ -245,16 +254,12 @@ async def get_duration_trend(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
     case_type: CaseType | None = Query(None),
+    aggregate: Literal["daily", "weekly"] = Query("daily"),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    cache_key = _cache_key("duration-trend", project_id=project_id, days=days, case_type=case_type.value if case_type else None)
-    cached = await _safe_get_stats_cache(cache_key)
-    if cached is not None:
-        return [DurationTrendItem(**item) for item in cached]
-
     since = _since(days)
-    date_col = cast(TestRun.created_at, Date).label("date")
+    date_col = _resolve_date_col(TestRun.created_at, aggregate)
 
     stmt = (
         select(
@@ -275,17 +280,15 @@ async def get_duration_trend(
     stmt = _apply_run_filters(stmt, project_id, case_type)
 
     rows = (await db.execute(stmt)).all()
-    result = [
-        {
-            "date": str(r.date),
-            "avg_duration_ms": round(float(r.avg_ms), 0),
-            "max_duration_ms": int(r.max_ms),
-            "run_count": r.cnt,
-        }
+    return [
+        DurationTrendItem(
+            date=str(r.date)[:10],
+            avg_duration_ms=round(float(r.avg_ms), 0),
+            max_duration_ms=int(r.max_ms),
+            run_count=r.cnt,
+        )
         for r in rows
     ]
-    await _safe_set_stats_cache(cache_key, result)
-    return [DurationTrendItem(**item) for item in result]
 
 
 # ── 失败 Top N ──────────────────────────────────────────
@@ -305,11 +308,6 @@ async def get_failure_top(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    cache_key = _cache_key("failure-top", project_id=project_id, days=days, top=top, case_type=case_type.value if case_type else None)
-    cached = await _safe_get_stats_cache(cache_key)
-    if cached is not None:
-        return [FailureTopItem(**item) for item in cached]
-
     since = _since(days)
     fail_count = func.count(TestRun.id).label("failure_count")
 
@@ -339,19 +337,17 @@ async def get_failure_top(
         stmt = stmt.where(TestCase.case_type == case_type)
 
     rows = (await db.execute(stmt)).all()
-    result = [
-        {
-            "case_id": r.case_id,
-            "project_id": r.project_id,
-            "module_id": r.module_id,
-            "case_name": r.case_name,
-            "case_type": r.case_type.value if hasattr(r.case_type, "value") else str(r.case_type),
-            "failure_count": r.failure_count,
-        }
+    return [
+        FailureTopItem(
+            case_id=r.case_id,
+            project_id=r.project_id,
+            module_id=r.module_id,
+            case_name=r.case_name,
+            case_type=r.case_type.value if hasattr(r.case_type, "value") else str(r.case_type),
+            failure_count=r.failure_count,
+        )
         for r in rows
     ]
-    await _safe_set_stats_cache(cache_key, result)
-    return [FailureTopItem(**item) for item in result]
 
 
 @router.get("/statistics/executor-top", response_model=list[ExecutorTopItem])
@@ -370,11 +366,6 @@ async def get_executor_top(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    cache_key = _cache_key("executor-top", project_id=project_id, days=days, top=top, case_type=case_type.value if case_type else None)
-    cached = await _safe_get_stats_cache(cache_key)
-    if cached is not None:
-        return [ExecutorTopItem(**item) for item in cached]
-
     since = _since(days)
     run_count = func.count(TestRun.id).label("run_count")
     stmt = (
@@ -392,16 +383,14 @@ async def get_executor_top(
     stmt = _apply_run_filters(stmt, project_id, case_type)
 
     rows = (await db.execute(stmt)).all()
-    result = [
-        {
-            "user_id": r.user_id,
-            "username": r.username,
-            "run_count": r.run_count,
-        }
+    return [
+        ExecutorTopItem(
+            user_id=r.user_id,
+            username=r.username,
+            run_count=r.run_count,
+        )
         for r in rows
     ]
-    await _safe_set_stats_cache(cache_key, result)
-    return [ExecutorTopItem(**item) for item in result]
 
 
 @router.get("/statistics/trigger-type-stats", response_model=list[TriggerTypeStatItem])
@@ -418,11 +407,6 @@ async def get_trigger_type_stats(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    cache_key = _cache_key("trigger-type-stats", project_id=project_id, days=days)
-    cached = await _safe_get_stats_cache(cache_key)
-    if cached is not None:
-        return [TriggerTypeStatItem(**item) for item in cached]
-
     since = _since(days)
     stmt = (
         select(
@@ -436,20 +420,18 @@ async def get_trigger_type_stats(
     stmt = _apply_plan_run_project_filter(stmt, project_id)
 
     rows = (await db.execute(stmt)).all()
-    result = [
-        {
-            "trigger_type": r.trigger_type.value if hasattr(r.trigger_type, "value") else str(r.trigger_type),
-            "count": r.count,
-        }
+    return [
+        TriggerTypeStatItem(
+            trigger_type=r.trigger_type.value if hasattr(r.trigger_type, "value") else str(r.trigger_type),
+            count=r.count,
+        )
         for r in rows
     ]
-    await _safe_set_stats_cache(cache_key, result)
-    return [TriggerTypeStatItem(**item) for item in result]
 
 
 @router.get("/statistics/plan-trend", response_model=list[AggregateTrendItem])
 @cached_json(
-    key_builder=_build_stats_cache_key("plan-trend", "project_id", "days"),
+    key_builder=_build_stats_cache_key("plan-trend", "project_id", "days", "aggregate"),
     serializer=_serialize_model_list,
     deserializer=_deserialize_model_list(AggregateTrendItem),
     read_cache=_safe_get_stats_cache,
@@ -458,16 +440,12 @@ async def get_trigger_type_stats(
 async def get_plan_trend(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
+    aggregate: Literal["daily", "weekly"] = Query("daily"),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    cache_key = _cache_key("plan-trend", project_id=project_id, days=days)
-    cached = await _safe_get_stats_cache(cache_key)
-    if cached is not None:
-        return [AggregateTrendItem(**item) for item in cached]
-
     since = _since(days)
-    date_col = cast(PlanRun.created_at, Date).label("date")
+    date_col = _resolve_date_col(PlanRun.created_at, aggregate)
     stmt = (
         select(
             date_col,
@@ -481,22 +459,20 @@ async def get_plan_trend(
     stmt = _apply_plan_run_project_filter(stmt, project_id)
 
     rows = (await db.execute(stmt)).all()
-    result = [
-        {
-            "date": str(r.date),
-            "total": r.total,
-            "passed": r.passed or 0,
-            "rate": round((r.passed or 0) / r.total * 100, 1) if r.total else 0.0,
-        }
+    return [
+        AggregateTrendItem(
+            date=str(r.date)[:10],
+            total=r.total,
+            passed=r.passed or 0,
+            rate=round((r.passed or 0) / r.total * 100, 1) if r.total else 0.0,
+        )
         for r in rows
     ]
-    await _safe_set_stats_cache(cache_key, result)
-    return [AggregateTrendItem(**item) for item in result]
 
 
 @router.get("/statistics/suite-trend", response_model=list[AggregateTrendItem])
 @cached_json(
-    key_builder=_build_stats_cache_key("suite-trend", "project_id", "days"),
+    key_builder=_build_stats_cache_key("suite-trend", "project_id", "days", "aggregate"),
     serializer=_serialize_model_list,
     deserializer=_deserialize_model_list(AggregateTrendItem),
     read_cache=_safe_get_stats_cache,
@@ -505,16 +481,12 @@ async def get_plan_trend(
 async def get_suite_trend(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
+    aggregate: Literal["daily", "weekly"] = Query("daily"),
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    cache_key = _cache_key("suite-trend", project_id=project_id, days=days)
-    cached = await _safe_get_stats_cache(cache_key)
-    if cached is not None:
-        return [AggregateTrendItem(**item) for item in cached]
-
     since = _since(days)
-    date_col = cast(SuiteRun.created_at, Date).label("date")
+    date_col = _resolve_date_col(SuiteRun.created_at, aggregate)
     stmt = (
         select(
             date_col,
@@ -528,14 +500,12 @@ async def get_suite_trend(
     stmt = _apply_suite_run_project_filter(stmt, project_id)
 
     rows = (await db.execute(stmt)).all()
-    result = [
-        {
-            "date": str(r.date),
-            "total": r.total,
-            "passed": r.passed or 0,
-            "rate": round((r.passed or 0) / r.total * 100, 1) if r.total else 0.0,
-        }
+    return [
+        AggregateTrendItem(
+            date=str(r.date)[:10],
+            total=r.total,
+            passed=r.passed or 0,
+            rate=round((r.passed or 0) / r.total * 100, 1) if r.total else 0.0,
+        )
         for r in rows
     ]
-    await _safe_set_stats_cache(cache_key, result)
-    return [AggregateTrendItem(**item) for item in result]
