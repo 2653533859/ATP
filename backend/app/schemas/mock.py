@@ -90,3 +90,30 @@ class MockRulesImportRequest(BaseModel):
 class MockRulesExportOut(BaseModel):
     project_id: int
     rules: list[MockRuleOut]
+
+
+class MockRuleSnapshotOut(BaseModel):
+    id: int
+    rule_id: int
+    version: int
+    snapshot_data: dict
+    note: str | None
+    changed_by: int
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class PaginatedMockSnapshotsOut(BaseModel):
+    items: list[MockRuleSnapshotOut]
+    total: int
+    page: int
+    page_size: int
+
+
+class MockRulePromoteSampleRequest(BaseModel):
+    """录制样本转为新规则。"""
+
+    sample_index: int = Field(..., ge=0, description="recorded_samples 中样本的下标")
+    name: str | None = Field(default=None, description="新规则名，默认沿用原规则名 + (recorded)")
+    enable: bool = Field(default=True, description="新规则是否启用")

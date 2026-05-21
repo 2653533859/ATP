@@ -9,6 +9,7 @@ def load_all_models() -> None:
     from app.models.suite import TestSuite, SuiteRun
     from app.models.notification import NotificationConfig
     from app.models.mock import MockRule
+    from app.models.mock_snapshot import MockRuleSnapshot
     from app.models.bug_tracker import BugTracker
     from app.models.audit import AuditLog
     from app.models.plan import TestPlan, PlanRun
@@ -41,6 +42,7 @@ def load_all_models() -> None:
         SuiteRun,
         NotificationConfig,
         MockRule,
+        MockRuleSnapshot,
         BugTracker,
         AuditLog,
         TestPlan,
