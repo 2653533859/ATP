@@ -132,6 +132,9 @@ class StepResult(Base, TimestampMixin):
     healing_suggestion: Mapped[str | None] = mapped_column(Text)
     healing_status: Mapped[str | None] = mapped_column(String(16))  # pending/done/failed/skipped
     healing_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    # iter3 用户反馈采纳/拒绝
+    healing_feedback: Mapped[str | None] = mapped_column(String(16))  # adopted/rejected
+    healing_feedback_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
     run: Mapped["TestRun"] = relationship(back_populates="steps")
 

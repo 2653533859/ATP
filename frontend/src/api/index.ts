@@ -534,10 +534,13 @@ export interface RunStepItem {
   response_data: Record<string, unknown> | null
   error_message: string | null
   screenshot_url: string | null
+  id?: number  // iter3 反馈端点需要 step_id
   healing_suggestion?: string | null
   healing_status?: string | null
   healing_at?: string | null
   healing_cache_hit?: boolean  // 仅运行时由 WS healing_suggestion 消息附带，不持久化
+  healing_feedback?: 'adopted' | 'rejected' | null
+  healing_feedback_at?: string | null
 }
 
 export interface RunDetailItem {
@@ -644,6 +647,8 @@ export const runApi = {
     http.get<any, Blob>(`/runs/${id}/export/html`, { responseType: 'blob' }),
   exportPdf: (id: number) =>
     http.get<any, Blob>(`/runs/${id}/export/pdf`, { responseType: 'blob' }),
+  submitHealingFeedback: (runId: number, stepId: number, action: 'adopted' | 'rejected') =>
+    http.post<any, void>(`/runs/${runId}/steps/${stepId}/healing/feedback`, { action }),
 }
 
 export const scriptApi = {

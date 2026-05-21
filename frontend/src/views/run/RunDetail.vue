@@ -231,6 +231,37 @@
                   v-else-if="step.healing_status === 'done' && step.healing_suggestion"
                   class="healing-text"
                 >{{ step.healing_suggestion }}</pre>
+                <!-- iter3 反馈按钮：仅 done 态显示 -->
+                <div
+                  v-if="step.healing_status === 'done' && step.healing_suggestion"
+                  class="healing-feedback-row"
+                >
+                  <template v-if="step.healing_feedback">
+                    <a-tag :color="step.healing_feedback === 'adopted' ? 'green' : 'red'">
+                      {{ step.healing_feedback === 'adopted'
+                        ? t('run.healing.feedback_adopted')
+                        : t('run.healing.feedback_rejected') }}
+                    </a-tag>
+                    <span class="feedback-thanks">{{ t('run.healing.feedback_thanks') }}</span>
+                  </template>
+                  <template v-else>
+                    <a-button
+                      size="small"
+                      type="primary"
+                      ghost
+                      @click="onHealingFeedback(step, 'adopted')"
+                    >
+                      ✓ {{ t('run.healing.adopt') }}
+                    </a-button>
+                    <a-button
+                      size="small"
+                      danger
+                      @click="onHealingFeedback(step, 'rejected')"
+                    >
+                      ✗ {{ t('run.healing.reject') }}
+                    </a-button>
+                  </template>
+                </div>
                 <a-empty
                   v-else-if="step.healing_status === 'failed'"
                   :description="t('run.healing.failed_fallback')"
@@ -399,6 +430,24 @@ function healingStatusLabel(status?: string | null) {
   if (!status) return ''
   const key = `run.healing.status_${status}`
   return t(key)
+}
+
+async function onHealingFeedback(step: RunStepItem, action: 'adopted' | 'rejected') {
+  if (!run.value || step.id == null) return
+  try {
+    await runApi.submitHealingFeedback(run.value.id, step.id, action)
+    const idx = steps.value.findIndex(s => s.step_index === step.step_index)
+    if (idx >= 0) {
+      steps.value[idx] = {
+        ...steps.value[idx],
+        healing_feedback: action,
+        healing_feedback_at: new Date().toISOString(),
+      }
+    }
+    message.success(t('run.healing.feedback_thanks'))
+  } catch {
+    // axios 拦截器已弹出错误
+  }
 }
 
 function formatJson(data: Record<string, unknown> | null | undefined) {
@@ -885,5 +934,21 @@ onUnmounted(() => {
   word-break: break-word;
   font-size: 13px;
   line-height: 1.6;
+}
+
+.healing-feedback-row {
+  margin-top: 8px;
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.feedback-thanks {
+  color: #999;
+  font-size: 12px;
+}
+
+.run-healing-card {
+  margin: 12px 0;
 }
 </style>

@@ -135,7 +135,7 @@ Q4 完成了"性能/运维下沉 + 长期收口"。Q5 定位为 **预留清账 +
 
 ### 里程碑
 
-- [~] P3.A AI 用例自愈（MVP 落地 2026-05-21：StepResult 加 3 字段 + alembic 0024；`app/services/ai_healing.py` 提供 `apply_healing_hook` 同步决策 + `run_diagnosis` 异步主体；`app/worker/tasks_healing.py` Celery 入口；3 个 executor 失败分支接入；前端 RunDetail 加诊断面板 + WS `healing_suggestion` 消息处理 + zh/en i18n；配置项 `AI_HEALING_ENABLED` 默认 off。二迭代 2026-05-21：错误特征缓存 `AI_HEALING_CACHE_TTL_SECONDS=3600` + 每日上限 `AI_HEALING_DAILY_LIMIT=100`；前端 cache_hit tag + daily_limit_reached 文案。下一迭代：多 step 关联综合分析 / 用户反馈采纳）
+- [x] P3.A AI 用例自愈（三迭代全收口 2026-05-21：MVP（StepResult 3 字段 + alembic 0024 + ai_healing service + Celery task + 3 executor 接入 + 前端面板 + WS 推送）+ iter2（错误特征缓存 + 日上限计数 + 前端 cache_hit tag）+ iter3（多 step 综合诊断：apply_run_healing_hook + run_diagnosis_for_run + 顶部综合卡片；用户反馈：alembic 0025 + StepResult 加 healing_feedback / 时间戳 + POST /runs/{id}/steps/{id}/healing/feedback + 前端采纳/拒绝按钮）。配置项：AI_HEALING_ENABLED / TIMEOUT / DAILY_LIMIT / CACHE_TTL_SECONDS 全部默认安全值。下一阶段建议：用户反馈数据回流 prompt 调优、多模态截图引入）
 - [ ] P3.B 测试数据管理
 - [ ] P3.C 多租户隔离
 
@@ -174,4 +174,4 @@ Phase 3 (4-6 周)
 
 - Phase 1：已完成（P1.1/P1.2/P1.3/P1.4 全部收口 2026-05-21；P1.4 MVP 保留 per-project 真实清理为下迭代）
 - Phase 2：进行中（P2.1/P2.2 合并收口 2026-05-21；`tests/` 全套 461 个全绿，无 ignore 项；P2.3 / P2.4 MVP 均 2026-05-21 落地）
-- Phase 3：进行中（P3.A MVP + 二迭代降本（缓存/日上限）2026-05-21 落地，461 单元测试全绿；P3.B/P3.C 未开始）
+- Phase 3：进行中（P3.A 三迭代全收口 2026-05-21，471 单元测试全绿；P3.B/P3.C 未开始）

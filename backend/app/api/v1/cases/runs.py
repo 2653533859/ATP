@@ -19,6 +19,7 @@ from app.models.case import RunStatus, TestCase, TestRun
 from app.models.environment import Environment, EnvVariable
 from app.models.user import User
 from app.schemas.case import (
+    HealingFeedbackRequest,
     PaginatedRunsOut,
     RunCursorPage,
     RunTriggerRequest,
@@ -131,3 +132,37 @@ async def get_run(run_id: int, db: AsyncSession = Depends(get_db), _=Depends(get
     if not run:
         raise HTTPException(status_code=404, detail="执行记录不存在")
     return run
+
+
+@router.post(
+    "/runs/{run_id}/steps/{step_id}/healing/feedback",
+    status_code=status.HTTP_204_NO_CONTENT,
+)
+async def submit_healing_feedback(
+    run_id: int,
+    step_id: int,
+    body: HealingFeedbackRequest,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """对单 step 的 AI 诊断建议给采纳/拒绝反馈（iter3）。
+
+    幂等：重复提交覆盖上一次值；要求 step 的 healing_status=done 才允许反馈。
+    """
+    from datetime import datetime, timezone
+
+    from app.models.case import StepResult
+
+    result = await db.execute(
+        select(StepResult).where(StepResult.id == step_id, StepResult.run_id == run_id)
+    )
+    step = result.scalar_one_or_none()
+    if step is None:
+        raise HTTPException(status_code=404, detail="step 不存在或不属于该 run")
+    if step.healing_status != "done":
+        raise HTTPException(status_code=400, detail="仅 healing_status=done 的 step 可反馈")
+
+    step.healing_feedback = body.action
+    step.healing_feedback_at = datetime.now(timezone.utc)
+    await db.commit()
+    return None

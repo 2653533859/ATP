@@ -175,8 +175,16 @@ class StepResultOut(BaseModel):
     healing_suggestion: str | None = None
     healing_status: str | None = None
     healing_at: datetime | None = None
+    healing_feedback: str | None = None
+    healing_feedback_at: datetime | None = None
 
     model_config = {"from_attributes": True}
+
+
+class HealingFeedbackRequest(BaseModel):
+    """对 done 态的 step 诊断建议给反馈。"""
+
+    action: Literal["adopted", "rejected"]
 
 
 class TestRunListItem(BaseModel):
