@@ -13,6 +13,9 @@ frontend/dist/
 .env.windows-wsl-backup
 frontend/preview*.log
 frontend/dist-check/
+frontend/playwright-report/
+frontend/test-results/
+frontend/.playwright-mcp/
 *.bak
 
 .DS_Store
