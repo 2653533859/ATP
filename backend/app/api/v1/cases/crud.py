@@ -130,6 +130,7 @@ async def update_case(
 ):
     case = await _cases._get_case_detail_or_404(db, case_id)
     db.add(_cases._build_snapshot(case, await _cases._next_snapshot_version(db, case_id), current_user.id))
+    await _cases._enforce_snapshot_retention(db, case_id)
 
     payload = body.model_dump(exclude_none=True)
     if "name" in payload:

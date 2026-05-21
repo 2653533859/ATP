@@ -220,6 +220,40 @@ async def _next_snapshot_version(db: AsyncSession, case_id: int) -> int:
     return (max_ver or 0) + 1
 
 
+async def _enforce_snapshot_retention(db: AsyncSession, case_id: int, max_count: int | None = None) -> int:
+    """删除超过保留数的最旧快照，返回被删除的数量。max_count <= 0 表示不限制。"""
+    from app.core.config import settings
+
+    cap = max_count if max_count is not None else settings.CASE_SNAPSHOT_MAX_PER_CASE
+    if cap <= 0:
+        return 0
+    if not hasattr(db, "scalar") or not hasattr(db, "execute"):
+        return 0
+    total = await db.scalar(
+        select(func.count(CaseSnapshot.id)).where(CaseSnapshot.case_id == case_id)
+    )
+    total = int(total or 0)
+    if total <= cap:
+        return 0
+    excess = total - cap
+    old_ids = (
+        await db.execute(
+            select(CaseSnapshot.id)
+            .where(CaseSnapshot.case_id == case_id)
+            .order_by(CaseSnapshot.version.asc())
+            .limit(excess)
+        )
+    ).scalars().all()
+    if not old_ids:
+        return 0
+    for sid in old_ids:
+        snap = await db.get(CaseSnapshot, sid)
+        if snap:
+            await db.delete(snap)
+    await db.flush()
+    return len(old_ids)
+
+
 async def _get_case_detail_or_404(db: AsyncSession, case_id: int) -> TestCase:
     result = await db.execute(
         select(TestCase)

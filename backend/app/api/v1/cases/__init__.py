@@ -45,6 +45,7 @@ from .common import (
     _assert_can_trigger_run,
     _build_snapshot,
     _derive_steps_from_config,
+    _enforce_snapshot_retention,
     _generate_case_code,
     _get_case_detail_or_404,
     _get_module_for_case_code,
@@ -89,8 +90,13 @@ from .batch import (
 )
 from .workflow import (
     approve_case,
+    clone_case_from_snapshot,
+    create_snapshot_manual,
     deprecate_case,
+    diff_snapshots,
+    export_snapshot,
     get_snapshot,
+    import_snapshot,
     list_snapshots,
     reactivate_case,
     reject_case,

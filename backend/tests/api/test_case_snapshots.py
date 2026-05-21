@@ -139,6 +139,11 @@ def test_update_case_snapshot_contains_standardized_payload(monkeypatch):
     monkeypatch.setattr(cases, "_get_case_detail_or_404", fake_detail_loader)
     monkeypatch.setattr(cases, "_next_snapshot_version", fake_next_snapshot_version)
 
+    async def _noop_retention(_db, _cid, max_count=None):
+        return 0
+
+    monkeypatch.setattr(cases, "_enforce_snapshot_retention", _noop_retention)
+
     result = asyncio.run(
         cases.update_case(
             case_id=5,
@@ -202,6 +207,11 @@ def test_rollback_case_restores_standardized_fields_and_steps(monkeypatch):
 
     monkeypatch.setattr(cases, "_get_case_detail_or_404", fake_detail_loader)
     monkeypatch.setattr(cases, "_next_snapshot_version", fake_next_snapshot_version)
+
+    async def _noop_retention(_db, _cid, max_count=None):
+        return 0
+
+    monkeypatch.setattr(cases, "_enforce_snapshot_retention", _noop_retention)
     result = asyncio.run(
         cases.rollback_case(
             case_id=5,
