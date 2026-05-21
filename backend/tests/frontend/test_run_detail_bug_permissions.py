@@ -1,8 +1,8 @@
-from pathlib import Path
+from tests._paths import repo_path
 
 
 def test_run_detail_gates_create_bug_action_by_role():
-    content = Path("frontend/src/views/run/RunDetail.vue").read_text(encoding="utf-8")
+    content = repo_path("frontend/src/views/run/RunDetail.vue").read_text(encoding="utf-8")
 
     assert "useAuthStore" in content
     assert "const canCreateBug = computed(" in content
