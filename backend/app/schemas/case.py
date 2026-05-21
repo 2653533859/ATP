@@ -172,6 +172,9 @@ class StepResultOut(BaseModel):
     response_data: dict | None
     screenshot_url: str | None
     error_message: str | None
+    healing_suggestion: str | None = None
+    healing_status: str | None = None
+    healing_at: datetime | None = None
 
     model_config = {"from_attributes": True}
 

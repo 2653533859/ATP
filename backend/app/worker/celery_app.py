@@ -20,6 +20,7 @@ celery_app = Celery(
         "app.worker.tasks_cleanup",
         "app.worker.tasks_mobile_special",
         "app.worker.tasks_db_backup",
+        "app.worker.tasks_healing",
     ],
 )
 

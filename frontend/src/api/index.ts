@@ -534,6 +534,9 @@ export interface RunStepItem {
   response_data: Record<string, unknown> | null
   error_message: string | null
   screenshot_url: string | null
+  healing_suggestion?: string | null
+  healing_status?: string | null
+  healing_at?: string | null
 }
 
 export interface RunDetailItem {

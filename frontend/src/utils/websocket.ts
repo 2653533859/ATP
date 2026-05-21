@@ -3,7 +3,7 @@
  * 自动处理重连（最多 3 次）、消息解析
  */
 export type WsMessage = {
-  type: 'run_status' | 'step_result' | 'completed'
+  type: 'run_status' | 'step_result' | 'completed' | 'healing_suggestion'
   run_id: number
   status?: string
   duration_ms?: number
@@ -17,7 +17,14 @@ export type WsMessage = {
     response_data: Record<string, any> | null
     error_message: string | null
     screenshot_url: string | null
+    healing_suggestion?: string | null
+    healing_status?: string | null
+    healing_at?: string | null
   }
+  // healing_suggestion 消息专用字段
+  step_id?: number
+  step_index?: number
+  suggestion?: string | null
 }
 
 type MessageHandler = (msg: WsMessage) => void

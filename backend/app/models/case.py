@@ -128,6 +128,11 @@ class StepResult(Base, TimestampMixin):
     screenshot_url: Mapped[str | None] = mapped_column(String(512))
     error_message: Mapped[str | None] = mapped_column(Text)
 
+    # P3.A AI 自愈：异步诊断结果（项目未配 ai_llm_config 或 AI_HEALING_ENABLED=False 时全空）
+    healing_suggestion: Mapped[str | None] = mapped_column(Text)
+    healing_status: Mapped[str | None] = mapped_column(String(16))  # pending/done/failed/skipped
+    healing_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
     run: Mapped["TestRun"] = relationship(back_populates="steps")
 
 

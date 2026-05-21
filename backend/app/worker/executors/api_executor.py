@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.otel import get_tracer
 from app.models.case import TestRun, TestCase, StepResult, RunStatus
 from app.core.redis_client import publish_run_event
+from app.services.ai_healing import apply_healing_hook, enqueue_diagnosis
 
 _tracer = get_tracer("atp.executor.api")
 
@@ -128,7 +129,10 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
             step_result.request_data = request_data
             step_result.response_data = response_data
             step_result.error_message = error_msg
+            needs_healing = apply_healing_hook(step_result)
             await db.commit()
+            if needs_healing:
+                enqueue_diagnosis(step_result.id)
 
             step_span.set_attribute("step.status", step_status.value)
             step_span.set_attribute("step.duration_ms", step_result.duration_ms)

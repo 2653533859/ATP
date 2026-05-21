@@ -25,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.minio_client import download_file, upload_file, presigned_url
 from app.core.redis_client import publish_run_event
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
+from app.services.ai_healing import apply_healing_hook, enqueue_diagnosis
 
 logger = logging.getLogger(__name__)
 
@@ -241,8 +242,11 @@ def browser_context_args(browser_context_args):
                 screenshot_url=screenshot_url,
                 response_data={"stdout": proc.stdout[-2000:] if proc.stdout else None},
             )
+            needs_healing = apply_healing_hook(step_result)
             db.add(step_result)
             await db.commit()
+            if needs_healing:
+                enqueue_diagnosis(step_result.id)
 
             await _safe_publish(run.id, {
                 "type": "step_result", "run_id": run.id,

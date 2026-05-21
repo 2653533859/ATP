@@ -95,6 +95,10 @@ class Settings(BaseSettings):
     DB_BACKUP_RETAIN_WEEKLY: int = 4  # 周备保留份数
     DB_BACKUP_PREFIX: str = "pg-backups"  # MinIO 对象前缀
 
+    # P3.A AI 用例自愈：失败 step 异步诊断（依赖项目 ai_llm_config 已配置）
+    AI_HEALING_ENABLED: bool = False  # 默认关闭，启用后失败 step 自动入队 LLM 诊断
+    AI_HEALING_TIMEOUT_SECONDS: int = 60  # LLM 调用超时，避免诊断任务长时间挂起
+
     # OpenTelemetry / Jaeger
     # OTEL_EXPORTER_OTLP_ENDPOINT 留空时跳过 OTel 初始化（向后兼容纯 trace_id 模式）
     OTEL_EXPORTER_OTLP_ENDPOINT: str = ""

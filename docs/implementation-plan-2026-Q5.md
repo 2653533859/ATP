@@ -135,7 +135,7 @@ Q4 完成了"性能/运维下沉 + 长期收口"。Q5 定位为 **预留清账 +
 
 ### 里程碑
 
-- [ ] P3.A AI 用例自愈
+- [~] P3.A AI 用例自愈（MVP 落地 2026-05-21：StepResult 加 3 字段 + alembic 0024；`app/services/ai_healing.py` 提供 `apply_healing_hook` 同步决策 + `run_diagnosis` 异步主体；`app/worker/tasks_healing.py` Celery 入口；3 个 executor 失败分支接入；前端 RunDetail 加诊断面板 + WS `healing_suggestion` 消息处理 + zh/en i18n；配置项 `AI_HEALING_ENABLED` 默认 off。下一迭代：缓存/限流/多 step 关联/用户反馈采纳）
 - [ ] P3.B 测试数据管理
 - [ ] P3.C 多租户隔离
 
@@ -174,4 +174,4 @@ Phase 3 (4-6 周)
 
 - Phase 1：已完成（P1.1/P1.2/P1.3/P1.4 全部收口 2026-05-21；P1.4 MVP 保留 per-project 真实清理为下迭代）
 - Phase 2：进行中（P2.1/P2.2 合并收口 2026-05-21；`tests/` 全套 446 个全绿，无 ignore 项；P2.3 MVP 落地 2026-05-21，P2.4 待启动）
-- Phase 3：未开始
+- Phase 3：进行中（P3.A MVP 落地 2026-05-21，455 单元测试全绿；P3.B/P3.C 未开始）

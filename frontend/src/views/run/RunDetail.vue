@@ -162,6 +162,44 @@
               </template>
             </a-alert>
 
+            <!-- AI 诊断建议（P3.A）-->
+            <a-collapse
+              v-if="step.healing_status"
+              class="healing-panel"
+              ghost
+              :bordered="false"
+              style="margin-bottom: 12px"
+            >
+              <a-collapse-panel :key="`healing-${step.step_index}`">
+                <template #header>
+                  <span class="healing-title">
+                    <BulbOutlined />
+                    <span style="margin-left: 6px">{{ t('run.healing.title') }}</span>
+                    <a-tag :color="healingTagColor(step.healing_status)" style="margin-left: 8px">
+                      {{ healingStatusLabel(step.healing_status) }}
+                    </a-tag>
+                  </span>
+                </template>
+                <div v-if="step.healing_status === 'pending'" class="healing-body healing-pending">
+                  <LoadingOutlined /> <span style="margin-left: 6px">{{ t('run.healing.diagnosing') }}</span>
+                </div>
+                <pre
+                  v-else-if="step.healing_status === 'done' && step.healing_suggestion"
+                  class="healing-text"
+                >{{ step.healing_suggestion }}</pre>
+                <a-empty
+                  v-else-if="step.healing_status === 'failed'"
+                  :description="t('run.healing.failed_fallback')"
+                  :image="Empty.PRESENTED_IMAGE_SIMPLE"
+                />
+                <a-empty
+                  v-else-if="step.healing_status === 'skipped'"
+                  :description="t('run.healing.skipped_no_config')"
+                  :image="Empty.PRESENTED_IMAGE_SIMPLE"
+                />
+              </a-collapse-panel>
+            </a-collapse>
+
             <!-- 截图展示 -->
             <div v-if="step.screenshot_url" class="screenshot-section">
               <div class="panel-label">
@@ -246,7 +284,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
-import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined } from '@ant-design/icons-vue'
+import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { runApi, bugTrackerApi, tracingApi, type BugLinkInfo, type BugTrackerItem, type RunDetailItem, type RunStepItem } from '@/api'
 import { useAuthStore } from '@/stores/auth'
@@ -303,6 +341,18 @@ function statusColor(status: string) {
   return (
     { passed: 'green', failed: 'red', running: 'blue', error: 'orange', pending: 'default' }[status] ?? 'default'
   )
+}
+
+function healingTagColor(status?: string | null) {
+  return (
+    { pending: 'blue', done: 'green', failed: 'red', skipped: 'default' }[status ?? ''] ?? 'default'
+  )
+}
+
+function healingStatusLabel(status?: string | null) {
+  if (!status) return ''
+  const key = `run.healing.status_${status}`
+  return t(key)
 }
 
 function formatJson(data: Record<string, unknown> | null | undefined) {
@@ -525,6 +575,18 @@ function applyWsMessage(msg: WsMessage) {
     return
   }
 
+  if (msg.type === 'healing_suggestion' && msg.step_index != null) {
+    const idx = steps.value.findIndex(s => s.step_index === msg.step_index)
+    if (idx >= 0) {
+      steps.value[idx] = {
+        ...steps.value[idx],
+        healing_status: msg.status,
+        healing_suggestion: msg.suggestion ?? null,
+      }
+    }
+    return
+  }
+
   if (msg.type === 'completed') {
     if (run.value) {
       if (msg.status) run.value.status = msg.status
@@ -715,5 +777,33 @@ onUnmounted(() => {
   max-height: 200px;
   overflow-y: auto;
   margin: 0;
+}
+
+.healing-panel :deep(.ant-collapse-header) {
+  padding: 6px 0 !important;
+  font-size: 13px;
+}
+
+.healing-title {
+  display: inline-flex;
+  align-items: center;
+  color: #1677ff;
+  font-weight: 500;
+}
+
+.healing-pending {
+  color: #1677ff;
+  font-size: 13px;
+}
+
+.healing-text {
+  margin: 0;
+  padding: 8px 12px;
+  background: #f6f8fa;
+  border-left: 3px solid #1677ff;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.6;
 }
 </style>

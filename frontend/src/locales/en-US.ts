@@ -654,6 +654,16 @@ export default {
       error: '{count} error',
       skipped: '{count} skipped',
     },
+    healing: {
+      title: 'AI diagnosis',
+      diagnosing: 'Calling LLM to analyse failure…',
+      failed_fallback: 'LLM call failed. Check logs or retry later.',
+      skipped_no_config: 'No AI LLM configured for this project, or AI healing disabled.',
+      status_pending: 'Diagnosing',
+      status_done: 'Done',
+      status_failed: 'Failed',
+      status_skipped: 'Skipped',
+    },
     bug: {
       tracker: 'Bug tracker',
       related_step: 'Related step (optional)',

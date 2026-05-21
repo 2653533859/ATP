@@ -654,6 +654,16 @@ export default {
       error: '{count} 异常',
       skipped: '{count} 跳过',
     },
+    healing: {
+      title: 'AI 诊断建议',
+      diagnosing: '正在调用 LLM 分析失败原因…',
+      failed_fallback: 'LLM 调用失败，请稍后查看日志或手动重试。',
+      skipped_no_config: '当前项目未配置 AI LLM，或未开启自愈功能。',
+      status_pending: '诊断中',
+      status_done: '已完成',
+      status_failed: '失败',
+      status_skipped: '跳过',
+    },
     bug: {
       tracker: '缺陷跟踪平台',
       related_step: '关联步骤（可选）',
