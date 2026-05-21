@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.minio_client import download_file, upload_file, presigned_url
 from app.core.redis_client import publish_run_event
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
-from app.services.ai_healing import apply_healing_hook, enqueue_diagnosis
+from app.services.ai_healing import apply_healing_hook, enqueue_diagnosis, maybe_enqueue_run_healing
 
 logger = logging.getLogger(__name__)
 
@@ -355,6 +355,9 @@ def device_serial():
     run.status = RunStatus.passed if all_passed else RunStatus.failed
     run.duration_ms = total_ms
     await db.commit()
+
+    # iter3 多 step 综合诊断
+    await maybe_enqueue_run_healing(db, run)
 
     await _safe_publish(run.id, {
         "type": "completed",

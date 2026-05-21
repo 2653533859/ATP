@@ -327,3 +327,242 @@ async def _safe_publish(
         )
     except Exception:
         return  # best-effort
+
+
+# ── 多 step 综合分析（iter3）────────────────────────────────────
+_RUN_MIN_FAILED_STEPS = 2  # 失败 step 少于该阈值时不触发综合分析
+
+
+def apply_run_healing_hook(run: TestRun, failed_step_count: int) -> bool:
+    """run 完成时决定是否触发综合分析。
+
+    返回 True 表示调用方应在 commit 后 enqueue diagnose_run_failure。
+    本函数同时就地写 run.result_summary["healing"]={status: "pending" 或 "skipped"}。
+    """
+    if not settings.AI_HEALING_ENABLED:
+        return False
+    if failed_step_count < _RUN_MIN_FAILED_STEPS:
+        return False
+    summary = dict(run.result_summary or {})
+    summary["healing"] = {"status": "pending", "suggestion": None, "at": None, "cache_hit": False}
+    run.result_summary = summary
+    return True
+
+
+def enqueue_run_diagnosis(run_id: int) -> None:
+    try:
+        from app.worker.tasks_healing import diagnose_run_failure
+
+        diagnose_run_failure.delay(run_id)
+    except Exception:
+        logger.exception("enqueue diagnose_run_failure failed for run_id=%s", run_id)
+
+
+async def maybe_enqueue_run_healing(db: AsyncSession, run: TestRun) -> None:
+    """executor 在 run.status 最终 commit 之后调用：
+    扫 run 的 failed/error step 数，决定是否触发综合诊断 + 标 healing pending。
+    """
+    if not settings.AI_HEALING_ENABLED:
+        return
+    result = await db.execute(
+        select(StepResult.id).where(
+            StepResult.run_id == run.id,
+            StepResult.status.in_([RunStatus.failed, RunStatus.error]),
+        )
+    )
+    failed_count = len(result.scalars().all())
+    if not apply_run_healing_hook(run, failed_count):
+        return
+    await db.commit()
+    enqueue_run_diagnosis(run.id)
+
+
+def _make_run_cache_key(case_type: str, step_error_hashes: list[str]) -> str:
+    """run 级 cache key：case_type + sorted(失败 step 错误 hash 列表)。"""
+    payload = case_type + "|" + ",".join(sorted(step_error_hashes))
+    digest = hashlib.sha256(payload.encode("utf-8", errors="replace")).hexdigest()
+    return f"{_CACHE_KEY_PREFIX}run:{digest[:32]}"
+
+
+def build_run_healing_prompt(
+    *,
+    case_type: str,
+    case_name: str,
+    failed_steps: list[StepResult],
+    run_summary: dict | None = None,
+) -> str:
+    """综合多个失败 step 的 prompt：列出每个失败 step 的简要错误 + 整体特征。"""
+    parts = [
+        f"# 用例类型: {case_type}",
+        f"# 用例名称: {case_name}",
+        f"# 失败步骤数: {len(failed_steps)}",
+    ]
+    for s in failed_steps:
+        parts.append(
+            f"\n## 步骤 #{s.step_index + 1} {s.name}\n错误: {_truncate(s.error_message, limit=600)}"
+        )
+    if run_summary:
+        parts.append(f"\n# 运行摘要:\n{_truncate(run_summary, limit=500)}")
+    parts.append(
+        "\n请基于以上多个失败步骤的共同特征，给出："
+        "\n1) 是否存在共性根因（如统一的环境/数据/前置问题）"
+        "\n2) 修复优先级建议（先修哪个步骤最能止血）"
+        "\n3) 若是独立失败，简短列出每个的最可能原因"
+        "\n用中文回答，控制在 300 字以内。"
+    )
+    return "\n\n".join(parts)
+
+
+async def run_diagnosis_for_run(db: AsyncSession, run_id: int) -> None:
+    """综合诊断单个 run 内所有失败 step。
+
+    幂等：若 run.result_summary["healing"]["status"] 已为 done/failed/skipped，直接返回。
+    """
+    from app.core.encryption import decrypt
+    from app.models.ai_llm_config import AILLMConfig
+    from app.models.project import Module, Project
+    from app.services.ai_case.llm_client import LLMRequest, call_llm
+
+    run = await db.get(TestRun, run_id)
+    if run is None:
+        return
+
+    summary = dict(run.result_summary or {})
+    current = summary.get("healing") or {}
+    if current.get("status") in ("done", "failed", "skipped"):
+        return  # 幂等
+
+    case = await db.get(TestCase, run.case_id)
+    if case is None:
+        await _finalize_run_healing(db, run, status="failed", suggestion="case 已删除", cache_hit=False)
+        return
+
+    module = await db.get(Module, case.module_id)
+    project = await db.get(Project, module.project_id) if module else None
+
+    if project is None or project.ai_llm_config_id is None:
+        await _finalize_run_healing(db, run, status="skipped", suggestion=None, cache_hit=False)
+        await _safe_publish_run(run.id, "skipped", None, cache_hit=False)
+        return
+
+    config = await db.get(AILLMConfig, project.ai_llm_config_id)
+    if config is None or not config.enabled:
+        await _finalize_run_healing(db, run, status="skipped", suggestion=None, cache_hit=False)
+        await _safe_publish_run(run.id, "skipped", None, cache_hit=False)
+        return
+
+    # 拉所有失败 step
+    result = await db.execute(
+        select(StepResult).where(
+            StepResult.run_id == run_id,
+            StepResult.status.in_([RunStatus.failed, RunStatus.error]),
+        )
+    )
+    failed_steps = list(result.scalars().all())
+    if len(failed_steps) < _RUN_MIN_FAILED_STEPS:
+        # 失败 step 不足 → skipped（理论上不应到这里，executor hook 已过滤）
+        await _finalize_run_healing(db, run, status="skipped", suggestion=None, cache_hit=False)
+        await _safe_publish_run(run.id, "skipped", None, cache_hit=False)
+        return
+
+    case_type = case.case_type.value if hasattr(case.case_type, "value") else str(case.case_type)
+    # cache key 用每个 step 单独 hash 后排序，避免 step 顺序影响命中
+    step_hashes: list[str] = []
+    for s in failed_steps:
+        response_status = None
+        if isinstance(s.response_data, dict):
+            response_status = s.response_data.get("status_code")
+        sub = _make_cache_key(case_type, s.name, s.error_message, response_status)
+        step_hashes.append(sub.split(":")[-1])
+
+    cache_key = _make_run_cache_key(case_type, step_hashes)
+    cached = await _get_cached_suggestion(cache_key)
+    if cached:
+        await _finalize_run_healing(db, run, status="done", suggestion=cached, cache_hit=True)
+        await _safe_publish_run(run.id, "done", cached, cache_hit=True)
+        return
+
+    if not await _check_and_incr_daily_limit():
+        await _finalize_run_healing(db, run, status="skipped", suggestion="daily-limit-reached", cache_hit=False)
+        await _safe_publish_run(run.id, "skipped", "daily-limit-reached", cache_hit=False)
+        return
+
+    try:
+        api_key = decrypt(config.api_key_encrypted)
+    except Exception:
+        await _finalize_run_healing(db, run, status="failed", suggestion="LLM API key 解密失败", cache_hit=False)
+        await _safe_publish_run(run.id, "failed", "LLM API key 解密失败", cache_hit=False)
+        return
+
+    prompt = build_run_healing_prompt(
+        case_type=case_type,
+        case_name=case.name,
+        failed_steps=failed_steps,
+        run_summary=run.result_summary,
+    )
+
+    try:
+        response = await call_llm(
+            LLMRequest(
+                provider=config.provider,
+                api_key=api_key,
+                model_name=config.model_name,
+                prompt=prompt,
+                endpoint=config.endpoint,
+                timeout_seconds=float(settings.AI_HEALING_TIMEOUT_SECONDS),
+                extra_params=config.default_params,
+            )
+        )
+    except Exception as exc:
+        logger.warning("AI run healing LLM call failed: %s", exc)
+        await _finalize_run_healing(db, run, status="failed", suggestion=f"LLM 调用失败: {exc}", cache_hit=False)
+        await _safe_publish_run(run.id, "failed", str(exc), cache_hit=False)
+        return
+
+    text = (response.text or "").strip() or "（LLM 未返回内容）"
+    await _finalize_run_healing(db, run, status="done", suggestion=text, cache_hit=False)
+    await _write_cached_suggestion(cache_key, text)
+    await _safe_publish_run(run.id, "done", text, cache_hit=False)
+
+
+async def _finalize_run_healing(
+    db: AsyncSession,
+    run: TestRun,
+    *,
+    status: str,
+    suggestion: str | None,
+    cache_hit: bool,
+) -> None:
+    summary = dict(run.result_summary or {})
+    summary["healing"] = {
+        "status": status,
+        "suggestion": suggestion,
+        "at": datetime.now(timezone.utc).isoformat(),
+        "cache_hit": cache_hit,
+    }
+    run.result_summary = summary
+    await db.commit()
+
+
+async def _safe_publish_run(
+    run_id: int,
+    status: str,
+    suggestion: str | None,
+    *,
+    cache_hit: bool = False,
+) -> None:
+    from app.core.redis_client import publish_run_event
+
+    try:
+        await publish_run_event(
+            run_id,
+            {
+                "type": "run_healing_suggestion",
+                "run_id": run_id,
+                "status": status,
+                "suggestion": suggestion,
+                "cache_hit": cache_hit,
+            },
+        )
+    except Exception:
+        return  # best-effort

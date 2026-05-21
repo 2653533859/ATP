@@ -104,6 +104,43 @@
           />
         </div>
 
+        <!-- 运行级 AI 诊断（iter3 多 step 综合分析）-->
+        <div v-if="runHealing" class="run-healing-card">
+          <a-divider orientation="left" style="margin: 16px 0 8px">
+            <BulbOutlined />
+            <span style="margin-left: 6px">{{ t('run.healing.run_title') }}</span>
+            <a-tag :color="healingTagColor(runHealing.status)" style="margin-left: 8px">
+              {{ healingStatusLabel(runHealing.status) }}
+            </a-tag>
+            <a-tag
+              v-if="runHealing.cache_hit && runHealing.status === 'done'"
+              color="purple"
+              style="margin-left: 4px"
+            >
+              ⚡ {{ t('run.healing.cache_hit') }}
+            </a-tag>
+          </a-divider>
+          <div v-if="runHealing.status === 'pending'" class="healing-pending">
+            <LoadingOutlined /> <span style="margin-left: 6px">{{ t('run.healing.run_diagnosing') }}</span>
+          </div>
+          <pre
+            v-else-if="runHealing.status === 'done' && runHealing.suggestion"
+            class="healing-text"
+          >{{ runHealing.suggestion }}</pre>
+          <a-empty
+            v-else-if="runHealing.status === 'failed'"
+            :description="t('run.healing.run_failed_fallback')"
+            :image="Empty.PRESENTED_IMAGE_SIMPLE"
+          />
+          <a-empty
+            v-else-if="runHealing.status === 'skipped'"
+            :description="runHealing.suggestion === 'daily-limit-reached'
+              ? t('run.healing.daily_limit_reached')
+              : t('run.healing.run_skipped_too_few_failures')"
+            :image="Empty.PRESENTED_IMAGE_SIMPLE"
+          />
+        </div>
+
         <!-- 录像播放 -->
         <div v-if="videoUrl" class="video-section">
           <a-divider orientation="left" style="margin: 16px 0 12px">
@@ -436,6 +473,26 @@ const videoUrl = computed(() => {
   return typeof value === 'string' ? value : ''
 })
 
+interface RunHealingPayload {
+  status: 'pending' | 'done' | 'failed' | 'skipped'
+  suggestion: string | null
+  at: string | null
+  cache_hit: boolean
+}
+
+const runHealing = computed<RunHealingPayload | null>(() => {
+  const raw = run.value?.result_summary?.healing
+  if (!raw || typeof raw !== 'object') return null
+  const h = raw as Record<string, unknown>
+  if (!h.status) return null
+  return {
+    status: h.status as RunHealingPayload['status'],
+    suggestion: typeof h.suggestion === 'string' ? h.suggestion : null,
+    at: typeof h.at === 'string' ? h.at : null,
+    cache_hit: Boolean(h.cache_hit),
+  }
+})
+
 const bugPreviewTitle = computed(() => {
   if (!run.value) return ''
   let title = `[ATP] ${caseDisplayName.value}`
@@ -593,6 +650,19 @@ function applyWsMessage(msg: WsMessage) {
         healing_suggestion: msg.suggestion ?? null,
         healing_cache_hit: msg.cache_hit ?? false,
       }
+    }
+    return
+  }
+
+  if (msg.type === 'run_healing_suggestion' && run.value) {
+    run.value.result_summary = {
+      ...(run.value.result_summary || {}),
+      healing: {
+        status: msg.status,
+        suggestion: msg.suggestion ?? null,
+        at: new Date().toISOString(),
+        cache_hit: msg.cache_hit ?? false,
+      },
     }
     return
   }

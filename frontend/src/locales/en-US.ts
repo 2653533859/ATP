@@ -656,9 +656,13 @@ export default {
     },
     healing: {
       title: 'AI diagnosis',
+      run_title: 'AI run-level diagnosis',
       diagnosing: 'Calling LLM to analyse failure…',
+      run_diagnosing: 'Aggregating multiple failed steps…',
       failed_fallback: 'LLM call failed. Check logs or retry later.',
+      run_failed_fallback: 'Run-level LLM call failed. Retry later.',
       skipped_no_config: 'No AI LLM configured for this project, or AI healing disabled.',
+      run_skipped_too_few_failures: 'Not enough failed steps to trigger run-level diagnosis.',
       daily_limit_reached: 'Daily LLM call quota reached. Diagnosis skipped.',
       cache_hit: 'cache hit',
       status_pending: 'Diagnosing',

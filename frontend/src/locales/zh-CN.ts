@@ -656,9 +656,13 @@ export default {
     },
     healing: {
       title: 'AI 诊断建议',
+      run_title: 'AI 综合诊断',
       diagnosing: '正在调用 LLM 分析失败原因…',
+      run_diagnosing: '正在综合分析多个失败步骤…',
       failed_fallback: 'LLM 调用失败，请稍后查看日志或手动重试。',
+      run_failed_fallback: '综合诊断 LLM 调用失败，请稍后重试。',
       skipped_no_config: '当前项目未配置 AI LLM，或未开启自愈功能。',
+      run_skipped_too_few_failures: '失败步骤不足，未触发综合诊断。',
       daily_limit_reached: '已达今日 LLM 调用上限，本次诊断已跳过。',
       cache_hit: '缓存命中',
       status_pending: '诊断中',

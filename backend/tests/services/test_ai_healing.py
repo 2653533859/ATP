@@ -322,3 +322,55 @@ def test_daily_limit_zero_means_no_limit(monkeypatch):
 
     allowed = asyncio.run(ai_healing._check_and_incr_daily_limit())
     assert allowed is True
+
+
+# ── iter3 多 step 综合诊断 ─────────────────────────────────────
+class _RunStub:
+    def __init__(self, summary=None):
+        self.id = 7000
+        self.case_id = 100
+        self.result_summary = summary
+
+
+def test_apply_run_healing_hook_skips_when_disabled(monkeypatch):
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_ENABLED", False)
+    run = _RunStub()
+    assert ai_healing.apply_run_healing_hook(run, 5) is False
+    assert run.result_summary is None
+
+
+def test_apply_run_healing_hook_skips_when_too_few_failures(monkeypatch):
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_ENABLED", True)
+    run = _RunStub()
+    assert ai_healing.apply_run_healing_hook(run, 1) is False
+    assert run.result_summary is None
+
+
+def test_apply_run_healing_hook_marks_pending_when_threshold_met(monkeypatch):
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_ENABLED", True)
+    run = _RunStub(summary={"video_url": "vid"})
+    assert ai_healing.apply_run_healing_hook(run, 2) is True
+    assert run.result_summary["healing"]["status"] == "pending"
+    assert run.result_summary["video_url"] == "vid"  # 不覆盖原字段
+
+
+def test_run_cache_key_is_order_independent():
+    a = ai_healing._make_run_cache_key("api", ["hash-1", "hash-2", "hash-3"])
+    b = ai_healing._make_run_cache_key("api", ["hash-3", "hash-1", "hash-2"])
+    assert a == b
+
+
+def test_build_run_healing_prompt_lists_all_failed_steps():
+    from app.models.case import StepResult
+
+    steps = [
+        StepResult(id=1, step_index=0, name="登录", error_message="401"),
+        StepResult(id=2, step_index=1, name="查询", error_message="timeout"),
+    ]
+    prompt = ai_healing.build_run_healing_prompt(
+        case_type="api", case_name="冒烟", failed_steps=steps,
+    )
+    assert "失败步骤数: 2" in prompt
+    assert "登录" in prompt and "查询" in prompt
+    assert "401" in prompt and "timeout" in prompt
+    assert "300 字以内" in prompt

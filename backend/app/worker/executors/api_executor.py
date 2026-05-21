@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.otel import get_tracer
 from app.models.case import TestRun, TestCase, StepResult, RunStatus
 from app.core.redis_client import publish_run_event
-from app.services.ai_healing import apply_healing_hook, enqueue_diagnosis
+from app.services.ai_healing import apply_healing_hook, enqueue_diagnosis, maybe_enqueue_run_healing
 
 _tracer = get_tracer("atp.executor.api")
 
@@ -158,6 +158,9 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
     run.status = RunStatus.passed if all_passed else RunStatus.failed
     run.duration_ms = total_ms
     await db.commit()
+
+    # iter3 多 step 综合诊断（异步入队，不阻塞 completed 推送）
+    await maybe_enqueue_run_healing(db, run)
 
     # 推送执行完成
     await _safe_publish_run_event(run.id, {
