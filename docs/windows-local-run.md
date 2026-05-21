@@ -70,6 +70,7 @@ MINIO_PORT=9000
 说明：
 
 - 默认要求先执行 `alembic upgrade head` 完成建表或迁移
+- 应用启动时会做一次 Alembic head 校验，DB revision 与 head 不一致会在日志输出 WARNING
 - `APP_AUTO_CREATE_TABLES=true` 只建议用于本地临时排障，不建议作为日常启动路径
 
 ## 单命令启动
@@ -214,7 +215,13 @@ adb connect <device-ip>:5555
 adb devices
 ```
 
-确认设备状态为 `device`，且 serial 变成 `<device-ip>:5555` 后，再回到 ATP 中执行“扫描设备”。
+确认设备状态为 `device`，且 serial 变成 `<device-ip>:5555` 后，再回到 ATP 中执行"扫描设备"。
+
+复杂网络场景下可直接跑诊断脚本（需 Git Bash 或 WSL）：
+
+```bash
+bash scripts/android-network-doctor.sh <device-ip>:5555
+```
 
 更完整说明见：`docs/android-device-debugging.md`
 

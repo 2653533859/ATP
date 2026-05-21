@@ -58,7 +58,8 @@ docker compose -f docker-compose.app.yml down
 ## 注意事项
 
 - `backend` 启动命令中已包含 `alembic upgrade head`，首次启动会自动迁移数据库。
+- 应用启动时会先做一次 Alembic head 校验：若 DB revision 与 head 不一致或 `alembic_version` 表缺失，会在日志输出 WARNING。生产环境部署前请确保已 `alembic upgrade head`。
 - 应用启动时现在会自动确保 MinIO bucket 存在。
 - 如果只验证 API 和前端，这套配置已经足够。
 - 如果要执行 Web 用例，依赖容器内的 Playwright/Chromium 镜像构建成功。
-- 如果要执行 Android 用例，还需要让 `worker` 容器能访问 ADB 设备；当前仓库能力已具备，但真机联调仍需要单独处理。
+- 如果要执行 Android 用例，还需要让 `worker` 容器能访问 ADB 设备；当前仓库能力已具备，但真机联调仍需要单独处理。诊断脚本：`bash scripts/android-network-doctor.sh <device-ip>:5555`。

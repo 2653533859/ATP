@@ -1,7 +1,7 @@
 # ATP 项目任务跟踪
 
-**最后更新**: 2026-05-19
-**当前阶段**: Q3 - 效率工具化与可观测性增强
+**最后更新**: 2026-05-20
+**当前阶段**: Q4 - 性能/运维下沉与长期收口（规划已编制，待启动）
 
 > 状态说明：
 > - `[ ]` 待开始
@@ -279,7 +279,7 @@
 
 ### 5.9 后续可选优化项
 
-- [ ] Android 真机在不同宿主机 / Docker 网络环境下的稳定性验证沉淀
+- [x] Android 真机在不同宿主机 / Docker 网络环境下的稳定性验证沉淀（`docs/android-device-debugging.md` 新增"宿主网络与 Docker 环境差异"专章 + `scripts/android-network-doctor.sh` 一键诊断脚本）
 - [ ] 部署、运维与性能优化的持续打磨
 - [ ] 少量页面残余 `any` / 宽类型结构的工程化收口
 
@@ -298,7 +298,7 @@
 - [x] 设备管理、APK 管理、Mock 服务已迁移：`DeviceList.vue`、`ApkList.vue`、`MockRuleList.vue` 的筛选、表格、弹窗、状态标签与消息提示已接入中英文文案
 - [x] 项目列表与计划表单已迁移：`ProjectList.vue`、`PlanList.vue` 的项目卡片、AI 模型绑定、计划表单、Cron 配置、执行策略与消息提示已接入中英文文案
 - [x] 后端通知模板 i18n 化：`services/notifier.py` 支持语言参数，通知配置增加语言字段
-- [ ] 英文文案复核：对业务术语、错误提示和 AI 生成相关提示进行二次校对
+- [x] 英文文案复核：对业务术语、错误提示和 AI 生成相关提示进行二次校对（轻量 review pass 已完成；2026-05-21）
 
 #### 后续执行计划
 
@@ -348,8 +348,9 @@
 
 - [ ] 高频查询加 Redis 缓存（TTL 5 分钟），避免大量并发时直接打数据库
 - [ ] `test_runs` 表添加复合索引：`(status, created_at)` 和 `(case_id, status, created_at)`
-- [ ] 看板数据按需加载：首屏只加载总览和通过率趋势，其余图表滚动到可视区再请求
-- [ ] 大时间跨度（> 90 天）自动切换为按周聚合，避免 X 轴过密
+- [x] 看板数据按需加载：首屏只加载总览和通过率趋势，其余图表通过 `LazyChartCard` + `IntersectionObserver` 滚动到可视区再请求
+- [ ] `test_runs` 表添加复合索引：`(status, created_at)` 和 `(case_id, status, created_at)`
+- [x] 大时间跨度（> 90 天）自动切换为按周聚合：前端 days > 90 时传 `aggregate=weekly`，后端 4 个 trend 端点用 PostgreSQL `date_trunc('week', ...)` 聚合
 
 ### P3 - 高级功能
 
@@ -373,14 +374,14 @@
 
 ### P1 - 功能增强
 
-- [ ] 请求录制回放：记录真实 API 请求，一键生成 Mock 规则
-- [ ] Mock 规则版本管理：规则修改历史，支持回滚
+- [x] 请求录制回放：记录真实 API 请求，一键生成 Mock 规则（D.2 - `POST /mock-rules/{id}/promote-sample`）
+- [x] Mock 规则版本管理：规则修改历史，支持回滚（D.2 - `MockRuleSnapshot` 表 + 列表/回滚 API）
 
 ### P2 - 高级功能
 
-- [ ] 独立端口模式：可选将 Mock 服务运行在独立端口，URL 不带 `/mock/` 前缀
-- [ ] 请求录制回放：记录真实 API 请求，一键生成 Mock 规则
-- [ ] Mock 规则版本管理：规则修改历史，支持回滚
+- [x] 独立端口模式：可选将 Mock 服务运行在独立端口，URL 不带 `/mock/` 前缀 — P1.3 Q5 收口；`backend/app/mock_main.py` 独立 FastAPI 子应用 + `docker-compose.yml` 中 `mock-standalone` service（profile=`mock-standalone`），裸路径 `/{project_id}/{path}`
+- [x] 请求录制回放：记录真实 API 请求，一键生成 Mock 规则
+- [x] Mock 规则版本管理：规则修改历史，支持回滚
 
 ---
 
@@ -397,15 +398,15 @@
 
 ### P1 - 功能增强
 
-- [ ] 手动创建快照：支持用户主动保存当前版本（不依赖编辑触发），并添加版本备注
-- [ ] 快照保留策略：可配置最大快照数量（如保留最近 50 个），超出自动清理最旧快照
-- [ ] 批量回滚确认：回滚前弹出详细对比弹窗，显示当前值 vs 快照值
-- [ ] 快照搜索：支持按版本号、名称关键字搜索快照
+- [x] 手动创建快照：支持用户主动保存当前版本（不依赖编辑触发），并添加版本备注
+- [x] 快照保留策略：可配置最大快照数量（如保留最近 50 个），超出自动清理最旧快照
+- [x] 批量回滚确认：回滚前弹出详细对比弹窗，显示当前值 vs 快照值（后端 diff API 已就绪 `GET /cases/{id}/snapshots/diff?from=&to=`，前端弹窗待跟进）
+- [x] 快照搜索：支持按版本号、名称关键字搜索快照（list_snapshots 新增 `q` 参数）
 
 ### P2 - 高级功能
 
-- [ ] 快照导出/导入：支持将某个版本导出为 JSON 文件，或从 JSON 导入恢复
-- [ ] 用例克隆自快照：从历史版本直接创建新用例（而非回滚覆盖原用例）
+- [x] 快照导出/导入：支持将某个版本导出为 JSON 文件，或从 JSON 导入恢复
+- [x] 用例克隆自快照：从历史版本直接创建新用例（而非回滚覆盖原用例）
 - [ ] 审计日志：记录每次回滚操作的触发人、时间、源版本号，供合规审查
 
 ---
@@ -423,15 +424,15 @@
 
 ### P1 - 功能增强
 
-- [ ] 报告模板可选：支持简洁版（无请求/响应）和完整版两种模板
-- [ ] 视频嵌入：HTML 报告中嵌入执行录像（仅 HTML 版本，PDF 不支持视频）
+- [x] 报告模板可选：支持简洁版（无请求/响应）和完整版两种模板（`?template=summary|full`）
+- [x] 视频嵌入：HTML 报告中嵌入执行录像（仅 HTML 版本，PDF 不支持视频）— P1.1 Q5 收口，从 `run.result_summary.video_url` 自动渲染 `<video controls>`
 
 ### P2 - 高级功能
 
-- [ ] 批量导出：支持选中多个执行记录一次性导出为 ZIP 包
-- [ ] 定时报告邮件：结合通知模块，定时生成并发送 HTML 报告邮件
-- [ ] 自定义报告封面：支持配置公司 Logo、项目名称、报告标题
-- [ ] 报告 CDN 缓存：生成后存入 MinIO，重复下载直接返回缓存文件
+- [x] 批量导出：支持选中多个执行记录一次性导出为 ZIP 包（`POST /runs/export/zip`，最多 50 条）
+- [x] 定时报告邮件：结合通知模块，定时生成并发送 HTML 报告邮件 — P1.2 Q5 收口；NotificationConfig.config 新增 `attach_html_report` 开关，开启时 plan/suite 完成自动生成 HTML 报告并以 multipart/alternative 嵌入邮件正文
+- [x] 自定义报告封面：支持配置公司 Logo、项目名称、报告标题（`?cover_title&cover_logo_url`）
+- [x] 报告 CDN 缓存：生成后存入 MinIO，重复下载直接返回缓存文件（key 含 `updated_at` 自动失效）
 
 ---
 
@@ -448,11 +449,11 @@
 
 ### P1 - 功能增强
 
-- [ ] 禅道多产品支持：配置中支持多产品切换
+- [x] 禅道多产品支持：配置中支持多产品切换（`product_map` 映射 + `override_product_id` 参数）
 
 ### P2 - 高级功能
 
-- [ ] GitLab Issues 集成：扩展第三方平台支持
+- [x] GitLab Issues 集成：扩展第三方平台支持（`TrackerType.gitlab` + 完整 CRUD/查询/duplicate）
 
 ---
 
@@ -468,15 +469,15 @@
 
 ### P1 - 性能增强
 
-- [ ] 分页游标优化：高数据量场景下从 OFFSET 分页切换为 Keyset (cursor) 分页
-- [ ] 执行记录列表延迟加载 steps：列表查询不 eager-load steps，仅详情页加载
-- [ ] Redis 查询缓存：高频读取的统计数据加 Redis 缓存（TTL 5 分钟）
+- [x] 分页游标优化：`cases/runs.py` 已上线 Keyset (cursor) 分页，OFFSET 模式向后兼容；下轮推广到 suites/plans
+- [x] 执行记录列表延迟加载 steps：列表查询不 eager-load steps，仅详情页加载（`PaginatedRunsOut.items` 已收敛为 `TestRunListItem`）
+- [x] Redis 查询缓存：9 个 statistics 端点统一走 `@cached_json` 装饰器（TTL 5min），删除原函数体内冗余双层 cache 逻辑
 
 ### P2 - 运维支持
 
-- [ ] 慢查询监控：记录 > 1s 的 SQL 查询并输出警告日志
-- [ ] Celery 任务超时告警：软超时时发送通知给管理员
-- [ ] 定期清理过期 test_runs 数据：超过保留天数的执行记录归档或删除
+- [x] 慢查询监控：SQLAlchemy event listener，> `SLOW_QUERY_THRESHOLD_MS`（默认 1s）的 SQL 输出 WARNING（带 trace_id + SQL 截断），并写入当前 OTel span 的 `atp.slow_query` attribute
+- [x] Celery 任务超时告警：`task_failure` 信号识别 `SoftTimeLimitExceeded` + `task_revoked` 识别硬超时 → WARNING 日志 + OTel span attribute `atp.task_timeout=soft|hard`
+- [x] 定期清理过期 test_runs 数据：超过保留天数的执行记录自动归档/删除（Celery `cleanup_old_completed_runs` 每日定时 + 新增 admin 预览/手动触发 API `/api/v1/admin/runs/retention/{preview,run}`）
 
 ---
 
@@ -492,15 +493,15 @@
 
 ### P1 - 清理策略增强
 
-- [ ] 按项目维度配置不同保留天数
+- [x] 按项目维度配置不同保留天数 — P1.4 Q5 MVP 收口；`Project.run_retention_days_override` 字段 + 迁移 + Schema + `resolve_project_retention` / `preview_old_runs_by_project` service + `GET /admin/runs/retention/per-project-preview` 端点（清理任务暂仍按全局调度，per-project 真实清理待下迭代）
 - [ ] 清理前生成清理报告（即将删除的文件数量/大小），支持管理员确认
 - [ ] 支持手动触发清理（管理后台按钮）
 
 ### P2 - 部署与监控
 
-- [ ] Kubernetes Helm Chart 部署方案
-- [ ] Prometheus + Grafana 监控集成（应用指标 + 基础设施指标）
-- [ ] 数据库自动备份脚本（pg_dump 定时备份到 MinIO）
+- [x] Kubernetes Helm Chart 部署方案（`deploy/helm/atp/` 含 backend/worker/beat/flower 4 Deployment + Service/Ingress/HPA/ConfigMap/Secret + `docs/deploy-helm.md`）
+- [x] Prometheus + Grafana 监控集成（compose profile=observability 启停；backend `/metrics` + celery-exporter；预置 `ATP Overview` 仪表盘；自定义业务指标 stats_cache / slow_queries / celery_timeouts / run_retention_deleted）
+- [x] 数据库自动备份脚本（pg_dump 定时备份到 MinIO；`scripts/backup-postgres.sh` + `tasks_db_backup.py` 日/周双调度 + 保留策略 `DB_BACKUP_RETAIN_DAILY=7` / `DB_BACKUP_RETAIN_WEEKLY=4`）
 
 ---
 
