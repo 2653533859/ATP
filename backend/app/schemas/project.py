@@ -8,6 +8,7 @@ class ProjectCreate(BaseModel):
     project_code: str | None = None
     description: str | None = None
     ai_llm_config_id: int | None = None
+    run_retention_days_override: int | None = None
 
 
 class ProjectUpdate(BaseModel):
@@ -15,6 +16,7 @@ class ProjectUpdate(BaseModel):
     project_code: str | None = None
     description: str | None = None
     ai_llm_config_id: int | None = None
+    run_retention_days_override: int | None = None
 
 
 class ProjectOut(BaseModel):
@@ -24,6 +26,7 @@ class ProjectOut(BaseModel):
     description: str | None
     owner_id: int
     ai_llm_config_id: int | None = None
+    run_retention_days_override: int | None = None
     created_at: datetime
     updated_at: datetime
 

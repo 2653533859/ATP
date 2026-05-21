@@ -206,6 +206,8 @@ def test_cleanup_old_completed_runs_skip_when_disabled(monkeypatch):
 
 
 def test_cleanup_old_completed_runs_invokes_cleaners_in_order(monkeypatch):
+    """A.5 后 cleanup_old_completed_runs 委托给 execute_old_runs_cleanup；
+    本测试仅验证：开启时调用一次并返回 service 的结果，session.close 被触发。"""
     tasks_cleanup = _import_tasks_cleanup(monkeypatch)
     monkeypatch.setattr(tasks_cleanup.settings, "RUN_CLEANUP_ENABLED", True)
     monkeypatch.setattr(tasks_cleanup.settings, "RUN_RETENTION_DAYS", 7)
@@ -219,25 +221,22 @@ def test_cleanup_old_completed_runs_invokes_cleaners_in_order(monkeypatch):
         types.SimpleNamespace(sync_session_factory=lambda: session),
     )
 
-    call_log: list[tuple[str, int]] = []
-    simple_results = iter([5, 3])
+    captured: dict = {}
 
-    def fake_simple(current_session, model, status_field, statuses, cutoff, batch_size):
-        name = model.__name__
-        call_log.append((name, batch_size))
-        return next(simple_results)
+    def fake_execute(current_session, *, days, batch_size):
+        captured["session"] = current_session
+        captured["days"] = days
+        captured["batch_size"] = batch_size
+        return {
+            "plan_runs": 5,
+            "suite_runs": 3,
+            "test_runs": 9,
+            "mobile_runs": 2,
+            "deleted_objects": 5,
+            "retention_days": days,
+        }
 
-    def fake_test(current_session, cutoff, batch_size):
-        call_log.append(("TestRun", batch_size))
-        return {"runs": 9, "objects": 4}
-
-    def fake_mobile(current_session, cutoff, batch_size):
-        call_log.append(("MobileSpecialRun", batch_size))
-        return {"runs": 2, "objects": 1}
-
-    monkeypatch.setattr(tasks_cleanup, "_cleanup_simple_runs", fake_simple)
-    monkeypatch.setattr(tasks_cleanup, "_cleanup_test_runs", fake_test)
-    monkeypatch.setattr(tasks_cleanup, "_cleanup_mobile_special_runs", fake_mobile)
+    monkeypatch.setattr(tasks_cleanup, "execute_old_runs_cleanup", fake_execute)
 
     result = tasks_cleanup.cleanup_old_completed_runs()
 
@@ -249,50 +248,41 @@ def test_cleanup_old_completed_runs_invokes_cleaners_in_order(monkeypatch):
         "deleted_objects": 5,
         "retention_days": 7,
     }
-    assert [item[0] for item in call_log] == ["PlanRun", "SuiteRun", "TestRun", "MobileSpecialRun"]
-    assert all(item[1] == 200 for item in call_log)
+    assert captured["session"] is session
+    assert captured["days"] == 7
+    assert captured["batch_size"] == 200
     assert session.closed is True
 
 
 def test_cleanup_test_runs_collects_screenshots_then_deletes_rows(monkeypatch):
+    """A.5 后内部 helper 已搬到 app.services.run_retention；
+    保留此用例位置以便回归 service 层 execute 行为：失败时回滚 + 空结果不抛。"""
     tasks_cleanup = _import_tasks_cleanup(monkeypatch)
+    monkeypatch.setattr(tasks_cleanup.settings, "RUN_CLEANUP_ENABLED", True)
+    monkeypatch.setattr(tasks_cleanup.settings, "RUN_RETENTION_DAYS", 30)
+    monkeypatch.setattr(tasks_cleanup.settings, "RUN_CLEANUP_BATCH_SIZE", 100)
+    monkeypatch.setattr(tasks_cleanup, "load_all_models", lambda: None)
 
-    collected_for: list[list[int]] = []
-    deleted_objects: list[list[str]] = []
+    session = _FakeSession()
+    monkeypatch.setitem(
+        sys.modules,
+        "app.core.database",
+        types.SimpleNamespace(sync_session_factory=lambda: session),
+    )
 
-    def fake_collect(_session, ids):
-        collected_for.append(list(ids))
-        return [f"screenshots/{i}.png" for i in ids]
+    def explode(*_a, **_kw):
+        raise RuntimeError("boom")
 
-    def fake_delete(names):
-        deleted_objects.append(list(names))
-        return len(names)
+    monkeypatch.setattr(tasks_cleanup, "execute_old_runs_cleanup", explode)
 
-    monkeypatch.setattr(tasks_cleanup, "_collect_screenshot_objects", fake_collect)
-    monkeypatch.setattr(tasks_cleanup, "_delete_minio_objects", fake_delete)
+    result = tasks_cleanup.cleanup_old_completed_runs()
 
-    id_batches = iter([[1, 2, 3], []])
-    commits = {"count": 0}
-    delete_invocations: list[str] = []
-
-    class StubSession:
-        def execute(self, stmt):
-            cls = stmt.__class__.__name__
-            if cls.endswith("Select"):
-                batch = next(id_batches)
-                return types.SimpleNamespace(all=lambda batch=batch: [(value,) for value in batch])
-            if cls.endswith("Delete"):
-                delete_invocations.append(cls)
-                return types.SimpleNamespace(all=lambda: [])
-            raise AssertionError(f"unexpected stmt: {cls}")
-
-        def commit(self):
-            commits["count"] += 1
-
-    stats = tasks_cleanup._cleanup_test_runs(StubSession(), datetime(2026, 1, 1, tzinfo=timezone.utc), batch_size=500)
-
-    assert stats == {"runs": 3, "objects": 3}
-    assert collected_for == [[1, 2, 3]]
-    assert deleted_objects == [["screenshots/1.png", "screenshots/2.png", "screenshots/3.png"]]
-    assert delete_invocations  # at least one delete executed
-    assert commits["count"] == 1
+    # 异常时返回零摘要、不抛出，session.close 被触发
+    assert result == {
+        "plan_runs": 0,
+        "suite_runs": 0,
+        "test_runs": 0,
+        "mobile_runs": 0,
+        "deleted_objects": 0,
+    }
+    assert session.closed is True
