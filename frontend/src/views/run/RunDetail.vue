@@ -51,6 +51,21 @@
           <a-descriptions-item :label="t('run.labels.triggered_at')" :span="2">
             {{ run.created_at?.slice(0, 19).replace('T', ' ') }}
           </a-descriptions-item>
+          <a-descriptions-item v-if="run.parent_run_id != null" :label="t('run.labels.parent_run')">
+            <router-link :to="{ name: 'run-detail', params: { id: run.parent_run_id } }">#{{ run.parent_run_id }}</router-link>
+          </a-descriptions-item>
+          <a-descriptions-item v-if="run.iteration_index != null" :label="t('run.labels.iteration')">
+            <a-tag color="blue">#{{ run.iteration_index }}</a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item v-if="run.iteration_data" :label="t('run.labels.iteration_data')" :span="2">
+            <code style="font-size:12px">{{ JSON.stringify(run.iteration_data) }}</code>
+          </a-descriptions-item>
+          <a-descriptions-item v-if="isParameterizedParent" :label="t('run.labels.iteration_summary')" :span="2">
+            <a-tag color="green">{{ t('run.iteration.passed') }}: {{ iterationStats.passed }}</a-tag>
+            <a-tag color="red">{{ t('run.iteration.failed') }}: {{ iterationStats.failed }}</a-tag>
+            <a-tag v-if="iterationStats.error > 0" color="orange">{{ t('run.iteration.error') }}: {{ iterationStats.error }}</a-tag>
+            <a-tag>{{ t('run.iteration.total') }}: {{ iterationStats.total }}</a-tag>
+          </a-descriptions-item>
           <a-descriptions-item v-if="run.error_message" :label="t('run.labels.error_message')" :span="2">
             <span style="color: #ff4d4f">
               <template v-if="run.error_message.length > 500 && !expandedErrors.has('run')">
@@ -402,6 +417,20 @@ const fallbackImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ
 
 const isRunning = computed(() => run.value?.status === 'running' || run.value?.status === 'pending')
 const canCreateBug = computed(() => ['admin', 'engineer'].includes(auth.user?.role ?? ''))
+
+const isParameterizedParent = computed(() => {
+  const summary = run.value?.result_summary as Record<string, unknown> | undefined
+  return Boolean(summary && typeof summary.iteration_total === 'number' && (summary.iteration_total as number) > 0)
+})
+const iterationStats = computed(() => {
+  const summary = (run.value?.result_summary ?? {}) as Record<string, unknown>
+  return {
+    total: Number(summary.iteration_total ?? 0),
+    passed: Number(summary.iteration_passed ?? 0),
+    failed: Number(summary.iteration_failed ?? 0),
+    error: Number(summary.iteration_error ?? 0),
+  }
+})
 
 const stepStats = computed(() => {
   const stats = { passed: 0, failed: 0, error: 0, skipped: 0 }

@@ -505,6 +505,9 @@ export default {
       tags_placeholder: 'Press Enter to add a tag (e.g. smoke, p0)',
       description_label: 'Description',
       description_placeholder: 'Optional',
+      dataset_label: 'Linked dataset (parameterized)',
+      dataset_placeholder: 'Leave empty for single-run; pick one to iterate over its rows',
+      dataset_hint: 'When set, the run will iterate over dataset.rows; each row is merged into extra_vars',
     },
     case_types: {
       api: 'API',
@@ -643,6 +646,10 @@ export default {
       environment: 'Environment',
       duration: 'Duration',
       triggered_at: 'Triggered at',
+      parent_run: 'Parent run',
+      iteration: 'Iteration',
+      iteration_data: 'Iteration data',
+      iteration_summary: 'Iteration summary',
       error_message: 'Error message',
       linked_bug: 'Linked bug',
       steps: 'Step details',
@@ -657,6 +664,12 @@ export default {
       failed: '{count} failed',
       error: '{count} error',
       skipped: '{count} skipped',
+    },
+    iteration: {
+      total: 'Total',
+      passed: 'Passed',
+      failed: 'Failed',
+      error: 'Error',
     },
     healing: {
       title: 'AI diagnosis',

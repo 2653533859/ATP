@@ -75,6 +75,7 @@ export interface CaseSummaryItem {
   creator_id: number
   owner_id?: number | null
   is_ready_for_execution: boolean
+  dataset_id?: number | null
   created_at: string
   updated_at: string
 }
@@ -132,6 +133,7 @@ export interface CaseSavePayload {
   automation_status?: AutomationStatus
   steps?: CaseStepItem[]
   config?: Record<string, unknown>
+  dataset_id?: number | null
 }
 
 export interface SuiteCaseRef {
@@ -552,6 +554,9 @@ export interface RunDetailItem {
   duration_ms?: number | null
   error_message?: string | null
   result_summary: Record<string, unknown>
+  iteration_index?: number | null
+  iteration_data?: Record<string, unknown> | null
+  parent_run_id?: number | null
   created_at: string
   steps: RunStepItem[]
   case_name?: string

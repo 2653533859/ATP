@@ -322,6 +322,7 @@
     <CaseFormDrawer
       :open="drawerOpen"
       :module-id="selectedModuleId"
+      :project-id="selectedProjectId"
       :edit-case="editingCase"
       :default-case-type="createCaseType"
       @close="drawerOpen = false"

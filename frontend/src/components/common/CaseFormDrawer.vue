@@ -38,6 +38,17 @@
       <a-form-item :label="t('case_form.basic.description_label')">
         <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('case_form.basic.description_placeholder')" />
       </a-form-item>
+      <a-form-item :label="t('case_form.basic.dataset_label')">
+        <a-select
+          v-model:value="form.dataset_id"
+          :placeholder="t('case_form.basic.dataset_placeholder')"
+          allow-clear
+          :options="datasetOptions"
+        />
+        <div v-if="form.dataset_id" style="color:#999;font-size:12px;margin-top:4px">
+          {{ t('case_form.basic.dataset_hint') }}
+        </div>
+      </a-form-item>
 
       <template v-if="form.case_type === 'api'">
         <a-divider orientation="left">{{ t('case_form.sections.request_config') }}</a-divider>
@@ -542,7 +553,7 @@ import { ref, reactive, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons-vue'
-import { caseApi } from '@/api'
+import { caseApi, datasetApi } from '@/api'
 import type { CaseSavePayload, CaseType } from '@/api'
 import KvEditor from '@/components/common/KvEditor.vue'
 
@@ -553,6 +564,7 @@ const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS'
 const props = defineProps<{
   open: boolean
   moduleId: number | null
+  projectId?: number | null
   editCase?: any
   defaultCaseType?: CaseType
 }>()
@@ -565,12 +577,15 @@ const gqlActiveTab = ref('headers')
 const wsActiveTab = ref('headers')
 const formRef = ref()
 
-const form = reactive<{ name: string; description: string; case_type: CaseType; tags: string[] }>({
+const form = reactive<{ name: string; description: string; case_type: CaseType; tags: string[]; dataset_id: number | null }>({
   name: '',
   description: '',
   case_type: 'api',
   tags: [],
+  dataset_id: null,
 })
+
+const datasetOptions = ref<{ label: string; value: number }[]>([])
 
 const cfg = reactive({
   url: '',
@@ -620,8 +635,22 @@ const grpcCfg = reactive({
   extractions: [] as any[],
 })
 
+async function loadDatasetOptions() {
+  if (!props.projectId) {
+    datasetOptions.value = []
+    return
+  }
+  try {
+    const items = await datasetApi.list(props.projectId)
+    datasetOptions.value = items.map((d) => ({ label: `${d.name} (${d.row_count} 行)`, value: d.id }))
+  } catch {
+    datasetOptions.value = []
+  }
+}
+
 watch(() => props.open, (v) => {
   if (!v) return
+  loadDatasetOptions()
   if (props.editCase) {
     isEdit.value = true
     const c = props.editCase
@@ -629,6 +658,7 @@ watch(() => props.open, (v) => {
     form.description = c.description ?? ''
     form.case_type = c.case_type
     form.tags = c.tags ?? []
+    form.dataset_id = c.dataset_id ?? null
     const step = c.config?.steps?.[0] ?? c.config ?? {}
     const bodyType = step.body_type ?? 'none'
     if (bodyType === 'form') {
@@ -714,6 +744,7 @@ watch(() => props.open, (v) => {
     form.description = ''
     form.case_type = props.defaultCaseType ?? 'api'
     form.tags = []
+    form.dataset_id = null
     Object.assign(cfg, {
       url: '', method: 'GET', headers: {}, params: {},
       body_type: 'none', body: '',
@@ -879,9 +910,10 @@ async function handleSave() {
       tags: form.tags,
       module_id: props.moduleId!,
       config: buildConfig(),
+      dataset_id: form.dataset_id,
     }
     if (isEdit.value) {
-      await caseApi.update(props.editCase.id, { name: payload.name, description: payload.description, tags: payload.tags, config: payload.config })
+      await caseApi.update(props.editCase.id, { name: payload.name, description: payload.description, tags: payload.tags, config: payload.config, dataset_id: form.dataset_id })
     } else {
       await caseApi.create(payload)
     }

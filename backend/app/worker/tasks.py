@@ -245,7 +245,12 @@ async def _safe_invalidate_stats_cache() -> None:
 
 @celery_app.task(bind=True, name="run_test_case")
 def run_test_case(self, run_id: int, extra_vars: dict, trace_id: str | None = None):
-    """统一执行入口，根据用例类型路由到对应执行器"""
+    """统一执行入口，根据用例类型路由到对应执行器。
+
+    P3.B MVP-B：若 case 绑定了 dataset 且当前 run 不是 child run（无 parent_run_id），
+    则将当前 run 作为 parent 容器：按 dataset.rows 创建 N 个 child run，每个 child
+    单独 dispatch_case；child 之间的失败互不影响。parent 状态根据 child 聚合。
+    """
     from app.core.database import AsyncSessionLocal
     from app.models.case import TestRun, TestCase, RunStatus
     from sqlalchemy import select
@@ -265,6 +270,16 @@ def run_test_case(self, run_id: int, extra_vars: dict, trace_id: str | None = No
                     await db.commit()
 
                 case = await db.get(TestCase, run.case_id)
+
+                # ── P3.B 参数化分支 ──────────────────────────
+                if (
+                    case is not None
+                    and case.dataset_id is not None
+                    and run.parent_run_id is None
+                ):
+                    await _execute_parameterized(db, run, case, extra_vars)
+                    return
+
                 run.status = RunStatus.running
                 await db.commit()
 
@@ -291,6 +306,94 @@ def run_test_case(self, run_id: int, extra_vars: dict, trace_id: str | None = No
             reset_trace_id(token)
 
     run_async(_execute())
+
+
+async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None:
+    """按 case.dataset 的 rows 依次执行 N 次 child runs，聚合状态写回 parent。"""
+    from app.models.case import RunStatus, TestRun
+    from app.models.dataset import TestDataset
+
+    dataset = await db.get(TestDataset, case.dataset_id)
+    rows = list(dataset.rows or []) if dataset else []
+    if not rows:
+        # 数据集空 → 直接降级为单次执行（保留旧行为，避免空入参）
+        parent_run.status = RunStatus.running
+        await db.commit()
+        await dispatch_case(db, parent_run, case, extra_vars)
+        await _safe_invalidate_stats_cache()
+        return
+
+    parent_run.status = RunStatus.running
+    parent_run.result_summary = {
+        **(parent_run.result_summary or {}),
+        "iteration_total": len(rows),
+        "iteration_passed": 0,
+        "iteration_failed": 0,
+        "iteration_error": 0,
+    }
+    await db.commit()
+    await _safe_publish_run_event(parent_run.id, {
+        "type": "run_status", "run_id": parent_run.id, "status": "running",
+    })
+
+    summary_counts = {"passed": 0, "failed": 0, "error": 0}
+
+    for idx, row in enumerate(rows):
+        child = TestRun(
+            case_id=case.id,
+            triggered_by=parent_run.triggered_by,
+            trace_id=parent_run.trace_id,
+            status=RunStatus.running,
+            environment=parent_run.environment,
+            iteration_index=idx,
+            iteration_data=row if isinstance(row, dict) else {"value": row},
+            parent_run_id=parent_run.id,
+        )
+        db.add(child)
+        await db.commit()
+        await db.refresh(child)
+
+        merged_vars = {**(extra_vars or {}), **(child.iteration_data or {})}
+        try:
+            await dispatch_case(db, child, case, merged_vars)
+            await db.refresh(child)
+            status_str = child.status.value if hasattr(child.status, "value") else str(child.status)
+        except Exception as exc:
+            logger.exception(f"Parameterized child run {child.id} failed: {exc}")
+            child.status = RunStatus.error
+            child.error_message = str(exc)[:500]
+            await db.commit()
+            status_str = "error"
+
+        if status_str == "passed":
+            summary_counts["passed"] += 1
+        elif status_str == "failed":
+            summary_counts["failed"] += 1
+        else:
+            summary_counts["error"] += 1
+
+    # 聚合 parent 状态
+    if summary_counts["error"] > 0:
+        parent_run.status = RunStatus.error
+    elif summary_counts["failed"] > 0:
+        parent_run.status = RunStatus.failed
+    else:
+        parent_run.status = RunStatus.passed
+
+    parent_run.result_summary = {
+        **(parent_run.result_summary or {}),
+        "iteration_total": len(rows),
+        "iteration_passed": summary_counts["passed"],
+        "iteration_failed": summary_counts["failed"],
+        "iteration_error": summary_counts["error"],
+    }
+    await db.commit()
+    await _safe_publish_run_event(parent_run.id, {
+        "type": "completed",
+        "run_id": parent_run.id,
+        "status": parent_run.status.value,
+    })
+    await _safe_invalidate_stats_cache()
 
 
 @celery_app.task(bind=True, name="run_test_suite")

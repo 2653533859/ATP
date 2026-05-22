@@ -57,6 +57,8 @@ class TestCase(Base, TimestampMixin):
     reviewed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     review_comment: Mapped[str | None] = mapped_column(Text)
     config: Mapped[dict] = mapped_column(JSON, default=dict)
+    # P3.B MVP-B 参数化执行：绑定数据集后按行触发 N 次 child run
+    dataset_id: Mapped[int | None] = mapped_column(ForeignKey("test_datasets.id"), nullable=True)
 
     module: Mapped["Module"] = relationship(back_populates="cases")
     steps: Mapped[list["CaseStep"]] = relationship(
@@ -109,6 +111,13 @@ class TestRun(Base, TimestampMixin):
     duration_ms: Mapped[int | None] = mapped_column(Integer)
     error_message: Mapped[str | None] = mapped_column(Text)
     result_summary: Mapped[dict] = mapped_column(JSON, default=dict)
+
+    # P3.B MVP-B 参数化执行：parent run（容器）+ 多个 child runs（实际跑）
+    iteration_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    iteration_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    parent_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("test_runs.id"), nullable=True, index=True
+    )
 
     case: Mapped["TestCase"] = relationship(back_populates="runs")
     steps: Mapped[list["StepResult"]] = relationship(back_populates="run", cascade="all, delete-orphan")

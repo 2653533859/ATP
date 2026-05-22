@@ -48,6 +48,7 @@ class TestCaseCreate(BaseModel):
     automation_status: AutomationStatus = "auto"
     steps: list[CaseStepCreate] = Field(default_factory=list)
     config: dict = Field(default_factory=dict)
+    dataset_id: int | None = None  # P3.B 绑定数据集后参数化执行
 
 
 class TestCaseUpdate(BaseModel):
@@ -63,6 +64,7 @@ class TestCaseUpdate(BaseModel):
     automation_status: AutomationStatus | None = None
     steps: list[CaseStepCreate] | None = None
     config: dict | None = None
+    dataset_id: int | None = None  # 传 None 显式清除绑定
 
 
 class TestCaseOut(BaseModel):
@@ -82,6 +84,7 @@ class TestCaseOut(BaseModel):
     creator_id: int
     owner_id: int | None
     is_ready_for_execution: bool
+    dataset_id: int | None = None
     created_at: datetime
     updated_at: datetime
 
@@ -197,6 +200,8 @@ class TestRunListItem(BaseModel):
     duration_ms: int | None
     error_message: str | None
     result_summary: dict
+    iteration_index: int | None = None
+    parent_run_id: int | None = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -212,6 +217,9 @@ class TestRunOut(BaseModel):
     duration_ms: int | None
     error_message: str | None
     result_summary: dict
+    iteration_index: int | None = None
+    iteration_data: dict | None = None
+    parent_run_id: int | None = None
     created_at: datetime
     steps: list[StepResultOut] = Field(default_factory=list)
 

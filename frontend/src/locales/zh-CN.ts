@@ -505,6 +505,9 @@ export default {
       tags_placeholder: '输入后回车添加标签（如 smoke、p0）',
       description_label: '描述',
       description_placeholder: '可选',
+      dataset_label: '关联数据集（参数化执行）',
+      dataset_placeholder: '不选则按普通用例执行；选中后按数据集每行触发一次',
+      dataset_hint: '选中后：执行用例时将自动按数据集 rows 循环 N 次，每次将行数据合并入 extra_vars',
     },
     case_types: {
       api: '接口测试',
@@ -643,6 +646,10 @@ export default {
       environment: '环境',
       duration: '耗时',
       triggered_at: '触发时间',
+      parent_run: '父执行',
+      iteration: '迭代',
+      iteration_data: '迭代数据',
+      iteration_summary: '迭代统计',
       error_message: '错误信息',
       linked_bug: '关联缺陷',
       steps: '步骤详情',
@@ -657,6 +664,12 @@ export default {
       failed: '{count} 失败',
       error: '{count} 异常',
       skipped: '{count} 跳过',
+    },
+    iteration: {
+      total: '总',
+      passed: '通过',
+      failed: '失败',
+      error: '异常',
     },
     healing: {
       title: 'AI 诊断建议',
