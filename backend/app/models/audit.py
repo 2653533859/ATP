@@ -21,6 +21,7 @@ class AuditLog(Base):
     username: Mapped[str] = mapped_column(String(100), nullable=False, default="")
     detail: Mapped[str | None] = mapped_column(Text, nullable=True)
     ip_address: Mapped[str] = mapped_column(String(50), nullable=False, default="")
+    project_id: Mapped[int | None] = mapped_column(Integer, nullable=True, index=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), index=True,
     )

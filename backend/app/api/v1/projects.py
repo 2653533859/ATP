@@ -9,6 +9,7 @@ from app.api.v1.statistics import invalidate_stats_cache
 from app.core.database import get_db
 from app.models.project import Module, Project
 from app.models.user import User
+from app.models.user_project import ProjectRole, UserProject
 from app.schemas.project import (
     ModuleCreate,
     ModuleOut,
@@ -48,6 +49,9 @@ async def create_project(
     payload["project_code"] = payload.get("project_code") or _normalize_code(body.name, "PROJECT")
     project = Project(**payload, owner_id=current_user.id)
     db.add(project)
+    await db.flush()
+    # P3.C 创建者自动获得项目 owner 角色
+    db.add(UserProject(user_id=current_user.id, project_id=project.id, role=ProjectRole.owner))
     await db.commit()
     await invalidate_stats_cache()
     await db.refresh(project)

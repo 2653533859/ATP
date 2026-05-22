@@ -48,6 +48,9 @@ class _CreateDB:
     async def commit(self):
         self.commit_calls += 1
 
+    async def flush(self):
+        return None
+
     async def refresh(self, obj):
         self.refresh_calls.append(obj)
 

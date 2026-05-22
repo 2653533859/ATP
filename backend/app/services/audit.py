@@ -22,6 +22,7 @@ async def write_audit_log(
     username: str = "",
     detail: str | None = None,
     ip_address: str = "",
+    project_id: int | None = None,
 ) -> None:
     """写入一条审计日志记录"""
     try:
@@ -33,6 +34,7 @@ async def write_audit_log(
             username=username,
             detail=detail,
             ip_address=ip_address,
+            project_id=project_id,
         )
         db.add(log)
         await db.flush()
