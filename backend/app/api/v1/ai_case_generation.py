@@ -11,7 +11,8 @@ import httpx
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import require_engineer
+from app.api.deps import assert_project_access, require_engineer
+from app.models.user_project import ProjectRole
 from app.core.database import get_db
 from app.models.ai_llm_config import AILLMConfig
 from app.models.project import Project
@@ -31,7 +32,7 @@ router = APIRouter(prefix="/ai/cases", tags=["AI 用例生成"])
 @router.post("/parse-schema", response_model=AIParseSchemaOut)
 async def parse_schema_endpoint(
     body: AIParseSchemaIn,
-    _: User = Depends(require_engineer),
+    user: User = Depends(require_engineer),
 ):
     try:
         result = parse_schema(body.source_type, body.content)
@@ -49,8 +50,9 @@ async def parse_schema_endpoint(
 async def generate_cases_endpoint(
     body: AICaseGenerateIn,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_engineer),
+    user: User = Depends(require_engineer),
 ):
+    await assert_project_access(db, user, body.project_id, ProjectRole.editor)
     project = await db.get(Project, body.project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")

@@ -18,7 +18,8 @@ from app.models.project import Project
 from app.schemas.notification import (
     NotificationConfigCreate, NotificationConfigUpdate, NotificationConfigOut,
 )
-from app.api.deps import require_engineer
+from app.api.deps import assert_project_access, require_engineer
+from app.models.user_project import ProjectRole
 
 from app.core.encryption import SENSITIVE_KEYS, mask_config, encrypt_config, decrypt_config
 
@@ -29,8 +30,9 @@ router = APIRouter(tags=["通知配置"])
 async def create_notification(
     body: NotificationConfigCreate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
+    await assert_project_access(db, user, body.project_id, ProjectRole.owner)
     project = await db.get(Project, body.project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -58,8 +60,10 @@ def _mask_notification(cfg: NotificationConfig) -> dict:
 async def list_notifications(
     project_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
+    if project_id is not None:
+        await assert_project_access(db, user, project_id, ProjectRole.viewer)
     q = select(NotificationConfig).order_by(NotificationConfig.created_at.desc())
     if project_id is not None:
         q = q.where(NotificationConfig.project_id == project_id)
@@ -71,11 +75,12 @@ async def list_notifications(
 async def get_notification(
     cfg_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     cfg = await db.get(NotificationConfig, cfg_id)
     if not cfg:
         raise HTTPException(status_code=404, detail="通知配置不存在")
+    await assert_project_access(db, user, cfg.project_id, ProjectRole.viewer)
     return _mask_notification(cfg)
 
 
@@ -84,11 +89,12 @@ async def update_notification(
     cfg_id: int,
     body: NotificationConfigUpdate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     cfg = await db.get(NotificationConfig, cfg_id)
     if not cfg:
         raise HTTPException(status_code=404, detail="通知配置不存在")
+    await assert_project_access(db, user, cfg.project_id, ProjectRole.owner)
 
     for k, v in body.model_dump(exclude_none=True).items():
         if k == "config" and isinstance(v, dict):
@@ -109,11 +115,12 @@ async def update_notification(
 async def delete_notification(
     cfg_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     cfg = await db.get(NotificationConfig, cfg_id)
     if not cfg:
         raise HTTPException(status_code=404, detail="通知配置不存在")
+    await assert_project_access(db, user, cfg.project_id, ProjectRole.owner)
     await db.delete(cfg)
     await db.commit()
 
@@ -122,12 +129,13 @@ async def delete_notification(
 async def test_notification(
     cfg_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     """发送测试通知"""
     cfg = await db.get(NotificationConfig, cfg_id)
     if not cfg:
         raise HTTPException(status_code=404, detail="通知配置不存在")
+    await assert_project_access(db, user, cfg.project_id, ProjectRole.editor)
 
     from app.services.notifier import _send_email, _send_wechat, _send_dingtalk
     from app.models.notification import NotifyChannel

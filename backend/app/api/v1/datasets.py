@@ -13,10 +13,15 @@ from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import (
+    assert_project_access,
+    get_current_user,
+    require_project_access,
+)
 from app.core.database import get_db
 from app.models.dataset import TestDataset
 from app.models.user import User
+from app.models.user_project import ProjectRole
 from app.schemas.dataset import (
     TestDatasetCreate,
     TestDatasetListItem,
@@ -48,7 +53,7 @@ def _validate_rows(rows: list[dict]) -> None:
 async def list_datasets(
     project_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_project_access(ProjectRole.viewer)),
 ):
     result = await db.execute(
         select(TestDataset).where(TestDataset.project_id == project_id).order_by(TestDataset.id.desc())
@@ -76,6 +81,7 @@ async def create_dataset(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    await assert_project_access(db, user, body.project_id, ProjectRole.editor)
     _validate_rows(body.rows)
     dataset = TestDataset(
         name=body.name,
@@ -99,11 +105,12 @@ async def create_dataset(
 async def get_dataset(
     dataset_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     dataset = await db.get(TestDataset, dataset_id)
     if dataset is None:
         raise HTTPException(status_code=404, detail="数据集不存在")
+    await assert_project_access(db, user, dataset.project_id, ProjectRole.viewer)
     return dataset
 
 
@@ -112,11 +119,12 @@ async def update_dataset(
     dataset_id: int,
     body: TestDatasetUpdate,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     dataset = await db.get(TestDataset, dataset_id)
     if dataset is None:
         raise HTTPException(status_code=404, detail="数据集不存在")
+    await assert_project_access(db, user, dataset.project_id, ProjectRole.editor)
     if body.name is not None:
         dataset.name = body.name
     if body.description is not None:
@@ -133,11 +141,12 @@ async def update_dataset(
 async def delete_dataset(
     dataset_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     dataset = await db.get(TestDataset, dataset_id)
     if dataset is None:
         raise HTTPException(status_code=404, detail="数据集不存在")
+    await assert_project_access(db, user, dataset.project_id, ProjectRole.editor)
     # 引用检查：被用例绑定时拒绝（依赖 MVP-B 引入的 case.dataset_id 字段；
     # 如果该字段还未存在则跳过本检查——MVP-A 阶段无引用风险）
     from sqlalchemy import select as _select
@@ -160,7 +169,7 @@ async def upload_dataset(
     dataset_id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     """上传 CSV 或 JSON 文件覆盖数据集 rows。
 
@@ -170,6 +179,7 @@ async def upload_dataset(
     dataset = await db.get(TestDataset, dataset_id)
     if dataset is None:
         raise HTTPException(status_code=404, detail="数据集不存在")
+    await assert_project_access(db, user, dataset.project_id, ProjectRole.editor)
 
     raw = await file.read()
     if not raw:

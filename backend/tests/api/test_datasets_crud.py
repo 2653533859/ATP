@@ -8,9 +8,21 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
+
+def _p3c_noop(*_a, **_kw):
+    return None
+
+
+async def _p3c_noop_async(*_a, **_kw):
+    return None
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
-    get_current_user=lambda: None, require_engineer=lambda: None
-)
+    get_current_user=lambda: None, require_engineer=lambda: None,
+        require_admin=_p3c_noop,
+        require_project_access=lambda *a, **kw: _p3c_noop,
+        assert_project_access=_p3c_noop_async,
+        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+    )
 
 from fastapi import HTTPException, UploadFile
 
@@ -111,7 +123,7 @@ def test_upload_csv_parses_rows_and_skips_blank():
     db = _FakeDB({1: _make_dataset(1, rows=[], fmt="json")})
     raw = "name,value\nfoo,1\nbar,2\n,\n".encode("utf-8")
     file = UploadFile(filename="x.csv", file=io.BytesIO(raw))
-    result = asyncio.run(ds_api.upload_dataset(dataset_id=1, file=file, db=db, _=_FakeUser()))
+    result = asyncio.run(ds_api.upload_dataset(dataset_id=1, file=file, db=db, user=_FakeUser()))
     assert result.format == "csv"
     assert result.rows == [{"name": "foo", "value": "1"}, {"name": "bar", "value": "2"}]
 
@@ -121,7 +133,7 @@ def test_upload_json_requires_array_of_objects():
     raw = b'{"not": "array"}'
     file = UploadFile(filename="x.json", file=io.BytesIO(raw))
     try:
-        asyncio.run(ds_api.upload_dataset(dataset_id=2, file=file, db=db, _=_FakeUser()))
+        asyncio.run(ds_api.upload_dataset(dataset_id=2, file=file, db=db, user=_FakeUser()))
     except HTTPException as exc:
         assert exc.status_code == 400
         assert "数组" in exc.detail
@@ -133,7 +145,7 @@ def test_upload_json_ok():
     db = _FakeDB({3: _make_dataset(3, rows=[], fmt="json")})
     raw = b'[{"k": 1}, {"k": 2}]'
     file = UploadFile(filename="x.json", file=io.BytesIO(raw))
-    result = asyncio.run(ds_api.upload_dataset(dataset_id=3, file=file, db=db, _=_FakeUser()))
+    result = asyncio.run(ds_api.upload_dataset(dataset_id=3, file=file, db=db, user=_FakeUser()))
     assert result.format == "json"
     assert result.rows == [{"k": 1}, {"k": 2}]
 
@@ -141,7 +153,7 @@ def test_upload_json_ok():
 def test_get_dataset_404_when_missing():
     db = _FakeDB()
     try:
-        asyncio.run(ds_api.get_dataset(dataset_id=999, db=db, _=_FakeUser()))
+        asyncio.run(ds_api.get_dataset(dataset_id=999, db=db, user=_FakeUser()))
     except HTTPException as exc:
         assert exc.status_code == 404
     else:
@@ -150,5 +162,5 @@ def test_get_dataset_404_when_missing():
 
 def test_delete_dataset_succeeds_when_no_refs():
     db = _FakeDB({5: _make_dataset(5)})
-    asyncio.run(ds_api.delete_dataset(dataset_id=5, db=db, _=_FakeUser()))
+    asyncio.run(ds_api.delete_dataset(dataset_id=5, db=db, user=_FakeUser()))
     assert 5 in db.deleted

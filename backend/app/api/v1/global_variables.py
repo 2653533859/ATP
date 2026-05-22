@@ -11,7 +11,8 @@ from app.schemas.global_variable import (
     GlobalVariableUpdate,
     GlobalVariableRead,
 )
-from app.api.deps import get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user, require_admin, require_engineer
+from app.models.user_project import ProjectRole
 
 router = APIRouter(prefix="/global-variables", tags=["全局变量库"])
 
@@ -48,9 +49,11 @@ async def list_variables(
     project_id: int | None = None,
     scope_type: ScopeType | None = None,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """List global variables. Secrets are masked in the response."""
+    if project_id is not None:
+        await assert_project_access(db, user, project_id, ProjectRole.viewer)
     q = select(GlobalVariable).order_by(GlobalVariable.key.asc())
     if scope_type is not None:
         q = q.where(GlobalVariable.scope_type == scope_type)
@@ -68,6 +71,13 @@ async def create_variable(
     current_user=Depends(require_engineer),
 ):
     """Create a new global variable. Encrypts the value before storing."""
+    # 全局作用域要求 admin；项目作用域要求项目内 editor
+    if body.scope_type == ScopeType.project and body.project_id is not None:
+        await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
+    elif body.scope_type == ScopeType.global_:
+        from app.models.user import UserRole
+        if current_user.role != UserRole.admin:
+            raise HTTPException(status_code=403, detail="只有管理员可以创建全局作用域变量")
     # 检查 key 唯一性
     q = select(GlobalVariable).where(
         GlobalVariable.key == body.key,
@@ -97,12 +107,14 @@ async def get_variable(
     var_id: int,
     reveal_secret: bool = Query(default=False),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """Get a specific variable."""
     var = await db.get(GlobalVariable, var_id)
     if not var:
         raise HTTPException(status_code=404, detail="Variable not found")
+    if var.project_id is not None:
+        await assert_project_access(db, user, var.project_id, ProjectRole.viewer)
     return _serialize_variable(var, reveal_secret=reveal_secret)
 
 
@@ -117,6 +129,8 @@ async def update_variable(
     var = await db.get(GlobalVariable, var_id)
     if not var:
         raise HTTPException(status_code=404, detail="Variable not found")
+    if var.project_id is not None:
+        await assert_project_access(db, current_user, var.project_id, ProjectRole.editor)
 
     update_data = body.model_dump(exclude_none=True)
     if "value_encrypted" in update_data:
@@ -135,11 +149,13 @@ async def update_variable(
 async def delete_variable(
     var_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     """Delete a variable."""
     var = await db.get(GlobalVariable, var_id)
     if not var:
         raise HTTPException(status_code=404, detail="Variable not found")
+    if var.project_id is not None:
+        await assert_project_access(db, user, var.project_id, ProjectRole.editor)
     await db.delete(var)
     await db.commit()

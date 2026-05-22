@@ -9,10 +9,22 @@ from fastapi import HTTPException
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
+
+def _p3c_noop(*_a, **_kw):
+    return None
+
+
+async def _p3c_noop_async(*_a, **_kw):
+    return None
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=lambda: None,
     require_engineer=lambda: None,
-)
+        require_admin=_p3c_noop,
+        require_project_access=lambda *a, **kw: _p3c_noop,
+        assert_project_access=_p3c_noop_async,
+        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+    )
 
 from app.api.v1 import suites
 from app.models.bootstrap import load_all_models
@@ -214,7 +226,7 @@ def test_update_suite_rejects_case_from_another_project():
                 suite_id=33,
                 body=TestSuiteUpdate(case_ids=[{"case_id": 22, "sort": 0}]),
                 db=db,
-                _=types.SimpleNamespace(id=7),
+                user=types.SimpleNamespace(id=7),
             )
         )
 
@@ -244,7 +256,7 @@ def test_update_suite_updates_execution_config():
                 }
             ),
             db=db,
-            _=types.SimpleNamespace(id=7),
+            user=types.SimpleNamespace(id=7),
         )
     )
 
@@ -257,6 +269,7 @@ def test_trigger_suite_run_persists_and_dispatches_trace_id(monkeypatch):
         id=33,
         case_ids=[{"case_id": 12, "sort": 0}],
         creator_id=7,
+        project_id=1,
     )
     db = _FakeDB(suite=suite, cases=[])
 

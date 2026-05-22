@@ -14,10 +14,22 @@ _REAL_TRACING = importlib.import_module("app.core.tracing")
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
+
+def _p3c_noop(*_a, **_kw):
+    return None
+
+
+async def _p3c_noop_async(*_a, **_kw):
+    return None
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=lambda: None,
     require_engineer=lambda: None,
-)
+        require_admin=_p3c_noop,
+        require_project_access=lambda *a, **kw: _p3c_noop,
+        assert_project_access=_p3c_noop_async,
+        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+    )
 sys.modules["app.core.minio_client"] = types.SimpleNamespace(read_bytes=lambda *_args, **_kwargs: b"")
 sys.modules["app.core.rate_limit"] = types.SimpleNamespace(
     limiter=types.SimpleNamespace(limit=lambda *_args, **_kwargs: (lambda func: func))

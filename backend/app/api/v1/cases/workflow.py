@@ -10,10 +10,12 @@ from fastapi.responses import JSONResponse
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
 from app.models.case import CaseSnapshot, CaseStatus, CaseType
+from app.models.project import Module
 from app.models.user import User
+from app.models.user_project import ProjectRole
 from app.schemas.case import (
     CaseCloneFromSnapshotRequest,
     CaseSnapshotDiffOut,
@@ -36,6 +38,9 @@ async def submit_review(
     _current_user: User = Depends(get_current_user),
 ):
     case = await _cases._get_case_detail_or_404(db, case_id)
+    module = await db.get(Module, case.module_id)
+    if module:
+        await assert_project_access(db, _current_user, module.project_id, ProjectRole.editor)
     if case.status == CaseStatus.deprecated:
         raise HTTPException(status_code=409, detail="废弃用例不能提交审核")
     case.review_status = "pending"
@@ -55,6 +60,9 @@ async def approve_case(
     current_user: User = Depends(get_current_user),
 ):
     case = await _cases._get_case_detail_or_404(db, case_id)
+    module = await db.get(Module, case.module_id)
+    if module:
+        await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
     if case.review_status != "pending":
         raise HTTPException(status_code=409, detail="只有待审核用例可批准")
     if case.status == CaseStatus.deprecated:
@@ -76,6 +84,9 @@ async def reject_case(
     current_user: User = Depends(get_current_user),
 ):
     case = await _cases._get_case_detail_or_404(db, case_id)
+    module = await db.get(Module, case.module_id)
+    if module:
+        await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
     if case.review_status != "pending":
         raise HTTPException(status_code=409, detail="只有待审核用例可驳回")
     case.review_status = "rejected"

@@ -28,7 +28,8 @@ from app.schemas.plan import (
     PlanRunTrigger, PlanRunOut, WebhookTriggerRequest,
     PlanBatchDeleteIn, PlanBatchToggleIn, PlanBatchOpOut,
 )
-from app.api.deps import get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.models.user_project import ProjectRole
 
 router = APIRouter(tags=["测试计划"])
 
@@ -85,6 +86,7 @@ async def create_plan(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_engineer),
 ):
+    await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
     project = await db.get(Project, body.project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -121,8 +123,10 @@ async def create_plan(
 async def list_plans(
     project_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
+    if project_id is not None:
+        await assert_project_access(db, user, project_id, ProjectRole.viewer)
     q = select(TestPlan).order_by(TestPlan.created_at.desc())
     if project_id is not None:
         q = q.where(TestPlan.project_id == project_id)
@@ -134,11 +138,12 @@ async def list_plans(
 async def get_plan(
     plan_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     plan = await db.get(TestPlan, plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail="测试计划不存在")
+    await assert_project_access(db, user, plan.project_id, ProjectRole.viewer)
     return plan
 
 
@@ -147,11 +152,12 @@ async def update_plan(
     plan_id: int,
     body: TestPlanUpdate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     plan = await db.get(TestPlan, plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail="测试计划不存在")
+    await assert_project_access(db, user, plan.project_id, ProjectRole.editor)
 
     update_data = body.model_dump(exclude_none=True)
     if "suite_ids" in update_data:
@@ -179,11 +185,12 @@ async def update_plan(
 async def delete_plan(
     plan_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     plan = await db.get(TestPlan, plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail="测试计划不存在")
+    await assert_project_access(db, user, plan.project_id, ProjectRole.editor)
     await db.delete(plan)
     await db.commit()
 
@@ -251,6 +258,7 @@ async def trigger_plan_run(
     plan = await db.get(TestPlan, plan_id)
     if not plan:
         raise HTTPException(status_code=404, detail="测试计划不存在")
+    await assert_project_access(db, current_user, plan.project_id, ProjectRole.editor)
     if not plan.suite_ids:
         raise HTTPException(status_code=400, detail="计划中没有测试套件")
 

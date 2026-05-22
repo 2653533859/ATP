@@ -19,10 +19,22 @@ def _fake_require_engineer():
 
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
+
+def _p3c_noop(*_a, **_kw):
+    return None
+
+
+async def _p3c_noop_async(*_a, **_kw):
+    return None
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=_fake_get_current_user,
     require_engineer=_fake_require_engineer,
-)
+        require_admin=_p3c_noop,
+        require_project_access=lambda *a, **kw: _p3c_noop,
+        assert_project_access=_p3c_noop_async,
+        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+    )
 
 from app.api.v1 import notifications
 from app.models.notification import NotifyChannel
@@ -66,8 +78,8 @@ class _FakeDB:
 
 
 def test_notification_read_endpoints_require_engineer_dependency():
-    list_dep = inspect.signature(notifications.list_notifications).parameters["_"].default.dependency
-    get_dep = inspect.signature(notifications.get_notification).parameters["_"].default.dependency
+    list_dep = inspect.signature(notifications.list_notifications).parameters["user"].default.dependency
+    get_dep = inspect.signature(notifications.get_notification).parameters["user"].default.dependency
 
     assert list_dep is _fake_require_engineer
     assert get_dep is _fake_require_engineer
@@ -77,7 +89,7 @@ def test_notification_test_send_returns_404_for_missing_config():
     db = _FakeDB(cfg=None)
 
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(notifications.test_notification(cfg_id=99, db=db, _=None))
+        asyncio.run(notifications.test_notification(cfg_id=99, db=db, user=None))
 
     assert exc.value.status_code == 404
 
@@ -98,12 +110,13 @@ def test_notification_test_send_dispatches_email(monkeypatch):
 
     cfg = _FakeNotificationConfig(
         id=3,
+        project_id=1,
         channel=NotifyChannel.email,
         config={"recipients": ["qa@example.com"]},
     )
     db = _FakeDB(cfg=cfg)
 
-    result = asyncio.run(notifications.test_notification(cfg_id=3, db=db, _=None))
+    result = asyncio.run(notifications.test_notification(cfg_id=3, db=db, user=None))
 
     assert result["message"]
     assert called["channel"] == "email"
@@ -123,13 +136,14 @@ def test_notification_test_send_converts_delivery_failure_to_http_500():
 
     cfg = _FakeNotificationConfig(
         id=8,
+        project_id=1,
         channel=NotifyChannel.wechat,
         config={"webhook_url": "https://qy.example"},
     )
     db = _FakeDB(cfg=cfg)
 
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(notifications.test_notification(cfg_id=8, db=db, _=None))
+        asyncio.run(notifications.test_notification(cfg_id=8, db=db, user=None))
 
     assert exc.value.status_code == 500
     assert "invalid webhook" in str(exc.value.detail)
@@ -146,7 +160,7 @@ def test_create_notification_returns_404_for_missing_project():
     db = _FakeDB(project=None)
 
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(notifications.create_notification(body=body, db=db, _=None))
+        asyncio.run(notifications.create_notification(body=body, db=db, user=None))
 
     assert exc.value.status_code == 404
 
@@ -179,7 +193,7 @@ def test_update_notification_preserves_masked_sensitive_fields_without_double_en
         config={"webhook_url": "******", "secret": "******", "keyword": "release"},
     )
 
-    result = asyncio.run(notifications.update_notification(cfg_id=5, body=body, db=db, _=None))
+    result = asyncio.run(notifications.update_notification(cfg_id=5, body=body, db=db, user=None))
 
     assert result.config["webhook_url"] == "enc:https://qy.example/hook"
     assert result.config["secret"] == "enc:top-secret"

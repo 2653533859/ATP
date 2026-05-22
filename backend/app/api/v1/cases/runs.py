@@ -12,12 +12,14 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_current_user
+from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
 from app.core.encryption import decrypt_env_vars
 from app.models.case import RunStatus, TestCase, TestRun
 from app.models.environment import Environment, EnvVariable
+from app.models.project import Module
 from app.models.user import User
+from app.models.user_project import ProjectRole
 from app.schemas.case import (
     HealingFeedbackRequest,
     PaginatedRunsOut,
@@ -53,6 +55,9 @@ async def trigger_run(
     case = await db.get(TestCase, case_id)
     if not case:
         raise HTTPException(status_code=404, detail="用例不存在")
+    module = await db.get(Module, case.module_id)
+    if module:
+        await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
     _cases._assert_can_trigger_run(case)
 
     env_name: str | None = None

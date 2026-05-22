@@ -7,7 +7,20 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
-sys.modules["app.api.deps"] = types.SimpleNamespace(get_current_user=lambda: None, require_engineer=lambda: None)
+
+def _p3c_noop(*_a, **_kw):
+    return None
+
+
+async def _p3c_noop_async(*_a, **_kw):
+    return None
+
+sys.modules["app.api.deps"] = types.SimpleNamespace(get_current_user=lambda: None, require_engineer=lambda: None,
+        require_admin=_p3c_noop,
+        require_project_access=lambda *a, **kw: _p3c_noop,
+        assert_project_access=_p3c_noop_async,
+        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+    )
 sys.modules["app.worker.tasks"] = types.SimpleNamespace(
     run_test_case=types.SimpleNamespace(delay=lambda *_args, **_kwargs: None)
 )
@@ -128,7 +141,8 @@ class _DeleteDB:
         self.commit_calls = 0
 
     async def get(self, model, case_id):
-        assert model is TestCase
+        if model is not TestCase:
+            return None
         assert case_id == 7
         return self.case_obj
 
@@ -148,6 +162,9 @@ class _UpdateDB:
     def add(self, obj):
         self.added.append(obj)
 
+    async def get(self, _model, _pk):
+        return None
+
     async def flush(self):
         return None
 
@@ -165,6 +182,7 @@ def test_create_case_persists_standardized_fields_and_ordered_steps(monkeypatch)
         name="Login",
         module_code="LOGIN",
         project=types.SimpleNamespace(id=1, name="ATP", project_code="ATP"),
+        project_id=1,
     )
 
     async def fake_module_loader(_db, module_id):
@@ -225,6 +243,7 @@ def test_create_case_invalidates_stats_cache(monkeypatch):
         name="Login",
         module_code="LOGIN",
         project=types.SimpleNamespace(id=1, name="ATP", project_code="ATP"),
+        project_id=1,
     )
     invalidated = []
 
@@ -291,7 +310,7 @@ def test_list_cases_supports_management_filters():
             tag="smoke",
             keyword="login",
             db=db,
-            _=None,
+            user=None,
         )
     )
 

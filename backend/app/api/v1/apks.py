@@ -22,7 +22,8 @@ from app.models.apk import Apk
 from app.models.project import Project
 from app.models.user import User
 from app.schemas.apk import ApkOut, ApkUpdate
-from app.api.deps import get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.models.user_project import ProjectRole
 
 router = APIRouter(tags=["APK 管理"])
 
@@ -77,6 +78,7 @@ async def upload_apk(
 ):
     """上传 APK 文件到 MinIO 并创建记录"""
     # 校验项目存在
+    await assert_project_access(db, current_user, project_id, ProjectRole.editor)
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -126,8 +128,10 @@ async def upload_apk(
 async def list_apks(
     project_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
+    if project_id is not None:
+        await assert_project_access(db, user, project_id, ProjectRole.viewer)
     q = select(Apk).order_by(Apk.created_at.desc())
     if project_id is not None:
         q = q.where(Apk.project_id == project_id)
@@ -139,11 +143,12 @@ async def list_apks(
 async def get_apk(
     apk_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     apk = await db.get(Apk, apk_id)
     if not apk:
         raise HTTPException(status_code=404, detail="APK 不存在")
+    await assert_project_access(db, user, apk.project_id, ProjectRole.viewer)
     return apk
 
 
@@ -152,11 +157,12 @@ async def update_apk(
     apk_id: int,
     body: ApkUpdate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     apk = await db.get(Apk, apk_id)
     if not apk:
         raise HTTPException(status_code=404, detail="APK 不存在")
+    await assert_project_access(db, user, apk.project_id, ProjectRole.editor)
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(apk, k, v)
     await db.commit()
@@ -168,11 +174,12 @@ async def update_apk(
 async def delete_apk(
     apk_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     apk = await db.get(Apk, apk_id)
     if not apk:
         raise HTTPException(status_code=404, detail="APK 不存在")
+    await assert_project_access(db, user, apk.project_id, ProjectRole.editor)
     # 删除 MinIO 中的文件
     try:
         delete_file(apk.object_name)
@@ -186,11 +193,12 @@ async def delete_apk(
 async def download_apk(
     apk_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """获取 APK 预签名下载链接"""
     apk = await db.get(Apk, apk_id)
     if not apk:
         raise HTTPException(status_code=404, detail="APK 不存在")
+    await assert_project_access(db, user, apk.project_id, ProjectRole.viewer)
     url = presigned_url(apk.object_name, expires_seconds=3600)
     return {"url": url, "filename": apk.filename}

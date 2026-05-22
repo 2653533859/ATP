@@ -10,7 +10,20 @@ from fastapi import HTTPException
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
-sys.modules["app.api.deps"] = types.SimpleNamespace(get_current_user=lambda: None, require_engineer=lambda: None)
+
+def _p3c_noop(*_a, **_kw):
+    return None
+
+
+async def _p3c_noop_async(*_a, **_kw):
+    return None
+
+sys.modules["app.api.deps"] = types.SimpleNamespace(get_current_user=lambda: None, require_engineer=lambda: None,
+        require_admin=_p3c_noop,
+        require_project_access=lambda *a, **kw: _p3c_noop,
+        assert_project_access=_p3c_noop_async,
+        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+    )
 sys.modules["app.worker.tasks"] = types.SimpleNamespace(
     run_test_case=types.SimpleNamespace(delay=lambda *_args, **_kwargs: None)
 )
@@ -51,6 +64,9 @@ def _case(status: CaseStatus, review_status: str) -> TestCase:
 class _WorkflowDB:
     def __init__(self, case_obj: TestCase):
         self.case_obj = case_obj
+
+    async def get(self, _model, _pk):
+        return None
 
     async def commit(self):
         self.case_obj.updated_at = datetime.now(timezone.utc)

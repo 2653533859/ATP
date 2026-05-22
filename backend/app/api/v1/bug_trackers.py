@@ -24,7 +24,8 @@ from app.schemas.bug_tracker import (
     BugTrackerCreate, BugTrackerUpdate, BugTrackerOut,
     CreateBugRequest, BugResultOut,
 )
-from app.api.deps import require_engineer, get_current_user
+from app.api.deps import assert_project_access, require_engineer, get_current_user
+from app.models.user_project import ProjectRole
 from app.services.bug_reporter import (
     create_bug,
     build_bug_description,
@@ -66,8 +67,9 @@ def _get_tracker_or_404(tracker: BugTracker | None) -> BugTracker:
 async def create_bug_tracker(
     body: BugTrackerCreate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
+    await assert_project_access(db, user, body.project_id, ProjectRole.owner)
     project = await db.get(Project, body.project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -90,8 +92,10 @@ async def create_bug_tracker(
 async def list_bug_trackers(
     project_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
+    if project_id is not None:
+        await assert_project_access(db, user, project_id, ProjectRole.viewer)
     q = select(BugTracker).order_by(BugTracker.created_at.desc())
     if project_id is not None:
         q = q.where(BugTracker.project_id == project_id)
@@ -103,9 +107,10 @@ async def list_bug_trackers(
 async def get_bug_tracker(
     tracker_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     tracker = _get_tracker_or_404(await db.get(BugTracker, tracker_id))
+    await assert_project_access(db, user, tracker.project_id, ProjectRole.viewer)
     return _mask_tracker(tracker)
 
 
@@ -114,9 +119,10 @@ async def update_bug_tracker(
     tracker_id: int,
     body: BugTrackerUpdate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     tracker = _get_tracker_or_404(await db.get(BugTracker, tracker_id))
+    await assert_project_access(db, user, tracker.project_id, ProjectRole.owner)
 
     existing_config = decrypt_config(tracker.config or {})
     for k, v in body.model_dump(exclude_none=True).items():
@@ -132,9 +138,10 @@ async def update_bug_tracker(
 async def delete_bug_tracker(
     tracker_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     tracker = _get_tracker_or_404(await db.get(BugTracker, tracker_id))
+    await assert_project_access(db, user, tracker.project_id, ProjectRole.owner)
     await db.delete(tracker)
     await db.commit()
 

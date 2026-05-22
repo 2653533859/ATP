@@ -4,6 +4,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.environment import Environment, EnvVariable
+from app.models.user_project import ProjectRole
 from app.schemas.environment import (
     EnvironmentCreate,
     EnvironmentUpdate,
@@ -11,7 +12,7 @@ from app.schemas.environment import (
     EnvVariableBatchSave,
     EnvVariableOut,
 )
-from app.api.deps import get_current_user
+from app.api.deps import assert_project_access, get_current_user
 from app.core.encryption import encrypt
 
 router = APIRouter(tags=["环境管理"])
@@ -21,8 +22,9 @@ router = APIRouter(tags=["环境管理"])
 async def list_environments(
     project_id: int = Query(..., description="项目 ID"),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
+    await assert_project_access(db, user, project_id, ProjectRole.viewer)
     result = await db.execute(
         select(Environment)
         .where(Environment.project_id == project_id)
@@ -35,8 +37,9 @@ async def list_environments(
 async def create_environment(
     body: EnvironmentCreate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
+    await assert_project_access(db, user, body.project_id, ProjectRole.editor)
     env = Environment(**body.model_dump())
     db.add(env)
     await db.commit()
@@ -49,11 +52,12 @@ async def update_environment(
     env_id: int,
     body: EnvironmentUpdate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     env = await db.get(Environment, env_id)
     if not env:
         raise HTTPException(status_code=404, detail="环境不存在")
+    await assert_project_access(db, user, env.project_id, ProjectRole.editor)
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(env, k, v)
     await db.commit()
@@ -65,11 +69,12 @@ async def update_environment(
 async def delete_environment(
     env_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     env = await db.get(Environment, env_id)
     if not env:
         raise HTTPException(status_code=404, detail="环境不存在")
+    await assert_project_access(db, user, env.project_id, ProjectRole.editor)
     await db.delete(env)
     await db.commit()
 
@@ -78,11 +83,12 @@ async def delete_environment(
 async def get_variables(
     env_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     env = await db.get(Environment, env_id)
     if not env:
         raise HTTPException(status_code=404, detail="环境不存在")
+    await assert_project_access(db, user, env.project_id, ProjectRole.viewer)
     result = await db.execute(
         select(EnvVariable).where(EnvVariable.env_id == env_id)
     )
@@ -95,11 +101,12 @@ async def save_variables(
     env_id: int,
     body: EnvVariableBatchSave,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     env = await db.get(Environment, env_id)
     if not env:
         raise HTTPException(status_code=404, detail="环境不存在")
+    await assert_project_access(db, user, env.project_id, ProjectRole.editor)
 
     # Bulk delete existing variables
     await db.execute(

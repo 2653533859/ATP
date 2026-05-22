@@ -13,11 +13,12 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
 from app.models.case import CaseStatus, TestCase
 from app.models.project import Module
 from app.models.user import User
+from app.models.user_project import ProjectRole
 from app.schemas.case import TestCaseCreate, TestCaseDetailOut, TestCaseOut, TestCaseUpdate
 
 router = APIRouter(tags=["用例管理"])
@@ -36,8 +37,14 @@ async def list_cases(
     tag: str | None = None,
     keyword: str | None = None,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
+    if project_id:
+        await assert_project_access(db, user, project_id, ProjectRole.viewer)
+    elif module_id:
+        module = await db.get(Module, module_id)
+        if module:
+            await assert_project_access(db, user, module.project_id, ProjectRole.viewer)
     query = select(TestCase)
     if project_id:
         query = query.join(Module, TestCase.module_id == Module.id).where(Module.project_id == project_id)
@@ -78,6 +85,7 @@ async def create_case(
     current_user: User = Depends(get_current_user),
 ):
     module = await _cases._get_module_for_case_code(db, body.module_id)
+    await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
     steps_payload = _cases._normalize_steps(body.steps, body.case_type, body.config, body.name)
     case = TestCase(
         name=body.name,
@@ -117,8 +125,12 @@ async def create_case(
 
 
 @router.get("/cases/{case_id}", response_model=TestCaseDetailOut)
-async def get_case(case_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
-    return await _cases._get_case_detail_or_404(db, case_id)
+async def get_case(case_id: int, db: AsyncSession = Depends(get_db), user=Depends(get_current_user)):
+    case = await _cases._get_case_detail_or_404(db, case_id)
+    module = await db.get(Module, case.module_id)
+    if module:
+        await assert_project_access(db, user, module.project_id, ProjectRole.viewer)
+    return case
 
 
 @router.patch("/cases/{case_id}", response_model=TestCaseDetailOut)
@@ -129,6 +141,9 @@ async def update_case(
     current_user: User = Depends(get_current_user),
 ):
     case = await _cases._get_case_detail_or_404(db, case_id)
+    module = await db.get(Module, case.module_id)
+    if module:
+        await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
     db.add(_cases._build_snapshot(case, await _cases._next_snapshot_version(db, case_id), current_user.id))
     await _cases._enforce_snapshot_retention(db, case_id)
 
@@ -180,6 +195,7 @@ async def copy_case(
 ):
     source = await _cases._get_case_detail_or_404(db, case_id)
     module = await _cases._get_module_for_case_code(db, source.module_id)
+    await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
     cloned = TestCase(
         name=f"{source.name} Copy",
         description=source.description,
@@ -215,6 +231,9 @@ async def delete_case(
     case = await db.get(TestCase, case_id)
     if not case:
         raise HTTPException(status_code=404, detail="用例不存在")
+    module = await db.get(Module, case.module_id)
+    if module:
+        await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
     case_name = case.name
     await db.delete(case)
     await _cases.write_audit_log(

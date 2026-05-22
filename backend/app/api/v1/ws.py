@@ -16,6 +16,7 @@ from app.core.redis_client import get_async_redis
 from app.models.case import TestCase, TestRun
 from app.models.project import Module, Project
 from app.models.user import User, UserRole
+from app.models.user_project import UserProject
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,15 @@ async def _can_subscribe_run(run_id: int, user: User) -> bool:
         module = await db.get(Module, case.module_id)
         if module is None:
             return False
+        # P3.C 项目成员（UserProject）也可订阅
+        membership = await db.execute(
+            select(UserProject.id).where(
+                UserProject.user_id == user.id,
+                UserProject.project_id == module.project_id,
+            )
+        )
+        if membership.scalar_one_or_none() is not None:
+            return True
         project = await db.get(Project, module.project_id)
         if project is None:
             return False

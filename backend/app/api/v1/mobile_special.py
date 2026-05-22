@@ -30,7 +30,8 @@ from app.schemas.mobile_special import (
     MobileRunArtifactOut,
     RunTriggerRequest,
 )
-from app.api.deps import get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.models.user_project import ProjectRole
 
 router = APIRouter(prefix="/mobile-special", tags=["Android专项测试"])
 logger = logging.getLogger(__name__)
@@ -92,9 +93,11 @@ async def list_tasks(
     project_id: Optional[int] = None,
     task_type: Optional[TaskType] = None,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """List all mobile special tasks, optionally filtered by project and task type."""
+    if project_id is not None:
+        await assert_project_access(db, user, project_id, ProjectRole.viewer)
     q = select(MobileSpecialTask).order_by(MobileSpecialTask.updated_at.desc())
     if project_id is not None:
         q = q.where(MobileSpecialTask.project_id == project_id)
@@ -111,6 +114,7 @@ async def create_task(
     current_user=Depends(require_engineer),
 ):
     """Create a new mobile special task."""
+    await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
     task = MobileSpecialTask(
         **body.model_dump(),
         created_by=current_user.id,
@@ -126,12 +130,13 @@ async def create_task(
 async def get_task(
     task_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """Get a specific mobile special task."""
     task = await db.get(MobileSpecialTask, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    await assert_project_access(db, user, task.project_id, ProjectRole.viewer)
     return task
 
 
@@ -146,6 +151,7 @@ async def update_task(
     task = await db.get(MobileSpecialTask, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    await assert_project_access(db, current_user, task.project_id, ProjectRole.editor)
 
     update_data = body.model_dump(exclude_none=True)
     for k, v in update_data.items():
@@ -162,12 +168,13 @@ async def update_task(
 async def delete_task(
     task_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     """Delete a mobile special task."""
     task = await db.get(MobileSpecialTask, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    await assert_project_access(db, user, task.project_id, ProjectRole.editor)
     await db.delete(task)
     await db.commit()
 
@@ -185,6 +192,7 @@ async def trigger_task_run(
     task = await db.get(MobileSpecialTask, task_id)
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
+    await assert_project_access(db, current_user, task.project_id, ProjectRole.editor)
 
     config = dict(task.config_json or {})
     selected_device_id = body.device_id if body.device_id is not None else task.device_id

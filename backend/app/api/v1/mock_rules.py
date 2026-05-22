@@ -3,12 +3,13 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user, require_engineer, require_project_access
 from app.core.database import get_db
 from app.models.mock import MockMethod, MockRule
 from app.models.mock_snapshot import MockRuleSnapshot
 from app.models.project import Project
 from app.models.user import User
+from app.models.user_project import ProjectRole
 from app.schemas.mock import (
     MockRuleCreate,
     MockRuleOut,
@@ -71,6 +72,7 @@ async def create_mock_rule(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_engineer),
 ):
+    await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
     project = await db.get(Project, body.project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -93,6 +95,7 @@ async def import_mock_rules(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_engineer),
 ):
+    await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
     project = await db.get(Project, body.project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -114,7 +117,7 @@ async def import_mock_rules(
 async def export_mock_rules(
     project_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_project_access(ProjectRole.viewer)),
 ):
     stmt = select(MockRule).where(MockRule.project_id == project_id).order_by(MockRule.id.desc())
     result = await db.execute(stmt)
@@ -126,8 +129,10 @@ async def export_mock_rules(
 async def list_mock_rules(
     project_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
+    if project_id is not None:
+        await assert_project_access(db, user, project_id, ProjectRole.viewer)
     stmt = select(MockRule).order_by(MockRule.id.desc())
     if project_id is not None:
         stmt = stmt.where(MockRule.project_id == project_id)
@@ -138,7 +143,7 @@ async def list_mock_rules(
 @router.get("/mock-rules/logs/{project_id}")
 async def list_mock_logs(
     project_id: int,
-    _: User = Depends(get_current_user),
+    _: User = Depends(require_project_access(ProjectRole.viewer)),
 ):
     return get_mock_logs(project_id)
 
@@ -147,11 +152,12 @@ async def list_mock_logs(
 async def get_mock_rule(
     rule_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     rule = await db.get(MockRule, rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="Mock 规则不存在")
+    await assert_project_access(db, user, rule.project_id, ProjectRole.viewer)
     return rule
 
 
@@ -165,6 +171,7 @@ async def update_mock_rule(
     rule = await db.get(MockRule, rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="Mock 规则不存在")
+    await assert_project_access(db, current_user, rule.project_id, ProjectRole.editor)
 
     payload = body.model_dump(exclude_none=True)
     if payload:
@@ -182,11 +189,12 @@ async def update_mock_rule(
 async def delete_mock_rule(
     rule_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(require_engineer),
+    user: User = Depends(require_engineer),
 ):
     rule = await db.get(MockRule, rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="Mock 规则不存在")
+    await assert_project_access(db, user, rule.project_id, ProjectRole.editor)
     project_id = rule.project_id
     await db.delete(rule)
     await db.commit()

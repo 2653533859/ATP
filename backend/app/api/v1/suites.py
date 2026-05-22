@@ -28,7 +28,8 @@ from app.schemas.suite import (
     SuiteRunTrigger, SuiteRunOut,
     SuiteBatchCopyIn, SuiteBatchDeleteIn, SuiteBatchOpOut,
 )
-from app.api.deps import get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.models.user_project import ProjectRole
 
 router = APIRouter(tags=["测试套件"])
 
@@ -82,6 +83,7 @@ async def create_suite(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_engineer),
 ):
+    await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
     project = await db.get(Project, body.project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -106,8 +108,10 @@ async def create_suite(
 async def list_suites(
     project_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
+    if project_id is not None:
+        await assert_project_access(db, user, project_id, ProjectRole.viewer)
     q = select(TestSuite).order_by(TestSuite.created_at.desc())
     if project_id is not None:
         q = q.where(TestSuite.project_id == project_id)
@@ -119,11 +123,12 @@ async def list_suites(
 async def get_suite(
     suite_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     suite = await db.get(TestSuite, suite_id)
     if not suite:
         raise HTTPException(status_code=404, detail="套件不存在")
+    await assert_project_access(db, user, suite.project_id, ProjectRole.viewer)
     return suite
 
 
@@ -132,11 +137,12 @@ async def update_suite(
     suite_id: int,
     body: TestSuiteUpdate,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     suite = await db.get(TestSuite, suite_id)
     if not suite:
         raise HTTPException(status_code=404, detail="套件不存在")
+    await assert_project_access(db, user, suite.project_id, ProjectRole.editor)
 
     update_data = body.model_dump(exclude_none=True)
     if "case_ids" in update_data:
@@ -152,11 +158,12 @@ async def update_suite(
 async def delete_suite(
     suite_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    user=Depends(require_engineer),
 ):
     suite = await db.get(TestSuite, suite_id)
     if not suite:
         raise HTTPException(status_code=404, detail="套件不存在")
+    await assert_project_access(db, user, suite.project_id, ProjectRole.editor)
     await db.delete(suite)
     await db.commit()
 
@@ -234,6 +241,7 @@ async def trigger_suite_run(
     suite = await db.get(TestSuite, suite_id)
     if not suite:
         raise HTTPException(status_code=404, detail="套件不存在")
+    await assert_project_access(db, current_user, suite.project_id, ProjectRole.editor)
     if not suite.case_ids:
         raise HTTPException(status_code=400, detail="套件中没有用例")
 

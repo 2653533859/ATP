@@ -15,11 +15,22 @@ from tests.api.conftest import fake_require_admin as _fake_require_admin
 from tests.api.conftest import fake_require_engineer as _fake_require_engineer
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
+
+def _p3c_noop(*_a, **_kw):
+    return None
+
+
+async def _p3c_noop_async(*_a, **_kw):
+    return None
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     require_admin=_fake_require_admin,
     require_engineer=_fake_require_engineer,
     get_current_user=lambda: None,
-)
+        require_project_access=lambda *a, **kw: _p3c_noop,
+        assert_project_access=_p3c_noop_async,
+        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+    )
 
 from app.models.bootstrap import load_all_models
 
@@ -35,7 +46,7 @@ def test_endpoints_require_engineer():
         ai_case_generation.parse_schema_endpoint,
         ai_case_generation.generate_cases_endpoint,
     ):
-        dep = inspect.signature(fn).parameters["_"].default.dependency
+        dep = inspect.signature(fn).parameters["user"].default.dependency
         assert dep is _fake_require_engineer
 
 
@@ -47,7 +58,7 @@ def test_parse_schema_endpoint_openapi_success():
         },
     }
     body = AIParseSchemaIn(source_type="openapi", content=json.dumps(doc))
-    result = asyncio.run(ai_case_generation.parse_schema_endpoint(body=body, _=None))
+    result = asyncio.run(ai_case_generation.parse_schema_endpoint(body=body, user=None))
     assert len(result.endpoints) == 1
     assert result.endpoints[0].method == "GET"
     assert result.endpoints[0].path == "/health"
@@ -56,7 +67,7 @@ def test_parse_schema_endpoint_openapi_success():
 def test_parse_schema_endpoint_invalid_returns_400():
     body = AIParseSchemaIn(source_type="curl", content="totally not curl")
     try:
-        asyncio.run(ai_case_generation.parse_schema_endpoint(body=body, _=None))
+        asyncio.run(ai_case_generation.parse_schema_endpoint(body=body, user=None))
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 400
     else:
@@ -95,7 +106,7 @@ def test_generate_404_when_project_missing():
     db = _AsyncDB({"Project": {}, "AILLMConfig": {1: _fake_config()}})
     body = AICaseGenerateIn(project_id=999, module_id=1)
     try:
-        asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, _=None))
+        asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, user=None))
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 404
     else:
@@ -106,7 +117,7 @@ def test_generate_400_when_project_has_no_ai_config():
     db = _AsyncDB({"Project": {1: _fake_project(ai_llm_config_id=None)}})
     body = AICaseGenerateIn(project_id=1, module_id=1)
     try:
-        asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, _=None))
+        asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, user=None))
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 400
         assert "未配置" in exc.detail  # type: ignore[attr-defined]
@@ -123,7 +134,7 @@ def test_generate_400_when_config_disabled():
     )
     body = AICaseGenerateIn(project_id=1, module_id=1)
     try:
-        asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, _=None))
+        asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, user=None))
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 400
         assert "禁用" in exc.detail  # type: ignore[attr-defined]
@@ -179,7 +190,7 @@ def test_generate_success_invokes_generator(monkeypatch):
         user_requirement="登录",
         max_cases=3,
     )
-    result = asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, _=None))
+    result = asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, user=None))
 
     assert result.project_id == 1
     assert result.module_id == 2
@@ -204,7 +215,7 @@ def test_generate_502_on_llm_network_error(monkeypatch):
 
     body = AICaseGenerateIn(project_id=1, module_id=1)
     try:
-        asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, _=None))
+        asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, user=None))
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 502
         assert "网络错误" in exc.detail  # type: ignore[attr-defined]
@@ -227,7 +238,7 @@ def test_generate_400_on_value_error(monkeypatch):
 
     body = AICaseGenerateIn(project_id=1, module_id=1)
     try:
-        asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, _=None))
+        asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, user=None))
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 400
     else:

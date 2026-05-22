@@ -9,10 +9,22 @@ from fastapi import HTTPException
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
+
+def _p3c_noop(*_a, **_kw):
+    return None
+
+
+async def _p3c_noop_async(*_a, **_kw):
+    return None
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=lambda: None,
     require_engineer=lambda: None,
-)
+        require_admin=_p3c_noop,
+        require_project_access=lambda *a, **kw: _p3c_noop,
+        assert_project_access=_p3c_noop_async,
+        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+    )
 
 from app.api.v1 import plans
 from app.models.bootstrap import load_all_models
@@ -175,7 +187,7 @@ def test_update_plan_rejects_suite_from_another_project():
                 plan_id=44,
                 body=TestPlanUpdate(suite_ids=[{"suite_id": 202, "sort": 0}]),
                 db=db,
-                _=types.SimpleNamespace(id=8),
+                user=types.SimpleNamespace(id=8),
             )
         )
 
@@ -195,7 +207,7 @@ def test_update_plan_rejects_environment_from_another_project():
                 plan_id=45,
                 body=TestPlanUpdate(env_id=9),
                 db=db,
-                _=types.SimpleNamespace(id=8),
+                user=types.SimpleNamespace(id=8),
             )
         )
 
