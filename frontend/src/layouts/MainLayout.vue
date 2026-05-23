@@ -61,6 +61,7 @@
           <a-menu-item key="/system/global-variables">{{ t('menu.system.global_variables') }}</a-menu-item>
           <a-menu-item key="/system/ai-llm-configs">{{ t('menu.system.ai_llm_configs') }}</a-menu-item>
           <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
+          <a-menu-item v-if="auth.user?.role === 'admin'" key="/system/audit-logs">{{ t('menu.system.audit_logs') }}</a-menu-item>
         </a-sub-menu>
       </a-menu>
     </a-layout-sider>

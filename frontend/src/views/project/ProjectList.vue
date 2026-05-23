@@ -14,6 +14,7 @@
               {{ t('project.ai_model_label', { model: llmConfigLabel(p.ai_llm_config_id) }) }}
             </p>
             <template #extra>
+              <a-button type="link" @click.stop="openMembers(p)">{{ t('project.members') }}</a-button>
               <a-button type="link" @click.stop="openEdit(p)">{{ t('common.edit') }}</a-button>
               <a-button type="link" danger @click.stop="handleDelete(p.id)">{{ t('common.delete') }}</a-button>
             </template>
@@ -51,6 +52,13 @@
         </a-form-item>
       </a-form>
     </a-modal>
+
+    <MemberManageDrawer
+      :open="memberDrawerOpen"
+      :project-id="memberProjectId"
+      :project-name="memberProjectName"
+      @close="memberDrawerOpen = false"
+    />
   </div>
 </template>
 
@@ -60,10 +68,21 @@ import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { aiLLMConfigApi, projectApi, type AILLMConfigItem, type ProjectItem } from '@/api'
+import MemberManageDrawer from './MemberManageDrawer.vue'
 import { getProjectErrorMessage } from './project-errors'
 
 const router = useRouter()
 const { t } = useI18n()
+
+const memberDrawerOpen = ref(false)
+const memberProjectId = ref<number | null>(null)
+const memberProjectName = ref<string | null>(null)
+
+function openMembers(p: ProjectItem) {
+  memberProjectId.value = p.id
+  memberProjectName.value = p.name
+  memberDrawerOpen.value = true
+}
 const projects = ref<ProjectItem[]>([])
 const llmConfigs = ref<AILLMConfigItem[]>([])
 const loading = ref(false)

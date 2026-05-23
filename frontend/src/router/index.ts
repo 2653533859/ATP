@@ -116,6 +116,12 @@ const router = createRouter({
           component: () => import('@/views/system/GlobalVariableLibrary.vue'),
         },
         {
+          path: 'system/audit-logs',
+          name: 'audit-logs',
+          component: () => import('@/views/audit/AuditLogList.vue'),
+          meta: { requireAdmin: true },
+        },
+        {
           path: 'system/ai-llm-configs',
           name: 'system-ai-llm-configs',
           component: () => import('@/views/system/AILLMConfigList.vue'),

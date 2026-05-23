@@ -1077,3 +1077,56 @@ export const datasetApi = {
     return http.post<any, DatasetDetail>(`/datasets/${id}/upload`, form)
   },
 }
+
+// ─── P3.C 项目成员与审计日志 ─────────────────────────────
+export type ProjectRoleType = 'owner' | 'editor' | 'viewer'
+
+export interface ProjectMemberItem {
+  id: number
+  user_id: number
+  username: string
+  email: string
+  role: ProjectRoleType
+  created_at: string
+}
+
+export interface AuditLogItem {
+  id: number
+  action: string
+  resource_type: string
+  resource_id: number | null
+  user_id: number | null
+  username: string
+  detail: string | null
+  ip_address: string
+  project_id: number | null
+  created_at: string
+}
+
+export interface PaginatedAuditLogs {
+  items: AuditLogItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export const projectMemberApi = {
+  list: (projectId: number) =>
+    http.get<any, ProjectMemberItem[]>(`/projects/${projectId}/members`),
+  add: (projectId: number, body: { user_id: number; role: ProjectRoleType }) =>
+    http.post<any, ProjectMemberItem>(`/projects/${projectId}/members`, body),
+  update: (projectId: number, userId: number, role: ProjectRoleType) =>
+    http.patch<any, ProjectMemberItem>(`/projects/${projectId}/members/${userId}`, { role }),
+  remove: (projectId: number, userId: number) =>
+    http.delete<any, void>(`/projects/${projectId}/members/${userId}`),
+}
+
+export const auditLogApi = {
+  list: (params: {
+    project_id?: number
+    action?: string
+    user_id?: number
+    page?: number
+    page_size?: number
+  }) => http.get<any, PaginatedAuditLogs>('/audit-logs', { params }),
+}
