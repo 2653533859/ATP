@@ -136,8 +136,8 @@ Q4 完成了"性能/运维下沉 + 长期收口"。Q5 定位为 **预留清账 +
 ### 里程碑
 
 - [x] P3.A AI 用例自愈（三迭代全收口 2026-05-21：MVP（StepResult 3 字段 + alembic 0024 + ai_healing service + Celery task + 3 executor 接入 + 前端面板 + WS 推送）+ iter2（错误特征缓存 + 日上限计数 + 前端 cache_hit tag）+ iter3（多 step 综合诊断：apply_run_healing_hook + run_diagnosis_for_run + 顶部综合卡片；用户反馈：alembic 0025 + StepResult 加 healing_feedback / 时间戳 + POST /runs/{id}/steps/{id}/healing/feedback + 前端采纳/拒绝按钮）。配置项：AI_HEALING_ENABLED / TIMEOUT / DAILY_LIMIT / CACHE_TTL_SECONDS 全部默认安全值。下一阶段建议：用户反馈数据回流 prompt 调优、多模态截图引入）
-- [ ] P3.B 测试数据管理
-- [ ] P3.C 多租户隔离
+- [x] P3.B 测试数据管理（MVP-A + MVP-B 全收口 2026-05-22：MVP-A 数据集 CRUD（alembic 0026 + TestDataset 模型 + 6 个 API 端点 + DatasetLibrary 前端 + CSV/JSON 上传，≤500 行 / ≤256KB 限制）；MVP-B 参数化执行（alembic 0027 + TestCase.dataset_id + TestRun.iteration_index/iteration_data/parent_run_id + _execute_parameterized 函数：rows 为空 → 单跑、否则 N 个 child run 聚合，parent 状态取最差 + CaseFormDrawer 数据集下拉 + RunDetail 迭代展示）。下一阶段建议：数据准备 hook（pre_test_setup）、大型数据集 MinIO 引用模式）
+- [x] P3.C 多租户隔离（四 commit 全收口 2026-05-23：UserProject N:N 表 + ProjectRole（owner/editor/viewer）+ alembic 0028 + require_project_access 依赖工厂 + assert_project_access 手动断言 + 16 个 API 全面接入隔离 + 5 个成员管理端点 + 审计查询端点 + WS 校验扩展到成员 + 跨项目越权自动 audit_logs.access_denied 记录 + 前端成员管理 Drawer / 审计日志页 / 侧栏 admin 入口 / projectMemberApi / auditLogApi / 完整 i18n。测试：12 + 4 + 23 = 39 个新单测，全量 522 passed。下一阶段建议：项目内角色映射到具体 UI 操作按钮显隐（细粒度 hide/disable）、跨项目复制资源时的权限校验流程、批量成员导入）
 
 ---
 
