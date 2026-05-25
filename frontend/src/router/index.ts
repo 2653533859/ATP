@@ -122,6 +122,12 @@ const router = createRouter({
           meta: { requireAdmin: true },
         },
         {
+          path: 'system/run-retention',
+          name: 'system-run-retention',
+          component: () => import('@/views/system/RunRetentionView.vue'),
+          meta: { requireAdmin: true },
+        },
+        {
           path: 'system/ai-llm-configs',
           name: 'system-ai-llm-configs',
           component: () => import('@/views/system/AILLMConfigList.vue'),

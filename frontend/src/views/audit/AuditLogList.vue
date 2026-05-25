@@ -81,6 +81,7 @@ const actionOptions = computed(() => [
   { label: 'update', value: 'update' },
   { label: 'login', value: 'login' },
   { label: 'logout', value: 'logout' },
+  { label: 'case.rollback', value: 'case.rollback' },
 ])
 
 const columns = computed(() => [

@@ -300,6 +300,47 @@ export interface StatisticsAggregateTrendItem {
   rate: number
 }
 
+export interface StatisticsCaseTypeDistributionItem {
+  case_type: string
+  total: number
+  passed: number
+  failed: number
+  error: number
+  pass_rate: number
+}
+
+export interface RunRetentionPreview {
+  cutoff: string
+  retention_days: number
+  plan_runs: number
+  suite_runs: number
+  test_runs: number
+  mobile_runs: number
+  estimated_objects: number
+}
+
+export interface RunRetentionExecuteResult {
+  cutoff: string
+  retention_days: number
+  plan_runs: number
+  suite_runs: number
+  test_runs: number
+  mobile_runs: number
+  deleted_objects: number
+}
+
+export interface RunRetentionPerProjectPreview {
+  global: Omit<RunRetentionPreview, 'cutoff'>
+  projects: Array<{
+    project_id: number
+    project_name: string
+    retention_days: number
+    plan_runs: number
+    suite_runs: number
+    note?: string
+  }>
+}
+
 export interface MockRuleItem {
   id: number
   name: string
@@ -805,6 +846,17 @@ export const statisticsApi = {
     http.get<any, StatisticsAggregateTrendItem[]>('/statistics/plan-trend', { params }),
   suiteTrend: (params?: { project_id?: number; days?: number; aggregate?: 'daily' | 'weekly' }) =>
     http.get<any, StatisticsAggregateTrendItem[]>('/statistics/suite-trend', { params }),
+  caseTypeDistribution: (params?: { project_id?: number; days?: number }) =>
+    http.get<any, StatisticsCaseTypeDistributionItem[]>('/statistics/case-type-distribution', { params }),
+}
+
+export const adminRunRetentionApi = {
+  preview: (days?: number) =>
+    http.get<any, RunRetentionPreview>('/admin/runs/retention/preview', { params: days ? { days } : undefined }),
+  perProjectPreview: () =>
+    http.get<any, RunRetentionPerProjectPreview>('/admin/runs/retention/per-project-preview'),
+  run: (days?: number) =>
+    http.post<any, RunRetentionExecuteResult>('/admin/runs/retention/run', days ? { days } : {}),
 }
 
 export const mockRuleApi = {

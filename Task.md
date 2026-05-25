@@ -342,14 +342,13 @@
 
 ### P1 - 维度扩展
 
-- [ ] 按用例类型（API / Web / Android）分组统计饼图
+- [x] 按用例类型（API / Web / Android）分组统计饼图 — Q5 长尾 1 收口；`GET /statistics/case-type-distribution`（按 case_type 分组返回 total/passed/failed/error/pass_rate + 5min cache）+ `DashboardView` 新增 LazyChartCard 饼图（pie 含详细 tooltip）
 
 ### P2 - 性能优化
 
 - [ ] 高频查询加 Redis 缓存（TTL 5 分钟），避免大量并发时直接打数据库
-- [ ] `test_runs` 表添加复合索引：`(status, created_at)` 和 `(case_id, status, created_at)`
+- [x] `test_runs` 表添加复合索引：`(status, created_at)` 和 `(case_id, status, created_at)` — Q5 长尾 2 收口；alembic 0029 新增 `ix_test_runs_case_id_status_created_at`，与 0015 的 `(status, created_at)` 互补
 - [x] 看板数据按需加载：首屏只加载总览和通过率趋势，其余图表通过 `LazyChartCard` + `IntersectionObserver` 滚动到可视区再请求
-- [ ] `test_runs` 表添加复合索引：`(status, created_at)` 和 `(case_id, status, created_at)`
 - [x] 大时间跨度（> 90 天）自动切换为按周聚合：前端 days > 90 时传 `aggregate=weekly`，后端 4 个 trend 端点用 PostgreSQL `date_trunc('week', ...)` 聚合
 
 ### P3 - 高级功能
@@ -407,7 +406,7 @@
 
 - [x] 快照导出/导入：支持将某个版本导出为 JSON 文件，或从 JSON 导入恢复
 - [x] 用例克隆自快照：从历史版本直接创建新用例（而非回滚覆盖原用例）
-- [ ] 审计日志：记录每次回滚操作的触发人、时间、源版本号，供合规审查
+- [x] 审计日志：记录每次回滚操作的触发人、时间、源版本号，供合规审查 — Q5 长尾 3 收口；`rollback_case` 写入 `audit_logs (action=case.rollback, resource_type=test_case, project_id, detail=回滚用例 X → 快照 vN (snapshot_id=...))`，可在系统-审计日志页按 `case.rollback` 筛选查看
 
 ---
 
@@ -494,8 +493,8 @@
 ### P1 - 清理策略增强
 
 - [x] 按项目维度配置不同保留天数 — P1.4 Q5 MVP 收口；`Project.run_retention_days_override` 字段 + 迁移 + Schema + `resolve_project_retention` / `preview_old_runs_by_project` service + `GET /admin/runs/retention/per-project-preview` 端点（清理任务暂仍按全局调度，per-project 真实清理待下迭代）
-- [ ] 清理前生成清理报告（即将删除的文件数量/大小），支持管理员确认
-- [ ] 支持手动触发清理（管理后台按钮）
+- [x] 清理前生成清理报告（即将删除的文件数量/大小），支持管理员确认 — Q5 长尾 4 收口；后端 `preview_old_runs` 已返回 plan/suite/test/mobile 数量 + `estimated_objects`，前端新增 `system/RunRetentionView.vue` 展示全局+按项目预览，"执行清理"按钮带 Popconfirm 二次确认显示待删数量
+- [x] 支持手动触发清理（管理后台按钮）— Q5 长尾 4 收口；调用既有 `POST /admin/runs/retention/run`，结果展示在"本次清理结果"卡片
 
 ### P2 - 部署与监控
 

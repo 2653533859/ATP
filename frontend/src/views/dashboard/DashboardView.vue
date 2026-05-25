@@ -133,6 +133,17 @@
             </LazyChartCard>
           </a-col>
         </a-row>
+
+        <a-row :gutter="16" style="margin-top: 16px">
+          <a-col :xs="24" :md="12">
+            <LazyChartCard
+              :title="t('dashboard.charts.case_type_distribution')"
+              @visible="onChartVisible('caseTypeDist', loadCaseTypeDistribution)"
+            >
+              <v-chart :option="caseTypeDistributionOption" style="height: 320px" autoresize />
+            </LazyChartCard>
+          </a-col>
+        </a-row>
       </a-spin>
     </template>
   </div>
@@ -153,7 +164,7 @@ import {
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
 import LazyChartCard from '@/components/dashboard/LazyChartCard.vue'
-import { projectApi, statisticsApi, storageApi, type StatisticsAggregateTrendItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
+import { projectApi, statisticsApi, storageApi, type StatisticsAggregateTrendItem, type StatisticsCaseTypeDistributionItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
 
 use([CanvasRenderer, LineChart, BarChart, PieChart, TitleComponent, TooltipComponent, GridComponent, LegendComponent])
 
@@ -447,6 +458,42 @@ function buildTriggerTypeOption(data: TriggerTypeStatItem[] = []) {
   }
 }
 
+function caseTypeLabelForPie(value: string): string {
+  return t(`dashboard.case_types.${value}`, value)
+}
+
+function buildCaseTypeDistributionOption(data: StatisticsCaseTypeDistributionItem[] = []) {
+  return {
+    tooltip: {
+      trigger: 'item' as const,
+      formatter: (params: { name: string; value: number; percent: number; data: { passed?: number; failed?: number; error?: number; pass_rate?: number } }) => {
+        const d = params.data
+        return `${params.name}<br/>${t('dashboard.charts.case_type_pie.total')}: ${params.value} (${params.percent}%)<br/>` +
+          `${t('dashboard.charts.case_type_pie.passed')}: ${d.passed ?? 0}<br/>` +
+          `${t('dashboard.charts.case_type_pie.failed')}: ${d.failed ?? 0}<br/>` +
+          `${t('dashboard.charts.case_type_pie.error')}: ${d.error ?? 0}<br/>` +
+          `${t('dashboard.charts.case_type_pie.pass_rate')}: ${d.pass_rate ?? 0}%`
+      },
+    },
+    legend: { bottom: 0 },
+    series: [
+      {
+        name: t('dashboard.charts.case_type_distribution'),
+        type: 'pie' as const,
+        radius: ['45%', '70%'],
+        data: data.map(item => ({
+          value: item.total,
+          name: caseTypeLabelForPie(item.case_type),
+          passed: item.passed,
+          failed: item.failed,
+          error: item.error,
+          pass_rate: item.pass_rate,
+        })),
+      },
+    ],
+  }
+}
+
 function buildAggregateTrendOption(data: AggregateTrendItem[] = [], label: string) {
   return {
     tooltip: { trigger: 'axis' as const },
@@ -506,10 +553,11 @@ const executorTopOption = ref(buildExecutorTopOption())
 const triggerTypeOption = ref(buildTriggerTypeOption())
 const planTrendOption = ref(buildAggregateTrendOption([], t('dashboard.charts.plan')))
 const suiteTrendOption = ref(buildAggregateTrendOption([], t('dashboard.charts.suite')))
+const caseTypeDistributionOption = ref(buildCaseTypeDistributionOption())
 
 const loadedCharts = ref(new Set<string>())
 
-type ChartKey = 'duration' | 'failure' | 'executor' | 'trigger' | 'plan' | 'suite'
+type ChartKey = 'duration' | 'failure' | 'executor' | 'trigger' | 'plan' | 'suite' | 'caseTypeDist'
 
 function resetOverview() {
   Object.assign(overview, createEmptyOverview())
@@ -547,6 +595,7 @@ const chartLoaders: Record<ChartKey, () => Promise<void>> = {
   trigger: () => loadTriggerTypeStats(),
   plan: () => loadPlanTrend(),
   suite: () => loadSuiteTrend(),
+  caseTypeDist: () => loadCaseTypeDistribution(),
 }
 
 async function loadProjects() {
@@ -656,6 +705,16 @@ async function loadSuiteTrend() {
     suiteTrendOption.value = buildAggregateTrendOption(data, t('dashboard.charts.suite'))
   } catch {
     suiteTrendOption.value = buildAggregateTrendOption([], t('dashboard.charts.suite'))
+  }
+}
+
+async function loadCaseTypeDistribution() {
+  const params = currentDashboardParams()
+  try {
+    const data = await statisticsApi.caseTypeDistribution({ project_id: params.project_id, days: params.days })
+    caseTypeDistributionOption.value = buildCaseTypeDistributionOption(data)
+  } catch {
+    caseTypeDistributionOption.value = buildCaseTypeDistributionOption()
   }
 }
 
