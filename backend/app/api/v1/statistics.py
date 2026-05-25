@@ -23,6 +23,7 @@ from app.schemas.statistics import (
     ExecutorTopItem,
     TriggerTypeStatItem,
     AggregateTrendItem,
+    CaseTypeDistributionItem,
 )
 
 router = APIRouter(tags=["statistics"])
@@ -506,6 +507,53 @@ async def get_suite_trend(
             total=r.total,
             passed=r.passed or 0,
             rate=round((r.passed or 0) / r.total * 100, 1) if r.total else 0.0,
+        )
+        for r in rows
+    ]
+
+
+# ── 用例类型分布（饼图）─────────────────────────────────
+@router.get("/statistics/case-type-distribution", response_model=list[CaseTypeDistributionItem])
+@cached_json(
+    key_builder=_build_stats_cache_key("case-type-distribution", "project_id", "days"),
+    serializer=_serialize_model_list,
+    deserializer=_deserialize_model_list(CaseTypeDistributionItem),
+    read_cache=_safe_get_stats_cache,
+    write_cache=_safe_set_stats_cache,
+)
+async def get_case_type_distribution(
+    project_id: int | None = Query(None),
+    days: int = Query(30, ge=1, le=365),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    """按用例类型（api/web/android/...）分组返回执行数 + 通过/失败/错误数 + 通过率，用于看板饼图。"""
+    since = _since(days)
+    stmt = (
+        select(
+            TestCase.case_type.label("case_type"),
+            func.count(TestRun.id).label("total"),
+            func.sum(sql_case((TestRun.status == RunStatus.passed, 1), else_=0)).label("passed"),
+            func.sum(sql_case((TestRun.status == RunStatus.failed, 1), else_=0)).label("failed"),
+            func.sum(sql_case((TestRun.status == RunStatus.error, 1), else_=0)).label("error"),
+        )
+        .join(TestCase, TestRun.case_id == TestCase.id)
+        .where(TestRun.status.in_(_FINISHED), TestRun.created_at >= since)
+        .group_by(TestCase.case_type)
+        .order_by(func.count(TestRun.id).desc())
+    )
+    if project_id is not None:
+        stmt = stmt.join(Module, TestCase.module_id == Module.id).where(Module.project_id == project_id)
+
+    rows = (await db.execute(stmt)).all()
+    return [
+        CaseTypeDistributionItem(
+            case_type=r.case_type.value if hasattr(r.case_type, "value") else str(r.case_type),
+            total=int(r.total or 0),
+            passed=int(r.passed or 0),
+            failed=int(r.failed or 0),
+            error=int(r.error or 0),
+            pass_rate=round((r.passed or 0) / r.total * 100, 1) if r.total else 0.0,
         )
         for r in rows
     ]

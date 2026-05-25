@@ -47,3 +47,12 @@ class AggregateTrendItem(BaseModel):
     total: int
     passed: int
     rate: float
+
+
+class CaseTypeDistributionItem(BaseModel):
+    case_type: str
+    total: int
+    passed: int
+    failed: int
+    error: int
+    pass_rate: float

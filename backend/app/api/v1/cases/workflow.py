@@ -222,6 +222,20 @@ async def rollback_case(
         data.get("steps") or _cases._derive_steps_from_config(case.case_type, case.config, case.name),
     )
     await db.commit()
+
+    module = await db.get(Module, case.module_id)
+    await _cases.write_audit_log(
+        db,
+        action="case.rollback",
+        resource_type="test_case",
+        resource_id=case.id,
+        user_id=current_user.id,
+        username=getattr(current_user, "username", ""),
+        detail=f"回滚用例 {case.name} → 快照 v{snapshot.version} (snapshot_id={snapshot.id})",
+        project_id=module.project_id if module else None,
+    )
+    await db.commit()
+
     return await _cases._get_case_detail_or_404(db, case_id)
 
 

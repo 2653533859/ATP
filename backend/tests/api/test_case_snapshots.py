@@ -173,6 +173,7 @@ def test_update_case_snapshot_contains_standardized_payload(monkeypatch):
 
 
 def test_rollback_case_restores_standardized_fields_and_steps(monkeypatch):
+    load_all_models()
     case_obj = _case()
     snapshot_obj = types.SimpleNamespace(
         id=11,
@@ -207,6 +208,7 @@ def test_rollback_case_restores_standardized_fields_and_steps(monkeypatch):
                 }
             ],
         },
+        version=11,
     )
     db = _SnapshotDB(case_obj=case_obj, snapshot_obj=snapshot_obj)
 
@@ -225,12 +227,17 @@ def test_rollback_case_restores_standardized_fields_and_steps(monkeypatch):
         return 0
 
     monkeypatch.setattr(cases, "_enforce_snapshot_retention", _noop_retention)
+
+    async def _noop_audit(*_a, **_kw):
+        return None
+
+    monkeypatch.setattr(cases, "write_audit_log", _noop_audit)
     result = asyncio.run(
         cases.rollback_case(
             case_id=5,
             snapshot_id=11,
             db=db,
-            current_user=types.SimpleNamespace(id=9),
+            current_user=types.SimpleNamespace(id=9, username="bob"),
         )
     )
 
