@@ -47,6 +47,19 @@
         "flower": { "$ref": "#/definitions/nonNegativeInteger" }
       }
     },
+    "worker": {
+      "type": "object",
+      "description": "Worker-specific tuning knobs.",
+      "additionalProperties": true,
+      "properties": {
+        "metricsPort": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "Port exposed by each Celery worker child process for Prometheus /metrics. Set to 0 to disable."
+        }
+      }
+    },
     "resources": {
       "type": "object",
       "description": "Kubernetes resource requests and limits by component.",

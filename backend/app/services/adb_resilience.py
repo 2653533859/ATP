@@ -20,6 +20,11 @@ from contextlib import asynccontextmanager
 from typing import Awaitable, Callable, Sequence
 
 from app.core.config import settings
+from app.core.metrics import (
+    ADB_ENSURE_REACHABLE_DURATION,
+    ADB_HEARTBEAT_LOST_TOTAL,
+    ADB_RECONNECT_TOTAL,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -126,32 +131,51 @@ def ensure_reachable(
     backoff_ms = _parse_backoff_ms(settings.ADB_RECONNECT_BACKOFF_MS)
     last_message = "未尝试"
     attempts_history: list[str] = []
+    start_ts = time.monotonic()
+    result_label = "failure"
 
-    for attempt in range(max_attempts):
-        rc, stdout, stderr = _run_adb_raw(["-s", serial, "get-state"], timeout=timeout)
-        ok, message = _classify_state(rc, stdout, stderr, serial)
-        if ok:
-            if attempt == 0:
-                return True, message
-            return True, f"{message}（重连后恢复，尝试 {attempt + 1} 次）"
+    try:
+        for attempt in range(max_attempts):
+            rc, stdout, stderr = _run_adb_raw(["-s", serial, "get-state"], timeout=timeout)
+            ok, message = _classify_state(rc, stdout, stderr, serial)
+            if ok:
+                result_label = "success"
+                if attempt == 0:
+                    return True, message
+                return True, f"{message}（重连后恢复，尝试 {attempt + 1} 次）"
 
-        last_message = message
-        attempts_history.append(f"#{attempt + 1}: {message}")
-        # adb 不存在或未授权不重试
-        if "adb 命令未找到" in message or "未授权" in message:
-            break
-        if attempt >= max_attempts - 1:
-            break
-        if reconnect and _is_tcp_serial(serial):
-            reconnected, detail = _try_reconnect(serial)
-            attempts_history.append(f"reconnect: {detail}")
-            if not reconnected and detail == "adb_not_found":
+            last_message = message
+            attempts_history.append(f"#{attempt + 1}: {message}")
+            # adb 不存在或未授权不重试
+            if "adb 命令未找到" in message:
+                result_label = "adb_not_found"
                 break
-        # 退避
-        backoff_index = min(attempt, len(backoff_ms) - 1)
-        time.sleep(backoff_ms[backoff_index] / 1000)
+            if "未授权" in message:
+                # 未授权不可自动恢复，归类为 failure
+                break
+            if attempt >= max_attempts - 1:
+                break
+            if reconnect and _is_tcp_serial(serial):
+                reconnected, detail = _try_reconnect(serial)
+                attempts_history.append(f"reconnect: {detail}")
+                if not reconnected and detail == "adb_not_found":
+                    result_label = "adb_not_found"
+                    break
+            elif not _is_tcp_serial(serial):
+                # USB serial 无法自动重连，标记为 not_tcp_serial（区分于普通 failure）
+                result_label = "not_tcp_serial"
+            # 退避
+            backoff_index = min(attempt, len(backoff_ms) - 1)
+            time.sleep(backoff_ms[backoff_index] / 1000)
 
-    return False, f"{last_message}（共尝试 {max_attempts} 次）"
+        return False, f"{last_message}（共尝试 {max_attempts} 次）"
+    finally:
+        try:
+            ADB_RECONNECT_TOTAL.labels(result=result_label).inc()
+            ADB_ENSURE_REACHABLE_DURATION.observe(time.monotonic() - start_ts)
+        except Exception:
+            # 指标埋点失败不应影响主流程
+            logger.debug("ensure_reachable metric emit failed", exc_info=True)
 
 
 def safe_run_adb(
@@ -230,6 +254,7 @@ class HeartbeatMonitor:
         interval_sec: int | None = None,
         failure_threshold: int | None = None,
         enabled: bool | None = None,
+        executor_label: str = "unknown",
     ) -> None:
         self.serial = serial
         self.on_lost = on_lost
@@ -249,6 +274,7 @@ class HeartbeatMonitor:
             if enabled is not None
             else (settings.ADB_HEARTBEAT_ENABLED and bool(serial))
         )
+        self._executor_label = executor_label
         self.lost: bool = False
         self.lost_reason: str | None = None
         self._task: asyncio.Task | None = None
@@ -315,6 +341,10 @@ class HeartbeatMonitor:
                 self._triggered = True
                 self.lost = True
                 self.lost_reason = message
+                try:
+                    ADB_HEARTBEAT_LOST_TOTAL.labels(executor=self._executor_label).inc()
+                except Exception:
+                    logger.debug("HeartbeatMonitor metric emit failed", exc_info=True)
                 if self.on_lost is not None:
                     try:
                         result = self.on_lost(message)

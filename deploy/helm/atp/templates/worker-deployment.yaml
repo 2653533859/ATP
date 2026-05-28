@@ -32,5 +32,11 @@ spec:
                 name: {{ include "atp.fullname" . }}-config
             - secretRef:
                 name: {{ include "atp.fullname" . }}-secret
+          # Worker 进程独立的 Prometheus /metrics 端点（与 backend:8000/metrics 区分）
+          # 通过 WORKER_METRICS_PORT 配置；多 worker 子进程共享物理端口
+          ports:
+            - name: metrics
+              containerPort: {{ .Values.worker.metricsPort | default 9091 }}
+              protocol: TCP
           resources:
             {{- toYaml .Values.resources.worker | nindent 12 }}

@@ -90,6 +90,61 @@
         }
       ],
       "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []}
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "ADB reconnect outcomes (rate per 5m)",
+      "description": "ensure_reachable 调用结果分布，按 success / failure / not_tcp_serial / adb_not_found 分组",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "targets": [
+        {
+          "expr": "sum(rate(atp_adb_reconnect_total[5m])) by (result)",
+          "legendFormat": "{{result}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []}
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "ADB heartbeat lost events (per 1h)",
+      "description": "心跳监控判定设备失联次数，按 executor (android/perf/stability/fluency) 分组",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "targets": [
+        {
+          "expr": "sum(increase(atp_adb_heartbeat_lost_total[1h])) by (executor)",
+          "legendFormat": "{{executor}}",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "none"}, "overrides": []}
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "ADB ensure_reachable latency (P50 / P95 / P99)",
+      "description": "可达性探测延迟分布；P95 长期高位说明真机链路抖动严重",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 32},
+      "targets": [
+        {
+          "expr": "histogram_quantile(0.50, sum(rate(atp_adb_ensure_reachable_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p50",
+          "refId": "A"
+        },
+        {
+          "expr": "histogram_quantile(0.95, sum(rate(atp_adb_ensure_reachable_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p95",
+          "refId": "B"
+        },
+        {
+          "expr": "histogram_quantile(0.99, sum(rate(atp_adb_ensure_reachable_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "p99",
+          "refId": "C"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
     }
   ]
 }

@@ -33,6 +33,12 @@ replicas:
   beat: 1
   flower: 1
 
+# Worker-specific knobs (镜像 / 端口 / 调度差异化在此扩展)。
+worker:
+  # 每个 worker 子进程暴露 Prometheus /metrics 的端口；与 backend:8000/metrics 区分。
+  # 设为 0 可关闭（仅当 Prometheus 不抓取 worker 时）
+  metricsPort: 9091
+
 # Resource requests and limits for ATP workloads.
 resources:
   backend:

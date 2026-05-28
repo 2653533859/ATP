@@ -248,7 +248,7 @@ async def run_mobile_special_stability(
                 pass
 
     try:
-        async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost) as hb:
+        async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost, executor_label="stability") as hb:
             monkey_proc = await asyncio.create_subprocess_exec(
                 *monkey_cmd,
                 stdout=asyncio.subprocess.PIPE,

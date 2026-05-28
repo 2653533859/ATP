@@ -52,3 +52,48 @@ def test_counter_accumulates_when_prometheus_client_available():
     metrics.SLOW_QUERY.inc()
     after = metrics.SLOW_QUERY._value.get()  # type: ignore[attr-defined]
     assert after == before + 1
+
+
+def test_start_worker_metrics_server_disabled_by_port_zero():
+    """WORKER_METRICS_PORT=0 时跳过启动，不抛异常。"""
+    ok = metrics.start_worker_metrics_server(0)
+    assert ok is False
+
+
+def test_start_worker_metrics_server_handles_oserror(monkeypatch):
+    """端口被占用时返回 False 但不抛异常（多 worker 子进程共享端口的预期行为）。"""
+    if not metrics._PROMETHEUS_AVAILABLE:
+        import pytest
+
+        pytest.skip("prometheus_client not installed")
+
+    import prometheus_client
+
+    def _raise_oserror(_port):
+        raise OSError(98, "Address already in use")
+
+    monkeypatch.setattr(prometheus_client, "start_http_server", _raise_oserror)
+
+    ok = metrics.start_worker_metrics_server(9091)
+    assert ok is False
+
+
+def test_start_worker_metrics_server_returns_true_on_success(monkeypatch):
+    """成功路径：start_http_server 不抛异常时返回 True。"""
+    if not metrics._PROMETHEUS_AVAILABLE:
+        import pytest
+
+        pytest.skip("prometheus_client not installed")
+
+    import prometheus_client
+
+    called = {"port": None}
+
+    def _fake_start(port):
+        called["port"] = port
+
+    monkeypatch.setattr(prometheus_client, "start_http_server", _fake_start)
+
+    ok = metrics.start_worker_metrics_server(9091)
+    assert ok is True
+    assert called["port"] == 9091

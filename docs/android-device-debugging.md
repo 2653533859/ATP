@@ -313,3 +313,32 @@ mobile_special 的 `run_adb_shell` 已透明接入；android_executor 的 `_inst
 - 真机链路稳定（有线 USB、企业内网）时，可保持默认即可
 - 设备处于 doze 频繁的低频测试环境，可调大 `ADB_HEARTBEAT_INTERVAL_SEC=30` 减少噪声
 - 用例本身验证"断开恢复"行为时，临时 `ADB_HEARTBEAT_ENABLED=false`
+
+### 6. 如何观察自愈指标（Q7 A.3）
+
+Worker 进程在 `WORKER_METRICS_PORT`（默认 9091）暴露 Prometheus `/metrics`，
+通过 Compose `observability` profile 启动 Prometheus + Grafana 即可观察：
+
+```bash
+docker compose --profile observability up -d prometheus grafana
+```
+
+打开 `ATP Overview` 仪表盘（http://localhost:3000），关注三个面板：
+
+| Panel | 指标 | 健康基线 |
+|-------|------|---------|
+| ADB reconnect outcomes | `atp_adb_reconnect_total{result=...}` | success 占比 > 95% 为健康 |
+| ADB heartbeat lost events | `atp_adb_heartbeat_lost_total{executor=...}` | 1h 内 < 1 次 |
+| ensure_reachable latency | `atp_adb_ensure_reachable_duration_seconds` | P95 < 1s 为健康 |
+
+异常告警自动触发（`deploy/grafana/alerts/atp-alerts.yaml`）：
+- `atp-adb-reconnect-failure-high`：5min 内 failure 比例 > 30% 且总尝试 > 5
+- `atp-adb-heartbeat-lost-burst`：1h 内任一 executor 心跳触发 > 3 次
+
+收到告警后排障流程：
+
+1. 运行 `bash scripts/android-network-doctor.sh <device-ip>:5555` 一键诊断
+2. 检查 Grafana ADB latency 面板 P99 是否飙升 → 通常是宿主网络拥塞
+3. 检查 reconnect outcomes 中 `adb_not_found` 计数 → worker 镜像 adb 二进制问题
+4. 若 heartbeat lost 集中在某一 executor → 排查该执行器的脚本是否有阻塞设备的操作
+5. 必要时临时设置 `ADB_HEARTBEAT_ENABLED=false` + `ADB_RECONNECT_ENABLED=false` 切换到原始模式，做对照

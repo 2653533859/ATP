@@ -70,6 +70,11 @@ services:
       - CELERY_CONCURRENCY=${CELERY_CONCURRENCY:-4}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4317}
       - OTEL_SERVICE_NAME=atp-worker
+      - WORKER_METRICS_PORT=${WORKER_METRICS_PORT:-9091}
+    # 暴露 worker 进程 Prometheus /metrics 端点（与 backend:8000/metrics 区分）
+    # 多 worker 子进程共享同一物理端口；首个子进程成功绑定后其余 OSError 静默
+    expose:
+      - "9091"
     depends_on:
       - backend
       - redis

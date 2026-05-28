@@ -92,6 +92,11 @@ class Settings(BaseSettings):
     SLOW_QUERY_LOG_ENABLED: bool = True
     SLOW_QUERY_THRESHOLD_MS: int = 1000
 
+    # Worker 进程 Prometheus 指标端点（0 = 关闭；默认 9091）
+    # backend 进程通过 /metrics 暴露指标；Celery worker 是独立进程，
+    # 通过 prometheus_client.start_http_server(WORKER_METRICS_PORT) 暴露指标
+    WORKER_METRICS_PORT: int = 9091
+
     # Case snapshot retention
     CASE_SNAPSHOT_MAX_PER_CASE: int = 50
 

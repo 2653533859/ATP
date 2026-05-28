@@ -251,3 +251,114 @@ groups:
               maxDataPoints: 43200
               refId: C
               type: threshold
+
+      - uid: atp-adb-reconnect-failure-high
+        title: ATP ADB reconnect failure rate is high
+        condition: C
+        for: 5m
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          summary: ADB ensure_reachable failure ratio > 30% over the last 5 minutes.
+          description: |
+            真机执行链路抖动严重。检查宿主网络、Docker bridge、设备 IP 漂移。
+            参考 docs/android-device-debugging.md 第八节"执行器自愈机制"
+            与 scripts/android-network-doctor.sh 一键诊断脚本。
+          runbook_url: docs/android-device-debugging.md
+        labels:
+          severity: warning
+          service: atp-worker
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 300
+              to: 0
+            model:
+              # 仅在总尝试数 > 5 时触发，避免低流量假阳性
+              expr: |
+                (sum(rate(atp_adb_reconnect_total{result="failure"}[5m]))
+                 + sum(rate(atp_adb_reconnect_total{result="adb_not_found"}[5m])))
+                /
+                clamp_min(sum(rate(atp_adb_reconnect_total[5m])), 1e-9)
+                and
+                sum(increase(atp_adb_reconnect_total[5m])) > 5
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0.3]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: last
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+
+      - uid: atp-adb-heartbeat-lost-burst
+        title: ATP ADB heartbeat lost burst detected
+        condition: C
+        for: 1m
+        noDataState: NoData
+        execErrState: Error
+        annotations:
+          summary: Any executor reported more than 3 heartbeat-lost events in the last hour.
+          description: |
+            ADB 心跳监控在 1 小时内触发 3 次以上，说明设备频繁失联。
+            建议立即介入：
+              1. 运行 bash scripts/android-network-doctor.sh <device-ip>:5555 确诊
+              2. 查看 docs/android-device-debugging.md 第五节排查表
+              3. 必要时临时关闭 ADB_HEARTBEAT_ENABLED 切换到人工排障模式
+          runbook_url: docs/android-device-debugging.md
+        labels:
+          severity: warning
+          service: atp-worker
+        data:
+          - refId: A
+            datasourceUid: prometheus
+            relativeTimeRange:
+              from: 3600
+              to: 0
+            model:
+              expr: max(increase(atp_adb_heartbeat_lost_total[1h])) by (executor)
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: C
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [3]
+                    type: gt
+                  operator:
+                    type: and
+                  query:
+                    params: [A]
+                  reducer:
+                    type: max
+                  type: query
+              datasource:
+                type: __expr__
+                uid: __expr__
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold

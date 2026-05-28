@@ -75,10 +75,10 @@ Q6 完成了"看板长尾 + AI 自愈 iter4 + Android 真机自愈"三波收口�
 
 ### 里程碑
 
-- [ ] A.3.1 worker `/metrics` 端点
-- [ ] A.3.2 ADB 指标埋点（含单测）
-- [ ] A.3.3 Grafana panel + 告警规则
-- [ ] A.3.4 文档与 runbook
+- [x] A.3.1 worker `/metrics` 端点
+- [x] A.3.2 ADB 指标埋点（含单测）
+- [x] A.3.3 Grafana panel + 告警规则
+- [x] A.3.4 文档与 runbook
 
 ---
 
@@ -272,7 +272,7 @@ Q7 完成时应满足：
 
 ## 当前进度记录
 
-- Phase 1：未启动
+- Phase 1：已完成；2026-05-28 完成 A.3.1 worker 进程独立 /metrics 端点（`backend/app/core/metrics.py` 新增 `start_worker_metrics_server`；`celery_app.py` `worker_process_init` 信号注册；config 加 `WORKER_METRICS_PORT=9091`；docker-compose worker expose 9091；`docker/prometheus.yml` 新增 atp-worker job；Helm worker-deployment.yaml 加 metrics 端口；values.yaml + schema.json 加 worker.metricsPort；4 个 metrics 单测）；完成 A.3.2 ADB 自愈指标埋点（新增 3 指标 `atp_adb_reconnect_total{result}` / `atp_adb_heartbeat_lost_total{executor}` / `atp_adb_ensure_reachable_duration_seconds`；`adb_resilience.ensure_reachable` 与 `HeartbeatMonitor` 注入埋点；4 个 executor 传 executor_label；新增 `test_adb_resilience_metrics.py` 9 个单测）；完成 A.3.3 Grafana 扩展（atp-overview.json 新增 3 panel：reconnect 结果分布/heartbeat 失联事件/ensure_reachable P50/95/99 延迟；atp-alerts.yaml 新增 2 条告警 atp-adb-reconnect-failure-high / atp-adb-heartbeat-lost-burst）；完成 A.3.4 文档（observability-guide.md 加 worker /metrics 行 + 业务指标表 3 行 + Grafana 仪表盘 9 panel + 告警 7 类；android-device-debugging.md 第八节补 "如何观察自愈指标" 段落）。全量回归 623 passed（基线 611 + 12 新增）。
 - Phase 2：未启动
 - Phase 3：未启动
 - Phase 4：未启动

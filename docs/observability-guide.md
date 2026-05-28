@@ -28,8 +28,11 @@ docker compose up -d           # 不含 prometheus/grafana/celery-exporter
 | Prometheus | http://localhost:9090 | — |
 | Celery Exporter | http://localhost:9808/metrics | — |
 | Backend `/metrics` | http://localhost:8000/metrics | — |
+| Worker `/metrics` | http://localhost:9091/metrics（容器内）| — |
 
 启动后 Grafana 自动加载 Prometheus 数据源与 `ATP Overview` 仪表盘（来自 `docker/grafana/dashboards/atp-overview.json`）。
+
+> **Worker `/metrics`**：Celery worker 是独立进程，通过 `prometheus_client.start_http_server(WORKER_METRICS_PORT)` 在每个子进程初始化时尝试启动。多 worker 子进程共享同一物理端口，首个子进程成功绑定后其余 OSError 静默。可通过 `WORKER_METRICS_PORT=0` 关闭。Prometheus 抓取目标 `atp-worker` 已在 `docker/prometheus.yml` 配置。
 
 ## 三、自定义业务指标
 
@@ -41,6 +44,9 @@ docker compose up -d           # 不含 prometheus/grafana/celery-exporter
 | `atp_slow_queries_total` | Counter | — | 超过 `SLOW_QUERY_THRESHOLD_MS` 的 SQL 数（与 A.4 日志同源） |
 | `atp_celery_timeouts_total` | Counter | `kind=soft/hard` | Celery 软/硬超时次数 |
 | `atp_run_retention_deleted_total` | Counter | `model` | 归档清理删除的 run 数 |
+| `atp_adb_reconnect_total` | Counter | `result=success/failure/not_tcp_serial/adb_not_found` | ADB ensure_reachable 调用结果分布（Q7 A.3.2） |
+| `atp_adb_heartbeat_lost_total` | Counter | `executor=android/perf/stability/fluency` | 心跳监控判定设备失联次数 |
+| `atp_adb_ensure_reachable_duration_seconds` | Histogram | — | 可达性探测延迟分布（含 reconnect 时间） |
 
 FastAPI 请求级指标由 `prometheus-fastapi-instrumentator` 自动注入：
 
@@ -56,7 +62,7 @@ Celery 指标由 `celery-exporter` 订阅 Redis broker 后导出（无需 worker
 
 ## 四、Grafana 仪表盘
 
-预置 `ATP Overview` 面板含 6 个图：
+预置 `ATP Overview` 面板含 9 个图：
 
 1. HTTP 请求 RPS（按 handler 分组）
 2. HTTP P95 延迟（5min 滑窗）
@@ -64,6 +70,9 @@ Celery 指标由 `celery-exporter` 订阅 Redis broker 后导出（无需 worker
 4. 最近 1h 慢查询计数
 5. Celery soft/hard 超时速率
 6. Celery 队列长度（按 queue_name）
+7. **ADB reconnect 调用结果分布（按 result label 5min rate）**
+8. **ADB heartbeat 失联事件（按 executor 1h 增量）**
+9. **ADB ensure_reachable 延迟 P50/P95/P99**
 
 可在 Grafana UI 中复制为自定义看板。
 
@@ -71,13 +80,15 @@ Celery 指标由 `celery-exporter` 订阅 Redis broker 后导出（无需 worker
 
 告警模板位于 `deploy/grafana/alerts/atp-alerts.yaml`，使用 Grafana unified alerting provisioning 格式，默认引用 Prometheus datasource UID `prometheus`。
 
-模板预置 5 类告警：
+模板预置 7 类告警：
 
 1. API 5xx 错误率超过 5%
 2. Celery 队列堆积超过 100
 3. PostgreSQL 连接数超过 `max_connections` 的 80%
 4. Celery 任务失败率大于 0
 5. ATP/Celery 超时开始增长
+6. **ADB reconnect 失败率 > 30%（且 5min 总尝试 > 5）**
+7. **ADB heartbeat 1h 内任一 executor 失联 > 3 次**
 
 Compose 本地栈可将该文件挂载到 Grafana 的 `/etc/grafana/provisioning/alerting/`；生产环境建议由平台侧统一管理 contact point、notification policy 与 mute timing。
 

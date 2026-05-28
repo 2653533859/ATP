@@ -183,7 +183,7 @@ async def run_mobile_special_fluency(
         )
 
     try:
-        async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost) as hb:
+        async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost, executor_label="fluency") as hb:
             for idx, stage in enumerate(stages):
                 if hb.lost:
                     break

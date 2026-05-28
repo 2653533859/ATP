@@ -202,7 +202,7 @@ def device_serial():
                     pass
 
         try:
-            async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost):
+            async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost, executor_label="android"):
                 pytest_proc = await asyncio.create_subprocess_exec(
                     *cmd,
                     stdout=asyncio.subprocess.PIPE,

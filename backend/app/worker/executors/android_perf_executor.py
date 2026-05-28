@@ -225,7 +225,7 @@ async def run_mobile_special_perf(
         )
 
     try:
-        async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost) as hb:
+        async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost, executor_label="perf") as hb:
             while (time.monotonic() - start_time) < duration_seconds:
                 if hb.lost:
                     break

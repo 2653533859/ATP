@@ -104,6 +104,15 @@ def _init_otel(**_kwargs):
     CeleryInstrumentor().instrument()
 
 
+# Prometheus /metrics 端点：每个 worker 子进程尝试启动；首个成功绑定，其余 OSError 静默
+# （多 worker 进程共享同一物理端口）。可通过 WORKER_METRICS_PORT=0 关闭。
+@worker_process_init.connect
+def _init_worker_metrics(**_kwargs):
+    from app.core.metrics import start_worker_metrics_server
+
+    start_worker_metrics_server(settings.WORKER_METRICS_PORT)
+
+
 @worker_process_shutdown.connect
 def _shutdown_otel(**_kwargs):
     from app.core.otel import shutdown_tracer
