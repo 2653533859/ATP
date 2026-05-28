@@ -4,10 +4,13 @@ Provides building blocks for:
   - Sampling: dumpsys meminfo, cpuinfo, gfxinfo, batterystats
   - Process: pidof to get app PID
   - Logs: logcat for crash and ANR detection
+
+Resilience: 所有 shell 调用走 adb_resilience.safe_run_adb，复用统一的重试 + 自动 disconnect/connect。
 """
 import logging
-import subprocess
 from typing import Sequence
+
+from app.services.adb_resilience import ensure_reachable, safe_run_adb
 
 logger = logging.getLogger(__name__)
 
@@ -27,31 +30,18 @@ def run_adb_shell(
     Returns:
         stdout text on success, None on failure
     """
-    cmd = ["adb", "-s", serial, "shell", *args]
-    try:
-        proc = subprocess.run(
-            cmd,
-            capture_output=True,
-            text=True,
-            timeout=timeout,
+    proc = safe_run_adb(serial, ["shell", *args], timeout=timeout, retries=1)
+    if proc is None:
+        # adb 未安装
+        return None
+    if proc.returncode != 0:
+        stderr = (proc.stderr or "").strip()
+        logger.warning(
+            "ADB shell failed (rc=%s): %s",
+            proc.returncode, stderr,
         )
-        if proc.returncode != 0:
-            logger.warning(
-                "ADB command failed (%s): %s",
-                proc.returncode,
-                (proc.stderr or "").strip(),
-            )
-            return None
-        return proc.stdout.strip()
-    except FileNotFoundError:
-        logger.warning("adb not found, is ADB installed?")
         return None
-    except subprocess.TimeoutExpired:
-        logger.warning("ADB command timed out: %s", " ".join(cmd))
-        return None
-    except Exception as e:
-        logger.error("ADB command error: %s", e)
-        return None
+    return (proc.stdout or "").strip()
 
 
 # ---- Command builders ----
@@ -116,5 +106,5 @@ def build_top_cmd(serial: str, package: str, lines: int = 10) -> list[str]:
 
 def is_device_online(serial: str) -> bool:
     """Check if a device is online and responsive."""
-    output = run_adb_shell(serial, ["echo", "ok"], timeout=5)
-    return output == "ok"
+    ok, _ = ensure_reachable(serial, max_attempts=1, reconnect=False)
+    return ok

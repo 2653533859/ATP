@@ -1,7 +1,7 @@
 # ATP 项目任务跟踪
 
 **最后更新**: 2026-05-28
-**当前阶段**: Q6 Phase 2 - AI 自愈 iter4 已完成；待提交/推送本轮收口改动
+**当前阶段**: Q6 Phase 2 已完成；M3 Android 真机执行链路抖动自愈完成
 
 > 状态说明：
 > - `[ ]` 待开始
@@ -144,7 +144,7 @@
 
 ### 3.3 uiautomator2 执行器
 
-- [~] Worker 容器侧已安装 `adb`，执行前新增设备可达性校验，并补齐 ADB over TCP 真机联调说明；最终稳定性仍受宿主机网络与设备环境影响
+- [x] Worker 容器侧已安装 `adb`，执行前新增设备可达性校验，并补齐 ADB over TCP 真机联调说明；通过 `app.services.adb_resilience` 抽象层（自动 disconnect/connect 重连 + 心跳监控 + 命令重试）消化宿主网络与设备抖动，4 个执行器（android / perf / stability / fluency）统一接入
 - [x] 实现 Android pytest 脚本执行器
   - [x] 从 MinIO 下载脚本到临时目录
   - [x] 自动安装 APK 到目标设备
@@ -280,6 +280,7 @@
 ### 5.9 后续可选优化项
 
 - [x] Android 真机在不同宿主机 / Docker 网络环境下的稳定性验证沉淀（`docs/android-device-debugging.md` 新增"宿主网络与 Docker 环境差异"专章 + `scripts/android-network-doctor.sh` 一键诊断脚本）
+- [x] Android 真机执行链路抖动自愈（`backend/app/services/adb_resilience.py` 抽象层：自动 disconnect/connect 重连 + 异步心跳监控 + 命令级重试；android / perf / stability / fluency 4 个执行器统一接入；可经 `ADB_RECONNECT_*` / `ADB_HEARTBEAT_*` 配置开关一键关闭）
 - [ ] 部署、运维与性能优化的持续打磨
 - [x] 少量页面残余 `any` / 宽类型结构的工程化收口（P1.6 批 1-4 已完成；`frontend/src` 除 locale 文案 key `any_method` 外无显式 any）
 
@@ -322,7 +323,7 @@
 |--------|---------|------|
 | **M1** Phase 1 完成 | HTTP 接口测试用例可完整执行并看到报告 | `[x]` |
 | **M2** Phase 2 完成 | Playwright 脚本可上传执行，报告含截图 | `[x]` |
-| **M3** Phase 3 完成 | 真机连接，uiautomator2 脚本可执行 | `[~]` |
+| **M3** Phase 3 完成 | 真机连接，uiautomator2 脚本可执行 | `[x]` |
 | **M4** Phase 4 完成 | 支持调度、套件、CI/CD 集成、看板 | `[x]` |
 | **M5** Phase 5 完成 | 全功能上线，安全加固 | `[x]` |
 

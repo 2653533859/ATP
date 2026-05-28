@@ -259,3 +259,57 @@ bash scripts/android-network-doctor.sh 192.168.1.100:5555
 | `device` 在列表但 `shell` 失败 | USB 线缆抖动、设备 USB 调试被关、TCP 链路超时 |
 | 跨重启失联 | 设备没保持唤醒；建议执行时显式 `screen on` |
 | 多设备 serial 串号 | 始终用 `adb -s <serial>` 指明目标设备 |
+
+---
+
+## 八、执行器自愈机制
+
+为缓解真机网络抖动，ATP 在执行器内置了"重连 + 心跳 + 重试"自愈层
+（`backend/app/services/adb_resilience.py`）。所有 Android 用例 / 移动专项执行器
+（android / perf / stability / fluency）统一复用，无需用户介入。
+
+### 1. 自动重连（execution-time reconnect）
+
+执行开始前的可达性校验 `ensure_reachable(serial)` 行为：
+
+1. `adb -s <serial> get-state`
+2. 若返回 `offline` 且 serial 形如 `ip:port`：
+   - `adb disconnect <serial>` + `adb connect <serial>`
+   - 按 `ADB_RECONNECT_BACKOFF_MS` 退避（默认 200ms / 800ms / 2s）
+3. 重复至成功或达到 `ADB_RECONNECT_MAX_ATTEMPTS`（默认 3 次）
+4. 若返回 `unauthorized` 或 adb 不存在，立即终止，不重试
+
+### 2. 心跳监控（in-flight heartbeat）
+
+长任务（性能采样 / 稳定性 monkey / 流畅度 stage / pytest 脚本）执行期间，
+后台 task 每 `ADB_HEARTBEAT_INTERVAL_SEC`（默认 15s）探测一次 `get-state`。
+连续 `ADB_HEARTBEAT_FAILURE_THRESHOLD`（默认 2 次）失败后判定设备失联：
+
+- **perf / fluency**：采样循环退出，summary 加 `device_lost: true` 与 `device_lost_at_sec`
+- **stability**：终止 monkey 进程并退出 logcat 监听，summary 同上标记
+- **android pytest**：terminate pytest 子进程，run 直接 error，错误信息明确"执行中途设备失联"
+
+心跳层只通知，不强行 kill 调用方进程——回收策略由各执行器自行决定，避免越权。
+
+### 3. 命令级重试
+
+`safe_run_adb(serial, args, retries=1)` 包装所有 adb 调用：
+非零退出或 `TimeoutExpired` 时自动 `ensure_reachable` 后再试一次。
+mobile_special 的 `run_adb_shell` 已透明接入；android_executor 的 `_install_apk` / `_start_app` 同样受益。
+
+### 4. 配置一览
+
+| 配置项 | 默认值 | 作用 |
+|--------|--------|------|
+| `ADB_RECONNECT_ENABLED` | `True` | 总开关；设 false 时所有自动 disconnect/connect 关闭 |
+| `ADB_RECONNECT_MAX_ATTEMPTS` | `3` | ensure_reachable 总尝试次数（含首次） |
+| `ADB_RECONNECT_BACKOFF_MS` | `200,800,2000` | 每次重试前退避（逗号分隔毫秒） |
+| `ADB_HEARTBEAT_ENABLED` | `True` | 心跳监控总开关 |
+| `ADB_HEARTBEAT_INTERVAL_SEC` | `15` | 心跳探测间隔 |
+| `ADB_HEARTBEAT_FAILURE_THRESHOLD` | `2` | 连续失败几次判定掉线 |
+
+### 5. 关闭建议
+
+- 真机链路稳定（有线 USB、企业内网）时，可保持默认即可
+- 设备处于 doze 频繁的低频测试环境，可调大 `ADB_HEARTBEAT_INTERVAL_SEC=30` 减少噪声
+- 用例本身验证"断开恢复"行为时，临时 `ADB_HEARTBEAT_ENABLED=false`

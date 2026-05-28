@@ -27,6 +27,7 @@ from app.models.mobile_special import (
     RunStatus,
     IncidentType,
 )
+from app.services.adb_resilience import HeartbeatMonitor, ensure_reachable, safe_run_adb
 from app.services.mobile_special.adb_client import run_adb_shell
 from app.services.mobile_special.parsers import parse_logcat_crash, parse_logcat_anr
 
@@ -41,19 +42,7 @@ async def _safe_publish(run_id: int, payload: dict) -> None:
 
 
 def _check_device_reachable(serial: str, timeout: int = 10) -> tuple[bool, str]:
-    cmd = ["adb", "-s", serial, "get-state"]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        stdout = (proc.stdout or "").strip()
-        if proc.returncode == 0 and stdout == "device":
-            return True, "设备在线"
-        if stdout == "offline":
-            return False, f"设备 {serial} 当前处于 offline"
-        if stdout == "unauthorized":
-            return False, f"设备 {serial} 未授权，请在手机上确认 USB 调试授权"
-        return False, f"设备 {serial} 不可用：{stdout}"
-    except Exception as e:
-        return False, str(e)[:500]
+    return ensure_reachable(serial, timeout=timeout)
 
 
 def _validate_inputs(device_serial: Optional[str], app_package: Optional[str], config_json: dict) -> list[str]:
@@ -91,12 +80,13 @@ def _build_monkey_cmd(
 
 
 def _start_app(serial: str, package: str) -> bool:
-    cmd = ["adb", "-s", serial, "shell", "am", "start", "-n", f"{package}/.MainActivity"]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-        return proc.returncode == 0
-    except Exception:
-        return False
+    proc = safe_run_adb(
+        serial,
+        ["shell", "am", "start", "-n", f"{package}/.MainActivity"],
+        timeout=15,
+        retries=1,
+    )
+    return proc is not None and proc.returncode == 0
 
 
 def _parse_logcat_crashes(raw: str) -> list[dict]:
@@ -230,7 +220,7 @@ async def run_mobile_special_stability(
         _run_logcat_monitor(device_serial, run.id, duration_seconds)
     )
 
-    # 5. 执行 monkey 命令
+    # 5. 执行 monkey 命令（外包心跳监控；掉线时同时取消 monkey 和 logcat）
     monkey_cmd = _build_monkey_cmd(
         serial=device_serial,
         package=app_package,
@@ -241,34 +231,53 @@ async def run_mobile_special_stability(
 
     start_time = time.monotonic()
     completed_actions = 0
+    device_lost_at: Optional[float] = None
+    monkey_proc: Optional[asyncio.subprocess.Process] = None
+
+    def _on_device_lost(reason: str) -> None:
+        nonlocal device_lost_at
+        device_lost_at = time.monotonic() - start_time
+        logger.warning(
+            "stability run %s: device %s lost (%s)", run.id, device_serial, reason,
+        )
+        # 终止 monkey 子进程
+        if monkey_proc is not None and monkey_proc.returncode is None:
+            try:
+                monkey_proc.terminate()
+            except Exception:
+                pass
 
     try:
-        proc = await asyncio.create_subprocess_exec(
-            *monkey_cmd,
-            stdout=asyncio.subprocess.PIPE,
-            stderr=asyncio.subprocess.PIPE,
-        )
+        async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost) as hb:
+            monkey_proc = await asyncio.create_subprocess_exec(
+                *monkey_cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+            )
 
-        # 按 interval 报告进度
-        elapsed = 0
-        while (time.monotonic() - start_time) < duration_seconds:
-            await asyncio.sleep(min(30, duration_seconds - elapsed))
-            elapsed = time.monotonic() - start_time
-            completed_actions += 100  # 粗略估算
-            await _safe_publish(run.id, {
-                "type": "progress", "run_id": run.id,
-                "elapsed_seconds": int(elapsed),
-                "completed_actions": completed_actions,
-            })
-            if elapsed >= duration_seconds:
-                break
+            # 按 interval 报告进度
+            elapsed = 0
+            while (time.monotonic() - start_time) < duration_seconds:
+                if hb.lost:
+                    break
+                await asyncio.sleep(min(30, duration_seconds - elapsed))
+                elapsed = time.monotonic() - start_time
+                completed_actions += 100  # 粗略估算
+                await _safe_publish(run.id, {
+                    "type": "progress", "run_id": run.id,
+                    "elapsed_seconds": int(elapsed),
+                    "completed_actions": completed_actions,
+                })
+                if elapsed >= duration_seconds:
+                    break
 
-        # 停止 monkey
-        try:
-            proc.terminate()
-            await asyncio.wait_for(proc.wait(), timeout=5)
-        except Exception:
-            pass
+            # 停止 monkey
+            if monkey_proc is not None and monkey_proc.returncode is None:
+                try:
+                    monkey_proc.terminate()
+                    await asyncio.wait_for(monkey_proc.wait(), timeout=5)
+                except Exception:
+                    pass
 
     except Exception as e:
         logger.exception("monkey execution error for run %s: %s", run.id, e)
@@ -304,6 +313,9 @@ async def run_mobile_special_stability(
         "completed_action_count": completed_actions,
         "app_restart_count": 0,
     }
+    if device_lost_at is not None:
+        summary["device_lost"] = True
+        summary["device_lost_at_sec"] = round(device_lost_at, 2)
 
     # 9. 更新 Run
     run.status = RunStatus.completed

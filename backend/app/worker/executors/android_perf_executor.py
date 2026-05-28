@@ -32,6 +32,7 @@ from app.models.mobile_special import (
     RunStatus,
     ArtifactType,
 )
+from app.services.adb_resilience import HeartbeatMonitor, ensure_reachable, safe_run_adb
 from app.services.mobile_special.adb_client import (
     run_adb_shell,
     build_meminfo_cmd,
@@ -52,24 +53,8 @@ async def _safe_publish(run_id: int, payload: dict) -> None:
 
 
 def _check_device_reachable(serial: str, timeout: int = 10) -> tuple[bool, str]:
-    cmd = ["adb", "-s", serial, "get-state"]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        stdout = (proc.stdout or "").strip()
-        stderr = (proc.stderr or "").strip()
-        if proc.returncode == 0 and stdout == "device":
-            return True, "设备在线"
-        if stdout == "offline":
-            return False, f"设备 {serial} 当前处于 offline，请检查 USB/TCP 连接后重试"
-        if stdout == "unauthorized":
-            return False, f"设备 {serial} 未授权，请在手机上确认 USB 调试授权"
-        return False, f"设备 {serial} 不可用：{stderr or stdout or '未知状态'}"
-    except subprocess.TimeoutExpired:
-        return False, f"检查设备 {serial} 状态超时（>{timeout}秒）"
-    except FileNotFoundError:
-        return False, "adb 命令未找到，请确认环境已安装 adb"
-    except Exception as e:
-        return False, str(e)[:500]
+    """复用统一的自愈层；保留旧函数签名供老 monkeypatch 测试兼容。"""
+    return ensure_reachable(serial, timeout=timeout)
 
 
 def _validate_inputs(
@@ -92,13 +77,14 @@ def _validate_inputs(
 
 
 def _start_app(serial: str, package: str) -> bool:
-    """使用 am start 启动 App，返回是否成功"""
-    cmd = ["adb", "-s", serial, "shell", "am", "start", "-n", f"{package}/.MainActivity"]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=15)
-        return proc.returncode == 0
-    except Exception:
-        return False
+    """使用 am start 启动 App，返回是否成功；走 safe_run_adb 自动重试。"""
+    proc = safe_run_adb(
+        serial,
+        ["shell", "am", "start", "-n", f"{package}/.MainActivity"],
+        timeout=15,
+        retries=1,
+    )
+    return proc is not None and proc.returncode == 0
 
 
 def _resolve_pid(serial: str, package: str) -> Optional[int]:
@@ -224,29 +210,44 @@ async def run_mobile_special_perf(
         # 等待应用完全启动
         await asyncio.sleep(3)
 
-    # 4. 采样循环
+    # 4. 采样循环（外包心跳监控，掉线时停止）
     all_samples: list[dict] = []
     start_time = time.monotonic()
     sample_count = 0
+    device_lost_at: Optional[float] = None
+
+    def _on_device_lost(reason: str) -> None:
+        nonlocal device_lost_at
+        device_lost_at = time.monotonic() - start_time
+        logger.warning(
+            "perf run %s: device %s lost during sampling (%s)",
+            run.id, device_serial, reason,
+        )
 
     try:
-        while (time.monotonic() - start_time) < duration_seconds:
-            samples = await _sample_once(device_serial, app_package)
-            all_samples.extend(samples)
-            sample_count += 1
+        async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost) as hb:
+            while (time.monotonic() - start_time) < duration_seconds:
+                if hb.lost:
+                    break
+                samples = await _sample_once(device_serial, app_package)
+                all_samples.extend(samples)
+                sample_count += 1
 
-            await _safe_publish(run.id, {
-                "type": "sampling", "run_id": run.id,
-                "sample_count": sample_count,
-                "samples": len(samples),
-            })
+                await _safe_publish(run.id, {
+                    "type": "sampling", "run_id": run.id,
+                    "sample_count": sample_count,
+                    "samples": len(samples),
+                })
 
-            await asyncio.sleep(interval_seconds)
+                await asyncio.sleep(interval_seconds)
     except Exception as e:
         logger.exception("perf sampling error for run %s: %s", run.id, e)
 
     # 5. 聚合汇总
     summary = _compute_summary(all_samples, crash_count=0, anr_count=0)
+    if device_lost_at is not None:
+        summary["device_lost"] = True
+        summary["device_lost_at_sec"] = round(device_lost_at, 2)
     total_ms = int((time.monotonic() - start_time) * 1000)
 
     # 6. 保存样本到 DB

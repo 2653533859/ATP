@@ -112,3 +112,74 @@ class TestComputeSummary:
         assert summary["peak_cpu_pct"] is None
         assert summary["crash_count"] == 1
         assert summary["anr_count"] == 1
+
+
+class TestHeartbeatIntegration:
+    """采样循环外包 HeartbeatMonitor —— 设备掉线时应停止循环并在 summary 中标记。"""
+
+    def test_run_marks_device_lost_in_summary(self, monkeypatch):
+        import asyncio
+        from app.services import adb_resilience
+
+        # ensure_reachable 前 1 次成功（进入循环），之后返回 offline 模拟掉线
+        call_count = {"n": 0}
+
+        def _fake_ensure(*args, **kwargs):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return True, "ok"
+            return False, "offline"
+
+        monkeypatch.setattr(adb_resilience, "ensure_reachable", _fake_ensure)
+        monkeypatch.setattr(android_perf_executor, "_check_device_reachable", lambda s, timeout=10: (True, "在线"))
+        monkeypatch.setattr(android_perf_executor, "_start_app", lambda s, p: True)
+        monkeypatch.setattr(android_perf_executor, "_sample_once", _async_return([]))
+
+        # 缩短心跳间隔与阈值，让用例快速触发掉线
+        from app.core.config import settings
+        monkeypatch.setattr(settings, "ADB_HEARTBEAT_INTERVAL_SEC", 0)
+        monkeypatch.setattr(settings, "ADB_HEARTBEAT_FAILURE_THRESHOLD", 1)
+
+        run = _FakeRun(device_serial="192.168.1.10:5555", app_package="com.foo", duration_seconds=5)
+        db = _FakeDB()
+
+        asyncio.run(android_perf_executor.run_mobile_special_perf(db, run))
+
+        # 应在掉线后提前结束（未跑满 5s）
+        assert run.summary_json is not None
+        assert run.summary_json.get("device_lost") is True
+        assert run.summary_json.get("device_lost_at_sec") is not None
+
+
+def _async_return(value):
+    async def _fn(*args, **kwargs):
+        return value
+    return _fn
+
+
+class _FakeDB:
+    def add(self, obj):
+        pass
+
+    async def commit(self):
+        pass
+
+
+class _FakeRun:
+    def __init__(self, device_serial, app_package, duration_seconds):
+        self.id = 1
+        self.task = None
+        self.device_serial = device_serial
+        self.app_package = app_package
+        self.config_snapshot = {
+            "device_serial": device_serial,
+            "app_package": app_package,
+            "duration_seconds": duration_seconds,
+            "interval_seconds": 1,
+            "auto_start": False,
+        }
+        self.started_at = None
+        self.finished_at = None
+        self.status = None
+        self.duration_ms = None
+        self.summary_json = None

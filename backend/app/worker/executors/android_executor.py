@@ -27,6 +27,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.minio_client import download_file, upload_file, presigned_url
 from app.core.redis_client import publish_run_event
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
+from app.services.adb_resilience import (
+    HeartbeatMonitor,
+    ensure_reachable,
+    is_adb_timeout,
+    safe_run_adb,
+)
 from app.services.ai_healing import apply_healing_hook, enqueue_diagnosis, maybe_enqueue_run_healing
 
 logger = logging.getLogger(__name__)
@@ -40,43 +46,25 @@ async def _safe_publish(run_id: int, payload: dict) -> None:
 
 
 def _install_apk(serial: str, apk_path: str, timeout: int = 120) -> tuple[bool, str]:
-    """通过 adb 安装 APK 到设备，返回 (success, message)"""
-    cmd = ["adb", "-s", serial, "install", "-r", "-t", apk_path]
-    try:
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout
-        )
-        if proc.returncode == 0 and "Success" in (proc.stdout or ""):
-            return True, "APK 安装成功"
-        return False, (proc.stderr or proc.stdout or "安装失败")[:500]
-    except subprocess.TimeoutExpired:
-        return False, f"APK 安装超时（>{timeout}秒）"
-    except FileNotFoundError:
+    """通过 adb 安装 APK 到设备，返回 (success, message)；走 safe_run_adb 自动重试一次。"""
+    proc = safe_run_adb(
+        serial,
+        ["install", "-r", "-t", apk_path],
+        timeout=timeout,
+        retries=1,
+    )
+    if proc is None:
         return False, "adb 命令未找到，请检查 ADB 环境"
-    except Exception as e:
-        return False, str(e)[:500]
+    if proc.returncode == 0 and "Success" in (proc.stdout or ""):
+        return True, "APK 安装成功"
+    if is_adb_timeout(proc):
+        return False, f"APK 安装超时（>{timeout}秒）"
+    return False, (proc.stderr or proc.stdout or "安装失败")[:500]
 
 
 def _check_device_reachable(serial: str, timeout: int = 10) -> tuple[bool, str]:
-    """执行前校验设备是否可达，并给出更明确的排障提示"""
-    cmd = ["adb", "-s", serial, "get-state"]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        stdout = (proc.stdout or "").strip()
-        stderr = (proc.stderr or "").strip()
-        if proc.returncode == 0 and stdout == "device":
-            return True, "设备在线"
-        if stdout == "offline":
-            return False, f"设备 {serial} 当前处于 offline，请检查 USB/TCP 连接后重试"
-        if stdout == "unauthorized":
-            return False, f"设备 {serial} 未授权，请在手机上确认 USB 调试授权"
-        return False, f"设备 {serial} 不可用：{stderr or stdout or '未知状态'}"
-    except subprocess.TimeoutExpired:
-        return False, f"检查设备 {serial} 状态超时（>{timeout}秒）"
-    except FileNotFoundError:
-        return False, "adb 命令未找到，请确认 worker 镜像或本地环境已安装 adb"
-    except Exception as e:
-        return False, str(e)[:500]
+    """执行前校验设备是否可达；包装 ensure_reachable 以保留旧 API。"""
+    return ensure_reachable(serial, timeout=timeout)
 
 
 async def run_android_case(
@@ -195,27 +183,91 @@ def device_serial():
             "DEVICE_SERIAL": device_serial,
         }
 
+        # 心跳监控：执行期间设备掉线时立即终止 pytest 子进程
+        pytest_proc: asyncio.subprocess.Process | None = None
+        device_lost_msg: str | None = None
+        subprocess_error_msg: str | None = None
+
+        def _on_device_lost(reason: str) -> None:
+            nonlocal device_lost_msg
+            device_lost_msg = (
+                f"执行中途设备 {device_serial} 失联：{reason}。"
+                "心跳监控已终止 pytest 进程，请检查 USB/TCP 链路后重试。"
+            )
+            logger.warning("android run %s: %s", run.id, device_lost_msg)
+            if pytest_proc is not None and pytest_proc.returncode is None:
+                try:
+                    pytest_proc.terminate()
+                except Exception:
+                    pass
+
         try:
-            proc = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: subprocess.run(
-                    cmd,
-                    capture_output=True,
-                    text=True,
+            async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost):
+                pytest_proc = await asyncio.create_subprocess_exec(
+                    *cmd,
+                    stdout=asyncio.subprocess.PIPE,
+                    stderr=asyncio.subprocess.PIPE,
                     env=env,
                     cwd=str(tmpdir),
-                    timeout=timeout_sec,
-                ),
-            )
-        except subprocess.TimeoutExpired:
-            timeout_msg = f"脚本执行超时（>{timeout_sec}秒）"
+                )
+                try:
+                    stdout_b, stderr_b = await asyncio.wait_for(
+                        pytest_proc.communicate(), timeout=timeout_sec
+                    )
+                except asyncio.TimeoutError:
+                    try:
+                        pytest_proc.kill()
+                    except Exception:
+                        pass
+                    # 收集已有输出
+                    try:
+                        stdout_b, stderr_b = await asyncio.wait_for(
+                            pytest_proc.communicate(), timeout=5
+                        )
+                    except Exception:
+                        stdout_b, stderr_b = b"", b""
+                    timeout_msg = f"脚本执行超时（>{timeout_sec}秒）"
+                    step_result = StepResult(
+                        run_id=run.id,
+                        step_index=0,
+                        name="脚本执行",
+                        status=RunStatus.error,
+                        duration_ms=int((time.monotonic() - total_start) * 1000),
+                        error_message=timeout_msg,
+                    )
+                    db.add(step_result)
+                    await db.commit()
+                    await _safe_publish(run.id, {
+                        "type": "step_result", "run_id": run.id,
+                        "step": {
+                            "step_index": 0, "name": "脚本执行",
+                            "status": RunStatus.error.value,
+                            "duration_ms": step_result.duration_ms,
+                            "request_data": None, "response_data": None,
+                            "error_message": timeout_msg,
+                        },
+                    })
+                    run.status = RunStatus.error
+                    run.error_message = timeout_msg
+                    run.duration_ms = step_result.duration_ms
+                    await db.commit()
+                    await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
+                    return
+        except Exception as exec_err:
+            logger.exception("android pytest subprocess error: %s", exec_err)
+            subprocess_error_msg = f"pytest 子进程启动失败：{exec_err}"[:500]
+            stdout_b, stderr_b = b"", str(exec_err).encode("utf-8", errors="ignore")
+
+        # 子进程从未成功启动 → 直接以明确错误结束（避免错误信息被后续"未找到测试函数"分支掩盖）
+        if pytest_proc is None or subprocess_error_msg is not None:
+            err_msg = subprocess_error_msg or "pytest 子进程未能启动"
             step_result = StepResult(
                 run_id=run.id,
                 step_index=0,
                 name="脚本执行",
                 status=RunStatus.error,
                 duration_ms=int((time.monotonic() - total_start) * 1000),
-                error_message=timeout_msg,
+                error_message=err_msg,
             )
             db.add(step_result)
             await db.commit()
@@ -226,11 +278,47 @@ def device_serial():
                     "status": RunStatus.error.value,
                     "duration_ms": step_result.duration_ms,
                     "request_data": None, "response_data": None,
-                    "error_message": timeout_msg,
+                    "error_message": err_msg,
                 },
             })
             run.status = RunStatus.error
-            run.error_message = timeout_msg
+            run.error_message = err_msg
+            run.duration_ms = step_result.duration_ms
+            await db.commit()
+            await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
+            return
+
+        proc = subprocess.CompletedProcess(
+            args=cmd,
+            returncode=pytest_proc.returncode if pytest_proc.returncode is not None else -1,
+            stdout=(stdout_b or b"").decode("utf-8", errors="ignore"),
+            stderr=(stderr_b or b"").decode("utf-8", errors="ignore"),
+        )
+
+        # 心跳监控判定设备失联：直接以明确错误结束
+        if device_lost_msg:
+            step_result = StepResult(
+                run_id=run.id,
+                step_index=0,
+                name="脚本执行",
+                status=RunStatus.error,
+                duration_ms=int((time.monotonic() - total_start) * 1000),
+                error_message=device_lost_msg,
+            )
+            db.add(step_result)
+            await db.commit()
+            await _safe_publish(run.id, {
+                "type": "step_result", "run_id": run.id,
+                "step": {
+                    "step_index": 0, "name": "脚本执行",
+                    "status": RunStatus.error.value,
+                    "duration_ms": step_result.duration_ms,
+                    "request_data": None, "response_data": None,
+                    "error_message": device_lost_msg,
+                },
+            })
+            run.status = RunStatus.error
+            run.error_message = device_lost_msg[:500]
             run.duration_ms = step_result.duration_ms
             await db.commit()
             await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})

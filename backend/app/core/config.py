@@ -40,6 +40,14 @@ class Settings(BaseSettings):
     # ADB
     ADB_SCAN_ENABLED: bool = True  # 设为 False 可关闭定时扫描（纯 Web 测试环境）
     ADB_SCAN_INTERVAL: int = 15  # 设备扫描间隔（秒）
+    # ADB 自愈：执行器检测设备不可达时是否自动 disconnect/connect 重试（仅对 ip:port serial 生效）
+    ADB_RECONNECT_ENABLED: bool = True
+    ADB_RECONNECT_MAX_ATTEMPTS: int = 3  # ensure_reachable 总尝试次数（含首次）
+    ADB_RECONNECT_BACKOFF_MS: str = "200,800,2000"  # 每次重试前退避（逗号分隔毫秒）
+    # ADB 心跳监控：长任务（perf/stability/fluency/pytest）执行期间周期探测设备
+    ADB_HEARTBEAT_ENABLED: bool = True
+    ADB_HEARTBEAT_INTERVAL_SEC: int = 15
+    ADB_HEARTBEAT_FAILURE_THRESHOLD: int = 2  # 连续 N 次失败后判定掉线并触发回调
 
     # CI/CD Webhook
     WEBHOOK_API_KEY: str = "atp-webhook-key-change-in-production"

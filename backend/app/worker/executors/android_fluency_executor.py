@@ -25,6 +25,7 @@ from app.models.mobile_special import (
     MobileMetricSample,
     RunStatus,
 )
+from app.services.adb_resilience import HeartbeatMonitor, ensure_reachable, safe_run_adb
 from app.services.mobile_special.adb_client import (
     run_adb_shell,
     build_gfxinfo_cmd,
@@ -42,19 +43,7 @@ async def _safe_publish(run_id: int, payload: dict) -> None:
 
 
 def _check_device_reachable(serial: str, timeout: int = 10) -> tuple[bool, str]:
-    cmd = ["adb", "-s", serial, "get-state"]
-    try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        stdout = (proc.stdout or "").strip()
-        if proc.returncode == 0 and stdout == "device":
-            return True, "设备在线"
-        if stdout == "offline":
-            return False, f"设备 {serial} offline"
-        if stdout == "unauthorized":
-            return False, f"设备 {serial} 未授权"
-        return False, f"设备 {serial} 不可用"
-    except Exception as e:
-        return False, str(e)[:500]
+    return ensure_reachable(serial, timeout=timeout)
 
 
 def _validate_inputs(device_serial: Optional[str], app_package: Optional[str], config_json: dict) -> list[str]:
@@ -181,57 +170,68 @@ async def run_mobile_special_fluency(
     # 等待应用启动
     await asyncio.sleep(3)
 
-    # 4. 每个 stage 循环采样
+    # 4. 每个 stage 循环采样（外包心跳监控，掉线时提前停止）
     all_samples: list[dict] = []
     start_time = time.monotonic()
+    device_lost_at: Optional[float] = None
+
+    def _on_device_lost(reason: str) -> None:
+        nonlocal device_lost_at
+        device_lost_at = time.monotonic() - start_time
+        logger.warning(
+            "fluency run %s: device %s lost (%s)", run.id, device_serial, reason,
+        )
 
     try:
-        for idx, stage in enumerate(stages):
-            stage_name = stage.get("name", f"stage_{idx}")
-            action = stage.get("action", "swipe")
-            duration_between = stage.get("duration_seconds", 5)
+        async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost) as hb:
+            for idx, stage in enumerate(stages):
+                if hb.lost:
+                    break
+                stage_name = stage.get("name", f"stage_{idx}")
+                action = stage.get("action", "swipe")
+                duration_between = stage.get("duration_seconds", 5)
 
-            await _safe_publish(run.id, {
-                "type": "stage_start", "run_id": run.id,
-                "stage_index": idx, "stage_name": stage_name,
-            })
+                await _safe_publish(run.id, {
+                    "type": "stage_start", "run_id": run.id,
+                    "stage_index": idx, "stage_name": stage_name,
+                })
 
-            # 重置 gfxinfo
-            await asyncio.get_event_loop().run_in_executor(
-                None, _reset_gfxinfo, device_serial, app_package
-            )
-
-            # 执行 stage 操作
-            if action == "swipe":
-                coords = stage.get("coords", {})
-                await _perform_swipe(
-                    device_serial,
-                    coords.get("x1", 540), coords.get("y1", 1000),
-                    coords.get("x2", 540), coords.get("y2", 500),
+                # 重置 gfxinfo
+                await asyncio.get_event_loop().run_in_executor(
+                    None, _reset_gfxinfo, device_serial, app_package
                 )
-            elif action == "tap":
-                coords = stage.get("coords", {})
-                await _perform_tap(device_serial, coords.get("x", 540), coords.get("y", 1000))
 
-            # 等待一段时间
-            await asyncio.sleep(duration_between)
+                # 执行 stage 操作
+                if action == "swipe":
+                    coords = stage.get("coords", {})
+                    await _perform_swipe(
+                        device_serial,
+                        coords.get("x1", 540), coords.get("y1", 1000),
+                        coords.get("x2", 540), coords.get("y2", 500),
+                    )
+                elif action == "tap":
+                    coords = stage.get("coords", {})
+                    await _perform_tap(device_serial, coords.get("x", 540), coords.get("y", 1000))
 
-            # 采样 FPS
-            raw = await asyncio.get_event_loop().run_in_executor(
-                None,
-                lambda: run_adb_shell(device_serial, build_gfxinfo_cmd(device_serial, app_package), timeout=10),
-            )
-            if raw:
-                result = _parse_framestats(raw)
-                if result:
-                    result["sample_time"] = datetime.now()
-                    result["stage_name"] = stage_name
-                    all_samples.append(result)
+                # 等待一段时间
+                await asyncio.sleep(duration_between)
 
-            await _safe_publish(run.id, {
-                "type": "stage_end", "run_id": run.id,
-                "stage_index": idx, "stage_name": stage_name,
-            })
+                # 采样 FPS
+                raw = await asyncio.get_event_loop().run_in_executor(
+                    None,
+                    lambda: run_adb_shell(device_serial, build_gfxinfo_cmd(device_serial, app_package), timeout=10),
+                )
+                if raw:
+                    result = _parse_framestats(raw)
+                    if result:
+                        result["sample_time"] = datetime.now()
+                        result["stage_name"] = stage_name
+                        all_samples.append(result)
+
+                await _safe_publish(run.id, {
+                    "type": "stage_end", "run_id": run.id,
+                    "stage_index": idx, "stage_name": stage_name,
+                })
 
     except Exception as e:
         logger.exception("fluency execution error for run %s: %s", run.id, e)
@@ -253,6 +253,9 @@ async def run_mobile_special_fluency(
 
     # 6. 构建 summary
     summary = _compute_summary(all_samples, crash_count=0, anr_count=0)
+    if device_lost_at is not None:
+        summary["device_lost"] = True
+        summary["device_lost_at_sec"] = round(device_lost_at, 2)
 
     # 7. 更新 Run
     run.status = RunStatus.completed
