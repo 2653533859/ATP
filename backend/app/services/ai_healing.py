@@ -26,6 +26,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import base64
 from datetime import datetime, timezone
 from typing import Iterable
 
@@ -40,6 +41,7 @@ logger = logging.getLogger(__name__)
 
 _CACHE_KEY_PREFIX = "ai_healing:cache:"
 _DAILY_COUNT_PREFIX = "ai_healing:daily_count:"
+_VISION_DAILY_COUNT_PREFIX = "ai_healing:vision_daily_count:"
 _DAILY_COUNT_TTL_SECONDS = 60 * 60 * 36  # 36h，足够跨过单日时区差且自动回收
 
 
@@ -94,6 +96,7 @@ def build_healing_prompt(
     request_data,
     response_data,
     run_summary: dict | None = None,
+    few_shot_block: str | None = None,
 ) -> str:
     """按 case_type 分文案构造 prompt。"""
     parts = [
@@ -101,6 +104,8 @@ def build_healing_prompt(
         f"# 用例名称: {case_name}",
         f"# 失败步骤: {step_name}",
     ]
+    if few_shot_block:
+        parts.append(few_shot_block)
     if error_message:
         parts.append(f"# 错误信息:\n{_truncate(error_message)}")
     if request_data:
@@ -188,6 +193,55 @@ async def _check_and_incr_daily_limit() -> bool:
         return True  # Redis 故障不应阻塞诊断
 
 
+async def _check_and_incr_vision_daily_limit() -> bool:
+    limit = settings.AI_HEALING_VISION_DAILY_LIMIT
+    if limit <= 0:
+        return True
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    key = f"{_VISION_DAILY_COUNT_PREFIX}{today}"
+    try:
+        from app.core.redis_client import get_async_redis
+
+        r = get_async_redis()
+        try:
+            value = await r.incr(key)
+            if value == 1:
+                await r.expire(key, _DAILY_COUNT_TTL_SECONDS)
+            return value <= limit
+        finally:
+            await r.aclose()
+    except Exception:
+        return True
+
+
+def _guess_image_media_type(object_name: str) -> str:
+    lower = object_name.lower()
+    if lower.endswith(".jpg") or lower.endswith(".jpeg"):
+        return "image/jpeg"
+    if lower.endswith(".webp"):
+        return "image/webp"
+    return "image/png"
+
+
+async def _load_screenshot_image_for_llm(screenshot_url: str | None) -> tuple[str, str] | None:
+    if not screenshot_url:
+        return None
+    try:
+        from app.core.minio_client import read_bytes
+        from app.core.object_refs import extract_object_name
+
+        object_name = extract_object_name(screenshot_url)
+        if not object_name:
+            return None
+        data = read_bytes(object_name)
+        if not data:
+            return None
+        return base64.b64encode(data).decode("ascii"), _guess_image_media_type(object_name)
+    except Exception as exc:
+        logger.warning("AI healing screenshot load failed: %s", exc)
+        return None
+
+
 async def run_diagnosis(db: AsyncSession, step_result_id: int) -> None:
     """诊断单个失败 step。Celery task 体调用此函数。
 
@@ -247,6 +301,21 @@ async def run_diagnosis(db: AsyncSession, step_result_id: int) -> None:
         await _safe_publish(run.id, step, "done", cached, cache_hit=True)
         return
 
+    few_shot_block = ""
+    if settings.AI_HEALING_FEW_SHOT_ENABLED:
+        try:
+            from app.services.healing_prompt_examples import build_few_shot_block, get_high_quality_examples
+
+            examples = await get_high_quality_examples(
+                db,
+                error_fingerprint=cache_key.rsplit(":", 1)[-1],
+                case_type=case_type,
+                limit=settings.AI_HEALING_FEW_SHOT_TOP_N,
+            )
+            few_shot_block = build_few_shot_block(examples)
+        except Exception as exc:
+            logger.warning("AI healing few-shot lookup failed: %s", exc)
+
     # ── 日上限检查（实际要调 LLM 才计数）───────────────────
     if not await _check_and_incr_daily_limit():
         await _finalize(db, step, status="skipped", message="daily-limit-reached")
@@ -269,7 +338,18 @@ async def run_diagnosis(db: AsyncSession, step_result_id: int) -> None:
         request_data=step.request_data,
         response_data=step.response_data,
         run_summary=run.result_summary,
+        few_shot_block=few_shot_block,
     )
+
+    image_base64 = None
+    image_media_type = "image/png"
+    if settings.AI_HEALING_VISION_ENABLED and config.supports_vision and step.screenshot_url:
+        image_payload = await _load_screenshot_image_for_llm(step.screenshot_url)
+        if image_payload:
+            if await _check_and_incr_vision_daily_limit():
+                image_base64, image_media_type = image_payload
+            else:
+                logger.warning("AI healing vision daily limit reached; fallback to text-only diagnosis")
 
     try:
         response = await call_llm(
@@ -281,6 +361,8 @@ async def run_diagnosis(db: AsyncSession, step_result_id: int) -> None:
                 endpoint=config.endpoint,
                 timeout_seconds=float(settings.AI_HEALING_TIMEOUT_SECONDS),
                 extra_params=config.default_params,
+                image_base64=image_base64,
+                image_media_type=image_media_type,
             )
         )
     except Exception as exc:

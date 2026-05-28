@@ -1077,6 +1077,7 @@ export interface AILLMConfigItem {
   model_name: string
   default_params: Record<string, unknown>
   enabled: boolean
+  supports_vision: boolean
   description?: string | null
   has_api_key: boolean
   created_at: string
@@ -1091,6 +1092,7 @@ export interface AILLMConfigCreatePayload {
   model_name: string
   default_params?: Record<string, unknown>
   enabled?: boolean
+  supports_vision?: boolean
   description?: string | null
 }
 
@@ -1102,6 +1104,7 @@ export interface AILLMConfigUpdatePayload {
   model_name?: string
   default_params?: Record<string, unknown>
   enabled?: boolean
+  supports_vision?: boolean
   description?: string | null
 }
 
@@ -1112,6 +1115,76 @@ export const aiLLMConfigApi = {
   update: (id: number, data: AILLMConfigUpdatePayload) =>
     http.patch<unknown, AILLMConfigItem>(`/ai/llm-configs/${id}`, data),
   delete: (id: number) => http.delete(`/ai/llm-configs/${id}`),
+}
+
+// ---- AI Healing Prompt Examples ----
+export interface HealingPromptExampleItem {
+  id: number
+  error_fingerprint: string
+  case_type: string
+  step_context_json: Record<string, unknown>
+  suggestion_text: string
+  source_step_result_id?: number | null
+  marked_high_quality: boolean
+  marked_by?: number | null
+  marked_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export const aiHealingExampleApi = {
+  list: (params?: {
+    error_fingerprint?: string
+    case_type?: string
+    high_quality?: boolean
+    limit?: number
+  }) => http.get<unknown, HealingPromptExampleItem[]>('/ai-healing/examples', { params }),
+  createFromStep: (stepResultId: number) =>
+    http.post<unknown, HealingPromptExampleItem>(`/ai-healing/examples/from-step/${stepResultId}`),
+  update: (id: number, data: { marked_high_quality?: boolean; suggestion_text?: string }) =>
+    http.patch<unknown, HealingPromptExampleItem>(`/ai-healing/examples/${id}`, data),
+  delete: (id: number) => http.delete<unknown, void>(`/ai-healing/examples/${id}`),
+}
+
+export interface AIHealingCaseTypeStat {
+  case_type: string
+  total_count: number
+  adopted_count: number
+  rejected_count: number
+  adopted_rate: number
+}
+
+export interface AIHealingTopFingerprint {
+  error_fingerprint: string
+  case_type: string
+  total_count: number
+  adopted_count: number
+  rejected_count: number
+  adopted_rate: number
+}
+
+export interface AIHealingTrendItem {
+  date: string
+  total_count: number
+  adopted_count: number
+  rejected_count: number
+  adopted_rate: number
+}
+
+export interface AIHealingStats {
+  total_feedback_count: number
+  adopted_count: number
+  rejected_count: number
+  adopted_rate: number
+  high_quality_example_count: number
+  by_case_type: AIHealingCaseTypeStat[]
+  top_error_fingerprints: AIHealingTopFingerprint[]
+  recent_trend: AIHealingTrendItem[]
+}
+
+export const aiHealingStatsApi = {
+  getStats: (params?: { days?: number }) =>
+    http.get<unknown, AIHealingStats>('/ai-healing/stats', { params }),
 }
 
 // ---- AI Case Generation ----

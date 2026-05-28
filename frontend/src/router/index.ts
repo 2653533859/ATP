@@ -139,6 +139,18 @@ const router = createRouter({
           component: () => import('@/views/system/AILLMConfigList.vue'),
         },
         {
+          path: 'system/healing-examples',
+          name: 'system-healing-examples',
+          component: () => import('@/views/system/HealingExamplesView.vue'),
+          meta: { requireAdmin: true },
+        },
+        {
+          path: 'system/ai-healing-stats',
+          name: 'system-ai-healing-stats',
+          component: () => import('@/views/system/AIHealingStatsView.vue'),
+          meta: { requireAdmin: true },
+        },
+        {
           path: 'system/datasets',
           name: 'system-datasets',
           component: () => import('@/views/system/DatasetLibrary.vue'),

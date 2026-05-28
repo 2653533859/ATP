@@ -32,6 +32,7 @@ def _to_out(config: AILLMConfig) -> AILLMConfigOut:
         model_name=config.model_name,
         default_params=dict(config.default_params or {}),
         enabled=config.enabled,
+        supports_vision=config.supports_vision,
         description=config.description,
         has_api_key=bool(config.api_key_encrypted),
         created_at=config.created_at,
@@ -62,6 +63,7 @@ async def create_llm_config(
         model_name=body.model_name,
         default_params=body.default_params or {},
         enabled=body.enabled,
+        supports_vision=body.supports_vision,
         description=body.description,
     )
     db.add(config)

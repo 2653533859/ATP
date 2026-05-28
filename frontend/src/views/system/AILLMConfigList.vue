@@ -29,6 +29,11 @@
               {{ record.has_api_key ? t('system_pages.ai_llm.has_key') : t('system_pages.ai_llm.no_key') }}
             </a-tag>
           </template>
+          <template v-else-if="column.key === 'supports_vision'">
+            <a-tag :color="record.supports_vision ? 'geekblue' : 'default'">
+              {{ record.supports_vision ? 'On' : 'Off' }}
+            </a-tag>
+          </template>
           <template v-else-if="column.key === 'action'">
             <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
             <a-popconfirm
@@ -92,6 +97,9 @@
         <a-form-item :label="t('common.enabled')">
           <a-switch v-model:checked="form.enabled" />
         </a-form-item>
+        <a-form-item label="Vision">
+          <a-switch v-model:checked="form.supports_vision" />
+        </a-form-item>
         <a-form-item :label="t('common.description')">
           <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('system_pages.ai_llm.desc_placeholder')" />
         </a-form-item>
@@ -119,6 +127,7 @@ interface FormState {
   endpoint: string
   model_name: string
   enabled: boolean
+  supports_vision: boolean
   description: string
 }
 
@@ -137,6 +146,7 @@ const form = ref<FormState>({
   endpoint: '',
   model_name: '',
   enabled: true,
+  supports_vision: false,
   description: '',
 })
 
@@ -173,6 +183,7 @@ const columns = computed(() => [
   { title: 'Model', dataIndex: 'model_name', key: 'model_name' },
   { title: 'Endpoint', dataIndex: 'endpoint', key: 'endpoint', ellipsis: true },
   { title: 'API Key', key: 'has_api_key', width: 100 },
+  { title: 'Vision', dataIndex: 'supports_vision', key: 'supports_vision', width: 90 },
   { title: t('system_pages.ai_llm.columns.status'), key: 'enabled', width: 80 },
   { title: t('system_pages.ai_llm.columns.description'), dataIndex: 'description', key: 'description', ellipsis: true },
   { title: t('system_pages.ai_llm.columns.action'), key: 'action', width: 140 },
@@ -218,6 +229,7 @@ function resetForm() {
     endpoint: '',
     model_name: '',
     enabled: true,
+    supports_vision: false,
     description: '',
   }
 }
@@ -238,6 +250,7 @@ function openEdit(record: AILLMConfigItem) {
     endpoint: record.endpoint ?? '',
     model_name: record.model_name,
     enabled: record.enabled,
+    supports_vision: record.supports_vision,
     description: record.description ?? '',
   }
   showModal.value = true
@@ -282,6 +295,7 @@ async function handleSave() {
         model_name: form.value.model_name.trim(),
         default_params: params,
         enabled: form.value.enabled,
+        supports_vision: form.value.supports_vision,
         description: form.value.description.trim() || null,
       }
       if (form.value.api_key.trim()) {
@@ -298,6 +312,7 @@ async function handleSave() {
         model_name: form.value.model_name.trim(),
         default_params: params,
         enabled: form.value.enabled,
+        supports_vision: form.value.supports_vision,
         description: form.value.description.trim() || null,
       })
       message.success(t('system_pages.ai_llm.msg.create_success'))

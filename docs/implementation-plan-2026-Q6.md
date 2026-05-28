@@ -94,7 +94,7 @@ Q5 完成了"清账 + 工程质量 + 业务深化（自愈/数据集/多租户�
 - [x] P1.4 自定义看板
 - [x] P1.5 Redis 高频查询缓存澄清
 - [x] P1.6 前端 any 类型收口（批 1-4）
-- [ ] P1.7 部署/运维持续打磨（Helm 注释 + 恢复脚本 + Grafana 告警模板）
+- [x] P1.7 部署/运维持续打磨（Helm 注释 + 恢复脚本 + Grafana 告警模板）
 
 ---
 
@@ -158,10 +158,10 @@ Q5 完成了"清账 + 工程质量 + 业务深化（自愈/数据集/多租户�
 
 ### 里程碑
 
-- [ ] P2.1 反馈数据采集与周期聚合
-- [ ] P2.2 prompt 示例库 + few-shot 注入
-- [ ] P2.3 反馈采纳率报表
-- [ ] P2.4 多模态截图引入
+- [x] P2.1 反馈数据采集与周期聚合
+- [x] P2.2 prompt 示例库 + few-shot 注入
+- [x] P2.3 反馈采纳率报表
+- [x] P2.4 多模态截图引入
 
 ---
 
@@ -172,7 +172,7 @@ Q5 完成了"清账 + 工程质量 + 业务深化（自愈/数据集/多租户�
 | P1.1 告警风暴 | 每规则 + 每项目至少 1h 抑制窗口；告警去重（同规则同窗口只发 1 次） |
 | P1.4 自定义看板 localStorage 跨设备不同步 | 仅 localStorage 不进 DB；如有跨设备需求，留待 Q7 用户 settings 表 |
 | P1.6 any 收口引入运行时回归 | 仅类型修正，不动逻辑；分批 + 每批 type-check + 关键页面手测 |
-| P1.7 备份恢复脚本误操作生产库 | 脚本第一行 `[[ "$1" == "--i-know-this-overwrites" ]]` 强制确认参数 |
+| P1.7 备份恢复脚本误操作生产库 | `scripts/restore-postgres.sh` 强制要求 `--i-know-this-overwrites` 参数 |
 | P2.2 prompt 示例库噪声放大 | 仅 admin 标注 `high_quality=true` 的示例才进入 few-shot；可一键关闭 `AI_HEALING_FEW_SHOT_ENABLED=false` |
 | P2.4 多模态 LLM 调用成本激增 | feature flag default off + 独立 daily limit + 失败 fallback 到纯文本 |
 
@@ -197,8 +197,8 @@ Phase 2（3-4 周）
 
 ## 当前进度记录
 
-- Phase 1：已启动；2026-05-27 完成 P1.1 看板异常告警（规则/事件模型、迁移、CRUD API、项目权限、Celery Beat 统计检查、通知触发、抑制窗口、前端规则配置页、Dashboard 项目级告警提示与测试）；完成 P1.2 项目级 vs 全局看板切换（显式 scope segmented、项目下拉仅单项目模式显示、localStorage 记忆、全局模式不传 project_id）；完成 P1.3 看板 PNG/CSV 导出（图表菜单 PNG getDataURL + 后端 CSV export 端点）；完成 P1.4 自定义看板（localStorage 图表显隐、拖拽/按钮排序、重置默认布局）；完成 P1.5 Redis 高频查询缓存澄清（dataset list + mobile stats 统一 60s TTL 自然失效缓存）；2026-05-28 完成 P1.6 批 1，完成 EnvironmentList / CaseList / SpecialTaskListView / WebCaseDrawer / CaseFormDrawer 的显式 any 收口并通过前端 type-check；完成 P1.6 批 2（ApkList / GlobalVariableLibrary / DeviceList / LowcodeStepEditor / AndroidStepEditor / StorageManagementView / ReportCenterView / ReportDetailView / MockRuleList / CaseDetail）并通过前端 type-check；完成 P1.6 批 3/4 长尾与收尾扫描，`frontend/src` 中除 locale 文案 key `any_method` 外无显式 any，前端 type-check 通过
-- Phase 2：未启动
+- Phase 1：已完成；2026-05-27 完成 P1.1 看板异常告警（规则/事件模型、迁移、CRUD API、项目权限、Celery Beat 统计检查、通知触发、抑制窗口、前端规则配置页、Dashboard 项目级告警提示与测试）；完成 P1.2 项目级 vs 全局看板切换（显式 scope segmented、项目下拉仅单项目模式显示、localStorage 记忆、全局模式不传 project_id）；完成 P1.3 看板 PNG/CSV 导出（图表菜单 PNG getDataURL + 后端 CSV export 端点）；完成 P1.4 自定义看板（localStorage 图表显隐、拖拽/按钮排序、重置默认布局）；完成 P1.5 Redis 高频查询缓存澄清（dataset list + mobile stats 统一 60s TTL 自然失效缓存）；2026-05-28 完成 P1.6 批 1，完成 EnvironmentList / CaseList / SpecialTaskListView / WebCaseDrawer / CaseFormDrawer 的显式 any 收口并通过前端 type-check；完成 P1.6 批 2（ApkList / GlobalVariableLibrary / DeviceList / LowcodeStepEditor / AndroidStepEditor / StorageManagementView / ReportCenterView / ReportDetailView / MockRuleList / CaseDetail）并通过前端 type-check；完成 P1.6 批 3/4 长尾与收尾扫描，`frontend/src` 中除 locale 文案 key `any_method` 外无显式 any，前端 type-check 通过；完成 P1.7 部署/运维持续打磨（恢复脚本与灾备文档、Helm values 注释与 schema、Grafana 5 条告警模板）
+- Phase 2：已完成；2026-05-28 完成 P2.1 反馈数据采集与周期聚合（新增 `healing_feedback_aggregates` 聚合表与 0031 迁移、`app.services.healing_feedback` 聚合/upsert 服务、每周一 04:17 Celery beat 任务 `aggregate_healing_feedback`，并补齐聚合逻辑/迁移/任务注册测试）；完成 P2.2 prompt 示例库 + few-shot 注入（新增 `healing_prompt_examples` 表与 0032 迁移、从 adopted step 提取高质量示例 API、admin 示例管理页、`AI_HEALING_FEW_SHOT_ENABLED/TOP_N` 配置，并在单 step 自愈 prompt 中注入同 fingerprint Top-N 高质量示例）；完成 P2.3 反馈采纳率报表（新增 `/api/v1/ai-healing/stats` 5min 缓存端点、总反馈/采纳率/高质量示例 KPI、按 case_type 采纳率、错误特征 Top10、最近趋势图与系统报表页）；完成 P2.4 多模态截图引入（`AILLMConfig.supports_vision` + 0033 迁移、`AI_HEALING_VISION_ENABLED/DAILY_LIMIT`、截图 MinIO 读取转 base64、OpenAI-compatible/Claude image content block、下载/编码失败自动回退纯文本）
 
 ---
 

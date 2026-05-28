@@ -30,6 +30,16 @@ def diagnose_run_failure(self, run_id: int) -> None:
         logger.exception("diagnose_run_failure crashed for run_id=%s", run_id)
 
 
+@celery_app.task(name="aggregate_healing_feedback", bind=True, max_retries=1, default_retry_delay=300)
+def aggregate_healing_feedback_task(self) -> dict | None:
+    """周期聚合 adopted/rejected 的 AI 自愈反馈。"""
+    try:
+        return asyncio.run(_run_feedback_aggregate())
+    except Exception as exc:
+        logger.exception("aggregate_healing_feedback crashed")
+        raise self.retry(exc=exc)
+
+
 async def _run_step(step_result_id: int) -> None:
     from app.core.database import AsyncSessionLocal
     from app.services.ai_healing import run_diagnosis
@@ -44,3 +54,11 @@ async def _run_run(run_id: int) -> None:
 
     async with AsyncSessionLocal() as db:
         await run_diagnosis_for_run(db, run_id)
+
+
+async def _run_feedback_aggregate() -> dict:
+    from app.core.database import AsyncSessionLocal
+    from app.services.healing_feedback import aggregate_healing_feedback
+
+    async with AsyncSessionLocal() as db:
+        return await aggregate_healing_feedback(db)

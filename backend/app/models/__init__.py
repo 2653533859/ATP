@@ -21,6 +21,8 @@ def load_all_models() -> None:
     )
     from app.models.global_variable import GlobalVariable
     from app.models.dashboard_alert import DashboardAlertRule, DashboardAlertEvent
+    from app.models.healing_feedback import HealingFeedbackAggregate
+    from app.models.healing_prompt_example import HealingPromptExample
 
     _ = (
         User,
@@ -52,4 +54,6 @@ def load_all_models() -> None:
         GlobalVariable,
         DashboardAlertRule,
         DashboardAlertEvent,
+        HealingFeedbackAggregate,
+        HealingPromptExample,
     )

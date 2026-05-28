@@ -1,91 +1,155 @@
-# ATP Helm values - 生产推荐起步配置
+# ATP Helm values - production-oriented baseline.
 
+# Container image settings. The chart renders images as:
+#   {image.repository}/backend:{image.backend.tag}
+#   {image.repository}/worker:{image.worker.tag}
+#   {image.repository}/frontend:{image.frontend.tag}
 image:
+  # Shared registry/repository prefix for all ATP runtime images.
   repository: registry.local/atp
   backend:
+    # Backend API image tag.
     tag: latest
+    # Kubernetes imagePullPolicy for the backend container.
     pullPolicy: IfNotPresent
   worker:
+    # Worker image tag. This image should include Playwright, Chromium, ADB,
+    # pg_dump, and MinIO mc when database backup tasks are enabled.
     tag: latest
     pullPolicy: IfNotPresent
   frontend:
+    # Frontend static-site image tag.
     tag: latest
     pullPolicy: IfNotPresent
 
+# Optional image pull secrets for private registries.
 imagePullSecrets: []
 
-# 副本数
+# Deployment replica counts. Keep beat at one replica to avoid duplicate
+# scheduled jobs.
 replicas:
   backend: 2
   worker: 3
-  beat: 1   # 必须单副本，避免重复触发
+  beat: 1
   flower: 1
 
-# 资源限制
+# Resource requests and limits for ATP workloads.
 resources:
   backend:
     requests: {cpu: 200m, memory: 512Mi}
-    limits:   {cpu: 1000m, memory: 1Gi}
+    limits: {cpu: 1000m, memory: 1Gi}
   worker:
     requests: {cpu: 500m, memory: 1Gi}
-    limits:   {cpu: 2000m, memory: 4Gi}
+    limits: {cpu: 2000m, memory: 4Gi}
   beat:
     requests: {cpu: 50m, memory: 128Mi}
-    limits:   {cpu: 200m, memory: 256Mi}
+    limits: {cpu: 200m, memory: 256Mi}
   flower:
     requests: {cpu: 50m, memory: 128Mi}
-    limits:   {cpu: 200m, memory: 256Mi}
+    limits: {cpu: 200m, memory: 256Mi}
 
-# 非敏感环境变量（写入 ConfigMap）
+# Non-sensitive environment variables rendered into a ConfigMap.
 config:
+  # Runtime environment name.
   APP_ENV: production
+  # Production should run migrations explicitly, not create tables on startup.
   APP_AUTO_CREATE_TABLES: "false"
+  # Logging level for backend, worker, beat, and flower.
   LOG_LEVEL: INFO
+  # Celery worker concurrency used by worker containers.
   CELERY_CONCURRENCY: "4"
-  ADB_SCAN_ENABLED: "false"   # K8s 集群通常无真机
+  # Kubernetes clusters usually do not have direct ADB-attached devices.
+  ADB_SCAN_ENABLED: "false"
+  # OpenTelemetry service name and optional OTLP endpoint.
   OTEL_SERVICE_NAME: atp-backend
   OTEL_EXPORTER_OTLP_ENDPOINT: ""
+  # Slow SQL query threshold in milliseconds.
   SLOW_QUERY_THRESHOLD_MS: "1000"
+  # Enable scheduled PostgreSQL backups through Celery beat.
   DB_BACKUP_ENABLED: "true"
+  # Backup object prefix in MinIO.
+  DB_BACKUP_PREFIX: pg-backups
+  # Daily backup retention count.
+  DB_BACKUP_RETAIN_DAILY: "7"
+  # Weekly backup retention count.
+  DB_BACKUP_RETAIN_WEEKLY: "4"
+  # Enable automatic AI healing diagnostics when project LLM config is present.
+  AI_HEALING_ENABLED: "false"
+  # Maximum seconds for one AI healing LLM call.
+  AI_HEALING_TIMEOUT_SECONDS: "60"
+  # Daily LLM call limit for AI healing. 0 means unlimited.
+  AI_HEALING_DAILY_LIMIT: "100"
+  # TTL for identical AI healing suggestions.
+  AI_HEALING_CACHE_TTL_SECONDS: "3600"
+  # Inject admin-curated examples into AI healing prompts.
+  AI_HEALING_FEW_SHOT_ENABLED: "true"
+  # Maximum high-quality examples injected per prompt.
+  AI_HEALING_FEW_SHOT_TOP_N: "3"
+  # Enable screenshot image blocks for AI healing when an LLM config supports vision.
+  AI_HEALING_VISION_ENABLED: "false"
+  # Daily limit for screenshot-based AI healing calls. 0 means unlimited.
+  AI_HEALING_VISION_DAILY_LIMIT: "50"
 
-# 敏感凭证（写入 Secret）— 生产环境请通过外部 Secret 注入（如 ExternalSecrets / SOPS）
+# Sensitive values rendered into a Kubernetes Secret by this chart. Production
+# deployments should prefer ExternalSecrets, SOPS, or a platform secret manager
+# and avoid committing real credentials.
 secrets:
+  # JWT signing secret.
   APP_SECRET_KEY: "change-me-in-production"
+  # PostgreSQL connection.
   POSTGRES_HOST: postgres
   POSTGRES_PORT: "5432"
   POSTGRES_DB: atp
   POSTGRES_USER: atp
   POSTGRES_PASSWORD: "change-me"
+  # Redis connection for Celery broker/result backend and cache.
   REDIS_HOST: redis
   REDIS_PORT: "6379"
   REDIS_PASSWORD: ""
+  # MinIO or S3-compatible object storage.
   MINIO_HOST: minio
   MINIO_PORT: "9000"
   MINIO_ROOT_USER: minioadmin
   MINIO_ROOT_PASSWORD: "change-me"
   MINIO_BUCKET: atp
+  # Optional Fernet key. Leave empty to derive from APP_SECRET_KEY.
   ENCRYPTION_KEY: ""
+  # API key for CI/CD webhook trigger endpoint.
   WEBHOOK_API_KEY: "change-me"
 
+# Kubernetes Services.
 service:
   backend:
+    # Backend Service type.
     type: ClusterIP
+    # Backend Service port.
     port: 8000
   flower:
+    # Flower Service type.
     type: ClusterIP
+    # Flower Service port.
     port: 5555
 
+# Ingress for backend routes. The frontend image is expected to be exposed by
+# the platform or an adjacent chart; this chart routes API-style paths.
 ingress:
+  # Set false when another gateway owns external routing.
   enabled: true
+  # IngressClass name, usually nginx.
   className: nginx
+  # Public host name.
   host: atp.example.com
   tls:
+    # Enable TLS stanza on the Ingress.
     enabled: false
+    # Existing TLS secret name.
     secretName: atp-tls
+  # Nginx annotations tuned for large uploads and long-running report requests.
   annotations:
     nginx.ingress.kubernetes.io/proxy-body-size: 200m
     nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
 
+# HorizontalPodAutoscaler settings for API and worker deployments.
 hpa:
   backend:
     enabled: true
@@ -98,5 +162,7 @@ hpa:
     maxReplicas: 20
     targetCPUUtilizationPercentage: 80
 
-# 外部依赖：默认使用集群内 Service 引用，生产建议挂托管 RDS/ElastiCache/MinIO 集群
-# 本 Chart 不内置 PostgreSQL/Redis/MinIO Deployment，由运维侧通过 values 指向外部服务
+# External dependencies:
+# - This chart does not install PostgreSQL, Redis, or MinIO.
+# - Point secrets.POSTGRES_*, secrets.REDIS_*, and secrets.MINIO_* to managed
+#   services or separately operated in-cluster services.

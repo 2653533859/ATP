@@ -108,6 +108,7 @@ def _make_config_row(**overrides):
         model_name="deepseek-chat",
         default_params={"temperature": 0.4},
         enabled=True,
+        supports_vision=False,
         description="测试配置",
         created_at=datetime.now(timezone.utc),
         updated_at=datetime.now(timezone.utc),
@@ -137,6 +138,7 @@ def test_list_returns_safe_output(monkeypatch):
     item = out[0]
     assert item.name == "deepseek-prod"
     assert item.has_api_key is True
+    assert item.supports_vision is False
     assert not hasattr(item, "api_key_encrypted")
 
 
@@ -155,11 +157,13 @@ def test_create_encrypts_api_key(monkeypatch):
         provider="deepseek",
         api_key="sk-xxx",
         model_name="deepseek-chat",
+        supports_vision=True,
     )
     out = asyncio.run(ai_llm_configs.create_llm_config(body=body, db=db, _=None))
 
     assert captured_plaintext["v"] == "sk-xxx"
     assert db.added and db.added[0].api_key_encrypted == "enc::sk-xxx"
+    assert db.added[0].supports_vision is True
     assert out.name == "dp"
     assert out.has_api_key is True
 
@@ -206,12 +210,13 @@ def test_update_re_encrypts_when_api_key_provided(monkeypatch):
     existing = _make_config_row()
     db = _AsyncDB()
     db._get_value = existing
-    body = AILLMConfigUpdateIn(api_key="new-key", description="updated")
+    body = AILLMConfigUpdateIn(api_key="new-key", description="updated", supports_vision=True)
     out = asyncio.run(ai_llm_configs.update_llm_config(config_id=1, body=body, db=db, _=None))
 
     assert encrypted_value == ["new-key"]
     assert existing.api_key_encrypted == "enc::new-key"
     assert existing.description == "updated"
+    assert existing.supports_vision is True
     assert out.description == "updated"
     assert db.commit_calls == 1
 

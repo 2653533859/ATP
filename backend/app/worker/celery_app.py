@@ -84,6 +84,11 @@ celery_app.conf.update(
             # 每周一凌晨 04:33
             "schedule": crontab(hour=4, minute=33, day_of_week=1),
         },
+        "aggregate-healing-feedback": {
+            "task": "aggregate_healing_feedback",
+            # 每周一凌晨 04:17，供 prompt 示例库与反馈报表复用
+            "schedule": crontab(hour=4, minute=17, day_of_week=1),
+        },
     },
 )
 

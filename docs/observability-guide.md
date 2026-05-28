@@ -67,7 +67,21 @@ Celery 指标由 `celery-exporter` 订阅 Redis broker 后导出（无需 worker
 
 可在 Grafana UI 中复制为自定义看板。
 
-## 五、添加新指标的范式
+## 五、Grafana 告警模板
+
+告警模板位于 `deploy/grafana/alerts/atp-alerts.yaml`，使用 Grafana unified alerting provisioning 格式，默认引用 Prometheus datasource UID `prometheus`。
+
+模板预置 5 类告警：
+
+1. API 5xx 错误率超过 5%
+2. Celery 队列堆积超过 100
+3. PostgreSQL 连接数超过 `max_connections` 的 80%
+4. Celery 任务失败率大于 0
+5. ATP/Celery 超时开始增长
+
+Compose 本地栈可将该文件挂载到 Grafana 的 `/etc/grafana/provisioning/alerting/`；生产环境建议由平台侧统一管理 contact point、notification policy 与 mute timing。
+
+## 六、添加新指标的范式
 
 ```python
 # backend/app/core/metrics.py
@@ -84,7 +98,7 @@ except Exception:
     pass  # 任何 metric 异常都不应破坏业务逻辑
 ```
 
-## 六、与 Jaeger（链路追踪）的关系
+## 七、与 Jaeger（链路追踪）的关系
 
 | 维度 | 工具 | 解决的问题 |
 |------|------|------------|
@@ -94,7 +108,7 @@ except Exception:
 
 三者通过 `trace_id`（HTTP header / log field / OTel span attribute `app.trace_id`）串联。
 
-## 七、生产部署建议
+## 八、生产部署建议
 
 - Prometheus 存储默认 `tsdb` 路径不挂卷，重启清空 — 长期保留请挂 PV 或接入远端存储
 - Grafana 已挂 `grafana_data` 卷保留仪表盘与配置

@@ -1,0 +1,216 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "ATP Helm values",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "image": {
+      "type": "object",
+      "description": "Container image repository and per-component tags.",
+      "required": ["repository", "backend", "worker", "frontend"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Shared image repository prefix, for example registry.local/atp."
+        },
+        "backend": { "$ref": "#/definitions/imageComponent" },
+        "worker": { "$ref": "#/definitions/imageComponent" },
+        "frontend": { "$ref": "#/definitions/imageComponent" }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Optional Kubernetes imagePullSecrets.",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "replicas": {
+      "type": "object",
+      "description": "Deployment replica counts.",
+      "required": ["backend", "worker", "beat", "flower"],
+      "properties": {
+        "backend": { "$ref": "#/definitions/nonNegativeInteger" },
+        "worker": { "$ref": "#/definitions/nonNegativeInteger" },
+        "beat": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1,
+          "description": "Celery beat must stay single-replica to avoid duplicate schedules."
+        },
+        "flower": { "$ref": "#/definitions/nonNegativeInteger" }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "Kubernetes resource requests and limits by component.",
+      "properties": {
+        "backend": { "$ref": "#/definitions/resources" },
+        "worker": { "$ref": "#/definitions/resources" },
+        "beat": { "$ref": "#/definitions/resources" },
+        "flower": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "config": {
+      "type": "object",
+      "description": "Non-sensitive environment variables rendered to ConfigMap.",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean"]
+      },
+      "properties": {
+        "APP_ENV": { "type": "string", "description": "Runtime environment name." },
+        "APP_AUTO_CREATE_TABLES": { "type": ["string", "boolean"], "description": "Whether startup may create tables automatically." },
+        "LOG_LEVEL": { "type": "string", "description": "Application log level." },
+        "CELERY_CONCURRENCY": { "type": ["string", "integer"], "description": "Celery worker concurrency." },
+        "ADB_SCAN_ENABLED": { "type": ["string", "boolean"], "description": "Enable periodic ADB device scanning." },
+        "OTEL_SERVICE_NAME": { "type": "string", "description": "OpenTelemetry service name." },
+        "OTEL_EXPORTER_OTLP_ENDPOINT": { "type": "string", "description": "Optional OTLP collector endpoint." },
+        "SLOW_QUERY_THRESHOLD_MS": { "type": ["string", "integer"], "description": "Slow SQL threshold in milliseconds." },
+        "DB_BACKUP_ENABLED": { "type": ["string", "boolean"], "description": "Enable scheduled PostgreSQL backups." },
+        "DB_BACKUP_PREFIX": { "type": "string", "description": "MinIO object prefix for backups." },
+        "DB_BACKUP_RETAIN_DAILY": { "type": ["string", "integer"], "description": "Daily backup retention count." },
+        "DB_BACKUP_RETAIN_WEEKLY": { "type": ["string", "integer"], "description": "Weekly backup retention count." },
+        "AI_HEALING_ENABLED": { "type": ["string", "boolean"], "description": "Enable automatic AI healing diagnostics." },
+        "AI_HEALING_TIMEOUT_SECONDS": { "type": ["string", "integer"], "description": "LLM call timeout for AI healing." },
+        "AI_HEALING_DAILY_LIMIT": { "type": ["string", "integer"], "description": "Daily LLM call limit for AI healing." },
+        "AI_HEALING_CACHE_TTL_SECONDS": { "type": ["string", "integer"], "description": "Cache TTL for identical AI healing suggestions." },
+        "AI_HEALING_FEW_SHOT_ENABLED": { "type": ["string", "boolean"], "description": "Enable curated few-shot examples in AI healing prompts." },
+        "AI_HEALING_FEW_SHOT_TOP_N": { "type": ["string", "integer"], "description": "Maximum curated examples injected per prompt." },
+        "AI_HEALING_VISION_ENABLED": { "type": ["string", "boolean"], "description": "Enable screenshot image blocks for AI healing prompts." },
+        "AI_HEALING_VISION_DAILY_LIMIT": { "type": ["string", "integer"], "description": "Daily limit for screenshot-based AI healing calls." }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "description": "Sensitive environment variables rendered to Secret.",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean"]
+      },
+      "properties": {
+        "APP_SECRET_KEY": { "type": "string", "minLength": 1 },
+        "POSTGRES_HOST": { "type": "string", "minLength": 1 },
+        "POSTGRES_PORT": { "type": ["string", "integer"] },
+        "POSTGRES_DB": { "type": "string", "minLength": 1 },
+        "POSTGRES_USER": { "type": "string", "minLength": 1 },
+        "POSTGRES_PASSWORD": { "type": "string" },
+        "REDIS_HOST": { "type": "string", "minLength": 1 },
+        "REDIS_PORT": { "type": ["string", "integer"] },
+        "REDIS_PASSWORD": { "type": "string" },
+        "MINIO_HOST": { "type": "string", "minLength": 1 },
+        "MINIO_PORT": { "type": ["string", "integer"] },
+        "MINIO_ROOT_USER": { "type": "string", "minLength": 1 },
+        "MINIO_ROOT_PASSWORD": { "type": "string" },
+        "MINIO_BUCKET": { "type": "string", "minLength": 1 },
+        "ENCRYPTION_KEY": { "type": "string" },
+        "WEBHOOK_API_KEY": { "type": "string" }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Kubernetes Service settings.",
+      "properties": {
+        "backend": { "$ref": "#/definitions/service" },
+        "flower": { "$ref": "#/definitions/service" }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress settings for API, WebSocket, mock, and metrics routes.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "host": { "type": "string" },
+        "tls": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "secretName": { "type": "string" }
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "hpa": {
+      "type": "object",
+      "description": "HorizontalPodAutoscaler settings.",
+      "properties": {
+        "backend": { "$ref": "#/definitions/hpa" },
+        "worker": { "$ref": "#/definitions/hpa" }
+      }
+    }
+  },
+  "definitions": {
+    "imageComponent": {
+      "type": "object",
+      "required": ["tag", "pullPolicy"],
+      "properties": {
+        "tag": { "type": "string", "minLength": 1 },
+        "pullPolicy": {
+          "type": "string",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "requests": { "$ref": "#/definitions/resourceMap" },
+        "limits": { "$ref": "#/definitions/resourceMap" }
+      }
+    },
+    "resourceMap": {
+      "type": "object",
+      "properties": {
+        "cpu": { "type": ["string", "number"] },
+        "memory": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer", "ExternalName"]
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      }
+    },
+    "hpa": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minReplicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxReplicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "targetCPUUtilizationPercentage": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      }
+    }
+  }
+}

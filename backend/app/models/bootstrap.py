@@ -26,6 +26,8 @@ def load_all_models() -> None:
     from app.models.dataset import TestDataset
     from app.models.user_project import UserProject, ProjectRole
     from app.models.dashboard_alert import DashboardAlertRule, DashboardAlertEvent
+    from app.models.healing_feedback import HealingFeedbackAggregate
+    from app.models.healing_prompt_example import HealingPromptExample
 
     _ = (
         User,
@@ -63,4 +65,6 @@ def load_all_models() -> None:
         ProjectRole,
         DashboardAlertRule,
         DashboardAlertEvent,
+        HealingFeedbackAggregate,
+        HealingPromptExample,
     )

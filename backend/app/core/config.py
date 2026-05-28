@@ -102,6 +102,10 @@ class Settings(BaseSettings):
     AI_HEALING_TIMEOUT_SECONDS: int = 60  # LLM 调用超时，避免诊断任务长时间挂起
     AI_HEALING_DAILY_LIMIT: int = 100  # 每日 LLM 调用上限（0 = 不限）；超限走 skipped
     AI_HEALING_CACHE_TTL_SECONDS: int = 3600  # 相同错误特征缓存复用 TTL（0 = 关闭缓存）
+    AI_HEALING_FEW_SHOT_ENABLED: bool = True  # 高质量历史示例注入 prompt
+    AI_HEALING_FEW_SHOT_TOP_N: int = 3  # 同错误特征最多注入的示例数
+    AI_HEALING_VISION_ENABLED: bool = False  # 多模态截图诊断总开关
+    AI_HEALING_VISION_DAILY_LIMIT: int = 50  # 每日带图 LLM 调用上限（0 = 不限）
 
     # OpenTelemetry / Jaeger
     # OTEL_EXPORTER_OTLP_ENDPOINT 留空时跳过 OTel 初始化（向后兼容纯 trace_id 模式）

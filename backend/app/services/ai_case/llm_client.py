@@ -38,6 +38,8 @@ class LLMRequest:
     system_prompt: str | None = None
     timeout_seconds: float = 60.0
     extra_params: dict | None = None
+    image_base64: str | None = None
+    image_media_type: str = "image/png"
 
 
 @dataclass
@@ -59,7 +61,23 @@ async def _call_openai_compatible(request: LLMRequest) -> LLMResponse:
     messages: list[dict] = []
     if request.system_prompt:
         messages.append({"role": "system", "content": request.system_prompt})
-    messages.append({"role": "user", "content": request.prompt})
+    if request.image_base64:
+        messages.append(
+            {
+                "role": "user",
+                "content": [
+                    {"type": "text", "text": request.prompt},
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": f"data:{request.image_media_type};base64,{request.image_base64}"
+                        },
+                    },
+                ],
+            }
+        )
+    else:
+        messages.append({"role": "user", "content": request.prompt})
 
     payload: dict[str, Any] = {
         "model": request.model_name,
@@ -95,7 +113,26 @@ async def _call_claude(request: LLMRequest) -> LLMResponse:
         "model": request.model_name,
         "max_tokens": request.max_tokens,
         "temperature": request.temperature,
-        "messages": [{"role": "user", "content": request.prompt}],
+        "messages": [
+            {
+                "role": "user",
+                "content": (
+                    [
+                        {
+                            "type": "image",
+                            "source": {
+                                "type": "base64",
+                                "media_type": request.image_media_type,
+                                "data": request.image_base64,
+                            },
+                        },
+                        {"type": "text", "text": request.prompt},
+                    ]
+                    if request.image_base64
+                    else request.prompt
+                ),
+            }
+        ],
     }
     if request.system_prompt:
         payload["system"] = request.system_prompt

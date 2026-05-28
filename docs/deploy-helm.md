@@ -9,6 +9,7 @@
 ```
 deploy/helm/atp/
 ├── Chart.yaml
+├── values.schema.json
 ├── values.yaml
 └── templates/
     ├── _helpers.tpl
@@ -95,12 +96,19 @@ helm upgrade atp deploy/helm/atp/ -n atp-staging -f my-values.yaml
 helm rollback atp <REVISION> -n atp-staging
 ```
 
-## 八、生产 checklist
+## 八、备份恢复
 
-- [ ] PostgreSQL / Redis / MinIO 数据已备份并验证恢复（参见 `scripts/backup-postgres.sh`）
+Helm values 默认启用 `DB_BACKUP_ENABLED=true`，由 Celery beat 调度 PostgreSQL 备份任务，备份对象写入 MinIO 的 `pg-backups/` 前缀。
+
+恢复演练与生产恢复步骤见 `docs/disaster-recovery.md`。恢复脚本 `scripts/restore-postgres.sh` 必须显式传入 `--i-know-this-overwrites`，避免误覆盖数据库。
+
+## 九、生产 checklist
+
+- [ ] PostgreSQL / Redis / MinIO 数据已备份并验证恢复（参见 `docs/disaster-recovery.md`）
 - [ ] values.secrets 已通过 ExternalSecrets / SOPS 注入，未明文提交
 - [ ] Ingress TLS 已配置，HTTP 自动重定向 HTTPS
 - [ ] Prometheus 已 ServiceMonitor 抓取 backend `/metrics`
+- [ ] Grafana 告警模板已按环境导入（参见 `deploy/grafana/alerts/atp-alerts.yaml`）
 - [ ] Beat 单副本 + Recreate 已确认（防重复触发 cron）
 - [ ] alembic migration 已先于流量切入
 - [ ] 资源 requests/limits 已根据实际负载调优

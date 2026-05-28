@@ -21,4 +21,5 @@ class AILLMConfig(Base, TimestampMixin):
     model_name: Mapped[str] = mapped_column(String(64), nullable=False)
     default_params: Mapped[dict] = mapped_column(JSON, nullable=False, default=dict)
     enabled: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    supports_vision: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     description: Mapped[str | None] = mapped_column(Text)

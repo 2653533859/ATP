@@ -1,7 +1,7 @@
 # ATP 项目任务跟踪
 
-**最后更新**: 2026-05-20
-**当前阶段**: Q4 - 性能/运维下沉与长期收口（规划已编制，待启动）
+**最后更新**: 2026-05-28
+**当前阶段**: Q6 Phase 2 - AI 自愈 iter4 已完成；待提交/推送本轮收口改动
 
 > 状态说明：
 > - `[ ]` 待开始
@@ -498,9 +498,9 @@
 
 ### P2 - 部署与监控
 
-- [x] Kubernetes Helm Chart 部署方案（`deploy/helm/atp/` 含 backend/worker/beat/flower 4 Deployment + Service/Ingress/HPA/ConfigMap/Secret + `docs/deploy-helm.md`）
-- [x] Prometheus + Grafana 监控集成（compose profile=observability 启停；backend `/metrics` + celery-exporter；预置 `ATP Overview` 仪表盘；自定义业务指标 stats_cache / slow_queries / celery_timeouts / run_retention_deleted）
-- [x] 数据库自动备份脚本（pg_dump 定时备份到 MinIO；`scripts/backup-postgres.sh` + `tasks_db_backup.py` 日/周双调度 + 保留策略 `DB_BACKUP_RETAIN_DAILY=7` / `DB_BACKUP_RETAIN_WEEKLY=4`）
+- [x] Kubernetes Helm Chart 部署方案（`deploy/helm/atp/` 含 backend/worker/beat/flower 4 Deployment + Service/Ingress/HPA/ConfigMap/Secret + `docs/deploy-helm.md`；Q6 P1.7 补齐 `values.yaml` 字段注释与 `values.schema.json`）
+- [x] Prometheus + Grafana 监控集成（compose profile=observability 启停；backend `/metrics` + celery-exporter；预置 `ATP Overview` 仪表盘；自定义业务指标 stats_cache / slow_queries / celery_timeouts / run_retention_deleted；Q6 P1.7 新增 `deploy/grafana/alerts/atp-alerts.yaml` 5 条告警模板）
+- [x] 数据库自动备份脚本（pg_dump 定时备份到 MinIO；`scripts/backup-postgres.sh` + `tasks_db_backup.py` 日/周双调度 + 保留策略 `DB_BACKUP_RETAIN_DAILY=7` / `DB_BACKUP_RETAIN_WEEKLY=4`；Q6 P1.7 新增 `scripts/restore-postgres.sh` 与 `docs/disaster-recovery.md` 恢复演练文档）
 
 ---
 

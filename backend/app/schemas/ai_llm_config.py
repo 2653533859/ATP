@@ -19,6 +19,7 @@ class AILLMConfigOut(BaseModel):
     model_name: str
     default_params: dict = Field(default_factory=dict)
     enabled: bool
+    supports_vision: bool = False
     description: str | None = None
     has_api_key: bool = True
     created_at: datetime
@@ -33,6 +34,7 @@ class AILLMConfigCreateIn(BaseModel):
     model_name: str = Field(min_length=1, max_length=64)
     default_params: dict = Field(default_factory=dict)
     enabled: bool = True
+    supports_vision: bool = False
     description: str | None = Field(default=None, max_length=2048)
 
 
@@ -44,4 +46,5 @@ class AILLMConfigUpdateIn(BaseModel):
     model_name: str | None = Field(default=None, min_length=1, max_length=64)
     default_params: dict | None = None
     enabled: bool | None = None
+    supports_vision: bool | None = None
     description: str | None = Field(default=None, max_length=2048)

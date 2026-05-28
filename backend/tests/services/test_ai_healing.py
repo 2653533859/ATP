@@ -61,6 +61,21 @@ def test_build_healing_prompt_includes_all_sections():
     assert "200 字以内" in prompt
 
 
+def test_build_healing_prompt_includes_few_shot_block():
+    prompt = ai_healing.build_healing_prompt(
+        case_type="api",
+        case_name="login flow",
+        step_name="POST /login",
+        error_message="status_code expected 200 got 401",
+        request_data=None,
+        response_data=None,
+        few_shot_block="# 历史高质量修复示例\n检查 token",
+    )
+
+    assert "历史高质量修复示例" in prompt
+    assert "检查 token" in prompt
+
+
 def test_build_healing_prompt_truncates_long_fields():
     big = "x" * 5000
     prompt = ai_healing.build_healing_prompt(
@@ -80,8 +95,11 @@ def _make_async_db(objects: dict[type, dict[int, object]]):
     """轻量假 db：get 按 (cls, id) 查 dict。"""
 
     class FakeDB:
+        def __init__(self):
+            self.objects = objects
+
         async def get(self, cls, pk):
-            return objects.get(cls, {}).get(pk)
+            return self.objects.get(cls, {}).get(pk)
 
         async def commit(self):
             pass
@@ -264,6 +282,154 @@ def test_run_diagnosis_writes_cache_after_llm_success(monkeypatch):
     assert step.healing_status == "done"
     assert step.healing_suggestion == "fresh suggestion from LLM"
     assert writes and writes[0][1] == "fresh suggestion from LLM"
+
+
+def test_run_diagnosis_injects_few_shot_examples(monkeypatch):
+    from app.models.case import StepResult
+    import app.services.ai_case.llm_client as llm_mod
+
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_CACHE_TTL_SECONDS", 0)
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_DAILY_LIMIT", 0)
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_FEW_SHOT_ENABLED", True)
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_FEW_SHOT_TOP_N", 3)
+
+    step = StepResult(
+        id=12, run_id=13, step_index=0, name="step",
+        status=RunStatus.failed, error_message="bad",
+    )
+    db = _build_full_db(step)
+
+    import app.core.encryption as enc
+    monkeypatch.setattr(enc, "decrypt", lambda _: "fake-api-key")
+
+    async def fake_get_examples(_db, *, error_fingerprint, case_type, limit):
+        assert case_type == "api"
+        assert limit == 3
+        assert len(error_fingerprint) == 32
+        return [types.SimpleNamespace(
+            case_type="api",
+            step_context_json={"step_name": "step", "error_message": "bad"},
+            suggestion_text="历史建议",
+        )]
+
+    def fake_block(examples):
+        assert examples
+        return "# 历史高质量修复示例\n历史建议"
+
+    import app.services.healing_prompt_examples as examples_mod
+    monkeypatch.setattr(examples_mod, "get_high_quality_examples", fake_get_examples)
+    monkeypatch.setattr(examples_mod, "build_few_shot_block", fake_block)
+
+    seen_prompts: list[str] = []
+
+    async def fake_llm(req):
+        seen_prompts.append(req.prompt)
+        return types.SimpleNamespace(text="fresh suggestion")
+
+    monkeypatch.setattr(llm_mod, "call_llm", fake_llm)
+    import app.core.redis_client as redis_mod
+    monkeypatch.setattr(redis_mod, "publish_run_event", lambda *_a, **_kw: _async_noop())
+
+    asyncio.run(ai_healing.run_diagnosis(db, 12))
+
+    assert step.healing_status == "done"
+    assert seen_prompts and "历史高质量修复示例" in seen_prompts[0]
+
+
+def test_run_diagnosis_attaches_screenshot_when_vision_enabled(monkeypatch):
+    from app.models.ai_llm_config import AILLMConfig
+    from app.models.case import StepResult
+    import app.services.ai_case.llm_client as llm_mod
+
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_CACHE_TTL_SECONDS", 0)
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_DAILY_LIMIT", 0)
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_FEW_SHOT_ENABLED", False)
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_VISION_ENABLED", True)
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_VISION_DAILY_LIMIT", 50)
+
+    step = StepResult(
+        id=13, run_id=14, step_index=0, name="step",
+        status=RunStatus.failed, error_message="bad",
+        screenshot_url="screenshots/runs/14/step_0.png",
+    )
+    db = _build_full_db(step)
+    cfg = db.objects[AILLMConfig][400]
+    cfg.supports_vision = True
+
+    import app.core.encryption as enc
+    monkeypatch.setattr(enc, "decrypt", lambda _: "fake-api-key")
+
+    async def allow_vision():
+        return True
+
+    monkeypatch.setattr(ai_healing, "_check_and_incr_vision_daily_limit", allow_vision)
+    async def fake_load_image(_url):
+        return "aW1n", "image/png"
+
+    monkeypatch.setattr(ai_healing, "_load_screenshot_image_for_llm", fake_load_image)
+
+    seen = {}
+
+    async def fake_llm(req):
+        seen["image_base64"] = req.image_base64
+        seen["image_media_type"] = req.image_media_type
+        return types.SimpleNamespace(text="vision suggestion")
+
+    monkeypatch.setattr(llm_mod, "call_llm", fake_llm)
+    import app.core.redis_client as redis_mod
+    monkeypatch.setattr(redis_mod, "publish_run_event", lambda *_a, **_kw: _async_noop())
+
+    asyncio.run(ai_healing.run_diagnosis(db, 13))
+
+    assert step.healing_status == "done"
+    assert seen == {"image_base64": "aW1n", "image_media_type": "image/png"}
+
+
+def test_run_diagnosis_falls_back_to_text_when_screenshot_load_fails(monkeypatch):
+    from app.models.ai_llm_config import AILLMConfig
+    from app.models.case import StepResult
+    import app.services.ai_case.llm_client as llm_mod
+
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_CACHE_TTL_SECONDS", 0)
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_DAILY_LIMIT", 0)
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_FEW_SHOT_ENABLED", False)
+    monkeypatch.setattr(ai_healing.settings, "AI_HEALING_VISION_ENABLED", True)
+
+    step = StepResult(
+        id=14, run_id=15, step_index=0, name="step",
+        status=RunStatus.failed, error_message="bad",
+        screenshot_url="screenshots/runs/15/missing.png",
+    )
+    db = _build_full_db(step)
+    cfg = db.objects[AILLMConfig][400]
+    cfg.supports_vision = True
+
+    import app.core.encryption as enc
+    monkeypatch.setattr(enc, "decrypt", lambda _: "fake-api-key")
+    async def fake_load_missing(_url):
+        return None
+
+    monkeypatch.setattr(ai_healing, "_load_screenshot_image_for_llm", fake_load_missing)
+
+    async def quota_boom():
+        raise AssertionError("vision quota must not be consumed when image load fails")
+
+    monkeypatch.setattr(ai_healing, "_check_and_incr_vision_daily_limit", quota_boom)
+
+    seen = {}
+
+    async def fake_llm(req):
+        seen["image_base64"] = req.image_base64
+        return types.SimpleNamespace(text="text suggestion")
+
+    monkeypatch.setattr(llm_mod, "call_llm", fake_llm)
+    import app.core.redis_client as redis_mod
+    monkeypatch.setattr(redis_mod, "publish_run_event", lambda *_a, **_kw: _async_noop())
+
+    asyncio.run(ai_healing.run_diagnosis(db, 14))
+
+    assert step.healing_status == "done"
+    assert seen == {"image_base64": None}
 
 
 async def _async_noop(*_a, **_kw):
