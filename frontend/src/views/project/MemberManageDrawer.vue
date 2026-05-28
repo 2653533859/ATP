@@ -102,13 +102,31 @@ const columns = computed(() => [
   { title: t('project_members.col.actions'), dataIndex: 'actions', key: 'actions', width: 80 },
 ])
 
+type ErrorLike = {
+  response?: {
+    data?: {
+      detail?: unknown
+    }
+  }
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'object' && error !== null) {
+    const typed = error as ErrorLike
+    if (typeof typed.response?.data?.detail === 'string') return typed.response.data.detail
+  }
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return fallback
+}
+
 async function loadMembers() {
   if (!props.projectId) return
   loading.value = true
   try {
     members.value = await projectMemberApi.list(props.projectId)
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? t('project_members.load_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('project_members.load_failed')))
   } finally {
     loading.value = false
   }
@@ -134,7 +152,7 @@ async function onSearchUser(q: string) {
   searching.value = true
   try {
     // 按 username 精确匹配（后端 GET /users?username=xxx；若没有则提示）
-    const result = await http.get<any, { id: number; username: string }[]>('/users', {
+    const result = await http.get<unknown, { id: number; username: string }[]>('/users', {
       params: { username: q.trim() },
     })
     if (Array.isArray(result) && result.length > 0) {
@@ -171,8 +189,8 @@ async function onAddMember() {
     newMemberQuery.value = ''
     await loadMembers()
     emit('updated')
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? t('project_members.add_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('project_members.add_failed')))
   } finally {
     adding.value = false
   }
@@ -185,8 +203,8 @@ async function onUpdateRole(record: ProjectMemberItem, role: string) {
     record.role = role as ProjectRoleType
     message.success(t('project_members.update_success'))
     emit('updated')
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? t('project_members.update_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('project_members.update_failed')))
   }
 }
 
@@ -197,8 +215,8 @@ async function onRemoveMember(record: ProjectMemberItem) {
     message.success(t('project_members.remove_success'))
     await loadMembers()
     emit('updated')
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? t('project_members.remove_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('project_members.remove_failed')))
   }
 }
 </script>

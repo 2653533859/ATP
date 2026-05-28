@@ -2,7 +2,7 @@ from fastapi import APIRouter
 from app.api.v1 import (auth, projects, cases, environments, scripts, devices, apks,
                          device_mirror, suites, plans, webhook, exports, notifications,
                          statistics, mock_rules, bug_trackers, mobile_special, global_variables, storage, traces,
-                         ai_llm_configs, ai_case_generation, admin_runs, datasets)
+                         ai_llm_configs, ai_case_generation, admin_runs, datasets, dashboard_alerts)
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(auth.router)
@@ -29,3 +29,4 @@ router.include_router(ai_llm_configs.router)
 router.include_router(ai_case_generation.router)
 router.include_router(admin_runs.router)
 router.include_router(datasets.router)
+router.include_router(dashboard_alerts.router)

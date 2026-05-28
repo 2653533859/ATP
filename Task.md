@@ -281,7 +281,7 @@
 
 - [x] Android 真机在不同宿主机 / Docker 网络环境下的稳定性验证沉淀（`docs/android-device-debugging.md` 新增"宿主网络与 Docker 环境差异"专章 + `scripts/android-network-doctor.sh` 一键诊断脚本）
 - [ ] 部署、运维与性能优化的持续打磨
-- [ ] 少量页面残余 `any` / 宽类型结构的工程化收口
+- [x] 少量页面残余 `any` / 宽类型结构的工程化收口（P1.6 批 1-4 已完成；`frontend/src` 除 locale 文案 key `any_method` 外无显式 any）
 
 ### 5.10 Q3 前端国际化 i18n
 
@@ -346,17 +346,17 @@
 
 ### P2 - 性能优化
 
-- [ ] 高频查询加 Redis 缓存（TTL 5 分钟），避免大量并发时直接打数据库
+- [x] 高频查询加 Redis 缓存：statistics 已有 5 分钟缓存；dataset list 与 mobile statistics 已补 60 秒 TTL 自然失效缓存
 - [x] `test_runs` 表添加复合索引：`(status, created_at)` 和 `(case_id, status, created_at)` — Q5 长尾 2 收口；alembic 0029 新增 `ix_test_runs_case_id_status_created_at`，与 0015 的 `(status, created_at)` 互补
 - [x] 看板数据按需加载：首屏只加载总览和通过率趋势，其余图表通过 `LazyChartCard` + `IntersectionObserver` 滚动到可视区再请求
 - [x] 大时间跨度（> 90 天）自动切换为按周聚合：前端 days > 90 时传 `aggregate=weekly`，后端 4 个 trend 端点用 PostgreSQL `date_trunc('week', ...)` 聚合
 
 ### P3 - 高级功能
 
-- [ ] 看板数据导出：支持导出为 PNG 图片或 CSV 数据
-- [ ] 自定义看板：用户可选择显示/隐藏哪些图表卡片，自定义布局
-- [ ] 项目级看板 vs 全局看板切换
-- [ ] 通过率/时长异常告警：通过率低于阈值或时长突增时自动标红提醒
+- [x] 看板数据导出：支持图表导出 PNG 图片与统计数据 CSV
+- [x] 自定义看板：用户可选择显示/隐藏图表卡片，自定义排序并持久化到 localStorage
+- [x] 项目级看板 vs 全局看板切换：Dashboard 支持全局/单项目 segmented 切换，单项目模式显示项目下拉并记忆选择，全局模式不传 project_id
+- [x] 通过率/时长异常告警：支持项目级告警规则/事件、定时检查、通知触发、抑制窗口、规则配置页和 Dashboard 项目级告警提示
 
 ---
 
@@ -577,5 +577,3 @@
 - [x] 修复全局变量读取接口返回密文的问题，支持默认脱敏与按需显式查看明文
 - [x] 修复稳定性执行器使用一次性 `logcat -d` 导致运行期间 crash/ANR 漏采集的问题
 - [x] 修复报告中心按任务类型筛选无效的问题，并完成后端测试与前端构建验证
-
-

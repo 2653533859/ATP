@@ -1,7 +1,10 @@
 from datetime import datetime, timedelta, timezone
+import csv
+from io import StringIO
 from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
+from fastapi.responses import StreamingResponse
 from sqlalchemy import select, func, case as sql_case, cast, Date
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -28,6 +31,16 @@ from app.schemas.statistics import (
 
 router = APIRouter(tags=["statistics"])
 logger = logging.getLogger(__name__)
+ExportChart = Literal[
+    "pass_rate_trend",
+    "duration_trend",
+    "failure_top",
+    "executor_top",
+    "trigger_type",
+    "plan_trend",
+    "suite_trend",
+    "case_type_distribution",
+]
 
 # 终态：只统计已结束的执行
 _FINISHED = [RunStatus.passed, RunStatus.failed, RunStatus.error]
@@ -557,3 +570,59 @@ async def get_case_type_distribution(
         )
         for r in rows
     ]
+
+
+def _csv_response(filename: str, rows: list[dict]) -> StreamingResponse:
+    output = StringIO()
+    fieldnames: list[str] = []
+    for row in rows:
+        for key in row:
+            if key not in fieldnames:
+                fieldnames.append(key)
+
+    writer = csv.DictWriter(output, fieldnames=fieldnames or ["empty"])
+    writer.writeheader()
+    for row in rows:
+        writer.writerow(row)
+
+    content = output.getvalue()
+    return StreamingResponse(
+        iter([content]),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def _dump_items(items) -> list[dict]:
+    return [item.model_dump() if hasattr(item, "model_dump") else dict(item) for item in items]
+
+
+@router.get("/statistics/export/csv")
+async def export_statistics_csv(
+    chart: ExportChart = Query(...),
+    project_id: int | None = Query(None),
+    days: int = Query(30, ge=1, le=365),
+    aggregate: Literal["daily", "weekly"] = Query("daily"),
+    case_type: CaseType | None = Query(None),
+    top: int = Query(10, ge=1, le=50),
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    if chart == "pass_rate_trend":
+        items = await get_pass_rate_trend(project_id, days, case_type, aggregate, db, _)
+    elif chart == "duration_trend":
+        items = await get_duration_trend(project_id, days, case_type, aggregate, db, _)
+    elif chart == "failure_top":
+        items = await get_failure_top(project_id, days, top, case_type, db, _)
+    elif chart == "executor_top":
+        items = await get_executor_top(project_id, days, top, case_type, db, _)
+    elif chart == "trigger_type":
+        items = await get_trigger_type_stats(project_id, days, db, _)
+    elif chart == "plan_trend":
+        items = await get_plan_trend(project_id, days, aggregate, db, _)
+    elif chart == "suite_trend":
+        items = await get_suite_trend(project_id, days, aggregate, db, _)
+    else:
+        items = await get_case_type_distribution(project_id, days, db, _)
+
+    return _csv_response(f"{chart}.csv", _dump_items(items))

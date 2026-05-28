@@ -18,7 +18,9 @@ from app.api.deps import (
     get_current_user,
     require_project_access,
 )
+from app.core.cache_decorator import cached_json
 from app.core.database import get_db
+from app.core.redis_client import get_json_cache, set_json_cache
 from app.models.dataset import TestDataset
 from app.models.user import User
 from app.models.user_project import ProjectRole
@@ -33,6 +35,41 @@ router = APIRouter(tags=["测试数据集"])
 
 _MAX_ROWS = 500
 _MAX_ROWS_BYTES = 256 * 1024
+_DATASET_LIST_CACHE_TTL = 60
+
+
+def _dataset_cache_key(name: str, **kwargs) -> str:
+    items = ":".join(f"{key}={kwargs[key]}" for key in sorted(kwargs))
+    return f"atp:datasets:{name}:{items}"
+
+
+def _build_dataset_cache_key(name: str, *fields: str):
+    def builder(**kwargs) -> str:
+        return _dataset_cache_key(name, **{field: kwargs.get(field) for field in fields})
+
+    return builder
+
+
+async def _safe_get_dataset_cache(key: str):
+    try:
+        return await get_json_cache(key)
+    except Exception:
+        return None
+
+
+async def _safe_set_dataset_cache(key: str, value) -> None:
+    try:
+        await set_json_cache(key, value, _DATASET_LIST_CACHE_TTL)
+    except Exception:
+        return None
+
+
+def _serialize_dataset_list(items: list[TestDatasetListItem]) -> list[dict]:
+    return [item.model_dump(mode="json") for item in items]
+
+
+def _deserialize_dataset_list(payload) -> list[TestDatasetListItem]:
+    return [TestDatasetListItem(**item) for item in payload]
 
 
 def _validate_rows(rows: list[dict]) -> None:
@@ -50,6 +87,13 @@ def _validate_rows(rows: list[dict]) -> None:
 
 
 @router.get("/projects/{project_id}/datasets", response_model=list[TestDatasetListItem])
+@cached_json(
+    key_builder=_build_dataset_cache_key("list", "project_id"),
+    serializer=_serialize_dataset_list,
+    deserializer=_deserialize_dataset_list,
+    read_cache=_safe_get_dataset_cache,
+    write_cache=_safe_set_dataset_cache,
+)
 async def list_datasets(
     project_id: int,
     db: AsyncSession = Depends(get_db),

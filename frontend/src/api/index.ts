@@ -35,6 +35,48 @@ export interface EnvironmentItem {
   updated_at?: string
 }
 
+export interface EnvVariableItem {
+  id?: number
+  key: string
+  value: string
+  is_secret: boolean
+}
+
+export type DeviceStatus = 'online' | 'offline' | 'busy'
+
+export interface DeviceItem {
+  id: number
+  serial: string
+  name?: string | null
+  model?: string | null
+  brand?: string | null
+  os_version?: string | null
+  sdk_version?: string | null
+  resolution?: string | null
+  status: DeviceStatus
+  ip_address?: string | null
+  port?: number | null
+  description?: string | null
+  last_seen_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ApkItem {
+  id: number
+  project_id: number
+  filename: string
+  package_name?: string | null
+  version_name?: string | null
+  version_code?: number | null
+  file_size: number
+  object_name: string
+  description?: string | null
+  uploaded_by: number
+  created_at: string
+  updated_at: string
+}
+
 export interface ModuleTreeItem {
   id: number
   name: string
@@ -103,6 +145,15 @@ export interface CaseSnapshotItem {
   updated_by: number
   updated_by_name: string
   created_at: string
+}
+
+export interface ScriptUploadResponse {
+  script_path: string
+  size: number
+}
+
+export interface CaseRunStartResponse {
+  id: number
 }
 
 export interface CaseQueryParams {
@@ -394,6 +445,7 @@ export type MobileTriggerType = 'manual' | 'schedule' | 'webhook'
 export type IncidentType = 'crash' | 'anr' | 'fatal_log' | 'watchdog'
 export type ArtifactType = 'csv' | 'json' | 'screenshot' | 'raw_log' | 'trace'
 export type ScopeType = 'global' | 'project'
+export type NotificationChannel = 'email' | 'wechat' | 'dingtalk'
 
 export interface MobileSpecialTaskItem {
   id: number
@@ -470,6 +522,17 @@ export interface MobileRunArtifactItem {
   file_size?: number | null
   created_at: string
 }
+
+export interface NotificationItem {
+  id: number
+  name: string
+  channel: NotificationChannel
+  config: Record<string, unknown>
+  is_enabled: boolean
+  updated_at?: string
+}
+
+export type MockRuleLogItem = Record<string, unknown>
 
 export interface StoragePrefixStatItem {
   prefix: string
@@ -556,6 +619,46 @@ export interface StorageAlertResponse {
   alert: StorageAlertPayload | null
 }
 
+export type DashboardAlertMetric = 'pass_rate' | 'avg_duration_ms' | 'failure_count' | 'error_count' | 'total_runs'
+export type DashboardAlertOperator = 'gt' | 'gte' | 'lt' | 'lte' | 'eq'
+
+export interface DashboardAlertRuleItem {
+  id: number
+  name: string
+  project_id: number
+  metric: DashboardAlertMetric
+  op: DashboardAlertOperator
+  threshold: number
+  window_minutes: number
+  suppress_minutes: number
+  notification_config_id?: number | null
+  enabled: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface DashboardAlertRulePayload {
+  name?: string
+  project_id?: number
+  metric?: DashboardAlertMetric
+  op?: DashboardAlertOperator
+  threshold?: number
+  window_minutes?: number
+  suppress_minutes?: number
+  notification_config_id?: number | null
+  enabled?: boolean
+}
+
+export interface DashboardAlertEventItem {
+  id: number
+  rule_id: number
+  triggered_at: string
+  actual_value: number
+  snoozed_until?: string | null
+  created_at: string
+  updated_at: string
+}
+
 export interface GlobalVariableItem {
   id: number
   scope_type: ScopeType
@@ -607,19 +710,19 @@ export interface RunDetailItem {
 
 export const authApi = {
   login: (username: string, password: string) =>
-    http.post<any, { access_token: string; refresh_token: string }>('/auth/login', { username, password }),
+    http.post<unknown, { access_token: string; refresh_token: string }>('/auth/login', { username, password }),
 
-  me: () => http.get<any, { id: number; username: string; email: string; role: string }>('/auth/me'),
+  me: () => http.get<unknown, { id: number; username: string; email: string; role: string }>('/auth/me'),
 }
 
 export const projectApi = {
-  list: () => http.get<any, ProjectItem[]>('/projects'),
+  list: () => http.get<unknown, ProjectItem[]>('/projects'),
   create: (data: { name: string; description?: string; project_code?: string; ai_llm_config_id?: number | null }) =>
     http.post('/projects', data),
   update: (id: number, data: { name?: string; description?: string; project_code?: string; ai_llm_config_id?: number | null }) =>
     http.patch(`/projects/${id}`, data),
   delete: (id: number) => http.delete(`/projects/${id}`),
-  getModules: (projectId: number) => http.get<any, ModuleTreeItem[]>(`/projects/${projectId}/modules`),
+  getModules: (projectId: number) => http.get<unknown, ModuleTreeItem[]>(`/projects/${projectId}/modules`),
 }
 
 export const moduleApi = {
@@ -630,49 +733,49 @@ export const moduleApi = {
 
 export const caseApi = {
   list: (params?: CaseQueryParams) =>
-    http.get<any, CaseSummaryItem[]>('/cases', { params }),
-  create: (data: CaseSavePayload) => http.post<any, CaseDetailItem>('/cases', data),
-  get: (id: number) => http.get<any, CaseDetailItem>(`/cases/${id}`),
-  update: (id: number, data: CaseSavePayload) => http.patch<any, CaseDetailItem>(`/cases/${id}`, data),
+    http.get<unknown, CaseSummaryItem[]>('/cases', { params }),
+  create: (data: CaseSavePayload) => http.post<unknown, CaseDetailItem>('/cases', data),
+  get: (id: number) => http.get<unknown, CaseDetailItem>(`/cases/${id}`),
+  update: (id: number, data: CaseSavePayload) => http.patch<unknown, CaseDetailItem>(`/cases/${id}`, data),
   delete: (id: number) => http.delete(`/cases/${id}`),
-  copy: (id: number) => http.post<any, CaseDetailItem>(`/cases/${id}/copy`),
-  submitReview: (id: number, data?: { comment?: string }) => http.post<any, CaseDetailItem>(`/cases/${id}/submit-review`, data ?? {}),
-  approve: (id: number, data?: { comment?: string }) => http.post<any, CaseDetailItem>(`/cases/${id}/approve`, data ?? {}),
-  reject: (id: number, data?: { comment?: string }) => http.post<any, CaseDetailItem>(`/cases/${id}/reject`, data ?? {}),
-  deprecate: (id: number, data?: { comment?: string }) => http.post<any, CaseDetailItem>(`/cases/${id}/deprecate`, data ?? {}),
-  reactivate: (id: number, data?: { comment?: string }) => http.post<any, CaseDetailItem>(`/cases/${id}/reactivate`, data ?? {}),
+  copy: (id: number) => http.post<unknown, CaseDetailItem>(`/cases/${id}/copy`),
+  submitReview: (id: number, data?: { comment?: string }) => http.post<unknown, CaseDetailItem>(`/cases/${id}/submit-review`, data ?? {}),
+  approve: (id: number, data?: { comment?: string }) => http.post<unknown, CaseDetailItem>(`/cases/${id}/approve`, data ?? {}),
+  reject: (id: number, data?: { comment?: string }) => http.post<unknown, CaseDetailItem>(`/cases/${id}/reject`, data ?? {}),
+  deprecate: (id: number, data?: { comment?: string }) => http.post<unknown, CaseDetailItem>(`/cases/${id}/deprecate`, data ?? {}),
+  reactivate: (id: number, data?: { comment?: string }) => http.post<unknown, CaseDetailItem>(`/cases/${id}/reactivate`, data ?? {}),
   run: (id: number, data?: { env_id?: number; extra_vars?: object }) =>
-    http.post(`/cases/${id}/run`, data ?? {}),
+    http.post<unknown, CaseRunStartResponse>(`/cases/${id}/run`, data ?? {}),
   listSnapshots: (caseId: number, params?: { page?: number; page_size?: number }) =>
-    http.get<any, { items: CaseSnapshotItem[]; total: number; page: number; page_size: number }>(
+    http.get<unknown, { items: CaseSnapshotItem[]; total: number; page: number; page_size: number }>(
       `/cases/${caseId}/snapshots`, { params },
     ),
   rollback: (caseId: number, snapshotId: number) =>
-    http.post<any, CaseDetailItem>(`/cases/${caseId}/rollback/${snapshotId}`),
+    http.post<unknown, CaseDetailItem>(`/cases/${caseId}/rollback/${snapshotId}`),
   batchDelete: (caseIds: number[]) =>
-    http.post<any, { requested: number; processed: number; skipped_ids: number[] }>(
+    http.post<unknown, { requested: number; processed: number; skipped_ids: number[] }>(
       '/cases/batch/delete',
       { case_ids: caseIds },
     ),
   batchMove: (caseIds: number[], targetModuleId: number) =>
-    http.post<any, { requested: number; processed: number; skipped_ids: number[] }>(
+    http.post<unknown, { requested: number; processed: number; skipped_ids: number[] }>(
       '/cases/batch/move',
       { case_ids: caseIds, target_module_id: targetModuleId },
     ),
   batchExportCsv: (caseIds: number[]) =>
-    http.get<any, Blob>('/cases/batch/export', {
+    http.get<unknown, Blob>('/cases/batch/export', {
       params: { case_ids: caseIds.join(',') },
       responseType: 'blob',
     }),
   batchExportZip: (caseIds: number[]) =>
-    http.get<any, Blob>('/cases/batch/export-zip', {
+    http.get<unknown, Blob>('/cases/batch/export-zip', {
       params: { case_ids: caseIds.join(',') },
       responseType: 'blob',
     }),
   batchImportZip: (file: File, targetModuleId: number) => {
     const form = new FormData()
     form.append('file', file)
-    return http.post<any, {
+    return http.post<unknown, {
       imported: number
       skipped_count: number
       target_module_id: number
@@ -687,57 +790,57 @@ export const caseApi = {
 
 export const runApi = {
   list: (params?: { case_id?: number; page?: number; page_size?: number }) =>
-    http.get<any, { items: any[]; total: number; page: number; page_size: number }>('/runs', { params }),
-  get: (id: number) => http.get<any, RunDetailItem>(`/runs/${id}`),
+    http.get<unknown, { items: RunDetailItem[]; total: number; page: number; page_size: number }>('/runs', { params }),
+  get: (id: number) => http.get<unknown, RunDetailItem>(`/runs/${id}`),
   exportHtml: (id: number) =>
-    http.get<any, Blob>(`/runs/${id}/export/html`, { responseType: 'blob' }),
+    http.get<unknown, Blob>(`/runs/${id}/export/html`, { responseType: 'blob' }),
   exportPdf: (id: number) =>
-    http.get<any, Blob>(`/runs/${id}/export/pdf`, { responseType: 'blob' }),
+    http.get<unknown, Blob>(`/runs/${id}/export/pdf`, { responseType: 'blob' }),
   submitHealingFeedback: (runId: number, stepId: number, action: 'adopted' | 'rejected') =>
-    http.post<any, void>(`/runs/${runId}/steps/${stepId}/healing/feedback`, { action }),
+    http.post<unknown, void>(`/runs/${runId}/steps/${stepId}/healing/feedback`, { action }),
 }
 
 export const scriptApi = {
   upload: (caseId: number, file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return http.post(`/cases/${caseId}/script`, form)
+    return http.post<unknown, ScriptUploadResponse>(`/cases/${caseId}/script`, form)
   },
   get: (caseId: number) =>
-    http.get<any, { content: string; exists: boolean; script_path?: string }>(`/cases/${caseId}/script`),
+    http.get<unknown, { content: string; exists: boolean; script_path?: string }>(`/cases/${caseId}/script`),
   saveContent: (caseId: number, content: string) => {
     const blob = new Blob([content], { type: 'text/x-python' })
     const file = new File([blob], 'test_case.py', { type: 'text/x-python' })
     const form = new FormData()
     form.append('file', file)
-    return http.post(`/cases/${caseId}/script`, form)
+    return http.post<unknown, ScriptUploadResponse>(`/cases/${caseId}/script`, form)
   },
   delete: (caseId: number) => http.delete(`/cases/${caseId}/script`),
 }
 
 export const environmentApi = {
   list: (projectId: number) =>
-    http.get<any, EnvironmentItem[]>('/environments', { params: { project_id: projectId } }),
+    http.get<unknown, EnvironmentItem[]>('/environments', { params: { project_id: projectId } }),
   create: (data: { name: string; description?: string; project_id: number }) =>
     http.post('/environments', data),
   update: (id: number, data: { name?: string; description?: string }) =>
     http.patch(`/environments/${id}`, data),
   delete: (id: number) => http.delete(`/environments/${id}`),
-  getVariables: (id: number) => http.get<any, any[]>(`/environments/${id}/variables`),
+  getVariables: (id: number) => http.get<unknown, EnvVariableItem[]>(`/environments/${id}/variables`),
   saveVariables: (id: number, data: { variables: Array<{ key: string; value: string; is_secret: boolean }> }) =>
     http.put(`/environments/${id}/variables`, data),
 }
 
 export const deviceApi = {
   list: (params?: { status_filter?: string }) =>
-    http.get<any, any[]>('/devices', { params }),
-  scan: () => http.post<any, any[]>('/devices/scan'),
+    http.get<unknown, DeviceItem[]>('/devices', { params }),
+  scan: () => http.post<unknown, DeviceItem[]>('/devices/scan'),
   get: (id: number) => http.get('/devices/' + id),
   update: (id: number, data: { name?: string; description?: string }) =>
     http.patch(`/devices/${id}`, data),
   delete: (id: number) => http.delete(`/devices/${id}`),
   screenshot: (id: number) =>
-    http.get<any, Blob>(`/devices/${id}/screenshot`, { responseType: 'blob' }),
+    http.get<unknown, Blob>(`/devices/${id}/screenshot`, { responseType: 'blob' }),
   screenshotUrl: (id: number) => `/api/v1/devices/${id}/screenshot`,
   screenStreamUrl: (id: number, fps?: number) =>
     `/api/v1/devices/${id}/screen${fps ? `?fps=${fps}` : ''}`,
@@ -745,39 +848,39 @@ export const deviceApi = {
 
 export const apkApi = {
   list: (params?: { project_id?: number }) =>
-    http.get<any, any[]>('/apks', { params }),
+    http.get<unknown, ApkItem[]>('/apks', { params }),
   get: (id: number) => http.get('/apks/' + id),
   upload: (data: FormData) => http.post('/apks', data),
   update: (id: number, data: { description?: string; package_name?: string; version_name?: string; version_code?: number }) =>
     http.patch(`/apks/${id}`, data),
   delete: (id: number) => http.delete(`/apks/${id}`),
   download: (id: number) =>
-    http.get<any, { url: string; filename: string }>(`/apks/${id}/download`),
+    http.get<unknown, { url: string; filename: string }>(`/apks/${id}/download`),
 }
 
 export const suiteApi = {
   list: (params?: { project_id?: number }) =>
-    http.get<any, SuiteItem[]>('/suites', { params }),
-  get: (id: number) => http.get<any, SuiteItem>('/suites/' + id),
-  create: (data: SuiteSavePayload) => http.post<any, SuiteItem>('/suites', data),
-  update: (id: number, data: SuiteSavePayload) => http.patch<any, SuiteItem>(`/suites/${id}`, data),
+    http.get<unknown, SuiteItem[]>('/suites', { params }),
+  get: (id: number) => http.get<unknown, SuiteItem>('/suites/' + id),
+  create: (data: SuiteSavePayload) => http.post<unknown, SuiteItem>('/suites', data),
+  update: (id: number, data: SuiteSavePayload) => http.patch<unknown, SuiteItem>(`/suites/${id}`, data),
   delete: (id: number) => http.delete(`/suites/${id}`),
   run: (id: number, data?: { env_id?: number; extra_vars?: object }) =>
-    http.post<any, SuiteRunItem>(`/suites/${id}/run`, data ?? {}),
+    http.post<unknown, SuiteRunItem>(`/suites/${id}/run`, data ?? {}),
   listRuns: (params?: { suite_id?: number }) =>
-    http.get<any, SuiteRunItem[]>('/suite-runs', { params }),
-  getRun: (id: number) => http.get<any, SuiteRunItem>('/suite-runs/' + id),
+    http.get<unknown, SuiteRunItem[]>('/suite-runs', { params }),
+  getRun: (id: number) => http.get<unknown, SuiteRunItem>('/suite-runs/' + id),
   exportRunHtml: (id: number) =>
-    http.get<any, Blob>(`/suite-runs/${id}/export/html`, { responseType: 'blob' }),
+    http.get<unknown, Blob>(`/suite-runs/${id}/export/html`, { responseType: 'blob' }),
   exportRunPdf: (id: number) =>
-    http.get<any, Blob>(`/suite-runs/${id}/export/pdf`, { responseType: 'blob' }),
+    http.get<unknown, Blob>(`/suite-runs/${id}/export/pdf`, { responseType: 'blob' }),
   batchDelete: (suiteIds: number[]) =>
-    http.post<any, { requested: number; processed: number; skipped_ids: number[] }>(
+    http.post<unknown, { requested: number; processed: number; skipped_ids: number[] }>(
       '/suites/batch/delete',
       { suite_ids: suiteIds },
     ),
   batchCopy: (suiteIds: number[], suffix = ' - 副本') =>
-    http.post<any, { requested: number; processed: number; skipped_ids: number[]; created_ids: number[] }>(
+    http.post<unknown, { requested: number; processed: number; skipped_ids: number[]; created_ids: number[] }>(
       '/suites/batch/copy',
       { suite_ids: suiteIds, suffix },
     ),
@@ -785,27 +888,27 @@ export const suiteApi = {
 
 export const planApi = {
   list: (params?: { project_id?: number }) =>
-    http.get<any, PlanItem[]>('/plans', { params }),
-  get: (id: number) => http.get<any, PlanItem>('/plans/' + id),
-  create: (data: PlanSavePayload) => http.post<any, PlanItem>('/plans', data),
-  update: (id: number, data: PlanSavePayload) => http.patch<any, PlanItem>(`/plans/${id}`, data),
+    http.get<unknown, PlanItem[]>('/plans', { params }),
+  get: (id: number) => http.get<unknown, PlanItem>('/plans/' + id),
+  create: (data: PlanSavePayload) => http.post<unknown, PlanItem>('/plans', data),
+  update: (id: number, data: PlanSavePayload) => http.patch<unknown, PlanItem>(`/plans/${id}`, data),
   delete: (id: number) => http.delete(`/plans/${id}`),
   run: (id: number, data?: { env_id?: number; extra_vars?: object }) =>
-    http.post<any, PlanRunItem>(`/plans/${id}/run`, data ?? {}),
+    http.post<unknown, PlanRunItem>(`/plans/${id}/run`, data ?? {}),
   listRuns: (params?: { plan_id?: number }) =>
-    http.get<any, PlanRunItem[]>('/plan-runs', { params }),
-  getRun: (id: number) => http.get<any, PlanRunItem>('/plan-runs/' + id),
+    http.get<unknown, PlanRunItem[]>('/plan-runs', { params }),
+  getRun: (id: number) => http.get<unknown, PlanRunItem>('/plan-runs/' + id),
   exportRunHtml: (id: number) =>
-    http.get<any, Blob>(`/plan-runs/${id}/export/html`, { responseType: 'blob' }),
+    http.get<unknown, Blob>(`/plan-runs/${id}/export/html`, { responseType: 'blob' }),
   exportRunPdf: (id: number) =>
-    http.get<any, Blob>(`/plan-runs/${id}/export/pdf`, { responseType: 'blob' }),
+    http.get<unknown, Blob>(`/plan-runs/${id}/export/pdf`, { responseType: 'blob' }),
   batchDelete: (planIds: number[]) =>
-    http.post<any, { requested: number; processed: number; skipped_ids: number[] }>(
+    http.post<unknown, { requested: number; processed: number; skipped_ids: number[] }>(
       '/plans/batch/delete',
       { plan_ids: planIds },
     ),
   batchToggle: (planIds: number[], isEnabled: boolean) =>
-    http.post<any, { requested: number; processed: number; skipped_ids: number[] }>(
+    http.post<unknown, { requested: number; processed: number; skipped_ids: number[] }>(
       '/plans/batch/toggle',
       { plan_ids: planIds, is_enabled: isEnabled },
     ),
@@ -813,7 +916,7 @@ export const planApi = {
 
 export const notificationApi = {
   list: (params?: { project_id?: number }) =>
-    http.get<any, any[]>('/notifications', { params }),
+    http.get<unknown, NotificationItem[]>('/notifications', { params }),
   get: (id: number) => http.get('/notifications/' + id),
   create: (data: object) => http.post('/notifications', data),
   update: (id: number, data: object) => http.patch(`/notifications/${id}`, data),
@@ -823,129 +926,143 @@ export const notificationApi = {
 
 export const statisticsApi = {
   overview: (params?: { project_id?: number; days?: number }) =>
-    http.get<any, { total_cases: number; total_runs: number; pass_rate: number; recent_runs_7d: number }>(
+    http.get<unknown, { total_cases: number; total_runs: number; pass_rate: number; recent_runs_7d: number }>(
       '/statistics/overview', { params },
     ),
   passRateTrend: (params?: { project_id?: number; days?: number; case_type?: string; aggregate?: 'daily' | 'weekly' }) =>
-    http.get<any, Array<{ date: string; total: number; passed: number; rate: number }>>(
+    http.get<unknown, Array<{ date: string; total: number; passed: number; rate: number }>>(
       '/statistics/pass-rate-trend', { params },
     ),
   durationTrend: (params?: { project_id?: number; days?: number; case_type?: string; aggregate?: 'daily' | 'weekly' }) =>
-    http.get<any, Array<{ date: string; avg_duration_ms: number; max_duration_ms: number; run_count: number }>>(
+    http.get<unknown, Array<{ date: string; avg_duration_ms: number; max_duration_ms: number; run_count: number }>>(
       '/statistics/duration-trend', { params },
     ),
   failureTop: (params?: { project_id?: number; days?: number; top?: number; case_type?: string }) =>
-    http.get<any, Array<{ case_id: number; project_id: number; module_id: number; case_name: string; case_type: string; failure_count: number }>>(
+    http.get<unknown, Array<{ case_id: number; project_id: number; module_id: number; case_name: string; case_type: string; failure_count: number }>>(
       '/statistics/failure-top', { params },
     ),
   executorTop: (params?: { project_id?: number; days?: number; top?: number; case_type?: string }) =>
-    http.get<any, StatisticsExecutorTopItem[]>('/statistics/executor-top', { params }),
+    http.get<unknown, StatisticsExecutorTopItem[]>('/statistics/executor-top', { params }),
   triggerTypeStats: (params?: { project_id?: number; days?: number }) =>
-    http.get<any, StatisticsTriggerTypeStatItem[]>('/statistics/trigger-type-stats', { params }),
+    http.get<unknown, StatisticsTriggerTypeStatItem[]>('/statistics/trigger-type-stats', { params }),
   planTrend: (params?: { project_id?: number; days?: number; aggregate?: 'daily' | 'weekly' }) =>
-    http.get<any, StatisticsAggregateTrendItem[]>('/statistics/plan-trend', { params }),
+    http.get<unknown, StatisticsAggregateTrendItem[]>('/statistics/plan-trend', { params }),
   suiteTrend: (params?: { project_id?: number; days?: number; aggregate?: 'daily' | 'weekly' }) =>
-    http.get<any, StatisticsAggregateTrendItem[]>('/statistics/suite-trend', { params }),
+    http.get<unknown, StatisticsAggregateTrendItem[]>('/statistics/suite-trend', { params }),
   caseTypeDistribution: (params?: { project_id?: number; days?: number }) =>
-    http.get<any, StatisticsCaseTypeDistributionItem[]>('/statistics/case-type-distribution', { params }),
+    http.get<unknown, StatisticsCaseTypeDistributionItem[]>('/statistics/case-type-distribution', { params }),
+  exportCsv: (params: { chart: string; project_id?: number; days?: number; case_type?: string; aggregate?: 'daily' | 'weekly'; top?: number }) =>
+    http.get<unknown, Blob>('/statistics/export/csv', { params, responseType: 'blob' }),
 }
 
 export const adminRunRetentionApi = {
   preview: (days?: number) =>
-    http.get<any, RunRetentionPreview>('/admin/runs/retention/preview', { params: days ? { days } : undefined }),
+    http.get<unknown, RunRetentionPreview>('/admin/runs/retention/preview', { params: days ? { days } : undefined }),
   perProjectPreview: () =>
-    http.get<any, RunRetentionPerProjectPreview>('/admin/runs/retention/per-project-preview'),
+    http.get<unknown, RunRetentionPerProjectPreview>('/admin/runs/retention/per-project-preview'),
   run: (days?: number) =>
-    http.post<any, RunRetentionExecuteResult>('/admin/runs/retention/run', days ? { days } : {}),
+    http.post<unknown, RunRetentionExecuteResult>('/admin/runs/retention/run', days ? { days } : {}),
 }
 
 export const mockRuleApi = {
   list: (params?: { project_id?: number }) =>
-    http.get<any, MockRuleItem[]>('/mock-rules', { params }),
-  get: (id: number) => http.get<any, MockRuleItem>('/mock-rules/' + id),
-  create: (data: object) => http.post<any, MockRuleItem>('/mock-rules', data),
-  update: (id: number, data: object) => http.patch<any, MockRuleItem>(`/mock-rules/${id}`, data),
+    http.get<unknown, MockRuleItem[]>('/mock-rules', { params }),
+  get: (id: number) => http.get<unknown, MockRuleItem>('/mock-rules/' + id),
+  create: (data: object) => http.post<unknown, MockRuleItem>('/mock-rules', data),
+  update: (id: number, data: object) => http.patch<unknown, MockRuleItem>(`/mock-rules/${id}`, data),
   delete: (id: number) => http.delete(`/mock-rules/${id}`),
-  logs: (projectId: number) => http.get<any, any[]>(`/mock-rules/logs/${projectId}`),
-  exportRules: (projectId: number) => http.get<any, { project_id: number; rules: MockRuleItem[] }>(`/mock-rules/export/${projectId}`),
-  importRules: (data: { project_id: number; rules: any[] }) => http.post<any, MockRuleItem[]>('/mock-rules/import', data),
+  logs: (projectId: number) => http.get<unknown, MockRuleLogItem[]>(`/mock-rules/logs/${projectId}`),
+  exportRules: (projectId: number) => http.get<unknown, { project_id: number; rules: MockRuleItem[] }>(`/mock-rules/export/${projectId}`),
+  importRules: (data: { project_id: number; rules: unknown[] }) => http.post<unknown, MockRuleItem[]>('/mock-rules/import', data),
 }
 
 export const bugTrackerApi = {
   list: (params?: { project_id?: number }) =>
-    http.get<any, BugTrackerItem[]>('/bug-trackers', { params }),
-  get: (id: number) => http.get<any, BugTrackerItem>('/bug-trackers/' + id),
-  create: (data: object) => http.post<any, BugTrackerItem>('/bug-trackers', data),
-  update: (id: number, data: object) => http.patch<any, BugTrackerItem>(`/bug-trackers/${id}`, data),
+    http.get<unknown, BugTrackerItem[]>('/bug-trackers', { params }),
+  get: (id: number) => http.get<unknown, BugTrackerItem>('/bug-trackers/' + id),
+  create: (data: object) => http.post<unknown, BugTrackerItem>('/bug-trackers', data),
+  update: (id: number, data: object) => http.patch<unknown, BugTrackerItem>(`/bug-trackers/${id}`, data),
   delete: (id: number) => http.delete(`/bug-trackers/${id}`),
   testConnection: (data: { tracker_id?: number; tracker_type: BugTrackerType; config: object }) =>
-    http.post<any, { ok: boolean; message: string }>('/bug-trackers/test-connection', data),
+    http.post<unknown, { ok: boolean; message: string }>('/bug-trackers/test-connection', data),
   getBugStatus: (runId: number) =>
-    http.get<any, { bug_id: string; status: string; bug_url?: string }>(`/runs/${runId}/bug-status`),
+    http.get<unknown, { bug_id: string; status: string; bug_url?: string }>(`/runs/${runId}/bug-status`),
   createBug: (runId: number, data: { tracker_id: number; step_index?: number }) =>
-    http.post<any, { bug_id: string; bug_url: string; title: string; duplicate_of?: string | null; attachment_uploaded?: boolean }>(`/runs/${runId}/create-bug`, data),
+    http.post<unknown, { bug_id: string; bug_url: string; title: string; duplicate_of?: string | null; attachment_uploaded?: boolean }>(`/runs/${runId}/create-bug`, data),
 }
 
 // ---- Mobile Special Testing ----
 export const mobileSpecialApi = {
   // Tasks
   listTasks: (params?: { project_id?: number; task_type?: TaskType }) =>
-    http.get<any, MobileSpecialTaskItem[]>('/mobile-special/tasks', { params }),
-  getTask: (id: number) => http.get<any, MobileSpecialTaskItem>(`/mobile-special/tasks/${id}`),
-  createTask: (data: object) => http.post<any, MobileSpecialTaskItem>('/mobile-special/tasks', data),
-  updateTask: (id: number, data: object) => http.patch<any, MobileSpecialTaskItem>(`/mobile-special/tasks/${id}`, data),
+    http.get<unknown, MobileSpecialTaskItem[]>('/mobile-special/tasks', { params }),
+  getTask: (id: number) => http.get<unknown, MobileSpecialTaskItem>(`/mobile-special/tasks/${id}`),
+  createTask: (data: object) => http.post<unknown, MobileSpecialTaskItem>('/mobile-special/tasks', data),
+  updateTask: (id: number, data: object) => http.patch<unknown, MobileSpecialTaskItem>(`/mobile-special/tasks/${id}`, data),
   deleteTask: (id: number) => http.delete(`/mobile-special/tasks/${id}`),
   triggerTask: (id: number, data?: { device_id?: number; app_package?: string }) =>
-    http.post<any, MobileSpecialRunItem>(`/mobile-special/tasks/${id}/run`, data ?? {}),
+    http.post<unknown, MobileSpecialRunItem>(`/mobile-special/tasks/${id}/run`, data ?? {}),
   // Runs
   listRuns: (params?: { task_id?: number; task_type?: TaskType; status_filter?: MobileRunStatus; project_id?: number; limit?: number; offset?: number }) =>
-    http.get<any, MobileSpecialRunItem[]>('/mobile-special/runs', { params }),
-  getRun: (id: number) => http.get<any, MobileSpecialRunItem>(`/mobile-special/runs/${id}`),
-  getRunSummary: (id: number) => http.get<any, Record<string, unknown>>(`/mobile-special/runs/${id}/summary`),
+    http.get<unknown, MobileSpecialRunItem[]>('/mobile-special/runs', { params }),
+  getRun: (id: number) => http.get<unknown, MobileSpecialRunItem>(`/mobile-special/runs/${id}`),
+  getRunSummary: (id: number) => http.get<unknown, Record<string, unknown>>(`/mobile-special/runs/${id}/summary`),
   getRunSamples: (id: number, params?: { metric_type?: string; limit?: number }) =>
-    http.get<any, MobileMetricSampleItem[]>(`/mobile-special/runs/${id}/samples`, { params }),
+    http.get<unknown, MobileMetricSampleItem[]>(`/mobile-special/runs/${id}/samples`, { params }),
   getRunIncidents: (id: number) =>
-    http.get<any, MobileIncidentItem[]>(`/mobile-special/runs/${id}/incidents`),
+    http.get<unknown, MobileIncidentItem[]>(`/mobile-special/runs/${id}/incidents`),
   getRunArtifacts: (id: number) =>
-    http.get<any, MobileRunArtifactItem[]>(`/mobile-special/runs/${id}/artifacts`),
-  stopRun: (id: number) => http.post<any, MobileSpecialRunItem>(`/mobile-special/runs/${id}/stop`),
+    http.get<unknown, MobileRunArtifactItem[]>(`/mobile-special/runs/${id}/artifacts`),
+  stopRun: (id: number) => http.post<unknown, MobileSpecialRunItem>(`/mobile-special/runs/${id}/stop`),
   // Export
   exportRunCsv: (runId: number) =>
-    http.get<any, Blob>(`/mobile-special/runs/${runId}/export/csv`, { responseType: 'blob' }),
+    http.get<unknown, Blob>(`/mobile-special/runs/${runId}/export/csv`, { responseType: 'blob' }),
   exportRunJson: (runId: number) =>
-    http.get<any, Blob>(`/mobile-special/runs/${runId}/export/json`, { responseType: 'blob' }),
+    http.get<unknown, Blob>(`/mobile-special/runs/${runId}/export/json`, { responseType: 'blob' }),
   // Statistics
   getOverview: (params?: { project_id?: number; days?: number }) =>
-    http.get<any, { total_runs: number; completed_runs: number; failed_runs: number; running_runs: number; pass_rate: number; avg_duration_ms: number | null; total_incidents: number; recent_runs_7d: number }>('/mobile-special/statistics/overview', { params }),
+    http.get<unknown, { total_runs: number; completed_runs: number; failed_runs: number; running_runs: number; pass_rate: number; avg_duration_ms: number | null; total_incidents: number; recent_runs_7d: number }>('/mobile-special/statistics/overview', { params }),
   getTrend: (params?: { project_id?: number; days?: number }) =>
-    http.get<any, Array<{ date: string; total: number; completed: number; failed: number; pass_rate: number }>>('/mobile-special/statistics/trend', { params }),
+    http.get<unknown, Array<{ date: string; total: number; completed: number; failed: number; pass_rate: number }>>('/mobile-special/statistics/trend', { params }),
   getTaskStats: (params?: { project_id?: number; days?: number; limit?: number }) =>
-    http.get<any, Array<{ task_id: number; task_name: string; task_type: string; total_runs: number; completed_runs: number; failed_runs: number; pass_rate: number; last_run_at: string | null }>>('/mobile-special/statistics/task-stats', { params }),
+    http.get<unknown, Array<{ task_id: number; task_name: string; task_type: string; total_runs: number; completed_runs: number; failed_runs: number; pass_rate: number; last_run_at: string | null }>>('/mobile-special/statistics/task-stats', { params }),
 }
 
 export const storageApi = {
-  stats: () => http.get<any, StorageStatsItem>('/storage/stats'),
+  stats: () => http.get<unknown, StorageStatsItem>('/storage/stats'),
   previewCleanup: (data?: { prefixes?: string[]; retention_days?: number }) =>
-    http.post<any, StorageCleanupPreviewItem>('/storage/cleanup-preview', data ?? {}),
+    http.post<unknown, StorageCleanupPreviewItem>('/storage/cleanup-preview', data ?? {}),
   executeCleanup: (data: { object_names: string[]; repair_orphan_references?: boolean }) =>
-    http.post<any, StorageCleanupExecuteItem>('/storage/cleanup-execute', data),
-  listPolicies: () => http.get<any, StoragePolicyItem[]>('/storage/policies'),
+    http.post<unknown, StorageCleanupExecuteItem>('/storage/cleanup-execute', data),
+  listPolicies: () => http.get<unknown, StoragePolicyItem[]>('/storage/policies'),
   createPolicy: (data: StoragePolicyPayload) =>
-    http.post<any, StoragePolicyItem>('/storage/policies', data),
+    http.post<unknown, StoragePolicyItem>('/storage/policies', data),
   updatePolicy: (id: number, data: StoragePolicyPayload) =>
-    http.patch<any, StoragePolicyItem>(`/storage/policies/${id}`, data),
+    http.patch<unknown, StoragePolicyItem>(`/storage/policies/${id}`, data),
   deletePolicy: (id: number) => http.delete(`/storage/policies/${id}`),
-  getAlert: () => http.get<any, StorageAlertResponse>('/storage/alert'),
+  getAlert: () => http.get<unknown, StorageAlertResponse>('/storage/alert'),
+}
+
+export const dashboardAlertApi = {
+  listRules: (params?: { project_id?: number; enabled?: boolean }) =>
+    http.get<unknown, DashboardAlertRuleItem[]>('/dashboard-alert-rules', { params }),
+  createRule: (data: DashboardAlertRulePayload) =>
+    http.post<unknown, DashboardAlertRuleItem>('/dashboard-alert-rules', data),
+  updateRule: (id: number, data: DashboardAlertRulePayload) =>
+    http.patch<unknown, DashboardAlertRuleItem>(`/dashboard-alert-rules/${id}`, data),
+  deleteRule: (id: number) => http.delete<unknown, void>(`/dashboard-alert-rules/${id}`),
+  listEvents: (params?: { project_id?: number; rule_id?: number; limit?: number }) =>
+    http.get<unknown, DashboardAlertEventItem[]>('/dashboard-alert-events', { params }),
 }
 
 // ---- Global Variables ----
 export const globalVariableApi = {
   list: (params?: { project_id?: number; scope_type?: ScopeType }) =>
-    http.get<any, GlobalVariableItem[]>('/global-variables', { params }),
+    http.get<unknown, GlobalVariableItem[]>('/global-variables', { params }),
   get: (id: number, params?: { reveal_secret?: boolean }) =>
-    http.get<any, GlobalVariableItem>(`/global-variables/${id}`, { params }),
-  create: (data: object) => http.post<any, GlobalVariableItem>('/global-variables', data),
-  update: (id: number, data: object) => http.patch<any, GlobalVariableItem>(`/global-variables/${id}`, data),
+    http.get<unknown, GlobalVariableItem>(`/global-variables/${id}`, { params }),
+  create: (data: object) => http.post<unknown, GlobalVariableItem>('/global-variables', data),
+  update: (id: number, data: object) => http.patch<unknown, GlobalVariableItem>(`/global-variables/${id}`, data),
   delete: (id: number) => http.delete(`/global-variables/${id}`),
 }
 
@@ -989,11 +1106,11 @@ export interface AILLMConfigUpdatePayload {
 }
 
 export const aiLLMConfigApi = {
-  list: () => http.get<any, AILLMConfigItem[]>('/ai/llm-configs'),
-  get: (id: number) => http.get<any, AILLMConfigItem>(`/ai/llm-configs/${id}`),
-  create: (data: AILLMConfigCreatePayload) => http.post<any, AILLMConfigItem>('/ai/llm-configs', data),
+  list: () => http.get<unknown, AILLMConfigItem[]>('/ai/llm-configs'),
+  get: (id: number) => http.get<unknown, AILLMConfigItem>(`/ai/llm-configs/${id}`),
+  create: (data: AILLMConfigCreatePayload) => http.post<unknown, AILLMConfigItem>('/ai/llm-configs', data),
   update: (id: number, data: AILLMConfigUpdatePayload) =>
-    http.patch<any, AILLMConfigItem>(`/ai/llm-configs/${id}`, data),
+    http.patch<unknown, AILLMConfigItem>(`/ai/llm-configs/${id}`, data),
   delete: (id: number) => http.delete(`/ai/llm-configs/${id}`),
 }
 
@@ -1074,9 +1191,9 @@ export interface AICaseGenerateResult {
 
 export const aiCaseGenerationApi = {
   parseSchema: (data: AIParseSchemaPayload) =>
-    http.post<any, AIParseSchemaResult>('/ai/cases/parse-schema', data),
+    http.post<unknown, AIParseSchemaResult>('/ai/cases/parse-schema', data),
   generate: (data: AICaseGeneratePayload) =>
-    http.post<any, AICaseGenerateResult>('/ai/cases/generate', data),
+    http.post<unknown, AICaseGenerateResult>('/ai/cases/generate', data),
 }
 
 export interface TracingConfig {
@@ -1084,7 +1201,7 @@ export interface TracingConfig {
 }
 
 export const tracingApi = {
-  getConfig: () => http.get<any, TracingConfig>('/traces/config'),
+  getConfig: () => http.get<unknown, TracingConfig>('/traces/config'),
 }
 
 // ─── P3.B 测试数据集 ───────────────────────────────────────
@@ -1116,17 +1233,17 @@ export interface DatasetDetail {
 
 export const datasetApi = {
   list: (projectId: number) =>
-    http.get<any, DatasetListItem[]>(`/projects/${projectId}/datasets`),
-  get: (id: number) => http.get<any, DatasetDetail>(`/datasets/${id}`),
+    http.get<unknown, DatasetListItem[]>(`/projects/${projectId}/datasets`),
+  get: (id: number) => http.get<unknown, DatasetDetail>(`/datasets/${id}`),
   create: (body: { name: string; project_id: number; description?: string; format?: DatasetFormat; rows?: Record<string, unknown>[] }) =>
-    http.post<any, DatasetDetail>('/datasets', body),
+    http.post<unknown, DatasetDetail>('/datasets', body),
   update: (id: number, body: { name?: string; description?: string; rows?: Record<string, unknown>[] }) =>
-    http.patch<any, DatasetDetail>(`/datasets/${id}`, body),
-  delete: (id: number) => http.delete<any, void>(`/datasets/${id}`),
+    http.patch<unknown, DatasetDetail>(`/datasets/${id}`, body),
+  delete: (id: number) => http.delete<unknown, void>(`/datasets/${id}`),
   upload: (id: number, file: File) => {
     const form = new FormData()
     form.append('file', file)
-    return http.post<any, DatasetDetail>(`/datasets/${id}/upload`, form)
+    return http.post<unknown, DatasetDetail>(`/datasets/${id}/upload`, form)
   },
 }
 
@@ -1164,13 +1281,13 @@ export interface PaginatedAuditLogs {
 
 export const projectMemberApi = {
   list: (projectId: number) =>
-    http.get<any, ProjectMemberItem[]>(`/projects/${projectId}/members`),
+    http.get<unknown, ProjectMemberItem[]>(`/projects/${projectId}/members`),
   add: (projectId: number, body: { user_id: number; role: ProjectRoleType }) =>
-    http.post<any, ProjectMemberItem>(`/projects/${projectId}/members`, body),
+    http.post<unknown, ProjectMemberItem>(`/projects/${projectId}/members`, body),
   update: (projectId: number, userId: number, role: ProjectRoleType) =>
-    http.patch<any, ProjectMemberItem>(`/projects/${projectId}/members/${userId}`, { role }),
+    http.patch<unknown, ProjectMemberItem>(`/projects/${projectId}/members/${userId}`, { role }),
   remove: (projectId: number, userId: number) =>
-    http.delete<any, void>(`/projects/${projectId}/members/${userId}`),
+    http.delete<unknown, void>(`/projects/${projectId}/members/${userId}`),
 }
 
 export const auditLogApi = {
@@ -1180,5 +1297,5 @@ export const auditLogApi = {
     user_id?: number
     page?: number
     page_size?: number
-  }) => http.get<any, PaginatedAuditLogs>('/audit-logs', { params }),
+  }) => http.get<unknown, PaginatedAuditLogs>('/audit-logs', { params }),
 }

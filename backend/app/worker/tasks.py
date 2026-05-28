@@ -826,3 +826,20 @@ def check_cron_plans():
                 logger.info(f"Cron triggered plan {plan.id} -> PlanRun {plan_run.id}")
 
     run_async(_check())
+
+
+@celery_app.task(name="check_dashboard_alerts")
+def check_dashboard_alerts():
+    """每小时检查启用的看板告警规则，触发事件并发送通知。"""
+    from app.core.database import AsyncSessionLocal
+    from app.services.dashboard_alerts import evaluate_dashboard_alerts
+
+    async def _check():
+        async with AsyncSessionLocal() as db:
+            return await evaluate_dashboard_alerts(db)
+
+    try:
+        return run_async(_check())
+    except Exception:
+        logger.exception("Dashboard alert check failed")
+        return {"error": True}

@@ -166,16 +166,56 @@
 import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
-import { projectApi, mobileSpecialApi, deviceApi, apkApi, type MobileSpecialTaskItem, type TaskType } from '@/api'
+import {
+  projectApi,
+  mobileSpecialApi,
+  deviceApi,
+  apkApi,
+  type MobileSpecialTaskItem,
+  type ProjectItem,
+  type TaskType,
+  type SourceType,
+  type DeviceScopeType,
+} from '@/api'
 
 const { t } = useI18n()
+
+type SelectOption<T extends string | number> = {
+  label: string
+  value: T
+}
+
+type TaskForm = {
+  name: string
+  task_type: TaskType
+  source_type: SourceType
+  device_scope_type: DeviceScopeType
+  device_id: number | null
+  device_group_tag: string
+  apk_id: number | null
+  app_package: string
+  schedule_enabled: boolean
+  cron_expression: string
+  config_interval: number
+  config_duration: number
+  config_auto_start: boolean
+  config_operation_interval: number
+  config_stages: string
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  return fallback
+}
+
 const loading = ref(false)
 const saving = ref(false)
 const tasks = ref<MobileSpecialTaskItem[]>([])
-const projects = ref<any[]>([])
-const projectOptions = ref<Array<{ label: string; value: number }>>([])
-const deviceOptions = ref<Array<{ label: string; value: number }>>([])
-const apkOptions = ref<Array<{ label: string; value: number }>>([])
+const projects = ref<ProjectItem[]>([])
+const projectOptions = ref<SelectOption<number>[]>([])
+const deviceOptions = ref<SelectOption<number>[]>([])
+const apkOptions = ref<SelectOption<number>[]>([])
 
 const selectedProjectId = ref<number | null>(null)
 const selectedTaskType = ref<TaskType | null>(null)
@@ -211,11 +251,11 @@ const columns = computed(() => [
 // Drawer state
 const drawerVisible = ref(false)
 const editingTask = ref<MobileSpecialTaskItem | null>(null)
-const form = ref({
+const form = ref<TaskForm>({
   name: '',
   task_type: 'performance' as TaskType,
-  source_type: 'apk_only' as any,
-  device_scope_type: 'single_device' as any,
+  source_type: 'apk_only',
+  device_scope_type: 'single_device',
   device_id: null as number | null,
   device_group_tag: '',
   apk_id: null as number | null,
@@ -234,14 +274,14 @@ onMounted(async () => {
   try {
     const list = await projectApi.list()
     projects.value = list
-    projectOptions.value = list.map((p: any) => ({ label: p.name, value: p.id }))
+    projectOptions.value = list.map((p) => ({ label: p.name, value: p.id }))
     // Load devices and APKs for first project
     if (list.length > 0) {
       selectedProjectId.value = list[0].id
       await Promise.all([loadDevices(), loadApks(), loadTasks()])
     }
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.msg.load_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.msg.load_failed')))
   }
 })
 
@@ -250,7 +290,7 @@ async function loadDevices() {
   try {
     deviceOptions.value = []
     const devs = await deviceApi.list({})
-    deviceOptions.value = devs.map((d: any) => ({ label: `${d.name || d.serial} (${d.status})`, value: d.id }))
+    deviceOptions.value = devs.map((d) => ({ label: `${d.name || d.serial} (${d.status})`, value: d.id }))
   } catch {}
 }
 
@@ -259,7 +299,7 @@ async function loadApks() {
   try {
     apkOptions.value = []
     const apks = await apkApi.list({ project_id: selectedProjectId.value })
-    apkOptions.value = apks.map((a: any) => ({ label: a.package_name || a.filename, value: a.id }))
+    apkOptions.value = apks.map((a) => ({ label: a.package_name || a.filename, value: a.id }))
   } catch {}
 }
 
@@ -267,31 +307,31 @@ async function loadTasks() {
   if (!selectedProjectId.value) return
   loading.value = true
   try {
-    const params: any = { project_id: selectedProjectId.value }
+    const params: { project_id: number; task_type?: TaskType } = { project_id: selectedProjectId.value }
     if (selectedTaskType.value) {
       params.task_type = selectedTaskType.value
     }
     tasks.value = await mobileSpecialApi.listTasks(params)
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.msg.load_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.msg.load_failed')))
   } finally {
     loading.value = false
   }
 }
 
 function onProjectChange() {
-  loadTasks()
+  Promise.all([loadApks(), loadTasks()])
 }
 
 function formatDate(dateStr: string) {
   return new Date(dateStr).toLocaleString()
 }
 
-function taskTypeColor(type: string) {
+function taskTypeColor(type: TaskType) {
   return { performance: 'blue', stability: 'orange', fluency: 'purple' }[type] || 'default'
 }
 
-function taskTypeLabel(type: string) {
+function taskTypeLabel(type: TaskType) {
   return {
     performance: t('mobile_special.task_types.performance'),
     stability: t('mobile_special.task_types.stability'),
@@ -361,7 +401,7 @@ async function handleSave() {
 
   saving.value = true
   try {
-    let stages = undefined
+    let stages: unknown = undefined
     if (form.value.config_stages) {
       try {
         stages = JSON.parse(form.value.config_stages)
@@ -402,8 +442,8 @@ async function handleSave() {
     }
     drawerVisible.value = false
     await loadTasks()
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.msg.save_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.msg.save_failed')))
   } finally {
     saving.value = false
   }
@@ -413,8 +453,8 @@ async function triggerRun(task: MobileSpecialTaskItem) {
   try {
     const run = await mobileSpecialApi.triggerTask(task.id, {})
     message.success(`${t('mobile_special.msg.run_started')} (Run #${run.id})`)
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.msg.run_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.msg.run_failed')))
   }
 }
 
@@ -423,8 +463,8 @@ async function handleDelete(id: number) {
     await mobileSpecialApi.deleteTask(id)
     message.success(t('mobile_special.msg.delete_success'))
     await loadTasks()
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.msg.delete_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.msg.delete_failed')))
   }
 }
 </script>

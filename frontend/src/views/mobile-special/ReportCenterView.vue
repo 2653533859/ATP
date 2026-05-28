@@ -129,7 +129,7 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import * as echarts from 'echarts'
 import type { ECharts, EChartsOption } from 'echarts'
-import { projectApi, mobileSpecialApi, type MobileSpecialRunItem, type TaskType, type MobileRunStatus } from '@/api'
+import { projectApi, mobileSpecialApi, type MobileSpecialRunItem, type ProjectItem, type TaskType, type MobileRunStatus } from '@/api'
 
 const router = useRouter()
 const { t, locale } = useI18n()
@@ -152,6 +152,12 @@ const latestTrend = ref<Array<{ date: string; total: number; completed: number; 
 
 const trendChartRef = ref<HTMLDivElement | null>(null)
 let trendChart: ECharts | null = null
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  return fallback
+}
 
 const taskTypeOptions = computed(() => [
   { label: t('mobile_special.task_types.performance'), value: 'performance' },
@@ -180,12 +186,12 @@ const columns = computed(() => [
 onMounted(async () => {
   try {
     const list = await projectApi.list()
-    projectOptions.value = list.map((p: any) => ({ label: p.name, value: p.id }))
+    projectOptions.value = list.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
     if (list.length > 0) {
       selectedProjectId.value = list[0].id
     }
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.msg.load_projects_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.msg.load_projects_failed')))
   }
   await Promise.all([loadOverview(), loadRuns()])
   initTrendChart()
@@ -218,14 +224,13 @@ async function loadOverview() {
 async function loadRuns() {
   loading.value = true
   try {
-    const params: any = {}
+    const params: { project_id?: number; task_type?: TaskType; status_filter?: MobileRunStatus; limit: number } = { limit: 100 }
     if (selectedProjectId.value) params.project_id = selectedProjectId.value
     if (selectedTaskType.value) params.task_type = selectedTaskType.value
     if (selectedStatus.value) params.status_filter = selectedStatus.value
-    params.limit = 100
 
     const data = await mobileSpecialApi.listRuns(params)
-    let filtered = data as (MobileSpecialRunItem & { task_name?: string })[]
+    let filtered = data
 
     if (dateRange.value && dateRange.value.length === 2) {
       const [start, end] = dateRange.value
@@ -243,8 +248,8 @@ async function loadRuns() {
 
     // Load trend data
     await loadTrend()
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.reports.msg.load_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.reports.msg.load_failed')))
   } finally {
     loading.value = false
   }
@@ -294,11 +299,11 @@ function updateTrendChart(trend: Array<{ date: string; total: number; completed:
   trendChart.setOption(option, true)
 }
 
-function taskTypeColor(type: string) {
+function taskTypeColor(type: TaskType) {
   return { performance: 'blue', stability: 'orange', fluency: 'purple' }[type] || 'default'
 }
 
-function taskTypeLabel(type: string) {
+function taskTypeLabel(type: TaskType) {
   return {
     performance: t('mobile_special.task_types.performance'),
     stability: t('mobile_special.task_types.stability'),
@@ -306,11 +311,11 @@ function taskTypeLabel(type: string) {
   }[type] || type
 }
 
-function statusColor(status: string) {
+function statusColor(status: MobileRunStatus) {
   return { pending: 'default', running: 'processing', completed: 'success', failed: 'error', stopped: 'warning' }[status] || 'default'
 }
 
-function statusLabel(status: string) {
+function statusLabel(status: MobileRunStatus) {
   return {
     pending: t('mobile_special.statuses.pending'),
     running: t('mobile_special.statuses.running'),
@@ -338,8 +343,8 @@ async function exportCsv(record: MobileSpecialRunItem) {
     a.click()
     URL.revokeObjectURL(url)
     message.success(t('mobile_special.reports.msg.csv_downloaded'))
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.reports.msg.export_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.reports.msg.export_failed')))
   }
 }
 
@@ -353,8 +358,8 @@ async function exportJson(record: MobileSpecialRunItem) {
     a.click()
     URL.revokeObjectURL(url)
     message.success(t('mobile_special.reports.msg.json_downloaded'))
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.reports.msg.export_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.reports.msg.export_failed')))
   }
 }
 
@@ -364,8 +369,8 @@ async function handleStop(record: MobileSpecialRunItem) {
     message.success(t('mobile_special.reports.msg.stopped'))
     await loadRuns()
     await loadOverview()
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.reports.msg.stop_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.reports.msg.stop_failed')))
   }
 }
 

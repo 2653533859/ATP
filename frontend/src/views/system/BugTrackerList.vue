@@ -130,7 +130,7 @@ import { message } from 'ant-design-vue'
 import type { AxiosError } from 'axios'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { bugTrackerApi, projectApi, type BugTrackerItem, type BugTrackerType } from '@/api'
+import { bugTrackerApi, projectApi, type BugTrackerItem, type BugTrackerType, type ProjectItem } from '@/api'
 
 const trackers = ref<BugTrackerItem[]>([])
 const { t } = useI18n()
@@ -168,7 +168,7 @@ const columns = computed(() => [
   { title: t('system_pages.bug_tracker.platform'), key: 'tracker_type', width: 100 },
   { title: t('common.status'), key: 'is_enabled', width: 80 },
   { title: t('common.updated_at'), dataIndex: 'updated_at', width: 170,
-    customRender: ({ text }: any) => text?.slice(0, 19).replace('T', ' ') },
+    customRender: ({ text }: { text?: string | null }) => text?.slice(0, 19).replace('T', ' ') ?? '-' },
   { title: t('common.action'), key: 'action', width: 140, fixed: 'right' as const },
 ])
 
@@ -191,7 +191,7 @@ function typeColor(type: string) {
 onMounted(async () => {
   try {
     const projects = await projectApi.list()
-    projectOptions.value = projects.map((p: any) => ({ label: p.name, value: p.id }))
+    projectOptions.value = projects.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
   } catch { /* ignore */ }
 })
 

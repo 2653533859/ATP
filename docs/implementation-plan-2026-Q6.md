@@ -70,13 +70,13 @@ Q5 完成了"清账 + 工程质量 + 业务深化（自愈/数据集/多租户�
 
 ### P1.6 前端 any 类型工程化收口 [P1]
 
-**现状**：147 处 `any` / 集中在 ~20 个文件。Top 5：EnvironmentList (15) / CaseList (14) / SpecialTaskListView (12) / WebCaseDrawer (12) / CaseFormDrawer (12) = 65。
+**现状**：147 处 `any` / 集中在 ~20 个文件。Top 5：EnvironmentList (15) / CaseList (14) / SpecialTaskListView (12) / WebCaseDrawer (12) / CaseFormDrawer (12) = 65。2026-05-28 已完成批 1 Top 5 页面：EnvironmentList / CaseList / SpecialTaskListView / WebCaseDrawer / CaseFormDrawer。
 
 **实施（分 4 批）**：
-- **批 1** Top 5 文件（65 处）— 类型从 `@/api` 类型导入；catch (e: any) → `unknown` + 类型守卫
-- **批 2** 中频文件（ApkList / GlobalVariableLibrary / DeviceList / ReportDetailView / ReportCenterView / LowcodeStepEditor / AndroidStepEditor / StorageManagementView / MockRuleList / CaseDetail，约 60 处）
-- **批 3** 长尾（剩余 ~20 处）
-- **批 4** 收尾扫描 + ESLint 规则：`@typescript-eslint/no-explicit-any: warn`（不强制 error，避免阻塞 PR）
+- **批 1** Top 5 文件（65 处）— 类型从 `@/api` 类型导入；catch (e: any) → `unknown` + 类型守卫（已完成）
+- **批 2** 中频文件（ApkList / GlobalVariableLibrary / DeviceList / ReportDetailView / ReportCenterView / LowcodeStepEditor / AndroidStepEditor / StorageManagementView / MockRuleList / CaseDetail，约 60 处；已完成）
+- **批 3** 长尾（剩余 ~20 处；已完成）
+- **批 4** 收尾扫描 + ESLint 规则：`@typescript-eslint/no-explicit-any: warn`（当前前端未接入 ESLint 依赖/配置，先以 `rg "\bany\b" frontend/src -g "*.ts" -g "*.vue"` 收尾验证；后续引入 ESLint 时补 warn 规则）
 - 每批结束跑 `npm run type-check`；不修改运行时行为，仅类型修正
 
 ### P1.7 部署/运维持续打磨 [P2]
@@ -88,12 +88,12 @@ Q5 完成了"清账 + 工程质量 + 业务深化（自愈/数据集/多租户�
 
 ### 里程碑
 
-- [ ] P1.1 看板异常告警
-- [ ] P1.2 项目级 vs 全局看板切换
-- [ ] P1.3 看板数据导出 PNG/CSV
-- [ ] P1.4 自定义看板
-- [ ] P1.5 Redis 高频查询缓存澄清
-- [ ] P1.6 前端 any 类型收口（批 1-4）
+- [x] P1.1 看板异常告警
+- [x] P1.2 项目级 vs 全局看板切换
+- [x] P1.3 看板数据导出 PNG/CSV
+- [x] P1.4 自定义看板
+- [x] P1.5 Redis 高频查询缓存澄清
+- [x] P1.6 前端 any 类型收口（批 1-4）
 - [ ] P1.7 部署/运维持续打磨（Helm 注释 + 恢复脚本 + Grafana 告警模板）
 
 ---
@@ -197,7 +197,7 @@ Phase 2（3-4 周）
 
 ## 当前进度记录
 
-- Phase 1：未启动
+- Phase 1：已启动；2026-05-27 完成 P1.1 看板异常告警（规则/事件模型、迁移、CRUD API、项目权限、Celery Beat 统计检查、通知触发、抑制窗口、前端规则配置页、Dashboard 项目级告警提示与测试）；完成 P1.2 项目级 vs 全局看板切换（显式 scope segmented、项目下拉仅单项目模式显示、localStorage 记忆、全局模式不传 project_id）；完成 P1.3 看板 PNG/CSV 导出（图表菜单 PNG getDataURL + 后端 CSV export 端点）；完成 P1.4 自定义看板（localStorage 图表显隐、拖拽/按钮排序、重置默认布局）；完成 P1.5 Redis 高频查询缓存澄清（dataset list + mobile stats 统一 60s TTL 自然失效缓存）；2026-05-28 完成 P1.6 批 1，完成 EnvironmentList / CaseList / SpecialTaskListView / WebCaseDrawer / CaseFormDrawer 的显式 any 收口并通过前端 type-check；完成 P1.6 批 2（ApkList / GlobalVariableLibrary / DeviceList / LowcodeStepEditor / AndroidStepEditor / StorageManagementView / ReportCenterView / ReportDetailView / MockRuleList / CaseDetail）并通过前端 type-check；完成 P1.6 批 3/4 长尾与收尾扫描，`frontend/src` 中除 locale 文案 key `any_method` 外无显式 any，前端 type-check 通过
 - Phase 2：未启动
 
 ---

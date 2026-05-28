@@ -28,6 +28,10 @@ class Project(Base, TimestampMixin):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    dashboard_alert_rules: Mapped[list["DashboardAlertRule"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
 
 
 class Module(Base, TimestampMixin):

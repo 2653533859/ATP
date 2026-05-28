@@ -73,7 +73,7 @@ import { computed, ref, watch } from 'vue'
 import { Empty, message } from 'ant-design-vue'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { projectApi, moduleApi } from '@/api'
+import { projectApi, moduleApi, type ModuleTreeItem } from '@/api'
 
 const props = withDefaults(defineProps<{
   projectId: number
@@ -89,12 +89,12 @@ const emit = defineEmits<{ select: [moduleId: number | null]; reset: [] }>()
 const { t } = useI18n()
 const title = computed(() => props.title ?? t('case.module_tree.title'))
 
-const treeData = ref<any[]>([])
+const treeData = ref<ModuleTreeItem[]>([])
 const loading = ref(false)
 const selectedKeys = ref<number[]>([])
 
 const addVisible = ref(false)
-const addParent = ref<any>(null)
+const addParent = ref<ModuleTreeItem | null>(null)
 const newModuleName = ref('')
 const adding = ref(false)
 
@@ -112,7 +112,7 @@ function onSelect(keys: number[]) {
   emit('select', keys.length ? keys[0] : null)
 }
 
-function showAddModal(parent: any) {
+function showAddModal(parent: ModuleTreeItem | null) {
   addParent.value = parent
   newModuleName.value = ''
   addVisible.value = true
@@ -138,7 +138,7 @@ async function handleAdd() {
   }
 }
 
-async function handleDelete(node: any) {
+async function handleDelete(node: ModuleTreeItem) {
   await moduleApi.delete(node.id)
   message.success(t('case.module_tree.msg.delete_success'))
   if (selectedKeys.value.includes(node.id)) {

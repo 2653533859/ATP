@@ -23,7 +23,7 @@
           :value="currentLocale"
           size="small"
           button-style="solid"
-          @change="(e: any) => onLocaleChange(e.target.value)"
+          @change="onLocaleRadioChange"
         >
           <a-radio-button value="zh-CN">{{ t('lang.zh') }}</a-radio-button>
           <a-radio-button value="en-US">{{ t('lang.en') }}</a-radio-button>
@@ -56,14 +56,27 @@ function onLocaleChange(value: SupportedLocale) {
   setLocale(value)
 }
 
+function onLocaleRadioChange(event: Event) {
+  const target = event.target as HTMLInputElement | null
+  if (target?.value === 'zh-CN' || target?.value === 'en-US') {
+    onLocaleChange(target.value)
+  }
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  return fallback
+}
+
 async function onFinish() {
   loading.value = true
   try {
     await auth.login(form.username, form.password)
     const redirect = (route.query.redirect as string) || '/'
     await router.push(redirect)
-  } catch (e: any) {
-    message.error(e ?? t('login.failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('login.failed')))
   } finally {
     loading.value = false
   }

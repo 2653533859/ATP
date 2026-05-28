@@ -147,10 +147,11 @@ import { UploadOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import type { UploadFile } from 'ant-design-vue'
 import { apkApi, projectApi } from '@/api'
+import type { ApkItem, ProjectItem } from '@/api'
 
 const { t } = useI18n()
-const apks = ref<any[]>([])
-const projects = ref<any[]>([])
+const apks = ref<ApkItem[]>([])
+const projects = ref<ProjectItem[]>([])
 const loading = ref(false)
 const projectFilter = ref<number | undefined>(undefined)
 
@@ -185,6 +186,12 @@ const columns = computed(() => [
   { title: t('apk.columns.action'), key: 'action', width: 180, fixed: 'right' as const },
 ])
 
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  return fallback
+}
+
 function formatSize(bytes: number) {
   if (bytes < 1024) return bytes + ' B'
   if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB'
@@ -213,8 +220,8 @@ function handleRemoveFile() {
 async function loadProjects() {
   try {
     projects.value = await projectApi.list()
-  } catch (e: any) {
-    message.error(e ?? t('apk.msg.load_projects_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('apk.msg.load_projects_failed')))
   }
 }
 
@@ -224,8 +231,8 @@ async function loadApks() {
     apks.value = await apkApi.list(
       projectFilter.value ? { project_id: projectFilter.value } : undefined,
     )
-  } catch (e: any) {
-    message.error(e ?? t('apk.msg.load_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('apk.msg.load_failed')))
   } finally {
     loading.value = false
   }
@@ -250,8 +257,8 @@ async function handleUpload() {
     uploadOpen.value = false
     resetUploadForm()
     loadApks()
-  } catch (e: any) {
-    message.error(e ?? t('apk.msg.upload_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('apk.msg.upload_failed')))
   } finally {
     uploading.value = false
   }
@@ -269,7 +276,7 @@ function resetUploadForm() {
   fileList.value = []
 }
 
-function openEdit(record: any) {
+function openEdit(record: ApkItem) {
   editingId.value = record.id
   editForm.value = {
     package_name: record.package_name ?? '',
@@ -288,8 +295,8 @@ async function handleSave() {
     message.success(t('apk.msg.save_success'))
     editOpen.value = false
     loadApks()
-  } catch (e: any) {
-    message.error(e ?? t('apk.msg.save_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('apk.msg.save_failed')))
   } finally {
     saving.value = false
   }
@@ -300,17 +307,17 @@ async function handleDelete(id: number) {
     await apkApi.delete(id)
     message.success(t('apk.msg.delete_success'))
     loadApks()
-  } catch (e: any) {
-    message.error(e ?? t('apk.msg.delete_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('apk.msg.delete_failed')))
   }
 }
 
-async function handleDownload(record: any) {
+async function handleDownload(record: ApkItem) {
   try {
     const { url } = await apkApi.download(record.id)
     window.open(url, '_blank')
-  } catch (e: any) {
-    message.error(e ?? t('apk.msg.download_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('apk.msg.download_failed')))
   }
 }
 

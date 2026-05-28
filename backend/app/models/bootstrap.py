@@ -25,6 +25,7 @@ def load_all_models() -> None:
     from app.models.ai_llm_config import AILLMConfig
     from app.models.dataset import TestDataset
     from app.models.user_project import UserProject, ProjectRole
+    from app.models.dashboard_alert import DashboardAlertRule, DashboardAlertEvent
 
     _ = (
         User,
@@ -60,4 +61,6 @@ def load_all_models() -> None:
         TestDataset,
         UserProject,
         ProjectRole,
+        DashboardAlertRule,
+        DashboardAlertEvent,
     )

@@ -79,7 +79,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
-import { datasetApi, projectApi, type DatasetDetail, type DatasetListItem, type DatasetFormat } from '@/api'
+import { datasetApi, projectApi, type DatasetDetail, type DatasetListItem, type DatasetFormat, type ProjectItem } from '@/api'
 
 const { t } = useI18n()
 
@@ -110,7 +110,7 @@ const rowsPreview = computed(() => {
 
 async function loadProjects() {
   const items = await projectApi.list()
-  projectOptions.value = items.map((p: any) => ({ label: p.name, value: p.id }))
+  projectOptions.value = items.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
   if (!projectId.value && projectOptions.value.length) {
     projectId.value = projectOptions.value[0].value
     await loadList()

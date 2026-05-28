@@ -128,6 +128,12 @@ const router = createRouter({
           meta: { requireAdmin: true },
         },
         {
+          path: 'system/dashboard-alerts',
+          name: 'system-dashboard-alerts',
+          component: () => import('@/views/system/DashboardAlertRulesView.vue'),
+          meta: { requireAdmin: true },
+        },
+        {
           path: 'system/ai-llm-configs',
           name: 'system-ai-llm-configs',
           component: () => import('@/views/system/AILLMConfigList.vue'),

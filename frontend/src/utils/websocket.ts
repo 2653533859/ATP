@@ -13,8 +13,8 @@ export type WsMessage = {
     name: string
     status: string
     duration_ms: number | null
-    request_data: Record<string, any> | null
-    response_data: Record<string, any> | null
+    request_data: Record<string, unknown> | null
+    response_data: Record<string, unknown> | null
     error_message: string | null
     screenshot_url: string | null
     healing_suggestion?: string | null

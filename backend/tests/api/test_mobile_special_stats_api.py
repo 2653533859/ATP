@@ -145,6 +145,34 @@ class TestStatisticsQueries:
 
 
 class TestStatisticsCacheFallback:
+    def test_mobile_statistics_cache_ttl_is_short(self):
+        from app.api.v1 import mobile_special
+
+        assert mobile_special._MOBILE_STATS_CACHE_TTL == 60
+
+    def test_overview_returns_cached_payload_without_db_hit(self, monkeypatch):
+        from app.api.v1 import mobile_special
+
+        async def fake_get_cache(_key):
+            return {"total_runs": 1, "completed_runs": 1, "failed_runs": 0}
+
+        monkeypatch.setattr(mobile_special, "get_json_cache", fake_get_cache)
+
+        class FakeDB:
+            async def execute(self, _stmt):
+                raise AssertionError("cache hit should skip db")
+
+        result = asyncio.run(
+            mobile_special.get_mobile_special_overview(
+                project_id=1,
+                days=30,
+                db=FakeDB(),
+                _=None,
+            )
+        )
+
+        assert result["total_runs"] == 1
+
     def test_overview_falls_back_to_db_when_cache_is_unavailable(self, monkeypatch):
         from app.api.v1 import mobile_special
 

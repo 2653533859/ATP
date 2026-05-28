@@ -218,7 +218,7 @@ import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, UnorderedListOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { mockRuleApi, projectApi, type MockRuleItem } from '@/api'
+import { mockRuleApi, projectApi, type MockRuleItem, type ProjectItem } from '@/api'
 import { getBackendOrigin } from '@/api/http'
 
 type MatchConditions = {
@@ -240,6 +240,9 @@ interface MockRuleForm {
   record_requests: boolean
   response_body: string | null
 }
+
+type MockLogRecord = Record<string, unknown>
+type TableTextRender = { text?: string | number | null }
 
 const { t } = useI18n()
 const rules = ref<MockRuleRecord[]>([])
@@ -263,7 +266,7 @@ const headerConditionsText = ref('{}')
 const bodyConditionsText = ref('{}')
 
 const logsOpen = ref(false)
-const logs = ref<any[]>([])
+const logs = ref<MockLogRecord[]>([])
 const currentSamples = ref<Array<Record<string, unknown>>>([])
 
 const mockBaseUrl = computed(() =>
@@ -279,10 +282,10 @@ const columns = computed(() => [
   { title: t('mock.columns.template'), key: 'render_template', width: 70 },
   { title: t('mock.columns.recording'), key: 'record_requests', width: 70 },
   { title: t('mock.columns.status_code'), key: 'status_code', width: 80 },
-  { title: t('mock.columns.delay'), dataIndex: 'delay_ms', width: 80, customRender: ({ text }: any) => `${text}ms` },
+  { title: t('mock.columns.delay'), dataIndex: 'delay_ms', width: 80, customRender: ({ text }: TableTextRender) => `${text ?? 0}ms` },
   { title: t('mock.columns.status'), key: 'is_enabled', width: 70 },
   { title: t('mock.columns.updated_at'), dataIndex: 'updated_at', width: 170,
-    customRender: ({ text }: any) => text?.slice(0, 19).replace('T', ' ') },
+    customRender: ({ text }: TableTextRender) => typeof text === 'string' ? text.slice(0, 19).replace('T', ' ') : '-' },
   { title: t('mock.columns.action'), key: 'action', width: 160, fixed: 'right' as const },
 ])
 
@@ -296,7 +299,9 @@ const logColumns = computed(() => [
 ])
 
 function getErrorMessage(error: unknown, fallback: string) {
-  return typeof error === 'string' ? error : fallback
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  return fallback
 }
 
 function methodColor(m: string) {
@@ -349,7 +354,7 @@ function downloadJson(content: object, filename: string) {
 onMounted(async () => {
   try {
     const projects = await projectApi.list()
-    projectOptions.value = projects.map((p: any) => ({ label: p.name, value: p.id }))
+    projectOptions.value = projects.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
   } catch { /* ignore */ }
 })
 
@@ -434,8 +439,8 @@ async function handleSave() {
       headers: parseJsonObject(headerConditionsText.value, t('mock.form.header_conditions_short')),
       body: parseJsonObject(bodyConditionsText.value, t('mock.form.body_conditions_short')),
     }
-  } catch (error: any) {
-    message.warning(error.message || t('mock.msg.json_invalid'))
+  } catch (error: unknown) {
+    message.warning(getErrorMessage(error, t('mock.msg.json_invalid')))
     return
   }
 

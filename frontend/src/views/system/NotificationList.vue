@@ -111,7 +111,7 @@ import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { notificationApi, projectApi } from '@/api'
+import { notificationApi, projectApi, type ProjectItem } from '@/api'
 
 type NotificationChannel = 'email' | 'wechat' | 'dingtalk'
 
@@ -156,7 +156,7 @@ const columns = computed(() => [
   { title: t('system_pages.notification.columns.channel'), key: 'channel', width: 130 },
   { title: t('system_pages.notification.columns.status'), key: 'is_enabled', width: 80 },
   { title: t('system_pages.notification.columns.updated_at'), dataIndex: 'updated_at', width: 170,
-    customRender: ({ text }: any) => text?.slice(0, 19).replace('T', ' ') },
+    customRender: ({ text }: { text?: string | null }) => text?.slice(0, 19).replace('T', ' ') ?? '-' },
   { title: t('system_pages.notification.columns.action'), key: 'action', width: 180, fixed: 'right' as const },
 ])
 
@@ -174,7 +174,7 @@ function channelColor(c: string) {
 onMounted(async () => {
   try {
     const projects = await projectApi.list()
-    projectOptions.value = projects.map((p: any) => ({ label: p.name, value: p.id }))
+    projectOptions.value = projects.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
   } catch { /* ignore */ }
 })
 

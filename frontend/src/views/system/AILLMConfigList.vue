@@ -178,12 +178,30 @@ const columns = computed(() => [
   { title: t('system_pages.ai_llm.columns.action'), key: 'action', width: 140 },
 ])
 
+type ErrorLike = {
+  response?: {
+    data?: {
+      detail?: unknown
+    }
+  }
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'object' && error !== null) {
+    const typed = error as ErrorLike
+    if (typeof typed.response?.data?.detail === 'string') return typed.response.data.detail
+  }
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return fallback
+}
+
 async function loadConfigs() {
   loading.value = true
   try {
     configs.value = await aiLLMConfigApi.list()
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? t('system_pages.ai_llm.msg.load_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.ai_llm.msg.load_failed')))
   } finally {
     loading.value = false
   }
@@ -287,8 +305,8 @@ async function handleSave() {
     showModal.value = false
     resetForm()
     await loadConfigs()
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? t('system_pages.ai_llm.msg.save_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.ai_llm.msg.save_failed')))
   } finally {
     saving.value = false
   }
@@ -299,8 +317,8 @@ async function handleDelete(id: number) {
     await aiLLMConfigApi.delete(id)
     message.success(t('system_pages.ai_llm.msg.delete_success'))
     await loadConfigs()
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? t('system_pages.ai_llm.msg.delete_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.ai_llm.msg.delete_failed')))
   }
 }
 

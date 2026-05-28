@@ -21,11 +21,18 @@ const props = withDefaults(defineProps<{
 const emit = defineEmits<{ 'update:modelValue': [value: string] }>()
 
 const el = ref<HTMLElement>()
-let editor: any = null
+type EditorInstance = {
+  getValue: () => string
+  setValue: (value: string) => void
+  dispose: () => void
+  onDidChangeModelContent: (listener: () => void) => unknown
+}
+
+let editor: EditorInstance | null = null
 
 onMounted(async () => {
   const monaco = await loader.init()
-  editor = monaco.editor.create(el.value!, {
+  const instance = monaco.editor.create(el.value!, {
     value: props.modelValue,
     language: props.language,
     theme: 'vs',
@@ -38,8 +45,9 @@ onMounted(async () => {
     lineNumbers: 'on',
     renderLineHighlight: 'line',
   })
-  editor.onDidChangeModelContent(() => {
-    emit('update:modelValue', editor.getValue())
+  editor = instance
+  instance.onDidChangeModelContent(() => {
+    emit('update:modelValue', instance.getValue())
   })
 })
 

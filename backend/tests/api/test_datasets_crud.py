@@ -3,6 +3,7 @@ import asyncio
 import io
 import sys
 import types
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -84,6 +85,7 @@ class _FakeDB:
 
 
 def _make_dataset(id_=1, rows=None, fmt="json"):
+    now = datetime(2026, 5, 27, tzinfo=timezone.utc)
     d = TestDataset(
         id=id_,
         name=f"ds-{id_}",
@@ -92,6 +94,8 @@ def _make_dataset(id_=1, rows=None, fmt="json"):
         format=fmt,
         rows=rows or [{"a": 1}],
         creator_id=1,
+        created_at=now,
+        updated_at=now,
     )
     return d
 
@@ -104,6 +108,60 @@ def test_create_dataset_persists_and_returns():
     assert result.rows == [{"a": 1}]
     assert result.creator_id == 1
     assert db.commits == 1
+
+
+def test_list_datasets_uses_short_ttl_cache(monkeypatch):
+    cached = [
+        {
+            "id": 1,
+            "name": "cached",
+            "description": None,
+            "project_id": 10,
+            "format": "json",
+            "row_count": 2,
+            "creator_id": 1,
+            "created_at": "2026-05-27T12:00:00Z",
+            "updated_at": "2026-05-27T12:00:00Z",
+        }
+    ]
+
+    async def fake_get_cache(key):
+        assert key == "atp:datasets:list:project_id=10"
+        return cached
+
+    monkeypatch.setattr(ds_api, "get_json_cache", fake_get_cache)
+
+    class NoDb:
+        async def execute(self, _stmt):
+            raise AssertionError("cache hit should skip db")
+
+    result = asyncio.run(ds_api.list_datasets(project_id=10, db=NoDb(), _=None))
+
+    assert result[0].name == "cached"
+    assert ds_api._DATASET_LIST_CACHE_TTL == 60
+
+
+def test_list_datasets_writes_json_serializable_cache(monkeypatch):
+    written = {}
+
+    async def fake_get_cache(_key):
+        return None
+
+    async def fake_set_cache(key, value, ttl_seconds):
+        written["key"] = key
+        written["value"] = value
+        written["ttl"] = ttl_seconds
+
+    monkeypatch.setattr(ds_api, "get_json_cache", fake_get_cache)
+    monkeypatch.setattr(ds_api, "set_json_cache", fake_set_cache)
+
+    db = _FakeDB({1: _make_dataset(1)})
+    result = asyncio.run(ds_api.list_datasets(project_id=10, db=db, _=None))
+
+    assert result[0].name == "ds-1"
+    assert written["key"] == "atp:datasets:list:project_id=10"
+    assert written["ttl"] == 60
+    assert isinstance(written["value"][0]["created_at"], str)
 
 
 def test_create_dataset_rejects_oversize_rows():

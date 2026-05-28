@@ -20,6 +20,7 @@ def load_all_models() -> None:
         MobileRunArtifact,
     )
     from app.models.global_variable import GlobalVariable
+    from app.models.dashboard_alert import DashboardAlertRule, DashboardAlertEvent
 
     _ = (
         User,
@@ -49,4 +50,6 @@ def load_all_models() -> None:
         MobileIncident,
         MobileRunArtifact,
         GlobalVariable,
+        DashboardAlertRule,
+        DashboardAlertEvent,
     )

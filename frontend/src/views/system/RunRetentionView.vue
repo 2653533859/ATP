@@ -168,6 +168,24 @@ const previewLoading = ref(false)
 const perProjectLoading = ref(false)
 const executeLoading = ref(false)
 
+type ErrorLike = {
+  response?: {
+    data?: {
+      detail?: unknown
+    }
+  }
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'object' && error !== null) {
+    const typed = error as ErrorLike
+    if (typeof typed.response?.data?.detail === 'string') return typed.response.data.detail
+  }
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return fallback
+}
+
 const totalToDelete = computed(() => {
   if (!preview.value) return 0
   return preview.value.plan_runs + preview.value.suite_runs + preview.value.test_runs + preview.value.mobile_runs
@@ -190,8 +208,8 @@ async function loadPreview() {
   previewLoading.value = true
   try {
     preview.value = await adminRunRetentionApi.preview(filter.days)
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? t('system_pages.run_retention.preview_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.run_retention.preview_failed')))
   } finally {
     previewLoading.value = false
   }
@@ -201,8 +219,8 @@ async function loadPerProjectPreview() {
   perProjectLoading.value = true
   try {
     perProject.value = await adminRunRetentionApi.perProjectPreview()
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? t('system_pages.run_retention.preview_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.run_retention.preview_failed')))
   } finally {
     perProjectLoading.value = false
   }
@@ -215,8 +233,8 @@ async function handleExecute() {
     message.success(t('system_pages.run_retention.execute_success'))
     // 重新刷新预览，反映清理后的余量
     await loadPreview()
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? t('system_pages.run_retention.execute_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.run_retention.execute_failed')))
   } finally {
     executeLoading.value = false
   }

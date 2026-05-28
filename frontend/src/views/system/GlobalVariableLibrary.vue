@@ -98,13 +98,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
-import { globalVariableApi, projectApi, type GlobalVariableItem, type ScopeType } from '@/api'
+import { globalVariableApi, projectApi, type GlobalVariableItem, type ProjectItem, type ScopeType } from '@/api'
 
 const { t } = useI18n()
 const loading = ref(false)
 const saving = ref(false)
 const variables = ref<GlobalVariableItem[]>([])
-const projects = ref<any[]>([])
+const projects = ref<ProjectItem[]>([])
 const projectOptions = ref<Array<{ label: string; value: number }>>([])
 
 const selectedScope = ref<'global' | 'project'>('global')
@@ -129,6 +129,12 @@ const columns = computed(() => [
   { title: t('system_pages.global_variable.columns.action'), key: 'action', width: '12%' },
 ])
 
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  return fallback
+}
+
 // Form state
 const showModal = ref(false)
 const editingVar = ref<GlobalVariableItem | null>(null)
@@ -145,9 +151,9 @@ onMounted(async () => {
   try {
     const list = await projectApi.list()
     projects.value = list
-    projectOptions.value = list.map((p: any) => ({ label: p.name, value: p.id }))
-  } catch (e: any) {
-    message.error(e?.message || t('system_pages.global_variable.msg.load_projects_failed'))
+    projectOptions.value = list.map((p) => ({ label: p.name, value: p.id }))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.global_variable.msg.load_projects_failed')))
   }
   await loadVariables()
 })
@@ -155,13 +161,13 @@ onMounted(async () => {
 async function loadVariables() {
   loading.value = true
   try {
-    const params: any = { scope_type: selectedScope.value }
+    const params: { scope_type: ScopeType; project_id?: number } = { scope_type: selectedScope.value }
     if (selectedScope.value === 'project' && selectedProjectId.value) {
       params.project_id = selectedProjectId.value
     }
     variables.value = await globalVariableApi.list(params)
-  } catch (e: any) {
-    message.error(e?.message || t('system_pages.global_variable.msg.load_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.global_variable.msg.load_failed')))
   } finally {
     loading.value = false
   }
@@ -185,8 +191,8 @@ async function toggleReveal(record: GlobalVariableItem) {
   try {
     const detail = await globalVariableApi.get(record.id, { reveal_secret: true })
     revealedValues.value = { ...revealedValues.value, [record.id]: detail.value }
-  } catch (e: any) {
-    message.error(e?.message || t('system_pages.global_variable.msg.reveal_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.global_variable.msg.reveal_failed')))
   }
 }
 
@@ -250,8 +256,8 @@ async function handleSave() {
     showModal.value = false
     resetForm()
     await loadVariables()
-  } catch (e: any) {
-    message.error(e?.message || t('system_pages.global_variable.msg.save_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.global_variable.msg.save_failed')))
   } finally {
     saving.value = false
   }
@@ -262,8 +268,8 @@ async function handleDelete(id: number) {
     await globalVariableApi.delete(id)
     message.success(t('system_pages.global_variable.msg.delete_success'))
     await loadVariables()
-  } catch (e: any) {
-    message.error(e?.message || t('system_pages.global_variable.msg.delete_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.global_variable.msg.delete_failed')))
   }
 }
 </script>

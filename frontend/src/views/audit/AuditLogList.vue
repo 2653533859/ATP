@@ -103,6 +103,24 @@ function actionColor(action: string) {
   return 'default'
 }
 
+type ErrorLike = {
+  response?: {
+    data?: {
+      detail?: unknown
+    }
+  }
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'object' && error !== null) {
+    const typed = error as ErrorLike
+    if (typeof typed.response?.data?.detail === 'string') return typed.response.data.detail
+  }
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return fallback
+}
+
 async function loadLogs(targetPage = page.value, targetPageSize = pageSize.value) {
   loading.value = true
   page.value = targetPage
@@ -117,8 +135,8 @@ async function loadLogs(targetPage = page.value, targetPageSize = pageSize.value
     })
     logs.value = result.items
     total.value = result.total
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? t('audit_logs.load_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('audit_logs.load_failed')))
   } finally {
     loading.value = false
   }

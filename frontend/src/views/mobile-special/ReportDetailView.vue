@@ -145,6 +145,11 @@ import {
   type MobileMetricSampleItem,
   type MobileIncidentItem,
   type MobileRunArtifactItem,
+  type ArtifactType,
+  type IncidentType,
+  type MobileRunStatus,
+  type MobileTriggerType,
+  type TaskType,
 } from '@/api'
 
 const MetricKpiCard = {
@@ -175,6 +180,31 @@ const selectedMetricType = ref('mem_mb')
 const trendChartRef = ref<HTMLDivElement | null>(null)
 let trendChart: ECharts | null = null
 
+type TooltipDataPoint = {
+  name: string
+  seriesName: string
+  value: number | string
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  return fallback
+}
+
+function firstTooltipPoint(params: unknown): TooltipDataPoint | null {
+  if (!Array.isArray(params)) return null
+  const first = params[0]
+  if (typeof first !== 'object' || first === null) return null
+  const item = first as Partial<TooltipDataPoint>
+  if (item.name === undefined || item.seriesName === undefined || item.value === undefined) return null
+  return {
+    name: String(item.name),
+    seriesName: String(item.seriesName),
+    value: item.value,
+  }
+}
+
 const metricTypeOptions = computed(() => [
   { label: t('mobile_special.reports.metrics.memory'), value: 'mem_mb' },
   { label: 'CPU (%)', value: 'cpu_pct' },
@@ -198,7 +228,7 @@ const artifactColumns = computed(() => [
 
 const kpiCards = computed(() => {
   if (!samples.value.length) return []
-  const summary = run.value?.summary_json as Record<string, any> || {}
+  const summary = run.value?.summary_json ?? {}
 
   const byType = (type: string) => {
     const vals = samples.value.filter(s => s.metric_type === type).map(s => s.metric_value)
@@ -214,7 +244,7 @@ const kpiCards = computed(() => {
     ...(mem ? [{ label: t('mobile_special.reports.kpi.memory_avg'), value: mem.avg.toFixed(1), unit: 'MB', color: '#1890ff' }] : []),
     ...(cpu ? [{ label: t('mobile_special.reports.kpi.cpu_avg'), value: cpu.avg.toFixed(1), unit: '%', color: '#faad14' }] : []),
     ...(fps ? [{ label: t('mobile_special.reports.kpi.fps_avg'), value: fps.avg.toFixed(1), unit: '', color: '#52c41a' }] : []),
-    ...(fps ? [{ label: t('mobile_special.reports.kpi.jank_count'), value: summary.jank_count || 0, unit: t('mobile_special.reports.units.times'), color: '#ff4d4f' }] : []),
+    ...(fps ? [{ label: t('mobile_special.reports.kpi.jank_count'), value: Number(summary.jank_count ?? 0), unit: t('mobile_special.reports.units.times'), color: '#ff4d4f' }] : []),
     ...(incidents.value.length ? [{ label: t('mobile_special.reports.incidents'), value: incidents.value.length, unit: t('mobile_special.reports.units.items'), color: '#ff4d4f' }] : []),
     ...(run.value?.duration_ms ? [{ label: t('mobile_special.reports.kpi.total_duration'), value: (run.value.duration_ms / 1000).toFixed(1), unit: 's', color: '#722ed1' }] : []),
   ].slice(0, 6)
@@ -257,8 +287,8 @@ async function loadAll() {
     }
 
     updateTrendChart()
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.reports.msg.load_detail_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.reports.msg.load_detail_failed')))
   } finally {
     loading.value = false
   }
@@ -273,8 +303,8 @@ async function loadSamples() {
     })
     samples.value = data
     updateTrendChart()
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.reports.msg.load_metrics_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.reports.msg.load_metrics_failed')))
   }
 }
 
@@ -300,8 +330,9 @@ function updateTrendChart() {
   const option: EChartsOption = {
     tooltip: {
       trigger: 'axis',
-      formatter: (params: any) => {
-        const p = params[0]
+      formatter: (params: unknown) => {
+        const p = firstTooltipPoint(params)
+        if (!p) return ''
         return `${p.name}<br/>${p.seriesName}: ${p.value} ${unitMap[selectedMetricType.value] || ''}`
       },
     },
@@ -314,11 +345,11 @@ function updateTrendChart() {
   trendChart.setOption(option, true)
 }
 
-function taskTypeColor(type: string) {
+function taskTypeColor(type: TaskType) {
   return { performance: 'blue', stability: 'orange', fluency: 'purple' }[type] || 'default'
 }
 
-function taskTypeLabel(type: string) {
+function taskTypeLabel(type: TaskType) {
   return {
     performance: t('mobile_special.task_types.performance'),
     stability: t('mobile_special.task_types.stability'),
@@ -326,11 +357,11 @@ function taskTypeLabel(type: string) {
   }[type] || type
 }
 
-function statusColor(status: string) {
+function statusColor(status: MobileRunStatus) {
   return { pending: 'default', running: 'processing', completed: 'success', failed: 'error', stopped: 'warning' }[status] || 'default'
 }
 
-function statusLabel(status: string) {
+function statusLabel(status: MobileRunStatus) {
   return {
     pending: t('mobile_special.statuses.pending'),
     running: t('mobile_special.statuses.running'),
@@ -340,7 +371,7 @@ function statusLabel(status: string) {
   }[status] || status
 }
 
-function triggerLabel(type: string) {
+function triggerLabel(type: MobileTriggerType) {
   return {
     manual: t('mobile_special.trigger_types.manual'),
     schedule: t('mobile_special.trigger_types.schedule'),
@@ -348,11 +379,11 @@ function triggerLabel(type: string) {
   }[type] || type
 }
 
-function incidentColor(type: string) {
+function incidentColor(type: IncidentType) {
   return { crash: 'red', anr: 'orange', fatal_log: 'purple', watchdog: 'magenta' }[type] || 'default'
 }
 
-function incidentLabel(type: string) {
+function incidentLabel(type: IncidentType) {
   return {
     crash: t('mobile_special.incident_types.crash'),
     anr: 'ANR',
@@ -361,7 +392,7 @@ function incidentLabel(type: string) {
   }[type] || type
 }
 
-function artifactLabel(type: string) {
+function artifactLabel(type: ArtifactType) {
   return {
     csv: 'CSV',
     json: 'JSON',
@@ -384,8 +415,8 @@ function formatFileSize(bytes: number) {
 async function downloadArtifact(record: MobileRunArtifactItem) {
   try {
     message.info(t('mobile_special.reports.msg.download_pending', { file: record.file_name }))
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.reports.msg.download_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.reports.msg.download_failed')))
   }
 }
 
@@ -400,8 +431,8 @@ async function doExportCsv() {
     a.click()
     URL.revokeObjectURL(url)
     message.success(t('mobile_special.reports.msg.csv_downloaded'))
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.reports.msg.export_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.reports.msg.export_failed')))
   }
 }
 
@@ -416,8 +447,8 @@ async function doExportJson() {
     a.click()
     URL.revokeObjectURL(url)
     message.success(t('mobile_special.reports.msg.json_downloaded'))
-  } catch (e: any) {
-    message.error(e?.message || t('mobile_special.reports.msg.export_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.reports.msg.export_failed')))
   }
 }
 

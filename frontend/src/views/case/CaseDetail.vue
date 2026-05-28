@@ -236,6 +236,14 @@ import type {
 import CaseHistoryDrawer from '@/views/case/CaseHistoryDrawer.vue'
 
 type WorkflowAction = 'submitReview' | 'approve' | 'reject' | 'deprecate' | 'reactivate'
+type ErrorLike = {
+  message?: unknown
+  response?: {
+    data?: {
+      detail?: unknown
+    }
+  }
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -332,6 +340,17 @@ function flattenModules(nodes: ModuleTreeItem[], acc: Record<number, string> = {
     }
   }
   return acc
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error !== null) {
+    const typed = error as ErrorLike
+    if (typeof typed.response?.data?.detail === 'string') return typed.response.data.detail
+    if (typeof typed.message === 'string') return typed.message
+  }
+  return fallback
 }
 
 function formatDateTime(value?: string | null) {
@@ -448,9 +467,9 @@ async function loadCase() {
   loading.value = true
   try {
     caseDetail.value = await caseApi.get(caseId.value)
-  } catch (error: any) {
+  } catch (error: unknown) {
     caseDetail.value = null
-    message.error(error ?? t('case.detail.msg.load_failed'))
+    message.error(errorMessage(error, t('case.detail.msg.load_failed')))
   } finally {
     loading.value = false
   }
@@ -471,8 +490,8 @@ async function handleCopy() {
     message.success(t('case.msg.copied', { code: copied.case_code }))
     void router.replace({ name: 'case-detail', params: { caseId: String(copied.id) }, query: backQuery.value })
     caseDetail.value = copied
-  } catch (error: any) {
-    message.error(error ?? t('case.msg.copy_failed'))
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('case.msg.copy_failed')))
   } finally {
     copying.value = false
   }
@@ -506,8 +525,8 @@ async function handleWorkflow(action: WorkflowAction) {
         message.success(t('case.msg.reactivate_done'))
         break
     }
-  } catch (error: any) {
-    message.error(error ?? t('case.msg.workflow_failed'))
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('case.msg.workflow_failed')))
   }
 }
 
@@ -527,7 +546,7 @@ async function openRunModal() {
   runEnvLoading.value = true
   try {
     const environments = await environmentApi.list(projectQueryId.value)
-    runEnvOptions.value = environments.map((item: any) => ({ label: item.name, value: item.id }))
+    runEnvOptions.value = environments.map((item) => ({ label: item.name, value: item.id }))
   } catch {
     runEnvOptions.value = []
     message.warning(t('case.msg.load_env_failed'))
@@ -547,12 +566,12 @@ async function confirmRun() {
     if (runEnvId.value) {
       payload.env_id = runEnvId.value
     }
-    const run = await caseApi.run(caseId.value, payload) as any
+    const run = await caseApi.run(caseId.value, payload)
     runModalOpen.value = false
     message.success(t('case.msg.run_started'))
     void router.push(`/runs/${run.id}`)
-  } catch (error: any) {
-    message.error(error ?? t('case.msg.run_failed'))
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('case.msg.run_failed')))
   } finally {
     runConfirming.value = false
   }

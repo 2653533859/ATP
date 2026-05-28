@@ -380,7 +380,7 @@
         style="width: 100%"
         :options="moduleSelectOptions"
         show-search
-        :filter-option="(input: string, option: any) => option.label?.toLowerCase().includes(input.toLowerCase())"
+        :filter-option="filterModuleOption"
       />
     </a-modal>
 
@@ -429,6 +429,15 @@ import AIGenerateDrawer from '@/views/case/AIGenerateDrawer.vue'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
 
 type WorkflowAction = 'submitReview' | 'approve' | 'reject' | 'deprecate' | 'reactivate'
+type SelectOption = { label?: string; value?: number }
+type ErrorLike = {
+  message?: unknown
+  response?: {
+    data?: {
+      detail?: unknown
+    }
+  }
+}
 
 const route = useRoute()
 const router = useRouter()
@@ -551,6 +560,21 @@ function flattenModules(nodes: ModuleTreeItem[], acc: Record<number, string> = {
   return acc
 }
 
+function filterModuleOption(input: string, option?: SelectOption) {
+  return (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error !== null) {
+    const typed = error as ErrorLike
+    if (typeof typed.response?.data?.detail === 'string') return typed.response.data.detail
+    if (typeof typed.message === 'string') return typed.message
+  }
+  return fallback
+}
+
 const moduleSelectOptions = computed(() =>
   Object.entries(moduleNameMap.value).map(([id, name]) => ({
     value: Number(id),
@@ -666,8 +690,8 @@ function canReactivate(testCase: CaseSummaryItem) {
 async function loadProjects() {
   try {
     projects.value = await projectApi.list()
-  } catch (error: any) {
-    message.error(error ?? t('case.msg.load_projects_failed'))
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('case.msg.load_projects_failed')))
     projects.value = []
   }
 }
@@ -684,9 +708,9 @@ async function loadModules() {
     if (selectedModuleId.value && !moduleNameMap.value[selectedModuleId.value]) {
       selectedModuleId.value = null
     }
-  } catch (error: any) {
+  } catch (error: unknown) {
     moduleNameMap.value = {}
-    message.error(error ?? t('case.msg.load_modules_failed'))
+    message.error(errorMessage(error, t('case.msg.load_modules_failed')))
   }
 }
 
@@ -709,8 +733,8 @@ async function loadCases() {
       keyword: keyword.value.trim() || undefined,
     }
     cases.value = await caseApi.list(params)
-  } catch (error: any) {
-    message.error(error ?? t('case.msg.load_cases_failed'))
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('case.msg.load_cases_failed')))
     cases.value = []
   } finally {
     loading.value = false
@@ -861,7 +885,7 @@ async function handleRun(testCase: CaseSummaryItem) {
   runEnvLoading.value = true
   try {
     const environments = await environmentApi.list(selectedProjectId.value)
-    runEnvOptions.value = environments.map((item: any) => ({ label: item.name, value: item.id }))
+    runEnvOptions.value = environments.map((item) => ({ label: item.name, value: item.id }))
   } catch {
     runEnvOptions.value = []
     message.warning(t('case.msg.load_env_failed'))
@@ -883,12 +907,12 @@ async function confirmRun() {
     if (runEnvId.value) {
       payload.env_id = runEnvId.value
     }
-    const run = await caseApi.run(testCase.id, payload) as any
+    const run = await caseApi.run(testCase.id, payload)
     runModalOpen.value = false
     message.success(t('case.msg.run_started'))
     void router.push(`/runs/${run.id}`)
-  } catch (error: any) {
-    message.error(error ?? t('case.msg.run_failed'))
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('case.msg.run_failed')))
   } finally {
     runConfirming.value = false
     runningId.value = null
@@ -901,8 +925,8 @@ async function handleCopy(caseId: number) {
     message.success(t('case.msg.copied', { code: copied.case_code }))
     await loadCases()
     openDetail(copied.id)
-  } catch (error: any) {
-    message.error(error ?? t('case.msg.copy_failed'))
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('case.msg.copy_failed')))
   }
 }
 
@@ -931,8 +955,8 @@ async function handleWorkflow(testCase: CaseSummaryItem, action: WorkflowAction)
         break
     }
     await loadCases()
-  } catch (error: any) {
-    message.error(error ?? t('case.msg.workflow_failed'))
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('case.msg.workflow_failed')))
   }
 }
 
@@ -958,8 +982,8 @@ async function handleBatchDelete() {
     message.success(t('case.msg.batch_delete_success', { processed: result.processed, requested: result.requested }))
     selectedRowKeys.value = []
     await loadCases()
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail || e?.message || t('case.msg.batch_delete_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.msg.batch_delete_failed')))
   }
 }
 
@@ -976,8 +1000,8 @@ async function handleBatchExport() {
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
     message.success(t('case.msg.export_success', { count: selectedRowKeys.value.length }))
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail || e?.message || t('case.msg.export_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.msg.export_failed')))
   }
 }
 
@@ -994,8 +1018,8 @@ async function handleBatchExportZip() {
     document.body.removeChild(link)
     window.URL.revokeObjectURL(url)
     message.success(t('case.msg.export_zip_success', { count: selectedRowKeys.value.length }))
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail || e?.message || t('case.msg.export_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.msg.export_failed')))
   }
 }
 
@@ -1013,8 +1037,8 @@ function handleBatchImportBeforeUpload(file: File) {
         message.success(t('case.msg.import_success', { imported: result.imported }))
       }
       await loadCases()
-    } catch (e: any) {
-      message.error(e?.response?.data?.detail || e?.message || t('case.msg.import_failed'))
+    } catch (e: unknown) {
+      message.error(errorMessage(e, t('case.msg.import_failed')))
     }
   })()
   return false
@@ -1038,8 +1062,8 @@ async function submitBatchMove() {
     batchMoveOpen.value = false
     selectedRowKeys.value = []
     await loadCases()
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail || e?.message || t('case.msg.move_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.msg.move_failed')))
   } finally {
     batchMoveLoading.value = false
   }
@@ -1210,5 +1234,4 @@ onMounted(async () => {
   }
 }
 </style>
-
 

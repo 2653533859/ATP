@@ -126,9 +126,12 @@ async function loadProjects() {
 async function loadLLMConfigs() {
   try {
     llmConfigs.value = await aiLLMConfigApi.list()
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Non-admin users may receive 403; keep the form usable without the dropdown.
-    if (error?.response?.status !== 403) {
+    const status = typeof error === 'object' && error !== null
+      ? (error as { response?: { status?: number } }).response?.status
+      : undefined
+    if (status !== 403) {
       message.error(t('project.msg.load_ai_failed'))
     }
   }

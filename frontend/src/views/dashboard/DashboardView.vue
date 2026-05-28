@@ -9,13 +9,35 @@
       :description="t('dashboard.storage_alert_desc', { at: formatAlertTime(storageAlert.triggered_at) })"
       closable
     />
-    <div style="margin-bottom: 16px; display: flex; justify-content: space-between; align-items: center">
-      <h2 style="margin: 0">{{ t('dashboard.title') }}</h2>
-      <a-space>
+    <a-alert
+      v-if="dashboardAlertEvents.length"
+      style="margin-bottom: 16px"
+      type="error"
+      show-icon
+      :message="t('dashboard.dashboard_alert_msg', { count: dashboardAlertEvents.length })"
+      :description="t('dashboard.dashboard_alert_desc', { at: formatAlertTime(dashboardAlertEvents[0]?.triggered_at) })"
+    >
+      <template #action>
+        <a-button size="small" type="link" @click="goToDashboardAlerts">
+          {{ t('dashboard.dashboard_alert_action') }}
+        </a-button>
+      </template>
+    </a-alert>
+    <div class="dashboard-header">
+      <div>
+        <h2 style="margin: 0">{{ t('dashboard.title') }}</h2>
+        <div class="scope-label">
+          {{ dashboardScope === 'global'
+            ? t('dashboard.scope_global_label')
+            : t('dashboard.scope_project_label', { project: getProjectLabel(projectId) }) }}
+        </div>
+      </div>
+      <a-space wrap>
+        <a-segmented v-model:value="dashboardScope" :options="scopeOptions" />
         <a-select
+          v-if="dashboardScope === 'project'"
           v-model:value="projectId"
-          :placeholder="t('dashboard.all_projects')"
-          allow-clear
+          :placeholder="t('dashboard.select_project')"
           style="width: 200px"
           :options="projectOptions"
         />
@@ -27,6 +49,9 @@
           :options="caseTypeOptions"
         />
         <a-select v-model:value="days" style="width: 120px" :options="dayOptions" />
+        <a-button @click="settingsOpen = true">
+          <SettingOutlined /> {{ t('dashboard.layout_settings') }}
+        </a-button>
       </a-space>
     </div>
 
@@ -73,86 +98,81 @@
 
     <template v-else>
       <a-spin :spinning="loading">
-        <a-card :title="t('dashboard.charts.pass_rate_trend')" style="margin-bottom: 24px">
-          <v-chart :option="passRateOption" style="height: 320px" autoresize />
-        </a-card>
-
-        <a-row :gutter="16">
-          <a-col :xs="24" :md="12">
+        <a-empty v-if="visibleChartConfigs.length === 0" :description="t('dashboard.layout_empty')" />
+        <a-row v-else :gutter="[16, 16]">
+          <a-col
+            v-for="chart in visibleChartConfigs"
+            :key="chart.key"
+            :xs="24"
+            :md="chart.span"
+          >
             <LazyChartCard
-              :title="t('dashboard.charts.duration_trend')"
-              @visible="onChartVisible('duration', loadDurationTrend)"
+              :title="chart.title"
+              @visible="onChartVisible(chart.lazyKey, chart.loader)"
             >
-              <v-chart :option="durationOption" style="height: 320px" autoresize />
-            </LazyChartCard>
-          </a-col>
-          <a-col :xs="24" :md="12">
-            <LazyChartCard
-              :title="t('dashboard.charts.failure_top')"
-              @visible="onChartVisible('failure', loadFailureTop)"
-            >
-              <v-chart :option="failureTopOption" style="height: 320px" autoresize @click="handleFailureClick" />
-            </LazyChartCard>
-          </a-col>
-        </a-row>
-
-        <a-row :gutter="16" style="margin-top: 16px">
-          <a-col :xs="24" :md="12">
-            <LazyChartCard
-              :title="t('dashboard.charts.executor_top')"
-              @visible="onChartVisible('executor', loadExecutorTop)"
-            >
-              <v-chart :option="executorTopOption" style="height: 320px" autoresize />
-            </LazyChartCard>
-          </a-col>
-          <a-col :xs="24" :md="12">
-            <LazyChartCard
-              :title="t('dashboard.charts.trigger_type')"
-              @visible="onChartVisible('trigger', loadTriggerTypeStats)"
-            >
-              <v-chart :option="triggerTypeOption" style="height: 320px" autoresize />
-            </LazyChartCard>
-          </a-col>
-        </a-row>
-
-        <a-row :gutter="16" style="margin-top: 16px">
-          <a-col :xs="24" :md="12">
-            <LazyChartCard
-              :title="t('dashboard.charts.plan_trend')"
-              @visible="onChartVisible('plan', loadPlanTrend)"
-            >
-              <v-chart :option="planTrendOption" style="height: 320px" autoresize />
-            </LazyChartCard>
-          </a-col>
-          <a-col :xs="24" :md="12">
-            <LazyChartCard
-              :title="t('dashboard.charts.suite_trend')"
-              @visible="onChartVisible('suite', loadSuiteTrend)"
-            >
-              <v-chart :option="suiteTrendOption" style="height: 320px" autoresize />
-            </LazyChartCard>
-          </a-col>
-        </a-row>
-
-        <a-row :gutter="16" style="margin-top: 16px">
-          <a-col :xs="24" :md="12">
-            <LazyChartCard
-              :title="t('dashboard.charts.case_type_distribution')"
-              @visible="onChartVisible('caseTypeDist', loadCaseTypeDistribution)"
-            >
-              <v-chart :option="caseTypeDistributionOption" style="height: 320px" autoresize />
+              <template #extra>
+                <a-dropdown>
+                  <a-button size="small"><DownloadOutlined /></a-button>
+                  <template #overlay>
+                    <a-menu @click="handleExportMenu(chart.exportKey, $event)">
+                      <a-menu-item key="png">{{ t('dashboard.export_png') }}</a-menu-item>
+                      <a-menu-item key="csv">{{ t('dashboard.export_csv') }}</a-menu-item>
+                    </a-menu>
+                  </template>
+                </a-dropdown>
+              </template>
+              <v-chart
+                :ref="el => setChartRef(chart.exportKey, el)"
+                :option="chart.option.value"
+                style="height: 320px"
+                autoresize
+                @click="params => handleChartClick(chart.key, params)"
+              />
             </LazyChartCard>
           </a-col>
         </a-row>
       </a-spin>
     </template>
+
+    <a-modal
+      v-model:open="settingsOpen"
+      :title="t('dashboard.layout_settings')"
+      width="560px"
+      :ok-text="t('common.ok')"
+      :cancel-text="t('common.cancel')"
+    >
+      <Draggable
+        v-model="dashboardLayout"
+        item-key="key"
+        handle=".drag-handle"
+      >
+        <template #item="{ element, index }">
+          <div class="layout-row">
+            <span class="drag-handle">☰</span>
+            <a-checkbox v-model:checked="element.visible">
+              {{ chartTitle(element.key) }}
+            </a-checkbox>
+            <a-space>
+              <a-button size="small" :disabled="index === 0" @click="moveLayoutItem(index, -1)">↑</a-button>
+              <a-button size="small" :disabled="index === dashboardLayout.length - 1" @click="moveLayoutItem(index, 1)">↓</a-button>
+            </a-space>
+          </div>
+        </template>
+      </Draggable>
+      <template #footer>
+        <a-button @click="resetDashboardLayout">{{ t('dashboard.layout_reset') }}</a-button>
+        <a-button type="primary" @click="settingsOpen = false">{{ t('common.ok') }}</a-button>
+      </template>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch, type ComponentPublicInstance } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import { message } from 'ant-design-vue'
+import Draggable from 'vuedraggable'
 import VChart from 'vue-echarts'
 import { use } from 'echarts/core'
 import { LineChart, BarChart, PieChart } from 'echarts/charts'
@@ -163,8 +183,9 @@ import {
   TooltipComponent,
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
+import { DownloadOutlined, SettingOutlined } from '@ant-design/icons-vue'
 import LazyChartCard from '@/components/dashboard/LazyChartCard.vue'
-import { projectApi, statisticsApi, storageApi, type StatisticsAggregateTrendItem, type StatisticsCaseTypeDistributionItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
+import { dashboardAlertApi, projectApi, statisticsApi, storageApi, type DashboardAlertEventItem, type StatisticsAggregateTrendItem, type StatisticsCaseTypeDistributionItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
 
 use([CanvasRenderer, LineChart, BarChart, PieChart, TitleComponent, TooltipComponent, GridComponent, LegendComponent])
 
@@ -173,6 +194,17 @@ const { t, locale } = useI18n()
 
 type DashboardCaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android'
 type Aggregate = 'daily' | 'weekly'
+type DashboardScope = 'global' | 'project'
+type ExportChartKey = 'pass_rate_trend' | 'duration_trend' | 'failure_top' | 'executor_top' | 'trigger_type' | 'plan_trend' | 'suite_trend' | 'case_type_distribution'
+type ExportAction = 'png' | 'csv'
+type MenuClickInfo = { key: string | number }
+type LayoutChartKey = ExportChartKey
+type ChartRef = {
+  getDataURL?: (options: { pixelRatio?: number; backgroundColor?: string }) => string
+  chart?: {
+    getDataURL?: (options: { pixelRatio?: number; backgroundColor?: string }) => string
+  }
+}
 
 type DashboardParams = {
   project_id?: number
@@ -236,12 +268,89 @@ type TriggerTypeStatItem = StatisticsTriggerTypeStatItem
 
 type AggregateTrendItem = StatisticsAggregateTrendItem
 
-const projectId = ref<number | undefined>(undefined)
+const DASHBOARD_SCOPE_KEY = 'atp:dashboard:scope'
+const DASHBOARD_PROJECT_KEY = 'atp:dashboard:project_id'
+const DASHBOARD_LAYOUT_KEY = 'atp:dashboard:layout'
+
+type LayoutItem = {
+  key: LayoutChartKey
+  visible: boolean
+}
+
+const DEFAULT_DASHBOARD_LAYOUT: LayoutItem[] = [
+  { key: 'pass_rate_trend', visible: true },
+  { key: 'duration_trend', visible: true },
+  { key: 'failure_top', visible: true },
+  { key: 'executor_top', visible: true },
+  { key: 'trigger_type', visible: true },
+  { key: 'plan_trend', visible: true },
+  { key: 'suite_trend', visible: true },
+  { key: 'case_type_distribution', visible: true },
+]
+
+function initialScope(): DashboardScope {
+  try {
+    return localStorage.getItem(DASHBOARD_SCOPE_KEY) === 'project' ? 'project' : 'global'
+  } catch {
+    return 'global'
+  }
+}
+
+function initialProjectId(): number | undefined {
+  try {
+    const raw = localStorage.getItem(DASHBOARD_PROJECT_KEY)
+    const parsed = raw ? Number(raw) : undefined
+    return Number.isFinite(parsed) ? parsed : undefined
+  } catch {
+    return undefined
+  }
+}
+
+function cloneDefaultLayout(): LayoutItem[] {
+  return DEFAULT_DASHBOARD_LAYOUT.map(item => ({ ...item }))
+}
+
+function loadDashboardLayout(): LayoutItem[] {
+  try {
+    const raw = localStorage.getItem(DASHBOARD_LAYOUT_KEY)
+    if (!raw) return cloneDefaultLayout()
+    const parsed = JSON.parse(raw) as Array<Partial<LayoutItem>>
+    const byKey = new Map(parsed.map(item => [item.key, item]))
+    const knownKeys = new Set(DEFAULT_DASHBOARD_LAYOUT.map(item => item.key))
+    const ordered = parsed
+      .filter((item): item is LayoutItem => Boolean(item.key && knownKeys.has(item.key) && typeof item.visible === 'boolean'))
+      .map(item => ({ key: item.key, visible: item.visible }))
+    for (const defaultItem of DEFAULT_DASHBOARD_LAYOUT) {
+      if (!byKey.has(defaultItem.key)) ordered.push({ ...defaultItem })
+    }
+    return ordered.length ? ordered : cloneDefaultLayout()
+  } catch {
+    return cloneDefaultLayout()
+  }
+}
+
+const dashboardScope = ref<DashboardScope>(initialScope())
+const projectId = ref<number | undefined>(initialProjectId())
+const settingsOpen = ref(false)
+const dashboardLayout = ref<LayoutItem[]>(loadDashboardLayout())
 const days = ref(30)
 const caseType = ref<DashboardCaseType | undefined>(undefined)
 const loading = ref(false)
 const storageAlert = ref<StorageAlertPayload | null>(null)
+const dashboardAlertEvents = ref<DashboardAlertEventItem[]>([])
 const projectOptions = ref<Array<{ label: string; value: number }>>([])
+const passRateChartRef = ref<ChartRef | null>(null)
+const durationChartRef = ref<ChartRef | null>(null)
+const failureTopChartRef = ref<ChartRef | null>(null)
+const executorTopChartRef = ref<ChartRef | null>(null)
+const triggerTypeChartRef = ref<ChartRef | null>(null)
+const planTrendChartRef = ref<ChartRef | null>(null)
+const suiteTrendChartRef = ref<ChartRef | null>(null)
+const caseTypeDistributionChartRef = ref<ChartRef | null>(null)
+const scopeOptions = computed(() => [
+  { label: t('dashboard.scope_global'), value: 'global' },
+  { label: t('dashboard.scope_project'), value: 'project' },
+])
 const dayOptions = computed(() => [
   { label: t('dashboard.last_7_days'), value: 7 },
   { label: t('dashboard.last_30_days'), value: 30 },
@@ -266,6 +375,7 @@ const triggerTypeLabel = (type: string) => {
 }
 
 const effectiveAggregate = computed<Aggregate>(() => (days.value > 90 ? 'weekly' : 'daily'))
+const effectiveProjectId = computed(() => dashboardScope.value === 'project' ? projectId.value : undefined)
 
 function getProjectLabel(id?: number) {
   if (!id) return t('dashboard.all_projects')
@@ -273,7 +383,7 @@ function getProjectLabel(id?: number) {
 }
 
 const activeFilterText = computed(() => {
-  const projectText = getProjectLabel(projectId.value)
+  const projectText = dashboardScope.value === 'global' ? t('dashboard.scope_global') : getProjectLabel(projectId.value)
   const typeText = caseType.value ? caseTypeLabel(caseType.value) : t('dashboard.all_types')
   return `${projectText} / ${typeText} / ${t('dashboard.filter_window', { days: days.value })}`
 })
@@ -538,11 +648,107 @@ function goToCaseManagement(targetProjectId?: number, targetModuleId?: number) {
   void router.push({ name: 'cases' })
 }
 
+function goToDashboardAlerts() {
+  void router.push({ name: 'system-dashboard-alerts' })
+}
+
 function handleFailureClick(params: unknown) {
   const event = params as FailureChartClickParams
   if (event.componentType === 'series' && event.data?._caseId) {
     goToCaseManagement(event.data._projectId, event.data._moduleId)
   }
+}
+
+function chartRefFor(chart: ExportChartKey) {
+  return {
+    pass_rate_trend: passRateChartRef,
+    duration_trend: durationChartRef,
+    failure_top: failureTopChartRef,
+    executor_top: executorTopChartRef,
+    trigger_type: triggerTypeChartRef,
+    plan_trend: planTrendChartRef,
+    suite_trend: suiteTrendChartRef,
+    case_type_distribution: caseTypeDistributionChartRef,
+  }[chart]
+}
+
+function setChartRef(chart: ExportChartKey, el: Element | ComponentPublicInstance | null) {
+  chartRefFor(chart).value = el as ChartRef | null
+}
+
+function handleChartClick(chart: LayoutChartKey, params: unknown) {
+  if (chart === 'failure_top') {
+    handleFailureClick(params)
+  }
+}
+
+function downloadUrl(url: string, filename: string) {
+  const link = document.createElement('a')
+  link.href = url
+  link.download = filename
+  document.body.appendChild(link)
+  link.click()
+  document.body.removeChild(link)
+}
+
+function chartFilename(chart: ExportChartKey, extension: string) {
+  const scope = dashboardScope.value === 'project' ? `project-${projectId.value ?? 'unknown'}` : 'global'
+  return `${chart}-${scope}-${days.value}d.${extension}`
+}
+
+function downloadChartPng(chart: ExportChartKey) {
+  const instance = chartRefFor(chart).value
+  const dataUrl = instance?.getDataURL?.({ pixelRatio: 2, backgroundColor: '#fff' })
+    ?? instance?.chart?.getDataURL?.({ pixelRatio: 2, backgroundColor: '#fff' })
+  if (!dataUrl) {
+    message.warning(t('dashboard.export_chart_not_ready'))
+    return
+  }
+  downloadUrl(dataUrl, chartFilename(chart, 'png'))
+}
+
+async function downloadChartCsv(chart: ExportChartKey) {
+  try {
+    const blob = await statisticsApi.exportCsv({
+      chart,
+      project_id: effectiveProjectId.value,
+      days: days.value,
+      case_type: caseType.value,
+      aggregate: effectiveAggregate.value,
+      top: 10,
+    })
+    const url = URL.createObjectURL(blob)
+    downloadUrl(url, chartFilename(chart, 'csv'))
+    URL.revokeObjectURL(url)
+  } catch {
+    message.error(t('dashboard.export_failed'))
+  }
+}
+
+function handleChartExport(chart: ExportChartKey, key: string | number) {
+  const action = String(key) as ExportAction
+  if (action === 'png') {
+    downloadChartPng(chart)
+    return
+  }
+  void downloadChartCsv(chart)
+}
+
+function handleExportMenu(chart: ExportChartKey, info: MenuClickInfo) {
+  handleChartExport(chart, info.key)
+}
+
+function moveLayoutItem(index: number, direction: -1 | 1) {
+  const target = index + direction
+  if (target < 0 || target >= dashboardLayout.value.length) return
+  const next = [...dashboardLayout.value]
+  const [item] = next.splice(index, 1)
+  next.splice(target, 0, item)
+  dashboardLayout.value = next
+}
+
+function resetDashboardLayout() {
+  dashboardLayout.value = cloneDefaultLayout()
 }
 
 const overview = reactive(createEmptyOverview())
@@ -557,7 +763,7 @@ const caseTypeDistributionOption = ref(buildCaseTypeDistributionOption())
 
 const loadedCharts = ref(new Set<string>())
 
-type ChartKey = 'duration' | 'failure' | 'executor' | 'trigger' | 'plan' | 'suite' | 'caseTypeDist'
+type ChartKey = 'passRate' | 'duration' | 'failure' | 'executor' | 'trigger' | 'plan' | 'suite' | 'caseTypeDist'
 
 function resetOverview() {
   Object.assign(overview, createEmptyOverview())
@@ -565,7 +771,7 @@ function resetOverview() {
 
 function currentDashboardParams(): DashboardParams {
   return {
-    project_id: projectId.value,
+    project_id: effectiveProjectId.value,
     days: days.value,
     case_type: caseType.value,
   }
@@ -577,7 +783,7 @@ function currentTrendParams(): TrendParams {
 
 function currentAggregateParams(): AggregateParams {
   return {
-    project_id: projectId.value,
+    project_id: effectiveProjectId.value,
     days: days.value,
     aggregate: effectiveAggregate.value,
   }
@@ -589,6 +795,7 @@ function onChartVisible(key: ChartKey, loader: () => Promise<void>) {
 }
 
 const chartLoaders: Record<ChartKey, () => Promise<void>> = {
+  passRate: () => loadPassRateTrend(),
   duration: () => loadDurationTrend(),
   failure: () => loadFailureTop(),
   executor: () => loadExecutorTop(),
@@ -598,10 +805,107 @@ const chartLoaders: Record<ChartKey, () => Promise<void>> = {
   caseTypeDist: () => loadCaseTypeDistribution(),
 }
 
+function chartTitle(key: LayoutChartKey): string {
+  return {
+    pass_rate_trend: t('dashboard.charts.pass_rate_trend'),
+    duration_trend: t('dashboard.charts.duration_trend'),
+    failure_top: t('dashboard.charts.failure_top'),
+    executor_top: t('dashboard.charts.executor_top'),
+    trigger_type: t('dashboard.charts.trigger_type'),
+    plan_trend: t('dashboard.charts.plan_trend'),
+    suite_trend: t('dashboard.charts.suite_trend'),
+    case_type_distribution: t('dashboard.charts.case_type_distribution'),
+  }[key]
+}
+
+const chartDefinitions = computed(() => ({
+  pass_rate_trend: {
+    key: 'pass_rate_trend' as const,
+    title: chartTitle('pass_rate_trend'),
+    lazyKey: 'passRate' as const,
+    loader: loadPassRateTrend,
+    exportKey: 'pass_rate_trend' as const,
+    option: passRateOption,
+    span: 24,
+  },
+  duration_trend: {
+    key: 'duration_trend' as const,
+    title: chartTitle('duration_trend'),
+    lazyKey: 'duration' as const,
+    loader: loadDurationTrend,
+    exportKey: 'duration_trend' as const,
+    option: durationOption,
+    span: 12,
+  },
+  failure_top: {
+    key: 'failure_top' as const,
+    title: chartTitle('failure_top'),
+    lazyKey: 'failure' as const,
+    loader: loadFailureTop,
+    exportKey: 'failure_top' as const,
+    option: failureTopOption,
+    span: 12,
+  },
+  executor_top: {
+    key: 'executor_top' as const,
+    title: chartTitle('executor_top'),
+    lazyKey: 'executor' as const,
+    loader: loadExecutorTop,
+    exportKey: 'executor_top' as const,
+    option: executorTopOption,
+    span: 12,
+  },
+  trigger_type: {
+    key: 'trigger_type' as const,
+    title: chartTitle('trigger_type'),
+    lazyKey: 'trigger' as const,
+    loader: loadTriggerTypeStats,
+    exportKey: 'trigger_type' as const,
+    option: triggerTypeOption,
+    span: 12,
+  },
+  plan_trend: {
+    key: 'plan_trend' as const,
+    title: chartTitle('plan_trend'),
+    lazyKey: 'plan' as const,
+    loader: loadPlanTrend,
+    exportKey: 'plan_trend' as const,
+    option: planTrendOption,
+    span: 12,
+  },
+  suite_trend: {
+    key: 'suite_trend' as const,
+    title: chartTitle('suite_trend'),
+    lazyKey: 'suite' as const,
+    loader: loadSuiteTrend,
+    exportKey: 'suite_trend' as const,
+    option: suiteTrendOption,
+    span: 12,
+  },
+  case_type_distribution: {
+    key: 'case_type_distribution' as const,
+    title: chartTitle('case_type_distribution'),
+    lazyKey: 'caseTypeDist' as const,
+    loader: loadCaseTypeDistribution,
+    exportKey: 'case_type_distribution' as const,
+    option: caseTypeDistributionOption,
+    span: 12,
+  },
+}))
+
+const visibleChartConfigs = computed(() =>
+  dashboardLayout.value
+    .filter(item => item.visible)
+    .map(item => chartDefinitions.value[item.key]),
+)
+
 async function loadProjects() {
   try {
     const list = await projectApi.list()
     projectOptions.value = list.map(project => ({ label: project.name, value: project.id }))
+    if (dashboardScope.value === 'project' && !projectId.value && projectOptions.value.length) {
+      projectId.value = projectOptions.value[0].value
+    }
   } catch {
   }
 }
@@ -681,7 +985,7 @@ async function loadExecutorTop() {
 
 async function loadTriggerTypeStats() {
   try {
-    const data = await statisticsApi.triggerTypeStats({ project_id: projectId.value, days: days.value })
+    const data = await statisticsApi.triggerTypeStats({ project_id: effectiveProjectId.value, days: days.value })
     triggerTypeOption.value = buildTriggerTypeOption(data)
   } catch {
     triggerTypeOption.value = buildTriggerTypeOption()
@@ -718,10 +1022,36 @@ async function loadCaseTypeDistribution() {
   }
 }
 
-watch([projectId, days, caseType], async () => {
+watch([dashboardScope, projectId, days, caseType], async () => {
   await loadFirstScreen()
+  await loadDashboardAlerts()
   await refreshLoadedCharts()
 })
+
+watch(dashboardScope, (scope) => {
+  try {
+    localStorage.setItem(DASHBOARD_SCOPE_KEY, scope)
+  } catch {
+  }
+  if (scope === 'project' && !projectId.value && projectOptions.value.length) {
+    projectId.value = projectOptions.value[0].value
+  }
+})
+
+watch(projectId, (id) => {
+  try {
+    if (id) localStorage.setItem(DASHBOARD_PROJECT_KEY, String(id))
+    else localStorage.removeItem(DASHBOARD_PROJECT_KEY)
+  } catch {
+  }
+})
+
+watch(dashboardLayout, (layout) => {
+  try {
+    localStorage.setItem(DASHBOARD_LAYOUT_KEY, JSON.stringify(layout))
+  } catch {
+  }
+}, { deep: true })
 
 // 语言切换：重新拉取数据以让 echarts 配置中的 t() 文案刷新
 watch(locale, async () => {
@@ -733,6 +1063,7 @@ onMounted(() => {
   void loadProjects()
   void loadFirstScreen()
   void loadStorageAlert()
+  void loadDashboardAlerts()
 })
 
 async function loadStorageAlert() {
@@ -741,6 +1072,21 @@ async function loadStorageAlert() {
     storageAlert.value = resp?.alert ?? null
   } catch {
     storageAlert.value = null
+  }
+}
+
+async function loadDashboardAlerts() {
+  if (dashboardScope.value !== 'project' || !projectId.value) {
+    dashboardAlertEvents.value = []
+    return
+  }
+  try {
+    dashboardAlertEvents.value = await dashboardAlertApi.listEvents({
+      project_id: projectId.value,
+      limit: 3,
+    })
+  } catch {
+    dashboardAlertEvents.value = []
   }
 }
 
@@ -753,3 +1099,33 @@ function formatAlertTime(value?: string | null) {
   }
 }
 </script>
+
+<style scoped>
+.dashboard-header {
+  margin-bottom: 16px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.scope-label {
+  margin-top: 4px;
+  color: #666;
+  font-size: 13px;
+}
+.layout-row {
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+}
+.drag-handle {
+  cursor: grab;
+  color: #999;
+  font-size: 16px;
+}
+</style>

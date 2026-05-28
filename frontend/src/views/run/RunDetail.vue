@@ -493,8 +493,14 @@ function computeExpandedKeys(stepList: RunStepItem[]) {
   return stepList.length > 0 ? [stepList[0].step_index] : []
 }
 
-function onCollapseChange(keys: any) {
-  expandedKeys.value = keys
+function errorMessage(error: unknown, fallback = '') {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  return fallback
+}
+
+function onCollapseChange(keys: number | number[]) {
+  expandedKeys.value = Array.isArray(keys) ? keys : [keys]
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -524,8 +530,8 @@ async function handleExportPdf() {
   try {
     const blob = await runApi.exportPdf(runId)
     downloadBlob(blob, `run-${runId}-report.pdf`)
-  } catch (e: any) {
-    message.error(e ?? t('run.msg.export_pdf_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('run.msg.export_pdf_failed')))
   } finally {
     exportingPdf.value = false
   }
@@ -662,8 +668,8 @@ async function confirmCreateBug() {
     }
     bugModalOpen.value = false
     window.open(result.bug_url, '_blank')
-  } catch (e: any) {
-    const msg = typeof e === 'string' ? e : e?.message || ''
+  } catch (e: unknown) {
+    const msg = errorMessage(e)
     // 双语 fallback：兼容后端返回中文/英文错误消息；待后端切到 error_code 后可清理
     if (msg.includes('401') || msg.includes('认证') || msg.includes('Unauthorized')) {
       message.error(t('run.msg.bug_auth_failed'))

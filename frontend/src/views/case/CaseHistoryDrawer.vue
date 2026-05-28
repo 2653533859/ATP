@@ -108,7 +108,7 @@
 import { ref, computed, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
-import { caseApi } from '@/api'
+import { caseApi, type CaseSnapshotItem } from '@/api'
 
 const props = defineProps<{
   open: boolean
@@ -122,7 +122,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const snapshots = ref<any[]>([])
+const snapshots = ref<CaseSnapshotItem[]>([])
 const loading = ref(false)
 const rollingBack = ref<number | null>(null)
 const currentPage = ref(1)
@@ -134,6 +134,12 @@ const compareOpen = ref(false)
 
 const compareLeft = computed(() => snapshots.value.find(s => s.id === compareSelection.value[0]))
 const compareRight = computed(() => snapshots.value.find(s => s.id === compareSelection.value[1]))
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  return fallback
+}
 
 const compareColumns = computed(() => [
   { title: t('case.history.field'), dataIndex: 'field', key: 'field', width: 100 },
@@ -195,8 +201,8 @@ async function loadSnapshots() {
     })
     snapshots.value = res.items
     total.value = res.total
-  } catch (e: any) {
-    message.error(e ?? t('case.history.msg.load_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.history.msg.load_failed')))
   } finally {
     loading.value = false
   }
@@ -214,8 +220,8 @@ async function handleRollback(snapshotId: number) {
     message.success(t('case.history.msg.rollback_success'))
     emit('rolled')
     emit('close')
-  } catch (e: any) {
-    message.error(e ?? t('case.history.msg.rollback_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.history.msg.rollback_failed')))
   } finally {
     rollingBack.value = null
   }

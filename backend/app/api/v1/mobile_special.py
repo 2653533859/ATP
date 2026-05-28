@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select, func, case as sql_case
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.cache_decorator import cached_json
 from app.core.database import get_db
 from app.core.redis_client import get_json_cache, set_json_cache
 from app.models.mobile_special import (
@@ -57,7 +58,7 @@ def _refresh_schedule_state(task: MobileSpecialTask) -> None:
         task.next_run_at = None
 
 
-_MOBILE_STATS_CACHE_TTL = 180
+_MOBILE_STATS_CACHE_TTL = 60
 
 
 def _mobile_stats_cache_key(name: str, **kwargs) -> str:
@@ -78,6 +79,17 @@ async def _safe_set_mobile_stats_cache(key: str, value) -> None:
         await set_json_cache(key, value, _MOBILE_STATS_CACHE_TTL)
     except Exception:
         logger.warning("failed to set mobile stats cache: %s", key, exc_info=True)
+
+
+def _build_mobile_stats_cache_key(name: str, *fields: str):
+    def builder(**kwargs) -> str:
+        return _mobile_stats_cache_key(name, **{field: kwargs.get(field) for field in fields})
+
+    return builder
+
+
+def _identity(value):
+    return value
 
 
 def _build_run_list_item(run: MobileSpecialRun, task_name: str | None) -> MobileSpecialRunListItem:
@@ -500,6 +512,13 @@ async def export_run_json(
 # ---- Statistics ----
 
 @router.get("/statistics/overview", response_model=dict)
+@cached_json(
+    key_builder=_build_mobile_stats_cache_key("overview", "project_id", "days"),
+    serializer=_identity,
+    deserializer=_identity,
+    read_cache=_safe_get_mobile_stats_cache,
+    write_cache=_safe_set_mobile_stats_cache,
+)
 async def get_mobile_special_overview(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
@@ -507,11 +526,6 @@ async def get_mobile_special_overview(
     _=Depends(get_current_user),
 ):
     """Get overview statistics for mobile special testing."""
-    cache_key = _mobile_stats_cache_key("overview", project_id=project_id, days=days)
-    cached = await _safe_get_mobile_stats_cache(cache_key)
-    if cached is not None:
-        return cached
-
     from datetime import timedelta
     since = datetime.now(timezone.utc) - timedelta(days=days)
     since_7d = datetime.now(timezone.utc) - timedelta(days=7)
@@ -594,11 +608,17 @@ async def get_mobile_special_overview(
         "total_incidents": total_incidents,
         "recent_runs_7d": recent_runs_7d,
     }
-    await _safe_set_mobile_stats_cache(cache_key, result)
     return result
 
 
 @router.get("/statistics/trend", response_model=list[dict])
+@cached_json(
+    key_builder=_build_mobile_stats_cache_key("trend", "project_id", "days"),
+    serializer=_identity,
+    deserializer=_identity,
+    read_cache=_safe_get_mobile_stats_cache,
+    write_cache=_safe_set_mobile_stats_cache,
+)
 async def get_mobile_special_trend(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
@@ -606,11 +626,6 @@ async def get_mobile_special_trend(
     _=Depends(get_current_user),
 ):
     """Get daily trend statistics for mobile special testing."""
-    cache_key = _mobile_stats_cache_key("trend", project_id=project_id, days=days)
-    cached = await _safe_get_mobile_stats_cache(cache_key)
-    if cached is not None:
-        return cached
-
     from datetime import timedelta
     from sqlalchemy import cast, Date
     since = datetime.now(timezone.utc) - timedelta(days=days)
@@ -646,11 +661,17 @@ async def get_mobile_special_trend(
         }
         for r in rows
     ]
-    await _safe_set_mobile_stats_cache(cache_key, result)
     return result
 
 
 @router.get("/statistics/task-stats", response_model=list[dict])
+@cached_json(
+    key_builder=_build_mobile_stats_cache_key("task-stats", "project_id", "days", "limit"),
+    serializer=_identity,
+    deserializer=_identity,
+    read_cache=_safe_get_mobile_stats_cache,
+    write_cache=_safe_set_mobile_stats_cache,
+)
 async def get_task_statistics(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
@@ -659,11 +680,6 @@ async def get_task_statistics(
     _=Depends(get_current_user),
 ):
     """Get per-task statistics summary."""
-    cache_key = _mobile_stats_cache_key("task-stats", project_id=project_id, days=days, limit=limit)
-    cached = await _safe_get_mobile_stats_cache(cache_key)
-    if cached is not None:
-        return cached
-
     from datetime import timedelta
     since = datetime.now(timezone.utc) - timedelta(days=days)
 
@@ -708,5 +724,4 @@ async def get_task_statistics(
         }
         for r in rows
     ]
-    await _safe_set_mobile_stats_cache(cache_key, result)
     return result

@@ -554,18 +554,76 @@ import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons-vue'
 import { caseApi, datasetApi } from '@/api'
-import type { CaseSavePayload, CaseType } from '@/api'
+import type { CaseDetailItem, CaseSavePayload, CaseSummaryItem, CaseType } from '@/api'
 import KvEditor from '@/components/common/KvEditor.vue'
 
 const { t } = useI18n()
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 
+type AuthConfig = {
+  type: 'none' | 'bearer' | 'basic' | 'apikey'
+  token: string
+  username: string
+  password: string
+  header: string
+  value: string
+}
+
+type AssertionItem = {
+  target: string
+  operator: string
+  expected?: string
+  expression?: string
+}
+
+type ExtractionItem = {
+  variable: string
+  expression: string
+}
+
+type WsMessage = {
+  action: 'send' | 'receive' | 'disconnect' | string
+  data?: string
+  data_type?: 'text' | 'json' | string
+  timeout?: number
+  assertions: AssertionItem[]
+  extractions: ExtractionItem[]
+}
+
+type CaseConfigStep = Record<string, unknown> & {
+  url?: string
+  method?: string
+  headers?: Record<string, string>
+  params?: Record<string, string>
+  body_type?: 'none' | 'json' | 'form' | 'raw'
+  body?: unknown
+  auth?: Partial<AuthConfig>
+  timeout?: number
+  assertions?: AssertionItem[]
+  extractions?: ExtractionItem[]
+  endpoint?: string
+  operation_type?: 'query' | 'mutation'
+  query?: string
+  variables?: unknown
+  operation_name?: string
+  messages?: WsMessage[]
+  target?: string
+  use_tls?: boolean
+  proto_content?: string
+  service?: string
+  request_json?: string
+  metadata?: Record<string, string>
+}
+
+type EditableCase = Pick<CaseSummaryItem, 'id' | 'name' | 'description' | 'case_type' | 'tags' | 'dataset_id'> &
+  Partial<Pick<CaseDetailItem, 'config'>>
+
 const props = defineProps<{
   open: boolean
   moduleId: number | null
   projectId?: number | null
-  editCase?: any
+  editCase?: EditableCase | null
   defaultCaseType?: CaseType
 }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
@@ -596,8 +654,8 @@ const cfg = reactive({
   body: '',
   auth: { type: 'none', token: '', username: '', password: '', header: '', value: '' },
   timeout: 30,
-  assertions: [] as any[],
-  extractions: [] as any[],
+  assertions: [] as AssertionItem[],
+  extractions: [] as ExtractionItem[],
 })
 const formBody = ref<Record<string, string>>({})
 
@@ -610,8 +668,8 @@ const gqlCfg = reactive({
   headers: {} as Record<string, string>,
   auth: { type: 'none', token: '', username: '', password: '', header: '', value: '' },
   timeout: 30,
-  assertions: [] as any[],
-  extractions: [] as any[],
+  assertions: [] as AssertionItem[],
+  extractions: [] as ExtractionItem[],
 })
 
 const wsCfg = reactive({
@@ -619,7 +677,7 @@ const wsCfg = reactive({
   headers: {} as Record<string, string>,
   auth: { type: 'none', token: '', username: '', password: '', header: '', value: '' },
   timeout: 30,
-  messages: [] as any[],
+  messages: [] as WsMessage[],
 })
 
 const grpcCfg = reactive({
@@ -631,8 +689,8 @@ const grpcCfg = reactive({
   request_json: '',
   metadata: {} as Record<string, string>,
   timeout: 30,
-  assertions: [] as any[],
-  extractions: [] as any[],
+  assertions: [] as AssertionItem[],
+  extractions: [] as ExtractionItem[],
 })
 
 async function loadDatasetOptions() {
@@ -648,6 +706,23 @@ async function loadDatasetOptions() {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+function asStringMap(value: unknown): Record<string, string> {
+  return isRecord(value) ? { ...(value as Record<string, string>) } : {}
+}
+
+function getFirstStep(config: Record<string, unknown> | undefined): CaseConfigStep {
+  if (!config) return {}
+  const steps = config.steps
+  if (Array.isArray(steps) && isRecord(steps[0])) {
+    return steps[0] as CaseConfigStep
+  }
+  return config as CaseConfigStep
+}
+
 watch(() => props.open, (v) => {
   if (!v) return
   loadDatasetOptions()
@@ -659,15 +734,15 @@ watch(() => props.open, (v) => {
     form.case_type = c.case_type
     form.tags = c.tags ?? []
     form.dataset_id = c.dataset_id ?? null
-    const step = c.config?.steps?.[0] ?? c.config ?? {}
+    const step = getFirstStep(c.config)
     const bodyType = step.body_type ?? 'none'
     if (bodyType === 'form') {
-      if (step.body && typeof step.body === 'object' && !Array.isArray(step.body)) {
-        formBody.value = { ...step.body }
+      if (isRecord(step.body)) {
+        formBody.value = asStringMap(step.body)
       } else if (typeof step.body === 'string' && step.body.trim()) {
         try {
           const parsed = JSON.parse(step.body)
-          formBody.value = parsed && typeof parsed === 'object' && !Array.isArray(parsed) ? parsed : {}
+          formBody.value = asStringMap(parsed)
         } catch {
           formBody.value = {}
         }
@@ -713,7 +788,7 @@ watch(() => props.open, (v) => {
         headers: step.headers ?? {},
         auth: { type: 'none', token: '', username: '', password: '', header: '', value: '', ...step.auth },
         timeout: step.timeout ?? 30,
-        messages: (step.messages ?? []).map((m: any) => ({
+        messages: (step.messages ?? []).map((m) => ({
           action: m.action ?? 'send',
           data: m.data ?? '',
           data_type: m.data_type ?? 'text',
@@ -780,7 +855,7 @@ function addGqlAssertion() {
 
 function addWsMessage(action: 'send' | 'receive') {
   if (action === 'send') {
-    wsCfg.messages.push({ action: 'send', data: '', data_type: 'text' })
+    wsCfg.messages.push({ action: 'send', data: '', data_type: 'text', assertions: [], extractions: [] })
   } else {
     wsCfg.messages.push({ action: 'receive', timeout: 10, assertions: [], extractions: [] })
   }
@@ -794,7 +869,7 @@ function buildWebsocketConfig() {
       headers: wsCfg.headers,
       auth: wsCfg.auth,
       timeout: wsCfg.timeout,
-      messages: wsCfg.messages.map((m: any) => {
+      messages: wsCfg.messages.map((m) => {
         if (m.action === 'send') {
           return { action: 'send', data: m.data, data_type: m.data_type }
         } else if (m.action === 'receive') {
@@ -829,7 +904,7 @@ function buildGrpcConfig() {
 }
 
 function buildGraphqlConfig() {
-  let variables: any = {}
+  let variables: unknown = {}
   if (gqlCfg.variables_text.trim()) {
     try { variables = JSON.parse(gqlCfg.variables_text) } catch { /* keep empty */ }
   }
@@ -860,7 +935,7 @@ function buildConfig() {
   if (form.case_type === 'grpc') {
     return buildGrpcConfig()
   }
-  let body: any = cfg.body_type === 'form' ? { ...formBody.value } : cfg.body
+  let body: unknown = cfg.body_type === 'form' ? { ...formBody.value } : cfg.body
   if (cfg.body_type === 'json' && typeof body === 'string') {
     try { body = JSON.parse(body) } catch { /* keep string */ }
   }
@@ -912,7 +987,7 @@ async function handleSave() {
       config: buildConfig(),
       dataset_id: form.dataset_id,
     }
-    if (isEdit.value) {
+    if (isEdit.value && props.editCase) {
       await caseApi.update(props.editCase.id, { name: payload.name, description: payload.description, tags: payload.tags, config: payload.config, dataset_id: form.dataset_id })
     } else {
       await caseApi.create(payload)

@@ -123,23 +123,42 @@
 import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
-import { projectApi, environmentApi } from '@/api'
+import {
+  projectApi,
+  environmentApi,
+  type ProjectItem,
+  type EnvironmentItem,
+} from '@/api'
 
 const { t } = useI18n()
 
+type EditingVariable = {
+  key: string
+  value: string
+  is_secret: boolean
+  _idx: number
+  _wasSecret: boolean
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  return fallback
+}
+
 // -- Project selection --
-const projects = ref<any[]>([])
+const projects = ref<ProjectItem[]>([])
 const projectOptions = ref<Array<{ label: string; value: number }>>([])
 const selectedProjectId = ref<number | null>(null)
 
 // -- Environment list --
-const environments = ref<any[]>([])
+const environments = ref<EnvironmentItem[]>([])
 const selectedEnvId = ref<number | null>(null)
-const selectedEnv = ref<any>(null)
+const selectedEnv = ref<EnvironmentItem | null>(null)
 const loading = ref(false)
 
 // -- Variable editor --
-const editingVars = ref<Array<{ key: string; value: string; is_secret: boolean; _idx: number; _wasSecret: boolean }>>([])
+const editingVars = ref<EditingVariable[]>([])
 const varsLoading = ref(false)
 const saving = ref(false)
 const envSaving = ref(false)
@@ -154,16 +173,16 @@ const varColumns = computed(() => [
 
 // -- Create/Edit env form --
 const showCreateModal = ref(false)
-const editingEnv = ref<any>(null)
+const editingEnv = ref<EnvironmentItem | null>(null)
 const envForm = ref({ name: '', description: '' })
 
 onMounted(async () => {
   try {
     const list = await projectApi.list()
     projects.value = list
-    projectOptions.value = list.map((p: any) => ({ label: p.name, value: p.id }))
-  } catch (e: any) {
-    message.error(e ?? t('system_pages.environment.msg.load_projects_failed'))
+    projectOptions.value = list.map((p) => ({ label: p.name, value: p.id }))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.environment.msg.load_projects_failed')))
   }
 })
 
@@ -179,14 +198,14 @@ async function loadEnvironments() {
   loading.value = true
   try {
     environments.value = await environmentApi.list(selectedProjectId.value)
-  } catch (e: any) {
-    message.error(e ?? t('system_pages.environment.msg.load_envs_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.environment.msg.load_envs_failed')))
   } finally {
     loading.value = false
   }
 }
 
-async function selectEnv(env: any) {
+async function selectEnv(env: EnvironmentItem) {
   selectedEnvId.value = env.id
   selectedEnv.value = env
   await loadVariables()
@@ -197,15 +216,15 @@ async function loadVariables() {
   varsLoading.value = true
   try {
     const vars = await environmentApi.getVariables(selectedEnvId.value)
-    editingVars.value = vars.map((v: any) => ({
+    editingVars.value = vars.map((v) => ({
       key: v.key,
       value: v.is_secret ? '' : v.value,
       is_secret: v.is_secret,
       _idx: varIdx++,
       _wasSecret: v.is_secret,
     }))
-  } catch (e: any) {
-    message.error(e ?? t('system_pages.environment.msg.load_vars_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.environment.msg.load_vars_failed')))
   } finally {
     varsLoading.value = false
   }
@@ -250,15 +269,15 @@ async function handleSaveVars() {
     await environmentApi.saveVariables(selectedEnvId.value, { variables })
     message.success(t('system_pages.environment.msg.variables_saved'))
     await loadVariables()
-  } catch (e: any) {
-    message.error(e ?? t('system_pages.environment.msg.save_vars_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.environment.msg.save_vars_failed')))
   } finally {
     saving.value = false
   }
 }
 
 // -- Environment CRUD --
-function openEditModal(env: any) {
+function openEditModal(env: EnvironmentItem) {
   editingEnv.value = env
   envForm.value = { name: env.name, description: env.description || '' }
   showCreateModal.value = true
@@ -296,13 +315,13 @@ async function handleSaveEnv() {
     await loadEnvironments()
     // Refresh selectedEnv if it was the one being edited
     if (selectedEnvId.value) {
-      const updated = environments.value.find((e: any) => e.id === selectedEnvId.value)
+      const updated = environments.value.find((e) => e.id === selectedEnvId.value)
       if (updated) {
         selectedEnv.value = updated
       }
     }
-  } catch (e: any) {
-    message.error(e ?? t('system_pages.environment.msg.save_env_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.environment.msg.save_env_failed')))
   } finally {
     envSaving.value = false
   }
@@ -318,8 +337,8 @@ async function handleDeleteEnv(id: number) {
       editingVars.value = []
     }
     await loadEnvironments()
-  } catch (e: any) {
-    message.error(e ?? t('system_pages.environment.msg.delete_env_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.environment.msg.delete_env_failed')))
   }
 }
 </script>

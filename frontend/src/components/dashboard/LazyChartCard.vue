@@ -1,5 +1,8 @@
 <template>
   <a-card :title="title">
+    <template v-if="$slots.extra" #extra>
+      <slot name="extra" />
+    </template>
     <div ref="container" :style="{ minHeight: minHeight + 'px' }">
       <slot v-if="visible" />
       <div v-else style="display: flex; align-items: center; justify-content: center; height: 320px">

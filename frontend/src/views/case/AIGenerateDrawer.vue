@@ -222,6 +222,26 @@ const selectedDraftKeys = ref<string[]>([])
 
 const saving = ref(false)
 
+type DraftRecordRender = { record: AICaseDraft }
+type TableIndexRender = { index: number }
+type ErrorLike = {
+  response?: {
+    data?: {
+      detail?: unknown
+    }
+  }
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'object' && error !== null) {
+    const typed = error as ErrorLike
+    if (typeof typed.response?.data?.detail === 'string') return typed.response.data.detail
+  }
+  if (error instanceof Error) return error.message
+  if (typeof error === 'string') return error
+  return fallback
+}
+
 const placeholderForType = computed(() => {
   switch (sourceType.value) {
     case 'openapi':
@@ -260,12 +280,12 @@ const endpointColumns = computed(() => [
 const draftColumns = computed(() => [
   { title: t('common.name'), dataIndex: 'name', key: 'name' },
   { title: t('case.detail.summary'), dataIndex: 'summary', key: 'summary', ellipsis: true },
-  { title: t('case.ai.step_count'), key: 'stepCount', width: 80, customRender: ({ record }: any) => record.steps?.length ?? 0 },
+  { title: t('case.ai.step_count'), key: 'stepCount', width: 80, customRender: ({ record }: DraftRecordRender) => record.steps?.length ?? 0 },
   { title: t('case.filters.priority'), dataIndex: 'priority', key: 'priority', width: 80 },
 ])
 
 const stepColumns = computed(() => [
-  { title: '#', key: 'idx', width: 50, customRender: ({ index }: any) => index + 1 },
+  { title: '#', key: 'idx', width: 50, customRender: ({ index }: TableIndexRender) => index + 1 },
   { title: t('case.ai.action'), dataIndex: 'action', key: 'action' },
   { title: t('case.detail.test_data'), dataIndex: 'test_data', key: 'test_data', ellipsis: true },
   { title: t('case.detail.expected_result'), dataIndex: 'expected_result', key: 'expected_result', ellipsis: true },
@@ -307,8 +327,8 @@ async function handleParse() {
     } else {
       message.success(t('case.ai.msg.parsed', { count: parsedEndpoints.value.length }))
     }
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? t('case.ai.msg.parse_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.ai.msg.parse_failed')))
   } finally {
     parsing.value = false
   }
@@ -356,8 +376,8 @@ async function handleGenerate() {
     } else {
       message.success(t('case.ai.msg.generated', { count: drafts.value.length }))
     }
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail ?? t('case.ai.msg.generate_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.ai.msg.generate_failed')))
   } finally {
     generating.value = false
   }
@@ -398,8 +418,8 @@ async function handleSaveSelected() {
         config: draft.config ?? {},
       })
       succeeded += 1
-    } catch (e: any) {
-      failures.push(`${draft.name}: ${e?.response?.data?.detail ?? t('case.ai.msg.save_failed')}`)
+    } catch (e: unknown) {
+      failures.push(`${draft.name}: ${errorMessage(e, t('case.ai.msg.save_failed'))}`)
     }
   }
   saving.value = false

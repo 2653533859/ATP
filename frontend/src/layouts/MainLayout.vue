@@ -63,6 +63,7 @@
           <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
           <a-menu-item v-if="auth.user?.role === 'admin'" key="/system/audit-logs">{{ t('menu.system.audit_logs') }}</a-menu-item>
           <a-menu-item v-if="auth.user?.role === 'admin'" key="/system/run-retention">{{ t('menu.system.run_retention') }}</a-menu-item>
+          <a-menu-item v-if="auth.user?.role === 'admin'" key="/system/dashboard-alerts">{{ t('menu.system.dashboard_alerts') }}</a-menu-item>
         </a-sub-menu>
       </a-menu>
     </a-layout-sider>

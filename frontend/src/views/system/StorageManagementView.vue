@@ -236,6 +236,26 @@ const executeLoading = ref(false)
 const policiesLoading = ref(false)
 const policySaving = ref(false)
 
+type ErrorLike = {
+  message?: unknown
+  response?: {
+    data?: {
+      detail?: unknown
+    }
+  }
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error !== null) {
+    const typed = error as ErrorLike
+    if (typeof typed.response?.data?.detail === 'string') return typed.response.data.detail
+    if (typeof typed.message === 'string') return typed.message
+  }
+  return fallback
+}
+
 const retentionDays = ref(30)
 const repairOrphans = ref(false)
 const selectedPrefixes = ref<string[]>([...defaultPrefixes])
@@ -306,8 +326,8 @@ async function loadStats() {
   statsLoading.value = true
   try {
     stats.value = await storageApi.stats()
-  } catch (e: any) {
-    message.error(e?.message || t('system_pages.storage.msg.load_stats_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.storage.msg.load_stats_failed')))
   } finally {
     statsLoading.value = false
   }
@@ -321,8 +341,8 @@ async function loadPolicies() {
     if (enabledPrefixes.length) {
       selectedPrefixes.value = enabledPrefixes
     }
-  } catch (e: any) {
-    message.error(e?.message || t('system_pages.storage.msg.load_policies_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.storage.msg.load_policies_failed')))
   } finally {
     policiesLoading.value = false
   }
@@ -336,8 +356,8 @@ async function loadPreview() {
       prefixes: selectedPrefixes.value,
       retention_days: retentionDays.value,
     })
-  } catch (e: any) {
-    message.error(e?.message || t('system_pages.storage.msg.load_preview_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.storage.msg.load_preview_failed')))
   } finally {
     previewLoading.value = false
   }
@@ -363,8 +383,8 @@ function handleExecute() {
         })
         message.success(t('system_pages.storage.msg.execute_success'))
         await Promise.all([loadStats(), loadPreview()])
-      } catch (e: any) {
-        message.error(e?.message || t('system_pages.storage.msg.execute_failed'))
+      } catch (e: unknown) {
+        message.error(errorMessage(e, t('system_pages.storage.msg.execute_failed')))
       } finally {
         executeLoading.value = false
       }
@@ -422,8 +442,8 @@ async function submitPolicyForm() {
     }
     policyDrawerVisible.value = false
     await loadPolicies()
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail || e?.message || t('system_pages.storage.msg.save_policy_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.storage.msg.save_policy_failed')))
   } finally {
     policySaving.value = false
   }
@@ -434,8 +454,8 @@ async function handleDeletePolicy(record: StoragePolicyItem) {
     await storageApi.deletePolicy(record.id)
     message.success(t('system_pages.storage.msg.policy_deleted'))
     await loadPolicies()
-  } catch (e: any) {
-    message.error(e?.response?.data?.detail || e?.message || t('system_pages.storage.msg.delete_policy_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.storage.msg.delete_policy_failed')))
   }
 }
 

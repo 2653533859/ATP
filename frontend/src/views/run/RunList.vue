@@ -25,11 +25,11 @@
 import { computed, ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { runApi } from '@/api'
+import { runApi, type RunDetailItem } from '@/api'
 
 const router = useRouter()
 const { t } = useI18n()
-const runs = ref<any[]>([])
+const runs = ref<RunDetailItem[]>([])
 const loading = ref(false)
 
 const pagination = reactive({
@@ -65,9 +65,9 @@ async function loadRuns() {
   }
 }
 
-function handleTableChange(pag: any) {
-  pagination.current = pag.current
-  pagination.pageSize = pag.pageSize
+function handleTableChange(pag: { current?: number; pageSize?: number }) {
+  pagination.current = pag.current ?? pagination.current
+  pagination.pageSize = pag.pageSize ?? pagination.pageSize
   loadRuns()
 }
 

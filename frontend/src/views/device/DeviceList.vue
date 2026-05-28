@@ -122,9 +122,10 @@ import { message } from 'ant-design-vue'
 import { ReloadOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { deviceApi } from '@/api'
+import type { DeviceItem, DeviceStatus } from '@/api'
 
 const { t } = useI18n()
-const devices = ref<any[]>([])
+const devices = ref<DeviceItem[]>([])
 const loading = ref(false)
 const scanning = ref(false)
 const statusFilter = ref<string | undefined>(undefined)
@@ -135,7 +136,7 @@ const editingId = ref<number | null>(null)
 const editForm = ref({ name: '', description: '' })
 
 const mirrorOpen = ref(false)
-const mirrorDevice = ref<any>(null)
+const mirrorDevice = ref<DeviceItem | null>(null)
 const mirrorSrc = ref<string | null>(null)
 let mirrorTimer: ReturnType<typeof setInterval> | null = null
 let mirrorObjectUrl: string | null = null
@@ -151,11 +152,17 @@ const columns = computed(() => [
   { title: t('device.columns.action'), key: 'action', width: 180, fixed: 'right' as const },
 ])
 
-function statusBadge(s: string) {
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  return fallback
+}
+
+function statusBadge(s: DeviceStatus) {
   return { online: 'success', offline: 'default', busy: 'processing' }[s] ?? 'default'
 }
 
-function statusLabel(s: string) {
+function statusLabel(s: DeviceStatus) {
   return {
     online: t('device.statuses.online'),
     offline: t('device.statuses.offline'),
@@ -173,8 +180,8 @@ async function loadDevices() {
     devices.value = await deviceApi.list(
       statusFilter.value ? { status_filter: statusFilter.value } : undefined,
     )
-  } catch (e: any) {
-    message.error(e ?? t('device.msg.load_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('device.msg.load_failed')))
   } finally {
     loading.value = false
   }
@@ -185,14 +192,14 @@ async function handleScan() {
   try {
     devices.value = await deviceApi.scan()
     message.success(t('device.msg.scan_success', { count: devices.value.length }))
-  } catch (e: any) {
-    message.error(e ?? t('device.msg.scan_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('device.msg.scan_failed')))
   } finally {
     scanning.value = false
   }
 }
 
-function openEdit(record: any) {
+function openEdit(record: DeviceItem) {
   editingId.value = record.id
   editForm.value = {
     name: record.name ?? '',
@@ -209,8 +216,8 @@ async function handleSave() {
     message.success(t('device.msg.save_success'))
     editOpen.value = false
     loadDevices()
-  } catch (e: any) {
-    message.error(e ?? t('device.msg.save_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('device.msg.save_failed')))
   } finally {
     saving.value = false
   }
@@ -221,12 +228,12 @@ async function handleDelete(id: number) {
     await deviceApi.delete(id)
     message.success(t('device.msg.delete_success'))
     loadDevices()
-  } catch (e: any) {
-    message.error(e ?? t('device.msg.delete_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('device.msg.delete_failed')))
   }
 }
 
-function openMirror(record: any) {
+function openMirror(record: DeviceItem) {
   mirrorDevice.value = record
   mirrorOpen.value = true
   mirrorSession += 1

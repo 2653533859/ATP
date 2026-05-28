@@ -160,14 +160,32 @@ import { ref, reactive, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { UploadOutlined, CheckCircleOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { caseApi, scriptApi } from '@/api'
+import { caseApi, scriptApi, type CaseSummaryItem } from '@/api'
 import MonacoEditor from '@/components/common/MonacoEditor.vue'
 import LowcodeStepEditor from '@/components/common/LowcodeStepEditor.vue'
+
+type LowcodeStep = {
+  action: string
+  name: string
+  params: Record<string, unknown>
+}
+
+type WebCaseConfig = Record<string, unknown> & {
+  browser?: string
+  headless?: boolean
+  timeout?: number
+  viewport?: {
+    width?: number
+    height?: number
+  }
+  script_path?: string
+  steps?: LowcodeStep[]
+}
 
 const props = defineProps<{
   open: boolean
   moduleId: number | null
-  editCase?: any
+  editCase?: CaseSummaryItem | null
 }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
 const { t } = useI18n()
@@ -193,7 +211,7 @@ const cfg = reactive({
   viewportHeight: 720,
 })
 
-const lowcodeSteps = ref<Array<{ action: string; name: string; params: Record<string, any> }>>([])
+const lowcodeSteps = ref<LowcodeStep[]>([])
 
 // Script
 const scriptContent = ref('')
@@ -203,8 +221,14 @@ const savingScript = ref(false)
 const loadingScript = ref(false)
 const initSeq = ref(0)
 
-function hasOwn(obj: any, key: string) {
+function hasOwn(obj: object | null | undefined, key: string) {
   return Object.prototype.hasOwnProperty.call(obj ?? {}, key)
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  return fallback
 }
 
 function resetDrawerState() {
@@ -224,7 +248,7 @@ function resetDrawerState() {
   editMode.value = 'lowcode'
 }
 
-function resolveEditMode(config: Record<string, any>) {
+function resolveEditMode(config: WebCaseConfig) {
   if (hasOwn(config, 'steps')) {
     return 'lowcode' as const
   }
@@ -240,37 +264,36 @@ watch(() => props.open, async (v) => {
   resetDrawerState()
 
   if (props.editCase) {
-    let detail: any
     try {
-      detail = await caseApi.get(props.editCase.id) as any
+      const detail = await caseApi.get(props.editCase.id)
+      if (seq !== initSeq.value || !props.open) return
+
+      if (!hasOwn(detail, 'config')) {
+        message.error(t('case.drawer.web.msg.config_missing_cancel'))
+        emit('close')
+        return
+      }
+
+      isEdit.value = true
+      localCaseId.value = detail.id
+      form.name = detail.name
+      form.description = detail.description ?? ''
+      form.tags = detail.tags ?? []
+      const c = detail.config as WebCaseConfig
+      cfg.browser = 'chromium'
+      cfg.headless = c.headless ?? true
+      cfg.timeout = c.timeout ?? 60
+      cfg.viewportWidth = c.viewport?.width ?? 1280
+      cfg.viewportHeight = c.viewport?.height ?? 720
+      scriptPath.value = c.script_path ?? null
+      lowcodeSteps.value = Array.isArray(c.steps) ? c.steps : []
+      editMode.value = resolveEditMode(c)
     } catch {
       if (seq !== initSeq.value || !props.open) return
       message.error(t('case.drawer.web.msg.load_failed_cancel'))
       emit('close')
       return
     }
-    if (seq !== initSeq.value || !props.open) return
-
-    if (!hasOwn(detail, 'config')) {
-      message.error(t('case.drawer.web.msg.config_missing_cancel'))
-      emit('close')
-      return
-    }
-
-    isEdit.value = true
-    localCaseId.value = detail.id
-    form.name = detail.name
-    form.description = detail.description ?? ''
-    form.tags = detail.tags ?? []
-    const c = detail.config ?? {}
-    cfg.browser = 'chromium'
-    cfg.headless = c.headless ?? true
-    cfg.timeout = c.timeout ?? 60
-    cfg.viewportWidth = c.viewport?.width ?? 1280
-    cfg.viewportHeight = c.viewport?.height ?? 720
-    scriptPath.value = c.script_path ?? null
-    lowcodeSteps.value = c.steps ?? []
-    editMode.value = resolveEditMode(c)
   }
 })
 
@@ -305,12 +328,12 @@ async function handleUpload(file: File) {
   if (!localCaseId.value) return false
   uploading.value = true
   try {
-    const res = await scriptApi.upload(localCaseId.value, file) as any
+    const res = await scriptApi.upload(localCaseId.value, file)
     scriptPath.value = res.script_path
     message.success(t('case.drawer.msg.script_uploaded'))
     await loadScript()
-  } catch (e: any) {
-    message.error(e ?? t('case.drawer.msg.upload_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.drawer.msg.upload_failed')))
   } finally {
     uploading.value = false
   }
@@ -321,11 +344,11 @@ async function handleSaveScript() {
   if (!localCaseId.value || !scriptContent.value.trim()) return
   savingScript.value = true
   try {
-    const res = await scriptApi.saveContent(localCaseId.value, scriptContent.value) as any
+    const res = await scriptApi.saveContent(localCaseId.value, scriptContent.value)
     scriptPath.value = res.script_path
     message.success(t('case.drawer.msg.script_saved'))
-  } catch (e: any) {
-    message.error(e ?? t('case.drawer.msg.save_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.drawer.msg.save_failed')))
   } finally {
     savingScript.value = false
   }
@@ -378,7 +401,7 @@ async function handleSave() {
         tags: form.tags,
         module_id: props.moduleId!,
         config,
-      }) as any
+      })
       localCaseId.value = newCase.id
       isEdit.value = true
       message.success(t('case.drawer.msg.case_created'))
@@ -387,8 +410,8 @@ async function handleSave() {
         emit('close')
       }
     }
-  } catch (e: any) {
-    message.error(e ?? t('case.drawer.msg.save_failed'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.drawer.msg.save_failed')))
   } finally {
     saving.value = false
   }

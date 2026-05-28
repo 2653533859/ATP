@@ -206,18 +206,21 @@ import { PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons-
 import draggable from 'vuedraggable'
 import { useI18n } from 'vue-i18n'
 
+type StepParams = Record<string, unknown>
+type ExternalStep = { action: string; name: string; params: StepParams }
+
 interface StepDef {
   action: string
   name: string
-  params: Record<string, any>
+  params: StepParams
   _key: number
 }
 
 const props = defineProps<{
-  modelValue: Array<{ action: string; name: string; params: Record<string, any> }>
+  modelValue: ExternalStep[]
 }>()
 const emit = defineEmits<{
-  'update:modelValue': [value: Array<{ action: string; name: string; params: Record<string, any> }>]
+  'update:modelValue': [value: ExternalStep[]]
 }>()
 const { t } = useI18n()
 
@@ -236,7 +239,7 @@ const actionOptions = computed(() => [
   { label: t('case.lowcode_editor.actions.hover'), value: 'hover' },
 ])
 
-const defaultParams: Record<string, () => Record<string, any>> = {
+const defaultParams: Record<string, () => StepParams> = {
   goto: () => ({ url: '' }),
   click: () => ({ selector: '' }),
   fill: () => ({ selector: '', value: '' }),
@@ -249,7 +252,7 @@ const defaultParams: Record<string, () => Record<string, any>> = {
   hover: () => ({ selector: '' }),
 }
 
-function toInternal(items: Array<{ action: string; name: string; params: Record<string, any> }>): StepDef[] {
+function toInternal(items: ExternalStep[]): StepDef[] {
   const keyPool = new Map<string, number[]>()
 
   for (const step of steps.value) {
@@ -272,13 +275,13 @@ function toInternal(items: Array<{ action: string; name: string; params: Record<
   })
 }
 
-function toExternal(items: StepDef[]): Array<{ action: string; name: string; params: Record<string, any> }> {
+function toExternal(items: StepDef[]): ExternalStep[] {
   return items.map(({ action, name, params }) => ({ action, name, params }))
 }
 
 const steps = ref<StepDef[]>([])
 
-function isSameSteps(items: Array<{ action: string; name: string; params: Record<string, any> }>) {
+function isSameSteps(items: ExternalStep[]) {
   return JSON.stringify(items) === JSON.stringify(toExternal(steps.value))
 }
 

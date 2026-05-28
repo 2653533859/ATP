@@ -89,6 +89,67 @@ def test_invalidate_stats_cache_swallows_delete_failure(monkeypatch):
     asyncio.run(statistics.invalidate_stats_cache())
 
 
+async def _read_streaming_response_text(response) -> str:
+    chunks = []
+    async for chunk in response.body_iterator:
+        chunks.append(chunk.decode("utf-8") if isinstance(chunk, bytes) else chunk)
+    return "".join(chunks)
+
+
+def test_statistics_csv_response_writes_header_and_rows():
+    response = statistics._csv_response(
+        "sample.csv",
+        [{"date": "2026-05-27", "total": 2, "rate": 50.0}],
+    )
+
+    body = asyncio.run(_read_streaming_response_text(response))
+
+    assert response.headers["content-disposition"] == 'attachment; filename="sample.csv"'
+    assert "date,total,rate" in body
+    assert "2026-05-27,2,50.0" in body
+
+
+def test_export_statistics_csv_routes_to_selected_chart(monkeypatch):
+    called = {}
+
+    async def fake_pass_rate_trend(project_id, days, case_type, aggregate, db, user):
+        called.update(
+            {
+                "project_id": project_id,
+                "days": days,
+                "case_type": case_type,
+                "aggregate": aggregate,
+                "db": db,
+                "user": user,
+            }
+        )
+        return [statistics.PassRateTrendItem(date="2026-05-27", total=4, passed=3, rate=75.0)]
+
+    monkeypatch.setattr(statistics, "get_pass_rate_trend", fake_pass_rate_trend)
+
+    db = object()
+    user = object()
+    response = asyncio.run(
+        statistics.export_statistics_csv(
+            chart="pass_rate_trend",
+            project_id=9,
+            days=7,
+            aggregate="daily",
+            case_type=None,
+            top=10,
+            db=db,
+            _=user,
+        )
+    )
+    body = asyncio.run(_read_streaming_response_text(response))
+
+    assert called["project_id"] == 9
+    assert called["days"] == 7
+    assert called["db"] is db
+    assert called["user"] is user
+    assert "date,total,passed,rate" in body
+    assert "2026-05-27,4,3,75.0" in body
+
 
 def test_get_overview_uses_selected_days_for_run_metrics(monkeypatch):
     since_calls = []

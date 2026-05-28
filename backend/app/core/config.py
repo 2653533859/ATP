@@ -70,6 +70,8 @@ class Settings(BaseSettings):
     STORAGE_ALERT_INTERVAL_SECONDS: int = 3600
     # 单次告警扫描的最大对象数；超过即放弃本次计算（保护 MinIO list_objects 性能）
     STORAGE_ALERT_MAX_SCAN_OBJECTS: int = 100000
+    # Dashboard alert suppression default; individual rules can override.
+    DASHBOARD_ALERT_DEFAULT_SUPPRESS_MIN: int = 60
 
     # Rate limiting
     RATE_LIMIT_LOGIN: str = "5/minute"
