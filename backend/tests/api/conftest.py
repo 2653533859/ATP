@@ -17,6 +17,23 @@ _minio_stub = types.SimpleNamespace(
     ensure_bucket=lambda: None,
     read_bytes=lambda *_a, **_kw: b"",
     upload_bytes=lambda *_a, **_kw: None,
+    download_file=lambda *_a, **_kw: None,
+    upload_file=lambda *_a, **_kw: None,
+    presigned_url=lambda *_a, **_kw: "",
+    get_client=lambda *_a, **_kw: None,
+)
+
+# 单一字段清单：stub 定义与「已存在时补缺字段」循环共用，避免二者脱节
+_MINIO_STUB_FIELDS = (
+    "list_objects",
+    "delete_file",
+    "ensure_bucket",
+    "read_bytes",
+    "upload_bytes",
+    "download_file",
+    "upload_file",
+    "presigned_url",
+    "get_client",
 )
 
 if "app.core.minio_client" not in sys.modules:
@@ -24,7 +41,7 @@ if "app.core.minio_client" not in sys.modules:
 else:
     # 已 stub 但可能缺字段时，补齐共用字段
     _existing = sys.modules["app.core.minio_client"]
-    for _name in ("list_objects", "delete_file", "ensure_bucket", "read_bytes", "upload_bytes"):
+    for _name in _MINIO_STUB_FIELDS:
         if not hasattr(_existing, _name):
             setattr(_existing, _name, getattr(_minio_stub, _name))
 
