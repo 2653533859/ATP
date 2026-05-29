@@ -57,7 +57,40 @@
           "minimum": 0,
           "maximum": 65535,
           "description": "Port exposed by each Celery worker child process for Prometheus /metrics. Set to 0 to disable."
+        },
+        "queues": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Comma-separated Celery queues listened by the default worker deployment."
         }
+      }
+    },
+    "performanceWorker": {
+      "type": "object",
+      "description": "Optional dedicated Celery worker Deployment for performance test tasks.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable a separate worker that only consumes the performance queue."
+        },
+        "replicas": { "$ref": "#/definitions/nonNegativeInteger" },
+        "queues": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Comma-separated queues for the dedicated performance worker."
+        },
+        "concurrency": {
+          "type": ["string", "integer"],
+          "description": "Celery concurrency for the dedicated performance worker."
+        },
+        "metricsPort": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "Prometheus metrics port for the dedicated performance worker."
+        },
+        "resources": { "$ref": "#/definitions/resources" }
       }
     },
     "resources": {
@@ -81,6 +114,7 @@
         "APP_AUTO_CREATE_TABLES": { "type": ["string", "boolean"], "description": "Whether startup may create tables automatically." },
         "LOG_LEVEL": { "type": "string", "description": "Application log level." },
         "CELERY_CONCURRENCY": { "type": ["string", "integer"], "description": "Celery worker concurrency." },
+        "CELERY_QUEUES": { "type": "string", "description": "Comma-separated Celery queues listened by this worker." },
         "ADB_SCAN_ENABLED": { "type": ["string", "boolean"], "description": "Enable periodic ADB device scanning." },
         "OTEL_SERVICE_NAME": { "type": "string", "description": "OpenTelemetry service name." },
         "OTEL_EXPORTER_OTLP_ENDPOINT": { "type": "string", "description": "Optional OTLP collector endpoint." },
@@ -157,7 +191,8 @@
       "description": "HorizontalPodAutoscaler settings.",
       "properties": {
         "backend": { "$ref": "#/definitions/hpa" },
-        "worker": { "$ref": "#/definitions/hpa" }
+        "worker": { "$ref": "#/definitions/hpa" },
+        "performanceWorker": { "$ref": "#/definitions/hpa" }
       }
     }
   },

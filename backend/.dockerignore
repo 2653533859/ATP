@@ -2,3 +2,8 @@ __pycache__/
 .pytest_cache/
 pytest-cache-files-*/
 tests/
+venv/
+.venv/
+*.pyc
+*.pyo
+*.pyd

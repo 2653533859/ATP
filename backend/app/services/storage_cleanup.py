@@ -14,6 +14,7 @@ from app.core.object_refs import extract_object_name
 from app.models.apk import Apk
 from app.models.case import StepResult, TestCase
 from app.models.mobile_special import MobileIncident, MobileRunArtifact
+from app.models.performance import PerformanceRun, PerformanceTest
 from app.models.storage_policy import StoragePolicy
 from app.models.suite import TestSuite
 from app.schemas.storage import (
@@ -27,7 +28,7 @@ from app.schemas.storage import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CLEANUP_PREFIXES = ("screenshots/", "reports/", "apks/", "scripts/")
+DEFAULT_CLEANUP_PREFIXES = ("screenshots/", "reports/", "apks/", "scripts/", "performance/")
 
 
 @dataclass
@@ -146,6 +147,38 @@ def _iter_suite_parameterization_references(session: Session) -> list[ObjectRefe
     return references
 
 
+def _iter_performance_references(session: Session) -> list[ObjectReference]:
+    references: list[ObjectReference] = []
+    test_rows = session.execute(select(PerformanceTest.id, PerformanceTest.script_object_name)).all()
+    for record_id, value in test_rows:
+        object_name = extract_object_name(value)
+        if object_name:
+            references.append(
+                ObjectReference(
+                    reference_type="performance_test",
+                    record_id=record_id,
+                    field_name="script_object_name",
+                    object_name=object_name,
+                    repairable=False,
+                )
+            )
+
+    run_rows = session.execute(select(PerformanceRun.id, PerformanceRun.raw_result_object_name)).all()
+    for record_id, value in run_rows:
+        object_name = extract_object_name(value)
+        if object_name:
+            references.append(
+                ObjectReference(
+                    reference_type="performance_run",
+                    record_id=record_id,
+                    field_name="raw_result_object_name",
+                    object_name=object_name,
+                    repairable=True,
+                )
+            )
+    return references
+
+
 def collect_db_references(session: Session) -> list[ObjectReference]:
     references: list[ObjectReference] = []
 
@@ -179,6 +212,7 @@ def collect_db_references(session: Session) -> list[ObjectReference]:
 
     references.extend(_iter_case_script_references(session))
     references.extend(_iter_suite_parameterization_references(session))
+    references.extend(_iter_performance_references(session))
 
     incident_rows = session.execute(select(MobileIncident.id, MobileIncident.artifact_path)).all()
     for record_id, value in incident_rows:
@@ -410,6 +444,12 @@ def _repair_reference(session: Session, ref: ObjectReference) -> bool:
         if not row:
             return False
         row.file_path = ""
+        return True
+    if ref.reference_type == "performance_run":
+        row = session.get(PerformanceRun, ref.record_id)
+        if not row:
+            return False
+        row.raw_result_object_name = None
         return True
     return False
 

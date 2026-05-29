@@ -21,6 +21,7 @@ celery_app = Celery(
         "app.worker.tasks_mobile_special",
         "app.worker.tasks_db_backup",
         "app.worker.tasks_healing",
+        "app.worker.tasks_performance",
     ],
 )
 
@@ -28,6 +29,34 @@ celery_app.conf.update(
     task_serializer="json",
     result_serializer="json",
     accept_content=["json"],
+    task_default_queue="default",
+    task_create_missing_queues=True,
+    task_routes={
+        # 高频普通执行入口
+        "run_test_case": {"queue": "default"},
+        "run_test_suite": {"queue": "default"},
+        "run_test_plan": {"queue": "default"},
+        "check_cron_plans": {"queue": "default"},
+        # Android 专项与设备扫描，通常受真机资源约束
+        "run_mobile_special_task": {"queue": "mobile_special"},
+        "check_mobile_special_schedules": {"queue": "mobile_special"},
+        "cleanup_stale_mobile_special_runs": {"queue": "mobile_special"},
+        "scan_adb_devices": {"queue": "mobile_special"},
+        # 外部 LLM 调用，便于独立限流与降级
+        "diagnose_step_failure": {"queue": "ai"},
+        "diagnose_run_failure": {"queue": "ai"},
+        "aggregate_healing_feedback": {"queue": "ai"},
+        # HTTP 压测任务，预留独立 worker 与资源配额
+        "run_performance_test": {"queue": "performance"},
+        # 清理、备份、告警等后台维护任务
+        "cleanup_expired_files": {"queue": "maintenance"},
+        "cleanup_stale_pending_runs": {"queue": "maintenance"},
+        "cleanup_old_completed_runs": {"queue": "maintenance"},
+        "check_storage_usage": {"queue": "maintenance"},
+        "check_dashboard_alerts": {"queue": "maintenance"},
+        "backup_postgres_daily": {"queue": "maintenance"},
+        "backup_postgres_weekly": {"queue": "maintenance"},
+    },
     timezone="Asia/Shanghai",
     enable_utc=True,
     task_track_started=True,

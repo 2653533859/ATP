@@ -43,3 +43,26 @@ spec:
           type: Utilization
           averageUtilization: {{ .Values.hpa.worker.targetCPUUtilizationPercentage }}
 {{- end }}
+{{- if and .Values.performanceWorker.enabled .Values.hpa.performanceWorker.enabled }}
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "atp.fullname" . }}-performance-worker
+  labels:
+    {{- include "atp.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "atp.fullname" . }}-performance-worker
+  minReplicas: {{ .Values.hpa.performanceWorker.minReplicas }}
+  maxReplicas: {{ .Values.hpa.performanceWorker.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.hpa.performanceWorker.targetCPUUtilizationPercentage }}
+{{- end }}

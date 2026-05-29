@@ -34,12 +34,12 @@ def test_app_startup_uses_shared_model_bootstrap():
     assert "load_all_models()" in content
 
 
-def test_bootstrap_db_uses_shared_model_bootstrap():
+def test_bootstrap_db_runs_alembic_upgrade_only():
     bootstrap_file = Path(__file__).resolve().parents[2] / "app" / "bootstrap_db.py"
     content = bootstrap_file.read_text(encoding="utf-8")
 
-    assert "from app.models.bootstrap import load_all_models" in content
-    assert "load_all_models()" in content
+    assert "command.upgrade" in content
+    assert "load_all_models" not in content
 
 
 def test_worker_uses_shared_model_bootstrap():

@@ -1,15 +1,36 @@
-FROM python:3.12-slim-bookworm
+FROM python:3.12-slim-bookworm AS python-deps
 
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc libpq-dev android-tools-adb \
+    gcc libpq-dev \
     && rm -rf /var/lib/apt/lists/*
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt \
-    && playwright install chromium --with-deps
+RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
+
+ARG K6_IMAGE=grafana/k6:0.52.0
+FROM ${K6_IMAGE} AS k6-bin
+
+FROM python:3.12-slim-bookworm
+
+WORKDIR /app
+
+ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    android-tools-adb ca-certificates gzip postgresql-client \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=python-deps /wheels /wheels
+COPY --from=k6-bin /usr/bin/k6 /usr/local/bin/k6
+COPY requirements.txt .
+RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt \
+    && rm -rf /wheels \
+    && playwright install chromium --with-deps \
+    && k6 version \
+    && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 
-CMD ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info", "--pool=solo"]
+CMD ["sh", "-c", "celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q ${CELERY_QUEUES:-default,mobile_special,ai,maintenance,performance}"]

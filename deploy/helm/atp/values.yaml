@@ -38,6 +38,21 @@ worker:
   # 每个 worker 子进程暴露 Prometheus /metrics 的端口；与 backend:8000/metrics 区分。
   # 设为 0 可关闭（仅当 Prometheus 不抓取 worker 时）
   metricsPort: 9091
+  # Queues listened by the default worker deployment. For production isolation,
+  # deploy separate worker releases or overlay this value per Deployment.
+  queues: default,mobile_special,ai,maintenance,performance
+
+performanceWorker:
+  # Enable a dedicated Celery worker Deployment for HTTP performance tests.
+  # When enabled, consider removing "performance" from worker.queues/config.CELERY_QUEUES.
+  enabled: false
+  replicas: 1
+  queues: performance
+  concurrency: "1"
+  metricsPort: 9092
+  resources:
+    requests: {cpu: 1000m, memory: 1Gi}
+    limits: {cpu: 2000m, memory: 2Gi}
 
 # Resource requests and limits for ATP workloads.
 resources:
@@ -64,6 +79,8 @@ config:
   LOG_LEVEL: INFO
   # Celery worker concurrency used by worker containers.
   CELERY_CONCURRENCY: "4"
+  # Celery queues listened by the default worker container.
+  CELERY_QUEUES: default,mobile_special,ai,maintenance,performance
   # Kubernetes clusters usually do not have direct ADB-attached devices.
   ADB_SCAN_ENABLED: "false"
   # OpenTelemetry service name and optional OTLP endpoint.
@@ -167,6 +184,11 @@ hpa:
     minReplicas: 3
     maxReplicas: 20
     targetCPUUtilizationPercentage: 80
+  performanceWorker:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
 
 # External dependencies:
 # - This chart does not install PostgreSQL, Redis, or MinIO.

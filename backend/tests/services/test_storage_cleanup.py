@@ -27,7 +27,7 @@ class _FakeSession:
         self.commit_calls = 0
 
     def execute(self, _stmt):
-        return types.SimpleNamespace(all=lambda: self._responses.pop(0))
+        return types.SimpleNamespace(all=lambda: self._responses.pop(0) if self._responses else [])
 
     def get(self, model, record_id):
         return self._get_map.get((getattr(model, "__name__", str(model)), record_id))
@@ -49,19 +49,21 @@ def test_get_storage_stats_aggregates_objects_by_prefix(monkeypatch):
             "reports/": [_FakeObject("reports/runs/1/report.html", None, size=11)],
             "apks/": [],
             "scripts/": [_FakeObject("scripts/cases/1/test.py", None, size=13)],
+            "performance/": [_FakeObject("performance/runs/8/summary.json", None, size=17)],
         }.get(prefix, []),
     )
 
     result = storage_cleanup.get_storage_stats(object())
 
     assert result.bucket == "atp"
-    assert result.total_object_count == 4
-    assert result.total_bytes == 36
+    assert result.total_object_count == 5
+    assert result.total_bytes == 53
     assert [(item.prefix, item.object_count, item.total_bytes) for item in result.prefixes] == [
         ("screenshots/", 2, 12),
         ("reports/", 1, 11),
         ("apks/", 0, 0),
         ("scripts/", 1, 13),
+        ("performance/", 1, 17),
     ]
 
 
@@ -142,6 +144,66 @@ def test_preview_storage_cleanup_includes_additional_db_reference_types(monkeypa
     assert result.deletable_count == 0
 
 
+def test_performance_artifacts_are_scanned_blocked_and_repairable(monkeypatch):
+    now = datetime(2026, 5, 29, tzinfo=timezone.utc)
+    old = now - timedelta(days=31)
+    deleted = []
+
+    monkeypatch.setattr(storage_cleanup.settings, "FILE_RETENTION_DAYS", 30)
+    monkeypatch.setattr(
+        storage_cleanup.minio_client,
+        "list_objects",
+        lambda prefix: {
+            "performance/": [
+                _FakeObject("performance/scripts/2/homepage.js", old),
+                _FakeObject("performance/runs/8/delete-me-summary.json", old),
+            ],
+        }.get(prefix, []),
+    )
+    monkeypatch.setattr(storage_cleanup.minio_client, "delete_file", lambda object_name: deleted.append(object_name))
+    monkeypatch.setattr(storage_cleanup, "_cutoff", lambda retention_days=None: now - timedelta(days=30))
+
+    performance_run = types.SimpleNamespace(raw_result_object_name="performance/runs/8/missing-summary.json")
+    responses = [
+        [],
+        [],
+        [],
+        [],
+        [(2, "performance/scripts/2/homepage.js")],
+        [(8, "performance/runs/8/missing-summary.json")],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [],
+        [(2, "performance/scripts/2/homepage.js")],
+        [(8, "performance/runs/8/missing-summary.json")],
+    ]
+    session = _FakeSession(
+        responses=responses,
+        get_map={("PerformanceRun", 8): performance_run},
+    )
+
+    preview = storage_cleanup.preview_storage_cleanup(session, prefixes=["performance/"])
+    execute = storage_cleanup.execute_storage_cleanup(
+        session,
+        object_names=[item.object_name for item in preview.deletable_objects],
+        repair_orphan_references=True,
+    )
+
+    assert [item.object_name for item in preview.blocked_objects] == ["performance/scripts/2/homepage.js"]
+    assert [item.object_name for item in preview.deletable_objects] == [
+        "performance/runs/8/delete-me-summary.json"
+    ]
+    assert [item.object_name for item in preview.orphan_references] == [
+        "performance/runs/8/missing-summary.json"
+    ]
+    assert deleted == ["performance/runs/8/delete-me-summary.json"]
+    assert execute.repaired_reference_count == 1
+    assert performance_run.raw_result_object_name is None
+
+
 def test_preview_and_execute_cleanup_remain_consistent(monkeypatch):
     now = datetime(2026, 4, 3, tzinfo=timezone.utc)
     old = now - timedelta(days=31)
@@ -167,6 +229,8 @@ def test_preview_and_execute_cleanup_remain_consistent(monkeypatch):
     responses = [
         [],
         [(11, "screenshots/runs/1/blocked.png"), (12, "screenshots/runs/1/orphan.png")],
+        [],
+        [],
         [],
         [],
         [],
@@ -305,6 +369,8 @@ def test_execute_storage_cleanup_repairs_mobile_orphans(monkeypatch):
     incident_row = types.SimpleNamespace(artifact_path="reports/mobile/1/crash.log")
     artifact_row = types.SimpleNamespace(file_path="reports/mobile/1/metrics.json")
     responses = [
+        [],
+        [],
         [],
         [],
         [],

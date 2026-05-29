@@ -62,7 +62,7 @@ Celery 指标由 `celery-exporter` 订阅 Redis broker 后导出（无需 worker
 
 ## 四、Grafana 仪表盘
 
-预置 `ATP Overview` 面板含 9 个图：
+预置 `ATP Overview` 面板含 10 个图：
 
 1. HTTP 请求 RPS（按 handler 分组）
 2. HTTP P95 延迟（5min 滑窗）
@@ -73,8 +73,20 @@ Celery 指标由 `celery-exporter` 订阅 Redis broker 后导出（无需 worker
 7. **ADB reconnect 调用结果分布（按 result label 5min rate）**
 8. **ADB heartbeat 失联事件（按 executor 1h 增量）**
 9. **ADB ensure_reachable 延迟 P50/P95/P99**
+10. **慢查询速率（超过 `SLOW_QUERY_THRESHOLD_MS` 的 SQL 5min rate）**
 
 可在 Grafana UI 中复制为自定义看板。
+
+### 慢查询定位
+
+慢查询计数来自 `backend/app/core/slow_query.py`，超过 `SLOW_QUERY_THRESHOLD_MS` 时会同时：
+
+- 写入结构化 warning 日志，包含 `trace_id`、SQL 前 500 字符和参数摘要。
+- 增加 Prometheus 指标 `atp_slow_queries_total`。
+- 给当前 OTel span 标记 `atp.slow_query=true` 与 `atp.slow_query_ms`。
+
+排查时先看 Grafana 的 `Slow queries` 和 `Slow query rate`，确认时间窗口；再用同一时间段在日志中按
+`slow_query` 或 `trace_id` 检索，必要时跳转 Jaeger 查看对应请求链路。
 
 ## 五、Grafana 告警模板
 

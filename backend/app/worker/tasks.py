@@ -312,6 +312,7 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
     """按 case.dataset 的 rows 依次执行 N 次 child runs，聚合状态写回 parent。"""
     from app.models.case import RunStatus, TestRun
     from app.models.dataset import TestDataset
+    from app.services.dataset_schema import DatasetSchemaField, validate_dataset_rows
 
     dataset = await db.get(TestDataset, case.dataset_id)
     rows = list(dataset.rows or []) if dataset else []
@@ -323,6 +324,42 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
         await _safe_invalidate_stats_cache()
         return
 
+    schema_fields = [
+        DatasetSchemaField(
+            name=str(field.get("name", "")),
+            type=field.get("type", "string"),
+            required=bool(field.get("required", False)),
+            default=field.get("default"),
+        )
+        for field in (getattr(dataset, "schema_fields", None) or [])
+        if isinstance(field, dict) and field.get("name")
+    ]
+    strict_schema = bool((getattr(case, "config", None) or {}).get("dataset_strict_schema")) or (
+        getattr(dataset, "validation_policy", "soft") == "hard"
+    )
+    validation = validate_dataset_rows(rows=rows, schema=schema_fields, preview_limit=0)
+    if strict_schema and not validation.valid:
+        parent_run.status = RunStatus.error
+        parent_run.error_message = f"Dataset schema validation failed: {len(validation.issues)} issue(s)"
+        parent_run.result_summary = {
+            **(parent_run.result_summary or {}),
+            "iteration_total": len(rows),
+            "iteration_passed": 0,
+            "iteration_failed": 0,
+            "iteration_error": 0,
+            "dataset_schema_valid": False,
+            "dataset_schema_issue_count": len(validation.issues),
+            "dataset_strict_schema": True,
+        }
+        await db.commit()
+        await _safe_publish_run_event(parent_run.id, {
+            "type": "completed",
+            "run_id": parent_run.id,
+            "status": "error",
+        })
+        await _safe_invalidate_stats_cache()
+        return
+
     parent_run.status = RunStatus.running
     parent_run.result_summary = {
         **(parent_run.result_summary or {}),
@@ -330,6 +367,9 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
         "iteration_passed": 0,
         "iteration_failed": 0,
         "iteration_error": 0,
+        "dataset_schema_valid": validation.valid,
+        "dataset_schema_issue_count": len(validation.issues),
+        "dataset_strict_schema": strict_schema,
     }
     await db.commit()
     await _safe_publish_run_event(parent_run.id, {

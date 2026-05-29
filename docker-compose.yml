@@ -11,6 +11,18 @@ services:
     restart: unless-stopped
 
   # ── 后端 API ─────────────────────────────────────
+  migrate:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: alembic upgrade head
+    env_file: .env
+    environment:
+      - APP_ENV=production
+    depends_on:
+      postgres:
+        condition: service_healthy
+
   backend:
     build:
       context: ./backend
@@ -22,6 +34,8 @@ services:
       - OTEL_SERVICE_NAME=atp-backend
       - JAEGER_UI_URL=${JAEGER_UI_URL:-http://localhost:16686}
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -52,6 +66,8 @@ services:
     ports:
       - "${MOCK_STANDALONE_PORT:-18000}:18000"
     depends_on:
+      migrate:
+        condition: service_completed_successfully
       postgres:
         condition: service_healthy
       redis:
@@ -68,16 +84,22 @@ services:
     env_file: .env
     environment:
       - CELERY_CONCURRENCY=${CELERY_CONCURRENCY:-4}
+      - CELERY_QUEUES=${CELERY_QUEUES:-default,mobile_special,ai,maintenance,performance}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4317}
       - OTEL_SERVICE_NAME=atp-worker
       - WORKER_METRICS_PORT=${WORKER_METRICS_PORT:-9091}
+    command: sh -c "celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q $${CELERY_QUEUES}"
     # 暴露 worker 进程 Prometheus /metrics 端点（与 backend:8000/metrics 区分）
     # 多 worker 子进程共享同一物理端口；首个子进程成功绑定后其余 OSError 静默
     expose:
       - "9091"
     depends_on:
-      - backend
-      - redis
+      migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_started
+      redis:
+        condition: service_healthy
     restart: unless-stopped
     # Android 真机联调建议：
     # 1. 先在宿主机执行 `adb tcpip 5555` 和 `adb connect <device-ip>:5555`
@@ -93,7 +115,10 @@ services:
     command: celery -A app.worker.celery_app beat --loglevel=info
     env_file: .env
     depends_on:
-      - redis
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   # ── Celery Flower（任务监控）─────────────────────
@@ -106,7 +131,10 @@ services:
     ports:
       - "5555:5555"
     depends_on:
-      - redis
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
     restart: unless-stopped
 
   # ── PostgreSQL ───────────────────────────────────

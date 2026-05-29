@@ -145,6 +145,21 @@
         }
       ],
       "fieldConfig": {"defaults": {"unit": "s"}, "overrides": []}
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Slow query rate",
+      "description": "超过 SLOW_QUERY_THRESHOLD_MS 的 SQL 速率；结合 Jaeger span attribute atp.slow_query 定位具体 SQL",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 40},
+      "targets": [
+        {
+          "expr": "rate(atp_slow_queries_total[5m])",
+          "legendFormat": "slow queries / sec",
+          "refId": "A"
+        }
+      ],
+      "fieldConfig": {"defaults": {"unit": "qps"}, "overrides": []}
     }
   ]
 }

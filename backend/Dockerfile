@@ -13,5 +13,5 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 COPY . .
 
-# 启动时先做当前模型建表兜底，再将 Alembic 版本对齐到最新。
-CMD ["sh", "-c", "python -m app.bootstrap_db && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# 启动前应用 Alembic 迁移；表结构不再通过 create_all 兜底生成。
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]

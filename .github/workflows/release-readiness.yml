@@ -1,0 +1,46 @@
+name: Release readiness
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '37 19 * * *'
+
+concurrency:
+  group: release-readiness-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  docker-build:
+    name: Docker image build checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Build backend image
+        run: docker build -t atp-backend:release-readiness backend/
+
+      - name: Build worker image
+        run: docker build -t atp-worker:release-readiness -f backend/Dockerfile.worker backend/
+
+      - name: Verify worker k6 binary
+        run: docker run --rm --entrypoint k6 atp-worker:release-readiness version
+
+      - name: Build frontend image
+        run: docker build -t atp-frontend:release-readiness frontend/
+
+  release-checklist-contract:
+    name: Release checklist contract
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify release checklist exists
+        run: |
+          test -f docs/q9-release-checklist.md
+          grep -q "alembic upgrade head" docs/q9-release-checklist.md
+          grep -q "helm upgrade --install" docs/q9-release-checklist.md
+          grep -q "performance" docs/q9-release-checklist.md

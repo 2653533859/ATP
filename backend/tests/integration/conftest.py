@@ -25,10 +25,10 @@ assert os.getenv("ATP_INTEGRATION_TESTS") == "1", (
 # ── 进程级一次性初始化 ─────────────────────────────────────────
 @pytest_asyncio.fixture(scope="session")
 async def app_instance():
-    """启动 FastAPI app（lifespan 内会调 create_all + bootstrap admin）。
+    """启动 FastAPI app（lifespan 内会执行启动初始化）。
 
-    注意：Alembic 已在 CI workflow 中 `alembic upgrade head`，此处依赖
-    lifespan 兜底创建剩余表（与生产首次启动行为一致）。
+    注意：Alembic 已在 CI workflow 中 `alembic upgrade head`，此处只依赖
+    lifespan 创建默认管理员与初始化外部资源。
     """
     from app.main import app
 
