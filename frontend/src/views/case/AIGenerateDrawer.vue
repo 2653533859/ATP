@@ -143,6 +143,13 @@
           onChange: (keys: (string | number)[]) => (selectedDraftKeys = keys as string[]),
         }"
       >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'draftAction'">
+            <a-button type="link" size="small" @click="openDraftEditor(record)">
+              {{ t('common.edit') }}
+            </a-button>
+          </template>
+        </template>
         <template #expandedRowRender="{ record }">
           <div style="padding: 8px 0; background: #fafafa">
             <p v-if="record.description"><b>{{ t('case.ai.description_prefix') }}</b>{{ record.description }}</p>
@@ -172,6 +179,59 @@
       </div>
     </a-card>
   </a-drawer>
+
+  <a-modal
+    v-model:open="draftEditorOpen"
+    :title="t('case.ai.edit_draft_title')"
+    :ok-text="t('common.save')"
+    :cancel-text="t('common.cancel')"
+    width="760px"
+    @ok="saveDraftEditor"
+  >
+    <a-form layout="vertical">
+      <a-form-item :label="t('common.name')" required>
+        <a-input v-model:value="draftEditor.name" />
+      </a-form-item>
+      <a-form-item :label="t('case.detail.summary')">
+        <a-input v-model:value="draftEditor.summary" />
+      </a-form-item>
+      <a-form-item :label="t('common.description')">
+        <a-textarea v-model:value="draftEditor.description" :rows="3" />
+      </a-form-item>
+      <a-row :gutter="12">
+        <a-col :span="8">
+          <a-form-item :label="t('case.filters.priority')">
+            <a-select v-model:value="draftEditor.priority" :options="priorityOptions" />
+          </a-form-item>
+        </a-col>
+        <a-col :span="8">
+          <a-form-item :label="t('case.ai.case_level')">
+            <a-select v-model:value="draftEditor.case_level" :options="caseLevelOptions" />
+          </a-form-item>
+        </a-col>
+        <a-col :span="8">
+          <a-form-item :label="t('case.ai.case_type')">
+            <a-select v-model:value="draftEditor.case_type" :options="caseTypeOptions" />
+          </a-form-item>
+        </a-col>
+      </a-row>
+      <a-form-item :label="t('case.detail.tags')">
+        <a-select
+          v-model:value="draftEditor.tags"
+          mode="tags"
+          :placeholder="t('case.drawer.tags_placeholder_simple')"
+          style="width: 100%"
+        />
+      </a-form-item>
+      <a-form-item :label="t('case.ai.steps_json')">
+        <a-textarea
+          v-model:value="draftEditorStepsJson"
+          :rows="8"
+          :placeholder="t('case.ai.steps_json_placeholder')"
+        />
+      </a-form-item>
+    </a-form>
+  </a-modal>
 </template>
 
 <script setup lang="ts">
@@ -182,6 +242,7 @@ import {
   aiCaseGenerationApi,
   caseApi,
   type AICaseDraft,
+  type AICaseStepDraft,
   type AIEndpointSummary,
   type CaseLevel,
   type CasePriority,
@@ -221,6 +282,22 @@ const drafts = ref<AICaseDraft[]>([])
 const selectedDraftKeys = ref<string[]>([])
 
 const saving = ref(false)
+const draftEditorOpen = ref(false)
+const draftEditorIndex = ref<number | null>(null)
+const draftEditorStepsJson = ref('')
+const draftEditor = ref<AICaseDraft>({
+  name: '',
+  summary: '',
+  description: '',
+  case_type: 'api',
+  priority: 'P2',
+  case_level: 'regression',
+  tags: [],
+  preconditions: [],
+  postconditions: [],
+  steps: [],
+  config: {},
+})
 
 type DraftRecordRender = { record: AICaseDraft }
 type TableIndexRender = { index: number }
@@ -282,6 +359,7 @@ const draftColumns = computed(() => [
   { title: t('case.detail.summary'), dataIndex: 'summary', key: 'summary', ellipsis: true },
   { title: t('case.ai.step_count'), key: 'stepCount', width: 80, customRender: ({ record }: DraftRecordRender) => record.steps?.length ?? 0 },
   { title: t('case.filters.priority'), dataIndex: 'priority', key: 'priority', width: 80 },
+  { title: t('common.actions'), key: 'draftAction', width: 90 },
 ])
 
 const stepColumns = computed(() => [
@@ -344,6 +422,68 @@ function resetGeneration() {
   drafts.value = []
   selectedDraftKeys.value = []
   generateWarnings.value = []
+}
+
+function cloneDraft(draft: AICaseDraft): AICaseDraft {
+  return {
+    ...draft,
+    tags: [...(draft.tags ?? [])],
+    preconditions: [...(draft.preconditions ?? [])],
+    postconditions: [...(draft.postconditions ?? [])],
+    steps: (draft.steps ?? []).map((step) => ({ ...step })),
+    config: { ...(draft.config ?? {}) },
+  }
+}
+
+function openDraftEditor(record: AICaseDraft & { rowKey?: string }) {
+  const index = Number(record.rowKey)
+  if (!Number.isInteger(index) || !drafts.value[index]) return
+  draftEditorIndex.value = index
+  draftEditor.value = cloneDraft(drafts.value[index])
+  draftEditorStepsJson.value = JSON.stringify(draftEditor.value.steps ?? [], null, 2)
+  draftEditorOpen.value = true
+}
+
+function normalizeDraftSteps(raw: unknown): AICaseStepDraft[] {
+  if (!Array.isArray(raw)) throw new Error(t('case.ai.msg.steps_json_array_required'))
+  return raw.map((item) => {
+    if (!item || typeof item !== 'object') {
+      throw new Error(t('case.ai.msg.steps_json_object_required'))
+    }
+    const step = item as Partial<AICaseStepDraft>
+    const action = String(step.action ?? '').trim()
+    if (!action) throw new Error(t('case.ai.msg.steps_json_action_required'))
+    return {
+      action,
+      test_data: step.test_data ?? null,
+      expected_result: step.expected_result ?? null,
+      is_key_step: Boolean(step.is_key_step),
+      remarks: step.remarks ?? null,
+    }
+  })
+}
+
+function saveDraftEditor() {
+  if (draftEditorIndex.value == null) return
+  const name = draftEditor.value.name.trim()
+  if (!name) {
+    message.warning(t('case.ai.msg.name_required'))
+    return
+  }
+  let steps: AICaseStepDraft[]
+  try {
+    steps = normalizeDraftSteps(JSON.parse(draftEditorStepsJson.value || '[]'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.ai.msg.steps_json_invalid')))
+    return
+  }
+  drafts.value[draftEditorIndex.value] = {
+    ...cloneDraft(draftEditor.value),
+    name,
+    steps,
+  }
+  draftEditorOpen.value = false
+  message.success(t('common.saved'))
 }
 
 async function handleGenerate() {
@@ -415,7 +555,10 @@ async function handleSaveSelected() {
           is_key_step: !!s.is_key_step,
           remarks: s.remarks ?? null,
         })),
-        config: draft.config ?? {},
+        config: {
+          ...(draft.config ?? {}),
+          _ai_generated: true,
+        },
       })
       succeeded += 1
     } catch (e: unknown) {

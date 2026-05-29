@@ -3,7 +3,7 @@ from app.api.v1 import (auth, projects, cases, environments, scripts, devices, a
                          device_mirror, suites, plans, webhook, exports, notifications,
                          statistics, mock_rules, bug_trackers, mobile_special, global_variables, storage, traces,
                          ai_llm_configs, ai_case_generation, admin_runs, datasets, dashboard_alerts,
-                         healing_prompt_examples, ai_healing_stats)
+                         healing_prompt_examples, ai_healing_stats, ai_healing_iter5, user_settings, performance)
 
 router = APIRouter(prefix="/api/v1")
 router.include_router(auth.router)
@@ -33,3 +33,6 @@ router.include_router(datasets.router)
 router.include_router(dashboard_alerts.router)
 router.include_router(healing_prompt_examples.router)
 router.include_router(ai_healing_stats.router)
+router.include_router(ai_healing_iter5.router)
+router.include_router(user_settings.router)
+router.include_router(performance.router)

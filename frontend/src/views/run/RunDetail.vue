@@ -276,6 +276,14 @@
                       ✗ {{ t('run.healing.reject') }}
                     </a-button>
                   </template>
+                  <a-button
+                    v-if="canApplyHealingPatch"
+                    size="small"
+                    :loading="healingPatchLoading && healingPatchStep?.step_index === step.step_index"
+                    @click="openHealingPatchPreview(step)"
+                  >
+                    <BulbOutlined /> {{ t('run.healing.preview_patch') }}
+                  </a-button>
                 </div>
                 <a-empty
                   v-else-if="step.healing_status === 'failed'"
@@ -369,6 +377,41 @@
         <pre class="bug-preview-value bug-preview-desc">{{ bugPreviewDesc }}</pre>
       </div>
     </a-modal>
+
+    <!-- AI 自愈 Patch 预览 -->
+    <a-modal
+      v-model:open="healingPatchModalOpen"
+      :title="t('run.healing.patch_preview_title')"
+      :ok-text="t('run.healing.apply_and_regress')"
+      :cancel-text="t('common.cancel')"
+      :ok-button-props="{ disabled: !healingPatchPreview?.accepted }"
+      :confirm-loading="healingPatchApplying"
+      width="720px"
+      @ok="confirmApplyHealingPatch"
+    >
+      <a-alert
+        v-if="healingPatchPreview"
+        :type="healingPatchPreview.accepted ? 'success' : 'warning'"
+        :message="healingPatchPreview.accepted
+          ? t('run.healing.patch_accepted')
+          : t('run.healing.patch_rejected')"
+        show-icon
+      />
+      <div v-if="healingPatchPreview?.reasons.length" class="healing-patch-section">
+        <div class="bug-preview-label">{{ t('run.healing.patch_reasons') }}</div>
+        <ul class="healing-patch-reasons">
+          <li v-for="reason in healingPatchPreview.reasons" :key="reason">{{ reason }}</li>
+        </ul>
+      </div>
+      <div v-if="healingPatchPreview?.normalized_patch" class="healing-patch-section">
+        <div class="bug-preview-label">{{ t('run.healing.normalized_patch') }}</div>
+        <pre class="bug-preview-value bug-preview-desc">{{ formatJson(healingPatchPreview.normalized_patch) }}</pre>
+      </div>
+      <div v-if="healingPatchPreview?.preview_config" class="healing-patch-section">
+        <div class="bug-preview-label">{{ t('run.healing.preview_config') }}</div>
+        <pre class="bug-preview-value bug-preview-desc">{{ formatJson(healingPatchPreview.preview_config) }}</pre>
+      </div>
+    </a-modal>
   </div>
 </template>
 
@@ -378,7 +421,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
 import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { runApi, bugTrackerApi, tracingApi, type BugLinkInfo, type BugTrackerItem, type RunDetailItem, type RunStepItem } from '@/api'
+import { runApi, bugTrackerApi, tracingApi, aiHealingPatchApi, type BugLinkInfo, type BugTrackerItem, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
 
@@ -410,6 +453,11 @@ const bugTrackerOptions = ref<Array<{ label: string; value: number }>>([])
 const bugTrackerLoading = ref(false)
 const bugCreating = ref(false)
 const bugStatusRefreshing = ref(false)
+const healingPatchModalOpen = ref(false)
+const healingPatchLoading = ref(false)
+const healingPatchApplying = ref(false)
+const healingPatchStep = ref<RunStepItem | null>(null)
+const healingPatchPreview = ref<HealingPatchPreviewResult | null>(null)
 const expandedErrors = reactive(new Set<string>())
 let wsHandle: ReturnType<typeof createRunWebSocket> | null = null
 
@@ -417,6 +465,7 @@ const fallbackImage = 'data:image/svg+xml;base64,PHN2ZyB3aWR0aD0iMjAwIiBoZWlnaHQ
 
 const isRunning = computed(() => run.value?.status === 'running' || run.value?.status === 'pending')
 const canCreateBug = computed(() => ['admin', 'engineer'].includes(auth.user?.role ?? ''))
+const canApplyHealingPatch = computed(() => ['admin', 'engineer'].includes(auth.user?.role ?? ''))
 
 const isParameterizedParent = computed(() => {
   const summary = run.value?.result_summary as Record<string, unknown> | undefined
@@ -476,6 +525,51 @@ async function onHealingFeedback(step: RunStepItem, action: 'adopted' | 'rejecte
     message.success(t('run.healing.feedback_thanks'))
   } catch {
     // axios 拦截器已弹出错误
+  }
+}
+
+async function openHealingPatchPreview(step: RunStepItem) {
+  if (!run.value || !step.healing_suggestion || !canApplyHealingPatch.value) return
+  healingPatchStep.value = step
+  healingPatchPreview.value = null
+  healingPatchLoading.value = true
+  try {
+    healingPatchPreview.value = await aiHealingPatchApi.preview({
+      case_id: run.value.case_id,
+      raw_suggestion: step.healing_suggestion,
+    })
+    healingPatchModalOpen.value = true
+  } catch {
+    // axios 拦截器已弹出错误
+  } finally {
+    healingPatchLoading.value = false
+  }
+}
+
+async function confirmApplyHealingPatch() {
+  if (!run.value || !healingPatchStep.value?.healing_suggestion || !healingPatchPreview.value?.accepted) return
+  healingPatchApplying.value = true
+  try {
+    const result = await aiHealingPatchApi.apply({
+      case_id: run.value.case_id,
+      raw_suggestion: healingPatchStep.value.healing_suggestion,
+      trigger_regression: true,
+      source_run_id: run.value.id,
+      source_step_id: healingPatchStep.value.id ?? null,
+    })
+    healingPatchModalOpen.value = false
+    message.success(
+      result.regression_run_id
+        ? t('run.healing.patch_applied_with_regression', { id: result.regression_run_id })
+        : t('run.healing.patch_applied'),
+    )
+    if (result.regression_run_id) {
+      router.push({ name: 'run-detail', params: { runId: result.regression_run_id } })
+    }
+  } catch {
+    // axios 拦截器已弹出错误
+  } finally {
+    healingPatchApplying.value = false
   }
 }
 
@@ -976,6 +1070,7 @@ onUnmounted(() => {
   display: flex;
   gap: 8px;
   align-items: center;
+  flex-wrap: wrap;
 }
 
 .feedback-thanks {
@@ -985,5 +1080,18 @@ onUnmounted(() => {
 
 .run-healing-card {
   margin: 12px 0;
+}
+
+.healing-patch-section {
+  margin-top: 12px;
+}
+
+.healing-patch-reasons {
+  margin: 0;
+  padding: 8px 12px 8px 28px;
+  background: #fafafa;
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+  font-size: 13px;
 }
 </style>

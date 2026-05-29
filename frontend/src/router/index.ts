@@ -155,6 +155,11 @@ const router = createRouter({
           name: 'system-datasets',
           component: () => import('@/views/system/DatasetLibrary.vue'),
         },
+        {
+          path: 'system/performance',
+          name: 'system-performance',
+          component: () => import('@/views/system/PerformanceCenterView.vue'),
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

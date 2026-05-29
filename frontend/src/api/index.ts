@@ -1146,6 +1146,40 @@ export const aiHealingExampleApi = {
   delete: (id: number) => http.delete<unknown, void>(`/ai-healing/examples/${id}`),
 }
 
+export interface HealingPatchPreviewRequest {
+  case_id: number
+  raw_suggestion?: string
+  suggestion?: Record<string, unknown>
+}
+
+export interface HealingPatchPreviewResult {
+  accepted: boolean
+  reasons: string[]
+  normalized_patch: Record<string, unknown> | null
+  preview_config: Record<string, unknown> | null
+}
+
+export interface HealingPatchApplyRequest extends HealingPatchPreviewRequest {
+  trigger_regression?: boolean
+  env_id?: number | null
+  extra_vars?: Record<string, unknown> | null
+  source_run_id?: number | null
+  source_step_id?: number | null
+}
+
+export interface HealingPatchApplyResult extends HealingPatchPreviewResult {
+  case_id: number
+  snapshot_id?: number | null
+  regression_run_id?: number | null
+}
+
+export const aiHealingPatchApi = {
+  preview: (data: HealingPatchPreviewRequest) =>
+    http.post<unknown, HealingPatchPreviewResult>('/ai-healing/patch-preview', data),
+  apply: (data: HealingPatchApplyRequest) =>
+    http.post<unknown, HealingPatchApplyResult>('/ai-healing/patch-apply', data),
+}
+
 export interface AIHealingCaseTypeStat {
   case_type: string
   total_count: number
@@ -1171,6 +1205,13 @@ export interface AIHealingTrendItem {
   adopted_rate: number
 }
 
+export interface AIHealingProductionFeedback {
+  regression_triggered_count: number
+  regression_success_count: number
+  regression_success_rate: number
+  latest_feedback_aggregated_at?: string | null
+}
+
 export interface AIHealingStats {
   total_feedback_count: number
   adopted_count: number
@@ -1180,6 +1221,7 @@ export interface AIHealingStats {
   by_case_type: AIHealingCaseTypeStat[]
   top_error_fingerprints: AIHealingTopFingerprint[]
   recent_trend: AIHealingTrendItem[]
+  production_feedback: AIHealingProductionFeedback
 }
 
 export const aiHealingStatsApi = {
@@ -1262,11 +1304,23 @@ export interface AICaseGenerateResult {
   warnings: string[]
 }
 
+export interface AICaseFunnelStats {
+  generated_sessions: number
+  generated_drafts: number
+  saved_drafts: number
+  failed_generations: number
+  warning_count: number
+  save_rate: number
+  latest_event_at?: string | null
+}
+
 export const aiCaseGenerationApi = {
   parseSchema: (data: AIParseSchemaPayload) =>
     http.post<unknown, AIParseSchemaResult>('/ai/cases/parse-schema', data),
   generate: (data: AICaseGeneratePayload) =>
     http.post<unknown, AICaseGenerateResult>('/ai/cases/generate', data),
+  getFunnelStats: (params?: { days?: number; project_id?: number }) =>
+    http.get<unknown, AICaseFunnelStats>('/ai/cases/funnel-stats', { params }),
 }
 
 export interface TracingConfig {
@@ -1277,8 +1331,108 @@ export const tracingApi = {
   getConfig: () => http.get<unknown, TracingConfig>('/traces/config'),
 }
 
+export interface UserSettingItem {
+  key: string
+  value: Record<string, unknown>
+  updated_at?: string | null
+}
+
+export const userSettingsApi = {
+  list: () => http.get<unknown, UserSettingItem[]>('/users/me/settings'),
+  get: (key: string) => http.get<unknown, UserSettingItem>(`/users/me/settings/${encodeURIComponent(key)}`),
+  update: (key: string, value: Record<string, unknown>) =>
+    http.put<unknown, UserSettingItem>(`/users/me/settings/${encodeURIComponent(key)}`, { value }),
+  delete: (key: string) => http.delete<unknown, void>(`/users/me/settings/${encodeURIComponent(key)}`),
+}
+
+// ---- Performance Testing ----
+export type PerformanceRunStatus = 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
+
+export interface PerformanceSummary {
+  executor?: string
+  rps?: number | null
+  p95_ms?: number | null
+  p99_ms?: number | null
+  error_rate?: number | null
+  iterations?: number | null
+  data_received?: number | null
+  data_sent?: number | null
+  exit_code?: number | null
+  k6_error?: string | null
+  thresholds?: Record<string, unknown>
+  [key: string]: unknown
+}
+
+export interface PerformanceTestItem {
+  id: number
+  project_id: number
+  name: string
+  description?: string | null
+  executor: 'k6' | string
+  script_object_name: string
+  default_options: Record<string, unknown>
+  creator_id?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PerformanceRunItem {
+  id: number
+  performance_test_id: number
+  project_id: number
+  environment_id?: number | null
+  status: PerformanceRunStatus | string
+  triggered_by?: number | null
+  started_at?: string | null
+  finished_at?: string | null
+  duration_ms?: number | null
+  options_snapshot: Record<string, unknown>
+  summary: PerformanceSummary
+  raw_result_object_name?: string | null
+  error_message?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PerformanceTestPayload {
+  project_id?: number
+  name?: string
+  description?: string | null
+  executor?: 'k6'
+  script_object_name?: string
+  default_options?: Record<string, unknown>
+}
+
+export interface PerformanceScriptUploadResponse {
+  script_object_name: string
+  filename: string
+  size: number
+}
+
+export const performanceApi = {
+  listTests: (projectId: number) =>
+    http.get<unknown, PerformanceTestItem[]>(`/projects/${projectId}/performance/tests`),
+  uploadScript: (projectId: number, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post<unknown, PerformanceScriptUploadResponse>(`/projects/${projectId}/performance/scripts`, form)
+  },
+  createTest: (body: Required<Pick<PerformanceTestPayload, 'project_id' | 'name' | 'script_object_name'>> & PerformanceTestPayload) =>
+    http.post<unknown, PerformanceTestItem>('/performance/tests', body),
+  updateTest: (id: number, body: PerformanceTestPayload) =>
+    http.patch<unknown, PerformanceTestItem>(`/performance/tests/${id}`, body),
+  triggerRun: (id: number, body?: { environment_id?: number | null; options?: Record<string, unknown> }) =>
+    http.post<unknown, PerformanceRunItem>(`/performance/tests/${id}/run`, body ?? {}),
+  listRuns: (projectId: number) =>
+    http.get<unknown, PerformanceRunItem[]>('/performance/runs', { params: { project_id: projectId } }),
+  getRun: (id: number) => http.get<unknown, PerformanceRunItem>(`/performance/runs/${id}`),
+  getRawResult: (id: number) =>
+    http.get<unknown, { url: string; filename: string; object_name: string }>(`/performance/runs/${id}/raw-result`),
+}
+
 // ─── P3.B 测试数据集 ───────────────────────────────────────
 export type DatasetFormat = 'csv' | 'json'
+export type DatasetValidationPolicy = 'soft' | 'hard'
 
 export interface DatasetListItem {
   id: number
@@ -1287,6 +1441,8 @@ export interface DatasetListItem {
   project_id: number
   format: DatasetFormat
   row_count: number
+  schema_field_count: number
+  validation_policy: DatasetValidationPolicy
   creator_id: number
   created_at: string
   updated_at: string
@@ -1299,25 +1455,89 @@ export interface DatasetDetail {
   project_id: number
   format: DatasetFormat
   rows: Record<string, unknown>[]
+  schema_fields: DatasetSchemaField[]
+  validation_policy: DatasetValidationPolicy
   creator_id: number
   created_at: string
   updated_at: string
+}
+
+export type DatasetSchemaFieldType = 'string' | 'number' | 'integer' | 'boolean' | 'object' | 'array'
+
+export interface DatasetSchemaField {
+  name: string
+  type?: DatasetSchemaFieldType
+  required?: boolean
+  default?: unknown
+}
+
+export interface DatasetValidationIssue {
+  row_index: number
+  field: string
+  message: string
+}
+
+export interface DatasetValidationResult {
+  valid: boolean
+  row_count: number
+  normalized_rows: Record<string, unknown>[]
+  issues: DatasetValidationIssue[]
+  validation_policy?: DatasetValidationPolicy | null
+  can_upload?: boolean | null
+}
+
+export interface DatasetVersionItem {
+  id: number
+  dataset_id: number
+  version: number
+  format: DatasetFormat
+  row_count: number
+  schema_field_count: number
+  validation_policy: DatasetValidationPolicy
+  change_type: string
+  created_by?: number | null
+  created_at: string
+}
+
+export interface DatasetImpactItem {
+  id: number
+  name: string
+  reason: string
+}
+
+export interface DatasetImpact {
+  dataset_id: number
+  cases: DatasetImpactItem[]
+  suites: DatasetImpactItem[]
+  plans: DatasetImpactItem[]
+  total_count: number
 }
 
 export const datasetApi = {
   list: (projectId: number) =>
     http.get<unknown, DatasetListItem[]>(`/projects/${projectId}/datasets`),
   get: (id: number) => http.get<unknown, DatasetDetail>(`/datasets/${id}`),
-  create: (body: { name: string; project_id: number; description?: string; format?: DatasetFormat; rows?: Record<string, unknown>[] }) =>
+  create: (body: { name: string; project_id: number; description?: string; format?: DatasetFormat; rows?: Record<string, unknown>[]; schema_fields?: DatasetSchemaField[]; validation_policy?: DatasetValidationPolicy }) =>
     http.post<unknown, DatasetDetail>('/datasets', body),
-  update: (id: number, body: { name?: string; description?: string; rows?: Record<string, unknown>[] }) =>
+  update: (id: number, body: { name?: string; description?: string; rows?: Record<string, unknown>[]; schema_fields?: DatasetSchemaField[]; validation_policy?: DatasetValidationPolicy }) =>
     http.patch<unknown, DatasetDetail>(`/datasets/${id}`, body),
   delete: (id: number) => http.delete<unknown, void>(`/datasets/${id}`),
+  getImpact: (id: number) => http.get<unknown, DatasetImpact>(`/datasets/${id}/impact`),
+  listVersions: (id: number) => http.get<unknown, DatasetVersionItem[]>(`/datasets/${id}/versions`),
+  rollback: (id: number, version: number) =>
+    http.post<unknown, DatasetDetail>(`/datasets/${id}/rollback/${version}`),
   upload: (id: number, file: File) => {
     const form = new FormData()
     form.append('file', file)
     return http.post<unknown, DatasetDetail>(`/datasets/${id}/upload`, form)
   },
+  previewUpload: (id: number, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post<unknown, DatasetValidationResult>(`/datasets/${id}/upload-preview`, form)
+  },
+  validate: (body: { schema_fields: DatasetSchemaField[]; rows: Record<string, unknown>[]; preview_limit?: number }) =>
+    http.post<unknown, DatasetValidationResult>('/datasets/validate', body),
 }
 
 // ─── P3.C 项目成员与审计日志 ─────────────────────────────

@@ -185,7 +185,7 @@ import {
 import { CanvasRenderer } from 'echarts/renderers'
 import { DownloadOutlined, SettingOutlined } from '@ant-design/icons-vue'
 import LazyChartCard from '@/components/dashboard/LazyChartCard.vue'
-import { dashboardAlertApi, projectApi, statisticsApi, storageApi, type DashboardAlertEventItem, type StatisticsAggregateTrendItem, type StatisticsCaseTypeDistributionItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
+import { dashboardAlertApi, projectApi, statisticsApi, storageApi, userSettingsApi, type DashboardAlertEventItem, type StatisticsAggregateTrendItem, type StatisticsCaseTypeDistributionItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
 
 use([CanvasRenderer, LineChart, BarChart, PieChart, TitleComponent, TooltipComponent, GridComponent, LegendComponent])
 
@@ -271,6 +271,7 @@ type AggregateTrendItem = StatisticsAggregateTrendItem
 const DASHBOARD_SCOPE_KEY = 'atp:dashboard:scope'
 const DASHBOARD_PROJECT_KEY = 'atp:dashboard:project_id'
 const DASHBOARD_LAYOUT_KEY = 'atp:dashboard:layout'
+const DASHBOARD_LAYOUT_SETTING_KEY = 'dashboard.layout'
 
 type LayoutItem = {
   key: LayoutChartKey
@@ -310,29 +311,41 @@ function cloneDefaultLayout(): LayoutItem[] {
   return DEFAULT_DASHBOARD_LAYOUT.map(item => ({ ...item }))
 }
 
-function loadDashboardLayout(): LayoutItem[] {
+function normalizeDashboardLayout(value: unknown): LayoutItem[] {
+  if (!Array.isArray(value)) return cloneDefaultLayout()
+  const parsed = value as Array<Partial<LayoutItem>>
+  const byKey = new Map(parsed.map(item => [item.key, item]))
+  const knownKeys = new Set(DEFAULT_DASHBOARD_LAYOUT.map(item => item.key))
+  const ordered = parsed
+    .filter((item): item is LayoutItem => Boolean(item.key && knownKeys.has(item.key) && typeof item.visible === 'boolean'))
+    .map(item => ({ key: item.key, visible: item.visible }))
+  for (const defaultItem of DEFAULT_DASHBOARD_LAYOUT) {
+    if (!byKey.has(defaultItem.key)) ordered.push({ ...defaultItem })
+  }
+  return ordered.length ? ordered : cloneDefaultLayout()
+}
+
+function loadDashboardLayoutFromLocal(): LayoutItem[] {
   try {
     const raw = localStorage.getItem(DASHBOARD_LAYOUT_KEY)
     if (!raw) return cloneDefaultLayout()
-    const parsed = JSON.parse(raw) as Array<Partial<LayoutItem>>
-    const byKey = new Map(parsed.map(item => [item.key, item]))
-    const knownKeys = new Set(DEFAULT_DASHBOARD_LAYOUT.map(item => item.key))
-    const ordered = parsed
-      .filter((item): item is LayoutItem => Boolean(item.key && knownKeys.has(item.key) && typeof item.visible === 'boolean'))
-      .map(item => ({ key: item.key, visible: item.visible }))
-    for (const defaultItem of DEFAULT_DASHBOARD_LAYOUT) {
-      if (!byKey.has(defaultItem.key)) ordered.push({ ...defaultItem })
-    }
-    return ordered.length ? ordered : cloneDefaultLayout()
+    return normalizeDashboardLayout(JSON.parse(raw))
   } catch {
     return cloneDefaultLayout()
+  }
+}
+
+function saveDashboardLayoutLocal(layout: LayoutItem[]) {
+  try {
+    localStorage.setItem(DASHBOARD_LAYOUT_KEY, JSON.stringify(layout))
+  } catch {
   }
 }
 
 const dashboardScope = ref<DashboardScope>(initialScope())
 const projectId = ref<number | undefined>(initialProjectId())
 const settingsOpen = ref(false)
-const dashboardLayout = ref<LayoutItem[]>(loadDashboardLayout())
+const dashboardLayout = ref<LayoutItem[]>(loadDashboardLayoutFromLocal())
 const days = ref(30)
 const caseType = ref<DashboardCaseType | undefined>(undefined)
 const loading = ref(false)
@@ -347,6 +360,7 @@ const triggerTypeChartRef = ref<ChartRef | null>(null)
 const planTrendChartRef = ref<ChartRef | null>(null)
 const suiteTrendChartRef = ref<ChartRef | null>(null)
 const caseTypeDistributionChartRef = ref<ChartRef | null>(null)
+const applyingRemoteLayout = ref(false)
 const scopeOptions = computed(() => [
   { label: t('dashboard.scope_global'), value: 'global' },
   { label: t('dashboard.scope_project'), value: 'project' },
@@ -751,6 +765,38 @@ function resetDashboardLayout() {
   dashboardLayout.value = cloneDefaultLayout()
 }
 
+function extractRemoteDashboardLayout(value: Record<string, unknown>): LayoutItem[] | null {
+  const rawItems = value.items ?? value.layout
+  if (!Array.isArray(rawItems)) return null
+  return normalizeDashboardLayout(rawItems)
+}
+
+async function loadDashboardLayoutSetting() {
+  try {
+    const setting = await userSettingsApi.get(DASHBOARD_LAYOUT_SETTING_KEY)
+    const remoteLayout = extractRemoteDashboardLayout(setting.value)
+    if (!remoteLayout) return
+    applyingRemoteLayout.value = true
+    dashboardLayout.value = remoteLayout
+    saveDashboardLayoutLocal(remoteLayout)
+  } catch {
+    // 未配置或未登录时继续使用 localStorage 降级。
+  } finally {
+    applyingRemoteLayout.value = false
+  }
+}
+
+async function saveDashboardLayoutSetting(layout: LayoutItem[]) {
+  try {
+    await userSettingsApi.update(DASHBOARD_LAYOUT_SETTING_KEY, {
+      items: layout,
+      version: 1,
+    })
+  } catch {
+    // 服务端偏好写入失败不阻断看板本地设置。
+  }
+}
+
 const overview = reactive(createEmptyOverview())
 const passRateOption = ref(buildPassRateOption())
 const durationOption = ref(buildDurationOption())
@@ -1047,9 +1093,9 @@ watch(projectId, (id) => {
 })
 
 watch(dashboardLayout, (layout) => {
-  try {
-    localStorage.setItem(DASHBOARD_LAYOUT_KEY, JSON.stringify(layout))
-  } catch {
+  saveDashboardLayoutLocal(layout)
+  if (!applyingRemoteLayout.value) {
+    void saveDashboardLayoutSetting(layout)
   }
 }, { deep: true })
 
@@ -1060,6 +1106,7 @@ watch(locale, async () => {
 })
 
 onMounted(() => {
+  void loadDashboardLayoutSetting()
   void loadProjects()
   void loadFirstScreen()
   void loadStorageAlert()

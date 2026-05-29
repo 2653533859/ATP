@@ -63,6 +63,7 @@
           <a-menu-item v-if="auth.user?.role === 'admin'" key="/system/healing-examples">AI 自愈示例</a-menu-item>
           <a-menu-item v-if="auth.user?.role === 'admin'" key="/system/ai-healing-stats">AI 自愈报表</a-menu-item>
           <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
+          <a-menu-item key="/system/performance">{{ t('menu.system.performance') }}</a-menu-item>
           <a-menu-item v-if="auth.user?.role === 'admin'" key="/system/audit-logs">{{ t('menu.system.audit_logs') }}</a-menu-item>
           <a-menu-item v-if="auth.user?.role === 'admin'" key="/system/run-retention">{{ t('menu.system.run_retention') }}</a-menu-item>
           <a-menu-item v-if="auth.user?.role === 'admin'" key="/system/dashboard-alerts">{{ t('menu.system.dashboard_alerts') }}</a-menu-item>

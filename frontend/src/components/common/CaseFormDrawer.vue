@@ -49,6 +49,14 @@
           {{ t('case_form.basic.dataset_hint') }}
         </div>
       </a-form-item>
+      <a-form-item v-if="form.dataset_id">
+        <a-checkbox v-model:checked="form.dataset_strict_schema">
+          {{ t('case_form.basic.dataset_strict_schema') }}
+        </a-checkbox>
+        <div style="color:#999;font-size:12px;margin-top:4px">
+          {{ t('case_form.basic.dataset_strict_schema_hint') }}
+        </div>
+      </a-form-item>
 
       <template v-if="form.case_type === 'api'">
         <a-divider orientation="left">{{ t('case_form.sections.request_config') }}</a-divider>
@@ -635,12 +643,13 @@ const gqlActiveTab = ref('headers')
 const wsActiveTab = ref('headers')
 const formRef = ref()
 
-const form = reactive<{ name: string; description: string; case_type: CaseType; tags: string[]; dataset_id: number | null }>({
+const form = reactive<{ name: string; description: string; case_type: CaseType; tags: string[]; dataset_id: number | null; dataset_strict_schema: boolean }>({
   name: '',
   description: '',
   case_type: 'api',
   tags: [],
   dataset_id: null,
+  dataset_strict_schema: false,
 })
 
 const datasetOptions = ref<{ label: string; value: number }[]>([])
@@ -734,6 +743,7 @@ watch(() => props.open, (v) => {
     form.case_type = c.case_type
     form.tags = c.tags ?? []
     form.dataset_id = c.dataset_id ?? null
+    form.dataset_strict_schema = Boolean(c.config?.dataset_strict_schema)
     const step = getFirstStep(c.config)
     const bodyType = step.body_type ?? 'none'
     if (bodyType === 'form') {
@@ -820,6 +830,7 @@ watch(() => props.open, (v) => {
     form.case_type = props.defaultCaseType ?? 'api'
     form.tags = []
     form.dataset_id = null
+    form.dataset_strict_schema = false
     Object.assign(cfg, {
       url: '', method: 'GET', headers: {}, params: {},
       body_type: 'none', body: '',
@@ -926,20 +937,24 @@ function buildGraphqlConfig() {
 }
 
 function buildConfig() {
+  const withDatasetStrictFlag = (config: Record<string, unknown>) => ({
+    ...config,
+    dataset_strict_schema: form.dataset_strict_schema,
+  })
   if (form.case_type === 'graphql') {
-    return buildGraphqlConfig()
+    return withDatasetStrictFlag(buildGraphqlConfig())
   }
   if (form.case_type === 'websocket') {
-    return buildWebsocketConfig()
+    return withDatasetStrictFlag(buildWebsocketConfig())
   }
   if (form.case_type === 'grpc') {
-    return buildGrpcConfig()
+    return withDatasetStrictFlag(buildGrpcConfig())
   }
   let body: unknown = cfg.body_type === 'form' ? { ...formBody.value } : cfg.body
   if (cfg.body_type === 'json' && typeof body === 'string') {
     try { body = JSON.parse(body) } catch { /* keep string */ }
   }
-  return {
+  return withDatasetStrictFlag({
     steps: [{
       name: form.name,
       url: cfg.url,
@@ -953,7 +968,7 @@ function buildConfig() {
       assertions: cfg.assertions,
       extractions: cfg.extractions,
     }],
-  }
+  })
 }
 
 async function handleSave() {

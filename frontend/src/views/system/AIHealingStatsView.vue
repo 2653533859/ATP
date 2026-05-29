@@ -22,7 +22,45 @@
         <a-col :xs="12" :md="6">
           <a-card><a-statistic title="高质量示例" :value="stats.high_quality_example_count" /></a-card>
         </a-col>
+        <a-col :xs="12" :md="6">
+          <a-card><a-statistic title="回归触发" :value="stats.production_feedback.regression_triggered_count" /></a-card>
+        </a-col>
+        <a-col :xs="12" :md="6">
+          <a-card><a-statistic title="回归通过率" :value="stats.production_feedback.regression_success_rate" suffix="%" :precision="2" /></a-card>
+        </a-col>
+        <a-col :xs="12" :md="6">
+          <a-card><a-statistic title="回归通过" :value="stats.production_feedback.regression_success_count" /></a-card>
+        </a-col>
+        <a-col :xs="12" :md="6">
+          <a-card><a-statistic title="聚合刷新" :value="formatAggregateTime(stats.production_feedback.latest_feedback_aggregated_at)" /></a-card>
+        </a-col>
       </a-row>
+
+      <a-card class="section" title="AI 用例生成漏斗">
+        <a-row :gutter="[16, 16]">
+          <a-col :xs="12" :md="6">
+            <a-statistic title="生成会话" :value="funnelStats.generated_sessions" />
+          </a-col>
+          <a-col :xs="12" :md="6">
+            <a-statistic title="生成草稿" :value="funnelStats.generated_drafts" />
+          </a-col>
+          <a-col :xs="12" :md="6">
+            <a-statistic title="已保存草稿" :value="funnelStats.saved_drafts" />
+          </a-col>
+          <a-col :xs="12" :md="6">
+            <a-statistic title="保存率" :value="funnelStats.save_rate" suffix="%" :precision="2" />
+          </a-col>
+          <a-col :xs="12" :md="6">
+            <a-statistic title="生成失败" :value="funnelStats.failed_generations" />
+          </a-col>
+          <a-col :xs="12" :md="6">
+            <a-statistic title="告警数" :value="funnelStats.warning_count" />
+          </a-col>
+          <a-col :xs="12" :md="6">
+            <a-statistic title="漏斗刷新" :value="formatAggregateTime(funnelStats.latest_event_at)" />
+          </a-col>
+        </a-row>
+      </a-card>
 
       <a-row :gutter="[16, 16]" class="section">
         <a-col :xs="24" :lg="12">
@@ -62,7 +100,7 @@
 import { computed, onMounted, ref } from 'vue'
 import VChart from 'vue-echarts'
 import { message } from 'ant-design-vue'
-import { aiHealingStatsApi, type AIHealingStats } from '@/api'
+import { aiCaseGenerationApi, aiHealingStatsApi, type AICaseFunnelStats, type AIHealingStats } from '@/api'
 
 const loading = ref(false)
 const days = ref(30)
@@ -75,6 +113,21 @@ const stats = ref<AIHealingStats>({
   by_case_type: [],
   top_error_fingerprints: [],
   recent_trend: [],
+  production_feedback: {
+    regression_triggered_count: 0,
+    regression_success_count: 0,
+    regression_success_rate: 0,
+    latest_feedback_aggregated_at: null,
+  },
+})
+const funnelStats = ref<AICaseFunnelStats>({
+  generated_sessions: 0,
+  generated_drafts: 0,
+  saved_drafts: 0,
+  failed_generations: 0,
+  warning_count: 0,
+  save_rate: 0,
+  latest_event_at: null,
 })
 
 const dayOptions = [
@@ -122,12 +175,22 @@ const trendOption = computed(() => ({
 async function loadStats() {
   loading.value = true
   try {
-    stats.value = await aiHealingStatsApi.getStats({ days: days.value })
+    const [healingStats, funnel] = await Promise.all([
+      aiHealingStatsApi.getStats({ days: days.value }),
+      aiCaseGenerationApi.getFunnelStats({ days: days.value }),
+    ])
+    stats.value = healingStats
+    funnelStats.value = funnel
   } catch (error) {
     message.error(error instanceof Error ? error.message : '加载失败')
   } finally {
     loading.value = false
   }
+}
+
+function formatAggregateTime(value?: string | null) {
+  if (!value) return '-'
+  return value.slice(0, 16).replace('T', ' ')
 }
 
 onMounted(loadStats)
