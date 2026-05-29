@@ -7,6 +7,7 @@ _get_case_detail_or_404 等）通过 ``app.api.v1.cases`` 模块访问，确保
 from __future__ import annotations
 
 import copy
+import json
 
 import app.api.v1.cases as _cases
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -120,6 +121,25 @@ async def create_case(
         username=getattr(current_user, "username", ""),
         detail=f"创建用例: {case.name}",
     )
+    if isinstance(case.config, dict) and case.config.get("_ai_generated") is True:
+        await _cases.write_audit_log(
+            db,
+            action="ai_case_draft_saved",
+            resource_type="test_case",
+            resource_id=case.id,
+            user_id=current_user.id,
+            username=getattr(current_user, "username", ""),
+            project_id=module.project_id,
+            detail=json.dumps(
+                {
+                    "project_id": module.project_id,
+                    "module_id": body.module_id,
+                    "case_id": case.id,
+                    "saved_count": 1,
+                },
+                ensure_ascii=False,
+            ),
+        )
     await db.commit()
     return case
 

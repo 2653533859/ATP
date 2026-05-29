@@ -74,12 +74,66 @@ def test_parse_schema_endpoint_invalid_returns_400():
         raise AssertionError("应抛 400")
 
 
+class _ScalarResult:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def all(self):
+        return self._rows
+
+
+class _ExecuteResult:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def scalars(self):
+        return _ScalarResult(self._rows)
+
+
+class _FunnelDB:
+    async def execute(self, _stmt):
+        return _ExecuteResult(
+            [
+                types.SimpleNamespace(
+                    action="ai_case_generate",
+                    detail='{"draft_count": 3, "warning_count": 1}',
+                    created_at=datetime(2026, 5, 29, tzinfo=timezone.utc),
+                ),
+                types.SimpleNamespace(
+                    action="ai_case_draft_saved",
+                    detail='{"saved_count": 2}',
+                    created_at=datetime(2026, 5, 29, 1, tzinfo=timezone.utc),
+                ),
+            ]
+        )
+
+
+def test_funnel_stats_endpoint_returns_aggregate():
+    result = asyncio.run(ai_case_generation.get_ai_case_funnel_stats(days=30, db=_FunnelDB(), _=None))
+    assert result.generated_sessions == 1
+    assert result.generated_drafts == 3
+    assert result.saved_drafts == 2
+    assert result.warning_count == 1
+    assert result.save_rate == 66.67
+
+
 class _AsyncDB:
     def __init__(self, get_value_map):
         self._map = get_value_map
+        self.added = []
+        self.commits = 0
 
     async def get(self, model, pk):
         return self._map.get(model.__name__, {}).get(pk)
+
+    def add(self, obj):
+        self.added.append(obj)
+
+    async def flush(self):
+        return None
+
+    async def commit(self):
+        self.commits += 1
 
 
 def _fake_project(project_id=1, ai_llm_config_id: int | None = 1):
@@ -102,6 +156,10 @@ def _fake_config(config_id=1, enabled=True):
     )
 
 
+def _fake_module(module_id=1, project_id=1):
+    return types.SimpleNamespace(id=module_id, project_id=project_id)
+
+
 def test_generate_404_when_project_missing():
     db = _AsyncDB({"Project": {}, "AILLMConfig": {1: _fake_config()}})
     body = AICaseGenerateIn(project_id=999, module_id=1)
@@ -114,7 +172,10 @@ def test_generate_404_when_project_missing():
 
 
 def test_generate_400_when_project_has_no_ai_config():
-    db = _AsyncDB({"Project": {1: _fake_project(ai_llm_config_id=None)}})
+    db = _AsyncDB({
+        "Project": {1: _fake_project(ai_llm_config_id=None)},
+        "Module": {1: _fake_module()},
+    })
     body = AICaseGenerateIn(project_id=1, module_id=1)
     try:
         asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, user=None))
@@ -125,10 +186,38 @@ def test_generate_400_when_project_has_no_ai_config():
         raise AssertionError("应 400")
 
 
+def test_generate_404_when_module_missing():
+    db = _AsyncDB({"Project": {1: _fake_project()}, "Module": {}})
+    body = AICaseGenerateIn(project_id=1, module_id=999)
+    try:
+        asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, user=None))
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 404
+        assert "模块" in exc.detail  # type: ignore[attr-defined]
+    else:
+        raise AssertionError("应 404")
+
+
+def test_generate_400_when_module_belongs_to_other_project():
+    db = _AsyncDB({
+        "Project": {1: _fake_project()},
+        "Module": {2: _fake_module(module_id=2, project_id=99)},
+    })
+    body = AICaseGenerateIn(project_id=1, module_id=2)
+    try:
+        asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, user=None))
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 400
+        assert "不属于当前项目" in exc.detail  # type: ignore[attr-defined]
+    else:
+        raise AssertionError("应 400")
+
+
 def test_generate_400_when_config_disabled():
     db = _AsyncDB(
         {
             "Project": {1: _fake_project()},
+            "Module": {1: _fake_module()},
             "AILLMConfig": {1: _fake_config(enabled=False)},
         }
     )
@@ -146,6 +235,7 @@ def test_generate_success_invokes_generator(monkeypatch):
     db = _AsyncDB(
         {
             "Project": {1: _fake_project()},
+            "Module": {2: _fake_module(module_id=2, project_id=1)},
             "AILLMConfig": {1: _fake_config()},
         }
     )
@@ -198,12 +288,40 @@ def test_generate_success_invokes_generator(monkeypatch):
     assert result.drafts[0].name == "draft 1"
     assert called_with["max_cases"] == 3
     assert called_with["user_requirement"] == "登录"
+    assert db.added[-1].action == "ai_case_generate"
+    assert db.added[-1].project_id == 1
+    assert '"draft_count": 1' in db.added[-1].detail
+
+
+def test_generate_failure_writes_funnel_audit_event(monkeypatch):
+    db = _AsyncDB(
+        {
+            "Project": {1: _fake_project()},
+            "Module": {1: _fake_module()},
+            "AILLMConfig": {1: _fake_config()},
+        }
+    )
+
+    async def fake_generate(**kwargs):
+        raise ai_case_generation.httpx.HTTPError("network down")
+
+    monkeypatch.setattr(ai_case_generation, "generate_case_drafts", fake_generate)
+
+    body = AICaseGenerateIn(project_id=1, module_id=1)
+    try:
+        asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, user=None))
+    except Exception:
+        pass
+
+    assert db.added[-1].action == "ai_case_generate_failed"
+    assert '"error_type": "network"' in db.added[-1].detail
 
 
 def test_generate_502_on_llm_network_error(monkeypatch):
     db = _AsyncDB(
         {
             "Project": {1: _fake_project()},
+            "Module": {1: _fake_module()},
             "AILLMConfig": {1: _fake_config()},
         }
     )
@@ -227,6 +345,7 @@ def test_generate_400_on_value_error(monkeypatch):
     db = _AsyncDB(
         {
             "Project": {1: _fake_project()},
+            "Module": {1: _fake_module()},
             "AILLMConfig": {1: _fake_config()},
         }
     )

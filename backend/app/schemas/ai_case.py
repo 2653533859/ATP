@@ -93,3 +93,13 @@ class AICaseGenerateOut(BaseModel):
     drafts: list[AICaseDraft]
     raw_response: str | None = None
     warnings: list[str] = Field(default_factory=list)
+
+
+class AICaseFunnelStatsOut(BaseModel):
+    generated_sessions: int
+    generated_drafts: int
+    saved_drafts: int
+    failed_generations: int
+    warning_count: int
+    save_rate: float
+    latest_event_at: str | None = None
