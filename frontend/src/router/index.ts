@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/stores/auth'
 
 const router = createRouter({
@@ -166,11 +167,20 @@ const router = createRouter({
   ],
 })
 
-// 路由守卫：未登录跳转 /login
-router.beforeEach((to) => {
+// 路由守卫：未登录跳转 /login；管理员页面校验角色
+router.beforeEach(async (to) => {
   const auth = useAuthStore()
   if (!to.meta.public && !auth.token) {
     return { name: 'login', query: { redirect: to.fullPath } }
+  }
+  // 已登录但用户信息未加载（如刷新页面）时恢复，避免管理员菜单与权限校验失效
+  if (auth.token && !auth.user) {
+    await auth.fetchMe()
+  }
+  // 仅管理员可访问的页面：非管理员拦截并跳转首页
+  if (to.meta.requireAdmin && auth.user?.role !== 'admin') {
+    message.error('无权限访问该页面')
+    return { name: 'dashboard' }
   }
 })
 
