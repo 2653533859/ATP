@@ -1,6 +1,7 @@
 import asyncio
 import sys
 import types
+from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -10,11 +11,14 @@ from app.models.bootstrap import load_all_models
 load_all_models()
 
 from app.models.case import CaseType, RunStatus, StepResult, TestCase as CaseModel, TestRun as RunModel
+from app.models.healing_feedback import HealingFeedbackAggregate
 from app.models.healing_prompt_example import HealingPromptExample
 from app.services.healing_prompt_examples import (
     build_few_shot_block,
     build_step_context,
     create_example_from_step,
+    get_high_quality_examples,
+    prompt_example_quality_weight,
 )
 
 
@@ -57,13 +61,17 @@ def test_build_few_shot_block_formats_examples():
 
 
 class _FakeDb:
-    def __init__(self, objects):
+    def __init__(self, objects, rows=None):
         self.objects = objects
+        self.rows = rows or []
         self.added = []
         self.commits = 0
 
     async def get(self, cls, pk):
         return self.objects.get(cls, {}).get(pk)
+
+    async def execute(self, _stmt):
+        return types.SimpleNamespace(all=lambda: self.rows)
 
     def add(self, obj):
         self.added.append(obj)
@@ -112,3 +120,39 @@ def test_create_example_rejects_non_adopted_step():
         assert str(exc) == "step_feedback_not_adopted"
     else:
         raise AssertionError("expected ValueError")
+
+
+def test_prompt_example_quality_weight_uses_adoption_and_confidence():
+    low = HealingFeedbackAggregate(total_count=1, adopted_rate=0.5)
+    high = HealingFeedbackAggregate(total_count=20, adopted_rate=0.9)
+
+    assert prompt_example_quality_weight(high) > prompt_example_quality_weight(low)
+    assert prompt_example_quality_weight(None) == 1.0
+
+
+def test_get_high_quality_examples_prefers_quality_weight_over_recency():
+    newer = HealingPromptExample(
+        id=1,
+        error_fingerprint="abc",
+        case_type="api",
+        suggestion_text="newer",
+        marked_high_quality=True,
+        marked_at=datetime(2026, 5, 29, 2, tzinfo=timezone.utc),
+    )
+    better = HealingPromptExample(
+        id=2,
+        error_fingerprint="abc",
+        case_type="api",
+        suggestion_text="better",
+        marked_high_quality=True,
+        marked_at=datetime(2026, 5, 29, 1, tzinfo=timezone.utc),
+    )
+    rows = [
+        (newer, HealingFeedbackAggregate(total_count=2, adopted_rate=0.2)),
+        (better, HealingFeedbackAggregate(total_count=12, adopted_rate=0.95)),
+    ]
+    db = _FakeDb({}, rows=rows)
+
+    examples = asyncio.run(get_high_quality_examples(db, error_fingerprint="abc", case_type="api", limit=1))
+
+    assert [example.suggestion_text for example in examples] == ["better"]

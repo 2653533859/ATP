@@ -6,10 +6,12 @@ from sqlalchemy import Date, case as sql_case, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.case import StepResult, TestCase, TestRun
+from app.models.healing_feedback import HealingFeedbackAggregate
 from app.models.healing_prompt_example import HealingPromptExample
 from app.services.healing_feedback import build_error_fingerprint
 from app.schemas.ai_healing_stats import (
     AIHealingCaseTypeStat,
+    AIHealingProductionFeedback,
     AIHealingStatsOut,
     AIHealingTopFingerprint,
     AIHealingTrendItem,
@@ -24,6 +26,15 @@ def _date_key(value) -> str:
     if hasattr(value, "isoformat"):
         return value.isoformat()
     return str(value)
+
+
+def _is_ai_healing_regression(run: TestRun) -> bool:
+    return isinstance(run.result_summary, dict) and run.result_summary.get("triggered_by_ai_healing_patch") is True
+
+
+def _is_success_status(status) -> bool:
+    value = status.value if hasattr(status, "value") else str(status)
+    return value in {"passed", "success"}
 
 
 async def build_ai_healing_stats(db: AsyncSession, *, days: int = 30) -> AIHealingStatsOut:
@@ -157,6 +168,19 @@ async def build_ai_healing_stats(db: AsyncSession, *, days: int = 30) -> AIHeali
     )
     high_quality_example_count = int(example_result.scalar_one() or 0)
 
+    regression_result = await db.execute(
+        select(TestRun).where(
+            TestRun.created_at >= since,
+            TestRun.result_summary.is_not(None),
+        )
+    )
+    regression_runs = [run for run in regression_result.scalars().all() if _is_ai_healing_regression(run)]
+    regression_triggered_count = len(regression_runs)
+    regression_success_count = sum(1 for run in regression_runs if _is_success_status(run.status))
+
+    aggregate_result = await db.execute(select(func.max(HealingFeedbackAggregate.last_aggregated_at)))
+    latest_feedback_aggregated_at = aggregate_result.scalar_one_or_none()
+
     return AIHealingStatsOut(
         total_feedback_count=total_count,
         adopted_count=adopted_count,
@@ -166,4 +190,12 @@ async def build_ai_healing_stats(db: AsyncSession, *, days: int = 30) -> AIHeali
         by_case_type=by_case_type,
         top_error_fingerprints=top_error_fingerprints,
         recent_trend=recent_trend,
+        production_feedback=AIHealingProductionFeedback(
+            regression_triggered_count=regression_triggered_count,
+            regression_success_count=regression_success_count,
+            regression_success_rate=_rate(regression_success_count, regression_triggered_count),
+            latest_feedback_aggregated_at=(
+                latest_feedback_aggregated_at.isoformat() if latest_feedback_aggregated_at else None
+            ),
+        ),
     )

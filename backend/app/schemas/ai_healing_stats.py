@@ -26,6 +26,13 @@ class AIHealingTrendItem(BaseModel):
     adopted_rate: float
 
 
+class AIHealingProductionFeedback(BaseModel):
+    regression_triggered_count: int
+    regression_success_count: int
+    regression_success_rate: float
+    latest_feedback_aggregated_at: str | None = None
+
+
 class AIHealingStatsOut(BaseModel):
     total_feedback_count: int
     adopted_count: int
@@ -35,3 +42,4 @@ class AIHealingStatsOut(BaseModel):
     by_case_type: list[AIHealingCaseTypeStat]
     top_error_fingerprints: list[AIHealingTopFingerprint]
     recent_trend: list[AIHealingTrendItem]
+    production_feedback: AIHealingProductionFeedback

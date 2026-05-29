@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 from datetime import datetime, timezone
 from typing import Sequence
 
@@ -7,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.case import StepResult, TestCase, TestRun
+from app.models.healing_feedback import HealingFeedbackAggregate
 from app.models.healing_prompt_example import HealingPromptExample
 from app.services.healing_feedback import build_error_fingerprint
 
@@ -44,6 +46,19 @@ def build_few_shot_block(examples: Sequence[HealingPromptExample]) -> str:
     return "\n\n".join(parts)
 
 
+def prompt_example_quality_weight(aggregate: HealingFeedbackAggregate | None) -> float:
+    if aggregate is None or aggregate.total_count <= 0:
+        return 1.0
+    confidence = min(math.log1p(aggregate.total_count) / math.log1p(20), 1.0)
+    adopted_rate = max(0.0, min(float(aggregate.adopted_rate or 0.0), 1.0))
+    return round(1.0 + adopted_rate * 2.0 + confidence, 4)
+
+
+def _example_timestamp(example: HealingPromptExample) -> float:
+    value = example.marked_at or example.created_at
+    return value.timestamp() if value else 0.0
+
+
 async def list_prompt_examples(
     db: AsyncSession,
     *,
@@ -74,16 +89,29 @@ async def get_high_quality_examples(
     if limit <= 0:
         return []
     result = await db.execute(
-        select(HealingPromptExample)
+        select(HealingPromptExample, HealingFeedbackAggregate)
+        .outerjoin(
+            HealingFeedbackAggregate,
+            (HealingFeedbackAggregate.error_fingerprint == HealingPromptExample.error_fingerprint)
+            & (HealingFeedbackAggregate.case_type == HealingPromptExample.case_type),
+        )
         .where(
             HealingPromptExample.error_fingerprint == error_fingerprint,
             HealingPromptExample.case_type == case_type,
             HealingPromptExample.marked_high_quality.is_(True),
         )
         .order_by(HealingPromptExample.created_at.desc())
-        .limit(limit)
+        .limit(max(limit * 5, limit))
     )
-    return list(result.scalars().all())
+    ranked = sorted(
+        result.all(),
+        key=lambda row: (
+            prompt_example_quality_weight(row[1]),
+            _example_timestamp(row[0]),
+        ),
+        reverse=True,
+    )
+    return [example for example, _aggregate in ranked[:limit]]
 
 
 async def create_example_from_step(
