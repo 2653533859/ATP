@@ -81,6 +81,7 @@
           :columns="columns"
           :pagination="false"
           row-key="error_fingerprint"
+          :locale="{ emptyText: '暂无错误特征数据' }"
         >
           <template #bodyCell="{ column, record }">
             <template v-if="column.key === 'case_type'">

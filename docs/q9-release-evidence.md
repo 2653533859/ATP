@@ -7,6 +7,22 @@ This file records concrete evidence for the Q9 release-readiness baseline. It is
 
 ## Local Evidence
 
+### Full Backend Regression (2026-05-30, Q9 Phase 5)
+
+Command:
+
+```bash
+python -m pytest backend/tests --ignore=backend/tests/integration -q
+```
+
+Result:
+
+```text
+726 passed, 2 skipped, 41 warnings in 11.84s
+```
+
+The 41 warnings are `PytestCollectionWarning` for `Test*`-named SQLAlchemy/Pydantic classes and are not failures. Phase 5 also fixed the router guard to enforce `meta.requireAdmin` and to restore `user` after a page refresh; frontend `npm run type-check` passed.
+
 ### Q8/Q9 Focused Backend Regression
 
 Command:

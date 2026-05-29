@@ -1,7 +1,7 @@
 # ATP 项目任务跟踪
 
-**最后更新**: 2026-05-29
-**当前阶段**: Q9 Phase 4 已完成；Performance Center 安全限制、Helm 独立 performance worker 示例、压测趋势图与 run 对比、raw summary 清理策略验证均已落地，下一步进入 Q9 Phase 5 产品化与文档收口
+**最后更新**: 2026-05-30
+**当前阶段**: Q9 全部完成（Phase 1-5）；Phase 5 产品化与文档收口已落地——路由守卫消费 `meta.requireAdmin`（修复非管理员越权访问与刷新后用户态丢失）、Q8/Q9 新页面三态扫描与空态补齐、README 补 Q8/Q9 能力索引、新建 `docs/q9-acceptance-summary.md` 验收摘要，全量回归 726 passed / 2 skipped、前端 type-check 通过
 
 > 状态说明：
 > - `[ ]` 待开始

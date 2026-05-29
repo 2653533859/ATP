@@ -62,6 +62,14 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 - 结构化日志统一收集、截图/报告文件清理任务、一键部署脚本
 - Android 真机联调沉淀：执行前设备可达性校验、ADB over TCP 联调说明、Docker worker 连接建议
 - 前端国际化基础能力：已接入 `vue-i18n`、语言切换与本地存储记忆；登录、导航、Dashboard、计划 / 套件 / 用例主列表、执行记录 / 执行详情、Android 专项任务，以及环境、通知、全局变量、AI 模型配置等系统页面已完成中英文文案迁移
+- AI 自愈建议（iter5）：结构化定位 / 等待 / 断言 / 安全参数修复建议，人审应用、回归 run 关联与运行详情页预览采纳
+- AI 用例生成：需求 / OpenAPI / cURL 输入生成可编辑草稿，生成→保存漏斗统计与质量权重 prompt 示例
+- 性能压测中心：k6 脚本上传、独立 `performance` 队列与 worker、指标 / threshold / raw summary 展示、趋势与 run 对比、目标 allowlist 与 VUs / duration 限制
+- 数据集 Dataset v2 治理：schema 字段校验、上传预览、soft / hard-block 策略、版本历史与回滚、引用影响面查询
+- 用户偏好服务端持久化：Dashboard 布局等偏好同步到服务端并保留 localStorage 兜底
+- AI 自愈采纳率报表：按用例类型 / 错误特征查看采纳率、生产反馈回归通过率与用例生成漏斗
+
+> Q8/Q9 能力的设计与验收详见：`docs/implementation-plan-2026-Q8.md`、`docs/implementation-plan-2026-Q9.md`、`docs/q8-acceptance-summary.md`、`docs/q9-acceptance-summary.md`、`docs/dataset-v2.md`、`docs/performance-testing-thin-slice.md`、`docs/q9-release-checklist.md`。
 
 ### 当前仍建议继续完善的方向
 
