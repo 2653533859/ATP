@@ -117,9 +117,9 @@ Q6 完成了"看板长尾 + AI 自愈 iter4 + Android 真机自愈"三波收口�
 
 ### 里程碑
 
-- [ ] A.1.2 lifespan 改造 + 测试
-- [ ] Docker compose / Helm 启动顺序调整
-- [ ] `docs/migrations.md` 文档
+- [x] A.1.2 lifespan 改造 + 测试
+- [x] Docker compose / Helm 启动顺序调整
+- [x] `docs/migrations.md` 文档
 
 ---
 
@@ -178,10 +178,13 @@ Task.md 5.9 节剩余 `[ ]` 项，拆 4 个独立子任务。
 
 ### 里程碑
 
-- [ ] A.2.1 worker 镜像瘦身
-- [ ] A.2.2 慢查询面板
-- [ ] A.2.3 Celery 队列 routing + 文档
-- [ ] A.2.4 K8s 资源 limit 模板
+- [x] A.2.1 worker 镜像瘦身
+- [x] A.2.2 慢查询面板
+- [x] A.2.3 Celery 队列 routing + 文档
+- [x] A.2.4 K8s 资源 limit 模板
+
+> 注：A.2.1 已完成 Dockerfile.worker 多阶段构建、运行层依赖收敛与 build context 清理；
+> 实际镜像体积和 Web/Android 执行器冒烟需在具备 Docker 的环境复验。
 
 ---
 
@@ -215,9 +218,12 @@ Task.md 5.9 节剩余 `[ ]` 项，拆 4 个独立子任务。
 
 ### 里程碑
 
-- [ ] A.4.1 Q6/Q7 数据复盘报告
-- [ ] A.4.2 候选方向调研笔记
-- [ ] A.4.3 Q8 计划编制
+- [x] A.4.1 Q6/Q7 数据复盘报告
+- [x] A.4.2 候选方向调研笔记
+- [x] A.4.3 Q8 计划编制
+
+> 输出：`docs/implementation-plan-2026-Q8.md`。真实生产指标仍需在 Q8 Phase 1 回填，
+> 当前计划基于 Q6/Q7 已落地能力与仓库内观测基线编制。
 
 ---
 

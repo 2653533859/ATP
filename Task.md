@@ -1,7 +1,7 @@
 # ATP 项目任务跟踪
 
-**最后更新**: 2026-05-28
-**当前阶段**: Q6 Phase 2 已完成；M3 Android 真机执行链路抖动自愈完成
+**最后更新**: 2026-05-29
+**当前阶段**: Q9 Phase 4 已完成；Performance Center 安全限制、Helm 独立 performance worker 示例、压测趋势图与 run 对比、raw summary 清理策略验证均已落地，下一步进入 Q9 Phase 5 产品化与文档收口
 
 > 状态说明：
 > - `[ ]` 待开始
@@ -34,7 +34,7 @@
 - [x] 创建项目结构数据表：`Project`、`Module`、`TestCase`
 - [x] 创建执行相关数据表：`TestRun`、`CaseResult`、`StepResult`
 - [x] 创建环境相关数据表：`Environment`、`EnvVariable`
-- [~] 已提交 Alembic 迁移文件与迁移回归测试，但首建流程仍依赖启动时 `create_all` 兜底，尚未统一为纯迁移驱动
+- [x] Alembic 迁移文件、迁移回归测试、Docker Compose migrate 服务与 Helm 迁移 Job 已补齐；首建流程统一为 Alembic 驱动，`create_all` 仅保留在显式本地排障开关中
 
 ### 1.3 用户认证
 
@@ -281,7 +281,7 @@
 
 - [x] Android 真机在不同宿主机 / Docker 网络环境下的稳定性验证沉淀（`docs/android-device-debugging.md` 新增"宿主网络与 Docker 环境差异"专章 + `scripts/android-network-doctor.sh` 一键诊断脚本）
 - [x] Android 真机执行链路抖动自愈（`backend/app/services/adb_resilience.py` 抽象层：自动 disconnect/connect 重连 + 异步心跳监控 + 命令级重试；android / perf / stability / fluency 4 个执行器统一接入；可经 `ADB_RECONNECT_*` / `ADB_HEARTBEAT_*` 配置开关一键关闭）
-- [ ] 部署、运维与性能优化的持续打磨
+- [x] 部署、运维与性能优化的持续打磨（Q7 Phase 3 已完成 Celery 队列 routing + 文档、慢查询 Grafana 面板、K8s resources 模板、worker 多阶段镜像优化；实际镜像体积与执行器冒烟需在 Docker 环境复验）
 - [x] 少量页面残余 `any` / 宽类型结构的工程化收口（P1.6 批 1-4 已完成；`frontend/src` 除 locale 文案 key `any_method` 外无显式 any）
 
 ### 5.10 Q3 前端国际化 i18n

@@ -119,7 +119,7 @@ cd backend
 alembic upgrade head
 ```
 
-最新一次迁移引入了 `storage_policies` 表（D 方向 - 存储清理策略）与 `trace_id` 列（C 方向 - 链路追踪），升级到 `20260517_0017` 后即可启用。
+迁移、升级、回滚和 drift 排查流程见 `docs/migrations.md`。
 
 只有在本地临时排障或首次手工引导且明确知道风险时，才建议短暂开启：
 
