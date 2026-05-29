@@ -55,8 +55,10 @@ def _sample_dict(**overrides):
 
 def test_admin_runs_endpoints_require_admin():
     preview_dep = inspect.signature(admin_runs.runs_retention_preview).parameters["_"].default.dependency
+    per_project_dep = inspect.signature(admin_runs.runs_retention_per_project_preview).parameters["_"].default.dependency
     execute_dep = inspect.signature(admin_runs.runs_retention_run).parameters["_"].default.dependency
     assert preview_dep is _fake_require_admin
+    assert per_project_dep is _fake_require_admin
     assert execute_dep is _fake_require_admin
 
 

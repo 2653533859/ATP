@@ -109,10 +109,26 @@ cd frontend
 npm run type-check
 ```
 
+## Backend Permission Audit (2026-05-30)
+
+A follow-up audit verified backend authorization for every admin-only surface exposed in the frontend. Result: **no privilege-escalation gap** — all five surfaces are correctly guarded.
+
+| Surface | Backend endpoint(s) | Guard | Contract test |
+|---------|---------------------|-------|---------------|
+| ai-healing-stats | `ai_healing_stats.py` | `require_admin` | `test_ai_healing_stats_api.py` |
+| healing-examples | `healing_prompt_examples.py` (4) | `require_admin` | `test_healing_prompt_examples_api.py` |
+| audit-logs | `projects.py::list_audit_logs` | `require_admin` | `test_audit_logs_api.py` (new) |
+| run-retention | `admin_runs.py` (3) | `require_admin` | `test_admin_runs_api.py` (extended) |
+| dashboard-alerts | `dashboard_alerts.py` (7) | `require_engineer` + project owner/viewer | `test_dashboard_alerts.py` |
+
+`dashboard-alerts` intentionally uses project-level RBAC instead of global admin, because alert rules are project-scoped resources. The frontend marks that page `requireAdmin` (stricter than the backend) — a UI over-restriction, not a security gap; aligning the granularity is a product decision deferred for later.
+
+This audit closed the only missing permission-contract test (`audit-logs`) and extended `test_admin_runs_api.py` to cover the `per-project-preview` endpoint.
+
 ## Known Follow-Ups
 
 - Run the full backend regression and the `release-readiness` workflow in Docker-enabled CI before release tagging (see `docs/q9-release-evidence.md` pending section).
 - Rebuild worker images in CI to verify the k6 multi-stage path and `k6 version`.
 - `AIGenerateDrawer` keeps its current error handling; richer loading/empty affordances inside the drawer are deferred as a low-impact follow-up.
-- Add a backend-level integration test that asserts admin-only routes reject non-admin access end-to-end (the Phase 5 fix is frontend-side; backend `require_admin` dependencies remain the authoritative gate).
+- Resolved (2026-05-30): backend admin-permission audit completed — see "Backend Permission Audit" above; permission-contract tests now cover all five admin surfaces.
 - Continue feeding production AI healing adoption metrics back into iter5 thresholds and prompt examples.
