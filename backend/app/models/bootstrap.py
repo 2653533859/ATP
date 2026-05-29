@@ -23,11 +23,13 @@ def load_all_models() -> None:
     from app.models.global_variable import GlobalVariable
     from app.models.storage_policy import StoragePolicy
     from app.models.ai_llm_config import AILLMConfig
-    from app.models.dataset import TestDataset
+    from app.models.dataset import TestDataset, TestDatasetVersion
     from app.models.user_project import UserProject, ProjectRole
     from app.models.dashboard_alert import DashboardAlertRule, DashboardAlertEvent
     from app.models.healing_feedback import HealingFeedbackAggregate
     from app.models.healing_prompt_example import HealingPromptExample
+    from app.models.user_setting import UserSetting
+    from app.models.performance import PerformanceTest, PerformanceRun
 
     _ = (
         User,
@@ -61,10 +63,14 @@ def load_all_models() -> None:
         StoragePolicy,
         AILLMConfig,
         TestDataset,
+        TestDatasetVersion,
         UserProject,
         ProjectRole,
         DashboardAlertRule,
         DashboardAlertEvent,
         HealingFeedbackAggregate,
         HealingPromptExample,
+        UserSetting,
+        PerformanceTest,
+        PerformanceRun,
     )

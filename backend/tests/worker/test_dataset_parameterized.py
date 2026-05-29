@@ -66,7 +66,14 @@ def _setup(rows, case_dataset_id=42):
     parent.trace_id = "trace-x"
     parent.environment = None
     ds = TestDataset(
-        id=42, name="d", project_id=10, format="json", rows=rows, creator_id=1
+        id=42,
+        name="d",
+        project_id=10,
+        format="json",
+        rows=rows,
+        schema_fields=[],
+        validation_policy="soft",
+        creator_id=1,
     )
     store = {
         ("TestCase", 5): case,
@@ -175,6 +182,69 @@ def test_parameterized_falls_back_to_single_run_when_dataset_empty(monkeypatch):
     # 仅 parent 本身被 dispatch，无 child 入库
     assert dispatched_runs == [parent.id]
     assert not any(isinstance(a, TestRun) and a is not parent for a in db.added)
+
+
+def test_parameterized_strict_schema_blocks_invalid_dataset(monkeypatch):
+    case, parent, db = _setup([{"age": "old"}])
+    case.config = {"dataset_strict_schema": True}
+    dataset = db.store[("TestDataset", 42)]
+    dataset.schema_fields = [{"name": "age", "type": "integer", "required": True, "default": None}]
+
+    dispatched = []
+
+    async def fake_dispatch(*_a, **_kw):
+        dispatched.append(True)
+
+    monkeypatch.setattr(worker_tasks, "dispatch_case", fake_dispatch)
+    monkeypatch.setattr(worker_tasks, "_safe_publish_run_event", lambda *a, **kw: _async_noop())
+    monkeypatch.setattr(worker_tasks, "_safe_invalidate_stats_cache", lambda *a, **kw: _async_noop())
+
+    asyncio.run(worker_tasks._execute_parameterized(db, parent, case, {}))
+
+    assert dispatched == []
+    assert parent.status == RunStatus.error
+    assert parent.result_summary["dataset_schema_valid"] is False
+    assert parent.result_summary["dataset_strict_schema"] is True
+    assert parent.result_summary["dataset_schema_issue_count"] == 1
+
+
+def test_parameterized_hard_policy_enforces_schema_without_case_flag(monkeypatch):
+    case, parent, db = _setup([{"age": "old"}])
+    dataset = db.store[("TestDataset", 42)]
+    dataset.validation_policy = "hard"
+    dataset.schema_fields = [{"name": "age", "type": "integer", "required": True, "default": None}]
+
+    monkeypatch.setattr(worker_tasks, "_safe_publish_run_event", lambda *a, **kw: _async_noop())
+    monkeypatch.setattr(worker_tasks, "_safe_invalidate_stats_cache", lambda *a, **kw: _async_noop())
+
+    asyncio.run(worker_tasks._execute_parameterized(db, parent, case, {}))
+
+    assert parent.status == RunStatus.error
+    assert parent.result_summary["dataset_strict_schema"] is True
+
+
+def test_parameterized_soft_policy_records_schema_issues_but_runs(monkeypatch):
+    case, parent, db = _setup([{"age": "old"}])
+    dataset = db.store[("TestDataset", 42)]
+    dataset.schema_fields = [{"name": "age", "type": "integer", "required": True, "default": None}]
+
+    dispatched = []
+
+    async def fake_dispatch(_db, child, _case, _vars):
+        dispatched.append(child.id)
+        child.status = RunStatus.passed
+        return True
+
+    monkeypatch.setattr(worker_tasks, "dispatch_case", fake_dispatch)
+    monkeypatch.setattr(worker_tasks, "_safe_publish_run_event", lambda *a, **kw: _async_noop())
+    monkeypatch.setattr(worker_tasks, "_safe_invalidate_stats_cache", lambda *a, **kw: _async_noop())
+
+    asyncio.run(worker_tasks._execute_parameterized(db, parent, case, {}))
+
+    assert len(dispatched) == 1
+    assert parent.status == RunStatus.passed
+    assert parent.result_summary["dataset_schema_valid"] is False
+    assert parent.result_summary["dataset_strict_schema"] is False
 
 
 async def _async_noop(*_a, **_kw):

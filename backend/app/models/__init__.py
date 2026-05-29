@@ -23,6 +23,8 @@ def load_all_models() -> None:
     from app.models.dashboard_alert import DashboardAlertRule, DashboardAlertEvent
     from app.models.healing_feedback import HealingFeedbackAggregate
     from app.models.healing_prompt_example import HealingPromptExample
+    from app.models.performance import PerformanceTest, PerformanceRun
+    from app.models.dataset import TestDataset, TestDatasetVersion
 
     _ = (
         User,
@@ -56,4 +58,8 @@ def load_all_models() -> None:
         DashboardAlertEvent,
         HealingFeedbackAggregate,
         HealingPromptExample,
+        PerformanceTest,
+        PerformanceRun,
+        TestDataset,
+        TestDatasetVersion,
     )

@@ -26,4 +26,25 @@ class TestDataset(Base, TimestampMixin):
     )
     format: Mapped[str] = mapped_column(String(16), nullable=False, default="json")
     rows: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
+    schema_fields: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
+    validation_policy: Mapped[str] = mapped_column(String(16), nullable=False, default="soft")
     creator_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+
+
+class TestDatasetVersion(Base, TimestampMixin):
+    __tablename__ = "test_dataset_versions"
+    __table_args__ = (
+        UniqueConstraint("dataset_id", "version", name="uq_test_dataset_versions_dataset_version"),
+    )
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    dataset_id: Mapped[int] = mapped_column(
+        ForeignKey("test_datasets.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    version: Mapped[int] = mapped_column(Integer, nullable=False)
+    format: Mapped[str] = mapped_column(String(16), nullable=False, default="json")
+    rows: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
+    schema_fields: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
+    validation_policy: Mapped[str] = mapped_column(String(16), nullable=False, default="soft")
+    change_type: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
