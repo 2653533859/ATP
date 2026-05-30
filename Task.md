@@ -1,7 +1,7 @@
 # ATP 项目任务跟踪
 
 **最后更新**: 2026-05-30
-**当前阶段**: Q9 全部完成（Phase 1-5）；Phase 5 产品化与文档收口已落地——路由守卫消费 `meta.requireAdmin`（修复非管理员越权访问与刷新后用户态丢失）、Q8/Q9 新页面三态扫描与空态补齐、README 补 Q8/Q9 能力索引、新建 `docs/q9-acceptance-summary.md` 验收摘要，全量回归 726 passed / 2 skipped、前端 type-check 通过
+**当前阶段**: Q1–Q9 全部收口（功能完整，处于 release-readiness baseline，HEAD `b16fc72`）；**Q10 实施计划已编制**——主线「质量与稳定性深化 · 质量门禁优先」，详见 `docs/implementation-plan-2026-Q10.md`，五个 Phase 均未启动（见文末 Q10 章节）
 
 > 状态说明：
 > - `[ ]` 待开始
@@ -578,3 +578,46 @@
 - [x] 修复全局变量读取接口返回密文的问题，支持默认脱敏与按需显式查看明文
 - [x] 修复稳定性执行器使用一次性 `logcat -d` 导致运行期间 crash/ANR 漏采集的问题
 - [x] 修复报告中心按任务类型筛选无效的问题，并完成后端测试与前端构建验证
+
+---
+
+## Q10 — 质量与稳定性深化（质量门禁优先）
+
+> 实施计划：`docs/implementation-plan-2026-Q10.md`（2026-05-30 编制）
+> 定位：从「功能完整」推进到「质量可度量、回归可防护、工程可信赖」；不新增业务方向。
+> 缺口画像：后端单测扎实但无 lint/覆盖率；前端测试近零；安全扫描空白；CI 缺质量门禁。
+
+### Phase 1 — 后端代码质量门禁 [P0]
+
+- [ ] ruff lint + format 配置（`pyproject.toml`）+ 存量基线豁免（per-file-ignores）
+- [ ] ruff format 一次性统一（独立 commit + `.git-blame-ignore-revs`）
+- [ ] mypy 渐进式覆盖 `core/` / `schemas/` / `services/`
+- [ ] `.pre-commit-config.yaml` 新建
+- [ ] CI 新增 lint job（ruff check + format --check）
+
+### Phase 2 — 测试覆盖率门禁 [P0]
+
+- [ ] pytest-cov 接入（`[tool.coverage]`）+ 跑出后端覆盖率基线并记录
+- [ ] CI 加 `--cov-fail-under=<基线-1%>` 门禁 + 覆盖率报告 artifact
+
+### Phase 3 — 前端单元测试从 0 到 1 [P0]
+
+- [ ] vitest + @vue/test-utils + jsdom + @vitest/coverage-v8 接入
+- [ ] 首批：`stores/auth` / `api/http`(拦截器/401) / `utils/websocket` / 1-2 纯组件
+- [ ] CI 前端 test 步骤（与 type-check/build 并列）
+
+### Phase 4 — 自动化安全扫描 [P1]
+
+- [ ] bandit SAST + 基线豁免
+- [ ] pip-audit（后端）+ npm audit / osv-scanner（前端）依赖扫描
+- [ ] trivy 镜像扫描（联动 release-readiness）
+- [ ] gitleaks 密钥扫描（CI + pre-commit）
+- [ ] `.github/dependabot.yml` 四生态 + `.github/workflows/security.yml`（仅 high/critical 阻断）
+
+### Phase 5 — 集成扩展 + SLO + 收口 [P2]
+
+- [ ] 集成测试补 suite-run / plan-trigger / notification / bug-report
+- [ ] E2E 补 suite / plan 关键路径
+- [ ] flaky 治理（pytest-rerunfailures + 标记 + 文档）
+- [ ] SLO 薄切（API 可用性 / P95 / run 成功率 3 条 + 错误预算面板，复用既有 Grafana）
+- [ ] `docs/q10-acceptance-summary.md` + README / Task.md 收口
