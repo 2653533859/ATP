@@ -4,6 +4,7 @@ import Antd from 'ant-design-vue'
 import 'ant-design-vue/dist/reset.css'
 import './styles/theme.css'
 import './styles/page-shell.css'
+import './utils/chartTheme'
 
 import App from './App.vue'
 import router from './router'

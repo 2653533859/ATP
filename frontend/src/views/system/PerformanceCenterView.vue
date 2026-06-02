@@ -60,7 +60,7 @@
     <div class="insight-grid">
       <div class="insight-panel">
         <div class="section-title">{{ t('performance.trend_title') }}</div>
-        <v-chart class="trend-chart" :option="trendOption" autoresize />
+        <v-chart class="trend-chart" :option="trendOption" :theme="chartTheme" autoresize />
       </div>
       <div class="insight-panel">
         <div class="section-title">{{ t('performance.compare_title') }}</div>
@@ -264,8 +264,10 @@ import {
   type PerformanceTestItem,
   type ProjectItem,
 } from '@/api'
+import { useChartTheme } from '@/utils/chartTheme'
 
 const { t } = useI18n()
+const { chartTheme } = useChartTheme()
 use([CanvasRenderer, LineChart, TooltipComponent, GridComponent, LegendComponent])
 
 const projectId = ref<number | null>(null)
@@ -367,7 +369,6 @@ const trendRuns = computed(() => [...runs.value].reverse().filter((run) => run.s
 const trendOption = computed<EChartsOption>(() => {
   const labels = trendRuns.value.map((run) => formatDateLabel(run.created_at))
   return {
-    color: ['#1677ff', '#52c41a', '#fa8c16', '#f5222d'],
     tooltip: { trigger: 'axis' },
     legend: { top: 0, data: [t('performance.rps'), t('performance.p95'), t('performance.p99'), t('performance.error_rate')] },
     grid: { top: 42, right: 18, bottom: 32, left: 42 },

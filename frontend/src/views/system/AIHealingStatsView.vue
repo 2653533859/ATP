@@ -65,12 +65,12 @@
       <a-row :gutter="[16, 16]" class="section">
         <a-col :xs="24" :lg="12">
           <a-card title="按用例类型">
-            <v-chart class="chart" :option="caseTypeOption" autoresize />
+            <v-chart class="chart" :option="caseTypeOption" :theme="chartTheme" autoresize />
           </a-card>
         </a-col>
         <a-col :xs="24" :lg="12">
           <a-card title="最近趋势">
-            <v-chart class="chart" :option="trendOption" autoresize />
+            <v-chart class="chart" :option="trendOption" :theme="chartTheme" autoresize />
           </a-card>
         </a-col>
       </a-row>
@@ -100,9 +100,17 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import VChart from 'vue-echarts'
+import { use } from 'echarts/core'
+import { BarChart, LineChart } from 'echarts/charts'
+import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { message } from 'ant-design-vue'
 import { aiCaseGenerationApi, aiHealingStatsApi, type AICaseFunnelStats, type AIHealingStats } from '@/api'
+import { useChartTheme } from '@/utils/chartTheme'
 
+use([CanvasRenderer, BarChart, LineChart, GridComponent, TooltipComponent, LegendComponent])
+
+const { chartTheme } = useChartTheme()
 const loading = ref(false)
 const days = ref(30)
 const stats = ref<AIHealingStats>({
@@ -154,7 +162,6 @@ const caseTypeOption = computed(() => ({
     {
       type: 'bar',
       data: stats.value.by_case_type.map((item) => item.adopted_rate),
-      itemStyle: { color: '#1677ff' },
     },
   ],
 }))

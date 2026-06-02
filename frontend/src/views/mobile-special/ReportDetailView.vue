@@ -138,6 +138,7 @@ import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import * as echarts from 'echarts'
 import type { ECharts, EChartsOption } from 'echarts'
+import { useChartTheme } from '@/utils/chartTheme'
 import {
   mobileSpecialApi,
   type MobileSpecialRunItem,
@@ -167,6 +168,7 @@ const MetricKpiCard = {
 const router = useRouter()
 const route = useRoute()
 const { t, locale } = useI18n()
+const { chartTheme } = useChartTheme()
 
 const loading = ref(false)
 const runId = computed(() => Number(route.params.runId))
@@ -310,7 +312,7 @@ async function loadSamples() {
 
 function initTrendChart() {
   if (!trendChartRef.value) return
-  trendChart = echarts.init(trendChartRef.value)
+  trendChart = echarts.init(trendChartRef.value, chartTheme.value)
   updateTrendChart()
 }
 
@@ -453,4 +455,9 @@ async function doExportJson() {
 }
 
 watch(locale, () => updateTrendChart())
+watch(chartTheme, () => {
+  trendChart?.dispose()
+  trendChart = null
+  initTrendChart()
+})
 </script>

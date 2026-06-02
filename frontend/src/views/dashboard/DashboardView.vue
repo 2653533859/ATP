@@ -61,30 +61,42 @@
 
     <a-row :gutter="16" style="margin-bottom: 24px">
       <a-col :xs="12" :sm="12" :md="6">
-        <a-card>
-          <a-statistic :title="t('dashboard.total_cases')" :value="overview.total_cases" />
-        </a-card>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-icon-primary"><ProfileOutlined /></div>
+          <div class="kpi-body">
+            <div class="kpi-value">{{ overview.total_cases }}</div>
+            <div class="kpi-label">{{ t('dashboard.total_cases') }}</div>
+          </div>
+        </div>
       </a-col>
       <a-col :xs="12" :sm="12" :md="6">
-        <a-card>
-          <a-statistic :title="t('dashboard.total_runs')" :value="overview.total_runs" />
-        </a-card>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-icon-info"><PlayCircleOutlined /></div>
+          <div class="kpi-body">
+            <div class="kpi-value">{{ overview.total_runs }}</div>
+            <div class="kpi-label">{{ t('dashboard.total_runs') }}</div>
+          </div>
+        </div>
       </a-col>
       <a-col :xs="12" :sm="12" :md="6">
-        <a-card>
-          <a-statistic
-            :title="t('dashboard.pass_rate')"
-            :value="overview.pass_rate"
-            suffix="%"
-            :precision="1"
-            :value-style="{ color: overview.pass_rate >= 80 ? '#3f8600' : '#cf1322' }"
-          />
-        </a-card>
+        <div class="kpi-card">
+          <div class="kpi-icon" :class="overview.pass_rate >= 80 ? 'kpi-icon-success' : 'kpi-icon-error'"><CheckCircleOutlined /></div>
+          <div class="kpi-body">
+            <div class="kpi-value" :style="{ color: overview.pass_rate >= 80 ? 'var(--c-success)' : 'var(--c-error)' }">
+              {{ overview.pass_rate.toFixed(1) }}<span style="font-size: 15px; font-weight: 600; margin-left: 2px">%</span>
+            </div>
+            <div class="kpi-label">{{ t('dashboard.pass_rate') }}</div>
+          </div>
+        </div>
       </a-col>
       <a-col :xs="12" :sm="12" :md="6">
-        <a-card>
-          <a-statistic :title="t('dashboard.recent_runs_7d')" :value="overview.recent_runs_7d" />
-        </a-card>
+        <div class="kpi-card">
+          <div class="kpi-icon kpi-icon-warning"><ThunderboltOutlined /></div>
+          <div class="kpi-body">
+            <div class="kpi-value">{{ overview.recent_runs_7d }}</div>
+            <div class="kpi-label">{{ t('dashboard.recent_runs_7d') }}</div>
+          </div>
+        </div>
       </a-col>
     </a-row>
 
@@ -124,6 +136,7 @@
               <v-chart
                 :ref="el => setChartRef(chart.exportKey, el)"
                 :option="chart.option.value"
+                :theme="chartTheme"
                 style="height: 320px"
                 autoresize
                 @click="params => handleChartClick(chart.key, params)"
@@ -183,14 +196,16 @@ import {
   TooltipComponent,
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { DownloadOutlined, SettingOutlined } from '@ant-design/icons-vue'
+import { DownloadOutlined, SettingOutlined, ProfileOutlined, PlayCircleOutlined, CheckCircleOutlined, ThunderboltOutlined } from '@ant-design/icons-vue'
 import LazyChartCard from '@/components/dashboard/LazyChartCard.vue'
+import { useChartTheme } from '@/utils/chartTheme'
 import { dashboardAlertApi, projectApi, statisticsApi, storageApi, userSettingsApi, type DashboardAlertEventItem, type StatisticsAggregateTrendItem, type StatisticsCaseTypeDistributionItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
 
 use([CanvasRenderer, LineChart, BarChart, PieChart, TitleComponent, TooltipComponent, GridComponent, LegendComponent])
 
 const router = useRouter()
 const { t, locale } = useI18n()
+const { chartTheme } = useChartTheme()
 
 type DashboardCaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android'
 type Aggregate = 'daily' | 'weekly'

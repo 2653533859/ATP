@@ -129,10 +129,12 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import * as echarts from 'echarts'
 import type { ECharts, EChartsOption } from 'echarts'
+import { useChartTheme } from '@/utils/chartTheme'
 import { projectApi, mobileSpecialApi, type MobileSpecialRunItem, type ProjectItem, type TaskType, type MobileRunStatus } from '@/api'
 
 const router = useRouter()
 const { t, locale } = useI18n()
+const { chartTheme } = useChartTheme()
 const loading = ref(false)
 const runs = ref<MobileSpecialRunItem[]>([])
 const projectOptions = ref<Array<{ label: string; value: number }>>([])
@@ -270,7 +272,7 @@ async function loadTrend() {
 
 function initTrendChart() {
   if (!trendChartRef.value) return
-  trendChart = echarts.init(trendChartRef.value)
+  trendChart = echarts.init(trendChartRef.value, chartTheme.value)
 }
 
 function updateTrendChart(trend: Array<{ date: string; total: number; completed: number; failed: number; pass_rate: number }>) {
@@ -375,4 +377,10 @@ async function handleStop(record: MobileSpecialRunItem) {
 }
 
 watch(locale, () => updateTrendChart(latestTrend.value))
+watch(chartTheme, () => {
+  trendChart?.dispose()
+  trendChart = null
+  initTrendChart()
+  updateTrendChart(latestTrend.value)
+})
 </script>
