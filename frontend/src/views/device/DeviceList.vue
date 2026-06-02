@@ -1,7 +1,24 @@
 <template>
-  <div class="device-page">
-    <div class="toolbar">
-      <a-space>
+  <div class="page-shell device-page">
+    <div class="page-hero">
+      <div>
+        <h2 class="page-title">{{ t('device.title') }}</h2>
+        <div class="page-subtitle">{{ t('device.subtitle') }}</div>
+      </div>
+      <a-button type="primary" :loading="scanning" @click="handleScan">
+        <ReloadOutlined /> {{ t('device.scan') }}
+      </a-button>
+    </div>
+
+    <a-row :gutter="12" class="page-summary">
+      <a-col :span="6"><a-card size="small"><a-statistic :title="t('device.summary.total')" :value="devices.length" /></a-card></a-col>
+      <a-col :span="6"><a-card size="small"><a-statistic :title="t('device.summary.online')" :value="deviceStats.online" /></a-card></a-col>
+      <a-col :span="6"><a-card size="small"><a-statistic :title="t('device.summary.busy')" :value="deviceStats.busy" /></a-card></a-col>
+      <a-col :span="6"><a-card size="small"><a-statistic :title="t('device.summary.offline')" :value="deviceStats.offline" /></a-card></a-col>
+    </a-row>
+
+    <div class="page-toolbar">
+      <div class="page-toolbar-main">
         <a-select
           v-model:value="statusFilter"
           :placeholder="t('device.status_filter')"
@@ -13,19 +30,24 @@
           <a-select-option value="offline">{{ t('device.statuses.offline') }}</a-select-option>
           <a-select-option value="busy">{{ t('device.statuses.busy') }}</a-select-option>
         </a-select>
-      </a-space>
-      <a-button type="primary" :loading="scanning" @click="handleScan">
-        <ReloadOutlined /> {{ t('device.scan') }}
-      </a-button>
+        <a-input-search
+          v-model:value="keyword"
+          :placeholder="t('device.search_placeholder')"
+          allow-clear
+          style="width: 280px"
+        />
+      </div>
+      <span class="muted-text">{{ t('device.scan_hint') }}</span>
     </div>
 
     <a-table
       :columns="columns"
-      :data-source="devices"
+      :data-source="filteredDevices"
       :loading="loading"
       row-key="id"
       size="middle"
       :pagination="false"
+      :locale="{ emptyText: t('device.empty') }"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'status'">
@@ -129,6 +151,7 @@ const devices = ref<DeviceItem[]>([])
 const loading = ref(false)
 const scanning = ref(false)
 const statusFilter = ref<string | undefined>(undefined)
+const keyword = ref('')
 
 const editOpen = ref(false)
 const saving = ref(false)
@@ -151,6 +174,21 @@ const columns = computed(() => [
   { title: t('device.columns.last_seen'), key: 'last_seen', width: 170 },
   { title: t('device.columns.action'), key: 'action', width: 180, fixed: 'right' as const },
 ])
+
+const filteredDevices = computed(() => {
+  const needle = keyword.value.trim().toLowerCase()
+  if (!needle) return devices.value
+  return devices.value.filter((device) =>
+    [device.name ?? '', device.brand ?? '', device.model ?? '', device.serial ?? '', device.os_version ?? '', device.resolution ?? '']
+      .some((value) => value.toLowerCase().includes(needle)),
+  )
+})
+
+const deviceStats = computed(() => ({
+  online: devices.value.filter((device) => device.status === 'online').length,
+  busy: devices.value.filter((device) => device.status === 'busy').length,
+  offline: devices.value.filter((device) => device.status === 'offline').length,
+}))
 
 function errorMessage(error: unknown, fallback: string) {
   if (typeof error === 'string') return error
@@ -296,12 +334,6 @@ onUnmounted(() => {
 .device-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 .mirror-container {
   display: flex;

@@ -75,7 +75,7 @@
             autocomplete="new-password"
           />
         </a-form-item>
-        <a-form-item label="Endpoint">
+        <a-form-item :label="t('system_pages.ai_llm.base_url_label')">
           <a-input
             v-model:value="form.endpoint"
             :placeholder="t('system_pages.ai_llm.endpoint_placeholder')"
@@ -181,7 +181,7 @@ const columns = computed(() => [
   { title: t('system_pages.ai_llm.columns.name'), dataIndex: 'name', key: 'name' },
   { title: 'Provider', key: 'provider' },
   { title: 'Model', dataIndex: 'model_name', key: 'model_name' },
-  { title: 'Endpoint', dataIndex: 'endpoint', key: 'endpoint', ellipsis: true },
+  { title: t('system_pages.ai_llm.base_url_label'), dataIndex: 'endpoint', key: 'endpoint', ellipsis: true },
   { title: 'API Key', key: 'has_api_key', width: 100 },
   { title: 'Vision', dataIndex: 'supports_vision', key: 'supports_vision', width: 90 },
   { title: t('system_pages.ai_llm.columns.status'), key: 'enabled', width: 80 },

@@ -1,0 +1,45 @@
+.page-shell {
+  min-width: 0;
+}
+
+.page-hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
+.page-title {
+  margin: 0;
+}
+
+.page-subtitle {
+  margin-top: 4px;
+  color: #8c8c8c;
+  font-size: 13px;
+}
+
+.page-summary {
+  margin-bottom: 16px;
+}
+
+.page-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.page-toolbar-main {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.muted-text {
+  color: #8c8c8c;
+  font-size: 12px;
+}

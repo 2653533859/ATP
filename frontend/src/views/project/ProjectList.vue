@@ -1,13 +1,32 @@
 <template>
-  <div>
-    <div class="page-header">
-      <h2>{{ t('project.title') }}</h2>
+  <div class="page-shell">
+    <div class="page-hero">
+      <div>
+        <h2 class="page-title">{{ t('project.title') }}</h2>
+        <div class="page-subtitle">{{ t('project.subtitle') }}</div>
+      </div>
       <a-button type="primary" @click="openCreate">{{ t('project.new') }}</a-button>
+    </div>
+
+    <a-row :gutter="12" class="page-summary">
+      <a-col :span="8"><a-card size="small"><a-statistic :title="t('project.summary.total')" :value="projects.length" /></a-card></a-col>
+      <a-col :span="8"><a-card size="small"><a-statistic :title="t('project.summary.ai_bound')" :value="aiBoundCount" /></a-card></a-col>
+      <a-col :span="8"><a-card size="small"><a-statistic :title="t('project.summary.unbound')" :value="projects.length - aiBoundCount" /></a-card></a-col>
+    </a-row>
+
+    <div class="page-toolbar">
+      <a-input-search
+        v-model:value="keyword"
+        :placeholder="t('project.search_placeholder')"
+        allow-clear
+        style="width: 320px"
+      />
+      <span class="muted-text">{{ t('project.card_hint') }}</span>
     </div>
 
     <a-spin :spinning="loading">
       <a-row :gutter="[16, 16]">
-        <a-col v-for="p in projects" :key="p.id" :span="8">
+        <a-col v-for="p in filteredProjects" :key="p.id" :span="8">
           <a-card hoverable :title="p.name" @click="router.push({ name: 'cases', query: { project_id: String(p.id) } })">
             <p>{{ p.description || t('project.no_description') }}</p>
             <p style="color: #888; font-size: 12px">
@@ -21,6 +40,7 @@
           </a-card>
         </a-col>
       </a-row>
+      <a-empty v-if="!loading && filteredProjects.length === 0" :description="t('project.empty')" />
     </a-spin>
 
     <a-modal
@@ -89,6 +109,7 @@ const loading = ref(false)
 const saving = ref(false)
 const showModal = ref(false)
 const editingId = ref<number | null>(null)
+const keyword = ref('')
 const form = reactive<{
   name: string
   description: string
@@ -106,6 +127,17 @@ const llmNameMap = computed(() => {
   llmConfigs.value.forEach((c) => map.set(c.id, c.name))
   return map
 })
+
+const filteredProjects = computed(() => {
+  const needle = keyword.value.trim().toLowerCase()
+  if (!needle) return projects.value
+  return projects.value.filter((project) =>
+    [project.name, project.description ?? '', llmConfigLabel(project.ai_llm_config_id)]
+      .some((value) => value.toLowerCase().includes(needle)),
+  )
+})
+
+const aiBoundCount = computed(() => projects.value.filter((project) => project.ai_llm_config_id != null).length)
 
 function llmConfigLabel(id?: number | null): string {
   if (id == null) return t('project.unbound')
@@ -211,12 +243,3 @@ onMounted(() => {
   loadLLMConfigs()
 })
 </script>
-
-<style scoped>
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 16px;
-}
-</style>

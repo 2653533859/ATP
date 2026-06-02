@@ -1,7 +1,10 @@
 <template>
   <div class="dataset-library">
     <div class="header">
-      <h2>{{ t('dataset.title') }}</h2>
+      <div>
+        <h2>{{ t('dataset.title') }}</h2>
+        <div class="subtitle">{{ t('dataset.subtitle') }}</div>
+      </div>
       <a-space>
         <a-select
           v-model:value="projectId"
@@ -14,20 +17,46 @@
         <a-button type="primary" :disabled="!projectId" @click="openCreate">
           + {{ t('dataset.create') }}
         </a-button>
+        <a-button :disabled="!projectId" :loading="loading" @click="loadList">
+          {{ t('common.refresh') }}
+        </a-button>
       </a-space>
+    </div>
+
+    <a-row :gutter="12" class="summary-row">
+      <a-col :span="6"><a-card size="small"><a-statistic :title="t('dataset.summary.datasets')" :value="datasets.length" /></a-card></a-col>
+      <a-col :span="6"><a-card size="small"><a-statistic :title="t('dataset.summary.rows')" :value="totalRows" /></a-card></a-col>
+      <a-col :span="6"><a-card size="small"><a-statistic :title="t('dataset.summary.schema_fields')" :value="totalSchemaFields" /></a-card></a-col>
+      <a-col :span="6"><a-card size="small"><a-statistic :title="t('dataset.summary.hard_block')" :value="hardBlockCount" /></a-card></a-col>
+    </a-row>
+
+    <div class="toolbar">
+      <a-input-search
+        v-model:value="keyword"
+        :placeholder="t('dataset.search_placeholder')"
+        allow-clear
+        style="width: 320px"
+      />
+      <span class="toolbar-hint">{{ t('dataset.limit_hint') }}</span>
     </div>
 
     <a-table
       :columns="columns"
-      :data-source="datasets"
+      :data-source="filteredDatasets"
       :loading="loading"
-      :pagination="false"
+      :pagination="{ pageSize: 10, showSizeChanger: true }"
       row-key="id"
+      :scroll="{ x: 1120 }"
       :locale="{ emptyText: t('dataset.empty') }"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'format'">
           <a-tag :color="record.format === 'csv' ? 'green' : 'blue'">{{ record.format.toUpperCase() }}</a-tag>
+        </template>
+        <template v-else-if="column.key === 'validation_policy'">
+          <a-tag :color="record.validation_policy === 'hard' ? 'red' : 'gold'">
+            {{ record.validation_policy === 'hard' ? t('dataset.validation_hard') : t('dataset.validation_soft') }}
+          </a-tag>
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
@@ -51,10 +80,7 @@
     <a-drawer
       v-model:open="editorOpen"
       :title="editing ? t('dataset.edit_title') : t('dataset.create_title')"
-      :width="640"
-      :ok-text="t('common.save')"
-      :cancel-text="t('common.cancel')"
-      @ok="onSave"
+      :width="860"
     >
       <a-form layout="vertical">
         <a-form-item :label="t('dataset.name')">
@@ -74,6 +100,9 @@
             <a-radio-button value="soft">{{ t('dataset.validation_soft') }}</a-radio-button>
             <a-radio-button value="hard">{{ t('dataset.validation_hard') }}</a-radio-button>
           </a-radio-group>
+          <div class="form-hint">
+            {{ form.validation_policy === 'hard' ? t('dataset.validation_hard_hint') : t('dataset.validation_soft_hint') }}
+          </div>
         </a-form-item>
         <a-form-item :label="t('dataset.schema_fields')">
           <a-table
@@ -105,13 +134,27 @@
             {{ t('dataset.add_schema_field') }}
           </a-button>
         </a-form-item>
-        <a-form-item :label="t('dataset.rows_preview') + ` (${form.rows.length})`">
-          <pre class="rows-preview">{{ rowsPreview }}</pre>
+        <a-form-item :label="t('dataset.rows_editor') + ` (${form.rows.length})`">
+          <a-textarea
+            v-model:value="rowsText"
+            :rows="10"
+            class="rows-editor"
+            :placeholder="t('dataset.rows_editor_placeholder')"
+          />
+          <div v-if="rowsTextError" class="input-error">{{ rowsTextError }}</div>
+          <div v-else class="form-hint">{{ t('dataset.rows_editor_hint') }}</div>
         </a-form-item>
-        <a-button :loading="validating" @click="validateCurrentRows">
-          {{ t('dataset.validate_rows') }}
-        </a-button>
+        <a-space>
+          <a-button @click="formatRowsText">{{ t('dataset.format_json') }}</a-button>
+          <a-button :loading="validating" @click="validateCurrentRows">{{ t('dataset.validate_rows') }}</a-button>
+        </a-space>
       </a-form>
+      <template #footer>
+        <div class="drawer-footer">
+          <a-button @click="editorOpen = false">{{ t('common.cancel') }}</a-button>
+          <a-button type="primary" @click="onSave">{{ t('common.save') }}</a-button>
+        </div>
+      </template>
     </a-drawer>
 
     <a-modal
@@ -224,7 +267,11 @@ import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import { datasetApi, projectApi, type DatasetDetail, type DatasetImpact, type DatasetImpactItem, type DatasetListItem, type DatasetFormat, type DatasetSchemaField, type DatasetSchemaFieldType, type DatasetValidationPolicy, type DatasetValidationResult, type DatasetVersionItem, type ProjectItem } from '@/api'
 
-const { t } = useI18n()
+const { t: translate } = useI18n()
+
+function t(key: string, params?: Record<string, string | number>) {
+  return translate(key.startsWith('dataset.') ? `system_pages.${key}` : key, params ?? {})
+}
 
 const projectId = ref<number | null>(null)
 const projectOptions = ref<{ label: string; value: number }[]>([])
@@ -244,6 +291,9 @@ const versions = ref<DatasetVersionItem[]>([])
 const impactOpen = ref(false)
 const impactLoading = ref(false)
 const impact = ref<DatasetImpact | null>(null)
+const keyword = ref('')
+const rowsText = ref('[]')
+const rowsTextError = ref('')
 
 type SchemaFieldForm = {
   name: string
@@ -262,9 +312,23 @@ const columns = computed(() => [
   { title: t('dataset.format'), key: 'format', width: 100 },
   { title: t('dataset.validation_policy'), dataIndex: 'validation_policy', key: 'validation_policy', width: 120 },
   { title: t('dataset.row_count'), dataIndex: 'row_count', key: 'row_count', width: 120 },
+  { title: t('dataset.schema_field_count'), dataIndex: 'schema_field_count', key: 'schema_field_count', width: 120 },
   { title: t('dataset.updated_at'), dataIndex: 'updated_at', key: 'updated_at', width: 180 },
   { title: t('common.actions'), key: 'actions', width: 360 },
 ])
+
+const filteredDatasets = computed(() => {
+  const needle = keyword.value.trim().toLowerCase()
+  if (!needle) return datasets.value
+  return datasets.value.filter((item) =>
+    [item.name, item.description ?? '', item.format, item.validation_policy]
+      .some((value) => value.toLowerCase().includes(needle)),
+  )
+})
+
+const totalRows = computed(() => datasets.value.reduce((total, item) => total + item.row_count, 0))
+const totalSchemaFields = computed(() => datasets.value.reduce((total, item) => total + item.schema_field_count, 0))
+const hardBlockCount = computed(() => datasets.value.filter((item) => item.validation_policy === 'hard').length)
 
 const issueColumns = computed(() => [
   { title: t('dataset.issue_row'), dataIndex: 'row_index', key: 'row_index', width: 110 },
@@ -313,11 +377,6 @@ function impactRows(items: DatasetImpactItem[]) {
   return items.map((item) => ({ ...item, key: `${item.id}:${item.reason}` }))
 }
 
-const rowsPreview = computed(() => {
-  if (!form.value.rows.length) return t('dataset.no_rows')
-  return JSON.stringify(form.value.rows.slice(0, 5), null, 2)
-})
-
 async function loadProjects() {
   const items = await projectApi.list()
   projectOptions.value = items.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
@@ -343,6 +402,8 @@ async function loadList() {
 function openCreate() {
   editing.value = null
   form.value = { name: '', description: '', format: 'json', validation_policy: 'soft', rows: [], schema_fields: [] }
+  rowsText.value = '[]'
+  rowsTextError.value = ''
   editorOpen.value = true
 }
 
@@ -402,7 +463,37 @@ async function openEdit(record: DatasetListItem) {
     rows: detail.rows,
     schema_fields: (detail.schema_fields ?? []).map(schemaFieldToForm),
   }
+  rowsText.value = JSON.stringify(detail.rows, null, 2)
+  rowsTextError.value = ''
   editorOpen.value = true
+}
+
+function applyRowsText(): boolean {
+  const text = rowsText.value.trim()
+  if (!text) {
+    form.value.rows = []
+    rowsText.value = '[]'
+    rowsTextError.value = ''
+    return true
+  }
+  try {
+    const parsed: unknown = JSON.parse(text)
+    if (!Array.isArray(parsed) || !parsed.every((row) => typeof row === 'object' && row !== null && !Array.isArray(row))) {
+      rowsTextError.value = t('dataset.rows_array_required')
+      return false
+    }
+    form.value.rows = parsed as Record<string, unknown>[]
+    rowsTextError.value = ''
+    return true
+  } catch {
+    rowsTextError.value = t('dataset.rows_parse_failed')
+    return false
+  }
+}
+
+function formatRowsText() {
+  if (!applyRowsText()) return
+  rowsText.value = JSON.stringify(form.value.rows, null, 2)
 }
 
 async function onSave() {
@@ -411,6 +502,7 @@ async function onSave() {
     message.warning(t('dataset.name_required'))
     return
   }
+  if (!applyRowsText()) return
   const schemaFields = normalizedSchemaFields()
   if (schemaFields == null) return
   try {
@@ -444,6 +536,7 @@ async function validateCurrentRows() {
   validating.value = true
   pendingUpload.value = null
   try {
+    if (!applyRowsText()) return
     const schemaFields = normalizedSchemaFields()
     if (schemaFields == null) return
     validationResult.value = await datasetApi.validate({
@@ -549,6 +642,25 @@ onMounted(loadProjects)
   margin-bottom: 16px;
 }
 
+.subtitle,
+.toolbar-hint,
+.form-hint {
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.summary-row,
+.toolbar {
+  margin-bottom: 16px;
+}
+
+.toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
 .rows-preview {
   margin: 0;
   padding: 8px 12px;
@@ -559,6 +671,23 @@ onMounted(loadProjects)
   font-size: 12px;
   white-space: pre-wrap;
   word-break: break-word;
+}
+
+.rows-editor {
+  font-family: Consolas, Monaco, monospace;
+  font-size: 12px;
+}
+
+.input-error {
+  color: #ff4d4f;
+  font-size: 12px;
+  margin-top: 4px;
+}
+
+.drawer-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 .validation-section {

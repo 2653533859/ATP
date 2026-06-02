@@ -1,7 +1,23 @@
 <template>
-  <div class="apk-page">
-    <div class="toolbar">
-      <a-space>
+  <div class="page-shell apk-page">
+    <div class="page-hero">
+      <div>
+        <h2 class="page-title">{{ t('apk.title') }}</h2>
+        <div class="page-subtitle">{{ t('apk.subtitle') }}</div>
+      </div>
+      <a-button type="primary" @click="uploadOpen = true">
+        <UploadOutlined /> {{ t('apk.upload') }}
+      </a-button>
+    </div>
+
+    <a-row :gutter="12" class="page-summary">
+      <a-col :span="8"><a-card size="small"><a-statistic :title="t('apk.summary.total')" :value="apks.length" /></a-card></a-col>
+      <a-col :span="8"><a-card size="small"><a-statistic :title="t('apk.summary.projects')" :value="apkProjectCount" /></a-card></a-col>
+      <a-col :span="8"><a-card size="small"><a-statistic :title="t('apk.summary.size')" :value="totalSizeLabel" /></a-card></a-col>
+    </a-row>
+
+    <div class="page-toolbar">
+      <div class="page-toolbar-main">
         <a-select
           v-model:value="projectFilter"
           :placeholder="t('apk.select_project')"
@@ -13,19 +29,24 @@
             {{ p.name }}
           </a-select-option>
         </a-select>
-      </a-space>
-      <a-button type="primary" @click="uploadOpen = true">
-        <UploadOutlined /> {{ t('apk.upload') }}
-      </a-button>
+        <a-input-search
+          v-model:value="keyword"
+          :placeholder="t('apk.search_placeholder')"
+          allow-clear
+          style="width: 300px"
+        />
+      </div>
+      <span class="muted-text">{{ t('apk.upload_hint') }}</span>
     </div>
 
     <a-table
       :columns="columns"
-      :data-source="apks"
+      :data-source="filteredApks"
       :loading="loading"
       row-key="id"
       size="middle"
       :pagination="false"
+      :locale="{ emptyText: t('apk.empty') }"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'filename'">
@@ -154,6 +175,7 @@ const apks = ref<ApkItem[]>([])
 const projects = ref<ProjectItem[]>([])
 const loading = ref(false)
 const projectFilter = ref<number | undefined>(undefined)
+const keyword = ref('')
 
 const uploadOpen = ref(false)
 const uploading = ref(false)
@@ -185,6 +207,18 @@ const columns = computed(() => [
   { title: t('apk.columns.created'), key: 'created', width: 170 },
   { title: t('apk.columns.action'), key: 'action', width: 180, fixed: 'right' as const },
 ])
+
+const filteredApks = computed(() => {
+  const needle = keyword.value.trim().toLowerCase()
+  if (!needle) return apks.value
+  return apks.value.filter((apk) =>
+    [apk.filename, apk.package_name ?? '', apk.version_name ?? '', String(apk.version_code ?? ''), getProjectName(apk.project_id)]
+      .some((value) => value.toLowerCase().includes(needle)),
+  )
+})
+
+const apkProjectCount = computed(() => new Set(apks.value.map((apk) => apk.project_id)).size)
+const totalSizeLabel = computed(() => formatSize(apks.value.reduce((total, apk) => total + apk.file_size, 0)))
 
 function errorMessage(error: unknown, fallback: string) {
   if (typeof error === 'string') return error
@@ -331,11 +365,5 @@ onMounted(() => {
 .apk-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
-}
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
 }
 </style>
