@@ -9,6 +9,41 @@
       </span>
     </div>
 
+    <a-card size="small" class="visual-recorder" :title="t('case.android_editor.visual_title')">
+      <template #extra>
+        <a-button size="small" :loading="screenshotLoading" :disabled="!props.deviceId" @click="refreshScreenshot">
+          {{ t('case.android_editor.refresh_screen') }}
+        </a-button>
+      </template>
+      <a-alert
+        v-if="!props.deviceId"
+        type="info"
+        show-icon
+        :message="t('case.android_editor.visual_no_device')"
+      />
+      <template v-else>
+        <div class="visual-hint">{{ t('case.android_editor.visual_hint') }}</div>
+        <div
+          class="screen-canvas"
+          :class="{ 'is-busy': recordingAction }"
+          @pointerdown="onScreenPointerDown"
+          @pointerup="onScreenPointerUp"
+        >
+          <img
+            v-if="screenshotUrl"
+            ref="screenImageRef"
+            :src="screenshotUrl"
+            :alt="t('case.android_editor.visual_title')"
+            draggable="false"
+          />
+          <a-empty v-else :description="t('case.android_editor.visual_empty')" />
+          <div v-if="recordingAction" class="recording-mask">
+            <a-spin :tip="t('case.android_editor.visual_operating')" />
+          </div>
+        </div>
+      </template>
+    </a-card>
+
     <a-empty v-if="steps.length === 0" :description="t('case.lowcode_editor.empty')" />
 
     <draggable
@@ -221,10 +256,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { message } from 'ant-design-vue'
 import { PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons-vue'
 import draggable from 'vuedraggable'
 import { useI18n } from 'vue-i18n'
+import { deviceApi } from '@/api'
 
 type StepParams = Record<string, unknown>
 type ExternalStep = { action: string; name: string; params: StepParams }
@@ -238,6 +275,7 @@ interface StepDef {
 
 const props = defineProps<{
   modelValue: ExternalStep[]
+  deviceId?: number | null
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: ExternalStep[]]
@@ -302,6 +340,12 @@ function toExternal(items: StepDef[]): ExternalStep[] {
 }
 
 const steps = ref<StepDef[]>([])
+const screenshotUrl = ref<string | null>(null)
+const screenshotLoading = ref(false)
+const recordingAction = ref(false)
+const screenImageRef = ref<HTMLImageElement | null>(null)
+const dragStart = ref<{ x: number; y: number } | null>(null)
+let screenshotObjectUrl: string | null = null
 
 function isSameSteps(items: ExternalStep[]) {
   return JSON.stringify(items) === JSON.stringify(toExternal(steps.value))
@@ -325,16 +369,7 @@ function emitUpdate() {
 
 function addStep() {
   const action = 'click'
-  steps.value = [
-    ...steps.value,
-    {
-      action,
-      name: t('case.step_editor.step_title', { index: steps.value.length + 1 }),
-      params: defaultParams[action](),
-      _key: keyCounter++,
-    },
-  ]
-  emitUpdate()
+  appendStep(action, defaultParams[action]())
 }
 
 function removeStep(index: number) {
@@ -346,6 +381,125 @@ function onActionChange(step: StepDef) {
   step.params = defaultParams[step.action]?.() ?? {}
   emitUpdate()
 }
+
+function appendStep(action: string, params: StepParams) {
+  steps.value = [
+    ...steps.value,
+    {
+      action,
+      name: t('case.step_editor.step_title', { index: steps.value.length + 1 }),
+      params,
+      _key: keyCounter++,
+    },
+  ]
+  emitUpdate()
+}
+
+function revokeScreenshotUrl() {
+  if (screenshotObjectUrl) {
+    URL.revokeObjectURL(screenshotObjectUrl)
+    screenshotObjectUrl = null
+  }
+}
+
+async function refreshScreenshot() {
+  if (!props.deviceId) return
+  screenshotLoading.value = true
+  try {
+    const blob = await deviceApi.screenshot(props.deviceId)
+    const nextUrl = URL.createObjectURL(blob)
+    revokeScreenshotUrl()
+    screenshotObjectUrl = nextUrl
+    screenshotUrl.value = nextUrl
+  } catch {
+    message.error(t('case.android_editor.visual_refresh_failed'))
+  } finally {
+    screenshotLoading.value = false
+  }
+}
+
+function eventToDevicePoint(event: PointerEvent) {
+  const image = screenImageRef.value
+  if (!image) return null
+  const rect = image.getBoundingClientRect()
+  if (rect.width <= 0 || rect.height <= 0) return null
+  const x = Math.round((event.clientX - rect.left) * (image.naturalWidth / rect.width))
+  const y = Math.round((event.clientY - rect.top) * (image.naturalHeight / rect.height))
+  return {
+    x: Math.max(0, Math.min(image.naturalWidth, x)),
+    y: Math.max(0, Math.min(image.naturalHeight, y)),
+  }
+}
+
+function onScreenPointerDown(event: PointerEvent) {
+  if (recordingAction.value) return
+  ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
+  dragStart.value = eventToDevicePoint(event)
+}
+
+async function onScreenPointerUp(event: PointerEvent) {
+  ;(event.currentTarget as HTMLElement).releasePointerCapture?.(event.pointerId)
+  const start = dragStart.value
+  const end = eventToDevicePoint(event)
+  dragStart.value = null
+  if (!start || !end || !props.deviceId || recordingAction.value) return
+
+  const distance = Math.hypot(end.x - start.x, end.y - start.y)
+  if (distance < 12) {
+    appendStep('click', { text: '', resourceId: '', x: start.x, y: start.y })
+    await performLiveAction(
+      () => deviceApi.tap(props.deviceId!, { x: start.x, y: start.y }),
+      t('case.android_editor.visual_click_added', { x: start.x, y: start.y }),
+    )
+    return
+  }
+
+  appendStep('swipe', {
+    direction: undefined,
+    x1: start.x,
+    y1: start.y,
+    x2: end.x,
+    y2: end.y,
+    duration: 300,
+  })
+  await performLiveAction(
+    () => deviceApi.swipe(props.deviceId!, {
+      x1: start.x,
+      y1: start.y,
+      x2: end.x,
+      y2: end.y,
+      duration_ms: 300,
+    }),
+    t('case.android_editor.visual_swipe_added'),
+  )
+}
+
+async function performLiveAction(action: () => Promise<unknown>, successMessage: string) {
+  recordingAction.value = true
+  try {
+    await action()
+    message.success(successMessage)
+    await new Promise((resolve) => setTimeout(resolve, 350))
+    await refreshScreenshot()
+  } catch {
+    message.error(t('case.android_editor.visual_action_failed'))
+  } finally {
+    recordingAction.value = false
+  }
+}
+
+watch(
+  () => props.deviceId,
+  (deviceId) => {
+    revokeScreenshotUrl()
+    screenshotUrl.value = null
+    if (deviceId) {
+      void refreshScreenshot()
+    }
+  },
+)
+
+onBeforeUnmount(revokeScreenshotUrl)
 </script>
 
 <style scoped>
@@ -361,6 +515,45 @@ function onActionChange(step: StepDef) {
 }
 .step-card {
   margin-bottom: 8px;
+}
+.visual-recorder {
+  margin-bottom: 8px;
+}
+.visual-hint {
+  color: #8c8c8c;
+  font-size: 12px;
+  margin-bottom: 8px;
+}
+.screen-canvas {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 220px;
+  max-height: 520px;
+  overflow: hidden;
+  background: #111;
+  border-radius: 8px;
+  cursor: crosshair;
+  user-select: none;
+  touch-action: none;
+}
+.screen-canvas img {
+  max-width: 100%;
+  max-height: 520px;
+  object-fit: contain;
+  pointer-events: auto;
+}
+.screen-canvas.is-busy {
+  cursor: wait;
+}
+.recording-mask {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
 }
 .step-card :deep(.ant-card-head) {
   min-height: 40px;

@@ -130,7 +130,7 @@
       </a-form-item>
 
       <template v-if="editMode === 'lowcode'">
-        <AndroidStepEditor v-model="lowcodeSteps" />
+        <AndroidStepEditor v-model="lowcodeSteps" :device-id="selectedDeviceId" />
       </template>
 
       <template v-else>
@@ -181,12 +181,12 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { CheckCircleOutlined, UploadOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { apkApi, caseApi, deviceApi, scriptApi, type CaseStepItem } from '@/api'
+import { apkApi, caseApi, deviceApi, type DeviceItem, scriptApi, type CaseStepItem } from '@/api'
 import CaseStepEditor from '@/components/case/CaseStepEditor.vue'
 import AndroidStepEditor from '@/components/common/AndroidStepEditor.vue'
 import MonacoEditor from '@/components/common/MonacoEditor.vue'
@@ -233,7 +233,7 @@ const cfg = reactive({
   timeout: 120,
 })
 
-const devices = ref<Array<{ serial: string; status: string; brand: string; model: string }>>([])
+const devices = ref<DeviceItem[]>([])
 const devicesLoading = ref(false)
 const apks = ref<Array<{ id: number; filename: string; version_name?: string; object_name?: string }>>([])
 const apksLoading = ref(false)
@@ -248,6 +248,10 @@ const uploading = ref(false)
 const savingScript = ref(false)
 const loadingScript = ref(false)
 const initSeq = ref(0)
+
+const selectedDeviceId = computed(() =>
+  devices.value.find((device) => device.serial === cfg.device_serial)?.id ?? null,
+)
 
 function resolveEditMode(config: Record<string, unknown>) {
   if (Array.isArray(config.steps)) {
@@ -284,7 +288,7 @@ function resetDrawerState() {
 async function loadDevices() {
   devicesLoading.value = true
   try {
-    devices.value = await deviceApi.list() as Array<{ serial: string; status: string; brand: string; model: string }>
+    devices.value = await deviceApi.list()
   } catch {
     devices.value = []
   } finally {
