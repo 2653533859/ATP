@@ -3,6 +3,7 @@
 __pycache__/
 .pytest_cache/
 backend/venv/
+backend/.venv/
 backend/celerybeat-schedule.bak
 backend/celerybeat-schedule.dat
 backend/celerybeat-schedule.dir
