@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 
 revision: str = "20260522_0028"
@@ -17,7 +18,7 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-project_role_enum = sa.Enum("owner", "editor", "viewer", name="projectrole")
+project_role_enum = postgresql.ENUM("owner", "editor", "viewer", name="projectrole", create_type=False)
 
 
 def upgrade() -> None:

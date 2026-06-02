@@ -14,6 +14,7 @@ This migration creates the mobile special testing domain tables:
 """
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 revision = '20260330_0014'
@@ -23,19 +24,19 @@ depends_on = None
 
 
 # Enums
-task_type_enum = sa.Enum('performance', 'stability', 'fluency', name='task_type')
-source_type_enum = sa.Enum('apk_only', 'case', 'suite', 'monkey', name='source_type')
-device_scope_type_enum = sa.Enum('single_device', 'device_group', 'manual_pick', name='device_scope_type')
-run_status_enum = sa.Enum('pending', 'running', 'completed', 'failed', 'stopped', name='run_status')
-trigger_type_enum = sa.Enum('manual', 'schedule', 'webhook', name='trigger_type')
-incident_type_enum = sa.Enum('crash', 'anr', 'fatal_log', 'watchdog', name='incident_type')
-metric_type_enum = sa.Enum(
+task_type_enum = postgresql.ENUM('performance', 'stability', 'fluency', name='task_type', create_type=False)
+source_type_enum = postgresql.ENUM('apk_only', 'case', 'suite', 'monkey', name='source_type', create_type=False)
+device_scope_type_enum = postgresql.ENUM('single_device', 'device_group', 'manual_pick', name='device_scope_type', create_type=False)
+run_status_enum = postgresql.ENUM('pending', 'running', 'completed', 'failed', 'stopped', name='run_status', create_type=False)
+trigger_type_enum = postgresql.ENUM('manual', 'schedule', 'webhook', name='trigger_type', create_type=False)
+incident_type_enum = postgresql.ENUM('crash', 'anr', 'fatal_log', 'watchdog', name='incident_type', create_type=False)
+metric_type_enum = postgresql.ENUM(
     'cpu_pct', 'mem_mb', 'fps', 'jank_count', 'frame_time_ms',
     'battery_pct', 'temperature_c', 'network_rx_kb', 'network_tx_kb',
-    name='metric_type'
+    name='metric_type', create_type=False
 )
-artifact_type_enum = sa.Enum('csv', 'json', 'screenshot', 'raw_log', 'trace', name='artifact_type')
-scope_type_enum = sa.Enum('global', 'project', name='scope_type')
+artifact_type_enum = postgresql.ENUM('csv', 'json', 'screenshot', 'raw_log', 'trace', name='artifact_type', create_type=False)
+scope_type_enum = postgresql.ENUM('global', 'project', name='scope_type', create_type=False)
 
 
 def upgrade() -> None:
@@ -56,10 +57,10 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('name', sa.String(length=256), nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=False),
-        sa.Column('task_type', sa.Enum('performance', 'stability', 'fluency', name='task_type'), nullable=False),
-        sa.Column('source_type', sa.Enum('apk_only', 'case', 'suite', 'monkey', name='source_type'), nullable=False),
+        sa.Column('task_type', task_type_enum, nullable=False),
+        sa.Column('source_type', source_type_enum, nullable=False),
         sa.Column('source_id', sa.Integer(), nullable=True),
-        sa.Column('device_scope_type', sa.Enum('single_device', 'device_group', 'manual_pick', name='device_scope_type'), nullable=False),
+        sa.Column('device_scope_type', device_scope_type_enum, nullable=False),
         sa.Column('device_id', sa.Integer(), nullable=True),
         sa.Column('device_group_tag', sa.String(length=128), nullable=True),
         sa.Column('apk_id', sa.Integer(), nullable=True),
@@ -89,8 +90,8 @@ def upgrade() -> None:
         'mobile_special_runs',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('task_id', sa.Integer(), nullable=False),
-        sa.Column('task_type', sa.Enum('performance', 'stability', 'fluency', name='task_type'), nullable=False),
-        sa.Column('status', sa.Enum('pending', 'running', 'completed', 'failed', 'stopped', name='run_status'), nullable=False),
+        sa.Column('task_type', task_type_enum, nullable=False),
+        sa.Column('status', run_status_enum, nullable=False),
         sa.Column('device_id', sa.Integer(), nullable=True),
         sa.Column('device_serial', sa.String(length=128), nullable=True),
         sa.Column('apk_id', sa.Integer(), nullable=True),
@@ -100,7 +101,7 @@ def upgrade() -> None:
         sa.Column('duration_ms', sa.BigInteger(), nullable=True),
         sa.Column('summary_json', sa.JSON(), nullable=False, server_default='{}'),
         sa.Column('config_snapshot', sa.JSON(), nullable=False, server_default='{}'),
-        sa.Column('trigger_type', sa.Enum('manual', 'schedule', 'webhook', name='trigger_type'), nullable=False),
+        sa.Column('trigger_type', trigger_type_enum, nullable=False),
         sa.Column('triggered_by', sa.Integer(), nullable=True),
         sa.Column('created_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
         sa.Column('updated_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
@@ -120,7 +121,7 @@ def upgrade() -> None:
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('run_id', sa.Integer(), nullable=False),
         sa.Column('sample_time', sa.DateTime(timezone=True), nullable=False),
-        sa.Column('metric_type', sa.Enum('cpu_pct', 'mem_mb', 'fps', 'jank_count', 'frame_time_ms', 'battery_pct', 'temperature_c', 'network_rx_kb', 'network_tx_kb', name='metric_type'), nullable=False),
+        sa.Column('metric_type', metric_type_enum, nullable=False),
         sa.Column('metric_value', sa.Float(), nullable=False),
         sa.Column('source', sa.String(length=128), nullable=True),
         sa.Column('extra_json', sa.JSON(), nullable=False, server_default='{}'),
@@ -136,7 +137,7 @@ def upgrade() -> None:
         'mobile_incidents',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('run_id', sa.Integer(), nullable=False),
-        sa.Column('incident_type', sa.Enum('crash', 'anr', 'fatal_log', 'watchdog', name='incident_type'), nullable=False),
+        sa.Column('incident_type', incident_type_enum, nullable=False),
         sa.Column('event_time', sa.DateTime(timezone=True), nullable=False),
         sa.Column('title', sa.String(length=512), nullable=True),
         sa.Column('detail', sa.Text(), nullable=True),
@@ -155,7 +156,7 @@ def upgrade() -> None:
         'mobile_run_artifacts',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
         sa.Column('run_id', sa.Integer(), nullable=False),
-        sa.Column('artifact_type', sa.Enum('csv', 'json', 'screenshot', 'raw_log', 'trace', name='artifact_type'), nullable=False),
+        sa.Column('artifact_type', artifact_type_enum, nullable=False),
         sa.Column('file_path', sa.String(length=512), nullable=False),
         sa.Column('file_name', sa.String(length=256), nullable=False),
         sa.Column('file_size', sa.BigInteger(), nullable=True),
@@ -169,7 +170,7 @@ def upgrade() -> None:
     op.create_table(
         'global_variables',
         sa.Column('id', sa.Integer(), autoincrement=True, nullable=False),
-        sa.Column('scope_type', sa.Enum('global', 'project', name='scope_type'), nullable=False),
+        sa.Column('scope_type', scope_type_enum, nullable=False),
         sa.Column('project_id', sa.Integer(), nullable=True),
         sa.Column('key', sa.String(length=256), nullable=False),
         sa.Column('value_encrypted', sa.Text(), nullable=False),

@@ -74,7 +74,7 @@ async def create_variable(
     # 全局作用域要求 admin；项目作用域要求项目内 editor
     if body.scope_type == ScopeType.project and body.project_id is not None:
         await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
-    elif body.scope_type == ScopeType.global_:
+    elif body.scope_type == ScopeType.global_scope:
         from app.models.user import UserRole
         if current_user.role != UserRole.admin:
             raise HTTPException(status_code=403, detail="只有管理员可以创建全局作用域变量")

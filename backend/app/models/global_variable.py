@@ -14,7 +14,15 @@ class GlobalVariable(Base, TimestampMixin):
     __tablename__ = "global_variables"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    scope_type: Mapped[ScopeType] = mapped_column(Enum(ScopeType), nullable=False, default=ScopeType.global_scope)
+    scope_type: Mapped[ScopeType] = mapped_column(
+        Enum(
+            ScopeType,
+            name="scope_type",
+            values_callable=lambda enum_cls: [item.value for item in enum_cls],
+        ),
+        nullable=False,
+        default=ScopeType.global_scope,
+    )
     project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=True)
     key: Mapped[str] = mapped_column(String(256), nullable=False)
     value_encrypted: Mapped[str] = mapped_column(Text, nullable=False)

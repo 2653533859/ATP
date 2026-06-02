@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 import sqlalchemy as sa
 from alembic import op
+from sqlalchemy.dialects import postgresql
 
 
 revision: str = "20260527_0030"
@@ -17,15 +18,16 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-metric_enum = sa.Enum(
+metric_enum = postgresql.ENUM(
     "pass_rate",
     "avg_duration_ms",
     "failure_count",
     "error_count",
     "total_runs",
     name="dashboardalertmetric",
+    create_type=False,
 )
-operator_enum = sa.Enum("gt", "gte", "lt", "lte", "eq", name="dashboardalertoperator")
+operator_enum = postgresql.ENUM("gt", "gte", "lt", "lte", "eq", name="dashboardalertoperator", create_type=False)
 
 
 def upgrade() -> None:
