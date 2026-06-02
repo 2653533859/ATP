@@ -49,6 +49,7 @@ export default {
   },
   login: {
     title: 'ATP Automated Testing Platform',
+    subtitle: 'Unified Automated Testing Platform',
     username: 'Username',
     password: 'Password',
     submit: 'Sign in',
@@ -89,6 +90,9 @@ export default {
   layout: {
     sider_title_full: 'ATP Test Platform',
     sider_title_short: 'ATP',
+    theme_light: 'Light',
+    theme_dark: 'Dark',
+    theme_toggle: 'Toggle theme',
   },
   dashboard: {
     title: 'Dashboard',

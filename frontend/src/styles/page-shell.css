@@ -1,3 +1,5 @@
+/* 页面外壳通用类 — 由 theme.css 的设计 token 驱动 */
+
 .page-shell {
   min-width: 0;
 }
@@ -6,40 +8,59 @@
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
-  gap: 16px;
-  margin-bottom: 16px;
+  gap: var(--space-4);
+  margin-bottom: var(--space-5);
 }
 
 .page-title {
   margin: 0;
+  font-size: 22px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--c-text);
 }
 
 .page-subtitle {
-  margin-top: 4px;
-  color: #8c8c8c;
+  margin-top: var(--space-1);
+  color: var(--c-text-secondary);
   font-size: 13px;
 }
 
 .page-summary {
-  margin-bottom: 16px;
+  margin-bottom: var(--space-5);
 }
 
 .page-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 12px;
-  margin-bottom: 16px;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
 }
 
 .page-toolbar-main {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .muted-text {
-  color: #8c8c8c;
+  color: var(--c-text-tertiary);
   font-size: 12px;
+}
+
+/* 通用统计卡：现代 SaaS 质感，供各页 summary 复用 */
+.stat-card {
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-4) var(--space-5);
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.stat-card:hover {
+  box-shadow: var(--shadow-md);
+  transform: translateY(-1px);
 }

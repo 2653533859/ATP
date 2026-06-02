@@ -1,7 +1,12 @@
 <template>
-  <div class="login-wrapper">
-    <a-card class="login-card" :title="t('login.title')">
-      <a-form :model="form" @finish="onFinish" layout="vertical">
+  <div class="login-page">
+    <div class="login-card">
+      <div class="login-brand">
+        <div class="brand-logo"><ThunderboltFilled /></div>
+        <h1 class="brand-title">{{ t('login.title') }}</h1>
+        <p class="brand-subtitle">{{ t('login.subtitle') }}</p>
+      </div>
+      <a-form :model="form" @finish="onFinish" layout="vertical" class="login-form">
         <a-form-item name="username" :rules="[{ required: true, message: t('login.required_username') }]">
           <a-input v-model:value="form.username" :placeholder="t('login.username')" size="large">
             <template #prefix><UserOutlined /></template>
@@ -29,7 +34,7 @@
           <a-radio-button value="en-US">{{ t('lang.en') }}</a-radio-button>
         </a-radio-group>
       </div>
-    </a-card>
+    </div>
   </div>
 </template>
 
@@ -38,7 +43,7 @@ import { computed, reactive, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
-import { UserOutlined, LockOutlined } from '@ant-design/icons-vue'
+import { UserOutlined, LockOutlined, ThunderboltFilled } from '@ant-design/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { getLocale, setLocale, type SupportedLocale } from '@/locales'
 
@@ -84,19 +89,57 @@ async function onFinish() {
 </script>
 
 <style scoped>
-.login-wrapper {
+.login-page {
   display: flex;
   justify-content: center;
   align-items: center;
   min-height: 100vh;
-  background: #f0f2f5;
+  padding: 24px;
+  background:
+    radial-gradient(1200px 600px at 18% -12%, var(--c-primary-soft), transparent 60%),
+    radial-gradient(1000px 520px at 100% 112%, var(--c-primary-soft), transparent 55%),
+    var(--c-bg-body);
 }
 .login-card {
-  width: 400px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.08);
+  width: 100%;
+  max-width: 408px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 40px 36px 28px;
+}
+.login-brand {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.brand-logo {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 16px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
+  color: #fff;
+  font-size: 28px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 8px 24px rgba(79, 70, 229, 0.4);
+}
+.brand-title {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--c-text);
+  letter-spacing: -0.02em;
+}
+.brand-subtitle {
+  margin: 6px 0 0;
+  font-size: 13px;
+  color: var(--c-text-secondary);
 }
 .lang-switch {
-  margin-top: 8px;
+  margin-top: 4px;
   text-align: center;
 }
 </style>

@@ -1,12 +1,23 @@
 <template>
-  <a-layout style="min-height: 100vh">
+  <a-layout class="app-layout" style="min-height: 100vh">
     <!-- 侧边栏 -->
-    <a-layout-sider v-model:collapsed="collapsed" collapsible theme="dark">
-      <div class="logo">{{ collapsed ? t('layout.sider_title_short') : t('layout.sider_title_full') }}</div>
+    <a-layout-sider
+      v-model:collapsed="collapsed"
+      collapsible
+      :trigger="null"
+      :width="232"
+      :theme="siderTheme"
+      class="app-sider"
+    >
+      <div class="brand" :class="{ 'brand-collapsed': collapsed }">
+        <div class="brand-logo"><ThunderboltFilled /></div>
+        <span v-if="!collapsed" class="brand-name">{{ t('layout.sider_title_full') }}</span>
+      </div>
       <a-menu
         v-model:selectedKeys="selectedKeys"
-        theme="dark"
+        :theme="siderTheme"
         mode="inline"
+        class="app-menu"
         @click="onMenuClick"
       >
         <a-menu-item key="/dashboard">
@@ -73,23 +84,51 @@
 
     <a-layout>
       <!-- 顶栏 -->
-      <a-layout-header class="header">
-        <a-space style="float: right">
+      <a-layout-header class="app-header">
+        <div class="header-left">
+          <a-button type="text" class="collapse-btn" @click="collapsed = !collapsed">
+            <MenuUnfoldOutlined v-if="collapsed" />
+            <MenuFoldOutlined v-else />
+          </a-button>
+          <span class="header-title">{{ t(routeTitleKey) }}</span>
+        </div>
+        <div class="header-right">
+          <a-tooltip :title="t('layout.theme_toggle')">
+            <a-button type="text" class="icon-btn" @click="themeStore.toggle()">
+              <BulbFilled v-if="isDark" />
+              <BulbOutlined v-else />
+            </a-button>
+          </a-tooltip>
           <a-select
             :value="currentLocale"
             size="small"
-            style="width: 110px"
+            style="width: 104px"
             :options="localeOptions"
             @change="onLocaleChange"
           />
-          <span>{{ auth.user?.username }}</span>
-          <a-button type="text" @click="handleLogout">{{ t('common.logout') }}</a-button>
-        </a-space>
+          <a-dropdown placement="bottomRight">
+            <div class="user-chip">
+              <a-avatar size="small" class="user-avatar">{{ userInitial }}</a-avatar>
+              <span class="user-name">{{ auth.user?.username }}</span>
+              <DownOutlined class="user-caret" />
+            </div>
+            <template #overlay>
+              <a-menu>
+                <a-menu-item key="logout" @click="handleLogout">
+                  <LogoutOutlined />
+                  <span>{{ t('common.logout') }}</span>
+                </a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
+        </div>
       </a-layout-header>
 
       <!-- 内容区 -->
-      <a-layout-content class="content">
-        <RouterView />
+      <a-layout-content class="app-content">
+        <div class="content-card">
+          <RouterView />
+        </div>
       </a-layout-content>
     </a-layout>
   </a-layout>
@@ -99,19 +138,59 @@
 import { computed, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import { ProjectOutlined, ProfileOutlined, PlayCircleOutlined, SettingOutlined, MobileOutlined, AndroidOutlined, AppstoreOutlined, ClockCircleOutlined, DashboardOutlined, ApiOutlined } from '@ant-design/icons-vue'
+import {
+  ProjectOutlined,
+  ProfileOutlined,
+  PlayCircleOutlined,
+  SettingOutlined,
+  MobileOutlined,
+  AndroidOutlined,
+  AppstoreOutlined,
+  ClockCircleOutlined,
+  DashboardOutlined,
+  ApiOutlined,
+  MenuFoldOutlined,
+  MenuUnfoldOutlined,
+  BulbOutlined,
+  BulbFilled,
+  DownOutlined,
+  LogoutOutlined,
+  ThunderboltFilled,
+} from '@ant-design/icons-vue'
 import { useAuthStore } from '@/stores/auth'
+import { useThemeStore } from '@/stores/theme'
 import { getLocale, setLocale, type SupportedLocale } from '@/locales'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
+const themeStore = useThemeStore()
 const { t } = useI18n()
 
 const collapsed = ref(false)
 const selectedKeys = ref([route.path])
 
 watch(() => route.path, (path) => { selectedKeys.value = [path] })
+
+const isDark = computed(() => themeStore.mode === 'dark')
+const siderTheme = computed<'light' | 'dark'>(() => (themeStore.mode === 'dark' ? 'dark' : 'light'))
+const userInitial = computed(() => (auth.user?.username?.[0] ?? '?').toUpperCase())
+
+const routeTitleKey = computed(() => {
+  const p = route.path
+  if (p.startsWith('/dashboard')) return 'menu.dashboard'
+  if (p.startsWith('/projects')) return 'menu.projects'
+  if (p.startsWith('/cases')) return 'menu.cases'
+  if (p.startsWith('/runs')) return 'menu.runs'
+  if (p.startsWith('/suites')) return 'menu.suites'
+  if (p.startsWith('/plans')) return 'menu.plans'
+  if (p.startsWith('/devices')) return 'menu.devices'
+  if (p.startsWith('/apks')) return 'menu.apks'
+  if (p.startsWith('/mock')) return 'menu.mock_rules'
+  if (p.startsWith('/mobile-special')) return 'menu.mobile_special.title'
+  if (p.startsWith('/system')) return 'menu.system.title'
+  return 'layout.sider_title_full'
+})
 
 function onMenuClick({ key }: { key: string }) {
   router.push(key)
@@ -135,30 +214,127 @@ function onLocaleChange(value: SupportedLocale) {
 </script>
 
 <style scoped>
-.logo {
+.app-sider {
+  background: var(--c-sider-bg);
+  border-right: 1px solid var(--c-sider-border);
+}
+
+.brand {
   height: 64px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 20px;
+  overflow: hidden;
+}
+.brand-collapsed {
+  padding: 0;
+  justify-content: center;
+}
+.brand-logo {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  background: linear-gradient(135deg, #6366f1, #4f46e5);
   color: #fff;
-  font-size: 16px;
-  font-weight: bold;
   display: flex;
   align-items: center;
   justify-content: center;
-  overflow: hidden;
-  white-space: nowrap;
+  font-size: 18px;
+  flex-shrink: 0;
+  box-shadow: 0 2px 8px rgba(79, 70, 229, 0.35);
 }
-.header {
-  background: #fff;
-  padding: 0 24px;
+.brand-name {
+  font-size: 16px;
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--c-text);
+  letter-spacing: -0.01em;
+}
+
+.app-menu {
+  background: transparent;
+  border-inline-end: none !important;
+  padding: 8px;
+}
+.app-menu :deep(.ant-menu-item),
+.app-menu :deep(.ant-menu-submenu-title) {
+  border-radius: 8px;
+}
+
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 9;
+  height: 60px;
+  padding: 0 20px;
   display: flex;
   align-items: center;
-  justify-content: flex-end;
-  box-shadow: 0 1px 4px rgba(0, 21, 41, 0.08);
+  justify-content: space-between;
+  background: var(--c-header-bg);
+  backdrop-filter: blur(8px);
+  border-bottom: 1px solid var(--c-border);
 }
-.content {
-  margin: 24px;
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.header-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+.collapse-btn {
+  font-size: 16px;
+  color: var(--c-text-secondary);
+}
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.icon-btn {
+  font-size: 16px;
+  color: var(--c-text-secondary);
+}
+
+.user-chip {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px 4px 4px;
+  border-radius: 999px;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+.user-chip:hover {
+  background: var(--c-bg-subtle);
+}
+.user-avatar {
+  background: var(--c-primary);
+  color: #fff;
+  font-weight: 600;
+}
+.user-name {
+  font-size: 14px;
+  color: var(--c-text);
+}
+.user-caret {
+  font-size: 10px;
+  color: var(--c-text-tertiary);
+}
+
+.app-content {
+  padding: 20px;
+  background: var(--c-bg-body);
+}
+.content-card {
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-sm);
   padding: 24px;
-  background: #fff;
-  border-radius: 8px;
-  min-height: 360px;
+  min-height: calc(100vh - 100px);
 }
 </style>

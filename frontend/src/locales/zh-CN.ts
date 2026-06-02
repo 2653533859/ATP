@@ -49,6 +49,7 @@ export default {
   },
   login: {
     title: 'ATP 自动化测试平台',
+    subtitle: '统一自动化测试平台',
     username: '用户名',
     password: '密码',
     submit: '登录',
@@ -89,6 +90,9 @@ export default {
   layout: {
     sider_title_full: 'ATP 测试平台',
     sider_title_short: 'ATP',
+    theme_light: '浅色',
+    theme_dark: '深色',
+    theme_toggle: '切换主题',
   },
   dashboard: {
     title: '统计看板',

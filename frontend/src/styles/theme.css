@@ -1,0 +1,132 @@
+/* ============================================================
+   ATP 设计系统 — 现代 SaaS 精致风 · 双主题
+   切换方式：<html data-theme="light|dark">（由 stores/theme.ts 写入）。
+   AntD 组件由 App.vue 的 ConfigProvider token/algorithm 驱动；
+   本文件负责自定义层（布局/卡片/页面外壳）的设计变量与全局基础样式。
+   ============================================================ */
+
+:root,
+:root[data-theme='light'] {
+  /* 强调色 — Indigo */
+  --c-primary: #4f46e5;
+  --c-primary-hover: #4338ca;
+  --c-primary-soft: rgba(79, 70, 229, 0.08);
+
+  /* 中性 — 背景 / 卡片 / 边框 */
+  --c-bg-body: #f8fafc;
+  --c-bg-elevated: #ffffff;
+  --c-bg-subtle: #f1f5f9;
+  --c-border: #e2e8f0;
+  --c-border-strong: #cbd5e1;
+
+  /* 文字三级 */
+  --c-text: #0f172a;
+  --c-text-secondary: #64748b;
+  --c-text-tertiary: #94a3b8;
+
+  /* 语义色 */
+  --c-success: #16a34a;
+  --c-warning: #d97706;
+  --c-error: #dc2626;
+  --c-info: #0891b2;
+
+  /* 圆角层级 */
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+
+  /* 阴影层级 */
+  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
+  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
+  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.12);
+
+  /* 间距节奏 */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+
+  /* 框架 — 侧栏 / 顶栏（浅色主题采用浅色侧栏，现代 SaaS 风） */
+  --c-sider-bg: #ffffff;
+  --c-sider-border: #e2e8f0;
+  --c-sider-text: #475569;
+  --c-sider-text-active: #4f46e5;
+  --c-sider-active-bg: rgba(79, 70, 229, 0.08);
+  --c-header-bg: rgba(255, 255, 255, 0.72);
+}
+
+:root[data-theme='dark'] {
+  --c-primary: #818cf8;
+  --c-primary-hover: #a5b4fc;
+  --c-primary-soft: rgba(129, 140, 248, 0.16);
+
+  --c-bg-body: #0f172a;
+  --c-bg-elevated: #1e293b;
+  --c-bg-subtle: #334155;
+  --c-border: #334155;
+  --c-border-strong: #475569;
+
+  --c-text: #f1f5f9;
+  --c-text-secondary: #94a3b8;
+  --c-text-tertiary: #64748b;
+
+  --c-success: #22c55e;
+  --c-warning: #f59e0b;
+  --c-error: #f87171;
+  --c-info: #22d3ee;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+
+  --c-sider-bg: #1e293b;
+  --c-sider-border: #334155;
+  --c-sider-text: #cbd5e1;
+  --c-sider-text-active: #a5b4fc;
+  --c-sider-active-bg: rgba(129, 140, 248, 0.16);
+  --c-header-bg: rgba(15, 23, 42, 0.72);
+}
+
+/* ---------------- 全局基础 ---------------- */
+html,
+body {
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background: var(--c-bg-body);
+  color: var(--c-text);
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* 滚动条美化 */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--c-border-strong) transparent;
+}
+*::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+*::-webkit-scrollbar-thumb {
+  background: var(--c-border-strong);
+  border-radius: 999px;
+}
+*::-webkit-scrollbar-thumb:hover {
+  background: var(--c-text-tertiary);
+}
+*::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* 卡片柔和阴影（现代 SaaS 质感）：零特异性，便于页面覆盖 */
+:where(.ant-card) {
+  box-shadow: var(--shadow-sm);
+}
