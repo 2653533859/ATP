@@ -28,3 +28,16 @@ class DeviceUpdate(BaseModel):
     description: str | None = None
     ip_address: str | None = None
     port: int | None = None
+
+
+class DeviceTapIn(BaseModel):
+    x: int
+    y: int
+
+
+class DeviceSwipeIn(BaseModel):
+    x1: int
+    y1: int
+    x2: int
+    y2: int
+    duration_ms: int = 300

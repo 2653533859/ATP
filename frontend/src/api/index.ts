@@ -841,6 +841,10 @@ export const deviceApi = {
   delete: (id: number) => http.delete(`/devices/${id}`),
   screenshot: (id: number) =>
     http.get<unknown, Blob>(`/devices/${id}/screenshot`, { responseType: 'blob' }),
+  tap: (id: number, data: { x: number; y: number }) =>
+    http.post(`/devices/${id}/tap`, data),
+  swipe: (id: number, data: { x1: number; y1: number; x2: number; y2: number; duration_ms?: number }) =>
+    http.post(`/devices/${id}/swipe`, data),
   screenshotUrl: (id: number) => `/api/v1/devices/${id}/screenshot`,
   screenStreamUrl: (id: number, fps?: number) =>
     `/api/v1/devices/${id}/screen${fps ? `?fps=${fps}` : ''}`,

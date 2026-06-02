@@ -2,7 +2,9 @@
 设备屏幕镜像 API
 
 GET /api/v1/devices/{device_id}/screen  MJPEG 截图流
-GET /api/v1/devices/{device_id}/screenshot  单帧截图（PNG）
+GET  /api/v1/devices/{device_id}/screenshot  单帧截图（PNG）
+POST /api/v1/devices/{device_id}/tap         实时点击
+POST /api/v1/devices/{device_id}/swipe       实时滑动
 """
 import asyncio
 import logging
@@ -13,7 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.models.device import Device, DeviceStatus
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_engineer
+from app.schemas.device import DeviceSwipeIn, DeviceTapIn
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +38,26 @@ def _adb_screenshot(serial: str, timeout: int = 10) -> bytes | None:
         return None
 
 
+def _adb_input(serial: str, *args: str, timeout: int = 10) -> bool:
+    """通过 adb shell input 执行实时交互。"""
+    cmd = ["adb", "-s", serial, "shell", "input", *args]
+    try:
+        proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
+        return proc.returncode == 0
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
+        logger.warning("adb input failed for %s: %s", serial, e)
+        return False
+
+
+async def _get_online_device(device_id: int, db: AsyncSession) -> Device:
+    device = await db.get(Device, device_id)
+    if not device:
+        raise HTTPException(status_code=404, detail="设备不存在")
+    if device.status == DeviceStatus.offline:
+        raise HTTPException(status_code=400, detail="设备离线")
+    return device
+
+
 @router.get("/devices/{device_id}/screenshot")
 async def device_screenshot(
     device_id: int,
@@ -42,11 +65,7 @@ async def device_screenshot(
     _=Depends(get_current_user),
 ):
     """获取设备当前屏幕单帧截图（PNG）"""
-    device = await db.get(Device, device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="设备不存在")
-    if device.status == DeviceStatus.offline:
-        raise HTTPException(status_code=400, detail="设备离线")
+    device = await _get_online_device(device_id, db)
 
     data = await asyncio.get_event_loop().run_in_executor(
         None, _adb_screenshot, device.serial
@@ -55,6 +74,49 @@ async def device_screenshot(
         raise HTTPException(status_code=503, detail="截图失败，请检查设备连接")
 
     return Response(content=data, media_type="image/png")
+
+
+@router.post("/devices/{device_id}/tap")
+async def device_tap(
+    device_id: int,
+    body: DeviceTapIn,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_engineer),
+):
+    """在设备屏幕坐标执行实时点击。"""
+    device = await _get_online_device(device_id, db)
+    ok = await asyncio.get_event_loop().run_in_executor(
+        None, _adb_input, device.serial, "tap", str(body.x), str(body.y)
+    )
+    if not ok:
+        raise HTTPException(status_code=503, detail="点击失败，请检查设备连接")
+    return {"success": True}
+
+
+@router.post("/devices/{device_id}/swipe")
+async def device_swipe(
+    device_id: int,
+    body: DeviceSwipeIn,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_engineer),
+):
+    """在设备屏幕坐标执行实时滑动。"""
+    device = await _get_online_device(device_id, db)
+    duration_ms = max(100, min(body.duration_ms, 5000))
+    ok = await asyncio.get_event_loop().run_in_executor(
+        None,
+        _adb_input,
+        device.serial,
+        "swipe",
+        str(body.x1),
+        str(body.y1),
+        str(body.x2),
+        str(body.y2),
+        str(duration_ms),
+    )
+    if not ok:
+        raise HTTPException(status_code=503, detail="滑动失败，请检查设备连接")
+    return {"success": True}
 
 
 async def _mjpeg_generator(serial: str, fps: float = 2.0):
@@ -83,11 +145,7 @@ async def device_screen_stream(
     _=Depends(get_current_user),
 ):
     """MJPEG 设备屏幕实时流"""
-    device = await db.get(Device, device_id)
-    if not device:
-        raise HTTPException(status_code=404, detail="设备不存在")
-    if device.status == DeviceStatus.offline:
-        raise HTTPException(status_code=400, detail="设备离线")
+    device = await _get_online_device(device_id, db)
 
     fps = max(0.5, min(fps, 5.0))
 
