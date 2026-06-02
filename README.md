@@ -209,9 +209,11 @@ python -m pytest backend/tests -q
 
 - 当前进度与模块完成度：`Task.md`
 - 产品需求与整体范围：`PRD.md`
+- 平台详细操作手册：`docs/user-operation-manual.md`
 - CI/CD 集成说明：`docs/cicd-integration.md`
 - Windows 本地运行说明：`docs/windows-local-run.md`
 - Android 真机联调说明：`docs/android-device-debugging.md`
+- iOS 设备自动化扩展规划：`docs/ios-device-automation-plan.md`
 - 外部基础设施运行说明：`docs/external-infra-run.md`
 - 前端到后端再到 Worker 的调用链：`docs/backend-request-flow.md`
 
