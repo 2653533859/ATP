@@ -1,5 +1,9 @@
 <template>
-  <div class="plan-page">
+  <div class="page-shell plan-page">
+    <div>
+      <h2 class="page-title">{{ t('plan.title') }}</h2>
+      <div class="page-subtitle">{{ t('plan.subtitle') }}</div>
+    </div>
     <div class="toolbar">
       <a-space>
         <a-select
@@ -41,7 +45,7 @@
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'schedule_type'">
           <a-tag :color="scheduleColor(record.schedule_type)">{{ scheduleLabel(record.schedule_type) }}</a-tag>
-          <span v-if="record.schedule_type === 'cron'" style="font-size: 12px; color: #999; margin-left: 4px">
+          <span v-if="record.schedule_type === 'cron'" style="font-size: 12px; color: var(--c-text-tertiary); margin-left: 4px">
             {{ record.cron_expression }}
           </span>
         </template>
@@ -56,7 +60,7 @@
 
         <template v-if="column.key === 'next_run_at'">
           <span v-if="record.next_run_at">{{ formatTime(record.next_run_at) }}</span>
-          <span v-else style="color: #999">-</span>
+          <span v-else style="color: var(--c-text-tertiary)">-</span>
         </template>
 
         <template v-if="column.key === 'action'">
@@ -300,7 +304,7 @@
           <template v-if="column.key === 'auto_bugs'">
             <a-tag v-if="record.result_summary?.auto_bugs_error" color="red">{{ t('plan.auto_bugs.error_tag') }}</a-tag>
             <a-tag v-else-if="record.result_summary?.auto_bugs?.length" color="blue">{{ t('plan.auto_bugs.count_tag', { count: record.result_summary.auto_bugs.length }) }}</a-tag>
-            <span v-else style="color: #999">-</span>
+            <span v-else style="color: var(--c-text-tertiary)">-</span>
           </template>
           <template v-if="column.key === 'duration_ms'">
             {{ record.duration_ms ? (record.duration_ms / 1000).toFixed(1) + 's' : '-' }}
@@ -902,7 +906,7 @@ function copySecret() {
 .cron-help-text {
   margin-top: 4px;
   font-size: 12px;
-  color: #999;
+  color: var(--c-text-tertiary);
 }
 
 .auto-bugs-panel {
@@ -912,6 +916,6 @@ function copySecret() {
 .auto-bugs-title {
   font-weight: 600;
   margin-bottom: 8px;
-  color: #595959;
+  color: var(--c-text-secondary);
 }
 </style>

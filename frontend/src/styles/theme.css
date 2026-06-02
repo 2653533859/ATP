@@ -30,6 +30,12 @@
   --c-error: #dc2626;
   --c-info: #0891b2;
 
+  /* 语义浅背景 — 标签/告警块底色 */
+  --c-success-soft: rgba(22, 163, 74, 0.1);
+  --c-warning-soft: rgba(217, 119, 6, 0.1);
+  --c-error-soft: rgba(220, 38, 38, 0.1);
+  --c-info-soft: rgba(8, 145, 178, 0.1);
+
   /* 圆角层级 */
   --radius-sm: 8px;
   --radius-md: 12px;
@@ -76,6 +82,11 @@
   --c-warning: #f59e0b;
   --c-error: #f87171;
   --c-info: #22d3ee;
+
+  --c-success-soft: rgba(34, 197, 94, 0.16);
+  --c-warning-soft: rgba(245, 158, 11, 0.16);
+  --c-error-soft: rgba(248, 113, 113, 0.16);
+  --c-info-soft: rgba(34, 211, 238, 0.16);
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.4);
   --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);

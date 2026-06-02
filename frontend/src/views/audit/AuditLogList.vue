@@ -1,6 +1,11 @@
 <template>
-  <div class="audit-page">
-    <a-page-header :title="t('audit_logs.title')" />
+  <div class="page-shell">
+    <div class="page-hero">
+      <div>
+        <h2 class="page-title">{{ t('audit_logs.title') }}</h2>
+        <div class="page-subtitle">{{ t('audit_logs.subtitle') }}</div>
+      </div>
+    </div>
 
     <a-card class="filter-card" :bordered="false" style="margin-bottom: 16px">
       <a-form layout="inline" :model="filter">
@@ -42,7 +47,7 @@
             {{ record.created_at?.slice(0, 19).replace('T', ' ') }}
           </template>
           <template v-else-if="column.dataIndex === 'detail'">
-            <span style="font-size: 12px; color: #666; white-space: pre-wrap">{{ record.detail || '-' }}</span>
+            <span style="font-size: 12px; color: var(--c-text-secondary); white-space: pre-wrap">{{ record.detail || '-' }}</span>
           </template>
         </template>
       </a-table>
@@ -153,7 +158,7 @@ onMounted(() => loadLogs(1))
 </script>
 
 <style scoped>
-.audit-page {
-  padding: 12px 24px 24px;
+.page-shell {
+  padding-bottom: 12px;
 }
 </style>

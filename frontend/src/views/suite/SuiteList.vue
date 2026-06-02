@@ -1,5 +1,9 @@
 <template>
-  <div class="suite-page">
+  <div class="page-shell suite-page">
+    <div>
+      <h2 class="page-title">{{ t('suite.title') }}</h2>
+      <div class="page-subtitle">{{ t('suite.subtitle') }}</div>
+    </div>
     <div class="toolbar">
       <a-space>
         <a-select
@@ -229,12 +233,12 @@
                       >
                         {{ getExecutionReason(record) }}
                       </span>
-                      <span v-else style="color: #bfbfbf">-</span>
+                      <span v-else style="color: var(--c-text-tertiary)">-</span>
                     </template>
                     <template v-else-if="column.key === 'tags'">
                       <a-space wrap :size="[4, 4]">
                         <a-tag v-for="tag in record.tags" :key="tag" color="blue">{{ tag }}</a-tag>
-                        <span v-if="!record.tags?.length" style="color: #999">-</span>
+                        <span v-if="!record.tags?.length" style="color: var(--c-text-tertiary)">-</span>
                       </a-space>
                     </template>
                   </template>
@@ -313,7 +317,7 @@
       :confirm-loading="runConfirming"
       @ok="confirmRun"
     >
-      <p style="margin-bottom: 12px; color: #666">{{ t('suite.run_modal.tip') }}</p>
+      <p style="margin-bottom: 12px; color: var(--c-text-secondary)">{{ t('suite.run_modal.tip') }}</p>
       <a-select
         v-model:value="runEnvId"
         :placeholder="t('suite.run_modal.placeholder')"
@@ -361,7 +365,7 @@
                   </template>
                   <template v-if="column.key === 'run_id'">
                     <a v-if="caseRun.run_id" @click="goToRunDetail(caseRun.run_id)">{{ caseRun.run_id }}</a>
-                    <span v-else style="color: #999">-</span>
+                    <span v-else style="color: var(--c-text-tertiary)">-</span>
                   </template>
                 </template>
               </a-table>
@@ -412,7 +416,7 @@
           </template>
           <template v-if="column.key === 'case_runs'">
             <a-tag v-if="record.case_run_ids?.length" color="blue">{{ t('suite.runs.case_count_tag', { count: record.case_run_ids.length }) }}</a-tag>
-            <span v-else style="color: #999">-</span>
+            <span v-else style="color: var(--c-text-tertiary)">-</span>
           </template>
           <template v-if="column.key === 'duration'">
             {{ record.duration_ms ? (record.duration_ms / 1000).toFixed(1) + 's' : '-' }}
@@ -1329,31 +1333,31 @@ onUnmounted(() => {
 }
 .case-name-title {
   font-weight: 500;
-  color: #262626;
+  color: var(--c-text);
 }
 .case-name-meta {
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--c-text-tertiary);
 }
 .case-filter-tip {
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--c-text-tertiary);
 }
 .case-ready-reason {
   font-size: 12px;
-  color: #d46b08;
+  color: var(--c-warning);
 }
 .suite-config-tip {
   margin-top: -4px;
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--c-text-tertiary);
 }
 .selected-case-panel {
   min-height: 330px;
   padding: 12px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--c-border);
   border-radius: 8px;
-  background: #fafafa;
+  background: var(--c-bg-subtle);
 }
 .selected-case-title {
   display: flex;
@@ -1366,17 +1370,17 @@ onUnmounted(() => {
 .selected-case-tip {
   font-size: 12px;
   font-weight: 400;
-  color: #8c8c8c;
+  color: var(--c-text-tertiary);
 }
 .selected-case-count {
-  color: #1677ff;
+  color: var(--c-primary);
 }
 .selected-case-warning {
   margin-bottom: 10px;
   padding: 8px 10px;
   border-radius: 6px;
-  background: #fff7e6;
-  color: #ad6800;
+  background: var(--c-warning-soft);
+  color: var(--c-warning);
   font-size: 12px;
 }
 .selected-case-list {
@@ -1391,9 +1395,9 @@ onUnmounted(() => {
   display: flex;
   gap: 10px;
   padding: 10px;
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--c-border);
   border-radius: 8px;
-  background: #fff;
+  background: var(--c-bg-elevated);
 }
 .selected-case-order-group {
   display: flex;
@@ -1403,7 +1407,7 @@ onUnmounted(() => {
 }
 .selected-case-drag-handle {
   font-size: 16px;
-  color: #8c8c8c;
+  color: var(--c-text-tertiary);
   cursor: grab;
 }
 .selected-case-drag-handle:active {
@@ -1412,7 +1416,7 @@ onUnmounted(() => {
 .selected-case-order {
   min-width: 28px;
   font-weight: 600;
-  color: #1677ff;
+  color: var(--c-primary);
 }
 .selected-case-body {
   flex: 1;
@@ -1421,7 +1425,7 @@ onUnmounted(() => {
 .selected-case-name {
   margin-bottom: 6px;
   font-weight: 500;
-  color: #262626;
+  color: var(--c-text);
   word-break: break-word;
 }
 .selected-case-meta {
@@ -1430,7 +1434,7 @@ onUnmounted(() => {
   gap: 6px;
   align-items: center;
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--c-text-tertiary);
 }
 .selected-case-actions {
   display: flex;
@@ -1441,6 +1445,6 @@ onUnmounted(() => {
 .case-select-tip {
   margin-top: 8px;
   font-size: 12px;
-  color: #8c8c8c;
+  color: var(--c-text-tertiary);
 }
 </style>

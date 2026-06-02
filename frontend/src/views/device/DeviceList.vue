@@ -59,12 +59,12 @@
 
         <template v-if="column.key === 'device_info'">
           <div>{{ record.brand }} {{ record.model }}</div>
-          <div style="color: #999; font-size: 12px">{{ record.serial }}</div>
+          <div style="color: var(--c-text-tertiary); font-size: 12px">{{ record.serial }}</div>
         </template>
 
         <template v-if="column.key === 'os'">
           Android {{ record.os_version }}
-          <span v-if="record.sdk_version" style="color: #999">(API {{ record.sdk_version }})</span>
+          <span v-if="record.sdk_version" style="color: var(--c-text-tertiary)">(API {{ record.sdk_version }})</span>
         </template>
 
         <template v-if="column.key === 'last_seen'">
@@ -132,7 +132,7 @@
         <a-button size="small" @click="refreshMirror">
           <ReloadOutlined /> {{ t('device.refresh_screenshot') }}
         </a-button>
-        <span style="color: #999; font-size: 12px">{{ t('device.auto_refresh') }}</span>
+        <span style="color: var(--c-text-tertiary); font-size: 12px">{{ t('device.auto_refresh') }}</span>
       </div>
     </a-modal>
   </div>
@@ -354,7 +354,7 @@ onUnmounted(() => {
   justify-content: center;
   align-items: center;
   height: 400px;
-  color: #999;
+  color: var(--c-text-tertiary);
 }
 .mirror-footer {
   display: flex;

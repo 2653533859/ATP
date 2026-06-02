@@ -303,6 +303,7 @@ export default {
   },
   audit_logs: {
     title: 'Audit Logs',
+    subtitle: 'Track key operations and access-denied records; filter by project, user, and action type',
     load_failed: 'Failed to load audit logs',
     filters: {
       project_id: 'Project ID',
@@ -321,6 +322,7 @@ export default {
   },
   plan: {
     title: 'Test Plans',
+    subtitle: 'Orchestrate scheduled and triggered suite runs with Cron / Webhook and failure strategies',
     new: 'New plan',
     new_full: 'New test plan',
     edit_full: 'Edit test plan',
@@ -461,6 +463,7 @@ export default {
   },
   suite: {
     title: 'Test Suites',
+    subtitle: 'Compose cases into reusable suites with sequential / parallel execution and failure strategies',
     new: 'New suite',
     edit: 'Edit suite',
     select_project: 'Select project',
@@ -1453,6 +1456,8 @@ export default {
     },
   },
   mock: {
+    title: 'Mock Service',
+    subtitle: 'Manage mock rules, conditional responses, and request logs',
     select_project: 'Select project',
     export_rules: 'Export rules',
     import_rules: 'Import rules',

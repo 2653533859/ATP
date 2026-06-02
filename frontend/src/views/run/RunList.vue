@@ -204,7 +204,7 @@ onMounted(loadRuns)
   display: block;
   max-width: 260px;
   overflow: hidden;
-  color: #cf1322;
+  color: var(--c-error);
   text-overflow: ellipsis;
   white-space: nowrap;
 }

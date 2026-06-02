@@ -51,14 +51,14 @@
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'filename'">
           <div>{{ record.filename }}</div>
-          <div v-if="record.package_name" style="color: #999; font-size: 12px">
+          <div v-if="record.package_name" style="color: var(--c-text-tertiary); font-size: 12px">
             {{ record.package_name }}
           </div>
         </template>
 
         <template v-if="column.key === 'version'">
           <span v-if="record.version_name">{{ record.version_name }}</span>
-          <span v-if="record.version_code" style="color: #999">
+          <span v-if="record.version_code" style="color: var(--c-text-tertiary)">
             ({{ record.version_code }})
           </span>
           <span v-if="!record.version_name && !record.version_code">-</span>

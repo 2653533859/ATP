@@ -29,7 +29,7 @@
         <a-col v-for="p in filteredProjects" :key="p.id" :span="8">
           <a-card hoverable :title="p.name" @click="router.push({ name: 'cases', query: { project_id: String(p.id) } })">
             <p>{{ p.description || t('project.no_description') }}</p>
-            <p style="color: #888; font-size: 12px">
+            <p style="color: var(--c-text-tertiary); font-size: 12px">
               {{ t('project.ai_model_label', { model: llmConfigLabel(p.ai_llm_config_id) }) }}
             </p>
             <template #extra>
@@ -66,7 +66,7 @@
             allow-clear
             :options="llmOptions"
           />
-          <span style="color: #888; font-size: 12px">
+          <span style="color: var(--c-text-tertiary); font-size: 12px">
             {{ t('project.ai_model_hint') }}
           </span>
         </a-form-item>

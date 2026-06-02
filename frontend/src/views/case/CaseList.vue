@@ -1,9 +1,9 @@
 <template>
-  <div class="case-page">
+  <div class="page-shell case-page">
     <div class="page-header">
       <div>
-        <h2>{{ t('case.title') }}</h2>
-        <p>{{ t('case.subtitle') }}</p>
+        <h2 class="page-title">{{ t('case.title') }}</h2>
+        <div class="page-subtitle">{{ t('case.subtitle') }}</div>
       </div>
       <a-space wrap>
         <a-select
@@ -163,7 +163,7 @@
               </a-popconfirm>
             </BatchOperationBar>
             <div class="batch-bar" style="margin-bottom: 12px">
-              <span style="color: #888">{{ t('case.import_zip_label', { module: activeModuleName }) }}</span>
+              <span style="color: var(--c-text-tertiary)">{{ t('case.import_zip_label', { module: activeModuleName }) }}</span>
               <a-upload
                 :show-upload-list="false"
                 :before-upload="handleBatchImportBeforeUpload"
@@ -1111,7 +1111,7 @@ onMounted(async () => {
 
 .page-header p {
   margin: 6px 0 0;
-  color: #666;
+  color: var(--c-text-secondary);
 }
 
 .summary-row :deep(.ant-statistic-content) {
@@ -1128,18 +1128,18 @@ onMounted(async () => {
 
 .side-panel {
   min-width: 0;
-  border: 1px solid #f0f0f0;
+  border: 1px solid var(--c-border);
   border-radius: 12px;
   padding: 14px;
   overflow-y: auto;
-  background: linear-gradient(180deg, #fafcff 0%, #ffffff 100%);
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  background: var(--c-bg-elevated);
+  box-shadow: var(--shadow-sm);
 }
 
 .side-panel :deep(.tree-header) {
   margin-bottom: 12px;
   padding: 2px 2px 12px;
-  border-bottom: 1px solid #f0f0f0;
+  border-bottom: 1px solid var(--c-border);
 }
 
 .side-panel :deep(.ant-tree) {
@@ -1156,7 +1156,7 @@ onMounted(async () => {
 .toolbar-card,
 .table-card {
   border-radius: 12px;
-  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.04);
+  box-shadow: var(--shadow-sm);
 }
 
 .toolbar-card :deep(.ant-card-body) {
@@ -1201,7 +1201,7 @@ onMounted(async () => {
 }
 
 .case-summary {
-  color: #666;
+  color: var(--c-text-secondary);
   font-size: 12px;
 }
 
@@ -1213,7 +1213,7 @@ onMounted(async () => {
 
 .run-tip {
   margin-bottom: 12px;
-  color: #666;
+  color: var(--c-text-secondary);
 }
 
 @media (max-width: 960px) {

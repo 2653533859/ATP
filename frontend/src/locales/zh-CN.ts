@@ -303,6 +303,7 @@ export default {
   },
   audit_logs: {
     title: '审计日志',
+    subtitle: '追踪关键操作与越权拦截记录，支持按项目、用户、动作类型筛选',
     load_failed: '加载审计日志失败',
     filters: {
       project_id: '项目 ID',
@@ -321,6 +322,7 @@ export default {
   },
   plan: {
     title: '测试计划',
+    subtitle: '编排测试套件的定时与触发执行，支持 Cron / Webhook 与失败策略',
     new: '新建计划',
     new_full: '新建测试计划',
     edit_full: '编辑测试计划',
@@ -461,6 +463,7 @@ export default {
   },
   suite: {
     title: '测试套件',
+    subtitle: '组合用例为可复用的执行套件，配置串行 / 并行与失败策略',
     new: '新建套件',
     edit: '编辑套件',
     select_project: '选择项目',
@@ -1453,6 +1456,8 @@ export default {
     },
   },
   mock: {
+    title: 'Mock 服务',
+    subtitle: '管理 Mock 规则、条件分流响应与请求日志',
     select_project: '选择项目',
     export_rules: '导出规则',
     import_rules: '导入规则',

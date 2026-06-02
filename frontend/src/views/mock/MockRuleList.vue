@@ -1,5 +1,9 @@
 <template>
-  <div class="mock-page">
+  <div class="page-shell mock-page">
+    <div>
+      <h2 class="page-title">{{ t('mock.title') }}</h2>
+      <div class="page-subtitle">{{ t('mock.subtitle') }}</div>
+    </div>
     <div class="toolbar">
       <a-space>
         <a-select
@@ -172,7 +176,7 @@
             class="code-textarea"
             placeholder='{"code": 0, "message": "success"}'
           />
-          <div style="margin-top: 8px; color: #888; font-size: 12px">
+          <div style="margin-top: 8px; color: var(--c-text-tertiary); font-size: 12px">
             {{ t('mock.template_hint_prefix') }} <code v-pre>{{query.xxx}}</code> / <code v-pre>{{headers.xxx}}</code> / <code v-pre>{{body.xxx}}</code> {{ t('mock.template_hint_suffix') }}
           </div>
         </a-form-item>
