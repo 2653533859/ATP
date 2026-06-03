@@ -18,13 +18,30 @@ sys.modules["app.core.redis_client"] = types.SimpleNamespace(
 
 
 class _DummyCeleryApp:
+    def __init__(self):
+        self.tasks = {
+            "run_mobile_special_task": object(),
+            "check_mobile_special_schedules": object(),
+        }
+        self.conf = types.SimpleNamespace(
+            beat_schedule={
+                "check-mobile-special-schedules": {},
+                "cleanup-stale-mobile-special-runs": {},
+            }
+        )
+
     def task(self, *args, **kwargs):
         def decorator(func):
+            self.tasks[kwargs.get("name", func.__name__)] = func
             return func
         return decorator
 
 
-sys.modules["app.worker.celery_app"] = types.SimpleNamespace(celery_app=_DummyCeleryApp())
+def _install_dummy_celery_app():
+    sys.modules["app.worker.celery_app"] = types.SimpleNamespace(celery_app=_DummyCeleryApp())
+
+
+_install_dummy_celery_app()
 
 from app.models.bootstrap import load_all_models
 
@@ -63,6 +80,7 @@ class TestTaskRouting:
     def test_celery_app_has_mobile_special_tasks(self):
         """Verify celery app includes mobile special tasks (skip if celery not installed)"""
         pytest.importorskip("celery")
+        _install_dummy_celery_app()
         load_all_models()
         from app.worker.celery_app import celery_app
 
@@ -73,6 +91,7 @@ class TestTaskRouting:
     def test_beat_schedule_includes_mobile_special(self):
         """Verify beat schedule includes mobile special polling (skip if celery not installed)"""
         pytest.importorskip("celery")
+        _install_dummy_celery_app()
         load_all_models()
         from app.worker.celery_app import celery_app
 

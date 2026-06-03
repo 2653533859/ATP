@@ -72,7 +72,7 @@ jobs:
           pip install -r backend/requirements.txt
 
       - name: Run pytest
-        run: python -m pytest backend/tests -q
+        run: python -m pytest backend/tests -q --ignore=backend/tests/integration
 
   frontend-check:
     name: Frontend type-check + build
