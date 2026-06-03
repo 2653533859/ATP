@@ -1,5 +1,12 @@
 # MEMORY
 
+## Recent Fixes (2026-06-03)
+
+- Unified several system settings pages onto the shared `page-shell` / `page-hero` visual pattern and added missing zh-CN/en-US subtitle copy for environment, notification, global variable, and bug tracker pages.
+- Hardened FastAPI startup against transient or misconfigured MinIO by using short MinIO client timeouts and logging bucket bootstrap failures as warnings instead of blocking app startup.
+- Added `scripts/dev_mock_backend.py` as a lightweight local UI-preview backend for cases where external PostgreSQL / Redis / MinIO dependencies are unavailable.
+- Verified the real FastAPI service can start successfully on `http://127.0.0.1:8000` after the MinIO startup hardening; `/health` returned `{"status":"ok"}`.
+
 ## Recent Fixes (2026-03-08)
 
 - Completed Phase 4.5 notification integration across backend, frontend, migration, and docs.

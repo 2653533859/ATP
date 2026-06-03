@@ -1,18 +1,22 @@
 <template>
-  <div style="display: flex; flex-direction: column; height: 100%">
-    <!-- Header -->
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
-      <h2 style="margin: 0">{{ t('system_pages.environment.title') }}</h2>
-      <a-select
-        v-model:value="selectedProjectId"
-        :placeholder="t('mobile_special.select_project')"
-        style="width: 220px"
-        :options="projectOptions"
-        @change="onProjectChange"
-      />
-      <a-button type="primary" :disabled="!selectedProjectId" @click="showCreateModal = true">
-        {{ t('system_pages.environment.new') }}
-      </a-button>
+  <div class="page-shell" style="display: flex; flex-direction: column; height: 100%">
+    <div class="page-hero">
+      <div>
+        <h2 class="page-title">{{ t('system_pages.environment.title') }}</h2>
+        <div class="page-subtitle">{{ t('system_pages.environment.subtitle') }}</div>
+      </div>
+      <a-space>
+        <a-select
+          v-model:value="selectedProjectId"
+          :placeholder="t('mobile_special.select_project')"
+          style="width: 220px"
+          :options="projectOptions"
+          @change="onProjectChange"
+        />
+        <a-button type="primary" :disabled="!selectedProjectId" @click="showCreateModal = true">
+          {{ t('system_pages.environment.new') }}
+        </a-button>
+      </a-space>
     </div>
 
     <a-spin :spinning="loading">
@@ -28,7 +32,7 @@
             <template #renderItem="{ item }">
               <a-list-item
                 style="cursor: pointer; padding: 8px 12px"
-                :style="{ background: selectedEnvId === item.id ? '#e6f4ff' : 'transparent' }"
+                :style="{ background: selectedEnvId === item.id ? 'var(--c-primary-soft)' : 'transparent' }"
                 @click="selectEnv(item)"
               >
                 <a-list-item-meta :title="item.name" :description="item.description || t('system_pages.environment.no_description')" />

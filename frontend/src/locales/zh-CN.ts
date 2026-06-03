@@ -1704,6 +1704,7 @@ export default {
   system_pages: {
     environment: {
       title: '环境管理',
+      subtitle: '管理项目环境与环境变量（支持密文存储）',
       new: '新建环境',
       edit: '编辑环境',
       select_project_first: '请先选择项目',
@@ -1742,6 +1743,8 @@ export default {
       },
     },
     notification: {
+      title: '通知渠道',
+      subtitle: '配置邮件 / 企业微信 / 钉钉通知并测试连通性',
       add: '添加通知渠道',
       edit: '编辑通知渠道',
       name_placeholder: '如：项目群钉钉通知',
@@ -1784,6 +1787,7 @@ export default {
     },
     global_variable: {
       title: '全局变量库',
+      subtitle: '管理全局 / 项目级变量，密文加密存储、按需查看',
       new: '新建变量',
       edit: '编辑变量',
       show: '显示',
@@ -1933,6 +1937,8 @@ export default {
       },
     },
     bug_tracker: {
+      title: '缺陷跟踪',
+      subtitle: '集成 Jira / 禅道 / GitHub Issues，失败用例可自动建单',
       add: '添加缺陷跟踪',
       edit: '编辑缺陷跟踪',
       test_connection: '测试连接',

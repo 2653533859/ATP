@@ -1,6 +1,11 @@
 <template>
-  <div class="run-retention-page">
-    <a-page-header :title="t('system_pages.run_retention.title')" :subtitle="t('system_pages.run_retention.subtitle')" />
+  <div class="page-shell">
+    <div class="page-hero">
+      <div>
+        <h2 class="page-title">{{ t('system_pages.run_retention.title') }}</h2>
+        <div class="page-subtitle">{{ t('system_pages.run_retention.subtitle') }}</div>
+      </div>
+    </div>
 
     <a-card class="filter-card" :bordered="false" style="margin-bottom: 16px">
       <a-form layout="inline" :model="filter">
@@ -74,7 +79,7 @@
                 {{ t('system_pages.run_retention.execute_cleanup') }}
               </a-button>
             </a-popconfirm>
-            <span style="margin-left: 12px; color: #999; font-size: 12px">
+            <span style="margin-left: 12px; color: var(--c-text-tertiary); font-size: 12px">
               {{ t('system_pages.run_retention.execute_hint') }}
             </span>
           </div>
@@ -242,10 +247,7 @@ async function handleExecute() {
 </script>
 
 <style scoped>
-.run-retention-page {
-  padding: 12px 24px 24px;
-}
 .filter-card {
-  background: #fafafa;
+  background: var(--c-bg-subtle);
 }
 </style>

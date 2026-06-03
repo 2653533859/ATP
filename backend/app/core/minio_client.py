@@ -15,6 +15,7 @@ import logging
 from pathlib import Path
 from minio import Minio
 from minio.error import S3Error
+import urllib3
 from app.core.config import settings
 
 logger = logging.getLogger(__name__)
@@ -30,6 +31,10 @@ def get_client() -> Minio:
             access_key=settings.MINIO_ROOT_USER,
             secret_key=settings.MINIO_ROOT_PASSWORD,
             secure=False,
+            http_client=urllib3.PoolManager(
+                timeout=urllib3.Timeout(connect=2.0, read=2.0),
+                retries=urllib3.Retry(total=0),
+            ),
         )
     return _client
 
@@ -43,7 +48,9 @@ def ensure_bucket() -> None:
             client.make_bucket(bucket)
             logger.info(f"MinIO bucket '{bucket}' created")
     except S3Error as e:
-        logger.error(f"MinIO ensure_bucket error: {e}")
+        logger.warning(f"MinIO ensure_bucket skipped: {e}")
+    except Exception as e:
+        logger.warning(f"MinIO ensure_bucket skipped: {e}")
 
 
 def upload_bytes(object_name: str, data: bytes, content_type: str = "application/octet-stream") -> str:

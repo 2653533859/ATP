@@ -1704,6 +1704,7 @@ export default {
   system_pages: {
     environment: {
       title: 'Environments',
+      subtitle: 'Manage project environments and variables (secret values supported)',
       new: 'New environment',
       edit: 'Edit environment',
       select_project_first: 'Select a project first',
@@ -1742,6 +1743,8 @@ export default {
       },
     },
     notification: {
+      title: 'Notification Channels',
+      subtitle: 'Configure email / WeChat Work / DingTalk channels and test connectivity',
       add: 'Add notification channel',
       edit: 'Edit notification channel',
       name_placeholder: 'e.g. project DingTalk group',
@@ -1784,6 +1787,7 @@ export default {
     },
     global_variable: {
       title: 'Global Variables',
+      subtitle: 'Manage global / project variables with encrypted secret storage and on-demand reveal',
       new: 'New variable',
       edit: 'Edit variable',
       show: 'Show',
@@ -1933,6 +1937,8 @@ export default {
       },
     },
     bug_tracker: {
+      title: 'Bug Trackers',
+      subtitle: 'Integrate Jira / ZenTao / GitHub Issues; auto-file issues for failed cases',
       add: 'Add bug tracker',
       edit: 'Edit bug tracker',
       test_connection: 'Test connection',

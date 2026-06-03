@@ -1,5 +1,9 @@
 <template>
-  <div class="notification-page">
+  <div class="page-shell notification-page">
+    <div>
+      <h2 class="page-title">{{ t('system_pages.notification.title') }}</h2>
+      <div class="page-subtitle">{{ t('system_pages.notification.subtitle') }}</div>
+    </div>
     <div class="toolbar">
       <a-space>
         <a-select

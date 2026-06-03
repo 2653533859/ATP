@@ -1,9 +1,9 @@
 <template>
-  <div class="dashboard-alert-page">
-    <a-page-header
-      :title="t('system_pages.dashboard_alert.title')"
-      :subtitle="t('system_pages.dashboard_alert.subtitle')"
-    />
+  <div class="page-shell dashboard-alert-page">
+    <div>
+      <h2 class="page-title">{{ t('system_pages.dashboard_alert.title') }}</h2>
+      <div class="page-subtitle">{{ t('system_pages.dashboard_alert.subtitle') }}</div>
+    </div>
 
     <div class="toolbar">
       <a-space>

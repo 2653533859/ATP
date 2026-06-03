@@ -1,25 +1,29 @@
 <template>
-  <div style="display: flex; flex-direction: column; height: 100%">
-    <!-- Header -->
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
-      <h2 style="margin: 0">{{ t('system_pages.global_variable.title') }}</h2>
-      <a-select
-        v-model:value="selectedScope"
-        style="width: 140px"
-        :options="scopeOptions"
-        @change="onScopeChange"
-      />
-      <a-select
-        v-if="selectedScope === 'project'"
-        v-model:value="selectedProjectId"
-        :placeholder="t('mobile_special.select_project')"
-        style="width: 220px"
-        :options="projectOptions"
-        @change="loadVariables"
-      />
-      <a-button type="primary" :disabled="!canCreate" @click="openCreate">
-        {{ t('system_pages.global_variable.new') }}
-      </a-button>
+  <div class="page-shell" style="display: flex; flex-direction: column; height: 100%">
+    <div class="page-hero">
+      <div>
+        <h2 class="page-title">{{ t('system_pages.global_variable.title') }}</h2>
+        <div class="page-subtitle">{{ t('system_pages.global_variable.subtitle') }}</div>
+      </div>
+      <a-space>
+        <a-select
+          v-model:value="selectedScope"
+          style="width: 140px"
+          :options="scopeOptions"
+          @change="onScopeChange"
+        />
+        <a-select
+          v-if="selectedScope === 'project'"
+          v-model:value="selectedProjectId"
+          :placeholder="t('mobile_special.select_project')"
+          style="width: 220px"
+          :options="projectOptions"
+          @change="loadVariables"
+        />
+        <a-button type="primary" :disabled="!canCreate" @click="openCreate">
+          {{ t('system_pages.global_variable.new') }}
+        </a-button>
+      </a-space>
     </div>
 
     <a-spin :spinning="loading">
@@ -77,7 +81,7 @@
         </a-form-item>
         <a-form-item :label="t('system_pages.global_variable.secret_storage')">
           <a-switch v-model:checked="form.is_secret" />
-          <span style="margin-left: 8px; color: #999">{{ t('system_pages.global_variable.secret_hint') }}</span>
+          <span style="margin-left: 8px; color: var(--c-text-tertiary)">{{ t('system_pages.global_variable.secret_hint') }}</span>
         </a-form-item>
         <a-form-item :label="t('common.description')">
           <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('system_pages.global_variable.desc_placeholder')" />

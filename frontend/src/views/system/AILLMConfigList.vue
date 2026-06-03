@@ -1,10 +1,10 @@
 <template>
-  <div style="display: flex; flex-direction: column; height: 100%">
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
-      <h2 style="margin: 0">{{ t('system_pages.ai_llm.title') }}</h2>
-      <span style="color: #888">
-        {{ t('system_pages.ai_llm.subtitle') }}
-      </span>
+  <div class="page-shell" style="display: flex; flex-direction: column; height: 100%">
+    <div class="page-hero">
+      <div>
+        <h2 class="page-title">{{ t('system_pages.ai_llm.title') }}</h2>
+        <div class="page-subtitle">{{ t('system_pages.ai_llm.subtitle') }}</div>
+      </div>
       <a-button type="primary" @click="openCreate">{{ t('system_pages.ai_llm.new') }}</a-button>
     </div>
 
@@ -90,7 +90,7 @@
             :rows="3"
             placeholder='{"temperature": 0.4}'
           />
-          <span v-if="defaultParamsError" style="color: #f5222d; font-size: 12px">
+          <span v-if="defaultParamsError" style="color: var(--c-error); font-size: 12px">
             {{ defaultParamsError }}
           </span>
         </a-form-item>
