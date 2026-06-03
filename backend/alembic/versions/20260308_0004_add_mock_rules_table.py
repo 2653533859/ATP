@@ -9,6 +9,7 @@ from typing import Sequence, Union
 
 from alembic import op
 import sqlalchemy as sa
+from sqlalchemy.dialects import postgresql
 
 
 # revision identifiers, used by Alembic.
@@ -18,7 +19,16 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 
-mock_method_enum = sa.Enum("GET", "POST", "PUT", "DELETE", "PATCH", "ANY", name="mockmethod")
+mock_method_enum = postgresql.ENUM(
+    "GET",
+    "POST",
+    "PUT",
+    "DELETE",
+    "PATCH",
+    "ANY",
+    name="mockmethod",
+    create_type=False,
+)
 
 
 def upgrade() -> None:
