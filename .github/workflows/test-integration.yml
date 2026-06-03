@@ -44,6 +44,7 @@ jobs:
 
     env:
       ATP_INTEGRATION_TESTS: "1"
+      PYTHONPATH: backend
       APP_ENV: test
       APP_SECRET_KEY: integration-secret-key-padded-to-32-chars-long
       POSTGRES_HOST: localhost
