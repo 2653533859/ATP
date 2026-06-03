@@ -46,15 +46,18 @@ jobs:
       ATP_INTEGRATION_TESTS: "1"
       APP_ENV: test
       APP_SECRET_KEY: integration-secret-key-padded-to-32-chars-long
-      DATABASE_URL: postgresql+asyncpg://atp:atp_password@localhost:5432/atp
-      DATABASE_URL_SYNC: postgresql+psycopg2://atp:atp_password@localhost:5432/atp
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: "5432"
+      POSTGRES_USER: atp
+      POSTGRES_PASSWORD: atp_password
+      POSTGRES_DB: atp
       REDIS_HOST: localhost
       REDIS_PORT: "6379"
-      MINIO_ENDPOINT: localhost:9000
-      MINIO_ACCESS_KEY: minio_admin
-      MINIO_SECRET_KEY: minio_password
+      MINIO_HOST: localhost
+      MINIO_PORT: "9000"
+      MINIO_ROOT_USER: minio_admin
+      MINIO_ROOT_PASSWORD: minio_password
       MINIO_BUCKET: atp
-      MINIO_SECURE: "false"
       WEBHOOK_API_KEY: integration-webhook-key
       FIRST_ADMIN_USERNAME: admin
       FIRST_ADMIN_PASSWORD: Admin@123456

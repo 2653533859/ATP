@@ -45,6 +45,17 @@ export async function installCommonMocks(page: Page) {
     route.fulfill({ json: { items: data.cases, total: data.cases.length, page: 1, page_size: 20 } }),
   )
 
+  // user/session-adjacent best-effort reads used by first-screen dashboards.
+  await page.route('**/api/v1/users/me/settings/dashboard.layout', (route) =>
+    route.fulfill({ status: 404, json: { detail: 'Not found' } }),
+  )
+  await page.route('**/api/v1/storage/alert', (route) =>
+    route.fulfill({ json: { alert: null } }),
+  )
+  await page.route('**/api/v1/traces/config', (route) =>
+    route.fulfill({ json: { jaeger_ui_url: '' } }),
+  )
+
   // statistics
   await page.route('**/api/v1/statistics/overview**', (route) =>
     route.fulfill({ json: data.overviewStats }),

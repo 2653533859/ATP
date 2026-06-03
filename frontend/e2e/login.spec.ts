@@ -4,7 +4,10 @@ test.describe('login flow', () => {
   test('未登录访问根路径应重定向到 /login', async ({ mockedPage }) => {
     await mockedPage.goto('/')
     await expect(mockedPage).toHaveURL(/\/login/)
-    await expect(mockedPage.getByText('ATP 自动化测试平台')).toBeVisible()
+    await expect(
+      mockedPage.getByRole('heading', { name: /ATP (自动化测试平台|Automated Testing Platform)/i }),
+    ).toBeVisible()
+    await expect(mockedPage.getByPlaceholder(/用户名|Username/i)).toBeVisible()
   })
 
   test('凭证正确时登录成功并进入 dashboard', async ({ mockedPage }) => {
