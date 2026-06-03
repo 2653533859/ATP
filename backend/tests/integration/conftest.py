@@ -22,8 +22,8 @@ assert os.getenv("ATP_INTEGRATION_TESTS") == "1", (
 )
 
 
-# ── 进程级一次性初始化 ─────────────────────────────────────────
-@pytest_asyncio.fixture(scope="session")
+# ── 每用例启动 app/client，避免 asyncpg 连接跨 pytest 事件循环复用 ─────────
+@pytest_asyncio.fixture()
 async def app_instance():
     """启动 FastAPI app（lifespan 内会执行启动初始化）。
 
@@ -37,7 +37,7 @@ async def app_instance():
         yield app
 
 
-@pytest_asyncio.fixture(scope="session")
+@pytest_asyncio.fixture()
 async def async_client(app_instance):
     transport = ASGITransport(app=app_instance)
     async with AsyncClient(transport=transport, base_url="http://test") as client:

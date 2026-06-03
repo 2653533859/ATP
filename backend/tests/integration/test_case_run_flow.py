@@ -41,6 +41,7 @@ async def test_project_module_case_run_chain(async_client, auth_headers, unique_
             {
                 "step_order": 1,
                 "name": "GET mock echo",
+                "action": "GET mock echo",
                 "config": {
                     "method": "GET",
                     "url": f"http://test/mock/{project_id}/echo",

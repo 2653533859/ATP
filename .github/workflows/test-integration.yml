@@ -63,6 +63,7 @@ jobs:
       FIRST_ADMIN_USERNAME: admin
       FIRST_ADMIN_PASSWORD: Admin@123456
       FIRST_ADMIN_EMAIL: admin@example.com
+      RATE_LIMIT_LOGIN: 1000/minute
       # Celery eager：让 trigger 同步返回，避免依赖独立 worker 进程
       CELERY_TASK_ALWAYS_EAGER: "true"
       CELERY_TASK_EAGER_PROPAGATES: "true"
