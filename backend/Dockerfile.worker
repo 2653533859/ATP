@@ -1,3 +1,4 @@
+ARG K6_IMAGE=grafana/k6:0.52.0
 FROM python:3.12-slim-bookworm AS python-deps
 
 WORKDIR /app
@@ -9,7 +10,6 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
-ARG K6_IMAGE=grafana/k6:0.52.0
 FROM ${K6_IMAGE} AS k6-bin
 
 FROM python:3.12-slim-bookworm

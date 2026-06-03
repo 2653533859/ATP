@@ -42,21 +42,6 @@ jobs:
           --health-timeout 5s
           --health-retries 10
 
-      minio:
-        image: minio/minio:RELEASE.2024-11-07T00-52-20Z
-        env:
-          MINIO_ROOT_USER: minio_admin
-          MINIO_ROOT_PASSWORD: minio_password
-        ports:
-          - 9000:9000
-        options: >-
-          --health-cmd "curl -f http://localhost:9000/minio/health/live || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 15
-        # 注意：GH Actions service container 不能直接指定 entrypoint args，
-        # 默认 image 启动后会自动监听 :9000，无需额外 server 参数（image 默认行为）。
-
     env:
       ATP_INTEGRATION_TESTS: "1"
       APP_ENV: test
@@ -99,6 +84,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
           pip install pytest-asyncio
+
+      - name: Start MinIO
+        run: |
+          docker run -d \
+            --name atp-minio \
+            -p 9000:9000 \
+            -e MINIO_ROOT_USER=minio_admin \
+            -e MINIO_ROOT_PASSWORD=minio_password \
+            minio/minio:RELEASE.2024-11-07T00-52-20Z server /data
 
       - name: Wait for services
         run: |
