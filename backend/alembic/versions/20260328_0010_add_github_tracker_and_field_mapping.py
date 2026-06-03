@@ -16,7 +16,16 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.execute("ALTER TYPE trackertype ADD VALUE IF NOT EXISTS 'github'")
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'trackertype') THEN
+                ALTER TYPE trackertype ADD VALUE IF NOT EXISTS 'github';
+            END IF;
+        END $$;
+        """
+    )
     op.add_column('bug_trackers', sa.Column('field_mapping', postgresql.JSON(astext_type=sa.Text()), nullable=False, server_default=sa.text("'{}'::json")))
     op.alter_column('bug_trackers', 'field_mapping', server_default=None)
 

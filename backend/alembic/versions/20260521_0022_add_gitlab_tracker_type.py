@@ -17,8 +17,18 @@ depends_on: Union[str, Sequence[str], None] = None
 
 
 def upgrade() -> None:
-    # PostgreSQL native enum: 添加新值（不可逆，downgrade 仅文档化）
-    op.execute("ALTER TYPE trackertype ADD VALUE IF NOT EXISTS 'gitlab'")
+    # Some fresh installs still use varchar for bug_trackers.tracker_type; only
+    # extend the native enum on databases that already have it.
+    op.execute(
+        """
+        DO $$
+        BEGIN
+            IF EXISTS (SELECT 1 FROM pg_type WHERE typname = 'trackertype') THEN
+                ALTER TYPE trackertype ADD VALUE IF NOT EXISTS 'gitlab';
+            END IF;
+        END $$;
+        """
+    )
 
 
 def downgrade() -> None:
