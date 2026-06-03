@@ -56,7 +56,21 @@ async def test_project_module_case_run_chain(async_client, auth_headers, unique_
     case = resp.json()
     case_id = case["id"]
 
-    # 4. trigger run（同步入队，状态默认 pending）
+    # 4. submit + approve case so it becomes active and executable.
+    resp = await async_client.post(
+        f"/api/v1/cases/{case_id}/submit-review",
+        headers=auth_headers,
+        json={"comment": "ready for integration run"},
+    )
+    assert resp.status_code == 200, resp.text
+    resp = await async_client.post(
+        f"/api/v1/cases/{case_id}/approve",
+        headers=auth_headers,
+        json={"comment": "approved for integration run"},
+    )
+    assert resp.status_code == 200, resp.text
+
+    # 5. trigger run（同步入队，状态默认 pending）
     resp = await async_client.post(
         f"/api/v1/cases/{case_id}/run",
         headers=auth_headers,
@@ -67,7 +81,7 @@ async def test_project_module_case_run_chain(async_client, auth_headers, unique_
     assert run["case_id"] == case_id
     assert run["status"] in ("pending", "running", "passed", "failed")
 
-    # 5. 通过 list runs 校验入库
+    # 6. 通过 list runs 校验入库
     resp = await async_client.get(f"/api/v1/runs?case_id={case_id}", headers=auth_headers)
     assert resp.status_code == 200, resp.text
     runs = resp.json()
