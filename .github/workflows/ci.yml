@@ -12,6 +12,60 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  migration-check:
+    name: Empty database migration
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: atp
+          POSTGRES_PASSWORD: atp_password
+          POSTGRES_DB: atp
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U atp -d atp"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      POSTGRES_HOST: localhost
+      POSTGRES_PORT: 5432
+      POSTGRES_USER: atp
+      POSTGRES_PASSWORD: atp_password
+      POSTGRES_DB: atp
+      APP_ENV: test
+      APP_SECRET_KEY: ci-secret-key-for-ci-only-padded-to-32-chars
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      MINIO_HOST: localhost
+      MINIO_PORT: 9000
+      MINIO_BUCKET: atp
+      WEBHOOK_API_KEY: ci-webhook-key
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+
+      - name: Run Alembic migrations from empty database
+        working-directory: backend
+        run: alembic upgrade head
+
   backend-test:
     name: Backend pytest
     runs-on: ubuntu-latest

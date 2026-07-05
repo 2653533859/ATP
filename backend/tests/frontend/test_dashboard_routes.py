@@ -49,3 +49,23 @@ def test_dashboard_supports_custom_local_layout():
     assert "v-model=\"dashboardLayout\"" in content
     assert "visibleChartConfigs" in content
     assert "resetDashboardLayout" in content
+
+
+def test_dashboard_has_workbench_shortcuts():
+    content = repo_path("frontend/src/views/dashboard/DashboardView.vue").read_text(encoding="utf-8")
+
+    assert "workbench.todayRuns" in content
+    assert "workbench.todayFailed" in content
+    assert "workbench.pendingReviews" in content
+    assert "recentRuns.length" in content
+    assert "caseApi.list" in content
+    assert "runApi.list" in content
+    assert "goToPendingReviews" in content
+
+
+def test_case_list_accepts_review_status_query_from_dashboard():
+    content = repo_path("frontend/src/views/case/CaseList.vue").read_text(encoding="utf-8")
+
+    assert "parseReviewStatus(route.query.review_status)" in content
+    assert "filterReviewStatus.value = routeReviewStatus" in content
+    assert "query.review_status = filterReviewStatus.value" in content

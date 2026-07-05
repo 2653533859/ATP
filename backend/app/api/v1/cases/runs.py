@@ -21,12 +21,14 @@ from app.models.project import Module
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.schemas.case import (
+    FailureDiagnosisOut,
     HealingFeedbackRequest,
     PaginatedRunsOut,
     RunCursorPage,
     RunTriggerRequest,
     TestRunOut,
 )
+from app.services.failure_diagnosis import generate_failure_diagnosis
 
 router = APIRouter(tags=["用例管理"])
 
@@ -137,6 +139,27 @@ async def get_run(run_id: int, db: AsyncSession = Depends(get_db), _=Depends(get
     if not run:
         raise HTTPException(status_code=404, detail="执行记录不存在")
     return run
+
+
+@router.post("/runs/{run_id}/failure-diagnosis", response_model=FailureDiagnosisOut)
+async def diagnose_run_failure(
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    run = await db.get(TestRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="执行记录不存在")
+
+    case = await db.get(TestCase, run.case_id)
+    module = await db.get(Module, case.module_id) if case else None
+    if module:
+        await assert_project_access(db, current_user, module.project_id, ProjectRole.viewer)
+
+    diagnosis = await generate_failure_diagnosis(db, run_id)
+    if diagnosis is None:
+        raise HTTPException(status_code=404, detail="执行记录不存在")
+    return diagnosis
 
 
 @router.post(

@@ -3,6 +3,10 @@
 ATP 的数据库结构以 Alembic 迁移为准。应用启动时默认不会再通过
 `Base.metadata.create_all` 自动补表，避免 ORM 与迁移脚本长期双轨导致 schema drift。
 
+编写新迁移时先阅读 [Alembic Migration Guidelines](./alembic-migration-guidelines.md)，并从
+[`backend/alembic/templates/migration_template.py`](../backend/alembic/templates/migration_template.py)
+复制 enum、索引、约束的标准写法。
+
 ## 空库首建
 
 本地或服务器首次准备 PostgreSQL 后，先执行：

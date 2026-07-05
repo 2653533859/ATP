@@ -1,6 +1,10 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/stores/auth'
+import { hasAnyRole, type UserRole } from '@/utils/permissions'
+
+const ADMIN_ONLY: UserRole[] = ['admin']
+const ENGINEER_ONLY: UserRole[] = ['admin', 'engineer']
 
 const router = createRouter({
   history: createWebHistory(),
@@ -60,21 +64,25 @@ const router = createRouter({
           path: 'system/notifications',
           name: 'notifications',
           component: () => import('@/views/system/NotificationList.vue'),
+          meta: { roles: ENGINEER_ONLY },
         },
         {
           path: 'system/bug-trackers',
           name: 'bug-trackers',
           component: () => import('@/views/system/BugTrackerList.vue'),
+          meta: { roles: ENGINEER_ONLY },
         },
         {
           path: 'devices',
           name: 'devices',
           component: () => import('@/views/device/DeviceList.vue'),
+          meta: { roles: ENGINEER_ONLY },
         },
         {
           path: 'apks',
           name: 'apks',
           component: () => import('@/views/apk/ApkList.vue'),
+          meta: { roles: ENGINEER_ONLY },
         },
         {
           path: 'suites',
@@ -110,6 +118,7 @@ const router = createRouter({
           path: 'system/storage',
           name: 'system-storage',
           component: () => import('@/views/system/StorageManagementView.vue'),
+          meta: { roles: ENGINEER_ONLY },
         },
         {
           path: 'system/global-variables',
@@ -120,36 +129,37 @@ const router = createRouter({
           path: 'system/audit-logs',
           name: 'audit-logs',
           component: () => import('@/views/audit/AuditLogList.vue'),
-          meta: { requireAdmin: true },
+          meta: { requireAdmin: true, roles: ADMIN_ONLY },
         },
         {
           path: 'system/run-retention',
           name: 'system-run-retention',
           component: () => import('@/views/system/RunRetentionView.vue'),
-          meta: { requireAdmin: true },
+          meta: { requireAdmin: true, roles: ADMIN_ONLY },
         },
         {
           path: 'system/dashboard-alerts',
           name: 'system-dashboard-alerts',
           component: () => import('@/views/system/DashboardAlertRulesView.vue'),
-          meta: { requireAdmin: true },
+          meta: { requireAdmin: true, roles: ADMIN_ONLY },
         },
         {
           path: 'system/ai-llm-configs',
           name: 'system-ai-llm-configs',
           component: () => import('@/views/system/AILLMConfigList.vue'),
+          meta: { roles: ADMIN_ONLY },
         },
         {
           path: 'system/healing-examples',
           name: 'system-healing-examples',
           component: () => import('@/views/system/HealingExamplesView.vue'),
-          meta: { requireAdmin: true },
+          meta: { requireAdmin: true, roles: ADMIN_ONLY },
         },
         {
           path: 'system/ai-healing-stats',
           name: 'system-ai-healing-stats',
           component: () => import('@/views/system/AIHealingStatsView.vue'),
-          meta: { requireAdmin: true },
+          meta: { requireAdmin: true, roles: ADMIN_ONLY },
         },
         {
           path: 'system/datasets',
@@ -167,7 +177,7 @@ const router = createRouter({
   ],
 })
 
-// 路由守卫：未登录跳转 /login；管理员页面校验角色
+// 路由守卫：未登录跳转 /login；按路由声明校验角色
 router.beforeEach(async (to) => {
   const auth = useAuthStore()
   if (!to.meta.public && !auth.token) {
@@ -177,8 +187,8 @@ router.beforeEach(async (to) => {
   if (auth.token && !auth.user) {
     await auth.fetchMe()
   }
-  // 仅管理员可访问的页面：非管理员拦截并跳转首页
-  if (to.meta.requireAdmin && auth.user?.role !== 'admin') {
+  const allowedRoles = (to.meta.roles ?? (to.meta.requireAdmin ? ADMIN_ONLY : undefined)) as UserRole[] | undefined
+  if (!hasAnyRole(auth.user?.role, allowedRoles)) {
     message.error('无权限访问该页面')
     return { name: 'dashboard' }
   }

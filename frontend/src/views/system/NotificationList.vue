@@ -1,10 +1,15 @@
 <template>
-  <div class="page-shell notification-page">
-    <div>
-      <h2 class="page-title">{{ t('system_pages.notification.title') }}</h2>
-      <div class="page-subtitle">{{ t('system_pages.notification.subtitle') }}</div>
+  <div class="page-shell system-page notification-page">
+    <div class="page-hero">
+      <div>
+        <h2 class="page-title">{{ t('system_pages.notification.title') }}</h2>
+        <div class="page-subtitle">{{ t('system_pages.notification.subtitle') }}</div>
+      </div>
+      <a-button type="primary" :disabled="!projectId" @click="openCreate">
+        <PlusOutlined /> {{ t('system_pages.notification.add') }}
+      </a-button>
     </div>
-    <div class="toolbar">
+    <div class="page-toolbar">
       <a-space>
         <a-select
           v-model:value="projectId"
@@ -12,40 +17,39 @@
           style="width: 200px"
           allow-clear
           :options="projectOptions"
-          @change="loadConfigs"
+          @change="handleProjectChange"
         />
       </a-space>
-      <a-button type="primary" :disabled="!projectId" @click="openCreate">
-        <PlusOutlined /> {{ t('system_pages.notification.add') }}
-      </a-button>
     </div>
 
-    <a-table
-      :columns="columns"
-      :data-source="configs"
-      :loading="loading"
-      row-key="id"
-      size="middle"
-      :pagination="{ pageSize: 20 }"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'channel'">
-          <a-tag :color="channelColor(record.channel)">{{ channelLabel(record.channel) }}</a-tag>
+    <a-card class="table-panel" :bordered="false">
+      <a-table
+        :columns="columns"
+        :data-source="configs"
+        :loading="loading"
+        row-key="id"
+        size="middle"
+        :pagination="{ pageSize: 20 }"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'channel'">
+            <a-tag :color="channelColor(record.channel)">{{ channelLabel(record.channel) }}</a-tag>
+          </template>
+          <template v-if="column.key === 'is_enabled'">
+            <a-tag :color="record.is_enabled ? 'green' : 'default'">{{ record.is_enabled ? t('common.enabled') : t('common.disabled') }}</a-tag>
+          </template>
+          <template v-if="column.key === 'action'">
+            <a-space>
+              <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+              <a-button type="link" size="small" :loading="testingId === record.id" @click="handleTest(record)">{{ t('system_pages.notification.test') }}</a-button>
+              <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
+                <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
+              </a-popconfirm>
+            </a-space>
+          </template>
         </template>
-        <template v-if="column.key === 'is_enabled'">
-          <a-tag :color="record.is_enabled ? 'green' : 'default'">{{ record.is_enabled ? t('common.enabled') : t('common.disabled') }}</a-tag>
-        </template>
-        <template v-if="column.key === 'action'">
-          <a-space>
-            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
-            <a-button type="link" size="small" :loading="testingId === record.id" @click="handleTest(record)">{{ t('system_pages.notification.test') }}</a-button>
-            <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
-              <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
-            </a-popconfirm>
-          </a-space>
-        </template>
-      </template>
-    </a-table>
+      </a-table>
+    </a-card>
 
     <a-modal
       v-model:open="formOpen"
@@ -72,6 +76,43 @@
             <a-select-option value="zh-CN">{{ t('lang.zh') }}</a-select-option>
             <a-select-option value="en-US">{{ t('lang.en') }}</a-select-option>
           </a-select>
+        </a-form-item>
+
+        <a-divider orientation="left">{{ t('system_pages.notification.strategy') }}</a-divider>
+
+        <a-form-item :label="t('system_pages.notification.scope')">
+          <a-select v-model:value="notificationScope" style="width: 100%">
+            <a-select-option value="all">{{ t('system_pages.notification.scopes.all') }}</a-select-option>
+            <a-select-option value="suites">{{ t('system_pages.notification.scopes.suites') }}</a-select-option>
+            <a-select-option value="plans">{{ t('system_pages.notification.scopes.plans') }}</a-select-option>
+          </a-select>
+        </a-form-item>
+
+        <a-form-item v-if="notificationScope === 'suites'" :label="t('system_pages.notification.target_suites')">
+          <a-select
+            v-model:value="selectedSuiteIds"
+            mode="multiple"
+            style="width: 100%"
+            :options="suiteOptions"
+            :placeholder="t('system_pages.notification.target_suites_placeholder')"
+            option-filter-prop="label"
+          />
+        </a-form-item>
+
+        <a-form-item v-if="notificationScope === 'plans'" :label="t('system_pages.notification.target_plans')">
+          <a-select
+            v-model:value="selectedPlanIds"
+            mode="multiple"
+            style="width: 100%"
+            :options="planOptions"
+            :placeholder="t('system_pages.notification.target_plans_placeholder')"
+            option-filter-prop="label"
+          />
+        </a-form-item>
+
+        <a-form-item :label="t('system_pages.notification.status_filters')">
+          <a-checkbox-group v-model:value="statusFilters" :options="statusFilterOptions" />
+          <div class="form-hint">{{ t('system_pages.notification.status_filters_hint') }}</div>
         </a-form-item>
 
         <template v-if="form.channel === 'email'">
@@ -115,9 +156,11 @@ import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { notificationApi, projectApi, type ProjectItem } from '@/api'
+import { notificationApi, planApi, projectApi, suiteApi, type PlanItem, type ProjectItem, type SuiteItem } from '@/api'
 
 type NotificationChannel = 'email' | 'wechat' | 'dingtalk'
+type NotificationScope = 'all' | 'suites' | 'plans'
+type NotificationStatusFilter = 'passed' | 'failed' | 'error'
 
 type NotificationRecord = {
   id: number
@@ -146,6 +189,8 @@ const editingId = ref<number | null>(null)
 const testingId = ref<number | null>(null)
 
 const form = ref<NotificationForm>({ name: '', channel: 'email', is_enabled: true })
+const suites = ref<SuiteItem[]>([])
+const plans = ref<PlanItem[]>([])
 
 const emailRecipients = ref('')
 const emailSubjectPrefix = ref('[ATP]')
@@ -153,6 +198,10 @@ const wechatUrl = ref('')
 const dingtalkUrl = ref('')
 const dingtalkSecret = ref('')
 const notificationLanguage = ref<'zh-CN' | 'en-US'>('zh-CN')
+const notificationScope = ref<NotificationScope>('all')
+const selectedSuiteIds = ref<number[]>([])
+const selectedPlanIds = ref<number[]>([])
+const statusFilters = ref<NotificationStatusFilter[]>(['failed', 'error'])
 const { t } = useI18n()
 
 const columns = computed(() => [
@@ -162,6 +211,20 @@ const columns = computed(() => [
   { title: t('system_pages.notification.columns.updated_at'), dataIndex: 'updated_at', width: 170,
     customRender: ({ text }: { text?: string | null }) => text?.slice(0, 19).replace('T', ' ') ?? '-' },
   { title: t('system_pages.notification.columns.action'), key: 'action', width: 180, fixed: 'right' as const },
+])
+
+const suiteOptions = computed(() =>
+  suites.value.map(item => ({ label: `${item.name} (#${item.id})`, value: item.id })),
+)
+
+const planOptions = computed(() =>
+  plans.value.map(item => ({ label: `${item.name} (#${item.id})`, value: item.id })),
+)
+
+const statusFilterOptions = computed(() => [
+  { label: t('system_pages.notification.statuses.passed'), value: 'passed' },
+  { label: t('system_pages.notification.statuses.failed'), value: 'failed' },
+  { label: t('system_pages.notification.statuses.error'), value: 'error' },
 ])
 
 function channelLabel(c: string) {
@@ -191,6 +254,29 @@ async function loadConfigs() {
   finally { loading.value = false }
 }
 
+async function loadTargets() {
+  if (!projectId.value) {
+    suites.value = []
+    plans.value = []
+    return
+  }
+  try {
+    const [suiteList, planList] = await Promise.all([
+      suiteApi.list({ project_id: projectId.value }),
+      planApi.list({ project_id: projectId.value }),
+    ])
+    suites.value = suiteList
+    plans.value = planList
+  } catch {
+    suites.value = []
+    plans.value = []
+  }
+}
+
+async function handleProjectChange() {
+  await Promise.all([loadConfigs(), loadTargets()])
+}
+
 function resetChannelFields() {
   emailRecipients.value = ''
   emailSubjectPrefix.value = '[ATP]'
@@ -198,6 +284,10 @@ function resetChannelFields() {
   dingtalkUrl.value = ''
   dingtalkSecret.value = ''
   notificationLanguage.value = 'zh-CN'
+  notificationScope.value = 'all'
+  selectedSuiteIds.value = []
+  selectedPlanIds.value = []
+  statusFilters.value = ['failed', 'error']
 }
 
 function openCreate() {
@@ -219,8 +309,20 @@ function openEdit(record: NotificationRecord) {
     webhook_url?: string
     secret?: string
     language?: 'zh-CN' | 'en-US'
+    scope?: NotificationScope
+    suite_ids?: number[]
+    plan_ids?: number[]
+    status_filters?: NotificationStatusFilter[]
   }
   notificationLanguage.value = cfg.language === 'en-US' ? 'en-US' : 'zh-CN'
+  notificationScope.value = ['all', 'suites', 'plans'].includes(String(cfg.scope))
+    ? cfg.scope as NotificationScope
+    : 'all'
+  selectedSuiteIds.value = Array.isArray(cfg.suite_ids) ? cfg.suite_ids.map(Number).filter(Number.isFinite) : []
+  selectedPlanIds.value = Array.isArray(cfg.plan_ids) ? cfg.plan_ids.map(Number).filter(Number.isFinite) : []
+  statusFilters.value = Array.isArray(cfg.status_filters)
+    ? cfg.status_filters.filter((item): item is NotificationStatusFilter => ['passed', 'failed', 'error'].includes(item))
+    : ['failed', 'error']
   if (record.channel === 'email') {
     emailRecipients.value = (cfg.recipients || []).join('\n')
     emailSubjectPrefix.value = cfg.subject_prefix || '[ATP]'
@@ -234,16 +336,23 @@ function openEdit(record: NotificationRecord) {
 }
 
 function buildConfig(): Record<string, unknown> {
+  const strategyConfig = {
+    scope: notificationScope.value,
+    suite_ids: notificationScope.value === 'suites' ? selectedSuiteIds.value : [],
+    plan_ids: notificationScope.value === 'plans' ? selectedPlanIds.value : [],
+    status_filters: statusFilters.value,
+  }
   if (form.value.channel === 'email') {
     return {
       recipients: emailRecipients.value.split('\n').map(s => s.trim()).filter(Boolean),
       subject_prefix: emailSubjectPrefix.value || '[ATP]',
       language: notificationLanguage.value,
+      ...strategyConfig,
     }
   } else if (form.value.channel === 'wechat') {
-    return { webhook_url: wechatUrl.value, language: notificationLanguage.value }
+    return { webhook_url: wechatUrl.value, language: notificationLanguage.value, ...strategyConfig }
   } else if (form.value.channel === 'dingtalk') {
-    const cfg: Record<string, string> = { webhook_url: dingtalkUrl.value, language: notificationLanguage.value }
+    const cfg: Record<string, unknown> = { webhook_url: dingtalkUrl.value, language: notificationLanguage.value, ...strategyConfig }
     if (dingtalkSecret.value) cfg.secret = dingtalkSecret.value
     return cfg
   }
@@ -263,6 +372,18 @@ async function handleSave() {
   }
   if (form.value.channel === 'dingtalk' && !dingtalkUrl.value.trim()) {
     message.warning(t('system_pages.notification.msg.dingtalk_url_required'))
+    return
+  }
+  if (notificationScope.value === 'suites' && selectedSuiteIds.value.length === 0) {
+    message.warning(t('system_pages.notification.msg.select_suite'))
+    return
+  }
+  if (notificationScope.value === 'plans' && selectedPlanIds.value.length === 0) {
+    message.warning(t('system_pages.notification.msg.select_plan'))
+    return
+  }
+  if (statusFilters.value.length === 0) {
+    message.warning(t('system_pages.notification.msg.select_status'))
     return
   }
   saving.value = true
@@ -304,14 +425,9 @@ async function handleDelete(id: number) {
 </script>
 
 <style scoped>
-.notification-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
+.form-hint {
+  margin-top: 6px;
+  color: #8c8c8c;
+  font-size: 12px;
 }
 </style>

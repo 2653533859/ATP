@@ -1,6 +1,6 @@
 # ATP 可观测性指引（Prometheus + Grafana）
 
-本文档说明 ATP 平台的 metrics 维度可观测性组件如何启动、查询与扩展。指标维度（Prometheus + Grafana）与链路维度（OpenTelemetry + Jaeger）正交互补 — trace 维度参见 `docs/tracing-guide.md`。
+本文档说明 ATP 平台的 metrics 维度可观测性组件如何启动、查询与扩展。指标维度（Prometheus + Grafana）与链路维度（OpenTelemetry + Jaeger）正交互补 — trace 维度参见 `docs/tracing-guide.md`。当前预置看板覆盖慢查询、队列积压、接口错误率与 MinIO 使用量。
 
 ## 一、启停
 
@@ -36,7 +36,7 @@ docker compose up -d           # 不含 prometheus/grafana/celery-exporter
 
 ## 三、自定义业务指标
 
-封装位于 `backend/app/core/metrics.py`，所有 Counter / Histogram 都通过 helper 函数构造，缺 `prometheus_client` 依赖时退化为 no-op，不会破坏本地测试。
+封装位于 `backend/app/core/metrics.py`，所有 Counter / Gauge / Histogram 都通过 helper 函数构造，缺 `prometheus_client` 依赖时退化为 no-op，不会破坏本地测试。
 
 | 指标名 | 类型 | label | 说明 |
 |--------|------|-------|------|
@@ -44,6 +44,8 @@ docker compose up -d           # 不含 prometheus/grafana/celery-exporter
 | `atp_slow_queries_total` | Counter | — | 超过 `SLOW_QUERY_THRESHOLD_MS` 的 SQL 数（与 A.4 日志同源） |
 | `atp_celery_timeouts_total` | Counter | `kind=soft/hard` | Celery 软/硬超时次数 |
 | `atp_run_retention_deleted_total` | Counter | `model` | 归档清理删除的 run 数 |
+| `atp_storage_total_bytes` | Gauge | `bucket` | MinIO bucket 当前占用字节数 |
+| `atp_storage_total_objects` | Gauge | `bucket` | MinIO bucket 当前对象数量 |
 | `atp_adb_reconnect_total` | Counter | `result=success/failure/not_tcp_serial/adb_not_found` | ADB ensure_reachable 调用结果分布（Q7 A.3.2） |
 | `atp_adb_heartbeat_lost_total` | Counter | `executor=android/perf/stability/fluency` | 心跳监控判定设备失联次数 |
 | `atp_adb_ensure_reachable_duration_seconds` | Histogram | — | 可达性探测延迟分布（含 reconnect 时间） |
@@ -62,7 +64,9 @@ Celery 指标由 `celery-exporter` 订阅 Redis broker 后导出（无需 worker
 
 ## 四、Grafana 仪表盘
 
-预置 `ATP Overview` 面板含 10 个图：
+MinIO 存储 Gauge 由 `/api/v1/storage/stats` 刷新；管理员打开系统存储治理页或 Prometheus 采集到该接口被调用后的 `/metrics` 时，即可看到最新 bucket 容量与对象数。
+
+预置 `ATP Overview` 面板含 13 个图：
 
 1. HTTP 请求 RPS（按 handler 分组）
 2. HTTP P95 延迟（5min 滑窗）
@@ -74,6 +78,9 @@ Celery 指标由 `celery-exporter` 订阅 Redis broker 后导出（无需 worker
 8. **ADB heartbeat 失联事件（按 executor 1h 增量）**
 9. **ADB ensure_reachable 延迟 P50/P95/P99**
 10. **慢查询速率（超过 `SLOW_QUERY_THRESHOLD_MS` 的 SQL 5min rate）**
+11. **API 5xx 错误率（5min rate / 总请求 rate）**
+12. **MinIO 存储字节数（按 bucket）**
+13. **MinIO 对象数量（按 bucket）**
 
 可在 Grafana UI 中复制为自定义看板。
 

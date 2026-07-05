@@ -22,6 +22,8 @@ from app.models.user import User
 from app.schemas.case import (
     CaseBatchDeleteIn,
     CaseBatchImportOut,
+    CaseBatchImportPreviewItem,
+    CaseBatchImportPreviewOut,
     CaseBatchMoveIn,
     CaseBatchOpOut,
 )
@@ -33,6 +35,35 @@ _ZIP_MANIFEST_NAME = "manifest.json"
 _ZIP_CASES_NAME = "cases.json"
 _ZIP_SCHEMA_VERSION = 1
 _ZIP_IMPORT_MAX_DECOMPRESSED_BYTES = 50 * 1024 * 1024  # 50MB 防 zip bomb
+_ZIP_TEMPLATE_CASES = [
+    {
+        "name": "示例 API 用例",
+        "description": "验证登录接口返回成功",
+        "summary": "登录成功",
+        "case_type": "api",
+        "priority": "P2",
+        "case_level": "regression",
+        "automation_status": "auto",
+        "tags": ["import-template"],
+        "preconditions": ["测试账号已存在"],
+        "postconditions": [],
+        "config": {
+            "method": "POST",
+            "url": "/api/login",
+            "headers": {"Content-Type": "application/json"},
+            "body": {"username": "tester", "password": "password"},
+        },
+        "steps": [
+            {
+                "step_no": 1,
+                "action": "发送登录请求",
+                "test_data": {"username": "tester"},
+                "expected_result": "返回 200 且包含 token",
+                "is_key_step": True,
+            }
+        ],
+    }
+]
 
 
 @router.post("/cases/batch/delete", response_model=CaseBatchOpOut)
@@ -198,6 +229,113 @@ def _serialize_case_for_zip(case: TestCase) -> dict:
     }
 
 
+def _read_cases_from_import_zip(payload_bytes: bytes) -> list[dict]:
+    if not payload_bytes:
+        raise HTTPException(status_code=400, detail="上传文件为空")
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(payload_bytes))
+    except zipfile.BadZipFile:
+        raise HTTPException(status_code=400, detail="文件不是合法的 ZIP")
+
+    try:
+        info = archive.getinfo(_ZIP_CASES_NAME)
+    except KeyError:
+        raise HTTPException(status_code=400, detail=f"ZIP 缺少 {_ZIP_CASES_NAME}")
+    if info.file_size > _ZIP_IMPORT_MAX_DECOMPRESSED_BYTES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"{_ZIP_CASES_NAME} 解压后大小超过 {_ZIP_IMPORT_MAX_DECOMPRESSED_BYTES // (1024 * 1024)} MB 限制",
+        )
+
+    try:
+        with archive.open(_ZIP_CASES_NAME) as fh:
+            cases_data = json.loads(fh.read().decode("utf-8"))
+    except json.JSONDecodeError:
+        raise HTTPException(status_code=400, detail=f"{_ZIP_CASES_NAME} 不是合法 JSON")
+
+    if not isinstance(cases_data, list):
+        raise HTTPException(status_code=400, detail=f"{_ZIP_CASES_NAME} 必须是数组")
+    return cases_data
+
+
+def _validate_import_cases(cases_data: list[dict]) -> tuple[list[dict], list[str], list[CaseBatchImportPreviewItem]]:
+    valid_entries: list[dict] = []
+    errors: list[str] = []
+    preview_cases: list[CaseBatchImportPreviewItem] = []
+
+    for index, entry in enumerate(cases_data):
+        row = index + 1
+        try:
+            if not isinstance(entry, dict):
+                raise ValueError("条目不是对象")
+
+            case_type_raw = entry.get("case_type")
+            try:
+                CaseType(case_type_raw)
+            except (TypeError, ValueError) as exc:
+                raise ValueError(f"无效的 case_type: {case_type_raw}") from exc
+
+            name = (entry.get("name") or "").strip()
+            if not name:
+                raise ValueError("name 不能为空")
+
+            steps_payload = entry.get("steps") or []
+            if not isinstance(steps_payload, list):
+                raise ValueError("steps 必须是数组")
+
+            valid_entries.append(entry)
+            if len(preview_cases) < 20:
+                preview_cases.append(
+                    CaseBatchImportPreviewItem(
+                        row=row,
+                        name=name,
+                        case_type=str(case_type_raw),
+                        priority=str(entry.get("priority") or "P2"),
+                        step_count=len(steps_payload),
+                    )
+                )
+        except Exception as exc:
+            errors.append(f"第 {row} 条: {exc}")
+    return valid_entries, errors, preview_cases
+
+
+@router.get("/cases/batch/import-template")
+async def download_case_import_template(_: User = Depends(require_engineer)):
+    manifest = {
+        "schema_version": _ZIP_SCHEMA_VERSION,
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "case_count": len(_ZIP_TEMPLATE_CASES),
+        "notes": "编辑 cases.json 后保持 ZIP 内文件名不变，再通过用例管理页导入。",
+    }
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as zf:
+        zf.writestr(_ZIP_MANIFEST_NAME, json.dumps(manifest, ensure_ascii=False, indent=2))
+        zf.writestr(_ZIP_CASES_NAME, json.dumps(_ZIP_TEMPLATE_CASES, ensure_ascii=False, indent=2))
+
+    buffer.seek(0)
+    return StreamingResponse(
+        iter([buffer.getvalue()]),
+        media_type="application/zip",
+        headers={"Content-Disposition": 'attachment; filename="case-import-template.zip"'},
+    )
+
+
+@router.post("/cases/batch/import-preview", response_model=CaseBatchImportPreviewOut)
+async def preview_case_import_zip(
+    file: UploadFile = File(...),
+    _: User = Depends(require_engineer),
+):
+    cases_data = _read_cases_from_import_zip(await file.read())
+    valid_entries, errors, preview_cases = _validate_import_cases(cases_data)
+    return CaseBatchImportPreviewOut(
+        total=len(cases_data),
+        valid_count=len(valid_entries),
+        invalid_count=len(errors),
+        preview_cases=preview_cases,
+        errors=errors[:50],
+    )
+
+
 @router.get("/cases/batch/export-zip")
 async def batch_export_cases_zip(
     case_ids: str = Query(..., description="逗号分隔的用例 ID"),
@@ -259,52 +397,18 @@ async def batch_import_cases_zip(
     if not module:
         raise HTTPException(status_code=404, detail="目标模块不存在")
 
-    payload_bytes = await file.read()
-    if not payload_bytes:
-        raise HTTPException(status_code=400, detail="上传文件为空")
-    try:
-        archive = zipfile.ZipFile(io.BytesIO(payload_bytes))
-    except zipfile.BadZipFile:
-        raise HTTPException(status_code=400, detail="文件不是合法的 ZIP")
-
-    try:
-        info = archive.getinfo(_ZIP_CASES_NAME)
-    except KeyError:
-        raise HTTPException(status_code=400, detail=f"ZIP 缺少 {_ZIP_CASES_NAME}")
-    if info.file_size > _ZIP_IMPORT_MAX_DECOMPRESSED_BYTES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"{_ZIP_CASES_NAME} 解压后大小超过 {_ZIP_IMPORT_MAX_DECOMPRESSED_BYTES // (1024 * 1024)} MB 限制",
-        )
-
-    try:
-        with archive.open(_ZIP_CASES_NAME) as fh:
-            cases_data = json.loads(fh.read().decode("utf-8"))
-    except json.JSONDecodeError:
-        raise HTTPException(status_code=400, detail=f"{_ZIP_CASES_NAME} 不是合法 JSON")
-
-    if not isinstance(cases_data, list):
-        raise HTTPException(status_code=400, detail=f"{_ZIP_CASES_NAME} 必须是数组")
+    cases_data = _read_cases_from_import_zip(await file.read())
+    valid_entries, validation_errors, _ = _validate_import_cases(cases_data)
 
     created_ids: list[int] = []
-    errors: list[str] = []
+    errors: list[str] = list(validation_errors)
     skipped = 0
     target_module = await _cases._get_module_for_case_code(db, target_module_id)
 
-    for index, entry in enumerate(cases_data):
+    for entry in valid_entries:
         try:
-            if not isinstance(entry, dict):
-                raise ValueError("条目不是对象")
-            case_type_raw = entry.get("case_type")
-            try:
-                case_type = CaseType(case_type_raw)
-            except (TypeError, ValueError) as exc:
-                raise ValueError(f"无效的 case_type: {case_type_raw}") from exc
-
+            case_type = CaseType(entry.get("case_type"))
             name = (entry.get("name") or "").strip()
-            if not name:
-                raise ValueError("name 不能为空")
-
             steps_payload = entry.get("steps") or []
             new_case = TestCase(
                 name=name,
@@ -344,7 +448,7 @@ async def batch_import_cases_zip(
             created_ids.append(new_case.id)
         except Exception as exc:
             skipped += 1
-            errors.append(f"第 {index + 1} 条: {exc}")
+            errors.append(str(exc))
             continue
 
     await db.commit()
@@ -353,7 +457,7 @@ async def batch_import_cases_zip(
 
     return CaseBatchImportOut(
         imported=len(created_ids),
-        skipped_count=skipped,
+        skipped_count=len(validation_errors) + skipped,
         target_module_id=target_module_id,
         created_ids=created_ids,
         errors=errors[:50],

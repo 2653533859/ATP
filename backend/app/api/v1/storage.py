@@ -44,7 +44,15 @@ async def storage_stats(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_admin),
 ):
-    return await db.run_sync(lambda session: get_storage_stats(session))
+    stats = await db.run_sync(lambda session: get_storage_stats(session))
+    try:
+        from app.core.metrics import STORAGE_TOTAL_BYTES, STORAGE_TOTAL_OBJECTS
+
+        STORAGE_TOTAL_BYTES.labels(bucket=stats.bucket).set(stats.total_bytes)
+        STORAGE_TOTAL_OBJECTS.labels(bucket=stats.bucket).set(stats.total_object_count)
+    except Exception:
+        pass
+    return stats
 
 
 @router.post("/storage/cleanup-preview", response_model=StorageCleanupPreviewOut)

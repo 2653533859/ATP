@@ -12,6 +12,16 @@ ReviewStatus = Literal["pending", "approved", "rejected"]
 AutomationStatus = Literal["manual", "semi_auto", "auto"]
 
 
+class CaseFlakyStats(BaseModel):
+    is_flaky: bool = False
+    total_runs: int = 0
+    passed_runs: int = 0
+    failed_runs: int = 0
+    error_runs: int = 0
+    failure_rate: float = 0.0
+    window_size: int = 10
+
+
 class CaseStepBase(BaseModel):
     action: str
     test_data: str | None = None
@@ -85,6 +95,7 @@ class TestCaseOut(BaseModel):
     owner_id: int | None
     is_ready_for_execution: bool
     dataset_id: int | None = None
+    flaky_stats: CaseFlakyStats = Field(default_factory=CaseFlakyStats)
     created_at: datetime
     updated_at: datetime
 
@@ -190,6 +201,17 @@ class HealingFeedbackRequest(BaseModel):
     action: Literal["adopted", "rejected"]
 
 
+class FailureDiagnosisOut(BaseModel):
+    status: Literal["done", "skipped"]
+    source: Literal["llm", "rule", "rule_fallback"]
+    summary: str
+    at: str
+    failed_step_count: int
+    screenshot_count: int
+    repair_suggestions: list[dict] = Field(default_factory=list)
+    error_samples: list[dict] = Field(default_factory=list)
+
+
 class TestRunListItem(BaseModel):
     id: int
     case_id: int
@@ -259,4 +281,20 @@ class CaseBatchImportOut(BaseModel):
     skipped_count: int = 0
     target_module_id: int
     created_ids: list[int] = Field(default_factory=list)
+    errors: list[str] = Field(default_factory=list)
+
+
+class CaseBatchImportPreviewItem(BaseModel):
+    row: int
+    name: str
+    case_type: str
+    priority: str
+    step_count: int = 0
+
+
+class CaseBatchImportPreviewOut(BaseModel):
+    total: int
+    valid_count: int
+    invalid_count: int
+    preview_cases: list[CaseBatchImportPreviewItem] = Field(default_factory=list)
     errors: list[str] = Field(default_factory=list)

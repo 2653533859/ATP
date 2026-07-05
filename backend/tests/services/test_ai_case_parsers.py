@@ -174,6 +174,55 @@ def test_parse_curl_invalid_raises():
         parse_schema("curl", "not a curl command")
 
 
+# ──────────── 接口样例 ────────────
+
+
+def test_parse_sample_http_text_extracts_request_and_response_examples():
+    raw = """
+POST /api/v1/login
+Request: {"username": "demo", "password": "secret"}
+Response: {"code": 0, "token": "abc"}
+"""
+    result = parse_schema("sample", raw)
+
+    assert len(result.endpoints) == 1
+    endpoint = result.endpoints[0]
+    assert endpoint.method == "POST"
+    assert endpoint.path == "/api/v1/login"
+    assert endpoint.request_body_example == {"username": "demo", "password": "secret"}
+    assert endpoint.response_example == {"code": 0, "token": "abc"}
+
+
+def test_parse_sample_json_object_with_headers_and_query():
+    raw = json.dumps(
+        {
+            "method": "GET",
+            "url": "https://api.example.com/api/v1/orders",
+            "headers": {"Authorization": "Bearer token"},
+            "query": {"status": "paid"},
+            "response": {"items": []},
+        }
+    )
+    result = parse_schema("sample", raw)
+
+    endpoint = result.endpoints[0]
+    assert endpoint.method == "GET"
+    assert endpoint.path == "/api/v1/orders"
+    assert endpoint.response_example == {"items": []}
+    assert any(p.name == "Authorization" and p.location == "header" for p in endpoint.parameters)
+    assert any(p.name == "status" and p.location == "query" for p in endpoint.parameters)
+
+
+def test_parse_sample_plain_json_becomes_request_example():
+    result = parse_schema("sample", '{"sku": "A001", "count": 2}')
+
+    endpoint = result.endpoints[0]
+    assert endpoint.method == "POST"
+    assert endpoint.path == "/sample-endpoint"
+    assert endpoint.request_body_example == {"sku": "A001", "count": 2}
+    assert result.warnings
+
+
 def test_parse_schema_unsupported_source_type():
     with pytest.raises(ValueError):
         parse_schema("har", "{}")

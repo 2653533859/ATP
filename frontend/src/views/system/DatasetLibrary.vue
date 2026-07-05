@@ -1,9 +1,9 @@
 <template>
-  <div class="dataset-library">
-    <div class="header">
+  <div class="page-shell system-page dataset-library">
+    <div class="page-hero header">
       <div>
-        <h2>{{ t('dataset.title') }}</h2>
-        <div class="subtitle">{{ t('dataset.subtitle') }}</div>
+        <h2 class="page-title">{{ t('dataset.title') }}</h2>
+        <div class="page-subtitle subtitle">{{ t('dataset.subtitle') }}</div>
       </div>
       <a-space>
         <a-select
@@ -231,9 +231,9 @@
 
     <a-modal
       v-model:open="impactOpen"
-      :title="t('dataset.impact_title')"
+      :title="activeImpactDataset ? t('dataset.impact_title_with_name', { name: activeImpactDataset.name }) : t('dataset.impact_title')"
       :footer="null"
-      width="760px"
+      width="860px"
     >
       <a-spin :spinning="impactLoading">
         <a-alert
@@ -244,17 +244,76 @@
             : t('dataset.impact_empty')"
           show-icon
         />
+        <a-row v-if="impact" :gutter="[12, 12]" class="impact-summary">
+          <a-col :xs="12" :sm="6">
+            <div class="impact-stat">
+              <div class="impact-stat-value">{{ impact.total_count }}</div>
+              <div class="impact-stat-label">{{ t('dataset.impact_total') }}</div>
+            </div>
+          </a-col>
+          <a-col :xs="12" :sm="6">
+            <div class="impact-stat">
+              <div class="impact-stat-value">{{ impact.cases.length }}</div>
+              <div class="impact-stat-label">{{ t('dataset.impact_cases') }}</div>
+            </div>
+          </a-col>
+          <a-col :xs="12" :sm="6">
+            <div class="impact-stat">
+              <div class="impact-stat-value">{{ impact.suites.length }}</div>
+              <div class="impact-stat-label">{{ t('dataset.impact_suites') }}</div>
+            </div>
+          </a-col>
+          <a-col :xs="12" :sm="6">
+            <div class="impact-stat">
+              <div class="impact-stat-value">{{ impact.plans.length }}</div>
+              <div class="impact-stat-label">{{ t('dataset.impact_plans') }}</div>
+            </div>
+          </a-col>
+        </a-row>
         <div v-if="impact" class="validation-section">
           <div class="section-label">{{ t('dataset.impact_cases') }}</div>
-          <a-table :columns="impactColumns" :data-source="impactRows(impact.cases)" :pagination="false" size="small" row-key="key" />
+          <a-table :columns="impactColumns" :data-source="impactRows('case', impact.cases)" :pagination="false" :locale="{ emptyText: t('dataset.impact_no_cases') }" size="small" row-key="key">
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'reason'">
+                <a-space wrap :size="[4, 4]">
+                  <a-tag v-for="reason in record.reasonLabels" :key="reason" color="blue">{{ reason }}</a-tag>
+                </a-space>
+              </template>
+              <template v-else-if="column.key === 'action'">
+                <a-button size="small" type="link" @click="openImpactTarget(record)">{{ t('dataset.view_reference') }}</a-button>
+              </template>
+            </template>
+          </a-table>
         </div>
         <div v-if="impact" class="validation-section">
           <div class="section-label">{{ t('dataset.impact_suites') }}</div>
-          <a-table :columns="impactColumns" :data-source="impactRows(impact.suites)" :pagination="false" size="small" row-key="key" />
+          <a-table :columns="impactColumns" :data-source="impactRows('suite', impact.suites)" :pagination="false" :locale="{ emptyText: t('dataset.impact_no_suites') }" size="small" row-key="key">
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'reason'">
+                <a-space wrap :size="[4, 4]">
+                  <a-tag v-for="reason in record.reasonLabels" :key="reason" color="purple">{{ reason }}</a-tag>
+                </a-space>
+              </template>
+              <template v-else-if="column.key === 'action'">
+                <a-button size="small" type="link" @click="openImpactTarget(record)">{{ t('dataset.view_reference') }}</a-button>
+              </template>
+            </template>
+          </a-table>
         </div>
         <div v-if="impact" class="validation-section">
           <div class="section-label">{{ t('dataset.impact_plans') }}</div>
-          <a-table :columns="impactColumns" :data-source="impactRows(impact.plans)" :pagination="false" size="small" row-key="key" />
+          <a-table :columns="impactColumns" :data-source="impactRows('plan', impact.plans)" :pagination="false" :locale="{ emptyText: t('dataset.impact_no_plans') }" size="small" row-key="key">
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'reason'">
+                <a-space wrap :size="[4, 4]">
+                  <a-tag v-for="reason in record.reasonLabels" :key="reason" color="orange">{{ reason }}</a-tag>
+                </a-space>
+              </template>
+              <template v-else-if="column.key === 'action'">
+                <a-button size="small" type="link" @click="openImpactTarget(record)">{{ t('dataset.view_reference') }}</a-button>
+              </template>
+            </template>
+          </a-table>
         </div>
       </a-spin>
     </a-modal>
@@ -263,11 +322,13 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import { datasetApi, projectApi, type DatasetDetail, type DatasetImpact, type DatasetImpactItem, type DatasetListItem, type DatasetFormat, type DatasetSchemaField, type DatasetSchemaFieldType, type DatasetValidationPolicy, type DatasetValidationResult, type DatasetVersionItem, type ProjectItem } from '@/api'
 
 const { t: translate } = useI18n()
+const router = useRouter()
 
 function t(key: string, params?: Record<string, string | number>) {
   return translate(key.startsWith('dataset.') ? `system_pages.${key}` : key, params ?? {})
@@ -291,6 +352,7 @@ const versions = ref<DatasetVersionItem[]>([])
 const impactOpen = ref(false)
 const impactLoading = ref(false)
 const impact = ref<DatasetImpact | null>(null)
+const activeImpactDataset = ref<DatasetListItem | null>(null)
 const keyword = ref('')
 const rowsText = ref('[]')
 const rowsTextError = ref('')
@@ -357,6 +419,7 @@ const impactColumns = computed(() => [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 90 },
   { title: t('dataset.name'), dataIndex: 'name', key: 'name' },
   { title: t('dataset.impact_reason'), dataIndex: 'reason', key: 'reason', width: 220 },
+  { title: t('common.actions'), key: 'action', width: 100 },
 ])
 
 const schemaTypeOptions = ['string', 'number', 'integer', 'boolean', 'object', 'array']
@@ -373,8 +436,38 @@ const validationIssues = computed(() =>
   })),
 )
 
-function impactRows(items: DatasetImpactItem[]) {
-  return items.map((item) => ({ ...item, key: `${item.id}:${item.reason}` }))
+type ImpactCategory = 'case' | 'suite' | 'plan'
+type ImpactRow = DatasetImpactItem & {
+  category: ImpactCategory
+  key: string
+  reasonLabels: string[]
+}
+
+function impactReasonLabel(reason: string) {
+  const key = `dataset.impact_reasons.${reason}`
+  const translated = t(key)
+  return translated === `system_pages.${key}` ? reason : translated
+}
+
+function impactRows(category: ImpactCategory, items: DatasetImpactItem[]): ImpactRow[] {
+  return items.map((item) => ({
+    ...item,
+    category,
+    key: `${category}:${item.id}:${item.reason}`,
+    reasonLabels: item.reason.split(',').filter(Boolean).map(impactReasonLabel),
+  }))
+}
+
+function openImpactTarget(row: ImpactRow) {
+  if (row.category === 'case') {
+    void router.push({ name: 'case-detail', params: { caseId: String(row.id) } })
+    return
+  }
+  if (row.category === 'suite') {
+    void router.push({ name: 'suites' })
+    return
+  }
+  void router.push({ name: 'plans' })
 }
 
 async function loadProjects() {
@@ -564,6 +657,7 @@ async function onDelete(id: number) {
 
 async function openImpact(record: DatasetListItem) {
   impact.value = null
+  activeImpactDataset.value = record
   impactOpen.value = true
   impactLoading.value = true
   try {
@@ -698,5 +792,29 @@ onMounted(loadProjects)
   font-weight: 600;
   color: #595959;
   margin-bottom: 6px;
+}
+
+.impact-summary {
+  margin-top: 12px;
+}
+
+.impact-stat {
+  padding: 12px;
+  border: 1px solid var(--c-border, #f0f0f0);
+  border-radius: 8px;
+  background: var(--c-bg-subtle, #fafafa);
+}
+
+.impact-stat-value {
+  color: var(--c-text, #262626);
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.impact-stat-label {
+  margin-top: 2px;
+  color: var(--c-text-secondary, #8c8c8c);
+  font-size: 12px;
 }
 </style>

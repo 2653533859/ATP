@@ -59,6 +59,90 @@
       {{ t('dashboard.filter_label') }}：{{ activeFilterText }}
     </div>
 
+    <section class="workbench-panel">
+      <div class="workbench-header">
+        <div>
+          <div class="section-title">{{ t('dashboard.workbench.title') }}</div>
+          <div class="section-subtitle">{{ t('dashboard.workbench.subtitle') }}</div>
+        </div>
+        <a-space wrap>
+          <a-button size="small" @click="goToCaseManagement(effectiveProjectId)">
+            {{ t('dashboard.workbench.open_cases') }}
+          </a-button>
+          <a-button size="small" @click="goToRuns">
+            {{ t('dashboard.workbench.open_runs') }}
+          </a-button>
+        </a-space>
+      </div>
+
+      <a-row :gutter="[12, 12]">
+        <a-col :xs="12" :md="6">
+          <button class="workbench-card" type="button" @click="goToRuns">
+            <span class="workbench-card-icon workbench-card-icon-primary"><ClockCircleOutlined /></span>
+            <span class="workbench-card-body">
+              <span class="workbench-card-value">{{ workbench.todayRuns }}</span>
+              <span class="workbench-card-label">{{ t('dashboard.workbench.today_runs') }}</span>
+            </span>
+          </button>
+        </a-col>
+        <a-col :xs="12" :md="6">
+          <button class="workbench-card" type="button" @click="focusFailureChart">
+            <span class="workbench-card-icon" :class="workbench.todayFailed > 0 ? 'workbench-card-icon-error' : 'workbench-card-icon-success'">
+              <ExclamationCircleOutlined />
+            </span>
+            <span class="workbench-card-body">
+              <span class="workbench-card-value">{{ workbench.todayFailed }}</span>
+              <span class="workbench-card-label">{{ t('dashboard.workbench.today_failed') }}</span>
+            </span>
+          </button>
+        </a-col>
+        <a-col :xs="12" :md="6">
+          <button class="workbench-card" type="button" @click="goToPendingReviews">
+            <span class="workbench-card-icon workbench-card-icon-warning"><FileSearchOutlined /></span>
+            <span class="workbench-card-body">
+              <span class="workbench-card-value">{{ workbench.pendingReviews }}</span>
+              <span class="workbench-card-label">{{ t('dashboard.workbench.pending_reviews') }}</span>
+            </span>
+          </button>
+        </a-col>
+        <a-col :xs="12" :md="6">
+          <button class="workbench-card" type="button" @click="goToDashboardAlerts">
+            <span class="workbench-card-icon" :class="workbench.alertCount > 0 ? 'workbench-card-icon-error' : 'workbench-card-icon-muted'">
+              <AlertOutlined />
+            </span>
+            <span class="workbench-card-body">
+              <span class="workbench-card-value">{{ workbench.alertCount }}</span>
+              <span class="workbench-card-label">{{ t('dashboard.workbench.active_alerts') }}</span>
+            </span>
+          </button>
+        </a-col>
+      </a-row>
+
+      <div class="recent-runs">
+        <div class="recent-runs-header">
+          <div class="section-title">{{ t('dashboard.workbench.recent_runs') }}</div>
+          <a-button type="link" size="small" @click="goToRuns">{{ t('common.view_all') }}</a-button>
+        </div>
+        <a-skeleton v-if="workbenchLoading" active :paragraph="{ rows: 2 }" />
+        <a-empty v-else-if="recentRuns.length === 0" :description="t('dashboard.workbench.no_recent_runs')" />
+        <div v-else class="recent-run-list">
+          <button
+            v-for="run in recentRuns"
+            :key="run.id"
+            class="recent-run-item"
+            type="button"
+            @click="goToRunDetail(run.id)"
+          >
+            <span class="recent-run-main">
+              <span class="recent-run-title">{{ run.case_name || run.case?.name || `#${run.case_id}` }}</span>
+              <span class="recent-run-meta">{{ formatRunTime(run.created_at) }} · {{ formatDuration(run.duration_ms) }}</span>
+            </span>
+            <a-tag :color="runStatusColor(run.status)">{{ runStatusLabel(run.status) }}</a-tag>
+          </button>
+        </div>
+      </div>
+    </section>
+
     <a-row :gutter="16" style="margin-bottom: 24px">
       <a-col :xs="12" :sm="12" :md="6">
         <div class="kpi-card">
@@ -117,6 +201,7 @@
             :key="chart.key"
             :xs="24"
             :md="chart.span"
+            :data-dashboard-chart="chart.dataAttr"
           >
             <LazyChartCard
               :title="chart.title"
@@ -196,10 +281,10 @@ import {
   TooltipComponent,
 } from 'echarts/components'
 import { CanvasRenderer } from 'echarts/renderers'
-import { DownloadOutlined, SettingOutlined, ProfileOutlined, PlayCircleOutlined, CheckCircleOutlined, ThunderboltOutlined } from '@ant-design/icons-vue'
+import { DownloadOutlined, SettingOutlined, ProfileOutlined, PlayCircleOutlined, CheckCircleOutlined, ThunderboltOutlined, ClockCircleOutlined, ExclamationCircleOutlined, FileSearchOutlined, AlertOutlined } from '@ant-design/icons-vue'
 import LazyChartCard from '@/components/dashboard/LazyChartCard.vue'
 import { useChartTheme } from '@/utils/chartTheme'
-import { dashboardAlertApi, projectApi, statisticsApi, storageApi, userSettingsApi, type DashboardAlertEventItem, type StatisticsAggregateTrendItem, type StatisticsCaseTypeDistributionItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
+import { caseApi, dashboardAlertApi, projectApi, runApi, statisticsApi, storageApi, userSettingsApi, type DashboardAlertEventItem, type RunDetailItem, type StatisticsAggregateTrendItem, type StatisticsCaseTypeDistributionItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
 
 use([CanvasRenderer, LineChart, BarChart, PieChart, TitleComponent, TooltipComponent, GridComponent, LegendComponent])
 
@@ -240,6 +325,13 @@ type OverviewData = {
   total_runs: number
   pass_rate: number
   recent_runs_7d: number
+}
+
+type WorkbenchData = {
+  todayRuns: number
+  todayFailed: number
+  pendingReviews: number
+  alertCount: number
 }
 
 type PassRateTrendItem = {
@@ -364,8 +456,10 @@ const dashboardLayout = ref<LayoutItem[]>(loadDashboardLayoutFromLocal())
 const days = ref(30)
 const caseType = ref<DashboardCaseType | undefined>(undefined)
 const loading = ref(false)
+const workbenchLoading = ref(false)
 const storageAlert = ref<StorageAlertPayload | null>(null)
 const dashboardAlertEvents = ref<DashboardAlertEventItem[]>([])
+const recentRuns = ref<RunDetailItem[]>([])
 const projectOptions = ref<Array<{ label: string; value: number }>>([])
 const passRateChartRef = ref<ChartRef | null>(null)
 const durationChartRef = ref<ChartRef | null>(null)
@@ -425,6 +519,13 @@ const emptyDescription = computed(() => {
 
 function createEmptyOverview(): OverviewData {
   return { total_cases: 0, total_runs: 0, pass_rate: 0, recent_runs_7d: 0 }
+}
+
+function resetWorkbench() {
+  workbench.todayRuns = 0
+  workbench.todayFailed = 0
+  workbench.pendingReviews = 0
+  workbench.alertCount = dashboardAlertEvents.value.length
 }
 
 function generateDateRange(startDate: string, endDate: string): string[] {
@@ -681,6 +782,63 @@ function goToDashboardAlerts() {
   void router.push({ name: 'system-dashboard-alerts' })
 }
 
+function goToRuns() {
+  void router.push({ name: 'runs' })
+}
+
+function goToRunDetail(runId: number) {
+  void router.push({ name: 'run-detail', params: { runId: String(runId) } })
+}
+
+function goToPendingReviews() {
+  void router.push({
+    name: 'cases',
+    query: {
+      review_status: 'pending',
+      ...(effectiveProjectId.value ? { project_id: String(effectiveProjectId.value) } : {}),
+    },
+  })
+}
+
+function focusFailureChart() {
+  const el = document.querySelector('[data-dashboard-chart="failure_top"]')
+  if (el) {
+    el.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    return
+  }
+  void loadFailureTop()
+}
+
+function runStatusColor(status: string) {
+  return { passed: 'green', failed: 'red', running: 'blue', error: 'orange', pending: 'default' }[status] ?? 'default'
+}
+
+function runStatusLabel(status: string) {
+  const key = `dashboard.run_statuses.${status}`
+  const translated = t(key)
+  return translated === key ? status : translated
+}
+
+function formatRunTime(value?: string | null) {
+  if (!value) return '-'
+  try {
+    return new Date(value).toLocaleString()
+  } catch {
+    return value
+  }
+}
+
+function formatDuration(value?: number | null) {
+  if (!value) return '-'
+  if (value < 1000) return `${value}ms`
+  return `${(value / 1000).toFixed(1)}s`
+}
+
+function isToday(value: string) {
+  const today = new Date().toISOString().slice(0, 10)
+  return value === today
+}
+
 function handleFailureClick(params: unknown) {
   const event = params as FailureChartClickParams
   if (event.componentType === 'series' && event.data?._caseId) {
@@ -813,6 +971,12 @@ async function saveDashboardLayoutSetting(layout: LayoutItem[]) {
 }
 
 const overview = reactive(createEmptyOverview())
+const workbench = reactive<WorkbenchData>({
+  todayRuns: 0,
+  todayFailed: 0,
+  pendingReviews: 0,
+  alertCount: 0,
+})
 const passRateOption = ref(buildPassRateOption())
 const durationOption = ref(buildDurationOption())
 const failureTopOption = ref(buildFailureTopOption())
@@ -883,6 +1047,7 @@ const chartDefinitions = computed(() => ({
   pass_rate_trend: {
     key: 'pass_rate_trend' as const,
     title: chartTitle('pass_rate_trend'),
+    dataAttr: 'pass_rate_trend',
     lazyKey: 'passRate' as const,
     loader: loadPassRateTrend,
     exportKey: 'pass_rate_trend' as const,
@@ -892,6 +1057,7 @@ const chartDefinitions = computed(() => ({
   duration_trend: {
     key: 'duration_trend' as const,
     title: chartTitle('duration_trend'),
+    dataAttr: 'duration_trend',
     lazyKey: 'duration' as const,
     loader: loadDurationTrend,
     exportKey: 'duration_trend' as const,
@@ -901,6 +1067,7 @@ const chartDefinitions = computed(() => ({
   failure_top: {
     key: 'failure_top' as const,
     title: chartTitle('failure_top'),
+    dataAttr: 'failure_top',
     lazyKey: 'failure' as const,
     loader: loadFailureTop,
     exportKey: 'failure_top' as const,
@@ -910,6 +1077,7 @@ const chartDefinitions = computed(() => ({
   executor_top: {
     key: 'executor_top' as const,
     title: chartTitle('executor_top'),
+    dataAttr: 'executor_top',
     lazyKey: 'executor' as const,
     loader: loadExecutorTop,
     exportKey: 'executor_top' as const,
@@ -919,6 +1087,7 @@ const chartDefinitions = computed(() => ({
   trigger_type: {
     key: 'trigger_type' as const,
     title: chartTitle('trigger_type'),
+    dataAttr: 'trigger_type',
     lazyKey: 'trigger' as const,
     loader: loadTriggerTypeStats,
     exportKey: 'trigger_type' as const,
@@ -928,6 +1097,7 @@ const chartDefinitions = computed(() => ({
   plan_trend: {
     key: 'plan_trend' as const,
     title: chartTitle('plan_trend'),
+    dataAttr: 'plan_trend',
     lazyKey: 'plan' as const,
     loader: loadPlanTrend,
     exportKey: 'plan_trend' as const,
@@ -937,6 +1107,7 @@ const chartDefinitions = computed(() => ({
   suite_trend: {
     key: 'suite_trend' as const,
     title: chartTitle('suite_trend'),
+    dataAttr: 'suite_trend',
     lazyKey: 'suite' as const,
     loader: loadSuiteTrend,
     exportKey: 'suite_trend' as const,
@@ -946,6 +1117,7 @@ const chartDefinitions = computed(() => ({
   case_type_distribution: {
     key: 'case_type_distribution' as const,
     title: chartTitle('case_type_distribution'),
+    dataAttr: 'case_type_distribution',
     lazyKey: 'caseTypeDist' as const,
     loader: loadCaseTypeDistribution,
     exportKey: 'case_type_distribution' as const,
@@ -980,6 +1152,32 @@ async function loadFirstScreen() {
     ])
   } finally {
     loading.value = false
+  }
+}
+
+async function loadWorkbench() {
+  workbenchLoading.value = true
+  try {
+    const params = currentTrendParams()
+    const [trend, pendingCases, runs] = await Promise.all([
+      statisticsApi.passRateTrend({ ...params, days: Math.min(params.days, 7), aggregate: 'daily' }),
+      caseApi.list({
+        project_id: effectiveProjectId.value,
+        review_status: 'pending',
+      }),
+      runApi.list({ page: 1, page_size: 5 }),
+    ])
+    const today = trend.find(item => isToday(item.date))
+    workbench.todayRuns = today?.total ?? 0
+    workbench.todayFailed = today ? Math.max(today.total - today.passed, 0) : 0
+    workbench.pendingReviews = pendingCases.length
+    workbench.alertCount = dashboardAlertEvents.value.length
+    recentRuns.value = runs.items
+  } catch {
+    recentRuns.value = []
+    resetWorkbench()
+  } finally {
+    workbenchLoading.value = false
   }
 }
 
@@ -1086,6 +1284,7 @@ async function loadCaseTypeDistribution() {
 watch([dashboardScope, projectId, days, caseType], async () => {
   await loadFirstScreen()
   await loadDashboardAlerts()
+  await loadWorkbench()
   await refreshLoadedCharts()
 })
 
@@ -1125,7 +1324,7 @@ onMounted(() => {
   void loadProjects()
   void loadFirstScreen()
   void loadStorageAlert()
-  void loadDashboardAlerts()
+  void loadDashboardAlerts().then(() => loadWorkbench())
 })
 
 async function loadStorageAlert() {
@@ -1140,6 +1339,7 @@ async function loadStorageAlert() {
 async function loadDashboardAlerts() {
   if (dashboardScope.value !== 'project' || !projectId.value) {
     dashboardAlertEvents.value = []
+    workbench.alertCount = 0
     return
   }
   try {
@@ -1147,8 +1347,10 @@ async function loadDashboardAlerts() {
       project_id: projectId.value,
       limit: 3,
     })
+    workbench.alertCount = dashboardAlertEvents.value.length
   } catch {
     dashboardAlertEvents.value = []
+    workbench.alertCount = 0
   }
 }
 
@@ -1189,5 +1391,148 @@ function formatAlertTime(value?: string | null) {
   cursor: grab;
   color: #999;
   font-size: 16px;
+}
+.workbench-panel {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-bg-elevated);
+}
+.workbench-header,
+.recent-runs-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+.section-subtitle {
+  margin-top: 2px;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+.workbench-card {
+  width: 100%;
+  min-height: 86px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-bg-subtle);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.workbench-card:hover {
+  border-color: var(--c-primary);
+}
+.workbench-card-icon {
+  width: 38px;
+  height: 38px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 20px;
+}
+.workbench-card-icon-primary {
+  color: var(--c-primary);
+  background: rgba(22, 119, 255, 0.1);
+}
+.workbench-card-icon-success {
+  color: var(--c-success);
+  background: rgba(82, 196, 26, 0.12);
+}
+.workbench-card-icon-warning {
+  color: var(--c-warning);
+  background: rgba(250, 173, 20, 0.14);
+}
+.workbench-card-icon-error {
+  color: var(--c-error);
+  background: rgba(255, 77, 79, 0.12);
+}
+.workbench-card-icon-muted {
+  color: var(--c-text-secondary);
+  background: rgba(0, 0, 0, 0.04);
+}
+.workbench-card-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.workbench-card-value {
+  font-size: 24px;
+  font-weight: 650;
+  line-height: 1.1;
+}
+.workbench-card-label {
+  margin-top: 6px;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+.recent-runs {
+  margin-top: 16px;
+}
+.recent-run-list {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+.recent-run-item {
+  min-width: 0;
+  min-height: 74px;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-bg-subtle);
+  cursor: pointer;
+  text-align: left;
+}
+.recent-run-item:hover {
+  border-color: var(--c-primary);
+}
+.recent-run-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.recent-run-title {
+  overflow: hidden;
+  color: var(--c-text);
+  font-weight: 500;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.recent-run-meta {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+@media (max-width: 1200px) {
+  .recent-run-list {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 640px) {
+  .workbench-header,
+  .recent-runs-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .recent-run-list {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

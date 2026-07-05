@@ -1,5 +1,5 @@
 <template>
-  <div class="page-shell" style="display: flex; flex-direction: column; height: 100%">
+  <div class="page-shell system-page">
     <div class="page-hero">
       <div>
         <h2 class="page-title">{{ t('system_pages.global_variable.title') }}</h2>
@@ -27,6 +27,7 @@
     </div>
 
     <a-spin :spinning="loading">
+      <a-card class="table-panel" :bordered="false">
       <a-table
         :data-source="variables"
         :columns="columns"
@@ -62,6 +63,7 @@
           </template>
         </template>
       </a-table>
+      </a-card>
     </a-spin>
 
     <!-- Create/Edit Modal -->

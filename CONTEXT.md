@@ -3,8 +3,51 @@
 > 本文档用于在新会话中快速恢复开发上下文，包含架构决策、已完成功能、关键代码位置、待续任务等。
 
 **生成时间**: 2026-03-03
-**项目路径**: `F:/A__Project/ATP`
+**最近同步**: 2026-07-05
+**项目路径**: `/Users/parado/MyProject/ATP`
 **参考文档**: `PRD.md`（需求文档）、`Task.md`（任务跟踪）
+
+---
+
+## 0. 当前进度快照（2026-07-05）
+
+`docs/optimization-roadmap-2026.md` 中 ATP 后续优化路线已全部完成：**29 / 29 项均为 `[x] 已完成`**。
+
+已完成阶段：
+
+- 阶段 1：工程稳定性与本地体验（S1-01 ~ S1-06）
+- 阶段 2：前端体验收口（S2-01 ~ S2-06）
+- 阶段 3：测试平台业务闭环（S3-01 ~ S3-06）
+- 阶段 4：后端架构与运维能力（S4-01 ~ S4-06）
+- 阶段 5：AI 辅助能力（S5-01 ~ S5-05）
+
+最近完成的 AI 能力：
+
+- 失败原因总结：执行详情可基于日志、断言、截图线索生成简明诊断。
+- AI 用例草稿生成增强：支持 OpenAPI、Postman、cURL、接口样例和自然语言需求。
+- 用例修复建议：接口返回变更或断言失败时，展示步骤/断言/请求数据更新建议。
+- AI 诊断反馈闭环：支持采纳/拒绝反馈，并统计采纳率、错误特征和回归有效性。
+- Prompt 与模型配置治理：项目级模型、prompt 模板、调用限额、错误降级和 LLM 参数过滤已文档化并接入关键 AI 调用。
+
+最近验证记录：
+
+- `python3 -m pytest backend/tests/frontend -q`：78 passed
+- `python3 -m pytest backend/tests/services/test_ai_case_parsers.py -q`：13 passed
+- `python3 -m py_compile ...`：通过
+- `npm run type-check`：通过
+- `npm run build`：通过；仅保留已知 `ant-design-icons -> ant-design -> ant-design-icons` circular chunk 警告
+- `python3 -m json.tool docker/grafana/dashboards/atp-overview.json`：通过
+- `git diff --check`：通过
+
+关键新增/更新文档：
+
+- `docs/optimization-roadmap-2026.md`：当前项目进度来源，29/29 完成。
+- `docs/ai-governance.md`：AI 模型、prompt、限额和降级治理。
+- `docs/observability-guide.md`：Prometheus/Grafana 可观测性与 MinIO 指标。
+- `docs/disaster-recovery.md`、`docs/backup-restore-drill-record.md`：数据库和对象存储备份恢复演练。
+- `docs/domain-boundaries.md`、`docs/worker-lifecycle.md`、`docs/audit-log-policy.md`：架构、Worker、审计治理。
+
+下一步建议：进入发布收口或 PR/提交整理阶段，优先做变更分组、最终集成测试、截图/运行证据归档和发布说明。
 
 ---
 
@@ -302,44 +345,29 @@ docker compose up -d --build
 
 ---
 
-## 11. Phase 1 当前进度
+## 11. 优化路线当前进度
 
-| 任务 | 状态 |
-|------|------|
-| 1.1 工程初始化 | ✅ |
-| 1.2 数据库与 ORM（建表）| ✅（`create_all` 已在 lifespan 中）|
-| 1.2 首次 Alembic 迁移 | ⬜ 待手动执行（需 Docker 启动后操作）|
-| 1.3 用户认证 | ✅ |
-| 1.4 项目/模块/用例 CRUD | ✅ |
-| 1.4 接口用例前端表单 | ✅ |
-| 1.5 HTTP 接口执行器 | ✅ |
-| 1.5 WebSocket 推送 | ✅ |
-| 1.6 执行报告页面 | ✅ |
-| **1.7 环境管理** | ⬜ 待实现 |
+| 阶段 | 状态 | 说明 |
+|------|------|------|
+| 阶段 1：工程稳定性与本地体验 | ✅ 完成 | README、`.env.example`、Makefile、迁移校验、测试矩阵、CI 文档已补齐 |
+| 阶段 2：前端体验收口 | ✅ 完成 | Dashboard、用例管理、执行详情、系统页、权限可见性、窄屏适配完成 |
+| 阶段 3：测试平台业务闭环 | ✅ 完成 | 导入导出、套件/计划报告、缺陷联动、数据集影响面、通知策略、flaky 标记完成 |
+| 阶段 4：后端架构与运维能力 | ✅ 完成 | 领域边界、迁移规范、Worker 生命周期、审计、可观测性、备份恢复完成 |
+| 阶段 5：AI 辅助能力 | ✅ 完成 | 失败总结、草稿生成、修复建议、反馈闭环、Prompt/模型治理完成 |
+
+详细任务状态以 `docs/optimization-roadmap-2026.md` 为准，当前为 **29 / 29 完成**。
 
 ---
 
-## 12. 下一步待实现
+## 12. 下一步建议
 
-### 最近一步：Phase 1.7 环境管理
+当前没有路线图内待实现任务。建议转入交付收口：
 
-**后端（已有 Model，需补 API）：**
-- `GET /api/v1/environments?project_id=` 环境列表
-- `POST /api/v1/environments` 创建环境
-- `PATCH /api/v1/environments/{id}` 更新
-- `DELETE /api/v1/environments/{id}` 删除
-- `GET /api/v1/environments/{id}/variables` 变量列表
-- `PUT /api/v1/environments/{id}/variables` 批量保存变量
-- 接口执行器注入环境变量（`{{BASE_URL}}` 占位符替换）
-
-**前端：**
-- 补全 `EnvironmentList.vue`（环境 + 变量管理页）
-- `CaseList.vue` 执行时支持选择环境
-
-### 后续阶段
-- Phase 2：Playwright 脚本上传 + 执行器
-- Phase 3：Android uiautomator2 + 设备管理
-- Phase 4：GraphQL/WebSocket/gRPC、测试套件、调度、CI/CD
+- 整理工作树变更，按阶段或能力拆分提交。
+- 运行目标环境下的 integration / E2E / release readiness。
+- 为关键前端能力补截图或录屏证据。
+- 汇总发布说明、配置变更、迁移/回滚注意事项。
+- 如果准备发 PR，优先附上本轮验证命令和已知 build warning。
 
 ---
 

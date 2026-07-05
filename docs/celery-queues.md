@@ -20,6 +20,7 @@ celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q "$CELERY_Q
 | `performance` | `run_performance_test` | HTTP 压测任务，默认用于 k6/Locust 类执行，必须与功能测试 worker 资源隔离 |
 
 路由配置位于 `backend/app/worker/celery_app.py` 的 `task_routes`。
+状态流转、重试、超时和恢复策略见 [Worker State, Retry, Timeout, and Recovery Policy](./worker-lifecycle.md)。
 
 ## Docker Compose
 

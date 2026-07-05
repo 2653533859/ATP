@@ -1,7 +1,8 @@
 # ATP Disaster Recovery Runbook
 
-This runbook covers PostgreSQL backups created by `scripts/backup-postgres.sh`
-and restored by `scripts/restore-postgres.sh`.
+This runbook covers PostgreSQL backups created by `scripts/backup-postgres.sh`,
+database restores through `scripts/restore-postgres.sh`, and MinIO object
+storage backup/restore drills.
 
 ## Scope
 
@@ -9,10 +10,13 @@ and restored by `scripts/restore-postgres.sh`.
 - Backup objects stored in MinIO under `pg-backups/daily/` and
   `pg-backups/weekly/`.
 - Restore from either a local `.sql.gz` file or a MinIO object.
+- MinIO application objects such as screenshots, reports, APKs, uploaded
+  scripts, and generated artifacts.
 
-MinIO object storage is not restored by this procedure. Keep MinIO bucket
-replication or an external object backup policy for screenshots, reports, APKs,
-and scripts.
+PostgreSQL dump objects live in the same bucket as application objects by
+default. Object storage backup commands must exclude `pg-backups/*` when the
+target is intended to hold only application objects; database backups remain
+validated through the PostgreSQL restore flow below.
 
 ## Backup
 
@@ -49,6 +53,39 @@ The generated object path is:
 pg-backups/{daily|weekly}/atp-YYYYMMDD-HHMMSS.sql.gz
 ```
 
+## Object Storage Backup
+
+Use MinIO `mc mirror` to copy application objects to a second MinIO/S3
+compatible bucket or to a mounted backup volume. The examples intentionally
+exclude PostgreSQL dump objects to avoid mixing database backup retention with
+application artifact retention.
+
+Mirror to a remote bucket:
+
+```bash
+mc alias set atp-minio "http://${MINIO_HOST}:${MINIO_PORT:-9000}" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+mc alias set dr-minio "http://${DR_MINIO_HOST}:${DR_MINIO_PORT:-9000}" "$DR_MINIO_ROOT_USER" "$DR_MINIO_ROOT_PASSWORD"
+mc mirror --overwrite --exclude "pg-backups/*" \
+  "atp-minio/${MINIO_BUCKET}/" \
+  "dr-minio/${DR_MINIO_BUCKET}/atp-objects/"
+```
+
+Mirror to a local or mounted directory:
+
+```bash
+mc alias set atp-minio "http://${MINIO_HOST}:${MINIO_PORT:-9000}" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+mc mirror --overwrite --exclude "pg-backups/*" \
+  "atp-minio/${MINIO_BUCKET}/" \
+  "/backups/minio/atp-objects/"
+```
+
+Verify object backup freshness and size:
+
+```bash
+mc ls "dr-minio/${DR_MINIO_BUCKET}/atp-objects/"
+mc du "dr-minio/${DR_MINIO_BUCKET}/atp-objects/"
+```
+
 ## Restore
 
 Restores are destructive. The restore script refuses to run unless the
@@ -74,6 +111,35 @@ The script terminates active database sessions, drops the configured database,
 recreates it with the configured owner, and loads the gzip-compressed plain SQL
 dump with `psql -v ON_ERROR_STOP=1`.
 
+## Object Storage Restore
+
+Object storage restore should be rehearsed in a non-production namespace first.
+When restoring into production, stop application writes before mirroring objects
+back into the primary bucket.
+
+Restore from a remote bucket:
+
+```bash
+mc alias set atp-minio "http://${MINIO_HOST}:${MINIO_PORT:-9000}" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+mc alias set dr-minio "http://${DR_MINIO_HOST}:${DR_MINIO_PORT:-9000}" "$DR_MINIO_ROOT_USER" "$DR_MINIO_ROOT_PASSWORD"
+mc mirror --overwrite --remove \
+  "dr-minio/${DR_MINIO_BUCKET}/atp-objects/" \
+  "atp-minio/${MINIO_BUCKET}/"
+```
+
+Restore from a local or mounted directory:
+
+```bash
+mc alias set atp-minio "http://${MINIO_HOST}:${MINIO_PORT:-9000}" "$MINIO_ROOT_USER" "$MINIO_ROOT_PASSWORD"
+mc mirror --overwrite --remove \
+  "/backups/minio/atp-objects/" \
+  "atp-minio/${MINIO_BUCKET}/"
+```
+
+After object restore, verify at least one historical screenshot/report/APK
+object can be opened from the UI or fetched with a signed URL/API path. Record
+the checked object key in `docs/backup-restore-drill-record.md`.
+
 ## Kubernetes Drill
 
 1. Scale API and workers down to stop writes:
@@ -87,13 +153,21 @@ dump with `psql -v ON_ERROR_STOP=1`.
 2. Run the restore script from an ops image that has `psql`, `gzip`, and `mc`.
    Use the same `POSTGRES_*` and `MINIO_*` values as the ATP release.
 
-3. Run migrations after restore:
+3. Restore MinIO application objects from the drill backup target:
+
+   ```bash
+   mc mirror --overwrite --remove \
+     "dr-minio/${DR_MINIO_BUCKET}/atp-objects/" \
+     "atp-minio/${MINIO_BUCKET}/"
+   ```
+
+4. Run migrations after restore:
 
    ```bash
    kubectl -n atp exec deploy/atp-atp-backend -- alembic upgrade head
    ```
 
-4. Scale services back:
+5. Scale services back:
 
    ```bash
    kubectl -n atp scale deploy/atp-atp-backend --replicas=2
@@ -101,7 +175,7 @@ dump with `psql -v ON_ERROR_STOP=1`.
    kubectl -n atp scale deploy/atp-atp-beat --replicas=1
    ```
 
-5. Verify:
+6. Verify:
 
    ```bash
    curl -fsS https://atp.example.com/health
@@ -113,8 +187,11 @@ dump with `psql -v ON_ERROR_STOP=1`.
 
 - [ ] A recent daily backup exists in MinIO.
 - [ ] A recent weekly backup exists in MinIO.
+- [ ] A recent MinIO application object backup exists outside the primary bucket.
 - [ ] Restore script was tested in a non-production namespace.
+- [ ] Object storage restore was tested in a non-production namespace.
 - [ ] `alembic upgrade head` was run after restore.
 - [ ] Backend `/health` returns success after services are restored.
 - [ ] A smoke test login and one historical report lookup succeeded.
-- [ ] Drill date, backup object, restore duration, and operator were recorded.
+- [ ] One restored object key was opened or fetched successfully.
+- [ ] Drill date, backup object, object backup location, restore duration, and operator were recorded in `docs/backup-restore-drill-record.md`.

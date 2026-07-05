@@ -22,7 +22,7 @@ from app.schemas.bug_tracker import (
     BugTrackerConnectionTestRequest,
     BugStatusOut,
     BugTrackerCreate, BugTrackerUpdate, BugTrackerOut,
-    CreateBugRequest, BugResultOut,
+    CreateBugRequest, LinkBugRequest, BugResultOut,
 )
 from app.api.deps import assert_project_access, require_engineer, get_current_user
 from app.models.user_project import ProjectRole
@@ -34,6 +34,7 @@ from app.services.bug_reporter import (
     test_connection,
     upload_attachment,
 )
+from app.services.audit import write_audit_log
 from app.core.encryption import mask_config, encrypt_config, decrypt_config
 
 router = APIRouter(tags=["缺陷跟踪"])
@@ -85,6 +86,17 @@ async def create_bug_tracker(
     db.add(tracker)
     await db.commit()
     await db.refresh(tracker)
+    await write_audit_log(
+        db,
+        action="bug_tracker_create",
+        resource_type="bug_tracker",
+        resource_id=tracker.id,
+        user_id=getattr(user, "id", None),
+        username=getattr(user, "username", ""),
+        project_id=tracker.project_id,
+        detail=f"创建缺陷跟踪配置: {tracker.name} ({tracker.tracker_type.value})",
+    )
+    await db.commit()
     return _mask_tracker(tracker)
 
 
@@ -131,6 +143,17 @@ async def update_bug_tracker(
         setattr(tracker, k, v)
     await db.commit()
     await db.refresh(tracker)
+    await write_audit_log(
+        db,
+        action="bug_tracker_update",
+        resource_type="bug_tracker",
+        resource_id=tracker.id,
+        user_id=getattr(user, "id", None),
+        username=getattr(user, "username", ""),
+        project_id=tracker.project_id,
+        detail=f"更新缺陷跟踪配置: {tracker.name}",
+    )
+    await db.commit()
     return _mask_tracker(tracker)
 
 
@@ -142,7 +165,19 @@ async def delete_bug_tracker(
 ):
     tracker = _get_tracker_or_404(await db.get(BugTracker, tracker_id))
     await assert_project_access(db, user, tracker.project_id, ProjectRole.owner)
+    project_id = tracker.project_id
+    tracker_name = tracker.name
     await db.delete(tracker)
+    await write_audit_log(
+        db,
+        action="bug_tracker_delete",
+        resource_type="bug_tracker",
+        resource_id=tracker_id,
+        user_id=getattr(user, "id", None),
+        username=getattr(user, "username", ""),
+        project_id=project_id,
+        detail=f"删除缺陷跟踪配置: {tracker_name}",
+    )
     await db.commit()
 
 
@@ -212,12 +247,60 @@ async def get_run_bug_status(
         "bug_url": status_result.get("bug_url") or bug_info.get("bug_url"),
     }
     run.result_summary = summary
+    await write_audit_log(
+        db,
+        action="run_bug_link",
+        resource_type="test_run",
+        resource_id=run.id,
+        user_id=getattr(_, "id", None),
+        username=getattr(_, "username", ""),
+        project_id=tracker.project_id,
+        detail=f"执行记录 {run.id} 刷新缺陷状态: {bug_info['bug_id']}",
+    )
     await db.commit()
 
     return BugStatusOut(**status_result)
 
 
 # ── 一键创建缺陷 ─────────────────────────────────────────
+
+@router.post("/runs/{run_id}/link-bug", response_model=BugStatusOut)
+async def link_bug_to_run(
+    run_id: int,
+    body: LinkBugRequest,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(get_current_user),
+):
+    run = await db.get(TestRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="执行记录不存在")
+
+    tracker = _get_tracker_or_404(await db.get(BugTracker, body.tracker_id))
+    case = await db.get(TestCase, run.case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="用例不存在")
+    module = await db.get(Module, case.module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="用例所属模块不存在")
+    if module.project_id != tracker.project_id:
+        raise HTTPException(status_code=400, detail="缺陷跟踪配置不属于该执行记录所在项目")
+    await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
+
+    bug_url = body.bug_url or ""
+    status_text = body.status or "linked"
+    summary = dict(run.result_summary or {})
+    summary["bug"] = {
+        "bug_id": body.bug_id,
+        "bug_url": bug_url,
+        "title": body.title or body.bug_id,
+        "status": status_text,
+        "tracker_id": tracker.id,
+        "linked_manually": True,
+    }
+    run.result_summary = summary
+    await db.commit()
+
+    return BugStatusOut(bug_id=body.bug_id, status=status_text, bug_url=bug_url)
 
 @router.post("/runs/{run_id}/create-bug", response_model=BugResultOut)
 async def create_bug_from_run(
@@ -307,6 +390,16 @@ async def create_bug_from_run(
             "tracker_id": tracker.id,
         }
         run.result_summary = summary
+        await write_audit_log(
+            db,
+            action="run_bug_create_duplicate",
+            resource_type="test_run",
+            resource_id=run.id,
+            user_id=getattr(_, "id", None),
+            username=getattr(_, "username", ""),
+            project_id=tracker.project_id,
+            detail=f"执行记录 {run.id} 命中重复缺陷: {duplicate['bug_id']}",
+        )
         await db.commit()
         return BugResultOut(**duplicate, duplicate_of=duplicate["bug_id"], attachment_uploaded=False)
 
@@ -367,6 +460,16 @@ async def create_bug_from_run(
         "tracker_id": tracker.id,
     }
     run.result_summary = summary
+    await write_audit_log(
+        db,
+        action="run_bug_create",
+        resource_type="test_run",
+        resource_id=run.id,
+        user_id=getattr(_, "id", None),
+        username=getattr(_, "username", ""),
+        project_id=tracker.project_id,
+        detail=f"执行记录 {run.id} 创建缺陷: {result['bug_id']}",
+    )
     await db.commit()
 
     return BugResultOut(**result, duplicate_of=None, attachment_uploaded=attachment_uploaded)

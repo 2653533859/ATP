@@ -88,6 +88,159 @@
           </a-descriptions-item>
         </a-descriptions>
 
+        <section class="investigation-panel">
+          <div class="investigation-header">
+            <div>
+              <div class="section-title">{{ t('run.investigation.title') }}</div>
+              <div class="section-subtitle">{{ t('run.investigation.subtitle') }}</div>
+            </div>
+            <a-space wrap>
+              <a-button
+                v-if="canGenerateFailureDiagnosis"
+                size="small"
+                :loading="failureDiagnosisLoading"
+                @click="handleGenerateFailureDiagnosis"
+              >
+                <BulbOutlined /> {{ failureDiagnosis ? t('run.investigation.regenerate_failure_diagnosis') : t('run.investigation.generate_failure_diagnosis') }}
+              </a-button>
+              <a-button v-if="jaegerSearchUrl" size="small" :href="jaegerSearchUrl" target="_blank">
+                <LinkOutlined /> {{ t('run.open_in_jaeger') }}
+              </a-button>
+              <a-button
+                v-if="canCreateBug && run && (run.status === 'failed' || run.status === 'error')"
+                size="small"
+                danger
+                @click="openBugModal"
+              >
+                <BugOutlined /> {{ t('run.create_bug') }}
+              </a-button>
+            </a-space>
+          </div>
+
+          <a-row :gutter="[12, 12]" class="investigation-metrics">
+            <a-col :xs="12" :md="6">
+              <button class="investigation-card" type="button" @click="focusFirstProblemStep">
+                <span class="investigation-icon investigation-icon-error"><WarningOutlined /></span>
+                <span class="investigation-card-body">
+                  <span class="investigation-value">{{ failedOrErrorSteps.length }}</span>
+                  <span class="investigation-label">{{ t('run.investigation.problem_steps') }}</span>
+                </span>
+              </button>
+            </a-col>
+            <a-col :xs="12" :md="6">
+              <button class="investigation-card" type="button" @click="focusFirstScreenshotStep">
+                <span class="investigation-icon investigation-icon-primary"><CameraOutlined /></span>
+                <span class="investigation-card-body">
+                  <span class="investigation-value">{{ screenshotCount }}</span>
+                  <span class="investigation-label">{{ t('run.investigation.screenshots') }}</span>
+                </span>
+              </button>
+            </a-col>
+            <a-col :xs="12" :md="6">
+              <a :class="['investigation-card', { 'is-disabled': !jaegerSearchUrl }]" :href="jaegerSearchUrl || undefined" target="_blank">
+                <span class="investigation-icon investigation-icon-info"><LinkOutlined /></span>
+                <span class="investigation-card-body">
+                  <span class="investigation-value">{{ run.trace_id ? t('common.yes') : t('common.no') }}</span>
+                  <span class="investigation-label">{{ t('run.investigation.trace') }}</span>
+                </span>
+              </a>
+            </a-col>
+            <a-col :xs="12" :md="6">
+              <button class="investigation-card" type="button" @click="focusHealing">
+                <span class="investigation-icon investigation-icon-warning"><BulbOutlined /></span>
+                <span class="investigation-card-body">
+                  <span class="investigation-value">{{ diagnosisStatusText }}</span>
+                  <span class="investigation-label">{{ t('run.investigation.ai_diagnosis') }}</span>
+                </span>
+              </button>
+            </a-col>
+          </a-row>
+
+          <a-row :gutter="[12, 12]" class="investigation-details">
+            <a-col :xs="24" :md="12">
+              <div class="investigation-block">
+                <div class="block-title">{{ t('run.investigation.error_summary') }}</div>
+                <pre class="error-snippet">{{ primaryErrorSummary }}</pre>
+              </div>
+            </a-col>
+            <a-col :xs="24" :md="12">
+              <div class="investigation-block">
+                <div class="block-title">{{ t('run.investigation.problem_step_list') }}</div>
+                <a-empty
+                  v-if="failedOrErrorSteps.length === 0"
+                  :description="t('run.investigation.no_problem_steps')"
+                  :image="Empty.PRESENTED_IMAGE_SIMPLE"
+                />
+                <div v-else class="problem-step-list">
+                  <button
+                    v-for="step in failedOrErrorSteps.slice(0, 5)"
+                    :key="step.step_index"
+                    class="problem-step-item"
+                    type="button"
+                    @click="focusStep(step.step_index)"
+                  >
+                    <span class="problem-step-title">#{{ step.step_index + 1 }} {{ step.name }}</span>
+                    <a-tag :color="statusColor(step.status)">{{ step.status }}</a-tag>
+                  </button>
+                </div>
+              </div>
+            </a-col>
+          </a-row>
+
+          <div v-if="failureDiagnosis || canGenerateFailureDiagnosis" class="failure-diagnosis-card">
+            <div class="failure-diagnosis-header">
+              <div>
+                <div class="block-title">{{ t('run.investigation.failure_diagnosis') }}</div>
+                <div class="failure-diagnosis-meta">
+                  <a-tag v-if="failureDiagnosis" :color="failureDiagnosis.source === 'llm' ? 'green' : 'blue'">
+                    {{ t(`run.investigation.failure_diagnosis_source_${failureDiagnosis.source}`) }}
+                  </a-tag>
+                  <span v-if="failureDiagnosis">
+                    {{ t('run.investigation.failure_diagnosis_evidence', {
+                      steps: failureDiagnosis.failed_step_count,
+                      screenshots: failureDiagnosis.screenshot_count,
+                    }) }}
+                  </span>
+                </div>
+              </div>
+              <a-button
+                v-if="canGenerateFailureDiagnosis"
+                size="small"
+                :loading="failureDiagnosisLoading"
+                @click="handleGenerateFailureDiagnosis"
+              >
+                {{ failureDiagnosis ? t('common.refresh') : t('run.investigation.generate_failure_diagnosis') }}
+              </a-button>
+            </div>
+            <pre v-if="failureDiagnosis?.summary" class="failure-diagnosis-text">{{ failureDiagnosis.summary }}</pre>
+            <a-empty
+              v-else
+              :description="t('run.investigation.no_failure_diagnosis')"
+              :image="Empty.PRESENTED_IMAGE_SIMPLE"
+            />
+            <div v-if="failureDiagnosis?.repair_suggestions?.length" class="repair-suggestion-list">
+              <div class="repair-suggestion-title">{{ t('run.investigation.repair_suggestions') }}</div>
+              <div
+                v-for="suggestion in failureDiagnosis.repair_suggestions"
+                :key="`${suggestion.step_index}-${suggestion.suggestion_type}`"
+                class="repair-suggestion-item"
+              >
+                <div class="repair-suggestion-head">
+                  <span>#{{ suggestion.step_index + 1 }} {{ suggestion.step_name }}</span>
+                  <a-tag color="geekblue">
+                    {{ t(`run.investigation.repair_type_${suggestion.suggestion_type}`) }}
+                  </a-tag>
+                </div>
+                <div class="repair-suggestion-body">{{ suggestion.suggested_change }}</div>
+                <div class="repair-suggestion-meta">
+                  {{ t('run.investigation.repair_target') }}: {{ suggestion.target }}
+                  <span v-if="suggestion.evidence"> · {{ t('run.investigation.repair_evidence') }}: {{ suggestion.evidence }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
+
         <!-- 步骤统计 -->
         <div class="steps-header">
           <strong>{{ t('run.labels.steps') }}</strong>
@@ -179,6 +332,7 @@
             v-for="step in steps"
             :key="step.step_index"
             :class="{ 'step-failed': step.status === 'failed', 'step-error': step.status === 'error' }"
+            :data-run-step="step.step_index"
           >
             <template #header>
               <div class="step-panel-header">
@@ -218,6 +372,7 @@
             <a-collapse
               v-if="step.healing_status"
               class="healing-panel"
+              data-run-healing="step"
               ghost
               :bordered="false"
               style="margin-bottom: 12px"
@@ -336,13 +491,19 @@
     <!-- 创建缺陷 Modal -->
     <a-modal
       v-model:open="bugModalOpen"
-      :title="t('run.create_bug')"
-      :ok-text="t('common.create')"
+      :title="bugModalTitle"
+      :ok-text="bugModalOkText"
       :cancel-text="t('common.cancel')"
       :confirm-loading="bugCreating"
       @ok="confirmCreateBug"
     >
       <a-form layout="vertical">
+        <a-form-item :label="t('run.bug.mode')">
+          <a-radio-group v-model:value="bugMode">
+            <a-radio-button value="create">{{ t('run.bug.mode_create') }}</a-radio-button>
+            <a-radio-button value="link">{{ t('run.bug.mode_link') }}</a-radio-button>
+          </a-radio-group>
+        </a-form-item>
         <a-form-item :label="t('run.bug.tracker')">
           <a-select
             v-model:value="bugTrackerId"
@@ -352,6 +513,7 @@
             :loading="bugTrackerLoading"
           />
         </a-form-item>
+        <template v-if="bugMode === 'create'">
         <a-form-item :label="t('run.bug.related_step')">
           <a-select
             v-model:value="bugStepIndex"
@@ -368,9 +530,24 @@
             </a-select-option>
           </a-select>
         </a-form-item>
+        </template>
+        <template v-else>
+          <a-form-item :label="t('run.bug.existing_bug_id')" required>
+            <a-input v-model:value="linkedBugId" placeholder="BUG-123" />
+          </a-form-item>
+          <a-form-item :label="t('run.bug.existing_bug_url')">
+            <a-input v-model:value="linkedBugUrl" placeholder="https://..." />
+          </a-form-item>
+          <a-form-item :label="t('run.bug.existing_bug_title')">
+            <a-input v-model:value="linkedBugTitle" :placeholder="caseDisplayName" />
+          </a-form-item>
+          <a-form-item :label="t('run.bug.existing_bug_status')">
+            <a-input v-model:value="linkedBugStatus" placeholder="open" />
+          </a-form-item>
+        </template>
       </a-form>
-      <a-divider v-if="bugPreviewTitle" style="margin: 12px 0 8px">{{ t('run.bug.preview') }}</a-divider>
-      <div v-if="bugPreviewTitle" class="bug-preview">
+      <a-divider v-if="bugMode === 'create' && bugPreviewTitle" style="margin: 12px 0 8px">{{ t('run.bug.preview') }}</a-divider>
+      <div v-if="bugMode === 'create' && bugPreviewTitle" class="bug-preview">
         <div class="bug-preview-label">{{ t('run.bug.title') }}</div>
         <div class="bug-preview-value">{{ bugPreviewTitle }}</div>
         <div class="bug-preview-label" style="margin-top: 8px">{{ t('run.bug.desc') }}</div>
@@ -419,9 +596,9 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
-import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined } from '@ant-design/icons-vue'
+import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { runApi, bugTrackerApi, tracingApi, aiHealingPatchApi, type BugLinkInfo, type BugTrackerItem, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem } from '@/api'
+import { runApi, bugTrackerApi, tracingApi, aiHealingPatchApi, type BugLinkInfo, type BugTrackerItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
 
@@ -437,6 +614,7 @@ const loading = ref(false)
 const expandedKeys = ref<number[]>([])
 const exportingHtml = ref(false)
 const jaegerUiUrl = ref('')
+const failureDiagnosisLoading = ref(false)
 
 const jaegerSearchUrl = computed(() => {
   const tid = run.value?.trace_id
@@ -447,8 +625,13 @@ const jaegerSearchUrl = computed(() => {
 })
 const exportingPdf = ref(false)
 const bugModalOpen = ref(false)
+const bugMode = ref<'create' | 'link'>('create')
 const bugTrackerId = ref<number | undefined>(undefined)
 const bugStepIndex = ref<number | undefined>(undefined)
+const linkedBugId = ref('')
+const linkedBugUrl = ref('')
+const linkedBugTitle = ref('')
+const linkedBugStatus = ref('open')
 const bugTrackerOptions = ref<Array<{ label: string; value: number }>>([])
 const bugTrackerLoading = ref(false)
 const bugCreating = ref(false)
@@ -492,6 +675,42 @@ const stepStats = computed(() => {
   return stats
 })
 
+const failedOrErrorSteps = computed(() =>
+  steps.value.filter(step => step.status === 'failed' || step.status === 'error'),
+)
+
+const screenshotCount = computed(() =>
+  steps.value.filter(step => Boolean(step.screenshot_url)).length,
+)
+
+const canGenerateFailureDiagnosis = computed(() =>
+  Boolean(run.value && (run.value.status === 'failed' || run.value.status === 'error' || failedOrErrorSteps.value.length > 0)),
+)
+
+const failureDiagnosis = computed<FailureDiagnosisResult | null>(() => {
+  const raw = run.value?.result_summary?.failure_diagnosis
+  if (!raw || typeof raw !== 'object') return null
+  const data = raw as Partial<FailureDiagnosisResult>
+  if (!data.summary || !data.status || !data.source) return null
+  return {
+    status: data.status,
+    source: data.source,
+    summary: data.summary,
+    at: data.at ?? '',
+    failed_step_count: Number(data.failed_step_count ?? 0),
+    screenshot_count: Number(data.screenshot_count ?? 0),
+    repair_suggestions: Array.isArray(data.repair_suggestions) ? data.repair_suggestions : [],
+    error_samples: Array.isArray(data.error_samples) ? data.error_samples : [],
+  }
+})
+
+const primaryErrorSummary = computed(() => {
+  const stepError = failedOrErrorSteps.value.find(step => step.error_message)?.error_message
+  const messageText = stepError || run.value?.error_message || ''
+  if (!messageText) return t('run.investigation.no_error_summary')
+  return messageText.length > 600 ? `${messageText.slice(0, 600)}...` : messageText
+})
+
 function statusColor(status: string) {
   return (
     { passed: 'green', failed: 'red', running: 'blue', error: 'orange', pending: 'default' }[status] ?? 'default'
@@ -525,6 +744,23 @@ async function onHealingFeedback(step: RunStepItem, action: 'adopted' | 'rejecte
     message.success(t('run.healing.feedback_thanks'))
   } catch {
     // axios 拦截器已弹出错误
+  }
+}
+
+async function handleGenerateFailureDiagnosis() {
+  if (!run.value) return
+  failureDiagnosisLoading.value = true
+  try {
+    const diagnosis = await runApi.generateFailureDiagnosis(run.value.id)
+    run.value.result_summary = {
+      ...(run.value.result_summary || {}),
+      failure_diagnosis: diagnosis,
+    }
+    message.success(t('run.investigation.failure_diagnosis_generated'))
+  } catch {
+    message.error(t('run.investigation.failure_diagnosis_failed'))
+  } finally {
+    failureDiagnosisLoading.value = false
   }
 }
 
@@ -595,6 +831,37 @@ function errorMessage(error: unknown, fallback = '') {
 
 function onCollapseChange(keys: number | number[]) {
   expandedKeys.value = Array.isArray(keys) ? keys : [keys]
+}
+
+function focusStep(stepIndex: number) {
+  if (!expandedKeys.value.includes(stepIndex)) {
+    expandedKeys.value = [...expandedKeys.value, stepIndex]
+  }
+  requestAnimationFrame(() => {
+    document.querySelector(`[data-run-step="${stepIndex}"]`)?.scrollIntoView({
+      behavior: 'smooth',
+      block: 'start',
+    })
+  })
+}
+
+function focusFirstProblemStep() {
+  const step = failedOrErrorSteps.value[0]
+  if (step) focusStep(step.step_index)
+}
+
+function focusFirstScreenshotStep() {
+  const step = steps.value.find(item => item.screenshot_url)
+  if (step) focusStep(step.step_index)
+}
+
+function focusHealing() {
+  const healingEl = document.querySelector('.failure-diagnosis-card') ?? document.querySelector('.run-healing-card') ?? document.querySelector('[data-run-healing="step"]')
+  if (healingEl) {
+    healingEl.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    return
+  }
+  focusFirstProblemStep()
 }
 
 function downloadBlob(blob: Blob, filename: string) {
@@ -671,6 +938,12 @@ const runHealing = computed<RunHealingPayload | null>(() => {
   }
 })
 
+const diagnosisStatusText = computed(() => {
+  if (runHealing.value?.status) return healingStatusLabel(runHealing.value.status)
+  const stepDiagnosis = steps.value.find(step => step.healing_status)?.healing_status
+  return stepDiagnosis ? healingStatusLabel(stepDiagnosis) : t('run.investigation.no_ai_diagnosis')
+})
+
 const bugPreviewTitle = computed(() => {
   if (!run.value) return ''
   let title = `[ATP] ${caseDisplayName.value}`
@@ -681,6 +954,9 @@ const bugPreviewTitle = computed(() => {
   title += ` ${t('run.bug.title_suffix')}`
   return title
 })
+
+const bugModalTitle = computed(() => bugMode.value === 'create' ? t('run.create_bug') : t('run.bug.link_existing'))
+const bugModalOkText = computed(() => bugMode.value === 'create' ? t('common.create') : t('run.bug.link_existing'))
 
 const bugPreviewDesc = computed(() => {
   if (!run.value) return ''
@@ -711,7 +987,12 @@ async function openBugModal() {
   }
 
   bugTrackerId.value = undefined
+  bugMode.value = 'create'
   bugStepIndex.value = failedSteps.value.length > 0 ? failedSteps.value[0].step_index : undefined
+  linkedBugId.value = ''
+  linkedBugUrl.value = ''
+  linkedBugTitle.value = ''
+  linkedBugStatus.value = 'open'
   bugModalOpen.value = true
 
   bugTrackerLoading.value = true
@@ -720,7 +1001,7 @@ async function openBugModal() {
     bugTrackerOptions.value = trackers
       .filter((t: BugTrackerItem) => t.is_enabled)
       .map((t: BugTrackerItem) => ({
-        label: `${t.name} (${t.tracker_type === 'jira' ? 'Jira' : t.tracker_type === 'github' ? 'GitHub Issues' : 'Zentao'})`,
+        label: `${t.name} (${trackerTypeLabel(t.tracker_type)})`,
         value: t.id,
       }))
   } catch {
@@ -732,6 +1013,10 @@ async function openBugModal() {
 
 async function confirmCreateBug() {
   if (!bugTrackerId.value) { message.warning(t('run.msg.select_tracker')); return }
+  if (bugMode.value === 'link') {
+    await confirmLinkBug()
+    return
+  }
   bugCreating.value = true
   try {
     const payload: { tracker_id: number; step_index?: number } = { tracker_id: bugTrackerId.value }
@@ -774,6 +1059,47 @@ async function confirmCreateBug() {
     } else {
       message.error(msg || t('run.msg.create_bug_failed'))
     }
+  } finally {
+    bugCreating.value = false
+  }
+}
+
+function trackerTypeLabel(type: string) {
+  return { jira: 'Jira', github: 'GitHub Issues', gitlab: 'GitLab Issues', zentao: 'Zentao' }[type] ?? type
+}
+
+async function confirmLinkBug() {
+  const bugId = linkedBugId.value.trim()
+  if (!bugId) {
+    message.warning(t('run.msg.enter_bug_id'))
+    return
+  }
+  bugCreating.value = true
+  try {
+    const result = await bugTrackerApi.linkBug(runId, {
+      tracker_id: bugTrackerId.value as number,
+      bug_id: bugId,
+      bug_url: linkedBugUrl.value.trim() || undefined,
+      title: linkedBugTitle.value.trim() || undefined,
+      status: linkedBugStatus.value.trim() || undefined,
+    })
+    if (run.value) {
+      run.value.result_summary = {
+        ...(run.value.result_summary || {}),
+        bug: {
+          ...(bugInfo.value || {}),
+          bug_id: result.bug_id,
+          bug_url: result.bug_url || linkedBugUrl.value.trim(),
+          title: linkedBugTitle.value.trim() || result.bug_id,
+          status: result.status,
+          linked_manually: true,
+        },
+      }
+    }
+    message.success(t('run.msg.bug_linked', { id: result.bug_id }))
+    bugModalOpen.value = false
+  } catch (e: unknown) {
+    message.error(errorMessage(e) || t('run.msg.link_bug_failed'))
   } finally {
     bugCreating.value = false
   }
@@ -904,6 +1230,216 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
+.investigation-panel {
+  margin-bottom: 20px;
+  padding: 16px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-bg-elevated);
+}
+.investigation-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+.section-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--c-text);
+}
+.section-subtitle {
+  margin-top: 2px;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+.investigation-metrics {
+  margin-bottom: 12px;
+}
+.investigation-card {
+  width: 100%;
+  min-height: 78px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-bg-subtle);
+  color: inherit;
+  cursor: pointer;
+  text-align: left;
+  text-decoration: none;
+}
+.investigation-card:hover {
+  border-color: var(--c-primary);
+}
+.investigation-card.is-disabled {
+  cursor: default;
+  opacity: 0.65;
+  pointer-events: none;
+}
+.investigation-icon {
+  width: 36px;
+  height: 36px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+  font-size: 19px;
+}
+.investigation-icon-error {
+  color: var(--c-error);
+  background: var(--c-error-soft);
+}
+.investigation-icon-primary {
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+}
+.investigation-icon-info {
+  color: var(--c-info);
+  background: var(--c-info-soft);
+}
+.investigation-icon-warning {
+  color: var(--c-warning);
+  background: var(--c-warning-soft);
+}
+.investigation-card-body {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+.investigation-value {
+  overflow: hidden;
+  color: var(--c-text);
+  font-size: 20px;
+  font-weight: 650;
+  line-height: 1.15;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.investigation-label {
+  margin-top: 6px;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+.investigation-block {
+  height: 100%;
+  min-height: 140px;
+  padding: 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-bg-subtle);
+}
+.block-title {
+  margin-bottom: 8px;
+  color: var(--c-text);
+  font-weight: 600;
+}
+.error-snippet {
+  max-height: 160px;
+  margin: 0;
+  overflow: auto;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.failure-diagnosis-card {
+  margin-top: 12px;
+  padding: 12px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-bg-subtle);
+}
+.failure-diagnosis-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+.failure-diagnosis-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+.failure-diagnosis-text {
+  margin: 10px 0 0;
+  color: var(--c-text);
+  font-size: 13px;
+  line-height: 1.7;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.repair-suggestion-list {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.repair-suggestion-title {
+  color: var(--c-text);
+  font-weight: 600;
+}
+.repair-suggestion-item {
+  padding: 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-bg-elevated);
+}
+.repair-suggestion-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--c-text);
+  font-weight: 600;
+}
+.repair-suggestion-body {
+  margin-top: 6px;
+  color: var(--c-text);
+  line-height: 1.6;
+}
+.repair-suggestion-meta {
+  margin-top: 6px;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  line-height: 1.5;
+}
+.problem-step-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.problem-step-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  background: var(--c-bg-elevated);
+  cursor: pointer;
+  text-align: left;
+}
+.problem-step-item:hover {
+  border-color: var(--c-primary);
+}
+.problem-step-title {
+  min-width: 0;
+  overflow: hidden;
+  color: var(--c-text);
+  font-size: 13px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 .steps-header {
   display: flex;
   align-items: center;
@@ -1093,5 +1629,11 @@ onUnmounted(() => {
   border: 1px solid #f0f0f0;
   border-radius: 4px;
   font-size: 13px;
+}
+@media (max-width: 768px) {
+  .investigation-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
 }
 </style>

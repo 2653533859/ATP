@@ -100,6 +100,16 @@ export interface CaseStepItem {
   updated_at?: string
 }
 
+export interface CaseFlakyStats {
+  is_flaky: boolean
+  total_runs: number
+  passed_runs: number
+  failed_runs: number
+  error_runs: number
+  failure_rate: number
+  window_size: number
+}
+
 export interface CaseSummaryItem {
   id: number
   name: string
@@ -118,6 +128,7 @@ export interface CaseSummaryItem {
   owner_id?: number | null
   is_ready_for_execution: boolean
   dataset_id?: number | null
+  flaky_stats?: CaseFlakyStats
   created_at: string
   updated_at: string
 }
@@ -229,6 +240,8 @@ export interface SuiteRunCaseItem {
   run_id?: number | null
   status: SuiteRunStatus | string
   error?: string
+  flaky?: boolean
+  flaky_failure_rate?: number
 }
 
 export interface SuiteRunSummary {
@@ -413,7 +426,7 @@ export interface MockRuleItem {
   updated_at: string
 }
 
-export type BugTrackerType = 'jira' | 'zentao' | 'github'
+export type BugTrackerType = 'jira' | 'zentao' | 'github' | 'gitlab'
 
 export interface BugTrackerItem {
   id: number
@@ -434,6 +447,7 @@ export interface BugLinkInfo {
   duplicate_of?: string | null
   attachment_uploaded?: boolean
   status?: string | null
+  linked_manually?: boolean
 }
 
 // ---- Mobile Special Testing ----
@@ -708,6 +722,25 @@ export interface RunDetailItem {
   case?: { name?: string }
 }
 
+export interface FailureDiagnosisResult {
+  status: 'done' | 'skipped'
+  source: 'llm' | 'rule' | 'rule_fallback'
+  summary: string
+  at: string
+  failed_step_count: number
+  screenshot_count: number
+  repair_suggestions: Array<{
+    step_index: number
+    step_name: string
+    suggestion_type: 'update_assertion' | 'update_request' | 'update_step' | 'investigate_environment'
+    target: string
+    suggested_change: string
+    evidence: string
+    confidence: number
+  }>
+  error_samples: Array<Record<string, unknown>>
+}
+
 export const authApi = {
   login: (username: string, password: string) =>
     http.post<unknown, { access_token: string; refresh_token: string }>('/auth/login', { username, password }),
@@ -772,6 +805,23 @@ export const caseApi = {
       params: { case_ids: caseIds.join(',') },
       responseType: 'blob',
     }),
+  downloadImportTemplate: () =>
+    http.get<unknown, Blob>('/cases/batch/import-template', {
+      responseType: 'blob',
+    }),
+  previewImportZip: (file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post<unknown, {
+      total: number
+      valid_count: number
+      invalid_count: number
+      preview_cases: Array<{ row: number; name: string; case_type: string; priority: string; step_count: number }>
+      errors: string[]
+    }>('/cases/batch/import-preview', form, {
+      headers: { 'Content-Type': 'multipart/form-data' },
+    })
+  },
   batchImportZip: (file: File, targetModuleId: number) => {
     const form = new FormData()
     form.append('file', file)
@@ -792,6 +842,8 @@ export const runApi = {
   list: (params?: { case_id?: number; page?: number; page_size?: number }) =>
     http.get<unknown, { items: RunDetailItem[]; total: number; page: number; page_size: number }>('/runs', { params }),
   get: (id: number) => http.get<unknown, RunDetailItem>(`/runs/${id}`),
+  generateFailureDiagnosis: (id: number) =>
+    http.post<unknown, FailureDiagnosisResult>(`/runs/${id}/failure-diagnosis`),
   exportHtml: (id: number) =>
     http.get<unknown, Blob>(`/runs/${id}/export/html`, { responseType: 'blob' }),
   exportPdf: (id: number) =>
@@ -991,6 +1043,8 @@ export const bugTrackerApi = {
     http.post<unknown, { ok: boolean; message: string }>('/bug-trackers/test-connection', data),
   getBugStatus: (runId: number) =>
     http.get<unknown, { bug_id: string; status: string; bug_url?: string }>(`/runs/${runId}/bug-status`),
+  linkBug: (runId: number, data: { tracker_id: number; bug_id: string; bug_url?: string; title?: string; status?: string }) =>
+    http.post<unknown, { bug_id: string; status: string; bug_url?: string }>(`/runs/${runId}/link-bug`, data),
   createBug: (runId: number, data: { tracker_id: number; step_index?: number }) =>
     http.post<unknown, { bug_id: string; bug_url: string; title: string; duplicate_of?: string | null; attachment_uploaded?: boolean }>(`/runs/${runId}/create-bug`, data),
 }
@@ -1234,7 +1288,7 @@ export const aiHealingStatsApi = {
 }
 
 // ---- AI Case Generation ----
-export type SchemaSourceType = 'openapi' | 'postman' | 'curl'
+export type SchemaSourceType = 'openapi' | 'postman' | 'curl' | 'sample'
 
 export interface AIEndpointParameter {
   name: string

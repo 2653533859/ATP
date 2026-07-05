@@ -150,6 +150,53 @@ async def _execute_case_run(db, suite_run, case, extra_vars: dict) -> dict:
     }
 
 
+async def _mark_flaky_case_results(db, case_run_results: list[dict]) -> None:
+    from sqlalchemy import func, select
+
+    from app.models.case import RunStatus, TestRun
+
+    case_ids = sorted({item.get("case_id") for item in case_run_results if item.get("case_id")})
+    if not case_ids:
+        return
+
+    window_size = 10
+    ranked = (
+        select(
+            TestRun.case_id.label("case_id"),
+            TestRun.status.label("status"),
+            func.row_number()
+            .over(
+                partition_by=TestRun.case_id,
+                order_by=(TestRun.created_at.desc(), TestRun.id.desc()),
+            )
+            .label("rn"),
+        )
+        .where(
+            TestRun.case_id.in_(case_ids),
+            TestRun.status.in_([RunStatus.passed, RunStatus.failed, RunStatus.error]),
+            TestRun.parent_run_id.is_(None),
+        )
+        .subquery()
+    )
+    rows = (await db.execute(select(ranked.c.case_id, ranked.c.status).where(ranked.c.rn <= window_size))).all()
+    stats = {case_id: {"total": 0, "passed": 0, "failed": 0, "error": 0} for case_id in case_ids}
+    for row in rows:
+        item = stats[row.case_id]
+        item["total"] += 1
+        status = row.status.value if hasattr(row.status, "value") else str(row.status)
+        if status in item:
+            item[status] += 1
+
+    for result in case_run_results:
+        case_id = result.get("case_id")
+        item = stats.get(case_id)
+        if not item:
+            continue
+        failure_runs = item["failed"] + item["error"]
+        result["flaky"] = item["total"] >= 4 and item["passed"] > 0 and failure_runs > 0
+        result["flaky_failure_rate"] = round(failure_runs / item["total"] * 100, 1) if item["total"] else 0.0
+
+
 async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict):
     from app.models.case import TestCase
     from app.models.suite import SuiteRunStatus
@@ -229,6 +276,7 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict):
 
     all_passed = counts["failed"] == 0 and counts["error"] == 0
     suite_run.status = SuiteRunStatus.passed if all_passed else SuiteRunStatus.failed
+    await _mark_flaky_case_results(db, case_run_results)
     suite_run.case_run_ids = case_run_results
     suite_run.result_summary = {
         **counts,
@@ -495,6 +543,8 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict, trace_id: str | No
                         "error": counts.get("error", 0),
                         "duration_ms": suite_run.duration_ms,
                         "trigger_type": "manual",
+                        "entity_type": "suite",
+                        "suite_id": suite.id,
                     }, report_html=report_html)
                 except Exception as e:
                     logger.warning(f"Suite notification failed: {e}")
@@ -728,6 +778,8 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                         **counts,
                         "duration_ms": total_ms,
                         "trigger_type": plan_run.trigger_type.value,
+                        "entity_type": "plan",
+                        "plan_id": plan.id,
                     }, report_html=report_html)
                 except Exception as e:
                     logger.warning(f"Plan notification failed: {e}")

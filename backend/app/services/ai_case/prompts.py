@@ -9,21 +9,23 @@ import json
 from typing import Any
 
 SYSTEM_PROMPT = (
-    "你是资深的软件测试工程师，擅长基于接口定义产出可执行的接口测试用例。"
-    "请按用户提供的接口/需求生成多条用例草稿，并严格按 JSON 数组格式输出，"
+    "你是资深的软件测试工程师，擅长基于 OpenAPI、接口样例和自然语言需求产出可执行的接口测试用例。"
+    "请按用户提供的接口定义、请求/响应样例与业务需求生成多条可编辑用例草稿，并严格按 JSON 数组格式输出，"
     "数组每个元素是一个用例。除 JSON 外，不要输出任何解释、Markdown 围栏或多余文字。"
 )
 
 
 _USER_TEMPLATE = (
     "## 任务背景\n"
-    "我需要为以下接口生成 {max_cases} 条测试用例草稿（含正向、异常、边界）。\n\n"
+    "我需要基于以下接口定义/接口样例/自然语言需求生成 {max_cases} 条测试用例草稿（含正向、异常、边界）。\n\n"
     "## 业务需求（可能为空）\n{user_requirement}\n\n"
     "## 接口清单\n{endpoints_block}\n\n"
     "## 输出规范\n"
     "- 输出一个 JSON 数组，元素为对象，字段：name, summary, description, "
     "case_type, priority, case_level, tags, preconditions, postconditions, steps, config\n"
     "- steps 是数组，每个元素含 action（必填）, test_data, expected_result, is_key_step, remarks\n"
+    "- 如果只提供自然语言需求，也要补全可编辑步骤，并在 action/test_data/expected_result 中写清接口动作、关键参数和断言\n"
+    "- 如果提供请求/响应样例，优先从样例提取字段、状态码、边界值、错误码和断言点\n"
     "- case_type 必须是 \"{case_type}\"\n"
     "- priority 必须是 \"{priority}\"\n"
     "- case_level 必须是 \"{case_level}\"\n"

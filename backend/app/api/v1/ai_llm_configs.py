@@ -19,6 +19,7 @@ from app.schemas.ai_llm_config import (
     AILLMConfigOut,
     AILLMConfigUpdateIn,
 )
+from app.services.audit import write_audit_log
 
 router = APIRouter(prefix="/ai/llm-configs", tags=["AI 配置"])
 
@@ -73,6 +74,16 @@ async def create_llm_config(
         await db.rollback()
         raise HTTPException(status_code=409, detail="名称已存在")
     await db.refresh(config)
+    await write_audit_log(
+        db,
+        action="ai_llm_config_create",
+        resource_type="ai_llm_config",
+        resource_id=config.id,
+        user_id=getattr(_, "id", None),
+        username=getattr(_, "username", ""),
+        detail=f"创建 AI LLM 配置: {config.name} ({config.provider}/{config.model_name})",
+    )
+    await db.commit()
     return _to_out(config)
 
 
@@ -109,6 +120,16 @@ async def update_llm_config(
         await db.rollback()
         raise HTTPException(status_code=409, detail="名称已存在")
     await db.refresh(config)
+    await write_audit_log(
+        db,
+        action="ai_llm_config_update",
+        resource_type="ai_llm_config",
+        resource_id=config.id,
+        user_id=getattr(_, "id", None),
+        username=getattr(_, "username", ""),
+        detail=f"更新 AI LLM 配置: {config.name}",
+    )
+    await db.commit()
     return _to_out(config)
 
 
@@ -121,5 +142,15 @@ async def delete_llm_config(
     config = await db.get(AILLMConfig, config_id)
     if not config:
         raise HTTPException(status_code=404, detail="配置不存在")
+    config_name = config.name
     await db.delete(config)
+    await write_audit_log(
+        db,
+        action="ai_llm_config_delete",
+        resource_type="ai_llm_config",
+        resource_id=config_id,
+        user_id=getattr(_, "id", None),
+        username=getattr(_, "username", ""),
+        detail=f"删除 AI LLM 配置: {config_name}",
+    )
     await db.commit()

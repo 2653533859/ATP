@@ -1,4 +1,4 @@
-"""解析 OpenAPI / Postman Collection / cURL 文本为统一接口清单。
+"""解析 OpenAPI / Postman Collection / cURL / 接口样例文本为统一接口清单。
 
 对外只暴露 ``parse_schema(source_type, content) -> ParseResult``。
 """
@@ -305,6 +305,167 @@ def parse_curl(content: str) -> ParseResult:
     )
 
 
+# ──────────────────────────── 接口样例 ─────────────────────────────
+
+
+_SAMPLE_METHOD_PATH_RE = re.compile(
+    r"\b(GET|POST|PUT|PATCH|DELETE|OPTIONS|HEAD)\s+((?:https?://)?[^\s]+)",
+    re.IGNORECASE,
+)
+
+
+def _try_load_json(value: str) -> Any | None:
+    try:
+        return json.loads(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _extract_json_blocks(text: str) -> list[Any]:
+    """Best-effort 提取文本中的顶层 JSON object/array 块。"""
+    blocks: list[Any] = []
+    stack: list[str] = []
+    start: int | None = None
+    in_string = False
+    escape = False
+    pairs = {"{": "}", "[": "]"}
+
+    for idx, char in enumerate(text):
+        if in_string:
+            if escape:
+                escape = False
+            elif char == "\\":
+                escape = True
+            elif char == '"':
+                in_string = False
+            continue
+        if char == '"':
+            in_string = True
+            continue
+        if char in pairs:
+            if not stack:
+                start = idx
+            stack.append(pairs[char])
+            continue
+        if stack and char == stack[-1]:
+            stack.pop()
+            if not stack and start is not None:
+                payload = text[start : idx + 1]
+                parsed = _try_load_json(payload)
+                if parsed is not None:
+                    blocks.append(parsed)
+                start = None
+    return blocks
+
+
+def _endpoint_from_sample_object(obj: dict) -> Endpoint:
+    method = str(obj.get("method") or obj.get("http_method") or "POST").upper()
+    raw_path = str(obj.get("path") or obj.get("url") or obj.get("endpoint") or "/")
+    parsed = urlparse(raw_path)
+    path = parsed.path or raw_path or "/"
+
+    params: list[EndpointParameter] = []
+    raw_headers = obj.get("headers") or obj.get("header")
+    if isinstance(raw_headers, dict):
+        for name, value in raw_headers.items():
+            params.append(EndpointParameter(name=str(name), location="header", example=value))
+    raw_query = obj.get("query") or obj.get("query_params") or obj.get("params")
+    if isinstance(raw_query, dict):
+        for name, value in raw_query.items():
+            params.append(EndpointParameter(name=str(name), location="query", example=value))
+
+    request_example = (
+        obj.get("request_body")
+        if "request_body" in obj
+        else obj.get("request")
+        if "request" in obj
+        else obj.get("body")
+        if "body" in obj
+        else None
+    )
+    response_example = (
+        obj.get("response_body")
+        if "response_body" in obj
+        else obj.get("response")
+        if "response" in obj
+        else None
+    )
+    return Endpoint(
+        method=method,
+        path=path,
+        summary=obj.get("name") or obj.get("summary") or f"{method} {path}",
+        description=obj.get("description"),
+        parameters=params,
+        request_body_example=request_example,
+        response_example=response_example,
+    )
+
+
+def parse_sample(content: str) -> ParseResult:
+    """解析接口样例文本。
+
+    支持：
+    - JSON object/list：含 method/path/request/response 等字段。
+    - HTTP/cURL 风格片段：`POST /api/login` 后跟请求/响应 JSON。
+    - 纯 JSON 样例：作为 request_body_example，用需求补足接口语义。
+    """
+    text = content.strip()
+    if not text:
+        raise ValueError("接口样例为空")
+
+    loaded = _try_load_json(text)
+    if isinstance(loaded, list):
+        endpoints = [_endpoint_from_sample_object(item) for item in loaded if isinstance(item, dict)]
+        if endpoints:
+            return ParseResult(endpoints=endpoints)
+    if isinstance(loaded, dict):
+        if any(key in loaded for key in ("method", "path", "url", "endpoint", "request", "response", "body")):
+            return ParseResult(endpoints=[_endpoint_from_sample_object(loaded)])
+        return ParseResult(
+            endpoints=[
+                Endpoint(
+                    method="POST",
+                    path="/sample-endpoint",
+                    summary="接口样例",
+                    request_body_example=loaded,
+                )
+            ],
+            warnings=["未识别到 method/path，已将 JSON 作为请求样例"],
+        )
+
+    method = "POST"
+    path = "/sample-endpoint"
+    summary = "接口样例"
+    if match := _SAMPLE_METHOD_PATH_RE.search(text):
+        method = match.group(1).upper()
+        raw_path = match.group(2)
+        parsed = urlparse(raw_path)
+        path = parsed.path or raw_path or "/"
+        summary = f"{method} {path}"
+
+    blocks = _extract_json_blocks(text)
+    request_example = blocks[0] if blocks else None
+    response_example = blocks[1] if len(blocks) > 1 else None
+    warnings: list[str] = []
+    if request_example is None and response_example is None:
+        request_example = text[:2000]
+        warnings.append("未识别到 JSON 块，已将样例文本作为请求说明")
+
+    return ParseResult(
+        endpoints=[
+            Endpoint(
+                method=method,
+                path=path,
+                summary=summary,
+                description=text[:500],
+                request_body_example=request_example,
+                response_example=response_example,
+            )
+        ],
+        warnings=warnings,
+    )
+
+
 # ──────────────────────────── 入口 ────────────────────────────────
 
 
@@ -316,4 +477,6 @@ def parse_schema(source_type: str, content: str) -> ParseResult:
         return parse_postman(content)
     if source_type == "curl":
         return parse_curl(content)
+    if source_type == "sample":
+        return parse_sample(content)
     raise ValueError(f"不支持的 source_type: {source_type}")

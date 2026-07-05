@@ -64,6 +64,7 @@
             <a-select-option value="jira">Jira</a-select-option>
             <a-select-option value="zentao">{{ t('system_pages.bug_tracker.types.zentao') }}</a-select-option>
             <a-select-option value="github">GitHub Issues</a-select-option>
+            <a-select-option value="gitlab">GitLab Issues</a-select-option>
           </a-select>
         </a-form-item>
 
@@ -109,6 +110,18 @@
           </a-form-item>
           <a-form-item label="API Base URL">
             <a-input v-model:value="githubBaseUrl" placeholder="https://api.github.com" />
+          </a-form-item>
+        </template>
+
+        <template v-if="form.tracker_type === 'gitlab'">
+          <a-form-item label="Project ID / Path">
+            <a-input v-model:value="gitlabProjectId" placeholder="group/project 或 12345" />
+          </a-form-item>
+          <a-form-item label="Token">
+            <a-input-password v-model:value="gitlabToken" placeholder="GitLab Personal Access Token" />
+          </a-form-item>
+          <a-form-item label="Base URL">
+            <a-input v-model:value="gitlabBaseUrl" placeholder="https://gitlab.com" />
           </a-form-item>
         </template>
 
@@ -160,6 +173,9 @@ const githubOwner = ref('')
 const githubRepo = ref('')
 const githubToken = ref('')
 const githubBaseUrl = ref('https://api.github.com')
+const gitlabProjectId = ref('')
+const gitlabToken = ref('')
+const gitlabBaseUrl = ref('https://gitlab.com')
 const fieldMappingText = ref('{\n  "priority": "High",\n  "labels": ["automation", "atp"],\n  "components": ["QA"],\n  "custom_fields": {}\n}')
 
 const zentaoBaseUrl = ref('')
@@ -186,10 +202,10 @@ function getErrorMessage(error: unknown, fallback: string) {
 }
 
 function typeLabel(type: string) {
-  return { jira: 'Jira', zentao: t('system_pages.bug_tracker.types.zentao'), github: 'GitHub Issues' }[type] ?? type
+  return { jira: 'Jira', zentao: t('system_pages.bug_tracker.types.zentao'), github: 'GitHub Issues', gitlab: 'GitLab Issues' }[type] ?? type
 }
 function typeColor(type: string) {
-  return { jira: 'blue', zentao: 'green', github: 'black' }[type] ?? 'default'
+  return { jira: 'blue', zentao: 'green', github: 'black', gitlab: 'orange' }[type] ?? 'default'
 }
 
 onMounted(async () => {
@@ -220,6 +236,9 @@ function resetFields() {
   githubRepo.value = ''
   githubToken.value = ''
   githubBaseUrl.value = 'https://api.github.com'
+  gitlabProjectId.value = ''
+  gitlabToken.value = ''
+  gitlabBaseUrl.value = 'https://gitlab.com'
   fieldMappingText.value = '{\n  "priority": "High",\n  "labels": ["automation", "atp"],\n  "components": ["QA"],\n  "custom_fields": {}\n}'
   zentaoBaseUrl.value = ''
   zentaoAccount.value = ''
@@ -258,6 +277,10 @@ function openEdit(record: BugTrackerItem) {
     githubRepo.value = typeof cfg.repo === 'string' ? cfg.repo : ''
     githubToken.value = typeof cfg.token === 'string' ? cfg.token : ''
     githubBaseUrl.value = typeof cfg.base_url === 'string' ? cfg.base_url : 'https://api.github.com'
+  } else if (record.tracker_type === 'gitlab') {
+    gitlabProjectId.value = typeof cfg.project_id === 'string' ? cfg.project_id : ''
+    gitlabToken.value = typeof cfg.token === 'string' ? cfg.token : ''
+    gitlabBaseUrl.value = typeof cfg.base_url === 'string' ? cfg.base_url : 'https://gitlab.com'
   }
   formOpen.value = true
 }
@@ -283,6 +306,12 @@ function buildConfig(): Record<string, unknown> {
       owner: githubOwner.value,
       repo: githubRepo.value,
       token: githubToken.value,
+    }
+  } else if (form.value.tracker_type === 'gitlab') {
+    return {
+      base_url: gitlabBaseUrl.value || 'https://gitlab.com',
+      project_id: gitlabProjectId.value,
+      token: gitlabToken.value,
     }
   }
   return {}
@@ -310,6 +339,10 @@ function validateConfig() {
   } else if (form.value.tracker_type === 'github') {
     if (!githubOwner.value || !githubRepo.value || !githubToken.value) {
       throw new Error(t('system_pages.bug_tracker.msg.github_required'))
+    }
+  } else if (form.value.tracker_type === 'gitlab') {
+    if (!gitlabProjectId.value || !gitlabToken.value) {
+      throw new Error(t('system_pages.bug_tracker.msg.gitlab_required'))
     }
   }
   return config

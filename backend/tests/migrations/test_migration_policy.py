@@ -38,3 +38,34 @@ def test_helm_chart_has_preinstall_migration_job():
     assert "helm.sh/hook" in content
     assert "pre-install,pre-upgrade" in content
     assert 'command: ["alembic", "upgrade", "head"]' in content
+
+
+def test_migration_guidelines_document_enum_index_constraint_rules():
+    content = (ROOT / "docs" / "alembic-migration-guidelines.md").read_text(encoding="utf-8")
+
+    assert "Enum Changes" in content
+    assert "Index Changes" in content
+    assert "Constraint Changes" in content
+    assert "checkfirst=True" in content
+    assert "op.drop_index" in content
+    assert "op.drop_constraint" in content
+    assert "backend/tests/migrations/" in content
+
+
+def test_migration_template_covers_reversible_enum_index_and_constraints():
+    content = (ROOT / "backend" / "alembic" / "templates" / "migration_template.py").read_text(encoding="utf-8")
+
+    assert "sa.Enum(" in content
+    assert ".create(op.get_bind(), checkfirst=True)" in content
+    assert ".drop(op.get_bind(), checkfirst=True)" in content
+    assert "op.create_index(" in content
+    assert "op.drop_index(" in content
+    assert "sa.ForeignKeyConstraint" in content
+    assert "sa.UniqueConstraint" in content
+
+
+def test_migration_runbook_links_authoring_guidelines():
+    content = (ROOT / "docs" / "migrations.md").read_text(encoding="utf-8")
+
+    assert "alembic-migration-guidelines.md" in content
+    assert "migration_template.py" in content

@@ -21,19 +21,29 @@
 
     <template v-if="selectedProjectId">
       <a-row :gutter="[16, 16]" class="summary-row">
-        <a-col :xs="24" :sm="8">
+        <a-col :xs="24" :sm="6">
           <a-card>
             <a-statistic :title="t('case.stats.project')" :value="currentProjectName" />
           </a-card>
         </a-col>
-        <a-col :xs="12" :sm="8">
+        <a-col :xs="12" :sm="6">
           <a-card>
             <a-statistic :title="t('case.stats.module_count')" :value="moduleCount" />
           </a-card>
         </a-col>
-        <a-col :xs="12" :sm="8">
+        <a-col :xs="12" :sm="6">
           <a-card>
             <a-statistic :title="t('case.stats.visible_cases')" :value="filteredCases.length" />
+          </a-card>
+        </a-col>
+        <a-col :xs="12" :sm="6">
+          <a-card>
+            <a-statistic :title="t('case.stats.pending_reviews')" :value="pendingReviewCount" />
+          </a-card>
+        </a-col>
+        <a-col :xs="12" :sm="6">
+          <a-card>
+            <a-statistic :title="t('case.stats.flaky_cases')" :value="flakyCaseCount" />
           </a-card>
         </a-col>
       </a-row>
@@ -116,6 +126,18 @@
                 <a-button @click="handleSearch">{{ t('common.search') }}</a-button>
                 <a-button @click="handleResetFilters">{{ t('common.reset') }}</a-button>
               </a-space>
+              <div v-if="activeFilterTags.length" class="active-filter-row">
+                <span class="active-filter-label">{{ t('case.active_filters') }}</span>
+                <a-tag
+                  v-for="tag in activeFilterTags"
+                  :key="tag.key"
+                  closable
+                  @close.prevent="clearFilter(tag.key)"
+                >
+                  {{ tag.label }}
+                </a-tag>
+                <a-button size="small" type="link" @click="handleResetFilters">{{ t('case.clear_filters') }}</a-button>
+              </div>
               </div>
 
               <div class="toolbar-actions">
@@ -123,7 +145,7 @@
                 <a-tag color="blue">
                   {{ t('case.current_module', { name: selectedModuleId ? activeModuleName : t('common.all') }) }}
                 </a-tag>
-                <a-dropdown :disabled="!selectedModuleId">
+                <a-dropdown :disabled="!selectedModuleId || !canModifyCases">
                   <template #overlay>
                     <a-menu>
                       <a-menu-item key="api" @click="openCreate('api')">{{ t('case.types.api') }}</a-menu-item>
@@ -134,13 +156,15 @@
                       <a-menu-item key="android" @click="openCreate('android')">{{ t('case.types.android') }}</a-menu-item>
                     </a-menu>
                   </template>
-                  <a-button type="primary" :disabled="!selectedModuleId">
+                  <a-button type="primary" :disabled="!selectedModuleId || !canModifyCases">
                     <PlusOutlined /> {{ t('case.new_case') }} <DownOutlined />
                   </a-button>
                 </a-dropdown>
-                <a-button :disabled="!selectedModuleId" @click="aiDrawerOpen = true">
-                  <ThunderboltOutlined /> {{ t('case.ai_generate') }}
-                </a-button>
+                <a-tooltip :title="caseCreateDisabledTip">
+                  <a-button :disabled="!selectedModuleId || !canModifyCases" @click="aiDrawerOpen = true">
+                    <ThunderboltOutlined /> {{ t('case.ai_generate') }}
+                  </a-button>
+                </a-tooltip>
               </a-space>
               </div>
             </div>
@@ -150,7 +174,7 @@
             <BatchOperationBar :selected-count="selectedRowKeys.length" @cancel="selectedRowKeys = []">
               <a-button size="small" @click="handleBatchExport">{{ t('case.export_csv') }}</a-button>
               <a-button size="small" @click="handleBatchExportZip">{{ t('case.export_zip') }}</a-button>
-              <a-button size="small" @click="openBatchMove" :disabled="!selectedModuleId">
+              <a-button size="small" :disabled="!canModifyCases" @click="openBatchMove">
                 {{ t('case.batch_move') }}
               </a-button>
               <a-popconfirm
@@ -159,18 +183,23 @@
                 :cancel-text="t('common.cancel')"
                 @confirm="handleBatchDelete"
               >
-                <a-button size="small" danger>{{ t('case.batch_delete') }}</a-button>
+                <a-button size="small" danger :disabled="!canModifyCases">{{ t('case.batch_delete') }}</a-button>
               </a-popconfirm>
             </BatchOperationBar>
             <div class="batch-bar" style="margin-bottom: 12px">
               <span style="color: var(--c-text-tertiary)">{{ t('case.import_zip_label', { module: activeModuleName }) }}</span>
+              <a-button size="small" :disabled="!canModifyCases" @click="handleDownloadImportTemplate">
+                {{ t('case.import_template') }}
+              </a-button>
               <a-upload
                 :show-upload-list="false"
                 :before-upload="handleBatchImportBeforeUpload"
                 accept=".zip"
-                :disabled="!selectedModuleId"
+                :disabled="!selectedModuleId || !canModifyCases"
               >
-                <a-button size="small" :disabled="!selectedModuleId">{{ t('case.import_zip') }}</a-button>
+                <a-button size="small" :loading="importPreviewLoading" :disabled="!selectedModuleId || !canModifyCases">
+                  {{ t('case.import_zip') }}
+                </a-button>
               </a-upload>
             </div>
             <a-table
@@ -218,9 +247,19 @@
               </template>
 
               <template v-else-if="column.key === 'review_status'">
-                <a-tag :color="reviewStatusColor(record.review_status)">
-                  {{ reviewStatusLabel(record.review_status) }}
-                </a-tag>
+                <div class="review-cell">
+                  <a-tag :color="reviewStatusColor(record.review_status)">
+                    {{ reviewStatusLabel(record.review_status) }}
+                  </a-tag>
+                  <a-space v-if="record.review_status === 'pending'" size="small">
+                    <a-button type="link" size="small" :disabled="!canApproveCases" @click="handleWorkflow(record, 'approve')">
+                      {{ t('case.actions.approve') }}
+                    </a-button>
+                    <a-button type="link" size="small" danger :disabled="!canApproveCases" @click="handleWorkflow(record, 'reject')">
+                      {{ t('case.actions.reject') }}
+                    </a-button>
+                  </a-space>
+                </div>
               </template>
 
               <template v-else-if="column.key === 'status'">
@@ -233,6 +272,14 @@
                 </a-tag>
               </template>
 
+              <template v-else-if="column.key === 'stability'">
+                <a-tooltip :title="flakyTooltip(record)">
+                  <a-tag :color="record.flaky_stats?.is_flaky ? 'volcano' : 'green'">
+                    {{ record.flaky_stats?.is_flaky ? t('case.flaky.flaky') : t('case.flaky.stable') }}
+                  </a-tag>
+                </a-tooltip>
+              </template>
+
               <template v-else-if="column.key === 'updated_at'">
                 {{ formatDateTime(record.updated_at) }}
               </template>
@@ -240,13 +287,15 @@
               <template v-else-if="column.key === 'action'">
                 <a-space wrap size="small">
                   <a-button type="link" size="small" @click="openDetail(record.id)">{{ t('case.actions.detail') }}</a-button>
-                  <a-button type="link" size="small" @click="openEdit(record)">{{ t('case.actions.edit') }}</a-button>
-                  <a-tooltip :title="record.is_ready_for_execution ? t('case.actions.run') : t('case.msg.select_module_first')">
+                  <a-tooltip :title="canModifyCases ? t('case.actions.edit') : t('case.msg.read_only_role')">
+                    <a-button type="link" size="small" :disabled="!canModifyCases" @click="openEdit(record)">{{ t('case.actions.edit') }}</a-button>
+                  </a-tooltip>
+                  <a-tooltip :title="runDisabledTip(record)">
                     <a-button
                       type="link"
                       size="small"
                       :loading="runningId === record.id"
-                      :disabled="!record.is_ready_for_execution"
+                      :disabled="!record.is_ready_for_execution || !canRunCases"
                       @click="handleRun(record)"
                     >
                       {{ t('case.actions.run') }}
@@ -258,7 +307,7 @@
                     </a-button>
                     <template #overlay>
                       <a-menu>
-                        <a-menu-item key="copy" @click="handleCopy(record.id)">{{ t('case.actions.copy') }}</a-menu-item>
+                        <a-menu-item key="copy" :disabled="!canModifyCases" @click="handleCopy(record.id)">{{ t('case.actions.copy') }}</a-menu-item>
                         <a-menu-item key="history" @click="openHistory(record.id)">
                           <HistoryOutlined /> {{ t('case.actions.history') }}
                         </a-menu-item>
@@ -299,7 +348,7 @@
                           {{ t('case.actions.reactivate') }}
                         </a-menu-item>
                         <a-menu-divider />
-                        <a-menu-item key="delete" @click="confirmDelete(record)">{{ t('case.actions.delete') }}</a-menu-item>
+                        <a-menu-item key="delete" :disabled="!canModifyCases" @click="confirmDelete(record)">{{ t('case.actions.delete') }}</a-menu-item>
                       </a-menu>
                     </template>
                   </a-dropdown>
@@ -398,6 +447,48 @@
       @close="aiDrawerOpen = false"
       @saved="onSaved"
     />
+
+    <a-modal
+      v-model:open="importPreviewOpen"
+      :title="t('case.import_preview.title')"
+      :ok-text="t('case.import_preview.confirm')"
+      :cancel-text="t('common.cancel')"
+      :confirm-loading="importConfirming"
+      :ok-button-props="{ disabled: !importPreview?.valid_count }"
+      width="720px"
+      @ok="confirmBatchImport"
+    >
+      <template v-if="importPreview">
+        <a-alert
+          class="import-preview-alert"
+          :type="importPreview.invalid_count ? 'warning' : 'success'"
+          show-icon
+          :message="t('case.import_preview.summary', {
+            total: importPreview.total,
+            valid: importPreview.valid_count,
+            invalid: importPreview.invalid_count,
+          })"
+        />
+        <a-table
+          size="small"
+          :pagination="false"
+          :columns="importPreviewColumns"
+          :data-source="importPreview.preview_cases"
+          row-key="row"
+          :scroll="{ x: 620 }"
+        />
+        <div v-if="importPreview.errors.length" class="import-error-list">
+          <div class="import-error-title">{{ t('case.import_preview.errors') }}</div>
+          <a-alert
+            v-for="error in importPreview.errors.slice(0, 8)"
+            :key="error"
+            type="error"
+            show-icon
+            :message="error"
+          />
+        </div>
+      </template>
+    </a-modal>
   </div>
 </template>
 
@@ -427,9 +518,20 @@ import AndroidCaseDrawer from '@/views/case/AndroidCaseDrawer.vue'
 import CaseHistoryDrawer from '@/views/case/CaseHistoryDrawer.vue'
 import AIGenerateDrawer from '@/views/case/AIGenerateDrawer.vue'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
+import { canEditProjectAssets, hasAnyRole } from '@/utils/permissions'
+import { useAuthStore } from '@/stores/auth'
 
 type WorkflowAction = 'submitReview' | 'approve' | 'reject' | 'deprecate' | 'reactivate'
 type SelectOption = { label?: string; value?: number }
+type FilterKey = 'keyword' | 'type' | 'priority' | 'level' | 'status' | 'review_status' | 'automation_status'
+type FilterTag = { key: FilterKey; label: string }
+type ImportPreview = {
+  total: number
+  valid_count: number
+  invalid_count: number
+  preview_cases: Array<{ row: number; name: string; case_type: string; priority: string; step_count: number }>
+  errors: string[]
+}
 type ErrorLike = {
   message?: unknown
   response?: {
@@ -441,6 +543,7 @@ type ErrorLike = {
 
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 const { t } = useI18n()
 
 const caseTypeOptions = computed<Array<{ label: string; value: CaseType }>>(() => [
@@ -505,6 +608,11 @@ const batchMoveLoading = ref(false)
 const historyOpen = ref(false)
 const historyCaseId = ref<number | null>(null)
 const aiDrawerOpen = ref(false)
+const importPreviewOpen = ref(false)
+const importPreviewLoading = ref(false)
+const importConfirming = ref(false)
+const pendingImportFile = ref<File | null>(null)
+const importPreview = ref<ImportPreview | null>(null)
 
 const runModalOpen = ref(false)
 const runEnvId = ref<number | null>(null)
@@ -522,8 +630,17 @@ const columns = computed(() => [
   { title: t('case.columns.review_status'), key: 'review_status', width: 120 },
   { title: t('case.columns.lifecycle'), key: 'status', width: 120 },
   { title: t('case.columns.automation'), key: 'automation_status', width: 130 },
+  { title: t('case.columns.stability'), key: 'stability', width: 120 },
   { title: t('case.columns.updated_at'), key: 'updated_at', width: 180 },
   { title: t('case.columns.action'), key: 'action', width: 280, fixed: 'right' as const },
+])
+
+const importPreviewColumns = computed(() => [
+  { title: t('case.import_preview.columns.row'), dataIndex: 'row', key: 'row', width: 80 },
+  { title: t('case.import_preview.columns.name'), dataIndex: 'name', key: 'name', width: 260 },
+  { title: t('case.import_preview.columns.type'), dataIndex: 'case_type', key: 'case_type', width: 120 },
+  { title: t('case.import_preview.columns.priority'), dataIndex: 'priority', key: 'priority', width: 100 },
+  { title: t('case.import_preview.columns.steps'), dataIndex: 'step_count', key: 'step_count', width: 100 },
 ])
 
 const projectOptions = computed(() =>
@@ -544,10 +661,49 @@ const filteredCases = computed(() =>
   cases.value.filter((testCase) => !filterLevel.value || testCase.case_level === filterLevel.value),
 )
 
+const pendingReviewCount = computed(() =>
+  filteredCases.value.filter((testCase) => testCase.review_status === 'pending').length,
+)
+
+const flakyCaseCount = computed(() =>
+  filteredCases.value.filter((testCase) => testCase.flaky_stats?.is_flaky).length,
+)
+
+const canModifyCases = computed(() => canEditProjectAssets(auth.user?.role))
+const canApproveCases = computed(() => canEditProjectAssets(auth.user?.role))
+const canRunCases = computed(() => hasAnyRole(auth.user?.role, ['admin', 'engineer', 'tester']))
+const caseCreateDisabledTip = computed(() => {
+  if (!canModifyCases.value) return t('case.msg.read_only_role')
+  if (!selectedModuleId.value) return t('case.msg.select_module_first')
+  return t('case.new_case')
+})
+
+const activeFilterTags = computed<FilterTag[]>(() => {
+  const tags: FilterTag[] = []
+  const keywordText = keyword.value.trim()
+  if (keywordText) tags.push({ key: 'keyword', label: t('case.filter_tags.keyword', { value: keywordText }) })
+  if (filterType.value) tags.push({ key: 'type', label: t('case.filter_tags.type', { value: caseTypeLabel(filterType.value) }) })
+  if (filterPriority.value) tags.push({ key: 'priority', label: t('case.filter_tags.priority', { value: filterPriority.value }) })
+  if (filterLevel.value) tags.push({ key: 'level', label: t('case.filter_tags.level', { value: caseLevelLabel(filterLevel.value) }) })
+  if (filterStatus.value) tags.push({ key: 'status', label: t('case.filter_tags.status', { value: statusLabel(filterStatus.value) }) })
+  if (filterReviewStatus.value) {
+    tags.push({ key: 'review_status', label: t('case.filter_tags.review_status', { value: reviewStatusLabel(filterReviewStatus.value) }) })
+  }
+  if (filterAutomationStatus.value) {
+    tags.push({ key: 'automation_status', label: t('case.filter_tags.automation_status', { value: automationStatusLabel(filterAutomationStatus.value) }) })
+  }
+  return tags
+})
+
 function parsePositiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
+
+function parseReviewStatus(value: unknown): ReviewStatus | undefined {
+  const raw = Array.isArray(value) ? value[0] : value
+  return raw === 'pending' || raw === 'approved' || raw === 'rejected' ? raw : undefined
 }
 
 function flattenModules(nodes: ModuleTreeItem[], acc: Record<number, string> = {}) {
@@ -667,24 +823,40 @@ function automationStatusColor(status: AutomationStatus) {
   }[status]
 }
 
+function flakyTooltip(testCase: CaseSummaryItem) {
+  const stats = testCase.flaky_stats
+  if (!stats || stats.total_runs === 0) return t('case.flaky.no_runs')
+  return t('case.flaky.tooltip', {
+    total: stats.total_runs,
+    passed: stats.passed_runs,
+    failed: stats.failed_runs + stats.error_runs,
+    rate: stats.failure_rate,
+  })
+}
+
 function canSubmitReview(testCase: CaseSummaryItem) {
-  return testCase.status !== 'deprecated' && testCase.review_status !== 'pending'
+  return canModifyCases.value && testCase.status !== 'deprecated' && testCase.review_status !== 'pending'
 }
 
 function canApprove(testCase: CaseSummaryItem) {
-  return testCase.status !== 'deprecated' && testCase.review_status === 'pending'
+  return canApproveCases.value && testCase.status !== 'deprecated' && testCase.review_status === 'pending'
 }
 
 function canReject(testCase: CaseSummaryItem) {
-  return testCase.review_status === 'pending'
+  return canApproveCases.value && testCase.review_status === 'pending'
 }
 
 function canDeprecate(testCase: CaseSummaryItem) {
-  return testCase.status !== 'deprecated'
+  return canModifyCases.value && testCase.status !== 'deprecated'
 }
 
 function canReactivate(testCase: CaseSummaryItem) {
-  return testCase.status === 'deprecated' && testCase.review_status === 'approved'
+  return canModifyCases.value && testCase.status === 'deprecated' && testCase.review_status === 'approved'
+}
+
+function runDisabledTip(testCase: CaseSummaryItem) {
+  if (!canRunCases.value) return t('case.msg.read_only_role')
+  return testCase.is_ready_for_execution ? t('case.actions.run') : t('case.detail.run_disabled_tooltip')
 }
 
 async function loadProjects() {
@@ -749,10 +921,18 @@ function syncRoute() {
   if (selectedModuleId.value) {
     query.module_id = String(selectedModuleId.value)
   }
+  if (filterReviewStatus.value) {
+    query.review_status = filterReviewStatus.value
+  }
 
   const currentProjectId = parsePositiveInt(route.query.project_id) ?? parsePositiveInt(route.params.projectId)
   const currentModuleId = parsePositiveInt(route.query.module_id)
-  if (currentProjectId === selectedProjectId.value && currentModuleId === selectedModuleId.value) {
+  const currentReviewStatus = parseReviewStatus(route.query.review_status)
+  if (
+    currentProjectId === selectedProjectId.value
+    && currentModuleId === selectedModuleId.value
+    && currentReviewStatus === filterReviewStatus.value
+  ) {
     return
   }
 
@@ -762,11 +942,13 @@ function syncRoute() {
 async function applyRouteSelection(useDefaultProject = false) {
   const routeProjectId = parsePositiveInt(route.query.project_id) ?? parsePositiveInt(route.params.projectId)
   const routeModuleId = parsePositiveInt(route.query.module_id)
+  const routeReviewStatus = parseReviewStatus(route.query.review_status)
   const fallbackProjectId = useDefaultProject ? (projects.value[0]?.id ?? null) : selectedProjectId.value
   const nextProjectId = routeProjectId ?? fallbackProjectId
   const projectChanged = nextProjectId !== selectedProjectId.value
 
   selectedProjectId.value = nextProjectId
+  filterReviewStatus.value = routeReviewStatus
 
   if (projectChanged) {
     selectedModuleId.value = null
@@ -816,6 +998,18 @@ function handleSearch() {
   void loadCases()
 }
 
+function clearFilter(key: FilterKey) {
+  if (key === 'keyword') keyword.value = ''
+  if (key === 'type') filterType.value = undefined
+  if (key === 'priority') filterPriority.value = undefined
+  if (key === 'level') filterLevel.value = undefined
+  if (key === 'status') filterStatus.value = undefined
+  if (key === 'review_status') filterReviewStatus.value = undefined
+  if (key === 'automation_status') filterAutomationStatus.value = undefined
+  void loadCases()
+  syncRoute()
+}
+
 function handleResetFilters() {
   keyword.value = ''
   filterType.value = undefined
@@ -825,9 +1019,14 @@ function handleResetFilters() {
   filterReviewStatus.value = undefined
   filterAutomationStatus.value = undefined
   void loadCases()
+  syncRoute()
 }
 
 function openCreate(type: CaseType) {
+  if (!canModifyCases.value) {
+    message.warning(t('case.msg.read_only_role'))
+    return
+  }
   if (!selectedModuleId.value) {
     message.warning(t('case.msg.select_module_first'))
     return
@@ -847,6 +1046,10 @@ function openCreate(type: CaseType) {
 }
 
 function openEdit(testCase: CaseSummaryItem) {
+  if (!canModifyCases.value) {
+    message.warning(t('case.msg.read_only_role'))
+    return
+  }
   if (testCase.case_type === 'web') {
     webEditingCase.value = testCase
     webDrawerOpen.value = true
@@ -875,6 +1078,10 @@ function onSaved() {
 }
 
 async function handleRun(testCase: CaseSummaryItem) {
+  if (!canRunCases.value) {
+    message.warning(t('case.msg.read_only_role'))
+    return
+  }
   if (!selectedProjectId.value) {
     return
   }
@@ -920,6 +1127,10 @@ async function confirmRun() {
 }
 
 async function handleCopy(caseId: number) {
+  if (!canModifyCases.value) {
+    message.warning(t('case.msg.read_only_role'))
+    return
+  }
   try {
     const copied = await caseApi.copy(caseId)
     message.success(t('case.msg.copied', { code: copied.case_code }))
@@ -931,6 +1142,10 @@ async function handleCopy(caseId: number) {
 }
 
 async function handleWorkflow(testCase: CaseSummaryItem, action: WorkflowAction) {
+  if (!canModifyCases.value) {
+    message.warning(t('case.msg.read_only_role'))
+    return
+  }
   try {
     switch (action) {
       case 'submitReview':
@@ -961,6 +1176,10 @@ async function handleWorkflow(testCase: CaseSummaryItem, action: WorkflowAction)
 }
 
 function confirmDelete(testCase: CaseSummaryItem) {
+  if (!canModifyCases.value) {
+    message.warning(t('case.msg.read_only_role'))
+    return
+  }
   Modal.confirm({
     title: t('case.msg.delete_title', { name: testCase.name }),
     content: t('case.msg.delete_content'),
@@ -976,6 +1195,10 @@ function confirmDelete(testCase: CaseSummaryItem) {
 }
 
 async function handleBatchDelete() {
+  if (!canModifyCases.value) {
+    message.warning(t('case.msg.read_only_role'))
+    return
+  }
   if (!selectedRowKeys.value.length) return
   try {
     const result = await caseApi.batchDelete(selectedRowKeys.value)
@@ -1023,28 +1246,79 @@ async function handleBatchExportZip() {
   }
 }
 
+async function handleDownloadImportTemplate() {
+  if (!canModifyCases.value) {
+    message.warning(t('case.msg.read_only_role'))
+    return
+  }
+  try {
+    const blob = await caseApi.downloadImportTemplate()
+    const url = window.URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'case-import-template.zip'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
+    window.URL.revokeObjectURL(url)
+    message.success(t('case.msg.template_downloaded'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.msg.template_download_failed')))
+  }
+}
+
 function handleBatchImportBeforeUpload(file: File) {
+  if (!canModifyCases.value) {
+    message.warning(t('case.msg.read_only_role'))
+    return false
+  }
   if (!selectedModuleId.value) {
     message.warning(t('case.msg.select_target_module_first'))
     return false
   }
   ;(async () => {
+    importPreviewLoading.value = true
     try {
-      const result = await caseApi.batchImportZip(file, selectedModuleId.value as number)
-      if (result.errors.length) {
-        message.warning(t('case.msg.import_done_with_skips', { imported: result.imported, skipped: result.skipped_count }))
-      } else {
-        message.success(t('case.msg.import_success', { imported: result.imported }))
-      }
-      await loadCases()
+      importPreview.value = await caseApi.previewImportZip(file)
+      pendingImportFile.value = file
+      importPreviewOpen.value = true
     } catch (e: unknown) {
-      message.error(errorMessage(e, t('case.msg.import_failed')))
+      message.error(errorMessage(e, t('case.msg.import_preview_failed')))
+    } finally {
+      importPreviewLoading.value = false
     }
   })()
   return false
 }
 
+async function confirmBatchImport() {
+  if (!pendingImportFile.value || !selectedModuleId.value) {
+    return
+  }
+  importConfirming.value = true
+  try {
+    const result = await caseApi.batchImportZip(pendingImportFile.value, selectedModuleId.value)
+    if (result.errors.length) {
+      message.warning(t('case.msg.import_done_with_skips', { imported: result.imported, skipped: result.skipped_count }))
+    } else {
+      message.success(t('case.msg.import_success', { imported: result.imported }))
+    }
+    importPreviewOpen.value = false
+    pendingImportFile.value = null
+    importPreview.value = null
+    await loadCases()
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.msg.import_failed')))
+  } finally {
+    importConfirming.value = false
+  }
+}
+
 function openBatchMove() {
+  if (!canModifyCases.value) {
+    message.warning(t('case.msg.read_only_role'))
+    return
+  }
   if (!selectedRowKeys.value.length) return
   batchMoveTargetId.value = null
   batchMoveOpen.value = true
@@ -1079,7 +1353,7 @@ function handleHistoryRolled() {
 }
 
 watch(
-  () => [route.params.projectId, route.query.project_id, route.query.module_id].join('|'),
+  () => [route.params.projectId, route.query.project_id, route.query.module_id, route.query.review_status].join('|'),
   () => {
     void applyRouteSelection(false)
   },
@@ -1189,6 +1463,19 @@ onMounted(async () => {
   justify-content: flex-end;
 }
 
+.active-filter-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+  flex-wrap: wrap;
+}
+
+.active-filter-label {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+
 .case-name-cell {
   display: flex;
   flex-direction: column;
@@ -1211,9 +1498,38 @@ onMounted(async () => {
   flex-wrap: wrap;
 }
 
+.review-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  align-items: flex-start;
+}
+
+.review-cell :deep(.ant-btn-link) {
+  height: auto;
+  padding: 0;
+  font-size: 12px;
+}
+
 .run-tip {
   margin-bottom: 12px;
   color: var(--c-text-secondary);
+}
+
+.import-preview-alert {
+  margin-bottom: 12px;
+}
+
+.import-error-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.import-error-title {
+  color: var(--c-text-secondary);
+  font-size: 12px;
 }
 
 @media (max-width: 960px) {
@@ -1233,5 +1549,40 @@ onMounted(async () => {
     margin-left: 0;
   }
 }
-</style>
 
+@media (max-width: 640px) {
+  .page-header :deep(.ant-space),
+  .toolbar-main :deep(.ant-space),
+  .toolbar-actions :deep(.ant-space) {
+    width: 100%;
+  }
+
+  .page-header :deep(.ant-space-item),
+  .toolbar-main :deep(.ant-space-item),
+  .toolbar-actions :deep(.ant-space-item) {
+    max-width: 100%;
+  }
+
+  .page-header :deep(.ant-select),
+  .page-header :deep(.ant-btn),
+  .toolbar-main :deep(.ant-input-search),
+  .toolbar-main :deep(.ant-select),
+  .toolbar-main :deep(.ant-btn),
+  .toolbar-actions :deep(.ant-dropdown-trigger),
+  .toolbar-actions :deep(.ant-btn) {
+    width: 100% !important;
+  }
+
+  .side-panel {
+    max-height: 320px;
+  }
+
+  .summary-row :deep(.ant-statistic-content) {
+    font-size: 20px;
+  }
+
+  .table-card {
+    overflow: hidden;
+  }
+}
+</style>

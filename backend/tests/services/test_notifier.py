@@ -96,6 +96,42 @@ def test_send_notifications_dispatches_by_channel(monkeypatch):
     assert calls[0][3] is None  # html_body 默认未启用
 
 
+def test_should_send_notification_filters_by_status_and_suite_scope():
+    config = {"scope": "suites", "suite_ids": [3, "5"], "status_filters": ["failed", "error"]}
+
+    assert notifier.should_send_notification(config, {**_summary(), "entity_type": "suite", "suite_id": 3})
+    assert notifier.should_send_notification(config, {**_summary(), "entity_type": "suite", "suite_id": "5"})
+    assert not notifier.should_send_notification(config, {**_summary(), "status": "passed", "entity_type": "suite", "suite_id": 3})
+    assert not notifier.should_send_notification(config, {**_summary(), "entity_type": "plan", "plan_id": 3})
+    assert not notifier.should_send_notification(config, {**_summary(), "entity_type": "suite", "suite_id": 8})
+
+
+def test_send_notifications_skips_configs_outside_strategy(monkeypatch):
+    calls = []
+
+    async def fake_email(config, summary, html_body=None):
+        calls.append((config["recipients"], summary["suite_id"]))
+
+    monkeypatch.setattr(notifier, "_send_email", fake_email)
+
+    configs = [
+        SimpleNamespace(
+            id=1,
+            channel=NotifyChannel.email,
+            config={"recipients": ["suite-1@test.com"], "scope": "suites", "suite_ids": [1], "status_filters": ["failed"]},
+        ),
+        SimpleNamespace(
+            id=2,
+            channel=NotifyChannel.email,
+            config={"recipients": ["suite-2@test.com"], "scope": "suites", "suite_ids": [2], "status_filters": ["failed"]},
+        ),
+    ]
+
+    asyncio.run(notifier.send_notifications(_FakeDB(configs), 9, {**_summary(), "entity_type": "suite", "suite_id": 1}))
+
+    assert calls == [(["suite-1@test.com"], 1)]
+
+
 def test_wechat_sender_raises_when_provider_rejects(monkeypatch):
     class _Response:
         status_code = 200

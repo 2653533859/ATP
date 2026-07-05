@@ -10,6 +10,11 @@ from typing import Any
 
 from app.core.encryption import decrypt
 from app.models.ai_llm_config import AILLMConfig
+from app.services.ai_governance import (
+    check_and_incr_daily_limit,
+    llm_extra_params,
+    resolve_system_prompt,
+)
 from app.services.ai_case.llm_client import LLMRequest, call_llm
 from app.services.ai_case.prompts import (
     SYSTEM_PROMPT,
@@ -83,6 +88,9 @@ async def generate_case_drafts(
     except Exception as exc:  # noqa: BLE001
         raise ValueError("API Key 解密失败，请重新录入") from exc
 
+    if not await check_and_incr_daily_limit(config=config, capability="ai_case_generation"):
+        raise ValueError("AI 用例生成已达今日调用上限")
+
     user_prompt = build_user_prompt(
         endpoints=endpoints,
         user_requirement=user_requirement,
@@ -98,8 +106,8 @@ async def generate_case_drafts(
         model_name=config.model_name,
         prompt=user_prompt,
         endpoint=config.endpoint,
-        system_prompt=SYSTEM_PROMPT,
-        extra_params=config.default_params or None,
+        system_prompt=resolve_system_prompt(config, "ai_case_generation", SYSTEM_PROMPT),
+        extra_params=llm_extra_params(config),
     )
     response = await call_llm(request)
 

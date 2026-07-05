@@ -257,7 +257,67 @@
         @expand="onRunExpand"
       >
         <template #expandedRowRender="{ record }">
-          <div class="auto-bugs-panel">
+          <div class="aggregate-report-panel auto-bugs-panel">
+            <div class="aggregate-report-title">{{ t('plan.report.title') }}</div>
+            <div class="aggregate-report-grid">
+              <div class="aggregate-report-card">
+                <div class="aggregate-report-label">{{ t('plan.report.pass_rate') }}</div>
+                <div class="aggregate-report-value">{{ formatPercent(getPlanRunPassRate(record)) }}</div>
+              </div>
+              <div class="aggregate-report-card">
+                <div class="aggregate-report-label">{{ t('plan.report.failures') }}</div>
+                <div class="aggregate-report-value danger">{{ getPlanRunFailureCount(record) }}</div>
+              </div>
+              <div class="aggregate-report-card">
+                <div class="aggregate-report-label">{{ t('plan.report.duration') }}</div>
+                <div class="aggregate-report-value">{{ formatDuration(record.duration_ms) }}</div>
+              </div>
+              <div class="aggregate-report-card">
+                <div class="aggregate-report-label">{{ t('plan.report.related_suites') }}</div>
+                <div class="aggregate-report-value">{{ record.suite_run_ids?.length ?? 0 }}</div>
+              </div>
+            </div>
+            <div class="aggregate-report-section">
+              <div class="aggregate-report-subtitle">{{ t('plan.report.failure_top') }}</div>
+              <a-empty v-if="!getPlanRunFailureItems(record).length" :description="t('plan.report.no_failures')" :image="false" />
+              <a-list v-else size="small" :data-source="getPlanRunFailureItems(record).slice(0, 5)">
+                <template #renderItem="{ item }">
+                  <a-list-item>
+                    <a-space direction="vertical" :size="2" style="width: 100%">
+                      <span>
+                        <a-tag :color="String(item.status) === 'failed' ? 'red' : 'orange'">{{ item.status }}</a-tag>
+                        {{ getSuiteRunReportName(item) }}
+                      </span>
+                      <span class="aggregate-report-reason">{{ getSuiteRunReportReason(item) }}</span>
+                    </a-space>
+                  </a-list-item>
+                </template>
+              </a-list>
+            </div>
+            <div class="aggregate-report-section">
+              <div class="aggregate-report-subtitle">{{ t('plan.report.suite_details') }}</div>
+              <a-table
+                :columns="planRunSuiteColumns"
+                :data-source="record.suite_run_ids"
+                row-key="suite_run_id"
+                size="small"
+                :pagination="false"
+                :scroll="{ x: 520 }"
+              >
+                <template #bodyCell="{ column, record: suiteRun }">
+                  <template v-if="column.key === 'status'">
+                    <a-tag :color="String(suiteRun.status) === 'passed' ? 'green' : String(suiteRun.status) === 'failed' ? 'red' : String(suiteRun.status) === 'error' ? 'orange' : 'default'">{{ suiteRun.status }}</a-tag>
+                  </template>
+                  <template v-if="column.key === 'suite_run_id'">
+                    <span>{{ suiteRun.suite_run_id ?? '-' }}</span>
+                  </template>
+                  <template v-if="column.key === 'reason'">
+                    <span class="aggregate-report-reason">{{ getSuiteRunReportReason(suiteRun) }}</span>
+                  </template>
+                </template>
+              </a-table>
+            </div>
+            <div class="aggregate-report-section">
             <template v-if="record.result_summary?.auto_bugs_error">
               <a-alert type="error" show-icon :message="record.result_summary.auto_bugs_error" />
             </template>
@@ -287,6 +347,7 @@
             <template v-else>
               <a-empty :description="t('plan.auto_bugs.empty')" :image="false" />
             </template>
+            </div>
           </div>
         </template>
         <template #bodyCell="{ column, record }">
@@ -307,7 +368,7 @@
             <span v-else style="color: var(--c-text-tertiary)">-</span>
           </template>
           <template v-if="column.key === 'duration_ms'">
-            {{ record.duration_ms ? (record.duration_ms / 1000).toFixed(1) + 's' : '-' }}
+            {{ formatDuration(record.duration_ms) }}
           </template>
           <template v-if="column.key === 'export'">
             <a-space>
@@ -611,6 +672,13 @@ const autoBugColumns = computed(() => [
   { title: t('plan.auto_bugs.col_attachment'), key: 'attachment_uploaded', width: 100 },
 ])
 
+const planRunSuiteColumns = computed(() => [
+  { title: t('plan.report.columns.suite_id'), dataIndex: 'suite_id', key: 'suite_id', width: 100 },
+  { title: t('plan.report.columns.suite_run_id'), key: 'suite_run_id', width: 120 },
+  { title: t('plan.report.columns.status'), key: 'status', width: 100 },
+  { title: t('plan.report.columns.reason'), key: 'reason', width: 220 },
+])
+
 function scheduleLabel(type: string) {
   const key = `plan.schedule_types.${type}`
   const translated = t(key)
@@ -621,6 +689,52 @@ function scheduleColor(t: string) {
 }
 function runStatusColor(s: string) {
   return { pending: 'default', running: 'processing', passed: 'success', failed: 'error', error: 'warning' }[s] ?? 'default'
+}
+
+function formatDuration(duration?: number | null) {
+  if (duration == null) return '-'
+  if (duration < 1000) return `${duration} ms`
+  return `${(duration / 1000).toFixed(1)}s`
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 10) / 10}%`
+}
+
+function getPlanRunTotalCount(run: PlanRunItem) {
+  const summaryTotal = Number(run.result_summary?.total)
+  if (Number.isFinite(summaryTotal) && summaryTotal > 0) {
+    return summaryTotal
+  }
+  return run.suite_run_ids?.length ?? 0
+}
+
+function getPlanRunPassedCount(run: PlanRunItem) {
+  const passed = Number(run.result_summary?.passed ?? 0)
+  return Number.isFinite(passed) ? passed : 0
+}
+
+function getPlanRunFailureCount(run: PlanRunItem) {
+  const failed = Number(run.result_summary?.failed ?? 0)
+  const error = Number(run.result_summary?.error ?? 0)
+  return (Number.isFinite(failed) ? failed : 0) + (Number.isFinite(error) ? error : 0)
+}
+
+function getPlanRunPassRate(run: PlanRunItem) {
+  const total = getPlanRunTotalCount(run)
+  return total ? (getPlanRunPassedCount(run) / total) * 100 : 0
+}
+
+function getPlanRunFailureItems(run: PlanRunItem) {
+  return (run.suite_run_ids ?? []).filter((item) => item.status === 'failed' || item.status === 'error')
+}
+
+function getSuiteRunReportName(item: Record<string, unknown>) {
+  return String(item.suite_name || t('plan.report.suite_fallback', { id: item.suite_id ?? '-' }))
+}
+
+function getSuiteRunReportReason(item: Record<string, unknown>) {
+  return String(item.error_message || item.error || item.reason || t('plan.report.no_reason'))
 }
 
 function resetCronEditor(expression?: string | null) {

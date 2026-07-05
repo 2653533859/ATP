@@ -91,6 +91,8 @@ async def send_notifications(
     for cfg in configs:
         try:
             real_config = decrypt_config(cfg.config)
+            if not should_send_notification(real_config, summary):
+                continue
             if cfg.channel == NotifyChannel.email:
                 email_html = report_html if real_config.get("attach_html_report") else None
                 await _send_email(real_config, summary, html_body=email_html)
@@ -130,6 +132,48 @@ def _normalize_language(language: str | None) -> str:
 
 def _labels(language: str | None) -> dict:
     return LABELS[_normalize_language(language)]
+
+
+def _to_int_set(value) -> set[int]:
+    if not isinstance(value, list):
+        return set()
+    result: set[int] = set()
+    for item in value:
+        try:
+            result.add(int(item))
+        except (TypeError, ValueError):
+            continue
+    return result
+
+
+def _to_str_set(value) -> set[str]:
+    if not isinstance(value, list):
+        return set()
+    return {str(item) for item in value if item is not None}
+
+
+def should_send_notification(config: dict, summary: dict) -> bool:
+    """Return whether a channel config matches this execution summary."""
+    status_filters = _to_str_set(config.get("status_filters"))
+    if status_filters and str(summary.get("status")) not in status_filters:
+        return False
+
+    scope = config.get("scope", "all")
+    entity_type = summary.get("entity_type")
+
+    if scope == "suites":
+        if entity_type != "suite":
+            return False
+        suite_ids = _to_int_set(config.get("suite_ids"))
+        return not suite_ids or int(summary.get("suite_id") or 0) in suite_ids
+
+    if scope == "plans":
+        if entity_type != "plan":
+            return False
+        plan_ids = _to_int_set(config.get("plan_ids"))
+        return not plan_ids or int(summary.get("plan_id") or 0) in plan_ids
+
+    return True
 
 
 def _localized_value(labels: dict, group: str, value: str | None) -> str:

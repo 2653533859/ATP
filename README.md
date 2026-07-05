@@ -178,6 +178,71 @@ docker compose -f docker-compose.app.yml up --build -d
 
 说明见：`docs/external-infra-run.md`
 
+## 本地开发
+
+### 推荐路径：Docker Compose 一键启动
+
+```bash
+cp .env.example .env
+make dev
+```
+
+等价命令：
+
+```bash
+docker compose up --build
+```
+
+如果本机使用旧版 Compose，也可以运行 `docker-compose up --build`。`Makefile` 会自动探测 `docker compose` / `docker-compose`；必要时可用 `make COMPOSE="docker compose" dev` 覆盖。
+
+启动后常用入口：
+
+- 平台入口：`http://localhost`
+- Flower：`http://localhost:5555`
+- MinIO Console：`http://localhost:9001`
+- Jaeger UI：`http://localhost:16686`
+
+### 本地直跑：基础设施走 Docker，应用进程本机启动
+
+```bash
+cp .env.example .env
+make infra-up
+make migrate
+```
+
+然后分别启动后端、Worker、Beat 和前端：
+
+```bash
+make backend
+make worker
+make beat
+make frontend
+```
+
+本地直跑入口：
+
+- 后端 API：`http://localhost:8000`
+- 前端开发服务：`http://localhost:5173`
+- MinIO Console：`http://localhost:9001`
+
+停止基础设施：
+
+```bash
+make infra-down
+```
+
+### 环境变量校准
+
+`.env.example` 覆盖后端、前端、Worker、PostgreSQL、Redis、MinIO、ADB、AI 自愈、性能压测、清理任务、备份和 OTel/Jaeger 的常用变量。首次启动前至少修改：
+
+- `APP_SECRET_KEY`
+- `POSTGRES_PASSWORD`
+- `MINIO_ROOT_PASSWORD`
+- `FIRST_ADMIN_PASSWORD`
+- `WEBHOOK_API_KEY`
+
+生产或共享环境不要使用示例密码。
+
 ## 常用开发命令
 
 ### 前端
@@ -202,8 +267,22 @@ uvicorn app.main:app --reload
 ### 测试
 
 ```bash
-python -m pytest backend/tests -q
+make test-backend
+make test-frontend-build
 ```
+
+更多测试命令：
+
+| 场景 | 命令 | 说明 |
+| --- | --- | --- |
+| 后端单元 / 契约回归 | `make test-backend` | 跳过真实基础设施 integration 测试 |
+| 前端类型检查 + 构建 | `make test-frontend-build` | 等价于 `npm run type-check && npm run build` |
+| 前端 E2E | `make test-frontend-e2e` | 使用 Playwright，按 `frontend/playwright.config.ts` 启动 mock dev server |
+| 集成测试 | `make test-integration` | 需要真实 PostgreSQL / Redis / MinIO，并设置 `ATP_INTEGRATION_TESTS=1` |
+| 数据库迁移 | `make migrate` | 从当前库执行 `alembic upgrade head` |
+| Release readiness | GitHub Actions 手动触发 `Release readiness` | 构建 backend / worker / frontend 镜像，并检查 worker 内置 k6 |
+
+如本机 Python 命令不是 `python3`，可以用 `make PYTHON=/path/to/python ...` 覆盖；如 Compose 命令不同，可以用 `make COMPOSE="docker compose" ...` 覆盖。
 
 ## 文档
 
@@ -211,6 +290,7 @@ python -m pytest backend/tests -q
 - 产品需求与整体范围：`PRD.md`
 - 平台详细操作手册：`docs/user-operation-manual.md`
 - CI/CD 集成说明：`docs/cicd-integration.md`
+- GitHub Actions 工作流说明：`docs/ci-workflows.md`
 - Windows 本地运行说明：`docs/windows-local-run.md`
 - Android 真机联调说明：`docs/android-device-debugging.md`
 - iOS 设备自动化扩展规划：`docs/ios-device-automation-plan.md`
@@ -221,10 +301,13 @@ python -m pytest backend/tests -q
 
 仓库已配置 GitHub Actions（`.github/workflows/ci.yml`），在 `push` 到 `main` 与 `pull_request` 时并行执行：
 
+- **空库迁移校验**：从干净 PostgreSQL 16 执行 `alembic upgrade head`，防止迁移链断裂
 - **后端 pytest**：以 Postgres 16 + Redis 7 为 service container 运行 `backend/tests` 全量回归
 - **前端 type-check + build**：`vue-tsc --noEmit` 与 `vite build` 双重保障类型与产物
 
 同一分支的旧 CI 会自动取消，避免连续推送时的资源浪费。
+
+Nightly / 手动工作流还包括 integration、E2E 与 release readiness；触发方式、依赖服务和排查建议见 `docs/ci-workflows.md`。
 
 ## 说明
 

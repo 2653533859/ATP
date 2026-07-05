@@ -18,13 +18,22 @@
         <a-radio value="openapi">OpenAPI</a-radio>
         <a-radio value="postman">Postman Collection</a-radio>
         <a-radio value="curl">{{ t('case.ai.curl_command') }}</a-radio>
+        <a-radio value="sample">{{ t('case.ai.interface_sample') }}</a-radio>
+        <a-radio value="natural">{{ t('case.ai.natural_language') }}</a-radio>
       </a-radio-group>
+      <a-alert
+        v-if="sourceType === 'natural'"
+        type="info"
+        :message="t('case.ai.natural_hint')"
+        style="margin-bottom: 8px"
+      />
       <a-textarea
+        v-else
         v-model:value="schemaText"
         :rows="6"
         :placeholder="placeholderForType"
       />
-      <div style="margin-top: 8px; display: flex; gap: 8px; align-items: center">
+      <div v-if="sourceType !== 'natural'" style="margin-top: 8px; display: flex; gap: 8px; align-items: center">
         <a-button :loading="parsing" :disabled="!schemaText.trim()" @click="handleParse">
           {{ t('case.ai.parse') }}
         </a-button>
@@ -250,6 +259,8 @@ import {
   type SchemaSourceType,
 } from '@/api'
 
+type GenerationSourceType = SchemaSourceType | 'natural'
+
 const props = defineProps<{
   open: boolean
   projectId: number | null
@@ -263,7 +274,7 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 
-const sourceType = ref<SchemaSourceType>('openapi')
+const sourceType = ref<GenerationSourceType>('openapi')
 const schemaText = ref('')
 const parsing = ref(false)
 const parsedEndpoints = ref<(AIEndpointSummary & { rowKey: string })[]>([])
@@ -327,6 +338,10 @@ const placeholderForType = computed(() => {
       return t('case.ai.placeholders.postman')
     case 'curl':
       return t('case.ai.placeholders.curl')
+    case 'sample':
+      return t('case.ai.placeholders.sample')
+    case 'natural':
+      return t('case.ai.requirement_placeholder')
     default:
       return ''
   }
@@ -387,6 +402,7 @@ function methodColor(method: string) {
 }
 
 async function handleParse() {
+  if (sourceType.value === 'natural') return
   parsing.value = true
   parseWarnings.value = []
   try {
@@ -580,6 +596,18 @@ async function handleSaveSelected() {
     emit('close')
   }
 }
+
+watch(
+  sourceType,
+  (value) => {
+    if (value === 'natural') {
+      clearParsed()
+      parseWarnings.value = []
+      return
+    }
+    resetGeneration()
+  },
+)
 
 watch(
   () => props.open,

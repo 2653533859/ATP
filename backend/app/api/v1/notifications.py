@@ -20,6 +20,7 @@ from app.schemas.notification import (
 )
 from app.api.deps import assert_project_access, require_engineer
 from app.models.user_project import ProjectRole
+from app.services.audit import write_audit_log
 
 from app.core.encryption import SENSITIVE_KEYS, mask_config, encrypt_config, decrypt_config
 
@@ -47,6 +48,17 @@ async def create_notification(
     db.add(cfg)
     await db.commit()
     await db.refresh(cfg)
+    await write_audit_log(
+        db,
+        action="notification_config_create",
+        resource_type="notification_config",
+        resource_id=cfg.id,
+        user_id=getattr(user, "id", None),
+        username=getattr(user, "username", ""),
+        project_id=cfg.project_id,
+        detail=f"创建通知配置: {cfg.name} ({cfg.channel.value})",
+    )
+    await db.commit()
     return cfg
 
 
@@ -108,6 +120,17 @@ async def update_notification(
         setattr(cfg, k, v)
     await db.commit()
     await db.refresh(cfg)
+    await write_audit_log(
+        db,
+        action="notification_config_update",
+        resource_type="notification_config",
+        resource_id=cfg.id,
+        user_id=getattr(user, "id", None),
+        username=getattr(user, "username", ""),
+        project_id=cfg.project_id,
+        detail=f"更新通知配置: {cfg.name}",
+    )
+    await db.commit()
     return cfg
 
 
@@ -121,7 +144,19 @@ async def delete_notification(
     if not cfg:
         raise HTTPException(status_code=404, detail="通知配置不存在")
     await assert_project_access(db, user, cfg.project_id, ProjectRole.owner)
+    project_id = cfg.project_id
+    cfg_name = cfg.name
     await db.delete(cfg)
+    await write_audit_log(
+        db,
+        action="notification_config_delete",
+        resource_type="notification_config",
+        resource_id=cfg_id,
+        user_id=getattr(user, "id", None),
+        username=getattr(user, "username", ""),
+        project_id=project_id,
+        detail=f"删除通知配置: {cfg_name}",
+    )
     await db.commit()
 
 

@@ -26,6 +26,8 @@ const { t } = useI18n()
 .batch-bar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
   gap: 12px;
   padding: 8px 12px;
   margin-bottom: 12px;
@@ -37,5 +39,18 @@ const { t } = useI18n()
 .batch-bar-count {
   color: #1890ff;
   font-weight: 500;
+}
+
+@media (max-width: 640px) {
+  .batch-bar {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .batch-bar :deep(.ant-space) {
+    width: 100%;
+    row-gap: 8px;
+    flex-wrap: wrap;
+  }
 }
 </style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="page-shell" style="display: flex; flex-direction: column; height: 100%">
+  <div class="page-shell system-page">
     <div class="page-hero">
       <div>
         <h2 class="page-title">{{ t('system_pages.ai_llm.title') }}</h2>
@@ -9,6 +9,7 @@
     </div>
 
     <a-spin :spinning="loading">
+      <a-card class="table-panel" :bordered="false">
       <a-table
         :data-source="configs"
         :columns="columns"
@@ -47,6 +48,7 @@
           </template>
         </template>
       </a-table>
+      </a-card>
     </a-spin>
 
     <a-modal

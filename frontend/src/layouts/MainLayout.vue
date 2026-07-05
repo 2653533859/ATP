@@ -44,11 +44,11 @@
           <ClockCircleOutlined />
           <span>{{ t('menu.plans') }}</span>
         </a-menu-item>
-        <a-menu-item key="/devices">
+        <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/devices">
           <MobileOutlined />
           <span>{{ t('menu.devices') }}</span>
         </a-menu-item>
-        <a-menu-item key="/apks">
+        <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/apks">
           <AndroidOutlined />
           <span>{{ t('menu.apks') }}</span>
         </a-menu-item>
@@ -66,18 +66,18 @@
           <template #icon><SettingOutlined /></template>
           <template #title>{{ t('menu.system.title') }}</template>
           <a-menu-item key="/system/environments">{{ t('menu.system.environments') }}</a-menu-item>
-          <a-menu-item key="/system/notifications">{{ t('menu.system.notifications') }}</a-menu-item>
-          <a-menu-item key="/system/bug-trackers">{{ t('menu.system.bug_trackers') }}</a-menu-item>
-          <a-menu-item key="/system/storage">{{ t('menu.system.storage') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/notifications">{{ t('menu.system.notifications') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/bug-trackers">{{ t('menu.system.bug_trackers') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/storage">{{ t('menu.system.storage') }}</a-menu-item>
           <a-menu-item key="/system/global-variables">{{ t('menu.system.global_variables') }}</a-menu-item>
-          <a-menu-item key="/system/ai-llm-configs">{{ t('menu.system.ai_llm_configs') }}</a-menu-item>
-          <a-menu-item v-if="auth.user?.role === 'admin'" key="/system/healing-examples">AI 自愈示例</a-menu-item>
-          <a-menu-item v-if="auth.user?.role === 'admin'" key="/system/ai-healing-stats">AI 自愈报表</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/ai-llm-configs">{{ t('menu.system.ai_llm_configs') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/healing-examples">AI 自愈示例</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/ai-healing-stats">AI 自愈报表</a-menu-item>
           <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
           <a-menu-item key="/system/performance">{{ t('menu.system.performance') }}</a-menu-item>
-          <a-menu-item v-if="auth.user?.role === 'admin'" key="/system/audit-logs">{{ t('menu.system.audit_logs') }}</a-menu-item>
-          <a-menu-item v-if="auth.user?.role === 'admin'" key="/system/run-retention">{{ t('menu.system.run_retention') }}</a-menu-item>
-          <a-menu-item v-if="auth.user?.role === 'admin'" key="/system/dashboard-alerts">{{ t('menu.system.dashboard_alerts') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/audit-logs">{{ t('menu.system.audit_logs') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/run-retention">{{ t('menu.system.run_retention') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/dashboard-alerts">{{ t('menu.system.dashboard_alerts') }}</a-menu-item>
         </a-sub-menu>
       </a-menu>
     </a-layout-sider>
@@ -135,7 +135,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -160,6 +160,7 @@ import {
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import { getLocale, setLocale, type SupportedLocale } from '@/locales'
+import { hasAnyRole, type UserRole } from '@/utils/permissions'
 
 const router = useRouter()
 const route = useRoute()
@@ -172,9 +173,19 @@ const selectedKeys = ref([route.path])
 
 watch(() => route.path, (path) => { selectedKeys.value = [path] })
 
+onMounted(() => {
+  if (window.matchMedia('(max-width: 768px)').matches) {
+    collapsed.value = true
+  }
+})
+
 const isDark = computed(() => themeStore.mode === 'dark')
 const siderTheme = computed<'light' | 'dark'>(() => (themeStore.mode === 'dark' ? 'dark' : 'light'))
 const userInitial = computed(() => (auth.user?.username?.[0] ?? '?').toUpperCase())
+
+function canAccess(roles: UserRole[]) {
+  return hasAnyRole(auth.user?.role, roles)
+}
 
 const routeTitleKey = computed(() => {
   const p = route.path
@@ -336,5 +347,60 @@ function onLocaleChange(value: SupportedLocale) {
   box-shadow: var(--shadow-sm);
   padding: 24px;
   min-height: calc(100vh - 100px);
+}
+
+@media (max-width: 768px) {
+  .app-layout,
+  .app-layout :deep(.ant-layout) {
+    min-width: 0;
+  }
+
+  .app-sider {
+    position: fixed;
+    inset: 0 auto 0 0;
+    z-index: 20;
+    height: 100vh;
+    box-shadow: var(--shadow-lg);
+  }
+
+  .app-sider.ant-layout-sider-collapsed {
+    transform: translateX(-100%);
+    min-width: 232px !important;
+    width: 232px !important;
+    flex: 0 0 232px !important;
+  }
+
+  .app-header {
+    height: auto;
+    min-height: 56px;
+    padding: 10px 12px;
+    gap: 8px;
+  }
+
+  .header-title {
+    max-width: 42vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .header-right {
+    min-width: 0;
+  }
+
+  .user-name,
+  .user-caret {
+    display: none;
+  }
+
+  .app-content {
+    padding: 12px;
+  }
+
+  .content-card {
+    padding: 14px;
+    border-radius: var(--radius-md);
+    min-height: calc(100vh - 80px);
+  }
 }
 </style>

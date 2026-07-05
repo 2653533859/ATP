@@ -1,11 +1,16 @@
 <template>
-  <div class="page-shell dashboard-alert-page">
-    <div>
-      <h2 class="page-title">{{ t('system_pages.dashboard_alert.title') }}</h2>
-      <div class="page-subtitle">{{ t('system_pages.dashboard_alert.subtitle') }}</div>
+  <div class="page-shell system-page dashboard-alert-page">
+    <div class="page-hero">
+      <div>
+        <h2 class="page-title">{{ t('system_pages.dashboard_alert.title') }}</h2>
+        <div class="page-subtitle">{{ t('system_pages.dashboard_alert.subtitle') }}</div>
+      </div>
+      <a-button type="primary" :disabled="!projectId" @click="openCreate">
+        <PlusOutlined /> {{ t('system_pages.dashboard_alert.create') }}
+      </a-button>
     </div>
 
-    <div class="toolbar">
+    <div class="page-toolbar">
       <a-space>
         <a-select
           v-model:value="projectId"
@@ -19,53 +24,52 @@
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
       </a-space>
-      <a-button type="primary" :disabled="!projectId" @click="openCreate">
-        <PlusOutlined /> {{ t('system_pages.dashboard_alert.create') }}
-      </a-button>
     </div>
 
-    <a-table
-      :columns="columns"
-      :data-source="rules"
-      :loading="loading"
-      row-key="id"
-      size="middle"
-      :pagination="{ pageSize: 20 }"
-      :locale="{ emptyText: t('system_pages.dashboard_alert.empty_rules') }"
-    >
-      <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'metric'">
-          <a-tag color="blue">{{ metricLabel(record.metric) }}</a-tag>
+    <a-card class="table-panel" :bordered="false">
+      <a-table
+        :columns="columns"
+        :data-source="rules"
+        :loading="loading"
+        row-key="id"
+        size="middle"
+        :pagination="{ pageSize: 20 }"
+        :locale="{ emptyText: t('system_pages.dashboard_alert.empty_rules') }"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'metric'">
+            <a-tag color="blue">{{ metricLabel(record.metric) }}</a-tag>
+          </template>
+          <template v-if="column.key === 'condition'">
+            {{ operatorLabel(record.op) }} {{ record.threshold }}
+          </template>
+          <template v-if="column.key === 'window'">
+            {{ record.window_minutes }} / {{ record.suppress_minutes }}
+          </template>
+          <template v-if="column.key === 'notification'">
+            {{ notificationName(record.notification_config_id) }}
+          </template>
+          <template v-if="column.key === 'enabled'">
+            <a-tag :color="record.enabled ? 'green' : 'default'">
+              {{ record.enabled ? t('common.enabled') : t('common.disabled') }}
+            </a-tag>
+          </template>
+          <template v-if="column.key === 'action'">
+            <a-space>
+              <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+              <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
+                <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
+              </a-popconfirm>
+            </a-space>
+          </template>
         </template>
-        <template v-if="column.key === 'condition'">
-          {{ operatorLabel(record.op) }} {{ record.threshold }}
-        </template>
-        <template v-if="column.key === 'window'">
-          {{ record.window_minutes }} / {{ record.suppress_minutes }}
-        </template>
-        <template v-if="column.key === 'notification'">
-          {{ notificationName(record.notification_config_id) }}
-        </template>
-        <template v-if="column.key === 'enabled'">
-          <a-tag :color="record.enabled ? 'green' : 'default'">
-            {{ record.enabled ? t('common.enabled') : t('common.disabled') }}
-          </a-tag>
-        </template>
-        <template v-if="column.key === 'action'">
-          <a-space>
-            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
-            <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
-              <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
-            </a-popconfirm>
-          </a-space>
-        </template>
-      </template>
-    </a-table>
+      </a-table>
+    </a-card>
 
     <a-card
+      class="page-panel"
       :title="t('system_pages.dashboard_alert.recent_events')"
       :bordered="false"
-      style="margin-top: 16px"
     >
       <a-table
         :columns="eventColumns"
@@ -397,16 +401,3 @@ onMounted(async () => {
   await loadProjects()
 })
 </script>
-
-<style scoped>
-.dashboard-alert-page {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.toolbar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-</style>

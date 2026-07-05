@@ -11,18 +11,89 @@ import json
 
 import app.api.v1.cases as _cases
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
-from app.models.case import CaseStatus, TestCase
+from app.models.case import CaseStatus, RunStatus, TestCase, TestRun
 from app.models.project import Module
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.schemas.case import TestCaseCreate, TestCaseDetailOut, TestCaseOut, TestCaseUpdate
 
 router = APIRouter(tags=["用例管理"])
+
+FLAKY_WINDOW_SIZE = 10
+FLAKY_MIN_RUNS = 4
+FLAKY_TERMINAL_STATUSES = (RunStatus.passed, RunStatus.failed, RunStatus.error)
+
+
+def _empty_flaky_stats() -> dict:
+    return {
+        "is_flaky": False,
+        "total_runs": 0,
+        "passed_runs": 0,
+        "failed_runs": 0,
+        "error_runs": 0,
+        "failure_rate": 0.0,
+        "window_size": FLAKY_WINDOW_SIZE,
+    }
+
+
+async def _attach_flaky_stats(db: AsyncSession, cases: list[TestCase]) -> None:
+    case_ids = [case.id for case in cases]
+    if not case_ids:
+        return
+
+    ranked = (
+        select(
+            TestRun.case_id.label("case_id"),
+            TestRun.status.label("status"),
+            func.row_number()
+            .over(
+                partition_by=TestRun.case_id,
+                order_by=(TestRun.created_at.desc(), TestRun.id.desc()),
+            )
+            .label("rn"),
+        )
+        .where(
+            TestRun.case_id.in_(case_ids),
+            TestRun.status.in_(FLAKY_TERMINAL_STATUSES),
+            TestRun.parent_run_id.is_(None),
+        )
+        .subquery()
+    )
+    rows = (
+        await db.execute(
+            select(ranked.c.case_id, ranked.c.status)
+            .where(ranked.c.rn <= FLAKY_WINDOW_SIZE)
+        )
+    ).all()
+
+    stats_by_case = {case_id: _empty_flaky_stats() for case_id in case_ids}
+    for row in rows:
+        stats = stats_by_case[row.case_id]
+        stats["total_runs"] += 1
+        status = row.status.value if hasattr(row.status, "value") else str(row.status)
+        if status == "passed":
+            stats["passed_runs"] += 1
+        elif status == "failed":
+            stats["failed_runs"] += 1
+        elif status == "error":
+            stats["error_runs"] += 1
+
+    for case in cases:
+        stats = stats_by_case.get(case.id, _empty_flaky_stats())
+        failure_runs = stats["failed_runs"] + stats["error_runs"]
+        if stats["total_runs"]:
+            stats["failure_rate"] = round(failure_runs / stats["total_runs"] * 100, 1)
+        stats["is_flaky"] = (
+            stats["total_runs"] >= FLAKY_MIN_RUNS
+            and stats["passed_runs"] > 0
+            and failure_runs > 0
+        )
+        setattr(case, "flaky_stats", stats)
 
 
 @router.get("/cases", response_model=list[TestCaseOut])
@@ -76,6 +147,7 @@ async def list_cases(
     items = result.scalars().all()
     if tag:
         items = [case for case in items if tag in (case.tags or [])]
+    await _attach_flaky_stats(db, items)
     return items
 
 
@@ -150,6 +222,7 @@ async def get_case(case_id: int, db: AsyncSession = Depends(get_db), user=Depend
     module = await db.get(Module, case.module_id)
     if module:
         await assert_project_access(db, user, module.project_id, ProjectRole.viewer)
+    await _attach_flaky_stats(db, [case])
     return case
 
 

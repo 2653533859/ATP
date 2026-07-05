@@ -350,8 +350,45 @@
         @expand="onSuiteRunExpand"
       >
         <template #expandedRowRender="{ record }">
-          <div class="suite-run-cases-panel">
+          <div class="aggregate-report-panel suite-run-cases-panel">
+            <div class="aggregate-report-title">{{ t('suite.report.title') }}</div>
+            <div class="aggregate-report-grid">
+              <div class="aggregate-report-card">
+                <div class="aggregate-report-label">{{ t('suite.report.pass_rate') }}</div>
+                <div class="aggregate-report-value">{{ formatPercent(getSuiteRunPassRate(record)) }}</div>
+              </div>
+              <div class="aggregate-report-card">
+                <div class="aggregate-report-label">{{ t('suite.report.failures') }}</div>
+                <div class="aggregate-report-value danger">{{ getSuiteRunFailureCount(record) }}</div>
+              </div>
+              <div class="aggregate-report-card">
+                <div class="aggregate-report-label">{{ t('suite.report.duration') }}</div>
+                <div class="aggregate-report-value">{{ formatDuration(record.duration_ms) }}</div>
+              </div>
+              <div class="aggregate-report-card">
+                <div class="aggregate-report-label">{{ t('suite.report.related_cases') }}</div>
+                <div class="aggregate-report-value">{{ record.case_run_ids?.length ?? 0 }}</div>
+              </div>
+            </div>
+            <div class="aggregate-report-section">
+              <div class="aggregate-report-subtitle">{{ t('suite.report.failure_top') }}</div>
+              <a-empty v-if="!getSuiteRunFailureItems(record).length" :description="t('suite.report.no_failures')" :image="false" />
+              <a-list v-else size="small" :data-source="getSuiteRunFailureItems(record).slice(0, 5)">
+                <template #renderItem="{ item }">
+                  <a-list-item>
+                    <a-space direction="vertical" :size="2" style="width: 100%">
+                      <span>
+                        <a-tag :color="item.status === 'failed' ? 'red' : 'orange'">{{ item.status }}</a-tag>
+                        {{ item.case_name || t('suite.report.case_fallback', { id: item.case_id }) }}
+                      </span>
+                      <span class="aggregate-report-reason">{{ item.error || t('suite.report.no_reason') }}</span>
+                    </a-space>
+                  </a-list-item>
+                </template>
+              </a-list>
+            </div>
             <template v-if="record.case_run_ids?.length">
+              <div class="aggregate-report-subtitle">{{ t('suite.report.case_details') }}</div>
               <a-table
                 :columns="suiteRunCaseColumns"
                 :data-source="record.case_run_ids"
@@ -362,6 +399,12 @@
                 <template #bodyCell="{ column, record: caseRun }">
                   <template v-if="column.key === 'status'">
                     <a-tag :color="caseRun.status === 'passed' ? 'green' : caseRun.status === 'failed' ? 'red' : caseRun.status === 'error' ? 'orange' : 'default'">{{ caseRun.status }}</a-tag>
+                  </template>
+                  <template v-if="column.key === 'stability'">
+                    <a-tag v-if="caseRun.flaky" color="volcano">
+                      {{ t('suite.report.flaky_case') }}
+                    </a-tag>
+                    <span v-else style="color: var(--c-text-tertiary)">-</span>
                   </template>
                   <template v-if="column.key === 'run_id'">
                     <a v-if="caseRun.run_id" @click="goToRunDetail(caseRun.run_id)">{{ caseRun.run_id }}</a>
@@ -419,7 +462,7 @@
             <span v-else style="color: var(--c-text-tertiary)">-</span>
           </template>
           <template v-if="column.key === 'duration'">
-            {{ record.duration_ms ? (record.duration_ms / 1000).toFixed(1) + 's' : '-' }}
+            {{ formatDuration(record.duration_ms) }}
           </template>
           <template v-if="column.key === 'created'">
             {{ formatTime(record.created_at) }}
@@ -590,6 +633,7 @@ const suiteRunCaseColumns = computed(() => [
   { title: t('suite.case_columns.case_id'), dataIndex: 'case_id', key: 'case_id', width: 90 },
   { title: t('suite.case_columns.case_name'), dataIndex: 'case_name', key: 'case_name', ellipsis: true },
   { title: t('suite.case_columns.status'), key: 'status', width: 100 },
+  { title: t('suite.case_columns.stability'), key: 'stability', width: 100 },
   { title: t('suite.case_columns.run_id'), key: 'run_id', width: 100 },
 ])
 
@@ -922,12 +966,42 @@ function runStatusBadge(s: string) {
   return { pending: 'default', running: 'processing', passed: 'success', failed: 'error', error: 'warning' }[s] ?? 'default'
 }
 
+function formatDuration(duration?: number | null) {
+  if (duration == null) return '-'
+  if (duration < 1000) return `${duration} ms`
+  return `${(duration / 1000).toFixed(1)}s`
+}
+
+function formatPercent(value: number) {
+  return `${Math.round(value * 10) / 10}%`
+}
+
 function getSuiteRunTotalCount(run: SuiteRunItem) {
   const summaryTotal = Number(run.result_summary?.total)
   if (Number.isFinite(summaryTotal) && summaryTotal > 0) {
     return summaryTotal
   }
   return run.case_run_ids?.length ?? 0
+}
+
+function getSuiteRunPassedCount(run: SuiteRunItem) {
+  const passed = Number(run.result_summary?.passed ?? 0)
+  return Number.isFinite(passed) ? passed : 0
+}
+
+function getSuiteRunFailureCount(run: SuiteRunItem) {
+  const failed = Number(run.result_summary?.failed ?? 0)
+  const error = Number(run.result_summary?.error ?? 0)
+  return (Number.isFinite(failed) ? failed : 0) + (Number.isFinite(error) ? error : 0)
+}
+
+function getSuiteRunPassRate(run: SuiteRunItem) {
+  const total = getSuiteRunTotalCount(run)
+  return total ? (getSuiteRunPassedCount(run) / total) * 100 : 0
+}
+
+function getSuiteRunFailureItems(run: SuiteRunItem) {
+  return (run.case_run_ids ?? []).filter((item) => item.status === 'failed' || item.status === 'error')
 }
 
 function getSuiteRunCompletedCount(run: SuiteRunItem) {

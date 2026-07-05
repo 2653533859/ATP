@@ -1,9 +1,9 @@
 <template>
-  <div style="display: flex; flex-direction: column; gap: 16px">
-    <div style="display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap">
+  <div class="page-shell system-page storage-page">
+    <div class="page-hero">
       <div>
-        <h2 style="margin: 0">{{ t('system_pages.storage.title') }}</h2>
-        <div style="color: #999; margin-top: 4px">{{ t('system_pages.storage.subtitle') }}</div>
+        <h2 class="page-title">{{ t('system_pages.storage.title') }}</h2>
+        <div class="page-subtitle">{{ t('system_pages.storage.subtitle') }}</div>
       </div>
       <a-space wrap>
         <a-input-number
@@ -18,7 +18,7 @@
       </a-space>
     </div>
 
-    <a-card :title="t('system_pages.storage.policy_title')" :loading="policiesLoading">
+    <a-card class="page-panel" :title="t('system_pages.storage.policy_title')" :loading="policiesLoading">
       <template #extra>
         <a-button type="primary" size="small" @click="openCreatePolicy">{{ t('system_pages.storage.new_policy') }}</a-button>
       </template>
@@ -49,7 +49,7 @@
 
     <a-row :gutter="16">
       <a-col :xs="24" :md="8">
-        <a-card :loading="statsLoading" :title="t('system_pages.storage.bucket_overview')">
+        <a-card class="page-panel" :loading="statsLoading" :title="t('system_pages.storage.bucket_overview')">
           <a-descriptions :column="1" size="small">
             <a-descriptions-item label="Bucket">{{ stats?.bucket || '-' }}</a-descriptions-item>
             <a-descriptions-item :label="t('system_pages.storage.total_objects')">{{ stats?.total_object_count ?? 0 }}</a-descriptions-item>
@@ -58,7 +58,7 @@
         </a-card>
       </a-col>
       <a-col :xs="24" :md="16">
-        <a-card :title="t('system_pages.storage.prefix_stats')" :loading="statsLoading">
+        <a-card class="page-panel" :title="t('system_pages.storage.prefix_stats')" :loading="statsLoading">
           <a-table
             :data-source="stats?.prefixes || []"
             :pagination="false"
@@ -76,7 +76,7 @@
       </a-col>
     </a-row>
 
-    <a-card :title="t('system_pages.storage.cleanup_scope')">
+    <a-card class="page-panel" :title="t('system_pages.storage.cleanup_scope')">
       <a-space wrap>
         <a-checkbox-group v-model:value="selectedPrefixes" :options="prefixOptions" />
       </a-space>
@@ -84,7 +84,7 @@
 
     <a-row :gutter="16">
       <a-col :xs="24" :md="8">
-        <a-card :title="t('system_pages.storage.preview_summary')" :loading="previewLoading">
+        <a-card class="page-panel" :title="t('system_pages.storage.preview_summary')" :loading="previewLoading">
           <a-descriptions :column="1" size="small">
             <a-descriptions-item :label="t('system_pages.storage.scanned_objects')">{{ preview?.scanned_object_count ?? 0 }}</a-descriptions-item>
             <a-descriptions-item :label="t('system_pages.storage.expired_objects')">{{ preview?.expired_object_count ?? 0 }}</a-descriptions-item>
@@ -110,7 +110,7 @@
         </a-card>
       </a-col>
       <a-col :xs="24" :md="16">
-        <a-card :title="t('system_pages.storage.deletable_objects')" :loading="previewLoading">
+        <a-card class="page-panel" :title="t('system_pages.storage.deletable_objects')" :loading="previewLoading">
           <a-table
             :data-source="preview?.deletable_objects || []"
             :pagination="{ pageSize: 10 }"
@@ -128,7 +128,7 @@
       </a-col>
     </a-row>
 
-    <a-card :title="t('system_pages.storage.blocked_objects')" :loading="previewLoading">
+    <a-card class="page-panel" :title="t('system_pages.storage.blocked_objects')" :loading="previewLoading">
       <a-table
         :data-source="preview?.blocked_objects || []"
         :pagination="{ pageSize: 10 }"
@@ -144,7 +144,7 @@
       </a-table>
     </a-card>
 
-    <a-card :title="t('system_pages.storage.orphan_references')" :loading="previewLoading">
+    <a-card class="page-panel" :title="t('system_pages.storage.orphan_references')" :loading="previewLoading">
       <a-table
         :data-source="preview?.orphan_references || []"
         :pagination="{ pageSize: 10 }"
@@ -162,7 +162,7 @@
       </a-table>
     </a-card>
 
-    <a-card v-if="result" :title="t('system_pages.storage.latest_result')">
+    <a-card v-if="result" class="page-panel" :title="t('system_pages.storage.latest_result')">
       <a-descriptions :column="2" size="small">
         <a-descriptions-item :label="t('system_pages.storage.requested_count')">{{ result.requested_count }}</a-descriptions-item>
         <a-descriptions-item :label="t('system_pages.storage.deleted_count')">{{ result.deleted_count }}</a-descriptions-item>

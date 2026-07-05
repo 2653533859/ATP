@@ -58,6 +58,14 @@ class CreateBugRequest(BaseModel):
     override_product_id: str | None = None  # 禅道多产品场景，覆盖默认 product_id（可填 product_map key 或直接 id）
 
 
+class LinkBugRequest(BaseModel):
+    tracker_id: int
+    bug_id: str
+    bug_url: str | None = None
+    title: str | None = None
+    status: str | None = None
+
+
 class BugResultOut(BaseModel):
     bug_id: str
     bug_url: str
