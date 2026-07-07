@@ -10,6 +10,7 @@ Android 性能测试执行器
   6. 上传 CSV 原始数据到 MinIO
   7. 更新 MobileSpecialRun（status=completed/failed，summary_json，duration_ms）
 """
+
 import asyncio
 import csv
 import io
@@ -171,11 +172,15 @@ async def run_mobile_special_perf(
         run.finished_at = datetime.now()
         run.summary_json = {"error_message": "; ".join(validation_errors)}
         await db.commit()
-        await _safe_publish(run.id, {
-            "type": "completed", "run_id": run.id,
-            "status": RunStatus.failed.value,
-            "summary": run.summary_json,
-        })
+        await _safe_publish(
+            run.id,
+            {
+                "type": "completed",
+                "run_id": run.id,
+                "status": RunStatus.failed.value,
+                "summary": run.summary_json,
+            },
+        )
         return
 
     # 2. 校验设备
@@ -187,26 +192,33 @@ async def run_mobile_special_perf(
         run.finished_at = datetime.now()
         run.summary_json = {"error_message": f"设备不可达: {device_message}"}
         await db.commit()
-        await _safe_publish(run.id, {
-            "type": "completed", "run_id": run.id,
-            "status": RunStatus.failed.value,
-            "summary": run.summary_json,
-        })
+        await _safe_publish(
+            run.id,
+            {
+                "type": "completed",
+                "run_id": run.id,
+                "status": RunStatus.failed.value,
+                "summary": run.summary_json,
+            },
+        )
         return
 
     run.started_at = datetime.now()
     run.status = RunStatus.running
     await db.commit()
 
-    await _safe_publish(run.id, {
-        "type": "started", "run_id": run.id, "device_serial": device_serial,
-    })
+    await _safe_publish(
+        run.id,
+        {
+            "type": "started",
+            "run_id": run.id,
+            "device_serial": device_serial,
+        },
+    )
 
     # 3. 启动 App（可选）
     if config.get("auto_start", True):
-        await asyncio.get_event_loop().run_in_executor(
-            None, _start_app, device_serial, app_package
-        )
+        await asyncio.get_event_loop().run_in_executor(None, _start_app, device_serial, app_package)
         # 等待应用完全启动
         await asyncio.sleep(3)
 
@@ -221,7 +233,9 @@ async def run_mobile_special_perf(
         device_lost_at = time.monotonic() - start_time
         logger.warning(
             "perf run %s: device %s lost during sampling (%s)",
-            run.id, device_serial, reason,
+            run.id,
+            device_serial,
+            reason,
         )
 
     try:
@@ -233,11 +247,15 @@ async def run_mobile_special_perf(
                 all_samples.extend(samples)
                 sample_count += 1
 
-                await _safe_publish(run.id, {
-                    "type": "sampling", "run_id": run.id,
-                    "sample_count": sample_count,
-                    "samples": len(samples),
-                })
+                await _safe_publish(
+                    run.id,
+                    {
+                        "type": "sampling",
+                        "run_id": run.id,
+                        "sample_count": sample_count,
+                        "samples": len(samples),
+                    },
+                )
 
                 await asyncio.sleep(interval_seconds)
     except Exception as e:
@@ -269,12 +287,14 @@ async def run_mobile_special_perf(
         writer = csv.DictWriter(csv_buffer, fieldnames=["sample_time", "metric_type", "metric_value", "source"])
         writer.writeheader()
         for s in all_samples:
-            writer.writerow({
-                "sample_time": s.get("sample_time", "").isoformat() if s.get("sample_time") else "",
-                "metric_type": s.get("metric_type", ""),
-                "metric_value": s.get("metric_value", ""),
-                "source": s.get("source", ""),
-            })
+            writer.writerow(
+                {
+                    "sample_time": s.get("sample_time", "").isoformat() if s.get("sample_time") else "",
+                    "metric_type": s.get("metric_type", ""),
+                    "metric_value": s.get("metric_value", ""),
+                    "source": s.get("source", ""),
+                }
+            )
         csv_content = csv_buffer.getvalue().encode("utf-8")
 
         artifact_name = f"mobile-special/runs/{run.id}/metrics.csv"
@@ -301,9 +321,13 @@ async def run_mobile_special_perf(
     run.summary_json = summary
     await db.commit()
 
-    await _safe_publish(run.id, {
-        "type": "completed", "run_id": run.id,
-        "status": RunStatus.completed.value,
-        "duration_ms": total_ms,
-        "summary": summary,
-    })
+    await _safe_publish(
+        run.id,
+        {
+            "type": "completed",
+            "run_id": run.id,
+            "status": RunStatus.completed.value,
+            "duration_ms": total_ms,
+            "summary": summary,
+        },
+    )

@@ -8,6 +8,7 @@
 实现方式：调用 `scripts/backup-postgres.sh`（容器内安装 pg_dump + mc 即可），失败抛出异常由 Celery 重试。
 若运维侧未启用（DB_BACKUP_ENABLED=False），任务直接 noop 返回。
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,6 +19,7 @@ from pathlib import Path
 
 try:
     from celery.utils.log import get_task_logger
+
     logger = get_task_logger(__name__)
 except Exception:  # 测试环境未装 celery 时退化为标准 logger
     logger = logging.getLogger(__name__)

@@ -1,8 +1,9 @@
 """AI 用例生成端点。
 
-  - POST /ai/cases/parse-schema  解析 OpenAPI/Postman/cURL → 接口清单
-  - POST /ai/cases/generate      根据接口 + 需求生成用例草稿（前端二次编辑后保存）
+- POST /ai/cases/parse-schema  解析 OpenAPI/Postman/cURL → 接口清单
+- POST /ai/cases/generate      根据接口 + 需求生成用例草稿（前端二次编辑后保存）
 """
+
 from __future__ import annotations
 
 import json
@@ -98,9 +99,7 @@ async def generate_cases_endpoint(
     if not config.enabled:
         raise HTTPException(status_code=400, detail="AI 配置已禁用")
 
-    endpoints_payload = [
-        e.model_dump() if hasattr(e, "model_dump") else dict(e) for e in body.endpoints
-    ]
+    endpoints_payload = [e.model_dump() if hasattr(e, "model_dump") else dict(e) for e in body.endpoints]
 
     try:
         result = await generate_case_drafts(

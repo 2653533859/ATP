@@ -2,7 +2,63 @@
 testpaths = ["backend/tests"]
 markers = [
     "integration: 集成测试，需要真实 postgres/redis/minio（ATP_INTEGRATION_TESTS=1 跳过 conftest stub）",
+    "flaky: 已确认存在环境/时序抖动的测试；必须在 docs/flaky-governance.md 记录原因、证据与退出条件",
 ]
 filterwarnings = [
     "ignore::DeprecationWarning",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 120
+extend-exclude = [
+    "backend/alembic/versions",
+]
+
+[tool.ruff.lint]
+# Q10 Phase 1 starts with a narrow but high-signal gate. Broader E/I/UP/B/SIM
+# rules and format checks are tracked in docs/code-quality.md for later rollout.
+select = ["F821", "F822", "F823"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+line-ending = "auto"
+
+[tool.coverage.run]
+branch = true
+source = ["backend/app"]
+omit = [
+    "backend/alembic/*",
+    "backend/tests/*",
+]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+]
+
+[tool.coverage.xml]
+output = "coverage.xml"
+
+[tool.mypy]
+python_version = "3.12"
+ignore_missing_imports = true
+follow_imports = "silent"
+warn_unused_configs = true
+show_error_codes = true
+files = [
+    "backend/app/core",
+    "backend/app/schemas",
+    "backend/app/services",
+]
+
+[tool.bandit]
+exclude_dirs = [
+    "backend/tests",
+    "backend/alembic",
 ]

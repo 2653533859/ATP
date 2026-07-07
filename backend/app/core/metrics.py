@@ -3,6 +3,7 @@
 设计目标：本地缺少 `prometheus_client` 或 `prometheus_fastapi_instrumentator`
 依赖时所有 metric 调用变 no-op，不破坏既有测试与运行路径。
 """
+
 from __future__ import annotations
 
 import logging
@@ -15,9 +16,9 @@ try:
 
     _PROMETHEUS_AVAILABLE = True
 except ImportError:
-    Counter = None  # type: ignore[assignment]
-    Gauge = None  # type: ignore[assignment]
-    Histogram = None  # type: ignore[assignment]
+    Counter = None  # type: ignore[assignment,misc]
+    Gauge = None  # type: ignore[assignment,misc]
+    Histogram = None  # type: ignore[assignment,misc]
     _PROMETHEUS_AVAILABLE = False
 
 
@@ -63,11 +64,14 @@ def _gauge(name: str, doc: str, labelnames: tuple[str, ...] = ()) -> Any:
 STATS_CACHE = _counter("atp_stats_cache_total", "Statistics cache outcomes", ("result",))
 SLOW_QUERY = _counter("atp_slow_queries_total", "SQL queries exceeding the slow threshold")
 CELERY_TIMEOUT = _counter("atp_celery_timeouts_total", "Celery task timeouts by kind", ("kind",))
-RUN_RETENTION_DELETED = _counter(
-    "atp_run_retention_deleted_total", "Old runs deleted by retention task", ("model",)
-)
+RUN_RETENTION_DELETED = _counter("atp_run_retention_deleted_total", "Old runs deleted by retention task", ("model",))
 STORAGE_TOTAL_BYTES = _gauge("atp_storage_total_bytes", "MinIO bucket total bytes", ("bucket",))
 STORAGE_TOTAL_OBJECTS = _gauge("atp_storage_total_objects", "MinIO bucket total object count", ("bucket",))
+RUN_OUTCOMES = _counter(
+    "atp_run_outcomes_total",
+    "Terminal test run outcomes by entity type and status",
+    ("entity_type", "status"),
+)
 
 # Q7 A.3.2 — ADB 自愈可观测性
 # result: success | failure | not_tcp_serial | adb_not_found

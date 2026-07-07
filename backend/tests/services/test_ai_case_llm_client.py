@@ -1,4 +1,5 @@
 """Tests for app.services.ai_case.llm_client + prompts."""
+
 import asyncio
 import sys
 from pathlib import Path

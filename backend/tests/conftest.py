@@ -17,6 +17,7 @@ P2.1 收口对象：
 P2.3 集成测试模式：ATP_INTEGRATION_TESTS=1 时跳过所有 stub，让 backend/tests/integration/
 的用例拿到真 redis/minio/db 客户端。fixtures 在 backend/tests/integration/conftest.py 提供。
 """
+
 import os
 import sys
 import types

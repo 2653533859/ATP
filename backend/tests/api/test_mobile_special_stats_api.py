@@ -1,4 +1,5 @@
 """Tests for mobile special statistics and export schemas."""
+
 import asyncio
 import sys
 import types
@@ -8,10 +9,16 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
+
+
 async def _fake_get_json(*a, **kw):
     return None
+
+
 async def _fake_set_json(*a, **kw):
     return None
+
+
 sys.modules["app.core.redis_client"] = types.SimpleNamespace(
     get_json_cache=_fake_get_json,
     set_json_cache=_fake_set_json,
@@ -20,6 +27,7 @@ sys.modules["app.core.redis_client"] = types.SimpleNamespace(
     publish_run_event=lambda *a, **kw: None,
 )
 
+
 def _p3c_noop(*_a, **_kw):
     return None
 
@@ -27,14 +35,15 @@ def _p3c_noop(*_a, **_kw):
 async def _p3c_noop_async(*_a, **_kw):
     return None
 
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=lambda: None,
     require_engineer=lambda: None,
-        require_admin=_p3c_noop,
-        require_project_access=lambda *a, **kw: _p3c_noop,
-        assert_project_access=_p3c_noop_async,
-        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
-    )
+    require_admin=_p3c_noop,
+    require_project_access=lambda *a, **kw: _p3c_noop,
+    assert_project_access=_p3c_noop_async,
+    ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+)
 
 from app.models.mobile_special import TaskType
 
@@ -141,7 +150,6 @@ class TestStatisticsQueries:
         )
 
         assert result == []
-
 
 
 class TestStatisticsCacheFallback:

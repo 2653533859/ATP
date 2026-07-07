@@ -193,12 +193,8 @@ def test_performance_artifacts_are_scanned_blocked_and_repairable(monkeypatch):
     )
 
     assert [item.object_name for item in preview.blocked_objects] == ["performance/scripts/2/homepage.js"]
-    assert [item.object_name for item in preview.deletable_objects] == [
-        "performance/runs/8/delete-me-summary.json"
-    ]
-    assert [item.object_name for item in preview.orphan_references] == [
-        "performance/runs/8/missing-summary.json"
-    ]
+    assert [item.object_name for item in preview.deletable_objects] == ["performance/runs/8/delete-me-summary.json"]
+    assert [item.object_name for item in preview.orphan_references] == ["performance/runs/8/missing-summary.json"]
     assert deleted == ["performance/runs/8/delete-me-summary.json"]
     assert execute.repaired_reference_count == 1
     assert performance_run.raw_result_object_name is None
@@ -270,7 +266,6 @@ def test_preview_and_execute_cleanup_remain_consistent(monkeypatch):
     assert session.commit_calls == 1
 
 
-
 def test_execute_storage_cleanup_deletes_only_unreferenced_and_repairs_orphans(monkeypatch):
     deleted = []
     monkeypatch.setattr(
@@ -326,7 +321,9 @@ def test_execute_storage_cleanup_repairs_case_and_suite_orphans(monkeypatch):
         }.get(prefix, []),
     )
 
-    case_row = types.SimpleNamespace(config={"script_path": "scripts/cases/3/script.py", "apk_object_name": "apks/projects/7/build.apk"})
+    case_row = types.SimpleNamespace(
+        config={"script_path": "scripts/cases/3/script.py", "apk_object_name": "apks/projects/7/build.apk"}
+    )
     suite_row = types.SimpleNamespace(parameterization={"type": "csv", "object_name": "scripts/suites/2/data.csv"})
     responses = [
         [],
@@ -396,7 +393,6 @@ def test_execute_storage_cleanup_repairs_mobile_orphans(monkeypatch):
     assert session.commit_calls == 1
 
 
-
 def test_execute_storage_cleanup_does_not_count_delete_failures_as_referenced_skips(monkeypatch):
     monkeypatch.setattr(
         storage_cleanup.minio_client,
@@ -433,17 +429,17 @@ def test_execute_storage_cleanup_does_not_count_delete_failures_as_referenced_sk
 def test_select_size_eviction_returns_empty_when_under_limit():
     now = datetime(2026, 5, 18, tzinfo=timezone.utc)
     objects = [
-        ("a", now - timedelta(days=2), 1024 ** 3),
-        ("b", now - timedelta(days=1), 1024 ** 3),
+        ("a", now - timedelta(days=2), 1024**3),
+        ("b", now - timedelta(days=1), 1024**3),
     ]
 
     # 总量 2GB，上限 5GB，无需淘汰
-    assert storage_cleanup._select_size_eviction(objects, 5 * 1024 ** 3) == set()
+    assert storage_cleanup._select_size_eviction(objects, 5 * 1024**3) == set()
 
 
 def test_select_size_eviction_returns_empty_when_max_zero():
     now = datetime(2026, 5, 18, tzinfo=timezone.utc)
-    objects = [("a", now, 1024 ** 3)]
+    objects = [("a", now, 1024**3)]
 
     assert storage_cleanup._select_size_eviction(objects, 0) == set()
 
@@ -451,13 +447,13 @@ def test_select_size_eviction_returns_empty_when_max_zero():
 def test_select_size_eviction_picks_oldest_first():
     base = datetime(2026, 5, 18, tzinfo=timezone.utc)
     objects = [
-        ("newest", base - timedelta(days=1), 1024 ** 3),
-        ("oldest", base - timedelta(days=10), 1024 ** 3),
-        ("middle", base - timedelta(days=5), 1024 ** 3),
+        ("newest", base - timedelta(days=1), 1024**3),
+        ("oldest", base - timedelta(days=10), 1024**3),
+        ("middle", base - timedelta(days=5), 1024**3),
     ]
 
     # 总量 3GB，上限 1GB → 需要淘汰 2GB（两个最旧的）
-    evicted = storage_cleanup._select_size_eviction(objects, 1 * 1024 ** 3)
+    evicted = storage_cleanup._select_size_eviction(objects, 1 * 1024**3)
     assert evicted == {"oldest", "middle"}
 
 
@@ -472,9 +468,9 @@ def test_preview_storage_cleanup_evicts_when_size_exceeds_max(monkeypatch):
         "list_objects",
         lambda prefix: {
             "screenshots/": [
-                _FakeObject("screenshots/keep.png", new, size=512 * 1024 ** 2),
-                _FakeObject("screenshots/evict-1.png", older, size=512 * 1024 ** 2),
-                _FakeObject("screenshots/evict-2.png", older - timedelta(days=1), size=512 * 1024 ** 2),
+                _FakeObject("screenshots/keep.png", new, size=512 * 1024**2),
+                _FakeObject("screenshots/evict-1.png", older, size=512 * 1024**2),
+                _FakeObject("screenshots/evict-2.png", older - timedelta(days=1), size=512 * 1024**2),
             ],
         }.get(prefix, []),
     )
@@ -504,9 +500,9 @@ def test_preview_storage_cleanup_unions_retention_and_size_eviction(monkeypatch)
         "list_objects",
         lambda prefix: {
             "screenshots/": [
-                _FakeObject("screenshots/expired.png", expired, size=100 * 1024 ** 2),
-                _FakeObject("screenshots/fresh-big-a.png", fresh, size=600 * 1024 ** 2),
-                _FakeObject("screenshots/fresh-big-b.png", fresh - timedelta(hours=1), size=600 * 1024 ** 2),
+                _FakeObject("screenshots/expired.png", expired, size=100 * 1024**2),
+                _FakeObject("screenshots/fresh-big-a.png", fresh, size=600 * 1024**2),
+                _FakeObject("screenshots/fresh-big-b.png", fresh - timedelta(hours=1), size=600 * 1024**2),
             ],
         }.get(prefix, []),
     )

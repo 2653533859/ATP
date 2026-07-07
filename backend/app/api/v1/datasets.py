@@ -3,6 +3,7 @@
 存储约束：rows 直存 JSON 字段，限制 ≤500 行 / 序列化后 ≤256KB（MVP）。
 超出建议改用 MinIO 引用（留下迭代）。
 """
+
 from __future__ import annotations
 
 import csv
@@ -141,10 +142,7 @@ def _schema_fields_from_payload(fields) -> list[DatasetSchemaField]:
 
 
 def _schema_fields_to_json(fields) -> list[dict]:
-    return [
-        field.model_dump() if hasattr(field, "model_dump") else dict(field)
-        for field in (fields or [])
-    ]
+    return [field.model_dump() if hasattr(field, "model_dump") else dict(field) for field in (fields or [])]
 
 
 def _validation_policy(dataset: TestDataset) -> str:
@@ -256,8 +254,7 @@ async def validate_dataset(
         row_count=result.row_count,
         normalized_rows=result.normalized_rows,
         issues=[
-            {"row_index": issue.row_index, "field": issue.field, "message": issue.message}
-            for issue in result.issues
+            {"row_index": issue.row_index, "field": issue.field, "message": issue.message} for issue in result.issues
         ],
         validation_policy=None,
         can_upload=None,
@@ -289,8 +286,7 @@ async def preview_upload_dataset(
         row_count=result.row_count,
         normalized_rows=result.normalized_rows,
         issues=[
-            {"row_index": issue.row_index, "field": issue.field, "message": issue.message}
-            for issue in result.issues
+            {"row_index": issue.row_index, "field": issue.field, "message": issue.message} for issue in result.issues
         ],
         validation_policy=policy,
         can_upload=_can_upload_with_policy(result.valid, policy),
@@ -421,9 +417,7 @@ async def delete_dataset(
     from app.models.case import TestCase
 
     if hasattr(TestCase, "dataset_id"):
-        ref = await db.execute(
-            _select(TestCase.id).where(TestCase.dataset_id == dataset_id).limit(1)
-        )
+        ref = await db.execute(_select(TestCase.id).where(TestCase.dataset_id == dataset_id).limit(1))
         if ref.scalar_one_or_none() is not None:
             raise HTTPException(status_code=409, detail="数据集被用例引用，请先解绑")
     await db.delete(dataset)
@@ -466,10 +460,7 @@ async def get_dataset_impact(
         if _suite_ids_from_plan(plan) & impacted_suite_ids
     ]
 
-    impacted_cases = [
-        DatasetImpactItemOut(id=case.id, name=case.name, reason="case_dataset_binding")
-        for case in cases
-    ]
+    impacted_cases = [DatasetImpactItemOut(id=case.id, name=case.name, reason="case_dataset_binding") for case in cases]
     return DatasetImpactOut(
         dataset_id=dataset_id,
         cases=impacted_cases,

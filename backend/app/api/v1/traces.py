@@ -61,9 +61,7 @@ async def get_trace(
     plan_runs = (
         (
             await db.execute(
-                select(PlanRun)
-                .where(PlanRun.trace_id == trace_id)
-                .order_by(PlanRun.created_at.asc(), PlanRun.id.asc())
+                select(PlanRun).where(PlanRun.trace_id == trace_id).order_by(PlanRun.created_at.asc(), PlanRun.id.asc())
             )
         )
         .scalars()

@@ -21,6 +21,7 @@
 - 项目未配置 ai_llm_config 或 LLM 调用异常：写 status=failed + 简短 fallback message
 - 不送截图（多模态留后续迭代），仅 error_message + request/response 文本
 """
+
 from __future__ import annotations
 
 import hashlib
@@ -480,9 +481,7 @@ def build_run_healing_prompt(
         f"# 失败步骤数: {len(failed_steps)}",
     ]
     for s in failed_steps:
-        parts.append(
-            f"\n## 步骤 #{s.step_index + 1} {s.name}\n错误: {_truncate(s.error_message, limit=600)}"
-        )
+        parts.append(f"\n## 步骤 #{s.step_index + 1} {s.name}\n错误: {_truncate(s.error_message, limit=600)}")
     if run_summary:
         parts.append(f"\n# 运行摘要:\n{_truncate(run_summary, limit=500)}")
     parts.append(

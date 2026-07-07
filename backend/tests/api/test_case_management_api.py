@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 
+
 def _p3c_noop(*_a, **_kw):
     return None
 
@@ -15,12 +16,15 @@ def _p3c_noop(*_a, **_kw):
 async def _p3c_noop_async(*_a, **_kw):
     return None
 
-sys.modules["app.api.deps"] = types.SimpleNamespace(get_current_user=lambda: None, require_engineer=lambda: None,
-        require_admin=_p3c_noop,
-        require_project_access=lambda *a, **kw: _p3c_noop,
-        assert_project_access=_p3c_noop_async,
-        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
-    )
+
+sys.modules["app.api.deps"] = types.SimpleNamespace(
+    get_current_user=lambda: None,
+    require_engineer=lambda: None,
+    require_admin=_p3c_noop,
+    require_project_access=lambda *a, **kw: _p3c_noop,
+    assert_project_access=_p3c_noop_async,
+    ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+)
 sys.modules["app.worker.tasks"] = types.SimpleNamespace(
     run_test_case=types.SimpleNamespace(delay=lambda *_args, **_kwargs: None)
 )
@@ -392,7 +396,6 @@ def test_delete_case_invalidates_stats_cache(monkeypatch):
     assert invalidated == [True]
 
 
-
 def test_get_case_detail_normalizes_legacy_json_lists():
     load_all_models()
     case_obj = _make_case()
@@ -409,4 +412,3 @@ def test_get_case_detail_normalizes_legacy_json_lists():
     payload = cases.TestCaseDetailOut.model_validate(result)
     assert payload.preconditions == []
     assert payload.postconditions == []
-

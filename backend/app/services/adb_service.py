@@ -5,6 +5,7 @@ ADB 设备扫描服务
   - scan_devices()    扫描 ADB 已连接设备，返回解析后的设备信息列表
   - get_device_props() 获取单台设备的详细属性
 """
+
 import asyncio
 import logging
 import re
@@ -150,13 +151,15 @@ def scan_devices() -> list[AdbDeviceInfo] | None:
         else:
             # offline / unauthorized 设备只记录基础信息
             ip_address, port = _parse_serial_address(serial)
-            result.append(AdbDeviceInfo(
-                serial=serial,
-                status=status,
-                model=dev.get("model"),
-                ip_address=ip_address,
-                port=port,
-            ))
+            result.append(
+                AdbDeviceInfo(
+                    serial=serial,
+                    status=status,
+                    model=dev.get("model"),
+                    ip_address=ip_address,
+                    port=port,
+                )
+            )
 
     return result
 

@@ -4,6 +4,7 @@
 每个 HTTP 请求生成唯一 trace_id，存入共享 tracing helper，
 供日志 Formatter 自动附加。响应头返回 X-Trace-ID。
 """
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 

@@ -3,6 +3,7 @@
 celery_app.py 把 `task_failure` / `task_revoked` 信号桥接到本模块函数，
 本模块不直接 import celery（仅靠类名判断 SoftTimeLimitExceeded），方便独立单测。
 """
+
 from __future__ import annotations
 
 import logging

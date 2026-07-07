@@ -1,6 +1,7 @@
 """
 定期清理过期的 MinIO 文件（截图、报告等）与终态运行记录。
 """
+
 import logging
 from datetime import datetime, timedelta, timezone
 
@@ -20,9 +21,7 @@ from app.services.run_retention import execute_old_runs_cleanup
 
 logger = logging.getLogger(__name__)
 
-_STALE_PENDING_ERROR = (
-    "Execution exceeded pending timeout and was marked as error by the cleanup worker."
-)
+_STALE_PENDING_ERROR = "Execution exceeded pending timeout and was marked as error by the cleanup worker."
 
 
 @celery_app.task(name="cleanup_expired_files")

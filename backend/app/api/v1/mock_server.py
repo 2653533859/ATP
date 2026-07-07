@@ -51,7 +51,7 @@ def _path_matches_template(template: str, actual: str) -> bool:
     cursor = 0
 
     for match in re.finditer(r"\{[^/{}]+\}", template):
-        pattern_parts.append(re.escape(template[cursor:match.start()]))
+        pattern_parts.append(re.escape(template[cursor : match.start()]))
         pattern_parts.append(r"[^/]+")
         cursor = match.end()
 
@@ -114,11 +114,7 @@ def _rule_matches_request(
 ) -> bool:
     if rule is None or not rule.is_enabled or rule.method not in candidate_methods:
         return False
-    path_matches = (
-        _path_matches_template(rule.path, normalized)
-        if "{" in rule.path
-        else rule.path == normalized
-    )
+    path_matches = _path_matches_template(rule.path, normalized) if "{" in rule.path else rule.path == normalized
     return path_matches and _match_conditions(rule, request_data)
 
 
@@ -132,16 +128,21 @@ async def _record_sample(rule_id: int, request_data: dict, response_payload: dic
         if not rule or not rule.record_requests:
             return
         samples = list(rule.recorded_samples or [])
-        samples.insert(0, {
-            "timestamp": datetime.now(timezone.utc).isoformat(),
-            "request": request_data,
-            "response": response_payload,
-        })
+        samples.insert(
+            0,
+            {
+                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "request": request_data,
+                "response": response_payload,
+            },
+        )
         rule.recorded_samples = samples[:_MAX_RECORDED_SAMPLES]
         await db.commit()
 
 
-async def _find_matching_rule(project_id: int, normalized: str, candidate_methods: list[MockMethod], request_data: dict):
+async def _find_matching_rule(
+    project_id: int, normalized: str, candidate_methods: list[MockMethod], request_data: dict
+):
     cache_key = _cache_key(project_id, normalized, candidate_methods, request_data)
     cached = await get_json_cache(cache_key)
     if cached is not None and cached.get("rule_id"):
@@ -171,7 +172,11 @@ async def _find_matching_rule(project_id: int, normalized: str, candidate_method
         tmpl_stmt = _build_rule_stmt(project_id, candidate_methods)
         result = await db.execute(tmpl_stmt)
         for rule in result.scalars().all():
-            if "{" in rule.path and _path_matches_template(rule.path, normalized) and _match_conditions(rule, request_data):
+            if (
+                "{" in rule.path
+                and _path_matches_template(rule.path, normalized)
+                and _match_conditions(rule, request_data)
+            ):
                 await set_json_cache(cache_key, {"rule_id": rule.id}, ttl_seconds=180)
                 return rule
 
@@ -222,7 +227,9 @@ async def mock_endpoint(project_id: int, path: str, request: Request):
 
     headers = {k: str(v) for k, v in (rule.response_headers or {}).items()}
     content_type = headers.pop("Content-Type", headers.pop("content-type", None))
-    body = _render_template_text(rule.response_body, request_data) if rule.render_template else (rule.response_body or "")
+    body = (
+        _render_template_text(rule.response_body, request_data) if rule.render_template else (rule.response_body or "")
+    )
 
     response_payload = {
         "status_code": rule.status_code,

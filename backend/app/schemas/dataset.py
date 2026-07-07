@@ -1,4 +1,5 @@
 """P3.B 数据集 Pydantic schemas。"""
+
 from __future__ import annotations
 
 from datetime import datetime

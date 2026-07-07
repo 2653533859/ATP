@@ -3,6 +3,7 @@ CI/CD Webhook 触发接口
 
 POST /webhook/trigger   通用 Webhook 触发（API Key 认证）
 """
+
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -69,9 +70,7 @@ async def webhook_trigger(
         env = await db.get(Environment, body.env_id)
         if not env:
             raise HTTPException(status_code=404, detail="环境不存在")
-        result = await db.execute(
-            select(EnvVariable).where(EnvVariable.env_id == env.id)
-        )
+        result = await db.execute(select(EnvVariable).where(EnvVariable.env_id == env.id))
         env_vars = decrypt_env_vars(result.scalars().all())
         merged_vars = {**env_vars, **body.extra_vars}
 
@@ -93,6 +92,7 @@ async def webhook_trigger(
         await db.refresh(suite_run)
 
         from app.worker.tasks import run_test_suite
+
         run_test_suite.delay(suite_run.id, merged_vars, suite_run.trace_id)
 
         return WebhookTriggerResponse(
@@ -121,6 +121,7 @@ async def webhook_trigger(
         await db.refresh(plan_run)
 
         from app.worker.tasks import run_test_plan
+
         run_test_plan.delay(plan_run.id, merged_vars, plan_run.trace_id)
 
         return WebhookTriggerResponse(

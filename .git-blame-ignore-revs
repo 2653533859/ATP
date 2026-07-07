@@ -1,0 +1,6 @@
+# Format-only revisions that should be ignored by `git blame`.
+#
+# After committing the Q10 ruff format baseline, append the commit SHA here and
+# run:
+#
+#   git config blame.ignoreRevsFile .git-blame-ignore-revs

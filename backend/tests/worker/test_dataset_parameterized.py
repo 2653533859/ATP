@@ -1,10 +1,12 @@
 """P3.B MVP-B 参数化执行单测：dataset.rows 按行循环 + parent 聚合。"""
+
 import asyncio
 import sys
 import types
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+
 
 # stub celery_app 防真依赖
 class _FakeCelery:
@@ -17,9 +19,7 @@ class _FakeCelery:
     conf = types.SimpleNamespace(update=lambda **kw: None)
 
 
-sys.modules.setdefault(
-    "app.worker.celery_app", types.SimpleNamespace(celery_app=_FakeCelery())
-)
+sys.modules.setdefault("app.worker.celery_app", types.SimpleNamespace(celery_app=_FakeCelery()))
 
 # 防 api/* 测试用 SimpleNamespace 覆盖了 app.worker.tasks（sys.modules 级别污染），
 # 这里强制清理后再导入真实模块

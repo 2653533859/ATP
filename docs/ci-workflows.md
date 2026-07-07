@@ -6,13 +6,23 @@
 
 - **触发**：push 到 `main`；针对 `main` 的 pull request。
 - **Jobs**：
+  - `Backend lint`：安装 `backend/requirements-dev.txt`，运行 `python -m ruff check backend/app backend/tests` 与 `python -m ruff format --check backend/app backend/tests`。
+    同一 job 也运行 `python -m mypy` 与 `python -m bandit -c pyproject.toml -r backend/app -ll`。
   - `Empty database migration`：启动干净 PostgreSQL 16，执行 `cd backend && alembic upgrade head`。
-  - `Backend pytest`：启动 PostgreSQL 16 + Redis 7，运行 `python -m pytest backend/tests -q --ignore=backend/tests/integration`。
-  - `Frontend type-check + build`：运行 `npm ci`、`npm run type-check`、`npm run build`。
+  - `Backend pytest`：启动 PostgreSQL 16 + Redis 7，运行后端主回归并产出覆盖率 XML：`python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=52`。
+  - `Frontend type-check + build`：运行 `npm ci`、`npm run test`、`npm run type-check`、`npm run build`。
+- **Artifacts**：`Backend pytest` 上传 `coverage.xml` 为 `backend-coverage-xml`。
 - **依赖服务**：PostgreSQL、Redis；MinIO 相关能力在主 CI 里通过测试 stub 覆盖，真实 MinIO 放在 integration workflow。
 - **常见排查**：
   - 迁移失败：先本地执行 `make infra-up && make migrate`，检查新增迁移的 `down_revision`、枚举、索引和约束是否能从空库创建。
+  - lint 失败：先运行 `make lint PYTHON=backend/.venv/bin/python`，当前门禁聚焦未定义名称相关规则。
+  - format 失败：先运行 `make format PYTHON=backend/.venv/bin/python`，再用 `make format-check PYTHON=backend/.venv/bin/python` 复验。
+  - mypy 失败：先运行 `make mypy PYTHON=backend/.venv/bin/python`，当前覆盖 `core` / `schemas` / `services`。
+  - Bandit 失败：先运行 `make security-bandit PYTHON=backend/.venv/bin/python`，当前 medium/high 阻断，low 仅记录。
+  - 依赖漏洞扫描：先运行 `make security-pip-audit PYTHON=backend/.venv/bin/python` 与 `make security-npm-audit`。当前 pip/npm 依赖扫描已清零，后续可接入 high/critical 阻断型 CI。
   - 后端测试失败：确认失败用例是否属于真实基础设施测试；integration 用例应放在 `backend/tests/integration` 并带 `integration` marker。
+  - 覆盖率失败：先运行 `make test-backend-coverage PYTHON=backend/.venv/bin/python`，确认总覆盖率不低于当前 52% 门槛。
+  - 前端单测失败：先运行 `cd frontend && npm run test`，当前 Vitest 覆盖 auth store、权限工具和 WebSocket 封装。
   - 前端构建失败：先运行 `cd frontend && npm run type-check` 定位 TypeScript 错误，再运行 `npm run build` 验证产物。
 
 ## `test-integration.yml` — 真实基础设施集成测试
@@ -20,6 +30,7 @@
 - **触发**：手动 `workflow_dispatch`；每日 UTC 03:17 定时。
 - **范围**：`backend/tests/integration`，覆盖 auth、case-run、mock 等真实链路。
 - **依赖服务**：PostgreSQL 16、Redis 7、MinIO 容器。
+- **Flaky 治理**：仅该 workflow 启用一次有界重试（`--reruns 1 --reruns-delay 2`）。同一失败签名重复出现时，必须按 `docs/flaky-governance.md` 记录 `flaky` marker、原因与退出条件，或直接修复根因。
 - **关键环境**：
   - `ATP_INTEGRATION_TESTS=1`
   - `CELERY_TASK_ALWAYS_EAGER=true`
@@ -35,6 +46,7 @@
 - **范围**：`frontend/e2e`，使用 mock API 模式，不依赖真实后端。
 - **依赖服务**：无外部服务；Playwright 会按 `frontend/playwright.config.ts` 启动前端 dev server。
 - **Artifacts**：失败时上传 `frontend/playwright-report/`。
+- **Flaky 治理**：Playwright 配置仅在 `CI=true` 时重试 1 次；本地 `npm run e2e` 保持零重试。重复出现的环境/时序问题按 `docs/flaky-governance.md` 记录，断言或业务回归不允许通过重试隐藏。
 - **常见排查**：
   - 元素定位失败：优先下载 Playwright report，看截图、trace 和实际路由。
   - 本地复现：运行 `cd frontend && npm ci && npm run e2e`。
@@ -52,12 +64,40 @@
   - worker k6 检查失败：确认 `backend/Dockerfile.worker` 中仍安装并暴露 k6。
   - checklist contract 失败：确认发布清单没有误删迁移、Helm 或性能压测相关步骤。
 
+## `security.yml` — 安全扫描
+
+- **触发**：push 到 `main`；针对 `main` 的 pull request；手动 `workflow_dispatch`；每日 UTC 20:11 定时。
+- **Jobs**：
+  - `Gitleaks secret scan`：使用 Gitleaks 扫描仓库历史与当前变更，发现密钥时阻断。
+  - `Dependency audit`：运行 `pip-audit` 扫描后端依赖；运行 `npm audit --audit-level=high` 扫描前端依赖，high/critical 阻断。
+  - `Trivy image scan`：构建 backend、worker、frontend 镜像，并用 Trivy 对 HIGH/CRITICAL 漏洞阻断。
+- **常见排查**：
+  - Gitleaks 失败：确认命中内容是否为真实密钥；真实密钥需轮换并移出历史，误报再加最小范围 allowlist。
+  - pip-audit 失败：本地运行 `make security-pip-audit PYTHON=backend/.venv/bin/python`，优先升级有修复版本的包。
+  - npm audit 失败：本地运行 `npm --prefix frontend audit --audit-level=high`，必要时补 npm `overrides` 并跑前端回归。
+  - Trivy 失败：先确认漏洞是否来自基础镜像、系统包或运行时依赖；优先升级基础镜像或包版本，确认为不可修复时再评估 `ignore-unfixed` / allowlist 策略。
+
+## `.github/dependabot.yml` — 依赖更新
+
+- **生态**：pip (`/backend`)、npm (`/frontend`)、Docker (`/backend` + `/frontend`)、GitHub Actions (`/`)。
+- **频率**：每周一 Asia/Shanghai 上午分批检查。
+- **分组**：按生态聚合，降低 PR 噪音。
+
 ## 本地命令对照
 
 | 目标 | 本地命令 |
 | --- | --- |
 | 空库迁移 | `make infra-up && make migrate` |
+| 后端 lint | `make lint` |
+| 后端格式检查 | `make format-check` |
+| 后端 mypy | `make mypy` |
+| 后端 Bandit SAST | `make security-bandit` |
+| 后端依赖漏洞扫描 | `make security-pip-audit` |
+| 前端依赖漏洞扫描 | `make security-npm-audit` |
+| 前端 high/critical 审计 | `cd frontend && npm audit --audit-level=high` |
 | 后端主回归 | `make test-backend` |
+| 后端覆盖率门禁 | `make test-backend-coverage` |
+| 前端单元测试 | `cd frontend && npm run test` |
 | 前端类型检查 + build | `make test-frontend-build` |
 | 前端 E2E | `make test-frontend-e2e` |
 | 集成测试 | `make test-integration` |

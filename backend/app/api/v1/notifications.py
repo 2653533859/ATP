@@ -8,6 +8,7 @@ PATCH  /notifications/{id}      更新通知配置
 DELETE /notifications/{id}      删除通知配置
 POST   /notifications/{id}/test 测试通知发送
 """
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,7 +17,9 @@ from app.core.database import get_db
 from app.models.notification import NotificationConfig
 from app.models.project import Project
 from app.schemas.notification import (
-    NotificationConfigCreate, NotificationConfigUpdate, NotificationConfigOut,
+    NotificationConfigCreate,
+    NotificationConfigUpdate,
+    NotificationConfigOut,
 )
 from app.api.deps import assert_project_access, require_engineer
 from app.models.user_project import ProjectRole

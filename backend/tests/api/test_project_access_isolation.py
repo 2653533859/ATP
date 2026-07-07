@@ -1,4 +1,5 @@
 """P3.C 跨项目越权 + 项目成员管理 + 审计查询 API 单测。"""
+
 import asyncio
 import sys
 import types
@@ -35,6 +36,7 @@ sys.modules.setdefault(
 sys.modules.pop("app.api.deps", None)
 sys.modules.pop("app.api.v1.projects", None)
 sys.modules.pop("app.api.v1.statistics", None)
+
 
 # 给 statistics stub invalidate_stats_cache
 async def _noop():
@@ -106,6 +108,7 @@ class _FakeDB:
         # select(UserProject.role) where user_id=X, project_id=Y
         if "user_projects.role" in sql or "select user_projects" in sql:
             import re
+
             uid_m = re.search(r"user_projects\.user_id\s*=\s*(\d+)", sql)
             pid_m = re.search(r"user_projects\.project_id\s*=\s*(\d+)", sql)
             role_only = ("user_projects.role" in sql and "user_projects.id" not in sql) or (
@@ -156,6 +159,7 @@ def test_create_project_assigns_creator_as_owner():
 def test_get_project_denies_non_member():
     db = _FakeDB()
     from app.models.project import Project
+
     db.store[("Project", 99)] = Project(id=99, name="X", project_code="X", owner_id=1)
     user = _user(uid=10)
 
@@ -174,6 +178,7 @@ def test_get_project_denies_non_member():
 def test_get_project_allows_member():
     db = _FakeDB()
     from app.models.project import Project
+
     db.store[("Project", 99)] = Project(id=99, name="X", project_code="X", owner_id=1)
     user = _user(uid=10)
     db.user_projects[(10, 99)] = ProjectRole.viewer

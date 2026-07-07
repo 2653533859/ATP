@@ -4,6 +4,7 @@
 _get_case_detail_or_404 等）通过 ``app.api.v1.cases`` 模块访问，确保
 ``monkeypatch.setattr(cases, "X", fake)`` 仍能生效。
 """
+
 from __future__ import annotations
 
 import copy
@@ -64,12 +65,7 @@ async def _attach_flaky_stats(db: AsyncSession, cases: list[TestCase]) -> None:
         )
         .subquery()
     )
-    rows = (
-        await db.execute(
-            select(ranked.c.case_id, ranked.c.status)
-            .where(ranked.c.rn <= FLAKY_WINDOW_SIZE)
-        )
-    ).all()
+    rows = (await db.execute(select(ranked.c.case_id, ranked.c.status).where(ranked.c.rn <= FLAKY_WINDOW_SIZE))).all()
 
     stats_by_case = {case_id: _empty_flaky_stats() for case_id in case_ids}
     for row in rows:
@@ -88,11 +84,7 @@ async def _attach_flaky_stats(db: AsyncSession, cases: list[TestCase]) -> None:
         failure_runs = stats["failed_runs"] + stats["error_runs"]
         if stats["total_runs"]:
             stats["failure_rate"] = round(failure_runs / stats["total_runs"] * 100, 1)
-        stats["is_flaky"] = (
-            stats["total_runs"] >= FLAKY_MIN_RUNS
-            and stats["passed_runs"] > 0
-            and failure_runs > 0
-        )
+        stats["is_flaky"] = stats["total_runs"] >= FLAKY_MIN_RUNS and stats["passed_runs"] > 0 and failure_runs > 0
         setattr(case, "flaky_stats", stats)
 
 
@@ -268,10 +260,14 @@ async def update_case(
         await _cases._replace_case_steps(
             db,
             case,
-            _cases._normalize_steps(payload["steps"] or [], case.case_type, case.config or {}, payload.get("name") or case.name),
+            _cases._normalize_steps(
+                payload["steps"] or [], case.case_type, case.config or {}, payload.get("name") or case.name
+            ),
         )
     elif "config" in payload:
-        await _cases._replace_case_steps(db, case, _cases._normalize_steps([], case.case_type, case.config or {}, case.name))
+        await _cases._replace_case_steps(
+            db, case, _cases._normalize_steps([], case.case_type, case.config or {}, case.name)
+        )
 
     if case.review_status == "approved":
         _cases._reset_review_after_edit(case)

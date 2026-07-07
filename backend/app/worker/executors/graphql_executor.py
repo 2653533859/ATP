@@ -1,4 +1,5 @@
 """GraphQL 接口测试执行器"""
+
 import time
 import httpx
 from jsonpath_ng import parse as jp_parse
@@ -61,9 +62,8 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
                 headers["Authorization"] = f"Bearer {_render(auth_cfg.get('token', ''), context)}"
             elif auth_type == "basic":
                 import base64
-                cred = base64.b64encode(
-                    f"{auth_cfg.get('username')}:{auth_cfg.get('password')}".encode()
-                ).decode()
+
+                cred = base64.b64encode(f"{auth_cfg.get('username')}:{auth_cfg.get('password')}".encode()).decode()
                 headers["Authorization"] = f"Basic {cred}"
             elif auth_type == "apikey":
                 header_name = _render(auth_cfg.get("header", "X-API-Key"), context).strip()
@@ -128,31 +128,37 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
         step_result.error_message = error_msg
         await db.commit()
 
-        await _safe_publish_run_event(run.id, {
-            "type": "step_result",
-            "run_id": run.id,
-            "step": {
-                "step_index": idx,
-                "name": step_result.name,
-                "status": step_status.value,
-                "duration_ms": step_result.duration_ms,
-                "request_data": request_data,
-                "response_data": response_data,
-                "error_message": error_msg,
+        await _safe_publish_run_event(
+            run.id,
+            {
+                "type": "step_result",
+                "run_id": run.id,
+                "step": {
+                    "step_index": idx,
+                    "name": step_result.name,
+                    "status": step_status.value,
+                    "duration_ms": step_result.duration_ms,
+                    "request_data": request_data,
+                    "response_data": response_data,
+                    "error_message": error_msg,
+                },
             },
-        })
+        )
 
     total_ms = int((time.monotonic() - total_start) * 1000)
     run.status = RunStatus.passed if all_passed else RunStatus.failed
     run.duration_ms = total_ms
     await db.commit()
 
-    await _safe_publish_run_event(run.id, {
-        "type": "completed",
-        "run_id": run.id,
-        "status": run.status.value,
-        "duration_ms": total_ms,
-    })
+    await _safe_publish_run_event(
+        run.id,
+        {
+            "type": "completed",
+            "run_id": run.id,
+            "status": run.status.value,
+            "duration_ms": total_ms,
+        },
+    )
 
 
 def _render(template: str, context: dict) -> str:

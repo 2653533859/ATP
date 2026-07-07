@@ -4,9 +4,10 @@
 提供 sync（Celery 任务）和 async（API 端点）两个版本，
 共享同一套 upsert + offline 标记逻辑。
 """
+
 from datetime import datetime, timezone
 
-from sqlalchemy import case, func, update
+from sqlalchemy import case, func, literal, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
@@ -43,7 +44,7 @@ def _build_upsert_stmt(info: AdbDeviceInfo, now: datetime):
             "ip_address": func.coalesce(excluded.ip_address, Device.ip_address),
             "port": func.coalesce(excluded.port, Device.port),
             "status": case(
-                (Device.status != DeviceStatus.busy, new_status),
+                (Device.status != DeviceStatus.busy, literal(new_status, type_=Device.status.type)),
                 else_=Device.status,
             ),
             "last_seen_at": now,
@@ -68,11 +69,7 @@ def sync_devices_to_db_sync(session: Session, scanned: list[AdbDeviceInfo]) -> N
             .values(status=DeviceStatus.offline)
         )
     else:
-        session.execute(
-            update(Device)
-            .where(Device.status != DeviceStatus.offline)
-            .values(status=DeviceStatus.offline)
-        )
+        session.execute(update(Device).where(Device.status != DeviceStatus.offline).values(status=DeviceStatus.offline))
 
 
 async def sync_devices_to_db_async(db: AsyncSession, scanned: list[AdbDeviceInfo]) -> None:
@@ -92,7 +89,5 @@ async def sync_devices_to_db_async(db: AsyncSession, scanned: list[AdbDeviceInfo
         )
     else:
         await db.execute(
-            update(Device)
-            .where(Device.status != DeviceStatus.offline)
-            .values(status=DeviceStatus.offline)
+            update(Device).where(Device.status != DeviceStatus.offline).values(status=DeviceStatus.offline)
         )

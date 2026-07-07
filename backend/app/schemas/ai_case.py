@@ -4,6 +4,7 @@
   1. parse-schema：上传/粘贴 OpenAPI / Postman / cURL / 接口样例文本，返回结构化接口清单
   2. generate：根据接口清单 + 用户需求，调用 LLM 生成用例草稿
 """
+
 from typing import Literal
 
 from pydantic import BaseModel, Field

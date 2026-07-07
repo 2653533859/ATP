@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 
+
 def _p3c_noop(*_a, **_kw):
     return None
 
@@ -15,12 +16,15 @@ def _p3c_noop(*_a, **_kw):
 async def _p3c_noop_async(*_a, **_kw):
     return None
 
-sys.modules["app.api.deps"] = types.SimpleNamespace(get_current_user=lambda: None, require_engineer=lambda: None,
-        require_admin=_p3c_noop,
-        require_project_access=lambda *a, **kw: _p3c_noop,
-        assert_project_access=_p3c_noop_async,
-        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
-    )
+
+sys.modules["app.api.deps"] = types.SimpleNamespace(
+    get_current_user=lambda: None,
+    require_engineer=lambda: None,
+    require_admin=_p3c_noop,
+    require_project_access=lambda *a, **kw: _p3c_noop,
+    assert_project_access=_p3c_noop_async,
+    ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+)
 
 
 async def _noop_invalidate_stats_cache():
@@ -273,7 +277,11 @@ def test_trigger_run_returns_serialized_schema(monkeypatch):
     monkeypatch.setattr(
         cases,
         "run_test_case",
-        types.SimpleNamespace(delay=lambda run_id, extra_vars, trace_id: delayed.update(run_id=run_id, extra_vars=extra_vars, trace_id=trace_id)),
+        types.SimpleNamespace(
+            delay=lambda run_id, extra_vars, trace_id: delayed.update(
+                run_id=run_id, extra_vars=extra_vars, trace_id=trace_id
+            )
+        ),
     )
 
     result = asyncio.run(

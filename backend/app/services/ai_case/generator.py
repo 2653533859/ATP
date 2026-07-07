@@ -2,6 +2,7 @@
 
 对外只暴露 ``generate_case_drafts(config, request)``，由 API 层调用。
 """
+
 from __future__ import annotations
 
 import logging

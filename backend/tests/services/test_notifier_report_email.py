@@ -1,4 +1,5 @@
 """P1.2 定时报告邮件：notifier 接受 report_html + email_html_report_enabled 检查。"""
+
 import asyncio
 import sys
 from email.mime.multipart import MIMEMultipart
@@ -46,7 +47,8 @@ def _summary():
 def test_email_html_report_enabled_returns_true_when_any_email_config_opts_in():
     configs = [
         SimpleNamespace(
-            id=1, channel=NotifyChannel.email,
+            id=1,
+            channel=NotifyChannel.email,
             config={"recipients": ["a@x"], "attach_html_report": True},
         ),
     ]
@@ -58,7 +60,8 @@ def test_email_html_report_enabled_returns_false_when_no_opt_in():
     # 模拟 query 已按 channel=email 过滤后的结果（_FakeDB 不实现 where 过滤）
     configs = [
         SimpleNamespace(
-            id=1, channel=NotifyChannel.email,
+            id=1,
+            channel=NotifyChannel.email,
             config={"recipients": ["a@x"]},  # 未设置 attach_html_report
         ),
     ]
@@ -89,11 +92,13 @@ def test_send_notifications_passes_html_only_to_opted_in_email_config(monkeypatc
 
     configs = [
         SimpleNamespace(
-            id=1, channel=NotifyChannel.email,
+            id=1,
+            channel=NotifyChannel.email,
             config={"recipients": ["opt-in@x"], "attach_html_report": True},
         ),
         SimpleNamespace(
-            id=2, channel=NotifyChannel.email,
+            id=2,
+            channel=NotifyChannel.email,
             config={"recipients": ["opt-out@x"]},  # 未启用
         ),
     ]

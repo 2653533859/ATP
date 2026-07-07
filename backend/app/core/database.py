@@ -1,3 +1,5 @@
+from collections.abc import AsyncGenerator
+
 from sqlalchemy import create_engine, event
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 from sqlalchemy.orm import sessionmaker
@@ -10,9 +12,7 @@ engine = create_async_engine(
     pool_pre_ping=True,
 )
 
-AsyncSessionLocal = async_sessionmaker(
-    engine, class_=AsyncSession, expire_on_commit=False
-)
+AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
 # 同步 engine + session（供 Celery 任务使用）
@@ -37,6 +37,6 @@ def _attach_slow_query_listeners() -> None:
 _attach_slow_query_listeners()
 
 
-async def get_db() -> AsyncSession:
+async def get_db() -> AsyncGenerator[AsyncSession, None]:
     async with AsyncSessionLocal() as session:
         yield session

@@ -9,6 +9,7 @@ DELETE /dashboard-alert-rules/{id}     Delete rule
 GET    /dashboard-alert-events         List triggered events
 POST   /dashboard-alert-events         Create event for scheduler integrations
 """
+
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status

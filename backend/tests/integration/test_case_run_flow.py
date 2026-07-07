@@ -4,6 +4,7 @@ MVP 范围：仅覆盖 API → DB → Celery broker 链路。不真跑 executor�
 出口流量）。Celery 任务在 worker 进程才会被消费；本测试在事务里只断言
 trigger 接口返回的 TestRunOut 表行存在与状态为 pending。
 """
+
 import pytest
 
 
@@ -14,7 +15,11 @@ async def test_project_module_case_run_chain(async_client, auth_headers, unique_
     resp = await async_client.post(
         "/api/v1/projects",
         headers=auth_headers,
-        json={"name": f"proj-{unique_name}", "description": "integration"},
+        json={
+            "name": f"proj-{unique_name}",
+            "project_code": f"IT-CASE-{unique_name}",
+            "description": "integration",
+        },
     )
     assert resp.status_code == 201, resp.text
     project = resp.json()

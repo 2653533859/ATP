@@ -10,6 +10,7 @@ Android 稳定性测试执行器（智能稳定性 / Monkey 探索模式）
   6. 收集 crash/ANR incidents
   7. 更新 MobileSpecialRun（completed/failed，summary_json）
 """
+
 import asyncio
 import json
 import logging
@@ -66,14 +67,23 @@ def _build_monkey_cmd(
 ) -> list[str]:
     """构建 monkey 命令，禁用系统按键操作"""
     return [
-        "adb", "-s", serial, "shell",
+        "adb",
+        "-s",
+        serial,
+        "shell",
         "monkey",
-        "-p", package,
-        "-s", str(seed),
-        "--throttle", str(interval_ms),
-        "--pct-syskeys", "0",  # 禁用系统按键避免干扰
-        "--pct-nav", "0",
-        "--pct-majornav", "0",
+        "-p",
+        package,
+        "-s",
+        str(seed),
+        "--throttle",
+        str(interval_ms),
+        "--pct-syskeys",
+        "0",  # 禁用系统按键避免干扰
+        "--pct-nav",
+        "0",
+        "--pct-majornav",
+        "0",
         "-v",  # verbose
         str(count),
     ]
@@ -179,10 +189,14 @@ async def run_mobile_special_stability(
         run.finished_at = datetime.now()
         run.summary_json = {"error_message": "; ".join(validation_errors)}
         await db.commit()
-        await _safe_publish(run.id, {
-            "type": "completed", "run_id": run.id,
-            "status": RunStatus.failed.value,
-        })
+        await _safe_publish(
+            run.id,
+            {
+                "type": "completed",
+                "run_id": run.id,
+                "status": RunStatus.failed.value,
+            },
+        )
         return
 
     # 2. 校验设备
@@ -194,31 +208,36 @@ async def run_mobile_special_stability(
         run.finished_at = datetime.now()
         run.summary_json = {"error_message": f"设备不可达: {device_message}"}
         await db.commit()
-        await _safe_publish(run.id, {
-            "type": "completed", "run_id": run.id,
-            "status": RunStatus.failed.value,
-        })
+        await _safe_publish(
+            run.id,
+            {
+                "type": "completed",
+                "run_id": run.id,
+                "status": RunStatus.failed.value,
+            },
+        )
         return
 
     run.started_at = datetime.now()
     run.status = RunStatus.running
     await db.commit()
 
-    await _safe_publish(run.id, {
-        "type": "started", "run_id": run.id, "device_serial": device_serial,
-    })
+    await _safe_publish(
+        run.id,
+        {
+            "type": "started",
+            "run_id": run.id,
+            "device_serial": device_serial,
+        },
+    )
 
     # 3. 启动 App
     if config.get("auto_start", True):
-        await asyncio.get_event_loop().run_in_executor(
-            None, _start_app, device_serial, app_package
-        )
+        await asyncio.get_event_loop().run_in_executor(None, _start_app, device_serial, app_package)
         await asyncio.sleep(3)
 
     # 4. 启动 logcat 监控 crash/ANR
-    logcat_task = asyncio.create_task(
-        _run_logcat_monitor(device_serial, run.id, duration_seconds)
-    )
+    logcat_task = asyncio.create_task(_run_logcat_monitor(device_serial, run.id, duration_seconds))
 
     # 5. 执行 monkey 命令（外包心跳监控；掉线时同时取消 monkey 和 logcat）
     monkey_cmd = _build_monkey_cmd(
@@ -238,7 +257,10 @@ async def run_mobile_special_stability(
         nonlocal device_lost_at
         device_lost_at = time.monotonic() - start_time
         logger.warning(
-            "stability run %s: device %s lost (%s)", run.id, device_serial, reason,
+            "stability run %s: device %s lost (%s)",
+            run.id,
+            device_serial,
+            reason,
         )
         # 终止 monkey 子进程
         if monkey_proc is not None and monkey_proc.returncode is None:
@@ -263,11 +285,15 @@ async def run_mobile_special_stability(
                 await asyncio.sleep(min(30, duration_seconds - elapsed))
                 elapsed = time.monotonic() - start_time
                 completed_actions += 100  # 粗略估算
-                await _safe_publish(run.id, {
-                    "type": "progress", "run_id": run.id,
-                    "elapsed_seconds": int(elapsed),
-                    "completed_actions": completed_actions,
-                })
+                await _safe_publish(
+                    run.id,
+                    {
+                        "type": "progress",
+                        "run_id": run.id,
+                        "elapsed_seconds": int(elapsed),
+                        "completed_actions": completed_actions,
+                    },
+                )
                 if elapsed >= duration_seconds:
                     break
 
@@ -324,9 +350,13 @@ async def run_mobile_special_stability(
     run.summary_json = summary
     await db.commit()
 
-    await _safe_publish(run.id, {
-        "type": "completed", "run_id": run.id,
-        "status": RunStatus.completed.value,
-        "duration_ms": total_ms,
-        "summary": summary,
-    })
+    await _safe_publish(
+        run.id,
+        {
+            "type": "completed",
+            "run_id": run.id,
+            "status": RunStatus.completed.value,
+            "duration_ms": total_ms,
+            "summary": summary,
+        },
+    )

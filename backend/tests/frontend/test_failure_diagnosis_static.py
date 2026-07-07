@@ -15,7 +15,7 @@ def test_failure_diagnosis_service_uses_llm_with_rule_fallback():
     assert "request_or_action" in content
     assert "response_or_assertion" in content
     assert "screenshot_url" in content
-    assert "\"failure_diagnosis\": payload" in content
+    assert '"failure_diagnosis": payload' in content
     assert "rule_fallback" in content
 
 
@@ -24,11 +24,11 @@ def test_failure_diagnosis_builds_structured_repair_suggestions():
     schema = repo_path("backend/app/schemas/case.py").read_text(encoding="utf-8")
 
     assert "def build_repair_suggestions(" in content
-    assert "\"suggestion_type\": suggestion_type" in content
+    assert '"suggestion_type": suggestion_type' in content
     assert "update_assertion" in content
     assert "update_request" in content
     assert "investigate_environment" in content
-    assert "\"repair_suggestions\": build_repair_suggestions(failed_steps)" in content
+    assert '"repair_suggestions": build_repair_suggestions(failed_steps)' in content
     assert "repair_suggestions: list[dict] = Field(default_factory=list)" in schema
 
 
@@ -40,7 +40,7 @@ def test_failure_diagnosis_endpoint_is_available_on_run_detail_api():
     assert "generate_failure_diagnosis(db, run_id)" in content
     assert "assert_project_access(db, current_user, module.project_id, ProjectRole.viewer)" in content
     assert "class FailureDiagnosisOut" in schema
-    assert "source: Literal[\"llm\", \"rule\", \"rule_fallback\"]" in schema
+    assert 'source: Literal["llm", "rule", "rule_fallback"]' in schema
 
 
 def test_run_detail_frontend_exposes_failure_diagnosis_action():

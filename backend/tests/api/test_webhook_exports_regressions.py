@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 
+
 def _p3c_noop(*_a, **_kw):
     return None
 
@@ -22,14 +23,15 @@ def _p3c_noop(*_a, **_kw):
 async def _p3c_noop_async(*_a, **_kw):
     return None
 
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=lambda: None,
     require_engineer=lambda: None,
-        require_admin=_p3c_noop,
-        require_project_access=lambda *a, **kw: _p3c_noop,
-        assert_project_access=_p3c_noop_async,
-        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
-    )
+    require_admin=_p3c_noop,
+    require_project_access=lambda *a, **kw: _p3c_noop,
+    assert_project_access=_p3c_noop_async,
+    ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+)
 sys.modules["app.core.minio_client"] = types.SimpleNamespace(read_bytes=lambda *_args, **_kwargs: b"")
 sys.modules["app.core.rate_limit"] = types.SimpleNamespace(
     limiter=types.SimpleNamespace(limit=lambda *_args, **_kwargs: (lambda func: func))
@@ -42,6 +44,7 @@ sys.modules["app.core.tracing"] = types.SimpleNamespace(
 )
 
 from app.api.v1 import exports, webhook
+
 sys.modules["app.core.tracing"] = _REAL_TRACING
 
 
@@ -211,9 +214,7 @@ def test_webhook_plan_trigger_passes_trace_id(monkeypatch):
 
 def test_webhook_trigger_rejects_unknown_env_id():
     db = _FakeWebhookDB(suite=_FakeSuite(), env=None)
-    body = webhook.WebhookTriggerBody(
-        target_type="suite", target_id=11, env_id=999, extra_vars={}
-    )
+    body = webhook.WebhookTriggerBody(target_type="suite", target_id=11, env_id=999, extra_vars={})
 
     with pytest.raises(HTTPException) as exc:
         asyncio.run(webhook.webhook_trigger(request=_fake_request(), body=body, db=db, _api_key="ok"))
@@ -243,9 +244,7 @@ def test_export_run_junit_reports_run_failure_without_steps():
 def test_extract_minio_object_supports_presigned_url_and_object_key():
     assert exports._extract_minio_object("screenshots/runs/1/step_0.png") == "screenshots/runs/1/step_0.png"
     assert (
-        exports._extract_minio_object(
-            "http://minio:9000/atp/screenshots/runs/1/step_0.png?X-Amz-Signature=abc"
-        )
+        exports._extract_minio_object("http://minio:9000/atp/screenshots/runs/1/step_0.png?X-Amz-Signature=abc")
         == "screenshots/runs/1/step_0.png"
     )
 

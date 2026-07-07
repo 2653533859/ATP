@@ -6,6 +6,7 @@
 
 均通过 httpx 直接发起 HTTP 请求，避免引入 SDK。
 """
+
 from __future__ import annotations
 
 import logging
@@ -69,9 +70,7 @@ async def _call_openai_compatible(request: LLMRequest) -> LLMResponse:
                     {"type": "text", "text": request.prompt},
                     {
                         "type": "image_url",
-                        "image_url": {
-                            "url": f"data:{request.image_media_type};base64,{request.image_base64}"
-                        },
+                        "image_url": {"url": f"data:{request.image_media_type};base64,{request.image_base64}"},
                     },
                 ],
             }

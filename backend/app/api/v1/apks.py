@@ -8,6 +8,7 @@ PATCH  /apks/{apk_id}       更新 APK 信息
 DELETE /apks/{apk_id}       删除 APK
 GET    /apks/{apk_id}/download  获取 APK 下载链接
 """
+
 import os
 import tempfile
 import uuid

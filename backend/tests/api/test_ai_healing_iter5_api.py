@@ -21,7 +21,7 @@ def test_patch_preview_endpoint_is_non_mutating_and_project_scoped():
     assert "assert_project_access" in content
     assert "ProjectRole.engineer" in content
     preview_body = content.split("async def preview_healing_patch", maxsplit=1)[1].split(
-        "@router.post(\"/patch-apply\"", maxsplit=1
+        '@router.post("/patch-apply"', maxsplit=1
     )[0]
     assert "await db.commit()" not in preview_body
     assert "await db.delete" not in preview_body

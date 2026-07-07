@@ -4,6 +4,7 @@ Celery 定时任务：ADB 设备扫描
 由 Celery Beat 按 ADB_SCAN_INTERVAL 调度，
 扫描已连接设备并更新数据库状态。
 """
+
 import logging
 
 from app.worker.celery_app import celery_app

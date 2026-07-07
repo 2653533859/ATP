@@ -1,4 +1,5 @@
 """P3.A ai_healing 单测：prompt 构造 + apply_healing_hook 决策 + run_diagnosis 三态。"""
+
 import asyncio
 import sys
 import types
@@ -112,8 +113,12 @@ def test_run_diagnosis_marks_skipped_when_project_lacks_llm_config(monkeypatch):
     from app.models.project import Module, Project
 
     step = StepResult(
-        id=1, run_id=10, step_index=0, name="step",
-        status=RunStatus.failed, error_message="boom",
+        id=1,
+        run_id=10,
+        step_index=0,
+        name="step",
+        status=RunStatus.failed,
+        error_message="boom",
     )
     run = TestRun(id=10, case_id=100)
     case = TestCase(id=100, name="case", module_id=200)
@@ -122,8 +127,15 @@ def test_run_diagnosis_marks_skipped_when_project_lacks_llm_config(monkeypatch):
     project = Project(id=300, name="p")
     project.ai_llm_config_id = None
 
-    db = _make_async_db({StepResult: {1: step}, TestRun: {10: run},
-                         TestCase: {100: case}, Module: {200: module}, Project: {300: project}})
+    db = _make_async_db(
+        {
+            StepResult: {1: step},
+            TestRun: {10: run},
+            TestCase: {100: case},
+            Module: {200: module},
+            Project: {300: project},
+        }
+    )
 
     published = []
 
@@ -131,6 +143,7 @@ def test_run_diagnosis_marks_skipped_when_project_lacks_llm_config(monkeypatch):
         published.append((rid, payload))
 
     import app.core.redis_client as redis_mod
+
     monkeypatch.setattr(redis_mod, "publish_run_event", fake_publish)
 
     asyncio.run(ai_healing.run_diagnosis(db, 1))
@@ -154,6 +167,7 @@ def test_run_diagnosis_is_idempotent_on_done(monkeypatch):
         raise AssertionError("LLM should not be called")
 
     import app.services.ai_case.llm_client as llm_mod
+
     monkeypatch.setattr(llm_mod, "call_llm", boom)
 
     asyncio.run(ai_healing.run_diagnosis(db, 2))
@@ -176,14 +190,16 @@ def _build_full_db(step):
     llm_cfg = AILLMConfig(id=400, provider="openai", model_name="gpt-4", api_key_encrypted="x")
     llm_cfg.enabled = True
 
-    return _make_async_db({
-        StepResult: {step.id: step},
-        TestRun: {step.run_id: run},
-        TestCase: {100: case},
-        Module: {200: module},
-        Project: {300: project},
-        AILLMConfig: {400: llm_cfg},
-    })
+    return _make_async_db(
+        {
+            StepResult: {step.id: step},
+            TestRun: {step.run_id: run},
+            TestCase: {100: case},
+            Module: {200: module},
+            Project: {300: project},
+            AILLMConfig: {400: llm_cfg},
+        }
+    )
 
 
 def test_cache_key_is_deterministic_for_same_inputs():
@@ -208,8 +224,12 @@ def test_run_diagnosis_uses_cache_and_skips_llm(monkeypatch):
     monkeypatch.setattr(ai_healing.settings, "AI_HEALING_DAILY_LIMIT", 100)
 
     step = StepResult(
-        id=10, run_id=11, step_index=0, name="GET /x",
-        status=RunStatus.failed, error_message="boom",
+        id=10,
+        run_id=11,
+        step_index=0,
+        name="GET /x",
+        status=RunStatus.failed,
+        error_message="boom",
     )
     db = _build_full_db(step)
 
@@ -232,6 +252,7 @@ def test_run_diagnosis_uses_cache_and_skips_llm(monkeypatch):
         published.append(payload)
 
     import app.core.redis_client as redis_mod
+
     monkeypatch.setattr(redis_mod, "publish_run_event", fake_publish)
 
     asyncio.run(ai_healing.run_diagnosis(db, 10))
@@ -249,13 +270,18 @@ def test_run_diagnosis_writes_cache_after_llm_success(monkeypatch):
     monkeypatch.setattr(ai_healing.settings, "AI_HEALING_DAILY_LIMIT", 0)  # 不限
 
     step = StepResult(
-        id=11, run_id=12, step_index=0, name="step",
-        status=RunStatus.failed, error_message="bad",
+        id=11,
+        run_id=12,
+        step_index=0,
+        name="step",
+        status=RunStatus.failed,
+        error_message="bad",
     )
     db = _build_full_db(step)
 
     # 解密直接放行
     import app.core.encryption as enc
+
     monkeypatch.setattr(enc, "decrypt", lambda _: "fake-api-key")
 
     async def fake_get(_key):
@@ -275,6 +301,7 @@ def test_run_diagnosis_writes_cache_after_llm_success(monkeypatch):
     monkeypatch.setattr(llm_mod, "call_llm", fake_llm)
 
     import app.core.redis_client as redis_mod
+
     monkeypatch.setattr(redis_mod, "publish_run_event", lambda *_a, **_kw: _async_noop())
 
     asyncio.run(ai_healing.run_diagnosis(db, 11))
@@ -294,29 +321,37 @@ def test_run_diagnosis_injects_few_shot_examples(monkeypatch):
     monkeypatch.setattr(ai_healing.settings, "AI_HEALING_FEW_SHOT_TOP_N", 3)
 
     step = StepResult(
-        id=12, run_id=13, step_index=0, name="step",
-        status=RunStatus.failed, error_message="bad",
+        id=12,
+        run_id=13,
+        step_index=0,
+        name="step",
+        status=RunStatus.failed,
+        error_message="bad",
     )
     db = _build_full_db(step)
 
     import app.core.encryption as enc
+
     monkeypatch.setattr(enc, "decrypt", lambda _: "fake-api-key")
 
     async def fake_get_examples(_db, *, error_fingerprint, case_type, limit):
         assert case_type == "api"
         assert limit == 3
         assert len(error_fingerprint) == 32
-        return [types.SimpleNamespace(
-            case_type="api",
-            step_context_json={"step_name": "step", "error_message": "bad"},
-            suggestion_text="历史建议",
-        )]
+        return [
+            types.SimpleNamespace(
+                case_type="api",
+                step_context_json={"step_name": "step", "error_message": "bad"},
+                suggestion_text="历史建议",
+            )
+        ]
 
     def fake_block(examples):
         assert examples
         return "# 历史高质量修复示例\n历史建议"
 
     import app.services.healing_prompt_examples as examples_mod
+
     monkeypatch.setattr(examples_mod, "get_high_quality_examples", fake_get_examples)
     monkeypatch.setattr(examples_mod, "build_few_shot_block", fake_block)
 
@@ -328,6 +363,7 @@ def test_run_diagnosis_injects_few_shot_examples(monkeypatch):
 
     monkeypatch.setattr(llm_mod, "call_llm", fake_llm)
     import app.core.redis_client as redis_mod
+
     monkeypatch.setattr(redis_mod, "publish_run_event", lambda *_a, **_kw: _async_noop())
 
     asyncio.run(ai_healing.run_diagnosis(db, 12))
@@ -348,8 +384,12 @@ def test_run_diagnosis_attaches_screenshot_when_vision_enabled(monkeypatch):
     monkeypatch.setattr(ai_healing.settings, "AI_HEALING_VISION_DAILY_LIMIT", 50)
 
     step = StepResult(
-        id=13, run_id=14, step_index=0, name="step",
-        status=RunStatus.failed, error_message="bad",
+        id=13,
+        run_id=14,
+        step_index=0,
+        name="step",
+        status=RunStatus.failed,
+        error_message="bad",
         screenshot_url="screenshots/runs/14/step_0.png",
     )
     db = _build_full_db(step)
@@ -357,12 +397,14 @@ def test_run_diagnosis_attaches_screenshot_when_vision_enabled(monkeypatch):
     cfg.supports_vision = True
 
     import app.core.encryption as enc
+
     monkeypatch.setattr(enc, "decrypt", lambda _: "fake-api-key")
 
     async def allow_vision():
         return True
 
     monkeypatch.setattr(ai_healing, "_check_and_incr_vision_daily_limit", allow_vision)
+
     async def fake_load_image(_url):
         return "aW1n", "image/png"
 
@@ -377,6 +419,7 @@ def test_run_diagnosis_attaches_screenshot_when_vision_enabled(monkeypatch):
 
     monkeypatch.setattr(llm_mod, "call_llm", fake_llm)
     import app.core.redis_client as redis_mod
+
     monkeypatch.setattr(redis_mod, "publish_run_event", lambda *_a, **_kw: _async_noop())
 
     asyncio.run(ai_healing.run_diagnosis(db, 13))
@@ -396,8 +439,12 @@ def test_run_diagnosis_falls_back_to_text_when_screenshot_load_fails(monkeypatch
     monkeypatch.setattr(ai_healing.settings, "AI_HEALING_VISION_ENABLED", True)
 
     step = StepResult(
-        id=14, run_id=15, step_index=0, name="step",
-        status=RunStatus.failed, error_message="bad",
+        id=14,
+        run_id=15,
+        step_index=0,
+        name="step",
+        status=RunStatus.failed,
+        error_message="bad",
         screenshot_url="screenshots/runs/15/missing.png",
     )
     db = _build_full_db(step)
@@ -405,7 +452,9 @@ def test_run_diagnosis_falls_back_to_text_when_screenshot_load_fails(monkeypatch
     cfg.supports_vision = True
 
     import app.core.encryption as enc
+
     monkeypatch.setattr(enc, "decrypt", lambda _: "fake-api-key")
+
     async def fake_load_missing(_url):
         return None
 
@@ -424,6 +473,7 @@ def test_run_diagnosis_falls_back_to_text_when_screenshot_load_fails(monkeypatch
 
     monkeypatch.setattr(llm_mod, "call_llm", fake_llm)
     import app.core.redis_client as redis_mod
+
     monkeypatch.setattr(redis_mod, "publish_run_event", lambda *_a, **_kw: _async_noop())
 
     asyncio.run(ai_healing.run_diagnosis(db, 14))
@@ -444,8 +494,12 @@ def test_run_diagnosis_skipped_when_daily_limit_exceeded(monkeypatch):
     monkeypatch.setattr(ai_healing.settings, "AI_HEALING_DAILY_LIMIT", 5)
 
     step = StepResult(
-        id=20, run_id=21, step_index=0, name="step",
-        status=RunStatus.failed, error_message="bad",
+        id=20,
+        run_id=21,
+        step_index=0,
+        name="step",
+        status=RunStatus.failed,
+        error_message="bad",
     )
     db = _build_full_db(step)
 
@@ -465,6 +519,7 @@ def test_run_diagnosis_skipped_when_daily_limit_exceeded(monkeypatch):
         published.append(payload)
 
     import app.core.redis_client as redis_mod
+
     monkeypatch.setattr(redis_mod, "publish_run_event", fake_publish)
 
     asyncio.run(ai_healing.run_diagnosis(db, 20))
@@ -534,7 +589,9 @@ def test_build_run_healing_prompt_lists_all_failed_steps():
         StepResult(id=2, step_index=1, name="查询", error_message="timeout"),
     ]
     prompt = ai_healing.build_run_healing_prompt(
-        case_type="api", case_name="冒烟", failed_steps=steps,
+        case_type="api",
+        case_name="冒烟",
+        failed_steps=steps,
     )
     assert "失败步骤数: 2" in prompt
     assert "登录" in prompt and "查询" in prompt

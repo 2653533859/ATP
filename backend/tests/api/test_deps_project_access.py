@@ -7,6 +7,7 @@
 - 无关用户访问失败 + 写审计
 - assert_project_access 非路径参数路径同样工作
 """
+
 import asyncio
 import sys
 import types
@@ -40,7 +41,9 @@ sys.modules.setdefault(
 )
 sys.modules.setdefault(
     "passlib.context",
-    types.SimpleNamespace(CryptContext=lambda *a, **kw: types.SimpleNamespace(hash=lambda x: x, verify=lambda *a, **kw: True)),
+    types.SimpleNamespace(
+        CryptContext=lambda *a, **kw: types.SimpleNamespace(hash=lambda x: x, verify=lambda *a, **kw: True)
+    ),
 )
 
 from fastapi import HTTPException
@@ -73,6 +76,7 @@ class _FakeDB:
         project_id = None
         # 找 "user_id = N" 和 "project_id = N"
         import re
+
         m = re.search(r"user_projects\.user_id\s*=\s*(\d+)", sql)
         if m:
             user_id = int(m.group(1))
@@ -90,6 +94,7 @@ class _FakeDB:
     def add(self, obj):
         # 捕获写审计
         from app.models.audit import AuditLog
+
         if isinstance(obj, AuditLog):
             self.audit_records.append(
                 {

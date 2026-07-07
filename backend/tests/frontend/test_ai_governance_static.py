@@ -24,7 +24,7 @@ def test_ai_case_generation_uses_governance_controls():
 
     assert "check_and_incr_daily_limit" in content
     assert 'capability="ai_case_generation"' in content
-    assert "resolve_system_prompt(config, \"ai_case_generation\", SYSTEM_PROMPT)" in content
+    assert 'resolve_system_prompt(config, "ai_case_generation", SYSTEM_PROMPT)' in content
     assert "extra_params=llm_extra_params(config)" in content
 
 

@@ -1,4 +1,5 @@
 """E.2 缺陷跟踪扩展测试：GitLab Issues + 禅道多产品 override_product_id."""
+
 import asyncio
 import sys
 import types
@@ -109,11 +110,7 @@ def test_create_gitlab_issue_returns_bug_id_and_url(monkeypatch):
 
     monkeypatch.setattr(bug_reporter.httpx, "AsyncClient", _FakeClient)
 
-    result = asyncio.run(
-        bug_reporter._create_gitlab_issue(
-            config, "Bug 1", "desc", {"labels": ["bug"]}
-        )
-    )
+    result = asyncio.run(bug_reporter._create_gitlab_issue(config, "Bug 1", "desc", {"labels": ["bug"]}))
     assert result["bug_id"] == "42"
     assert result["bug_url"].endswith("/issues/42")
     assert result["title"] == "Bug 1"

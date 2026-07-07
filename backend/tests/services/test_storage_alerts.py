@@ -56,7 +56,7 @@ def _setup(monkeypatch, *, total_bytes: int, threshold_gb: float, interval_secon
 
 
 def test_check_returns_none_when_threshold_disabled(monkeypatch):
-    storage_alerts, cache = _setup(monkeypatch, total_bytes=5 * (1024 ** 3), threshold_gb=0)
+    storage_alerts, cache = _setup(monkeypatch, total_bytes=5 * (1024**3), threshold_gb=0)
 
     result = asyncio.run(storage_alerts.check_and_record_alert())
 
@@ -74,7 +74,7 @@ def test_check_clears_stale_alert_when_disabled(monkeypatch):
 
 
 def test_check_writes_alert_when_threshold_exceeded(monkeypatch):
-    storage_alerts, cache = _setup(monkeypatch, total_bytes=10 * (1024 ** 3), threshold_gb=5.0)
+    storage_alerts, cache = _setup(monkeypatch, total_bytes=10 * (1024**3), threshold_gb=5.0)
 
     result = asyncio.run(storage_alerts.check_and_record_alert())
 
@@ -86,7 +86,7 @@ def test_check_writes_alert_when_threshold_exceeded(monkeypatch):
 
 
 def test_check_keeps_existing_alert_within_interval(monkeypatch):
-    storage_alerts, cache = _setup(monkeypatch, total_bytes=10 * (1024 ** 3), threshold_gb=5.0)
+    storage_alerts, cache = _setup(monkeypatch, total_bytes=10 * (1024**3), threshold_gb=5.0)
     cached_payload = {"existing": True}
     cache[storage_alerts.ALERT_CACHE_KEY] = cached_payload
 
@@ -96,7 +96,7 @@ def test_check_keeps_existing_alert_within_interval(monkeypatch):
 
 
 def test_check_clears_alert_when_usage_returns_below_threshold(monkeypatch):
-    storage_alerts, cache = _setup(monkeypatch, total_bytes=int(1.5 * 1024 ** 3), threshold_gb=5.0)
+    storage_alerts, cache = _setup(monkeypatch, total_bytes=int(1.5 * 1024**3), threshold_gb=5.0)
     cache[storage_alerts.ALERT_CACHE_KEY] = {"existing": True}
 
     result = asyncio.run(storage_alerts.check_and_record_alert())
@@ -115,12 +115,12 @@ def test_get_current_alert_returns_cached_payload(monkeypatch):
 
 
 def test_check_skips_when_object_count_exceeds_scan_limit(monkeypatch):
-    storage_alerts, cache = _setup(monkeypatch, total_bytes=10 * (1024 ** 3), threshold_gb=5.0)
+    storage_alerts, cache = _setup(monkeypatch, total_bytes=10 * (1024**3), threshold_gb=5.0)
     # 模拟 list_objects 返回比上限更多的对象
     monkeypatch.setattr(storage_alerts.settings, "STORAGE_ALERT_MAX_SCAN_OBJECTS", 2, raising=False)
 
     class FakeObj:
-        size = 1024 ** 3
+        size = 1024**3
 
     monkeypatch.setattr(
         storage_alerts.minio_client,

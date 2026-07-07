@@ -12,6 +12,38 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  backend-lint:
+    name: Backend lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: backend/requirements-dev.txt
+
+      - name: Install lint dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements-dev.txt
+
+      - name: Run ruff
+        run: python -m ruff check backend/app backend/tests
+
+      - name: Run ruff format check
+        run: python -m ruff format --check backend/app backend/tests
+
+      - name: Run mypy
+        run: python -m mypy
+
+      - name: Run Bandit SAST
+        run: python -m bandit -c pyproject.toml -r backend/app -ll
+
   migration-check:
     name: Empty database migration
     runs-on: ubuntu-latest
@@ -124,9 +156,18 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
+          pip install -r backend/requirements-dev.txt
 
       - name: Run pytest
-        run: python -m pytest backend/tests -q --ignore=backend/tests/integration
+        run: python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=52
+
+      - name: Upload coverage report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: backend-coverage-xml
+          path: coverage.xml
+          if-no-files-found: error
 
   frontend-check:
     name: Frontend type-check + build
@@ -149,6 +190,9 @@ jobs:
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Unit tests
+        run: npm run test
 
       - name: Type check
         run: npm run type-check

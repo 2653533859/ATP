@@ -2,6 +2,7 @@
 
 api_key 在保存时 Fernet 加密，返回时仅暴露 ``has_api_key`` 标记。
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status

@@ -8,6 +8,7 @@ PATCH  /bug-trackers/{id}        更新配置
 DELETE /bug-trackers/{id}        删除配置
 POST   /runs/{run_id}/create-bug 一键创建缺陷
 """
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -21,8 +22,12 @@ from app.schemas.bug_tracker import (
     BugTrackerConnectionTestOut,
     BugTrackerConnectionTestRequest,
     BugStatusOut,
-    BugTrackerCreate, BugTrackerUpdate, BugTrackerOut,
-    CreateBugRequest, LinkBugRequest, BugResultOut,
+    BugTrackerCreate,
+    BugTrackerUpdate,
+    BugTrackerOut,
+    CreateBugRequest,
+    LinkBugRequest,
+    BugResultOut,
 )
 from app.api.deps import assert_project_access, require_engineer, get_current_user
 from app.models.user_project import ProjectRole
@@ -63,6 +68,7 @@ def _get_tracker_or_404(tracker: BugTracker | None) -> BugTracker:
 
 
 # ── CRUD ──────────────────────────────────────────────────
+
 
 @router.post("/bug-trackers", response_model=BugTrackerOut, status_code=status.HTTP_201_CREATED)
 async def create_bug_tracker(
@@ -264,6 +270,7 @@ async def get_run_bug_status(
 
 # ── 一键创建缺陷 ─────────────────────────────────────────
 
+
 @router.post("/runs/{run_id}/link-bug", response_model=BugStatusOut)
 async def link_bug_to_run(
     run_id: int,
@@ -301,6 +308,7 @@ async def link_bug_to_run(
     await db.commit()
 
     return BugStatusOut(bug_id=body.bug_id, status=status_text, bug_url=bug_url)
+
 
 @router.post("/runs/{run_id}/create-bug", response_model=BugResultOut)
 async def create_bug_from_run(
@@ -429,13 +437,16 @@ async def create_bug_from_run(
         screenshot_source = step.screenshot_url if step else None
     if not screenshot_source:
         result_step = await db.execute(
-            select(StepResult).where(StepResult.run_id == run_id, StepResult.screenshot_url.isnot(None)).order_by(StepResult.step_index)
+            select(StepResult)
+            .where(StepResult.run_id == run_id, StepResult.screenshot_url.isnot(None))
+            .order_by(StepResult.step_index)
         )
         first_step_with_image = result_step.scalars().first()
         screenshot_source = first_step_with_image.screenshot_url if first_step_with_image else None
 
     if screenshot_source:
         from app.api.v1.exports import _extract_minio_object
+
         object_name = _extract_minio_object(screenshot_source)
         if object_name:
             try:

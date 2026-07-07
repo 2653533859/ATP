@@ -76,7 +76,9 @@ def test_run_k6_script_keeps_summary_when_k6_exits_nonzero(monkeypatch):
 
     monkeypatch.setattr(performance.minio_client, "download_file", _fake_download, raising=False)
     monkeypatch.setattr(performance.subprocess, "run", fake_run)
-    monkeypatch.setattr(performance.minio_client, "upload_file", lambda object_name, *_a, **_kw: object_name, raising=False)
+    monkeypatch.setattr(
+        performance.minio_client, "upload_file", lambda object_name, *_a, **_kw: object_name, raising=False
+    )
 
     summary, object_name, _duration_ms = performance.run_k6_script(
         run_id=13,

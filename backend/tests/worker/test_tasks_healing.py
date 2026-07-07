@@ -1,15 +1,18 @@
 """P3.A Celery 任务包装层测试：成功路径 + 异常吞掉不抛。"""
+
 import sys
 import types
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+
 # stub celery_app 避免真 celery 依赖
 class _FakeCelery:
     def task(self, *a, **kw):
         def deco(fn):
             return fn
+
         return deco
 
 

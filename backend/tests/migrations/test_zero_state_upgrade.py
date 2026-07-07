@@ -12,6 +12,7 @@
 如果新增了 ORM 模型但忘写迁移，本测试会立即失败并打印缺失表列表，
 比"上生产才发现"早数月。
 """
+
 from __future__ import annotations
 
 import re
@@ -155,6 +156,4 @@ def test_alembic_head_resolvable():
     assert head is not None
     # head 应符合命名约定（与最新迁移文件一致）
     latest_file = sorted(_VERSIONS_DIR.glob("*.py"))[-1]
-    assert head in latest_file.name, (
-        f"alembic head={head}，但最新迁移文件是 {latest_file.name}，可能链断裂"
-    )
+    assert head in latest_file.name, f"alembic head={head}，但最新迁移文件是 {latest_file.name}，可能链断裂"

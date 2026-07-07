@@ -1,6 +1,15 @@
+from typing import TYPE_CHECKING
+
 from sqlalchemy import String, Text, ForeignKey, Integer
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.bug_tracker import BugTracker
+    from app.models.case import TestCase
+    from app.models.dashboard_alert import DashboardAlertRule
+    from app.models.mobile_special import MobileSpecialTask
+    from app.models.notification import NotificationConfig
 
 
 class Project(Base, TimestampMixin):

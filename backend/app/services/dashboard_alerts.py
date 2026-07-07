@@ -1,4 +1,5 @@
 """Dashboard alert evaluation and notification dispatch."""
+
 from __future__ import annotations
 
 import logging

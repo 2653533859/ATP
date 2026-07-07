@@ -8,8 +8,9 @@ def test_mobile_special_migration_covers_task_type_enum():
     mobile_special_migration = migration_dir / "20260330_0014_add_mobile_special_domain.py"
 
     assert mobile_special_migration.exists(), "Mobile special migration must exist"
-    assert "mobile_special" in mobile_special_migration.read_text(encoding="utf-8").lower(), \
-        "Mobile special migration must contain mobile_special domain"
+    assert (
+        "mobile_special" in mobile_special_migration.read_text(encoding="utf-8").lower()
+    ), "Mobile special migration must contain mobile_special domain"
 
     # Must have task_type enum with required values
     for val in ("performance", "stability", "fluency"):
@@ -60,5 +61,4 @@ def test_mobile_special_migration_has_required_indexes():
     content = mobile_special_migration.read_text(encoding="utf-8")
 
     # Key indexes on foreign keys and time columns
-    assert "create_index" in content or "index" in content.lower(), \
-        "Migration should create indexes for performance"
+    assert "create_index" in content or "index" in content.lower(), "Migration should create indexes for performance"

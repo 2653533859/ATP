@@ -83,9 +83,7 @@ class TestCase(Base, TimestampMixin):
 
 class CaseStep(Base, TimestampMixin):
     __tablename__ = "case_steps"
-    __table_args__ = (
-        UniqueConstraint("case_id", "step_no", name="uq_case_steps_case_id_step_no"),
-    )
+    __table_args__ = (UniqueConstraint("case_id", "step_no", name="uq_case_steps_case_id_step_no"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     case_id: Mapped[int] = mapped_column(ForeignKey("test_cases.id", ondelete="CASCADE"), nullable=False)
@@ -115,9 +113,7 @@ class TestRun(Base, TimestampMixin):
     # P3.B MVP-B 参数化执行：parent run（容器）+ 多个 child runs（实际跑）
     iteration_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     iteration_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    parent_run_id: Mapped[int | None] = mapped_column(
-        ForeignKey("test_runs.id"), nullable=True, index=True
-    )
+    parent_run_id: Mapped[int | None] = mapped_column(ForeignKey("test_runs.id"), nullable=True, index=True)
 
     case: Mapped["TestCase"] = relationship(back_populates="runs")
     steps: Mapped[list["StepResult"]] = relationship(back_populates="run", cascade="all, delete-orphan")
@@ -150,9 +146,7 @@ class StepResult(Base, TimestampMixin):
 
 class CaseSnapshot(Base, TimestampMixin):
     __tablename__ = "case_snapshots"
-    __table_args__ = (
-        UniqueConstraint("case_id", "version", name="uq_case_snapshots_case_id_version"),
-    )
+    __table_args__ = (UniqueConstraint("case_id", "version", name="uq_case_snapshots_case_id_version"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     case_id: Mapped[int] = mapped_column(ForeignKey("test_cases.id", ondelete="CASCADE"), nullable=False)

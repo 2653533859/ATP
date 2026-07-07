@@ -1,4 +1,5 @@
 """Pydantic schemas for mobile special testing domain."""
+
 from datetime import datetime
 from typing import Optional
 
@@ -17,6 +18,7 @@ from app.models.mobile_special import (
 
 
 # ---- Task Schemas ----
+
 
 class MobileSpecialTaskCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=256)
@@ -78,6 +80,7 @@ class MobileSpecialTaskOut(BaseModel):
 
 # ---- Run Schemas ----
 
+
 class MobileSpecialRunOut(BaseModel):
     id: int
     task_id: int
@@ -102,11 +105,13 @@ class MobileSpecialRunOut(BaseModel):
 
 class MobileSpecialRunListItem(MobileSpecialRunOut):
     """Extended run item for list views with task_name joined."""
+
     task_name: Optional[str] = None
 
 
 class RunSummary(BaseModel):
     """Summary fields for a completed run. Fields vary by task_type."""
+
     # Performance metrics
     avg_cpu_pct: Optional[float] = None
     peak_cpu_pct: Optional[float] = None
@@ -134,6 +139,7 @@ class RunTriggerRequest(BaseModel):
 
 # ---- Metric Sample Schemas ----
 
+
 class MobileMetricSampleOut(BaseModel):
     id: int
     run_id: int
@@ -147,6 +153,7 @@ class MobileMetricSampleOut(BaseModel):
 
 
 # ---- Incident Schemas ----
+
 
 class MobileIncidentOut(BaseModel):
     id: int
@@ -164,6 +171,7 @@ class MobileIncidentOut(BaseModel):
 
 # ---- Artifact Schemas ----
 
+
 class MobileRunArtifactOut(BaseModel):
     id: int
     run_id: int
@@ -177,6 +185,7 @@ class MobileRunArtifactOut(BaseModel):
 
 
 # ---- Statistics Schemas ----
+
 
 class MobileSpecialOverviewItem(BaseModel):
     total_runs: int

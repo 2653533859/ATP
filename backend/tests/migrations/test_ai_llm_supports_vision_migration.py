@@ -2,12 +2,7 @@ from pathlib import Path
 
 
 def _migration_path() -> Path:
-    return (
-        Path(__file__).resolve().parents[2]
-        / "alembic"
-        / "versions"
-        / "20260528_0033_add_ai_llm_supports_vision.py"
-    )
+    return Path(__file__).resolve().parents[2] / "alembic" / "versions" / "20260528_0033_add_ai_llm_supports_vision.py"
 
 
 def test_ai_llm_supports_vision_migration_chain_position():

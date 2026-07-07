@@ -3,6 +3,7 @@
 This module is intentionally side-effect free: it defines the structured LLM
 contract and validates low-code patches before any future API writes them back.
 """
+
 from __future__ import annotations
 
 import copy
@@ -214,7 +215,7 @@ def _extract_json_payload(text: str) -> str:
     end = stripped.rfind("}")
     if start == -1 or end == -1 or end < start:
         raise ValueError("structured_healing_json_not_found")
-    return stripped[start:end + 1]
+    return stripped[start : end + 1]
 
 
 def _require_str(raw: dict[str, Any], key: str) -> str:
@@ -237,8 +238,11 @@ def _parse_patch(raw: Any) -> StructuredHealingPatch | None:
         return None
     if not isinstance(raw, dict):
         raise ValueError("structured_healing_patch_must_be_object")
+    raw_step_index = raw.get("step_index")
+    if raw_step_index is None:
+        raise ValueError("structured_healing_patch_step_index_required")
     try:
-        step_index = int(raw.get("step_index"))
+        step_index = int(raw_step_index)
     except (TypeError, ValueError) as exc:
         raise ValueError("structured_healing_patch_step_index_required") from exc
     params = raw.get("params") or {}

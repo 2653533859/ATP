@@ -9,6 +9,7 @@ Authorization 或 X-Requested-With header，防止跨站表单伪造。
 - /mock/  （Mock 服务可被外部直接调用）
 - /docs, /openapi.json （Swagger UI）
 """
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import JSONResponse

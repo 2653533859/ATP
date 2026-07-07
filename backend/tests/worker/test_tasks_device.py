@@ -12,6 +12,7 @@ def test_scan_adb_devices_skip_sync_when_scan_failed(monkeypatch):
         def task(self, *args, **kwargs):
             def decorator(func):
                 return func
+
             return decorator
 
     fake_celery_module = types.SimpleNamespace(celery_app=FakeCeleryApp())

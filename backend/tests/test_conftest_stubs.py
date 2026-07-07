@@ -6,6 +6,7 @@
 这是 P2.1 收口的核心保证：只要 conftest 在 import 时跑一次，且其他测试只是
 *替换* 模块对象（而非删除字段），helper 的"补齐不覆盖"语义就守住底线。
 """
+
 import sys
 import types
 

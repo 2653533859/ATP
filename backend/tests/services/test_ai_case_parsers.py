@@ -1,4 +1,5 @@
 """Tests for app.services.ai_case.parsers."""
+
 import json
 import sys
 from pathlib import Path
@@ -45,13 +46,7 @@ def test_parse_openapi_json_basic():
                 },
                 "post": {
                     "summary": "Create user",
-                    "requestBody": {
-                        "content": {
-                            "application/json": {
-                                "example": {"name": "alice"}
-                            }
-                        }
-                    },
+                    "requestBody": {"content": {"application/json": {"example": {"name": "alice"}}}},
                     "responses": {"201": {}},
                 },
             }

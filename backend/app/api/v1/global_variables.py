@@ -1,4 +1,5 @@
 """Global Variables API endpoints."""
+
 from fastapi import APIRouter, Depends, HTTPException, status, Query
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -76,6 +77,7 @@ async def create_variable(
         await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
     elif body.scope_type == ScopeType.global_scope:
         from app.models.user import UserRole
+
         if current_user.role != UserRole.admin:
             raise HTTPException(status_code=403, detail="只有管理员可以创建全局作用域变量")
     # 检查 key 唯一性

@@ -16,6 +16,6 @@ def test_dataset_validation_policy_migration_adds_soft_default():
     content = MIGRATION.read_text(encoding="utf-8")
 
     assert '"validation_policy"' in content
-    assert 'sa.String(length=16)' in content
+    assert "sa.String(length=16)" in content
     assert 'server_default="soft"' in content
-    assert 'nullable=False' in content
+    assert "nullable=False" in content

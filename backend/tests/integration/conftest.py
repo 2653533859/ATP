@@ -5,6 +5,7 @@
 - 每个测试用例在事务里跑，结束时回滚以隔离数据；session 范围 fixture 负责
   一次性 `alembic upgrade head` + bootstrap admin。
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -17,9 +18,9 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import sessionmaker
 
-assert os.getenv("ATP_INTEGRATION_TESTS") == "1", (
-    "integration tests require ATP_INTEGRATION_TESTS=1 (root conftest skips stub injection)"
-)
+assert (
+    os.getenv("ATP_INTEGRATION_TESTS") == "1"
+), "integration tests require ATP_INTEGRATION_TESTS=1 (root conftest skips stub injection)"
 
 
 # ── 每用例启动 app/client，避免 asyncpg 连接跨 pytest 事件循环复用 ─────────

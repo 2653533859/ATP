@@ -86,7 +86,9 @@ def test_send_notifications_dispatches_by_channel(monkeypatch):
     configs = [
         SimpleNamespace(id=1, channel=NotifyChannel.email, config={"recipients": ["a@test.com"], "language": "en-US"}),
         SimpleNamespace(id=2, channel=NotifyChannel.wechat, config={"webhook_url": "https://qy.example"}),
-        SimpleNamespace(id=3, channel=NotifyChannel.dingtalk, config={"webhook_url": "https://dt.example?access_token=1"}),
+        SimpleNamespace(
+            id=3, channel=NotifyChannel.dingtalk, config={"webhook_url": "https://dt.example?access_token=1"}
+        ),
     ]
 
     asyncio.run(notifier.send_notifications(_FakeDB(configs), 9, _summary()))
@@ -101,7 +103,9 @@ def test_should_send_notification_filters_by_status_and_suite_scope():
 
     assert notifier.should_send_notification(config, {**_summary(), "entity_type": "suite", "suite_id": 3})
     assert notifier.should_send_notification(config, {**_summary(), "entity_type": "suite", "suite_id": "5"})
-    assert not notifier.should_send_notification(config, {**_summary(), "status": "passed", "entity_type": "suite", "suite_id": 3})
+    assert not notifier.should_send_notification(
+        config, {**_summary(), "status": "passed", "entity_type": "suite", "suite_id": 3}
+    )
     assert not notifier.should_send_notification(config, {**_summary(), "entity_type": "plan", "plan_id": 3})
     assert not notifier.should_send_notification(config, {**_summary(), "entity_type": "suite", "suite_id": 8})
 
@@ -118,12 +122,22 @@ def test_send_notifications_skips_configs_outside_strategy(monkeypatch):
         SimpleNamespace(
             id=1,
             channel=NotifyChannel.email,
-            config={"recipients": ["suite-1@test.com"], "scope": "suites", "suite_ids": [1], "status_filters": ["failed"]},
+            config={
+                "recipients": ["suite-1@test.com"],
+                "scope": "suites",
+                "suite_ids": [1],
+                "status_filters": ["failed"],
+            },
         ),
         SimpleNamespace(
             id=2,
             channel=NotifyChannel.email,
-            config={"recipients": ["suite-2@test.com"], "scope": "suites", "suite_ids": [2], "status_filters": ["failed"]},
+            config={
+                "recipients": ["suite-2@test.com"],
+                "scope": "suites",
+                "suite_ids": [2],
+                "status_filters": ["failed"],
+            },
         ),
     ]
 

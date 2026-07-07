@@ -20,6 +20,7 @@ Web UI 低代码执行器（Playwright 直接 API 调用）
     "params": { "url": "https://example.com" }
   }
 """
+
 import asyncio
 import logging
 import re
@@ -79,9 +80,7 @@ async def _take_screenshot(page: Page, run_id: int, step_index: int) -> str | No
     try:
         screenshot_bytes = await page.screenshot(type="png")
         obj_name = f"screenshots/runs/{run_id}/step_{step_index}.png"
-        await asyncio.get_event_loop().run_in_executor(
-            None, upload_bytes, obj_name, screenshot_bytes, "image/png"
-        )
+        await asyncio.get_event_loop().run_in_executor(None, upload_bytes, obj_name, screenshot_bytes, "image/png")
         return presigned_url(obj_name)
     except Exception as e:
         logger.warning("Screenshot failed for run %s step %s: %s", run_id, step_index, e)
@@ -252,20 +251,23 @@ async def run_web_lowcode(
             db.add(step_result)
             await db.commit()
 
-            await _safe_publish(run.id, {
-                "type": "step_result",
-                "run_id": run.id,
-                "step": {
-                    "step_index": idx,
-                    "name": step_name,
-                    "status": status.value,
-                    "duration_ms": duration_ms,
-                    "request_data": step_result.request_data,
-                    "response_data": response_data,
-                    "error_message": error_message,
-                    "screenshot_url": screenshot_url,
+            await _safe_publish(
+                run.id,
+                {
+                    "type": "step_result",
+                    "run_id": run.id,
+                    "step": {
+                        "step_index": idx,
+                        "name": step_name,
+                        "status": status.value,
+                        "duration_ms": duration_ms,
+                        "request_data": step_result.request_data,
+                        "response_data": response_data,
+                        "error_message": error_message,
+                        "screenshot_url": screenshot_url,
+                    },
                 },
-            })
+            )
 
             # 失败后停止后续步骤
             if status == RunStatus.failed:
@@ -315,10 +317,13 @@ async def run_web_lowcode(
     }
     await db.commit()
 
-    await _safe_publish(run.id, {
-        "type": "completed",
-        "run_id": run.id,
-        "status": run.status.value,
-        "duration_ms": total_ms,
-        **({"video_url": video_url} if video_url else {}),
-    })
+    await _safe_publish(
+        run.id,
+        {
+            "type": "completed",
+            "run_id": run.id,
+            "status": run.status.value,
+            "duration_ms": total_ms,
+            **({"video_url": video_url} if video_url else {}),
+        },
+    )

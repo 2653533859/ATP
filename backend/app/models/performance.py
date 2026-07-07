@@ -1,4 +1,5 @@
 """HTTP performance testing models."""
+
 from __future__ import annotations
 
 import enum
@@ -20,9 +21,7 @@ class PerformanceRunStatus(str, enum.Enum):
 
 class PerformanceTest(Base, TimestampMixin):
     __tablename__ = "performance_tests"
-    __table_args__ = (
-        UniqueConstraint("project_id", "name", name="uq_performance_tests_project_name"),
-    )
+    __table_args__ = (UniqueConstraint("project_id", "name", name="uq_performance_tests_project_name"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)

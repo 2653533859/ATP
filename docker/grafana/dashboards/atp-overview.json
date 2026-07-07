@@ -389,6 +389,141 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "type": "stat",
+      "id": 14,
+      "title": "SLO API availability (1h)",
+      "description": "Target: >= 99.5%. Calculated as 1 - backend 5xx rate / total request rate.",
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 0,
+        "y": 64
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "1 - (sum(rate(http_requests_total{job=\"atp-backend\",status=~\"5..\"}[1h])) / clamp_min(sum(rate(http_requests_total{job=\"atp-backend\"}[1h])), 1e-9))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s"
+        },
+        "overrides": []
+      },
+      "type": "stat",
+      "id": 15,
+      "title": "SLO API P95 latency (5m)",
+      "description": "Target: <= 2s for backend HTTP requests.",
+      "gridPos": {
+        "h": 6,
+        "w": 6,
+        "x": 6,
+        "y": 64
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job=\"atp-backend\"}[5m])) by (le))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "type": "timeseries",
+      "id": 16,
+      "title": "SLO run success rate (1h)",
+      "description": "Target: >= 95%. Terminal passed / terminal passed+failed+error by case/suite/plan.",
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 64
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "sum(rate(atp_run_outcomes_total{status=\"passed\"}[1h])) by (entity_type) / clamp_min(sum(rate(atp_run_outcomes_total{status=~\"passed|failed|error\"}[1h])) by (entity_type), 1e-9)",
+          "legendFormat": "{{entity_type}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "datasource": {
+        "type": "prometheus",
+        "uid": "prometheus"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1
+        },
+        "overrides": []
+      },
+      "type": "stat",
+      "id": 17,
+      "title": "SLO API error budget remaining (1h)",
+      "description": "Target: 99.5% availability leaves a 0.5% error budget. This panel shows remaining short-window budget.",
+      "gridPos": {
+        "h": 6,
+        "w": 12,
+        "x": 0,
+        "y": 70
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "prometheus"
+          },
+          "expr": "clamp_min(1 - ((sum(rate(http_requests_total{job=\"atp-backend\",status=~\"5..\"}[1h])) / clamp_min(sum(rate(http_requests_total{job=\"atp-backend\"}[1h])), 1e-9)) / 0.005), 0)",
+          "refId": "A"
+        }
+      ]
     }
   ]
 }

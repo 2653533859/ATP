@@ -12,4 +12,3 @@ def test_scan_devices_returns_none_when_adb_command_failed(monkeypatch):
     scanned = adb_service.scan_devices()
 
     assert scanned is None
-

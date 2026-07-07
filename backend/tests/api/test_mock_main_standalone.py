@@ -5,6 +5,7 @@
 - 路由注册了 /{project_id}/{path:path} 模板（不含 /mock 前缀）
 - 复用了 mock_server.mock_endpoint 函数（同一可调用对象）
 """
+
 import asyncio
 import sys
 import types

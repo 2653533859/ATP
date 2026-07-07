@@ -11,9 +11,7 @@ class Environment(Base, TimestampMixin):
     description: Mapped[str | None] = mapped_column(Text)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
 
-    variables: Mapped[list["EnvVariable"]] = relationship(
-        back_populates="environment", cascade="all, delete-orphan"
-    )
+    variables: Mapped[list["EnvVariable"]] = relationship(back_populates="environment", cascade="all, delete-orphan")
 
 
 class EnvVariable(Base, TimestampMixin):

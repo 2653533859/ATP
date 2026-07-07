@@ -10,6 +10,7 @@ MinIO 客户端封装
   - delete_file      删除对象
   - ensure_bucket    确保 Bucket 存在（启动时调用）
 """
+
 import io
 import logging
 from pathlib import Path
@@ -93,6 +94,7 @@ def read_bytes(object_name: str) -> bytes:
 def presigned_url(object_name: str, expires_seconds: int = 3600 * 24) -> str:
     """生成预签名访问 URL（默认 24 小时有效）"""
     from datetime import timedelta
+
     client = get_client()
     return client.presigned_get_object(
         settings.MINIO_BUCKET,

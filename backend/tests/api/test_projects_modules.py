@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 
+
 def _p3c_noop(*_a, **_kw):
     return None
 
@@ -15,13 +16,15 @@ def _p3c_noop(*_a, **_kw):
 async def _p3c_noop_async(*_a, **_kw):
     return None
 
-sys.modules["app.api.deps"] = types.SimpleNamespace(get_current_user=lambda: None,
-        require_admin=_p3c_noop,
-        require_engineer=_p3c_noop,
-        require_project_access=lambda *a, **kw: _p3c_noop,
-        assert_project_access=_p3c_noop_async,
-        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
-    )
+
+sys.modules["app.api.deps"] = types.SimpleNamespace(
+    get_current_user=lambda: None,
+    require_admin=_p3c_noop,
+    require_engineer=_p3c_noop,
+    require_project_access=lambda *a, **kw: _p3c_noop,
+    assert_project_access=_p3c_noop_async,
+    ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+)
 
 
 async def _noop_invalidate_stats_cache():
@@ -135,7 +138,9 @@ def test_create_module_invalidates_stats_cache(monkeypatch):
 
     result = asyncio.run(
         projects.create_module(
-            body=types.SimpleNamespace(model_dump=lambda: {"name": "Login", "module_code": None, "project_id": 1}, name="Login"),
+            body=types.SimpleNamespace(
+                model_dump=lambda: {"name": "Login", "module_code": None, "project_id": 1}, name="Login"
+            ),
             db=db,
             current_user=types.SimpleNamespace(id=9, role=UserRole.admin),
         )
@@ -174,7 +179,9 @@ def test_delete_module_invalidates_stats_cache(monkeypatch):
 
     monkeypatch.setattr(projects, "invalidate_stats_cache", fake_invalidate_stats_cache)
 
-    asyncio.run(projects.delete_module(module_id=5, db=db, current_user=types.SimpleNamespace(id=9, role=UserRole.admin)))
+    asyncio.run(
+        projects.delete_module(module_id=5, db=db, current_user=types.SimpleNamespace(id=9, role=UserRole.admin))
+    )
 
     assert db.deleted == [module]
     assert db.commit_calls == 1

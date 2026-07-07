@@ -6,9 +6,7 @@ from app.models.base import Base, TimestampMixin
 
 class UserSetting(Base, TimestampMixin):
     __tablename__ = "user_settings"
-    __table_args__ = (
-        UniqueConstraint("user_id", "key", name="uq_user_settings_user_key"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "key", name="uq_user_settings_user_key"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)

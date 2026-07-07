@@ -11,10 +11,7 @@ def test_notification_config_table_is_covered_by_migrations():
 
 def test_notification_config_fk_cascades_on_project_delete():
     migration_file = (
-        Path(__file__).resolve().parents[2]
-        / "alembic"
-        / "versions"
-        / "20260307_0003_add_notification_configs_table.py"
+        Path(__file__).resolve().parents[2] / "alembic" / "versions" / "20260307_0003_add_notification_configs_table.py"
     )
     content = migration_file.read_text(encoding="utf-8")
 

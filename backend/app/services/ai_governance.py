@@ -4,6 +4,7 @@ AILLMConfig.default_params remains the single editable JSON surface. These
 helpers read reserved governance keys from it and keep provider extra params
 separate from platform controls.
 """
+
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -30,11 +31,7 @@ def _params(config: AILLMConfig | None) -> dict[str, Any]:
 
 def llm_extra_params(config: AILLMConfig | None) -> dict[str, Any] | None:
     """Return provider params after removing ATP governance keys."""
-    params = {
-        key: value
-        for key, value in _params(config).items()
-        if key in _ALLOWED_LLM_EXTRA_PARAMS
-    }
+    params = {key: value for key, value in _params(config).items() if key in _ALLOWED_LLM_EXTRA_PARAMS}
     return params or None
 
 
@@ -68,6 +65,8 @@ def resolve_daily_limit(config: AILLMConfig | None, capability: str, global_defa
     params = _params(config)
     limits = params.get("daily_limits")
     value = limits.get(capability) if isinstance(limits, dict) else params.get("daily_limit")
+    if value is None:
+        return max(0, int(global_default or 0))
     try:
         number = int(value)
     except (TypeError, ValueError):

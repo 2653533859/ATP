@@ -24,7 +24,9 @@ def _import_tasks(monkeypatch):
             delete_json_cache_pattern=None,
         ),
     )
-    monkeypatch.setitem(sys.modules, "app.core.encryption", types.SimpleNamespace(decrypt_env_vars=lambda values: values))
+    monkeypatch.setitem(
+        sys.modules, "app.core.encryption", types.SimpleNamespace(decrypt_env_vars=lambda values: values)
+    )
     monkeypatch.setitem(sys.modules, "app.worker.async_runner", types.SimpleNamespace(run_async=lambda coro: None))
     sys.modules.pop("app.worker.tasks", None)
 

@@ -1,4 +1,5 @@
 """WebSocket 接口测试执行器"""
+
 import asyncio
 import json
 import time
@@ -58,9 +59,8 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
                 headers["Authorization"] = f"Bearer {_render(auth_cfg.get('token', ''), context)}"
             elif auth_type == "basic":
                 import base64
-                cred = base64.b64encode(
-                    f"{auth_cfg.get('username')}:{auth_cfg.get('password')}".encode()
-                ).decode()
+
+                cred = base64.b64encode(f"{auth_cfg.get('username')}:{auth_cfg.get('password')}".encode()).decode()
                 headers["Authorization"] = f"Basic {cred}"
             elif auth_type == "apikey":
                 header_name = _render(auth_cfg.get("header", "X-API-Key"), context).strip()
@@ -95,25 +95,27 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
                                 pass
 
                         await ws.send(data)
-                        message_log.append({
-                            "index": msg_idx,
-                            "action": "send",
-                            "data": data,
-                            "data_type": data_type,
-                        })
+                        message_log.append(
+                            {
+                                "index": msg_idx,
+                                "action": "send",
+                                "data": data,
+                                "data_type": data_type,
+                            }
+                        )
 
                     elif action == "receive":
                         recv_timeout = msg_cfg.get("timeout", 10)
                         try:
-                            received = await asyncio.wait_for(
-                                ws.recv(), timeout=recv_timeout
-                            )
+                            received = await asyncio.wait_for(ws.recv(), timeout=recv_timeout)
                         except asyncio.TimeoutError:
-                            message_log.append({
-                                "index": msg_idx,
-                                "action": "receive",
-                                "error": f"接收超时（{recv_timeout}s）",
-                            })
+                            message_log.append(
+                                {
+                                    "index": msg_idx,
+                                    "action": "receive",
+                                    "error": f"接收超时（{recv_timeout}s）",
+                                }
+                            )
                             step_status = RunStatus.failed
                             all_passed = False
                             error_msg = f"消息 #{msg_idx} 接收超时（{recv_timeout}s）"
@@ -127,11 +129,13 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
                             except (json.JSONDecodeError, TypeError):
                                 recv_body = received
 
-                        message_log.append({
-                            "index": msg_idx,
-                            "action": "receive",
-                            "data": recv_body,
-                        })
+                        message_log.append(
+                            {
+                                "index": msg_idx,
+                                "action": "receive",
+                                "data": recv_body,
+                            }
+                        )
 
                         # 变量提取
                         for extraction in msg_cfg.get("extractions", []):
@@ -159,9 +163,7 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
                 "messages": message_log,
                 "duration_ms": duration,
             }
-            request_data["messages"] = [
-                m for m in message_log if m.get("action") == "send"
-            ]
+            request_data["messages"] = [m for m in message_log if m.get("action") == "send"]
 
         except Exception as e:
             step_status = RunStatus.error
@@ -175,31 +177,37 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
         step_result.error_message = error_msg
         await db.commit()
 
-        await _safe_publish_run_event(run.id, {
-            "type": "step_result",
-            "run_id": run.id,
-            "step": {
-                "step_index": idx,
-                "name": step_result.name,
-                "status": step_status.value,
-                "duration_ms": step_result.duration_ms,
-                "request_data": request_data,
-                "response_data": response_data,
-                "error_message": error_msg,
+        await _safe_publish_run_event(
+            run.id,
+            {
+                "type": "step_result",
+                "run_id": run.id,
+                "step": {
+                    "step_index": idx,
+                    "name": step_result.name,
+                    "status": step_status.value,
+                    "duration_ms": step_result.duration_ms,
+                    "request_data": request_data,
+                    "response_data": response_data,
+                    "error_message": error_msg,
+                },
             },
-        })
+        )
 
     total_ms = int((time.monotonic() - total_start) * 1000)
     run.status = RunStatus.passed if all_passed else RunStatus.failed
     run.duration_ms = total_ms
     await db.commit()
 
-    await _safe_publish_run_event(run.id, {
-        "type": "completed",
-        "run_id": run.id,
-        "status": run.status.value,
-        "duration_ms": total_ms,
-    })
+    await _safe_publish_run_event(
+        run.id,
+        {
+            "type": "completed",
+            "run_id": run.id,
+            "status": run.status.value,
+            "duration_ms": total_ms,
+        },
+    )
 
 
 def _render(template: str, context: dict) -> str:

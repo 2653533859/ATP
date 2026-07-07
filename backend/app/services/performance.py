@@ -1,4 +1,5 @@
 """k6 performance run helpers."""
+
 from __future__ import annotations
 
 import json
@@ -73,7 +74,8 @@ def run_k6_script(
 ) -> tuple[dict[str, Any], str, int]:
     """Execute a stored k6 script and return parsed summary, raw object name, duration ms."""
     merged_options = options if isinstance(options, dict) else {}
-    env_vars = merged_options.get("env") if isinstance(merged_options.get("env"), dict) else {}
+    raw_env_vars = merged_options.get("env")
+    env_vars = raw_env_vars if isinstance(raw_env_vars, dict) else {}
 
     with tempfile.TemporaryDirectory(prefix=f"atp-k6-{run_id}-") as tmp:
         tmp_path = Path(tmp)

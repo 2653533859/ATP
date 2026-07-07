@@ -12,6 +12,7 @@ from tests.api.conftest import fake_require_admin as _fake_require_admin
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 
+
 def _p3c_noop(*_a, **_kw):
     return None
 
@@ -19,14 +20,15 @@ def _p3c_noop(*_a, **_kw):
 async def _p3c_noop_async(*_a, **_kw):
     return None
 
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     require_admin=_fake_require_admin,
     require_engineer=lambda: None,
     get_current_user=lambda: None,
-        require_project_access=lambda *a, **kw: _p3c_noop,
-        assert_project_access=_p3c_noop_async,
-        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
-    )
+    require_project_access=lambda *a, **kw: _p3c_noop,
+    assert_project_access=_p3c_noop_async,
+    ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+)
 sys.modules["app.core.minio_client"] = types.SimpleNamespace(
     list_objects=lambda prefix: [],
     delete_file=lambda object_name: None,
@@ -55,7 +57,9 @@ def _sample_dict(**overrides):
 
 def test_admin_runs_endpoints_require_admin():
     preview_dep = inspect.signature(admin_runs.runs_retention_preview).parameters["_"].default.dependency
-    per_project_dep = inspect.signature(admin_runs.runs_retention_per_project_preview).parameters["_"].default.dependency
+    per_project_dep = (
+        inspect.signature(admin_runs.runs_retention_per_project_preview).parameters["_"].default.dependency
+    )
     execute_dep = inspect.signature(admin_runs.runs_retention_run).parameters["_"].default.dependency
     assert preview_dep is _fake_require_admin
     assert per_project_dep is _fake_require_admin

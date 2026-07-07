@@ -27,9 +27,9 @@ def test_performance_api_exposes_thin_slice_endpoints():
 
 def test_performance_models_loaded_for_migrations_and_bootstrap():
     bootstrap = (ROOT / "backend" / "app" / "models" / "bootstrap.py").read_text(encoding="utf-8")
-    migration = (
-        ROOT / "backend" / "alembic" / "versions" / "20260529_0036_add_performance_tests.py"
-    ).read_text(encoding="utf-8")
+    migration = (ROOT / "backend" / "alembic" / "versions" / "20260529_0036_add_performance_tests.py").read_text(
+        encoding="utf-8"
+    )
 
     assert "PerformanceTest" in bootstrap
     assert "PerformanceRun" in bootstrap

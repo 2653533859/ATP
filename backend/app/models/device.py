@@ -22,9 +22,7 @@ class Device(Base, TimestampMixin):
     os_version: Mapped[str | None] = mapped_column(String(32))
     sdk_version: Mapped[str | None] = mapped_column(String(16))
     resolution: Mapped[str | None] = mapped_column(String(32))  # e.g. "1080x1920"
-    status: Mapped[DeviceStatus] = mapped_column(
-        Enum(DeviceStatus), default=DeviceStatus.offline
-    )
+    status: Mapped[DeviceStatus] = mapped_column(Enum(DeviceStatus), default=DeviceStatus.offline)
     ip_address: Mapped[str | None] = mapped_column(String(64))
     port: Mapped[int | None] = mapped_column(Integer)
     description: Mapped[str | None] = mapped_column(Text)

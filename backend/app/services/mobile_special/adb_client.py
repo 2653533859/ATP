@@ -7,6 +7,7 @@ Provides building blocks for:
 
 Resilience: 所有 shell 调用走 adb_resilience.safe_run_adb，复用统一的重试 + 自动 disconnect/connect。
 """
+
 import logging
 from typing import Sequence
 
@@ -38,13 +39,15 @@ def run_adb_shell(
         stderr = (proc.stderr or "").strip()
         logger.warning(
             "ADB shell failed (rc=%s): %s",
-            proc.returncode, stderr,
+            proc.returncode,
+            stderr,
         )
         return None
     return (proc.stdout or "").strip()
 
 
 # ---- Command builders ----
+
 
 def build_meminfo_cmd(serial: str, package: str) -> list[str]:
     """Build command to get memory info for a package."""

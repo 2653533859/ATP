@@ -34,9 +34,9 @@ def test_helm_values_expose_worker_queues_and_resources():
 
 
 def test_helm_chart_can_render_dedicated_performance_worker():
-    content = (
-        ROOT / "deploy" / "helm" / "atp" / "templates" / "performance-worker-deployment.yaml"
-    ).read_text(encoding="utf-8")
+    content = (ROOT / "deploy" / "helm" / "atp" / "templates" / "performance-worker-deployment.yaml").read_text(
+        encoding="utf-8"
+    )
     hpa = (ROOT / "deploy" / "helm" / "atp" / "templates" / "hpa.yaml").read_text(encoding="utf-8")
     schema = json.loads((ROOT / "deploy" / "helm" / "atp" / "values.schema.json").read_text(encoding="utf-8"))
 
@@ -60,7 +60,9 @@ def test_worker_dockerfile_bundles_k6_for_performance_queue():
 
 
 def test_grafana_dashboard_contains_slow_query_rate_panel():
-    dashboard = json.loads((ROOT / "docker" / "grafana" / "dashboards" / "atp-overview.json").read_text(encoding="utf-8"))
+    dashboard = json.loads(
+        (ROOT / "docker" / "grafana" / "dashboards" / "atp-overview.json").read_text(encoding="utf-8")
+    )
 
     titles = {panel["title"] for panel in dashboard["panels"]}
     assert "Slow query rate" in titles

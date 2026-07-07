@@ -46,7 +46,7 @@ def test_dashboard_supports_custom_local_layout():
 
     assert "DASHBOARD_LAYOUT_KEY = 'atp:dashboard:layout'" in content
     assert "DEFAULT_DASHBOARD_LAYOUT" in content
-    assert "v-model=\"dashboardLayout\"" in content
+    assert 'v-model="dashboardLayout"' in content
     assert "visibleChartConfigs" in content
     assert "resetDashboardLayout" in content
 

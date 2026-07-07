@@ -3,6 +3,7 @@
 设计：构造一段 system + user prompt，要求 LLM 输出 **严格 JSON 数组**，
 便于后续解析为 AICaseDraft。
 """
+
 from __future__ import annotations
 
 import json
@@ -26,9 +27,9 @@ _USER_TEMPLATE = (
     "- steps 是数组，每个元素含 action（必填）, test_data, expected_result, is_key_step, remarks\n"
     "- 如果只提供自然语言需求，也要补全可编辑步骤，并在 action/test_data/expected_result 中写清接口动作、关键参数和断言\n"
     "- 如果提供请求/响应样例，优先从样例提取字段、状态码、边界值、错误码和断言点\n"
-    "- case_type 必须是 \"{case_type}\"\n"
-    "- priority 必须是 \"{priority}\"\n"
-    "- case_level 必须是 \"{case_level}\"\n"
+    '- case_type 必须是 "{case_type}"\n'
+    '- priority 必须是 "{priority}"\n'
+    '- case_level 必须是 "{case_level}"\n'
     "- 用例名 name 要求简短可读，描述测试意图\n"
     "- 不要在 JSON 外输出任何其它内容\n"
 )
@@ -47,8 +48,7 @@ def _format_endpoint(endpoint: dict) -> str:
         for p in params:
             required = "必填" if p.get("required") else "可选"
             parts.append(
-                f"    - [{p.get('location', '?')}] {p.get('name', '')} ({required})"
-                f" - {p.get('description') or ''}"
+                f"    - [{p.get('location', '?')}] {p.get('name', '')} ({required})" f" - {p.get('description') or ''}"
             )
     if endpoint.get("request_body_example") is not None:
         example = json.dumps(endpoint["request_body_example"], ensure_ascii=False)

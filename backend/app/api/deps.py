@@ -38,6 +38,7 @@ def require_roles(*roles: UserRole):
         if current_user.role not in roles:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Insufficient permissions")
         return current_user
+
     return checker
 
 
@@ -45,16 +46,12 @@ require_admin = require_roles(UserRole.admin)
 require_engineer = require_roles(UserRole.admin, UserRole.engineer)
 
 
-async def get_project_role(
-    db: AsyncSession, user: User, project_id: int
-) -> ProjectRole | None:
+async def get_project_role(db: AsyncSession, user: User, project_id: int) -> ProjectRole | None:
     """全局 admin → owner；否则查 user_projects；缺则 None。"""
     if user.role == UserRole.admin:
         return ProjectRole.owner
     result = await db.execute(
-        select(UserProject.role).where(
-            UserProject.user_id == user.id, UserProject.project_id == project_id
-        )
+        select(UserProject.role).where(UserProject.user_id == user.id, UserProject.project_id == project_id)
     )
     return result.scalar_one_or_none()
 

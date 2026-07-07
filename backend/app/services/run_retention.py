@@ -1,4 +1,5 @@
 """运行记录归档清理 — 抽离 service，供 Celery 周期任务和 admin API 共用。"""
+
 from __future__ import annotations
 
 import logging
@@ -268,9 +269,7 @@ def resolve_project_retention(session: Session, project_id: int, global_days: in
     """返回项目实际生效的保留天数：project.run_retention_days_override 优先于全局。"""
     from app.models.project import Project
 
-    override = session.execute(
-        select(Project.run_retention_days_override).where(Project.id == project_id)
-    ).scalar()
+    override = session.execute(select(Project.run_retention_days_override).where(Project.id == project_id)).scalar()
     if override is not None and override > 0:
         return int(override)
     return int(global_days)
@@ -309,33 +308,41 @@ def preview_old_runs_by_project(session: Session, global_days: int, batch_size: 
     for pid, name, days in overrides:
         cutoff = _cutoff(days)
         # PlanRun / SuiteRun 通过 plan_id / suite_id 关联项目
-        plan_count = int(session.execute(
-            select(func.count(PlanRun.id))
-            .join(TestPlan, TestPlan.id == PlanRun.plan_id)
-            .where(
-                PlanRun.status.in_(_terminal_plan_run_statuses()),
-                PlanRun.created_at < cutoff,
-                TestPlan.project_id == pid,
-            )
-        ).scalar() or 0)
-        suite_count = int(session.execute(
-            select(func.count(SuiteRun.id))
-            .join(TestSuite, TestSuite.id == SuiteRun.suite_id)
-            .where(
-                SuiteRun.status.in_(_terminal_suite_run_statuses()),
-                SuiteRun.created_at < cutoff,
-                TestSuite.project_id == pid,
-            )
-        ).scalar() or 0)
-        project_previews.append({
-            "project_id": pid,
-            "project_name": name,
-            "retention_days": days,
-            "plan_runs": plan_count,
-            "suite_runs": suite_count,
-            # TestRun / MobileSpecialRun 跨多级 join 较重，留待真正按项目清理时再补
-            "note": "test_runs / mobile_runs 预览暂按全局统计，按项目过滤待后续迭代",
-        })
+        plan_count = int(
+            session.execute(
+                select(func.count(PlanRun.id))
+                .join(TestPlan, TestPlan.id == PlanRun.plan_id)
+                .where(
+                    PlanRun.status.in_(_terminal_plan_run_statuses()),
+                    PlanRun.created_at < cutoff,
+                    TestPlan.project_id == pid,
+                )
+            ).scalar()
+            or 0
+        )
+        suite_count = int(
+            session.execute(
+                select(func.count(SuiteRun.id))
+                .join(TestSuite, TestSuite.id == SuiteRun.suite_id)
+                .where(
+                    SuiteRun.status.in_(_terminal_suite_run_statuses()),
+                    SuiteRun.created_at < cutoff,
+                    TestSuite.project_id == pid,
+                )
+            ).scalar()
+            or 0
+        )
+        project_previews.append(
+            {
+                "project_id": pid,
+                "project_name": name,
+                "retention_days": days,
+                "plan_runs": plan_count,
+                "suite_runs": suite_count,
+                # TestRun / MobileSpecialRun 跨多级 join 较重，留待真正按项目清理时再补
+                "note": "test_runs / mobile_runs 预览暂按全局统计，按项目过滤待后续迭代",
+            }
+        )
 
     global_preview = preview_old_runs(session, global_days, batch_size)
     return {

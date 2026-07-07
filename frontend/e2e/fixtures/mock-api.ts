@@ -44,6 +44,39 @@ export async function installCommonMocks(page: Page) {
   await page.route('**/api/v1/cases?**', (route) =>
     route.fulfill({ json: { items: data.cases, total: data.cases.length, page: 1, page_size: 20 } }),
   )
+  await page.route('**/api/v1/runs?**', (route) =>
+    route.fulfill({ json: { items: [data.completedRun], total: 1, page: 1, page_size: 5 } }),
+  )
+
+  await page.route('**/api/v1/environments**', (route) =>
+    route.fulfill({ json: data.environments }),
+  )
+
+  await page.route('**/api/v1/suites/200/run', (route) =>
+    route.fulfill({ status: 202, json: data.triggeredSuiteRun }),
+  )
+  await page.route('**/api/v1/suite-runs**', (route) =>
+    route.fulfill({ json: data.suiteRuns }),
+  )
+  await page.route('**/api/v1/suites**', (route) => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({ json: data.suites })
+    }
+    return route.fulfill({ status: 201, json: data.suites[0] })
+  })
+
+  await page.route('**/api/v1/plans/300/run', (route) =>
+    route.fulfill({ status: 202, json: data.triggeredPlanRun }),
+  )
+  await page.route('**/api/v1/plan-runs**', (route) =>
+    route.fulfill({ json: data.planRuns }),
+  )
+  await page.route('**/api/v1/plans**', (route) => {
+    if (route.request().method() === 'GET') {
+      return route.fulfill({ json: data.plans })
+    }
+    return route.fulfill({ status: 201, json: data.plans[0] })
+  })
 
   // user/session-adjacent best-effort reads used by first-screen dashboards.
   await page.route('**/api/v1/users/me/settings/dashboard.layout', (route) =>

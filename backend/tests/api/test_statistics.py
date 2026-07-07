@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 
+
 def _p3c_noop(*_a, **_kw):
     return None
 
@@ -17,13 +18,15 @@ def _p3c_noop(*_a, **_kw):
 async def _p3c_noop_async(*_a, **_kw):
     return None
 
-sys.modules["app.api.deps"] = types.SimpleNamespace(get_current_user=lambda: None,
-        require_admin=_p3c_noop,
-        require_engineer=_p3c_noop,
-        require_project_access=lambda *a, **kw: _p3c_noop,
-        assert_project_access=_p3c_noop_async,
-        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
-    )
+
+sys.modules["app.api.deps"] = types.SimpleNamespace(
+    get_current_user=lambda: None,
+    require_admin=_p3c_noop,
+    require_engineer=_p3c_noop,
+    require_project_access=lambda *a, **kw: _p3c_noop,
+    assert_project_access=_p3c_noop_async,
+    ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+)
 sys.modules["app.core.redis_client"] = types.SimpleNamespace(
     delete_json_cache_pattern=lambda *args, **kwargs: None,
     get_json_cache=lambda *args, **kwargs: None,
@@ -187,8 +190,6 @@ def test_get_overview_uses_selected_days_for_run_metrics(monkeypatch):
     assert since_calls == [30, 7]
 
 
-
-
 def test_get_overview_survives_cache_read_failure(monkeypatch):
     async def fake_get_json_cache(*_args, **_kwargs):
         raise RuntimeError("redis read failed")
@@ -214,7 +215,6 @@ def test_get_overview_survives_cache_read_failure(monkeypatch):
     assert result.total_runs == 8
     assert result.pass_rate == 75.0
 
-
     async def fake_get_json_cache(*_args, **_kwargs):
         return {"total_cases": 5, "total_runs": 3, "pass_rate": 66.7, "recent_runs_7d": 2}
 
@@ -226,8 +226,6 @@ def test_get_overview_survives_cache_read_failure(monkeypatch):
     assert result.total_cases == 5
     assert result.total_runs == 3
     assert db.statements == []
-
-
 
 
 def test_get_overview_survives_cache_write_failure(monkeypatch):
@@ -254,7 +252,6 @@ def test_get_overview_survives_cache_write_failure(monkeypatch):
     assert result.total_cases == 12
     assert result.total_runs == 8
     assert result.pass_rate == 75.0
-
 
     fixed_since = datetime(2026, 3, 1, tzinfo=timezone.utc)
 
@@ -326,7 +323,6 @@ def test_get_pass_rate_trend_returns_daily_aggregate(monkeypatch):
     assert any("case_type" in clause for clause in where_parts)
 
 
-
 def test_get_duration_trend_returns_duration_aggregate(monkeypatch):
     load_all_models()
     fixed_since = datetime(2026, 3, 1, tzinfo=timezone.utc)
@@ -367,7 +363,6 @@ def test_get_duration_trend_returns_duration_aggregate(monkeypatch):
     assert any("duration_ms" in clause for clause in where_parts)
     assert any("project_id" in clause for clause in where_parts)
     assert any("case_type" in clause for clause in where_parts)
-
 
 
 def test_get_executor_top_returns_executor_stats(monkeypatch):
@@ -449,7 +444,6 @@ def test_get_plan_trend_returns_daily_aggregate(monkeypatch):
     assert any("project_id" in clause for clause in where_parts)
 
 
-
 def test_get_suite_trend_returns_daily_aggregate(monkeypatch):
     load_all_models()
     fixed_since = datetime(2026, 3, 1, tzinfo=timezone.utc)
@@ -478,7 +472,6 @@ def test_get_suite_trend_returns_daily_aggregate(monkeypatch):
     assert "test_suites" in str(stmt.get_final_froms())
     where_parts = [str(clause) for clause in stmt._where_criteria]
     assert any("project_id" in clause for clause in where_parts)
-
 
 
 def test_get_suite_trend_returns_cached_result(monkeypatch):
@@ -543,9 +536,7 @@ def test_pass_rate_trend_weekly_uses_date_trunc(monkeypatch):
 
     db = _FakeDB(results=[_FakeExecuteResult.with_all([])])
     asyncio.run(
-        statistics.get_pass_rate_trend(
-            project_id=None, days=180, case_type=None, aggregate="weekly", db=db, _=None
-        )
+        statistics.get_pass_rate_trend(project_id=None, days=180, case_type=None, aggregate="weekly", db=db, _=None)
     )
     sql = str(db.statements[0]).lower()
     assert "date_trunc" in sql
@@ -567,9 +558,7 @@ def test_pass_rate_trend_daily_does_not_use_date_trunc(monkeypatch):
 
     db = _FakeDB(results=[_FakeExecuteResult.with_all([])])
     asyncio.run(
-        statistics.get_pass_rate_trend(
-            project_id=None, days=30, case_type=None, aggregate="daily", db=db, _=None
-        )
+        statistics.get_pass_rate_trend(project_id=None, days=30, case_type=None, aggregate="daily", db=db, _=None)
     )
     sql = str(db.statements[0]).lower()
     assert "date_trunc" not in sql
@@ -593,14 +582,10 @@ def test_aggregate_in_cache_key_isolates_daily_and_weekly(monkeypatch):
     db1 = _FakeDB(results=[_FakeExecuteResult.with_all([])])
     db2 = _FakeDB(results=[_FakeExecuteResult.with_all([])])
     asyncio.run(
-        statistics.get_pass_rate_trend(
-            project_id=1, days=30, case_type=None, aggregate="daily", db=db1, _=None
-        )
+        statistics.get_pass_rate_trend(project_id=1, days=30, case_type=None, aggregate="daily", db=db1, _=None)
     )
     asyncio.run(
-        statistics.get_pass_rate_trend(
-            project_id=1, days=30, case_type=None, aggregate="weekly", db=db2, _=None
-        )
+        statistics.get_pass_rate_trend(project_id=1, days=30, case_type=None, aggregate="weekly", db=db2, _=None)
     )
     assert len(writes) == 2
     assert writes[0] != writes[1]

@@ -1,4 +1,5 @@
 """集成路径 1：登录 → 拿 token → 用 token 访问受保护资源。"""
+
 import pytest
 
 

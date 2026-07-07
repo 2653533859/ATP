@@ -1,4 +1,5 @@
 """F.2 PostgreSQL 自动备份测试：保留策略 / 调度任务 / noop on disabled."""
+
 import sys
 import types
 from datetime import datetime, timezone
@@ -21,6 +22,7 @@ sys.modules.setdefault(
     ),
 )
 
+
 # stub celery_app 以避免 celery 模块缺失
 class _FakeCelery:
     def __init__(self, *a, **kw):
@@ -29,9 +31,11 @@ class _FakeCelery:
     def task(self, *a, **kw):
         def deco(fn):
             return fn
+
         return deco
 
     conf = types.SimpleNamespace(update=lambda **kw: None)
+
 
 sys.modules.setdefault(
     "app.worker.celery_app",
@@ -107,9 +111,9 @@ def test_delete_objects_calls_minio_for_each_name(monkeypatch):
     def fake_delete(name):
         deleted_names.append(name)
 
-    monkeypatch.setattr(backup_mod, "_delete_objects", lambda names: (
-        [deleted_names.append(n) for n in names] and 0 or len(names)
-    ))
+    monkeypatch.setattr(
+        backup_mod, "_delete_objects", lambda names: ([deleted_names.append(n) for n in names] and 0 or len(names))
+    )
     count = backup_mod._delete_objects(["a", "b", "c"])
     assert count == 3
     assert deleted_names == ["a", "b", "c"]

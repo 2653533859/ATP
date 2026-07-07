@@ -2,6 +2,9 @@
 *.pyc
 __pycache__/
 .pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
 backend/venv/
 backend/.venv/
 backend/celerybeat-schedule.bak
@@ -16,6 +19,7 @@ frontend/preview*.log
 frontend/dist-check/
 frontend/playwright-report/
 frontend/test-results/
+frontend/coverage/
 frontend/.playwright-mcp/
 *.bak
 

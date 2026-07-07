@@ -25,8 +25,12 @@ async def login(request: Request, body: LoginRequest, db: AsyncSession = Depends
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="账号已被禁用")
     await write_audit_log(
-        db, action="login", resource_type="user", resource_id=user.id,
-        username=user.username, ip_address=request.client.host if request.client else "",
+        db,
+        action="login",
+        resource_type="user",
+        resource_id=user.id,
+        username=user.username,
+        ip_address=request.client.host if request.client else "",
     )
     await db.commit()
     return TokenResponse(

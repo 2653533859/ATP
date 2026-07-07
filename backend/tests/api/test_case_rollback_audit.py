@@ -1,4 +1,5 @@
 """Q5 长尾 #3 — rollback_case 写审计日志测试。"""
+
 import asyncio
 import sys
 import types
@@ -35,9 +36,7 @@ async def _noop_invalidate_stats_cache():
     return None
 
 
-sys.modules["app.api.v1.statistics"] = types.SimpleNamespace(
-    invalidate_stats_cache=_noop_invalidate_stats_cache
-)
+sys.modules["app.api.v1.statistics"] = types.SimpleNamespace(invalidate_stats_cache=_noop_invalidate_stats_cache)
 
 from app.api.v1 import cases  # noqa: E402
 from app.api.v1.cases import workflow  # noqa: E402
@@ -169,9 +168,7 @@ def test_rollback_case_writes_audit_log(monkeypatch):
     monkeypatch.setattr(cases, "_normalize_string_list", lambda x: list(x) if x else [])
     monkeypatch.setattr(cases, "write_audit_log", spy_audit)
 
-    result = asyncio.run(
-        workflow.rollback_case(case_id=100, snapshot_id=55, db=db, current_user=user)
-    )
+    result = asyncio.run(workflow.rollback_case(case_id=100, snapshot_id=55, db=db, current_user=user))
 
     assert result is case
     assert len(audit_calls) == 1

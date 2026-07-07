@@ -1,4 +1,5 @@
 """Tests for mobile special tasks API."""
+
 import asyncio
 import sys
 import types
@@ -8,10 +9,16 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
+
+
 async def _fake_get_json(*a, **kw):
     return None
+
+
 async def _fake_set_json(*a, **kw):
     return None
+
+
 sys.modules["app.core.redis_client"] = types.SimpleNamespace(
     get_json_cache=_fake_get_json,
     set_json_cache=_fake_set_json,
@@ -20,6 +27,7 @@ sys.modules["app.core.redis_client"] = types.SimpleNamespace(
     publish_run_event=lambda *a, **kw: None,
 )
 
+
 def _p3c_noop(*_a, **_kw):
     return None
 
@@ -27,14 +35,15 @@ def _p3c_noop(*_a, **_kw):
 async def _p3c_noop_async(*_a, **_kw):
     return None
 
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=lambda: None,
     require_engineer=lambda: None,
-        require_admin=_p3c_noop,
-        require_project_access=lambda *a, **kw: _p3c_noop,
-        assert_project_access=_p3c_noop_async,
-        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
-    )
+    require_admin=_p3c_noop,
+    require_project_access=lambda *a, **kw: _p3c_noop,
+    assert_project_access=_p3c_noop_async,
+    ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+)
 
 from app.models.bootstrap import load_all_models
 from app.models.mobile_special import TaskType, SourceType, DeviceScopeType, RunStatus, TriggerType
@@ -44,6 +53,7 @@ class TestTaskModelUsage:
     def test_mobile_special_task_model_importable(self):
         load_all_models()
         from app.models.mobile_special import MobileSpecialTask
+
         assert MobileSpecialTask is not None
 
     def test_task_type_enum_values(self):
@@ -170,7 +180,6 @@ class TestMobileSpecialScheduleHelpers:
         task.schedule_enabled = False
         mobile_special._refresh_schedule_state(task)
         assert task.next_run_at is None
-
 
 
 class TestMobileSpecialRunList:

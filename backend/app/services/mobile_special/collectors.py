@@ -4,6 +4,7 @@ Collectors wrap ADB commands and parsers into coherent sampling sessions.
 Each collector class is responsible for one metric category (CPU, memory, etc.)
 and can be run in a loop by the executor.
 """
+
 import asyncio
 import logging
 from datetime import datetime
@@ -60,9 +61,7 @@ class SamplingSession:
     async def _resolve_pid(self) -> Optional[int]:
         """Resolve the package name to a PID."""
         cmd = build_pidof_cmd(self.device_serial, self.package)
-        raw = await asyncio.get_event_loop().run_in_executor(
-            None, run_adb_shell, self.device_serial, cmd, 5
-        )
+        raw = await asyncio.get_event_loop().run_in_executor(None, run_adb_shell, self.device_serial, cmd, 5)
         if raw:
             return parse_pid(raw)
         return None
@@ -70,9 +69,7 @@ class SamplingSession:
     async def sample_cpu(self) -> Optional[dict]:
         """Sample CPU usage percentage."""
         cmd = build_cpuinfo_cmd(self.device_serial, self.package)
-        raw = await asyncio.get_event_loop().run_in_executor(
-            None, run_adb_shell, self.device_serial, cmd, 10
-        )
+        raw = await asyncio.get_event_loop().run_in_executor(None, run_adb_shell, self.device_serial, cmd, 10)
         if raw:
             return parse_cpuinfo(raw, self.package)
         return None
@@ -80,9 +77,7 @@ class SamplingSession:
     async def sample_memory(self) -> Optional[dict]:
         """Sample memory usage in MB."""
         cmd = build_meminfo_cmd(self.device_serial, self.package)
-        raw = await asyncio.get_event_loop().run_in_executor(
-            None, run_adb_shell, self.device_serial, cmd, 10
-        )
+        raw = await asyncio.get_event_loop().run_in_executor(None, run_adb_shell, self.device_serial, cmd, 10)
         if raw:
             return parse_meminfo(raw, self.package)
         return None
@@ -90,9 +85,7 @@ class SamplingSession:
     async def sample_fps(self) -> Optional[dict]:
         """Sample FPS and jank metrics."""
         cmd = build_gfxinfo_cmd(self.device_serial, self.package)
-        raw = await asyncio.get_event_loop().run_in_executor(
-            None, run_adb_shell, self.device_serial, cmd, 10
-        )
+        raw = await asyncio.get_event_loop().run_in_executor(None, run_adb_shell, self.device_serial, cmd, 10)
         if raw:
             return parse_gfxinfo_framestats(raw, self.package)
         return None
@@ -100,9 +93,7 @@ class SamplingSession:
     async def sample_battery(self) -> Optional[dict]:
         """Sample battery percentage."""
         cmd = build_batterystats_cmd(self.device_serial, self.package)
-        raw = await asyncio.get_event_loop().run_in_executor(
-            None, run_adb_shell, self.device_serial, cmd, 10
-        )
+        raw = await asyncio.get_event_loop().run_in_executor(None, run_adb_shell, self.device_serial, cmd, 10)
         if raw:
             return parse_batterystats(raw, self.package)
         return None

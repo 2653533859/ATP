@@ -1,4 +1,5 @@
 """D.1 用例快照增强：手动创建 / 保留策略 / 搜索 / Diff / 导出 / 导入 / 克隆。"""
+
 import asyncio
 import sys
 import types
@@ -9,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 
+
 def _p3c_noop(*_a, **_kw):
     return None
 
@@ -16,20 +18,22 @@ def _p3c_noop(*_a, **_kw):
 async def _p3c_noop_async(*_a, **_kw):
     return None
 
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
-    get_current_user=lambda: None, require_engineer=lambda: None,
-        require_admin=_p3c_noop,
-        require_project_access=lambda *a, **kw: _p3c_noop,
-        assert_project_access=_p3c_noop_async,
-        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
-    )
+    get_current_user=lambda: None,
+    require_engineer=lambda: None,
+    require_admin=_p3c_noop,
+    require_project_access=lambda *a, **kw: _p3c_noop,
+    assert_project_access=_p3c_noop_async,
+    ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+)
+
 
 async def _noop_invalidate_stats_cache():
     return None
 
-sys.modules["app.api.v1.statistics"] = types.SimpleNamespace(
-    invalidate_stats_cache=_noop_invalidate_stats_cache
-)
+
+sys.modules["app.api.v1.statistics"] = types.SimpleNamespace(invalidate_stats_cache=_noop_invalidate_stats_cache)
 sys.modules["app.worker.tasks"] = types.SimpleNamespace(
     run_test_case=types.SimpleNamespace(delay=lambda *_a, **_kw: None)
 )
@@ -171,9 +175,7 @@ def test_enforce_snapshot_retention_deletes_oldest(monkeypatch):
     """retention helper：构造 5 个快照，cap=3 应删 2 个。"""
     from app.api.v1.cases.common import _enforce_snapshot_retention
 
-    snaps = [
-        types.SimpleNamespace(id=i, case_id=5, version=i) for i in range(1, 6)
-    ]
+    snaps = [types.SimpleNamespace(id=i, case_id=5, version=i) for i in range(1, 6)]
     by_id = {s.id: s for s in snaps}
 
     class _RetentionDB:
@@ -190,7 +192,9 @@ def test_enforce_snapshot_retention_deletes_oldest(monkeypatch):
                     class _S:
                         def all(s2):
                             return [1, 2]
+
                     return _S()
+
             return _R()
 
         async def get(self, model, sid):
@@ -212,11 +216,15 @@ def test_enforce_snapshot_retention_deletes_oldest(monkeypatch):
 def test_diff_snapshots_emits_field_changes(monkeypatch):
     case_obj = _case()
     from_snap = types.SimpleNamespace(
-        id=10, case_id=5, version=1,
+        id=10,
+        case_id=5,
+        version=1,
         snapshot_data={"name": "old", "priority": "P2", "tags": ["a"]},
     )
     to_snap = types.SimpleNamespace(
-        id=11, case_id=5, version=2,
+        id=11,
+        case_id=5,
+        version=2,
         snapshot_data={"name": "new", "priority": "P2", "tags": ["a", "b"]},
     )
 
@@ -230,7 +238,9 @@ def test_diff_snapshots_emits_field_changes(monkeypatch):
                     return self_inner._obj
 
             sql = str(stmt)
-            return _R(from_snap) if "version = :version_1" in sql.lower() or "version = 1" in sql.lower() else _R(to_snap)
+            return (
+                _R(from_snap) if "version = :version_1" in sql.lower() or "version = 1" in sql.lower() else _R(to_snap)
+            )
 
     # 我们用 monkeypatch 替代 db.execute 行为：交替返回 from / to
     queue = [from_snap, to_snap]
@@ -250,9 +260,7 @@ def test_diff_snapshots_emits_field_changes(monkeypatch):
 
     monkeypatch.setattr(cases, "_get_case_detail_or_404", fake_detail)
     db = _DiffDB2()
-    result = asyncio.run(
-        diff_snapshots(case_id=5, from_version=1, to_version=2, db=db)
-    )
+    result = asyncio.run(diff_snapshots(case_id=5, from_version=1, to_version=2, db=db))
     assert result.from_version == 1
     assert result.to_version == 2
     assert "name" in result.changes
@@ -263,8 +271,13 @@ def test_diff_snapshots_emits_field_changes(monkeypatch):
 
 def test_export_snapshot_returns_attachment_payload():
     snap = types.SimpleNamespace(
-        id=42, case_id=5, version=3,
-        name="snap-3", description="d", tags=["x"], config={"k": 1},
+        id=42,
+        case_id=5,
+        version=3,
+        name="snap-3",
+        description="d",
+        tags=["x"],
+        config={"k": 1},
         snapshot_data={"name": "snap-3"},
     )
 
@@ -326,11 +339,18 @@ def test_clone_case_from_snapshot_creates_new_case(monkeypatch):
     load_all_models()
     case_obj = _case()
     snap = types.SimpleNamespace(
-        id=77, case_id=5, version=4,
+        id=77,
+        case_id=5,
+        version=4,
         snapshot_data={
-            "name": "orig", "case_type": "api", "priority": "P1",
-            "case_level": "core", "automation_status": "auto",
-            "preconditions": [], "postconditions": [], "tags": ["x"],
+            "name": "orig",
+            "case_type": "api",
+            "priority": "P1",
+            "case_level": "core",
+            "automation_status": "auto",
+            "preconditions": [],
+            "postconditions": [],
+            "tags": ["x"],
             "config": {"steps": [{"action": "noop"}]},
         },
     )
@@ -348,7 +368,8 @@ def test_clone_case_from_snapshot_creates_new_case(monkeypatch):
     db.get = fake_get
 
     fake_module = types.SimpleNamespace(
-        id=2, project=types.SimpleNamespace(project_code="ATP"),
+        id=2,
+        project=types.SimpleNamespace(project_code="ATP"),
         module_code="LOGIN",
     )
 

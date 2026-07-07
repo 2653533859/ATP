@@ -1,4 +1,5 @@
 """Pydantic schemas for global variables."""
+
 from datetime import datetime
 from typing import Optional
 
@@ -45,6 +46,7 @@ class GlobalVariableOut(BaseModel):
 
 class GlobalVariableRead(BaseModel):
     """Schema for reading a variable value. Secrets are masked."""
+
     id: int
     scope_type: ScopeType
     project_id: Optional[int] = None

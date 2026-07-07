@@ -6,6 +6,7 @@
 - owner：所有操作通过
 - 全局 admin：bypass 全部，无需 UserProject 记录
 """
+
 import asyncio
 import sys
 import types
@@ -67,11 +68,7 @@ class _FakeDB:
 
         uid_m = re.search(r"user_projects\.user_id\s*=\s*(\d+)", sql)
         pid_m = re.search(r"user_projects\.project_id\s*=\s*(\d+)", sql)
-        role = (
-            self.user_projects.get((int(uid_m.group(1)), int(pid_m.group(1))))
-            if uid_m and pid_m
-            else None
-        )
+        role = self.user_projects.get((int(uid_m.group(1)), int(pid_m.group(1)))) if uid_m and pid_m else None
 
         class _R:
             def scalar_one_or_none(_self):

@@ -3,6 +3,7 @@
 沿用本目录轻量单元风格：stub 掉 database/deps，权限用 inspect 断言依赖，
 逻辑用 asyncio.run 直接调用端点函数并 monkeypatch 掉 adb 子进程调用。
 """
+
 import asyncio
 import inspect
 import sys
@@ -52,6 +53,7 @@ def _dep_of(endpoint):
 
 # --------------------------- 权限契约 ---------------------------
 
+
 def test_write_endpoints_require_engineer():
     """tap/swipe 写操作必须挂 require_engineer。"""
     assert _dep_of(device_mirror.device_tap) is _fake_require_engineer
@@ -68,6 +70,7 @@ def test_read_endpoints_only_require_login():
 
 
 # --------------------------- tap 逻辑 ---------------------------
+
 
 def test_tap_success_invokes_adb_with_coords(monkeypatch):
     calls = {}
@@ -95,9 +98,7 @@ def test_tap_adb_failure_raises_503(monkeypatch):
     monkeypatch.setattr(device_mirror, "_adb_input", lambda *a: False)
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
-            device_mirror.device_tap(
-                device_id=1, body=DeviceTapIn(x=1, y=2), db=_FakeDB(_online_device()), _=None
-            )
+            device_mirror.device_tap(device_id=1, body=DeviceTapIn(x=1, y=2), db=_FakeDB(_online_device()), _=None)
         )
     assert exc.value.status_code == 503
 
@@ -106,26 +107,19 @@ def test_tap_offline_device_raises_400(monkeypatch):
     monkeypatch.setattr(device_mirror, "_adb_input", lambda *a: True)
     offline = types.SimpleNamespace(serial="X", status=DeviceStatus.offline)
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(
-            device_mirror.device_tap(
-                device_id=1, body=DeviceTapIn(x=1, y=2), db=_FakeDB(offline), _=None
-            )
-        )
+        asyncio.run(device_mirror.device_tap(device_id=1, body=DeviceTapIn(x=1, y=2), db=_FakeDB(offline), _=None))
     assert exc.value.status_code == 400
 
 
 def test_tap_missing_device_raises_404(monkeypatch):
     monkeypatch.setattr(device_mirror, "_adb_input", lambda *a: True)
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(
-            device_mirror.device_tap(
-                device_id=99, body=DeviceTapIn(x=1, y=2), db=_FakeDB(None), _=None
-            )
-        )
+        asyncio.run(device_mirror.device_tap(device_id=99, body=DeviceTapIn(x=1, y=2), db=_FakeDB(None), _=None))
     assert exc.value.status_code == 404
 
 
 # --------------------------- swipe 逻辑 ---------------------------
+
 
 def test_swipe_success_passes_all_coords(monkeypatch):
     calls = {}

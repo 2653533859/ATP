@@ -1,4 +1,5 @@
 """Tests for android_stability_executor."""
+
 import sys
 import types
 from pathlib import Path

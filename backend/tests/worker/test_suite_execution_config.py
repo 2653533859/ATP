@@ -102,12 +102,14 @@ class _FakeSuite:
 
 
 def test_normalize_suite_config_falls_back_to_safe_defaults():
-    result = tasks._normalize_suite_config({
-        "execution_mode": "invalid",
-        "max_workers": "x",
-        "fail_strategy": "unknown",
-        "min_pass_rate": "oops",
-    })
+    result = tasks._normalize_suite_config(
+        {
+            "execution_mode": "invalid",
+            "max_workers": "x",
+            "fail_strategy": "unknown",
+            "min_pass_rate": "oops",
+        }
+    )
 
     assert result == {
         "execution_mode": "sequential",
@@ -152,7 +154,11 @@ def test_execute_suite_cases_marks_remaining_cases_skipped_on_fast_fail(monkeypa
     async def fake_execute_case_run(_db, _suite_run, case, _extra_vars):
         return results[case.id]
 
+    async def fake_mark_flaky_case_results(_db, _case_run_results):
+        return None
+
     monkeypatch.setattr(tasks, "_execute_case_run", fake_execute_case_run)
+    monkeypatch.setattr(tasks, "_mark_flaky_case_results", fake_mark_flaky_case_results)
 
     suite_run = _FakeSuiteRun()
     suite = _FakeSuite(
@@ -163,11 +169,13 @@ def test_execute_suite_cases_marks_remaining_cases_skipped_on_fast_fail(monkeypa
         ],
         config={"execution_mode": "sequential", "fail_strategy": "fast-fail"},
     )
-    db = _FakeDB({
-        1: _FakeCase(1, "Case-1"),
-        2: _FakeCase(2, "Case-2"),
-        3: _FakeCase(3, "Case-3"),
-    })
+    db = _FakeDB(
+        {
+            1: _FakeCase(1, "Case-1"),
+            2: _FakeCase(2, "Case-2"),
+            3: _FakeCase(3, "Case-3"),
+        }
+    )
 
     asyncio.run(tasks._execute_suite_cases(db, suite_run, suite, {}))
 
@@ -189,7 +197,11 @@ def test_execute_suite_cases_uses_parallel_batches_and_collects_results(monkeypa
         await asyncio.sleep(0)
         return {"case_id": case.id, "case_name": case.name, "run_id": 100 + case.id, "status": "passed"}
 
+    async def fake_mark_flaky_case_results(_db, _case_run_results):
+        return None
+
     monkeypatch.setattr(tasks, "_execute_case_run", fake_execute_case_run)
+    monkeypatch.setattr(tasks, "_mark_flaky_case_results", fake_mark_flaky_case_results)
 
     suite_run = _FakeSuiteRun()
     suite = _FakeSuite(
@@ -200,11 +212,13 @@ def test_execute_suite_cases_uses_parallel_batches_and_collects_results(monkeypa
         ],
         config={"execution_mode": "parallel", "max_workers": 2, "fail_strategy": "continue"},
     )
-    db = _FakeDB({
-        1: _FakeCase(1, "Case-1"),
-        2: _FakeCase(2, "Case-2"),
-        3: _FakeCase(3, "Case-3"),
-    })
+    db = _FakeDB(
+        {
+            1: _FakeCase(1, "Case-1"),
+            2: _FakeCase(2, "Case-2"),
+            3: _FakeCase(3, "Case-3"),
+        }
+    )
 
     asyncio.run(tasks._execute_suite_cases(db, suite_run, suite, {}))
 

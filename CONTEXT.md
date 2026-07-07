@@ -3,13 +3,13 @@
 > 本文档用于在新会话中快速恢复开发上下文，包含架构决策、已完成功能、关键代码位置、待续任务等。
 
 **生成时间**: 2026-03-03
-**最近同步**: 2026-07-05
+**最近同步**: 2026-07-08
 **项目路径**: `/Users/parado/MyProject/ATP`
 **参考文档**: `PRD.md`（需求文档）、`Task.md`（任务跟踪）
 
 ---
 
-## 0. 当前进度快照（2026-07-05）
+## 0. 当前进度快照（2026-07-08）
 
 `docs/optimization-roadmap-2026.md` 中 ATP 后续优化路线已全部完成：**29 / 29 项均为 `[x] 已完成`**。
 
@@ -29,8 +29,43 @@
 - AI 诊断反馈闭环：支持采纳/拒绝反馈，并统计采纳率、错误特征和回归有效性。
 - Prompt 与模型配置治理：项目级模型、prompt 模板、调用限额、错误降级和 LLM 参数过滤已文档化并接入关键 AI 调用。
 
+2026-07-06 收口修复：
+
+- 缺陷手动关联接口已补齐项目权限校验：`POST /runs/{run_id}/link-bug` 在写入执行结果前要求当前用户具备该项目 `editor` 权限。
+- AI governance 与 failure diagnosis 两个服务模块已纳入当前 diff，避免干净检出时 `app.services.ai_governance` / `app.services.failure_diagnosis` 导入失败。
+- 缺陷状态刷新审计日志已修复 undefined `body.bug_id`，改为使用已有 `bug_info["bug_id"]`。
+- 已补充静态回归，覆盖手动关联缺陷的权限校验要求。
+- Q10 Phase 5 已补 suite-run / plan-trigger / notification / bug-report 集成链路，并在真实 Postgres / Redis / MinIO 临时环境跑通；过程中发现并修复 `test_suites.config` 缺失 Alembic 迁移、`bug_trackers.tracker_type` 纯迁移首建仍为 varchar 的问题。
+- 前端 suite / plan 关键路径 E2E 已补齐：suite 加载、触发执行、打开执行记录，以及 plan 加载、手动触发、查看执行历史均通过 Playwright mock 模式验证。
+- Q10 SLO 薄切已补齐：新增 `atp_run_outcomes_total{entity_type,status}`，Grafana `ATP Overview` 新增 API 可用性、API P95、run 成功率和 API 错误预算剩余 4 个面板，并新增 `docs/slo-guide.md`。
+- Q10 flaky 治理已补齐：新增 `pytest-rerunfailures==16.4`、`flaky` marker、integration CI 一次有界重试、Playwright CI 重试边界说明与 `docs/flaky-governance.md`。
+- Q10 验收收口已补齐：新增 `docs/q10-acceptance-summary.md`，README 已加入 Q10 质量与稳定性索引，Task / MEMORY / CONTEXT / release evidence 已同步。
+- Q11 下一轮优化路线已建立：`docs/optimization-roadmap-2026-q11.md`，优先级为 PR / commit 拆分、发布说明、SLO 生产校准、前端覆盖率增长和运维 runbook。Q11-00 已完成，拆分计划见 `docs/q11-pr-split-plan.md`。
+
 最近验证记录：
 
+- `backend/.venv/bin/python -m pytest backend/tests -q --ignore=backend/tests/integration`：825 passed（Python 3.14 本地 venv）
+- 临时真实依赖环境（Postgres `55432` / Redis `6380` / MinIO `19000`）空库 `alembic upgrade head`：通过；`backend/tests/integration -m integration`：10 passed，且同库二次重复运行仍为 10 passed
+- Docker `python:3.12-slim-bookworm` + `gcc libpq-dev`，执行 `python -m pytest backend/tests -q --ignore=backend/tests/integration`：823 passed（依赖升级后的目标运行时基线）
+- `python3 -m pytest backend/tests/frontend backend/tests/migrations/test_migration_policy.py backend/tests/worker/test_worker_lifecycle_policy.py -q`：90 passed
+- `python3 -m pytest backend/tests/frontend/test_bug_link_frontend.py backend/tests/frontend/test_failure_diagnosis_static.py`：10 passed
+- `backend/.venv/bin/python -m pytest backend/tests/services/test_device_sync.py backend/tests/api/test_ai_llm_configs_api.py backend/tests/worker/test_async_runner.py backend/tests/worker/test_suite_execution_config.py -q`：18 passed
+- `make lint PYTHON=backend/.venv/bin/python`：通过（ruff F821/F822/F823 最小门禁）
+- `make format-check PYTHON=backend/.venv/bin/python`：通过（332 files already formatted）
+- `make mypy PYTHON=backend/.venv/bin/python`：通过（`core` / `schemas` / `services` 共 76 个文件）
+- `make security-bandit PYTHON=backend/.venv/bin/python`：通过（medium/high 0；low 63 可见不阻断）
+- `make security-pip-audit PYTHON=backend/.venv/bin/python`：通过；后端依赖已清零（No known vulnerabilities found）
+- `make security-npm-audit`：通过；前端依赖已清零（found 0 vulnerabilities）
+- `.github/workflows/security.yml` / `.github/dependabot.yml`：已新增并通过 YAML 解析；覆盖 Gitleaks、pip-audit、npm high/critical audit、Trivy 镜像扫描与四生态 Dependabot
+- `make pre-commit PYTHON=backend/.venv/bin/python`：通过（YAML/EOF/whitespace、backend ruff、frontend Vitest）
+- `make test-backend-coverage PYTHON=backend/.venv/bin/python`：823 passed，总覆盖率 53.47%，52% 门槛达成
+- `npm --prefix frontend run test`：18 passed
+- `npm --prefix frontend run e2e -- suite-plan.spec.ts`：2 passed
+- `npm --prefix frontend run e2e`：9 passed
+- SLO 薄切验证：Grafana dashboard JSON 校验通过；SLO 定向 worker 测试 23 passed；相关 ruff 检查通过
+- Flaky 治理验证：`pytest --markers` 可见项目 `flaky` marker 与 rerunfailures marker；`--reruns 1` 定向测试 2 passed；CI workflow YAML 解析通过
+- Q10 验收文档：`docs/q10-acceptance-summary.md` 已汇总质量门禁、安全扫描、覆盖率、集成/E2E、SLO 与 flaky 治理证据
+- `npm --prefix frontend run test:coverage`：通过，当前前端全仓覆盖率基线 1.8%
 - `python3 -m pytest backend/tests/frontend -q`：78 passed
 - `python3 -m pytest backend/tests/services/test_ai_case_parsers.py -q`：13 passed
 - `python3 -m py_compile ...`：通过
@@ -38,6 +73,8 @@
 - `npm run build`：通过；仅保留已知 `ant-design-icons -> ant-design -> ant-design-icons` circular chunk 警告
 - `python3 -m json.tool docker/grafana/dashboards/atp-overview.json`：通过
 - `git diff --check`：通过
+
+Python 3.14 本地环境说明：已通过 Homebrew `libpq` 提供 `pg_config`，并在安装时显式使用 `libpq` / `openssl@3` 的 keg-only 编译路径；`backend/requirements.txt` 已为 Python 3.14 增加 SQLAlchemy、grpcio/grpcio-tools、Playwright 与 OpenTelemetry 的版本条件 pin。
 
 关键新增/更新文档：
 
@@ -47,7 +84,7 @@
 - `docs/disaster-recovery.md`、`docs/backup-restore-drill-record.md`：数据库和对象存储备份恢复演练。
 - `docs/domain-boundaries.md`、`docs/worker-lifecycle.md`、`docs/audit-log-policy.md`：架构、Worker、审计治理。
 
-下一步建议：进入发布收口或 PR/提交整理阶段，优先做变更分组、最终集成测试、截图/运行证据归档和发布说明。
+下一步建议：发布收口、PR 范围整理、最终 code review pass 与运行证据归档已完成；Q10 已落地 ruff 最小 lint/format 门禁、mypy 渐进式基线、pre-commit、本地/CI 覆盖率基线、前端 Vitest 两批测试、Bandit SAST、依赖漏洞清零、Gitleaks/Trivy/security workflow、Dependabot、Docker Python 3.12 目标环境回归、suite-run / plan-trigger / notification / bug-report 真实依赖集成验证、suite / plan 前端关键路径 E2E、SLO 薄切、flaky 治理与 Q10 验收总结。Q11 路线已建立，Q11-00 拆分计划已完成；下一优先项是 Q11-01：从 Q10 evidence 生成发布说明与风险 / 回滚记录。
 
 ---
 
@@ -361,13 +398,10 @@ docker compose up -d --build
 
 ## 12. 下一步建议
 
-当前没有路线图内待实现任务。建议转入交付收口：
+Q1-Q9 路线图内功能项已完成。当前建议继续 Q10 工程质量收口：
 
-- 整理工作树变更，按阶段或能力拆分提交。
-- 运行目标环境下的 integration / E2E / release readiness。
-- 为关键前端能力补截图或录屏证据。
-- 汇总发布说明、配置变更、迁移/回滚注意事项。
-- 如果准备发 PR，优先附上本轮验证命令和已知 build warning。
+- Q11-01：从 Q10 evidence 生成发布说明与风险 / 回滚记录。
+- Q11-02：复跑或收集主 CI / security / integration / E2E / release-readiness 证据。
 
 ---
 

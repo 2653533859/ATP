@@ -1,4 +1,5 @@
 """HTTP/REST 接口测试执行器"""
+
 import time
 import httpx
 from jsonpath_ng import parse as jp_parse
@@ -68,9 +69,8 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                     headers["Authorization"] = f"Bearer {_render(auth_cfg.get('token', ''), context)}"
                 elif auth_type == "basic":
                     import base64
-                    cred = base64.b64encode(
-                        f"{auth_cfg.get('username')}:{auth_cfg.get('password')}".encode()
-                    ).decode()
+
+                    cred = base64.b64encode(f"{auth_cfg.get('username')}:{auth_cfg.get('password')}".encode()).decode()
                     headers["Authorization"] = f"Basic {cred}"
                 elif auth_type == "apikey":
                     header_name = _render(auth_cfg.get("header", "X-API-Key"), context).strip()
@@ -82,7 +82,10 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
 
                 async with httpx.AsyncClient(timeout=timeout) as client:
                     resp = await client.request(
-                        method, url, headers=headers, params=params,
+                        method,
+                        url,
+                        headers=headers,
+                        params=params,
                         json=body if step.get("body_type") == "json" else None,
                         data=body if step.get("body_type") == "form" else None,
                         content=body if step.get("body_type") == "raw" else None,
@@ -140,19 +143,22 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                 step_span.set_status(Status(StatusCode.ERROR, error_msg or step_status.value))
 
             # 推送步骤结果
-            await _safe_publish_run_event(run.id, {
-                "type": "step_result",
-                "run_id": run.id,
-                "step": {
-                    "step_index": idx,
-                    "name": step_result.name,
-                    "status": step_status.value,
-                    "duration_ms": step_result.duration_ms,
-                    "request_data": request_data,
-                    "response_data": response_data,
-                    "error_message": error_msg,
+            await _safe_publish_run_event(
+                run.id,
+                {
+                    "type": "step_result",
+                    "run_id": run.id,
+                    "step": {
+                        "step_index": idx,
+                        "name": step_result.name,
+                        "status": step_status.value,
+                        "duration_ms": step_result.duration_ms,
+                        "request_data": request_data,
+                        "response_data": response_data,
+                        "error_message": error_msg,
+                    },
                 },
-            })
+            )
 
     total_ms = int((time.monotonic() - total_start) * 1000)
     run.status = RunStatus.passed if all_passed else RunStatus.failed
@@ -163,12 +169,15 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
     await maybe_enqueue_run_healing(db, run)
 
     # 推送执行完成
-    await _safe_publish_run_event(run.id, {
-        "type": "completed",
-        "run_id": run.id,
-        "status": run.status.value,
-        "duration_ms": total_ms,
-    })
+    await _safe_publish_run_event(
+        run.id,
+        {
+            "type": "completed",
+            "run_id": run.id,
+            "status": run.status.value,
+            "duration_ms": total_ms,
+        },
+    )
 
 
 def _render(template: str, context: dict) -> str:

@@ -1,4 +1,5 @@
 """cases 包 - 批量操作（删除 / 移动 / 导出 CSV / 导出 ZIP / 导入 ZIP）。"""
+
 from __future__ import annotations
 
 import csv
@@ -73,11 +74,7 @@ async def batch_delete_cases(
     current_user: User = Depends(require_engineer),
 ):
     requested_ids = list(dict.fromkeys(body.case_ids))
-    rows = (
-        (await db.execute(select(TestCase).where(TestCase.id.in_(requested_ids))))
-        .scalars()
-        .all()
-    )
+    rows = (await db.execute(select(TestCase).where(TestCase.id.in_(requested_ids)))).scalars().all()
     found_ids = {row.id for row in rows}
     skipped_ids = [cid for cid in requested_ids if cid not in found_ids]
 
@@ -116,11 +113,7 @@ async def batch_move_cases(
         raise HTTPException(status_code=404, detail="目标模块不存在")
 
     requested_ids = list(dict.fromkeys(body.case_ids))
-    rows = (
-        (await db.execute(select(TestCase).where(TestCase.id.in_(requested_ids))))
-        .scalars()
-        .all()
-    )
+    rows = (await db.execute(select(TestCase).where(TestCase.id.in_(requested_ids)))).scalars().all()
     found_ids = {row.id for row in rows}
     skipped_ids = [cid for cid in requested_ids if cid not in found_ids]
 
@@ -168,38 +161,48 @@ async def batch_export_cases(
     if len(id_values) > 1000:
         raise HTTPException(status_code=400, detail="单次导出最多 1000 个用例")
 
-    rows = (
-        (await db.execute(select(TestCase).where(TestCase.id.in_(id_values))))
-        .scalars()
-        .all()
-    )
+    rows = (await db.execute(select(TestCase).where(TestCase.id.in_(id_values)))).scalars().all()
     rows_by_id = {row.id: row for row in rows}
     ordered = [rows_by_id[cid] for cid in id_values if cid in rows_by_id]
 
     buffer = io.StringIO()
     buffer.write("﻿")  # Excel 友好 BOM
     writer = csv.writer(buffer)
-    writer.writerow([
-        "id", "case_code", "name", "summary", "case_type", "status",
-        "priority", "case_level", "review_status", "automation_status",
-        "module_id", "tags", "created_at",
-    ])
+    writer.writerow(
+        [
+            "id",
+            "case_code",
+            "name",
+            "summary",
+            "case_type",
+            "status",
+            "priority",
+            "case_level",
+            "review_status",
+            "automation_status",
+            "module_id",
+            "tags",
+            "created_at",
+        ]
+    )
     for case in ordered:
-        writer.writerow([
-            case.id,
-            case.case_code,
-            case.name,
-            case.summary or "",
-            case.case_type.value if hasattr(case.case_type, "value") else str(case.case_type),
-            case.status.value if hasattr(case.status, "value") else str(case.status),
-            case.priority,
-            case.case_level,
-            case.review_status,
-            case.automation_status,
-            case.module_id,
-            ",".join(case.tags or []),
-            case.created_at.isoformat() if case.created_at else "",
-        ])
+        writer.writerow(
+            [
+                case.id,
+                case.case_code,
+                case.name,
+                case.summary or "",
+                case.case_type.value if hasattr(case.case_type, "value") else str(case.case_type),
+                case.status.value if hasattr(case.status, "value") else str(case.status),
+                case.priority,
+                case.case_level,
+                case.review_status,
+                case.automation_status,
+                case.module_id,
+                ",".join(case.tags or []),
+                case.created_at.isoformat() if case.created_at else "",
+            ]
+        )
 
     filename = f"cases-export-{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}.csv"
     buffer.seek(0)
@@ -352,13 +355,7 @@ async def batch_export_cases_zip(
         raise HTTPException(status_code=400, detail="单次 ZIP 导出最多 500 个用例")
 
     rows = (
-        (
-            await db.execute(
-                select(TestCase)
-                .options(selectinload(TestCase.steps))
-                .where(TestCase.id.in_(id_values))
-            )
-        )
+        (await db.execute(select(TestCase).options(selectinload(TestCase.steps)).where(TestCase.id.in_(id_values))))
         .scalars()
         .all()
     )

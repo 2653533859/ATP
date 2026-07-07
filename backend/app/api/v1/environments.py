@@ -26,9 +26,7 @@ async def list_environments(
 ):
     await assert_project_access(db, user, project_id, ProjectRole.viewer)
     result = await db.execute(
-        select(Environment)
-        .where(Environment.project_id == project_id)
-        .order_by(Environment.created_at.desc())
+        select(Environment).where(Environment.project_id == project_id).order_by(Environment.created_at.desc())
     )
     return result.scalars().all()
 
@@ -89,9 +87,7 @@ async def get_variables(
     if not env:
         raise HTTPException(status_code=404, detail="环境不存在")
     await assert_project_access(db, user, env.project_id, ProjectRole.viewer)
-    result = await db.execute(
-        select(EnvVariable).where(EnvVariable.env_id == env_id)
-    )
+    result = await db.execute(select(EnvVariable).where(EnvVariable.env_id == env_id))
     variables = result.scalars().all()
     return [_mask_variable(v) for v in variables]
 
@@ -109,9 +105,7 @@ async def save_variables(
     await assert_project_access(db, user, env.project_id, ProjectRole.editor)
 
     # Bulk delete existing variables
-    await db.execute(
-        delete(EnvVariable).where(EnvVariable.env_id == env_id)
-    )
+    await db.execute(delete(EnvVariable).where(EnvVariable.env_id == env_id))
 
     # Insert new variables
     new_vars = []

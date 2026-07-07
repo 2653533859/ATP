@@ -54,9 +54,15 @@ def test_dispatch_case_routes_protocol_cases(monkeypatch, case_type, executor_na
         called.append(executor_name)
 
     monkeypatch.setitem(sys.modules, "app.worker.executors.api_executor", types.SimpleNamespace(run_api_case=_recorder))
-    monkeypatch.setitem(sys.modules, "app.worker.executors.graphql_executor", types.SimpleNamespace(run_graphql_case=_recorder))
-    monkeypatch.setitem(sys.modules, "app.worker.executors.websocket_executor", types.SimpleNamespace(run_websocket_case=_recorder))
-    monkeypatch.setitem(sys.modules, "app.worker.executors.grpc_executor", types.SimpleNamespace(run_grpc_case=_recorder))
+    monkeypatch.setitem(
+        sys.modules, "app.worker.executors.graphql_executor", types.SimpleNamespace(run_graphql_case=_recorder)
+    )
+    monkeypatch.setitem(
+        sys.modules, "app.worker.executors.websocket_executor", types.SimpleNamespace(run_websocket_case=_recorder)
+    )
+    monkeypatch.setitem(
+        sys.modules, "app.worker.executors.grpc_executor", types.SimpleNamespace(run_grpc_case=_recorder)
+    )
 
     asyncio.run(case_dispatch.dispatch_case(db, run, case, {"token": "x"}))
 
@@ -83,8 +89,12 @@ def test_dispatch_case_routes_web_modes(monkeypatch, cfg, executor_name):
     async def _web_script(_db, _run, _case, _extra_vars):
         called.append("web_script")
 
-    monkeypatch.setitem(sys.modules, "app.worker.executors.web_lowcode_executor", types.SimpleNamespace(run_web_lowcode=_web_lowcode))
-    monkeypatch.setitem(sys.modules, "app.worker.executors.web_executor", types.SimpleNamespace(run_web_case=_web_script))
+    monkeypatch.setitem(
+        sys.modules, "app.worker.executors.web_lowcode_executor", types.SimpleNamespace(run_web_lowcode=_web_lowcode)
+    )
+    monkeypatch.setitem(
+        sys.modules, "app.worker.executors.web_executor", types.SimpleNamespace(run_web_case=_web_script)
+    )
 
     asyncio.run(case_dispatch.dispatch_case(db, run, case, {}))
 
@@ -110,8 +120,14 @@ def test_dispatch_case_routes_android_modes(monkeypatch, cfg, executor_name):
     async def _android_script(_db, _run, _case, _extra_vars):
         called.append("android_script")
 
-    monkeypatch.setitem(sys.modules, "app.worker.executors.android_lowcode_executor", types.SimpleNamespace(run_android_lowcode=_android_lowcode))
-    monkeypatch.setitem(sys.modules, "app.worker.executors.android_executor", types.SimpleNamespace(run_android_case=_android_script))
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.executors.android_lowcode_executor",
+        types.SimpleNamespace(run_android_lowcode=_android_lowcode),
+    )
+    monkeypatch.setitem(
+        sys.modules, "app.worker.executors.android_executor", types.SimpleNamespace(run_android_case=_android_script)
+    )
 
     asyncio.run(case_dispatch.dispatch_case(db, run, case, {}))
 

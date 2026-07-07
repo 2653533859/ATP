@@ -167,9 +167,7 @@ class MobileRunArtifact(Base):
     file_path: Mapped[str] = mapped_column(String(512), nullable=False)
     file_name: Mapped[str] = mapped_column(String(256), nullable=False)
     file_size: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
-    created_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), nullable=False
-    )
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
 
     # Relationships
     run = relationship("MobileSpecialRun", back_populates="artifacts")

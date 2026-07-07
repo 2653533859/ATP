@@ -12,6 +12,7 @@ E.1 模板可选：?template=summary|full（默认 full；summary 不渲染步�
 E.1 自定义封面：?cover_title=xxx&cover_logo_url=https://...
 E.1 报告缓存：MinIO key reports/run-{id}/{template}-{updated_at}.html，命中直接返回
 """
+
 import base64
 import hashlib
 import io
@@ -49,9 +50,7 @@ async def export_run_junit(
     if not run:
         raise HTTPException(status_code=404, detail="执行记录不存在")
 
-    result = await db.execute(
-        select(StepResult).where(StepResult.run_id == run_id).order_by(StepResult.step_index)
-    )
+    result = await db.execute(select(StepResult).where(StepResult.run_id == run_id).order_by(StepResult.step_index))
     steps = result.scalars().all()
     run_status = getattr(run.status, "value", str(run.status))
     has_run_level_issue = not steps and run_status in {"failed", "error", "skipped"}
@@ -67,20 +66,28 @@ async def export_run_junit(
             errors_count = 1
 
     root = ET.Element("testsuites")
-    suite_el = ET.SubElement(root, "testsuite", {
-        "name": f"TestRun-{run.id}",
-        "tests": str(tests_count),
-        "failures": str(failures_count),
-        "errors": str(errors_count),
-        "time": f"{(run.duration_ms or 0) / 1000:.3f}",
-    })
+    suite_el = ET.SubElement(
+        root,
+        "testsuite",
+        {
+            "name": f"TestRun-{run.id}",
+            "tests": str(tests_count),
+            "failures": str(failures_count),
+            "errors": str(errors_count),
+            "time": f"{(run.duration_ms or 0) / 1000:.3f}",
+        },
+    )
 
     if has_run_level_issue:
-        tc = ET.SubElement(suite_el, "testcase", {
-            "name": f"Run-{run.id}",
-            "classname": f"TestRun-{run.id}",
-            "time": f"{(run.duration_ms or 0) / 1000:.3f}",
-        })
+        tc = ET.SubElement(
+            suite_el,
+            "testcase",
+            {
+                "name": f"Run-{run.id}",
+                "classname": f"TestRun-{run.id}",
+                "time": f"{(run.duration_ms or 0) / 1000:.3f}",
+            },
+        )
         message = run.error_message or f"Run status: {run_status}"
         if run_status == "failed":
             fail = ET.SubElement(tc, "failure", {"message": message})
@@ -92,11 +99,15 @@ async def export_run_junit(
             ET.SubElement(tc, "skipped")
     else:
         for step in steps:
-            tc = ET.SubElement(suite_el, "testcase", {
-                "name": step.name or f"Step-{step.step_index}",
-                "classname": f"TestRun-{run.id}",
-                "time": f"{(step.duration_ms or 0) / 1000:.3f}",
-            })
+            tc = ET.SubElement(
+                suite_el,
+                "testcase",
+                {
+                    "name": step.name or f"Step-{step.step_index}",
+                    "classname": f"TestRun-{run.id}",
+                    "time": f"{(step.duration_ms or 0) / 1000:.3f}",
+                },
+            )
             if step.status.value == "failed":
                 fail = ET.SubElement(tc, "failure", {"message": step.error_message or "Assertion failed"})
                 fail.text = step.error_message or ""
@@ -107,9 +118,11 @@ async def export_run_junit(
                 ET.SubElement(tc, "skipped")
 
     xml_bytes = ET.tostring(root, encoding="unicode", xml_declaration=True)
-    return Response(content=xml_bytes, media_type="application/xml", headers={
-        "Content-Disposition": f"attachment; filename=run-{run_id}-junit.xml"
-    })
+    return Response(
+        content=xml_bytes,
+        media_type="application/xml",
+        headers={"Content-Disposition": f"attachment; filename=run-{run_id}-junit.xml"},
+    )
 
 
 @router.get("/suite-runs/{run_id}/junit")
@@ -127,13 +140,17 @@ async def export_suite_run_junit(
     case_runs = suite_run.case_run_ids or []
     summary = suite_run.result_summary or {}
 
-    suite_el = ET.SubElement(root, "testsuite", {
-        "name": f"SuiteRun-{suite_run.id}",
-        "tests": str(summary.get("total", len(case_runs))),
-        "failures": str(summary.get("failed", 0)),
-        "errors": str(summary.get("error", 0)),
-        "time": f"{(suite_run.duration_ms or 0) / 1000:.3f}",
-    })
+    suite_el = ET.SubElement(
+        root,
+        "testsuite",
+        {
+            "name": f"SuiteRun-{suite_run.id}",
+            "tests": str(summary.get("total", len(case_runs))),
+            "failures": str(summary.get("failed", 0)),
+            "errors": str(summary.get("error", 0)),
+            "time": f"{(suite_run.duration_ms or 0) / 1000:.3f}",
+        },
+    )
 
     for item in case_runs:
         case_name = item.get("case_name", f"Case-{item.get('case_id', '?')}")
@@ -147,11 +164,15 @@ async def export_suite_run_junit(
             if actual_run:
                 duration = actual_run.duration_ms or 0
 
-        tc = ET.SubElement(suite_el, "testcase", {
-            "name": case_name,
-            "classname": f"SuiteRun-{suite_run.id}",
-            "time": f"{duration / 1000:.3f}",
-        })
+        tc = ET.SubElement(
+            suite_el,
+            "testcase",
+            {
+                "name": case_name,
+                "classname": f"SuiteRun-{suite_run.id}",
+                "time": f"{duration / 1000:.3f}",
+            },
+        )
         if case_status == "failed":
             ET.SubElement(tc, "failure", {"message": item.get("error", "Failed")})
         elif case_status == "error":
@@ -160,9 +181,11 @@ async def export_suite_run_junit(
             ET.SubElement(tc, "skipped")
 
     xml_bytes = ET.tostring(root, encoding="unicode", xml_declaration=True)
-    return Response(content=xml_bytes, media_type="application/xml", headers={
-        "Content-Disposition": f"attachment; filename=suite-run-{run_id}-junit.xml"
-    })
+    return Response(
+        content=xml_bytes,
+        media_type="application/xml",
+        headers={"Content-Disposition": f"attachment; filename=suite-run-{run_id}-junit.xml"},
+    )
 
 
 @router.get("/plan-runs/{run_id}/junit")
@@ -185,9 +208,17 @@ async def export_plan_run_junit(
 
         if not suite_run_id:
             # 套件不存在，生成一个 error testcase
-            ts = ET.SubElement(root, "testsuite", {
-                "name": suite_name, "tests": "1", "errors": "1", "failures": "0", "time": "0",
-            })
+            ts = ET.SubElement(
+                root,
+                "testsuite",
+                {
+                    "name": suite_name,
+                    "tests": "1",
+                    "errors": "1",
+                    "failures": "0",
+                    "time": "0",
+                },
+            )
             tc = ET.SubElement(ts, "testcase", {"name": suite_name, "classname": f"PlanRun-{run_id}"})
             ET.SubElement(tc, "error", {"message": item.get("error", "Suite not found")})
             continue
@@ -199,13 +230,17 @@ async def export_plan_run_junit(
         case_runs = sr.case_run_ids or []
         sr_summary = sr.result_summary or {}
 
-        ts = ET.SubElement(root, "testsuite", {
-            "name": suite_name,
-            "tests": str(sr_summary.get("total", len(case_runs))),
-            "failures": str(sr_summary.get("failed", 0)),
-            "errors": str(sr_summary.get("error", 0)),
-            "time": f"{(sr.duration_ms or 0) / 1000:.3f}",
-        })
+        ts = ET.SubElement(
+            root,
+            "testsuite",
+            {
+                "name": suite_name,
+                "tests": str(sr_summary.get("total", len(case_runs))),
+                "failures": str(sr_summary.get("failed", 0)),
+                "errors": str(sr_summary.get("error", 0)),
+                "time": f"{(sr.duration_ms or 0) / 1000:.3f}",
+            },
+        )
 
         for cr in case_runs:
             case_name = cr.get("case_name", f"Case-{cr.get('case_id', '?')}")
@@ -216,11 +251,15 @@ async def export_plan_run_junit(
                 if actual_run:
                     duration = actual_run.duration_ms or 0
 
-            tc = ET.SubElement(ts, "testcase", {
-                "name": case_name,
-                "classname": suite_name,
-                "time": f"{duration / 1000:.3f}",
-            })
+            tc = ET.SubElement(
+                ts,
+                "testcase",
+                {
+                    "name": case_name,
+                    "classname": suite_name,
+                    "time": f"{duration / 1000:.3f}",
+                },
+            )
             if case_status == "failed":
                 ET.SubElement(tc, "failure", {"message": cr.get("error", "Failed")})
             elif case_status == "error":
@@ -229,9 +268,11 @@ async def export_plan_run_junit(
                 ET.SubElement(tc, "skipped")
 
     xml_bytes = ET.tostring(root, encoding="unicode", xml_declaration=True)
-    return Response(content=xml_bytes, media_type="application/xml", headers={
-        "Content-Disposition": f"attachment; filename=plan-run-{run_id}-junit.xml"
-    })
+    return Response(
+        content=xml_bytes,
+        media_type="application/xml",
+        headers={"Content-Disposition": f"attachment; filename=plan-run-{run_id}-junit.xml"},
+    )
 
 
 # ── HTML / PDF 报告导出 ─────────────────────────────────────
@@ -427,14 +468,16 @@ def _build_report_steps_view(steps: list[StepResult]) -> list[dict]:
                     screenshot_b64 = base64.b64encode(img_bytes).decode()
                 except Exception:
                     logger.warning(f"Failed to read screenshot: {obj_name}")
-        rendered_steps.append({
-            "step_index": step.step_index,
-            "name": step.name,
-            "status": getattr(step.status, "value", step.status),
-            "duration_ms": step.duration_ms,
-            "error_message": step.error_message,
-            "screenshot_b64": screenshot_b64,
-        })
+        rendered_steps.append(
+            {
+                "step_index": step.step_index,
+                "name": step.name,
+                "status": getattr(step.status, "value", step.status),
+                "duration_ms": step.duration_ms,
+                "error_message": step.error_message,
+                "screenshot_b64": screenshot_b64,
+            }
+        )
     return rendered_steps
 
 
@@ -499,7 +542,10 @@ def _report_cache_object_name(run: TestRun, template_mode: str, cover_signature:
     ts = ""
     if run.updated_at:
         ts = run.updated_at.strftime("%Y%m%d%H%M%S%f")
-    suffix = hashlib.md5(f"{template_mode}|{cover_signature}|{ts}".encode()).hexdigest()[:12]
+    suffix = hashlib.md5(
+        f"{template_mode}|{cover_signature}|{ts}".encode(),
+        usedforsecurity=False,
+    ).hexdigest()[:12]
     return f"reports/run-{run.id}/{template_mode}-{suffix}.html"
 
 
@@ -513,6 +559,7 @@ def _try_read_cached_report(object_name: str) -> bytes | None:
 def _try_write_cached_report(object_name: str, html: str) -> None:
     try:
         from app.core.minio_client import upload_bytes
+
         upload_bytes(object_name, html.encode("utf-8"), content_type="text/html; charset=utf-8")
     except Exception as exc:
         logger.warning(f"report cache write skipped: {exc}")
@@ -525,9 +572,16 @@ async def _render_pdf_from_html(html: str) -> bytes:
         browser = await p.chromium.launch(headless=True)
         page = await browser.new_page()
         await page.set_content(html, wait_until="networkidle")
-        pdf_bytes = await page.pdf(format="A4", print_background=True, margin={
-            "top": "20mm", "bottom": "20mm", "left": "15mm", "right": "15mm",
-        })
+        pdf_bytes = await page.pdf(
+            format="A4",
+            print_background=True,
+            margin={
+                "top": "20mm",
+                "bottom": "20mm",
+                "left": "15mm",
+                "right": "15mm",
+            },
+        )
         await browser.close()
     return pdf_bytes
 
@@ -562,13 +616,15 @@ async def _build_suite_run_report_html(db: AsyncSession, suite_run: SuiteRun) ->
     for item in suite_run.case_run_ids or []:
         case_run_id = item.get("run_id")
         actual_run = await db.get(TestRun, case_run_id) if case_run_id else None
-        case_rows.append({
-            "name": item.get("case_name", f"Case-{item.get('case_id', '?')}"),
-            "status": item.get("status", _normalize_status(getattr(actual_run, "status", None))),
-            "duration": _format_duration(item.get("duration_ms") or getattr(actual_run, "duration_ms", None)),
-            "environment": getattr(actual_run, "environment", None) or "-",
-            "error_message": item.get("error") or getattr(actual_run, "error_message", None) or "",
-        })
+        case_rows.append(
+            {
+                "name": item.get("case_name", f"Case-{item.get('case_id', '?')}"),
+                "status": item.get("status", _normalize_status(getattr(actual_run, "status", None))),
+                "duration": _format_duration(item.get("duration_ms") or getattr(actual_run, "duration_ms", None)),
+                "environment": getattr(actual_run, "environment", None) or "-",
+                "error_message": item.get("error") or getattr(actual_run, "error_message", None) or "",
+            }
+        )
 
     summary = _merge_summary(suite_run.result_summary, len(case_rows))
     tz_cst = timezone(timedelta(hours=8))
@@ -576,19 +632,30 @@ async def _build_suite_run_report_html(db: AsyncSession, suite_run: SuiteRun) ->
         title=f"套件执行报告 #{suite_run.id}",
         meta_rows=[
             [{"label": "套件执行 ID", "value": suite_run.id}, {"label": "套件 ID", "value": suite_run.suite_id}],
-            [{"label": "状态", "value": _normalize_status(suite_run.status)}, {"label": "耗时", "value": _format_duration(suite_run.duration_ms)}],
-            [{"label": "触发时间", "value": suite_run.created_at.strftime("%Y-%m-%d %H:%M:%S") if suite_run.created_at else "-"}, {"label": "备注", "value": "按用例执行结果聚合"}],
+            [
+                {"label": "状态", "value": _normalize_status(suite_run.status)},
+                {"label": "耗时", "value": _format_duration(suite_run.duration_ms)},
+            ],
+            [
+                {
+                    "label": "触发时间",
+                    "value": suite_run.created_at.strftime("%Y-%m-%d %H:%M:%S") if suite_run.created_at else "-",
+                },
+                {"label": "备注", "value": "按用例执行结果聚合"},
+            ],
         ],
         summary=summary,
-        sections=[{
-            "title": "用例执行明细",
-            "status": _normalize_status(suite_run.status),
-            "duration": _format_duration(suite_run.duration_ms),
-            "description": "当前套件下所有用例执行结果。",
-            "error_message": suite_run.error_message,
-            "headers": ["用例", "状态", "耗时", "环境", "错误信息"],
-            "rows": case_rows,
-        }],
+        sections=[
+            {
+                "title": "用例执行明细",
+                "status": _normalize_status(suite_run.status),
+                "duration": _format_duration(suite_run.duration_ms),
+                "description": "当前套件下所有用例执行结果。",
+                "error_message": suite_run.error_message,
+                "headers": ["用例", "状态", "耗时", "环境", "错误信息"],
+                "rows": case_rows,
+            }
+        ],
         now=datetime.now(tz_cst).strftime("%Y-%m-%d %H:%M:%S (UTC+8)"),
     )
 
@@ -606,7 +673,9 @@ async def _build_plan_run_report_html(db: AsyncSession, plan_run: PlanRun) -> st
         suite_run_id = item.get("suite_run_id")
         suite_run = await db.get(SuiteRun, suite_run_id) if suite_run_id else None
         case_rows = []
-        suite_summary = _merge_summary(getattr(suite_run, "result_summary", None), len(getattr(suite_run, "case_run_ids", []) or []))
+        suite_summary = _merge_summary(
+            getattr(suite_run, "result_summary", None), len(getattr(suite_run, "case_run_ids", []) or [])
+        )
         total_cases += suite_summary["total"]
         passed += suite_summary["passed"]
         failed += suite_summary["failed"]
@@ -615,23 +684,29 @@ async def _build_plan_run_report_html(db: AsyncSession, plan_run: PlanRun) -> st
         for case_item in getattr(suite_run, "case_run_ids", []) or []:
             case_run_id = case_item.get("run_id")
             actual_run = await db.get(TestRun, case_run_id) if case_run_id else None
-            case_rows.append({
-                "name": case_item.get("case_name", f"Case-{case_item.get('case_id', '?')}"),
-                "status": case_item.get("status", _normalize_status(getattr(actual_run, "status", None))),
-                "duration": _format_duration(case_item.get("duration_ms") or getattr(actual_run, "duration_ms", None)),
-                "environment": getattr(actual_run, "environment", None) or "-",
-                "error_message": case_item.get("error") or getattr(actual_run, "error_message", None) or "",
-            })
+            case_rows.append(
+                {
+                    "name": case_item.get("case_name", f"Case-{case_item.get('case_id', '?')}"),
+                    "status": case_item.get("status", _normalize_status(getattr(actual_run, "status", None))),
+                    "duration": _format_duration(
+                        case_item.get("duration_ms") or getattr(actual_run, "duration_ms", None)
+                    ),
+                    "environment": getattr(actual_run, "environment", None) or "-",
+                    "error_message": case_item.get("error") or getattr(actual_run, "error_message", None) or "",
+                }
+            )
 
-        sections.append({
-            "title": item.get("suite_name", f"Suite-{item.get('suite_id', '?')}"),
-            "status": _normalize_status(getattr(suite_run, "status", item.get("status", "pending"))),
-            "duration": _format_duration(getattr(suite_run, "duration_ms", None)),
-            "description": f"套件执行 ID：{suite_run_id or '-'}",
-            "error_message": item.get("error") or getattr(suite_run, "error_message", None),
-            "headers": ["用例", "状态", "耗时", "环境", "错误信息"],
-            "rows": case_rows,
-        })
+        sections.append(
+            {
+                "title": item.get("suite_name", f"Suite-{item.get('suite_id', '?')}"),
+                "status": _normalize_status(getattr(suite_run, "status", item.get("status", "pending"))),
+                "duration": _format_duration(getattr(suite_run, "duration_ms", None)),
+                "description": f"套件执行 ID：{suite_run_id or '-'}",
+                "error_message": item.get("error") or getattr(suite_run, "error_message", None),
+                "headers": ["用例", "状态", "耗时", "环境", "错误信息"],
+                "rows": case_rows,
+            }
+        )
 
     summary = {"total": total_cases, "passed": passed, "failed": failed, "error": error}
     tz_cst = timezone(timedelta(hours=8))
@@ -639,8 +714,17 @@ async def _build_plan_run_report_html(db: AsyncSession, plan_run: PlanRun) -> st
         title=f"计划执行报告 #{plan_run.id}",
         meta_rows=[
             [{"label": "计划执行 ID", "value": plan_run.id}, {"label": "计划 ID", "value": plan_run.plan_id}],
-            [{"label": "状态", "value": _normalize_status(plan_run.status)}, {"label": "耗时", "value": _format_duration(plan_run.duration_ms)}],
-            [{"label": "触发时间", "value": plan_run.created_at.strftime("%Y-%m-%d %H:%M:%S") if plan_run.created_at else "-"}, {"label": "备注", "value": "按套件与用例结果聚合"}],
+            [
+                {"label": "状态", "value": _normalize_status(plan_run.status)},
+                {"label": "耗时", "value": _format_duration(plan_run.duration_ms)},
+            ],
+            [
+                {
+                    "label": "触发时间",
+                    "value": plan_run.created_at.strftime("%Y-%m-%d %H:%M:%S") if plan_run.created_at else "-",
+                },
+                {"label": "备注", "value": "按套件与用例结果聚合"},
+            ],
         ],
         summary=summary,
         sections=sections,
@@ -681,9 +765,7 @@ async def export_run_html(
                 },
             )
 
-    result = await db.execute(
-        select(StepResult).where(StepResult.run_id == run_id).order_by(StepResult.step_index)
-    )
+    result = await db.execute(select(StepResult).where(StepResult.run_id == run_id).order_by(StepResult.step_index))
     steps = result.scalars().all()
 
     case = await db.get(TestCase, run.case_id)
@@ -691,7 +773,10 @@ async def export_run_html(
     case_type = case.case_type.value if case else ""
 
     html = await _build_report_html(
-        run, list(steps), case_name, case_type,
+        run,
+        list(steps),
+        case_name,
+        case_type,
         template_mode=template,
         cover_title=cover_title,
         cover_logo_url=cover_logo_url,
@@ -721,9 +806,7 @@ async def export_run_pdf(
     if not run:
         raise HTTPException(status_code=404, detail="执行记录不存在")
 
-    result = await db.execute(
-        select(StepResult).where(StepResult.run_id == run_id).order_by(StepResult.step_index)
-    )
+    result = await db.execute(select(StepResult).where(StepResult.run_id == run_id).order_by(StepResult.step_index))
     steps = result.scalars().all()
 
     case = await db.get(TestCase, run.case_id)
@@ -731,7 +814,10 @@ async def export_run_pdf(
     case_type = case.case_type.value if case else ""
 
     html = await _build_report_html(
-        run, list(steps), case_name, case_type,
+        run,
+        list(steps),
+        case_name,
+        case_type,
         template_mode=template,
         cover_title=cover_title,
         cover_logo_url=cover_logo_url,
@@ -790,7 +876,10 @@ async def export_runs_zip(
             case_name = case.name if case else f"Case-{run.case_id}"
             case_type = case.case_type.value if case else ""
             html = await _build_report_html(
-                run, list(steps), case_name, case_type,
+                run,
+                list(steps),
+                case_name,
+                case_type,
                 template_mode=template_mode,
                 cover_title=cover_title,
                 cover_logo_url=cover_logo_url,
@@ -882,4 +971,3 @@ async def export_plan_run_pdf(
         media_type="application/pdf",
         headers={"Content-Disposition": f"attachment; filename=plan-run-{run_id}-report.pdf"},
     )
-

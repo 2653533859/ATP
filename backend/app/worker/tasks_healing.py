@@ -2,6 +2,7 @@
 
 模块独立以便 executor 中 .delay() 时不引入 ai_healing 服务层重型依赖循环。
 """
+
 from __future__ import annotations
 
 import asyncio

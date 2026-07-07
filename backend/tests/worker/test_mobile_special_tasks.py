@@ -1,4 +1,5 @@
 """Tests for mobile special Celery tasks."""
+
 import asyncio
 import sys
 import types
@@ -34,6 +35,7 @@ class _DummyCeleryApp:
         def decorator(func):
             self.tasks[kwargs.get("name", func.__name__)] = func
             return func
+
         return decorator
 
 
@@ -67,6 +69,7 @@ class TestTaskRouting:
             MobileRunArtifact,
         )
         from app.models.global_variable import GlobalVariable
+
         assert MobileSpecialTask is not None
         assert MobileSpecialRun is not None
         assert MobileMetricSample is not None

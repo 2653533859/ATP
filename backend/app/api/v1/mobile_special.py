@@ -1,4 +1,5 @@
 """Mobile Special Testing API endpoints."""
+
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -100,6 +101,7 @@ def _build_run_list_item(run: MobileSpecialRun, task_name: str | None) -> Mobile
 
 # ---- Task CRUD ----
 
+
 @router.get("/tasks", response_model=list[MobileSpecialTaskOut])
 async def list_tasks(
     project_id: Optional[int] = None,
@@ -193,6 +195,7 @@ async def delete_task(
 
 # ---- Run trigger / stop ----
 
+
 @router.post("/tasks/{task_id}/run", response_model=MobileSpecialRunOut, status_code=status.HTTP_201_CREATED)
 async def trigger_task_run(
     task_id: int,
@@ -229,6 +232,7 @@ async def trigger_task_run(
 
     # 异步触发 Celery 任务
     from app.worker.tasks_mobile_special import run_mobile_special_task
+
     run_mobile_special_task.delay(run.id)
 
     return run
@@ -256,6 +260,7 @@ async def stop_run(
 
 
 # ---- Runs / Reports ----
+
 
 @router.get("/runs", response_model=list[MobileSpecialRunListItem])
 async def list_runs(
@@ -287,10 +292,7 @@ async def list_runs(
 
     result = await db.execute(q)
     rows = result.all()
-    return [
-        _build_run_list_item(row[0], row.task_name)
-        for row in rows
-    ]
+    return [_build_run_list_item(row[0], row.task_name) for row in rows]
 
 
 @router.get("/runs/{run_id}", response_model=MobileSpecialRunOut)
@@ -379,6 +381,7 @@ async def list_run_artifacts(
 
 # ---- Export ----
 
+
 @router.get("/runs/{run_id}/export/csv")
 async def export_run_csv(
     run_id: int,
@@ -390,9 +393,11 @@ async def export_run_csv(
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
 
-    q = select(MobileMetricSample).where(
-        MobileMetricSample.run_id == run_id
-    ).order_by(MobileMetricSample.sample_time.asc())
+    q = (
+        select(MobileMetricSample)
+        .where(MobileMetricSample.run_id == run_id)
+        .order_by(MobileMetricSample.sample_time.asc())
+    )
     result = await db.execute(q)
     samples = result.scalars().all()
 
@@ -409,6 +414,7 @@ async def export_run_csv(
     filename = f"mobile_run_{run_id}_metrics.csv"
 
     from fastapi.responses import Response
+
     return Response(
         content=csv_content,
         media_type="text/csv",
@@ -432,9 +438,11 @@ async def export_run_json(
     task_name = task.name if task else None
 
     # Fetch samples
-    samples_q = select(MobileMetricSample).where(
-        MobileMetricSample.run_id == run_id
-    ).order_by(MobileMetricSample.sample_time.asc())
+    samples_q = (
+        select(MobileMetricSample)
+        .where(MobileMetricSample.run_id == run_id)
+        .order_by(MobileMetricSample.sample_time.asc())
+    )
     samples_result = await db.execute(samples_q)
     samples = samples_result.scalars().all()
 
@@ -502,6 +510,7 @@ async def export_run_json(
 
     from fastapi.responses import Response
     import json
+
     return Response(
         content=json.dumps(report, indent=2, ensure_ascii=False),
         media_type="application/json",
@@ -510,6 +519,7 @@ async def export_run_json(
 
 
 # ---- Statistics ----
+
 
 @router.get("/statistics/overview", response_model=dict)
 @cached_json(
@@ -527,6 +537,7 @@ async def get_mobile_special_overview(
 ):
     """Get overview statistics for mobile special testing."""
     from datetime import timedelta
+
     since = datetime.now(timezone.utc) - timedelta(days=days)
     since_7d = datetime.now(timezone.utc) - timedelta(days=7)
 
@@ -579,9 +590,7 @@ async def get_mobile_special_overview(
     avg_duration_ms = (await db.execute(avg_dur_q)).scalar()
 
     # Total incidents
-    incident_count_q = select(func.count(MobileIncident.id)).where(
-        MobileIncident.event_time >= since
-    )
+    incident_count_q = select(func.count(MobileIncident.id)).where(MobileIncident.event_time >= since)
     incident_count_q = incident_count_q.join(MobileSpecialRun, MobileIncident.run_id == MobileSpecialRun.id)
     if project_id is not None:
         incident_count_q = incident_count_q.join(MobileSpecialTask).where(MobileSpecialTask.project_id == project_id)
@@ -628,6 +637,7 @@ async def get_mobile_special_trend(
     """Get daily trend statistics for mobile special testing."""
     from datetime import timedelta
     from sqlalchemy import cast, Date
+
     since = datetime.now(timezone.utc) - timedelta(days=days)
     date_col = cast(MobileSpecialRun.created_at, Date).label("date")
 
@@ -637,12 +647,8 @@ async def get_mobile_special_trend(
     base_select = [
         date_col,
         func.count(MobileSpecialRun.id).label("total"),
-        func.sum(
-            sql_case((completed_filter, 1), else_=0)
-        ).label("completed"),
-        func.sum(
-            sql_case((failed_filter, 1), else_=0)
-        ).label("failed"),
+        func.sum(sql_case((completed_filter, 1), else_=0)).label("completed"),
+        func.sum(sql_case((failed_filter, 1), else_=0)).label("failed"),
     ]
 
     stmt = select(*base_select).where(MobileSpecialRun.created_at >= since).group_by(date_col).order_by(date_col)
@@ -681,6 +687,7 @@ async def get_task_statistics(
 ):
     """Get per-task statistics summary."""
     from datetime import timedelta
+
     since = datetime.now(timezone.utc) - timedelta(days=days)
 
     completed_filter = MobileSpecialRun.status == RunStatus.completed
@@ -692,12 +699,8 @@ async def get_task_statistics(
             MobileSpecialTask.name.label("task_name"),
             MobileSpecialTask.task_type,
             func.count(MobileSpecialRun.id).label("total_runs"),
-            func.sum(
-                sql_case((completed_filter, 1), else_=0)
-            ).label("completed_runs"),
-            func.sum(
-                sql_case((failed_filter, 1), else_=0)
-            ).label("failed_runs"),
+            func.sum(sql_case((completed_filter, 1), else_=0)).label("completed_runs"),
+            func.sum(sql_case((failed_filter, 1), else_=0)).label("failed_runs"),
             func.max(MobileSpecialRun.created_at).label("last_run_at"),
         )
         .join(MobileSpecialRun, MobileSpecialTask.id == MobileSpecialRun.task_id)

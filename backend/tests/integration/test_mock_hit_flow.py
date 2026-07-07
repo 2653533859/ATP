@@ -1,4 +1,5 @@
 """集成路径 3：login → 创建项目 → 创建 mock 规则 → GET /mock/{pid}/path 命中。"""
+
 import pytest
 
 
@@ -9,7 +10,7 @@ async def test_mock_rule_creates_and_serves_response(async_client, auth_headers,
     resp = await async_client.post(
         "/api/v1/projects",
         headers=auth_headers,
-        json={"name": f"proj-mock-{unique_name}"},
+        json={"name": f"proj-mock-{unique_name}", "project_code": f"IT-MOCK-{unique_name}"},
     )
     assert resp.status_code == 201, resp.text
     project_id = resp.json()["id"]
@@ -41,7 +42,7 @@ async def test_mock_unmatched_path_returns_404(async_client, auth_headers, uniqu
     resp = await async_client.post(
         "/api/v1/projects",
         headers=auth_headers,
-        json={"name": f"proj-mock-miss-{unique_name}"},
+        json={"name": f"proj-mock-miss-{unique_name}", "project_code": f"IT-MOCK-MISS-{unique_name}"},
     )
     project_id = resp.json()["id"]
 

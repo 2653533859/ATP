@@ -4,6 +4,7 @@ WebSocket 端点：订阅 Redis Pub/Sub，将执行事件实时推送给前端
 路径：/ws/runs/{run_id}
 协议：ws://
 """
+
 import asyncio
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
@@ -118,6 +119,7 @@ async def ws_run_events(websocket: WebSocket, run_id: int):
 
                 # 收到 completed 消息后服务端主动关闭
                 import json as _json
+
                 try:
                     payload = _json.loads(data)
                     if payload.get("type") == "completed":

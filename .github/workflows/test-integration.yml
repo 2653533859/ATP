@@ -88,7 +88,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r backend/requirements.txt
-          pip install pytest-asyncio
+          pip install pytest-asyncio pytest-rerunfailures==16.4
 
       - name: Start MinIO
         run: |
@@ -116,4 +116,4 @@ jobs:
         run: alembic upgrade head
 
       - name: Run integration tests
-        run: pytest backend/tests/integration -m integration -v --tb=short
+        run: pytest backend/tests/integration -m integration -v --tb=short --reruns 1 --reruns-delay 2

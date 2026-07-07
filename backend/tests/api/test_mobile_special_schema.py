@@ -1,4 +1,5 @@
 """Tests for mobile_special and global_variable Pydantic schemas."""
+
 import sys
 import types
 from pathlib import Path
@@ -99,6 +100,7 @@ class TestMobileSpecialTaskSchemas:
 
     def test_task_out_includes_all_fields(self):
         from datetime import datetime
+
         task = MobileSpecialTaskOut(
             id=1,
             name="Test Task",
@@ -118,6 +120,7 @@ class TestMobileSpecialTaskSchemas:
 class TestMobileSpecialRunSchemas:
     def test_run_out_includes_status_and_timing(self):
         from datetime import datetime
+
         run = MobileSpecialRunOut(
             id=1,
             task_id=10,
@@ -138,6 +141,7 @@ class TestMobileSpecialRunSchemas:
 class TestMetricSampleSchemas:
     def test_metric_sample_out(self):
         from datetime import datetime
+
         sample = MobileMetricSampleOut(
             id=1,
             run_id=10,
@@ -154,6 +158,7 @@ class TestMetricSampleSchemas:
 class TestIncidentSchemas:
     def test_incident_out_includes_type_and_detail(self):
         from datetime import datetime
+
         incident = MobileIncidentOut(
             id=1,
             run_id=10,
@@ -171,6 +176,7 @@ class TestIncidentSchemas:
 class TestArtifactSchemas:
     def test_artifact_out(self):
         from datetime import datetime
+
         artifact = MobileRunArtifactOut(
             id=1,
             run_id=10,
@@ -247,6 +253,7 @@ class TestGlobalVariableSchemas:
 
     def test_global_variable_out_masks_secret_in_repr(self):
         from datetime import datetime
+
         var = GlobalVariableOut(
             id=1,
             scope_type=ScopeType.global_scope,

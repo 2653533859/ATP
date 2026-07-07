@@ -1,4 +1,5 @@
 """P1.4 项目维度保留天数：resolve_project_retention / list_projects_with_retention_override 单测。"""
+
 import sys
 import types
 from pathlib import Path
@@ -119,6 +120,7 @@ def test_preview_old_runs_by_project_returns_global_and_projects(monkeypatch):
             class _R:
                 def scalar(self):
                     return 3
+
             return _R()
 
     monkeypatch.setattr(run_retention, "preview_old_runs", fake_preview_old_runs)

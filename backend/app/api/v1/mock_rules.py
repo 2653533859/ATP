@@ -230,9 +230,7 @@ async def list_mock_rule_snapshots(
         .limit(page_size)
     )
     items = result.scalars().all()
-    return PaginatedMockSnapshotsOut(
-        items=items, total=total or 0, page=page, page_size=page_size
-    )
+    return PaginatedMockSnapshotsOut(items=items, total=total or 0, page=page, page_size=page_size)
 
 
 @router.post(
@@ -253,9 +251,7 @@ async def rollback_mock_rule(
         raise HTTPException(status_code=404, detail="快照不存在")
 
     # 回滚前先保存当前版本快照（构成"前向"历史，便于撤销回滚）
-    await _persist_snapshot(
-        db, rule, changed_by=current_user.id, note=f"before rollback to v{snapshot.version}"
-    )
+    await _persist_snapshot(db, rule, changed_by=current_user.id, note=f"before rollback to v{snapshot.version}")
 
     data = snapshot.snapshot_data or {}
     if data.get("method"):
@@ -316,9 +312,7 @@ async def promote_recorded_sample(
         match_conditions={
             "query": dict(request_payload.get("query") or {}),
             "headers": {},
-            "body": dict(request_payload.get("body") or {})
-            if isinstance(request_payload.get("body"), dict)
-            else {},
+            "body": dict(request_payload.get("body") or {}) if isinstance(request_payload.get("body"), dict) else {},
         },
         delay_ms=0,
         is_enabled=bool(body.enable),

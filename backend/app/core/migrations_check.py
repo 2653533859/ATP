@@ -4,6 +4,7 @@ best-effort：任何异常都只输出 WARNING，不阻断 FastAPI 启动。生�
 启动前先执行 `alembic upgrade head`；保留 `APP_AUTO_CREATE_TABLES` 兜底开关，仅在
 本地排障时启用。
 """
+
 from __future__ import annotations
 
 import logging

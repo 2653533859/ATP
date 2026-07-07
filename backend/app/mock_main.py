@@ -10,6 +10,7 @@
 
 部署形态见 docs/mock-standalone.md。
 """
+
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
@@ -30,12 +31,14 @@ async def lifespan(_app: FastAPI):
     # 懒导入 ensure_bucket / engine：避免 import 时强耦合底层（便于无 DB/MinIO 环境的 import 校验）
     try:
         from app.core.minio_client import ensure_bucket
+
         ensure_bucket()
     except Exception:
         pass
     yield
     try:
         from app.core.database import engine
+
         await engine.dispose()
     except Exception:
         pass

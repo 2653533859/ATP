@@ -29,6 +29,7 @@ def test_check_device_reachable_reports_offline(monkeypatch):
     monkeypatch.setattr(android_executor.subprocess, "run", lambda *args, **kwargs: _Proc())
     # 关闭重连以保持旧测试语义（旧测试只 mock 一次 subprocess.run）
     from app.core.config import settings
+
     monkeypatch.setattr(settings, "ADB_RECONNECT_ENABLED", False)
     monkeypatch.setattr(settings, "ADB_RECONNECT_MAX_ATTEMPTS", 1)
 
@@ -71,9 +72,11 @@ def test_install_apk_retries_via_safe_run_adb(monkeypatch):
     monkeypatch.setattr(android_executor.subprocess, "run", _scripted_run)
     # 走 disconnect/connect 路径需要 ADB_RECONNECT_ENABLED；这里不需要重连
     from app.core.config import settings
+
     monkeypatch.setattr(settings, "ADB_RECONNECT_ENABLED", True)
     # 不真正 sleep
     from app.services import adb_resilience
+
     monkeypatch.setattr(adb_resilience.time, "sleep", lambda *_: None)
 
     ok, msg = android_executor._install_apk("192.168.0.10:5555", "/tmp/app.apk")
@@ -84,16 +87,20 @@ def test_install_apk_retries_via_safe_run_adb(monkeypatch):
 
 def test_check_device_reachable_recovers_via_reconnect(monkeypatch):
     """offline → 自动 disconnect/connect → 第二次 device，应判定恢复。"""
-    sequence = iter([
-        types.SimpleNamespace(returncode=0, stdout="offline", stderr=""),
-        types.SimpleNamespace(returncode=0, stdout="", stderr=""),  # disconnect
-        types.SimpleNamespace(returncode=0, stdout="connected to 192.168.0.10:5555", stderr=""),  # connect
-        types.SimpleNamespace(returncode=0, stdout="device", stderr=""),
-    ])
+    sequence = iter(
+        [
+            types.SimpleNamespace(returncode=0, stdout="offline", stderr=""),
+            types.SimpleNamespace(returncode=0, stdout="", stderr=""),  # disconnect
+            types.SimpleNamespace(returncode=0, stdout="connected to 192.168.0.10:5555", stderr=""),  # connect
+            types.SimpleNamespace(returncode=0, stdout="device", stderr=""),
+        ]
+    )
     monkeypatch.setattr(android_executor.subprocess, "run", lambda *a, **kw: next(sequence))
     from app.services import adb_resilience
+
     monkeypatch.setattr(adb_resilience.time, "sleep", lambda *_: None)
     from app.core.config import settings
+
     monkeypatch.setattr(settings, "ADB_RECONNECT_ENABLED", True)
     monkeypatch.setattr(settings, "ADB_RECONNECT_MAX_ATTEMPTS", 3)
 
@@ -114,9 +121,11 @@ def test_install_apk_reports_timeout_via_sentinel(monkeypatch):
 
     monkeypatch.setattr(android_executor.subprocess, "run", _scripted_run)
     from app.core.config import settings
+
     # 关闭 reconnect 以避免 ensure_reachable 在重试前再次调用
     monkeypatch.setattr(settings, "ADB_RECONNECT_ENABLED", False)
     from app.services import adb_resilience
+
     monkeypatch.setattr(adb_resilience.time, "sleep", lambda *_: None)
 
     ok, msg = android_executor._install_apk("192.168.0.10:5555", "/tmp/app.apk", timeout=15)

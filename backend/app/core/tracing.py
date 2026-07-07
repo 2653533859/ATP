@@ -43,4 +43,3 @@ def attach_app_trace_id_to_current_span(trace_id: str | None = None) -> None:
         return
     span = trace.get_current_span()
     span.set_attribute("app.trace_id", tid)
-

@@ -1,4 +1,5 @@
 """P3.A iter3 healing 反馈端点测试：采纳/拒绝/幂等/边界。"""
+
 import asyncio
 import sys
 import types
@@ -8,6 +9,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 
+
 def _p3c_noop(*_a, **_kw):
     return None
 
@@ -15,22 +17,23 @@ def _p3c_noop(*_a, **_kw):
 async def _p3c_noop_async(*_a, **_kw):
     return None
 
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
-    get_current_user=lambda: None, require_engineer=lambda: None,
-        require_admin=_p3c_noop,
-        require_project_access=lambda *a, **kw: _p3c_noop,
-        assert_project_access=_p3c_noop_async,
-        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
-    )
+    get_current_user=lambda: None,
+    require_engineer=lambda: None,
+    require_admin=_p3c_noop,
+    require_project_access=lambda *a, **kw: _p3c_noop,
+    assert_project_access=_p3c_noop_async,
+    ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+)
+
 
 # stub 上游 import 链中触发真 celery 的两个模块（与 test_case_snapshots_d1.py 一致）
 async def _noop_invalidate_stats_cache():
     return None
 
 
-sys.modules["app.api.v1.statistics"] = types.SimpleNamespace(
-    invalidate_stats_cache=_noop_invalidate_stats_cache
-)
+sys.modules["app.api.v1.statistics"] = types.SimpleNamespace(invalidate_stats_cache=_noop_invalidate_stats_cache)
 sys.modules["app.worker.tasks"] = types.SimpleNamespace(
     run_test_case=types.SimpleNamespace(delay=lambda *_a, **_kw: None)
 )
@@ -77,9 +80,7 @@ def test_submit_feedback_adopted_writes_field():
     step = _make_step()
     db = _FakeDB(step)
     asyncio.run(
-        submit_healing_feedback(
-            run_id=10, step_id=1, body=HealingFeedbackRequest(action="adopted"), db=db, _=None
-        )
+        submit_healing_feedback(run_id=10, step_id=1, body=HealingFeedbackRequest(action="adopted"), db=db, _=None)
     )
     assert step.healing_feedback == "adopted"
     assert step.healing_feedback_at is not None
@@ -90,9 +91,7 @@ def test_submit_feedback_rejected_writes_field():
     step = _make_step()
     db = _FakeDB(step)
     asyncio.run(
-        submit_healing_feedback(
-            run_id=10, step_id=1, body=HealingFeedbackRequest(action="rejected"), db=db, _=None
-        )
+        submit_healing_feedback(run_id=10, step_id=1, body=HealingFeedbackRequest(action="rejected"), db=db, _=None)
     )
     assert step.healing_feedback == "rejected"
 
@@ -116,9 +115,7 @@ def test_submit_feedback_400_when_healing_not_done():
     db = _FakeDB(step)
     try:
         asyncio.run(
-            submit_healing_feedback(
-                run_id=10, step_id=1, body=HealingFeedbackRequest(action="adopted"), db=db, _=None
-            )
+            submit_healing_feedback(run_id=10, step_id=1, body=HealingFeedbackRequest(action="adopted"), db=db, _=None)
         )
     except HTTPException as exc:
         assert exc.status_code == 400
@@ -131,15 +128,11 @@ def test_submit_feedback_is_idempotent_overwrite():
     step = _make_step()
     db = _FakeDB(step)
     asyncio.run(
-        submit_healing_feedback(
-            run_id=10, step_id=1, body=HealingFeedbackRequest(action="adopted"), db=db, _=None
-        )
+        submit_healing_feedback(run_id=10, step_id=1, body=HealingFeedbackRequest(action="adopted"), db=db, _=None)
     )
     assert step.healing_feedback == "adopted"
     asyncio.run(
-        submit_healing_feedback(
-            run_id=10, step_id=1, body=HealingFeedbackRequest(action="rejected"), db=db, _=None
-        )
+        submit_healing_feedback(run_id=10, step_id=1, body=HealingFeedbackRequest(action="rejected"), db=db, _=None)
     )
     assert step.healing_feedback == "rejected"
     assert db.commits == 2

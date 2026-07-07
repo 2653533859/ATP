@@ -1,7 +1,23 @@
 # ATP 项目任务跟踪
 
-**最后更新**: 2026-05-30
-**当前阶段**: Q1–Q9 全部收口（功能完整，处于 release-readiness baseline，HEAD `b16fc72`）；**Q10 实施计划已编制**——主线「质量与稳定性深化 · 质量门禁优先」，详见 `docs/implementation-plan-2026-Q10.md`，五个 Phase 均未启动（见文末 Q10 章节）
+**最后更新**: 2026-07-08
+**当前阶段**: Q1–Q9 全部收口，`docs/optimization-roadmap-2026.md` 后续优化路线 29 / 29 项完成；发布收口、PR/提交范围整理与最终环境回归已完成，Q10 质量门禁与 Phase 5「集成扩展 + SLO + 收口」已完成。2026-07-08 已完成 high/critical 依赖漏洞升级，`pip-audit` 与 `npm audit --audit-level=moderate` 均清零；suite / plan 真实依赖集成测试、前端关键路径 E2E、SLO 薄切、flaky 治理与 Q10 验收总结已补齐并通过。
+
+**最新验证**: Python 3.14 本地后端环境已修复，`backend/.venv/bin/python -m pytest backend/tests -q --ignore=backend/tests/integration` 为 `825 passed`；Docker `python:3.12-slim-bookworm` 目标运行时在依赖升级后全量后端回归同样为 `823 passed`；Q10 Phase 5 临时真实依赖环境（Postgres `55432` / Redis `6380` / MinIO `19000`）空库 `alembic upgrade head` 通过，`backend/tests/integration -m integration` 为 `10 passed`，且二次重复运行仍为 `10 passed`；前端 suite / plan E2E 新增关键路径通过，完整 `npm --prefix frontend run e2e` 为 `9 passed`；SLO 薄切新增 `atp_run_outcomes_total` 与 Grafana 4 个 SLO 面板，`python3 -m json.tool docker/grafana/dashboards/atp-overview.json`、SLO 定向 worker 测试 `23 passed`、相关 ruff 检查均通过；flaky 治理新增 `pytest-rerunfailures==16.4`、`flaky` marker、integration CI 一次有界重试与 `docs/flaky-governance.md`，marker / reruns / workflow YAML 验证均通过；`make test-backend-coverage PYTHON=backend/.venv/bin/python` 为 `823 passed`、总覆盖率 `53.47%`、52% 门槛达成；前端 `npm run test` 为 `18 passed`，`npm run test:coverage` 通过并记录全仓覆盖率 `1.8%`，`npm run type-check` 与 `npm run build` 通过；`make lint PYTHON=backend/.venv/bin/python` 通过；`make format-check PYTHON=backend/.venv/bin/python` 通过；`make mypy PYTHON=backend/.venv/bin/python` 通过（`core` / `schemas` / `services` 共 76 个文件）；`make security-bandit PYTHON=backend/.venv/bin/python` 通过（medium/high 0，low 63 可见不阻断）；`make security-pip-audit PYTHON=backend/.venv/bin/python` 通过（No known vulnerabilities found）；`make security-npm-audit` 通过（found 0 vulnerabilities）；`make pre-commit PYTHON=backend/.venv/bin/python` 全量通过；`pip check` 与 `git diff --check` 通过。修复方式包括 Homebrew `libpq` 提供 `pg_config`、安装时显式使用 `libpq` / `openssl@3` 编译路径，并为 Python 3.14 增加兼容依赖 pin；`pytest-playwright` / `playwright` 已统一到兼容 `pytest==9.0.3` 的版本，避免 Python 3.12 目标环境解析冲突。
+
+**下一步计划（2026-07-08）**:
+
+- [x] P0：整理提交 / PR 范围，按主题拆分当前大 diff：环境与依赖兼容、权限与缺陷联动、AI 诊断/治理、前端体验与文档进度。
+- [x] P0：在 CI 或 Docker/目标 Python 3.12 环境复跑后端回归，确认 Python 3.14 条件 pin 不影响目标运行时。
+- [x] P0：补跑前端质量命令：`npm run type-check`、`npm run build`，必要时补关键页面截图或构建日志。
+- [x] P1：做最终 code review pass，重点检查新增权限边界、审计日志提交次数、AI 调用降级、依赖版本条件与 Makefile setup 兼容性。
+- [x] P1：归档发布证据：测试命令、通过结果、已知 warnings、环境准备说明，并同步到 PR 描述 / release notes。
+- [~] P2：进入 Q10 Phase 5 收口，ruff 最小 lint/format 门禁、pytest-cov 覆盖率基线、前端 Vitest 两批测试、Bandit SAST、依赖漏洞扫描清零、Gitleaks/Trivy/Dependabot security workflow 与目标 Docker Python 3.12 回归已落地；下一步按以下顺序推进：
+  1. [x] 集成测试：`suite-run` / `plan-trigger` / `notification` / `bug-report` 已补齐并在真实 Postgres / Redis / MinIO 环境跑通。
+  2. [x] E2E：suite / plan 前端关键路径已覆盖加载、触发执行、查看记录，完整 Playwright E2E 为 `9 passed`。
+  3. [x] SLO：已补 API 可用性、P95、run 成功率 3 条薄切指标与错误预算面板。
+  4. [x] 收口：flaky 治理、`docs/q10-acceptance-summary.md`、README / Task.md / release evidence 最终同步已完成。
+- [~] P2：Q10 完成后进入 Q11 下一轮优化路线，优先处理 PR / commit 拆分、发布说明、生产 SLO 校准、前端覆盖率增长和运维 runbook。路线见 `docs/optimization-roadmap-2026-q11.md`；Q11-00 当前大 diff 拆分计划已完成，下一步进入 Q11-01 发布说明与风险 / 回滚记录。
 
 > 状态说明：
 > - `[ ]` 待开始
@@ -584,40 +600,66 @@
 ## Q10 — 质量与稳定性深化（质量门禁优先）
 
 > 实施计划：`docs/implementation-plan-2026-Q10.md`（2026-05-30 编制）
+> 当前状态：已启动；发布收口与 PR 范围整理完成，Q10 已落地 ruff/mypy/coverage/Vitest/Bandit/依赖扫描，且 pip/npm 依赖漏洞已清零。
 > 定位：从「功能完整」推进到「质量可度量、回归可防护、工程可信赖」；不新增业务方向。
-> 缺口画像：后端单测扎实但无 lint/覆盖率；前端测试近零；安全扫描空白；CI 缺质量门禁。
+> 缺口画像：基础质量门禁、ruff format 基线、依赖漏洞清零、密钥/镜像扫描、Dependabot/security workflow、真实依赖集成、suite / plan 关键运行路径 E2E、SLO 薄切、flaky 治理与最终验收文档已完成。
+
+### 启动顺序（2026-07-08 更新）
+
+- [x] 0.1 发布收口：确认当前优化批次的提交范围、测试证据、文档同步和 PR 描述。
+- [x] 0.2 环境矩阵验证：Python 3.14 本地全量回归通过；Docker `python:3.12-slim-bookworm` 目标运行时全量后端回归通过。
+- [x] 0.3 前端构建验证：`npm run type-check` 与 `npm run build` 已通过，当前仅保留已知 circular chunk 警告。
+- [x] 0.4 Q10 Phase 1 开工：新增 ruff 配置与 lint job，先以最小豁免建立可持续门禁。
+- [x] 0.5 Q10 Phase 4 开工：新增 Bandit、pip-audit 与 npm audit 本地扫描命令，记录 SAST 与依赖漏洞基线。
+- [x] 0.6 Q10 Phase 4 依赖升级收口：升级 FastAPI/Starlette、python-jose、python-multipart、pytest/pytest-asyncio、Jinja2、cryptography、prometheus-fastapi-instrumentator、Vite/Vitest、Axios、ECharts、vue-i18n，并用 npm overrides 覆盖残留传递依赖漏洞。
+- [x] 0.7 Q10 Phase 1 format 基线收口：执行 `ruff format backend/app backend/tests`，新增 `make format` / `make format-check`，并将 `ruff format --check` 接入 CI 与 pre-commit。
+- [x] 0.8 Q10 Phase 5 收口：已新增并跑通 suite-run / plan-trigger / notification / bug-report 集成用例；补齐 `test_suites.config` 与 `bug_trackers.tracker_type` Alembic 迁移缺口后，真实 Postgres / Redis / MinIO 环境 integration suite 为 `10 passed`，二次重复运行仍为 `10 passed`；suite / plan 前端关键运行路径 E2E 已通过；SLO 薄切已新增 run outcome 指标、3 条 SLO 口径与 Grafana 错误预算面板；flaky 治理已新增 marker、一次有界重试和处理约定；Q10 验收总结与 README / 进度文档已同步。
 
 ### Phase 1 — 后端代码质量门禁 [P0]
 
-- [ ] ruff lint + format 配置（`pyproject.toml`）+ 存量基线豁免（per-file-ignores）
-- [ ] ruff format 一次性统一（独立 commit + `.git-blame-ignore-revs`）
-- [ ] mypy 渐进式覆盖 `core/` / `schemas/` / `services/`
-- [ ] `.pre-commit-config.yaml` 新建
-- [ ] CI 新增 lint job（ruff check + format --check）
+- [x] ruff lint + format 配置（`pyproject.toml`）+ 存量基线豁免（per-file-ignores）：已启用 F821/F822/F823 最小 lint 门禁，并完成 format 全量基线
+- [x] ruff format 一次性统一（独立 commit + `.git-blame-ignore-revs`）：格式化已落地，`.git-blame-ignore-revs` 已新增；待提交后只需补入格式化 commit SHA
+- [x] mypy 渐进式覆盖 `core/` / `schemas/` / `services/`
+- [x] `.pre-commit-config.yaml` 新建
+- [x] CI 新增 lint job（ruff check + format --check）：`backend-lint` job 已同时运行 `ruff check` 与 `ruff format --check`
 
 ### Phase 2 — 测试覆盖率门禁 [P0]
 
-- [ ] pytest-cov 接入（`[tool.coverage]`）+ 跑出后端覆盖率基线并记录
-- [ ] CI 加 `--cov-fail-under=<基线-1%>` 门禁 + 覆盖率报告 artifact
+- [x] pytest-cov 接入（`[tool.coverage]`）+ 跑出后端覆盖率基线并记录
+- [x] CI 加 `--cov-fail-under=<基线-1%>` 门禁 + 覆盖率报告 artifact
 
 ### Phase 3 — 前端单元测试从 0 到 1 [P0]
 
-- [ ] vitest + @vue/test-utils + jsdom + @vitest/coverage-v8 接入
-- [ ] 首批：`stores/auth` / `api/http`(拦截器/401) / `utils/websocket` / 1-2 纯组件
-- [ ] CI 前端 test 步骤（与 type-check/build 并列）
+- [x] vitest + @vue/test-utils + jsdom + @vitest/coverage-v8 接入
+- [x] 首批：`stores/auth` / `api/http`(拦截器/401) / `utils/websocket` / 1-2 纯组件
+- [x] 第二批：`stores/theme` / `utils/chartTheme`，覆盖主题持久化、DOM 属性、系统深色偏好、ECharts 主题注册幂等和主题切换
+- [x] CI 前端 test 步骤（与 type-check/build 并列）
 
 ### Phase 4 — 自动化安全扫描 [P1]
 
-- [ ] bandit SAST + 基线豁免
-- [ ] pip-audit（后端）+ npm audit / osv-scanner（前端）依赖扫描
-- [ ] trivy 镜像扫描（联动 release-readiness）
-- [ ] gitleaks 密钥扫描（CI + pre-commit）
-- [ ] `.github/dependabot.yml` 四生态 + `.github/workflows/security.yml`（仅 high/critical 阻断）
+- [x] bandit SAST + 基线豁免
+- [x] pip-audit（后端）+ npm audit / osv-scanner（前端）依赖扫描：本地命令已落地；后端 6 个包 25 条记录、前端 16 条记录已完成升级收口，当前 `pip-audit` 与 `npm audit --audit-level=moderate` 均为 0 漏洞
+- [x] trivy 镜像扫描（联动 release-readiness）：新增 security workflow，对 backend / worker / frontend 镜像按 HIGH/CRITICAL 阻断
+- [~] gitleaks 密钥扫描（CI + pre-commit）：已新增 CI Gitleaks 扫描；pre-commit 本地钩子待确认本地安装策略后接入
+- [x] `.github/dependabot.yml` 四生态 + `.github/workflows/security.yml`（仅 high/critical 阻断）
 
 ### Phase 5 — 集成扩展 + SLO + 收口 [P2]
 
-- [ ] 集成测试补 suite-run / plan-trigger / notification / bug-report
-- [ ] E2E 补 suite / plan 关键路径
-- [ ] flaky 治理（pytest-rerunfailures + 标记 + 文档）
-- [ ] SLO 薄切（API 可用性 / P95 / run 成功率 3 条 + 错误预算面板，复用既有 Grafana）
-- [ ] `docs/q10-acceptance-summary.md` + README / Task.md 收口
+- [x] 5.1 集成测试补 suite-run / plan-trigger / notification / bug-report
+  - [x] 5.1.1 新增 suite-run / plan-trigger 链路用例：创建项目/模块/API 用例、审批用例、创建套件、触发 suite run、创建计划、触发 plan run。
+  - [x] 5.1.2 在真实 Postgres / Redis / MinIO 环境执行 integration suite，并记录命令与结果：临时端口 Postgres `55432` / Redis `6380` / MinIO `19000`，空库 `alembic upgrade head` 通过，`backend/tests/integration -m integration` 为 `10 passed`，二次重复运行仍为 `10 passed`。
+  - [x] 5.1.3 补 notification 真实配置/发送降级路径集成验证：覆盖创建、敏感字段遮蔽、测试发送走解密配置、Webhook 失败转 HTTP 500。
+  - [x] 5.1.4 补 bug-report 失败执行到缺陷创建/关联/去重的集成验证：覆盖 tracker 创建、连接测试解密配置、重复缺陷短路、创建缺陷写回 run summary、刷新状态、手动关联既有缺陷。
+- [x] 5.2 E2E 补 suite / plan 关键路径
+  - [x] 5.2.1 suite：加载套件、触发执行、查看执行记录抽屉。
+  - [x] 5.2.2 plan：加载计划、手动触发、查看计划运行记录。
+  - [x] 5.2.3 完整 Playwright E2E 回归：`9 passed`。
+- [x] 5.3 flaky 治理（pytest-rerunfailures + 标记 + 文档）
+  - [x] 5.3.1 明确 integration / e2e flaky 标记策略与重试边界：`docs/flaky-governance.md` 已新增。
+  - [x] 5.3.2 将重试策略接入 CI 或记录为 release-readiness 手工步骤：integration workflow 已接入 `--reruns 1 --reruns-delay 2`，Playwright CI 保持 `CI=true` 时一次重试。
+- [x] 5.4 SLO 薄切（API 可用性 / P95 / run 成功率 3 条 + 错误预算面板，复用既有 Grafana）
+  - [x] 5.4.1 定义 3 条 SLO 与数据来源：`docs/slo-guide.md` 已覆盖 API 可用性、P95、run 成功率与错误预算口径。
+  - [x] 5.4.2 更新 Grafana dashboard / alert 说明：`ATP Overview` 已新增 4 个 SLO 面板，`docs/observability-guide.md` 已同步。
+- [x] 5.5 `docs/q10-acceptance-summary.md` + README / Task.md 收口
+  - [x] 5.5.1 汇总质量门禁、安全扫描、覆盖率、集成/E2E、SLO 验收证据。
+  - [x] 5.5.2 同步 README、Task.md、CONTEXT.md、MEMORY.md 与 release evidence。

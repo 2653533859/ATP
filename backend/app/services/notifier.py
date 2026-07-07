@@ -6,6 +6,7 @@
 - wechat:   企业微信机器人 Webhook
 - dingtalk:  钉钉机器人 Webhook
 """
+
 import hashlib
 import hmac
 import base64
@@ -16,6 +17,7 @@ import time
 import urllib.parse
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from smtplib import SMTP
 
 import httpx
 from sqlalchemy import select
@@ -259,6 +261,7 @@ async def _send_email(config: dict, summary: dict, html_body: str | None = None)
 
     # 在线程池中执行同步 SMTP 操作
     import asyncio
+
     loop = asyncio.get_event_loop()
     await loop.run_in_executor(None, _smtp_send, msg, recipients)
 
@@ -266,6 +269,7 @@ async def _send_email(config: dict, summary: dict, html_body: str | None = None)
 def _smtp_send(msg: MIMEMultipart, recipients: list[str]):
     """同步 SMTP 发送"""
     try:
+        server: SMTP
         if settings.SMTP_SSL:
             server = smtplib.SMTP_SSL(settings.SMTP_HOST, settings.SMTP_PORT, timeout=10)
         else:

@@ -5,6 +5,7 @@
 - Jira:  REST API v2，Basic Auth (email + API Token)
 - 禅道:  REST API，Session Token 认证
 """
+
 import json
 import logging
 from typing import Any
@@ -31,7 +32,10 @@ async def create_bug(
         return await _create_jira_issue(config, title, description, field_mapping or {})
     elif tracker_type == "zentao":
         return await _create_zentao_bug(
-            config, title, description, field_mapping or {},
+            config,
+            title,
+            description,
+            field_mapping or {},
             override_product_id=override_product_id,
         )
     elif tracker_type == "github":
@@ -90,8 +94,9 @@ async def get_bug_status(tracker_type: str, config: dict, bug_id: str) -> dict:
 
 # ── Jira ─────────────────────────────────────────────────
 
+
 def _escape_jira_jql_value(value: str) -> str:
-    return value.replace("\\", "\\\\").replace('"', "\\\"").replace("\n", " ").replace("\r", " ")
+    return value.replace("\\", "\\\\").replace('"', '\\"').replace("\n", " ").replace("\r", " ")
 
 
 def _apply_jira_field_mapping(payload_fields: dict, field_mapping: dict) -> None:
@@ -216,6 +221,7 @@ async def _upload_jira_attachment(config: dict, bug_id: str, filename: str, cont
 
 
 # ── 禅道 ─────────────────────────────────────────────────
+
 
 async def _zentao_get_token(config: dict) -> tuple[str, str]:
     base_url = config["base_url"].rstrip("/")
@@ -400,7 +406,9 @@ async def _create_github_issue(config: dict, title: str, description: str, field
     headers = _github_headers(config)
     payload = {"title": title, "body": description, **_apply_github_field_mapping(field_mapping)}
     async with httpx.AsyncClient(timeout=15) as client:
-        resp = await client.post(f"{base_url}/repos/{config['owner']}/{config['repo']}/issues", json=payload, headers=headers)
+        resp = await client.post(
+            f"{base_url}/repos/{config['owner']}/{config['repo']}/issues", json=payload, headers=headers
+        )
     if resp.status_code not in (200, 201):
         raise RuntimeError(f"GitHub 创建 Issue 失败: HTTP {resp.status_code}")
     data = resp.json()

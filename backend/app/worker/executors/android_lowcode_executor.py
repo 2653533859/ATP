@@ -21,6 +21,7 @@ Android UI 低代码执行器（uiautomator2 API 调用）
     "params": { "text": "登录" }
   }
 """
+
 import asyncio
 import logging
 import re
@@ -82,15 +83,11 @@ def _adb_screenshot(serial: str) -> bytes | None:
 async def _take_screenshot(serial: str, run_id: int, step_index: int) -> str | None:
     """截图并上传到 MinIO，返回预签名 URL"""
     try:
-        data = await asyncio.get_event_loop().run_in_executor(
-            None, _adb_screenshot, serial
-        )
+        data = await asyncio.get_event_loop().run_in_executor(None, _adb_screenshot, serial)
         if not data:
             return None
         obj_name = f"screenshots/runs/{run_id}/step_{step_index}.png"
-        await asyncio.get_event_loop().run_in_executor(
-            None, upload_bytes, obj_name, data, "image/png"
-        )
+        await asyncio.get_event_loop().run_in_executor(None, upload_bytes, obj_name, data, "image/png")
         return presigned_url(obj_name)
     except Exception as e:
         logger.warning("Screenshot failed for run %s step %s: %s", run_id, step_index, e)
@@ -133,18 +130,28 @@ def _find_and_click(serial: str, params: dict) -> dict[str, Any]:
     if text:
         # 使用 uiautomator 命令通过文本查找并点击
         ok, out = _adb_cmd(
-            serial, "shell",
-            "am", "instrument", "-w", "-r",
-            "-e", "text", text,
-            "input", "tap", "0", "0",
+            serial,
+            "shell",
+            "am",
+            "instrument",
+            "-w",
+            "-r",
+            "-e",
+            "text",
+            text,
+            "input",
+            "tap",
+            "0",
+            "0",
         )
         # 备选：直接用 input text 搜索（简单实现用 adb shell 组合命令）
         ok, out = _adb_cmd(
-            serial, "shell",
-            f'input tap $(uiautomator dump /dev/tty 2>/dev/null | '
+            serial,
+            "shell",
+            f"input tap $(uiautomator dump /dev/tty 2>/dev/null | "
             f'grep -oP \'bounds="\\[([0-9]+),([0-9]+)\\]\\[([0-9]+),([0-9]+)\\]"[^>]*text="{text}"\' | '
             f'head -1 | grep -oP "\\[([0-9]+),([0-9]+)\\]" | head -1 | tr -d "[]" | '
-            f'awk -F, \'{{print ($1+0)/1, ($2+0)/1}}\')',
+            f"awk -F, '{{print ($1+0)/1, ($2+0)/1}}')",
             timeout=10,
         )
         if not ok:
@@ -153,6 +160,7 @@ def _find_and_click(serial: str, params: dict) -> dict[str, Any]:
             ok2, dump = _adb_cmd(serial, "shell", "uiautomator", "dump", "/dev/tty", timeout=10)
             if ok2 and text in dump:
                 import re as _re
+
                 pattern = rf'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*text="{_re.escape(text)}"'
                 match = _re.search(pattern, dump)
                 if not match:
@@ -170,6 +178,7 @@ def _find_and_click(serial: str, params: dict) -> dict[str, Any]:
         ok2, dump = _adb_cmd(serial, "shell", "uiautomator", "dump", "/dev/tty", timeout=10)
         if ok2:
             import re as _re
+
             pattern = rf'resource-id="{_re.escape(resource_id)}"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"'
             match = _re.search(pattern, dump)
             if not match:
@@ -196,8 +205,17 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
         y = params.get("y")
         duration = params.get("duration", 1000)
         if x is not None and y is not None:
-            ok, out = _adb_cmd(serial, "shell", "input", "swipe",
-                               str(int(x)), str(int(y)), str(int(x)), str(int(y)), str(int(duration)))
+            ok, out = _adb_cmd(
+                serial,
+                "shell",
+                "input",
+                "swipe",
+                str(int(x)),
+                str(int(y)),
+                str(int(x)),
+                str(int(y)),
+                str(int(duration)),
+            )
             return {"success": ok, "error": out if not ok else None}
         text = params.get("text")
         if text:
@@ -228,8 +246,9 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
         y2 = params.get("y2", params.get("endY"))
         if all(v is not None for v in [x1, y1, x2, y2]):
             duration = str(params.get("duration", 300))
-            ok, out = _adb_cmd(serial, "shell", "input", "swipe",
-                               str(int(x1)), str(int(y1)), str(int(x2)), str(int(y2)), duration)
+            ok, out = _adb_cmd(
+                serial, "shell", "input", "swipe", str(int(x1)), str(int(y1)), str(int(x2)), str(int(y2)), duration
+            )
             return {"success": ok, "error": out if not ok else None}
         return {"success": False, "error": "滑动需要 direction 或坐标参数"}
 
@@ -241,6 +260,7 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
         if selector:
             _find_and_click(serial, {"resourceId": selector})
             import time as _time
+
             _time.sleep(0.3)
         if clear:
             _clear_input_text(serial)
@@ -253,9 +273,17 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
     elif action == "press_key":
         key = params.get("key", "").upper()
         key_map = {
-            "HOME": "3", "BACK": "4", "ENTER": "66", "DELETE": "67",
-            "MENU": "82", "POWER": "26", "VOLUME_UP": "24", "VOLUME_DOWN": "25",
-            "TAB": "61", "ESCAPE": "111", "RECENT": "187",
+            "HOME": "3",
+            "BACK": "4",
+            "ENTER": "66",
+            "DELETE": "67",
+            "MENU": "82",
+            "POWER": "26",
+            "VOLUME_UP": "24",
+            "VOLUME_DOWN": "25",
+            "TAB": "61",
+            "ESCAPE": "111",
+            "RECENT": "187",
         }
         keycode = key_map.get(key, key)
         ok, out = _adb_cmd(serial, "shell", "input", "keyevent", keycode)
@@ -267,8 +295,7 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
         if activity:
             ok, out = _adb_cmd(serial, "shell", "am", "start", "-n", f"{package}/{activity}")
         else:
-            ok, out = _adb_cmd(serial, "shell", "monkey", "-p", package, "-c",
-                               "android.intent.category.LAUNCHER", "1")
+            ok, out = _adb_cmd(serial, "shell", "monkey", "-p", package, "-c", "android.intent.category.LAUNCHER", "1")
         return {"success": ok, "error": out if not ok else None}
 
     elif action == "stop_app":
@@ -293,6 +320,7 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
     elif action == "wait":
         ms = int(params.get("ms", 1000))
         import time as _time
+
         _time.sleep(ms / 1000)
         return {"success": True}
 
@@ -377,20 +405,23 @@ async def run_android_lowcode(
             db.add(step_result)
             await db.commit()
 
-            await _safe_publish(run.id, {
-                "type": "step_result",
-                "run_id": run.id,
-                "step": {
-                    "step_index": idx,
-                    "name": step_name,
-                    "status": status.value,
-                    "duration_ms": duration_ms,
-                    "request_data": step_result.request_data,
-                    "response_data": response_data,
-                    "error_message": error_message,
-                    "screenshot_url": screenshot_url,
+            await _safe_publish(
+                run.id,
+                {
+                    "type": "step_result",
+                    "run_id": run.id,
+                    "step": {
+                        "step_index": idx,
+                        "name": step_name,
+                        "status": status.value,
+                        "duration_ms": duration_ms,
+                        "request_data": step_result.request_data,
+                        "response_data": response_data,
+                        "error_message": error_message,
+                        "screenshot_url": screenshot_url,
+                    },
                 },
-            })
+            )
 
             # 失败后停止后续步骤
             if status == RunStatus.failed:
@@ -406,9 +437,12 @@ async def run_android_lowcode(
     run.duration_ms = total_ms
     await db.commit()
 
-    await _safe_publish(run.id, {
-        "type": "completed",
-        "run_id": run.id,
-        "status": run.status.value,
-        "duration_ms": total_ms,
-    })
+    await _safe_publish(
+        run.id,
+        {
+            "type": "completed",
+            "run_id": run.id,
+            "status": run.status.value,
+            "duration_ms": total_ms,
+        },
+    )

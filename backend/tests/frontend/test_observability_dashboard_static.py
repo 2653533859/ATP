@@ -12,8 +12,8 @@ def test_storage_usage_metrics_are_defined_as_gauges():
 
     assert "from prometheus_client import Counter, Gauge, Histogram" in content
     assert "def _gauge(" in content
-    assert "STORAGE_TOTAL_BYTES = _gauge(\"atp_storage_total_bytes\"" in content
-    assert "STORAGE_TOTAL_OBJECTS = _gauge(\"atp_storage_total_objects\"" in content
+    assert 'STORAGE_TOTAL_BYTES = _gauge("atp_storage_total_bytes"' in content
+    assert 'STORAGE_TOTAL_OBJECTS = _gauge("atp_storage_total_objects"' in content
 
 
 def test_storage_stats_endpoint_refreshes_minio_metrics():
@@ -25,9 +25,7 @@ def test_storage_stats_endpoint_refreshes_minio_metrics():
 
 
 def test_grafana_dashboard_covers_s4_observability_targets():
-    dashboard = json.loads(
-        repo_path("docker/grafana/dashboards/atp-overview.json").read_text(encoding="utf-8")
-    )
+    dashboard = json.loads(repo_path("docker/grafana/dashboards/atp-overview.json").read_text(encoding="utf-8"))
     panels = {panel["title"]: panel for panel in dashboard["panels"]}
 
     assert "Slow queries (last 1h)" in panels

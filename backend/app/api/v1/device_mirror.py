@@ -6,6 +6,7 @@ GET  /api/v1/devices/{device_id}/screenshot  单帧截图（PNG）
 POST /api/v1/devices/{device_id}/tap         实时点击
 POST /api/v1/devices/{device_id}/swipe       实时滑动
 """
+
 import asyncio
 import logging
 import subprocess
@@ -27,9 +28,7 @@ def _adb_screenshot(serial: str, timeout: int = 10) -> bytes | None:
     """通过 adb 截图，返回 PNG 字节"""
     cmd = ["adb", "-s", serial, "exec-out", "screencap", "-p"]
     try:
-        proc = subprocess.run(
-            cmd, capture_output=True, timeout=timeout
-        )
+        proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
         if proc.returncode == 0 and proc.stdout:
             return proc.stdout
         return None
@@ -67,9 +66,7 @@ async def device_screenshot(
     """获取设备当前屏幕单帧截图（PNG）"""
     device = await _get_online_device(device_id, db)
 
-    data = await asyncio.get_event_loop().run_in_executor(
-        None, _adb_screenshot, device.serial
-    )
+    data = await asyncio.get_event_loop().run_in_executor(None, _adb_screenshot, device.serial)
     if not data:
         raise HTTPException(status_code=503, detail="截图失败，请检查设备连接")
 
@@ -123,16 +120,13 @@ async def _mjpeg_generator(serial: str, fps: float = 2.0):
     """生成 MJPEG 帧流"""
     interval = 1.0 / fps
     while True:
-        data = await asyncio.get_event_loop().run_in_executor(
-            None, _adb_screenshot, serial
-        )
+        data = await asyncio.get_event_loop().run_in_executor(None, _adb_screenshot, serial)
         if data:
             # MJPEG boundary frame (PNG → 直接推送，前端用 img 标签轮询更简单)
             yield (
                 b"--frame\r\n"
                 b"Content-Type: image/png\r\n"
-                b"Content-Length: " + str(len(data)).encode() + b"\r\n\r\n"
-                + data + b"\r\n"
+                b"Content-Length: " + str(len(data)).encode() + b"\r\n\r\n" + data + b"\r\n"
             )
         await asyncio.sleep(interval)
 

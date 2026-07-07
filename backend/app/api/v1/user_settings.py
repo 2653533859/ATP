@@ -4,6 +4,7 @@ Used as the server-side home for preferences that previously lived only in
 localStorage, such as dashboard layout, language, default project, and table
 columns. Values are intentionally scoped by key to avoid one large mutable blob.
 """
+
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -44,9 +45,7 @@ async def list_my_settings(
     current_user: User = Depends(get_current_user),
 ):
     result = await db.execute(
-        select(UserSetting)
-        .where(UserSetting.user_id == current_user.id)
-        .order_by(UserSetting.key.asc())
+        select(UserSetting).where(UserSetting.user_id == current_user.id).order_by(UserSetting.key.asc())
     )
     return result.scalars().all()
 

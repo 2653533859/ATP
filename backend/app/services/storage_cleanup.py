@@ -297,14 +297,12 @@ def preview_storage_cleanup(
 
     if policy_list:
         normalized_prefixes = [entry.prefix for entry in policy_list]
-        retention_by_prefix: dict[str, int] = {
-            entry.prefix: entry.retention_days for entry in policy_list
-        }
-        max_size_by_prefix: dict[str, float | None] = {
-            entry.prefix: entry.max_size_gb for entry in policy_list
-        }
-        effective_retention_days = max(retention_by_prefix.values()) if retention_by_prefix else (
-            retention_days or settings.FILE_RETENTION_DAYS
+        retention_by_prefix: dict[str, int] = {entry.prefix: entry.retention_days for entry in policy_list}
+        max_size_by_prefix: dict[str, float | None] = {entry.prefix: entry.max_size_gb for entry in policy_list}
+        effective_retention_days = (
+            max(retention_by_prefix.values())
+            if retention_by_prefix
+            else (retention_days or settings.FILE_RETENTION_DAYS)
         )
     else:
         normalized_prefixes = _normalize_prefixes(prefixes)
@@ -341,7 +339,7 @@ def preview_storage_cleanup(
 
         max_gb = max_size_by_prefix.get(prefix)
         if max_gb and max_gb > 0:
-            size_evicted_names.update(_select_size_eviction(bucket, int(max_gb * (1024 ** 3))))
+            size_evicted_names.update(_select_size_eviction(bucket, int(max_gb * (1024**3))))
 
     candidate_names = expired_names | size_evicted_names
 
@@ -358,11 +356,7 @@ def preview_storage_cleanup(
         else:
             deletable_objects.append(item)
 
-    orphan_references = [
-        ref.to_schema()
-        for ref in references
-        if ref.object_name not in objects_by_name
-    ]
+    orphan_references = [ref.to_schema() for ref in references if ref.object_name not in objects_by_name]
 
     return StorageCleanupPreviewOut(
         prefixes=normalized_prefixes,
@@ -407,49 +401,49 @@ def _select_size_eviction(
 
 def _repair_reference(session: Session, ref: ObjectReference) -> bool:
     if ref.reference_type == "step_result":
-        row = session.get(StepResult, ref.record_id)
-        if not row:
+        step_result = session.get(StepResult, ref.record_id)
+        if not step_result:
             return False
-        row.screenshot_url = None
+        step_result.screenshot_url = None
         return True
     if ref.reference_type == "test_case":
-        row = session.get(TestCase, ref.record_id)
-        if not row:
+        test_case = session.get(TestCase, ref.record_id)
+        if not test_case:
             return False
-        config = dict(row.config or {})
+        config = dict(test_case.config or {})
         if ref.field_name == "config.script_path":
             config.pop("script_path", None)
         elif ref.field_name == "config.apk_object_name":
             config.pop("apk_object_name", None)
         else:
             return False
-        row.config = config
+        test_case.config = config
         return True
     if ref.reference_type == "test_suite":
-        row = session.get(TestSuite, ref.record_id)
-        if not row:
+        test_suite = session.get(TestSuite, ref.record_id)
+        if not test_suite:
             return False
-        parameterization = dict(row.parameterization or {})
+        parameterization = dict(test_suite.parameterization or {})
         parameterization.pop("object_name", None)
-        row.parameterization = parameterization
+        test_suite.parameterization = parameterization
         return True
     if ref.reference_type == "mobile_incident":
-        row = session.get(MobileIncident, ref.record_id)
-        if not row:
+        mobile_incident = session.get(MobileIncident, ref.record_id)
+        if not mobile_incident:
             return False
-        row.artifact_path = None
+        mobile_incident.artifact_path = None
         return True
     if ref.reference_type == "mobile_run_artifact":
-        row = session.get(MobileRunArtifact, ref.record_id)
-        if not row:
+        mobile_artifact = session.get(MobileRunArtifact, ref.record_id)
+        if not mobile_artifact:
             return False
-        row.file_path = ""
+        mobile_artifact.file_path = ""
         return True
     if ref.reference_type == "performance_run":
-        row = session.get(PerformanceRun, ref.record_id)
-        if not row:
+        performance_run = session.get(PerformanceRun, ref.record_id)
+        if not performance_run:
             return False
-        row.raw_result_object_name = None
+        performance_run.raw_result_object_name = None
         return True
     return False
 
@@ -472,9 +466,7 @@ def execute_storage_cleanup(
         refs_by_object.setdefault(ref.object_name, []).append(ref)
 
     existing_objects = {
-        obj.object_name
-        for prefix in DEFAULT_CLEANUP_PREFIXES
-        for obj in minio_client.list_objects(prefix=prefix)
+        obj.object_name for prefix in DEFAULT_CLEANUP_PREFIXES for obj in minio_client.list_objects(prefix=prefix)
     }
 
     deleted_objects: list[str] = []

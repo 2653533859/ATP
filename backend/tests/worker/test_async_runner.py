@@ -40,11 +40,10 @@ def test_create_worker_loop_uses_windows_proactor_policy(monkeypatch):
             return created
 
     monkeypatch.setattr(async_runner.sys, "platform", "win32")
-    monkeypatch.setattr(
-        async_runner.asyncio,
+    monkeypatch.setitem(
+        async_runner.asyncio.__dict__,
         "WindowsProactorEventLoopPolicy",
         lambda: _FakePolicy(),
-        raising=False,
     )
 
     assert async_runner._create_worker_loop() is created

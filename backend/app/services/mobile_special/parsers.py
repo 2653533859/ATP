@@ -4,6 +4,7 @@ Each parser takes raw stdout from an ADB command and returns a normalized
 dictionary or list of dictionaries suitable for storing as metric samples
 or incidents.
 """
+
 import re
 from datetime import datetime
 from typing import Optional
@@ -216,15 +217,17 @@ def parse_logcat_crash(raw: str) -> list[dict]:
 
         title = f"{exc_type}: {exc_detail[:80]}" if exc_detail else exc_type
 
-        incidents.append({
-            "incident_type": IncidentType.crash.value,
-            "title": title,
-            "detail": stack_line or exc_detail,
-            "process_name": process_name,
-            "thread_name": None,
-            "event_time": datetime.now(),
-            "extra": {"raw_block": block[:500]},
-        })
+        incidents.append(
+            {
+                "incident_type": IncidentType.crash.value,
+                "title": title,
+                "detail": stack_line or exc_detail,
+                "process_name": process_name,
+                "thread_name": None,
+                "event_time": datetime.now(),
+                "extra": {"raw_block": block[:500]},
+            }
+        )
 
     return incidents
 
@@ -257,15 +260,17 @@ def parse_logcat_anr(raw: str) -> list[dict]:
 
         title = f"ANR in {process_name}" if process_name else "ANR"
 
-        incidents.append({
-            "incident_type": IncidentType.anr.value,
-            "title": title,
-            "detail": reason,
-            "process_name": process_name,
-            "thread_name": None,
-            "event_time": datetime.now(),
-            "extra": {"raw_block": block[:500]},
-        })
+        incidents.append(
+            {
+                "incident_type": IncidentType.anr.value,
+                "title": title,
+                "detail": reason,
+                "process_name": process_name,
+                "thread_name": None,
+                "event_time": datetime.now(),
+                "extra": {"raw_block": block[:500]},
+            }
+        )
 
     return incidents
 

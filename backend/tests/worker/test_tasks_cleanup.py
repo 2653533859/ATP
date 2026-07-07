@@ -67,20 +67,20 @@ def test_cleanup_expired_files_iterates_active_policies(monkeypatch):
 
     def fake_preview(current_session, *, policies):
         policy = policies[0]
-        preview_calls.append({
-            "prefix": policy.prefix,
-            "retention_days": policy.retention_days,
-            "max_size_gb": policy.max_size_gb,
-        })
+        preview_calls.append(
+            {
+                "prefix": policy.prefix,
+                "retention_days": policy.retention_days,
+                "max_size_gb": policy.max_size_gb,
+            }
+        )
         return types.SimpleNamespace(
             deletable_objects=[types.SimpleNamespace(object_name=f"{policy.prefix}a.bin")],
             size_evicted_count=1 if policy.max_size_gb else 0,
         )
 
     def fake_execute(current_session, *, object_names, repair_orphan_references):
-        execute_calls.append(
-            {"object_names": list(object_names), "repair_orphan_references": repair_orphan_references}
-        )
+        execute_calls.append({"object_names": list(object_names), "repair_orphan_references": repair_orphan_references})
         return types.SimpleNamespace(deleted_count=1)
 
     monkeypatch.setattr(tasks_cleanup, "preview_storage_cleanup", fake_preview)
@@ -138,7 +138,9 @@ def test_cleanup_stale_pending_runs_skip_when_disabled(monkeypatch):
     def fake_session_factory():
         raise AssertionError("disabled 时不应创建数据库会话")
 
-    monkeypatch.setitem(sys.modules, "app.core.database", types.SimpleNamespace(sync_session_factory=fake_session_factory))
+    monkeypatch.setitem(
+        sys.modules, "app.core.database", types.SimpleNamespace(sync_session_factory=fake_session_factory)
+    )
 
     result = tasks_cleanup.cleanup_stale_pending_runs()
 
@@ -198,7 +200,9 @@ def test_cleanup_old_completed_runs_skip_when_disabled(monkeypatch):
     def fake_session_factory():
         raise AssertionError("disabled 时不应创建数据库会话")
 
-    monkeypatch.setitem(sys.modules, "app.core.database", types.SimpleNamespace(sync_session_factory=fake_session_factory))
+    monkeypatch.setitem(
+        sys.modules, "app.core.database", types.SimpleNamespace(sync_session_factory=fake_session_factory)
+    )
 
     result = tasks_cleanup.cleanup_old_completed_runs()
 

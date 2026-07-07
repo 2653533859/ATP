@@ -20,6 +20,7 @@ def _fake_require_engineer():
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 
+
 def _p3c_noop(*_a, **_kw):
     return None
 
@@ -27,14 +28,15 @@ def _p3c_noop(*_a, **_kw):
 async def _p3c_noop_async(*_a, **_kw):
     return None
 
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=_fake_get_current_user,
     require_engineer=_fake_require_engineer,
-        require_admin=_p3c_noop,
-        require_project_access=lambda *a, **kw: _p3c_noop,
-        assert_project_access=_p3c_noop_async,
-        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
-    )
+    require_admin=_p3c_noop,
+    require_project_access=lambda *a, **kw: _p3c_noop,
+    assert_project_access=_p3c_noop_async,
+    ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+)
 sys.modules["app.core.minio_client"] = types.SimpleNamespace(read_bytes=lambda _name: b"img")
 
 from app.api.v1 import bug_trackers
@@ -83,7 +85,14 @@ def test_create_bug_from_run_rejects_tracker_from_other_project(monkeypatch):
 
     db = _FakeDB(
         run=types.SimpleNamespace(id=5, case_id=9, environment="test", error_message="boom", result_summary={}),
-        tracker=types.SimpleNamespace(id=3, project_id=2, tracker_type=types.SimpleNamespace(value="jira"), config={}, field_mapping={}, is_enabled=True),
+        tracker=types.SimpleNamespace(
+            id=3,
+            project_id=2,
+            tracker_type=types.SimpleNamespace(value="jira"),
+            config={},
+            field_mapping={},
+            is_enabled=True,
+        ),
         case=types.SimpleNamespace(id=9, module_id=7, name="支付失败"),
         module=types.SimpleNamespace(id=7, project_id=1),
     )
@@ -162,7 +171,14 @@ def test_create_bug_from_run_returns_duplicate_without_creating(monkeypatch):
     run = types.SimpleNamespace(id=5, case_id=9, environment="test", error_message="boom", result_summary={})
     db = _FakeDB(
         run=run,
-        tracker=types.SimpleNamespace(id=3, project_id=1, tracker_type=types.SimpleNamespace(value="jira"), config={}, field_mapping={}, is_enabled=True),
+        tracker=types.SimpleNamespace(
+            id=3,
+            project_id=1,
+            tracker_type=types.SimpleNamespace(value="jira"),
+            config={},
+            field_mapping={},
+            is_enabled=True,
+        ),
         case=types.SimpleNamespace(id=9, module_id=7, name="支付失败"),
         module=types.SimpleNamespace(id=7, project_id=1),
     )
@@ -184,8 +200,17 @@ def test_get_run_bug_status_updates_result_summary(monkeypatch):
 
     monkeypatch.setattr(bug_trackers, "get_bug_status", fake_get_bug_status)
 
-    run = types.SimpleNamespace(id=5, case_id=9, result_summary={"bug": {"bug_id": "99", "bug_url": "https://jira/browse/99", "title": "bug"}})
-    tracker = types.SimpleNamespace(id=3, project_id=1, tracker_type=types.SimpleNamespace(value="jira"), config={}, field_mapping={}, is_enabled=True)
+    run = types.SimpleNamespace(
+        id=5, case_id=9, result_summary={"bug": {"bug_id": "99", "bug_url": "https://jira/browse/99", "title": "bug"}}
+    )
+    tracker = types.SimpleNamespace(
+        id=3,
+        project_id=1,
+        tracker_type=types.SimpleNamespace(value="jira"),
+        config={},
+        field_mapping={},
+        is_enabled=True,
+    )
     db = _FakeDB(
         run=run,
         tracker=tracker,
@@ -290,7 +315,9 @@ def test_create_bug_from_run_uploads_attachment_from_presigned_screenshot(monkey
         step=step,
     )
 
-    result = asyncio.run(bug_trackers.create_bug_from_run(run_id=5, body=bug_trackers.CreateBugRequest(tracker_id=3), db=db, _=None))
+    result = asyncio.run(
+        bug_trackers.create_bug_from_run(run_id=5, body=bug_trackers.CreateBugRequest(tracker_id=3), db=db, _=None)
+    )
 
     assert result.bug_id == "ATP-99"
     assert result.attachment_uploaded is True

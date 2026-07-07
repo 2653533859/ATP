@@ -11,7 +11,7 @@ def test_run_detail_gates_create_bug_action_by_role():
 
     assert "useAuthStore" in content
     assert "const canCreateBug = computed(" in content
-    assert 'v-if="canCreateBug && run && (run.status === \'failed\' || run.status === \'error\')"' in content
+    assert "v-if=\"canCreateBug && run && (run.status === 'failed' || run.status === 'error')\"" in content
 
 
 def test_run_detail_has_investigation_workspace():

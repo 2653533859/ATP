@@ -22,7 +22,7 @@ def test_case_crud_computes_flaky_from_recent_terminal_runs():
     assert "FLAKY_MIN_RUNS = 4" in content
     assert "func.row_number()" in content
     assert "TestRun.parent_run_id.is_(None)" in content
-    assert "stats[\"passed_runs\"] > 0" in content
+    assert 'stats["passed_runs"] > 0' in content
     assert "failure_runs > 0" in content
 
 
@@ -30,6 +30,6 @@ def test_suite_worker_persists_flaky_flags_for_report_rows():
     content = repo_path("backend/app/worker/tasks.py").read_text(encoding="utf-8")
 
     assert "_mark_flaky_case_results" in content
-    assert "result[\"flaky\"]" in content
-    assert "result[\"flaky_failure_rate\"]" in content
+    assert 'result["flaky"]' in content
+    assert 'result["flaky_failure_rate"]' in content
     assert "await _mark_flaky_case_results(db, case_run_results)" in content

@@ -3,6 +3,7 @@
 `database.py` 在模块加载时 `attach` listener；本模块的函数对 SQLAlchemy 引擎之外完全无依赖，
 可独立单测。
 """
+
 from __future__ import annotations
 
 import logging

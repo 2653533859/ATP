@@ -1,4 +1,5 @@
 """Q5 长尾 #1 — /statistics/case-type-distribution 测试。"""
+
 import asyncio
 import importlib
 import sys
@@ -88,9 +89,7 @@ def test_case_type_distribution_basic(monkeypatch):
     ]
     db = _FakeDB(rows)
 
-    result = asyncio.run(
-        statistics.get_case_type_distribution(project_id=None, days=30, db=db, _=None)
-    )
+    result = asyncio.run(statistics.get_case_type_distribution(project_id=None, days=30, db=db, _=None))
 
     assert len(result) == 2
     assert result[0].case_type == "api"
@@ -113,9 +112,7 @@ def test_case_type_distribution_filters_by_project(monkeypatch):
     rows = [_Row(CaseType.android, total=5, passed=5, failed=0, error=0)]
     db = _FakeDB(rows)
 
-    result = asyncio.run(
-        statistics.get_case_type_distribution(project_id=42, days=7, db=db, _=None)
-    )
+    result = asyncio.run(statistics.get_case_type_distribution(project_id=42, days=7, db=db, _=None))
 
     assert len(result) == 1
     assert result[0].case_type == "android"
@@ -128,9 +125,7 @@ def test_case_type_distribution_empty(monkeypatch):
     _stub_cache(monkeypatch)
 
     db = _FakeDB([])
-    result = asyncio.run(
-        statistics.get_case_type_distribution(project_id=None, days=30, db=db, _=None)
-    )
+    result = asyncio.run(statistics.get_case_type_distribution(project_id=None, days=30, db=db, _=None))
     assert result == []
 
 
@@ -143,8 +138,6 @@ def test_case_type_distribution_handles_zero_total(monkeypatch):
     rows = [_Row(CaseType.api, total=0, passed=0, failed=0, error=0)]
     db = _FakeDB(rows)
 
-    result = asyncio.run(
-        statistics.get_case_type_distribution(project_id=None, days=30, db=db, _=None)
-    )
+    result = asyncio.run(statistics.get_case_type_distribution(project_id=None, days=30, db=db, _=None))
     assert len(result) == 1
     assert result[0].pass_rate == 0.0

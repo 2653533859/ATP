@@ -4,6 +4,7 @@
 使用 Fernet 对称加密。密钥从 ENCRYPTION_KEY 环境变量读取，
 若未配置则从 APP_SECRET_KEY 派生。
 """
+
 import base64
 import hashlib
 
@@ -38,7 +39,10 @@ def decrypt(ciphertext: str) -> str:
 
 # 各配置类型中需要加密的字段
 SENSITIVE_KEYS = {
-    "api_token", "password", "secret", "token",
+    "api_token",
+    "password",
+    "secret",
+    "token",
     "webhook_url",  # webhook URL 包含 access_token
 }
 

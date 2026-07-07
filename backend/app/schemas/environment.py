@@ -27,7 +27,7 @@ class EnvironmentOut(BaseModel):
 
 # -- EnvVariable --
 class EnvVariableItem(BaseModel):
-    key: str = Field(..., min_length=1, max_length=128, pattern=r'^[A-Za-z_][A-Za-z0-9_]*$')
+    key: str = Field(..., min_length=1, max_length=128, pattern=r"^[A-Za-z_][A-Za-z0-9_]*$")
     value: str = ""
     is_secret: bool = False
 

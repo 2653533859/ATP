@@ -42,10 +42,7 @@ def test_input_clear_sends_repeated_delete_keyevents(monkeypatch):
 
     assert result["success"] is True
 
-    delete_calls = [
-        args for serial, args, _ in calls
-        if args[:4] == ("shell", "input", "keyevent", "67")
-    ]
+    delete_calls = [args for serial, args, _ in calls if args[:4] == ("shell", "input", "keyevent", "67")]
     assert len(delete_calls) == 50
     assert all(args[3] == "67" for args in delete_calls)
     assert all("--longpress" not in args for _, args, _ in calls)

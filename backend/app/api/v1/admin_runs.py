@@ -40,9 +40,7 @@ async def runs_retention_per_project_preview(
 
     返回结构沿用 service 层 dict（含 'global' 与 'projects' 两键）。
     """
-    payload = await db.run_sync(
-        lambda session: preview_old_runs_by_project(session, settings.RUN_RETENTION_DAYS)
-    )
+    payload = await db.run_sync(lambda session: preview_old_runs_by_project(session, settings.RUN_RETENTION_DAYS))
     return payload
 
 

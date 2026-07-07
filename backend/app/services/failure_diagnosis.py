@@ -4,6 +4,7 @@ The diagnosis is generated on demand from failed/error steps, run error text,
 request/response payloads, and screenshot references. It prefers the project's
 LLM config when available and falls back to a deterministic rule summary.
 """
+
 from __future__ import annotations
 
 import json
@@ -94,10 +95,11 @@ def build_repair_suggestions(failed_steps: list[StepResult]) -> list[dict[str, A
             suggestion_type = "update_assertion"
             target = "expected_result"
             suggested_change = (
-                "根据实际响应字段、状态码或错误码更新该步骤断言；保留核心业务不变量，"
-                "避免只断言完整响应文本。"
+                "根据实际响应字段、状态码或错误码更新该步骤断言；保留核心业务不变量，" "避免只断言完整响应文本。"
             )
-        elif status_code in (401, 403) or any(token in joined for token in ("unauthorized", "forbidden", "鉴权", "权限")):
+        elif status_code in (401, 403) or any(
+            token in joined for token in ("unauthorized", "forbidden", "鉴权", "权限")
+        ):
             suggestion_type = "update_request"
             target = "test_data"
             suggested_change = "检查 token、账号权限、Header 与环境变量；必要时更新前置登录步骤或请求头配置。"
@@ -164,7 +166,9 @@ def build_failure_diagnosis_prompt(
     failed_steps: list[StepResult],
     fallback_summary: str,
 ) -> str:
-    case_type = case.case_type.value if case and hasattr(case.case_type, "value") else str(case.case_type) if case else "-"
+    case_type = (
+        case.case_type.value if case and hasattr(case.case_type, "value") else str(case.case_type) if case else "-"
+    )
     parts = [
         "# 任务",
         "请基于测试执行详情生成简明失败原因诊断，面向测试工程师，中文回答，控制在 220 字以内。",
@@ -202,9 +206,7 @@ async def _resolve_case_and_project(db: AsyncSession, run: TestRun) -> tuple[Tes
 
 
 async def generate_failure_diagnosis(db: AsyncSession, run_id: int) -> dict[str, Any] | None:
-    result = await db.execute(
-        select(TestRun).where(TestRun.id == run_id).options(selectinload(TestRun.steps))
-    )
+    result = await db.execute(select(TestRun).where(TestRun.id == run_id).options(selectinload(TestRun.steps)))
     run = result.scalar_one_or_none()
     if run is None:
         return None

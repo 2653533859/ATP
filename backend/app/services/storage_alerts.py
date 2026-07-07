@@ -6,6 +6,7 @@
 - 当大小回落到阈值以下时，清空告警状态
 - 仅作为只读信号供前端 Dashboard / API 查询，不直接触发邮件，避免与按项目的 NotificationConfig 体系耦合
 """
+
 from __future__ import annotations
 
 import logging
@@ -18,7 +19,7 @@ from app.core.redis_client import delete_json_cache, get_json_cache, set_json_ca
 logger = logging.getLogger(__name__)
 
 ALERT_CACHE_KEY = "atp:storage:alert"
-_BYTES_PER_GB = 1024 ** 3
+_BYTES_PER_GB = 1024**3
 
 
 def _bucket_total_bytes() -> tuple[int, bool]:

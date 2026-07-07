@@ -61,12 +61,14 @@ def test_normalize_plan_config_defaults_to_sequential_with_max_workers_3():
 
 
 def test_normalize_plan_config_falls_back_on_invalid_values():
-    result = tasks._normalize_plan_config({
-        "execution_mode": "weird",
-        "max_workers": "x",
-        "fail_strategy": "wrong",
-        "min_pass_rate": "oops",
-    })
+    result = tasks._normalize_plan_config(
+        {
+            "execution_mode": "weird",
+            "max_workers": "x",
+            "fail_strategy": "wrong",
+            "min_pass_rate": "oops",
+        }
+    )
 
     assert result == {
         "execution_mode": "sequential",
@@ -85,12 +87,14 @@ def test_normalize_plan_config_caps_max_workers_at_10():
 
 
 def test_normalize_plan_config_preserves_valid_parallel_settings():
-    result = tasks._normalize_plan_config({
-        "execution_mode": "parallel",
-        "max_workers": 5,
-        "fail_strategy": "fast-fail",
-        "min_pass_rate": 0.5,
-    })
+    result = tasks._normalize_plan_config(
+        {
+            "execution_mode": "parallel",
+            "max_workers": 5,
+            "fail_strategy": "fast-fail",
+            "min_pass_rate": 0.5,
+        }
+    )
 
     assert result == {
         "execution_mode": "parallel",
@@ -101,31 +105,40 @@ def test_normalize_plan_config_preserves_valid_parallel_settings():
 
 
 def test_plan_run_should_stop_for_fast_fail():
-    assert tasks._plan_run_should_stop(
-        {"total": 1, "passed": 0, "failed": 1, "error": 0},
-        3,
-        "fast-fail",
-        0.8,
-    ) is True
+    assert (
+        tasks._plan_run_should_stop(
+            {"total": 1, "passed": 0, "failed": 1, "error": 0},
+            3,
+            "fast-fail",
+            0.8,
+        )
+        is True
+    )
 
 
 def test_plan_run_should_stop_for_minimum_pass_rate():
     # 已跑 2 个，全失败；剩 1 个，最大可能通过率 1/3 < 0.5，应当停止
-    assert tasks._plan_run_should_stop(
-        {"total": 2, "passed": 0, "failed": 2, "error": 0},
-        3,
-        "require-minimum-pass-rate",
-        0.5,
-    ) is True
+    assert (
+        tasks._plan_run_should_stop(
+            {"total": 2, "passed": 0, "failed": 2, "error": 0},
+            3,
+            "require-minimum-pass-rate",
+            0.5,
+        )
+        is True
+    )
 
 
 def test_plan_run_should_stop_returns_false_for_continue():
-    assert tasks._plan_run_should_stop(
-        {"total": 1, "passed": 0, "failed": 1, "error": 0},
-        3,
-        "continue",
-        0.8,
-    ) is False
+    assert (
+        tasks._plan_run_should_stop(
+            {"total": 1, "passed": 0, "failed": 1, "error": 0},
+            3,
+            "continue",
+            0.8,
+        )
+        is False
+    )
 
 
 def test_execute_plan_suite_returns_error_when_suite_missing(monkeypatch):
@@ -164,9 +177,7 @@ def test_execute_plan_suite_returns_error_when_suite_missing(monkeypatch):
 
     plan_meta = {"triggered_by": 9, "creator_id": 1, "trace_id": "trace-x"}
 
-    result = asyncio.run(
-        tasks._execute_plan_suite(plan_meta=plan_meta, suite_id=42, extra_vars={})
-    )
+    result = asyncio.run(tasks._execute_plan_suite(plan_meta=plan_meta, suite_id=42, extra_vars={}))
 
     assert result == {
         "suite_id": 42,

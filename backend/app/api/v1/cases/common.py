@@ -6,6 +6,7 @@
 子模块需要调用时统一通过 ``import app.api.v1.cases as _cases`` 然后 ``_cases.X(...)``，
 这样测试中 ``monkeypatch.setattr(cases, "X", fake)`` 仍能生效。
 """
+
 from __future__ import annotations
 
 import copy
@@ -229,21 +230,23 @@ async def _enforce_snapshot_retention(db: AsyncSession, case_id: int, max_count:
         return 0
     if not hasattr(db, "scalar") or not hasattr(db, "execute"):
         return 0
-    total = await db.scalar(
-        select(func.count(CaseSnapshot.id)).where(CaseSnapshot.case_id == case_id)
-    )
+    total = await db.scalar(select(func.count(CaseSnapshot.id)).where(CaseSnapshot.case_id == case_id))
     total = int(total or 0)
     if total <= cap:
         return 0
     excess = total - cap
     old_ids = (
-        await db.execute(
-            select(CaseSnapshot.id)
-            .where(CaseSnapshot.case_id == case_id)
-            .order_by(CaseSnapshot.version.asc())
-            .limit(excess)
+        (
+            await db.execute(
+                select(CaseSnapshot.id)
+                .where(CaseSnapshot.case_id == case_id)
+                .order_by(CaseSnapshot.version.asc())
+                .limit(excess)
+            )
         )
-    ).scalars().all()
+        .scalars()
+        .all()
+    )
     if not old_ids:
         return 0
     for sid in old_ids:
@@ -255,11 +258,7 @@ async def _enforce_snapshot_retention(db: AsyncSession, case_id: int, max_count:
 
 
 async def _get_case_detail_or_404(db: AsyncSession, case_id: int) -> TestCase:
-    result = await db.execute(
-        select(TestCase)
-        .where(TestCase.id == case_id)
-        .options(selectinload(TestCase.steps))
-    )
+    result = await db.execute(select(TestCase).where(TestCase.id == case_id).options(selectinload(TestCase.steps)))
     case = result.scalar_one_or_none()
     if not case:
         raise HTTPException(status_code=404, detail="用例不存在")
@@ -267,11 +266,7 @@ async def _get_case_detail_or_404(db: AsyncSession, case_id: int) -> TestCase:
 
 
 async def _get_module_for_case_code(db: AsyncSession, module_id: int) -> Module:
-    result = await db.execute(
-        select(Module)
-        .where(Module.id == module_id)
-        .options(selectinload(Module.project))
-    )
+    result = await db.execute(select(Module).where(Module.id == module_id).options(selectinload(Module.project)))
     module = result.scalar_one_or_none()
     if not module:
         raise HTTPException(status_code=404, detail="模块不存在")

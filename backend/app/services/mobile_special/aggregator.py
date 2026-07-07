@@ -5,6 +5,7 @@ Takes raw samples collected during a run and computes:
   - Crash and ANR counts
   - Per-task-type summary JSON suitable for MobileSpecialRun.summary_json
 """
+
 from typing import Any, Optional
 
 from app.models.mobile_special import MetricType, TaskType
@@ -76,32 +77,37 @@ def compute_run_summary(
     }
 
     if task_type == TaskType.performance:
-        summary.update({
-            "avg_cpu_pct": aggregated.get(MetricType.cpu_pct.value, {}).get("avg"),
-            "peak_cpu_pct": aggregated.get(MetricType.cpu_pct.value, {}).get("max"),
-            "avg_mem_mb": aggregated.get(MetricType.mem_mb.value, {}).get("avg"),
-            "peak_mem_mb": aggregated.get(MetricType.mem_mb.value, {}).get("max"),
-            "avg_battery_pct": aggregated.get(MetricType.battery_pct.value, {}).get("avg"),
-        })
+        summary.update(
+            {
+                "avg_cpu_pct": aggregated.get(MetricType.cpu_pct.value, {}).get("avg"),
+                "peak_cpu_pct": aggregated.get(MetricType.cpu_pct.value, {}).get("max"),
+                "avg_mem_mb": aggregated.get(MetricType.mem_mb.value, {}).get("avg"),
+                "peak_mem_mb": aggregated.get(MetricType.mem_mb.value, {}).get("max"),
+                "avg_battery_pct": aggregated.get(MetricType.battery_pct.value, {}).get("avg"),
+            }
+        )
 
     elif task_type == TaskType.stability:
-        summary.update({
-            "explore_duration_seconds": extra.get("explore_duration_seconds") if extra else None,
-            "operation_interval_ms": extra.get("operation_interval_ms") if extra else None,
-            "completed_action_count": extra.get("completed_action_count", 0),
-            "app_restart_count": extra.get("app_restart_count", 0),
-        })
+        stability_extra = extra if isinstance(extra, dict) else {}
+        summary.update(
+            {
+                "explore_duration_seconds": stability_extra.get("explore_duration_seconds"),
+                "operation_interval_ms": stability_extra.get("operation_interval_ms"),
+                "completed_action_count": stability_extra.get("completed_action_count", 0),
+                "app_restart_count": stability_extra.get("app_restart_count", 0),
+            }
+        )
 
     elif task_type == TaskType.fluency:
-        summary.update({
-            "avg_fps": aggregated.get(MetricType.fps.value, {}).get("avg"),
-            "peak_fps": aggregated.get(MetricType.fps.value, {}).get("max"),
-            "total_jank_count": aggregated.get(MetricType.jank_count.value, {}).get("max", 0),
-        })
+        summary.update(
+            {
+                "avg_fps": aggregated.get(MetricType.fps.value, {}).get("avg"),
+                "peak_fps": aggregated.get(MetricType.fps.value, {}).get("max"),
+                "total_jank_count": aggregated.get(MetricType.jank_count.value, {}).get("max", 0),
+            }
+        )
 
     # Always include sample counts for debugging
-    summary["_sample_counts"] = {
-        mt: agg["count"] for mt, agg in aggregated.items()
-    }
+    summary["_sample_counts"] = {mt: agg["count"] for mt, agg in aggregated.items()}
 
     return summary

@@ -13,7 +13,7 @@ def test_notification_config_crud_writes_audit_logs():
     assert "notification_config_create" in content
     assert "notification_config_update" in content
     assert "notification_config_delete" in content
-    assert "resource_type=\"notification_config\"" in content
+    assert 'resource_type="notification_config"' in content
 
 
 def test_bug_tracker_config_and_run_bug_actions_write_audit_logs():
@@ -25,8 +25,8 @@ def test_bug_tracker_config_and_run_bug_actions_write_audit_logs():
     assert "run_bug_link" in content
     assert "run_bug_create" in content
     assert "run_bug_create_duplicate" in content
-    assert "resource_type=\"bug_tracker\"" in content
-    assert "resource_type=\"test_run\"" in content
+    assert 'resource_type="bug_tracker"' in content
+    assert 'resource_type="test_run"' in content
 
 
 def test_ai_llm_config_crud_writes_audit_logs():
@@ -36,7 +36,7 @@ def test_ai_llm_config_crud_writes_audit_logs():
     assert "ai_llm_config_create" in content
     assert "ai_llm_config_update" in content
     assert "ai_llm_config_delete" in content
-    assert "resource_type=\"ai_llm_config\"" in content
+    assert 'resource_type="ai_llm_config"' in content
 
 
 def test_audit_policy_documents_required_categories_and_secret_rules():

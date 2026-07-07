@@ -157,9 +157,7 @@ async def list_modules(
     db: AsyncSession = Depends(get_db),
     _=Depends(require_project_access(ProjectRole.viewer)),
 ):
-    result = await db.execute(
-        select(Module).where(Module.project_id == project_id).order_by(Module.sort_order)
-    )
+    result = await db.execute(select(Module).where(Module.project_id == project_id).order_by(Module.sort_order))
     return _build_tree(result.scalars().all())
 
 
@@ -302,9 +300,7 @@ async def update_project_member(
     db: AsyncSession = Depends(get_db),
     _=Depends(require_project_access(ProjectRole.owner)),
 ):
-    stmt = select(UserProject).where(
-        UserProject.user_id == user_id, UserProject.project_id == project_id
-    )
+    stmt = select(UserProject).where(UserProject.user_id == user_id, UserProject.project_id == project_id)
     result = await db.execute(stmt)
     up = result.scalar_one_or_none()
     if not up:
@@ -334,9 +330,7 @@ async def remove_project_member(
     db: AsyncSession = Depends(get_db),
     _=Depends(require_project_access(ProjectRole.owner)),
 ):
-    stmt = select(UserProject).where(
-        UserProject.user_id == user_id, UserProject.project_id == project_id
-    )
+    stmt = select(UserProject).where(UserProject.user_id == user_id, UserProject.project_id == project_id)
     result = await db.execute(stmt)
     up = result.scalar_one_or_none()
     if not up:

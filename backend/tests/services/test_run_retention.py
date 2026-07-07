@@ -44,12 +44,12 @@ def test_preview_returns_counts_without_deleting():
     """4 个 count + 2 个 sample id 查询；无 delete 无 commit。"""
     fake_session = _FakeSession(
         responses=[
-            _FakeResult(scalar_value=3),    # plan count
-            _FakeResult(scalar_value=5),    # suite count
-            _FakeResult(scalar_value=7),    # test count
-            _FakeResult(scalar_value=2),    # mobile count
-            _FakeResult(all_rows=[]),        # test sample ids -> empty
-            _FakeResult(all_rows=[]),        # mobile sample ids -> empty
+            _FakeResult(scalar_value=3),  # plan count
+            _FakeResult(scalar_value=5),  # suite count
+            _FakeResult(scalar_value=7),  # test count
+            _FakeResult(scalar_value=2),  # mobile count
+            _FakeResult(all_rows=[]),  # test sample ids -> empty
+            _FakeResult(all_rows=[]),  # mobile sample ids -> empty
         ]
     )
     result = run_retention.preview_old_runs(fake_session, days=30, batch_size=10)
@@ -69,12 +69,12 @@ def test_preview_estimates_objects_from_sample(monkeypatch):
     """非空 sample → 触发 screenshot/artifact 查询估算对象数。"""
     fake_session = _FakeSession(
         responses=[
-            _FakeResult(scalar_value=1),    # plan count
-            _FakeResult(scalar_value=1),    # suite count
-            _FakeResult(scalar_value=2),    # test count
-            _FakeResult(scalar_value=1),    # mobile count
+            _FakeResult(scalar_value=1),  # plan count
+            _FakeResult(scalar_value=1),  # suite count
+            _FakeResult(scalar_value=2),  # test count
+            _FakeResult(scalar_value=1),  # mobile count
             _FakeResult(all_rows=[(100,), (101,)]),  # test sample
-            _FakeResult(all_rows=[(200,)]),           # mobile sample
+            _FakeResult(all_rows=[(200,)]),  # mobile sample
             # screenshot query for test sample
             _FakeResult(all_rows=[("screenshots/runs/100/a.png",), ("screenshots/runs/101/b.png",)]),
             # mobile artifact query
@@ -115,10 +115,10 @@ def test_execute_processes_simple_batch():
     fake_session = _FakeSession(
         responses=[
             _FakeResult(all_rows=[(1,), (2,)]),  # plan select -> 2 ids
-            _FakeResult(all_rows=[]),             # plan delete (Result unused but pop'd)
-            _FakeResult(all_rows=[]),             # suite select empty
-            _FakeResult(all_rows=[]),             # test select empty
-            _FakeResult(all_rows=[]),             # mobile select empty
+            _FakeResult(all_rows=[]),  # plan delete (Result unused but pop'd)
+            _FakeResult(all_rows=[]),  # suite select empty
+            _FakeResult(all_rows=[]),  # test select empty
+            _FakeResult(all_rows=[]),  # mobile select empty
         ]
     )
     result = run_retention.execute_old_runs_cleanup(fake_session, days=30, batch_size=10)

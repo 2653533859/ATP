@@ -524,7 +524,3 @@ switch ($Action) {
     Show-Logs
   }
 }
-
-
-
-

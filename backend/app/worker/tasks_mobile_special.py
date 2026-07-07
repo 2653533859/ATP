@@ -1,4 +1,5 @@
 """Celery tasks for mobile special testing domain."""
+
 from datetime import datetime, timezone
 from typing import Any
 
@@ -44,28 +45,26 @@ def run_mobile_special_task(self, run_id: int):
             run.task_type = task.task_type
             run.device_id = _resolve_run_device_id(run, task)
             run.app_package = _resolve_run_app_package(run, task)
-            run.device_serial = (
-                run.config_snapshot.get("device_serial")
-                or await _get_device_serial(db, run.device_id)
-            )
+            run.device_serial = run.config_snapshot.get("device_serial") or await _get_device_serial(db, run.device_id)
             if run.device_serial:
                 run.config_snapshot["device_serial"] = run.device_serial
             await db.commit()
 
             try:
-                await _safe_publish_run_event(run_id, {
-                    "type": "run_status", "run_id": run_id, "status": "running"
-                })
+                await _safe_publish_run_event(run_id, {"type": "run_status", "run_id": run_id, "status": "running"})
 
                 # 路由到对应 executor
                 if task.task_type == TaskType.performance:
                     from app.worker.executors import run_mobile_special_perf
+
                     await run_mobile_special_perf(db, run)
                 elif task.task_type == TaskType.stability:
                     from app.worker.executors import run_mobile_special_stability
+
                     await run_mobile_special_stability(db, run)
                 elif task.task_type == TaskType.fluency:
                     from app.worker.executors import run_mobile_special_fluency
+
                     await run_mobile_special_fluency(db, run)
                 else:
                     run.status = RunStatus.failed
@@ -78,11 +77,17 @@ def run_mobile_special_task(self, run_id: int):
                 run.finished_at = datetime.now(timezone.utc)
                 run.summary_json = {"error_message": str(e)[:500]}
                 await db.commit()
-                await _safe_publish_run_event(run_id, {
-                    "type": "completed", "run_id": run_id, "status": "failed",
-                })
+                await _safe_publish_run_event(
+                    run_id,
+                    {
+                        "type": "completed",
+                        "run_id": run_id,
+                        "status": "failed",
+                    },
+                )
 
     run_async(_execute())
+
 
 def _merge_run_config(task_config: dict[str, Any] | None, run_config: dict[str, Any] | None) -> dict[str, Any]:
     merged = dict(task_config or {})
@@ -156,6 +161,7 @@ def check_mobile_special_schedules():
                 # 更新下次调度时间
                 try:
                     from croniter import croniter
+
                     cron = croniter(task.cron_expression, now)
                     task.next_run_at = cron.get_next(datetime)
                 except Exception:

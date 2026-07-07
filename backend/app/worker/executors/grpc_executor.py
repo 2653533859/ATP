@@ -4,6 +4,7 @@
 通过 descriptor_pool + message_factory 动态创建消息，
 channel.unary_unary() 低级 API 执行调用。
 """
+
 import asyncio
 import json
 import os
@@ -36,13 +37,15 @@ def _compile_proto(proto_content: str) -> descriptor_pb2.FileDescriptorSet:
             f.write(proto_content)
 
         desc_path = os.path.join(tmpdir, "descriptor.bin")
-        result = protoc.main([
-            "protoc",
-            f"--proto_path={tmpdir}",
-            f"--descriptor_set_out={desc_path}",
-            "--include_imports",
-            proto_path,
-        ])
+        result = protoc.main(
+            [
+                "protoc",
+                f"--proto_path={tmpdir}",
+                f"--descriptor_set_out={desc_path}",
+                "--include_imports",
+                proto_path,
+            ]
+        )
         if result != 0:
             raise RuntimeError("Proto 编译失败，请检查 .proto 语法")
 
@@ -156,7 +159,8 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
 
             # 响应转 dict
             resp_body = MessageToDict(
-                response_msg, preserving_proto_field_name=True,
+                response_msg,
+                preserving_proto_field_name=True,
             )
             grpc_status = "OK"
 
@@ -223,34 +227,41 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
         step_result.error_message = error_msg
         await db.commit()
 
-        await _safe_publish_run_event(run.id, {
-            "type": "step_result",
-            "run_id": run.id,
-            "step": {
-                "step_index": idx,
-                "name": step_result.name,
-                "status": step_status.value,
-                "duration_ms": step_result.duration_ms,
-                "request_data": request_data,
-                "response_data": response_data,
-                "error_message": error_msg,
+        await _safe_publish_run_event(
+            run.id,
+            {
+                "type": "step_result",
+                "run_id": run.id,
+                "step": {
+                    "step_index": idx,
+                    "name": step_result.name,
+                    "status": step_status.value,
+                    "duration_ms": step_result.duration_ms,
+                    "request_data": request_data,
+                    "response_data": response_data,
+                    "error_message": error_msg,
+                },
             },
-        })
+        )
 
     total_ms = int((time.monotonic() - total_start) * 1000)
     run.status = RunStatus.passed if all_passed else RunStatus.failed
     run.duration_ms = total_ms
     await db.commit()
 
-    await _safe_publish_run_event(run.id, {
-        "type": "completed",
-        "run_id": run.id,
-        "status": run.status.value,
-        "duration_ms": total_ms,
-    })
+    await _safe_publish_run_event(
+        run.id,
+        {
+            "type": "completed",
+            "run_id": run.id,
+            "status": run.status.value,
+            "duration_ms": total_ms,
+        },
+    )
 
 
 # ── 辅助函数 ───────────────────────────────────────────
+
 
 def _render(template: str, context: dict) -> str:
     """简单的 {{variable}} 占位符替换"""

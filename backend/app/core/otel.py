@@ -7,6 +7,7 @@
 - backend 进程在 FastAPI lifespan 中初始化；worker 进程在 `worker_process_init`
   信号处理器里初始化（Celery 跨进程模型决定）。
 """
+
 from __future__ import annotations
 
 import logging

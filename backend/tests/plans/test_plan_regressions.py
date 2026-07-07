@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 
+
 def _p3c_noop(*_a, **_kw):
     return None
 
@@ -17,14 +18,15 @@ def _p3c_noop(*_a, **_kw):
 async def _p3c_noop_async(*_a, **_kw):
     return None
 
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     get_current_user=lambda: None,
     require_engineer=lambda: None,
-        require_admin=_p3c_noop,
-        require_project_access=lambda *a, **kw: _p3c_noop,
-        assert_project_access=_p3c_noop_async,
-        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
-    )
+    require_admin=_p3c_noop,
+    require_project_access=lambda *a, **kw: _p3c_noop,
+    assert_project_access=_p3c_noop_async,
+    ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+)
 
 from app.api.v1 import plans
 from app.models.environment import Environment
@@ -73,8 +75,6 @@ class _FakeDB:
         return None
 
 
-
-
 def test_manual_plan_run_persists_and_dispatches_trace_id(monkeypatch):
     delayed = {}
     plans.PlanRun = _FakePlanRun
@@ -108,7 +108,6 @@ def test_manual_plan_run_persists_and_dispatches_trace_id(monkeypatch):
 
     assert result.trace_id == "trace-plan-1"
     assert delayed == {"run_id": 1, "extra_vars": {"commit": "abc"}, "trace_id": "trace-plan-1"}
-
 
 
 def test_manual_plan_run_invalid_env_id_returns_404():

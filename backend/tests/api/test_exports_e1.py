@@ -1,4 +1,5 @@
 """E.1 报告导出增强测试：template / cover / MinIO 缓存 key / 批量 ZIP."""
+
 import asyncio
 import io
 import sys
@@ -11,9 +12,7 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-sys.modules.setdefault(
-    "app.core.database", types.SimpleNamespace(get_db=lambda: None)
-)
+sys.modules.setdefault("app.core.database", types.SimpleNamespace(get_db=lambda: None))
 sys.modules.setdefault(
     "app.api.deps",
     types.SimpleNamespace(
@@ -91,7 +90,10 @@ def test_build_report_html_summary_skips_request_response():
     steps = [_make_step(1), _make_step(2)]
     html = asyncio.run(
         exports_mod._build_report_html(
-            run, steps, "case-summary", case_type="api",
+            run,
+            steps,
+            "case-summary",
+            case_type="api",
             template_mode="summary",
         )
     )
@@ -104,11 +106,7 @@ def test_build_report_html_summary_skips_request_response():
 def test_build_report_html_full_includes_screenshot_column():
     run = _make_run()
     steps = [_make_step(1)]
-    html = asyncio.run(
-        exports_mod._build_report_html(
-            run, steps, "case-full", case_type="api", template_mode="full"
-        )
-    )
+    html = asyncio.run(exports_mod._build_report_html(run, steps, "case-full", case_type="api", template_mode="full"))
     assert "截图" in html
 
 
@@ -116,7 +114,10 @@ def test_build_report_html_renders_cover_block():
     run = _make_run()
     html = asyncio.run(
         exports_mod._build_report_html(
-            run, [], "case-name", case_type="api",
+            run,
+            [],
+            "case-name",
+            case_type="api",
             cover_title="ATP 自动化测试报告",
             cover_logo_url="https://example.com/logo.png",
         )
@@ -129,9 +130,7 @@ def test_build_report_html_embeds_video_when_url_present():
     """P1.1：当 run.result_summary.video_url 存在时，HTML 报告应嵌入 <video> 标签。"""
     run = _make_run()
     run.result_summary = {"video_url": "https://minio.local/videos/runs/1/recording.webm"}
-    html = asyncio.run(
-        exports_mod._build_report_html(run, [], "case-name", case_type="web")
-    )
+    html = asyncio.run(exports_mod._build_report_html(run, [], "case-name", case_type="web"))
     assert "<video" in html
     assert "https://minio.local/videos/runs/1/recording.webm" in html
     assert "执行录像" in html
@@ -140,9 +139,7 @@ def test_build_report_html_embeds_video_when_url_present():
 def test_build_report_html_omits_video_when_url_absent():
     run = _make_run()
     run.result_summary = {}
-    html = asyncio.run(
-        exports_mod._build_report_html(run, [], "case-name", case_type="web")
-    )
+    html = asyncio.run(exports_mod._build_report_html(run, [], "case-name", case_type="web"))
     assert "<video" not in html
     assert "执行录像" not in html
 
@@ -151,11 +148,7 @@ def test_build_report_html_omits_video_when_include_video_false():
     """PDF 路径走 include_video=False，即使有 video_url 也不应嵌入。"""
     run = _make_run()
     run.result_summary = {"video_url": "https://x.com/v.webm"}
-    html = asyncio.run(
-        exports_mod._build_report_html(
-            run, [], "case-name", case_type="web", include_video=False
-        )
-    )
+    html = asyncio.run(exports_mod._build_report_html(run, [], "case-name", case_type="web", include_video=False))
     assert "<video" not in html
 
 
@@ -189,9 +182,14 @@ class _BatchDB:
             return self._runs.get(pk)
         if name == "TestCase":
             case = TestCase(
-                id=pk, name=f"case-{pk}", case_code=f"ATP-X-API-{pk:04d}",
-                summary=f"case-{pk}", case_type=CaseType.api,
-                module_id=1, creator_id=1, config={},
+                id=pk,
+                name=f"case-{pk}",
+                case_code=f"ATP-X-API-{pk:04d}",
+                summary=f"case-{pk}",
+                case_type=CaseType.api,
+                module_id=1,
+                creator_id=1,
+                config={},
             )
             case.created_at = _now()
             case.updated_at = _now()
@@ -204,6 +202,7 @@ class _BatchDB:
                 class _S:
                     def all(s):
                         return []
+
                 return _S()
 
         return _R()
@@ -245,7 +244,5 @@ def test_export_runs_zip_rejects_invalid_template():
     from fastapi import HTTPException
 
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(
-            exports_mod.export_runs_zip(payload={"run_ids": [1], "template": "weird"}, db=db)
-        )
+        asyncio.run(exports_mod.export_runs_zip(payload={"run_ids": [1], "template": "weird"}, db=db))
     assert exc.value.status_code == 400

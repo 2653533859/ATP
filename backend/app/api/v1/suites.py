@@ -10,6 +10,7 @@ POST   /suites/{id}/run     触发套件执行
 GET    /suite-runs           套件执行记录列表
 GET    /suite-runs/{id}     套件执行记录详情
 """
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,9 +25,14 @@ from app.models.project import Project
 from app.models.suite import SuiteRun, SuiteRunStatus, TestSuite
 from app.models.user import User
 from app.schemas.suite import (
-    TestSuiteCreate, TestSuiteUpdate, TestSuiteOut,
-    SuiteRunTrigger, SuiteRunOut,
-    SuiteBatchCopyIn, SuiteBatchDeleteIn, SuiteBatchOpOut,
+    TestSuiteCreate,
+    TestSuiteUpdate,
+    TestSuiteOut,
+    SuiteRunTrigger,
+    SuiteRunOut,
+    SuiteBatchCopyIn,
+    SuiteBatchDeleteIn,
+    SuiteBatchOpOut,
 )
 from app.api.deps import assert_project_access, get_current_user, require_engineer
 from app.models.user_project import ProjectRole
@@ -35,10 +41,7 @@ router = APIRouter(tags=["测试套件"])
 
 
 def _normalize_case_items(case_items: list[object]) -> list[dict]:
-    return [
-        item if isinstance(item, dict) else item.model_dump()
-        for item in case_items
-    ]
+    return [item if isinstance(item, dict) else item.model_dump() for item in case_items]
 
 
 async def _validate_suite_case_ids(db: AsyncSession, project_id: int, case_items: list[object]) -> list[dict]:
@@ -51,11 +54,7 @@ async def _validate_suite_case_ids(db: AsyncSession, project_id: int, case_items
     if not case_ids:
         return normalized
 
-    result = await db.execute(
-        select(TestCase)
-        .options(selectinload(TestCase.module))
-        .where(TestCase.id.in_(case_ids))
-    )
+    result = await db.execute(select(TestCase).options(selectinload(TestCase.module)).where(TestCase.id.in_(case_ids)))
     cases = result.scalars().all()
     case_map = {case.id: case for case in cases}
 
@@ -175,11 +174,7 @@ async def batch_delete_suites(
     _=Depends(require_engineer),
 ):
     requested_ids = list(dict.fromkeys(body.suite_ids))
-    rows = (
-        (await db.execute(select(TestSuite).where(TestSuite.id.in_(requested_ids))))
-        .scalars()
-        .all()
-    )
+    rows = (await db.execute(select(TestSuite).where(TestSuite.id.in_(requested_ids)))).scalars().all()
     found_ids = {row.id for row in rows}
     skipped_ids = [sid for sid in requested_ids if sid not in found_ids]
 
@@ -200,11 +195,7 @@ async def batch_copy_suites(
     current_user: User = Depends(require_engineer),
 ):
     requested_ids = list(dict.fromkeys(body.suite_ids))
-    rows = (
-        (await db.execute(select(TestSuite).where(TestSuite.id.in_(requested_ids))))
-        .scalars()
-        .all()
-    )
+    rows = (await db.execute(select(TestSuite).where(TestSuite.id.in_(requested_ids)))).scalars().all()
     found_ids = {row.id for row in rows}
     skipped_ids = [sid for sid in requested_ids if sid not in found_ids]
 
@@ -253,9 +244,7 @@ async def trigger_suite_run(
         if not env:
             raise HTTPException(status_code=404, detail="环境不存在")
         env_name = env.name
-        result = await db.execute(
-            select(EnvVariable).where(EnvVariable.env_id == env.id)
-        )
+        result = await db.execute(select(EnvVariable).where(EnvVariable.env_id == env.id))
         env_vars = decrypt_env_vars(result.scalars().all())
         merged_vars = {**env_vars, **body.extra_vars}
 
@@ -272,6 +261,7 @@ async def trigger_suite_run(
 
     # 触发 Celery 任务
     from app.worker.tasks import run_test_suite
+
     run_test_suite.delay(suite_run.id, merged_vars, suite_run.trace_id)
 
     return suite_run

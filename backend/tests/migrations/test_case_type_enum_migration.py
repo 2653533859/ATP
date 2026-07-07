@@ -7,9 +7,7 @@ def test_case_type_enum_migration_contains_new_values():
 
     assert migration_files, "缺少 Alembic 迁移文件，无法升级既有 PostgreSQL 枚举"
 
-    merged_content = "\n".join(
-        migration_file.read_text(encoding="utf-8") for migration_file in migration_files
-    )
+    merged_content = "\n".join(migration_file.read_text(encoding="utf-8") for migration_file in migration_files)
 
     assert "ALTER TYPE" in merged_content
     assert "graphql" in merged_content

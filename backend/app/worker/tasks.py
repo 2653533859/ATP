@@ -135,11 +135,14 @@ async def _execute_case_run(db, suite_run, case, extra_vars: dict) -> dict:
         case_run.status = RunStatus.running
         await db.commit()
         await dispatch_case(db, case_run, case, extra_vars)
+        await db.refresh(case_run)
+        _record_run_outcome("case", case_run.status)
     except Exception as e:
         logger.exception(f"Suite case {case.id} run failed: {e}")
         case_run.status = RunStatus.error
         case_run.error_message = str(e)[:500]
         await db.commit()
+        _record_run_outcome("case", case_run.status)
 
     await db.refresh(case_run)
     return {
@@ -242,7 +245,7 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict):
 
     if suite_config["execution_mode"] == "parallel":
         for start in range(0, total_cases, suite_config["max_workers"]):
-            batch = case_items[start:start + suite_config["max_workers"]]
+            batch = case_items[start : start + suite_config["max_workers"]]
             for result in await asyncio.gather(*(run_one(item) for item in batch)):
                 should_stop = await consume_result(result)
                 if should_stop:
@@ -260,17 +263,19 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict):
             if should_stop:
                 break
 
-    skipped_items = case_items[counts["total"]:]
+    skipped_items = case_items[counts["total"] :]
     for item in skipped_items:
         case_id = item.get("case_id")
         if not case_id:
             continue
-        case_run_results.append({
-            "case_id": case_id,
-            "run_id": None,
-            "status": "skipped",
-            "error": "已根据套件失败策略提前停止",
-        })
+        case_run_results.append(
+            {
+                "case_id": case_id,
+                "run_id": None,
+                "status": "skipped",
+                "error": "已根据套件失败策略提前停止",
+            }
+        )
         counts["total"] += 1
         counts["skipped"] += 1
 
@@ -289,6 +294,19 @@ async def _safe_invalidate_stats_cache() -> None:
         await delete_json_cache_pattern("atp:stats:*")
     except Exception:
         logger.exception("Failed to invalidate stats cache")
+
+
+def _record_run_outcome(entity_type: str, status: object) -> None:
+    """Best-effort Prometheus signal for run success-rate SLOs."""
+    status_value = status.value if hasattr(status, "value") else str(status)
+    if status_value not in {"passed", "failed", "error", "skipped"}:
+        return
+    try:
+        from app.core.metrics import RUN_OUTCOMES
+
+        RUN_OUTCOMES.labels(entity_type=entity_type, status=status_value).inc()
+    except Exception:
+        logger.exception("Failed to record run outcome metric")
 
 
 @celery_app.task(bind=True, name="run_test_case")
@@ -320,11 +338,7 @@ def run_test_case(self, run_id: int, extra_vars: dict, trace_id: str | None = No
                 case = await db.get(TestCase, run.case_id)
 
                 # ── P3.B 参数化分支 ──────────────────────────
-                if (
-                    case is not None
-                    and case.dataset_id is not None
-                    and run.parent_run_id is None
-                ):
+                if case is not None and case.dataset_id is not None and run.parent_run_id is None:
                     await _execute_parameterized(db, run, case, extra_vars)
                     return
 
@@ -336,18 +350,31 @@ def run_test_case(self, run_id: int, extra_vars: dict, trace_id: str | None = No
                     await _safe_publish_run_event(run_id, {"type": "run_status", "run_id": run_id, "status": "running"})
 
                     dispatched = await dispatch_case(db, run, case, extra_vars)
+                    await db.refresh(run)
+                    _record_run_outcome("case", run.status)
                     if not dispatched:
-                        await _safe_publish_run_event(run_id, {
-                            "type": "completed", "run_id": run_id, "status": "error",
-                        })
+                        await _safe_publish_run_event(
+                            run_id,
+                            {
+                                "type": "completed",
+                                "run_id": run_id,
+                                "status": "error",
+                            },
+                        )
                 except Exception as e:
                     logger.exception(f"Run {run_id} failed with error: {e}")
                     run.status = RunStatus.error
                     run.error_message = str(e)
                     await db.commit()
-                    await _safe_publish_run_event(run_id, {
-                        "type": "completed", "run_id": run_id, "status": "error",
-                    })
+                    _record_run_outcome("case", run.status)
+                    await _safe_publish_run_event(
+                        run_id,
+                        {
+                            "type": "completed",
+                            "run_id": run_id,
+                            "status": "error",
+                        },
+                    )
                 finally:
                     await _safe_invalidate_stats_cache()
         finally:
@@ -369,6 +396,8 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
         parent_run.status = RunStatus.running
         await db.commit()
         await dispatch_case(db, parent_run, case, extra_vars)
+        await db.refresh(parent_run)
+        _record_run_outcome("case", parent_run.status)
         await _safe_invalidate_stats_cache()
         return
 
@@ -400,11 +429,15 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
             "dataset_strict_schema": True,
         }
         await db.commit()
-        await _safe_publish_run_event(parent_run.id, {
-            "type": "completed",
-            "run_id": parent_run.id,
-            "status": "error",
-        })
+        _record_run_outcome("case", parent_run.status)
+        await _safe_publish_run_event(
+            parent_run.id,
+            {
+                "type": "completed",
+                "run_id": parent_run.id,
+                "status": "error",
+            },
+        )
         await _safe_invalidate_stats_cache()
         return
 
@@ -420,9 +453,14 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
         "dataset_strict_schema": strict_schema,
     }
     await db.commit()
-    await _safe_publish_run_event(parent_run.id, {
-        "type": "run_status", "run_id": parent_run.id, "status": "running",
-    })
+    await _safe_publish_run_event(
+        parent_run.id,
+        {
+            "type": "run_status",
+            "run_id": parent_run.id,
+            "status": "running",
+        },
+    )
 
     summary_counts = {"passed": 0, "failed": 0, "error": 0}
 
@@ -452,6 +490,7 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
             child.error_message = str(exc)[:500]
             await db.commit()
             status_str = "error"
+        _record_run_outcome("case", child.status)
 
         if status_str == "passed":
             summary_counts["passed"] += 1
@@ -476,11 +515,15 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
         "iteration_error": summary_counts["error"],
     }
     await db.commit()
-    await _safe_publish_run_event(parent_run.id, {
-        "type": "completed",
-        "run_id": parent_run.id,
-        "status": parent_run.status.value,
-    })
+    _record_run_outcome("case", parent_run.status)
+    await _safe_publish_run_event(
+        parent_run.id,
+        {
+            "type": "completed",
+            "run_id": parent_run.id,
+            "status": parent_run.status.value,
+        },
+    )
     await _safe_invalidate_stats_cache()
 
 
@@ -510,6 +553,7 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict, trace_id: str | No
                     suite_run.status = SuiteRunStatus.error
                     suite_run.error_message = "套件不存在"
                     await db.commit()
+                    _record_run_outcome("suite", suite_run.status)
                     return
 
                 suite_run.status = SuiteRunStatus.running
@@ -519,6 +563,7 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict, trace_id: str | No
                 await _execute_suite_cases(db, suite_run, suite, extra_vars)
                 suite_run.duration_ms = int((time.monotonic() - total_start) * 1000)
                 await db.commit()
+                _record_run_outcome("suite", suite_run.status)
 
                 counts = suite_run.result_summary or {}
 
@@ -527,25 +572,32 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict, trace_id: str | No
                         email_html_report_enabled,
                         send_notifications,
                     )
+
                     report_html = None
                     if await email_html_report_enabled(db, suite.project_id):
                         try:
                             from app.api.v1.exports import _build_suite_run_report_html
+
                             report_html = await _build_suite_run_report_html(db, suite_run)
                         except Exception as exc:
                             logger.warning(f"Suite report HTML build failed: {exc}")
-                    await send_notifications(db, suite.project_id, {
-                        "title": f"测试套件「{suite.name}」执行完成",
-                        "status": suite_run.status.value,
-                        "total": counts.get("total", 0),
-                        "passed": counts.get("passed", 0),
-                        "failed": counts.get("failed", 0),
-                        "error": counts.get("error", 0),
-                        "duration_ms": suite_run.duration_ms,
-                        "trigger_type": "manual",
-                        "entity_type": "suite",
-                        "suite_id": suite.id,
-                    }, report_html=report_html)
+                    await send_notifications(
+                        db,
+                        suite.project_id,
+                        {
+                            "title": f"测试套件「{suite.name}」执行完成",
+                            "status": suite_run.status.value,
+                            "total": counts.get("total", 0),
+                            "passed": counts.get("passed", 0),
+                            "failed": counts.get("failed", 0),
+                            "error": counts.get("error", 0),
+                            "duration_ms": suite_run.duration_ms,
+                            "trigger_type": "manual",
+                            "entity_type": "suite",
+                            "suite_id": suite.id,
+                        },
+                        report_html=report_html,
+                    )
                 except Exception as e:
                     logger.warning(f"Suite notification failed: {e}")
                 finally:
@@ -584,6 +636,7 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                     plan_run.status = PlanRunStatus.error
                     plan_run.error_message = "测试计划不存在"
                     await db.commit()
+                    _record_run_outcome("plan", plan_run.status)
                     return
 
                 plan_run.status = PlanRunStatus.running
@@ -620,15 +673,17 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                 if plan_config["execution_mode"] == "parallel" and len(valid_items) > 1:
                     stopped = False
                     for start in range(0, len(valid_items), plan_config["max_workers"]):
-                        batch = valid_items[start:start + plan_config["max_workers"]]
-                        batch_results = await asyncio.gather(*(
-                            _execute_plan_suite(
-                                plan_meta=plan_meta,
-                                suite_id=item["suite_id"],
-                                extra_vars=extra_vars,
+                        batch = valid_items[start : start + plan_config["max_workers"]]
+                        batch_results = await asyncio.gather(
+                            *(
+                                _execute_plan_suite(
+                                    plan_meta=plan_meta,
+                                    suite_id=item["suite_id"],
+                                    extra_vars=extra_vars,
+                                )
+                                for item in batch
                             )
-                            for item in batch
-                        ))
+                        )
                         for result in batch_results:
                             if _accumulate(result):
                                 stopped = True
@@ -651,12 +706,14 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                     suite_id = item["suite_id"]
                     if suite_id in executed_suite_ids:
                         continue
-                    suite_run_results.append({
-                        "suite_id": suite_id,
-                        "suite_run_id": None,
-                        "status": "skipped",
-                        "error": "已根据计划失败策略提前停止",
-                    })
+                    suite_run_results.append(
+                        {
+                            "suite_id": suite_id,
+                            "suite_run_id": None,
+                            "status": "skipped",
+                            "error": "已根据计划失败策略提前停止",
+                        }
+                    )
 
                 total_ms = int((time.monotonic() - total_start) * 1000)
                 all_passed = counts["failed"] == 0 and counts["error"] == 0
@@ -667,13 +724,23 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
 
                 if plan.auto_create_bugs and suite_run_results:
                     try:
+                        from sqlalchemy import select
+                        from app.models.case import TestCase, TestRun
                         from app.models.bug_tracker import BugTracker
-                        from app.services.bug_reporter import create_bug, find_duplicate_bug, upload_attachment, build_bug_description
+                        from app.services.bug_reporter import (
+                            create_bug,
+                            find_duplicate_bug,
+                            upload_attachment,
+                            build_bug_description,
+                        )
                         from app.core.minio_client import read_bytes
                         from app.core.encryption import decrypt_config
                         from app.api.v1.exports import _extract_minio_object
+
                         bug_trackers_result = await db.execute(
-                            select(BugTracker).where(BugTracker.project_id == plan.project_id, BugTracker.is_enabled == True)
+                            select(BugTracker).where(
+                                BugTracker.project_id == plan.project_id, BugTracker.is_enabled == True
+                            )
                         )
                         tracker = bug_trackers_result.scalars().first()
                         bug_results = []
@@ -700,7 +767,9 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                                         title,
                                     )
                                     if duplicate:
-                                        bug_results.append({"case_id": case.id, "bug_id": duplicate["bug_id"], "duplicate": True})
+                                        bug_results.append(
+                                            {"case_id": case.id, "bug_id": duplicate["bug_id"], "duplicate": True}
+                                        )
                                         continue
                                     description = build_bug_description(
                                         run_id=case_run.id,
@@ -718,9 +787,13 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                                     attachment_uploaded = False
                                     screenshot_url = None
                                     step_result_query = await db.execute(
-                                        select(__import__('app.models.case', fromlist=['StepResult']).StepResult)
-                                        .where(__import__('app.models.case', fromlist=['StepResult']).StepResult.run_id == case_run.id,
-                                               __import__('app.models.case', fromlist=['StepResult']).StepResult.screenshot_url.isnot(None))
+                                        select(__import__("app.models.case", fromlist=["StepResult"]).StepResult).where(
+                                            __import__("app.models.case", fromlist=["StepResult"]).StepResult.run_id
+                                            == case_run.id,
+                                            __import__(
+                                                "app.models.case", fromlist=["StepResult"]
+                                            ).StepResult.screenshot_url.isnot(None),
+                                        )
                                     )
                                     first_step = step_result_query.scalars().first()
                                     screenshot_url = first_step.screenshot_url if first_step else None
@@ -737,13 +810,15 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                                                 )
                                             except Exception:
                                                 attachment_uploaded = False
-                                    bug_results.append({
-                                        "case_id": case.id,
-                                        "bug_id": created["bug_id"],
-                                        "bug_url": created["bug_url"],
-                                        "duplicate": False,
-                                        "attachment_uploaded": attachment_uploaded,
-                                    })
+                                    bug_results.append(
+                                        {
+                                            "case_id": case.id,
+                                            "bug_id": created["bug_id"],
+                                            "bug_url": created["bug_url"],
+                                            "duplicate": False,
+                                            "attachment_uploaded": attachment_uploaded,
+                                        }
+                                    )
                         plan_run.result_summary = {**counts, **plan_config, "auto_bugs": bug_results}
                     except Exception as e:
                         logger.warning(f"Auto create bugs for plan failed: {e}")
@@ -753,11 +828,13 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                 if plan.schedule_type.value == "cron" and plan.cron_expression:
                     try:
                         from croniter import croniter
+
                         cron = croniter(plan.cron_expression, datetime.now(timezone.utc))
                         plan.next_run_at = cron.get_next(datetime)
                     except Exception:
                         pass
                 await db.commit()
+                _record_run_outcome("plan", plan_run.status)
 
                 # 发送通知
                 try:
@@ -765,22 +842,29 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                         email_html_report_enabled,
                         send_notifications,
                     )
+
                     report_html = None
                     if await email_html_report_enabled(db, plan.project_id):
                         try:
                             from app.api.v1.exports import _build_plan_run_report_html
+
                             report_html = await _build_plan_run_report_html(db, plan_run)
                         except Exception as exc:
                             logger.warning(f"Plan report HTML build failed: {exc}")
-                    await send_notifications(db, plan.project_id, {
-                        "title": f"测试计划「{plan.name}」执行完成",
-                        "status": plan_run.status.value,
-                        **counts,
-                        "duration_ms": total_ms,
-                        "trigger_type": plan_run.trigger_type.value,
-                        "entity_type": "plan",
-                        "plan_id": plan.id,
-                    }, report_html=report_html)
+                    await send_notifications(
+                        db,
+                        plan.project_id,
+                        {
+                            "title": f"测试计划「{plan.name}」执行完成",
+                            "status": plan_run.status.value,
+                            **counts,
+                            "duration_ms": total_ms,
+                            "trigger_type": plan_run.trigger_type.value,
+                            "entity_type": "plan",
+                            "plan_id": plan.id,
+                        },
+                        report_html=report_html,
+                    )
                 except Exception as e:
                     logger.warning(f"Plan notification failed: {e}")
                 finally:
@@ -803,6 +887,7 @@ async def _execute_suite_inline(db, suite_run, suite, extra_vars):
     await _execute_suite_cases(db, suite_run, suite, extra_vars)
     suite_run.duration_ms = int((time.monotonic() - total_start) * 1000)
     await db.commit()
+    _record_run_outcome("suite", suite_run.status)
 
 
 async def _execute_plan_suite(
@@ -850,6 +935,7 @@ async def _execute_plan_suite(
             suite_run.status = SuiteRunStatus.error
             suite_run.error_message = str(exc)[:500]
             await db.commit()
+            _record_run_outcome("suite", suite_run.status)
 
         await db.refresh(suite_run)
         return {
@@ -888,11 +974,10 @@ def check_cron_plans():
                 merged_vars: dict = {}
                 if plan.env_id:
                     from app.models.environment import Environment, EnvVariable
+
                     env = await db.get(Environment, plan.env_id)
                     if env:
-                        ev_result = await db.execute(
-                            select(EnvVariable).where(EnvVariable.env_id == env.id)
-                        )
+                        ev_result = await db.execute(select(EnvVariable).where(EnvVariable.env_id == env.id))
                         merged_vars = decrypt_env_vars(ev_result.scalars().all())
 
                 plan_run = PlanRun(
@@ -908,6 +993,7 @@ def check_cron_plans():
 
                 try:
                     from croniter import croniter
+
                     cron = croniter(plan.cron_expression, now)
                     plan.next_run_at = cron.get_next(datetime)
                 except Exception:

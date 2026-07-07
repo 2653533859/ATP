@@ -10,8 +10,8 @@ def _normalize_path(path: str | None) -> str | None:
         return None
     normalized = path.strip()
     if not normalized:
-        return '/'
-    return '/' + normalized.lstrip('/')
+        return "/"
+    return "/" + normalized.lstrip("/")
 
 
 class MockMatchConditions(BaseModel):
@@ -34,10 +34,10 @@ class MockRuleCreate(BaseModel):
     render_template: bool = False
     record_requests: bool = False
 
-    @field_validator('path')
+    @field_validator("path")
     @classmethod
     def normalize_path(cls, value: str) -> str:
-        return _normalize_path(value) or '/'
+        return _normalize_path(value) or "/"
 
 
 class MockRuleUpdate(BaseModel):
@@ -53,7 +53,7 @@ class MockRuleUpdate(BaseModel):
     render_template: bool | None = None
     record_requests: bool | None = None
 
-    @field_validator('path')
+    @field_validator("path")
     @classmethod
     def normalize_path(cls, value: str | None) -> str | None:
         return _normalize_path(value)

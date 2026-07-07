@@ -11,6 +11,7 @@ Android UI 测试执行器（uiautomator2 + pytest 脚本模式）
   7. 收集截图，上传 MinIO
   8. 清理临时目录
 """
+
 import asyncio
 import json
 import logging
@@ -119,13 +120,15 @@ async def run_android_case(
         # ── 1. 可选：下载并安装 APK ─────────────────────────
         if apk_object_name:
             apk_local = tmpdir / "app.apk"
-            await _safe_publish(run.id, {
-                "type": "step_progress", "run_id": run.id,
-                "message": "正在下载并安装 APK...",
-            })
-            await asyncio.get_event_loop().run_in_executor(
-                None, download_file, apk_object_name, str(apk_local)
+            await _safe_publish(
+                run.id,
+                {
+                    "type": "step_progress",
+                    "run_id": run.id,
+                    "message": "正在下载并安装 APK...",
+                },
             )
+            await asyncio.get_event_loop().run_in_executor(None, download_file, apk_object_name, str(apk_local))
             success, install_msg = await asyncio.get_event_loop().run_in_executor(
                 None, _install_apk, device_serial, str(apk_local)
             )
@@ -138,14 +141,10 @@ async def run_android_case(
 
         # ── 2. 下载脚本 ────────────────────────────────────
         local_script = tmpdir / "test_case.py"
-        await asyncio.get_event_loop().run_in_executor(
-            None, download_file, script_path, str(local_script)
-        )
+        await asyncio.get_event_loop().run_in_executor(None, download_file, script_path, str(local_script))
 
         # ── 3. 生成 conftest.py（注入设备 serial + 环境变量）──
-        env_lines = "\n".join(
-            f'    os.environ[{k!r}] = {v!r}' for k, v in extra_vars.items()
-        )
+        env_lines = "\n".join(f"    os.environ[{k!r}] = {v!r}" for k, v in extra_vars.items())
         conftest = tmpdir / "conftest.py"
         conftest.write_text(
             f"""import os
@@ -169,7 +168,9 @@ def device_serial():
         screenshot_dir.mkdir()
 
         cmd = [
-            sys.executable, "-m", "pytest",
+            sys.executable,
+            "-m",
+            "pytest",
             str(local_script),
             "--json-report",
             f"--json-report-file={report_file}",
@@ -211,9 +212,7 @@ def device_serial():
                     cwd=str(tmpdir),
                 )
                 try:
-                    stdout_b, stderr_b = await asyncio.wait_for(
-                        pytest_proc.communicate(), timeout=timeout_sec
-                    )
+                    stdout_b, stderr_b = await asyncio.wait_for(pytest_proc.communicate(), timeout=timeout_sec)
                 except asyncio.TimeoutError:
                     try:
                         pytest_proc.kill()
@@ -221,9 +220,7 @@ def device_serial():
                         pass
                     # 收集已有输出
                     try:
-                        stdout_b, stderr_b = await asyncio.wait_for(
-                            pytest_proc.communicate(), timeout=5
-                        )
+                        stdout_b, stderr_b = await asyncio.wait_for(pytest_proc.communicate(), timeout=5)
                     except Exception:
                         stdout_b, stderr_b = b"", b""
                     timeout_msg = f"脚本执行超时（>{timeout_sec}秒）"
@@ -237,16 +234,22 @@ def device_serial():
                     )
                     db.add(step_result)
                     await db.commit()
-                    await _safe_publish(run.id, {
-                        "type": "step_result", "run_id": run.id,
-                        "step": {
-                            "step_index": 0, "name": "脚本执行",
-                            "status": RunStatus.error.value,
-                            "duration_ms": step_result.duration_ms,
-                            "request_data": None, "response_data": None,
-                            "error_message": timeout_msg,
+                    await _safe_publish(
+                        run.id,
+                        {
+                            "type": "step_result",
+                            "run_id": run.id,
+                            "step": {
+                                "step_index": 0,
+                                "name": "脚本执行",
+                                "status": RunStatus.error.value,
+                                "duration_ms": step_result.duration_ms,
+                                "request_data": None,
+                                "response_data": None,
+                                "error_message": timeout_msg,
+                            },
                         },
-                    })
+                    )
                     run.status = RunStatus.error
                     run.error_message = timeout_msg
                     run.duration_ms = step_result.duration_ms
@@ -271,16 +274,22 @@ def device_serial():
             )
             db.add(step_result)
             await db.commit()
-            await _safe_publish(run.id, {
-                "type": "step_result", "run_id": run.id,
-                "step": {
-                    "step_index": 0, "name": "脚本执行",
-                    "status": RunStatus.error.value,
-                    "duration_ms": step_result.duration_ms,
-                    "request_data": None, "response_data": None,
-                    "error_message": err_msg,
+            await _safe_publish(
+                run.id,
+                {
+                    "type": "step_result",
+                    "run_id": run.id,
+                    "step": {
+                        "step_index": 0,
+                        "name": "脚本执行",
+                        "status": RunStatus.error.value,
+                        "duration_ms": step_result.duration_ms,
+                        "request_data": None,
+                        "response_data": None,
+                        "error_message": err_msg,
+                    },
                 },
-            })
+            )
             run.status = RunStatus.error
             run.error_message = err_msg
             run.duration_ms = step_result.duration_ms
@@ -307,16 +316,22 @@ def device_serial():
             )
             db.add(step_result)
             await db.commit()
-            await _safe_publish(run.id, {
-                "type": "step_result", "run_id": run.id,
-                "step": {
-                    "step_index": 0, "name": "脚本执行",
-                    "status": RunStatus.error.value,
-                    "duration_ms": step_result.duration_ms,
-                    "request_data": None, "response_data": None,
-                    "error_message": device_lost_msg,
+            await _safe_publish(
+                run.id,
+                {
+                    "type": "step_result",
+                    "run_id": run.id,
+                    "step": {
+                        "step_index": 0,
+                        "name": "脚本执行",
+                        "status": RunStatus.error.value,
+                        "duration_ms": step_result.duration_ms,
+                        "request_data": None,
+                        "response_data": None,
+                        "error_message": device_lost_msg,
+                    },
                 },
-            })
+            )
             run.status = RunStatus.error
             run.error_message = device_lost_msg[:500]
             run.duration_ms = step_result.duration_ms
@@ -344,16 +359,22 @@ def device_serial():
             )
             db.add(step_result)
             await db.commit()
-            await _safe_publish(run.id, {
-                "type": "step_result", "run_id": run.id,
-                "step": {
-                    "step_index": 0, "name": "脚本执行",
-                    "status": RunStatus.error.value,
-                    "duration_ms": step_result.duration_ms,
-                    "request_data": None, "response_data": None,
-                    "error_message": step_result.error_message,
+            await _safe_publish(
+                run.id,
+                {
+                    "type": "step_result",
+                    "run_id": run.id,
+                    "step": {
+                        "step_index": 0,
+                        "name": "脚本执行",
+                        "status": RunStatus.error.value,
+                        "duration_ms": step_result.duration_ms,
+                        "request_data": None,
+                        "response_data": None,
+                        "error_message": step_result.error_message,
+                    },
                 },
-            })
+            )
             run.status = RunStatus.error
             run.error_message = error_msg[:500]
             run.duration_ms = step_result.duration_ms
@@ -386,9 +407,7 @@ def device_serial():
             test_node = test.get("nodeid", "").split("::")[-1]
             for img_path in screenshot_dir.glob(f"*{test_node}*.png"):
                 obj_name = f"screenshots/runs/{run.id}/step_{idx}.png"
-                await asyncio.get_event_loop().run_in_executor(
-                    None, upload_file, obj_name, str(img_path), "image/png"
-                )
+                await asyncio.get_event_loop().run_in_executor(None, upload_file, obj_name, str(img_path), "image/png")
                 screenshot_url = presigned_url(obj_name)
                 break
             # 也扫描 tmpdir 中可能的截图
@@ -417,19 +436,23 @@ def device_serial():
             if needs_healing:
                 enqueue_diagnosis(step_result.id)
 
-            await _safe_publish(run.id, {
-                "type": "step_result", "run_id": run.id,
-                "step": {
-                    "step_index": idx,
-                    "name": step_result.name,
-                    "status": status.value,
-                    "duration_ms": duration_ms,
-                    "request_data": None,
-                    "response_data": step_result.response_data,
-                    "error_message": error_message,
-                    "screenshot_url": screenshot_url,
+            await _safe_publish(
+                run.id,
+                {
+                    "type": "step_result",
+                    "run_id": run.id,
+                    "step": {
+                        "step_index": idx,
+                        "name": step_result.name,
+                        "status": status.value,
+                        "duration_ms": duration_ms,
+                        "request_data": None,
+                        "response_data": step_result.response_data,
+                        "error_message": error_message,
+                        "screenshot_url": screenshot_url,
+                    },
                 },
-            })
+            )
 
     except Exception as e:
         logger.exception("android_executor run %s error: %s", run.id, e)
@@ -447,9 +470,12 @@ def device_serial():
     # iter3 多 step 综合诊断
     await maybe_enqueue_run_healing(db, run)
 
-    await _safe_publish(run.id, {
-        "type": "completed",
-        "run_id": run.id,
-        "status": run.status.value,
-        "duration_ms": total_ms,
-    })
+    await _safe_publish(
+        run.id,
+        {
+            "type": "completed",
+            "run_id": run.id,
+            "status": run.status.value,
+            "duration_ms": total_ms,
+        },
+    )

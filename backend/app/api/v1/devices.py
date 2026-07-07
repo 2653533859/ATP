@@ -41,9 +41,7 @@ async def scan_devices(
     await db.commit()
 
     # 返回最新设备列表
-    result = await db.execute(
-        select(Device).order_by(Device.status.asc(), Device.updated_at.desc())
-    )
+    result = await db.execute(select(Device).order_by(Device.status.asc(), Device.updated_at.desc()))
     return result.scalars().all()
 
 

@@ -1,4 +1,5 @@
 """cases 包 - 执行触发与 run 查询端点。"""
+
 from __future__ import annotations
 
 import base64
@@ -107,8 +108,7 @@ async def list_runs(
         cursor_ts, cursor_id = _decode_cursor(cursor)
         keyset_query = (
             base.where(
-                (TestRun.created_at < cursor_ts)
-                | ((TestRun.created_at == cursor_ts) & (TestRun.id < cursor_id))
+                (TestRun.created_at < cursor_ts) | ((TestRun.created_at == cursor_ts) & (TestRun.id < cursor_id))
             )
             .order_by(TestRun.created_at.desc(), TestRun.id.desc())
             .limit(limit + 1)
@@ -181,9 +181,7 @@ async def submit_healing_feedback(
 
     from app.models.case import StepResult
 
-    result = await db.execute(
-        select(StepResult).where(StepResult.id == step_id, StepResult.run_id == run_id)
-    )
+    result = await db.execute(select(StepResult).where(StepResult.id == step_id, StepResult.run_id == run_id))
     step = result.scalar_one_or_none()
     if step is None:
         raise HTTPException(status_code=404, detail="step 不存在或不属于该 run")

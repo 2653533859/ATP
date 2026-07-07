@@ -1,4 +1,5 @@
 """P3.C audit service 单测：write_audit_log(project_id=...) 写字段；异常吞掉。"""
+
 import asyncio
 import sys
 import types

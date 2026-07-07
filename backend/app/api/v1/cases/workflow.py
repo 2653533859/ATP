@@ -1,4 +1,5 @@
 """cases 包 - 审批工作流 + 快照/回滚。"""
+
 from __future__ import annotations
 
 import copy
@@ -152,11 +153,7 @@ async def list_snapshots(
                 conds.append(CaseSnapshot.version == int(keyword))
             base_where.append(or_(*conds))
 
-    total = await db.scalar(
-        select(func.count()).select_from(
-            select(CaseSnapshot.id).where(*base_where).subquery()
-        )
-    )
+    total = await db.scalar(select(func.count()).select_from(select(CaseSnapshot.id).where(*base_where).subquery()))
     result = await db.execute(
         select(CaseSnapshot, User.username)
         .outerjoin(User, CaseSnapshot.updated_by == User.id)
@@ -279,14 +276,18 @@ async def diff_snapshots(
     """比较两个版本，返回字段级 diff。to_version=0 时与当前用例对比。"""
     await _cases._get_case_detail_or_404(db, case_id)
 
-    from_snap = (await db.execute(
-        select(CaseSnapshot).where(CaseSnapshot.case_id == case_id, CaseSnapshot.version == from_version)
-    )).scalar_one_or_none()
+    from_snap = (
+        await db.execute(
+            select(CaseSnapshot).where(CaseSnapshot.case_id == case_id, CaseSnapshot.version == from_version)
+        )
+    ).scalar_one_or_none()
     if not from_snap:
         raise HTTPException(status_code=404, detail=f"快照版本 {from_version} 不存在")
-    to_snap = (await db.execute(
-        select(CaseSnapshot).where(CaseSnapshot.case_id == case_id, CaseSnapshot.version == to_version)
-    )).scalar_one_or_none()
+    to_snap = (
+        await db.execute(
+            select(CaseSnapshot).where(CaseSnapshot.case_id == case_id, CaseSnapshot.version == to_version)
+        )
+    ).scalar_one_or_none()
     if not to_snap:
         raise HTTPException(status_code=404, detail=f"快照版本 {to_version} 不存在")
 

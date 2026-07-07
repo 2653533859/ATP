@@ -2,6 +2,7 @@
 
 对外只暴露 ``parse_schema(source_type, content) -> ParseResult``。
 """
+
 from __future__ import annotations
 
 import json
@@ -74,10 +75,7 @@ def _example_from_schema(schema: dict | None) -> Any:
     if type_ == "array":
         return [_example_from_schema(schema.get("items"))]
     if type_ == "object" or schema.get("properties"):
-        return {
-            name: _example_from_schema(sub)
-            for name, sub in (schema.get("properties") or {}).items()
-        }
+        return {name: _example_from_schema(sub) for name, sub in (schema.get("properties") or {}).items()}
     return None
 
 
@@ -101,7 +99,7 @@ def parse_openapi(content: str) -> ParseResult:
             if method.lower() not in valid_methods or not isinstance(op, dict):
                 continue
             params: list[EndpointParameter] = []
-            for raw in (common_params + (op.get("parameters") or [])):
+            for raw in common_params + (op.get("parameters") or []):
                 if not isinstance(raw, dict):
                     continue
                 schema = raw.get("schema") or {}
@@ -122,9 +120,7 @@ def parse_openapi(content: str) -> ParseResult:
                 content_map = body.get("content") or {}
                 json_media = content_map.get("application/json") or {}
                 if isinstance(json_media, dict):
-                    body_example = json_media.get("example") or _example_from_schema(
-                        json_media.get("schema")
-                    )
+                    body_example = json_media.get("example") or _example_from_schema(json_media.get("schema"))
 
             resp_example: Any = None
             responses = op.get("responses") or {}
@@ -134,9 +130,7 @@ def parse_openapi(content: str) -> ParseResult:
                     content_map = resp.get("content") or {}
                     json_media = content_map.get("application/json") or {}
                     if isinstance(json_media, dict):
-                        resp_example = json_media.get("example") or _example_from_schema(
-                            json_media.get("schema")
-                        )
+                        resp_example = json_media.get("example") or _example_from_schema(json_media.get("schema"))
                         if resp_example is not None:
                             break
 
@@ -269,7 +263,7 @@ def parse_curl(content: str) -> ParseResult:
     path = parsed.path or "/"
 
     method = "GET"
-    if (m := _CURL_METHOD_RE.search(raw)):
+    if m := _CURL_METHOD_RE.search(raw):
         method = m.group(1).upper()
 
     params: list[EndpointParameter] = []
@@ -284,7 +278,7 @@ def parse_curl(content: str) -> ParseResult:
         )
 
     body_example: Any = None
-    if (m := _CURL_DATA_RE.search(raw)):
+    if m := _CURL_DATA_RE.search(raw):
         body_raw = m.group(2)
         method = method if method != "GET" else "POST"
         try:
@@ -384,11 +378,7 @@ def _endpoint_from_sample_object(obj: dict) -> Endpoint:
         else None
     )
     response_example = (
-        obj.get("response_body")
-        if "response_body" in obj
-        else obj.get("response")
-        if "response" in obj
-        else None
+        obj.get("response_body") if "response_body" in obj else obj.get("response") if "response" in obj else None
     )
     return Endpoint(
         method=method,

@@ -129,8 +129,7 @@ def _resolve_date_col(created_at_col, aggregate: str):
 def _apply_project_filter(stmt, project_id: int | None):
     if project_id is not None:
         stmt = (
-            stmt
-            .join(TestCase, TestRun.case_id == TestCase.id)
+            stmt.join(TestCase, TestRun.case_id == TestCase.id)
             .join(Module, TestCase.module_id == Module.id)
             .where(Module.project_id == project_id)
         )
@@ -176,11 +175,7 @@ async def get_overview(
 ):
     case_q = select(func.count(TestCase.id))
     if project_id is not None:
-        case_q = (
-            case_q
-            .join(Module, TestCase.module_id == Module.id)
-            .where(Module.project_id == project_id)
-        )
+        case_q = case_q.join(Module, TestCase.module_id == Module.id).where(Module.project_id == project_id)
     total_cases = (await db.execute(case_q)).scalar() or 0
 
     since = _since(days)

@@ -1,4 +1,5 @@
 """HTTP performance testing API thin slice."""
+
 from __future__ import annotations
 
 import re
@@ -125,11 +126,7 @@ def _target_hosts_from_options(options: dict) -> set[str]:
 
 
 def _allowed_performance_hosts() -> set[str]:
-    return {
-        item.strip().lower()
-        for item in settings.PERFORMANCE_TARGET_ALLOWLIST.split(",")
-        if item.strip()
-    }
+    return {item.strip().lower() for item in settings.PERFORMANCE_TARGET_ALLOWLIST.split(",") if item.strip()}
 
 
 def _host_allowed(host: str, allowed: set[str]) -> bool:
@@ -164,9 +161,7 @@ async def list_performance_tests(
     _: User = Depends(require_project_access(ProjectRole.viewer)),
 ):
     result = await db.execute(
-        select(PerformanceTest)
-        .where(PerformanceTest.project_id == project_id)
-        .order_by(PerformanceTest.id.desc())
+        select(PerformanceTest).where(PerformanceTest.project_id == project_id).order_by(PerformanceTest.id.desc())
     )
     return result.scalars().all()
 

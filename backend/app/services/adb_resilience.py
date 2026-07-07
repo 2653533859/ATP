@@ -10,6 +10,7 @@
   - 所有外部行为可被 ADB_* 配置开关一键关闭，确保向后兼容
   - serial 形如 "ip:port" 才会尝试 disconnect/connect；USB serial 仅做探活
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -37,9 +38,7 @@ ADB_TIMEOUT_SENTINEL = "__adb_timeout__"
 def is_adb_timeout(proc: subprocess.CompletedProcess | None) -> bool:
     """判断 CompletedProcess 是否为 safe_run_adb 的超时占位结果。"""
     return (
-        proc is not None
-        and proc.returncode == ADB_TIMEOUT_RETURNCODE
-        and (proc.stderr or "") == ADB_TIMEOUT_SENTINEL
+        proc is not None and proc.returncode == ADB_TIMEOUT_RETURNCODE and (proc.stderr or "") == ADB_TIMEOUT_SENTINEL
     )
 
 
@@ -66,9 +65,7 @@ def _run_adb_raw(args: Sequence[str], timeout: int) -> tuple[int | None, str, st
     """同步执行 adb 命令，返回 (returncode, stdout, stderr)；FileNotFoundError 时 returncode=None"""
     cmd = ["adb", *args]
     try:
-        proc = subprocess.run(
-            cmd, capture_output=True, text=True, timeout=timeout
-        )
+        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
         return proc.returncode, (proc.stdout or "").strip(), (proc.stderr or "").strip()
     except FileNotFoundError:
         return None, "", "adb_not_found"
@@ -204,9 +201,7 @@ def safe_run_adb(
 
     for attempt in range(attempts):
         try:
-            proc = subprocess.run(
-                cmd, capture_output=True, text=True, timeout=timeout
-            )
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
             last_proc = proc
             if proc.returncode == 0:
                 return proc
@@ -215,7 +210,10 @@ def safe_run_adb(
             return None
         except subprocess.TimeoutExpired:
             last_proc = subprocess.CompletedProcess(
-                cmd, returncode=ADB_TIMEOUT_RETURNCODE, stdout="", stderr=ADB_TIMEOUT_SENTINEL,
+                cmd,
+                returncode=ADB_TIMEOUT_RETURNCODE,
+                stdout="",
+                stderr=ADB_TIMEOUT_SENTINEL,
             )
 
         if attempt >= attempts - 1:
@@ -225,7 +223,8 @@ def safe_run_adb(
             if not ok:
                 logger.warning(
                     "safe_run_adb retry skipped: device %s still unreachable: %s",
-                    serial, message,
+                    serial,
+                    message,
                 )
                 break
 
@@ -258,22 +257,12 @@ class HeartbeatMonitor:
     ) -> None:
         self.serial = serial
         self.on_lost = on_lost
-        self.interval_sec = (
-            interval_sec
-            if interval_sec is not None
-            else settings.ADB_HEARTBEAT_INTERVAL_SEC
-        )
+        self.interval_sec = interval_sec if interval_sec is not None else settings.ADB_HEARTBEAT_INTERVAL_SEC
         self.failure_threshold = max(
             1,
-            failure_threshold
-            if failure_threshold is not None
-            else settings.ADB_HEARTBEAT_FAILURE_THRESHOLD,
+            failure_threshold if failure_threshold is not None else settings.ADB_HEARTBEAT_FAILURE_THRESHOLD,
         )
-        self._enabled = (
-            enabled
-            if enabled is not None
-            else (settings.ADB_HEARTBEAT_ENABLED and bool(serial))
-        )
+        self._enabled = enabled if enabled is not None else (settings.ADB_HEARTBEAT_ENABLED and bool(serial))
         self._executor_label = executor_label
         self.lost: bool = False
         self.lost_reason: str | None = None
@@ -310,9 +299,7 @@ class HeartbeatMonitor:
         loop = asyncio.get_event_loop()
         while not self._stop_event.is_set():
             try:
-                await asyncio.wait_for(
-                    self._stop_event.wait(), timeout=self.interval_sec
-                )
+                await asyncio.wait_for(self._stop_event.wait(), timeout=self.interval_sec)
                 break  # 收到停止信号
             except asyncio.TimeoutError:
                 pass
@@ -321,8 +308,11 @@ class HeartbeatMonitor:
                 break
 
             try:
+                serial = self.serial
+                if not serial:
+                    break
                 ok, message = await loop.run_in_executor(
-                    None, lambda: ensure_reachable(self.serial, max_attempts=1, reconnect=False)
+                    None, lambda: ensure_reachable(serial, max_attempts=1, reconnect=False)
                 )
             except Exception as e:
                 logger.debug("heartbeat probe error: %s", e)
@@ -335,7 +325,10 @@ class HeartbeatMonitor:
             self._failure_count += 1
             logger.warning(
                 "HeartbeatMonitor: %s probe failure %d/%d (%s)",
-                self.serial, self._failure_count, self.failure_threshold, message,
+                self.serial,
+                self._failure_count,
+                self.failure_threshold,
+                message,
             )
             if self._failure_count >= self.failure_threshold and not self._triggered:
                 self._triggered = True

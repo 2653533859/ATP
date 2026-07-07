@@ -30,9 +30,7 @@ def test_compose_has_explicit_migration_gate():
 
 
 def test_helm_chart_has_preinstall_migration_job():
-    content = (
-        ROOT / "deploy" / "helm" / "atp" / "templates" / "migrate-job.yaml"
-    ).read_text(encoding="utf-8")
+    content = (ROOT / "deploy" / "helm" / "atp" / "templates" / "migrate-job.yaml").read_text(encoding="utf-8")
 
     assert "kind: Job" in content
     assert "helm.sh/hook" in content

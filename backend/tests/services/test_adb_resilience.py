@@ -5,6 +5,7 @@
   - safe_run_adb 成功 / 非零重试 / TimeoutExpired 重试 / adb 不存在
   - HeartbeatMonitor 健康 / 连续失败触发 callback / async callback / callback 异常不冒泡 / 上下文退出取消 task
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -20,6 +21,7 @@ from app.services import adb_resilience as adb_r
 
 
 # ---------- helpers ----------
+
 
 class _FakeProc:
     def __init__(self, returncode=0, stdout="device", stderr=""):
@@ -46,6 +48,7 @@ def _make_subprocess_run(scripted: list):
 
 # ---------- ensure_reachable ----------
 
+
 def test_ensure_reachable_first_attempt_success(monkeypatch):
     monkeypatch.setattr(
         adb_r.subprocess,
@@ -67,12 +70,14 @@ def test_ensure_reachable_recovers_on_second_attempt(monkeypatch):
     monkeypatch.setattr(
         adb_r.subprocess,
         "run",
-        _make_subprocess_run([
-            _FakeProc(returncode=0, stdout="offline"),
-            _FakeProc(returncode=0, stdout=""),  # disconnect
-            _FakeProc(returncode=0, stdout="connected to 192.168.1.10:5555"),
-            _FakeProc(returncode=0, stdout="device"),
-        ]),
+        _make_subprocess_run(
+            [
+                _FakeProc(returncode=0, stdout="offline"),
+                _FakeProc(returncode=0, stdout=""),  # disconnect
+                _FakeProc(returncode=0, stdout="connected to 192.168.1.10:5555"),
+                _FakeProc(returncode=0, stdout="device"),
+            ]
+        ),
     )
     monkeypatch.setattr(adb_r.time, "sleep", lambda *_: None)
 
@@ -87,15 +92,17 @@ def test_ensure_reachable_exhausts_attempts(monkeypatch):
     monkeypatch.setattr(
         adb_r.subprocess,
         "run",
-        _make_subprocess_run([
-            _FakeProc(returncode=0, stdout="offline"),
-            _FakeProc(returncode=0, stdout=""),  # disconnect
-            _FakeProc(returncode=1, stdout="", stderr="cannot connect"),  # connect failed
-            _FakeProc(returncode=0, stdout="offline"),
-            _FakeProc(returncode=0, stdout=""),
-            _FakeProc(returncode=1, stdout="", stderr="cannot connect"),
-            _FakeProc(returncode=0, stdout="offline"),
-        ]),
+        _make_subprocess_run(
+            [
+                _FakeProc(returncode=0, stdout="offline"),
+                _FakeProc(returncode=0, stdout=""),  # disconnect
+                _FakeProc(returncode=1, stdout="", stderr="cannot connect"),  # connect failed
+                _FakeProc(returncode=0, stdout="offline"),
+                _FakeProc(returncode=0, stdout=""),
+                _FakeProc(returncode=1, stdout="", stderr="cannot connect"),
+                _FakeProc(returncode=0, stdout="offline"),
+            ]
+        ),
     )
     monkeypatch.setattr(adb_r.time, "sleep", lambda *_: None)
 
@@ -182,6 +189,7 @@ def test_ensure_reachable_adb_not_found(monkeypatch):
 
 # ---------- safe_run_adb ----------
 
+
 def test_safe_run_adb_success_first_try(monkeypatch):
     monkeypatch.setattr(
         adb_r.subprocess,
@@ -201,11 +209,13 @@ def test_safe_run_adb_retries_after_failure(monkeypatch):
     monkeypatch.setattr(
         adb_r.subprocess,
         "run",
-        _make_subprocess_run([
-            _FakeProc(returncode=1, stdout="", stderr="error"),
-            _FakeProc(returncode=0, stdout="device"),  # ensure_reachable
-            _FakeProc(returncode=0, stdout="ok"),
-        ]),
+        _make_subprocess_run(
+            [
+                _FakeProc(returncode=1, stdout="", stderr="error"),
+                _FakeProc(returncode=0, stdout="device"),  # ensure_reachable
+                _FakeProc(returncode=0, stdout="ok"),
+            ]
+        ),
     )
     monkeypatch.setattr(adb_r.time, "sleep", lambda *_: None)
 
@@ -219,11 +229,13 @@ def test_safe_run_adb_timeout_retries(monkeypatch):
     monkeypatch.setattr(
         adb_r.subprocess,
         "run",
-        _make_subprocess_run([
-            subprocess.TimeoutExpired(cmd="adb", timeout=10),
-            _FakeProc(returncode=0, stdout="device"),
-            _FakeProc(returncode=0, stdout="ok"),
-        ]),
+        _make_subprocess_run(
+            [
+                subprocess.TimeoutExpired(cmd="adb", timeout=10),
+                _FakeProc(returncode=0, stdout="device"),
+                _FakeProc(returncode=0, stdout="ok"),
+            ]
+        ),
     )
     monkeypatch.setattr(adb_r.time, "sleep", lambda *_: None)
 
@@ -238,9 +250,11 @@ def test_safe_run_adb_timeout_sentinel(monkeypatch):
     monkeypatch.setattr(
         adb_r.subprocess,
         "run",
-        _make_subprocess_run([
-            subprocess.TimeoutExpired(cmd="adb", timeout=10),
-        ]),
+        _make_subprocess_run(
+            [
+                subprocess.TimeoutExpired(cmd="adb", timeout=10),
+            ]
+        ),
     )
     monkeypatch.setattr(adb_r.time, "sleep", lambda *_: None)
 
@@ -266,15 +280,14 @@ def test_safe_run_adb_returns_none_when_adb_missing(monkeypatch):
 
 # ---------- HeartbeatMonitor ----------
 
+
 def _run_async(coro):
     """同步运行协程；不依赖 pytest-asyncio（环境未必安装）"""
     return asyncio.run(coro)
 
 
 def test_heartbeat_no_failure_does_not_trigger(monkeypatch):
-    monkeypatch.setattr(
-        adb_r, "ensure_reachable", lambda *a, **kw: (True, "ok")
-    )
+    monkeypatch.setattr(adb_r, "ensure_reachable", lambda *a, **kw: (True, "ok"))
 
     triggered = []
 
@@ -296,9 +309,7 @@ def test_heartbeat_no_failure_does_not_trigger(monkeypatch):
 
 
 def test_heartbeat_triggers_after_threshold(monkeypatch):
-    monkeypatch.setattr(
-        adb_r, "ensure_reachable", lambda *a, **kw: (False, "offline")
-    )
+    monkeypatch.setattr(adb_r, "ensure_reachable", lambda *a, **kw: (False, "offline"))
 
     triggered: list[str] = []
 
@@ -324,9 +335,7 @@ def test_heartbeat_triggers_after_threshold(monkeypatch):
 
 
 def test_heartbeat_async_callback(monkeypatch):
-    monkeypatch.setattr(
-        adb_r, "ensure_reachable", lambda *a, **kw: (False, "offline")
-    )
+    monkeypatch.setattr(adb_r, "ensure_reachable", lambda *a, **kw: (False, "offline"))
 
     triggered: list[str] = []
 
@@ -355,9 +364,7 @@ def test_heartbeat_async_callback(monkeypatch):
 
 
 def test_heartbeat_callback_exception_swallowed(monkeypatch):
-    monkeypatch.setattr(
-        adb_r, "ensure_reachable", lambda *a, **kw: (False, "offline")
-    )
+    monkeypatch.setattr(adb_r, "ensure_reachable", lambda *a, **kw: (False, "offline"))
 
     def _bad_cb(reason: str):
         raise RuntimeError("boom")

@@ -5,12 +5,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 
 def _migration_path() -> Path:
-    return (
-        Path(__file__).resolve().parents[2]
-        / "alembic"
-        / "versions"
-        / "20260527_0030_add_dashboard_alerts.py"
-    )
+    return Path(__file__).resolve().parents[2] / "alembic" / "versions" / "20260527_0030_add_dashboard_alerts.py"
 
 
 def test_dashboard_alerts_migration_chain_position():

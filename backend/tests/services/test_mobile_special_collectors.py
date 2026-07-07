@@ -1,4 +1,5 @@
 """Tests for mobile_special collectors."""
+
 import sys
 from pathlib import Path
 
@@ -58,14 +59,12 @@ class TestAdbClientCommands:
     def test_run_adb_shell_returns_none_on_error(self, monkeypatch):
         # Mock subprocess.run to simulate ADB failure
         import subprocess
+
         def fake_run(*args, **kwargs):
-            result = type('obj', (object,), {
-                'returncode': 1,
-                'stderr': 'error',
-                'stdout': ''
-            })()
+            result = type("obj", (object,), {"returncode": 1, "stderr": "error", "stdout": ""})()
             return result
-        monkeypatch.setattr(subprocess, 'run', fake_run)
+
+        monkeypatch.setattr(subprocess, "run", fake_run)
 
         result = run_adb_shell("emulator-5554", ["shell", "echo", "test"])
         assert result is None

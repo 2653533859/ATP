@@ -6,6 +6,7 @@
 - HeartbeatMonitor 触发 on_lost 时 inc ADB_HEARTBEAT_LOST_TOTAL 并带 executor label
 - 指标埋点失败不影响主流程
 """
+
 from __future__ import annotations
 
 import asyncio
@@ -27,6 +28,7 @@ class _FakeProc:
 
 
 # ---------- helpers ----------
+
 
 class _CallCounter:
     """记录 labels(...).inc() 调用，便于断言。"""
@@ -62,6 +64,7 @@ class _ObserveTracker:
 
 
 # ---------- ensure_reachable 埋点 ----------
+
 
 def test_ensure_reachable_success_inc_success_label(monkeypatch):
     counter = _CallCounter()
@@ -140,6 +143,7 @@ def test_ensure_reachable_usb_serial_marks_not_tcp(monkeypatch):
 
 def test_ensure_reachable_metric_emit_failure_does_not_propagate(monkeypatch):
     """埋点失败不应影响主流程。"""
+
     class _BrokenCounter:
         def labels(self, **_kwargs):
             raise RuntimeError("metric boom")
@@ -166,6 +170,7 @@ def test_ensure_reachable_metric_emit_failure_does_not_propagate(monkeypatch):
 
 # ---------- HeartbeatMonitor 埋点 ----------
 
+
 def _run_async(coro):
     return asyncio.run(coro)
 
@@ -173,9 +178,7 @@ def _run_async(coro):
 def test_heartbeat_lost_increments_executor_label(monkeypatch):
     counter = _CallCounter()
     monkeypatch.setattr(adb_r, "ADB_HEARTBEAT_LOST_TOTAL", counter)
-    monkeypatch.setattr(
-        adb_r, "ensure_reachable", lambda *a, **kw: (False, "offline")
-    )
+    monkeypatch.setattr(adb_r, "ensure_reachable", lambda *a, **kw: (False, "offline"))
 
     async def _scenario():
         async with adb_r.HeartbeatMonitor(
@@ -199,6 +202,7 @@ def test_heartbeat_lost_increments_executor_label(monkeypatch):
 
 def test_heartbeat_metric_emit_failure_does_not_skip_callback(monkeypatch):
     """埋点失败时回调仍应正常触发。"""
+
     class _BrokenCounter:
         def labels(self, **_kwargs):
             raise RuntimeError("metric boom")
@@ -207,9 +211,7 @@ def test_heartbeat_metric_emit_failure_does_not_skip_callback(monkeypatch):
             pass
 
     monkeypatch.setattr(adb_r, "ADB_HEARTBEAT_LOST_TOTAL", _BrokenCounter())
-    monkeypatch.setattr(
-        adb_r, "ensure_reachable", lambda *a, **kw: (False, "offline")
-    )
+    monkeypatch.setattr(adb_r, "ensure_reachable", lambda *a, **kw: (False, "offline"))
 
     triggered: list[str] = []
 
@@ -235,6 +237,7 @@ def test_heartbeat_metric_emit_failure_does_not_skip_callback(monkeypatch):
 
 
 # ---------- metrics module 导出 ----------
+
 
 def test_metrics_module_exposes_adb_symbols():
     """A.3.2 新增指标必须可 import。"""

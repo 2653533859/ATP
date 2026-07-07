@@ -5,6 +5,7 @@
 - editor: 创建/编辑/删除资源、触发执行
 - viewer: 只读
 """
+
 import enum
 from datetime import datetime
 
@@ -33,9 +34,7 @@ def role_satisfies(actual: ProjectRole, required: ProjectRole) -> bool:
 
 class UserProject(Base):
     __tablename__ = "user_projects"
-    __table_args__ = (
-        UniqueConstraint("user_id", "project_id", name="uq_user_projects_user_project"),
-    )
+    __table_args__ = (UniqueConstraint("user_id", "project_id", name="uq_user_projects_user_project"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)

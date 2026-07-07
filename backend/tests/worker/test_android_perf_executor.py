@@ -1,4 +1,5 @@
 """Tests for android_perf_executor."""
+
 import sys
 import types
 from pathlib import Path
@@ -137,6 +138,7 @@ class TestHeartbeatIntegration:
 
         # 缩短心跳间隔与阈值，让用例快速触发掉线
         from app.core.config import settings
+
         monkeypatch.setattr(settings, "ADB_HEARTBEAT_INTERVAL_SEC", 0)
         monkeypatch.setattr(settings, "ADB_HEARTBEAT_FAILURE_THRESHOLD", 1)
 
@@ -154,6 +156,7 @@ class TestHeartbeatIntegration:
 def _async_return(value):
     async def _fn(*args, **kwargs):
         return value
+
     return _fn
 
 

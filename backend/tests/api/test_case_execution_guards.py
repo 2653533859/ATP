@@ -19,6 +19,7 @@ async def _noop_invalidate_stats_cache():
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 
+
 def _p3c_noop(*_a, **_kw):
     return None
 
@@ -26,12 +27,15 @@ def _p3c_noop(*_a, **_kw):
 async def _p3c_noop_async(*_a, **_kw):
     return None
 
-sys.modules["app.api.deps"] = types.SimpleNamespace(get_current_user=lambda: None, require_engineer=lambda: None,
-        require_admin=_p3c_noop,
-        require_project_access=lambda *a, **kw: _p3c_noop,
-        assert_project_access=_p3c_noop_async,
-        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
-    )
+
+sys.modules["app.api.deps"] = types.SimpleNamespace(
+    get_current_user=lambda: None,
+    require_engineer=lambda: None,
+    require_admin=_p3c_noop,
+    require_project_access=lambda *a, **kw: _p3c_noop,
+    assert_project_access=_p3c_noop_async,
+    ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+)
 sys.modules["app.api.v1.statistics"] = types.SimpleNamespace(invalidate_stats_cache=_noop_invalidate_stats_cache)
 sys.modules["app.core.tracing"] = types.SimpleNamespace(
     get_trace_id=lambda: None,
@@ -44,6 +48,7 @@ sys.modules["app.worker.tasks"] = types.SimpleNamespace(
 )
 
 from app.api.v1 import cases
+
 sys.modules["app.core.tracing"] = _REAL_TRACING
 from app.models.bootstrap import load_all_models
 from app.models.case import CaseStatus, CaseType, RunStatus, TestCase
@@ -172,7 +177,11 @@ def test_trigger_run_accepts_ready_case_and_dispatches_worker(monkeypatch):
     monkeypatch.setattr(
         cases,
         "run_test_case",
-        types.SimpleNamespace(delay=lambda run_id, extra_vars, trace_id: delayed.update(run_id=run_id, extra_vars=extra_vars, trace_id=trace_id)),
+        types.SimpleNamespace(
+            delay=lambda run_id, extra_vars, trace_id: delayed.update(
+                run_id=run_id, extra_vars=extra_vars, trace_id=trace_id
+            )
+        ),
     )
 
     result = asyncio.run(

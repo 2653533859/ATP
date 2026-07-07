@@ -1,6 +1,6 @@
 # ATP 可观测性指引（Prometheus + Grafana）
 
-本文档说明 ATP 平台的 metrics 维度可观测性组件如何启动、查询与扩展。指标维度（Prometheus + Grafana）与链路维度（OpenTelemetry + Jaeger）正交互补 — trace 维度参见 `docs/tracing-guide.md`。当前预置看板覆盖慢查询、队列积压、接口错误率与 MinIO 使用量。
+本文档说明 ATP 平台的 metrics 维度可观测性组件如何启动、查询与扩展。指标维度（Prometheus + Grafana）与链路维度（OpenTelemetry + Jaeger）正交互补 — trace 维度参见 `docs/tracing-guide.md`。当前预置看板覆盖慢查询、队列积压、接口错误率、MinIO 使用量与 Q10 SLO 薄切。SLO 目标、PromQL 与错误预算口径见 `docs/slo-guide.md`。
 
 ## 一、启停
 
@@ -46,6 +46,7 @@ docker compose up -d           # 不含 prometheus/grafana/celery-exporter
 | `atp_run_retention_deleted_total` | Counter | `model` | 归档清理删除的 run 数 |
 | `atp_storage_total_bytes` | Gauge | `bucket` | MinIO bucket 当前占用字节数 |
 | `atp_storage_total_objects` | Gauge | `bucket` | MinIO bucket 当前对象数量 |
+| `atp_run_outcomes_total` | Counter | `entity_type=case/suite/plan`, `status=passed/failed/error/skipped` | 终态执行结果，用于 run 成功率 SLO |
 | `atp_adb_reconnect_total` | Counter | `result=success/failure/not_tcp_serial/adb_not_found` | ADB ensure_reachable 调用结果分布（Q7 A.3.2） |
 | `atp_adb_heartbeat_lost_total` | Counter | `executor=android/perf/stability/fluency` | 心跳监控判定设备失联次数 |
 | `atp_adb_ensure_reachable_duration_seconds` | Histogram | — | 可达性探测延迟分布（含 reconnect 时间） |
@@ -66,7 +67,7 @@ Celery 指标由 `celery-exporter` 订阅 Redis broker 后导出（无需 worker
 
 MinIO 存储 Gauge 由 `/api/v1/storage/stats` 刷新；管理员打开系统存储治理页或 Prometheus 采集到该接口被调用后的 `/metrics` 时，即可看到最新 bucket 容量与对象数。
 
-预置 `ATP Overview` 面板含 13 个图：
+预置 `ATP Overview` 面板含 17 个图：
 
 1. HTTP 请求 RPS（按 handler 分组）
 2. HTTP P95 延迟（5min 滑窗）
@@ -81,6 +82,10 @@ MinIO 存储 Gauge 由 `/api/v1/storage/stats` 刷新；管理员打开系统存
 11. **API 5xx 错误率（5min rate / 总请求 rate）**
 12. **MinIO 存储字节数（按 bucket）**
 13. **MinIO 对象数量（按 bucket）**
+14. **SLO API 可用性（1h，目标 >= 99.5%）**
+15. **SLO API P95 延迟（5min，目标 <= 2s）**
+16. **SLO run 成功率（1h，按 case/suite/plan 分组，目标 >= 95%）**
+17. **SLO API 错误预算剩余（1h，基于 99.5% 可用性目标）**
 
 可在 Grafana UI 中复制为自定义看板。
 

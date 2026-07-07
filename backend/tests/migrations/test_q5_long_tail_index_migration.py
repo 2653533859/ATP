@@ -23,10 +23,7 @@ def test_q5_compound_index_migration_upgrade_creates_index():
 
 def test_q5_compound_index_migration_downgrade_drops_index():
     content = _migration_path().read_text(encoding="utf-8")
-    assert (
-        'op.drop_index("ix_test_runs_case_id_status_created_at", table_name="test_runs")'
-        in content
-    )
+    assert 'op.drop_index("ix_test_runs_case_id_status_created_at", table_name="test_runs")' in content
 
 
 def test_q5_compound_index_migration_chain_position():

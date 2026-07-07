@@ -9,6 +9,7 @@ Web UI 测试执行器（Playwright + pytest 脚本模式）
   5. 收集截图（pytest-playwright 自动在失败时截图），上传 MinIO
   6. 清理临时目录
 """
+
 import asyncio
 import json
 import logging
@@ -67,14 +68,10 @@ async def run_web_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
     try:
         # ── 1. 下载脚本 ──────────────────────────────────────────
         local_script = tmpdir / "test_case.py"
-        await asyncio.get_event_loop().run_in_executor(
-            None, download_file, script_path, str(local_script)
-        )
+        await asyncio.get_event_loop().run_in_executor(None, download_file, script_path, str(local_script))
 
         # ── 2. 生成 conftest.py（注入环境变量 + playwright 配置）──
-        env_lines = "\n".join(
-            f'    os.environ[{k!r}] = {v!r}' for k, v in extra_vars.items()
-        )
+        env_lines = "\n".join(f"    os.environ[{k!r}] = {v!r}" for k, v in extra_vars.items())
         conftest = tmpdir / "conftest.py"
         conftest.write_text(
             f"""import os
@@ -104,11 +101,13 @@ def browser_context_args(browser_context_args):
         screenshot_dir.mkdir()
 
         cmd = [
-            sys.executable, "-m", "pytest",
+            sys.executable,
+            "-m",
+            "pytest",
             str(local_script),
             f"--browser={browser}",
-            "--screenshot=on",          # playwright-pytest：始终截图
-            "--video=on",               # playwright-pytest：始终录像
+            "--screenshot=on",  # playwright-pytest：始终截图
+            "--video=on",  # playwright-pytest：始终录像
             f"--output={screenshot_dir}",
             "--json-report",
             f"--json-report-file={report_file}",
@@ -141,19 +140,22 @@ def browser_context_args(browser_context_args):
             )
             db.add(step_result)
             await db.commit()
-            await _safe_publish(run.id, {
-                "type": "step_result",
-                "run_id": run.id,
-                "step": {
-                    "step_index": 0,
-                    "name": "脚本执行",
-                    "status": RunStatus.error.value,
-                    "duration_ms": step_result.duration_ms,
-                    "request_data": None,
-                    "response_data": None,
-                    "error_message": timeout_msg,
+            await _safe_publish(
+                run.id,
+                {
+                    "type": "step_result",
+                    "run_id": run.id,
+                    "step": {
+                        "step_index": 0,
+                        "name": "脚本执行",
+                        "status": RunStatus.error.value,
+                        "duration_ms": step_result.duration_ms,
+                        "request_data": None,
+                        "response_data": None,
+                        "error_message": timeout_msg,
+                    },
                 },
-            })
+            )
             run.status = RunStatus.error
             run.error_message = timeout_msg
             run.duration_ms = step_result.duration_ms
@@ -184,16 +186,22 @@ def browser_context_args(browser_context_args):
             )
             db.add(step_result)
             await db.commit()
-            await _safe_publish(run.id, {
-                "type": "step_result", "run_id": run.id,
-                "step": {
-                    "step_index": 0, "name": "脚本执行",
-                    "status": RunStatus.error.value,
-                    "duration_ms": step_result.duration_ms,
-                    "request_data": None, "response_data": None,
-                    "error_message": step_result.error_message,
+            await _safe_publish(
+                run.id,
+                {
+                    "type": "step_result",
+                    "run_id": run.id,
+                    "step": {
+                        "step_index": 0,
+                        "name": "脚本执行",
+                        "status": RunStatus.error.value,
+                        "duration_ms": step_result.duration_ms,
+                        "request_data": None,
+                        "response_data": None,
+                        "error_message": step_result.error_message,
+                    },
                 },
-            })
+            )
             run.status = RunStatus.error
             run.error_message = error_msg[:500]
             run.duration_ms = step_result.duration_ms
@@ -226,9 +234,7 @@ def browser_context_args(browser_context_args):
             test_node = test.get("nodeid", "").split("::")[-1]
             for img_path in screenshot_dir.glob(f"*{test_node}*.png"):
                 obj_name = f"screenshots/runs/{run.id}/step_{idx}.png"
-                await asyncio.get_event_loop().run_in_executor(
-                    None, upload_file, obj_name, str(img_path), "image/png"
-                )
+                await asyncio.get_event_loop().run_in_executor(None, upload_file, obj_name, str(img_path), "image/png")
                 screenshot_url = presigned_url(obj_name)
                 break  # 每个测试只取第一张
 
@@ -248,19 +254,23 @@ def browser_context_args(browser_context_args):
             if needs_healing:
                 enqueue_diagnosis(step_result.id)
 
-            await _safe_publish(run.id, {
-                "type": "step_result", "run_id": run.id,
-                "step": {
-                    "step_index": idx,
-                    "name": step_result.name,
-                    "status": status.value,
-                    "duration_ms": duration_ms,
-                    "request_data": None,
-                    "response_data": step_result.response_data,
-                    "error_message": error_message,
-                    "screenshot_url": screenshot_url,
+            await _safe_publish(
+                run.id,
+                {
+                    "type": "step_result",
+                    "run_id": run.id,
+                    "step": {
+                        "step_index": idx,
+                        "name": step_result.name,
+                        "status": status.value,
+                        "duration_ms": duration_ms,
+                        "request_data": None,
+                        "response_data": step_result.response_data,
+                        "error_message": error_message,
+                        "screenshot_url": screenshot_url,
+                    },
                 },
-            })
+            )
 
     except Exception as e:
         logger.exception(f"web_executor run {run.id} error: {e}")
@@ -296,10 +306,13 @@ def browser_context_args(browser_context_args):
     # iter3 多 step 综合诊断
     await maybe_enqueue_run_healing(db, run)
 
-    await _safe_publish(run.id, {
-        "type": "completed",
-        "run_id": run.id,
-        "status": run.status.value,
-        "duration_ms": total_ms,
-        **({"video_url": video_url} if video_url else {}),
-    })
+    await _safe_publish(
+        run.id,
+        {
+            "type": "completed",
+            "run_id": run.id,
+            "status": run.status.value,
+            "duration_ms": total_ms,
+            **({"video_url": video_url} if video_url else {}),
+        },
+    )

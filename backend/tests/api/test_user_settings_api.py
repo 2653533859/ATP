@@ -1,4 +1,5 @@
 """Tests for current-user settings API."""
+
 import asyncio
 import inspect
 import sys

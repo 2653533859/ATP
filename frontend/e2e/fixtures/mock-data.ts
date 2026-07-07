@@ -67,6 +67,122 @@ export const cases = [
   },
 ]
 
+export const environments = [
+  {
+    id: 501,
+    name: 'E2E 环境',
+    description: 'Mocked E2E environment',
+    project_id: 1,
+    created_at: '2026-05-21T00:00:00Z',
+    updated_at: '2026-05-21T00:00:00Z',
+  },
+]
+
+export const suites = [
+  {
+    id: 200,
+    name: 'E2E 冒烟套件',
+    description: 'Suite for Playwright E2E',
+    project_id: 1,
+    status: 'active',
+    creator_id: 1,
+    case_ids: [{ case_id: 100, sort: 0 }],
+    parameterization: null,
+    config: {
+      execution_mode: 'sequential',
+      fail_strategy: 'continue',
+      max_workers: 3,
+      min_pass_rate: 0.8,
+    },
+    created_at: '2026-05-21T08:00:00Z',
+    updated_at: '2026-05-21T08:00:00Z',
+  },
+]
+
+export const triggeredSuiteRun = {
+  id: 9201,
+  suite_id: 200,
+  triggered_by: 1,
+  trace_id: 'e2e-suite-trace',
+  status: 'pending',
+  environment: null,
+  duration_ms: null,
+  error_message: null,
+  result_summary: { total: 1, passed: 0, failed: 0, error: 0 },
+  case_run_ids: [],
+  created_at: '2026-05-21T10:10:00Z',
+}
+
+export const suiteRuns = [
+  {
+    ...triggeredSuiteRun,
+    id: 9200,
+    status: 'passed',
+    duration_ms: 456,
+    result_summary: { total: 1, passed: 1, failed: 0, error: 0, execution_mode: 'sequential', fail_strategy: 'continue' },
+    case_run_ids: [{ case_id: 100, case_name: 'GET /health 烟测', run_id: 9000, status: 'passed' }],
+  },
+]
+
+export const plans = [
+  {
+    id: 300,
+    name: 'E2E 每日计划',
+    description: 'Plan for Playwright E2E',
+    project_id: 1,
+    status: 'active',
+    creator_id: 1,
+    suite_ids: [{ suite_id: 200, sort: 0 }],
+    schedule_type: 'manual',
+    cron_expression: null,
+    webhook_secret: 'e2e-webhook-secret',
+    is_enabled: true,
+    auto_create_bugs: true,
+    env_id: null,
+    config: {
+      execution_mode: 'sequential',
+      fail_strategy: 'continue',
+      max_workers: 3,
+      min_pass_rate: 0.8,
+    },
+    last_run_at: null,
+    next_run_at: null,
+    created_at: '2026-05-21T08:30:00Z',
+    updated_at: '2026-05-21T08:30:00Z',
+  },
+]
+
+export const triggeredPlanRun = {
+  id: 9301,
+  plan_id: 300,
+  triggered_by: 1,
+  trace_id: 'e2e-plan-trace',
+  trigger_type: 'manual',
+  status: 'pending',
+  duration_ms: null,
+  error_message: null,
+  suite_run_ids: [],
+  result_summary: { total: 1, passed: 0, failed: 0, error: 0 },
+  created_at: '2026-05-21T10:20:00Z',
+}
+
+export const planRuns = [
+  {
+    ...triggeredPlanRun,
+    id: 9300,
+    status: 'passed',
+    duration_ms: 789,
+    suite_run_ids: [{ suite_id: 200, suite_name: 'E2E 冒烟套件', suite_run_id: 9200, status: 'passed' }],
+    result_summary: {
+      total: 1,
+      passed: 1,
+      failed: 0,
+      error: 0,
+      auto_bugs: [],
+    },
+  },
+]
+
 export const caseDetail = {
   ...cases[0],
   preconditions: [],

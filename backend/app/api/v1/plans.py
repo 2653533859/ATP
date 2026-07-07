@@ -11,6 +11,7 @@ POST   /plans/webhook        Webhook 触发执行
 GET    /plan-runs            计划执行记录列表
 GET    /plan-runs/{id}       计划执行记录详情
 """
+
 from fastapi import APIRouter, Depends, HTTPException, Header, Query, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -24,9 +25,15 @@ from app.models.project import Project
 from app.models.suite import TestSuite
 from app.models.user import User
 from app.schemas.plan import (
-    TestPlanCreate, TestPlanUpdate, TestPlanOut,
-    PlanRunTrigger, PlanRunOut, WebhookTriggerRequest,
-    PlanBatchDeleteIn, PlanBatchToggleIn, PlanBatchOpOut,
+    TestPlanCreate,
+    TestPlanUpdate,
+    TestPlanOut,
+    PlanRunTrigger,
+    PlanRunOut,
+    WebhookTriggerRequest,
+    PlanBatchDeleteIn,
+    PlanBatchToggleIn,
+    PlanBatchOpOut,
 )
 from app.api.deps import assert_project_access, get_current_user, require_engineer
 from app.models.user_project import ProjectRole
@@ -35,10 +42,7 @@ router = APIRouter(tags=["测试计划"])
 
 
 def _normalize_suite_items(suite_items: list[object]) -> list[dict]:
-    return [
-        item if isinstance(item, dict) else item.model_dump()
-        for item in suite_items
-    ]
+    return [item if isinstance(item, dict) else item.model_dump() for item in suite_items]
 
 
 async def _validate_plan_suite_ids(db: AsyncSession, project_id: int, suite_items: list[object]) -> list[dict]:
@@ -202,11 +206,7 @@ async def batch_delete_plans(
     _=Depends(require_engineer),
 ):
     requested_ids = list(dict.fromkeys(body.plan_ids))
-    rows = (
-        (await db.execute(select(TestPlan).where(TestPlan.id.in_(requested_ids))))
-        .scalars()
-        .all()
-    )
+    rows = (await db.execute(select(TestPlan).where(TestPlan.id.in_(requested_ids)))).scalars().all()
     found_ids = {row.id for row in rows}
     skipped_ids = [pid for pid in requested_ids if pid not in found_ids]
     for plan in rows:
@@ -226,11 +226,7 @@ async def batch_toggle_plans(
     _=Depends(require_engineer),
 ):
     requested_ids = list(dict.fromkeys(body.plan_ids))
-    rows = (
-        (await db.execute(select(TestPlan).where(TestPlan.id.in_(requested_ids))))
-        .scalars()
-        .all()
-    )
+    rows = (await db.execute(select(TestPlan).where(TestPlan.id.in_(requested_ids)))).scalars().all()
     found_ids = {row.id for row in rows}
     skipped_ids = [pid for pid in requested_ids if pid not in found_ids]
     changed: list[int] = []
@@ -269,9 +265,7 @@ async def trigger_plan_run(
         env = await db.get(Environment, env_id)
         if not env:
             raise HTTPException(status_code=404, detail="环境不存在")
-        result = await db.execute(
-            select(EnvVariable).where(EnvVariable.env_id == env.id)
-        )
+        result = await db.execute(select(EnvVariable).where(EnvVariable.env_id == env.id))
         env_vars = decrypt_env_vars(result.scalars().all())
         merged_vars = {**env_vars, **body.extra_vars}
 
@@ -287,6 +281,7 @@ async def trigger_plan_run(
     await db.refresh(plan_run)
 
     from app.worker.tasks import run_test_plan
+
     run_test_plan.delay(plan_run.id, merged_vars, plan_run.trace_id)
 
     return plan_run
@@ -314,9 +309,7 @@ async def webhook_trigger(
     if plan.env_id:
         env = await db.get(Environment, plan.env_id)
         if env:
-            result = await db.execute(
-                select(EnvVariable).where(EnvVariable.env_id == env.id)
-            )
+            result = await db.execute(select(EnvVariable).where(EnvVariable.env_id == env.id))
             env_vars = decrypt_env_vars(result.scalars().all())
             merged_vars = {**env_vars, **body.extra_vars}
 
@@ -332,6 +325,7 @@ async def webhook_trigger(
     await db.refresh(plan_run)
 
     from app.worker.tasks import run_test_plan
+
     run_test_plan.delay(plan_run.id, merged_vars, plan_run.trace_id)
 
     return plan_run
@@ -367,6 +361,7 @@ def _calc_next_run(cron_expression: str):
     try:
         from croniter import croniter
         from datetime import datetime, timezone
+
         now = datetime.now(timezone.utc)
         cron = croniter(cron_expression, now)
         return cron.get_next(datetime)

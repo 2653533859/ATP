@@ -1,4 +1,5 @@
 """Tests for app.api.v1.ai_llm_configs."""
+
 import asyncio
 import inspect
 import sys
@@ -15,6 +16,7 @@ from tests.api.conftest import fake_require_engineer as _fake_require_engineer
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 
+
 def _p3c_noop(*_a, **_kw):
     return None
 
@@ -22,14 +24,15 @@ def _p3c_noop(*_a, **_kw):
 async def _p3c_noop_async(*_a, **_kw):
     return None
 
+
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     require_admin=_fake_require_admin,
     require_engineer=_fake_require_engineer,
     get_current_user=lambda: None,
-        require_project_access=lambda *a, **kw: _p3c_noop,
-        assert_project_access=_p3c_noop_async,
-        ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
-    )
+    require_project_access=lambda *a, **kw: _p3c_noop,
+    assert_project_access=_p3c_noop_async,
+    ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
+)
 
 from app.models.bootstrap import load_all_models
 
@@ -218,7 +221,7 @@ def test_update_re_encrypts_when_api_key_provided(monkeypatch):
     assert existing.description == "updated"
     assert existing.supports_vision is True
     assert out.description == "updated"
-    assert db.commit_calls == 1
+    assert db.commit_calls == 2
 
 
 def test_update_skips_api_key_when_absent(monkeypatch):

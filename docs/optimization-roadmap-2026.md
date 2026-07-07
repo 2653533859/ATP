@@ -1,12 +1,12 @@
 # ATP 后续优化跟踪计划
 
 > 创建日期：2026-06-03
-> 最近同步：2026-07-05
+> 最近同步：2026-07-08
 > 用途：记录 ATP 平台从“功能可用”走向“稳定、好用、可运维”的后续优化路线，方便按阶段跟踪进度。
 
 ## 当前进度
 
-截至 2026-07-05，本路线图 **29 / 29 项全部完成**，阶段 1 ~ 阶段 5 均已收口。
+截至 2026-07-06，本路线图 **29 / 29 项全部完成**，阶段 1 ~ 阶段 5 均已收口。
 
 最近完成的收尾项：
 
@@ -14,9 +14,25 @@
 - S5-03：用例修复建议，执行详情可展示接口返回变更/断言失败时的步骤、断言、请求数据更新建议。
 - S5-04：AI 诊断反馈闭环，支持采纳/拒绝反馈，并统计采纳率、错误特征和回归有效性。
 - S5-05：Prompt 与模型配置治理，支持项目级模型、prompt 模板、调用限额、错误降级和 LLM 参数过滤。
+- 2026-07-06 复查修复：缺陷手动关联接口补齐项目 `editor` 权限校验；AI governance / failure diagnosis 服务文件已纳入当前 diff；缺陷状态刷新审计日志修复 undefined `body.bug_id`。
 
 最近验证记录：
 
+- `backend/.venv/bin/python -m pytest backend/tests -q --ignore=backend/tests/integration`：823 passed（Python 3.14 本地 venv）
+- Docker `python:3.12-slim-bookworm` + `gcc libpq-dev`，执行 `python -m pytest backend/tests -q --ignore=backend/tests/integration`：823 passed（依赖升级后的目标运行时基线）
+- `python3 -m pytest backend/tests/frontend backend/tests/migrations/test_migration_policy.py backend/tests/worker/test_worker_lifecycle_policy.py -q`：90 passed
+- `python3 -m pytest backend/tests/frontend/test_bug_link_frontend.py backend/tests/frontend/test_failure_diagnosis_static.py`：10 passed
+- `backend/.venv/bin/python -m pytest backend/tests/services/test_device_sync.py backend/tests/api/test_ai_llm_configs_api.py backend/tests/worker/test_async_runner.py backend/tests/worker/test_suite_execution_config.py -q`：18 passed
+- `make lint PYTHON=backend/.venv/bin/python`：通过（ruff F821/F822/F823 最小门禁）
+- `make mypy PYTHON=backend/.venv/bin/python`：通过（`core` / `schemas` / `services` 共 76 个文件）
+- `make security-bandit PYTHON=backend/.venv/bin/python`：通过（medium/high 0；low 63 可见不阻断）
+- `make security-pip-audit PYTHON=backend/.venv/bin/python`：通过（No known vulnerabilities found）
+- `make security-npm-audit`：通过（found 0 vulnerabilities）
+- `.github/workflows/security.yml`：已新增 Gitleaks、pip-audit、npm high/critical audit、Trivy 镜像扫描
+- `.github/dependabot.yml`：已新增 pip、npm、Docker、GitHub Actions 周期更新配置
+- `make pre-commit PYTHON=backend/.venv/bin/python`：通过（YAML/EOF/whitespace、backend ruff、frontend Vitest）
+- `make test-backend-coverage PYTHON=backend/.venv/bin/python`：823 passed，总覆盖率 53.47%，52% 门槛达成
+- `npm --prefix frontend run test`：18 passed；`npm --prefix frontend run test:coverage`：通过，当前前端全仓覆盖率基线 1.8%
 - `python3 -m pytest backend/tests/frontend -q`：78 passed
 - `python3 -m pytest backend/tests/services/test_ai_case_parsers.py -q`：13 passed
 - `python3 -m py_compile ...`：通过
@@ -24,6 +40,8 @@
 - `npm run build`：通过；仅保留已知 `ant-design-icons -> ant-design -> ant-design-icons` circular chunk 警告
 - `python3 -m json.tool docker/grafana/dashboards/atp-overview.json`：通过
 - `git diff --check`：通过
+
+Python 3.14 本地后端环境已修复：通过 Homebrew `libpq` 提供 `pg_config`，安装时显式使用 `libpq` / `openssl@3` 编译路径，并为 Python 3.14 增加兼容依赖 pin（SQLAlchemy、grpcio/grpcio-tools、Playwright、OpenTelemetry）。Docker Python 3.12 目标运行时已完成全量后端回归，确认条件 pin 不影响当前部署基线。
 
 ## 当前基线
 

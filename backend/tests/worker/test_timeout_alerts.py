@@ -37,24 +37,18 @@ def test_missing_exception_ignored(caplog):
 
 def test_hard_timeout_emits_warning(caplog):
     with caplog.at_level(logging.WARNING):
-        timeout_alerts.on_task_revoked(
-            "my_task", "task-9", terminated=True, signum=15, expired=False
-        )
+        timeout_alerts.on_task_revoked("my_task", "task-9", terminated=True, signum=15, expired=False)
     assert "celery_hard_timeout" in caplog.text
     assert "signum=15" in caplog.text
 
 
 def test_revoke_when_expired_not_logged_as_timeout(caplog):
     with caplog.at_level(logging.WARNING):
-        timeout_alerts.on_task_revoked(
-            "my_task", "task-9", terminated=True, signum=None, expired=True
-        )
+        timeout_alerts.on_task_revoked("my_task", "task-9", terminated=True, signum=None, expired=True)
     assert "celery_hard_timeout" not in caplog.text
 
 
 def test_normal_revoke_not_logged_as_timeout(caplog):
     with caplog.at_level(logging.WARNING):
-        timeout_alerts.on_task_revoked(
-            "my_task", "task-9", terminated=False, signum=None, expired=False
-        )
+        timeout_alerts.on_task_revoked("my_task", "task-9", terminated=False, signum=None, expired=False)
     assert "celery_hard_timeout" not in caplog.text

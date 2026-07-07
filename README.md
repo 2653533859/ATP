@@ -69,7 +69,20 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 - 用户偏好服务端持久化：Dashboard 布局等偏好同步到服务端并保留 localStorage 兜底
 - AI 自愈采纳率报表：按用例类型 / 错误特征查看采纳率、生产反馈回归通过率与用例生成漏斗
 
-> Q8/Q9 能力的设计与验收详见：`docs/implementation-plan-2026-Q8.md`、`docs/implementation-plan-2026-Q9.md`、`docs/q8-acceptance-summary.md`、`docs/q9-acceptance-summary.md`、`docs/dataset-v2.md`、`docs/performance-testing-thin-slice.md`、`docs/q9-release-checklist.md`。
+> Q8/Q9/Q10 能力的设计与验收详见：`docs/implementation-plan-2026-Q8.md`、`docs/implementation-plan-2026-Q9.md`、`docs/implementation-plan-2026-Q10.md`、`docs/q8-acceptance-summary.md`、`docs/q9-acceptance-summary.md`、`docs/q10-acceptance-summary.md`、`docs/dataset-v2.md`、`docs/performance-testing-thin-slice.md`、`docs/q9-release-checklist.md`。
+
+### Q10 质量与稳定性收口
+
+- 后端质量门禁：Ruff lint / format、mypy 渐进式基线、pre-commit 与覆盖率门禁
+- 前端测试基线：Vitest 单测、Playwright mock E2E、type-check / build 验证
+- 安全扫描：Bandit、pip-audit、npm audit、Gitleaks、Trivy、Dependabot
+- 真实依赖集成：PostgreSQL / Redis / MinIO 下的 suite、plan、notification、bug-report 链路
+- SLO 薄切：API 可用性、API P95、run 成功率与错误预算 Grafana 面板
+- flaky 治理：pytest marker、integration 一次有界重试、E2E retry 边界与处理文档
+
+相关文档：`docs/code-quality.md`、`docs/frontend-testing.md`、`docs/security-scanning.md`、`docs/slo-guide.md`、`docs/flaky-governance.md`、`docs/q10-acceptance-summary.md`。
+
+下一轮优化路线见：`docs/optimization-roadmap-2026-q11.md`。
 
 ### 当前仍建议继续完善的方向
 

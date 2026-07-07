@@ -51,7 +51,9 @@ performance.minio_client.upload_bytes = (
     )
     or object_name
 )
-performance.minio_client.presigned_url = lambda object_name, expires_seconds=3600: f"http://minio.test/{object_name}?exp={expires_seconds}"
+performance.minio_client.presigned_url = (
+    lambda object_name, expires_seconds=3600: f"http://minio.test/{object_name}?exp={expires_seconds}"
+)
 
 
 class _User:
@@ -257,7 +259,9 @@ def test_trigger_performance_run_allows_allowlisted_subdomain(monkeypatch):
     test.default_options = {"env": {"BASE_URL": "https://api.example.test"}, "vus": 1}
     db = _FakeDB({"PerformanceTest": {test.id: test}})
 
-    result = asyncio.run(performance.trigger_performance_run(test_id=test.id, body=PerformanceRunTrigger(), db=db, user=_User()))
+    result = asyncio.run(
+        performance.trigger_performance_run(test_id=test.id, body=PerformanceRunTrigger(), db=db, user=_User())
+    )
 
     assert result.options_snapshot["env"]["BASE_URL"] == "https://api.example.test"
     assert _delay_recorder.calls == [result.id]

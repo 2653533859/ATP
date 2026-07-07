@@ -2,12 +2,7 @@ from pathlib import Path
 
 
 def _migration_path() -> Path:
-    return (
-        Path(__file__).resolve().parents[2]
-        / "alembic"
-        / "versions"
-        / "20260528_0032_add_healing_prompt_examples.py"
-    )
+    return Path(__file__).resolve().parents[2] / "alembic" / "versions" / "20260528_0032_add_healing_prompt_examples.py"
 
 
 def test_healing_prompt_examples_migration_chain_position():

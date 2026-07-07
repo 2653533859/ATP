@@ -6,6 +6,7 @@
 支持通过 LOG_LEVEL 环境变量动态配置日志级别。
 每条日志自动附加 trace_id（由 TraceMiddleware 注入）。
 """
+
 import logging
 import json
 import sys
