@@ -179,8 +179,40 @@ Frontend npm audit: found 0 vulnerabilities.
 
 Key upgrades:
 
-- Backend: FastAPI/Starlette, python-jose, python-multipart, pytest/pytest-asyncio, Jinja2, cryptography, prometheus-fastapi-instrumentator.
+- Backend: FastAPI/Starlette, python-multipart, pytest/pytest-asyncio, Jinja2, cryptography, prometheus-fastapi-instrumentator; Q11 replay later migrated JWT handling from python-jose to PyJWT.
 - Frontend: Vite/Vitest, Axios, ECharts, vue-i18n, jsdom, vue-tsc, plus npm overrides for `brace-expansion`, `form-data`, `lodash`, and `lodash-es`.
+
+### Q11-02 CI Matrix Replay Started
+
+Follow-up date: 2026-07-08
+
+Changes:
+
+- Replayed local security and main-CI equivalent gates.
+- Fixed a new `pip-audit` failure by replacing `python-jose[cryptography]==3.5.0` with `PyJWT[crypto]==2.13.0`.
+- Migrated token handling from `jose.JWTError` to `jwt.InvalidTokenError`.
+- Recorded detailed Q11-02 evidence in `docs/q11-ci-matrix-evidence.md`.
+
+Primary evidence:
+
+```text
+Backend pip-audit: No known vulnerabilities found.
+Frontend npm audit: found 0 vulnerabilities.
+Targeted project access JWT/API tests: 37 passed.
+Remaining API tests: 341 passed, 38 warnings.
+Ruff lint / format-check / mypy: passed.
+```
+
+Follow-up evidence:
+
+```text
+GitHub CI (e2e): success, run 28921816190.
+GitHub CI (integration): failed, run 28921392320; root cause was unconditional OTel FastAPI instrumentation when endpoint was empty.
+Local integration after OTel fix: 10 passed.
+Docker Python 3.12 integration after OTel fix: 10 passed.
+Local E2E replay: 9 passed.
+Release-readiness local replay: backend / worker / frontend images built; worker k6 v0.52.0 verified; checklist contract passed.
+```
 
 ### Q10 Format And Security Automation
 
@@ -462,6 +494,25 @@ Primary evidence:
 Q10 acceptance summary: present
 README Q10 index: present
 Task/MEMORY/CONTEXT: synced
+```
+
+### Q11-01 Release Notes And Rollback Plan
+
+Follow-up date: 2026-07-08
+
+Changes:
+
+- Added `docs/q10-release-notes.md`.
+- Captured Q10 change groups, risk notes, rollback plan, and release checklist.
+- Updated Q11 roadmap and memory docs to point the next step at CI matrix evidence collection.
+
+Primary evidence:
+
+```text
+Q10 release notes: present
+Risk notes: present
+Rollback plan: present
+Q11 roadmap: Q11-01 marked complete
 ```
 
 ## Recommended PR Description

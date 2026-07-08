@@ -27,12 +27,13 @@ sys.modules.setdefault(
     ),
 )
 
-# 本地无 jose / passlib 时兜底 stub
+# 本地无 PyJWT / passlib 时兜底 stub
 sys.modules.setdefault(
-    "jose",
+    "jwt",
     types.SimpleNamespace(
-        JWTError=type("JWTError", (Exception,), {}),
-        jwt=types.SimpleNamespace(encode=lambda *a, **kw: "", decode=lambda *a, **kw: {}),
+        InvalidTokenError=type("InvalidTokenError", (Exception,), {}),
+        encode=lambda *a, **kw: "",
+        decode=lambda *a, **kw: {},
     ),
 )
 sys.modules.setdefault(

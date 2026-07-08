@@ -85,16 +85,17 @@ app.add_middleware(
 app.add_middleware(CSRFMiddleware)
 app.add_middleware(TraceMiddleware)
 
-# 必须在路由注册后调用，以便自动埋 server span（包含路径模板）。
-# 即使 OTEL 未启用，该调用为 no-op，无运行时副作用。
-FastAPIInstrumentor.instrument_app(app)
-
 # Prometheus 指标必须在 include_router 之前，确保 instrumentator 覆盖所有 endpoint
 enable_metrics_for(app)
 
 app.include_router(router)
 app.include_router(ws_router)  # WebSocket 路由，路径以 /ws/ 开头
 app.include_router(mock_router)  # Mock 服务，路径以 /mock/ 开头
+
+# 必须在路由注册后调用，以便自动埋 server span（包含路径模板）。
+# OTEL endpoint 未配置时不挂载 OTel ASGI 中间件，保持本地/CI 的 no-op 行为。
+if settings.OTEL_EXPORTER_OTLP_ENDPOINT:
+    FastAPIInstrumentor.instrument_app(app)
 
 
 @app.get("/health")

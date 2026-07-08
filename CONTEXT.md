@@ -40,7 +40,7 @@
 - Q10 SLO 薄切已补齐：新增 `atp_run_outcomes_total{entity_type,status}`，Grafana `ATP Overview` 新增 API 可用性、API P95、run 成功率和 API 错误预算剩余 4 个面板，并新增 `docs/slo-guide.md`。
 - Q10 flaky 治理已补齐：新增 `pytest-rerunfailures==16.4`、`flaky` marker、integration CI 一次有界重试、Playwright CI 重试边界说明与 `docs/flaky-governance.md`。
 - Q10 验收收口已补齐：新增 `docs/q10-acceptance-summary.md`，README 已加入 Q10 质量与稳定性索引，Task / MEMORY / CONTEXT / release evidence 已同步。
-- Q11 下一轮优化路线已建立：`docs/optimization-roadmap-2026-q11.md`，优先级为 PR / commit 拆分、发布说明、SLO 生产校准、前端覆盖率增长和运维 runbook。Q11-00 已完成，拆分计划见 `docs/q11-pr-split-plan.md`。
+- Q11 下一轮优化路线已建立：`docs/optimization-roadmap-2026-q11.md`，优先级为 PR / commit 拆分、发布说明、SLO 生产校准、前端覆盖率增长和运维 runbook。Q11-00 已完成，拆分计划见 `docs/q11-pr-split-plan.md`；Q11-01 已完成，发布说明 / 风险 / 回滚记录见 `docs/q10-release-notes.md`；Q11-02 已启动，CI matrix 证据与 PyJWT 迁移记录见 `docs/q11-ci-matrix-evidence.md`。
 
 最近验证记录：
 
@@ -56,6 +56,8 @@
 - `make security-bandit PYTHON=backend/.venv/bin/python`：通过（medium/high 0；low 63 可见不阻断）
 - `make security-pip-audit PYTHON=backend/.venv/bin/python`：通过；后端依赖已清零（No known vulnerabilities found）
 - `make security-npm-audit`：通过；前端依赖已清零（found 0 vulnerabilities）
+- Q11-02 dependency replay：`python-jose` 已替换为 `PyJWT[crypto]==2.13.0`，本地 venv 已清理 `python-jose` / `ecdsa` / `rsa` / `pyasn1`，`pip check` 通过。
+- Q11-02 CI replay：GitHub `CI (integration)` 失败定位为 OTel FastAPI instrumentation 在 endpoint 为空时仍挂载，且早于 route registration；已改为 endpoint 配置时才在 include_router 之后挂载。修复后本地真实依赖 integration 与 Docker Python 3.12 target-runtime integration 均为 `10 passed`，E2E `9 passed`，release-readiness 本地等价 Docker build / worker k6 校验通过。
 - `.github/workflows/security.yml` / `.github/dependabot.yml`：已新增并通过 YAML 解析；覆盖 Gitleaks、pip-audit、npm high/critical audit、Trivy 镜像扫描与四生态 Dependabot
 - `make pre-commit PYTHON=backend/.venv/bin/python`：通过（YAML/EOF/whitespace、backend ruff、frontend Vitest）
 - `make test-backend-coverage PYTHON=backend/.venv/bin/python`：823 passed，总覆盖率 53.47%，52% 门槛达成
@@ -84,7 +86,7 @@ Python 3.14 本地环境说明：已通过 Homebrew `libpq` 提供 `pg_config`�
 - `docs/disaster-recovery.md`、`docs/backup-restore-drill-record.md`：数据库和对象存储备份恢复演练。
 - `docs/domain-boundaries.md`、`docs/worker-lifecycle.md`、`docs/audit-log-policy.md`：架构、Worker、审计治理。
 
-下一步建议：发布收口、PR 范围整理、最终 code review pass 与运行证据归档已完成；Q10 已落地 ruff 最小 lint/format 门禁、mypy 渐进式基线、pre-commit、本地/CI 覆盖率基线、前端 Vitest 两批测试、Bandit SAST、依赖漏洞清零、Gitleaks/Trivy/security workflow、Dependabot、Docker Python 3.12 目标环境回归、suite-run / plan-trigger / notification / bug-report 真实依赖集成验证、suite / plan 前端关键路径 E2E、SLO 薄切、flaky 治理与 Q10 验收总结。Q11 路线已建立，Q11-00 拆分计划已完成；下一优先项是 Q11-01：从 Q10 evidence 生成发布说明与风险 / 回滚记录。
+下一步建议：发布收口、PR 范围整理、最终 code review pass 与运行证据归档已完成；Q10 已落地 ruff 最小 lint/format 门禁、mypy 渐进式基线、pre-commit、本地/CI 覆盖率基线、前端 Vitest 两批测试、Bandit SAST、依赖漏洞清零、Gitleaks/Trivy/security workflow、Dependabot、Docker Python 3.12 目标环境回归、suite-run / plan-trigger / notification / bug-report 真实依赖集成验证、suite / plan 前端关键路径 E2E、SLO 薄切、flaky 治理与 Q10 验收总结。Q11-00 / Q11-01 已完成；Q11-02 已完成本地主矩阵复跑与 GitHub integration 失败修复，下一优先项是归档 post-fix GitHub runner 证据。
 
 ---
 
@@ -398,10 +400,10 @@ docker compose up -d --build
 
 ## 12. 下一步建议
 
-Q1-Q9 路线图内功能项已完成。当前建议继续 Q10 工程质量收口：
+Q1-Q10 路线图内功能项已完成。当前建议继续 Q11 工程质量与发布证据收口：
 
-- Q11-01：从 Q10 evidence 生成发布说明与风险 / 回滚记录。
-- Q11-02：复跑或收集主 CI / security / integration / E2E / release-readiness 证据。
+- Q11-02：已完成本地主矩阵复跑与 GitHub integration 失败修复；继续归档 post-fix GitHub main CI / security / integration / release-readiness runner 证据。
+- Q11-10：在有真实流量后校准 API availability / P95 窗口与目标。
 
 ---
 

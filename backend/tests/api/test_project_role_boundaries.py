@@ -25,10 +25,11 @@ sys.modules.setdefault(
     ),
 )
 sys.modules.setdefault(
-    "jose",
+    "jwt",
     types.SimpleNamespace(
-        JWTError=type("JWTError", (Exception,), {}),
-        jwt=types.SimpleNamespace(encode=lambda *a, **kw: "", decode=lambda *a, **kw: {}),
+        InvalidTokenError=type("InvalidTokenError", (Exception,), {}),
+        encode=lambda *a, **kw: "",
+        decode=lambda *a, **kw: {},
     ),
 )
 sys.modules.setdefault("passlib", types.SimpleNamespace())

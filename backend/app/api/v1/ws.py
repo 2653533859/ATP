@@ -8,7 +8,7 @@ WebSocket 端点：订阅 Redis Pub/Sub，将执行事件实时推送给前端
 import asyncio
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
-from jose import JWTError
+from jwt import InvalidTokenError
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
@@ -34,7 +34,7 @@ async def _get_ws_user(websocket: WebSocket) -> User | None:
         if payload.get("type") != "access":
             return None
         username = payload["sub"]
-    except (JWTError, KeyError):
+    except (InvalidTokenError, KeyError):
         return None
 
     async with AsyncSessionLocal() as db:

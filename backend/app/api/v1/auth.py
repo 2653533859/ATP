@@ -10,7 +10,7 @@ from app.models.user import User
 from app.schemas.auth import LoginRequest, TokenResponse, RefreshRequest, UserOut
 from app.api.deps import get_current_user
 from app.services.audit import write_audit_log
-from jose import JWTError
+from jwt import InvalidTokenError
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 
@@ -44,9 +44,9 @@ async def refresh(body: RefreshRequest, db: AsyncSession = Depends(get_db)):
     try:
         payload = decode_token(body.refresh_token)
         if payload.get("type") != "refresh":
-            raise JWTError()
+            raise InvalidTokenError("wrong token type")
         username = payload["sub"]
-    except (JWTError, KeyError):
+    except (InvalidTokenError, KeyError):
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid refresh token")
 
     result = await db.execute(select(User).where(User.username == username))
