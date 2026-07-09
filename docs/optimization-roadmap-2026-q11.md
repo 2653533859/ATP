@@ -34,7 +34,7 @@ Q10 is complete:
 | ID | Task | Status | Acceptance |
 |----|------|--------|------------|
 | Q11-10 | Calibrate API availability and P95 windows | [x] | `docs/slo-guide.md` records the current pre-production evidence window, production adoption windows, target rationale, and deferred alert/release-gate decisions |
-| Q11-11 | Add SLO triage runbook | [ ] | Runbook maps availability, latency, run success, and error-budget breaches to first checks |
+| Q11-11 | Add SLO triage runbook | [x] | `docs/slo-guide.md` maps availability, latency, run success, and error-budget breaches to first checks, escalation points, and an incident record template |
 | Q11-12 | Decide alerting thresholds | [ ] | Grafana alert template or explicit deferred decision is documented |
 
 ## Phase 2 — Frontend Coverage Growth [P1]
@@ -63,4 +63,4 @@ Q10 is complete:
 
 ## Next Action
 
-Continue Q11-11: add an SLO triage runbook that maps availability, latency, run success, and error-budget breaches to first checks.
+Continue Q11-12: decide whether to add Grafana alert templates for the calibrated SLOs now or explicitly defer paging-grade alerting until production Prometheus history exists.

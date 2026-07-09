@@ -258,6 +258,25 @@ SLO guide: observed traffic window, target rationale, production calibration che
 Next action: Q11-11 SLO triage runbook.
 ```
 
+### Q11-11 SLO Triage Runbook
+
+Follow-up date: 2026-07-09
+
+Changes:
+
+- Added a SLO triage runbook to `docs/slo-guide.md`.
+- Defined first-five-minute checks for breached SLO panels.
+- Mapped API availability, API P95 latency, run success rate, and API error-budget exhaustion to first checks and escalation criteria.
+- Added a lightweight incident record template for SLO incidents.
+
+Primary evidence:
+
+```text
+Q11 roadmap: Q11-11 marked complete.
+SLO guide: triage runbook covers availability, latency, run success, and error-budget breaches.
+Next action: Q11-12 alert threshold decision.
+```
+
 ### Q10 Format And Security Automation
 
 Follow-up date: 2026-07-08

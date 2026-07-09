@@ -34,7 +34,8 @@
 - Q11-01 completed: added `docs/q10-release-notes.md` with Q10 release summary, major change groups, verification snapshot, risk notes, rollback plan, and release checklist. Next action is Q11-02 final CI matrix evidence collection.
 - Q11-02 completed on 2026-07-09: `docs/q11-ci-matrix-evidence.md` now archives local and GitHub runner evidence. The final `main` matrix at `c1ef60c` passed CI (`28998360621`), Security (`28998360606`), Integration (`28998366738`), Release readiness (`28998368776`), and E2E (`28998370798`). Follow-up fixes included `types-redis`, a typed Redis async-close helper, Trivy action `v0.36.0`, scoped Gitleaks allowlists, observability wording alignment, worker k6 refresh to `grafana/k6:2.1.0`, and frontend runtime `apk upgrade --no-cache`.
 - Q11-10 completed on 2026-07-09: `docs/slo-guide.md` now records the current pre-production evidence window, the missing production Prometheus-history caveat, 7-day initial and 14-day stable production calibration windows, target rationale for API availability / P95 / run success rate, and deferred decisions for paging alerts, monthly error budgets, release-blocking SLO policy, and endpoint-class SLOs.
-- Next Q11 action: start Q11-11 SLO triage runbook, mapping availability, latency, run success, and error-budget breaches to first checks.
+- Q11-11 completed on 2026-07-09: `docs/slo-guide.md` now includes a SLO triage runbook with first-five-minute checks, availability / latency / run-success / error-budget playbooks, escalation points, and an incident record template.
+- Next Q11 action: start Q11-12 and decide whether to add Grafana alert templates for calibrated SLOs now or explicitly defer paging-grade alerting until production Prometheus history exists.
 
 ## Recent Fixes (2026-06-03)
 
@@ -78,6 +79,7 @@
 - `make pre-commit PYTHON=backend/.venv/bin/python` passed all hooks.
 - Q11-02 GitHub runner final matrix passed on `main` commit `c1ef60c`: CI, Security, Integration, Release readiness, and E2E were all successful. Details and run links are archived in `docs/q11-ci-matrix-evidence.md`.
 - Q11-10 SLO calibration is documented in `docs/slo-guide.md`; current targets remain pre-production guardrails until continuous production Prometheus history is available.
+- Q11-11 SLO triage runbook is documented in `docs/slo-guide.md`; it maps each current SLO breach to first checks and escalation criteria.
 - `make test-backend-coverage PYTHON=backend/.venv/bin/python` passed (`823 passed`, total coverage `53.47%`, required `52%` reached).
 - Docker `python:3.12-slim-bookworm` with `gcc libpq-dev` installed ran `python -m pytest backend/tests -q --ignore=backend/tests/integration` successfully after dependency remediation (`823 passed`).
 - `npm --prefix frontend run test` passed (`18 passed`); `npm --prefix frontend run test:coverage` passed with current frontend full-source coverage baseline `1.8%`; `npm --prefix frontend run type-check` and `npm --prefix frontend run build` passed.

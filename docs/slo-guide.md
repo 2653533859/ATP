@@ -125,6 +125,139 @@ The `ATP Overview` dashboard includes four Q10 SLO panels:
 
 Dashboard source: `docker/grafana/dashboards/atp-overview.json`.
 
+## Triage Runbook
+
+Use this runbook when a SLO panel breaches its target for at least two consecutive refreshes, or when an operator sees the same symptom in user reports.
+
+### First Five Minutes
+
+1. Confirm the panel window and target: availability `1h`, P95 `5m`, run success rate `1h`, or error budget `1h`.
+2. Check whether Prometheus is scraping fresh samples for `atp-backend`, `atp-worker`, and `celery-exporter`.
+3. Compare the breached panel with request volume. Very low traffic can make short windows noisy; still continue if users are affected.
+4. Open the nearest related panel in `ATP Overview`: HTTP 5xx rate, HTTP P95 by handler, slow query rate, Celery queue length, or run success rate by entity type.
+5. Pick one incident owner and capture the time window, affected panel, and first hypothesis before changing config or restarting services.
+
+### API Availability Breach
+
+Signal:
+
+- `SLO API availability (1h)` drops below `99.5%`.
+- `SLO API error budget remaining (1h)` approaches `0`.
+- HTTP 5xx rate is non-zero for the same time window.
+
+First checks:
+
+1. Split 5xx by handler:
+
+   ```promql
+   sum(rate(http_requests_total{job="atp-backend",status=~"5.."}[5m])) by (handler)
+   ```
+
+2. Check whether errors are isolated to execution/reporting endpoints or affect login, project, and case navigation too.
+3. Inspect backend logs for the same time window, grouping by exception type and `trace_id` when present.
+4. Verify Postgres, Redis, and MinIO connectivity before restarting the backend.
+5. If a recent deployment exists, compare the first error timestamp with the deployment timestamp and review migration / dependency changes.
+
+Escalate when:
+
+- Multiple core handlers fail for more than 15 minutes.
+- Errors continue after dependency health is confirmed.
+- A migration or config change is suspected and rollback may be needed.
+
+### API P95 Latency Breach
+
+Signal:
+
+- `SLO API P95 latency (5m)` is above `2s`.
+- Handler-level HTTP P95 or slow query panels rise in the same window.
+
+First checks:
+
+1. Identify the slowest handlers:
+
+   ```promql
+   histogram_quantile(
+     0.95,
+     sum(rate(http_request_duration_seconds_bucket{job="atp-backend"}[5m])) by (le, handler)
+   )
+   ```
+
+2. Check slow query rate and backend logs for `slow_query` entries.
+3. Check Celery queue length. Some UI/API paths can appear slow when execution-triggering calls wait on overloaded dependencies.
+4. Check MinIO storage stats if report, screenshot, video, APK, or script endpoints are slow.
+5. Use `trace_id` to jump from slow-query logs to Jaeger spans when tracing is enabled.
+
+Escalate when:
+
+- P95 remains above target for three consecutive 5m windows.
+- The slowest handler is a critical interactive flow such as login, run detail, or case navigation.
+- Slow queries point to a repeated ORM/API path that needs an index or query rewrite.
+
+### Run Success Rate Breach
+
+Signal:
+
+- `SLO run success rate (1h)` drops below `95%` for `case`, `suite`, or `plan`.
+- User reports mention failed scheduled plans or unexpected execution errors.
+
+First checks:
+
+1. Identify the affected entity type:
+
+   ```promql
+   sum(rate(atp_run_outcomes_total{status=~"passed|failed|error"}[1h])) by (entity_type, status)
+   ```
+
+2. Separate `failed` from `error`:
+
+   - `failed`: likely assertion failure, target application change, data issue, or expected test failure.
+   - `error`: likely platform, worker, device, dependency, script, or configuration issue.
+
+3. For `case` drops, sample recent `TestRun` rows and inspect `error_message`, step results, screenshots, or script logs.
+4. For `suite` or `plan` drops, check child runs first. Parent failures often summarize child case failures.
+5. Check Celery queue length, worker timeout counters, ADB reconnect/heartbeat panels, and MinIO access when errors cluster around Web/Android/report artifacts.
+
+Escalate when:
+
+- `error` grows faster than `failed`.
+- Multiple unrelated projects fail at the same time.
+- Scheduled plans fail but manual reruns pass, suggesting queue, worker, or dependency instability.
+
+### Error Budget Exhaustion
+
+Signal:
+
+- `SLO API error budget remaining (1h)` reaches `0`.
+- API availability is below target or 5xx rate remains elevated.
+
+First checks:
+
+1. Treat this as an availability incident, not a separate root cause.
+2. Verify whether the budget was consumed by one spike or a sustained error rate.
+3. If one spike consumed the budget but traffic is now healthy, record the root cause and keep watching the next 1h window.
+4. If the budget remains at `0`, pause non-urgent deploys and focus on restoring backend health.
+
+Escalate when:
+
+- Error budget remains exhausted after the immediate 5xx cause is mitigated.
+- The same handler consumes budget repeatedly across separate windows.
+
+### Incident Record Template
+
+Use this lightweight format in the incident tracker or release notes:
+
+```text
+Time window:
+Breached SLO:
+Observed value:
+Affected handlers / entity types:
+First hypothesis:
+Checks completed:
+Root cause:
+Mitigation:
+Follow-up:
+```
+
 ## Production Calibration Checklist
 
 Before enabling alerting or treating these SLOs as release gates, collect and record:
