@@ -33,7 +33,7 @@ Q10 is complete:
 
 | ID | Task | Status | Acceptance |
 |----|------|--------|------------|
-| Q11-10 | Calibrate API availability and P95 windows | [ ] | `docs/slo-guide.md` records observed traffic window and target rationale |
+| Q11-10 | Calibrate API availability and P95 windows | [x] | `docs/slo-guide.md` records the current pre-production evidence window, production adoption windows, target rationale, and deferred alert/release-gate decisions |
 | Q11-11 | Add SLO triage runbook | [ ] | Runbook maps availability, latency, run success, and error-budget breaches to first checks |
 | Q11-12 | Decide alerting thresholds | [ ] | Grafana alert template or explicit deferred decision is documented |
 
@@ -63,4 +63,4 @@ Q10 is complete:
 
 ## Next Action
 
-Continue Q11-10: calibrate API availability and P95 windows in `docs/slo-guide.md`, recording the observed traffic window and target rationale before adding new panels or alerts.
+Continue Q11-11: add an SLO triage runbook that maps availability, latency, run success, and error-budget breaches to first checks.

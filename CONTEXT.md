@@ -40,7 +40,7 @@
 - Q10 SLO 薄切已补齐：新增 `atp_run_outcomes_total{entity_type,status}`，Grafana `ATP Overview` 新增 API 可用性、API P95、run 成功率和 API 错误预算剩余 4 个面板，并新增 `docs/slo-guide.md`。
 - Q10 flaky 治理已补齐：新增 `pytest-rerunfailures==16.4`、`flaky` marker、integration CI 一次有界重试、Playwright CI 重试边界说明与 `docs/flaky-governance.md`。
 - Q10 验收收口已补齐：新增 `docs/q10-acceptance-summary.md`，README 已加入 Q10 质量与稳定性索引，Task / MEMORY / CONTEXT / release evidence 已同步。
-- Q11 下一轮优化路线已建立：`docs/optimization-roadmap-2026-q11.md`，优先级为 PR / commit 拆分、发布说明、SLO 生产校准、前端覆盖率增长和运维 runbook。Q11-00 已完成，拆分计划见 `docs/q11-pr-split-plan.md`；Q11-01 已完成，发布说明 / 风险 / 回滚记录见 `docs/q10-release-notes.md`；Q11-02 已完成，CI matrix 本地与 GitHub runner 证据、PyJWT 迁移、Gitleaks/Trivy/镜像修复记录见 `docs/q11-ci-matrix-evidence.md`。
+- Q11 下一轮优化路线已建立：`docs/optimization-roadmap-2026-q11.md`，优先级为 PR / commit 拆分、发布说明、SLO 生产校准、前端覆盖率增长和运维 runbook。Q11-00 已完成，拆分计划见 `docs/q11-pr-split-plan.md`；Q11-01 已完成，发布说明 / 风险 / 回滚记录见 `docs/q10-release-notes.md`；Q11-02 已完成，CI matrix 本地与 GitHub runner 证据、PyJWT 迁移、Gitleaks/Trivy/镜像修复记录见 `docs/q11-ci-matrix-evidence.md`；Q11-10 已完成，SLO 预生产基线、生产采样窗口、目标依据和暂缓决策见 `docs/slo-guide.md`。
 
 最近验证记录：
 
@@ -65,6 +65,7 @@
 - `npm --prefix frontend run e2e -- suite-plan.spec.ts`：2 passed
 - `npm --prefix frontend run e2e`：9 passed
 - SLO 薄切验证：Grafana dashboard JSON 校验通过；SLO 定向 worker 测试 23 passed；相关 ruff 检查通过
+- Q11-10 SLO 校准：`docs/slo-guide.md` 已记录当前证据窗口、缺少连续生产 Prometheus 历史的限制、7 天初始生产校准和 14 天稳定生产校准要求，以及 availability / P95 / run success rate 目标依据。
 - Flaky 治理验证：`pytest --markers` 可见项目 `flaky` marker 与 rerunfailures marker；`--reruns 1` 定向测试 2 passed；CI workflow YAML 解析通过
 - Q10 验收文档：`docs/q10-acceptance-summary.md` 已汇总质量门禁、安全扫描、覆盖率、集成/E2E、SLO 与 flaky 治理证据
 - `npm --prefix frontend run test:coverage`：通过，当前前端全仓覆盖率基线 1.8%
@@ -86,7 +87,7 @@ Python 3.14 本地环境说明：已通过 Homebrew `libpq` 提供 `pg_config`�
 - `docs/disaster-recovery.md`、`docs/backup-restore-drill-record.md`：数据库和对象存储备份恢复演练。
 - `docs/domain-boundaries.md`、`docs/worker-lifecycle.md`、`docs/audit-log-policy.md`：架构、Worker、审计治理。
 
-下一步建议：发布收口、PR 范围整理、最终 code review pass 与运行证据归档已完成；Q10 已落地 ruff 最小 lint/format 门禁、mypy 渐进式基线、pre-commit、本地/CI 覆盖率基线、前端 Vitest 两批测试、Bandit SAST、依赖漏洞清零、Gitleaks/Trivy/security workflow、Dependabot、Docker Python 3.12 目标环境回归、suite-run / plan-trigger / notification / bug-report 真实依赖集成验证、suite / plan 前端关键路径 E2E、SLO 薄切、flaky 治理与 Q10 验收总结。Q11-00 / Q11-01 / Q11-02 已完成；下一优先项是 Q11-10，在 `docs/slo-guide.md` 中校准 API availability / P95 观测窗口与目标依据。
+下一步建议：发布收口、PR 范围整理、最终 code review pass 与运行证据归档已完成；Q10 已落地 ruff 最小 lint/format 门禁、mypy 渐进式基线、pre-commit、本地/CI 覆盖率基线、前端 Vitest 两批测试、Bandit SAST、依赖漏洞清零、Gitleaks/Trivy/security workflow、Dependabot、Docker Python 3.12 目标环境回归、suite-run / plan-trigger / notification / bug-report 真实依赖集成验证、suite / plan 前端关键路径 E2E、SLO 薄切、flaky 治理与 Q10 验收总结。Q11-00 / Q11-01 / Q11-02 / Q11-10 已完成；下一优先项是 Q11-11，补充 SLO triage runbook。
 
 ---
 
@@ -403,7 +404,8 @@ docker compose up -d --build
 Q1-Q10 路线图内功能项已完成。当前建议继续 Q11 工程质量与生产校准：
 
 - Q11-02：已完成本地主矩阵复跑、GitHub runner 证据归档，以及 Security / Trivy / Gitleaks / typing 后续修复。
-- Q11-10：校准 API availability / P95 窗口与目标，并把观测窗口、目标依据、暂缓项同步到 `docs/slo-guide.md`。
+- Q11-10：已校准 API availability / P95 预生产窗口与目标，并把观测窗口、目标依据、暂缓项同步到 `docs/slo-guide.md`。
+- Q11-11：补充 SLO triage runbook，将 availability、latency、run success rate、error-budget 异常映射到首轮排查动作。
 
 ---
 

@@ -238,6 +238,26 @@ Local worker Trivy replay: 0 high/critical fixed findings after k6 v2.1.0 refres
 Local frontend Trivy replay: 0 high/critical fixed findings after Alpine package upgrade.
 ```
 
+### Q11-10 SLO Production Calibration
+
+Follow-up date: 2026-07-09
+
+Changes:
+
+- Updated `docs/slo-guide.md` from a Q10 thin-slice note into the active ATP SLO guide.
+- Recorded the current evidence window as local / CI / release-readiness / short-lived staging-style validation, with no continuous production Prometheus history available in this repository snapshot.
+- Kept API availability `>= 99.5%`, API P95 latency `<= 2s`, and run success rate `>= 95%` as pre-production guardrails.
+- Added production adoption windows: 7 consecutive days for initial production calibration and 14 consecutive days for stable production calibration.
+- Deferred paging-grade alerts, monthly error-budget reporting, release-blocking SLO policy, and endpoint-class SLOs until production data exists.
+
+Primary evidence:
+
+```text
+Q11 roadmap: Q11-10 marked complete.
+SLO guide: observed traffic window, target rationale, production calibration checklist, and deferred decisions recorded.
+Next action: Q11-11 SLO triage runbook.
+```
+
 ### Q10 Format And Security Automation
 
 Follow-up date: 2026-07-08
