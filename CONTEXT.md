@@ -40,7 +40,7 @@
 - Q10 SLO 薄切已补齐：新增 `atp_run_outcomes_total{entity_type,status}`，Grafana `ATP Overview` 新增 API 可用性、API P95、run 成功率和 API 错误预算剩余 4 个面板，并新增 `docs/slo-guide.md`。
 - Q10 flaky 治理已补齐：新增 `pytest-rerunfailures==16.4`、`flaky` marker、integration CI 一次有界重试、Playwright CI 重试边界说明与 `docs/flaky-governance.md`。
 - Q10 验收收口已补齐：新增 `docs/q10-acceptance-summary.md`，README 已加入 Q10 质量与稳定性索引，Task / MEMORY / CONTEXT / release evidence 已同步。
-- Q11 下一轮优化路线已建立：`docs/optimization-roadmap-2026-q11.md`，优先级为 PR / commit 拆分、发布说明、SLO 生产校准、前端覆盖率增长和运维 runbook。Q11-00 已完成，拆分计划见 `docs/q11-pr-split-plan.md`；Q11-01 已完成，发布说明 / 风险 / 回滚记录见 `docs/q10-release-notes.md`；Q11-02 已完成，CI matrix 本地与 GitHub runner 证据、PyJWT 迁移、Gitleaks/Trivy/镜像修复记录见 `docs/q11-ci-matrix-evidence.md`；Q11 Phase 1 已完成，SLO 预生产基线、生产采样窗口、目标依据、triage runbook 和告警暂缓决策见 `docs/slo-guide.md`；Q11-20 已完成，project/module/case navigation helpers 与 Vitest 覆盖见 `frontend/src/utils/caseNavigation.ts`。
+- Q11 下一轮优化路线已建立：`docs/optimization-roadmap-2026-q11.md`，优先级为 PR / commit 拆分、发布说明、SLO 生产校准、前端覆盖率增长和运维 runbook。Q11-00 已完成，拆分计划见 `docs/q11-pr-split-plan.md`；Q11-01 已完成，发布说明 / 风险 / 回滚记录见 `docs/q10-release-notes.md`；Q11-02 已完成，CI matrix 本地与 GitHub runner 证据、PyJWT 迁移、Gitleaks/Trivy/镜像修复记录见 `docs/q11-ci-matrix-evidence.md`；Q11 Phase 1 已完成，SLO 预生产基线、生产采样窗口、目标依据、triage runbook 和告警暂缓决策见 `docs/slo-guide.md`；Q11-20 已完成，project/module/case navigation helpers 与 Vitest 覆盖见 `frontend/src/utils/caseNavigation.ts`；Q11-21 已完成，suite / plan list pure helpers 与 Vitest 覆盖见 `frontend/src/utils/suiteList.ts` 和 `frontend/src/utils/planList.ts`。
 
 最近验证记录：
 
@@ -69,6 +69,7 @@
 - Q11-11 SLO runbook：`docs/slo-guide.md` 已补充首五分钟检查、availability / latency / run success / error budget 排查路径、升级条件和 incident 记录模板。
 - Q11-12 告警阈值决策：`docs/slo-guide.md` 已明确暂缓 paging-grade SLO 告警到连续生产 Prometheus 历史可用后，并记录 availability / P95 / error budget / run success rate 阈值草案和启用条件。
 - Q11-20 前端导航测试：新增 `frontend/src/utils/caseNavigation.spec.ts` 覆盖路由 id、review status、case-list query、项目跳用例、用例详情和 query-vs-param 优先级；`npm --prefix frontend run test` 为 8 files / 22 tests，`type-check` 与 `build` 通过。
+- Q11-21 suite / plan helper 测试：新增 `frontend/src/utils/suiteList.spec.ts` 与 `frontend/src/utils/planList.spec.ts`，覆盖配置规范化、状态 / schedule 颜色、duration / percent、cron 校验 / preset、运行汇总、失败项和 suite progress；`npm --prefix frontend run test` 为 10 files / 30 tests，`type-check` 与 `build` 通过。
 - Flaky 治理验证：`pytest --markers` 可见项目 `flaky` marker 与 rerunfailures marker；`--reruns 1` 定向测试 2 passed；CI workflow YAML 解析通过
 - Q10 验收文档：`docs/q10-acceptance-summary.md` 已汇总质量门禁、安全扫描、覆盖率、集成/E2E、SLO 与 flaky 治理证据
 - `npm --prefix frontend run test:coverage`：通过，当前前端全仓覆盖率基线 1.8%
@@ -90,7 +91,7 @@ Python 3.14 本地环境说明：已通过 Homebrew `libpq` 提供 `pg_config`�
 - `docs/disaster-recovery.md`、`docs/backup-restore-drill-record.md`：数据库和对象存储备份恢复演练。
 - `docs/domain-boundaries.md`、`docs/worker-lifecycle.md`、`docs/audit-log-policy.md`：架构、Worker、审计治理。
 
-下一步建议：发布收口、PR 范围整理、最终 code review pass 与运行证据归档已完成；Q10 已落地 ruff 最小 lint/format 门禁、mypy 渐进式基线、pre-commit、本地/CI 覆盖率基线、前端 Vitest 两批测试、Bandit SAST、依赖漏洞清零、Gitleaks/Trivy/security workflow、Dependabot、Docker Python 3.12 目标环境回归、suite-run / plan-trigger / notification / bug-report 真实依赖集成验证、suite / plan 前端关键路径 E2E、SLO 薄切、flaky 治理与 Q10 验收总结。Q11-00 / Q11-01 / Q11-02 / Q11-10 / Q11-11 / Q11-12 / Q11-20 已完成；下一优先项是 Q11-21，补充 suite / plan list pure helpers 的前端测试。
+下一步建议：发布收口、PR 范围整理、最终 code review pass 与运行证据归档已完成；Q10 已落地 ruff 最小 lint/format 门禁、mypy 渐进式基线、pre-commit、本地/CI 覆盖率基线、前端 Vitest 两批测试、Bandit SAST、依赖漏洞清零、Gitleaks/Trivy/security workflow、Dependabot、Docker Python 3.12 目标环境回归、suite-run / plan-trigger / notification / bug-report 真实依赖集成验证、suite / plan 前端关键路径 E2E、SLO 薄切、flaky 治理与 Q10 验收总结。Q11-00 / Q11-01 / Q11-02 / Q11-10 / Q11-11 / Q11-12 / Q11-20 / Q11-21 已完成；下一优先项是 Q11-22，补充一个 system page smoke component test。
 
 ---
 
@@ -411,7 +412,8 @@ Q1-Q10 路线图内功能项已完成。当前建议继续 Q11 工程质量与�
 - Q11-11：已补充 SLO triage runbook，将 availability、latency、run success rate、error-budget 异常映射到首轮排查动作。
 - Q11-12：已决定 SLO 告警阈值策略；在没有连续生产 Prometheus 历史前暂缓 paging-grade alerting，并记录明确 deferred decision 与阈值草案。
 - Q11-20：已补充 project / module / case navigation utilities 的前端测试。
-- Q11-21：补充 suite / plan list pure helpers 的前端测试。
+- Q11-21：已补充 suite / plan list pure helpers 的前端测试。
+- Q11-22：下一步补充一个 system page smoke component test。
 
 ---
 

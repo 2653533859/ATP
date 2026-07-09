@@ -42,7 +42,7 @@ Q10 is complete:
 | ID | Task | Status | Acceptance |
 |----|------|--------|------------|
 | Q11-20 | Add tests for project/module/case navigation utilities | [x] | `frontend/src/utils/caseNavigation.spec.ts` covers route id parsing, review-status parsing, case-list query building, project -> cases links, case detail links, and query-vs-param precedence |
-| Q11-21 | Add tests for suite / plan list pure helpers | [ ] | Run summary, status color, config normalization, or action visibility helpers covered |
+| Q11-21 | Add tests for suite / plan list pure helpers | [x] | `frontend/src/utils/suiteList.spec.ts` and `frontend/src/utils/planList.spec.ts` cover config normalization, status / schedule colors, duration / percent formatting, cron validation / preset parsing, run summaries, failure extraction, and suite run progress helpers |
 | Q11-22 | Add one smoke component test for a system page | [ ] | Shared loading/empty/error behavior covered without brittle DOM snapshots |
 
 ## Phase 3 — Operational Runbooks [P1]
@@ -63,4 +63,4 @@ Q10 is complete:
 
 ## Next Action
 
-Continue Q11-21: add tests for suite / plan list pure helpers.
+Continue Q11-22: add one smoke component test for a system page.

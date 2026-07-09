@@ -37,7 +37,8 @@
 - Q11-11 completed on 2026-07-09: `docs/slo-guide.md` now includes a SLO triage runbook with first-five-minute checks, availability / latency / run-success / error-budget playbooks, escalation points, and an incident record template.
 - Q11-12 completed on 2026-07-09: `docs/slo-guide.md` now explicitly defers paging-grade SLO alerts until production Prometheus history exists, keeps the existing platform health alerts as the active alert layer, and records draft thresholds / enablement criteria for future availability, P95, error-budget, and run-success alerts.
 - Q11-20 completed on 2026-07-09: added `frontend/src/utils/caseNavigation.ts` and `caseNavigation.spec.ts` to cover route id parsing, review status parsing, case-list query building, project -> cases navigation, case detail navigation, and query-vs-param precedence. `ProjectList.vue` and `CaseList.vue` now reuse these helpers. Frontend validation passed: Vitest `8` files / `22` tests, `npm --prefix frontend run type-check`, and `npm --prefix frontend run build`.
-- Next Q11 action: start Q11-21 frontend coverage growth by adding tests for suite / plan list pure helpers.
+- Q11-21 completed on 2026-07-09: added `frontend/src/utils/suiteList.ts`, `suiteList.spec.ts`, `planList.ts`, and `planList.spec.ts`; `SuiteList.vue` / `PlanList.vue` now reuse pure helpers for config normalization, status / schedule colors, duration / percent formatting, cron validation / preset parsing, run summaries, failure extraction, and suite run progress. Frontend validation passed: Vitest `10` files / `30` tests, `npm --prefix frontend run type-check`, and `npm --prefix frontend run build`; backend static frontend checks passed for aggregate report and dashboard route contracts.
+- Next Q11 action: start Q11-22 frontend coverage growth by adding one smoke component test for a system page.
 
 ## Recent Fixes (2026-06-03)
 
@@ -84,6 +85,7 @@
 - Q11-11 SLO triage runbook is documented in `docs/slo-guide.md`; it maps each current SLO breach to first checks and escalation criteria.
 - Q11-12 alert threshold decision is documented in `docs/slo-guide.md`; SLO-specific paging alerts are deferred until production Prometheus history exists.
 - Q11-20 frontend navigation utility tests passed: `npm --prefix frontend run test` (`8` files / `22` tests), `npm --prefix frontend run type-check`, and `npm --prefix frontend run build`.
+- Q11-21 suite / plan helper tests passed: `npm --prefix frontend run test` (`10` files / `30` tests), `npm --prefix frontend run type-check`, `npm --prefix frontend run build`, and `backend/.venv/bin/python -m pytest backend/tests/frontend/test_aggregate_report_frontend.py backend/tests/frontend/test_dashboard_routes.py -q` (`10 passed`).
 - `make test-backend-coverage PYTHON=backend/.venv/bin/python` passed (`823 passed`, total coverage `53.47%`, required `52%` reached).
 - Docker `python:3.12-slim-bookworm` with `gcc libpq-dev` installed ran `python -m pytest backend/tests -q --ignore=backend/tests/integration` successfully after dependency remediation (`823 passed`).
 - `npm --prefix frontend run test` passed (`18 passed`); `npm --prefix frontend run test:coverage` passed with current frontend full-source coverage baseline `1.8%`; `npm --prefix frontend run type-check` and `npm --prefix frontend run build` passed.

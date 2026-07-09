@@ -313,7 +313,28 @@ Vitest: 8 files / 22 tests passed.
 Type-check: passed.
 Frontend build: passed.
 Q11 roadmap: Q11-20 marked complete.
-Next action: Q11-21 suite / plan list helper tests.
+Follow-up completed by Q11-21 suite / plan list helper tests.
+```
+
+### Q11-21 Suite And Plan Helper Tests
+
+Follow-up date: 2026-07-09
+
+Changes:
+
+- Added `frontend/src/utils/suiteList.ts` and `frontend/src/utils/suiteList.spec.ts`.
+- Added `frontend/src/utils/planList.ts` and `frontend/src/utils/planList.spec.ts`.
+- Reused the helpers in `SuiteList.vue` and `PlanList.vue`.
+
+Primary evidence:
+
+```text
+Vitest: 10 files / 30 tests passed.
+Type-check: passed.
+Frontend build: passed.
+Backend static frontend checks: 10 passed.
+Q11 roadmap: Q11-21 marked complete.
+Next action: Q11-22 system page smoke component test.
 ```
 
 ### Q10 Format And Security Automation

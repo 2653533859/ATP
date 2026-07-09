@@ -390,7 +390,6 @@ import { useI18n } from 'vue-i18n'
 import type {
   EnvironmentItem,
   PlanItem,
-  PlanConfig,
   PlanRunItem,
   ProjectItem,
   ScheduleType,
@@ -400,50 +399,24 @@ import type {
 } from '@/api'
 import { environmentApi, planApi, projectApi, suiteApi } from '@/api'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
+import {
+  createDefaultPlanConfig,
+  formatDuration,
+  formatPercent,
+  getCronValidationErrorKey,
+  getPlanRunFailureCount,
+  getPlanRunFailureItems,
+  getPlanRunPassRate,
+  normalizePlanConfig,
+  parseCronPreset,
+  runStatusColor,
+  scheduleColor,
+  type CronMode,
+} from '@/utils/planList'
 
 const { t } = useI18n()
 
 type SelectOption = { label: string; value: number }
-type CronMode = 'daily' | 'weekly' | 'custom'
-
-interface PlanFormConfig {
-  execution_mode: SuiteExecutionMode
-  max_workers: number
-  fail_strategy: SuiteFailStrategy
-  min_pass_rate: number
-}
-
-function createDefaultPlanConfig(): PlanFormConfig {
-  return {
-    execution_mode: 'sequential',
-    max_workers: 3,
-    fail_strategy: 'continue',
-    min_pass_rate: 0.8,
-  }
-}
-
-function normalizePlanConfig(config?: PlanConfig | null): PlanFormConfig {
-  const raw = config ?? {}
-  const execution_mode: SuiteExecutionMode = raw.execution_mode === 'parallel' ? 'parallel' : 'sequential'
-  const max_workersValue = Number(raw.max_workers)
-  const fail_strategy: SuiteFailStrategy =
-    raw.fail_strategy === 'fast-fail' ||
-    raw.fail_strategy === 'require-minimum-pass-rate' ||
-    raw.fail_strategy === 'continue'
-      ? raw.fail_strategy
-      : 'continue'
-  const min_pass_rate_value = Number(raw.min_pass_rate)
-  return {
-    execution_mode,
-    max_workers: Number.isFinite(max_workersValue) && max_workersValue > 0
-      ? Math.min(Math.max(Math.trunc(max_workersValue), 1), 10)
-      : 3,
-    fail_strategy,
-    min_pass_rate: Number.isFinite(min_pass_rate_value)
-      ? Math.min(Math.max(min_pass_rate_value, 0), 1)
-      : 0.8,
-  }
-}
 
 const planExecutionModeOptions = computed<Array<{ label: string; value: SuiteExecutionMode }>>(() => [
   { label: t('suite.execution_modes.sequential'), value: 'sequential' },
@@ -481,81 +454,9 @@ function formatTime(t: string) {
   return t?.slice(0, 19).replace('T', ' ') ?? '-'
 }
 
-function isIntegerInRange(value: string, min: number, max: number) {
-  if (!/^\d+$/.test(value)) return false
-  const num = Number(value)
-  return num >= min && num <= max
-}
-
-function validateCronField(field: string, min: number, max: number): boolean {
-  if (field === '*') return true
-  if (field.includes('/')) {
-    const [base, step] = field.split('/')
-    return (base === '*' || isIntegerInRange(base, min, max)) && isIntegerInRange(step, 1, max - min + 1)
-  }
-  if (field.includes('-')) {
-    const [start, end] = field.split('-')
-    return isIntegerInRange(start, min, max) && isIntegerInRange(end, min, max) && Number(start) <= Number(end)
-  }
-  if (field.includes(',')) {
-    return field.split(',').every(part => validateCronField(part, min, max))
-  }
-  return isIntegerInRange(field, min, max)
-}
-
 function validateCronExpression(expression: string) {
-  const trimmed = expression.trim()
-  if (!trimmed) return t('plan.cron_errors.required')
-
-  const parts = trimmed.split(/\s+/)
-  if (parts.length !== 5) return t('plan.cron_errors.parts')
-
-  const [minute, hour, dayOfMonth, month, dayOfWeek] = parts
-  if (!validateCronField(minute, 0, 59)) return t('plan.cron_errors.minute')
-  if (!validateCronField(hour, 0, 23)) return t('plan.cron_errors.hour')
-  if (!validateCronField(dayOfMonth, 1, 31)) return t('plan.cron_errors.day')
-  if (!validateCronField(month, 1, 12)) return t('plan.cron_errors.month')
-  if (!validateCronField(dayOfWeek, 0, 6)) return t('plan.cron_errors.weekday')
-  return ''
-}
-
-function parseCronPreset(expression: string | null | undefined): {
-  mode: CronMode
-  hour: number
-  minute: number
-  weekday: number
-  customExpression: string
-} {
-  const cron = (expression ?? '').trim()
-  const dailyMatch = cron.match(/^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+\*$/)
-  if (dailyMatch) {
-    return {
-      mode: 'daily',
-      minute: Number(dailyMatch[1]),
-      hour: Number(dailyMatch[2]),
-      weekday: 1,
-      customExpression: cron,
-    }
-  }
-
-  const weeklyMatch = cron.match(/^(\d{1,2})\s+(\d{1,2})\s+\*\s+\*\s+([0-6])$/)
-  if (weeklyMatch) {
-    return {
-      mode: 'weekly',
-      minute: Number(weeklyMatch[1]),
-      hour: Number(weeklyMatch[2]),
-      weekday: Number(weeklyMatch[3]),
-      customExpression: cron,
-    }
-  }
-
-  return {
-    mode: 'custom',
-    minute: 0,
-    hour: 9,
-    weekday: 1,
-    customExpression: cron,
-  }
+  const errorKey = getCronValidationErrorKey(expression)
+  return errorKey ? t(`plan.cron_errors.${errorKey}`) : ''
 }
 
 const plans = ref<PlanItem[]>([])
@@ -684,51 +585,6 @@ function scheduleLabel(type: string) {
   const translated = t(key)
   return translated === key ? type : translated
 }
-function scheduleColor(t: string) {
-  return { manual: 'default', cron: 'blue', webhook: 'orange' }[t] ?? 'default'
-}
-function runStatusColor(s: string) {
-  return { pending: 'default', running: 'processing', passed: 'success', failed: 'error', error: 'warning' }[s] ?? 'default'
-}
-
-function formatDuration(duration?: number | null) {
-  if (duration == null) return '-'
-  if (duration < 1000) return `${duration} ms`
-  return `${(duration / 1000).toFixed(1)}s`
-}
-
-function formatPercent(value: number) {
-  return `${Math.round(value * 10) / 10}%`
-}
-
-function getPlanRunTotalCount(run: PlanRunItem) {
-  const summaryTotal = Number(run.result_summary?.total)
-  if (Number.isFinite(summaryTotal) && summaryTotal > 0) {
-    return summaryTotal
-  }
-  return run.suite_run_ids?.length ?? 0
-}
-
-function getPlanRunPassedCount(run: PlanRunItem) {
-  const passed = Number(run.result_summary?.passed ?? 0)
-  return Number.isFinite(passed) ? passed : 0
-}
-
-function getPlanRunFailureCount(run: PlanRunItem) {
-  const failed = Number(run.result_summary?.failed ?? 0)
-  const error = Number(run.result_summary?.error ?? 0)
-  return (Number.isFinite(failed) ? failed : 0) + (Number.isFinite(error) ? error : 0)
-}
-
-function getPlanRunPassRate(run: PlanRunItem) {
-  const total = getPlanRunTotalCount(run)
-  return total ? (getPlanRunPassedCount(run) / total) * 100 : 0
-}
-
-function getPlanRunFailureItems(run: PlanRunItem) {
-  return (run.suite_run_ids ?? []).filter((item) => item.status === 'failed' || item.status === 'error')
-}
-
 function getSuiteRunReportName(item: Record<string, unknown>) {
   return String(item.suite_name || t('plan.report.suite_fallback', { id: item.suite_id ?? '-' }))
 }

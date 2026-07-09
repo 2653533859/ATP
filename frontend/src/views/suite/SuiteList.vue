@@ -501,6 +501,23 @@ import type {
 } from '@/api'
 import { suiteApi, projectApi, caseApi, environmentApi } from '@/api'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
+import {
+  createDefaultSuiteConfig,
+  formatDuration,
+  formatPercent,
+  getSuiteRunCompletedCount,
+  getSuiteRunFailureCount,
+  getSuiteRunFailureItems,
+  getSuiteRunPassRate,
+  getSuiteRunProgressPercent,
+  getSuiteRunProgressStatus,
+  getSuiteRunTotalCount,
+  hasActiveSuiteRuns,
+  normalizeSuiteConfig,
+  runStatusBadge,
+  suiteExecutionModeColor,
+  suiteFailStrategyColor,
+} from '@/utils/suiteList'
 
 const { t, locale } = useI18n()
 
@@ -523,41 +540,6 @@ interface ModuleTreeOption {
 
 function getErrorMessage(error: unknown, fallback: string) {
   return typeof error === 'string' ? error : fallback
-}
-
-function createDefaultSuiteConfig(): SuiteFormState['config'] {
-  return {
-    execution_mode: 'sequential',
-    max_workers: 5,
-    fail_strategy: 'continue',
-    min_pass_rate: 0.8,
-  }
-}
-
-function normalizeSuiteConfig(config?: SuiteConfig | null): SuiteFormState['config'] {
-  const raw = config ?? {}
-  const execution_mode: SuiteExecutionMode = raw.execution_mode === 'parallel' ? 'parallel' : 'sequential'
-  const max_workersValue = Number(raw.max_workers)
-  const fail_strategy: SuiteFailStrategy =
-    raw.fail_strategy === 'fast-fail' ||
-    raw.fail_strategy === 'require-minimum-pass-rate' ||
-    raw.fail_strategy === 'continue'
-      ? raw.fail_strategy
-      : 'continue'
-  const min_pass_rate_value = Number(raw.min_pass_rate)
-
-  return {
-    execution_mode,
-    max_workers:
-      Number.isFinite(max_workersValue) && max_workersValue > 0
-        ? Math.min(20, Math.max(1, Math.round(max_workersValue)))
-        : 5,
-    fail_strategy,
-    min_pass_rate:
-      Number.isFinite(min_pass_rate_value)
-        ? Math.min(1, Math.max(0, min_pass_rate_value))
-        : 0.8,
-  }
 }
 
 function createDefaultForm(): SuiteFormState {
@@ -868,21 +850,9 @@ function suiteExecutionModeLabel(mode?: SuiteConfig['execution_mode']) {
   return mode === 'parallel' ? t('suite.execution_modes.parallel') : t('suite.execution_modes.sequential')
 }
 
-function suiteExecutionModeColor(mode?: SuiteConfig['execution_mode']) {
-  return mode === 'parallel' ? 'blue' : 'default'
-}
-
 function suiteFailStrategyLabel(strategy?: SuiteConfig['fail_strategy']) {
   const key = strategy ?? 'continue'
   return t(`suite.fail_strategies.${key}`)
-}
-
-function suiteFailStrategyColor(strategy?: SuiteConfig['fail_strategy']) {
-  return {
-    'continue': 'default',
-    'fast-fail': 'volcano',
-    'require-minimum-pass-rate': 'purple',
-  }[strategy ?? 'continue'] ?? 'default'
 }
 
 function getExecutionReason(item: Pick<CaseSummaryItem, 'status' | 'review_status' | 'automation_status'>) {
@@ -960,83 +930,6 @@ function buildModuleTreeOptions(
 
 function getModuleName(moduleId: number) {
   return moduleNameMap.value[moduleId] ?? t('suite.module_fallback', { id: moduleId })
-}
-
-function runStatusBadge(s: string) {
-  return { pending: 'default', running: 'processing', passed: 'success', failed: 'error', error: 'warning' }[s] ?? 'default'
-}
-
-function formatDuration(duration?: number | null) {
-  if (duration == null) return '-'
-  if (duration < 1000) return `${duration} ms`
-  return `${(duration / 1000).toFixed(1)}s`
-}
-
-function formatPercent(value: number) {
-  return `${Math.round(value * 10) / 10}%`
-}
-
-function getSuiteRunTotalCount(run: SuiteRunItem) {
-  const summaryTotal = Number(run.result_summary?.total)
-  if (Number.isFinite(summaryTotal) && summaryTotal > 0) {
-    return summaryTotal
-  }
-  return run.case_run_ids?.length ?? 0
-}
-
-function getSuiteRunPassedCount(run: SuiteRunItem) {
-  const passed = Number(run.result_summary?.passed ?? 0)
-  return Number.isFinite(passed) ? passed : 0
-}
-
-function getSuiteRunFailureCount(run: SuiteRunItem) {
-  const failed = Number(run.result_summary?.failed ?? 0)
-  const error = Number(run.result_summary?.error ?? 0)
-  return (Number.isFinite(failed) ? failed : 0) + (Number.isFinite(error) ? error : 0)
-}
-
-function getSuiteRunPassRate(run: SuiteRunItem) {
-  const total = getSuiteRunTotalCount(run)
-  return total ? (getSuiteRunPassedCount(run) / total) * 100 : 0
-}
-
-function getSuiteRunFailureItems(run: SuiteRunItem) {
-  return (run.case_run_ids ?? []).filter((item) => item.status === 'failed' || item.status === 'error')
-}
-
-function getSuiteRunCompletedCount(run: SuiteRunItem) {
-  const summary = run.result_summary ?? {}
-  const summaryCompleted = ['passed', 'failed', 'error', 'skipped']
-    .map((key) => Number(summary[key] ?? 0))
-    .filter((value) => Number.isFinite(value) && value > 0)
-    .reduce((total, value) => total + value, 0)
-
-  if (summaryCompleted > 0) {
-    return summaryCompleted
-  }
-  return run.case_run_ids?.length ?? 0
-}
-
-function getSuiteRunProgressPercent(run: SuiteRunItem) {
-  const total = getSuiteRunTotalCount(run)
-  if (total <= 0) {
-    return 0
-  }
-  return Math.min(100, Math.round((getSuiteRunCompletedCount(run) / total) * 100))
-}
-
-function getSuiteRunProgressStatus(run: SuiteRunItem) {
-  if (run.status === 'failed' || run.status === 'error') {
-    return 'exception'
-  }
-  if (run.status === 'passed') {
-    return 'success'
-  }
-  return 'active'
-}
-
-function hasActiveSuiteRuns(runs: SuiteRunItem[]) {
-  return runs.some((run) => run.status === 'pending' || run.status === 'running')
 }
 
 function stopSuiteRunsRefresh() {
