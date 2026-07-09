@@ -36,7 +36,8 @@
 - Q11-10 completed on 2026-07-09: `docs/slo-guide.md` now records the current pre-production evidence window, the missing production Prometheus-history caveat, 7-day initial and 14-day stable production calibration windows, target rationale for API availability / P95 / run success rate, and deferred decisions for paging alerts, monthly error budgets, release-blocking SLO policy, and endpoint-class SLOs.
 - Q11-11 completed on 2026-07-09: `docs/slo-guide.md` now includes a SLO triage runbook with first-five-minute checks, availability / latency / run-success / error-budget playbooks, escalation points, and an incident record template.
 - Q11-12 completed on 2026-07-09: `docs/slo-guide.md` now explicitly defers paging-grade SLO alerts until production Prometheus history exists, keeps the existing platform health alerts as the active alert layer, and records draft thresholds / enablement criteria for future availability, P95, error-budget, and run-success alerts.
-- Next Q11 action: start Q11-20 frontend coverage growth by adding tests for high-risk project/module/case navigation utilities.
+- Q11-20 completed on 2026-07-09: added `frontend/src/utils/caseNavigation.ts` and `caseNavigation.spec.ts` to cover route id parsing, review status parsing, case-list query building, project -> cases navigation, case detail navigation, and query-vs-param precedence. `ProjectList.vue` and `CaseList.vue` now reuse these helpers. Frontend validation passed: Vitest `8` files / `22` tests, `npm --prefix frontend run type-check`, and `npm --prefix frontend run build`.
+- Next Q11 action: start Q11-21 frontend coverage growth by adding tests for suite / plan list pure helpers.
 
 ## Recent Fixes (2026-06-03)
 
@@ -82,6 +83,7 @@
 - Q11-10 SLO calibration is documented in `docs/slo-guide.md`; current targets remain pre-production guardrails until continuous production Prometheus history is available.
 - Q11-11 SLO triage runbook is documented in `docs/slo-guide.md`; it maps each current SLO breach to first checks and escalation criteria.
 - Q11-12 alert threshold decision is documented in `docs/slo-guide.md`; SLO-specific paging alerts are deferred until production Prometheus history exists.
+- Q11-20 frontend navigation utility tests passed: `npm --prefix frontend run test` (`8` files / `22` tests), `npm --prefix frontend run type-check`, and `npm --prefix frontend run build`.
 - `make test-backend-coverage PYTHON=backend/.venv/bin/python` passed (`823 passed`, total coverage `53.47%`, required `52%` reached).
 - Docker `python:3.12-slim-bookworm` with `gcc libpq-dev` installed ran `python -m pytest backend/tests -q --ignore=backend/tests/integration` successfully after dependency remediation (`823 passed`).
 - `npm --prefix frontend run test` passed (`18 passed`); `npm --prefix frontend run test:coverage` passed with current frontend full-source coverage baseline `1.8%`; `npm --prefix frontend run type-check` and `npm --prefix frontend run build` passed.

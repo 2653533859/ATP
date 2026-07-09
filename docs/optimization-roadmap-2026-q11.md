@@ -41,7 +41,7 @@ Q10 is complete:
 
 | ID | Task | Status | Acceptance |
 |----|------|--------|------------|
-| Q11-20 | Add tests for project/module/case navigation utilities | [ ] | Vitest covers at least two high-risk route/state helpers |
+| Q11-20 | Add tests for project/module/case navigation utilities | [x] | `frontend/src/utils/caseNavigation.spec.ts` covers route id parsing, review-status parsing, case-list query building, project -> cases links, case detail links, and query-vs-param precedence |
 | Q11-21 | Add tests for suite / plan list pure helpers | [ ] | Run summary, status color, config normalization, or action visibility helpers covered |
 | Q11-22 | Add one smoke component test for a system page | [ ] | Shared loading/empty/error behavior covered without brittle DOM snapshots |
 
@@ -63,4 +63,4 @@ Q10 is complete:
 
 ## Next Action
 
-Continue Q11-20: add frontend tests for high-risk project/module/case navigation utilities.
+Continue Q11-21: add tests for suite / plan list pure helpers.

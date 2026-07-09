@@ -27,7 +27,7 @@
     <a-spin :spinning="loading">
       <a-row :gutter="[16, 16]">
         <a-col v-for="p in filteredProjects" :key="p.id" :span="8">
-          <a-card hoverable :title="p.name" @click="router.push({ name: 'cases', query: { project_id: String(p.id) } })">
+          <a-card hoverable :title="p.name" @click="router.push(buildProjectCasesLocation(p.id))">
             <p>{{ p.description || t('project.no_description') }}</p>
             <p style="color: var(--c-text-tertiary); font-size: 12px">
               {{ t('project.ai_model_label', { model: llmConfigLabel(p.ai_llm_config_id) }) }}
@@ -90,6 +90,7 @@ import { useI18n } from 'vue-i18n'
 import { aiLLMConfigApi, projectApi, type AILLMConfigItem, type ProjectItem } from '@/api'
 import MemberManageDrawer from './MemberManageDrawer.vue'
 import { getProjectErrorMessage } from './project-errors'
+import { buildProjectCasesLocation } from '@/utils/caseNavigation'
 
 const router = useRouter()
 const { t } = useI18n()

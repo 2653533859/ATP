@@ -296,6 +296,26 @@ SLO guide: paging-grade SLO alerts deferred; draft thresholds and enablement cri
 Next action: Q11-20 frontend coverage growth.
 ```
 
+### Q11-20 Frontend Navigation Utility Tests
+
+Follow-up date: 2026-07-09
+
+Changes:
+
+- Added `frontend/src/utils/caseNavigation.ts` for project/module/case navigation helpers.
+- Added `frontend/src/utils/caseNavigation.spec.ts`.
+- Reused the helpers in `ProjectList.vue` and `CaseList.vue`.
+
+Primary evidence:
+
+```text
+Vitest: 8 files / 22 tests passed.
+Type-check: passed.
+Frontend build: passed.
+Q11 roadmap: Q11-20 marked complete.
+Next action: Q11-21 suite / plan list helper tests.
+```
+
 ### Q10 Format And Security Automation
 
 Follow-up date: 2026-07-08

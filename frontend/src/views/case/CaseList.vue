@@ -519,6 +519,11 @@ import CaseHistoryDrawer from '@/views/case/CaseHistoryDrawer.vue'
 import AIGenerateDrawer from '@/views/case/AIGenerateDrawer.vue'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
 import { canEditProjectAssets, hasAnyRole } from '@/utils/permissions'
+import {
+  buildCaseDetailLocation,
+  buildCasesQuery,
+  readCaseRouteSelection,
+} from '@/utils/caseNavigation'
 import { useAuthStore } from '@/stores/auth'
 
 type WorkflowAction = 'submitReview' | 'approve' | 'reject' | 'deprecate' | 'reactivate'
@@ -694,17 +699,6 @@ const activeFilterTags = computed<FilterTag[]>(() => {
   }
   return tags
 })
-
-function parsePositiveInt(value: unknown): number | null {
-  const raw = Array.isArray(value) ? value[0] : value
-  const parsed = Number(raw)
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
-}
-
-function parseReviewStatus(value: unknown): ReviewStatus | undefined {
-  const raw = Array.isArray(value) ? value[0] : value
-  return raw === 'pending' || raw === 'approved' || raw === 'rejected' ? raw : undefined
-}
 
 function flattenModules(nodes: ModuleTreeItem[], acc: Record<number, string> = {}) {
   for (const node of nodes) {
@@ -914,20 +908,16 @@ async function loadCases() {
 }
 
 function syncRoute() {
-  const query: Record<string, string> = {}
-  if (selectedProjectId.value) {
-    query.project_id = String(selectedProjectId.value)
-  }
-  if (selectedModuleId.value) {
-    query.module_id = String(selectedModuleId.value)
-  }
-  if (filterReviewStatus.value) {
-    query.review_status = filterReviewStatus.value
-  }
-
-  const currentProjectId = parsePositiveInt(route.query.project_id) ?? parsePositiveInt(route.params.projectId)
-  const currentModuleId = parsePositiveInt(route.query.module_id)
-  const currentReviewStatus = parseReviewStatus(route.query.review_status)
+  const query = buildCasesQuery({
+    projectId: selectedProjectId.value,
+    moduleId: selectedModuleId.value,
+    reviewStatus: filterReviewStatus.value,
+  })
+  const {
+    projectId: currentProjectId,
+    moduleId: currentModuleId,
+    reviewStatus: currentReviewStatus,
+  } = readCaseRouteSelection(route)
   if (
     currentProjectId === selectedProjectId.value
     && currentModuleId === selectedModuleId.value
@@ -940,9 +930,11 @@ function syncRoute() {
 }
 
 async function applyRouteSelection(useDefaultProject = false) {
-  const routeProjectId = parsePositiveInt(route.query.project_id) ?? parsePositiveInt(route.params.projectId)
-  const routeModuleId = parsePositiveInt(route.query.module_id)
-  const routeReviewStatus = parseReviewStatus(route.query.review_status)
+  const {
+    projectId: routeProjectId,
+    moduleId: routeModuleId,
+    reviewStatus: routeReviewStatus,
+  } = readCaseRouteSelection(route)
   const fallbackProjectId = useDefaultProject ? (projects.value[0]?.id ?? null) : selectedProjectId.value
   const nextProjectId = routeProjectId ?? fallbackProjectId
   const projectChanged = nextProjectId !== selectedProjectId.value
@@ -1063,14 +1055,10 @@ function openEdit(testCase: CaseSummaryItem) {
 }
 
 function openDetail(caseId: number) {
-  const query: Record<string, string> = {}
-  if (selectedProjectId.value) {
-    query.project_id = String(selectedProjectId.value)
-  }
-  if (selectedModuleId.value) {
-    query.module_id = String(selectedModuleId.value)
-  }
-  void router.push({ name: 'case-detail', params: { caseId: String(caseId) }, query })
+  void router.push(buildCaseDetailLocation(caseId, {
+    projectId: selectedProjectId.value,
+    moduleId: selectedModuleId.value,
+  }))
 }
 
 function onSaved() {
