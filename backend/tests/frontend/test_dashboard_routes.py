@@ -65,7 +65,10 @@ def test_dashboard_has_workbench_shortcuts():
 
 def test_case_list_accepts_review_status_query_from_dashboard():
     content = repo_path("frontend/src/views/case/CaseList.vue").read_text(encoding="utf-8")
+    navigation = repo_path("frontend/src/utils/caseNavigation.ts").read_text(encoding="utf-8")
 
-    assert "parseReviewStatus(route.query.review_status)" in content
+    assert "readCaseRouteSelection(route)" in content
     assert "filterReviewStatus.value = routeReviewStatus" in content
-    assert "query.review_status = filterReviewStatus.value" in content
+    assert "reviewStatus: filterReviewStatus.value" in content
+    assert "reviewStatus: parseReviewStatus(route.query.review_status)" in navigation
+    assert "query.review_status = context.reviewStatus" in navigation
