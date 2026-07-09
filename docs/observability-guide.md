@@ -1,6 +1,6 @@
 # ATP 可观测性指引（Prometheus + Grafana）
 
-本文档说明 ATP 平台的 metrics 维度可观测性组件如何启动、查询与扩展。指标维度（Prometheus + Grafana）与链路维度（OpenTelemetry + Jaeger）正交互补 — trace 维度参见 `docs/tracing-guide.md`。当前预置看板覆盖慢查询、队列积压、接口错误率、MinIO 使用量与 Q10 SLO 薄切。SLO 目标、PromQL 与错误预算口径见 `docs/slo-guide.md`。
+本文档说明 ATP 平台的 metrics 维度可观测性组件如何启动、查询与扩展。指标维度（Prometheus + Grafana）与链路维度（OpenTelemetry + Jaeger）正交互补 — trace 维度参见 `docs/tracing-guide.md`。当前预置看板覆盖慢查询、队列积压、接口错误率与 MinIO 使用量，并扩展到 Q10 SLO 薄切。SLO 目标、PromQL 与错误预算口径见 `docs/slo-guide.md`。
 
 ## 一、启停
 
