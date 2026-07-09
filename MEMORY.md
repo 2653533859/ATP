@@ -32,7 +32,8 @@
 - Q11 optimization roadmap started: added `docs/optimization-roadmap-2026-q11.md` with Phase 0 release packaging, Phase 1 SLO calibration, Phase 2 frontend coverage growth, Phase 3 runbooks, and Phase 4 runtime polish.
 - Q11-00 completed: added `docs/q11-pr-split-plan.md` with nine recommended review units covering dependency compatibility, runtime fixes, quality gates, Ruff format baseline, security automation, integration, frontend E2E, SLO/flaky governance, and documentation closure. Next action is Q11-01 release notes with risk / rollback notes.
 - Q11-01 completed: added `docs/q10-release-notes.md` with Q10 release summary, major change groups, verification snapshot, risk notes, rollback plan, and release checklist. Next action is Q11-02 final CI matrix evidence collection.
-- Q11-02 local matrix mostly completed: added `docs/q11-ci-matrix-evidence.md`, fixed the new `ecdsa 0.19.2` / `PYSEC-2026-1325` pip-audit finding by migrating JWT handling from `python-jose` to `PyJWT[crypto]==2.13.0`, fixed CI integration failures by making FastAPI OTel instrumentation conditional on `OTEL_EXPORTER_OTLP_ENDPOINT` and installing it after route registration, and verified pip-audit, npm audit, API JWT/permission regressions, ruff lint, format-check, mypy, local/Python 3.12 integration, local E2E, Docker release-readiness image builds, and worker `k6 version`. Remaining Q11-02 work is post-fix GitHub runner archival for main CI, security, integration, and release-readiness.
+- Q11-02 completed on 2026-07-09: `docs/q11-ci-matrix-evidence.md` now archives local and GitHub runner evidence. The final `main` matrix at `c1ef60c` passed CI (`28998360621`), Security (`28998360606`), Integration (`28998366738`), Release readiness (`28998368776`), and E2E (`28998370798`). Follow-up fixes included `types-redis`, a typed Redis async-close helper, Trivy action `v0.36.0`, scoped Gitleaks allowlists, observability wording alignment, worker k6 refresh to `grafana/k6:2.1.0`, and frontend runtime `apk upgrade --no-cache`.
+- Next Q11 action: start Q11-10 SLO production calibration by updating `docs/slo-guide.md` with the observed API availability / P95 traffic window and target rationale.
 
 ## Recent Fixes (2026-06-03)
 
@@ -74,6 +75,7 @@
 - `make format-check PYTHON=backend/.venv/bin/python` passed (`336 files already formatted`).
 - YAML parse validation passed for `.github/workflows/security.yml`, `.github/dependabot.yml`, `.github/workflows/ci.yml`, and `.pre-commit-config.yaml`.
 - `make pre-commit PYTHON=backend/.venv/bin/python` passed all hooks.
+- Q11-02 GitHub runner final matrix passed on `main` commit `c1ef60c`: CI, Security, Integration, Release readiness, and E2E were all successful. Details and run links are archived in `docs/q11-ci-matrix-evidence.md`.
 - `make test-backend-coverage PYTHON=backend/.venv/bin/python` passed (`823 passed`, total coverage `53.47%`, required `52%` reached).
 - Docker `python:3.12-slim-bookworm` with `gcc libpq-dev` installed ran `python -m pytest backend/tests -q --ignore=backend/tests/integration` successfully after dependency remediation (`823 passed`).
 - `npm --prefix frontend run test` passed (`18 passed`); `npm --prefix frontend run test:coverage` passed with current frontend full-source coverage baseline `1.8%`; `npm --prefix frontend run type-check` and `npm --prefix frontend run build` passed.

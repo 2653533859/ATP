@@ -27,7 +27,7 @@ Q10 is complete:
 |----|------|--------|------------|
 | Q11-00 | Split PR / commit plan for the current large diff | [x] | Review groups documented in `docs/q11-pr-split-plan.md`: format baseline, dependency compatibility, quality gates, security automation, integration/E2E, SLO/docs |
 | Q11-01 | Create release notes from Q10 evidence | [x] | `docs/q10-release-notes.md` links `docs/q10-acceptance-summary.md` and lists risk / rollback notes |
-| Q11-02 | Final CI matrix replay | [~] | Local main/security/integration/E2E/release-readiness evidence is recorded in `docs/q11-ci-matrix-evidence.md`; GitHub integration failure was traced to OTel instrumentation and fixed locally; post-fix GitHub runner archival still pending |
+| Q11-02 | Final CI matrix replay | [x] | Local and GitHub runner evidence is recorded in `docs/q11-ci-matrix-evidence.md`; final `main` matrix at `c1ef60c` passed CI, Security, Integration, Release readiness, and E2E |
 
 ## Phase 1 — SLO Production Calibration [P1]
 
@@ -63,4 +63,4 @@ Q10 is complete:
 
 ## Next Action
 
-Continue Q11-02: run the current local patch on GitHub and archive post-fix main CI, security, integration, and release-readiness workflow results.
+Continue Q11-10: calibrate API availability and P95 windows in `docs/slo-guide.md`, recording the observed traffic window and target rationale before adding new panels or alerts.

@@ -211,7 +211,31 @@ GitHub CI (integration): failed, run 28921392320; root cause was unconditional O
 Local integration after OTel fix: 10 passed.
 Docker Python 3.12 integration after OTel fix: 10 passed.
 Local E2E replay: 9 passed.
-Release-readiness local replay: backend / worker / frontend images built; worker k6 v0.52.0 verified; checklist contract passed.
+Release-readiness initial local replay: backend / worker / frontend images built; worker k6 v0.52.0 was verified before the later security refresh to k6 v2.1.0; checklist contract passed.
+```
+
+### Q11-02 CI Matrix Replay Completed
+
+Follow-up date: 2026-07-09
+
+Changes:
+
+- Archived final GitHub runner evidence in `docs/q11-ci-matrix-evidence.md`.
+- Fixed post-replay CI/security issues: missing `types-redis`, Redis async close typing, invalid Trivy action tag, scoped Gitleaks historical allowlists, observability static-doc contract wording, worker k6 image CVEs, and frontend Alpine runtime package CVEs.
+- Refreshed worker k6 from `grafana/k6:0.52.0` to `grafana/k6:2.1.0`.
+- Added `apk upgrade --no-cache` to the frontend runtime stage so the `nginx:alpine` production image picks up fixed Alpine packages before Trivy scanning.
+
+Primary evidence:
+
+```text
+Final commit under test: c1ef60cf0dde705423e9315a5f4e67ee235efd8c
+GitHub CI: success, run 28998360621.
+GitHub Security: success, run 28998360606.
+GitHub CI (integration): success, run 28998366738.
+GitHub Release readiness: success, run 28998368776.
+GitHub CI (e2e): success, run 28998370798.
+Local worker Trivy replay: 0 high/critical fixed findings after k6 v2.1.0 refresh.
+Local frontend Trivy replay: 0 high/critical fixed findings after Alpine package upgrade.
 ```
 
 ### Q10 Format And Security Automation

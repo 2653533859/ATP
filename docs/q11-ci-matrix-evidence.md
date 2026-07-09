@@ -1,10 +1,10 @@
 # Q11 CI Matrix Evidence
 
-> Date: 2026-07-08
-> Status: local matrix complete; GitHub runner archival pending
+> Date: 2026-07-09
+> Status: complete; local and GitHub runner matrix archived
 > Scope: Q11-02 final CI matrix replay and evidence collection.
 
-## Current Finding
+## Findings And Remediations
 
 The first Q11-02 security replay exposed a new backend dependency audit failure:
 
@@ -21,6 +21,15 @@ Remediation:
 - Migrated token error handling from `JWTError` to `InvalidTokenError`.
 - Updated local API test stubs to use `jwt.InvalidTokenError`.
 - Removed stale local venv packages: `python-jose`, `ecdsa`, `rsa`, and `pyasn1`.
+
+The first post-fix GitHub runner replay exposed CI/security gaps that were not visible in the initial local replay:
+
+- `types-redis` was missing from dev dependencies, and Redis async close calls needed a typed helper because the installed stubs did not expose `Redis.aclose`.
+- The Trivy action tag was invalid as `aquasecurity/trivy-action@0.33.1`; it was updated to `aquasecurity/trivy-action@v0.36.0`.
+- Gitleaks scanned historical repository content and flagged old virtualenv files plus a documentation placeholder; `.gitleaks.toml` now scopes those historical/documentation allowances.
+- Backend pytest expected the exact observability phrase `慢查询、队列积压、接口错误率与 MinIO 使用量`; `docs/observability-guide.md` now keeps the contract wording.
+- Worker image scanning found Go stdlib CVEs in the old `grafana/k6:0.52.0` binary; the worker now copies k6 from `grafana/k6:2.1.0`.
+- Frontend image scanning found Alpine package CVEs in `nginx:alpine`; the production stage now runs `apk upgrade --no-cache` before copying built assets.
 
 ## Evidence Collected
 
@@ -212,8 +221,8 @@ Results:
 
 ```text
 Backend image: built, image id d2ae63764b4a.
-Worker image: built, image id 212947161f85.
-Worker k6: k6 v0.52.0 (commit/20f8febb5b, go1.22.4, linux/arm64).
+Worker image: built; final post-security replay uses k6 v2.1.0.
+Worker k6: k6 v2.1.0 (commit/83a87a41e2, go1.26.4, linux/arm64).
 Frontend image: built, image id e6ddeb596f3f.
 ```
 
@@ -223,15 +232,63 @@ Warnings:
 - Frontend image build emitted npm deprecation warnings for `vue-i18n@9.14.5` and transitive `glob@10.5.0`.
 - `npm audit` during frontend image build reported `found 0 vulnerabilities`.
 
-## Pending Evidence
+### Trivy Remediation Local Replays
 
-Q11-02 is not complete until post-fix GitHub workflow-level results are archived:
+Worker image replay after the k6 refresh:
 
-- Main CI: GitHub runner result for lint, migration, backend coverage, frontend unit/type/build.
-- Security workflow: GitHub runner result for Gitleaks, pip-audit, npm audit, and Trivy image scans after the PyJWT migration.
-- Integration workflow: GitHub runner result after the OTel instrumentation fix.
-- Release-readiness workflow: GitHub runner result for Docker backend / worker / frontend image build and checklist contract.
+```bash
+docker build -t atp-worker:q11-k6-fix -f backend/Dockerfile.worker backend/
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+  aquasec/trivy:0.70.0 image --severity HIGH,CRITICAL --ignore-unfixed \
+  --exit-code 1 atp-worker:q11-k6-fix
+```
+
+Result:
+
+```text
+Worker k6: k6 v2.1.0 (commit/83a87a41e2, go1.26.4, linux/arm64).
+Trivy worker image scan: 0 findings for high/critical fixed vulnerabilities.
+```
+
+Frontend image replay after the Alpine package refresh:
+
+```bash
+docker build -t atp-frontend:q11-os-fix frontend/
+docker run --rm -v /var/run/docker.sock:/var/run/docker.sock \
+  aquasec/trivy:0.70.0 image --severity HIGH,CRITICAL --ignore-unfixed \
+  --exit-code 1 atp-frontend:q11-os-fix
+```
+
+Result:
+
+```text
+Production stage upgraded libcrypto3, libssl3, libexpat, libxml2, and related Alpine packages.
+Trivy frontend image scan: 0 findings for high/critical fixed vulnerabilities.
+```
+
+### GitHub Runner Final Matrix
+
+Final commit under test:
+
+```text
+c1ef60cf0dde705423e9315a5f4e67ee235efd8c
+```
+
+Workflow results:
+
+| Workflow | Event | Run | Result | Notes |
+|----------|-------|-----|--------|-------|
+| CI | push | https://github.com/2653533859/ATP/actions/runs/28998360621 | success | Backend lint, empty DB migration, backend pytest, frontend unit/type/build all passed |
+| Security | push | https://github.com/2653533859/ATP/actions/runs/28998360606 | success | Dependency audit, Gitleaks, and Trivy backend/worker/frontend scans all passed |
+| CI (integration) | workflow_dispatch | https://github.com/2653533859/ATP/actions/runs/28998366738 | success | Real-service integration job passed |
+| Release readiness | workflow_dispatch | https://github.com/2653533859/ATP/actions/runs/28998368776 | success | Docker backend/worker/frontend build checks and checklist contract passed |
+| CI (e2e) | workflow_dispatch | https://github.com/2653533859/ATP/actions/runs/28998370798 | success | Frontend Playwright E2E passed |
+
+Notes:
+
+- GitHub emitted Node.js 20 deprecation annotations for several actions; these are warnings only and did not fail any job.
+- Dependabot PR runs visible near the same time are independent PR checks and are not part of the `main` Q11-02 evidence matrix.
 
 ## Next Action
 
-Push or otherwise run the current local patch on GitHub, then archive successful main CI, security, integration, and release-readiness workflow links here before marking Q11-02 complete.
+Q11-02 is complete. Continue Q11-10: calibrate API availability and P95 windows in `docs/slo-guide.md` using observed traffic windows and explicit target rationale.
