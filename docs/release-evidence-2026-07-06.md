@@ -277,6 +277,25 @@ SLO guide: triage runbook covers availability, latency, run success, and error-b
 Next action: Q11-12 alert threshold decision.
 ```
 
+### Q11-12 SLO Alert Threshold Decision
+
+Follow-up date: 2026-07-09
+
+Changes:
+
+- Added the Q11-12 alert threshold decision to `docs/slo-guide.md`.
+- Explicitly deferred paging-grade SLO alerts until continuous production Prometheus history exists.
+- Kept the existing platform health alerts in `deploy/grafana/alerts/atp-alerts.yaml` as the active alert layer.
+- Recorded draft SLO alert candidates for API availability, API P95 latency, API error-budget exhaustion, and run success rate.
+
+Primary evidence:
+
+```text
+Q11 roadmap: Q11-12 marked complete.
+SLO guide: paging-grade SLO alerts deferred; draft thresholds and enablement criteria recorded.
+Next action: Q11-20 frontend coverage growth.
+```
+
 ### Q10 Format And Security Automation
 
 Follow-up date: 2026-07-08

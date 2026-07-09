@@ -277,6 +277,27 @@ Deferred until production data exists:
 - Release-blocking SLO policy.
 - Separate SLOs by endpoint class, such as read-only pages vs execution-triggering APIs.
 
+## Alert Threshold Decision
+
+Q11-12 decision: defer paging-grade SLO alerts until production Prometheus history exists.
+
+Rationale:
+
+- The current evidence window is local, CI, release-readiness, and short-lived staging-style validation. It is enough for dashboard guardrails, but not enough to tune alert noise.
+- The SLO panels use short windows (`1h` availability/error budget, `5m` P95). These are useful for triage, but can be noisy under low traffic.
+- The repository already includes platform health warning alerts in `deploy/grafana/alerts/atp-alerts.yaml`, including API 5xx, queue backlog, DB connection pressure, Celery failures, timeouts, and ADB health. Those remain the active alert layer until SLO-specific production history is available.
+
+Deferred SLO alert candidates:
+
+| Candidate | Draft threshold | Hold time | Severity | Enable after |
+|-----------|-----------------|-----------|----------|--------------|
+| API availability burn | `< 99.5%` over `1h` | 15m | warning | 7 consecutive days of production scrape history and handler mix review |
+| API P95 latency | `> 2s` over `5m`, confirmed by `1h` P95 trend | 15m | warning | 7 consecutive days of traffic and low-volume noise review |
+| API error budget exhausted | remaining budget `== 0` over `1h` | 10m | warning | Availability alert has acceptable noise in staging/production |
+| Run success rate | `< 95%` by entity type over `1h` | 30m | ticket-only | At least one classified incident separates platform-caused errors from expected test failures |
+
+Do not make these paging alerts or release-blocking gates until the stable production calibration window is complete. If early production traffic is sparse, keep using the Grafana panels and the triage runbook instead of adding more alerts.
+
 ## Metric Ownership
 
 FastAPI request metrics are provided by `prometheus-fastapi-instrumentator`.
