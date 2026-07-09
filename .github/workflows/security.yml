@@ -83,7 +83,7 @@ jobs:
         run: docker build -t atp-backend:security backend/
 
       - name: Scan backend image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: atp-backend:security
@@ -96,7 +96,7 @@ jobs:
         run: docker build -t atp-worker:security -f backend/Dockerfile.worker backend/
 
       - name: Scan worker image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: atp-worker:security
@@ -109,7 +109,7 @@ jobs:
         run: docker build -t atp-frontend:security frontend/
 
       - name: Scan frontend image
-        uses: aquasecurity/trivy-action@0.33.1
+        uses: aquasecurity/trivy-action@v0.36.0
         with:
           scan-type: image
           image-ref: atp-frontend:security

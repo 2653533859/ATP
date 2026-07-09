@@ -22,13 +22,18 @@ def get_async_redis(db: int = 2) -> aioredis.Redis:
     return aioredis.from_url(_redis_url(db), decode_responses=True)
 
 
+async def close_async_redis(redis: aioredis.Redis) -> None:
+    """Close Redis 5 async clients while keeping older type stubs quiet."""
+    await redis.aclose()  # type: ignore[attr-defined]
+
+
 async def publish_run_event(run_id: int, payload: dict) -> None:
     """发布执行事件到 Redis channel `atp:run:{run_id}`"""
     r = get_async_redis()
     try:
         await r.publish(f"atp:run:{run_id}", json.dumps(payload, ensure_ascii=False))
     finally:
-        await r.aclose()
+        await close_async_redis(r)
 
 
 async def get_json_cache(key: str, db: int = 2):
@@ -37,7 +42,7 @@ async def get_json_cache(key: str, db: int = 2):
         value = await r.get(key)
         return json.loads(value) if value else None
     finally:
-        await r.aclose()
+        await close_async_redis(r)
 
 
 async def set_json_cache(key: str, value, ttl_seconds: int = 300, db: int = 2) -> None:
@@ -45,7 +50,7 @@ async def set_json_cache(key: str, value, ttl_seconds: int = 300, db: int = 2) -
     try:
         await r.set(key, json.dumps(value, ensure_ascii=False), ex=ttl_seconds)
     finally:
-        await r.aclose()
+        await close_async_redis(r)
 
 
 async def delete_json_cache(key: str, db: int = 2) -> None:
@@ -53,7 +58,7 @@ async def delete_json_cache(key: str, db: int = 2) -> None:
     try:
         await r.delete(key)
     finally:
-        await r.aclose()
+        await close_async_redis(r)
 
 
 async def delete_json_cache_pattern(pattern: str, db: int = 2) -> None:
@@ -63,4 +68,4 @@ async def delete_json_cache_pattern(pattern: str, db: int = 2) -> None:
         if keys:
             await r.delete(*keys)
     finally:
-        await r.aclose()
+        await close_async_redis(r)

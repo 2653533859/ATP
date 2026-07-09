@@ -1,0 +1,13 @@
+title = "ATP Gitleaks Configuration"
+
+[[allowlists]]
+description = "Historical virtual environment files committed before repository hygiene cleanup."
+paths = [
+  '''^backend/\.venv/''',
+]
+
+[[allowlists]]
+description = "Documentation-only webhook API key placeholder from historical examples."
+regexes = [
+  '''your-api-key''',
+]

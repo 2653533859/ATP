@@ -92,7 +92,7 @@ async def check_and_incr_daily_limit(
     config_id = getattr(config, "id", "global") or "global"
     key = f"ai_governance:daily:{capability}:{config_id}:{today}"
     try:
-        from app.core.redis_client import get_async_redis
+        from app.core.redis_client import close_async_redis, get_async_redis
 
         redis = get_async_redis()
         try:
@@ -101,6 +101,6 @@ async def check_and_incr_daily_limit(
                 await redis.expire(key, 60 * 60 * 36)
             return value <= limit
         finally:
-            await redis.aclose()
+            await close_async_redis(redis)
     except Exception:
         return True

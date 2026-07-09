@@ -180,7 +180,7 @@ async def _check_and_incr_daily_limit() -> bool:
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     key = f"{_DAILY_COUNT_PREFIX}{today}"
     try:
-        from app.core.redis_client import get_async_redis
+        from app.core.redis_client import close_async_redis, get_async_redis
 
         r = get_async_redis()
         try:
@@ -189,7 +189,7 @@ async def _check_and_incr_daily_limit() -> bool:
                 await r.expire(key, _DAILY_COUNT_TTL_SECONDS)
             return value <= limit
         finally:
-            await r.aclose()
+            await close_async_redis(r)
     except Exception:
         return True  # Redis 故障不应阻塞诊断
 
@@ -201,7 +201,7 @@ async def _check_and_incr_vision_daily_limit() -> bool:
     today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
     key = f"{_VISION_DAILY_COUNT_PREFIX}{today}"
     try:
-        from app.core.redis_client import get_async_redis
+        from app.core.redis_client import close_async_redis, get_async_redis
 
         r = get_async_redis()
         try:
@@ -210,7 +210,7 @@ async def _check_and_incr_vision_daily_limit() -> bool:
                 await r.expire(key, _DAILY_COUNT_TTL_SECONDS)
             return value <= limit
         finally:
-            await r.aclose()
+            await close_async_redis(r)
     except Exception:
         return True
 

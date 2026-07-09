@@ -55,13 +55,13 @@ API Key 在后端 `.env` 文件中通过 `WEBHOOK_API_KEY` 配置。
 # 触发套件执行
 curl -X POST https://atp.example.com/api/v1/webhook/trigger \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: your-api-key" \
+  -H "X-API-Key: <WEBHOOK_API_KEY>" \
   -d '{"target_type": "suite", "target_id": 1}'
 
 # 触发计划执行，附带额外变量
 curl -X POST https://atp.example.com/api/v1/webhook/trigger \
   -H "Content-Type: application/json" \
-  -H "X-API-Key: your-api-key" \
+  -H "X-API-Key: <WEBHOOK_API_KEY>" \
   -d '{"target_type": "plan", "target_id": 3, "extra_vars": {"base_url": "https://staging.example.com"}}'
 ```
 
