@@ -672,8 +672,8 @@
 - [x] Q12-00 消除 41 条 `PytestCollectionWarning`：`backend/tests/conftest.py` 的 `pytest_pycollect_makeitem` 钩子统一跳过从 `app.*` 导入的 `Test*` 类（测试保留原始类名导入），pytest 将该警告升级为错误；完整后端回归 `840 passed`。
 - [x] Q12-01 刷新覆盖率基线：后端 `53.46%` / 门禁 `52%`；前端 statements `3.66%`、branches `4.06%`、functions `2.26%`、lines `3.92%`，已建立 3%/3%/2%/3% 初始门禁及 CI artifact。
 - [x] Q12-02 增补认证、用例执行、调度和报告关键前端流程测试：四个切片均完成，前端 `47 passed`，全源 coverage `4.44/4.88/3.01/4.66%`，门禁同步抬升。
-- [ ] Q12-03 收敛 vue-i18n 与传递 glob 依赖弃用提示。
-- [ ] Q12-04 采集路由级加载证据并复核 Ant Design chunk 边界。
+- [x] Q12-03 收敛依赖弃用提示：vue-i18n 升级到 `11.4.6`（Composition 模式无 breaking），传递依赖 glob 经 npm override 固定到 `13.0.6`；clean install 零 `npm warn deprecated`。46 tests、type-check、build、E2E 9 passed。
+- [ ] Q12-04 采集路由级加载证据并复核 Ant Design chunk 边界（触发条件已成立：ant-design chunk 1502.45 kB 超 1500 kB 告警线）。
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
 当前路线图：`docs/optimization-roadmap-2026-q12.md`。下一项为 Q12-02，先覆盖登录认证，再推进用例执行、计划调度和报告流程。

@@ -47,6 +47,15 @@ The ECharts change reduces the minified chunk by about 50% and gzip transfer siz
 - Do not add `import * as echarts from 'echarts'` or runtime imports from the full ECharts entrypoint.
 - Both rules are enforced by `backend/tests/frontend/test_frontend_bundle_decision.py`.
 
+## Trigger Status (2026-07-10)
+
+The threshold trigger has FIRED. After the Q12-03 upgrade (vue-i18n `9.14.5` -> `11.4.6`,
+transitive glob override to `13.0.6`), the ant-design chunk measured `1502.45 kB`
+(gzip `464.51 kB`), exceeding the `1500 kB` limit. The i18n runtime itself is fully
+isolated in a dedicated `i18n` chunk (`55.95 kB`, verified by grep over emitted assets),
+so the growth is bundler module-graph reassignment, not new Ant Design code. Per the
+decision above the threshold is NOT raised; Q12-04 owns the on-demand import evaluation.
+
 ## Ant Design Follow-Up Trigger
 
 The current Ant Design chunk is close to the configured limit. Start a dedicated component auto-import/tree-shaking change when any of these occurs:
