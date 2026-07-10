@@ -158,3 +158,107 @@ export function getSuiteRunProgressStatus(run: SuiteListRunItem): 'active' | 'ex
 export function hasActiveSuiteRuns(runs: SuiteListRunItem[]): boolean {
   return runs.some((run) => run.status === 'pending' || run.status === 'running')
 }
+
+// ── 模块树与用例选择（SuiteList 创建/编辑抽屉的可测纯逻辑）─────────
+
+/** 最小模块树节点：只依赖 id / children，避免耦合 @/api 的完整类型。 */
+export interface SuiteModuleNode {
+  id: number
+  name: string
+  children?: SuiteModuleNode[] | null
+}
+
+export interface ModuleTreeOption {
+  title: string
+  value: number
+  key: number
+  children?: ModuleTreeOption[]
+}
+
+/** 每个模块 id → 其自身与全部后代 id 的集合（用于按模块过滤用例）。 */
+export function buildModuleDescendantMap(
+  nodes: SuiteModuleNode[],
+  acc: Map<number, Set<number>> = new Map(),
+): Map<number, Set<number>> {
+  for (const node of nodes) {
+    buildModuleDescendantMap(node.children ?? [], acc)
+    const descendantIds = new Set<number>([node.id])
+    for (const child of node.children ?? []) {
+      const childIds = acc.get(child.id)
+      if (!childIds) continue
+      for (const childId of childIds) descendantIds.add(childId)
+    }
+    acc.set(node.id, descendantIds)
+  }
+  return acc
+}
+
+/** 构建 tree-select 选项，剪掉既无可用用例又无可用子模块的空分支。 */
+export function buildModuleTreeOptions(
+  nodes: SuiteModuleNode[],
+  availableModuleIds: Set<number>,
+): ModuleTreeOption[] {
+  const options: ModuleTreeOption[] = []
+  for (const node of nodes) {
+    const children = buildModuleTreeOptions(node.children ?? [], availableModuleIds)
+    if (!availableModuleIds.has(node.id) && children.length === 0) continue
+    options.push({
+      title: node.name,
+      value: node.id,
+      key: node.id,
+      children: children.length ? children : undefined,
+    })
+  }
+  return options
+}
+
+export type CaseSelectionScope = 'all' | 'selected' | 'unselected'
+export type CaseReadyFilter = 'all' | 'ready' | 'not_ready'
+
+export interface SuiteCaseExecutionState {
+  status: string
+  review_status: string
+  automation_status: string
+}
+
+/** 用例不可执行的原因分类（返回 i18n key，无问题返回 null）。 */
+export function caseExecutionReasonKey(item: SuiteCaseExecutionState): string | null {
+  if (item.status !== 'active') return 'status_not_active'
+  if (item.review_status !== 'approved') return 'review_not_approved'
+  if (!['auto', 'semi_auto'].includes(item.automation_status)) return 'not_automation'
+  return null
+}
+
+export interface SuiteCaseFilterInput {
+  moduleId: number | undefined
+  caseType: string | undefined
+  readyFilter: CaseReadyFilter
+  selectionScope: CaseSelectionScope
+}
+
+export interface SuiteCandidateCase {
+  id: number
+  module_id: number
+  case_type: string
+  is_ready_for_execution: boolean
+}
+
+/** 结构化筛选（模块/类型/就绪/已选范围）—— 关键词搜索由视图另做（依赖 i18n 文案）。 */
+export function passesSuiteCaseStructuralFilter(
+  item: SuiteCandidateCase,
+  filter: SuiteCaseFilterInput,
+  selectedIds: Set<number>,
+  descendantMap: Map<number, Set<number>>,
+): boolean {
+  if (filter.moduleId !== undefined) {
+    const allowed = descendantMap.get(filter.moduleId) ?? new Set<number>()
+    if (!allowed.has(item.module_id)) return false
+  }
+  if (filter.caseType !== undefined && item.case_type !== filter.caseType) return false
+  if (filter.readyFilter === 'ready' && !item.is_ready_for_execution) return false
+  if (filter.readyFilter === 'not_ready' && item.is_ready_for_execution) return false
+  const isSelected = selectedIds.has(item.id)
+  if (filter.selectionScope === 'selected' && !isSelected) return false
+  if (filter.selectionScope === 'unselected' && isSelected) return false
+  return true
+}

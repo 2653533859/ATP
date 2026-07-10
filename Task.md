@@ -685,6 +685,7 @@
 - [x] Q13-02 切片 4（mobile_special API）+ 收官：`test_mobile_special_routes.py` 16 项——任务 CRUD（访问检查/调度刷新/None 字段不覆盖）、触发（config 快照/设备回退/Celery 入队）、停止守卫、runs 联表查询、samples/incidents/artifacts、CSV/JSON 导出；**发现并修复生产级故障**：create_task 因 schema 的 created_by 与显式 kwarg 键冲突而每次调用必 500。mobile_special 45%→91%，TOTAL 66.98%（1019 passed），CI 门禁 56%→62%。
 - [x] Q13-03 切片 1（CaseList）：抽 `utils/caseList`（level 筛选/待评审与 flaky 计数/工作流守卫状态机/flaky 提示参数/模块树扁平化），`caseList.spec.ts` 5 组断言；CaseList.vue 改用受测 helper（activeFilterTags 仅保留 i18n 标签映射、工作流守卫单点分发），type-check 0 错、E2E 仍绿；前端 statements 4.38%→4.65%（51 passed），门禁抬至 4.4/5.1/2.9/4.6。
 - [x] Q13-03 切片 2（RunDetail）：抽 `utils/runDetail`（步骤状态统计/展开策略/参数化迭代摘要/run 级自愈与失败诊断载荷归一化/主错误摘要截断/状态色），`runDetail.spec.ts` 7 组断言；RunDetail.vue 改调 helper，type-check 0 错、run-detail E2E 仍绿；前端 statements 4.65%→5.10%（58 passed），门禁抬至 4.85/6.35/3.35/4.95。
+- [x] Q13-03 切片 3（SuiteList）：扩充 `utils/suiteList`（模块后代映射 buildModuleDescendantMap、tree-select 空枝剪裁 buildModuleTreeOptions、用例不可执行原因分类 caseExecutionReasonKey、结构化用例筛选谓词 passesSuiteCaseStructuralFilter），`suiteList.spec.ts` +4 组断言；SuiteList.vue 删本地副本改调 util，type-check 0 错、suite-plan E2E 仍绿；前端 statements 5.10%→5.54%（62 passed），门禁抬至 5.3/7.15/3.45/5.35。
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
 当前路线图：`docs/optimization-roadmap-2026-q12.md`。下一项为 Q12-02，先覆盖登录认证，再推进用例执行、计划调度和报告流程。

@@ -518,6 +518,10 @@ import {
   runStatusBadge,
   suiteExecutionModeColor,
   suiteFailStrategyColor,
+  buildModuleDescendantMap,
+  buildModuleTreeOptions,
+  caseExecutionReasonKey,
+  passesSuiteCaseStructuralFilter,
 } from '@/utils/suiteList'
 
 const { t, locale } = useI18n()
@@ -525,6 +529,7 @@ const { t, locale } = useI18n()
 type CaseSelectionScope = 'all' | 'selected' | 'unselected'
 type CaseReadyFilter = 'all' | 'ready' | 'not_ready'
 type SelectOption = { label: string; value: number }
+// ModuleTreeOption 从 @/utils/suiteList 导入
 
 interface SuiteFormState {
   name: string
@@ -532,12 +537,7 @@ interface SuiteFormState {
   config: Required<Pick<SuiteConfig, 'execution_mode' | 'max_workers' | 'fail_strategy' | 'min_pass_rate'>>
 }
 
-interface ModuleTreeOption {
-  title: string
-  value: number
-  key: number
-  children?: ModuleTreeOption[]
-}
+
 
 function getErrorMessage(error: unknown, fallback: string) {
   return typeof error === 'string' ? error : fallback
@@ -702,29 +702,15 @@ const suiteConfigTip = computed(() => {
 const filteredAvailableCases = computed(() => {
   const keyword = caseKeyword.value.trim().toLowerCase()
   const selectedIds = new Set(selectedCaseIds.value)
-  const allowedModuleIds =
-    caseModuleFilter.value !== undefined
-      ? moduleDescendantMap.value.get(caseModuleFilter.value) ?? new Set<number>()
-      : null
 
+  const structuralFilter = {
+    moduleId: caseModuleFilter.value,
+    caseType: caseTypeFilter.value,
+    readyFilter: caseReadyFilter.value,
+    selectionScope: caseSelectionScope.value,
+  }
   return availableCases.value.filter((item) => {
-    if (allowedModuleIds && !allowedModuleIds.has(item.module_id)) {
-      return false
-    }
-    if (caseTypeFilter.value !== undefined && item.case_type !== caseTypeFilter.value) {
-      return false
-    }
-    if (caseReadyFilter.value === 'ready' && !item.is_ready_for_execution) {
-      return false
-    }
-    if (caseReadyFilter.value === 'not_ready' && item.is_ready_for_execution) {
-      return false
-    }
-    const isSelected = selectedIds.has(item.id)
-    if (caseSelectionScope.value === 'selected' && !isSelected) {
-      return false
-    }
-    if (caseSelectionScope.value === 'unselected' && isSelected) {
+    if (!passesSuiteCaseStructuralFilter(item, structuralFilter, selectedIds, moduleDescendantMap.value)) {
       return false
     }
     if (!keyword) {
@@ -861,16 +847,8 @@ function suiteFailStrategyLabel(strategy?: SuiteConfig['fail_strategy']) {
 }
 
 function getExecutionReason(item: Pick<CaseSummaryItem, 'status' | 'review_status' | 'automation_status'>) {
-  if (item.status !== 'active') {
-    return t('suite.case_reason.status_not_active')
-  }
-  if (item.review_status !== 'approved') {
-    return t('suite.case_reason.review_not_approved')
-  }
-  if (!['auto', 'semi_auto'].includes(item.automation_status)) {
-    return t('suite.case_reason.not_automation')
-  }
-  return '-'
+  const key = caseExecutionReasonKey(item)
+  return key ? t(`suite.case_reason.${key}`) : '-'
 }
 
 function getExecutionHint(item: Pick<CaseSummaryItem, 'is_ready_for_execution' | 'status' | 'review_status' | 'automation_status'>) {
@@ -888,49 +866,6 @@ function flattenModules(nodes: ModuleTreeItem[], acc: Record<number, string> = {
     }
   }
   return acc
-}
-
-function buildModuleDescendantMap(
-  nodes: ModuleTreeItem[],
-  acc: Map<number, Set<number>> = new Map(),
-) {
-  for (const node of nodes) {
-    buildModuleDescendantMap(node.children ?? [], acc)
-    const descendantIds = new Set<number>([node.id])
-    for (const child of node.children ?? []) {
-      const childIds = acc.get(child.id)
-      if (!childIds) {
-        continue
-      }
-      for (const childId of childIds) {
-        descendantIds.add(childId)
-      }
-    }
-    acc.set(node.id, descendantIds)
-  }
-  return acc
-}
-
-function buildModuleTreeOptions(
-  nodes: ModuleTreeItem[],
-  availableModuleIds: Set<number>,
-): ModuleTreeOption[] {
-  const options: ModuleTreeOption[] = []
-
-  for (const node of nodes) {
-    const children = buildModuleTreeOptions(node.children ?? [], availableModuleIds)
-    if (!availableModuleIds.has(node.id) && children.length === 0) {
-      continue
-    }
-    options.push({
-      title: node.name,
-      value: node.id,
-      key: node.id,
-      children: children.length ? children : undefined,
-    })
-  }
-
-  return options
 }
 
 function getModuleName(moduleId: number) {

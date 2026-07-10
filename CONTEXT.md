@@ -444,6 +444,7 @@ Q1-Q11 路线图内功能项已完成。当前进入 Q12 持续质量优化：
 - Q13-02 收官：mobile_special API 45%→91%，顺带修复 create_task 键冲突 500（第二个由覆盖工作暴露的生产故障）；TOTAL 66.98%、gate 62%、1019 passed。下一步 Q13-03 前端工作台切片。
 - Q13-03 切片 1：CaseList 纯逻辑抽到 utils/caseList 并单测（工作流守卫/筛选统计/flaky/模块扁平），视图改调 helper；前端 statements 4.38%→4.65%、51 passed。剩 RunDetail/SuiteList/DashboardView。
 - Q13-03 切片 2：RunDetail 纯逻辑抽到 utils/runDetail 并单测（步骤统计/展开/迭代/自愈+诊断归一化/错误截断），视图改调 helper；前端 statements 4.65%→5.10%、58 passed。剩 SuiteList/DashboardView。
+- Q13-03 切片 3：SuiteList 的模块树/用例筛选逻辑抽到 utils/suiteList 并单测（后代映射/空枝剪裁/执行原因分类/结构化筛选），视图删本地副本；前端 statements 5.10%→5.54%、62 passed。剩 DashboardView。
 - 下一项：Q12-03 依赖弃用提示收敛。
 
 ---
