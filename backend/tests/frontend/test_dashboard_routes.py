@@ -45,10 +45,15 @@ def test_dashboard_supports_custom_local_layout():
     content = repo_path("frontend/src/views/dashboard/DashboardView.vue").read_text(encoding="utf-8")
 
     assert "DASHBOARD_LAYOUT_KEY = 'atp:dashboard:layout'" in content
-    assert "DEFAULT_DASHBOARD_LAYOUT" in content
+    # DEFAULT_DASHBOARD_LAYOUT 于 Q13-03 抽到 utils/dashboardView；视图经 helper 消费
+    assert "normalizeDashboardLayout" in content
+    assert "cloneDefaultDashboardLayout" in content
     assert 'v-model="dashboardLayout"' in content
     assert "visibleChartConfigs" in content
     assert "resetDashboardLayout" in content
+
+    layout_util = repo_path("frontend/src/utils/dashboardView.ts").read_text(encoding="utf-8")
+    assert "export const DEFAULT_DASHBOARD_LAYOUT" in layout_util
 
 
 def test_dashboard_has_workbench_shortcuts():

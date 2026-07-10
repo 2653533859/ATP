@@ -689,6 +689,7 @@
 - [x] Q13-03 切片 4（DashboardView）：抽 utils/dashboardView（日期区间生成 generateDateRange、泛型趋势补零 fillTrendGaps 含 today 注入、布局归一化 normalizeDashboardLayout），dashboardView.spec.ts 6 组断言（含钉住『已存在但结构错误的已知 key 既不保留也不补回』的微妙契约）；DashboardView.vue 删本地副本改调 util，type-check 0 错、dashboard E2E 与生产构建仍绿；前端 statements 5.54%→5.95%（68 passed），门禁抬至 5.7/7.5/3.7/5.7。四工作台切片全部完成；≥8% 验收目标顺延到 form-drawer 追加切片。
 - [x] Q13-03 追加切片（CaseFormDrawer）：抽 utils/caseFormConfig（配置步骤解析 getFirstStep、form body 回填 parseFormBody、GraphQL 变量 parseGraphqlVariables、WebSocket 消息归一 normalizeWsMessage、保存态请求体 resolveRequestBody），caseFormConfig.spec.ts 6 组断言；CaseFormDrawer.vue 删本地解析副本改调 util，type-check 0 错、E2E 与构建仍绿；前端 statements 5.95%→6.33%（branches 越过 8%，74 passed），门禁抬至 6.05/8.05/3.9/6.1。
 - [x] Q13-03 切片（PlanList cron）：扩充 utils/planList（buildCronExpression 按 daily/weekly/custom 拼 cron、formatCronTime 补零 HH:MM），planList.spec.ts +3 组断言；PlanList.vue cron 预览/描述改调 util，type-check 0 错、suite-plan E2E 与构建仍绿；前端 statements 6.33%→6.40%（branches 8.4%，77 passed）。helper 抽取对 statements 边际收益已递减——到 8% 需组件挂载测试（@vue/test-utils），非继续抽 helper；已在 roadmap 记录评估与建议。
+- [x] Q13-06 依赖卫生：审阅并固化 frontend allowScripts 白名单（core-js 赞助提示/fsevents 原生绑定/vue-demi Vue3 入口切换，三者均核实无害），npm ci 零 allow-scripts 与零弃用告警、audit 0 漏洞；新增 docs/dependency-hygiene.md 与契约测试 test_dependency_hygiene.py（3 passed）。顺带修复 Q13-03 slice4 重构后遗留的 test_dashboard_routes 静态契约（DEFAULT_DASHBOARD_LAYOUT 已移至 utils/dashboardView）。
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
 当前路线图：`docs/optimization-roadmap-2026-q12.md`。下一项为 Q12-02，先覆盖登录认证，再推进用例执行、计划调度和报告流程。

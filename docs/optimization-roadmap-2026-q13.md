@@ -22,7 +22,7 @@ Planning inputs (measured 2026-07-10):
 | Q13-03 | Frontend workbench behavioral coverage | Extract testable helpers from the workbench tier per the Q12-02 pattern and ratchet gates | Substantially complete: 6 slices (CaseList, RunDetail, SuiteList, DashboardView, CaseFormDrawer, PlanList), statements 4.38%->6.40%, branches 8.4%, `77 passed`. The 8% statement line needs component-mount tests, not more helper extraction (see note) |
 | Q13-04 | Ant Design route-level chunk evidence | Route-family sharing analysis captured in `docs/frontend-bundle-decision.md`; go/no-go decision on route isolation, implemented only if measured transfer saving >= 15% on a first-paint route | Planned |
 | Q13-05 | AI healing apply-loop slice (iter5 phase 2) | Human-approved suggestion can be applied to a case snapshot and verified by an automatic re-run, guarded by the existing whitelist; audit trail recorded; feature-flagged off by default | Planned |
-| Q13-06 | Dependency hygiene | `npm approve-scripts` allowlist reviewed and committed; quarterly refresh of backend/frontend pins with zero new deprecations or audit findings | Planned |
+| Q13-06 | Dependency hygiene | `npm approve-scripts` allowlist reviewed and committed; quarterly refresh of backend/frontend pins with zero new deprecations or audit findings | Complete (allowScripts for core-js/fsevents/vue-demi reviewed + committed; npm ci clean, audit 0 vulns; docs/dependency-hygiene.md + contract test) |
 
 ## Execution Order
 
