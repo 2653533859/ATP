@@ -679,6 +679,7 @@
 - [x] Q13 规划发布：`docs/optimization-roadmap-2026-q13.md`——7 个工作项：Q13-00 承接 Q12-05 采集与 Q12 验收、Q13-01 执行链路覆盖（tasks.py+9 executors，后端 53%→60%、gate 52→56）、Q13-02 服务/API 覆盖（bug_reporter/ai_healing/failure_diagnosis/exports/mobile_special）、Q13-03 前端工作台四视图行为切片（statements ≥8%）、Q13-04 Ant Design 路由级 chunk 证据与决策、Q13-05 AI 自愈 apply 闭环切片（feature-flag+审计）、Q13-06 依赖卫生。首个动作：Q13-01 执行器单元缝。
 - [x] Q13-01 切片 1（执行链主体）：新增 `test_tasks_execution_chain.py` 34 项测试覆盖 run_test_case/run_test_suite/run_test_plan/_execute_plan_suite/check_cron_plans/check_dashboard_alerts 全部主干与异常分支；tasks.py 35%→86%，后端 TOTAL 53%→55.65%（878 passed）；单元缝约定沉淀到 `docs/coverage-baseline-2026-q13.md`。
 - [x] Q13-01 切片 2（HTTP 家族执行器）+ 收官：`test_http_family_executors.py` 46 项测试只 fake 传输边界（httpx/websockets/grpc channel），api/graphql/websocket/grpc 执行器 3-8%→88-94%；**发现并修复生产级故障**：protobuf 5+ 移除 `message_factory.GetPrototype`，grpc 执行器此前每次执行必报错，改用 `GetMessageClass`。后端 TOTAL 60.03%（924 passed），CI 门禁 52%→56%。
+- [x] Q13-02 切片 1（服务层）：`test_bug_reporter_unit.py` 38 项（Jira/禅道/GitHub/GitLab 四平台共用一个脚本化 httpx fake，payload 组装/鉴权/去重/JQL 转义/错误路径全走真实现）+ `test_failure_diagnosis.py` 15 项（规则分类矩阵、修复建议映射、LLM 成功/失败/限额/兜底三态）；bug_reporter 20%→95%、failure_diagnosis 12%→97%，TOTAL 63.35%（962 passed）。
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
 当前路线图：`docs/optimization-roadmap-2026-q12.md`。下一项为 Q12-02，先覆盖登录认证，再推进用例执行、计划调度和报告流程。

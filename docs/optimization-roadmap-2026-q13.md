@@ -18,7 +18,7 @@ Planning inputs (measured 2026-07-10):
 | --- | --- | --- | --- |
 | Q13-00 | Close Q12-05 captures and publish Q12 acceptance | When environment access arrives: dated `docs/slo-history-*.md` and `docs/android-device-rehearsal-*.md` per the frozen spec, then `docs/q12-acceptance-summary.md` | Blocked on environment (may land any time during Q13) |
 | Q13-01 | Backend execution-chain coverage | Unit seams for `worker/tasks.py` dispatch/finalization and per-executor request-build/assert/extract logic; backend TOTAL >= 60% with the CI gate raised 52% -> 56% | Complete (TOTAL 60.03%, gate 56%, `924 passed`; HTTP-family seams fixed a live protobuf 5 break in grpc_executor) |
-| Q13-02 | Backend service/API coverage | Behavioral tests for `bug_reporter`, `ai_healing`, `failure_diagnosis`, `exports`, `mobile_special` API; each records before/after coverage in the baseline doc | Planned |
+| Q13-02 | Backend service/API coverage | Behavioral tests for `bug_reporter`, `ai_healing`, `failure_diagnosis`, `exports`, `mobile_special` API; each records before/after coverage in the baseline doc | In progress (bug_reporter 95%, failure_diagnosis 97%, TOTAL 63.35%; ai_healing/exports/mobile_special next) |
 | Q13-03 | Frontend workbench behavioral coverage | Four slices (CaseList, RunDetail, SuiteList, DashboardView) extracting testable helpers per the proven Q12-02 pattern; frontend statements >= 8% with gates ratcheted per the 0.25pt headroom policy | Planned |
 | Q13-04 | Ant Design route-level chunk evidence | Route-family sharing analysis captured in `docs/frontend-bundle-decision.md`; go/no-go decision on route isolation, implemented only if measured transfer saving >= 15% on a first-paint route | Planned |
 | Q13-05 | AI healing apply-loop slice (iter5 phase 2) | Human-approved suggestion can be applied to a case snapshot and verified by an automatic re-run, guarded by the existing whitelist; audit trail recorded; feature-flagged off by default | Planned |
@@ -43,4 +43,4 @@ Planning inputs (measured 2026-07-10):
 
 ## Next Action
 
-Q13-01 is complete (TOTAL 60.03%, gate 56%). Next: Q13-02 backend service/API coverage — `bug_reporter` (261 missed, including the plan auto-bug success path left from slice 1), `ai_healing` (185), `failure_diagnosis` (124), `exports` (197), `mobile_special` API (143) — using the same seam conventions. Q13-03 frontend workbench slices may run in parallel at any time.
+Continue Q13-02: `ai_healing` (185 missed — run_diagnosis LLM/cache/limit branches), `exports` (197 — JUnit/HTML/PDF builders), and the `mobile_special` API (143 — task CRUD/trigger/stats routes) remain, using the established seam conventions. Q13-03 frontend workbench slices may run in parallel at any time.

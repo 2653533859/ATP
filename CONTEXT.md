@@ -438,6 +438,7 @@ Q1-Q11 路线图内功能项已完成。当前进入 Q12 持续质量优化：
 - Q13 规划：基于实测缺口（后端执行链路 ~1800 miss、前端工作台六视图零覆盖、ant-design 首屏占比 73%、iter5 phase2 未启动）发布 7 项 roadmap；执行顺序 Q13-01/03 并行起步，Q13-00（Q12-05 采集）环境到位随时插入。
 - Q13-01 切片 1：tasks.py 执行链主体 34 项单元缝测试（FakeDB + SimpleNamespace 领域替身 + sys.modules 注入延迟导入协作者 + run_async 真执行），35%→86%；TOTAL 55.65%；约定记录于 coverage-baseline-2026-q13.md，executor 家族按同型继续。
 - Q13-01 完成：HTTP 家族执行器单元缝 46 项（fake 传输边界，断言矩阵/认证注入/变量提取/异常路径全走真实现）；顺带修复 grpc 执行器的 protobuf 5 兼容故障（GetPrototype→GetMessageClass，此前线上每次 grpc 用例执行必失败）；TOTAL 60.03%、gate 56%、924 passed。
+- Q13-02 切片 1：bug_reporter（四平台 × 创建/连接/状态/去重/附件，20%→95%）与 failure_diagnosis（规则/LLM/兜底三态，12%→97%）；TOTAL 63.35%、962 passed。剩 ai_healing/exports/mobile_special。
 - 下一项：Q12-03 依赖弃用提示收敛。
 
 ---
