@@ -129,8 +129,9 @@ async def create_task(
 ):
     """Create a new mobile special task."""
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
+    # created_by 以当前登录用户为准；schema 中的同名字段仅为兼容内部导入，须排除避免键冲突
     task = MobileSpecialTask(
-        **body.model_dump(),
+        **body.model_dump(exclude={"created_by"}),
         created_by=current_user.id,
     )
     _refresh_schedule_state(task)
