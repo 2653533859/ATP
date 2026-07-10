@@ -28,20 +28,22 @@ def test_echarts_registration_is_centralized_in_chart_theme(repo_root, repo_file
     assert offenders == []
 
 
-def test_vite_keeps_ant_icons_split_and_bundle_threshold_visible(repo_file):
+def test_vite_splits_antd_across_routes_with_icons_isolated(repo_file):
     config = repo_file("frontend/vite.config.ts")
 
+    # icons 仍独立成 chunk；ant-design-vue 组件不再归入单体 chunk（Q13-04 路由级分裂）
     assert "if (id.includes('@ant-design/icons')) return 'ant-design-icons'" in config
-    assert "if (id.includes('ant-design-vue')) return 'ant-design'" in config
-    assert "chunkSizeWarningLimit: 1500" in config
+    assert "return 'ant-design'" not in config
+    # 单体移除后最大 chunk 是 echarts；告警阈值收紧以更早发现回归
+    assert "chunkSizeWarningLimit: 600" in config
 
 
-def test_bundle_decision_records_decision_and_follow_up_trigger(repo_file):
-    """决策文档只需记录结论与后续触发条件；具体字节数是历史快照，
-    随依赖升级自然变化，不在测试里冻结。"""
+def test_bundle_decision_records_route_split_decision(repo_file):
+    """决策文档记录结论、证据要点与后续触发条件；具体字节数是历史快照，不在测试里冻结。"""
     content = repo_file("docs/frontend-bundle-decision.md")
 
-    assert "result: rejected" in content
-    assert "build passed with no circular or large-chunk warning" in content
     assert "Ant Design Follow-Up Trigger" in content
     assert "gzip" in content
+    # Q13-04 决策：路由级分裂被采纳（go），/login 首屏显著下降
+    assert "result: adopted" in content
+    assert "route-level" in content.lower()

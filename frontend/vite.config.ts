@@ -41,7 +41,10 @@ export default defineConfig({
           if (id.includes('vue-router') || id.includes('/pinia/')) return 'vue-vendor'
           if (/[\\/]node_modules[\\/]vue[\\/]/.test(id)) return 'vue-vendor'
           if (id.includes('@ant-design/icons')) return 'ant-design-icons'
-          if (id.includes('ant-design-vue')) return 'ant-design'
+          // Q13-04: 不给 ant-design-vue 建单体 chunk——按需注册（unplugin-vue-components）
+          // 后，让组件随各路由 chunk 分裂。/login 首屏传输因此从 510 降到 336 kB（-34%），
+          // 代价是 antd 共享运行时在少数路由 chunk 里重复，dist JS 总量 +~35 kB。
+          // 证据与决策见 docs/frontend-bundle-decision.md。
           if (id.includes('vue-i18n') || id.includes('@intlify')) return 'i18n'
           if (id.includes('vue-echarts')) return 'echarts'
           if (id.includes('echarts')) return 'echarts'
@@ -52,6 +55,7 @@ export default defineConfig({
         },
       },
     },
-    chunkSizeWarningLimit: 1500,
+    // Q13-04: 单体 antd chunk 移除后最大 chunk 是 echarts(~563kB)；阈值收到 600 以更早发现回归
+    chunkSizeWarningLimit: 600,
   },
 })

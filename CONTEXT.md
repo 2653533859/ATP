@@ -449,6 +449,7 @@ Q1-Q11 路线图内功能项已完成。当前进入 Q12 持续质量优化：
 - Q13-03 追加切片：CaseFormDrawer 的配置解析/归一化逻辑抽到 utils/caseFormConfig 并单测（body 类型解析/GraphQL 变量/WS 消息/编辑回填），视图删本地副本；前端 statements 5.95%→6.33%、branches>8%、74 passed。再补 PlanForm 一个切片即可达 statements≥8%。
 - Q13-03 切片：PlanList 的 cron 表达式构造抽到 utils/planList 并单测（daily/weekly/custom + HH:MM 补零），视图改调 util；前端 statements 6.33%→6.40%、branches 8.4%、77 passed。评估：helper 抽取对 statements 收益递减，到 8% 需组件挂载测试（已记 roadmap）。
 - Q13-06 依赖卫生完成：frontend allowScripts 固化 core-js/fsevents/vue-demi（逐一核实脚本用途），npm ci 零告警、audit 0 漏洞；docs/dependency-hygiene.md + 契约测试防未审脚本溜入。修复 dashboard 静态契约（常量已移到 util）。后端 1022 passed。
+- Q13-04 完成：量化 antd 单体对首屏的拖累（/login 73% 是 antd），移除单体归并让组件随路由分裂——/login 首屏 510→336 kB（-34%）、告警阈值 1500→600、全量 E2E 9 passed。决策 GO，证据入 docs/frontend-bundle-decision.md。
 - 下一项：Q12-03 依赖弃用提示收敛。
 
 ---

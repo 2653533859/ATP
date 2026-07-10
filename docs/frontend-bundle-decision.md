@@ -77,6 +77,34 @@ Functional verification: Vitest `46 passed` (specs mock ant-design-vue directly)
 clean, full Playwright E2E `9 passed` including the shared unexpected-pageerror guard —
 no missing component registrations.
 
+## Route-Level Split Decision (2026-07-10) — Q13-04
+
+The follow-up trigger's fourth condition ("a route family can be isolated
+without duplicating shared Ant Design modules across lazy chunks") was
+evaluated with a measured go/no-go experiment.
+
+**Problem confirmed:** with on-demand registration but a `manualChunks(id) =>
+'ant-design'` rule, every `ant-design-vue` module was still forced into one
+1246 kB chunk. The `/login` route — which uses only form/input/button — pulled
+that whole monolith: 374.7 kB gzip of a 510.1 kB first-paint JS transfer (73%).
+
+**Experiment:** drop the `ant-design` manual chunk so Rolldown splits the
+tree-shaken components into each lazy route chunk. Measured on `/login` (vite
+preview, Chrome, gzip transfer):
+
+```text
+before: 510.1 kB, loads the ant-design monolith
+after:  335.8 kB (-34%, -174 kB); no monolith — only form/input/collapseMotion/Col etc.
+cost:   total dist JS +~35 kB (2771 -> 2806) as antd's shared runtime duplicates
+        into a few route chunks; chunk count 45 -> 80; no large-chunk warning
+```
+
+**result: adopted (go).** The 174 kB first-paint saving is far above the 15%
+route-transfer threshold the roadmap set for acting, and the +35 kB total is
+spread across lazy route chunks that only load on navigation. The
+`chunkSizeWarningLimit` is tightened 1500 -> 600 kB (echarts ~563 kB is now the
+ceiling) so any re-monolithization surfaces immediately.
+
 ## Ant Design Follow-Up Trigger
 
 The current Ant Design chunk is close to the configured limit. Start a dedicated component auto-import/tree-shaking change when any of these occurs:
