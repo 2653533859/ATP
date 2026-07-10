@@ -695,6 +695,7 @@
 - [x] Q13-03 收官（挂载测试切片）：`ApkList.spec.ts`（4 项）+ `DeviceList.spec.ts`（5 项）@vue/test-utils 挂载测试，ApkList 0→56%、DeviceList 0→62%；**前端 statements 6.40%→8.51%，达成 ≥8% 验收线**（挂载测试 +1pt/个 vs helper +0.07pt/个）。门禁 8.2/9.6/6.2/8.15，type-check/build/全量 E2E 绿。所有本地 Q13 项完成，仅剩 Q13-00 待环境。
 - [x] Q13-01 补切片（web 家族执行器）：`test_web_executor.py`（8 项，fake subprocess.run 写 json-report + MinIO 边界，覆盖脚本缺失/超时/无测试/多步映射/截图上传/浏览器回退/healing hook）+ `test_web_lowcode_executor.py`（8 项，fake Page 记录动作分发 goto/click/fill/assert/press/wait/screenshot/unknown + 变量替换递归）。web_executor 13%→84%、web_lowcode 15%→51%，后端 TOTAL 67.76%→69.29%（1045 passed）；两文件加 minio 符号导入保护，免疫跨文件 stub 污染。
 - [x] Q13-01 补切片（android 家族执行器）：扩充 `test_android_lowcode_executor.py`（+11 项，fake `_adb_cmd` 覆盖 click/long_click/swipe(方向+坐标)/input(转义+clear)/press_key(命名+原样)/start_app/stop_app/assert_text/assert_element/wait/screenshot/未知动作 + 变量递归替换）与 `test_android_executor.py`（+3 项，run_android_case 的脚本缺失/设备缺失/设备不可达三个前置守卫）。android_lowcode 15%→53%、android_executor 12%→23%，**后端 TOTAL 69.29%→70.23%，九个执行器全部有行为覆盖**（1059 passed）。
+- [x] 后端覆盖延伸（environments API）：数据驱动挑最大 0% 模块——`test_environments_routes.py`（11 项，list/create/update/delete 环境 + 变量读取掩码 + 批量保存的删/插/密钥加密，含 404 与项目访问角色断言、重复 key 校验）。`api/v1/environments.py` 0%→100%，后端 TOTAL 70.23%→70.92%（1070 passed），CI 门禁 62%→66%。
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
 当前路线图：`docs/optimization-roadmap-2026-q12.md`。下一项为 Q12-02，先覆盖登录认证，再推进用例执行、计划调度和报告流程。

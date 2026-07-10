@@ -9,7 +9,7 @@
   - `Backend lint`：安装 `backend/requirements-dev.txt`，运行 `python -m ruff check backend/app backend/tests` 与 `python -m ruff format --check backend/app backend/tests`。
     同一 job 也运行 `python -m mypy` 与 `python -m bandit -c pyproject.toml -r backend/app -ll`。
   - `Empty database migration`：启动干净 PostgreSQL 16，执行 `cd backend && alembic upgrade head`。
-  - `Backend pytest`：启动 PostgreSQL 16 + Redis 7，运行后端主回归并产出覆盖率 XML：`python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=62`。
+  - `Backend pytest`：启动 PostgreSQL 16 + Redis 7，运行后端主回归并产出覆盖率 XML：`python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=66`。
   - `Frontend type-check + build`：运行 `npm ci`、`npm run test:coverage`、`npm run type-check`、`npm run build`；前端门禁为 statements `4.1%`、branches `4.55%`、functions `2.7%`、lines `4.35%`（定义在 `frontend/vitest.config.ts`，调整规则见 `docs/coverage-baseline-2026-q12.md`）。
 - **Artifacts**：`Backend pytest` 上传 `coverage.xml` 为 `backend-coverage-xml`；前端 job 上传 `frontend/coverage` 为 `frontend-coverage-report`。
 - **依赖服务**：PostgreSQL、Redis；MinIO 相关能力在主 CI 里通过测试 stub 覆盖，真实 MinIO 放在 integration workflow。

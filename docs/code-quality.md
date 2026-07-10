@@ -151,7 +151,7 @@ make test-backend-coverage
 CI command:
 
 ```bash
-python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=62
+python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=66
 ```
 
 Baseline refreshed on 2026-07-10:
