@@ -15,6 +15,13 @@ Measured with the local Python 3.14 toolchain, branch coverage enabled
 | After service slice 3 (exports) | 1003 passed | 65.97% | 56% | `exports` 36% -> 92% (three-level JUnit, aggregate suite/plan HTML builders, cache hit/miss, PDF routes behind a faked renderer) |
 | After service slice 4 (mobile_special API, Q13-02 complete) | 1019 passed | 66.98% | 62% | `mobile_special` 45% -> 91%; slice exposed and fixed a live break (create_task 500 on every call: created_by duplicated between schema dump and explicit kwarg) |
 
+## Frontend (Q13-03)
+
+| Stage | Tests | Frontend statements | Gate | Notes |
+| --- | ---: | --- | --- | --- |
+| Q13-03 start (post-Q12) | 46 passed | 4.38% | 4.1 | workbench tier zero-covered |
+| After CaseList slice | 51 passed | 4.65% | 4.4 | extracted utils/caseList (filter/count/workflow-guard/flaky/flatten); CaseList.vue rewired to the tested helpers, e2e still green |
+
 Command:
 
 ```bash

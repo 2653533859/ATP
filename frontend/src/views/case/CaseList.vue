@@ -507,7 +507,6 @@ import type {
   CaseStatus,
   CaseSummaryItem,
   CaseType,
-  ModuleTreeItem,
   ProjectItem,
   ReviewStatus,
 } from '@/api'
@@ -525,6 +524,15 @@ import {
   readCaseRouteSelection,
 } from '@/utils/caseNavigation'
 import { buildEnvironmentOptions, buildRunDetailLocation, buildRunPayload } from '@/utils/caseExecution'
+import {
+  caseWorkflowGuards,
+  collectActiveFilters,
+  countFlakyCases,
+  countPendingReviews,
+  filterCasesByLevel,
+  flakyTooltipParams,
+  flattenModules,
+} from '@/utils/caseList'
 import { useAuthStore } from '@/stores/auth'
 
 type WorkflowAction = 'submitReview' | 'approve' | 'reject' | 'deprecate' | 'reactivate'
@@ -664,17 +672,11 @@ const activeModuleName = computed(() =>
   selectedModuleId.value ? (moduleNameMap.value[selectedModuleId.value] ?? t('case.module_fallback', { id: selectedModuleId.value })) : t('common.all'),
 )
 
-const filteredCases = computed(() =>
-  cases.value.filter((testCase) => !filterLevel.value || testCase.case_level === filterLevel.value),
-)
+const filteredCases = computed(() => filterCasesByLevel(cases.value, filterLevel.value))
 
-const pendingReviewCount = computed(() =>
-  filteredCases.value.filter((testCase) => testCase.review_status === 'pending').length,
-)
+const pendingReviewCount = computed(() => countPendingReviews(filteredCases.value))
 
-const flakyCaseCount = computed(() =>
-  filteredCases.value.filter((testCase) => testCase.flaky_stats?.is_flaky).length,
-)
+const flakyCaseCount = computed(() => countFlakyCases(filteredCases.value))
 
 const canModifyCases = computed(() => canEditProjectAssets(auth.user?.role))
 const canApproveCases = computed(() => canEditProjectAssets(auth.user?.role))
@@ -685,32 +687,28 @@ const caseCreateDisabledTip = computed(() => {
   return t('case.new_case')
 })
 
-const activeFilterTags = computed<FilterTag[]>(() => {
-  const tags: FilterTag[] = []
-  const keywordText = keyword.value.trim()
-  if (keywordText) tags.push({ key: 'keyword', label: t('case.filter_tags.keyword', { value: keywordText }) })
-  if (filterType.value) tags.push({ key: 'type', label: t('case.filter_tags.type', { value: caseTypeLabel(filterType.value) }) })
-  if (filterPriority.value) tags.push({ key: 'priority', label: t('case.filter_tags.priority', { value: filterPriority.value }) })
-  if (filterLevel.value) tags.push({ key: 'level', label: t('case.filter_tags.level', { value: caseLevelLabel(filterLevel.value) }) })
-  if (filterStatus.value) tags.push({ key: 'status', label: t('case.filter_tags.status', { value: statusLabel(filterStatus.value) }) })
-  if (filterReviewStatus.value) {
-    tags.push({ key: 'review_status', label: t('case.filter_tags.review_status', { value: reviewStatusLabel(filterReviewStatus.value) }) })
-  }
-  if (filterAutomationStatus.value) {
-    tags.push({ key: 'automation_status', label: t('case.filter_tags.automation_status', { value: automationStatusLabel(filterAutomationStatus.value) }) })
-  }
-  return tags
-})
-
-function flattenModules(nodes: ModuleTreeItem[], acc: Record<number, string> = {}) {
-  for (const node of nodes) {
-    acc[node.id] = node.name
-    if (Array.isArray(node.children) && node.children.length) {
-      flattenModules(node.children, acc)
-    }
-  }
-  return acc
+// 非空筛选收集在 utils/caseList；此处仅做 i18n 标签渲染
+const filterTagLabelers: Record<FilterKey, (value: string) => string> = {
+  keyword: (value) => t('case.filter_tags.keyword', { value }),
+  type: (value) => t('case.filter_tags.type', { value: caseTypeLabel(value as CaseType) }),
+  priority: (value) => t('case.filter_tags.priority', { value }),
+  level: (value) => t('case.filter_tags.level', { value: caseLevelLabel(value as CaseLevel) }),
+  status: (value) => t('case.filter_tags.status', { value: statusLabel(value as CaseStatus) }),
+  review_status: (value) => t('case.filter_tags.review_status', { value: reviewStatusLabel(value as ReviewStatus) }),
+  automation_status: (value) => t('case.filter_tags.automation_status', { value: automationStatusLabel(value as AutomationStatus) }),
 }
+
+const activeFilterTags = computed<FilterTag[]>(() =>
+  collectActiveFilters({
+    keyword: keyword.value,
+    type: filterType.value,
+    priority: filterPriority.value,
+    level: filterLevel.value,
+    status: filterStatus.value,
+    review_status: filterReviewStatus.value,
+    automation_status: filterAutomationStatus.value,
+  }).map(({ key, value }) => ({ key, label: filterTagLabelers[key](value) })),
+)
 
 function filterModuleOption(input: string, option?: { label?: unknown }) {
   return String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
@@ -820,34 +818,30 @@ function automationStatusColor(status: AutomationStatus) {
 }
 
 function flakyTooltip(testCase: CaseSummaryItem) {
-  const stats = testCase.flaky_stats
-  if (!stats || stats.total_runs === 0) return t('case.flaky.no_runs')
-  return t('case.flaky.tooltip', {
-    total: stats.total_runs,
-    passed: stats.passed_runs,
-    failed: stats.failed_runs + stats.error_runs,
-    rate: stats.failure_rate,
-  })
+  const params = flakyTooltipParams(testCase.flaky_stats)
+  return params ? t('case.flaky.tooltip', params) : t('case.flaky.no_runs')
 }
 
+const workflowAbility = computed(() => ({ canModify: canModifyCases.value, canApprove: canApproveCases.value }))
+
 function canSubmitReview(testCase: CaseSummaryItem) {
-  return canModifyCases.value && testCase.status !== 'deprecated' && testCase.review_status !== 'pending'
+  return caseWorkflowGuards(testCase, workflowAbility.value).submitReview
 }
 
 function canApprove(testCase: CaseSummaryItem) {
-  return canApproveCases.value && testCase.status !== 'deprecated' && testCase.review_status === 'pending'
+  return caseWorkflowGuards(testCase, workflowAbility.value).approve
 }
 
 function canReject(testCase: CaseSummaryItem) {
-  return canApproveCases.value && testCase.review_status === 'pending'
+  return caseWorkflowGuards(testCase, workflowAbility.value).reject
 }
 
 function canDeprecate(testCase: CaseSummaryItem) {
-  return canModifyCases.value && testCase.status !== 'deprecated'
+  return caseWorkflowGuards(testCase, workflowAbility.value).deprecate
 }
 
 function canReactivate(testCase: CaseSummaryItem) {
-  return canModifyCases.value && testCase.status === 'deprecated' && testCase.review_status === 'approved'
+  return caseWorkflowGuards(testCase, workflowAbility.value).reactivate
 }
 
 function runDisabledTip(testCase: CaseSummaryItem) {

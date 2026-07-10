@@ -25,13 +25,13 @@ export default defineConfig({
       reportsDirectory: './coverage',
       include: ['src/**/*.{ts,vue}'],
       exclude: ['src/**/*.spec.ts', 'src/test/**', 'src/env.d.ts', 'src/main.ts'],
-      // 覆盖率棘轮：数值与调整规则以 docs/coverage-baseline-2026-q12.md 为准
+      // 覆盖率棘轮：数值与调整规则以 docs/coverage-baseline-2026-q13.md 为准
       // （单一事实来源；每次批次调整需同步该文档，保留 ≥0.25pt 本地余量）。
       thresholds: {
-        statements: 4.1,
-        branches: 4.55,
-        functions: 2.65,
-        lines: 4.35,
+        statements: 4.4,
+        branches: 5.1,
+        functions: 2.9,
+        lines: 4.6,
       },
     },
   },
