@@ -47,14 +47,35 @@ The ECharts change reduces the minified chunk by about 50% and gzip transfer siz
 - Do not add `import * as echarts from 'echarts'` or runtime imports from the full ECharts entrypoint.
 - Both rules are enforced by `backend/tests/frontend/test_frontend_bundle_decision.py`.
 
-## Trigger Status (2026-07-10)
+## Trigger Status (2026-07-10) — RESOLVED by Q12-04
 
-The threshold trigger has FIRED. After the Q12-03 upgrade (vue-i18n `9.14.5` -> `11.4.6`,
-transitive glob override to `13.0.6`), the ant-design chunk measured `1502.45 kB`
-(gzip `464.51 kB`), exceeding the `1500 kB` limit. The i18n runtime itself is fully
-isolated in a dedicated `i18n` chunk (`55.95 kB`, verified by grep over emitted assets),
-so the growth is bundler module-graph reassignment, not new Ant Design code. Per the
-decision above the threshold is NOT raised; Q12-04 owns the on-demand import evaluation.
+The threshold trigger FIRED after the Q12-03 upgrade (ant-design chunk `1502.45 kB` >
+`1500 kB`; the i18n runtime was verified isolated in its own chunk, so the growth was
+bundler module-graph reassignment). Q12-04 responded with the preferred direction from
+this document — automatic on-demand component resolution:
+
+- `unplugin-vue-components` + `AntDesignVueResolver({ importStyle: false })` replaces the
+  global `app.use(Antd)` registration (antd v4 cssinjs needs no per-component styles;
+  `reset.css` stays global). `dts` generation is disabled for now: enabling typed global
+  components exposes ~112 pre-existing `a-*` prop type mismatches that vue-tsc previously
+  ignored; typing hardening is a separate roadmap item.
+- `main.ts` no longer imports `@/utils/chartTheme` synchronously — the full echarts module
+  set it references had made the echarts chunk an entry dependency; registration now runs
+  when a chart view first imports `useChartTheme`.
+
+Measured route-level evidence (vite preview, Chrome, gzip transfer for `/login`):
+
+```text
+before: 773.9 kB total (ant-design 448.6, echarts 185.6, LoginView itself 1.4)
+after removing entry echarts: 583.5 kB (echarts no longer loads on /login)
+after on-demand antd:         510.1 kB total (-34% vs baseline)
+ant-design chunk: 1502.45 kB / 464.51 gzip -> 1246.41 kB / 387.71 gzip (-17%)
+build: no large-chunk warning; threshold stays 1500 kB
+```
+
+Functional verification: Vitest `46 passed` (specs mock ant-design-vue directly), vue-tsc
+clean, full Playwright E2E `9 passed` including the shared unexpected-pageerror guard —
+no missing component registrations.
 
 ## Ant Design Follow-Up Trigger
 

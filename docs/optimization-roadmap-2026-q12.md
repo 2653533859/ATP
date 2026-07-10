@@ -12,7 +12,7 @@ Close the residual quality risks left after Q11 acceptance. Q12 prioritizes clea
 | Q12-01 | Refresh coverage baselines | Backend `53.46%` with a `52%` gate; frontend statements `3.66%` with initial multi-metric gates and CI artifact | Complete |
 | Q12-02 | Raise frontend critical-flow coverage | Authentication, case execution, scheduling, and reporting slices complete; `46 passed` after review cleanup | Complete |
 | Q12-03 | Retire dependency deprecations | Resolve or explicitly time-box vue-i18n and transitive glob deprecation notices | Complete (zero `npm warn deprecated` on clean install) |
-| Q12-04 | Validate frontend chunk boundaries | Capture route-level load evidence and decide whether Ant Design on-demand imports are warranted | Planned (follow-up trigger fired: ant-design chunk 1502.45 kB > 1500 kB) |
+| Q12-04 | Validate frontend chunk boundaries | Capture route-level load evidence and decide whether Ant Design on-demand imports are warranted | Complete (on-demand antd adopted; /login transfer -34%, ant-design chunk 1246.41 kB, no build warning) |
 | Q12-05 | Complete external readiness evidence | Record production-like SLO history and a physical Android device execution rehearsal | Planned |
 
 ## Execution Order
@@ -27,9 +27,10 @@ Close the residual quality risks left after Q11 acceptance. Q12 prioritizes clea
 - Backend collection previously emitted 41 warnings from imported application classes named `Test*`; Q12-00 silenced them centrally (a `pytest_pycollect_makeitem` hook in `backend/tests/conftest.py` skips `Test*` classes imported from `app.*`) with a strict pytest warning gate, so tests import application classes by their real names.
 - Frontend full-source coverage is below the desired confidence level for critical workflows.
 - ~~vue-i18n and transitive glob packages emit deprecation notices during dependency operations.~~ Resolved by Q12-03: vue-i18n upgraded to `11.4.6` (Composition API mode unaffected), transitive glob forced to `13.0.6` via npm override (`@vue/test-utils > js-beautify` only uses glob in its CLI path).
-- The Ant Design vendor chunk crossed the 1500 kB warning threshold (1502.45 kB) after the vue-i18n dependency-graph reshuffle; per `docs/frontend-bundle-decision.md` the threshold stays at 1500 kB and Q12-04 owns the on-demand import decision.
+- ~~The Ant Design vendor chunk crossed the 1500 kB warning threshold.~~ Resolved by Q12-04: on-demand component resolution cut the chunk to 1246.41 kB and removed echarts from the login-route critical path (measured /login gzip transfer 773.9 -> 510.1 kB).
+- About 112 pre-existing `a-*` prop type mismatches surface if typed global components (`unplugin-vue-components` dts) are enabled; vue-tsc previously skipped unregistered components. Hardening these types is follow-up work before dts can be turned on.
 - Physical Android device data-plane evidence and long-window production SLO evidence remain environment-dependent.
 
 ## Next Action
 
-Q12-04 is next, and its follow-up trigger has already fired: the ant-design chunk reached 1502.45 kB (> 1500 kB) after the Q12-03 vue-i18n upgrade reshuffled the module graph. Capture route-level load evidence, then decide between automatic on-demand component resolution and a tested explicit registration layer as recorded in `docs/frontend-bundle-decision.md`.
+Q12-05 is next: record production-like SLO history and a physical Android device execution rehearsal. Both depend on environment access (long-window metrics and a real device), so scope the evidence format first and capture what is reproducible locally.

@@ -673,7 +673,7 @@
 - [x] Q12-01 刷新覆盖率基线：后端 `53.46%` / 门禁 `52%`；前端 statements `3.66%`、branches `4.06%`、functions `2.26%`、lines `3.92%`，已建立 3%/3%/2%/3% 初始门禁及 CI artifact。
 - [x] Q12-02 增补认证、用例执行、调度和报告关键前端流程测试：四个切片均完成，前端 `47 passed`，全源 coverage `4.44/4.88/3.01/4.66%`，门禁同步抬升。
 - [x] Q12-03 收敛依赖弃用提示：vue-i18n 升级到 `11.4.6`（Composition 模式无 breaking），传递依赖 glob 经 npm override 固定到 `13.0.6`；clean install 零 `npm warn deprecated`。46 tests、type-check、build、E2E 9 passed。
-- [ ] Q12-04 采集路由级加载证据并复核 Ant Design chunk 边界（触发条件已成立：ant-design chunk 1502.45 kB 超 1500 kB 告警线）。
+- [x] Q12-04 前端 chunk 边界治理：改用 unplugin-vue-components 按需注册 Ant Design（替代全局 app.use），并将 chartTheme 移出入口依赖；/login 首屏 gzip 传输 773.9→510.1 kB（-34%），ant-design chunk 1502.45→1246.41 kB，构建零告警；46 tests、type-check、E2E 9 passed。残留：开启组件 dts 类型会暴露约 112 处存量 a-* props 类型不匹配，另行加固。
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
 当前路线图：`docs/optimization-roadmap-2026-q12.md`。下一项为 Q12-02，先覆盖登录认证，再推进用例执行、计划调度和报告流程。
