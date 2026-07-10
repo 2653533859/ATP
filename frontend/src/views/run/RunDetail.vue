@@ -601,6 +601,21 @@ import { useI18n } from 'vue-i18n'
 import { runApi, bugTrackerApi, tracingApi, aiHealingPatchApi, type BugLinkInfo, type BugTrackerItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
+import {
+  computeExpandedKeys as computeExpandedStepKeys,
+  countScreenshotSteps,
+  failedOrErrorSteps as pickFailedOrErrorSteps,
+  healingTagColor as computeHealingTagColor,
+  isParameterizedParent as computeIsParameterizedParent,
+  normalizeFailureDiagnosis,
+  normalizeRunHealing,
+  primaryErrorText,
+  readIterationStats,
+  runStatusColor as computeRunStatusColor,
+  summarizeStepStatuses,
+  truncateText,
+  type RunHealingPayload,
+} from '@/utils/runDetail'
 
 const router = useRouter()
 const route = useRoute()
@@ -650,77 +665,37 @@ const isRunning = computed(() => run.value?.status === 'running' || run.value?.s
 const canCreateBug = computed(() => ['admin', 'engineer'].includes(auth.user?.role ?? ''))
 const canApplyHealingPatch = computed(() => ['admin', 'engineer'].includes(auth.user?.role ?? ''))
 
-const isParameterizedParent = computed(() => {
-  const summary = run.value?.result_summary as Record<string, unknown> | undefined
-  return Boolean(summary && typeof summary.iteration_total === 'number' && (summary.iteration_total as number) > 0)
-})
-const iterationStats = computed(() => {
-  const summary = (run.value?.result_summary ?? {}) as Record<string, unknown>
-  return {
-    total: Number(summary.iteration_total ?? 0),
-    passed: Number(summary.iteration_passed ?? 0),
-    failed: Number(summary.iteration_failed ?? 0),
-    error: Number(summary.iteration_error ?? 0),
-  }
-})
-
-const stepStats = computed(() => {
-  const stats = { passed: 0, failed: 0, error: 0, skipped: 0 }
-  for (const s of steps.value) {
-    if (s.status === 'passed') stats.passed++
-    else if (s.status === 'failed') stats.failed++
-    else if (s.status === 'error') stats.error++
-    else if (s.status === 'skipped') stats.skipped++
-  }
-  return stats
-})
-
-const failedOrErrorSteps = computed(() =>
-  steps.value.filter(step => step.status === 'failed' || step.status === 'error'),
+const isParameterizedParent = computed(() =>
+  computeIsParameterizedParent(run.value?.result_summary as Record<string, unknown> | undefined),
+)
+const iterationStats = computed(() =>
+  readIterationStats(run.value?.result_summary as Record<string, unknown> | undefined),
 )
 
-const screenshotCount = computed(() =>
-  steps.value.filter(step => Boolean(step.screenshot_url)).length,
-)
+const stepStats = computed(() => summarizeStepStatuses(steps.value))
+
+const failedOrErrorSteps = computed(() => pickFailedOrErrorSteps(steps.value))
+
+const screenshotCount = computed(() => countScreenshotSteps(steps.value))
 
 const canGenerateFailureDiagnosis = computed(() =>
   Boolean(run.value && (run.value.status === 'failed' || run.value.status === 'error' || failedOrErrorSteps.value.length > 0)),
 )
 
-const failureDiagnosis = computed<FailureDiagnosisResult | null>(() => {
-  const raw = run.value?.result_summary?.failure_diagnosis
-  if (!raw || typeof raw !== 'object') return null
-  const data = raw as Partial<FailureDiagnosisResult>
-  if (!data.summary || !data.status || !data.source) return null
-  return {
-    status: data.status,
-    source: data.source,
-    summary: data.summary,
-    at: data.at ?? '',
-    failed_step_count: Number(data.failed_step_count ?? 0),
-    screenshot_count: Number(data.screenshot_count ?? 0),
-    repair_suggestions: Array.isArray(data.repair_suggestions) ? data.repair_suggestions : [],
-    error_samples: Array.isArray(data.error_samples) ? data.error_samples : [],
-  }
-})
+const failureDiagnosis = computed<FailureDiagnosisResult | null>(() =>
+  normalizeFailureDiagnosis(run.value?.result_summary?.failure_diagnosis),
+)
 
-const primaryErrorSummary = computed(() => {
-  const stepError = failedOrErrorSteps.value.find(step => step.error_message)?.error_message
-  const messageText = stepError || run.value?.error_message || ''
-  if (!messageText) return t('run.investigation.no_error_summary')
-  return messageText.length > 600 ? `${messageText.slice(0, 600)}...` : messageText
-})
+const primaryErrorSummary = computed(
+  () => primaryErrorText(steps.value, run.value?.error_message) ?? t('run.investigation.no_error_summary'),
+)
 
 function statusColor(status: string) {
-  return (
-    { passed: 'green', failed: 'red', running: 'blue', error: 'orange', pending: 'default' }[status] ?? 'default'
-  )
+  return computeRunStatusColor(status)
 }
 
 function healingTagColor(status?: string | null) {
-  return (
-    { pending: 'blue', done: 'green', failed: 'red', skipped: 'default' }[status ?? ''] ?? 'default'
-  )
+  return computeHealingTagColor(status)
 }
 
 function healingStatusLabel(status?: string | null) {
@@ -815,12 +790,7 @@ function formatJson(data: Record<string, unknown> | null | undefined) {
 }
 
 function computeExpandedKeys(stepList: RunStepItem[]) {
-  // 自动展开失败和异常步骤；如果全部通过则展开第一步
-  const failedKeys = stepList
-    .filter(s => s.status === 'failed' || s.status === 'error')
-    .map(s => s.step_index)
-  if (failedKeys.length > 0) return failedKeys
-  return stepList.length > 0 ? [stepList[0].step_index] : []
+  return computeExpandedStepKeys(stepList)
 }
 
 function errorMessage(error: unknown, fallback = '') {
@@ -919,25 +889,9 @@ const videoUrl = computed(() => {
   return typeof value === 'string' ? value : ''
 })
 
-interface RunHealingPayload {
-  status: 'pending' | 'done' | 'failed' | 'skipped'
-  suggestion: string | null
-  at: string | null
-  cache_hit: boolean
-}
-
-const runHealing = computed<RunHealingPayload | null>(() => {
-  const raw = run.value?.result_summary?.healing
-  if (!raw || typeof raw !== 'object') return null
-  const h = raw as Record<string, unknown>
-  if (!h.status) return null
-  return {
-    status: h.status as RunHealingPayload['status'],
-    suggestion: typeof h.suggestion === 'string' ? h.suggestion : null,
-    at: typeof h.at === 'string' ? h.at : null,
-    cache_hit: Boolean(h.cache_hit),
-  }
-})
+const runHealing = computed<RunHealingPayload | null>(() =>
+  normalizeRunHealing(run.value?.result_summary?.healing),
+)
 
 const diagnosisStatusText = computed(() => {
   if (runHealing.value?.status) return healingStatusLabel(runHealing.value.status)
@@ -971,13 +925,11 @@ const bugPreviewDesc = computed(() => {
     if (step) {
       lines.push(t('run.bug.desc_failed_step', { index: step.step_index + 1, name: step.name }))
       if (step.error_message) {
-        const msg = step.error_message.length > 500 ? step.error_message.slice(0, 500) + '...' : step.error_message
-        lines.push(`\n${t('run.bug.desc_error')}\n${msg}`)
+        lines.push(`\n${t('run.bug.desc_error')}\n${truncateText(step.error_message, 500)}`)
       }
     }
   } else if (run.value.error_message) {
-    const msg = run.value.error_message.length > 500 ? run.value.error_message.slice(0, 500) + '...' : run.value.error_message
-    lines.push(`\n${t('run.bug.desc_error')}\n${msg}`)
+    lines.push(`\n${t('run.bug.desc_error')}\n${truncateText(run.value.error_message, 500)}`)
   }
   return lines.join('\n')
 })

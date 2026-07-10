@@ -21,6 +21,7 @@ Measured with the local Python 3.14 toolchain, branch coverage enabled
 | --- | ---: | --- | --- | --- |
 | Q13-03 start (post-Q12) | 46 passed | 4.38% | 4.1 | workbench tier zero-covered |
 | After CaseList slice | 51 passed | 4.65% | 4.4 | extracted utils/caseList (filter/count/workflow-guard/flaky/flatten); CaseList.vue rewired to the tested helpers, e2e still green |
+| After RunDetail slice | 58 passed | 5.10% | 4.85 | extracted utils/runDetail (step stats, expand keys, iteration/healing/diagnosis normalizers, error truncation); RunDetail.vue rewired, run-detail e2e still green |
 
 Command:
 
