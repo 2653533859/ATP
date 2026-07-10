@@ -100,15 +100,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
-import { BarChart, LineChart } from 'echarts/charts'
-import { GridComponent, TooltipComponent, LegendComponent } from 'echarts/components'
-import { CanvasRenderer } from 'echarts/renderers'
 import { message } from 'ant-design-vue'
 import { aiCaseGenerationApi, aiHealingStatsApi, type AICaseFunnelStats, type AIHealingStats } from '@/api'
 import { useChartTheme } from '@/utils/chartTheme'
-
-use([CanvasRenderer, BarChart, LineChart, GridComponent, TooltipComponent, LegendComponent])
 
 const { chartTheme } = useChartTheme()
 const loading = ref(false)

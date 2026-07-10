@@ -1,5 +1,6 @@
 export type PlanListExecutionMode = 'sequential' | 'parallel'
 export type PlanListFailStrategy = 'continue' | 'fast-fail' | 'require-minimum-pass-rate'
+export type PlanListScheduleType = 'manual' | 'cron' | 'webhook'
 export type CronMode = 'daily' | 'weekly' | 'custom'
 export type CronValidationErrorKey = 'required' | 'parts' | 'minute' | 'hour' | 'day' | 'month' | 'weekday'
 
@@ -32,6 +33,44 @@ export interface ParsedCronPreset {
   minute: number
   weekday: number
   customExpression: string
+}
+
+export type PlanSaveValidationError = 'name' | 'suite' | 'cron' | ''
+
+export interface PlanFormValues {
+  name: string
+  description: string
+  schedule_type: PlanListScheduleType
+  cron_expression: string
+  is_enabled: boolean
+  auto_create_bugs: boolean
+  env_id: number | null
+  config: Record<string, unknown>
+}
+
+export function getPlanSaveValidationError(
+  form: Pick<PlanFormValues, 'name' | 'schedule_type'>,
+  suiteIds: number[],
+  cronValidationError: string,
+): PlanSaveValidationError {
+  if (!form.name.trim()) return 'name'
+  if (suiteIds.length === 0) return 'suite'
+  if (form.schedule_type === 'cron' && cronValidationError) return 'cron'
+  return ''
+}
+
+export function buildPlanMutationPayload(form: PlanFormValues, suiteIds: number[]) {
+  return {
+    name: form.name,
+    description: form.description || null,
+    suite_ids: suiteIds.map((suiteId, sort) => ({ suite_id: suiteId, sort })),
+    schedule_type: form.schedule_type,
+    cron_expression: form.schedule_type === 'cron' ? form.cron_expression : null,
+    is_enabled: form.is_enabled,
+    auto_create_bugs: form.auto_create_bugs,
+    env_id: form.env_id,
+    config: { ...form.config },
+  }
 }
 
 export function createDefaultPlanConfig(): NormalizedPlanListConfig {

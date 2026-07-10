@@ -5,6 +5,7 @@ import { registerTheme } from 'echarts/core'
 
 vi.mock('echarts/core', () => ({
   registerTheme: vi.fn(),
+  use: vi.fn(),
 }))
 
 describe('chart theme utilities', () => {

@@ -136,8 +136,7 @@ import { ref, onMounted, onUnmounted, computed, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
-import * as echarts from 'echarts'
-import type { ECharts, EChartsOption } from 'echarts'
+import { init, type ECharts, type EChartsCoreOption } from 'echarts/core'
 import { useChartTheme } from '@/utils/chartTheme'
 import {
   mobileSpecialApi,
@@ -312,7 +311,7 @@ async function loadSamples() {
 
 function initTrendChart() {
   if (!trendChartRef.value) return
-  trendChart = echarts.init(trendChartRef.value, chartTheme.value)
+  trendChart = init(trendChartRef.value, chartTheme.value)
   updateTrendChart()
 }
 
@@ -329,7 +328,7 @@ function updateTrendChart() {
   const unitMap: Record<string, string> = { mem_mb: 'MB', cpu_pct: '%', battery_pct: '%', fps: '' }
   const colorMap: Record<string, string> = { mem_mb: '#1890ff', cpu_pct: '#faad14', battery_pct: '#52c41a', fps: '#722ed1' }
 
-  const option: EChartsOption = {
+  const option: EChartsCoreOption = {
     tooltip: {
       trigger: 'axis',
       formatter: (params: unknown) => {

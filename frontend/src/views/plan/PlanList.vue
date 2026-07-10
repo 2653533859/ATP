@@ -400,6 +400,7 @@ import type {
 import { environmentApi, planApi, projectApi, suiteApi } from '@/api'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
 import {
+  buildPlanMutationPayload,
   createDefaultPlanConfig,
   formatDuration,
   formatPercent,
@@ -407,6 +408,7 @@ import {
   getPlanRunFailureCount,
   getPlanRunFailureItems,
   getPlanRunPassRate,
+  getPlanSaveValidationError,
   normalizePlanConfig,
   parseCronPreset,
   runStatusColor,
@@ -727,36 +729,30 @@ function openEdit(record: PlanItem) {
 }
 
 async function handleSave() {
-  if (!form.value.name) {
+  const validationError = getPlanSaveValidationError(
+    form.value,
+    selectedSuiteIds.value,
+    cronValidationError.value,
+  )
+  if (validationError === 'name') {
     message.warning(t('plan.msg.name_required'))
     return
   }
-  if (selectedSuiteIds.value.length === 0) {
+  if (validationError === 'suite') {
     message.warning(t('plan.msg.suite_required'))
     return
   }
+  if (validationError === 'cron') {
+    message.warning(cronValidationError.value)
+    return
+  }
   if (form.value.schedule_type === 'cron') {
-    if (cronValidationError.value) {
-      message.warning(cronValidationError.value)
-      return
-    }
     form.value.cron_expression = cronPreviewExpression.value
   }
 
   saving.value = true
   try {
-    const suiteList = selectedSuiteIds.value.map((id, idx) => ({ suite_id: id, sort: idx }))
-    const payload = {
-      name: form.value.name,
-      description: form.value.description || null,
-      suite_ids: suiteList,
-      schedule_type: form.value.schedule_type,
-      cron_expression: form.value.schedule_type === 'cron' ? form.value.cron_expression : null,
-      is_enabled: form.value.is_enabled,
-      auto_create_bugs: form.value.auto_create_bugs,
-      env_id: form.value.env_id,
-      config: { ...form.value.config },
-    }
+    const payload = buildPlanMutationPayload(form.value, selectedSuiteIds.value)
     if (isEdit.value && editingPlan.value) {
       await planApi.update(editingPlan.value.id, payload)
     } else {

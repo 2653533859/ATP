@@ -127,10 +127,16 @@ import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
-import * as echarts from 'echarts'
-import type { ECharts, EChartsOption } from 'echarts'
+import { init, type ECharts, type EChartsCoreOption } from 'echarts/core'
 import { useChartTheme } from '@/utils/chartTheme'
 import { projectApi, mobileSpecialApi, type MobileSpecialRunItem, type ProjectItem, type TaskType, type MobileRunStatus } from '@/api'
+import {
+  addMobileRunTaskFallback,
+  buildMobileRunQuery,
+  filterMobileRunsByDateRange,
+  summarizeMobileTrend,
+  type DateRangeValue,
+} from '@/utils/mobileReport'
 
 const router = useRouter()
 const { t, locale } = useI18n()
@@ -142,7 +148,7 @@ const projectOptions = ref<Array<{ label: string; value: number }>>([])
 const selectedProjectId = ref<number | null>(null)
 const selectedTaskType = ref<TaskType | null>(null)
 const selectedStatus = ref<MobileRunStatus | null>(null)
-const dateRange = ref<[string, string] | null>(null)
+const dateRange = ref<[DateRangeValue, DateRangeValue] | null>(null)
 
 const overview = ref({
   total_runs: 0, completed_runs: 0, failed_runs: 0, running_runs: 0,
@@ -226,27 +232,16 @@ async function loadOverview() {
 async function loadRuns() {
   loading.value = true
   try {
-    const params: { project_id?: number; task_type?: TaskType; status_filter?: MobileRunStatus; limit: number } = { limit: 100 }
-    if (selectedProjectId.value) params.project_id = selectedProjectId.value
-    if (selectedTaskType.value) params.task_type = selectedTaskType.value
-    if (selectedStatus.value) params.status_filter = selectedStatus.value
-
-    const data = await mobileSpecialApi.listRuns(params)
-    let filtered = data
-
-    if (dateRange.value && dateRange.value.length === 2) {
-      const [start, end] = dateRange.value
-      filtered = filtered.filter(r => {
-        if (!r.started_at) return false
-        const t = new Date(r.started_at).getTime()
-        return t >= new Date(start).getTime() && t <= new Date(end).getTime() + 86400000
-      })
-    }
-
-    runs.value = filtered.map(r => ({
-      ...r,
-      task_name: r.task_name || t('mobile_special.reports.task_fallback', { id: r.task_id }),
+    const data = await mobileSpecialApi.listRuns(buildMobileRunQuery({
+      projectId: selectedProjectId.value,
+      taskType: selectedTaskType.value,
+      status: selectedStatus.value,
     }))
+    const filtered = filterMobileRunsByDateRange(data, dateRange.value)
+    runs.value = addMobileRunTaskFallback(
+      filtered,
+      (taskId) => t('mobile_special.reports.task_fallback', { id: taskId }),
+    )
 
     // Load trend data
     await loadTrend()
@@ -263,8 +258,9 @@ async function loadTrend() {
       project_id: selectedProjectId.value ?? undefined,
       days: 14,
     })
-    trendCompleted.value = trend.reduce((sum, d) => sum + d.completed, 0)
-    trendFailed.value = trend.reduce((sum, d) => sum + d.failed, 0)
+    const summary = summarizeMobileTrend(trend)
+    trendCompleted.value = summary.completed
+    trendFailed.value = summary.failed
     latestTrend.value = trend
     updateTrendChart(trend)
   } catch { /* ignore */ }
@@ -272,7 +268,7 @@ async function loadTrend() {
 
 function initTrendChart() {
   if (!trendChartRef.value) return
-  trendChart = echarts.init(trendChartRef.value, chartTheme.value)
+  trendChart = init(trendChartRef.value, chartTheme.value)
 }
 
 function updateTrendChart(trend: Array<{ date: string; total: number; completed: number; failed: number; pass_rate: number }>) {
@@ -282,7 +278,7 @@ function updateTrendChart(trend: Array<{ date: string; total: number; completed:
   const completedData = trend.map(d => d.completed)
   const failedData = trend.map(d => d.failed)
 
-  const option: EChartsOption = {
+  const option: EChartsCoreOption = {
     tooltip: { trigger: 'axis' },
     legend: { data: [t('mobile_special.statuses.completed'), t('mobile_special.statuses.failed')], bottom: 0 },
     grid: { top: 10, right: 20, bottom: 36, left: 40 },

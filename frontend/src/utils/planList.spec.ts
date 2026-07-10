@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
+  buildPlanMutationPayload,
   formatDuration,
   formatPercent,
   getCronValidationErrorKey,
@@ -8,6 +9,7 @@ import {
   getPlanRunFailureItems,
   getPlanRunPassRate,
   getPlanRunTotalCount,
+  getPlanSaveValidationError,
   normalizePlanConfig,
   parseCronPreset,
   runStatusColor,
@@ -16,6 +18,44 @@ import {
 } from './planList'
 
 describe('plan list utilities', () => {
+  it('validates plan save prerequisites in user-action order', () => {
+    expect(getPlanSaveValidationError({ name: ' ', schedule_type: 'manual' }, [1], '')).toBe('name')
+    expect(getPlanSaveValidationError({ name: 'Nightly', schedule_type: 'manual' }, [], '')).toBe('suite')
+    expect(getPlanSaveValidationError({ name: 'Nightly', schedule_type: 'cron' }, [1], 'invalid cron')).toBe('cron')
+    expect(getPlanSaveValidationError({ name: 'Nightly', schedule_type: 'cron' }, [1], '')).toBe('')
+  })
+
+  it('builds deterministic manual and cron mutation payloads', () => {
+    const base = {
+      name: 'Nightly',
+      description: '',
+      schedule_type: 'manual' as const,
+      cron_expression: '0 9 * * *',
+      is_enabled: true,
+      auto_create_bugs: false,
+      env_id: 8,
+      config: { execution_mode: 'parallel' },
+    }
+
+    expect(buildPlanMutationPayload(base, [7, 3])).toEqual({
+      name: 'Nightly',
+      description: null,
+      suite_ids: [{ suite_id: 7, sort: 0 }, { suite_id: 3, sort: 1 }],
+      schedule_type: 'manual',
+      cron_expression: null,
+      is_enabled: true,
+      auto_create_bugs: false,
+      env_id: 8,
+      config: { execution_mode: 'parallel' },
+    })
+
+    expect(buildPlanMutationPayload({
+      ...base,
+      description: 'weekday checks',
+      schedule_type: 'cron',
+    }, [7]).cron_expression).toBe('0 9 * * *')
+  })
+
   it('normalizes plan execution config defensively', () => {
     expect(normalizePlanConfig()).toEqual({
       execution_mode: 'sequential',

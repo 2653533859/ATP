@@ -250,10 +250,6 @@ import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import { DownloadOutlined, EditOutlined, FileSearchOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons-vue'
 import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
-import { LineChart } from 'echarts/charts'
-import { GridComponent, LegendComponent, TooltipComponent } from 'echarts/components'
-import { CanvasRenderer } from 'echarts/renderers'
 import type { EChartsOption } from 'echarts'
 import {
   environmentApi,
@@ -268,7 +264,6 @@ import { useChartTheme } from '@/utils/chartTheme'
 
 const { t } = useI18n()
 const { chartTheme } = useChartTheme()
-use([CanvasRenderer, LineChart, TooltipComponent, GridComponent, LegendComponent])
 
 const projectId = ref<number | null>(null)
 const projectOptions = ref<{ label: string; value: number }[]>([])

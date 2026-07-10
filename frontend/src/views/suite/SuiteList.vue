@@ -500,6 +500,7 @@ import type {
   SuiteRunItem,
 } from '@/api'
 import { suiteApi, projectApi, caseApi, environmentApi } from '@/api'
+import { buildRunPayload } from '@/utils/caseExecution'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
 import {
   createDefaultSuiteConfig,
@@ -1152,9 +1153,7 @@ async function confirmRun() {
   runConfirming.value = true
   runningId.value = s.id
   try {
-    const payload: { env_id?: number } = {}
-    if (runEnvId.value) payload.env_id = runEnvId.value
-    await suiteApi.run(s.id, payload)
+    await suiteApi.run(s.id, buildRunPayload(runEnvId.value))
     runModalOpen.value = false
     message.success(t('suite.msg.run_triggered'))
     // 打开执行记录

@@ -272,21 +272,10 @@ import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import Draggable from 'vuedraggable'
 import VChart from 'vue-echarts'
-import { use } from 'echarts/core'
-import { LineChart, BarChart, PieChart } from 'echarts/charts'
-import {
-  GridComponent,
-  LegendComponent,
-  TitleComponent,
-  TooltipComponent,
-} from 'echarts/components'
-import { CanvasRenderer } from 'echarts/renderers'
 import { DownloadOutlined, SettingOutlined, ProfileOutlined, PlayCircleOutlined, CheckCircleOutlined, ThunderboltOutlined, ClockCircleOutlined, ExclamationCircleOutlined, FileSearchOutlined, AlertOutlined } from '@ant-design/icons-vue'
 import LazyChartCard from '@/components/dashboard/LazyChartCard.vue'
 import { useChartTheme } from '@/utils/chartTheme'
 import { caseApi, dashboardAlertApi, projectApi, runApi, statisticsApi, storageApi, userSettingsApi, type DashboardAlertEventItem, type RunDetailItem, type StatisticsAggregateTrendItem, type StatisticsCaseTypeDistributionItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
-
-use([CanvasRenderer, LineChart, BarChart, PieChart, TitleComponent, TooltipComponent, GridComponent, LegendComponent])
 
 const router = useRouter()
 const { t, locale } = useI18n()

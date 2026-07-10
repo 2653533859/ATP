@@ -1,6 +1,13 @@
 import { computed } from 'vue'
-import { registerTheme } from 'echarts/core'
+import { registerTheme, use } from 'echarts/core'
+import { BarChart, LineChart, PieChart } from 'echarts/charts'
+import { GridComponent, LegendComponent, TitleComponent, TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
 import { useThemeStore } from '@/stores/theme'
+
+// 全站图表 echarts 模块注册的唯一出口（tree-shaking 白名单）。
+// 视图导入 useChartTheme 即完成注册，不再各自 use([...])，避免漏注册组件导致图表静默渲染失败。
+use([CanvasRenderer, LineChart, BarChart, PieChart, TitleComponent, TooltipComponent, GridComponent, LegendComponent])
 
 export const ATP_CHART_LIGHT = 'atp-light'
 export const ATP_CHART_DARK = 'atp-dark'

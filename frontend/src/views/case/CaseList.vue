@@ -209,7 +209,7 @@
               row-key="id"
               size="middle"
               :pagination="{ pageSize: 20, showSizeChanger: true }"
-              :scroll="{ x: 1500 }"
+              :scroll="cases.length ? { x: 1500 } : undefined"
               :row-selection="{ selectedRowKeys, onChange: (keys: (string | number)[]) => (selectedRowKeys = keys as number[]) }"
             >
             <template #bodyCell="{ column, record }">
@@ -524,6 +524,7 @@ import {
   buildCasesQuery,
   readCaseRouteSelection,
 } from '@/utils/caseNavigation'
+import { buildEnvironmentOptions, buildRunDetailLocation, buildRunPayload } from '@/utils/caseExecution'
 import { useAuthStore } from '@/stores/auth'
 
 type WorkflowAction = 'submitReview' | 'approve' | 'reject' | 'deprecate' | 'reactivate'
@@ -1080,7 +1081,7 @@ async function handleRun(testCase: CaseSummaryItem) {
   runEnvLoading.value = true
   try {
     const environments = await environmentApi.list(selectedProjectId.value)
-    runEnvOptions.value = environments.map((item) => ({ label: item.name, value: item.id }))
+    runEnvOptions.value = buildEnvironmentOptions(environments)
   } catch {
     runEnvOptions.value = []
     message.warning(t('case.msg.load_env_failed'))
@@ -1098,14 +1099,10 @@ async function confirmRun() {
   runConfirming.value = true
   runningId.value = testCase.id
   try {
-    const payload: { env_id?: number } = {}
-    if (runEnvId.value) {
-      payload.env_id = runEnvId.value
-    }
-    const run = await caseApi.run(testCase.id, payload)
+    const run = await caseApi.run(testCase.id, buildRunPayload(runEnvId.value))
     runModalOpen.value = false
     message.success(t('case.msg.run_started'))
-    void router.push(`/runs/${run.id}`)
+    void router.push(buildRunDetailLocation(run.id))
   } catch (error: unknown) {
     message.error(errorMessage(error, t('case.msg.run_failed')))
   } finally {

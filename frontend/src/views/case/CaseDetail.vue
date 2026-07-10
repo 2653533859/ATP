@@ -234,6 +234,7 @@ import type {
   ReviewStatus,
 } from '@/api'
 import CaseHistoryDrawer from '@/views/case/CaseHistoryDrawer.vue'
+import { buildEnvironmentOptions, buildRunDetailLocation, buildRunPayload } from '@/utils/caseExecution'
 
 type WorkflowAction = 'submitReview' | 'approve' | 'reject' | 'deprecate' | 'reactivate'
 type ErrorLike = {
@@ -546,7 +547,7 @@ async function openRunModal() {
   runEnvLoading.value = true
   try {
     const environments = await environmentApi.list(projectQueryId.value)
-    runEnvOptions.value = environments.map((item) => ({ label: item.name, value: item.id }))
+    runEnvOptions.value = buildEnvironmentOptions(environments)
   } catch {
     runEnvOptions.value = []
     message.warning(t('case.msg.load_env_failed'))
@@ -562,14 +563,10 @@ async function confirmRun() {
 
   runConfirming.value = true
   try {
-    const payload: { env_id?: number } = {}
-    if (runEnvId.value) {
-      payload.env_id = runEnvId.value
-    }
-    const run = await caseApi.run(caseId.value, payload)
+    const run = await caseApi.run(caseId.value, buildRunPayload(runEnvId.value))
     runModalOpen.value = false
     message.success(t('case.msg.run_started'))
-    void router.push(`/runs/${run.id}`)
+    void router.push(buildRunDetailLocation(run.id))
   } catch (error: unknown) {
     message.error(errorMessage(error, t('case.msg.run_failed')))
   } finally {
