@@ -31,6 +31,7 @@ export default defineConfig({
           if (/[\\/]node_modules[\\/]vue[\\/]/.test(id)) return 'vue-vendor'
           if (id.includes('@ant-design/icons')) return 'ant-design-icons'
           if (id.includes('ant-design-vue')) return 'ant-design'
+          if (id.includes('vue-i18n') || id.includes('@intlify')) return 'i18n'
           if (id.includes('vue-echarts')) return 'echarts'
           if (id.includes('echarts')) return 'echarts'
           if (id.includes('vuedraggable') || id.includes('sortablejs')) return 'vuedraggable'
