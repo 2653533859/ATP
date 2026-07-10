@@ -436,6 +436,7 @@ Q1-Q11 路线图内功能项已完成。当前进入 Q12 持续质量优化：
 - Q12 类型加固：dts 已开启（components.d.ts 提交入库），112 处存量类型错误全部修复；表格 record 用 asXxx 断言 helper、可空 v-model 用行内 as 断言、badge/回调签名收窄；4 个前端静态契约断言同步更新。
 - Q12-05（本地部分）：新增 `docs/q12-external-readiness-evidence.md` 冻结两项外部证据的口径（SLO 历史：绝对日期窗口/逐 SLO 达成值/突破 triage/告警决定；真机演练：拓扑+doctor 输出+run 数据量+产物+通过标准），并加契约测试防漂移。剩余为纯环境依赖执行。
 - Q13 规划：基于实测缺口（后端执行链路 ~1800 miss、前端工作台六视图零覆盖、ant-design 首屏占比 73%、iter5 phase2 未启动）发布 7 项 roadmap；执行顺序 Q13-01/03 并行起步，Q13-00（Q12-05 采集）环境到位随时插入。
+- Q13-01 切片 1：tasks.py 执行链主体 34 项单元缝测试（FakeDB + SimpleNamespace 领域替身 + sys.modules 注入延迟导入协作者 + run_async 真执行），35%→86%；TOTAL 55.65%；约定记录于 coverage-baseline-2026-q13.md，executor 家族按同型继续。
 - 下一项：Q12-03 依赖弃用提示收敛。
 
 ---
