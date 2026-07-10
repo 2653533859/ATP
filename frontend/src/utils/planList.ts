@@ -227,3 +227,23 @@ export function getPlanRunPassRate(run: PlanListRunItem): number {
 export function getPlanRunFailureItems(run: PlanListRunItem): PlanListSuiteRunItem[] {
   return (run.suite_run_ids ?? []).filter((item) => item.status === 'failed' || item.status === 'error')
 }
+
+export interface CronScheduleInput {
+  mode: CronMode
+  hour: number
+  minute: number
+  weekday: number
+  customExpression: string
+}
+
+/** 按调度模式构造 cron 表达式：daily/weekly 由时分（周）拼装，custom 取用户输入（trim）。 */
+export function buildCronExpression(input: CronScheduleInput): string {
+  if (input.mode === 'daily') return `${input.minute} ${input.hour} * * *`
+  if (input.mode === 'weekly') return `${input.minute} ${input.hour} * * ${input.weekday}`
+  return input.customExpression.trim()
+}
+
+/** 两位补零的 HH:MM 展示串。 */
+export function formatCronTime(hour: number, minute: number): string {
+  return `${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}`
+}

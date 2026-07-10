@@ -159,3 +159,23 @@ describe('plan list utilities', () => {
     expect(formatPercent(66.66)).toBe('66.7%')
   })
 })
+
+import { buildCronExpression, formatCronTime } from './planList'
+
+describe('plan cron schedule builders', () => {
+  it('builds daily and weekly cron expressions from time fields', () => {
+    expect(buildCronExpression({ mode: 'daily', hour: 9, minute: 30, weekday: 1, customExpression: '' })).toBe('30 9 * * *')
+    expect(buildCronExpression({ mode: 'weekly', hour: 18, minute: 0, weekday: 5, customExpression: '' })).toBe('0 18 * * 5')
+  })
+
+  it('takes trimmed custom expression in custom mode', () => {
+    expect(buildCronExpression({ mode: 'custom', hour: 0, minute: 0, weekday: 0, customExpression: '  */15 * * * *  ' })).toBe('*/15 * * * *')
+    expect(buildCronExpression({ mode: 'custom', hour: 0, minute: 0, weekday: 0, customExpression: '' })).toBe('')
+  })
+
+  it('formats HH:MM with zero-padding', () => {
+    expect(formatCronTime(9, 5)).toBe('09:05')
+    expect(formatCronTime(18, 30)).toBe('18:30')
+    expect(formatCronTime(0, 0)).toBe('00:00')
+  })
+})

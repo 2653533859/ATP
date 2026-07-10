@@ -410,6 +410,8 @@ import {
   getPlanRunPassRate,
   getPlanSaveValidationError,
   normalizePlanConfig,
+  buildCronExpression,
+  formatCronTime,
   parseCronPreset,
   runStatusColor,
   scheduleColor,
@@ -502,9 +504,13 @@ const customCronExpression = ref('')
 
 const cronPreviewExpression = computed(() => {
   if (form.value.schedule_type !== 'cron') return ''
-  if (cronMode.value === 'daily') return `${cronMinute.value} ${cronHour.value} * * *`
-  if (cronMode.value === 'weekly') return `${cronMinute.value} ${cronHour.value} * * ${cronWeekday.value}`
-  return customCronExpression.value.trim()
+  return buildCronExpression({
+    mode: cronMode.value,
+    hour: cronHour.value,
+    minute: cronMinute.value,
+    weekday: cronWeekday.value,
+    customExpression: customCronExpression.value,
+  })
 })
 
 const cronValidationError = computed(() => {
@@ -515,10 +521,9 @@ const cronValidationError = computed(() => {
 const cronDescription = computed(() => {
   if (form.value.schedule_type !== 'cron') return ''
   if (cronValidationError.value) return t('plan.cron_descriptions.fix_first')
-  const hh = String(cronHour.value).padStart(2, '0')
-  const mm = String(cronMinute.value).padStart(2, '0')
-  if (cronMode.value === 'daily') return t('plan.cron_descriptions.daily', { time: `${hh}:${mm}` })
-  if (cronMode.value === 'weekly') return t('plan.cron_descriptions.weekly', { weekday: weekdayLabel(cronWeekday.value), time: `${hh}:${mm}` })
+  const time = formatCronTime(cronHour.value, cronMinute.value)
+  if (cronMode.value === 'daily') return t('plan.cron_descriptions.daily', { time })
+  if (cronMode.value === 'weekly') return t('plan.cron_descriptions.weekly', { weekday: weekdayLabel(cronWeekday.value), time })
   return t('plan.cron_descriptions.custom')
 })
 
