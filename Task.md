@@ -693,6 +693,7 @@
 - [x] Q13-04 Ant Design 路由级 chunk 证据与决策：实测 /login 首屏在单体 antd chunk 下拉取 374.7/510.1 kB gzip（73%）；移除 manualChunks 的 ant-design 归并、让按需组件随路由分裂后，/login 首屏 510→336 kB（-34%，-174 kB，远超 15% 门槛），代价 dist JS 总量 +~35 kB（共享运行时在少数路由 chunk 重复）。结论 GO 并采纳，chunkSizeWarningLimit 1500→600（echarts 563 成新上限）；全量 E2E 9 passed 于真实浏览器验证。证据与决策见 docs/frontend-bundle-decision.md，契约测试同步更新。
 - [x] Q13-05 AI 自愈 apply 闭环（iter5 phase 2）：加 `AI_HEALING_APPLY_ENABLED`（默认关，apply 未启用返回 403；preview 只读门常开）+ 7 项行为测试（iter5 API 0%→72%）；修复端点 `ProjectRole.engineer` 潜在 500（第三个覆盖工作暴露的生产故障）+ 两处 sys.modules 测试隔离脆性。全库 1029 passed、TOTAL 67.76%。
 - [x] Q13-03 收官（挂载测试切片）：`ApkList.spec.ts`（4 项）+ `DeviceList.spec.ts`（5 项）@vue/test-utils 挂载测试，ApkList 0→56%、DeviceList 0→62%；**前端 statements 6.40%→8.51%，达成 ≥8% 验收线**（挂载测试 +1pt/个 vs helper +0.07pt/个）。门禁 8.2/9.6/6.2/8.15，type-check/build/全量 E2E 绿。所有本地 Q13 项完成，仅剩 Q13-00 待环境。
+- [x] Q13-01 补切片（web 家族执行器）：`test_web_executor.py`（8 项，fake subprocess.run 写 json-report + MinIO 边界，覆盖脚本缺失/超时/无测试/多步映射/截图上传/浏览器回退/healing hook）+ `test_web_lowcode_executor.py`（8 项，fake Page 记录动作分发 goto/click/fill/assert/press/wait/screenshot/unknown + 变量替换递归）。web_executor 13%→84%、web_lowcode 15%→51%，后端 TOTAL 67.76%→69.29%（1045 passed）；两文件加 minio 符号导入保护，免疫跨文件 stub 污染。
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
 当前路线图：`docs/optimization-roadmap-2026-q12.md`。下一项为 Q12-02，先覆盖登录认证，再推进用例执行、计划调度和报告流程。

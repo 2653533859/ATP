@@ -452,6 +452,7 @@ Q1-Q11 路线图内功能项已完成。当前进入 Q12 持续质量优化：
 - Q13-04 完成：量化 antd 单体对首屏的拖累（/login 73% 是 antd），移除单体归并让组件随路由分裂——/login 首屏 510→336 kB（-34%）、告警阈值 1500→600、全量 E2E 9 passed。决策 GO，证据入 docs/frontend-bundle-decision.md。
 - Q13-05 完成：AI 自愈 apply 闭环加 AI_HEALING_APPLY_ENABLED 开关（默认关，只有它会改用例数据，未启用返回 403）+ 7 项行为测试（iter5 API 0%→72%）；修复端点 ProjectRole.engineer 潜在 500（第三个由覆盖工作暴露的生产故障）+ 两处测试隔离脆性（importlib 强制重导入）。全库 1029 passed、TOTAL 67.76%。所有本地可做的 Q13 项完成。
 - Q13-03 收官：加两个 @vue/test-utils 挂载测试（ApkList/DeviceList，各 0→56/62%），前端 statements 6.40%→8.51% 达成 ≥8% 验收线（挂载测试 +1pt/个 vs helper +0.07pt/个）；门禁 8.2/9.6/6.2/8.15。Q13 所有本地项完成，仅剩 Q13-00 待环境。
+- Q13-01 补切片：web/web_lowcode 执行器单元缝（fake subprocess+Playwright Page 边界），13%→84% / 15%→51%，后端 TOTAL 69.29%、1045 passed。浏览器家族核心执行路径此前几乎零覆盖，现补上主干与异常分支。
 - 下一项：Q12-03 依赖弃用提示收敛。
 
 ---
