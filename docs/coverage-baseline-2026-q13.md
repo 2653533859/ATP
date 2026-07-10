@@ -26,6 +26,7 @@ Measured with the local Python 3.14 toolchain, branch coverage enabled
 | After DashboardView slice (Q13-03 workbench tier complete) | 68 passed | 5.95% | 5.7 | extracted utils/dashboardView (date-range gen, generic trend gap-fill, layout normalizer); a test pinned a subtle present-but-invalid layout-key contract |
 | After CaseFormDrawer slice | 74 passed | 6.33% | 6.05 | extracted utils/caseFormConfig (config-step parse, form-body/graphql-var/ws-message/request-body normalizers); branch coverage crossed 8% |
 | After PlanList cron slice | 77 passed | 6.40% | 6.15 | extended utils/planList (buildCronExpression, formatCronTime); statement gains now marginal per helper slice |
+| After mount-test slice (ApkList + DeviceList) | 86 passed | 8.51% | 8.2 | two @vue/test-utils mount tests (ApkList 0->56%, DeviceList 0->62%); statements crossed the 8% Q13-03 acceptance line — mount tests moved +1pt each vs +0.07pt per helper slice |
 
 Command:
 
