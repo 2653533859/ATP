@@ -13,7 +13,7 @@ Close the residual quality risks left after Q11 acceptance. Q12 prioritizes clea
 | Q12-02 | Raise frontend critical-flow coverage | Authentication, case execution, scheduling, and reporting slices complete; `46 passed` after review cleanup | Complete |
 | Q12-03 | Retire dependency deprecations | Resolve or explicitly time-box vue-i18n and transitive glob deprecation notices | Complete (zero `npm warn deprecated` on clean install) |
 | Q12-04 | Validate frontend chunk boundaries | Capture route-level load evidence and decide whether Ant Design on-demand imports are warranted | Complete (on-demand antd adopted; /login transfer -34%, ant-design chunk 1246.41 kB, no build warning) |
-| Q12-05 | Complete external readiness evidence | Record production-like SLO history and a physical Android device execution rehearsal | Planned |
+| Q12-05 | Complete external readiness evidence | Record production-like SLO history and a physical Android device execution rehearsal | Evidence format frozen (`docs/q12-external-readiness-evidence.md`); capture blocked on environment access |
 
 ## Execution Order
 
@@ -33,4 +33,4 @@ Close the residual quality risks left after Q11 acceptance. Q12 prioritizes clea
 
 ## Next Action
 
-Q12-05 is next: record production-like SLO history and a physical Android device execution rehearsal. Both depend on environment access (long-window metrics and a real device), so scope the evidence format first and capture what is reproducible locally.
+Q12-05 scoping is complete: `docs/q12-external-readiness-evidence.md` freezes the record fields, pass criteria, and evidence locations for both captures, with a contract test guarding the spec. The remaining work is execution only and is blocked on environment access — a long-lived scraped deployment for the 7/14-day SLO windows, and a physical Android device for the rehearsal. When either becomes available, follow the spec and file the dated evidence document it names. All locally executable Q12 items are complete.

@@ -675,6 +675,7 @@
 - [x] Q12-03 收敛依赖弃用提示：vue-i18n 升级到 `11.4.6`（Composition 模式无 breaking），传递依赖 glob 经 npm override 固定到 `13.0.6`；clean install 零 `npm warn deprecated`。46 tests、type-check、build、E2E 9 passed。
 - [x] Q12-04 前端 chunk 边界治理：改用 unplugin-vue-components 按需注册 Ant Design（替代全局 app.use），并将 chartTheme 移出入口依赖；/login 首屏 gzip 传输 773.9→510.1 kB（-34%），ant-design chunk 1502.45→1246.41 kB，构建零告警；46 tests、type-check、E2E 9 passed。后续已完成：components.d.ts 已开启并提交，112 处存量 a-* props 类型不匹配全部修复（见下条）。
 - [x] Q12 类型加固：开启 unplugin-vue-components dts，修复全部 112 处存量 a-* props 类型错误（bodyCell record 断言 helper、v-model null 断言、badge/handler 签名收窄），vue-tsc 对模板组件 props 实现真实检查；46 tests、type-check 0 错、build、E2E 9 passed、后端 841 passed。
+- [x] Q12-05（本地部分）冻结外部就绪证据口径：`docs/q12-external-readiness-evidence.md` 定义 SLO 7/14 天历史与 Android 真机演练的记录字段、通过标准与证据落点，契约测试 3 passed；采集执行待环境（长期抓取部署 + 真机）。
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
 当前路线图：`docs/optimization-roadmap-2026-q12.md`。下一项为 Q12-02，先覆盖登录认证，再推进用例执行、计划调度和报告流程。
