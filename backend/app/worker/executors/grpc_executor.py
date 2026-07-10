@@ -126,8 +126,8 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
             req_desc = pool.FindMessageTypeByName(method_desc.input_type.full_name)
             resp_desc = pool.FindMessageTypeByName(method_desc.output_type.full_name)
 
-            ReqClass = message_factory.GetPrototype(req_desc)
-            RespClass = message_factory.GetPrototype(resp_desc)
+            ReqClass = message_factory.GetMessageClass(req_desc)
+            RespClass = message_factory.GetMessageClass(resp_desc)
 
             # 构造请求消息
             request_msg = Parse(json.dumps(req_dict), ReqClass())
