@@ -17,7 +17,7 @@ Planning inputs (measured 2026-07-10):
 | ID | Work item | Acceptance criteria | Status |
 | --- | --- | --- | --- |
 | Q13-00 | Close Q12-05 captures and publish Q12 acceptance | When environment access arrives: dated `docs/slo-history-*.md` and `docs/android-device-rehearsal-*.md` per the frozen spec, then `docs/q12-acceptance-summary.md` | Blocked on environment (may land any time during Q13) |
-| Q13-01 | Backend execution-chain coverage | Unit seams for `worker/tasks.py` dispatch/finalization and per-executor request-build/assert/extract logic; backend TOTAL >= 60% with the CI gate raised 52% -> 56% | In progress (slice 1 done: tasks.py 35%->86%, TOTAL 53%->55.65%, `878 passed`; executor slices next) |
+| Q13-01 | Backend execution-chain coverage | Unit seams for `worker/tasks.py` dispatch/finalization and per-executor request-build/assert/extract logic; backend TOTAL >= 60% with the CI gate raised 52% -> 56% | Complete (TOTAL 60.03%, gate 56%, `924 passed`; HTTP-family seams fixed a live protobuf 5 break in grpc_executor) |
 | Q13-02 | Backend service/API coverage | Behavioral tests for `bug_reporter`, `ai_healing`, `failure_diagnosis`, `exports`, `mobile_special` API; each records before/after coverage in the baseline doc | Planned |
 | Q13-03 | Frontend workbench behavioral coverage | Four slices (CaseList, RunDetail, SuiteList, DashboardView) extracting testable helpers per the proven Q12-02 pattern; frontend statements >= 8% with gates ratcheted per the 0.25pt headroom policy | Planned |
 | Q13-04 | Ant Design route-level chunk evidence | Route-family sharing analysis captured in `docs/frontend-bundle-decision.md`; go/no-go decision on route isolation, implemented only if measured transfer saving >= 15% on a first-paint route | Planned |
@@ -43,4 +43,4 @@ Planning inputs (measured 2026-07-10):
 
 ## Next Action
 
-Continue Q13-01 slice 2: executor unit seams. Start with the HTTP-family executors (`api_executor` 141 missed, `graphql_executor` 145, `websocket_executor` 152, `grpc_executor` 176) by faking the transport boundary (httpx client / websocket connection / grpc channel) per the conventions in `docs/coverage-baseline-2026-q13.md`, then the browser/device families. Q13-03 frontend slices may start in parallel at any time.
+Q13-01 is complete (TOTAL 60.03%, gate 56%). Next: Q13-02 backend service/API coverage — `bug_reporter` (261 missed, including the plan auto-bug success path left from slice 1), `ai_healing` (185), `failure_diagnosis` (124), `exports` (197), `mobile_special` API (143) — using the same seam conventions. Q13-03 frontend workbench slices may run in parallel at any time.

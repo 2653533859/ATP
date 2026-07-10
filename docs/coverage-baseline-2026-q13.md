@@ -9,6 +9,7 @@ Measured with the local Python 3.14 toolchain, branch coverage enabled
 | --- | ---: | --- | --- | --- |
 | Q13 start (post-Q12) | 844 passed | 53% (5731 missed of 13327) | 52% | `worker/tasks.py` at 35% (362 missed) was the largest single gap |
 | After execution-chain slice 1 (tasks.py) | 878 passed | 55.65% (5429 missed) | 52% | `worker/tasks.py` 35% -> 86%; remaining misses concentrated in the auto-bug success path (745-822, owned by the Q13-02 `bug_reporter` slice) |
+| After execution-chain slice 2 (HTTP-family executors) | 924 passed | 60.03% (4864 missed) | 56% | `api_executor` 3% -> 94%, `grpc_executor` 8% -> 88%, `websocket_executor` 3% -> 89%, `graphql_executor` 3% -> 90%; slice exposed and fixed a real production break (`message_factory.GetPrototype` removed in protobuf 5+, grpc executor was failing on every run) |
 
 Command:
 
@@ -41,8 +42,8 @@ executor's own logic.
 
 ## Threshold Policy
 
-- The CI gate stays at 52% until the executor slice lands; raise to 56% when
-  TOTAL reaches 60% so the gate keeps roughly 4 points of headroom, mirroring
-  the Q12 policy of never gating at the measured value.
+- TOTAL reached 60.03% after slice 2, so the CI gate is now 56% (raised from
+  52%), keeping roughly 4 points of headroom per the Q12 policy of never
+  gating at the measured value.
 - Every slice records before/after rows in this table; import-only tests that
   inflate line coverage without behavioral assertions do not qualify.

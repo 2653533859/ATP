@@ -678,6 +678,7 @@
 - [x] Q12-05（本地部分）冻结外部就绪证据口径：`docs/q12-external-readiness-evidence.md` 定义 SLO 7/14 天历史与 Android 真机演练的记录字段、通过标准与证据落点，契约测试 3 passed；采集执行待环境（长期抓取部署 + 真机）。
 - [x] Q13 规划发布：`docs/optimization-roadmap-2026-q13.md`——7 个工作项：Q13-00 承接 Q12-05 采集与 Q12 验收、Q13-01 执行链路覆盖（tasks.py+9 executors，后端 53%→60%、gate 52→56）、Q13-02 服务/API 覆盖（bug_reporter/ai_healing/failure_diagnosis/exports/mobile_special）、Q13-03 前端工作台四视图行为切片（statements ≥8%）、Q13-04 Ant Design 路由级 chunk 证据与决策、Q13-05 AI 自愈 apply 闭环切片（feature-flag+审计）、Q13-06 依赖卫生。首个动作：Q13-01 执行器单元缝。
 - [x] Q13-01 切片 1（执行链主体）：新增 `test_tasks_execution_chain.py` 34 项测试覆盖 run_test_case/run_test_suite/run_test_plan/_execute_plan_suite/check_cron_plans/check_dashboard_alerts 全部主干与异常分支；tasks.py 35%→86%，后端 TOTAL 53%→55.65%（878 passed）；单元缝约定沉淀到 `docs/coverage-baseline-2026-q13.md`。
+- [x] Q13-01 切片 2（HTTP 家族执行器）+ 收官：`test_http_family_executors.py` 46 项测试只 fake 传输边界（httpx/websockets/grpc channel），api/graphql/websocket/grpc 执行器 3-8%→88-94%；**发现并修复生产级故障**：protobuf 5+ 移除 `message_factory.GetPrototype`，grpc 执行器此前每次执行必报错，改用 `GetMessageClass`。后端 TOTAL 60.03%（924 passed），CI 门禁 52%→56%。
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
 当前路线图：`docs/optimization-roadmap-2026-q12.md`。下一项为 Q12-02，先覆盖登录认证，再推进用例执行、计划调度和报告流程。
