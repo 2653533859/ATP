@@ -11,6 +11,7 @@ Measured with the local Python 3.14 toolchain, branch coverage enabled
 | After execution-chain slice 1 (tasks.py) | 878 passed | 55.65% (5429 missed) | 52% | `worker/tasks.py` 35% -> 86%; remaining misses concentrated in the auto-bug success path (745-822, owned by the Q13-02 `bug_reporter` slice) |
 | After execution-chain slice 2 (HTTP-family executors) | 924 passed | 60.03% (4864 missed) | 56% | `api_executor` 3% -> 94%, `grpc_executor` 8% -> 88%, `websocket_executor` 3% -> 89%, `graphql_executor` 3% -> 90%; slice exposed and fixed a real production break (`message_factory.GetPrototype` removed in protobuf 5+, grpc executor was failing on every run) |
 | After service slice 1 (bug_reporter + failure_diagnosis) | 962 passed | 63.35% | 56% | `bug_reporter` 20% -> 95% (four trackers behind one scripted httpx fake), `failure_diagnosis` 12% -> 97% (rule/LLM/fallback three-state) |
+| After service slice 2 (ai_healing run-level) | 985 passed | 64.50% | 56% | `ai_healing` 46% -> 89% (run_diagnosis_for_run all states, cache keys, daily limits, vision loading, enqueue hooks) |
 
 Command:
 
