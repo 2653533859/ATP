@@ -88,6 +88,8 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4317}
       - OTEL_SERVICE_NAME=atp-worker
       - WORKER_METRICS_PORT=${WORKER_METRICS_PORT:-9091}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     command: sh -c "celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q $${CELERY_QUEUES}"
     # 暴露 worker 进程 Prometheus /metrics 端点（与 backend:8000/metrics 区分）
     # 多 worker 子进程共享同一物理端口；首个子进程成功绑定后其余 OSError 静默
@@ -102,10 +104,9 @@ services:
         condition: service_healthy
     restart: unless-stopped
     # Android 真机联调建议：
-    # 1. 先在宿主机执行 `adb tcpip 5555` 和 `adb connect <device-ip>:5555`
-    # 2. 确保 worker 容器能访问宿主机 adb 可见的设备地址
-    # 3. 如本机 Docker 环境允许，可改用 host 网络模式减少桥接问题
-    # network_mode: host
+    # 1. 直连模式：宿主机先执行 `adb tcpip 5555`，worker 再独立 `adb connect <device-ip>:5555`
+    # 2. 共享模式：设置 ADB_SERVER_SOCKET=tcp:host.docker.internal:5037，并安全暴露宿主 ADB server
+    # 3. Flower 使用宿主 5555；不要把 host.docker.internal:5555 当作 ADB server
 
   # ── Celery Beat（定时任务）────────────────────────
   beat:

@@ -2,6 +2,8 @@
 # ATP Android ADB-over-TCP 诊断脚本
 # Usage: bash scripts/android-network-doctor.sh [HOST:PORT]
 # 默认 HOST:PORT = 127.0.0.1:5555
+# ADB_SKIP_SERVER_RESTART=true: 复用外部 ADB server 时不执行 kill/start-server
+# ADB_SKIP_CONNECT=true: target 已由共享 ADB server 维护时跳过 adb connect
 
 set -u
 
@@ -24,21 +26,27 @@ if [[ -z "$ADB_PATH" ]]; then
 fi
 ok "adb binary found: $ADB_PATH"
 
-# 2. 重启 adb server
-if adb kill-server >/dev/null 2>&1 && adb start-server >/dev/null 2>&1; then
+# 2. 重启 adb server（共享宿主 ADB server 时必须跳过，避免终止宿主服务）
+if [[ "${ADB_SKIP_SERVER_RESTART:-false}" == "true" ]]; then
+  ok "adb server restart skipped"
+elif adb kill-server >/dev/null 2>&1 && adb start-server >/dev/null 2>&1; then
   ok "adb server restarted"
 else
   fail "adb server restart failed"
   echo "Hint: check adb permissions or other running adb processes"
 fi
 
-# 3. 连接 target
-CONNECT_OUT="$(adb connect "$TARGET" 2>&1)"
-if echo "$CONNECT_OUT" | grep -qiE "connected|already connected"; then
-  ok "connect $TARGET"
+# 3. 连接 target（共享 server 已维护 serial 时可跳过）
+if [[ "${ADB_SKIP_CONNECT:-false}" == "true" ]]; then
+  ok "connect skipped for existing serial: $TARGET"
 else
-  fail "connect $TARGET: $CONNECT_OUT"
-  echo "Hint: check device IP/port, firewall (5555/tcp), and that 'adb tcpip 5555' ran on device first"
+  CONNECT_OUT="$(adb connect "$TARGET" 2>&1)"
+  if echo "$CONNECT_OUT" | grep -qiE "connected|already connected"; then
+    ok "connect $TARGET"
+  else
+    fail "connect $TARGET: $CONNECT_OUT"
+    echo "Hint: check device IP/port, firewall (5555/tcp), and that 'adb tcpip 5555' ran on device first"
+  fi
 fi
 
 # 4. 设备列表
