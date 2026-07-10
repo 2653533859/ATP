@@ -38,9 +38,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Verify release checklist exists
-        run: |
-          test -f docs/q9-release-checklist.md
-          grep -q "alembic upgrade head" docs/q9-release-checklist.md
-          grep -q "helm upgrade --install" docs/q9-release-checklist.md
-          grep -q "performance" docs/q9-release-checklist.md
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install contract test dependencies
+        run: pip install pytest pyyaml
+
+      # 契约的唯一定义在 pytest 文件里（普通 CI 同样执行它），
+      # 这里直接运行该文件而不是在 YAML 里再抄一份 grep 清单，避免双份漂移。
+      - name: Run release checklist contract tests
+        run: python -m pytest backend/tests/worker/test_q9_release_readiness.py -q
