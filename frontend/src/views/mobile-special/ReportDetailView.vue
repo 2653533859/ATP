@@ -118,7 +118,7 @@
                 {{ formatDate(record.created_at) }}
               </template>
               <template v-else-if="column.key === 'action'">
-                <a-button type="link" size="small" @click="downloadArtifact(record)">{{ t('mobile_special.reports.download') }}</a-button>
+                <a-button type="link" size="small" @click="downloadArtifact(asArtifact(record))">{{ t('mobile_special.reports.download') }}</a-button>
               </template>
             </template>
           </a-table>
@@ -151,6 +151,9 @@ import {
   type MobileTriggerType,
   type TaskType,
 } from '@/api'
+
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asArtifact = (record: unknown) => record as MobileRunArtifactItem
 
 const MetricKpiCard = {
   props: { label: String, value: [String, Number], unit: String, color: String },

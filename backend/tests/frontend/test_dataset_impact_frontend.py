@@ -15,7 +15,7 @@ def test_dataset_impact_modal_shows_reference_summary_and_actions():
     assert "impactRows('suite', impact.suites)" in content
     assert "impactRows('plan', impact.plans)" in content
     assert "record.reasonLabels" in content
-    assert "openImpactTarget(record)" in content
+    assert "openImpactTarget(asImpact(record))" in content
 
 
 def test_dataset_impact_targets_link_to_case_suite_and_plan_pages():

@@ -4,7 +4,7 @@
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap">
       <h2 style="margin: 0">{{ t('mobile_special.reports.title') }}</h2>
       <a-select
-        v-model:value="selectedProjectId"
+        v-model:value="(selectedProjectId as number | undefined)"
         :placeholder="t('mobile_special.select_project')"
         style="width: 200px"
         :options="projectOptions"
@@ -12,7 +12,7 @@
         @change="onProjectChange"
       />
       <a-select
-        v-model:value="selectedTaskType"
+        v-model:value="(selectedTaskType as TaskType | undefined)"
         :placeholder="t('mobile_special.task_type')"
         style="width: 140px"
         :options="taskTypeOptions"
@@ -20,7 +20,7 @@
         @change="loadRuns"
       />
       <a-select
-        v-model:value="selectedStatus"
+        v-model:value="(selectedStatus as MobileRunStatus | undefined)"
         :placeholder="t('mobile_special.reports.status')"
         style="width: 120px"
         :options="statusOptions"
@@ -28,7 +28,7 @@
         @change="loadRuns"
       />
       <a-range-picker
-        v-model:value="dateRange"
+        v-model:value="(dateRange as [Dayjs, Dayjs] | undefined)"
         :placeholder="[t('mobile_special.reports.start_date'), t('mobile_special.reports.end_date')]"
         style="width: 260px"
         @change="loadRuns"
@@ -98,13 +98,13 @@
             {{ record.started_at ? formatDate(record.started_at) : '-' }}
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-button type="primary" size="small" @click="viewDetail(record)">{{ t('case.actions.detail') }}</a-button>
+            <a-button type="primary" size="small" @click="viewDetail(asRun(record))">{{ t('case.actions.detail') }}</a-button>
             <a-dropdown>
               <a-button type="link" size="small">{{ t('common.export') }}</a-button>
               <template #overlay>
                 <a-menu>
-                  <a-menu-item key="csv" @click="exportCsv(record)">{{ t('mobile_special.reports.csv_metrics') }}</a-menu-item>
-                  <a-menu-item key="json" @click="exportJson(record)">{{ t('mobile_special.reports.json_report') }}</a-menu-item>
+                  <a-menu-item key="csv" @click="exportCsv(asRun(record))">{{ t('mobile_special.reports.csv_metrics') }}</a-menu-item>
+                  <a-menu-item key="json" @click="exportJson(asRun(record))">{{ t('mobile_special.reports.json_report') }}</a-menu-item>
                 </a-menu>
               </template>
             </a-dropdown>
@@ -113,7 +113,7 @@
               type="link"
               size="small"
               danger
-              @click="handleStop(record)"
+              @click="handleStop(asRun(record))"
             >{{ t('mobile_special.reports.stop') }}</a-button>
           </template>
         </template>
@@ -127,6 +127,7 @@ import { computed, ref, onMounted, onUnmounted, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
+import type { Dayjs } from 'dayjs'
 import { init, type ECharts, type EChartsCoreOption } from 'echarts/core'
 import { useChartTheme } from '@/utils/chartTheme'
 import { projectApi, mobileSpecialApi, type MobileSpecialRunItem, type ProjectItem, type TaskType, type MobileRunStatus } from '@/api'
@@ -135,8 +136,10 @@ import {
   buildMobileRunQuery,
   filterMobileRunsByDateRange,
   summarizeMobileTrend,
-  type DateRangeValue,
 } from '@/utils/mobileReport'
+
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asRun = (record: unknown) => record as MobileSpecialRunItem
 
 const router = useRouter()
 const { t, locale } = useI18n()
@@ -148,7 +151,8 @@ const projectOptions = ref<Array<{ label: string; value: number }>>([])
 const selectedProjectId = ref<number | null>(null)
 const selectedTaskType = ref<TaskType | null>(null)
 const selectedStatus = ref<MobileRunStatus | null>(null)
-const dateRange = ref<[DateRangeValue, DateRangeValue] | null>(null)
+// RangePicker 产出 Dayjs 对；filterMobileRunsByDateRange 接受其超集 DateRangeValue
+const dateRange = ref<[Dayjs, Dayjs] | null>(null)
 
 const overview = ref({
   total_runs: 0, completed_runs: 0, failed_runs: 0, running_runs: 0,

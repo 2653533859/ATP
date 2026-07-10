@@ -42,7 +42,7 @@
             :value="record.role"
             style="width: 110px"
             :disabled="record.user_id === currentUserId && record.role === 'owner'"
-            @change="(val: string) => onUpdateRole(record, val)"
+            @change="(val: unknown) => onUpdateRole(asMember(record), String(val))"
           >
             <a-select-option value="viewer">viewer</a-select-option>
             <a-select-option value="editor">editor</a-select-option>
@@ -54,7 +54,7 @@
             :title="t('project_members.remove_confirm', { username: record.username })"
             :ok-text="t('common.delete')"
             :cancel-text="t('common.cancel')"
-            @confirm="onRemoveMember(record)"
+            @confirm="onRemoveMember(asMember(record))"
           >
             <a-button size="small" type="link" danger>{{ t('common.delete') }}</a-button>
           </a-popconfirm>
@@ -74,6 +74,8 @@ import { useI18n } from 'vue-i18n'
 import { projectMemberApi, type ProjectMemberItem, type ProjectRoleType } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import http from '@/api/http'
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asMember = (record: unknown) => record as ProjectMemberItem
 
 const props = defineProps<{
   open: boolean

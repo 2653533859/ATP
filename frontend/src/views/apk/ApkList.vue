@@ -78,8 +78,8 @@
 
         <template v-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" size="small" @click="handleDownload(record)">{{ t('apk.download') }}</a-button>
-            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+            <a-button type="link" size="small" @click="handleDownload(asApk(record))">{{ t('apk.download') }}</a-button>
+            <a-button type="link" size="small" @click="openEdit(asApk(record))">{{ t('common.edit') }}</a-button>
             <a-popconfirm :title="t('apk.confirm_delete')" @confirm="handleDelete(record.id)">
               <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
             </a-popconfirm>
@@ -169,6 +169,8 @@ import { useI18n } from 'vue-i18n'
 import type { UploadFile } from 'ant-design-vue'
 import { apkApi, projectApi } from '@/api'
 import type { ApkItem, ProjectItem } from '@/api'
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asApk = (record: unknown) => record as ApkItem
 
 const { t } = useI18n()
 const apks = ref<ApkItem[]>([])

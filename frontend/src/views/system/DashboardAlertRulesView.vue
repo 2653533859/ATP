@@ -56,7 +56,7 @@
           </template>
           <template v-if="column.key === 'action'">
             <a-space>
-              <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+              <a-button type="link" size="small" @click="openEdit(asRule(record))">{{ t('common.edit') }}</a-button>
               <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
                 <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
               </a-popconfirm>
@@ -116,7 +116,7 @@
         </a-row>
         <a-form-item :label="t('system_pages.dashboard_alert.notification')">
           <a-select
-            v-model:value="form.notification_config_id"
+            v-model:value="(form.notification_config_id as number | undefined)"
             allow-clear
             :options="notificationOptions"
             :placeholder="t('system_pages.dashboard_alert.no_notification')"
@@ -145,6 +145,9 @@ import {
   type DashboardAlertRuleItem,
   type DashboardAlertRulePayload,
 } from '@/api'
+
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asRule = (record: unknown) => record as DashboardAlertRuleItem
 
 type NotificationOption = {
   id: number

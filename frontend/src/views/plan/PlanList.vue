@@ -65,9 +65,9 @@
 
         <template v-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" size="small" @click="openEdit(record)">{{ t('plan.actions.edit') }}</a-button>
-            <a-button type="link" size="small" :loading="runningId === record.id" @click="handleRun(record)">{{ t('plan.actions.run') }}</a-button>
-            <a-button type="link" size="small" @click="viewRuns(record)">{{ t('plan.actions.records') }}</a-button>
+            <a-button type="link" size="small" @click="openEdit(asPlan(record))">{{ t('plan.actions.edit') }}</a-button>
+            <a-button type="link" size="small" :loading="runningId === record.id" @click="handleRun(asPlan(record))">{{ t('plan.actions.run') }}</a-button>
+            <a-button type="link" size="small" @click="viewRuns(asPlan(record))">{{ t('plan.actions.records') }}</a-button>
             <a-popconfirm :title="t('plan.confirm_delete_one')" @confirm="handleDelete(record.id)">
               <a-button type="link" size="small" danger>{{ t('plan.actions.delete') }}</a-button>
             </a-popconfirm>
@@ -187,7 +187,7 @@
 
         <a-form-item :label="t('plan.form.default_environment')">
           <a-select
-            v-model:value="form.env_id"
+            v-model:value="(form.env_id as number | undefined)"
             :placeholder="t('plan.form.no_environment')"
             allow-clear
             style="width: 100%"
@@ -416,6 +416,9 @@ import {
   type CronMode,
 } from '@/utils/planList'
 
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asPlan = (record: unknown) => record as PlanItem
+
 const { t } = useI18n()
 
 type SelectOption = { label: string; value: number }
@@ -549,7 +552,7 @@ const columns = computed(() => [
   { title: t('plan.columns.suites'), key: 'suites', width: 90 },
   { title: t('plan.columns.enabled'), key: 'is_enabled', width: 80 },
   { title: t('plan.columns.next_run_at'), key: 'next_run_at', width: 170 },
-  { title: t('plan.columns.action'), key: 'action', width: 220, fixed: 'right' },
+  { title: t('plan.columns.action'), key: 'action', width: 220, fixed: 'right' as const },
 ])
 
 const runColumns = computed(() => [

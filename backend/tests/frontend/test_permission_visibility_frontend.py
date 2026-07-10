@@ -39,6 +39,6 @@ def test_case_list_exposes_disabled_read_only_actions():
     assert "canModifyCases" in content
     assert "canRunCases" in content
     assert "caseCreateDisabledTip" in content
-    assert "runDisabledTip(record)" in content
+    assert "runDisabledTip(asCase(record))" in content
     assert "case.msg.read_only_role" in content
     assert ':disabled="!selectedModuleId || !canModifyCases"' in content

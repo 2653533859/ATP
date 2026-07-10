@@ -203,8 +203,8 @@ const routeTitleKey = computed(() => {
   return 'layout.sider_title_full'
 })
 
-function onMenuClick({ key }: { key: string }) {
-  router.push(key)
+function onMenuClick({ key }: { key: string | number }) {
+  router.push(String(key))
 }
 
 function handleLogout() {
@@ -219,8 +219,9 @@ const localeOptions = computed(() => [
   { label: t('lang.en'), value: 'en-US' },
 ])
 
-function onLocaleChange(value: SupportedLocale) {
-  setLocale(value)
+// a-select @change 的参数类型是 SelectValue；此处选项只会是两个受支持的 locale
+function onLocaleChange(value: unknown) {
+  setLocale(value as SupportedLocale)
 }
 </script>
 

@@ -72,8 +72,8 @@
         </template>
         <template v-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
-            <a-button type="link" size="small" @click="handleCopy(record)">{{ t('mock.copy') }}</a-button>
+            <a-button type="link" size="small" @click="openEdit(asRule(record))">{{ t('common.edit') }}</a-button>
+            <a-button type="link" size="small" @click="handleCopy(asRule(record))">{{ t('mock.copy') }}</a-button>
             <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
               <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
             </a-popconfirm>
@@ -171,7 +171,7 @@
             <a-button type="link" size="small" style="margin-left: 8px" @click="formatResponseBody">{{ t('mock.format_json') }}</a-button>
           </template>
           <a-textarea
-            v-model:value="form.response_body"
+            v-model:value="(form.response_body as string | undefined)"
             :rows="8"
             class="code-textarea"
             placeholder='{"code": 0, "message": "success"}'
@@ -224,6 +224,8 @@ import { PlusOutlined, UnorderedListOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { mockRuleApi, projectApi, type MockRuleItem, type ProjectItem } from '@/api'
 import { getBackendOrigin } from '@/api/http'
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asRule = (record: unknown) => record as MockRuleRecord
 
 type MatchConditions = {
   query: Record<string, string>

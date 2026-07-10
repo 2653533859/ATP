@@ -36,7 +36,7 @@
             </a-tag>
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+            <a-button type="link" size="small" @click="openEdit(asConfig(record))">{{ t('common.edit') }}</a-button>
             <a-popconfirm
               :title="t('system_pages.ai_llm.confirm_delete', { name: record.name })"
               :ok-text="t('common.delete')"
@@ -119,6 +119,9 @@ import {
   type AILLMConfigItem,
   type LLMProvider,
 } from '@/api'
+
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asConfig = (record: unknown) => record as AILLMConfigItem
 
 const { t } = useI18n()
 

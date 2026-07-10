@@ -7,7 +7,7 @@
       </div>
       <a-space>
         <a-select
-          v-model:value="selectedProjectId"
+          v-model:value="(selectedProjectId as number | undefined)"
           :placeholder="t('mobile_special.select_project')"
           style="width: 220px"
           :options="projectOptions"

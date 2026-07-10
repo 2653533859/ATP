@@ -14,7 +14,7 @@
         />
         <a-select
           v-if="selectedScope === 'project'"
-          v-model:value="selectedProjectId"
+          v-model:value="(selectedProjectId as number | undefined)"
           :placeholder="t('mobile_special.select_project')"
           style="width: 220px"
           :options="projectOptions"
@@ -41,7 +41,7 @@
           <template v-else-if="column.key === 'value'">
             <span v-if="record.is_secret">
               <span>{{ revealedValues[record.id] ?? record.value }}</span>
-              <a-button type="link" size="small" @click="toggleReveal(record)">
+              <a-button type="link" size="small" @click="toggleReveal(asVariable(record))">
                 {{ revealedValues[record.id] ? t('system_pages.global_variable.hide') : t('system_pages.global_variable.show') }}
               </a-button>
             </span>
@@ -56,7 +56,7 @@
             <a-tag>{{ record.scope_type === 'global' ? t('system_pages.global_variable.global') : t('system_pages.global_variable.project') }}</a-tag>
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+            <a-button type="link" size="small" @click="openEdit(asVariable(record))">{{ t('common.edit') }}</a-button>
             <a-popconfirm :title="t('system_pages.global_variable.confirm_delete')" @confirm="handleDelete(record.id)">
               <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
             </a-popconfirm>
@@ -90,7 +90,7 @@
         </a-form-item>
         <a-form-item v-if="selectedScope === 'project'" :label="t('common.project')" required>
           <a-select
-            v-model:value="form.project_id"
+            v-model:value="(form.project_id as number | undefined)"
             :placeholder="t('system_pages.global_variable.select_project')"
             :options="projectOptions"
           />
@@ -105,6 +105,8 @@ import { ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { globalVariableApi, projectApi, type GlobalVariableItem, type ProjectItem, type ScopeType } from '@/api'
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asVariable = (record: unknown) => record as GlobalVariableItem
 
 const { t } = useI18n()
 const loading = ref(false)

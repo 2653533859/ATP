@@ -433,6 +433,7 @@ Q1-Q11 路线图内功能项已完成。当前进入 Q12 持续质量优化：
 - Q12 review cleanup：pytest 收集拦截集中到 conftest 钩子（还原 17 个文件的 Test* 别名）、echarts 注册收敛到 chartTheme、run helpers 改命名路由并被 SuiteList 复用、e2e 共享 fixture 拦截未捕获页面异常、release-readiness 改跑 pytest 契约；前端 46 tests，门禁按余量策略微调为 `4.1/4.55/2.7/4.35%`。
 - Q12-03：vue-i18n 升级 `11.4.6`、传递 glob override 到 `13.0.6`，clean install 零弃用告警；新增独立 i18n chunk。副作用：ant-design chunk 1502.45 kB 越过 1500 告警线，Q12-04 触发条件成立（阈值不抬，见 `docs/frontend-bundle-decision.md`）。
 - Q12-04：Ant Design 改为 unplugin-vue-components 按需注册，chartTheme 移出 main.ts 入口依赖（echarts 不再进登录首屏）。实测 /login gzip 传输 773.9→510.1 kB（-34%），ant-design chunk 降至 1246.41 kB，构建告警消除。dts 类型生成暂关（会暴露约 112 处存量 a-* props 类型错误，单列加固项）。
+- Q12 类型加固：dts 已开启（components.d.ts 提交入库），112 处存量类型错误全部修复；表格 record 用 asXxx 断言 helper、可空 v-model 用行内 as 断言、badge/回调签名收窄；4 个前端静态契约断言同步更新。
 - 下一项：Q12-03 依赖弃用提示收敛。
 
 ---

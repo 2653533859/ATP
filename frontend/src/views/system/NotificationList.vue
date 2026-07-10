@@ -40,8 +40,8 @@
           </template>
           <template v-if="column.key === 'action'">
             <a-space>
-              <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
-              <a-button type="link" size="small" :loading="testingId === record.id" @click="handleTest(record)">{{ t('system_pages.notification.test') }}</a-button>
+              <a-button type="link" size="small" @click="openEdit(asNotification(record))">{{ t('common.edit') }}</a-button>
+              <a-button type="link" size="small" :loading="testingId === record.id" @click="handleTest(asNotification(record))">{{ t('system_pages.notification.test') }}</a-button>
               <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
                 <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
               </a-popconfirm>
@@ -157,6 +157,8 @@ import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { notificationApi, planApi, projectApi, suiteApi, type PlanItem, type ProjectItem, type SuiteItem } from '@/api'
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asNotification = (record: unknown) => record as NotificationRecord
 
 type NotificationChannel = 'email' | 'wechat' | 'dingtalk'
 type NotificationScope = 'all' | 'suites' | 'plans'

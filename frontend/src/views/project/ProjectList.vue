@@ -61,7 +61,7 @@
         </a-form-item>
         <a-form-item :label="t('project.ai_model_config')">
           <a-select
-            v-model:value="form.ai_llm_config_id"
+            v-model:value="(form.ai_llm_config_id as number | undefined)"
             :placeholder="t('project.no_ai_model')"
             allow-clear
             :options="llmOptions"

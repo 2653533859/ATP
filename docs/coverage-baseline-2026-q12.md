@@ -13,6 +13,7 @@ Captured on 2026-07-10 from the local Python 3.14.5 and Node 20-compatible toolc
 | Frontend after scheduling slice | 13 files / 43 passed | statements 4.23%, branches 4.49%, functions 2.81%, lines 4.47% | statements 3.95%, branches 4.2%, functions 2.55%, lines 4.2% |
 | Frontend after reporting slice | 14 files / 47 passed | statements 4.44%, branches 4.88%, functions 3.01%, lines 4.66% | statements 4.15%, branches 4.55%, functions 2.75%, lines 4.35% |
 | Frontend after q12 review cleanup | 14 files / 46 passed | statements 4.38%, branches 4.81%, functions 2.96%, lines 4.61% | statements 4.1%, branches 4.55%, functions 2.7%, lines 4.35% |
+| Frontend after typed a-* components | 14 files / 46 passed | statements 4.37%, branches 4.80%, functions 2.94%, lines 4.60% | statements 4.1%, branches 4.55%, functions 2.65%, lines 4.35% |
 
 Commands:
 

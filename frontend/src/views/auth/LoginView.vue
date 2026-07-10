@@ -61,10 +61,10 @@ function onLocaleChange(value: SupportedLocale) {
   setLocale(value)
 }
 
-function onLocaleRadioChange(event: Event) {
-  const target = event.target as HTMLInputElement | null
-  if (target?.value === 'zh-CN' || target?.value === 'en-US') {
-    onLocaleChange(target.value)
+function onLocaleRadioChange(event: { target?: { value?: unknown } }) {
+  const value = event.target?.value
+  if (value === 'zh-CN' || value === 'en-US') {
+    onLocaleChange(value)
   }
 }
 

@@ -37,8 +37,8 @@
           </template>
           <template v-else-if="column.key === 'actions'">
             <a-space size="small">
-              <a-button size="small" @click="openEditPolicy(record)">{{ t('common.edit') }}</a-button>
-              <a-popconfirm :title="t('system_pages.storage.confirm_delete_policy')" @confirm="handleDeletePolicy(record)">
+              <a-button size="small" @click="openEditPolicy(asPolicy(record))">{{ t('common.edit') }}</a-button>
+              <a-popconfirm :title="t('system_pages.storage.confirm_delete_policy')" @confirm="handleDeletePolicy(asPolicy(record))">
                 <a-button size="small" danger>{{ t('common.delete') }}</a-button>
               </a-popconfirm>
             </a-space>
@@ -189,7 +189,7 @@
           <a-input-number v-model:value="policyForm.retention_days" :min="1" :max="3650" style="width: 100%" />
         </a-form-item>
         <a-form-item :label="t('system_pages.storage.max_size_gb')">
-          <a-input-number v-model:value="policyForm.max_size_gb" :min="0" :step="0.5" style="width: 100%" />
+          <a-input-number v-model:value="(policyForm.max_size_gb as number | undefined)" :min="0" :step="0.5" style="width: 100%" />
         </a-form-item>
         <a-form-item :label="t('common.enabled')">
           <a-switch v-model:checked="policyForm.enabled" />
@@ -220,6 +220,9 @@ import {
   type StoragePolicyItem,
   type StoragePolicyPayload,
 } from '@/api'
+
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asPolicy = (record: unknown) => record as StoragePolicyItem
 
 const { t } = useI18n()
 

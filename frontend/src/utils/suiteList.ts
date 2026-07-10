@@ -73,14 +73,17 @@ export function suiteFailStrategyColor(strategy?: SuiteListConfig['fail_strategy
   }[strategy ?? 'continue'] ?? 'default'
 }
 
-export function runStatusBadge(status: string): string {
-  return {
+export type RunStatusBadge = 'default' | 'processing' | 'success' | 'error' | 'warning'
+
+export function runStatusBadge(status: string): RunStatusBadge {
+  const map: Record<string, RunStatusBadge> = {
     pending: 'default',
     running: 'processing',
     passed: 'success',
     failed: 'error',
     error: 'warning',
-  }[status] ?? 'default'
+  }
+  return map[status] ?? 'default'
 }
 
 export function formatDuration(duration?: number | null): string {

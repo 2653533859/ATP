@@ -12,7 +12,7 @@ def test_case_list_shows_flaky_stability_column():
     assert "case.stats.flaky_cases" in content
     assert "case.columns.stability" in content
     assert "record.flaky_stats?.is_flaky" in content
-    assert "flakyTooltip(record)" in content
+    assert "flakyTooltip(asCase(record))" in content
     assert "flakyCaseCount" in content
 
 

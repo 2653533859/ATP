@@ -40,7 +40,7 @@
       </a-form-item>
       <a-form-item :label="t('case_form.basic.dataset_label')">
         <a-select
-          v-model:value="form.dataset_id"
+          v-model:value="(form.dataset_id as number | undefined)"
           :placeholder="t('case_form.basic.dataset_placeholder')"
           allow-clear
           :options="datasetOptions"

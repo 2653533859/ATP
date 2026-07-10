@@ -19,8 +19,8 @@ def test_case_list_exposes_review_workflow_in_status_column():
     content = repo_path("frontend/src/views/case/CaseList.vue").read_text(encoding="utf-8")
 
     assert "record.review_status === 'pending'" in content
-    assert "handleWorkflow(record, 'approve')" in content
-    assert "handleWorkflow(record, 'reject')" in content
+    assert "handleWorkflow(asCase(record), 'approve')" in content
+    assert "handleWorkflow(asCase(record), 'reject')" in content
     assert "pendingReviewCount" in content
 
 

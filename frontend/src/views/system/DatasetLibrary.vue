@@ -7,7 +7,7 @@
       </div>
       <a-space>
         <a-select
-          v-model:value="projectId"
+          v-model:value="(projectId as number | undefined)"
           :options="projectOptions"
           :placeholder="t('dataset.select_project')"
           style="width: 240px"
@@ -60,9 +60,9 @@
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
-            <a-button size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
-            <a-button size="small" @click="openImpact(record)">{{ t('dataset.impact') }}</a-button>
-            <a-button size="small" @click="openVersions(record)">{{ t('dataset.versions') }}</a-button>
+            <a-button size="small" @click="openEdit(asDataset(record))">{{ t('common.edit') }}</a-button>
+            <a-button size="small" @click="openImpact(asDataset(record))">{{ t('dataset.impact') }}</a-button>
+            <a-button size="small" @click="openVersions(asDataset(record))">{{ t('dataset.versions') }}</a-button>
             <a-upload
               :show-upload-list="false"
               :before-upload="(f: File) => onUpload(record.id, f)"
@@ -280,7 +280,7 @@
                 </a-space>
               </template>
               <template v-else-if="column.key === 'action'">
-                <a-button size="small" type="link" @click="openImpactTarget(record)">{{ t('dataset.view_reference') }}</a-button>
+                <a-button size="small" type="link" @click="openImpactTarget(asImpact(record))">{{ t('dataset.view_reference') }}</a-button>
               </template>
             </template>
           </a-table>
@@ -295,7 +295,7 @@
                 </a-space>
               </template>
               <template v-else-if="column.key === 'action'">
-                <a-button size="small" type="link" @click="openImpactTarget(record)">{{ t('dataset.view_reference') }}</a-button>
+                <a-button size="small" type="link" @click="openImpactTarget(asImpact(record))">{{ t('dataset.view_reference') }}</a-button>
               </template>
             </template>
           </a-table>
@@ -310,7 +310,7 @@
                 </a-space>
               </template>
               <template v-else-if="column.key === 'action'">
-                <a-button size="small" type="link" @click="openImpactTarget(record)">{{ t('dataset.view_reference') }}</a-button>
+                <a-button size="small" type="link" @click="openImpactTarget(asImpact(record))">{{ t('dataset.view_reference') }}</a-button>
               </template>
             </template>
           </a-table>
@@ -326,6 +326,9 @@ import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import { datasetApi, projectApi, type DatasetDetail, type DatasetImpact, type DatasetImpactItem, type DatasetListItem, type DatasetFormat, type DatasetSchemaField, type DatasetSchemaFieldType, type DatasetValidationPolicy, type DatasetValidationResult, type DatasetVersionItem, type ProjectItem } from '@/api'
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asDataset = (record: unknown) => record as DatasetListItem
+const asImpact = (record: unknown) => record as ImpactRow
 
 const { t: translate } = useI18n()
 const router = useRouter()

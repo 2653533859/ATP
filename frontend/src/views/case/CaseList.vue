@@ -7,7 +7,7 @@
       </div>
       <a-space wrap>
         <a-select
-          v-model:value="selectedProjectId"
+          v-model:value="(selectedProjectId as number | undefined)"
           :placeholder="t('case.select_project')"
           style="width: 240px"
           :options="projectOptions"
@@ -252,10 +252,10 @@
                     {{ reviewStatusLabel(record.review_status) }}
                   </a-tag>
                   <a-space v-if="record.review_status === 'pending'" size="small">
-                    <a-button type="link" size="small" :disabled="!canApproveCases" @click="handleWorkflow(record, 'approve')">
+                    <a-button type="link" size="small" :disabled="!canApproveCases" @click="handleWorkflow(asCase(record), 'approve')">
                       {{ t('case.actions.approve') }}
                     </a-button>
-                    <a-button type="link" size="small" danger :disabled="!canApproveCases" @click="handleWorkflow(record, 'reject')">
+                    <a-button type="link" size="small" danger :disabled="!canApproveCases" @click="handleWorkflow(asCase(record), 'reject')">
                       {{ t('case.actions.reject') }}
                     </a-button>
                   </a-space>
@@ -273,7 +273,7 @@
               </template>
 
               <template v-else-if="column.key === 'stability'">
-                <a-tooltip :title="flakyTooltip(record)">
+                <a-tooltip :title="flakyTooltip(asCase(record))">
                   <a-tag :color="record.flaky_stats?.is_flaky ? 'volcano' : 'green'">
                     {{ record.flaky_stats?.is_flaky ? t('case.flaky.flaky') : t('case.flaky.stable') }}
                   </a-tag>
@@ -288,15 +288,15 @@
                 <a-space wrap size="small">
                   <a-button type="link" size="small" @click="openDetail(record.id)">{{ t('case.actions.detail') }}</a-button>
                   <a-tooltip :title="canModifyCases ? t('case.actions.edit') : t('case.msg.read_only_role')">
-                    <a-button type="link" size="small" :disabled="!canModifyCases" @click="openEdit(record)">{{ t('case.actions.edit') }}</a-button>
+                    <a-button type="link" size="small" :disabled="!canModifyCases" @click="openEdit(asCase(record))">{{ t('case.actions.edit') }}</a-button>
                   </a-tooltip>
-                  <a-tooltip :title="runDisabledTip(record)">
+                  <a-tooltip :title="runDisabledTip(asCase(record))">
                     <a-button
                       type="link"
                       size="small"
                       :loading="runningId === record.id"
                       :disabled="!record.is_ready_for_execution || !canRunCases"
-                      @click="handleRun(record)"
+                      @click="handleRun(asCase(record))"
                     >
                       {{ t('case.actions.run') }}
                     </a-button>
@@ -313,42 +313,42 @@
                         </a-menu-item>
                         <a-menu-divider />
                         <a-menu-item
-                          v-if="canSubmitReview(record)"
+                          v-if="canSubmitReview(asCase(record))"
                           key="submit-review"
-                          @click="handleWorkflow(record, 'submitReview')"
+                          @click="handleWorkflow(asCase(record), 'submitReview')"
                         >
                           {{ t('case.actions.submit_review') }}
                         </a-menu-item>
                         <a-menu-item
-                          v-if="canApprove(record)"
+                          v-if="canApprove(asCase(record))"
                           key="approve"
-                          @click="handleWorkflow(record, 'approve')"
+                          @click="handleWorkflow(asCase(record), 'approve')"
                         >
                           {{ t('case.actions.approve') }}
                         </a-menu-item>
                         <a-menu-item
-                          v-if="canReject(record)"
+                          v-if="canReject(asCase(record))"
                           key="reject"
-                          @click="handleWorkflow(record, 'reject')"
+                          @click="handleWorkflow(asCase(record), 'reject')"
                         >
                           {{ t('case.actions.reject') }}
                         </a-menu-item>
                         <a-menu-item
-                          v-if="canDeprecate(record)"
+                          v-if="canDeprecate(asCase(record))"
                           key="deprecate"
-                          @click="handleWorkflow(record, 'deprecate')"
+                          @click="handleWorkflow(asCase(record), 'deprecate')"
                         >
                           {{ t('case.actions.deprecate') }}
                         </a-menu-item>
                         <a-menu-item
-                          v-if="canReactivate(record)"
+                          v-if="canReactivate(asCase(record))"
                           key="reactivate"
-                          @click="handleWorkflow(record, 'reactivate')"
+                          @click="handleWorkflow(asCase(record), 'reactivate')"
                         >
                           {{ t('case.actions.reactivate') }}
                         </a-menu-item>
                         <a-menu-divider />
-                        <a-menu-item key="delete" :disabled="!canModifyCases" @click="confirmDelete(record)">{{ t('case.actions.delete') }}</a-menu-item>
+                        <a-menu-item key="delete" :disabled="!canModifyCases" @click="confirmDelete(asCase(record))">{{ t('case.actions.delete') }}</a-menu-item>
                       </a-menu>
                     </template>
                   </a-dropdown>
@@ -405,7 +405,7 @@
     >
       <p class="run-tip">{{ t('case.run_modal_tip') }}</p>
       <a-select
-        v-model:value="runEnvId"
+        v-model:value="(runEnvId as number | undefined)"
         :placeholder="t('case.no_environment')"
         allow-clear
         style="width: 100%"
@@ -424,7 +424,7 @@
     >
       <p class="run-tip">{{ t('case.batch_move_tip', { count: selectedRowKeys.length }) }}</p>
       <a-select
-        v-model:value="batchMoveTargetId"
+        v-model:value="(batchMoveTargetId as number | undefined)"
         :placeholder="t('case.select_target_module')"
         style="width: 100%"
         :options="moduleSelectOptions"
@@ -528,7 +528,6 @@ import { buildEnvironmentOptions, buildRunDetailLocation, buildRunPayload } from
 import { useAuthStore } from '@/stores/auth'
 
 type WorkflowAction = 'submitReview' | 'approve' | 'reject' | 'deprecate' | 'reactivate'
-type SelectOption = { label?: string; value?: number }
 type FilterKey = 'keyword' | 'type' | 'priority' | 'level' | 'status' | 'review_status' | 'automation_status'
 type FilterTag = { key: FilterKey; label: string }
 type ImportPreview = {
@@ -590,6 +589,8 @@ const projects = ref<ProjectItem[]>([])
 const selectedProjectId = ref<number | null>(null)
 const moduleNameMap = ref<Record<number, string>>({})
 const cases = ref<CaseSummaryItem[]>([])
+// a-table #bodyCell 的 record 类型是 Record<string, any>；本表数据源恒为 CaseSummaryItem
+const asCase = (record: unknown) => record as CaseSummaryItem
 const loading = ref(false)
 const selectedModuleId = ref<number | null>(null)
 const keyword = ref('')
@@ -711,8 +712,8 @@ function flattenModules(nodes: ModuleTreeItem[], acc: Record<number, string> = {
   return acc
 }
 
-function filterModuleOption(input: string, option?: SelectOption) {
-  return (option?.label ?? '').toLowerCase().includes(input.toLowerCase())
+function filterModuleOption(input: string, option?: { label?: unknown }) {
+  return String(option?.label ?? '').toLowerCase().includes(input.toLowerCase())
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -965,8 +966,9 @@ async function applyRouteSelection(useDefaultProject = false) {
   }
 }
 
-function handleProjectChange(projectId: number | null) {
-  selectedProjectId.value = projectId
+// a-select @change 的参数类型是 SelectValue；本列选项 value 恒为 number（allow-clear 时为 undefined）
+function handleProjectChange(projectId: unknown) {
+  selectedProjectId.value = typeof projectId === 'number' ? projectId : null
   selectedModuleId.value = null
   syncRoute()
 }

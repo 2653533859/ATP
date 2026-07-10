@@ -154,7 +154,7 @@
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'draftAction'">
-            <a-button type="link" size="small" @click="openDraftEditor(record)">
+            <a-button type="link" size="small" @click="openDraftEditor(asDraft(record))">
               {{ t('common.edit') }}
             </a-button>
           </template>
@@ -202,10 +202,10 @@
         <a-input v-model:value="draftEditor.name" />
       </a-form-item>
       <a-form-item :label="t('case.detail.summary')">
-        <a-input v-model:value="draftEditor.summary" />
+        <a-input v-model:value="(draftEditor.summary as string | undefined)" />
       </a-form-item>
       <a-form-item :label="t('common.description')">
-        <a-textarea v-model:value="draftEditor.description" :rows="3" />
+        <a-textarea v-model:value="(draftEditor.description as string | undefined)" :rows="3" />
       </a-form-item>
       <a-row :gutter="12">
         <a-col :span="8">
@@ -258,6 +258,9 @@ import {
   type CaseType,
   type SchemaSourceType,
 } from '@/api'
+
+// a-table #bodyCell 的 record 是 Record<string, any>；草稿行类型在此断言收窄
+const asDraft = (record: unknown) => record as AICaseDraft & { rowKey?: string }
 
 type GenerationSourceType = SchemaSourceType | 'natural'
 

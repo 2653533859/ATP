@@ -71,16 +71,16 @@
 
         <template v-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" size="small" @click="openEdit(record)">{{ t('suite.actions.edit') }}</a-button>
+            <a-button type="link" size="small" @click="openEdit(asSuite(record))">{{ t('suite.actions.edit') }}</a-button>
             <a-button
               type="link"
               size="small"
               :loading="runningId === record.id"
-              @click="handleRun(record)"
+              @click="handleRun(asSuite(record))"
             >
               {{ t('suite.actions.run') }}
             </a-button>
-            <a-button type="link" size="small" @click="viewRuns(record)">{{ t('suite.actions.records') }}</a-button>
+            <a-button type="link" size="small" @click="viewRuns(asSuite(record))">{{ t('suite.actions.records') }}</a-button>
             <a-popconfirm :title="t('suite.confirm_delete_one')" @confirm="handleDelete(record.id)">
               <a-button type="link" size="small" danger>{{ t('suite.actions.delete') }}</a-button>
             </a-popconfirm>
@@ -220,7 +220,7 @@
                       <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
                     </template>
                     <template v-else-if="column.key === 'ready'">
-                      <a-tooltip :title="getExecutionHint(record)">
+                      <a-tooltip :title="getExecutionHint(asCaseRow(record))">
                         <a-tag :color="readyColor(record.is_ready_for_execution)">
                           {{ readyLabel(record.is_ready_for_execution) }}
                         </a-tag>
@@ -231,7 +231,7 @@
                         v-if="!record.is_ready_for_execution"
                         class="case-ready-reason"
                       >
-                        {{ getExecutionReason(record) }}
+                        {{ getExecutionReason(asCaseRow(record)) }}
                       </span>
                       <span v-else style="color: var(--c-text-tertiary)">-</span>
                     </template>
@@ -319,7 +319,7 @@
     >
       <p style="margin-bottom: 12px; color: var(--c-text-secondary)">{{ t('suite.run_modal.tip') }}</p>
       <a-select
-        v-model:value="runEnvId"
+        v-model:value="(runEnvId as number | undefined)"
         :placeholder="t('suite.run_modal.placeholder')"
         allow-clear
         style="width: 100%"
@@ -427,13 +427,13 @@
               <a-space direction="vertical" style="width: 100%" :size="6">
                 <a-progress
                   v-if="record.status === 'pending' || record.status === 'running'"
-                  :percent="getSuiteRunProgressPercent(record)"
-                  :status="getSuiteRunProgressStatus(record)"
+                  :percent="getSuiteRunProgressPercent(asSuiteRun(record))"
+                  :status="getSuiteRunProgressStatus(asSuiteRun(record))"
                   size="small"
                 />
                 <a-space v-if="record.status === 'pending' || record.status === 'running'" wrap :size="[4, 4]">
                   <a-tag color="processing">
-                    {{ t('suite.runs.progress_tag', { done: getSuiteRunCompletedCount(record), total: getSuiteRunTotalCount(record) }) }}
+                    {{ t('suite.runs.progress_tag', { done: getSuiteRunCompletedCount(asSuiteRun(record)), total: getSuiteRunTotalCount(asSuiteRun(record)) }) }}
                   </a-tag>
                 </a-space>
                 <a-space wrap :size="[4, 4]">
@@ -552,6 +552,10 @@ function createDefaultForm(): SuiteFormState {
 }
 
 const suites = ref<SuiteItem[]>([])
+// a-table #bodyCell 的 record 是 Record<string, any>；三张表的数据源类型在此断言收窄
+const asSuite = (record: unknown) => record as SuiteItem
+const asCaseRow = (record: unknown) => record as CaseSummaryItem
+const asSuiteRun = (record: unknown) => record as SuiteRunItem
 const projects = ref<ProjectItem[]>([])
 const loading = ref(false)
 const selectedRowKeys = ref<number[]>([])

@@ -77,11 +77,11 @@
               v-if="record.status === 'online'"
               type="link"
               size="small"
-              @click="openMirror(record)"
+              @click="openMirror(asDevice(record))"
             >
               <EyeOutlined /> {{ t('device.mirror') }}
             </a-button>
-            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+            <a-button type="link" size="small" @click="openEdit(asDevice(record))">{{ t('common.edit') }}</a-button>
             <a-popconfirm :title="t('device.confirm_delete')" @confirm="handleDelete(record.id)">
               <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
             </a-popconfirm>
@@ -129,7 +129,7 @@
         </div>
       </div>
       <div class="mirror-footer">
-        <a-button size="small" @click="refreshMirror">
+        <a-button size="small" @click="() => refreshMirror()">
           <ReloadOutlined /> {{ t('device.refresh_screenshot') }}
         </a-button>
         <span style="color: var(--c-text-tertiary); font-size: 12px">{{ t('device.auto_refresh') }}</span>
@@ -145,6 +145,8 @@ import { ReloadOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { deviceApi } from '@/api'
 import type { DeviceItem, DeviceStatus } from '@/api'
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asDevice = (record: unknown) => record as DeviceItem
 
 const { t } = useI18n()
 const devices = ref<DeviceItem[]>([])
@@ -196,8 +198,11 @@ function errorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
-function statusBadge(s: DeviceStatus) {
-  return { online: 'success', offline: 'default', busy: 'processing' }[s] ?? 'default'
+function statusBadge(s: DeviceStatus): 'success' | 'default' | 'processing' {
+  const map: Record<string, 'success' | 'default' | 'processing'> = {
+    online: 'success', offline: 'default', busy: 'processing',
+  }
+  return map[s] ?? 'default'
 }
 
 function statusLabel(s: DeviceStatus) {

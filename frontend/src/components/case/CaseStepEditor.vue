@@ -54,6 +54,15 @@ import { nextTick, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { CaseStepItem } from '@/api'
 
+// normalize() 把可空文本字段统一成 string，本地行类型据此收窄，
+// 使 a-textarea 的 v-model:value 拿到非 null 类型。
+type EditableStep = CaseStepItem & {
+  action: string
+  test_data: string
+  expected_result: string
+  remarks: string
+}
+
 const props = defineProps<{
   modelValue: CaseStepItem[]
 }>()
@@ -63,10 +72,10 @@ const emit = defineEmits<{
 }>()
 const { t } = useI18n()
 
-const rows = ref<CaseStepItem[]>([])
+const rows = ref<EditableStep[]>([])
 const syncingFromProps = ref(false)
 
-function normalize(items: CaseStepItem[]): CaseStepItem[] {
+function normalize(items: CaseStepItem[]): EditableStep[] {
   return items.map((item, index) => ({
     ...item,
     step_no: index + 1,

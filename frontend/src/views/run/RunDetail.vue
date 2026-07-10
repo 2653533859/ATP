@@ -829,8 +829,9 @@ function errorMessage(error: unknown, fallback = '') {
   return fallback
 }
 
-function onCollapseChange(keys: number | number[]) {
-  expandedKeys.value = Array.isArray(keys) ? keys : [keys]
+// a-collapse 的 Key 是 string | number；本面板 key 恒为步骤序号 number
+function onCollapseChange(keys: string | number | (string | number)[]) {
+  expandedKeys.value = (Array.isArray(keys) ? keys : [keys]).map(Number)
 }
 
 function focusStep(stepIndex: number) {

@@ -37,8 +37,8 @@
         </template>
         <template v-if="column.key === 'action'">
           <a-space>
-            <a-button type="link" size="small" :loading="testingId === record.id" @click="handleTestConnection(record)">{{ t('system_pages.bug_tracker.test_connection') }}</a-button>
-            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+            <a-button type="link" size="small" :loading="testingId === record.id" @click="handleTestConnection(asTracker(record))">{{ t('system_pages.bug_tracker.test_connection') }}</a-button>
+            <a-button type="link" size="small" @click="openEdit(asTracker(record))">{{ t('common.edit') }}</a-button>
             <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
               <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
             </a-popconfirm>
@@ -148,6 +148,8 @@ import type { AxiosError } from 'axios'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { bugTrackerApi, projectApi, type BugTrackerItem, type BugTrackerType, type ProjectItem } from '@/api'
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asTracker = (record: unknown) => record as BugTrackerItem
 
 const trackers = ref<BugTrackerItem[]>([])
 const { t } = useI18n()

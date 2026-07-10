@@ -20,7 +20,7 @@
     <div class="page-toolbar">
       <div class="page-toolbar-main">
         <a-input-number
-          v-model:value="caseId"
+          v-model:value="(caseId as number | undefined)"
           :placeholder="t('run.filters.case_id')"
           :min="1"
           style="width: 150px"

@@ -23,7 +23,7 @@
       <a-tree
         v-if="treeData.length"
         v-model:selectedKeys="selectedKeys"
-        :tree-data="treeData"
+        :tree-data="treeNodes"
         :field-names="{ title: 'name', key: 'id', children: 'children' }"
         block-node
         @select="onSelect"
@@ -70,7 +70,7 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { Empty, message } from 'ant-design-vue'
+import { Empty, message, type TreeProps } from 'ant-design-vue'
 import { PlusOutlined, DeleteOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { projectApi, moduleApi, type ModuleTreeItem } from '@/api'
@@ -90,6 +90,8 @@ const { t } = useI18n()
 const title = computed(() => props.title ?? t('case.module_tree.title'))
 
 const treeData = ref<ModuleTreeItem[]>([])
+// a-tree 经 field-names 映射消费 ModuleTreeItem（name/id/children），结构对 DataNode 是设计内偏差
+const treeNodes = computed(() => treeData.value as unknown as TreeProps['treeData'])
 const loading = ref(false)
 const selectedKeys = ref<number[]>([])
 
@@ -107,9 +109,10 @@ async function loadModules() {
   }
 }
 
-function onSelect(keys: number[]) {
-  selectedKeys.value = keys
-  emit('select', keys.length ? keys[0] : null)
+// a-tree 的 Key 是 string | number；本树 key 取自 module id，恒为 number
+function onSelect(keys: (string | number)[]) {
+  selectedKeys.value = keys.map(Number)
+  emit('select', keys.length ? Number(keys[0]) : null)
 }
 
 function showAddModal(parent: ModuleTreeItem | null) {

@@ -9,11 +9,10 @@ export default defineConfig({
     vue(),
     // Ant Design 按需解析：模板中的 a-* 标签按使用注册，取代 main.ts 全局 app.use(Antd)。
     // importStyle:false —— antd v4 用 cssinjs，无需按组件引样式；reset.css 仍在 main.ts 全局引入。
-    // dts:false —— 生成全局组件类型会暴露约 112 处存量 a-* props 类型不匹配（vue-tsc 此前
-    // 对未注册组件不检查）；类型加固单独立项，见 docs/optimization-roadmap-2026-q12.md。
+    // dts 生成 src/components.d.ts（已提交），让 vue-tsc 对 a-* 组件做真实 props 类型检查。
     Components({
       resolvers: [AntDesignVueResolver({ importStyle: false })],
-      dts: false,
+      dts: 'src/components.d.ts',
     }),
   ],
   resolve: {

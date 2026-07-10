@@ -4,7 +4,7 @@
     <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
       <h2 style="margin: 0">{{ t('mobile_special.tasks_title') }}</h2>
       <a-select
-        v-model:value="selectedProjectId"
+        v-model:value="(selectedProjectId as number | undefined)"
         :placeholder="t('mobile_special.select_project')"
         style="width: 220px"
         :options="projectOptions"
@@ -12,7 +12,7 @@
         @change="onProjectChange"
       />
       <a-select
-        v-model:value="selectedTaskType"
+        v-model:value="(selectedTaskType as TaskType | undefined)"
         :placeholder="t('mobile_special.task_type')"
         style="width: 140px"
         :options="taskTypeOptions"
@@ -33,7 +33,7 @@
       >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
-            <a style="font-weight: 500" @click="openEdit(record)">{{ record.name }}</a>
+            <a style="font-weight: 500" @click="openEdit(asTask(record))">{{ record.name }}</a>
           </template>
           <template v-else-if="column.key === 'task_type'">
             <a-tag :color="taskTypeColor(record.task_type)">{{ taskTypeLabel(record.task_type) }}</a-tag>
@@ -47,8 +47,8 @@
             {{ record.last_run_at ? formatDate(record.last_run_at) : '-' }}
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-button type="primary" size="small" @click="triggerRun(record)">{{ t('mobile_special.execute') }}</a-button>
-            <a-button type="link" size="small" @click="openEdit(record)">{{ t('common.edit') }}</a-button>
+            <a-button type="primary" size="small" @click="triggerRun(asTask(record))">{{ t('mobile_special.execute') }}</a-button>
+            <a-button type="link" size="small" @click="openEdit(asTask(record))">{{ t('common.edit') }}</a-button>
             <a-popconfirm :title="t('mobile_special.confirm_delete_task')" @confirm="handleDelete(record.id)">
               <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
             </a-popconfirm>
@@ -85,7 +85,7 @@
 
         <a-form-item v-if="form.device_scope_type === 'single_device'" :label="t('mobile_special.form.select_device')">
           <a-select
-            v-model:value="form.device_id"
+            v-model:value="(form.device_id as number | undefined)"
             :placeholder="t('mobile_special.form.select_device')"
             :options="deviceOptions"
             allow-clear
@@ -100,7 +100,7 @@
 
         <a-form-item :label="t('mobile_special.form.apk')">
           <a-select
-            v-model:value="form.apk_id"
+            v-model:value="(form.apk_id as number | undefined)"
             :placeholder="t('mobile_special.form.select_apk')"
             :options="apkOptions"
             allow-clear
@@ -177,6 +177,9 @@ import {
   type SourceType,
   type DeviceScopeType,
 } from '@/api'
+
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asTask = (record: unknown) => record as MobileSpecialTaskItem
 
 const { t } = useI18n()
 

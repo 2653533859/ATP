@@ -7,7 +7,7 @@
       </div>
       <a-space>
         <a-select
-          v-model:value="projectId"
+          v-model:value="(projectId as number | undefined)"
           :options="projectOptions"
           :placeholder="t('performance.select_project')"
           style="width: 240px"
@@ -43,12 +43,12 @@
         <template v-else-if="column.key === 'actions'">
           <a-space>
             <a-tooltip :title="t('performance.run')">
-              <a-button size="small" type="primary" @click="openRun(record)">
+              <a-button size="small" type="primary" @click="openRun(asPerfTest(record))">
                 <template #icon><PlayCircleOutlined /></template>
               </a-button>
             </a-tooltip>
             <a-tooltip :title="t('common.edit')">
-              <a-button size="small" @click="openEdit(record)">
+              <a-button size="small" @click="openEdit(asPerfTest(record))">
                 <template #icon><EditOutlined /></template>
               </a-button>
             </a-tooltip>
@@ -116,7 +116,7 @@
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-tooltip :title="t('common.view_detail')">
-            <a-button size="small" @click="openRunDetail(record)">
+            <a-button size="small" @click="openRunDetail(asPerfRun(record))">
               <template #icon><FileSearchOutlined /></template>
             </a-button>
           </a-tooltip>
@@ -261,6 +261,9 @@ import {
   type ProjectItem,
 } from '@/api'
 import { useChartTheme } from '@/utils/chartTheme'
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asPerfTest = (record: unknown) => record as PerformanceTestItem
+const asPerfRun = (record: unknown) => record as PerformanceRunItem
 
 const { t } = useI18n()
 const { chartTheme } = useChartTheme()

@@ -28,7 +28,7 @@ Close the residual quality risks left after Q11 acceptance. Q12 prioritizes clea
 - Frontend full-source coverage is below the desired confidence level for critical workflows.
 - ~~vue-i18n and transitive glob packages emit deprecation notices during dependency operations.~~ Resolved by Q12-03: vue-i18n upgraded to `11.4.6` (Composition API mode unaffected), transitive glob forced to `13.0.6` via npm override (`@vue/test-utils > js-beautify` only uses glob in its CLI path).
 - ~~The Ant Design vendor chunk crossed the 1500 kB warning threshold.~~ Resolved by Q12-04: on-demand component resolution cut the chunk to 1246.41 kB and removed echarts from the login-route critical path (measured /login gzip transfer 773.9 -> 510.1 kB).
-- About 112 pre-existing `a-*` prop type mismatches surface if typed global components (`unplugin-vue-components` dts) are enabled; vue-tsc previously skipped unregistered components. Hardening these types is follow-up work before dts can be turned on.
+- ~~About 112 pre-existing `a-*` prop type mismatches surface if typed global components are enabled.~~ Resolved: `components.d.ts` generation is on and committed, all 112 mismatches fixed (table `record` assertion helpers, `v-model` null-vs-undefined assertions, narrowed badge/handler signatures); vue-tsc now type-checks every `a-*` usage.
 - Physical Android device data-plane evidence and long-window production SLO evidence remain environment-dependent.
 
 ## Next Action

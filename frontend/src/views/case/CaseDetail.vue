@@ -198,7 +198,7 @@
     >
       <p class="run-tip">{{ t('case.run_modal_tip') }}</p>
       <a-select
-        v-model:value="runEnvId"
+        v-model:value="(runEnvId as number | undefined)"
         :placeholder="t('case.no_environment')"
         allow-clear
         style="width: 100%"

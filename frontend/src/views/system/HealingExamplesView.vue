@@ -41,17 +41,17 @@
           <a-switch
             :checked="record.marked_high_quality"
             size="small"
-            @change="(checked: boolean) => toggleQuality(record, checked)"
+            @change="(checked: unknown) => toggleQuality(asExample(record), Boolean(checked))"
           />
         </template>
         <template v-else-if="column.key === 'suggestion_text'">
           <div class="suggestion">{{ record.suggestion_text }}</div>
         </template>
         <template v-else-if="column.key === 'step'">
-          {{ stepName(record) }}
+          {{ stepName(asExample(record)) }}
         </template>
         <template v-else-if="column.key === 'action'">
-          <a-button type="link" size="small" @click="openDetail(record)">详情</a-button>
+          <a-button type="link" size="small" @click="openDetail(asExample(record))">详情</a-button>
           <a-popconfirm title="确认删除该示例？" @confirm="deleteExample(record.id)">
             <a-button type="link" size="small" danger>删除</a-button>
           </a-popconfirm>
@@ -82,6 +82,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { aiHealingExampleApi, type HealingPromptExampleItem } from '@/api'
+// a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
+const asExample = (record: unknown) => record as HealingPromptExampleItem
 
 const loading = ref(false)
 const examples = ref<HealingPromptExampleItem[]>([])
