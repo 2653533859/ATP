@@ -133,3 +133,69 @@ def test_install_apk_reports_timeout_via_sentinel(monkeypatch):
     assert ok is False
     assert "超时" in msg
     assert "15" in msg
+
+
+# ── run_android_case 前置守卫分支 ───────────────────────────
+
+import asyncio  # noqa: E402
+
+
+class _GuardDB:
+    def __init__(self):
+        self.commits = 0
+
+    async def commit(self):
+        self.commits += 1
+
+
+class _Obj(types.SimpleNamespace):
+    def __getattr__(self, name):
+        return None
+
+
+def _events(monkeypatch):
+    recorded = []
+
+    async def publish(run_id, payload):
+        recorded.append(payload)
+
+    monkeypatch.setattr(android_executor, "_safe_publish", publish)
+    return recorded
+
+
+def test_run_android_case_errors_when_script_missing(monkeypatch):
+    events = _events(monkeypatch)
+    run = _Obj(id=1, status=None)
+
+    asyncio.run(android_executor.run_android_case(_GuardDB(), run, _Obj(config={}), {}))
+
+    assert run.status.value == "error"
+    assert "未上传脚本" in run.error_message
+    assert events[-1] == {"type": "completed", "run_id": 1, "status": "error"}
+
+
+def test_run_android_case_errors_when_device_missing(monkeypatch):
+    events = _events(monkeypatch)
+    run = _Obj(id=2, status=None)
+
+    asyncio.run(android_executor.run_android_case(_GuardDB(), run, _Obj(config={"script_path": "s.py"}), {}))
+
+    assert run.status.value == "error"
+    assert "未选择执行设备" in run.error_message
+    assert events[-1]["status"] == "error"
+
+
+def test_run_android_case_errors_when_device_unreachable(monkeypatch):
+    events = _events(monkeypatch)
+    monkeypatch.setattr(android_executor, "_check_device_reachable", lambda serial, timeout=10: (False, "offline"))
+    run = _Obj(id=3, status=None)
+
+    asyncio.run(
+        android_executor.run_android_case(
+            _GuardDB(), run, _Obj(config={"script_path": "s.py", "device_serial": "emu-5554"}), {}
+        )
+    )
+
+    assert run.status.value == "error"
+    assert "设备不可达" in run.error_message and "offline" in run.error_message
+    assert events[-1]["status"] == "error"
