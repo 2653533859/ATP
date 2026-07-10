@@ -563,6 +563,13 @@ import { useI18n } from 'vue-i18n'
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons-vue'
 import { caseApi, datasetApi } from '@/api'
 import type { CaseDetailItem, CaseSavePayload, CaseSummaryItem, CaseType } from '@/api'
+import {
+  getFirstStep,
+  normalizeWsMessage,
+  parseFormBody,
+  parseGraphqlVariables,
+  resolveRequestBody,
+} from '@/utils/caseFormConfig'
 import KvEditor from '@/components/common/KvEditor.vue'
 
 const { t } = useI18n()
@@ -715,23 +722,6 @@ async function loadDatasetOptions() {
   }
 }
 
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === 'object' && value !== null && !Array.isArray(value)
-}
-
-function asStringMap(value: unknown): Record<string, string> {
-  return isRecord(value) ? { ...(value as Record<string, string>) } : {}
-}
-
-function getFirstStep(config: Record<string, unknown> | undefined): CaseConfigStep {
-  if (!config) return {}
-  const steps = config.steps
-  if (Array.isArray(steps) && isRecord(steps[0])) {
-    return steps[0] as CaseConfigStep
-  }
-  return config as CaseConfigStep
-}
-
 watch(() => props.open, (v) => {
   if (!v) return
   loadDatasetOptions()
@@ -744,24 +734,9 @@ watch(() => props.open, (v) => {
     form.tags = c.tags ?? []
     form.dataset_id = c.dataset_id ?? null
     form.dataset_strict_schema = Boolean(c.config?.dataset_strict_schema)
-    const step = getFirstStep(c.config)
+    const step = getFirstStep(c.config) as CaseConfigStep
     const bodyType = step.body_type ?? 'none'
-    if (bodyType === 'form') {
-      if (isRecord(step.body)) {
-        formBody.value = asStringMap(step.body)
-      } else if (typeof step.body === 'string' && step.body.trim()) {
-        try {
-          const parsed = JSON.parse(step.body)
-          formBody.value = asStringMap(parsed)
-        } catch {
-          formBody.value = {}
-        }
-      } else {
-        formBody.value = {}
-      }
-    } else {
-      formBody.value = {}
-    }
+    formBody.value = bodyType === 'form' ? parseFormBody(step.body) : {}
 
     Object.assign(cfg, {
       url: step.url ?? '',
@@ -880,14 +855,7 @@ function buildWebsocketConfig() {
       headers: wsCfg.headers,
       auth: wsCfg.auth,
       timeout: wsCfg.timeout,
-      messages: wsCfg.messages.map((m) => {
-        if (m.action === 'send') {
-          return { action: 'send', data: m.data, data_type: m.data_type }
-        } else if (m.action === 'receive') {
-          return { action: 'receive', timeout: m.timeout, assertions: m.assertions, extractions: m.extractions }
-        }
-        return { action: m.action }
-      }),
+      messages: wsCfg.messages.map(normalizeWsMessage),
     }],
   }
 }
@@ -915,10 +883,7 @@ function buildGrpcConfig() {
 }
 
 function buildGraphqlConfig() {
-  let variables: unknown = {}
-  if (gqlCfg.variables_text.trim()) {
-    try { variables = JSON.parse(gqlCfg.variables_text) } catch { /* keep empty */ }
-  }
+  const variables = parseGraphqlVariables(gqlCfg.variables_text)
   return {
     steps: [{
       name: form.name,
@@ -950,10 +915,7 @@ function buildConfig() {
   if (form.case_type === 'grpc') {
     return withDatasetStrictFlag(buildGrpcConfig())
   }
-  let body: unknown = cfg.body_type === 'form' ? { ...formBody.value } : cfg.body
-  if (cfg.body_type === 'json' && typeof body === 'string') {
-    try { body = JSON.parse(body) } catch { /* keep string */ }
-  }
+  const body = resolveRequestBody(cfg.body_type, cfg.body, formBody.value)
   return withDatasetStrictFlag({
     steps: [{
       name: form.name,
@@ -962,7 +924,7 @@ function buildConfig() {
       headers: cfg.headers,
       params: cfg.params,
       body_type: cfg.body_type,
-      body: cfg.body_type === 'none' ? null : body,
+      body,
       auth: cfg.auth,
       timeout: cfg.timeout,
       assertions: cfg.assertions,

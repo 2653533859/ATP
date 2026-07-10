@@ -24,6 +24,7 @@ Measured with the local Python 3.14 toolchain, branch coverage enabled
 | After RunDetail slice | 58 passed | 5.10% | 4.85 | extracted utils/runDetail (step stats, expand keys, iteration/healing/diagnosis normalizers, error truncation); RunDetail.vue rewired, run-detail e2e still green |
 | After SuiteList slice | 62 passed | 5.54% | 5.3 | extended utils/suiteList (module descendant map, tree-select pruning, case execution-blocker classifier, structural case filter); SuiteList.vue dropped its local copies, suite-plan e2e still green |
 | After DashboardView slice (Q13-03 workbench tier complete) | 68 passed | 5.95% | 5.7 | extracted utils/dashboardView (date-range gen, generic trend gap-fill, layout normalizer); a test pinned a subtle present-but-invalid layout-key contract |
+| After CaseFormDrawer slice | 74 passed | 6.33% | 6.05 | extracted utils/caseFormConfig (config-step parse, form-body/graphql-var/ws-message/request-body normalizers); branch coverage crossed 8% |
 
 Command:
 

@@ -446,6 +446,7 @@ Q1-Q11 路线图内功能项已完成。当前进入 Q12 持续质量优化：
 - Q13-03 切片 2：RunDetail 纯逻辑抽到 utils/runDetail 并单测（步骤统计/展开/迭代/自愈+诊断归一化/错误截断），视图改调 helper；前端 statements 4.65%→5.10%、58 passed。剩 SuiteList/DashboardView。
 - Q13-03 切片 3：SuiteList 的模块树/用例筛选逻辑抽到 utils/suiteList 并单测（后代映射/空枝剪裁/执行原因分类/结构化筛选），视图删本地副本；前端 statements 5.10%→5.54%、62 passed。剩 DashboardView。
 - Q13-03 切片 4（收官）：DashboardView 的日期/趋势补零/布局归一化抽到 utils/dashboardView 并单测（fillTrendGaps 注入 today 便于测），视图删本地副本；前端 statements 5.54%→5.95%、68 passed。四工作台切片完成，≥8% 目标顺延 form-drawer 切片。
+- Q13-03 追加切片：CaseFormDrawer 的配置解析/归一化逻辑抽到 utils/caseFormConfig 并单测（body 类型解析/GraphQL 变量/WS 消息/编辑回填），视图删本地副本；前端 statements 5.95%→6.33%、branches>8%、74 passed。再补 PlanForm 一个切片即可达 statements≥8%。
 - 下一项：Q12-03 依赖弃用提示收敛。
 
 ---
