@@ -13,6 +13,7 @@ Measured with the local Python 3.14 toolchain, branch coverage enabled
 | After service slice 1 (bug_reporter + failure_diagnosis) | 962 passed | 63.35% | 56% | `bug_reporter` 20% -> 95% (four trackers behind one scripted httpx fake), `failure_diagnosis` 12% -> 97% (rule/LLM/fallback three-state) |
 | After service slice 2 (ai_healing run-level) | 985 passed | 64.50% | 56% | `ai_healing` 46% -> 89% (run_diagnosis_for_run all states, cache keys, daily limits, vision loading, enqueue hooks) |
 | After service slice 3 (exports) | 1003 passed | 65.97% | 56% | `exports` 36% -> 92% (three-level JUnit, aggregate suite/plan HTML builders, cache hit/miss, PDF routes behind a faked renderer) |
+| After service slice 4 (mobile_special API, Q13-02 complete) | 1019 passed | 66.98% | 62% | `mobile_special` 45% -> 91%; slice exposed and fixed a live break (create_task 500 on every call: created_by duplicated between schema dump and explicit kwarg) |
 
 Command:
 
@@ -45,8 +46,8 @@ executor's own logic.
 
 ## Threshold Policy
 
-- TOTAL reached 60.03% after slice 2, so the CI gate is now 56% (raised from
-  52%), keeping roughly 4 points of headroom per the Q12 policy of never
-  gating at the measured value.
+- The gate follows TOTAL with roughly 4-5 points of headroom (Q12 policy of
+  never gating at the measured value): 52% -> 56% after the executor slice
+  (TOTAL 60.03%) -> 62% after Q13-02 completed (TOTAL 66.98%).
 - Every slice records before/after rows in this table; import-only tests that
   inflate line coverage without behavioral assertions do not qualify.

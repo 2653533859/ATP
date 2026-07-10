@@ -682,6 +682,7 @@
 - [x] Q13-02 切片 1（服务层）：`test_bug_reporter_unit.py` 38 项（Jira/禅道/GitHub/GitLab 四平台共用一个脚本化 httpx fake，payload 组装/鉴权/去重/JQL 转义/错误路径全走真实现）+ `test_failure_diagnosis.py` 15 项（规则分类矩阵、修复建议映射、LLM 成功/失败/限额/兜底三态）；bug_reporter 20%→95%、failure_diagnosis 12%→97%，TOTAL 63.35%（962 passed）。
 - [x] Q13-02 切片 2（ai_healing run 级）：`test_ai_healing_run_level.py` 23 项——run_diagnosis_for_run 全状态（幂等/case 缺失/无配置/step 不足/缓存命中/日限额/解密失败/LLM 成败）、缓存键顺序无关性、文本与 vision 日限额、截图装载、run hook 阈值与入队兜底；ai_healing 46%→89%，TOTAL 64.50%（985 passed）。
 - [x] Q13-02 切片 3（exports）：`test_exports_junit_reports.py` 18 项——run/suite/plan 三级 JUnit（含无 step 的 run 级 failure/error/skipped 合成、套件缺失 error 用例、真实 TestRun 耗时回查）、suite/plan 聚合 HTML 构建器、HTML 缓存命中/未命中、PDF 路由（Playwright 渲染边界 fake）、缓存读写存储异常吞；exports 36%→92%，TOTAL 65.97%（1003 passed）。
+- [x] Q13-02 切片 4（mobile_special API）+ 收官：`test_mobile_special_routes.py` 16 项——任务 CRUD（访问检查/调度刷新/None 字段不覆盖）、触发（config 快照/设备回退/Celery 入队）、停止守卫、runs 联表查询、samples/incidents/artifacts、CSV/JSON 导出；**发现并修复生产级故障**：create_task 因 schema 的 created_by 与显式 kwarg 键冲突而每次调用必 500。mobile_special 45%→91%，TOTAL 66.98%（1019 passed），CI 门禁 56%→62%。
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
 当前路线图：`docs/optimization-roadmap-2026-q12.md`。下一项为 Q12-02，先覆盖登录认证，再推进用例执行、计划调度和报告流程。

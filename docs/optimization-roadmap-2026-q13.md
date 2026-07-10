@@ -18,7 +18,7 @@ Planning inputs (measured 2026-07-10):
 | --- | --- | --- | --- |
 | Q13-00 | Close Q12-05 captures and publish Q12 acceptance | When environment access arrives: dated `docs/slo-history-*.md` and `docs/android-device-rehearsal-*.md` per the frozen spec, then `docs/q12-acceptance-summary.md` | Blocked on environment (may land any time during Q13) |
 | Q13-01 | Backend execution-chain coverage | Unit seams for `worker/tasks.py` dispatch/finalization and per-executor request-build/assert/extract logic; backend TOTAL >= 60% with the CI gate raised 52% -> 56% | Complete (TOTAL 60.03%, gate 56%, `924 passed`; HTTP-family seams fixed a live protobuf 5 break in grpc_executor) |
-| Q13-02 | Backend service/API coverage | Behavioral tests for `bug_reporter`, `ai_healing`, `failure_diagnosis`, `exports`, `mobile_special` API; each records before/after coverage in the baseline doc | In progress (bug_reporter 95%, failure_diagnosis 97%, ai_healing 89%, exports 92%, TOTAL 65.97%; mobile_special next) |
+| Q13-02 | Backend service/API coverage | Behavioral tests for `bug_reporter`, `ai_healing`, `failure_diagnosis`, `exports`, `mobile_special` API; each records before/after coverage in the baseline doc | Complete (bug_reporter 95% / failure_diagnosis 97% / ai_healing 89% / exports 92% / mobile_special 91%; TOTAL 66.98%, gate 62%; fixed a live create_task 500) |
 | Q13-03 | Frontend workbench behavioral coverage | Four slices (CaseList, RunDetail, SuiteList, DashboardView) extracting testable helpers per the proven Q12-02 pattern; frontend statements >= 8% with gates ratcheted per the 0.25pt headroom policy | Planned |
 | Q13-04 | Ant Design route-level chunk evidence | Route-family sharing analysis captured in `docs/frontend-bundle-decision.md`; go/no-go decision on route isolation, implemented only if measured transfer saving >= 15% on a first-paint route | Planned |
 | Q13-05 | AI healing apply-loop slice (iter5 phase 2) | Human-approved suggestion can be applied to a case snapshot and verified by an automatic re-run, guarded by the existing whitelist; audit trail recorded; feature-flagged off by default | Planned |
@@ -43,4 +43,4 @@ Planning inputs (measured 2026-07-10):
 
 ## Next Action
 
-Continue Q13-02: the `mobile_special` API (143 missed — task CRUD/trigger/stats routes) is the last module, using the established seam conventions. Q13-03 frontend workbench slices may run in parallel at any time.
+Q13-02 is complete (TOTAL 66.98%, gate 62%; two live production breaks found and fixed by coverage work so far). Next: Q13-03 frontend workbench behavioral coverage — four slices (CaseList, RunDetail, SuiteList, DashboardView) extracting testable helpers per the proven Q12-02 pattern, targeting frontend statements >= 8%. Q13-05 (AI healing apply-loop) is now unblocked since ai_healing is covered.

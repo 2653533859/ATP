@@ -441,6 +441,7 @@ Q1-Q11 路线图内功能项已完成。当前进入 Q12 持续质量优化：
 - Q13-02 切片 1：bug_reporter（四平台 × 创建/连接/状态/去重/附件，20%→95%）与 failure_diagnosis（规则/LLM/兜底三态，12%→97%）；TOTAL 63.35%、962 passed。剩 ai_healing/exports/mobile_special。
 - Q13-02 切片 2：ai_healing run 级综合诊断全状态 + 缓存/限额/vision helper，46%→89%；TOTAL 64.50%、985 passed。剩 exports/mobile_special。
 - Q13-02 切片 3：exports 三级 JUnit + 聚合报告 + 缓存/PDF 路由，36%→92%；TOTAL 65.97%、1003 passed。剩 mobile_special API。
+- Q13-02 收官：mobile_special API 45%→91%，顺带修复 create_task 键冲突 500（第二个由覆盖工作暴露的生产故障）；TOTAL 66.98%、gate 62%、1019 passed。下一步 Q13-03 前端工作台切片。
 - 下一项：Q12-03 依赖弃用提示收敛。
 
 ---
