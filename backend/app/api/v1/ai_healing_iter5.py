@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.api.v1.cases as _cases
 from app.api.deps import assert_project_access, require_engineer
+from app.core.config import settings
 from app.core.database import get_db
 from app.core.encryption import decrypt_env_vars
 from app.models.case import RunStatus, TestCase, TestRun
@@ -79,7 +80,14 @@ async def apply_healing_patch(
 
     This creates a case snapshot before writing, records an audit log, and can
     optionally trigger a regression run for the same case.
+
+    Gated by settings.AI_HEALING_APPLY_ENABLED (off by default): apply is the
+    only healing path that mutates a test case, so it stays disabled until an
+    operator explicitly turns it on. Preview stays open as the read-only gate.
     """
+    if not settings.AI_HEALING_APPLY_ENABLED:
+        raise HTTPException(status_code=403, detail="AI 自愈 patch 应用未启用")
+
     case, module = await _get_case_and_assert_access(db, user, body.case_id)
     try:
         patch = _resolve_patch(body)
@@ -172,7 +180,8 @@ async def _get_case_and_assert_access(
     module = await db.get(Module, case.module_id)
     if module is None:
         raise HTTPException(status_code=404, detail="模块不存在")
-    await assert_project_access(db, user, module.project_id, ProjectRole.engineer)
+    # editor 及以上可写用例（ProjectRole 无 engineer 成员，editor 对应"工程师及以上"权限）
+    await assert_project_access(db, user, module.project_id, ProjectRole.editor)
     return case, module
 
 

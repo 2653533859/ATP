@@ -52,9 +52,11 @@ sys.modules["app.core.tracing"] = types.SimpleNamespace(
     attach_app_trace_id_to_current_span=lambda *args, **kwargs: None,
 )
 sys.modules["app.worker.async_runner"] = types.SimpleNamespace(run_async=lambda coro: asyncio.run(coro))
+# 若其它测试已把真实 app.worker.tasks 导入（捕获真实 run_async），仅 pop sys.modules 不够——
+# app.worker 包对象仍缓存 tasks 属性，`from app.worker import tasks` 会拿到旧模块。
+# 用 importlib.import_module 强制按上面注入的 stub 重新求值。
 sys.modules.pop("app.worker.tasks", None)
-
-from app.worker import tasks  # noqa: E402
+tasks = importlib.import_module("app.worker.tasks")  # noqa: E402
 
 sys.modules["app.models.bootstrap"] = _REAL_BOOTSTRAP
 sys.modules["app.core.tracing"] = _REAL_TRACING

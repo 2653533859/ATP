@@ -37,12 +37,12 @@ class _FakeCelery:
     conf = types.SimpleNamespace(update=lambda **kw: None)
 
 
-sys.modules.setdefault(
-    "app.worker.celery_app",
-    types.SimpleNamespace(celery_app=_FakeCelery()),
-)
+# 强制 stub celery_app（不能用 setdefault：其它测试可能已导入真实 celery_app），
+# 再强制重新求值 tasks_db_backup，使其 @task 装饰绑定到 fake celery。
+sys.modules["app.worker.celery_app"] = types.SimpleNamespace(celery_app=_FakeCelery())
 
-from app.worker import tasks_db_backup as backup_mod
+sys.modules.pop("app.worker.tasks_db_backup", None)
+backup_mod = importlib.import_module("app.worker.tasks_db_backup")
 
 
 def test_parse_backup_timestamp_recognizes_pattern():

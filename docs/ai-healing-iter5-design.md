@@ -71,6 +71,9 @@ Android:
 - 该接口只读，不提交数据库事务；权限要求为工程师及以上，并校验用例所属项目访问权限。
 - `POST /api/v1/ai-healing/patch-apply`：应用人工确认的 patch，应用前创建 CaseSnapshot，写审计日志；
   可选触发单用例 regression run，并在 `result_summary` 中记录来源 run/step 与 patch。
+  该接口是唯一会修改用例数据的自愈路径，受 `AI_HEALING_APPLY_ENABLED` 开关控制，
+  **默认关闭**（返回 403），须显式开启后才生效；preview 作为只读安全门保持常开。
+  权限校验用 `ProjectRole.editor`（工程师及以上；ProjectRole 无 engineer 成员）。
 
 后续：
 

@@ -126,6 +126,9 @@ class Settings(BaseSettings):
     AI_HEALING_FEW_SHOT_TOP_N: int = 3  # 同错误特征最多注入的示例数
     AI_HEALING_VISION_ENABLED: bool = False  # 多模态截图诊断总开关
     AI_HEALING_VISION_DAILY_LIMIT: int = 50  # 每日带图 LLM 调用上限（0 = 不限）
+    # iter5 phase 2：人审通过的结构化 patch 写回用例（快照+审计+可选回归）。
+    # 默认关闭——这是唯一会修改用例数据的自愈路径，须显式开启后 apply 接口才生效。
+    AI_HEALING_APPLY_ENABLED: bool = False
 
     # OpenTelemetry / Jaeger
     # OTEL_EXPORTER_OTLP_ENDPOINT 留空时跳过 OTel 初始化（向后兼容纯 trace_id 模式）
