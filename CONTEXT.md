@@ -435,6 +435,7 @@ Q1-Q11 路线图内功能项已完成。当前进入 Q12 持续质量优化：
 - Q12-04：Ant Design 改为 unplugin-vue-components 按需注册，chartTheme 移出 main.ts 入口依赖（echarts 不再进登录首屏）。实测 /login gzip 传输 773.9→510.1 kB（-34%），ant-design chunk 降至 1246.41 kB，构建告警消除。dts 类型生成暂关（会暴露约 112 处存量 a-* props 类型错误，单列加固项）。
 - Q12 类型加固：dts 已开启（components.d.ts 提交入库），112 处存量类型错误全部修复；表格 record 用 asXxx 断言 helper、可空 v-model 用行内 as 断言、badge/回调签名收窄；4 个前端静态契约断言同步更新。
 - Q12-05（本地部分）：新增 `docs/q12-external-readiness-evidence.md` 冻结两项外部证据的口径（SLO 历史：绝对日期窗口/逐 SLO 达成值/突破 triage/告警决定；真机演练：拓扑+doctor 输出+run 数据量+产物+通过标准），并加契约测试防漂移。剩余为纯环境依赖执行。
+- Q13 规划：基于实测缺口（后端执行链路 ~1800 miss、前端工作台六视图零覆盖、ant-design 首屏占比 73%、iter5 phase2 未启动）发布 7 项 roadmap；执行顺序 Q13-01/03 并行起步，Q13-00（Q12-05 采集）环境到位随时插入。
 - 下一项：Q12-03 依赖弃用提示收敛。
 
 ---
