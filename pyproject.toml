@@ -5,6 +5,7 @@ markers = [
     "flaky: 已确认存在环境/时序抖动的测试；必须在 docs/flaky-governance.md 记录原因、证据与退出条件",
 ]
 filterwarnings = [
+    "error::pytest.PytestCollectionWarning",
     "ignore::DeprecationWarning",
 ]
 

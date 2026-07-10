@@ -18,9 +18,43 @@ P2.3 集成测试模式：ATP_INTEGRATION_TESTS=1 时跳过所有 stub，让 bac
 的用例拿到真 redis/minio/db 客户端。fixtures 在 backend/tests/integration/conftest.py 提供。
 """
 
+import inspect
 import os
 import sys
 import types
+from pathlib import Path
+
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+
+
+@pytest.fixture(scope="session")
+def repo_root() -> Path:
+    """仓库根目录。文档/配置契约类测试用它读取仓库文件，替代各文件重复的 ROOT 常量。"""
+    return REPO_ROOT
+
+
+@pytest.fixture(scope="session")
+def repo_file(repo_root: Path):
+    """读取仓库内相对路径文件的文本内容，替代各测试文件重复的 _read 帮助函数。"""
+
+    def _read(path: str) -> str:
+        return (repo_root / path).read_text(encoding="utf-8")
+
+    return _read
+
+
+def pytest_pycollect_makeitem(collector, name, obj):
+    """跳过从应用代码导入的 Test* 命名类（TestCase/TestPlan/TestSuiteCreate 等模型与 schema）。
+
+    这些类带 __init__，pytest 按 Test* 前缀尝试收集会触发 PytestCollectionWarning
+    （pyproject 已将其升级为 error）。在此统一拦截后，测试文件可直接以原名导入，
+    无需逐文件做 `TestPlan as PlanModel` 之类的别名改写。
+    """
+    if name.startswith("Test") and inspect.isclass(obj) and obj.__module__.startswith("app."):
+        return []
+    return None
 
 
 def _ensure_stub_attrs(module_name: str, defaults: dict) -> None:
