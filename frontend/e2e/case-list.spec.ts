@@ -17,6 +17,7 @@ test.describe('case list', () => {
 
     await expect.poll(() => projectsHit, { timeout: 10_000 }).toBeTruthy()
     // 标题或导航中应出现 "用例" 二字（CaseList.vue 用 t('case.title')）
+    // 未捕获页面异常由 mockedPage fixture 统一断言（见 fixtures/mock-api.ts）
     await expect(mockedPage.getByRole('heading').filter({ hasText: /用例|Cases/ }).first()).toBeVisible({ timeout: 10_000 })
   })
 })

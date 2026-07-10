@@ -6,13 +6,28 @@ import * as data from './mock-data'
  * - 在 page.goto 之前 page.route 拦截 /api/v1/** 返回 mock；
  * - loginAsAdmin(page) 走真登录流程（mock /auth/login），让前端 auth store
  *   自然写入 localStorage，避免硬塞 token 带来的状态漂移。
+ * - 收集 pageerror：测试结束时任何非白名单的未捕获页面异常都会让用例失败，
+ *   所有 spec 自动获得该保护，无需各自监听。
  *
  * 选择器优先级（参考 Playwright 官方）：role > label > text。
  */
+
+// 已知良性的浏览器噪声，不视为页面崩溃
+const BENIGN_PAGE_ERRORS = [
+  'ResizeObserver loop completed with undelivered notifications.',
+  'ResizeObserver loop limit exceeded',
+]
+
 export const test = base.extend<{ mockedPage: Page }>({
   mockedPage: async ({ page }, use) => {
+    const pageErrors: string[] = []
+    page.on('pageerror', (error) => pageErrors.push(error.message))
     await installCommonMocks(page)
     await use(page)
+    const unexpected = pageErrors.filter(
+      (message) => !BENIGN_PAGE_ERRORS.some((benign) => message.includes(benign)),
+    )
+    expect(unexpected, 'uncaught page errors during test').toEqual([])
   },
 })
 
@@ -42,7 +57,7 @@ export async function installCommonMocks(page: Page) {
     route.fulfill({ json: data.modules }),
   )
   await page.route('**/api/v1/cases?**', (route) =>
-    route.fulfill({ json: { items: data.cases, total: data.cases.length, page: 1, page_size: 20 } }),
+    route.fulfill({ json: data.cases }),
   )
   await page.route('**/api/v1/runs?**', (route) =>
     route.fulfill({ json: { items: [data.completedRun], total: 1, page: 1, page_size: 5 } }),
