@@ -276,6 +276,12 @@ import { DownloadOutlined, SettingOutlined, ProfileOutlined, PlayCircleOutlined,
 import LazyChartCard from '@/components/dashboard/LazyChartCard.vue'
 import { useChartTheme } from '@/utils/chartTheme'
 import { caseApi, dashboardAlertApi, projectApi, runApi, statisticsApi, storageApi, userSettingsApi, type DashboardAlertEventItem, type RunDetailItem, type StatisticsAggregateTrendItem, type StatisticsCaseTypeDistributionItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
+import {
+  cloneDefaultDashboardLayout,
+  fillTrendGaps,
+  normalizeDashboardLayout,
+  type DashboardLayoutItem,
+} from '@/utils/dashboardView'
 
 const router = useRouter()
 const { t, locale } = useI18n()
@@ -369,21 +375,7 @@ const DASHBOARD_PROJECT_KEY = 'atp:dashboard:project_id'
 const DASHBOARD_LAYOUT_KEY = 'atp:dashboard:layout'
 const DASHBOARD_LAYOUT_SETTING_KEY = 'dashboard.layout'
 
-type LayoutItem = {
-  key: LayoutChartKey
-  visible: boolean
-}
-
-const DEFAULT_DASHBOARD_LAYOUT: LayoutItem[] = [
-  { key: 'pass_rate_trend', visible: true },
-  { key: 'duration_trend', visible: true },
-  { key: 'failure_top', visible: true },
-  { key: 'executor_top', visible: true },
-  { key: 'trigger_type', visible: true },
-  { key: 'plan_trend', visible: true },
-  { key: 'suite_trend', visible: true },
-  { key: 'case_type_distribution', visible: true },
-]
+type LayoutItem = DashboardLayoutItem
 
 function initialScope(): DashboardScope {
   try {
@@ -404,21 +396,7 @@ function initialProjectId(): number | undefined {
 }
 
 function cloneDefaultLayout(): LayoutItem[] {
-  return DEFAULT_DASHBOARD_LAYOUT.map(item => ({ ...item }))
-}
-
-function normalizeDashboardLayout(value: unknown): LayoutItem[] {
-  if (!Array.isArray(value)) return cloneDefaultLayout()
-  const parsed = value as Array<Partial<LayoutItem>>
-  const byKey = new Map(parsed.map(item => [item.key, item]))
-  const knownKeys = new Set(DEFAULT_DASHBOARD_LAYOUT.map(item => item.key))
-  const ordered = parsed
-    .filter((item): item is LayoutItem => Boolean(item.key && knownKeys.has(item.key) && typeof item.visible === 'boolean'))
-    .map(item => ({ key: item.key, visible: item.visible }))
-  for (const defaultItem of DEFAULT_DASHBOARD_LAYOUT) {
-    if (!byKey.has(defaultItem.key)) ordered.push({ ...defaultItem })
-  }
-  return ordered.length ? ordered : cloneDefaultLayout()
+  return cloneDefaultDashboardLayout()
 }
 
 function loadDashboardLayoutFromLocal(): LayoutItem[] {
@@ -517,58 +495,22 @@ function resetWorkbench() {
   workbench.alertCount = dashboardAlertEvents.value.length
 }
 
-function generateDateRange(startDate: string, endDate: string): string[] {
-  const dates: string[] = []
-  const current = new Date(startDate)
-  const end = new Date(endDate)
-  while (current <= end) {
-    dates.push(current.toISOString().slice(0, 10))
-    current.setDate(current.getDate() + 1)
-  }
-  return dates
-}
-
 function fillPassRateGaps(data: PassRateTrendItem[], numDays: number): PassRateTrendItem[] {
-  if (data.length === 0) return []
-  // 周聚合时不补零（密度本身就低，X 轴是周一日期）
-  if (effectiveAggregate.value === 'weekly') return data
-
-  const today = new Date()
-  const start = new Date(today)
-  start.setDate(start.getDate() - numDays + 1)
-
-  const startStr = start.toISOString().slice(0, 10)
-  const endStr = today.toISOString().slice(0, 10)
-  const allDates = generateDateRange(startStr, endStr)
-
-  const dataMap = new Map(data.map(item => [item.date, item]))
-
-  return allDates.map(date => {
-    const existing = dataMap.get(date)
-    if (existing) return existing
-    return { date, total: 0, passed: 0, rate: 0 }
-  })
+  return fillTrendGaps(
+    data,
+    numDays,
+    (date) => ({ date, total: 0, passed: 0, rate: 0 }),
+    { weekly: effectiveAggregate.value === 'weekly' },
+  )
 }
 
 function fillDurationGaps(data: DurationTrendItem[], numDays: number): DurationTrendItem[] {
-  if (data.length === 0) return []
-  if (effectiveAggregate.value === 'weekly') return data
-
-  const today = new Date()
-  const start = new Date(today)
-  start.setDate(start.getDate() - numDays + 1)
-
-  const startStr = start.toISOString().slice(0, 10)
-  const endStr = today.toISOString().slice(0, 10)
-  const allDates = generateDateRange(startStr, endStr)
-
-  const dataMap = new Map(data.map(item => [item.date, item]))
-
-  return allDates.map(date => {
-    const existing = dataMap.get(date)
-    if (existing) return existing
-    return { date, avg_duration_ms: 0, max_duration_ms: 0, run_count: 0 }
-  })
+  return fillTrendGaps(
+    data,
+    numDays,
+    (date) => ({ date, avg_duration_ms: 0, max_duration_ms: 0, run_count: 0 }),
+    { weekly: effectiveAggregate.value === 'weekly' },
+  )
 }
 
 function buildPassRateOption(data: PassRateTrendItem[] = []) {
