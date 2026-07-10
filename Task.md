@@ -691,6 +691,8 @@
 - [x] Q13-03 切片（PlanList cron）：扩充 utils/planList（buildCronExpression 按 daily/weekly/custom 拼 cron、formatCronTime 补零 HH:MM），planList.spec.ts +3 组断言；PlanList.vue cron 预览/描述改调 util，type-check 0 错、suite-plan E2E 与构建仍绿；前端 statements 6.33%→6.40%（branches 8.4%，77 passed）。helper 抽取对 statements 边际收益已递减——到 8% 需组件挂载测试（@vue/test-utils），非继续抽 helper；已在 roadmap 记录评估与建议。
 - [x] Q13-06 依赖卫生：审阅并固化 frontend allowScripts 白名单（core-js 赞助提示/fsevents 原生绑定/vue-demi Vue3 入口切换，三者均核实无害），npm ci 零 allow-scripts 与零弃用告警、audit 0 漏洞；新增 docs/dependency-hygiene.md 与契约测试 test_dependency_hygiene.py（3 passed）。顺带修复 Q13-03 slice4 重构后遗留的 test_dashboard_routes 静态契约（DEFAULT_DASHBOARD_LAYOUT 已移至 utils/dashboardView）。
 - [x] Q13-04 Ant Design 路由级 chunk 证据与决策：实测 /login 首屏在单体 antd chunk 下拉取 374.7/510.1 kB gzip（73%）；移除 manualChunks 的 ant-design 归并、让按需组件随路由分裂后，/login 首屏 510→336 kB（-34%，-174 kB，远超 15% 门槛），代价 dist JS 总量 +~35 kB（共享运行时在少数路由 chunk 重复）。结论 GO 并采纳，chunkSizeWarningLimit 1500→600（echarts 563 成新上限）；全量 E2E 9 passed 于真实浏览器验证。证据与决策见 docs/frontend-bundle-decision.md，契约测试同步更新。
+- [x] Q13-05 AI 自愈 apply 闭环（iter5 phase 2）：加 `AI_HEALING_APPLY_ENABLED`（默认关，apply 未启用返回 403；preview 只读门常开）+ 7 项行为测试（iter5 API 0%→72%）；修复端点 `ProjectRole.engineer` 潜在 500（第三个覆盖工作暴露的生产故障）+ 两处 sys.modules 测试隔离脆性。全库 1029 passed、TOTAL 67.76%。
+- [x] Q13-03 收官（挂载测试切片）：`ApkList.spec.ts`（4 项）+ `DeviceList.spec.ts`（5 项）@vue/test-utils 挂载测试，ApkList 0→56%、DeviceList 0→62%；**前端 statements 6.40%→8.51%，达成 ≥8% 验收线**（挂载测试 +1pt/个 vs helper +0.07pt/个）。门禁 8.2/9.6/6.2/8.15，type-check/build/全量 E2E 绿。所有本地 Q13 项完成，仅剩 Q13-00 待环境。
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
 当前路线图：`docs/optimization-roadmap-2026-q12.md`。下一项为 Q12-02，先覆盖登录认证，再推进用例执行、计划调度和报告流程。
