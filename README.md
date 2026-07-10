@@ -69,7 +69,7 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 - 用户偏好服务端持久化：Dashboard 布局等偏好同步到服务端并保留 localStorage 兜底
 - AI 自愈采纳率报表：按用例类型 / 错误特征查看采纳率、生产反馈回归通过率与用例生成漏斗
 
-> Q8/Q9/Q10 能力的设计与验收详见：`docs/implementation-plan-2026-Q8.md`、`docs/implementation-plan-2026-Q9.md`、`docs/implementation-plan-2026-Q10.md`、`docs/q8-acceptance-summary.md`、`docs/q9-acceptance-summary.md`、`docs/q10-acceptance-summary.md`、`docs/dataset-v2.md`、`docs/performance-testing-thin-slice.md`、`docs/q9-release-checklist.md`。
+> Q8/Q9/Q10/Q11 能力的设计与验收详见：`docs/implementation-plan-2026-Q8.md`、`docs/implementation-plan-2026-Q9.md`、`docs/implementation-plan-2026-Q10.md`、`docs/q8-acceptance-summary.md`、`docs/q9-acceptance-summary.md`、`docs/q10-acceptance-summary.md`、`docs/q11-acceptance-summary.md`、`docs/dataset-v2.md`、`docs/performance-testing-thin-slice.md`、`docs/q9-release-checklist.md`、`docs/scheduled-plan-incident-drill.md`、`docs/dependency-security-rollback.md`、`docs/frontend-bundle-decision.md`。
 
 ### Q10 质量与稳定性收口
 
@@ -82,7 +82,7 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 
 相关文档：`docs/code-quality.md`、`docs/frontend-testing.md`、`docs/security-scanning.md`、`docs/slo-guide.md`、`docs/flaky-governance.md`、`docs/q10-acceptance-summary.md`。
 
-下一轮优化路线见：`docs/optimization-roadmap-2026-q11.md`。
+Q11 已验收，当前优化路线见：`docs/optimization-roadmap-2026-q12.md`。Q12-00 已消除 41 条 pytest 收集警告并建立零警告门禁；下一项是刷新覆盖率基线。
 
 ### 当前仍建议继续完善的方向
 

@@ -97,6 +97,8 @@ git diff --check: passed
 
 ## Rollback Plan
 
+The current detailed dependency, lockfile, image, scanner, and vulnerability rollback procedure is `docs/dependency-security-rollback.md`.
+
 ### Dependency / Runtime Changes
 
 1. Revert `backend/requirements.txt`, `frontend/package.json`, and `frontend/package-lock.json` to the previous release.

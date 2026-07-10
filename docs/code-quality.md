@@ -154,11 +154,11 @@ CI command:
 python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=52
 ```
 
-Baseline refreshed on 2026-07-08:
+Baseline refreshed on 2026-07-10:
 
 - Python: 3.14.5 local venv
-- Result: `823 passed, 41 warnings`
-- Total backend coverage: `53.47%`
+- Result: `840 passed`, zero collection warnings
+- Total backend coverage: `53.46%`
 - CI gate: `52%`
 - Artifact: `coverage.xml` uploaded as `backend-coverage-xml`
 
@@ -184,11 +184,11 @@ cd frontend && npm run test
 cd frontend && npm run test:coverage
 ```
 
-Baseline refreshed on 2026-07-08:
+Baseline refreshed on 2026-07-10:
 
-- Test result: `18 passed`
-- Covered slices: auth store, theme store, HTTP request/401 interceptors, permissions utilities, WebSocket message parsing/reconnect behavior, chart theme utilities, and `BatchOperationBar`
-- Full-source coverage visibility: `1.8%`
-- CI gate: run `npm run test` before `type-check` and `build`
+- Test result after the Q12 reporting slice and review cleanup: `46 passed` across 14 files
+- Covered slices: auth/theme stores, HTTP request/401 interceptors, permissions, WebSocket behavior, chart theme, case/suite/plan helpers, `BatchOperationBar`, and `EnvironmentList` states
+- Full-source coverage: statements `4.38%`, branches `4.81%`, functions `2.96%`, lines `4.61%`
+- CI gate: statements `4.1%`, branches `4.55%`, functions `2.7%`, lines `4.35%`; upload `frontend-coverage-report` before type-check and build. The gate values live in `frontend/vitest.config.ts` and are governed by `docs/coverage-baseline-2026-q12.md`
 
-No frontend coverage threshold is enforced yet because this is the first test slice and most views/components remain intentionally uncovered. Add a threshold only after more reusable components and route-level logic are covered.
+The initial frontend threshold intentionally prevents regression without treating a low full-source percentage as adequate. Q12 raises it incrementally after critical auth, execution, scheduling, and reporting slices land. Detailed priorities are recorded in `docs/coverage-baseline-2026-q12.md`.

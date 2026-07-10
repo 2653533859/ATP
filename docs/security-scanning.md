@@ -103,3 +103,5 @@ Dependabot is configured in `.github/dependabot.yml` for:
 
 - Decide whether to add a local Gitleaks pre-commit hook after confirming the preferred developer installation path.
 - Add security workflow artifacts or SARIF upload if review workflows need richer vulnerability triage.
+
+Dependency, lockfile, image, scanner, and vulnerability rollback decisions follow `docs/dependency-security-rollback.md`.

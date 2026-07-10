@@ -81,23 +81,13 @@ adb devices
 
 `docker-compose.yml` 中 worker 已安装 `adb`，并保留了 host 网络模式说明。
 
-推荐顺序：
+推荐顺序（容器直连模式）：
 
-1. 宿主机先完成 `adb connect <device-ip>:5555`
-2. 再启动 ATP worker
+1. 宿主机通过 USB 授权并执行 `adb tcpip 5555`
+2. Worker 容器独立执行 `adb connect <device-ip>:5555`
 3. 通过 ATP 的设备扫描接口刷新设备列表
 
-如果 Docker 环境网络桥接导致设备不可见，可尝试：
-
-```yaml
-worker:
-  network_mode: host
-```
-
-注意：
-
-- Windows / Docker Desktop 对 host 网络支持有限
-- 如果 host 模式不可用，优先保证容器到设备 IP 可达
+宿主机的 ADB 连接不会自动被容器复用。需要复用 USB/TCP 设备列表时，显式配置 `ADB_SERVER_SOCKET=tcp:host.docker.internal:5037`，并确保宿主 ADB server 仅对 Docker 网关安全可达。完整演练见 `docs/android-worker-connectivity-rehearsal.md`。
 
 ---
 
@@ -205,7 +195,7 @@ adb devices
 
 当前最推荐的落地方式是：
 
-**宿主机先完成 ADB over TCP 连接，再由 ATP Worker 复用该链路执行。**
+**优先让 Worker 直接连接设备 IP；需要复用宿主设备列表时，显式使用 ADB_SERVER_SOCKET。**
 
 ---
 
@@ -215,10 +205,10 @@ adb devices
 
 | 平台 | host 网络支持 | 推荐方案 |
 |------|---------------|---------|
-| Linux | 完整 | `network_mode: host` 最简单 |
-| Docker Desktop (Win/Mac) | 受限 | 优先用 ADB over TCP；宿主先 `adb connect`，容器复用 |
+| Linux | 完整但会改变 Compose DNS/端口语义 | 优先设备 IP 直连；共享 server 需 host-gateway + 安全监听 |
+| Docker Desktop (Win/Mac) | 受限 | 设备 IP 直连，或 `ADB_SERVER_SOCKET=tcp:host.docker.internal:5037` |
 
-Docker Desktop 因 VM 层隔离，容器无法直接探测物理网卡上的设备 IP。推荐让宿主机维护 ADB 连接，容器通过 `host.docker.internal:5555` 或显式宿主 IP 访问。
+Docker Desktop 存在 VM 网络层，设备 IP 是否可达取决于 Wi-Fi/VPN/防火墙。`host.docker.internal:5037` 是宿主 ADB server；设备 adbd 则使用真实 `<device-ip>:5555`。当前 Compose 的宿主 5555 端口属于 Flower，不能当作 ADB 地址。
 
 ### 2. 设备 IP 漂移
 

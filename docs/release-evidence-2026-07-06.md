@@ -638,6 +638,159 @@ Rollback plan: present
 Q11 roadmap: Q11-01 marked complete
 ```
 
+### Q11-22 Frontend Smoke Coverage
+
+Follow-up date: 2026-07-10
+
+Changes:
+
+- Added `frontend/src/views/system/EnvironmentList.spec.ts` for project-selection, loading, empty, and API-error states.
+- Corrected the shared CaseList E2E mock to return the array shape defined by `GET /cases`.
+- Updated the Q11 roadmap and project memory/context to point the next action at Q11-30.
+
+Primary evidence:
+
+```text
+EnvironmentList smoke spec: 3 passed
+Frontend Vitest: 11 files / 33 tests passed
+Frontend type-check: passed
+Frontend build: passed
+Targeted case/project/suite/plan E2E: 4 passed
+```
+
+### Q11-30 Release-Readiness Runbook
+
+Follow-up date: 2026-07-10
+
+Changes:
+
+- Upgraded `docs/q9-release-checklist.md` from the Q9 baseline to the active Q11 release-readiness runbook.
+- Added same-SHA evidence rules and Q10 lint, format, mypy, coverage, security, integration, E2E, and SLO JSON gates.
+- Expanded the release-readiness workflow contract and backend static test to protect the required commands.
+- Added image, migration, Helm, staging smoke, rollback, and final go/no-go evidence requirements.
+
+Primary evidence:
+
+```text
+Release/deployment static tests: 10 passed
+CI/Security/Integration/E2E/Release readiness workflow YAML: parsed
+Grafana SLO dashboard JSON: parsed
+API availability/P95/run success/error budget panels: present
+git diff --check: passed
+```
+
+### Q11-31 Scheduled Plan Incident Drill
+
+Follow-up date: 2026-07-10
+
+Changes:
+
+- Added `docs/scheduled-plan-incident-drill.md` with first-five-minute triage and controlled staging exercises.
+- Documented Beat/Celery, Redis DB 0/1/2, PostgreSQL parent/child run state, notification delivery, and auto-bug side effects.
+- Added duplicate-safe recovery rules and explicit handling for stale pending versus orphaned running rows.
+- Added `backend/tests/worker/test_scheduled_plan_incident_drill.py` to keep the runbook aligned with worker routes and side-effect fields.
+
+Primary evidence:
+
+```text
+Scheduled plan/lifecycle/release contracts: 12 passed
+Targeted Ruff check: passed
+Targeted Ruff format check: passed
+git diff --check: passed
+```
+
+### Q11-32 Dependency And Security Rollback
+
+Follow-up date: 2026-07-10
+
+Changes:
+
+- Added `docs/dependency-security-rollback.md` for clean backend environments, paired frontend manifest/lockfile rollback, immutable image digests, scanner recovery, schema compatibility, and vulnerability exceptions.
+- Added static contracts tying the runbook to requirements, lockfile, audit, Trivy, migration, and Helm commands.
+- Changed the frontend production image build from `npm install` to lockfile-strict `npm ci`.
+
+Primary evidence:
+
+```text
+Rollback/release/incident contracts: 10 passed
+Clean npm ci: passed, 0 vulnerabilities
+Frontend Vitest: 11 files / 33 tests passed
+Frontend type-check/build: passed
+Frontend Docker image atp-frontend:q11-32: built successfully
+Backend pip-audit: no known vulnerabilities
+Frontend npm audit: 0 vulnerabilities
+Targeted Ruff and git diff checks: passed
+Local Trivy CLI: unavailable; Security workflow remains the blocking image scanner
+```
+
+### Q11-40 ResizeObserver Warning Resolution
+
+Follow-up date: 2026-07-10
+
+Findings and changes:
+
+- Reproduced the warning only on CaseList and instrumented native ResizeObserver construction/targets.
+- Confirmed Ant Design Vue was measuring an empty horizontally scrollable table and its cells during initial layout.
+- Changed CaseList to enable `scroll.x=1500` only when data rows exist; populated-table fixed-column behavior remains unchanged.
+- Added an E2E assertion that rejects the exact ResizeObserver page error.
+
+Primary evidence:
+
+```text
+Targeted CaseList E2E: 1 passed, warning absent
+Full Playwright E2E: 9 passed, warning absent
+Frontend Vitest: 11 files / 33 tests passed
+Frontend type-check/build: passed
+Backend frontend-static regressions: 10 passed
+git diff --check: passed
+```
+
+### Q11-41 Frontend Bundle Decision
+
+Follow-up date: 2026-07-10
+
+Findings and changes:
+
+- Recorded the bundle decision and follow-up thresholds in `docs/frontend-bundle-decision.md`.
+- Rejected merging icons into the Ant Design chunk because the experiment produced 1541.24 kB and a large-chunk warning.
+- Retained warning-free separate Ant Design/icon chunks under Vite 8.1.3.
+- Replaced full ECharts imports in mobile report center/detail with modular Bar/Line/core component registration.
+
+Primary evidence:
+
+```text
+ECharts before: 1126.62 kB / 374.44 kB gzip
+ECharts after: 563.41 kB / 191.53 kB gzip
+Build: passed with no circular or large-chunk warning
+Bundle static contracts: 3 passed
+Frontend Vitest: 11 files / 33 tests passed
+Frontend type-check: passed
+Full Playwright E2E: 9 passed
+```
+
+### Q11-42 Android Worker Connectivity Rehearsal
+
+Follow-up date: 2026-07-10
+
+Findings and changes:
+
+- Verified `/usr/bin/adb` in `atp-worker:q11-readiness` and a container-local ADB server startup.
+- Verified Docker Desktop host resolution and successful `ADB_SERVER_SOCKET=tcp:host.docker.internal:5037` access to the host ADB server.
+- Corrected documentation: host `adb connect` is not automatically reused by a container-local server; host port 5555 is Flower, while ADB server is 5037 and device adbd is `<device-ip>:5555`.
+- Added direct/shared topology commands, host-gateway mappings, safe doctor flags, security constraints, and platform-specific limitations.
+
+Primary evidence:
+
+```text
+Worker ADB: 1.0.41 / 29.0.6-debian at /usr/bin/adb
+host.docker.internal: resolved from worker container
+Shared host ADB server command: exit 0, empty device list
+Android connectivity/resilience regression: 34 passed
+Doctor bash syntax: passed
+Root/app Compose config parse: passed with no env resolution
+Physical device shell/data-plane: not run; no device attached
+```
+
 ## Recommended PR Description
 
 ### Summary

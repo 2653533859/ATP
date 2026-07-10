@@ -1,6 +1,6 @@
 # Frontend Testing
 
-> Last updated: 2026-07-08
+> Last updated: 2026-07-10
 
 ## Test Stack
 
@@ -35,16 +35,16 @@ The first Vitest slices cover stable, low-coupling frontend logic:
 Current result:
 
 ```text
-18 passed
+14 files / 47 tests passed
 ```
 
-Current full-source coverage visibility:
+Current full-source coverage:
 
 ```text
-1.8%
+Statements 4.38% | Branches 4.81% | Functions 2.96% | Lines 4.61%
 ```
 
-No frontend coverage threshold is enforced yet. The next slices should expand reusable component and route-level logic coverage before setting a minimum threshold.
+The current regression gate is statements `4.1%`, branches `4.55%`, functions `2.7%`, and lines `4.35%`. It remains below the measured baseline and should rise only after another behavioral slice adds measured headroom; the authoritative record is `docs/coverage-baseline-2026-q12.md`.
 
 ## CI
 
@@ -52,7 +52,9 @@ The main CI frontend job now runs:
 
 ```bash
 npm ci
-npm run test
+npm run test:coverage
 npm run type-check
 npm run build
 ```
+
+CI uploads `frontend/coverage` as `frontend-coverage-report` for line-level inspection.

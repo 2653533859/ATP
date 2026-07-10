@@ -40,7 +40,7 @@
 - Q10 SLO 薄切已补齐：新增 `atp_run_outcomes_total{entity_type,status}`，Grafana `ATP Overview` 新增 API 可用性、API P95、run 成功率和 API 错误预算剩余 4 个面板，并新增 `docs/slo-guide.md`。
 - Q10 flaky 治理已补齐：新增 `pytest-rerunfailures==16.4`、`flaky` marker、integration CI 一次有界重试、Playwright CI 重试边界说明与 `docs/flaky-governance.md`。
 - Q10 验收收口已补齐：新增 `docs/q10-acceptance-summary.md`，README 已加入 Q10 质量与稳定性索引，Task / MEMORY / CONTEXT / release evidence 已同步。
-- Q11 下一轮优化路线已建立：`docs/optimization-roadmap-2026-q11.md`，优先级为 PR / commit 拆分、发布说明、SLO 生产校准、前端覆盖率增长和运维 runbook。Q11-00 已完成，拆分计划见 `docs/q11-pr-split-plan.md`；Q11-01 已完成，发布说明 / 风险 / 回滚记录见 `docs/q10-release-notes.md`；Q11-02 已完成，CI matrix 本地与 GitHub runner 证据、PyJWT 迁移、Gitleaks/Trivy/镜像修复记录见 `docs/q11-ci-matrix-evidence.md`；Q11 Phase 1 已完成，SLO 预生产基线、生产采样窗口、目标依据、triage runbook 和告警暂缓决策见 `docs/slo-guide.md`；Q11-20 已完成，project/module/case navigation helpers 与 Vitest 覆盖见 `frontend/src/utils/caseNavigation.ts`；Q11-21 已完成，suite / plan list pure helpers 与 Vitest 覆盖见 `frontend/src/utils/suiteList.ts` 和 `frontend/src/utils/planList.ts`。
+- Q11 下一轮优化路线已建立：`docs/optimization-roadmap-2026-q11.md`，优先级为 PR / commit 拆分、发布说明、SLO 生产校准、前端覆盖率增长和运维 runbook。Q11-00 已完成，拆分计划见 `docs/q11-pr-split-plan.md`；Q11-01 已完成，发布说明 / 风险 / 回滚记录见 `docs/q10-release-notes.md`；Q11-02 已完成，CI matrix 本地与 GitHub runner 证据、PyJWT 迁移、Gitleaks/Trivy/镜像修复记录见 `docs/q11-ci-matrix-evidence.md`；Q11 Phase 1 已完成，SLO 预生产基线、生产采样窗口、目标依据、triage runbook 和告警暂缓决策见 `docs/slo-guide.md`；Q11-20 已完成，project/module/case navigation helpers 与 Vitest 覆盖见 `frontend/src/utils/caseNavigation.ts`；Q11-21 已完成，suite / plan list pure helpers 与 Vitest 覆盖见 `frontend/src/utils/suiteList.ts` 和 `frontend/src/utils/planList.ts`；Q11-22 已完成，`EnvironmentList.vue` 三态 smoke 测试见 `frontend/src/views/system/EnvironmentList.spec.ts`，并修正 CaseList E2E mock 响应契约；Q11-30 已完成，当前 release-readiness runbook 与静态/workflow 契约见 `docs/q9-release-checklist.md` 和 `backend/tests/worker/test_q9_release_readiness.py`；Q11-31 已完成，失败定时计划演练见 `docs/scheduled-plan-incident-drill.md`；Q11-32 已完成，依赖、安全和镜像回滚见 `docs/dependency-security-rollback.md`，前端镜像已改用 `npm ci`。
 
 最近验证记录：
 
@@ -70,6 +70,13 @@
 - Q11-12 告警阈值决策：`docs/slo-guide.md` 已明确暂缓 paging-grade SLO 告警到连续生产 Prometheus 历史可用后，并记录 availability / P95 / error budget / run success rate 阈值草案和启用条件。
 - Q11-20 前端导航测试：新增 `frontend/src/utils/caseNavigation.spec.ts` 覆盖路由 id、review status、case-list query、项目跳用例、用例详情和 query-vs-param 优先级；`npm --prefix frontend run test` 为 8 files / 22 tests，`type-check` 与 `build` 通过。
 - Q11-21 suite / plan helper 测试：新增 `frontend/src/utils/suiteList.spec.ts` 与 `frontend/src/utils/planList.spec.ts`，覆盖配置规范化、状态 / schedule 颜色、duration / percent、cron 校验 / preset、运行汇总、失败项和 suite progress；`npm --prefix frontend run test` 为 10 files / 30 tests，`type-check` 与 `build` 通过。
+- Q11-22 system page smoke 测试：新增 `frontend/src/views/system/EnvironmentList.spec.ts`，覆盖项目选择前、环境加载中、空环境和 API 错误状态；同时修正 `frontend/e2e/fixtures/mock-api.ts` 的 `/cases` 返回结构；Vitest 为 11 files / 33 tests，目标 E2E 为 4 passed。
+- Q11-30 release-readiness runbook：`docs/q9-release-checklist.md` 已覆盖同 SHA 证据、lint / format / mypy / coverage、安全、真实依赖 integration、E2E、SLO JSON、镜像、迁移、Helm、烟测和回滚；相关 docs/static tests 为 10 passed，workflow YAML 与 Grafana JSON 校验通过。
+- Q11-31 scheduled-plan incident drill：新增 `docs/scheduled-plan-incident-drill.md` 与实现契约，覆盖 Beat/Celery、Redis DB 0/1/2、数据库父子运行状态、通知和自动缺陷副作用，以及避免重复执行的恢复准则；相关契约 12 passed。
+- Q11-32 dependency/security rollback：新增 `docs/dependency-security-rollback.md` 与实现契约，前端镜像改为 `npm ci`；clean install 后 33 tests、type-check/build、Docker build、pip/npm audit 均通过。
+- Q11-40 ResizeObserver warning：定位为 CaseList 空表仍强制横向滚动触发 Ant Design Vue 首帧测量循环；改为有数据时才设置 `scroll.x`；pageerror 防护已上移至共享 fixture（`e2e/fixtures/mock-api.ts` 对任何非白名单未捕获页面异常判失败，ResizeObserver 噪声在白名单内），全部 spec 自动继承；全量 E2E 9 passed 且警告消失。
+- Q11-41 bundle decision：保留 Ant Design / icons 独立 chunk，拒绝会触发 1.5 MB 告警的合并方案；移动专项报告改用 modular ECharts，chunk 从 1126.62/374.44 gzip kB 降至 563.41/191.53 kB，构建零告警。
+- Q11-42 Android worker connectivity：实测容器 ADB 与 Docker Desktop `ADB_SERVER_SOCKET=tcp:host.docker.internal:5037` 控制路径；修正文档中的自动复用/5555 误解，增加 host-gateway、共享 server 安全诊断模式和跨平台约束。当前无真机，shell/data-plane 作为环境侧验收项保留。
 - Flaky 治理验证：`pytest --markers` 可见项目 `flaky` marker 与 rerunfailures marker；`--reruns 1` 定向测试 2 passed；CI workflow YAML 解析通过
 - Q10 验收文档：`docs/q10-acceptance-summary.md` 已汇总质量门禁、安全扫描、覆盖率、集成/E2E、SLO 与 flaky 治理证据
 - `npm --prefix frontend run test:coverage`：通过，当前前端全仓覆盖率基线 1.8%
@@ -91,7 +98,7 @@ Python 3.14 本地环境说明：已通过 Homebrew `libpq` 提供 `pg_config`�
 - `docs/disaster-recovery.md`、`docs/backup-restore-drill-record.md`：数据库和对象存储备份恢复演练。
 - `docs/domain-boundaries.md`、`docs/worker-lifecycle.md`、`docs/audit-log-policy.md`：架构、Worker、审计治理。
 
-下一步建议：发布收口、PR 范围整理、最终 code review pass 与运行证据归档已完成；Q10 已落地 ruff 最小 lint/format 门禁、mypy 渐进式基线、pre-commit、本地/CI 覆盖率基线、前端 Vitest 两批测试、Bandit SAST、依赖漏洞清零、Gitleaks/Trivy/security workflow、Dependabot、Docker Python 3.12 目标环境回归、suite-run / plan-trigger / notification / bug-report 真实依赖集成验证、suite / plan 前端关键路径 E2E、SLO 薄切、flaky 治理与 Q10 验收总结。Q11-00 / Q11-01 / Q11-02 / Q11-10 / Q11-11 / Q11-12 / Q11-20 / Q11-21 已完成；下一优先项是 Q11-22，补充一个 system page smoke component test。
+下一步建议：Q11 路线图全部完成并进入验收归档；下一轮重点处理测试告警信噪比、前端覆盖率门槛、依赖生命周期和外部环境实证。
 
 ---
 
@@ -405,7 +412,7 @@ docker compose up -d --build
 
 ## 12. 下一步建议
 
-Q1-Q10 路线图内功能项已完成。当前建议继续 Q11 工程质量与生产校准：
+Q1-Q11 路线图内功能项已完成。当前进入 Q12 持续质量优化：
 
 - Q11-02：已完成本地主矩阵复跑、GitHub runner 证据归档，以及 Security / Trivy / Gitleaks / typing 后续修复。
 - Q11-10：已校准 API availability / P95 预生产窗口与目标，并把观测窗口、目标依据、暂缓项同步到 `docs/slo-guide.md`。
@@ -413,7 +420,17 @@ Q1-Q10 路线图内功能项已完成。当前建议继续 Q11 工程质量与�
 - Q11-12：已决定 SLO 告警阈值策略；在没有连续生产 Prometheus 历史前暂缓 paging-grade alerting，并记录明确 deferred decision 与阈值草案。
 - Q11-20：已补充 project / module / case navigation utilities 的前端测试。
 - Q11-21：已补充 suite / plan list pure helpers 的前端测试。
-- Q11-22：下一步补充一个 system page smoke component test。
+- Q11-22：已补充 `EnvironmentList.vue` system page smoke component test，并覆盖 loading / empty / error 状态。
+- Q11-30：已升级 release-readiness runbook，纳入 Q10 全套质量、安全、integration、E2E 与 SLO 校验。
+- Q11-31：已新增失败定时计划 incident drill checklist，覆盖执行链路、外部副作用与安全恢复。
+- Q11-32：已新增依赖/安全更新回滚 runbook，并将前端镜像安装收敛为 lockfile 严格的 `npm ci`。
+- Q11-40：已修复 CaseList 空表横向滚动导致的 ResizeObserver E2E warning，并加入回归断言。
+- Q11-41：已完成 bundle 分包决策并将 ECharts chunk 体积降低约一半。
+- Q11-42：已完成 Android Worker ADB 控制路径演练并记录物理设备/宿主网络约束。
+- Q12-00：已消除 41 条 pytest 收集警告，完整后端回归 `840 passed`，并把 `PytestCollectionWarning` 固化为错误门禁。
+- Q12-01：已刷新后端 `53.46%` 与前端 statements `3.66%` 覆盖率基线；前端已建立初始多指标门禁和 CI 报告 artifact。
+- Q12-02：认证、用例执行、计划调度和报告四个切片均已完成；前端 47 tests，coverage `4.44/4.88/3.01/4.66%` 并同步抬升门禁。
+- 下一项：Q12-03 依赖弃用提示收敛。
 
 ---
 
@@ -424,7 +441,7 @@ Q1-Q10 路线图内功能项已完成。当前建议继续 Q11 工程质量与�
    cd backend && alembic revision --autogenerate -m "init" && alembic upgrade head
    ```
 
-2. **Android 设备连接**：Worker 容器需要访问宿主机 ADB，生产环境需在 docker-compose.yml 中开启 `network_mode: host`（已注释，需要时取消注释）
+2. **Android 设备连接**：Worker 可直接连接网络设备 `<device-ip>:5555`；如需复用宿主机 ADB server，设置 `ADB_SERVER_SOCKET=tcp:host.docker.internal:5037`。Linux/Desktop/Kubernetes 差异及物理设备限制见 `docs/android-worker-connectivity-rehearsal.md`。
 
 3. **WebSocket 鉴权**：WS 连接通过 URL `?token=access_token` 传递 JWT，ws.py 中已实现 `_get_ws_user()` + `_can_subscribe_run()` 权限校验
 

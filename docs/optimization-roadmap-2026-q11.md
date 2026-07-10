@@ -43,24 +43,24 @@ Q10 is complete:
 |----|------|--------|------------|
 | Q11-20 | Add tests for project/module/case navigation utilities | [x] | `frontend/src/utils/caseNavigation.spec.ts` covers route id parsing, review-status parsing, case-list query building, project -> cases links, case detail links, and query-vs-param precedence |
 | Q11-21 | Add tests for suite / plan list pure helpers | [x] | `frontend/src/utils/suiteList.spec.ts` and `frontend/src/utils/planList.spec.ts` cover config normalization, status / schedule colors, duration / percent formatting, cron validation / preset parsing, run summaries, failure extraction, and suite run progress helpers |
-| Q11-22 | Add one smoke component test for a system page | [ ] | Shared loading/empty/error behavior covered without brittle DOM snapshots |
+| Q11-22 | Add one smoke component test for a system page | [x] | `frontend/src/views/system/EnvironmentList.spec.ts` covers project-selection, loading, empty, and API-error states without DOM snapshots; the CaseList E2E mock now matches the array response contract |
 
 ## Phase 3 — Operational Runbooks [P1]
 
 | ID | Task | Status | Acceptance |
 |----|------|--------|------------|
-| Q11-30 | Update release-readiness runbook for Q10 gates | [ ] | Commands include lint, mypy, coverage, security, integration, E2E, SLO JSON validation |
-| Q11-31 | Add incident drill checklist for failed scheduled plan runs | [ ] | Checklist covers Celery, Redis, DB row state, notifications, and bug tracker side effects |
-| Q11-32 | Document rollback for dependency/security updates | [ ] | Backend and frontend rollback path references lockfiles, requirements, and audit commands |
+| Q11-30 | Update release-readiness runbook for Q10 gates | [x] | `docs/q9-release-checklist.md` now covers same-SHA evidence, lint, format, mypy, coverage, security, integration, E2E, SLO JSON, images, migration, Helm, staging smoke, and rollback gates; workflow/static contracts protect the required commands |
+| Q11-31 | Add incident drill checklist for failed scheduled plan runs | [x] | `docs/scheduled-plan-incident-drill.md` covers Beat/Celery, Redis DB roles, PostgreSQL state reconciliation, notification and bug-tracker side effects, duplicate-safe recovery, controlled staging drills, and incident evidence |
+| Q11-32 | Document rollback for dependency/security updates | [x] | `docs/dependency-security-rollback.md` covers clean backend environments, paired frontend manifest/lockfile rollback, immutable image digests, scanner rollback, vulnerability exceptions, schema compatibility, staging, and audit evidence; frontend image builds now use `npm ci` |
 
 ## Phase 4 — Runtime Polish [P2]
 
 | ID | Task | Status | Acceptance |
 |----|------|--------|------------|
-| Q11-40 | Investigate known Vite ResizeObserver E2E warning | [ ] | Either suppressed safely in test harness or documented as harmless with evidence |
-| Q11-41 | Review frontend bundle warning | [ ] | Known Ant Design circular chunk warning has explicit decision: accepted, split, or tracked |
-| Q11-42 | Android Docker worker connectivity rehearsal | [ ] | ADB over TCP path verified or documented with host-network constraints |
+| Q11-40 | Investigate known Vite ResizeObserver E2E warning | [x] | Root cause was Ant Design Vue measuring an empty CaseList table with horizontal scroll; `scroll.x` is now enabled only when rows exist, the shared e2e fixture now fails any spec on unexpected uncaught page errors (with ResizeObserver noise allowlisted), and full E2E runs without the warning |
+| Q11-41 | Review frontend bundle warning | [x] | `docs/frontend-bundle-decision.md` records the Ant/icons split decision and rejected merge experiment; mobile report pages now use modular ECharts imports, reducing the ECharts chunk from 1126.62/374.44 gzip kB to 563.41/191.53 kB with no build warning |
+| Q11-42 | Android Docker worker connectivity rehearsal | [x] | `docs/android-worker-connectivity-rehearsal.md` records worker ADB and Docker Desktop host-server evidence, direct/shared topologies, 5037 vs device/Flower 5555, Linux/Desktop/Kubernetes constraints, safe doctor flags, and the remaining physical-device data-plane step |
 
 ## Next Action
 
-Continue Q11-22: add one smoke component test for a system page.
+Q11 roadmap complete. Archive acceptance evidence and continue with the next optimization roadmap.

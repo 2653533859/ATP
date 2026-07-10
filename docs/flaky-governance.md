@@ -49,7 +49,7 @@ Do not mark tests flaky for assertion mismatches, data races introduced by appli
 
 No test is currently marked `flaky`.
 
-The full Playwright E2E run may log a Vite client `ResizeObserver loop completed with undelivered notifications` warning while still passing. This is tracked as test-environment noise, not a flaky assertion, and does not currently require a marker.
+The former CaseList `ResizeObserver loop completed with undelivered notifications` warning was resolved in Q11-40 by disabling horizontal table scroll while the table is empty. `case-list.spec.ts` now rejects that exact page error, so recurrence is a regression rather than accepted flaky noise.
 
 ## Commands
 

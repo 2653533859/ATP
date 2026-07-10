@@ -78,3 +78,5 @@ When adding or changing a worker task:
 - Split suite/plan execution orchestration out of `worker/tasks.py` into service helpers before adding richer cancellation or stale-running recovery.
 - Add task/run correlation metadata for timeout signals if automatic stale-running recovery becomes necessary.
 - Consider a dedicated `cancelled` state only after API, worker, and reporting semantics are designed together.
+
+Scheduled plan incident triage and controlled recovery are documented in `docs/scheduled-plan-incident-drill.md`.

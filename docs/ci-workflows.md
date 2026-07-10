@@ -10,8 +10,8 @@
     同一 job 也运行 `python -m mypy` 与 `python -m bandit -c pyproject.toml -r backend/app -ll`。
   - `Empty database migration`：启动干净 PostgreSQL 16，执行 `cd backend && alembic upgrade head`。
   - `Backend pytest`：启动 PostgreSQL 16 + Redis 7，运行后端主回归并产出覆盖率 XML：`python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=52`。
-  - `Frontend type-check + build`：运行 `npm ci`、`npm run test`、`npm run type-check`、`npm run build`。
-- **Artifacts**：`Backend pytest` 上传 `coverage.xml` 为 `backend-coverage-xml`。
+  - `Frontend type-check + build`：运行 `npm ci`、`npm run test:coverage`、`npm run type-check`、`npm run build`；前端门禁为 statements `4.1%`、branches `4.55%`、functions `2.7%`、lines `4.35%`（定义在 `frontend/vitest.config.ts`，调整规则见 `docs/coverage-baseline-2026-q12.md`）。
+- **Artifacts**：`Backend pytest` 上传 `coverage.xml` 为 `backend-coverage-xml`；前端 job 上传 `frontend/coverage` 为 `frontend-coverage-report`。
 - **依赖服务**：PostgreSQL、Redis；MinIO 相关能力在主 CI 里通过测试 stub 覆盖，真实 MinIO 放在 integration workflow。
 - **常见排查**：
   - 迁移失败：先本地执行 `make infra-up && make migrate`，检查新增迁移的 `down_revision`、枚举、索引和约束是否能从空库创建。
@@ -22,7 +22,7 @@
   - 依赖漏洞扫描：先运行 `make security-pip-audit PYTHON=backend/.venv/bin/python` 与 `make security-npm-audit`。当前 pip/npm 依赖扫描已清零，后续可接入 high/critical 阻断型 CI。
   - 后端测试失败：确认失败用例是否属于真实基础设施测试；integration 用例应放在 `backend/tests/integration` 并带 `integration` marker。
   - 覆盖率失败：先运行 `make test-backend-coverage PYTHON=backend/.venv/bin/python`，确认总覆盖率不低于当前 52% 门槛。
-  - 前端单测失败：先运行 `cd frontend && npm run test`，当前 Vitest 覆盖 auth store、权限工具和 WebSocket 封装。
+  - 前端单测或覆盖率失败：先运行 `cd frontend && npm run test:coverage`，当前门禁用于防止已覆盖切片回退，后续随 Q12 测试增长逐步提高。
   - 前端构建失败：先运行 `cd frontend && npm run type-check` 定位 TypeScript 错误，再运行 `npm run build` 验证产物。
 
 ## `test-integration.yml` — 真实基础设施集成测试
@@ -57,12 +57,12 @@
 - **触发**：手动 `workflow_dispatch`；每日 UTC 19:37 定时。
 - **Jobs**：
   - `Docker image build checks`：构建 backend、worker、frontend 镜像，并用 worker 镜像执行 `k6 version`。
-  - `Release checklist contract`：检查 `docs/q9-release-checklist.md` 中仍包含迁移、Helm 和 performance 相关发布检查项。
+  - `Release checklist contract`：运行 `backend/tests/worker/test_q9_release_readiness.py`（契约字符串的唯一定义处），验证 `docs/q9-release-checklist.md` 仍覆盖迁移、Helm、lint、mypy、覆盖率、安全扫描、integration、E2E 和 SLO JSON 校验项。
 - **依赖服务**：无外部服务；依赖 Docker build 上下文和 Dockerfile。
 - **常见排查**：
   - 镜像构建失败：先本地执行 `docker build -t atp-backend:local backend/` 或对应 frontend / worker build。
   - worker k6 检查失败：确认 `backend/Dockerfile.worker` 中仍安装并暴露 k6。
-  - checklist contract 失败：确认发布清单没有误删迁移、Helm 或性能压测相关步骤。
+  - checklist contract 失败：运行 `python -m pytest backend/tests/worker/test_q9_release_readiness.py -q` 复现，确认发布清单没有误删迁移、Helm 或质量门禁相关步骤。
 
 ## `security.yml` — 安全扫描
 
