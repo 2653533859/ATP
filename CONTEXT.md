@@ -456,6 +456,7 @@ Q1-Q11 路线图内功能项已完成。当前进入 Q12 持续质量优化：
 - Q13-01 补切片续：android/android_lowcode 执行器单元缝（fake _adb_cmd 动作分发 + run_android_case 守卫），15%→53% / 12%→23%，后端 TOTAL 70.23%、1059 passed。至此九个执行器全部覆盖。
 - 后端覆盖延伸：数据驱动补 environments API（此前 0% 的完整未测 API），0%→100%，TOTAL 70.92%、1070 passed、门禁 62→66。
 - 后端覆盖延伸续：WebSocket 端点 ws.py（实时执行推送，含 run 订阅授权阶梯）0%→89%，TOTAL 71.62%、1085 passed。两个最大 0% 模块均已覆盖。
+- 后端覆盖延伸：mobile_special collectors（Android 专项指标采样核心）0%→92%，TOTAL 72.26%、1095 passed。SamplingSession/PeriodicSampler 采样编排与校验器全覆盖。
 - 下一项：Q12-03 依赖弃用提示收敛。
 
 ---
