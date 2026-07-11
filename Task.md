@@ -718,4 +718,4 @@
 - [ ] Q14-03 前端工作台挂载测试：CaseList/RunDetail/SuiteList/DashboardView/PlanList 组件级挂载测试；前端 statements ≥12%
 - [x] Q14-04 按项目保留天数真实清理：override 项目按各自截止时间清理四种 run 类型，全局兜底排除 override 项目；预览补齐 test/mobile 按项目统计；run_retention 78→90%
 - [x] Q14-05 Gitleaks pre-commit 本地钩子：官方钩子 v8.24.3 接入 `.pre-commit-config.yaml` 复用 `.gitleaks.toml`；Makefile 门禁漂移已在 Q14-01 一并修复（52→70）
-- [ ] Q14-06 Q13 验收总结：`docs/q13-acceptance-summary.md`（六个工作项 + 覆盖延伸 53→74% + 3 个生产 bug + 前端 4.38→8.51%）
+- [x] Q14-06 Q13 验收总结：`docs/q13-acceptance-summary.md` 已发布（六个工作项 + 覆盖延伸 53→74-75% + 四个生产 bug + 前端 4.38→8.51%）
