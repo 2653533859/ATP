@@ -94,7 +94,7 @@ async def create_variable(
     encrypted_value = encrypt(body.value_encrypted)
 
     var = GlobalVariable(
-        **body.model_dump(),
+        **body.model_dump(exclude={"value_encrypted", "created_by"}),
         value_encrypted=encrypted_value,
         created_by=current_user.id,
     )
