@@ -10,6 +10,14 @@ repos:
       - id: end-of-file-fixer
       - id: trailing-whitespace
 
+  # 本地密钥扫描：与 CI 的 gitleaks-action 同源，自动复用仓库根 .gitleaks.toml 允许清单。
+  # 安装：pre-commit install 后首次运行由 pre-commit 用 go 工具链构建 gitleaks（需本机 go；
+  # 无 go 时可 brew install gitleaks 并将本条改为 local system 钩子 entry: gitleaks protect --staged）。
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.24.3
+    hooks:
+      - id: gitleaks
+
   - repo: local
     hooks:
       - id: backend-ruff-check
