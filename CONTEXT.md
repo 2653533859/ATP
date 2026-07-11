@@ -3,7 +3,7 @@
 > 本文档用于在新会话中快速恢复开发上下文，包含架构决策、已完成功能、关键代码位置、待续任务等。
 
 **生成时间**: 2026-03-03
-**最近同步**: 2026-07-09
+**最近同步**: 2026-07-11
 **项目路径**: `/Users/parado/MyProject/ATP`
 **参考文档**: `PRD.md`（需求文档）、`Task.md`（任务跟踪）
 
@@ -412,7 +412,7 @@ docker compose up -d --build
 
 ## 12. 下一步建议
 
-Q1-Q11 路线图内功能项已完成。当前进入 Q12 持续质量优化：
+Q1-Q12 路线图内功能项已完成。Q13 本地项已全部完成，覆盖延伸持续推进：
 
 - Q11-02：已完成本地主矩阵复跑、GitHub runner 证据归档，以及 Security / Trivy / Gitleaks / typing 后续修复。
 - Q11-10：已校准 API availability / P95 预生产窗口与目标，并把观测窗口、目标依据、暂缓项同步到 `docs/slo-guide.md`。
@@ -461,7 +461,7 @@ Q1-Q11 路线图内功能项已完成。当前进入 Q12 持续质量优化：
 - backend coverage extension: bug_trackers API (config encrypt/mask + keep-secret-on-masked-update + test-connection) 55 -> 75%, TOTAL 73.76%, 1138 passed; the bug-report subsystem (service + API) is now covered end to end.
 - backend coverage extension: projects API (permission-system root, incl. member management + last-owner protection) 41 -> 79%, TOTAL 73.41%, 1125 passed.
 - 后端覆盖延伸续：mobile_special 调度分发 tasks_mobile_special.py（executor 路由/调度/清理）26%→97%，TOTAL 72.87%、1110 passed。mobile-special 垂直全链路均已覆盖。
-- 下一项：Q12-03 依赖弃用提示收敛。
+- 下一项：仅剩 Q13-00（Q12-05 生产 SLO 历史 + Android 真机演练采集）待外部环境；可选延续为低覆盖模块延伸（android_executor 23%、web_lowcode_executor 51%）或 Q14 规划。
 
 ---
 
