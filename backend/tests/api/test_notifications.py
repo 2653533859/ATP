@@ -200,3 +200,157 @@ def test_update_notification_preserves_masked_sensitive_fields_without_double_en
     assert result.config["webhook_url"] == "enc:https://qy.example/hook"
     assert result.config["secret"] == "enc:top-secret"
     assert result.config["keyword"] == "release"
+
+
+# ── Q14-02 路由清扫：create/list/get/delete + 掩码 + 审计 ───
+
+from datetime import datetime, timezone  # noqa: E402
+
+from app.models.bootstrap import load_all_models  # noqa: E402
+
+load_all_models()
+
+_NOW = datetime(2026, 7, 11, tzinfo=timezone.utc)
+
+
+class _ListDB(_FakeDB):
+    """execute 返回脚本化行，供 list_notifications 使用。"""
+
+    def __init__(self, rows=None, **kw):
+        super().__init__(**kw)
+        self._rows = rows or []
+        self.deleted = []
+
+    async def execute(self, _stmt):
+        rows = self._rows
+
+        class _Scalars:
+            def all(self):
+                return rows
+
+        class _Result:
+            def scalars(self):
+                return _Scalars()
+
+        return _Result()
+
+    async def delete(self, obj):
+        self.deleted.append(obj)
+
+
+@pytest.fixture()
+def audit(monkeypatch):
+    calls = []
+
+    async def fake_audit(_db, **kw):
+        calls.append(kw)
+
+    monkeypatch.setattr(notifications, "write_audit_log", fake_audit)
+    monkeypatch.setattr(notifications, "encrypt_config", lambda c: {k: f"enc:{v}" for k, v in c.items()})
+    return calls
+
+
+def test_create_notification_encrypts_and_audits(audit):
+    body = notifications.NotificationConfigCreate(
+        name="Ops Bot",
+        project_id=1,
+        channel=NotifyChannel.wechat,
+        config={"webhook_url": "https://qy.example"},
+        is_enabled=True,
+    )
+    db = _FakeDB(project=_FakeProject(1))
+
+    result = asyncio.run(notifications.create_notification(body=body, db=db, user=types.SimpleNamespace(id=9, username="amy")))
+
+    assert result.config == {"webhook_url": "enc:https://qy.example"}  # 存前加密
+    assert db.added and db.added[0] is result
+    assert audit[0]["action"] == "notification_config_create"
+
+
+def test_list_notifications_masks_sensitive_config(monkeypatch):
+    monkeypatch.setattr(notifications, "mask_config", lambda c: {k: "******" for k in c})
+    cfg = _FakeNotificationConfig(
+        id=1, name="n", project_id=5, channel=NotifyChannel.wechat, config={"webhook_url": "x"},
+        is_enabled=True, created_at=_NOW, updated_at=_NOW,
+    )
+    db = _ListDB(rows=[cfg])
+
+    out = asyncio.run(notifications.list_notifications(project_id=5, db=db, user=types.SimpleNamespace(id=9)))
+    assert out[0]["config"] == {"webhook_url": "******"}
+
+    # project_id=None 分支：不做访问校验，仍返回
+    out2 = asyncio.run(notifications.list_notifications(project_id=None, db=db, user=types.SimpleNamespace(id=9)))
+    assert len(out2) == 1
+
+
+def test_get_notification_404_and_masked(monkeypatch):
+    monkeypatch.setattr(notifications, "mask_config", lambda c: {k: "******" for k in c})
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(notifications.get_notification(cfg_id=404, db=_FakeDB(cfg=None), user=types.SimpleNamespace(id=9)))
+    assert exc.value.status_code == 404
+
+    cfg = _FakeNotificationConfig(
+        id=3, name="n", project_id=5, channel=NotifyChannel.wechat, config={"secret": "x"},
+        is_enabled=True, created_at=_NOW, updated_at=_NOW,
+    )
+    out = asyncio.run(notifications.get_notification(cfg_id=3, db=_FakeDB(cfg=cfg), user=types.SimpleNamespace(id=9)))
+    assert out["config"] == {"secret": "******"}
+
+
+def test_update_notification_404():
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            notifications.update_notification(
+                cfg_id=404,
+                body=notifications.NotificationConfigUpdate(name="x"),
+                db=_FakeDB(cfg=None),
+                user=types.SimpleNamespace(id=9),
+            )
+        )
+    assert exc.value.status_code == 404
+
+
+def test_update_notification_non_config_field_audits(audit):
+    cfg = _FakeNotificationConfig(
+        id=5, name="old", project_id=2, channel=NotifyChannel.dingtalk, config={}, is_enabled=True,
+    )
+    db = _FakeDB(cfg=cfg)
+
+    result = asyncio.run(
+        notifications.update_notification(
+            cfg_id=5,
+            body=notifications.NotificationConfigUpdate(name="new", is_enabled=False),
+            db=db,
+            user=types.SimpleNamespace(id=9, username="amy"),
+        )
+    )
+    assert result.name == "new" and result.is_enabled is False
+    assert audit[0]["action"] == "notification_config_update"
+
+
+def test_delete_notification_404_and_happy(audit):
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(notifications.delete_notification(cfg_id=404, db=_FakeDB(cfg=None), user=types.SimpleNamespace(id=9)))
+    assert exc.value.status_code == 404
+
+    cfg = _FakeNotificationConfig(id=6, name="bye", project_id=2, channel=NotifyChannel.email, config={})
+    db = _ListDB(cfg=cfg)
+    asyncio.run(notifications.delete_notification(cfg_id=6, db=db, user=types.SimpleNamespace(id=9, username="amy")))
+    assert db.deleted == [cfg]
+    assert audit[0]["action"] == "notification_config_delete"
+
+
+def test_test_notification_dingtalk_dispatch(monkeypatch):
+    called = {}
+
+    async def fake_dingtalk(config, summary):
+        called["config"] = config
+
+    monkeypatch.setattr(notifications, "decrypt_config", lambda c: {"webhook_url": "plain", "language": "en-US"})
+    sys.modules["app.services.notifier"] = types.SimpleNamespace(
+        _send_email=None, _send_wechat=None, _send_dingtalk=fake_dingtalk
+    )
+    cfg = _FakeNotificationConfig(id=9, project_id=1, channel=NotifyChannel.dingtalk, config={"webhook_url": "c"})
+
+    result = asyncio.run(notifications.test_notification(cfg_id=9, db=_FakeDB(cfg=cfg), user=None))
+    assert result["message"] and called["config"]["language"] == "en-US"
