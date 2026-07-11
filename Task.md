@@ -696,6 +696,7 @@
 - [x] Q13-01 补切片（web 家族执行器）：`test_web_executor.py`（8 项，fake subprocess.run 写 json-report + MinIO 边界，覆盖脚本缺失/超时/无测试/多步映射/截图上传/浏览器回退/healing hook）+ `test_web_lowcode_executor.py`（8 项，fake Page 记录动作分发 goto/click/fill/assert/press/wait/screenshot/unknown + 变量替换递归）。web_executor 13%→84%、web_lowcode 15%→51%，后端 TOTAL 67.76%→69.29%（1045 passed）；两文件加 minio 符号导入保护，免疫跨文件 stub 污染。
 - [x] Q13-01 补切片（android 家族执行器）：扩充 `test_android_lowcode_executor.py`（+11 项，fake `_adb_cmd` 覆盖 click/long_click/swipe(方向+坐标)/input(转义+clear)/press_key(命名+原样)/start_app/stop_app/assert_text/assert_element/wait/screenshot/未知动作 + 变量递归替换）与 `test_android_executor.py`（+3 项，run_android_case 的脚本缺失/设备缺失/设备不可达三个前置守卫）。android_lowcode 15%→53%、android_executor 12%→23%，**后端 TOTAL 69.29%→70.23%，九个执行器全部有行为覆盖**（1059 passed）。
 - [x] 后端覆盖延伸（environments API）：数据驱动挑最大 0% 模块——`test_environments_routes.py`（11 项，list/create/update/delete 环境 + 变量读取掩码 + 批量保存的删/插/密钥加密，含 404 与项目访问角色断言、重复 key 校验）。`api/v1/environments.py` 0%→100%，后端 TOTAL 70.23%→70.92%（1070 passed），CI 门禁 62%→66%。
+- [x] 后端覆盖延伸（WebSocket 端点）：`test_ws_routes.py`（15 项，fake session/redis/WebSocket）——token 校验（缺失/非法/非 access 类型/用户缺失或禁用/有效）、run 订阅授权阶梯全五档（admin/触发者/用例创建者/项目成员/项目 owner + 各拒绝分支）、握手（未授权 1008/禁止 1008/accept）→pubsub 转发→收到 completed 主动关闭 + finally 清理。`api/v1/ws.py` 0%→89%，后端 TOTAL 70.92%→71.62%（1085 passed）。两个最大的 0% 模块（environments/ws）均已覆盖。
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
 当前路线图：`docs/optimization-roadmap-2026-q12.md`。下一项为 Q12-02，先覆盖登录认证，再推进用例执行、计划调度和报告流程。

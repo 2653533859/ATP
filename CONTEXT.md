@@ -455,6 +455,7 @@ Q1-Q11 路线图内功能项已完成。当前进入 Q12 持续质量优化：
 - Q13-01 补切片：web/web_lowcode 执行器单元缝（fake subprocess+Playwright Page 边界），13%→84% / 15%→51%，后端 TOTAL 69.29%、1045 passed。浏览器家族核心执行路径此前几乎零覆盖，现补上主干与异常分支。
 - Q13-01 补切片续：android/android_lowcode 执行器单元缝（fake _adb_cmd 动作分发 + run_android_case 守卫），15%→53% / 12%→23%，后端 TOTAL 70.23%、1059 passed。至此九个执行器全部覆盖。
 - 后端覆盖延伸：数据驱动补 environments API（此前 0% 的完整未测 API），0%→100%，TOTAL 70.92%、1070 passed、门禁 62→66。
+- 后端覆盖延伸续：WebSocket 端点 ws.py（实时执行推送，含 run 订阅授权阶梯）0%→89%，TOTAL 71.62%、1085 passed。两个最大 0% 模块均已覆盖。
 - 下一项：Q12-03 依赖弃用提示收敛。
 
 ---
