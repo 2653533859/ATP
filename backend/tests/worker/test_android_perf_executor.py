@@ -186,3 +186,204 @@ class _FakeRun:
         self.status = None
         self.duration_ms = None
         self.summary_json = None
+
+
+# ── run_mobile_special_perf 主执行链（可控时钟 + fake 采样/上传边界）──
+
+import asyncio  # noqa: E402
+
+from app.models.bootstrap import load_all_models  # noqa: E402
+from app.models.mobile_special import RunStatus  # noqa: E402
+
+load_all_models()
+
+
+class _RecordingDB:
+    def __init__(self):
+        self.added = []
+        self.commits = 0
+
+    def add(self, obj):
+        self.added.append(obj)
+
+    async def commit(self):
+        self.commits += 1
+
+
+@pytest.fixture()
+def chain_events(monkeypatch):
+    recorded = []
+
+    async def publish(run_id, payload):
+        recorded.append(payload)
+
+    monkeypatch.setattr(android_perf_executor, "_safe_publish", publish)
+    return recorded
+
+
+@pytest.fixture()
+def fast_clock(monkeypatch):
+    """time/asyncio 代理：sleep 推进假时钟，避免真实等待。"""
+    state = {"now": 0.0}
+
+    async def fake_sleep(secs):
+        state["now"] += secs
+
+    time_proxy = types.SimpleNamespace(monotonic=lambda: state["now"])
+    asyncio_proxy = types.SimpleNamespace(
+        sleep=fake_sleep,
+        get_event_loop=asyncio.get_event_loop,
+        wait_for=asyncio.wait_for,
+        subprocess=asyncio.subprocess,
+    )
+    monkeypatch.setattr(android_perf_executor, "time", time_proxy)
+    monkeypatch.setattr(android_perf_executor, "asyncio", asyncio_proxy)
+    return state
+
+
+@pytest.fixture()
+def quiet_heartbeat(monkeypatch):
+    class _HB:
+        def __init__(self, serial, on_lost=None, executor_label=None):
+            self.on_lost = on_lost
+            self.lost = False
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc):
+            return False
+
+    monkeypatch.setattr(android_perf_executor, "HeartbeatMonitor", _HB)
+    return _HB
+
+
+def test_perf_run_fails_on_validation_error(chain_events):
+    run = _FakeRun(device_serial="emu-5554", app_package=None, duration_seconds=60)
+
+    asyncio.run(android_perf_executor.run_mobile_special_perf(_RecordingDB(), run))
+
+    assert run.status is RunStatus.failed
+    assert "app_package" in run.summary_json["error_message"]
+    assert chain_events[-1]["status"] == "failed"
+
+
+def test_perf_run_fails_when_device_unreachable(monkeypatch, chain_events):
+    monkeypatch.setattr(android_perf_executor, "_check_device_reachable", lambda s, timeout=10: (False, "offline"))
+    run = _FakeRun(device_serial="emu-5554", app_package="com.example.app", duration_seconds=60)
+
+    asyncio.run(android_perf_executor.run_mobile_special_perf(_RecordingDB(), run))
+
+    assert run.status is RunStatus.failed
+    assert "设备不可达" in run.summary_json["error_message"]
+
+
+def test_perf_run_samples_and_uploads_csv(monkeypatch, chain_events, fast_clock, quiet_heartbeat):
+    monkeypatch.setattr(android_perf_executor, "_check_device_reachable", lambda s, timeout=10: (True, "在线"))
+    sample_batches = iter(
+        [
+            [
+                {"metric_type": "cpu_pct", "metric_value": 30.0, "source": "top"},
+                {"metric_type": "mem_mb", "metric_value": 200.0, "source": "meminfo"},
+            ],
+            [
+                {"metric_type": "cpu_pct", "metric_value": 50.0, "source": "top"},
+            ],
+        ]
+    )
+
+    async def fake_sample_once(serial, package):
+        return next(sample_batches, [])
+
+    monkeypatch.setattr(android_perf_executor, "_sample_once", fake_sample_once)
+    uploads = []
+    monkeypatch.setattr(android_perf_executor, "upload_file", lambda name, content, ct: uploads.append(name))
+
+    db = _RecordingDB()
+    run = _FakeRun(device_serial="emu-5554", app_package="com.example.app", duration_seconds=2)
+
+    asyncio.run(android_perf_executor.run_mobile_special_perf(db, run))
+
+    assert run.status is RunStatus.completed
+    assert run.summary_json["avg_cpu_pct"] == 40.0
+    assert run.summary_json["peak_cpu_pct"] == 50.0
+    assert run.summary_json["_sample_counts"] == {"cpu_pct": 2, "mem_mb": 1}
+    # 3 条 MobileMetricSample + 1 条 CSV artifact
+    assert len(db.added) == 4
+    assert uploads == ["mobile-special/runs/1/metrics.csv"]
+    artifact = db.added[-1]
+    assert artifact.file_path == "mobile-special/runs/1/metrics.csv"
+    types_seen = [e["type"] for e in chain_events]
+    assert types_seen[0] == "started" and types_seen[-1] == "completed"
+    assert types_seen.count("sampling") == 2
+
+
+def test_perf_run_swallows_csv_upload_failure(monkeypatch, chain_events, fast_clock, quiet_heartbeat):
+    monkeypatch.setattr(android_perf_executor, "_check_device_reachable", lambda s, timeout=10: (True, "在线"))
+
+    async def fake_sample_once(serial, package):
+        return [{"metric_type": "cpu_pct", "metric_value": 10.0, "source": "top"}]
+
+    monkeypatch.setattr(android_perf_executor, "_sample_once", fake_sample_once)
+
+    def broken_upload(name, content, ct):
+        raise RuntimeError("minio down")
+
+    monkeypatch.setattr(android_perf_executor, "upload_file", broken_upload)
+
+    db = _RecordingDB()
+    run = _FakeRun(device_serial="emu-5554", app_package="com.example.app", duration_seconds=1)
+
+    asyncio.run(android_perf_executor.run_mobile_special_perf(db, run))
+
+    assert run.status is RunStatus.completed  # 上传失败不影响 run 完成
+    # 只有 MobileMetricSample，没有 artifact 行
+    assert all(type(o).__name__ != "MobileRunArtifact" for o in db.added)
+
+
+def test_sample_once_routes_raw_to_parsers(monkeypatch):
+    raws = {"cpu": "RAW_CPU", "mem": "RAW_MEM", "battery": None}
+
+    monkeypatch.setattr(android_perf_executor, "build_cpuinfo_cmd", lambda s, p: "cpu")
+    monkeypatch.setattr(android_perf_executor, "build_meminfo_cmd", lambda s, p: "mem")
+    monkeypatch.setattr(android_perf_executor, "build_batterystats_cmd", lambda s, p: "battery")
+    monkeypatch.setattr(android_perf_executor, "run_adb_shell", lambda serial, cmd, timeout=10: raws[cmd])
+    monkeypatch.setattr(
+        android_perf_executor, "parse_cpuinfo", lambda raw, p: {"metric_type": "cpu_pct", "metric_value": 12.0}
+    )
+    monkeypatch.setattr(
+        android_perf_executor, "parse_meminfo", lambda raw, p: {"metric_type": "mem_mb", "metric_value": 128.0}
+    )
+    monkeypatch.setattr(android_perf_executor, "parse_batterystats", lambda raw, p: {"metric_type": "battery_pct"})
+
+    samples = asyncio.run(android_perf_executor._sample_once("emu-5554", "com.example.app"))
+
+    # battery raw 为 None → 跳过；cpu/mem 带 sample_time
+    assert [s["metric_type"] for s in samples] == ["cpu_pct", "mem_mb"]
+    assert all("sample_time" in s for s in samples)
+
+
+def test_resolve_pid_parses_output(monkeypatch):
+    monkeypatch.setattr(android_perf_executor, "build_pidof_cmd", lambda s, p: "pidof")
+    monkeypatch.setattr(android_perf_executor, "run_adb_shell", lambda serial, cmd, timeout=5: "12345\n")
+    monkeypatch.setattr(android_perf_executor, "parse_pid", lambda raw: 12345)
+
+    assert android_perf_executor._resolve_pid("emu-5554", "com.example.app") == 12345
+
+    monkeypatch.setattr(android_perf_executor, "run_adb_shell", lambda serial, cmd, timeout=5: None)
+    assert android_perf_executor._resolve_pid("emu-5554", "com.example.app") is None
+
+
+def test_start_app_uses_safe_run_adb(monkeypatch):
+    seen = {}
+
+    def fake_safe_run(serial, args, timeout=15, retries=1):
+        seen["args"] = args
+        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+
+    monkeypatch.setattr(android_perf_executor, "safe_run_adb", fake_safe_run)
+    assert android_perf_executor._start_app("emu-5554", "com.example.app") is True
+    assert seen["args"][:3] == ["shell", "am", "start"]
+
+    monkeypatch.setattr(android_perf_executor, "safe_run_adb", lambda *a, **kw: None)
+    assert android_perf_executor._start_app("emu-5554", "com.example.app") is False
