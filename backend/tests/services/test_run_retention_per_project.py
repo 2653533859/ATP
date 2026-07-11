@@ -137,5 +137,7 @@ def test_preview_old_runs_by_project_returns_global_and_projects(monkeypatch):
     assert alpha["retention_days"] == 14
     assert alpha["plan_runs"] == 3
     assert alpha["suite_runs"] == 3
-    # 每项目两次 count 查询（plan + suite）
-    assert len(calls["project_queries"]) == 4
+    assert alpha["test_runs"] == 3 and alpha["mobile_runs"] == 3  # 不再是全局兜底 note
+    assert "note" not in alpha
+    # 每项目四次 count 查询（plan + suite + test + mobile）
+    assert len(calls["project_queries"]) == 8

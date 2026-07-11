@@ -159,109 +159,147 @@ def preview_old_runs(session: Session, days: int, batch_size: int = 500) -> dict
     }
 
 
-def _cleanup_test_runs(session: Session, cutoff: datetime, batch_size: int) -> dict[str, int]:
-    from app.models.case import TestRun
+def _plan_run_ids_stmt(cutoff: datetime, project_id: int | None = None, exclude_project_ids: list[int] | None = None):
+    from app.models.plan import PlanRun, TestPlan
 
-    terminal_statuses = _terminal_test_run_statuses()
+    stmt = select(PlanRun.id).where(PlanRun.status.in_(_terminal_plan_run_statuses()), PlanRun.created_at < cutoff)
+    if project_id is not None or exclude_project_ids:
+        stmt = stmt.join(TestPlan, TestPlan.id == PlanRun.plan_id)
+        if project_id is not None:
+            stmt = stmt.where(TestPlan.project_id == project_id)
+        else:
+            stmt = stmt.where(TestPlan.project_id.not_in(exclude_project_ids))
+    return stmt.order_by(PlanRun.id.asc())
+
+
+def _suite_run_ids_stmt(cutoff: datetime, project_id: int | None = None, exclude_project_ids: list[int] | None = None):
+    from app.models.suite import SuiteRun, TestSuite
+
+    stmt = select(SuiteRun.id).where(SuiteRun.status.in_(_terminal_suite_run_statuses()), SuiteRun.created_at < cutoff)
+    if project_id is not None or exclude_project_ids:
+        stmt = stmt.join(TestSuite, TestSuite.id == SuiteRun.suite_id)
+        if project_id is not None:
+            stmt = stmt.where(TestSuite.project_id == project_id)
+        else:
+            stmt = stmt.where(TestSuite.project_id.not_in(exclude_project_ids))
+    return stmt.order_by(SuiteRun.id.asc())
+
+
+def _test_run_ids_stmt(cutoff: datetime, project_id: int | None = None, exclude_project_ids: list[int] | None = None):
+    from app.models.case import TestCase, TestRun
+    from app.models.project import Module
+
+    stmt = select(TestRun.id).where(TestRun.status.in_(_terminal_test_run_statuses()), TestRun.created_at < cutoff)
+    if project_id is not None or exclude_project_ids:
+        stmt = stmt.join(TestCase, TestCase.id == TestRun.case_id).join(Module, Module.id == TestCase.module_id)
+        if project_id is not None:
+            stmt = stmt.where(Module.project_id == project_id)
+        else:
+            stmt = stmt.where(Module.project_id.not_in(exclude_project_ids))
+    return stmt.order_by(TestRun.id.asc())
+
+
+def _mobile_run_ids_stmt(
+    cutoff: datetime, project_id: int | None = None, exclude_project_ids: list[int] | None = None
+):
+    from app.models.mobile_special import MobileSpecialRun, MobileSpecialTask
+
+    stmt = select(MobileSpecialRun.id).where(
+        MobileSpecialRun.status.in_(_terminal_mobile_run_statuses()), MobileSpecialRun.created_at < cutoff
+    )
+    if project_id is not None or exclude_project_ids:
+        stmt = stmt.join(MobileSpecialTask, MobileSpecialTask.id == MobileSpecialRun.task_id)
+        if project_id is not None:
+            stmt = stmt.where(MobileSpecialTask.project_id == project_id)
+        else:
+            stmt = stmt.where(MobileSpecialTask.project_id.not_in(exclude_project_ids))
+    return stmt.order_by(MobileSpecialRun.id.asc())
+
+
+def _batched_delete_runs(session: Session, model, ids_stmt, batch_size: int, collect_objects=None) -> tuple[int, int]:
+    """按批删除 ids_stmt 命中的运行记录；collect_objects 提供时先清理关联 MinIO 对象。"""
     deleted_runs = 0
     deleted_objects = 0
     while True:
-        rows = session.execute(
-            select(TestRun.id)
-            .where(TestRun.status.in_(terminal_statuses), TestRun.created_at < cutoff)
-            .order_by(TestRun.id.asc())
-            .limit(batch_size)
-        ).all()
+        rows = session.execute(ids_stmt.limit(batch_size)).all()
         ids = [row[0] for row in rows]
         if not ids:
             break
-        object_names = _collect_screenshot_objects(session, ids)
-        deleted_objects += _delete_minio_objects(object_names)
-        session.execute(delete(TestRun).where(TestRun.id.in_(ids)))
-        session.commit()
-        deleted_runs += len(ids)
-        if len(ids) < batch_size:
-            break
-    return {"runs": deleted_runs, "objects": deleted_objects}
-
-
-def _cleanup_simple_runs(
-    session: Session, model, status_field, terminal_statuses, cutoff: datetime, batch_size: int
-) -> int:
-    deleted = 0
-    while True:
-        rows = session.execute(
-            select(model.id)
-            .where(status_field.in_(terminal_statuses), model.created_at < cutoff)
-            .order_by(model.id.asc())
-            .limit(batch_size)
-        ).all()
-        ids = [row[0] for row in rows]
-        if not ids:
-            break
+        if collect_objects is not None:
+            deleted_objects += _delete_minio_objects(collect_objects(session, ids))
         session.execute(delete(model).where(model.id.in_(ids)))
         session.commit()
-        deleted += len(ids)
-        if len(ids) < batch_size:
-            break
-    return deleted
-
-
-def _cleanup_mobile_special_runs(session: Session, cutoff: datetime, batch_size: int) -> dict[str, int]:
-    from app.models.mobile_special import MobileSpecialRun
-
-    terminal_statuses = _terminal_mobile_run_statuses()
-    deleted_runs = 0
-    deleted_objects = 0
-    while True:
-        rows = session.execute(
-            select(MobileSpecialRun.id)
-            .where(MobileSpecialRun.status.in_(terminal_statuses), MobileSpecialRun.created_at < cutoff)
-            .order_by(MobileSpecialRun.id.asc())
-            .limit(batch_size)
-        ).all()
-        ids = [row[0] for row in rows]
-        if not ids:
-            break
-        object_names = _collect_mobile_run_artifact_objects(session, ids)
-        deleted_objects += _delete_minio_objects(object_names)
-        session.execute(delete(MobileSpecialRun).where(MobileSpecialRun.id.in_(ids)))
-        session.commit()
         deleted_runs += len(ids)
         if len(ids) < batch_size:
             break
-    return {"runs": deleted_runs, "objects": deleted_objects}
+    return deleted_runs, deleted_objects
 
 
-def execute_old_runs_cleanup(session: Session, days: int, batch_size: int = 500) -> dict:
+def _cleanup_scope(
+    session: Session,
+    cutoff: datetime,
+    batch_size: int,
+    *,
+    project_id: int | None = None,
+    exclude_project_ids: list[int] | None = None,
+) -> dict[str, int]:
+    """清理一个范围（单项目 / 全局排除 override 项目）内的四类终态运行。"""
+    from app.models.case import TestRun
+    from app.models.mobile_special import MobileSpecialRun
     from app.models.plan import PlanRun
     from app.models.suite import SuiteRun
 
-    cutoff = _cutoff(days)
+    scope = {"project_id": project_id, "exclude_project_ids": exclude_project_ids}
+    plan_runs, _ = _batched_delete_runs(session, PlanRun, _plan_run_ids_stmt(cutoff, **scope), batch_size)
+    suite_runs, _ = _batched_delete_runs(session, SuiteRun, _suite_run_ids_stmt(cutoff, **scope), batch_size)
+    test_runs, test_objects = _batched_delete_runs(
+        session, TestRun, _test_run_ids_stmt(cutoff, **scope), batch_size, collect_objects=_collect_screenshot_objects
+    )
+    mobile_runs, mobile_objects = _batched_delete_runs(
+        session,
+        MobileSpecialRun,
+        _mobile_run_ids_stmt(cutoff, **scope),
+        batch_size,
+        collect_objects=_collect_mobile_run_artifact_objects,
+    )
+    return {
+        "plan_runs": plan_runs,
+        "suite_runs": suite_runs,
+        "test_runs": test_runs,
+        "mobile_runs": mobile_runs,
+        "deleted_objects": test_objects + mobile_objects,
+    }
+
+
+def execute_old_runs_cleanup(session: Session, days: int, batch_size: int = 500) -> dict:
+    """真实清理：override 项目各按其保留天数清理，其余按全局天数清理（排除 override 项目）。"""
     batch_size = max(1, int(batch_size))
 
-    plan_deleted = _cleanup_simple_runs(
-        session, PlanRun, PlanRun.status, _terminal_plan_run_statuses(), cutoff, batch_size
-    )
-    suite_deleted = _cleanup_simple_runs(
-        session, SuiteRun, SuiteRun.status, _terminal_suite_run_statuses(), cutoff, batch_size
-    )
-    test_stats = _cleanup_test_runs(session, cutoff, batch_size)
-    mobile_stats = _cleanup_mobile_special_runs(session, cutoff, batch_size)
+    overrides = list_projects_with_retention_override(session)
+    override_ids = [pid for pid, _, _ in overrides]
+
+    totals = {"plan_runs": 0, "suite_runs": 0, "test_runs": 0, "mobile_runs": 0, "deleted_objects": 0}
+    per_project: list[dict] = []
+    for pid, name, project_days in overrides:
+        stats = _cleanup_scope(session, _cutoff(project_days), batch_size, project_id=pid)
+        per_project.append({"project_id": pid, "project_name": name, "retention_days": project_days, **stats})
+        for key in totals:
+            totals[key] += stats[key]
+
+    global_stats = _cleanup_scope(session, _cutoff(days), batch_size, exclude_project_ids=override_ids or None)
+    for key in totals:
+        totals[key] += global_stats[key]
 
     return {
-        "cutoff": cutoff,
+        "cutoff": _cutoff(days),
         "retention_days": days,
-        "plan_runs": plan_deleted,
-        "suite_runs": suite_deleted,
-        "test_runs": test_stats["runs"],
-        "mobile_runs": mobile_stats["runs"],
-        "deleted_objects": test_stats["objects"] + mobile_stats["objects"],
+        **totals,
+        "projects": per_project,
     }
 
 
 # ============================================================================
-# P1.4 项目维度保留天数（MVP：解析 + 按项目预览；清理任务仍按全局）
+# 项目维度保留天数（override 项目按其天数清理/预览，全局兜底排除 override 项目）
 # ============================================================================
 
 
@@ -299,7 +337,10 @@ def preview_old_runs_by_project(session: Session, global_days: int, batch_size: 
         ],
     }
     """
+    from app.models.case import TestCase, TestRun
+    from app.models.mobile_special import MobileSpecialRun, MobileSpecialTask
     from app.models.plan import PlanRun, TestPlan
+    from app.models.project import Module
     from app.models.suite import SuiteRun, TestSuite
 
     overrides = list_projects_with_retention_override(session)
@@ -332,6 +373,31 @@ def preview_old_runs_by_project(session: Session, global_days: int, batch_size: 
             ).scalar()
             or 0
         )
+        test_count = int(
+            session.execute(
+                select(func.count(TestRun.id))
+                .join(TestCase, TestCase.id == TestRun.case_id)
+                .join(Module, Module.id == TestCase.module_id)
+                .where(
+                    TestRun.status.in_(_terminal_test_run_statuses()),
+                    TestRun.created_at < cutoff,
+                    Module.project_id == pid,
+                )
+            ).scalar()
+            or 0
+        )
+        mobile_count = int(
+            session.execute(
+                select(func.count(MobileSpecialRun.id))
+                .join(MobileSpecialTask, MobileSpecialTask.id == MobileSpecialRun.task_id)
+                .where(
+                    MobileSpecialRun.status.in_(_terminal_mobile_run_statuses()),
+                    MobileSpecialRun.created_at < cutoff,
+                    MobileSpecialTask.project_id == pid,
+                )
+            ).scalar()
+            or 0
+        )
         project_previews.append(
             {
                 "project_id": pid,
@@ -339,8 +405,8 @@ def preview_old_runs_by_project(session: Session, global_days: int, batch_size: 
                 "retention_days": days,
                 "plan_runs": plan_count,
                 "suite_runs": suite_count,
-                # TestRun / MobileSpecialRun 跨多级 join 较重，留待真正按项目清理时再补
-                "note": "test_runs / mobile_runs 预览暂按全局统计，按项目过滤待后续迭代",
+                "test_runs": test_count,
+                "mobile_runs": mobile_count,
             }
         )
 
