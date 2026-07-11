@@ -90,7 +90,7 @@ test-backend:
 	$(PYTHON) -m pytest backend/tests -q --ignore=backend/tests/integration
 
 test-backend-coverage:
-	$(PYTHON) -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=term-missing:skip-covered --cov-report=xml --cov-fail-under=52
+	$(PYTHON) -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=term-missing:skip-covered --cov-report=xml --cov-fail-under=70
 
 test-integration:
 	ATP_INTEGRATION_TESTS=1 $(PYTHON) -m pytest backend/tests/integration -m integration -v --tb=short
