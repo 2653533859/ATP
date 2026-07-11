@@ -704,4 +704,18 @@
 - [x] backend coverage extension (projects API, permission-system root): test_projects_routes.py (15 tests) — project CRUD (creator auto-owner + auto code), module-tree build/nest/sort + module CRUD access checks, member list mapping, member add (404 missing user / 409 duplicate), role update, and the remove-member last-owner-block security invariant. api/v1/projects.py 41 -> 79%, backend TOTAL 72.87 -> 73.41% (1125 passed).
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
-当前路线图：`docs/optimization-roadmap-2026-q13.md`。Q13-01~06 全部本地项已完成，覆盖延伸切片（environments/ws/collectors/mobile-special dispatch/projects/bug_trackers/plans）也已收口；仅剩 Q13-00（Q12-05 生产 SLO 历史与物理真机采集）待环境。可选延续方向：继续低覆盖模块延伸（如 `android_executor` 23%、`web_lowcode_executor` 51%）或规划 Q14 路线图。
+当前路线图：`docs/optimization-roadmap-2026-q14.md`（2026-07-11 发布）。Q14 七项：Q14-00 承接 Q12-05 采集（待环境）、Q14-01 Android/ADB 执行器覆盖（TOTAL ≥78%、门禁 66→70）、Q14-02 API 路由覆盖扫尾（TOTAL ≥80%）、Q14-03 前端工作台挂载测试（statements ≥12%）、Q14-04 按项目保留天数真实清理、Q14-05 Gitleaks pre-commit 钩子、Q14-06 Q13 验收总结。首个动作：Q14-01 与 Q14-03 并行起步。
+
+---
+
+## Q14 — 覆盖固化与工程遗留收口
+
+> 实施计划：`docs/optimization-roadmap-2026-q14.md`（2026-07-11 编制）
+
+- [ ] Q14-00 承接 Q12-05：生产 SLO 7/14 天历史 + Android 真机演练采集，随后发布 `docs/q12-acceptance-summary.md`（待外部环境，随时插入）
+- [ ] Q14-01 Android/ADB 执行器覆盖：android_executor（async subprocess 编排缝）、stability/fluency/perf 执行器、web_lowcode_executor、adb_service；后端 TOTAL ≥78%、CI 门禁 66→70
+- [ ] Q14-02 API 路由覆盖扫尾：数据驱动挑选 suites/cases/runs/notifications/datasets 等中覆盖路由；TOTAL ≥80%
+- [ ] Q14-03 前端工作台挂载测试：CaseList/RunDetail/SuiteList/DashboardView/PlanList 组件级挂载测试；前端 statements ≥12%
+- [ ] Q14-04 按项目保留天数真实清理：execute_old_runs_cleanup / Celery / admin run 尊重 per-project override（四种 run 类型），补齐预览 test/mobile 按项目统计，加回归测试
+- [ ] Q14-05 Gitleaks pre-commit 本地钩子：接入 `.pre-commit-config.yaml` 复用 `.gitleaks.toml`；顺带修复 Makefile `--cov-fail-under=52` 与 CI 66 的漂移
+- [ ] Q14-06 Q13 验收总结：`docs/q13-acceptance-summary.md`（六个工作项 + 覆盖延伸 53→74% + 3 个生产 bug + 前端 4.38→8.51%）

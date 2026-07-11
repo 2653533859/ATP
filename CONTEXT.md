@@ -461,7 +461,7 @@ Q1-Q12 路线图内功能项已完成。Q13 本地项已全部完成，覆盖延
 - backend coverage extension: bug_trackers API (config encrypt/mask + keep-secret-on-masked-update + test-connection) 55 -> 75%, TOTAL 73.76%, 1138 passed; the bug-report subsystem (service + API) is now covered end to end.
 - backend coverage extension: projects API (permission-system root, incl. member management + last-owner protection) 41 -> 79%, TOTAL 73.41%, 1125 passed.
 - 后端覆盖延伸续：mobile_special 调度分发 tasks_mobile_special.py（executor 路由/调度/清理）26%→97%，TOTAL 72.87%、1110 passed。mobile-special 垂直全链路均已覆盖。
-- 下一项：仅剩 Q13-00（Q12-05 生产 SLO 历史 + Android 真机演练采集）待外部环境；可选延续为低覆盖模块延伸（android_executor 23%、web_lowcode_executor 51%）或 Q14 规划。
+- 下一项：Q14 路线图已发布（`docs/optimization-roadmap-2026-q14.md`，2026-07-11）——Q14-01 Android/ADB 执行器覆盖与 Q14-03 前端工作台挂载测试并行起步；Q14-04 retention 真实清理、Q14-05 gitleaks pre-commit、Q14-06 Q13 验收总结随后；Q14-00（Q12-05 采集）待环境随时插入。
 
 ---
 
