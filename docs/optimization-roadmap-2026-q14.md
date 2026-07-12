@@ -51,10 +51,10 @@ scraped deployment and a physical device are available.
 
 | ID | Work item | Acceptance criteria | Status |
 | --- | --- | --- | --- |
-| Q14-00 | Close Q12-05 captures + publish Q12/Q13 acceptance | When environment access arrives: dated `docs/slo-history-*.md` and `docs/android-device-rehearsal-*.md` per the frozen spec, then `docs/q12-acceptance-summary.md` | Blocked on environment (carried from Q13-00) |
+| Q14-00 | Close Q12-05 captures + publish Q12/Q13 acceptance | When environment access arrives: dated `docs/slo-history-*.md` and `docs/android-device-rehearsal-*.md` per the frozen spec, then `docs/q12-acceptance-summary.md` | Blocked on environment (carried from Q13-00); capture templates are ready in `docs/templates/`, and `make validate-q12-evidence` validates filled evidence before acceptance |
 | Q14-01 | Backend Android/ADB executor coverage | Behavioral seams for `android_executor`, `android_stability/fluency/perf_executor`, `web_lowcode_executor`, and `services/adb_service.py` following the Q13 fake-transport convention; backend TOTAL >= 78%, CI gate raised 66% -> 70% | Complete (android family 82-93%, adb_service 97%, web_lowcode 97%, android_lowcode 98%; TOTAL 81%, `1267 passed`, gate 70 in CI + Makefile) |
-| Q14-02 | Backend API-router coverage sweep | Data-driven pick of the largest mid-covered routers (suites / cases / runs / notifications / datasets); each records before/after in the baseline doc; TOTAL >= 80% | Not started |
-| Q14-03 | Frontend workbench mount tests | Mount tests (@vue/test-utils) for the highest-traffic workbench views (CaseList, RunDetail, SuiteList, DashboardView, PlanList) reaching frontend statements >= 12% | Not started |
+| Q14-02 | Backend API-router coverage sweep | Data-driven pick of the largest mid-covered routers (suites / cases / runs / notifications / datasets); each records before/after in the baseline doc; TOTAL >= 80% | Complete (`suites.py` 100%, `notifications.py` 99%, plus Q14 closeout for `ai_healing_stats.py`, `devices.py`, `healing_prompt_examples.py`; TOTAL 82.20%, `1310 passed`) |
+| Q14-03 | Frontend workbench mount tests | Mount tests (@vue/test-utils) for the highest-traffic workbench views (CaseList, RunDetail, SuiteList, DashboardView, PlanList) reaching frontend statements >= 12% | Complete (all five named views have mount tests; statements 21.48%, `102 passed`; Vitest gates raised to 20.5/17.5/16.5/21.0) |
 | Q14-04 | Per-project retention real cleanup | `execute_old_runs_cleanup` / Celery task / admin run honor per-project overrides for all four run types (plan/suite/test/mobile), close the line-342 test/mobile preview gap, add regression tests | Complete (override projects each cleaned at their own cutoff, global pass excludes them via per-type project joins; per-project preview now counts test/mobile runs too; execute result gains a `projects` breakdown; run_retention 78 -> 90%) |
 | Q14-05 | Gitleaks pre-commit hook | Local gitleaks hook added to `.pre-commit-config.yaml` reusing `.gitleaks.toml`; documented install path; Q10 Phase 4 item flips `[~]` -> `[x]` | Complete (official gitleaks hook v8.24.3; install path documented inline — pre-commit builds via go, or brew install + local system hook; Q10 item flipped) |
 | Q14-06 | Q13 acceptance summary | `docs/q13-acceptance-summary.md` summarizing the six Q13 items, the coverage extension (53% -> 74%), the three production bugs found+fixed, and the frontend 4.38% -> 8.51% arc | Complete (published; records four production bugs — the global-variables create 500 landed inside the Q13 window after this roadmap was drafted) |
@@ -77,22 +77,20 @@ scraped deployment and a physical device are available.
 
 ## Current Residual Risks
 
-- The Android execution family (perf/stability/fluency + ADB service) is the last
-  large near-blind spot in the worker; its async subprocess orchestration is the
-  heaviest seam left and regressions there surface only on real devices.
-- Frontend workbench views mutate state through 1000+ line templates; helper tests
-  cover the extracted logic but not the reactive wiring — mount tests are the only
-  guard for that layer.
-- Per-project retention is a latent correctness gap: operators can set an override that
-  silently does nothing on real cleanup, only appearing to work in the preview.
 - Q12 cannot be declared fully accepted until the two environment-dependent captures
   execute; that remains outside local control.
+- Several non-Q14 frontend/system pages still have 0% component coverage, but the five
+  named Q14 workbench views now have mount-level regression protection and the global
+  frontend gate has moved beyond the Q14 acceptance threshold.
+- Some backend routers and infrastructure modules remain intentionally below the new
+  82% total (for example auth/scripts/main/bootstrap paths), but Q14's selected API
+  router sweep is complete and the CI gate remains at 70% with >12 points of headroom.
 
 ## Next Action
 
-Start Q14-01 (Android/ADB executor seams) and Q14-03 (workbench mount tests) in
-parallel. Q14-01 extends the established fake-transport convention
-(`docs/coverage-baseline-2026-q13.md`) to the ADB shell boundary; Q14-03 extends the
-ApkList/DeviceList mount-test pattern to the large workbench views. Re-run backend and
-frontend coverage first to refresh the exact per-module numbers this roadmap estimated
-from the Q13 records.
+Q14 local work is complete. Q14-00 remains the only open item and should interrupt as
+soon as a scraped deployment and a physical Android device are available. Copy the
+templates under `docs/templates/`, fill the dated SLO history and Android rehearsal
+records from the frozen Q12 spec, run `make validate-q12-evidence`, then publish
+the carried Q12 acceptance summary. The item-by-item completion evidence is tracked
+in `docs/q14-completion-audit.md`.

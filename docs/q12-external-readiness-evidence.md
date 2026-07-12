@@ -54,7 +54,8 @@ window). This section defines what must be recorded, not the targets themselves.
 
 `docs/slo-history-<start>-<end>.md`, linked from the release evidence document
 current at capture time. Grafana snapshots or CSV exports are attached under
-`docs/fixtures/` when the dashboard is the source.
+`docs/fixtures/` when the dashboard is the source. Start from
+`docs/templates/slo-history-template.md` to keep the record fields consistent.
 
 ## Part 2 — Physical Android Device Execution Rehearsal
 
@@ -103,7 +104,42 @@ end-to-end special task run on real hardware.
 ### Evidence Location
 
 `docs/android-device-rehearsal-<date>.md`, linked from the release evidence
-document current at capture time.
+document current at capture time. Start from
+`docs/templates/android-device-rehearsal-template.md` to keep the record fields
+consistent.
+
+## Q12 Acceptance Summary
+
+After both evidence records exist and satisfy the pass criteria, publish
+`docs/q12-acceptance-summary.md`. Start from
+`docs/templates/q12-acceptance-summary-template.md` so the final acceptance
+statement links both records and captures the SLO alert/release-gate decision.
+To initialize all three draft files with consistent names and cross-links, run:
+
+```bash
+make scaffold-q12-evidence \
+  START=<start> \
+  END=<end> \
+  ANDROID_DATE=<date>
+```
+
+By default the scaffold command refuses to overwrite existing evidence drafts;
+pass `FORCE=1` only when intentionally regenerating them from the templates.
+
+Before marking Q14-00 complete, run the structural evidence validator through
+the project Make target:
+
+```bash
+make validate-q12-evidence \
+  SLO=docs/slo-history-<start>-<end>.md \
+  ANDROID=docs/android-device-rehearsal-<date>.md \
+  ACCEPTANCE=docs/q12-acceptance-summary.md
+```
+
+The validator does not replace human review of Prometheus/device evidence; it
+checks file naming, required sections, cross-links, checklists, and unfilled
+template placeholders. The underlying script is
+`scripts/validate-q12-evidence.py` for CI jobs that need to call it directly.
 
 ## Status
 

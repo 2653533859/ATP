@@ -1,9 +1,9 @@
 # ATP 项目任务跟踪
 
 **最后更新**: 2026-07-11
-**当前阶段**: Q1–Q12 路线图已全部完成；Q13 七个工作项中六个本地项全部完成（后端执行链/服务层覆盖、前端工作台 statements ≥8%、Ant Design 路由级分块、AI 自愈 apply 开关、依赖卫生），后续覆盖延伸已将后端 TOTAL 推至 81%（门禁 70、1267 passed；Q14-01 Android/ADB 执行器族收口：android 四执行器 82-93%、adb_service 97%、两个低代码执行器 97/98%）；仅剩 Q13-00（Q12-05 生产 SLO 历史 + Android 真机演练采集）待外部环境。覆盖工作累计发现并修复四个潜伏生产 500：grpc protobuf5、mobile-special create_task、ai_healing ProjectRole.engineer、global-variables create_variable（value_encrypted 重复关键字，变量库此前无法创建任何变量）。
+**当前阶段**: Q1–Q12 路线图已全部完成；Q13 七个工作项中六个本地项全部完成；Q14 本地项已全部完成（Q14-01 Android/ADB 执行器族收口，Q14-02 API-router sweep，Q14-03 五个工作台页 mount tests，Q14-04 per-project retention real cleanup，Q14-05 gitleaks pre-commit，Q14-06 Q13 acceptance summary）。当前后端 TOTAL 为 82.20%（门禁 70，1317 passed）；前端 statements 为 21.48%（门禁 20.5，102 passed）。仅剩 Q14-00 / 原 Q13-00（Q12-05 生产 SLO 历史 + Android 真机演练采集）待外部环境；对应 SLO、Android 演练和 Q12 验收总结模板已在 `docs/templates/` 固化，并提供 `make scaffold-q12-evidence` 初始化草稿、`make validate-q12-evidence` 做结构校验。覆盖工作累计发现并修复四个潜伏生产 500：grpc protobuf5、mobile-special create_task、ai_healing ProjectRole.engineer、global-variables create_variable（value_encrypted 重复关键字，变量库此前无法创建任何变量）。
 
-**最新验证**: Python 3.14 本地后端环境已修复，`backend/.venv/bin/python -m pytest backend/tests -q --ignore=backend/tests/integration` 为 `825 passed`；Docker `python:3.12-slim-bookworm` 目标运行时在依赖升级后全量后端回归同样为 `823 passed`；Q10 Phase 5 临时真实依赖环境（Postgres `55432` / Redis `6380` / MinIO `19000`）空库 `alembic upgrade head` 通过，`backend/tests/integration -m integration` 为 `10 passed`，且二次重复运行仍为 `10 passed`；前端 suite / plan E2E 新增关键路径通过，完整 `npm --prefix frontend run e2e` 为 `9 passed`；SLO 薄切新增 `atp_run_outcomes_total` 与 Grafana 4 个 SLO 面板，`python3 -m json.tool docker/grafana/dashboards/atp-overview.json`、SLO 定向 worker 测试 `23 passed`、相关 ruff 检查均通过；flaky 治理新增 `pytest-rerunfailures==16.4`、`flaky` marker、integration CI 一次有界重试与 `docs/flaky-governance.md`，marker / reruns / workflow YAML 验证均通过；`make test-backend-coverage PYTHON=backend/.venv/bin/python` 为 `823 passed`、总覆盖率 `53.47%`、52% 门槛达成；前端 `npm run test` 为 `18 passed`，`npm run test:coverage` 通过并记录全仓覆盖率 `1.8%`，`npm run type-check` 与 `npm run build` 通过；`make lint PYTHON=backend/.venv/bin/python` 通过；`make format-check PYTHON=backend/.venv/bin/python` 通过；`make mypy PYTHON=backend/.venv/bin/python` 通过（`core` / `schemas` / `services` 共 76 个文件）；`make security-bandit PYTHON=backend/.venv/bin/python` 通过（medium/high 0，low 63 可见不阻断）；Q11-02 复扫已将 `python-jose` 迁移到 `PyJWT[crypto]==2.13.0`，并复跑 `make security-pip-audit PYTHON=backend/.venv/bin/python` 通过（No known vulnerabilities found）、`make security-npm-audit` 通过（found 0 vulnerabilities）、JWT/权限 API 回归 `37 passed`、其余 API 回归 `341 passed`；Q11-02 integration 本地真实依赖与 Docker Python 3.12 目标环境均为 `10 passed`，前端 E2E 为 `9 passed`；GitHub runner 最终矩阵在 `c1ef60c` 全绿：CI `28998360621`、Security `28998360606`、Integration `28998366738`、Release readiness `28998368776`、E2E `28998370798`；release-readiness 与 Trivy 本地复验已覆盖 backend / worker / frontend 镜像，worker `k6 v2.1.0` 可用，frontend Alpine 运行时包刷新后高危/严重可修复漏洞为 0；Q11 Phase 1 SLO 生产校准已收口；Q11-20 已新增 `caseNavigation` 前端导航工具测试并接入 ProjectList / CaseList，`npm --prefix frontend run test` 为 `8 passed / 22 tests`，`npm --prefix frontend run type-check` 与 `npm --prefix frontend run build` 通过；`make pre-commit PYTHON=backend/.venv/bin/python` 全量通过；`pip check` 与 `git diff --check` 通过。修复方式包括 Homebrew `libpq` 提供 `pg_config`、安装时显式使用 `libpq` / `openssl@3` 编译路径，并为 Python 3.14 增加兼容依赖 pin；`pytest-playwright` / `playwright` 已统一到兼容 `pytest==9.0.3` 的版本，避免 Python 3.12 目标环境解析冲突。
+**最新验证**: Q14 本地收口验证已完成：`backend/.venv/bin/python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=term-missing:skip-covered --cov-report=xml --cov-fail-under=70` 为 `1317 passed`、TOTAL `82.20%`；`npm --prefix frontend run test:coverage` 为 `25 files / 102 tests passed`、statements `21.48%`、branches `18.48%`、functions `17.44%`、lines `22%`，新门槛 20.5 / 17.5 / 16.5 / 21.0 通过。历史验证：Python 3.14 本地后端环境已修复；Docker Python 3.12 目标运行时、真实依赖 integration、前端 E2E、SLO 薄切、安全扫描、pre-commit 与 GitHub runner 矩阵均按 Q10/Q11/Q13 文档留证。
 
 **下一步计划（2026-07-10）**:
 
@@ -704,7 +704,7 @@
 - [x] backend coverage extension (projects API, permission-system root): test_projects_routes.py (15 tests) — project CRUD (creator auto-owner + auto code), module-tree build/nest/sort + module CRUD access checks, member list mapping, member add (404 missing user / 409 duplicate), role update, and the remove-member last-owner-block security invariant. api/v1/projects.py 41 -> 79%, backend TOTAL 72.87 -> 73.41% (1125 passed).
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
-当前路线图：`docs/optimization-roadmap-2026-q14.md`（2026-07-11 发布）。Q14 七项：Q14-00 承接 Q12-05 采集（待环境）、Q14-01 Android/ADB 执行器覆盖（TOTAL ≥78%、门禁 66→70）、Q14-02 API 路由覆盖扫尾（TOTAL ≥80%）、Q14-03 前端工作台挂载测试（statements ≥12%）、Q14-04 按项目保留天数真实清理、Q14-05 Gitleaks pre-commit 钩子、Q14-06 Q13 验收总结。首个动作：Q14-01 与 Q14-03 并行起步。
+当前路线图：`docs/optimization-roadmap-2026-q14.md`（2026-07-11 发布）。Q14 七项中本地可执行项已全部完成；`docs/q14-completion-audit.md` 逐项记录当前完成证据。Q14-00 承接 Q12-05 采集（待环境），需要生产 SLO 7/14 天历史和 Android 真机演练后再发布 `docs/q12-acceptance-summary.md`。
 
 ---
 
@@ -712,10 +712,10 @@
 
 > 实施计划：`docs/optimization-roadmap-2026-q14.md`（2026-07-11 编制）
 
-- [ ] Q14-00 承接 Q12-05：生产 SLO 7/14 天历史 + Android 真机演练采集，随后发布 `docs/q12-acceptance-summary.md`（待外部环境，随时插入）
+- [ ] Q14-00 承接 Q12-05：生产 SLO 7/14 天历史 + Android 真机演练采集，随后发布 `docs/q12-acceptance-summary.md`（待外部环境；`docs/templates/` 下模板、`make scaffold-q12-evidence` 和 `make validate-q12-evidence` 已就绪，随时插入）
 - [x] Q14-01 Android/ADB 执行器覆盖：android 四执行器 82-93%、web/android_lowcode 97/98%、adb_service 97%；TOTAL 81%、CI 门禁 66→70（Makefile 同步 70）
-- [ ] Q14-02 API 路由覆盖扫尾：数据驱动挑选 suites/cases/runs/notifications/datasets 等中覆盖路由；TOTAL ≥80%（进行中：suites 100%、notifications 99%，TOTAL 81%）
-- [ ] Q14-03 前端工作台挂载测试：CaseList/RunDetail/SuiteList/DashboardView/PlanList 组件级挂载测试；前端 statements ≥12%
+- [x] Q14-02 API 路由覆盖扫尾：suites 100%、notifications 99%，并补齐 ai_healing_stats / devices / healing_prompt_examples 路由缝；TOTAL 82.20%、1310 passed
+- [x] Q14-03 前端工作台挂载测试：CaseList / RunDetail / SuiteList / DashboardView / PlanList 均有组件级挂载测试；前端 statements 21.48%、102 passed，门禁提升到 20.5
 - [x] Q14-04 按项目保留天数真实清理：override 项目按各自截止时间清理四种 run 类型，全局兜底排除 override 项目；预览补齐 test/mobile 按项目统计；run_retention 78→90%
 - [x] Q14-05 Gitleaks pre-commit 本地钩子：官方钩子 v8.24.3 接入 `.pre-commit-config.yaml` 复用 `.gitleaks.toml`；Makefile 门禁漂移已在 Q14-01 一并修复（52→70）
 - [x] Q14-06 Q13 验收总结：`docs/q13-acceptance-summary.md` 已发布（六个工作项 + 覆盖延伸 53→74-75% + 四个生产 bug + 前端 4.38→8.51%）

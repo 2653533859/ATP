@@ -28,10 +28,10 @@ export default defineConfig({
       // 覆盖率棘轮：数值与调整规则以 docs/coverage-baseline-2026-q13.md 为准
       // （单一事实来源；每次批次调整需同步该文档，保留 ≥0.25pt 本地余量）。
       thresholds: {
-        statements: 8.2,
-        branches: 9.6,
-        functions: 6.2,
-        lines: 8.15,
+        statements: 20.5,
+        branches: 17.5,
+        functions: 16.5,
+        lines: 21.0,
       },
     },
   },
