@@ -1,9 +1,9 @@
 # ATP 项目任务跟踪
 
-**最后更新**: 2026-07-11
-**当前阶段**: Q1–Q12 路线图已全部完成；Q13 七个工作项中六个本地项全部完成；Q14 本地项已全部完成（Q14-01 Android/ADB 执行器族收口，Q14-02 API-router sweep，Q14-03 五个工作台页 mount tests，Q14-04 per-project retention real cleanup，Q14-05 gitleaks pre-commit，Q14-06 Q13 acceptance summary）。当前后端 TOTAL 为 82.20%（门禁 70，1317 passed）；前端 statements 为 21.48%（门禁 20.5，102 passed）。仅剩 Q14-00 / 原 Q13-00（Q12-05 生产 SLO 历史 + Android 真机演练采集）待外部环境；对应 SLO、Android 演练和 Q12 验收总结模板已在 `docs/templates/` 固化，并提供 `make scaffold-q12-evidence` 初始化草稿、`make validate-q12-evidence` 做结构校验。覆盖工作累计发现并修复四个潜伏生产 500：grpc protobuf5、mobile-special create_task、ai_healing ProjectRole.engineer、global-variables create_variable（value_encrypted 重复关键字，变量库此前无法创建任何变量）。
+**最后更新**: 2026-07-29
+**当前阶段**: Q1–Q12 路线图已全部完成；Q13 七个工作项中六个本地项全部完成；Q14 本地项已全部完成（Q14-01 Android/ADB 执行器族收口，Q14-02 API-router sweep，Q14-03 五个工作台页 mount tests，Q14-04 per-project retention real cleanup，Q14-05 gitleaks pre-commit，Q14-06 Q13 acceptance summary）。当前后端 TOTAL 为 82.19%（门禁 70，1323 passed）；前端 statements 为 21.48%（门禁 20.5，102 passed）。仅剩 Q14-00 / 原 Q13-00（Q12-05 生产 SLO 历史 + Android 真机演练采集）待外部环境；对应 SLO、Android 演练和 Q12 验收总结模板已在 `docs/templates/` 固化，并提供 `make collect-q12-evidence` 自动查询 Prometheus、ATP API 和 ADB 后生成三份证据及附件，`make scaffold-q12-evidence` 仅作为草稿初始化，`make validate-q12-evidence` 做结构校验。覆盖工作累计发现并修复四个潜伏生产 500：grpc protobuf5、mobile-special create_task、ai_healing ProjectRole.engineer、global-variables create_variable（value_encrypted 重复关键字，变量库此前无法创建任何变量）。
 
-**最新验证**: Q14 本地收口验证已完成：`backend/.venv/bin/python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=term-missing:skip-covered --cov-report=xml --cov-fail-under=70` 为 `1317 passed`、TOTAL `82.20%`；`npm --prefix frontend run test:coverage` 为 `25 files / 102 tests passed`、statements `21.48%`、branches `18.48%`、functions `17.44%`、lines `22%`，新门槛 20.5 / 17.5 / 16.5 / 21.0 通过。历史验证：Python 3.14 本地后端环境已修复；Docker Python 3.12 目标运行时、真实依赖 integration、前端 E2E、SLO 薄切、安全扫描、pre-commit 与 GitHub runner 矩阵均按 Q10/Q11/Q13 文档留证。
+**最新验证**: Q14 本地收口验证已完成（2026-07-29 全量重跑）：`backend/.venv/bin/python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=term-missing:skip-covered --cov-report=xml --cov-fail-under=70` 为 `1323 passed`、TOTAL `82.19%`（跨次运行在 82.19%–82.20% 间抖动 1 行，取保守值）；`npm --prefix frontend run test:coverage` 为 `25 files / 102 tests passed`、statements `21.48%`、branches `18.48%`、functions `17.44%`、lines `22%`，新门槛 20.5 / 17.5 / 16.5 / 21.0 通过。Q12 自动采集器已通过 `py_compile`、ruff 与 pytest 定向回归：`test_q12_evidence_collector.py` / `test_q12_evidence_validator.py` / `test_q12_external_readiness.py` 合计 `16 passed`，fake Prometheus/API/ADB 写出 9 个证据文件/附件且 `validate_all(...) == []`；采集器回归覆盖延迟取峰值、空窗口判为数据缺口（不得放行）、以及证据已存在时在采集前中止三条不变量。历史验证：Docker Python 3.12 目标运行时、真实依赖 integration、前端 E2E、SLO 薄切、安全扫描、pre-commit 与 GitHub runner 矩阵均按 Q10/Q11/Q13 文档留证。
 
 **下一步计划（2026-07-10）**:
 
@@ -712,7 +712,7 @@
 
 > 实施计划：`docs/optimization-roadmap-2026-q14.md`（2026-07-11 编制）
 
-- [ ] Q14-00 承接 Q12-05：生产 SLO 7/14 天历史 + Android 真机演练采集，随后发布 `docs/q12-acceptance-summary.md`（待外部环境；`docs/templates/` 下模板、`make scaffold-q12-evidence` 和 `make validate-q12-evidence` 已就绪，随时插入）
+- [ ] Q14-00 承接 Q12-05：生产 SLO 7/14 天历史 + Android 真机演练采集，随后发布 `docs/q12-acceptance-summary.md`（待外部环境；`make collect-q12-evidence` 已可自动采集 Prometheus/API/ADB 并生成证据，`make scaffold-q12-evidence` 仅作草稿初始化，`make validate-q12-evidence` 做结构校验）
 - [x] Q14-01 Android/ADB 执行器覆盖：android 四执行器 82-93%、web/android_lowcode 97/98%、adb_service 97%；TOTAL 81%、CI 门禁 66→70（Makefile 同步 70）
 - [x] Q14-02 API 路由覆盖扫尾：suites 100%、notifications 99%，并补齐 ai_healing_stats / devices / healing_prompt_examples 路由缝；TOTAL 82.20%、1310 passed
 - [x] Q14-03 前端工作台挂载测试：CaseList / RunDetail / SuiteList / DashboardView / PlanList 均有组件级挂载测试；前端 statements 21.48%、102 passed，门禁提升到 20.5

@@ -114,6 +114,20 @@ After both evidence records exist and satisfy the pass criteria, publish
 `docs/q12-acceptance-summary.md`. Start from
 `docs/templates/q12-acceptance-summary-template.md` so the final acceptance
 statement links both records and captures the SLO alert/release-gate decision.
+To collect and render all three artifacts without manual export, run:
+
+```bash
+make collect-q12-evidence \
+  START=<start> \
+  END=<end> \
+  ANDROID_DATE=<date> \
+  PROMETHEUS_URL=http://localhost:9090 \
+  API_BASE_URL=http://localhost:8000/api/v1 \
+  TASK_ID=<task-id> \
+  DEVICE_SERIAL=<serial> \
+  APP_PACKAGE=<package>
+```
+
 To initialize all three draft files with consistent names and cross-links, run:
 
 ```bash
@@ -123,8 +137,19 @@ make scaffold-q12-evidence \
   ANDROID_DATE=<date>
 ```
 
-By default the scaffold command refuses to overwrite existing evidence drafts;
-pass `FORCE=1` only when intentionally regenerating them from the templates.
+`make collect-q12-evidence` uses the live Prometheus and ATP APIs, plus `adb`,
+to populate the markdown and write fixture artifacts automatically. The
+scaffold command still exists for starting from templates or regenerating drafts;
+pass `FORCE=1` only when intentionally overwriting existing evidence files.
+Without `FORCE=1` the collector refuses up front, before it triggers the device
+rehearsal, so an accidental re-run cannot overwrite evidence or waste a capture.
+
+The collector will not sign off on a window it could not measure. Any day where
+Prometheus returns no samples for an SLO is recorded in the generated `Data Gaps`
+section, and any row there keeps alert enablement and the release-blocking gate
+`deferred` and the acceptance summary out of the `accepted` state. Treat a
+populated `Data Gaps` table as a collection failure — fix the scrape target or
+query labels and re-collect the window rather than accepting the output.
 
 Before marking Q14-00 complete, run the structural evidence validator through
 the project Make target:

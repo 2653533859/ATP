@@ -116,7 +116,7 @@ def test_q14_completion_audit_records_verifiable_status(repo_file):
         "docs/slo-history-<start>-<end>.md",
         "docs/android-device-rehearsal-<date>.md",
         "docs/q12-acceptance-summary.md",
-        "1317 passed",
+        "1323 passed",
         "82.20%",
         "21.48%",
     ):
