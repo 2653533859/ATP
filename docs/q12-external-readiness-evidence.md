@@ -123,10 +123,17 @@ make collect-q12-evidence \
   ANDROID_DATE=<date> \
   PROMETHEUS_URL=http://localhost:9090 \
   API_BASE_URL=http://localhost:8000/api/v1 \
+  ATP_TOKEN=<token> \
   TASK_ID=<task-id> \
   DEVICE_SERIAL=<serial> \
   APP_PACKAGE=<package>
 ```
+
+The collector calls the authenticated ATP API, so it needs credentials: either
+`ATP_TOKEN=<token>` or `ATP_USERNAME=<user> ATP_PASSWORD=<password>` (the
+collector logs in and exchanges them for a token). The variables are `ATP_`
+prefixed on purpose — bare `USERNAME`/`PASSWORD` collide with names the shell or
+CI runner may already export.
 
 To initialize all three draft files with consistent names and cross-links, run:
 

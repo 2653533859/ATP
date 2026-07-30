@@ -83,6 +83,22 @@ def test_external_readiness_templates_are_publishable(repo_file):
     assert "scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py" in makefile
 
 
+def test_collect_target_documents_its_auth_requirement(repo_file):
+    """照抄 Usage 必须能跑通：采集器要访问鉴权 API，缺凭据会在采集前退出 2。"""
+    makefile = repo_file("Makefile")
+    assert "collect-q12-evidence:" in makefile
+    assert "ATP_TOKEN=..." in makefile
+    assert "ATP_USERNAME=... ATP_PASSWORD=..." in makefile
+
+    spec = repo_file("docs/q12-external-readiness-evidence.md")
+    assert "ATP_TOKEN=<token>" in spec
+    assert "ATP_USERNAME=<user> ATP_PASSWORD=<password>" in spec
+
+    collector = repo_file("scripts/collect-q12-evidence.py")
+    assert 'os.environ.get("ATP_USERNAME")' in collector
+    assert 'os.environ.get("ATP_PASSWORD")' in collector
+
+
 def test_external_readiness_spec_matches_platform_surfaces(repo_file):
     """口径引用的平台能力必须真实存在，防止演练单先于实现漂移。"""
     doctor = repo_file("scripts/android-network-doctor.sh")
@@ -116,7 +132,7 @@ def test_q14_completion_audit_records_verifiable_status(repo_file):
         "docs/slo-history-<start>-<end>.md",
         "docs/android-device-rehearsal-<date>.md",
         "docs/q12-acceptance-summary.md",
-        "1323 passed",
+        "1327 passed",
         "82.20%",
         "21.48%",
     ):

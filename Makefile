@@ -110,7 +110,12 @@ scaffold-q12-evidence:
 
 collect-q12-evidence:
 	@if [ -z "$(START)" ] || [ -z "$(END)" ] || [ -z "$(ANDROID_DATE)" ] || [ -z "$(PROMETHEUS_URL)" ] || [ -z "$(API_BASE_URL)" ] || [ -z "$(TASK_ID)" ] || [ -z "$(DEVICE_SERIAL)" ] || [ -z "$(APP_PACKAGE)" ]; then \
-		echo "Usage: make collect-q12-evidence START=YYYY-MM-DD END=YYYY-MM-DD ANDROID_DATE=YYYY-MM-DD PROMETHEUS_URL=http://... API_BASE_URL=http://... TASK_ID=... DEVICE_SERIAL=... APP_PACKAGE=... [FORCE=1]"; \
+		echo "Usage: make collect-q12-evidence START=YYYY-MM-DD END=YYYY-MM-DD ANDROID_DATE=YYYY-MM-DD PROMETHEUS_URL=http://... API_BASE_URL=http://... TASK_ID=... DEVICE_SERIAL=... APP_PACKAGE=... ATP_TOKEN=... [FORCE=1]"; \
+		echo "       authenticate with ATP_TOKEN=... or ATP_USERNAME=... ATP_PASSWORD=..."; \
+		exit 2; \
+	fi
+	@if [ -z "$(ATP_TOKEN)" ] && { [ -z "$(ATP_USERNAME)" ] || [ -z "$(ATP_PASSWORD)" ]; }; then \
+		echo "Usage: make collect-q12-evidence ... ATP_TOKEN=... (or ATP_USERNAME=... ATP_PASSWORD=...)"; \
 		exit 2; \
 	fi
 	$(PYTHON) scripts/collect-q12-evidence.py

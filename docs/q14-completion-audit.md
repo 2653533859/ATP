@@ -14,7 +14,7 @@ captures exist.
 | Item | Required evidence | Current evidence | Status |
 | --- | --- | --- | --- |
 | Q14-00 | Dated `docs/slo-history-*.md`, dated `docs/android-device-rehearsal-*.md`, then `docs/q12-acceptance-summary.md` passing `make validate-q12-evidence` | Frozen spec in `docs/q12-external-readiness-evidence.md`; templates in `docs/templates/`; automated collector in `scripts/collect-q12-evidence.py`; scaffold helper in `scripts/scaffold-q12-evidence.py`; validator in `scripts/validate-q12-evidence.py`; Make targets `collect-q12-evidence`, `scaffold-q12-evidence`, and `validate-q12-evidence` | Blocked on external production-like SLO history and physical Android device rehearsal |
-| Q14-01 | Android/ADB executor coverage with backend TOTAL >= 78% and gate 70 | `docs/coverage-baseline-2026-q13.md` records Q14-01 at `1267 passed`, backend TOTAL `81%`, gate `70`; latest full backend run is `1323 passed`, TOTAL `82.19%`, gate `70` | Complete |
+| Q14-01 | Android/ADB executor coverage with backend TOTAL >= 78% and gate 70 | `docs/coverage-baseline-2026-q13.md` records Q14-01 at `1267 passed`, backend TOTAL `81%`, gate `70`; latest full backend run is `1327 passed`, TOTAL `82.19%`, gate `70` | Complete |
 | Q14-02 | API-router sweep with backend TOTAL >= 80% and before/after baseline record | `docs/coverage-baseline-2026-q13.md` records API-router sweep closeout at `1310 passed`, TOTAL `82.20%`; latest full backend run remains above gate at `82.19%` | Complete |
 | Q14-03 | Mount tests for CaseList, RunDetail, SuiteList, DashboardView, PlanList and frontend statements >= 12% | Five workbench spec files exist under `frontend/src/views/**`; `docs/coverage-baseline-2026-q13.md` records `102 passed`, statements `21.48%`, gate `20.5` | Complete |
 | Q14-04 | Retention cleanup honors per-project overrides for plan/suite/test/mobile and preview includes test/mobile | `docs/optimization-roadmap-2026-q14.md` records run retention behavior complete with service coverage `78 -> 90%` | Complete |
@@ -36,19 +36,23 @@ git diff --check
 
 Results:
 
-- Backend: `1323 passed`, TOTAL `82.19%`, coverage gate `70` passed. The total
+- Backend: `1327 passed`, TOTAL `82.19%`, coverage gate `70` passed. The total
   fluctuates between `82.19%` and `82.20%` across runs (one line of
   `backend/app` is covered nondeterministically); the conservative value is
   recorded here.
 - Frontend: `25 files / 102 tests passed`, statements `21.48%`, branches
   `18.48%`, functions `17.44%`, lines `22%`.
-- Q12 evidence tooling: `16 passed`, including the new collector regressions;
+- Q12 evidence tooling: `20 passed`, including the new collector regressions;
   the collector smoke path writes all three evidence documents plus fixtures and
-  passes `validate_all(...) == []`. The collector regressions pin three
+  passes `validate_all(...) == []`. The collector regressions pin six
   invariants: P95 latency reports the daily peak (not the trough) so spikes raise
   breaches, a window with no Prometheus samples is recorded as a data gap that
-  keeps alerting and the release gate deferred, and pre-existing evidence aborts
-  the run before the expensive device rehearsal starts.
+  keeps alerting and the release gate deferred, pre-existing evidence aborts
+  the run before the expensive device rehearsal starts, `increase(...[1d])`
+  samples are filed under the day they measure rather than the day after,
+  integer counts keep their trailing zeros (`200` must not render as `2`), and
+  API credentials come only from `ATP_USERNAME`/`ATP_PASSWORD` so the host's
+  `USERNAME`/`PASSWORD` cannot authenticate the collector.
 - Lint and whitespace checks passed for the changed Q14/Q12 tooling surface.
 
 ## Completion Decision

@@ -40,7 +40,12 @@ def _window_bounds(start_date: date, end_date: date) -> tuple[datetime, datetime
 def _fmt_float(value: float | None, digits: int = 2) -> str:
     if value is None:
         return ""
-    return f"{value:.{digits}f}".rstrip("0").rstrip(".")
+    text = f"{value:.{digits}f}"
+    # Trailing zeros are only padding when there is a decimal point; with
+    # digits=0 they are significant digits of a count (200 must not become 2).
+    if "." in text:
+        text = text.rstrip("0").rstrip(".")
+    return text
 
 
 def _markdown_table(headers: list[str], rows: list[list[str]]) -> str:
@@ -264,6 +269,27 @@ def _group_daily_samples(series: list[PrometheusSeries]) -> dict[date, list[floa
     return buckets
 
 
+def _daily_increase_totals(
+    series: list[PrometheusSeries],
+    start_date: date,
+    end_date: date,
+) -> dict[date, float]:
+    """Attribute `increase(...[1d])` samples to the day they actually measure.
+
+    Prometheus stamps a range sample at the END of the interval it covers, so a
+    midnight sample of `increase(...[1d])` reports the preceding 24 hours. Filing
+    it under `ts.date()` would shift every day forward by one and report the day
+    before the window as if it belonged to it.
+    """
+    totals: dict[date, float] = {}
+    for item in series:
+        for ts, value in item.samples:
+            day = (ts - timedelta(days=1)).date()
+            if start_date <= day <= end_date:
+                totals[day] = value
+    return totals
+
+
 def _summarize_endpoint_mix(series: list[PrometheusSeries], top_n: int = 5) -> str:
     total = 0.0
     items: list[tuple[str, float]] = []
@@ -347,8 +373,8 @@ def _build_slo_bundle(
     latency_5m_daily = daily_stats(latency_5m_series, scale=1000.0)
     latency_1h_daily = daily_stats(latency_1h_series, scale=1000.0)
     success_daily = daily_stats(success_series, scale=100.0)
-    request_volume_daily = {ts.date(): value for item in request_volume_series for ts, value in item.samples}
-    run_volume_daily = {ts.date(): value for item in run_volume_series for ts, value in item.samples}
+    request_volume_daily = _daily_increase_totals(request_volume_series, start_date, end_date)
+    run_volume_daily = _daily_increase_totals(run_volume_series, start_date, end_date)
 
     def scrape_rows(series: list[PrometheusSeries]) -> list[list[str]]:
         buckets = _group_daily_samples(series)
@@ -1182,8 +1208,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--prometheus-url", default=os.environ.get("PROMETHEUS_URL", "http://localhost:9090"))
     parser.add_argument("--api-base-url", default=os.environ.get("API_BASE_URL", "http://localhost:8000/api/v1"))
     parser.add_argument("--token", default=os.environ.get("ATP_TOKEN"))
-    parser.add_argument("--username", default=os.environ.get("USERNAME"))
-    parser.add_argument("--password", default=os.environ.get("PASSWORD"))
+    parser.add_argument("--username", default=os.environ.get("ATP_USERNAME"))
+    parser.add_argument("--password", default=os.environ.get("ATP_PASSWORD"))
     parser.add_argument("--task-id", type=int, default=os.environ.get("TASK_ID"))
     parser.add_argument("--device-serial", default=os.environ.get("DEVICE_SERIAL"))
     parser.add_argument("--app-package", default=os.environ.get("APP_PACKAGE"))
@@ -1221,7 +1247,7 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     if not args.token and (not args.username or not args.password):
-        print("ERROR: supply either ATP_TOKEN or USERNAME/PASSWORD", file=sys.stderr)
+        print("ERROR: supply either ATP_TOKEN or ATP_USERNAME/ATP_PASSWORD", file=sys.stderr)
         return 2
 
     try:

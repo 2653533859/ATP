@@ -395,3 +395,106 @@ def test_existing_evidence_aborts_before_any_collection(repo_root, tmp_path, mon
 
     # The pre-existing file is left untouched by the aborted run.
     assert existing.read_text(encoding="utf-8") == "previous rehearsal"
+
+
+def test_integer_counts_keep_their_trailing_zeros(repo_root):
+    """Zero-digit formatting must not strip significant zeros off a count."""
+    module = _load_collector(repo_root)
+
+    assert module._fmt_float(200.0, 0) == "200"
+    assert module._fmt_float(10500.0, 0) == "10500"
+    # Decimal padding is still trimmed for the percentage columns.
+    assert module._fmt_float(99.50, 2) == "99.5"
+    assert module._fmt_float(100.0, 2) == "100"
+    assert module._fmt_float(None, 0) == ""
+
+
+def test_daily_volume_is_filed_under_the_day_it_measures(repo_root):
+    """`increase(...[1d])` is stamped at the END of the interval it covers.
+
+    Filing the midnight sample under `ts.date()` shifts every day's traffic
+    forward by one and pulls the day before the window into the table, so the
+    volume column would describe a different window than the SLO columns beside
+    it.
+    """
+    module = _load_collector(repo_root)
+
+    # One sample per midnight boundary, as Prometheus returns for step=1d over
+    # a window whose end bound is the midnight after the last day.
+    volume_samples = [
+        (datetime(2026, 6, 30, tzinfo=timezone.utc), 999.0),  # covers 06-29, outside
+        (datetime(2026, 7, 1, tzinfo=timezone.utc), 100.0),  # covers 06-30, outside
+        (datetime(2026, 7, 2, tzinfo=timezone.utc), 200.0),  # covers 07-01
+        (datetime(2026, 7, 3, tzinfo=timezone.utc), 300.0),  # covers 07-02
+        (datetime(2026, 7, 4, tzinfo=timezone.utc), 400.0),  # covers 07-03
+    ]
+
+    class _VolumePrometheus(_StubPrometheus):
+        def query_range(self, query, start, end, step):
+            if "increase(" in query:
+                return [self._module.PrometheusSeries(labels={}, samples=volume_samples)]
+            return super().query_range(query, start, end, step)
+
+    prometheus = _VolumePrometheus(
+        availability=[0.999],
+        latency=[0.2],
+        success=[0.99],
+    ).bind(module)
+
+    evidence, _artifacts = module._build_slo_bundle(
+        prometheus,
+        date(2026, 7, 1),
+        date(2026, 7, 3),
+        source_deployment="staging-prod",
+    )
+
+    expected = [["2026-07-01", "200"], ["2026-07-02", "300"], ["2026-07-03", "400"]]
+    assert evidence.request_volume_rows == expected
+    assert evidence.run_volume_rows == expected
+    # Out-of-window boundary samples must not inflate the window total.
+    assert "900" in evidence.traffic_profile
+
+
+def test_auth_credentials_come_from_atp_prefixed_env_vars(repo_root, monkeypatch, capsys):
+    """Bare USERNAME/PASSWORD collide with names the shell or CI runner exports.
+
+    Reading them would silently authenticate as whoever is logged into the host,
+    so the collector only honours the ATP_-prefixed names.
+    """
+    module = _load_collector(repo_root)
+    for name in ("ATP_TOKEN", "ATP_USERNAME", "ATP_PASSWORD"):
+        monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("USERNAME", "shell-user")
+    monkeypatch.setenv("PASSWORD", "shell-password")
+
+    argv = [
+        "--start",
+        "2026-07-01",
+        "--end",
+        "2026-07-02",
+        "--android-date",
+        "2026-07-02",
+        "--task-id",
+        "7",
+        "--device-serial",
+        "192.168.1.8:5555",
+        "--app-package",
+        "com.example.app",
+    ]
+
+    assert module.main(argv) == 2, "host USERNAME/PASSWORD must not satisfy the auth check"
+    assert "ATP_USERNAME/ATP_PASSWORD" in capsys.readouterr().err
+
+    monkeypatch.setenv("ATP_USERNAME", "atp-user")
+    monkeypatch.setenv("ATP_PASSWORD", "atp-password")
+    captured: dict = {}
+
+    def fake_run(**kwargs):
+        captured.update(kwargs)
+        return []
+
+    monkeypatch.setattr(module, "run", fake_run)
+
+    assert module.main(argv) == 0
+    assert captured["username"] == "atp-user"
+    assert captured["password"] == "atp-password"
