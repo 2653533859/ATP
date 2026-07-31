@@ -167,7 +167,7 @@ def _plan_run_ids_stmt(cutoff: datetime, project_id: int | None = None, exclude_
         stmt = stmt.join(TestPlan, TestPlan.id == PlanRun.plan_id)
         if project_id is not None:
             stmt = stmt.where(TestPlan.project_id == project_id)
-        else:
+        elif exclude_project_ids:
             stmt = stmt.where(TestPlan.project_id.not_in(exclude_project_ids))
     return stmt.order_by(PlanRun.id.asc())
 
@@ -180,7 +180,7 @@ def _suite_run_ids_stmt(cutoff: datetime, project_id: int | None = None, exclude
         stmt = stmt.join(TestSuite, TestSuite.id == SuiteRun.suite_id)
         if project_id is not None:
             stmt = stmt.where(TestSuite.project_id == project_id)
-        else:
+        elif exclude_project_ids:
             stmt = stmt.where(TestSuite.project_id.not_in(exclude_project_ids))
     return stmt.order_by(SuiteRun.id.asc())
 
@@ -194,14 +194,12 @@ def _test_run_ids_stmt(cutoff: datetime, project_id: int | None = None, exclude_
         stmt = stmt.join(TestCase, TestCase.id == TestRun.case_id).join(Module, Module.id == TestCase.module_id)
         if project_id is not None:
             stmt = stmt.where(Module.project_id == project_id)
-        else:
+        elif exclude_project_ids:
             stmt = stmt.where(Module.project_id.not_in(exclude_project_ids))
     return stmt.order_by(TestRun.id.asc())
 
 
-def _mobile_run_ids_stmt(
-    cutoff: datetime, project_id: int | None = None, exclude_project_ids: list[int] | None = None
-):
+def _mobile_run_ids_stmt(cutoff: datetime, project_id: int | None = None, exclude_project_ids: list[int] | None = None):
     from app.models.mobile_special import MobileSpecialRun, MobileSpecialTask
 
     stmt = select(MobileSpecialRun.id).where(
@@ -211,7 +209,7 @@ def _mobile_run_ids_stmt(
         stmt = stmt.join(MobileSpecialTask, MobileSpecialTask.id == MobileSpecialRun.task_id)
         if project_id is not None:
             stmt = stmt.where(MobileSpecialTask.project_id == project_id)
-        else:
+        elif exclude_project_ids:
             stmt = stmt.where(MobileSpecialTask.project_id.not_in(exclude_project_ids))
     return stmt.order_by(MobileSpecialRun.id.asc())
 
@@ -249,16 +247,20 @@ def _cleanup_scope(
     from app.models.plan import PlanRun
     from app.models.suite import SuiteRun
 
-    scope = {"project_id": project_id, "exclude_project_ids": exclude_project_ids}
-    plan_runs, _ = _batched_delete_runs(session, PlanRun, _plan_run_ids_stmt(cutoff, **scope), batch_size)
-    suite_runs, _ = _batched_delete_runs(session, SuiteRun, _suite_run_ids_stmt(cutoff, **scope), batch_size)
+    plan_ids_stmt = _plan_run_ids_stmt(cutoff, project_id, exclude_project_ids)
+    suite_ids_stmt = _suite_run_ids_stmt(cutoff, project_id, exclude_project_ids)
+    test_ids_stmt = _test_run_ids_stmt(cutoff, project_id, exclude_project_ids)
+    mobile_ids_stmt = _mobile_run_ids_stmt(cutoff, project_id, exclude_project_ids)
+
+    plan_runs, _ = _batched_delete_runs(session, PlanRun, plan_ids_stmt, batch_size)
+    suite_runs, _ = _batched_delete_runs(session, SuiteRun, suite_ids_stmt, batch_size)
     test_runs, test_objects = _batched_delete_runs(
-        session, TestRun, _test_run_ids_stmt(cutoff, **scope), batch_size, collect_objects=_collect_screenshot_objects
+        session, TestRun, test_ids_stmt, batch_size, collect_objects=_collect_screenshot_objects
     )
     mobile_runs, mobile_objects = _batched_delete_runs(
         session,
         MobileSpecialRun,
-        _mobile_run_ids_stmt(cutoff, **scope),
+        mobile_ids_stmt,
         batch_size,
         collect_objects=_collect_mobile_run_artifact_objects,
     )

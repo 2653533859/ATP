@@ -9,7 +9,13 @@ sys.modules["app.core.minio_client"] = types.SimpleNamespace(
     delete_file=lambda object_name: None,
 )
 
+from app.models.bootstrap import load_all_models
 from app.services import run_retention
+
+# 本文件的断言会 str() 真实 SQLAlchemy 语句（JOIN TestPlan / Module / MobileSpecialTask），
+# 这会触发 Project mapper 配置。单独运行本文件时若不预先注册全部模型，
+# Project.relationship('NotificationConfig') 无法解析而报 InvalidRequestError。
+load_all_models()
 
 
 class _FakeResult:

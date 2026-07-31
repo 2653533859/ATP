@@ -116,7 +116,8 @@ def test_collect_q12_evidence_writes_reports_and_artifacts(repo_root, tmp_path, 
             raise AssertionError(f"unexpected bytes path: {path}")
 
     def fake_run_command(cmd, *, env=None, cwd=None):
-        if cmd[0] == "bash" and cmd[1].endswith("scripts/android-network-doctor.sh"):
+        # 路径由 pathlib 拼接，Windows 下分隔符为 `\`，因此按 parts 比较而非字符串后缀。
+        if cmd[0] == "bash" and Path(cmd[1]).parts[-2:] == ("scripts", "android-network-doctor.sh"):
             return 0, "[OK] all good"
         if cmd[:4] == ["adb", "-s", "192.168.1.8:5555", "shell"] and cmd[4] == "getprop":
             return 0, "[ro.product.model]: [Pixel 8]"
