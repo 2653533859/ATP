@@ -704,7 +704,7 @@
 - [x] backend coverage extension (projects API, permission-system root): test_projects_routes.py (15 tests) — project CRUD (creator auto-owner + auto code), module-tree build/nest/sort + module CRUD access checks, member list mapping, member add (404 missing user / 409 duplicate), role update, and the remove-member last-owner-block security invariant. api/v1/projects.py 41 -> 79%, backend TOTAL 72.87 -> 73.41% (1125 passed).
 - [ ] Q12-05 补充生产型 SLO 历史和物理 Android 设备执行证据。
 
-当前路线图：`docs/optimization-roadmap-2026-q14.md`（2026-07-11 发布）。Q14 七项中本地可执行项已全部完成；`docs/q14-completion-audit.md` 逐项记录当前完成证据。Q14-00 承接 Q12-05 采集（待环境），需要生产 SLO 7/14 天历史和 Android 真机演练后再发布 `docs/q12-acceptance-summary.md`。
+当前路线图：`docs/optimization-roadmap-2026-q15.md`（2026-07-31 起草，**待评审**）。上一轮 Q14 七项中本地可执行项已全部完成，`docs/q14-completion-audit.md` 逐项记录完成证据；Q14-00 承接 Q12-05 采集（待环境），需要生产 SLO 7/14 天历史和 Android 真机演练后再发布 `docs/q12-acceptance-summary.md`。
 
 ---
 
@@ -719,3 +719,20 @@
 - [x] Q14-04 按项目保留天数真实清理：override 项目按各自截止时间清理四种 run 类型，全局兜底排除 override 项目；预览补齐 test/mobile 按项目统计；run_retention 78→90%
 - [x] Q14-05 Gitleaks pre-commit 本地钩子：官方钩子 v8.24.3 接入 `.pre-commit-config.yaml` 复用 `.gitleaks.toml`；Makefile 门禁漂移已在 Q14-01 一并修复（52→70）
 - [x] Q14-06 Q13 验收总结：`docs/q13-acceptance-summary.md` 已发布（六个工作项 + 覆盖延伸 53→74-75% + 四个生产 bug + 前端 4.38→8.51%）
+
+---
+
+## Q15 — 门禁生效与测试可靠性（草案，待评审）
+
+> 实施计划：`docs/optimization-roadmap-2026-q15.md`（2026-07-31 起草，尚未立项；以下条目在评审通过前不作为承诺范围）
+>
+> 实测输入（2026-07-31）：后端 TOTAL 82.73%（13962 语句 / 2045 未覆盖，1327 passed，门禁 70）；前端 statements 21.48% / branches 18.48% / functions 17.44% / lines 22%；183 个非 integration 测试文件逐个单独运行有 10 个失败（5.5%）。
+
+- [ ] Q15-00 承接 Q14-00 / Q12-05：生产 SLO 7/14 天历史 + Android 真机演练采集，随后发布 `docs/q12-acceptance-summary.md`（待外部环境，已连续顺延三个季度；若环境短期不可得，应显式重新定界而非继续顺延）
+- [ ] Q15-01 让已声明的门禁真正拦得住：确认并记录 `main` 的分支保护状态、把 `ci.yml` 各 job 设为 required status checks（若当前套餐不支持，则退化为文档约定 + 本地钩子并如实说明）；`pre-commit install` 纳入 `make setup` 与 CLAUDE/AGENTS 验证章节；修掉 `.pre-commit-config.yaml` 中 mypy 钩子对环境 `PATH` python 的依赖；补 Makefile 与 `ci.yml` 覆盖率门禁的漂移回归
+- [ ] Q15-02 后端测试单文件可运行：183 个非 integration 文件逐个通过；8 个 `No module named 'app'` 走统一 `sys.path` 引导（扩展 `backend/tests/_paths.py` 或加 `tests/__init__.py`）、根 conftest 的 `app.api.deps` stub 补 `assert_project_access` / `require_project_access`、`test_conftest_stubs.py` 不再依赖环境中可导入的 `tests` 包；CI 增加逐文件扫描防回归
+- [ ] Q15-03 Windows CI job：`ci.yml` 增加 `windows-latest` 后端 pytest job（Python 3.12，单测已 stub 基础设施故无需 service container），纳入 Q15-01 的 required 集合；`docs/ci-workflows.md` 说明范围与刻意排除项（integration / E2E 仍仅 Linux）
+- [ ] Q15-04 前端 `views/system` 挂载测试：`DatasetLibrary` / `ReportCenterView` / `StorageManagementView` / `NotificationList` / `BugTrackerList` / `MockRulesView` 补挂载测试，`views/system` 从 2.54% 抬到 ≥35%，前端 statements ≥28%，Vitest 门禁同步抬到实测下限
+- [ ] Q15-05 后端 worker / 维护任务覆盖与门禁校准：`worker/tasks_performance.py`（当前 0%）、`worker/tasks_db_backup.py`、`services/ai_healing_stats.py`、`services/dashboard_alerts.py`、`services/mobile_special/aggregator.py` 补行为缝；后端 TOTAL ≥86%，CI 门禁 70→82 使其重新贴近实际
+- [ ] Q15-06 处理 `chartTheme.spec.ts` 的负载敏感：或给其动态 import 配相称的超时（或去掉动态 import），或按 `docs/flaky-governance.md` 立案登记原因/证据/退出条件；不接受「全局抬高 testTimeout」了事，需说明选择了哪条路径及理由
+- [ ] Q15-07 Q14 验收总结：按 Q13 格式发布 `docs/q14-acceptance-summary.md`（六个本地工作项、覆盖弧线后端 74%→82.73% 与前端 8.51%→21.48%、Q14-00 顺延、以及门禁未生效放过的两个缺陷：`run_retention` mypy 报错与仅在 Windows 触发的测试断裂）

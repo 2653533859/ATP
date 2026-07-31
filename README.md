@@ -82,16 +82,17 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 
 相关文档：`docs/code-quality.md`、`docs/frontend-testing.md`、`docs/security-scanning.md`、`docs/slo-guide.md`、`docs/flaky-governance.md`、`docs/q10-acceptance-summary.md`。
 
-Q13 已验收（`docs/q13-acceptance-summary.md`）。Q14 的本地项已全部完成并留档于 `docs/q14-completion-audit.md`：后端覆盖率 TOTAL 约 82%（门禁 70）、前端 statements 约 21%（门禁 20.5）、运行记录保留支持项目级覆盖、gitleaks 本地 pre-commit 钩子落地。唯一未收口项是 Q14-00 —— 需要真实生产环境的 SLO 历史与 Android 真机演练证据，采集与校验工具已就绪（`make collect-q12-evidence` / `make scaffold-q12-evidence` / `make validate-q12-evidence`）。路线图见 `docs/optimization-roadmap-2026-q14.md`。
+Q13 已验收（`docs/q13-acceptance-summary.md`）。Q14 的本地项已全部完成并留档于 `docs/q14-completion-audit.md`：后端覆盖率 TOTAL 约 82%（门禁 70）、前端 statements 约 21%（门禁 20.5）、运行记录保留支持项目级覆盖、gitleaks 本地 pre-commit 钩子落地。唯一未收口项是 Q14-00 —— 需要真实生产环境的 SLO 历史与 Android 真机演练证据，采集与校验工具已就绪（`make collect-q12-evidence` / `make scaffold-q12-evidence` / `make validate-q12-evidence`）。Q14 路线图见 `docs/optimization-roadmap-2026-q14.md`。
+
+下一轮路线图草案见 `docs/optimization-roadmap-2026-q15.md`（**待评审**，尚未立项）：主线是让已声明的质量门禁真正生效、补齐后端测试的单文件可运行性与 Windows CI，随后继续 `views/system` 与 worker 维护任务的覆盖，并发布 Q14 验收总结。
 
 ### 当前仍建议继续完善的方向
 
 - Android 真机在不同宿主机 / Docker 网络环境下的稳定性验证与排障经验沉淀
 - 部署、运维与性能优化的持续打磨
-- 前端 i18n 剩余页面迁移：用例详情与抽屉、Android 专项报告中心 / 详情、存储管理、缺陷跟踪配置，以及部分公共步骤编辑器
 - 少量页面的工程化类型收口与体验细节优化
 
-后续 i18n 执行拆分与验收标准见：`Task.md` 的 `5.10 Q3 前端国际化 i18n` 与 `docs/implementation-plan-2026-Q3.md` 的 `方向 F`。
+前端 i18n 迁移已收口：`Task.md` 的 `5.10 Q3 前端国际化 i18n` 九个批次全部完成，收口扫描（`rg "[一-龥]" frontend/src/views frontend/src/components`）确认无剩余可见中文 UI 文案，残留中文仅限开发注释与 `RunDetail.vue` 中用于匹配后端错误的字符串。历史执行拆分与验收标准见该章节与 `docs/implementation-plan-2026-Q3.md` 的 `方向 F`。
 
 ## 项目结构
 
