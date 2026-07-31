@@ -3,13 +3,15 @@
 > 本文档用于在新会话中快速恢复开发上下文，包含架构决策、已完成功能、关键代码位置、待续任务等。
 
 **生成时间**: 2026-03-03
-**最近同步**: 2026-07-11
-**项目路径**: `/Users/parado/MyProject/ATP`
-**参考文档**: `PRD.md`（需求文档）、`Task.md`（任务跟踪）
+**最近同步**: 2026-07-31
+**项目路径**: 仓库根目录（各处示例中的 `backend/.venv/bin/python` 在 Windows 下为 `backend/.venv/Scripts/python.exe`）
+**参考文档**: `PRD.md`（需求文档）、`Task.md`（任务跟踪）、`CLAUDE.md`（架构与命令速查）
+
+> 本文档按时间追加，下文各节是历史快照，不代表当前状态。当前状态请看：`docs/q14-completion-audit.md`（Q14 本地项已完成，仅 Q14-00 外部证据待补）、`docs/optimization-roadmap-2026-q14.md`（路线图）、`Task.md`（模块完成度）。
 
 ---
 
-## 0. 当前进度快照（2026-07-08）
+## 0. 历史进度快照（2026-07-08）
 
 `docs/optimization-roadmap-2026.md` 中 ATP 后续优化路线已全部完成：**29 / 29 项均为 `[x] 已完成`**。
 

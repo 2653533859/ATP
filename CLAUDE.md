@@ -4,156 +4,141 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-ATP (Automated Testing Platform) — a team-oriented automated testing platform covering API testing, Web UI testing, Android UI testing, with suite orchestration, scheduled plans, execution reports, and notification integrations.
+ATP (Automated Testing Platform) — a team-oriented automated testing platform covering API testing (HTTP/GraphQL/gRPC/WebSocket), Web UI testing, Android UI testing and Android special-purpose testing (performance/stability/fluency), plus suite orchestration, scheduled plans, execution reports, HTTP load testing, AI healing/case generation, and notification integrations.
+
+Progress and per-module completion is tracked in `Task.md`; product scope in `PRD.md`. `docs/` holds design notes, runbooks and quarterly plans (`docs/optimization-roadmap-2026-q*.md`, `docs/implementation-plan-2026-Q*.md`).
 
 ## Tech Stack
 
-- **Frontend**: Vue 3 + TypeScript + Vite + Ant Design Vue 4.x + Pinia + Vue Router
-- **Backend**: FastAPI 0.115 + SQLAlchemy 2.x async (asyncpg) + Alembic + Pydantic Settings
+- **Frontend**: Vue 3 + TypeScript + Vite + Ant Design Vue 4.x + Pinia + Vue Router + vue-i18n + ECharts + Monaco
+- **Backend**: FastAPI + SQLAlchemy 2.x async (asyncpg) + Alembic + pydantic-settings, Python 3.12
 - **Task Queue**: Celery 5.x + Redis (DB0=broker, DB1=result, DB2=pubsub)
-- **Database**: PostgreSQL 16
-- **Object Storage**: MinIO (screenshots, reports, scripts, APKs)
-- **Executors**: httpx, Playwright, uiautomator2, grpcio, websockets — all via pytest + pytest-json-report
-- **Real-time**: Redis Pub/Sub → WebSocket (channel pattern: `atp:run:{run_id}`)
-- **Deployment**: Docker Compose (nginx reverse proxy)
-- **Python**: 3.12
+- **Storage**: PostgreSQL 16, MinIO (screenshots, reports, scripts, APKs, k6 scripts)
+- **Executors**: httpx, Playwright, uiautomator2, grpcio, websockets, k6 — via pytest + pytest-json-report
+- **Observability**: structlog, Prometheus (`/metrics`), OpenTelemetry → Jaeger
+- **Deployment**: Docker Compose (nginx reverse proxy), Helm chart under `deploy/helm/atp`
 
 ## Development Commands
 
-### Frontend (`cd frontend`)
+The `Makefile` is the canonical entry point — it wraps the exact commands CI runs. Override the interpreter with `make PYTHON=/path/to/python ...` and the compose binary with `make COMPOSE="docker compose" ...`.
+
+Python 3.12 is required. The repo convention is a gitignored venv at `backend/.venv`, which is what the quarterly evidence docs invoke (`make lint PYTHON=backend/.venv/bin/python`, `backend/.venv/Scripts/python.exe` on Windows).
 
 ```bash
-npm install          # install dependencies
-npm run dev          # dev server at http://localhost:5173
-npm run type-check   # vue-tsc --noEmit
-npm run build        # vue-tsc && vite build
+make setup            # pip install backend deps + npm ci
+make dev / dev-down   # full stack via docker compose
+make infra-up         # postgres + redis + minio only (docker-compose.dev.yml)
+make migrate          # cd backend && alembic upgrade head
+make backend          # uvicorn app.main:app --reload --port 8000
+make worker           # celery worker -Q default,mobile_special,ai,maintenance,performance
+make beat             # celery beat
+make frontend         # vite dev server at :5173
 ```
 
-### Backend (`cd backend`)
+### Verification (run these after changes)
 
 ```bash
-pip install -r requirements.txt
-uvicorn app.main:app --reload --port 8000    # API server
-celery -A app.worker.celery_app worker --loglevel=info   # worker
-celery -A app.worker.celery_app beat --loglevel=info     # scheduler
+make test-backend            # pytest backend/tests -q, excluding integration
+make test-frontend-build     # cd frontend && npm run type-check && npm run build
+make lint                    # ruff check backend/app backend/tests scripts/*.py
+make format-check            # ruff format --check
+make mypy                    # mypy over core/ schemas/ services/ only (progressive baseline)
+make pre-commit              # all pre-commit hooks over all files
 ```
 
-### Type Checking
+Frontend type-check must be run from `frontend/` (`npm run type-check`). Backend has no single type-check command — `make mypy` covers only the three baselined packages.
 
-When running type checks after modifications, specify the subdirectory:
-- Frontend: `cd frontend && npm run type-check`
-- Backend: uses Python type hints with Pydantic; no separate type-check command
-
-### Tests
+### Targeted tests
 
 ```bash
-python -m pytest backend/tests -q                    # all backend tests
-python -m pytest backend/tests/api -q                # API tests only
-python -m pytest backend/tests/api/test_auth.py -q   # single test file
+python -m pytest backend/tests/api/test_auth.py -q          # single file
+python -m pytest backend/tests -q -k "suite and not plan"   # by expression
+cd frontend && npm run test                                  # vitest unit tests
+cd frontend && npx vitest run src/path/to/Foo.spec.ts        # single vitest file
+make test-frontend-e2e                                       # playwright (mock dev server)
+make test-integration                                        # needs real PG/Redis/MinIO
 ```
 
-Test subdirectories: `api/`, `services/`, `worker/`, `migrations/`, `plans/`, `frontend/`.
+Test roots: `backend/tests/{api,services,worker,migrations,plans,integration,frontend}`, `frontend/src/**/*.spec.ts` (vitest), `frontend/e2e/*.spec.ts` (playwright).
 
-### Infrastructure (dev mode)
-
-```bash
-docker compose -f docker-compose.dev.yml up -d   # postgres + redis + minio only
-```
-
-### Full stack (production)
+### Security scans
 
 ```bash
-docker compose up --build        # all 7 services
-docker compose -f docker-compose.app.yml up --build -d  # app only (external infra)
+make security-bandit     # bandit -c pyproject.toml -r backend/app -ll
+make security-deps       # pip-audit + npm audit
 ```
 
 ## Architecture
 
-### Backend Structure (`backend/app/`)
-
-- `main.py` — FastAPI entry: lifespan creates tables + bootstraps admin, registers routes
-- `core/` — config (pydantic-settings), database (async engine), security (JWT/password), redis client
-- `models/` — SQLAlchemy models: User, Project, Module (self-referential tree), TestCase, TestRun, StepResult, Environment, Suite, Plan, Device, Notification, Mock, etc.
-- `schemas/` — Pydantic request/response schemas
-- `api/v1/` — route modules registered in `router.py` (prefix `/api/v1`). WebSocket endpoint at `/ws/runs/{run_id}`
-- `api/deps.py` — `get_current_user()`, `require_roles()`, `require_admin` dependency injection
-- `services/` — business logic: ADB device sync, notifications, audit, bug reporter
-- `models/global_variable.py` — `GlobalVariable` model (scope: global/project, Fernet encryption for secret values)
-- `api/v1/global_variables.py` — REST endpoints for global variable CRUD
-- `worker/celery_app.py` — Celery instance
-- `worker/tasks.py` — `run_test_case` task dispatches to executors
-- `worker/executors/` — one executor per test type: `api_executor`, `web_executor`, `web_lowcode_executor`, `android_executor`, `android_lowcode_executor`, `graphql_executor`, `grpc_executor`, `websocket_executor`, `android_perf_executor`, `android_stability_executor`, `android_fluency_executor`
-
-### Frontend Structure (`frontend/src/`)
-
-- `api/http.ts` — axios with JWT interceptor + 401 redirect
-- `api/index.ts` — all API method wrappers
-- `router/index.ts` — route definitions + auth guard
-- `stores/auth.ts` — Pinia auth store (token/user/login/logout)
-- `utils/websocket.ts` — WebSocket wrapper with auto-reconnect
-- `layouts/MainLayout.vue` — sidebar + header + RouterView
-- `views/` — page components organized by feature: auth, project, case, run, suite, plan, device, apk, mock, dashboard, system, mobile-special
-- `views/system/GlobalVariableLibrary.vue` — 全局变量库（项目级/全局变量，加密存储，查看/隐藏）
-- `components/common/` — shared components (ModuleTree, KvEditor, CaseFormDrawer, etc.)
-- Path alias: `@` maps to `src/`
-
-### Execution Flow
+### Request → execution flow
 
 ```
-POST /api/v1/cases/{id}/run → create TestRun(pending) → Celery task
-→ Worker: status=running → Redis publish → executor runs steps
-→ each step: request → assert → extract vars → write StepResult → Redis publish
-→ final: status=passed/failed → Redis publish completed
-→ Frontend: WebSocket listens on atp:run:{run_id}, fallback GET on close
+POST /api/v1/cases/{id}/run → TestRun(pending) → Celery task on `default` queue
+→ worker: status=running → publish to Redis DB2 → executor runs steps
+→ per step: request → assert → extract vars → StepResult row → publish
+→ final: passed/failed → publish completed → artifacts to MinIO
+→ frontend: WebSocket on atp:run:{run_id}; falls back to GET polling on close
 ```
+`docs/backend-request-flow.md` traces this end to end; `docs/worker-lifecycle.md` covers worker/queue behaviour.
 
-### Key Design Decisions
+### Backend (`backend/app/`)
 
-- **Redis DB separation**: DB0=Celery broker, DB1=Celery results, DB2=Pub/Sub events
-- **WebSocket auth**: via URL query `?token=xxx` (browser WS API doesn't support custom headers)
-- **Alembic migration**: uses sync psycopg2 URL (Alembic doesn't support asyncpg); `env.py` converts automatically
-- **Database init**: `create_all` in lifespan as fallback + Alembic for incremental migrations
-- **TestCase config**: stored as JSON column to accommodate varying structures across test types
-- **Pub/Sub failures**: `_safe_publish_run_event` swallows exceptions — real-time push is best-effort
+- `main.py` — lifespan: `setup_logging` → `verify_alembic_head_or_warn` → OTel init → optional `create_all` → `ensure_bucket` → bootstrap admin. Middleware order matters: CORS → CSRF → Trace, then `enable_metrics_for(app)` **before** `include_router` so the instrumentator sees every endpoint, then `FastAPIInstrumentor` **after** routing so spans carry path templates.
+- `core/` — `config.py` (pydantic-settings, all env vars), `database.py` (async engine), `security.py` (JWT/password), `encryption.py` (Fernet for secrets), `redis_client.py`, `minio_client.py`, `rate_limit.py` (slowapi), `cache_decorator.py`, `metrics.py`, `otel.py`/`tracing.py`, `migrations_check.py`, `slow_query.py`
+- `middleware/` — `csrf.py`, `trace.py`
+- `models/` — SQLAlchemy models; `bootstrap.py:load_all_models()` must import every model module for `create_all`/Alembic autogenerate to see it — add new model modules there
+- `api/v1/router.py` — registers all routers under `/api/v1`; `ws.py` mounts `/ws/runs/{run_id}`; `mock_server.py` mounts `/mock/`. `cases/` is split into `crud/runs/batch/workflow/common`
+- `api/deps.py` — `get_current_user()`, `require_roles()`, `require_admin`/`require_engineer`
+- `services/` — business logic: `adb_service`/`adb_resilience`/`device_sync`, `notifier`, `audit`, `bug_reporter`, `ai_healing*`/`ai_case/`/`ai_governance`, `failure_diagnosis`, `performance`, `dataset_schema`, `storage_cleanup`/`storage_alerts`/`run_retention`, `mobile_special/` (adb_client, parsers, collectors)
+- `worker/` — `celery_app.py` (queues, routes, beat schedule), `tasks*.py` split by domain, `dispatch.py`/`case_dispatch.py`/`async_runner.py`, `executors/` (one module per test type)
+- `mock_main.py` — standalone Mock server entry (see `docs/mock-standalone.md`)
 
-### Docker Compose Services
+### Celery queues
 
-Full stack (`docker-compose.yml`): frontend, backend, worker, beat, flower, postgres, redis, minio
-- Nginx in frontend container reverse-proxies `/api/` → backend:8000, `/ws/` → backend WebSocket
-- `docker-compose.dev.yml`: postgres + redis + minio only (for local dev)
-- `docker-compose.app.yml`: app services only (when infra is external)
+Routed in `celery_app.py`; a worker must subscribe explicitly (`-Q`):
 
-## Android 专项测试中心
+| Queue | Tasks |
+| --- | --- |
+| `default` | `run_test_case`, `run_test_suite`, `run_test_plan`, `check_cron_plans` |
+| `mobile_special` | Android special tasks, `scan_adb_devices` (real-device constrained) |
+| `ai` | LLM calls (`diagnose_*`, `aggregate_healing_feedback`) — isolated for rate limiting/degradation |
+| `performance` | `run_performance_test` (k6) |
+| `maintenance` | cleanup, storage/dashboard alerts, postgres backups |
 
-### Backend Structure
+Global limits: `task_time_limit=1800`, soft `1500`, `worker_max_tasks_per_child=50`, `prefetch=1`. Details in `docs/celery-queues.md`.
 
-- **Models**: `backend/app/models/mobile_special.py` — `MobileSpecialTask`, `MobileSpecialRun`, `MobileMetricSample`, `MobileIncident`, `MobileRunArtifact`
-- **Enums**: `TaskType` (performance/stability/fluency), `SourceType`, `DeviceScopeType`, `RunStatus`, `TriggerType`, `IncidentType`, `MetricType`, `ArtifactType`
-- **Schemas**: `backend/app/schemas/mobile_special.py` — Pydantic request/response schemas
-- **Executors**: `backend/app/worker/executors/android_perf_executor.py`, `android_stability_executor.py`, `android_fluency_executor.py`
-- **Tasks**: `backend/app/worker/tasks_mobile_special.py` — Celery task dispatch + schedule checker
-- **API**: `backend/app/api/v1/mobile_special.py` — REST endpoints (tasks CRUD, runs, samples, incidents, artifacts, export CSV/JSON, statistics)
-- **ADB Client**: `backend/app/services/mobile_special/adb_client.py` — ADB command builders
-- **Parsers**: `backend/app/services/mobile_special/parsers.py` — `parse_meminfo`, `parse_gfxinfo_framestats`, `parse_cpuinfo`, `parse_batterystats`, `parse_logcat_crash/anr`
-- **Collectors**: `backend/app/services/mobile_special/collectors.py` — `SamplingSession`, `PeriodicSampler`
+### Frontend (`frontend/src/`)
 
-### Frontend Structure
+- `api/http.ts` — axios + JWT interceptor + 401 redirect; `api/index.ts` — all endpoint wrappers
+- `stores/auth.ts` (Pinia), `router/index.ts` (routes + auth guard), `utils/websocket.ts` (auto-reconnect wrapper)
+- `views/` by feature: auth, project, case, run, suite, plan, device, apk, mock, dashboard, audit, system, mobile-special
+- `locales/` — vue-i18n; new user-facing strings go through i18n keys, not literals (migration is partial — match the surrounding page)
+- Path alias `@` → `src/`; components auto-imported via `unplugin-vue-components` (`components.d.ts` is generated)
+- `vite.config.ts` uses `manualChunks` to split ant-design-vue / echarts / icons / vuedraggable / monaco; routes are lazy-loaded
 
-- `SpecialTaskListView.vue` — 专项任务列表页（项目/类型筛选、创建/编辑抽屉、触发执行）
-- `ReportCenterView.vue` — 报告中心（KPI卡片、趋势图、运行记录表、导出CSV/JSON）
-- `ReportDetailView.vue` — 报告详情（任务信息、KPI卡片、指标趋势图、异常事件表、报告文件表）
+## Key Design Decisions
 
-### Task Config JSON Structure
+- **Schema is Alembic-owned.** `APP_AUTO_CREATE_TABLES` defaults off; startup only *warns* when the DB is not at head (`verify_alembic_head_or_warn`). Always add a migration for model changes — see `docs/alembic-migration-guidelines.md` and `docs/migrations.md`. Alembic uses a sync psycopg2 URL; `env.py` converts from the asyncpg URL automatically.
+- **Redis DB separation**: DB0 broker, DB1 results, DB2 pub/sub.
+- **WebSocket auth via `?token=`** — the browser WS API cannot send custom headers.
+- **Pub/sub is best-effort**: `_safe_publish_run_event` swallows exceptions; correctness must not depend on a delivered event.
+- **TestCase/task config is a JSON column** to absorb per-test-type shape differences. Android special-task configs: performance `{interval_seconds, duration_seconds, auto_start}`, stability adds `operation_interval_ms`, fluency adds `stages: [{name, action, coords?}]`.
+- **Secrets encrypted at rest** with Fernet (global variables, notification/bug-tracker/LLM credentials).
 
-- **performance**: `{interval_seconds, duration_seconds, auto_start}`
-- **stability**: `{interval_seconds, duration_seconds, auto_start, operation_interval_ms}`
-- **fluency**: `{interval_seconds, duration_seconds, auto_start, stages: [{name, action, coords?}]}`
+## Testing Conventions
+
+- The root `backend/tests/conftest.py` stubs optional heavy deps (`app.core.minio_client`, `app.core.redis_client`, `app.api.deps`, `app.core.database`) using a *fill-missing-only* strategy — it never overwrites attributes a test file hard-set. Do not add blanket `sys.modules` overwrites; extend the conftest defaults instead. Celery is deliberately **not** stubbed there so `pytest.importorskip("celery")` stays honest.
+- `ATP_INTEGRATION_TESTS=1` disables all stubs; integration fixtures live in `backend/tests/integration/conftest.py` and tests carry the `integration` marker.
+- `pytest_pycollect_makeitem` skips `Test*`-named application classes (`TestCase`, `TestPlan`, …) so they can be imported under their real names. `PytestCollectionWarning` is an error — keep collection warning-free.
+- The `flaky` marker requires an entry in `docs/flaky-governance.md` with cause, evidence and exit criteria.
+- Session fixtures `repo_root` / `repo_file` exist for contract tests that read repo files.
+- Coverage gate: `make test-backend-coverage` enforces `--cov-fail-under=70`.
 
 ## Conventions
 
-- Python: `snake_case` functions/files, `PascalCase` classes, 4-space indent
+- Python: `snake_case` functions/files, `PascalCase` classes, 4-space indent, ruff line-length 120, double quotes
 - TypeScript/Vue: `camelCase` variables/functions, `PascalCase` components, 2-space indent
+- Comments and user-facing copy in this repo are predominantly Chinese — match the file you are editing
 - Commit style: Conventional Commits (`feat:`, `fix:`, `docs:`, `chore:`)
-- API prefix: `/api/v1/`
-- Config via `.env` file, loaded by pydantic-settings (`backend/app/core/config.py`)
-- Default admin: username/password from `FIRST_ADMIN_*` env vars, auto-created on first boot
+- Config via `.env` (see `.env.example`), loaded by `backend/app/core/config.py`. Default admin comes from `FIRST_ADMIN_*`, created on first boot
+- CI (`.github/workflows/`): `ci.yml` (empty-DB migration check, backend pytest, frontend type-check+build) on push/PR to main; `security.yml`, `test-integration.yml`, `test-e2e.yml`, `release-readiness.yml` are nightly/manual — see `docs/ci-workflows.md`
