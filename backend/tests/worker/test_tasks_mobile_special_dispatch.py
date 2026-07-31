@@ -125,7 +125,10 @@ def test_resolve_run_device_id_precedence():
 
 
 def test_resolve_run_app_package_precedence():
-    assert tms._resolve_run_app_package(_Obj(config_snapshot={"app_package": "a"}, app_package="b"), _Obj(app_package="c")) == "a"
+    assert (
+        tms._resolve_run_app_package(_Obj(config_snapshot={"app_package": "a"}, app_package="b"), _Obj(app_package="c"))
+        == "a"
+    )
     assert tms._resolve_run_app_package(_Obj(config_snapshot={}, app_package="b"), _Obj(app_package="c")) == "b"
     assert tms._resolve_run_app_package(_Obj(config_snapshot={}, app_package=None), _Obj(app_package="c")) == "c"
 
@@ -166,7 +169,9 @@ def _run(run_id=10, task_id=1, **overrides):
 
 
 def _task(task_id=1, task_type=TaskType.performance, **overrides):
-    values = dict(id=task_id, task_type=task_type, config_json={"interval_seconds": 5}, device_id=77, app_package="com.acme")
+    values = dict(
+        id=task_id, task_type=task_type, config_json={"interval_seconds": 5}, device_id=77, app_package="com.acme"
+    )
     values.update(overrides)
     return _Obj(**values)
 
@@ -255,7 +260,9 @@ def test_run_task_resolves_device_serial_from_device(monkeypatch):
     async def fake_executor(_db, _run):
         return None
 
-    monkeypatch.setitem(sys.modules, "app.worker.executors", types.SimpleNamespace(run_mobile_special_perf=fake_executor))
+    monkeypatch.setitem(
+        sys.modules, "app.worker.executors", types.SimpleNamespace(run_mobile_special_perf=fake_executor)
+    )
 
     tms.run_mobile_special_task(None, 10)
 

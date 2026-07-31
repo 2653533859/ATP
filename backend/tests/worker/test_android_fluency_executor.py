@@ -247,7 +247,9 @@ def test_fluency_run_samples_each_stage(monkeypatch, chain_events, reachable, fa
     assert types_seen[-1] == "completed"
 
 
-def test_fluency_run_skips_empty_gfx_output(monkeypatch, chain_events, reachable, fast_sleep, quiet_heartbeat, quiet_adb):
+def test_fluency_run_skips_empty_gfx_output(
+    monkeypatch, chain_events, reachable, fast_sleep, quiet_heartbeat, quiet_adb
+):
     _gfx_stub(monkeypatch, [None])
     db = _FakeDB()
     run = _run_stub(device_serial="emu-5554", app_package="com.example.app", stages=[{"name": "s1", "action": "swipe"}])
@@ -283,7 +285,9 @@ def test_fluency_run_stops_stages_after_device_lost(
     assert "stage_start" not in types_seen
 
 
-def test_fluency_run_survives_stage_exception(monkeypatch, chain_events, reachable, fast_sleep, quiet_heartbeat, quiet_adb):
+def test_fluency_run_survives_stage_exception(
+    monkeypatch, chain_events, reachable, fast_sleep, quiet_heartbeat, quiet_adb
+):
     async def broken_swipe(*a, **kw):
         raise RuntimeError("input service died")
 

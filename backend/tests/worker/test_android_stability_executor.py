@@ -298,9 +298,7 @@ def test_stability_run_survives_monkey_exec_failure(
         raise FileNotFoundError("adb missing")
 
     fast = fast_clock
-    monkeypatch.setattr(
-        android_stability_executor.asyncio, "create_subprocess_exec", broken_exec, raising=False
-    )
+    monkeypatch.setattr(android_stability_executor.asyncio, "create_subprocess_exec", broken_exec, raising=False)
     _logcat_stub(monkeypatch)
     run = _run_stub(device_serial="emu-5554", app_package="com.example.app", duration_seconds=60)
 

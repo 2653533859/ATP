@@ -214,9 +214,7 @@ def test_create_global_scope_requires_admin():
 
 def test_create_rejects_duplicate_key():
     db = _FakeDB(execute_results=[_FakeResult(rows=[_var()])])
-    body = GlobalVariableCreate(
-        scope_type=ScopeType.project, project_id=5, key="TOKEN", value_encrypted="v"
-    )
+    body = GlobalVariableCreate(scope_type=ScopeType.project, project_id=5, key="TOKEN", value_encrypted="v")
 
     with pytest.raises(HTTPException) as exc:
         asyncio.run(gv.create_variable(body=body, db=db, current_user=_user()))
@@ -262,7 +260,9 @@ def test_update_without_value_keeps_ciphertext():
     var = _var()
     db = _FakeDB({("GlobalVariable", 1): var})
 
-    asyncio.run(gv.update_variable(var_id=1, body=GlobalVariableUpdate(description="备注"), db=db, current_user=_user()))
+    asyncio.run(
+        gv.update_variable(var_id=1, body=GlobalVariableUpdate(description="备注"), db=db, current_user=_user())
+    )
 
     assert var.value_encrypted == "enc(top-secret-token)"  # 未动 value → 密文不变
     assert var.description == "备注"
@@ -270,7 +270,9 @@ def test_update_without_value_keeps_ciphertext():
 
 def test_update_variable_404():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(gv.update_variable(var_id=404, body=GlobalVariableUpdate(key="X"), db=_FakeDB(), current_user=_user()))
+        asyncio.run(
+            gv.update_variable(var_id=404, body=GlobalVariableUpdate(key="X"), db=_FakeDB(), current_user=_user())
+        )
     assert exc.value.status_code == 404
 
 

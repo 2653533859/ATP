@@ -24,9 +24,7 @@ def parsers(monkeypatch):
     """fake 各 parser：返回带来源标记的 dict，验证 collector 路由到正确 parser。"""
     monkeypatch.setattr(collectors, "parse_pid", lambda raw: 4321)
     for name in ("parse_cpuinfo", "parse_meminfo", "parse_gfxinfo_framestats", "parse_batterystats"):
-        monkeypatch.setattr(
-            collectors, name, lambda raw, pkg, _n=name: {"metric": _n, "raw": raw, "pkg": pkg}
-        )
+        monkeypatch.setattr(collectors, name, lambda raw, pkg, _n=name: {"metric": _n, "raw": raw, "pkg": pkg})
 
 
 def _install_adb(monkeypatch, responder):

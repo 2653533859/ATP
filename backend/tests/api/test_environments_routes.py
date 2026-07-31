@@ -147,9 +147,7 @@ def test_update_environment_applies_non_none_fields(access):
     env = _env(name="old")
     db = _FakeDB({("Environment", 1): env})
 
-    updated = asyncio.run(
-        envs.update_environment(env_id=1, body=EnvironmentUpdate(name="new"), db=db, user=_user())
-    )
+    updated = asyncio.run(envs.update_environment(env_id=1, body=EnvironmentUpdate(name="new"), db=db, user=_user()))
 
     assert updated.name == "new"
     assert access == [(5, envs.ProjectRole.editor)]
@@ -234,6 +232,4 @@ def test_save_variables_404():
 
 def test_batch_save_rejects_duplicate_keys():
     with pytest.raises(ValueError):
-        EnvVariableBatchSave(
-            variables=[EnvVariableItem(key="DUP", value="a"), EnvVariableItem(key="DUP", value="b")]
-        )
+        EnvVariableBatchSave(variables=[EnvVariableItem(key="DUP", value="a"), EnvVariableItem(key="DUP", value="b")])

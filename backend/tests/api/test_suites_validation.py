@@ -380,7 +380,9 @@ def test_get_suite_404_and_happy():
     assert exc.value.status_code == 404
 
     suite = TestSuite(id=33, name="s", project_id=1, creator_id=7)
-    assert asyncio.run(suites.get_suite(suite_id=33, db=_FakeDB(suite=suite), user=types.SimpleNamespace(id=7))) is suite
+    assert (
+        asyncio.run(suites.get_suite(suite_id=33, db=_FakeDB(suite=suite), user=types.SimpleNamespace(id=7))) is suite
+    )
 
 
 def test_update_and_delete_suite_404():

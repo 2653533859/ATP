@@ -425,9 +425,7 @@ def test_run_android_lowcode_happy_path_publishes_steps(run_env):
 def test_run_android_lowcode_failed_step_stops(run_env):
     run_env["steps"]["queue"] = [{"success": False, "error": "元素不存在"}]
     db = _FakeDB()
-    run, case = _run_case(
-        [{"action": "click", "params": {}}, {"action": "wait", "params": {}}]
-    )
+    run, case = _run_case([{"action": "click", "params": {}}, {"action": "wait", "params": {}}])
 
     asyncio.run(executor.run_android_lowcode(db, run, case, {}))
 

@@ -232,9 +232,7 @@ def test_add_project_member_creates_and_guards_dupes():
     # 首次：用户存在、无既有成员
     db = _FakeDB({("User", 7): user}, execute_results=[_FakeResult(scalar=None)])
 
-    out = asyncio.run(
-        prj.add_project_member(project_id=5, body=ProjectMemberAddIn(user_id=7, role="editor"), db=db)
-    )
+    out = asyncio.run(prj.add_project_member(project_id=5, body=ProjectMemberAddIn(user_id=7, role="editor"), db=db))
 
     assert out.user_id == 7 and out.role == "editor"
 
@@ -264,7 +262,9 @@ def test_update_project_member_changes_role_and_404():
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
             prj.update_project_member(
-                project_id=5, user_id=404, body=ProjectMemberUpdateIn(role="viewer"),
+                project_id=5,
+                user_id=404,
+                body=ProjectMemberUpdateIn(role="viewer"),
                 db=_FakeDB(execute_results=[_FakeResult(scalar=None)]),
             )
         )
@@ -299,5 +299,7 @@ def test_remove_member_allows_non_last_owner_and_regular_member():
 
 def test_remove_member_404():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(prj.remove_project_member(project_id=5, user_id=404, db=_FakeDB(execute_results=[_FakeResult(scalar=None)])))
+        asyncio.run(
+            prj.remove_project_member(project_id=5, user_id=404, db=_FakeDB(execute_results=[_FakeResult(scalar=None)]))
+        )
     assert exc.value.status_code == 404

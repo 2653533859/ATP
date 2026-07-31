@@ -153,9 +153,7 @@ def test_can_subscribe_triggerer_allowed(monkeypatch):
 
 
 def test_can_subscribe_case_creator_allowed(monkeypatch):
-    db = _FakeDB(
-        {("TestRun", 10): _run(triggered_by=99), ("TestCase", 1): _Obj(id=1, creator_id=7, module_id=2)}
-    )
+    db = _FakeDB({("TestRun", 10): _run(triggered_by=99), ("TestCase", 1): _Obj(id=1, creator_id=7, module_id=2)})
     _install_session(monkeypatch, db)
     assert asyncio.run(ws_mod._can_subscribe_run(10, _Obj(id=7, role=UserRole.viewer))) is True
 

@@ -260,7 +260,9 @@ def test_create_notification_encrypts_and_audits(audit):
     )
     db = _FakeDB(project=_FakeProject(1))
 
-    result = asyncio.run(notifications.create_notification(body=body, db=db, user=types.SimpleNamespace(id=9, username="amy")))
+    result = asyncio.run(
+        notifications.create_notification(body=body, db=db, user=types.SimpleNamespace(id=9, username="amy"))
+    )
 
     assert result.config == {"webhook_url": "enc:https://qy.example"}  # 存前加密
     assert db.added and db.added[0] is result
@@ -270,8 +272,14 @@ def test_create_notification_encrypts_and_audits(audit):
 def test_list_notifications_masks_sensitive_config(monkeypatch):
     monkeypatch.setattr(notifications, "mask_config", lambda c: {k: "******" for k in c})
     cfg = _FakeNotificationConfig(
-        id=1, name="n", project_id=5, channel=NotifyChannel.wechat, config={"webhook_url": "x"},
-        is_enabled=True, created_at=_NOW, updated_at=_NOW,
+        id=1,
+        name="n",
+        project_id=5,
+        channel=NotifyChannel.wechat,
+        config={"webhook_url": "x"},
+        is_enabled=True,
+        created_at=_NOW,
+        updated_at=_NOW,
     )
     db = _ListDB(rows=[cfg])
 
@@ -290,8 +298,14 @@ def test_get_notification_404_and_masked(monkeypatch):
     assert exc.value.status_code == 404
 
     cfg = _FakeNotificationConfig(
-        id=3, name="n", project_id=5, channel=NotifyChannel.wechat, config={"secret": "x"},
-        is_enabled=True, created_at=_NOW, updated_at=_NOW,
+        id=3,
+        name="n",
+        project_id=5,
+        channel=NotifyChannel.wechat,
+        config={"secret": "x"},
+        is_enabled=True,
+        created_at=_NOW,
+        updated_at=_NOW,
     )
     out = asyncio.run(notifications.get_notification(cfg_id=3, db=_FakeDB(cfg=cfg), user=types.SimpleNamespace(id=9)))
     assert out["config"] == {"secret": "******"}
@@ -312,7 +326,12 @@ def test_update_notification_404():
 
 def test_update_notification_non_config_field_audits(audit):
     cfg = _FakeNotificationConfig(
-        id=5, name="old", project_id=2, channel=NotifyChannel.dingtalk, config={}, is_enabled=True,
+        id=5,
+        name="old",
+        project_id=2,
+        channel=NotifyChannel.dingtalk,
+        config={},
+        is_enabled=True,
     )
     db = _FakeDB(cfg=cfg)
 
@@ -330,7 +349,9 @@ def test_update_notification_non_config_field_audits(audit):
 
 def test_delete_notification_404_and_happy(audit):
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(notifications.delete_notification(cfg_id=404, db=_FakeDB(cfg=None), user=types.SimpleNamespace(id=9)))
+        asyncio.run(
+            notifications.delete_notification(cfg_id=404, db=_FakeDB(cfg=None), user=types.SimpleNamespace(id=9))
+        )
     assert exc.value.status_code == 404
 
     cfg = _FakeNotificationConfig(id=6, name="bye", project_id=2, channel=NotifyChannel.email, config={})

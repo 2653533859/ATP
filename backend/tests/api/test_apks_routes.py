@@ -129,7 +129,8 @@ def stubs(monkeypatch):
     monkeypatch.setattr(
         ak,
         "presigned_url",
-        lambda name, expires_seconds=0: minio_calls["presigned"].append((name, expires_seconds)) or "https://minio/signed",
+        lambda name, expires_seconds=0: minio_calls["presigned"].append((name, expires_seconds))
+        or "https://minio/signed",
     )
     return {"access": access_calls, "minio": minio_calls}
 

@@ -163,7 +163,9 @@ def test_validate_environment_404_and_wrong_project():
 
 
 def test_create_plan_cron_computes_next_run():
-    db = _FakeDB({("Project", 5): _Obj(id=5), ("TestSuite", 1): _suite(1)}, execute_results=[_FakeResult(rows=[_suite(1)])])
+    db = _FakeDB(
+        {("Project", 5): _Obj(id=5), ("TestSuite", 1): _suite(1)}, execute_results=[_FakeResult(rows=[_suite(1)])]
+    )
     body = TestPlanCreate(
         name="Nightly",
         project_id=5,
@@ -222,7 +224,9 @@ def test_trigger_plan_run_enqueues_with_env_vars(stubs):
         execute_results=[_FakeResult(rows=[_Obj(id=1, key="k")])],
     )
 
-    run = asyncio.run(pl.trigger_plan_run(plan_id=1, body=PlanRunTrigger(extra_vars={"X": "1"}), db=db, current_user=_user()))
+    run = asyncio.run(
+        pl.trigger_plan_run(plan_id=1, body=PlanRunTrigger(extra_vars={"X": "1"}), db=db, current_user=_user())
+    )
 
     assert run.trigger_type is TriggerType.manual and run.status is PlanRunStatus.pending
     assert len(stubs["delayed"]) == 1
@@ -238,7 +242,9 @@ def test_trigger_plan_run_rejects_empty_and_404(stubs):
     plan = _Obj(id=1, project_id=5, suite_ids=[])
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
-            pl.trigger_plan_run(plan_id=1, body=PlanRunTrigger(), db=_FakeDB({("TestPlan", 1): plan}), current_user=_user())
+            pl.trigger_plan_run(
+                plan_id=1, body=PlanRunTrigger(), db=_FakeDB({("TestPlan", 1): plan}), current_user=_user()
+            )
         )
     assert exc.value.status_code == 400 and "没有测试套件" in exc.value.detail
 
@@ -247,7 +253,14 @@ def test_trigger_plan_run_rejects_empty_and_404(stubs):
 
 
 def _hook_plan(**overrides):
-    values = dict(id=1, project_id=5, schedule_type=ScheduleType.webhook, webhook_secret="s3cr3t", suite_ids=[{"suite_id": 1}], env_id=None)
+    values = dict(
+        id=1,
+        project_id=5,
+        schedule_type=ScheduleType.webhook,
+        webhook_secret="s3cr3t",
+        suite_ids=[{"suite_id": 1}],
+        env_id=None,
+    )
     values.update(overrides)
     return _Obj(**values)
 
@@ -270,18 +283,32 @@ def test_webhook_trigger_404():
 def test_webhook_trigger_rejects_non_webhook_plan():
     plan = _hook_plan(schedule_type=ScheduleType.manual)
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(pl.webhook_trigger(body=WebhookTriggerRequest(plan_id=1), x_webhook_secret="s3cr3t", db=_FakeDB({("TestPlan", 1): plan})))
+        asyncio.run(
+            pl.webhook_trigger(
+                body=WebhookTriggerRequest(plan_id=1), x_webhook_secret="s3cr3t", db=_FakeDB({("TestPlan", 1): plan})
+            )
+        )
     assert exc.value.status_code == 400 and "不支持 Webhook" in exc.value.detail
 
 
 def test_webhook_trigger_rejects_bad_secret():
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(pl.webhook_trigger(body=WebhookTriggerRequest(plan_id=1), x_webhook_secret="wrong", db=_FakeDB({("TestPlan", 1): _hook_plan()})))
+        asyncio.run(
+            pl.webhook_trigger(
+                body=WebhookTriggerRequest(plan_id=1),
+                x_webhook_secret="wrong",
+                db=_FakeDB({("TestPlan", 1): _hook_plan()}),
+            )
+        )
     assert exc.value.status_code == 403 and "验证失败" in exc.value.detail
 
 
 def test_webhook_trigger_rejects_empty_suites():
     plan = _hook_plan(suite_ids=[])
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(pl.webhook_trigger(body=WebhookTriggerRequest(plan_id=1), x_webhook_secret="s3cr3t", db=_FakeDB({("TestPlan", 1): plan})))
+        asyncio.run(
+            pl.webhook_trigger(
+                body=WebhookTriggerRequest(plan_id=1), x_webhook_secret="s3cr3t", db=_FakeDB({("TestPlan", 1): plan})
+            )
+        )
     assert exc.value.status_code == 400 and "没有测试套件" in exc.value.detail

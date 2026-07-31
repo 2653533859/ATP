@@ -314,7 +314,9 @@ def quiet_heartbeat(monkeypatch):
     return _HB
 
 
-def _install_exec(monkeypatch, *, report=None, returncode=0, stdout=b"", stderr=b"", screenshots=None, hang=False, raise_exc=None):
+def _install_exec(
+    monkeypatch, *, report=None, returncode=0, stdout=b"", stderr=b"", screenshots=None, hang=False, raise_exc=None
+):
     """fake asyncio.create_subprocess_exec：写 --json-report-file 与截图文件后返回替身进程。"""
     procs = []
 
@@ -372,7 +374,9 @@ def test_android_chain_maps_tests_to_steps(monkeypatch, chain_events, reachable,
     assert healing["run_healing"] == [11]
 
 
-def test_android_chain_all_passed_marks_run_passed(monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat):
+def test_android_chain_all_passed_marks_run_passed(
+    monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat
+):
     report = {"tests": [{"nodeid": "case.py::test_ok", "outcome": "passed", "duration": 0.3}]}
     _install_exec(monkeypatch, report=report)
     run = _Obj(id=12, status=RunStatus.pending)
@@ -383,7 +387,9 @@ def test_android_chain_all_passed_marks_run_passed(monkeypatch, chain_events, re
     assert chain_events[-1]["status"] == "passed"
 
 
-def test_android_chain_timeout_kills_and_errors(monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat):
+def test_android_chain_timeout_kills_and_errors(
+    monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat
+):
     procs = _install_exec(monkeypatch, report=None, hang=True)
     db = _FakeDB()
     run = _Obj(id=13, status=RunStatus.pending)
@@ -397,7 +403,9 @@ def test_android_chain_timeout_kills_and_errors(monkeypatch, chain_events, reach
     assert chain_events[-1]["status"] == "error"
 
 
-def test_android_chain_subprocess_start_failure(monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat):
+def test_android_chain_subprocess_start_failure(
+    monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat
+):
     _install_exec(monkeypatch, raise_exc=FileNotFoundError("python missing"))
     db = _FakeDB()
     run = _Obj(id=14, status=RunStatus.pending)
@@ -409,7 +417,9 @@ def test_android_chain_subprocess_start_failure(monkeypatch, chain_events, reach
     assert db.added[0].status is RunStatus.error
 
 
-def test_android_chain_no_tests_reports_stderr(monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat):
+def test_android_chain_no_tests_reports_stderr(
+    monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat
+):
     _install_exec(monkeypatch, report={"tests": []}, stderr=b"collected 0 items")
     run = _Obj(id=15, status=RunStatus.pending)
 
@@ -439,8 +449,12 @@ def test_android_chain_device_lost_mid_run(monkeypatch, chain_events, reachable,
     assert db.added[0].status is RunStatus.error
 
 
-def test_android_chain_apk_install_failure_stops_run(monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat):
-    monkeypatch.setattr(android_executor, "_install_apk", lambda serial, path, timeout=120: (False, "connection broken"))
+def test_android_chain_apk_install_failure_stops_run(
+    monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat
+):
+    monkeypatch.setattr(
+        android_executor, "_install_apk", lambda serial, path, timeout=120: (False, "connection broken")
+    )
     run = _Obj(id=17, status=RunStatus.pending)
 
     _run(_GuardDB(), run, _case_stub(apk_object_name="apks/app.apk"))
@@ -450,10 +464,14 @@ def test_android_chain_apk_install_failure_stops_run(monkeypatch, chain_events, 
     assert chain_events[-1]["status"] == "error"
 
 
-def test_android_chain_apk_install_success_continues(monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat):
+def test_android_chain_apk_install_success_continues(
+    monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat
+):
     installs = []
     monkeypatch.setattr(
-        android_executor, "_install_apk", lambda serial, path, timeout=120: installs.append((serial, path)) or (True, "ok")
+        android_executor,
+        "_install_apk",
+        lambda serial, path, timeout=120: installs.append((serial, path)) or (True, "ok"),
     )
     report = {"tests": [{"nodeid": "case.py::test_ok", "outcome": "passed", "duration": 0.3}]}
     _install_exec(monkeypatch, report=report)
@@ -465,7 +483,9 @@ def test_android_chain_apk_install_success_continues(monkeypatch, chain_events, 
     assert installs and installs[0][0] == "emu-5554" and installs[0][1].endswith("app.apk")
 
 
-def test_android_chain_uploads_screenshot_for_matching_test(monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat):
+def test_android_chain_uploads_screenshot_for_matching_test(
+    monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat
+):
     report = {"tests": [{"nodeid": "case.py::test_shot", "outcome": "failed", "duration": 0.2}]}
     _install_exec(monkeypatch, report=report, screenshots=["screenshots/after_test_shot_1.png"])
     db = _FakeDB()
@@ -477,7 +497,9 @@ def test_android_chain_uploads_screenshot_for_matching_test(monkeypatch, chain_e
     assert db.added[0].screenshot_url == "https://minio/screenshots/runs/19/step_0.png"
 
 
-def test_android_chain_enqueues_diagnosis_when_hook_requests(monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat):
+def test_android_chain_enqueues_diagnosis_when_hook_requests(
+    monkeypatch, chain_events, reachable, fake_minio, healing, quiet_heartbeat
+):
     monkeypatch.setattr(android_executor, "apply_healing_hook", lambda _step: True)
     report = {"tests": [{"nodeid": "case.py::test_x", "outcome": "failed", "duration": 0.1}]}
     _install_exec(monkeypatch, report=report)
@@ -488,7 +510,9 @@ def test_android_chain_enqueues_diagnosis_when_hook_requests(monkeypatch, chain_
     assert healing["diagnosis"] == [db.added[0].id]
 
 
-def test_android_chain_generic_exception_marks_run_failed(monkeypatch, chain_events, reachable, healing, quiet_heartbeat):
+def test_android_chain_generic_exception_marks_run_failed(
+    monkeypatch, chain_events, reachable, healing, quiet_heartbeat
+):
     def broken_download(src, dst):
         raise RuntimeError("minio down")
 

@@ -186,9 +186,7 @@ def test_batch_delete_dedups_and_reports_skipped(stubs):
     case = _case(1)
     db = _FakeDB(execute_results=[_FakeResult(rows=[case])])
 
-    out = asyncio.run(
-        bt.batch_delete_cases(body=CaseBatchDeleteIn(case_ids=[1, 1, 2]), db=db, current_user=_user())
-    )
+    out = asyncio.run(bt.batch_delete_cases(body=CaseBatchDeleteIn(case_ids=[1, 1, 2]), db=db, current_user=_user()))
 
     assert (out.requested, out.processed, out.skipped_ids) == (2, 1, [2])
     assert db.deleted == [case]
@@ -230,9 +228,7 @@ def test_batch_move_skips_already_in_target(stubs):
     assert Module.__name__ == "Module"
 
     out = asyncio.run(
-        bt.batch_move_cases(
-            body=CaseBatchMoveIn(case_ids=[1, 2, 5], target_module_id=10), db=db, current_user=_user()
-        )
+        bt.batch_move_cases(body=CaseBatchMoveIn(case_ids=[1, 2, 5], target_module_id=10), db=db, current_user=_user())
     )
 
     assert (out.requested, out.processed) == (3, 1)
