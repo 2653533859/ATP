@@ -4,3 +4,6 @@
 # run:
 #
 #   git config blame.ignoreRevsFile .git-blame-ignore-revs
+
+# style: apply ruff format to 15 backend test files
+e76bd245e3caacc1f2dede8741ebd9671ff2da28
