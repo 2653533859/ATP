@@ -3,11 +3,11 @@
 > 本文档用于在新会话中快速恢复开发上下文，包含架构决策、已完成功能、关键代码位置、待续任务等。
 
 **生成时间**: 2026-03-03
-**最近同步**: 2026-07-31
+**最近同步**: 2026-08-05
 **项目路径**: 仓库根目录（各处示例中的 `backend/.venv/bin/python` 在 Windows 下为 `backend/.venv/Scripts/python.exe`）
 **参考文档**: `PRD.md`（需求文档）、`Task.md`（任务跟踪）、`CLAUDE.md`（架构与命令速查）
 
-> 本文档按时间追加，下文各节是历史快照，不代表当前状态。当前状态请看：`docs/q14-completion-audit.md`（Q14 本地项已完成，仅 Q14-00 外部证据待补）、`docs/optimization-roadmap-2026-q14.md`（路线图）、`Task.md`（模块完成度）。
+> 本文档按时间追加，下文各节是历史快照，不代表当前状态。当前状态请看：`Task.md`（头部的「当前阶段」与「最新验证」）、`docs/optimization-roadmap-2026-q15.md`（当前路线图，含 Execution Log）、`docs/ci-workflows.md`（CI 与门禁强制力现状）、`docs/coverage-baseline-2026-q13.md`（覆盖率分片与门禁口径）。
 
 ---
 
@@ -464,6 +464,18 @@ Q1-Q12 路线图内功能项已完成。Q13 本地项已全部完成，覆盖延
 - backend coverage extension: projects API (permission-system root, incl. member management + last-owner protection) 41 -> 79%, TOTAL 73.41%, 1125 passed.
 - 后端覆盖延伸续：mobile_special 调度分发 tasks_mobile_special.py（executor 路由/调度/清理）26%→97%，TOTAL 72.87%、1110 passed。mobile-special 垂直全链路均已覆盖。
 - 下一项：Q14 路线图已发布（`docs/optimization-roadmap-2026-q14.md`，2026-07-11）——Q14-01 Android/ADB 执行器覆盖与 Q14-03 前端工作台挂载测试并行起步；Q14-04 retention 真实清理、Q14-05 gitleaks pre-commit、Q14-06 Q13 验收总结随后；Q14-00（Q12-05 采集）待环境随时插入。
+
+### Q15 快照（2026-08-05）
+
+Q15 的主线不是新功能，而是让已声明的质量门禁真正生效。起因：`ruff format --check` 与 `mypy` 从 2026-07-08 起就在 `ci.yml` 里跑，但 07-11 引入的 16 个未格式化文件与 `services/run_retention.py` 的 12 个 mypy 报错在 `main` 上存活了 20 天。
+
+- **Q15-01（部分完成）**：分支保护实测不可得 —— private 仓库 + 个人免费套餐，`branches/main/protection` 与 `rulesets` 均返回 403，`required status checks` 无法配置，因此按路线图预案降级为「本地钩子 + 文档约定」，边界（可被 `--no-verify` 绕过、CI 红不阻止 push）在 `docs/ci-workflows.md`「门禁强制力现状」如实写明。已落地：mypy 钩子改隔离安装、脱离环境 `PATH` python；`make setup` 安装 `requirements-dev.txt` 并执行 `pre-commit install`（放最后且非致命）；新增 `backend/tests/test_quality_gate_consistency.py`（10 个测试）守住 Makefile / `ci.yml` / `.pre-commit-config.yaml` / 文档四处不漂移。过程中另修两个既有缺陷：钩子与 CI lint job 都只装开发依赖，mypy 看不到 SQLAlchemy 真实签名（`d116359^` 的 run_retention.py 只报 8 个错而完整环境报 12 个）；ruff 的受检脚本清单此前只在 Makefile 生效，CI 与钩子都没覆盖 `scripts/`。
+- **Q15-02（完成）**：183 个非 integration 文件中有 10 个只在整套按序运行时才通过。根因是根 conftest 从未把 `backend/` 放进 `sys.path`（144 个文件各抄一遍，漏抄的靠别人先插好），修在 conftest 后同时解决 `test_conftest_stubs.py` 的 `No module named 'tests'`；`app.api.deps` stub 补 `assert_project_access` / `require_project_access`。新增 `scripts/pytest-standalone-sweep.py`、`make test-backend-standalone` 与 CI 扫描步骤，现为 `191 passed, 0 failed`。
+- **Q15-03（完成）**：`ci.yml` 新增 `backend-test-windows`（`windows-latest` + Python 3.12），只跑后端单元回归；不起 service container、不跑覆盖率门禁、不跑单文件扫描、不跑静态检查，五项排除理由记在 `docs/ci-workflows.md`「Windows job 的范围」。「纳入 required 集合」这一条在当前套餐下无法满足，已如实记录。
+- **Q15-05（完成）**：五个指定模块 `tasks_performance` 0%→100%、`aggregator` 9%→95%、`ai_healing_stats` 26%→98%、`tasks_db_backup` 44%→93%、`dashboard_alerts`(service) 56%→98%；为达成 TOTAL 目标追加四个路由，其中 `api/v1/auth.py` 与 `api/v1/scripts.py` 此前均为 0%（顺带发现 CLAUDE.md 举例引用的 `backend/tests/api/test_auth.py` 并不存在）。后端 TOTAL 86.04%（Python 3.12 / CI 口径）、`1467 passed`，门禁 70→82。
+- **Q15-06（完成）**：`chartTheme.spec.ts` 的负载敏感不是外部时序 —— spec 只 mock 了 `echarts/core`，把 `echarts/charts` / `components` / `renderers` 留成真的，每次动态 import 都重新转换整棵 echarts 子图，而文件里没有任何断言碰这些模块。补 mock 后测试耗时 196–289ms → 12–13ms。未登记 flaky（不满足 `docs/flaky-governance.md` 第 2 条），也未抬高全局 `testTimeout`。
+- **覆盖率口径重要发现**：同一命令在 Python 3.12 下为 13962 语句 / 86.04%，在 Python 3.14（本地 venv）下为 13367 语句 / 85.55%，差 595 条约 0.5 个百分点。抬门禁须以 3.12 为准并复验 3.14，说明见 `docs/coverage-baseline-2026-q13.md` 的 Interpreter note。
+- **下一项**：Q15-04（前端 `views/system` 挂载测试，statements 21.48% → ≥28%）、Q15-07（Q14 验收总结，路线图要求最后做）；Q15-00（Q12-05 采集）继续待外部环境，已连续顺延三个季度。
 
 ---
 

@@ -82,9 +82,15 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 
 相关文档：`docs/code-quality.md`、`docs/frontend-testing.md`、`docs/security-scanning.md`、`docs/slo-guide.md`、`docs/flaky-governance.md`、`docs/q10-acceptance-summary.md`。
 
-Q13 已验收（`docs/q13-acceptance-summary.md`）。Q14 的本地项已全部完成并留档于 `docs/q14-completion-audit.md`：后端覆盖率 TOTAL 约 82%（门禁 70）、前端 statements 约 21%（门禁 20.5）、运行记录保留支持项目级覆盖、gitleaks 本地 pre-commit 钩子落地。唯一未收口项是 Q14-00 —— 需要真实生产环境的 SLO 历史与 Android 真机演练证据，采集与校验工具已就绪（`make collect-q12-evidence` / `make scaffold-q12-evidence` / `make validate-q12-evidence`）。Q14 路线图见 `docs/optimization-roadmap-2026-q14.md`。
+Q13 已验收（`docs/q13-acceptance-summary.md`）。Q14 的本地项已全部完成并留档于 `docs/q14-completion-audit.md`：运行记录保留支持项目级覆盖、gitleaks 本地 pre-commit 钩子落地。唯一未收口项是 Q14-00（在 Q15 中承接为 Q15-00）—— 需要真实生产环境的 SLO 历史与 Android 真机演练证据，采集与校验工具已就绪（`make collect-q12-evidence` / `make scaffold-q12-evidence` / `make validate-q12-evidence`）。Q14 路线图见 `docs/optimization-roadmap-2026-q14.md`。
 
-下一轮路线图草案见 `docs/optimization-roadmap-2026-q15.md`（**待评审**，尚未立项）：主线是让已声明的质量门禁真正生效、补齐后端测试的单文件可运行性与 Windows CI，随后继续 `views/system` 与 worker 维护任务的覆盖，并发布 Q14 验收总结。
+Q15 正在推进（`docs/optimization-roadmap-2026-q15.md`，含 Execution Log），主线是让已声明的质量门禁真正生效：
+
+- **已完成**：后端测试单文件可运行（`make test-backend-standalone`，191 个文件逐个通过，CI 内置扫描）、Windows CI job（`ci.yml` 的 `backend-test-windows`）、worker/维护模块覆盖与门禁校准（后端 TOTAL **86.04%**，门禁 70 → **82**）、`chartTheme.spec.ts` 负载敏感治理。
+- **部分完成**：门禁生效（Q15-01）—— mypy 钩子脱离环境 `PATH`、`make setup` 安装开发依赖并装钩子、新增门禁一致性契约测试。但 **`main` 上不存在服务端强制门禁**：仓库为个人账户下的 private 仓库，分支保护与 rulesets 均需 GitHub Pro，`required status checks` 无法配置，因此 CI 红绿只是通知、本地钩子可被 `--no-verify` 绕过。实测记录与恢复强制力的两条路径见 `docs/ci-workflows.md`「门禁强制力现状」。
+- **待推进**：前端 `views/system` 挂载测试（Q15-04）、Q14 验收总结（Q15-07）。
+
+当前质量基线（2026-08-05 实测）：后端 `1467 passed`、TOTAL 86.04%（Python 3.12 / CI 口径；本地 Python 3.14 为 85.55%，两者语句总数不同，详见 `docs/coverage-baseline-2026-q13.md` 的 Interpreter note），门禁 82；前端 `102 passed`、statements 21.48%（门禁 20.5）。
 
 ### 当前仍建议继续完善的方向
 
