@@ -729,10 +729,13 @@
 > 实测输入（2026-07-31）：后端 TOTAL 82.73%（13962 语句 / 2045 未覆盖，1327 passed，门禁 70）；前端 statements 21.48% / branches 18.48% / functions 17.44% / lines 22%；183 个非 integration 测试文件逐个单独运行有 10 个失败（5.5%）。
 
 - [ ] Q15-00 承接 Q14-00 / Q12-05：生产 SLO 7/14 天历史 + Android 真机演练采集，随后发布 `docs/q12-acceptance-summary.md`（待外部环境，已连续顺延三个季度；若环境短期不可得，应显式重新定界而非继续顺延）
-- [ ] Q15-01 让已声明的门禁真正拦得住：确认并记录 `main` 的分支保护状态、把 `ci.yml` 各 job 设为 required status checks（若当前套餐不支持，则退化为文档约定 + 本地钩子并如实说明）；`pre-commit install` 纳入 `make setup` 与 CLAUDE/AGENTS 验证章节；修掉 `.pre-commit-config.yaml` 中 mypy 钩子对环境 `PATH` python 的依赖；补 Makefile 与 `ci.yml` 覆盖率门禁的漂移回归
-- [ ] Q15-02 后端测试单文件可运行：183 个非 integration 文件逐个通过；8 个 `No module named 'app'` 走统一 `sys.path` 引导（扩展 `backend/tests/_paths.py` 或加 `tests/__init__.py`）、根 conftest 的 `app.api.deps` stub 补 `assert_project_access` / `require_project_access`、`test_conftest_stubs.py` 不再依赖环境中可导入的 `tests` 包；CI 增加逐文件扫描防回归
-- [ ] Q15-03 Windows CI job：`ci.yml` 增加 `windows-latest` 后端 pytest job（Python 3.12，单测已 stub 基础设施故无需 service container），纳入 Q15-01 的 required 集合；`docs/ci-workflows.md` 说明范围与刻意排除项（integration / E2E 仍仅 Linux）
+- [~] Q15-01 让已声明的门禁真正拦得住（本地部分完成；服务端强制力不可得）：确认并记录 `main` 的分支保护状态、把 `ci.yml` 各 job 设为 required status checks（若当前套餐不支持，则退化为文档约定 + 本地钩子并如实说明）；`pre-commit install` 纳入 `make setup` 与 CLAUDE/AGENTS 验证章节；修掉 `.pre-commit-config.yaml` 中 mypy 钩子对环境 `PATH` python 的依赖；补 Makefile 与 `ci.yml` 覆盖率门禁的漂移回归
+- [x] Q15-02 后端测试单文件可运行：183 个非 integration 文件逐个通过；8 个 `No module named 'app'` 走统一 `sys.path` 引导（扩展 `backend/tests/_paths.py` 或加 `tests/__init__.py`）、根 conftest 的 `app.api.deps` stub 补 `assert_project_access` / `require_project_access`、`test_conftest_stubs.py` 不再依赖环境中可导入的 `tests` 包；CI 增加逐文件扫描防回归
+- [x] Q15-03 Windows CI job：`ci.yml` 增加 `windows-latest` 后端 pytest job（Python 3.12，单测已 stub 基础设施故无需 service container），纳入 Q15-01 的 required 集合；`docs/ci-workflows.md` 说明范围与刻意排除项（integration / E2E 仍仅 Linux）
 - [ ] Q15-04 前端 `views/system` 挂载测试：`DatasetLibrary` / `ReportCenterView` / `StorageManagementView` / `NotificationList` / `BugTrackerList` / `MockRulesView` 补挂载测试，`views/system` 从 2.54% 抬到 ≥35%，前端 statements ≥28%，Vitest 门禁同步抬到实测下限
 - [ ] Q15-05 后端 worker / 维护任务覆盖与门禁校准：`worker/tasks_performance.py`（当前 0%）、`worker/tasks_db_backup.py`、`services/ai_healing_stats.py`、`services/dashboard_alerts.py`、`services/mobile_special/aggregator.py` 补行为缝；后端 TOTAL ≥86%，CI 门禁 70→82 使其重新贴近实际
-- [ ] Q15-06 处理 `chartTheme.spec.ts` 的负载敏感：或给其动态 import 配相称的超时（或去掉动态 import），或按 `docs/flaky-governance.md` 立案登记原因/证据/退出条件；不接受「全局抬高 testTimeout」了事，需说明选择了哪条路径及理由
+- [x] Q15-06 处理 `chartTheme.spec.ts` 的负载敏感：或给其动态 import 配相称的超时（或去掉动态 import），或按 `docs/flaky-governance.md` 立案登记原因/证据/退出条件；不接受「全局抬高 testTimeout」了事，需说明选择了哪条路径及理由
+
+**Q15 进展（2026-08-01）**：Q15-02 / Q15-03 / Q15-06 已完成，Q15-01 完成本地可做部分。分支保护经实测不可得 —— 仓库是个人账户下的 private 仓库，`branches/main/protection` 与 `rulesets` 两个 API 均返回 403（需 GitHub Pro 或转为 public），因此 required status checks 无法配置，Q15-01 与 Q15-03 中「纳入 required 集合」一条在当前套餐下无法满足，已按路线图预案降级为「文档约定 + 本地钩子」并在 `docs/ci-workflows.md`「门禁强制力现状」如实说明其边界（可被 `--no-verify` 绕过）。过程中另修两个既有缺陷：mypy 钩子与 `ci.yml` 的 lint job 都只装开发依赖，看不到 SQLAlchemy 真实签名（`d116359^` 的 run_retention.py 只报 8 个错而完整环境报 12 个，少掉的 4 条 `not_in()` arg-type 正是催生本季度的那批）；ruff 的受检脚本清单此前只在 Makefile 生效，CI 与钩子都没覆盖 `scripts/`。后端 `1337 passed`、TOTAL 82.19%（门禁 70），单文件扫描 `184 passed, 0 failed`，完整 pre-commit 链 8/8 通过。
+
 - [ ] Q15-07 Q14 验收总结：按 Q13 格式发布 `docs/q14-acceptance-summary.md`（六个本地工作项、覆盖弧线后端 74%→82.73% 与前端 8.51%→21.48%、Q14-00 顺延、以及门禁未生效放过的两个缺陷：`run_retention` mypy 报错与仅在 Windows 触发的测试断裂）

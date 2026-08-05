@@ -18,7 +18,7 @@ Executors live in `backend/app/worker/executors/`, one module per test type — 
 
 `Makefile` is the canonical entry point and wraps exactly what CI runs. Override the interpreter with `make PYTHON=/path/to/python ...` and the compose binary with `make COMPOSE="docker compose" ...`.
 
-- `make setup` — install backend requirements and run `npm ci`.
+- `make setup` — install backend requirements (runtime + dev tooling), run `pre-commit install`, and run `npm ci`.
 - `make dev` / `make dev-down` — full stack via Docker Compose.
 - `make infra-up` / `make infra-down` — postgres + redis + minio only.
 - `make migrate` — `alembic upgrade head`.
@@ -26,6 +26,8 @@ Executors live in `backend/app/worker/executors/`, one module per test type — 
 - `make test` — `test-backend` + `test-frontend-build`.
 - `make lint` / `make format` / `make format-check` / `make mypy` — Python quality gates.
 - `make pre-commit` — run all hooks over all files.
+
+`main` has no required status checks (private repo on a free plan — `branches/main/protection` and `rulesets` both return 403). CI red does not block a push, so the installed pre-commit hook plus a pre-push `make pre-commit` is the only enforcement. `docs/ci-workflows.md` records the measurement and the two ways to restore real enforcement.
 
 Python 3.12 is required. Node 20+ for the frontend.
 
@@ -44,6 +46,7 @@ Python 3.12 is required. Node 20+ for the frontend.
 - The root `backend/tests/conftest.py` stubs optional heavy dependencies with a fill-missing-only strategy — extend its defaults rather than adding blanket `sys.modules` overwrites. `PytestCollectionWarning` is escalated to an error, so keep collection clean.
 - The `flaky` marker requires an entry in `docs/flaky-governance.md` with cause, evidence and exit criteria.
 - Coverage gate: `make test-backend-coverage` enforces `--cov-fail-under=70`.
+- Every test file must also pass on its own — `make test-backend-standalone` sweeps all 184 non-integration files individually and CI runs it after the main pytest job. The root conftest puts `backend/` on `sys.path`, so new files need no `sys.path.insert`; a file that only passes inside the full suite is depending on another file's side effect.
 - Cover critical flows from `PRD.md`: case execution, scheduling, reporting, role permissions. Add a regression test for every bug fix.
 
 ## Commit & Pull Request Guidelines

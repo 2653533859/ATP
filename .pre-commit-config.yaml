@@ -22,7 +22,7 @@ repos:
     hooks:
       - id: backend-ruff-check
         name: backend ruff check
-        entry: ruff check backend/app backend/tests
+        entry: ruff check backend/app backend/tests scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py scripts/collect-q12-evidence.py scripts/pytest-standalone-sweep.py
         language: python
         additional_dependencies: [ruff==0.8.4]
         pass_filenames: false
@@ -30,16 +30,33 @@ repos:
 
       - id: backend-ruff-format-check
         name: backend ruff format check
-        entry: ruff format --check backend/app backend/tests
+        entry: ruff format --check backend/app backend/tests scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py scripts/collect-q12-evidence.py scripts/pytest-standalone-sweep.py
         language: python
         additional_dependencies: [ruff==0.8.4]
         pass_filenames: false
         types_or: [python, pyi]
 
+      # 隔离安装而非 language: system：system 钩子会用 PATH 上第一个 python，
+      # 真实 git commit 触发时那通常不是项目 venv，钩子会直接崩或用错版本的 mypy。
+      #
+      # 除 mypy 与两个 stub 包外，还要装被检查代码真正依赖的类型来源。只装 mypy
+      # 时它看不到 SQLAlchemy 的真实签名：`d116359^` 的 run_retention.py 只报 8 个
+      # 错，而完整环境报 12 个 —— 少掉的 4 条 not_in() arg-type 正是催生这轮门禁
+      # 整改的那批错误。补上 sqlalchemy 后与完整环境一致（实测同为 12）。
+      # 这些 pin 必须与 backend/requirements*.txt 一致，漂移由
+      # backend/tests/test_quality_gate_consistency.py 守住。
       - id: backend-mypy
         name: backend mypy
-        entry: python -m mypy
-        language: system
+        entry: mypy
+        language: python
+        additional_dependencies:
+          - mypy==1.14.1
+          - types-PyYAML==6.0.12.20250516
+          - types-redis==4.6.0.20241004
+          - sqlalchemy[asyncio]==2.0.36; python_version < "3.14"
+          - sqlalchemy[asyncio]==2.0.51; python_version >= "3.14"
+          - fastapi==0.139.0
+          - pydantic-settings==2.6.1
         pass_filenames: false
 
       - id: frontend-vitest

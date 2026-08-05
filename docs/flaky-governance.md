@@ -51,6 +51,19 @@ No test is currently marked `flaky`.
 
 The former CaseList `ResizeObserver loop completed with undelivered notifications` warning was resolved in Q11-40 by disabling horizontal table scroll while the table is empty. `case-list.spec.ts` now rejects that exact page error, so recurrence is a regression rather than accepted flaky noise.
 
+`src/utils/chartTheme.spec.ts` failed twice on 2026-07-31 under concurrent load with
+`Test timed out in 5000ms` on `await import('@/utils/chartTheme')` — 16.2s under load
+versus ~200ms idle. It was **not** registered as flaky, because rule 2 above does not
+apply: the cost was inside our own control, not external timing. Both test cases
+dynamically re-import the module (`vi.resetModules()` in `beforeEach` requires it, so the
+module-load side effects can be asserted after `clearAllMocks`), and while the spec mocked
+`echarts/core` it left `echarts/charts`, `echarts/components` and `echarts/renderers` real
+— so every import paid for transforming the whole echarts subgraph, for modules that no
+assertion in the file touches. Mocking those three entry points (Q15-06) cut the in-test
+time from ~196-289ms to ~12-13ms measured over three cold runs, which restores roughly a
+400x margin against the 5000ms default. The global `testTimeout` was deliberately left
+alone: raising it would have kept the 16s of work and only moved the threshold.
+
 ## Commands
 
 Local deterministic runs:

@@ -27,6 +27,14 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+BACKEND_ROOT = REPO_ROOT / "backend"
+
+# `import app...` 与 `from tests.conftest import ...` 都需要 backend/ 在 sys.path 上。
+# 此前由各测试文件自己 `sys.path.insert(0, parents[2])`（144 个文件重复了这一行），
+# 漏写的文件只在整套按序运行时才能通过——因为别的文件先插好了路径。conftest 在任何
+# 测试模块 import 之前执行，放在这里让单文件运行与整套运行拿到同一个 sys.path。
+if str(BACKEND_ROOT) not in sys.path:
+    sys.path.insert(0, str(BACKEND_ROOT))
 
 
 @pytest.fixture(scope="session")
@@ -103,12 +111,21 @@ if not _INTEGRATION_MODE:
         },
     )
 
+    async def _noop_async(*_a, **_kw):
+        return None
+
     _ensure_stub_attrs(
         "app.api.deps",
         {
             "get_current_user": lambda: None,
             "require_engineer": lambda: None,
             "require_admin": lambda: None,
+            # 路由模块在 import 期就 `from app.api.deps import assert_project_access`，
+            # 缺这两项时任何 import 这类路由的测试文件只有在别的文件先 hard-set 过
+            # 更全的 stub 时才能通过。默认值沿用各文件既有约定（异步 no-op + 返回
+            # 可调用对象的工厂）；hard-set 过自己版本的文件不受影响。
+            "assert_project_access": _noop_async,
+            "require_project_access": lambda *_a, **_kw: _noop_async,
         },
     )
 

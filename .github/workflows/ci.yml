@@ -25,18 +25,24 @@ jobs:
         with:
           python-version: '3.12'
           cache: pip
-          cache-dependency-path: backend/requirements-dev.txt
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
 
+      # 运行时依赖不是可选的：只装 requirements-dev.txt 时 mypy 看不到 SQLAlchemy
+      # 的真实签名，`d116359^` 的 run_retention.py 只报 8 个错而完整环境报 12 个，
+      # 少掉的 4 条 not_in() arg-type 正是 2026-07-11 混进 main 的那批。
       - name: Install lint dependencies
         run: |
           python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
           pip install -r backend/requirements-dev.txt
 
       - name: Run ruff
-        run: python -m ruff check backend/app backend/tests
+        run: python -m ruff check backend/app backend/tests scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py scripts/collect-q12-evidence.py scripts/pytest-standalone-sweep.py
 
       - name: Run ruff format check
-        run: python -m ruff format --check backend/app backend/tests
+        run: python -m ruff format --check backend/app backend/tests scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py scripts/collect-q12-evidence.py scripts/pytest-standalone-sweep.py
 
       - name: Run mypy
         run: python -m mypy
@@ -161,6 +167,11 @@ jobs:
       - name: Run pytest
         run: python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=70
 
+      # 逐文件跑一遍：整套按序运行会掩盖测试间的隐式耦合（谁先把 backend/ 插进
+      # sys.path、谁先补全某个 stub），而 CLAUDE.md 把单文件运行列为文档化入口。
+      - name: Run standalone test-file sweep
+        run: python scripts/pytest-standalone-sweep.py --jobs 4
+
       - name: Upload coverage report
         uses: actions/upload-artifact@v4
         if: always()
@@ -168,6 +179,47 @@ jobs:
           name: backend-coverage-xml
           path: coverage.xml
           if-no-files-found: error
+
+  # Windows 是文档化的开发平台（docs/windows-local-run.md、scripts/windows-local.ps1），
+  # 但在 Q15-03 之前所有 workflow 都只跑 Linux。2026-07-31 第一次在 Windows 上跑全套
+  # 就撞出一个仅在该平台失败的用例（fake 用 endswith("scripts/android-network-doctor.sh")
+  # 匹配，而生产代码用 pathlib 拼路径，Windows 下是反斜杠），修于 d116359 —— 没有
+  # 这个 job 就没人会在 CI 里发现下一个。
+  #
+  # 范围：只跑后端单元回归。不起 service container（单元套件已 stub 掉
+  # postgres/redis/minio），不跑覆盖率门禁（覆盖率在 Linux job 里测一遍即可），
+  # 不跑单文件扫描（184 次进程启动在 Windows 上过慢，且它查的是测试间耦合，
+  # 与平台无关）。integration 与 E2E 继续只在 Linux 跑，见 docs/ci-workflows.md。
+  backend-test-windows:
+    name: Backend pytest (Windows)
+    runs-on: windows-latest
+
+    env:
+      APP_ENV: test
+      APP_SECRET_KEY: ci-secret-key-for-ci-only-padded-to-32-chars
+      WEBHOOK_API_KEY: ci-webhook-key
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: |
+            backend/requirements.txt
+            backend/requirements-dev.txt
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install -r backend/requirements-dev.txt
+
+      - name: Run pytest
+        run: python -m pytest backend/tests -q --ignore=backend/tests/integration
 
   frontend-check:
     name: Frontend type-check + build
