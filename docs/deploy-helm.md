@@ -151,6 +151,12 @@ Helm values 默认启用 `DB_BACKUP_ENABLED=true`，由 Celery beat 调度 Postg
 
 ## 十、生产 checklist
 
+生产 values 应使用外部 Secret，并在 Prometheus Operator 集群中开启
+`metrics.serviceMonitor.enabled`。Helm chart 会在 `ingress.tls.enabled=true` 时
+自动加上 HTTP→HTTPS 重定向；`secret.create=false` + `secret.existingName` 可绑定
+ExternalSecrets/SOPS 创建的 Secret。`make validate-deployment-readiness` 只验证
+仓库内的配置契约，不会把真实集群状态误判为已验收。
+
 - [ ] PostgreSQL / Redis / MinIO 数据已备份并验证恢复（参见 `docs/disaster-recovery.md`）
 - [ ] values.secrets 已通过 ExternalSecrets / SOPS 注入，未明文提交
 - [ ] Ingress TLS 已配置，HTTP 自动重定向 HTTPS

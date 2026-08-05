@@ -32,7 +32,7 @@ spec:
             - configMapRef:
                 name: {{ include "atp.fullname" . }}-config
             - secretRef:
-                name: {{ include "atp.fullname" . }}-secret
+                name: {{ include "atp.secretName" . }}
           env:
             - name: CELERY_QUEUES
               value: {{ .Values.performanceWorker.queues | quote }}

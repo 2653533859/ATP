@@ -34,6 +34,6 @@ spec:
             - configMapRef:
                 name: {{ include "atp.fullname" . }}-config
             - secretRef:
-                name: {{ include "atp.fullname" . }}-secret
+                name: {{ include "atp.secretName" . }}
           resources:
             {{- toYaml .Values.resources.beat | nindent 12 }}

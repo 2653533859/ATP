@@ -185,6 +185,11 @@ the checked object key in `docs/backup-restore-drill-record.md`.
 
 ## Drill Checklist
 
+以下勾选项必须来自真实非生产或生产演练记录，不能用本地静态测试代替。
+仓库级脚本、文档和 Compose 配置可先用 `make validate-deployment-readiness`
+校验；完成 live drill 后，把对象、耗时、迁移、健康检查和 smoke evidence
+填写到 `docs/backup-restore-drill-record.md`。
+
 - [ ] A recent daily backup exists in MinIO.
 - [ ] A recent weekly backup exists in MinIO.
 - [ ] A recent MinIO application object backup exists outside the primary bucket.

@@ -14,3 +14,12 @@ helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 {{ include "atp.labels" . }}
 app.kubernetes.io/component: {{ .component }}
 {{- end -}}
+
+{{/* Allow production to bind an ExternalSecret/SOPS-managed Secret. */}}
+{{- define "atp.secretName" -}}
+{{- if .Values.secret.existingName -}}
+{{ .Values.secret.existingName }}
+{{- else -}}
+{{ include "atp.fullname" . }}-secret
+{{- end -}}
+{{- end -}}

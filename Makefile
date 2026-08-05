@@ -3,7 +3,7 @@ COMPOSE ?= $(shell if docker compose version >/dev/null 2>&1; then printf 'docke
 # ruff 检查的独立脚本清单：Makefile 的 lint / format / format-check、ci.yml 的两个
 # ruff step、.pre-commit-config.yaml 的两个 ruff 钩子必须覆盖同一批脚本，
 # backend/tests/test_quality_gate_consistency.py 守住这五处不漂移。
-LINT_SCRIPTS = scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py scripts/collect-q12-evidence.py scripts/pytest-standalone-sweep.py
+LINT_SCRIPTS = scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py scripts/collect-q12-evidence.py scripts/pytest-standalone-sweep.py scripts/validate-deployment-readiness.py
 # $(PYTHON) 既可能是裸命令（默认 python3）也可能是路径（backend/.venv/bin/python）。
 # 对裸命令直接 dirname 会得到 "."，把当前目录塞进 PATH 首位——既没把目标解释器的
 # bin 目录加进来，又引入 CWD-on-PATH 隐患。先用 command -v 解析成绝对路径；
@@ -11,7 +11,7 @@ LINT_SCRIPTS = scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py
 PYTHON_BIN_DIR := $(shell p="$$(command -v $(PYTHON) 2>/dev/null)"; [ -n "$$p" ] && dirname "$$p" || true)
 PYTHON_PATH := $(if $(PYTHON_BIN_DIR),$(PYTHON_BIN_DIR):$(PATH),$(PATH))
 
-.PHONY: setup dev dev-down infra-up infra-down migrate backend worker beat frontend lint format format-check mypy security-bandit security-pip-audit security-npm-audit security-deps pre-commit test test-backend test-backend-coverage test-backend-standalone test-integration test-frontend-build test-frontend-e2e scaffold-q12-evidence collect-q12-evidence validate-q12-evidence
+.PHONY: setup dev dev-down infra-up infra-down migrate backend worker beat frontend lint format format-check mypy security-bandit security-pip-audit security-npm-audit security-deps pre-commit test test-backend test-backend-coverage test-backend-standalone test-integration test-frontend-build test-frontend-e2e scaffold-q12-evidence collect-q12-evidence validate-q12-evidence validate-deployment-readiness
 
 setup:
 	@if command -v brew >/dev/null 2>&1 && brew --prefix libpq >/dev/null 2>&1; then \
@@ -43,7 +43,7 @@ setup:
 	cd frontend && npm ci
 	@# 放在最后且不致命：钩子环境构建失败（例如 gitleaks 需要 Go 工具链而本机没有）
 	@# 不应该连带让依赖安装半途中断。失败时明确告知，而不是静默跳过。
-	@PATH="$(PYTHON_PATH)" $(PYTHON) -m pre_commit install \
+	@PATH="$(PYTHON_PATH)" $(PYTHON) -m pre_commit install --hook-type pre-commit --hook-type pre-push \
 		|| echo "warning: pre-commit install 失败，本地 git 钩子未启用；见 docs/ci-workflows.md「门禁强制力现状」"
 
 dev:
@@ -144,3 +144,6 @@ validate-q12-evidence:
 		exit 2; \
 	fi
 	$(PYTHON) scripts/validate-q12-evidence.py --slo "$(SLO)" --android "$(ANDROID)" --acceptance "$(ACCEPTANCE)"
+
+validate-deployment-readiness:
+	$(PYTHON) scripts/validate-deployment-readiness.py

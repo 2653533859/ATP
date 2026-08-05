@@ -47,11 +47,11 @@ make pre-commit              # all pre-commit hooks over all files
 ```
 
 `make setup` installs `backend/requirements-dev.txt` (ruff/mypy/pre-commit) and runs
-`pre-commit install`, so the hooks above also fire on `git commit`. `main` has no
-server-side branch protection — the repo is private on a free plan, so required status
-checks are unavailable and CI red does not block a push. See the enforcement section in
-`docs/ci-workflows.md`; the local hook plus a pre-push run of the commands above is the
-only gate that exists.
+`pre-commit install` for both `pre-commit` and `pre-push`, so the hooks above fire on
+commit and push. `main` has no server-side branch protection — the repo is private on a
+free plan, so required status checks are unavailable and CI red does not block a push.
+See the enforcement section in `docs/ci-workflows.md`; local hooks are the only gate
+that exists until the repository plan changes.
 
 Frontend type-check must be run from `frontend/` (`npm run type-check`). Backend has no single type-check command — `make mypy` covers only the three baselined packages.
 

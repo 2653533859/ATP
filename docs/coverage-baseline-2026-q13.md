@@ -73,6 +73,7 @@ pass on both, so the binding constraint is whichever reads lower.
 | After PlanList cron slice | 77 passed | 6.40% | 6.15 | extended utils/planList (buildCronExpression, formatCronTime); statement gains now marginal per helper slice |
 | After mount-test slice (ApkList + DeviceList) | 86 passed | 8.51% | 8.2 | two @vue/test-utils mount tests (ApkList 0->56%, DeviceList 0->62%); statements crossed the 8% Q13-03 acceptance line — mount tests moved +1pt each vs +0.07pt per helper slice |
 | After workbench mount-test slice (Q14-03 complete) | 102 passed | 21.48% | 20.5 | Added mount tests for the five Q14 workbench views: `CaseList.vue` 36.01%, `DashboardView.vue` 51.73%, `PlanList.vue` 60.69%, `RunDetail.vue` 45.50%, `SuiteList.vue` 50.29%. Frontend gates raised to statements 20.5 / branches 17.5 / functions 16.5 / lines 21.0. |
+| After system-page mount-test slice (Q15-04 complete) | 128 passed | **32.96%** | **31.5** | Added six component mount specs across system, mock, and mobile-special routes, including chart theme/unmount lifecycle assertions. `views/system` statements reached **37.36%**; full coverage is 32.96 / 27.81 / 26.36 / 34.04% for statements / branches / functions / lines. Gates remain 31.5 / 26.5 / 24.5 / 32.5, retaining more than 0.25pt headroom on every metric. |
 
 Command:
 

@@ -218,3 +218,5 @@ def test_setup_installs_dev_tooling_and_the_git_hook(repo_file):
 
     assert "requirements-dev.txt" in setup_body
     assert "pre_commit install" in setup_body or "pre-commit install" in setup_body
+    assert "--hook-type pre-commit" in setup_body
+    assert "--hook-type pre-push" in setup_body, "make setup 必须安装 push 阶段钩子，避免只能靠人工自查"

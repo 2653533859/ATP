@@ -10,7 +10,7 @@
   - `Empty database migration`：启动干净 PostgreSQL 16，执行 `cd backend && alembic upgrade head`。
   - `Backend pytest`：启动 PostgreSQL 16 + Redis 7，运行后端主回归并产出覆盖率 XML：`python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=82`。同一 job 随后运行 `python scripts/pytest-standalone-sweep.py --jobs 4`，逐文件单独跑一遍全部非 integration 测试。
   - `Backend pytest (Windows)`：`windows-latest` + Python 3.12，只跑后端单元回归 `python -m pytest backend/tests -q --ignore=backend/tests/integration`。**不起 service container**（单元套件已 stub 掉 postgres/redis/minio），**不跑覆盖率门禁**（覆盖率在 Linux job 测一遍即可），**不跑单文件扫描**（184 次进程启动在 Windows 上过慢，且它查的是测试间耦合，与平台无关）。存在理由见下方「Windows job 的范围」。
-  - `Frontend type-check + build`：运行 `npm ci`、`npm run test:coverage`、`npm run type-check`、`npm run build`；前端门禁为 statements `20.5%`、branches `17.5%`、functions `16.5%`、lines `21.0%`（定义在 `frontend/vitest.config.ts`，调整规则见 `docs/coverage-baseline-2026-q13.md`）。
+  - `Frontend type-check + build`：运行 `npm ci`、`npm run test:coverage`、`npm run type-check`、`npm run build`；前端门禁为 statements `31.5%`、branches `26.5%`、functions `24.5%`、lines `32.5%`（定义在 `frontend/vitest.config.ts`，调整规则见 `docs/coverage-baseline-2026-q13.md`）。
 - **Artifacts**：`Backend pytest` 上传 `coverage.xml` 为 `backend-coverage-xml`；前端 job 上传 `frontend/coverage` 为 `frontend-coverage-report`。
 - **依赖服务**：PostgreSQL、Redis；MinIO 相关能力在主 CI 里通过测试 stub 覆盖，真实 MinIO 放在 integration workflow。
 - **常见排查**：
@@ -140,13 +140,15 @@ gh api repos/2653533859/ATP --jq '{visibility,private}'
 
 在服务端强制力可用之前，本仓库采用以下约定，并如实说明其边界：
 
-1. `make setup` 会执行 `pre-commit install`，把 `.pre-commit-config.yaml` 的钩子
-   装进 `.git/hooks/pre-commit`。钩子覆盖 gitleaks、ruff check、ruff format
+1. `make setup` 会执行 `pre-commit install --hook-type pre-commit --hook-type
+   pre-push`，把 `.pre-commit-config.yaml` 的钩子装进 `.git/hooks/pre-commit`
+   和 `.git/hooks/pre-push`。两个阶段都覆盖 gitleaks、ruff check、ruff format
    check、mypy 与前端 vitest。
 2. mypy 钩子隔离安装自己的 mypy（不再依赖环境 `PATH` 上的 python），因此在任何
    shell 下触发 commit 都能跑出与 CI 一致的结论。
-3. push 前跑 `make test-backend-coverage`、`make format-check`、`make mypy`
-   （或一次 `make pre-commit` 覆盖全部文件）。
+3. `pre-push` 会自动执行同一套钩子；需要覆盖全部文件时运行
+   `make pre-commit`，需要完整发布门禁时再跑
+   `make test-backend-coverage`、`make format-check`、`make mypy`。
 4. `backend/tests/test_quality_gate_consistency.py` 守住 Makefile、`ci.yml` 与
    `.pre-commit-config.yaml` 三处门禁数值/版本不漂移。
 

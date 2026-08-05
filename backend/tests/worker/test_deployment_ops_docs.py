@@ -33,6 +33,26 @@ def test_helm_values_expose_worker_queues_and_resources():
         assert values["resources"][component]["limits"]
 
 
+def test_helm_production_overlays_have_secret_and_metrics_hooks():
+    values = yaml.safe_load((ROOT / "deploy" / "helm" / "atp" / "values.yaml").read_text(encoding="utf-8"))
+    secret = (ROOT / "deploy" / "helm" / "atp" / "templates" / "secret.yaml").read_text(encoding="utf-8")
+    helpers = (ROOT / "deploy" / "helm" / "atp" / "templates" / "_helpers.tpl").read_text(encoding="utf-8")
+    service_monitor = (ROOT / "deploy" / "helm" / "atp" / "templates" / "servicemonitor.yaml").read_text(
+        encoding="utf-8"
+    )
+    ingress = (ROOT / "deploy" / "helm" / "atp" / "templates" / "ingress.yaml").read_text(encoding="utf-8")
+
+    assert values["secret"] == {"create": True, "existingName": ""}
+    assert secret.lstrip().startswith("{{- if .Values.secret.create }}")
+    assert "if .Values.secret.create" in secret
+    assert 'define "atp.secretName"' in helpers
+    assert ".Values.secret.existingName" in helpers
+    assert "monitoring.coreos.com/v1" in service_monitor
+    assert ".Values.metrics.serviceMonitor.enabled" in service_monitor
+    assert "path: /metrics" in service_monitor
+    assert "force-ssl-redirect" in ingress
+
+
 def test_helm_chart_can_render_dedicated_performance_worker():
     content = (ROOT / "deploy" / "helm" / "atp" / "templates" / "performance-worker-deployment.yaml").read_text(
         encoding="utf-8"

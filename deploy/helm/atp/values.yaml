@@ -69,6 +69,12 @@ resources:
     requests: {cpu: 50m, memory: 128Mi}
     limits: {cpu: 200m, memory: 256Mi}
 
+# Secret ownership. Set create=false and existingName to bind a Secret managed
+# by ExternalSecrets, SOPS, or the platform secret manager in production.
+secret:
+  create: true
+  existingName: ""
+
 # Non-sensitive environment variables rendered into a ConfigMap.
 config:
   # Runtime environment name.
@@ -139,6 +145,15 @@ secrets:
   ENCRYPTION_KEY: ""
   # API key for CI/CD webhook trigger endpoint.
   WEBHOOK_API_KEY: "change-me"
+
+# Prometheus Operator integration. Keep disabled when the cluster does not
+# install the ServiceMonitor CRD; enable it in the production overlay.
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    additionalLabels: {}
 
 # Kubernetes Services.
 service:

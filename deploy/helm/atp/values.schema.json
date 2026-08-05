@@ -103,6 +103,14 @@
         "flower": { "$ref": "#/definitions/resources" }
       }
     },
+    "secret": {
+      "type": "object",
+      "description": "Secret ownership. Use an existing externally managed Secret in production.",
+      "properties": {
+        "create": { "type": "boolean" },
+        "existingName": { "type": "string" }
+      }
+    },
     "config": {
       "type": "object",
       "description": "Non-sensitive environment variables rendered to ConfigMap.",
@@ -164,6 +172,24 @@
       "properties": {
         "backend": { "$ref": "#/definitions/service" },
         "flower": { "$ref": "#/definitions/service" }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Prometheus Operator integration settings.",
+      "properties": {
+        "serviceMonitor": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "interval": { "type": "string", "minLength": 1 },
+            "scrapeTimeout": { "type": "string", "minLength": 1 },
+            "additionalLabels": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
+          }
+        }
       }
     },
     "ingress": {

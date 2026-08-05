@@ -34,7 +34,7 @@ spec:
             - configMapRef:
                 name: {{ include "atp.fullname" . }}-config
             - secretRef:
-                name: {{ include "atp.fullname" . }}-secret
+                name: {{ include "atp.secretName" . }}
           readinessProbe:
             httpGet: {path: /health, port: http}
             initialDelaySeconds: 10

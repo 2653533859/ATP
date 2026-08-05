@@ -39,10 +39,10 @@ jobs:
           pip install -r backend/requirements-dev.txt
 
       - name: Run ruff
-        run: python -m ruff check backend/app backend/tests scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py scripts/collect-q12-evidence.py scripts/pytest-standalone-sweep.py
+        run: python -m ruff check backend/app backend/tests scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py scripts/collect-q12-evidence.py scripts/pytest-standalone-sweep.py scripts/validate-deployment-readiness.py
 
       - name: Run ruff format check
-        run: python -m ruff format --check backend/app backend/tests scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py scripts/collect-q12-evidence.py scripts/pytest-standalone-sweep.py
+        run: python -m ruff format --check backend/app backend/tests scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py scripts/collect-q12-evidence.py scripts/pytest-standalone-sweep.py scripts/validate-deployment-readiness.py
 
       - name: Run mypy
         run: python -m mypy

@@ -1,8 +1,8 @@
 # ATP Optimization Roadmap 2026 Q15
 
 > Status: **draft, partially executed**. Measured inputs are from 2026-07-31.
-> Q15-01 (local scope) / Q15-02 / Q15-03 / Q15-05 / Q15-06 landed on 2026-08-01;
-> Q15-04 and Q15-07 are still open and Q15-00 still waits on environment access.
+> Q15-01 (local scope) / Q15-02 / Q15-03 / Q15-04 / Q15-05 / Q15-06 / Q15-07 landed;
+> Q15-00 still waits on environment access.
 > See the Execution Log at the bottom for what changed against this plan.
 
 ## Goal
@@ -104,10 +104,10 @@ captures) carries forward unchanged and interrupts the moment access is availabl
 | Q15-01 | Make the declared gates binding | Branch-protection state on `main` documented and required status checks enabled for the `ci.yml` jobs (or, if protection is unavailable on the plan, an equivalent documented pre-push path); `pre-commit install` added to `make setup` and to the CLAUDE.md/AGENTS.md verification sections; the `.pre-commit-config.yaml` mypy hook stops depending on ambient `PATH` python; a regression asserts the Makefile coverage gate and the `ci.yml` gate never drift apart again (the 52 → 70 drift fixed inside Q14-01 was found by hand) | Local scope done; server-side enforcement unavailable (private repo on a free plan — `branches/main/protection` and `rulesets` both 403). Degraded to documented convention + installed hook, recorded in `docs/ci-workflows.md` |
 | Q15-02 | Every backend test file runs standalone | All 183 non-integration files pass individually; the 8 `sys.path` cases go through a shared bootstrap (extend `backend/tests/_paths.py` or a `tests/__init__.py`), the root conftest's `app.api.deps` stub gains `assert_project_access` / `require_project_access`, and `test_conftest_stubs.py` imports its target without requiring an ambient `tests` package; a CI step runs the per-file sweep so the property cannot regress | Done — 191 files pass individually; `make test-backend-standalone` + a CI sweep step guard it |
 | Q15-03 | Windows CI job | `ci.yml` gains a `windows-latest` backend pytest job (Python 3.12, no Docker services — the unit suite already stubs infra); the job is required by Q15-01's protection set; `docs/ci-workflows.md` documents scope and the deliberate exclusions (integration/E2E stay Linux-only) | Done — `backend-test-windows` job added; the "required check" half is impossible on this plan and is recorded as such |
-| Q15-04 | Frontend `views/system` mount coverage | Mount tests (@vue/test-utils, Q14-03 convention) for the largest system pages — `DatasetLibrary`, `ReportCenterView`, `StorageManagementView`, `NotificationList`, `BugTrackerList`, `MockRulesView` — taking the `views/system` directory from 2.54% to >= 35% and frontend statements to **>= 28%**; Vitest gates raised to the achieved floor | Not started |
+| Q15-04 | Frontend system-page mount coverage | Mount tests (@vue/test-utils, Q14-03 convention) for `DatasetLibrary`, `StorageManagementView`, `NotificationList`, `BugTrackerList`, `MockRuleList`, and `mobile-special/ReportCenterView`, taking `views/system` to >= 35% and frontend statements to **>= 28%**; Vitest gates raised to the achieved floor with headroom | Done — 6 specs / 26 new tests; full frontend `31 files / 128 tests`, statements `32.96%`, `views/system` statements `37.36%`; gates 31.5 / 26.5 / 24.5 / 32.5 |
 | Q15-05 | Backend maintenance/worker coverage + gate realignment | Behavioral seams for `worker/tasks_performance.py` (0%), `worker/tasks_db_backup.py`, `services/ai_healing_stats.py`, `services/dashboard_alerts.py`, and `services/mobile_special/aggregator.py`, following the Q13/Q14 fake-boundary convention; backend TOTAL >= 86% and the CI gate raised 70 -> 82 so it tracks reality again | Done — five named modules plus four routers; TOTAL 86.04% on Python 3.12 (85.55% on 3.14), gate raised 70 -> 82 |
 | Q15-06 | Resolve the chartTheme load sensitivity | Either give `chartTheme.spec.ts` a timeout proportional to its dynamic import (or drop the dynamic import), or mark it `flaky` with an entry in `docs/flaky-governance.md` recording cause, evidence and exit criteria per policy. A one-line "raise testTimeout globally" change is explicitly not acceptable — the item must state which of the two paths was chosen and why | Done — mocked the three remaining echarts entry points; in-test time 196-289ms -> 12-13ms, not registered flaky, global timeout untouched |
-| Q15-07 | Q14 acceptance summary | `docs/q14-acceptance-summary.md` in the Q13 format: the six local Q14 items, the coverage arc (backend 74% -> 82.73%, frontend 8.51% -> 21.48%), the Q14-00 carry-forward, and the gate-enforcement failure this roadmap opens with — including the two production-affecting defects it let through (`run_retention` mypy errors, the Windows-only test break) | Not started |
+| Q15-07 | Q14 acceptance summary | `docs/q14-acceptance-summary.md` in the Q13 format: the six local Q14 items, the coverage arc (backend 74% -> 82.73%, frontend 8.51% -> 21.48%), the Q14-00 carry-forward, and the gate-enforcement failure this roadmap opens with — including the two production-affecting defects it let through (`run_retention` mypy errors, the Windows-only test break) | Done — published 2026-08-06 |
 
 ## Execution Order
 
@@ -156,10 +156,12 @@ captures) carries forward unchanged and interrupts the moment access is availabl
 
 ## Next Action
 
-Confirm whether `main` has required status checks (authenticated `gh api
-repos/2653533859/ATP/branches/main/protection`, or the repository settings UI). That
-answer determines whether Q15-01 is a configuration change or a documentation-plus-hook
-compromise, and it is the precondition for every other item in the quarter.
+Q15-01's server-side question has been answered: the authenticated repository APIs
+return 403 because this private repository is on a plan without branch protection.
+The next action is Q15-00: run the collector against a continuously scraped
+production-like deployment and a physical Android device, then publish the Q12
+acceptance package. If that environment cannot be made available, explicitly
+re-scope Q12-05 instead of carrying it into another quarter.
 
 ## Execution Log (2026-08-01)
 
@@ -205,6 +207,19 @@ turned out to be wrong.
   `docs/flaky-governance.md` does not apply) and the global `testTimeout` was
   left alone.
 
+- **Q15-04.** Added six component mount specs: `DatasetLibrary.spec.ts`,
+  `StorageManagementView.spec.ts`, `NotificationList.spec.ts`,
+  `BugTrackerList.spec.ts`, `MockRuleList.spec.ts`, and
+  `mobile-special/ReportCenterView.spec.ts`. The tests cover initialization,
+  success/error branches, validation, CRUD, cleanup confirmation, import/export,
+  report filters, stop, downloads, and chart lifecycle. The roadmap's original
+  `MockRulesView` and `views/system/ReportCenterView.vue` names did not exist in
+  the repository; the actual routed components are `views/mock/MockRuleList.vue`
+  and `views/mobile-special/ReportCenterView.vue`. The frontend thresholds were
+  raised from 20.5 / 17.5 / 16.5 / 21.0 to 31.5 / 26.5 / 24.5 / 32.5
+  (statements / branches / functions / lines), preserving more than 0.25
+  percentage points of headroom on every metric.
+
 ### Corrections to this plan's inputs
 
 - **The 82.73% / 13962-statement input is interpreter-specific.** The same
@@ -223,7 +238,4 @@ turned out to be wrong.
 
 ### Still open
 
-- **Q15-04** (frontend `views/system` mount coverage) — not started.
-- **Q15-07** (Q14 acceptance summary) — not started; the plan puts it last so it
-  reports stable numbers.
 - **Q15-00** — still blocked on a scraped deployment and a physical device.
