@@ -32,6 +32,34 @@ Measured with the local Python 3.14 toolchain, branch coverage enabled
 | After service slice 3 (exports) | 1003 passed | 65.97% | 56% | `exports` 36% -> 92% (three-level JUnit, aggregate suite/plan HTML builders, cache hit/miss, PDF routes behind a faked renderer) |
 | After service slice 4 (mobile_special API, Q13-02 complete) | 1019 passed | 66.98% | 62% | `mobile_special` 45% -> 91%; slice exposed and fixed a live break (create_task 500 on every call: created_by duplicated between schema dump and explicit kwarg) |
 
+## Q15-05 Backend Worker / Maintenance Slice
+
+Measured with the **Python 3.12** toolchain (`/tmp` venv built from
+`backend/requirements*.txt`), which is what `ci.yml` runs. See the interpreter
+note below before comparing these numbers with a local 3.14 run.
+
+| Stage | Tests | Backend total (3.12) | Gate | Notes |
+| --- | ---: | --- | --- | --- |
+| Q15-05 start (post-Q14) | 1390 passed | 84.31% | 70% | Five named modules below 60%: `worker/tasks_performance.py` 0%, `services/mobile_special/aggregator.py` 9%, `services/ai_healing_stats.py` 26%, `worker/tasks_db_backup.py` 44%, `services/dashboard_alerts.py` 56% |
+| After the five named modules | 1421 passed | 85.15% | 70% | `tasks_performance` 0% -> 100% (five status transitions incl. the `finally` that closes a run after a k6 crash), `aggregator` 9% -> 95% (three task-type summary shapes + no-sample = None not 0), `ai_healing_stats` 26% -> 98% (scripted 8-query FakeDB, fingerprint bucketing, Top-10 truncation, NULL SUM coercion), `tasks_db_backup` 44% -> 93% (script env passing, MinIO outage tolerance, retry-on-non-zero-exit), `dashboard_alerts` service 56% -> 98% (every metric branch, all three notify channels, cross-project config refusal) |
+| After auth + scripts routers | 1442 passed | 85.55% | 70% | Two routers that were at **0%**: `api/v1/auth.py` (unknown-user and wrong-password must be indistinguishable 401s; disabled account 403 with no token; refresh rejects an access token) and `api/v1/scripts.py` (1 MB limit, case-type allowlist, `case.config` round-trip, MinIO failure degradation). `backend/tests/api/test_auth.py` — the file CLAUDE.md cited as the single-file example — did not exist |
+| After dashboard-alert + performance routers (Q15-05 complete) | 1467 passed | **86.04%** | **82** | `api/v1/dashboard_alerts.py` 49% -> ~100% (the viewer/owner permission ladder, admin-only global listing), `api/v1/performance.py` 68% -> 99% (duration/VUs parsing per unit, stage summing, target-host allowlist, GET/PATCH/LIST routes). Gate raised 70 -> 82 |
+
+### Interpreter note (measured 2026-08-01)
+
+The same command reports **different statement counts** on different Python
+minor versions:
+
+| Interpreter | Statements | Missed | Total |
+| --- | ---: | ---: | --- |
+| Python 3.12 (what `ci.yml` runs) | 13962 | 1619 | 86.04% |
+| Python 3.14 (local `backend/.venv`) | 13367 | 1591 | 85.55% |
+
+The 595-statement difference is why the Q15 roadmap's planning input (82.73% /
+13962 statements) did not reproduce locally at first. **Set gates against the
+3.12 number, then confirm the local 3.14 run still clears them** — the gate must
+pass on both, so the binding constraint is whichever reads lower.
+
 ## Frontend (Q13-03)
 
 | Stage | Tests | Frontend statements | Gate | Notes |
@@ -79,6 +107,12 @@ executor's own logic.
 
 - The gate follows TOTAL with roughly 4-5 points of headroom (Q12 policy of
   never gating at the measured value): 52% -> 56% after the executor slice
-  (TOTAL 60.03%) -> 62% after Q13-02 completed (TOTAL 66.98%).
+  (TOTAL 60.03%) -> 62% after Q13-02 completed (TOTAL 66.98%) -> 70% after
+  Q14-01 -> **82% after Q15-05** (TOTAL 86.04% on 3.12, 85.55% on 3.14, so the
+  headroom against the binding number is 3.55 points).
 - Every slice records before/after rows in this table; import-only tests that
   inflate line coverage without behavioral assertions do not qualify.
+- The gate value is declared in exactly two places (`Makefile` and
+  `.github/workflows/ci.yml`) and quoted in `docs/ci-workflows.md`;
+  `backend/tests/test_quality_gate_consistency.py` fails if the three drift
+  apart. Raising the gate means changing all three in the same commit.

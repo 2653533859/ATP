@@ -1,6 +1,9 @@
 # ATP Optimization Roadmap 2026 Q15
 
-> Status: **draft, pending review** — not yet accepted. Measured inputs are from 2026-07-31.
+> Status: **draft, partially executed**. Measured inputs are from 2026-07-31.
+> Q15-01 (local scope) / Q15-02 / Q15-03 / Q15-05 / Q15-06 landed on 2026-08-01;
+> Q15-04 and Q15-07 are still open and Q15-00 still waits on environment access.
+> See the Execution Log at the bottom for what changed against this plan.
 
 ## Goal
 
@@ -98,12 +101,12 @@ captures) carries forward unchanged and interrupts the moment access is availabl
 | ID | Work item | Acceptance criteria | Status |
 | --- | --- | --- | --- |
 | Q15-00 | Close Q12-05 captures + publish Q12 acceptance | Carried from Q14-00 unchanged: when environment access arrives, dated `docs/slo-history-*.md` and `docs/android-device-rehearsal-*.md` per the frozen spec in `docs/q12-external-readiness-evidence.md`, then `make validate-q12-evidence` and `docs/q12-acceptance-summary.md` | Blocked on environment (carried from Q13-00 → Q14-00) |
-| Q15-01 | Make the declared gates binding | Branch-protection state on `main` documented and required status checks enabled for the `ci.yml` jobs (or, if protection is unavailable on the plan, an equivalent documented pre-push path); `pre-commit install` added to `make setup` and to the CLAUDE.md/AGENTS.md verification sections; the `.pre-commit-config.yaml` mypy hook stops depending on ambient `PATH` python; a regression asserts the Makefile coverage gate and the `ci.yml` gate never drift apart again (the 52 → 70 drift fixed inside Q14-01 was found by hand) | Not started |
-| Q15-02 | Every backend test file runs standalone | All 183 non-integration files pass individually; the 8 `sys.path` cases go through a shared bootstrap (extend `backend/tests/_paths.py` or a `tests/__init__.py`), the root conftest's `app.api.deps` stub gains `assert_project_access` / `require_project_access`, and `test_conftest_stubs.py` imports its target without requiring an ambient `tests` package; a CI step runs the per-file sweep so the property cannot regress | Not started |
-| Q15-03 | Windows CI job | `ci.yml` gains a `windows-latest` backend pytest job (Python 3.12, no Docker services — the unit suite already stubs infra); the job is required by Q15-01's protection set; `docs/ci-workflows.md` documents scope and the deliberate exclusions (integration/E2E stay Linux-only) | Not started |
+| Q15-01 | Make the declared gates binding | Branch-protection state on `main` documented and required status checks enabled for the `ci.yml` jobs (or, if protection is unavailable on the plan, an equivalent documented pre-push path); `pre-commit install` added to `make setup` and to the CLAUDE.md/AGENTS.md verification sections; the `.pre-commit-config.yaml` mypy hook stops depending on ambient `PATH` python; a regression asserts the Makefile coverage gate and the `ci.yml` gate never drift apart again (the 52 → 70 drift fixed inside Q14-01 was found by hand) | Local scope done; server-side enforcement unavailable (private repo on a free plan — `branches/main/protection` and `rulesets` both 403). Degraded to documented convention + installed hook, recorded in `docs/ci-workflows.md` |
+| Q15-02 | Every backend test file runs standalone | All 183 non-integration files pass individually; the 8 `sys.path` cases go through a shared bootstrap (extend `backend/tests/_paths.py` or a `tests/__init__.py`), the root conftest's `app.api.deps` stub gains `assert_project_access` / `require_project_access`, and `test_conftest_stubs.py` imports its target without requiring an ambient `tests` package; a CI step runs the per-file sweep so the property cannot regress | Done — 191 files pass individually; `make test-backend-standalone` + a CI sweep step guard it |
+| Q15-03 | Windows CI job | `ci.yml` gains a `windows-latest` backend pytest job (Python 3.12, no Docker services — the unit suite already stubs infra); the job is required by Q15-01's protection set; `docs/ci-workflows.md` documents scope and the deliberate exclusions (integration/E2E stay Linux-only) | Done — `backend-test-windows` job added; the "required check" half is impossible on this plan and is recorded as such |
 | Q15-04 | Frontend `views/system` mount coverage | Mount tests (@vue/test-utils, Q14-03 convention) for the largest system pages — `DatasetLibrary`, `ReportCenterView`, `StorageManagementView`, `NotificationList`, `BugTrackerList`, `MockRulesView` — taking the `views/system` directory from 2.54% to >= 35% and frontend statements to **>= 28%**; Vitest gates raised to the achieved floor | Not started |
-| Q15-05 | Backend maintenance/worker coverage + gate realignment | Behavioral seams for `worker/tasks_performance.py` (0%), `worker/tasks_db_backup.py`, `services/ai_healing_stats.py`, `services/dashboard_alerts.py`, and `services/mobile_special/aggregator.py`, following the Q13/Q14 fake-boundary convention; backend TOTAL >= 86% and the CI gate raised 70 -> 82 so it tracks reality again | Not started |
-| Q15-06 | Resolve the chartTheme load sensitivity | Either give `chartTheme.spec.ts` a timeout proportional to its dynamic import (or drop the dynamic import), or mark it `flaky` with an entry in `docs/flaky-governance.md` recording cause, evidence and exit criteria per policy. A one-line "raise testTimeout globally" change is explicitly not acceptable — the item must state which of the two paths was chosen and why | Not started |
+| Q15-05 | Backend maintenance/worker coverage + gate realignment | Behavioral seams for `worker/tasks_performance.py` (0%), `worker/tasks_db_backup.py`, `services/ai_healing_stats.py`, `services/dashboard_alerts.py`, and `services/mobile_special/aggregator.py`, following the Q13/Q14 fake-boundary convention; backend TOTAL >= 86% and the CI gate raised 70 -> 82 so it tracks reality again | Done — five named modules plus four routers; TOTAL 86.04% on Python 3.12 (85.55% on 3.14), gate raised 70 -> 82 |
+| Q15-06 | Resolve the chartTheme load sensitivity | Either give `chartTheme.spec.ts` a timeout proportional to its dynamic import (or drop the dynamic import), or mark it `flaky` with an entry in `docs/flaky-governance.md` recording cause, evidence and exit criteria per policy. A one-line "raise testTimeout globally" change is explicitly not acceptable — the item must state which of the two paths was chosen and why | Done — mocked the three remaining echarts entry points; in-test time 196-289ms -> 12-13ms, not registered flaky, global timeout untouched |
 | Q15-07 | Q14 acceptance summary | `docs/q14-acceptance-summary.md` in the Q13 format: the six local Q14 items, the coverage arc (backend 74% -> 82.73%, frontend 8.51% -> 21.48%), the Q14-00 carry-forward, and the gate-enforcement failure this roadmap opens with — including the two production-affecting defects it let through (`run_retention` mypy errors, the Windows-only test break) | Not started |
 
 ## Execution Order
@@ -157,3 +160,70 @@ Confirm whether `main` has required status checks (authenticated `gh api
 repos/2653533859/ATP/branches/main/protection`, or the repository settings UI). That
 answer determines whether Q15-01 is a configuration change or a documentation-plus-hook
 compromise, and it is the precondition for every other item in the quarter.
+
+## Execution Log (2026-08-01)
+
+What actually happened against the plan above, including the two places the plan
+turned out to be wrong.
+
+### Landed
+
+- **Q15-01 (local scope).** Branch protection is **not configurable on this
+  plan** — `gh api repos/2653533859/ATP/branches/main/protection` and
+  `.../rulesets` both return 403 (`Upgrade to GitHub Pro or make this repository
+  public`), and the repo is private under a personal account. The residual risk
+  this roadmap listed therefore materialised: Q15-01 degrades to a documented
+  convention plus an installed local hook, recorded with its limits in
+  `docs/ci-workflows.md`. What did land: the mypy hook no longer depends on the
+  ambient `PATH` python; `make setup` installs `requirements-dev.txt` and runs
+  `pre-commit install` (non-fatal, after `npm ci`); and
+  `backend/tests/test_quality_gate_consistency.py` now fails on any drift
+  between the Makefile, `ci.yml`, `.pre-commit-config.yaml` and the CI doc.
+- **Q15-02.** All 191 non-integration files pass individually. The 10 failures
+  had a single root cause chain: the root conftest never put `backend/` on
+  `sys.path` (144 files each carried their own `sys.path.insert`, and the ones
+  that forgot relied on another file running first). Fixing that in the conftest
+  also fixed `test_conftest_stubs.py`'s `No module named 'tests'`, which needs
+  `tests` to resolve as a namespace package. The `app.api.deps` stub gained
+  `assert_project_access` / `require_project_access`.
+  `make test-backend-standalone` and a CI step guard the property.
+- **Q15-03.** `backend-test-windows` runs the unit suite on `windows-latest`.
+  The "required check" half of the acceptance criteria is impossible here (see
+  Q15-01) and is written down as unmet rather than quietly dropped.
+- **Q15-05.** The five named modules went 0/9/26/44/56% to 100/95/98/93/98%.
+  Four routers were added on top to reach the TOTAL target:
+  `api/v1/auth.py` and `api/v1/scripts.py` were both at **0%**, plus
+  `api/v1/dashboard_alerts.py` and `api/v1/performance.py`. TOTAL is 86.04% on
+  Python 3.12 and the gate moved 70 -> 82.
+- **Q15-06.** Neither of the two paths the plan offered was taken verbatim.
+  The load sensitivity was not external timing: the spec mocked `echarts/core`
+  but left `echarts/charts`, `echarts/components` and `echarts/renderers` real,
+  so every dynamic import re-transformed the echarts subgraph for modules no
+  assertion touches. Mocking those three cut in-test time from ~196-289ms to
+  ~12-13ms (three cold runs), restoring roughly a 400x margin against the
+  5000ms default. Not registered as flaky (rule 2 of
+  `docs/flaky-governance.md` does not apply) and the global `testTimeout` was
+  left alone.
+
+### Corrections to this plan's inputs
+
+- **The 82.73% / 13962-statement input is interpreter-specific.** The same
+  command reads 13962 statements on Python 3.12 and 13367 on 3.14, about 0.5
+  points apart. The gate was therefore set against the 3.12 number and verified
+  against 3.14. Details in `docs/coverage-baseline-2026-q13.md`.
+- **Two gate defects this plan did not list.** The `.pre-commit-config.yaml`
+  mypy hook and `ci.yml`'s `backend-lint` job both installed only
+  `requirements-dev.txt`, so mypy could not see SQLAlchemy's real signatures:
+  `d116359^`'s `run_retention.py` reports 8 errors that way versus 12 in a full
+  environment — and the 4 missing `not_in()` `arg-type` errors are exactly the
+  batch that motivated this quarter. Both now install the runtime requirements.
+  Separately, ruff's script list existed only in the Makefile, so
+  `scripts/pytest-standalone-sweep.py` — which CI executes — was not linted by
+  CI or the hook.
+
+### Still open
+
+- **Q15-04** (frontend `views/system` mount coverage) — not started.
+- **Q15-07** (Q14 acceptance summary) — not started; the plan puts it last so it
+  reports stable numbers.
+- **Q15-00** — still blocked on a scraped deployment and a physical device.

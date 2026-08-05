@@ -105,7 +105,7 @@ test-backend:
 	$(PYTHON) -m pytest backend/tests -q --ignore=backend/tests/integration
 
 test-backend-coverage:
-	$(PYTHON) -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=term-missing:skip-covered --cov-report=xml --cov-fail-under=70
+	$(PYTHON) -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=term-missing:skip-covered --cov-report=xml --cov-fail-under=82
 
 test-backend-standalone:
 	$(PYTHON) scripts/pytest-standalone-sweep.py --jobs $(or $(JOBS),4)

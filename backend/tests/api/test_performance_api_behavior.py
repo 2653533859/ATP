@@ -321,3 +321,295 @@ def test_get_performance_run_raw_result_404_when_missing_object():
         assert getattr(exc, "status_code", None) == 404
     else:
         raise AssertionError("应返回 404")
+
+
+# ── Q15-05：补齐 options 解析 helper 与 GET/PATCH/LIST 路由 ──────────
+# 上面的用例集中在创建、上传与触发；options 的时长/VUs 解析、域名 allowlist 判定
+# 以及读取类路由此前一行没跑过。这些 helper 决定"这次压测允不允许打出去"，
+# 解析错一个单位就等于把 30 分钟的压测当成 30 秒放行。
+
+
+class _ListResult:
+    def __init__(self, rows):
+        self._rows = rows
+
+    def scalars(self):
+        return self
+
+    def all(self):
+        return self._rows
+
+
+class _QueryDB(_FakeDB):
+    def __init__(self, rows, objects=None):
+        super().__init__(objects=objects)
+        self._rows = rows
+        self.statements = []
+
+    async def execute(self, statement):
+        self.statements.append(statement)
+        return _ListResult(self._rows)
+
+
+def test_safe_script_filename_sanitizes_and_defaults():
+    assert performance._safe_script_filename(None) == "script.js"
+    assert performance._safe_script_filename("../../etc/passwd.js") == "passwd.js"
+    assert performance._safe_script_filename("我的 脚本!.MJS") == "script.mjs"
+    assert performance._safe_script_filename("load test.js") == "load-test.js"
+    # 去掉目录后缀名仍需保留，避免绕过 .js/.mjs 白名单
+    assert performance._safe_script_filename("evil.js.sh").endswith(".sh")
+
+
+def test_parse_duration_seconds_handles_every_unit():
+    assert performance._parse_duration_seconds(None) is None
+    assert performance._parse_duration_seconds(30) == 30.0
+    assert performance._parse_duration_seconds(1.5) == 1.5
+    assert performance._parse_duration_seconds(["30s"]) is None
+    assert performance._parse_duration_seconds("500ms") == 0.5
+    assert performance._parse_duration_seconds("45") == 45.0
+    assert performance._parse_duration_seconds("45s") == 45.0
+    assert performance._parse_duration_seconds("2m") == 120.0
+    assert performance._parse_duration_seconds("1h") == 3600.0
+    assert performance._parse_duration_seconds("  10M  ") == 600.0
+    assert performance._parse_duration_seconds("soon") is None
+
+
+def test_max_vus_reads_both_vus_and_stage_targets():
+    assert performance._max_vus_from_options({}) == 0
+    assert performance._max_vus_from_options({"vus": "12"}) == 12
+    assert performance._max_vus_from_options({"vus": "abc"}) == 0
+    assert performance._max_vus_from_options({"stages": [{"target": 5}, {"target": 50}]}) == 50
+    # 非法 stage 被跳过而不是让整个请求 500
+    assert performance._max_vus_from_options({"stages": ["oops", {"target": None}, {"target": 3}]}) == 3
+
+
+def test_max_duration_sums_stages_but_takes_the_max_otherwise():
+    assert performance._max_duration_from_options({}) == 0.0
+    assert performance._max_duration_from_options({"duration": "90s"}) == 90.0
+    # 分阶段是串行执行，总时长应为累加
+    assert performance._max_duration_from_options({"stages": [{"duration": "30s"}, {"duration": "1m"}]}) == 90.0
+    assert performance._max_duration_from_options({"stages": ["bad", {"duration": "oops"}]}) == 0.0
+
+
+def test_target_hosts_only_reads_the_known_env_keys():
+    options = {
+        "env": {
+            "TARGET_URL": "https://a.example.test/path",
+            "base_url": "http://b.example.test",
+            "OTHER": "https://ignored.test",
+            "URL": 123,
+        }
+    }
+
+    assert performance._target_hosts_from_options(options) == {"a.example.test", "b.example.test"}
+    assert performance._target_hosts_from_options({"env": "not-a-dict"}) == set()
+    assert performance._target_hosts_from_options({}) == set()
+
+
+def test_host_allowed_matches_exact_and_subdomains():
+    assert performance._host_allowed("anything.test", set()) is True, "allowlist 为空表示不限制"
+    assert performance._host_allowed("example.test", {"example.test"}) is True
+    assert performance._host_allowed("api.example.test", {"example.test"}) is True
+    assert performance._host_allowed("notexample.test", {"example.test"}) is False
+
+
+def test_validate_options_rejects_a_non_dict():
+    try:
+        performance._validate_performance_options(["vus", 1])
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 400
+    else:
+        raise AssertionError("options 非对象必须 400")
+
+
+def test_merge_options_merges_env_without_dropping_defaults():
+    merged = performance._merge_options(
+        {"vus": 5, "env": {"BASE_URL": "https://a.test", "TOKEN": "x"}},
+        {"vus": 10, "env": {"BASE_URL": "https://b.test"}},
+    )
+
+    assert merged["vus"] == 10
+    assert merged["env"] == {"BASE_URL": "https://b.test", "TOKEN": "x"}
+    assert performance._merge_options(None, None) == {}
+
+
+def test_list_performance_tests_filters_by_project():
+    rows = [_performance_test(3)]
+    db = _QueryDB(rows)
+
+    result = asyncio.run(performance.list_performance_tests(project_id=2, db=db, _=None))
+
+    assert result == rows
+    assert "performance_tests" in str(db.statements[0])
+
+
+def test_get_performance_test_returns_the_definition():
+    item = _performance_test(3)
+    db = _FakeDB({"PerformanceTest": {3: item}})
+
+    assert asyncio.run(performance.get_performance_test(test_id=3, db=db, user=_User())) is item
+
+
+def test_get_performance_test_404():
+    try:
+        asyncio.run(performance.get_performance_test(test_id=99, db=_FakeDB(), user=_User()))
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 404
+    else:
+        raise AssertionError("应返回 404")
+
+
+def test_update_performance_test_applies_only_supplied_fields():
+    from app.schemas.performance import PerformanceTestUpdate
+
+    item = _performance_test(3)
+    db = _FakeDB({"PerformanceTest": {3: item}})
+
+    asyncio.run(
+        performance.update_performance_test(
+            test_id=3,
+            body=PerformanceTestUpdate(name="renamed"),
+            db=db,
+            user=_User(),
+        )
+    )
+
+    assert item.name == "renamed"
+    assert item.script_object_name == "performance/scripts/smoke.js", "未提交字段保持原值"
+    assert db.commits == 1
+
+
+def test_update_performance_test_validates_new_default_options(monkeypatch):
+    from app.schemas.performance import PerformanceTestUpdate
+
+    monkeypatch.setattr(performance.settings, "PERFORMANCE_MAX_VUS", 10)
+    item = _performance_test(3)
+    db = _FakeDB({"PerformanceTest": {3: item}})
+
+    try:
+        asyncio.run(
+            performance.update_performance_test(
+                test_id=3,
+                body=PerformanceTestUpdate(default_options={"vus": 500}),
+                db=db,
+                user=_User(),
+            )
+        )
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 400
+    else:
+        raise AssertionError("超限 options 必须 400")
+
+    assert db.commits == 0, "校验失败不得落库"
+
+
+def test_update_performance_test_accepts_description_and_script():
+    from app.schemas.performance import PerformanceTestUpdate
+
+    item = _performance_test(3)
+    db = _FakeDB({"PerformanceTest": {3: item}})
+
+    asyncio.run(
+        performance.update_performance_test(
+            test_id=3,
+            body=PerformanceTestUpdate(description="说明", script_object_name="performance/scripts/new.js"),
+            db=db,
+            user=_User(),
+        )
+    )
+
+    assert item.description == "说明"
+    assert item.script_object_name == "performance/scripts/new.js"
+
+
+def test_update_performance_test_404():
+    from app.schemas.performance import PerformanceTestUpdate
+
+    try:
+        asyncio.run(
+            performance.update_performance_test(
+                test_id=99, body=PerformanceTestUpdate(name="x"), db=_FakeDB(), user=_User()
+            )
+        )
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 404
+    else:
+        raise AssertionError("应返回 404")
+
+
+def test_list_performance_runs_is_scoped_and_capped():
+    run = PerformanceRun(
+        id=1,
+        performance_test_id=3,
+        project_id=2,
+        status=PerformanceRunStatus.pending.value,
+        options_snapshot={},
+        summary={},
+        triggered_by=7,
+        created_at=datetime(2026, 5, 29, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 5, 29, tzinfo=timezone.utc),
+    )
+    db = _QueryDB([run])
+
+    result = asyncio.run(performance.list_performance_runs(project_id=2, db=db, user=_User()))
+
+    assert result == [run]
+    assert "LIMIT" in str(db.statements[0]).upper(), "列表必须封顶，避免一次拉回全部历史"
+
+
+def test_get_performance_run_returns_the_run():
+    run = PerformanceRun(
+        id=5,
+        performance_test_id=3,
+        project_id=2,
+        status=PerformanceRunStatus.success.value,
+        options_snapshot={},
+        summary={},
+        triggered_by=7,
+        created_at=datetime(2026, 5, 29, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 5, 29, tzinfo=timezone.utc),
+    )
+    db = _FakeDB({"PerformanceRun": {5: run}})
+
+    assert asyncio.run(performance.get_performance_run(run_id=5, db=db, user=_User())) is run
+
+
+def test_get_performance_run_404():
+    try:
+        asyncio.run(performance.get_performance_run(run_id=5, db=_FakeDB(), user=_User()))
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 404
+    else:
+        raise AssertionError("应返回 404")
+
+
+def test_upload_performance_script_rejects_an_empty_file():
+    class _EmptyUpload:
+        filename = "load.js"
+
+        async def read(self):
+            return b""
+
+    try:
+        asyncio.run(
+            performance.upload_performance_script(project_id=2, file=_EmptyUpload(), db=_FakeDB(), user=_User())
+        )
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 400
+    else:
+        raise AssertionError("空脚本必须 400")
+
+
+def test_upload_performance_script_enforces_the_two_megabyte_limit():
+    class _BigUpload:
+        filename = "load.js"
+
+        async def read(self):
+            return b"a" * (2 * 1024 * 1024 + 1)
+
+    try:
+        asyncio.run(performance.upload_performance_script(project_id=2, file=_BigUpload(), db=_FakeDB(), user=_User()))
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 413
+    else:
+        raise AssertionError("超限脚本必须 413")

@@ -139,7 +139,7 @@ Global limits: `task_time_limit=1800`, soft `1500`, `worker_max_tasks_per_child=
 - `pytest_pycollect_makeitem` skips `Test*`-named application classes (`TestCase`, `TestPlan`, …) so they can be imported under their real names. `PytestCollectionWarning` is an error — keep collection warning-free.
 - The `flaky` marker requires an entry in `docs/flaky-governance.md` with cause, evidence and exit criteria.
 - Session fixtures `repo_root` / `repo_file` exist for contract tests that read repo files.
-- Coverage gate: `make test-backend-coverage` enforces `--cov-fail-under=70`.
+- Coverage gate: `make test-backend-coverage` enforces `--cov-fail-under=82`.
 - **Every test file must pass on its own.** The root conftest puts `backend/` on `sys.path`, so a new test file needs no `sys.path.insert` of its own (144 older files still carry one; leave them). If a file only passes inside the full suite it is relying on another file's side effect — extend the conftest defaults rather than the calling file. `make test-backend-standalone` sweeps every non-integration file individually and runs in CI after the main pytest job.
 
 ## Conventions

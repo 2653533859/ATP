@@ -8,7 +8,7 @@
 - **Jobs**：
   - `Backend lint`：安装 `backend/requirements.txt` + `backend/requirements-dev.txt`，运行 `python -m ruff check` 与 `python -m ruff format --check`（覆盖 `backend/app`、`backend/tests` 与 `scripts/` 下受检脚本，清单以 Makefile 的 `LINT_SCRIPTS` 为准）。同一 job 也运行 `python -m mypy` 与 `python -m bandit -c pyproject.toml -r backend/app -ll`。**运行时依赖必须装**：只装 `requirements-dev.txt` 时 mypy 看不到 SQLAlchemy 的真实签名，`d116359^` 的 `run_retention.py` 只报 8 个错而完整环境报 12 个。
   - `Empty database migration`：启动干净 PostgreSQL 16，执行 `cd backend && alembic upgrade head`。
-  - `Backend pytest`：启动 PostgreSQL 16 + Redis 7，运行后端主回归并产出覆盖率 XML：`python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=70`。同一 job 随后运行 `python scripts/pytest-standalone-sweep.py --jobs 4`，逐文件单独跑一遍全部非 integration 测试。
+  - `Backend pytest`：启动 PostgreSQL 16 + Redis 7，运行后端主回归并产出覆盖率 XML：`python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=82`。同一 job 随后运行 `python scripts/pytest-standalone-sweep.py --jobs 4`，逐文件单独跑一遍全部非 integration 测试。
   - `Backend pytest (Windows)`：`windows-latest` + Python 3.12，只跑后端单元回归 `python -m pytest backend/tests -q --ignore=backend/tests/integration`。**不起 service container**（单元套件已 stub 掉 postgres/redis/minio），**不跑覆盖率门禁**（覆盖率在 Linux job 测一遍即可），**不跑单文件扫描**（184 次进程启动在 Windows 上过慢，且它查的是测试间耦合，与平台无关）。存在理由见下方「Windows job 的范围」。
   - `Frontend type-check + build`：运行 `npm ci`、`npm run test:coverage`、`npm run type-check`、`npm run build`；前端门禁为 statements `20.5%`、branches `17.5%`、functions `16.5%`、lines `21.0%`（定义在 `frontend/vitest.config.ts`，调整规则见 `docs/coverage-baseline-2026-q13.md`）。
 - **Artifacts**：`Backend pytest` 上传 `coverage.xml` 为 `backend-coverage-xml`；前端 job 上传 `frontend/coverage` 为 `frontend-coverage-report`。
@@ -21,7 +21,7 @@
   - Bandit 失败：先运行 `make security-bandit PYTHON=backend/.venv/bin/python`，当前 medium/high 阻断，low 仅记录。
   - 依赖漏洞扫描：先运行 `make security-pip-audit PYTHON=backend/.venv/bin/python` 与 `make security-npm-audit`。当前 pip/npm 依赖扫描已清零，后续可接入 high/critical 阻断型 CI。
   - 后端测试失败：确认失败用例是否属于真实基础设施测试；integration 用例应放在 `backend/tests/integration` 并带 `integration` marker。
-  - 覆盖率失败：先运行 `make test-backend-coverage PYTHON=backend/.venv/bin/python`，确认总覆盖率不低于当前 `--cov-fail-under=70` 门槛。
+  - 覆盖率失败：先运行 `make test-backend-coverage PYTHON=backend/.venv/bin/python`，确认总覆盖率不低于当前 `--cov-fail-under=82` 门槛。**注意解释器差异**：同一命令在 Python 3.12（CI 用）与 3.14（常见本地 venv）下语句总数不同（13962 vs 13367），读数相差约 0.5 个百分点。抬门禁时以 3.12 为准并复验 3.14 仍能通过，详见 `docs/coverage-baseline-2026-q13.md` 的「Interpreter note」。
   - 单文件扫描失败：某个测试文件只有在整套按序运行时才通过（典型原因是依赖别的文件先把 `backend/` 插进 `sys.path`，或先 hard-set 了更全的 stub）。本地复现：`make test-backend-standalone PYTHON=backend/.venv/bin/python`，或直接 `python -m pytest <该文件> -q`。修法是把缺失的引导补进 `backend/tests/conftest.py`，而不是在该文件里再抄一遍。
   - Windows job 失败而 Linux 绿：这是该 job 存在的意义，按平台假设排查而不是加 skip。常见来源是路径分隔符（断言里写死 `/`，生产代码用 `pathlib` 拼出的是 `\`）、文本读写未显式 `encoding="utf-8"`（Windows 默认走 locale 编码，本仓库大量中文内容会直接炸）、以及 `NamedTemporaryFile` 在未关闭时无法二次打开。
   - 前端单测或覆盖率失败：先运行 `cd frontend && npm run test:coverage`，当前门禁用于防止已覆盖切片回退，后续随 Q12 测试增长逐步提高。

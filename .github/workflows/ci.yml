@@ -165,7 +165,7 @@ jobs:
           pip install -r backend/requirements-dev.txt
 
       - name: Run pytest
-        run: python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=70
+        run: python -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-report=xml --cov-report=term-missing:skip-covered --cov-fail-under=82
 
       # 逐文件跑一遍：整套按序运行会掩盖测试间的隐式耦合（谁先把 backend/ 插进
       # sys.path、谁先补全某个 stub），而 CLAUDE.md 把单文件运行列为文档化入口。

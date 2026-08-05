@@ -45,7 +45,7 @@ Python 3.12 is required. Node 20+ for the frontend.
 - `make test-backend` skips `backend/tests/integration`. Integration tests need real PostgreSQL/Redis/MinIO and run via `make test-integration` (`ATP_INTEGRATION_TESTS=1`, `integration` marker).
 - The root `backend/tests/conftest.py` stubs optional heavy dependencies with a fill-missing-only strategy — extend its defaults rather than adding blanket `sys.modules` overwrites. `PytestCollectionWarning` is escalated to an error, so keep collection clean.
 - The `flaky` marker requires an entry in `docs/flaky-governance.md` with cause, evidence and exit criteria.
-- Coverage gate: `make test-backend-coverage` enforces `--cov-fail-under=70`.
+- Coverage gate: `make test-backend-coverage` enforces `--cov-fail-under=82`.
 - Every test file must also pass on its own — `make test-backend-standalone` sweeps all 184 non-integration files individually and CI runs it after the main pytest job. The root conftest puts `backend/` on `sys.path`, so new files need no `sys.path.insert`; a file that only passes inside the full suite is depending on another file's side effect.
 - Cover critical flows from `PRD.md`: case execution, scheduling, reporting, role permissions. Add a regression test for every bug fix.
 
