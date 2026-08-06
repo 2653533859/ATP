@@ -26,6 +26,7 @@
   - Windows job 失败而 Linux 绿：这是该 job 存在的意义，按平台假设排查而不是加 skip。常见来源是路径分隔符（断言里写死 `/`，生产代码用 `pathlib` 拼出的是 `\`）、文本读写未显式 `encoding="utf-8"`（Windows 默认走 locale 编码，本仓库大量中文内容会直接炸）、以及 `NamedTemporaryFile` 在未关闭时无法二次打开。
   - 前端单测或覆盖率失败：先运行 `cd frontend && npm run test:coverage`，当前门禁用于防止已覆盖切片回退，后续随 Q12 测试增长逐步提高。
   - 前端构建失败：先运行 `cd frontend && npm run type-check` 定位 TypeScript 错误，再运行 `npm run build` 验证产物。
+  - 部署/灾备仓库校验：运行 `make validate-deployment-readiness`；Windows 无 Git Bash、WSL 或其他 POSIX shell 时，shell 语法检查会明确显示为 `SKIP`。发布操作员应使用 `python scripts/validate-deployment-readiness.py --require-helm --require-shell`，把缺少 Helm 或 POSIX shell 视为失败。
 
 ## Windows job 的范围（Q15-03）
 

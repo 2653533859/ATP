@@ -50,6 +50,8 @@ Q9 Phase 4 在 API 创建 run 或保存默认 options 前增加安全限制：
 
 默认 options 与触发 run 时的 override options 会先合并再校验；不满足限制时返回 `400`，不会创建 run，也不会投递到 performance 队列。
 
+触发压测时会把所选环境的变量加密固化到本次运行快照，Worker 执行时解密使用；因此运行期间修改环境不会改变已经触发的任务。运行详情接口会移除该内部快照以及历史遗留的敏感 `env` 参数。密码、Token 等敏感变量不能直接写入压测参数，必须通过环境注入。
+
 ## 趋势、对比与清理
 
 - Performance Center 基于最近 run 展示 RPS、P95/P99 与错误率趋势。
@@ -217,6 +219,30 @@ API/worker 解析以 `result.json` 的 `metrics.http_req_duration`、`metrics.ht
 - `backend/Dockerfile.worker` 通过 `grafana/k6:0.52.0` stage 复制 k6 二进制。
 - `examples/performance/k6-smoke.js`
 - `docs/fixtures/performance-k6-summary.sample.json`
+
+## Q16 升级计划（2026-08-06）
+
+当前薄切能力适合工程师上传 k6 脚本做接口基准压测，但对普通测试人员仍偏简单：请求配置需要写在脚本中，options 需要手写 JSON，环境选择也尚未自动注入变量。Q16 按以下顺序升级：
+
+### Phase 1：可视化场景与环境联动
+
+- 可视化配置 URL、Method、Headers、Params、Body、认证和基础检查。
+- 提供 smoke、load、stress、spike、soak 模板，自动生成 k6 脚本；高级用户仍可上传手写 `.js/.mjs`。
+- 选择 `Environment` 后自动加载环境变量；敏感变量仅在 worker 执行时解密，不写入可查询的执行快照。
+- URL、请求头、参数和请求体支持 `{{VARIABLE_NAME}}` 占位符。
+- 前端脚本生成器、API 环境注入和执行契约补回归测试。
+
+### Phase 2：运行与报告
+
+- 执行状态自动刷新、进度/日志摘要和安全停止。
+- 结果导出、基线回归、阈值门禁和 CI/定时触发。
+
+### Phase 3：专业能力
+
+- 关联系统资源指标，支持独立压测节点和分布式压测。
+- 评估 Locust/gRPC 等执行器，增加数据集参数化和复杂用户行为编排。
+
+本次开发已落地 Phase 1，保持现有 PerformanceTest / PerformanceRun 数据模型和 k6 队列契约兼容：新增 performanceScriptGenerator 与可视化创建模式；触发 run 时校验环境归属，敏感环境变量不写入 options_snapshot，由 performance worker 在执行时解密注入；run_k6_script 通过 ATP_K6_OPTIONS 将可视化压力配置传给生成脚本。Q16-06 至 Q16-11 仍待后续迭代。
 
 ## 下一步计划
 

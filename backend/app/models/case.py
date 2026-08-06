@@ -80,6 +80,18 @@ class TestCase(Base, TimestampMixin):
             and self.automation_status in {"auto", "semi_auto"}
         )
 
+    @property
+    def ai_generated(self) -> bool:
+        """Whether this case was saved from the AI draft workflow."""
+        return bool((self.config or {}).get("_ai_generated"))
+
+    @property
+    def script_status(self) -> str:
+        """Expose script readiness without leaking the object-storage path."""
+        if self.case_type not in {CaseType.web, CaseType.android}:
+            return "not_applicable"
+        return "generated" if (self.config or {}).get("script_path") else "missing"
+
 
 class CaseStep(Base, TimestampMixin):
     __tablename__ = "case_steps"

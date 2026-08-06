@@ -12,6 +12,7 @@ export {}
 declare module 'vue' {
   export interface GlobalComponents {
     AAlert: typeof import('ant-design-vue/es')['Alert']
+    AAutoComplete: typeof import('ant-design-vue/es')['AutoComplete']
     AAvatar: typeof import('ant-design-vue/es')['Avatar']
     ABadge: typeof import('ant-design-vue/es')['Badge']
     AButton: typeof import('ant-design-vue/es')['Button']
@@ -51,6 +52,7 @@ declare module 'vue' {
     APageHeader: typeof import('ant-design-vue/es')['PageHeader']
     APagination: typeof import('ant-design-vue/es')['Pagination']
     APopconfirm: typeof import('ant-design-vue/es')['Popconfirm']
+    APopover: typeof import('ant-design-vue/es')['Popover']
     AProgress: typeof import('ant-design-vue/es')['Progress']
     ARadio: typeof import('ant-design-vue/es')['Radio']
     ARadioButton: typeof import('ant-design-vue/es')['RadioButton']
@@ -82,6 +84,7 @@ declare module 'vue' {
     BatchOperationBar: typeof import('./components/common/BatchOperationBar.vue')['default']
     CaseFormDrawer: typeof import('./components/common/CaseFormDrawer.vue')['default']
     CaseStepEditor: typeof import('./components/case/CaseStepEditor.vue')['default']
+    GeneratedScriptModal: typeof import('./components/common/GeneratedScriptModal.vue')['default']
     KvEditor: typeof import('./components/common/KvEditor.vue')['default']
     LazyChartCard: typeof import('./components/dashboard/LazyChartCard.vue')['default']
     LowcodeStepEditor: typeof import('./components/common/LowcodeStepEditor.vue')['default']
@@ -89,5 +92,7 @@ declare module 'vue' {
     MonacoEditor: typeof import('./components/common/MonacoEditor.vue')['default']
     RouterLink: typeof import('vue-router')['RouterLink']
     RouterView: typeof import('vue-router')['RouterView']
+    VariableReferenceInput: typeof import('./components/common/VariableReferenceInput.vue')['default']
+    WebRecorderModal: typeof import('./components/common/WebRecorderModal.vue')['default']
   }
 }

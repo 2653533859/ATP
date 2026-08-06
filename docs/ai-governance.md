@@ -10,6 +10,41 @@ stored in `ai_llm_configs`.
 - Disabled configs are rejected before generation or diagnosis.
 - API keys remain encrypted and are never returned by list/detail APIs.
 
+## Model Discovery and Capability Flags
+
+The System -> AI Model Config form provides **Fetch models**. It uses the
+configured endpoint and API key to read the provider's model catalog, then
+filters obvious embedding, reranking, moderation, speech, and text-to-speech
+models before showing the remaining choices. OpenAI-compatible providers use
+`/v1/models`; Ollama prefers its native `/api/tags` endpoint.
+
+The returned list is a provider catalog, not a full chat health check. Keep the
+model name editable so a provider-specific alias can still be entered manually.
+
+For a direct Ollama server, use its native `http://host:11434` endpoint and
+leave API Key empty. For Open WebUI, select the OpenAI-compatible provider,
+use `http://host:3000/v1`, and provide an Open WebUI API token from Settings ->
+Account; the host login password is not an API token. The client accepts either
+a Base URL with or without the `/v1` suffix and avoids duplicating the prefix.
+
+`supports_vision` should be enabled only when the selected model accepts image
+input and the workflow actually sends images or screenshots. For AI healing,
+the global `AI_HEALING_VISION_ENABLED` flag must also be enabled; the separate
+vision daily limit remains in force.
+
+Thinking/reasoning is not a universal switch. Leave it disabled by default and
+only add the provider-documented parameter in `default_params`, for example:
+
+```json
+{
+  "reasoning_effort": "medium"
+}
+```
+
+Depending on the provider, the documented key may instead be `thinking` or
+`enable_thinking`. If the selected model does not support the key, remove it;
+multimodal support and reasoning support are independent capabilities.
+
 ## `default_params` Governance Keys
 
 `default_params` is the editable JSON surface for both provider parameters and

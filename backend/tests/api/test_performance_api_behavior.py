@@ -39,7 +39,8 @@ sys.modules["app.worker.tasks_performance"] = types.SimpleNamespace(
 from app.api.v1 import performance
 from app.models.bootstrap import load_all_models
 from app.models.performance import PerformanceRun, PerformanceRunStatus, PerformanceTest
-from app.schemas.performance import PerformanceRunTrigger, PerformanceTestCreate
+from app.schemas.performance import PerformanceRunOut, PerformanceRunTrigger, PerformanceTestCreate
+from app.services.performance_options import ENVIRONMENT_SNAPSHOT_KEY
 
 load_all_models()
 
@@ -188,8 +189,8 @@ def test_trigger_performance_run_merges_options_and_enqueues_task():
     test = _performance_test()
     db = _FakeDB({"PerformanceTest": {test.id: test}})
     body = PerformanceRunTrigger(
-        environment_id=9,
-        options={"env": {"TOKEN": "secret"}, "duration": "30s"},
+        environment_id=None,
+        options={"env": {"TENANT": "acme"}, "duration": "30s"},
     )
 
     result = asyncio.run(performance.trigger_performance_run(test_id=test.id, body=body, db=db, user=_User()))
@@ -197,14 +198,73 @@ def test_trigger_performance_run_merges_options_and_enqueues_task():
     assert isinstance(result, PerformanceRun)
     assert result.status == PerformanceRunStatus.pending.value
     assert result.project_id == 2
-    assert result.environment_id == 9
+    assert result.environment_id is None
     assert result.triggered_by == 7
     assert result.options_snapshot == {
-        "env": {"BASE_URL": "https://example.test", "TOKEN": "secret"},
+        "env": {"BASE_URL": "https://example.test", "TENANT": "acme"},
         "vus": 5,
         "duration": "30s",
     }
     assert _delay_recorder.calls == [result.id]
+
+
+def test_trigger_performance_run_injects_environment_and_hides_secret_snapshot(monkeypatch):
+    _delay_recorder.calls.clear()
+    test = _performance_test()
+    test.default_options = {"vus": 5}
+
+    from app.models.environment import Environment, EnvVariable
+
+    environment = Environment(id=9, project_id=2, name="测试环境")
+    variables = [
+        EnvVariable(env_id=9, key="TARGET_URL", value="https://api.example.test", is_secret=False),
+        EnvVariable(env_id=9, key="API_TOKEN", value="encrypted", is_secret=True),
+    ]
+
+    class _EnvironmentDB(_FakeDB):
+        async def execute(self, _statement):
+            return _ListResult(variables)
+
+    monkeypatch.setattr(
+        performance,
+        "decrypt_env_vars",
+        lambda _variables: {"TARGET_URL": "https://api.example.test", "API_TOKEN": "secret"},
+    )
+    db = _EnvironmentDB(
+        {"PerformanceTest": {test.id: test}, "Environment": {environment.id: environment}},
+    )
+
+    result = asyncio.run(
+        performance.trigger_performance_run(
+            test_id=test.id,
+            body=PerformanceRunTrigger(environment_id=9, options={"duration": "30s"}),
+            db=db,
+            user=_User(),
+        )
+    )
+
+    assert result.environment_id == 9
+    assert result.options_snapshot["vus"] == 5
+    assert result.options_snapshot["duration"] == "30s"
+    assert ENVIRONMENT_SNAPSHOT_KEY in result.options_snapshot
+    assert "secret" not in str(result.options_snapshot)
+    public = PerformanceRunOut.model_validate(result)
+    assert public.model_dump()["options_snapshot"] == {"vus": 5, "duration": "30s"}
+    assert _delay_recorder.calls == [result.id]
+
+
+def test_trigger_performance_run_rejects_sensitive_direct_environment_overrides():
+    test = _performance_test()
+    db = _FakeDB({"PerformanceTest": {test.id: test}})
+    body = PerformanceRunTrigger(options={"env": {"API_TOKEN": "secret"}})
+
+    try:
+        asyncio.run(performance.trigger_performance_run(test_id=test.id, body=body, db=db, user=_User()))
+    except Exception as exc:
+        assert getattr(exc, "status_code", None) == 400
+        assert "敏感变量" in exc.detail  # type: ignore[attr-defined]
+    else:
+        raise AssertionError("敏感变量不应直接写入压测参数")
 
 
 def test_trigger_performance_run_rejects_vus_over_limit(monkeypatch):

@@ -3,13 +3,13 @@
     <div v-for="(row, i) in rows" :key="i" class="kv-row">
       <a-input
         v-model:value="row.key"
-        placeholder="Key"
+        :placeholder="t('common.key')"
         class="kv-input"
         @change="emit('update:value', toObject())"
       />
       <a-input
         v-model:value="row.value"
-        placeholder="Value"
+        :placeholder="t('common.value')"
         class="kv-input"
         @change="emit('update:value', toObject())"
       />

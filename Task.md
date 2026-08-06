@@ -1,11 +1,11 @@
 # ATP 项目任务跟踪
 
 **最后更新**: 2026-08-06
-**当前阶段**: Q1–Q12 路线图已全部完成；Q13 七个工作项中六个本地项全部完成；Q14 本地项已全部完成（Q14-01 Android/ADB 执行器族收口，Q14-02 API-router sweep，Q14-03 五个工作台页 mount tests，Q14-04 per-project retention real cleanup，Q14-05 gitleaks pre-commit，Q14-06 Q13 acceptance summary），并已发布 `docs/q14-acceptance-summary.md`。Q15 已完成 Q15-02（后端测试单文件可运行）、Q15-03（Windows CI job）、Q15-04（前端系统管理页面挂载测试）、Q15-05（worker/维护模块覆盖 + 门禁校准）、Q15-06（chartTheme 负载敏感），Q15-01 完成本地可做部分（服务端分支保护在当前 GitHub 套餐下不可得，已降级为本地钩子 + 文档约定并如实说明边界）。部署/灾备的仓库级配置也已收口：`make validate-deployment-readiness`、Helm 外部 Secret、ServiceMonitor、TLS 重定向和备份/恢复脚本契约已落地；真实集群部署、备份恢复和 smoke evidence 仍需外部环境。当前后端 TOTAL 为 **86.04%**（Python 3.12 / CI 口径；本地 Python 3.14 为 85.55%），门禁 **82**，`1467 passed`；前端 statements 为 **32.96%**（门禁 31.5，`128 passed`），`views/system` statements 为 **37.36%**。当前外部阻塞项为 Q15-00 / 原 Q14-00 / 原 Q13-00（Q12-05 生产 SLO 历史 + Android 真机演练采集）以及生产部署/灾备演练证据；对应模板已在 `docs/templates/` 固化，并提供 `make collect-q12-evidence` 自动查询 Prometheus、ATP API 和 ADB 后生成三份证据及附件，`make scaffold-q12-evidence` 仅作为草稿初始化，`make validate-q12-evidence` 做结构校验。覆盖工作累计发现并修复四个潜伏生产 500：grpc protobuf5、mobile-special create_task、ai_healing ProjectRole.engineer、global-variables create_variable（value_encrypted 重复关键字，变量库此前无法创建任何变量）。
+**当前阶段**: Q1–Q12 路线图已全部完成；Q13 七个工作项中六个本地项全部完成；Q14 本地项已全部完成（Q14-01 Android/ADB 执行器族收口，Q14-02 API-router sweep，Q14-03 五个工作台页 mount tests，Q14-04 per-project retention real cleanup，Q14-05 gitleaks pre-commit，Q14-06 Q13 acceptance summary），并已发布 `docs/q14-acceptance-summary.md`。Q15 已完成 Q15-02（后端测试单文件可运行）、Q15-03（Windows CI job）、Q15-04（前端系统管理页面挂载测试）、Q15-05（worker/维护模块覆盖 + 门禁校准）、Q15-06（chartTheme 负载敏感）、Q15-07（Q14 acceptance summary），Q15-01 完成本地可做部分（服务端分支保护在当前 GitHub 套餐下不可得，已降级为本地钩子 + 文档约定并如实说明边界）。部署/灾备的仓库级配置也已收口：`make validate-deployment-readiness`、Helm 外部 Secret、ServiceMonitor、TLS 重定向和备份/恢复脚本契约已落地；校验器在 Windows 无 `sh`/`bash` 时会明确跳过 shell 语法检查，发布机可用 `--require-shell` 强制校验。真实集群部署、备份恢复和 smoke evidence 仍需外部环境。当前后端 TOTAL 为 **86.04%**（Python 3.12 / CI 口径；本地 Python 3.14 为 85.55%），门禁 **82**，`1467 passed`；前端 statements 为 **32.96%**（门禁 31.5，`128 passed`），`views/system` statements 为 **37.36%**。当前外部阻塞项为 Q15-00 / 原 Q14-00 / 原 Q13-00（Q12-05 生产 SLO 历史 + Android 真机演练采集）以及生产部署/灾备演练证据；对应模板已在 `docs/templates/` 固化，并提供 `make collect-q12-evidence` 自动查询 Prometheus、ATP API 和 ADB 后生成三份证据及附件，`make scaffold-q12-evidence` 仅作为草稿初始化，`make validate-q12-evidence` 做结构校验。覆盖工作累计发现并修复四个潜伏生产 500：grpc protobuf5、mobile-special create_task、ai_healing ProjectRole.engineer、global-variables create_variable（value_encrypted 重复关键字，变量库此前无法创建任何变量）。
 
-**最新验证**: Q15 阶段性验证已完成（2026-08-05 全量重跑，工作区与 `origin/main` 一致于 `87f0fc7`）。后端 `make test-backend-coverage` 在两个解释器下均通过门禁 82：Python 3.12（CI 口径）`1467 passed`、TOTAL `86.04%`；Python 3.14（本地 `backend/.venv`）`1467 passed`、TOTAL `85.55%`。**两者语句总数不同（13962 vs 13367，差 595 条、约 0.5 个百分点）**，抬门禁须以 3.12 为准并复验 3.14，口径说明见 `docs/coverage-baseline-2026-q13.md` 的 Interpreter note。`make test-backend-standalone` 为 `191 passed, 0 failed`（每个非 integration 测试文件单独可跑，防止测试间隐式耦合）。`make lint` / `make format-check`（381 文件）/ `make mypy`（76 源文件）全部通过；完整 pre-commit 链 8/8 通过（含 gitleaks）。`npm --prefix frontend run test:coverage` 为 `31 files / 128 tests passed`、statements `32.96%`、branches `27.81%`、functions `26.36%`、lines `34.04%`，`views/system` statements `37.36%`，门槛 31.5 / 26.5 / 24.5 / 32.5 通过。`npm run type-check` 与 `npm run build` 均通过。**门禁强制力如实说明**：`main` 无 required status checks（private 仓库 + 免费套餐，`branches/main/protection` 与 `rulesets` 均 403），CI 红绿只是通知，本地钩子可被 `--no-verify` 绕过，详见 `docs/ci-workflows.md`「门禁强制力现状」。Q12 自动采集器仍按既有留证通过定向回归（延迟取峰值、空窗口判为数据缺口、证据已存在时在采集前中止、`increase(...[1d])` 按实际统计日归档、整数计数不得被去零、凭据只认 `ATP_USERNAME`/`ATP_PASSWORD` 六条不变量）。历史验证：Docker Python 3.12 目标运行时、真实依赖 integration、前端 E2E、SLO 薄切、安全扫描与 GitHub runner 矩阵均按 Q10/Q11/Q13 文档留证。
+**最新验证**: 当前工作区已于 2026-08-06 与 `origin/main` 同步至 `135906d`。以下 Q15 质量基线来自 2026-08-05 对验证提交 `87f0fc7` 的全量重跑；本次同步还包含 Q14 验收、部署/灾备仓库契约及相关回归测试，修改业务代码后需重新执行完整门禁。后端 `make test-backend-coverage` 在两个解释器下均通过门禁 82：Python 3.12（CI 口径）`1467 passed`、TOTAL `86.04%`；Python 3.14（本地 `backend/.venv`）`1467 passed`、TOTAL `85.55%`。**两者语句总数不同（13962 vs 13367，差 595 条、约 0.5 个百分点）**，抬门禁须以 3.12 为准并复验 3.14，口径说明见 `docs/coverage-baseline-2026-q13.md` 的 Interpreter note。`make test-backend-standalone` 为 `191 passed, 0 failed`（每个非 integration 测试文件单独可跑，防止测试间隐式耦合）。`make lint` / `make format-check`（381 文件）/ `make mypy`（76 源文件）全部通过；完整 pre-commit 链 8/8 通过（含 gitleaks）。`npm --prefix frontend run test:coverage` 为 `31 files / 128 tests passed`、statements `32.96%`、branches `27.81%`、functions `26.36%`、lines `34.04%`，`views/system` statements `37.36%`，门槛 31.5 / 26.5 / 24.5 / 32.5 通过。`npm run type-check` 与 `npm run build` 均通过。**门禁强制力如实说明**：`main` 无 required status checks（private 仓库 + 免费套餐，`branches/main/protection` 与 `rulesets` 均 403），CI 红绿只是通知，本地钩子可被 `--no-verify` 绕过，详见 `docs/ci-workflows.md`「门禁强制力现状」。Q12 自动采集器仍按既有留证通过定向回归（延迟取峰值、空窗口判为数据缺口、证据已存在时在采集前中止、`increase(...[1d])` 按实际统计日归档、整数计数不得被去零、凭据只认 `ATP_USERNAME`/`ATP_PASSWORD` 六条不变量）。历史验证：Docker Python 3.12 目标运行时、真实依赖 integration、前端 E2E、SLO 薄切、安全扫描与 GitHub runner 矩阵均按 Q10/Q11/Q13 文档留证。
 
-**下一步计划（2026-07-10）**:
+**下一步计划（2026-08-06）**:
 
 - [x] P0：整理提交 / PR 范围，按主题拆分当前大 diff：环境与依赖兼容、权限与缺陷联动、AI 诊断/治理、前端体验与文档进度。
 - [x] P0：在 CI 或 Docker/目标 Python 3.12 环境复跑后端回归，确认 Python 3.14 条件 pin 不影响目标运行时。
@@ -736,6 +736,39 @@
 - [x] Q15-05 后端 worker / 维护任务覆盖与门禁校准：`worker/tasks_performance.py`（当前 0%）、`worker/tasks_db_backup.py`、`services/ai_healing_stats.py`、`services/dashboard_alerts.py`、`services/mobile_special/aggregator.py` 补行为缝；后端 TOTAL ≥86%，CI 门禁 70→82 使其重新贴近实际
 - [x] Q15-06 处理 `chartTheme.spec.ts` 的负载敏感：或给其动态 import 配相称的超时（或去掉动态 import），或按 `docs/flaky-governance.md` 立案登记原因/证据/退出条件；不接受「全局抬高 testTimeout」了事，需说明选择了哪条路径及理由
 
-**Q15 进展（2026-08-05）**：Q15-02 / Q15-03 / Q15-04 / Q15-05 / Q15-06 已完成，Q15-01 完成本地可做部分；仅剩 Q15-07（Q14 验收总结）与待外部环境的 Q15-00。Q15-04 新增六组组件级挂载测试，覆盖初始化、错误提示、配置 CRUD、导入导出、清理执行、报告筛选/停止/下载、图表主题切换与卸载清理等行为；完整前端 `31 files / 128 tests passed`，statements `32.96%`，`views/system` statements `37.36%`，类型检查和生产构建通过。实际代码中 `MockRuleList.vue` 位于 `views/mock`，`ReportCenterView.vue` 位于 `views/mobile-special`，已按真实路由记录。分支保护经实测不可得 —— 仓库是个人账户下的 private 仓库，`branches/main/protection` 与 `rulesets` 两个 API 均返回 403（需 GitHub Pro 或转为 public），因此 required status checks 无法配置，Q15-01 与 Q15-03 中「纳入 required 集合」一条在当前套餐下无法满足，已按路线图预案降级为「文档约定 + 本地钩子」并在 `docs/ci-workflows.md`「门禁强制力现状」如实说明其边界（可被 `--no-verify` 绕过）。过程中另修两个既有缺陷：mypy 钩子与 `ci.yml` 的 lint job 都只装开发依赖，看不到 SQLAlchemy 真实签名（`d116359^` 的 run_retention.py 只报 8 个错而完整环境报 12 个，少掉的 4 条 `not_in()` arg-type 正是催生本季度的那批）；ruff 的受检脚本清单此前只在 Makefile 生效，CI 与钩子都没覆盖 `scripts/`。Q15-05 把五个指定模块（`tasks_performance` 0%、`aggregator` 9%、`ai_healing_stats` 26%、`tasks_db_backup` 44%、`dashboard_alerts` 56%）抬到 93–100%，并补了四个路由 —— 其中 `api/v1/auth.py` 与 `api/v1/scripts.py` 此前均为 0%（CLAUDE.md 举例引用的 `backend/tests/api/test_auth.py` 实际并不存在）。后端 `1467 passed`、TOTAL **86.04%（Python 3.12，CI 口径）/ 85.55%（Python 3.14，本地）**，门禁 70 → **82**；同一命令在两个解释器下语句总数不同（13962 vs 13367，差 0.5 个百分点），这正是路线图规划输入 82.73% 本地复现不出来的原因，抬门禁以 3.12 为准并复验 3.14，详见 `docs/coverage-baseline-2026-q13.md` 的 Interpreter note。单文件扫描 `191 passed, 0 failed`，完整 pre-commit 链 8/8 通过。
+**Q15 进展（2026-08-06）**：Q15-02 / Q15-03 / Q15-04 / Q15-05 / Q15-06 / Q15-07 已完成，Q15-01 完成本地可做部分；仅剩待外部环境的 Q15-00。Q15-04 新增六组组件级挂载测试，覆盖初始化、错误提示、配置 CRUD、导入导出、清理执行、报告筛选/停止/下载、图表主题切换与卸载清理等行为；完整前端 `31 files / 128 tests passed`，statements `32.96%`，`views/system` statements `37.36%`，类型检查和生产构建通过。实际代码中 `MockRuleList.vue` 位于 `views/mock`，`ReportCenterView.vue` 位于 `views/mobile-special`，已按真实路由记录。分支保护经实测不可得 —— 仓库是个人账户下的 private 仓库，`branches/main/protection` 与 `rulesets` 两个 API 均返回 403（需 GitHub Pro 或转为 public），因此 required status checks 无法配置，Q15-01 与 Q15-03 中「纳入 required 集合」一条在当前套餐下无法满足，已按路线图预案降级为「文档约定 + 本地钩子」并在 `docs/ci-workflows.md`「门禁强制力现状」如实说明其边界（可被 `--no-verify` 绕过）。过程中另修两个既有缺陷：mypy 钩子与 `ci.yml` 的 lint job 都只装开发依赖，看不到 SQLAlchemy 真实签名（`d116359^` 的 run_retention.py 只报 8 个错而完整环境报 12 个，少掉的 4 条 `not_in()` arg-type 正是催生本季度的那批）；ruff 的受检脚本清单此前只在 Makefile 生效，CI 与钩子都没覆盖 `scripts/`。Q15-05 把五个指定模块（`tasks_performance` 0%、`aggregator` 9%、`ai_healing_stats` 26%、`tasks_db_backup` 44%、`dashboard_alerts` 56%）抬到 93–100%，并补了四个路由 —— 其中 `api/v1/auth.py` 与 `api/v1/scripts.py` 此前均为 0%（CLAUDE.md 举例引用的 `backend/tests/api/test_auth.py` 实际并不存在）。Q15-07 已发布 `docs/q14-acceptance-summary.md`，Q15-00 仍等待生产型 SLO 历史与物理 Android 设备证据。后端 `1467 passed`、TOTAL **86.04%（Python 3.12，CI 口径）/ 85.55%（Python 3.14，本地）**，门禁 70 → **82**；同一命令在两个解释器下语句总数不同（13962 vs 13367，差 0.5 个百分点），这正是路线图规划输入 82.73% 本地复现不出来的原因，抬门禁以 3.12 为准并复验 3.14，详见 `docs/coverage-baseline-2026-q13.md` 的 Interpreter note。单文件扫描 `191 passed, 0 failed`，完整 pre-commit 链 8/8 通过。
 
 - [x] Q15-07 Q14 验收总结：按 Q13 格式发布 `docs/q14-acceptance-summary.md`（六个本地工作项、覆盖弧线后端 74%→82.73% 与前端 8.51%→21.48%、Q14-00 顺延、以及门禁未生效放过的两个缺陷：`run_retention` mypy 报错与仅在 Windows 触发的测试断裂）；2026-08-06 已发布
+
+---
+
+## Q16 — 性能压测中心可视化升级与环境联动
+
+> 立项日期：2026-08-06。目标是把当前“k6 脚本执行与结果查看”薄切，升级为测试人员可以直接配置的 HTTP 压测工作台；仍以 k6 为第一阶段执行器，不扩展为 APM 平台。
+> 方案基线：`docs/performance-testing-thin-slice.md`「Q16 升级计划」。
+
+### Phase 1 — 可视化压测场景与环境注入（本次开发范围）
+
+- [x] Q16-01 可视化创建 HTTP 场景：URL、Method、Headers、Params、Body、认证方式、状态码/响应内容检查。
+- [x] Q16-02 内置 smoke/load/stress/spike/soak 五类压力模板，自动生成 k6 脚本并继续支持手写脚本上传。
+- [x] Q16-03 运行时选择环境后，自动注入环境变量；环境变量在触发时加密固化到本次运行快照，由 worker 使用该快照解密加载，运行中修改环境不会影响已触发任务。
+- [x] Q16-04 支持环境变量占位符 `{{VARIABLE_NAME}}`，在 URL、请求头、参数和请求体中统一解析。
+- [x] Q16-05 增加可视化配置的前端单元测试、环境注入 API 回归测试和脚本生成器测试。
+
+### Phase 2 — 运行控制与结果可用性
+
+- [ ] Q16-06 增加执行进度轮询、实时状态刷新和安全停止任务。
+- [ ] Q16-07 增加结果导出、压测报告摘要和阈值门禁结果的可读化展示。
+- [ ] Q16-08 增加基线回归比较、定时执行和 CI 阈值门禁。
+
+### Phase 3 — 专业压测能力
+
+- [ ] Q16-09 接入 CPU、内存、PostgreSQL、Redis、MinIO 等系统指标并与压测时间线关联。
+- [ ] Q16-10 支持分布式压测节点、节点资源限制和压测网络出口隔离。
+- [ ] Q16-11 评估 Locust/gRPC 等后续执行器，补充数据集参数化和更复杂的用户行为编排。
+
+**Q16 验收口径**：新建可视化场景无需手写 k6 脚本或 options JSON；选择环境后目标地址与变量可直接用于执行；敏感环境变量不出现在普通用户可见的 options 快照；原有脚本上传、异步执行、指标趋势和结果对比功能保持兼容。
+
+**Q16 Phase 1 进展（2026-08-06）**：Q16-01 至 Q16-05 已完成。前端新增 performanceScriptGenerator 与可视化创建模式；后端在触发 run 时校验项目环境、隐藏敏感快照并由 performance worker 解密注入；定向后端性能回归 41 passed，脚本生成器 3 passed，前端 type-check/build 通过。Q16-06 至 Q16-11 尚未开发。
+
+**2026-08-06 修复补充**：同步完成启动配置安全校验与草稿脱敏、Ollama 无 Key 配置、AI 模型多模态能力切换、Web 录制事件去重/会话清理/Linux display 提示，以及压测环境快照确定性和敏感参数过滤。后端非集成测试 `1486 passed`，前端 `35 files / 139 tests passed`，type-check、生产构建和 Ruff 均通过。

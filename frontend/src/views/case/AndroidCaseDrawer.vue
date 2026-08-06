@@ -43,19 +43,19 @@
         <a-col :span="8">
           <a-form-item :label="t('case.drawer.case_level')">
             <a-select v-model:value="form.case_level">
-              <a-select-option value="smoke">smoke</a-select-option>
-              <a-select-option value="core">core</a-select-option>
-              <a-select-option value="regression">regression</a-select-option>
-              <a-select-option value="extended">extended</a-select-option>
+              <a-select-option value="smoke">{{ t('case.levels.smoke') }}</a-select-option>
+              <a-select-option value="core">{{ t('case.levels.core') }}</a-select-option>
+              <a-select-option value="regression">{{ t('case.levels.regression') }}</a-select-option>
+              <a-select-option value="extended">{{ t('case.levels.extended') }}</a-select-option>
             </a-select>
           </a-form-item>
         </a-col>
         <a-col :span="8">
           <a-form-item :label="t('case.filters.automation_status')">
             <a-select v-model:value="form.automation_status">
-              <a-select-option value="manual">manual</a-select-option>
-              <a-select-option value="semi_auto">semi_auto</a-select-option>
-              <a-select-option value="auto">auto</a-select-option>
+              <a-select-option value="manual">{{ t('case.automation_statuses.manual') }}</a-select-option>
+              <a-select-option value="semi_auto">{{ t('case.automation_statuses.semi_auto') }}</a-select-option>
+              <a-select-option value="auto">{{ t('case.automation_statuses.auto') }}</a-select-option>
             </a-select>
           </a-form-item>
         </a-col>
@@ -74,8 +74,30 @@
         </a-col>
       </a-row>
 
-      <a-divider orientation="left">{{ t('case.detail.standard_steps') }}</a-divider>
-      <CaseStepEditor v-model="managementSteps" />
+      <div class="standard-step-heading">
+        <a-divider orientation="left">{{ t('case.detail.standard_steps') }}</a-divider>
+        <a-button
+          v-if="editMode === 'lowcode' && lowcodeSteps.length"
+          size="small"
+          @click="regenerateStandardSteps"
+        >
+          {{ t('case.android_standard_steps.regenerate') }}
+        </a-button>
+      </div>
+      <a-alert
+        v-if="editMode === 'lowcode' && lowcodeSteps.length"
+        :message="standardStepsDirty
+          ? t('case.android_standard_steps.manual_hint')
+          : t('case.android_standard_steps.auto_hint')"
+        type="info"
+        show-icon
+        closable
+        style="margin-bottom: 12px"
+      />
+      <CaseStepEditor
+        :model-value="managementSteps"
+        @update:modelValue="handleManagementStepsUpdate"
+      />
 
       <a-divider orientation="left">{{ t('case.detail.execution_config') }}</a-divider>
       <a-row :gutter="16">
@@ -130,6 +152,12 @@
       </a-form-item>
 
       <template v-if="editMode === 'lowcode'">
+        <div class="android-script-toolbar">
+          <a-button size="small" :disabled="!lowcodeSteps.length" @click="openGeneratedScriptPreview">
+            <CodeOutlined /> {{ t('case.drawer.generate_script') }}
+          </a-button>
+          <span>{{ t('case.drawer.android.generate_script_hint') }}</span>
+        </div>
         <AndroidStepEditor v-model="lowcodeSteps" :device-id="selectedDeviceId" />
       </template>
 
@@ -169,6 +197,15 @@
       </template>
     </a-form>
 
+    <GeneratedScriptModal
+      :open="scriptPreviewOpen"
+      :content="generatedScriptContent"
+      kind="android"
+      :saving="savingGeneratedScript"
+      @close="scriptPreviewOpen = false"
+      @save="handleSaveGeneratedScript"
+    />
+
     <template #footer>
       <a-space style="float: right">
         <a-button @click="emit('close')">{{ t('common.cancel') }}</a-button>
@@ -184,12 +221,15 @@
 import { computed, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { CheckCircleOutlined, UploadOutlined } from '@ant-design/icons-vue'
+import { CheckCircleOutlined, CodeOutlined, UploadOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { apkApi, caseApi, deviceApi, type DeviceItem, scriptApi, type CaseStepItem } from '@/api'
 import CaseStepEditor from '@/components/case/CaseStepEditor.vue'
+import { buildAndroidStandardSteps } from '@/utils/androidStandardSteps'
 import AndroidStepEditor from '@/components/common/AndroidStepEditor.vue'
 import MonacoEditor from '@/components/common/MonacoEditor.vue'
+import GeneratedScriptModal from '@/components/common/GeneratedScriptModal.vue'
+import { generateAndroidPythonScript } from '@/utils/pythonScriptGenerator'
 
 interface AndroidStepDef {
   action: string
@@ -241,6 +281,12 @@ const apkMap = ref<Record<number, string>>({})
 
 const lowcodeSteps = ref<AndroidStepDef[]>([])
 const managementSteps = ref<CaseStepItem[]>([])
+const standardStepsDirty = ref(false)
+const syncingStandardSteps = ref(false)
+const scriptPreviewOpen = ref(false)
+const generatedScriptContent = ref('')
+const pendingGeneratedScript = ref('')
+const savingGeneratedScript = ref(false)
 
 const scriptContent = ref('')
 const scriptPath = ref<string | null>(null)
@@ -281,6 +327,12 @@ function resetDrawerState() {
   cfg.timeout = 120
   lowcodeSteps.value = []
   managementSteps.value = []
+  standardStepsDirty.value = false
+  syncingStandardSteps.value = false
+  scriptPreviewOpen.value = false
+  generatedScriptContent.value = ''
+  pendingGeneratedScript.value = ''
+  savingGeneratedScript.value = false
   scriptContent.value = ''
   scriptPath.value = null
 }
@@ -364,6 +416,7 @@ watch(
       form.preconditions = detail.preconditions ?? []
       form.postconditions = detail.postconditions ?? []
       managementSteps.value = detail.steps ?? []
+      standardStepsDirty.value = managementSteps.value.length > 0
 
       const config = detail.config ?? {}
       cfg.device_serial = typeof config.device_serial === 'string' ? config.device_serial : undefined
@@ -381,6 +434,31 @@ watch(
     }
   },
 )
+
+watch(
+  lowcodeSteps,
+  () => {
+    if (!props.open || editMode.value !== 'lowcode' || standardStepsDirty.value || !lowcodeSteps.value.length) {
+      return
+    }
+    regenerateStandardSteps()
+  },
+  { deep: true },
+)
+
+function regenerateStandardSteps() {
+  syncingStandardSteps.value = true
+  managementSteps.value = buildAndroidStandardSteps(lowcodeSteps.value, t)
+  standardStepsDirty.value = false
+  syncingStandardSteps.value = false
+}
+
+function handleManagementStepsUpdate(steps: CaseStepItem[]) {
+  managementSteps.value = steps
+  if (!syncingStandardSteps.value) {
+    standardStepsDirty.value = true
+  }
+}
 
 watch(editMode, async (mode) => {
   if (!props.open) {
@@ -427,6 +505,39 @@ async function handleSaveScript() {
   }
 }
 
+function openGeneratedScriptPreview() {
+  if (!lowcodeSteps.value.length) {
+    message.warning(t('case.drawer.android.msg.automation_step_required'))
+    return
+  }
+  generatedScriptContent.value = generateAndroidPythonScript(lowcodeSteps.value)
+  scriptPreviewOpen.value = true
+}
+
+async function handleSaveGeneratedScript(content: string) {
+  if (!content.trim()) return
+  generatedScriptContent.value = content
+  savingGeneratedScript.value = true
+  try {
+    if (!localCaseId.value) {
+      pendingGeneratedScript.value = content
+      scriptPreviewOpen.value = false
+      message.info(t('case.drawer.script_preview.save_note'))
+      return
+    }
+
+    const response = await scriptApi.saveContent(localCaseId.value, content) as { script_path?: string }
+    scriptPath.value = response.script_path ?? null
+    scriptContent.value = content
+    scriptPreviewOpen.value = false
+    message.success(t('case.drawer.msg.script_saved'))
+  } catch (error) {
+    message.error(String(error ?? t('case.drawer.msg.save_failed')))
+  } finally {
+    savingGeneratedScript.value = false
+  }
+}
+
 function buildConfig() {
   const config: Record<string, unknown> = { timeout: cfg.timeout }
   if (cfg.device_serial) {
@@ -438,6 +549,9 @@ function buildConfig() {
   }
   if (editMode.value === 'lowcode') {
     config.steps = lowcodeSteps.value
+    if (scriptPath.value) {
+      config.script_path = scriptPath.value
+    }
   } else if (scriptPath.value) {
     config.script_path = scriptPath.value
   }
@@ -490,6 +604,17 @@ async function handleSave() {
     const newCase = await caseApi.create(payload)
     localCaseId.value = newCase.id
     isEdit.value = true
+    if (pendingGeneratedScript.value) {
+      try {
+        const response = await scriptApi.saveContent(newCase.id, pendingGeneratedScript.value) as { script_path?: string }
+        scriptPath.value = response.script_path ?? null
+        scriptContent.value = pendingGeneratedScript.value
+        pendingGeneratedScript.value = ''
+        message.success(t('case.drawer.msg.script_saved'))
+      } catch (error) {
+        message.error(String(error ?? t('case.drawer.msg.save_failed')))
+      }
+    }
     message.success(t('case.drawer.msg.case_created'))
     emit('saved')
     if (editMode.value === 'lowcode') {
@@ -508,9 +633,32 @@ async function handleSave() {
   color: #999;
 }
 
+.standard-step-heading {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.standard-step-heading :deep(.ant-divider) {
+  flex: 1;
+  margin: 16px 0;
+}
+
 .mode-hint {
   margin-left: 12px;
   color: #999;
+  font-size: 12px;
+}
+
+.android-script-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: -4px 0 12px;
+}
+
+.android-script-toolbar span {
+  color: #98a2b3;
   font-size: 12px;
 }
 

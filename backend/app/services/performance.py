@@ -13,6 +13,25 @@ from typing import Any
 from app.core import minio_client
 
 
+_K6_OPTION_KEYS = {
+    "batch",
+    "batchPerHost",
+    "discardResponseBodies",
+    "duration",
+    "gracefulRampDown",
+    "gracefulStop",
+    "insecureSkipTLSVerify",
+    "iterations",
+    "maxRedirects",
+    "minIterationDuration",
+    "noConnectionReuse",
+    "scenarios",
+    "stages",
+    "thresholds",
+    "vus",
+}
+
+
 def _metric_value(metrics: dict[str, Any], metric_name: str, value_name: str) -> float | int | None:
     metric = metrics.get(metric_name) or {}
     values = metric.get("values") if isinstance(metric, dict) else {}
@@ -85,6 +104,9 @@ def run_k6_script(
 
         env = os.environ.copy()
         env.update({str(key): str(value) for key, value in env_vars.items()})
+        k6_options = {key: merged_options[key] for key in _K6_OPTION_KEYS if key in merged_options}
+        if k6_options:
+            env["ATP_K6_OPTIONS"] = json.dumps(k6_options, ensure_ascii=False)
 
         started = time.monotonic()
         completed = subprocess.run(

@@ -139,24 +139,126 @@
         <a-form-item :label="t('performance.description')">
           <a-textarea v-model:value="testForm.description" :rows="2" />
         </a-form-item>
-        <a-form-item :label="t('performance.script_object_name')" required>
-          <a-space-compact class="script-input">
-            <a-input v-model:value="testForm.script_object_name" class="mono" :placeholder="t('performance.script_placeholder')" />
-            <a-upload
-              accept=".js,.mjs"
-              :before-upload="uploadScript"
-              :show-upload-list="false"
-            >
-              <a-button :loading="scriptUploading">
-                <template #icon><UploadOutlined /></template>
-                {{ t('performance.upload_script') }}
-              </a-button>
-            </a-upload>
-          </a-space-compact>
+        <a-form-item :label="t('performance.creation_mode')">
+          <a-radio-group v-model:value="testForm.mode" button-style="solid">
+            <a-radio-button value="visual">{{ t('performance.visual_mode') }}</a-radio-button>
+            <a-radio-button value="script">{{ t('performance.script_mode') }}</a-radio-button>
+          </a-radio-group>
         </a-form-item>
-        <a-form-item :label="t('performance.default_options')">
-          <a-textarea v-model:value="testForm.defaultOptionsText" class="mono" :rows="10" />
-        </a-form-item>
+        <template v-if="testForm.mode === 'visual'">
+          <a-alert
+            type="info"
+            show-icon
+            :message="t('performance.visual_hint')"
+            class="form-alert"
+          />
+          <a-form-item :label="t('performance.load_template')">
+            <a-select
+              v-model:value="testForm.scenario.loadTemplate"
+              :options="loadTemplateOptions"
+              @change="applyLoadTemplate"
+            />
+          </a-form-item>
+          <a-row :gutter="12">
+            <a-col :span="7">
+              <a-form-item :label="t('performance.request_method')">
+                <a-select v-model:value="testForm.scenario.method" :options="methodOptions" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="17">
+              <a-form-item :label="t('performance.request_url')" required>
+                <a-input v-model:value="testForm.scenario.url" placeholder="https://example.test/api/health" />
+              </a-form-item>
+            </a-col>
+          </a-row>
+          <a-form-item :label="t('performance.request_headers')">
+            <KvEditor v-model:value="testForm.scenario.headers" />
+          </a-form-item>
+          <a-form-item :label="t('performance.request_params')">
+            <KvEditor v-model:value="testForm.scenario.params" />
+          </a-form-item>
+          <a-row :gutter="12">
+            <a-col :span="8">
+              <a-form-item :label="t('performance.body_type')">
+                <a-select v-model:value="testForm.scenario.bodyType" :options="bodyTypeOptions" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="16">
+              <a-form-item :label="t('performance.expected_status')">
+                <a-input-number v-model:value="testForm.scenario.expectedStatus" :min="100" :max="599" style="width: 100%" />
+              </a-form-item>
+            </a-col>
+          </a-row>
+          <a-form-item v-if="testForm.scenario.bodyType !== 'none'" :label="t('performance.request_body')">
+            <a-textarea v-model:value="testForm.scenario.body" :rows="5" class="mono" />
+          </a-form-item>
+          <a-form-item :label="t('performance.auth_type')">
+            <a-select v-model:value="testForm.scenario.authType" :options="authTypeOptions" />
+          </a-form-item>
+          <a-row v-if="testForm.scenario.authType === 'bearer'" :gutter="12">
+            <a-col :span="24">
+              <a-form-item :label="t('performance.token_variable')">
+                <a-input v-model:value="testForm.scenario.bearerTokenKey" placeholder="API_TOKEN" />
+              </a-form-item>
+            </a-col>
+          </a-row>
+          <a-row v-if="testForm.scenario.authType === 'basic'" :gutter="12">
+            <a-col :span="12">
+              <a-form-item :label="t('performance.username_variable')">
+                <a-input v-model:value="testForm.scenario.basicUsernameKey" placeholder="API_USERNAME" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item :label="t('performance.password_variable')">
+                <a-input v-model:value="testForm.scenario.basicPasswordKey" placeholder="API_PASSWORD" />
+              </a-form-item>
+            </a-col>
+          </a-row>
+          <a-form-item :label="t('performance.body_contains')">
+            <a-input v-model:value="testForm.scenario.bodyContains" :placeholder="t('performance.body_contains_placeholder')" />
+          </a-form-item>
+          <a-row :gutter="12">
+            <a-col :span="12">
+              <a-form-item :label="t('performance.p95_threshold')">
+                <a-input-number v-model:value="testForm.scenario.p95ThresholdMs" :min="0" style="width: 100%" />
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item :label="t('performance.error_threshold')">
+                <a-input-number v-model:value="testForm.scenario.errorRateThresholdPercent" :min="0" :max="100" :step="0.1" style="width: 100%" />
+              </a-form-item>
+            </a-col>
+          </a-row>
+          <div v-if="testForm.scenario.stages.length" class="stages-editor">
+            <div class="section-label">{{ t('performance.stages') }}</div>
+            <div v-for="(stage, index) in testForm.scenario.stages" :key="index" class="stage-row">
+              <a-input v-model:value="stage.duration" :placeholder="t('performance.stage_duration')" />
+              <a-input-number v-model:value="stage.target" :min="0" :placeholder="t('performance.stage_target')" />
+              <a-button type="text" danger @click="removeStage(index)">{{ t('common.delete') }}</a-button>
+            </div>
+            <a-button type="dashed" block @click="addStage">{{ t('performance.add_stage') }}</a-button>
+          </div>
+        </template>
+        <template v-else>
+          <a-form-item :label="t('performance.script_object_name')" required>
+            <a-space-compact class="script-input">
+              <a-input v-model:value="testForm.script_object_name" class="mono" :placeholder="t('performance.script_placeholder')" />
+              <a-upload
+                accept=".js,.mjs"
+                :before-upload="uploadScript"
+                :show-upload-list="false"
+              >
+                <a-button :loading="scriptUploading">
+                  <template #icon><UploadOutlined /></template>
+                  {{ t('performance.upload_script') }}
+                </a-button>
+              </a-upload>
+            </a-space-compact>
+          </a-form-item>
+          <a-form-item :label="t('performance.default_options')">
+            <a-textarea v-model:value="testForm.defaultOptionsText" class="mono" :rows="10" />
+          </a-form-item>
+        </template>
       </a-form>
     </a-drawer>
 
@@ -176,6 +278,7 @@
             allow-clear
             :placeholder="t('performance.no_environment')"
           />
+          <div class="field-hint">{{ t('performance.environment_hint') }}</div>
         </a-form-item>
         <a-form-item :label="t('performance.run_options')">
           <a-textarea v-model:value="runForm.optionsText" class="mono" :rows="8" />
@@ -260,7 +363,16 @@ import {
   type PerformanceTestItem,
   type ProjectItem,
 } from '@/api'
+import KvEditor from '@/components/common/KvEditor.vue'
 import { useChartTheme } from '@/utils/chartTheme'
+import {
+  applyPerformanceLoadTemplate,
+  buildPerformanceOptions,
+  createDefaultPerformanceScenario,
+  generatePerformanceK6Script,
+  type PerformanceLoadTemplate,
+  type PerformanceScenario,
+} from '@/utils/performanceScriptGenerator'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asPerfTest = (record: unknown) => record as PerformanceTestItem
 const asPerfRun = (record: unknown) => record as PerformanceRunItem
@@ -285,11 +397,42 @@ const runTarget = ref<PerformanceTestItem | null>(null)
 const selectedRun = ref<PerformanceRunItem | null>(null)
 const selectedRunIds = ref<number[]>([])
 
-const testForm = ref({
+type PerformanceCreationMode = 'visual' | 'script'
+
+const loadTemplateOptions = computed(() => [
+  { label: t('performance.template_smoke'), value: 'smoke' },
+  { label: t('performance.template_load'), value: 'load' },
+  { label: t('performance.template_stress'), value: 'stress' },
+  { label: t('performance.template_spike'), value: 'spike' },
+  { label: t('performance.template_soak'), value: 'soak' },
+])
+
+const methodOptions = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => ({ label: value, value }))
+const bodyTypeOptions = computed(() => [
+  { label: t('performance.body_none'), value: 'none' },
+  { label: t('performance.body_json'), value: 'json' },
+  { label: t('performance.body_text'), value: 'text' },
+])
+const authTypeOptions = computed(() => [
+  { label: t('performance.auth_none'), value: 'none' },
+  { label: t('performance.auth_bearer'), value: 'bearer' },
+  { label: t('performance.auth_basic'), value: 'basic' },
+])
+
+const testForm = ref<{
+  mode: PerformanceCreationMode
+  name: string
+  description: string
+  script_object_name: string
+  defaultOptionsText: string
+  scenario: PerformanceScenario
+}>({
+  mode: 'visual',
   name: '',
   description: '',
   script_object_name: '',
   defaultOptionsText: '{\n  "env": {\n    "TARGET_URL": "https://example.test"\n  }\n}',
+  scenario: createDefaultPerformanceScenario(),
 })
 
 const runForm = ref<{ environment_id?: number; optionsText: string }>({
@@ -479,23 +622,62 @@ async function loadEnvironments() {
 function openCreate() {
   editing.value = null
   testForm.value = {
+    mode: 'visual',
     name: '',
     description: '',
     script_object_name: '',
     defaultOptionsText: '{\n  "env": {\n    "TARGET_URL": "https://example.test"\n  }\n}',
+    scenario: createDefaultPerformanceScenario(),
   }
   editorOpen.value = true
 }
 
 function openEdit(record: PerformanceTestItem) {
   editing.value = record
+  const scenarioValue = record.default_options?.atp_scenario
+  const visual = isPerformanceScenario(scenarioValue)
   testForm.value = {
+    mode: visual ? 'visual' : 'script',
     name: record.name,
     description: record.description || '',
     script_object_name: record.script_object_name,
     defaultOptionsText: JSON.stringify(record.default_options || {}, null, 2),
+    scenario: visual ? cloneScenario(scenarioValue) : createDefaultPerformanceScenario(),
   }
   editorOpen.value = true
+}
+
+function isPerformanceScenario(value: unknown): value is PerformanceScenario {
+  return !!(
+    value
+    && typeof value === 'object'
+    && !Array.isArray(value)
+    && typeof (value as PerformanceScenario).url === 'string'
+    && typeof (value as PerformanceScenario).method === 'string'
+    && typeof (value as PerformanceScenario).loadTemplate === 'string'
+  )
+}
+
+function cloneScenario(scenario: PerformanceScenario): PerformanceScenario {
+  return {
+    ...scenario,
+    headers: { ...scenario.headers },
+    params: { ...scenario.params },
+    stages: (scenario.stages || []).map((stage) => ({ ...stage })),
+  }
+}
+
+function applyLoadTemplate(value: unknown) {
+  const template = String(value) as PerformanceLoadTemplate
+  testForm.value.scenario = applyPerformanceLoadTemplate(testForm.value.scenario, template)
+}
+
+function addStage() {
+  testForm.value.scenario.stages.push({ duration: '30s', target: 10 })
+}
+
+function removeStage(index: number) {
+  testForm.value.scenario.stages.splice(index, 1)
 }
 
 function parseJsonObject(text: string, fallback: string): Record<string, unknown> | null {
@@ -515,12 +697,40 @@ function parseJsonObject(text: string, fallback: string): Record<string, unknown
 async function saveTest() {
   if (!projectId.value) return
   const name = testForm.value.name.trim()
-  const scriptObjectName = testForm.value.script_object_name.trim()
-  if (!name || !scriptObjectName) {
+  if (!name) {
     message.warning(t('performance.msg.required'))
     return
   }
-  const defaultOptions = parseJsonObject(testForm.value.defaultOptionsText, t('performance.msg.options_invalid'))
+
+  let scriptObjectName = testForm.value.script_object_name.trim()
+  let defaultOptions: Record<string, unknown> | null
+  if (testForm.value.mode === 'visual') {
+    if (!testForm.value.scenario.url.trim()) {
+      message.warning(t('performance.msg.visual_required'))
+      return
+    }
+    defaultOptions = buildPerformanceOptions(testForm.value.scenario)
+    const filename = 'performance-' + slugify(name) + '.js'
+    scriptUploading.value = true
+    try {
+      const script = generatePerformanceK6Script(testForm.value.scenario)
+      const file = new File([script], filename, { type: 'application/javascript' })
+      const result = await performanceApi.uploadScript(projectId.value, file)
+      scriptObjectName = result.script_object_name
+    } catch {
+      message.error(t('performance.msg.upload_failed'))
+      return
+    } finally {
+      scriptUploading.value = false
+    }
+  } else {
+    if (!scriptObjectName) {
+      message.warning(t('performance.msg.required'))
+      return
+    }
+    defaultOptions = parseJsonObject(testForm.value.defaultOptionsText, t('performance.msg.options_invalid'))
+    if (!defaultOptions) return
+  }
   if (!defaultOptions) return
 
   try {
@@ -548,6 +758,14 @@ async function saveTest() {
   } catch {
     message.error(t('performance.msg.save_failed'))
   }
+}
+
+function slugify(value: string) {
+  return value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 48) || 'scenario'
 }
 
 function isK6Script(file: File) {
@@ -711,6 +929,31 @@ onMounted(loadProjects)
 
 .script-input :deep(.ant-input) {
   flex: 1;
+}
+
+.form-alert {
+  margin-bottom: 16px;
+}
+
+.field-hint {
+  margin-top: 6px;
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.stages-editor {
+  padding: 12px;
+  border: 1px solid #f0f0f0;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.stage-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 8px;
 }
 
 .section-title {

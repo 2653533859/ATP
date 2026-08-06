@@ -13,6 +13,7 @@
       <a-table
         :data-source="configs"
         :columns="columns"
+        :locale="{ emptyText: t('common.no_data') }"
         :pagination="{ pageSize: 20 }"
         row-key="id"
       >
@@ -32,7 +33,7 @@
           </template>
           <template v-else-if="column.key === 'supports_vision'">
             <a-tag :color="record.supports_vision ? 'geekblue' : 'default'">
-              {{ record.supports_vision ? 'On' : 'Off' }}
+              {{ record.supports_vision ? t('common.enabled') : t('common.disabled') }}
             </a-tag>
           </template>
           <template v-else-if="column.key === 'action'">
@@ -55,6 +56,8 @@
       v-model:open="showModal"
       :title="editing ? t('system_pages.ai_llm.edit_title', { name: editing.name }) : t('system_pages.ai_llm.new_full')"
       :confirm-loading="saving"
+      :cancel-text="t('common.cancel')"
+      :ok-text="t('common.ok')"
       width="600px"
       @ok="handleSave"
       @cancel="resetForm"
@@ -63,14 +66,15 @@
         <a-form-item :label="t('common.name')" required>
           <a-input v-model:value="form.name" :placeholder="t('system_pages.ai_llm.name_placeholder')" />
         </a-form-item>
-        <a-form-item label="Provider" required>
+        <a-form-item :label="t('system_pages.ai_llm.provider_label')" required>
           <a-select
             v-model:value="form.provider"
             :options="providerOptions"
             :placeholder="t('system_pages.ai_llm.provider_placeholder')"
+            @change="handleProviderChange"
           />
         </a-form-item>
-        <a-form-item :label="editing ? t('system_pages.ai_llm.api_key_new') : 'API Key'" :required="!editing">
+        <a-form-item :label="editing ? t('system_pages.ai_llm.api_key_new') : t('system_pages.ai_llm.api_key_label')" :required="!editing">
           <a-input-password
             v-model:value="form.api_key"
             :placeholder="editing ? t('system_pages.ai_llm.api_key_keep_placeholder') : t('system_pages.ai_llm.api_key_placeholder')"
@@ -82,9 +86,24 @@
             v-model:value="form.endpoint"
             :placeholder="t('system_pages.ai_llm.endpoint_placeholder')"
           />
+          <div class="endpoint-hint">{{ providerEndpointHint }}</div>
         </a-form-item>
         <a-form-item :label="t('system_pages.ai_llm.model_name')" required>
-          <a-input v-model:value="form.model_name" :placeholder="t('system_pages.ai_llm.model_placeholder')" />
+          <div class="model-picker">
+            <a-auto-complete
+              v-model:value="form.model_name"
+              :options="modelSelectOptions"
+              :placeholder="t('system_pages.ai_llm.model_placeholder')"
+              class="model-picker-input"
+              @select="handleModelSelect"
+            />
+            <a-button :loading="discoveringModels" @click="handleDiscoverModels">
+              {{ t('system_pages.ai_llm.fetch_models') }}
+            </a-button>
+          </div>
+          <div v-if="modelOptions.length" class="model-picker-hint">
+            {{ t('system_pages.ai_llm.models_loaded', { count: modelOptions.length }) }}
+          </div>
         </a-form-item>
         <a-form-item :label="t('system_pages.ai_llm.default_params')">
           <a-textarea
@@ -95,12 +114,24 @@
           <span v-if="defaultParamsError" style="color: var(--c-error); font-size: 12px">
             {{ defaultParamsError }}
           </span>
+          <a-alert
+            type="info"
+            show-icon
+            :message="t('system_pages.ai_llm.params_hint')"
+            style="margin-top: 8px"
+          />
         </a-form-item>
         <a-form-item :label="t('common.enabled')">
           <a-switch v-model:checked="form.enabled" />
         </a-form-item>
-        <a-form-item label="Vision">
+        <a-form-item :label="t('system_pages.ai_llm.vision_label')">
           <a-switch v-model:checked="form.supports_vision" />
+          <span v-if="selectedModelOption?.supports_vision" class="capability-hint">
+            {{ t('system_pages.ai_llm.vision_detected') }}
+          </span>
+          <span v-else class="capability-hint">
+            {{ t('system_pages.ai_llm.vision_hint') }}
+          </span>
         </a-form-item>
         <a-form-item :label="t('common.description')">
           <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('system_pages.ai_llm.desc_placeholder')" />
@@ -117,6 +148,7 @@ import { useI18n } from 'vue-i18n'
 import {
   aiLLMConfigApi,
   type AILLMConfigItem,
+  type AILLMModelOption,
   type LLMProvider,
 } from '@/api'
 
@@ -143,6 +175,8 @@ const showModal = ref(false)
 const editing = ref<AILLMConfigItem | null>(null)
 const defaultParamsText = ref('{}')
 const defaultParamsError = ref('')
+const modelOptions = ref<AILLMModelOption[]>([])
+const discoveringModels = ref(false)
 
 const form = ref<FormState>({
   name: '',
@@ -179,16 +213,35 @@ const providerColorMap: Record<LLMProvider, string> = {
   ollama: 'green',
 }
 
+const modelSelectOptions = computed(() => modelOptions.value.map((model) => {
+  const capabilities = [
+    model.supports_vision ? t('system_pages.ai_llm.vision_badge') : '',
+    model.supports_reasoning ? t('system_pages.ai_llm.reasoning_badge') : '',
+  ].filter(Boolean)
+  const suffix = capabilities.length ? ` · ${capabilities.join(' / ')}` : ''
+  return { value: model.id, label: `${model.label}${suffix}` }
+}))
+
+const selectedModelOption = computed(() =>
+  modelOptions.value.find((model) => model.id === form.value.model_name),
+)
+
+const providerEndpointHint = computed(() => {
+  if (form.value.provider === 'ollama') return t('system_pages.ai_llm.ollama_endpoint_hint')
+  if (form.value.provider === 'openai') return t('system_pages.ai_llm.openai_endpoint_hint')
+  return t('system_pages.ai_llm.compatible_endpoint_hint')
+})
+
 const providerLabel = (p: LLMProvider) => providerLabelMap[p] ?? p
 const providerColor = (p: LLMProvider) => providerColorMap[p] ?? 'default'
 
 const columns = computed(() => [
   { title: t('system_pages.ai_llm.columns.name'), dataIndex: 'name', key: 'name' },
-  { title: 'Provider', key: 'provider' },
-  { title: 'Model', dataIndex: 'model_name', key: 'model_name' },
+  { title: t('system_pages.ai_llm.columns.provider'), key: 'provider' },
+  { title: t('system_pages.ai_llm.columns.model'), dataIndex: 'model_name', key: 'model_name' },
   { title: t('system_pages.ai_llm.base_url_label'), dataIndex: 'endpoint', key: 'endpoint', ellipsis: true },
-  { title: 'API Key', key: 'has_api_key', width: 100 },
-  { title: 'Vision', dataIndex: 'supports_vision', key: 'supports_vision', width: 90 },
+  { title: t('system_pages.ai_llm.columns.api_key'), key: 'has_api_key', width: 100 },
+  { title: t('system_pages.ai_llm.columns.vision'), dataIndex: 'supports_vision', key: 'supports_vision', width: 90 },
   { title: t('system_pages.ai_llm.columns.status'), key: 'enabled', width: 80 },
   { title: t('system_pages.ai_llm.columns.description'), dataIndex: 'description', key: 'description', ellipsis: true },
   { title: t('system_pages.ai_llm.columns.action'), key: 'action', width: 140 },
@@ -227,6 +280,7 @@ function resetForm() {
   editing.value = null
   defaultParamsText.value = '{}'
   defaultParamsError.value = ''
+  modelOptions.value = []
   form.value = {
     name: '',
     provider: 'deepseek',
@@ -248,6 +302,7 @@ function openEdit(record: AILLMConfigItem) {
   editing.value = record
   defaultParamsText.value = JSON.stringify(record.default_params ?? {}, null, 2)
   defaultParamsError.value = ''
+  modelOptions.value = []
   form.value = {
     name: record.name,
     provider: record.provider,
@@ -259,6 +314,47 @@ function openEdit(record: AILLMConfigItem) {
     description: record.description ?? '',
   }
   showModal.value = true
+}
+
+function handleProviderChange() {
+  modelOptions.value = []
+  form.value.model_name = ''
+  form.value.supports_vision = false
+}
+
+function handleModelSelect(value: unknown) {
+  if (typeof value !== 'string') return
+  form.value.model_name = value
+  const option = modelOptions.value.find((model) => model.id === value)
+  form.value.supports_vision = option?.supports_vision === true
+}
+
+async function handleDiscoverModels() {
+  const apiKey = form.value.api_key.trim()
+  if (!editing.value && form.value.provider !== 'ollama' && !apiKey) {
+    message.warning(t('system_pages.ai_llm.msg.api_key_required'))
+    return
+  }
+
+  discoveringModels.value = true
+  try {
+    const result = await aiLLMConfigApi.discoverModels({
+      config_id: editing.value?.id,
+      provider: form.value.provider,
+      api_key: apiKey || undefined,
+      endpoint: form.value.endpoint.trim() || null,
+    })
+    modelOptions.value = result.models
+    if (!result.models.length) {
+      message.warning(t('system_pages.ai_llm.msg.no_models'))
+    } else {
+      message.success(t('system_pages.ai_llm.msg.models_loaded', { count: result.models.length }))
+    }
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('system_pages.ai_llm.msg.models_load_failed')))
+  } finally {
+    discoveringModels.value = false
+  }
 }
 
 function parseDefaultParams(): Record<string, unknown> | null {
@@ -283,7 +379,7 @@ async function handleSave() {
     message.warning(t('system_pages.ai_llm.msg.required'))
     return
   }
-  if (!editing.value && !form.value.api_key.trim()) {
+  if (!editing.value && form.value.provider !== 'ollama' && !form.value.api_key.trim()) {
     message.warning(t('system_pages.ai_llm.msg.api_key_required'))
     return
   }
@@ -344,3 +440,31 @@ async function handleDelete(id: number) {
 
 onMounted(loadConfigs)
 </script>
+
+<style scoped>
+.model-picker {
+  display: flex;
+  gap: 8px;
+}
+
+.model-picker-input {
+  flex: 1;
+  min-width: 0;
+}
+
+.model-picker-hint,
+.endpoint-hint,
+.capability-hint {
+  color: #98a2b3;
+  font-size: 12px;
+}
+
+.endpoint-hint {
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+.capability-hint {
+  margin-left: 8px;
+}
+</style>

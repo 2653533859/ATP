@@ -185,3 +185,18 @@ def test_call_llm_custom_endpoint(monkeypatch):
     )
     asyncio.run(call_llm(request))
     assert captured.captured["url"] == "http://my-host:8000/v1/chat/completions"
+
+
+def test_call_llm_custom_v1_endpoint_does_not_duplicate_prefix(monkeypatch):
+    payload = {"choices": [{"message": {"content": "x"}}]}
+    captured = _patch_httpx(monkeypatch, payload)
+
+    request = LLMRequest(
+        provider="openai",
+        api_key="token",
+        model_name="local-model",
+        prompt="p",
+        endpoint="http://my-host:3000/v1",
+    )
+    asyncio.run(call_llm(request))
+    assert captured.captured["url"] == "http://my-host:3000/v1/chat/completions"

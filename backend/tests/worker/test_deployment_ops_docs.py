@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib.util
 import json
 from pathlib import Path
 
@@ -7,6 +8,39 @@ import yaml
 
 
 ROOT = Path(__file__).resolve().parents[3]
+
+
+def _load_deployment_validator():
+    path = ROOT / "scripts" / "validate-deployment-readiness.py"
+    spec = importlib.util.spec_from_file_location("validate_deployment_readiness", path)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_deployment_validator_skips_shell_check_when_posix_shell_is_unavailable(monkeypatch):
+    validator = _load_deployment_validator()
+    monkeypatch.setattr(validator.shutil, "which", lambda _name: None)
+    skipped: list[str] = []
+    failures: list[str] = []
+
+    validator._check_shell_scripts(False, skipped, failures)
+
+    assert failures == []
+    assert skipped == ["shell syntax (sh/bash is not available)"]
+
+
+def test_deployment_validator_can_require_a_posix_shell(monkeypatch):
+    validator = _load_deployment_validator()
+    monkeypatch.setattr(validator.shutil, "which", lambda _name: None)
+    skipped: list[str] = []
+    failures: list[str] = []
+
+    validator._check_shell_scripts(True, skipped, failures)
+
+    assert skipped == []
+    assert failures == ["shell syntax (sh/bash is not available)"]
 
 
 def test_compose_worker_uses_configurable_celery_queues():

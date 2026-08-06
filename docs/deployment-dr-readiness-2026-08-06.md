@@ -15,9 +15,11 @@ make validate-deployment-readiness
 The check validates the chart values/schema, Compose YAML, Grafana JSON,
 backup/restore shell syntax, deployment and disaster-recovery checklist
 contracts, and—when installed—`docker-compose config` and `helm lint`.
-Use `python3 scripts/validate-deployment-readiness.py --require-helm` on the
-release operator workstation so a missing Helm binary is a failure rather than
-a skip.
+On Windows without Git Bash, WSL, or another POSIX shell, shell syntax is
+reported as skipped so the repository checks remain usable; use
+`python scripts/validate-deployment-readiness.py --require-shell` on a release
+operator workstation so a missing shell is a failure rather than a skip. Use
+`--require-helm` there as well when Helm must be installed.
 
 The chart now supports the configuration required by the production checklist:
 

@@ -62,6 +62,7 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 - 结构化日志统一收集、截图/报告文件清理任务、一键部署脚本
 - Android 真机联调沉淀：执行前设备可达性校验、ADB over TCP 联调说明、Docker worker 连接建议
 - 前端国际化基础能力：已接入 `vue-i18n`、语言切换与本地存储记忆；登录、导航、Dashboard、计划 / 套件 / 用例主列表、执行记录 / 执行详情、Android 专项任务，以及环境、通知、全局变量、AI 模型配置等系统页面已完成中英文文案迁移
+- 启动配置中心：管理员可在“系统管理 → 启动配置”集中编辑启动变量，使用 Docker Compose / 远端基础设施预设，并复制或下载完整 `.env`；使用说明见 `docs/startup-config.md`
 - AI 自愈建议（iter5）：结构化定位 / 等待 / 断言 / 安全参数修复建议，人审应用、回归 run 关联与运行详情页预览采纳
 - AI 用例生成：需求 / OpenAPI / cURL 输入生成可编辑草稿，生成→保存漏斗统计与质量权重 prompt 示例
 - 性能压测中心：k6 脚本上传、独立 `performance` 队列与 worker、指标 / threshold / raw summary 展示、趋势与 run 对比、目标 allowlist 与 VUs / duration 限制
@@ -84,13 +85,13 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 
 Q13 已验收（`docs/q13-acceptance-summary.md`），Q14 的六个本地项已验收并记录于 `docs/q14-acceptance-summary.md` 与 `docs/q14-completion-audit.md`。唯一未收口项是 Q14-00（在 Q15 中承接为 Q15-00）——需要真实生产环境的 SLO 历史与 Android 真机演练证据，采集与校验工具已就绪（`make collect-q12-evidence` / `make scaffold-q12-evidence` / `make validate-q12-evidence`）。Q14 路线图见 `docs/optimization-roadmap-2026-q14.md`。
 
-Q15 正在推进（`docs/optimization-roadmap-2026-q15.md`，含 Execution Log），主线是让已声明的质量门禁真正生效：
+Q15 本地工作已基本收口（当前仓库同步至 `135906d`，详见 `Task.md` 与 `docs/optimization-roadmap-2026-q15.md`），主线是让已声明的质量门禁真正生效：
 
-- **已完成**：后端测试单文件可运行（`make test-backend-standalone`，191 个文件逐个通过，CI 内置扫描）、Windows CI job（`ci.yml` 的 `backend-test-windows`）、前端系统管理页面挂载测试（6 组 spec，`views/system` statements **37.36%**）、worker/维护模块覆盖与门禁校准（后端 TOTAL **86.04%**，门禁 70 → **82**）、`chartTheme.spec.ts` 负载敏感治理。
+- **已完成**：后端测试单文件可运行（`make test-backend-standalone`，191 个文件逐个通过，CI 内置扫描）、Windows CI job（`ci.yml` 的 `backend-test-windows`）、前端系统管理页面挂载测试（6 组 spec，`views/system` statements **37.36%**）、worker/维护模块覆盖与门禁校准（后端 TOTAL **86.04%**，门禁 70 → **82**）、`chartTheme.spec.ts` 负载敏感治理，以及 Q14 验收总结（`docs/q14-acceptance-summary.md`）。
 - **部分完成**：门禁生效（Q15-01）—— mypy 钩子脱离环境 `PATH`、`make setup` 安装开发依赖并装钩子、新增门禁一致性契约测试。但 **`main` 上不存在服务端强制门禁**：仓库为个人账户下的 private 仓库，分支保护与 rulesets 均需 GitHub Pro，`required status checks` 无法配置，因此 CI 红绿只是通知、本地钩子可被 `--no-verify` 绕过。实测记录与恢复强制力的两条路径见 `docs/ci-workflows.md`「门禁强制力现状」。
-- **待外部环境**：Q15-00 / Q14-00——生产 SLO 7/14 天历史与 Android 真机演练；生产部署、备份恢复和 smoke evidence 也需真实集群。Q15-07 的 Q14 验收总结已发布，仓库级部署/灾备校验可运行 `make validate-deployment-readiness`。
+- **待外部环境**：Q15-00 / Q14-00——生产 SLO 7/14 天历史与 Android 真机演练；生产部署、备份恢复和 smoke evidence 也需真实集群。仓库级部署/灾备校验可运行 `make validate-deployment-readiness`；Windows 无 Git Bash、WSL 或其他 POSIX shell 时会跳过 shell 语法检查，发布机可追加 `--require-shell` 强制失败。
 
-当前质量基线（2026-08-05 实测）：后端 `1467 passed`、TOTAL 86.04%（Python 3.12 / CI 口径；本地 Python 3.14 为 85.55%，两者语句总数不同，详见 `docs/coverage-baseline-2026-q13.md` 的 Interpreter note），门禁 82；前端 `128 passed`、statements 32.96%，branches 27.81%，functions 26.36%，lines 34.04%，`views/system` statements 37.36%，门禁 31.5 / 26.5 / 24.5 / 32.5。
+当前质量基线（2026-08-05 对 `87f0fc7` 实测）：后端 `1467 passed`、TOTAL 86.04%（Python 3.12 / CI 口径；本地 Python 3.14 为 85.55%，两者语句总数不同，详见 `docs/coverage-baseline-2026-q13.md` 的 Interpreter note），门禁 82；前端 `128 passed`、statements 32.96%，branches 27.81%，functions 26.36%，lines 34.04%，`views/system` statements 37.36%，门禁 31.5 / 26.5 / 24.5 / 32.5。当前工作区已于 2026-08-06 与 `origin/main` 同步至 `135906d`；修改业务代码后需重新执行完整门禁。
 
 ### 当前仍建议继续完善的方向
 
@@ -139,6 +140,8 @@ Copy-Item .env.example .env
 - `POSTGRES_PASSWORD`
 - `MINIO_ROOT_PASSWORD`
 - `FIRST_ADMIN_PASSWORD`
+
+也可以登录前端后打开“系统管理 → 启动配置”快速编辑并下载 `.env`，详见 [`docs/startup-config.md`](docs/startup-config.md)。
 
 数据库初始化默认走 Alembic，而不是应用启动时自动建表：
 

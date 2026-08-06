@@ -1,9 +1,19 @@
 from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
+from pathlib import Path
+
+
+_BACKEND_ROOT = Path(__file__).resolve().parents[2]
+_REPOSITORY_ENV_FILE = (
+    _BACKEND_ROOT.parent / ".env" if (_BACKEND_ROOT.parent / "backend").is_dir() else _BACKEND_ROOT / ".env"
+)
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    # Pydantic loads dotenv files in order, so the working directory must be last
+    # to keep its values authoritative. The absolute fallback handles both the
+    # source checkout (repo/.env) and the backend container (/app/.env).
+    model_config = SettingsConfigDict(env_file=(str(_REPOSITORY_ENV_FILE), ".env"), extra="ignore")
 
     # App
     APP_ENV: str = "development"
@@ -103,6 +113,9 @@ class Settings(BaseSettings):
     PERFORMANCE_TARGET_ALLOWLIST: str = ""  # comma-separated hostnames; empty = allow all
     PERFORMANCE_MAX_VUS: int = 50
     PERFORMANCE_MAX_DURATION_SECONDS: int = 900
+
+    # Web recorder display (Linux remote deployments need an accessible X display)
+    WEB_RECORDER_DISPLAY: str = ""
 
     # Case snapshot retention
     CASE_SNAPSHOT_MAX_PER_CASE: int = 50

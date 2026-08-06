@@ -62,9 +62,24 @@ def _check_data_files(failures: list[str]) -> None:
             failures.append(f"invalid JSON {relative}: {exc}")
 
 
-def _check_shell_scripts(failures: list[str]) -> None:
+def _resolve_shell() -> str | None:
+    """Return a POSIX shell available on the current host, if any."""
+    for candidate in ("sh", "bash"):
+        shell = shutil.which(candidate)
+        if shell:
+            return shell
+    return None
+
+
+def _check_shell_scripts(require_shell: bool, skipped: list[str], failures: list[str]) -> None:
+    shell = _resolve_shell()
+    if shell is None:
+        message = "shell syntax (sh/bash is not available)"
+        (failures if require_shell else skipped).append(message)
+        return
+
     for relative in ("scripts/backup-postgres.sh", "scripts/restore-postgres.sh"):
-        ok, output = _run(["sh", "-n", relative])
+        ok, output = _run([shell, "-n", relative])
         if not ok:
             failures.append(f"shell syntax failed for {relative}: {output}")
 
@@ -148,13 +163,18 @@ def main() -> int:
         action="store_true",
         help="fail when Helm is unavailable; use this on a release operator workstation",
     )
+    parser.add_argument(
+        "--require-shell",
+        action="store_true",
+        help="fail when sh/bash is unavailable; use this on a release operator workstation",
+    )
     args = parser.parse_args()
 
     failures: list[str] = []
     skipped: list[str] = []
     _check_required_files(failures)
     _check_data_files(failures)
-    _check_shell_scripts(failures)
+    _check_shell_scripts(args.require_shell, skipped, failures)
     _check_document_contracts(failures)
     _check_compose(skipped, failures)
     _check_helm(args.require_helm, skipped, failures)

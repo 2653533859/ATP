@@ -146,6 +146,26 @@ def test_successful_k6_run_records_summary_and_success_status(perf_task, monkeyp
     assert session.commits == 2
 
 
+def test_environment_snapshot_is_decrypted_only_for_k6(perf_task, monkeypatch):
+    from app.models.performance import PerformanceRunStatus
+    from app.services.performance_options import ENVIRONMENT_SNAPSHOT_KEY
+
+    run, test = _run_and_test(PerformanceRunStatus)
+    run.options_snapshot = {
+        "vus": 5,
+        ENVIRONMENT_SNAPSHOT_KEY: {"API_TOKEN": "ciphertext"},
+    }
+    session = _install_session(monkeypatch, {"PerformanceRun": run, "PerformanceTest": test})
+    monkeypatch.setattr(perf_task, "decrypt", lambda value: f"plain:{value}")
+    calls = _install_k6(monkeypatch, result=({"exit_code": 0}, "", 1))
+
+    perf_task.run_performance_test(None, 7)
+
+    assert calls[0]["options"] == {"vus": 5, "env": {"API_TOKEN": "plain:ciphertext"}}
+    assert ENVIRONMENT_SNAPSHOT_KEY not in calls[0]["options"]
+    assert session.commits == 2
+
+
 def test_non_zero_exit_code_is_a_failed_run(perf_task, monkeypatch):
     from app.models.performance import PerformanceRunStatus
 

@@ -8,6 +8,8 @@
             <h2>{{ detailTitle }}</h2>
             <a-space v-if="caseDetail" wrap size="small">
               <a-tag :color="caseTypeColor(caseDetail.case_type)">{{ caseTypeLabel(caseDetail.case_type) }}</a-tag>
+              <a-tag v-if="caseDetail.ai_generated" color="purple">{{ t('case.detail.ai_generated') }}</a-tag>
+              <a-tag :color="scriptStatusColor(caseDetail.script_status)">{{ scriptStatusLabel(caseDetail.script_status) }}</a-tag>
               <a-tag :color="reviewStatusColor(caseDetail.review_status)">{{ reviewStatusLabel(caseDetail.review_status) }}</a-tag>
               <a-tag :color="automationStatusColor(caseDetail.automation_status)">{{ automationStatusLabel(caseDetail.automation_status) }}</a-tag>
               <a-tag :color="statusColor(caseDetail.status)">{{ statusLabel(caseDetail.status) }}</a-tag>
@@ -92,6 +94,9 @@
                 </a-descriptions-item>
                 <a-descriptions-item :label="t('case.filters.automation_status')">
                   <a-tag :color="automationStatusColor(caseDetail.automation_status)">{{ automationStatusLabel(caseDetail.automation_status) }}</a-tag>
+                </a-descriptions-item>
+                <a-descriptions-item :label="t('case.detail.script_status')">
+                  <a-tag :color="scriptStatusColor(caseDetail.script_status)">{{ scriptStatusLabel(caseDetail.script_status) }}</a-tag>
                 </a-descriptions-item>
                 <a-descriptions-item :label="t('case.detail.executable')">
                   <a-tag :color="caseDetail.is_ready_for_execution ? 'success' : 'default'">
@@ -437,6 +442,18 @@ function automationStatusColor(status: AutomationStatus) {
     semi_auto: 'processing',
     auto: 'success',
   }[status]
+}
+
+function scriptStatusLabel(status: CaseDetailItem['script_status']) {
+  return t(`case.script_statuses.${status ?? 'not_applicable'}`)
+}
+
+function scriptStatusColor(status: CaseDetailItem['script_status']) {
+  return {
+    generated: 'success',
+    missing: 'warning',
+    not_applicable: 'default',
+  }[status ?? 'not_applicable']
 }
 
 async function loadMeta() {

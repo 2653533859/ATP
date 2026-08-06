@@ -7,6 +7,12 @@
       <span style="color: #999; font-size: 12px; margin-left: 8px">
         {{ t('case.lowcode_editor.drag_hint') }}
       </span>
+      <span class="variable-library-status">
+        <span class="variable-library-mark">{{ '{}' }}</span>
+        {{ variablesLoading
+          ? t('case.lowcode_editor.variables_loading')
+          : t('case.lowcode_editor.variables_available', { count: availableVariables.length }) }}
+      </span>
     </div>
 
     <a-empty v-if="steps.length === 0" :description="t('case.lowcode_editor.empty')" />
@@ -52,10 +58,12 @@
           <!-- goto -->
           <template v-if="step.action === 'goto'">
             <a-form-item label="URL" :label-col="{ span: 3 }">
-              <a-input
-                v-model:value="step.params.url"
-                :placeholder="t('case.lowcode_editor.url_placeholder')"
-                @input="emitUpdate"
+              <VariableReferenceInput
+                v-model="step.params.url"
+                :variables="availableVariables"
+                :loading="variablesLoading"
+                :placeholder="t('case.lowcode_editor.url_placeholder', { syntax: variableSyntax })"
+                @update:modelValue="emitUpdate"
               />
             </a-form-item>
           </template>
@@ -85,11 +93,13 @@
               </a-col>
               <a-col :span="12">
                 <a-form-item :label="t('case.lowcode_editor.input_value')" :label-col="{ span: 6 }">
-                  <a-input
-                    v-model:value="step.params.value"
-                    :placeholder="t('case.lowcode_editor.input_value_placeholder')"
-                    @input="emitUpdate"
-                  />
+                <VariableReferenceInput
+                  v-model="step.params.value"
+                  :variables="availableVariables"
+                  :loading="variablesLoading"
+                  :placeholder="t('case.lowcode_editor.input_value_placeholder', { syntax: variableSyntax })"
+                  @update:modelValue="emitUpdate"
+                />
                 </a-form-item>
               </a-col>
             </a-row>
@@ -98,11 +108,13 @@
           <!-- assert_text -->
           <template v-else-if="step.action === 'assert_text'">
             <a-form-item :label="t('case.lowcode_editor.assert_text')" :label-col="{ span: 3 }">
-              <a-input
-                v-model:value="step.params.text"
-                :placeholder="t('case.lowcode_editor.assert_text_placeholder')"
-                @input="emitUpdate"
-              />
+              <VariableReferenceInput
+                  v-model="step.params.text"
+                  :variables="availableVariables"
+                  :loading="variablesLoading"
+                  :placeholder="t('case.lowcode_editor.assert_text_placeholder')"
+                  @update:modelValue="emitUpdate"
+                />
             </a-form-item>
           </template>
 
@@ -150,11 +162,13 @@
               </a-col>
               <a-col :span="12">
                 <a-form-item :label="t('case.lowcode_editor.option_value')" :label-col="{ span: 6 }">
-                  <a-input
-                    v-model:value="step.params.value"
-                    :placeholder="t('case.lowcode_editor.option_value_placeholder')"
-                    @input="emitUpdate"
-                  />
+                <VariableReferenceInput
+                  v-model="step.params.value"
+                  :variables="availableVariables"
+                  :loading="variablesLoading"
+                  :placeholder="t('case.lowcode_editor.option_value_placeholder')"
+                  @update:modelValue="emitUpdate"
+                />
                 </a-form-item>
               </a-col>
             </a-row>
@@ -205,6 +219,8 @@ import { computed, ref, watch } from 'vue'
 import { PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons-vue'
 import draggable from 'vuedraggable'
 import { useI18n } from 'vue-i18n'
+import { environmentApi, type EnvironmentItem } from '@/api'
+import VariableReferenceInput, { type VariableReference } from './VariableReferenceInput.vue'
 
 type StepParams = Record<string, unknown>
 type ExternalStep = { action: string; name: string; params: StepParams }
@@ -218,11 +234,16 @@ interface StepDef {
 
 const props = defineProps<{
   modelValue: ExternalStep[]
+  projectId?: number | null
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: ExternalStep[]]
 }>()
 const { t } = useI18n()
+const variableSyntax = '{{VAR}}'
+const availableVariables = ref<VariableReference[]>([])
+const variablesLoading = ref(false)
+let variableRequestId = 0
 
 let keyCounter = 0
 
@@ -281,6 +302,55 @@ function toExternal(items: StepDef[]): ExternalStep[] {
 
 const steps = ref<StepDef[]>([])
 
+async function loadEnvironmentVariables() {
+  const requestId = ++variableRequestId
+  const projectId = props.projectId
+  availableVariables.value = []
+
+  if (!projectId) {
+    variablesLoading.value = false
+    return
+  }
+
+  variablesLoading.value = true
+  try {
+    const environments = await environmentApi.list(projectId)
+    const variableMap = new Map<string, Set<string>>()
+    const results = await Promise.allSettled(
+      environments.map(async (environment: EnvironmentItem) => ({
+        environment,
+        variables: await environmentApi.getVariables(environment.id),
+      })),
+    )
+
+    for (const result of results) {
+      if (result.status !== 'fulfilled') continue
+      for (const variable of result.value.variables) {
+        const environmentNames = variableMap.get(variable.key) ?? new Set<string>()
+        environmentNames.add(result.value.environment.name)
+        variableMap.set(variable.key, environmentNames)
+      }
+    }
+
+    if (requestId !== variableRequestId) return
+    availableVariables.value = [...variableMap.entries()]
+      .sort(([left], [right]) => left.localeCompare(right))
+      .map(([key, environmentNames]) => ({
+        key,
+        token: `{{${key}}}`,
+        environmentLabel: [...environmentNames].join('、'),
+      }))
+  } catch {
+    if (requestId === variableRequestId) availableVariables.value = []
+  } finally {
+    if (requestId === variableRequestId) variablesLoading.value = false
+  }
+}
+
+watch(() => props.projectId, () => {
+  void loadEnvironmentVariables()
+}, { immediate: true })
+
 function isSameSteps(items: ExternalStep[]) {
   return JSON.stringify(items) === JSON.stringify(toExternal(steps.value))
 }
@@ -336,6 +406,19 @@ function onActionChange(step: StepDef) {
   display: flex;
   align-items: center;
   margin-bottom: 8px;
+}
+.variable-library-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  margin-left: auto;
+  color: var(--c-text-tertiary, #8c8c8c);
+  font-size: 12px;
+}
+.variable-library-mark {
+  color: var(--c-primary, #635bff);
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-weight: 600;
 }
 .step-card {
   margin-bottom: 8px;

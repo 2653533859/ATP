@@ -14,11 +14,14 @@ from app.models.ai_llm_config import AILLMConfig
 
 _ALLOWED_LLM_EXTRA_PARAMS = {
     "frequency_penalty",
+    "enable_thinking",
     "max_tokens",
     "presence_penalty",
+    "reasoning_effort",
     "response_format",
     "seed",
     "temperature",
+    "thinking",
     "top_p",
 }
 

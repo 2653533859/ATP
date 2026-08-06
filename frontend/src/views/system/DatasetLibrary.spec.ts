@@ -223,6 +223,22 @@ describe('DatasetLibrary mount', () => {
     expect(messageSuccess).toHaveBeenCalledWith('common.saved')
   })
 
+  it('explains missing project selection and surfaces save failures', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.projectId = null
+    vm.openCreate()
+    expect(messageWarning).toHaveBeenCalledWith('system_pages.dataset.select_project_before_create')
+
+    vm.projectId = 1
+    vm.form.name = 'Orders'
+    datasetCreate.mockRejectedValueOnce(new Error('request failed'))
+    await vm.onSave()
+    expect(messageError).toHaveBeenCalledWith('request failed')
+  })
+
   it('rejects malformed rows, validates data, and confirms an upload', async () => {
     const wrapper = mountPage()
     await flushPromises()

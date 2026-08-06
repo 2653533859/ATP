@@ -33,6 +33,29 @@
         <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('case.drawer.optional')" />
       </a-form-item>
 
+      <a-row :gutter="16">
+        <a-col :span="12">
+          <a-form-item :label="t('case.filters.priority')">
+            <a-select v-model:value="form.priority">
+              <a-select-option value="P0">P0</a-select-option>
+              <a-select-option value="P1">P1</a-select-option>
+              <a-select-option value="P2">P2</a-select-option>
+              <a-select-option value="P3">P3</a-select-option>
+            </a-select>
+          </a-form-item>
+        </a-col>
+        <a-col :span="12">
+          <a-form-item :label="t('case.filters.level')">
+            <a-select v-model:value="form.case_level">
+              <a-select-option value="smoke">{{ t('case.levels.smoke') }}</a-select-option>
+              <a-select-option value="core">{{ t('case.levels.core') }}</a-select-option>
+              <a-select-option value="regression">{{ t('case.levels.regression') }}</a-select-option>
+              <a-select-option value="extended">{{ t('case.levels.extended') }}</a-select-option>
+            </a-select>
+          </a-form-item>
+        </a-col>
+      </a-row>
+
       <a-divider orientation="left">{{ t('case.detail.execution_config') }}</a-divider>
       <a-row :gutter="16">
         <a-col :span="6">
@@ -95,7 +118,18 @@
       </a-form-item>
 
       <template v-if="editMode === 'lowcode'">
-        <LowcodeStepEditor v-model="lowcodeSteps" />
+        <div class="lowcode-toolbar">
+          <a-space>
+            <a-button size="small" @click="recorderOpen = true">
+              {{ t('case.drawer.web.record_steps') }}
+            </a-button>
+            <a-button size="small" :disabled="!lowcodeSteps.length" @click="openGeneratedScriptPreview">
+              <CodeOutlined /> {{ t('case.drawer.generate_script') }}
+            </a-button>
+          </a-space>
+          <span>{{ t('case.drawer.web.record_hint') }}</span>
+        </div>
+        <LowcodeStepEditor v-model="lowcodeSteps" :project-id="projectId" />
       </template>
 
       <template v-else>
@@ -144,6 +178,20 @@
       </template>
     </a-form>
 
+    <WebRecorderModal
+      :open="recorderOpen"
+      @close="recorderOpen = false"
+      @recorded="handleRecordedSteps"
+    />
+    <GeneratedScriptModal
+      :open="scriptPreviewOpen"
+      :content="generatedScriptContent"
+      kind="web"
+      :saving="savingGeneratedScript"
+      @close="scriptPreviewOpen = false"
+      @save="handleSaveGeneratedScript"
+    />
+
     <template #footer>
       <a-space style="float: right">
         <a-button @click="emit('close')">{{ t('common.cancel') }}</a-button>
@@ -158,11 +206,14 @@
 <script setup lang="ts">
 import { ref, reactive, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { UploadOutlined, CheckCircleOutlined } from '@ant-design/icons-vue'
+import { CodeOutlined, UploadOutlined, CheckCircleOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { caseApi, scriptApi, type CaseSummaryItem } from '@/api'
+import { caseApi, scriptApi, type CaseLevel, type CasePriority, type CaseSummaryItem } from '@/api'
 import MonacoEditor from '@/components/common/MonacoEditor.vue'
 import LowcodeStepEditor from '@/components/common/LowcodeStepEditor.vue'
+import WebRecorderModal from '@/components/common/WebRecorderModal.vue'
+import GeneratedScriptModal from '@/components/common/GeneratedScriptModal.vue'
+import { generateWebPythonScript } from '@/utils/pythonScriptGenerator'
 
 type LowcodeStep = {
   action: string
@@ -185,6 +236,7 @@ type WebCaseConfig = Record<string, unknown> & {
 const props = defineProps<{
   open: boolean
   moduleId: number | null
+  projectId: number | null
   editCase?: CaseSummaryItem | null
 }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
@@ -201,6 +253,8 @@ const form = reactive({
   name: '',
   description: '',
   tags: [] as string[],
+  priority: 'P2' as CasePriority,
+  case_level: 'regression' as CaseLevel,
 })
 
 const cfg = reactive({
@@ -212,6 +266,11 @@ const cfg = reactive({
 })
 
 const lowcodeSteps = ref<LowcodeStep[]>([])
+const recorderOpen = ref(false)
+const scriptPreviewOpen = ref(false)
+const generatedScriptContent = ref('')
+const pendingGeneratedScript = ref('')
+const savingGeneratedScript = ref(false)
 
 // Script
 const scriptContent = ref('')
@@ -237,6 +296,8 @@ function resetDrawerState() {
   form.name = ''
   form.description = ''
   form.tags = []
+  form.priority = 'P2'
+  form.case_level = 'regression'
   cfg.browser = 'chromium'
   cfg.headless = true
   cfg.timeout = 60
@@ -246,6 +307,11 @@ function resetDrawerState() {
   scriptPath.value = null
   lowcodeSteps.value = []
   editMode.value = 'lowcode'
+  recorderOpen.value = false
+  scriptPreviewOpen.value = false
+  generatedScriptContent.value = ''
+  pendingGeneratedScript.value = ''
+  savingGeneratedScript.value = false
 }
 
 function resolveEditMode(config: WebCaseConfig) {
@@ -279,6 +345,8 @@ watch(() => props.open, async (v) => {
       form.name = detail.name
       form.description = detail.description ?? ''
       form.tags = detail.tags ?? []
+      form.priority = detail.priority ?? 'P2'
+      form.case_level = detail.case_level ?? 'regression'
       const c = detail.config as WebCaseConfig
       cfg.browser = 'chromium'
       cfg.headless = c.headless ?? true
@@ -354,6 +422,39 @@ async function handleSaveScript() {
   }
 }
 
+function openGeneratedScriptPreview() {
+  if (!lowcodeSteps.value.length) {
+    message.warning(t('case.drawer.web.msg.add_step_required'))
+    return
+  }
+  generatedScriptContent.value = generateWebPythonScript(lowcodeSteps.value)
+  scriptPreviewOpen.value = true
+}
+
+async function handleSaveGeneratedScript(content: string) {
+  if (!content.trim()) return
+  generatedScriptContent.value = content
+  savingGeneratedScript.value = true
+  try {
+    if (!localCaseId.value) {
+      pendingGeneratedScript.value = content
+      scriptPreviewOpen.value = false
+      message.info(t('case.drawer.script_preview.save_note'))
+      return
+    }
+
+    const response = await scriptApi.saveContent(localCaseId.value, content)
+    scriptPath.value = response.script_path
+    scriptContent.value = content
+    scriptPreviewOpen.value = false
+    message.success(t('case.drawer.msg.script_saved'))
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('case.drawer.msg.save_failed')))
+  } finally {
+    savingGeneratedScript.value = false
+  }
+}
+
 function buildConfig() {
   const base = {
     browser: cfg.browser,
@@ -363,13 +464,22 @@ function buildConfig() {
   }
 
   if (editMode.value === 'lowcode') {
-    return { ...base, steps: lowcodeSteps.value }
+    return {
+      ...base,
+      steps: lowcodeSteps.value,
+      ...(scriptPath.value ? { script_path: scriptPath.value } : {}),
+    }
   }
 
   return {
     ...base,
     ...(scriptPath.value ? { script_path: scriptPath.value } : {}),
   }
+}
+
+function handleRecordedSteps(steps: LowcodeStep[]) {
+  lowcodeSteps.value = [...lowcodeSteps.value, ...steps]
+  message.success(t('case.drawer.web.recorder.imported', { count: steps.length }))
 }
 
 async function handleSave() {
@@ -388,6 +498,8 @@ async function handleSave() {
         name: form.name,
         description: form.description,
         tags: form.tags,
+        priority: form.priority,
+        case_level: form.case_level,
         config,
       })
       message.success(t('common.success'))
@@ -399,11 +511,24 @@ async function handleSave() {
         description: form.description,
         case_type: 'web',
         tags: form.tags,
+        priority: form.priority,
+        case_level: form.case_level,
         module_id: props.moduleId!,
         config,
       })
       localCaseId.value = newCase.id
       isEdit.value = true
+      if (pendingGeneratedScript.value) {
+        try {
+          const response = await scriptApi.saveContent(newCase.id, pendingGeneratedScript.value)
+          scriptPath.value = response.script_path
+          scriptContent.value = pendingGeneratedScript.value
+          pendingGeneratedScript.value = ''
+          message.success(t('case.drawer.msg.script_saved'))
+        } catch (error: unknown) {
+          message.error(errorMessage(error, t('case.drawer.msg.save_failed')))
+        }
+      }
       message.success(t('case.drawer.msg.case_created'))
       emit('saved')
       if (editMode.value === 'lowcode') {
@@ -424,6 +549,16 @@ async function handleSave() {
   align-items: center;
   gap: 12px;
   margin-bottom: 10px;
+}
+.lowcode-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.lowcode-toolbar span {
+  color: #999;
+  font-size: 12px;
 }
 .script-path-ok {
   color: #52c41a;

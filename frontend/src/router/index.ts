@@ -61,6 +61,12 @@ const router = createRouter({
           component: () => import('@/views/system/EnvironmentList.vue'),
         },
         {
+          path: 'system/startup-config',
+          name: 'system-startup-config',
+          component: () => import('@/views/system/StartupConfigView.vue'),
+          meta: { requireAdmin: true, roles: ADMIN_ONLY },
+        },
+        {
           path: 'system/notifications',
           name: 'notifications',
           component: () => import('@/views/system/NotificationList.vue'),

@@ -56,9 +56,16 @@ def _resolve_endpoint(provider: str, endpoint: str | None) -> str:
     return base.rstrip("/")
 
 
+def _v1_url(base: str, resource: str) -> str:
+    """Build a provider URL without duplicating a user-supplied /v1 prefix."""
+    if base.endswith("/v1"):
+        return f"{base}/{resource}"
+    return f"{base}/v1/{resource}"
+
+
 async def _call_openai_compatible(request: LLMRequest) -> LLMResponse:
     base = _resolve_endpoint(request.provider, request.endpoint)
-    url = f"{base}/v1/chat/completions"
+    url = _v1_url(base, "chat/completions")
     messages: list[dict] = []
     if request.system_prompt:
         messages.append({"role": "system", "content": request.system_prompt})
@@ -106,7 +113,7 @@ async def _call_openai_compatible(request: LLMRequest) -> LLMResponse:
 
 async def _call_claude(request: LLMRequest) -> LLMResponse:
     base = _resolve_endpoint(request.provider, request.endpoint)
-    url = f"{base}/v1/messages"
+    url = _v1_url(base, "messages")
 
     payload: dict[str, Any] = {
         "model": request.model_name,

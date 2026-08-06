@@ -221,7 +221,10 @@
                   <div class="case-summary">
                     {{ record.case_code }} ｜ {{ record.summary || t('case.no_summary') }}
                   </div>
-                  <div v-if="record.tags.length" class="case-tags">
+                  <div v-if="record.tags.length || record.ai_generated" class="case-tags">
+                    <a-tag v-if="record.ai_generated" color="purple">
+                      <ThunderboltOutlined /> {{ t('case.ai_generated') }}
+                    </a-tag>
                     <a-tag v-for="tag in record.tags.slice(0, 3)" :key="tag" color="blue">
                       {{ tag }}
                     </a-tag>
@@ -270,6 +273,14 @@
                 <a-tag :color="automationStatusColor(record.automation_status)">
                   {{ automationStatusLabel(record.automation_status) }}
                 </a-tag>
+              </template>
+
+              <template v-else-if="column.key === 'script_status'">
+                <a-tooltip :title="scriptStatusLabel(record.script_status)">
+                  <a-tag :color="scriptStatusColor(record.script_status)">
+                    {{ scriptStatusLabel(record.script_status) }}
+                  </a-tag>
+                </a-tooltip>
               </template>
 
               <template v-else-if="column.key === 'stability'">
@@ -381,6 +392,7 @@
     <WebCaseDrawer
       :open="webDrawerOpen"
       :module-id="selectedModuleId"
+      :project-id="selectedProjectId"
       :edit-case="webEditingCase"
       @close="webDrawerOpen = false"
       @saved="onSaved"
@@ -645,6 +657,7 @@ const columns = computed(() => [
   { title: t('case.columns.review_status'), key: 'review_status', width: 120 },
   { title: t('case.columns.lifecycle'), key: 'status', width: 120 },
   { title: t('case.columns.automation'), key: 'automation_status', width: 130 },
+  { title: t('case.columns.script_status'), key: 'script_status', width: 140 },
   { title: t('case.columns.stability'), key: 'stability', width: 120 },
   { title: t('case.columns.updated_at'), key: 'updated_at', width: 180 },
   { title: t('case.columns.action'), key: 'action', width: 280, fixed: 'right' as const },
@@ -815,6 +828,18 @@ function automationStatusColor(status: AutomationStatus) {
     semi_auto: 'processing',
     auto: 'success',
   }[status]
+}
+
+function scriptStatusLabel(status: CaseSummaryItem['script_status']) {
+  return t(`case.script_statuses.${status ?? 'not_applicable'}`)
+}
+
+function scriptStatusColor(status: CaseSummaryItem['script_status']) {
+  return {
+    generated: 'success',
+    missing: 'warning',
+    not_applicable: 'default',
+  }[status ?? 'not_applicable']
 }
 
 function flakyTooltip(testCase: CaseSummaryItem) {

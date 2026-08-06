@@ -189,6 +189,9 @@ the checked object key in `docs/backup-restore-drill-record.md`.
 仓库级脚本、文档和 Compose 配置可先用 `make validate-deployment-readiness`
 校验；完成 live drill 后，把对象、耗时、迁移、健康检查和 smoke evidence
 填写到 `docs/backup-restore-drill-record.md`。
+在 Windows 上若没有 Git Bash、WSL 或其他 POSIX shell，校验结果会明确跳过
+shell 语法检查；正式演练前应在具备 POSIX shell 的操作员环境中追加
+`--require-shell` 执行完整校验。
 
 - [ ] A recent daily backup exists in MinIO.
 - [ ] A recent weekly backup exists in MinIO.

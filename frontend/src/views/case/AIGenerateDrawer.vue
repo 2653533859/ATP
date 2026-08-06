@@ -15,8 +15,8 @@
 
     <a-card :title="t('case.ai.source_title')" size="small" style="margin-bottom: 16px">
       <a-radio-group v-model:value="sourceType" style="margin-bottom: 8px">
-        <a-radio value="openapi">OpenAPI</a-radio>
-        <a-radio value="postman">Postman Collection</a-radio>
+        <a-radio value="openapi">{{ t('case.ai.source_types.openapi') }}</a-radio>
+        <a-radio value="postman">{{ t('case.ai.source_types.postman') }}</a-radio>
         <a-radio value="curl">{{ t('case.ai.curl_command') }}</a-radio>
         <a-radio value="sample">{{ t('case.ai.interface_sample') }}</a-radio>
         <a-radio value="natural">{{ t('case.ai.natural_language') }}</a-radio>
@@ -367,8 +367,8 @@ const caseLevelOptions = computed(() => [
 ])
 
 const endpointColumns = computed(() => [
-  { title: 'Method', key: 'method', dataIndex: 'method', width: 90 },
-  { title: 'Path', key: 'path', dataIndex: 'path' },
+  { title: t('case.ai.endpoint_columns.method'), key: 'method', dataIndex: 'method', width: 90 },
+  { title: t('case.ai.endpoint_columns.path'), key: 'path', dataIndex: 'path' },
   { title: t('case.detail.summary'), key: 'summary', dataIndex: 'summary', ellipsis: true },
 ])
 

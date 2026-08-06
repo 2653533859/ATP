@@ -48,13 +48,14 @@ def test_run_k6_script_uploads_summary_on_success(monkeypatch):
     summary, object_name, duration_ms = performance.run_k6_script(
         run_id=12,
         script_object_name="performance/scripts/demo.js",
-        options={"env": {"TARGET_URL": "https://example.test"}},
+        options={"env": {"TARGET_URL": "https://example.test"}, "vus": 2, "duration": "1s"},
         timeout_seconds=10,
     )
 
     assert captured["cmd"][0:3] == ["k6", "run", "--summary-export"]
     assert captured["cmd"][4].endswith("script.js")
     assert captured["env"]["TARGET_URL"] == "https://example.test"
+    assert json.loads(captured["env"]["ATP_K6_OPTIONS"]) == {"duration": "1s", "vus": 2}
     assert summary["exit_code"] == 0
     assert summary["rps"] == 9.5
     assert object_name == "performance/runs/12/summary.json"

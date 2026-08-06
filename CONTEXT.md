@@ -3,7 +3,7 @@
 > 本文档用于在新会话中快速恢复开发上下文，包含架构决策、已完成功能、关键代码位置、待续任务等。
 
 **生成时间**: 2026-03-03
-**最近同步**: 2026-08-05
+**最近同步**: 2026-08-06
 **项目路径**: 仓库根目录（各处示例中的 `backend/.venv/bin/python` 在 Windows 下为 `backend/.venv/Scripts/python.exe`）
 **参考文档**: `PRD.md`（需求文档）、`Task.md`（任务跟踪）、`CLAUDE.md`（架构与命令速查）
 
@@ -465,7 +465,7 @@ Q1-Q12 路线图内功能项已完成。Q13 本地项已全部完成，覆盖延
 - 后端覆盖延伸续：mobile_special 调度分发 tasks_mobile_special.py（executor 路由/调度/清理）26%→97%，TOTAL 72.87%、1110 passed。mobile-special 垂直全链路均已覆盖。
 - 下一项：Q14 路线图已发布（`docs/optimization-roadmap-2026-q14.md`，2026-07-11）——Q14-01 Android/ADB 执行器覆盖与 Q14-03 前端工作台挂载测试并行起步；Q14-04 retention 真实清理、Q14-05 gitleaks pre-commit、Q14-06 Q13 验收总结随后；Q14-00（Q12-05 采集）待环境随时插入。
 
-### Q15 快照（2026-08-05）
+### Q15 快照（2026-08-06）
 
 Q15 的主线不是新功能，而是让已声明的质量门禁真正生效。起因：`ruff format --check` 与 `mypy` 从 2026-07-08 起就在 `ci.yml` 里跑，但 07-11 引入的 16 个未格式化文件与 `services/run_retention.py` 的 12 个 mypy 报错在 `main` 上存活了 20 天。
 
@@ -475,7 +475,18 @@ Q15 的主线不是新功能，而是让已声明的质量门禁真正生效。�
 - **Q15-05（完成）**：五个指定模块 `tasks_performance` 0%→100%、`aggregator` 9%→95%、`ai_healing_stats` 26%→98%、`tasks_db_backup` 44%→93%、`dashboard_alerts`(service) 56%→98%；为达成 TOTAL 目标追加四个路由，其中 `api/v1/auth.py` 与 `api/v1/scripts.py` 此前均为 0%（顺带发现 CLAUDE.md 举例引用的 `backend/tests/api/test_auth.py` 并不存在）。后端 TOTAL 86.04%（Python 3.12 / CI 口径）、`1467 passed`，门禁 70→82。
 - **Q15-06（完成）**：`chartTheme.spec.ts` 的负载敏感不是外部时序 —— spec 只 mock 了 `echarts/core`，把 `echarts/charts` / `components` / `renderers` 留成真的，每次动态 import 都重新转换整棵 echarts 子图，而文件里没有任何断言碰这些模块。补 mock 后测试耗时 196–289ms → 12–13ms。未登记 flaky（不满足 `docs/flaky-governance.md` 第 2 条），也未抬高全局 `testTimeout`。
 - **覆盖率口径重要发现**：同一命令在 Python 3.12 下为 13962 语句 / 86.04%，在 Python 3.14（本地 venv）下为 13367 语句 / 85.55%，差 595 条约 0.5 个百分点。抬门禁须以 3.12 为准并复验 3.14，说明见 `docs/coverage-baseline-2026-q13.md` 的 Interpreter note。
-- **下一项**：Q15-04（前端 `views/system` 挂载测试，statements 21.48% → ≥28%）、Q15-07（Q14 验收总结，路线图要求最后做）；Q15-00（Q12-05 采集）继续待外部环境，已连续顺延三个季度。
+- **已收口**：Q15-04、Q15-07 已完成；当前工作区与 `origin/main` 同步至 `135906d`。部署/灾备校验器已兼容 Windows：无 `sh`/`bash` 时默认明确跳过 shell 语法检查，发布机可用 `--require-shell` 强制执行。
+- **下一项**：Q15-00（Q12-05 生产 SLO 历史与物理 Android 设备采集）继续待外部环境，已连续顺延三个季度。
+
+---
+
+## 14. 2026-08-06 修复同步
+
+- 启动配置中心已补齐就绪校验：示例密码、示例密钥不会被误判为可直接启动；浏览器草稿只保存非敏感字段，并会清理旧版本草稿中已经保存的密码和密钥。
+- AI 模型配置支持 Ollama 无 API Key 创建和模型拉取；切换模型或供应商时会重新判断多模态能力。
+- Web 录制已去除下拉/复选框重复事件，录制会话会自动清理；Linux 远程部署增加 `WEB_RECORDER_DISPLAY`，没有可见 X display 时返回明确配置提示。
+- 性能压测在触发时固化并加密环境变量快照，Worker 使用触发时版本执行；运行详情过滤内部加密快照和敏感环境参数，禁止直接写入 Token、密码等敏感压测变量。
+- 本次验证：后端非集成测试 `1486 passed`；前端 `35 files / 139 tests passed`；前端 `type-check`、生产构建、Ruff、`git diff --check` 均通过。
 
 ---
 

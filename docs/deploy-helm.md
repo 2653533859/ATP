@@ -156,6 +156,9 @@ Helm values 默认启用 `DB_BACKUP_ENABLED=true`，由 Celery beat 调度 Postg
 自动加上 HTTP→HTTPS 重定向；`secret.create=false` + `secret.existingName` 可绑定
 ExternalSecrets/SOPS 创建的 Secret。`make validate-deployment-readiness` 只验证
 仓库内的配置契约，不会把真实集群状态误判为已验收。
+Windows 无 Git Bash、WSL 或其他 POSIX shell 时，校验器会跳过 shell 语法检查；
+发布操作员应使用 `python scripts/validate-deployment-readiness.py --require-helm
+--require-shell`，确保发布机具备完整校验能力。
 
 - [ ] PostgreSQL / Redis / MinIO 数据已备份并验证恢复（参见 `docs/disaster-recovery.md`）
 - [ ] values.secrets 已通过 ExternalSecrets / SOPS 注入，未明文提交

@@ -6,7 +6,7 @@
 
 - 前端、后端、Celery Worker、Celery Beat 运行在 Windows 本机
 - PostgreSQL、Redis、MinIO 运行在 WSL / Linux Docker 主机
-- 当前已验证的远端主机地址：`172.26.202.29`
+- 当前已验证的远端主机地址：`163.192.40.209`
 - Android 真机通过 Windows 本机 `adb` 直连
 
 这种模式适合本地开发与联调：Windows 侧进程直接访问真机与浏览器，基础设施继续复用 Linux Docker 环境。
@@ -52,9 +52,9 @@ Copy-Item .env.example .env
 连接 WSL / Linux Docker 主机时，至少确认这些配置指向远端地址：
 
 ```env
-POSTGRES_HOST=172.26.202.29
-REDIS_HOST=172.26.202.29
-MINIO_HOST=172.26.202.29
+POSTGRES_HOST=163.192.40.209
+REDIS_HOST=163.192.40.209
+MINIO_HOST=163.192.40.209
 APP_CORS_ORIGINS=http://127.0.0.1:5173,http://localhost:5173
 APP_AUTO_CREATE_TABLES=false
 ```
@@ -188,9 +188,9 @@ Get-NetTCPConnection -LocalPort 8000,5173 -ErrorAction SilentlyContinue | Select
 优先检查 Windows 到 WSL / Linux 主机网络是否可达：
 
 ```powershell
-Test-NetConnection 172.26.202.29 -Port 5432
-Test-NetConnection 172.26.202.29 -Port 6379
-Test-NetConnection 172.26.202.29 -Port 9000
+Test-NetConnection 163.192.40.209 -Port 5432
+Test-NetConnection 163.192.40.209 -Port 6379
+Test-NetConnection 163.192.40.209 -Port 9000
 ```
 
 ### 4. Android 真机不显示

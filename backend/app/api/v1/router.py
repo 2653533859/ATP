@@ -30,6 +30,7 @@ from app.api.v1 import (
     ai_healing_iter5,
     user_settings,
     performance,
+    web_recordings,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -63,3 +64,4 @@ router.include_router(ai_healing_stats.router)
 router.include_router(ai_healing_iter5.router)
 router.include_router(user_settings.router)
 router.include_router(performance.router)
+router.include_router(web_recordings.router)

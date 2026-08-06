@@ -14,7 +14,7 @@
           allow-clear
           @change="loadList"
         />
-        <a-button type="primary" :disabled="!projectId" @click="openCreate">
+        <a-button type="primary" @click="openCreate">
           + {{ t('dataset.create') }}
         </a-button>
         <a-button :disabled="!projectId" :loading="loading" @click="loadList">
@@ -22,6 +22,14 @@
         </a-button>
       </a-space>
     </div>
+
+    <a-alert
+      v-if="!projectLoading && !projectId"
+      :type="projectLoadError ? 'error' : 'warning'"
+      show-icon
+      :message="projectLoadError ? t('dataset.projects_load_failed') : t('dataset.select_project_before_create')"
+      class="page-notice"
+    />
 
     <a-row :gutter="12" class="summary-row">
       <a-col :span="6"><a-card size="small"><a-statistic :title="t('dataset.summary.datasets')" :value="datasets.length" /></a-card></a-col>
@@ -82,6 +90,13 @@
       :title="editing ? t('dataset.edit_title') : t('dataset.create_title')"
       :width="860"
     >
+      <a-alert
+        type="info"
+        show-icon
+        :message="t('dataset.purpose')"
+        :description="t('dataset.purpose_hint')"
+        class="drawer-notice"
+      />
       <a-form layout="vertical">
         <a-form-item :label="t('dataset.name')">
           <a-input v-model:value="form.name" :placeholder="t('dataset.name_placeholder')" />
@@ -152,7 +167,7 @@
       <template #footer>
         <div class="drawer-footer">
           <a-button @click="editorOpen = false">{{ t('common.cancel') }}</a-button>
-          <a-button type="primary" @click="onSave">{{ t('common.save') }}</a-button>
+          <a-button type="primary" :loading="saving" @click="onSave">{{ t('common.save') }}</a-button>
         </div>
       </template>
     </a-drawer>
@@ -339,8 +354,11 @@ function t(key: string, params?: Record<string, string | number>) {
 
 const projectId = ref<number | null>(null)
 const projectOptions = ref<{ label: string; value: number }[]>([])
+const projectLoading = ref(false)
+const projectLoadError = ref(false)
 const datasets = ref<DatasetListItem[]>([])
 const loading = ref(false)
+const saving = ref(false)
 const editorOpen = ref(false)
 const editing = ref<DatasetDetail | null>(null)
 const validating = ref(false)
@@ -474,11 +492,21 @@ function openImpactTarget(row: ImpactRow) {
 }
 
 async function loadProjects() {
-  const items = await projectApi.list()
-  projectOptions.value = items.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
-  if (!projectId.value && projectOptions.value.length) {
-    projectId.value = projectOptions.value[0].value
-    await loadList()
+  projectLoading.value = true
+  projectLoadError.value = false
+  try {
+    const items = await projectApi.list()
+    projectOptions.value = items.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
+    if (!projectId.value && projectOptions.value.length) {
+      projectId.value = projectOptions.value[0].value
+      await loadList()
+    }
+  } catch (error) {
+    projectOptions.value = []
+    projectLoadError.value = true
+    message.error(errorMessage(error, t('dataset.projects_load_failed')))
+  } finally {
+    projectLoading.value = false
   }
 }
 
@@ -490,12 +518,19 @@ async function loadList() {
   loading.value = true
   try {
     datasets.value = await datasetApi.list(projectId.value)
+  } catch (error) {
+    datasets.value = []
+    message.error(errorMessage(error, t('dataset.load_failed')))
   } finally {
     loading.value = false
   }
 }
 
 function openCreate() {
+  if (!projectId.value) {
+    message.warning(t('dataset.select_project_before_create'))
+    return
+  }
   editing.value = null
   form.value = { name: '', description: '', format: 'json', validation_policy: 'soft', rows: [], schema_fields: [] }
   rowsText.value = '[]'
@@ -549,19 +584,23 @@ function removeSchemaField(index: number) {
 }
 
 async function openEdit(record: DatasetListItem) {
-  const detail = await datasetApi.get(record.id)
-  editing.value = detail
-  form.value = {
-    name: detail.name,
-    description: detail.description || '',
-    format: detail.format,
-    validation_policy: detail.validation_policy ?? 'soft',
-    rows: detail.rows,
-    schema_fields: (detail.schema_fields ?? []).map(schemaFieldToForm),
+  try {
+    const detail = await datasetApi.get(record.id)
+    editing.value = detail
+    form.value = {
+      name: detail.name,
+      description: detail.description || '',
+      format: detail.format,
+      validation_policy: detail.validation_policy ?? 'soft',
+      rows: detail.rows,
+      schema_fields: (detail.schema_fields ?? []).map(schemaFieldToForm),
+    }
+    rowsText.value = JSON.stringify(detail.rows, null, 2)
+    rowsTextError.value = ''
+    editorOpen.value = true
+  } catch (error) {
+    message.error(errorMessage(error, t('dataset.load_detail_failed')))
   }
-  rowsText.value = JSON.stringify(detail.rows, null, 2)
-  rowsTextError.value = ''
-  editorOpen.value = true
 }
 
 function applyRowsText(): boolean {
@@ -593,7 +632,10 @@ function formatRowsText() {
 }
 
 async function onSave() {
-  if (!projectId.value) return
+  if (!projectId.value) {
+    message.warning(t('dataset.select_project_before_create'))
+    return
+  }
   if (!form.value.name.trim()) {
     message.warning(t('dataset.name_required'))
     return
@@ -601,6 +643,7 @@ async function onSave() {
   if (!applyRowsText()) return
   const schemaFields = normalizedSchemaFields()
   if (schemaFields == null) return
+  saving.value = true
   try {
     if (editing.value) {
       await datasetApi.update(editing.value.id, {
@@ -623,9 +666,20 @@ async function onSave() {
     editorOpen.value = false
     await loadList()
     message.success(t('common.saved'))
-  } catch {
-    // axios 拦截器已弹错误
+  } catch (error) {
+    message.error(errorMessage(error, t('dataset.save_failed')))
+  } finally {
+    saving.value = false
   }
+}
+
+function errorMessage(error: unknown, fallback: string) {
+  if (typeof error === 'string' && error.trim()) return error
+  if (error && typeof error === 'object' && 'message' in error) {
+    const detail = (error as { message?: unknown }).message
+    if (typeof detail === 'string' && detail.trim()) return detail
+  }
+  return fallback
 }
 
 async function validateCurrentRows() {
@@ -641,8 +695,8 @@ async function validateCurrentRows() {
       preview_limit: 5,
     })
     validationOpen.value = true
-  } catch {
-    // axios 已处理
+  } catch (error) {
+    message.error(errorMessage(error, t('dataset.validate_failed')))
   } finally {
     validating.value = false
   }
@@ -653,8 +707,8 @@ async function onDelete(id: number) {
     await datasetApi.delete(id)
     await loadList()
     message.success(t('common.deleted'))
-  } catch {
-    // axios 已处理
+  } catch (error) {
+    message.error(errorMessage(error, t('dataset.delete_failed')))
   }
 }
 
@@ -665,6 +719,8 @@ async function openImpact(record: DatasetListItem) {
   impactLoading.value = true
   try {
     impact.value = await datasetApi.getImpact(record.id)
+  } catch (error) {
+    message.error(errorMessage(error, t('dataset.impact_load_failed')))
   } finally {
     impactLoading.value = false
   }
@@ -676,6 +732,8 @@ async function openVersions(record: DatasetListItem) {
   versionLoading.value = true
   try {
     versions.value = await datasetApi.listVersions(record.id)
+  } catch (error) {
+    message.error(errorMessage(error, t('dataset.versions_load_failed')))
   } finally {
     versionLoading.value = false
   }
@@ -688,8 +746,8 @@ async function rollbackVersion(version: number) {
     versions.value = await datasetApi.listVersions(versionDatasetId.value)
     await loadList()
     message.success(t('dataset.rollback_success'))
-  } catch {
-    // axios 已处理
+  } catch (error) {
+    message.error(errorMessage(error, t('dataset.rollback_failed')))
   }
 }
 
@@ -699,8 +757,8 @@ async function onUpload(id: number, file: File) {
   try {
     validationResult.value = await datasetApi.previewUpload(id, file)
     validationOpen.value = true
-  } catch {
-    // axios 已处理
+  } catch (error) {
+    message.error(errorMessage(error, t('dataset.upload_preview_failed')))
   }
   return false  // 阻止默认上传行为
 }
@@ -717,8 +775,8 @@ async function confirmValidationAction() {
     pendingUpload.value = null
     await loadList()
     message.success(t('dataset.upload_success'))
-  } catch {
-    // axios 已处理
+  } catch (error) {
+    message.error(errorMessage(error, t('dataset.upload_failed')))
   } finally {
     uploading.value = false
   }
@@ -748,6 +806,11 @@ onMounted(loadProjects)
 
 .summary-row,
 .toolbar {
+  margin-bottom: 16px;
+}
+
+.page-notice,
+.drawer-notice {
   margin-bottom: 16px;
 }
 

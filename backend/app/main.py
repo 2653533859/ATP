@@ -62,6 +62,9 @@ async def lifespan(app: FastAPI):
     await _init_admin()
     yield
     # 关闭时执行
+    from app.api.v1.web_recordings import close_all_recordings
+
+    await close_all_recordings()
     await engine.dispose()
     shutdown_tracer()
 

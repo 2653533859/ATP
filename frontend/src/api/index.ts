@@ -5,6 +5,7 @@ export type CaseLevel = 'smoke' | 'core' | 'regression' | 'extended'
 export type ReviewStatus = 'pending' | 'approved' | 'rejected'
 export type AutomationStatus = 'manual' | 'semi_auto' | 'auto'
 export type CaseStatus = 'draft' | 'active' | 'deprecated'
+export type ScriptStatus = 'generated' | 'missing' | 'not_applicable'
 export type CaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android'
 export type SuiteStatus = 'active' | 'archived'
 export type SuiteRunStatus = 'pending' | 'running' | 'passed' | 'failed' | 'error'
@@ -127,6 +128,8 @@ export interface CaseSummaryItem {
   creator_id: number
   owner_id?: number | null
   is_ready_for_execution: boolean
+  ai_generated?: boolean
+  script_status?: ScriptStatus
   dataset_id?: number | null
   flaky_stats?: CaseFlakyStats
   created_at: string
@@ -161,6 +164,22 @@ export interface CaseSnapshotItem {
 export interface ScriptUploadResponse {
   script_path: string
   size: number
+}
+
+export type WebRecordingStatus = 'starting' | 'recording' | 'stopping' | 'stopped' | 'error'
+
+export interface WebRecordingStep {
+  action: string
+  name: string
+  params: Record<string, unknown>
+}
+
+export interface WebRecordingItem {
+  id: string
+  status: WebRecordingStatus
+  start_url: string
+  steps: WebRecordingStep[]
+  error?: string | null
 }
 
 export interface CaseRunStartResponse {
@@ -870,6 +889,13 @@ export const scriptApi = {
   delete: (caseId: number) => http.delete(`/cases/${caseId}/script`),
 }
 
+export const webRecordingApi = {
+  start: (data: { start_url: string; browser?: 'chromium'; viewport_width?: number; viewport_height?: number }) =>
+    http.post<unknown, WebRecordingItem>('/web-recordings', data),
+  get: (id: string) => http.get<unknown, WebRecordingItem>(`/web-recordings/${id}`),
+  stop: (id: string) => http.post<unknown, WebRecordingItem>(`/web-recordings/${id}/stop`),
+}
+
 export const environmentApi = {
   list: (projectId: number) =>
     http.get<unknown, EnvironmentItem[]>('/environments', { params: { project_id: projectId } }),
@@ -1166,9 +1192,27 @@ export interface AILLMConfigUpdatePayload {
   description?: string | null
 }
 
+export interface AILLMModelOption {
+  id: string
+  label: string
+  owned_by?: string | null
+  supports_vision?: boolean | null
+  supports_reasoning?: boolean | null
+  capability_source: string
+  capabilities: string[]
+}
+
+export interface AILLMModelDiscoveryResult {
+  provider: LLMProvider
+  endpoint: string
+  models: AILLMModelOption[]
+}
+
 export const aiLLMConfigApi = {
   list: () => http.get<unknown, AILLMConfigItem[]>('/ai/llm-configs'),
   get: (id: number) => http.get<unknown, AILLMConfigItem>(`/ai/llm-configs/${id}`),
+  discoverModels: (data: { config_id?: number; provider: LLMProvider; api_key?: string; endpoint?: string | null }) =>
+    http.post<unknown, AILLMModelDiscoveryResult>('/ai/llm-configs/models', data),
   create: (data: AILLMConfigCreatePayload) => http.post<unknown, AILLMConfigItem>('/ai/llm-configs', data),
   update: (id: number, data: AILLMConfigUpdatePayload) =>
     http.patch<unknown, AILLMConfigItem>(`/ai/llm-configs/${id}`, data),

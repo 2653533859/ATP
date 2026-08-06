@@ -15,6 +15,8 @@ from app.api.deps import assert_project_access, get_current_user, require_projec
 from app.core.config import settings
 from app.core.database import get_db
 from app.core import minio_client
+from app.core.encryption import decrypt_env_vars, encrypt
+from app.models.environment import Environment, EnvVariable
 from app.models.performance import PerformanceRun, PerformanceRunStatus, PerformanceTest
 from app.models.user import User
 from app.models.user_project import ProjectRole
@@ -27,6 +29,7 @@ from app.schemas.performance import (
     PerformanceTestOut,
     PerformanceTestUpdate,
 )
+from app.services.performance_options import ENVIRONMENT_SNAPSHOT_KEY
 from app.worker.tasks_performance import run_performance_test
 
 router = APIRouter(tags=["性能压测"])
@@ -35,6 +38,9 @@ _MAX_K6_SCRIPT_SIZE = 2 * 1024 * 1024
 _ALLOWED_K6_SCRIPT_SUFFIXES = {".js", ".mjs"}
 _TARGET_ENV_KEYS = {"TARGET_URL", "BASE_URL", "URL"}
 _DURATION_RE = re.compile(r"^\s*(\d+(?:\.\d+)?)\s*(ms|s|m|h)?\s*$", re.IGNORECASE)
+_SENSITIVE_ENV_KEY_RE = re.compile(
+    r"(?:token|secret|password|passwd|api[_-]?key|credential|authorization|cookie)", re.IGNORECASE
+)
 
 
 def _safe_script_filename(filename: str | None) -> str:
@@ -57,6 +63,62 @@ def _merge_options(default_options: dict | None, override: dict | None) -> dict:
     if env:
         merged["env"] = env
     return merged
+
+
+def _validate_environment_overrides(options: dict | None) -> None:
+    env = (options or {}).get("env") if isinstance(options, dict) else None
+    if not isinstance(env, dict):
+        return
+    for key, value in env.items():
+        if _SENSITIVE_ENV_KEY_RE.search(str(key)) and str(value).strip():
+            raise HTTPException(
+                status_code=400,
+                detail=f"敏感变量 {key} 必须通过所选环境注入，不能直接写入压测参数",
+            )
+
+
+async def _load_environment_variables(db: AsyncSession, environment_id: int, project_id: int) -> tuple[dict, set[str]]:
+    """Load environment variables for validation without exposing secret values in the run snapshot."""
+    environment = await db.get(Environment, environment_id)
+    if environment is None:
+        raise HTTPException(status_code=404, detail="目标环境不存在")
+    if environment.project_id != project_id:
+        raise HTTPException(status_code=400, detail="目标环境不属于当前项目")
+
+    result = await db.execute(select(EnvVariable).where(EnvVariable.env_id == environment_id))
+    variables = result.scalars().all()
+    return decrypt_env_vars(variables), {variable.key for variable in variables if variable.is_secret}
+
+
+def _build_options_snapshot(
+    default_options: dict | None,
+    override: dict | None,
+    environment_values: dict,
+    secret_keys: set[str],
+) -> tuple[dict, dict]:
+    """Return a safe persisted snapshot and the full runtime options used for validation."""
+    snapshot = _merge_options(default_options, override)
+    snapshot_env = dict(snapshot.get("env") or {})
+
+    # Environment variables are loaded again by the worker. Do not duplicate them in the
+    # visible run snapshot; secret keys must never be returned through the run API.
+    for key in environment_values:
+        snapshot_env.pop(key, None)
+    for key in secret_keys:
+        snapshot_env.pop(key, None)
+    if snapshot_env:
+        snapshot["env"] = snapshot_env
+    else:
+        snapshot.pop("env", None)
+
+    runtime = dict(snapshot)
+    runtime_env = dict(environment_values)
+    runtime_env.update(snapshot_env)
+    if runtime_env:
+        runtime["env"] = runtime_env
+    if environment_values:
+        snapshot[ENVIRONMENT_SNAPSHOT_KEY] = {key: encrypt(str(value)) for key, value in environment_values.items()}
+    return snapshot, runtime
 
 
 def _parse_duration_seconds(value) -> float | None:
@@ -173,6 +235,7 @@ async def create_performance_test(
     user: User = Depends(get_current_user),
 ):
     await assert_project_access(db, user, body.project_id, ProjectRole.editor)
+    _validate_environment_overrides(body.default_options)
     _validate_performance_options(body.default_options)
     item = PerformanceTest(
         project_id=body.project_id,
@@ -252,6 +315,7 @@ async def update_performance_test(
     if body.script_object_name is not None:
         item.script_object_name = body.script_object_name
     if body.default_options is not None:
+        _validate_environment_overrides(body.default_options)
         _validate_performance_options(body.default_options)
         item.default_options = body.default_options
     await db.commit()
@@ -270,8 +334,19 @@ async def trigger_performance_run(
     if item is None:
         raise HTTPException(status_code=404, detail="压测定义不存在")
     await assert_project_access(db, user, item.project_id, ProjectRole.editor)
-    options_snapshot = _merge_options(item.default_options, body.options)
-    _validate_performance_options(options_snapshot)
+    _validate_environment_overrides(item.default_options)
+    _validate_environment_overrides(body.options)
+    environment_values: dict = {}
+    secret_keys: set[str] = set()
+    if body.environment_id is not None:
+        environment_values, secret_keys = await _load_environment_variables(db, body.environment_id, item.project_id)
+    options_snapshot, runtime_options = _build_options_snapshot(
+        item.default_options,
+        body.options,
+        environment_values,
+        secret_keys,
+    )
+    _validate_performance_options(runtime_options)
 
     run = PerformanceRun(
         performance_test_id=item.id,

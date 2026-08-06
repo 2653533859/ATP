@@ -66,6 +66,10 @@
           <template #icon><SettingOutlined /></template>
           <template #title>{{ t('menu.system.title') }}</template>
           <a-menu-item key="/system/environments">{{ t('menu.system.environments') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/startup-config">
+            <SlidersOutlined />
+            <span>{{ t('menu.system.startup_config') }}</span>
+          </a-menu-item>
           <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/notifications">{{ t('menu.system.notifications') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/bug-trackers">{{ t('menu.system.bug_trackers') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/storage">{{ t('menu.system.storage') }}</a-menu-item>
@@ -156,6 +160,7 @@ import {
   DownOutlined,
   LogoutOutlined,
   ThunderboltFilled,
+  SlidersOutlined,
 } from '@ant-design/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'

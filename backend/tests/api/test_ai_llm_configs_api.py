@@ -42,6 +42,7 @@ from app.api.v1 import ai_llm_configs
 from app.core import encryption as encryption_module
 from app.schemas.ai_llm_config import (
     AILLMConfigCreateIn,
+    AILLMModelDiscoveryIn,
     AILLMConfigUpdateIn,
 )
 
@@ -124,6 +125,7 @@ def test_endpoints_require_admin():
     for fn in (
         ai_llm_configs.list_llm_configs,
         ai_llm_configs.create_llm_config,
+        ai_llm_configs.discover_llm_models,
         ai_llm_configs.get_llm_config,
         ai_llm_configs.update_llm_config,
         ai_llm_configs.delete_llm_config,
@@ -143,6 +145,43 @@ def test_list_returns_safe_output(monkeypatch):
     assert item.has_api_key is True
     assert item.supports_vision is False
     assert not hasattr(item, "api_key_encrypted")
+
+
+def test_discover_models_can_reuse_encrypted_key(monkeypatch):
+    existing = _make_config_row(endpoint="https://llm.example.com")
+    db = _AsyncDB()
+    db._get_value = existing
+    captured: dict[str, str] = {}
+
+    monkeypatch.setattr(ai_llm_configs, "decrypt", lambda value: "stored-key")
+
+    async def fake_discover(provider, endpoint, api_key):
+        captured.update(provider=provider, endpoint=endpoint, api_key=api_key)
+        return [
+            {
+                "id": "deepseek-chat",
+                "label": "deepseek-chat",
+                "owned_by": None,
+                "supports_vision": None,
+                "supports_reasoning": None,
+                "capability_source": "model-name-hint",
+                "capabilities": [],
+            }
+        ]
+
+    monkeypatch.setattr(ai_llm_configs, "discover_models", fake_discover)
+    body = AILLMModelDiscoveryIn(config_id=1, provider="deepseek")
+
+    out = asyncio.run(ai_llm_configs.discover_llm_models(body=body, db=db, _=None))
+
+    assert captured == {
+        "provider": "deepseek",
+        "endpoint": "https://llm.example.com",
+        "api_key": "stored-key",
+    }
+    assert out.endpoint == "https://llm.example.com"
+    assert out.models[0].id == "deepseek-chat"
+    assert not hasattr(out.models[0], "api_key")
 
 
 def test_create_encrypts_api_key(monkeypatch):
@@ -169,6 +208,21 @@ def test_create_encrypts_api_key(monkeypatch):
     assert db.added[0].supports_vision is True
     assert out.name == "dp"
     assert out.has_api_key is True
+
+
+def test_create_ollama_allows_keyless_configuration(monkeypatch):
+    monkeypatch.setattr(ai_llm_configs, "encrypt", lambda _value: pytest.fail("Ollama keyless config must not encrypt"))
+
+    db = _AsyncDB()
+    body = AILLMConfigCreateIn(
+        name="ollama-local",
+        provider="ollama",
+        model_name="qwen2.5:7b",
+    )
+    out = asyncio.run(ai_llm_configs.create_llm_config(body=body, db=db, _=None))
+
+    assert db.added and db.added[0].api_key_encrypted == ""
+    assert out.has_api_key is False
 
 
 def test_create_duplicate_name_returns_409(monkeypatch):

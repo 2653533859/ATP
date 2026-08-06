@@ -10,6 +10,7 @@ CasePriority = Literal["P0", "P1", "P2", "P3"]
 CaseLevel = Literal["smoke", "core", "regression", "extended"]
 ReviewStatus = Literal["pending", "approved", "rejected"]
 AutomationStatus = Literal["manual", "semi_auto", "auto"]
+ScriptStatus = Literal["generated", "missing", "not_applicable"]
 
 
 class CaseFlakyStats(BaseModel):
@@ -94,6 +95,8 @@ class TestCaseOut(BaseModel):
     creator_id: int
     owner_id: int | None
     is_ready_for_execution: bool
+    ai_generated: bool = False
+    script_status: ScriptStatus = "not_applicable"
     dataset_id: int | None = None
     flaky_stats: CaseFlakyStats = Field(default_factory=CaseFlakyStats)
     created_at: datetime

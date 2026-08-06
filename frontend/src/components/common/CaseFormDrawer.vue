@@ -38,6 +38,28 @@
       <a-form-item :label="t('case_form.basic.description_label')">
         <a-textarea v-model:value="form.description" :rows="2" :placeholder="t('case_form.basic.description_placeholder')" />
       </a-form-item>
+      <a-row :gutter="16">
+        <a-col :span="12">
+          <a-form-item :label="t('case.filters.priority')">
+            <a-select v-model:value="form.priority">
+              <a-select-option value="P0">P0</a-select-option>
+              <a-select-option value="P1">P1</a-select-option>
+              <a-select-option value="P2">P2</a-select-option>
+              <a-select-option value="P3">P3</a-select-option>
+            </a-select>
+          </a-form-item>
+        </a-col>
+        <a-col :span="12">
+          <a-form-item :label="t('case.filters.level')">
+            <a-select v-model:value="form.case_level">
+              <a-select-option value="smoke">{{ t('case.levels.smoke') }}</a-select-option>
+              <a-select-option value="core">{{ t('case.levels.core') }}</a-select-option>
+              <a-select-option value="regression">{{ t('case.levels.regression') }}</a-select-option>
+              <a-select-option value="extended">{{ t('case.levels.extended') }}</a-select-option>
+            </a-select>
+          </a-form-item>
+        </a-col>
+      </a-row>
       <a-form-item :label="t('case_form.basic.dataset_label')">
         <a-select
           v-model:value="(form.dataset_id as number | undefined)"
@@ -71,20 +93,20 @@
         </a-form-item>
 
         <a-tabs v-model:activeKey="activeTab" size="small">
-          <a-tab-pane key="headers" tab="Headers">
+          <a-tab-pane key="headers" :tab="t('case_form.tabs.headers')">
             <KvEditor v-model:value="cfg.headers" />
           </a-tab-pane>
 
-          <a-tab-pane key="params" tab="Params">
+          <a-tab-pane key="params" :tab="t('case_form.tabs.params')">
             <KvEditor v-model:value="cfg.params" />
           </a-tab-pane>
 
-          <a-tab-pane key="body" tab="Body">
+          <a-tab-pane key="body" :tab="t('case_form.tabs.body')">
             <a-radio-group v-model:value="cfg.body_type" size="small" style="margin-bottom: 8px">
-              <a-radio-button value="none">None</a-radio-button>
+              <a-radio-button value="none">{{ t('case_form.body_types.none') }}</a-radio-button>
               <a-radio-button value="json">JSON</a-radio-button>
-              <a-radio-button value="form">Form</a-radio-button>
-              <a-radio-button value="raw">Raw</a-radio-button>
+              <a-radio-button value="form">{{ t('case_form.body_types.form') }}</a-radio-button>
+              <a-radio-button value="raw">{{ t('case_form.body_types.raw') }}</a-radio-button>
             </a-radio-group>
             <KvEditor v-if="cfg.body_type === 'form'" v-model:value="formBody" />
             <a-textarea
@@ -96,7 +118,7 @@
             />
           </a-tab-pane>
 
-          <a-tab-pane key="auth" tab="Auth">
+          <a-tab-pane key="auth" :tab="t('case_form.tabs.auth')">
             <a-form-item :label="t('case_form.auth.label')">
               <a-select v-model:value="cfg.auth.type" style="width: 160px">
                 <a-select-option value="none">{{ t('case_form.auth.none') }}</a-select-option>
@@ -106,7 +128,7 @@
               </a-select>
             </a-form-item>
             <template v-if="cfg.auth.type === 'bearer'">
-              <a-form-item label="Token">
+              <a-form-item :label="t('case_form.auth.token_label')">
                 <a-input v-model:value="cfg.auth.token" :placeholder="t('case_form.auth.token_placeholder', { variable: '{{variable}}' })" />
               </a-form-item>
             </template>
@@ -189,8 +211,8 @@
           <a-col :span="8">
             <a-form-item :label="t('case_form.graphql.operation_type_label')">
               <a-select v-model:value="gqlCfg.operation_type">
-                <a-select-option value="query">Query</a-select-option>
-                <a-select-option value="mutation">Mutation</a-select-option>
+                <a-select-option value="query">{{ t('case_form.graphql.operation_types.query') }}</a-select-option>
+                <a-select-option value="mutation">{{ t('case_form.graphql.operation_types.mutation') }}</a-select-option>
               </a-select>
             </a-form-item>
           </a-col>
@@ -220,10 +242,10 @@
         </a-form-item>
 
         <a-tabs v-model:activeKey="gqlActiveTab" size="small">
-          <a-tab-pane key="headers" tab="Headers">
+          <a-tab-pane key="headers" :tab="t('case_form.tabs.headers')">
             <KvEditor v-model:value="gqlCfg.headers" />
           </a-tab-pane>
-          <a-tab-pane key="auth" tab="Auth">
+          <a-tab-pane key="auth" :tab="t('case_form.tabs.auth')">
             <a-form-item :label="t('case_form.auth.label')">
               <a-select v-model:value="gqlCfg.auth.type" style="width: 160px">
                 <a-select-option value="none">{{ t('case_form.auth.none') }}</a-select-option>
@@ -233,7 +255,7 @@
               </a-select>
             </a-form-item>
             <template v-if="gqlCfg.auth.type === 'bearer'">
-              <a-form-item label="Token">
+              <a-form-item :label="t('case_form.auth.token_label')">
                 <a-input v-model:value="gqlCfg.auth.token" :placeholder="t('case_form.auth.token_placeholder', { variable: '{{variable}}' })" />
               </a-form-item>
             </template>
@@ -315,10 +337,10 @@
         </a-form-item>
 
         <a-tabs v-model:activeKey="wsActiveTab" size="small">
-          <a-tab-pane key="headers" tab="Headers">
+          <a-tab-pane key="headers" :tab="t('case_form.tabs.headers')">
             <KvEditor v-model:value="wsCfg.headers" />
           </a-tab-pane>
-          <a-tab-pane key="auth" tab="Auth">
+          <a-tab-pane key="auth" :tab="t('case_form.tabs.auth')">
             <a-form-item :label="t('case_form.auth.label')">
               <a-select v-model:value="wsCfg.auth.type" style="width: 160px">
                 <a-select-option value="none">{{ t('case_form.auth.none') }}</a-select-option>
@@ -328,7 +350,7 @@
               </a-select>
             </a-form-item>
             <template v-if="wsCfg.auth.type === 'bearer'">
-              <a-form-item label="Token">
+              <a-form-item :label="t('case_form.auth.token_label')">
                 <a-input v-model:value="wsCfg.auth.token" :placeholder="t('case_form.auth.token_placeholder', { variable: '{{variable}}' })" />
               </a-form-item>
             </template>
@@ -365,7 +387,7 @@
             <a-row :gutter="8" style="margin-top: 8px">
               <a-col :span="6">
                 <a-select v-model:value="m.data_type" size="small" style="width: 100%">
-                  <a-select-option value="text">Text</a-select-option>
+                  <a-select-option value="text">{{ t('case_form.websocket.data_types.text') }}</a-select-option>
                   <a-select-option value="json">JSON</a-select-option>
                 </a-select>
               </a-col>
@@ -562,7 +584,7 @@ import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons-vue'
 import { caseApi, datasetApi } from '@/api'
-import type { CaseDetailItem, CaseSavePayload, CaseSummaryItem, CaseType } from '@/api'
+import type { CaseDetailItem, CaseLevel, CasePriority, CaseSavePayload, CaseSummaryItem, CaseType } from '@/api'
 import {
   getFirstStep,
   normalizeWsMessage,
@@ -631,7 +653,7 @@ type CaseConfigStep = Record<string, unknown> & {
   metadata?: Record<string, string>
 }
 
-type EditableCase = Pick<CaseSummaryItem, 'id' | 'name' | 'description' | 'case_type' | 'tags' | 'dataset_id'> &
+type EditableCase = Pick<CaseSummaryItem, 'id' | 'name' | 'description' | 'case_type' | 'tags' | 'dataset_id' | 'priority' | 'case_level'> &
   Partial<Pick<CaseDetailItem, 'config'>>
 
 const props = defineProps<{
@@ -650,11 +672,22 @@ const gqlActiveTab = ref('headers')
 const wsActiveTab = ref('headers')
 const formRef = ref()
 
-const form = reactive<{ name: string; description: string; case_type: CaseType; tags: string[]; dataset_id: number | null; dataset_strict_schema: boolean }>({
+const form = reactive<{
+  name: string
+  description: string
+  case_type: CaseType
+  tags: string[]
+  priority: CasePriority
+  case_level: CaseLevel
+  dataset_id: number | null
+  dataset_strict_schema: boolean
+}>({
   name: '',
   description: '',
   case_type: 'api',
   tags: [],
+  priority: 'P2',
+  case_level: 'regression',
   dataset_id: null,
   dataset_strict_schema: false,
 })
@@ -732,6 +765,8 @@ watch(() => props.open, (v) => {
     form.description = c.description ?? ''
     form.case_type = c.case_type
     form.tags = c.tags ?? []
+    form.priority = c.priority ?? 'P2'
+    form.case_level = c.case_level ?? 'regression'
     form.dataset_id = c.dataset_id ?? null
     form.dataset_strict_schema = Boolean(c.config?.dataset_strict_schema)
     const step = getFirstStep(c.config) as CaseConfigStep
@@ -804,6 +839,8 @@ watch(() => props.open, (v) => {
     form.description = ''
     form.case_type = props.defaultCaseType ?? 'api'
     form.tags = []
+    form.priority = 'P2'
+    form.case_level = 'regression'
     form.dataset_id = null
     form.dataset_strict_schema = false
     Object.assign(cfg, {
@@ -960,12 +997,22 @@ async function handleSave() {
       description: form.description,
       case_type: form.case_type,
       tags: form.tags,
+      priority: form.priority,
+      case_level: form.case_level,
       module_id: props.moduleId!,
       config: buildConfig(),
       dataset_id: form.dataset_id,
     }
     if (isEdit.value && props.editCase) {
-      await caseApi.update(props.editCase.id, { name: payload.name, description: payload.description, tags: payload.tags, config: payload.config, dataset_id: form.dataset_id })
+      await caseApi.update(props.editCase.id, {
+        name: payload.name,
+        description: payload.description,
+        tags: payload.tags,
+        priority: payload.priority,
+        case_level: payload.case_level,
+        config: payload.config,
+        dataset_id: form.dataset_id,
+      })
     } else {
       await caseApi.create(payload)
     }

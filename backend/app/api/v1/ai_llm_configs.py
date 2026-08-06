@@ -5,6 +5,7 @@ api_key 在保存时 Fernet 加密，返回时仅暴露 ``has_api_key`` 标记�
 
 from __future__ import annotations
 
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -12,15 +13,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import require_admin
 from app.core.database import get_db
-from app.core.encryption import encrypt
+from app.core.encryption import decrypt, encrypt
 from app.models.ai_llm_config import AILLMConfig
 from app.models.user import User
 from app.schemas.ai_llm_config import (
     AILLMConfigCreateIn,
+    AILLMModelDiscoveryIn,
+    AILLMModelDiscoveryOut,
     AILLMConfigOut,
     AILLMConfigUpdateIn,
 )
 from app.services.audit import write_audit_log
+from app.services.ai_case.model_discovery import discover_models, resolve_endpoint
 
 router = APIRouter(prefix="/ai/llm-configs", tags=["AI 配置"])
 
@@ -51,6 +55,51 @@ async def list_llm_configs(
     return [_to_out(c) for c in result.scalars().all()]
 
 
+@router.post("/models", response_model=AILLMModelDiscoveryOut)
+async def discover_llm_models(
+    body: AILLMModelDiscoveryIn,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    config = None
+    if body.config_id is not None:
+        config = await db.get(AILLMConfig, body.config_id)
+        if not config:
+            raise HTTPException(status_code=404, detail="配置不存在")
+
+    same_provider = config is not None and config.provider == body.provider
+    endpoint = body.endpoint if body.endpoint is not None else config.endpoint if same_provider else None
+    api_key = (body.api_key or "").strip()
+    if not api_key and same_provider and config is not None and config.api_key_encrypted:
+        try:
+            api_key = decrypt(config.api_key_encrypted)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="现有 API Key 解密失败，请重新输入") from exc
+    if body.provider != "ollama" and not api_key:
+        raise HTTPException(status_code=400, detail="请先填写 API Key")
+
+    try:
+        models = await discover_models(body.provider, endpoint, api_key)
+        resolved = resolve_endpoint(body.provider, endpoint)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except httpx.HTTPStatusError as exc:
+        provider_status = exc.response.status_code
+        if provider_status in {401, 403}:
+            detail = "供应商模型列表鉴权失败，请填写该供应商签发的 API Token；Ollama 原生接口通常不需要 API Key"
+        elif provider_status == 405:
+            detail = "供应商不支持当前模型列表请求方式，请检查 Endpoint；Ollama 原生请使用 11434，Open WebUI 请使用 OpenAI 兼容协议和 /v1"
+        else:
+            detail = f"供应商模型列表请求失败（HTTP {provider_status}）"
+        raise HTTPException(status_code=502, detail=detail) from exc
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="供应商模型列表请求超时") from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=502, detail=f"无法连接供应商模型接口: {exc}") from exc
+
+    return AILLMModelDiscoveryOut(provider=body.provider, endpoint=resolved, models=models)
+
+
 @router.post("", response_model=AILLMConfigOut, status_code=status.HTTP_201_CREATED)
 async def create_llm_config(
     body: AILLMConfigCreateIn,
@@ -60,7 +109,7 @@ async def create_llm_config(
     config = AILLMConfig(
         name=body.name,
         provider=body.provider,
-        api_key_encrypted=encrypt(body.api_key),
+        api_key_encrypted=encrypt(body.api_key) if body.api_key else "",
         endpoint=body.endpoint,
         model_name=body.model_name,
         default_params=body.default_params or {},
@@ -111,6 +160,9 @@ async def update_llm_config(
     if not config:
         raise HTTPException(status_code=404, detail="配置不存在")
     payload = body.model_dump(exclude_none=True)
+    requested_provider = payload.get("provider", config.provider)
+    if requested_provider != "ollama" and "api_key" not in payload and not config.api_key_encrypted:
+        raise HTTPException(status_code=400, detail="该供应商必须填写 API Key")
     if "api_key" in payload:
         config.api_key_encrypted = encrypt(payload.pop("api_key"))
     for key, value in payload.items():

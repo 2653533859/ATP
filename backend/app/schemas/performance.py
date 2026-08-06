@@ -3,12 +3,19 @@
 from __future__ import annotations
 
 from datetime import datetime
+import re
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
+
+from app.services.performance_options import ENVIRONMENT_SNAPSHOT_KEY
 
 PerformanceExecutor = Literal["k6"]
 PerformanceRunStatus = Literal["pending", "running", "success", "failed", "cancelled"]
+_SENSITIVE_ENV_KEY_RE = re.compile(
+    r"(?:token|secret|password|passwd|api[_-]?key|credential|authorization|cookie)",
+    re.IGNORECASE,
+)
 
 
 class PerformanceTestCreate(BaseModel):
@@ -77,3 +84,12 @@ class PerformanceRunOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+    @field_serializer("options_snapshot")
+    def serialize_options_snapshot(self, value: dict) -> dict:
+        """Never return the worker-only encrypted environment snapshot to clients."""
+        result = {key: item for key, item in value.items() if key != ENVIRONMENT_SNAPSHOT_KEY}
+        env = result.get("env")
+        if isinstance(env, dict):
+            result["env"] = {key: item for key, item in env.items() if not _SENSITIVE_ENV_KEY_RE.search(str(key))}
+        return result
