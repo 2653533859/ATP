@@ -117,12 +117,10 @@ def _extract_options(payload: Any, provider: str) -> list[dict[str, Any]]:
     if not isinstance(raw_models, list):
         raise ValueError("供应商返回的模型列表格式无法识别")
 
-    options = [option for item in raw_models if isinstance(item, dict) for option in [_model_option(item, provider)] if option]
-    usable = [
-        option
-        for option in options
-        if not any(marker in option["id"].lower() for marker in _NON_CHAT_MARKERS)
+    options = [
+        option for item in raw_models if isinstance(item, dict) for option in [_model_option(item, provider)] if option
     ]
+    usable = [option for option in options if not any(marker in option["id"].lower() for marker in _NON_CHAT_MARKERS)]
     return sorted(usable or options, key=lambda item: item["id"].lower())
 
 

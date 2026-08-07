@@ -33,10 +33,11 @@ API Key 在后端 `.env` 文件中通过 `WEBHOOK_API_KEY` 配置。
 
 | 字段 | 类型 | 必填 | 说明 |
 |------|------|------|------|
-| `target_type` | string | 是 | `"suite"` 或 `"plan"` |
-| `target_id` | int | 是 | 套件 ID 或计划 ID |
+| `target_type` | string | 是 | `"suite"`、`"plan"` 或 `"performance_test"` |
+| `target_id` | int | 是 | 套件、计划或压测定义 ID |
 | `env_id` | int\|null | 否 | 执行环境 ID |
 | `extra_vars` | object | 否 | 额外变量，优先级高于环境变量 |
+| `options` | object | 否 | 压测定义的本次 options 覆盖，仅 `performance_test` 使用 |
 
 ### 响应
 
@@ -67,7 +68,47 @@ curl -X POST https://atp.example.com/api/v1/webhook/trigger \
 
 ---
 
-## 2. JUnit XML 导出
+## 2. 性能压测阈值门禁
+
+压测定义也可以通过同一个 Webhook API Key 触发。`target_type` 使用
+`performance_test`，`options` 是本次执行覆盖的 k6 options；`env_id` 指定 ATP 环境，
+`extra_vars` 会作为本次运行的环境变量并以加密快照保存。
+
+```json
+{
+  "target_type": "performance_test",
+  "target_id": 7,
+  "env_id": 2,
+  "options": {}
+}
+```
+
+推荐在 CI 中使用仓库脚本等待门禁完成：
+
+```bash
+python scripts/performance-gate.py \
+  --base-url "https://atp.example.com" \
+  --test-id 7 \
+  --api-key "$ATP_WEBHOOK_KEY" \
+  --environment-id 2 \
+  --options-file performance-options.json
+```
+
+也可以通过环境变量提供 `ATP_BASE_URL`、`ATP_PERFORMANCE_TEST_ID` 和
+`ATP_API_KEY`。脚本会轮询 `/api/v1/webhook/performance-runs/{run_id}/gate`：
+
+| 退出码 | 含义 |
+|---:|---|
+| `0` | 压测完成且所有 threshold 通过 |
+| `1` | threshold 失败、压测失败或被取消 |
+| `2` | 未配置 threshold，作为 CI 配置错误处理 |
+| `3` | 请求失败、门禁超时或返回数据异常 |
+
+未配置 threshold 不会被默认为通过，避免 CI 在没有实际性能标准时误报成功。
+
+---
+
+## 3. JUnit XML 导出
 
 ATP 支持将执行结果导出为 JUnit XML 格式，供 Jenkins、GitLab CI 等工具解析测试报告。
 
@@ -92,7 +133,7 @@ curl -H "Authorization: Bearer <token>" \
 
 ---
 
-## 3. GitLab CI 集成模板
+## 4. GitLab CI 集成模板
 
 以下 `.gitlab-ci.yml` 模板展示如何在 GitLab CI 流水线中集成 ATP：
 
@@ -160,7 +201,7 @@ api-test:
 
 ---
 
-## 4. Jenkins 集成
+## 5. Jenkins 集成
 
 ### Pipeline 示例
 

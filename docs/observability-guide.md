@@ -34,6 +34,10 @@ docker compose up -d           # 不含 prometheus/grafana/celery-exporter
 
 > **Worker `/metrics`**：Celery worker 是独立进程，通过 `prometheus_client.start_http_server(WORKER_METRICS_PORT)` 在每个子进程初始化时尝试启动。多 worker 子进程共享同一物理端口，首个子进程成功绑定后其余 OSError 静默。可通过 `WORKER_METRICS_PORT=0` 关闭。Prometheus 抓取目标 `atp-worker` 已在 `docker/prometheus.yml` 配置。
 
+压测 worker 还会暴露 `atp_performance_resource{node,metric}` gauge，并在压测运行结束时将相同采样写入 `performance_metric_samples`，供压测详情页按 `run_id` 查询时间线。采样由 `PERFORMANCE_METRICS_ENABLED`、`PERFORMANCE_METRICS_INTERVAL_SECONDS` 和 `PERFORMANCE_METRICS_MAX_SAMPLES` 控制；PostgreSQL、Redis、MinIO 任一探测异常不会阻断 k6 执行。
+
+分布式压测节点的运行状态以数据库心跳为准：`GET /api/v1/performance/nodes` 返回节点的 `online/offline/disabled/draining` 状态、队列、容量和最近心跳。排查指定节点任务时，先确认节点心跳未超过 `PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS`，再检查 Celery 的 `queue_name` 是否被对应 worker 的 `CELERY_QUEUES` 监听；节点队列积压可结合 `celery_queue_length{queue_name}` 与节点卡片一起判断。节点的 `max_vus`、`max_concurrency` 和 `egress_allowlist` 违规会在 API/调度日志和 run 错误中明确记录。
+
 ## 三、自定义业务指标
 
 封装位于 `backend/app/core/metrics.py`，所有 Counter / Gauge / Histogram 都通过 helper 函数构造，缺 `prometheus_client` 依赖时退化为 no-op，不会破坏本地测试。

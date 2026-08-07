@@ -19,10 +19,20 @@ def test_performance_api_exposes_thin_slice_endpoints():
     assert '"/performance/tests"' in content
     assert '"/performance/tests/{test_id}/run"' in content
     assert '"/performance/runs/{run_id}"' in content
+    assert '"/performance/runs/{run_id}/stop"' in content
+    assert '"/performance/runs/{run_id}/gate"' in content
+    assert '"/performance/runs/{run_id}/baseline-comparison"' in content
+    assert '"/performance/runs/{run_id}/metrics"' in content
+    assert '"/performance/runs/{run_id}/export/json"' in content
+    assert '"/performance/runs/{run_id}/export/csv"' in content
     assert '"/performance/runs/{run_id}/raw-result"' in content
     assert "upload_bytes(object_name, content" in content
     assert "presigned_url(run.raw_result_object_name" in content
-    assert "run_performance_test.delay(run.id)" in content
+    assert "enqueue_performance_run(run_performance_test" in content
+    assert '"/performance/nodes"' in content
+    assert '"/performance/nodes/{node_id}"' in content
+    assert '"/performance/tests/{test_id}/baseline"' in content
+    assert '"/performance/tests/{test_id}/schedule"' in content
 
 
 def test_performance_models_loaded_for_migrations_and_bootstrap():
@@ -33,6 +43,8 @@ def test_performance_models_loaded_for_migrations_and_bootstrap():
 
     assert "PerformanceTest" in bootstrap
     assert "PerformanceRun" in bootstrap
+    assert "PerformanceMetricSample" in bootstrap
+    assert "PerformanceNode" in bootstrap
     assert "performance_tests" in migration
     assert "performance_runs" in migration
 

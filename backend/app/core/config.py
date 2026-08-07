@@ -113,6 +113,21 @@ class Settings(BaseSettings):
     PERFORMANCE_TARGET_ALLOWLIST: str = ""  # comma-separated hostnames; empty = allow all
     PERFORMANCE_MAX_VUS: int = 50
     PERFORMANCE_MAX_DURATION_SECONDS: int = 900
+    PERFORMANCE_METRICS_ENABLED: bool = True
+    PERFORMANCE_METRICS_INTERVAL_SECONDS: float = 5.0
+    PERFORMANCE_METRICS_MAX_SAMPLES: int = 7200
+    PERFORMANCE_MINIO_INVENTORY_INTERVAL_SECONDS: int = 30
+    # Performance load-injector node identity and local guardrails.
+    PERFORMANCE_NODE_ENABLED: bool = True
+    PERFORMANCE_NODE_ID: str = ""
+    PERFORMANCE_NODE_NAME: str = ""
+    PERFORMANCE_NODE_QUEUE: str = "performance"
+    PERFORMANCE_NODE_MAX_VUS: int = 0
+    PERFORMANCE_NODE_MAX_CONCURRENCY: int = 0
+    PERFORMANCE_NODE_EGRESS_ALLOWLIST: str = ""
+    PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS: int = 90
+    # Comma-separated load injectors advertised by an explicit performance worker.
+    PERFORMANCE_EXECUTORS: str = "k6,locust,grpc"
 
     # Web recorder display (Linux remote deployments need an accessible X display)
     WEB_RECORDER_DISPLAY: str = ""

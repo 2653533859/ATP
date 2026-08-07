@@ -90,6 +90,21 @@
           "maximum": 65535,
           "description": "Prometheus metrics port for the dedicated performance worker."
         },
+        "nodeEnabled": { "type": "boolean", "description": "Enable performance-node heartbeat registration for the dedicated worker." },
+        "nodeId": { "type": "string", "maxLength": 128, "description": "Stable performance node ID. Empty disables explicit node registration." },
+        "nodeName": { "type": "string", "maxLength": 128, "description": "Display name for the performance node." },
+        "nodeQueue": { "type": "string", "minLength": 1, "description": "Celery queue used by this performance node." },
+        "nodeMaxVus": { "type": "integer", "minimum": 0, "description": "Maximum peak VUs accepted by this node; zero means unlimited." },
+        "nodeMaxConcurrency": { "type": "integer", "minimum": 0, "description": "Maximum active runs accepted by this node; zero means unlimited." },
+        "nodeEgressAllowlist": { "type": "string", "description": "Comma-separated hostnames allowed by the application-level egress guardrail." },
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "egress": { "type": "array", "items": { "type": "object" } }
+          }
+        },
         "resources": { "$ref": "#/definitions/resources" }
       }
     },
@@ -138,7 +153,16 @@
         "AI_HEALING_FEW_SHOT_ENABLED": { "type": ["string", "boolean"], "description": "Enable curated few-shot examples in AI healing prompts." },
         "AI_HEALING_FEW_SHOT_TOP_N": { "type": ["string", "integer"], "description": "Maximum curated examples injected per prompt." },
         "AI_HEALING_VISION_ENABLED": { "type": ["string", "boolean"], "description": "Enable screenshot image blocks for AI healing prompts." },
-        "AI_HEALING_VISION_DAILY_LIMIT": { "type": ["string", "integer"], "description": "Daily limit for screenshot-based AI healing calls." }
+        "AI_HEALING_VISION_DAILY_LIMIT": { "type": ["string", "integer"], "description": "Daily limit for screenshot-based AI healing calls." },
+        "PERFORMANCE_NODE_ENABLED": { "type": ["string", "boolean"], "description": "Enable performance node heartbeat registration." },
+        "PERFORMANCE_NODE_ID": { "type": "string", "description": "Stable performance node ID." },
+        "PERFORMANCE_NODE_NAME": { "type": "string", "description": "Performance node display name." },
+        "PERFORMANCE_NODE_QUEUE": { "type": "string", "description": "Performance node Celery queue." },
+        "PERFORMANCE_NODE_MAX_VUS": { "type": ["string", "integer"], "description": "Maximum peak VUs for the node; zero means unlimited." },
+        "PERFORMANCE_NODE_MAX_CONCURRENCY": { "type": ["string", "integer"], "description": "Maximum active runs for the node; zero means unlimited." },
+        "PERFORMANCE_NODE_EGRESS_ALLOWLIST": { "type": "string", "description": "Comma-separated application-level egress hostname allowlist." },
+        "PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS": { "type": ["string", "integer"], "description": "Seconds before a node heartbeat is considered stale." },
+        "PERFORMANCE_EXECUTORS": { "type": "string", "description": "Comma-separated load injectors advertised by the performance worker." }
       }
     },
     "secrets": {
@@ -163,7 +187,11 @@
         "MINIO_ROOT_PASSWORD": { "type": "string" },
         "MINIO_BUCKET": { "type": "string", "minLength": 1 },
         "ENCRYPTION_KEY": { "type": "string" },
-        "WEBHOOK_API_KEY": { "type": "string" }
+        "WEBHOOK_API_KEY": { "type": "string" },
+        "PERFORMANCE_METRICS_ENABLED": { "type": ["string", "boolean"] },
+        "PERFORMANCE_METRICS_INTERVAL_SECONDS": { "type": ["string", "number"] },
+        "PERFORMANCE_METRICS_MAX_SAMPLES": { "type": ["string", "integer"] },
+        "PERFORMANCE_MINIO_INVENTORY_INTERVAL_SECONDS": { "type": ["string", "integer"] }
       }
     },
     "service": {

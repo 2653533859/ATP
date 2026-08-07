@@ -1,11 +1,19 @@
 # ATP 项目任务跟踪
 
-**最后更新**: 2026-08-06
+**最后更新**: 2026-08-07
+**当前工作快照（2026-08-07）**: Q16-11 数据集参数化/多步骤编排已完成；Q17-01 统一执行器与 Locust 已完成；Q17-02 gRPC Proto/Unary/Streaming 执行器已完成本地实现与真实本地服务联调；Q17-03 Linux/Kubernetes 验收工具、Worker 镜像依赖检查和专用 Worker 健康探针已完成，剩余真实集群/目标服务执行与证据归档。当前质量证据以本文件下方“Q17 当前验证”为准。
 **当前阶段**: Q1–Q12 路线图已全部完成；Q13 七个工作项中六个本地项全部完成；Q14 本地项已全部完成（Q14-01 Android/ADB 执行器族收口，Q14-02 API-router sweep，Q14-03 五个工作台页 mount tests，Q14-04 per-project retention real cleanup，Q14-05 gitleaks pre-commit，Q14-06 Q13 acceptance summary），并已发布 `docs/q14-acceptance-summary.md`。Q15 已完成 Q15-02（后端测试单文件可运行）、Q15-03（Windows CI job）、Q15-04（前端系统管理页面挂载测试）、Q15-05（worker/维护模块覆盖 + 门禁校准）、Q15-06（chartTheme 负载敏感）、Q15-07（Q14 acceptance summary），Q15-01 完成本地可做部分（服务端分支保护在当前 GitHub 套餐下不可得，已降级为本地钩子 + 文档约定并如实说明边界）。部署/灾备的仓库级配置也已收口：`make validate-deployment-readiness`、Helm 外部 Secret、ServiceMonitor、TLS 重定向和备份/恢复脚本契约已落地；校验器在 Windows 无 `sh`/`bash` 时会明确跳过 shell 语法检查，发布机可用 `--require-shell` 强制校验。真实集群部署、备份恢复和 smoke evidence 仍需外部环境。当前后端 TOTAL 为 **86.04%**（Python 3.12 / CI 口径；本地 Python 3.14 为 85.55%），门禁 **82**，`1467 passed`；前端 statements 为 **32.96%**（门禁 31.5，`128 passed`），`views/system` statements 为 **37.36%**。当前外部阻塞项为 Q15-00 / 原 Q14-00 / 原 Q13-00（Q12-05 生产 SLO 历史 + Android 真机演练采集）以及生产部署/灾备演练证据；对应模板已在 `docs/templates/` 固化，并提供 `make collect-q12-evidence` 自动查询 Prometheus、ATP API 和 ADB 后生成三份证据及附件，`make scaffold-q12-evidence` 仅作为草稿初始化，`make validate-q12-evidence` 做结构校验。覆盖工作累计发现并修复四个潜伏生产 500：grpc protobuf5、mobile-special create_task、ai_healing ProjectRole.engineer、global-variables create_variable（value_encrypted 重复关键字，变量库此前无法创建任何变量）。
 
 **最新验证**: 当前工作区已于 2026-08-06 与 `origin/main` 同步至 `135906d`。以下 Q15 质量基线来自 2026-08-05 对验证提交 `87f0fc7` 的全量重跑；本次同步还包含 Q14 验收、部署/灾备仓库契约及相关回归测试，修改业务代码后需重新执行完整门禁。后端 `make test-backend-coverage` 在两个解释器下均通过门禁 82：Python 3.12（CI 口径）`1467 passed`、TOTAL `86.04%`；Python 3.14（本地 `backend/.venv`）`1467 passed`、TOTAL `85.55%`。**两者语句总数不同（13962 vs 13367，差 595 条、约 0.5 个百分点）**，抬门禁须以 3.12 为准并复验 3.14，口径说明见 `docs/coverage-baseline-2026-q13.md` 的 Interpreter note。`make test-backend-standalone` 为 `191 passed, 0 failed`（每个非 integration 测试文件单独可跑，防止测试间隐式耦合）。`make lint` / `make format-check`（381 文件）/ `make mypy`（76 源文件）全部通过；完整 pre-commit 链 8/8 通过（含 gitleaks）。`npm --prefix frontend run test:coverage` 为 `31 files / 128 tests passed`、statements `32.96%`、branches `27.81%`、functions `26.36%`、lines `34.04%`，`views/system` statements `37.36%`，门槛 31.5 / 26.5 / 24.5 / 32.5 通过。`npm run type-check` 与 `npm run build` 均通过。**门禁强制力如实说明**：`main` 无 required status checks（private 仓库 + 免费套餐，`branches/main/protection` 与 `rulesets` 均 403），CI 红绿只是通知，本地钩子可被 `--no-verify` 绕过，详见 `docs/ci-workflows.md`「门禁强制力现状」。Q12 自动采集器仍按既有留证通过定向回归（延迟取峰值、空窗口判为数据缺口、证据已存在时在采集前中止、`increase(...[1d])` 按实际统计日归档、整数计数不得被去零、凭据只认 `ATP_USERNAME`/`ATP_PASSWORD` 六条不变量）。历史验证：Docker Python 3.12 目标运行时、真实依赖 integration、前端 E2E、SLO 薄切、安全扫描与 GitHub runner 矩阵均按 Q10/Q11/Q13 文档留证。
 
-**下一步计划（2026-08-06）**:
+**Q17 当前验证（2026-08-07）**：统一性能执行器、Locust worker 链路、gRPC Proto 动态编译及 Unary/Streaming 本地真实服务联调已完成；新增 `scripts/performance-environment-smoke.py`、外部环境验收 Runbook、Worker 镜像 grpc 依赖构建校验和专用 Worker metrics 健康探针。后端非集成回归 `1578 passed`，独立测试扫描 `210 passed, 0 failed`；前端 `36 files / 143 tests passed`，`npm run type-check` 和 `npm run build` 通过；后端覆盖率 `83.78%`（门禁 82）通过，Ruff、mypy（90 个源文件）、`git diff --check` 和部署 readiness 通过。Alembic head 为 `20260529_0044`。真实 Docker worker 镜像构建、Linux/Kubernetes Locust 压测和外部 gRPC 目标服务仍属于环境验收。
+
+**下一步计划（2026-08-07）**:
+
+- [x] Q17-02：gRPC Proto 动态编译、Unary/Streaming 并发、TLS/metadata 安全、取消、统一摘要和本地真实服务回归。
+- [x] Q17-03：新增 `scripts/performance-environment-smoke.py`、外部验收 Runbook、Kubernetes/Docker Worker 镜像与容器 grpc 依赖检查、节点队列/allowlist 检查和专用 Worker metrics 健康探针；补充 ARM64 Docker Compose 隔离验收栈、`.env.performance-acceptance.example`、TLS gRPC/HTTP 目标和 Worker 挂载 CA 配置。
+- [ ] Q17-04 环境验收：在 Linux/Kubernetes 专用 performance worker 构建并启动包含 grpcio/grpcio-tools 的镜像，使用真实 TLS 和外部 gRPC/Locust 目标服务完成 smoke、取消、节点 allowlist 与资源采样验证。
+- [ ] 发布收口：依据环境验收证据更新 `docs/performance-executor-evaluation.md`、部署 runbook 和 release/PR 说明；若目标服务或证书未准备好，保留为明确的外部环境阻塞项。
 
 - [x] P0：整理提交 / PR 范围，按主题拆分当前大 diff：环境与依赖兼容、权限与缺陷联动、AI 诊断/治理、前端体验与文档进度。
 - [x] P0：在 CI 或 Docker/目标 Python 3.12 环境复跑后端回归，确认 Python 3.14 条件 pin 不影响目标运行时。
@@ -18,6 +26,9 @@
   3. [x] SLO：已补 API 可用性、P95、run 成功率 3 条薄切指标与错误预算面板。
   4. [x] 收口：flaky 治理、`docs/q10-acceptance-summary.md`、README / Task.md / release evidence 最终同步已完成。
 - [x] P2：Q11 全部完成；Android Worker ADB 控制路径、host-network 约束和安全诊断方式已形成实测/文档/静态契约证据，物理真机 shell 验收明确保留为外部环境项。
+- [x] Q16-06：性能压测执行控制已补齐，包含 `cancelling` 状态、Redis 取消信号、k6 子进程安全终止、前端状态轮询与进度展示；后端 52 项定向回归通过，当前完整非集成回归 `1507 passed`，前端 `36 files / 142 tests passed`，type-check 与生产构建通过。
+- [x] Q16-07：新增性能压测 JSON/CSV 报告导出、脱敏快照、阈值门禁摘要与前端门禁状态展示；相关后端 54 项、前端报告工具 2 项回归通过。
+- [x] Q16-08 已完成：基线对比、定时执行和 CI 阈值门禁。
 
 > 状态说明：
 > - `[ ]` 待开始
@@ -757,18 +768,30 @@
 
 ### Phase 2 — 运行控制与结果可用性
 
-- [ ] Q16-06 增加执行进度轮询、实时状态刷新和安全停止任务。
-- [ ] Q16-07 增加结果导出、压测报告摘要和阈值门禁结果的可读化展示。
-- [ ] Q16-08 增加基线回归比较、定时执行和 CI 阈值门禁。
+- [x] Q16-06 增加执行进度轮询、实时状态刷新和安全停止任务。
+- [x] Q16-07 增加结果 JSON/CSV 导出、压测报告摘要和阈值门禁结果的可读化展示。
+- [x] Q16-08 增加基线回归比较、定时执行和 CI 阈值门禁。
 
 ### Phase 3 — 专业压测能力
 
-- [ ] Q16-09 接入 CPU、内存、PostgreSQL、Redis、MinIO 等系统指标并与压测时间线关联。
-- [ ] Q16-10 支持分布式压测节点、节点资源限制和压测网络出口隔离。
-- [ ] Q16-11 评估 Locust/gRPC 等后续执行器，补充数据集参数化和更复杂的用户行为编排。
+- [x] Q16-09 接入 CPU、内存、PostgreSQL、Redis、MinIO 等系统指标并与压测时间线关联。
+- [x] Q16-10 支持分布式压测节点、节点资源限制和压测网络出口隔离。
+- [x] Q16-11 数据集参数化和复杂用户行为编排：数据集版本固定、worker-only 注入、字段占位符和顺序多步骤 HTTP 行为已完成。
+- [x] Q17-01 统一性能执行器契约并接入 Locust：能力矩阵、公共进程生命周期、Locust CSV 摘要适配和前端执行器选择已落地；真实 worker 镜像联调保留为环境验收项。
+- [x] Q17-02 gRPC 性能执行器：完成 `.proto` 上传、动态 descriptor 编译、Unary/Server Streaming/Client Streaming/Bidi Streaming 并发调用、TLS/metadata 安全校验、取消、节点 allowlist、统一摘要及本地真实服务联调；待 Linux/Kubernetes 目标服务环境验收。
 
 **Q16 验收口径**：新建可视化场景无需手写 k6 脚本或 options JSON；选择环境后目标地址与变量可直接用于执行；敏感环境变量不出现在普通用户可见的 options 快照；原有脚本上传、异步执行、指标趋势和结果对比功能保持兼容。
 
-**Q16 Phase 1 进展（2026-08-06）**：Q16-01 至 Q16-05 已完成。前端新增 performanceScriptGenerator 与可视化创建模式；后端在触发 run 时校验项目环境、隐藏敏感快照并由 performance worker 解密注入；定向后端性能回归 41 passed，脚本生成器 3 passed，前端 type-check/build 通过。Q16-06 至 Q16-11 尚未开发。
+**Q16 Phase 2 进展（2026-08-07）**：Q16-01 至 Q16-08 已完成。新增 `cancelling` 状态、Redis 取消标记、k6 子进程安全终止、前端活动 run 轮询与进度估算；新增安全 JSON/CSV 报告导出、脱敏快照、阈值门禁汇总/展示、持久化基线、按时区 Cron 调度、重叠保护和 CI API Key 门禁脚本。完整非集成后端回归 `1507 passed`，前端 `36 files / 142 tests passed`，Ruff、mypy、type-check 与生产构建通过；下一步进入 Q16-09。
+
+**Q16 Phase 3 进展（2026-08-07）**：Q16-09 已完成。performance worker 在 k6 运行期间按配置采集 CPU、内存、PostgreSQL、Redis、MinIO 指标，样本通过 `performance_metric_samples` 与 `PerformanceRun` 关联；新增 Prometheus `atp_performance_resource` gauge、资源指标查询 API 和压测详情时间线，可按指标切换查看。采集异常按组件隔离，不阻断压测；完整非集成后端回归 `1514 passed`，前端 `36 files / 142 tests passed`，type-check、生产构建、Ruff 和 mypy 通过；下一步进入 Q16-10 分布式压测节点与资源隔离。
+
+**Q16 Phase 3 进展（2026-08-07）**：Q16-10 已完成。新增 `PerformanceNode` 模型与 `20260529_0043_add_performance_nodes.py` 迁移，支持节点注册、心跳、在线状态、队列绑定以及节点级 VU/并发/目标出口约束；手动和定时 run 均可绑定节点队列，worker 启动前再次校验节点身份与容量；性能中心新增节点状态卡片、容量和心跳展示及运行/定时节点选择；Helm 增加 dedicated performance worker 节点参数和可选 Egress NetworkPolicy。Q16-10 定向回归 `72 passed`，前端 type-check 和 Helm schema 校验通过；下一步进入 Q16-11 Locust/gRPC、数据集参数化和复杂用户行为编排。
+
+**Q16-11 进展（2026-08-07）**：已完成 k6 数据集参数化和多步骤用户行为编排。压测定义绑定数据集后，触发 run 固定当前版本，worker 通过 `ATP_DATASET_JSON` 注入数据行；可视化脚本支持字段占位符、按 VU 轮转数据和顺序 HTTP 步骤/think time。
+
+**Q17-01/Q17-03 进展（2026-08-07）**：新增统一性能执行器能力矩阵和公共 subprocess 生命周期，k6 保持兼容；Locust 已接入 `.py` 上传、headless 执行、aggregate CSV 结果归一、threshold 解析、取消/超时、数据集/环境注入、节点能力校验和前端执行器选择。gRPC 已接入 `.proto` 上传、动态 descriptor、四种调用模式、并发/迭代、TLS/metadata 校验、取消和统一结果报告；新增外部环境 smoke 命令、JSON 证据报告、Kubernetes rollout/Pod/镜像依赖检查、真实运行/取消入口和 Worker 健康探针；补充 ARM64 Docker Compose 隔离验收栈、可复现 TLS gRPC/HTTP 目标和 Worker 公有 CA 挂载配置。本地真实 gRPC 服务回归已覆盖，后端非集成回归 `1578 passed`；Linux 主机已确认仅有 Docker/Compose，Q17-04 仍需在该隔离栈上完成真实 smoke、取消、allowlist 和资源采样证据。
 
 **2026-08-06 修复补充**：同步完成启动配置安全校验与草稿脱敏、Ollama 无 Key 配置、AI 模型多模态能力切换、Web 录制事件去重/会话清理/Linux display 提示，以及压测环境快照确定性和敏感参数过滤。后端非集成测试 `1486 passed`，前端 `35 files / 139 tests passed`，type-check、生产构建和 Ruff 均通过。
+
+**2026-08-07 审查修复与文档同步**：修复性能调度共享队列与专用节点队列消费关系，增加 Worker 启动后的持续心跳和异常后重排队；修复 Webhook 执行器透传、Locust/gRPC 进度估算，以及定时任务跳过活动 run 时 `next_run_at` 未提交问题。已同步 `docs/celery-queues.md`、`docs/deploy-helm.md`、`docs/performance-testing-thin-slice.md` 和外部验收 Runbook；本轮定向回归 `93 passed`，性能服务/任务回归 `46 passed`，Ruff、格式检查和 `git diff --check` 通过。完整 Worker 套件的 8 个失败为既有 MinIO/数据库测试桩隔离问题，仍需单独治理；Q17-04 Linux/Kubernetes 真实环境验收仍未完成。

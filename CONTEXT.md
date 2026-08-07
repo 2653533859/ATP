@@ -506,3 +506,67 @@ Q15 的主线不是新功能，而是让已声明的质量门禁真正生效。�
 5. **Celery Flower 监控**：生产时访问 `http://localhost:5555`
 
 6. **前端 nginx.conf**：`frontend/nginx.conf` 是容器内使用的，与 `docker/nginx.conf` 内容相同（由用户修改）
+
+## 15. 2026-08-07 Q16-06/Q16-07 交付记忆
+
+- 性能压测执行支持 `pending → running → cancelling → cancelled` 状态链；编辑者可通过 `POST /performance/runs/{run_id}/stop` 发起安全停止，查看者无停止权限。
+- API 使用 Redis DB2 写入短时取消标记，worker 在阻塞 k6 runner 中轮询并终止子进程；标准输出和错误输出改为临时日志文件，避免长时间压测时 PIPE 缓冲区阻塞。
+- `PerformanceRunOut.progress_percent` 根据 `duration` / `stages` 和启动时间计算估算进度，终态为 100%；前端压测中心每 2 秒轮询活动 run，展示进度和停止确认。
+- 性能运行详情新增安全 JSON/CSV 报告导出：导出复用 `PerformanceRunOut` 的脱敏快照，并包含摘要、阈值明细和门禁统计；前端详情抽屉突出门禁通过/失败计数。
+- Q16-08 已补齐：PerformanceTest 持久化成功运行基线和按时区 Cron 配置；成功 run 可设置/清除基线，详情接口返回 RPS、P95、P99、错误率的改善/回归方向；Celery Beat 每分钟调度到期定义并跳过同一测试的活动运行；Webhook 支持 `performance_test`，`scripts/performance-gate.py` 通过 API Key 触发并轮询门禁退出码。
+- 回归验证：完整非集成后端回归 `1507 passed`，前端 `36 files / 142 tests passed`，Ruff、mypy、type-check 与生产构建通过；基线/调度/CI 契约已补 API、服务、迁移、worker 和静态测试。下一项是 Q16-09 系统资源指标关联。
+
+## 16.1 2026-08-07 Q16-09 资源指标关联
+
+- 新增 `PerformanceMetricSample` 与 `performance_metric_samples` 表，使用 `run_id + captured_at` 索引；Alembic 迁移为 `20260529_0042_add_performance_metric_samples.py`，Q16-10 后当前 head 已推进到 `20260529_0043`。
+- performance worker 在 k6 进程运行期间按 `PERFORMANCE_METRICS_INTERVAL_SECONDS` 调用 `PerformanceResourceSampler`，采集 worker 节点 CPU/内存、PostgreSQL 活跃连接/最大连接/缓存命中率、Redis 客户端/内存/操作数/阻塞客户端、MinIO 可达性/探测耗时和周期性对象盘点。
+- 采样通过 `GET /api/v1/performance/runs/{run_id}/metrics` 查询；资源采样异常只写入样本的组件错误列表，不改变 k6 成功/失败/取消结果。Prometheus 同时暴露 `atp_performance_resource{node,metric}` gauge。
+- Performance Center 详情抽屉新增资源时间线指标选择器；`.env.example`、Helm values、观测文档与压测薄切片文档已同步采样开关、间隔、样本上限和 MinIO 盘点间隔配置。
+- 回归验证：完整非集成后端 `1514 passed`，前端 `36 files / 142 tests passed`，Ruff、mypy、type-check 与生产构建通过；下一项是 Q16-10 分布式压测节点、节点资源限制和网络出口隔离。
+
+## 16.2 2026-08-07 Q16-10 分布式压测节点
+
+- 新增 `PerformanceNode` 与 `performance_nodes` 表；`PerformanceTest.schedule_node_id`、`PerformanceRun.performance_node_id` 使用 `SET NULL` 外键关联，迁移为 `20260529_0043_add_performance_nodes.py`。
+- 节点由显式配置 `PERFORMANCE_NODE_ID` 的 performance worker 主动注册并刷新心跳；后端根据心跳超时、enabled 和 draining 状态计算 online/offline/disabled/draining，并在 API、定时任务和 worker 启动前校验节点容量。
+- 手动/定时压测均可绑定 `performance_node_id`，任务通过节点的 Celery `queue_name` 路由；节点约束覆盖峰值 VUs、活动运行并发和目标 hostname egress allowlist。
+- Performance Center 新增节点状态卡片、容量/心跳信息以及运行和定时配置的节点选择；Helm dedicated performance worker 增加节点参数和可选 Kubernetes Egress NetworkPolicy。NetworkPolicy 启用后必须显式补充 DNS、数据库、Redis、MinIO 与目标服务出口。
+- 定向回归 `72 passed`，前端 type-check 与 Helm values schema 校验通过；下一项为 Q16-11 Locust/gRPC、数据集参数化和复杂用户行为编排。
+
+## 16.3 2026-08-07 Q16-11 数据集参数化与行为编排
+
+- `PerformanceTest` 增加可选 `dataset_id`，`PerformanceRun` 固定 `dataset_id + dataset_version`；迁移为 `20260529_0044_add_performance_dataset_binding.py`，当前 Alembic head 为 `20260529_0044`。
+- 触发和定时运行会校验数据集项目归属、固定最新版本；worker 从固定版本读取 rows，以 worker-only `ATP_DATASET_JSON` 注入 k6，运行快照不保存数据集内容。数据集行中的目标 URL 同样参与全局和节点出口 allowlist 校验。
+- Performance Center 创建/编辑压测定义时可选择测试数据集；生成的 k6 脚本支持 `{{FIELD_NAME}}` 占位符按 VU 迭代轮转数据，并支持多个顺序 HTTP 步骤和 think time。
+- Locust 已按 Q17-01 执行器契约落地；gRPC 已进入 Q17-02，具体协议边界和生产安全要求见下一节。
+
+## 16.4 2026-08-07 Q17-01 统一执行器与 Locust
+
+- 新增 `performance_executor` 能力矩阵和统一 dispatch；k6、Locust、gRPC 的脚本后缀、可视化能力、数据集能力和 ready 状态通过 `GET /api/v1/performance/executors` 对外提供。
+- `performance_process` 统一取消、超时、stdout/stderr 临时日志和资源采样回调；k6 复用原有结果契约，Locust 通过 `locust==2.32.10` headless CSV 归一 `rps/p95_ms/p99_ms/error_rate/iterations`。
+- Locust 支持 `users`、`spawn_rate`、`run_time`、`host`、tags 和 Python 脚本上传；环境、数据集、节点容量、出口 allowlist、定时/Webhook/报告仍复用性能压测公共链路。
+- 性能中心新增执行器选择；Locust 脚本执行属于可执行 Python，生产必须放在专用 worker、最小权限和显式 Egress NetworkPolicy 下。gRPC 现已启用，节点必须声明 `grpc` 能力并通过目标出口 allowlist。
+- `performance_grpc.py` 已完成 Proto 动态 descriptor 编译、TLS/metadata 脱敏、Unary/Server Streaming/Client Streaming/Bidi Streaming 并发调用、取消和统一 `rps/p95_ms/p99_ms/error_rate/iterations/grpc_statuses` 结果字段；本地真实 gRPC 服务联调已覆盖，剩余 Linux/Kubernetes 外部目标服务验收。
+
+## 16.5 2026-08-07 Q17-02 gRPC 性能执行器
+
+- gRPC 性能定义支持上传 `.proto`，worker 在临时目录编译 descriptor，按完整 service/method 动态创建消息和同步 gRPC stub，不生成或执行用户代码。
+- 四种调用模式均支持并发槽、总迭代次数或持续时间、per-call timeout、TLS、SNI、环境变量占位符及 `*-bin` metadata；用户取消关闭 channel 并由统一性能状态链标记为 `cancelled`。
+- API、节点和 worker 复用全局/节点目标 allowlist、容量限制、取消、资源采样、摘要上传和阈值门禁；敏感 request/metadata/响应正文不会写入结果摘要。
+- `backend/tests/services/test_performance_grpc.py` 使用本地真实 gRPC server 覆盖 Unary、Server Streaming、Client Streaming、Bidi Streaming、失败状态、并发迭代、取消和结果上传。
+
+## 16.6 2026-08-07 Q17-03 外部环境验收工具
+
+- 最新本地门禁：后端非集成 `1578 passed`，独立测试扫描 `210 passed, 0 failed`，覆盖率 `83.78%`；前端 `36 files / 143 tests passed`，type-check、生产构建、Ruff、mypy 和 `git diff --check` 均通过。
+- Linux 主机只读核验结果为 ARM64 Docker/Compose 环境，未发现 ATP Worker、Worker 镜像、Kubernetes 工具或外部 gRPC/Locust 目标；Q17-04 必须在隔离目录完成部署后再执行真实 smoke、取消和资源采样验收。
+
+- 新增 `scripts/performance-environment-smoke.py`，可在发布机检查 ATP 健康与执行器、性能节点心跳/能力/队列/allowlist、目标 DNS/TCP/TLS、Kubernetes Deployment/Pod 或 Docker Worker 容器/镜像、Worker 中的 grpcio/grpcio-tools/Locust/k6，并可显式触发已有压测定义做真实 smoke、取消和资源采样验收。
+- 验收命令只从 `ATP_TOKEN` 或 `ATP_USERNAME`/`ATP_PASSWORD` 读取凭据，不接受 token 命令行参数，不把凭据写入 JSON 报告；真实流量只有显式传入 `--smoke-test-id` 或 `--cancel-test-id` 才会产生。
+- `backend/Dockerfile.worker` 在构建阶段增加 grpc import 校验，Helm 专用 performance worker 增加 `/metrics` readiness/liveness probe；操作步骤、证据链和回滚方法见 `docs/performance-environment-acceptance.md`。剩余工作是 Linux/Kubernetes 真实集群与外部 gRPC/Locust 服务执行验收。
+- 新增 `docker-compose.performance-acceptance.yml` 和 `deploy/performance-acceptance/` 隔离栈：包含独立 PostgreSQL/Redis/MinIO、专用 `performance-worker`、TLS gRPC/HTTP 目标和验收工具容器，适配 ARM64 Docker Compose 主机；gRPC 支持 `tls_root_certificates_file` 使用 Worker 只读挂载的公有 CA。该栈只作为验收环境，不能替代生产部署。
+
+## 16.7 2026-08-07 审查问题修复
+
+- 性能调度检查、节点心跳和共享控制任务路由到 `performance` 队列；Helm/Docker Compose 专用 Worker 会同时监听共享队列和配置的节点队列，避免 Beat 调度任务无消费者。
+- 显式性能 Worker 在 `worker_ready` 时启动自调度心跳，并在数据库异常后继续重新排队；节点不再只依赖实际压测任务刷新心跳。
+- Webhook 触发压测时将定义的 `executor` 传给 options 校验和节点选择；`PerformanceRunOut` 的进度估算覆盖 Locust `run_time` 与 gRPC `duration_seconds`；定时任务跳过活动运行时提交新的 `next_run_at`。
+- 验证：本轮相关定向测试 `93 passed`，性能服务/任务测试 `46 passed`，Ruff、格式检查和 `git diff --check` 通过。完整 Worker 套件仍有 8 个历史测试桩隔离失败；外部 Linux/Kubernetes 验收继续以 Q17-04 Runbook 为准。

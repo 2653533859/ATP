@@ -1,0 +1,15 @@
+FROM python:3.12-slim-bookworm
+
+WORKDIR /app
+
+ARG GRPC_VERSION=1.68.1
+RUN pip install --no-cache-dir \
+    "grpcio==${GRPC_VERSION}" \
+    "grpcio-tools==${GRPC_VERSION}"
+
+COPY scripts/performance_acceptance_target.py /app/performance_acceptance_target.py
+
+RUN useradd --create-home --uid 10001 atp-target
+USER atp-target
+
+ENTRYPOINT ["python", "/app/performance_acceptance_target.py"]

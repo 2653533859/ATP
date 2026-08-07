@@ -67,6 +67,11 @@ CELERY_TIMEOUT = _counter("atp_celery_timeouts_total", "Celery task timeouts by 
 RUN_RETENTION_DELETED = _counter("atp_run_retention_deleted_total", "Old runs deleted by retention task", ("model",))
 STORAGE_TOTAL_BYTES = _gauge("atp_storage_total_bytes", "MinIO bucket total bytes", ("bucket",))
 STORAGE_TOTAL_OBJECTS = _gauge("atp_storage_total_objects", "MinIO bucket total object count", ("bucket",))
+PERFORMANCE_RESOURCE = _gauge(
+    "atp_performance_resource",
+    "Resource metric sampled by a performance worker",
+    ("node", "metric"),
+)
 RUN_OUTCOMES = _counter(
     "atp_run_outcomes_total",
     "Terminal test run outcomes by entity type and status",

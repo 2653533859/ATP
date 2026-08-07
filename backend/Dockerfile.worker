@@ -28,7 +28,9 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt \
     && rm -rf /wheels \
     && playwright install chromium --with-deps \
+    && python -c "import grpc, grpc_tools; print('grpc dependencies ready')" \
     && k6 version \
+    && locust --version \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . .

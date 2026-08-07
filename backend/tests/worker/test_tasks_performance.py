@@ -8,6 +8,7 @@ celery_app、AsyncSessionLocal 与 `run_k6_script`，覆盖五条状态迁移：
 
 from __future__ import annotations
 
+import asyncio
 import importlib
 import sys
 import types
@@ -41,6 +42,23 @@ class _FakeSession:
 
     async def commit(self):
         self.commits += 1
+
+
+class _DatasetResult:
+    def __init__(self, value):
+        self.value = value
+
+    def scalar_one_or_none(self):
+        return self.value
+
+
+class _DatasetSession(_FakeSession):
+    def __init__(self, objects, dataset_version):
+        super().__init__(objects)
+        self.dataset_version = dataset_version
+
+    async def execute(self, _statement):
+        return _DatasetResult(self.dataset_version)
 
 
 @pytest.fixture
@@ -135,7 +153,10 @@ def test_successful_k6_run_records_summary_and_success_status(perf_task, monkeyp
 
     perf_task.run_performance_test(None, 7)
 
-    assert calls == [{"run_id": 7, "script_object_name": "scripts/load.js", "options": {"vus": 5}}]
+    assert calls[0]["run_id"] == 7
+    assert calls[0]["script_object_name"] == "scripts/load.js"
+    assert calls[0]["options"] == {"vus": 5}
+    assert callable(calls[0]["cancel_check"])
     assert run.status == PerformanceRunStatus.success.value
     assert run.summary == summary
     assert run.raw_result_object_name == "raw/7.json"
@@ -164,6 +185,23 @@ def test_environment_snapshot_is_decrypted_only_for_k6(perf_task, monkeypatch):
     assert calls[0]["options"] == {"vus": 5, "env": {"API_TOKEN": "plain:ciphertext"}}
     assert ENVIRONMENT_SNAPSHOT_KEY not in calls[0]["options"]
     assert session.commits == 2
+
+
+def test_pinned_dataset_rows_are_injected_only_into_k6_runtime_env(perf_task, monkeypatch):
+    from app.models.performance import PerformanceRunStatus
+
+    run, test = _run_and_test(PerformanceRunStatus)
+    run.dataset_id = 9
+    run.dataset_version = 3
+    dataset_version = types.SimpleNamespace(rows=[{"account": "alice"}, {"account": "bob"}])
+    database = importlib.import_module("app.core.database")
+    session = _DatasetSession({"PerformanceRun": run, "PerformanceTest": test}, dataset_version)
+    monkeypatch.setattr(database, "AsyncSessionLocal", lambda: session, raising=False)
+    calls = _install_k6(monkeypatch, result=({"exit_code": 0}, "raw/7.json", 1))
+
+    perf_task.run_performance_test(None, 7)
+
+    assert calls[0]["options"]["env"]["ATP_DATASET_JSON"] == ('[{"account":"alice"},{"account":"bob"}]')
 
 
 def test_non_zero_exit_code_is_a_failed_run(perf_task, monkeypatch):
@@ -197,3 +235,113 @@ def test_k6_exception_still_closes_the_run(perf_task, monkeypatch):
     assert len(run.error_message) == 1000, "错误信息按 1000 字符截断，避免撑爆列"
     assert run.finished_at is not None
     assert session.commits == 2
+
+
+def test_cancelled_before_worker_start_never_launches_k6(perf_task, monkeypatch):
+    from app.models.performance import PerformanceRunStatus
+
+    run, test = _run_and_test(PerformanceRunStatus)
+    session = _install_session(monkeypatch, {"PerformanceRun": run, "PerformanceTest": test})
+    calls = _install_k6(monkeypatch, result=({"exit_code": 0}, "raw/7.json", 1))
+
+    class _ControlClient:
+        def close(self):
+            return None
+
+    monkeypatch.setattr(perf_task, "create_control_client", lambda: _ControlClient())
+    monkeypatch.setattr(perf_task, "is_cancel_requested", lambda *_a, **_kw: True)
+    monkeypatch.setattr(perf_task, "clear_cancel_request", lambda *_a, **_kw: None)
+
+    perf_task.run_performance_test(None, 7)
+
+    assert calls == []
+    assert run.status == PerformanceRunStatus.cancelled.value
+    assert run.finished_at is not None
+    assert session.commits == 1
+
+
+class _HeartbeatResult:
+    def __init__(self, node=None):
+        self.node = node
+
+    def scalar_one_or_none(self):
+        return self.node
+
+
+class _HeartbeatSession:
+    def __init__(self, node=None):
+        self.node = node
+        self.added = []
+        self.flushed = 0
+        self.commits = 0
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_exc):
+        return None
+
+    async def execute(self, _statement):
+        return _HeartbeatResult(self.node)
+
+    def add(self, item):
+        self.added.append(item)
+        self.node = item
+
+    async def flush(self):
+        self.flushed += 1
+
+    async def commit(self):
+        self.commits += 1
+
+
+def test_explicit_performance_worker_registers_and_refreshes_heartbeat(perf_task, monkeypatch):
+    from app.core import config
+
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_ENABLED", True)
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_ID", "worker-a")
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_NAME", "Worker A")
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_QUEUE", "performance.worker-a")
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_MAX_VUS", 40)
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_MAX_CONCURRENCY", 2)
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_EGRESS_ALLOWLIST", "api.example.test")
+
+    session = _HeartbeatSession()
+    node = asyncio.run(perf_task._heartbeat_worker_node(session))
+
+    assert node is session.added[0]
+    assert node.node_id == "worker-a"
+    assert node.name == "Worker A"
+    assert node.queue_name == "performance.worker-a"
+    assert node.status == "online"
+    assert node.max_vus == 40
+    assert node.max_concurrency == 2
+    assert node.egress_allowlist == ["api.example.test"]
+    assert node.last_heartbeat_at is not None
+    assert session.flushed == 1
+
+
+def test_performance_worker_heartbeat_refreshes_and_reschedules(perf_task, monkeypatch):
+    from app.core import config
+
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_ENABLED", True)
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_ID", "worker-a")
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS", 90)
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_QUEUE", "performance.worker-a")
+
+    database = importlib.import_module("app.core.database")
+    session = _HeartbeatSession()
+    monkeypatch.setattr(database, "AsyncSessionLocal", lambda: session, raising=False)
+
+    class _Task:
+        def __init__(self):
+            self.calls = []
+
+        def apply_async(self, **kwargs):
+            self.calls.append(kwargs)
+
+    task = _Task()
+    perf_task.heartbeat_performance_node(task)
+
+    assert session.commits == 1
+    assert task.calls == [{"countdown": 30, "queue": "performance.worker-a"}]

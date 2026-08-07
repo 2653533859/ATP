@@ -1,0 +1,12 @@
+syntax = "proto3";
+package demo.v1;
+
+message HelloRequest { string name = 1; }
+message HelloReply { string text = 1; int32 sequence = 2; }
+
+service Greeter {
+  rpc Unary(HelloRequest) returns (HelloReply);
+  rpc ServerStream(HelloRequest) returns (stream HelloReply);
+  rpc ClientStream(stream HelloRequest) returns (HelloReply);
+  rpc Bidi(stream HelloRequest) returns (stream HelloReply);
+}

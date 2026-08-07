@@ -3,6 +3,7 @@ from celery.schedules import crontab
 from celery.signals import (
     task_failure,
     task_revoked,
+    worker_ready,
     worker_process_init,
     worker_process_shutdown,
 )
@@ -37,6 +38,8 @@ celery_app.conf.update(
         "run_test_suite": {"queue": "default"},
         "run_test_plan": {"queue": "default"},
         "check_cron_plans": {"queue": "default"},
+        "check_performance_schedules": {"queue": "performance"},
+        "heartbeat_performance_node": {"queue": "performance"},
         # Android 专项与设备扫描，通常受真机资源约束
         "run_mobile_special_task": {"queue": "mobile_special"},
         "check_mobile_special_schedules": {"queue": "mobile_special"},
@@ -73,6 +76,10 @@ celery_app.conf.update(
         },
         "check-cron-plans": {
             "task": "check_cron_plans",
+            "schedule": 60.0,
+        },
+        "check-performance-schedules": {
+            "task": "check_performance_schedules",
             "schedule": 60.0,
         },
         "cleanup-expired-files": {
@@ -147,6 +154,17 @@ def _shutdown_otel(**_kwargs):
     from app.core.otel import shutdown_tracer
 
     shutdown_tracer()
+
+
+@worker_ready.connect
+def _schedule_performance_node_heartbeat(**_kwargs):
+    """Start one self-rescheduling heartbeat chain for each explicitly configured worker."""
+    if not settings.PERFORMANCE_NODE_ENABLED or not settings.PERFORMANCE_NODE_ID.strip():
+        return
+    from app.services.performance_node import worker_node_queue
+    from app.worker.tasks_performance import heartbeat_performance_node
+
+    heartbeat_performance_node.apply_async(queue=worker_node_queue())
 
 
 # Soft / Hard 超时告警桥接到独立 handler 模块（便于单测）

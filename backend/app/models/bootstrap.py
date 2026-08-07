@@ -29,7 +29,8 @@ def load_all_models() -> None:
     from app.models.healing_feedback import HealingFeedbackAggregate
     from app.models.healing_prompt_example import HealingPromptExample
     from app.models.user_setting import UserSetting
-    from app.models.performance import PerformanceTest, PerformanceRun
+    from app.models.performance import PerformanceTest, PerformanceRun, PerformanceMetricSample
+    from app.models.performance_node import PerformanceNode
 
     _ = (
         User,
@@ -73,4 +74,6 @@ def load_all_models() -> None:
         UserSetting,
         PerformanceTest,
         PerformanceRun,
+        PerformanceMetricSample,
+        PerformanceNode,
     )

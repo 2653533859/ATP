@@ -1,0 +1,21 @@
+{{- if and .Values.performanceWorker.enabled .Values.performanceWorker.networkPolicy.enabled }}
+{{- if not .Values.performanceWorker.networkPolicy.egress }}
+{{- fail "performanceWorker.networkPolicy.egress must contain at least one explicit rule when enabled" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "atp.fullname" . }}-performance-worker-egress
+  labels:
+    {{- include "atp.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "performance-worker") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: performance-worker
+  policyTypes:
+    - Egress
+  egress:
+    {{- toYaml .Values.performanceWorker.networkPolicy.egress | nindent 4 }}
+{{- end }}

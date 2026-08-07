@@ -1448,7 +1448,7 @@ export const userSettingsApi = {
 }
 
 // ---- Performance Testing ----
-export type PerformanceRunStatus = 'pending' | 'running' | 'success' | 'failed' | 'cancelled'
+export type PerformanceRunStatus = 'pending' | 'running' | 'cancelling' | 'success' | 'failed' | 'cancelled'
 
 export interface PerformanceSummary {
   executor?: string
@@ -1461,6 +1461,8 @@ export interface PerformanceSummary {
   data_sent?: number | null
   exit_code?: number | null
   k6_error?: string | null
+  locust_error?: string | null
+  grpc_error?: string | null
   thresholds?: Record<string, unknown>
   [key: string]: unknown
 }
@@ -1470,10 +1472,20 @@ export interface PerformanceTestItem {
   project_id: number
   name: string
   description?: string | null
-  executor: 'k6' | string
+  executor: 'k6' | 'locust' | 'grpc' | string
   script_object_name: string
   default_options: Record<string, unknown>
   creator_id?: number | null
+  baseline_run_id?: number | null
+  schedule_enabled: boolean
+  cron_expression?: string | null
+  schedule_timezone: string
+  schedule_environment_id?: number | null
+  schedule_node_id?: number | null
+  dataset_id?: number | null
+  schedule_options: Record<string, unknown>
+  last_scheduled_run_at?: string | null
+  next_run_at?: string | null
   created_at: string
   updated_at: string
 }
@@ -1483,6 +1495,9 @@ export interface PerformanceRunItem {
   performance_test_id: number
   project_id: number
   environment_id?: number | null
+  performance_node_id?: number | null
+  dataset_id?: number | null
+  dataset_version?: number | null
   status: PerformanceRunStatus | string
   triggered_by?: number | null
   started_at?: string | null
@@ -1492,17 +1507,88 @@ export interface PerformanceRunItem {
   summary: PerformanceSummary
   raw_result_object_name?: string | null
   error_message?: string | null
+  progress_percent: number
   created_at: string
   updated_at: string
+}
+
+export type PerformanceGateStatus = 'pending' | 'passed' | 'failed' | 'not_configured' | 'cancelled'
+
+export interface PerformanceGateItem {
+  status: PerformanceGateStatus
+  ready: boolean
+  run_status: PerformanceRunStatus | string
+  total: number
+  passed: number
+  failed: number
+}
+
+export interface PerformanceBaselineMetricItem {
+  metric: string
+  preferred_direction: 'higher' | 'lower'
+  baseline: number | null
+  current: number | null
+  delta: number | null
+  delta_percent: number | null
+  direction: 'improvement' | 'regression' | 'unchanged' | 'unknown'
+}
+
+export interface PerformanceBaselineComparisonItem {
+  baseline_run_id: number
+  run_id: number
+  metrics: PerformanceBaselineMetricItem[]
+}
+
+export interface PerformanceMetricSampleItem {
+  id: number
+  run_id: number
+  captured_at: string
+  node_id: string
+  source: string
+  metrics: Record<string, number>
+  errors: string[]
+}
+
+export type PerformanceNodeStatus = 'online' | 'offline' | 'disabled' | 'draining'
+
+export interface PerformanceNodeItem {
+  id: number
+  node_id: string
+  name: string
+  queue_name: string
+  status: PerformanceNodeStatus | string
+  enabled: boolean
+  labels: Record<string, unknown>
+  capabilities: Record<string, unknown>
+  max_vus: number | null
+  max_concurrency: number | null
+  egress_allowlist: string[]
+  last_heartbeat_at?: string | null
+  last_error?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface PerformanceExecutorItem {
+  name: string
+  label: string
+  ready: boolean
+  script_extensions: string[]
+  supports_visual: boolean
+  supports_dataset: boolean
+  supports_http: boolean
+  supports_grpc: boolean
+  description: string
 }
 
 export interface PerformanceTestPayload {
   project_id?: number
   name?: string
   description?: string | null
-  executor?: 'k6'
+  executor?: 'k6' | 'locust' | 'grpc'
   script_object_name?: string
   default_options?: Record<string, unknown>
+  dataset_id?: number | null
 }
 
 export interface PerformanceScriptUploadResponse {
@@ -1512,22 +1598,69 @@ export interface PerformanceScriptUploadResponse {
 }
 
 export const performanceApi = {
+  listExecutors: () => http.get<unknown, PerformanceExecutorItem[]>('/performance/executors'),
+  listNodes: () => http.get<unknown, PerformanceNodeItem[]>('/performance/nodes'),
+  createNode: (body: {
+    node_id: string
+    name: string
+    queue_name?: string
+    enabled?: boolean
+    labels?: Record<string, unknown>
+    capabilities?: Record<string, unknown>
+    max_vus?: number | null
+    max_concurrency?: number | null
+    egress_allowlist?: string[]
+  }) => http.post<unknown, PerformanceNodeItem>('/performance/nodes', body),
+  updateNode: (id: number, body: Record<string, unknown>) =>
+    http.patch<unknown, PerformanceNodeItem>(`/performance/nodes/${id}`, body),
+  deleteNode: (id: number) => http.delete<unknown, void>(`/performance/nodes/${id}`),
   listTests: (projectId: number) =>
     http.get<unknown, PerformanceTestItem[]>(`/projects/${projectId}/performance/tests`),
-  uploadScript: (projectId: number, file: File) => {
+  uploadScript: (projectId: number, file: File, executor: 'k6' | 'locust' | 'grpc' = 'k6') => {
     const form = new FormData()
     form.append('file', file)
-    return http.post<unknown, PerformanceScriptUploadResponse>(`/projects/${projectId}/performance/scripts`, form)
+    return http.post<unknown, PerformanceScriptUploadResponse>(`/projects/${projectId}/performance/scripts`, form, {
+      params: { executor },
+    })
   },
   createTest: (body: Required<Pick<PerformanceTestPayload, 'project_id' | 'name' | 'script_object_name'>> & PerformanceTestPayload) =>
     http.post<unknown, PerformanceTestItem>('/performance/tests', body),
   updateTest: (id: number, body: PerformanceTestPayload) =>
     http.patch<unknown, PerformanceTestItem>(`/performance/tests/${id}`, body),
-  triggerRun: (id: number, body?: { environment_id?: number | null; options?: Record<string, unknown> }) =>
+  setBaseline: (testId: number, runId: number) =>
+    http.put<unknown, PerformanceTestItem>(`/performance/tests/${testId}/baseline`, { run_id: runId }),
+  clearBaseline: (testId: number) =>
+    http.delete<unknown, PerformanceTestItem>(`/performance/tests/${testId}/baseline`),
+  updateSchedule: (
+    testId: number,
+    body: {
+      enabled: boolean
+      cron_expression?: string | null
+      timezone: string
+      environment_id?: number | null
+      performance_node_id?: number | null
+      options?: Record<string, unknown>
+    },
+  ) => http.put<unknown, PerformanceTestItem>(`/performance/tests/${testId}/schedule`, body),
+  triggerRun: (id: number, body?: {
+    environment_id?: number | null
+    performance_node_id?: number | null
+    options?: Record<string, unknown>
+  }) =>
     http.post<unknown, PerformanceRunItem>(`/performance/tests/${id}/run`, body ?? {}),
   listRuns: (projectId: number) =>
     http.get<unknown, PerformanceRunItem[]>('/performance/runs', { params: { project_id: projectId } }),
   getRun: (id: number) => http.get<unknown, PerformanceRunItem>(`/performance/runs/${id}`),
+  stopRun: (id: number) => http.post<unknown, PerformanceRunItem>(`/performance/runs/${id}/stop`),
+  getGate: (id: number) => http.get<unknown, PerformanceGateItem>(`/performance/runs/${id}/gate`),
+  getBaselineComparison: (id: number) =>
+    http.get<unknown, PerformanceBaselineComparisonItem>(`/performance/runs/${id}/baseline-comparison`),
+  getMetrics: (id: number, limit = 2000) =>
+    http.get<unknown, PerformanceMetricSampleItem[]>(`/performance/runs/${id}/metrics`, { params: { limit } }),
+  exportRunJson: (id: number) =>
+    http.get<unknown, Blob>(`/performance/runs/${id}/export/json`, { responseType: 'blob' }),
+  exportRunCsv: (id: number) =>
+    http.get<unknown, Blob>(`/performance/runs/${id}/export/csv`, { responseType: 'blob' }),
   getRawResult: (id: number) =>
     http.get<unknown, { url: string; filename: string; object_name: string }>(`/performance/runs/${id}/raw-result`),
 }

@@ -48,9 +48,7 @@ def test_openai_compatible_discovery_filters_non_chat_models(monkeypatch):
     )
     monkeypatch.setattr(model_discovery.httpx, "AsyncClient", _AsyncClient)
 
-    models = asyncio.run(
-        model_discovery.discover_models("openai", "https://llm.example.com/v1", "secret-key")
-    )
+    models = asyncio.run(model_discovery.discover_models("openai", "https://llm.example.com/v1", "secret-key"))
 
     assert [model["id"] for model in models] == ["deepseek-r1", "qwen-vl-max"]
     assert models[0]["supports_reasoning"] is True

@@ -1,0 +1,243 @@
+# 性能 Worker 环境验收 Runbook
+
+本文用于 Q17-03/Q17-04 的 Linux/Kubernetes 外部环境验收。仓库内的单元测试和本地真实 gRPC server 联调只能证明实现链路可运行，不能替代真实镜像、真实证书、真实目标服务和真实 Celery 队列的验收。
+
+> 当前状态（2026-08-07）：已完成本地工具和门禁验证；待接入的 Linux 主机目前仅提供 ARM64 Docker/Compose 基础设施，尚未部署 ATP Worker、Worker 镜像或外部 gRPC/Locust 目标。建立隔离部署后，必须重新执行本文全部命令并保存 JSON 证据，才能关闭 Q17-04。
+
+## ARM64 Docker Compose 隔离验收栈
+
+仓库提供了一个独立 Compose 栈，用于没有 Kubernetes 的 Linux 主机。它使用独立的 PostgreSQL、Redis、MinIO 命名卷，不复用主机上已有服务；`acceptance-target` 同时提供真实网络可达的 TLS gRPC 和 HTTP/Locust 目标。
+
+```bash
+cp .env.performance-acceptance.example .env.performance-acceptance
+# 编辑 .env.performance-acceptance，至少替换 APP_SECRET_KEY、数据库密码、MinIO 密码和首个管理员密码
+docker compose --env-file .env.performance-acceptance \
+  -f docker-compose.performance-acceptance.yml build
+docker compose --env-file .env.performance-acceptance \
+  -f docker-compose.performance-acceptance.yml up -d
+```
+
+ARM64 主机应在目标主机上直接构建镜像，避免把其他架构的本地镜像误推送到目标环境。确认服务状态：
+
+```bash
+docker compose --env-file .env.performance-acceptance \
+  -f docker-compose.performance-acceptance.yml ps
+curl http://127.0.0.1:18080/health
+```
+
+在 ATP 中创建 gRPC 压测定义时上传 [`acceptance.proto`](../deploy/performance-acceptance/acceptance.proto)，并使用以下关键配置。`tls_root_certificates_file` 指向 Worker 只读挂载的公有 CA 证书，不是密码或私钥：
+
+```json
+{
+  "target": "grpc-target:50051",
+  "service": "demo.v1.Greeter",
+  "method": "Unary",
+  "request": {"name": "ATP"},
+  "use_tls": true,
+  "tls_server_name": "grpc-target",
+  "tls_root_certificates_file": "/etc/atp/tls/server.crt",
+  "concurrency": 1,
+  "iterations": 5,
+  "duration_seconds": 30
+}
+```
+
+创建压测定义并拿到 ID 后，在 Compose 网络内运行验收工具：
+
+```bash
+docker compose --env-file .env.performance-acceptance \
+  -f docker-compose.performance-acceptance.yml run --rm acceptance-tools \
+  --api-base-url http://backend:8000 \
+  --node-id worker-a --expected-queue performance.worker-a \
+  --target grpcs://grpc-target:50051 --require-tls \
+  --ca-file /etc/atp/tls/server.crt --require-node-allowlist \
+  --smoke-test-id <GRPC_TEST_ID> --smoke-executor grpc \
+  --require-metrics --report /evidence/performance-grpc-smoke.json
+```
+
+Locust 定义上传 [`locust_smoke.py`](../deploy/performance-acceptance/locust_smoke.py)，目标使用 `http-target:8080`，将上面命令中的目标替换为 `http://http-target:8080`，并使用 `--smoke-executor locust`。取消验收仍使用一条持续时间足够长的已存在定义和 `--cancel-test-id`。
+
+## 1. 验收前提
+
+- 发布机可以访问 Kubernetes API，并安装 `kubectl`、`helm` 和 Python 3.12+。
+- ATP API 已完成迁移，`/health` 可访问。
+- PostgreSQL、Redis、MinIO 和 ATP API 的地址通过 ExternalSecret、SOPS 或平台 Secret 注入，仓库不保存真实凭据。
+- 已准备两个项目内的压测定义：
+  - 一个 `executor=grpc` 的短时 TLS smoke 定义，目标为专用 gRPC 服务，运行时间建议至少 10 秒；
+  - 一个 `executor=locust` 的短时 HTTP smoke 定义；
+  - 如需取消验收，再准备一个持续时间至少 60 秒的 gRPC 或 Locust 定义。
+- gRPC `.proto`、service/method、请求体、TLS 配置和目标地址已经过人工确认；敏感 metadata 只能使用 `{{ENV_KEY}}` 占位符。
+
+## 2. 构建并发布 Worker 镜像
+
+`backend/Dockerfile.worker` 会把 k6 二进制复制到 Python Worker 镜像，并在构建阶段验证 k6、Locust、grpcio 和 grpcio-tools。发布机示例：
+
+```bash
+IMAGE=registry.example.test/atp/worker:2026-08-07-q17
+docker build -f backend/Dockerfile.worker -t "$IMAGE" backend
+docker push "$IMAGE"
+```
+
+Helm values 至少需要把普通 Worker 从 `performance` 队列移开，并为专用 Worker 指定稳定节点身份。实际 Secret 使用外部 Secret 管理器：
+
+```yaml
+image:
+  repository: registry.example.test/atp
+  worker:
+    tag: 2026-08-07-q17
+
+worker:
+  queues: default,mobile_special,ai,maintenance
+config:
+  CELERY_QUEUES: default,mobile_special,ai,maintenance
+  PERFORMANCE_EXECUTORS: k6,locust,grpc
+
+performanceWorker:
+  enabled: true
+  queues: performance.worker-a,performance
+  nodeEnabled: true
+  nodeId: worker-a
+  nodeName: Performance Worker A
+  nodeQueue: performance.worker-a
+  nodeMaxVus: 100
+  nodeMaxConcurrency: 2
+  nodeEgressAllowlist: grpc.example.test,http.example.test
+  networkPolicy:
+    enabled: true
+    egress:
+      # 必须按集群实际地址补齐 DNS、PostgreSQL、Redis、MinIO 和目标服务。
+      - to:
+          - namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: kube-system}}
+        ports: [{protocol: UDP, port: 53}, {protocol: TCP, port: 53}]
+      - to:
+          - ipBlock: {cidr: 10.20.0.0/16}
+        ports: [{protocol: TCP, port: 443}]
+```
+
+部署后检查：
+
+```bash
+helm upgrade --install atp deploy/helm/atp \
+  --namespace atp-staging --create-namespace \
+  -f values-staging.yaml
+kubectl -n atp-staging rollout status deployment/atp-atp-performance-worker --timeout=180s
+kubectl -n atp-staging get pods -l app.kubernetes.io/component=performance-worker -o wide
+```
+
+## 3. 自动化验收命令
+
+验收工具只读取 `ATP_TOKEN`，或通过环境变量读取 `ATP_USERNAME`/`ATP_PASSWORD`。凭据不会进入命令参数、终端输出或 JSON 报告。
+
+### 3.1 Docker Compose/Linux Worker
+
+目标主机没有 Kubernetes 时，可直接在安装 Docker 的 Linux 主机上检查 Worker 容器或镜像：
+
+```bash
+python scripts/performance-environment-smoke.py \
+  --docker-container atp-performance-worker \
+  --report docs/evidence/performance-docker-worker-2026-08-07.json
+```
+
+如果只需要验收刚构建的镜像，不启动常驻容器：
+
+```bash
+python scripts/performance-environment-smoke.py \
+  --docker-image registry.example.test/atp/worker:2026-08-07-q17 \
+  --report docs/evidence/performance-worker-image-2026-08-07.json
+```
+
+镜像模式会临时启动容器执行依赖探测，不读取应用配置，也不会连接数据库、Redis 或 MinIO。
+
+### 3.2 Worker、节点、目标和真实 gRPC smoke
+
+```bash
+export ATP_TOKEN='由安全渠道注入的短期 Token'
+python scripts/performance-environment-smoke.py \
+  --api-base-url https://atp-staging.example.test \
+  --namespace atp-staging \
+  --deployment atp-atp-performance-worker \
+  --node-id worker-a \
+  --expected-queue performance.worker-a \
+  --target grpcs://grpc.example.test:443 \
+  --require-tls \
+  --ca-file /etc/atp/ca.pem \
+  --require-node-allowlist \
+  --verify-worker-image \
+  --smoke-test-id 42 \
+  --smoke-executor grpc \
+  --require-metrics \
+  --report docs/evidence/performance-grpc-smoke-2026-08-07.json
+```
+
+这条命令依次验证：
+
+1. ATP `/health`、执行器 ready 状态和鉴权；
+2. `worker-a` 节点在线、能力声明包含 `grpc`、队列/节点约束可用；
+3. DNS、TCP 和真实 TLS 证书校验；
+4. Kubernetes Deployment、Pod Ready 状态及镜像内 `grpcio`、`grpcio-tools`、Locust、k6；
+5. 已存在的 gRPC 测试通过指定节点真实入队、执行、落库并生成结果；
+6. 至少一条资源采样记录存在。
+
+### 3.3 Locust smoke
+
+用另一个已配置的 Locust 测试定义执行，避免把 gRPC 结果误当成 Locust 验收：
+
+```bash
+python scripts/performance-environment-smoke.py \
+  --api-base-url https://atp-staging.example.test \
+  --node-id worker-a \
+  --expected-queue performance.worker-a \
+  --target https://http.example.test \
+  --require-node-allowlist \
+  --smoke-test-id 43 \
+  --smoke-executor locust \
+  --report docs/evidence/performance-locust-smoke-2026-08-07.json
+```
+
+### 3.4 取消验收
+
+取消测试必须使用一个持续时间足够长的测试定义，否则运行可能在停止请求到达前自然完成：
+
+```bash
+python scripts/performance-environment-smoke.py \
+  --api-base-url https://atp-staging.example.test \
+  --node-id worker-a \
+  --expected-queue performance.worker-a \
+  --target grpcs://grpc.example.test:443 \
+  --require-tls \
+  --ca-file /etc/atp/ca.pem \
+  --require-node-allowlist \
+  --cancel-test-id 44 \
+  --cancel-after-seconds 3 \
+  --report docs/evidence/performance-cancel-2026-08-07.json
+```
+
+工具不会自动创建或删除压测定义，也不会在没有显式 `--smoke-test-id`/`--cancel-test-id` 时产生目标流量。
+
+## 4. 通过标准与证据
+
+每次验收必须保存 JSON 报告、命令执行时间、镜像 tag、Helm values 的脱敏版本和以下日志/状态证据：
+
+| 项目 | 必须证据 | 失败处理 |
+|---|---|---|
+| 镜像 | `grpcio`、`grpcio-tools`、Locust、k6 命令输出 | 重新构建 Worker 镜像 |
+| 节点 | API 返回 `status=online`、执行器能力和最近心跳 | 检查节点 ID、队列、Redis、数据库和 Worker 日志 |
+| 队列 | Celery Worker 收到 `run_performance_test`，并使用目标节点队列 | 检查 `nodeQueue` 与 `queues` 是否完全一致 |
+| TLS | DNS、TCP、证书链和 SNI 校验记录 | 检查 CA、证书 SAN、NetworkPolicy 和服务端监听地址 |
+| gRPC/Locust | run 进入 `running`，终态为 `success`，摘要 `iterations > 0`，错误率不超过命令阈值 | 保存 run 错误、Worker 日志和目标服务日志，禁止仅依据前端提示判断 |
+| 取消 | stop 请求后终态为 `cancelled` | 检查 Redis 取消标记、Worker 子任务终止和 run 状态流转 |
+| 资源采样 | run 关联至少一条 CPU/内存/数据库/Redis/MinIO 样本 | 检查采样开关、采样间隔和节点指标端点 |
+| 网络隔离 | 应用 allowlist 与 Kubernetes Egress 均允许目标且拒绝未授权目标 | 先修复 allowlist/NetworkPolicy，再重跑正向 smoke |
+
+任何一项缺少日志或外部状态证据都标记为 `BLOCKED`，不能仅凭 HTTP 200、前端状态或单个 pytest 结果判定环境验收完成。
+
+## 5. 回滚与故障排查
+
+```bash
+helm history atp -n atp-staging
+helm rollback atp <REVISION> -n atp-staging
+kubectl -n atp-staging logs deployment/atp-atp-performance-worker --since=15m
+kubectl -n atp-staging describe pod -l app.kubernetes.io/component=performance-worker
+```
+
+常见故障顺序：先确认 Worker Pod Ready，再确认节点心跳和 Celery 队列，随后确认 NetworkPolicy/DNS/TLS，最后查看目标服务的 gRPC status 或 Locust aggregate 结果。不要把目标服务拒绝、证书失败和 Worker 未消费任务混写成同一个“压测失败”。

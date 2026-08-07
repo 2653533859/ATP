@@ -27,7 +27,16 @@ spec:
         - name: performance-worker
           image: "{{ .Values.image.repository }}/worker:{{ .Values.image.worker.tag }}"
           imagePullPolicy: {{ .Values.image.worker.pullPolicy }}
-          command: ["sh", "-c", "celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q ${CELERY_QUEUES:-performance}"]
+          command:
+            - sh
+            - -c
+            - |
+              queues="${CELERY_QUEUES:-performance}"
+              case ",${queues}," in
+                *,performance,*) ;;
+                *) queues="${queues},performance" ;;
+              esac
+              exec celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q "${queues}"
           envFrom:
             - configMapRef:
                 name: {{ include "atp.fullname" . }}-config
@@ -40,10 +49,42 @@ spec:
               value: {{ .Values.performanceWorker.concurrency | quote }}
             - name: WORKER_METRICS_PORT
               value: {{ .Values.performanceWorker.metricsPort | quote }}
+            - name: PERFORMANCE_NODE_ENABLED
+              value: {{ .Values.performanceWorker.nodeEnabled | quote }}
+            - name: PERFORMANCE_NODE_ID
+              value: {{ .Values.performanceWorker.nodeId | quote }}
+            - name: PERFORMANCE_NODE_NAME
+              value: {{ .Values.performanceWorker.nodeName | quote }}
+            - name: PERFORMANCE_NODE_QUEUE
+              value: {{ .Values.performanceWorker.nodeQueue | quote }}
+            - name: PERFORMANCE_NODE_MAX_VUS
+              value: {{ .Values.performanceWorker.nodeMaxVus | quote }}
+            - name: PERFORMANCE_NODE_MAX_CONCURRENCY
+              value: {{ .Values.performanceWorker.nodeMaxConcurrency | quote }}
+            - name: PERFORMANCE_NODE_EGRESS_ALLOWLIST
+              value: {{ .Values.performanceWorker.nodeEgressAllowlist | quote }}
           ports:
             - name: metrics
               containerPort: {{ .Values.performanceWorker.metricsPort | default 9092 }}
               protocol: TCP
+          {{ if gt (int (.Values.performanceWorker.metricsPort | default 9092)) 0 }}
+          readinessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            httpGet:
+              path: /metrics
+              port: metrics
+            initialDelaySeconds: 30
+            periodSeconds: 20
+            timeoutSeconds: 3
+            failureThreshold: 3
+          {{ end }}
           resources:
             {{- toYaml .Values.performanceWorker.resources | nindent 12 }}
 {{- end }}

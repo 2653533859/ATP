@@ -24,6 +24,37 @@
       </a-space>
     </div>
 
+    <section class="node-strip">
+      <div class="node-strip-header">
+        <div>
+          <div class="section-label">{{ t('performance.nodes') }}</div>
+          <div class="field-hint">{{ t('performance.node_hint') }}</div>
+        </div>
+        <a-button size="small" :loading="nodesLoading" @click="loadNodes">
+          <template #icon><ReloadOutlined /></template>
+          {{ t('performance.node_refresh') }}
+        </a-button>
+      </div>
+      <a-empty v-if="nodes.length === 0" :image="false" :description="t('performance.no_nodes')" />
+      <div v-else class="node-grid">
+        <div v-for="node in nodes" :key="node.id" class="node-card" :class="`node-card-${node.status}`">
+          <div class="node-card-title">
+            <a-badge :status="nodeBadgeStatus(node.status)" />
+            <strong>{{ node.name }}</strong>
+            <a-tag>{{ nodeStatusLabel(node.status) }}</a-tag>
+          </div>
+          <div class="muted mono">{{ node.node_id }} · {{ node.queue_name }}</div>
+          <div class="node-card-meta">
+            <span>{{ t('performance.node_capacity') }}</span>
+            <strong>{{ nodeCapacityLabel(node) }}</strong>
+          </div>
+          <div class="muted node-heartbeat">
+            {{ node.last_heartbeat_at ? t('performance.node_last_heartbeat', { value: formatDateLabel(node.last_heartbeat_at) }) : t('performance.node_waiting_heartbeat') }}
+          </div>
+        </div>
+      </div>
+    </section>
+
     <a-table
       :columns="testColumns"
       :data-source="tests"
@@ -36,6 +67,12 @@
         <template v-if="column.key === 'name'">
           <div class="primary-text">{{ record.name }}</div>
           <div class="muted mono">{{ record.script_object_name }}</div>
+          <div class="definition-meta">
+            <a-tag v-if="record.baseline_run_id" color="purple">{{ t('performance.baseline_set') }}</a-tag>
+            <a-tag v-if="record.schedule_enabled" color="cyan">{{ t('performance.schedule_enabled') }}</a-tag>
+            <a-tag v-if="record.schedule_node_id" color="geekblue">{{ t('performance.node') }} #{{ record.schedule_node_id }}</a-tag>
+            <a-tag v-if="record.dataset_id" color="green">{{ t('performance.dataset') }} #{{ record.dataset_id }}</a-tag>
+          </div>
         </template>
         <template v-else-if="column.key === 'executor'">
           <a-tag color="blue">{{ record.executor }}</a-tag>
@@ -52,6 +89,22 @@
                 <template #icon><EditOutlined /></template>
               </a-button>
             </a-tooltip>
+            <a-tooltip :title="t('performance.schedule')">
+              <a-button size="small" @click="openSchedule(asPerfTest(record))">
+                <template #icon><ClockCircleOutlined /></template>
+              </a-button>
+            </a-tooltip>
+            <a-popconfirm
+              v-if="record.baseline_run_id"
+              :title="t('performance.msg.clear_baseline_confirm')"
+              @confirm="clearBaseline(asPerfTest(record))"
+            >
+              <a-tooltip :title="t('performance.clear_baseline')">
+                <a-button size="small" danger>
+                  <template #icon><DeleteOutlined /></template>
+                </a-button>
+              </a-tooltip>
+            </a-popconfirm>
           </a-space>
         </template>
       </template>
@@ -104,6 +157,19 @@
         <template v-if="column.key === 'status'">
           <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
         </template>
+        <template v-else-if="column.key === 'node'">
+          <a-tag v-if="record.performance_node_id" color="geekblue">
+            {{ nodeName(record.performance_node_id) || `#${record.performance_node_id}` }}
+          </a-tag>
+          <span v-else class="muted">{{ t('performance.no_node') }}</span>
+        </template>
+        <template v-else-if="column.key === 'progress'">
+          <div v-if="isActiveStatus(record.status)" class="run-progress">
+            <a-progress :percent="progressPercent(asPerfRun(record))" size="small" :status="progressStatus(asPerfRun(record))" />
+            <div class="muted">{{ progressLabel(asPerfRun(record)) }}</div>
+          </div>
+          <span v-else>{{ progressPercent(asPerfRun(record)) }}%</span>
+        </template>
         <template v-else-if="column.key === 'metrics'">
           <a-space wrap>
             <a-statistic :title="t('performance.rps')" :value="metricValue(record.summary.rps)" :precision="2" />
@@ -115,11 +181,29 @@
           {{ formatDuration(record.duration_ms) }}
         </template>
         <template v-else-if="column.key === 'actions'">
-          <a-tooltip :title="t('common.view_detail')">
-            <a-button size="small" @click="openRunDetail(asPerfRun(record))">
-              <template #icon><FileSearchOutlined /></template>
-            </a-button>
-          </a-tooltip>
+          <a-space>
+            <a-tooltip :title="t('common.view_detail')">
+              <a-button size="small" @click="openRunDetail(asPerfRun(record))">
+                <template #icon><FileSearchOutlined /></template>
+              </a-button>
+            </a-tooltip>
+            <a-popconfirm
+              v-if="isActiveStatus(record.status)"
+              :title="t('performance.msg.stop_confirm')"
+              @confirm="stopRun(asPerfRun(record))"
+            >
+              <a-tooltip :title="t('performance.stop')">
+                <a-button size="small" danger :loading="stoppingRunId === record.id">
+                  <template #icon><StopOutlined /></template>
+                </a-button>
+              </a-tooltip>
+            </a-popconfirm>
+            <a-tooltip v-if="record.status === 'success'" :title="t('performance.set_baseline')">
+              <a-button size="small" @click="setBaseline(asPerfRun(record))">
+                <template #icon><StarOutlined /></template>
+              </a-button>
+            </a-tooltip>
+          </a-space>
         </template>
       </template>
     </a-table>
@@ -139,13 +223,36 @@
         <a-form-item :label="t('performance.description')">
           <a-textarea v-model:value="testForm.description" :rows="2" />
         </a-form-item>
+        <a-form-item :label="t('performance.executor')" required>
+          <a-select
+            v-model:value="testForm.executor"
+            :options="executorOptions"
+            :placeholder="t('performance.executor_placeholder')"
+            @change="handleExecutorChange"
+          />
+          <div v-if="selectedExecutor" class="field-hint">{{ selectedExecutor.description }}</div>
+        </a-form-item>
+        <a-form-item :label="t('performance.dataset')">
+          <a-select
+            v-model:value="testForm.dataset_id"
+            :options="datasetOptions"
+            :disabled="selectedExecutor?.supports_dataset === false"
+            allow-clear
+            show-search
+            option-filter-prop="label"
+            :placeholder="t('performance.no_dataset')"
+          />
+          <div class="field-hint">
+            {{ selectedExecutor?.supports_dataset === false ? t('performance.dataset_executor_unsupported') : t('performance.dataset_hint') }}
+          </div>
+        </a-form-item>
         <a-form-item :label="t('performance.creation_mode')">
           <a-radio-group v-model:value="testForm.mode" button-style="solid">
-            <a-radio-button value="visual">{{ t('performance.visual_mode') }}</a-radio-button>
+            <a-radio-button value="visual" :disabled="testForm.executor !== 'k6'">{{ t('performance.visual_mode') }}</a-radio-button>
             <a-radio-button value="script">{{ t('performance.script_mode') }}</a-radio-button>
           </a-radio-group>
         </a-form-item>
-        <template v-if="testForm.mode === 'visual'">
+        <template v-if="testForm.mode === 'visual' && testForm.executor === 'k6'">
           <a-alert
             type="info"
             show-icon
@@ -217,6 +324,65 @@
           <a-form-item :label="t('performance.body_contains')">
             <a-input v-model:value="testForm.scenario.bodyContains" :placeholder="t('performance.body_contains_placeholder')" />
           </a-form-item>
+          <div class="steps-editor behavior-editor">
+            <div class="steps-toolbar">
+              <div>
+                <div class="section-label">{{ t('performance.behavior_steps') }}</div>
+                <div class="field-hint">{{ t('performance.behavior_steps_hint') }}</div>
+              </div>
+              <a-switch
+                :checked="(testForm.scenario.steps?.length || 0) > 0"
+                :checked-children="t('common.enabled')"
+                :un-checked-children="t('common.disabled')"
+                @change="toggleMultiStep"
+              />
+            </div>
+            <template v-if="(testForm.scenario.steps?.length || 0) > 0">
+              <div v-for="(step, index) in testForm.scenario.steps || []" :key="index" class="behavior-step">
+                <div class="behavior-step-header">
+                  <strong>{{ t('performance.behavior_step', { value: index + 1 }) }}</strong>
+                  <a-button type="text" danger @click="removeScenarioStep(index)">{{ t('common.delete') }}</a-button>
+                </div>
+                <a-row :gutter="12">
+                  <a-col :span="8">
+                    <a-input v-model:value="step.name" :placeholder="t('performance.behavior_step_name')" />
+                  </a-col>
+                  <a-col :span="5">
+                    <a-select v-model:value="step.method" :options="methodOptions" />
+                  </a-col>
+                  <a-col :span="7">
+                    <a-input v-model:value="step.url" :placeholder="t('performance.request_url')" />
+                  </a-col>
+                  <a-col :span="4">
+                    <a-input v-model:value="step.thinkTime" :placeholder="t('performance.behavior_think_time')" class="mono" />
+                  </a-col>
+                </a-row>
+                <a-row :gutter="12" class="behavior-step-row">
+                  <a-col :span="12">
+                    <div class="section-label">{{ t('performance.request_headers') }}</div>
+                    <KvEditor v-model:value="step.headers" />
+                  </a-col>
+                  <a-col :span="12">
+                    <div class="section-label">{{ t('performance.request_params') }}</div>
+                    <KvEditor v-model:value="step.params" />
+                  </a-col>
+                </a-row>
+                <a-row :gutter="12" class="behavior-step-row">
+                  <a-col :span="8">
+                    <a-select v-model:value="step.bodyType" :options="bodyTypeOptions" />
+                  </a-col>
+                  <a-col :span="8">
+                    <a-input-number v-model:value="step.expectedStatus" :min="100" :max="599" style="width: 100%" />
+                  </a-col>
+                  <a-col :span="8">
+                    <a-input v-model:value="step.bodyContains" :placeholder="t('performance.body_contains_placeholder')" />
+                  </a-col>
+                </a-row>
+                <a-textarea v-if="step.bodyType !== 'none'" v-model:value="step.body" :rows="3" class="mono behavior-step-row" />
+              </div>
+              <a-button type="dashed" block @click="addScenarioStep">{{ t('performance.add_behavior_step') }}</a-button>
+            </template>
+          </div>
           <a-row :gutter="12">
             <a-col :span="12">
               <a-form-item :label="t('performance.p95_threshold')">
@@ -240,11 +406,19 @@
           </div>
         </template>
         <template v-else>
+          <a-alert
+            v-if="testForm.executor === 'grpc'"
+            type="info"
+            show-icon
+            :message="t('performance.grpc_options_title')"
+            :description="t('performance.grpc_options_hint')"
+            class="form-alert"
+          />
           <a-form-item :label="t('performance.script_object_name')" required>
             <a-space-compact class="script-input">
               <a-input v-model:value="testForm.script_object_name" class="mono" :placeholder="t('performance.script_placeholder')" />
               <a-upload
-                accept=".js,.mjs"
+                :accept="scriptAccept"
                 :before-upload="uploadScript"
                 :show-upload-list="false"
               >
@@ -280,18 +454,107 @@
           />
           <div class="field-hint">{{ t('performance.environment_hint') }}</div>
         </a-form-item>
+        <a-form-item :label="t('performance.node')">
+          <a-select
+            v-model:value="runForm.performance_node_id"
+            :options="nodeOptions"
+            allow-clear
+            show-search
+            option-filter-prop="label"
+            :placeholder="t('performance.no_node')"
+          />
+          <div class="field-hint">{{ t('performance.node_selector_hint') }}</div>
+        </a-form-item>
+        <a-alert
+          v-if="runTarget?.dataset_id"
+          type="info"
+          show-icon
+          :message="t('performance.dataset_bound', { value: datasetName(runTarget.dataset_id) || `#${runTarget.dataset_id}` })"
+          class="form-alert"
+        />
         <a-form-item :label="t('performance.run_options')">
           <a-textarea v-model:value="runForm.optionsText" class="mono" :rows="8" />
         </a-form-item>
       </a-form>
     </a-modal>
 
+    <a-modal
+      v-model:open="scheduleOpen"
+      :title="t('performance.schedule_title')"
+      :ok-text="t('common.save')"
+      :cancel-text="t('common.cancel')"
+      :confirm-loading="scheduleSaving"
+      @ok="saveSchedule"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('performance.schedule_enabled_label')">
+          <a-switch v-model:checked="scheduleForm.enabled" />
+        </a-form-item>
+        <a-form-item :label="t('performance.cron_expression')" :required="scheduleForm.enabled">
+          <a-input v-model:value="scheduleForm.cron_expression" placeholder="0 30 9 * * 1-5" class="mono" />
+          <div class="field-hint">{{ t('performance.cron_hint') }}</div>
+        </a-form-item>
+        <a-row :gutter="12">
+          <a-col :span="12">
+            <a-form-item :label="t('performance.schedule_timezone')">
+              <a-input v-model:value="scheduleForm.timezone" placeholder="Asia/Shanghai" class="mono" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item :label="t('performance.environment')">
+              <a-select
+                v-model:value="scheduleForm.environment_id"
+                :options="environmentOptions"
+                allow-clear
+                :placeholder="t('performance.no_environment')"
+              />
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-form-item :label="t('performance.node')">
+          <a-select
+            v-model:value="scheduleForm.performance_node_id"
+            :options="nodeOptions"
+            allow-clear
+            show-search
+            option-filter-prop="label"
+            :placeholder="t('performance.no_node')"
+          />
+          <div class="field-hint">{{ t('performance.node_selector_hint') }}</div>
+        </a-form-item>
+        <a-form-item :label="t('performance.schedule_options')">
+          <a-textarea v-model:value="scheduleForm.optionsText" class="mono" :rows="6" />
+        </a-form-item>
+        <a-alert v-if="scheduleTarget?.next_run_at" type="info" show-icon :message="t('performance.next_run_at', { value: formatDateLabel(scheduleTarget.next_run_at) })" />
+      </a-form>
+    </a-modal>
+
     <a-drawer v-model:open="detailOpen" :title="t('performance.run_detail')" :width="720">
       <template v-if="selectedRun">
+        <div class="detail-toolbar">
+          <div class="threshold-gate" :class="`threshold-gate-${thresholdGate.status}`">
+            <div class="threshold-gate-label">{{ t('performance.threshold_gate') }}</div>
+            <strong>{{ thresholdGateLabel }}</strong>
+            <span>{{ thresholdGateSummary }}</span>
+          </div>
+          <a-space>
+            <a-button size="small" :loading="exportingFormat === 'json'" @click="exportRunJson(selectedRun)">
+              <template #icon><DownloadOutlined /></template>
+              {{ t('performance.export_json') }}
+            </a-button>
+            <a-button size="small" :loading="exportingFormat === 'csv'" @click="exportRunCsv(selectedRun)">
+              <template #icon><DownloadOutlined /></template>
+              {{ t('performance.export_csv') }}
+            </a-button>
+          </a-space>
+        </div>
         <a-descriptions :column="2" bordered size="small">
           <a-descriptions-item label="ID">{{ selectedRun.id }}</a-descriptions-item>
           <a-descriptions-item :label="t('common.status')">
             <a-tag :color="statusColor(selectedRun.status)">{{ statusLabel(selectedRun.status) }}</a-tag>
+          </a-descriptions-item>
+          <a-descriptions-item :label="t('performance.node')">
+            {{ selectedRun.performance_node_id ? (nodeName(selectedRun.performance_node_id) || `#${selectedRun.performance_node_id}`) : t('performance.no_node') }}
           </a-descriptions-item>
           <a-descriptions-item :label="t('performance.rps')">{{ displayMetric(selectedRun.summary.rps) }}</a-descriptions-item>
           <a-descriptions-item :label="t('performance.p95')">{{ displayMetric(selectedRun.summary.p95_ms, 'ms') }}</a-descriptions-item>
@@ -300,6 +563,9 @@
             {{ displayPercent(selectedRun.summary.error_rate) }}
           </a-descriptions-item>
           <a-descriptions-item :label="t('performance.duration')">{{ formatDuration(selectedRun.duration_ms) }}</a-descriptions-item>
+          <a-descriptions-item :label="t('performance.progress')">
+            <a-progress :percent="progressPercent(selectedRun)" size="small" :status="progressStatus(selectedRun)" />
+          </a-descriptions-item>
           <a-descriptions-item :label="t('performance.raw_result')">
             <a-space v-if="selectedRun.raw_result_object_name">
               <span class="mono">{{ selectedRun.raw_result_object_name }}</span>
@@ -334,6 +600,42 @@
             </template>
           </a-table>
         </div>
+        <div v-if="baselineComparison" class="detail-block">
+          <div class="section-label">{{ t('performance.baseline_comparison') }}</div>
+          <a-table
+            :columns="baselineColumns"
+            :data-source="baselineComparison.metrics"
+            :pagination="false"
+            size="small"
+            row-key="metric"
+          >
+            <template #bodyCell="{ column, record }">
+              <template v-if="column.key === 'baseline' || column.key === 'current'">
+                {{ formatBaselineMetric(record.metric, record[column.key]) }}
+              </template>
+              <template v-else-if="column.key === 'direction'">
+                <a-tag :color="baselineDirectionColor(record.direction)">{{ t(`performance.baseline_direction_${record.direction}`) }}</a-tag>
+              </template>
+              <template v-else-if="column.key === 'delta'">
+                {{ formatBaselineDelta(record.delta_percent) }}
+              </template>
+            </template>
+          </a-table>
+        </div>
+        <div class="detail-block">
+          <div class="resource-toolbar">
+            <div class="section-label">{{ t('performance.resource_timeline') }}</div>
+            <a-select
+              v-model:value="resourceMetric"
+              size="small"
+              :options="resourceMetricOptions"
+              :placeholder="t('performance.select_resource_metric')"
+              style="min-width: 220px"
+            />
+          </div>
+          <a-empty v-if="metricSamples.length === 0" :description="t('performance.no_resource_metrics')" />
+          <v-chart v-else class="resource-chart" :option="resourceTimelineOption" :theme="chartTheme" autoresize />
+        </div>
         <div class="detail-block">
           <div class="section-label">{{ t('performance.summary_json') }}</div>
           <pre class="json-preview">{{ JSON.stringify(selectedRun.summary, null, 2) }}</pre>
@@ -348,28 +650,36 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
-import { DownloadOutlined, EditOutlined, FileSearchOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, UploadOutlined } from '@ant-design/icons-vue'
+import { ClockCircleOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileSearchOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, StarOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons-vue'
 import VChart from 'vue-echarts'
 import type { EChartsOption } from 'echarts'
 import {
+  datasetApi,
   environmentApi,
   performanceApi,
   projectApi,
+  type DatasetListItem,
   type EnvironmentItem,
+  type PerformanceBaselineComparisonItem,
+  type PerformanceMetricSampleItem,
+  type PerformanceNodeItem,
+  type PerformanceExecutorItem,
   type PerformanceRunItem,
   type PerformanceTestItem,
   type ProjectItem,
 } from '@/api'
 import KvEditor from '@/components/common/KvEditor.vue'
 import { useChartTheme } from '@/utils/chartTheme'
+import { getPerformanceThresholdGate, getPerformanceThresholdRows } from '@/utils/performanceReport'
 import {
   applyPerformanceLoadTemplate,
   buildPerformanceOptions,
   createDefaultPerformanceScenario,
   generatePerformanceK6Script,
+  createDefaultPerformanceStep,
   type PerformanceLoadTemplate,
   type PerformanceScenario,
 } from '@/utils/performanceScriptGenerator'
@@ -383,21 +693,42 @@ const { chartTheme } = useChartTheme()
 const projectId = ref<number | null>(null)
 const projectOptions = ref<{ label: string; value: number }[]>([])
 const environmentOptions = ref<{ label: string; value: number }[]>([])
+const datasetOptions = ref<{ label: string; value: number }[]>([])
+const datasets = ref<DatasetListItem[]>([])
+const nodes = ref<PerformanceNodeItem[]>([])
+const executors = ref<PerformanceExecutorItem[]>([])
 const tests = ref<PerformanceTestItem[]>([])
 const runs = ref<PerformanceRunItem[]>([])
 const loading = ref(false)
 const runsLoading = ref(false)
+const nodesLoading = ref(false)
 const editorOpen = ref(false)
 const runOpen = ref(false)
 const detailOpen = ref(false)
+const scheduleOpen = ref(false)
 const triggering = ref(false)
+const scheduleSaving = ref(false)
+const stoppingRunId = ref<number | null>(null)
+const exportingFormat = ref<'json' | 'csv' | null>(null)
 const scriptUploading = ref(false)
 const editing = ref<PerformanceTestItem | null>(null)
 const runTarget = ref<PerformanceTestItem | null>(null)
 const selectedRun = ref<PerformanceRunItem | null>(null)
+const baselineComparison = ref<PerformanceBaselineComparisonItem | null>(null)
+const metricSamples = ref<PerformanceMetricSampleItem[]>([])
+const resourceMetric = ref('cpu_percent')
+const scheduleTarget = ref<PerformanceTestItem | null>(null)
 const selectedRunIds = ref<number[]>([])
+let runPollingTimer: ReturnType<typeof window.setInterval> | null = null
 
 type PerformanceCreationMode = 'visual' | 'script'
+
+const executorOptions = computed(() => executors.value.map((executor) => ({
+  label: executor.label,
+  value: executor.name,
+  disabled: !executor.ready,
+  title: executor.description,
+})))
 
 const loadTemplateOptions = computed(() => [
   { label: t('performance.template_smoke'), value: 'smoke' },
@@ -421,41 +752,66 @@ const authTypeOptions = computed(() => [
 
 const testForm = ref<{
   mode: PerformanceCreationMode
+  executor: 'k6' | 'locust' | 'grpc'
   name: string
   description: string
   script_object_name: string
+  dataset_id?: number
   defaultOptionsText: string
   scenario: PerformanceScenario
 }>({
   mode: 'visual',
+  executor: 'k6',
   name: '',
   description: '',
   script_object_name: '',
+  dataset_id: undefined,
   defaultOptionsText: '{\n  "env": {\n    "TARGET_URL": "https://example.test"\n  }\n}',
   scenario: createDefaultPerformanceScenario(),
 })
 
-const runForm = ref<{ environment_id?: number; optionsText: string }>({
+const selectedExecutor = computed(() => executors.value.find((item) => item.name === testForm.value.executor))
+const scriptAccept = computed(() => (selectedExecutor.value?.script_extensions || ['.js', '.mjs']).join(','))
+
+const runForm = ref<{ environment_id?: number; performance_node_id?: number; optionsText: string }>({
   environment_id: undefined,
+  performance_node_id: undefined,
   optionsText: '{}',
 })
+
+const scheduleForm = ref({
+  enabled: false,
+  cron_expression: '',
+  timezone: 'Asia/Shanghai',
+  environment_id: undefined as number | undefined,
+  performance_node_id: undefined as number | undefined,
+  optionsText: '{}',
+})
+
+const nodeOptions = computed(() => nodes.value.map((node) => ({
+  label: `${node.name} (${node.node_id}) · ${nodeStatusLabel(node.status)}`,
+  value: node.id,
+  disabled: node.status !== 'online' || !node.enabled,
+})))
 
 const testColumns = computed(() => [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
   { title: t('performance.name'), key: 'name' },
   { title: t('performance.executor'), key: 'executor', width: 100 },
   { title: t('common.updated_at'), dataIndex: 'updated_at', key: 'updated_at', width: 180 },
-  { title: t('common.actions'), key: 'actions', width: 120 },
+  { title: t('common.actions'), key: 'actions', width: 170 },
 ])
 
 const runColumns = computed(() => [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
   { title: t('performance.test_id'), dataIndex: 'performance_test_id', key: 'performance_test_id', width: 110 },
   { title: t('common.status'), key: 'status', width: 110 },
+  { title: t('performance.node'), key: 'node', width: 150 },
+  { title: t('performance.progress'), key: 'progress', width: 180 },
   { title: t('performance.metrics'), key: 'metrics', width: 360 },
   { title: t('performance.duration'), key: 'duration', width: 120 },
   { title: t('common.created_at'), dataIndex: 'created_at', key: 'created_at', width: 180 },
-  { title: t('common.actions'), key: 'actions', width: 90 },
+  { title: t('common.actions'), key: 'actions', width: 150 },
 ])
 
 const compareColumns = computed(() => [
@@ -482,27 +838,54 @@ const thresholdColumns = computed(() => [
   { title: t('performance.threshold_status'), key: 'ok', width: 120 },
 ])
 
-const thresholdRows = computed(() => {
-  const thresholds = selectedRun.value?.summary?.thresholds
-  if (!thresholds || typeof thresholds !== 'object' || Array.isArray(thresholds)) {
-    return []
+const thresholdRows = computed(() => getPerformanceThresholdRows(selectedRun.value?.summary))
+const thresholdGate = computed(() => getPerformanceThresholdGate(selectedRun.value?.summary))
+const thresholdGateLabel = computed(() => t(`performance.threshold_gate_${thresholdGate.value.status}`))
+const thresholdGateSummary = computed(() => t('performance.threshold_gate_summary', {
+  passed: thresholdGate.value.passed,
+  total: thresholdGate.value.total,
+}))
+
+const baselineColumns = computed(() => [
+  { title: t('performance.baseline_metric'), dataIndex: 'metric', key: 'metric' },
+  { title: t('performance.baseline_value'), dataIndex: 'baseline', key: 'baseline' },
+  { title: t('performance.current_value'), dataIndex: 'current', key: 'current' },
+  { title: t('performance.baseline_delta'), key: 'delta' },
+  { title: t('performance.baseline_direction'), key: 'direction' },
+])
+
+const resourceMetricKeys = [
+  'cpu_percent',
+  'memory_percent',
+  'postgres_connections',
+  'postgres_cache_hit_percent',
+  'redis_connected_clients',
+  'redis_ops_per_second',
+  'minio_probe_ms',
+  'minio_object_count',
+  'minio_total_bytes',
+]
+
+const resourceMetricOptions = computed(() => resourceMetricKeys.map((key) => ({
+  label: t(`performance.resource_metric_${key}`),
+  value: key,
+})))
+
+const resourceTimelineOption = computed<EChartsOption>(() => {
+  const labels = metricSamples.value.map((sample) => formatDateLabel(sample.captured_at))
+  return {
+    tooltip: { trigger: 'axis' },
+    grid: { top: 24, right: 18, bottom: 42, left: 58 },
+    xAxis: { type: 'category', data: labels },
+    yAxis: { type: 'value', name: t(`performance.resource_metric_${resourceMetric.value}`) },
+    series: [{
+      name: t(`performance.resource_metric_${resourceMetric.value}`),
+      type: 'line',
+      smooth: true,
+      connectNulls: false,
+      data: metricSamples.value.map((sample) => sample.metrics[resourceMetric.value] ?? null),
+    }],
   }
-  const rows: Array<{ key: string; metric: string; rule: string; ok: boolean }> = []
-  Object.entries(thresholds as Record<string, unknown>).forEach(([metric, rules]) => {
-    if (!rules || typeof rules !== 'object' || Array.isArray(rules)) return
-    Object.entries(rules as Record<string, unknown>).forEach(([rule, result]) => {
-      const ok = typeof result === 'boolean'
-        ? !result
-        : !!(
-          result
-          && typeof result === 'object'
-          && !Array.isArray(result)
-          && (result as { ok?: unknown }).ok === true
-        )
-      rows.push({ key: `${metric}:${rule}`, metric, rule, ok })
-    })
-  })
-  return rows
 })
 
 const trendRuns = computed(() => [...runs.value].reverse().filter((run) => run.status === 'success'))
@@ -572,7 +955,15 @@ async function handleProjectChange() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadTests(), loadRuns(), loadEnvironments()])
+  await Promise.all([loadTests(), loadRuns(), loadEnvironments(), loadDatasets(), loadNodes(), loadExecutors()])
+}
+
+async function loadExecutors() {
+  try {
+    executors.value = await performanceApi.listExecutors()
+  } catch {
+    executors.value = []
+  }
 }
 
 async function loadTests() {
@@ -590,19 +981,24 @@ async function loadTests() {
   }
 }
 
-async function loadRuns() {
+async function loadRuns(options: { silent?: boolean } = {}) {
   if (!projectId.value) {
     runs.value = []
+    stopRunPolling()
     return
   }
-  runsLoading.value = true
+  if (!options.silent) runsLoading.value = true
   try {
     runs.value = await performanceApi.listRuns(projectId.value)
     selectedRunIds.value = selectedRunIds.value.filter((id) => runs.value.some((run) => run.id === id))
+    if (selectedRun.value) {
+      selectedRun.value = runs.value.find((run) => run.id === selectedRun.value?.id) || selectedRun.value
+    }
   } catch {
-    message.error(t('performance.msg.load_runs_failed'))
+    if (!options.silent) message.error(t('performance.msg.load_runs_failed'))
   } finally {
-    runsLoading.value = false
+    if (!options.silent) runsLoading.value = false
+    syncRunPolling()
   }
 }
 
@@ -619,13 +1015,45 @@ async function loadEnvironments() {
   }
 }
 
+async function loadDatasets() {
+  if (!projectId.value) {
+    datasets.value = []
+    datasetOptions.value = []
+    return
+  }
+  try {
+    datasets.value = await datasetApi.list(projectId.value)
+    datasetOptions.value = datasets.value.map((dataset: DatasetListItem) => ({
+      label: `${dataset.name} (${dataset.row_count})`,
+      value: dataset.id,
+    }))
+  } catch {
+    datasets.value = []
+    datasetOptions.value = []
+  }
+}
+
+async function loadNodes() {
+  nodesLoading.value = true
+  try {
+    nodes.value = await performanceApi.listNodes()
+  } catch {
+    nodes.value = []
+    message.error(t('performance.msg.load_nodes_failed'))
+  } finally {
+    nodesLoading.value = false
+  }
+}
+
 function openCreate() {
   editing.value = null
   testForm.value = {
     mode: 'visual',
+    executor: 'k6',
     name: '',
     description: '',
     script_object_name: '',
+    dataset_id: undefined,
     defaultOptionsText: '{\n  "env": {\n    "TARGET_URL": "https://example.test"\n  }\n}',
     scenario: createDefaultPerformanceScenario(),
   }
@@ -636,15 +1064,80 @@ function openEdit(record: PerformanceTestItem) {
   editing.value = record
   const scenarioValue = record.default_options?.atp_scenario
   const visual = isPerformanceScenario(scenarioValue)
+  const executor = record.executor === 'locust' ? 'locust' : record.executor === 'grpc' ? 'grpc' : 'k6'
   testForm.value = {
-    mode: visual ? 'visual' : 'script',
+    mode: visual && executor === 'k6' ? 'visual' : 'script',
+    executor,
     name: record.name,
     description: record.description || '',
     script_object_name: record.script_object_name,
+    dataset_id: executor === 'grpc' ? undefined : record.dataset_id ?? undefined,
     defaultOptionsText: JSON.stringify(record.default_options || {}, null, 2),
     scenario: visual ? cloneScenario(scenarioValue) : createDefaultPerformanceScenario(),
   }
   editorOpen.value = true
+}
+
+function handleExecutorChange(value: unknown) {
+  if (value !== 'k6' && value !== 'locust' && value !== 'grpc') return
+  const previousExecutor = testForm.value.executor
+  testForm.value.executor = value
+  if (value !== 'k6') testForm.value.mode = 'script'
+  if (value === 'grpc') testForm.value.dataset_id = undefined
+  if (value === 'grpc' && previousExecutor !== 'grpc') {
+    testForm.value.defaultOptionsText = JSON.stringify({
+      target: 'localhost:50051',
+      service: 'package.Service',
+      method: 'Method',
+      mode: 'unary',
+      request: {},
+      concurrency: 1,
+      duration_seconds: 30,
+      timeout_seconds: 10,
+      metadata: {},
+    }, null, 2)
+  }
+}
+
+function openSchedule(record: PerformanceTestItem) {
+  scheduleTarget.value = record
+  scheduleForm.value = {
+    enabled: record.schedule_enabled,
+    cron_expression: record.cron_expression || '',
+    timezone: record.schedule_timezone || 'Asia/Shanghai',
+    environment_id: record.schedule_environment_id ?? undefined,
+    performance_node_id: record.schedule_node_id ?? undefined,
+    optionsText: JSON.stringify(record.schedule_options || {}, null, 2),
+  }
+  scheduleOpen.value = true
+}
+
+async function saveSchedule() {
+  if (!scheduleTarget.value) return
+  const options = parseJsonObject(scheduleForm.value.optionsText, t('performance.msg.options_invalid'))
+  if (!options) return
+  if (scheduleForm.value.enabled && !scheduleForm.value.cron_expression.trim()) {
+    message.warning(t('performance.msg.cron_required'))
+    return
+  }
+  scheduleSaving.value = true
+  try {
+    await performanceApi.updateSchedule(scheduleTarget.value.id, {
+      enabled: scheduleForm.value.enabled,
+      cron_expression: scheduleForm.value.cron_expression.trim() || null,
+      timezone: scheduleForm.value.timezone.trim() || 'Asia/Shanghai',
+      environment_id: scheduleForm.value.environment_id ?? null,
+      performance_node_id: scheduleForm.value.performance_node_id ?? null,
+      options,
+    })
+    message.success(t('performance.msg.schedule_saved'))
+    scheduleOpen.value = false
+    await loadTests()
+  } catch {
+    message.error(t('performance.msg.schedule_failed'))
+  } finally {
+    scheduleSaving.value = false
+  }
 }
 
 function isPerformanceScenario(value: unknown): value is PerformanceScenario {
@@ -664,7 +1157,31 @@ function cloneScenario(scenario: PerformanceScenario): PerformanceScenario {
     headers: { ...scenario.headers },
     params: { ...scenario.params },
     stages: (scenario.stages || []).map((stage) => ({ ...stage })),
+    steps: (scenario.steps || []).map((step) => ({
+      ...step,
+      headers: { ...step.headers },
+      params: { ...step.params },
+    })),
   }
+}
+
+function toggleMultiStep(enabled: boolean | string | number) {
+  const shouldEnable = Boolean(enabled)
+  if (shouldEnable && !testForm.value.scenario.steps?.length) {
+    testForm.value.scenario.steps = [createDefaultPerformanceStep(testForm.value.scenario)]
+  } else if (!shouldEnable) {
+    testForm.value.scenario.steps = []
+  }
+}
+
+function addScenarioStep() {
+  const scenario = testForm.value.scenario
+  if (!scenario.steps) scenario.steps = []
+  scenario.steps.push(createDefaultPerformanceStep({ url: scenario.url }))
+}
+
+function removeScenarioStep(index: number) {
+  testForm.value.scenario.steps?.splice(index, 1)
 }
 
 function applyLoadTemplate(value: unknown) {
@@ -715,7 +1232,7 @@ async function saveTest() {
     try {
       const script = generatePerformanceK6Script(testForm.value.scenario)
       const file = new File([script], filename, { type: 'application/javascript' })
-      const result = await performanceApi.uploadScript(projectId.value, file)
+      const result = await performanceApi.uploadScript(projectId.value, file, 'k6')
       scriptObjectName = result.script_object_name
     } catch {
       message.error(t('performance.msg.upload_failed'))
@@ -738,7 +1255,9 @@ async function saveTest() {
       await performanceApi.updateTest(editing.value.id, {
         name,
         description: testForm.value.description || null,
+        executor: testForm.value.executor,
         script_object_name: scriptObjectName,
+        dataset_id: testForm.value.dataset_id ?? null,
         default_options: defaultOptions,
       })
       message.success(t('performance.msg.update_success'))
@@ -747,8 +1266,9 @@ async function saveTest() {
         project_id: projectId.value,
         name,
         description: testForm.value.description || null,
-        executor: 'k6',
+        executor: testForm.value.executor,
         script_object_name: scriptObjectName,
+        dataset_id: testForm.value.dataset_id ?? null,
         default_options: defaultOptions,
       })
       message.success(t('performance.msg.create_success'))
@@ -768,8 +1288,9 @@ function slugify(value: string) {
     .slice(0, 48) || 'scenario'
 }
 
-function isK6Script(file: File) {
-  return /\.(mjs|js)$/i.test(file.name)
+function isSupportedScript(file: File) {
+  const extensions = selectedExecutor.value?.script_extensions || ['.js', '.mjs']
+  return extensions.some((extension) => file.name.toLowerCase().endsWith(extension))
 }
 
 async function uploadScript(file: File) {
@@ -777,13 +1298,13 @@ async function uploadScript(file: File) {
     message.warning(t('performance.msg.select_project_first'))
     return false
   }
-  if (!isK6Script(file)) {
+  if (!isSupportedScript(file)) {
     message.warning(t('performance.msg.script_type_invalid'))
     return false
   }
   scriptUploading.value = true
   try {
-    const result = await performanceApi.uploadScript(projectId.value, file)
+    const result = await performanceApi.uploadScript(projectId.value, file, testForm.value.executor)
     testForm.value.script_object_name = result.script_object_name
     message.success(t('performance.msg.upload_success'))
   } catch {
@@ -796,7 +1317,7 @@ async function uploadScript(file: File) {
 
 function openRun(record: PerformanceTestItem) {
   runTarget.value = record
-  runForm.value = { environment_id: undefined, optionsText: '{}' }
+  runForm.value = { environment_id: undefined, performance_node_id: undefined, optionsText: '{}' }
   runOpen.value = true
 }
 
@@ -808,6 +1329,7 @@ async function triggerRun() {
   try {
     const run = await performanceApi.triggerRun(runTarget.value.id, {
       environment_id: runForm.value.environment_id ?? null,
+      performance_node_id: runForm.value.performance_node_id ?? null,
       options,
     })
     runOpen.value = false
@@ -820,8 +1342,71 @@ async function triggerRun() {
   }
 }
 
-function openRunDetail(record: PerformanceRunItem) {
+async function stopRun(record: PerformanceRunItem) {
+  if (!isActiveStatus(record.status)) return
+  stoppingRunId.value = record.id
+  try {
+    await performanceApi.stopRun(record.id)
+    message.success(t('performance.msg.stop_success'))
+    await loadRuns({ silent: true })
+  } catch {
+    message.error(t('performance.msg.stop_failed'))
+  } finally {
+    stoppingRunId.value = null
+  }
+}
+
+async function setBaseline(record: PerformanceRunItem) {
+  const test = tests.value.find((item) => item.id === record.performance_test_id)
+  if (!test) return
+  try {
+    await performanceApi.setBaseline(test.id, record.id)
+    message.success(t('performance.msg.baseline_saved'))
+    await loadTests()
+    if (selectedRun.value?.id === record.id) await loadBaselineComparison(record)
+  } catch {
+    message.error(t('performance.msg.baseline_failed'))
+  }
+}
+
+async function clearBaseline(record: PerformanceTestItem) {
+  try {
+    await performanceApi.clearBaseline(record.id)
+    message.success(t('performance.msg.baseline_cleared'))
+    await loadTests()
+    baselineComparison.value = null
+  } catch {
+    message.error(t('performance.msg.baseline_failed'))
+  }
+}
+
+async function loadBaselineComparison(record: PerformanceRunItem) {
+  baselineComparison.value = null
+  const test = tests.value.find((item) => item.id === record.performance_test_id)
+  if (!test?.baseline_run_id || test.baseline_run_id === record.id) return
+  try {
+    baselineComparison.value = await performanceApi.getBaselineComparison(record.id)
+  } catch {
+    baselineComparison.value = null
+  }
+}
+
+async function loadResourceMetrics(record: PerformanceRunItem) {
+  metricSamples.value = []
+  try {
+    metricSamples.value = await performanceApi.getMetrics(record.id)
+    const available = resourceMetricKeys.find((key) => metricSamples.value.some((sample) => key in sample.metrics))
+    if (available && !metricSamples.value.some((sample) => resourceMetric.value in sample.metrics)) {
+      resourceMetric.value = available
+    }
+  } catch {
+    message.error(t('performance.msg.load_resource_metrics_failed'))
+  }
+}
+
+async function openRunDetail(record: PerformanceRunItem) {
   selectedRun.value = record
+  await Promise.all([loadBaselineComparison(record), loadResourceMetrics(record)])
   detailOpen.value = true
 }
 
@@ -834,10 +1419,39 @@ async function openRawResult(record: PerformanceRunItem) {
   }
 }
 
+async function exportRunJson(record: PerformanceRunItem) {
+  await exportRun(record, 'json')
+}
+
+async function exportRunCsv(record: PerformanceRunItem) {
+  await exportRun(record, 'csv')
+}
+
+async function exportRun(record: PerformanceRunItem, format: 'json' | 'csv') {
+  exportingFormat.value = format
+  try {
+    const blob = format === 'json'
+      ? await performanceApi.exportRunJson(record.id)
+      : await performanceApi.exportRunCsv(record.id)
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `performance-run-${record.id}-report.${format}`
+    link.click()
+    URL.revokeObjectURL(url)
+    message.success(t('performance.msg.export_success'))
+  } catch {
+    message.error(t('performance.msg.export_failed'))
+  } finally {
+    exportingFormat.value = null
+  }
+}
+
 function statusColor(status: string) {
   const colors: Record<string, string> = {
     pending: 'default',
     running: 'processing',
+    cancelling: 'warning',
     success: 'success',
     failed: 'error',
     cancelled: 'warning',
@@ -845,8 +1459,66 @@ function statusColor(status: string) {
   return colors[status] || 'default'
 }
 
+function isActiveStatus(status: string) {
+  return status === 'pending' || status === 'running' || status === 'cancelling'
+}
+
+function progressPercent(record: PerformanceRunItem) {
+  return Math.max(0, Math.min(100, Math.round(record.progress_percent ?? 0)))
+}
+
+function progressStatus(record: PerformanceRunItem) {
+  return record.status === 'cancelling' ? 'exception' : 'active'
+}
+
+function progressLabel(record: PerformanceRunItem) {
+  if (record.status === 'cancelling') return t('performance.status.cancelling')
+  return `${progressPercent(record)}%`
+}
+
+function syncRunPolling() {
+  const shouldPoll = !!projectId.value && runs.value.some((run) => isActiveStatus(run.status))
+  if (shouldPoll && runPollingTimer === null) {
+    runPollingTimer = window.setInterval(() => loadRuns({ silent: true }), 2000)
+  } else if (!shouldPoll) {
+    stopRunPolling()
+  }
+}
+
+function stopRunPolling() {
+  if (runPollingTimer !== null) {
+    window.clearInterval(runPollingTimer)
+    runPollingTimer = null
+  }
+}
+
 function statusLabel(status: string) {
   return t(`performance.status.${status}`, status)
+}
+
+function nodeStatusLabel(status: string) {
+  return t(`performance.node_status.${status}`, status)
+}
+
+function nodeBadgeStatus(status: string): 'success' | 'default' | 'error' | 'warning' {
+  if (status === 'online') return 'success'
+  if (status === 'draining') return 'warning'
+  if (status === 'disabled') return 'default'
+  return 'error'
+}
+
+function nodeName(id: number) {
+  return nodes.value.find((node) => node.id === id)?.name || ''
+}
+
+function datasetName(id: number) {
+  return datasets.value.find((dataset) => dataset.id === id)?.name || ''
+}
+
+function nodeCapacityLabel(node: PerformanceNodeItem) {
+  const vus = t('performance.node_vus_limit', { value: node.max_vus ?? '∞' })
+  const concurrency = t('performance.node_concurrency_limit', { value: node.max_concurrency ?? '∞' })
+  return `${vus} · ${concurrency}`
 }
 
 function metricValue(value: unknown) {
@@ -889,7 +1561,24 @@ function formatDuration(value?: number | null) {
   return `${(value / 1000).toFixed(1)}s`
 }
 
+function formatBaselineDelta(value: unknown) {
+  if (typeof value !== 'number') return '-'
+  return `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
+}
+
+function formatBaselineMetric(metric: string, value: unknown) {
+  if (typeof value !== 'number') return '-'
+  if (metric === 'error_rate') return `${(value * 100).toFixed(2)}%`
+  if (metric === 'p95_ms' || metric === 'p99_ms') return `${value.toFixed(2)}ms`
+  return value.toFixed(2)
+}
+
+function baselineDirectionColor(direction: string) {
+  return direction === 'improvement' ? 'success' : direction === 'regression' ? 'error' : 'default'
+}
+
 onMounted(loadProjects)
+onBeforeUnmount(stopRunPolling)
 </script>
 
 <style scoped>
@@ -918,8 +1607,148 @@ onMounted(loadProjects)
   font-weight: 600;
 }
 
+.node-strip {
+  margin-bottom: 20px;
+  padding: 14px 16px;
+  border: 1px solid #e8e8e8;
+  border-radius: 8px;
+  background: #fafafa;
+}
+
+.node-strip-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.node-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 10px;
+}
+
+.node-card {
+  min-width: 0;
+  padding: 10px 12px;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.node-card-online {
+  border-color: #b7eb8f;
+}
+
+.node-card-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+
+.node-card-title strong {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.node-card-title :deep(.ant-tag) {
+  margin-inline-start: auto;
+  margin-inline-end: 0;
+  font-size: 11px;
+}
+
+.node-card-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 10px;
+  color: #595959;
+  font-size: 12px;
+}
+
+.node-heartbeat {
+  margin-top: 6px;
+  font-size: 11px;
+}
+
+.definition-meta {
+  display: flex;
+  gap: 6px;
+  margin-top: 4px;
+}
+
+.definition-meta :deep(.ant-tag) {
+  margin-inline-end: 0;
+  font-size: 11px;
+}
+
 .mono {
   font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+}
+
+.run-progress {
+  min-width: 150px;
+}
+
+.run-progress :deep(.ant-progress) {
+  margin-bottom: 0;
+}
+
+.detail-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.resource-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.resource-chart {
+  height: 240px;
+}
+
+.threshold-gate {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 12px;
+  border: 1px solid #d9d9d9;
+  border-radius: 6px;
+  background: #fafafa;
+}
+
+.threshold-gate-label {
+  color: #595959;
+  font-size: 12px;
+}
+
+.threshold-gate span {
+  color: #8c8c8c;
+  font-size: 12px;
+}
+
+.threshold-gate-passed {
+  border-color: #b7eb8f;
+  background: #f6ffed;
+  color: #389e0d;
+}
+
+.threshold-gate-failed {
+  border-color: #ffa39e;
+  background: #fff1f0;
+  color: #cf1322;
 }
 
 .script-input {
@@ -946,6 +1775,37 @@ onMounted(loadProjects)
   border: 1px solid #f0f0f0;
   border-radius: 8px;
   background: #fafafa;
+}
+
+.behavior-editor {
+  margin: 12px 0 18px;
+}
+
+.steps-toolbar {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.behavior-step {
+  margin-bottom: 10px;
+  padding: 12px;
+  border: 1px solid #e8e8e8;
+  border-radius: 6px;
+  background: #fff;
+}
+
+.behavior-step-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.behavior-step-row {
+  margin-top: 10px;
 }
 
 .stage-row {
@@ -1016,6 +1876,17 @@ onMounted(loadProjects)
 @media (max-width: 1080px) {
   .insight-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .detail-toolbar {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .threshold-gate {
+    flex-wrap: wrap;
   }
 }
 </style>

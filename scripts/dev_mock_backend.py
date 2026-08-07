@@ -69,10 +69,7 @@ OVERVIEW = {
     "pass_rate": 0.875,
     "recent_runs_7d": 21,
 }
-PASS_RATE_TREND = [
-    {"date": f"2026-05-{15 + i}", "total": 10 + i, "passed": 8 + i, "rate": 0.8}
-    for i in range(7)
-]
+PASS_RATE_TREND = [{"date": f"2026-05-{15 + i}", "total": 10 + i, "passed": 8 + i, "rate": 0.8} for i in range(7)]
 DURATION_TREND = [
     {
         "date": item["date"],

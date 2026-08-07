@@ -119,9 +119,23 @@ config:
 performanceWorker:
   enabled: true
   replicas: 1
-  queues: performance
+  queues: performance.node-a,performance
   concurrency: "1"
   metricsPort: 9092
+  nodeEnabled: true
+  nodeId: worker-a
+  nodeName: Worker A
+  nodeQueue: performance.node-a
+  nodeMaxVus: 100
+  nodeMaxConcurrency: 2
+  nodeEgressAllowlist: api.example.test
+  networkPolicy:
+    enabled: true
+    egress:
+      - to:
+          - ipBlock: {cidr: 10.20.0.0/16}
+        ports:
+          - {protocol: TCP, port: 443}
   resources:
     requests: {cpu: 1000m, memory: 1Gi}
     limits: {cpu: 2000m, memory: 2Gi}
@@ -133,8 +147,13 @@ hpa:
     targetCPUUtilizationPercentage: 70
 ```
 
-开启后，默认 worker 不再消费 `performance` 队列，压测任务由 `performance-worker` Deployment 单独承载。建议同时配置
-`PERFORMANCE_TARGET_ALLOWLIST`、`PERFORMANCE_MAX_VUS` 与 `PERFORMANCE_MAX_DURATION_SECONDS`，并通过网络策略限制压测出口。
+开启后，默认 worker 不再消费 `performance` 队列，压测任务由 `performance-worker` Deployment 单独承载。专用
+`performance-worker` 必须同时消费共享 `performance` 队列和节点队列；`performanceWorker.queues` 应包含与 `nodeQueue` 完全一致的队列名，Chart
+启动命令会自动补上共享队列。建议同时配置
+`PERFORMANCE_TARGET_ALLOWLIST`、`PERFORMANCE_MAX_VUS`、`PERFORMANCE_MAX_DURATION_SECONDS` 和节点级
+`nodeEgressAllowlist`；启用 NetworkPolicy 时还必须显式配置 DNS、数据库、Redis、MinIO 与目标服务出口。
+部署完成后的真实 Worker、TLS、allowlist、取消和资源采样验收命令见
+[`docs/performance-environment-acceptance.md`](performance-environment-acceptance.md)。
 
 ## 八、升级与回滚
 

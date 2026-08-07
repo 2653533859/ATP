@@ -6,11 +6,12 @@ import json
 import os
 import subprocess
 import tempfile
-import time
 from pathlib import Path
+from collections.abc import Callable
 from typing import Any
 
 from app.core import minio_client
+from app.services.performance_process import PerformanceRunCancelled, run_performance_process
 
 
 _K6_OPTION_KEYS = {
@@ -90,6 +91,10 @@ def run_k6_script(
     script_object_name: str,
     options: dict | None = None,
     timeout_seconds: int = 1800,
+    cancel_check: Callable[[], bool] | None = None,
+    metric_callback: Callable[[], None] | None = None,
+    metric_interval_seconds: float = 5.0,
+    max_metric_samples: int = 7200,
 ) -> tuple[dict[str, Any], str, int]:
     """Execute a stored k6 script and return parsed summary, raw object name, duration ms."""
     merged_options = options if isinstance(options, dict) else {}
@@ -108,18 +113,18 @@ def run_k6_script(
         if k6_options:
             env["ATP_K6_OPTIONS"] = json.dumps(k6_options, ensure_ascii=False)
 
-        started = time.monotonic()
-        completed = subprocess.run(
+        completed, duration_ms = run_performance_process(
             ["k6", "run", "--summary-export", str(result_path), str(script_path)],
-            cwd=str(tmp_path),
+            cwd=tmp_path,
             env=env,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=timeout_seconds,
-            check=False,
+            timeout_seconds=timeout_seconds,
+            cancel_check=cancel_check,
+            metric_callback=metric_callback,
+            metric_interval_seconds=metric_interval_seconds,
+            max_metric_samples=max_metric_samples,
+            # Keep the existing test seam and allow callers to replace the process boundary.
+            popen_factory=subprocess.Popen,
         )
-        duration_ms = int((time.monotonic() - started) * 1000)
 
         if not result_path.exists():
             message = (completed.stderr or completed.stdout or "k6 did not produce summary").strip()

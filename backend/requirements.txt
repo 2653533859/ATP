@@ -26,6 +26,7 @@ pytest-playwright==0.8.0
 playwright==1.61.0
 uiautomator2==3.2.1
 flower==2.0.1
+locust==2.32.10
 jsonpath-ng==1.7.0
 croniter==3.0.3
 jinja2==3.1.6
@@ -44,3 +45,4 @@ opentelemetry-instrumentation-fastapi==0.64b0; python_version >= "3.14"
 opentelemetry-instrumentation-celery==0.64b0; python_version >= "3.14"
 prometheus-client==0.21.0
 prometheus-fastapi-instrumentator==8.0.2
+psutil==6.1.1

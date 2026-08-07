@@ -111,10 +111,11 @@ class _FakePlanRun:
 
 
 class _FakeWebhookDB:
-    def __init__(self, suite=None, env=None, plan=None):
+    def __init__(self, suite=None, env=None, plan=None, performance_test=None):
         self._suite = suite
         self._env = env
         self._plan = plan
+        self._performance_test = performance_test
         self.added = []
 
     async def get(self, model, _pk):
@@ -125,6 +126,8 @@ class _FakeWebhookDB:
             return self._plan
         if model_name == "Environment":
             return self._env
+        if model_name == "PerformanceTest":
+            return self._performance_test
         return None
 
     async def execute(self, _query):
@@ -220,6 +223,89 @@ def test_webhook_trigger_rejects_unknown_env_id():
         asyncio.run(webhook.webhook_trigger(request=_fake_request(), body=body, db=db, _api_key="ok"))
 
     assert exc.value.status_code == 404
+
+
+def test_webhook_performance_trigger_uses_encrypted_runtime_snapshot(monkeypatch):
+    delayed = []
+
+    class _FakePerformanceRun:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+            self.id = None
+
+    monkeypatch.setattr(webhook, "PerformanceRun", _FakePerformanceRun)
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.tasks_performance",
+        types.SimpleNamespace(
+            run_performance_test=types.SimpleNamespace(delay=delayed.append),
+        ),
+    )
+    test = types.SimpleNamespace(
+        id=31,
+        project_id=2,
+        default_options={"vus": 3},
+    )
+    db = _FakeWebhookDB(performance_test=test)
+    body = webhook.WebhookTriggerBody(
+        target_type="performance_test",
+        target_id=test.id,
+        extra_vars={"API_TOKEN": "secret"},
+        options={"duration": "30s"},
+    )
+
+    result = asyncio.run(webhook.webhook_trigger(request=_fake_request(), body=body, db=db, _api_key="ok"))
+
+    assert result.target_type == "performance_test"
+    assert delayed == [1001]
+    run = db.added[0]
+    assert run.options_snapshot["vus"] == 3
+    assert run.options_snapshot["duration"] == "30s"
+    assert "API_TOKEN" not in run.options_snapshot.get("env", {})
+    assert "__environment_values_encrypted" in run.options_snapshot
+
+
+def test_webhook_performance_trigger_passes_executor_to_validation_and_node_selection(monkeypatch):
+    calls = {}
+
+    class _FakePerformanceRun:
+        def __init__(self, **kwargs):
+            self.__dict__.update(kwargs)
+            self.id = None
+
+    monkeypatch.setattr(webhook, "PerformanceRun", _FakePerformanceRun)
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.tasks_performance",
+        types.SimpleNamespace(run_performance_test=types.SimpleNamespace(delay=lambda _run_id: None)),
+    )
+
+    from app.api.v1 import performance
+
+    monkeypatch.setattr(
+        performance,
+        "_validate_performance_options",
+        lambda _options, executor="k6": calls.update(validation=executor),
+    )
+
+    async def fake_resolve(_db, _node_id, _options, executor="k6"):
+        calls["node"] = executor
+        return None
+
+    monkeypatch.setattr(performance, "_resolve_performance_node", fake_resolve)
+
+    test = types.SimpleNamespace(
+        id=32,
+        project_id=2,
+        default_options={"target": "https://example.test"},
+        executor="grpc",
+    )
+    db = _FakeWebhookDB(performance_test=test)
+    body = webhook.WebhookTriggerBody(target_type="performance_test", target_id=test.id)
+
+    asyncio.run(webhook.webhook_trigger(request=_fake_request(), body=body, db=db, _api_key="ok"))
+
+    assert calls == {"validation": "grpc", "node": "grpc"}
 
 
 def test_export_run_junit_reports_run_failure_without_steps():

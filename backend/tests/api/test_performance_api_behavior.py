@@ -1,8 +1,12 @@
 import asyncio
+import json
 import sys
 import types
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from types import SimpleNamespace
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -19,6 +23,7 @@ sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
 sys.modules["app.api.deps"] = types.SimpleNamespace(
     assert_project_access=_noop_async,
     get_current_user=lambda: None,
+    require_engineer=lambda: None,
     require_project_access=lambda *_a, **_kw: _noop_dependency,
 )
 
@@ -38,9 +43,17 @@ sys.modules["app.worker.tasks_performance"] = types.SimpleNamespace(
 
 from app.api.v1 import performance
 from app.models.bootstrap import load_all_models
-from app.models.performance import PerformanceRun, PerformanceRunStatus, PerformanceTest
-from app.schemas.performance import PerformanceRunOut, PerformanceRunTrigger, PerformanceTestCreate
+from app.models.performance import PerformanceMetricSample, PerformanceRun, PerformanceRunStatus, PerformanceTest
+from app.models.performance_node import PerformanceNode
+from app.schemas.performance import (
+    PerformanceBaselineUpdate,
+    PerformanceRunOut,
+    PerformanceRunTrigger,
+    PerformanceScheduleUpdate,
+    PerformanceTestCreate,
+)
 from app.services.performance_options import ENVIRONMENT_SNAPSHOT_KEY
+from app.schemas.performance_node import PerformanceNodeCreate, PerformanceNodeUpdate
 
 load_all_models()
 
@@ -106,6 +119,10 @@ def _performance_test(test_id: int = 3):
         script_object_name="performance/scripts/smoke.js",
         default_options={"env": {"BASE_URL": "https://example.test"}, "vus": 5},
         creator_id=7,
+        baseline_run_id=None,
+        schedule_enabled=False,
+        schedule_timezone="Asia/Shanghai",
+        schedule_options={},
         created_at=now,
         updated_at=now,
     )
@@ -137,6 +154,92 @@ def test_create_performance_test_persists_definition():
     assert result.executor == "k6"
     assert db.commits == 1
     assert db.added == [result]
+
+
+def test_create_performance_test_supports_locust_scripts():
+    db = _FakeDB()
+    body = PerformanceTestCreate(
+        project_id=2,
+        name="locust-homepage",
+        executor="locust",
+        script_object_name="performance/scripts/homepage.py",
+        default_options={"users": 4, "run_time": "10s"},
+    )
+
+    result = asyncio.run(performance.create_performance_test(body=body, db=db, user=_User()))
+
+    assert result.executor == "locust"
+    assert result.script_object_name.endswith(".py")
+
+
+def test_create_performance_test_supports_grpc_proto_and_validates_options():
+    db = _FakeDB()
+    body = PerformanceTestCreate(
+        project_id=2,
+        name="grpc-greeter",
+        executor="grpc",
+        script_object_name="performance/scripts/greeter.proto",
+        default_options={
+            "target": "api.example.test:50051",
+            "service": "demo.v1.Greeter",
+            "method": "SayHello",
+            "request": {"name": "ATP"},
+            "concurrency": 2,
+            "iterations": 4,
+        },
+    )
+
+    result = asyncio.run(performance.create_performance_test(body=body, db=db, user=_User()))
+
+    assert result.executor == "grpc"
+    assert result.script_object_name.endswith(".proto")
+
+
+def test_list_performance_executors_exposes_ready_locust_and_grpc():
+    result = asyncio.run(performance.list_performance_executors(_=None))
+    by_name = {item.name: item for item in result}
+
+    assert by_name["k6"].ready is True
+    assert by_name["locust"].ready is True
+    assert by_name["grpc"].ready is True
+
+
+def test_upload_performance_script_supports_locust_extension():
+    _uploaded_objects.clear()
+    file = _Upload("locustfile.py", b"from locust import HttpUser")
+
+    result = asyncio.run(
+        performance.upload_performance_script(
+            project_id=2,
+            file=file,
+            executor="locust",
+            db=_FakeDB(),
+            user=_User(),
+        )
+    )
+
+    assert result.filename == "locustfile.py"
+    assert result.script_object_name.endswith("-locustfile.py")
+    assert _uploaded_objects[-1][2] == "text/x-python"
+
+
+def test_upload_performance_script_supports_grpc_proto_extension():
+    _uploaded_objects.clear()
+    file = _Upload("greeter.proto", b'syntax = "proto3";')
+
+    result = asyncio.run(
+        performance.upload_performance_script(
+            project_id=2,
+            file=file,
+            executor="grpc",
+            db=_FakeDB(),
+            user=_User(),
+        )
+    )
+
+    assert result.filename == "greeter.proto"
+    assert result.script_object_name.endswith("-greeter.proto")
+    assert _uploaded_objects[-1][2] == "text/plain"
 
 
 def test_upload_performance_script_stores_project_scoped_object():
@@ -337,6 +440,155 @@ def test_trigger_performance_run_404_when_definition_missing():
         assert getattr(exc, "status_code", None) == 404
     else:
         raise AssertionError("应返回 404")
+
+
+def test_stop_performance_run_marks_running_run_as_cancelling(monkeypatch):
+    now = datetime(2026, 5, 29, tzinfo=timezone.utc)
+    run = PerformanceRun(
+        id=6,
+        performance_test_id=3,
+        project_id=2,
+        status=PerformanceRunStatus.running.value,
+        options_snapshot={"duration": "30s"},
+        summary={},
+        created_at=now,
+        updated_at=now,
+    )
+    db = _FakeDB({"PerformanceRun": {run.id: run}})
+    requested: list[int] = []
+    monkeypatch.setattr(performance, "request_cancel", requested.append)
+
+    result = asyncio.run(performance.stop_performance_run(run_id=run.id, db=db, user=_User()))
+
+    assert result is run
+    assert requested == [run.id]
+    assert run.status == PerformanceRunStatus.cancelling.value
+    assert run.error_message == "正在停止压测"
+    assert run.finished_at is None
+    assert db.commits == 1
+
+
+def test_stop_performance_run_finishes_pending_run_as_cancelled(monkeypatch):
+    now = datetime(2026, 5, 29, tzinfo=timezone.utc)
+    run = PerformanceRun(
+        id=7,
+        performance_test_id=3,
+        project_id=2,
+        status=PerformanceRunStatus.pending.value,
+        options_snapshot={},
+        summary={},
+        created_at=now,
+        updated_at=now,
+    )
+    db = _FakeDB({"PerformanceRun": {run.id: run}})
+    monkeypatch.setattr(performance, "request_cancel", lambda _run_id: None)
+
+    asyncio.run(performance.stop_performance_run(run_id=run.id, db=db, user=_User()))
+
+    assert run.status == PerformanceRunStatus.cancelled.value
+    assert run.finished_at is not None
+
+
+def test_stop_performance_run_rejects_terminal_run(monkeypatch):
+    now = datetime(2026, 5, 29, tzinfo=timezone.utc)
+    run = PerformanceRun(
+        id=8,
+        performance_test_id=3,
+        project_id=2,
+        status=PerformanceRunStatus.success.value,
+        options_snapshot={},
+        summary={},
+        created_at=now,
+        updated_at=now,
+    )
+    db = _FakeDB({"PerformanceRun": {run.id: run}})
+    monkeypatch.setattr(performance, "request_cancel", lambda _run_id: pytest.fail("stop must not be requested"))
+
+    with pytest.raises(Exception) as caught:
+        asyncio.run(performance.stop_performance_run(run_id=run.id, db=db, user=_User()))
+    assert caught.value.status_code == 409
+
+
+def _performance_run_for_export(run_id: int = 10):
+    now = datetime(2026, 5, 29, tzinfo=timezone.utc)
+    return PerformanceRun(
+        id=run_id,
+        performance_test_id=3,
+        project_id=2,
+        status=PerformanceRunStatus.failed.value,
+        options_snapshot={
+            "vus": 5,
+            "env": {"TARGET_URL": "https://example.test", "API_TOKEN": "secret"},
+            ENVIRONMENT_SNAPSHOT_KEY: {"API_TOKEN": "ciphertext"},
+        },
+        summary={
+            "rps": 12.5,
+            "p95_ms": 620,
+            "p99_ms": 900,
+            "error_rate": 0.02,
+            "thresholds": {
+                "http_req_duration": {"p(95)<500": {"ok": False}},
+                "http_req_failed": {"rate<0.01": {"ok": True}},
+            },
+        },
+        error_message="threshold failed",
+        created_at=now,
+        updated_at=now,
+        started_at=now,
+        finished_at=now,
+        duration_ms=30000,
+    )
+
+
+@pytest.mark.parametrize(
+    ("executor_options", "expected_seconds"),
+    [({"run_time": "30s"}, 30), ({"duration_seconds": 45}, 45)],
+)
+def test_performance_progress_estimate_supports_non_k6_duration_options(executor_options, expected_seconds):
+    from app.schemas.performance import _expected_duration_seconds
+
+    run = _performance_run_for_export()
+    run.status = PerformanceRunStatus.running.value
+    run.options_snapshot = executor_options
+    run.started_at = datetime.now(timezone.utc) - timedelta(seconds=expected_seconds / 2)
+
+    result = PerformanceRunOut.model_validate(run)
+
+    assert _expected_duration_seconds(executor_options) == expected_seconds
+    assert 40 <= result.progress_percent <= 60
+
+
+def test_export_performance_run_json_is_safe_and_contains_gate():
+    run = _performance_run_for_export()
+    db = _FakeDB({"PerformanceRun": {run.id: run}})
+
+    response = asyncio.run(performance.export_performance_run_json(run_id=run.id, db=db, user=_User()))
+    payload = json.loads(response.body)
+
+    assert response.media_type == "application/json"
+    assert payload["threshold_gate"] == {"status": "failed", "total": 2, "passed": 1, "failed": 1}
+    assert payload["performance_gate"]["status"] == "failed"
+    assert payload["thresholds"] == [
+        {"metric": "http_req_duration", "rule": "p(95)<500", "ok": False},
+        {"metric": "http_req_failed", "rule": "rate<0.01", "ok": True},
+    ]
+    exported_snapshot = payload["run"]["options_snapshot"]
+    assert ENVIRONMENT_SNAPSHOT_KEY not in exported_snapshot
+    assert "API_TOKEN" not in exported_snapshot["env"]
+
+
+def test_export_performance_run_csv_contains_summary_and_threshold_rows():
+    run = _performance_run_for_export(11)
+    db = _FakeDB({"PerformanceRun": {run.id: run}})
+
+    response = asyncio.run(performance.export_performance_run_csv(run_id=run.id, db=db, user=_User()))
+    content = response.body.decode("utf-8-sig")
+
+    assert response.media_type == "text/csv"
+    assert "run_id,performance_test_id,status" in content
+    assert "11,3,failed" in content
+    assert "http_req_duration,p(95)<500,False" in content
+    assert "http_req_failed,rate<0.01,True" in content
 
 
 def test_get_performance_run_raw_result_returns_presigned_url():
@@ -597,6 +849,139 @@ def test_update_performance_test_404():
         raise AssertionError("应返回 404")
 
 
+def test_set_performance_baseline_accepts_only_a_successful_run():
+    item = _performance_test(3)
+    run = PerformanceRun(
+        id=21,
+        performance_test_id=item.id,
+        project_id=item.project_id,
+        status=PerformanceRunStatus.success.value,
+        options_snapshot={},
+        summary={"p95_ms": 120},
+    )
+    db = _FakeDB({"PerformanceTest": {item.id: item}, "PerformanceRun": {run.id: run}})
+
+    result = asyncio.run(
+        performance.set_performance_baseline(
+            test_id=item.id,
+            body=PerformanceBaselineUpdate(run_id=run.id),
+            db=db,
+            user=_User(),
+        )
+    )
+
+    assert result is item
+    assert item.baseline_run_id == run.id
+
+
+def test_set_performance_baseline_rejects_a_run_from_another_test():
+    item = _performance_test(3)
+    run = PerformanceRun(
+        id=22,
+        performance_test_id=99,
+        project_id=item.project_id,
+        status=PerformanceRunStatus.success.value,
+        options_snapshot={},
+        summary={},
+    )
+    db = _FakeDB({"PerformanceTest": {item.id: item}, "PerformanceRun": {run.id: run}})
+
+    with pytest.raises(Exception) as caught:
+        asyncio.run(
+            performance.set_performance_baseline(
+                test_id=item.id,
+                body=PerformanceBaselineUpdate(run_id=run.id),
+                db=db,
+                user=_User(),
+            )
+        )
+    assert caught.value.status_code == 400
+
+
+def test_update_performance_schedule_calculates_next_run_and_persists_options():
+    item = _performance_test(3)
+    db = _FakeDB({"PerformanceTest": {item.id: item}})
+
+    asyncio.run(
+        performance.update_performance_schedule(
+            test_id=item.id,
+            body=PerformanceScheduleUpdate(
+                enabled=True,
+                cron_expression="*/15 * * * *",
+                timezone="Asia/Shanghai",
+                options={"duration": "30s"},
+            ),
+            db=db,
+            user=_User(),
+        )
+    )
+
+    assert item.schedule_enabled is True
+    assert item.cron_expression == "*/15 * * * *"
+    assert item.schedule_options == {"duration": "30s"}
+    assert item.next_run_at is not None
+
+
+def test_update_performance_schedule_requires_cron_when_enabled():
+    item = _performance_test(3)
+    with pytest.raises(Exception) as caught:
+        asyncio.run(
+            performance.update_performance_schedule(
+                test_id=item.id,
+                body=PerformanceScheduleUpdate(enabled=True),
+                db=_FakeDB({"PerformanceTest": {item.id: item}}),
+                user=_User(),
+            )
+        )
+    assert caught.value.status_code == 400
+
+
+def test_baseline_comparison_and_gate_are_project_scoped_contracts():
+    item = _performance_test(3)
+    baseline = PerformanceRun(
+        id=31,
+        performance_test_id=item.id,
+        project_id=item.project_id,
+        status=PerformanceRunStatus.success.value,
+        options_snapshot={},
+        summary={"rps": 10, "p95_ms": 100, "p99_ms": 180, "error_rate": 0.01},
+    )
+    current = PerformanceRun(
+        id=32,
+        performance_test_id=item.id,
+        project_id=item.project_id,
+        status=PerformanceRunStatus.success.value,
+        options_snapshot={},
+        summary={"rps": 12, "p95_ms": 120, "p99_ms": 160, "error_rate": 0.02},
+    )
+    item.baseline_run_id = baseline.id
+    db = _FakeDB(
+        {
+            "PerformanceTest": {item.id: item},
+            "PerformanceRun": {baseline.id: baseline, current.id: current},
+        }
+    )
+
+    comparison = asyncio.run(performance.get_performance_baseline_comparison(run_id=current.id, db=db, user=_User()))
+    gate = asyncio.run(performance.get_performance_run_gate(run_id=current.id, db=db, user=_User()))
+
+    assert comparison["baseline_run_id"] == baseline.id
+    assert {row["metric"]: row["direction"] for row in comparison["metrics"]} == {
+        "rps": "improvement",
+        "p95_ms": "regression",
+        "p99_ms": "improvement",
+        "error_rate": "regression",
+    }
+    assert gate == {
+        "status": "not_configured",
+        "ready": True,
+        "run_status": "success",
+        "total": 0,
+        "passed": 0,
+        "failed": 0,
+    }
+
+
 def test_list_performance_runs_is_scoped_and_capped():
     run = PerformanceRun(
         id=1,
@@ -632,6 +1017,34 @@ def test_get_performance_run_returns_the_run():
     db = _FakeDB({"PerformanceRun": {5: run}})
 
     assert asyncio.run(performance.get_performance_run(run_id=5, db=db, user=_User())) is run
+
+
+def test_list_performance_run_metrics_returns_time_ordered_samples():
+    run = PerformanceRun(
+        id=55,
+        performance_test_id=3,
+        project_id=2,
+        status=PerformanceRunStatus.success.value,
+        options_snapshot={},
+        summary={},
+        created_at=datetime(2026, 5, 29, tzinfo=timezone.utc),
+        updated_at=datetime(2026, 5, 29, tzinfo=timezone.utc),
+    )
+    sample = PerformanceMetricSample(
+        id=1,
+        run_id=run.id,
+        captured_at=datetime(2026, 5, 29, 1, 0, tzinfo=timezone.utc),
+        node_id="worker-1",
+        source="performance-worker",
+        metrics={"cpu_percent": 42.0},
+        errors=[],
+    )
+    db = _QueryDB([sample], {"PerformanceRun": {run.id: run}})
+
+    result = asyncio.run(performance.list_performance_run_metrics(run_id=run.id, db=db, user=_User()))
+
+    assert result == [sample]
+    assert "performance_metric_samples" in str(db.statements[0])
 
 
 def test_get_performance_run_404():
@@ -673,3 +1086,180 @@ def test_upload_performance_script_enforces_the_two_megabyte_limit():
         assert getattr(exc, "status_code", None) == 413
     else:
         raise AssertionError("超限脚本必须 413")
+
+
+def _performance_node(node_id: int = 17, *, status: str = "online", max_vus: int | None = None):
+    now = datetime.now(timezone.utc)
+    return PerformanceNode(
+        id=node_id,
+        node_id=f"worker-{node_id}",
+        name=f"worker-{node_id}",
+        queue_name="performance",
+        status=status,
+        enabled=True,
+        labels={},
+        capabilities={"executor": "k6"},
+        max_vus=max_vus,
+        max_concurrency=None,
+        egress_allowlist=[],
+        last_heartbeat_at=now,
+        created_at=now,
+        updated_at=now,
+    )
+
+
+def test_create_performance_node_starts_offline_until_worker_heartbeat():
+    db = _FakeDB()
+    body = PerformanceNodeCreate(
+        node_id="worker-a",
+        name="Worker A",
+        queue_name="performance.worker-a",
+        max_vus=20,
+        egress_allowlist=["api.example.test", "API.EXAMPLE.TEST"],
+    )
+
+    result = asyncio.run(performance.create_performance_node(body=body, db=db, _=None))
+
+    assert result.status == "offline"
+    assert result.egress_allowlist == ["api.example.test"]
+    assert result.max_vus == 20
+    assert db.commits == 1
+
+
+def test_update_performance_node_disabling_it_sets_disabled_status():
+    node = _performance_node()
+    db = _FakeDB({"PerformanceNode": {node.id: node}})
+
+    result = asyncio.run(
+        performance.update_performance_node(node_id=node.id, body=PerformanceNodeUpdate(enabled=False), db=db, _=None)
+    )
+
+    assert result is node
+    assert node.enabled is False
+    assert node.status == "disabled"
+
+
+def test_trigger_performance_run_records_selected_node():
+    _delay_recorder.calls.clear()
+    test = _performance_test()
+    node = _performance_node(max_vus=10)
+    db = _FakeDB({"PerformanceTest": {test.id: test}, "PerformanceNode": {node.id: node}})
+
+    result = asyncio.run(
+        performance.trigger_performance_run(
+            test_id=test.id,
+            body=PerformanceRunTrigger(performance_node_id=node.id, options={"vus": 10}),
+            db=db,
+            user=_User(),
+        )
+    )
+
+    assert result.performance_node_id == node.id
+    assert _delay_recorder.calls == [result.id]
+
+
+def test_trigger_performance_run_rejects_an_offline_selected_node():
+    test = _performance_test()
+    node = _performance_node(status="offline")
+    node.last_heartbeat_at = None
+    db = _FakeDB({"PerformanceTest": {test.id: test}, "PerformanceNode": {node.id: node}})
+
+    with pytest.raises(Exception) as caught:
+        asyncio.run(
+            performance.trigger_performance_run(
+                test_id=test.id,
+                body=PerformanceRunTrigger(performance_node_id=node.id),
+                db=db,
+                user=_User(),
+            )
+        )
+
+    assert caught.value.status_code == 409
+    assert db.added == []
+
+
+def test_update_performance_schedule_records_selected_node():
+    test = _performance_test()
+    node = _performance_node(max_vus=20)
+    db = _FakeDB({"PerformanceTest": {test.id: test}, "PerformanceNode": {node.id: node}})
+
+    asyncio.run(
+        performance.update_performance_schedule(
+            test_id=test.id,
+            body=PerformanceScheduleUpdate(
+                enabled=True,
+                cron_expression="*/15 * * * *",
+                timezone="Asia/Shanghai",
+                performance_node_id=node.id,
+                options={"vus": 10},
+            ),
+            db=db,
+            user=_User(),
+        )
+    )
+
+    assert test.schedule_node_id == node.id
+
+
+class _ScalarOnlyResult:
+    def __init__(self, value):
+        self.value = value
+
+    def scalar_one_or_none(self):
+        return self.value
+
+
+class _DatasetBindingDB(_FakeDB):
+    def __init__(self, objects=None, version=1):
+        super().__init__(objects=objects)
+        self.version = version
+        self.execute_calls = 0
+
+    async def execute(self, _statement):
+        self.execute_calls += 1
+        if self.execute_calls == 1:
+            return _ScalarOnlyResult(self.version)
+        return _ScalarOnlyResult(SimpleNamespace(rows=[{"account": "alice"}]))
+
+
+def test_create_performance_test_binds_a_project_dataset_version():
+    from types import SimpleNamespace
+
+    dataset = SimpleNamespace(project_id=2)
+    db = _DatasetBindingDB({"TestDataset": {9: dataset}}, version=3)
+    body = PerformanceTestCreate(
+        project_id=2,
+        name="dataset-load",
+        script_object_name="performance/scripts/dataset.js",
+        dataset_id=9,
+    )
+
+    result = asyncio.run(performance.create_performance_test(body=body, db=db, user=_User()))
+
+    assert result.dataset_id == 9
+
+
+def test_trigger_performance_run_pins_the_current_dataset_version():
+    _delay_recorder.calls.clear()
+    from types import SimpleNamespace
+
+    test = _performance_test()
+    test.dataset_id = 9
+    dataset = SimpleNamespace(project_id=2)
+    db = _DatasetBindingDB(
+        {"PerformanceTest": {test.id: test}, "TestDataset": {9: dataset}},
+        version=4,
+    )
+
+    result = asyncio.run(
+        performance.trigger_performance_run(
+            test_id=test.id,
+            body=PerformanceRunTrigger(),
+            db=db,
+            user=_User(),
+        )
+    )
+
+    assert result.dataset_id == 9
+    assert result.dataset_version == 4
+    assert _delay_recorder.calls == [result.id]

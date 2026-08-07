@@ -50,6 +50,20 @@ performanceWorker:
   queues: performance
   concurrency: "1"
   metricsPort: 9092
+  # Node identity and application-level performance guardrails. Leave nodeId
+  # empty to keep this worker on the shared performance queue without pinning runs.
+  nodeEnabled: true
+  nodeId: ""
+  nodeName: ""
+  nodeQueue: performance
+  nodeMaxVus: 0
+  nodeMaxConcurrency: 0
+  nodeEgressAllowlist: ""
+  # Optional Kubernetes egress isolation. When enabled, only the listed
+  # NetworkPolicy egress rules are allowed; include DNS explicitly if needed.
+  networkPolicy:
+    enabled: false
+    egress: []
   resources:
     requests: {cpu: 1000m, memory: 1Gi}
     limits: {cpu: 2000m, memory: 2Gi}
@@ -118,6 +132,17 @@ config:
   AI_HEALING_VISION_ENABLED: "false"
   # Daily limit for screenshot-based AI healing calls. 0 means unlimited.
   AI_HEALING_VISION_DAILY_LIMIT: "50"
+  # Performance load-injector node settings. Node ID is intentionally empty
+  # until a dedicated worker is registered.
+  PERFORMANCE_NODE_ENABLED: "true"
+  PERFORMANCE_NODE_ID: ""
+  PERFORMANCE_NODE_NAME: ""
+  PERFORMANCE_NODE_QUEUE: performance
+  PERFORMANCE_NODE_MAX_VUS: "0"
+  PERFORMANCE_NODE_MAX_CONCURRENCY: "0"
+  PERFORMANCE_NODE_EGRESS_ALLOWLIST: ""
+  PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS: "90"
+  PERFORMANCE_EXECUTORS: "k6,locust,grpc"
 
 # Sensitive values rendered into a Kubernetes Secret by this chart. Production
 # deployments should prefer ExternalSecrets, SOPS, or a platform secret manager
@@ -145,6 +170,11 @@ secrets:
   ENCRYPTION_KEY: ""
   # API key for CI/CD webhook trigger endpoint.
   WEBHOOK_API_KEY: "change-me"
+  # Performance-run resource sampling. Samples are linked to each run in PostgreSQL.
+  PERFORMANCE_METRICS_ENABLED: "true"
+  PERFORMANCE_METRICS_INTERVAL_SECONDS: "5"
+  PERFORMANCE_METRICS_MAX_SAMPLES: "7200"
+  PERFORMANCE_MINIO_INVENTORY_INTERVAL_SECONDS: "30"
 
 # Prometheus Operator integration. Keep disabled when the cluster does not
 # install the ServiceMonitor CRD; enable it in the production overlay.
