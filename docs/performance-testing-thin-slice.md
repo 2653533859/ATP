@@ -139,7 +139,7 @@ gRPC options 至少包含 `target`、完整 `service`、`method`、`request`、`
 | `id` | 压测脚本定义 ID |
 | `project_id` | 所属项目 |
 | `name` | 压测名称 |
-| `executor` | `k6`、`locust` 或 `grpc` |
+| `executor` | `k6`、`locust`、`grpc` 或 `jmeter` |
 | `script_object_name` | MinIO 脚本对象路径 |
 | `default_options` | 执行器 options JSON；k6 使用 VUs/duration/thresholds，Locust 使用 users/spawn_rate/run_time，gRPC 使用 target/service/method/request/mode/concurrency |
 | `creator_id` | 创建人 |
@@ -171,7 +171,7 @@ gRPC options 至少包含 `target`、完整 `service`、`method`、`request`、`
 ## API 草案
 
 - `GET /api/v1/performance/executors`：查询执行器能力、脚本后缀和是否可用。
-- `POST /api/v1/projects/{project_id}/performance/scripts?executor=k6|locust|grpc`：上传对应执行器脚本或 Proto，返回 `script_object_name`。
+- `POST /api/v1/projects/{project_id}/performance/scripts?executor=k6|locust|grpc|jmeter`：上传对应执行器脚本、Proto 或 JMX，返回 `script_object_name`。
 - `POST /api/v1/performance/tests`：创建压测脚本定义。
 - `GET /api/v1/projects/{project_id}/performance/tests`：查询项目下压测脚本列表。
 - `POST /api/v1/performance/tests/{id}/run`：触发一次压测。

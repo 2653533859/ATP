@@ -79,6 +79,8 @@
           <a-menu-item v-if="canAccess(['admin'])" key="/system/ai-healing-stats">AI 自愈报表</a-menu-item>
           <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
           <a-menu-item key="/system/performance">{{ t('menu.system.performance') }}</a-menu-item>
+          <a-menu-item key="/system/web-assets">{{ t('menu.system.web_assets') }}</a-menu-item>
+          <a-menu-item key="/system/api-contract-assets">{{ t('menu.system.api_contract_assets') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin'])" key="/system/audit-logs">{{ t('menu.system.audit_logs') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin'])" key="/system/run-retention">{{ t('menu.system.run_retention') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin'])" key="/system/dashboard-alerts">{{ t('menu.system.dashboard_alerts') }}</a-menu-item>

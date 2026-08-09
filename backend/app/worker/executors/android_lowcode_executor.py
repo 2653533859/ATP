@@ -13,6 +13,10 @@ Android UI 低代码执行器（uiautomator2 API 调用）
   - wait: 等待指定时间
   - start_app: 启动应用
   - stop_app: 停止应用
+  - rotate: 切换屏幕方向
+  - grant_permission/revoke_permission: 授予或撤销应用权限
+  - network_profile: 切换 Wi-Fi/移动网络/飞行模式
+  - background/foreground: 切换应用前后台
 
 步骤数据结构（存储在 config.steps 数组中）:
   {
@@ -23,6 +27,7 @@ Android UI 低代码执行器（uiautomator2 API 调用）
 """
 
 import asyncio
+import copy
 import logging
 import re
 import shutil
@@ -30,13 +35,19 @@ import subprocess
 import tempfile
 import time
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy import select
 
-from app.core.minio_client import upload_bytes, presigned_url
+from app.core.minio_client import upload_bytes, upload_file, presigned_url
 from app.core.redis_client import publish_run_event
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
+from app.models.device import Device
+from app.services.device_compatibility import DeviceCompatibilityError, build_android_device_matrix
+from app.services.device_leases import DeviceLeaseConflict, acquire_device_lease, release_device_lease
+from app.services.dataset_execution import redact_execution_evidence
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +103,93 @@ async def _take_screenshot(serial: str, run_id: int, step_index: int) -> str | N
     except Exception as e:
         logger.warning("Screenshot failed for run %s step %s: %s", run_id, step_index, e)
         return None
+
+
+async def _capture_android_text_artifact(
+    serial: str,
+    run_id: int,
+    artifact_name: str,
+    command: tuple[str, ...],
+    *,
+    max_bytes: int = 2_000_000,
+) -> str | None:
+    """Capture bounded device text output and associate it with the run."""
+
+    ok, output = await asyncio.to_thread(_adb_cmd, serial, *command, timeout=30)
+    if not ok or not output:
+        return None
+    data = output.encode("utf-8", errors="replace")[:max_bytes]
+    object_name = f"android-artifacts/runs/{run_id}/{artifact_name}.txt"
+    try:
+        await asyncio.to_thread(upload_bytes, object_name, data, "text/plain; charset=utf-8")
+        return presigned_url(object_name)
+    except Exception as exc:
+        logger.warning("Android artifact upload failed for run %s: %s", run_id, exc)
+        return None
+
+
+def _start_screen_recording(serial: str, remote_path: str, max_seconds: int):
+    """Start bounded device-side screen recording; unsupported devices return None."""
+    try:
+        return subprocess.Popen(
+            [
+                "adb",
+                "-s",
+                serial,
+                "shell",
+                "screenrecord",
+                "--time-limit",
+                str(max(1, min(max_seconds, 1800))),
+                "--bit-rate",
+                "4000000",
+                remote_path,
+            ],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.PIPE,
+        )
+    except Exception as exc:
+        logger.warning("Android screen recording unavailable for %s: %s", serial, exc)
+        return None
+
+
+async def _finish_screen_recording(serial: str, process, remote_path: str, run_id: int) -> str | None:
+    """Stop, pull and upload a device recording, always cleaning the remote file."""
+    try:
+        process.terminate()
+        await asyncio.to_thread(process.wait, 10)
+    except Exception:
+        try:
+            process.kill()
+        except Exception:
+            pass
+    temp_file = tempfile.NamedTemporaryFile(prefix="atp-android-recording-", suffix=".mp4", delete=False)
+    temp_file.close()
+    local_path = Path(temp_file.name)
+    try:
+        pulled = await asyncio.to_thread(
+            subprocess.run,
+            ["adb", "-s", serial, "pull", remote_path, str(local_path)],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if pulled.returncode != 0 or not local_path.exists() or local_path.stat().st_size > 200_000_000:
+            return None
+        object_name = f"android-artifacts/runs/{run_id}/screen-recording.mp4"
+        await asyncio.to_thread(upload_file, object_name, local_path, "video/mp4")
+        return presigned_url(object_name)
+    except Exception as exc:
+        logger.warning("Android screen recording upload failed for run %s: %s", run_id, exc)
+        return None
+    finally:
+        try:
+            await asyncio.to_thread(subprocess.run, ["adb", "-s", serial, "shell", "rm", remote_path], timeout=10)
+        except Exception:
+            pass
+        try:
+            local_path.unlink(missing_ok=True)
+        except OSError:
+            pass
 
 
 def _adb_cmd(serial: str, *args: str, timeout: int = 15) -> tuple[bool, str]:
@@ -303,6 +401,54 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
         ok, out = _adb_cmd(serial, "shell", "am", "force-stop", package)
         return {"success": ok, "error": out if not ok else None}
 
+    elif action == "rotate":
+        orientation = str(params.get("orientation", "portrait")).lower()
+        rotation = {"portrait": "0", "landscape": "1", "reverse_portrait": "2", "reverse_landscape": "3"}.get(
+            orientation
+        )
+        if rotation is None:
+            return {"success": False, "error": f"未知屏幕方向: {orientation}"}
+        ok, out = _adb_cmd(serial, "shell", "settings", "put", "system", "accelerometer_rotation", "0")
+        if ok:
+            ok, out = _adb_cmd(serial, "shell", "settings", "put", "system", "user_rotation", rotation)
+        return {"success": ok, "error": out if not ok else None}
+
+    elif action in {"grant_permission", "revoke_permission"}:
+        package = str(params.get("package", "")).strip()
+        permission = str(params.get("permission", "")).strip()
+        if not package or not permission:
+            return {"success": False, "error": "权限步骤需要 package 和 permission"}
+        command = "grant" if action == "grant_permission" else "revoke"
+        ok, out = _adb_cmd(serial, "shell", "pm", command, package, permission)
+        return {"success": ok, "error": out if not ok else None}
+
+    elif action == "network_profile":
+        profile = str(params.get("profile", "normal")).lower()
+        commands = {
+            "normal": [("svc", "wifi", "enable"), ("svc", "data", "enable")],
+            "wifi_off": [("svc", "wifi", "disable")],
+            "data_off": [("svc", "data", "disable")],
+            "offline": [("svc", "wifi", "disable"), ("svc", "data", "disable")],
+        }.get(profile)
+        if commands is None:
+            return {"success": False, "error": f"未知网络配置: {profile}"}
+        for command in commands:
+            ok, out = _adb_cmd(serial, "shell", *command)
+            if not ok:
+                return {"success": False, "error": out}
+        return {"success": True}
+
+    elif action == "background":
+        ok, out = _adb_cmd(serial, "shell", "input", "keyevent", "3")
+        return {"success": ok, "error": out if not ok else None}
+
+    elif action == "foreground":
+        package = str(params.get("package", "")).strip()
+        if not package:
+            return {"success": False, "error": "前台步骤需要 package"}
+        ok, out = _adb_cmd(serial, "shell", "monkey", "-p", package, "-c", "android.intent.category.LAUNCHER", "1")
+        return {"success": ok, "error": out if not ok else None}
+
     elif action == "assert_text":
         text = params.get("text", "")
         ok, dump = _adb_cmd(serial, "shell", "uiautomator", "dump", "/dev/tty", timeout=10)
@@ -339,6 +485,10 @@ async def run_android_lowcode(
 ) -> None:
     """Android 低代码模式执行入口"""
     cfg = case.config or {}
+    evidence_redact_fields = cfg.get("dataset_redact_fields") or []
+    if cfg.get("device_matrix") and not cfg.get("_device_matrix_variant"):
+        await _run_android_device_matrix(db, run, case, extra_vars)
+        return
     steps = cfg.get("steps", [])
     if not steps:
         run.status = RunStatus.error
@@ -359,6 +509,15 @@ async def run_android_lowcode(
     context_vars: dict[str, str] = {**extra_vars, "DEVICE_SERIAL": device_serial}
     total_start = time.monotonic()
     all_passed = True
+    artifact_urls: dict[str, str] = {}
+    recording_process = None
+    recording_remote_path = f"/sdcard/atp-{run.id}.mp4"
+    if cfg.get("record_video"):
+        recording_process = _start_screen_recording(
+            device_serial,
+            recording_remote_path,
+            int(cfg.get("record_video_max_seconds", 600)),
+        )
 
     try:
         for idx, step_def in enumerate(steps):
@@ -390,6 +549,10 @@ async def run_android_lowcode(
             screenshot_url = await _take_screenshot(device_serial, run.id, idx)
 
             duration_ms = int((time.monotonic() - step_start) * 1000)
+            persisted_request_data = redact_execution_evidence(
+                {"action": action, "params": params}, evidence_redact_fields
+            )
+            persisted_response_data = redact_execution_evidence(response_data, evidence_redact_fields)
 
             step_result = StepResult(
                 run_id=run.id,
@@ -397,8 +560,8 @@ async def run_android_lowcode(
                 name=step_name,
                 status=status,
                 duration_ms=duration_ms,
-                request_data={"action": action, "params": params},
-                response_data=response_data,
+                request_data=persisted_request_data,
+                response_data=persisted_response_data,
                 error_message=error_message,
                 screenshot_url=screenshot_url,
             )
@@ -416,7 +579,7 @@ async def run_android_lowcode(
                         "status": status.value,
                         "duration_ms": duration_ms,
                         "request_data": step_result.request_data,
-                        "response_data": response_data,
+                        "response_data": persisted_response_data,
                         "error_message": error_message,
                         "screenshot_url": screenshot_url,
                     },
@@ -432,9 +595,38 @@ async def run_android_lowcode(
         all_passed = False
         run.error_message = str(e)[:500]
 
+    if cfg.get("collect_device_artifacts", True):
+        device_info_url = await _capture_android_text_artifact(
+            device_serial,
+            run.id,
+            "device-info",
+            ("shell", "getprop"),
+        )
+        if device_info_url:
+            artifact_urls["device_info"] = device_info_url
+        logcat_url = await _capture_android_text_artifact(
+            device_serial,
+            run.id,
+            "logcat",
+            ("shell", "logcat", "-d", "-v", "time", "-t", "10000"),
+        )
+        if logcat_url:
+            artifact_urls["logcat"] = logcat_url
+    if recording_process is not None:
+        recording_url = await _finish_screen_recording(device_serial, recording_process, recording_remote_path, run.id)
+        if recording_url:
+            artifact_urls["screen_recording"] = recording_url
+        else:
+            artifact_urls["screen_recording_error"] = "设备未生成可上传的录屏文件"
+
     total_ms = int((time.monotonic() - total_start) * 1000)
     run.status = RunStatus.passed if all_passed else RunStatus.failed
     run.duration_ms = total_ms
+    run.result_summary = {
+        **(getattr(run, "result_summary", None) or {}),
+        "android_artifacts": artifact_urls,
+        "device_serial": device_serial,
+    }
     await db.commit()
 
     await _safe_publish(
@@ -445,4 +637,114 @@ async def run_android_lowcode(
             "status": run.status.value,
             "duration_ms": total_ms,
         },
+    )
+
+
+async def _run_android_device_matrix(
+    db: AsyncSession,
+    parent_run: TestRun,
+    case: TestCase,
+    extra_vars: dict,
+) -> None:
+    """Run one isolated child per compatible registered device and aggregate results."""
+    config = case.config or {}
+    requested = config.get("device_matrix") or []
+    serials = [item if isinstance(item, str) else item.get("serial") for item in requested if item]
+    result = await db.execute(select(Device).where(Device.serial.in_([str(serial) for serial in serials if serial])))
+    available = [
+        {
+            "id": item.id,
+            "serial": item.serial,
+            "model": item.model,
+            "brand": item.brand,
+            "os_version": item.os_version,
+            "sdk_version": item.sdk_version,
+            "resolution": item.resolution,
+        }
+        for item in result.scalars().all()
+    ]
+    try:
+        if len(available) != len({str(serial) for serial in serials if serial}):
+            raise DeviceCompatibilityError("设备矩阵中包含未注册设备")
+        variants = build_android_device_matrix(requested, available_devices=available)
+    except DeviceCompatibilityError as exc:
+        parent_run.status = RunStatus.error
+        parent_run.error_message = str(exc)
+        parent_run.result_summary = {**(parent_run.result_summary or {}), "device_matrix_error": str(exc)}
+        await db.commit()
+        await _safe_publish(parent_run.id, {"type": "completed", "run_id": parent_run.id, "status": "error"})
+        return
+
+    parent_run.status = RunStatus.running
+    parent_run.result_summary = {
+        **(parent_run.result_summary or {}),
+        "device_matrix_total": len(variants),
+        "device_matrix_variants": variants,
+        "device_matrix_passed": 0,
+        "device_matrix_failed": 0,
+        "device_matrix_error": 0,
+    }
+    await db.commit()
+    await _safe_publish(parent_run.id, {"type": "run_status", "run_id": parent_run.id, "status": "running"})
+
+    counts = {"passed": 0, "failed": 0, "error": 0}
+    for index, variant in enumerate(variants):
+        child = TestRun(
+            case_id=case.id,
+            triggered_by=parent_run.triggered_by,
+            trace_id=parent_run.trace_id,
+            status=RunStatus.pending,
+            environment=parent_run.environment,
+            iteration_index=index,
+            iteration_data=variant,
+            parent_run_id=parent_run.id,
+        )
+        db.add(child)
+        await db.commit()
+        await db.refresh(child)
+        child_config = copy.deepcopy(config)
+        child_config.pop("device_matrix", None)
+        child_config["_device_matrix_variant"] = True
+        child_config["device_serial"] = variant["serial"]
+        child_case = SimpleNamespace(config=child_config)
+        lease_token: str | None = None
+        try:
+            device_id = variant.get("device_id")
+            if device_id is None:
+                raise LookupError(f"设备 {variant['serial']} 缺少注册 ID")
+            lease = await acquire_device_lease(
+                db,
+                int(device_id),
+                owner_id=parent_run.triggered_by,
+                owner_label=f"case-run:{child.id}",
+                ttl_seconds=max(900, int(config.get("device_lease_ttl_seconds", 900))),
+            )
+            lease_token = lease.lease_token
+            await db.commit()
+            await run_android_lowcode(db, child, child_case, extra_vars)
+        except (DeviceLeaseConflict, LookupError) as exc:
+            child.status = RunStatus.error
+            child.error_message = f"设备租约冲突: {exc}"
+            await db.commit()
+        finally:
+            if lease_token:
+                try:
+                    await release_device_lease(db, int(variant["device_id"]), lease_token)
+                    await db.commit()
+                except Exception:
+                    logger.exception("Failed to release Android device lease for run %s", child.id)
+        status_value = child.status.value if hasattr(child.status, "value") else str(child.status)
+        counts[status_value if status_value in counts else "error"] += 1
+
+    parent_run.status = RunStatus.passed if counts["failed"] == 0 and counts["error"] == 0 else RunStatus.failed
+    parent_run.result_summary = {
+        **(parent_run.result_summary or {}),
+        "device_matrix_passed": counts["passed"],
+        "device_matrix_failed": counts["failed"],
+        "device_matrix_error": counts["error"],
+    }
+    await db.commit()
+    await _safe_publish(
+        parent_run.id,
+        {"type": "completed", "run_id": parent_run.id, "status": parent_run.status.value},
     )

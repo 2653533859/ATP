@@ -20,6 +20,7 @@ celery_app = Celery(
         "app.worker.tasks_device",
         "app.worker.tasks_cleanup",
         "app.worker.tasks_mobile_special",
+        "app.worker.tasks_ios",
         "app.worker.tasks_db_backup",
         "app.worker.tasks_healing",
         "app.worker.tasks_performance",
@@ -42,8 +43,10 @@ celery_app.conf.update(
         "heartbeat_performance_node": {"queue": "performance"},
         # Android 专项与设备扫描，通常受真机资源约束
         "run_mobile_special_task": {"queue": "mobile_special"},
+        "reclaim_expired_ios_device_leases": {"queue": "ios"},
         "check_mobile_special_schedules": {"queue": "mobile_special"},
         "cleanup_stale_mobile_special_runs": {"queue": "mobile_special"},
+        "reclaim_expired_device_leases": {"queue": "mobile_special"},
         "scan_adb_devices": {"queue": "mobile_special"},
         # 外部 LLM 调用，便于独立限流与降级
         "diagnose_step_failure": {"queue": "ai"},
@@ -109,6 +112,14 @@ celery_app.conf.update(
         "cleanup-stale-mobile-special-runs": {
             "task": "cleanup_stale_mobile_special_runs",
             "schedule": 1800.0,
+        },
+        "reclaim-expired-ios-device-leases": {
+            "task": "reclaim_expired_ios_device_leases",
+            "schedule": 60.0,
+        },
+        "reclaim-expired-device-leases": {
+            "task": "reclaim_expired_device_leases",
+            "schedule": 60.0,
         },
         "backup-postgres-daily": {
             "task": "backup_postgres_daily",

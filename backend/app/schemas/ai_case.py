@@ -21,6 +21,7 @@ class AIParseSchemaIn(BaseModel):
 
     source_type: SchemaSourceType
     content: str = Field(min_length=1, max_length=2_000_000)
+    external_ref_policy: Literal["warn", "reject"] = "warn"
 
 
 class AIEndpointParameter(BaseModel):
@@ -37,6 +38,7 @@ class AIEndpointSummary(BaseModel):
 
     method: str
     path: str
+    base_url: str | None = None
     summary: str | None = None
     description: str | None = None
     operation_id: str | None = None
@@ -62,6 +64,9 @@ class AICaseGenerateIn(BaseModel):
     priority: CasePriority = "P2"
     case_level: CaseLevel = "regression"
     max_cases: int = Field(default=5, ge=1, le=20)
+    dataset_id: int | None = None
+    dataset_version: int | None = Field(default=None, ge=1)
+    mock_rule_ids: list[int] = Field(default_factory=list, max_length=20)
 
 
 class AICaseStepDraft(BaseModel):
@@ -86,6 +91,8 @@ class AICaseDraft(BaseModel):
     postconditions: list[str] = Field(default_factory=list)
     steps: list[AICaseStepDraft] = Field(default_factory=list)
     config: dict = Field(default_factory=dict)
+    dataset_id: int | None = None
+    dataset_version: int | None = None
 
 
 class AICaseGenerateOut(BaseModel):

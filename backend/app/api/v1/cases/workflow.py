@@ -401,6 +401,8 @@ async def clone_case_from_snapshot(
         creator_id=current_user.id,
         owner_id=current_user.id,
         config=copy.deepcopy(data.get("config") or {}),
+        dataset_id=data.get("dataset_id", source.dataset_id),
+        dataset_version=data.get("dataset_version", getattr(source, "dataset_version", None)),
     )
     db.add(new_case)
     await db.flush()

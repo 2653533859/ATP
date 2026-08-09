@@ -12,6 +12,7 @@ class CaseType(str, enum.Enum):
     api = "api"
     web = "web"
     android = "android"
+    ios = "ios"
     graphql = "graphql"
     websocket = "websocket"
     grpc = "grpc"
@@ -59,6 +60,8 @@ class TestCase(Base, TimestampMixin):
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     # P3.B MVP-B 参数化执行：绑定数据集后按行触发 N 次 child run
     dataset_id: Mapped[int | None] = mapped_column(ForeignKey("test_datasets.id"), nullable=True)
+    # AI/parameterized executions may pin an immutable dataset version. Null keeps legacy cases on current data.
+    dataset_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     module: Mapped["Module"] = relationship(back_populates="cases")
     steps: Mapped[list["CaseStep"]] = relationship(
@@ -88,7 +91,7 @@ class TestCase(Base, TimestampMixin):
     @property
     def script_status(self) -> str:
         """Expose script readiness without leaking the object-storage path."""
-        if self.case_type not in {CaseType.web, CaseType.android}:
+        if self.case_type not in {CaseType.web, CaseType.android, CaseType.ios}:
             return "not_applicable"
         return "generated" if (self.config or {}).get("script_path") else "missing"
 

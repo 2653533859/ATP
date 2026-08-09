@@ -139,6 +139,15 @@ class _AsyncDB:
         self.commits += 1
 
 
+class _VersionAsyncDB(_AsyncDB):
+    def __init__(self, get_value_map, version):
+        super().__init__(get_value_map)
+        self.version = version
+
+    async def execute(self, _statement):
+        return types.SimpleNamespace(scalar_one_or_none=lambda: self.version)
+
+
 def _fake_project(project_id=1, ai_llm_config_id: int | None = 1):
     return types.SimpleNamespace(id=project_id, ai_llm_config_id=ai_llm_config_id)
 
@@ -298,6 +307,136 @@ def test_generate_success_invokes_generator(monkeypatch):
     assert db.added[-1].action == "ai_case_generate"
     assert db.added[-1].project_id == 1
     assert '"draft_count": 1' in db.added[-1].detail
+
+
+def test_generate_passes_selected_dataset_and_mock_context(monkeypatch):
+    dataset = types.SimpleNamespace(
+        id=10,
+        project_id=1,
+        name="accounts",
+        description="demo",
+        format="json",
+        validation_policy="hard",
+        schema_fields=[{"name": "username", "type": "string", "required": True}],
+        rows=[{"username": "alice_demo"}],
+    )
+    mock_rule = types.SimpleNamespace(
+        id=20,
+        project_id=1,
+        name="login mock",
+        method="POST",
+        path="/login",
+        status_code=200,
+        response_headers={},
+        response_body='{"ok":true}',
+        match_conditions={},
+        delay_ms=0,
+        recorded_samples=[],
+    )
+    db = _AsyncDB(
+        {
+            "Project": {1: _fake_project()},
+            "Module": {1: _fake_module()},
+            "AILLMConfig": {1: _fake_config()},
+            "TestDataset": {10: dataset},
+            "MockRule": {20: mock_rule},
+        }
+    )
+    called_with: dict = {}
+
+    async def fake_generate(**kwargs):
+        called_with.update(kwargs)
+        return GenerationResult(drafts=[], raw_text="[]", warnings=[])
+
+    monkeypatch.setattr(ai_case_generation, "generate_case_drafts", fake_generate)
+    body = AICaseGenerateIn(project_id=1, module_id=1, dataset_id=10, mock_rule_ids=[20])
+
+    asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, user=None))
+
+    assert called_with["dataset_id"] == 10
+    assert called_with["dataset_context"]["name"] == "accounts"
+    assert called_with["dataset_context"]["sample_rows"][0]["username"] == "alice_demo"
+    assert called_with["mock_context"][0]["path"] == "/login"
+
+
+def test_generate_uses_selected_immutable_dataset_version(monkeypatch):
+    dataset = types.SimpleNamespace(
+        id=10,
+        project_id=1,
+        name="accounts",
+        description="current",
+        format="json",
+        validation_policy="soft",
+        schema_fields=[{"name": "username", "type": "string", "required": True}],
+        rows=[{"username": "current-user"}],
+    )
+    snapshot = types.SimpleNamespace(
+        id=101,
+        dataset_id=10,
+        version=3,
+        format="json",
+        validation_policy="hard",
+        schema_fields=[{"name": "username", "type": "string", "required": True}],
+        rows=[{"username": "pinned-user"}],
+    )
+    mock_rule = types.SimpleNamespace(
+        id=20,
+        project_id=1,
+        name="login mock",
+        method="POST",
+        path="/login",
+        status_code=200,
+        response_headers={},
+        response_body='{"ok":true}',
+        match_conditions={},
+        delay_ms=0,
+        recorded_samples=[],
+    )
+    db = _VersionAsyncDB(
+        {
+            "Project": {1: _fake_project()},
+            "Module": {1: _fake_module()},
+            "AILLMConfig": {1: _fake_config()},
+            "TestDataset": {10: dataset},
+            "MockRule": {20: mock_rule},
+        },
+        snapshot,
+    )
+    called_with: dict = {}
+
+    async def fake_generate(**kwargs):
+        called_with.update(kwargs)
+        return GenerationResult(drafts=[], raw_text="[]", warnings=[])
+
+    monkeypatch.setattr(ai_case_generation, "generate_case_drafts", fake_generate)
+    body = AICaseGenerateIn(project_id=1, module_id=1, dataset_id=10, dataset_version=3, mock_rule_ids=[20, 20])
+
+    asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, user=None))
+
+    assert called_with["dataset_version"] == 3
+    assert called_with["dataset_context"]["version"] == 3
+    assert called_with["dataset_context"]["sample_rows"][0]["username"] == "pinned-user"
+    assert '"dataset_version": 3' in db.added[-1].detail
+    assert '"mock_rule_ids": [20]' in db.added[-1].detail
+
+
+def test_generate_rejects_context_from_another_project():
+    dataset = types.SimpleNamespace(id=10, project_id=99)
+    db = _AsyncDB(
+        {
+            "Project": {1: _fake_project()},
+            "Module": {1: _fake_module()},
+            "AILLMConfig": {1: _fake_config()},
+            "TestDataset": {10: dataset},
+        }
+    )
+    body = AICaseGenerateIn(project_id=1, module_id=1, dataset_id=10)
+
+    with pytest.raises(Exception) as exc_info:
+        asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, user=None))
+
+    assert getattr(exc_info.value, "status_code", None) == 400
+    assert "不属于当前项目" in exc_info.value.detail  # type: ignore[attr-defined]
 
 
 def test_generate_failure_writes_funnel_audit_event(monkeypatch):

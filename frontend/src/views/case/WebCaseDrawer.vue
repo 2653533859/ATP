@@ -62,9 +62,11 @@
           <a-form-item :label="t('case.drawer.browser')">
             <a-select v-model:value="cfg.browser" style="width: 100%">
               <a-select-option value="chromium">Chromium</a-select-option>
+              <a-select-option value="firefox">Firefox</a-select-option>
+              <a-select-option value="webkit">WebKit</a-select-option>
             </a-select>
             <div style="margin-top: 6px; color: #999; font-size: 12px">
-              {{ t('case.drawer.web.chromium_only') }}
+              {{ t('case.drawer.web.browser_hint') }}
             </div>
           </a-form-item>
         </a-col>
@@ -105,6 +107,24 @@
           {{ t('case.drawer.web.headless_hint') }}
         </span>
       </a-form-item>
+      <a-form-item :label="t('case.drawer.web.matrix_label')">
+        <a-switch v-model:checked="matrixEnabled" />
+        <span style="margin-left: 8px; color: #999; font-size: 12px">{{ t('case.drawer.web.matrix_hint') }}</span>
+      </a-form-item>
+      <div v-if="matrixEnabled" class="matrix-editor">
+        <div v-for="(variant, index) in matrixVariants" :key="index" class="matrix-row">
+          <a-select v-model:value="variant.browser" style="width: 120px">
+            <a-select-option value="chromium">Chromium</a-select-option>
+            <a-select-option value="firefox">Firefox</a-select-option>
+            <a-select-option value="webkit">WebKit</a-select-option>
+          </a-select>
+          <a-input-number v-model:value="variant.viewport.width" :min="320" :max="3840" style="width: 110px" />
+          <a-input-number v-model:value="variant.viewport.height" :min="240" :max="2160" style="width: 110px" />
+          <a-input v-model:value="variant.device" :placeholder="t('case.drawer.web.matrix_device_placeholder')" />
+          <a-button danger type="text" :disabled="matrixVariants.length <= 1" @click="matrixVariants.splice(index, 1)">×</a-button>
+        </div>
+        <a-button size="small" type="dashed" @click="addMatrixVariant">{{ t('case.drawer.web.matrix_add') }}</a-button>
+      </div>
 
       <a-divider orientation="left">{{ t('case.drawer.test_content') }}</a-divider>
       <a-form-item :label="t('case.drawer.edit_mode')">
@@ -180,6 +200,7 @@
 
     <WebRecorderModal
       :open="recorderOpen"
+      :project-id="projectId"
       @close="recorderOpen = false"
       @recorded="handleRecordedSteps"
     />
@@ -229,6 +250,11 @@ type WebCaseConfig = Record<string, unknown> & {
     width?: number
     height?: number
   }
+  browser_matrix?: Array<{
+    browser?: string
+    viewport?: { width?: number; height?: number }
+    device?: string
+  }>
   script_path?: string
   steps?: LowcodeStep[]
 }
@@ -264,6 +290,15 @@ const cfg = reactive({
   viewportWidth: 1280,
   viewportHeight: 720,
 })
+
+type WebMatrixVariant = {
+  browser: 'chromium' | 'firefox' | 'webkit'
+  viewport: { width: number; height: number }
+  device: string
+}
+
+const matrixEnabled = ref(false)
+const matrixVariants = ref<WebMatrixVariant[]>([])
 
 const lowcodeSteps = ref<LowcodeStep[]>([])
 const recorderOpen = ref(false)
@@ -303,6 +338,8 @@ function resetDrawerState() {
   cfg.timeout = 60
   cfg.viewportWidth = 1280
   cfg.viewportHeight = 720
+  matrixEnabled.value = false
+  matrixVariants.value = []
   scriptContent.value = ''
   scriptPath.value = null
   lowcodeSteps.value = []
@@ -353,6 +390,17 @@ watch(() => props.open, async (v) => {
       cfg.timeout = c.timeout ?? 60
       cfg.viewportWidth = c.viewport?.width ?? 1280
       cfg.viewportHeight = c.viewport?.height ?? 720
+      if (Array.isArray(c.browser_matrix) && c.browser_matrix.length) {
+        matrixEnabled.value = true
+        matrixVariants.value = c.browser_matrix.map((item) => ({
+          browser: item.browser === 'firefox' || item.browser === 'webkit' ? item.browser : 'chromium',
+          viewport: {
+            width: Number(item.viewport?.width ?? 1280),
+            height: Number(item.viewport?.height ?? 720),
+          },
+          device: String(item.device ?? ''),
+        }))
+      }
       scriptPath.value = c.script_path ?? null
       lowcodeSteps.value = Array.isArray(c.steps) ? c.steps : []
       editMode.value = resolveEditMode(c)
@@ -461,6 +509,13 @@ function buildConfig() {
     headless: cfg.headless,
     timeout: cfg.timeout,
     viewport: { width: cfg.viewportWidth, height: cfg.viewportHeight },
+    ...(matrixEnabled.value ? {
+      browser_matrix: matrixVariants.value.map((variant) => ({
+        browser: variant.browser,
+        viewport: variant.viewport,
+        ...(variant.device ? { device: variant.device } : {}),
+      })),
+    } : {}),
   }
 
   if (editMode.value === 'lowcode') {
@@ -475,6 +530,14 @@ function buildConfig() {
     ...base,
     ...(scriptPath.value ? { script_path: scriptPath.value } : {}),
   }
+}
+
+function addMatrixVariant() {
+  matrixVariants.value.push({
+    browser: 'chromium',
+    viewport: { width: 1280, height: 720 },
+    device: '',
+  })
 }
 
 function handleRecordedSteps(steps: LowcodeStep[]) {

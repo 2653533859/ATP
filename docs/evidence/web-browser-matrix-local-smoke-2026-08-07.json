@@ -1,0 +1,27 @@
+{
+  "executed_at": "2026-08-07T19:30:59+08:00",
+  "script": "frontend/tools/browser-matrix-smoke.mjs",
+  "url": "http://127.0.0.1:5173/login",
+  "wait_condition": "input attached",
+  "results": [
+    {
+      "browser": "chromium",
+      "status": 200,
+      "title": "ATP - 自动化测试平台",
+      "login_inputs": 4
+    },
+    {
+      "browser": "firefox",
+      "status": 200,
+      "title": "ATP - 自动化测试平台",
+      "login_inputs": 4
+    },
+    {
+      "browser": "webkit",
+      "status": 200,
+      "title": "ATP - 自动化测试平台",
+      "login_inputs": 4
+    }
+  ],
+  "scope": "本机三浏览器页面加载证据，不代表 Docker Worker 或远程节点验收。"
+}

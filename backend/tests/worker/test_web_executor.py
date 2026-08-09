@@ -187,24 +187,15 @@ def test_web_executor_enqueues_diagnosis_when_hook_requests(monkeypatch, events,
     assert healing["diagnosis"] == [db.added[0].id]
 
 
-def test_web_executor_falls_back_to_chromium_for_unsupported_browser(monkeypatch, events, fake_minio, healing):
-    seen = {}
+def test_web_executor_rejects_unsupported_browser(events, fake_minio, healing):
+    db = _FakeDB()
+    run = _run_stub()
 
-    def fake_run(cmd, **kwargs):
-        seen["browser"] = next(a.split("=", 1)[1] for a in cmd if a.startswith("--browser="))
-        report_path = next(a.split("=", 1)[1] for a in cmd if a.startswith("--json-report-file="))
-        Path(report_path).write_text(
-            json.dumps({"tests": [{"nodeid": "t::test_a", "outcome": "passed", "duration": 0.1}]})
-        )
-        return _Obj(returncode=0, stdout="", stderr="")
+    asyncio.run(web_executor.run_web_case(db, run, _Obj(config={"script_path": "s.py", "browser": "safari"}), {}))
 
-    monkeypatch.setattr(web_executor.subprocess, "run", fake_run)
-
-    asyncio.run(
-        web_executor.run_web_case(_FakeDB(), _run_stub(), _Obj(config={"script_path": "s.py", "browser": "safari"}), {})
-    )
-
-    assert seen["browser"] == "chromium"
+    assert run.status is RunStatus.error
+    assert "不支持的浏览器" in run.error_message
+    assert events[-1]["status"] == "error"
 
 
 def test_web_executor_safe_publish_swallows_redis_failure(monkeypatch):

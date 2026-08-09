@@ -37,6 +37,7 @@ def _type_code(case_type: CaseType) -> str:
         CaseType.api: "API",
         CaseType.web: "WEB",
         CaseType.android: "AND",
+        CaseType.ios: "IOS",
         CaseType.graphql: "GQL",
         CaseType.websocket: "WS",
         CaseType.grpc: "GRPC",
@@ -100,6 +101,8 @@ def _serialize_case_snapshot(case: TestCase) -> dict:
         "postconditions": _normalize_string_list(case.postconditions),
         "tags": _normalize_string_list(case.tags),
         "config": copy.deepcopy(case.config or {}),
+        "dataset_id": case.dataset_id,
+        "dataset_version": getattr(case, "dataset_version", None),
         "steps": _serialize_steps(case.steps or []),
     }
 

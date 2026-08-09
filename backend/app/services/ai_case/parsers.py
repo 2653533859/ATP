@@ -8,7 +8,7 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, Literal
 from urllib.parse import urlparse
 
 import yaml
@@ -28,6 +28,7 @@ class EndpointParameter:
 class Endpoint:
     method: str
     path: str
+    base_url: str | None = None
     summary: str | None = None
     description: str | None = None
     operation_id: str | None = None
@@ -55,9 +56,72 @@ def _coerce_doc(content: str) -> dict:
     return yaml.safe_load(text)
 
 
-def _example_from_schema(schema: dict | None) -> Any:
+ExternalRefPolicy = Literal["warn", "reject"]
+
+
+class _OpenApiResolver:
+    """Resolve local OpenAPI/Swagger JSON pointers without fetching remote files."""
+
+    def __init__(
+        self,
+        document: dict[str, Any],
+        warnings: list[str],
+        *,
+        external_ref_policy: ExternalRefPolicy = "warn",
+    ) -> None:
+        self.document = document
+        self.warnings = warnings
+        self.external_ref_policy = external_ref_policy
+
+    def resolve(self, value: Any) -> Any:
+        if not isinstance(value, dict) or "$ref" not in value:
+            return value
+        current = value
+        visited: set[str] = set()
+        while isinstance(current, dict) and "$ref" in current:
+            reference = current.get("$ref")
+            if not isinstance(reference, str) or not reference.startswith("#/"):
+                if self.external_ref_policy == "reject":
+                    raise ValueError(f"发布安全模式禁止外部 OpenAPI $ref: {reference}")
+                self.warnings.append(f"暂不解析外部 OpenAPI $ref: {reference}")
+                return {key: item for key, item in current.items() if key != "$ref"}
+            if reference in visited:
+                self.warnings.append(f"检测到循环 OpenAPI $ref: {reference}")
+                return {key: item for key, item in current.items() if key != "$ref"}
+            visited.add(reference)
+            target = self._pointer(reference)
+            if target is None:
+                self.warnings.append(f"未找到 OpenAPI $ref: {reference}")
+                return {key: item for key, item in current.items() if key != "$ref"}
+            if not isinstance(target, dict):
+                self.warnings.append(f"OpenAPI $ref 目标不是对象: {reference}")
+                return target
+            merged = dict(target)
+            merged.update({key: item for key, item in current.items() if key != "$ref"})
+            current = merged
+        return current
+
+    def _pointer(self, reference: str) -> Any:
+        value: Any = self.document
+        for part in reference[2:].split("/"):
+            part = part.replace("~1", "/").replace("~0", "~")
+            if isinstance(value, dict):
+                value = value.get(part)
+            elif isinstance(value, list) and part.isdigit():
+                index = int(part)
+                value = value[index] if index < len(value) else None
+            else:
+                return None
+        return value
+
+
+def _example_from_schema(schema: dict | None, resolver: _OpenApiResolver | None = None) -> Any:
     if not isinstance(schema, dict):
         return None
+    if resolver is not None:
+        schema = resolver.resolve(schema)
+        if not isinstance(schema, dict):
+            return None
     if "example" in schema:
         return schema["example"]
     if "default" in schema:
@@ -73,13 +137,23 @@ def _example_from_schema(schema: dict | None) -> Any:
     if type_ == "boolean":
         return False
     if type_ == "array":
-        return [_example_from_schema(schema.get("items"))]
+        return [_example_from_schema(schema.get("items"), resolver)]
     if type_ == "object" or schema.get("properties"):
-        return {name: _example_from_schema(sub) for name, sub in (schema.get("properties") or {}).items()}
+        return {name: _example_from_schema(sub, resolver) for name, sub in (schema.get("properties") or {}).items()}
+    all_of = schema.get("allOf")
+    if isinstance(all_of, list):
+        example: dict[str, Any] = {}
+        for item in all_of:
+            nested = _example_from_schema(item, resolver)
+            if isinstance(nested, dict):
+                example.update(nested)
+        return example or None
     return None
 
 
-def parse_openapi(content: str) -> ParseResult:
+def parse_openapi(content: str, *, external_ref_policy: ExternalRefPolicy = "warn") -> ParseResult:
+    if external_ref_policy not in {"warn", "reject"}:
+        raise ValueError(f"不支持的外部 OpenAPI $ref 策略: {external_ref_policy}")
     doc = _coerce_doc(content)
     if not isinstance(doc, dict):
         raise ValueError("OpenAPI 文档需要是对象")
@@ -89,7 +163,13 @@ def parse_openapi(content: str) -> ParseResult:
 
     endpoints: list[Endpoint] = []
     warnings: list[str] = []
+    resolver = _OpenApiResolver(doc, warnings, external_ref_policy=external_ref_policy)
     valid_methods = {"get", "post", "put", "delete", "patch", "options", "head"}
+    servers = doc.get("servers") or []
+    base_url = servers[0].get("url") if servers and isinstance(servers[0], dict) else None
+    if not base_url and doc.get("host"):
+        schemes = doc.get("schemes") or ["http"]
+        base_url = f"{schemes[0]}://{doc['host']}{doc.get('basePath', '')}"
 
     for path, item in paths.items():
         if not isinstance(item, dict):
@@ -102,7 +182,11 @@ def parse_openapi(content: str) -> ParseResult:
             for raw in common_params + (op.get("parameters") or []):
                 if not isinstance(raw, dict):
                     continue
+                raw = resolver.resolve(raw)
+                if not isinstance(raw, dict):
+                    continue
                 schema = raw.get("schema") or {}
+                schema = resolver.resolve(schema)
                 params.append(
                     EndpointParameter(
                         name=raw.get("name", ""),
@@ -110,27 +194,33 @@ def parse_openapi(content: str) -> ParseResult:
                         required=bool(raw.get("required", False)),
                         schema_type=schema.get("type"),
                         description=raw.get("description"),
-                        example=raw.get("example") or _example_from_schema(schema),
+                        example=raw.get("example") or _example_from_schema(schema, resolver),
                     )
                 )
 
             body_example: Any = None
             body = op.get("requestBody")
             if isinstance(body, dict):
+                body = resolver.resolve(body)
                 content_map = body.get("content") or {}
                 json_media = content_map.get("application/json") or {}
                 if isinstance(json_media, dict):
-                    body_example = json_media.get("example") or _example_from_schema(json_media.get("schema"))
+                    json_media = resolver.resolve(json_media)
+                    body_example = json_media.get("example") or _example_from_schema(json_media.get("schema"), resolver)
 
             resp_example: Any = None
             responses = op.get("responses") or {}
             for code in ("200", "201", "default"):
                 resp = responses.get(code)
                 if isinstance(resp, dict):
+                    resp = resolver.resolve(resp)
                     content_map = resp.get("content") or {}
                     json_media = content_map.get("application/json") or {}
                     if isinstance(json_media, dict):
-                        resp_example = json_media.get("example") or _example_from_schema(json_media.get("schema"))
+                        json_media = resolver.resolve(json_media)
+                        resp_example = json_media.get("example") or _example_from_schema(
+                            json_media.get("schema"), resolver
+                        )
                         if resp_example is not None:
                             break
 
@@ -138,6 +228,7 @@ def parse_openapi(content: str) -> ParseResult:
                 Endpoint(
                     method=method.upper(),
                     path=path,
+                    base_url=base_url,
                     summary=op.get("summary"),
                     description=op.get("description"),
                     operation_id=op.get("operationId"),
@@ -171,10 +262,16 @@ def _walk_postman_items(items: list, accumulator: list[Endpoint]) -> None:
         if isinstance(url, dict):
             path = "/" + "/".join(url.get("path") or [])
             query_items = url.get("query") or []
+            base_url = None
+            host = url.get("host") or []
+            protocol = url.get("protocol") or "http"
+            if host:
+                base_url = f"{protocol}://{'.'.join(host) if isinstance(host, list) else host}"
         else:
             parsed = urlparse(str(url or ""))
             path = parsed.path or "/"
             query_items = []
+            base_url = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else None
 
         params: list[EndpointParameter] = []
         for q in query_items:
@@ -213,6 +310,7 @@ def _walk_postman_items(items: list, accumulator: list[Endpoint]) -> None:
             Endpoint(
                 method=method,
                 path=path,
+                base_url=base_url,
                 summary=entry.get("name"),
                 description=(request.get("description") or None)
                 if isinstance(request.get("description"), str)
@@ -261,6 +359,7 @@ def parse_curl(content: str) -> ParseResult:
     url = url_match.group(1)
     parsed = urlparse(url)
     path = parsed.path or "/"
+    base_url = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else None
 
     method = "GET"
     if m := _CURL_METHOD_RE.search(raw):
@@ -291,6 +390,7 @@ def parse_curl(content: str) -> ParseResult:
             Endpoint(
                 method=method,
                 path=path,
+                base_url=base_url,
                 summary=f"{method} {path}",
                 parameters=params,
                 request_body_example=body_example,
@@ -357,6 +457,7 @@ def _endpoint_from_sample_object(obj: dict) -> Endpoint:
     raw_path = str(obj.get("path") or obj.get("url") or obj.get("endpoint") or "/")
     parsed = urlparse(raw_path)
     path = parsed.path or raw_path or "/"
+    base_url = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else None
 
     params: list[EndpointParameter] = []
     raw_headers = obj.get("headers") or obj.get("header")
@@ -383,6 +484,7 @@ def _endpoint_from_sample_object(obj: dict) -> Endpoint:
     return Endpoint(
         method=method,
         path=path,
+        base_url=base_url,
         summary=obj.get("name") or obj.get("summary") or f"{method} {path}",
         description=obj.get("description"),
         parameters=params,
@@ -416,6 +518,7 @@ def parse_sample(content: str) -> ParseResult:
                 Endpoint(
                     method="POST",
                     path="/sample-endpoint",
+                    base_url=None,
                     summary="接口样例",
                     request_body_example=loaded,
                 )
@@ -459,10 +562,15 @@ def parse_sample(content: str) -> ParseResult:
 # ──────────────────────────── 入口 ────────────────────────────────
 
 
-def parse_schema(source_type: str, content: str) -> ParseResult:
+def parse_schema(
+    source_type: str,
+    content: str,
+    *,
+    external_ref_policy: ExternalRefPolicy = "warn",
+) -> ParseResult:
     """根据 source_type 路由到对应解析器。"""
     if source_type == "openapi":
-        return parse_openapi(content)
+        return parse_openapi(content, external_ref_policy=external_ref_policy)
     if source_type == "postman":
         return parse_postman(content)
     if source_type == "curl":

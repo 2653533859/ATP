@@ -135,7 +135,7 @@ services:
       PERFORMANCE_NODE_MAX_VUS: "20"
       PERFORMANCE_NODE_MAX_CONCURRENCY: "1"
       PERFORMANCE_NODE_EGRESS_ALLOWLIST: grpc-target,http-target
-      PERFORMANCE_EXECUTORS: k6,locust,grpc
+      PERFORMANCE_EXECUTORS: k6,locust,grpc,jmeter
     volumes:
       - acceptance_tls:/etc/atp/tls:ro
     ports:

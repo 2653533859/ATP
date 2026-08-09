@@ -11,7 +11,7 @@ from pydantic import BaseModel, Field, computed_field, field_serializer
 
 from app.services.performance_options import ENVIRONMENT_SNAPSHOT_KEY
 
-PerformanceExecutor = Literal["k6", "locust", "grpc"]
+PerformanceExecutor = Literal["k6", "locust", "grpc", "jmeter"]
 PerformanceRunStatus = Literal["pending", "running", "cancelling", "success", "failed", "cancelled"]
 PerformanceGateStatus = Literal["pending", "passed", "failed", "not_configured", "cancelled"]
 _SENSITIVE_ENV_KEY_RE = re.compile(
@@ -91,7 +91,15 @@ class PerformanceRunRawResultOut(BaseModel):
 class PerformanceRunTrigger(BaseModel):
     environment_id: int | None = None
     performance_node_id: int | None = Field(default=None, ge=1)
+    performance_node_ids: list[int] = Field(default_factory=list, max_length=32)
     options: dict = Field(default_factory=dict)
+
+
+class PerformanceCapacityAnalyzeRequest(BaseModel):
+    run_ids: list[int] = Field(..., min_length=1, max_length=64)
+    max_error_rate: float = Field(default=0.01, ge=0, le=1)
+    max_p95_ms: float | None = Field(default=None, ge=0)
+    min_stable_runs: int = Field(default=1, ge=1, le=64)
 
 
 class PerformanceScheduleUpdate(BaseModel):
@@ -150,6 +158,7 @@ class PerformanceRunOut(BaseModel):
     project_id: int
     environment_id: int | None
     performance_node_id: int | None
+    parent_run_id: int | None = None
     dataset_id: int | None
     dataset_version: int | None
     status: PerformanceRunStatus | str

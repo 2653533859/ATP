@@ -63,17 +63,19 @@ from .common import (
 )
 
 # === 3. 子模块（此时它们 import app.api.v1.cases 时已能看到所有外部依赖与 common 函数） ===
-from . import batch, crud, runs, workflow
+from . import batch, crud, importing, runs, workflow
 
 # === 4. router 装配 ===
 router = APIRouter(tags=["用例管理"])
 router.include_router(crud.router)
 router.include_router(batch.router)
+router.include_router(importing.router)
 router.include_router(workflow.router)
 router.include_router(runs.router)
 
 # === 5. 兼容层：re-export endpoint 函数与子模块私有符号 ===
 from .crud import (
+    _resolve_dataset_binding,
     copy_case,
     create_case,
     delete_case,
@@ -115,11 +117,13 @@ __all__ = [
     "update_case",
     "copy_case",
     "delete_case",
+    "_resolve_dataset_binding",
     "batch_delete_cases",
     "batch_move_cases",
     "batch_export_cases",
     "batch_export_cases_zip",
     "batch_import_cases_zip",
+    "importing",
     "submit_review",
     "approve_case",
     "reject_case",

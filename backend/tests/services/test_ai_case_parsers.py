@@ -17,6 +17,7 @@ from app.services.ai_case.parsers import parse_schema
 def test_parse_openapi_json_basic():
     doc = {
         "openapi": "3.0.0",
+        "servers": [{"url": "https://api.example.com/v1"}],
         "paths": {
             "/users/{id}": {
                 "get": {
@@ -58,6 +59,7 @@ def test_parse_openapi_json_basic():
     assert methods == ["GET", "POST"]
     get_endpoint = next(e for e in result.endpoints if e.method == "GET")
     assert get_endpoint.path == "/users/{id}"
+    assert get_endpoint.base_url == "https://api.example.com/v1"
     assert get_endpoint.summary == "Get user"
     assert get_endpoint.parameters[0].name == "id"
     assert get_endpoint.parameters[0].location == "path"
@@ -84,6 +86,66 @@ def test_parse_openapi_empty_paths_returns_warning():
     result = parse_schema("openapi", json.dumps({"openapi": "3.0.0"}))
     assert result.endpoints == []
     assert any("paths" in w for w in result.warnings)
+
+
+def test_parse_openapi_resolves_local_refs_in_parameters_and_examples():
+    doc = {
+        "openapi": "3.0.0",
+        "components": {
+            "parameters": {
+                "TraceId": {"name": "X-Trace-Id", "in": "header", "required": True, "schema": {"type": "string"}}
+            },
+            "schemas": {
+                "User": {"type": "object", "properties": {"id": {"type": "integer"}, "name": {"type": "string"}}}
+            },
+        },
+        "paths": {
+            "/users": {
+                "get": {
+                    "parameters": [{"$ref": "#/components/parameters/TraceId"}],
+                    "responses": {
+                        "200": {"content": {"application/json": {"schema": {"$ref": "#/components/schemas/User"}}}}
+                    },
+                }
+            }
+        },
+    }
+
+    result = parse_schema("openapi", json.dumps(doc))
+
+    endpoint = result.endpoints[0]
+    assert endpoint.parameters[0].name == "X-Trace-Id"
+    assert endpoint.response_example == {"id": 0, "name": ""}
+    assert result.warnings == []
+
+
+def test_parse_openapi_reports_external_refs_without_network_access():
+    result = parse_schema(
+        "openapi",
+        json.dumps(
+            {
+                "openapi": "3.0.0",
+                "paths": {"/users": {"get": {"parameters": [{"$ref": "https://example.com/common.json#/TraceId"}]}}},
+            }
+        ),
+    )
+
+    assert result.endpoints
+    assert any("外部" in warning for warning in result.warnings)
+
+
+def test_parse_openapi_rejects_external_refs_in_release_policy():
+    with pytest.raises(ValueError, match="外部 OpenAPI"):
+        parse_schema(
+            "openapi",
+            json.dumps(
+                {
+                    "openapi": "3.0.0",
+                    "paths": {"/users": {"get": {"parameters": [{"$ref": "https://example.com/common.json"}]}}},
+                }
+            ),
+            external_ref_policy="reject",
+        )
 
 
 # ──────────── Postman ────────────
@@ -124,6 +186,7 @@ def test_parse_postman_collection_basic():
     assert any(p.name == "Authorization" and p.location == "header" for p in list_endpoint.parameters)
     create_endpoint = next(e for e in result.endpoints if e.method == "POST")
     assert create_endpoint.request_body_example == {"name": "bob"}
+    assert create_endpoint.base_url == "https://api.example.com"
 
 
 def test_parse_postman_empty_items_warning():
@@ -146,6 +209,7 @@ def test_parse_curl_with_post_body_and_headers():
     endpoint = result.endpoints[0]
     assert endpoint.method == "POST"
     assert endpoint.path == "/api/v1/login"
+    assert endpoint.base_url == "https://api.example.com"
     assert endpoint.request_body_example == {"username": "u", "password": "p"}
     assert any(p.name == "Content-Type" for p in endpoint.parameters)
 

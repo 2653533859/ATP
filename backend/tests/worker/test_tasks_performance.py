@@ -67,6 +67,12 @@ def perf_task(monkeypatch):
     monkeypatch.setitem(sys.modules, "app.worker.celery_app", types.SimpleNamespace(celery_app=_FakeCeleryApp()))
     monkeypatch.delitem(sys.modules, "app.worker.tasks_performance", raising=False)
 
+    from app.core import config
+
+    # 本地 .env 可能启用显式压测节点，但普通任务单测使用的 fake session 不提供节点心跳查询。
+    # 需要覆盖节点行为的用例会在自身测试中显式打开该开关。
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_ENABLED", False)
+
     from app.worker import tasks_performance
 
     yield tasks_performance

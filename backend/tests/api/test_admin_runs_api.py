@@ -29,10 +29,9 @@ sys.modules["app.api.deps"] = types.SimpleNamespace(
     assert_project_access=_p3c_noop_async,
     ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
 )
-sys.modules["app.core.minio_client"] = types.SimpleNamespace(
-    list_objects=lambda prefix: [],
-    delete_file=lambda object_name: None,
-)
+_minio = sys.modules.setdefault("app.core.minio_client", types.SimpleNamespace())
+_minio.list_objects = lambda prefix: []
+_minio.delete_file = lambda object_name: None
 
 from app.api.v1 import admin_runs
 

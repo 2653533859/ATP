@@ -29,6 +29,9 @@ from app.services.performance_executor import (
     node_supports_executor,
     run_performance_executor,
 )
+from app.services.performance_sharding import aggregate_performance_summaries
+from app.services.performance_notifications import build_performance_notification_summary
+from app.services.performance_metric_boundary import build_metric_boundary
 from app.services.performance_dataset import (
     PerformanceDatasetBindingError,
     load_dataset_rows,
@@ -41,6 +44,49 @@ from app.worker.celery_app import celery_app
 logger = logging.getLogger(__name__)
 
 load_all_models()
+
+
+async def _notify_performance_run(db, run, test, metric_samples: list[dict]) -> None:
+    """Send performance notifications best-effort after the run is persisted."""
+
+    try:
+        if (run.summary or {}).get("__performance_notification_sent"):
+            return
+        from app.services.notifier import send_notifications
+        from app.services.performance_report import build_baseline_comparison, build_performance_gate
+
+        baseline_regression = False
+        baseline_run_id = getattr(test, "baseline_run_id", None)
+        if baseline_run_id and baseline_run_id != run.id:
+            baseline = await db.get(type(run), baseline_run_id)
+            if baseline is not None:
+                comparison = build_baseline_comparison(
+                    baseline_run_id,
+                    run.id,
+                    baseline.summary,
+                    run.summary,
+                )
+                baseline_regression = any(item.get("direction") == "regression" for item in comparison["metrics"])
+
+        gate = build_performance_gate(run.status, run.summary)
+        node_issue = bool(run.error_message and "节点" in run.error_message)
+        resource_issue = any(bool(sample.get("errors")) for sample in metric_samples)
+        notification = build_performance_notification_summary(
+            test_name=test.name,
+            run_id=run.id,
+            status=run.status,
+            duration_ms=run.duration_ms,
+            summary=run.summary,
+            gate=gate,
+            baseline_regression=baseline_regression,
+            node_issue=node_issue,
+            resource_issue=resource_issue,
+        )
+        await send_notifications(db, run.project_id, notification)
+        run.summary = {**(run.summary or {}), "__performance_notification_sent": True}
+        await db.commit()
+    except Exception:
+        logger.exception("Failed to send performance notification for run %s", getattr(run, "id", None))
 
 
 async def _heartbeat_worker_node(db):
@@ -82,12 +128,57 @@ async def _heartbeat_worker_node(db):
     return node
 
 
+async def _aggregate_sharded_run(db, parent_run_id: int) -> None:
+    """Finalize a parent run once all node shards have reached a terminal state."""
+    from app.models.performance import PerformanceRun, PerformanceRunStatus
+
+    parent = await db.get(PerformanceRun, parent_run_id)
+    if parent is None:
+        return
+    result = await db.execute(
+        select(PerformanceRun).where(PerformanceRun.parent_run_id == parent_run_id).with_for_update()
+    )
+    shards = result.scalars().all()
+    terminal = {
+        PerformanceRunStatus.success.value,
+        PerformanceRunStatus.failed.value,
+        PerformanceRunStatus.cancelled.value,
+    }
+    if not shards or any(shard.status not in terminal for shard in shards):
+        return
+    ordered = sorted(shards, key=lambda shard: (shard.summary or {}).get("__shard_index", shard.id))
+    parent.summary = aggregate_performance_summaries(
+        [
+            {
+                "run_id": shard.id,
+                "node_id": shard.performance_node_id,
+                "status": shard.status,
+                **(shard.summary or {}),
+            }
+            for shard in ordered
+        ]
+    )
+    parent.status = (
+        PerformanceRunStatus.failed.value
+        if any(shard.status == PerformanceRunStatus.failed.value for shard in shards)
+        else PerformanceRunStatus.cancelled.value
+        if all(shard.status == PerformanceRunStatus.cancelled.value for shard in shards)
+        else PerformanceRunStatus.success.value
+    )
+    parent.started_at = min((shard.started_at for shard in shards if shard.started_at), default=parent.started_at)
+    parent.finished_at = max((shard.finished_at for shard in shards if shard.finished_at), default=parent.finished_at)
+    parent.duration_ms = max((shard.duration_ms or 0 for shard in shards), default=0)
+    parent.error_message = next((shard.error_message for shard in shards if shard.error_message), None)
+    await db.commit()
+
+
 @celery_app.task(bind=True, name="run_performance_test")
 def run_performance_test(self, run_id: int):
     from app.core.database import AsyncSessionLocal
     from app.models.performance import PerformanceMetricSample, PerformanceRun, PerformanceRunStatus, PerformanceTest
     from app.services.performance_metrics import PerformanceResourceSampler
     from app.services.performance import PerformanceRunCancelled
+    from app.services.performance_target_metrics import build_target_metric_sampler
 
     async def _execute():
         async with AsyncSessionLocal() as db:
@@ -157,10 +248,16 @@ def run_performance_test(self, run_id: int):
 
                 metric_samples: list[dict] = []
                 resource_sampler = PerformanceResourceSampler() if settings.PERFORMANCE_METRICS_ENABLED else None
+                target_metric_sampler = None
 
                 def collect_metric_sample() -> None:
                     if resource_sampler is not None:
                         metric_samples.append(resource_sampler.sample())
+                    if target_metric_sampler is not None:
+                        target_sample = target_metric_sampler()
+                        target_sample["captured_at"] = datetime.now(timezone.utc)
+                        target_sample["node_id"] = worker_node_id()
+                        metric_samples.append(target_sample)
 
                 try:
                     runtime_options = dict(run.options_snapshot or {})
@@ -206,17 +303,35 @@ def run_performance_test(self, run_id: int):
                         except PerformanceNodeConstraintError as exc:
                             raise RuntimeError(str(exc)) from exc
 
+                    metric_boundary = build_metric_boundary(runtime_options)
+                    target_metric_allowlist = (
+                        parse_egress_allowlist(getattr(worker_node, "egress_allowlist", []))
+                        if worker_node is not None
+                        else parse_egress_allowlist(settings.PERFORMANCE_NODE_EGRESS_ALLOWLIST)
+                    )
+                    target_metric_sampler = build_target_metric_sampler(
+                        runtime_options,
+                        allowed_hosts=target_metric_allowlist,
+                    )
+
                     summary, raw_object_name, duration_ms = run_performance_executor(
                         executor=executor,
                         run_id=run.id,
                         script_object_name=test.script_object_name,
                         options=runtime_options,
                         cancel_check=lambda: is_cancel_requested(run_id, client=control_client),
-                        metric_callback=collect_metric_sample if resource_sampler is not None else None,
+                        metric_callback=collect_metric_sample
+                        if resource_sampler is not None or target_metric_sampler is not None
+                        else None,
                         metric_interval_seconds=settings.PERFORMANCE_METRICS_INTERVAL_SECONDS,
                         max_metric_samples=settings.PERFORMANCE_METRICS_MAX_SAMPLES,
                     )
-                    run.summary = summary
+                    shard_metadata = {
+                        key: value for key, value in (run.summary or {}).items() if key.startswith("shard_")
+                    }
+                    run.summary = {**shard_metadata, **summary}
+                    if "target_metrics" in runtime_options:
+                        run.summary["metric_boundary"] = metric_boundary
                     run.raw_result_object_name = raw_object_name
                     run.duration_ms = duration_ms
                     run.status = (
@@ -251,6 +366,17 @@ def run_performance_test(self, run_id: int):
             finally:
                 clear_cancel_request(run_id, client=control_client)
                 control_client.close()
+            if getattr(run, "parent_run_id", None):
+                await _aggregate_sharded_run(db, run.parent_run_id)
+                parent = await db.get(type(run), run.parent_run_id)
+                if parent is not None and parent.status in {
+                    PerformanceRunStatus.success.value,
+                    PerformanceRunStatus.failed.value,
+                    PerformanceRunStatus.cancelled.value,
+                }:
+                    await _notify_performance_run(db, parent, test, [])
+            else:
+                await _notify_performance_run(db, run, test, metric_samples)
 
     run_async(_execute())
 

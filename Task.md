@@ -1,5 +1,14 @@
 # ATP 项目任务跟踪
 
+> Q18 最新开发计划、前后实现对比和剩余任务：[`docs/q18-latest-status-2026-08-07.md`](docs/q18-latest-status-2026-08-07.md)。
+
+## 2026-08-07 AI generation context fixes
+
+- [x] Limit Mock rules selected for one AI generation request to 20 and show a localized warning when the limit is exceeded.
+- [x] Expand the Mock rule action column and enable horizontal scrolling so all row actions remain usable.
+- [x] Persist the selected dataset version on AI-generated cases and load that immutable snapshot during parameterized execution.
+- [x] Persist AI generation provenance in `_ai_source` (`dataset_id`, `dataset_version`, `mock_rule_ids`) and include the same context in generation audit events.
+
 **最后更新**: 2026-08-07
 **当前工作快照（2026-08-07）**: Q16-11 数据集参数化/多步骤编排已完成；Q17-01 统一执行器与 Locust 已完成；Q17-02 gRPC Proto/Unary/Streaming 执行器已完成本地实现与真实本地服务联调；Q17-03 Linux/Kubernetes 验收工具、Worker 镜像依赖检查和专用 Worker 健康探针已完成，剩余真实集群/目标服务执行与证据归档。当前质量证据以本文件下方“Q17 当前验证”为准。
 **当前阶段**: Q1–Q12 路线图已全部完成；Q13 七个工作项中六个本地项全部完成；Q14 本地项已全部完成（Q14-01 Android/ADB 执行器族收口，Q14-02 API-router sweep，Q14-03 五个工作台页 mount tests，Q14-04 per-project retention real cleanup，Q14-05 gitleaks pre-commit，Q14-06 Q13 acceptance summary），并已发布 `docs/q14-acceptance-summary.md`。Q15 已完成 Q15-02（后端测试单文件可运行）、Q15-03（Windows CI job）、Q15-04（前端系统管理页面挂载测试）、Q15-05（worker/维护模块覆盖 + 门禁校准）、Q15-06（chartTheme 负载敏感）、Q15-07（Q14 acceptance summary），Q15-01 完成本地可做部分（服务端分支保护在当前 GitHub 套餐下不可得，已降级为本地钩子 + 文档约定并如实说明边界）。部署/灾备的仓库级配置也已收口：`make validate-deployment-readiness`、Helm 外部 Secret、ServiceMonitor、TLS 重定向和备份/恢复脚本契约已落地；校验器在 Windows 无 `sh`/`bash` 时会明确跳过 shell 语法检查，发布机可用 `--require-shell` 强制校验。真实集群部署、备份恢复和 smoke evidence 仍需外部环境。当前后端 TOTAL 为 **86.04%**（Python 3.12 / CI 口径；本地 Python 3.14 为 85.55%），门禁 **82**，`1467 passed`；前端 statements 为 **32.96%**（门禁 31.5，`128 passed`），`views/system` statements 为 **37.36%**。当前外部阻塞项为 Q15-00 / 原 Q14-00 / 原 Q13-00（Q12-05 生产 SLO 历史 + Android 真机演练采集）以及生产部署/灾备演练证据；对应模板已在 `docs/templates/` 固化，并提供 `make collect-q12-evidence` 自动查询 Prometheus、ATP API 和 ADB 后生成三份证据及附件，`make scaffold-q12-evidence` 仅作为草稿初始化，`make validate-q12-evidence` 做结构校验。覆盖工作累计发现并修复四个潜伏生产 500：grpc protobuf5、mobile-special create_task、ai_healing ProjectRole.engineer、global-variables create_variable（value_encrypted 重复关键字，变量库此前无法创建任何变量）。
@@ -14,6 +23,16 @@
 - [x] Q17-03：新增 `scripts/performance-environment-smoke.py`、外部验收 Runbook、Kubernetes/Docker Worker 镜像与容器 grpc 依赖检查、节点队列/allowlist 检查和专用 Worker metrics 健康探针；补充 ARM64 Docker Compose 隔离验收栈、`.env.performance-acceptance.example`、TLS gRPC/HTTP 目标和 Worker 挂载 CA 配置。
 - [ ] Q17-04 环境验收：在 Linux/Kubernetes 专用 performance worker 构建并启动包含 grpcio/grpcio-tools 的镜像，使用真实 TLS 和外部 gRPC/Locust 目标服务完成 smoke、取消、节点 allowlist 与资源采样验证。
 - [ ] 发布收口：依据环境验收证据更新 `docs/performance-executor-evaluation.md`、部署 runbook 和 release/PR 说明；若目标服务或证书未准备好，保留为明确的外部环境阻塞项。
+
+## Q18 能力扩展入口（2026-08-07）
+
+- [x] 开发计划：`docs/implementation-plan-2026-Q18-capability-expansion.md`。
+- [x] 能力基线与前后对比：`docs/capability-baseline-2026-08-07.md`。
+- [~] Q18-API：Cookie、multipart、XML/XPath、JSON Schema 资产、SSE、OpenAPI/Swagger/Postman 导入、受限前后置动作、统一结果契约、场景编排、受控数据集组合、事务导入、Provider/Consumer 契约资产 CRUD/版本化及 `/system/api-contract-assets` 管理/比较 UI 已完成；外部/远程 `$ref` 已支持 warn/reject 发布策略，真实联调和高级认证仍待补。
+- [~] Q18-Web：多浏览器配置、Trace、网络/Console 摘要、元素库/POM CRUD 与执行、绑定项目录制自动写入资产、文件操作、视觉回归、浏览器矩阵和定位器修复建议已完成；本地 Chromium/Firefox/WebKit 页面烟测已补齐，真实 Firefox/WebKit Worker 和关键 UI/E2E 仍待补。
+- [~] Q18-Mobile：Android 设备租约、标准安装/卸载/清理/启动、录屏、设备日志、系统动作和兼容性矩阵已完成；iOS/Appium 的设备/IPA 资产、租约、专用队列、W3C Worker 和统一结果已完成本地实现；真实设备池并行、macOS/XCUITest、iOS 外部系统事件仍待补。
+- [~] Q18-Performance：自动阶梯、目标服务指标、JMeter 非 GUI/JTL/HTML、多节点分片聚合、容量分析和性能通知摘要已完成代码实现；真实 Prometheus、节点镜像、外部通知渠道和性能验收仍待补。
+- [~] Q18-验收：本地后端非集成 1711 项、前端全量 37 文件/146 测试、Playwright E2E 9 项、迁移、mypy 120 源文件、Ruff、Bandit、pip-audit、npm audit、类型检查/构建和文档已通过；真实设备、真实性能节点、外部服务和真实 API 联调仍待环境验收。
 
 - [x] P0：整理提交 / PR 范围，按主题拆分当前大 diff：环境与依赖兼容、权限与缺陷联动、AI 诊断/治理、前端体验与文档进度。
 - [x] P0：在 CI 或 Docker/目标 Python 3.12 环境复跑后端回归，确认 Python 3.14 条件 pin 不影响目标运行时。
@@ -795,3 +814,5 @@
 **2026-08-06 修复补充**：同步完成启动配置安全校验与草稿脱敏、Ollama 无 Key 配置、AI 模型多模态能力切换、Web 录制事件去重/会话清理/Linux display 提示，以及压测环境快照确定性和敏感参数过滤。后端非集成测试 `1486 passed`，前端 `35 files / 139 tests passed`，type-check、生产构建和 Ruff 均通过。
 
 **2026-08-07 审查修复与文档同步**：修复性能调度共享队列与专用节点队列消费关系，增加 Worker 启动后的持续心跳和异常后重排队；修复 Webhook 执行器透传、Locust/gRPC 进度估算，以及定时任务跳过活动 run 时 `next_run_at` 未提交问题。已同步 `docs/celery-queues.md`、`docs/deploy-helm.md`、`docs/performance-testing-thin-slice.md` 和外部验收 Runbook；本轮定向回归 `93 passed`，性能服务/任务回归 `46 passed`，Ruff、格式检查和 `git diff --check` 通过。完整 Worker 套件的 8 个失败为既有 MinIO/数据库测试桩隔离问题，仍需单独治理；Q17-04 Linux/Kubernetes 真实环境验收仍未完成。
+
+**2026-08-07 AI 生成上下文增强**：AI 用例生成已支持按当前项目选择一个测试数据集和多个 Mock 规则；后端校验项目归属，向模型提供数据集字段/少量样例、Mock 方法/路径/状态码/响应体/录制样本，并在发送前脱敏密码、Token、Cookie、Authorization 等敏感字段。生成草稿使用数据集字段占位符，保存时自动绑定所选数据集；Mock 规则只作为生成上下文，不会被 AI 自动修改。已补充后端脱敏/权限/Prompt 回归测试、前端选择控件和治理文档。

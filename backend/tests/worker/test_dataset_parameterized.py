@@ -27,7 +27,7 @@ sys.modules.pop("app.worker.tasks", None)
 
 from app.models.bootstrap import load_all_models
 from app.models.case import RunStatus, TestCase, TestRun
-from app.models.dataset import TestDataset
+from app.models.dataset import TestDataset, TestDatasetVersion
 from app.worker import tasks as worker_tasks
 
 load_all_models()
@@ -55,6 +55,15 @@ class _FakeDB:
 
     async def refresh(self, _obj):
         return None
+
+
+class _VersionDB(_FakeDB):
+    def __init__(self, store, version):
+        super().__init__(store)
+        self.version = version
+
+    async def execute(self, _statement):
+        return types.SimpleNamespace(scalar_one_or_none=lambda: self.version)
 
 
 def _setup(rows, case_dataset_id=42):
@@ -110,6 +119,37 @@ def test_parameterized_creates_one_child_per_row(monkeypatch):
     # 每个 dispatch 收到 row data merge
     assert dispatched_args[0][2] == {"env": "stg", "x": 1}
     assert dispatched_args[2][2] == {"env": "stg", "x": 3}
+
+
+def test_parameterized_uses_case_pinned_dataset_version(monkeypatch):
+    case, parent, db = _setup([{"x": "current"}])
+    case.dataset_version = 2
+    snapshot = TestDatasetVersion(
+        id=200,
+        dataset_id=42,
+        version=2,
+        format="json",
+        rows=[{"x": "pinned"}, {"x": "pinned-2"}],
+        schema_fields=[],
+        validation_policy="soft",
+        change_type="manual",
+        created_by=1,
+    )
+    db = _VersionDB(db.store, snapshot)
+    dispatched_args: list[dict] = []
+
+    async def fake_dispatch(_db, child, _case, extra_vars):
+        dispatched_args.append(dict(extra_vars))
+        child.status = RunStatus.passed
+        return True
+
+    monkeypatch.setattr(worker_tasks, "dispatch_case", fake_dispatch)
+    monkeypatch.setattr(worker_tasks, "_safe_publish_run_event", lambda *a, **kw: _async_noop())
+    monkeypatch.setattr(worker_tasks, "_safe_invalidate_stats_cache", lambda *a, **kw: _async_noop())
+
+    asyncio.run(worker_tasks._execute_parameterized(db, parent, case, {"env": "stg"}))
+
+    assert dispatched_args == [{"env": "stg", "x": "pinned"}, {"env": "stg", "x": "pinned-2"}]
 
 
 def test_parameterized_aggregates_passed_when_all_children_pass(monkeypatch):

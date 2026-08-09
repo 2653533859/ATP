@@ -65,7 +65,7 @@ backend:
 	cd backend && uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 worker:
-	cd backend && celery -A app.worker.celery_app worker --loglevel=info -Q $${CELERY_QUEUES:-default,mobile_special,ai,maintenance,performance}
+	cd backend && celery -A app.worker.celery_app worker --loglevel=info -Q $${CELERY_QUEUES:-default,mobile_special,ios,ai,maintenance,performance}
 
 beat:
 	cd backend && celery -A app.worker.celery_app beat --loglevel=info

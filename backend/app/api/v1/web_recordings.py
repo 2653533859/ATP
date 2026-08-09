@@ -19,10 +19,17 @@ from urllib.parse import urlparse
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field, field_validator
 from playwright.async_api import Browser, BrowserContext, Frame, Page, Playwright, async_playwright
+from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import assert_project_access, get_current_user
 from app.core.config import settings
+from app.core.database import get_db
+from app.models.project import Project
 from app.models.user import User
+from app.models.user_project import ProjectRole
+from app.models.web_assets import WebElementAsset
 
 logger = logging.getLogger(__name__)
 
@@ -112,7 +119,8 @@ _RECORDING_SCRIPT = r"""
 
 class WebRecordingStart(BaseModel):
     start_url: str = Field(min_length=1, max_length=2048)
-    browser: Literal["chromium"] = "chromium"
+    project_id: int | None = Field(default=None, ge=1)
+    browser: Literal["chromium", "firefox", "webkit"] = "chromium"
     viewport_width: int = Field(default=1280, ge=320, le=3840)
     viewport_height: int = Field(default=720, ge=240, le=2160)
 
@@ -132,9 +140,13 @@ class WebRecordingSession:
     start_url: str
     viewport_width: int
     viewport_height: int
+    project_id: int | None = None
+    browser_name: str = "chromium"
     status: str = "starting"
     error: str | None = None
     steps: list[dict[str, Any]] = field(default_factory=list)
+    asset_ids: list[int] = field(default_factory=list)
+    assets_persisted: bool = False
     playwright: Playwright | None = None
     browser: Browser | None = None
     context: BrowserContext | None = None
@@ -153,7 +165,8 @@ class WebRecordingSession:
             launch_env = dict(os.environ)
             if display:
                 launch_env["DISPLAY"] = display
-            self.browser = await self.playwright.chromium.launch(headless=False, env=launch_env)
+            browser_launcher = getattr(self.playwright, self.browser_name)
+            self.browser = await browser_launcher.launch(headless=False, env=launch_env)
             self.context = await self.browser.new_context(
                 viewport={"width": self.viewport_width, "height": self.viewport_height},
             )
@@ -198,7 +211,9 @@ class WebRecordingSession:
             "id": self.session_id,
             "status": self.status,
             "start_url": self.start_url,
+            "project_id": self.project_id,
             "steps": self.steps,
+            "asset_ids": self.asset_ids,
             "error": self.error,
         }
 
@@ -276,6 +291,8 @@ class WebRecordingManager:
                 start_url=payload.start_url,
                 viewport_width=payload.viewport_width,
                 viewport_height=payload.viewport_height,
+                project_id=payload.project_id,
+                browser_name=payload.browser,
             )
             self.sessions[session.session_id] = session
         try:
@@ -301,8 +318,74 @@ class WebRecordingManager:
 manager = WebRecordingManager()
 
 
+async def _persist_recorded_assets(db: AsyncSession, session: WebRecordingSession) -> None:
+    """Persist unique recorded selectors and link the returned steps to them."""
+    if session.project_id is None or session.assets_persisted:
+        return
+    selectors = []
+    seen: set[str] = set()
+    for step in session.steps:
+        params = step.get("params") if isinstance(step.get("params"), dict) else {}
+        selector = str(params.get("selector") or "").strip()
+        if selector and selector not in seen and step.get("action") in {"click", "fill", "select", "press"}:
+            seen.add(selector)
+            selectors.append(selector)
+    if not selectors:
+        session.assets_persisted = True
+        return
+
+    existing_result = await db.execute(
+        select(WebElementAsset.name).where(WebElementAsset.project_id == session.project_id)
+    )
+    used_names = {str(name) for name in existing_result.scalars().all()}
+    selector_to_asset: dict[str, WebElementAsset] = {}
+    for index, selector in enumerate(selectors, start=1):
+        base_name = f"录制元素_{index}"
+        name = base_name
+        suffix = 2
+        while name in used_names:
+            name = f"{base_name}_{suffix}"
+            suffix += 1
+        used_names.add(name)
+        asset = WebElementAsset(
+            project_id=session.project_id,
+            owner_id=session.owner_id,
+            name=name,
+            page_url=session.start_url,
+            locator={"strategy": "css", "value": selector},
+            fallback_locators=[],
+            description="Web 录制自动生成，可在元素库中继续维护",
+        )
+        db.add(asset)
+        selector_to_asset[selector] = asset
+    try:
+        await db.flush()
+    except IntegrityError:
+        await db.rollback()
+        session.error = "录制步骤已生成，但元素资产名称发生冲突，请稍后重试"
+        return
+
+    for step in session.steps:
+        params = step.get("params") if isinstance(step.get("params"), dict) else {}
+        selector = str(params.get("selector") or "").strip()
+        asset = selector_to_asset.get(selector)
+        if asset is not None:
+            params["element_asset_id"] = asset.id
+    await db.commit()
+    session.asset_ids = [asset.id for asset in selector_to_asset.values() if asset.id is not None]
+    session.assets_persisted = True
+
+
 @router.post("")
-async def start_recording(payload: WebRecordingStart, user: User = Depends(get_current_user)):
+async def start_recording(
+    payload: WebRecordingStart,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    if payload.project_id is not None:
+        await assert_project_access(db, user, payload.project_id, ProjectRole.editor)
+        if await db.get(Project, payload.project_id) is None:
+            raise HTTPException(status_code=404, detail="项目不存在")
     session = await manager.start(payload, user.id)
     return session.snapshot()
 
@@ -313,9 +396,14 @@ async def get_recording(session_id: str, user: User = Depends(get_current_user))
 
 
 @router.post("/{session_id}/stop")
-async def stop_recording(session_id: str, user: User = Depends(get_current_user)):
+async def stop_recording(
+    session_id: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     session = manager.get(session_id, user.id)
     await session.stop()
+    await _persist_recorded_assets(db, session)
     return session.snapshot()
 
 

@@ -386,11 +386,68 @@ def run_test_case(self, run_id: int, extra_vars: dict, trace_id: str | None = No
 async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None:
     """按 case.dataset 的 rows 依次执行 N 次 child runs，聚合状态写回 parent。"""
     from app.models.case import RunStatus, TestRun
-    from app.models.dataset import TestDataset
+    from app.models.dataset import TestDataset, TestDatasetVersion
+    from app.services.dataset_execution import DatasetExecutionError, build_dataset_iterations, redact_dataset_row
+    from sqlalchemy import select
     from app.services.dataset_schema import DatasetSchemaField, validate_dataset_rows
 
     dataset = await db.get(TestDataset, case.dataset_id)
-    rows = list(dataset.rows or []) if dataset else []
+    dataset_source = dataset
+    dataset_version = getattr(case, "dataset_version", None)
+    if dataset_version is not None:
+        version_result = await db.execute(
+            select(TestDatasetVersion)
+            .where(
+                TestDatasetVersion.dataset_id == case.dataset_id,
+                TestDatasetVersion.version == dataset_version,
+            )
+            .limit(1)
+        )
+        dataset_source = version_result.scalar_one_or_none()
+        if dataset_source is None:
+            parent_run.status = RunStatus.error
+            parent_run.error_message = f"Dataset version {dataset_version} not found"
+            parent_run.result_summary = {
+                **(parent_run.result_summary or {}),
+                "dataset_version": dataset_version,
+                "dataset_version_missing": True,
+            }
+            await db.commit()
+            _record_run_outcome("case", parent_run.status)
+            await _safe_publish_run_event(
+                parent_run.id,
+                {"type": "completed", "run_id": parent_run.id, "status": "error"},
+            )
+            await _safe_invalidate_stats_cache()
+            return
+
+    rows = list(dataset_source.rows or []) if dataset_source else []
+    case_config = getattr(case, "config", None) or {}
+    try:
+        rows = build_dataset_iterations(
+            rows,
+            strategy=case_config.get("dataset_strategy", "sequential"),
+            fixed_count=case_config.get("dataset_fixed_count"),
+            seed=case_config.get("dataset_seed"),
+            max_iterations=case_config.get("dataset_max_iterations", 1000),
+            combination_fields=case_config.get("dataset_combination_fields"),
+        )
+    except DatasetExecutionError as exc:
+        parent_run.status = RunStatus.error
+        parent_run.error_message = str(exc)
+        parent_run.result_summary = {
+            **(parent_run.result_summary or {}),
+            "dataset_execution_strategy": case_config.get("dataset_strategy", "sequential"),
+            "dataset_execution_error": str(exc),
+        }
+        await db.commit()
+        _record_run_outcome("case", parent_run.status)
+        await _safe_publish_run_event(
+            parent_run.id,
+            {"type": "completed", "run_id": parent_run.id, "status": "error"},
+        )
+        await _safe_invalidate_stats_cache()
+        return
     if not rows:
         # 数据集空 → 直接降级为单次执行（保留旧行为，避免空入参）
         parent_run.status = RunStatus.running
@@ -408,11 +465,11 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
             required=bool(field.get("required", False)),
             default=field.get("default"),
         )
-        for field in (getattr(dataset, "schema_fields", None) or [])
+        for field in (getattr(dataset_source, "schema_fields", None) or [])
         if isinstance(field, dict) and field.get("name")
     ]
     strict_schema = bool((getattr(case, "config", None) or {}).get("dataset_strict_schema")) or (
-        getattr(dataset, "validation_policy", "soft") == "hard"
+        getattr(dataset_source, "validation_policy", "soft") == "hard"
     )
     validation = validate_dataset_rows(rows=rows, schema=schema_fields, preview_limit=0)
     if strict_schema and not validation.valid:
@@ -448,6 +505,7 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
         "iteration_passed": 0,
         "iteration_failed": 0,
         "iteration_error": 0,
+        "dataset_execution_strategy": case_config.get("dataset_strategy", "sequential"),
         "dataset_schema_valid": validation.valid,
         "dataset_schema_issue_count": len(validation.issues),
         "dataset_strict_schema": strict_schema,
@@ -463,8 +521,11 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
     )
 
     summary_counts = {"passed": 0, "failed": 0, "error": 0}
+    redact_fields = case_config.get("dataset_redact_fields") or []
 
     for idx, row in enumerate(rows):
+        raw_iteration_data = row if isinstance(row, dict) else {"value": row}
+        persisted_iteration_data = redact_dataset_row(raw_iteration_data, redact_fields)
         child = TestRun(
             case_id=case.id,
             triggered_by=parent_run.triggered_by,
@@ -472,14 +533,14 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
             status=RunStatus.running,
             environment=parent_run.environment,
             iteration_index=idx,
-            iteration_data=row if isinstance(row, dict) else {"value": row},
+            iteration_data=persisted_iteration_data,
             parent_run_id=parent_run.id,
         )
         db.add(child)
         await db.commit()
         await db.refresh(child)
 
-        merged_vars = {**(extra_vars or {}), **(child.iteration_data or {})}
+        merged_vars = {**(extra_vars or {}), **raw_iteration_data}
         try:
             await dispatch_case(db, child, case, merged_vars)
             await db.refresh(child)

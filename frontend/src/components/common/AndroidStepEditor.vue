@@ -249,6 +249,41 @@
             </a-form-item>
           </template>
 
+          <template v-else-if="step.action === 'rotate'">
+            <a-form-item :label="t('case.android_editor.orientation')" :label-col="{ span: 4 }">
+              <a-select v-model:value="step.params.orientation" style="width: 220px" @change="emitUpdate">
+                <a-select-option value="portrait">{{ t('case.android_editor.orientations.portrait') }}</a-select-option>
+                <a-select-option value="landscape">{{ t('case.android_editor.orientations.landscape') }}</a-select-option>
+                <a-select-option value="reverse_portrait">{{ t('case.android_editor.orientations.reverse_portrait') }}</a-select-option>
+                <a-select-option value="reverse_landscape">{{ t('case.android_editor.orientations.reverse_landscape') }}</a-select-option>
+              </a-select>
+            </a-form-item>
+          </template>
+
+          <template v-else-if="['grant_permission', 'revoke_permission'].includes(step.action)">
+            <a-row :gutter="12">
+              <a-col :span="10"><a-form-item :label="t('case.mobile.package_name')"><a-input v-model:value="step.params.package" placeholder="com.example.app" @input="emitUpdate" /></a-form-item></a-col>
+              <a-col :span="14"><a-form-item :label="t('case.android_editor.permission')"><a-input v-model:value="step.params.permission" placeholder="android.permission.CAMERA" @input="emitUpdate" /></a-form-item></a-col>
+            </a-row>
+          </template>
+
+          <template v-else-if="step.action === 'network_profile'">
+            <a-form-item :label="t('case.android_editor.network_profile')" :label-col="{ span: 4 }">
+              <a-select v-model:value="step.params.profile" style="width: 220px" @change="emitUpdate">
+                <a-select-option value="normal">{{ t('case.android_editor.networks.normal') }}</a-select-option>
+                <a-select-option value="wifi_off">{{ t('case.android_editor.networks.wifi_off') }}</a-select-option>
+                <a-select-option value="data_off">{{ t('case.android_editor.networks.data_off') }}</a-select-option>
+                <a-select-option value="offline">{{ t('case.android_editor.networks.offline') }}</a-select-option>
+              </a-select>
+            </a-form-item>
+          </template>
+
+          <template v-else-if="step.action === 'foreground'">
+            <a-form-item :label="t('case.mobile.package_name')" :label-col="{ span: 4 }">
+              <a-input v-model:value="step.params.package" placeholder="com.example.app" @input="emitUpdate" />
+            </a-form-item>
+          </template>
+
         </a-card>
       </template>
     </draggable>
@@ -296,6 +331,12 @@ const actionOptions = computed(() => [
   { label: t('case.android_editor.actions.assert_element'), value: 'assert_element' },
   { label: t('case.android_editor.actions.wait'), value: 'wait' },
   { label: t('case.android_editor.actions.screenshot'), value: 'screenshot' },
+  { label: t('case.android_editor.actions.rotate'), value: 'rotate' },
+  { label: t('case.android_editor.actions.grant_permission'), value: 'grant_permission' },
+  { label: t('case.android_editor.actions.revoke_permission'), value: 'revoke_permission' },
+  { label: t('case.android_editor.actions.network_profile'), value: 'network_profile' },
+  { label: t('case.android_editor.actions.background'), value: 'background' },
+  { label: t('case.android_editor.actions.foreground'), value: 'foreground' },
 ])
 
 const defaultParams: Record<string, () => StepParams> = {
@@ -310,6 +351,12 @@ const defaultParams: Record<string, () => StepParams> = {
   assert_element: () => ({ resourceId: '' }),
   wait: () => ({ ms: 1000 }),
   screenshot: () => ({}),
+  rotate: () => ({ orientation: 'portrait' }),
+  grant_permission: () => ({ package: '', permission: '' }),
+  revoke_permission: () => ({ package: '', permission: '' }),
+  network_profile: () => ({ profile: 'normal' }),
+  background: () => ({}),
+  foreground: () => ({ package: '' }),
 }
 
 function toInternal(items: ExternalStep[]): StepDef[] {

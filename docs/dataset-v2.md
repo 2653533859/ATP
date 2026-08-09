@@ -58,6 +58,9 @@ Response:
 - Dataset version snapshots have a dedicated `test_dataset_versions` model/table
   with `rows`, `schema_fields`, `format`, `validation_policy`, `change_type`, and
   `created_by` fields.
+- AI-generated test cases persist the selected `dataset_id` and immutable
+  `dataset_version`. Legacy cases with a null version continue to use the
+  current dataset, while a pinned version is loaded by the case Worker.
 - Dataset rollback API/UI is available from Dataset Library version history.
 - Dataset reference impact query is available from Dataset Library. It reports
   directly bound cases, suites that contain those cases or reference the dataset

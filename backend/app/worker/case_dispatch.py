@@ -72,6 +72,11 @@ async def dispatch_case(db, run, case, extra_vars: dict) -> bool:
 
                 await run_android_case(db, run, case, extra_vars)
             return True
+        if case.case_type == CaseType.ios:
+            from app.worker.executors.ios_executor import run_ios_case
+
+            await run_ios_case(db, run, case, extra_vars)
+            return True
 
         run.status = RunStatus.error
         run.error_message = f"执行器尚未实现: {case.case_type}"

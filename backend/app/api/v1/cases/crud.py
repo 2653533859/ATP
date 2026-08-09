@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
 from app.models.case import CaseStatus, RunStatus, TestCase, TestRun
+from app.models.dataset import TestDataset, TestDatasetVersion
 from app.models.project import Module
 from app.models.user import User
 from app.models.user_project import ProjectRole
@@ -28,6 +29,40 @@ router = APIRouter(tags=["用例管理"])
 FLAKY_WINDOW_SIZE = 10
 FLAKY_MIN_RUNS = 4
 FLAKY_TERMINAL_STATUSES = (RunStatus.passed, RunStatus.failed, RunStatus.error)
+
+
+async def _resolve_dataset_binding(
+    db: AsyncSession,
+    dataset_id: int | None,
+    dataset_version: int | None,
+    project_id: int,
+) -> tuple[int | None, int | None]:
+    """Validate a case dataset and preserve an explicitly requested immutable version."""
+    if dataset_id is None:
+        if dataset_version is not None:
+            raise HTTPException(status_code=400, detail="数据集版本必须依赖数据集")
+        return None, None
+
+    dataset = await db.get(TestDataset, dataset_id)
+    if dataset is None:
+        raise HTTPException(status_code=404, detail="测试数据集不存在")
+    if dataset.project_id != project_id:
+        raise HTTPException(status_code=400, detail="测试数据集不属于当前项目")
+    if dataset_version is None:
+        return dataset_id, None
+
+    result = await db.execute(
+        select(TestDatasetVersion)
+        .where(
+            TestDatasetVersion.dataset_id == dataset_id,
+            TestDatasetVersion.version == dataset_version,
+        )
+        .limit(1)
+    )
+    version = result.scalar_one_or_none()
+    if version is None:
+        raise HTTPException(status_code=404, detail="测试数据集版本不存在")
+    return dataset_id, int(version.version)
 
 
 def _empty_flaky_stats() -> dict:
@@ -151,6 +186,9 @@ async def create_case(
 ):
     module = await _cases._get_module_for_case_code(db, body.module_id)
     await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
+    dataset_id, dataset_version = await _resolve_dataset_binding(
+        db, body.dataset_id, body.dataset_version, module.project_id
+    )
     steps_payload = _cases._normalize_steps(body.steps, body.case_type, body.config, body.name)
     case = TestCase(
         name=body.name,
@@ -170,6 +208,8 @@ async def create_case(
         preconditions=list(body.preconditions),
         postconditions=list(body.postconditions),
         config=copy.deepcopy(body.config),
+        dataset_id=dataset_id,
+        dataset_version=dataset_version,
     )
     await _cases._replace_case_steps(db, case, steps_payload)
     db.add(case)
@@ -232,7 +272,7 @@ async def update_case(
     db.add(_cases._build_snapshot(case, await _cases._next_snapshot_version(db, case_id), current_user.id))
     await _cases._enforce_snapshot_retention(db, case_id)
 
-    payload = body.model_dump(exclude_none=True)
+    payload = body.model_dump(exclude_unset=True)
     if "name" in payload:
         case.name = payload["name"]
     if "description" in payload:
@@ -255,6 +295,15 @@ async def update_case(
         case.automation_status = payload["automation_status"]
     if "config" in payload:
         case.config = copy.deepcopy(payload["config"])
+    if "dataset_id" in payload or "dataset_version" in payload:
+        dataset_id, dataset_version = await _resolve_dataset_binding(
+            db,
+            payload.get("dataset_id", case.dataset_id),
+            payload.get("dataset_version", case.dataset_version),
+            module.project_id if module else 0,
+        )
+        case.dataset_id = dataset_id
+        case.dataset_version = dataset_version
 
     if "steps" in payload:
         await _cases._replace_case_steps(
@@ -303,6 +352,8 @@ async def copy_case(
         preconditions=_cases._normalize_string_list(source.preconditions),
         postconditions=_cases._normalize_string_list(source.postconditions),
         config=copy.deepcopy(source.config or {}),
+        dataset_id=source.dataset_id,
+        dataset_version=source.dataset_version,
     )
     await _cases._replace_case_steps(db, cloned, _cases._serialize_steps(source.steps or []))
     db.add(cloned)

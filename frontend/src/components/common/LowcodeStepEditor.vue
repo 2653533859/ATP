@@ -68,6 +68,25 @@
             </a-form-item>
           </template>
 
+          <!-- upload -->
+          <template v-else-if="step.action === 'upload'">
+            <a-row :gutter="12">
+              <a-col :span="12">
+                <a-form-item :label="t('case.lowcode_editor.selector')" :label-col="{ span: 6 }">
+                  <a-input v-model:value="step.params.selector" :placeholder="t('case.lowcode_editor.selector_placeholder')" @input="emitUpdate" />
+                </a-form-item>
+              </a-col>
+              <a-col :span="12">
+                <a-form-item :label="t('case.lowcode_editor.file')" :label-col="{ span: 6 }">
+                  <a-upload :show-upload-list="false" :before-upload="(file: File) => uploadWebFile(file, step)">
+                    <a-button size="small" :disabled="!props.projectId">{{ t('case.lowcode_editor.choose_file') }}</a-button>
+                  </a-upload>
+                  <a-input v-model:value="step.params.object_name" readonly :placeholder="t('case.lowcode_editor.file_ref_placeholder')" @change="emitUpdate" />
+                </a-form-item>
+              </a-col>
+            </a-row>
+          </template>
+
           <!-- click -->
           <template v-else-if="step.action === 'click'">
             <a-form-item :label="t('case.lowcode_editor.selector')" :label-col="{ span: 3 }">
@@ -200,14 +219,77 @@
 
           <!-- hover -->
           <template v-else-if="step.action === 'hover'">
+           <a-form-item :label="t('case.lowcode_editor.selector')" :label-col="{ span: 3 }">
+             <a-input
+               v-model:value="step.params.selector"
+               :placeholder="t('case.lowcode_editor.hover_placeholder')"
+               @input="emitUpdate"
+             />
+           </a-form-item>
+          </template>
+
+          <!-- download -->
+          <template v-else-if="step.action === 'download'">
             <a-form-item :label="t('case.lowcode_editor.selector')" :label-col="{ span: 3 }">
-              <a-input
-                v-model:value="step.params.selector"
-                :placeholder="t('case.lowcode_editor.hover_placeholder')"
-                @input="emitUpdate"
+              <a-input v-model:value="step.params.selector" :placeholder="t('case.lowcode_editor.download_selector_placeholder')" @input="emitUpdate" />
+            </a-form-item>
+          </template>
+
+          <!-- visual assertion -->
+          <template v-else-if="step.action === 'visual_assert'">
+            <a-row :gutter="12">
+              <a-col :span="16">
+                <a-form-item :label="t('case.lowcode_editor.visual_baseline')" :label-col="{ span: 8 }">
+                  <a-select
+                    v-model:value="step.params.baseline_id"
+                    show-search
+                    :loading="visualBaselinesLoading"
+                    :options="visualBaselineOptions"
+                    :placeholder="t('case.lowcode_editor.visual_baseline_placeholder')"
+                    option-filter-prop="label"
+                    @change="emitUpdate"
+                  />
+                </a-form-item>
+              </a-col>
+              <a-col :span="8">
+                <a-form-item :label="t('case.lowcode_editor.visual_threshold')" :label-col="{ span: 12 }">
+                  <a-input-number v-model:value="step.params.threshold" :min="0" :max="1" :step="0.001" @change="emitUpdate" />
+                </a-form-item>
+              </a-col>
+            </a-row>
+          </template>
+
+          <!-- page object -->
+          <template v-else-if="step.action === 'page_object'">
+            <a-form-item :label="t('case.lowcode_editor.page_object')" :label-col="{ span: 5 }">
+              <a-select
+                v-model:value="step.params.page_object_id"
+                show-search
+                :loading="pageObjectsLoading"
+                :options="pageObjectOptions"
+                :placeholder="t('case.lowcode_editor.page_object_placeholder')"
+                option-filter-prop="label"
+                @change="emitUpdate"
               />
             </a-form-item>
           </template>
+
+          <a-form-item
+            v-if="selectorActions.includes(step.action)"
+            :label="t('case.lowcode_editor.element_asset')"
+            :label-col="{ span: 3 }"
+          >
+            <a-select
+              v-model:value="step.params.element_asset_id"
+              allow-clear
+              show-search
+              :loading="elementAssetsLoading"
+              :options="elementAssetOptions"
+              :placeholder="t('case.lowcode_editor.element_asset_placeholder')"
+              option-filter-prop="label"
+              @change="emitUpdate"
+            />
+          </a-form-item>
         </a-card>
       </template>
     </draggable>
@@ -216,10 +298,11 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
+import { message } from 'ant-design-vue'
 import { PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons-vue'
 import draggable from 'vuedraggable'
 import { useI18n } from 'vue-i18n'
-import { environmentApi, type EnvironmentItem } from '@/api'
+import { environmentApi, webAssetsApi, webFilesApi, webVisualApi, type EnvironmentItem, type WebElementAssetItem, type WebPageObjectItem, type WebVisualBaselineItem } from '@/api'
 import VariableReferenceInput, { type VariableReference } from './VariableReferenceInput.vue'
 
 type StepParams = Record<string, unknown>
@@ -243,12 +326,23 @@ const { t } = useI18n()
 const variableSyntax = '{{VAR}}'
 const availableVariables = ref<VariableReference[]>([])
 const variablesLoading = ref(false)
+const elementAssets = ref<WebElementAssetItem[]>([])
+const elementAssetsLoading = ref(false)
+const visualBaselines = ref<WebVisualBaselineItem[]>([])
+const visualBaselinesLoading = ref(false)
+const pageObjects = ref<WebPageObjectItem[]>([])
+const pageObjectsLoading = ref(false)
 let variableRequestId = 0
+let elementAssetRequestId = 0
 
 let keyCounter = 0
 
 const actionOptions = computed(() => [
   { label: t('case.lowcode_editor.actions.goto'), value: 'goto' },
+  { label: t('case.lowcode_editor.actions.upload'), value: 'upload' },
+  { label: t('case.lowcode_editor.actions.download'), value: 'download' },
+  { label: t('case.lowcode_editor.actions.visual_assert'), value: 'visual_assert' },
+  { label: t('case.lowcode_editor.actions.page_object'), value: 'page_object' },
   { label: t('case.lowcode_editor.actions.click'), value: 'click' },
   { label: t('case.lowcode_editor.actions.fill'), value: 'fill' },
   { label: t('case.lowcode_editor.actions.assert_text'), value: 'assert_text' },
@@ -259,9 +353,26 @@ const actionOptions = computed(() => [
   { label: t('case.lowcode_editor.actions.press'), value: 'press' },
   { label: t('case.lowcode_editor.actions.hover'), value: 'hover' },
 ])
+const selectorActions = ['click', 'fill', 'assert_visible', 'select', 'press', 'hover']
+const elementAssetOptions = computed(() => elementAssets.value.map((asset) => ({
+  label: asset.page_url ? `${asset.name} · ${asset.page_url}` : asset.name,
+  value: asset.id,
+})))
+const visualBaselineOptions = computed(() => visualBaselines.value.map((baseline) => ({
+  label: baseline.page_url ? `${baseline.name} · ${baseline.page_url}` : baseline.name,
+  value: baseline.id,
+})))
+const pageObjectOptions = computed(() => pageObjects.value.map((pageObject) => ({
+  label: pageObject.url_pattern ? `${pageObject.name} · ${pageObject.url_pattern}` : pageObject.name,
+  value: pageObject.id,
+})))
 
 const defaultParams: Record<string, () => StepParams> = {
   goto: () => ({ url: '' }),
+  upload: () => ({ selector: '', object_name: '' }),
+  download: () => ({ selector: '' }),
+  visual_assert: () => ({ baseline_id: undefined, threshold: undefined }),
+  page_object: () => ({ page_object_id: undefined }),
   click: () => ({ selector: '' }),
   fill: () => ({ selector: '', value: '' }),
   assert_text: () => ({ text: '' }),
@@ -347,8 +458,64 @@ async function loadEnvironmentVariables() {
   }
 }
 
+async function loadElementAssets() {
+  const requestId = ++elementAssetRequestId
+  const projectId = props.projectId
+  elementAssets.value = []
+  if (!projectId) {
+    elementAssetsLoading.value = false
+    return
+  }
+  elementAssetsLoading.value = true
+  try {
+    const items = await webAssetsApi.listElements(projectId)
+    if (requestId === elementAssetRequestId) elementAssets.value = items
+  } catch {
+    if (requestId === elementAssetRequestId) elementAssets.value = []
+  } finally {
+    if (requestId === elementAssetRequestId) elementAssetsLoading.value = false
+  }
+}
+
+async function loadVisualBaselines() {
+  const projectId = props.projectId
+  visualBaselines.value = []
+  if (!projectId) {
+    visualBaselinesLoading.value = false
+    return
+  }
+  visualBaselinesLoading.value = true
+  try {
+    visualBaselines.value = await webVisualApi.listBaselines(projectId)
+  } catch {
+    visualBaselines.value = []
+  } finally {
+    visualBaselinesLoading.value = false
+  }
+}
+
+async function loadPageObjects() {
+  const projectId = props.projectId
+  pageObjects.value = []
+  if (!projectId) {
+    pageObjectsLoading.value = false
+    return
+  }
+  pageObjectsLoading.value = true
+  try {
+    pageObjects.value = await webAssetsApi.listPageObjects(projectId)
+  } catch {
+    pageObjects.value = []
+  } finally {
+    pageObjectsLoading.value = false
+  }
+}
+
 watch(() => props.projectId, () => {
   void loadEnvironmentVariables()
+  void loadElementAssets()
+  void loadVisualBaselines()
+  void loadPageObjects()
 }, { immediate: true })
 
 function isSameSteps(items: ExternalStep[]) {
@@ -393,6 +560,23 @@ function removeStep(index: number) {
 function onActionChange(step: StepDef) {
   step.params = defaultParams[step.action]?.() ?? {}
   emitUpdate()
+}
+
+async function uploadWebFile(file: File, step: StepDef) {
+  if (!props.projectId) {
+    message.warning(t('case.lowcode_editor.project_required'))
+    return false
+  }
+  try {
+    const result = await webFilesApi.upload(props.projectId, file)
+    step.params.object_name = result.object_name
+    step.params.filename = result.filename
+    emitUpdate()
+    message.success(t('case.lowcode_editor.file_uploaded'))
+  } catch {
+    message.error(t('case.lowcode_editor.file_upload_failed'))
+  }
+  return false
 }
 </script>
 

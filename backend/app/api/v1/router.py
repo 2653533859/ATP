@@ -31,6 +31,14 @@ from app.api.v1 import (
     user_settings,
     performance,
     web_recordings,
+    api_request_files,
+    api_contracts,
+    web_assets,
+    web_files,
+    web_visuals,
+    api_schema_assets,
+    api_contract_assets,
+    ios,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -65,3 +73,11 @@ router.include_router(ai_healing_iter5.router)
 router.include_router(user_settings.router)
 router.include_router(performance.router)
 router.include_router(web_recordings.router)
+router.include_router(api_request_files.router)
+router.include_router(api_contracts.router)
+router.include_router(web_assets.router)
+router.include_router(web_files.router)
+router.include_router(web_visuals.router)
+router.include_router(api_schema_assets.router)
+router.include_router(api_contract_assets.router)
+router.include_router(ios.router)

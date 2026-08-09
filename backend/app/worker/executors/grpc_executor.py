@@ -19,6 +19,8 @@ from jsonpath_ng import parse as jp_parse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.redis_client import publish_run_event
+from app.services.dataset_execution import redact_execution_evidence
+from app.services.execution_contract import assertion_result, extraction_result, response_contract
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
 
 
@@ -63,6 +65,7 @@ def _build_pool(desc_set: descriptor_pb2.FileDescriptorSet) -> descriptor_pool.D
 
 async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_vars: dict):
     cfg = case.config
+    evidence_redact_fields = cfg.get("dataset_redact_fields") or []
     steps = cfg.get("steps", [])
 
     context: dict = {**extra_vars}
@@ -82,6 +85,8 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
 
         request_data: dict = {}
         response_data: dict = {}
+        assertion_records: list[dict] = []
+        extraction_records: list[dict] = []
         error_msg = None
         step_status = RunStatus.passed
 
@@ -164,45 +169,63 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
             )
             grpc_status = "OK"
 
-            response_data = {
-                "grpc_status": grpc_status,
-                "body": resp_body,
-                "duration_ms": duration,
-            }
+            response_data = response_contract(
+                "grpc",
+                body=resp_body,
+                duration_ms=duration,
+                metadata={"grpc_status": grpc_status},
+            )
+            response_data["grpc_status"] = grpc_status
 
             # 变量提取
             for extraction in step.get("extractions", []):
                 val = _jsonpath_extract(resp_body, extraction["expression"])
                 if val is not None:
                     context[extraction["variable"]] = val
+                extraction_records.append(
+                    extraction_result(
+                        extraction,
+                        value=val,
+                        success=val is not None,
+                        error=None if val is not None else "未提取到值",
+                    )
+                )
+            response_data["extractions"] = extraction_records
 
             # 断言
             for assertion in step.get("assertions", []):
                 passed, msg = _assert_grpc(assertion, resp_body, grpc_status, duration)
+                assertion_records.append(assertion_result(assertion, passed=passed, message=msg))
                 if not passed:
                     step_status = RunStatus.failed
                     all_passed = False
                     error_msg = msg
                     break
+            response_data["assertions"] = assertion_records
 
         except grpc.aio.AioRpcError as e:
             duration = int((time.monotonic() - step_start) * 1000)
             grpc_status = e.code().name
             grpc_details = e.details() or ""
-            response_data = {
-                "grpc_status": grpc_status,
-                "grpc_details": grpc_details,
-                "body": None,
-                "duration_ms": duration,
-            }
+            response_data = response_contract(
+                "grpc",
+                body=None,
+                duration_ms=duration,
+                metadata={"grpc_status": grpc_status, "grpc_details": grpc_details},
+            )
+            response_data["grpc_status"] = grpc_status
+            response_data["grpc_details"] = grpc_details
             # 仍然尝试运行断言（用户可能断言 grpc_status == UNAVAILABLE 等）
             assertion_failed = False
             for assertion in step.get("assertions", []):
                 passed, msg = _assert_grpc(assertion, None, grpc_status, duration)
+                assertion_records.append(assertion_result(assertion, passed=passed, message=msg))
                 if not passed:
                     assertion_failed = True
                     error_msg = msg
                     break
+            response_data["assertions"] = assertion_records
+            response_data["extractions"] = extraction_records
             if assertion_failed:
                 step_status = RunStatus.failed
                 all_passed = False
@@ -222,8 +245,10 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
 
         step_result.status = step_status
         step_result.duration_ms = int((time.monotonic() - step_start) * 1000)
-        step_result.request_data = request_data
-        step_result.response_data = response_data
+        persisted_request_data = redact_execution_evidence(request_data, evidence_redact_fields)
+        persisted_response_data = redact_execution_evidence(response_data, evidence_redact_fields)
+        step_result.request_data = persisted_request_data
+        step_result.response_data = persisted_response_data
         step_result.error_message = error_msg
         await db.commit()
 
@@ -237,8 +262,8 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
                     "name": step_result.name,
                     "status": step_status.value,
                     "duration_ms": step_result.duration_ms,
-                    "request_data": request_data,
-                    "response_data": response_data,
+                    "request_data": persisted_request_data,
+                    "response_data": persisted_response_data,
                     "error_message": error_msg,
                 },
             },

@@ -80,7 +80,7 @@ job 和其他 job 一样只是通知性的 —— 它变红不会阻止任何一
 - **常见排查**：
   - 元素定位失败：优先下载 Playwright report，看截图、trace 和实际路由。
   - 本地复现：运行 `cd frontend && npm ci && npm run e2e`。
-  - 首次环境缺浏览器：运行 `npm run e2e:install` 安装 Chromium 依赖。
+  - 首次环境缺浏览器：运行 `npm run e2e:install` 安装 Chromium、Firefox 和 WebKit 依赖。
 
 ## `release-readiness.yml` — 发布就绪检查
 

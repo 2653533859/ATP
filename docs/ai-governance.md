@@ -91,6 +91,29 @@ Rules:
 - Reserved ATP governance keys are filtered out and are not sent to provider
   chat completion payloads.
 
+## AI Case Generation Context
+
+The AI case generation drawer can optionally include one project test dataset
+and multiple project Mock rules:
+
+- Dataset context includes the schema and up to five sample rows. The selected
+  dataset is automatically bound to saved drafts, and the prompt asks the model
+  to use matching `{{field}}` placeholders. When a version exists, the newest
+  version selected for generation is saved on the case as `dataset_version` and
+  is used by the Worker for deterministic parameterized execution.
+- Mock context includes method, path, status code, response headers/body,
+  match conditions and up to three recorded samples. The model can use these
+  to create request steps and response assertions; at most 20 Mock rules can be
+  selected in one generation request.
+- Context is project-scoped and selected explicitly by the user. Passwords,
+  tokens, cookies, authorization values and other secret-looking fields are
+  replaced with `[已脱敏]` before the LLM request.
+- Context is advisory: drafts remain editable and must be reviewed before
+  saving or executing. AI does not create or modify Mock rules automatically.
+- Saved AI cases keep `_ai_source` in their config with the selected dataset ID,
+  dataset version, and Mock rule IDs. This is provenance metadata only; AI does
+  not mutate the source dataset or Mock rules.
+
 ## Error Degradation
 
 - AI case generation has no reliable deterministic replacement for LLM output;

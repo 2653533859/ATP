@@ -21,6 +21,6 @@ def test_performance_thin_slice_documents_k6_contract():
 def test_performance_queue_is_documented_in_helm_guide():
     content = (ROOT / "docs" / "deploy-helm.md").read_text(encoding="utf-8")
 
-    assert "default,mobile_special,ai,maintenance,performance" in content
+    assert "default,mobile_special,ios,ai,maintenance,performance" in content
     assert "`performance`：HTTP 压测任务" in content
     assert "Worker（含 Playwright Chromium + ADB + k6）" in content

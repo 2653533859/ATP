@@ -84,6 +84,13 @@ def test_replace_vars_in_params_recurses_and_preserves_non_strings():
     assert result == {"url": "/u/42", "nested": {"q": "42", "n": 7}, "flag": True}
 
 
+def test_sanitize_network_url_redacts_credentials_and_sensitive_query_parameters():
+    assert (
+        wlc._sanitize_network_url("https://alice:secret@example.test/api?token=abc&scene=smoke#fragment")
+        == "https://alice:***@example.test/api?token=%2A%2A%2A&scene=smoke"
+    )
+
+
 # ── 动作分发 ────────────────────────────────────────────────
 
 
@@ -161,8 +168,190 @@ def test_format_exception_message_uses_type_when_blank():
 
 from app.models.bootstrap import load_all_models  # noqa: E402
 from app.models.case import RunStatus, StepResult  # noqa: E402
+from app.models.project import Module  # noqa: E402
+from app.models.web_assets import WebElementAsset, WebPageObject  # noqa: E402
 
 load_all_models()
+
+
+def test_locator_asset_conversion_supports_common_strategies():
+    assert wlc._locator_to_selector({"strategy": "css", "value": "#submit"}) == "#submit"
+    assert wlc._locator_to_selector({"strategy": "xpath", "value": "//button"}) == "xpath=//button"
+    assert (
+        wlc._locator_to_selector({"strategy": "role", "value": "button", "name": "Submit"})
+        == 'role=button[name="Submit"]'
+    )
+    assert wlc._locator_to_selector({"strategy": "test_id", "value": "submit"}) == '[data-testid="submit"]'
+
+
+class _AssetDB:
+    def __init__(self, asset):
+        self.asset = asset
+
+    async def get(self, model, key):
+        if model is WebElementAsset:
+            return self.asset if key == self.asset.id else None
+        if model is Module:
+            return types.SimpleNamespace(project_id=1)
+        return None
+
+
+class _FallbackPage(_FakePage):
+    async def click(self, selector, **kw):
+        self.calls.append(("click", selector))
+        if selector == "#primary":
+            raise RuntimeError("primary locator failed")
+
+
+class _UploadPage(_FakePage):
+    async def set_input_files(self, selector, path, **kw):
+        self.calls.append(("upload", selector, Path(path).read_bytes()))
+
+
+class _FakeDownload:
+    suggested_filename = "report.pdf"
+
+    def __init__(self, path):
+        self._path = path
+
+    async def path(self):
+        return str(self._path)
+
+
+class _DownloadContext:
+    def __init__(self, download):
+        self._download = download
+
+    @property
+    def value(self):
+        async def _resolve():
+            return self._download
+
+        return _resolve()
+
+    async def __aenter__(self):
+        return self
+
+    async def __aexit__(self, *_args):
+        return False
+
+
+class _DownloadPage(_FakePage):
+    def __init__(self, download):
+        super().__init__()
+        self.download = download
+
+    def expect_download(self, **_kw):
+        return _DownloadContext(self.download)
+
+
+def test_element_asset_fallback_is_tried_in_order():
+    page = _FallbackPage()
+    result = asyncio.run(
+        wlc._execute_step_with_asset_fallback(
+            page,
+            "click",
+            {"selector": "#primary", "_asset_selectors": ["#primary", "#fallback"]},
+            5000,
+        )
+    )
+    assert result == {"success": True, "data": {"fallback_locator_index": 1}}
+    assert page.calls == [("click", "#primary"), ("click", "#fallback")]
+
+
+def test_element_asset_resolution_rejects_cross_project_reference():
+    asset = WebElementAsset(id=5, project_id=2, locator={"strategy": "css", "value": "#submit"}, fallback_locators=[])
+    params, resolved, error = asyncio.run(
+        wlc._resolve_element_asset(_AssetDB(asset), types.SimpleNamespace(module_id=7), {"element_asset_id": 5})
+    )
+    assert params == {"element_asset_id": 5}
+    assert resolved is None
+    assert error == "元素资产不属于当前项目"
+
+
+def test_page_object_expands_actions_and_attaches_element_assets():
+    page_object = WebPageObject(
+        id=3,
+        project_id=1,
+        name="LoginPage",
+        element_refs=[{"alias": "submit", "asset_id": 9}],
+        actions=[{"name": "submit", "step": "click", "alias": "submit"}],
+    )
+
+    class _POMDB:
+        async def get(self, model, key):
+            return page_object if model is WebPageObject and key == 3 else None
+
+    expanded, error = asyncio.run(
+        wlc._expand_page_object_steps(
+            _POMDB(),
+            [{"action": "page_object", "name": "登录页", "params": {"page_object_id": 3}}],
+            1,
+        )
+    )
+    assert error is None
+    assert expanded == [{"action": "click", "name": "登录页 / submit", "params": {"element_asset_id": 9}}]
+
+
+def test_page_object_expansion_rejects_foreign_project():
+    page_object = WebPageObject(id=3, project_id=2, name="Foreign", element_refs=[], actions=[{"step": "click"}])
+
+    class _POMDB:
+        async def get(self, _model, _key):
+            return page_object
+
+    expanded, error = asyncio.run(
+        wlc._expand_page_object_steps(
+            _POMDB(),
+            [{"action": "page_object", "params": {"page_object_id": 3}}],
+            1,
+        )
+    )
+    assert expanded == []
+    assert error == "页面对象不属于当前项目"
+
+
+def test_web_file_upload_requires_project_scoped_object(monkeypatch, tmp_path):
+    source = tmp_path / "upload.txt"
+    source.write_bytes(b"hello")
+    monkeypatch.setattr(wlc, "download_file", lambda _object, path: Path(path).write_bytes(source.read_bytes()))
+    page = _UploadPage()
+    result = asyncio.run(
+        wlc._execute_web_file_step(
+            page,
+            "upload",
+            {"selector": "input[type=file]", "object_name": "web-files/projects/1/file.txt"},
+            5000,
+            1,
+            9,
+        )
+    )
+    assert result["success"] is True, result
+    assert page.calls == [("upload", "input[type=file]", b"hello")]
+    rejected = asyncio.run(
+        wlc._execute_web_file_step(
+            page, "upload", {"selector": "#file", "object_name": "web-files/projects/2/file.txt"}, 5000, 1, 9
+        )
+    )
+    assert rejected["success"] is False
+
+
+def test_web_file_download_uploads_result(monkeypatch, tmp_path):
+    downloaded_path = tmp_path / "report.pdf"
+    downloaded_path.write_bytes(b"pdf")
+    uploaded = {}
+    monkeypatch.setattr(
+        wlc,
+        "upload_file",
+        lambda object_name, path, content_type: uploaded.update(
+            object_name=object_name, content=Path(path).read_bytes(), content_type=content_type
+        ),
+    )
+    page = _DownloadPage(_FakeDownload(downloaded_path))
+    result = asyncio.run(wlc._execute_web_file_step(page, "download", {"selector": "#download"}, 5000, 1, 9))
+    assert result["success"] is True, result
+    assert uploaded["object_name"].startswith("web-files/runs/9/")
+    assert uploaded["content"] == b"pdf"
 
 
 class _Obj(types.SimpleNamespace):
@@ -319,6 +508,23 @@ def test_run_web_lowcode_happy_path_with_screenshots_and_video(wired, monkeypatc
     assert completed["video_url"].endswith("recording.webm")
 
 
+def test_run_web_lowcode_applies_single_browser_matrix_variant(wired, monkeypatch):
+    page = _RunPage()
+    _pw, browser, _context = _wire_playwright(monkeypatch, page, wired["holder"], write_video=False)
+    db = _FakeDB()
+    run, case = _run_and_case([{"action": "goto", "params": {"url": "https://example.test"}}])
+    case.config["browser_matrix"] = [{"browser": "chromium", "viewport": {"width": 1440, "height": 900}}]
+
+    async def unexpected_matrix(*_args, **_kwargs):
+        raise AssertionError("single-item matrix should run as the parent execution")
+
+    monkeypatch.setattr(wlc, "_run_web_matrix", unexpected_matrix)
+
+    asyncio.run(wlc.run_web_lowcode(db, run, case, {}))
+
+    assert browser.launch_context_kw["viewport"] == {"width": 1440, "height": 900}
+
+
 def test_run_web_lowcode_failed_step_stops_and_marks_failed(wired, monkeypatch):
     page = _RunPage()
     _wire_playwright(monkeypatch, page, wired["holder"], write_video=False)
@@ -337,7 +543,8 @@ def test_run_web_lowcode_failed_step_stops_and_marks_failed(wired, monkeypatch):
     assert len(step_rows) == 1  # 失败后中断，第二步未执行
     assert step_rows[0].status == RunStatus.failed and "未知操作类型" in step_rows[0].error_message
     assert ("click", "#never") not in page.calls
-    assert run.result_summary in (None, {})  # 无录像不写 video_url
+    assert run.result_summary["network_events"] == []
+    assert run.result_summary["console_events"] == []
     assert wired["events"][-1]["status"] == "failed"
 
 

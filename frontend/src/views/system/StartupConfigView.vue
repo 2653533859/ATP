@@ -338,7 +338,7 @@ const defaultConfig: StartupConfig = {
   APP_ENV: 'development', APP_SECRET_KEY: 'change_this_to_a_random_secret_key_at_least_32_chars', APP_ACCESS_TOKEN_EXPIRE_MINUTES: 480,
   APP_REFRESH_TOKEN_EXPIRE_DAYS: 7, APP_CORS_ORIGINS: 'http://localhost,http://localhost:80,http://localhost:5173', APP_AUTO_CREATE_TABLES: false,
   FIRST_ADMIN_USERNAME: 'parado', FIRST_ADMIN_PASSWORD: 'change_me_before_use', FIRST_ADMIN_EMAIL: 'admin@example.com', WEBHOOK_API_KEY: 'change_this_to_a_random_webhook_key', ENCRYPTION_KEY: '',
-  CELERY_CONCURRENCY: 4, CELERY_QUEUES: 'default,mobile_special,ai,maintenance,performance', WORKER_METRICS_PORT: 9091,
+  CELERY_CONCURRENCY: 4, CELERY_QUEUES: 'default,mobile_special,ios,ai,maintenance,performance', WORKER_METRICS_PORT: 9091,
   FILE_RETENTION_DAYS: 30, STALE_PENDING_CLEANUP_ENABLED: true, STALE_PENDING_TIMEOUT_MINUTES: 120, STALE_PENDING_CLEANUP_INTERVAL_SECONDS: 600,
   RUN_CLEANUP_ENABLED: true, RUN_RETENTION_DAYS: 90, RUN_CLEANUP_BATCH_SIZE: 500,
   ADB_SCAN_ENABLED: true, ADB_SCAN_INTERVAL: 15, ADB_RECONNECT_ENABLED: true, ADB_RECONNECT_MAX_ATTEMPTS: 3, ADB_RECONNECT_BACKOFF_MS: '200,800,2000',

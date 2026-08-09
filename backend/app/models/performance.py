@@ -73,6 +73,9 @@ class PerformanceRun(Base, TimestampMixin):
     performance_node_id: Mapped[int | None] = mapped_column(
         ForeignKey("performance_nodes.id", ondelete="SET NULL"), nullable=True
     )
+    parent_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("performance_runs.id", ondelete="CASCADE"), nullable=True, index=True
+    )
     dataset_id: Mapped[int | None] = mapped_column(ForeignKey("test_datasets.id", ondelete="SET NULL"), nullable=True)
     dataset_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
     status: Mapped[str] = mapped_column(String(32), nullable=False, default=PerformanceRunStatus.pending.value)
@@ -91,6 +94,18 @@ class PerformanceRun(Base, TimestampMixin):
     )
     project = relationship("Project")
     performance_node = relationship("PerformanceNode", back_populates="runs", foreign_keys=[performance_node_id])
+    parent_run: Mapped["PerformanceRun | None"] = relationship(
+        "PerformanceRun",
+        remote_side="PerformanceRun.id",
+        back_populates="shard_runs",
+        foreign_keys=[parent_run_id],
+    )
+    shard_runs: Mapped[list["PerformanceRun"]] = relationship(
+        "PerformanceRun",
+        back_populates="parent_run",
+        foreign_keys=[parent_run_id],
+        cascade="all, delete-orphan",
+    )
     metric_samples: Mapped[list["PerformanceMetricSample"]] = relationship(
         back_populates="run",
         cascade="all, delete-orphan",

@@ -7,6 +7,11 @@ from app.worker.celery_app import celery_app
 from app.worker.async_runner import run_async
 from app.models.bootstrap import load_all_models
 from app.core.redis_client import publish_run_event
+from app.services.device_leases import (
+    DeviceLeaseConflict,
+    acquire_device_lease,
+    release_device_lease,
+)
 import logging
 
 logger = logging.getLogger(__name__)
@@ -44,14 +49,58 @@ def run_mobile_special_task(self, run_id: int):
             run.config_snapshot = _merge_run_config(task.config_json, run.config_snapshot)
             run.task_type = task.task_type
             run.device_id = _resolve_run_device_id(run, task)
+            run.apk_id = run.apk_id or task.apk_id
             run.app_package = _resolve_run_app_package(run, task)
             run.device_serial = run.config_snapshot.get("device_serial") or await _get_device_serial(db, run.device_id)
             if run.device_serial:
                 run.config_snapshot["device_serial"] = run.device_serial
             await db.commit()
 
+            lease_token: str | None = None
+            if run.device_id is not None:
+                try:
+                    lease = await acquire_device_lease(
+                        db,
+                        run.device_id,
+                        owner_id=run.triggered_by,
+                        owner_label=f"mobile-run:{run_id}",
+                        ttl_seconds=max(900, int(run.config_snapshot.get("device_lease_ttl_seconds", 900))),
+                    )
+                    lease_token = lease.lease_token
+                    await db.commit()
+                except (DeviceLeaseConflict, LookupError) as exc:
+                    run.status = RunStatus.failed
+                    run.finished_at = datetime.now(timezone.utc)
+                    run.summary_json = {"error_message": f"设备租约冲突: {exc}"}
+                    await db.commit()
+                    await _safe_publish_run_event(
+                        run_id,
+                        {"type": "completed", "run_id": run_id, "status": "failed"},
+                    )
+                    return
+
             try:
                 await _safe_publish_run_event(run_id, {"type": "run_status", "run_id": run_id, "status": "running"})
+
+                from app.models.apk import Apk
+                from app.services.mobile_special.preflight import run_android_preflight
+
+                apk = await db.get(Apk, run.apk_id) if run.apk_id is not None else None
+                if apk is not None and apk.project_id != task.project_id:
+                    raise RuntimeError("APK 资产不属于当前项目")
+                if apk is not None and not run.app_package and apk.package_name:
+                    run.app_package = apk.package_name
+                    run.config_snapshot["app_package"] = apk.package_name
+                preflight_result = await run_android_preflight(
+                    serial=run.device_serial or "",
+                    package=run.app_package,
+                    config=run.config_snapshot,
+                    apk_object_name=apk.object_name if apk is not None else None,
+                )
+                if "launch_before" in (preflight_result.get("actions") or []):
+                    # Executors also support auto_start; avoid launching the same app twice.
+                    run.config_snapshot["auto_start"] = False
+                    await db.commit()
 
                 # 路由到对应 executor
                 if task.task_type == TaskType.performance:
@@ -85,6 +134,24 @@ def run_mobile_special_task(self, run_id: int):
                         "status": "failed",
                     },
                 )
+            finally:
+                try:
+                    from app.services.mobile_special.preflight import run_android_postflight
+
+                    if run.device_serial:
+                        await run_android_postflight(
+                            serial=run.device_serial,
+                            package=run.app_package,
+                            config=run.config_snapshot or {},
+                        )
+                except Exception:
+                    logger.exception("Failed to apply Android postflight for mobile run %s", run_id)
+                if lease_token:
+                    try:
+                        await release_device_lease(db, run.device_id, lease_token)
+                        await db.commit()
+                    except Exception:
+                        logger.exception("Failed to release device lease for mobile run %s", run_id)
 
     run_async(_execute())
 
@@ -202,3 +269,18 @@ def cleanup_stale_mobile_special_runs():
             await db.commit()
 
     run_async(_cleanup())
+
+
+@celery_app.task(name="reclaim_expired_device_leases")
+def reclaim_expired_device_leases_task():
+    """回收执行器崩溃后遗留的设备租约。"""
+    from app.core.database import AsyncSessionLocal
+    from app.services.device_leases import reclaim_expired_device_leases
+
+    async def _reclaim():
+        async with AsyncSessionLocal() as db:
+            count = await reclaim_expired_device_leases(db)
+            await db.commit()
+            logger.info("Reclaimed %d expired device lease(s)", count)
+
+    run_async(_reclaim())

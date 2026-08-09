@@ -34,7 +34,7 @@ export function parseFormBody(rawBody: unknown): Record<string, string> {
 
 /** 保存时解析请求体：json 且为字符串则尝试解析为对象，none 归一化为 null，其它原样。 */
 export function resolveRequestBody(
-  bodyType: 'none' | 'json' | 'form' | 'raw',
+  bodyType: 'none' | 'json' | 'form' | 'multipart' | 'xml' | 'raw',
   body: unknown,
   formBody: Record<string, string>,
 ): unknown {

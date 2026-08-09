@@ -28,7 +28,18 @@ from app.schemas.storage import (
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CLEANUP_PREFIXES = ("screenshots/", "reports/", "apks/", "scripts/", "performance/")
+DEFAULT_CLEANUP_PREFIXES = (
+    "screenshots/",
+    "reports/",
+    "apks/",
+    "scripts/",
+    "performance/",
+    "api-files/",
+    "web-files/",
+    "visual-baselines/",
+    "videos/",
+    "traces/",
+)
 
 
 @dataclass

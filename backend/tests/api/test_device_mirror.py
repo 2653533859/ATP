@@ -22,11 +22,21 @@ def _noop_current_user():
     return None
 
 
+async def _noop_async(*_args, **_kwargs):
+    return None
+
+
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
-sys.modules["app.api.deps"] = types.SimpleNamespace(
-    get_current_user=_noop_current_user,
-    require_engineer=_fake_require_engineer,
-)
+_deps = sys.modules.setdefault("app.api.deps", types.SimpleNamespace())
+_deps.get_current_user = _noop_current_user
+_deps.require_engineer = _fake_require_engineer
+for _name, _value in (
+    ("require_admin", lambda: None),
+    ("assert_project_access", _noop_async),
+    ("require_project_access", lambda *_args, **_kwargs: _noop_async),
+):
+    if not hasattr(_deps, _name):
+        setattr(_deps, _name, _value)
 
 from app.models.device import DeviceStatus
 from app.schemas.device import DeviceSwipeIn, DeviceTapIn

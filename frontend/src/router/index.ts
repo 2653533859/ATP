@@ -177,6 +177,16 @@ const router = createRouter({
           name: 'system-performance',
           component: () => import('@/views/system/PerformanceCenterView.vue'),
         },
+        {
+          path: 'system/web-assets',
+          name: 'system-web-assets',
+          component: () => import('@/views/system/WebAssetsView.vue'),
+        },
+        {
+          path: 'system/api-contract-assets',
+          name: 'system-api-contract-assets',
+          component: () => import('@/views/system/ApiContractAssetsView.vue'),
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },

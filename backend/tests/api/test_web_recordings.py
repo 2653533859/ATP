@@ -1,11 +1,15 @@
+import asyncio
+
 import pytest
 
 from app.api.v1.web_recordings import (
     _RECORDING_SCRIPT,
+    _persist_recorded_assets,
     WebRecordingManager,
     WebRecordingSession,
     WebRecordingStart,
 )
+from app.models.web_assets import WebElementAsset
 
 
 def test_recording_start_requires_http_url():
@@ -99,3 +103,55 @@ def test_recording_manager_prunes_finished_sessions(monkeypatch):
     manager._prune_finished()
 
     assert set(manager.sessions) == {"active"}
+
+
+def test_recording_session_can_persist_assets_and_link_steps():
+    class _ScalarResult:
+        def all(self):
+            return []
+
+    class _Rows:
+        def scalars(self):
+            return _ScalarResult()
+
+    class _DB:
+        def __init__(self):
+            self.items = []
+            self.commits = 0
+
+        async def execute(self, _query):
+            return _Rows()
+
+        def add(self, item):
+            item.id = len(self.items) + 1
+            self.items.append(item)
+
+        async def flush(self):
+            return None
+
+        async def commit(self):
+            self.commits += 1
+
+    session = WebRecordingSession(
+        session_id="asset-session",
+        owner_id=1,
+        project_id=7,
+        start_url="https://example.com/login",
+        viewport_width=1280,
+        viewport_height=720,
+        status="stopped",
+        steps=[
+            {"action": "fill", "name": "输入用户名", "params": {"selector": "#username", "value": "alice"}},
+            {"action": "click", "name": "点击登录", "params": {"selector": "#login"}},
+        ],
+    )
+    db = _DB()
+
+    asyncio.run(_persist_recorded_assets(db, session))
+
+    assert len(db.items) == 2
+    assert all(isinstance(item, WebElementAsset) for item in db.items)
+    assert session.asset_ids == [1, 2]
+    assert session.steps[0]["params"]["element_asset_id"] == 1
+    assert session.steps[1]["params"]["element_asset_id"] == 2
+    assert db.commits == 1

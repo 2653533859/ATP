@@ -2,7 +2,7 @@
 
 本文用于 Q17-03/Q17-04 的 Linux/Kubernetes 外部环境验收。仓库内的单元测试和本地真实 gRPC server 联调只能证明实现链路可运行，不能替代真实镜像、真实证书、真实目标服务和真实 Celery 队列的验收。
 
-> 当前状态（2026-08-07）：已完成本地工具和门禁验证；待接入的 Linux 主机目前仅提供 ARM64 Docker/Compose 基础设施，尚未部署 ATP Worker、Worker 镜像或外部 gRPC/Locust 目标。建立隔离部署后，必须重新执行本文全部命令并保存 JSON 证据，才能关闭 Q17-04。
+> 当前状态（2026-08-07）：已完成本地工具和门禁验证；JMeter 5.6.3 已使用仓库内无凭据 JMX 对本地 `/login` 完成 1 请求、0 错误的 JTL/HTML 烟测。待接入的 Linux 主机目前仅提供 ARM64 Docker/Compose 基础设施，尚未部署 ATP Worker、Worker 镜像或外部 gRPC/Locust 目标。建立隔离部署后，必须重新执行本文全部命令并保存 JSON 证据，才能关闭 Q17-04。
 
 ## ARM64 Docker Compose 隔离验收栈
 
@@ -24,6 +24,16 @@ docker compose --env-file .env.performance-acceptance \
   -f docker-compose.performance-acceptance.yml ps
 curl http://127.0.0.1:18080/health
 ```
+
+仓库内的 [`jmeter_smoke.jmx`](../deploy/performance-acceptance/jmeter_smoke.jmx) 是无凭据的最小 JMeter 回归样例，只访问 ATP `/login`，可用于确认 JMeter、JTL 和 HTML 报告生成链路：
+
+```bash
+jmeter -n -t deploy/performance-acceptance/jmeter_smoke.jmx \
+  -l /tmp/atp-jmeter-smoke.jtl \
+  -e -o /tmp/atp-jmeter-smoke-html
+```
+
+该样例只证明当前机器上的 JMeter 可执行，不替代 Docker Worker 中的 JMeter 验收。
 
 在 ATP 中创建 gRPC 压测定义时上传 [`acceptance.proto`](../deploy/performance-acceptance/acceptance.proto)，并使用以下关键配置。`tls_root_certificates_file` 指向 Worker 只读挂载的公有 CA 证书，不是密码或私钥：
 
@@ -70,7 +80,7 @@ Locust 定义上传 [`locust_smoke.py`](../deploy/performance-acceptance/locust_
 
 ## 2. 构建并发布 Worker 镜像
 
-`backend/Dockerfile.worker` 会把 k6 二进制复制到 Python Worker 镜像，并在构建阶段验证 k6、Locust、grpcio 和 grpcio-tools。发布机示例：
+`backend/Dockerfile.worker` 会把 k6 二进制复制到 Python Worker 镜像，并在构建阶段验证 k6、Locust、grpcio、grpcio-tools、JMeter 以及 Chromium/Firefox/WebKit。发布机示例：
 
 ```bash
 IMAGE=registry.example.test/atp/worker:2026-08-07-q17
@@ -90,7 +100,7 @@ worker:
   queues: default,mobile_special,ai,maintenance
 config:
   CELERY_QUEUES: default,mobile_special,ai,maintenance
-  PERFORMANCE_EXECUTORS: k6,locust,grpc
+  PERFORMANCE_EXECUTORS: k6,locust,grpc,jmeter
 
 performanceWorker:
   enabled: true
@@ -174,7 +184,7 @@ python scripts/performance-environment-smoke.py \
 1. ATP `/health`、执行器 ready 状态和鉴权；
 2. `worker-a` 节点在线、能力声明包含 `grpc`、队列/节点约束可用；
 3. DNS、TCP 和真实 TLS 证书校验；
-4. Kubernetes Deployment、Pod Ready 状态及镜像内 `grpcio`、`grpcio-tools`、Locust、k6；
+4. Kubernetes Deployment、Pod Ready 状态及镜像内 `grpcio`、`grpcio-tools`、Locust、k6、JMeter、Chromium/Firefox/WebKit；
 5. 已存在的 gRPC 测试通过指定节点真实入队、执行、落库并生成结果；
 6. 至少一条资源采样记录存在。
 
@@ -220,7 +230,7 @@ python scripts/performance-environment-smoke.py \
 
 | 项目 | 必须证据 | 失败处理 |
 |---|---|---|
-| 镜像 | `grpcio`、`grpcio-tools`、Locust、k6 命令输出 | 重新构建 Worker 镜像 |
+| 镜像 | `grpcio`、`grpcio-tools`、Locust、k6、JMeter 和 Chromium/Firefox/WebKit 命令输出 | 重新构建 Worker 镜像 |
 | 节点 | API 返回 `status=online`、执行器能力和最近心跳 | 检查节点 ID、队列、Redis、数据库和 Worker 日志 |
 | 队列 | Celery Worker 收到 `run_performance_test`，并使用目标节点队列 | 检查 `nodeQueue` 与 `queues` 是否完全一致 |
 | TLS | DNS、TCP、证书链和 SNI 校验记录 | 检查 CA、证书 SAN、NetworkPolicy 和服务端监听地址 |

@@ -1,0 +1,21 @@
+{
+  "executed_at": "2026-08-07T19:27:21+08:00",
+  "jmeter_version": "5.6.3",
+  "plan": "deploy/performance-acceptance/jmeter_smoke.jmx",
+  "target": "http://127.0.0.1:5173/login",
+  "samples": 1,
+  "errors": 0,
+  "http_statuses": {
+    "200": 1
+  },
+  "duration_ms": {
+    "min": 58,
+    "max": 58,
+    "average": 58
+  },
+  "artifacts": {
+    "jtl_generated": true,
+    "html_report_generated": true
+  },
+  "scope": "本机 JMeter 执行与报告生成证据，不代表 Docker Worker 或远程 Linux 节点验收。"
+}

@@ -49,9 +49,12 @@ async def run_web_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
         return
 
     browser = cfg.get("browser", "chromium")
-    if browser != "chromium":
-        logger.warning("run %s requested unsupported browser '%s', fallback to chromium", run.id, browser)
-        browser = "chromium"
+    if browser not in {"chromium", "firefox", "webkit"}:
+        run.status = RunStatus.error
+        run.error_message = f"不支持的浏览器: {browser}，可选 chromium、firefox、webkit"
+        await db.commit()
+        await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
+        return
     headless = cfg.get("headless", True)
     viewport_width = cfg.get("viewport", {}).get("width", 1280)
     viewport_height = cfg.get("viewport", {}).get("height", 720)

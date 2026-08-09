@@ -82,8 +82,64 @@ def _ensure_stub_attrs(module_name: str, defaults: dict) -> None:
 # ── 集成模式早退：不注入任何 stub ─────────────────────────────────
 _INTEGRATION_MODE = os.getenv("ATP_INTEGRATION_TESTS") == "1"
 
+
+def _refresh_common_test_stubs() -> None:
+    """补回被历史测试模块替换掉的公共 stub 属性。
+
+    许多旧测试在模块级 import 前直接替换了 `sys.modules` 中的对象。只在
+    session 启动时补一次仍会让后续测试收集顺序影响结果，因此在每个测试
+    模块收集前再次执行 fill-missing-only 修复，既保持测试自己的替身，也
+    不允许缺失的公共符号污染下一个模块。
+    """
+    if _INTEGRATION_MODE:
+        return
+    _ensure_stub_attrs(
+        "app.core.minio_client",
+        {
+            "list_objects": lambda *_a, **_kw: [],
+            "delete_file": lambda *_a, **_kw: None,
+            "ensure_bucket": lambda *_a, **_kw: None,
+            "read_bytes": lambda *_a, **_kw: b"",
+            "upload_bytes": lambda *_a, **_kw: None,
+            "download_file": lambda *_a, **_kw: None,
+            "upload_file": lambda *_a, **_kw: None,
+            "presigned_url": lambda *_a, **_kw: "",
+            "get_client": lambda *_a, **_kw: None,
+        },
+    )
+    _ensure_stub_attrs(
+        "app.core.redis_client",
+        {
+            "get_json_cache": lambda *_a, **_kw: None,
+            "set_json_cache": lambda *_a, **_kw: None,
+            "delete_json_cache": lambda *_a, **_kw: None,
+            "delete_json_cache_pattern": lambda *_a, **_kw: None,
+            "publish_run_event": lambda *_a, **_kw: None,
+            "get_async_redis": lambda *_a, **_kw: None,
+            "close_async_redis": _noop_async,
+        },
+    )
+    _ensure_stub_attrs(
+        "app.core.database",
+        {
+            "get_db": lambda: None,
+            "AsyncSessionLocal": lambda *_a, **_kw: None,
+            "engine": types.SimpleNamespace(dispose=lambda: None, sync_engine=None),
+        },
+    )
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_pycollect_makemodule(module_path, parent):
+    _refresh_common_test_stubs()
+    return None
+
+
 if not _INTEGRATION_MODE:
     # ── 单元模式：立即应用所有 stub（必须在测试文件 import 之前）──
+    async def _noop_async(*_a, **_kw):
+        return None
+
     _ensure_stub_attrs(
         "app.core.minio_client",
         {
@@ -108,11 +164,9 @@ if not _INTEGRATION_MODE:
             "delete_json_cache_pattern": lambda *_a, **_kw: None,
             "publish_run_event": lambda *_a, **_kw: None,
             "get_async_redis": lambda *_a, **_kw: None,
+            "close_async_redis": _noop_async,
         },
     )
-
-    async def _noop_async(*_a, **_kw):
-        return None
 
     _ensure_stub_attrs(
         "app.api.deps",

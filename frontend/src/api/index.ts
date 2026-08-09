@@ -6,7 +6,7 @@ export type ReviewStatus = 'pending' | 'approved' | 'rejected'
 export type AutomationStatus = 'manual' | 'semi_auto' | 'auto'
 export type CaseStatus = 'draft' | 'active' | 'deprecated'
 export type ScriptStatus = 'generated' | 'missing' | 'not_applicable'
-export type CaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android'
+export type CaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android' | 'ios'
 export type SuiteStatus = 'active' | 'archived'
 export type SuiteRunStatus = 'pending' | 'running' | 'passed' | 'failed' | 'error'
 export type SuiteExecutionMode = 'sequential' | 'parallel'
@@ -131,6 +131,7 @@ export interface CaseSummaryItem {
   ai_generated?: boolean
   script_status?: ScriptStatus
   dataset_id?: number | null
+  dataset_version?: number | null
   flaky_stats?: CaseFlakyStats
   created_at: string
   updated_at: string
@@ -166,6 +167,13 @@ export interface ScriptUploadResponse {
   size: number
 }
 
+export interface ApiRequestFileUploadResponse {
+  object_name: string
+  filename: string
+  content_type: string
+  size: number
+}
+
 export type WebRecordingStatus = 'starting' | 'recording' | 'stopping' | 'stopped' | 'error'
 
 export interface WebRecordingStep {
@@ -178,7 +186,9 @@ export interface WebRecordingItem {
   id: string
   status: WebRecordingStatus
   start_url: string
+  project_id?: number | null
   steps: WebRecordingStep[]
+  asset_ids?: number[]
   error?: string | null
 }
 
@@ -215,6 +225,29 @@ export interface CaseSavePayload {
   steps?: CaseStepItem[]
   config?: Record<string, unknown>
   dataset_id?: number | null
+  dataset_version?: number | null
+}
+
+export interface CaseImportConflict {
+  index: number
+  module_id: number
+  name: string
+  reason: string
+}
+
+export interface CaseImportPreview {
+  total: number
+  valid_count: number
+  invalid_count: number
+  conflicts: CaseImportConflict[]
+  errors: string[]
+}
+
+export interface CaseImportResult {
+  imported: number
+  skipped_count: number
+  case_ids: number[]
+  conflicts: CaseImportConflict[]
 }
 
 export interface SuiteCaseRef {
@@ -787,8 +820,19 @@ export const caseApi = {
   list: (params?: CaseQueryParams) =>
     http.get<unknown, CaseSummaryItem[]>('/cases', { params }),
   create: (data: CaseSavePayload) => http.post<unknown, CaseDetailItem>('/cases', data),
+  previewImport: (projectId: number, cases: CaseSavePayload[]) =>
+    http.post<unknown, CaseImportPreview>(`/projects/${projectId}/cases/import-preview`, { cases }),
+  importCases: (projectId: number, cases: CaseSavePayload[], conflict_policy: 'fail' | 'skip' | 'replace' = 'fail') =>
+    http.post<unknown, CaseImportResult>(
+      `/projects/${projectId}/cases/import`, { cases, conflict_policy },
+    ),
   get: (id: number) => http.get<unknown, CaseDetailItem>(`/cases/${id}`),
   update: (id: number, data: CaseSavePayload) => http.patch<unknown, CaseDetailItem>(`/cases/${id}`, data),
+  uploadRequestFile: (projectId: number, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post<unknown, ApiRequestFileUploadResponse>(`/projects/${projectId}/api-request-files`, form)
+  },
   delete: (id: number) => http.delete(`/cases/${id}`),
   copy: (id: number) => http.post<unknown, CaseDetailItem>(`/cases/${id}/copy`),
   submitReview: (id: number, data?: { comment?: string }) => http.post<unknown, CaseDetailItem>(`/cases/${id}/submit-review`, data ?? {}),
@@ -857,6 +901,83 @@ export const caseApi = {
   },
 }
 
+export interface ApiContractChange {
+  severity: 'breaking' | 'warning'
+  location: string
+  message: string
+}
+
+export interface ApiContractCompareResult {
+  compatible: boolean
+  breaking_changes: ApiContractChange[]
+  warnings: ApiContractChange[]
+  summary: string
+}
+
+export const apiContractApi = {
+  compare: (projectId: number, baseline: Record<string, unknown>, current: Record<string, unknown>) =>
+    http.post<unknown, ApiContractCompareResult>(`/projects/${projectId}/api-contracts/compare`, { baseline, current }),
+  compareAssets: (projectId: number, baselineAssetId: number, currentAssetId: number) =>
+    http.post<unknown, ApiContractCompareResult>(`/projects/${projectId}/api-contracts/compare-assets`, {
+      baseline_asset_id: baselineAssetId,
+      current_asset_id: currentAssetId,
+    }),
+}
+
+export interface ApiContractAssetItem {
+  id: number
+  project_id: number
+  name: string
+  role: 'provider' | 'consumer'
+  format: 'openapi' | 'swagger' | 'json_schema'
+  description?: string | null
+  definition: Record<string, unknown>
+  version: number
+  owner_id?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export const apiContractAssetApi = {
+  list: (projectId: number, role?: 'provider' | 'consumer') =>
+    http.get<unknown, ApiContractAssetItem[]>(`/projects/${projectId}/api-contract-assets`, { params: { role } }),
+  create: (
+    projectId: number,
+    body: {
+      name: string
+      role: 'provider' | 'consumer'
+      format: 'openapi' | 'swagger' | 'json_schema'
+      description?: string
+      definition: Record<string, unknown>
+    },
+  ) => http.post<unknown, ApiContractAssetItem>(`/projects/${projectId}/api-contract-assets`, body),
+  update: (id: number, body: Record<string, unknown>) =>
+    http.patch<unknown, ApiContractAssetItem>(`/api-contract-assets/${id}`, body),
+  delete: (id: number) => http.delete<unknown, void>(`/api-contract-assets/${id}`),
+}
+
+export interface ApiSchemaAssetItem {
+  id: number
+  project_id: number
+  name: string
+  description?: string | null
+  definition: Record<string, unknown>
+  version: number
+  owner_id?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export const apiSchemaAssetApi = {
+  list: (projectId: number) =>
+    http.get<unknown, ApiSchemaAssetItem[]>(`/projects/${projectId}/api-schema-assets`),
+  create: (projectId: number, body: { name: string; description?: string; definition: Record<string, unknown> }) =>
+    http.post<unknown, ApiSchemaAssetItem>(`/projects/${projectId}/api-schema-assets`, body),
+  update: (id: number, body: Record<string, unknown>) =>
+    http.patch<unknown, ApiSchemaAssetItem>(`/api-schema-assets/${id}`, body),
+  delete: (id: number) => http.delete<unknown, void>(`/api-schema-assets/${id}`),
+}
+
 export const runApi = {
   list: (params?: { case_id?: number; page?: number; page_size?: number }) =>
     http.get<unknown, { items: RunDetailItem[]; total: number; page: number; page_size: number }>('/runs', { params }),
@@ -890,7 +1011,7 @@ export const scriptApi = {
 }
 
 export const webRecordingApi = {
-  start: (data: { start_url: string; browser?: 'chromium'; viewport_width?: number; viewport_height?: number }) =>
+  start: (data: { start_url: string; project_id?: number | null; browser?: 'chromium' | 'firefox' | 'webkit'; viewport_width?: number; viewport_height?: number }) =>
     http.post<unknown, WebRecordingItem>('/web-recordings', data),
   get: (id: string) => http.get<unknown, WebRecordingItem>(`/web-recordings/${id}`),
   stop: (id: string) => http.post<unknown, WebRecordingItem>(`/web-recordings/${id}/stop`),
@@ -1346,6 +1467,7 @@ export interface AIEndpointParameter {
 export interface AIEndpointSummary {
   method: string
   path: string
+  base_url?: string | null
   summary?: string | null
   description?: string | null
   operation_id?: string | null
@@ -1358,6 +1480,7 @@ export interface AIEndpointSummary {
 export interface AIParseSchemaPayload {
   source_type: SchemaSourceType
   content: string
+  external_ref_policy?: 'warn' | 'reject'
 }
 
 export interface AIParseSchemaResult {
@@ -1385,6 +1508,8 @@ export interface AICaseDraft {
   postconditions: string[]
   steps: AICaseStepDraft[]
   config: Record<string, unknown>
+  dataset_id?: number | null
+  dataset_version?: number | null
 }
 
 export interface AICaseGeneratePayload {
@@ -1396,6 +1521,9 @@ export interface AICaseGeneratePayload {
   priority?: CasePriority
   case_level?: CaseLevel
   max_cases?: number
+  dataset_id?: number | null
+  dataset_version?: number | null
+  mock_rule_ids?: number[]
 }
 
 export interface AICaseGenerateResult {
@@ -1496,6 +1624,7 @@ export interface PerformanceRunItem {
   project_id: number
   environment_id?: number | null
   performance_node_id?: number | null
+  parent_run_id?: number | null
   dataset_id?: number | null
   dataset_version?: number | null
   status: PerformanceRunStatus | string
@@ -1581,11 +1710,32 @@ export interface PerformanceExecutorItem {
   description: string
 }
 
+export interface PerformanceCapacityObservation {
+  run_id: number
+  load: number | null
+  status: string
+  error_rate: number | null
+  p95_ms: number | null
+  stable: boolean
+  reasons: string[]
+}
+
+export interface PerformanceCapacityAnalysis {
+  status: string
+  max_stable_load: number | null
+  max_stable_run_id: number | null
+  stable_run_count: number
+  observed_run_count: number
+  first_unstable_load: number | null
+  bottleneck: string | null
+  observations: PerformanceCapacityObservation[]
+}
+
 export interface PerformanceTestPayload {
   project_id?: number
   name?: string
   description?: string | null
-  executor?: 'k6' | 'locust' | 'grpc'
+  executor?: 'k6' | 'locust' | 'grpc' | 'jmeter'
   script_object_name?: string
   default_options?: Record<string, unknown>
   dataset_id?: number | null
@@ -1616,7 +1766,7 @@ export const performanceApi = {
   deleteNode: (id: number) => http.delete<unknown, void>(`/performance/nodes/${id}`),
   listTests: (projectId: number) =>
     http.get<unknown, PerformanceTestItem[]>(`/projects/${projectId}/performance/tests`),
-  uploadScript: (projectId: number, file: File, executor: 'k6' | 'locust' | 'grpc' = 'k6') => {
+  uploadScript: (projectId: number, file: File, executor: 'k6' | 'locust' | 'grpc' | 'jmeter' = 'k6') => {
     const form = new FormData()
     form.append('file', file)
     return http.post<unknown, PerformanceScriptUploadResponse>(`/projects/${projectId}/performance/scripts`, form, {
@@ -1645,11 +1795,14 @@ export const performanceApi = {
   triggerRun: (id: number, body?: {
     environment_id?: number | null
     performance_node_id?: number | null
+    performance_node_ids?: number[]
     options?: Record<string, unknown>
   }) =>
     http.post<unknown, PerformanceRunItem>(`/performance/tests/${id}/run`, body ?? {}),
   listRuns: (projectId: number) =>
     http.get<unknown, PerformanceRunItem[]>('/performance/runs', { params: { project_id: projectId } }),
+  analyzeCapacity: (projectId: number, body: { run_ids: number[]; max_error_rate?: number; max_p95_ms?: number | null; min_stable_runs?: number }) =>
+    http.post<unknown, PerformanceCapacityAnalysis>(`/projects/${projectId}/performance/capacity/analyze`, body),
   getRun: (id: number) => http.get<unknown, PerformanceRunItem>(`/performance/runs/${id}`),
   stopRun: (id: number) => http.post<unknown, PerformanceRunItem>(`/performance/runs/${id}/stop`),
   getGate: (id: number) => http.get<unknown, PerformanceGateItem>(`/performance/runs/${id}/gate`),
@@ -1663,6 +1816,117 @@ export const performanceApi = {
     http.get<unknown, Blob>(`/performance/runs/${id}/export/csv`, { responseType: 'blob' }),
   getRawResult: (id: number) =>
     http.get<unknown, { url: string; filename: string; object_name: string }>(`/performance/runs/${id}/raw-result`),
+}
+
+// ---- Reusable Web assets ----
+export interface WebElementAssetItem {
+  id: number
+  project_id: number
+  name: string
+  page_url?: string | null
+  locator: Record<string, unknown>
+  fallback_locators: Array<Record<string, unknown>>
+  description?: string | null
+  version: number
+  owner_id?: number | null
+  last_failed_at?: string | null
+  last_failure_reason?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface WebLocatorRepairCandidate {
+  locator: Record<string, unknown>
+  confidence: number
+  reason: string
+}
+
+export interface WebPageObjectItem {
+  id: number
+  project_id: number
+  name: string
+  url_pattern?: string | null
+  description?: string | null
+  element_refs: Array<Record<string, unknown>>
+  actions: Array<Record<string, unknown>>
+  version: number
+  owner_id?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export const webAssetsApi = {
+  listElements: (projectId: number) => http.get<unknown, WebElementAssetItem[]>(`/projects/${projectId}/web-elements`),
+  createElement: (projectId: number, body: { name: string; page_url?: string | null; locator: Record<string, unknown>; fallback_locators?: Array<Record<string, unknown>>; description?: string }) =>
+    http.post<unknown, WebElementAssetItem>(`/projects/${projectId}/web-elements`, body),
+  updateElement: (id: number, body: Record<string, unknown>) => http.patch<unknown, WebElementAssetItem>(`/web-elements/${id}`, body),
+  recordElementFailure: (id: number, reason: string) => http.post<unknown, WebElementAssetItem>(`/web-elements/${id}/failure`, { reason }),
+  previewElementRepair: (id: number, observed_locators: Array<Record<string, unknown>> = []) =>
+    http.post<unknown, { element_id: number; candidates: WebLocatorRepairCandidate[] }>(`/web-elements/${id}/repair-preview`, { observed_locators }),
+  deleteElement: (id: number) => http.delete<unknown, void>(`/web-elements/${id}`),
+  listPageObjects: (projectId: number) => http.get<unknown, WebPageObjectItem[]>(`/projects/${projectId}/web-page-objects`),
+  createPageObject: (projectId: number, body: { name: string; url_pattern?: string | null; description?: string; element_refs?: Array<Record<string, unknown>>; actions?: Array<Record<string, unknown>> }) =>
+    http.post<unknown, WebPageObjectItem>(`/projects/${projectId}/web-page-objects`, body),
+  updatePageObject: (id: number, body: Record<string, unknown>) => http.patch<unknown, WebPageObjectItem>(`/web-page-objects/${id}`, body),
+  deletePageObject: (id: number) => http.delete<unknown, void>(`/web-page-objects/${id}`),
+}
+
+export interface WebFileUploadResponse {
+  object_name: string
+  filename: string
+  content_type: string
+  size: number
+}
+
+export const webFilesApi = {
+  upload: (projectId: number, file: File) => {
+    const form = new FormData()
+    form.append('file', file)
+    return http.post<unknown, WebFileUploadResponse>(`/projects/${projectId}/web-files`, form)
+  },
+}
+
+export interface WebVisualBaselineItem {
+  id: number
+  project_id: number
+  name: string
+  page_url?: string | null
+  object_name: string
+  content_type: string
+  width?: number | null
+  height?: number | null
+  threshold: number
+  pixel_threshold: number
+  ignore_regions: Array<Record<string, unknown>>
+  version: number
+  owner_id?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export const webVisualApi = {
+  listBaselines: (projectId: number) =>
+    http.get<unknown, WebVisualBaselineItem[]>(`/projects/${projectId}/web-visual-baselines`),
+  uploadBaseline: (projectId: number, body: {
+    name: string
+    page_url?: string
+    threshold?: number
+    pixel_threshold?: number
+    ignore_regions?: Array<Record<string, unknown>>
+    file: File
+  }) => {
+    const form = new FormData()
+    form.append('name', body.name)
+    if (body.page_url) form.append('page_url', body.page_url)
+    form.append('threshold', String(body.threshold ?? 0.01))
+    form.append('pixel_threshold', String(body.pixel_threshold ?? 10))
+    form.append('ignore_regions', JSON.stringify(body.ignore_regions ?? []))
+    form.append('file', body.file)
+    return http.post<unknown, WebVisualBaselineItem>(`/projects/${projectId}/web-visual-baselines`, form)
+  },
+  updateSettings: (id: number, body: { threshold: number; pixel_threshold: number; ignore_regions: Array<Record<string, unknown>> }) =>
+    http.patch<unknown, WebVisualBaselineItem>(`/web-visual-baselines/${id}`, body),
+  deleteBaseline: (id: number) => http.delete<unknown, void>(`/web-visual-baselines/${id}`),
 }
 
 // ─── P3.B 测试数据集 ───────────────────────────────────────

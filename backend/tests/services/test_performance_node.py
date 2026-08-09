@@ -71,6 +71,26 @@ def test_validate_node_options_checks_target_hosts_inside_dataset_rows():
         raise AssertionError("节点出口校验不能被数据集中的目标 URL 绕过")
 
 
+def test_validate_node_options_checks_target_metrics_url_from_worker_environment(monkeypatch):
+    monkeypatch.setenv("ATP_PROM_URL", "http://evil.test:9090")
+    node = _node(egress_allowlist=["prometheus.example.test"])
+
+    try:
+        performance_node.validate_node_options(
+            {
+                "target_metrics": {
+                    "url_env": "ATP_PROM_URL",
+                    "queries": {"cpu": "up"},
+                }
+            },
+            node,
+        )
+    except performance_node.PerformanceNodeConstraintError as exc:
+        assert "evil.test" in str(exc)
+    else:
+        raise AssertionError("worker 环境中的 Prometheus 地址不能绕过节点 allowlist")
+
+
 def test_validate_node_options_normalizes_grpc_target_and_concurrency():
     node = _node(max_vus=2, egress_allowlist=["api.example.test"])
     performance_node.validate_node_options(

@@ -20,6 +20,25 @@
           </a-form-item>
         </a-col>
       </a-row>
+      <a-form-item :label="t('case.drawer.android.device_matrix')">
+        <a-switch v-model:checked="deviceMatrixEnabled" />
+        <span class="mode-hint">{{ t('case.drawer.android.device_matrix_hint') }}</span>
+      </a-form-item>
+      <div v-if="deviceMatrixEnabled" class="device-matrix">
+        <a-space v-for="(variant, index) in cfg.device_matrix" :key="index" style="display: flex; margin-bottom: 8px">
+          <a-select v-model:value="variant.serial" :placeholder="t('case.drawer.android.select_device')" style="min-width: 360px">
+            <a-select-option v-for="device in devices" :key="device.serial" :value="device.serial">
+              {{ device.brand }} {{ device.model }} · Android {{ device.os_version || '-' }} ({{ device.serial }})
+            </a-select-option>
+          </a-select>
+          <a-button danger @click="removeDeviceVariant(index)">{{ t('common.delete') }}</a-button>
+        </a-space>
+        <a-button size="small" @click="addDeviceVariant">{{ t('case.drawer.android.device_matrix_add') }}</a-button>
+      </div>
+      <a-form-item :label="t('case.drawer.android.record_video')">
+        <a-switch v-model:checked="cfg.record_video" />
+        <span class="mode-hint">{{ t('case.drawer.android.record_video_hint') }}</span>
+      </a-form-item>
 
       <a-form-item :label="t('case.drawer.scenario_summary')">
         <a-textarea v-model:value="form.summary" :rows="2" :placeholder="t('case.drawer.scenario_summary_placeholder')" />
@@ -271,7 +290,10 @@ const cfg = reactive({
   device_serial: undefined as string | undefined,
   apk_id: undefined as number | undefined,
   timeout: 120,
+  device_matrix: [] as Array<{ serial: string }>,
+  record_video: false,
 })
+const deviceMatrixEnabled = ref(false)
 
 const devices = ref<DeviceItem[]>([])
 const devicesLoading = ref(false)
@@ -325,6 +347,9 @@ function resetDrawerState() {
   cfg.device_serial = undefined
   cfg.apk_id = undefined
   cfg.timeout = 120
+  cfg.device_matrix = []
+  deviceMatrixEnabled.value = false
+  cfg.record_video = false
   lowcodeSteps.value = []
   managementSteps.value = []
   standardStepsDirty.value = false
@@ -422,6 +447,13 @@ watch(
       cfg.device_serial = typeof config.device_serial === 'string' ? config.device_serial : undefined
       cfg.apk_id = typeof config.apk_id === 'number' ? config.apk_id : undefined
       cfg.timeout = typeof config.timeout === 'number' ? config.timeout : 120
+      cfg.record_video = config.record_video === true
+      cfg.device_matrix = Array.isArray(config.device_matrix)
+        ? config.device_matrix
+          .filter((item): item is { serial: string } => Boolean(item && typeof item === 'object' && typeof (item as Record<string, unknown>).serial === 'string'))
+          .map((item) => ({ serial: item.serial }))
+        : []
+      deviceMatrixEnabled.value = cfg.device_matrix.length > 0
       scriptPath.value = typeof config.script_path === 'string' ? config.script_path : null
       lowcodeSteps.value = Array.isArray(config.steps) ? (config.steps as AndroidStepDef[]) : []
       editMode.value = resolveEditMode(config)
@@ -540,7 +572,12 @@ async function handleSaveGeneratedScript(content: string) {
 
 function buildConfig() {
   const config: Record<string, unknown> = { timeout: cfg.timeout }
-  if (cfg.device_serial) {
+  if (cfg.record_video) {
+    config.record_video = true
+  }
+  if (deviceMatrixEnabled.value && cfg.device_matrix.length) {
+    config.device_matrix = cfg.device_matrix.filter((item) => item.serial.trim())
+  } else if (cfg.device_serial) {
     config.device_serial = cfg.device_serial
   }
   if (cfg.apk_id) {
@@ -556,6 +593,15 @@ function buildConfig() {
     config.script_path = scriptPath.value
   }
   return config
+}
+
+function addDeviceVariant() {
+  cfg.device_matrix.push({ serial: cfg.device_serial || devices.value[0]?.serial || '' })
+}
+
+function removeDeviceVariant(index: number) {
+  cfg.device_matrix.splice(index, 1)
+  if (!cfg.device_matrix.length) deviceMatrixEnabled.value = false
 }
 
 async function handleSave() {

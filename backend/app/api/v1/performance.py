@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import os
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -29,6 +30,7 @@ from app.models.user_project import ProjectRole
 from app.schemas.performance import (
     PerformanceBaselineComparisonOut,
     PerformanceBaselineUpdate,
+    PerformanceCapacityAnalyzeRequest,
     PerformanceGateOut,
     PerformanceRunOut,
     PerformanceMetricSampleOut,
@@ -69,6 +71,10 @@ from app.services.performance_executor import (
     list_executor_capabilities,
     node_supports_executor,
 )
+from app.services.performance_sharding import PerformanceShardingError, split_performance_options
+from app.services.performance_capacity import analyze_capacity_runs
+from app.services.performance_ramp import PerformanceRampError, expand_auto_ramp
+from app.services.performance_metric_boundary import PerformanceMetricBoundaryError, build_metric_boundary
 from app.worker.tasks_performance import run_performance_test
 
 router = APIRouter(tags=["性能压测"])
@@ -153,7 +159,10 @@ def _build_options_snapshot(
     secret_keys: set[str],
 ) -> tuple[dict, dict]:
     """Return a safe persisted snapshot and the full runtime options used for validation."""
-    snapshot = _merge_options(default_options, override)
+    try:
+        snapshot = expand_auto_ramp(_merge_options(default_options, override))
+    except PerformanceRampError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     snapshot_env = dict(snapshot.get("env") or {})
 
     # Environment variables are loaded again by the worker. Do not duplicate them in the
@@ -264,6 +273,16 @@ def _target_hosts_from_options(options: dict) -> set[str]:
         parsed = urlparse(value)
         if parsed.hostname:
             hosts.add(parsed.hostname.lower())
+    target_metrics = options.get("target_metrics")
+    if isinstance(target_metrics, dict):
+        target_url = target_metrics.get("prometheus_url") or target_metrics.get("url")
+        target_env_key = target_metrics.get("url_env")
+        if not target_url and isinstance(target_env_key, str):
+            target_url = env.get(target_env_key) or os.getenv(target_env_key)
+        if isinstance(target_url, str):
+            parsed = urlparse(target_url)
+            if parsed.hostname:
+                hosts.add(parsed.hostname.lower())
     raw_rows = env.get("ATP_DATASET_JSON")
     if isinstance(raw_rows, str):
         try:
@@ -298,10 +317,17 @@ def _validate_performance_options(options: dict, executor: str = "k6") -> None:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     if not isinstance(options, dict):
         raise HTTPException(status_code=400, detail="压测 options 必须是 JSON 对象")
-    normalized_options = options
+    try:
+        normalized_options = expand_auto_ramp(options)
+    except PerformanceRampError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    try:
+        build_metric_boundary(normalized_options)
+    except PerformanceMetricBoundaryError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     if executor == "grpc":
         try:
-            normalized_options = validate_grpc_options(options)
+            normalized_options = validate_grpc_options(normalized_options)
         except GrpcPerformanceOptionsError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
     max_vus = _max_vus_from_options(normalized_options)
@@ -550,6 +576,7 @@ async def upload_performance_script(
         "k6": "application/javascript",
         "locust": "text/x-python",
         "grpc": "text/plain",
+        "jmeter": "application/xml",
     }[capability.name]
     minio_client.upload_bytes(object_name, content, content_type=content_type)
     return PerformanceScriptUploadOut(script_object_name=object_name, filename=filename, size=len(content))
@@ -716,7 +743,64 @@ async def trigger_performance_run(
     dataset_binding = await _resolve_performance_dataset(db, item.dataset_id, item.project_id)
     validation_options = await _add_dataset_runtime_options(db, runtime_options, dataset_binding)
     _validate_performance_options(validation_options, item.executor)
-    node = await _resolve_performance_node(db, body.performance_node_id, validation_options, item.executor)
+    if body.performance_node_id is not None and body.performance_node_ids:
+        raise HTTPException(status_code=400, detail="performance_node_id 与 performance_node_ids 不能同时传入")
+    selected_nodes: list[PerformanceNode] = []
+    if body.performance_node_ids:
+        if len(set(body.performance_node_ids)) != len(body.performance_node_ids):
+            raise HTTPException(status_code=400, detail="性能压测节点不能重复")
+        for node_id in body.performance_node_ids:
+            selected_nodes.append(await _resolve_performance_node(db, node_id, validation_options, item.executor))
+    else:
+        node = await _resolve_performance_node(db, body.performance_node_id, validation_options, item.executor)
+        if node is not None:
+            selected_nodes.append(node)
+
+    if len(selected_nodes) > 1:
+        try:
+            shard_snapshots = split_performance_options(options_snapshot, len(selected_nodes))
+        except PerformanceShardingError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        parent = PerformanceRun(
+            performance_test_id=item.id,
+            project_id=item.project_id,
+            environment_id=body.environment_id,
+            performance_node_id=None,
+            dataset_id=dataset_binding[0] if dataset_binding else None,
+            dataset_version=dataset_binding[1] if dataset_binding else None,
+            status=PerformanceRunStatus.pending.value,
+            triggered_by=user.id,
+            options_snapshot=options_snapshot,
+            summary={"sharded": True, "shard_count": len(selected_nodes), "shard_status": "pending"},
+        )
+        db.add(parent)
+        await db.flush()
+        children: list[PerformanceRun] = []
+        for node, shard_options in zip(selected_nodes, shard_snapshots, strict=True):
+            child = PerformanceRun(
+                performance_test_id=item.id,
+                project_id=item.project_id,
+                environment_id=body.environment_id,
+                performance_node_id=node.id,
+                parent_run_id=parent.id,
+                dataset_id=dataset_binding[0] if dataset_binding else None,
+                dataset_version=dataset_binding[1] if dataset_binding else None,
+                status=PerformanceRunStatus.pending.value,
+                triggered_by=user.id,
+                options_snapshot=shard_options,
+                summary={"shard_index": shard_options["__shard_index"], "shard_count": len(selected_nodes)},
+            )
+            db.add(child)
+            children.append(child)
+        await db.flush()
+        parent.summary["shard_ids"] = [child.id for child in children]
+        await db.commit()
+        await db.refresh(parent)
+        for child, node in zip(children, selected_nodes, strict=True):
+            enqueue_performance_run(run_performance_test, child.id, node.queue_name)
+        return parent
+
+    node = selected_nodes[0] if selected_nodes else None
 
     run = PerformanceRun(
         performance_test_id=item.id,
@@ -735,6 +819,43 @@ async def trigger_performance_run(
     await db.refresh(run)
     enqueue_performance_run(run_performance_test, run.id, node.queue_name if node else None)
     return run
+
+
+@router.post("/projects/{project_id}/performance/capacity/analyze", response_model=dict)
+async def analyze_performance_capacity(
+    project_id: int,
+    body: PerformanceCapacityAnalyzeRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Analyze selected runs as a capacity curve without mutating run data."""
+
+    await assert_project_access(db, user, project_id, ProjectRole.viewer)
+    result = await db.execute(
+        select(PerformanceRun).where(
+            PerformanceRun.project_id == project_id,
+            PerformanceRun.id.in_(body.run_ids),
+        )
+    )
+    runs = result.scalars().all()
+    found_ids = {run.id for run in runs}
+    missing_ids = [run_id for run_id in body.run_ids if run_id not in found_ids]
+    if missing_ids:
+        raise HTTPException(status_code=404, detail=f"压测执行不存在或不属于当前项目: {missing_ids}")
+    return analyze_capacity_runs(
+        [
+            {
+                "id": run.id,
+                "status": run.status,
+                "options_snapshot": run.options_snapshot,
+                "summary": run.summary,
+            }
+            for run in runs
+        ],
+        max_error_rate=body.max_error_rate,
+        max_p95_ms=body.max_p95_ms,
+        min_stable_runs=body.min_stable_runs,
+    )
 
 
 @router.get("/performance/runs", response_model=list[PerformanceRunOut])
@@ -799,6 +920,50 @@ async def stop_performance_run(
     await assert_project_access(db, user, run.project_id, ProjectRole.editor)
     if run.status not in {PerformanceRunStatus.pending.value, PerformanceRunStatus.running.value}:
         raise HTTPException(status_code=409, detail="当前压测状态不支持停止")
+
+    shard_ids = (run.summary or {}).get("shard_ids") if isinstance(run.summary, dict) else None
+    shards = []
+    if isinstance(shard_ids, list):
+        for shard_id in shard_ids:
+            try:
+                shard = await db.get(PerformanceRun, int(shard_id))
+            except (TypeError, ValueError):
+                shard = None
+            if shard is not None:
+                shards.append(shard)
+
+    if shards:
+        active_shards = [
+            shard
+            for shard in shards
+            if shard.status in {PerformanceRunStatus.running.value, PerformanceRunStatus.cancelling.value}
+        ]
+        try:
+            for shard in active_shards:
+                request_cancel(shard.id)
+        except Exception as exc:
+            raise HTTPException(status_code=503, detail="无法发送停止信号，请稍后重试") from exc
+
+        now = datetime.now(timezone.utc)
+        for shard in shards:
+            if shard.status == PerformanceRunStatus.pending.value:
+                shard.status = PerformanceRunStatus.cancelled.value
+                shard.finished_at = now
+                shard.error_message = "用户已停止压测"
+            elif shard.status in {PerformanceRunStatus.running.value, PerformanceRunStatus.cancelling.value}:
+                shard.status = PerformanceRunStatus.cancelling.value
+                shard.error_message = "正在停止压测"
+
+        if active_shards:
+            run.status = PerformanceRunStatus.cancelling.value
+            run.error_message = "正在停止压测"
+        else:
+            run.status = PerformanceRunStatus.cancelled.value
+            run.finished_at = now
+            run.error_message = "用户已停止压测"
+        await db.commit()
+        await db.refresh(run)
+        return run
 
     try:
         request_cancel(run.id)

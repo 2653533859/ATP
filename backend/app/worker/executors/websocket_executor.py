@@ -9,6 +9,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.case import TestRun, TestCase, StepResult, RunStatus
 from app.core.redis_client import publish_run_event
+from app.services.dataset_execution import redact_execution_evidence
+from app.services.execution_contract import assertion_result, extraction_result, response_contract
 
 
 async def _safe_publish_run_event(run_id: int, payload: dict) -> None:
@@ -20,6 +22,7 @@ async def _safe_publish_run_event(run_id: int, payload: dict) -> None:
 
 async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, extra_vars: dict):
     cfg = case.config
+    evidence_redact_fields = cfg.get("dataset_redact_fields") or []
     steps = cfg.get("steps", [])
 
     context: dict = {**extra_vars}
@@ -39,6 +42,8 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
 
         request_data: dict = {}
         response_data: dict = {}
+        assertion_records: list[dict] = []
+        extraction_records: list[dict] = []
         error_msg = None
         step_status = RunStatus.passed
 
@@ -142,10 +147,19 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
                             val = _jsonpath_extract(recv_body, extraction["expression"])
                             if val is not None:
                                 context[extraction["variable"]] = val
+                            extraction_records.append(
+                                extraction_result(
+                                    extraction,
+                                    value=val,
+                                    success=val is not None,
+                                    error=None if val is not None else "未提取到值",
+                                )
+                            )
 
                         # 断言
                         for assertion in msg_cfg.get("assertions", []):
                             passed, fail_msg = _assert_ws(assertion, recv_body)
+                            assertion_records.append(assertion_result(assertion, passed=passed, message=fail_msg))
                             if not passed:
                                 step_status = RunStatus.failed
                                 all_passed = False
@@ -159,10 +173,15 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
                         break
 
             duration = int((time.monotonic() - step_start) * 1000)
-            response_data = {
-                "messages": message_log,
-                "duration_ms": duration,
-            }
+            response_data = response_contract(
+                "websocket",
+                duration_ms=duration,
+                body=None,
+                metadata={"messages": message_log},
+            )
+            response_data["messages"] = message_log
+            response_data["assertions"] = assertion_records
+            response_data["extractions"] = extraction_records
             request_data["messages"] = [m for m in message_log if m.get("action") == "send"]
 
         except Exception as e:
@@ -172,8 +191,10 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
 
         step_result.status = step_status
         step_result.duration_ms = int((time.monotonic() - step_start) * 1000)
-        step_result.request_data = request_data
-        step_result.response_data = response_data
+        persisted_request_data = redact_execution_evidence(request_data, evidence_redact_fields)
+        persisted_response_data = redact_execution_evidence(response_data, evidence_redact_fields)
+        step_result.request_data = persisted_request_data
+        step_result.response_data = persisted_response_data
         step_result.error_message = error_msg
         await db.commit()
 
@@ -187,8 +208,8 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
                     "name": step_result.name,
                     "status": step_status.value,
                     "duration_ms": step_result.duration_ms,
-                    "request_data": request_data,
-                    "response_data": response_data,
+                    "request_data": persisted_request_data,
+                    "response_data": persisted_response_data,
                     "error_message": error_msg,
                 },
             },

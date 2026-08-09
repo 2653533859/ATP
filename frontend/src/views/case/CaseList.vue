@@ -19,6 +19,17 @@
       </a-space>
     </div>
 
+    <a-alert
+      v-if="pendingAiGeneration"
+      type="info"
+      show-icon
+      closable
+      class="ai-route-notice"
+      :message="t('case.ai.title')"
+      :description="t('case.ai.select_module_alert')"
+      @close="clearPendingAiGeneration"
+    />
+
     <template v-if="selectedProjectId">
       <a-row :gutter="[16, 16]" class="summary-row">
         <a-col :xs="24" :sm="6">
@@ -456,7 +467,10 @@
       :open="aiDrawerOpen"
       :project-id="selectedProjectId"
       :module-id="selectedModuleId"
-      @close="aiDrawerOpen = false"
+      :initial-dataset-id="aiGenerationContext.datasetId"
+      :initial-dataset-version="aiGenerationContext.datasetVersion"
+      :initial-mock-rule-ids="aiGenerationContext.mockRuleIds"
+      @close="handleAIDrawerClose"
       @saved="onSaved"
     />
 
@@ -635,6 +649,9 @@ const batchMoveLoading = ref(false)
 const historyOpen = ref(false)
 const historyCaseId = ref<number | null>(null)
 const aiDrawerOpen = ref(false)
+type AIGenerationContext = { datasetId: number | null; datasetVersion: number | null; mockRuleIds: number[] }
+const pendingAiGeneration = ref<AIGenerationContext | null>(null)
+const aiGenerationContext = ref<AIGenerationContext>({ datasetId: null, datasetVersion: null, mockRuleIds: [] })
 const importPreviewOpen = ref(false)
 const importPreviewLoading = ref(false)
 const importConfirming = ref(false)
@@ -761,6 +778,7 @@ function caseTypeColor(type: CaseType) {
     grpc: 'red',
     web: 'purple',
     android: 'green',
+    ios: 'blue',
   }[type] ?? 'default'
 }
 
@@ -929,10 +947,15 @@ async function loadCases() {
 }
 
 function syncRoute() {
+  const generationContext = pendingAiGeneration.value
   const query = buildCasesQuery({
     projectId: selectedProjectId.value,
     moduleId: selectedModuleId.value,
     reviewStatus: filterReviewStatus.value,
+    aiGenerate: !!generationContext,
+    aiDatasetId: generationContext?.datasetId,
+    aiDatasetVersion: generationContext?.datasetVersion,
+    aiMockRuleIds: generationContext?.mockRuleIds,
   })
   const {
     projectId: currentProjectId,
@@ -950,11 +973,47 @@ function syncRoute() {
   void router.replace({ name: 'cases', query })
 }
 
+function replaceRouteWithoutAIGeneration() {
+  const query = buildCasesQuery({
+    projectId: selectedProjectId.value,
+    moduleId: selectedModuleId.value,
+    reviewStatus: filterReviewStatus.value,
+  })
+  void router.replace({ name: 'cases', query })
+}
+
+function openPendingAIGeneration() {
+  if (!pendingAiGeneration.value || !selectedModuleId.value) return
+  aiGenerationContext.value = {
+    datasetId: pendingAiGeneration.value.datasetId,
+    datasetVersion: pendingAiGeneration.value.datasetVersion,
+    mockRuleIds: [...pendingAiGeneration.value.mockRuleIds],
+  }
+  pendingAiGeneration.value = null
+  aiDrawerOpen.value = true
+  replaceRouteWithoutAIGeneration()
+}
+
+function clearPendingAiGeneration() {
+  pendingAiGeneration.value = null
+  aiGenerationContext.value = { datasetId: null, datasetVersion: null, mockRuleIds: [] }
+  replaceRouteWithoutAIGeneration()
+}
+
+function handleAIDrawerClose() {
+  aiDrawerOpen.value = false
+  aiGenerationContext.value = { datasetId: null, datasetVersion: null, mockRuleIds: [] }
+}
+
 async function applyRouteSelection(useDefaultProject = false) {
   const {
     projectId: routeProjectId,
     moduleId: routeModuleId,
     reviewStatus: routeReviewStatus,
+    aiGenerate: routeAIGenerate,
+    aiDatasetId: routeAIDatasetId,
+    aiDatasetVersion: routeAIDatasetVersion,
+    aiMockRuleIds: routeAIMockRuleIds,
   } = readCaseRouteSelection(route)
   const fallbackProjectId = useDefaultProject ? (projects.value[0]?.id ?? null) : selectedProjectId.value
   const nextProjectId = routeProjectId ?? fallbackProjectId
@@ -962,6 +1021,9 @@ async function applyRouteSelection(useDefaultProject = false) {
 
   selectedProjectId.value = nextProjectId
   filterReviewStatus.value = routeReviewStatus
+  pendingAiGeneration.value = routeAIGenerate
+    ? { datasetId: routeAIDatasetId, datasetVersion: routeAIDatasetVersion, mockRuleIds: routeAIMockRuleIds }
+    : null
 
   if (projectChanged) {
     selectedModuleId.value = null
@@ -980,6 +1042,10 @@ async function applyRouteSelection(useDefaultProject = false) {
   selectedModuleId.value = routeModuleId && moduleNameMap.value[routeModuleId] ? routeModuleId : null
   await loadCases()
 
+  if (pendingAiGeneration.value && selectedModuleId.value) {
+    openPendingAIGeneration()
+  }
+
   if (!routeProjectId && selectedProjectId.value) {
     syncRoute()
   }
@@ -989,11 +1055,17 @@ async function applyRouteSelection(useDefaultProject = false) {
 function handleProjectChange(projectId: unknown) {
   selectedProjectId.value = typeof projectId === 'number' ? projectId : null
   selectedModuleId.value = null
+  pendingAiGeneration.value = null
+  aiGenerationContext.value = { datasetId: null, datasetVersion: null, mockRuleIds: [] }
   syncRoute()
 }
 
 function onModuleSelect(moduleId: number | null) {
   selectedModuleId.value = moduleId
+  if (moduleId && pendingAiGeneration.value) {
+    openPendingAIGeneration()
+    return
+  }
   syncRoute()
 }
 
@@ -1475,6 +1547,10 @@ onMounted(async () => {
   gap: 6px;
   margin-top: 10px;
   flex-wrap: wrap;
+}
+
+.ai-route-notice {
+  margin-bottom: 16px;
 }
 
 .active-filter-label {

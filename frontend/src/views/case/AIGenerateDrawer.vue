@@ -40,9 +40,31 @@
         <a-button v-if="parsedEndpoints.length" size="small" @click="clearParsed">
           {{ t('case.ai.clear_parsed') }}
         </a-button>
+        <a-button
+          v-if="parsedEndpoints.length"
+          size="small"
+          :loading="importing"
+          :disabled="!selectedEndpointKeys.length || !moduleId"
+          @click="handleImportSelected"
+        >
+          {{ t('case.ai.import_selected') }}
+        </a-button>
         <span style="color: #888">
           {{ t('case.ai.parse_hint') }}
         </span>
+        <a-select
+          v-if="sourceType === 'openapi'"
+          v-model:value="externalRefPolicy"
+          size="small"
+          style="width: 170px"
+          :aria-label="t('case.ai.external_ref_policy_label')"
+        >
+          <a-select-option value="warn">{{ t('case.ai.external_ref_policy_warn') }}</a-select-option>
+          <a-select-option value="reject">{{ t('case.ai.external_ref_policy_reject') }}</a-select-option>
+        </a-select>
+      </div>
+      <div v-if="sourceType === 'openapi'" class="generation-context-hint">
+        {{ t('case.ai.external_ref_policy_hint') }}
       </div>
       <a-alert
         v-for="(w, idx) in parseWarnings"
@@ -85,6 +107,37 @@
             :placeholder="t('case.ai.requirement_placeholder')"
           />
         </a-form-item>
+        <a-row :gutter="12">
+          <a-col :span="12">
+            <a-form-item :label="t('case.ai.dataset_label')">
+              <a-select
+                v-model:value="datasetId"
+                allow-clear
+                :loading="contextLoading"
+                :options="datasetOptions"
+                :placeholder="t('case.ai.dataset_placeholder')"
+                @change="handleDatasetChange"
+              />
+              <div class="generation-context-hint">{{ t('case.ai.dataset_hint') }}</div>
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item :label="t('case.ai.mock_rules_label')">
+              <a-select
+                v-model:value="mockRuleIds"
+                mode="multiple"
+                allow-clear
+                :loading="contextLoading"
+                :options="mockRuleOptions"
+                :placeholder="t('case.ai.mock_rules_placeholder')"
+                :max-tag-count="2"
+                :max-count="MAX_AI_MOCK_RULES"
+                @change="handleMockRuleChange"
+              />
+              <div class="generation-context-hint">{{ t('case.ai.mock_rules_hint') }}</div>
+            </a-form-item>
+          </a-col>
+        </a-row>
         <a-row :gutter="12">
           <a-col :span="6">
             <a-form-item :label="t('case.ai.case_type')">
@@ -245,14 +298,20 @@
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import {
   aiCaseGenerationApi,
   caseApi,
+  datasetApi,
+  mockRuleApi,
   type AICaseDraft,
   type AICaseStepDraft,
   type AIEndpointSummary,
+  type CaseImportResult,
+  type CaseSavePayload,
+  type DatasetListItem,
+  type MockRuleItem,
   type CaseLevel,
   type CasePriority,
   type CaseType,
@@ -268,6 +327,9 @@ const props = defineProps<{
   open: boolean
   projectId: number | null
   moduleId: number | null
+  initialDatasetId?: number | null
+  initialDatasetVersion?: number | null
+  initialMockRuleIds?: number[]
 }>()
 
 const emit = defineEmits<{
@@ -279,7 +341,9 @@ const { t } = useI18n()
 
 const sourceType = ref<GenerationSourceType>('openapi')
 const schemaText = ref('')
+const externalRefPolicy = ref<'warn' | 'reject'>('warn')
 const parsing = ref(false)
+const importing = ref(false)
 const parsedEndpoints = ref<(AIEndpointSummary & { rowKey: string })[]>([])
 const selectedEndpointKeys = ref<string[]>([])
 const parseWarnings = ref<string[]>([])
@@ -289,6 +353,13 @@ const caseType = ref<CaseType>('api')
 const priority = ref<CasePriority>('P2')
 const caseLevel = ref<CaseLevel>('regression')
 const maxCases = ref(5)
+const MAX_AI_MOCK_RULES = 20
+const datasetId = ref<number | undefined>(undefined)
+const datasetVersion = ref<number | null>(null)
+const mockRuleIds = ref<number[]>([])
+const availableDatasets = ref<DatasetListItem[]>([])
+const availableMockRules = ref<MockRuleItem[]>([])
+const contextLoading = ref(false)
 
 const generating = ref(false)
 const generateWarnings = ref<string[]>([])
@@ -366,6 +437,16 @@ const caseLevelOptions = computed(() => [
   { label: t('case.levels.extended'), value: 'extended' },
 ])
 
+const datasetOptions = computed(() => availableDatasets.value.map((dataset) => ({
+  label: `${dataset.name} (${dataset.row_count})`,
+  value: dataset.id,
+})))
+
+const mockRuleOptions = computed(() => availableMockRules.value.map((rule) => ({
+  label: `${rule.method} ${rule.path} · ${rule.name}`,
+  value: rule.id,
+})))
+
 const endpointColumns = computed(() => [
   { title: t('case.ai.endpoint_columns.method'), key: 'method', dataIndex: 'method', width: 90 },
   { title: t('case.ai.endpoint_columns.path'), key: 'path', dataIndex: 'path' },
@@ -412,6 +493,7 @@ async function handleParse() {
     const result = await aiCaseGenerationApi.parseSchema({
       source_type: sourceType.value,
       content: schemaText.value,
+      external_ref_policy: sourceType.value === 'openapi' ? externalRefPolicy.value : 'warn',
     })
     parsedEndpoints.value = result.endpoints.map((e, i) => ({
       ...e,
@@ -437,10 +519,114 @@ function clearParsed() {
   parseWarnings.value = []
 }
 
+function endpointToCaseConfig(endpoint: AIEndpointSummary) {
+  const base = (endpoint.base_url ?? '').replace(/\/$/, '')
+  const path = endpoint.path.startsWith('/') ? endpoint.path : `/${endpoint.path}`
+  const url = `${base}${path}`.replace(/\{([^}]+)\}/g, '{{\$1}}')
+  const headers: Record<string, string> = {}
+  const params: Record<string, string> = {}
+  for (const parameter of endpoint.parameters ?? []) {
+    const value = parameter.example == null ? `{{${parameter.name}}}` : String(parameter.example)
+    if (parameter.location === 'header') headers[parameter.name] = value
+    if (parameter.location === 'query') params[parameter.name] = value
+  }
+  const body = endpoint.request_body_example
+  const bodyType = body == null ? 'none' : typeof body === 'object' ? 'json' : 'raw'
+  return {
+    steps: [{
+      name: endpoint.summary || `${endpoint.method} ${endpoint.path}`,
+      url,
+      method: endpoint.method.toUpperCase(),
+      headers,
+      params,
+      body_type: bodyType,
+      body: body ?? null,
+      assertions: [{ target: 'status_code', operator: 'eq', expected: '200' }],
+      extractions: [],
+    }],
+  }
+}
+
+async function importWithPreview(payloads: CaseSavePayload[]): Promise<CaseImportResult | null> {
+  if (props.projectId == null) {
+    message.warning(t('case.ai.msg.select_project_module'))
+    return null
+  }
+  const preview = await caseApi.previewImport(props.projectId, payloads)
+  if (preview.errors.length) {
+    message.error(preview.errors.slice(0, 3).join(t('case.ai.list_separator')))
+    return null
+  }
+
+  let policy: 'fail' | 'skip' = 'fail'
+  if (preview.conflicts.length) {
+    const conflictNames = preview.conflicts
+      .slice(0, 5)
+      .map((item) => item.name)
+      .join(t('case.ai.list_separator'))
+    const confirmed = await new Promise<boolean>((resolve) => {
+      Modal.confirm({
+        title: t('case.ai.msg.import_conflict_title', { count: preview.conflicts.length }),
+        content: t('case.ai.msg.import_conflict_content', {
+          names: conflictNames,
+          more: preview.conflicts.length > 5 ? t('case.ai.msg.import_conflict_more') : '',
+        }),
+        okText: t('case.ai.msg.import_conflict_confirm'),
+        cancelText: t('common.cancel'),
+        onOk: () => resolve(true),
+        onCancel: () => resolve(false),
+      })
+    })
+    if (!confirmed) return null
+    policy = 'skip'
+  }
+  return caseApi.importCases(props.projectId, payloads, policy)
+}
+
+async function handleImportSelected() {
+  if (props.moduleId == null) {
+    message.warning(t('case.ai.msg.no_module'))
+    return
+  }
+  const selected = new Set(selectedEndpointKeys.value)
+  const targets = parsedEndpoints.value.filter((endpoint) => selected.has(endpoint.rowKey))
+  if (!targets.length) return
+  importing.value = true
+  try {
+    const result = await importWithPreview(targets.map((endpoint) => ({
+      name: endpoint.summary || `${endpoint.method} ${endpoint.path}`,
+      description: endpoint.description ?? undefined,
+      case_type: 'api',
+      module_id: props.moduleId!,
+      priority: priority.value,
+      case_level: caseLevel.value,
+      tags: [...new Set(['imported', sourceType.value])],
+      config: endpointToCaseConfig(endpoint),
+      steps: [{
+        action: `发送 ${endpoint.method.toUpperCase()} ${endpoint.path}`,
+        expected_result: '返回 200 状态码',
+        is_key_step: true,
+      }],
+    })))
+    if (!result) return
+    if (result.skipped_count) {
+      message.warning(t('case.ai.msg.import_done_with_skips', { imported: result.imported, skipped: result.skipped_count }))
+    } else {
+      message.success(t('case.ai.msg.import_success', { count: result.imported }))
+    }
+    if (result.imported) emit('saved')
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.ai.msg.import_failed')))
+  } finally {
+    importing.value = false
+  }
+}
+
 function resetGeneration() {
   drafts.value = []
   selectedDraftKeys.value = []
   generateWarnings.value = []
+  externalRefPolicy.value = 'warn'
 }
 
 function cloneDraft(draft: AICaseDraft): AICaseDraft {
@@ -526,6 +712,9 @@ async function handleGenerate() {
       priority: priority.value,
       case_level: caseLevel.value,
       max_cases: maxCases.value,
+      dataset_id: datasetId.value ?? null,
+      dataset_version: datasetVersion.value,
+      mock_rule_ids: mockRuleIds.value,
     })
     drafts.value = result.drafts ?? []
     selectedDraftKeys.value = drafts.value.map((_, i) => String(i))
@@ -552,16 +741,18 @@ async function handleSaveSelected() {
   if (!targets.length) return
 
   saving.value = true
-  let succeeded = 0
-  const failures: string[] = []
-  for (const draft of targets) {
-    try {
-      await caseApi.create({
+  try {
+    const result = await importWithPreview(targets.map((draft) => {
+      const boundDatasetId = draft.dataset_id ?? datasetId.value ?? null
+      const boundDatasetVersion = draft.dataset_version ?? datasetVersion.value
+      return {
         name: draft.name,
         description: draft.description ?? undefined,
         summary: draft.summary ?? undefined,
         case_type: draft.case_type,
         module_id: props.moduleId!,
+        dataset_id: boundDatasetId,
+        dataset_version: boundDatasetVersion,
         tags: draft.tags ?? [],
         preconditions: draft.preconditions ?? [],
         postconditions: draft.postconditions ?? [],
@@ -577,27 +768,70 @@ async function handleSaveSelected() {
         config: {
           ...(draft.config ?? {}),
           _ai_generated: true,
+          _ai_source: {
+            dataset_id: boundDatasetId,
+            dataset_version: boundDatasetVersion,
+            mock_rule_ids: [...new Set(mockRuleIds.value)],
+          },
         },
-      })
-      succeeded += 1
-    } catch (e: unknown) {
-      failures.push(`${draft.name}: ${errorMessage(e, t('case.ai.msg.save_failed'))}`)
-    }
-  }
-  saving.value = false
-  if (succeeded) {
-    message.success(t('case.ai.msg.save_success', { count: succeeded }))
-    emit('saved')
-  }
-  if (failures.length) {
-    message.error(t('case.ai.msg.partial_failed', {
-      failures: failures.slice(0, 2).join(t('case.ai.list_separator')),
-      more: failures.length > 2 ? ' ...' : '',
+      }
     }))
+    if (!result) return
+    if (result.skipped_count) {
+      message.warning(t('case.ai.msg.import_done_with_skips', { imported: result.imported, skipped: result.skipped_count }))
+    } else {
+      message.success(t('case.ai.msg.save_success', { count: result.imported }))
+    }
+    if (result.imported) emit('saved')
+    if (result.imported && !result.skipped_count) emit('close')
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.ai.msg.save_failed')))
+  } finally {
+    saving.value = false
   }
-  if (succeeded && !failures.length) {
-    emit('close')
+}
+
+async function loadGenerationContext() {
+  if (props.projectId == null) return
+  contextLoading.value = true
+  try {
+    const [datasets, mockRules] = await Promise.all([
+      datasetApi.list(props.projectId),
+      mockRuleApi.list({ project_id: props.projectId }),
+    ])
+    availableDatasets.value = datasets
+    availableMockRules.value = mockRules
+  } catch (error: unknown) {
+    availableDatasets.value = []
+    availableMockRules.value = []
+    message.error(errorMessage(error, t('case.ai.context_load_failed')))
+  } finally {
+    contextLoading.value = false
   }
+}
+
+async function handleDatasetChange(value: unknown) {
+  datasetVersion.value = null
+  const datasetIdValue = typeof value === 'number' ? value : null
+  if (datasetIdValue == null) return
+  try {
+    const versions = await datasetApi.listVersions(datasetIdValue)
+    datasetVersion.value = versions[0]?.version ?? null
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('case.ai.context_load_failed')))
+  }
+}
+
+function handleMockRuleChange(value: unknown) {
+  const ids = Array.isArray(value)
+    ? [...new Set(value.map((item) => Number(item)).filter((item) => Number.isInteger(item) && item > 0))]
+    : []
+  if (ids.length > MAX_AI_MOCK_RULES) {
+    mockRuleIds.value = ids.slice(0, MAX_AI_MOCK_RULES)
+    message.warning(t('case.ai.mock_rules_max', { count: MAX_AI_MOCK_RULES }))
+    return
+  }
+  mockRuleIds.value = ids
 }
 
 watch(
@@ -616,15 +850,48 @@ watch(
   () => props.open,
   (val) => {
     if (val) {
-      // Keep current input while open so users can continue editing.
+      datasetId.value = props.initialDatasetId ?? undefined
+      datasetVersion.value = props.initialDatasetVersion ?? null
+      mockRuleIds.value = [...(props.initialMockRuleIds ?? [])]
+      void loadGenerationContext()
+      if (datasetId.value != null && datasetVersion.value == null) {
+        void handleDatasetChange(datasetId.value)
+      }
     } else {
       schemaText.value = ''
+      externalRefPolicy.value = 'warn'
       parsedEndpoints.value = []
       selectedEndpointKeys.value = []
       parseWarnings.value = []
       userRequirement.value = ''
+      datasetId.value = undefined
+      datasetVersion.value = null
+      mockRuleIds.value = []
+      availableDatasets.value = []
+      availableMockRules.value = []
       resetGeneration()
     }
   },
 )
+
+watch(
+  () => props.projectId,
+  (value, previous) => {
+    if (props.open && value !== previous) {
+      datasetId.value = undefined
+      datasetVersion.value = null
+      mockRuleIds.value = []
+      void loadGenerationContext()
+    }
+  },
+)
 </script>
+
+<style scoped>
+.generation-context-hint {
+  margin-top: 4px;
+  color: #888;
+  font-size: 12px;
+  line-height: 1.4;
+}
+</style>

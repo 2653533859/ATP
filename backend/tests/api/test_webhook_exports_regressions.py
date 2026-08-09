@@ -32,7 +32,8 @@ sys.modules["app.api.deps"] = types.SimpleNamespace(
     assert_project_access=_p3c_noop_async,
     ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
 )
-sys.modules["app.core.minio_client"] = types.SimpleNamespace(read_bytes=lambda *_args, **_kwargs: b"")
+_minio = sys.modules.setdefault("app.core.minio_client", types.SimpleNamespace())
+_minio.read_bytes = lambda *_args, **_kwargs: b""
 sys.modules["app.core.rate_limit"] = types.SimpleNamespace(
     limiter=types.SimpleNamespace(limit=lambda *_args, **_kwargs: (lambda func: func))
 )

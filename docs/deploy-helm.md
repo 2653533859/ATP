@@ -96,7 +96,7 @@ alembic upgrade head
 
 ## 七、Celery 队列与资源
 
-默认 worker 监听 `default,mobile_special,ai,maintenance,performance` 五类队列。生产建议按队列拆分 worker 副本：
+默认 worker 监听 `default,mobile_special,ios,ai,maintenance,performance` 六类队列。生产建议按队列拆分 worker 副本：
 
 - `default`：普通用例、套件、计划执行。
 - `mobile_special`：Android 专项与 ADB 扫描。

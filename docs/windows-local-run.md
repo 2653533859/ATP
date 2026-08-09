@@ -22,7 +22,7 @@ python -m venv .venv
 python -m pip install --upgrade pip
 pip install -r requirements.txt
 alembic upgrade head
-playwright install chromium
+playwright install chromium firefox webkit
 ```
 
 ### 2. 前端依赖

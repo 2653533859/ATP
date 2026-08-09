@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 import json
+import os
 import socket
 from typing import Any
 from urllib.parse import urlparse
@@ -75,30 +76,40 @@ def _target_hosts(options: Mapping[str, Any]) -> set[str]:
         if hostname:
             hosts.add(hostname.lower())
     env = options.get("env")
-    if not isinstance(env, dict):
-        return hosts
-    for key, value in env.items():
-        if str(key).upper() not in {"TARGET_URL", "BASE_URL", "URL"} or not isinstance(value, str):
-            continue
-        hostname = urlparse(value).hostname
-        if hostname:
-            hosts.add(hostname.lower())
-    raw_rows = env.get("ATP_DATASET_JSON")
-    if isinstance(raw_rows, str):
-        try:
-            rows = json.loads(raw_rows)
-        except json.JSONDecodeError:
-            rows = []
-        if isinstance(rows, list):
-            for row in rows:
-                if not isinstance(row, dict):
-                    continue
-                for key, value in row.items():
-                    if str(key).upper() not in {"TARGET_URL", "BASE_URL", "URL"} or not isinstance(value, str):
+    if isinstance(env, dict):
+        for key, value in env.items():
+            if str(key).upper() not in {"TARGET_URL", "BASE_URL", "URL"} or not isinstance(value, str):
+                continue
+            hostname = urlparse(value).hostname
+            if hostname:
+                hosts.add(hostname.lower())
+        raw_rows = env.get("ATP_DATASET_JSON")
+        if isinstance(raw_rows, str):
+            try:
+                rows = json.loads(raw_rows)
+            except json.JSONDecodeError:
+                rows = []
+            if isinstance(rows, list):
+                for row in rows:
+                    if not isinstance(row, dict):
                         continue
-                    hostname = urlparse(value).hostname
-                    if hostname:
-                        hosts.add(hostname.lower())
+                    for key, value in row.items():
+                        if str(key).upper() not in {"TARGET_URL", "BASE_URL", "URL"} or not isinstance(value, str):
+                            continue
+                        hostname = urlparse(value).hostname
+                        if hostname:
+                            hosts.add(hostname.lower())
+    target_metrics = options.get("target_metrics")
+    if isinstance(target_metrics, dict):
+        target_url = target_metrics.get("prometheus_url") or target_metrics.get("url")
+        target_env_key = target_metrics.get("url_env")
+        if not target_url and isinstance(target_env_key, str):
+            target_url = env.get(target_env_key) if isinstance(env, dict) else None
+            target_url = target_url or os.getenv(target_env_key)
+        if isinstance(target_url, str):
+            hostname = urlparse(target_url).hostname
+            if hostname:
+                hosts.add(hostname.lower())
     return hosts
 
 

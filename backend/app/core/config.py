@@ -107,7 +107,7 @@ class Settings(BaseSettings):
     # 通过 prometheus_client.start_http_server(WORKER_METRICS_PORT) 暴露指标
     WORKER_METRICS_PORT: int = 9091
     # 当前 worker 实例监听的 Celery 队列，逗号分隔。默认监听全部队列，生产可按队列拆分 worker。
-    CELERY_QUEUES: str = "default,mobile_special,ai,maintenance,performance"
+    CELERY_QUEUES: str = "default,mobile_special,ios,ai,maintenance,performance"
 
     # Performance Center guardrails
     PERFORMANCE_TARGET_ALLOWLIST: str = ""  # comma-separated hostnames; empty = allow all

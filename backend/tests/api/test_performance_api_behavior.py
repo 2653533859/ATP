@@ -98,6 +98,9 @@ class _FakeDB:
         if self.fail_commit:
             raise RuntimeError("duplicate")
 
+    async def flush(self):
+        return None
+
     async def rollback(self):
         self.rollbacks += 1
 
@@ -202,6 +205,7 @@ def test_list_performance_executors_exposes_ready_locust_and_grpc():
     assert by_name["k6"].ready is True
     assert by_name["locust"].ready is True
     assert by_name["grpc"].ready is True
+    assert by_name["jmeter"].ready is True
 
 
 def test_upload_performance_script_supports_locust_extension():
@@ -240,6 +244,24 @@ def test_upload_performance_script_supports_grpc_proto_extension():
     assert result.filename == "greeter.proto"
     assert result.script_object_name.endswith("-greeter.proto")
     assert _uploaded_objects[-1][2] == "text/plain"
+
+
+def test_upload_performance_script_supports_jmeter_extension():
+    _uploaded_objects.clear()
+    file = _Upload("smoke.jmx", b"<jmeterTestPlan />")
+
+    result = asyncio.run(
+        performance.upload_performance_script(
+            project_id=2,
+            file=file,
+            executor="jmeter",
+            db=_FakeDB(),
+            user=_User(),
+        )
+    )
+
+    assert result.filename == "smoke.jmx"
+    assert _uploaded_objects[-1][2] == "application/xml"
 
 
 def test_upload_performance_script_stores_project_scoped_object():
@@ -487,6 +509,50 @@ def test_stop_performance_run_finishes_pending_run_as_cancelled(monkeypatch):
 
     assert run.status == PerformanceRunStatus.cancelled.value
     assert run.finished_at is not None
+
+
+def test_stop_performance_run_cascades_to_shards(monkeypatch):
+    now = datetime(2026, 5, 29, tzinfo=timezone.utc)
+    parent = PerformanceRun(
+        id=20,
+        performance_test_id=3,
+        project_id=2,
+        status=PerformanceRunStatus.running.value,
+        options_snapshot={},
+        summary={"shard_ids": [21, 22]},
+        created_at=now,
+        updated_at=now,
+    )
+    running = PerformanceRun(
+        id=21,
+        performance_test_id=3,
+        project_id=2,
+        status=PerformanceRunStatus.running.value,
+        options_snapshot={},
+        summary={"shard_index": 0},
+        parent_run_id=20,
+    )
+    pending = PerformanceRun(
+        id=22,
+        performance_test_id=3,
+        project_id=2,
+        status=PerformanceRunStatus.pending.value,
+        options_snapshot={},
+        summary={"shard_index": 1},
+        parent_run_id=20,
+    )
+    db = _FakeDB({"PerformanceRun": {20: parent, 21: running, 22: pending}})
+    requested: list[int] = []
+    monkeypatch.setattr(performance, "request_cancel", requested.append)
+
+    result = asyncio.run(performance.stop_performance_run(run_id=20, db=db, user=_User()))
+
+    assert result is parent
+    assert requested == [21]
+    assert parent.status == PerformanceRunStatus.cancelling.value
+    assert running.status == PerformanceRunStatus.cancelling.value
+    assert pending.status == PerformanceRunStatus.cancelled.value
+    assert pending.finished_at is not None
 
 
 def test_stop_performance_run_rejects_terminal_run(monkeypatch):
@@ -1156,6 +1222,35 @@ def test_trigger_performance_run_records_selected_node():
 
     assert result.performance_node_id == node.id
     assert _delay_recorder.calls == [result.id]
+
+
+def test_trigger_performance_run_creates_multi_node_shards():
+    _delay_recorder.calls.clear()
+    test = _performance_test()
+    first = _performance_node(17)
+    second = _performance_node(18)
+    db = _FakeDB(
+        {
+            "PerformanceTest": {test.id: test},
+            "PerformanceNode": {first.id: first, second.id: second},
+        }
+    )
+
+    result = asyncio.run(
+        performance.trigger_performance_run(
+            test_id=test.id,
+            body=PerformanceRunTrigger(performance_node_ids=[first.id, second.id], options={"vus": 10}),
+            db=db,
+            user=_User(),
+        )
+    )
+
+    children = [item for item in db.added if isinstance(item, PerformanceRun) and item is not result]
+    assert result.summary["sharded"] is True
+    assert len(children) == 2
+    assert [child.options_snapshot["vus"] for child in children] == [5, 5]
+    assert all(child.parent_run_id == result.id for child in children)
+    assert _delay_recorder.calls == [child.id for child in children]
 
 
 def test_trigger_performance_run_rejects_an_offline_selected_node():

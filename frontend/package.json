@@ -11,7 +11,8 @@
     "test": "vitest run",
     "test:coverage": "vitest run --coverage",
     "e2e": "playwright test",
-    "e2e:install": "playwright install --with-deps chromium",
+    "e2e:browser-matrix": "node tools/browser-matrix-smoke.mjs",
+    "e2e:install": "playwright install --with-deps chromium firefox webkit",
     "e2e:ui": "playwright test --ui"
   },
   "dependencies": {
@@ -41,7 +42,7 @@
     "vue-tsc": "^3.3.6"
   },
   "overrides": {
-    "brace-expansion": "5.0.7",
+    "brace-expansion": "5.0.9",
     "form-data": "4.0.6",
     "glob": "^13.0.6",
     "lodash": "4.18.1",

@@ -51,6 +51,8 @@ def _coerce_draft(
     default_case_type: str,
     default_priority: str,
     default_case_level: str,
+    dataset_id: int | None = None,
+    dataset_version: int | None = None,
 ) -> dict[str, Any]:
     name = (item.get("name") or "").strip() or "AI 生成用例"
     steps_raw = item.get("steps") or []
@@ -68,6 +70,8 @@ def _coerce_draft(
         "postconditions": list(item.get("postconditions") or []),
         "steps": [_coerce_step(s) for s in steps_raw if s is not None],
         "config": item.get("config") or {},
+        "dataset_id": dataset_id,
+        "dataset_version": dataset_version,
     }
 
 
@@ -80,6 +84,10 @@ async def generate_case_drafts(
     priority: str,
     case_level: str,
     max_cases: int,
+    dataset_context: dict[str, Any] | None = None,
+    mock_context: list[dict[str, Any]] | None = None,
+    dataset_id: int | None = None,
+    dataset_version: int | None = None,
 ) -> GenerationResult:
     """调用 LLM 并返回归一化后的用例草稿列表。"""
     if not config.enabled:
@@ -99,6 +107,8 @@ async def generate_case_drafts(
         priority=priority,
         case_level=case_level,
         max_cases=max_cases,
+        dataset_context=dataset_context,
+        mock_context=mock_context,
     )
 
     request = LLMRequest(
@@ -126,6 +136,8 @@ async def generate_case_drafts(
             default_case_type=case_type,
             default_priority=priority,
             default_case_level=case_level,
+            dataset_id=dataset_id,
+            dataset_version=dataset_version,
         )
         for item in items
         if isinstance(item, dict)

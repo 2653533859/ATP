@@ -25,6 +25,9 @@
         <a-button :disabled="!projectId" @click="openLogs">
           <UnorderedListOutlined /> {{ t('mock.request_logs') }}
         </a-button>
+        <a-button :disabled="!projectId || !selectedRuleIds.length" @click="openAIGeneration()">
+          <ThunderboltOutlined /> {{ t('mock.ai_generate_selected') }}
+        </a-button>
         <a-button type="primary" :disabled="!projectId" @click="openCreate">
           <PlusOutlined /> {{ t('mock.add_rule') }}
         </a-button>
@@ -50,6 +53,11 @@
       row-key="id"
       size="middle"
       :pagination="{ pageSize: 20 }"
+      :scroll="{ x: 1640 }"
+      :row-selection="{
+        selectedRowKeys: selectedRuleIds,
+        onChange: handleRuleSelectionChange,
+      }"
     >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'method'">
@@ -72,6 +80,9 @@
         </template>
         <template v-if="column.key === 'action'">
           <a-space>
+            <a-button type="link" size="small" @click="openAIGeneration(asRule(record))">
+              <ThunderboltOutlined />{{ t('mock.ai_generate') }}
+            </a-button>
             <a-button type="link" size="small" @click="openEdit(asRule(record))">{{ t('common.edit') }}</a-button>
             <a-button type="link" size="small" @click="handleCopy(asRule(record))">{{ t('mock.copy') }}</a-button>
             <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
@@ -220,10 +231,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
-import { PlusOutlined, UnorderedListOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, ThunderboltOutlined, UnorderedListOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import { mockRuleApi, projectApi, type MockRuleItem, type ProjectItem } from '@/api'
 import { getBackendOrigin } from '@/api/http'
+import { buildCasesQuery } from '@/utils/caseNavigation'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asRule = (record: unknown) => record as MockRuleRecord
 
@@ -251,10 +264,12 @@ type MockLogRecord = Record<string, unknown>
 type TableTextRender = { text?: string | number | null }
 
 const { t } = useI18n()
+const router = useRouter()
 const rules = ref<MockRuleRecord[]>([])
 const loading = ref(false)
 const projectId = ref<number | undefined>(undefined)
 const projectOptions = ref<Array<{ label: string; value: number }>>([])
+const selectedRuleIds = ref<number[]>([])
 
 const formOpen = ref(false)
 const isEdit = ref(false)
@@ -292,7 +307,7 @@ const columns = computed(() => [
   { title: t('mock.columns.status'), key: 'is_enabled', width: 70 },
   { title: t('mock.columns.updated_at'), dataIndex: 'updated_at', width: 170,
     customRender: ({ text }: TableTextRender) => typeof text === 'string' ? text.slice(0, 19).replace('T', ' ') : '-' },
-  { title: t('mock.columns.action'), key: 'action', width: 160, fixed: 'right' as const },
+  { title: t('mock.columns.action'), key: 'action', width: 280, fixed: 'right' as const },
 ])
 
 const logColumns = computed(() => [
@@ -365,6 +380,7 @@ onMounted(async () => {
 })
 
 async function loadRules() {
+  selectedRuleIds.value = []
   if (!projectId.value) { rules.value = []; return }
   loading.value = true
   try {
@@ -374,6 +390,32 @@ async function loadRules() {
     message.error(getErrorMessage(undefined, t('mock.msg.load_failed')))
   }
   finally { loading.value = false }
+}
+
+const MAX_AI_MOCK_RULES = 20
+
+function handleRuleSelectionChange(keys: (string | number)[]) {
+  const normalized = [...new Set(keys.map((key) => Number(key)).filter((key) => Number.isInteger(key) && key > 0))]
+  if (normalized.length > MAX_AI_MOCK_RULES) {
+    selectedRuleIds.value = normalized.slice(0, MAX_AI_MOCK_RULES)
+    message.warning(t('mock.ai_generate_max_rules', { count: MAX_AI_MOCK_RULES }))
+    return
+  }
+  selectedRuleIds.value = normalized
+}
+
+function openAIGeneration(record?: MockRuleRecord) {
+  if (!projectId.value) return
+  const ruleIds = record ? [record.id] : selectedRuleIds.value
+  if (!ruleIds.length) return
+  void router.push({
+    name: 'cases',
+    query: buildCasesQuery({
+      projectId: projectId.value,
+      aiGenerate: true,
+      aiMockRuleIds: ruleIds,
+    }),
+  })
 }
 
 function openCreate() {

@@ -1,4 +1,5 @@
 """Alembic 环境配置"""
+
 from logging.config import fileConfig
 from sqlalchemy import engine_from_config, pool
 from alembic import context
@@ -8,6 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.core.config import settings
 from app.models.base import Base
+
 # 导入所有模型以确保 metadata 包含全部表
 from app.models.user import User  # noqa
 from app.models.project import Project, Module  # noqa
@@ -16,6 +18,7 @@ from app.models.environment import Environment, EnvVariable  # noqa
 from app.models.suite import TestSuite, SuiteRun  # noqa
 from app.models.plan import TestPlan, PlanRun  # noqa
 from app.models.notification import NotificationConfig  # noqa
+from app.models.ios import IosApp, IosDevice, IosDeviceLease  # noqa
 
 config = context.config
 if config.config_file_name is not None:

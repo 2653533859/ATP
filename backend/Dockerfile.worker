@@ -1,4 +1,5 @@
 ARG K6_IMAGE=grafana/k6:2.1.0
+ARG JMETER_VERSION=5.6.3
 FROM python:3.12-slim-bookworm AS python-deps
 
 WORKDIR /app
@@ -14,25 +15,32 @@ FROM ${K6_IMAGE} AS k6-bin
 
 FROM python:3.12-slim-bookworm
 
+ARG JMETER_VERSION=5.6.3
+
 WORKDIR /app
 
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    android-tools-adb ca-certificates gzip postgresql-client \
+    android-tools-adb ca-certificates curl gzip openjdk-17-jre-headless postgresql-client tar \
     && rm -rf /var/lib/apt/lists/*
+
+RUN curl -fsSL "https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-${JMETER_VERSION}.tgz" \
+    | tar -xz -C /opt \
+    && ln -s "/opt/apache-jmeter-${JMETER_VERSION}/bin/jmeter" /usr/local/bin/jmeter
 
 COPY --from=python-deps /wheels /wheels
 COPY --from=k6-bin /usr/bin/k6 /usr/local/bin/k6
 COPY requirements.txt .
 RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt \
     && rm -rf /wheels \
-    && playwright install chromium --with-deps \
+    && playwright install chromium firefox webkit --with-deps \
     && python -c "import grpc, grpc_tools; print('grpc dependencies ready')" \
     && k6 version \
     && locust --version \
+    && jmeter --version \
     && rm -rf /var/lib/apt/lists/*
 
 COPY . .
 
-CMD ["sh", "-c", "celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q ${CELERY_QUEUES:-default,mobile_special,ai,maintenance,performance}"]
+CMD ["sh", "-c", "celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q ${CELERY_QUEUES:-default,mobile_special,ios,ai,maintenance,performance}"]

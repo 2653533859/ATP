@@ -3,7 +3,7 @@
 ATP 默认 worker 监听全部队列，适合本地开发和小型部署：
 
 ```bash
-CELERY_QUEUES=default,mobile_special,ai,maintenance,performance
+CELERY_QUEUES=default,mobile_special,ios,ai,maintenance,performance
 celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q "$CELERY_QUEUES"
 ```
 
@@ -51,7 +51,7 @@ environment:
 
 ```yaml
 config:
-  CELERY_QUEUES: default,mobile_special,ai,maintenance,performance
+  CELERY_QUEUES: default,mobile_special,ios,ai,maintenance,performance
 performanceWorker:
   enabled: false
   queues: performance

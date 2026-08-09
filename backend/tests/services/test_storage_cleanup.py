@@ -5,10 +5,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-sys.modules["app.core.minio_client"] = types.SimpleNamespace(
-    list_objects=lambda prefix: [],
-    delete_file=lambda object_name: None,
-)
+_minio = sys.modules.setdefault("app.core.minio_client", types.SimpleNamespace())
+_minio.list_objects = lambda prefix: []
+_minio.delete_file = lambda object_name: None
 
 from app.services import storage_cleanup
 
@@ -64,6 +63,11 @@ def test_get_storage_stats_aggregates_objects_by_prefix(monkeypatch):
         ("apks/", 0, 0),
         ("scripts/", 1, 13),
         ("performance/", 1, 17),
+        ("api-files/", 0, 0),
+        ("web-files/", 0, 0),
+        ("visual-baselines/", 0, 0),
+        ("videos/", 0, 0),
+        ("traces/", 0, 0),
     ]
 
 

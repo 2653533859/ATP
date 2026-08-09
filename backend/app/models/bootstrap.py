@@ -4,7 +4,7 @@ def load_all_models() -> None:
     from app.models.project import Project, Module
     from app.models.case import TestCase, CaseStep, TestRun, StepResult, CaseSnapshot
     from app.models.environment import Environment, EnvVariable
-    from app.models.device import Device
+    from app.models.device import Device, DeviceLease
     from app.models.apk import Apk
     from app.models.suite import TestSuite, SuiteRun
     from app.models.notification import NotificationConfig
@@ -31,6 +31,8 @@ def load_all_models() -> None:
     from app.models.user_setting import UserSetting
     from app.models.performance import PerformanceTest, PerformanceRun, PerformanceMetricSample
     from app.models.performance_node import PerformanceNode
+    from app.models.web_assets import WebElementAsset, WebPageObject, WebVisualBaseline
+    from app.models.ios import IosApp, IosDevice, IosDeviceLease
 
     _ = (
         User,
@@ -45,6 +47,7 @@ def load_all_models() -> None:
         Environment,
         EnvVariable,
         Device,
+        DeviceLease,
         Apk,
         TestSuite,
         SuiteRun,
@@ -76,4 +79,10 @@ def load_all_models() -> None:
         PerformanceRun,
         PerformanceMetricSample,
         PerformanceNode,
+        WebElementAsset,
+        WebPageObject,
+        WebVisualBaseline,
+        IosApp,
+        IosDevice,
+        IosDeviceLease,
     )

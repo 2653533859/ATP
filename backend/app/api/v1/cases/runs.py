@@ -16,7 +16,7 @@ from sqlalchemy.orm import selectinload
 from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
 from app.core.encryption import decrypt_env_vars
-from app.models.case import RunStatus, TestCase, TestRun
+from app.models.case import CaseType, RunStatus, TestCase, TestRun
 from app.models.environment import Environment, EnvVariable
 from app.models.project import Module
 from app.models.user import User
@@ -85,7 +85,10 @@ async def trigger_run(
     await db.commit()
     await db.refresh(run)
 
-    _cases.run_test_case.delay(run.id, merged_vars, run.trace_id)
+    if case.case_type == CaseType.ios:
+        _cases.run_test_case.apply_async(args=(run.id, merged_vars, run.trace_id), queue="ios")
+    else:
+        _cases.run_test_case.delay(run.id, merged_vars, run.trace_id)
     result = await db.execute(select(TestRun).where(TestRun.id == run.id).options(selectinload(TestRun.steps)))
     return TestRunOut.model_validate(result.scalar_one())
 

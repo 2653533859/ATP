@@ -1,6 +1,6 @@
 import enum
-from sqlalchemy import String, Text, Integer, Enum, DateTime
-from sqlalchemy.orm import Mapped, mapped_column
+from sqlalchemy import String, Text, Integer, Enum, DateTime, ForeignKey
+from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from app.models.base import Base, TimestampMixin
 
@@ -27,3 +27,21 @@ class Device(Base, TimestampMixin):
     port: Mapped[int | None] = mapped_column(Integer)
     description: Mapped[str | None] = mapped_column(Text)
     last_seen_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+
+
+class DeviceLease(Base):
+    """数据库级设备租约，保证同一设备同一时刻最多被一个执行占用。"""
+
+    __tablename__ = "device_leases"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    device_id: Mapped[int] = mapped_column(ForeignKey("devices.id", ondelete="CASCADE"), unique=True, nullable=False)
+    lease_token: Mapped[str] = mapped_column(String(96), unique=True, nullable=False, index=True)
+    owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    owner_label: Mapped[str] = mapped_column(String(128), nullable=False)
+    acquired_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    heartbeat_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+
+    device = relationship("Device")
+    owner = relationship("User")

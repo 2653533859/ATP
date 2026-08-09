@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from app.api.v1 import devices
 from app.models.device import DeviceStatus
 from app.schemas.device import DeviceUpdate
+from app.schemas.device_lease import DeviceLeaseAcquireIn, DeviceLeaseTokenIn
 
 
 class _Result:
@@ -167,3 +168,83 @@ def test_delete_device_404_for_missing_device():
         asyncio.run(devices.delete_device(device_id=404, db=_DB(), _=None))
 
     assert exc.value.status_code == 404
+
+
+def _lease(token="lease-token-1234567890"):
+    now = datetime(2026, 7, 11, tzinfo=timezone.utc)
+    return SimpleNamespace(
+        device_id=1,
+        owner_id=9,
+        owner_label="manual",
+        acquired_at=now,
+        heartbeat_at=now,
+        expires_at=datetime(2026, 7, 11, 0, 15, tzinfo=timezone.utc),
+        lease_token=token,
+    )
+
+
+def test_acquire_lease_returns_token_for_owner(monkeypatch):
+    lease = _lease()
+    calls = {}
+
+    async def fake_acquire(db, device_id, **kwargs):
+        calls.update(db=db, device_id=device_id, kwargs=kwargs)
+        return lease
+
+    monkeypatch.setattr(devices, "acquire_device_lease", fake_acquire)
+    db = _DB()
+    result = asyncio.run(
+        devices.acquire_lease(
+            device_id=1,
+            body=DeviceLeaseAcquireIn(ttl_seconds=600, owner_label="manual"),
+            db=db,
+            current_user=SimpleNamespace(id=9),
+        )
+    )
+
+    assert result.lease_token == lease.lease_token
+    assert calls == {
+        "db": db,
+        "device_id": 1,
+        "kwargs": {"owner_id": 9, "owner_label": "manual", "ttl_seconds": 600},
+    }
+    assert db.commits == 1 and db.refreshes == 1
+
+
+def test_heartbeat_lease_does_not_return_secret_token(monkeypatch):
+    lease = _lease()
+
+    async def fake_heartbeat(_db, _device_id, _token):
+        return lease
+
+    monkeypatch.setattr(devices, "heartbeat_device_lease", fake_heartbeat)
+
+    result = asyncio.run(
+        devices.heartbeat_lease(
+            device_id=1,
+            body=DeviceLeaseTokenIn(lease_token=lease.lease_token),
+            db=_DB(),
+            _=None,
+        )
+    )
+
+    assert result.lease_token is None
+
+
+def test_acquire_lease_returns_conflict_for_busy_device(monkeypatch):
+    async def fake_acquire(*_args, **_kwargs):
+        raise devices.DeviceLeaseConflict("busy")
+
+    monkeypatch.setattr(devices, "acquire_device_lease", fake_acquire)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            devices.acquire_lease(
+                device_id=1,
+                body=DeviceLeaseAcquireIn(),
+                db=_DB(),
+                current_user=SimpleNamespace(id=9),
+            )
+        )
+
+    assert exc.value.status_code == 409

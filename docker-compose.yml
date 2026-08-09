@@ -84,7 +84,7 @@ services:
     env_file: .env
     environment:
       - CELERY_CONCURRENCY=${CELERY_CONCURRENCY:-4}
-      - CELERY_QUEUES=${CELERY_QUEUES:-default,mobile_special,ai,maintenance,performance}
+      - CELERY_QUEUES=${CELERY_QUEUES:-default,mobile_special,ios,ai,maintenance,performance}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4317}
       - OTEL_SERVICE_NAME=atp-worker
       - WORKER_METRICS_PORT=${WORKER_METRICS_PORT:-9091}

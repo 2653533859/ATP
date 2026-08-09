@@ -36,6 +36,11 @@ def test_ai_case_drawer_exposes_sample_and_natural_language_modes():
     assert "interface_sample" in zh
     assert "natural_hint" in en
     assert "interface_sample" in en
+    assert "externalRefPolicy" in drawer
+    assert "external_ref_policy" in drawer
+    assert "external_ref_policy" in api
+    assert "external_ref_policy_label" in zh
+    assert "external_ref_policy_label" in en
 
 
 def test_s5_02_is_marked_complete_in_roadmap():

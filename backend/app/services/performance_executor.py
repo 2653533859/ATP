@@ -64,6 +64,17 @@ _CAPABILITIES: dict[str, PerformanceExecutorCapability] = {
         supports_grpc=True,
         description="Proto/TLS/Metadata/Streaming 压测，支持并发、取消和统一结果摘要。",
     ),
+    "jmeter": PerformanceExecutorCapability(
+        name="jmeter",
+        label="JMeter",
+        ready=True,
+        script_extensions=(".jmx",),
+        supports_visual=False,
+        supports_dataset=False,
+        supports_http=True,
+        supports_grpc=False,
+        description="JMX 非 GUI 压测，解析 JTL 并统一输出吞吐、百分位和错误率。",
+    ),
 }
 
 
@@ -126,4 +137,8 @@ def run_performance_executor(*, executor: str, **kwargs):
         from app.services.performance_grpc import run_grpc_script
 
         return run_grpc_script(**kwargs)
+    if capability.name == "jmeter":
+        from app.services.performance_jmeter import run_jmeter_script
+
+        return run_jmeter_script(**kwargs)
     raise PerformanceExecutorError(f"性能执行器 {executor} 尚未实现")

@@ -59,6 +59,7 @@ class TestCaseCreate(BaseModel):
     automation_status: AutomationStatus = "auto"
     steps: list[CaseStepCreate] = Field(default_factory=list)
     config: dict = Field(default_factory=dict)
+    dataset_version: int | None = Field(default=None, ge=1)
     dataset_id: int | None = None  # P3.B 绑定数据集后参数化执行
 
 
@@ -75,6 +76,7 @@ class TestCaseUpdate(BaseModel):
     automation_status: AutomationStatus | None = None
     steps: list[CaseStepCreate] | None = None
     config: dict | None = None
+    dataset_version: int | None = Field(default=None, ge=1)
     dataset_id: int | None = None  # 传 None 显式清除绑定
 
 
@@ -98,6 +100,7 @@ class TestCaseOut(BaseModel):
     ai_generated: bool = False
     script_status: ScriptStatus = "not_applicable"
     dataset_id: int | None = None
+    dataset_version: int | None = None
     flaky_stats: CaseFlakyStats = Field(default_factory=CaseFlakyStats)
     created_at: datetime
     updated_at: datetime

@@ -5,6 +5,7 @@ import {
   buildCasesQuery,
   buildProjectCasesLocation,
   parsePositiveInt,
+  parsePositiveIntList,
   parseReviewStatus,
   readCaseRouteSelection,
 } from './caseNavigation'
@@ -18,6 +19,7 @@ describe('case navigation utilities', () => {
     expect(parsePositiveInt('-1')).toBeNull()
     expect(parsePositiveInt('abc')).toBeNull()
     expect(parsePositiveInt(undefined)).toBeNull()
+    expect(parsePositiveIntList('2, 3, 2, bad, -1')).toEqual([2, 3])
   })
 
   it('keeps only supported review status route values', () => {
@@ -29,10 +31,22 @@ describe('case navigation utilities', () => {
   })
 
   it('builds compact case list and detail locations', () => {
-    expect(buildCasesQuery({ projectId: 12, moduleId: 34, reviewStatus: 'pending' })).toEqual({
+    expect(buildCasesQuery({
+      projectId: 12,
+      moduleId: 34,
+      reviewStatus: 'pending',
+      aiGenerate: true,
+      aiDatasetId: 56,
+      aiDatasetVersion: 3,
+      aiMockRuleIds: [78, 79],
+    })).toEqual({
       project_id: '12',
       module_id: '34',
       review_status: 'pending',
+      ai_generate: '1',
+      ai_dataset_id: '56',
+      ai_dataset_version: '3',
+      ai_mock_rule_ids: '78,79',
     })
     expect(buildCasesQuery({ projectId: null, moduleId: 0 })).toEqual({})
     expect(buildProjectCasesLocation(9)).toEqual({
@@ -54,6 +68,10 @@ describe('case navigation utilities', () => {
       projectId: 11,
       moduleId: 22,
       reviewStatus: 'approved',
+      aiGenerate: false,
+      aiDatasetId: null,
+      aiDatasetVersion: null,
+      aiMockRuleIds: [],
     })
 
     expect(readCaseRouteSelection({
@@ -63,6 +81,20 @@ describe('case navigation utilities', () => {
       projectId: 33,
       moduleId: null,
       reviewStatus: undefined,
+      aiGenerate: false,
+      aiDatasetId: null,
+      aiDatasetVersion: null,
+      aiMockRuleIds: [],
+    })
+
+    expect(readCaseRouteSelection({
+      query: { project_id: '11', ai_generate: '1', ai_dataset_id: '56', ai_mock_rule_ids: '78,79,78' },
+      params: {},
+    })).toMatchObject({
+      aiGenerate: true,
+      aiDatasetId: 56,
+      aiDatasetVersion: null,
+      aiMockRuleIds: [78, 79],
     })
   })
 })

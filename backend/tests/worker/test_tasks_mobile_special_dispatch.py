@@ -107,6 +107,20 @@ def _events(monkeypatch):
     return recorded
 
 
+@pytest.fixture(autouse=True)
+def _stub_device_lease(monkeypatch):
+    """任务路由测试只验证执行分发，设备租约由独立服务测试覆盖。"""
+
+    async def acquire(_db, _device_id, **_kwargs):
+        return _Obj(lease_token="test-device-lease-token")
+
+    async def release(_db, _device_id, _lease_token):
+        return True
+
+    monkeypatch.setattr(tms, "acquire_device_lease", acquire)
+    monkeypatch.setattr(tms, "release_device_lease", release)
+
+
 # ── 纯 helper ───────────────────────────────────────────────
 
 

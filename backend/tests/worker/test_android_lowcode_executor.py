@@ -6,12 +6,15 @@ import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-sys.modules["app.core.minio_client"] = types.SimpleNamespace(
-    ensure_bucket=lambda: None,
-    upload_bytes=lambda *args, **kwargs: None,
-    upload_file=lambda *args, **kwargs: None,
-    presigned_url=lambda *args, **kwargs: "",
-    delete_file=lambda *args, **kwargs: None,
+sys.modules.setdefault(
+    "app.core.minio_client",
+    types.SimpleNamespace(
+        ensure_bucket=lambda: None,
+        upload_bytes=lambda *args, **kwargs: None,
+        upload_file=lambda *args, **kwargs: None,
+        presigned_url=lambda *args, **kwargs: "",
+        delete_file=lambda *args, **kwargs: None,
+    ),
 )
 sys.modules.setdefault(
     "app.core.redis_client",
@@ -373,6 +376,64 @@ def _run_case(steps, device_serial="emu-1"):
     run = _Obj(id=7, status=RunStatus.running)
     case = _Obj(id=3, config=cfg)
     return run, case
+
+
+def test_android_device_matrix_acquires_and_releases_each_device_lease(monkeypatch):
+    class _ScalarResult:
+        def __init__(self, values):
+            self.values = values
+
+        def scalars(self):
+            return self
+
+        def all(self):
+            return self.values
+
+    class _MatrixDB(_FakeDB):
+        async def execute(self, _statement):
+            return _ScalarResult(
+                [
+                    _Obj(
+                        id=41,
+                        serial="emu-1",
+                        model="Pixel 8",
+                        brand="Google",
+                        os_version="14",
+                        sdk_version="34",
+                        resolution="1080x2400",
+                    )
+                ]
+            )
+
+        async def refresh(self, _obj):
+            return None
+
+    leases = []
+    releases = []
+
+    async def acquire(_db, device_id, **kwargs):
+        leases.append((device_id, kwargs["owner_label"]))
+        return _Obj(lease_token="lease-1")
+
+    async def release(_db, device_id, token):
+        releases.append((device_id, token))
+        return True
+
+    async def fake_run(_db, child, _case, _extra_vars):
+        child.status = RunStatus.passed
+
+    monkeypatch.setattr(executor, "acquire_device_lease", acquire)
+    monkeypatch.setattr(executor, "release_device_lease", release)
+    monkeypatch.setattr(executor, "run_android_lowcode", fake_run)
+
+    parent = _Obj(id=100, status=RunStatus.running, triggered_by=7, environment=None, result_summary={})
+    case = _Obj(id=3, config={"device_matrix": [{"serial": "emu-1"}]})
+
+    asyncio.run(executor._run_android_device_matrix(_MatrixDB(), parent, case, {}))
+
+    assert leases == [(41, "case-run:None")]
+    assert releases == [(41, "lease-1")]
+    assert parent.status == RunStatus.passed
 
 
 def test_run_android_lowcode_no_steps_marks_error(run_env):

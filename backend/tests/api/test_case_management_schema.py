@@ -26,6 +26,7 @@ def test_case_management_columns_and_relationships_exist():
         "reviewed_at",
         "reviewed_by",
         "review_comment",
+        "dataset_version",
     ):
         assert column_name in case_columns
 

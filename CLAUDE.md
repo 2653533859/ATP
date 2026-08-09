@@ -30,7 +30,7 @@ make dev / dev-down   # full stack via docker compose
 make infra-up         # postgres + redis + minio only (docker-compose.dev.yml)
 make migrate          # cd backend && alembic upgrade head
 make backend          # uvicorn app.main:app --reload --port 8000
-make worker           # celery worker -Q default,mobile_special,ai,maintenance,performance
+make worker           # celery worker -Q default,mobile_special,ios,ai,maintenance,performance
 make beat             # celery beat
 make frontend         # vite dev server at :5173
 ```

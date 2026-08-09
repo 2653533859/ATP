@@ -37,7 +37,8 @@ sys.modules["app.api.deps"] = types.SimpleNamespace(
     assert_project_access=_p3c_noop_async,
     ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
 )
-sys.modules["app.core.minio_client"] = types.SimpleNamespace(read_bytes=lambda _name: b"img")
+_minio = sys.modules.setdefault("app.core.minio_client", types.SimpleNamespace())
+_minio.read_bytes = lambda _name: b"img"
 
 from app.api.v1 import bug_trackers
 from app.models.bug_tracker import TrackerType

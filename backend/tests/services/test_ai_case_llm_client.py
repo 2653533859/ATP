@@ -31,6 +31,24 @@ def test_build_user_prompt_contains_constraints():
     assert "3 条测试用例" in prompt
 
 
+def test_build_user_prompt_includes_selected_dataset_and_mock_context():
+    prompt = build_user_prompt(
+        endpoints=[],
+        user_requirement="登录",
+        case_type="api",
+        priority="P2",
+        case_level="regression",
+        max_cases=2,
+        dataset_context={"name": "accounts", "schema_fields": [{"name": "username"}]},
+        mock_context=[{"method": "POST", "path": "/login", "status_code": 200}],
+    )
+
+    assert "accounts" in prompt
+    assert "username" in prompt
+    assert "POST" in prompt and "/login" in prompt
+    assert "{{字段名}}" in prompt
+
+
 def test_build_user_prompt_empty_endpoints():
     prompt = build_user_prompt(
         endpoints=[],

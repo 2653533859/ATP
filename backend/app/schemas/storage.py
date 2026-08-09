@@ -30,7 +30,19 @@ class StorageStatsOut(BaseModel):
 
 
 class StorageCleanupPreviewIn(BaseModel):
-    prefixes: list[str] = Field(default_factory=lambda: ["screenshots/", "reports/", "apks/", "scripts/"])
+    prefixes: list[str] = Field(
+        default_factory=lambda: [
+            "screenshots/",
+            "reports/",
+            "apks/",
+            "scripts/",
+            "api-files/",
+            "web-files/",
+            "visual-baselines/",
+            "videos/",
+            "traces/",
+        ]
+    )
     retention_days: int | None = Field(default=None, ge=1, le=3650)
     use_active_policies: bool = True
 

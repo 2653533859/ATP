@@ -11,6 +11,7 @@ import sys
 import types
 from pathlib import Path
 
+import httpx
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
@@ -78,16 +79,37 @@ def _run_stub():
 
 
 class _FakeResponse:
-    def __init__(self, status_code=200, body=None, text="", headers=None):
+    def __init__(self, status_code=200, body=None, text="", headers=None, sse_lines=()):
         self.status_code = status_code
         self._body = body
         self.text = text
         self.headers = headers or {}
+        self.sse_lines = list(sse_lines)
 
     def json(self):
         if self._body is None:
             raise ValueError("not json")
         return self._body
+
+    async def aiter_lines(self):
+        for line in self.sse_lines:
+            yield line
+
+
+class _FakeStreamContext:
+    def __init__(self, client, method, url, kwargs):
+        self.client = client
+        self.method = method
+        self.url = url
+        self.kwargs = kwargs
+        self.response = None
+
+    async def __aenter__(self):
+        self.response = await self.client.request(self.method, self.url, **self.kwargs)
+        return self.response
+
+    async def __aexit__(self, *args):
+        return False
 
 
 class _FakeAsyncClient:
@@ -98,6 +120,7 @@ class _FakeAsyncClient:
 
     def __init__(self, timeout=None):
         self.timeout = timeout
+        self.cookies = httpx.Cookies()
 
     async def __aenter__(self):
         return self
@@ -105,8 +128,18 @@ class _FakeAsyncClient:
     async def __aexit__(self, *args):
         return False
 
+    async def aclose(self):
+        return None
+
     async def request(self, method, url, **kwargs):
-        _FakeAsyncClient.requests.append({"method": method, "url": url, **kwargs})
+        _FakeAsyncClient.requests.append(
+            {
+                "method": method,
+                "url": url,
+                "cookie_snapshot": {cookie.name: cookie.value for cookie in self.cookies.jar},
+                **kwargs,
+            }
+        )
         item = _FakeAsyncClient.script.pop(0)
         if isinstance(item, Exception):
             raise item
@@ -114,6 +147,9 @@ class _FakeAsyncClient:
 
     async def post(self, url, **kwargs):
         return await self.request("POST", url, **kwargs)
+
+    def stream(self, method, url, **kwargs):
+        return _FakeStreamContext(self, method, url, kwargs)
 
 
 @pytest.fixture()
@@ -168,6 +204,91 @@ def test_api_executor_extracts_variables_and_injects_auth_across_steps(fake_http
     assert [e["type"] for e in events] == ["step_result", "step_result", "completed"]
     assert healing_recorder["run_healing"] == [1]
     assert all(step.status is RunStatus.passed for step in db.added)
+
+
+def test_api_executor_redacts_dataset_fields_from_persisted_evidence(fake_http, monkeypatch, healing_recorder):
+    events = _events_recorder(monkeypatch, api_executor)
+    fake_http.script = [_FakeResponse(200, {"token": "response-secret"})]
+    case = _Obj(
+        config={
+            "dataset_redact_fields": ["token", "user.password"],
+            "steps": [
+                {
+                    "url": "https://api.example.com/login",
+                    "method": "POST",
+                    "body_type": "json",
+                    "body": {"token": "request-secret", "user": {"password": "request-password"}},
+                }
+            ],
+        }
+    )
+    db = _FakeDB()
+
+    asyncio.run(api_executor.run_api_case(db, _run_stub(), case, {}))
+
+    step = db.added[0]
+    assert fake_http.requests[0]["json"] == {
+        "token": "request-secret",
+        "user": {"password": "request-password"},
+    }
+    assert step.request_data["body"] == {"token": "***", "user": {"password": "***"}}
+    assert step.response_data["body"]["token"] == "***"
+    assert events[0]["step"]["request_data"] == step.request_data
+    assert events[0]["step"]["response_data"] == step.response_data
+
+
+def test_api_executor_applies_stop_failure_strategy_and_records_skipped_step(fake_http, monkeypatch, healing_recorder):
+    _events_recorder(monkeypatch, api_executor)
+    fake_http.script = [_FakeResponse(500, {"error": "boom"})]
+    run = _run_stub()
+    case = _Obj(
+        config={
+            "failure_strategy": "stop",
+            "steps": [
+                {
+                    "name": "login",
+                    "url": "https://api.example.com/login",
+                    "assertions": [{"target": "status_code", "operator": "eq", "expected": 200}],
+                },
+                {"name": "profile", "url": "https://api.example.com/me"},
+            ],
+        }
+    )
+    db = _FakeDB()
+
+    asyncio.run(api_executor.run_api_case(db, run, case, {}))
+
+    assert run.status is RunStatus.failed
+    assert len(fake_http.requests) == 1
+    assert [step.status for step in db.added] == [RunStatus.failed, RunStatus.skipped]
+    assert "停止" in db.added[-1].error_message
+
+
+def test_api_executor_skips_only_explicit_dependents(fake_http, monkeypatch, healing_recorder):
+    _events_recorder(monkeypatch, api_executor)
+    fake_http.script = [_FakeResponse(500, {"error": "boom"}), _FakeResponse(200, {"ok": True})]
+    run = _run_stub()
+    case = _Obj(
+        config={
+            "failure_strategy": "continue",
+            "steps": [
+                {
+                    "name": "login",
+                    "url": "https://api.example.com/login",
+                    "assertions": [{"target": "status_code", "operator": "eq", "expected": 200}],
+                },
+                {"name": "profile", "url": "https://api.example.com/me", "depends_on": [0]},
+                {"name": "health", "url": "https://api.example.com/health"},
+            ],
+        }
+    )
+    db = _FakeDB()
+
+    asyncio.run(api_executor.run_api_case(db, run, case, {}))
+
+    assert len(fake_http.requests) == 2
+    assert [step.status for step in db.added] == [RunStatus.failed, RunStatus.skipped, RunStatus.passed]
+    assert "依赖步骤" in db.added[1].error_message
 
 
 def test_api_executor_marks_step_failed_on_assertion_and_stops_assertions(fake_http, monkeypatch, healing_recorder):
@@ -242,6 +363,40 @@ def test_api_executor_falls_back_to_single_step_config_and_basic_auth(fake_http,
     assert run.status is RunStatus.passed  # 无断言即视为通过
 
 
+def test_api_executor_reuses_project_cookie_session_when_enabled(fake_http, monkeypatch, healing_recorder):
+    _events_recorder(monkeypatch, api_executor)
+    loaded = [{"name": "session", "value": "sid-1", "domain": "api.example.com", "path": "/"}]
+    saved = []
+
+    async def load_session(project_id):
+        assert project_id == 1
+        return loaded
+
+    async def save_session(project_id, cookies):
+        saved.append((project_id, cookies))
+
+    monkeypatch.setattr(api_executor, "load_project_api_session", load_session)
+    monkeypatch.setattr(api_executor, "save_project_api_session", save_session)
+    fake_http.script = [_FakeResponse(200, {"ok": True}), _FakeResponse(200, {"ok": True})]
+    case = _Obj(
+        project_id=1,
+        config={
+            "reuse_api_session": True,
+            "steps": [
+                {"url": "https://api.example.com/me"},
+                {"url": "https://api.example.com/orders"},
+            ],
+        },
+    )
+
+    asyncio.run(api_executor.run_api_case(_FakeDB(), _run_stub(), case, {}))
+
+    assert fake_http.requests[0]["cookie_snapshot"] == {"session": "sid-1"}
+    assert fake_http.requests[1]["cookie_snapshot"] == {"session": "sid-1"}
+    assert saved[0][0] == 1
+    assert saved[0][1][0]["name"] == "session"
+
+
 @pytest.mark.parametrize(
     ("assertion", "expected_ok"),
     [
@@ -264,11 +419,153 @@ def test_api_assert_operator_matrix(assertion, expected_ok):
         assert message
 
 
+def test_api_restricted_expression_assertions_allow_data_only_access():
+    resp = _FakeResponse(201, {"user": {"id": 7}}, headers={"content-type": "application/json"})
+    ok, message = api_executor._assert(
+        {"target": "expression", "expression": "status_code == 201 and body.user.id == 7 and response_time_ms < 100"},
+        resp,
+        {"user": {"id": 7}},
+        duration_ms=10,
+    )
+    assert ok is True and message == ""
+    ok, message = api_executor._assert(
+        {"operator": "expression", "expression": "__import__('os').getcwd()"},
+        resp,
+        {"user": {"id": 7}},
+        duration_ms=10,
+    )
+    assert ok is False and ("不允许" in message or "无效" in message)
+
+
 def test_api_render_and_jsonpath_edges():
     assert api_executor._render("{{a}}-{{b}}", {"a": 1, "b": "x"}) == "1-x"
     assert api_executor._jsonpath_extract({"a": [1, 2]}, "$.a[1]") == 2
     assert api_executor._jsonpath_extract({}, "$.missing") is None
     assert api_executor._jsonpath_extract({}, "((bad") is None
+
+
+def test_api_executor_supports_cookies_multipart_and_xml(fake_http, monkeypatch, healing_recorder):
+    _events_recorder(monkeypatch, api_executor)
+    monkeypatch.setattr(api_executor, "read_bytes", lambda object_name: b"file-content")
+    fake_http.script = [_FakeResponse(200, None, text="<root><id>u-1</id></root>")]
+    run = _run_stub()
+    case = _Obj(
+        config={
+            "steps": [
+                {
+                    "url": "https://api.example.com/upload/{{id}}",
+                    "method": "POST",
+                    "cookies": {"session": "{{session}}"},
+                    "body_type": "multipart",
+                    "multipart": [
+                        {"name": "title", "type": "text", "value": "hello"},
+                        {
+                            "name": "attachment",
+                            "type": "file",
+                            "filename": "a.txt",
+                            "object_name": "api-files/projects/1/a.txt",
+                            "content_type": "text/plain",
+                        },
+                    ],
+                    "extractions": [{"variable": "user_id", "type": "xpath", "expression": "//id"}],
+                }
+            ]
+        }
+    )
+
+    db = _FakeDB()
+    asyncio.run(api_executor.run_api_case(db, run, case, {"id": "u-1", "session": "sid"}))
+
+    request = fake_http.requests[0]
+    assert request["cookies"] == {"session": "sid"}
+    assert request["data"] == {"title": "hello"}
+    assert request["files"][0][0] == "attachment"
+    assert request["files"][0][1][0:2] == ("a.txt", b"file-content")
+    assert db.added[0].request_data["body"][1]["object_name"] == "api-files/projects/1/a.txt"
+    assert run.status is RunStatus.passed
+
+
+def test_api_xpath_and_json_schema_assertions():
+    xml_response = _FakeResponse(200, None, text="<root><user id='u-1'><name>Amy</name></user></root>")
+    assert api_executor._xpath_extract(xml_response.text, "//user/name") == "Amy"
+    assert api_executor._xpath_extract(xml_response.text, "//user/@id") == "u-1"
+
+    schema = {"type": "object", "required": ["id"], "properties": {"id": {"type": "integer"}}}
+    ok, message = api_executor._assert(
+        {"target": "json_schema", "operator": "valid", "expected": schema},
+        _FakeResponse(200, {"id": 1}),
+        {"id": 1},
+        3,
+    )
+    assert ok is True and message == ""
+
+    ok, message = api_executor._assert(
+        {"target": "json_schema", "operator": "valid", "expected": schema},
+        _FakeResponse(200, {"id": "wrong"}),
+        {"id": "wrong"},
+        3,
+    )
+    assert ok is False
+    assert "JSON Schema" in message
+
+
+def test_api_executor_consumes_sse_events_and_applies_assertions(fake_http, monkeypatch, healing_recorder):
+    _events_recorder(monkeypatch, api_executor)
+    fake_http.script = [
+        _FakeResponse(
+            200,
+            None,
+            headers={"content-type": "text/event-stream"},
+            sse_lines=["event: ready", 'data: {"ok":true}', "", "data: done", ""],
+        )
+    ]
+    run = _run_stub()
+    case = _Obj(
+        config={
+            "steps": [
+                {
+                    "url": "https://api.example.com/events",
+                    "response_type": "sse",
+                    "sse_max_events": 2,
+                    "assertions": [
+                        {"target": "body", "operator": "contains", "expected": "done", "expression": "$[1].data"}
+                    ],
+                }
+            ]
+        }
+    )
+
+    asyncio.run(api_executor.run_api_case(_FakeDB(), run, case, {}))
+
+    assert run.status is RunStatus.passed
+    assert fake_http.requests[0]["url"] == "https://api.example.com/events"
+
+
+def test_api_executor_runs_safe_pre_and_post_actions(fake_http, monkeypatch, healing_recorder):
+    _events_recorder(monkeypatch, api_executor)
+    fake_http.script = [_FakeResponse(200, {"token": "tok-2"}), _FakeResponse(200, {"ok": True})]
+    case = _Obj(
+        config={
+            "steps": [
+                {
+                    "name": "prepare",
+                    "url": "https://api.example.com/users/{{request_id}}",
+                    "pre_actions": [{"action": "set_variable", "variable": "request_id", "value": "u-2"}],
+                    "post_actions": [{"action": "extract", "variable": "token", "expression": "$.token"}],
+                },
+                {
+                    "name": "call",
+                    "url": "https://api.example.com/me",
+                    "headers": {"Authorization": "Bearer {{token}}"},
+                },
+            ]
+        }
+    )
+
+    asyncio.run(api_executor.run_api_case(_FakeDB(), _run_stub(), case, {}))
+
+    assert fake_http.requests[0]["url"].endswith("/users/u-2")
+    assert fake_http.requests[1]["headers"]["Authorization"] == "Bearer tok-2"
 
 
 # ── graphql_executor ───────────────────────────────────────

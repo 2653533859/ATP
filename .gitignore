@@ -17,6 +17,7 @@ frontend/dist/
 .local-run/
 .env.windows-wsl-backup
 frontend/preview*.log
+jmeter.log
 frontend/dist-check/
 frontend/playwright-report/
 frontend/test-results/

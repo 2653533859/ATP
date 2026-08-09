@@ -375,6 +375,7 @@ function caseTypeColor(type: CaseType) {
     grpc: 'red',
     web: 'purple',
     android: 'green',
+    ios: 'blue',
   }[type] ?? 'default'
 }
 

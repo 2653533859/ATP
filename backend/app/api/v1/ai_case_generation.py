@@ -20,6 +20,8 @@ from app.models.user_project import ProjectRole
 from app.core.database import get_db
 from app.models.ai_llm_config import AILLMConfig
 from app.models.audit import AuditLog
+from app.models.dataset import TestDataset, TestDatasetVersion
+from app.models.mock import MockRule
 from app.models.project import Module, Project
 from app.models.user import User
 from app.schemas.ai_case import (
@@ -31,6 +33,7 @@ from app.schemas.ai_case import (
 )
 from app.services.audit import write_audit_log
 from app.services.ai_case.funnel import AICaseFunnelEvent, build_funnel_stats
+from app.services.ai_case.context import build_dataset_context, build_mock_rule_context
 from app.services.ai_case.generator import generate_case_drafts
 from app.services.ai_case.parsers import parse_schema
 
@@ -65,7 +68,11 @@ async def parse_schema_endpoint(
     user: User = Depends(require_engineer),
 ):
     try:
-        result = parse_schema(body.source_type, body.content)
+        result = parse_schema(
+            body.source_type,
+            body.content,
+            external_ref_policy=body.external_ref_policy,
+        )
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:  # noqa: BLE001
@@ -99,6 +106,40 @@ async def generate_cases_endpoint(
     if not config.enabled:
         raise HTTPException(status_code=400, detail="AI 配置已禁用")
 
+    if body.dataset_version is not None and body.dataset_id is None:
+        raise HTTPException(status_code=400, detail="数据集版本必须依赖数据集")
+
+    dataset_context = None
+    if body.dataset_id is not None:
+        dataset = await db.get(TestDataset, body.dataset_id)
+        if not dataset:
+            raise HTTPException(status_code=404, detail="测试数据集不存在")
+        if dataset.project_id != body.project_id:
+            raise HTTPException(status_code=400, detail="测试数据集不属于当前项目")
+        dataset_snapshot = None
+        if body.dataset_version is not None:
+            version_result = await db.execute(
+                select(TestDatasetVersion)
+                .where(
+                    TestDatasetVersion.dataset_id == body.dataset_id,
+                    TestDatasetVersion.version == body.dataset_version,
+                )
+                .limit(1)
+            )
+            dataset_snapshot = version_result.scalar_one_or_none()
+            if dataset_snapshot is None:
+                raise HTTPException(status_code=404, detail="娴嬭瘯鏁版嵁闆嗙増鏈湭鎵惧埌")
+        dataset_context = build_dataset_context(dataset, snapshot=dataset_snapshot)
+
+    mock_context = []
+    for mock_rule_id in dict.fromkeys(body.mock_rule_ids):
+        mock_rule = await db.get(MockRule, mock_rule_id)
+        if not mock_rule:
+            raise HTTPException(status_code=404, detail=f"Mock 规则不存在: {mock_rule_id}")
+        if mock_rule.project_id != body.project_id:
+            raise HTTPException(status_code=400, detail=f"Mock 规则不属于当前项目: {mock_rule_id}")
+        mock_context.append(build_mock_rule_context(mock_rule))
+
     endpoints_payload = [e.model_dump() if hasattr(e, "model_dump") else dict(e) for e in body.endpoints]
 
     try:
@@ -110,6 +151,10 @@ async def generate_cases_endpoint(
             priority=body.priority,
             case_level=body.case_level,
             max_cases=body.max_cases,
+            dataset_context=dataset_context,
+            mock_context=mock_context,
+            dataset_id=body.dataset_id,
+            dataset_version=body.dataset_version,
         )
     except httpx.HTTPStatusError as exc:
         await _record_generation_event(db, user, body, action="ai_case_generate_failed", error_type="http_status")
@@ -160,6 +205,10 @@ async def _record_generation_event(
         "case_type": body.case_type.value if hasattr(body.case_type, "value") else str(body.case_type),
         "draft_count": draft_count,
         "warning_count": warning_count,
+        "dataset_id": body.dataset_id,
+        "dataset_version": body.dataset_version,
+        "mock_rule_count": len(body.mock_rule_ids),
+        "mock_rule_ids": list(dict.fromkeys(body.mock_rule_ids)),
     }
     if error_type:
         detail["error_type"] = error_type

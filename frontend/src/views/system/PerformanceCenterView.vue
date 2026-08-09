@@ -143,7 +143,12 @@
       </div>
     </div>
 
-    <div class="section-title">{{ t('performance.runs_title') }}</div>
+    <div class="section-toolbar">
+      <div class="section-title">{{ t('performance.runs_title') }}</div>
+      <a-button size="small" :disabled="selectedRunIds.length === 0 || !projectId" @click="capacityOpen = true">
+        {{ t('performance.capacity_analyze') }} ({{ selectedRunIds.length }})
+      </a-button>
+    </div>
     <a-table
       :columns="runColumns"
       :data-source="runs"
@@ -456,9 +461,10 @@
         </a-form-item>
         <a-form-item :label="t('performance.node')">
           <a-select
-            v-model:value="runForm.performance_node_id"
+            v-model:value="runForm.performance_node_ids"
             :options="nodeOptions"
             allow-clear
+            mode="multiple"
             show-search
             option-filter-prop="label"
             :placeholder="t('performance.no_node')"
@@ -476,6 +482,40 @@
           <a-textarea v-model:value="runForm.optionsText" class="mono" :rows="8" />
         </a-form-item>
       </a-form>
+    </a-modal>
+
+    <a-modal
+      v-model:open="capacityOpen"
+      :title="t('performance.capacity_title')"
+      :ok-text="t('performance.capacity_analyze')"
+      :cancel-text="t('common.cancel')"
+      :confirm-loading="capacityLoading"
+      @ok="analyzeCapacity"
+    >
+      <a-alert
+        type="info"
+        show-icon
+        :message="t('performance.capacity_hint', { count: selectedRunIds.length })"
+        style="margin-bottom: 16px"
+      />
+      <a-form layout="vertical">
+        <a-form-item :label="t('performance.capacity_error_rate')">
+          <a-input-number v-model:value="capacityForm.max_error_rate_percent" :min="0" :max="100" :step="0.1" style="width: 100%" />
+        </a-form-item>
+        <a-form-item :label="t('performance.capacity_p95')">
+          <a-input-number v-model:value="capacityForm.max_p95_ms" :min="0" allow-clear style="width: 100%" />
+        </a-form-item>
+        <a-form-item :label="t('performance.capacity_min_stable')">
+          <a-input-number v-model:value="capacityForm.min_stable_runs" :min="1" :max="selectedRunIds.length || 1" style="width: 100%" />
+        </a-form-item>
+      </a-form>
+      <a-alert
+        v-if="capacityResult"
+        :type="capacityResult.status === 'ready' ? 'success' : 'warning'"
+        show-icon
+        :message="t('performance.capacity_result', { load: capacityResult.max_stable_load ?? '-' })"
+        :description="t('performance.capacity_bottleneck', { value: capacityResult.bottleneck || t('performance.capacity_none') })"
+      />
     </a-modal>
 
     <a-modal
@@ -664,6 +704,7 @@ import {
   type DatasetListItem,
   type EnvironmentItem,
   type PerformanceBaselineComparisonItem,
+  type PerformanceCapacityAnalysis,
   type PerformanceMetricSampleItem,
   type PerformanceNodeItem,
   type PerformanceExecutorItem,
@@ -706,6 +747,9 @@ const editorOpen = ref(false)
 const runOpen = ref(false)
 const detailOpen = ref(false)
 const scheduleOpen = ref(false)
+const capacityOpen = ref(false)
+const capacityLoading = ref(false)
+const capacityResult = ref<PerformanceCapacityAnalysis | null>(null)
 const triggering = ref(false)
 const scheduleSaving = ref(false)
 const stoppingRunId = ref<number | null>(null)
@@ -719,6 +763,7 @@ const metricSamples = ref<PerformanceMetricSampleItem[]>([])
 const resourceMetric = ref('cpu_percent')
 const scheduleTarget = ref<PerformanceTestItem | null>(null)
 const selectedRunIds = ref<number[]>([])
+const capacityForm = ref({ max_error_rate_percent: 1, max_p95_ms: undefined as number | undefined, min_stable_runs: 1 })
 let runPollingTimer: ReturnType<typeof window.setInterval> | null = null
 
 type PerformanceCreationMode = 'visual' | 'script'
@@ -752,7 +797,7 @@ const authTypeOptions = computed(() => [
 
 const testForm = ref<{
   mode: PerformanceCreationMode
-  executor: 'k6' | 'locust' | 'grpc'
+  executor: 'k6' | 'locust' | 'grpc' | 'jmeter'
   name: string
   description: string
   script_object_name: string
@@ -773,9 +818,9 @@ const testForm = ref<{
 const selectedExecutor = computed(() => executors.value.find((item) => item.name === testForm.value.executor))
 const scriptAccept = computed(() => (selectedExecutor.value?.script_extensions || ['.js', '.mjs']).join(','))
 
-const runForm = ref<{ environment_id?: number; performance_node_id?: number; optionsText: string }>({
+const runForm = ref<{ environment_id?: number; performance_node_ids: number[]; optionsText: string }>({
   environment_id: undefined,
-  performance_node_id: undefined,
+  performance_node_ids: [],
   optionsText: '{}',
 })
 
@@ -1064,7 +1109,13 @@ function openEdit(record: PerformanceTestItem) {
   editing.value = record
   const scenarioValue = record.default_options?.atp_scenario
   const visual = isPerformanceScenario(scenarioValue)
-  const executor = record.executor === 'locust' ? 'locust' : record.executor === 'grpc' ? 'grpc' : 'k6'
+  const executor = record.executor === 'locust'
+    ? 'locust'
+    : record.executor === 'grpc'
+      ? 'grpc'
+      : record.executor === 'jmeter'
+        ? 'jmeter'
+        : 'k6'
   testForm.value = {
     mode: visual && executor === 'k6' ? 'visual' : 'script',
     executor,
@@ -1317,7 +1368,7 @@ async function uploadScript(file: File) {
 
 function openRun(record: PerformanceTestItem) {
   runTarget.value = record
-  runForm.value = { environment_id: undefined, performance_node_id: undefined, optionsText: '{}' }
+  runForm.value = { environment_id: undefined, performance_node_ids: [], optionsText: '{}' }
   runOpen.value = true
 }
 
@@ -1329,7 +1380,7 @@ async function triggerRun() {
   try {
     const run = await performanceApi.triggerRun(runTarget.value.id, {
       environment_id: runForm.value.environment_id ?? null,
-      performance_node_id: runForm.value.performance_node_id ?? null,
+      performance_node_ids: runForm.value.performance_node_ids,
       options,
     })
     runOpen.value = false
@@ -1339,6 +1390,26 @@ async function triggerRun() {
     message.error(t('performance.msg.run_failed'))
   } finally {
     triggering.value = false
+  }
+}
+
+async function analyzeCapacity() {
+  if (!projectId.value || selectedRunIds.value.length === 0) {
+    message.warning(t('performance.msg.capacity_select_runs'))
+    return
+  }
+  capacityLoading.value = true
+  try {
+    capacityResult.value = await performanceApi.analyzeCapacity(projectId.value, {
+      run_ids: selectedRunIds.value,
+      max_error_rate: capacityForm.value.max_error_rate_percent / 100,
+      max_p95_ms: capacityForm.value.max_p95_ms ?? null,
+      min_stable_runs: capacityForm.value.min_stable_runs,
+    })
+  } catch {
+    message.error(t('performance.msg.capacity_failed'))
+  } finally {
+    capacityLoading.value = false
   }
 }
 

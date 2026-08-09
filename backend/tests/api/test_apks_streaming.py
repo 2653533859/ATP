@@ -9,13 +9,12 @@ from fastapi import HTTPException
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
-sys.modules["app.core.minio_client"] = types.SimpleNamespace(
-    ensure_bucket=lambda: None,
-    upload_bytes=lambda *args, **kwargs: None,
-    upload_file=lambda *args, **kwargs: None,
-    presigned_url=lambda *args, **kwargs: "",
-    delete_file=lambda *args, **kwargs: None,
-)
+_minio = sys.modules.setdefault("app.core.minio_client", types.SimpleNamespace())
+_minio.ensure_bucket = lambda: None
+_minio.upload_bytes = lambda *args, **kwargs: None
+_minio.upload_file = lambda *args, **kwargs: None
+_minio.presigned_url = lambda *args, **kwargs: ""
+_minio.delete_file = lambda *args, **kwargs: None
 
 
 def _p3c_noop(*_a, **_kw):

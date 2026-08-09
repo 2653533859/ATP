@@ -4,10 +4,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-sys.modules["app.core.minio_client"] = types.SimpleNamespace(
-    list_objects=lambda prefix: [],
-    delete_file=lambda object_name: None,
-)
+_minio = sys.modules.setdefault("app.core.minio_client", types.SimpleNamespace())
+_minio.list_objects = lambda prefix: []
+_minio.delete_file = lambda object_name: None
 
 from app.models.bootstrap import load_all_models
 from app.services import run_retention

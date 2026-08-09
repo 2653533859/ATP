@@ -39,6 +39,7 @@ sys.modules["app.api.v1.statistics"] = types.SimpleNamespace(invalidate_stats_ca
 from app.api.v1 import cases
 from app.models.bootstrap import load_all_models
 from app.models.case import CaseStatus, CaseStep, CaseType, TestCase
+from app.models.dataset import TestDataset, TestDatasetVersion
 from app.schemas.case import TestCaseCreate, TestCaseUpdate
 
 
@@ -89,6 +90,8 @@ def _make_case() -> TestCase:
 class _CreateDB:
     def __init__(self):
         self.case = None
+        self.dataset = None
+        self.dataset_version = None
         self.added = []
         self.commit_calls = 0
 
@@ -111,6 +114,14 @@ class _CreateDB:
 
     async def refresh(self, _obj):
         return None
+
+    async def get(self, model, pk):
+        if model is TestDataset and self.dataset is not None and pk == self.dataset.id:
+            return self.dataset
+        return None
+
+    async def execute(self, _statement):
+        return types.SimpleNamespace(scalar_one_or_none=lambda: self.dataset_version)
 
 
 class _StatementDB:
@@ -295,6 +306,77 @@ def test_create_case_invalidates_stats_cache(monkeypatch):
 
     assert invalidated == [True]
     assert db.commit_calls == 2
+
+
+def test_create_case_persists_dataset_and_immutable_version(monkeypatch):
+    load_all_models()
+    db = _CreateDB()
+    db.dataset = TestDataset(
+        id=10,
+        name="accounts",
+        project_id=1,
+        format="json",
+        rows=[{"username": "alice"}],
+        schema_fields=[],
+        validation_policy="soft",
+        creator_id=9,
+    )
+    db.dataset_version = TestDatasetVersion(
+        id=101,
+        dataset_id=10,
+        version=3,
+        format="json",
+        rows=[{"username": "alice"}],
+        schema_fields=[],
+        validation_policy="soft",
+        change_type="manual",
+        created_by=9,
+    )
+    current_user = types.SimpleNamespace(id=9, username="tester")
+    module = types.SimpleNamespace(
+        id=2,
+        name="Login",
+        module_code="LOGIN",
+        project=types.SimpleNamespace(id=1, name="ATP", project_code="ATP"),
+        project_id=1,
+    )
+
+    async def fake_module_loader(_db, module_id):
+        assert module_id == 2
+        return module
+
+    async def fake_case_code(_db, _module, case_type):
+        assert case_type == CaseType.api
+        return "ATP-LOGIN-API-0010"
+
+    async def fake_detail_loader(_db, case_id):
+        assert case_id == 101
+        return db.case
+
+    monkeypatch.setattr(cases, "_get_module_for_case_code", fake_module_loader)
+    monkeypatch.setattr(cases, "_generate_case_code", fake_case_code)
+    monkeypatch.setattr(cases, "_get_case_detail_or_404", fake_detail_loader)
+    monkeypatch.setattr(cases, "write_audit_log", lambda *_args, **_kwargs: asyncio.sleep(0))
+
+    result = asyncio.run(
+        cases.create_case(
+            body=TestCaseCreate(
+                name="AI Login API",
+                case_type=CaseType.api,
+                module_id=2,
+                dataset_id=10,
+                dataset_version=3,
+                config={"_ai_generated": True},
+            ),
+            db=db,
+            current_user=current_user,
+        )
+    )
+
+    assert result.dataset_id == 10
+    assert result.dataset_version == 3
+    assert db.case.dataset_id == 10
+    assert db.case.dataset_version == 3
 
 
 def test_list_cases_supports_management_filters():

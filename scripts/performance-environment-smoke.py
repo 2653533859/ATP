@@ -454,7 +454,20 @@ def check_kubernetes(
     k6_output = run([*exec_prefix, "--", "k6", "version"])
     if "k6" not in k6_output.lower():
         raise SmokeError("Worker 容器未确认 k6 可执行文件")
-    report.passed("kubernetes-worker-image", "Worker 容器包含 grpcio、grpcio-tools、Locust 和 k6")
+    jmeter_output = run([*exec_prefix, "--", "jmeter", "--version"])
+    if "jmeter" not in jmeter_output.lower():
+        raise SmokeError("Worker 容器未确认 JMeter 可执行文件")
+    browser_code = (
+        "from playwright.sync_api import sync_playwright; "
+        "p=sync_playwright().start(); "
+        "print('chromium='+p.chromium.executable_path); "
+        "print('firefox='+p.firefox.executable_path); "
+        "print('webkit='+p.webkit.executable_path); p.stop()"
+    )
+    browser_output = run([*exec_prefix, "--", "python", "-c", browser_code])
+    if not all(f"{name}=" in browser_output for name in ("chromium", "firefox", "webkit")):
+        raise SmokeError("Worker 容器未确认 Chromium/Firefox/WebKit 浏览器")
+    report.passed("kubernetes-worker-image", "Worker 容器包含 grpcio、Locust、k6、JMeter 和 Chromium/Firefox/WebKit")
 
 
 def check_docker_worker(
@@ -490,6 +503,19 @@ def check_docker_worker(
         k6_output = run([*exec_prefix, "k6", "version"])
         if "k6" not in k6_output.lower():
             raise SmokeError(f"{label} 未确认 k6 可执行文件")
+        jmeter_output = run([*exec_prefix, "jmeter", "--version"])
+        if "jmeter" not in jmeter_output.lower():
+            raise SmokeError(f"{label} 未确认 JMeter 可执行文件")
+        browser_code = (
+            "from playwright.sync_api import sync_playwright; "
+            "p=sync_playwright().start(); "
+            "print('chromium='+p.chromium.executable_path); "
+            "print('firefox='+p.firefox.executable_path); "
+            "print('webkit='+p.webkit.executable_path); p.stop()"
+        )
+        browser_output = run([*exec_prefix, "python", "-c", browser_code])
+        if not all(f"{name}=" in browser_output for name in ("chromium", "firefox", "webkit")):
+            raise SmokeError(f"{label} 未确认 Chromium/Firefox/WebKit 浏览器")
 
     if container:
         try:
@@ -504,7 +530,9 @@ def check_docker_worker(
             raise SmokeError(f"Docker Worker 容器 {container} 状态为 {status}")
         report.passed("docker-worker", f"容器 {container} 正在运行")
         verify_runtime(["exec", container], f"容器 {container}")
-        report.passed("docker-worker-image", f"容器 {container} 包含 grpcio、grpcio-tools、Locust 和 k6")
+        report.passed(
+            "docker-worker-image", f"容器 {container} 包含 grpcio、Locust、k6、JMeter 和 Chromium/Firefox/WebKit"
+        )
 
     if image:
         try:
@@ -519,7 +547,22 @@ def check_docker_worker(
         k6_output = run(["run", "--rm", "--entrypoint", "k6", image, "version"])
         if "k6" not in k6_output.lower():
             raise SmokeError(f"镜像 {image} 未确认 k6 可执行文件")
-        report.passed("docker-image-dependencies", f"镜像 {image} 包含 grpcio、grpcio-tools、Locust 和 k6")
+        jmeter_output = run(["run", "--rm", "--entrypoint", "jmeter", image, "--version"])
+        if "jmeter" not in jmeter_output.lower():
+            raise SmokeError(f"镜像 {image} 未确认 JMeter 可执行文件")
+        browser_code = (
+            "from playwright.sync_api import sync_playwright; "
+            "p=sync_playwright().start(); "
+            "print('chromium='+p.chromium.executable_path); "
+            "print('firefox='+p.firefox.executable_path); "
+            "print('webkit='+p.webkit.executable_path); p.stop()"
+        )
+        browser_output = run(["run", "--rm", "--entrypoint", "python", image, "-c", browser_code])
+        if not all(f"{name}=" in browser_output for name in ("chromium", "firefox", "webkit")):
+            raise SmokeError(f"镜像 {image} 未确认 Chromium/Firefox/WebKit 浏览器")
+        report.passed(
+            "docker-image-dependencies", f"镜像 {image} 包含 grpcio、Locust、k6、JMeter 和 Chromium/Firefox/WebKit"
+        )
 
 
 def run_real_test(
@@ -611,7 +654,7 @@ def _run_check(report: CheckReport, name: str, callback: Callable[[], None]) -> 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--api-base-url", help="ATP API 根地址，例如 https://atp.example.test")
-    parser.add_argument("--expected-executors", default="k6,locust,grpc", help="逗号分隔的必需执行器")
+    parser.add_argument("--expected-executors", default="k6,locust,grpc,jmeter", help="逗号分隔的必需执行器")
     parser.add_argument("--node-id", help="性能节点的稳定 node_id，例如 worker-a")
     parser.add_argument("--expected-queue", help="要求节点登记的 Celery 队列名称")
     parser.add_argument("--target", help="目标 host:port 或 grpc(s)://host:port")
@@ -624,11 +667,15 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--kube-context", help="Kubernetes context")
     parser.add_argument("--pod-selector", help="可选 Pod selector；默认从 Deployment 推导")
     parser.add_argument("--container", help="Worker Pod 容器名称")
-    parser.add_argument("--verify-worker-image", action="store_true", help="kubectl exec 检查 grpc/Locust/k6 依赖")
+    parser.add_argument(
+        "--verify-worker-image",
+        action="store_true",
+        help="kubectl exec 检查 grpc/Locust/k6/JMeter 和 Chromium/Firefox/WebKit 依赖",
+    )
     parser.add_argument("--docker-container", help="Linux Docker Worker 容器名称")
     parser.add_argument("--docker-image", help="待验收的 Worker 镜像名称")
     parser.add_argument("--smoke-test-id", type=int, help="已有的真实性能测试定义 ID；显式传入才会产生压测流量")
-    parser.add_argument("--smoke-executor", choices=("k6", "locust", "grpc"), help="限制 smoke 测试执行器")
+    parser.add_argument("--smoke-executor", choices=("k6", "locust", "grpc", "jmeter"), help="限制 smoke 测试执行器")
     parser.add_argument("--cancel-test-id", type=int, help="已有的长时性能测试定义 ID，用于真实取消验收")
     parser.add_argument("--cancel-after-seconds", type=float, default=2.0)
     parser.add_argument("--timeout-seconds", type=float, default=300.0)

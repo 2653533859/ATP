@@ -68,6 +68,9 @@
         </template>
         <template v-else-if="column.key === 'actions'">
           <a-space>
+            <a-button size="small" type="primary" ghost @click="openAIGeneration(asDataset(record))">
+              <ThunderboltOutlined />{{ t('dataset.ai_generate') }}
+            </a-button>
             <a-button size="small" @click="openEdit(asDataset(record))">{{ t('common.edit') }}</a-button>
             <a-button size="small" @click="openImpact(asDataset(record))">{{ t('dataset.impact') }}</a-button>
             <a-button size="small" @click="openVersions(asDataset(record))">{{ t('dataset.versions') }}</a-button>
@@ -340,7 +343,9 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
+import { ThunderboltOutlined } from '@ant-design/icons-vue'
 import { datasetApi, projectApi, type DatasetDetail, type DatasetImpact, type DatasetImpactItem, type DatasetListItem, type DatasetFormat, type DatasetSchemaField, type DatasetSchemaFieldType, type DatasetValidationPolicy, type DatasetValidationResult, type DatasetVersionItem, type ProjectItem } from '@/api'
+import { buildCasesQuery } from '@/utils/caseNavigation'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asDataset = (record: unknown) => record as DatasetListItem
 const asImpact = (record: unknown) => record as ImpactRow
@@ -397,7 +402,7 @@ const columns = computed(() => [
   { title: t('dataset.row_count'), dataIndex: 'row_count', key: 'row_count', width: 120 },
   { title: t('dataset.schema_field_count'), dataIndex: 'schema_field_count', key: 'schema_field_count', width: 120 },
   { title: t('dataset.updated_at'), dataIndex: 'updated_at', key: 'updated_at', width: 180 },
-  { title: t('common.actions'), key: 'actions', width: 360 },
+  { title: t('common.actions'), key: 'actions', width: 440 },
 ])
 
 const filteredDatasets = computed(() => {
@@ -536,6 +541,23 @@ function openCreate() {
   rowsText.value = '[]'
   rowsTextError.value = ''
   editorOpen.value = true
+}
+
+async function openAIGeneration(dataset: DatasetListItem) {
+  try {
+    const versions = await datasetApi.listVersions(dataset.id)
+    await router.push({
+      name: 'cases',
+      query: buildCasesQuery({
+        projectId: dataset.project_id,
+        aiGenerate: true,
+        aiDatasetId: dataset.id,
+        aiDatasetVersion: versions[0]?.version ?? null,
+      }),
+    })
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('dataset.load_failed')))
+  }
 }
 
 function schemaFieldToForm(field: DatasetSchemaField): SchemaFieldForm {

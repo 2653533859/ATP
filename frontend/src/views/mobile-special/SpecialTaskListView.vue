@@ -111,6 +111,32 @@
           <a-input v-model:value="form.app_package" :placeholder="t('mobile_special.form.app_package_placeholder')" />
         </a-form-item>
 
+        <a-divider>{{ t('mobile_special.form.standard_setup') }}</a-divider>
+
+        <a-form-item :label="t('mobile_special.form.install_apk')">
+          <a-switch v-model:checked="form.config_install_apk" />
+        </a-form-item>
+
+        <a-form-item :label="t('mobile_special.form.uninstall_before')">
+          <a-switch v-model:checked="form.config_uninstall_before" />
+        </a-form-item>
+
+        <a-form-item :label="t('mobile_special.form.clear_data_before')">
+          <a-switch v-model:checked="form.config_clear_data_before" />
+        </a-form-item>
+
+        <a-form-item :label="t('mobile_special.form.uninstall_after')">
+          <a-switch v-model:checked="form.config_uninstall_after" />
+        </a-form-item>
+
+        <a-form-item :label="t('mobile_special.form.launch_before')">
+          <a-switch v-model:checked="form.config_launch_before" />
+        </a-form-item>
+
+        <a-form-item v-if="form.config_launch_before" :label="t('mobile_special.form.launch_activity')">
+          <a-input v-model:value="form.config_launch_activity" :placeholder="t('mobile_special.form.launch_activity_placeholder')" />
+        </a-form-item>
+
         <a-divider>{{ t('mobile_special.form.execution_config') }}</a-divider>
 
         <a-form-item :label="t('mobile_special.form.sample_interval')">
@@ -202,6 +228,12 @@ type TaskForm = {
   config_interval: number
   config_duration: number
   config_auto_start: boolean
+  config_install_apk: boolean
+  config_uninstall_before: boolean
+  config_clear_data_before: boolean
+  config_uninstall_after: boolean
+  config_launch_before: boolean
+  config_launch_activity: string
   config_operation_interval: number
   config_stages: string
 }
@@ -269,6 +301,12 @@ const form = ref<TaskForm>({
   config_interval: 5,
   config_duration: 300,
   config_auto_start: true,
+  config_install_apk: false,
+  config_uninstall_before: false,
+  config_clear_data_before: false,
+  config_uninstall_after: false,
+  config_launch_before: false,
+  config_launch_activity: '.MainActivity',
   config_operation_interval: 500,
   config_stages: '',
 })
@@ -358,6 +396,12 @@ function openCreate() {
     config_interval: 5,
     config_duration: 300,
     config_auto_start: true,
+    config_install_apk: false,
+    config_uninstall_before: false,
+    config_clear_data_before: false,
+    config_uninstall_after: false,
+    config_launch_before: false,
+    config_launch_activity: '.MainActivity',
     config_operation_interval: 500,
     config_stages: '',
   }
@@ -381,6 +425,12 @@ function openEdit(task: MobileSpecialTaskItem) {
     config_interval: (config.interval_seconds as number) || 5,
     config_duration: (config.duration_seconds as number) || 300,
     config_auto_start: config.auto_start !== false,
+    config_install_apk: config.install_apk === true || config.install_before === true,
+    config_uninstall_before: config.uninstall_before === true,
+    config_clear_data_before: config.clear_data_before === true,
+    config_uninstall_after: config.uninstall_after === true,
+    config_launch_before: config.launch_before === true,
+    config_launch_activity: (config.launch_activity as string) || '.MainActivity',
     config_operation_interval: (config.operation_interval_ms as number) || 500,
     config_stages: config.stages ? JSON.stringify(config.stages, null, 2) : '',
   }
@@ -431,6 +481,12 @@ async function handleSave() {
         interval_seconds: form.value.config_interval,
         duration_seconds: form.value.config_duration,
         auto_start: form.value.config_auto_start,
+        install_apk: form.value.config_install_apk,
+        uninstall_before: form.value.config_uninstall_before,
+        clear_data_before: form.value.config_clear_data_before,
+        uninstall_after: form.value.config_uninstall_after,
+        launch_before: form.value.config_launch_before,
+        launch_activity: form.value.config_launch_activity.trim() || '.MainActivity',
         operation_interval_ms: form.value.config_operation_interval,
         stages,
       },

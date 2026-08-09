@@ -227,6 +227,8 @@ def _serialize_case_for_zip(case: TestCase) -> dict:
         "preconditions": list(case.preconditions or []),
         "postconditions": list(case.postconditions or []),
         "config": case.config or {},
+        "dataset_id": case.dataset_id,
+        "dataset_version": getattr(case, "dataset_version", None),
         "steps": _cases._serialize_steps(case.steps or []),
         "source_module_id": case.module_id,
     }

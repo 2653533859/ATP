@@ -275,9 +275,15 @@ def test_docker_worker_check_validates_running_container_and_runtime_dependencie
         if command[1:3] == ["inspect", "worker-a"]:
             return _Result('[{"State":{"Status":"running"}}]')
         if command[1:3] == ["exec", "worker-a"] and "python" in command:
+            if any("sync_playwright" in item for item in command):
+                return _Result(
+                    "chromium=/ms-playwright/chromium/firefox=/ms-playwright/firefox/webkit=/ms-playwright/webkit"
+                )
             return _Result("python-dependencies-ok")
         if command[1:3] == ["exec", "worker-a"] and "k6" in command:
             return _Result("k6 v2.1.0")
+        if command[1:3] == ["exec", "worker-a"] and "jmeter" in command:
+            return _Result("Apache JMeter 5.6.3")
         raise AssertionError(command)
 
     monkeypatch.setattr(smoke.subprocess, "run", fake_run)
@@ -287,3 +293,13 @@ def test_docker_worker_check_validates_running_container_and_runtime_dependencie
 
     assert not report.has_failures
     assert any(command[1:3] == ["exec", "worker-a"] for command in commands)
+
+
+def test_jmeter_smoke_fixture_is_local_and_credential_free():
+    fixture = (ROOT / "deploy" / "performance-acceptance" / "jmeter_smoke.jmx").read_text(encoding="utf-8")
+
+    assert '<jmeterTestPlan version="1.2"' in fixture
+    assert '<stringProp name="HTTPSampler.domain">127.0.0.1</stringProp>' in fixture
+    assert '<stringProp name="HTTPSampler.path">/login</stringProp>' in fixture
+    assert "password" not in fixture.lower()
+    assert "username" not in fixture.lower()

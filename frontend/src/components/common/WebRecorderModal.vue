@@ -15,6 +15,13 @@
           @press-enter="startRecording"
         />
       </a-form-item>
+      <a-form-item :label="t('case.drawer.browser')">
+        <a-select v-model:value="browser" :disabled="active || starting" style="width: 180px">
+          <a-select-option value="chromium">Chromium</a-select-option>
+          <a-select-option value="firefox">Firefox</a-select-option>
+          <a-select-option value="webkit">WebKit</a-select-option>
+        </a-select>
+      </a-form-item>
     </a-form>
 
     <a-alert
@@ -69,6 +76,7 @@ import { webRecordingApi, type WebRecordingStatus, type WebRecordingStep } from 
 const props = defineProps<{
   open: boolean
   initialUrl?: string
+  projectId?: number | null
 }>()
 const emit = defineEmits<{
   close: []
@@ -77,6 +85,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const startUrl = ref('')
+const browser = ref<'chromium' | 'firefox' | 'webkit'>('chromium')
 const recordingId = ref<string | null>(null)
 const status = ref<WebRecordingStatus>('stopped')
 const steps = ref<WebRecordingStep[]>([])
@@ -90,6 +99,7 @@ const active = computed(() => status.value === 'starting' || status.value === 'r
 function reset() {
   clearPoll()
   startUrl.value = props.initialUrl ?? ''
+  browser.value = 'chromium'
   recordingId.value = null
   status.value = 'stopped'
   steps.value = []
@@ -118,7 +128,11 @@ async function startRecording() {
   error.value = ''
   steps.value = []
   try {
-    const result = await webRecordingApi.start({ start_url: startUrl.value.trim() })
+    const result = await webRecordingApi.start({
+      start_url: startUrl.value.trim(),
+      project_id: props.projectId ?? null,
+      browser: browser.value,
+    })
     recordingId.value = result.id
     status.value = result.status
     steps.value = result.steps ?? []
