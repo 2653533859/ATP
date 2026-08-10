@@ -4,7 +4,7 @@
 
 > 版本：2026-08-10
 > 目标：在现有 API、Web、Android 和性能测试基础上，补齐可持续使用的企业级测试能力。
-> 当前状态：API P0 主链、Web 多浏览器/诊断主链、Android 设备租约主链、iOS/Appium 本地执行边界和性能增强代码已实现；本地回归已通过，真实设备、性能节点与外部服务验收仍在进行。
+> 当前状态：API P0 主链、Web 多浏览器/诊断主链、Android 设备租约主链、iOS/Appium 本地执行边界和性能增强代码已实现；Windows 是日常开发主线，Linux/Kubernetes、真实设备、性能节点与外部服务属于目标环境开发/验收。
 
 ## 1. 现状与目标
 
@@ -181,7 +181,17 @@ flowchart LR
 
 ## 5. 2026-08-10 下一阶段执行计划
 
-当前 Q18 的新增代码主链已完成，后续以外部环境验收和证据归档为主，按以下顺序推进：
+当前 Q18 的新增代码主链已完成，后续分为 Windows 本地使用完善和目标环境验收两条线；Windows 本地项优先提升开发效率，目标环境项负责发布可信度。
+
+### Windows 本地使用主线
+
+- [x] 增加 `scripts/windows-local.ps1` 启动前预检：`.env`、Python/Node/Playwright、8000/5173 端口，以及 PostgreSQL/Redis/MinIO 连通性。
+- [x] 增加 Windows 性能依赖检测和说明：k6、Locust、grpcio/grpcio-tools；需要 JMeter 时明确 Java/JMeter 5.6.3 安装和 `PERFORMANCE_EXECUTORS` 配置。
+- [x] 增加 PowerShell 版 Android 网络诊断，减少对 Git Bash/WSL 的依赖。
+- [~] 固化并自动执行 Windows 全量本地冒烟：`scripts/windows-local-smoke.ps1` 已覆盖服务预检、真实管理员登录、认证读接口、API 健康、Web 登录页、Playwright mock E2E、Chromium/Firefox/WebKit 页面矩阵、临时文件上传/清理、HTML/JUnit 报告生成和可选停止服务，并生成脱敏 JSON 报告；Android 扫描和 Web 低代码真实下载动作仍需真实设备/页面数据。
+- [x] 明确 Windows Worker 使用 `--pool=solo` 只用于开发联调，不作为生产并发性能结论。
+
+### 目标环境开发/验收主线
 
 1. **Q17-04 性能隔离栈**：在 Linux/Kubernetes 启动专用 Worker，完成 Locust/gRPC/TLS、JMeter、取消、节点 allowlist 和资源采样 smoke；产出 JSON/JTL/运行摘要证据。
 2. **真实 API 联调**：使用 Provider/Consumer 的真实规格验证契约资产版本比较、外部 `$ref` `warn/reject` 策略，并评审 OAuth2/Digest 等高级认证。

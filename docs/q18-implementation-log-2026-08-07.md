@@ -4,7 +4,10 @@
 
 ## 2026-08-10 文档同步
 
-- 本地后端非集成回归已复核为 `1721 passed`；前端 Vitest 已复核为 `37 files / 146 tests passed`，前端类型检查与生产构建通过。
+- 本地后端非集成回归已复核为 `1724 passed`；前端 Vitest 已复核为 `37 files / 146 tests passed`，前端类型检查与生产构建通过。
+- Windows 主线新增 `local-dev.cmd doctor`，覆盖本地配置、运行时、端口、PostgreSQL/Redis/MinIO、ADB 和性能执行器检查；新增 `scripts/android-network-doctor.ps1`，保留 Bash 版本兼容 Git Bash/WSL。
+- Windows 全量本地冒烟新增 `scripts/windows-local-smoke.ps1`：真实后端健康、管理员登录和认证读接口通过，Playwright mock E2E `9 passed`，Chromium/Firefox/WebKit 登录页矩阵、临时文件上传/清理、HTML/JUnit 报告生成和可选停止服务均通过，并生成 `.local-run/windows-smoke-*.json` 脱敏报告；本次运行仅保留无 Android 设备、k6/Locust 未安装的可选告警。
+- 本轮修复冒烟边界：相对 `ReportPath` 统一按项目根目录解析；无历史执行记录时报告检查必需失败；文件上传响应异常但已产生对象引用时仍执行补偿清理。修复后 PowerShell 解析、契约测试和完整 Windows 冒烟再次通过。
 - 本次同步不把本地 mock、协议桩或浏览器缓存烟测当作真实发布验收；Android/iOS、Linux/Kubernetes 性能节点、Firefox/WebKit Worker、Prometheus、外部通知和 Provider/Consumer 规格仍保留为外部任务。
 - 下一阶段按以下顺序推进：先完成 Q17-04 性能隔离栈验收，再并行推进真实设备、Web 专用 Worker、API 契约联调和性能观测/通知验收，最后统一归档发布证据。
 

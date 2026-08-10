@@ -8,7 +8,18 @@
 - **部分实现**：主链已具备，但仍缺少真实设备、外部服务或更完整的工程化验收。
 - **外部阻塞**：需要当前 Windows 开发环境之外的资源，不能用本地模拟结果代替。
 
-本次同步（2026-08-10）：本地代码和自动化回归继续保持通过；后端非集成测试更新为 `1721 passed`，前端 Vitest 为 `37 files / 146 tests passed`。当前开发重点从功能代码实现切换为 Linux/Kubernetes、真实设备、专用浏览器 Worker、Prometheus、外部通知和 Provider/Consumer 规格验收。
+本次同步（2026-08-10）：Windows 主线新增 doctor 预检、性能依赖检测、PowerShell Android 网络诊断和全量本地冒烟入口；后端非集成测试更新为 `1724 passed`，前端 Vitest 为 `37 files / 146 tests passed`。全量冒烟已实测通过真实健康检查、管理员登录、认证读接口、Playwright 9 项、Chromium/Firefox/WebKit 页面矩阵、临时文件上传/清理、HTML/JUnit 报告生成和可选停止服务，并生成脱敏 JSON 报告；当前开发重点转为 Android 扫描/Web 真实下载场景，以及 Linux/Kubernetes、真实设备、专用浏览器 Worker、Prometheus、外部通知和 Provider/Consumer 规格验收。
+
+## Windows 主线与目标环境分层
+
+| 范围 | 当前状态 | 下一步 |
+|---|---|---|
+| Windows 日常开发 | Windows 本地启动、远端 PostgreSQL/Redis/MinIO、PowerShell 进程托管、Playwright、ADB、`local-dev.cmd doctor`、性能依赖检测和全量本地冒烟已具备；本次冒烟真实通过健康/登录/认证读接口、Playwright 9 项、Chromium/Firefox/WebKit 页面矩阵、临时文件上传/清理、HTML/JUnit 报告生成和可选停止服务 | 准备 Android 设备并补 Web 低代码真实下载场景 |
+| Linux/Kubernetes 目标环境 | 性能 Worker、节点队列、TLS、allowlist、资源采样和验收工具已实现 | 完成真实镜像、真实目标服务、取消、Prometheus 和证据归档 |
+| macOS/iOS 目标环境 | iOS/Appium W3C 执行边界、资产、租约和专用队列已实现 | 准备 macOS/Xcode/WDA/签名 IPA/设备并完成最小闭环 |
+| 真实 Android 设备池 | Android 租约、矩阵、录屏、日志和系统动作已实现 | 准备设备池并完成并发、权限、旋转、网络和系统事件验收 |
+
+Windows 端的完善项属于本地开发体验和联调效率，不要求在 Windows 上模拟 Linux/Kubernetes 生产性能；生产级多进程性能和专用 Worker 仍转移到目标环境验收。
 
 ## 前后实现对比
 
@@ -50,7 +61,7 @@
 
 ## 2026-08-10 最新本地质量核验
 
-- 后端非集成测试：`1721 passed`（使用 `--ignore=tests/integration`，符合仓库对集成环境变量的保护约定）。
+- 后端非集成测试：`1724 passed`（使用 `--ignore=tests/integration`，符合仓库对集成环境变量的保护约定）。
 - 前端 Vitest：`37 files / 146 tests passed`；`vue-tsc --noEmit` 和生产构建通过。
 - Python 质量门禁：mypy `120 source files` 无错误；Ruff lint、格式检查、Bandit（无高/中风险）、pip-audit（无已知漏洞）和 `git diff --check` 通过；npm audit 报告 `0 vulnerabilities`。
 - 录制/元素资产定向回归：`10 passed`；此前性能/Web 受影响模块定向回归 `27 passed`。

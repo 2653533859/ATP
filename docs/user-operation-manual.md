@@ -13,7 +13,7 @@ ATP 是统一自动化测试平台，当前已支持：
 - 报告能力：执行记录、报告详情、HTML / PDF / JUnit XML 导出。
 - 平台增强：Mock 服务、环境变量、全局变量、通知、缺陷跟踪、存储治理、统计看板、数据集、性能压测、AI 用例生成、AI 自愈建议。
 
-当前 iOS 自动化仅有规划文档，尚未实现执行链路。详见 `docs/ios-device-automation-plan.md`。
+iOS/Appium 已具备本地 W3C 执行边界、资产和租约；真实 macOS/Xcode/XCUITest/签名 IPA/设备验收仍属于目标环境开发。
 
 ## 2. 访问入口与账号
 
@@ -66,12 +66,27 @@ FIRST_ADMIN_EMAIL=
 
 ### 3.1 Windows 一键启动
 
-在项目根目录执行：
+在项目根目录执行。先把 `$RepoRoot` 改为你的实际项目目录：
 
 ```powershell
-cd F:\A__Project\ATP
+$RepoRoot = 'E:\csh\MyProject\ATP'
+Set-Location $RepoRoot
 .\local-dev.cmd up
 ```
+
+启动前预检：
+
+```powershell
+.\local-dev.cmd doctor
+```
+
+Windows 全量本地冒烟：
+
+```powershell
+.\scripts\windows-local-smoke.ps1
+```
+
+该命令会检查真实后端健康、管理员登录、认证读接口、前端登录页、Playwright mock E2E、Chromium/Firefox/WebKit 页面矩阵、临时文件上传/清理和 HTML/JUnit 报告生成，并在 `.local-run` 生成脱敏 JSON 报告。相对 `-ReportPath` 按项目根目录解析；没有历史执行记录时报告检查会失败，需要跳过时显式使用 `-SkipReports`。需要自动启动服务时加 `-StartServices`；验证结束后停止服务加 `-StopServicesAfter`；Android 设备诊断使用 `-AndroidTarget '<device-ip>:5555'`，完整边界与未覆盖项见 [`docs/windows-local-run.md`](windows-local-run.md)。
 
 查看状态：
 
@@ -115,7 +130,7 @@ cd F:\A__Project\ATP
 后端：
 
 ```powershell
-cd F:\A__Project\ATP\backend
+Set-Location (Join-Path $RepoRoot 'backend')
 .\.venv\Scripts\Activate.ps1
 alembic upgrade head
 uvicorn app.main:app --reload
@@ -124,7 +139,7 @@ uvicorn app.main:app --reload
 前端：
 
 ```powershell
-cd F:\A__Project\ATP\frontend
+Set-Location (Join-Path $RepoRoot 'frontend')
 npm install
 npm run dev
 ```
@@ -132,7 +147,7 @@ npm run dev
 Worker：
 
 ```powershell
-cd F:\A__Project\ATP\backend
+Set-Location (Join-Path $RepoRoot 'backend')
 .\.venv\Scripts\Activate.ps1
 celery -A app.worker.celery_app worker --loglevel=info --pool=solo
 ```
@@ -140,7 +155,7 @@ celery -A app.worker.celery_app worker --loglevel=info --pool=solo
 Beat：
 
 ```powershell
-cd F:\A__Project\ATP\backend
+Set-Location (Join-Path $RepoRoot 'backend')
 .\.venv\Scripts\Activate.ps1
 celery -A app.worker.celery_app beat --loglevel=info
 ```
@@ -716,12 +731,12 @@ Mock 服务
 系统管理 -> 性能压测中心
 ```
 
-当前性能压测中心基于 k6 脚本。
+性能压测中心支持 k6、Locust、gRPC 和 JMeter。Windows 本地默认适合功能联调；JMeter 需要额外安装 Java/JMeter，并在 `PERFORMANCE_EXECUTORS` 中显式加入 `jmeter`。Linux/Kubernetes 专用 Worker 才用于生产级并发和多节点结论。
 
 操作步骤：
 
 1. 新建性能测试。
-2. 上传 k6 脚本。
+2. 上传对应执行器脚本或协议文件（k6/Locust/JMeter/gRPC Proto）。
 3. 设置执行器、VUs、duration、threshold。
 4. 触发执行。
 5. 查看 RPS、p95、p99、错误率、threshold 结果。

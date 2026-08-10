@@ -1,5 +1,5 @@
 ﻿param(
-  [ValidateSet('up', 'down', 'restart', 'status', 'logs')]
+  [ValidateSet('up', 'down', 'restart', 'status', 'logs', 'doctor')]
   [string]$Action = 'up',
 
   [ValidateRange(20, 500)]
@@ -14,6 +14,7 @@ $BackendDir = Join-Path $RepoRoot 'backend'
 $FrontendDir = Join-Path $RepoRoot 'frontend'
 $BackendPython = Join-Path $BackendDir '.venv\Scripts\python.exe'
 $ViteEntry = Join-Path $FrontendDir 'node_modules\vite\bin\vite.js'
+$PlaywrightPackage = Join-Path $FrontendDir 'node_modules\@playwright\test'
 $NodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
 $NodeExe = if ($NodeCommand) { $NodeCommand.Source } else { $null }
 $Services = @(
@@ -118,6 +119,221 @@ function Assert-Exists {
   if (-not (Test-Path $Path)) {
     throw $Message
   }
+}
+
+function Get-DotEnvValues {
+  $values = @{}
+  $envPath = Join-Path $RepoRoot '.env'
+  if (-not (Test-Path $envPath)) {
+    return $values
+  }
+
+  foreach ($line in (Get-Content -Path $envPath -Encoding UTF8)) {
+    if ($line -match '^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(.*?)\s*$') {
+      $key = $Matches[1]
+      $value = $Matches[2]
+      if ($value.Length -ge 2 -and (($value.StartsWith('"') -and $value.EndsWith('"')) -or ($value.StartsWith("'") -and $value.EndsWith("'")))) {
+        $value = $value.Substring(1, $value.Length - 2)
+      }
+      $values[$key] = $value
+    }
+  }
+
+  return $values
+}
+
+function Test-TcpEndpoint {
+  param(
+    [string]$HostName,
+    [int]$Port,
+    [int]$TimeoutMilliseconds = 1500
+  )
+
+  $client = [System.Net.Sockets.TcpClient]::new()
+  try {
+    $task = $client.ConnectAsync($HostName, $Port)
+    if (-not $task.Wait($TimeoutMilliseconds)) {
+      return $false
+    }
+    return $client.Connected
+  } catch {
+    return $false
+  } finally {
+    $client.Dispose()
+  }
+}
+
+function Test-PlaceholderValue {
+  param([string]$Value)
+
+  return [string]::IsNullOrWhiteSpace($Value) -or $Value -match '(?i)change[_-]?me|password[_-]?change[_-]?me|Admin@123456'
+}
+
+function Get-ConfiguredExecutors {
+  param([hashtable]$Values)
+
+  $raw = if ($Values.ContainsKey('PERFORMANCE_EXECUTORS')) { $Values['PERFORMANCE_EXECUTORS'] } else { '' }
+  return @($raw -split ',' | ForEach-Object { $_.Trim().ToLowerInvariant() } | Where-Object { $_ })
+}
+
+function Test-PythonModule {
+  param([string]$ModuleName)
+
+  if (-not (Test-Path $BackendPython)) {
+    return $false
+  }
+
+  $previousPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    & $BackendPython -c "import $ModuleName" 2>&1 | Out-Null
+    return $LASTEXITCODE -eq 0
+  } finally {
+    $ErrorActionPreference = $previousPreference
+  }
+}
+
+function Show-DoctorCheck {
+  param(
+    [string]$Label,
+    [bool]$Passed,
+    [bool]$Required = $true,
+    [string]$Hint = ''
+  )
+
+  if ($Passed) {
+    Write-Host "[ok]   $Label"
+    return 0
+  }
+
+  $prefix = if ($Required) { '[fail]' } else { '[warn]' }
+  Write-Host "$prefix $Label"
+  if (-not [string]::IsNullOrWhiteSpace($Hint)) {
+    Write-Host "       $Hint"
+  }
+  return [int]$Required
+}
+
+function Show-Doctor {
+  $failed = 0
+  $warnings = 0
+  $values = Get-DotEnvValues
+  $envPath = Join-Path $RepoRoot '.env'
+
+  $result = Show-DoctorCheck -Label ".env exists: $envPath" -Passed (Test-Path $envPath) -Hint 'Run Copy-Item .env.example .env and fill private values.'
+  $failed += $result
+  if (-not (Test-Path $envPath)) {
+    Write-Host '[fail] doctor stopped because .env is missing.'
+    return 1
+  }
+
+  $result = Show-DoctorCheck -Label 'Python virtual environment' -Passed (Test-Path $BackendPython) -Hint 'Create backend/.venv and install backend requirements.'
+  $failed += $result
+  $result = Show-DoctorCheck -Label 'Node.js 20+, Vite and Playwright packages' -Passed (($null -ne $NodeExe) -and (Test-Path $ViteEntry) -and (Test-Path $PlaywrightPackage)) -Hint 'Install Node.js 20+ and run npm ci in frontend.'
+  $failed += $result
+
+  foreach ($key in @('APP_SECRET_KEY', 'POSTGRES_PASSWORD', 'MINIO_ROOT_PASSWORD', 'FIRST_ADMIN_PASSWORD')) {
+    $value = if ($values.ContainsKey($key)) { [string]$values[$key] } else { '' }
+    $placeholder = Test-PlaceholderValue -Value $value
+    if ($placeholder) {
+      Write-Host "[warn] $key is empty or still uses a template value"
+      $warnings++
+    } else {
+      Write-Host "[ok]   $key is configured (value hidden)"
+    }
+  }
+
+  foreach ($service in $Services) {
+    if (-not $service.ContainsKey('Port')) {
+      continue
+    }
+    $listener = Get-ListeningProcessId -Port $service.Port
+    $managed = @(Get-ServiceProcesses -Service $service)
+    $managedIds = @()
+    if ($managed.Count -gt 0) {
+      $managedIds = @(Get-ProcessTree -RootProcessIds @($managed | Select-Object -ExpandProperty ProcessId) | Select-Object -ExpandProperty ProcessId)
+    }
+    $managedPort = @($managedIds | Where-Object { [int]$_ -eq [int]$listener })
+    $portReady = ($null -eq $listener) -or ($managedPort.Count -gt 0)
+    $result = Show-DoctorCheck -Label "port $($service.Port) for $($service.Name)" -Passed $portReady -Hint "Stop the process listening on $($service.Port), or use the managed local-dev process."
+    $failed += $result
+  }
+
+  foreach ($endpoint in @(
+      @{ Label = 'PostgreSQL'; HostKey = 'POSTGRES_HOST'; PortKey = 'POSTGRES_PORT'; DefaultPort = 5432 },
+      @{ Label = 'Redis'; HostKey = 'REDIS_HOST'; PortKey = 'REDIS_PORT'; DefaultPort = 6379 },
+      @{ Label = 'MinIO'; HostKey = 'MINIO_HOST'; PortKey = 'MINIO_PORT'; DefaultPort = 9000 }
+    )) {
+    $hostName = if ($values.ContainsKey($endpoint.HostKey)) { [string]$values[$endpoint.HostKey] } else { '' }
+    $portText = if ($values.ContainsKey($endpoint.PortKey)) { [string]$values[$endpoint.PortKey] } else { [string]$endpoint.DefaultPort }
+    $port = 0
+    $portParsed = [int]::TryParse($portText, [ref]$port)
+    $reachable = $portParsed -and -not [string]::IsNullOrWhiteSpace($hostName) -and (Test-TcpEndpoint -HostName $hostName -Port $port)
+    $result = Show-DoctorCheck -Label "$($endpoint.Label) endpoint $hostName`:$port" -Passed $reachable -Hint 'Check .env host/port, firewall rules, and the remote service status.'
+    $failed += $result
+  }
+
+  $adb = Get-Command adb.exe -ErrorAction SilentlyContinue
+  $adbAvailable = $null -ne $adb
+  if (-not $adbAvailable) {
+    $warnings++
+  }
+  $result = Show-DoctorCheck -Label 'ADB executable' -Passed $adbAvailable -Required:$false -Hint 'Install Android Platform Tools when Android testing is needed.'
+  if ($adbAvailable) {
+    $deviceOutput = (& $adb.Source devices 2>&1 | Out-String)
+    $hasDevice = $deviceOutput -match '(?m)^\S+\s+device\s*$'
+    if (-not $hasDevice) {
+      $warnings++
+    }
+    $result = Show-DoctorCheck -Label 'Android device online' -Passed $hasDevice -Required:$false -Hint 'Connect a device or use adb connect <device-ip>:5555; Web/API development does not require an Android device.'
+  }
+
+  $executors = Get-ConfiguredExecutors -Values $values
+  foreach ($executor in $executors) {
+    switch ($executor) {
+      'k6' {
+        $available = $null -ne (Get-Command k6.exe -ErrorAction SilentlyContinue)
+        if (-not $available) {
+          $warnings++
+        }
+        $result = Show-DoctorCheck -Label 'Performance executor k6' -Passed $available -Required:$false -Hint 'Install the Windows k6 binary or remove k6 from PERFORMANCE_EXECUTORS for this machine.'
+      }
+      'locust' {
+        $available = Test-PythonModule -ModuleName 'locust'
+        if (-not $available) {
+          $warnings++
+        }
+        $result = Show-DoctorCheck -Label 'Performance executor Locust' -Passed $available -Required:$false -Hint 'Install backend requirements in backend/.venv.'
+      }
+      'grpc' {
+        $available = (Test-PythonModule -ModuleName 'grpc') -and (Test-PythonModule -ModuleName 'grpc_tools')
+        if (-not $available) {
+          $warnings++
+        }
+        $result = Show-DoctorCheck -Label 'Performance executor gRPC' -Passed $available -Required:$false -Hint 'Install grpcio and grpcio-tools in backend/.venv.'
+      }
+      'jmeter' {
+        $javaAvailable = $null -ne (Get-Command java.exe -ErrorAction SilentlyContinue)
+        $jmeterAvailable = $null -ne (Get-Command jmeter.bat -ErrorAction SilentlyContinue) -or $null -ne (Get-Command jmeter.exe -ErrorAction SilentlyContinue)
+        if (-not ($javaAvailable -and $jmeterAvailable)) {
+          $warnings++
+        }
+        $result = Show-DoctorCheck -Label 'Performance executor JMeter' -Passed ($javaAvailable -and $jmeterAvailable) -Required:$false -Hint 'Install Java and JMeter 5.6.3, then add JMeter bin to PATH.'
+      }
+      default {
+        Write-Host "[warn] Unknown PERFORMANCE_EXECUTORS entry: $executor"
+        $warnings++
+      }
+    }
+  }
+
+  if ($failed -eq 0) {
+    Write-Host "Doctor passed with $warnings warning(s)."
+    return 0
+  }
+
+  Write-Host "Doctor found $failed blocking issue(s) and $warnings warning(s)."
+  return 1
 }
 
 function Ensure-Prerequisites {
@@ -522,5 +738,8 @@ switch ($Action) {
   }
   'logs' {
     Show-Logs
+  }
+  'doctor' {
+    exit (Show-Doctor)
   }
 }

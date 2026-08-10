@@ -11,12 +11,23 @@
 
 这种模式适合本地开发与联调：Windows 侧进程直接访问真机与浏览器，基础设施继续复用 Linux Docker 环境。
 
+## Windows 与目标环境边界
+
+Windows 是日常开发主线，负责 API、Web、Android、AI、数据集、Mock、报告和本地回归。Linux/Kubernetes 性能 Worker、真实设备池、macOS/iOS、容器内 Firefox/WebKit、Prometheus 和外部通知属于目标环境开发/验收，不要求在 Windows 上模拟生产并发。
+
+先在当前 PowerShell 会话设置项目目录，下面命令不依赖固定盘符：
+
+```powershell
+$RepoRoot = 'E:\csh\MyProject\ATP' # 修改为你的实际项目目录
+Set-Location $RepoRoot
+```
+
 ## 一次性准备
 
 ### 1. 后端依赖
 
 ```powershell
-cd F:\csh\MyProjectAutoTest\ATP\backend
+Set-Location (Join-Path $RepoRoot 'backend')
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install --upgrade pip
@@ -28,7 +39,7 @@ playwright install chromium firefox webkit
 ### 2. 前端依赖
 
 ```powershell
-cd F:\csh\MyProjectAutoTest\ATP\frontend
+Set-Location (Join-Path $RepoRoot 'frontend')
 npm ci
 ```
 
@@ -43,7 +54,7 @@ npm install
 先复制本地环境文件：
 
 ```powershell
-cd F:\csh\MyProjectAutoTest\ATP
+Set-Location $RepoRoot
 Copy-Item .env.example .env
 ```
 
@@ -78,7 +89,7 @@ MINIO_PORT=9000
 在项目根目录执行：
 
 ```powershell
-cd F:\csh\MyProjectAutoTest\ATP
+Set-Location $RepoRoot
 .\local-dev.cmd
 ```
 
@@ -97,7 +108,7 @@ cd F:\csh\MyProjectAutoTest\ATP
 
 同时会自动：
 
-- 把运行日志写入 `F:\csh\MyProjectAutoTest\ATP\.local-run`
+- 把运行日志写入项目根目录下的 `.local-run`
 - 为每个服务写入 PID 文件，避免重复拉起
 - 在 `status` / `down` 时优先按 PID 托管进程
 
@@ -133,6 +144,52 @@ cd F:\csh\MyProjectAutoTest\ATP
 .\local-dev.cmd logs
 ```
 
+启动前预检：
+
+```powershell
+.\local-dev.cmd doctor
+```
+
+`doctor` 不会启动或停止服务；它会检查 `.env`、Python/Node、端口、PostgreSQL/Redis/MinIO 连通性、ADB 和已配置的性能执行器。ADB 与性能工具缺失只会给出 warning，不会阻塞 API/Web 日常开发。
+
+## Windows 核心端到端冒烟
+
+服务启动后，可以执行一次 Windows 全量本地冒烟，自动验证真实后端健康、管理员登录及认证读接口、前端登录页、Playwright mock E2E、Chromium/Firefox/WebKit 登录页矩阵、临时 Web 文件上传/清理，以及已有执行记录的 HTML/JUnit 报告生成：
+
+```powershell
+Set-Location $RepoRoot
+.\scripts\windows-local-smoke.ps1
+```
+
+如果希望由冒烟脚本负责启动本地服务：
+
+```powershell
+.\scripts\windows-local-smoke.ps1 -StartServices
+```
+
+脚本会在 `.local-run/windows-smoke-*.json` 生成脱敏结果报告，不会把登录密码或 access token 写入终端和报告。可按场景跳过检查：
+
+```powershell
+# 只验证服务和真实登录，不执行 Playwright
+.\scripts\windows-local-smoke.ps1 -SkipPlaywright -SkipBrowserMatrix
+
+# Android 设备在线时，增加 ADB 网络诊断；没有设备时保持可选
+.\scripts\windows-local-smoke.ps1 -AndroidTarget '<device-ip>:5555'
+
+# 将 Android 诊断设为必需项
+.\scripts\windows-local-smoke.ps1 -RequireAndroid -AndroidTarget '<device-ip>:5555'
+```
+
+`-ReportPath` 可以指定自定义报告路径；传入相对路径时按项目根目录解析。默认会选择最近的历史执行记录生成 HTML/JUnit 报告；如果当前没有历史执行记录，报告检查会失败，避免冒烟结果误报为已验证。仅在明确不需要报告验证时使用 `-SkipReports`。临时 Web 文件上传成功后会调用存储清理接口删除测试对象；如果上传响应异常但已返回对象引用，脚本仍会执行补偿清理。
+
+其中 `npm run e2e` 使用仓库现有的 mock API fixture，验证前端关键交互；真实后端链路由健康检查、管理员登录、`/auth/me`、项目列表、文件上传/清理和报告导出负责。该入口不会默认停止当前服务；如需验证服务生命周期，可显式执行：
+
+```powershell
+.\scripts\windows-local-smoke.ps1 -StopServicesAfter
+```
+
+如果同时使用 `-StartServices -StopServicesAfter`，脚本会负责启动并在验证结束后停止服务。Android 扫描仍需连接真实设备；Web 低代码页面中的真实下载动作仍需配套页面/用例数据，Linux/Kubernetes 性能验收也不在 Windows 本地冒烟范围内。
+
 ## 启动后检查
 
 正常情况下可以直接访问：
@@ -148,7 +205,7 @@ cd F:\csh\MyProjectAutoTest\ATP
 
 ## 日志与 PID 文件
 
-脚本会在 `F:\csh\MyProjectAutoTest\ATP\.local-run` 下生成：
+脚本会在项目根目录下的 `.local-run` 生成：
 
 - `backend.pid`
 - `worker.pid`
@@ -217,7 +274,19 @@ adb devices
 
 确认设备状态为 `device`，且 serial 变成 `<device-ip>:5555` 后，再回到 ATP 中执行"扫描设备"。
 
-复杂网络场景下可直接跑诊断脚本（需 Git Bash 或 WSL）：
+复杂网络场景下优先使用 PowerShell 诊断脚本：
+
+```powershell
+.\scripts\android-network-doctor.ps1 -Target '<device-ip>:5555'
+```
+
+如果共享 ADB Server，避免脚本重启它：
+
+```powershell
+.\scripts\android-network-doctor.ps1 -Target '<device-ip>:5555' -SkipServerRestart -SkipConnect
+```
+
+原 Bash 版本仍可用于 Git Bash 或 WSL：
 
 ```bash
 bash scripts/android-network-doctor.sh <device-ip>:5555
@@ -225,13 +294,35 @@ bash scripts/android-network-doctor.sh <device-ip>:5555
 
 更完整说明见：`docs/android-device-debugging.md`
 
+## Windows 端仍需完善的内容
+
+当前 Windows 启动链已经可以完成日常开发，但以下内容仍列为 Windows 主线任务：
+
+- [x] 启动前预检：`local-dev.cmd doctor` 自动检查 `.env`、Python/Node/Playwright、8000/5173 端口，以及 PostgreSQL、Redis、MinIO 的连通性。
+- [x] 性能依赖检测：doctor 检查 k6、Locust、grpcio/grpcio-tools；JMeter 仍需 Windows Java/JMeter 5.6.3，并在 `PERFORMANCE_EXECUTORS` 中显式加入 `jmeter`。
+- [x] Android 网络诊断：新增 `android-network-doctor.ps1`，原 `android-network-doctor.sh` 继续保留给 Git Bash/WSL。
+- [~] Windows 全量本地冒烟：`windows-local-smoke.ps1` 已自动执行服务预检、真实登录、认证读接口、API 健康、Web 登录页、Playwright mock E2E、三浏览器页面矩阵、临时文件上传/清理、HTML/JUnit 报告生成和可选停止服务，并生成脱敏 JSON 报告；Android 扫描和 Web 低代码真实下载动作仍需真实设备/页面数据。
+- [x] Worker 边界：Windows 使用 Celery `--pool=solo` 适合功能联调，不用于判断生产级并发、吞吐或多节点性能；相关结论转到 Linux/Kubernetes 目标环境。
+
+Windows 本地回归建议执行：
+
+```powershell
+Set-Location $RepoRoot
+& (Join-Path $RepoRoot 'backend\.venv\Scripts\python.exe') -m pytest backend/tests -q --ignore=backend/tests/integration
+Set-Location (Join-Path $RepoRoot 'frontend')
+npm test -- --run
+npm run type-check
+npm run build
+```
+
 ## 推荐用法
 
 日常开发建议固定使用下面这一组命令：
 
 ```powershell
-cd F:\csh\MyProjectAutoTest\ATP
+Set-Location $RepoRoot
 .\local-dev.cmd up
+.\local-dev.cmd doctor
 .\local-dev.cmd status
 .\local-dev.cmd logs
 .\local-dev.cmd down
