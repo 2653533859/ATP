@@ -1,12 +1,14 @@
 # Q18 最新开发状态与前后实现对比
 
-更新时间：2026-08-07
+更新时间：2026-08-10
 
 本文件是 `docs/implementation-plan-2026-Q18-capability-expansion.md` 的最新查看入口，配合 `docs/capability-baseline-2026-08-07.md` 使用。状态区分为：
 
 - **已实现**：代码、调用入口和自动化回归已具备。
 - **部分实现**：主链已具备，但仍缺少真实设备、外部服务或更完整的工程化验收。
 - **外部阻塞**：需要当前 Windows 开发环境之外的资源，不能用本地模拟结果代替。
+
+本次同步（2026-08-10）：本地代码和自动化回归继续保持通过；后端非集成测试更新为 `1721 passed`，前端 Vitest 为 `37 files / 146 tests passed`。当前开发重点从功能代码实现切换为 Linux/Kubernetes、真实设备、专用浏览器 Worker、Prometheus、外部通知和 Provider/Consumer 规格验收。
 
 ## 前后实现对比
 
@@ -46,9 +48,9 @@
 - 本机 `127.0.0.1:9090` 和 `localhost:9090` 没有 Prometheus ready 响应；iOS/Appium 仍必须转移到 macOS + Xcode + WDA + 签名 IPA + iPhone/Simulator。
 - 已对已授权 Linux 主机做只读探测：ARM64、Docker 29.3.0 可用，主机已有健康的 PostgreSQL/Redis/MinIO 容器，但未发现 ATP 验收栈或 Prometheus 9090；为避免覆盖现有业务，未在该主机部署或重启任何服务。
 
-## 2026-08-07 最终本地质量核验
+## 2026-08-10 最新本地质量核验
 
-- 后端非集成测试：`1711 passed`（使用 `--ignore=tests/integration`，符合仓库对集成环境变量的保护约定）。
+- 后端非集成测试：`1721 passed`（使用 `--ignore=tests/integration`，符合仓库对集成环境变量的保护约定）。
 - 前端 Vitest：`37 files / 146 tests passed`；`vue-tsc --noEmit` 和生产构建通过。
 - Python 质量门禁：mypy `120 source files` 无错误；Ruff lint、格式检查、Bandit（无高/中风险）、pip-audit（无已知漏洞）和 `git diff --check` 通过；npm audit 报告 `0 vulnerabilities`。
 - 录制/元素资产定向回归：`10 passed`；此前性能/Web 受影响模块定向回归 `27 passed`。

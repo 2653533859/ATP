@@ -2,6 +2,12 @@
 
 最新前后实现对比和剩余任务统一见 [`docs/q18-latest-status-2026-08-07.md`](./q18-latest-status-2026-08-07.md)。
 
+## 2026-08-10 文档同步
+
+- 本地后端非集成回归已复核为 `1721 passed`；前端 Vitest 已复核为 `37 files / 146 tests passed`，前端类型检查与生产构建通过。
+- 本次同步不把本地 mock、协议桩或浏览器缓存烟测当作真实发布验收；Android/iOS、Linux/Kubernetes 性能节点、Firefox/WebKit Worker、Prometheus、外部通知和 Provider/Consumer 规格仍保留为外部任务。
+- 下一阶段按以下顺序推进：先完成 Q17-04 性能隔离栈验收，再并行推进真实设备、Web 专用 Worker、API 契约联调和性能观测/通知验收，最后统一归档发布证据。
+
 ## 本轮补齐内容
 
 - API：受限表达式断言、统一执行结果契约、数据集笛卡尔积/Pairwise 组合、输入脱敏、导入预览/冲突/事务回滚。
@@ -63,7 +69,7 @@
 - 性能运行完成后新增统一通知摘要：阈值失败、基线回归、节点错误和资源采样错误会转换为项目已有的邮件/企业微信/钉钉通知契约；通知是 best-effort，发送失败不会改变运行结果，并使用运行摘要标记避免分片父运行重复通知。回归位于 `backend/app/services/performance_notifications.py`。
 - 本轮质量验证（历史记录）：后端非集成回归 `1616 passed`；新增能力及性能/Android 定向回归 `89 passed`。
 
-## 最终本地质量核验（2026-08-07）
+## 历史本地质量核验（2026-08-07）
 
 - 后端非集成测试 `1710 passed`（命令使用 `--ignore=tests/integration`，集成测试仍按环境变量单独运行）；前端 Vitest `37 files / 146 tests passed`。
 - `mypy` 检查 `120` 个源文件无错误；Ruff lint、格式检查、Bandit（无高/中风险）、pip-audit（无已知漏洞）、npm audit（0 vulnerabilities）、`vue-tsc --noEmit`、前端生产构建和 `git diff --check` 全部通过。
