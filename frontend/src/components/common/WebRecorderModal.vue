@@ -54,7 +54,10 @@
       <a-button v-if="!active" type="primary" :loading="starting" @click="startRecording">
         {{ t('case.drawer.web.recorder.start') }}
       </a-button>
-      <a-button v-else danger :loading="stopping" @click="() => stopRecording()">
+      <a-button v-if="active && showCapture" type="primary" :loading="capturing" @click="captureScreenshot">
+        {{ t('case.drawer.web.recorder.capture') }}
+      </a-button>
+      <a-button v-if="active && !showCapture" danger :loading="stopping" @click="() => stopRecording()">
         {{ t('case.drawer.web.recorder.stop') }}
       </a-button>
       <a-button v-if="steps.length && !active" type="primary" @click="applySteps">
@@ -77,10 +80,13 @@ const props = defineProps<{
   open: boolean
   initialUrl?: string
   projectId?: number | null
+  showCapture?: boolean
+  autoApply?: boolean
 }>()
 const emit = defineEmits<{
   close: []
-  recorded: [steps: WebRecordingStep[]]
+  recorded: [steps: WebRecordingStep[], assetIds: number[]]
+  captured: [file: File, pageUrl: string]
 }>()
 const { t } = useI18n()
 
@@ -89,9 +95,12 @@ const browser = ref<'chromium' | 'firefox' | 'webkit'>('chromium')
 const recordingId = ref<string | null>(null)
 const status = ref<WebRecordingStatus>('stopped')
 const steps = ref<WebRecordingStep[]>([])
+const assetIds = ref<number[]>([])
+const currentUrl = ref('')
 const error = ref('')
 const starting = ref(false)
 const stopping = ref(false)
+const capturing = ref(false)
 let pollTimer: ReturnType<typeof setTimeout> | null = null
 
 const active = computed(() => status.value === 'starting' || status.value === 'recording' || status.value === 'stopping')
@@ -103,9 +112,12 @@ function reset() {
   recordingId.value = null
   status.value = 'stopped'
   steps.value = []
+  assetIds.value = []
+  currentUrl.value = ''
   error.value = ''
   starting.value = false
   stopping.value = false
+  capturing.value = false
 }
 
 function clearPoll() {
@@ -136,6 +148,8 @@ async function startRecording() {
     recordingId.value = result.id
     status.value = result.status
     steps.value = result.steps ?? []
+    assetIds.value = result.asset_ids ?? []
+    currentUrl.value = result.current_url ?? result.start_url
     schedulePoll()
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : String(e)
@@ -157,6 +171,8 @@ async function pollRecording() {
     const result = await webRecordingApi.get(recordingId.value)
     status.value = result.status
     steps.value = result.steps ?? []
+    assetIds.value = result.asset_ids ?? assetIds.value
+    currentUrl.value = result.current_url ?? currentUrl.value
     if (result.error) error.value = result.error
     schedulePoll()
   } catch (e: unknown) {
@@ -176,12 +192,22 @@ async function stopRecording(closeAfter = false) {
     const result = await webRecordingApi.stop(recordingId.value)
     status.value = result.status
     steps.value = result.steps ?? []
+    assetIds.value = result.asset_ids ?? assetIds.value
+    currentUrl.value = result.current_url ?? currentUrl.value
     if (result.error) error.value = result.error
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : String(e)
     status.value = 'error'
   } finally {
     stopping.value = false
+    if (props.autoApply && !closeAfter) {
+      if (steps.value.length) applySteps()
+      else {
+        reset()
+        emit('close')
+      }
+      return
+    }
     if (closeAfter) {
       reset()
       emit('close')
@@ -189,9 +215,25 @@ async function stopRecording(closeAfter = false) {
   }
 }
 
+async function captureScreenshot() {
+  if (!recordingId.value) return
+  capturing.value = true
+  error.value = ''
+  try {
+    const blob = await webRecordingApi.screenshot(recordingId.value)
+    const file = new File([blob], `web-baseline-${Date.now()}.png`, { type: 'image/png' })
+    emit('captured', file, currentUrl.value || startUrl.value)
+    await stopRecording(true)
+  } catch (e: unknown) {
+    error.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    capturing.value = false
+  }
+}
+
 function applySteps() {
   if (!steps.value.length) return
-  emit('recorded', steps.value.map((step) => ({ ...step, params: { ...step.params } })))
+  emit('recorded', steps.value.map((step) => ({ ...step, params: { ...step.params } })), [...assetIds.value])
   reset()
   emit('close')
 }

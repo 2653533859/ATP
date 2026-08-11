@@ -26,7 +26,7 @@ spec:
         - name: worker
           image: "{{ .Values.image.repository }}/worker:{{ .Values.image.worker.tag }}"
           imagePullPolicy: {{ .Values.image.worker.pullPolicy }}
-          command: ["sh", "-c", "celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q ${CELERY_QUEUES:-default,mobile_special,ios,ai,maintenance,performance}"]
+          command: ["sh", "-c", "celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q ${CELERY_QUEUES:-default,ios,ai,maintenance,performance}"]
           envFrom:
             - configMapRef:
                 name: {{ include "atp.fullname" . }}-config

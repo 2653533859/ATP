@@ -32,7 +32,9 @@ if ([string]::IsNullOrWhiteSpace($ReportPath)) {
 $ReportDirectory = Split-Path -Parent $ReportPath
 
 $results = [System.Collections.Generic.List[object]]::new()
-$script:LiveAccessToken = $null
+$script:LiveAccessToken = $null # compatibility marker; browser/API smoke uses the cookie session
+$script:LiveWebSession = New-Object Microsoft.PowerShell.Commands.WebRequestSession
+$script:LiveCookieHeader = $null
 $script:LiveProjectId = $null
 
 function Redact-Output {
@@ -152,10 +154,17 @@ function Invoke-LiveLogin {
 
   try {
     $payload = @{ username = $username; password = $password } | ConvertTo-Json -Compress
-    $response = Invoke-RestMethod -Method Post -Uri $LiveLoginUrl -ContentType 'application/json' -Body $payload -TimeoutSec 10
-    $script:LiveAccessToken = [string]$response.access_token
+    $response = Invoke-RestMethod -Method Post -Uri $LiveLoginUrl -Headers @{ 'X-Requested-With' = 'XMLHttpRequest' } -ContentType 'application/json' -Body $payload -WebSession $script:LiveWebSession -TimeoutSec 10
+    $sessionCookies = $script:LiveWebSession.Cookies.GetCookies([Uri]$LiveLoginUrl)
+    $accessCookie = @($sessionCookies | Where-Object { $_.Name -eq 'atp_access_token' } | Select-Object -First 1)[0]
+    $refreshCookie = @($sessionCookies | Where-Object { $_.Name -eq 'atp_refresh_token' } | Select-Object -First 1)[0]
+    if ($accessCookie) {
+      $script:LiveCookieHeader = "atp_access_token=$($accessCookie.Value)"
+      if ($refreshCookie) { $script:LiveCookieHeader += "; atp_refresh_token=$($refreshCookie.Value)" }
+    }
+    $script:LiveAccessToken = if ($response.authenticated -and $accessCookie) { 'cookie-session' } else { $null }
     $passed = -not [string]::IsNullOrWhiteSpace($script:LiveAccessToken)
-    Add-Result -Name 'Live API admin login' -Status $(if ($passed) { 'passed' } else { 'failed' }) -Required:$true -Details $(if ($passed) { 'access token returned; value hidden' } else { 'response did not contain access_token' })
+    Add-Result -Name 'Live API admin login' -Status $(if ($passed) { 'passed' } else { 'failed' }) -Required:$true -Details $(if ($passed) { 'HttpOnly cookie session established' } else { 'login response did not establish an access cookie' })
     return $passed
   } catch {
     Add-Result -Name 'Live API admin login' -Status 'failed' -Required:$true -Details $_.Exception.Message
@@ -169,7 +178,6 @@ function Invoke-LiveApiChecks {
     return
   }
 
-  $headers = @{ Authorization = "Bearer $script:LiveAccessToken" }
   $checks = @(
     @{ Name = 'Live API current user'; Path = '/auth/me'; Validator = { param($body) $null -ne $body.id -and -not [string]::IsNullOrWhiteSpace([string]$body.username) } },
     @{ Name = 'Live API project list'; Path = '/projects'; Validator = { param($body) $null -ne $body } }
@@ -177,7 +185,7 @@ function Invoke-LiveApiChecks {
 
   foreach ($check in $checks) {
     try {
-      $body = Invoke-RestMethod -Method Get -Uri ($LiveApiBaseUrl + $check.Path) -Headers $headers -TimeoutSec 10
+      $body = Invoke-RestMethod -Method Get -Uri ($LiveApiBaseUrl + $check.Path) -WebSession $script:LiveWebSession -TimeoutSec 10
       $passed = & $check.Validator $body
       if ($check.Path -eq '/projects' -and $passed) {
         $project = @($body | Where-Object { $null -ne $_.id } | Select-Object -First 1)
@@ -219,7 +227,7 @@ function Invoke-FileTransferCheck {
 
     $uri = "$LiveApiBaseUrl/projects/$($script:LiveProjectId)/web-files"
     $request = [System.Net.Http.HttpRequestMessage]::new([System.Net.Http.HttpMethod]::Post, $uri)
-    $request.Headers.Authorization = [System.Net.Http.Headers.AuthenticationHeaderValue]::new('Bearer', $script:LiveAccessToken)
+    $request.Headers.Add('Cookie', $script:LiveCookieHeader)
     $request.Content = $multipart
     $response = $client.SendAsync($request).GetAwaiter().GetResult()
     $responseBody = $response.Content.ReadAsStringAsync().GetAwaiter().GetResult()
@@ -244,9 +252,8 @@ function Invoke-FileTransferCheck {
   }
 
   try {
-    $headers = @{ Authorization = "Bearer $script:LiveAccessToken" }
     $cleanupPayload = @{ object_names = @($objectName); repair_orphan_references = $false } | ConvertTo-Json -Compress
-    $cleanup = Invoke-RestMethod -Method Post -Uri "$LiveApiBaseUrl/storage/cleanup-execute" -Headers $headers -ContentType 'application/json' -Body $cleanupPayload -TimeoutSec 20
+    $cleanup = Invoke-RestMethod -Method Post -Uri "$LiveApiBaseUrl/storage/cleanup-execute" -WebSession $script:LiveWebSession -ContentType 'application/json' -Body $cleanupPayload -TimeoutSec 20
     $deleted = @($cleanup.deleted_objects) -contains $objectName
     Add-Result -Name 'Web file cleanup' -Status $(if ($deleted) { 'passed' } else { 'failed' }) -Required:$true -Details $(if ($deleted) { 'temporary smoke object deleted' } else { 'temporary smoke object was not deleted' })
   } catch {
@@ -265,8 +272,7 @@ function Invoke-ReportChecks {
   }
 
   try {
-    $headers = @{ Authorization = "Bearer $script:LiveAccessToken" }
-    $runs = Invoke-RestMethod -Method Get -Uri "$LiveApiBaseUrl/runs?page=1&page_size=20" -Headers $headers -TimeoutSec 20
+    $runs = Invoke-RestMethod -Method Get -Uri "$LiveApiBaseUrl/runs?page=1&page_size=20" -WebSession $script:LiveWebSession -TimeoutSec 20
     $run = @($runs.items | Where-Object { $null -ne $_.id } | Select-Object -First 1)
     if ($run.Count -eq 0) {
       Add-Result -Name 'Run report export' -Status 'failed' -Required:$true -Details 'No historical run is available; report export was not exercised.'
@@ -283,7 +289,7 @@ function Invoke-ReportChecks {
     )
     foreach ($format in $formats) {
       $artifactPath = Join-Path $ReportDirectory $format.File
-      $download = Invoke-WebRequest -UseBasicParsing -Uri "$LiveApiBaseUrl/$($format.Path)" -Headers $headers -TimeoutSec 30
+      $download = Invoke-WebRequest -UseBasicParsing -Uri "$LiveApiBaseUrl/$($format.Path)" -WebSession $script:LiveWebSession -TimeoutSec 30
       [System.IO.File]::WriteAllText($artifactPath, [string]$download.Content, [System.Text.UTF8Encoding]::new($false))
       $size = (Get-Item -LiteralPath $artifactPath).Length
       $passed = [int]$download.StatusCode -eq 200 -and $size -gt 0

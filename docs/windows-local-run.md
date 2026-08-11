@@ -84,7 +84,38 @@ MINIO_PORT=9000
 - 应用启动时会做一次 Alembic head 校验，DB revision 与 head 不一致会在日志输出 WARNING
 - `APP_AUTO_CREATE_TABLES=true` 只建议用于本地临时排障，不建议作为日常启动路径
 
-## 单命令启动
+## 单命令启动与配置档案
+
+如果需要在多种运行方式之间切换，不要反复覆盖根目录 `.env`，使用配置档案入口：
+
+```powershell
+Copy-Item .\config\startup-profiles\local-all.env.example .\config\startup-profiles\local-all.env
+Copy-Item .\config\startup-profiles\remote-infra.env.example .\config\startup-profiles\remote-infra.env
+Copy-Item .\config\startup-profiles\android-agent.env.example .\config\startup-profiles\android-agent.env
+```
+
+交互式选择启动方式：
+
+```powershell
+.\startup.cmd
+```
+
+也可以直接指定：
+
+```powershell
+.\startup.cmd -Profile local-all -Action up
+.\startup.cmd -Profile remote-infra -Action restart
+.\startup.cmd -Profile android-agent -Action up
+.\startup.cmd -Profile android-agent -Action status
+```
+
+三种档案分别表示：
+
+- `local-all`：Windows 本机启动 Backend、Worker、Beat、Frontend，并连接本机基础设施。
+- `remote-infra`：Windows 本机启动 Backend、Worker、Beat、Frontend，但 PostgreSQL、Redis、MinIO 使用远程地址。
+- `android-agent`：Windows 只启动 Android Worker，本机执行 ADB；任务和结果通过远程 PostgreSQL、Redis、MinIO 交互。
+
+真实档案位于 `config/startup-profiles/*.env`，模板是同名 `.env.example`，真实档案已被 Git 忽略。启动脚本只向子进程注入选中档案，不会覆盖根目录 `.env`。
 
 在项目根目录执行：
 

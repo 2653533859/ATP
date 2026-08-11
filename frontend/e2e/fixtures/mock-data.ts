@@ -12,8 +12,7 @@ export const adminUser = {
 }
 
 export const adminTokens = {
-  access_token: 'e2e-access-token',
-  refresh_token: 'e2e-refresh-token',
+  authenticated: true,
   token_type: 'bearer',
 }
 

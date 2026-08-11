@@ -3,7 +3,7 @@
 ATP 默认 worker 监听全部队列，适合本地开发和小型部署：
 
 ```bash
-CELERY_QUEUES=default,mobile_special,ios,ai,maintenance,performance
+CELERY_QUEUES=default,android,mobile_special,ios,ai,maintenance,performance
 celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q "$CELERY_QUEUES"
 ```
 
@@ -14,6 +14,7 @@ celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q "$CELERY_Q
 | 队列 | 任务 | 说明 |
 |------|------|------|
 | `default` | `run_test_case`、`run_test_suite`、`run_test_plan`、`check_cron_plans` | 高频主链路执行 |
+| `android` | 普通 Android 用例，以及只包含 Android 用例的套件/计划 | 由 Windows Android Worker 消费，在本机调用 `adb` |
 | `mobile_special` | Android 专项任务、ADB 扫描、专项清理 | 受真机和网络资源约束，建议独立副本 |
 | `ai` | AI 自愈诊断、反馈聚合 | 依赖外部 LLM，便于限流和降级 |
 | `maintenance` | 文件清理、运行记录清理、存储告警、Dashboard 告警、PostgreSQL 备份 | 后台维护任务，允许低优先级运行 |
@@ -23,6 +24,8 @@ celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q "$CELERY_Q
 状态流转、重试、超时和恢复策略见 [Worker State, Retry, Timeout, and Recovery Policy](./worker-lifecycle.md)。
 
 ## Docker Compose
+
+公网部署使用 Windows Android Worker 时，Linux 普通 Worker 必须排除 `android,mobile_special`，Windows 主机按 [`android-windows-worker.md`](android-windows-worker.md) 运行 `android,mobile_special`。整个部署只运行一个 Beat。
 
 默认 `worker` 服务监听全部队列。只跑普通执行队列：
 
@@ -34,7 +37,7 @@ CELERY_QUEUES=default docker compose up -d worker
 
 ```yaml
 environment:
-  - CELERY_QUEUES=mobile_special
+  - CELERY_QUEUES=android,mobile_special
 ```
 
 需要独立执行 HTTP 压测时，同样复制 `worker` 服务并只监听 performance 队列。`backend/Dockerfile.worker`
@@ -51,7 +54,7 @@ environment:
 
 ```yaml
 config:
-  CELERY_QUEUES: default,mobile_special,ios,ai,maintenance,performance
+  CELERY_QUEUES: default,ios,ai,maintenance,performance
 performanceWorker:
   enabled: false
   queues: performance
@@ -62,7 +65,7 @@ performanceWorker:
 生产隔离建议：
 
 - 普通执行 worker：`CELERY_QUEUES=default`，按业务吞吐扩容。
-- Android worker：`CELERY_QUEUES=mobile_special`，按可用真机数量扩容。
+- Windows Android worker：`CELERY_QUEUES=android,mobile_special`，按可用真机数量扩容，详见 [`android-windows-worker.md`](android-windows-worker.md)。
 - AI worker：`CELERY_QUEUES=ai`，按 LLM 限额和成本控制副本。
 - 维护 worker：`CELERY_QUEUES=maintenance`，少量副本即可。
 - 压测 worker：`CELERY_QUEUES=performance` 或 `performance.<node>,performance`，低并发运行，配独立 CPU/内存限制与网络出口策略。
@@ -71,9 +74,9 @@ Chart 内置可选 `performanceWorker` Deployment。生产启用示例：
 
 ```yaml
 worker:
-  queues: default,mobile_special,ai,maintenance
+  queues: default,ios,ai,maintenance
 config:
-  CELERY_QUEUES: default,mobile_special,ai,maintenance
+  CELERY_QUEUES: default,ios,ai,maintenance
 performanceWorker:
   enabled: true
   replicas: 1

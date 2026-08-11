@@ -67,7 +67,9 @@ async def admin_token(async_client) -> str:
         },
     )
     assert resp.status_code == 200, f"admin login failed: {resp.status_code} {resp.text}"
-    return resp.json()["access_token"]
+    access_token = async_client.cookies.get("atp_access_token")
+    assert access_token, "login did not set the HttpOnly access cookie"
+    return access_token
 
 
 @pytest.fixture()

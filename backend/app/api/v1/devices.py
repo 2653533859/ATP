@@ -3,6 +3,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.device import Device, DeviceStatus
 from app.models.user import User
 from app.schemas.device import DeviceOut, DeviceUpdate
@@ -43,6 +44,13 @@ async def scan_devices(
     _=Depends(require_engineer),
 ):
     """手动触发 ADB 设备扫描，更新数据库并返回最新设备列表"""
+    if settings.ADB_SCAN_MODE.strip().lower() == "worker":
+        from app.worker.tasks_device import scan_adb_devices
+
+        scan_adb_devices.apply_async(queue="mobile_special")
+        result = await db.execute(select(Device).order_by(Device.status.asc(), Device.updated_at.desc()))
+        return result.scalars().all()
+
     scanned = await async_scan_devices()
     if scanned is None:
         raise HTTPException(

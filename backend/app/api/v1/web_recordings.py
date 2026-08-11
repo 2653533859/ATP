@@ -16,7 +16,7 @@ from dataclasses import dataclass, field
 from typing import Any, Literal
 from urllib.parse import urlparse
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
 from playwright.async_api import Browser, BrowserContext, Frame, Page, Playwright, async_playwright
 from sqlalchemy import select
@@ -206,11 +206,27 @@ class WebRecordingSession:
             self.playwright = None
         self.page = None
 
+    async def screenshot(self) -> bytes:
+        if self.page is None or self.status not in {"starting", "recording", "stopping"}:
+            raise RuntimeError("录制浏览器当前不可截图")
+        return await self.page.screenshot(type="png")
+
+    def current_url(self) -> str:
+        if self.page is not None and self.page.url.startswith(("http://", "https://")):
+            return self.page.url
+        for step in reversed(self.steps):
+            params = step.get("params") if isinstance(step.get("params"), dict) else {}
+            url = str(params.get("url") or "").strip()
+            if url.startswith(("http://", "https://")):
+                return url
+        return self.start_url
+
     def snapshot(self) -> dict[str, Any]:
         return {
             "id": self.session_id,
             "status": self.status,
             "start_url": self.start_url,
+            "current_url": self.current_url(),
             "project_id": self.project_id,
             "steps": self.steps,
             "asset_ids": self.asset_ids,
@@ -393,6 +409,16 @@ async def start_recording(
 @router.get("/{session_id}")
 async def get_recording(session_id: str, user: User = Depends(get_current_user)):
     return manager.get(session_id, user.id).snapshot()
+
+
+@router.post("/{session_id}/screenshot", response_class=Response)
+async def capture_recording_screenshot(session_id: str, user: User = Depends(get_current_user)):
+    session = manager.get(session_id, user.id)
+    try:
+        data = await session.screenshot()
+    except RuntimeError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+    return Response(content=data, media_type="image/png", headers={"Cache-Control": "no-store"})
 
 
 @router.post("/{session_id}/stop")

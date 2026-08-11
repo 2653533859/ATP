@@ -44,7 +44,7 @@ def test_patch_apply_endpoint_snapshots_audits_and_can_trigger_regression():
     assert "ai_healing_patch_apply" in content
     assert "TestRun(" in content
     assert "triggered_by_ai_healing_patch" in content
-    assert "run_test_case.delay" in content
+    assert "enqueue_case_run" in content
 
 
 def test_patch_apply_schema_tracks_source_and_regression():

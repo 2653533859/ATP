@@ -119,6 +119,29 @@ def test_scan_devices_syncs_and_returns_latest_rows(monkeypatch):
     assert db.commits == 1
 
 
+def test_scan_devices_dispatches_to_worker_queue(monkeypatch):
+    latest = _device(3)
+    db = _DB(rows=[[latest]])
+    calls = {}
+
+    monkeypatch.setattr(devices.settings, "ADB_SCAN_MODE", "worker")
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.tasks_device",
+        SimpleNamespace(
+            scan_adb_devices=SimpleNamespace(
+                apply_async=lambda **kwargs: calls.update(kwargs),
+            )
+        ),
+    )
+
+    result = asyncio.run(devices.scan_devices(db=db, _=None))
+
+    assert result == [latest]
+    assert calls == {"queue": "mobile_special"}
+    assert db.commits == 0
+
+
 def test_get_device_404_for_missing_device():
     with pytest.raises(HTTPException) as exc:
         asyncio.run(devices.get_device(device_id=404, db=_DB(), _=None))

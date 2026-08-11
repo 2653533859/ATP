@@ -18,6 +18,9 @@ def test_windows_local_script_exposes_doctor_and_windows_safe_repo_resolution():
     assert "Test-TcpEndpoint" in script
     assert "PERFORMANCE_EXECUTORS" in script
     assert "PlaywrightPackage" in script
+    assert "Configure-WorkerQueues" in script
+    assert "'-Q'" in script
+    assert "(?:\\s+-Q\\s+\\S+)?" in script
     assert "F:\\csh\\MyProjectAutoTest" not in script
 
 
@@ -44,6 +47,8 @@ def test_windows_local_smoke_covers_live_and_browser_paths_without_secrets():
     assert "/health" in script
     assert "/api/v1/auth/login" in script
     assert "/auth/me" in script
+    assert "atp_access_token" in script
+    assert "WebRequestSession" in script
     assert "'/projects'" in script
     assert "/web-files" in script
     assert "/storage/cleanup-execute" in script
@@ -53,6 +58,6 @@ def test_windows_local_smoke_covers_live_and_browser_paths_without_secrets():
     assert "if ([string]::IsNullOrWhiteSpace($objectName))" in script
     assert "'run', 'e2e'" in script
     assert "e2e:browser-matrix" in script
-    assert "access token returned; value hidden" in script
+    assert "HttpOnly cookie session established" in script
     assert "ConvertTo-Json" in script
     assert "F:\\csh\\MyProjectAutoTest" not in script

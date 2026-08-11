@@ -25,7 +25,9 @@ ws_router = APIRouter(prefix="/ws")
 
 
 async def _get_ws_user(websocket: WebSocket) -> User | None:
-    token = websocket.query_params.get("token")
+    # Browser clients use the HttpOnly cookie. Keep query-token support temporarily for
+    # non-browser integrations, but the UI must never put a JWT in a URL.
+    token = getattr(websocket, "cookies", {}).get("atp_access_token") or websocket.query_params.get("token")
     if not token:
         return None
 

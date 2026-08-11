@@ -70,9 +70,10 @@ class _FakeSuiteRunStatus:
 
 
 class _FakeCase:
-    def __init__(self, case_id: int, name: str):
+    def __init__(self, case_id: int, name: str, case_type=None):
         self.id = case_id
         self.name = name
+        self.case_type = case_type
 
 
 class _FakeDB:
@@ -142,8 +143,16 @@ def test_suite_run_should_stop_for_minimum_pass_rate():
 
 
 def test_execute_suite_cases_marks_remaining_cases_skipped_on_fast_fail(monkeypatch):
-    monkeypatch.setitem(sys.modules, "app.models.case", types.SimpleNamespace(TestCase=type("TestCase", (), {})))
-    monkeypatch.setitem(sys.modules, "app.models.suite", types.SimpleNamespace(SuiteRunStatus=_FakeSuiteRunStatus))
+    monkeypatch.setitem(
+        sys.modules,
+        "app.models.case",
+        types.SimpleNamespace(TestCase=type("TestCase", (), {}), CaseType=_REAL_CASE_MODELS.CaseType),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "app.models.suite",
+        types.SimpleNamespace(SuiteRunStatus=_FakeSuiteRunStatus, TestSuite=_REAL_SUITE_MODELS.TestSuite),
+    )
 
     results = {
         1: {"case_id": 1, "case_name": "Case-1", "run_id": 101, "status": "failed"},
@@ -187,8 +196,16 @@ def test_execute_suite_cases_marks_remaining_cases_skipped_on_fast_fail(monkeypa
 
 
 def test_execute_suite_cases_uses_parallel_batches_and_collects_results(monkeypatch):
-    monkeypatch.setitem(sys.modules, "app.models.case", types.SimpleNamespace(TestCase=type("TestCase", (), {})))
-    monkeypatch.setitem(sys.modules, "app.models.suite", types.SimpleNamespace(SuiteRunStatus=_FakeSuiteRunStatus))
+    monkeypatch.setitem(
+        sys.modules,
+        "app.models.case",
+        types.SimpleNamespace(TestCase=type("TestCase", (), {}), CaseType=_REAL_CASE_MODELS.CaseType),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "app.models.suite",
+        types.SimpleNamespace(SuiteRunStatus=_FakeSuiteRunStatus, TestSuite=_REAL_SUITE_MODELS.TestSuite),
+    )
 
     started: list[int] = []
 
@@ -227,3 +244,47 @@ def test_execute_suite_cases_uses_parallel_batches_and_collects_results(monkeypa
     assert suite_run.result_summary["passed"] == 3
     assert suite_run.result_summary["execution_mode"] == "parallel"
     assert suite_run.result_summary["max_workers"] == 2
+
+
+def test_mixed_suite_routes_device_children_to_their_worker(monkeypatch):
+    from app.models.case import CaseType
+
+    monkeypatch.setitem(
+        sys.modules,
+        "app.models.case",
+        types.SimpleNamespace(TestCase=type("TestCase", (), {}), CaseType=_REAL_CASE_MODELS.CaseType),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "app.models.suite",
+        types.SimpleNamespace(SuiteRunStatus=_FakeSuiteRunStatus, TestSuite=_REAL_SUITE_MODELS.TestSuite),
+    )
+
+    routed: list[bool] = []
+
+    async def fake_execute_case_run(_db, _suite_run, case, _extra_vars, **kwargs):
+        routed.append(bool(kwargs.get("route_to_worker")))
+        return {"case_id": case.id, "case_name": case.name, "run_id": 100 + case.id, "status": "passed"}
+
+    async def fake_mark_flaky_case_results(_db, _case_run_results):
+        return None
+
+    monkeypatch.setattr(tasks, "_execute_case_run", fake_execute_case_run)
+    monkeypatch.setattr(tasks, "_mark_flaky_case_results", fake_mark_flaky_case_results)
+
+    suite_run = _FakeSuiteRun()
+    suite = _FakeSuite(
+        case_ids=[{"case_id": 1, "sort": 0}, {"case_id": 2, "sort": 1}],
+        config={"execution_mode": "sequential", "fail_strategy": "continue"},
+    )
+    db = _FakeDB(
+        {
+            1: _FakeCase(1, "API case", CaseType.api),
+            2: _FakeCase(2, "Android case", CaseType.android),
+        }
+    )
+
+    asyncio.run(tasks._execute_suite_cases(db, suite_run, suite, {}))
+
+    assert routed == [False, True]
+    assert suite_run.status == "passed"

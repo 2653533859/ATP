@@ -36,6 +36,7 @@ from app.schemas.suite import (
 )
 from app.api.deps import assert_project_access, get_current_user, require_engineer
 from app.models.user_project import ProjectRole
+from app.services.execution_routing import enqueue_task, resolve_suite_execution_queue
 
 router = APIRouter(tags=["测试套件"])
 
@@ -262,7 +263,8 @@ async def trigger_suite_run(
     # 触发 Celery 任务
     from app.worker.tasks import run_test_suite
 
-    run_test_suite.delay(suite_run.id, merged_vars, suite_run.trace_id)
+    queue = await resolve_suite_execution_queue(db, suite)
+    enqueue_task(run_test_suite, (suite_run.id, merged_vars, suite_run.trace_id), queue)
 
     return suite_run
 

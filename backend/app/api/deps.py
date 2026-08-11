@@ -1,4 +1,4 @@
-from fastapi import Depends, HTTPException, Path, status
+from fastapi import Depends, HTTPException, Path, Request, status
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from jwt import InvalidTokenError
 from sqlalchemy import select
@@ -10,14 +10,18 @@ from app.models.user import User, UserRole
 from app.models.user_project import ProjectRole, UserProject, role_satisfies
 from app.services.audit import write_audit_log
 
-bearer = HTTPBearer()
+bearer = HTTPBearer(auto_error=False)
 
 
 async def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer),
+    request: Request,
+    credentials: HTTPAuthorizationCredentials | None = Depends(bearer),
     db: AsyncSession = Depends(get_db),
 ) -> User:
-    token = credentials.credentials
+    # Bearer remains supported for CLI/API clients; the browser uses an HttpOnly cookie.
+    token = credentials.credentials if credentials else request.cookies.get("atp_access_token")
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:
         payload = decode_token(token)
         if payload.get("type") != "access":

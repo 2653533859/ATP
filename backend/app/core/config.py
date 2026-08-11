@@ -1,6 +1,9 @@
-from pydantic_settings import BaseSettings, SettingsConfigDict
 from functools import lru_cache
 from pathlib import Path
+from typing import Self
+
+from pydantic import model_validator
+from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
@@ -21,6 +24,8 @@ class Settings(BaseSettings):
     APP_ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
     APP_REFRESH_TOKEN_EXPIRE_DAYS: int = 7
     APP_CORS_ORIGINS: str = "http://localhost:5173,http://localhost:80"
+    APP_AUTH_COOKIE_SECURE: bool = False
+    APP_AUTH_COOKIE_SAMESITE: str = "lax"
     APP_AUTO_CREATE_TABLES: bool = False
 
     # Database
@@ -50,6 +55,7 @@ class Settings(BaseSettings):
     # ADB
     ADB_SCAN_ENABLED: bool = True  # 设为 False 可关闭定时扫描（纯 Web 测试环境）
     ADB_SCAN_INTERVAL: int = 15  # 设备扫描间隔（秒）
+    ADB_SCAN_MODE: str = "local"  # local=当前进程扫描；worker=投递到 mobile_special 队列
     # ADB 自愈：执行器检测设备不可达时是否自动 disconnect/connect 重试（仅对 ip:port serial 生效）
     ADB_RECONNECT_ENABLED: bool = True
     ADB_RECONNECT_MAX_ATTEMPTS: int = 3  # ensure_reachable 总尝试次数（含首次）
@@ -107,7 +113,8 @@ class Settings(BaseSettings):
     # 通过 prometheus_client.start_http_server(WORKER_METRICS_PORT) 暴露指标
     WORKER_METRICS_PORT: int = 9091
     # 当前 worker 实例监听的 Celery 队列，逗号分隔。默认监听全部队列，生产可按队列拆分 worker。
-    CELERY_QUEUES: str = "default,mobile_special,ios,ai,maintenance,performance"
+    CELERY_QUEUES: str = "default,android,mobile_special,ios,ai,maintenance,performance"
+    SUITE_CHILD_TASK_TIMEOUT_SECONDS: int = 3600
 
     # Performance Center guardrails
     PERFORMANCE_TARGET_ALLOWLIST: str = ""  # comma-separated hostnames; empty = allow all
@@ -166,6 +173,16 @@ class Settings(BaseSettings):
     OTEL_TRACES_SAMPLER_ARG: float = 0.1
     # Jaeger UI 基础 URL，前端展示"在 Jaeger 中打开"链接时使用；为空则不显示按钮
     JAEGER_UI_URL: str = ""
+
+    @model_validator(mode="after")
+    def validate_auth_cookie_settings(self) -> Self:
+        samesite = self.APP_AUTH_COOKIE_SAMESITE.strip().lower()
+        if samesite not in {"lax", "strict", "none"}:
+            raise ValueError("APP_AUTH_COOKIE_SAMESITE must be one of lax, strict, none")
+        if samesite == "none" and not self.APP_AUTH_COOKIE_SECURE:
+            raise ValueError("APP_AUTH_COOKIE_SECURE must be true when APP_AUTH_COOKIE_SAMESITE=none")
+        self.APP_AUTH_COOKIE_SAMESITE = samesite
+        return self
 
     @property
     def DATABASE_URL(self) -> str:

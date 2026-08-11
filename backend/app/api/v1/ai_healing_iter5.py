@@ -27,6 +27,7 @@ from app.services.ai_healing_iter5 import (
     parse_structured_healing_suggestion,
     validate_lowcode_patch,
 )
+from app.services.execution_routing import enqueue_case_run
 
 router = APIRouter(prefix="/ai-healing", tags=["AI 自愈 iter5"])
 
@@ -231,5 +232,5 @@ async def _trigger_regression_run(
     await db.commit()
     await db.refresh(run)
 
-    _cases.run_test_case.delay(run.id, merged_vars, run.trace_id)
+    enqueue_case_run(_cases.run_test_case, run.id, merged_vars, run.trace_id, case.case_type)
     return run.id

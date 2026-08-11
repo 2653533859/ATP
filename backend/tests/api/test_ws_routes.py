@@ -79,6 +79,7 @@ def _install_session(monkeypatch, db):
 class _FakeWebSocket:
     def __init__(self, token="tok"):
         self.query_params = {"token": token} if token is not None else {}
+        self.cookies = {}
         self.accepted = False
         self.closed = None
         self.sent = []
@@ -128,6 +129,16 @@ def test_get_ws_user_returns_active_user(monkeypatch):
     _install_session(monkeypatch, _FakeDB(execute_results=[_FakeResult(value=user)]))
 
     assert asyncio.run(ws_mod._get_ws_user(_FakeWebSocket())) is user
+
+
+def test_get_ws_user_prefers_http_only_cookie(monkeypatch):
+    monkeypatch.setattr(ws_mod, "decode_token", lambda token: {"type": "access", "sub": token})
+    user = _Obj(id=8, username="cookie-user", is_active=True)
+    websocket = _FakeWebSocket(token=None)
+    websocket.cookies = {"atp_access_token": "cookie-user"}
+    _install_session(monkeypatch, _FakeDB(execute_results=[_FakeResult(value=user)]))
+
+    assert asyncio.run(ws_mod._get_ws_user(websocket)) is user
 
 
 # ── _can_subscribe_run 授权阶梯 ─────────────────────────────

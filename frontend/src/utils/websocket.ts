@@ -41,9 +41,8 @@ export function createRunWebSocket(runId: number, onMessage: MessageHandler, onC
   const MAX_RETRIES = 3
 
   function connect() {
-    const token = localStorage.getItem('access_token')
-    const url = token ? `${baseUrl}?token=${encodeURIComponent(token)}` : baseUrl
-    ws = new WebSocket(url)
+    // WebSocket 会自动携带同源 HttpOnly Cookie，避免 JWT 出现在 URL、历史记录或代理日志中。
+    ws = new WebSocket(baseUrl)
 
     ws.onmessage = (e) => {
       try {

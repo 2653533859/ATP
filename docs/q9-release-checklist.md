@@ -158,7 +158,7 @@ helm upgrade --install atp deploy/helm/atp/ -n atp-staging -f my-values.yaml
 Confirm before applying:
 
 - Image tags and digests match the release candidate.
-- `config.CELERY_QUEUES` and `worker.queues` include `default,mobile_special,ios,ai,maintenance,performance`.
+- `config.CELERY_QUEUES` and `worker.queues` include `default,ios,ai,maintenance,performance`; Android queues are reserved for the Windows Android Worker.
 - Long-running `performance` and growing `ai` traffic have the intended worker separation and resource limits.
 - PostgreSQL, Redis, MinIO, Prometheus, and notification/bug-tracker endpoints point to staging services.
 - Secrets are injected externally and do not appear in values files or rendered manifests.

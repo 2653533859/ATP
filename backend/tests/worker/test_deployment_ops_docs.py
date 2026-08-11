@@ -47,15 +47,15 @@ def test_compose_worker_uses_configurable_celery_queues():
     compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     worker = compose["services"]["worker"]
 
-    assert "CELERY_QUEUES=${CELERY_QUEUES:-default,mobile_special,ios,ai,maintenance,performance}" in worker["environment"]
+    assert "CELERY_QUEUES=${CELERY_QUEUES:-default,android,mobile_special,ios,ai,maintenance,performance}" in worker["environment"]
     assert "-Q $${CELERY_QUEUES}" in worker["command"]
 
 
 def test_helm_values_expose_worker_queues_and_resources():
     values = yaml.safe_load((ROOT / "deploy" / "helm" / "atp" / "values.yaml").read_text(encoding="utf-8"))
 
-    assert values["worker"]["queues"] == "default,mobile_special,ios,ai,maintenance,performance"
-    assert values["config"]["CELERY_QUEUES"] == "default,mobile_special,ios,ai,maintenance,performance"
+    assert values["worker"]["queues"] == "default,ios,ai,maintenance,performance"
+    assert values["config"]["CELERY_QUEUES"] == "default,ios,ai,maintenance,performance"
     assert values["performanceWorker"]["enabled"] is False
     assert values["performanceWorker"]["queues"] == "performance"
     assert values["performanceWorker"]["concurrency"] == "1"

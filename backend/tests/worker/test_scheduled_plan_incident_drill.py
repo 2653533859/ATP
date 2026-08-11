@@ -39,7 +39,7 @@ def test_incident_drill_matches_worker_implementation_contract(repo_file):
     assert '"task": "check_cron_plans"' in celery
     assert '"run_test_plan": {"queue": "default"}' in celery
     assert "trigger_type=TriggerType.cron" in tasks
-    assert "run_test_plan.delay(plan_run.id" in tasks
+    assert "enqueue_task(run_test_plan" in tasks
     assert '"auto_bugs": bug_results' in tasks
     assert '"auto_bugs_error": str(e)[:500]' in tasks
     assert "Plan notification failed" in tasks

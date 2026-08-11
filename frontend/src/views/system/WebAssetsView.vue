@@ -15,7 +15,11 @@
     <a-tabs v-else v-model:active-key="activeTab">
       <a-tab-pane key="elements" :tab="t('web_assets.elements_tab')">
         <div class="toolbar">
-          <a-button type="primary" @click="openElementCreate">{{ t('web_assets.new_element') }}</a-button>
+          <a-space>
+            <a-button type="primary" @click="openRecorder('elements')">{{ t('web_assets.record_elements') }}</a-button>
+            <a-button @click="openElementCreate">{{ t('web_assets.new_element') }}</a-button>
+          </a-space>
+          <span class="toolbar-hint">{{ t('web_assets.record_elements_hint') }}</span>
         </div>
         <a-table :data-source="elements" :columns="elementColumns" :loading="loading" row-key="id" :pagination="{ pageSize: 10 }">
           <template #bodyCell="{ column, record }">
@@ -40,7 +44,11 @@
       </a-tab-pane>
       <a-tab-pane key="page_objects" :tab="t('web_assets.page_objects_tab')">
         <div class="toolbar">
-          <a-button type="primary" @click="openPageObjectCreate">{{ t('web_assets.new_page_object') }}</a-button>
+          <a-space>
+            <a-button type="primary" @click="openRecorder('page_object')">{{ t('web_assets.record_page_object') }}</a-button>
+            <a-button @click="openPageObjectCreate">{{ t('web_assets.new_page_object') }}</a-button>
+          </a-space>
+          <span class="toolbar-hint">{{ t('web_assets.record_page_object_hint') }}</span>
         </div>
         <a-table :data-source="pageObjects" :columns="pageObjectColumns" :loading="loading" row-key="id" :pagination="{ pageSize: 10 }">
           <template #bodyCell="{ column, record }">
@@ -60,7 +68,11 @@
       </a-tab-pane>
       <a-tab-pane key="visual_baselines" :tab="t('web_assets.visual_baselines_tab')">
         <div class="toolbar">
-          <a-button type="primary" @click="openVisualBaselineCreate">{{ t('web_assets.new_visual_baseline') }}</a-button>
+          <a-space>
+            <a-button type="primary" @click="openRecorder('visual_baseline')">{{ t('web_assets.capture_visual_baseline') }}</a-button>
+            <a-button @click="openVisualBaselineCreate">{{ t('web_assets.new_visual_baseline') }}</a-button>
+          </a-space>
+          <span class="toolbar-hint">{{ t('web_assets.capture_visual_baseline_hint') }}</span>
         </div>
         <a-table :data-source="visualBaselines" :columns="visualBaselineColumns" :loading="loading" row-key="id" :pagination="{ pageSize: 10 }">
           <template #bodyCell="{ column, record }">
@@ -95,7 +107,7 @@
       </a-form>
     </a-modal>
 
-    <a-modal v-model:open="visualBaselineModalOpen" :title="t('web_assets.new_visual_baseline')" :confirm-loading="saving" @ok="saveVisualBaseline">
+    <a-modal v-model:open="visualBaselineModalOpen" :title="visualBaselineFromRecorder ? t('web_assets.capture_baseline_title') : t('web_assets.new_visual_baseline')" :confirm-loading="saving" @ok="saveVisualBaseline">
       <a-form layout="vertical">
         <a-form-item :label="t('web_assets.name')" required><a-input v-model:value="visualBaselineForm.name" /></a-form-item>
         <a-form-item :label="t('web_assets.page_url')"><a-input v-model:value="visualBaselineForm.page_url" /></a-form-item>
@@ -105,8 +117,19 @@
         <a-upload :before-upload="selectVisualBaselineFile" :show-upload-list="true" :max-count="1" accept=".png">
           <a-button>{{ t('web_assets.choose_visual_baseline') }}</a-button>
         </a-upload>
+        <a-alert v-if="visualBaselineFromRecorder" type="info" show-icon :message="t('web_assets.capture_visual_baseline_hint')" style="margin-top: 12px" />
       </a-form>
     </a-modal>
+
+    <WebRecorderModal
+      :open="recorderOpen"
+      :project-id="selectedProjectId"
+      :show-capture="recorderMode === 'visual_baseline'"
+      :auto-apply="recorderMode !== 'visual_baseline'"
+      @close="handleRecorderClose"
+      @recorded="handleRecorded"
+      @captured="handleScreenshotCaptured"
+    />
 
     <a-modal v-model:open="repairModalOpen" :title="t('web_assets.repair_title')" :confirm-loading="repairLoading" :ok-button-props="{ disabled: selectedRepairIndex == null }" @ok="applyRepair">
       <a-alert type="info" show-icon :message="t('web_assets.repair_hint')" />
@@ -128,7 +151,8 @@
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
-import { projectApi, webAssetsApi, webVisualApi, type ProjectItem, type WebElementAssetItem, type WebLocatorRepairCandidate, type WebPageObjectItem, type WebVisualBaselineItem } from '@/api'
+import { projectApi, webAssetsApi, webVisualApi, type ProjectItem, type WebElementAssetItem, type WebLocatorRepairCandidate, type WebPageObjectItem, type WebRecordingStep, type WebVisualBaselineItem } from '@/api'
+import WebRecorderModal from '@/components/common/WebRecorderModal.vue'
 
 const { t } = useI18n()
 const loading = ref(false)
@@ -145,6 +169,10 @@ const elementModalOpen = ref(false)
 const pageObjectModalOpen = ref(false)
 const visualBaselineModalOpen = ref(false)
 const visualBaselineFile = ref<File | null>(null)
+const visualBaselineFromRecorder = ref(false)
+const recorderOpen = ref(false)
+const recorderMode = ref<'elements' | 'page_object' | 'visual_baseline' | null>(null)
+const pageObjectFromRecorder = ref(false)
 const repairModalOpen = ref(false)
 const repairLoading = ref(false)
 const repairAsset = ref<WebElementAssetItem | null>(null)
@@ -221,11 +249,13 @@ async function loadAll() {
 function openVisualBaselineCreate() {
   visualBaselineForm.value = { name: '', page_url: '', threshold: 0.01, pixel_threshold: 10, ignoreText: '[]' }
   visualBaselineFile.value = null
+  visualBaselineFromRecorder.value = false
   visualBaselineModalOpen.value = true
 }
 
 function selectVisualBaselineFile(file: File) {
   visualBaselineFile.value = file
+  visualBaselineFromRecorder.value = false
   return false
 }
 
@@ -244,6 +274,7 @@ async function saveVisualBaseline() {
       file: visualBaselineFile.value,
     })
     visualBaselineModalOpen.value = false
+    visualBaselineFromRecorder.value = false
     await loadAll()
   } catch {
     message.error(t('web_assets.save_failed'))
@@ -259,6 +290,98 @@ async function deleteVisualBaseline(id: number) {
   } catch {
     message.error(t('web_assets.delete_failed'))
   }
+}
+
+function nextGeneratedName(prefix: string, names: string[]) {
+  let index = 1
+  while (names.includes(`${prefix}_${index}`)) index += 1
+  return `${prefix}_${index}`
+}
+
+function openRecorder(mode: 'elements' | 'page_object' | 'visual_baseline') {
+  if (!selectedProjectId.value) return
+  recorderMode.value = mode
+  recorderOpen.value = true
+}
+
+function handleRecorderClose() {
+  recorderOpen.value = false
+  recorderMode.value = null
+}
+
+function buildRecordedPageObject(steps: WebRecordingStep[], assetIds: number[]) {
+  const aliases = new Map<number, string>()
+  const elementRefs: Array<Record<string, unknown>> = []
+  let aliasIndex = 1
+  const ensureAlias = (assetId: number) => {
+    const existing = aliases.get(assetId)
+    if (existing) return existing
+    const alias = `element_${aliasIndex++}`
+    aliases.set(assetId, alias)
+    elementRefs.push({ asset_id: assetId, alias })
+    return alias
+  }
+
+  for (const assetId of assetIds) {
+    if (Number.isInteger(assetId) && assetId > 0) ensureAlias(assetId)
+  }
+
+  const actions = steps
+    .filter((step) => ['goto', 'click', 'fill', 'select', 'press'].includes(step.action))
+    .map((step) => {
+      const params = { ...step.params }
+      const rawAssetId = Number(params.element_asset_id)
+      delete params.element_asset_id
+      const action: Record<string, unknown> = {
+        name: step.name,
+        step: step.action,
+        params,
+      }
+      if (Number.isInteger(rawAssetId) && rawAssetId > 0) action.alias = ensureAlias(rawAssetId)
+      return action
+    })
+
+  const lastGoto = [...steps].reverse().find((step) => step.action === 'goto')
+  const url = String(lastGoto?.params.url || '').trim()
+  return { elementRefs, actions, url }
+}
+
+async function handleRecorded(steps: WebRecordingStep[], assetIds: number[]) {
+  if (recorderMode.value === 'elements') {
+    await loadAll()
+    message.success(t('web_assets.recorded_elements', { count: assetIds.length }))
+    return
+  }
+  if (recorderMode.value !== 'page_object') return
+
+  const generated = buildRecordedPageObject(steps, assetIds)
+  if (!generated.actions.length) {
+    message.warning(t('web_assets.no_recorded_steps'))
+    return
+  }
+  editingPageObject.value = null
+  pageObjectFromRecorder.value = true
+  pageObjectForm.value = {
+    name: nextGeneratedName(t('web_assets.recorded_page_object_prefix'), pageObjects.value.map((item) => item.name)),
+    url_pattern: generated.url,
+    elementRefsText: JSON.stringify(generated.elementRefs, null, 2),
+    actionsText: JSON.stringify(generated.actions, null, 2),
+    description: t('web_assets.recorded_page_object_description'),
+  }
+  pageObjectModalOpen.value = true
+}
+
+function handleScreenshotCaptured(file: File, pageUrl: string) {
+  visualBaselineFile.value = file
+  visualBaselineFromRecorder.value = true
+  visualBaselineForm.value = {
+    name: nextGeneratedName(t('web_assets.recorded_visual_baseline_prefix'), visualBaselines.value.map((item) => item.name)),
+    page_url: pageUrl,
+    threshold: 0.01,
+    pixel_threshold: 10,
+    ignoreText: '[]',
+  }
+  visualBaselineModalOpen.value = true
 }
 
 function openElementCreate() {
@@ -351,12 +474,14 @@ async function applyRepair() {
 
 function openPageObjectCreate() {
   editingPageObject.value = null
+  pageObjectFromRecorder.value = false
   pageObjectForm.value = { name: '', url_pattern: '', elementRefsText: '[]', actionsText: '[]', description: '' }
   pageObjectModalOpen.value = true
 }
 
 function openPageObjectEdit(item: WebPageObjectItem) {
   editingPageObject.value = item
+  pageObjectFromRecorder.value = false
   pageObjectForm.value = {
     name: item.name,
     url_pattern: item.url_pattern || '',
@@ -384,6 +509,8 @@ async function savePageObject() {
     if (editingPageObject.value) await webAssetsApi.updatePageObject(editingPageObject.value.id, body)
     else await webAssetsApi.createPageObject(selectedProjectId.value, body)
     pageObjectModalOpen.value = false
+    message.success(pageObjectFromRecorder.value ? t('web_assets.recorded_page_object') : t('common.success'))
+    pageObjectFromRecorder.value = false
     await loadAll()
   } catch {
     message.error(t('web_assets.save_failed'))
@@ -418,5 +545,6 @@ onMounted(async () => {
 .page-header h2 { margin: 0; }
 .subtitle { color: var(--c-text-secondary); margin-top: 4px; }
 .toolbar { margin-bottom: 12px; }
+.toolbar-hint { color: var(--c-text-secondary); font-size: 12px; text-align: right; }
 .mono { font-family: var(--font-mono, monospace); }
 </style>

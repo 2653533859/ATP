@@ -13,12 +13,12 @@ import asyncio
 import types
 
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Response
 
 from app.api.v1 import auth as auth_module
 from app.core.security import create_access_token, create_refresh_token
 from app.models.bootstrap import load_all_models
-from app.schemas.auth import LoginRequest, RefreshRequest
+from app.schemas.auth import LoginRequest, RefreshRequest, TokenResponse
 
 load_all_models()
 
@@ -54,9 +54,10 @@ def _user(**overrides):
     return types.SimpleNamespace(**data)
 
 
-def _request(host="10.0.0.5"):
+def _request(host="10.0.0.5", browser=True):
     client = types.SimpleNamespace(host=host) if host is not None else None
-    return types.SimpleNamespace(client=client)
+    headers = {"x-requested-with": "XMLHttpRequest"} if browser else {}
+    return types.SimpleNamespace(client=client, headers=headers)
 
 
 def _run(coro):
@@ -80,22 +81,25 @@ def password_ok(monkeypatch):
     monkeypatch.setattr(auth_module, "verify_password", lambda _plain, _hashed: True)
 
 
-def _login(db, username="alice", password="secret", host="10.0.0.5"):
+def _login(db, username="alice", password="secret", host="10.0.0.5", browser=True):
     # login 被 @limiter.limit 装饰，装饰器要求首个参数名为 request
     return _run(
-        auth_module.login.__wrapped__(_request(host), LoginRequest(username=username, password=password), db)
+        auth_module.login.__wrapped__(
+            _request(host, browser=browser), Response(), LoginRequest(username=username, password=password), db
+        )
         if hasattr(auth_module.login, "__wrapped__")
-        else auth_module.login(_request(host), LoginRequest(username=username, password=password), db)
+        else auth_module.login(
+            _request(host, browser=browser), Response(), LoginRequest(username=username, password=password), db
+        )
     )
 
 
-def test_login_issues_both_tokens_and_writes_an_audit_entry(audit, password_ok):
+def test_login_sets_an_authenticated_cookie_session_and_writes_an_audit_entry(audit, password_ok):
     db = _FakeDB(_user())
 
     tokens = _login(db)
 
-    assert tokens.access_token and tokens.refresh_token
-    assert tokens.access_token != tokens.refresh_token
+    assert tokens.authenticated is True
     assert db.commits == 1
     assert audit[0]["action"] == "login"
     assert audit[0]["username"] == "alice"
@@ -106,6 +110,14 @@ def test_login_records_an_empty_ip_when_the_client_is_unknown(audit, password_ok
     _login(_FakeDB(_user()), host=None)
 
     assert audit[0]["ip_address"] == ""
+
+
+def test_api_login_keeps_json_token_contract(audit, password_ok):
+    tokens = _login(_FakeDB(_user()), browser=False)
+
+    assert isinstance(tokens, TokenResponse)
+    assert tokens.access_token
+    assert tokens.refresh_token
 
 
 def test_unknown_user_and_wrong_password_are_indistinguishable(monkeypatch, audit):
@@ -136,9 +148,28 @@ def test_disabled_account_is_rejected_with_403_and_no_token(audit, password_ok):
 def test_refresh_rotates_both_tokens():
     db = _FakeDB(_user())
 
-    tokens = _run(auth_module.refresh(RefreshRequest(refresh_token=create_refresh_token("alice")), db))
+    tokens = _run(
+        auth_module.refresh(
+            _request(), Response(), RefreshRequest(refresh_token=create_refresh_token("alice")), db
+        )
+    )
 
-    assert tokens.access_token and tokens.refresh_token
+    assert tokens.authenticated is True
+
+
+def test_api_refresh_keeps_json_token_contract():
+    tokens = _run(
+        auth_module.refresh(
+            _request(browser=False),
+            Response(),
+            RefreshRequest(refresh_token=create_refresh_token("alice")),
+            _FakeDB(_user()),
+        )
+    )
+
+    assert isinstance(tokens, TokenResponse)
+    assert tokens.access_token
+    assert tokens.refresh_token
 
 
 def test_refresh_rejects_an_access_token():
@@ -146,7 +177,7 @@ def test_refresh_rejects_an_access_token():
     db = _FakeDB(_user())
 
     with pytest.raises(HTTPException) as excinfo:
-        _run(auth_module.refresh(RefreshRequest(refresh_token=create_access_token("alice")), db))
+        _run(auth_module.refresh(_request(), Response(), RefreshRequest(refresh_token=create_access_token("alice")), db))
 
     assert excinfo.value.status_code == 401
     assert excinfo.value.detail == "Invalid refresh token"
@@ -154,7 +185,7 @@ def test_refresh_rejects_an_access_token():
 
 def test_refresh_rejects_a_malformed_token():
     with pytest.raises(HTTPException) as excinfo:
-        _run(auth_module.refresh(RefreshRequest(refresh_token="not-a-jwt"), _FakeDB(_user())))
+        _run(auth_module.refresh(_request(), Response(), RefreshRequest(refresh_token="not-a-jwt"), _FakeDB(_user())))
 
     assert excinfo.value.status_code == 401
 
@@ -163,7 +194,11 @@ def test_refresh_rejects_a_malformed_token():
 def test_refresh_rejects_users_that_can_no_longer_log_in(user):
     """账号被删或被停用后，手里的 refresh token 必须立即失效。"""
     with pytest.raises(HTTPException) as excinfo:
-        _run(auth_module.refresh(RefreshRequest(refresh_token=create_refresh_token("alice")), _FakeDB(user)))
+        _run(
+            auth_module.refresh(
+                _request(), Response(), RefreshRequest(refresh_token=create_refresh_token("alice")), _FakeDB(user)
+            )
+        )
 
     assert excinfo.value.status_code == 401
 

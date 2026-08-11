@@ -5,7 +5,7 @@ import pytest
 
 @pytest.mark.integration
 @pytest.mark.asyncio
-async def test_login_returns_access_and_refresh_token(async_client):
+async def test_login_sets_http_only_auth_cookies(async_client):
     from app.core.config import settings
 
     resp = await async_client.post(
@@ -14,12 +14,16 @@ async def test_login_returns_access_and_refresh_token(async_client):
             "username": settings.FIRST_ADMIN_USERNAME,
             "password": settings.FIRST_ADMIN_PASSWORD,
         },
+        headers={"X-Requested-With": "XMLHttpRequest"},
     )
     assert resp.status_code == 200, resp.text
     payload = resp.json()
-    assert payload["access_token"]
-    assert payload["refresh_token"]
+    assert payload["authenticated"] is True
     assert payload.get("token_type", "bearer").lower() == "bearer"
+    assert "atp_access_token" in resp.cookies
+    assert "atp_refresh_token" in resp.cookies
+    assert resp.cookies.get("atp_access_token")
+    assert resp.cookies.get("atp_refresh_token")
 
 
 @pytest.mark.integration

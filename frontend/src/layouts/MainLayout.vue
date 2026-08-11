@@ -214,8 +214,8 @@ function onMenuClick({ key }: { key: string | number }) {
   router.push(String(key))
 }
 
-function handleLogout() {
-  auth.logout()
+async function handleLogout() {
+  await auth.logout()
   router.push({ name: 'login' })
 }
 

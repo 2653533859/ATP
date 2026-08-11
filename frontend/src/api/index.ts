@@ -186,6 +186,7 @@ export interface WebRecordingItem {
   id: string
   status: WebRecordingStatus
   start_url: string
+  current_url?: string
   project_id?: number | null
   steps: WebRecordingStep[]
   asset_ids?: number[]
@@ -795,7 +796,9 @@ export interface FailureDiagnosisResult {
 
 export const authApi = {
   login: (username: string, password: string) =>
-    http.post<unknown, { access_token: string; refresh_token: string }>('/auth/login', { username, password }),
+    http.post<unknown, { authenticated: boolean }>('/auth/login', { username, password }),
+
+  logout: () => http.post<unknown, { authenticated: boolean }>('/auth/logout'),
 
   me: () => http.get<unknown, { id: number; username: string; email: string; role: string }>('/auth/me'),
 }
@@ -1014,6 +1017,7 @@ export const webRecordingApi = {
   start: (data: { start_url: string; project_id?: number | null; browser?: 'chromium' | 'firefox' | 'webkit'; viewport_width?: number; viewport_height?: number }) =>
     http.post<unknown, WebRecordingItem>('/web-recordings', data),
   get: (id: string) => http.get<unknown, WebRecordingItem>(`/web-recordings/${id}`),
+  screenshot: (id: string) => http.post<unknown, Blob>(`/web-recordings/${id}/screenshot`, undefined, { responseType: 'blob' }),
   stop: (id: string) => http.post<unknown, WebRecordingItem>(`/web-recordings/${id}/stop`),
 }
 

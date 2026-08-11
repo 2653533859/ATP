@@ -15,7 +15,7 @@ test.describe('login flow', () => {
     await expect(mockedPage).toHaveURL(/\/dashboard/)
   })
 
-  test('登录后 token 写入 localStorage 且 me 接口被调用', async ({ mockedPage }) => {
+  test('登录后不把 JWT 写入 localStorage 且调用 me 接口', async ({ mockedPage }) => {
     let meCalled = false
     await mockedPage.route('**/api/v1/auth/me', (route) => {
       meCalled = true
@@ -26,8 +26,10 @@ test.describe('login flow', () => {
 
     await loginAsAdmin(mockedPage)
 
-    const token = await mockedPage.evaluate(() => localStorage.getItem('access_token'))
-    expect(token).toBe('e2e-access-token')
+    const accessToken = await mockedPage.evaluate(() => localStorage.getItem('access_token'))
+    const refreshToken = await mockedPage.evaluate(() => localStorage.getItem('refresh_token'))
+    expect(accessToken).toBeNull()
+    expect(refreshToken).toBeNull()
     // me 接口可能被多次触发（refresh、首屏加载等），允许 >=1 次
     expect(meCalled).toBeTruthy()
   })

@@ -37,6 +37,7 @@ from app.schemas.plan import (
 )
 from app.api.deps import assert_project_access, get_current_user, require_engineer
 from app.models.user_project import ProjectRole
+from app.services.execution_routing import enqueue_task, resolve_plan_execution_queue
 
 router = APIRouter(tags=["测试计划"])
 
@@ -282,7 +283,8 @@ async def trigger_plan_run(
 
     from app.worker.tasks import run_test_plan
 
-    run_test_plan.delay(plan_run.id, merged_vars, plan_run.trace_id)
+    queue = await resolve_plan_execution_queue(db, plan)
+    enqueue_task(run_test_plan, (plan_run.id, merged_vars, plan_run.trace_id), queue)
 
     return plan_run
 
@@ -326,7 +328,8 @@ async def webhook_trigger(
 
     from app.worker.tasks import run_test_plan
 
-    run_test_plan.delay(plan_run.id, merged_vars, plan_run.trace_id)
+    queue = await resolve_plan_execution_queue(db, plan)
+    enqueue_task(run_test_plan, (plan_run.id, merged_vars, plan_run.trace_id), queue)
 
     return plan_run
 

@@ -34,6 +34,9 @@ describe('StartupConfigView', () => {
 
     expect(vm.fieldCount).toBeGreaterThan(80)
     expect(vm.envContent).toContain('POSTGRES_HOST=postgres')
+    expect(vm.envContent).toContain('CELERY_QUEUES=default,android,mobile_special,ios,ai,maintenance,performance')
+    expect(vm.envContent).toContain('ADB_SCAN_MODE=local')
+    expect(vm.envContent).toContain('PERFORMANCE_EXECUTORS=k6,locust,grpc')
     expect(vm.envContent).toContain('AI_HEALING_APPLY_ENABLED=false')
     expect(vm.envContent).toContain('VITE_BACKEND_ORIGIN=')
     expect(vm.isReady).toBe(false)

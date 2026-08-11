@@ -126,15 +126,32 @@ async def _create_case_run(db, suite_run, case_id: int):
     return case_run
 
 
-async def _execute_case_run(db, suite_run, case, extra_vars: dict) -> dict:
+async def _execute_case_run(db, suite_run, case, extra_vars: dict, *, route_to_worker: bool = False) -> dict:
     from app.models.case import RunStatus
 
     case_run = await _create_case_run(db, suite_run, case.id)
 
     try:
-        case_run.status = RunStatus.running
-        await db.commit()
-        await dispatch_case(db, case_run, case, extra_vars)
+        if route_to_worker:
+            from app.core.config import settings
+            from app.services.execution_routing import enqueue_case_run
+
+            await db.commit()
+            enqueue_case_run(run_test_case, case_run.id, extra_vars, suite_run.trace_id, case.case_type)
+            deadline = asyncio.get_running_loop().time() + max(1, settings.SUITE_CHILD_TASK_TIMEOUT_SECONDS)
+            while asyncio.get_running_loop().time() < deadline:
+                await asyncio.sleep(0.2)
+                await db.refresh(case_run)
+                if case_run.status in {RunStatus.passed, RunStatus.failed, RunStatus.error, RunStatus.skipped}:
+                    break
+            else:
+                case_run.status = RunStatus.error
+                case_run.error_message = "专用 Worker 执行超时，请检查设备 Worker 是否在线并监听正确队列"
+                await db.commit()
+        else:
+            case_run.status = RunStatus.running
+            await db.commit()
+            await dispatch_case(db, case_run, case, extra_vars)
         await db.refresh(case_run)
         _record_run_outcome("case", case_run.status)
     except Exception as e:
@@ -210,6 +227,27 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict):
     case_run_results: list[dict] = []
     counts = {"total": 0, "passed": 0, "failed": 0, "error": 0, "skipped": 0}
 
+    # A mixed suite is orchestrated on the default Worker, while device-bound
+    # children are published to their local Windows/iOS Worker. Homogeneous
+    # device suites remain inline because their parent task already runs on the
+    # matching dedicated queue and must not wait on itself.
+    case_queue_by_id: dict[int, str] = {}
+    for item in case_items:
+        case_id = item.get("case_id")
+        if not case_id:
+            continue
+        case = await db.get(TestCase, case_id)
+        if case is not None:
+            from app.services.execution_routing import execution_queue_for_case_type
+
+            case_queue_by_id[case_id] = execution_queue_for_case_type(getattr(case, "case_type", None))
+    suite_queues = set(case_queue_by_id.values())
+    remote_case_ids = {
+        case_id
+        for case_id, queue in case_queue_by_id.items()
+        if len(suite_queues) > 1 and queue != "default"
+    }
+
     async def run_one(item: dict) -> dict:
         case_id = item.get("case_id")
         if not case_id:
@@ -224,6 +262,8 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict):
                 "error": "用例不存在",
             }
 
+        if case.id in remote_case_ids:
+            return await _execute_case_run(db, suite_run, case, extra_vars, route_to_worker=True)
         return await _execute_case_run(db, suite_run, case, extra_vars)
 
     async def consume_result(result: dict) -> bool:
@@ -1061,7 +1101,10 @@ def check_cron_plans():
                     plan.is_enabled = False
                 await db.commit()
 
-                run_test_plan.delay(plan_run.id, merged_vars, plan_run.trace_id)
+                from app.services.execution_routing import enqueue_task, resolve_plan_execution_queue
+
+                queue = await resolve_plan_execution_queue(db, plan)
+                enqueue_task(run_test_plan, (plan_run.id, merged_vars, plan_run.trace_id), queue)
                 logger.info(f"Cron triggered plan {plan.id} -> PlanRun {plan_run.id}")
 
     run_async(_check())

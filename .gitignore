@@ -16,6 +16,8 @@ frontend/node_modules/
 frontend/dist/
 .local-run/
 .env.windows-wsl-backup
+config/startup-profiles/*.env
+!config/startup-profiles/*.env.example
 frontend/preview*.log
 jmeter.log
 frontend/dist-check/

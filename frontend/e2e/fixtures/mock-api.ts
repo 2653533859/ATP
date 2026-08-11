@@ -5,7 +5,7 @@ import * as data from './mock-data'
  * P2.4 E2E 共享 fixture：
  * - 在 page.goto 之前 page.route 拦截 /api/v1/** 返回 mock；
  * - loginAsAdmin(page) 走真登录流程（mock /auth/login），让前端 auth store
- *   自然写入 localStorage，避免硬塞 token 带来的状态漂移。
+ *   自然通过 /auth/me 恢复 Cookie 会话，避免硬塞 token 带来的状态漂移。
  * - 收集 pageerror：测试结束时任何非白名单的未捕获页面异常都会让用例失败，
  *   所有 spec 自动获得该保护，无需各自监听。
  *
@@ -36,12 +36,17 @@ export { expect }
 /** 注入所有 spec 共用的接口 mock。spec 内可继续 page.route 覆盖。*/
 export async function installCommonMocks(page: Page) {
   // auth
-  await page.route('**/api/v1/auth/login', (route) =>
-    route.fulfill({ json: data.adminTokens }),
-  )
-  await page.route('**/api/v1/auth/me', (route) =>
-    route.fulfill({ json: data.adminUser }),
-  )
+  let authenticated = false
+  await page.route('**/api/v1/auth/login', (route) => {
+    authenticated = true
+    return route.fulfill({ json: data.adminTokens })
+  })
+  await page.route('**/api/v1/auth/me', (route) => {
+    if (!authenticated) {
+      return route.fulfill({ status: 401, json: { detail: 'Not authenticated' } })
+    }
+    return route.fulfill({ json: data.adminUser })
+  })
   await page.route('**/api/v1/auth/refresh', (route) =>
     route.fulfill({ json: data.adminTokens }),
   )

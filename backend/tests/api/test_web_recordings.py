@@ -9,7 +9,10 @@ from app.api.v1.web_recordings import (
     WebRecordingSession,
     WebRecordingStart,
 )
+from app.models.bootstrap import load_all_models
 from app.models.web_assets import WebElementAsset
+
+load_all_models()
 
 
 def test_recording_start_requires_http_url():
@@ -103,6 +106,28 @@ def test_recording_manager_prunes_finished_sessions(monkeypatch):
     manager._prune_finished()
 
     assert set(manager.sessions) == {"active"}
+
+
+def test_recording_snapshot_exposes_current_page_url_and_screenshot():
+    class _Page:
+        url = "https://example.com/checkout"
+
+        async def screenshot(self, type="png"):
+            assert type == "png"
+            return b"png-bytes"
+
+    session = WebRecordingSession(
+        session_id="screenshot-session",
+        owner_id=1,
+        start_url="https://example.com",
+        viewport_width=1280,
+        viewport_height=720,
+        status="recording",
+        page=_Page(),
+    )
+
+    assert session.snapshot()["current_url"] == "https://example.com/checkout"
+    assert asyncio.run(session.screenshot()) == b"png-bytes"
 
 
 def test_recording_session_can_persist_assets_and_link_steps():

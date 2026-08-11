@@ -11,6 +11,7 @@ import time
 import urllib.error
 import urllib.parse
 import urllib.request
+from http.cookiejar import CookieJar
 from dataclasses import dataclass
 from datetime import date, datetime, time as dt_time, timedelta, timezone
 from pathlib import Path
@@ -69,13 +70,15 @@ def _http_json(
     payload: dict[str, Any] | None = None,
     headers: dict[str, str] | None = None,
     timeout: float = 30.0,
+    opener: Any | None = None,
 ) -> Any:
     data = None if payload is None else json.dumps(payload).encode("utf-8")
     request = urllib.request.Request(url, data=data, method=method, headers=headers or {})
     if payload is not None:
         request.add_header("Content-Type", "application/json")
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        open_request = opener.open if opener is not None else urllib.request.urlopen
+        with open_request(request, timeout=timeout) as response:
             if getattr(response, "status", 200) >= 400:
                 raise RuntimeError(f"{method} {url} failed with HTTP {response.status}")
             return _read_json_response(response)
@@ -92,10 +95,12 @@ def _http_bytes(
     *,
     headers: dict[str, str] | None = None,
     timeout: float = 30.0,
+    opener: Any | None = None,
 ) -> bytes:
     request = urllib.request.Request(url, method=method, headers=headers or {})
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        open_request = opener.open if opener is not None else urllib.request.urlopen
+        with open_request(request, timeout=timeout) as response:
             if getattr(response, "status", 200) >= 400:
                 raise RuntimeError(f"{method} {url} failed with HTTP {response.status}")
             return response.read()
@@ -715,6 +720,7 @@ class ATPApiClient:
         self.token = token
         self.username = username
         self.password = password
+        self._opener = urllib.request.build_opener(urllib.request.HTTPCookieProcessor(CookieJar()))
 
     def _headers(self) -> dict[str, str]:
         headers = {}
@@ -728,21 +734,26 @@ class ATPApiClient:
         if not self.username or not self.password:
             raise ValueError("ATP auth requires either --token or --username/--password")
         payload = {"username": self.username, "password": self.password}
-        response = _http_json("POST", f"{self.base_url}/auth/login", payload=payload)
-        token = response.get("access_token")
-        if not token:
-            raise RuntimeError("ATP login did not return an access token")
-        self.token = token
-        return token
+        response = _http_json(
+            "POST",
+            f"{self.base_url}/auth/login",
+            payload=payload,
+            headers={"X-Requested-With": "XMLHttpRequest"},
+            opener=self._opener,
+        )
+        if response.get("authenticated") is not True:
+            raise RuntimeError("ATP login did not establish a Cookie session")
+        self.token = None
+        return "cookie-session"
 
     def get_json(self, path: str) -> Any:
-        return _http_json("GET", f"{self.base_url}{path}", headers=self._headers())
+        return _http_json("GET", f"{self.base_url}{path}", headers=self._headers(), opener=self._opener)
 
     def post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return _http_json("POST", f"{self.base_url}{path}", payload=payload, headers=self._headers())
+        return _http_json("POST", f"{self.base_url}{path}", payload=payload, headers=self._headers(), opener=self._opener)
 
     def get_bytes(self, path: str) -> bytes:
-        return _http_bytes("GET", f"{self.base_url}{path}", headers=self._headers())
+        return _http_bytes("GET", f"{self.base_url}{path}", headers=self._headers(), opener=self._opener)
 
 
 def _run_command(cmd: list[str], *, env: dict[str, str] | None = None, cwd: Path | None = None) -> tuple[int, str]:

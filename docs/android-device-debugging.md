@@ -1,5 +1,7 @@
 # Android 真机联调说明
 
+如果 Android 真机连接在 Windows、需要由 Windows 本地 ADB 执行并回传结果，请先阅读 [`android-windows-worker.md`](android-windows-worker.md)。本文下面的 Docker/ADB Server 方案适用于设备与 Worker 位于同一网络的部署。
+
 本文档说明 ATP 在 Docker Worker / Windows 本地环境下，如何通过 ADB over TCP 连接宿主机 Android 真机，并完成最小可复现联调。
 
 ## 目标
@@ -332,3 +334,6 @@ docker compose --profile observability up -d prometheus grafana
 3. 检查 reconnect outcomes 中 `adb_not_found` 计数 → worker 镜像 adb 二进制问题
 4. 若 heartbeat lost 集中在某一 executor → 排查该执行器的脚本是否有阻塞设备的操作
 5. 必要时临时设置 `ADB_HEARTBEAT_ENABLED=false` + `ADB_RECONNECT_ENABLED=false` 切换到原始模式，做对照
+# Windows Android Worker
+
+需要让 Android 真机连接 Windows、由本地 ADB 执行并回传结果时，参阅 [`android-windows-worker.md`](android-windows-worker.md)。本文下面的 Docker/ADB Server 方案仍适用于设备与 Worker 位于同一网络的部署。

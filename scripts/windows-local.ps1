@@ -3,7 +3,9 @@
   [string]$Action = 'up',
 
   [ValidateRange(20, 500)]
-  [int]$Tail = 120
+  [int]$Tail = 120,
+
+  [string]$EnvFile = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -13,6 +15,13 @@ $RunDir = Join-Path $RepoRoot '.local-run'
 $BackendDir = Join-Path $RepoRoot 'backend'
 $FrontendDir = Join-Path $RepoRoot 'frontend'
 $BackendPython = Join-Path $BackendDir '.venv\Scripts\python.exe'
+$ConfiguredEnvFile = if ([string]::IsNullOrWhiteSpace($EnvFile)) {
+  Join-Path $RepoRoot '.env'
+} elseif ([System.IO.Path]::IsPathRooted($EnvFile)) {
+  $EnvFile
+} else {
+  Join-Path $RepoRoot $EnvFile
+}
 $ViteEntry = Join-Path $FrontendDir 'node_modules\vite\bin\vite.js'
 $PlaywrightPackage = Join-Path $FrontendDir 'node_modules\@playwright\test'
 $NodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
@@ -32,7 +41,7 @@ $Services = @(
     Key = 'worker'
     Name = 'Celery Worker'
     MatchTokens = @($BackendPython, '-m', 'celery', '-A', 'app.worker.celery_app', 'worker', '--pool=solo')
-    MatchPattern = 'app\.worker\.celery_app\s+worker\s+--loglevel=info\s+--pool=solo'
+    MatchPattern = 'app\.worker\.celery_app\s+worker\s+--loglevel=info(?:\s+-Q\s+\S+)?\s+--pool=solo'
     FilePath = $BackendPython
     Arguments = @('-m', 'celery', '-A', 'app.worker.celery_app', 'worker', '--loglevel=info', '--pool=solo')
     WorkingDirectory = $BackendDir
@@ -123,7 +132,7 @@ function Assert-Exists {
 
 function Get-DotEnvValues {
   $values = @{}
-  $envPath = Join-Path $RepoRoot '.env'
+  $envPath = $ConfiguredEnvFile
   if (-not (Test-Path $envPath)) {
     return $values
   }
@@ -218,7 +227,7 @@ function Show-Doctor {
   $failed = 0
   $warnings = 0
   $values = Get-DotEnvValues
-  $envPath = Join-Path $RepoRoot '.env'
+  $envPath = $ConfiguredEnvFile
 
   $result = Show-DoctorCheck -Label ".env exists: $envPath" -Passed (Test-Path $envPath) -Hint 'Run Copy-Item .env.example .env and fill private values.'
   $failed += $result
@@ -706,11 +715,35 @@ function Show-Logs {
     }
   }
 }
+
+function Configure-WorkerQueues {
+  $values = Get-DotEnvValues
+  $rawQueues = if ($values.ContainsKey('CELERY_QUEUES')) { [string]$values['CELERY_QUEUES'] } else { '' }
+  $queues = @(
+    $rawQueues -split ',' |
+      ForEach-Object { $_.Trim() } |
+      Where-Object { $_ -match '^[A-Za-z0-9_-]+$' } |
+      Select-Object -Unique
+  )
+
+  if ($queues.Count -eq 0) {
+    $queues = @('default')
+  }
+
+  $worker = $Services | Where-Object { $_.Key -eq 'worker' } | Select-Object -First 1
+  $worker.Arguments = @(
+    '-m', 'celery', '-A', 'app.worker.celery_app', 'worker', '--loglevel=info',
+    '-Q', ($queues -join ','), '--pool=solo'
+  )
+  Write-Host "Worker queues: $($queues -join ',')"
+}
+
 Ensure-RunDir
 
 switch ($Action) {
   'up' {
     Ensure-Prerequisites
+    Configure-WorkerQueues
     foreach ($service in $Services) {
       Start-ServiceProcess -Service $service
     }
@@ -727,6 +760,7 @@ switch ($Action) {
       Stop-ServiceProcess -Service $service
     }
     Ensure-Prerequisites
+    Configure-WorkerQueues
     foreach ($service in $Services) {
       Start-ServiceProcess -Service $service
     }

@@ -96,10 +96,11 @@ alembic upgrade head
 
 ## 七、Celery 队列与资源
 
-默认 worker 监听 `default,mobile_special,ios,ai,maintenance,performance` 六类队列。生产建议按队列拆分 worker 副本：
+默认 Linux worker 监听 `default,ios,ai,maintenance,performance` 五类队列。Android 任务由 Windows Android Worker 监听 `android,mobile_special`；生产使用 Windows Android Worker 时，Linux Worker 必须排除这两个队列，并按队列拆分 worker 副本：
 
 - `default`：普通用例、套件、计划执行。
-- `mobile_special`：Android 专项与 ADB 扫描。
+- `android`：普通 Android 用例，由 Windows Android Worker 在本机调用 ADB。
+- `mobile_special`：Android 专项与 ADB 扫描，由 Windows Android Worker 消费。
 - `ai`：AI 自愈诊断与反馈聚合。
 - `maintenance`：清理、备份、告警。
 - `performance`：HTTP 压测任务，worker 镜像内置 k6，建议低并发独立 worker，避免挤占功能测试资源。
@@ -113,9 +114,9 @@ Chart 已为 backend / worker / beat / flower 提供 baseline `resources.request
 
 ```yaml
 worker:
-  queues: default,mobile_special,ai,maintenance
+  queues: default,ios,ai,maintenance
 config:
-  CELERY_QUEUES: default,mobile_special,ai,maintenance
+  CELERY_QUEUES: default,ios,ai,maintenance
 performanceWorker:
   enabled: true
   replicas: 1

@@ -40,7 +40,7 @@ worker:
   metricsPort: 9091
   # Queues listened by the default worker deployment. For production isolation,
   # deploy separate worker releases or overlay this value per Deployment.
-  queues: default,mobile_special,ios,ai,maintenance,performance
+  queues: default,ios,ai,maintenance,performance
 
 performanceWorker:
   # Enable a dedicated Celery worker Deployment for HTTP performance tests.
@@ -100,7 +100,7 @@ config:
   # Celery worker concurrency used by worker containers.
   CELERY_CONCURRENCY: "4"
   # Celery queues listened by the default worker container.
-  CELERY_QUEUES: default,mobile_special,ios,ai,maintenance,performance
+  CELERY_QUEUES: default,ios,ai,maintenance,performance
   # Kubernetes clusters usually do not have direct ADB-attached devices.
   ADB_SCAN_ENABLED: "false"
   # OpenTelemetry service name and optional OTLP endpoint.

@@ -20,6 +20,7 @@ from app.core.encryption import decrypt_env_vars
 from app.core.tracing import get_trace_id
 from app.services.performance_report import build_performance_gate
 from app.services.performance_runtime import build_options_snapshot
+from app.services.execution_routing import enqueue_task, resolve_plan_execution_queue, resolve_suite_execution_queue
 
 router = APIRouter(tags=["Webhook"])
 
@@ -109,7 +110,8 @@ async def webhook_trigger(
 
         from app.worker.tasks import run_test_suite
 
-        run_test_suite.delay(suite_run.id, merged_vars, suite_run.trace_id)
+        queue = await resolve_suite_execution_queue(db, suite)
+        enqueue_task(run_test_suite, (suite_run.id, merged_vars, suite_run.trace_id), queue)
 
         return WebhookTriggerResponse(
             run_id=suite_run.id,
@@ -138,7 +140,8 @@ async def webhook_trigger(
 
         from app.worker.tasks import run_test_plan
 
-        run_test_plan.delay(plan_run.id, merged_vars, plan_run.trace_id)
+        queue = await resolve_plan_execution_queue(db, plan)
+        enqueue_task(run_test_plan, (plan_run.id, merged_vars, plan_run.trace_id), queue)
 
         return WebhookTriggerResponse(
             run_id=plan_run.id,

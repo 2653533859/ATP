@@ -65,7 +65,7 @@ sequenceDiagram
 
 1. 页面调用 `frontend/src/api/index.ts` 中的接口方法
 2. 接口方法通过 `frontend/src/api/http.ts` 发起请求，统一使用 `/api/v1` 作为 `baseURL`
-3. Axios 请求拦截器自动附带 `Authorization: Bearer <token>`
+3. 浏览器 Axios 使用 HttpOnly Cookie 会话并携带 `X-Requested-With`；CLI/API 客户端仍可使用 `Authorization: Bearer <token>`
 4. FastAPI 路由接收请求，完成鉴权、参数校验、数据库查询
 5. 后端返回 JSON，前端拿到数据后渲染表格、详情或统计图
 
@@ -150,7 +150,7 @@ Worker 通过 `backend/app/core/redis_client.py` 中的 `publish_run_event()`，
 
 处理流程如下：
 
-1. 校验前端携带的访问令牌
+1. 优先校验 WebSocket 的 HttpOnly access Cookie；为兼容旧的非浏览器集成暂时回退查询参数令牌
 2. 检查当前用户是否有权限订阅该 `run_id`
 3. 连接 Redis Pub/Sub，并订阅 `atp:run:{run_id}`
 4. 一旦 Redis 收到消息，就立刻转发到 WebSocket 客户端

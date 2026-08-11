@@ -20,10 +20,13 @@ for _name, _value in (
         setattr(_deps, _name, _value)
 
 from app.api.v1 import api_schema_assets  # noqa: E402
+from app.models.bootstrap import load_all_models  # noqa: E402
 from app.models.api_schema import ApiSchemaAsset  # noqa: E402
 from app.models.project import Project  # noqa: E402
 from app.schemas.api_schema import ApiSchemaAssetCreate, ApiSchemaAssetUpdate  # noqa: E402
 from app.worker.executors.api_executor import _resolve_schema_assertions  # noqa: E402
+
+load_all_models()
 
 
 class _Result:

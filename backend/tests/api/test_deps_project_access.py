@@ -47,13 +47,20 @@ sys.modules.setdefault(
     ),
 )
 
+import importlib
+
 from fastapi import HTTPException
 
 # 其他 api 测试在模块加载期把 app.api.deps stub 成 SimpleNamespace，
 # 这里强制清理后再导入真实模块
 sys.modules.pop("app.api.deps", None)
 
-from app.api import deps
+import app.api as api_package
+
+if hasattr(api_package, "deps"):
+    delattr(api_package, "deps")
+deps = importlib.import_module("app.api.deps")
+_real_get_current_user = deps.get_current_user
 from app.models.bootstrap import load_all_models
 from app.models.user import User, UserRole
 from app.models.user_project import ProjectRole, UserProject, role_satisfies
@@ -111,8 +118,41 @@ class _FakeDB:
         return None
 
 
+class _AuthDB:
+    def __init__(self, user):
+        self.user = user
+
+    async def execute(self, _stmt):
+        class _R:
+            def scalar_one_or_none(self_inner):
+                return self.user
+
+        return _R()
+
+
 def _user(role=UserRole.engineer, uid=10) -> User:
     return User(id=uid, username=f"u{uid}", email=f"u{uid}@x", hashed_password="x", role=role, is_active=True)
+
+
+def test_get_current_user_accepts_http_only_cookie(monkeypatch):
+    user = _user(uid=11)
+    monkeypatch.setattr(deps, "decode_token", lambda token: {"type": "access", "sub": user.username})
+    request = types.SimpleNamespace(cookies={"atp_access_token": "cookie-token"})
+
+    result = asyncio.run(_real_get_current_user(request, None, _AuthDB(user)))
+
+    assert result is user
+
+
+def test_get_current_user_rejects_missing_credentials():
+    request = types.SimpleNamespace(cookies={})
+
+    try:
+        asyncio.run(_real_get_current_user(request, None, _AuthDB(_user())))
+    except HTTPException as exc:
+        assert exc.status_code == 401
+    else:
+        raise AssertionError("missing credentials should be rejected")
 
 
 def test_role_rank_and_satisfies():

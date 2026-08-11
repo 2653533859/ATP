@@ -39,8 +39,9 @@ import sys
 import time
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
+from http.cookiejar import CookieJar
 from urllib.parse import urlsplit
-from urllib.request import Request, urlopen
+from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 
 _SENSITIVE_KEY_RE = re.compile(
@@ -204,11 +205,19 @@ class ApiClient:
         self.base_url = base_url.rstrip("/")
         self.token = token
         self.timeout = timeout
+        self._opener = build_opener(HTTPCookieProcessor(CookieJar()))
 
-    def request(self, method: str, path: str, payload: dict[str, Any] | None = None) -> Any:
+    def request(
+        self,
+        method: str,
+        path: str,
+        payload: dict[str, Any] | None = None,
+        *,
+        headers: dict[str, str] | None = None,
+    ) -> Any:
         url = f"{self.base_url}/{path.lstrip('/')}"
         data = None
-        headers = {"Accept": "application/json"}
+        headers = {"Accept": "application/json", **(headers or {})}
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
         if payload is not None:
@@ -216,7 +225,7 @@ class ApiClient:
             headers["Content-Type"] = "application/json"
         request = Request(url, data=data, headers=headers, method=method.upper())
         try:
-            with urlopen(request, timeout=self.timeout) as response:
+            with self._opener.open(request, timeout=self.timeout) as response:
                 body = response.read()
         except HTTPError as exc:
             try:
@@ -234,17 +243,21 @@ class ApiClient:
             raise SmokeError(f"API {method.upper()} {path} 返回了非 JSON 内容") from exc
 
 
-def login_from_environment(base_url: str, *, timeout: float) -> str:
+def login_from_environment(base_url: str, *, timeout: float) -> ApiClient:
     username = os.environ.get("ATP_USERNAME", "").strip()
     password = os.environ.get("ATP_PASSWORD", "")
     if not username or not password:
         raise SmokeError("API 验收需要 ATP_TOKEN，或同时设置 ATP_USERNAME 与 ATP_PASSWORD")
     client = ApiClient(base_url, token=None, timeout=timeout)
-    result = client.request("POST", "/api/v1/auth/login", {"username": username, "password": password})
-    token = result.get("access_token") if isinstance(result, dict) else None
-    if not isinstance(token, str) or not token:
-        raise SmokeError("登录响应没有 access_token")
-    return token
+    result = client.request(
+        "POST",
+        "/api/v1/auth/login",
+        {"username": username, "password": password},
+        headers={"X-Requested-With": "XMLHttpRequest"},
+    )
+    if not isinstance(result, dict) or result.get("authenticated") is not True:
+        raise SmokeError("登录响应未建立 Cookie 会话")
+    return client
 
 
 def _node_executors(node: dict[str, Any]) -> set[str]:
@@ -735,10 +748,12 @@ def main(argv: list[str] | None = None) -> int:
     node: dict[str, Any] | None = None
     if args.api_base_url:
         try:
-            token = os.environ.get("ATP_TOKEN") or login_from_environment(
-                args.api_base_url, timeout=args.request_timeout_seconds
+            token = os.environ.get("ATP_TOKEN")
+            client = (
+                ApiClient(args.api_base_url, token=token, timeout=args.request_timeout_seconds)
+                if token
+                else login_from_environment(args.api_base_url, timeout=args.request_timeout_seconds)
             )
-            client = ApiClient(args.api_base_url, token=token, timeout=args.request_timeout_seconds)
             expected = {item.strip().lower() for item in args.expected_executors.split(",") if item.strip()}
             if not expected:
                 raise SmokeError("--expected-executors 不能为空")

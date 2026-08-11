@@ -97,9 +97,9 @@ image:
     tag: 2026-08-07-q17
 
 worker:
-  queues: default,mobile_special,ai,maintenance
+  queues: default,ios,ai,maintenance
 config:
-  CELERY_QUEUES: default,mobile_special,ai,maintenance
+  CELERY_QUEUES: default,ios,ai,maintenance
   PERFORMANCE_EXECUTORS: k6,locust,grpc,jmeter
 
 performanceWorker:

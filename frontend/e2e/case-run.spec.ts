@@ -17,7 +17,7 @@ test.describe('case run trigger', () => {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization: `Bearer ${localStorage.getItem('access_token') || ''}`,
+          'X-Requested-With': 'XMLHttpRequest',
         },
         body: JSON.stringify({ env_id: null, extra_vars: {} }),
       })

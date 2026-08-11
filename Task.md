@@ -10,7 +10,7 @@
 - [x] Persist AI generation provenance in `_ai_source` (`dataset_id`, `dataset_version`, `mock_rule_ids`) and include the same context in generation audit events.
 
 **最后更新**: 2026-08-10
-**当前工作快照（2026-08-10）**: Q16-11 数据集参数化/多步骤编排已完成；Q17-01 统一执行器与 Locust 已完成；Q17-02 gRPC Proto/Unary/Streaming 执行器已完成本地实现与真实本地服务联调；Q17-03 Linux/Kubernetes 验收工具、Worker 镜像依赖检查和专用 Worker 健康探针已完成，剩余真实集群/目标服务执行与证据归档。Q18 的 API、Web、Android、iOS/Appium 和性能增强代码及本地回归已完成，Windows 全量本地冒烟已实测通过，当前重点转为 Android 扫描/Web 真实下载场景，以及真实设备、专用 Worker、Prometheus、外部通知和 Provider/Consumer 规格验收。
+**当前工作快照（2026-08-11）**: 本次已完成浏览器 HttpOnly Cookie 会话、WebSocket URL 脱敏、混合套件设备子任务队列隔离、启动配置 100 项对齐和 Windows/Cookie 冒烟脚本适配。后端非集成测试为 `1740 passed`，独立测试文件扫描为 `243 passed, 0 failed`，但覆盖率为 `80.45%`，低于 `82%` 门禁；当前质量状态与剩余任务见 [`docs/status-2026-08-11.md`](docs/status-2026-08-11.md)。
 **平台分层（2026-08-10）**: Windows 是日常开发、Web/API/Android 联调和本地回归主线；Linux/Kubernetes 性能 Worker、真实设备池、macOS/iOS、专用浏览器 Worker、Prometheus 与外部通知属于目标环境开发/发布验收，不阻塞 Windows 日常开发。
 **当前阶段**: Q1–Q12 路线图已全部完成；Q13 七个工作项中六个本地项全部完成；Q14 本地项已全部完成（Q14-01 Android/ADB 执行器族收口，Q14-02 API-router sweep，Q14-03 五个工作台页 mount tests，Q14-04 per-project retention real cleanup，Q14-05 gitleaks pre-commit，Q14-06 Q13 acceptance summary），并已发布 `docs/q14-acceptance-summary.md`。Q15 已完成 Q15-02（后端测试单文件可运行）、Q15-03（Windows CI job）、Q15-04（前端系统管理页面挂载测试）、Q15-05（worker/维护模块覆盖 + 门禁校准）、Q15-06（chartTheme 负载敏感）、Q15-07（Q14 acceptance summary），Q15-01 完成本地可做部分（服务端分支保护在当前 GitHub 套餐下不可得，已降级为本地钩子 + 文档约定并如实说明边界）。部署/灾备的仓库级配置也已收口：`make validate-deployment-readiness`、Helm 外部 Secret、ServiceMonitor、TLS 重定向和备份/恢复脚本契约已落地；校验器在 Windows 无 `sh`/`bash` 时会明确跳过 shell 语法检查，发布机可用 `--require-shell` 强制校验。真实集群部署、备份恢复和 smoke evidence 仍需外部环境。当前后端 TOTAL 为 **86.04%**（Python 3.12 / CI 口径；本地 Python 3.14 为 85.55%），门禁 **82**，`1467 passed`；前端 statements 为 **32.96%**（门禁 31.5，`128 passed`），`views/system` statements 为 **37.36%**。当前外部阻塞项为 Q15-00 / 原 Q14-00 / 原 Q13-00（Q12-05 生产 SLO 历史 + Android 真机演练采集）以及生产部署/灾备演练证据；对应模板已在 `docs/templates/` 固化，并提供 `make collect-q12-evidence` 自动查询 Prometheus、ATP API 和 ADB 后生成三份证据及附件，`make scaffold-q12-evidence` 仅作为草稿初始化，`make validate-q12-evidence` 做结构校验。覆盖工作累计发现并修复四个潜伏生产 500：grpc protobuf5、mobile-special create_task、ai_healing ProjectRole.engineer、global-variables create_variable（value_encrypted 重复关键字，变量库此前无法创建任何变量）。
 
@@ -101,7 +101,7 @@
 - [x] 实现 Token 刷新接口（`POST /api/v1/auth/refresh`）
 - [x] 实现基于角色的权限控制（RBAC）依赖注入
 - [x] 前端：实现登录页面（用户名/密码）
-- [x] 前端：实现 Token 存储与自动携带（axios 拦截器）
+- [x] 前端：实现 HttpOnly Cookie 会话、自动携带凭据与 CSRF 请求头（Bearer 仍兼容外部 API 客户端）
 - [x] 前端：实现未登录自动跳转登录页（路由守卫）
 
 ### 1.4 项目/模块/用例 CRUD

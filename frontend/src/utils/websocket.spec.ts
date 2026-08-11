@@ -28,14 +28,13 @@ describe('createRunWebSocket', () => {
     vi.useRealTimers()
   })
 
-  it('connects with the stored access token and dispatches JSON messages', () => {
-    localStorage.setItem('access_token', 'token value')
+  it('uses the HttpOnly cookie session and dispatches JSON messages', () => {
     const onMessage = vi.fn()
 
     createRunWebSocket(42, onMessage)
     const socket = FakeWebSocket.instances[0]
 
-    expect(socket.url).toBe('ws://localhost:8000/ws/runs/42?token=token%20value')
+    expect(socket.url).toBe('ws://localhost:8000/ws/runs/42')
 
     socket.onmessage?.({
       data: JSON.stringify({ type: 'completed', run_id: 42, status: 'passed' }),

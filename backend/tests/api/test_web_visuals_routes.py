@@ -6,7 +6,10 @@ from types import SimpleNamespace
 
 from PIL import Image
 
+from app.models.bootstrap import load_all_models
 from app.api.v1 import web_visuals
+
+load_all_models()
 
 
 class _FakeUpload:

@@ -48,8 +48,6 @@ describe('http client', () => {
     const auth = useAuthStore()
     auth.token = 'expired-token'
     auth.refreshToken = 'expired-refresh'
-    localStorage.setItem('access_token', 'expired-token')
-    localStorage.setItem('refresh_token', 'expired-refresh')
 
     http.defaults.adapter = (async () => Promise.reject({
       response: {
@@ -62,7 +60,6 @@ describe('http client', () => {
 
     expect(auth.token).toBeNull()
     expect(auth.refreshToken).toBeNull()
-    expect(localStorage.getItem('access_token')).toBeNull()
     expect(router.push).toHaveBeenCalledWith({ name: 'login' })
   })
 
