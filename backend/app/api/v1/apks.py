@@ -24,6 +24,7 @@ from app.models.project import Project
 from app.models.user import User
 from app.schemas.apk import ApkOut, ApkUpdate
 from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.services.project_scope import scope_to_visible_projects
 from app.models.user_project import ProjectRole
 
 router = APIRouter(tags=["APK 管理"])
@@ -133,9 +134,7 @@ async def list_apks(
 ):
     if project_id is not None:
         await assert_project_access(db, user, project_id, ProjectRole.viewer)
-    q = select(Apk).order_by(Apk.created_at.desc())
-    if project_id is not None:
-        q = q.where(Apk.project_id == project_id)
+    q = scope_to_visible_projects(select(Apk), Apk.project_id, user, project_id).order_by(Apk.created_at.desc())
     result = await db.execute(q)
     return result.scalars().all()
 

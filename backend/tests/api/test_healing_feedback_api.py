@@ -60,9 +60,20 @@ class _FakeDB:
     def __init__(self, step):
         self._step = step
         self.commits = 0
+        self.execute_calls = 0
 
     async def execute(self, _stmt):
+        self.execute_calls += 1
+        if self.execute_calls % 2:
+            return _FakeResult(types.SimpleNamespace(id=10, case_id=20))
         return _FakeResult(self._step)
+
+    async def get(self, model, _pk):
+        if model.__name__ == "TestCase":
+            return types.SimpleNamespace(module_id=30)
+        if model.__name__ == "Module":
+            return types.SimpleNamespace(project_id=40)
+        return None
 
     async def commit(self):
         self.commits += 1

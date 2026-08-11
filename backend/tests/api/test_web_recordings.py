@@ -17,7 +17,28 @@ load_all_models()
 
 def test_recording_start_requires_http_url():
     with pytest.raises(ValueError):
-        WebRecordingStart(start_url="file:///tmp/page.html")
+        WebRecordingStart(start_url="file:///tmp/page.html", project_id=1)
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "http://localhost/admin",
+        "http://127.0.0.1:8000/metrics",
+        "http://169.254.169.254/latest/meta-data",
+        "http://[::1]/",
+    ],
+)
+def test_recording_start_rejects_explicit_internal_addresses(url):
+    with pytest.raises(ValueError):
+        WebRecordingStart(start_url=url, project_id=1)
+
+
+def test_recording_start_requires_project_and_installed_browser():
+    with pytest.raises(ValueError):
+        WebRecordingStart(start_url="https://example.com")
+    with pytest.raises(ValueError):
+        WebRecordingStart(start_url="https://example.com", project_id=1, browser="firefox")
 
 
 def test_recording_events_become_lowcode_steps_and_fill_is_coalesced():

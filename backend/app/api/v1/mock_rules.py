@@ -3,7 +3,12 @@ from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import assert_project_access, get_current_user, require_engineer, require_project_access
+from app.api.deps import (
+    assert_project_access,
+    get_current_user,
+    require_engineer,
+    require_project_access,
+)
 from app.core.database import get_db
 from app.models.mock import MockMethod, MockRule
 from app.models.mock_snapshot import MockRuleSnapshot
@@ -21,6 +26,7 @@ from app.schemas.mock import (
     PaginatedMockSnapshotsOut,
 )
 from app.api.v1.mock_server import get_mock_logs, invalidate_mock_cache
+from app.services.project_scope import scope_to_visible_projects
 
 router = APIRouter(tags=["mock-rules"])
 
@@ -133,9 +139,9 @@ async def list_mock_rules(
 ):
     if project_id is not None:
         await assert_project_access(db, user, project_id, ProjectRole.viewer)
-    stmt = select(MockRule).order_by(MockRule.id.desc())
-    if project_id is not None:
-        stmt = stmt.where(MockRule.project_id == project_id)
+    stmt = scope_to_visible_projects(select(MockRule), MockRule.project_id, user, project_id).order_by(
+        MockRule.id.desc()
+    )
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -212,11 +218,12 @@ async def list_mock_rule_snapshots(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     rule = await db.get(MockRule, rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="Mock 规则不存在")
+    await assert_project_access(db, user, rule.project_id, ProjectRole.viewer)
     total = await db.scalar(
         select(func.count()).select_from(
             select(MockRuleSnapshot.id).where(MockRuleSnapshot.rule_id == rule_id).subquery()
@@ -246,6 +253,7 @@ async def rollback_mock_rule(
     rule = await db.get(MockRule, rule_id)
     if not rule:
         raise HTTPException(status_code=404, detail="Mock 规则不存在")
+    await assert_project_access(db, current_user, rule.project_id, ProjectRole.editor)
     snapshot = await db.get(MockRuleSnapshot, snapshot_id)
     if not snapshot or snapshot.rule_id != rule_id:
         raise HTTPException(status_code=404, detail="快照不存在")
@@ -292,6 +300,7 @@ async def promote_recorded_sample(
     src = await db.get(MockRule, rule_id)
     if not src:
         raise HTTPException(status_code=404, detail="Mock 规则不存在")
+    await assert_project_access(db, current_user, src.project_id, ProjectRole.editor)
 
     samples = list(src.recorded_samples or [])
     if body.sample_index >= len(samples):

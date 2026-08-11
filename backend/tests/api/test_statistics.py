@@ -591,3 +591,13 @@ def test_aggregate_in_cache_key_isolates_daily_and_weekly(monkeypatch):
     assert writes[0] != writes[1]
     assert "aggregate=daily" in writes[0]
     assert "aggregate=weekly" in writes[1]
+
+
+def test_stats_cache_key_isolated_by_user_even_with_explicit_project():
+    builder = statistics._build_stats_cache_key("overview", "project_id", "days")
+
+    first = builder(project_id=3, days=14, _=types.SimpleNamespace(id=8))
+    second = builder(project_id=3, days=14, _=types.SimpleNamespace(id=9))
+
+    assert first != second
+    assert "user_id=8" in first

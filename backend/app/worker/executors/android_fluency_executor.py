@@ -16,7 +16,7 @@ import logging
 import subprocess
 import time
 from datetime import datetime
-from typing import Optional
+from typing import Callable, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -95,7 +95,7 @@ async def _perform_swipe(serial: str, x1: int, y1: int, x2: int, y2: int, durati
     """执行滑动操作"""
     cmd = ["adb", "-s", serial, "shell", "input", "swipe", str(x1), str(y1), str(x2), str(y2), str(duration_ms)]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        proc = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, timeout=10)
         return proc.returncode == 0
     except Exception:
         return False
@@ -105,7 +105,7 @@ async def _perform_tap(serial: str, x: int, y: int) -> bool:
     """执行点击操作"""
     cmd = ["adb", "-s", serial, "shell", "input", "tap", str(x), str(y)]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+        proc = await asyncio.to_thread(subprocess.run, cmd, capture_output=True, text=True, timeout=10)
         return proc.returncode == 0
     except Exception:
         return False
@@ -114,6 +114,7 @@ async def _perform_tap(serial: str, x: int, y: int) -> bool:
 async def run_mobile_special_fluency(
     db: AsyncSession,
     run: MobileSpecialRun,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> None:
     """执行一个 Android 流畅度专项任务"""
     config = run.config_snapshot or {}
@@ -174,7 +175,7 @@ async def run_mobile_special_fluency(
     # 3. 启动 App
     start_cmd = ["adb", "-s", device_serial, "shell", "am", "start", "-n", f"{app_package}/.MainActivity"]
     try:
-        subprocess.run(start_cmd, capture_output=True, text=True, timeout=15)
+        await asyncio.to_thread(subprocess.run, start_cmd, capture_output=True, text=True, timeout=15)
     except Exception as e:
         logger.warning("failed to start app for fluency run %s: %s", run.id, e)
 
@@ -185,6 +186,7 @@ async def run_mobile_special_fluency(
     all_samples: list[dict] = []
     start_time = time.monotonic()
     device_lost_at: Optional[float] = None
+    cancelled = False
 
     def _on_device_lost(reason: str) -> None:
         nonlocal device_lost_at
@@ -200,6 +202,9 @@ async def run_mobile_special_fluency(
         async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost, executor_label="fluency") as hb:
             for idx, stage in enumerate(stages):
                 if hb.lost:
+                    break
+                if cancel_check is not None and await asyncio.to_thread(cancel_check):
+                    cancelled = True
                     break
                 stage_name = stage.get("name", f"stage_{idx}")
                 action = stage.get("action", "swipe")
@@ -233,7 +238,16 @@ async def run_mobile_special_fluency(
                     await _perform_tap(device_serial, coords.get("x", 540), coords.get("y", 1000))
 
                 # 等待一段时间
-                await asyncio.sleep(duration_between)
+                remaining = float(duration_between)
+                while remaining > 0:
+                    sleep_for = min(1.0, remaining)
+                    await asyncio.sleep(sleep_for)
+                    remaining -= sleep_for
+                    if cancel_check is not None and await asyncio.to_thread(cancel_check):
+                        cancelled = True
+                        break
+                if cancelled:
+                    break
 
                 # 采样 FPS
                 raw = await asyncio.get_event_loop().run_in_executor(
@@ -282,7 +296,7 @@ async def run_mobile_special_fluency(
         summary["device_lost_at_sec"] = round(device_lost_at, 2)
 
     # 7. 更新 Run
-    run.status = RunStatus.completed
+    run.status = RunStatus.stopped if cancelled else RunStatus.completed
     run.finished_at = datetime.now()
     run.duration_ms = total_ms
     run.summary_json = summary
@@ -293,7 +307,7 @@ async def run_mobile_special_fluency(
         {
             "type": "completed",
             "run_id": run.id,
-            "status": RunStatus.completed.value,
+            "status": run.status.value,
             "duration_ms": total_ms,
             "summary": summary,
         },

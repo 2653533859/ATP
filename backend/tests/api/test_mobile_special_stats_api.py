@@ -122,7 +122,7 @@ class TestStatisticsQueries:
                 project_id=None,
                 days=14,
                 db=FakeDB(),
-                _=None,
+                user=None,
             )
         )
 
@@ -145,7 +145,7 @@ class TestStatisticsQueries:
                 days=14,
                 limit=10,
                 db=FakeDB(),
-                _=None,
+                user=None,
             )
         )
 
@@ -175,7 +175,7 @@ class TestStatisticsCacheFallback:
                 project_id=1,
                 days=30,
                 db=FakeDB(),
-                _=None,
+                user=None,
             )
         )
 
@@ -211,7 +211,7 @@ class TestStatisticsCacheFallback:
                 project_id=None,
                 days=30,
                 db=FakeDB(),
-                _=None,
+                user=None,
             )
         )
 

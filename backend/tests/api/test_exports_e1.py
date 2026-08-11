@@ -44,6 +44,15 @@ from app.models.bootstrap import load_all_models
 
 load_all_models()
 
+
+@pytest.fixture(autouse=True)
+def _isolate_report_rendering_from_access_checks(monkeypatch):
+    async def allow(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(exports_mod, "_assert_test_run_access", allow)
+
+
 from app.models.case import CaseType, RunStatus, StepResult, TestCase, TestRun
 
 

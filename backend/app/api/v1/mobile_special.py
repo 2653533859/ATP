@@ -1,5 +1,6 @@
 """Mobile Special Testing API endpoints."""
 
+import asyncio
 import logging
 from datetime import datetime, timezone
 from typing import Optional
@@ -32,8 +33,14 @@ from app.schemas.mobile_special import (
     MobileRunArtifactOut,
     RunTriggerRequest,
 )
-from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.api.deps import (
+    assert_project_access,
+    get_current_user,
+    require_engineer,
+)
 from app.models.user_project import ProjectRole
+from app.services.mobile_special_control import request_cancel
+from app.services.project_scope import scope_to_visible_projects
 
 router = APIRouter(prefix="/mobile-special", tags=["Android专项测试"])
 logger = logging.getLogger(__name__)
@@ -84,7 +91,10 @@ async def _safe_set_mobile_stats_cache(key: str, value) -> None:
 
 def _build_mobile_stats_cache_key(name: str, *fields: str):
     def builder(**kwargs) -> str:
-        return _mobile_stats_cache_key(name, **{field: kwargs.get(field) for field in fields})
+        values = {field: kwargs.get(field) for field in fields}
+        user = kwargs.get("user") or kwargs.get("_")
+        values["user_id"] = getattr(user, "id", None)
+        return _mobile_stats_cache_key(name, **values)
 
     return builder
 
@@ -97,6 +107,27 @@ def _build_run_list_item(run: MobileSpecialRun, task_name: str | None) -> Mobile
     data = MobileSpecialRunOut.model_validate(run, from_attributes=True).model_dump()
     data["task_name"] = task_name
     return MobileSpecialRunListItem(**data)
+
+
+def _scope_mobile_runs(stmt, user, project_id: int | None = None):
+    stmt = stmt.join(MobileSpecialTask, MobileSpecialRun.task_id == MobileSpecialTask.id)
+    return scope_to_visible_projects(stmt, MobileSpecialTask.project_id, user, project_id)
+
+
+async def _get_run_with_access(
+    db: AsyncSession,
+    user,
+    run_id: int,
+    min_role: ProjectRole = ProjectRole.viewer,
+) -> MobileSpecialRun:
+    run = await db.get(MobileSpecialRun, run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail="Run not found")
+    task = await db.get(MobileSpecialTask, run.task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    await assert_project_access(db, user, task.project_id, min_role)
+    return run
 
 
 # ---- Task CRUD ----
@@ -112,9 +143,9 @@ async def list_tasks(
     """List all mobile special tasks, optionally filtered by project and task type."""
     if project_id is not None:
         await assert_project_access(db, user, project_id, ProjectRole.viewer)
-    q = select(MobileSpecialTask).order_by(MobileSpecialTask.updated_at.desc())
-    if project_id is not None:
-        q = q.where(MobileSpecialTask.project_id == project_id)
+    q = scope_to_visible_projects(select(MobileSpecialTask), MobileSpecialTask.project_id, user, project_id).order_by(
+        MobileSpecialTask.updated_at.desc()
+    )
     if task_type is not None:
         q = q.where(MobileSpecialTask.task_type == task_type)
     result = await db.execute(q)
@@ -243,15 +274,18 @@ async def trigger_task_run(
 async def stop_run(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    current_user=Depends(require_engineer),
 ):
     """Stop a running mobile special task."""
-    run = await db.get(MobileSpecialRun, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
+    run = await _get_run_with_access(db, current_user, run_id, ProjectRole.editor)
 
     if run.status not in [RunStatus.pending, RunStatus.running]:
         raise HTTPException(status_code=400, detail=f"Cannot stop run in status: {run.status.value}")
+
+    try:
+        await asyncio.to_thread(request_cancel, run.id)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="无法发送停止信号，请稍后重试") from exc
 
     run.status = RunStatus.stopped
     run.finished_at = datetime.now(timezone.utc)
@@ -269,10 +303,10 @@ async def list_runs(
     task_type: Optional[TaskType] = None,
     status_filter: Optional[RunStatus] = None,
     project_id: Optional[int] = None,
-    limit: int = Query(default=50, le=200),
-    offset: int = 0,
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """List mobile special runs with filters."""
     q = (
@@ -289,7 +323,10 @@ async def list_runs(
     if status_filter is not None:
         q = q.where(MobileSpecialRun.status == status_filter)
     if project_id is not None:
+        await assert_project_access(db, user, project_id, ProjectRole.viewer)
         q = q.where(MobileSpecialTask.project_id == project_id)
+    else:
+        q = scope_to_visible_projects(q, MobileSpecialTask.project_id, user)
 
     result = await db.execute(q)
     rows = result.all()
@@ -300,25 +337,20 @@ async def list_runs(
 async def get_run(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """Get a specific run."""
-    run = await db.get(MobileSpecialRun, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
-    return run
+    return await _get_run_with_access(db, user, run_id)
 
 
 @router.get("/runs/{run_id}/summary", response_model=dict)
 async def get_run_summary(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """Get the summary JSON for a run."""
-    run = await db.get(MobileSpecialRun, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
+    run = await _get_run_with_access(db, user, run_id)
     return run.summary_json or {}
 
 
@@ -326,14 +358,12 @@ async def get_run_summary(
 async def list_run_samples(
     run_id: int,
     metric_type: Optional[str] = None,
-    limit: int = Query(default=1000, le=10000),
+    limit: int = Query(default=1000, ge=1, le=10000),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """Get metric samples for a run."""
-    run = await db.get(MobileSpecialRun, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
+    await _get_run_with_access(db, user, run_id)
 
     q = (
         select(MobileMetricSample)
@@ -352,12 +382,10 @@ async def list_run_samples(
 async def list_run_incidents(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """Get incidents for a run."""
-    run = await db.get(MobileSpecialRun, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
+    await _get_run_with_access(db, user, run_id)
 
     q = select(MobileIncident).where(MobileIncident.run_id == run_id)
     result = await db.execute(q)
@@ -368,12 +396,10 @@ async def list_run_incidents(
 async def list_run_artifacts(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """Get artifacts for a run."""
-    run = await db.get(MobileSpecialRun, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
+    await _get_run_with_access(db, user, run_id)
 
     q = select(MobileRunArtifact).where(MobileRunArtifact.run_id == run_id)
     result = await db.execute(q)
@@ -387,12 +413,10 @@ async def list_run_artifacts(
 async def export_run_csv(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """Export metric samples of a run as CSV."""
-    run = await db.get(MobileSpecialRun, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
+    await _get_run_with_access(db, user, run_id)
 
     q = (
         select(MobileMetricSample)
@@ -427,12 +451,10 @@ async def export_run_csv(
 async def export_run_json(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """Export full run report as JSON (samples + incidents + summary)."""
-    run = await db.get(MobileSpecialRun, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="Run not found")
+    run = await _get_run_with_access(db, user, run_id)
 
     # Fetch task name
     task = await db.get(MobileSpecialTask, run.task_id)
@@ -534,7 +556,7 @@ async def get_mobile_special_overview(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """Get overview statistics for mobile special testing."""
     from datetime import timedelta
@@ -542,15 +564,9 @@ async def get_mobile_special_overview(
     since = datetime.now(timezone.utc) - timedelta(days=days)
     since_7d = datetime.now(timezone.utc) - timedelta(days=7)
 
-    # Base query with project filter
-    base_q = select(MobileSpecialRun).where(MobileSpecialRun.created_at >= since)
-    if project_id is not None:
-        base_q = base_q.join(MobileSpecialTask).where(MobileSpecialTask.project_id == project_id)
-
     # Total runs
     total_q = select(func.count(MobileSpecialRun.id)).where(MobileSpecialRun.created_at >= since)
-    if project_id is not None:
-        total_q = total_q.join(MobileSpecialTask).where(MobileSpecialTask.project_id == project_id)
+    total_q = _scope_mobile_runs(total_q, user, project_id)
     total_runs = (await db.execute(total_q)).scalar() or 0
 
     # Completed runs
@@ -558,8 +574,7 @@ async def get_mobile_special_overview(
         MobileSpecialRun.created_at >= since,
         MobileSpecialRun.status == RunStatus.completed,
     )
-    if project_id is not None:
-        completed_q = completed_q.join(MobileSpecialTask).where(MobileSpecialTask.project_id == project_id)
+    completed_q = _scope_mobile_runs(completed_q, user, project_id)
     completed_runs = (await db.execute(completed_q)).scalar() or 0
 
     # Failed runs
@@ -567,8 +582,7 @@ async def get_mobile_special_overview(
         MobileSpecialRun.created_at >= since,
         MobileSpecialRun.status == RunStatus.failed,
     )
-    if project_id is not None:
-        failed_q = failed_q.join(MobileSpecialTask).where(MobileSpecialTask.project_id == project_id)
+    failed_q = _scope_mobile_runs(failed_q, user, project_id)
     failed_runs = (await db.execute(failed_q)).scalar() or 0
 
     # Running runs
@@ -576,8 +590,7 @@ async def get_mobile_special_overview(
         MobileSpecialRun.created_at >= since,
         MobileSpecialRun.status == RunStatus.running,
     )
-    if project_id is not None:
-        running_q = running_q.join(MobileSpecialTask).where(MobileSpecialTask.project_id == project_id)
+    running_q = _scope_mobile_runs(running_q, user, project_id)
     running_runs = (await db.execute(running_q)).scalar() or 0
 
     # Average duration for completed runs
@@ -586,15 +599,13 @@ async def get_mobile_special_overview(
         MobileSpecialRun.status == RunStatus.completed,
         MobileSpecialRun.duration_ms.isnot(None),
     )
-    if project_id is not None:
-        avg_dur_q = avg_dur_q.join(MobileSpecialTask).where(MobileSpecialTask.project_id == project_id)
+    avg_dur_q = _scope_mobile_runs(avg_dur_q, user, project_id)
     avg_duration_ms = (await db.execute(avg_dur_q)).scalar()
 
     # Total incidents
     incident_count_q = select(func.count(MobileIncident.id)).where(MobileIncident.event_time >= since)
     incident_count_q = incident_count_q.join(MobileSpecialRun, MobileIncident.run_id == MobileSpecialRun.id)
-    if project_id is not None:
-        incident_count_q = incident_count_q.join(MobileSpecialTask).where(MobileSpecialTask.project_id == project_id)
+    incident_count_q = _scope_mobile_runs(incident_count_q, user, project_id)
     total_incidents = (await db.execute(incident_count_q)).scalar() or 0
 
     # Recent runs 7d
@@ -602,8 +613,7 @@ async def get_mobile_special_overview(
         MobileSpecialRun.created_at >= since_7d,
         MobileSpecialRun.status.in_([RunStatus.completed, RunStatus.failed]),
     )
-    if project_id is not None:
-        recent_q = recent_q.join(MobileSpecialTask).where(MobileSpecialTask.project_id == project_id)
+    recent_q = _scope_mobile_runs(recent_q, user, project_id)
     recent_runs_7d = (await db.execute(recent_q)).scalar() or 0
 
     pass_rate = round(completed_runs / total_runs * 100, 1) if total_runs > 0 else 0.0
@@ -633,7 +643,7 @@ async def get_mobile_special_trend(
     project_id: int | None = Query(None),
     days: int = Query(30, ge=1, le=365),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """Get daily trend statistics for mobile special testing."""
     from datetime import timedelta
@@ -654,8 +664,7 @@ async def get_mobile_special_trend(
 
     stmt = select(*base_select).where(MobileSpecialRun.created_at >= since).group_by(date_col).order_by(date_col)
 
-    if project_id is not None:
-        stmt = stmt.join(MobileSpecialTask).where(MobileSpecialTask.project_id == project_id)
+    stmt = _scope_mobile_runs(stmt, user, project_id)
 
     rows = (await db.execute(stmt)).all()
     result = [
@@ -684,7 +693,7 @@ async def get_task_statistics(
     days: int = Query(30, ge=1, le=365),
     limit: int = Query(10, ge=1, le=50),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user=Depends(get_current_user),
 ):
     """Get per-task statistics summary."""
     from datetime import timedelta
@@ -711,8 +720,7 @@ async def get_task_statistics(
         .limit(limit)
     )
 
-    if project_id is not None:
-        stmt = stmt.where(MobileSpecialTask.project_id == project_id)
+    stmt = scope_to_visible_projects(stmt, MobileSpecialTask.project_id, user, project_id)
 
     rows = (await db.execute(stmt)).all()
     result = [

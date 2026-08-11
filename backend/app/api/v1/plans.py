@@ -38,6 +38,7 @@ from app.schemas.plan import (
 from app.api.deps import assert_project_access, get_current_user, require_engineer
 from app.models.user_project import ProjectRole
 from app.services.execution_routing import enqueue_task, resolve_plan_execution_queue
+from app.services.project_scope import scope_to_visible_projects
 
 router = APIRouter(tags=["测试计划"])
 
@@ -132,9 +133,9 @@ async def list_plans(
 ):
     if project_id is not None:
         await assert_project_access(db, user, project_id, ProjectRole.viewer)
-    q = select(TestPlan).order_by(TestPlan.created_at.desc())
-    if project_id is not None:
-        q = q.where(TestPlan.project_id == project_id)
+    q = scope_to_visible_projects(select(TestPlan), TestPlan.project_id, user, project_id).order_by(
+        TestPlan.created_at.desc()
+    )
     result = await db.execute(q)
     return result.scalars().all()
 
@@ -338,9 +339,13 @@ async def webhook_trigger(
 async def list_plan_runs(
     plan_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    _: User = Depends(get_current_user),
 ):
-    q = select(PlanRun).order_by(PlanRun.created_at.desc())
+    q = scope_to_visible_projects(
+        select(PlanRun).join(TestPlan, PlanRun.plan_id == TestPlan.id),
+        TestPlan.project_id,
+        _,
+    ).order_by(PlanRun.created_at.desc())
     if plan_id is not None:
         q = q.where(PlanRun.plan_id == plan_id)
     result = await db.execute(q)
@@ -351,11 +356,15 @@ async def list_plan_runs(
 async def get_plan_run(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    _: User = Depends(get_current_user),
 ):
     plan_run = await db.get(PlanRun, run_id)
     if not plan_run:
         raise HTTPException(status_code=404, detail="计划执行记录不存在")
+    plan = await db.get(TestPlan, plan_run.plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="测试计划不存在")
+    await assert_project_access(db, _, plan.project_id, ProjectRole.viewer)
     return plan_run
 
 

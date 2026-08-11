@@ -31,6 +31,7 @@ from app.schemas.case import (
 )
 from app.services.execution_routing import enqueue_case_run
 from app.services.failure_diagnosis import generate_failure_diagnosis
+from app.services.project_scope import visible_project_ids
 
 router = APIRouter(tags=["用例管理"])
 
@@ -47,6 +48,19 @@ def _decode_cursor(cursor: str) -> tuple[datetime, int]:
         return datetime.fromisoformat(ts_str), int(id_str)
     except (ValueError, binascii.Error, UnicodeDecodeError) as exc:
         raise HTTPException(status_code=400, detail="cursor 格式无效") from exc
+
+
+async def _get_run_with_access(db: AsyncSession, user: User, run_id: int) -> TestRun:
+    result = await db.execute(select(TestRun).where(TestRun.id == run_id).options(selectinload(TestRun.steps)))
+    run = result.scalar_one_or_none()
+    if not run:
+        raise HTTPException(status_code=404, detail="执行记录不存在")
+    case = await db.get(TestCase, run.case_id)
+    module = await db.get(Module, case.module_id) if case else None
+    if not module:
+        raise HTTPException(status_code=404, detail="用例所属模块不存在")
+    await assert_project_access(db, user, module.project_id, ProjectRole.viewer)
+    return run
 
 
 @router.post("/cases/{case_id}/run", response_model=TestRunOut, status_code=status.HTTP_202_ACCEPTED)
@@ -99,9 +113,14 @@ async def list_runs(
     cursor: str | None = Query(None, description="Keyset 分页游标；传则忽略 page/page_size"),
     limit: int = Query(20, ge=1, le=100, description="Keyset 分页页大小"),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    _: User = Depends(get_current_user),
 ):
-    base = select(TestRun)
+    visible_cases = (
+        select(TestCase.id)
+        .join(Module, TestCase.module_id == Module.id)
+        .where(Module.project_id.in_(visible_project_ids(_)))
+    )
+    base = select(TestRun).where(TestRun.case_id.in_(visible_cases))
     if case_id:
         base = base.where(TestRun.case_id == case_id)
 
@@ -134,12 +153,12 @@ async def list_runs(
 
 
 @router.get("/runs/{run_id}", response_model=TestRunOut)
-async def get_run(run_id: int, db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
-    result = await db.execute(select(TestRun).where(TestRun.id == run_id).options(selectinload(TestRun.steps)))
-    run = result.scalar_one_or_none()
-    if not run:
-        raise HTTPException(status_code=404, detail="执行记录不存在")
-    return run
+async def get_run(
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(get_current_user),
+):
+    return await _get_run_with_access(db, _, run_id)
 
 
 @router.post("/runs/{run_id}/failure-diagnosis", response_model=FailureDiagnosisOut)
@@ -148,14 +167,7 @@ async def diagnose_run_failure(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    run = await db.get(TestRun, run_id)
-    if not run:
-        raise HTTPException(status_code=404, detail="执行记录不存在")
-
-    case = await db.get(TestCase, run.case_id)
-    module = await db.get(Module, case.module_id) if case else None
-    if module:
-        await assert_project_access(db, current_user, module.project_id, ProjectRole.viewer)
+    await _get_run_with_access(db, current_user, run_id)
 
     diagnosis = await generate_failure_diagnosis(db, run_id)
     if diagnosis is None:
@@ -182,6 +194,7 @@ async def submit_healing_feedback(
 
     from app.models.case import StepResult
 
+    await _get_run_with_access(db, _, run_id)
     result = await db.execute(select(StepResult).where(StepResult.id == step_id, StepResult.run_id == run_id))
     step = result.scalar_one_or_none()
     if step is None:

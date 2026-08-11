@@ -309,11 +309,16 @@ def test_webhook_performance_trigger_passes_executor_to_validation_and_node_sele
     assert calls == {"validation": "grpc", "node": "grpc"}
 
 
-def test_export_run_junit_reports_run_failure_without_steps():
+def test_export_run_junit_reports_run_failure_without_steps(monkeypatch):
     run = _FakeRun(status="failed", error_message="executor bootstrap failed")
     db = _FakeExportDB(run=run)
 
-    response = asyncio.run(exports.export_run_junit(run_id=5, db=db, _=None))
+    async def allow(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(exports, "_assert_test_run_access", allow)
+
+    response = asyncio.run(exports.export_run_junit(run_id=5, db=db, user=None))
     root = ET.fromstring(response.body.decode("utf-8"))
     testsuite = root.find("testsuite")
 

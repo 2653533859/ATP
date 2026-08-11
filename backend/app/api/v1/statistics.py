@@ -18,6 +18,7 @@ from app.models.plan import TestPlan, PlanRun, PlanRunStatus, TriggerType
 from app.models.suite import TestSuite, SuiteRun, SuiteRunStatus
 from app.models.project import Module
 from app.models.user import User
+from app.services.project_scope import scope_to_visible_projects
 from app.schemas.statistics import (
     OverviewOut,
     PassRateTrendItem,
@@ -60,7 +61,10 @@ def _cache_key(name: str, **kwargs) -> str:
 
 def _build_stats_cache_key(name: str, *fields: str):
     def builder(**kwargs) -> str:
-        return _cache_key(name, **{field: kwargs.get(field) for field in fields})
+        values = {field: kwargs.get(field) for field in fields}
+        user = kwargs.get("user") or kwargs.get("_")
+        values["user_id"] = getattr(user, "id", None)
+        return _cache_key(name, **values)
 
     return builder
 
@@ -126,36 +130,27 @@ def _resolve_date_col(created_at_col, aggregate: str):
     return cast(created_at_col, Date).label("date")
 
 
-def _apply_project_filter(stmt, project_id: int | None):
-    if project_id is not None:
-        stmt = (
-            stmt.join(TestCase, TestRun.case_id == TestCase.id)
-            .join(Module, TestCase.module_id == Module.id)
-            .where(Module.project_id == project_id)
-        )
+def _apply_project_filter(stmt, project_id: int | None, user: User):
+    stmt = stmt.join(TestCase, TestRun.case_id == TestCase.id).join(Module, TestCase.module_id == Module.id)
+    return scope_to_visible_projects(stmt, Module.project_id, user, project_id)
+
+
+def _apply_run_filters(stmt, project_id: int | None, case_type: CaseType | None, user: User):
+    stmt = stmt.join(TestCase, TestRun.case_id == TestCase.id).join(Module, TestCase.module_id == Module.id)
+    stmt = scope_to_visible_projects(stmt, Module.project_id, user, project_id)
+    if case_type is not None:
+        stmt = stmt.where(TestCase.case_type == case_type)
     return stmt
 
 
-def _apply_run_filters(stmt, project_id: int | None, case_type: CaseType | None):
-    if project_id is not None or case_type is not None:
-        stmt = stmt.join(TestCase, TestRun.case_id == TestCase.id)
-        if project_id is not None:
-            stmt = stmt.join(Module, TestCase.module_id == Module.id).where(Module.project_id == project_id)
-        if case_type is not None:
-            stmt = stmt.where(TestCase.case_type == case_type)
-    return stmt
+def _apply_plan_run_project_filter(stmt, project_id: int | None, user: User):
+    stmt = stmt.join(TestPlan, PlanRun.plan_id == TestPlan.id)
+    return scope_to_visible_projects(stmt, TestPlan.project_id, user, project_id)
 
 
-def _apply_plan_run_project_filter(stmt, project_id: int | None):
-    if project_id is not None:
-        stmt = stmt.join(TestPlan, PlanRun.plan_id == TestPlan.id).where(TestPlan.project_id == project_id)
-    return stmt
-
-
-def _apply_suite_run_project_filter(stmt, project_id: int | None):
-    if project_id is not None:
-        stmt = stmt.join(TestSuite, SuiteRun.suite_id == TestSuite.id).where(TestSuite.project_id == project_id)
-    return stmt
+def _apply_suite_run_project_filter(stmt, project_id: int | None, user: User):
+    stmt = stmt.join(TestSuite, SuiteRun.suite_id == TestSuite.id)
+    return scope_to_visible_projects(stmt, TestSuite.project_id, user, project_id)
 
 
 # ── 总览 ────────────────────────────────────────────────
@@ -173,9 +168,12 @@ async def get_overview(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    case_q = select(func.count(TestCase.id))
-    if project_id is not None:
-        case_q = case_q.join(Module, TestCase.module_id == Module.id).where(Module.project_id == project_id)
+    case_q = scope_to_visible_projects(
+        select(func.count(TestCase.id)).join(Module, TestCase.module_id == Module.id),
+        Module.project_id,
+        _,
+        project_id,
+    )
     total_cases = (await db.execute(case_q)).scalar() or 0
 
     since = _since(days)
@@ -184,7 +182,7 @@ async def get_overview(
         func.count(TestRun.id),
         func.sum(sql_case((TestRun.status == RunStatus.passed, 1), else_=0)),
     ).where(TestRun.status.in_(_FINISHED), TestRun.created_at >= since)
-    run_q = _apply_project_filter(run_q, project_id)
+    run_q = _apply_project_filter(run_q, project_id, _)
     row = (await db.execute(run_q)).one()
     total_runs = row[0] or 0
     total_passed = row[1] or 0
@@ -194,7 +192,7 @@ async def get_overview(
         TestRun.status.in_(_FINISHED),
         TestRun.created_at >= _since(7),
     )
-    recent_q = _apply_project_filter(recent_q, project_id)
+    recent_q = _apply_project_filter(recent_q, project_id, _)
     recent_runs_7d = (await db.execute(recent_q)).scalar() or 0
 
     return OverviewOut(
@@ -236,7 +234,7 @@ async def get_pass_rate_trend(
         .order_by(date_col)
     )
 
-    stmt = _apply_run_filters(stmt, project_id, case_type)
+    stmt = _apply_run_filters(stmt, project_id, case_type, _)
 
     rows = (await db.execute(stmt)).all()
     return [
@@ -286,7 +284,7 @@ async def get_duration_trend(
         .order_by(date_col)
     )
 
-    stmt = _apply_run_filters(stmt, project_id, case_type)
+    stmt = _apply_run_filters(stmt, project_id, case_type, _)
 
     rows = (await db.execute(stmt)).all()
     return [
@@ -340,8 +338,7 @@ async def get_failure_top(
         .limit(top)
     )
 
-    if project_id is not None:
-        stmt = stmt.where(Module.project_id == project_id)
+    stmt = scope_to_visible_projects(stmt, Module.project_id, _, project_id)
     if case_type is not None:
         stmt = stmt.where(TestCase.case_type == case_type)
 
@@ -389,7 +386,7 @@ async def get_executor_top(
         .order_by(run_count.desc(), User.id.asc())
         .limit(top)
     )
-    stmt = _apply_run_filters(stmt, project_id, case_type)
+    stmt = _apply_run_filters(stmt, project_id, case_type, _)
 
     rows = (await db.execute(stmt)).all()
     return [
@@ -426,7 +423,7 @@ async def get_trigger_type_stats(
         .group_by(PlanRun.trigger_type)
         .order_by(func.count(PlanRun.id).desc())
     )
-    stmt = _apply_plan_run_project_filter(stmt, project_id)
+    stmt = _apply_plan_run_project_filter(stmt, project_id, _)
 
     rows = (await db.execute(stmt)).all()
     return [
@@ -465,7 +462,7 @@ async def get_plan_trend(
         .group_by(date_col)
         .order_by(date_col)
     )
-    stmt = _apply_plan_run_project_filter(stmt, project_id)
+    stmt = _apply_plan_run_project_filter(stmt, project_id, _)
 
     rows = (await db.execute(stmt)).all()
     return [
@@ -506,7 +503,7 @@ async def get_suite_trend(
         .group_by(date_col)
         .order_by(date_col)
     )
-    stmt = _apply_suite_run_project_filter(stmt, project_id)
+    stmt = _apply_suite_run_project_filter(stmt, project_id, _)
 
     rows = (await db.execute(stmt)).all()
     return [
@@ -546,12 +543,12 @@ async def get_case_type_distribution(
             func.sum(sql_case((TestRun.status == RunStatus.error, 1), else_=0)).label("error"),
         )
         .join(TestCase, TestRun.case_id == TestCase.id)
+        .join(Module, TestCase.module_id == Module.id)
         .where(TestRun.status.in_(_FINISHED), TestRun.created_at >= since)
         .group_by(TestCase.case_type)
         .order_by(func.count(TestRun.id).desc())
     )
-    if project_id is not None:
-        stmt = stmt.join(Module, TestCase.module_id == Module.id).where(Module.project_id == project_id)
+    stmt = scope_to_visible_projects(stmt, Module.project_id, _, project_id)
 
     rows = (await db.execute(stmt)).all()
     return [

@@ -14,6 +14,7 @@ E.1 报告缓存：MinIO key reports/run-{id}/{template}-{updated_at}.html，命
 """
 
 import base64
+import asyncio
 import hashlib
 import io
 import logging
@@ -31,24 +32,60 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.minio_client import read_bytes
 from app.core.object_refs import extract_object_name
+from app.core.url_security import validate_public_http_url
 from app.models.case import TestRun, StepResult, TestCase
-from app.models.suite import SuiteRun
-from app.models.plan import PlanRun
-from app.api.deps import get_current_user
+from app.models.plan import PlanRun, TestPlan
+from app.models.project import Module
+from app.models.suite import SuiteRun, TestSuite
+from app.models.user import User
+from app.models.user_project import ProjectRole
+from app.api.deps import assert_project_access, get_current_user
 
 router = APIRouter(tags=["导出"])
+
+
+async def _assert_test_run_access(db: AsyncSession, user: User, run: TestRun) -> None:
+    case = await db.get(TestCase, run.case_id)
+    module = await db.get(Module, case.module_id) if case else None
+    if not module:
+        raise HTTPException(status_code=404, detail="用例所属模块不存在")
+    await assert_project_access(db, user, module.project_id, ProjectRole.viewer)
+
+
+async def _assert_suite_run_access(db: AsyncSession, user: User, run: SuiteRun) -> None:
+    suite = await db.get(TestSuite, run.suite_id)
+    if not suite:
+        raise HTTPException(status_code=404, detail="套件不存在")
+    await assert_project_access(db, user, suite.project_id, ProjectRole.viewer)
+
+
+async def _assert_plan_run_access(db: AsyncSession, user: User, run: PlanRun) -> None:
+    plan = await db.get(TestPlan, run.plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="测试计划不存在")
+    await assert_project_access(db, user, plan.project_id, ProjectRole.viewer)
+
+
+async def _validate_cover_logo_url(value: str | None) -> str | None:
+    if not isinstance(value, str):
+        return None
+    try:
+        return await asyncio.to_thread(validate_public_http_url, value)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=f"封面 Logo 地址不安全: {exc}") from exc
 
 
 @router.get("/runs/{run_id}/junit")
 async def export_run_junit(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     """导出单用例执行结果为 JUnit XML"""
     run = await db.get(TestRun, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="执行记录不存在")
+    await _assert_test_run_access(db, user, run)
 
     result = await db.execute(select(StepResult).where(StepResult.run_id == run_id).order_by(StepResult.step_index))
     steps = result.scalars().all()
@@ -129,12 +166,13 @@ async def export_run_junit(
 async def export_suite_run_junit(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     """导出套件执行结果为 JUnit XML"""
     suite_run = await db.get(SuiteRun, run_id)
     if not suite_run:
         raise HTTPException(status_code=404, detail="套件执行记录不存在")
+    await _assert_suite_run_access(db, user, suite_run)
 
     root = ET.Element("testsuites")
     case_runs = suite_run.case_run_ids or []
@@ -192,12 +230,13 @@ async def export_suite_run_junit(
 async def export_plan_run_junit(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     """导出计划执行结果为 JUnit XML（包含所有套件）"""
     plan_run = await db.get(PlanRun, run_id)
     if not plan_run:
         raise HTTPException(status_code=404, detail="计划执行记录不存在")
+    await _assert_plan_run_access(db, user, plan_run)
 
     root = ET.Element("testsuites")
     suite_runs = plan_run.suite_run_ids or []
@@ -740,7 +779,7 @@ async def export_run_html(
     cover_logo_url: str | None = Query(None, max_length=500),
     use_cache: bool = Query(True, description="命中 MinIO 缓存则直接返回"),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     """导出执行报告为 HTML（截图内嵌 base64）。
 
@@ -750,6 +789,8 @@ async def export_run_html(
     run = await db.get(TestRun, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="执行记录不存在")
+    await _assert_test_run_access(db, user, run)
+    cover_logo_url = await _validate_cover_logo_url(cover_logo_url)
 
     cover_sig = f"{cover_title or ''}|{cover_logo_url or ''}"
     cache_obj = _report_cache_object_name(run, template, cover_sig)
@@ -799,12 +840,14 @@ async def export_run_pdf(
     cover_title: str | None = Query(None, max_length=200),
     cover_logo_url: str | None = Query(None, max_length=500),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     """导出执行报告为 PDF（通过 Playwright 渲染 HTML）"""
     run = await db.get(TestRun, run_id)
     if not run:
         raise HTTPException(status_code=404, detail="执行记录不存在")
+    await _assert_test_run_access(db, user, run)
+    cover_logo_url = await _validate_cover_logo_url(cover_logo_url)
 
     result = await db.execute(select(StepResult).where(StepResult.run_id == run_id).order_by(StepResult.step_index))
     steps = result.scalars().all()
@@ -836,7 +879,7 @@ async def export_run_pdf(
 async def export_runs_zip(
     payload: dict = Body(...),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     """批量导出多个执行记录的 HTML 报告为 ZIP（E.1）。
 
@@ -853,7 +896,7 @@ async def export_runs_zip(
     if template_mode not in ("full", "summary"):
         raise HTTPException(status_code=400, detail="template 仅支持 full|summary")
     cover_title = payload.get("cover_title")
-    cover_logo_url = payload.get("cover_logo_url")
+    cover_logo_url = await _validate_cover_logo_url(payload.get("cover_logo_url"))
 
     buf = io.BytesIO()
     missing: list[int] = []
@@ -868,6 +911,7 @@ async def export_runs_zip(
             if not run:
                 missing.append(rid_int)
                 continue
+            await _assert_test_run_access(db, user, run)
             result = await db.execute(
                 select(StepResult).where(StepResult.run_id == rid_int).order_by(StepResult.step_index)
             )
@@ -903,11 +947,12 @@ async def export_runs_zip(
 async def export_suite_run_html(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     suite_run = await db.get(SuiteRun, run_id)
     if not suite_run:
         raise HTTPException(status_code=404, detail="套件执行记录不存在")
+    await _assert_suite_run_access(db, user, suite_run)
 
     html = await _build_suite_run_report_html(db, suite_run)
     return Response(
@@ -921,11 +966,12 @@ async def export_suite_run_html(
 async def export_suite_run_pdf(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     suite_run = await db.get(SuiteRun, run_id)
     if not suite_run:
         raise HTTPException(status_code=404, detail="套件执行记录不存在")
+    await _assert_suite_run_access(db, user, suite_run)
 
     html = await _build_suite_run_report_html(db, suite_run)
     pdf_bytes = await _render_pdf_from_html(html)
@@ -940,11 +986,12 @@ async def export_suite_run_pdf(
 async def export_plan_run_html(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     plan_run = await db.get(PlanRun, run_id)
     if not plan_run:
         raise HTTPException(status_code=404, detail="计划执行记录不存在")
+    await _assert_plan_run_access(db, user, plan_run)
 
     html = await _build_plan_run_report_html(db, plan_run)
     return Response(
@@ -958,11 +1005,12 @@ async def export_plan_run_html(
 async def export_plan_run_pdf(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    user: User = Depends(get_current_user),
 ):
     plan_run = await db.get(PlanRun, run_id)
     if not plan_run:
         raise HTTPException(status_code=404, detail="计划执行记录不存在")
+    await _assert_plan_run_access(db, user, plan_run)
 
     html = await _build_plan_run_report_html(db, plan_run)
     pdf_bytes = await _render_pdf_from_html(html)

@@ -12,6 +12,8 @@ from app.services.device_leases import (
     acquire_device_lease,
     release_device_lease,
 )
+from app.services.mobile_special_control import clear_cancel_request, is_cancel_requested
+from app.services.performance_control import create_control_client
 import logging
 
 logger = logging.getLogger(__name__)
@@ -32,11 +34,18 @@ def run_mobile_special_task(self, run_id: int):
     from app.core.database import AsyncSessionLocal
     from app.models.mobile_special import MobileSpecialRun, MobileSpecialTask, RunStatus, TaskType
 
+    control_client = create_control_client()
+
     async def _execute():
         async with AsyncSessionLocal() as db:
             run = await db.get(MobileSpecialRun, run_id)
             if not run:
                 logger.error(f"MobileSpecialRun {run_id} not found")
+                return
+            if run.status == RunStatus.stopped or is_cancel_requested(run_id, client=control_client):
+                run.status = RunStatus.stopped
+                run.finished_at = run.finished_at or datetime.now(timezone.utc)
+                await db.commit()
                 return
 
             task = await db.get(MobileSpecialTask, run.task_id)
@@ -106,15 +115,27 @@ def run_mobile_special_task(self, run_id: int):
                 if task.task_type == TaskType.performance:
                     from app.worker.executors import run_mobile_special_perf
 
-                    await run_mobile_special_perf(db, run)
+                    await run_mobile_special_perf(
+                        db,
+                        run,
+                        cancel_check=lambda: is_cancel_requested(run_id, client=control_client),
+                    )
                 elif task.task_type == TaskType.stability:
                     from app.worker.executors import run_mobile_special_stability
 
-                    await run_mobile_special_stability(db, run)
+                    await run_mobile_special_stability(
+                        db,
+                        run,
+                        cancel_check=lambda: is_cancel_requested(run_id, client=control_client),
+                    )
                 elif task.task_type == TaskType.fluency:
                     from app.worker.executors import run_mobile_special_fluency
 
-                    await run_mobile_special_fluency(db, run)
+                    await run_mobile_special_fluency(
+                        db,
+                        run,
+                        cancel_check=lambda: is_cancel_requested(run_id, client=control_client),
+                    )
                 else:
                     run.status = RunStatus.failed
                     run.summary_json = {"error_message": f"Unknown task_type: {task.task_type}"}
@@ -153,7 +174,11 @@ def run_mobile_special_task(self, run_id: int):
                     except Exception:
                         logger.exception("Failed to release device lease for mobile run %s", run_id)
 
-    run_async(_execute())
+    try:
+        run_async(_execute())
+    finally:
+        clear_cancel_request(run_id, client=control_client)
+        control_client.close()
 
 
 def _merge_run_config(task_config: dict[str, Any] | None, run_config: dict[str, Any] | None) -> dict[str, Any]:

@@ -37,6 +37,7 @@ from app.schemas.suite import (
 from app.api.deps import assert_project_access, get_current_user, require_engineer
 from app.models.user_project import ProjectRole
 from app.services.execution_routing import enqueue_task, resolve_suite_execution_queue
+from app.services.project_scope import scope_to_visible_projects
 
 router = APIRouter(tags=["测试套件"])
 
@@ -112,9 +113,9 @@ async def list_suites(
 ):
     if project_id is not None:
         await assert_project_access(db, user, project_id, ProjectRole.viewer)
-    q = select(TestSuite).order_by(TestSuite.created_at.desc())
-    if project_id is not None:
-        q = q.where(TestSuite.project_id == project_id)
+    q = scope_to_visible_projects(select(TestSuite), TestSuite.project_id, user, project_id).order_by(
+        TestSuite.created_at.desc()
+    )
     result = await db.execute(q)
     return result.scalars().all()
 
@@ -273,9 +274,13 @@ async def trigger_suite_run(
 async def list_suite_runs(
     suite_id: int | None = Query(None),
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    _: User = Depends(get_current_user),
 ):
-    q = select(SuiteRun).order_by(SuiteRun.created_at.desc())
+    q = scope_to_visible_projects(
+        select(SuiteRun).join(TestSuite, SuiteRun.suite_id == TestSuite.id),
+        TestSuite.project_id,
+        _,
+    ).order_by(SuiteRun.created_at.desc())
     if suite_id is not None:
         q = q.where(SuiteRun.suite_id == suite_id)
     result = await db.execute(q)
@@ -286,9 +291,13 @@ async def list_suite_runs(
 async def get_suite_run(
     run_id: int,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    _: User = Depends(get_current_user),
 ):
     suite_run = await db.get(SuiteRun, run_id)
     if not suite_run:
         raise HTTPException(status_code=404, detail="套件执行记录不存在")
+    suite = await db.get(TestSuite, suite_run.suite_id)
+    if not suite:
+        raise HTTPException(status_code=404, detail="套件不存在")
+    await assert_project_access(db, _, suite.project_id, ProjectRole.viewer)
     return suite_run

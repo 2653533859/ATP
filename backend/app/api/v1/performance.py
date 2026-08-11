@@ -896,7 +896,7 @@ async def list_performance_run_metrics(
 ):
     run = await db.get(PerformanceRun, run_id)
     if run is None:
-        raise HTTPException(status_code=404, detail="鍘嬫祴鎵ц涓嶅瓨鍦?")
+        raise HTTPException(status_code=404, detail="压测执行不存在")
     await assert_project_access(db, user, run.project_id, ProjectRole.viewer)
     sample_limit = limit if isinstance(limit, int) else 2000
     result = await db.execute(

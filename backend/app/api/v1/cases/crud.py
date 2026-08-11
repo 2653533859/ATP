@@ -23,6 +23,7 @@ from app.models.project import Module
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.schemas.case import TestCaseCreate, TestCaseDetailOut, TestCaseOut, TestCaseUpdate
+from app.services.project_scope import scope_to_visible_projects
 
 router = APIRouter(tags=["用例管理"])
 
@@ -144,9 +145,12 @@ async def list_cases(
         module = await db.get(Module, module_id)
         if module:
             await assert_project_access(db, user, module.project_id, ProjectRole.viewer)
-    query = select(TestCase)
-    if project_id:
-        query = query.join(Module, TestCase.module_id == Module.id).where(Module.project_id == project_id)
+    query = scope_to_visible_projects(
+        select(TestCase).join(Module, TestCase.module_id == Module.id),
+        Module.project_id,
+        user,
+        project_id,
+    )
     if module_id:
         query = query.where(TestCase.module_id == module_id)
     if case_type:

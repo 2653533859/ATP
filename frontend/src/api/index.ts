@@ -1014,7 +1014,7 @@ export const scriptApi = {
 }
 
 export const webRecordingApi = {
-  start: (data: { start_url: string; project_id?: number | null; browser?: 'chromium' | 'firefox' | 'webkit'; viewport_width?: number; viewport_height?: number }) =>
+  start: (data: { start_url: string; project_id: number; browser?: 'chromium'; viewport_width?: number; viewport_height?: number }) =>
     http.post<unknown, WebRecordingItem>('/web-recordings', data),
   get: (id: string) => http.get<unknown, WebRecordingItem>(`/web-recordings/${id}`),
   screenshot: (id: string) => http.post<unknown, Blob>(`/web-recordings/${id}/screenshot`, undefined, { responseType: 'blob' }),

@@ -473,7 +473,8 @@ def test_trigger_suite_run_merges_env_vars_with_extra_priority(monkeypatch):
 def test_list_and_get_suite_runs():
     load_all_models()
     row = _FakeSuiteRun(id=88, suite_id=33)
-    db = _FakeDB(cases=[row], run=row)
+    suite = _FakeSuiteRun(id=33, project_id=1)
+    db = _FakeDB(cases=[row], run=row, suite=suite)
 
     assert asyncio.run(suites.list_suite_runs(suite_id=33, db=db, _=None)) == [row]
     assert asyncio.run(suites.list_suite_runs(suite_id=None, db=db, _=None)) == [row]

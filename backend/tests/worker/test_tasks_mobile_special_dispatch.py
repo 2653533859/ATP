@@ -225,9 +225,11 @@ def test_run_task_routes_to_executor_by_type(monkeypatch, task_type, executor_na
     _install_session(monkeypatch, db)
     events = _events(monkeypatch)
     dispatched = []
+    cancel_checks = []
 
-    async def fake_executor(_db, run_obj):
+    async def fake_executor(_db, run_obj, **kwargs):
         dispatched.append(run_obj.id)
+        cancel_checks.append(kwargs.get("cancel_check"))
 
     monkeypatch.setitem(
         sys.modules,
@@ -238,6 +240,7 @@ def test_run_task_routes_to_executor_by_type(monkeypatch, task_type, executor_na
     tms.run_mobile_special_task(None, 10)
 
     assert dispatched == [10]
+    assert callable(cancel_checks[0])
     # config 合并 + 设备解析落到 run 上
     assert run.config_snapshot["interval_seconds"] == 5
     assert run.device_id == 77 and run.app_package == "com.acme"
@@ -250,7 +253,7 @@ def test_run_task_marks_failed_on_executor_exception(monkeypatch):
     _install_session(monkeypatch, db)
     events = _events(monkeypatch)
 
-    async def broken(_db, _run):
+    async def broken(_db, _run, **_kwargs):
         raise RuntimeError("device exploded")
 
     monkeypatch.setitem(sys.modules, "app.worker.executors", types.SimpleNamespace(run_mobile_special_perf=broken))

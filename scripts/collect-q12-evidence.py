@@ -750,7 +750,9 @@ class ATPApiClient:
         return _http_json("GET", f"{self.base_url}{path}", headers=self._headers(), opener=self._opener)
 
     def post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
-        return _http_json("POST", f"{self.base_url}{path}", payload=payload, headers=self._headers(), opener=self._opener)
+        return _http_json(
+            "POST", f"{self.base_url}{path}", payload=payload, headers=self._headers(), opener=self._opener
+        )
 
     def get_bytes(self, path: str) -> bytes:
         return _http_bytes("GET", f"{self.base_url}{path}", headers=self._headers(), opener=self._opener)

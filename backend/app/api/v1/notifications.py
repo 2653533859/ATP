@@ -22,6 +22,7 @@ from app.schemas.notification import (
     NotificationConfigOut,
 )
 from app.api.deps import assert_project_access, require_engineer
+from app.services.project_scope import scope_to_visible_projects
 from app.models.user_project import ProjectRole
 from app.services.audit import write_audit_log
 
@@ -79,9 +80,9 @@ async def list_notifications(
 ):
     if project_id is not None:
         await assert_project_access(db, user, project_id, ProjectRole.viewer)
-    q = select(NotificationConfig).order_by(NotificationConfig.created_at.desc())
-    if project_id is not None:
-        q = q.where(NotificationConfig.project_id == project_id)
+    q = scope_to_visible_projects(select(NotificationConfig), NotificationConfig.project_id, user, project_id).order_by(
+        NotificationConfig.created_at.desc()
+    )
     result = await db.execute(q)
     return [_mask_notification(c) for c in result.scalars().all()]
 

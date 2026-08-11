@@ -15,13 +15,6 @@
           @press-enter="startRecording"
         />
       </a-form-item>
-      <a-form-item :label="t('case.drawer.browser')">
-        <a-select v-model:value="browser" :disabled="active || starting" style="width: 180px">
-          <a-select-option value="chromium">Chromium</a-select-option>
-          <a-select-option value="firefox">Firefox</a-select-option>
-          <a-select-option value="webkit">WebKit</a-select-option>
-        </a-select>
-      </a-form-item>
     </a-form>
 
     <a-alert
@@ -91,7 +84,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const startUrl = ref('')
-const browser = ref<'chromium' | 'firefox' | 'webkit'>('chromium')
+const browser = ref<'chromium'>('chromium')
 const recordingId = ref<string | null>(null)
 const status = ref<WebRecordingStatus>('stopped')
 const steps = ref<WebRecordingStep[]>([])
@@ -136,13 +129,17 @@ async function startRecording() {
     message.warning(t('case.drawer.web.recorder.start_url_required'))
     return
   }
+  if (!props.projectId) {
+    message.warning(t('web_assets.select_project_hint'))
+    return
+  }
   starting.value = true
   error.value = ''
   steps.value = []
   try {
     const result = await webRecordingApi.start({
       start_url: startUrl.value.trim(),
-      project_id: props.projectId ?? null,
+      project_id: props.projectId,
       browser: browser.value,
     })
     recordingId.value = result.id

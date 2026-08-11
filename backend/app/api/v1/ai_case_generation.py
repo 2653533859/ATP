@@ -128,7 +128,7 @@ async def generate_cases_endpoint(
             )
             dataset_snapshot = version_result.scalar_one_or_none()
             if dataset_snapshot is None:
-                raise HTTPException(status_code=404, detail="娴嬭瘯鏁版嵁闆嗙増鏈湭鎵惧埌")
+                raise HTTPException(status_code=404, detail="测试数据集版本未找到")
         dataset_context = build_dataset_context(dataset, snapshot=dataset_snapshot)
 
     mock_context = []

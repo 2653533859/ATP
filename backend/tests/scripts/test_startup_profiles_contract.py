@@ -28,15 +28,17 @@ def test_startup_profile_templates_cover_local_remote_and_android_modes():
         assert "APP_SECRET_KEY=" in content
 
     assert "ADB_SCAN_MODE=local" in (profile_root / "android-agent.env.example").read_text(encoding="utf-8")
-    assert "CELERY_QUEUES=android,mobile_special" in (
-        profile_root / "android-agent.env.example"
-    ).read_text(encoding="utf-8")
+    assert "CELERY_QUEUES=android,mobile_special" in (profile_root / "android-agent.env.example").read_text(
+        encoding="utf-8"
+    )
 
 
 def test_startup_config_ui_covers_every_env_template_key():
     env_keys = {
         match.group(1)
-        for match in re.finditer(r"^([A-Z][A-Z0-9_]*)=", (ROOT / ".env.example").read_text(encoding="utf-8"), re.MULTILINE)
+        for match in re.finditer(
+            r"^([A-Z][A-Z0-9_]*)=", (ROOT / ".env.example").read_text(encoding="utf-8"), re.MULTILINE
+        )
     }
     ui = (ROOT / "frontend/src/views/system/StartupConfigView.vue").read_text(encoding="utf-8")
     interface = re.search(r"interface StartupConfig \{(.*?)\n\}", ui, re.DOTALL)

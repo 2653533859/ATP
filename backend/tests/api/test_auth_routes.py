@@ -149,9 +149,7 @@ def test_refresh_rotates_both_tokens():
     db = _FakeDB(_user())
 
     tokens = _run(
-        auth_module.refresh(
-            _request(), Response(), RefreshRequest(refresh_token=create_refresh_token("alice")), db
-        )
+        auth_module.refresh(_request(), Response(), RefreshRequest(refresh_token=create_refresh_token("alice")), db)
     )
 
     assert tokens.authenticated is True
@@ -177,7 +175,9 @@ def test_refresh_rejects_an_access_token():
     db = _FakeDB(_user())
 
     with pytest.raises(HTTPException) as excinfo:
-        _run(auth_module.refresh(_request(), Response(), RefreshRequest(refresh_token=create_access_token("alice")), db))
+        _run(
+            auth_module.refresh(_request(), Response(), RefreshRequest(refresh_token=create_access_token("alice")), db)
+        )
 
     assert excinfo.value.status_code == 401
     assert excinfo.value.detail == "Invalid refresh token"

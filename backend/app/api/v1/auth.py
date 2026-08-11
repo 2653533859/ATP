@@ -30,7 +30,9 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str)
         "secure": settings.APP_AUTH_COOKIE_SECURE,
         "samesite": _cookie_samesite(),
     }
-    response.set_cookie(ACCESS_COOKIE, access_token, max_age=settings.APP_ACCESS_TOKEN_EXPIRE_MINUTES * 60, path="/", **common)
+    response.set_cookie(
+        ACCESS_COOKIE, access_token, max_age=settings.APP_ACCESS_TOKEN_EXPIRE_MINUTES * 60, path="/", **common
+    )
     response.set_cookie(
         REFRESH_COOKIE,
         refresh_token,

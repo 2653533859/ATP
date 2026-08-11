@@ -28,7 +28,9 @@ async def acquire_ios_device_lease(
     ttl_seconds: int = 900,
 ) -> IosDeviceLease:
     now = _now()
-    device = await db.get(IosDevice, device_id)
+    device = (
+        await db.execute(select(IosDevice).where(IosDevice.id == device_id).with_for_update())
+    ).scalar_one_or_none()
     if device is None:
         raise LookupError("iOS 设备不存在")
     if device.status == IosDeviceStatus.offline:

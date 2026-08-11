@@ -233,7 +233,7 @@ class TestMobileSpecialRunList:
                 limit=50,
                 offset=0,
                 db=FakeDB(),
-                _=None,
+                user=None,
             )
         )
 

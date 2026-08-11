@@ -12,12 +12,13 @@ Android 稳定性测试执行器（智能稳定性 / Monkey 探索模式）
 """
 
 import asyncio
+from contextlib import suppress
 import json
 import logging
 import subprocess
 import time
 from datetime import datetime
-from typing import Optional
+from typing import Callable, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -171,6 +172,7 @@ async def _run_logcat_monitor(
 async def run_mobile_special_stability(
     db: AsyncSession,
     run: MobileSpecialRun,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> None:
     """执行一个 Android 稳定性专项任务（Monkey 探索模式）"""
     config = run.config_snapshot or {}
@@ -252,6 +254,7 @@ async def run_mobile_special_stability(
     completed_actions = 0
     device_lost_at: Optional[float] = None
     monkey_proc: Optional[asyncio.subprocess.Process] = None
+    cancelled = False
 
     def _on_device_lost(reason: str) -> None:
         nonlocal device_lost_at
@@ -277,23 +280,29 @@ async def run_mobile_special_stability(
                 stderr=asyncio.subprocess.PIPE,
             )
 
-            # 按 interval 报告进度
-            elapsed = 0
+            # 每秒检查取消信号，每 30 秒报告一次进度。
+            elapsed = 0.0
+            next_progress_at = 30.0
             while (time.monotonic() - start_time) < duration_seconds:
                 if hb.lost:
                     break
-                await asyncio.sleep(min(30, duration_seconds - elapsed))
+                if cancel_check is not None and await asyncio.to_thread(cancel_check):
+                    cancelled = True
+                    break
+                await asyncio.sleep(min(1.0, max(0.0, duration_seconds - elapsed)))
                 elapsed = time.monotonic() - start_time
-                completed_actions += 100  # 粗略估算
-                await _safe_publish(
-                    run.id,
-                    {
-                        "type": "progress",
-                        "run_id": run.id,
-                        "elapsed_seconds": int(elapsed),
-                        "completed_actions": completed_actions,
-                    },
-                )
+                if elapsed >= next_progress_at or elapsed >= duration_seconds:
+                    completed_actions = max(completed_actions, int(elapsed * 100 / 30))
+                    await _safe_publish(
+                        run.id,
+                        {
+                            "type": "progress",
+                            "run_id": run.id,
+                            "elapsed_seconds": int(elapsed),
+                            "completed_actions": completed_actions,
+                        },
+                    )
+                    next_progress_at += 30
                 if elapsed >= duration_seconds:
                     break
 
@@ -308,8 +317,14 @@ async def run_mobile_special_stability(
     except Exception as e:
         logger.exception("monkey execution error for run %s: %s", run.id, e)
 
-    # 6. 等待 logcat 完成
-    crashes, anrs = await asyncio.wait_for(logcat_task, timeout=30)
+    # 6. 等待 logcat 完成；取消时立即终止 logcat 子进程。
+    if cancelled:
+        logcat_task.cancel()
+        with suppress(asyncio.CancelledError):
+            await logcat_task
+        crashes, anrs = [], []
+    else:
+        crashes, anrs = await asyncio.wait_for(logcat_task, timeout=30)
     total_ms = int((time.monotonic() - start_time) * 1000)
 
     # 7. 保存 incidents
@@ -344,7 +359,7 @@ async def run_mobile_special_stability(
         summary["device_lost_at_sec"] = round(device_lost_at, 2)
 
     # 9. 更新 Run
-    run.status = RunStatus.completed
+    run.status = RunStatus.stopped if cancelled else RunStatus.completed
     run.finished_at = datetime.now()
     run.duration_ms = total_ms
     run.summary_json = summary
@@ -355,7 +370,7 @@ async def run_mobile_special_stability(
         {
             "type": "completed",
             "run_id": run.id,
-            "status": RunStatus.completed.value,
+            "status": run.status.value,
             "duration_ms": total_ms,
             "summary": summary,
         },

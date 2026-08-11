@@ -30,6 +30,7 @@ from app.schemas.bug_tracker import (
     BugResultOut,
 )
 from app.api.deps import assert_project_access, require_engineer, get_current_user
+from app.services.project_scope import scope_to_visible_projects
 from app.models.user_project import ProjectRole
 from app.services.bug_reporter import (
     create_bug,
@@ -114,9 +115,9 @@ async def list_bug_trackers(
 ):
     if project_id is not None:
         await assert_project_access(db, user, project_id, ProjectRole.viewer)
-    q = select(BugTracker).order_by(BugTracker.created_at.desc())
-    if project_id is not None:
-        q = q.where(BugTracker.project_id == project_id)
+    q = scope_to_visible_projects(select(BugTracker), BugTracker.project_id, user, project_id).order_by(
+        BugTracker.created_at.desc()
+    )
     result = await db.execute(q)
     return [_mask_tracker(t) for t in result.scalars().all()]
 

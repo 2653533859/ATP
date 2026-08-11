@@ -38,7 +38,7 @@ def test_failure_diagnosis_endpoint_is_available_on_run_detail_api():
 
     assert '@router.post("/runs/{run_id}/failure-diagnosis", response_model=FailureDiagnosisOut)' in content
     assert "generate_failure_diagnosis(db, run_id)" in content
-    assert "assert_project_access(db, current_user, module.project_id, ProjectRole.viewer)" in content
+    assert "await _get_run_with_access(db, current_user, run_id)" in content
     assert "class FailureDiagnosisOut" in schema
     assert 'source: Literal["llm", "rule", "rule_fallback"]' in schema
 

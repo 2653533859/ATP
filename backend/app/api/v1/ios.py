@@ -15,6 +15,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.services.project_scope import scope_to_visible_projects
 from app.core.database import get_db
 from app.core.minio_client import delete_file, ensure_bucket, presigned_url, upload_file
 from app.models.ios import IosApp, IosDevice, IosDeviceStatus
@@ -233,9 +234,9 @@ async def list_ios_apps(
 ):
     if project_id is not None:
         await assert_project_access(db, user, project_id, ProjectRole.viewer)
-    query = select(IosApp).order_by(IosApp.created_at.desc())
-    if project_id is not None:
-        query = query.where(IosApp.project_id == project_id)
+    query = scope_to_visible_projects(select(IosApp), IosApp.project_id, user, project_id).order_by(
+        IosApp.created_at.desc()
+    )
     return (await db.execute(query)).scalars().all()
 
 

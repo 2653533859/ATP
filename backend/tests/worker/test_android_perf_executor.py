@@ -235,11 +235,15 @@ def fast_clock(monkeypatch):
     async def fake_sleep(secs):
         state["now"] += secs
 
+    async def fake_to_thread(func, *args, **kwargs):
+        return func(*args, **kwargs)
+
     time_proxy = types.SimpleNamespace(monotonic=lambda: state["now"])
     asyncio_proxy = types.SimpleNamespace(
         sleep=fake_sleep,
         get_event_loop=asyncio.get_event_loop,
         wait_for=asyncio.wait_for,
+        to_thread=fake_to_thread,
         subprocess=asyncio.subprocess,
     )
     monkeypatch.setattr(android_perf_executor, "time", time_proxy)
@@ -322,6 +326,24 @@ def test_perf_run_samples_and_uploads_csv(monkeypatch, chain_events, fast_clock,
     types_seen = [e["type"] for e in chain_events]
     assert types_seen[0] == "started" and types_seen[-1] == "completed"
     assert types_seen.count("sampling") == 2
+
+
+def test_perf_run_honors_cancel_signal(monkeypatch, chain_events, fast_clock, quiet_heartbeat):
+    monkeypatch.setattr(android_perf_executor, "_check_device_reachable", lambda s, timeout=10: (True, "在线"))
+    sample_calls = []
+
+    async def fake_sample_once(*_args):
+        sample_calls.append(True)
+        return []
+
+    monkeypatch.setattr(android_perf_executor, "_sample_once", fake_sample_once)
+    run = _FakeRun(device_serial="emu-5554", app_package="com.example.app", duration_seconds=60)
+
+    asyncio.run(android_perf_executor.run_mobile_special_perf(_RecordingDB(), run, cancel_check=lambda: True))
+
+    assert run.status is RunStatus.stopped
+    assert sample_calls == []
+    assert chain_events[-1]["status"] == "stopped"
 
 
 def test_perf_run_swallows_csv_upload_failure(monkeypatch, chain_events, fast_clock, quiet_heartbeat):

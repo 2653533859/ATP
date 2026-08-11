@@ -14,7 +14,6 @@ import time
 import uuid
 from dataclasses import dataclass, field
 from typing import Any, Literal
-from urllib.parse import urlparse
 
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, field_validator
@@ -26,6 +25,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import assert_project_access, get_current_user
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.url_security import validate_http_url_syntax, validate_public_http_url
 from app.models.project import Project
 from app.models.user import User
 from app.models.user_project import ProjectRole
@@ -119,18 +119,15 @@ _RECORDING_SCRIPT = r"""
 
 class WebRecordingStart(BaseModel):
     start_url: str = Field(min_length=1, max_length=2048)
-    project_id: int | None = Field(default=None, ge=1)
-    browser: Literal["chromium", "firefox", "webkit"] = "chromium"
+    project_id: int = Field(ge=1)
+    browser: Literal["chromium"] = "chromium"
     viewport_width: int = Field(default=1280, ge=320, le=3840)
     viewport_height: int = Field(default=720, ge=240, le=2160)
 
     @field_validator("start_url")
     @classmethod
     def validate_start_url(cls, value: str) -> str:
-        parsed = urlparse(value.strip())
-        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
-            raise ValueError("起始地址必须是 http 或 https URL")
-        return value.strip()
+        return validate_http_url_syntax(value)
 
 
 @dataclass
@@ -398,10 +395,13 @@ async def start_recording(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if payload.project_id is not None:
-        await assert_project_access(db, user, payload.project_id, ProjectRole.editor)
-        if await db.get(Project, payload.project_id) is None:
-            raise HTTPException(status_code=404, detail="项目不存在")
+    try:
+        payload.start_url = await asyncio.to_thread(validate_public_http_url, payload.start_url)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    await assert_project_access(db, user, payload.project_id, ProjectRole.editor)
+    if await db.get(Project, payload.project_id) is None:
+        raise HTTPException(status_code=404, detail="项目不存在")
     session = await manager.start(payload, user.id)
     return session.snapshot()
 

@@ -24,6 +24,16 @@ load_all_models()
 from app.models.case import RunStatus  # noqa: E402
 
 
+@pytest.fixture(autouse=True)
+def _isolate_report_rendering_from_access_checks(monkeypatch):
+    async def allow(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(exports_mod, "_assert_test_run_access", allow)
+    monkeypatch.setattr(exports_mod, "_assert_suite_run_access", allow)
+    monkeypatch.setattr(exports_mod, "_assert_plan_run_access", allow)
+
+
 class _Obj(types.SimpleNamespace):
     def __getattr__(self, name):
         return None

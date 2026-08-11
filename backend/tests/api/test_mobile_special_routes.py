@@ -130,6 +130,18 @@ def access_recorder(monkeypatch):
     return calls
 
 
+@pytest.fixture(autouse=True)
+def _isolate_route_behavior_from_run_access_and_redis(monkeypatch):
+    async def get_run(db, _user, run_id, _role=None):
+        run = await db.get(MobileSpecialRun, run_id)
+        if run is None:
+            raise HTTPException(status_code=404, detail="Run not found")
+        return run
+
+    monkeypatch.setattr(ms, "_get_run_with_access", get_run)
+    monkeypatch.setattr(ms, "request_cancel", lambda _run_id: None)
+
+
 def _user(uid=9):
     return _Obj(id=uid)
 
@@ -202,7 +214,11 @@ def test_mobile_stats_cache_key_is_order_stable_and_safe(monkeypatch):
     assert key == "atp:mobile-stats:overview:a=1:b=2"
 
     builder = ms._build_mobile_stats_cache_key("trend", "project_id", "days")
-    assert builder(project_id=3, days=14, noise=1) == "atp:mobile-stats:trend:days=14:project_id=3"
+    assert (
+        builder(project_id=3, days=14, user=_user(uid=8), noise=1)
+        == "atp:mobile-stats:trend:days=14:project_id=3:user_id=8"
+    )
+    assert builder(project_id=3, days=14, user=_user(uid=9)) != builder(project_id=3, days=14, user=_user(uid=8))
 
     async def broken(*_a, **_kw):
         raise RuntimeError("redis down")

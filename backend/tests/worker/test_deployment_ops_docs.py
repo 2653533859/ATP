@@ -47,7 +47,10 @@ def test_compose_worker_uses_configurable_celery_queues():
     compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     worker = compose["services"]["worker"]
 
-    assert "CELERY_QUEUES=${CELERY_QUEUES:-default,android,mobile_special,ios,ai,maintenance,performance}" in worker["environment"]
+    assert (
+        "CELERY_QUEUES=${CELERY_QUEUES:-default,android,mobile_special,ios,ai,maintenance,performance}"
+        in worker["environment"]
+    )
     assert "-Q $${CELERY_QUEUES}" in worker["command"]
 
 

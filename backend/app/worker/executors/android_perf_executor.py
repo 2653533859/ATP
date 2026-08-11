@@ -20,7 +20,7 @@ import subprocess
 import time
 from datetime import datetime
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -154,6 +154,7 @@ def _compute_summary(samples: list[dict], crash_count: int, anr_count: int) -> d
 async def run_mobile_special_perf(
     db: AsyncSession,
     run: MobileSpecialRun,
+    cancel_check: Callable[[], bool] | None = None,
 ) -> None:
     """执行一个 Android 性能专项任务"""
     task = run.task
@@ -227,6 +228,7 @@ async def run_mobile_special_perf(
     start_time = time.monotonic()
     sample_count = 0
     device_lost_at: Optional[float] = None
+    cancelled = False
 
     def _on_device_lost(reason: str) -> None:
         nonlocal device_lost_at
@@ -242,6 +244,9 @@ async def run_mobile_special_perf(
         async with HeartbeatMonitor(device_serial, on_lost=_on_device_lost, executor_label="perf") as hb:
             while (time.monotonic() - start_time) < duration_seconds:
                 if hb.lost:
+                    break
+                if cancel_check is not None and await asyncio.to_thread(cancel_check):
+                    cancelled = True
                     break
                 samples = await _sample_once(device_serial, app_package)
                 all_samples.extend(samples)
@@ -315,7 +320,7 @@ async def run_mobile_special_perf(
             logger.warning("failed to upload perf CSV for run %s: %s", run.id, e)
 
     # 8. 更新 Run
-    run.status = RunStatus.completed
+    run.status = RunStatus.stopped if cancelled else RunStatus.completed
     run.finished_at = datetime.now()
     run.duration_ms = total_ms
     run.summary_json = summary
@@ -326,7 +331,7 @@ async def run_mobile_special_perf(
         {
             "type": "completed",
             "run_id": run.id,
-            "status": RunStatus.completed.value,
+            "status": run.status.value,
             "duration_ms": total_ms,
             "summary": summary,
         },
