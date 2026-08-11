@@ -75,10 +75,14 @@ class MobileSpecialTask(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-    task_type: Mapped[TaskType] = mapped_column(Enum(TaskType), nullable=False)
-    source_type: Mapped[SourceType] = mapped_column(Enum(SourceType), nullable=False, default=SourceType.apk_only)
+    task_type: Mapped[TaskType] = mapped_column(Enum(TaskType, name="task_type"), nullable=False)
+    source_type: Mapped[SourceType] = mapped_column(
+        Enum(SourceType, name="source_type"), nullable=False, default=SourceType.apk_only
+    )
     source_id: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
-    device_scope_type: Mapped[DeviceScopeType] = mapped_column(Enum(DeviceScopeType), nullable=False)
+    device_scope_type: Mapped[DeviceScopeType] = mapped_column(
+        Enum(DeviceScopeType, name="device_scope_type"), nullable=False
+    )
     device_id: Mapped[Optional[int]] = mapped_column(ForeignKey("devices.id", ondelete="SET NULL"), nullable=True)
     device_group_tag: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     apk_id: Mapped[Optional[int]] = mapped_column(ForeignKey("apks.id", ondelete="SET NULL"), nullable=True)
@@ -103,8 +107,10 @@ class MobileSpecialRun(Base, TimestampMixin):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     task_id: Mapped[int] = mapped_column(ForeignKey("mobile_special_tasks.id", ondelete="CASCADE"), nullable=False)
-    task_type: Mapped[TaskType] = mapped_column(Enum(TaskType), nullable=False)
-    status: Mapped[RunStatus] = mapped_column(Enum(RunStatus), nullable=False, default=RunStatus.pending)
+    task_type: Mapped[TaskType] = mapped_column(Enum(TaskType, name="task_type"), nullable=False)
+    status: Mapped[RunStatus] = mapped_column(
+        Enum(RunStatus, name="run_status"), nullable=False, default=RunStatus.pending
+    )
     device_id: Mapped[Optional[int]] = mapped_column(ForeignKey("devices.id", ondelete="SET NULL"), nullable=True)
     device_serial: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     apk_id: Mapped[Optional[int]] = mapped_column(ForeignKey("apks.id", ondelete="SET NULL"), nullable=True)
@@ -114,7 +120,9 @@ class MobileSpecialRun(Base, TimestampMixin):
     duration_ms: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)
     summary_json: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
     config_snapshot: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
-    trigger_type: Mapped[TriggerType] = mapped_column(Enum(TriggerType), nullable=False, default=TriggerType.manual)
+    trigger_type: Mapped[TriggerType] = mapped_column(
+        Enum(TriggerType, name="trigger_type"), nullable=False, default=TriggerType.manual
+    )
     triggered_by: Mapped[Optional[int]] = mapped_column(ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
 
     # Relationships
@@ -132,7 +140,7 @@ class MobileMetricSample(Base):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     run_id: Mapped[int] = mapped_column(ForeignKey("mobile_special_runs.id", ondelete="CASCADE"), nullable=False)
     sample_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
-    metric_type: Mapped[MetricType] = mapped_column(Enum(MetricType), nullable=False)
+    metric_type: Mapped[MetricType] = mapped_column(Enum(MetricType, name="metric_type"), nullable=False)
     metric_value: Mapped[float] = mapped_column(nullable=False)
     source: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
     extra_json: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
@@ -146,7 +154,7 @@ class MobileIncident(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     run_id: Mapped[int] = mapped_column(ForeignKey("mobile_special_runs.id", ondelete="CASCADE"), nullable=False)
-    incident_type: Mapped[IncidentType] = mapped_column(Enum(IncidentType), nullable=False)
+    incident_type: Mapped[IncidentType] = mapped_column(Enum(IncidentType, name="incident_type"), nullable=False)
     event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     title: Mapped[Optional[str]] = mapped_column(String(512), nullable=True)
     detail: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
@@ -163,7 +171,7 @@ class MobileRunArtifact(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     run_id: Mapped[int] = mapped_column(ForeignKey("mobile_special_runs.id", ondelete="CASCADE"), nullable=False)
-    artifact_type: Mapped[ArtifactType] = mapped_column(Enum(ArtifactType), nullable=False)
+    artifact_type: Mapped[ArtifactType] = mapped_column(Enum(ArtifactType, name="artifact_type"), nullable=False)
     file_path: Mapped[str] = mapped_column(String(512), nullable=False)
     file_name: Mapped[str] = mapped_column(String(256), nullable=False)
     file_size: Mapped[Optional[int]] = mapped_column(BigInteger, nullable=True)

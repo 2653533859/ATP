@@ -135,6 +135,18 @@ def pytest_pycollect_makemodule(module_path, parent):
     return None
 
 
+@pytest.hookimpl(tryfirst=True)
+def pytest_runtest_setup(item):
+    """Restore required stub symbols after module-level test replacements.
+
+    Some historical tests replace a shared module in ``sys.modules`` while
+    being collected.  A later test may import its application module lazily,
+    so collection-time repair alone is not sufficient to keep that import
+    isolated from the replacement.
+    """
+    _refresh_common_test_stubs()
+
+
 if not _INTEGRATION_MODE:
     # ── 单元模式：立即应用所有 stub（必须在测试文件 import 之前）──
     async def _noop_async(*_a, **_kw):
