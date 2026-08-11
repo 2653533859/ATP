@@ -34,7 +34,7 @@ describe('createRunWebSocket', () => {
     createRunWebSocket(42, onMessage)
     const socket = FakeWebSocket.instances[0]
 
-    expect(socket.url).toBe('ws://localhost:8000/ws/runs/42')
+    expect(socket.url).toBe('ws://localhost:5173/ws/runs/42')
 
     socket.onmessage?.({
       data: JSON.stringify({ type: 'completed', run_id: 42, status: 'passed' }),

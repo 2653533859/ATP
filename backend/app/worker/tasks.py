@@ -110,6 +110,21 @@ def _plan_run_should_stop(counts: dict, total: int, fail_strategy: str, min_pass
     return _suite_run_should_stop(counts, total, fail_strategy, min_pass_rate)
 
 
+def _celery_task_queue(task: object) -> str:
+    """Return the queue that delivered a bound Celery task.
+
+    Direct unit-test calls and older task contexts have no delivery metadata;
+    those calls intentionally behave like the default orchestration Worker.
+    """
+
+    request = getattr(task, "request", None)
+    delivery_info = getattr(request, "delivery_info", None)
+    if not isinstance(delivery_info, dict):
+        return "default"
+    queue = delivery_info.get("routing_key") or delivery_info.get("queue")
+    return str(queue).strip() if queue else "default"
+
+
 async def _create_case_run(db, suite_run, case_id: int):
     from app.models.case import TestRun, RunStatus
 
@@ -217,7 +232,7 @@ async def _mark_flaky_case_results(db, case_run_results: list[dict]) -> None:
         result["flaky_failure_rate"] = round(failure_runs / item["total"] * 100, 1) if item["total"] else 0.0
 
 
-async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict):
+async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict, *, execution_queue: str = "default"):
     from app.models.case import TestCase
     from app.models.suite import SuiteRunStatus
 
@@ -227,10 +242,10 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict):
     case_run_results: list[dict] = []
     counts = {"total": 0, "passed": 0, "failed": 0, "error": 0, "skipped": 0}
 
-    # A mixed suite is orchestrated on the default Worker, while device-bound
-    # children are published to their local Windows/iOS Worker. Homogeneous
-    # device suites remain inline because their parent task already runs on the
-    # matching dedicated queue and must not wait on itself.
+    # Device-bound children run inline only when the parent is already on the
+    # matching dedicated queue. This also covers a homogeneous device suite
+    # inside a mixed plan, whose parent plan task must stay on the default
+    # orchestration queue.
     case_queue_by_id: dict[int, str] = {}
     for item in case_items:
         case_id = item.get("case_id")
@@ -241,11 +256,8 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict):
             from app.services.execution_routing import execution_queue_for_case_type
 
             case_queue_by_id[case_id] = execution_queue_for_case_type(getattr(case, "case_type", None))
-    suite_queues = set(case_queue_by_id.values())
     remote_case_ids = {
-        case_id
-        for case_id, queue in case_queue_by_id.items()
-        if len(suite_queues) > 1 and queue != "default"
+        case_id for case_id, queue in case_queue_by_id.items() if queue != "default" and queue != execution_queue
     }
 
     async def run_one(item: dict) -> dict:
@@ -661,7 +673,13 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict, trace_id: str | No
                 await db.commit()
 
                 total_start = time.monotonic()
-                await _execute_suite_cases(db, suite_run, suite, extra_vars)
+                await _execute_suite_cases(
+                    db,
+                    suite_run,
+                    suite,
+                    extra_vars,
+                    execution_queue=_celery_task_queue(self),
+                )
                 suite_run.duration_ms = int((time.monotonic() - total_start) * 1000)
                 await db.commit()
                 _record_run_outcome("suite", suite_run.status)
@@ -754,6 +772,7 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                     "creator_id": plan.creator_id,
                     "trace_id": plan_run.trace_id,
                 }
+                execution_queue = _celery_task_queue(self)
 
                 def _accumulate(result: dict) -> bool:
                     """累计单个 suite 执行结果，返回是否应当提前停止。"""
@@ -781,6 +800,7 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                                     plan_meta=plan_meta,
                                     suite_id=item["suite_id"],
                                     extra_vars=extra_vars,
+                                    execution_queue=execution_queue,
                                 )
                                 for item in batch
                             )
@@ -797,6 +817,7 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                             plan_meta=plan_meta,
                             suite_id=item["suite_id"],
                             extra_vars=extra_vars,
+                            execution_queue=execution_queue,
                         )
                         if _accumulate(result):
                             break
@@ -976,7 +997,7 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
     run_async(_execute())
 
 
-async def _execute_suite_inline(db, suite_run, suite, extra_vars):
+async def _execute_suite_inline(db, suite_run, suite, extra_vars, *, execution_queue: str = "default"):
     """内联执行套件（在 plan 上下文中直接调用，避免嵌套 Celery 任务）"""
     from app.models.suite import SuiteRunStatus
     import time
@@ -985,7 +1006,7 @@ async def _execute_suite_inline(db, suite_run, suite, extra_vars):
     await db.commit()
 
     total_start = time.monotonic()
-    await _execute_suite_cases(db, suite_run, suite, extra_vars)
+    await _execute_suite_cases(db, suite_run, suite, extra_vars, execution_queue=execution_queue)
     suite_run.duration_ms = int((time.monotonic() - total_start) * 1000)
     await db.commit()
     _record_run_outcome("suite", suite_run.status)
@@ -996,6 +1017,7 @@ async def _execute_plan_suite(
     plan_meta: dict,
     suite_id: int,
     extra_vars: dict,
+    execution_queue: str = "default",
 ) -> dict:
     """plan 内单个 suite 的独立执行入口。
 
@@ -1030,7 +1052,13 @@ async def _execute_plan_suite(
         await db.refresh(suite_run)
 
         try:
-            await _execute_suite_inline(db, suite_run, suite, extra_vars)
+            await _execute_suite_inline(
+                db,
+                suite_run,
+                suite,
+                extra_vars,
+                execution_queue=execution_queue,
+            )
         except Exception as exc:
             logger.exception(f"Plan suite {suite_id} run failed: {exc}")
             suite_run.status = SuiteRunStatus.error

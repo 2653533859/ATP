@@ -33,8 +33,9 @@ type CloseHandler = () => void
 
 export function createRunWebSocket(runId: number, onMessage: MessageHandler, onClose?: CloseHandler) {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
-  const host = import.meta.env.DEV ? 'localhost:8000' : location.host
-  const baseUrl = `${protocol}//${host}/ws/runs/${runId}`
+  // Use the page origin so the browser sends the host-only HttpOnly Cookie.
+  // Vite proxies /ws to the backend during local development.
+  const baseUrl = `${protocol}//${location.host}/ws/runs/${runId}`
 
   let ws: WebSocket | null = null
   let retries = 0

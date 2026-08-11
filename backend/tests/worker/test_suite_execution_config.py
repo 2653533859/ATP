@@ -288,3 +288,86 @@ def test_mixed_suite_routes_device_children_to_their_worker(monkeypatch):
 
     assert routed == [False, True]
     assert suite_run.status == "passed"
+
+
+def test_device_suite_inside_mixed_plan_routes_when_parent_is_default(monkeypatch):
+    from app.models.case import CaseType
+
+    monkeypatch.setitem(
+        sys.modules,
+        "app.models.case",
+        types.SimpleNamespace(TestCase=type("TestCase", (), {}), CaseType=_REAL_CASE_MODELS.CaseType),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "app.models.suite",
+        types.SimpleNamespace(SuiteRunStatus=_FakeSuiteRunStatus, TestSuite=_REAL_SUITE_MODELS.TestSuite),
+    )
+
+    routed: list[bool] = []
+
+    async def fake_execute_case_run(_db, _suite_run, case, _extra_vars, **kwargs):
+        routed.append(bool(kwargs.get("route_to_worker")))
+        return {"case_id": case.id, "case_name": case.name, "run_id": 100 + case.id, "status": "passed"}
+
+    async def fake_mark_flaky_case_results(_db, _case_run_results):
+        return None
+
+    monkeypatch.setattr(tasks, "_execute_case_run", fake_execute_case_run)
+    monkeypatch.setattr(tasks, "_mark_flaky_case_results", fake_mark_flaky_case_results)
+
+    suite_run = _FakeSuiteRun()
+    suite = _FakeSuite(
+        case_ids=[{"case_id": 1, "sort": 0}, {"case_id": 2, "sort": 1}],
+        config={"execution_mode": "sequential", "fail_strategy": "continue"},
+    )
+    db = _FakeDB(
+        {
+            1: _FakeCase(1, "Android case 1", CaseType.android),
+            2: _FakeCase(2, "Android case 2", CaseType.android),
+        }
+    )
+
+    asyncio.run(tasks._execute_suite_cases(db, suite_run, suite, {}, execution_queue="default"))
+
+    assert routed == [True, True]
+    assert suite_run.status == "passed"
+
+
+def test_device_suite_stays_inline_on_matching_parent_queue(monkeypatch):
+    from app.models.case import CaseType
+
+    monkeypatch.setitem(
+        sys.modules,
+        "app.models.case",
+        types.SimpleNamespace(TestCase=type("TestCase", (), {}), CaseType=_REAL_CASE_MODELS.CaseType),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "app.models.suite",
+        types.SimpleNamespace(SuiteRunStatus=_FakeSuiteRunStatus, TestSuite=_REAL_SUITE_MODELS.TestSuite),
+    )
+
+    routed: list[bool] = []
+
+    async def fake_execute_case_run(_db, _suite_run, case, _extra_vars, **kwargs):
+        routed.append(bool(kwargs.get("route_to_worker")))
+        return {"case_id": case.id, "case_name": case.name, "run_id": 100 + case.id, "status": "passed"}
+
+    async def fake_mark_flaky_case_results(_db, _case_run_results):
+        return None
+
+    monkeypatch.setattr(tasks, "_execute_case_run", fake_execute_case_run)
+    monkeypatch.setattr(tasks, "_mark_flaky_case_results", fake_mark_flaky_case_results)
+
+    suite_run = _FakeSuiteRun()
+    suite = _FakeSuite(
+        case_ids=[{"case_id": 1, "sort": 0}],
+        config={"execution_mode": "sequential", "fail_strategy": "continue"},
+    )
+    db = _FakeDB({1: _FakeCase(1, "Android case", CaseType.android)})
+
+    asyncio.run(tasks._execute_suite_cases(db, suite_run, suite, {}, execution_queue="android"))
+
+    assert routed == [False]
+    assert suite_run.status == "passed"

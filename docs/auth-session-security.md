@@ -30,9 +30,13 @@ API 客户端应使用受控的服务端凭据管理层保存 Bearer 令牌，�
 集成，服务端暂时保留 `?token=` 查询参数回退；新客户端禁止使用该方式，因为 URL 可能进入
 浏览器历史、反向代理访问日志和监控链路。
 
+前端连接地址使用当前页面的 origin，并拼接 `/ws/runs/{run_id}`；HTTPS 页面自动使用 `wss`。
+本地 Vite 开发服务器会把 `/ws` 代理到后端，生产反向代理必须保留 WebSocket Upgrade 转发。
+
 ## 套件队列边界
 
-纯 Android/iOS 套件会进入对应专用队列。混合套件进入 `default` 队列，默认 Worker 只负责
-编排；其中的 Android/iOS 子用例会单独投递到 `android`/`ios` 队列并等待结果。请确保默认
-Worker 与对应专用 Worker 都在线，并在 `CELERY_QUEUES` 中监听正确队列；子任务等待上限由
+纯 Android/iOS 套件，以及所有套件都属于同一设备类型的计划，会进入对应专用队列。混合
+套件或包含混合套件的计划进入 `default` 队列，默认 Worker 只负责编排；其中的 Android/iOS
+子用例会单独投递到 `android`/`ios` 队列并等待结果。请确保默认 Worker 与对应专用 Worker
+都在线，并在 `CELERY_QUEUES` 中监听正确队列；子任务等待上限由
 `SUITE_CHILD_TASK_TIMEOUT_SECONDS` 控制。

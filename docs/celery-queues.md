@@ -8,13 +8,16 @@ celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q "$CELERY_Q
 ```
 
 生产环境可以按队列拆分 worker，避免长任务、外部 LLM 调用、维护任务或压测任务挤占普通用例执行。
+套件和计划的入口会根据内容选择队列：纯设备类型的执行直接进入对应专用队列，混合内容留在
+`default` 队列编排，并将设备子用例转投到对应队列。
 
 ## 队列分工
 
 | 队列 | 任务 | 说明 |
 |------|------|------|
-| `default` | `run_test_case`、`run_test_suite`、`run_test_plan`、`check_cron_plans` | 高频主链路执行 |
-| `android` | 普通 Android 用例，以及只包含 Android 用例的套件/计划 | 由 Windows Android Worker 消费，在本机调用 `adb` |
+| `default` | 普通 Web/API 用例、混合 `run_test_suite`/`run_test_plan`、`check_cron_plans` | 高频主链路与混合执行编排 |
+| `android` | Android 用例，以及只包含 Android 用例的套件/计划 | 由 Windows Android Worker 消费，在本机调用 `adb` |
+| `ios` | iOS 用例，以及只包含 iOS 用例的套件/计划 | 由 macOS/iOS Worker 消费，在本机连接 Appium/XCUITest |
 | `mobile_special` | Android 专项任务、ADB 扫描、专项清理 | 受真机和网络资源约束，建议独立副本 |
 | `ai` | AI 自愈诊断、反馈聚合 | 依赖外部 LLM，便于限流和降级 |
 | `maintenance` | 文件清理、运行记录清理、存储告警、Dashboard 告警、PostgreSQL 备份 | 后台维护任务，允许低优先级运行 |
@@ -22,6 +25,14 @@ celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q "$CELERY_Q
 
 路由配置位于 `backend/app/worker/celery_app.py` 的 `task_routes`。
 状态流转、重试、超时和恢复策略见 [Worker State, Retry, Timeout, and Recovery Policy](./worker-lifecycle.md)。
+
+### 套件与计划的路由边界
+
+- 套件内所有用例都是同一设备类型时，套件任务进入该设备队列并在本地 Worker 内联执行。
+- 计划内所有套件都只包含同一设备类型时，计划任务进入该设备队列；只要包含混合套件或普通
+  Web/API 用例，计划任务就留在 `default` 队列。
+- 混合套件或混合计划由 `default` Worker 编排，Android/iOS 子用例通过显式队列投递并等待
+  结果。生产环境不要让普通 Linux Worker 消费 `android`/`ios` 队列。
 
 ## Docker Compose
 

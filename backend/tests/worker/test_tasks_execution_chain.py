@@ -417,7 +417,7 @@ def test_run_test_suite_executes_and_notifies_with_html_report(monkeypatch):
     _install_notifier(monkeypatch, html_enabled=True, calls=notifications)
     _install_exports(monkeypatch, html="<html>suite</html>")
 
-    async def fake_execute_suite_cases(_db, run_obj, _suite, _extra):
+    async def fake_execute_suite_cases(_db, run_obj, _suite, _extra, **_kwargs):
         run_obj.status = SuiteRunStatus.passed
         run_obj.result_summary = {"total": 2, "passed": 2, "failed": 0, "error": 0}
 
@@ -438,7 +438,7 @@ def test_run_test_suite_swallows_notification_failures(monkeypatch):
     _install_session(monkeypatch, db)
     _install_notifier(monkeypatch, fail=True)
 
-    async def fake_execute_suite_cases(_db, run_obj, _suite, _extra):
+    async def fake_execute_suite_cases(_db, run_obj, _suite, _extra, **_kwargs):
         run_obj.status = SuiteRunStatus.failed
         run_obj.result_summary = {"total": 1, "passed": 0, "failed": 1, "error": 0}
 
@@ -467,7 +467,7 @@ def test_execute_plan_suite_creates_run_and_falls_back_to_creator(monkeypatch):
     db = _FakeDB({("TestSuite", 6): suite})
     _install_session(monkeypatch, db)
 
-    async def fake_inline(_db, suite_run, _suite, _extra):
+    async def fake_inline(_db, suite_run, _suite, _extra, **_kwargs):
         suite_run.status = SuiteRunStatus.passed
 
     monkeypatch.setattr(tasks, "_execute_suite_inline", fake_inline)
@@ -490,7 +490,7 @@ def test_execute_plan_suite_marks_error_when_inline_execution_raises(monkeypatch
     db = _FakeDB({("TestSuite", 7): _Obj(id=7, name="Broken", project_id=3)})
     _install_session(monkeypatch, db)
 
-    async def broken_inline(_db, _suite_run, _suite, _extra):
+    async def broken_inline(_db, _suite_run, _suite, _extra, **_kwargs):
         raise RuntimeError("suite blew up")
 
     monkeypatch.setattr(tasks, "_execute_suite_inline", broken_inline)
@@ -508,7 +508,7 @@ def test_execute_suite_inline_sets_duration_and_outcome(monkeypatch):
     suite_run = _Obj(id=30, status=SuiteRunStatus.pending)
     outcomes = []
 
-    async def fake_execute_suite_cases(_db, run_obj, _suite, _extra):
+    async def fake_execute_suite_cases(_db, run_obj, _suite, _extra, **_kwargs):
         run_obj.status = SuiteRunStatus.passed
 
     monkeypatch.setattr(tasks, "_execute_suite_cases", fake_execute_suite_cases)
@@ -588,7 +588,7 @@ def test_run_test_plan_sequential_success_updates_schedule_and_notifies(monkeypa
     notifications = []
     _install_notifier(monkeypatch, calls=notifications)
 
-    async def fake_plan_suite(*, plan_meta, suite_id, extra_vars):
+    async def fake_plan_suite(*, plan_meta, suite_id, extra_vars, **_kwargs):
         return {"suite_id": suite_id, "suite_run_id": 100 + suite_id, "status": "passed"}
 
     monkeypatch.setattr(tasks, "_execute_plan_suite", fake_plan_suite)
@@ -610,7 +610,7 @@ def test_run_test_plan_fast_fail_marks_remaining_suites_skipped(monkeypatch):
     _install_session(monkeypatch, db)
     _install_notifier(monkeypatch)
 
-    async def fake_plan_suite(*, plan_meta, suite_id, extra_vars):
+    async def fake_plan_suite(*, plan_meta, suite_id, extra_vars, **_kwargs):
         return {"suite_id": suite_id, "suite_run_id": 100 + suite_id, "status": "failed"}
 
     monkeypatch.setattr(tasks, "_execute_plan_suite", fake_plan_suite)
@@ -631,7 +631,7 @@ def test_run_test_plan_parallel_mode_executes_all_batches(monkeypatch):
     _install_notifier(monkeypatch)
     seen = []
 
-    async def fake_plan_suite(*, plan_meta, suite_id, extra_vars):
+    async def fake_plan_suite(*, plan_meta, suite_id, extra_vars, **_kwargs):
         seen.append(suite_id)
         await asyncio.sleep(0)
         return {"suite_id": suite_id, "suite_run_id": 100 + suite_id, "status": "passed"}
@@ -658,7 +658,7 @@ def test_run_test_plan_records_auto_bug_pipeline_failure(monkeypatch):
     _install_session(monkeypatch, db)
     _install_notifier(monkeypatch)
 
-    async def fake_plan_suite(*, plan_meta, suite_id, extra_vars):
+    async def fake_plan_suite(*, plan_meta, suite_id, extra_vars, **_kwargs):
         return {"suite_id": suite_id, "suite_run_id": 100 + suite_id, "status": "failed"}
 
     monkeypatch.setattr(tasks, "_execute_plan_suite", fake_plan_suite)
@@ -677,7 +677,7 @@ def test_run_test_plan_swallows_notification_failures(monkeypatch):
     _install_session(monkeypatch, db)
     _install_notifier(monkeypatch, fail=True)
 
-    async def fake_plan_suite(*, plan_meta, suite_id, extra_vars):
+    async def fake_plan_suite(*, plan_meta, suite_id, extra_vars, **_kwargs):
         return {"suite_id": suite_id, "suite_run_id": 101, "status": "passed"}
 
     monkeypatch.setattr(tasks, "_execute_plan_suite", fake_plan_suite)
