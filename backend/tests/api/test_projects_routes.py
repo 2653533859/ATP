@@ -248,6 +248,35 @@ def test_export_project_masks_secrets_and_dataset_sensitive_fields():
     assert exported.warnings
 
 
+def test_export_project_preserves_minio_mode_for_large_dataset(monkeypatch):
+    project = _Obj(id=1, name="Source", project_code="SOURCE", description=None, ai_llm_config_id=None)
+    dataset = _Obj(
+        id=31,
+        name="large-users",
+        description=None,
+        format="json",
+        storage_mode="minio",
+        rows=[],
+        schema_fields=[],
+        validation_policy="soft",
+    )
+    rows = [{"id": index} for index in range(501)]
+    monkeypatch.setattr("app.services.project_transfer.rows_from_source", lambda _source: rows)
+    db = _FakeDB(
+        {("Project", 1): project},
+        execute_results=[
+            _FakeResult(rows=[]),
+            _FakeResult(rows=[]),
+            _FakeResult(rows=[dataset]),
+        ],
+    )
+
+    exported = asyncio.run(prj.export_project(project_id=1, db=db))
+
+    assert exported.datasets[0].storage_mode == "minio"
+    assert len(exported.datasets[0].rows) == 501
+
+
 def test_import_project_preview_and_import_skip_redacted_variables():
     payload = ProjectExportPayload(
         exported_at=_now(),
@@ -299,6 +328,38 @@ def test_import_project_preview_and_import_skip_redacted_variables():
     assert imported.imported["modules"] == 1
     assert imported.imported["variables"] == 1
     assert len(variables) == 1 and variables[0].key == "BASE_URL"
+
+
+def test_import_project_writes_minio_dataset_object(monkeypatch):
+    payload = ProjectExportPayload(
+        exported_at=_now(),
+        project=ProjectTransferProject(name="Imported MinIO"),
+        datasets=[
+            ProjectTransferDataset(name="large", storage_mode="minio", rows=[{"id": index} for index in range(501)])
+        ],
+    )
+    uploaded: list[tuple[int, int, int]] = []
+
+    def fake_upload(*, project_id, dataset_id, rows, **_kwargs):
+        uploaded.append((project_id, dataset_id, len(rows)))
+        return f"datasets/{project_id}/{dataset_id}/current.json"
+
+    monkeypatch.setattr(prj, "upload_dataset_rows", fake_upload)
+    db = _FakeDB(execute_results=[_FakeResult(scalar=None)])
+
+    asyncio.run(
+        prj.import_project(
+            body=ProjectImportIn(payload=payload),
+            db=db,
+            current_user=_user(21),
+        )
+    )
+
+    imported = next(item for item in db.added if item.__class__.__name__ == "TestDataset")
+    assert imported.storage_mode == "minio"
+    assert imported.rows == []
+    assert imported.row_count == 501
+    assert uploaded == [(imported.project_id, imported.id, 501)]
 
 
 def test_import_project_rejects_oversized_dataset_before_creating_project():

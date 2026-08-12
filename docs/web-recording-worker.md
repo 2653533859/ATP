@@ -1,5 +1,18 @@
 # Web 录制 Worker
 
+## 浏览器矩阵证据烟测
+
+`frontend/tools/browser-matrix-smoke.mjs` 默认检查 Chromium、Firefox、WebKit 的登录页；需要留存定位证据时，可以开启 Trace、HAR、Console、失败请求和 HTTP 错误摘要：
+
+```powershell
+$env:ATP_WEB_SMOKE_ARTIFACT_DIR = "../.local-run/web-browser-matrix"
+$env:ATP_WEB_SMOKE_REPORT = "../.local-run/web-browser-matrix/report.json"
+$env:ATP_WEB_SMOKE_HEADLESS = "false" # Linux/Xvfb 可用，Windows 桌面可选
+npm run e2e:browser-matrix
+```
+
+证据中的 URL 会移除用户名、密码、查询参数和片段；Trace/HAR 只在显式设置 `ATP_WEB_SMOKE_ARTIFACT_DIR` 时生成。该命令验证浏览器运行时和页面请求链路，不替代独立 Web Recording Worker 的 Redis 路由、Linux/Xvfb 和跨副本录制验收。
+
 Web 录制有两种运行方式：
 
 | 模式 | 适用场景 | 启动方式 | 会话状态 |
@@ -47,9 +60,10 @@ webRecorder:
   workerId: web-recorder-1
   display: ":99"
   maxSessions: 2
+  healthFile: /tmp/atp-web-recorder.ready
 ```
 
-Chart 会创建独立的 `web-recorder` Deployment，并自动把 Pod 名追加到 `workerId`，保证每个副本使用唯一 Worker ID。API 根据 Redis 心跳和活动会话数选择 Worker，不要求 Ingress 粘性会话。Worker 心跳 key 过期后不会被选择承载新会话。
+Chart 会创建独立的 `web-recorder` Deployment，并自动把 Pod 名追加到 `workerId`，保证每个副本使用唯一 Worker ID。Worker 在成功写入 Redis 心跳后更新 `healthFile`，停止或 Redis 心跳失败超过 30 秒后探针会失败；API 根据 Redis 心跳和活动会话数选择 Worker，不要求 Ingress 粘性会话。Worker 心跳 key 过期后不会被选择承载新会话。
 
 ## 关键配置
 
@@ -59,12 +73,20 @@ Chart 会创建独立的 `web-recorder` Deployment，并自动把 Pod 名追加�
 - `WEB_RECORDER_COMMAND_TIMEOUT_SECONDS`：API 等待 Worker 启动、截图和停止响应的上限。
 - `WEB_RECORDER_SESSION_TTL_SECONDS`：Redis 会话路由元数据 TTL；前端轮询、截图和停止操作会刷新 TTL。
 - `WEB_RECORDER_DISPLAY`：Linux/Xvfb 的 display。没有可用 display 时启动会明确失败并释放浏览器资源。
+- `WEB_RECORDER_HEALTH_FILE`：容器编排探针读取的健康标记路径；只有 Redis 注册/心跳成功时才会持续更新时间，默认 Compose/Helm 路径为 `/tmp/atp-web-recorder.ready`。
 
 API 仍负责登录态、项目编辑权限和录制元素资产持久化；Worker 只处理 Playwright 浏览器命令。启动参数、会话快照和步骤不包含密码输入值，密码输入仍按敏感值处理。录制导航和子资源继续使用共享网络守卫，阻止本机、私网、链路本地和保留地址请求。
 
 当多个 API 副本同时创建会话时，API 先按心跳中的活动会话数选择候选 Worker；如果候选 Worker 在最终容量检查中明确返回 `busy` 或 `not_ready`，API 会切换到下一个可用 Worker。超时或未知错误不会盲目重试，避免同一个录制命令已经被接受但响应丢失时产生重复浏览器会话。
 
 ## 故障排查
+
+打开 Web 录制弹窗后，界面会先读取 `GET /api/v1/web-recordings/workers`：
+
+- `local` 模式显示 API 进程本地录制已就绪，不需要独立 Worker。
+- `worker` 模式显示已注册 Worker 数量和可用容量；没有空闲容量时“开始录制”会被禁用。
+- Worker 列表只返回不可逆的 Worker 编号摘要、活动会话数、容量和可用状态，不返回原始 Worker ID、主机名或进程号。
+- 状态读取失败时可以点击“刷新 Worker 状态”；这只代表状态接口不可用，不会把 Worker 误判为可用。
 
 1. API 返回“没有可用的 Web 录制 Worker”：检查 Redis 连通性、`WEB_RECORDER_MODE`、队列前缀和 Worker 心跳 key。
 2. API 返回“Worker 响应超时”：检查 Worker 日志、Xvfb display、Chromium 启动依赖和 `WEB_RECORDER_COMMAND_TIMEOUT_SECONDS`。

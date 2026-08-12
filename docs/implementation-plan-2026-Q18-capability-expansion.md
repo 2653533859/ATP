@@ -3,6 +3,16 @@
 > 最新状态与前后实现对比：[`docs/q18-latest-status-2026-08-07.md`](./q18-latest-status-2026-08-07.md)。本计划中的“已实现”仍需结合该文件区分代码完成与真实环境验收。
 
 > 版本：2026-08-11
+
+> 2026-08-12 计划同步：Q18 新增代码主链已完成，后续执行顺序和验收边界统一维护在 [`docs/next-development-plan-2026-08-12.md`](next-development-plan-2026-08-12.md)。本轮从 Windows 真实 Android 设备验收入口开始，未连接真实设备时不得生成通过证据。
+
+> 2026-08-12 阶段推进：Linux/Kubernetes 性能验收入口已增加 Prometheus readiness/PromQL 检查和 URL 凭据安全校验；真实集群仍需独立执行并留存证据。
+
+> 2026-08-12 Web 阶段推进：独立录制 Worker 增加基于 Redis 心跳的健康标记，并同步 Compose/Helm 探针；真实 Linux/Xvfb、多浏览器和跨副本录制仍需执行验收。
+
+> 2026-08-12 浏览器证据推进：矩阵 smoke 支持显式生成 Trace/HAR 和 Console/网络失败摘要，默认保持轻量模式；真实 Worker 路由和跨副本 E2E 仍需目标环境。
+
+> 2026-08-12 iOS 阶段推进：新增 Appium status/session smoke 与脱敏附件报告，真实 macOS/XCUITest/WDA/设备仍需目标环境执行。
 > 目标：在现有 API、Web、Android 和性能测试基础上，补齐可持续使用的企业级测试能力。
 > 当前状态：API P0 主链、Web 多浏览器/诊断主链、Android 设备租约主链、iOS/Appium 本地执行边界和性能增强代码已实现；Windows 是日常开发主线，Linux/Kubernetes、真实设备、性能节点与外部服务属于目标环境开发/验收。
 
@@ -79,6 +89,7 @@
 
 - [x] 设计安全的 API 前置/后置动作契约，第一版仅开放白名单动作，不执行 Python/JavaScript；动作数量和变量名均受限。
 - [x] 支持数据集的顺序、随机、固定次数和受控组合策略，并对组合上限和输入摘要做脱敏处理；数据集管理页新增 AI 合成数据草稿入口，结果不直接落库，仍经 Schema 校验和版本保存。
+- [x] 增加 API 用例运行级 `dataset_prepare_actions`：受限 HTTP seed、变量设置/删除、状态/响应断言和响应提取在 child run 创建前执行一次；不执行任意脚本，真实 seed 服务和 MinIO 集群仍需环境验收。
 - [x] Mock 管理页新增 AI Mock 规则草稿入口：可按要求或参考现有规则生成，结果先预览编辑，确认后复用普通创建接口保存；原有 AI 用例生成入口保持独立。
 - [x] 强化 API 场景编排：编辑器展示多步骤依赖并支持追加步骤；执行器支持依赖跳过、失败策略、上下文变量作用域和登录态生命周期。
 

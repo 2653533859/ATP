@@ -1,6 +1,6 @@
 """P3.B 测试数据集模型。
 
-CSV / JSON 数据集，行数据直存 JSON 字段（rows）；MVP 限制 ≤500 行 ≤256KB。
+小数据集直存 JSON；大型数据集将 rows 放入 MinIO，只在数据库保留对象引用和元数据。
 """
 
 from __future__ import annotations
@@ -23,6 +23,9 @@ class TestDataset(Base, TimestampMixin):
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     format: Mapped[str] = mapped_column(String(16), nullable=False, default="json")
     rows: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
+    storage_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="database", server_default="database")
+    object_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     schema_fields: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
     validation_policy: Mapped[str] = mapped_column(String(16), nullable=False, default="soft")
     creator_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
@@ -39,6 +42,9 @@ class TestDatasetVersion(Base, TimestampMixin):
     version: Mapped[int] = mapped_column(Integer, nullable=False)
     format: Mapped[str] = mapped_column(String(16), nullable=False, default="json")
     rows: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
+    storage_mode: Mapped[str] = mapped_column(String(16), nullable=False, default="database", server_default="database")
+    object_name: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    row_count: Mapped[int | None] = mapped_column(Integer, nullable=True)
     schema_fields: Mapped[list[dict]] = mapped_column(JSON, nullable=False, default=list)
     validation_policy: Mapped[str] = mapped_column(String(16), nullable=False, default="soft")
     change_type: Mapped[str] = mapped_column(String(32), nullable=False, default="manual")

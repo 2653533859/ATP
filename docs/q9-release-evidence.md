@@ -1,9 +1,34 @@
-# Q9 Release Evidence
+# Q9/Q18 Release Evidence
 
-> Date: 2026-05-29
-> Status: initial release-readiness evidence record.
+> Date: 2026-08-12
+> Status: historical Q9 record retained; the Q18 extension below is the active release-evidence section.
 
 This file records concrete evidence for the Q9 release-readiness baseline. It is intentionally separate from `docs/q9-release-checklist.md`: the checklist says what must be done, while this file records what was actually run and what still needs a Docker/staging environment.
+
+## Q18 Local Gate Snapshot (2026-08-12)
+
+This section records repository-local evidence only. It does not close the real MinIO, external notification, Android device, Linux/Kubernetes, Web Worker or macOS/iOS gates.
+
+| Gate | Command / evidence | Result |
+|---|---|---|
+| Backend non-integration | `backend\.venv\Scripts\python.exe -m pytest backend/tests -q --ignore=backend/tests/integration` | `1944 passed` |
+| Standalone isolation | `backend\.venv\Scripts\python.exe scripts/pytest-standalone-sweep.py --jobs 4` | `264 passed, 0 failed` |
+| Frontend | `npm --prefix frontend run test` | `45 files / 183 tests passed` |
+| Frontend type/build | `npm --prefix frontend run type-check` and `npm --prefix frontend run build` | passed |
+| Python quality | Ruff check/format and mypy progressive scope | passed |
+| Performance notification formatting | `backend/tests/services/test_notifier.py` and `test_performance_notifications.py` | `12 passed` |
+| Performance early-terminal notification | `backend/tests/worker/test_tasks_performance.py` and `backend/tests/services/test_performance_notifications.py` | `14 passed` |
+| Diff hygiene | `git diff --check` | passed |
+
+### Q18 external evidence still required
+
+- Real MinIO large-object upload, reconciliation, purge authorization and restore drill.
+- Real SMTP, WeCom and DingTalk delivery, including metric/reason text and provider failure observability.
+- Authorized Android device and Windows Android Worker low-code execution.
+- Linux/Kubernetes performance Worker, Prometheus, real TLS target, cancellation, allowlist and multi-node evidence.
+- Linux/Xvfb Web Worker and macOS/iOS/Appium target evidence.
+
+Use the Q18 extension in [`docs/q9-release-checklist.md`](q9-release-checklist.md) to fill these fields; do not promote local test results to external acceptance.
 
 ## Local Evidence
 

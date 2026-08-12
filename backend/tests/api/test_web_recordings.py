@@ -629,3 +629,59 @@ def test_recording_routes_delegate_to_remote_worker_mode(monkeypatch):
     assert asyncio.run(web_recordings.capture_recording_screenshot("remote-1", user)).body == b"remote-png"
     assert asyncio.run(web_recordings.stop_recording("remote-1", _DB(), user))["status"] == "stopped"
     assert persisted == ["remote-1"]
+
+
+def test_recording_worker_status_reports_capacity_without_process_details(monkeypatch):
+    import app.api.v1.web_recordings as web_recordings
+
+    monkeypatch.setattr(web_recordings.settings, "WEB_RECORDER_MODE", "worker")
+
+    async def list_workers():
+        return [
+            {
+                "worker_id": "windows-worker",
+                "active_sessions": 1,
+                "capacity": 2,
+                "updated_at": "1700000000",
+                "hostname": "private-host",
+                "pid": 1234,
+            },
+            {"worker_id": "full-worker", "active_sessions": 2, "capacity": 2},
+        ]
+
+    monkeypatch.setattr(web_recordings, "list_recording_workers", list_workers)
+    result = asyncio.run(web_recordings.get_recording_workers(SimpleNamespace(id=1)))
+
+    assert result["mode"] == "worker"
+    assert result["ready"] is True
+    assert result["registered_count"] == 2
+    assert result["available_count"] == 1
+    assert result["workers"][0]["worker_id"].startswith("worker-")
+    assert result["workers"][1]["worker_id"].startswith("worker-")
+    assert result["workers"][0]["worker_id"] != "windows-worker"
+    assert result["workers"][1]["worker_id"] != "full-worker"
+    assert result["workers"][0]["active_sessions"] == 1
+    assert result["workers"][0]["capacity"] == 2
+    assert result["workers"][0]["available"] is True
+    assert result["workers"][0]["updated_at"] == 1700000000.0
+    assert result["workers"][1]["active_sessions"] == 2
+    assert result["workers"][1]["capacity"] == 2
+    assert result["workers"][1]["available"] is False
+    assert result["workers"][1]["updated_at"] is None
+    assert "hostname" not in result["workers"][0]
+    assert "pid" not in result["workers"][0]
+
+
+def test_recording_worker_status_is_ready_in_local_mode(monkeypatch):
+    import app.api.v1.web_recordings as web_recordings
+
+    monkeypatch.setattr(web_recordings.settings, "WEB_RECORDER_MODE", "local")
+    result = asyncio.run(web_recordings.get_recording_workers(SimpleNamespace(id=1)))
+
+    assert result == {
+        "mode": "local",
+        "ready": True,
+        "workers": [],
+        "registered_count": 0,
+        "available_count": 0,
+    }

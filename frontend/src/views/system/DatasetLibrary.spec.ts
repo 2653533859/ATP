@@ -167,6 +167,7 @@ const DATASETS = [{
   name: 'Users',
   description: 'test users',
   format: 'json',
+  storage_mode: 'database',
   row_count: 2,
   schema_field_count: 1,
   validation_policy: 'hard',
@@ -231,6 +232,7 @@ describe('DatasetLibrary mount', () => {
       rows: [{ id: 1 }],
       schema_fields: [{ name: 'id', type: 'integer', required: true, default: 0 }],
       validation_policy: 'soft',
+      storage_mode: 'database',
     }))
     expect(messageSuccess).toHaveBeenCalledWith('common.saved')
   })
@@ -256,6 +258,24 @@ describe('DatasetLibrary mount', () => {
     expect(vm.form.rows).toEqual([{ username: 'synthetic-1' }])
     expect(datasetCreate).not.toHaveBeenCalled()
     expect(messageSuccess).toHaveBeenCalledWith('system_pages.dataset.ai_generate_success')
+  })
+
+  it('saves an explicitly selected MinIO storage mode', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openCreate()
+    vm.form.name = 'Large Orders'
+    vm.form.storage_mode = 'minio'
+    vm.rowsText = '[{"id": 1}]'
+    await vm.onSave()
+
+    expect(datasetCreate).toHaveBeenCalledWith(expect.objectContaining({
+      name: 'Large Orders',
+      storage_mode: 'minio',
+      rows: [{ id: 1 }],
+    }))
   })
 
   it('uses the selected dataset schema when generating replacement rows', async () => {

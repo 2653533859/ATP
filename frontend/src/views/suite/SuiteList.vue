@@ -542,7 +542,15 @@ interface SuiteFormState {
 
 
 function getErrorMessage(error: unknown, fallback: string) {
-  return typeof error === 'string' ? error : fallback
+  if (typeof error === 'string') return error
+  if (error instanceof Error) return error.message
+  if (typeof error === 'object' && error !== null) {
+    const response = (error as { response?: { data?: { detail?: unknown } } }).response
+    if (typeof response?.data?.detail === 'string') return response.data.detail
+    const message = (error as { message?: unknown }).message
+    if (typeof message === 'string') return message
+  }
+  return fallback
 }
 
 function createDefaultForm(): SuiteFormState {

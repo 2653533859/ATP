@@ -77,7 +77,7 @@ async def _notify_performance_run(db, run, test, metric_samples: list[dict]) -> 
         node_issue = bool(run.error_message and "节点" in run.error_message)
         resource_issue = any(bool(sample.get("errors")) for sample in metric_samples)
         notification = build_performance_notification_summary(
-            test_name=test.name,
+            test_name=getattr(test, "name", None) or f"Run #{run.id}",
             run_id=run.id,
             status=run.status,
             duration_ms=run.duration_ms,
@@ -92,6 +92,16 @@ async def _notify_performance_run(db, run, test, metric_samples: list[dict]) -> 
         await db.commit()
     except Exception:
         logger.exception("Failed to send performance notification for run %s", getattr(run, "id", None))
+
+
+async def _finish_and_notify_performance_run(db, run, test, *, status: str, error_message: str) -> None:
+    """Persist an early terminal state and keep it on the same notification path as normal runs."""
+
+    run.status = status
+    run.error_message = error_message
+    run.finished_at = datetime.now(timezone.utc)
+    await db.commit()
+    await _notify_performance_run(db, run, test, [])
 
 
 async def _heartbeat_worker_node(db):
@@ -202,45 +212,63 @@ def run_performance_test(self, run_id: int):
 
             test = await db.get(PerformanceTest, run.performance_test_id)
             if test is None:
-                run.status = PerformanceRunStatus.failed.value
-                run.error_message = "Performance test not found"
-                run.finished_at = datetime.now(timezone.utc)
-                await db.commit()
+                await _finish_and_notify_performance_run(
+                    db,
+                    run,
+                    None,
+                    status=PerformanceRunStatus.failed.value,
+                    error_message="Performance test not found",
+                )
                 return
 
             worker_node = await _heartbeat_worker_node(db)
             assigned_node_id = getattr(run, "performance_node_id", None)
             executor = getattr(test, "executor", "k6")
             if executor not in configured_performance_executors():
-                run.status = PerformanceRunStatus.failed.value
-                run.error_message = f"当前 worker 未启用 {executor} 性能执行器"
-                run.finished_at = datetime.now(timezone.utc)
-                await db.commit()
+                await _finish_and_notify_performance_run(
+                    db,
+                    run,
+                    test,
+                    status=PerformanceRunStatus.failed.value,
+                    error_message=f"当前 worker 未启用 {executor} 性能执行器",
+                )
                 return
             if assigned_node_id is not None:
                 if worker_node is None or worker_node.id != assigned_node_id:
-                    run.status = PerformanceRunStatus.failed.value
-                    run.error_message = "指定的性能压测节点与当前 worker 不匹配"
-                    run.finished_at = datetime.now(timezone.utc)
-                    await db.commit()
+                    await _finish_and_notify_performance_run(
+                        db,
+                        run,
+                        test,
+                        status=PerformanceRunStatus.failed.value,
+                        error_message="指定的性能压测节点与当前 worker 不匹配",
+                    )
                     return
                 if effective_node_status(worker_node) != "online":
-                    run.status = PerformanceRunStatus.failed.value
-                    run.error_message = "指定的性能压测节点当前不可用"
-                    run.finished_at = datetime.now(timezone.utc)
-                    await db.commit()
+                    await _finish_and_notify_performance_run(
+                        db,
+                        run,
+                        test,
+                        status=PerformanceRunStatus.failed.value,
+                        error_message="指定的性能压测节点当前不可用",
+                    )
                     return
                 if not node_supports_executor(worker_node, executor):
-                    run.status = PerformanceRunStatus.failed.value
-                    run.error_message = f"指定的性能压测节点不支持 {executor} 执行器"
-                    run.finished_at = datetime.now(timezone.utc)
-                    await db.commit()
+                    await _finish_and_notify_performance_run(
+                        db,
+                        run,
+                        test,
+                        status=PerformanceRunStatus.failed.value,
+                        error_message=f"指定的性能压测节点不支持 {executor} 执行器",
+                    )
                     return
                 if not await node_has_capacity(db, worker_node, exclude_run_id=run.id):
-                    run.status = PerformanceRunStatus.failed.value
-                    run.error_message = "性能压测节点并发容量已满"
-                    run.finished_at = datetime.now(timezone.utc)
-                    await db.commit()
+                    await _finish_and_notify_performance_run(
+                        db,
+                        run,
+                        test,
+                        status=PerformanceRunStatus.failed.value,
+                        error_message="性能压测节点并发容量已满",
+                    )
                     return
 
             control_client = create_control_client()
@@ -249,10 +277,13 @@ def run_performance_test(self, run_id: int):
                     PerformanceRunStatus.cancelled.value,
                     PerformanceRunStatus.cancelling.value,
                 } or is_cancel_requested(run_id, client=control_client):
-                    run.status = PerformanceRunStatus.cancelled.value
-                    run.error_message = "用户已停止压测"
-                    run.finished_at = datetime.now(timezone.utc)
-                    await db.commit()
+                    await _finish_and_notify_performance_run(
+                        db,
+                        run,
+                        test,
+                        status=PerformanceRunStatus.cancelled.value,
+                        error_message="用户已停止压测",
+                    )
                     return
 
                 run.status = PerformanceRunStatus.running.value

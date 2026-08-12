@@ -50,6 +50,32 @@ spec:
               value: {{ .Values.webRecorder.heartbeatSeconds | quote }}
             - name: WEB_RECORDER_WORKER_TTL_SECONDS
               value: {{ .Values.webRecorder.workerTtlSeconds | quote }}
+            - name: WEB_RECORDER_HEALTH_FILE
+              value: {{ .Values.webRecorder.healthFile | quote }}
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - >-
+                  import os,time; p=os.environ['WEB_RECORDER_HEALTH_FILE'];
+                  raise SystemExit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p) <= 30 else 1)
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - >-
+                  import os,time; p=os.environ['WEB_RECORDER_HEALTH_FILE'];
+                  raise SystemExit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p) <= 30 else 1)
+            initialDelaySeconds: 30
+            periodSeconds: 15
+            timeoutSeconds: 5
+            failureThreshold: 3
           resources:
             {{- toYaml .Values.webRecorder.resources | nindent 12 }}
 {{- end }}

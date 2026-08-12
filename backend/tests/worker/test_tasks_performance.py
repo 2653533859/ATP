@@ -151,6 +151,12 @@ def test_missing_test_marks_the_run_failed(perf_task, monkeypatch):
     run, _test = _run_and_test(PerformanceRunStatus)
     session = _install_session(monkeypatch, {"PerformanceRun": run})
     calls = _install_k6(monkeypatch, result=({}, "", 0))
+    notifications = []
+
+    async def fake_notify(db, notified_run, notified_test, metric_samples):
+        notifications.append((db, notified_run, notified_test, metric_samples))
+
+    monkeypatch.setattr(perf_task, "_notify_performance_run", fake_notify)
 
     perf_task.run_performance_test(None, 7)
 
@@ -159,6 +165,7 @@ def test_missing_test_marks_the_run_failed(perf_task, monkeypatch):
     assert run.error_message == "Performance test not found"
     assert run.finished_at is not None
     assert session.commits == 1
+    assert notifications == [(session, run, None, [])]
 
 
 def test_successful_k6_run_records_summary_and_success_status(perf_task, monkeypatch):
@@ -269,6 +276,12 @@ def test_cancelled_before_worker_start_never_launches_k6(perf_task, monkeypatch)
     monkeypatch.setattr(perf_task, "create_control_client", lambda: _ControlClient())
     monkeypatch.setattr(perf_task, "is_cancel_requested", lambda *_a, **_kw: True)
     monkeypatch.setattr(perf_task, "clear_cancel_request", lambda *_a, **_kw: None)
+    notifications = []
+
+    async def fake_notify(db, notified_run, notified_test, metric_samples):
+        notifications.append((db, notified_run, notified_test, metric_samples))
+
+    monkeypatch.setattr(perf_task, "_notify_performance_run", fake_notify)
 
     perf_task.run_performance_test(None, 7)
 
@@ -276,6 +289,7 @@ def test_cancelled_before_worker_start_never_launches_k6(perf_task, monkeypatch)
     assert run.status == PerformanceRunStatus.cancelled.value
     assert run.finished_at is not None
     assert session.commits == 1
+    assert notifications == [(session, run, test, [])]
 
 
 class _HeartbeatResult:

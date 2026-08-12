@@ -97,8 +97,9 @@ def test_preview_old_runs_by_project_returns_global_and_projects(monkeypatch):
     # 直接 monkeypatch 内部函数为可控行为
     calls = {"global": 0, "project_queries": []}
 
-    def fake_preview_old_runs(_session, days, batch_size=500):
+    def fake_preview_old_runs(_session, days, batch_size=500, **kwargs):
         calls["global"] += 1
+        calls["global_kwargs"] = kwargs
         return {
             "cutoff": "x",
             "retention_days": days,
@@ -139,5 +140,6 @@ def test_preview_old_runs_by_project_returns_global_and_projects(monkeypatch):
     assert alpha["suite_runs"] == 3
     assert alpha["test_runs"] == 3 and alpha["mobile_runs"] == 3  # 不再是全局兜底 note
     assert "note" not in alpha
+    assert calls["global_kwargs"] == {"exclude_project_ids": [1, 2]}
     # 每项目四次 count 查询（plan + suite + test + mobile）
     assert len(calls["project_queries"]) == 8

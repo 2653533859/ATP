@@ -26,6 +26,28 @@
     </a-form>
 
     <a-alert
+      v-if="workerStatusError"
+      type="warning"
+      show-icon
+      :message="t('case.drawer.web.recorder.worker_status_error')"
+      :description="workerStatusError"
+      style="margin-bottom: 16px"
+    />
+    <a-alert
+      v-else-if="workerStatus"
+      :type="workerStatus.ready ? 'success' : 'error'"
+      show-icon
+      :message="workerStatusMessage"
+      :description="workerStatusDescription"
+      style="margin-bottom: 16px"
+    />
+    <div v-if="!active && (workerStatus || workerStatusError)" class="worker-status-actions">
+      <a-button type="link" size="small" :loading="workerStatusLoading" @click="loadWorkerStatus">
+        {{ t('case.drawer.web.recorder.refresh_worker_status') }}
+      </a-button>
+    </div>
+
+    <a-alert
       v-if="active"
       type="info"
       show-icon
@@ -52,7 +74,7 @@
     </a-list>
 
     <div class="recorder-actions">
-      <a-button v-if="!active" type="primary" :loading="starting" @click="startRecording">
+      <a-button v-if="!active" type="primary" :loading="starting" :disabled="workerUnavailable" @click="startRecording">
         {{ t('case.drawer.web.recorder.start') }}
       </a-button>
       <a-button v-if="active && showCapture" type="primary" :loading="capturing" @click="captureScreenshot">
@@ -75,7 +97,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
-import { webRecordingApi, type WebRecordingStatus, type WebRecordingStep } from '@/api'
+import { webRecordingApi, type WebRecordingStatus, type WebRecordingStep, type WebRecordingWorkersResponse } from '@/api'
 
 const props = defineProps<{
   open: boolean
@@ -102,9 +124,33 @@ const error = ref('')
 const starting = ref(false)
 const stopping = ref(false)
 const capturing = ref(false)
+const workerStatus = ref<WebRecordingWorkersResponse | null>(null)
+const workerStatusError = ref('')
+const workerStatusLoading = ref(false)
 let pollTimer: ReturnType<typeof setTimeout> | null = null
 
 const active = computed(() => status.value === 'starting' || status.value === 'recording' || status.value === 'stopping')
+const workerUnavailable = computed(() => workerStatus.value?.mode === 'worker' && !workerStatus.value.ready)
+const workerStatusMessage = computed(() => {
+  if (!workerStatus.value) return ''
+  if (workerStatus.value.mode !== 'worker') return t('case.drawer.web.recorder.worker_local_ready')
+  if (workerStatus.value.ready) {
+    return t('case.drawer.web.recorder.worker_ready', {
+      registered: workerStatus.value.registered_count,
+      available: workerStatus.value.available_count,
+    })
+  }
+  if (workerStatus.value.registered_count) {
+    return t('case.drawer.web.recorder.worker_full', { registered: workerStatus.value.registered_count })
+  }
+  return t('case.drawer.web.recorder.worker_missing')
+})
+const workerStatusDescription = computed(() => {
+  if (!workerStatus.value) return ''
+  return workerStatus.value.mode === 'worker'
+    ? t('case.drawer.web.recorder.worker_status_hint')
+    : t('case.drawer.web.recorder.worker_local_hint')
+})
 
 function reset() {
   clearPoll()
@@ -119,6 +165,9 @@ function reset() {
   starting.value = false
   stopping.value = false
   capturing.value = false
+  workerStatus.value = null
+  workerStatusError.value = ''
+  workerStatusLoading.value = false
 }
 
 function clearPoll() {
@@ -132,6 +181,19 @@ function actionLabel(action: string) {
   return t(`case.lowcode_editor.actions.${action}`, action)
 }
 
+async function loadWorkerStatus() {
+  workerStatusLoading.value = true
+  workerStatusError.value = ''
+  try {
+    workerStatus.value = await webRecordingApi.workers()
+  } catch (e: unknown) {
+    workerStatus.value = null
+    workerStatusError.value = e instanceof Error ? e.message : String(e)
+  } finally {
+    workerStatusLoading.value = false
+  }
+}
+
 async function startRecording() {
   if (!startUrl.value.trim()) {
     message.warning(t('case.drawer.web.recorder.start_url_required'))
@@ -139,6 +201,10 @@ async function startRecording() {
   }
   if (!props.projectId) {
     message.warning(t('web_assets.select_project_hint'))
+    return
+  }
+  if (workerUnavailable.value) {
+    message.warning(t('case.drawer.web.recorder.worker_unavailable'))
     return
   }
   starting.value = true
@@ -256,8 +322,11 @@ async function handleClose() {
 }
 
 watch(() => props.open, (open) => {
-  if (open) reset()
-})
+  if (open) {
+    reset()
+    void loadWorkerStatus()
+  }
+}, { immediate: true })
 
 onBeforeUnmount(() => clearPoll())
 </script>
@@ -283,5 +352,12 @@ onBeforeUnmount(() => clearPoll())
   font-size: 12px;
   line-height: 1.5;
   margin-top: 4px;
+}
+
+.worker-status-actions {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: -12px;
+  margin-bottom: 8px;
 }
 </style>

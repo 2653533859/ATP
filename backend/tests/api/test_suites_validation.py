@@ -109,8 +109,13 @@ def _project(project_id: int):
     return types.SimpleNamespace(id=project_id, name=f"Project-{project_id}")
 
 
-def _case(case_id: int, project_id: int):
-    return types.SimpleNamespace(id=case_id, module=types.SimpleNamespace(project_id=project_id))
+def _case(case_id: int, project_id: int, *, case_type=None, config=None):
+    return types.SimpleNamespace(
+        id=case_id,
+        module=types.SimpleNamespace(project_id=project_id),
+        case_type=case_type,
+        config=config or {},
+    )
 
 
 def test_create_suite_persists_valid_ordered_case_ids():
@@ -171,6 +176,31 @@ def test_create_suite_persists_execution_config():
     assert result.config["max_workers"] == 3
     assert result.config["fail_strategy"] == "require-minimum-pass-rate"
     assert result.config["min_pass_rate"] == 0.75
+
+
+def test_create_suite_rejects_reused_api_session_in_parallel_mode():
+    load_all_models()
+    db = _FakeDB(
+        project=_project(1),
+        cases=[_case(12, 1, case_type="api", config={"session_lifecycle": "reuse"})],
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            suites.create_suite(
+                body=TestSuiteCreate(
+                    name="Unsafe Parallel Suite",
+                    project_id=1,
+                    case_ids=[{"case_id": 12, "sort": 0}],
+                    config={"execution_mode": "parallel"},
+                ),
+                db=db,
+                current_user=types.SimpleNamespace(id=7),
+            )
+        )
+
+    assert exc.value.status_code == 400
+    assert "登录态复用" in exc.value.detail
 
 
 def test_create_suite_rejects_missing_case_id():
@@ -243,6 +273,35 @@ def test_update_suite_rejects_case_from_another_project():
         )
 
     assert exc.value.status_code == 400
+
+
+def test_update_suite_rejects_parallel_session_reuse_when_config_changes():
+    load_all_models()
+    suite = TestSuite(
+        id=33,
+        name="Smoke",
+        project_id=1,
+        creator_id=7,
+        case_ids=[{"case_id": 12, "sort": 0}],
+        config={"execution_mode": "sequential"},
+    )
+    db = _FakeDB(
+        suite=suite,
+        cases=[_case(12, 1, case_type="api", config={"reuse_api_session": True})],
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            suites.update_suite(
+                suite_id=33,
+                body=TestSuiteUpdate(config={"execution_mode": "parallel"}),
+                db=db,
+                user=types.SimpleNamespace(id=7),
+            )
+        )
+
+    assert exc.value.status_code == 400
+    assert "串行执行" in exc.value.detail
 
 
 def test_update_suite_updates_execution_config():

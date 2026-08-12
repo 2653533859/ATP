@@ -300,6 +300,29 @@ def test_worker_dispatches_commands_and_enforces_capacity(monkeypatch):
     assert asyncio.run(worker._dispatch({"action": "snapshot", "session_id": "s1"}))["code"] == "not_found"
 
 
+def test_worker_health_file_tracks_successful_registration(monkeypatch, tmp_path):
+    import app.web_recording_worker as worker_module
+
+    health_file = tmp_path / "web-recorder.ready"
+    monkeypatch.setenv("WEB_RECORDER_HEALTH_FILE", str(health_file))
+    redis = _FakeRedis()
+    worker = WebRecordingWorker("worker-a")
+
+    async def stop_after_probe(*_args, **_kwargs):
+        assert health_file.exists()
+        worker.stop_event.set()
+        return None
+
+    redis.blpop = stop_after_probe
+    monkeypatch.setattr(worker_module._redis_client, "get_async_redis", lambda: redis)
+    monkeypatch.setattr(worker_module, "register_recording_worker", lambda *args, **kwargs: asyncio.sleep(0))
+    monkeypatch.setattr(worker_module, "unregister_recording_worker", lambda *args, **kwargs: asyncio.sleep(0))
+
+    asyncio.run(worker.run())
+
+    assert not health_file.exists()
+
+
 def test_worker_returns_start_failure_and_not_ready_screenshot(monkeypatch):
     import app.web_recording_worker as worker_module
 

@@ -117,6 +117,15 @@
             </a-form-item>
           </a-col>
         </a-row>
+        <a-form-item v-if="form.case_type === 'api'" :label="t('case_form.basic.dataset_prepare_actions')">
+          <a-textarea
+            v-model:value="form.dataset_prepare_actions_text"
+            :rows="5"
+            :placeholder="t('case_form.basic.dataset_prepare_actions_placeholder')"
+            style="font-family: monospace; font-size: 12px"
+          />
+          <div class="form-hint">{{ t('case_form.basic.dataset_prepare_actions_hint') }}</div>
+        </a-form-item>
       </a-form-item>
 
       <template v-if="form.case_type === 'api'">
@@ -1053,6 +1062,7 @@ const form = reactive<{
   dataset_max_iterations: number
   dataset_combination_fields: string[]
   dataset_redact_fields: string[]
+  dataset_prepare_actions_text: string
 }>({
   name: '',
   description: '',
@@ -1068,6 +1078,7 @@ const form = reactive<{
   dataset_max_iterations: 1000,
   dataset_combination_fields: [],
   dataset_redact_fields: [],
+  dataset_prepare_actions_text: '[]',
 })
 
 const datasetOptions = ref<{ label: string; value: number }[]>([])
@@ -1233,6 +1244,7 @@ watch(() => props.open, (v) => {
     form.dataset_max_iterations = Number(c.config?.dataset_max_iterations ?? 1000)
     form.dataset_combination_fields = Array.isArray(c.config?.dataset_combination_fields) ? [...c.config.dataset_combination_fields] : []
     form.dataset_redact_fields = Array.isArray(c.config?.dataset_redact_fields) ? [...c.config.dataset_redact_fields] : []
+    form.dataset_prepare_actions_text = JSON.stringify(c.config?.dataset_prepare_actions ?? [], null, 2)
     const step = getFirstStep(c.config) as CaseConfigStep
     apiScenarioSteps.value = Array.isArray(c.config?.steps)
       ? c.config.steps.map((item) => ({ ...item, depends_on: Array.isArray(item.depends_on) ? [...item.depends_on] : [] }))
@@ -1340,6 +1352,7 @@ watch(() => props.open, (v) => {
     form.dataset_max_iterations = 1000
     form.dataset_combination_fields = []
     form.dataset_redact_fields = []
+    form.dataset_prepare_actions_text = '[]'
     Object.assign(cfg, {
       url: '', method: 'GET', headers: {}, params: {}, cookies: {},
       body_type: 'none', body: '', multipart: [],
@@ -1474,6 +1487,13 @@ function parseHookActions(text: string): HookAction[] {
   if (!text.trim()) return []
   const parsed = JSON.parse(text)
   if (!Array.isArray(parsed)) throw new Error(t('case_form.hooks.invalid'))
+  return parsed as HookAction[]
+}
+
+function parseDatasetPreparationActions(text: string): HookAction[] {
+  if (!text.trim()) return []
+  const parsed = JSON.parse(text)
+  if (!Array.isArray(parsed)) throw new Error(t('case_form.basic.dataset_prepare_actions_invalid'))
   return parsed as HookAction[]
 }
 
@@ -1631,6 +1651,9 @@ function buildConfig() {
     dataset_max_iterations: form.dataset_max_iterations,
     dataset_combination_fields: form.dataset_combination_fields,
     dataset_redact_fields: form.dataset_redact_fields,
+    dataset_prepare_actions: form.case_type === 'api'
+      ? parseDatasetPreparationActions(form.dataset_prepare_actions_text)
+      : [],
   })
   if (form.case_type === 'graphql') {
     return withDatasetStrictFlag(buildGraphqlConfig())

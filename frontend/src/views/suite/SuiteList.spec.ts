@@ -303,4 +303,19 @@ describe('SuiteList mount', () => {
     await flushPromises()
     expect(messageError).toHaveBeenCalled()
   })
+
+  it('shows the backend detail when saving a suite is rejected', async () => {
+    const wrapper = mountSuiteList()
+    await chooseProject(wrapper)
+    const vm = wrapper.vm as any
+    vm.formProjectId = 10
+    vm.form.name = 'Parallel API suite'
+    vm.selectedCaseIds = [100]
+    vm.editingId = 1
+    suiteUpdate.mockRejectedValueOnce({ response: { data: { detail: '请改为串行执行' } } })
+
+    await vm.persistSuite()
+
+    expect(messageError).toHaveBeenCalledWith('请改为串行执行')
+  })
 })

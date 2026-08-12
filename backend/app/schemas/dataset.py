@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 DatasetFormat = Literal["csv", "json"]
 DatasetSchemaFieldType = Literal["string", "number", "integer", "boolean", "object", "array"]
 DatasetValidationPolicy = Literal["soft", "hard"]
+DatasetStorageMode = Literal["database", "minio"]
 
 
 class DatasetSchemaFieldIn(BaseModel):
@@ -24,6 +25,7 @@ class TestDatasetCreate(BaseModel):
     project_id: int
     description: str | None = None
     format: DatasetFormat = "json"
+    storage_mode: DatasetStorageMode = "database"
     rows: list[dict] = Field(default_factory=list)
     schema_fields: list[DatasetSchemaFieldIn] = Field(default_factory=list, max_length=100)
     validation_policy: DatasetValidationPolicy = "soft"
@@ -32,6 +34,7 @@ class TestDatasetCreate(BaseModel):
 class TestDatasetUpdate(BaseModel):
     name: str | None = Field(default=None, min_length=1, max_length=128)
     description: str | None = None
+    storage_mode: DatasetStorageMode | None = None
     rows: list[dict] | None = None
     schema_fields: list[DatasetSchemaFieldIn] | None = Field(default=None, max_length=100)
     validation_policy: DatasetValidationPolicy | None = None
@@ -44,6 +47,8 @@ class TestDatasetOut(BaseModel):
     project_id: int
     format: DatasetFormat
     rows: list[dict]
+    storage_mode: DatasetStorageMode = "database"
+    row_count: int = 0
     schema_fields: list[DatasetSchemaFieldIn] = Field(default_factory=list)
     validation_policy: DatasetValidationPolicy = "soft"
     creator_id: int
@@ -60,6 +65,7 @@ class TestDatasetListItem(BaseModel):
     project_id: int
     format: DatasetFormat
     row_count: int
+    storage_mode: DatasetStorageMode = "database"
     schema_field_count: int = 0
     validation_policy: DatasetValidationPolicy = "soft"
     creator_id: int
@@ -74,6 +80,7 @@ class TestDatasetVersionOut(BaseModel):
     dataset_id: int
     version: int
     format: DatasetFormat
+    storage_mode: DatasetStorageMode = "database"
     row_count: int
     schema_field_count: int
     validation_policy: DatasetValidationPolicy = "soft"
@@ -117,6 +124,22 @@ class DatasetValidateOut(BaseModel):
     issues: list[DatasetValidationIssueOut] = Field(default_factory=list)
     validation_policy: DatasetValidationPolicy | None = None
     can_upload: bool | None = None
+
+
+class DatasetStorageReconcileIn(BaseModel):
+    purge: bool = False
+
+
+class DatasetStorageReconcileOut(BaseModel):
+    project_id: int
+    dry_run: bool
+    scanned_count: int
+    referenced_count: int
+    orphan_count: int
+    orphaned_objects: list[str] = Field(default_factory=list)
+    truncated: bool = False
+    deleted_count: int = 0
+    errors: list[str] = Field(default_factory=list)
 
 
 class DatasetAIGenerateIn(BaseModel):

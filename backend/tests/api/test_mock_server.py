@@ -71,6 +71,23 @@ class _FakeRequest:
         ({"headers": {"x-env": "test"}}, {"query": {}, "headers": {"x-env": "test"}, "body": {}}, True),
         ({"body": {"status": "paid"}}, {"query": {}, "headers": {}, "body": {"status": "paid"}}, True),
         ({"query": {"scene": "fail"}}, {"query": {"scene": "success"}, "headers": {}, "body": {}}, False),
+        (
+            {"query": {"scene": {"$in": ["success", "pending"]}}},
+            {"query": {"scene": "pending"}, "headers": {}, "body": {}},
+            True,
+        ),
+        (
+            {"headers": {"x-request-id": {"$contains": "test-"}}},
+            {"query": {}, "headers": {"x-request-id": "test-123"}, "body": {}},
+            True,
+        ),
+        ({"body": {"token": {"$exists": False}}}, {"query": {}, "headers": {}, "body": {}}, True),
+        ({"body": {"token": {"$exists": True}}}, {"query": {}, "headers": {}, "body": {}}, False),
+        (
+            {"query": {"scene": {"$unknown": "success"}}},
+            {"query": {"scene": "success"}, "headers": {}, "body": {}},
+            False,
+        ),
     ],
 )
 def test_match_conditions(conditions, request_data, expected):
@@ -121,6 +138,88 @@ def test_mock_endpoint_handles_head_and_options_without_crashing(monkeypatch):
 def test_path_matches_template_supports_placeholder_segments():
     assert mock_server._path_matches_template("/api/users/{id}", "/api/users/42") is True
     assert mock_server._path_matches_template("/api/users/{id}", "/api/orders/42") is False
+
+
+def test_rule_priority_prefers_specific_conditions_over_newer_generic_rule(monkeypatch):
+    specific_rule = types.SimpleNamespace(
+        id=2,
+        path="/api/pay",
+        method=MockMethod.GET,
+        is_enabled=True,
+        match_conditions={"query": {"scene": "success"}},
+    )
+    generic_rule = types.SimpleNamespace(
+        id=9,
+        path="/api/pay",
+        method=MockMethod.GET,
+        is_enabled=True,
+        match_conditions={},
+    )
+
+    def fake_session_factory():
+        return _FakeSession(rules=[generic_rule, specific_rule])
+
+    async def fake_get_json_cache(*_args, **_kwargs):
+        return None
+
+    async def fake_set_json_cache(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(mock_server, "AsyncSessionLocal", fake_session_factory)
+    monkeypatch.setattr(mock_server, "get_json_cache", fake_get_json_cache)
+    monkeypatch.setattr(mock_server, "set_json_cache", fake_set_json_cache)
+
+    result = asyncio.run(
+        mock_server._find_matching_rule(
+            project_id=1,
+            normalized="/api/pay",
+            candidate_methods=[MockMethod.GET, MockMethod.ANY],
+            request_data={"query": {"scene": "success"}, "headers": {}, "body": {}},
+        )
+    )
+
+    assert result is specific_rule
+
+
+def test_rule_priority_prefers_more_specific_template_path(monkeypatch):
+    broad_rule = types.SimpleNamespace(
+        id=9,
+        path="/api/{resource}/{id}/detail",
+        method=MockMethod.GET,
+        is_enabled=True,
+        match_conditions={},
+    )
+    specific_rule = types.SimpleNamespace(
+        id=2,
+        path="/api/users/{id}/detail",
+        method=MockMethod.GET,
+        is_enabled=True,
+        match_conditions={},
+    )
+
+    def fake_session_factory():
+        return _FakeSession(rules=[broad_rule, specific_rule])
+
+    async def fake_get_json_cache(*_args, **_kwargs):
+        return None
+
+    async def fake_set_json_cache(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(mock_server, "AsyncSessionLocal", fake_session_factory)
+    monkeypatch.setattr(mock_server, "get_json_cache", fake_get_json_cache)
+    monkeypatch.setattr(mock_server, "set_json_cache", fake_set_json_cache)
+
+    result = asyncio.run(
+        mock_server._find_matching_rule(
+            project_id=1,
+            normalized="/api/users/42/detail",
+            candidate_methods=[MockMethod.GET, MockMethod.ANY],
+            request_data={"query": {}, "headers": {}, "body": {}},
+        )
+    )
+
+    assert result is specific_rule
 
 
 def test_find_matching_rule_checks_conditions(monkeypatch):

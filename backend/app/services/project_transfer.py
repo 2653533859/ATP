@@ -14,6 +14,7 @@ from app.models.ai_llm_config import AILLMConfig
 from app.models.dataset import TestDataset
 from app.models.environment import Environment, EnvVariable
 from app.models.project import Module, Project
+from app.services.dataset_storage import rows_from_source
 from app.schemas.project import (
     ProjectExportPayload,
     ProjectTransferAIModel,
@@ -81,7 +82,8 @@ def build_project_export(
             name=dataset.name,
             description=dataset.description,
             format=cast(Literal["csv", "json"], dataset.format if dataset.format in {"csv", "json"} else "json"),
-            rows=[sanitize_json_value(row) for row in (dataset.rows or [])],
+            storage_mode=cast(Literal["database", "minio"], getattr(dataset, "storage_mode", None) or "database"),
+            rows=[sanitize_json_value(row) for row in rows_from_source(dataset)],
             schema_fields=[sanitize_json_value(field) for field in (dataset.schema_fields or [])],
             validation_policy=cast(
                 Literal["soft", "hard"],

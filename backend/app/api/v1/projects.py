@@ -45,7 +45,14 @@ from app.schemas.user_project import (
 )
 from app.services.project_templates import get_project_template
 from app.services.project_transfer import build_project_export, sanitize_json_value
-from app.services.dataset_storage import DatasetStorageLimitError, validate_dataset_rows_size
+from app.services.dataset_storage import (
+    DATASET_STORAGE_MINIO,
+    DatasetStorageError,
+    DatasetStorageLimitError,
+    cleanup_dataset_object_names,
+    upload_dataset_rows,
+    validate_dataset_rows_size,
+)
 from app.services.audit import write_audit_log
 
 router = APIRouter(tags=["项目管理"])
@@ -219,7 +226,7 @@ async def import_project(
     for dataset_payload in payload.datasets:
         rows = [sanitize_json_value(row) for row in dataset_payload.rows]
         try:
-            validate_dataset_rows_size(rows)
+            validate_dataset_rows_size(rows, dataset_payload.storage_mode)
         except DatasetStorageLimitError as exc:
             raise HTTPException(status_code=400, detail=f"数据集「{dataset_payload.name}」{exc}") from exc
         sanitized_dataset_rows.append(rows)
@@ -297,29 +304,48 @@ async def import_project(
             )
             imported_variables += 1
 
-    for dataset_payload, rows in zip(payload.datasets, sanitized_dataset_rows, strict=True):
-        db.add(
-            TestDataset(
+    uploaded_dataset_objects: list[tuple[int, str]] = []
+    try:
+        for dataset_payload, rows in zip(payload.datasets, sanitized_dataset_rows, strict=True):
+            storage_mode = dataset_payload.storage_mode
+            dataset = TestDataset(
                 name=dataset_payload.name,
                 description=dataset_payload.description,
                 project_id=project.id,
                 format=dataset_payload.format,
-                rows=rows,
+                rows=[] if storage_mode == DATASET_STORAGE_MINIO else rows,
+                storage_mode=storage_mode,
+                row_count=len(rows),
                 schema_fields=[sanitize_json_value(field) for field in dataset_payload.schema_fields],
                 validation_policy=dataset_payload.validation_policy,
                 creator_id=current_user.id,
             )
-        )
+            db.add(dataset)
+            if storage_mode == DATASET_STORAGE_MINIO:
+                await db.flush()
+                object_name = upload_dataset_rows(project_id=project.id, dataset_id=dataset.id, rows=rows)
+                dataset.object_name = object_name
+                uploaded_dataset_objects.append((dataset.id, object_name))
 
-    db.add(UserProject(user_id=current_user.id, project_id=project.id, role=ProjectRole.owner))
-    await _audit_project_action(
-        db,
-        "project_imported",
-        project.id,
-        current_user,
-        detail=f"modules={len(imported_module_ids)}, environments={len(payload.environments)}, datasets={len(payload.datasets)}",
-    )
-    await db.commit()
+        db.add(UserProject(user_id=current_user.id, project_id=project.id, role=ProjectRole.owner))
+        await _audit_project_action(
+            db,
+            "project_imported",
+            project.id,
+            current_user,
+            detail=f"modules={len(imported_module_ids)}, environments={len(payload.environments)}, datasets={len(payload.datasets)}",
+        )
+        await db.commit()
+    except DatasetStorageError as exc:
+        await db.rollback()
+        for dataset_id, object_name in uploaded_dataset_objects:
+            cleanup_dataset_object_names(project.id, dataset_id, [object_name])
+        raise HTTPException(status_code=503, detail=f"MinIO 数据集导入失败: {exc}") from exc
+    except Exception:
+        await db.rollback()
+        for dataset_id, object_name in uploaded_dataset_objects:
+            cleanup_dataset_object_names(project.id, dataset_id, [object_name])
+        raise
     await invalidate_stats_cache()
     await db.refresh(project)
     return ProjectImportOut(
@@ -343,7 +369,10 @@ async def export_project(
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
-    return await _load_project_export(db, project)
+    try:
+        return await _load_project_export(db, project)
+    except DatasetStorageError as exc:
+        raise HTTPException(status_code=503, detail=f"MinIO 数据集导出失败: {exc}") from exc
 
 
 @router.post("/projects/{project_id}/copy", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)

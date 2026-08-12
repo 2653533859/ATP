@@ -40,8 +40,9 @@ import time
 from typing import Any, Callable
 from urllib.error import HTTPError, URLError
 from http.cookiejar import CookieJar
-from urllib.parse import urlsplit
+from urllib.parse import urlencode, urlsplit, urlunsplit
 from urllib.request import HTTPCookieProcessor, Request, build_opener
+from urllib.request import urlopen
 
 
 _SENSITIVE_KEY_RE = re.compile(
@@ -94,7 +95,7 @@ class CheckReport:
         path.parent.mkdir(parents=True, exist_ok=True)
         payload = {
             "generated_at": datetime.now(timezone.utc).isoformat(),
-            "command": " ".join(shlex.quote(item) for item in sys.argv),
+            "command": " ".join(shlex.quote(item) for item in _safe_argv(sys.argv)),
             "inputs": _safe_cli_inputs(args),
             "status": "failed" if self.has_failures else "passed",
             "checks": [asdict(item) for item in self.checks],
@@ -106,7 +107,47 @@ def _safe_cli_inputs(args: argparse.Namespace) -> dict[str, Any]:
     """Return report inputs without password/token values or full environment dumps."""
     values = vars(args).copy()
     values.pop("password", None)
+    for key in ("api_base_url", "prometheus_url"):
+        if isinstance(values.get(key), str):
+            values[key] = _redact_url(values[key])
     return {key: str(value) if isinstance(value, Path) else value for key, value in values.items()}
+
+
+def _redact_url(value: str) -> str:
+    """Remove URL userinfo, query and fragment before writing command evidence."""
+    raw = str(value)
+    try:
+        parsed = urlsplit(raw)
+    except ValueError:
+        return "<redacted-url>"
+    if not parsed.scheme or not parsed.netloc:
+        return raw
+    netloc = parsed.netloc.rsplit("@", 1)[-1] if parsed.username or parsed.password else parsed.netloc
+    if parsed.username or parsed.password:
+        netloc = f"<redacted>@{netloc}"
+    query = "<redacted>" if parsed.query else ""
+    return urlunsplit((parsed.scheme, netloc, parsed.path, query, ""))
+
+
+def _safe_argv(argv: list[str]) -> list[str]:
+    """Redact URL values in the recorded command, including separate option values."""
+    url_options = {"--api-base-url", "--prometheus-url"}
+    safe: list[str] = []
+    redact_next = False
+    for item in argv:
+        if redact_next:
+            safe.append(_redact_url(item))
+            redact_next = False
+            continue
+        if item in url_options:
+            safe.append(item)
+            redact_next = True
+        elif any(item.startswith(f"{option}=") for option in url_options):
+            option, raw = item.split("=", 1)
+            safe.append(f"{option}={_redact_url(raw)}")
+        else:
+            safe.append(item)
+    return safe
 
 
 def _safe_json(value: Any, *, key: str = "") -> Any:
@@ -198,6 +239,50 @@ def check_target(target: Target, *, timeout: float, ca_file: str | None = None) 
             connection.close()
         except OSError:
             pass
+
+
+def check_prometheus(report: CheckReport, *, base_url: str, query: str, timeout: float) -> None:
+    """Verify Prometheus readiness and one API query without exposing credentials."""
+    value = str(base_url or "").strip().rstrip("/")
+    parsed = urlsplit(value)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise SmokeError("Prometheus URL 必须是 http(s)://host[:port][/prefix]")
+    if parsed.username or parsed.password or parsed.query or parsed.fragment:
+        raise SmokeError("Prometheus URL 不能包含用户名、密码、查询参数或片段")
+    promql = str(query or "").strip()
+    if not promql:
+        raise SmokeError("Prometheus 查询不能为空")
+
+    def get(path: str) -> tuple[int, bytes]:
+        request = Request(f"{value}{path}", headers={"Accept": "application/json"})
+        try:
+            with urlopen(request, timeout=timeout) as response:
+                status = getattr(response, "status", None) or response.getcode()
+                return int(status), response.read()
+        except HTTPError as exc:
+            raise SmokeError(f"Prometheus 请求返回 HTTP {exc.code}: {_safe_error(exc.reason)}") from exc
+        except (OSError, URLError) as exc:
+            raise SmokeError(f"Prometheus 请求失败: {_safe_error(exc)}") from exc
+
+    readiness_status, _ = get("/-/ready")
+    if readiness_status != 200:
+        raise SmokeError(f"Prometheus readiness 返回 HTTP {readiness_status}")
+
+    query_path = "/api/v1/query?" + urlencode({"query": promql})
+    query_status, body = get(query_path)
+    if query_status != 200:
+        raise SmokeError(f"Prometheus query 返回 HTTP {query_status}")
+    try:
+        payload = json.loads(body.decode("utf-8"))
+    except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise SmokeError("Prometheus query 返回了非 JSON 内容") from exc
+    if not isinstance(payload, dict) or payload.get("status") != "success":
+        raise SmokeError("Prometheus query status 不是 success")
+    data = payload.get("data")
+    result = data.get("result") if isinstance(data, dict) else None
+    if not isinstance(result, list):
+        raise SmokeError("Prometheus query 缺少 data.result 数组")
+    report.passed("prometheus", f"readiness=200，query status=success，result_count={len(result)}")
 
 
 class ApiClient:
@@ -692,6 +777,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--node-id", help="性能节点的稳定 node_id，例如 worker-a")
     parser.add_argument("--expected-queue", help="要求节点登记的 Celery 队列名称")
     parser.add_argument("--target", help="目标 host:port 或 grpc(s)://host:port")
+    parser.add_argument("--prometheus-url", help="Prometheus HTTP(S) 根地址；会检查 /-/ready 和 /api/v1/query")
+    parser.add_argument("--prometheus-query", default="up", help="Prometheus readiness 后执行的 PromQL，默认 up")
     parser.add_argument("--require-tls", action="store_true", help="对目标执行证书校验，并要求 gRPC 测试启用 TLS")
     parser.add_argument("--ca-file", help="自定义 CA PEM 文件")
     parser.add_argument("--tls-server-name", help="TLS SNI/证书校验名称")
@@ -734,6 +821,7 @@ def main(argv: list[str] | None = None) -> int:
         (
             args.api_base_url,
             args.target,
+            args.prometheus_url,
             args.deployment,
             args.docker_container,
             args.docker_image,
@@ -745,6 +833,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("至少选择 --api-base-url、--target、--deployment、--smoke-test-id 或 --cancel-test-id 之一")
     if args.require_node_allowlist and (not args.node_id or not args.target):
         parser.error("--require-node-allowlist 必须同时指定 --node-id 和 --target")
+    if args.prometheus_query != "up" and not args.prometheus_url:
+        parser.error("--prometheus-query 必须同时指定 --prometheus-url")
     if (args.smoke_test_id or args.cancel_test_id) and not args.api_base_url:
         parser.error("真实压测验收需要 --api-base-url")
     if (args.smoke_test_id or args.cancel_test_id) and not args.node_id:
@@ -771,6 +861,18 @@ def main(argv: list[str] | None = None) -> int:
             target_ready = True
         except (SmokeError, OSError, ValueError) as exc:
             report.failed("target-connectivity", _safe_error(exc))
+
+    if args.prometheus_url:
+        _run_check(
+            report,
+            "prometheus",
+            lambda: check_prometheus(
+                report,
+                base_url=args.prometheus_url,
+                query=args.prometheus_query,
+                timeout=args.request_timeout_seconds,
+            ),
+        )
 
     client: ApiClient | None = None
     api_ready = False

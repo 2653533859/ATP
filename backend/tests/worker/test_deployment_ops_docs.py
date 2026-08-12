@@ -81,6 +81,8 @@ def test_compose_can_start_an_independent_web_recording_worker():
     assert "WEB_RECORDER_MODE=worker" in recorder["environment"]
     assert "python -m app.web_recording_worker" in recorder["command"][-1]
     assert "Xvfb" in recorder["command"][-1]
+    assert any("WEB_RECORDER_HEALTH_FILE" in value for value in recorder["environment"])
+    assert recorder["healthcheck"]["test"][0] == "CMD"
 
 
 def test_helm_values_expose_worker_queues_and_resources():
@@ -100,6 +102,7 @@ def test_helm_values_expose_worker_queues_and_resources():
     assert values["replicas"]["webRecorder"] == 1
     assert values["webRecorder"]["enabled"] is False
     assert values["webRecorder"]["maxSessions"] == 2
+    assert values["webRecorder"]["healthFile"] == "/tmp/atp-web-recorder.ready"
     assert values["config"]["WEB_RECORDER_MODE"] == "local"
     assert values["hpa"]["performanceWorker"]["enabled"] is False
     for component in ("backend", "worker", "beat", "flower"):
@@ -168,6 +171,9 @@ def test_helm_chart_can_render_dedicated_web_recording_worker():
     assert 'printf "%s-$(POD_NAME)" .Values.webRecorder.workerId' in content
     assert "fieldPath: metadata.name" in content
     assert ".Values.webRecorder.maxSessions" in content
+    assert ".Values.webRecorder.healthFile" in content
+    assert "readinessProbe" in content
+    assert "livenessProbe" in content
     assert "webRecorder" in schema["properties"]
 
 

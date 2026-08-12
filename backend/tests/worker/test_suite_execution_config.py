@@ -86,6 +86,17 @@ class _FakeDB:
         return None
 
 
+class _AsyncSessionContext:
+    def __init__(self, db):
+        self.db = db
+
+    async def __aenter__(self):
+        return self.db
+
+    async def __aexit__(self, *_args):
+        return False
+
+
 class _FakeSuiteRun:
     def __init__(self):
         self.status = None
@@ -244,6 +255,65 @@ def test_execute_suite_cases_uses_parallel_batches_and_collects_results(monkeypa
     assert suite_run.result_summary["passed"] == 3
     assert suite_run.result_summary["execution_mode"] == "parallel"
     assert suite_run.result_summary["max_workers"] == 2
+
+
+def test_parallel_suite_uses_an_isolated_database_session_per_case(monkeypatch):
+    monkeypatch.setitem(
+        sys.modules,
+        "app.models.case",
+        types.SimpleNamespace(TestCase=type("TestCase", (), {}), CaseType=_REAL_CASE_MODELS.CaseType),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "app.models.suite",
+        types.SimpleNamespace(SuiteRunStatus=_FakeSuiteRunStatus, TestSuite=_REAL_SUITE_MODELS.TestSuite),
+    )
+
+    class _RealSessionLikeDB(_FakeDB):
+        async def run_sync(self, *_args, **_kwargs):
+            return None
+
+    parent_db = _RealSessionLikeDB(
+        {
+            1: _FakeCase(1, "Case-1"),
+            2: _FakeCase(2, "Case-2"),
+        }
+    )
+    child_dbs = [
+        _FakeDB({1: _FakeCase(1, "Case-1"), 2: _FakeCase(2, "Case-2")}),
+        _FakeDB({1: _FakeCase(1, "Case-1"), 2: _FakeCase(2, "Case-2")}),
+    ]
+    opened: list[object] = []
+    seen: list[object] = []
+
+    def new_session():
+        child_db = child_dbs[len(opened)]
+        opened.append(child_db)
+        return _AsyncSessionContext(child_db)
+
+    async def fake_execute_case_run(case_db, _suite_run, case, _extra_vars):
+        seen.append(case_db)
+        return {"case_id": case.id, "case_name": case.name, "run_id": 100 + case.id, "status": "passed"}
+
+    async def fake_mark_flaky_case_results(_db, _case_run_results):
+        return None
+
+    monkeypatch.setattr(tasks, "_execute_case_run", fake_execute_case_run)
+    monkeypatch.setattr(tasks, "_mark_flaky_case_results", fake_mark_flaky_case_results)
+
+    suite_run = _FakeSuiteRun()
+    suite = _FakeSuite(
+        case_ids=[{"case_id": 1, "sort": 0}, {"case_id": 2, "sort": 1}],
+        config={"execution_mode": "parallel", "max_workers": 2, "fail_strategy": "continue"},
+    )
+    # The implementation resolves the factory through this seam so the test
+    # does not open a real PostgreSQL connection.
+    monkeypatch.setattr(tasks, "_new_parallel_session", new_session)
+    asyncio.run(tasks._execute_suite_cases(parent_db, suite_run, suite, {}))
+
+    assert len(opened) == 2
+    assert len({id(item) for item in seen}) == 2
+    assert suite_run.status == "passed"
 
 
 def test_mixed_suite_routes_device_children_to_their_worker(monkeypatch):

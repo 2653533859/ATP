@@ -1,5 +1,18 @@
 # 性能 Worker 环境验收 Runbook
 
+## Prometheus 监控验收
+
+性能环境 smoke 现在可以把 Prometheus readiness 和 PromQL 查询纳入同一份 JSON 证据。`--prometheus-url` 只接受不带用户信息、查询参数或片段的 HTTP(S) 根地址；查询内容通过请求参数编码，不从命令行读取 Token 或密码。
+
+```bash
+python scripts/performance-environment-smoke.py \
+  --prometheus-url https://prometheus.example.test \
+  --prometheus-query 'up{job="atp-backend"}' \
+  --report docs/evidence/performance-prometheus-2026-08-12.json
+```
+
+该检查依次验证 `/-/ready` 返回 HTTP 200，以及 `/api/v1/query` 返回 `status=success` 和数组形式的 `data.result`。没有真实 Prometheus 时，命令必须保持失败或明确跳过，不能用本地测试结果替代目标环境证据。
+
 ## 2026-08-12 Windows 本地真实执行补充
 
 Windows 本地已完成平台级 k6/Locust 验收：主 Worker 节点 `perf-node-local-01` 消费 `performance` 队列，使用 ATP `/health` 作为本地目标；k6 run `8` 成功并回传 20 次迭代和 3 条资源指标，Locust run `10` 成功并回传 168 次请求、错误率 0。证据分别为 [`performance-windows-local-k6-smoke-2026-08-12.json`](evidence/performance-windows-local-k6-smoke-2026-08-12.json) 和 [`performance-windows-local-locust-smoke-2026-08-12.json`](evidence/performance-windows-local-locust-smoke-2026-08-12.json)。

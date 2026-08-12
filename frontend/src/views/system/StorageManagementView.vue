@@ -18,6 +18,21 @@
       </a-space>
     </div>
 
+    <section class="storage-alert-status" :class="{ triggered: storageAlert }" aria-live="polite">
+      <div class="storage-alert-marker" aria-hidden="true" />
+      <div class="storage-alert-copy">
+        <div class="storage-alert-title">
+          {{ storageAlert ? t('system_pages.storage.alert_triggered') : t('system_pages.storage.alert_clear') }}
+        </div>
+        <div v-if="storageAlert" class="storage-alert-summary">
+          {{ t('system_pages.storage.alert_summary', { total: storageAlert.total_gb.toFixed(2), threshold: storageAlert.threshold_gb.toFixed(2) }) }}
+          · {{ formatDate(storageAlert.triggered_at) }}
+        </div>
+        <div v-else class="storage-alert-summary">{{ t('system_pages.storage.alert_no_current') }}</div>
+      </div>
+      <a-button size="small" :loading="alertLoading" @click="loadAlert">{{ t('system_pages.storage.refresh_alert') }}</a-button>
+    </section>
+
     <a-card class="page-panel" :title="t('system_pages.storage.policy_title')" :loading="policiesLoading">
       <template #extra>
         <a-button type="primary" size="small" @click="openCreatePolicy">{{ t('system_pages.storage.new_policy') }}</a-button>
@@ -75,6 +90,68 @@
         </a-card>
       </a-col>
     </a-row>
+
+    <a-card class="page-panel storage-reconcile-panel" :loading="datasetLoading || projectsLoading">
+      <template #title>
+        <div class="storage-section-title">
+          <span>{{ t('system_pages.storage.dataset_reconcile_title') }}</span>
+          <a-tag color="blue">{{ t('system_pages.storage.dataset_reconcile_read_only') }}</a-tag>
+        </div>
+      </template>
+      <template #extra>
+        <span class="storage-section-hint">{{ t('system_pages.storage.dataset_reconcile_hint') }}</span>
+      </template>
+      <div class="storage-reconcile-toolbar">
+        <a-select
+          v-model:value="datasetProjectId"
+          :options="projectOptions"
+          :placeholder="t('system_pages.storage.select_project')"
+          allow-clear
+          style="min-width: 260px"
+          @change="datasetReconcile = null"
+        />
+        <a-button type="primary" :disabled="!datasetProjectId" :loading="datasetLoading" @click="runDatasetReconcile()">
+          {{ t('system_pages.storage.dataset_reconcile_scan') }}
+        </a-button>
+        <a-button
+          v-if="datasetReconcile && datasetReconcile.orphan_count > 0"
+          danger
+          :loading="datasetPurgeLoading"
+          :disabled="datasetReconcile.project_id !== datasetProjectId"
+          @click="runDatasetReconcile(true)"
+        >
+          {{ t('system_pages.storage.dataset_reconcile_purge') }}
+        </a-button>
+      </div>
+
+      <a-descriptions v-if="datasetReconcile" class="storage-reconcile-summary" :column="3" size="small">
+        <a-descriptions-item :label="t('system_pages.storage.dataset_project')">{{ projectName(datasetReconcile.project_id) }}</a-descriptions-item>
+        <a-descriptions-item :label="t('system_pages.storage.dataset_scanned')">{{ datasetReconcile.scanned_count }}</a-descriptions-item>
+        <a-descriptions-item :label="t('system_pages.storage.dataset_referenced')">{{ datasetReconcile.referenced_count }}</a-descriptions-item>
+        <a-descriptions-item :label="t('system_pages.storage.dataset_orphans')">
+          <a-tag :color="datasetReconcile.orphan_count ? 'orange' : 'green'">{{ datasetReconcile.orphan_count }}</a-tag>
+        </a-descriptions-item>
+        <a-descriptions-item :label="t('system_pages.storage.dataset_deleted')">{{ datasetReconcile.deleted_count }}</a-descriptions-item>
+        <a-descriptions-item :label="t('system_pages.storage.dataset_status')">
+          {{ datasetReconcile.dry_run ? t('system_pages.storage.dataset_dry_run') : t('system_pages.storage.dataset_purged') }}
+        </a-descriptions-item>
+      </a-descriptions>
+      <div v-if="datasetReconcile?.truncated" class="storage-reconcile-warning">
+        {{ t('system_pages.storage.dataset_truncated') }}
+      </div>
+      <a-table
+        v-if="datasetReconcile"
+        class="storage-reconcile-table"
+        :data-source="datasetObjectRows"
+        :pagination="{ pageSize: 8 }"
+        :columns="datasetObjectColumns"
+        row-key="object_name"
+        size="small"
+      />
+      <div v-if="datasetReconcile?.errors.length" class="storage-reconcile-errors">
+        <div v-for="error in datasetReconcile.errors" :key="error">{{ error }}</div>
+      </div>
+    </a-card>
 
     <a-card class="page-panel" :title="t('system_pages.storage.cleanup_scope')">
       <a-space wrap>
@@ -213,9 +290,13 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import {
+  projectApi,
   storageApi,
   type StorageCleanupExecuteItem,
   type StorageCleanupPreviewItem,
+  type StorageDatasetReconcileItem,
+  type StorageAlertPayload,
+  type ProjectItem,
   type StorageStatsItem,
   type StoragePolicyItem,
   type StoragePolicyPayload,
@@ -232,12 +313,20 @@ const stats = ref<StorageStatsItem | null>(null)
 const preview = ref<StorageCleanupPreviewItem | null>(null)
 const result = ref<StorageCleanupExecuteItem | null>(null)
 const policies = ref<StoragePolicyItem[]>([])
+const storageAlert = ref<StorageAlertPayload | null>(null)
+const projects = ref<ProjectItem[]>([])
+const datasetProjectId = ref<number | undefined>(undefined)
+const datasetReconcile = ref<StorageDatasetReconcileItem | null>(null)
 
 const statsLoading = ref(false)
 const previewLoading = ref(false)
 const executeLoading = ref(false)
 const policiesLoading = ref(false)
 const policySaving = ref(false)
+const projectsLoading = ref(false)
+const datasetLoading = ref(false)
+const datasetPurgeLoading = ref(false)
+const alertLoading = ref(false)
 
 type ErrorLike = {
   message?: unknown
@@ -291,6 +380,8 @@ const prefixOptions = computed(() => {
   return defaultPrefixes.map((value) => ({ label: value, value }))
 })
 
+const projectOptions = computed(() => projects.value.map((project) => ({ label: project.name, value: project.id })))
+
 const prefixColumns = computed(() => [
   { title: t('system_pages.storage.prefix'), dataIndex: 'prefix', key: 'prefix' },
   { title: t('system_pages.storage.object_count'), dataIndex: 'object_count', key: 'object_count', width: 120 },
@@ -311,6 +402,14 @@ const referenceColumns = computed(() => [
   { title: t('system_pages.storage.repairability'), dataIndex: 'repairable', key: 'repairable', width: 120 },
 ])
 
+const datasetObjectColumns = computed(() => [
+  { title: t('system_pages.storage.object_name'), dataIndex: 'object_name', key: 'object_name', ellipsis: true },
+])
+
+const datasetObjectRows = computed(() =>
+  (datasetReconcile.value?.orphaned_objects || []).map((object_name) => ({ object_name })),
+)
+
 const policyColumns = computed(() => [
   { title: t('common.name'), dataIndex: 'name', key: 'name', width: 140 },
   { title: t('system_pages.storage.prefix'), dataIndex: 'prefix', key: 'prefix', width: 160 },
@@ -322,7 +421,7 @@ const policyColumns = computed(() => [
 ])
 
 onMounted(async () => {
-  await Promise.all([loadStats(), loadPolicies()])
+  await Promise.all([loadStats(), loadPolicies(), loadProjects(), loadAlert()])
 })
 
 async function loadStats() {
@@ -349,6 +448,74 @@ async function loadPolicies() {
   } finally {
     policiesLoading.value = false
   }
+}
+
+async function loadAlert() {
+  alertLoading.value = true
+  try {
+    storageAlert.value = (await storageApi.getAlert()).alert
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.storage.msg.load_alert_failed')))
+  } finally {
+    alertLoading.value = false
+  }
+}
+
+async function loadProjects() {
+  projectsLoading.value = true
+  try {
+    projects.value = await projectApi.list()
+    if (!datasetProjectId.value && projects.value.length) {
+      datasetProjectId.value = projects.value[0].id
+    }
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('system_pages.storage.msg.load_projects_failed')))
+  } finally {
+    projectsLoading.value = false
+  }
+}
+
+function projectName(projectId: number) {
+  return projects.value.find((project) => project.id === projectId)?.name || `#${projectId}`
+}
+
+function runDatasetReconcile(purge = false) {
+  if (!datasetProjectId.value) {
+    message.warning(t('system_pages.storage.msg.select_project'))
+    return
+  }
+  if (purge && (!datasetReconcile.value || datasetReconcile.value.project_id !== datasetProjectId.value || datasetReconcile.value.orphan_count === 0)) {
+    message.warning(t('system_pages.storage.msg.scan_before_purge'))
+    return
+  }
+
+  const projectId = datasetProjectId.value
+  const execute = async () => {
+    if (purge) datasetPurgeLoading.value = true
+    else datasetLoading.value = true
+    try {
+      datasetReconcile.value = await storageApi.reconcileDatasetStorage(projectId, purge)
+      message.success(t(purge ? 'system_pages.storage.msg.dataset_purge_success' : 'system_pages.storage.msg.dataset_scan_success'))
+    } catch (e: unknown) {
+      message.error(errorMessage(e, t(purge ? 'system_pages.storage.msg.dataset_purge_failed' : 'system_pages.storage.msg.dataset_scan_failed')))
+    } finally {
+      if (purge) datasetPurgeLoading.value = false
+      else datasetLoading.value = false
+    }
+  }
+
+  if (!purge) {
+    void execute()
+    return
+  }
+  Modal.confirm({
+    title: t('system_pages.storage.dataset_purge_confirm_title'),
+    content: t('system_pages.storage.dataset_purge_confirm_content', { count: datasetReconcile.value?.orphan_count || 0 }),
+    okText: t('system_pages.storage.dataset_reconcile_purge'),
+    cancelText: t('common.cancel'),
+    okButtonProps: { danger: true },
+    onOk: execute,
+  })
 }
 
 async function loadPreview() {
@@ -474,3 +641,112 @@ function formatDate(value?: string | null) {
   return new Date(value).toLocaleString()
 }
 </script>
+
+<style scoped>
+.storage-alert-status {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-sm);
+}
+
+.storage-alert-status.triggered {
+  background: var(--c-danger-bg, #fff1f0);
+  border-color: var(--c-danger-border, #ffa39e);
+}
+
+.storage-alert-marker {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: var(--c-success, #52c41a);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-success, #52c41a) 14%, transparent);
+}
+
+.storage-alert-status.triggered .storage-alert-marker {
+  background: var(--c-danger, #ff4d4f);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-danger, #ff4d4f) 14%, transparent);
+}
+
+.storage-alert-copy {
+  min-width: 0;
+  flex: 1;
+}
+
+.storage-alert-title {
+  color: var(--c-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.storage-alert-summary {
+  margin-top: 2px;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+
+.storage-section-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.storage-section-hint {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+
+.storage-reconcile-toolbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.storage-reconcile-summary {
+  margin-top: 18px;
+}
+
+.storage-reconcile-table {
+  margin-top: 12px;
+}
+
+.storage-reconcile-warning,
+.storage-reconcile-errors {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.storage-reconcile-warning {
+  color: var(--c-warning-text, #8a5a00);
+  background: var(--c-warning-bg, #fff7e6);
+  border: 1px solid var(--c-warning-border, #ffd591);
+}
+
+.storage-reconcile-errors {
+  color: var(--c-danger-text, #a61d24);
+  background: var(--c-danger-bg, #fff1f0);
+  border: 1px solid var(--c-danger-border, #ffa39e);
+}
+
+@media (max-width: 720px) {
+  .storage-alert-status {
+    align-items: flex-start;
+  }
+
+  .storage-section-hint {
+    display: none;
+  }
+
+  .storage-reconcile-toolbar > :deep(.ant-select) {
+    width: 100% !important;
+  }
+}
+</style>

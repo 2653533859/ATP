@@ -95,6 +95,24 @@ def test_preview_estimates_objects_from_sample(monkeypatch):
     assert result["estimated_objects"] >= 1  # 至少抽到一些对象
 
 
+def test_preview_can_exclude_project_overrides_with_the_cleanup_scope():
+    fake_session = _FakeSession(
+        responses=[
+            _FakeResult(scalar_value=1),
+            _FakeResult(scalar_value=2),
+            _FakeResult(scalar_value=3),
+            _FakeResult(scalar_value=4),
+            _FakeResult(all_rows=[]),
+            _FakeResult(all_rows=[]),
+        ]
+    )
+
+    result = run_retention.preview_old_runs(fake_session, days=30, exclude_project_ids=[5, 6])
+
+    assert result["plan_runs"] == 1
+    assert all("NOT IN" in str(statement).upper() for statement in fake_session.statements[:4])
+
+
 def test_execute_with_empty_results_is_noop():
     fake_session = _FakeSession(
         responses=[

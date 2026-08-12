@@ -37,6 +37,7 @@ from app.schemas.suite import (
 from app.api.deps import assert_project_access, get_current_user
 from app.models.user_project import ProjectRole
 from app.services.execution_routing import enqueue_task, resolve_suite_execution_queue
+from app.services.api_scenario import ApiScenarioError, build_api_scenario_policy
 from app.services.project_scope import scope_to_visible_projects
 
 router = APIRouter(tags=["测试套件"])
@@ -78,6 +79,36 @@ async def _validate_suite_case_ids(db: AsyncSession, project_id: int, case_items
     return normalized
 
 
+async def _validate_parallel_api_session_reuse(
+    db: AsyncSession,
+    case_items: list[object],
+    config: object,
+) -> None:
+    """Reject nondeterministic project-cookie reuse inside parallel suites."""
+    if not isinstance(config, dict) or config.get("execution_mode") != "parallel":
+        return
+    normalized = _normalize_case_items(case_items)
+    case_ids = [item["case_id"] for item in normalized]
+    if not case_ids:
+        return
+
+    rows = (await db.execute(select(TestCase).where(TestCase.id.in_(case_ids)))).scalars().all()
+    for case in rows:
+        case_type = getattr(getattr(case, "case_type", None), "value", getattr(case, "case_type", None))
+        if case_type != "api":
+            continue
+        try:
+            policy = build_api_scenario_policy(getattr(case, "config", None) or {})
+        except ApiScenarioError:
+            # The executor will return the existing detailed scenario error.
+            continue
+        if policy.session_lifecycle == "reuse":
+            raise HTTPException(
+                status_code=400,
+                detail="并行套件不能包含开启项目 API 登录态复用的用例，请改为串行执行或关闭该用例的登录态复用",
+            )
+
+
 @router.post("/suites", response_model=TestSuiteOut, status_code=status.HTTP_201_CREATED)
 async def create_suite(
     body: TestSuiteCreate,
@@ -89,6 +120,7 @@ async def create_suite(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
     case_ids = await _validate_suite_case_ids(db, body.project_id, body.case_ids)
+    await _validate_parallel_api_session_reuse(db, case_ids, body.config)
 
     suite = TestSuite(
         name=body.name,
@@ -148,6 +180,11 @@ async def update_suite(
     update_data = body.model_dump(exclude_none=True)
     if "case_ids" in update_data:
         update_data["case_ids"] = await _validate_suite_case_ids(db, suite.project_id, update_data["case_ids"])
+    await _validate_parallel_api_session_reuse(
+        db,
+        update_data.get("case_ids", suite.case_ids or []),
+        update_data.get("config", suite.config),
+    )
     for k, v in update_data.items():
         setattr(suite, k, v)
     await db.commit()

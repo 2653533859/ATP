@@ -3,14 +3,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import WebRecorderModal from './WebRecorderModal.vue'
 
-const { recordingStart, recordingStop, messageWarning } = vi.hoisted(() => ({
+const { recordingStart, recordingStop, recordingWorkers, messageWarning } = vi.hoisted(() => ({
   recordingStart: vi.fn(),
   recordingStop: vi.fn(),
+  recordingWorkers: vi.fn().mockResolvedValue({
+    mode: 'local',
+    ready: true,
+    workers: [],
+    registered_count: 0,
+    available_count: 0,
+  }),
   messageWarning: vi.fn(),
 }))
 
 vi.mock('@/api', () => ({
   webRecordingApi: {
+    workers: recordingWorkers,
     start: recordingStart,
     get: vi.fn(),
     screenshot: vi.fn(),
@@ -88,6 +96,26 @@ describe('WebRecorderModal', () => {
       project_id: 1,
       browser: 'firefox',
     })
+    wrapper.unmount()
+  })
+
+  it('blocks recording when the remote Worker pool has no capacity', async () => {
+    recordingWorkers.mockResolvedValue({
+      mode: 'worker',
+      ready: false,
+      workers: [{ worker_id: 'worker-1', active_sessions: 1, capacity: 1, available: false }],
+      registered_count: 1,
+      available_count: 0,
+    })
+    const wrapper = mountRecorder()
+    const vm = wrapper.vm as any
+    vm.startUrl = 'https://example.com'
+
+    await flushPromises()
+    await vm.startRecording()
+
+    expect(recordingStart).not.toHaveBeenCalled()
+    expect(messageWarning).toHaveBeenCalledWith('case.drawer.web.recorder.worker_unavailable')
     wrapper.unmount()
   })
 })

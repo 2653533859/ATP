@@ -8,6 +8,7 @@ from typing import Any
 from sqlalchemy import desc, select
 
 from app.models.dataset import TestDataset, TestDatasetVersion
+from app.services.dataset_storage import rows_from_source
 
 
 class PerformanceDatasetBindingError(ValueError):
@@ -48,9 +49,9 @@ async def load_dataset_rows(db: Any, dataset_id: int | None, dataset_version: in
         )
         version = result.scalar_one_or_none()
         if version is not None:
-            return [row for row in (version.rows or []) if isinstance(row, dict)]
+            return rows_from_source(version)
     dataset = await db.get(TestDataset, dataset_id)
-    return [row for row in (getattr(dataset, "rows", None) or []) if isinstance(row, dict)] if dataset else []
+    return rows_from_source(dataset)
 
 
 def serialize_dataset_rows(rows: list[dict[str, Any]]) -> str:

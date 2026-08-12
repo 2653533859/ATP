@@ -60,6 +60,30 @@ def test_build_text_supports_english_labels():
     assert "Trigger: Scheduled" in content
 
 
+def test_performance_notification_includes_metrics_and_reasons_in_text_and_markdown():
+    summary = {
+        **_summary(),
+        "entity_type": "performance",
+        "rps": 12.5,
+        "p95_ms": 210,
+        "p99_ms": 380,
+        "error_rate": 0.025,
+        "threshold_status": "failed",
+        "performance_event_reasons": ["threshold_failed", "baseline_regression"],
+    }
+
+    text = notifier._build_text(summary)
+    markdown = notifier._build_markdown(summary, language="en-US")
+
+    assert "请求速率: 12.5" in text
+    assert "P95 延迟: 210ms" in text
+    assert "错误率: 2.50%" in text
+    assert "触发原因: 阈值失败, 基线回归" in text
+    assert "**P95 latency**: 210ms" in markdown
+    assert "**Error rate**: 2.50%" in markdown
+    assert "**Reasons**: Threshold failed, Baseline regression" in markdown
+
+
 def test_build_markdown_defaults_to_chinese_for_unknown_language():
     content = notifier._build_markdown(_summary(), language="fr-FR")
 

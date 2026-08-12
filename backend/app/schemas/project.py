@@ -58,7 +58,8 @@ class ProjectTransferDataset(BaseModel):
     name: str = Field(..., min_length=1, max_length=128)
     description: str | None = None
     format: Literal["csv", "json"] = "json"
-    rows: list[dict[str, Any]] = Field(default_factory=list, max_length=500)
+    storage_mode: Literal["database", "minio"] = "database"
+    rows: list[dict[str, Any]] = Field(default_factory=list)
     schema_fields: list[dict[str, Any]] = Field(default_factory=list, max_length=100)
     validation_policy: Literal["soft", "hard"] = "soft"
 

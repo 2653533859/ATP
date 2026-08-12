@@ -64,6 +64,65 @@ def test_target_check_proves_dns_and_tcp_without_printing_credentials(monkeypatc
     assert "TCP 已连接" in detail
 
 
+def test_prometheus_check_proves_readiness_and_query(monkeypatch):
+    smoke = _load_smoke_script()
+
+    class _Response:
+        status = 200
+
+        def __init__(self, body: bytes):
+            self._body = body
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def getcode(self):
+            return self.status
+
+        def read(self):
+            return self._body
+
+    calls: list[str] = []
+
+    def fake_urlopen(request, timeout):
+        del timeout
+        calls.append(request.full_url)
+        if request.full_url.endswith("/-/ready"):
+            return _Response(b"Prometheus Server is Healthy.")
+        return _Response(b'{"status":"success","data":{"result":[{"metric":{"job":"atp"}}]}}')
+
+    monkeypatch.setattr(smoke, "urlopen", fake_urlopen)
+    report = smoke.CheckReport()
+
+    smoke.check_prometheus(
+        report,
+        base_url="https://prometheus.example.test:9090",
+        query="up{job='atp'}",
+        timeout=2,
+    )
+
+    assert not report.has_failures
+    assert report.checks[-1].name == "prometheus"
+    assert "api/v1/query?query=up%7Bjob%3D%27atp%27%7D" in calls[-1]
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "https://user:password@prometheus.example.test:9090",
+        "https://prometheus.example.test:9090/?token=secret",
+    ],
+)
+def test_prometheus_check_rejects_credentials_or_query_in_url(url):
+    smoke = _load_smoke_script()
+
+    with pytest.raises(smoke.SmokeError, match="不能包含"):
+        smoke.check_prometheus(smoke.CheckReport(), base_url=url, query="up", timeout=2)
+
+
 def test_api_node_check_requires_online_node_and_declared_executor():
     smoke = _load_smoke_script()
 
@@ -204,6 +263,35 @@ def test_report_redacts_sensitive_http_error_fields_and_cli_has_no_token_option(
     assert smoke._safe_error({"detail": "bad", "access_token": "secret-value", "password": "pw"}) == (
         "{'detail': 'bad', 'access_token': '<redacted>', 'password': '<redacted>'}"
     )
+
+
+def test_report_inputs_redact_url_credentials_and_query(tmp_path, monkeypatch):
+    smoke = _load_smoke_script()
+
+    args = smoke.build_parser().parse_args(
+        [
+            "--prometheus-url",
+            "https://user:password@prometheus.example.test:9090/?token=secret",
+            "--report",
+            str(tmp_path / "evidence.json"),
+        ]
+    )
+    monkeypatch.setattr(
+        smoke.sys,
+        "argv",
+        [
+            "performance-environment-smoke.py",
+            "--prometheus-url",
+            "https://user:password@prometheus.example.test:9090/?token=secret",
+        ],
+    )
+    report = smoke.CheckReport()
+    report.write(tmp_path / "evidence.json", args=args)
+    content = (tmp_path / "evidence.json").read_text(encoding="utf-8")
+
+    assert "password" not in content
+    assert "secret" not in content
+    assert "<redacted>" in content
 
 
 def test_report_inputs_serialize_path_arguments():

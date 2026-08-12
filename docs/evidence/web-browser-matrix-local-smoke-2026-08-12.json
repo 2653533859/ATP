@@ -1,0 +1,50 @@
+{
+  "script": "frontend/tools/browser-matrix-smoke.mjs",
+  "url": "http://127.0.0.1:5173/login",
+  "headless": true,
+  "viewport": {
+    "width": 1280,
+    "height": 720
+  },
+  "browsers": [
+    "chromium",
+    "firefox",
+    "webkit"
+  ],
+  "results": [
+    {
+      "browser": "chromium",
+      "status": 200,
+      "title": "ATP - 自动化测试平台",
+      "loginInputs": 4,
+      "failedRequests": [],
+      "errorResponses": [],
+      "trace": "chromium.trace.zip",
+      "har": "chromium.har"
+    },
+    {
+      "browser": "firefox",
+      "status": 200,
+      "title": "ATP - 自动化测试平台",
+      "loginInputs": 4,
+      "failedRequests": [],
+      "errorResponses": [],
+      "trace": "firefox.trace.zip",
+      "har": "firefox.har"
+    },
+    {
+      "browser": "webkit",
+      "status": 200,
+      "title": "ATP - 自动化测试平台",
+      "loginInputs": 4,
+      "failedRequests": [],
+      "errorResponses": [],
+      "trace": "webkit.trace.zip",
+      "har": "webkit.har"
+    }
+  ],
+  "notes": [
+    "本报告只记录脱敏汇总；Trace/HAR 原始文件保留在本机 .local-run，不纳入仓库。",
+    "该结果证明 Windows 本机浏览器矩阵和页面链路可用，不替代 Linux/Xvfb Web Worker 或跨副本 E2E。"
+  ]
+}

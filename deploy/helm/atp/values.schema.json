@@ -77,6 +77,7 @@
         "maxSessions": { "$ref": "#/definitions/positiveInteger" },
         "heartbeatSeconds": { "$ref": "#/definitions/positiveInteger" },
         "workerTtlSeconds": { "$ref": "#/definitions/positiveInteger" },
+        "healthFile": { "type": "string", "minLength": 1 },
         "resources": { "$ref": "#/definitions/resources" }
       }
     },

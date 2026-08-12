@@ -6,6 +6,16 @@
 
 Android 工具说明：Windows 启动脚本和 `android-network-doctor.ps1` 会自动发现 `ATP_ADB_HOME`、`ANDROID_HOME`/`ANDROID_SDK_ROOT` 下的 `platform-tools`，以及 `%LOCALAPPDATA%\Android\Sdk\platform-tools` 和 `%LOCALAPPDATA%\ATP\tools\platform-tools`。这些路径只注入当前 PowerShell 进程及其子 Worker，不会修改系统 PATH；因此通常不需要为了 ATP 手工修改机器环境变量。若 Android SDK 安装在自定义目录，可在选中的启动档案中填写 `ANDROID_HOME`，或在用户环境变量中设置 `ATP_ADB_HOME`。
 
+真实 Android 设备验收使用 `scripts/windows-android-acceptance.ps1`。它只执行非破坏性的 ADB 可用性检查，并生成脱敏 JSON 证据；不连接真实设备时会明确失败，不会伪造设备通过结果：
+
+```powershell
+.\scripts\windows-android-acceptance.ps1
+.\scripts\windows-android-acceptance.ps1 -Target '<device-ip>:5555'
+.\scripts\windows-android-acceptance.ps1 -Target '<serial>' -AppPackage 'com.example.app'
+```
+
+该命令检查设备状态、shell、设备属性、Package Manager 和 logcat；`-AppPackage` 可选，用于确认待测 APK 已安装。它验证的是 Windows 本机 ADB 和设备可用性；要验证 ATP 后端到 Windows Android Worker 的完整链路，还需再执行 `windows-local-smoke.ps1 -RequireAndroid -AndroidTarget '<device-ip>:5555'`。
+
 ## 适用场景
 
 - 前端、后端、Celery Worker、Celery Beat 运行在 Windows 本机
@@ -310,7 +320,7 @@ Set-Location $RepoRoot
 
 `-EnvFile` 会同时用于本地 doctor、登录凭据读取以及 `-StartServices`/`-StopServicesAfter` 的子进程启动，不会修改根目录 `.env` 或当前 PowerShell 会话。
 
-脚本会在 `.local-run/windows-smoke-*.json` 生成脱敏结果报告，不会把登录密码或 access token 写入终端和报告。当 `.env` 使用 `ADB_SCAN_MODE=worker`、配置了 `ANDROID_WORKER_ID` 或传入 `-RequireAndroid` 时，还会要求 `/api/v1/devices/workers` 返回在线 Agent，并发起一次设备扫描、轮询扫描任务回调；普通 `local` 模式会跳过该检查。可按场景跳过检查：
+脚本会在 `.local-run/windows-smoke-*.json` 生成脱敏结果报告，不会把登录密码或 access token 写入终端和报告。登录成功后还会检查 `/api/v1/web-recordings/workers`：`local` 模式要求 API 进程本地录制就绪，`worker` 模式要求至少一个已注册且有空闲容量的 Web 录制 Worker；报告会记录模式、注册数和可用数。当 `.env` 使用 `ADB_SCAN_MODE=worker`、配置了 `ANDROID_WORKER_ID` 或传入 `-RequireAndroid` 时，还会要求 `/api/v1/devices/workers` 返回在线 Agent，并发起一次设备扫描、轮询扫描任务回调；普通 `local` 模式会跳过该检查。可按场景跳过检查：
 
 脚本的状态变更请求会统一携带 `X-Requested-With: XMLHttpRequest` 以满足平台 CSRF 防护；文件上传使用登录会话的 `CookieContainer` 传递 HttpOnly access cookie，避免手工拼接 Cookie 导致 401。2026-08-12 在当前 Windows 环境实际验证通过管理员登录、10 项 Playwright、三浏览器矩阵、文件上传和临时对象清理。
 
@@ -479,7 +489,7 @@ bash scripts/android-network-doctor.sh <device-ip>:5555
 - [x] 启动前预检：`local-dev.cmd doctor` 自动检查 `.env`、Python/Node、Python Playwright/Chromium、Web 录制模式、Worker 参数、8000/5173 端口，以及 PostgreSQL、Redis、MinIO 的连通性；`windows-android-worker.ps1 doctor` 额外检查 Celery/Redis Python 依赖和 ADB。
 - [x] 性能依赖检测：doctor 检查 k6、Locust、grpcio/grpcio-tools；JMeter 仍需 Windows Java/JMeter 5.6.3，并在 `PERFORMANCE_EXECUTORS` 中显式加入 `jmeter`。Windows Worker 会自动解析 PATH 中的 `jmeter.bat`/`jmeter.exe`，无需手工改成 Unix 命令名。
 - [x] Android 网络诊断：新增 `android-network-doctor.ps1`，原 `android-network-doctor.sh` 继续保留给 Git Bash/WSL。
-- [~] Windows 全量本地冒烟：`windows-local-smoke.ps1` 已自动执行服务预检、真实登录、认证读接口、API 健康、Web 登录页、Playwright mock E2E、三浏览器页面矩阵、临时文件上传/清理、HTML/JUnit 报告生成和可选停止服务，并生成脱敏 JSON 报告；Web 低代码新增 `-SeedWebDownloadCase` 自包含创建/执行/清理链路，已在当前运行环境留下真实 Worker/MinIO 下载对象证据并自动清理，Android 扫描仍需真实设备。
+- [~] Windows 全量本地冒烟：`windows-local-smoke.ps1` 已自动执行服务预检、真实登录、认证读接口、Web 录制 Worker 状态预检、API 健康、Web 登录页、Playwright mock E2E、三浏览器页面矩阵、临时文件上传/清理、HTML/JUnit 报告生成和可选停止服务，并生成脱敏 JSON 报告；Web 低代码新增 `-SeedWebDownloadCase` 自包含创建/执行/清理链路，已在当前运行环境留下真实 Worker/MinIO 下载对象证据并自动清理，Android 扫描仍需真实设备。
 - [x] Worker 边界：Windows 使用 Celery `--pool=solo` 适合功能联调，不用于判断生产级并发、吞吐或多节点性能；相关结论转到 Linux/Kubernetes 目标环境。
 
 Windows 本地回归建议执行：

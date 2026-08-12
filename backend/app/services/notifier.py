@@ -41,6 +41,28 @@ LABELS = {
         "error": "错误",
         "duration": "耗时",
         "trigger": "触发",
+        "performance": {
+            "rps": "请求速率",
+            "p95_ms": "P95 延迟",
+            "p99_ms": "P99 延迟",
+            "error_rate": "错误率",
+            "threshold": "阈值",
+            "reasons": "触发原因",
+            "threshold_statuses": {
+                "passed": "通过",
+                "failed": "失败",
+                "not_configured": "未配置",
+                "pending": "等待",
+                "cancelled": "已取消",
+            },
+            "reasons_map": {
+                "run_failed": "运行失败",
+                "threshold_failed": "阈值失败",
+                "baseline_regression": "基线回归",
+                "node_issue": "节点异常",
+                "resource_issue": "资源采样异常",
+            },
+        },
         "statuses": {"passed": "通过", "failed": "失败", "error": "异常"},
         "triggers": {"manual": "手动", "cron": "定时", "webhook": "Webhook"},
     },
@@ -53,6 +75,28 @@ LABELS = {
         "error": "Errors",
         "duration": "Duration",
         "trigger": "Trigger",
+        "performance": {
+            "rps": "RPS",
+            "p95_ms": "P95 latency",
+            "p99_ms": "P99 latency",
+            "error_rate": "Error rate",
+            "threshold": "Threshold",
+            "reasons": "Reasons",
+            "threshold_statuses": {
+                "passed": "Passed",
+                "failed": "Failed",
+                "not_configured": "Not configured",
+                "pending": "Pending",
+                "cancelled": "Cancelled",
+            },
+            "reasons_map": {
+                "run_failed": "Run failed",
+                "threshold_failed": "Threshold failed",
+                "baseline_regression": "Baseline regression",
+                "node_issue": "Node issue",
+                "resource_issue": "Resource sampling issue",
+            },
+        },
         "statuses": {"passed": "Passed", "failed": "Failed", "error": "Error"},
         "triggers": {"manual": "Manual", "cron": "Scheduled", "webhook": "Webhook"},
     },
@@ -184,6 +228,49 @@ def _localized_value(labels: dict, group: str, value: str | None) -> str:
     return labels.get(group, {}).get(value, value)
 
 
+def _format_metric(value: object) -> str:
+    if value is None:
+        return "-"
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return f"{value:g}"
+    return str(value)
+
+
+def _format_error_rate(value: object) -> str:
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return f"{value * 100:.2f}%"
+    return _format_metric(value)
+
+
+def _performance_notification_fields(summary: dict, labels: dict) -> list[tuple[str, str]]:
+    """Add performance metrics and operational reasons without changing generic notifications."""
+
+    if summary.get("entity_type") != "performance":
+        return []
+
+    performance_labels = labels["performance"]
+    fields: list[tuple[str, str]] = []
+    if summary.get("rps") is not None:
+        fields.append((performance_labels["rps"], _format_metric(summary["rps"])))
+    if summary.get("p95_ms") is not None:
+        fields.append((performance_labels["p95_ms"], f"{_format_metric(summary['p95_ms'])}ms"))
+    if summary.get("p99_ms") is not None:
+        fields.append((performance_labels["p99_ms"], f"{_format_metric(summary['p99_ms'])}ms"))
+    if summary.get("error_rate") is not None:
+        fields.append((performance_labels["error_rate"], _format_error_rate(summary["error_rate"])))
+
+    threshold_status = summary.get("threshold_status")
+    if threshold_status:
+        threshold_text = performance_labels["threshold_statuses"].get(threshold_status, threshold_status)
+        fields.append((performance_labels["threshold"], threshold_text))
+
+    reasons = summary.get("performance_event_reasons")
+    if isinstance(reasons, list) and reasons:
+        reason_text = [performance_labels["reasons_map"].get(str(reason), str(reason)) for reason in reasons]
+        fields.append((performance_labels["reasons"], ", ".join(reason_text)))
+    return fields
+
+
 def _build_text(summary: dict, language: str = "zh-CN") -> str:
     """构建纯文本通知内容"""
     labels = _labels(language)
@@ -203,6 +290,7 @@ def _build_text(summary: dict, language: str = "zh-CN") -> str:
         f"{labels['duration']}: {duration_str}",
         f"{labels['trigger']}: {trigger}",
     ]
+    lines.extend(f"{label}: {value}" for label, value in _performance_notification_fields(summary, labels))
     return "\n".join(lines)
 
 
@@ -223,6 +311,7 @@ def _build_markdown(summary: dict, language: str = "zh-CN") -> str:
         f"> **{labels['duration']}**: {duration_str}",
         f"> **{labels['trigger']}**: {trigger}",
     ]
+    lines.extend(f"> **{label}**: {value}" for label, value in _performance_notification_fields(summary, labels))
     return "\n".join(lines)
 
 

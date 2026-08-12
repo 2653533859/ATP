@@ -108,42 +108,39 @@ def _count_runs(session: Session, model, status_field, statuses, cutoff: datetim
     return int(session.execute(stmt).scalar() or 0)
 
 
-def preview_old_runs(session: Session, days: int, batch_size: int = 500) -> dict:
-    from app.models.case import TestRun
-    from app.models.mobile_special import MobileSpecialRun
-    from app.models.plan import PlanRun
-    from app.models.suite import SuiteRun
+def _count_id_statement(session: Session, ids_stmt) -> int:
+    """Count the exact filtered id statement used by cleanup."""
+    return int(session.execute(select(func.count()).select_from(ids_stmt.subquery())).scalar() or 0)
 
+
+def preview_old_runs(
+    session: Session,
+    days: int,
+    batch_size: int = 500,
+    *,
+    project_id: int | None = None,
+    exclude_project_ids: list[int] | None = None,
+) -> dict:
+    """Preview the same scope that cleanup will delete.
+
+    ``project_id`` is used for an override project. The global preview can pass
+    ``exclude_project_ids`` so projects with their own retention policy are
+    not counted twice or shown as eligible for the global cleanup pass.
+    """
     cutoff = _cutoff(days)
 
-    plan_count = _count_runs(session, PlanRun, PlanRun.status, _terminal_plan_run_statuses(), cutoff)
-    suite_count = _count_runs(session, SuiteRun, SuiteRun.status, _terminal_suite_run_statuses(), cutoff)
-    test_count = _count_runs(session, TestRun, TestRun.status, _terminal_test_run_statuses(), cutoff)
-    mobile_count = _count_runs(
-        session, MobileSpecialRun, MobileSpecialRun.status, _terminal_mobile_run_statuses(), cutoff
-    )
+    plan_ids_stmt = _plan_run_ids_stmt(cutoff, project_id, exclude_project_ids)
+    suite_ids_stmt = _suite_run_ids_stmt(cutoff, project_id, exclude_project_ids)
+    test_ids_stmt = _test_run_ids_stmt(cutoff, project_id, exclude_project_ids)
+    mobile_ids_stmt = _mobile_run_ids_stmt(cutoff, project_id, exclude_project_ids)
 
-    test_sample = [
-        row[0]
-        for row in session.execute(
-            select(TestRun.id)
-            .where(TestRun.status.in_(_terminal_test_run_statuses()), TestRun.created_at < cutoff)
-            .order_by(TestRun.id.asc())
-            .limit(batch_size)
-        ).all()
-    ]
-    mobile_sample = [
-        row[0]
-        for row in session.execute(
-            select(MobileSpecialRun.id)
-            .where(
-                MobileSpecialRun.status.in_(_terminal_mobile_run_statuses()),
-                MobileSpecialRun.created_at < cutoff,
-            )
-            .order_by(MobileSpecialRun.id.asc())
-            .limit(batch_size)
-        ).all()
-    ]
+    plan_count = _count_id_statement(session, plan_ids_stmt)
+    suite_count = _count_id_statement(session, suite_ids_stmt)
+    test_count = _count_id_statement(session, test_ids_stmt)
+    mobile_count = _count_id_statement(session, mobile_ids_stmt)
+
+    test_sample = [row[0] for row in session.execute(test_ids_stmt.limit(batch_size)).all()]
+    mobile_sample = [row[0] for row in session.execute(mobile_ids_stmt.limit(batch_size)).all()]
     estimated_objects = len(_collect_screenshot_objects(session, test_sample)) + len(
         _collect_mobile_run_artifact_objects(session, mobile_sample)
     )
@@ -412,7 +409,12 @@ def preview_old_runs_by_project(session: Session, global_days: int, batch_size: 
             }
         )
 
-    global_preview = preview_old_runs(session, global_days, batch_size)
+    global_preview = preview_old_runs(
+        session,
+        global_days,
+        batch_size,
+        exclude_project_ids=[pid for pid, _, _ in overrides] or None,
+    )
     return {
         "global": {
             "retention_days": global_preview["retention_days"],

@@ -64,6 +64,11 @@
         <template v-if="column.key === 'format'">
           <a-tag :color="record.format === 'csv' ? 'green' : 'blue'">{{ record.format.toUpperCase() }}</a-tag>
         </template>
+        <template v-else-if="column.key === 'storage_mode'">
+          <a-tag :color="record.storage_mode === 'minio' ? 'purple' : 'cyan'">
+            {{ record.storage_mode === 'minio' ? t('dataset.storage_minio') : t('dataset.storage_database') }}
+          </a-tag>
+        </template>
         <template v-else-if="column.key === 'validation_policy'">
           <a-tag :color="record.validation_policy === 'hard' ? 'red' : 'gold'">
             {{ record.validation_policy === 'hard' ? t('dataset.validation_hard') : t('dataset.validation_soft') }}
@@ -118,6 +123,13 @@
             <a-radio value="json">JSON</a-radio>
             <a-radio value="csv">CSV</a-radio>
           </a-radio-group>
+        </a-form-item>
+        <a-form-item :label="t('dataset.storage_mode')">
+          <a-radio-group v-model:value="form.storage_mode">
+            <a-radio-button value="database">{{ t('dataset.storage_database') }}</a-radio-button>
+            <a-radio-button value="minio">{{ t('dataset.storage_minio') }}</a-radio-button>
+          </a-radio-group>
+          <div class="form-hint">{{ t('dataset.storage_hint') }}</div>
         </a-form-item>
         <a-form-item :label="t('dataset.validation_policy')">
           <a-radio-group v-model:value="form.validation_policy">
@@ -385,7 +397,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import { ThunderboltOutlined } from '@ant-design/icons-vue'
-import { datasetApi, projectApi, type DatasetDetail, type DatasetImpact, type DatasetImpactItem, type DatasetListItem, type DatasetFormat, type DatasetSchemaField, type DatasetSchemaFieldType, type DatasetValidationPolicy, type DatasetValidationResult, type DatasetVersionItem, type ProjectItem } from '@/api'
+import { datasetApi, projectApi, type DatasetDetail, type DatasetImpact, type DatasetImpactItem, type DatasetListItem, type DatasetFormat, type DatasetSchemaField, type DatasetSchemaFieldType, type DatasetStorageMode, type DatasetValidationPolicy, type DatasetValidationResult, type DatasetVersionItem, type ProjectItem } from '@/api'
 import { buildCasesQuery } from '@/utils/caseNavigation'
 import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
@@ -439,14 +451,15 @@ type SchemaFieldForm = {
   defaultText: string
 }
 
-const form = ref<{ name: string; description: string; format: DatasetFormat; validation_policy: DatasetValidationPolicy; rows: Record<string, unknown>[]; schema_fields: SchemaFieldForm[] }>(
-  { name: '', description: '', format: 'json', validation_policy: 'soft', rows: [], schema_fields: [] },
+const form = ref<{ name: string; description: string; format: DatasetFormat; storage_mode: DatasetStorageMode; validation_policy: DatasetValidationPolicy; rows: Record<string, unknown>[]; schema_fields: SchemaFieldForm[] }>(
+  { name: '', description: '', format: 'json', storage_mode: 'database', validation_policy: 'soft', rows: [], schema_fields: [] },
 )
 
 const columns = computed(() => [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
   { title: t('dataset.name'), dataIndex: 'name', key: 'name' },
   { title: t('dataset.format'), key: 'format', width: 100 },
+  { title: t('dataset.storage_mode'), key: 'storage_mode', width: 120 },
   { title: t('dataset.validation_policy'), dataIndex: 'validation_policy', key: 'validation_policy', width: 120 },
   { title: t('dataset.row_count'), dataIndex: 'row_count', key: 'row_count', width: 120 },
   { title: t('dataset.schema_field_count'), dataIndex: 'schema_field_count', key: 'schema_field_count', width: 120 },
@@ -586,7 +599,7 @@ function openCreate() {
     return
   }
   editing.value = null
-  form.value = { name: '', description: '', format: 'json', validation_policy: 'soft', rows: [], schema_fields: [] }
+  form.value = { name: '', description: '', format: 'json', storage_mode: 'database', validation_policy: 'soft', rows: [], schema_fields: [] }
   rowsText.value = '[]'
   rowsTextError.value = ''
   editorOpen.value = true
@@ -626,6 +639,7 @@ async function generateAIDataset() {
         name: detail.name,
         description: detail.description || '',
         format: detail.format,
+        storage_mode: detail.storage_mode ?? 'database',
         validation_policy: detail.validation_policy ?? 'soft',
         rows: result.rows,
         schema_fields: (result.schema_fields.length ? result.schema_fields : detail.schema_fields).map(schemaFieldToForm),
@@ -636,6 +650,7 @@ async function generateAIDataset() {
         name: aiDatasetName.value.trim(),
         description: aiDatasetRequirement.value.trim(),
         format: 'json',
+        storage_mode: 'database',
         validation_policy: 'soft',
         rows: result.rows,
         schema_fields: result.schema_fields.map(schemaFieldToForm),
@@ -724,6 +739,7 @@ async function openEdit(record: DatasetListItem) {
       name: detail.name,
       description: detail.description || '',
       format: detail.format,
+      storage_mode: detail.storage_mode ?? 'database',
       validation_policy: detail.validation_policy ?? 'soft',
       rows: detail.rows,
       schema_fields: (detail.schema_fields ?? []).map(schemaFieldToForm),
@@ -782,6 +798,7 @@ async function onSave() {
       await datasetApi.update(editing.value.id, {
         name: form.value.name,
         description: form.value.description,
+        storage_mode: form.value.storage_mode,
         rows: form.value.rows,
         schema_fields: schemaFields,
         validation_policy: form.value.validation_policy,
@@ -792,6 +809,7 @@ async function onSave() {
         project_id: projectId.value,
         description: form.value.description || undefined,
         format: form.value.format,
+        storage_mode: form.value.storage_mode,
         rows: form.value.rows,
         schema_fields: schemaFields,
         validation_policy: form.value.validation_policy,

@@ -115,7 +115,14 @@ services:
       - WEB_RECORDER_MODE=worker
       - WEB_RECORDER_DISPLAY=${WEB_RECORDER_DISPLAY:-:99}
       - WEB_RECORDER_WORKER_ID=${WEB_RECORDER_WORKER_ID:-web-recorder-1}
+      - WEB_RECORDER_HEALTH_FILE=${WEB_RECORDER_HEALTH_FILE:-/tmp/atp-web-recorder.ready}
     command: ["sh", "-c", "Xvfb ${WEB_RECORDER_DISPLAY:-:99} -screen 0 1280x720x24 -nolisten tcp >/tmp/atp-xvfb.log 2>&1 & exec python -m app.web_recording_worker"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,time; p=os.environ['WEB_RECORDER_HEALTH_FILE']; raise SystemExit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p) <= 30 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:

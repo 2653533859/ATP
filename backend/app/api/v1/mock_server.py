@@ -72,6 +72,33 @@ def _build_rule_stmt(project_id: int, candidate_methods: list[MockMethod]):
     )
 
 
+def _rule_priority(rule: MockRule, candidate_methods: list[MockMethod]) -> tuple[int, int, int, int, int, int]:
+    """Return a stable priority so broad rules cannot shadow specific ones."""
+    path = str(getattr(rule, "path", "") or "")
+    placeholders = re.findall(r"\{[^/{}]+\}", path)
+    path_segments = [segment for segment in path.split("/") if segment]
+    literal_parts = [re.sub(r"\{[^/{}]+\}", "", segment) for segment in path_segments]
+    conditions = getattr(rule, "match_conditions", None) or {}
+    condition_count = sum(
+        len(values)
+        for values in (conditions.get("query"), conditions.get("headers"), conditions.get("body"))
+        if isinstance(values, dict)
+    )
+    method_is_exact = int(bool(candidate_methods) and getattr(rule, "method", None) == candidate_methods[0])
+    return (
+        method_is_exact,
+        sum(bool(part) for part in literal_parts),
+        -len(placeholders),
+        sum(len(part) for part in literal_parts),
+        condition_count,
+        int(getattr(rule, "id", 0) or 0),
+    )
+
+
+def _ordered_rules(rules: list[MockRule], candidate_methods: list[MockMethod]) -> list[MockRule]:
+    return sorted(rules, key=lambda rule: _rule_priority(rule, candidate_methods), reverse=True)
+
+
 def _match_conditions(rule: MockRule, request_data: dict) -> bool:
     conditions = rule.match_conditions or {}
     for source_key, actual_data in (
@@ -81,10 +108,31 @@ def _match_conditions(rule: MockRule, request_data: dict) -> bool:
     ):
         expected = conditions.get(source_key) or {}
         for key, value in expected.items():
-            actual_value = actual_data.get(key)
-            if str(actual_value) != str(value):
+            if not _condition_matches_value(actual_data, key, value):
                 return False
     return True
+
+
+def _condition_matches_value(actual_data: dict, key: str, expected: object) -> bool:
+    """Match a condition without evaluating user-provided code or expressions."""
+    if isinstance(expected, dict):
+        if len(expected) != 1:
+            return False
+        operator, operand = next(iter(expected.items()))
+        exists = key in actual_data
+        actual_value = actual_data.get(key)
+        if operator == "$exists":
+            return isinstance(operand, bool) and exists is operand
+        if not exists:
+            return False
+        if operator == "$contains":
+            return isinstance(operand, str) and operand in str(actual_value)
+        if operator == "$in":
+            return isinstance(operand, list) and any(str(actual_value) == str(candidate) for candidate in operand)
+        return False
+
+    actual_value = actual_data.get(key)
+    return str(actual_value) == str(expected)
 
 
 def _render_template_text(template: str | None, request_data: dict) -> str:
@@ -164,14 +212,14 @@ async def _find_matching_rule(
             .order_by(MockRule.method == MockMethod.ANY, MockRule.id.desc())
         )
         result = await db.execute(exact_stmt)
-        for rule in result.scalars().all():
+        for rule in _ordered_rules(result.scalars().all(), candidate_methods):
             if _match_conditions(rule, request_data):
                 await set_json_cache(cache_key, {"rule_id": rule.id}, ttl_seconds=180)
                 return rule
 
         tmpl_stmt = _build_rule_stmt(project_id, candidate_methods)
         result = await db.execute(tmpl_stmt)
-        for rule in result.scalars().all():
+        for rule in _ordered_rules(result.scalars().all(), candidate_methods):
             if (
                 "{" in rule.path
                 and _path_matches_template(rule.path, normalized)

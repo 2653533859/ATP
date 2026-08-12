@@ -147,6 +147,15 @@
           {{ lastResult.deleted_objects }}
         </a-descriptions-item>
       </a-descriptions>
+      <a-table
+        v-if="lastResult.projects.length"
+        :columns="projectResultColumns"
+        :data-source="lastResult.projects"
+        :pagination="false"
+        row-key="project_id"
+        size="small"
+        style="margin-top: 16px"
+      />
     </a-card>
   </div>
 </template>
@@ -202,6 +211,17 @@ const projectColumns = computed(() => [
   { title: t('system_pages.run_retention.col.retention_days'), dataIndex: 'retention_days', key: 'retention_days', width: 100 },
   { title: t('system_pages.run_retention.col.plan_runs'), dataIndex: 'plan_runs', key: 'plan_runs', width: 100 },
   { title: t('system_pages.run_retention.col.suite_runs'), dataIndex: 'suite_runs', key: 'suite_runs', width: 100 },
+])
+
+const projectResultColumns = computed(() => [
+  { title: t('system_pages.run_retention.col.project_id'), dataIndex: 'project_id', key: 'project_id', width: 80 },
+  { title: t('system_pages.run_retention.col.project_name'), dataIndex: 'project_name', key: 'project_name' },
+  { title: t('system_pages.run_retention.col.retention_days'), dataIndex: 'retention_days', key: 'retention_days', width: 100 },
+  { title: t('system_pages.run_retention.col.plan_runs'), dataIndex: 'plan_runs', key: 'plan_runs', width: 100 },
+  { title: t('system_pages.run_retention.col.suite_runs'), dataIndex: 'suite_runs', key: 'suite_runs', width: 100 },
+  { title: t('system_pages.run_retention.col.test_runs'), dataIndex: 'test_runs', key: 'test_runs', width: 100 },
+  { title: t('system_pages.run_retention.col.mobile_runs'), dataIndex: 'mobile_runs', key: 'mobile_runs', width: 100 },
+  { title: t('system_pages.run_retention.col.deleted_objects'), dataIndex: 'deleted_objects', key: 'deleted_objects', width: 120 },
 ])
 
 function formatTime(value: string | undefined | null): string {

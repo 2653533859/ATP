@@ -220,6 +220,7 @@
         <a-form-item :label="t('mock.form.body_conditions')">
           <a-textarea v-model:value="bodyConditionsText" :rows="2" class="code-textarea" placeholder='{"status": "paid"}' />
         </a-form-item>
+        <div class="condition-hint">{{ t('mock.form.condition_hint') }}</div>
 
         <a-form-item :label="t('mock.form.response_headers')">
           <a-textarea
@@ -296,9 +297,9 @@ import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectCon
 const asRule = (record: unknown) => record as MockRuleRecord
 
 type MatchConditions = {
-  query: Record<string, string>
-  headers: Record<string, string>
-  body: Record<string, string>
+  query: Record<string, unknown>
+  headers: Record<string, unknown>
+  body: Record<string, unknown>
 }
 
 interface MockRuleRecord extends MockRuleItem {}
@@ -422,7 +423,7 @@ function parseJsonObject(text: string, fieldName: string) {
     if (!value || Array.isArray(value) || typeof value !== 'object') {
       throw new Error(fieldName)
     }
-    return value as Record<string, string>
+    return value as Record<string, unknown>
   } catch {
     throw new Error(t('mock.msg.field_json_invalid', { field: fieldName }))
   }
@@ -538,7 +539,7 @@ function parseAIMockPreview(): MockAIGeneratedRule[] {
       status_code: Number(rule.status_code || 200),
       response_headers: (rule.response_headers || {}) as Record<string, string>,
       response_body: rule.response_body == null ? null : String(rule.response_body),
-      match_conditions: (rule.match_conditions || { query: {}, headers: {}, body: {} }) as Record<string, Record<string, string>>,
+      match_conditions: (rule.match_conditions || { query: {}, headers: {}, body: {} }) as Record<string, Record<string, unknown>>,
       delay_ms: Number(rule.delay_ms || 0),
       is_enabled: rule.is_enabled !== false,
       render_template: rule.render_template === true,
@@ -634,7 +635,7 @@ async function handleSave() {
   let parsedHeaders: Record<string, string> = {}
   let matchConditions: MatchConditions
   try {
-    parsedHeaders = parseJsonObject(headersText.value, t('mock.form.response_headers_short'))
+    parsedHeaders = parseJsonObject(headersText.value, t('mock.form.response_headers_short')) as Record<string, string>
     matchConditions = {
       query: parseJsonObject(queryConditionsText.value, t('mock.form.query_conditions_short')),
       headers: parseJsonObject(headerConditionsText.value, t('mock.form.header_conditions_short')),
@@ -743,5 +744,10 @@ async function refreshLogs() {
 .code-textarea {
   font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
   font-size: 13px;
+}
+.condition-hint {
+  margin: -4px 0 12px;
+  color: var(--c-text-tertiary);
+  font-size: 12px;
 }
 </style>

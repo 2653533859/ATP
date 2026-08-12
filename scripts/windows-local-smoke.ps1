@@ -244,6 +244,31 @@ function Invoke-LiveApiChecks {
   }
 }
 
+function Invoke-WebRecordingWorkerCheck {
+  if ([string]::IsNullOrWhiteSpace($script:LiveAccessToken)) {
+    Add-Result -Name 'Web recording Worker status' -Status 'skipped' -Required:$false -Details 'Skipped because live login did not establish an authenticated session.'
+    return
+  }
+
+  try {
+    $status = Invoke-RestMethod -Method Get -Uri "$LiveApiBaseUrl/web-recordings/workers" -WebSession $script:LiveWebSession -TimeoutSec 10
+    $mode = ([string]$status.mode).Trim().ToLowerInvariant()
+    $registered = [int]$status.registered_count
+    $available = [int]$status.available_count
+    $ready = [bool]$status.ready
+    $validMode = $mode -in @('local', 'worker')
+    $passed = $validMode -and $ready -and (($mode -eq 'local') -or ($registered -gt 0 -and $available -gt 0))
+    $details = if ($passed) {
+      "mode=$mode registered=$registered available=$available"
+    } else {
+      "Web recording is not ready: mode=$mode registered=$registered available=$available"
+    }
+    Add-Result -Name 'Web recording Worker status' -Status $(if ($passed) { 'passed' } else { 'failed' }) -Required:$true -Details $details
+  } catch {
+    Add-Result -Name 'Web recording Worker status' -Status 'failed' -Required:$true -Details $_.Exception.Message
+  }
+}
+
 function Invoke-FileTransferCheck {
   if ($SkipFileTransfer) {
     Add-Result -Name 'Web file upload and cleanup' -Status 'skipped' -Required:$false -Details 'Skipped by -SkipFileTransfer.'
@@ -740,8 +765,10 @@ if ($SkipLiveLogin) {
   $loginPassed = Invoke-LiveLogin -Values $values
   if ($loginPassed) {
     Invoke-LiveApiChecks
+    Invoke-WebRecordingWorkerCheck
   } else {
     Add-Result -Name 'Live API authenticated read checks' -Status 'skipped' -Required:$false -Details 'Skipped because live login failed.'
+    Add-Result -Name 'Web recording Worker status' -Status 'skipped' -Required:$false -Details 'Skipped because live login failed.'
   }
 }
 

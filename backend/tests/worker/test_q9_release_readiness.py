@@ -35,6 +35,12 @@ def test_release_checklist_covers_q10_release_gates(repo_file):
     assert "run success rate" in content
     assert "API error-budget" in content
     assert "docs/q9-release-evidence.md" in content
+    assert "Q18 productization extension" in content
+    assert "20260812_0055" in content
+    assert "Performance notification" in content
+    assert "scripts/windows-android-acceptance.ps1" in content
+    assert "scripts/performance-environment-smoke.py" in content
+    assert "82%" in content
 
 
 def test_q9_release_evidence_records_completed_and_pending_checks(repo_file):
@@ -49,6 +55,9 @@ def test_q9_release_evidence_records_completed_and_pending_checks(repo_file):
     assert ".github/workflows/release-readiness.yml" in content
     assert "docker run --rm --entrypoint k6 atp-worker:release-readiness version" in content
     assert "helm upgrade --install atp deploy/helm/atp/" in content
+    assert "Q18 Local Gate Snapshot" in content
+    assert "1944 passed" in content
+    assert "Real SMTP, WeCom and DingTalk delivery" in content
 
 
 def test_release_readiness_workflow_builds_images_and_verifies_k6(repo_file):

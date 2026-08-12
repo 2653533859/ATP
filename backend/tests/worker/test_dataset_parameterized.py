@@ -121,6 +121,68 @@ def test_parameterized_creates_one_child_per_row(monkeypatch):
     assert dispatched_args[2][2] == {"env": "stg", "x": 3}
 
 
+def test_parameterized_runs_dataset_preparation_once_and_shares_context(monkeypatch):
+    case, parent, db = _setup([{"x": 1}, {"x": 2}])
+    case.config = {"dataset_prepare_actions": [{"action": "set_variable", "variable": "seed_id"}]}
+    dispatched_args: list[dict] = []
+    prepare_calls: list[dict] = []
+
+    async def fake_prepare(actions, context):
+        prepare_calls.append({"actions": actions, "context": dict(context)})
+        context["seed_id"] = "seed-1"
+        return [{"action": "set_variable", "variable": "seed_id"}]
+
+    async def fake_dispatch(_db, child, _case, extra_vars):
+        dispatched_args.append(dict(extra_vars))
+        child.status = RunStatus.passed
+        return True
+
+    monkeypatch.setattr("app.services.dataset_preparation.execute_dataset_preparation", fake_prepare)
+    monkeypatch.setattr(worker_tasks, "dispatch_case", fake_dispatch)
+    monkeypatch.setattr(worker_tasks, "_safe_publish_run_event", lambda *a, **kw: _async_noop())
+    monkeypatch.setattr(worker_tasks, "_safe_invalidate_stats_cache", lambda *a, **kw: _async_noop())
+
+    asyncio.run(worker_tasks._execute_parameterized(db, parent, case, {"env": "stg"}))
+
+    assert prepare_calls == [{"actions": case.config["dataset_prepare_actions"], "context": {"env": "stg"}}]
+    assert dispatched_args == [{"env": "stg", "seed_id": "seed-1", "x": 1}, {"env": "stg", "seed_id": "seed-1", "x": 2}]
+    assert parent.result_summary["dataset_preparation"]["status"] == "passed"
+
+
+def test_parameterized_stops_before_children_when_dataset_preparation_fails(monkeypatch):
+    case, parent, db = _setup([{"x": 1}])
+    case.config = {"dataset_prepare_actions": [{"action": "request"}]}
+
+    async def fake_prepare(*_args):
+        from app.services.dataset_preparation import DatasetPreparationError
+
+        raise DatasetPreparationError("seed service unavailable")
+
+    monkeypatch.setattr("app.services.dataset_preparation.execute_dataset_preparation", fake_prepare)
+    monkeypatch.setattr(worker_tasks, "_safe_publish_run_event", lambda *a, **kw: _async_noop())
+    monkeypatch.setattr(worker_tasks, "_safe_invalidate_stats_cache", lambda *a, **kw: _async_noop())
+
+    asyncio.run(worker_tasks._execute_parameterized(db, parent, case, {}))
+
+    assert not any(isinstance(item, TestRun) and item is not parent for item in db.added)
+    assert parent.status == RunStatus.error
+    assert parent.result_summary["dataset_preparation"]["status"] == "failed"
+    assert "seed service unavailable" in parent.result_summary["dataset_preparation"]["error"]
+
+
+def test_parameterized_rejects_non_list_dataset_preparation_config(monkeypatch):
+    case, parent, db = _setup([{"x": 1}])
+    case.config = {"dataset_prepare_actions": {}}
+    monkeypatch.setattr(worker_tasks, "_safe_publish_run_event", lambda *a, **kw: _async_noop())
+    monkeypatch.setattr(worker_tasks, "_safe_invalidate_stats_cache", lambda *a, **kw: _async_noop())
+
+    asyncio.run(worker_tasks._execute_parameterized(db, parent, case, {}))
+
+    assert not any(isinstance(item, TestRun) and item is not parent for item in db.added)
+    assert parent.status == RunStatus.error
+    assert parent.result_summary["dataset_preparation"]["status"] == "failed"
+
+
 def test_parameterized_uses_case_pinned_dataset_version(monkeypatch):
     case, parent, db = _setup([{"x": "current"}])
     case.dataset_version = 2

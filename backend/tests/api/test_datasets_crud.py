@@ -37,7 +37,13 @@ from app.models.case import TestCase
 from app.models.dataset import TestDataset, TestDatasetVersion
 from app.models.plan import TestPlan
 from app.models.suite import TestSuite
-from app.schemas.dataset import DatasetAIGenerateIn, DatasetValidateIn, TestDatasetCreate, TestDatasetUpdate
+from app.schemas.dataset import (
+    DatasetAIGenerateIn,
+    DatasetStorageReconcileIn,
+    DatasetValidateIn,
+    TestDatasetCreate,
+    TestDatasetUpdate,
+)
 
 load_all_models()
 
@@ -279,6 +285,227 @@ def test_create_dataset_persists_and_returns():
     assert db.commits == 1
     assert db.versions[-1].change_type == "create"
     assert db.versions[-1].version == 1
+
+
+def test_create_dataset_can_store_rows_in_minio_and_keep_only_reference(monkeypatch):
+    uploaded: list[tuple[int, int, int | None]] = []
+
+    def fake_upload_dataset_rows(*, project_id, dataset_id, rows, version=None):
+        uploaded.append((project_id, dataset_id, version))
+        assert rows == [{"a": 1}]
+        return (
+            f"datasets/{project_id}/{dataset_id}/current.json"
+            if version is None
+            else f"datasets/{project_id}/{dataset_id}/version-{version}.json"
+        )
+
+    monkeypatch.setattr(ds_api, "upload_dataset_rows", fake_upload_dataset_rows)
+    db = _FakeDB()
+    body = TestDatasetCreate(name="large", project_id=10, storage_mode="minio", rows=[{"a": 1}])
+
+    result = asyncio.run(ds_api.create_dataset(body=body, db=db, user=_FakeUser()))
+
+    stored = db.store[1]
+    assert result.storage_mode == "minio"
+    assert result.row_count == 1
+    assert stored.rows == []
+    assert stored.object_name == "datasets/10/1/current.json"
+    assert uploaded == [(10, 1, None), (10, 1, 1)]
+
+
+def test_reconcile_project_dataset_storage_reads_references_and_audits(monkeypatch):
+    class _Result:
+        def __init__(self, values):
+            self.values = values
+
+        def scalars(self):
+            return self
+
+        def all(self):
+            return self.values
+
+    class _ReconcileDB:
+        commits = 0
+
+        async def get(self, model, pk):
+            if model.__name__ == "Project" and pk == 10:
+                return types.SimpleNamespace(id=10)
+            return None
+
+        async def execute(self, statement):
+            if "test_dataset_versions" in str(statement):
+                return _Result(["datasets/10/1/version-1.json"])
+            return _Result(["datasets/10/1/current.json"])
+
+        def add(self, _obj):
+            return None
+
+        async def flush(self):
+            return None
+
+        async def commit(self):
+            self.commits += 1
+
+    captured = {}
+
+    def fake_reconcile(project_id, refs, *, purge=False):
+        captured.update(project_id=project_id, refs=refs, purge=purge)
+        return {
+            "project_id": project_id,
+            "dry_run": not purge,
+            "scanned_count": 3,
+            "referenced_count": len(refs),
+            "orphan_count": 1,
+            "orphaned_objects": ["datasets/10/9/current.json"],
+            "truncated": False,
+            "deleted_count": 0,
+            "errors": [],
+        }
+
+    async def fake_audit(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(ds_api, "reconcile_dataset_objects", fake_reconcile)
+    monkeypatch.setattr(ds_api, "write_audit_log", fake_audit)
+    db = _ReconcileDB()
+
+    result = asyncio.run(
+        ds_api.reconcile_project_dataset_storage(
+            project_id=10,
+            body=DatasetStorageReconcileIn(),
+            db=db,
+            user=types.SimpleNamespace(id=1, username="admin"),
+        )
+    )
+
+    assert result.orphan_count == 1
+    assert captured == {
+        "project_id": 10,
+        "refs": {"datasets/10/1/current.json", "datasets/10/1/version-1.json"},
+        "purge": False,
+    }
+    assert db.commits == 1
+
+
+def test_minio_upload_and_preview_use_minio_limits(monkeypatch):
+    dataset = _make_dataset(6, rows=[], fmt="json")
+    dataset.storage_mode = "minio"
+    dataset.object_name = "datasets/10/6/current.json"
+    db = _FakeDB({6: dataset})
+
+    monkeypatch.setattr(
+        ds_api,
+        "upload_dataset_rows",
+        lambda *, project_id, dataset_id, rows, version=None, object_name=None: (
+            object_name
+            or (
+                f"datasets/{project_id}/{dataset_id}/current.json"
+                if version is None
+                else f"datasets/{project_id}/{dataset_id}/version-{version}.json"
+            )
+        ),
+    )
+    raw = ("[" + ",".join('{"id": ' + str(index) + "}" for index in range(501)) + "]").encode("utf-8")
+
+    preview = asyncio.run(
+        ds_api.preview_upload_dataset(
+            dataset_id=6,
+            file=UploadFile(filename="large.json", file=io.BytesIO(raw)),
+            db=db,
+            user=_FakeUser(),
+        )
+    )
+    assert preview.valid is True
+    assert preview.row_count == 501
+
+    result = asyncio.run(
+        ds_api.upload_dataset(
+            dataset_id=6,
+            file=UploadFile(filename="large.json", file=io.BytesIO(raw)),
+            db=db,
+            user=_FakeUser(),
+        )
+    )
+    assert result.storage_mode == "minio"
+    assert result.row_count == 501
+    assert dataset.rows == []
+
+
+def test_minio_update_keeps_old_reference_and_cleans_new_objects_when_commit_fails(monkeypatch):
+    dataset = _make_dataset(11, rows=[], fmt="json")
+    dataset.storage_mode = "minio"
+    dataset.object_name = "datasets/10/11/current-old.json"
+    db = _FakeDB({11: dataset})
+
+    class _CommitFailDB(_FakeDB):
+        async def commit(self):
+            self.commits += 1
+            raise RuntimeError("database unavailable")
+
+    db = _CommitFailDB({11: dataset})
+    uploaded: list[str] = []
+    cleaned: list[tuple[int, int, list[str]]] = []
+
+    def fake_upload(*, project_id, dataset_id, rows, version=None, object_name=None):
+        name = object_name or f"datasets/{project_id}/{dataset_id}/version-{version}.json"
+        uploaded.append(name)
+        return name
+
+    def fake_cleanup(project_id, dataset_id, object_names):
+        cleaned.append((project_id, dataset_id, list(object_names)))
+        return []
+
+    monkeypatch.setattr(ds_api, "upload_dataset_rows", fake_upload)
+    monkeypatch.setattr(ds_api, "cleanup_dataset_object_names", fake_cleanup)
+
+    try:
+        asyncio.run(
+            ds_api.update_dataset(
+                dataset_id=11,
+                body=TestDatasetUpdate(storage_mode="minio", rows=[{"new": True}]),
+                db=db,
+                user=_FakeUser(),
+            )
+        )
+    except HTTPException as exc:
+        assert exc.status_code == 409
+    else:
+        raise AssertionError("expected commit failure")
+
+    assert uploaded[0].startswith("datasets/10/11/current-")
+    assert uploaded[0] != "datasets/10/11/current-old.json"
+    assert uploaded[1] == "datasets/10/11/version-1.json"
+    assert cleaned == [(10, 11, uploaded)]
+
+
+def test_minio_metadata_update_returns_current_rows(monkeypatch):
+    dataset = _make_dataset(12, rows=[])
+    dataset.storage_mode = "minio"
+    dataset.object_name = "datasets/10/12/current.json"
+    dataset.row_count = 2
+    db = _FakeDB({12: dataset})
+    current_rows = [{"id": "u-1"}, {"id": "u-2"}]
+
+    monkeypatch.setattr(ds_api, "rows_from_source", lambda _source: current_rows)
+    monkeypatch.setattr(
+        ds_api,
+        "upload_dataset_rows",
+        lambda *, project_id, dataset_id, rows, version=None, object_name=None: object_name
+        or f"datasets/{project_id}/{dataset_id}/version-{version}.json",
+    )
+
+    result = asyncio.run(
+        ds_api.update_dataset(
+            dataset_id=12,
+            body=TestDatasetUpdate(name="renamed"),
+            db=db,
+            user=_FakeUser(),
+        )
+    )
+
+    assert result.name == "renamed"
+    assert result.rows == current_rows
+    assert result.row_count == len(current_rows)
 
 
 def test_validate_dataset_endpoint_returns_preview_and_issues():

@@ -1,5 +1,22 @@
 # Q18 最新开发状态与前后实现对比
 
+## 2026-08-12 iOS/Appium 验收入口
+
+- 新增 `scripts/ios-appium-acceptance.py`，支持 Appium readiness、显式 W3C/XCUITest session、受控 iOS 步骤、截图、可选录屏/syslog 和脱敏 JSON 报告。
+- 本地协议/安全回归已通过；status-only 不代表真实设备通过，macOS/Xcode/WDA/iPhone/Simulator、设备租约和 ATP `ios` 队列仍保持 pending。
+
+## 2026-08-12 Web 专用 Worker 健康探针
+
+- 独立 Web 录制 Worker 在 Redis 注册/心跳成功后更新 `WEB_RECORDER_HEALTH_FILE`，停止时清理；Compose 和 Helm 已增加 readiness/liveness 探针。
+- 本地 Worker/部署契约回归已通过；Docker 容器、Linux/Xvfb、Firefox/WebKit、Trace/网络日志和跨副本 E2E 仍保持环境验收状态。
+- 浏览器矩阵 smoke 已支持显式 artifact 目录，按浏览器生成 Trace/HAR 及 Console、失败请求、HTTP 错误摘要；无 artifact 配置时保持原有轻量输出。
+- Windows 本机三浏览器矩阵真实通过：Chromium、Firefox、WebKit 均返回 200、登录页输入框数量为 4，失败请求和错误响应为空；汇总证据见 `docs/evidence/web-browser-matrix-local-smoke-2026-08-12.json`。
+
+## 2026-08-12 Linux/Kubernetes Prometheus 验收入口
+
+- `scripts/performance-environment-smoke.py` 新增 `--prometheus-url`/`--prometheus-query`，会验证 Prometheus readiness、PromQL API 成功状态和结果数组，并将结果纳入脱敏验收报告。
+- 定向脚本回归已通过；真实 Linux/Kubernetes 集群、生产 Prometheus 和外部目标服务仍保持 pending，不以 Windows 本地 Prometheus 结果替代。
+
 ## 2026-08-12 Windows Prometheus 目标指标与性能 UI
 
 - 性能定义编辑器已提供目标服务指标配置：可选择 Prometheus 直连 URL 或环境变量，设置查询超时并维护多条 PromQL；保存前会校验来源和查询，配置写入 `default_options.target_metrics`。

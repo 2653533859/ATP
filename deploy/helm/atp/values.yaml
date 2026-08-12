@@ -52,6 +52,7 @@ webRecorder:
   maxSessions: 2
   heartbeatSeconds: 5
   workerTtlSeconds: 20
+  healthFile: /tmp/atp-web-recorder.ready
   resources:
     requests: {cpu: 500m, memory: 1Gi}
     limits: {cpu: 2000m, memory: 3Gi}

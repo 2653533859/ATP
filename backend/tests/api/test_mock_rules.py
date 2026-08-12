@@ -5,6 +5,7 @@ from pathlib import Path
 
 import pytest
 from fastapi import HTTPException
+from pydantic import ValidationError
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -88,6 +89,42 @@ def test_mock_rule_update_normalizes_path():
     body = MockRuleUpdate(path="health/check")
 
     assert body.path == "/health/check"
+
+
+def test_mock_conditions_accept_supported_operators():
+    body = MockRuleCreate(
+        name="conditional",
+        project_id=1,
+        method=MockMethod.GET,
+        path="/health",
+        match_conditions={
+            "query": {"scene": {"$in": ["success", "pending"]}},
+            "headers": {"x-request-id": {"$contains": "test-"}},
+            "body": {"token": {"$exists": True}},
+        },
+    )
+
+    assert body.match_conditions.query["scene"] == {"$in": ["success", "pending"]}
+
+
+@pytest.mark.parametrize(
+    "match_conditions",
+    [
+        {"query": {"scene": {"$unknown": "success"}}},
+        {"query": {"scene": {"$exists": "yes"}}},
+        {"query": {"scene": {"$contains": ["success"]}}},
+        {"query": {"scene": {"$in": [{"nested": True}]}}},
+    ],
+)
+def test_mock_conditions_reject_unsupported_operator_shapes(match_conditions):
+    with pytest.raises(ValidationError):
+        MockRuleCreate(
+            name="invalid-conditional",
+            project_id=1,
+            method=MockMethod.GET,
+            path="/health",
+            match_conditions=match_conditions,
+        )
 
 
 def test_create_mock_rule_returns_404_for_missing_project():

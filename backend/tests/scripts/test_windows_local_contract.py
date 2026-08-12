@@ -202,6 +202,11 @@ def test_windows_local_smoke_covers_live_and_browser_paths_without_secrets():
     assert "atp_access_token" in script
     assert "WebRequestSession" in script
     assert "'/projects'" in script
+    assert "/web-recordings/workers" in script
+    assert "Invoke-WebRecordingWorkerCheck" in script
+    assert "Web recording Worker status" in script
+    assert "registered_count" in script
+    assert "available_count" in script
     assert "/web-files" in script
     assert "/storage/cleanup-execute" in script
     assert "export/html" in script

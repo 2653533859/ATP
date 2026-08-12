@@ -29,3 +29,15 @@ def test_dataset_versions_migration_downgrade_drops_table():
 
     assert 'op.drop_index("ix_test_dataset_versions_dataset_id"' in content
     assert 'op.drop_table("test_dataset_versions")' in content
+
+
+def test_dataset_minio_storage_migration_adds_references_and_counts():
+    migration = ROOT / "alembic" / "versions" / "20260812_0055_add_dataset_minio_storage.py"
+    content = migration.read_text(encoding="utf-8")
+
+    assert 'revision = "20260812_0055"' in content
+    assert 'down_revision = "20260811_0054"' in content
+    assert 'sa.Column("storage_mode"' in content
+    assert 'sa.Column("object_name"' in content
+    assert 'sa.Column("row_count"' in content
+    assert "json_array_length(rows)" in content

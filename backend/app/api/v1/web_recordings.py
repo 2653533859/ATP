@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import asyncio
 import contextlib
+import hashlib
 import logging
 import os
 import sys
@@ -32,7 +33,11 @@ from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.models.web_assets import WebElementAsset
 from app.services.web_network_guard import guard_browser_request
-from app.services.web_recording_transport import RemoteWebRecordingManager, WebRecordingTransportError
+from app.services.web_recording_transport import (
+    RemoteWebRecordingManager,
+    WebRecordingTransportError,
+    list_recording_workers,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -424,6 +429,60 @@ async def _persist_recorded_assets(db: AsyncSession, session: WebRecordingSessio
     await db.commit()
     session.asset_ids = [asset.id for asset in selector_to_asset.values() if asset.id is not None]
     session.assets_persisted = True
+
+
+def _recording_worker_status(worker: dict[str, Any]) -> dict[str, Any] | None:
+    worker_id = str(worker.get("worker_id") or "").strip()
+    if not worker_id:
+        return None
+    try:
+        active_sessions = max(0, int(worker.get("active_sessions", 0)))
+        capacity = max(1, int(worker.get("capacity", 1)))
+    except (TypeError, ValueError):
+        active_sessions = 0
+        capacity = 1
+    updated_at = worker.get("updated_at")
+    try:
+        updated_at = float(updated_at) if updated_at is not None else None
+    except (TypeError, ValueError):
+        updated_at = None
+    return {
+        "worker_id": f"worker-{hashlib.sha256(worker_id.encode('utf-8')).hexdigest()[:12]}",
+        "active_sessions": active_sessions,
+        "capacity": capacity,
+        "available": active_sessions < capacity,
+        "updated_at": updated_at,
+    }
+
+
+@router.get("/workers")
+async def get_recording_workers(user: User = Depends(get_current_user)):
+    """Return a safe health summary so the UI can preflight Web recording."""
+    del user  # Authentication is required; worker metadata is intentionally not user-specific.
+    configured_mode = settings.WEB_RECORDER_MODE.strip().lower()
+    mode = "worker" if configured_mode == "worker" else "local"
+    if mode != "worker":
+        return {
+            "mode": mode,
+            "ready": True,
+            "workers": [],
+            "registered_count": 0,
+            "available_count": 0,
+        }
+    try:
+        workers = [
+            status for item in await list_recording_workers() if (status := _recording_worker_status(item)) is not None
+        ]
+    except WebRecordingTransportError as exc:
+        raise _recording_http_error(exc) from exc
+    available_count = sum(1 for worker in workers if worker["available"])
+    return {
+        "mode": "worker",
+        "ready": available_count > 0,
+        "workers": workers,
+        "registered_count": len(workers),
+        "available_count": available_count,
+    }
 
 
 @router.post("")

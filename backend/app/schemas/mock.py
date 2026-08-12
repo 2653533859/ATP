@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -15,9 +16,39 @@ def _normalize_path(path: str | None) -> str | None:
 
 
 class MockMatchConditions(BaseModel):
-    query: dict[str, str] = Field(default_factory=dict)
-    headers: dict[str, str] = Field(default_factory=dict)
-    body: dict[str, str] = Field(default_factory=dict)
+    query: dict[str, Any] = Field(default_factory=dict)
+    headers: dict[str, Any] = Field(default_factory=dict)
+    body: dict[str, Any] = Field(default_factory=dict)
+
+    @field_validator("query", "headers", "body")
+    @classmethod
+    def validate_condition_values(cls, value: dict[str, Any]) -> dict[str, Any]:
+        if len(value) > 50:
+            raise ValueError("a condition group cannot contain more than 50 fields")
+
+        for field_name, condition in value.items():
+            if not field_name.strip():
+                raise ValueError("condition field names cannot be empty")
+            if isinstance(condition, dict):
+                if len(condition) != 1:
+                    raise ValueError("a condition operator object must contain exactly one operator")
+                operator, operand = next(iter(condition.items()))
+                if operator == "$exists":
+                    if not isinstance(operand, bool):
+                        raise ValueError("$exists expects a boolean")
+                elif operator == "$contains":
+                    if not isinstance(operand, str) or len(operand) > 512:
+                        raise ValueError("$contains expects a string of at most 512 characters")
+                elif operator == "$in":
+                    if not isinstance(operand, list) or len(operand) > 20:
+                        raise ValueError("$in expects a list with at most 20 scalar values")
+                    if any(isinstance(item, (dict, list)) for item in operand):
+                        raise ValueError("$in values must be scalar values")
+                else:
+                    raise ValueError("unsupported condition operator")
+            elif not isinstance(condition, (str, int, float, bool)) and condition is not None:
+                raise ValueError("condition values must be scalar values or supported operators")
+        return value
 
 
 class MockRuleCreate(BaseModel):

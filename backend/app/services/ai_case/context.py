@@ -6,6 +6,8 @@ import json
 import re
 from typing import Any
 
+from app.services.dataset_storage import rows_from_source
+
 
 _SENSITIVE_KEY = re.compile(
     r"(?:password|passwd|secret|token|api[_-]?key|authorization|cookie|credential|private[_-]?key|access[_-]?key|refresh[_-]?token|session)",
@@ -50,14 +52,15 @@ def build_dataset_context(dataset: Any, *, snapshot: Any | None = None) -> dict[
                 "default": redact_context(field.get("default"), key=field.get("name")),
             }
         )
-    rows = [redact_context(row) for row in (getattr(source, "rows", None) or [])[:_MAX_DATASET_SAMPLES]]
+    source_rows = rows_from_source(source)
+    rows = [redact_context(row) for row in source_rows[:_MAX_DATASET_SAMPLES]]
     context = {
         "id": dataset.id,
         "name": dataset.name,
         "description": dataset.description,
         "format": source.format,
         "validation_policy": getattr(source, "validation_policy", "soft") or "soft",
-        "row_count": len(getattr(source, "rows", None) or []),
+        "row_count": len(source_rows),
         "schema_fields": schema_fields,
         "sample_rows": rows,
     }

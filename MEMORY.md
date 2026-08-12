@@ -1,5 +1,88 @@
 # MEMORY
 
+## 2026-08-12 本轮开发收口
+
+- 完成 Mock 条件匹配与多规则确定性优先级；数据集准备动作增加公网 URL/DNS 安全校验，显式拒绝非数组配置。
+- 完成 MinIO 数据集元数据响应、存储表格行模型和项目导入导出存储模式支持；大数据集按 50MB 校验并在导入失败时清理已上传对象。
+- 最终验证：非集成后端 `1967 passed`；前端 `45 files / 188 tests passed`；type-check、build、Ruff、格式检查和 `git diff --check` 通过。
+
+## 2026-08-12 Mock 条件响应增强
+
+- `MockMatchConditions` 现在支持历史精确值以及 `$exists`、`$contains`、`$in` 三种受控操作符，Query/Header/Body 均可使用；条件组最多 50 个字段，`$in` 最多 20 个标量值。
+- 未知操作符、多个操作符、复杂嵌套值和超长 `$contains` 会在创建/编辑/导入边界拒绝；运行时对遗留异常 JSON 安全返回不匹配，不执行表达式或正则。
+- 多条规则命中时按 HTTP 方法精确匹配、路径静态段、占位符数量、条件字段数量、规则 ID 的顺序确定优先级；规则变更继续复用项目级缓存失效，避免旧通用规则抢先命中。
+- 数据集准备请求现在使用 `validate_public_http_url` 在请求前解析并限制公网 HTTP(S) 地址，拒绝本机/内网/链路本地/保留地址；非列表动作配置会失败而不是空跑。
+- MinIO 数据集元数据更新会回读当前对象并在响应中返回 rows；存储治理页面把孤儿对象名称映射为 `object_name` 行，避免表格显示空白。
+- Mock 页面类型、操作符说明和中英文提示已同步；Mock 服务、规则 API、回归测试定向 `34 passed`，完整非集成后端 `1967 passed`，前端 Mock 页面 `5 passed`、全量前端 `45 files / 188 tests passed`、type-check/build、Ruff 与差异检查通过。
+
+## 2026-08-12 存储容量告警入口
+
+- `StorageManagementView` 已接入既有 `storageApi.getAlert()`，在容量正常/告警状态条中展示当前占用 GB、阈值和触发时间，支持单独刷新。
+- 告警 API 失败只显示错误提示，不影响统计、清理策略、数据集对象核对和孤儿清理；新增中英文文案和页面回归。
+- 存储页面定向测试 `8 passed`，前端全量 `45 files / 185 tests passed`，type-check 通过；Android 真机仍按当前安排暂缓。
+
+## 2026-08-12 测试套件并行会话隔离
+
+- `backend/app/worker/tasks.py` 的并行套件现在为每个子用例创建独立 `AsyncSession`，修复多个并发用例共享数据库会话可能导致的事务交叉；顺序套件仍沿用父会话。
+- 套件配置/执行链回归 `43 passed`，Ruff 通过；Android 真机连接仍暂缓。
+
+## 2026-08-12 API 登录态复用与并行套件边界
+
+- `backend/app/api/v1/suites.py` 创建/编辑套件时检查 API 用例的 `session_lifecycle`；并行套件拒绝开启项目 Cookie 登录态复用的用例，串行套件仍允许按用例选择复用。
+- `frontend/src/views/suite/SuiteList.vue` 保存失败会显示 Axios/FastAPI 返回的具体 `detail`；后端套件校验 `20 passed`、SuiteList `6 passed`、type-check/Ruff 通过。
+
+## 2026-08-12 MinIO 数据集对象生命周期治理
+
+- `backend/app/services/dataset_storage.py` 新增项目范围对象核对：扫描 `datasets/{project_id}/`，比较 MinIO 清单与数据库保存的当前/版本对象引用；默认 dry-run，`purge=True` 才删除孤儿对象。
+- `POST /api/v1/projects/{project_id}/datasets/storage/reconcile` 仅管理员可调用；响应包含扫描、引用、孤儿、删除、截断和逐项错误信息，删除失败不会影响仍被引用的对象。
+- MinIO 更新/上传/回滚在已有当前对象时使用唯一的新对象名，数据库提交成功后才清理旧引用；快照或提交失败会清理本次新对象，保留旧对象可读。
+- 每次核对/清理写入 `dataset_storage_reconcile` 审计事件；对象名严格限制在当前项目前缀内，不暴露对象内容或凭据。真实 MinIO 备份恢复、提交失败补偿和定期治理任务仍待环境验收。
+- 本轮对象服务/API 回归已通过 `33 passed`；完整后端 `1944 passed`、独立扫描 `264 passed, 0 failed`、前端 `45 files / 183 tests passed`、type-check/build 通过。
+
+## 2026-08-12 执行记录清理预览一致性
+
+- `backend/app/services/run_retention.py` 的 `preview_old_runs` 支持 `project_id` / `exclude_project_ids`，通过与实际删除相同的四类运行 ID 查询生成统计。
+- `preview_old_runs_by_project` 的全局统计会排除所有 retention override 项目；因此项目级统计和全局兜底不会重复，前端提示已同步。
+- 执行完成结果中的 `projects` 明细现在在 `RunRetentionView.vue` 展示各项目四类运行记录和已删除对象数，便于核对实际清理结果。
+- 定向服务/API 回归 `18 passed`；真实生产保留策略仍需结合备份、审计和发布 Runbook 验收。
+
+## 2026-08-12 性能 Run 通知闭环
+
+- `backend/app/worker/tasks_performance.py` 新增统一的提前终止收口 helper；测试定义缺失、执行器未启用、节点不匹配/不可用/不支持执行器、容量不足和启动前取消，都会在落库后进入 `_notify_performance_run`。
+- 性能通知仍由项目级 `NotificationConfig` 按 `scope`/`status_filters` 过滤；正文现在按中英文展示 RPS、P95/P99、错误率、阈值状态和触发原因。通知失败只记录 Worker 日志，不影响 Run 已保存的终态。缺失测试和启动前取消已补通知回归。
+- 性能 Worker/通知定向回归 `14 passed`；外部 SMTP、企业微信、钉钉真实渠道联调仍需目标环境验收。
+
+## 2026-08-12 Q18 发布就绪清单补强
+
+- `docs/q9-release-checklist.md` 已升级为 Q18 扩展版：覆盖率门禁同步为 82%，并加入 MinIO reconciliation、run retention、性能通知、Windows Android、Linux/Kubernetes 性能、Web/iOS 外部验收要求。
+- `docs/q9-release-evidence.md` 增加本地门禁快照（后端 `1944 passed`、独立 `264 passed`、前端 `45 files / 183 tests`）和外部证据清单；这些结果不替代真实目标环境验收。
+- 发布/灾备文档契约回归 `23 passed`；真实 staging、备份恢复和外部 Worker/通知渠道仍未关闭。
+
+## 2026-08-12 运行级数据准备 Hook
+
+- 新增 `backend/app/services/dataset_preparation.py`，以受限 DSL 执行数据准备：`set_variable`、`delete_variable`、`assert` 和 HTTP `request`；request 支持变量渲染、JSON/raw body、状态/响应断言以及 `post_actions` 提取变量，限制最多 20 个动作、单请求 60 秒、响应 1MB，拒绝 Python/JavaScript。
+- `backend/app/worker/tasks.py` 的参数化执行会在创建 child run 前执行一次 `config.dataset_prepare_actions`。准备结果只作用于本次运行，提取变量共享给所有行，行数据覆盖同名变量；失败会停止创建 child run，并把无请求体的摘要写入 parent `result_summary`。
+- CaseFormDrawer 已在关联数据集的 API 用例配置中提供 JSON 入口；操作说明已同步到 `docs/dataset-v2.md` 与 `docs/user-operation-manual.md`。服务/Worker 定向回归 `16 passed`；真实 seed 服务、MinIO 集群大数据量和对象生命周期仍需环境验收。
+- 发现并修复 MinIO 上传/预览入口误用数据库 500 行限制的问题；现在按数据集当前存储模式校验，501 行 MinIO 上传与预览回归已通过。
+
+## 2026-08-12 后续开发路线同步
+
+- 后续开发顺序已统一记录到 `docs/next-development-plan-2026-08-12.md`：Windows 真实 Android 设备验收 → Linux/Kubernetes 性能栈 → Web 专用 Worker → macOS/iOS/Appium → 产品化收口。
+- 当前先实现 Windows ADB 设备验收入口；`scripts/windows-android-acceptance.ps1` 已通过脚本契约和 PowerShell 解析检查。本机实际执行因无授权在线设备而失败，不能把 Worker 在线、API 健康或旧设备列表当成 Android 真机验收证据。
+- Linux/Kubernetes 性能栈下一步已补充 Prometheus readiness/PromQL 验收入口：`scripts/performance-environment-smoke.py --prometheus-url ...` 会验证 `/-/ready` 和 `/api/v1/query`，拒绝带凭据或查询参数的 Prometheus URL；真实集群证据仍需目标环境产生。
+- Web 专用 Worker 已补充 `WEB_RECORDER_HEALTH_FILE`：只有 Redis 注册/心跳成功才更新时间，Compose/Helm 探针据此判断录制 Worker 是否真正可用；Docker 容器和 Linux/Xvfb 跨副本仍需目标环境验收。
+- `frontend/tools/browser-matrix-smoke.mjs` 已支持显式 artifact 目录，按浏览器输出 Trace/HAR、Console、失败请求和 HTTP 错误摘要；报告 URL 去除查询参数，默认仍只输出轻量 JSON。
+- Windows 本机三浏览器矩阵真实通过，汇总证据为 `docs/evidence/web-browser-matrix-local-smoke-2026-08-12.json`；Linux/Xvfb Worker 和跨副本路由仍未宣称完成。
+- iOS/Appium 已新增 `scripts/ios-appium-acceptance.py` 与 `docs/ios-appium-acceptance.md`：默认只验 Appium `/status`，`--session-smoke` 才创建/销毁 XCUITest 会话，可选执行步骤并生成截图/录屏/syslog 哈希证据；相关脚本、Worker、路由、任务和租约回归共 `90 passed`，真实 macOS/Xcode/WDA/设备环境仍待验收。
+
+## 2026-08-12 大型测试数据集 MinIO 引用模式
+
+- 测试数据集现在支持 `database` / `minio`：数据库模式保持 500 行 / 256KB 限制，MinIO 模式允许最多 50MB JSON，数据库只保存对象引用和行数。
+- `backend/app/services/dataset_storage.py` 是统一读写边界；用例参数化、性能数据集、AI 样例、项目导出和 Dataset Library CRUD/版本回滚均可解析 MinIO 引用。
+- 项目导入导出快照新增 `storage_mode`；MinIO rows 可超过 500 行并按 50MB 对象上限传输，导入时上传到目标项目对象前缀，事务失败会按数据集前缀清理已上传对象。
+- migration `20260812_0055_add_dataset_minio_storage.py` 已加入 `test_datasets` 与 `test_dataset_versions` 的存储元数据；真实 MinIO 大数据量、对象生命周期和数据准备 Hook 仍未验收。
+- 本轮完整非集成后端回归 `1944 passed`，264 个测试文件独立运行 `264 passed, 0 failed`；前端全量 `45 files / 183 tests passed`，type-check/build 通过。
+
 ## 2026-08-12 Windows Android SDK/ADB 路径发现
 
 - `scripts/windows-process-env.ps1` 的统一工具路径发现现在支持 `ATP_ADB_HOME`、`ANDROID_HOME`/`ANDROID_SDK_ROOT`、`%LOCALAPPDATA%\Android\Sdk\platform-tools` 和 `%LOCALAPPDATA%\ATP\tools\platform-tools`；路径只注入当前启动进程及子 Worker，不修改系统 PATH。
@@ -128,6 +211,15 @@
 - 新增 `backend/tests/services/test_web_recording_transport.py` 的多 Worker fallback、超时不重试和启动响应异常清理回归，录制传输层测试 `13 passed`；真实 Linux 多副本/Xvfb/Firefox/WebKit 仍待环境验收。
 - Worker 启动返回成功但缺少有效快照时，API 会发送停止命令清理可能已创建的浏览器会话，避免残留会话占满 Worker 容量。
 - `WebRecorderModal` 停止接口失败时不再自动导入停止前的步骤或关闭弹窗；新增组件回归覆盖失败状态，前端全量为 `44 files / 177 tests passed`，type-check/build 通过。
+
+## 2026-08-12 Web 录制 Worker 状态预检
+- 新增 `GET /api/v1/web-recordings/workers`，只返回认证用户可见的脱敏状态：模式、不可逆 Worker 编号摘要、活动会话数、容量和可用数，不返回原始 Worker ID、主机名或进程号。
+- `WebRecorderModal` 打开时会预检 Worker 状态：`local` 模式明确提示 API 进程本地录制；`worker` 模式展示注册/可用容量，全部 Worker 满载或未注册时禁用开始按钮，并支持手工刷新。
+- 回归：Web 录制 API/传输定向 `36 passed`，`WebRecorderModal` `3 passed`，前端 type-check/build 通过。Linux/Xvfb、真实 Firefox/WebKit 和跨副本 E2E 仍待外部环境验收。
+
+## 2026-08-12 Windows Web 录制状态冒烟预检
+- `scripts/windows-local-smoke.ps1` 登录后调用 `/api/v1/web-recordings/workers`，local 模式验证 API 本地录制 ready，worker 模式验证注册节点和空闲容量；worker 模式无可用节点时必需检查失败。
+- 报告只记录 mode/registered/available 摘要，PowerShell 解析和脚本契约 `10 passed`；未执行 Android 真机验收，也未把 Linux/Xvfb 或真实多副本结果写成通过。
 
 ## API gRPC 流式调用（2026-08-12）
 - API gRPC 执行器现根据 Proto 方法声明支持 Unary、Server Streaming、Client Streaming 和 Bidi Streaming；客户端流式请求使用非空 JSON 数组，服务端流式响应以 JSON 数组进入统一 body、提取和断言流程。
@@ -402,3 +494,5 @@
 - `b7f7698`: mirror/auth + clear/upload regressions.
 - `c6df8fc`: latest feature repairs and task doc updates.
 - 2026-08-11 覆盖率收口：补充 `ProjectList`、`UserManagementView`、`AccountSettingsView` 组件级行为回归，覆盖项目导入成功后的弹窗清理、用户新增/编辑及八位密码校验、个人资料保存与错误提示；前端全量 `40 files / 157 tests passed`，覆盖率 statements/branches/functions/lines 达到 `31.54% / 26.53% / 24.73% / 32.76%`，超过现有 `31.5 / 26.5 / 24.5 / 32.5` 门禁；type-check 和生产构建通过。
+- 2026-08-12 Android 真机工作顺序调整：当前先不连接真实 Android 设备，ADB/Worker 真实验收保持 pending；继续开发不依赖真机的 API、Web、性能、数据集和发布闭环，不把无设备状态写成通过。
+- 2026-08-12 存储治理 UI：`StorageManagementView` 增加项目下拉选择、MinIO 数据集对象 dry-run 核对、孤儿对象明细/截断/错误展示，以及仅允许基于当前核对结果发起的二次确认 `purge=true` 清理；新增 API 类型和中英文文案，页面回归 `7 passed`，type-check 通过。

@@ -264,6 +264,22 @@ export interface WebRecordingItem {
   error?: string | null
 }
 
+export interface WebRecordingWorkerStatus {
+  worker_id: string
+  active_sessions: number
+  capacity: number
+  available: boolean
+  updated_at?: number | null
+}
+
+export interface WebRecordingWorkersResponse {
+  mode: string
+  ready: boolean
+  workers: WebRecordingWorkerStatus[]
+  registered_count: number
+  available_count: number
+}
+
 export interface CaseRunStartResponse {
   id: number
 }
@@ -515,6 +531,18 @@ export interface RunRetentionExecuteResult {
   test_runs: number
   mobile_runs: number
   deleted_objects: number
+  projects: RunRetentionProjectCleanup[]
+}
+
+export interface RunRetentionProjectCleanup {
+  project_id: number
+  project_name: string
+  retention_days: number
+  plan_runs: number
+  suite_runs: number
+  test_runs: number
+  mobile_runs: number
+  deleted_objects: number
 }
 
 export interface RunRetentionPerProjectPreview {
@@ -538,7 +566,7 @@ export interface MockRuleItem {
   status_code: number
   response_headers: Record<string, string>
   response_body: string | null
-  match_conditions: Record<string, Record<string, string>>
+  match_conditions: Record<string, Record<string, unknown>>
   delay_ms: number
   is_enabled: boolean
   render_template: boolean
@@ -557,7 +585,7 @@ export interface MockAIGeneratedRule {
   status_code: number
   response_headers: Record<string, string>
   response_body: string | null
-  match_conditions: Record<string, Record<string, string>>
+  match_conditions: Record<string, Record<string, unknown>>
   delay_ms: number
   is_enabled: boolean
   render_template: boolean
@@ -742,6 +770,18 @@ export interface StorageCleanupExecuteItem {
   deleted_objects: string[]
   skipped_objects: string[]
   repaired_references: StorageReferenceItem[]
+}
+
+export interface StorageDatasetReconcileItem {
+  project_id: number
+  dry_run: boolean
+  scanned_count: number
+  referenced_count: number
+  orphan_count: number
+  orphaned_objects: string[]
+  truncated: boolean
+  deleted_count: number
+  errors: string[]
 }
 
 export interface StoragePolicyItem {
@@ -1147,6 +1187,7 @@ export const scriptApi = {
 }
 
 export const webRecordingApi = {
+  workers: () => http.get<unknown, WebRecordingWorkersResponse>('/web-recordings/workers'),
   start: (data: { start_url: string; project_id: number; browser?: 'chromium' | 'firefox' | 'webkit'; viewport_width?: number; viewport_height?: number }) =>
     http.post<unknown, WebRecordingItem>('/web-recordings', data),
   get: (id: string) => http.get<unknown, WebRecordingItem>(`/web-recordings/${id}`),
@@ -1380,6 +1421,8 @@ export const storageApi = {
     http.post<unknown, StorageCleanupPreviewItem>('/storage/cleanup-preview', data ?? {}),
   executeCleanup: (data: { object_names: string[]; repair_orphan_references?: boolean }) =>
     http.post<unknown, StorageCleanupExecuteItem>('/storage/cleanup-execute', data),
+  reconcileDatasetStorage: (projectId: number, purge = false) =>
+    http.post<unknown, StorageDatasetReconcileItem>(`/projects/${projectId}/datasets/storage/reconcile`, { purge }),
   listPolicies: () => http.get<unknown, StoragePolicyItem[]>('/storage/policies'),
   createPolicy: (data: StoragePolicyPayload) =>
     http.post<unknown, StoragePolicyItem>('/storage/policies', data),
@@ -2073,6 +2116,7 @@ export const webVisualApi = {
 // ─── P3.B 测试数据集 ───────────────────────────────────────
 export type DatasetFormat = 'csv' | 'json'
 export type DatasetValidationPolicy = 'soft' | 'hard'
+export type DatasetStorageMode = 'database' | 'minio'
 
 export interface DatasetListItem {
   id: number
@@ -2080,6 +2124,7 @@ export interface DatasetListItem {
   description: string | null
   project_id: number
   format: DatasetFormat
+  storage_mode?: DatasetStorageMode
   row_count: number
   schema_field_count: number
   validation_policy: DatasetValidationPolicy
@@ -2094,6 +2139,8 @@ export interface DatasetDetail {
   description: string | null
   project_id: number
   format: DatasetFormat
+  storage_mode?: DatasetStorageMode
+  row_count: number
   rows: Record<string, unknown>[]
   schema_fields: DatasetSchemaField[]
   validation_policy: DatasetValidationPolicy
@@ -2131,6 +2178,7 @@ export interface DatasetVersionItem {
   dataset_id: number
   version: number
   format: DatasetFormat
+  storage_mode?: DatasetStorageMode
   row_count: number
   schema_field_count: number
   validation_policy: DatasetValidationPolicy
@@ -2165,9 +2213,9 @@ export const datasetApi = {
   list: (projectId: number) =>
     http.get<unknown, DatasetListItem[]>(`/projects/${projectId}/datasets`),
   get: (id: number) => http.get<unknown, DatasetDetail>(`/datasets/${id}`),
-  create: (body: { name: string; project_id: number; description?: string; format?: DatasetFormat; rows?: Record<string, unknown>[]; schema_fields?: DatasetSchemaField[]; validation_policy?: DatasetValidationPolicy }) =>
+  create: (body: { name: string; project_id: number; description?: string; format?: DatasetFormat; storage_mode?: DatasetStorageMode; rows?: Record<string, unknown>[]; schema_fields?: DatasetSchemaField[]; validation_policy?: DatasetValidationPolicy }) =>
     http.post<unknown, DatasetDetail>('/datasets', body),
-  update: (id: number, body: { name?: string; description?: string; rows?: Record<string, unknown>[]; schema_fields?: DatasetSchemaField[]; validation_policy?: DatasetValidationPolicy }) =>
+  update: (id: number, body: { name?: string; description?: string; storage_mode?: DatasetStorageMode; rows?: Record<string, unknown>[]; schema_fields?: DatasetSchemaField[]; validation_policy?: DatasetValidationPolicy }) =>
     http.patch<unknown, DatasetDetail>(`/datasets/${id}`, body),
   delete: (id: number) => http.delete<unknown, void>(`/datasets/${id}`),
   getImpact: (id: number) => http.get<unknown, DatasetImpact>(`/datasets/${id}/impact`),

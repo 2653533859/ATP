@@ -232,6 +232,12 @@ async def _mark_flaky_case_results(db, case_run_results: list[dict]) -> None:
         result["flaky_failure_rate"] = round(failure_runs / item["total"] * 100, 1) if item["total"] else 0.0
 
 
+def _new_parallel_session():
+    from app.core.database import AsyncSessionLocal
+
+    return AsyncSessionLocal()
+
+
 async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict, *, execution_queue: str = "default"):
     from app.models.case import TestCase
     from app.models.suite import SuiteRunStatus
@@ -260,12 +266,12 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict, *, execut
         case_id for case_id, queue in case_queue_by_id.items() if queue != "default" and queue != execution_queue
     }
 
-    async def run_one(item: dict) -> dict:
+    async def execute_case_on_db(case_db, item: dict) -> dict:
         case_id = item.get("case_id")
         if not case_id:
             return {"ignored": True}
 
-        case = await db.get(TestCase, case_id)
+        case = await case_db.get(TestCase, case_id)
         if not case:
             return {
                 "case_id": case_id,
@@ -275,8 +281,17 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict, *, execut
             }
 
         if case.id in remote_case_ids:
-            return await _execute_case_run(db, suite_run, case, extra_vars, route_to_worker=True)
-        return await _execute_case_run(db, suite_run, case, extra_vars)
+            return await _execute_case_run(case_db, suite_run, case, extra_vars, route_to_worker=True)
+        return await _execute_case_run(case_db, suite_run, case, extra_vars)
+
+    async def run_one(item: dict) -> dict:
+        # AsyncSession is not safe for concurrent use. Parallel suites get one
+        # session per child; lightweight unit-test fakes without run_sync keep
+        # using the injected fake DB path.
+        if suite_config["execution_mode"] == "parallel" and hasattr(db, "run_sync"):
+            async with _new_parallel_session() as case_db:
+                return await execute_case_on_db(case_db, item)
+        return await execute_case_on_db(db, item)
 
     async def consume_result(result: dict) -> bool:
         if result.get("ignored"):
@@ -473,8 +488,37 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
             await _safe_invalidate_stats_cache()
             return
 
-    rows = list(dataset_source.rows or []) if dataset_source else []
+    from app.services.dataset_preparation import DatasetPreparationError, execute_dataset_preparation
+    from app.services.dataset_storage import rows_from_source
+
+    rows = rows_from_source(dataset_source)
     case_config = getattr(case, "config", None) or {}
+    prepared_vars = dict(extra_vars or {})
+    preparation_actions = case_config.get("dataset_prepare_actions")
+    preparation_summary: dict | None = None
+    if preparation_actions is not None:
+        try:
+            action_summaries = await execute_dataset_preparation(preparation_actions, prepared_vars)
+            preparation_summary = {
+                "status": "passed",
+                "action_count": len(action_summaries),
+                "actions": action_summaries,
+            }
+        except DatasetPreparationError as exc:
+            parent_run.status = RunStatus.error
+            parent_run.error_message = str(exc)
+            parent_run.result_summary = {
+                **(parent_run.result_summary or {}),
+                "dataset_preparation": {"status": "failed", "error": str(exc)[:500]},
+            }
+            await db.commit()
+            _record_run_outcome("case", parent_run.status)
+            await _safe_publish_run_event(
+                parent_run.id,
+                {"type": "completed", "run_id": parent_run.id, "status": "error"},
+            )
+            await _safe_invalidate_stats_cache()
+            return
     try:
         rows = build_dataset_iterations(
             rows,
@@ -503,8 +547,13 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
     if not rows:
         # 数据集空 → 直接降级为单次执行（保留旧行为，避免空入参）
         parent_run.status = RunStatus.running
+        if preparation_summary is not None:
+            parent_run.result_summary = {
+                **(parent_run.result_summary or {}),
+                "dataset_preparation": preparation_summary,
+            }
         await db.commit()
-        await dispatch_case(db, parent_run, case, extra_vars)
+        await dispatch_case(db, parent_run, case, prepared_vars)
         await db.refresh(parent_run)
         _record_run_outcome("case", parent_run.status)
         await _safe_invalidate_stats_cache()
@@ -562,6 +611,8 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
         "dataset_schema_issue_count": len(validation.issues),
         "dataset_strict_schema": strict_schema,
     }
+    if preparation_summary is not None:
+        parent_run.result_summary["dataset_preparation"] = preparation_summary
     await db.commit()
     await _safe_publish_run_event(
         parent_run.id,
@@ -592,7 +643,7 @@ async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None
         await db.commit()
         await db.refresh(child)
 
-        merged_vars = {**(extra_vars or {}), **raw_iteration_data}
+        merged_vars = {**prepared_vars, **raw_iteration_data}
         try:
             await dispatch_case(db, child, case, merged_vars)
             await db.refresh(child)

@@ -8,6 +8,9 @@ const {
   storageStats,
   storagePreview,
   storageExecute,
+  storageReconcile,
+  storageAlert,
+  projectList,
   policyList,
   policyCreate,
   policyUpdate,
@@ -20,6 +23,9 @@ const {
   storageStats: vi.fn(),
   storagePreview: vi.fn(),
   storageExecute: vi.fn(),
+  storageReconcile: vi.fn(),
+  storageAlert: vi.fn(),
+  projectList: vi.fn(),
   policyList: vi.fn(),
   policyCreate: vi.fn(),
   policyUpdate: vi.fn(),
@@ -36,10 +42,15 @@ vi.mock('ant-design-vue', () => ({
   Modal: { confirm: modalConfirm },
 }))
 vi.mock('@/api', () => ({
+  projectApi: {
+    list: projectList,
+  },
   storageApi: {
     stats: storageStats,
     previewCleanup: storagePreview,
     executeCleanup: storageExecute,
+    reconcileDatasetStorage: storageReconcile,
+    getAlert: storageAlert,
     listPolicies: policyList,
     createPolicy: policyCreate,
     updatePolicy: policyUpdate,
@@ -81,6 +92,7 @@ function mountPage() {
         AInputNumber: passthrough('AInputNumber'),
         APopconfirm: popconfirmStub,
         ARow: passthrough('ARow'),
+        ASelect: passthrough('ASelect'),
         ASpace: passthrough('ASpace'),
         ASwitch: passthrough('ASwitch'),
         ATable: passthrough('ATable'),
@@ -116,6 +128,19 @@ beforeEach(() => {
   policyList.mockResolvedValue(POLICIES)
   storagePreview.mockResolvedValue(PREVIEW)
   storageExecute.mockResolvedValue({ requested_count: 1, deleted_count: 1, skipped_referenced_count: 0, missing_count: 0, repaired_reference_count: 1 })
+  storageReconcile.mockResolvedValue({
+    project_id: 1,
+    dry_run: true,
+    scanned_count: 5,
+    referenced_count: 3,
+    orphan_count: 2,
+    orphaned_objects: ['datasets/1/orphan-a.json', 'datasets/1/orphan-b.json'],
+    truncated: false,
+    deleted_count: 0,
+    errors: [],
+  })
+  storageAlert.mockResolvedValue({ alert: null })
+  projectList.mockResolvedValue([{ id: 1, name: 'ATP Demo' }])
   policyCreate.mockResolvedValue({ id: 4 })
   policyUpdate.mockResolvedValue({})
   policyDelete.mockResolvedValue({})
@@ -131,6 +156,10 @@ describe('StorageManagementView mount', () => {
     expect(policyList).toHaveBeenCalledOnce()
     expect(vm.stats.bucket).toBe('atp')
     expect(vm.selectedPrefixes).toEqual(['reports/'])
+    expect(projectList).toHaveBeenCalledOnce()
+    expect(vm.datasetProjectId).toBe(1)
+    expect(storageAlert).toHaveBeenCalledOnce()
+    expect(vm.storageAlert).toBeNull()
   })
 
   it('generates a cleanup preview with the selected scope', async () => {
@@ -164,6 +193,67 @@ describe('StorageManagementView mount', () => {
     expect(messageSuccess).toHaveBeenCalledWith('system_pages.storage.msg.execute_success')
     expect(storageStats).toHaveBeenCalledTimes(2)
     expect(storagePreview).toHaveBeenCalledTimes(1)
+  })
+
+  it('reconciles the selected project before allowing orphan purge', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.datasetProjectId = 1
+    vm.runDatasetReconcile()
+    await flushPromises()
+
+    expect(storageReconcile).toHaveBeenCalledWith(1, false)
+    expect(vm.datasetReconcile.orphan_count).toBe(2)
+    expect(vm.datasetObjectRows).toEqual([
+      { object_name: 'datasets/1/orphan-a.json' },
+      { object_name: 'datasets/1/orphan-b.json' },
+    ])
+
+    vm.runDatasetReconcile(true)
+    expect(modalConfirm).toHaveBeenCalledOnce()
+    await modalConfirm.mock.calls[0][0].onOk()
+
+    expect(storageReconcile).toHaveBeenLastCalledWith(1, true)
+    expect(messageSuccess).toHaveBeenCalledWith('system_pages.storage.msg.dataset_purge_success')
+  })
+
+  it('loads and displays the current storage capacity alert', async () => {
+    storageAlert.mockResolvedValueOnce({
+      alert: {
+        bucket: 'atp',
+        total_bytes: 3 * 1024 * 1024 * 1024,
+        total_gb: 3,
+        threshold_gb: 2,
+        triggered_at: '2026-08-12T08:00:00Z',
+      },
+    })
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(vm.storageAlert.total_gb).toBe(3)
+    expect(wrapper.text()).toContain('system_pages.storage.alert_triggered')
+
+    storageAlert.mockResolvedValueOnce({ alert: null })
+    await vm.loadAlert()
+    expect(vm.storageAlert).toBeNull()
+  })
+
+  it('requires a project and a fresh scan before purging', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.datasetProjectId = undefined
+    vm.runDatasetReconcile()
+    expect(messageWarning).toHaveBeenCalledWith('system_pages.storage.msg.select_project')
+
+    vm.datasetProjectId = 1
+    vm.datasetReconcile = null
+    vm.runDatasetReconcile(true)
+    expect(messageWarning).toHaveBeenCalledWith('system_pages.storage.msg.scan_before_purge')
   })
 
   it('validates and saves both new and edited policies, then deletes a policy', async () => {

@@ -11,6 +11,8 @@ import asyncio
 import base64
 import json
 import logging
+import os
+from pathlib import Path
 import signal
 from typing import Any
 
@@ -40,6 +42,30 @@ class WebRecordingWorker:
 
     def _active_count(self) -> int:
         return len(self.sessions) + len(self.pending_sessions)
+
+    @staticmethod
+    def _health_file() -> Path | None:
+        value = os.environ.get("WEB_RECORDER_HEALTH_FILE", "").strip()
+        return Path(value) if value else None
+
+    def _touch_health_file(self) -> None:
+        path = self._health_file()
+        if path is None:
+            return
+        try:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.touch()
+        except OSError:
+            logger.exception("Unable to update Web recording Worker health file %s", path)
+
+    def _clear_health_file(self) -> None:
+        path = self._health_file()
+        if path is None:
+            return
+        try:
+            path.unlink(missing_ok=True)
+        except OSError:
+            logger.exception("Unable to remove Web recording Worker health file %s", path)
 
     async def _reply(self, client: Any, command: dict[str, Any], payload: dict[str, Any]) -> None:
         reply_key = str(command.get("reply_key") or "").strip()
@@ -141,6 +167,7 @@ class WebRecordingWorker:
                     capacity=self.capacity,
                     client=client,
                 )
+                self._touch_health_file()
             except WebRecordingTransportError:
                 logger.exception("Web recording Worker heartbeat failed")
             await asyncio.sleep(heartbeat_seconds)
@@ -155,6 +182,7 @@ class WebRecordingWorker:
                 capacity=self.capacity,
                 client=client,
             )
+            self._touch_health_file()
         except WebRecordingTransportError:
             # Keep the command loop alive; the heartbeat task will retry while
             # Redis is temporarily unavailable during process startup.
@@ -183,6 +211,7 @@ class WebRecordingWorker:
             await asyncio.gather(heartbeat_task, return_exceptions=True)
             await self.close()
             await unregister_recording_worker(self.worker_id, client=client)
+            self._clear_health_file()
             close = getattr(_redis_client, "close_async_redis", None)
             if close is not None:
                 await close(client)
