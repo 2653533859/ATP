@@ -33,7 +33,6 @@ from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any
-from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 from playwright.async_api import async_playwright, Page, Browser, BrowserContext
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -46,6 +45,10 @@ from app.models.web_assets import WebElementAsset, WebPageObject, WebVisualBasel
 from app.services.web_visuals import VisualCompareError, compare_png_bytes
 from app.services.web_matrix import WebMatrixError, build_web_matrix
 from app.services.dataset_execution import redact_execution_evidence
+from app.services.web_network_guard import (
+    guard_browser_request,
+    sanitize_network_url,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -53,29 +56,10 @@ logger = logging.getLogger(__name__)
 VAR_PATTERN = re.compile(r"\{\{(\w+)\}\}")
 WEB_FILE_PROJECT_PREFIX = "web-files/projects/"
 SAFE_FILE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
-SENSITIVE_URL_PARAM_RE = re.compile(
-    r"(?:token|secret|password|passwd|api[_-]?key|authorization|cookie|signature|sig|credential)",
-    re.IGNORECASE,
-)
 
 
 def _sanitize_network_url(url: str) -> str:
-    try:
-        parsed = urlsplit(url)
-        query = urlencode(
-            [
-                (key, "***" if SENSITIVE_URL_PARAM_RE.search(key) else value)
-                for key, value in parse_qsl(parsed.query, keep_blank_values=True)
-            ]
-        )
-        netloc = parsed.netloc
-        if "@" in netloc:
-            userinfo, host = netloc.rsplit("@", 1)
-            username = userinfo.split(":", 1)[0]
-            netloc = f"{username}:***@{host}"
-        return urlunsplit((parsed.scheme, netloc, parsed.path, query, ""))
-    except ValueError:
-        return "[invalid-url]"
+    return sanitize_network_url(url)
 
 
 def _format_exception_message(exc: Exception) -> str:
@@ -646,6 +630,7 @@ async def run_web_lowcode(
     trace_path = video_dir / "trace.zip"
     network_events: list[dict] = []
     console_events: list[dict] = []
+    blocked_requests: list[dict] = []
 
     try:
         pw = await async_playwright().start()
@@ -666,6 +651,11 @@ async def run_web_lowcode(
         if cfg.get("user_agent"):
             context_options["user_agent"] = str(cfg["user_agent"])
         browser_context: BrowserContext = await browser.new_context(**context_options)
+
+        async def _guard_route(route: Any) -> bool:
+            return await guard_browser_request(route, blocked_requests)
+
+        await browser_context.route("**/*", _guard_route)
         page: Page = await browser_context.new_page()
 
         tracing = getattr(browser_context, "tracing", None)
@@ -840,6 +830,9 @@ async def run_web_lowcode(
             shutil.rmtree(video_dir, ignore_errors=True)
 
     total_ms = int((time.monotonic() - total_start) * 1000)
+    if blocked_requests and all_passed:
+        all_passed = False
+        run.error_message = "浏览器请求被网络安全策略阻止"
     run.status = RunStatus.passed if all_passed else RunStatus.failed
     run.duration_ms = total_ms
     run.result_summary = {
@@ -848,6 +841,7 @@ async def run_web_lowcode(
         **({"trace_url": trace_url} if trace_url else {}),
         "network_events": network_events[-500:],
         "console_events": console_events[-500:],
+        "blocked_requests": blocked_requests[-100:],
     }
     await db.commit()
 

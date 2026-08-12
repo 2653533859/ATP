@@ -62,7 +62,7 @@
           <a-menu-item key="/mobile-special/tasks">{{ t('menu.mobile_special.tasks') }}</a-menu-item>
           <a-menu-item key="/mobile-special/reports">{{ t('menu.mobile_special.reports') }}</a-menu-item>
         </a-sub-menu>
-        <a-sub-menu key="system">
+      <a-sub-menu key="system">
           <template #icon><SettingOutlined /></template>
           <template #title>{{ t('menu.system.title') }}</template>
           <a-menu-item key="/system/environments">{{ t('menu.system.environments') }}</a-menu-item>
@@ -82,6 +82,7 @@
           <a-menu-item key="/system/web-assets">{{ t('menu.system.web_assets') }}</a-menu-item>
           <a-menu-item key="/system/api-contract-assets">{{ t('menu.system.api_contract_assets') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin'])" key="/system/audit-logs">{{ t('menu.system.audit_logs') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/users">{{ t('menu.system.users') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin'])" key="/system/run-retention">{{ t('menu.system.run_retention') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin'])" key="/system/dashboard-alerts">{{ t('menu.system.dashboard_alerts') }}</a-menu-item>
         </a-sub-menu>
@@ -120,6 +121,14 @@
             </div>
             <template #overlay>
               <a-menu>
+                <a-menu-item key="account" @click="router.push('/account')">
+                  <UserOutlined />
+                  <span>{{ t('account.menu') }}</span>
+                </a-menu-item>
+                <a-menu-item v-if="canAccess(['admin'])" key="users" @click="router.push('/system/users')">
+                  <UserOutlined />
+                  <span>{{ t('menu.system.users') }}</span>
+                </a-menu-item>
                 <a-menu-item key="logout" @click="handleLogout">
                   <LogoutOutlined />
                   <span>{{ t('common.logout') }}</span>
@@ -161,6 +170,7 @@ import {
   BulbFilled,
   DownOutlined,
   LogoutOutlined,
+  UserOutlined,
   ThunderboltFilled,
   SlidersOutlined,
 } from '@ant-design/icons-vue'
@@ -198,6 +208,7 @@ const routeTitleKey = computed(() => {
   const p = route.path
   if (p.startsWith('/dashboard')) return 'menu.dashboard'
   if (p.startsWith('/projects')) return 'menu.projects'
+  if (p.startsWith('/account')) return 'account.title'
   if (p.startsWith('/cases')) return 'menu.cases'
   if (p.startsWith('/runs')) return 'menu.runs'
   if (p.startsWith('/suites')) return 'menu.suites'

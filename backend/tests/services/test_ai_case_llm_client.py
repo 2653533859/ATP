@@ -218,3 +218,21 @@ def test_call_llm_custom_v1_endpoint_does_not_duplicate_prefix(monkeypatch):
     )
     asyncio.run(call_llm(request))
     assert captured.captured["url"] == "http://my-host:3000/v1/chat/completions"
+
+
+def test_call_llm_openai_compatible_provider_requires_and_uses_custom_endpoint(monkeypatch):
+    payload = {"choices": [{"message": {"content": "compatible"}}]}
+    captured = _patch_httpx(monkeypatch, payload)
+
+    request = LLMRequest(
+        provider="openai_compatible",
+        api_key="third-party-token",
+        model_name="qwen2.5-vl",
+        prompt="看图",
+        endpoint="http://llm.example.test/v1",
+    )
+    response = asyncio.run(call_llm(request))
+
+    assert response.text == "compatible"
+    assert captured.captured["url"] == "http://llm.example.test/v1/chat/completions"
+    assert captured.captured["headers"]["Authorization"] == "Bearer third-party-token"

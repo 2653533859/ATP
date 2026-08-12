@@ -1,5 +1,256 @@
 # MEMORY
 
+## 2026-08-12 Windows Android SDK/ADB 路径发现
+
+- `scripts/windows-process-env.ps1` 的统一工具路径发现现在支持 `ATP_ADB_HOME`、`ANDROID_HOME`/`ANDROID_SDK_ROOT`、`%LOCALAPPDATA%\Android\Sdk\platform-tools` 和 `%LOCALAPPDATA%\ATP\tools\platform-tools`；路径只注入当前启动进程及子 Worker，不修改系统 PATH。
+- `windows-local.ps1`、`windows-android-worker.ps1` 和 `android-network-doctor.ps1` 复用该逻辑；Android Worker 加载所选 `.env` 后会再次刷新路径，因此启动档案中的 SDK 路径会立即生效。
+- Windows 合约回归 `12 passed`，PowerShell 解析通过。当前仍未连接在线 Android 设备，未宣称 Android 执行链路完成。
+
+## 2026-08-12 性能目标指标 UI
+
+- `frontend/src/views/system/PerformanceCenterView.vue` 现在提供目标服务指标配置区：可选择 Prometheus 直连 URL 或环境变量来源，填写 0.2-10 秒查询超时和多条 PromQL；保存时安全合并 `default_options.target_metrics`，关闭开关会移除旧配置。
+- 压测详情的指标时间线增加来源选择器，按 `performance-worker`、`target-service-prometheus` 和其他来源筛选，并动态展示未知目标指标键名；不再把目标样本混入 Worker 资源指标图。
+- 定向页面回归 `5 passed`；前端全量 `44 files / 180 tests passed`，`vue-tsc --noEmit` 与生产构建通过。浏览器抽查时当前会话已在登录页，未代填密码。
+
+## 2026-08-12 Windows 本地 Prometheus 目标指标闭环
+
+- 安装并校验官方 Prometheus Windows amd64 `v3.13.1` 到 `%LOCALAPPDATA%\ATP\tools\prometheus`，SHA-256 已按官方发布值校验；未修改系统 PATH。
+- 新增 `config/prometheus/windows-local.yml` 和 `scripts/windows-prometheus.ps1`。脚本支持 `doctor/up/down/restart/status/logs`，只监听 `127.0.0.1:9090`，抓取本机 ATP Backend `/metrics`，数据目录位于用户工具目录而非仓库。
+- Prometheus readiness=200，`atp-backend` scrape target 为 `up`；带 `target_metrics` 的 k6 run `11` 成功，20 次迭代、错误率 0、6 条指标采样，其中 3 条 `target-service-prometheus` 样本包含 `backend_up=1`、`request_count=20`、`slow_queries=3`，无采样错误。
+- 证据见 [`docs/evidence/performance-windows-local-prometheus-target-metrics-2026-08-12.json`](docs/evidence/performance-windows-local-prometheus-target-metrics-2026-08-12.json)。这只证明 Windows 本机 Prometheus 与性能 run 的关联采集，不替代真实外部目标、Linux/Kubernetes 或生产 SLO 历史验收。
+- 完整非集成后端回归 `1899 passed`；259 个测试文件独立扫描 `259 passed, 0 failed`。Linux MCP/SSH 目标仍不可连接，本地回归结果不作为远端环境证据。
+- `scripts/windows-local-smoke.ps1` 新增 `-EnvFile`，doctor、登录、服务启停和 Web seed 都能使用实际运行档案；使用 `remote-infra.env` 的最新真实冒烟通过 10 项 Playwright、三浏览器矩阵、Web 下载对象验证和清理，证据见 [`windows-local-smoke-remote-infra-web-seed-2026-08-12.json`](docs/evidence/windows-local-smoke-remote-infra-web-seed-2026-08-12.json)。
+- 未传 `-EnvFile` 时会读取 `.local-run/windows-local-runtime.json` 自动对齐当前档案；不传参数的轻量回归已通过。
+
+## 2026-08-12 Windows k6 executable discovery
+
+- Installed the official Windows `k6 v2.2.0` binary under `%LOCALAPPDATA%\ATP\tools\k6`. `scripts/windows-process-env.ps1` now discovers that directory, or an optional `ATP_K6_HOME`, and prepends it only to the current launcher process and its child Workers.
+- `windows-local.ps1 doctor` now reports `Performance executor k6` as available even when the current PowerShell session was opened before the user PATH was updated. The machine PATH is not changed by the repository scripts.
+- Standalone `k6.exe version` and the Windows doctor passed. This confirms binary discovery only; a real k6 target run still requires the external target environment.
+
+## 2026-08-12 Windows 本地 k6/Locust 真实平台执行
+
+- 使用本机 ATP `/health` 作为明确的本地目标，主 Worker 节点 `perf-node-local-01` 在线并声明 `k6,locust,grpc`；性能 Agent `performance-win-worker-a` 继续独立消费 `performance.worker-a`，只声明 `jmeter,grpc`。
+- k6 测试定义 `7` 的真实 run `8` 成功：`20` 次迭代、错误率 `0`、资源指标 `3` 条，证据为 [`performance-windows-local-k6-smoke-2026-08-12.json`](docs/evidence/performance-windows-local-k6-smoke-2026-08-12.json)。
+- Locust 测试定义 `8` 首次暴露 Windows `WinError 2`：Worker 使用裸 `locust` 命令时找不到虚拟环境脚本；已改为 `sys.executable -m locust`，重启 Worker 后真实 run `10` 成功，`168` 次请求、错误率 `0`，证据为 [`performance-windows-local-locust-smoke-2026-08-12.json`](docs/evidence/performance-windows-local-locust-smoke-2026-08-12.json)。
+- 以上证明 Windows 本地节点的 k6/Locust 平台执行、队列投递、摘要回传和资源采样链路；本地 Prometheus 目标指标另有最新证据，不替代 Linux/Kubernetes、真实外部目标或 Android 设备验收。
+
+## Windows Locust 依赖与运行态回退（2026-08-12）
+- 停止本机 Backend、普通 Worker、Beat 和独立性能 Agent 后，补装 `locust 2.32.10` 及 Windows 依赖；临时工作目录执行 `python -m locust --version` 通过，Windows doctor 的 Locust 检查已变为通过。
+- 恢复服务时发现根目录 `.env` 指向的 `172.31.27.133:5432` 仍在 PostgreSQL 握手阶段超时。为避免本机项目停机，当前 Backend/Worker/Beat/Frontend 使用已验收的 `config/startup-profiles/remote-infra.env`（163.192.40.209）运行；根目录 `.env` 未被改写。
+- 独立性能 Agent 已按原 `performance-agent.env` 恢复在线；当前仍只声明 `jmeter,grpc`，Locust 已安装但未加入该专用节点能力列表。
+- `scripts/windows-local.ps1 status` 现在读取脱敏的 `.local-run/windows-local-runtime.json`，显示实际运行档案、数据库/Redis/MinIO 主机和队列；停止服务时会清理该元数据，避免把当前运行态误看成另一个 `.env`。
+
+## 外部基础设施文档去敏（2026-08-12）
+- 清理 `docs/external-infra-run.md` 中旧公网地址、管理员账号和明文密码，改为 `.env`/启动档案占位符与安全部署说明。
+- 文档现在明确：真实数据库、Redis、MinIO 和初始管理员凭据不得进入 Git；使用前必须替换占位符并执行启动预检。
+
+## 启动配置档案移除环境特定用户名（2026-08-12）
+- 启动配置页面的远端、Android Agent 和性能 Agent 档案不再预置某台服务器的 PostgreSQL/MinIO 用户名；统一使用 `<database-user>` 和 `<minio-user>` 占位符。
+- `POSTGRES_HOST`、`POSTGRES_USER`、`MINIO_HOST`、`MINIO_ROOT_USER` 以及已有密钥示例值都会进入必填未完成列表，避免复制档案后误连旧环境。
+- `StartupConfigView.spec.ts` 定向回归 `5 passed`，前端全量回归 `44 files / 178 tests passed`，类型检查通过；当前 Windows 根 `.env` 和被忽略的性能 Agent 实际配置不被改写。
+
+## Windows 全量本地冒烟与数据源核对（2026-08-12）
+- 根目录 `.env` 的 `local-all` 当前使用 `172.31.27.133`，Windows 全量本地冒烟通过：健康、管理员登录、认证读接口、项目列表、10 条 Playwright E2E、文件上传/清理和 HTML/JUnit 报告均通过。
+- 证据：[`docs/evidence/windows-local-smoke-2026-08-12.json`](docs/evidence/windows-local-smoke-2026-08-12.json)。Android 设备、k6、Locust 和浏览器矩阵属于可选 warning/skip。
+- 独立 `config/startup-profiles/performance-agent.env` 仍指向 `163.192.40.209`，不能直接视为当前 `172.31.27.133` 项目的性能 Agent；若切换使用，先同步地址与凭据，再重启并重新验收。
+
+## Windows JMeter 执行链路修复与验收（2026-08-12）
+- Windows 下 JMeter 使用 `jmeter.bat` 时会形成 `cmd.exe -> Java` 进程树；`backend/app/services/performance_process.py` 的 `_terminate_process` 现在在 Windows 使用 `taskkill /PID /T /F` 回收整棵树，避免取消/超时后 Java 继续占用临时日志文件。
+- 回归测试位于 `backend/tests/services/test_performance_process.py`，覆盖 Windows 进程树分支以及 Unix graceful/force 分支；目标运行 `run=6` 在 `performance-win-worker-a` / `performance.worker-a` 上成功执行 JMeter，1 次请求、错误率 0、12 条资源样本无错误，临时目录已清理。
+- 取消路径真实验收：run `7` 进入 `running` 后通过 Redis 控制信号停止，最终为 `cancelled`，JMeter 进程树和临时目录均已清理；证据见 [`docs/evidence/performance-windows-jmeter-cancel-2026-08-12.json`](docs/evidence/performance-windows-jmeter-cancel-2026-08-12.json)。
+- JMeter/性能相关测试 `90 passed`，完整 Worker 测试 `427 passed`，非集成后端总回归 `1897 passed`，Ruff 与 `git diff --check` 通过。
+- 证据：[`docs/evidence/performance-windows-jmeter-smoke-2026-08-12.json`](docs/evidence/performance-windows-jmeter-smoke-2026-08-12.json)。k6/Locust、外部目标、Prometheus/Kubernetes 和真实 Android 设备仍属于后续环境验收范围。
+
+## Windows 性能 Agent gRPC 执行验收与指标修复（2026-08-12）
+- 通过平台 API 创建临时 gRPC 性能定义，绑定 `performance-win-worker-a` 的 `performance.worker-a` 队列；本机目标 `127.0.0.1:50052` 完成 5 次 Unary 请求，`OK=5`、错误率为 0，临时测试定义、运行记录和 MinIO 对象已清理。
+- 运行期间发现 Windows 环境未安装 psutil 时，系统采样器错误读取 Linux `/proc` 并产生 `system:FileNotFoundError`。现已增加 Windows 原生 `GetSystemTimes` 与 `GlobalMemoryStatusEx` fallback，Linux `/proc` fallback 保持不变；指标回归 `8 passed`，Ruff 通过。
+- 证据文件：`docs/evidence/performance-windows-grpc-smoke-2026-08-12.json`。这证明 Windows 节点可真实消费 gRPC 任务并采集资源指标，不代表 k6/Locust、外部目标、Prometheus/Kubernetes 或 Android 已完成验收。
+- 取消链路也已通过：运行中的 gRPC 任务调用 `/performance/runs/{id}/stop` 后最终状态为 `cancelled`，临时定义、运行记录和对象已清理；证据文件为 `docs/evidence/performance-windows-grpc-cancel-2026-08-12.json`。
+
+## Windows 性能 Agent 运行验收（2026-08-12）
+- 已从现有远程基础设施配置派生被 `.gitignore` 忽略的 `config/startup-profiles/performance-agent.env`，仅用于本机运行，不把凭据提交到仓库。
+- `scripts/windows-performance-worker.ps1 doctor` 通过，PostgreSQL/Redis/MinIO 均可达；当前 Windows 环境可用 `grpc` 与 `jmeter`，因此节点只声明这两类执行器。
+- 独立 Worker 已 ready，专用队列为 `performance.worker-a`；首次 `heartbeat_performance_node` 成功，数据库节点 `performance-win-worker-a` 状态为 `online`，能力为 `grpc,jmeter`。
+- 这只证明节点注册/心跳和队列消费通路，不等同于真实压测结果；真实目标服务、k6 指标、Prometheus/Kubernetes 和 Android 设备仍需后续环境验收。**该次性能 Agent 验收使用** `163.192.40.209`，不能作为当前根 `.env` 数据源的结论。
+
+## PostgreSQL 启动连接超时（2026-08-12）
+- 发现远端 PostgreSQL `172.31.27.133:5432` TCP 可达，但 psycopg2 握手超时，导致 Backend 的同步 Alembic head 检查无限停在 `Waiting for application startup`。
+- 已新增 PostgreSQL、Redis、MinIO 三类 `*_CONNECT_TIMEOUT_SECONDS`，默认 5 秒、允许 1-120 秒；asyncpg 使用 `timeout`，psycopg2 使用 `connect_timeout`，Redis/Celery 和 MinIO 客户端也使用统一配置，前端启动配置和四套 Windows profile 同步提供字段。
+- 该修复只负责有界失败和明确诊断，不替代远端 PostgreSQL 防火墙、监听地址、认证或资源状态修复。当前 `remote-infra` 配置实际使用 `163.192.40.209`，已恢复并完成迁移；此前指定的 `172.31.27.133` 仍无法完成数据库握手，不能将两台主机混为同一数据源。
+- 本机连接参数回归为 `2 passed`，核心目录回归为 `4 passed`，Ruff、Python 编译和配置档案覆盖检查通过；前端工具链最初因 Vite ESM 配置问题表现为无输出，修复后已补跑完整前端门禁。
+
+## 前端工具链与性能目标回归（2026-08-12）
+- 修复 `frontend/vite.config.ts` 在 ESM/runner 配置加载器下依赖未定义 `__dirname` 的问题，改用 `fileURLToPath(import.meta.url)`；默认 Vite 生产构建和 `vue-tsc --noEmit` 均通过。
+- 性能验收目标的 gRPC smoke 测试增加 `wait_for_ready`，修复 Windows 慢机在 `server.start()` 后立即调用导致的启动竞态；定向测试通过。
+- 完整非集成后端回归为 `1893 passed`，前端为 `44 files / 178 tests passed`；真实远端 PostgreSQL 仍握手超时，Linux MCP 仍传输层关闭。
+- Vite 配置修复后的 Playwright E2E 为 `10 passed`，开发服务器和 mock 流程可正常启动；本机 WSL relay 端口仍无法完成 PostgreSQL 握手，未把运行态服务标记为恢复。
+
+## 远程基础设施迁移与运行恢复（2026-08-12）
+- **历史迁移记录**：`remote-infra` profile 曾连接 `163.192.40.209`；执行 `alembic upgrade head` 成功，从 `20260807_0053` 迁移到 `20260811_0054`。该记录不代表当前根 `.env` 的数据源。
+- 重启后 Backend、Celery Worker、Beat、Frontend 均处于运行状态；Backend `/health` 与 `/openapi.json` 返回 200，未认证访问项目接口返回 401，前端 `/login` 返回 200。
+- `172.31.27.133` 是此前指定的另一台目标主机，当前 PostgreSQL 握手仍超时；除非该主机恢复并重新确认配置，不得把当前 163 主机的运行证据当成 172 主机验收。
+
+## Windows 性能 Agent 启动入口（2026-08-12）
+- 新增 `scripts/windows-performance-worker.ps1` 与 `performance-agent` 启动档案。该模式只启动 Windows 性能 Worker，强制消费 `PERFORMANCE_NODE_QUEUE` 专用队列（例如 `performance.worker-a`），通过 `PERFORMANCE_NODE_ID` 注册/刷新节点心跳，不会抢走共享 `performance` 队列的未绑定任务。
+- `system/startup-config` 页面现在提供 `local-all`、`remote-infra`、`android-agent`、`performance-agent` 四档启动方式；选择档案会回填并可复制/下载 `.env`，草稿和当前档案只保存在浏览器，真正启动仍由 `startup.cmd` 完成。
+- 页面回归为 StartupConfigView `5 passed`，`vue-tsc --noEmit` 与 Vite production build 通过；本轮未修改远端数据源。当前 172.31.27.133:5432 TCP 可达但 PostgreSQL 连接超时，Backend/Worker/Beat 暂不能恢复，待远端数据库响应后再启动。
+- `doctor` 已覆盖 Python/Celery/Redis 依赖、PostgreSQL/Redis/MinIO TCP 连通性、节点 ID/队列格式、共享队列误配置和可选执行器提示；PowerShell 解析与 `backend/tests/scripts/test_windows_local_contract.py` 为 `7 passed`。
+- 该入口已完成 Windows 本地启动编排以及主 Worker 的真实节点心跳/消费、k6/Locust 指标回传；Linux/Kubernetes、Prometheus 和真实外部目标仍需目标环境证明，独立性能 Agent 继续只声明 gRPC/JMeter。
+
+## Worker 测试外部依赖隔离修复（2026-08-12）
+- 修复 `test_tasks_mobile_special_dispatch.py` 与 `test_tasks_performance.py` 未隔离同步 Redis 取消控制客户端的问题；新增 Fake control client，避免单文件或完整 Worker 测试连接本机真实 Redis 后无限等待，同时保留显式取消场景的独立 mock。
+- Worker 测试全量通过 `427 passed`；完整非集成后端门禁通过 `1889 passed`，Python 3.12 覆盖率 `82.13%`，超过 82% 门槛。
+- Linux 远程隔离栈的 API/节点 smoke 证据仍有效；本轮 SSH/MCP 会话恢复失败，真实 k6、metrics、其余协议、取消、Kubernetes/Prometheus 和 Android 外部验收继续保持 pending，不能将旧工具镜像的失败报告记为通过。
+
+## 性能验收栈首次 Linux 部署与验收脚本修复（2026-08-12）
+
+- Windows 生成的性能验收 bundle 已使用可移植 ZIP 条目路径重新打包；本次本地 bundle 包含 323 个文件，SHA-256 为 `7a2cd58fcb1762f38c91f2b1d6b98e02cabf4a783ba20f3ed98828370a29e853`，未包含真实 `.env`、证书或私钥。
+- bundle 已传输并解压到 Linux 主机 `172.31.27.133:/opt/atp-q17-acceptance`，远端校验通过，Docker 镜像构建成功；Compose 栈使用独立的 PostgreSQL/Redis/MinIO、Backend、性能 Worker 和验收目标，未修改主机已有服务。
+- 远端 `/health` 返回 `{"status":"ok"}`；性能 Worker 已加载 k6、Locust、gRPC、JMeter，并报告 `worker-a` online、队列 `performance.worker-a`、allowlist 和四类执行器能力。API/节点验收报告保存在远端 `docs/evidence/performance-api-node-2026-08-12.json`。
+- 真实 k6 run 首次执行发现验收脚本自身两个问题：`Path` 报告参数不可 JSON 序列化，以及 POST/stop/run 没有自动携带 `X-Requested-With` 导致 CSRF 403。已修复 `scripts/performance-environment-smoke.py`，本地脚本回归为 `17 passed`；远端脚本已同步，真实 run 需在 SSH 会话恢复后重建/挂载验收工具并重跑。
+- 当前外部验收仍保持未完成：真实 k6/gRPC/Locust/JMeter、取消、资源采样完整证据，以及 Kubernetes/Prometheus/真实 Android 设备仍需后续目标环境证明；不要把本次 API/节点 smoke 误记为完整压测通过。
+
+## Web 录制浏览器选择（2026-08-12）
+- Web 录制 API 与 `WebRecorderModal` 现在支持选择 Chromium、Firefox 或 WebKit，选择会随启动请求传给 Playwright Worker；默认仍为 Chromium，录制进行中不能切换浏览器。
+- 录制会话快照现在回传实际使用的浏览器，跨 Worker 查询和停止录制后的结果仍可追溯浏览器配置。
+- 前端提示所选浏览器必须安装在 Worker 镜像中；缺少对应浏览器时由 Worker 返回明确错误，不会静默回退到其他浏览器。
+- 本轮回归：Web 录制 API/传输层定向 `33 passed`；完整非集成后端 `1886 passed`、Python 3.12 覆盖率 `82.13%` 且门禁通过；前端全量 `44 files / 177 tests passed`，覆盖率为 statements/branches/functions/lines `36.25% / 31.37% / 28.58% / 37.83%`，type-check/build 通过。
+
+## Windows 性能验收 bundle（2026-08-12）
+- 新增 `scripts/package-performance-acceptance.ps1`，使用显式文件/目录 allowlist 收集性能 Compose、Backend/Worker 构建上下文、目标服务夹具、验收工具和 Runbook；排除真实 `.env`、启动档案、虚拟环境、测试缓存、前端依赖和 `.local-run`。
+- bundle 内含 `bundle-manifest.json`，逐文件记录大小和 SHA-256；包旁生成 `.sha256` 校验文件，并记录源 commit 与 `worktree_dirty`，覆盖已有输出必须显式 `-Force`。
+- 本机实测生成 323 个文件的 zip，包校验成功且未发现密钥/证书条目；真实 Linux 部署和性能 smoke 仍待目标环境执行。
+
+## Web 录制 Worker 并发路由补强（2026-08-12）
+- `RemoteWebRecordingManager.start` 继续使用心跳活动会话数做候选排序，但将 Worker 的最终容量检查作为权威结果；收到明确 `busy`/`not_ready` 时切换到其他可用 Worker。
+- 超时或未知错误不会自动重试，避免命令已执行但响应丢失时创建重复浏览器会话。
+- 新增 `backend/tests/services/test_web_recording_transport.py` 的多 Worker fallback、超时不重试和启动响应异常清理回归，录制传输层测试 `13 passed`；真实 Linux 多副本/Xvfb/Firefox/WebKit 仍待环境验收。
+- Worker 启动返回成功但缺少有效快照时，API 会发送停止命令清理可能已创建的浏览器会话，避免残留会话占满 Worker 容量。
+- `WebRecorderModal` 停止接口失败时不再自动导入停止前的步骤或关闭弹窗；新增组件回归覆盖失败状态，前端全量为 `44 files / 177 tests passed`，type-check/build 通过。
+
+## API gRPC 流式调用（2026-08-12）
+- API gRPC 执行器现根据 Proto 方法声明支持 Unary、Server Streaming、Client Streaming 和 Bidi Streaming；客户端流式请求使用非空 JSON 数组，服务端流式响应以 JSON 数组进入统一 body、提取和断言流程。
+- 用例编辑器补充请求格式提示；`backend/tests/worker/test_http_family_executors.py` gRPC/HTTP 家族回归为 `68 passed`，完整非集成后端为 `1886 passed`、Python 3.12 覆盖率 `82.13%`；前端 `44 files / 177 tests passed`，type-check/build 通过。
+- 真实 gRPC 服务、TLS 和跨环境验收仍需外部目标服务，不能以本地桩测试代替。
+
+## gRPC Proto 文件读取（2026-08-12）
+- gRPC 用例编辑器支持从本地选择 `.proto` 文件并直接回填协议源码；协议源码不作为请求文件上传到 MinIO。
+- gRPC 现在可以单独添加 import 文件，Worker 在临时编译目录重建安全文件包，拒绝绝对路径和 `..` 路径。
+- `frontend/src/utils/grpcProtoFile.ts` 在浏览器端校验 `.proto` 扩展名、非空内容、单文件 1MB 和文件包 8MB/64 文件上限，回归 `5 passed`；真实服务/TLS 联调仍需外部环境。
+
+## Windows 本地冒烟 CSRF/HttpOnly 会话修复（2026-08-12）
+- 修复 `scripts/windows-local-smoke.ps1` 文件上传 403/401：所有 POST/DELETE 写请求统一复用 `X-Requested-With: XMLHttpRequest`，multipart 上传通过目标 URL 的 `CookieContainer` 复用 HttpOnly access cookie。
+- 静态合约测试 `5 passed`、PowerShell 解析通过；修复后真实 Windows 冒烟 10 项 Playwright、Chromium/Firefox/WebKit 矩阵、管理员登录、文件上传和 MinIO 清理均通过，报告为 `.local-run/windows-smoke-20260812-003248.json`。
+- 随后自包含 Web 下载 seed 也通过：临时项目 9/用例 5 审核、Worker 执行和 1 个下载对象证据成功，终态清理删除项目、1 个环境和 5 个运行产物；报告为 `.local-run/windows-smoke-20260812-003448.json`。
+
+## Windows Worker 模式隔离（2026-08-12）
+- `scripts/windows-local.ps1` 的普通 Worker 进程识别现在排除 `--hostname android-win-*` 和 `--hostname performance-win-*`，不会再把专用 Android/性能 Worker 写入普通 `worker.pid` 或在重启时误操作它。
+- 当本地配置的 `CELERY_QUEUES` 同时包含 `android`/`mobile_special`，且检测到专用 Android Worker 正在运行时，`windows-local.ps1 up/restart` 会在停止现有本地服务前失败；反向地，`windows-android-worker.ps1 up/restart` 也会检测已运行的普通 Worker 是否消费 Android 队列并拒绝冲突启动。这样不会让两个 Worker 竞争同一 Android 队列。`local-all` 适合完整本地栈，`android-agent` 适合远程后端加本机 ADB，两种模式不要同时启用。
+- 已通过 `backend/tests/scripts/test_windows_local_contract.py`（5 passed）和 PowerShell 语法检查；当前已停止专用 Agent 并恢复 `local-all` 的 Backend、普通 Worker、Beat、Frontend。`/health` 返回 ok，`/api/v1/devices/workers` 已出现在运行中的 OpenAPI，ADB 当前无设备。
+
+## Linux 目标主机只读审计（2026-08-12）
+- 配置的 Linux 主机已有 Docker/Compose、PostgreSQL、Redis、MinIO，但 `/opt/testhub_platform` 是独立 Django 项目；其 `8001` 服务没有 ATP 的 `/health` 或 `/api/v1/health`，不能把它当作当前 ATP 后端或 Q17 验收环境。
+- 未发现 ATP 性能隔离栈或 Prometheus；本次只读探测，没有远程部署、重启或修改。真实性能节点、Linux/Kubernetes、Prometheus 和外部目标服务仍需单独隔离环境。
+
+## 性能验收启动竞态修复（2026-08-12）
+- `docker-compose.performance-acceptance.yml` 为 Backend 增加 `/health` 健康检查，并让性能 Worker/验收工具等待 `service_healthy`，不再只依赖容器进程已启动。
+- `scripts/performance-environment-smoke.py` 新增 `--node-ready-timeout-seconds`（默认 60 秒），节点检查会在有限时间内等待 Redis 心跳把节点状态刷新为 `online`；新增离线→在线回归覆盖该启动竞态。
+- 定向性能部署/验收回归 `27 passed`，Compose YAML 解析通过；真实 Linux 镜像和外部目标服务仍需实际环境验收。
+
+## Windows 部署 readiness 解码修复（2026-08-12）
+- `scripts/validate-deployment-readiness.py` 的子进程输出使用 `errors="replace"`，并对 `stdout/stderr` 做空值归一，修复 Windows 系统代码页遇到 shell UTF-8/二进制输出时的 `UnicodeDecodeError` 与后续 `NoneType` 拼接崩溃。
+- 当前 Windows 实际运行 readiness 检查通过；Docker/Helm 缺失仅作为明确的 SKIP。部署文档回归 `13 passed`，Ruff 通过。
+
+## 性能中心 JMeter 配置入口（2026-08-11）
+- 后端已支持 JMeter 执行器后，性能中心前端执行器切换逻辑现已接受 `jmeter`，自动切换到脚本模式，并根据能力列表使用 `.jmx` 上传类型；修复此前选择 JMeter 无反应的问题。
+- 新增组件回归通过；前端全量 `42 files / 169 tests passed`，`vue-tsc --noEmit` 和生产构建通过。
+- Windows 实际解析到 `E:\csh\software\jemeter\apache-jmeter-5.6.3\bin\jmeter.bat` 并成功执行 `--version`；后端 Makefile 口径全量非集成回归 `1871 passed`，覆盖率 `82.08%`，门禁通过。
+
+## 性能压测节点注册与配置（2026-08-11）
+- 性能中心现可直接注册、编辑和删除性能节点，配置节点 ID、队列、启用状态、支持的执行器、最大 VU、最大并发和目标出口 allowlist。
+- 节点卡片和运行节点选择会展示执行器能力；写操作复用现有后端接口并由工程师权限保护，在线状态仍以 Worker Redis 心跳为准。
+- 页面管理节点的容量/出口配置不会再被 Worker `.env` 默认值覆盖；Worker 队列不一致时会报告离线，Windows 启动脚本会自动监听共享和专用节点队列。
+- 新增节点表单、payload、队列和心跳隔离回归；后端全量非集成 `1871 passed`、覆盖率 `82.08%`，前端全量 `42 files / 169 tests passed`，type-check/build 通过。真实节点消费和 Linux/Kubernetes 分布式压测仍需目标环境验收。
+- 性能节点卡片现展示后端 `last_error` 诊断信息，队列不一致时可直接查看 Worker 与节点配置差异；新增前端回归后全量为 `42 files / 170 tests passed`，type-check/build 通过。
+
+## Windows Web 低代码冒烟入口（2026-08-11）
+- `scripts/windows-local-smoke.ps1` 新增 `-WebCaseId`、`-SeedWebDownloadCase`、`-RequireWebLowcode`、`-RequireWebDownload` 和 `-WebRunTimeoutSeconds`；传入已有 Web 用例 ID 后，脚本先校验类型、低代码 steps、active/approved 和自动化状态，再使用认证 Cookie 触发 `/cases/{id}/run`，轮询 `/runs/{run_id}`，并可强制检查 download 步骤是否产生对象引用。
+- Windows 启动档案：`scripts/windows-local.ps1 -EnvFile` 和 `scripts/windows-android-worker.ps1 -EnvFile` 会在 `Start-Process` 前临时注入选中的 `.env`，启动后恢复当前 PowerShell 环境；因此直接调用底层脚本也不会误读根目录 `.env`。
+- Android Agent 启动：`windows-android-worker.ps1 up/restart` 会先执行 doctor；服务端点、Python/Celery 或 ADB 缺失会阻止启动，未连接设备仍仅为 warning。
+- 不传 `-WebCaseId` 且不传 `-SeedWebDownloadCase` 时该检查保持 skipped；传入 `-SeedWebDownloadCase` 后脚本会创建临时 Web 项目、模块和低代码用例，自动提交审核并批准为 `active/approved` 后执行内联 `data:` 下载夹具，终态后删除临时项目。内联页面不绕过网络守卫，也不开放 loopback/内网访问。
+- 如果临时运行超时或未进入终态，脚本不会删除项目，而是在报告中保留项目 ID/运行 ID，便于确认状态后手工清理；终态清理会同时删除环境、项目和截图/录像/下载对象，避免留下 MinIO 孤儿对象。首次环境没有历史运行记录时，配合 `-SkipReports` 使用自包含模式。
+- 前端新增 `public/atp-windows-download.html` 和 `atp-windows-smoke.txt` 本地下载夹具；低代码步骤使用 `goto` 访问页面，再用 `download` 配置 `#atp-download-link`，可在不依赖公网业务页面的情况下准备真实验收数据。
+- 夹具 Playwright 回归已通过 `1 passed`；最近一次聚焦真实 seed 冒烟已在当前 Windows 环境通过：临时项目 8/用例 4/运行 4 创建、审批、Worker 执行和 1 个下载对象证据均成功，终态清理删除 1 个环境和 5 个运行产物；报告为 `.local-run/windows-seed-smoke-latest.json`。
+- PowerShell 解析、Windows 合约测试 `4 passed`、Ruff 和 `git diff --check` 已通过。
+
+## Windows 启动与性能本地验收（2026-08-11）
+- `windows-local.ps1 -EnvFile` 与 `windows-android-worker.ps1 -EnvFile` 会仅向新启动的子进程临时注入所选配置，随后恢复当前 PowerShell 环境；缺少配置档案或 Android Worker 基础依赖时会明确失败。
+- JMeter 5.6.3 已执行 `deploy/performance-acceptance/jmeter_smoke.jmx`，本地 `/login` 1 请求、0 错误，并生成 `.local-run/jmeter-smoke-20260811-233647/` 下的 JTL/HTML 报告。该结果仅证明 Windows 本机 JMeter 可用，不替代 Docker/Kubernetes Worker、真实性能节点或 Prometheus 验收。
+
+## 三方 OpenAI 兼容模型配置（2026-08-11）
+- AI 模型配置新增 `openai_compatible` 供应商协议，面向 Open WebUI、One-API、LiteLLM 等暴露 OpenAI-compatible `/v1` 接口的三方服务；不再要求用户把它们误选成 Ollama 或 OpenAI。
+- 创建/更新时 Endpoint 必填，API Key 仍通过 Fernet 加密保存；模型发现请求 `GET {Endpoint}/models`，生成/诊断请求 `POST {Endpoint}/chat/completions`。
+- 前端配置页已新增供应商选项、协议提示和模型拉取入口；真实服务的 Token、模型能力和多模态/思考参数仍需按服务端文档确认，不能只依据名称提示。
+- 回归：AI LLM 客户端、模型发现和配置 API 定向测试 `31 passed`；完整回归需在本轮代码稳定后复跑。
+
+## 数据集 AI 生成入口（2026-08-11）
+- 测试数据集页新增“AI 生成数据”：新建或选择已有数据集后填写生成要求和行数，调用项目绑定的 AI 配置生成合成 JSON 行。
+- 后端入口为 `POST /api/v1/datasets/ai-generate`；结果只返回编辑器草稿，不直接写库，用户确认后仍走现有 Schema 校验、软/硬策略和版本快照。
+- AI 服务限制单次最多 200 行，并复用 256KB 序列化上限；没有 Schema 时按结果推断字段类型。模型返回不合法 JSON、未配置模型、配额和网络错误均明确返回失败。
+- 验证：数据集后端定向回归 `24 passed`，数据集页面 Vitest `7 passed`，type-check 通过；随后完整非集成回归 `1867 passed`、Python 3.12 覆盖率 `82.05%`，256 个测试文件单独运行通过，前端 `41 files / 167 tests passed`，coverage `33.13% / 28.49% / 25.73% / 34.52%`。
+
+## Mock 规则 AI 生成入口（2026-08-11）
+- Mock 服务页现在有独立“AI 生成 Mock”入口；原有“AI 生成用例”仍保留，前者生成 Mock 响应规则，后者生成测试用例草稿。
+- 后端入口为 `POST /api/v1/mock-rules/ai-generate`，可按业务要求生成，也可带当前选中的规则作为参考；最多 20 条，项目权限、AI 配置和参考规则归属会在服务端校验。
+- 生成结果只进入可编辑 JSON 预览，不直接写库；用户确认后前端复用普通 Mock 创建接口保存，失败时不会把 AI 响应直接当作已生效规则。
+- 服务层只接受对象数组，规范化方法、路径、状态码、响应头、条件和延迟，并限制 256KB；提示词明确不生成密钥、Cookie、Token 或真实个人信息。
+- 验证：Mock AI 服务/API/UI 定向回归 `14 passed`（含原有 Mock 回归），前端 type-check 通过；完整门禁需在合并后复跑。
+
+## Worker 测试隔离收口（2026-08-11）
+- 根级 `backend/tests/conftest.py` 采用 fill-missing-only 的公共 stub 策略，并在测试模块收集和每个测试 setup 阶段刷新缺失符号，避免历史测试直接替换 `sys.modules` 后污染后续 Worker 测试。
+- 当前 `backend/tests/worker` 全量为 `415 passed`；全仓非集成回归 `1865 passed`，256 个测试文件独立运行通过。此前记录的 8 个 MinIO/数据库测试桩隔离失败已不再复现。
+
+## Web 录制 Worker 服务化（2026-08-11）
+- Web 录制新增 Redis 控制面与独立入口 `python -m app.web_recording_worker`；API 只负责认证、项目权限和资产持久化，Playwright 浏览器对象留在 Worker 内，默认 `WEB_RECORDER_MODE=local` 仍保持 Windows 单进程行为。
+- `WEB_RECORDER_MODE=worker` 时，Windows `local-dev.cmd up/status/logs/down` 会自动托管录制 Worker；Docker Compose profile `web-recorder` 与 Helm `webRecorder.enabled` 提供容器部署入口，Linux Worker 使用 Xvfb/`WEB_RECORDER_DISPLAY`。
+- Redis 心跳、容量选择、命令回复、会话路由 TTL 刷新、所有者校验和 Worker 退出清理已覆盖回归；随后后端非集成 `1865 passed`、Python 3.12 覆盖率 `82.05%`，256 个测试文件单独运行通过，前端 `41 files / 167 tests passed`；真实 Linux/Xvfb、Firefox/WebKit 和跨 API 副本 E2E 仍属于外部验收，不把本地模拟结果当作完成证据。
+
+## Windows Worker 启动前诊断（2026-08-11）
+- `scripts/windows-local.ps1 doctor` 现在会校验 `WEB_RECORDER_MODE`、Python Playwright、Chromium 浏览器、Worker 入口、Redis 队列前缀和正整数并发上限；`local` 与 `worker` 两种模式都会在启动前暴露缺少浏览器依赖的问题。
+- `scripts/windows-android-worker.ps1 doctor` 新增 Celery/Redis Python 依赖检查。当前 Windows 实机 doctor 通过，仅保留未连接 Android 设备这一可选警告；k6/Locust 已安装并完成本机真实执行。
+- 验证：PowerShell 两个脚本解析通过，Windows 合约测试 `10 passed`；未进行真实 Android 设备或 Linux/Xvfb Worker 验收。
+
+## Android Agent 扫描状态回传（2026-08-11）
+- `POST /devices/scan` 在 `ADB_SCAN_MODE=worker` 时返回 `queued`、Celery task ID 和旧列表；新增 `GET /devices/scan/{scan_id}` 查询队列状态与 Worker 写回后的最新设备列表，限制 task ID 为 UUID 并要求工程师权限。
+- Windows Android Worker 由 `scripts/windows-android-worker.ps1` 注入 `ANDROID_WORKER_ID=android-win-$COMPUTERNAME`，通过 Redis TTL 心跳写入 `atp:android-worker:workers:*`；设备页调用 `/devices/workers` 展示在线 Agent。心跳任务使用 `ignore_result=True`，避免每 15 秒污染 Celery 结果库。
+- `scripts/windows-local-smoke.ps1` 在 `ADB_SCAN_MODE=worker`、配置 Worker ID 或 `-RequireAndroid` 时会强制校验 `/devices/workers`，再调用 `/devices/scan` 并轮询 `/devices/scan/{scan_id}`；普通 local Web/API 冒烟跳过这两项。
+- `scan_adb_devices` 的手动投递使用 `ignore_result=False`，Beat 周期扫描仍保持 `ignore_result=True`，避免周期任务制造结果键；前端设备页轮询最多 10 秒，超时明确提示，不再误报“扫描完成”。
+- 验证：设备/Worker API、任务、Redis 注册和启动档案回归 `23 passed`，设备页 Vitest `6 passed`，随后完整后端 `1867 passed`、覆盖率 `82.05%`，256 个测试文件独立运行通过；Ruff、格式检查、mypy、type-check/build 通过；真实 Android 设备数据面仍待现场验收。
+
+## 项目工作台扩展（2026-08-11）
+
+- 已完成项目总览、项目级配置中心、`active / archived` 生命周期、归档/恢复接口，以及成员管理只读状态提示。
+- 项目状态通过 Alembic 迁移 `backend/alembic/versions/20260811_0054_add_project_status.py` 落库；当前数据库已执行 `alembic upgrade head`。
+- 新增前端项目总览路由和项目资源入口；项目卡片不再直接跳转用例列表，归档项目仍可查看已有资源。
+- 本轮已验证项目相关后端回归 `53 passed`、前端 `npm run type-check` 和 `npm run build`；Windows 本地服务重启后健康检查与 OpenAPI 路由正常。
+- 当前未提交工作区仍包含此前账号/用户管理等改动，不能覆盖或回滚；项目模板和基础复制首批已完成，后续再做脱敏导入导出和归档约束。
+- 项目模板与复制首批已完成：支持 blank/API/Web/Android/full 模板，自动创建基础模块、环境和可替换示例数据；复制只迁移项目基础信息与模块树，并生成独立项目编码和当前操作者 owner 关系。
+- 脱敏项目导入导出已完成：导出项目基础信息、模块、环境、非敏感变量和脱敏数据集；支持导入预览及 `fail / rename` 冲突策略，导入后当前操作者成为 owner，成员、密钥、执行记录和外部资源不导入。
+- 归档约束已落地：项目资源的 editor/owner 写入与执行断言在 archived 状态返回 409，viewer 读取和导出不受影响，restore 后恢复；权限回归更新为 `72 passed`。
+- 项目模板/复制/导入导出/归档验证通过，Ruff check/format、前端 `npm run type-check` 与 `npm run build` 均通过；后续可细化归档前端按钮状态、审计事件和成员策略。
+- 完整非集成后端回归最终为 `1827 passed`；Python 3.12/3.14 覆盖率门禁分别达到 `82.50%`/`82.05%`，Windows 服务重启后健康检查 200，项目归档/复制/导出/导入预览/导入路由均在 OpenAPI 中可见。
+- 归档增强已完成：前端禁用归档项目复制、项目编辑和成员调整，后端 `require_project_writable_access` 防止绕过 UI，项目复制/导入/归档/恢复/成员变更均记录审计事件；项目编辑接口也拒绝 archived 写入，项目相关回归补充为后端 `36 passed`、前端项目列表 `4 passed`。
+- Q18 API 高级认证本地实现已完成：`backend/app/services/api_auth.py` 提供 Digest 与 OAuth2 Client Credentials（`client_secret_basic` / `client_secret_post`、scope、audience、变量渲染、单场景 token 缓存），API 与 GraphQL Worker 已接线，CaseFormDrawer 已提供配置入口；token 响应错误只返回安全摘要，不把 client secret 写入执行证据。
+- 高级认证回归覆盖服务层、API/GraphQL 执行器接线、token 缓存和 Digest auth 传递；真实 Provider/Consumer、OAuth2 Token Endpoint、Digest challenge、超时和凭据轮换仍需外部环境验收，尚未提交或推送。
+- Android 兼容矩阵已从共享数据库会话串行执行改为每个子运行独立 `AsyncSessionLocal`、独立设备租约并通过 `asyncio.gather` 并行执行；结果保留逐子运行状态/错误摘要，真实设备池抢占与故障恢复仍待验收。
+- 运行详情页已读取 `device_matrix_results`，展示 Android 矩阵总数、通过/失败/异常统计、设备级耗时和错误，并支持跳转子运行；新增 `RunDetail.spec.ts` 回归后，随着本轮项目/用户页面测试补齐，前端全量为 `40 files / 161 tests passed`。
+- HTML/PDF 单运行报告和 JUnit 导出已同步读取 Android 矩阵结果；每台设备在报告中有独立状态/耗时/错误，JUnit 以独立 testcase 输出。
+- Web 网络隔离已补齐到浏览器上下文：低代码执行器和录制器共享 Playwright 路由守卫，逐请求校验导航、重定向、WebSocket 与子资源的公网/DNS 地址，阻止内网 egress，并只保存脱敏阻断证据；新增 DNS 变化、协议、脱敏和两条浏览器入口回归。
+- 覆盖率补强已完成：新增 iOS Appium 协议动作、JMeter/Prometheus 性能边界、资源采样、Android/iOS 租约生命周期、iOS 租约任务、API 总路由注册以及前端项目/用户/个人资料页面回归；Python 3.12 `--cov-fail-under=82` 和前端现有覆盖率门禁均已通过。
+- Python 3.14 兼容性复验已完成：为 `asyncpg 0.31.0`、`psycopg2-binary 2.9.12`、`PyYAML 6.0.3` 准备可用二进制依赖；Python 3.14.3 完整非集成回归 `1827 passed`、覆盖率 `82.05%`，Python 3.12.11 对照为 `1827 passed`、`82.50%`，252 个测试文件独立运行全部通过。后续仍是 Linux/Kubernetes、真实 Android/iOS、专用 Worker、Prometheus 和外部服务验收。
+- Web/Android Python 脚本生成已补齐：Web 低代码生成器现在能输出文件上传/下载、Pillow 视觉差异断言、元素资产定位器和页面对象公共动作；Android 生成器覆盖旋转、权限、网络配置、前后台切换；未加载资产、空页面对象或未知动作会在生成脚本中显式失败，避免误生成可运行但漏步骤的脚本。前端全量回归更新为 `40 files / 161 tests passed`，coverage statements/branches/functions/lines 为 `31.94% / 27.09% / 24.94% / 33.21%`。
+
 ## Recent Fixes (2026-07-08)
 
 - Fixed the manual bug-link API so `POST /runs/{run_id}/link-bug` now verifies the caller has `editor` access to the run's project before mutating `run.result_summary`.
@@ -150,3 +401,4 @@
 - `a970cd2`: notification integration, security fixes, Task update, and supporting docs/tests.
 - `b7f7698`: mirror/auth + clear/upload regressions.
 - `c6df8fc`: latest feature repairs and task doc updates.
+- 2026-08-11 覆盖率收口：补充 `ProjectList`、`UserManagementView`、`AccountSettingsView` 组件级行为回归，覆盖项目导入成功后的弹窗清理、用户新增/编辑及八位密码校验、个人资料保存与错误提示；前端全量 `40 files / 157 tests passed`，覆盖率 statements/branches/functions/lines 达到 `31.54% / 26.53% / 24.73% / 32.76%`，超过现有 `31.5 / 26.5 / 24.5 / 32.5` 门禁；type-check 和生产构建通过。

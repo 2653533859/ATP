@@ -22,7 +22,7 @@ WORKDIR /app
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    android-tools-adb ca-certificates curl gzip openjdk-17-jre-headless postgresql-client tar \
+    android-tools-adb ca-certificates curl gzip openjdk-17-jre-headless postgresql-client tar xvfb \
     && rm -rf /var/lib/apt/lists/*
 
 RUN curl -fsSL "https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-${JMETER_VERSION}.tgz" \

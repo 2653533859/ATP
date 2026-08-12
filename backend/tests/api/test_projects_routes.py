@@ -26,6 +26,7 @@ for _name, _value in (
     ("require_admin", lambda: None),
     ("assert_project_access", _noop_async),
     ("require_project_access", lambda role: _noop_async),
+    ("require_project_writable_access", lambda role: _noop_async),
 ):
     if not hasattr(_deps, _name):
         setattr(_deps, _name, _value)
@@ -39,7 +40,20 @@ load_all_models()
 
 from app.models.user import UserRole  # noqa: E402
 from app.models.user_project import ProjectRole  # noqa: E402
-from app.schemas.project import ModuleCreate, ModuleUpdate, ProjectCreate, ProjectUpdate  # noqa: E402
+from app.schemas.project import (  # noqa: E402
+    ModuleCreate,
+    ModuleUpdate,
+    ProjectCopyIn,
+    ProjectCreate,
+    ProjectExportPayload,
+    ProjectImportIn,
+    ProjectTransferEnvironment,
+    ProjectTransferDataset,
+    ProjectTransferModule,
+    ProjectTransferProject,
+    ProjectTransferVariable,
+    ProjectUpdate,
+)
 from app.schemas.user_project import ProjectMemberAddIn, ProjectMemberUpdateIn  # noqa: E402
 
 
@@ -101,6 +115,8 @@ class _FakeDB:
     async def refresh(self, obj):
         if getattr(obj, "created_at", None) is None:
             obj.created_at = _now()
+        if getattr(obj, "updated_at", None) is None:
+            obj.updated_at = _now()
 
     async def execute(self, _query):
         return self.execute_results.pop(0) if self.execute_results else _FakeResult()
@@ -141,6 +157,155 @@ def test_create_project_auto_assigns_owner_and_code():
     assert memberships and memberships[0].role is ProjectRole.owner
 
 
+def test_create_project_template_seeds_modules_environment_and_dataset():
+    db = _FakeDB()
+    project = asyncio.run(
+        prj.create_project(body=ProjectCreate(name="Full", template="full"), db=db, current_user=_user(21))
+    )
+
+    assert project.id
+    modules = [item for item in db.added if item.__class__.__name__ == "Module"]
+    environments = [item for item in db.added if item.__class__.__name__ == "Environment"]
+    datasets = [item for item in db.added if item.__class__.__name__ == "TestDataset"]
+    assert [item.name for item in modules] == ["接口测试", "Web UI 测试", "Android 测试"]
+    assert environments[0].project_id == project.id
+    assert datasets[0].rows and datasets[0].creator_id == 21
+
+
+def test_copy_project_copies_metadata_and_module_tree():
+    source = _Obj(
+        id=1,
+        name="Source",
+        description="source description",
+        ai_llm_config_id=8,
+        run_retention_days_override=14,
+    )
+    modules = [
+        _Obj(id=11, name="API", module_code="API", parent_id=None, sort_order=0),
+        _Obj(id=12, name="Auth", module_code="AUTH", parent_id=11, sort_order=1),
+    ]
+    db = _FakeDB({("Project", 1): source}, execute_results=[_FakeResult(rows=modules)])
+
+    copied = asyncio.run(
+        prj.copy_project(project_id=1, body=ProjectCopyIn(name="Copied"), db=db, current_user=_user(21))
+    )
+
+    copied_modules = [item for item in db.added if item.__class__.__name__ == "Module"]
+    assert copied.name == "Copied" and copied.status == "active"
+    assert copied.description == source.description and copied.owner_id == 21
+    assert copied_modules[0].parent_id is None
+    assert copied_modules[1].parent_id == copied_modules[0].id
+    assert any(item.__class__.__name__ == "UserProject" and item.project_id == copied.id for item in db.added)
+
+
+def test_export_project_masks_secrets_and_dataset_sensitive_fields():
+    project = _Obj(id=1, name="Source", project_code="SOURCE", description="desc", ai_llm_config_id=None)
+    module = _Obj(id=11, name="API", module_code="API", parent_id=None, sort_order=0)
+    environment = _Obj(id=21, name="dev", description=None)
+    variables = [
+        _Obj(env_id=21, key="BASE_URL", value="https://example.test", is_secret=False),
+        _Obj(env_id=21, key="API_TOKEN", value="do-not-export", is_secret=True),
+    ]
+    dataset = _Obj(
+        id=31,
+        name="users",
+        description=None,
+        format="json",
+        rows=[{"username": "demo", "password": "do-not-export"}],
+        schema_fields=[],
+        validation_policy="soft",
+    )
+    db = _FakeDB(
+        {("Project", 1): project},
+        execute_results=[
+            _FakeResult(rows=[module]),
+            _FakeResult(rows=[environment]),
+            _FakeResult(rows=variables),
+            _FakeResult(rows=[dataset]),
+        ],
+    )
+
+    exported = asyncio.run(prj.export_project(project_id=1, db=db))
+
+    exported_variables = exported.environments[0].variables
+    assert exported_variables[0].value == "https://example.test"
+    assert exported_variables[1].value is None and exported_variables[1].redacted is True
+    assert exported.datasets[0].rows[0]["password"] == "[REDACTED]"
+    assert exported.warnings
+
+
+def test_import_project_preview_and_import_skip_redacted_variables():
+    payload = ProjectExportPayload(
+        exported_at=_now(),
+        project=ProjectTransferProject(name="Imported", project_code="IMPORTED"),
+        modules=[ProjectTransferModule(id=11, name="API")],
+        environments=[
+            ProjectTransferEnvironment(
+                name="dev",
+                variables=[
+                    ProjectTransferVariable(key="BASE_URL", value="https://example.test"),
+                    ProjectTransferVariable(key="API_TOKEN", value=None, is_secret=True, redacted=True),
+                ],
+            )
+        ],
+    )
+    preview_db = _FakeDB(execute_results=[_FakeResult(scalar=None)])
+    preview = asyncio.run(
+        prj.preview_project_import(
+            body=ProjectImportIn(payload=payload),
+            db=preview_db,
+        )
+    )
+    assert preview.valid is True and preview.summary["variables"] == 2
+
+    conflict_preview = asyncio.run(
+        prj.preview_project_import(
+            body=ProjectImportIn(payload=payload, conflict_policy="fail"),
+            db=_FakeDB(execute_results=[_FakeResult(scalar=_Obj(id=99))]),
+        )
+    )
+    rename_preview = asyncio.run(
+        prj.preview_project_import(
+            body=ProjectImportIn(payload=payload, conflict_policy="rename"),
+            db=_FakeDB(execute_results=[_FakeResult(scalar=_Obj(id=99))]),
+        )
+    )
+    assert conflict_preview.valid is False and conflict_preview.conflicts
+    assert rename_preview.valid is True
+
+    import_db = _FakeDB(execute_results=[_FakeResult(scalar=None)])
+    imported = asyncio.run(
+        prj.import_project(
+            body=ProjectImportIn(payload=payload),
+            db=import_db,
+            current_user=_user(21),
+        )
+    )
+    variables = [item for item in import_db.added if item.__class__.__name__ == "EnvVariable"]
+    assert imported.imported["modules"] == 1
+    assert imported.imported["variables"] == 1
+    assert len(variables) == 1 and variables[0].key == "BASE_URL"
+
+
+def test_import_project_rejects_oversized_dataset_before_creating_project():
+    payload = ProjectExportPayload(
+        exported_at=_now(),
+        project=ProjectTransferProject(name="Too Large"),
+        datasets=[ProjectTransferDataset(name="large", rows=[{"value": "x" * (256 * 1024)}])],
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            prj.import_project(
+                body=ProjectImportIn(payload=payload),
+                db=_FakeDB(execute_results=[_FakeResult(scalar=None)]),
+                current_user=_user(21),
+            )
+        )
+
+    assert exc.value.status_code == 400
+
+
 def test_get_project_404():
     with pytest.raises(HTTPException) as exc:
         asyncio.run(prj.get_project(project_id=404, db=_FakeDB()))
@@ -157,6 +322,14 @@ def test_update_project_applies_fields_and_backfills_code():
     assert updated.project_code  # 无 code 时按新名回填
 
 
+def test_update_project_uses_writable_dependency_for_archived_read_only_boundary():
+    source = (Path(__file__).resolve().parents[2] / "app/api/v1/projects.py").read_text(encoding="utf-8")
+    start = source.index('@router.patch("/projects/{project_id}"')
+    end = source.index('@router.delete("/projects/{project_id}"', start)
+    route = source[start:end]
+    assert "require_project_writable_access(ProjectRole.owner)" in route
+
+
 def test_delete_project_removes_and_404():
     project = _Obj(id=1)
     db = _FakeDB({("Project", 1): project})
@@ -165,6 +338,21 @@ def test_delete_project_removes_and_404():
 
     with pytest.raises(HTTPException):
         asyncio.run(prj.delete_project(project_id=404, db=_FakeDB()))
+
+
+def test_archive_and_restore_project_are_reversible():
+    project = _Obj(id=1, status="active")
+    db = _FakeDB({("Project", 1): project})
+
+    archived = asyncio.run(prj.archive_project(project_id=1, db=db, current_user=_user(21)))
+    assert archived.status == "archived"
+    restored = asyncio.run(prj.restore_project(project_id=1, db=db, current_user=_user(21)))
+    assert restored.status == "active"
+    assert db.commits == 2
+    assert [item.action for item in db.added if item.__class__.__name__ == "AuditLog"] == [
+        "project_archived",
+        "project_restored",
+    ]
 
 
 # ── 模块树与 CRUD ───────────────────────────────────────────

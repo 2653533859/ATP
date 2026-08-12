@@ -163,6 +163,9 @@ async def update_llm_config(
     requested_provider = payload.get("provider", config.provider)
     if requested_provider != "ollama" and "api_key" not in payload and not config.api_key_encrypted:
         raise HTTPException(status_code=400, detail="该供应商必须填写 API Key")
+    requested_endpoint = payload.get("endpoint", config.endpoint)
+    if requested_provider == "openai_compatible" and not str(requested_endpoint or "").strip():
+        raise HTTPException(status_code=400, detail="OpenAI 兼容供应商必须填写 Endpoint")
     if "api_key" in payload:
         config.api_key_encrypted = encrypt(payload.pop("api_key"))
     for key, value in payload.items():

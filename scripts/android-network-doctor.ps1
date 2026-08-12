@@ -7,6 +7,12 @@ param(
 $ErrorActionPreference = 'Stop'
 $failed = 0
 
+$ProcessEnvironmentHelper = Join-Path $PSScriptRoot 'windows-process-env.ps1'
+if (Test-Path -LiteralPath $ProcessEnvironmentHelper) {
+  . $ProcessEnvironmentHelper
+  Add-AtpOptionalToolPath
+}
+
 function Write-Ok {
   param([string]$Message)
   Write-Host "[OK]   $Message"
@@ -25,7 +31,7 @@ Write-Host ''
 $adb = Get-Command adb.exe -ErrorAction SilentlyContinue
 if ($null -eq $adb) {
   Write-Fail 'adb.exe not found in PATH'
-  Write-Host 'Hint: install Android Platform Tools and ensure adb.exe is in PATH'
+  Write-Host 'Hint: install Android Platform Tools, set ATP_ADB_HOME or ANDROID_HOME, or add platform-tools to PATH'
   exit 1
 }
 Write-Ok "adb binary found: $($adb.Source)"

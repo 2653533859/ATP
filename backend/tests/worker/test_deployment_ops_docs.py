@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib.util
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import yaml
 
@@ -43,6 +44,23 @@ def test_deployment_validator_can_require_a_posix_shell(monkeypatch):
     assert failures == ["shell syntax (sh/bash is not available)"]
 
 
+def test_deployment_validator_normalizes_missing_and_malformed_process_output(monkeypatch):
+    validator = _load_deployment_validator()
+    calls = []
+
+    def fake_run(command, **kwargs):
+        calls.append((command, kwargs))
+        return SimpleNamespace(returncode=1, stdout=None, stderr="\ufffd shell output")
+
+    monkeypatch.setattr(validator.subprocess, "run", fake_run)
+
+    ok, output = validator._run(["sh", "-n", "scripts/backup-postgres.sh"])
+
+    assert ok is False
+    assert output == "\ufffd shell output"
+    assert calls[0][1]["errors"] == "replace"
+
+
 def test_compose_worker_uses_configurable_celery_queues():
     compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
     worker = compose["services"]["worker"]
@@ -52,6 +70,17 @@ def test_compose_worker_uses_configurable_celery_queues():
         in worker["environment"]
     )
     assert "-Q $${CELERY_QUEUES}" in worker["command"]
+
+
+def test_compose_can_start_an_independent_web_recording_worker():
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    recorder = compose["services"]["web-recorder"]
+
+    assert recorder["profiles"] == ["web-recorder"]
+    assert recorder["environment"]
+    assert "WEB_RECORDER_MODE=worker" in recorder["environment"]
+    assert "python -m app.web_recording_worker" in recorder["command"][-1]
+    assert "Xvfb" in recorder["command"][-1]
 
 
 def test_helm_values_expose_worker_queues_and_resources():
@@ -68,6 +97,10 @@ def test_helm_values_expose_worker_queues_and_resources():
     assert values["performanceWorker"]["networkPolicy"]["enabled"] is False
     assert values["performanceWorker"]["resources"]["requests"]
     assert values["performanceWorker"]["resources"]["limits"]
+    assert values["replicas"]["webRecorder"] == 1
+    assert values["webRecorder"]["enabled"] is False
+    assert values["webRecorder"]["maxSessions"] == 2
+    assert values["config"]["WEB_RECORDER_MODE"] == "local"
     assert values["hpa"]["performanceWorker"]["enabled"] is False
     for component in ("backend", "worker", "beat", "flower"):
         assert values["resources"][component]["requests"]
@@ -122,6 +155,21 @@ def test_helm_chart_can_render_dedicated_performance_worker():
     assert "performanceWorker" in schema["properties"]
 
 
+def test_helm_chart_can_render_dedicated_web_recording_worker():
+    content = (ROOT / "deploy" / "helm" / "atp" / "templates" / "web-recorder-deployment.yaml").read_text(
+        encoding="utf-8"
+    )
+    schema = json.loads((ROOT / "deploy" / "helm" / "atp" / "values.schema.json").read_text(encoding="utf-8"))
+
+    assert "{{- if .Values.webRecorder.enabled }}" in content
+    assert "app.kubernetes.io/component: web-recorder" in content
+    assert "python -m app.web_recording_worker" in content
+    assert "Xvfb" in content
+    assert ".Values.webRecorder.workerId" in content
+    assert ".Values.webRecorder.maxSessions" in content
+    assert "webRecorder" in schema["properties"]
+
+
 def test_worker_dockerfile_bundles_k6_for_performance_queue():
     content = (ROOT / "backend" / "Dockerfile.worker").read_text(encoding="utf-8")
 
@@ -140,8 +188,11 @@ def test_docker_compose_acceptance_stack_isolated_and_has_real_targets():
     assert compose["name"] == "atp-performance-acceptance"
     assert {"postgres", "redis", "minio", "backend", "performance-worker", "acceptance-target"} <= services.keys()
     assert services["backend"]["ports"] == ["127.0.0.1:18080:8000"]
+    assert services["backend"]["healthcheck"]["test"][0] == "CMD"
+    assert "/health" in " ".join(services["backend"]["healthcheck"]["test"])
     assert services["performance-worker"]["environment"]["PERFORMANCE_NODE_ID"] == "worker-a"
     assert services["performance-worker"]["environment"]["PERFORMANCE_NODE_QUEUE"] == "performance.worker-a"
+    assert services["performance-worker"]["depends_on"]["backend"]["condition"] == "service_healthy"
     assert "grpc-target" in services["acceptance-target"]["networks"]["default"]["aliases"]
     assert "http-target" in services["acceptance-target"]["networks"]["default"]["aliases"]
     tls_command = " ".join(services["acceptance-tls"]["command"])
@@ -151,6 +202,7 @@ def test_docker_compose_acceptance_stack_isolated_and_has_real_targets():
     assert 'queues="$${queues},performance"' in performance_command
     assert "acceptance_tls:/etc/atp/tls:ro" in services["performance-worker"]["volumes"]
     assert "./docs/evidence:/evidence" in services["acceptance-tools"]["volumes"]
+    assert services["acceptance-tools"]["depends_on"]["backend"]["condition"] == "service_healthy"
     assert (ROOT / "deploy" / "performance-acceptance" / "acceptance.proto").is_file()
     assert (ROOT / "deploy" / "performance-acceptance" / "locust_smoke.py").is_file()
 

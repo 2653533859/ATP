@@ -106,7 +106,7 @@ def _safe_cli_inputs(args: argparse.Namespace) -> dict[str, Any]:
     """Return report inputs without password/token values or full environment dumps."""
     values = vars(args).copy()
     values.pop("password", None)
-    return values
+    return {key: str(value) if isinstance(value, Path) else value for key, value in values.items()}
 
 
 def _safe_json(value: Any, *, key: str = "") -> Any:
@@ -218,6 +218,8 @@ class ApiClient:
         url = f"{self.base_url}/{path.lstrip('/')}"
         data = None
         headers = {"Accept": "application/json", **(headers or {})}
+        if method.upper() in {"POST", "PUT", "PATCH", "DELETE"}:
+            headers.setdefault("X-Requested-With", "XMLHttpRequest")
         if self.token:
             headers["Authorization"] = f"Bearer {self.token}"
         if payload is not None:
@@ -348,6 +350,8 @@ def check_api_and_node(
     expected_queue: str | None,
     target: Target | None,
     require_allowlist: bool,
+    node_ready_timeout: float = 60.0,
+    node_poll_interval: float = 2.0,
 ) -> dict[str, Any] | None:
     health = client.request("GET", "/health")
     if not isinstance(health, dict) or health.get("status") != "ok":
@@ -368,10 +372,27 @@ def check_api_and_node(
     if not node_id:
         report.skipped("performance-node", "未指定 --node-id，跳过节点心跳与能力检查")
         return None
-    nodes = client.request("GET", "/api/v1/performance/nodes")
-    node = _find_node(nodes, node_id)
-    if node.get("status") != "online":
-        raise SmokeError(f"节点 {node_id} 当前状态为 {node.get('status')}")
+    deadline = time.monotonic() + max(0.0, node_ready_timeout)
+    node: dict[str, Any] | None = None
+    last_node_error = f"未找到性能节点 {node_id}"
+    while True:
+        nodes = client.request("GET", "/api/v1/performance/nodes")
+        try:
+            candidate = _find_node(nodes, node_id)
+        except SmokeError as exc:
+            last_node_error = str(exc)
+        else:
+            candidate_status = candidate.get("status")
+            if candidate_status == "online":
+                node = candidate
+                break
+            last_node_error = f"节点 {node_id} 当前状态为 {candidate_status}"
+
+        if time.monotonic() >= deadline:
+            raise SmokeError(last_node_error)
+        time.sleep(max(0.2, node_poll_interval))
+
+    assert node is not None
     if expected_queue and node.get("queue_name") != expected_queue:
         raise SmokeError(f"节点 {node_id} 队列为 {node.get('queue_name')}，期望 {expected_queue}")
     if expected_queue:
@@ -693,6 +714,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--cancel-after-seconds", type=float, default=2.0)
     parser.add_argument("--timeout-seconds", type=float, default=300.0)
     parser.add_argument("--poll-interval-seconds", type=float, default=2.0)
+    parser.add_argument(
+        "--node-ready-timeout-seconds",
+        type=float,
+        default=60.0,
+        help="节点心跳注册后变为 online 的等待上限",
+    )
     parser.add_argument("--request-timeout-seconds", type=float, default=10.0)
     parser.add_argument("--max-error-rate", type=float, default=0.0)
     parser.add_argument("--require-metrics", action="store_true", help="要求真实 run 至少产生一条资源采样")
@@ -730,6 +757,8 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("Docker 镜像会自动执行依赖检查，不需要 --verify-worker-image")
     if args.max_error_rate < 0 or args.max_error_rate > 1:
         parser.error("--max-error-rate 必须在 0 到 1 之间")
+    if args.node_ready_timeout_seconds < 0:
+        parser.error("--node-ready-timeout-seconds 不能为负数")
 
     report = CheckReport()
     target: Target | None = None
@@ -765,6 +794,8 @@ def main(argv: list[str] | None = None) -> int:
                 expected_queue=args.expected_queue,
                 target=target,
                 require_allowlist=args.require_node_allowlist,
+                node_ready_timeout=args.node_ready_timeout_seconds,
+                node_poll_interval=args.poll_interval_seconds,
             )
             api_ready = not args.target or target_ready
         except (SmokeError, OSError, ValueError) as exc:

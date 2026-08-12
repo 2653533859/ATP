@@ -2,7 +2,7 @@
 
 使用 grpc_tools.protoc 编译 .proto 为 descriptor set，
 通过 descriptor_pool + message_factory 动态创建消息，
-channel.unary_unary() 低级 API 执行调用。
+并根据 Proto 方法描述支持 Unary、Server Streaming、Client Streaming 和 Bidi Streaming。
 """
 
 import asyncio
@@ -10,6 +10,7 @@ import json
 import os
 import tempfile
 import time
+from pathlib import PurePosixPath
 
 import grpc
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
@@ -31,12 +32,169 @@ async def _safe_publish_run_event(run_id: int, payload: dict) -> None:
         return
 
 
-def _compile_proto(proto_content: str) -> descriptor_pb2.FileDescriptorSet:
-    """编译 proto 内容为 FileDescriptorSet（纯描述符，不生成 Python 代码）"""
+def _grpc_mode(method_desc) -> str:
+    """Return the RPC shape declared by the compiled Proto method."""
+
+    client_streaming = bool(method_desc.client_streaming)
+    server_streaming = bool(method_desc.server_streaming)
+    if client_streaming and server_streaming:
+        return "bidi_stream"
+    if client_streaming:
+        return "client_stream"
+    if server_streaming:
+        return "server_stream"
+    return "unary"
+
+
+def _parse_request_messages(request_json_str: str, req_class, client_streaming: bool) -> list:
+    try:
+        payload = json.loads(request_json_str)
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"Request JSON 解析失败: {exc}") from exc
+
+    if client_streaming:
+        if not isinstance(payload, list) or not payload:
+            raise ValueError("Client Streaming 请求必须是非空 JSON 数组")
+        payloads = payload
+    else:
+        if not isinstance(payload, dict):
+            raise ValueError("Unary/Server Streaming 请求必须是 JSON 对象")
+        payloads = [payload]
+
+    messages = []
+    for index, item in enumerate(payloads):
+        if not isinstance(item, dict):
+            raise ValueError(f"第 {index + 1} 个 gRPC 请求必须是 JSON 对象")
+        messages.append(Parse(json.dumps(item), req_class()))
+    return messages
+
+
+async def _collect_stream(response_call, timeout: float) -> list:
+    async def collect() -> list:
+        return [response async for response in response_call]
+
+    return await asyncio.wait_for(collect(), timeout=timeout + 5)
+
+
+async def _invoke_grpc_call(
+    channel,
+    method_path: str,
+    req_class,
+    resp_class,
+    request_messages: list,
+    method_desc,
+    timeout: float,
+    metadata,
+) -> list:
+    """Invoke the RPC shape declared by ``method_desc`` and return response messages."""
+
+    mode = _grpc_mode(method_desc)
+    request_serializer = req_class.SerializeToString
+    response_deserializer = resp_class.FromString
+
+    if mode == "unary":
+        call = channel.unary_unary(
+            method_path,
+            request_serializer=request_serializer,
+            response_deserializer=response_deserializer,
+        )
+        response = await asyncio.wait_for(
+            call(request_messages[0], timeout=timeout, metadata=metadata),
+            timeout=timeout + 5,
+        )
+        return [response]
+
+    if mode == "server_stream":
+        call = channel.unary_stream(
+            method_path,
+            request_serializer=request_serializer,
+            response_deserializer=response_deserializer,
+        )
+        response_call = call(request_messages[0], timeout=timeout, metadata=metadata)
+        return await _collect_stream(response_call, timeout)
+
+    async def request_iterator():
+        for request_message in request_messages:
+            yield request_message
+
+    if mode == "client_stream":
+        call = channel.stream_unary(
+            method_path,
+            request_serializer=request_serializer,
+            response_deserializer=response_deserializer,
+        )
+        response = await asyncio.wait_for(
+            call(request_iterator(), timeout=timeout, metadata=metadata),
+            timeout=timeout + 5,
+        )
+        return [response]
+
+    call = channel.stream_stream(
+        method_path,
+        request_serializer=request_serializer,
+        response_deserializer=response_deserializer,
+    )
+    response_call = call(request_iterator(), timeout=timeout, metadata=metadata)
+    return await _collect_stream(response_call, timeout)
+
+
+def _response_body(response_messages: list, response_class, server_streaming: bool):
+    values = [MessageToDict(message, preserving_proto_field_name=True) for message in response_messages]
+    if server_streaming:
+        return values
+    if not values:
+        return MessageToDict(response_class(), preserving_proto_field_name=True)
+    return values[0]
+
+
+_MAX_PROTO_FILES = 64
+_MAX_PROTO_BUNDLE_BYTES = 8 * 1024 * 1024
+
+
+def _safe_proto_path(name: str) -> str:
+    """校验并规范化 import 文件名，禁止逃逸临时编译目录。"""
+    normalized = str(name).replace("\\", "/")
+    raw_parts = normalized.split("/")
+    path = PurePosixPath(normalized)
+    if (
+        not normalized
+        or normalized.startswith("/")
+        or ":" in normalized
+        or any(part in {"", ".", ".."} for part in raw_parts)
+    ):
+        raise RuntimeError(f"Proto import 文件名不安全: {name}")
+    return str(path)
+
+
+def _compile_proto(proto_content: str, proto_files: dict[str, str] | None = None) -> descriptor_pb2.FileDescriptorSet:
+    """编译单文件或带 import 的 Proto 文件包为 FileDescriptorSet。"""
     with tempfile.TemporaryDirectory() as tmpdir:
         proto_path = os.path.join(tmpdir, "service.proto")
         with open(proto_path, "w", encoding="utf-8") as f:
             f.write(proto_content)
+
+        if proto_files is not None and not isinstance(proto_files, dict):
+            raise RuntimeError("Proto import 文件包必须是对象")
+        files = proto_files or {}
+        auxiliary_files = [raw_name for raw_name in files if str(raw_name).replace("\\", "/") != "service.proto"]
+        if len(auxiliary_files) + 1 > _MAX_PROTO_FILES:
+            raise RuntimeError(f"Proto import 文件数不能超过 {_MAX_PROTO_FILES}")
+        total_bytes = len(str(proto_content).encode("utf-8"))
+        for raw_name, content in files.items():
+            name = _safe_proto_path(raw_name)
+            if not isinstance(content, str):
+                raise RuntimeError(f"Proto import 文件内容无效: {raw_name}")
+            total_bytes += len(content.encode("utf-8"))
+            if total_bytes > _MAX_PROTO_BUNDLE_BYTES:
+                raise RuntimeError(f"Proto 文件包不能超过 {_MAX_PROTO_BUNDLE_BYTES // (1024 * 1024)} MB")
+            # proto_content remains the authoritative entry file. This also
+            # avoids silently compiling stale duplicate content for service.proto.
+            if name == "service.proto":
+                continue
+            file_path = os.path.join(tmpdir, *name.split("/"))
+            os.makedirs(os.path.dirname(file_path), exist_ok=True)
+            with open(file_path, "w", encoding="utf-8") as f:
+                f.write(content)
 
         desc_path = os.path.join(tmpdir, "descriptor.bin")
         result = protoc.main(
@@ -89,11 +247,13 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
         extraction_records: list[dict] = []
         error_msg = None
         step_status = RunStatus.passed
+        mode = "unary"
 
         try:
             target = _render(step.get("target", ""), context)
             use_tls = step.get("use_tls", False)
             proto_content = step.get("proto_content", "")
+            proto_files = step.get("proto_files")
             service_name = _render(step.get("service", ""), context)
             method_name = _render(step.get("method", ""), context)
             request_json_str = _render(step.get("request_json", "{}"), context)
@@ -114,15 +274,9 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
                 "use_tls": use_tls,
             }
 
-            # 解析请求 JSON
-            try:
-                req_dict = json.loads(request_json_str)
-            except json.JSONDecodeError as e:
-                raise ValueError(f"Request JSON 解析失败: {e}")
-
             # 编译 proto（在线程池中执行，避免阻塞事件循环）
             loop = asyncio.get_event_loop()
-            desc_set = await loop.run_in_executor(None, _compile_proto, proto_content)
+            desc_set = await loop.run_in_executor(None, _compile_proto, proto_content, proto_files)
             pool = _build_pool(desc_set)
 
             # 查找 service → method → 输入/输出消息类型
@@ -134,8 +288,13 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
             ReqClass = message_factory.GetMessageClass(req_desc)
             RespClass = message_factory.GetMessageClass(resp_desc)
 
-            # 构造请求消息
-            request_msg = Parse(json.dumps(req_dict), ReqClass())
+            mode = _grpc_mode(method_desc)
+            request_data["grpc_mode"] = mode
+            request_messages = _parse_request_messages(
+                request_json_str,
+                ReqClass,
+                bool(method_desc.client_streaming),
+            )
 
             # 构建 gRPC method path: /package.ServiceName/MethodName
             method_path = f"/{service_name}/{method_name}"
@@ -147,15 +306,16 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
                 channel = grpc.aio.insecure_channel(target)
 
             try:
-                call = channel.unary_unary(
-                    method_path,
-                    request_serializer=ReqClass.SerializeToString,
-                    response_deserializer=RespClass.FromString,
-                )
                 md = list(metadata.items()) if metadata else None
-                response_msg = await asyncio.wait_for(
-                    call(request_msg, timeout=timeout, metadata=md),
-                    timeout=timeout + 5,
+                response_messages = await _invoke_grpc_call(
+                    channel,
+                    method_path,
+                    ReqClass,
+                    RespClass,
+                    request_messages,
+                    method_desc,
+                    timeout,
+                    md,
                 )
             finally:
                 await channel.close()
@@ -163,9 +323,10 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
             duration = int((time.monotonic() - step_start) * 1000)
 
             # 响应转 dict
-            resp_body = MessageToDict(
-                response_msg,
-                preserving_proto_field_name=True,
+            resp_body = _response_body(
+                response_messages,
+                RespClass,
+                bool(method_desc.server_streaming),
             )
             grpc_status = "OK"
 
@@ -175,6 +336,7 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
                 duration_ms=duration,
                 metadata={"grpc_status": grpc_status},
             )
+            response_data["grpc_mode"] = mode
             response_data["grpc_status"] = grpc_status
 
             # 变量提取
@@ -213,6 +375,7 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
                 duration_ms=duration,
                 metadata={"grpc_status": grpc_status, "grpc_details": grpc_details},
             )
+            response_data["grpc_mode"] = mode
             response_data["grpc_status"] = grpc_status
             response_data["grpc_details"] = grpc_details
             # 仍然尝试运行断言（用户可能断言 grpc_status == UNAVAILABLE 等）

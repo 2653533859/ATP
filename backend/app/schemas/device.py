@@ -1,5 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from datetime import datetime
+from typing import Literal
 from app.models.device import DeviceStatus
 
 
@@ -28,6 +29,28 @@ class DeviceUpdate(BaseModel):
     description: str | None = None
     ip_address: str | None = None
     port: int | None = None
+
+
+class DeviceScanOut(BaseModel):
+    """设备扫描结果；worker 模式下先返回 queued，再由状态接口返回最终列表。"""
+
+    status: Literal["queued", "running", "completed", "failed"]
+    scan_id: str | None = None
+    devices: list[DeviceOut] = Field(default_factory=list)
+    error: str | None = None
+
+
+class AndroidWorkerOut(BaseModel):
+    """在线 Android Worker 的 Redis 心跳快照。"""
+
+    worker_id: str
+    status: Literal["online"]
+    queues: list[str] = Field(default_factory=list)
+    capabilities: list[str] = Field(default_factory=list)
+    hostname: str | None = None
+    pid: int | None = None
+    updated_at: float
+    expires_at: float
 
 
 class DeviceTapIn(BaseModel):

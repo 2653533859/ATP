@@ -31,6 +31,16 @@ const router = createRouter({
           component: () => import('@/views/project/ProjectList.vue'),
         },
         {
+          path: 'projects/:projectId/overview',
+          name: 'project-overview',
+          component: () => import('@/views/project/ProjectOverviewView.vue'),
+        },
+        {
+          path: 'account',
+          name: 'account-settings',
+          component: () => import('@/views/account/AccountSettingsView.vue'),
+        },
+        {
           path: 'cases',
           name: 'cases',
           component: () => import('@/views/case/CaseList.vue'),
@@ -135,6 +145,12 @@ const router = createRouter({
           path: 'system/audit-logs',
           name: 'audit-logs',
           component: () => import('@/views/audit/AuditLogList.vue'),
+          meta: { requireAdmin: true, roles: ADMIN_ONLY },
+        },
+        {
+          path: 'system/users',
+          name: 'system-users',
+          component: () => import('@/views/system/UserManagementView.vue'),
           meta: { requireAdmin: true, roles: ADMIN_ONLY },
         },
         {

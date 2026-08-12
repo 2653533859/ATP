@@ -1,0 +1,21 @@
+{
+  "date": "2026-08-12",
+  "status": "passed",
+  "environment": "Windows local performance agent",
+  "backend_host": "163.192.40.209",
+  "node_id": "performance-win-worker-a",
+  "node_queue": "performance.worker-a",
+  "executor": "grpc",
+  "target": "127.0.0.1:50052",
+  "service": "demo.v1.Greeter",
+  "method": "Unary",
+  "iterations": 5,
+  "grpc_responses": 5,
+  "grpc_statuses": {
+    "OK": 5
+  },
+  "error_rate": 0.0,
+  "resource_samples": 1,
+  "resource_sample_errors": [],
+  "temporary_test_data_cleaned": true
+}

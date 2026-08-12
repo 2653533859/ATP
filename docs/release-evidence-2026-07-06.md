@@ -795,7 +795,7 @@ Physical device shell/data-plane: not run; no device attached
 
 ### Summary
 
-- Fix Python 3.14 backend setup when `psycopg2-binary==2.9.10` needs a local `pg_config`.
+- Fix Python 3.14 backend setup by pinning `asyncpg==0.31.0`, `psycopg2-binary==2.9.12` and `PyYAML==6.0.3`, which ship Windows cp314 wheels and avoid local C compiler/`pg_config` builds.
 - Preserve the Python 3.12 deployment baseline with environment-marker dependency pins.
 - Harden the local `make setup` path for Homebrew `libpq` and optional build dependencies.
 - Update compatibility tests and sync release progress documentation.

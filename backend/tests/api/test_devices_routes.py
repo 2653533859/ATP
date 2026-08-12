@@ -114,7 +114,8 @@ def test_scan_devices_syncs_and_returns_latest_rows(monkeypatch):
 
     result = asyncio.run(devices.scan_devices(db=db, _=None))
 
-    assert result == [latest]
+    assert result.status == "completed"
+    assert [device.id for device in result.devices] == [latest.id]
     assert calls == {"db": db, "scanned": [{"serial": "serial-2", "status": "online"}]}
     assert db.commits == 1
 
@@ -130,16 +131,101 @@ def test_scan_devices_dispatches_to_worker_queue(monkeypatch):
         "app.worker.tasks_device",
         SimpleNamespace(
             scan_adb_devices=SimpleNamespace(
-                apply_async=lambda **kwargs: calls.update(kwargs),
+                apply_async=lambda **kwargs: (
+                    calls.update(kwargs) or SimpleNamespace(id="550e8400-e29b-41d4-a716-446655440000")
+                ),
             )
         ),
     )
 
     result = asyncio.run(devices.scan_devices(db=db, _=None))
 
-    assert result == [latest]
-    assert calls == {"queue": "mobile_special"}
+    assert result.status == "queued"
+    assert result.scan_id == "550e8400-e29b-41d4-a716-446655440000"
+    assert [device.id for device in result.devices] == [latest.id]
+    assert calls == {"queue": "mobile_special", "ignore_result": False}
     assert db.commits == 0
+
+
+def test_get_scan_status_reports_queued_worker_task(monkeypatch):
+    latest = _device(4)
+
+    class PendingResult:
+        state = "PENDING"
+        result = None
+
+    monkeypatch.setattr(devices, "_scan_result", lambda _scan_id: PendingResult())
+    result = asyncio.run(
+        devices.get_scan_status(
+            scan_id="550e8400-e29b-41d4-a716-446655440000",
+            db=_DB(rows=[[latest]]),
+            _=None,
+        )
+    )
+
+    assert result.status == "queued"
+    assert [device.id for device in result.devices] == [latest.id]
+
+
+def test_get_scan_status_returns_completed_devices(monkeypatch):
+    latest = _device(5)
+
+    class CompletedResult:
+        state = "SUCCESS"
+        result = {"status": "completed", "count": 1}
+
+    monkeypatch.setattr(devices, "_scan_result", lambda _scan_id: CompletedResult())
+    result = asyncio.run(
+        devices.get_scan_status(
+            scan_id="550e8400-e29b-41d4-a716-446655440000",
+            db=_DB(rows=[[latest]]),
+            _=None,
+        )
+    )
+
+    assert result.status == "completed"
+    assert [device.id for device in result.devices] == [latest.id]
+
+
+def test_get_scan_status_rejects_non_uuid_task_id():
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(devices.get_scan_status(scan_id="not-a-scan", db=_DB(), _=None))
+
+    assert exc.value.status_code == 404
+
+
+def test_list_android_worker_status_returns_registered_workers(monkeypatch):
+    async def fake_list():
+        return [
+            {
+                "worker_id": "win-a",
+                "status": "online",
+                "queues": ["android", "mobile_special"],
+                "capabilities": ["adb", "android"],
+                "hostname": "WIN-A",
+                "pid": 123,
+                "updated_at": 1.0,
+                "expires_at": 46.0,
+            }
+        ]
+
+    monkeypatch.setattr(devices, "list_android_workers", fake_list)
+    result = asyncio.run(devices.list_android_worker_status(_=None))
+
+    assert result[0]["worker_id"] == "win-a"
+    assert result[0]["status"] == "online"
+
+
+def test_list_android_worker_status_returns_503_when_registry_is_unavailable(monkeypatch):
+    async def broken_list():
+        raise devices.AndroidWorkerRegistryError("redis down")
+
+    monkeypatch.setattr(devices, "list_android_workers", broken_list)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(devices.list_android_worker_status(_=None))
+
+    assert exc.value.status_code == 503
 
 
 def test_get_device_404_for_missing_device():

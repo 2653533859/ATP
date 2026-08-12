@@ -13,6 +13,7 @@ const {
   ruleLogs,
   ruleExport,
   ruleImport,
+  ruleAiGenerate,
   messageError,
   messageSuccess,
   messageWarning,
@@ -25,6 +26,7 @@ const {
   ruleLogs: vi.fn(),
   ruleExport: vi.fn(),
   ruleImport: vi.fn(),
+  ruleAiGenerate: vi.fn(),
   messageError: vi.fn(),
   messageSuccess: vi.fn(),
   messageWarning: vi.fn(),
@@ -47,6 +49,7 @@ vi.mock('@/api', () => ({
     logs: ruleLogs,
     exportRules: ruleExport,
     importRules: ruleImport,
+    aiGenerate: ruleAiGenerate,
   },
 }))
 
@@ -101,6 +104,7 @@ function mountPage() {
         AUpload: passthrough('AUpload'),
         PlusOutlined: true,
         UnorderedListOutlined: true,
+        ThunderboltOutlined: true,
       },
     },
   })
@@ -134,6 +138,23 @@ beforeEach(() => {
   ruleLogs.mockResolvedValue([{ timestamp: '2026-08-01T10:00:00Z', method: 'GET', path: '/api/users', matched: true }])
   ruleExport.mockResolvedValue({ project_id: 7, rules: [RULE] })
   ruleImport.mockResolvedValue([RULE])
+  ruleAiGenerate.mockResolvedValue({
+    project_id: 7,
+    rules: [{
+      name: 'Generated users',
+      method: 'GET',
+      path: '/api/users/generated',
+      status_code: 200,
+      response_headers: { 'Content-Type': 'application/json' },
+      response_body: '{"ok":true}',
+      match_conditions: { query: {}, headers: {}, body: {} },
+      delay_ms: 0,
+      is_enabled: true,
+      render_template: false,
+      record_requests: false,
+    }],
+    warnings: [],
+  })
 })
 
 describe('MockRuleList mount', () => {
@@ -221,5 +242,33 @@ describe('MockRuleList mount', () => {
     createObjectURL.mockRestore()
     revokeObjectURL.mockRestore()
     anchorClick.mockRestore()
+  })
+
+  it('generates Mock drafts for review and saves them only after confirmation', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.projectId = 7
+    vm.selectedRuleIds = [8]
+
+    vm.openAIMockGeneration()
+    expect(vm.aiMockGenerateOpen).toBe(true)
+    await vm.generateAIMockRules()
+
+    expect(ruleAiGenerate).toHaveBeenCalledWith(expect.objectContaining({
+      project_id: 7,
+      rule_ids: [8],
+      rule_count: 1,
+    }))
+    expect(vm.aiMockPreviewOpen).toBe(true)
+    expect(ruleCreate).not.toHaveBeenCalled()
+
+    await vm.saveAIMockRules()
+    expect(ruleCreate).toHaveBeenCalledWith(expect.objectContaining({
+      project_id: 7,
+      name: 'Generated users',
+      path: '/api/users/generated',
+    }))
+    expect(vm.aiMockPreviewOpen).toBe(false)
   })
 })

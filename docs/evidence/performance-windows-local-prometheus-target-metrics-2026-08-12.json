@@ -1,0 +1,30 @@
+{
+  "generated_at": "2026-08-12T01:36:00+00:00",
+  "status": "passed",
+  "environment": "Windows local ATP / remote-infra runtime",
+  "prometheus": {
+    "version": "3.13.1",
+    "url": "http://127.0.0.1:9090",
+    "readiness": 200,
+    "scrape_target": "127.0.0.1:8000/metrics",
+    "target_health": "up"
+  },
+  "performance_run": {
+    "test_id": 7,
+    "run_id": 11,
+    "executor": "k6",
+    "node_id": "perf-node-local-01",
+    "iterations": 20,
+    "error_rate": 0,
+    "metric_samples": 6,
+    "target_metric_samples": 3,
+    "target_metric_source": "target-service-prometheus",
+    "target_metrics": {
+      "backend_up": 1.0,
+      "request_count": 20.0,
+      "slow_queries": 3.0
+    },
+    "target_metric_errors": []
+  },
+  "scope": "证明 Windows 本地 Prometheus 采集和目标指标与性能 run 关联；不替代 Linux/Kubernetes、外部目标或生产 SLO 历史验收。"
+}

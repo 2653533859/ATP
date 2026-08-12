@@ -13,7 +13,7 @@ ATP 继续以 k6 作为默认执行器，同时统一接入 Locust 与 gRPC。�
 | 结果 | k6 summary | Locust aggregate CSV | 统一 RPC 样本摘要 |
 | 取消 | 子进程终止 | 子进程终止 | channel 关闭并停止并发槽 |
 
-k6 适合可视化 HTTP 场景和阈值门禁，Locust 适合复杂用户行为，gRPC 适合直接对服务接口做协议级并发验证，JMeter 适合复用 JMX/非 GUI 结果链路。执行器可通过 `GET /api/v1/performance/executors` 查看能力和 ready 状态；worker 通过 `PERFORMANCE_EXECUTORS` 控制实际启用集合，默认值仍为 `k6,locust,grpc`，需要 JMeter 的 Worker 显式加入 `jmeter`。
+k6 适合可视化 HTTP 场景和阈值门禁，Locust 适合复杂用户行为，gRPC 适合直接对服务接口做协议级并发验证，JMeter 适合复用 JMX/非 GUI 结果链路。执行器可通过 `GET /api/v1/performance/executors` 查看能力和 ready 状态；worker 通过 `PERFORMANCE_EXECUTORS` 控制实际启用集合，默认值仍为 `k6,locust,grpc`，需要 JMeter 的 Worker 显式加入 `jmeter`。Windows Worker 会按 `jmeter.bat`、`jmeter.exe`、`jmeter` 顺序解析，Linux/macOS Worker 使用 `jmeter`，不依赖 shell 才能启动批处理入口。
 
 ## gRPC 首版配置
 

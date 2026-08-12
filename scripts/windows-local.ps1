@@ -12,6 +12,7 @@ $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $RunDir = Join-Path $RepoRoot '.local-run'
+$RuntimeMetadataPath = Join-Path $RunDir 'windows-local-runtime.json'
 $BackendDir = Join-Path $RepoRoot 'backend'
 $FrontendDir = Join-Path $RepoRoot 'frontend'
 $BackendPython = Join-Path $BackendDir '.venv\Scripts\python.exe'
@@ -22,6 +23,12 @@ $ConfiguredEnvFile = if ([string]::IsNullOrWhiteSpace($EnvFile)) {
 } else {
   Join-Path $RepoRoot $EnvFile
 }
+$ProcessEnvironmentHelper = Join-Path $PSScriptRoot 'windows-process-env.ps1'
+if (-not (Test-Path -LiteralPath $ProcessEnvironmentHelper)) {
+  throw "Missing process environment helper: $ProcessEnvironmentHelper"
+}
+. $ProcessEnvironmentHelper
+Add-AtpOptionalToolPath
 $ViteEntry = Join-Path $FrontendDir 'node_modules\vite\bin\vite.js'
 $PlaywrightPackage = Join-Path $FrontendDir 'node_modules\@playwright\test'
 $NodeCommand = Get-Command node.exe -ErrorAction SilentlyContinue
@@ -42,6 +49,7 @@ $Services = @(
     Name = 'Celery Worker'
     MatchTokens = @($BackendPython, '-m', 'celery', '-A', 'app.worker.celery_app', 'worker', '--pool=solo')
     MatchPattern = 'app\.worker\.celery_app\s+worker\s+--loglevel=info(?:\s+-Q\s+\S+)?\s+--pool=solo'
+    ExcludePattern = '--hostname\s+(?:android-win-|performance-win-)'
     FilePath = $BackendPython
     Arguments = @('-m', 'celery', '-A', 'app.worker.celery_app', 'worker', '--loglevel=info', '--pool=solo')
     WorkingDirectory = $BackendDir
@@ -130,6 +138,52 @@ function Assert-Exists {
   }
 }
 
+function Get-ConfiguredProfileLabel {
+  param([hashtable]$Values)
+
+  $profile = if ($Values.ContainsKey('ATP_STARTUP_PROFILE')) {
+    [string]$Values['ATP_STARTUP_PROFILE']
+  } else {
+    [Environment]::GetEnvironmentVariable('ATP_STARTUP_PROFILE', 'Process')
+  }
+  if ([string]::IsNullOrWhiteSpace($profile)) {
+    $profile = [System.IO.Path]::GetFileNameWithoutExtension($ConfiguredEnvFile)
+  }
+  if ([string]::IsNullOrWhiteSpace($profile)) { return 'custom/env' }
+  return $profile
+}
+
+function Write-RuntimeMetadata {
+  $values = Get-DotEnvValues
+  [ordered]@{
+    profile = Get-ConfiguredProfileLabel -Values $values
+    env_file = [System.IO.Path]::GetFileName($ConfiguredEnvFile)
+    postgres_host = [string]$values['POSTGRES_HOST']
+    postgres_port = [string]$values['POSTGRES_PORT']
+    redis_host = [string]$values['REDIS_HOST']
+    redis_port = [string]$values['REDIS_PORT']
+    minio_host = [string]$values['MINIO_HOST']
+    minio_port = [string]$values['MINIO_PORT']
+    celery_queues = [string]$values['CELERY_QUEUES']
+    started_at = (Get-Date).ToString('o')
+  } | ConvertTo-Json | Set-Content -Path $RuntimeMetadataPath -Encoding UTF8
+}
+
+function Read-RuntimeMetadata {
+  if (-not (Test-Path -LiteralPath $RuntimeMetadataPath)) { return $null }
+  try {
+    return Get-Content -Raw -Path $RuntimeMetadataPath -Encoding UTF8 | ConvertFrom-Json
+  } catch {
+    return $null
+  }
+}
+
+function Remove-RuntimeMetadata {
+  if (Test-Path -LiteralPath $RuntimeMetadataPath) {
+    Remove-Item -LiteralPath $RuntimeMetadataPath -Force -ErrorAction SilentlyContinue
+  }
+}
+
 function Get-DotEnvValues {
   $values = @{}
   $envPath = $ConfiguredEnvFile
@@ -149,6 +203,20 @@ function Get-DotEnvValues {
   }
 
   return $values
+}
+
+function Configure-WebRecordingService {
+  $mode = Get-WebRecordingMode
+
+  $script:Services += @{
+    Key = 'web-recorder'
+    Name = 'Web Recording Worker'
+    MatchTokens = @($BackendPython, '-m', 'app.web_recording_worker')
+    FilePath = $BackendPython
+    Arguments = @('-m', 'app.web_recording_worker')
+    WorkingDirectory = $BackendDir
+    Enabled = $mode.Trim().ToLowerInvariant() -eq 'worker'
+  }
 }
 
 function Test-TcpEndpoint {
@@ -202,6 +270,115 @@ function Test-PythonModule {
   }
 }
 
+function Get-WebRecordingMode {
+  $values = Get-DotEnvValues
+  $mode = if ($values.ContainsKey('WEB_RECORDER_MODE')) {
+    [string]$values['WEB_RECORDER_MODE']
+  } elseif (-not [string]::IsNullOrWhiteSpace($env:WEB_RECORDER_MODE)) {
+    [string]$env:WEB_RECORDER_MODE
+  } else {
+    'local'
+  }
+
+  return $mode.Trim().ToLowerInvariant()
+}
+
+function Get-PlaywrightChromiumExecutable {
+  if (-not (Test-Path $BackendPython) -or -not (Test-PythonModule -ModuleName 'playwright')) {
+    return ''
+  }
+
+  $previousPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    $output = & $BackendPython -c "from playwright.sync_api import sync_playwright; p=sync_playwright().start(); print(p.chromium.executable_path); p.stop()" 2>$null | Out-String
+    return $output.Trim()
+  } catch {
+    return ''
+  } finally {
+    $ErrorActionPreference = $previousPreference
+  }
+}
+
+function Test-PositiveIntegerValue {
+  param([string]$Value)
+
+  $parsed = 0
+  return [int]::TryParse($Value, [ref]$parsed) -and $parsed -gt 0
+}
+
+function Test-EnabledValue {
+  param([string]$Value)
+
+  return @('1', 'true', 'yes', 'on') -contains ([string]$Value).Trim().ToLowerInvariant()
+}
+
+function Get-ConfiguredWorkerQueues {
+  param([hashtable]$Values)
+
+  $rawQueues = if ($Values.ContainsKey('CELERY_QUEUES')) { [string]$Values['CELERY_QUEUES'] } else { '' }
+  $queuePattern = '^[A-Za-z0-9_.-]+$'
+  $queues = @(
+    $rawQueues -split ',' |
+      ForEach-Object { $_.Trim() } |
+      Where-Object { $_ -match $queuePattern } |
+      Select-Object -Unique
+  )
+
+  $nodeEnabled = if ($Values.ContainsKey('PERFORMANCE_NODE_ENABLED')) {
+    Test-EnabledValue -Value ([string]$Values['PERFORMANCE_NODE_ENABLED'])
+  } else {
+    $false
+  }
+  $nodeId = if ($Values.ContainsKey('PERFORMANCE_NODE_ID')) { [string]$Values['PERFORMANCE_NODE_ID'] } else { '' }
+  $nodeQueue = if ($Values.ContainsKey('PERFORMANCE_NODE_QUEUE')) { [string]$Values['PERFORMANCE_NODE_QUEUE'] } else { 'performance' }
+  if ($nodeEnabled -and -not [string]::IsNullOrWhiteSpace($nodeId)) {
+    if ($nodeQueue.Trim() -notmatch $queuePattern) {
+      throw "Invalid PERFORMANCE_NODE_QUEUE '$nodeQueue'. Use letters, numbers, '.', '_' or '-'."
+    }
+    # Scheduled/unassigned work uses the shared queue; node-bound work and the
+    # heartbeat use the node queue, so an explicit node must consume both.
+    $queues += @('performance', $nodeQueue.Trim())
+  }
+
+  $queues = @($queues | Select-Object -Unique)
+  if ($queues.Count -eq 0) {
+    $queues = @('default')
+  }
+
+  return $queues
+}
+
+function Get-AndroidWorkerProcesses {
+  $processes = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+      $commandLine = [string]$_.CommandLine
+      -not [string]::IsNullOrWhiteSpace($commandLine) -and
+        $commandLine.IndexOf($BackendPython, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+        $commandLine -match 'app\.worker\.celery_app\s+worker' -and
+        $commandLine -match '--hostname\s+android-win-'
+    })
+
+  return @($processes | Sort-Object ProcessId -Unique)
+}
+
+function Assert-AndroidWorkerQueueIsolation {
+  param([string[]]$Queues)
+
+  $androidQueues = @('android', 'mobile_special')
+  $overlap = @($Queues | Where-Object { $androidQueues -contains ([string]$_).Trim().ToLowerInvariant() })
+  if ($overlap.Count -eq 0) {
+    return
+  }
+
+  $androidWorkers = @(Get-AndroidWorkerProcesses)
+  if ($androidWorkers.Count -eq 0) {
+    return
+  }
+
+  $processIds = ($androidWorkers | Select-Object -ExpandProperty ProcessId | Sort-Object -Unique) -join ','
+  throw "A dedicated Windows Android Worker is already running (PID $processIds), while the selected local Worker also consumes $($overlap -join ','). Stop the Android Worker or use an environment that excludes android,mobile_special before starting the local stack."
+}
+
 function Show-DoctorCheck {
   param(
     [string]$Label,
@@ -240,6 +417,36 @@ function Show-Doctor {
   $failed += $result
   $result = Show-DoctorCheck -Label 'Node.js 20+, Vite and Playwright packages' -Passed (($null -ne $NodeExe) -and (Test-Path $ViteEntry) -and (Test-Path $PlaywrightPackage)) -Hint 'Install Node.js 20+ and run npm ci in frontend.'
   $failed += $result
+
+  $webRecorderMode = Get-WebRecordingMode
+  $validWebRecorderMode = @('local', 'worker') -contains $webRecorderMode
+  $result = Show-DoctorCheck -Label "Web recording mode: $webRecorderMode" -Passed $validWebRecorderMode -Hint 'Set WEB_RECORDER_MODE to local or worker.'
+  $failed += $result
+  if ($validWebRecorderMode) {
+    $pythonPlaywrightAvailable = Test-PythonModule -ModuleName 'playwright'
+    $result = Show-DoctorCheck -Label 'Python Playwright package' -Passed $pythonPlaywrightAvailable -Hint 'Install backend requirements in backend/.venv.'
+    $failed += $result
+    if ($pythonPlaywrightAvailable) {
+      $chromiumExecutable = Get-PlaywrightChromiumExecutable
+      $chromiumAvailable = -not [string]::IsNullOrWhiteSpace($chromiumExecutable) -and (Test-Path $chromiumExecutable)
+      $result = Show-DoctorCheck -Label 'Python Playwright Chromium browser' -Passed $chromiumAvailable -Hint 'Run backend\.venv\Scripts\python.exe -m playwright install chromium.'
+      $failed += $result
+    }
+
+    if ($webRecorderMode -eq 'worker') {
+      $workerEntry = Join-Path $BackendDir 'app\web_recording_worker.py'
+      $result = Show-DoctorCheck -Label 'Web recording Worker entry point' -Passed (Test-Path $workerEntry) -Hint 'Restore backend/app/web_recording_worker.py or switch WEB_RECORDER_MODE to local.'
+      $failed += $result
+
+      $values = Get-DotEnvValues
+      $queuePrefix = if ($values.ContainsKey('WEB_RECORDER_WORKER_QUEUE_PREFIX')) { [string]$values['WEB_RECORDER_WORKER_QUEUE_PREFIX'] } else { 'atp:web-recording:commands' }
+      $result = Show-DoctorCheck -Label 'Web recording Worker queue prefix' -Passed (-not [string]::IsNullOrWhiteSpace($queuePrefix)) -Hint 'Set WEB_RECORDER_WORKER_QUEUE_PREFIX consistently for API and Worker.'
+      $failed += $result
+      $maxSessions = if ($values.ContainsKey('WEB_RECORDER_WORKER_MAX_SESSIONS')) { [string]$values['WEB_RECORDER_WORKER_MAX_SESSIONS'] } else { '2' }
+      $result = Show-DoctorCheck -Label 'Web recording Worker max sessions' -Passed (Test-PositiveIntegerValue -Value $maxSessions) -Hint 'Set WEB_RECORDER_WORKER_MAX_SESSIONS to a positive integer.'
+      $failed += $result
+    }
+  }
 
   foreach ($key in @('APP_SECRET_KEY', 'POSTGRES_PASSWORD', 'MINIO_ROOT_PASSWORD', 'FIRST_ADMIN_PASSWORD')) {
     $value = if ($values.ContainsKey($key)) { [string]$values[$key] } else { '' }
@@ -336,6 +543,23 @@ function Show-Doctor {
     }
   }
 
+  $performanceNodeEnabled = if ($values.ContainsKey('PERFORMANCE_NODE_ENABLED')) {
+    Test-EnabledValue -Value ([string]$values['PERFORMANCE_NODE_ENABLED'])
+  } else {
+    $false
+  }
+  $performanceNodeId = if ($values.ContainsKey('PERFORMANCE_NODE_ID')) { [string]$values['PERFORMANCE_NODE_ID'] } else { '' }
+  $performanceNodeQueue = if ($values.ContainsKey('PERFORMANCE_NODE_QUEUE')) {
+    [string]$values['PERFORMANCE_NODE_QUEUE']
+  } else {
+    'performance'
+  }
+  if ($performanceNodeEnabled -and -not [string]::IsNullOrWhiteSpace($performanceNodeId)) {
+    $queueValid = $performanceNodeQueue.Trim() -match '^[A-Za-z0-9_.-]+$'
+    $result = Show-DoctorCheck -Label "Performance node queue: $performanceNodeQueue" -Passed $queueValid -Hint 'Use letters, numbers, dots, underscores or hyphens; the local Worker will listen to this queue automatically.'
+    $failed += $result
+  }
+
   if ($failed -eq 0) {
     Write-Host "Doctor passed with $warnings warning(s)."
     return 0
@@ -346,6 +570,7 @@ function Show-Doctor {
 }
 
 function Ensure-Prerequisites {
+  Assert-Exists -Path $ConfiguredEnvFile -Message "Missing selected environment file $ConfiguredEnvFile. Run the doctor action first."
   Assert-Exists -Path $BackendPython -Message "Missing $BackendPython. Prepare backend/.venv first."
   if (-not $NodeExe) {
     throw 'Missing node.exe. Install Node.js 20+ and ensure it is on PATH.'
@@ -365,6 +590,12 @@ function Test-ServiceProcessMatch {
   $commandLine = [string]$Process.CommandLine
   if ([string]::IsNullOrWhiteSpace($commandLine)) {
     return $false
+  }
+
+  if ($Service.ContainsKey('ExcludePattern') -and -not [string]::IsNullOrWhiteSpace([string]$Service.ExcludePattern)) {
+    if ($commandLine -match $Service.ExcludePattern) {
+      return $false
+    }
   }
 
   foreach ($token in $Service.MatchTokens) {
@@ -618,8 +849,11 @@ function Start-ServiceProcess {
   $stdoutLog = Join-Path $RunDir "$($Service.Key)-$timestamp.out.log"
   $stderrLog = Join-Path $RunDir "$($Service.Key)-$timestamp.err.log"
   $process = $null
+  $previousEnvironment = $null
 
   try {
+    $previousEnvironment = Push-AtpProcessEnvironment -Values (Get-DotEnvValues)
+    Add-AtpOptionalToolPath
     $process = Start-Process -FilePath $Service.FilePath -ArgumentList $Service.Arguments -WorkingDirectory $Service.WorkingDirectory -WindowStyle Hidden -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog -PassThru
     Write-PidFile -Service $Service -ProcessId $process.Id
 
@@ -639,6 +873,8 @@ function Start-ServiceProcess {
       }
     }
     throw
+  } finally {
+    Pop-AtpProcessEnvironment -Previous $previousEnvironment
   }
 
   $running = @(Get-ServiceProcesses -Service $Service)
@@ -682,7 +918,23 @@ function Stop-ServiceProcess {
 }
 
 function Show-Status {
+  $runtime = Read-RuntimeMetadata
+  $runningServices = @($Services | ForEach-Object { @(Get-ServiceProcesses -Service $_) } | Where-Object { $null -ne $_ })
+  if ($null -ne $runtime -and $runningServices.Count -gt 0) {
+    Write-Host "[config] runtime profile=$($runtime.profile) | env=$($runtime.env_file) | PostgreSQL=$($runtime.postgres_host):$($runtime.postgres_port) | Redis=$($runtime.redis_host):$($runtime.redis_port) | MinIO=$($runtime.minio_host):$($runtime.minio_port)"
+  } else {
+    if ($runningServices.Count -eq 0) { Remove-RuntimeMetadata }
+    $values = Get-DotEnvValues
+    $profile = Get-ConfiguredProfileLabel -Values $values
+    Write-Host "[config] selected profile=$profile | env=$([System.IO.Path]::GetFileName($ConfiguredEnvFile)) | PostgreSQL=$($values['POSTGRES_HOST']):$($values['POSTGRES_PORT']) | Redis=$($values['REDIS_HOST']):$($values['REDIS_PORT']) | MinIO=$($values['MINIO_HOST']):$($values['MINIO_PORT'])"
+  }
+
   foreach ($service in $Services) {
+    if ($service.ContainsKey('Enabled') -and -not $service.Enabled) {
+      Write-Host "[disabled] $($service.Name)"
+      continue
+    }
+
     $running = @(Get-ServiceProcesses -Service $service)
 
     if ($running.Count -gt 0) {
@@ -718,17 +970,7 @@ function Show-Logs {
 
 function Configure-WorkerQueues {
   $values = Get-DotEnvValues
-  $rawQueues = if ($values.ContainsKey('CELERY_QUEUES')) { [string]$values['CELERY_QUEUES'] } else { '' }
-  $queues = @(
-    $rawQueues -split ',' |
-      ForEach-Object { $_.Trim() } |
-      Where-Object { $_ -match '^[A-Za-z0-9_-]+$' } |
-      Select-Object -Unique
-  )
-
-  if ($queues.Count -eq 0) {
-    $queues = @('default')
-  }
+  $queues = Get-ConfiguredWorkerQueues -Values $values
 
   $worker = $Services | Where-Object { $_.Key -eq 'worker' } | Select-Object -First 1
   $worker.Arguments = @(
@@ -738,32 +980,44 @@ function Configure-WorkerQueues {
   Write-Host "Worker queues: $($queues -join ',')"
 }
 
+Configure-WebRecordingService
 Ensure-RunDir
 
 switch ($Action) {
   'up' {
     Ensure-Prerequisites
     Configure-WorkerQueues
+    Assert-AndroidWorkerQueueIsolation -Queues (Get-ConfiguredWorkerQueues -Values (Get-DotEnvValues))
     foreach ($service in $Services) {
+      if ($service.ContainsKey('Enabled') -and -not $service.Enabled) {
+        continue
+      }
       Start-ServiceProcess -Service $service
     }
+    Write-RuntimeMetadata
     Write-Host ''
     Show-Status
   }
   'down' {
-    foreach ($service in @($Services[3], $Services[2], $Services[1], $Services[0])) {
-      Stop-ServiceProcess -Service $service
+    for ($index = $Services.Count - 1; $index -ge 0; $index--) {
+      Stop-ServiceProcess -Service $Services[$index]
     }
+    Remove-RuntimeMetadata
   }
   'restart' {
-    foreach ($service in @($Services[3], $Services[2], $Services[1], $Services[0])) {
-      Stop-ServiceProcess -Service $service
-    }
     Ensure-Prerequisites
     Configure-WorkerQueues
+    Assert-AndroidWorkerQueueIsolation -Queues (Get-ConfiguredWorkerQueues -Values (Get-DotEnvValues))
+    for ($index = $Services.Count - 1; $index -ge 0; $index--) {
+      Stop-ServiceProcess -Service $Services[$index]
+    }
     foreach ($service in $Services) {
+      if ($service.ContainsKey('Enabled') -and -not $service.Enabled) {
+        continue
+      }
       Start-ServiceProcess -Service $service
     }
+    Write-RuntimeMetadata
     Write-Host ''
     Show-Status
   }

@@ -48,7 +48,7 @@ sys.modules["app.core.redis_client"] = types.SimpleNamespace(
 
 from app.api.v1 import mock_rules
 from app.models.mock import MockMethod
-from app.schemas.mock import MockRuleCreate, MockRuleUpdate
+from app.schemas.mock import MockAIGenerateIn, MockRuleCreate, MockRuleUpdate
 
 
 class _FakeDB:
@@ -106,3 +106,10 @@ def test_create_mock_rule_returns_404_for_missing_project():
     assert exc.value.status_code == 404
     assert not db.added
     assert db.committed is False
+
+
+def test_mock_ai_generate_request_limits_rule_ids_and_count():
+    body = MockAIGenerateIn(project_id=1, rule_ids=list(range(20)), rule_count=20)
+
+    assert len(body.rule_ids) == 20
+    assert body.rule_count == 20

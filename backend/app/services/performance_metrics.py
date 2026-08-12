@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import ctypes
 import pathlib
 import socket
+import sys
 import time
 from typing import Any
 
@@ -20,6 +22,7 @@ except ImportError:  # pragma: no cover - optional fallback for minimal local in
     psutil = None
 
 _last_proc_cpu: tuple[int, int] | None = None
+_last_windows_cpu: tuple[int, int] | None = None
 
 
 def _record_error(errors: list[str], component: str, exc: Exception) -> None:
@@ -28,7 +31,10 @@ def _record_error(errors: list[str], component: str, exc: Exception) -> None:
 
 def _collect_system_metrics(metrics: dict[str, float], errors: list[str]) -> None:
     if psutil is None:
-        _collect_proc_system_metrics(metrics, errors)
+        if sys.platform.startswith("win"):
+            _collect_windows_system_metrics(metrics, errors)
+        else:
+            _collect_proc_system_metrics(metrics, errors)
         return
     try:
         metrics["cpu_percent"] = float(psutil.cpu_percent(interval=None))
@@ -37,6 +43,57 @@ def _collect_system_metrics(metrics: dict[str, float], errors: list[str]) -> Non
         metrics["memory_used_bytes"] = float(memory.used)
         metrics["memory_available_bytes"] = float(memory.available)
     except Exception as exc:  # pragma: no cover - depends on host platform
+        _record_error(errors, "system", exc)
+
+
+def _collect_windows_system_metrics(metrics: dict[str, float], errors: list[str]) -> None:
+    """Collect CPU and memory metrics without requiring psutil on Windows."""
+    global _last_windows_cpu
+    try:
+
+        class _FileTime(ctypes.Structure):
+            _fields_ = [("dwLowDateTime", ctypes.c_uint32), ("dwHighDateTime", ctypes.c_uint32)]
+
+        idle = _FileTime()
+        kernel = _FileTime()
+        user = _FileTime()
+        if not ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
+            raise OSError(ctypes.get_last_error(), "GetSystemTimes failed")
+
+        def filetime_value(value: _FileTime) -> int:
+            return (int(value.dwHighDateTime) << 32) | int(value.dwLowDateTime)
+
+        idle_value = filetime_value(idle)
+        total_value = filetime_value(kernel) + filetime_value(user)
+        if _last_windows_cpu is not None:
+            previous_total, previous_idle = _last_windows_cpu
+            total_delta = total_value - previous_total
+            idle_delta = idle_value - previous_idle
+            if total_delta > 0:
+                metrics["cpu_percent"] = max(0.0, min(100.0, (1 - idle_delta / total_delta) * 100))
+        _last_windows_cpu = (total_value, idle_value)
+
+        class _MemoryStatusEx(ctypes.Structure):
+            _fields_ = [
+                ("dwLength", ctypes.c_uint32),
+                ("dwMemoryLoad", ctypes.c_uint32),
+                ("ullTotalPhys", ctypes.c_uint64),
+                ("ullAvailPhys", ctypes.c_uint64),
+                ("ullTotalPageFile", ctypes.c_uint64),
+                ("ullAvailPageFile", ctypes.c_uint64),
+                ("ullTotalVirtual", ctypes.c_uint64),
+                ("ullAvailVirtual", ctypes.c_uint64),
+                ("ullAvailExtendedVirtual", ctypes.c_uint64),
+            ]
+
+        memory = _MemoryStatusEx()
+        memory.dwLength = ctypes.sizeof(memory)
+        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memory)):
+            raise OSError(ctypes.get_last_error(), "GlobalMemoryStatusEx failed")
+        metrics["memory_percent"] = float(memory.dwMemoryLoad)
+        metrics["memory_used_bytes"] = float(memory.ullTotalPhys - memory.ullAvailPhys)
+        metrics["memory_available_bytes"] = float(memory.ullAvailPhys)
+    except Exception as exc:  # pragma: no cover - depends on Windows APIs
         _record_error(errors, "system", exc)
 
 
@@ -111,8 +168,8 @@ def _collect_redis_metrics(metrics: dict[str, float], errors: list[str]) -> None
         client = redis.Redis.from_url(
             _redis_url(),
             decode_responses=True,
-            socket_connect_timeout=1,
-            socket_timeout=1,
+            socket_connect_timeout=settings.REDIS_CONNECT_TIMEOUT_SECONDS,
+            socket_timeout=settings.REDIS_CONNECT_TIMEOUT_SECONDS,
         )
         info = client.info()
         for key, metric_name in (

@@ -22,6 +22,7 @@ sys.modules["app.api.deps"] = types.SimpleNamespace(
     require_admin=_p3c_noop,
     require_engineer=_p3c_noop,
     require_project_access=lambda *a, **kw: _p3c_noop,
+    require_project_writable_access=lambda *a, **kw: _p3c_noop,
     assert_project_access=_p3c_noop_async,
     ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
 )
@@ -80,6 +81,8 @@ class _DeleteDB:
         self.commit_calls = 0
 
     async def get(self, _model, obj_id):
+        if _model.__name__ == "Project" and obj_id != self.obj.id:
+            return None
         assert obj_id == self.obj.id
         return self.obj
 

@@ -37,13 +37,26 @@ from app.models.case import TestCase
 from app.models.dataset import TestDataset, TestDatasetVersion
 from app.models.plan import TestPlan
 from app.models.suite import TestSuite
-from app.schemas.dataset import DatasetValidateIn, TestDatasetCreate, TestDatasetUpdate
+from app.schemas.dataset import DatasetAIGenerateIn, DatasetValidateIn, TestDatasetCreate, TestDatasetUpdate
 
 load_all_models()
 
 
 class _FakeUser:
     id = 1
+
+
+class _AIProjectDB:
+    def __init__(self, project, config):
+        self.project = project
+        self.config = config
+
+    async def get(self, model, pk):
+        if model.__name__ == "Project":
+            return self.project if pk == self.project.id else None
+        if model.__name__ == "AILLMConfig":
+            return self.config if pk == self.config.id else None
+        return None
 
 
 class _FakeDB:
@@ -147,6 +160,70 @@ def _make_dataset(id_=1, rows=None, fmt="json"):
         updated_at=now,
     )
     return d
+
+
+def test_ai_generate_dataset_returns_rows_without_persisting(monkeypatch):
+    project = types.SimpleNamespace(id=10, ai_llm_config_id=7)
+    config = types.SimpleNamespace(id=7, enabled=True)
+
+    async def fake_generate_dataset_rows(**_kwargs):
+        return (
+            [{"username": "synthetic-1", "age": 18}],
+            [{"name": "username", "type": "string", "required": False, "default": None}],
+            [],
+        )
+
+    monkeypatch.setattr(ds_api, "generate_dataset_rows", fake_generate_dataset_rows)
+    body = DatasetAIGenerateIn(
+        project_id=10,
+        requirement="生成一个不含真实个人信息的测试用户",
+        row_count=1,
+    )
+    result = asyncio.run(
+        ds_api.generate_dataset_with_ai(
+            body=body,
+            db=_AIProjectDB(project, config),
+            user=_FakeUser(),
+        )
+    )
+
+    assert result.project_id == 10
+    assert result.dataset_id is None
+    assert result.rows == [{"username": "synthetic-1", "age": 18}]
+    assert result.schema_fields[0].name == "username"
+
+
+def test_ai_generate_dataset_uses_persisted_schema_for_existing_dataset(monkeypatch):
+    project = types.SimpleNamespace(id=10, ai_llm_config_id=7)
+    config = types.SimpleNamespace(id=7, enabled=True)
+    dataset = _make_dataset(3)
+    dataset.schema_fields = [{"name": "order_id", "type": "string", "required": True, "default": None}]
+
+    captured = {}
+
+    async def fake_generate_dataset_rows(**kwargs):
+        captured.update(kwargs)
+        return ([{"order_id": "synthetic-order"}], kwargs["schema_fields"], [])
+
+    monkeypatch.setattr(ds_api, "generate_dataset_rows", fake_generate_dataset_rows)
+
+    class DB(_AIProjectDB):
+        async def get(self, model, pk):
+            if model.__name__ == "TestDataset":
+                return dataset if pk == 3 else None
+            return await super().get(model, pk)
+
+    result = asyncio.run(
+        ds_api.generate_dataset_with_ai(
+            body=DatasetAIGenerateIn(project_id=10, dataset_id=3, row_count=1),
+            db=DB(project, config),
+            user=_FakeUser(),
+        )
+    )
+
+    assert captured["schema_fields"][0]["name"] == "order_id"
+    assert result.dataset_id == 3
+    assert result.rows == [{"order_id": "synthetic-order"}]
 
 
 def _make_case(case_id=100, dataset_id=1):

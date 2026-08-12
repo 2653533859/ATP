@@ -59,6 +59,38 @@ class MockRuleUpdate(BaseModel):
         return _normalize_path(value)
 
 
+class MockAIGenerateIn(BaseModel):
+    project_id: int
+    rule_ids: list[int] = Field(default_factory=list, max_length=20)
+    requirement: str = Field(default="", max_length=4_000)
+    rule_count: int = Field(default=1, ge=1, le=20)
+
+
+class MockAIGeneratedRule(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    method: MockMethod
+    path: str
+    status_code: int = Field(default=200, ge=100, le=599)
+    response_headers: dict = Field(default_factory=dict)
+    response_body: str | None = None
+    match_conditions: MockMatchConditions = Field(default_factory=MockMatchConditions)
+    delay_ms: int = Field(default=0, ge=0, le=30_000)
+    is_enabled: bool = True
+    render_template: bool = False
+    record_requests: bool = False
+
+    @field_validator("path")
+    @classmethod
+    def normalize_path(cls, value: str) -> str:
+        return _normalize_path(value) or "/"
+
+
+class MockAIGenerateOut(BaseModel):
+    project_id: int
+    rules: list[MockAIGeneratedRule]
+    warnings: list[str] = Field(default_factory=list)
+
+
 class MockRuleOut(BaseModel):
     id: int
     name: str

@@ -119,6 +119,27 @@ def test_build_report_html_full_includes_screenshot_column():
     assert "截图" in html
 
 
+def test_build_report_html_includes_android_device_matrix_results():
+    run = _make_run()
+    run.result_summary = {
+        "device_matrix_total": 2,
+        "device_matrix_passed": 1,
+        "device_matrix_failed": 1,
+        "device_matrix_error": 0,
+        "device_matrix_results": [
+            {"run_id": 11, "serial": "emu-1", "status": "passed", "duration_ms": 100, "error": None},
+            {"run_id": 12, "serial": "emu-2", "status": "failed", "duration_ms": 200, "error": "assertion failed"},
+        ],
+    }
+
+    html = asyncio.run(exports_mod._build_report_html(run, [], "android-case", case_type="android"))
+
+    assert "Android 设备矩阵结果" in html
+    assert "emu-1" in html and "emu-2" in html
+    assert "assertion failed" in html
+    assert "<td>2</td>" in html
+
+
 def test_build_report_html_renders_cover_block():
     run = _make_run()
     html = asyncio.run(

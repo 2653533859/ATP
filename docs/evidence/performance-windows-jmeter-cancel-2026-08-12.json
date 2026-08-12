@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-08-12T08:06:43+08:00",
+  "status": "passed",
+  "worker": {
+    "platform": "windows",
+    "node_id": "performance-win-worker-a",
+    "queue": "performance.worker-a",
+    "executor": "jmeter"
+  },
+  "run": {
+    "run_id": 7,
+    "final_status": "cancelled",
+    "cancel_signal": "redis_control_key",
+    "jmeter_process_tree_cleaned": true,
+    "temporary_workspace_cleaned": true,
+    "error_message": "用户已停止压测"
+  },
+  "scope": [
+    "Windows JMeter cancellation",
+    "cmd.exe -> Java process-tree termination",
+    "temporary stderr.log cleanup"
+  ]
+}

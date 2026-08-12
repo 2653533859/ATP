@@ -229,7 +229,16 @@ import { ref, reactive, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { CodeOutlined, UploadOutlined, CheckCircleOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { caseApi, scriptApi, type CaseLevel, type CasePriority, type CaseSummaryItem } from '@/api'
+import {
+  caseApi,
+  scriptApi,
+  webAssetsApi,
+  type CaseLevel,
+  type CasePriority,
+  type CaseSummaryItem,
+  type WebElementAssetItem,
+  type WebPageObjectItem,
+} from '@/api'
 import MonacoEditor from '@/components/common/MonacoEditor.vue'
 import LowcodeStepEditor from '@/components/common/LowcodeStepEditor.vue'
 import WebRecorderModal from '@/components/common/WebRecorderModal.vue'
@@ -306,6 +315,8 @@ const scriptPreviewOpen = ref(false)
 const generatedScriptContent = ref('')
 const pendingGeneratedScript = ref('')
 const savingGeneratedScript = ref(false)
+const scriptElementAssets = ref<WebElementAssetItem[]>([])
+const scriptPageObjects = ref<WebPageObjectItem[]>([])
 
 // Script
 const scriptContent = ref('')
@@ -349,6 +360,8 @@ function resetDrawerState() {
   generatedScriptContent.value = ''
   pendingGeneratedScript.value = ''
   savingGeneratedScript.value = false
+  scriptElementAssets.value = []
+  scriptPageObjects.value = []
 }
 
 function resolveEditMode(config: WebCaseConfig) {
@@ -365,6 +378,23 @@ watch(() => props.open, async (v) => {
   if (!v) return
   const seq = ++initSeq.value
   resetDrawerState()
+
+  if (props.projectId) {
+    try {
+      const [elements, pageObjects] = await Promise.all([
+        webAssetsApi.listElements(props.projectId),
+        webAssetsApi.listPageObjects(props.projectId),
+      ])
+      if (seq !== initSeq.value || !props.open) return
+      scriptElementAssets.value = elements
+      scriptPageObjects.value = pageObjects
+    } catch {
+      if (seq !== initSeq.value || !props.open) return
+      // 资产加载失败不阻塞用例编辑；生成脚本时会明确提示无法展开的页面对象。
+      scriptElementAssets.value = []
+      scriptPageObjects.value = []
+    }
+  }
 
   if (props.editCase) {
     try {
@@ -475,7 +505,10 @@ function openGeneratedScriptPreview() {
     message.warning(t('case.drawer.web.msg.add_step_required'))
     return
   }
-  generatedScriptContent.value = generateWebPythonScript(lowcodeSteps.value)
+  generatedScriptContent.value = generateWebPythonScript(lowcodeSteps.value, {
+    elementAssets: scriptElementAssets.value,
+    pageObjects: scriptPageObjects.value,
+  })
   scriptPreviewOpen.value = true
 }
 

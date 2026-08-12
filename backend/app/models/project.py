@@ -21,6 +21,7 @@ class Project(Base, TimestampMixin):
     description: Mapped[str | None] = mapped_column(Text)
     owner_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     ai_llm_config_id: Mapped[int | None] = mapped_column(ForeignKey("ai_llm_configs.id"))
+    status: Mapped[str] = mapped_column(String(16), nullable=False, default="active", server_default="active")
     # P1.4：项目级保留天数覆盖；None 表示沿用全局 RUN_RETENTION_DAYS
     run_retention_days_override: Mapped[int | None] = mapped_column(Integer)
 

@@ -4,22 +4,27 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DeviceList from './DeviceList.vue'
 
-const { deviceList, deviceScan, deviceUpdate, deviceDelete, messageError, messageSuccess } = vi.hoisted(() => ({
+const { deviceList, deviceWorkers, deviceScan, deviceScanStatus, deviceUpdate, deviceDelete, messageError, messageInfo, messageSuccess } = vi.hoisted(() => ({
   deviceList: vi.fn(),
+  deviceWorkers: vi.fn(),
   deviceScan: vi.fn(),
+  deviceScanStatus: vi.fn(),
   deviceUpdate: vi.fn(),
   deviceDelete: vi.fn(),
   messageError: vi.fn(),
+  messageInfo: vi.fn(),
   messageSuccess: vi.fn(),
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
-vi.mock('ant-design-vue', () => ({ message: { error: messageError, success: messageSuccess } }))
+vi.mock('ant-design-vue', () => ({ message: { error: messageError, info: messageInfo, success: messageSuccess } }))
 vi.mock('@/api', () => ({
-  deviceApi: {
-    list: deviceList,
-    scan: deviceScan,
-    update: deviceUpdate,
+    deviceApi: {
+      list: deviceList,
+      workers: deviceWorkers,
+      scan: deviceScan,
+      scanStatus: deviceScanStatus,
+      update: deviceUpdate,
     delete: deviceDelete,
     screenshot: vi.fn(),
   },
@@ -102,7 +107,9 @@ const DEVICES = [
 beforeEach(() => {
   vi.clearAllMocks()
   deviceList.mockResolvedValue(DEVICES)
-  deviceScan.mockResolvedValue(DEVICES)
+  deviceWorkers.mockResolvedValue([])
+  deviceScan.mockResolvedValue({ status: 'completed', scan_id: null, devices: DEVICES })
+  deviceScanStatus.mockResolvedValue({ status: 'completed', scan_id: 'scan-id', devices: DEVICES })
   deviceUpdate.mockResolvedValue({})
   deviceDelete.mockResolvedValue({})
 })
@@ -146,6 +153,32 @@ describe('DeviceList mount', () => {
 
     expect(deviceScan).toHaveBeenCalledOnce()
     expect(messageSuccess).toHaveBeenCalled()
+  })
+
+  it('polls a queued Android Worker scan before reporting completion', async () => {
+    vi.useFakeTimers()
+    try {
+      deviceScan.mockResolvedValue({ status: 'queued', scan_id: '550e8400-e29b-41d4-a716-446655440000', devices: [] })
+      deviceScanStatus
+        .mockResolvedValueOnce({ status: 'running', scan_id: 'scan-id', devices: [] })
+        .mockResolvedValueOnce({ status: 'completed', scan_id: 'scan-id', devices: DEVICES })
+
+      const wrapper = mountDeviceList()
+      await flushPromises()
+      const clickPromise = wrapper.findAll('button')[0].trigger('click')
+      await flushPromises()
+      expect(messageInfo).toHaveBeenCalled()
+
+      await vi.advanceTimersByTimeAsync(500)
+      await flushPromises()
+      await vi.advanceTimersByTimeAsync(500)
+      await clickPromise
+
+      expect(deviceScanStatus).toHaveBeenCalledWith('550e8400-e29b-41d4-a716-446655440000')
+      expect(messageSuccess).toHaveBeenCalled()
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('deletes a device via the row action and reloads', async () => {

@@ -48,6 +48,7 @@ celery_app.conf.update(
         "cleanup_stale_mobile_special_runs": {"queue": "mobile_special"},
         "reclaim_expired_device_leases": {"queue": "mobile_special"},
         "scan_adb_devices": {"queue": "mobile_special"},
+        "heartbeat_android_worker": {"queue": "mobile_special"},
         # 外部 LLM 调用，便于独立限流与降级
         "diagnose_step_failure": {"queue": "ai"},
         "diagnose_run_failure": {"queue": "ai"},
@@ -67,6 +68,14 @@ celery_app.conf.update(
     enable_utc=True,
     task_track_started=True,
     worker_prefetch_multiplier=1,
+    broker_transport_options={
+        "socket_connect_timeout": settings.REDIS_CONNECT_TIMEOUT_SECONDS,
+        "socket_timeout": settings.REDIS_CONNECT_TIMEOUT_SECONDS,
+    },
+    result_backend_transport_options={
+        "socket_connect_timeout": settings.REDIS_CONNECT_TIMEOUT_SECONDS,
+        "socket_timeout": settings.REDIS_CONNECT_TIMEOUT_SECONDS,
+    },
     # 资源隔离: 单任务最大执行时间 30 分钟，软限制 25 分钟
     task_time_limit=1800,
     task_soft_time_limit=1500,
@@ -176,6 +185,16 @@ def _schedule_performance_node_heartbeat(**_kwargs):
     from app.worker.tasks_performance import heartbeat_performance_node
 
     heartbeat_performance_node.apply_async(queue=worker_node_queue())
+
+
+@worker_ready.connect
+def _schedule_android_worker_heartbeat(**_kwargs):
+    """Start a TTL-backed registry heartbeat only for explicitly identified Android Workers."""
+    if not settings.ANDROID_WORKER_ID.strip():
+        return
+    from app.worker.tasks_device import heartbeat_android_worker
+
+    heartbeat_android_worker.apply_async(queue=settings.ANDROID_WORKER_QUEUE.strip() or "mobile_special")
 
 
 # Soft / Hard 超时告警桥接到独立 handler 模块（便于单测）

@@ -197,6 +197,8 @@
                 <a-select-option value="bearer">{{ t('case_form.auth.bearer') }}</a-select-option>
                 <a-select-option value="basic">{{ t('case_form.auth.basic') }}</a-select-option>
                 <a-select-option value="apikey">{{ t('case_form.auth.apikey') }}</a-select-option>
+                <a-select-option value="digest">{{ t('case_form.auth.digest') }}</a-select-option>
+                <a-select-option value="oauth2_client_credentials">{{ t('case_form.auth.oauth2_client_credentials') }}</a-select-option>
               </a-select>
             </a-form-item>
             <template v-if="cfg.auth.type === 'bearer'">
@@ -218,6 +220,37 @@
               </a-form-item>
               <a-form-item :label="t('case_form.auth.value_label')">
                 <a-input v-model:value="cfg.auth.value" />
+              </a-form-item>
+            </template>
+            <template v-if="cfg.auth.type === 'digest'">
+              <a-form-item :label="t('case_form.auth.username_label')">
+                <a-input v-model:value="cfg.auth.username" />
+              </a-form-item>
+              <a-form-item :label="t('case_form.auth.password_label')">
+                <a-input-password v-model:value="cfg.auth.password" />
+              </a-form-item>
+            </template>
+            <template v-if="cfg.auth.type === 'oauth2_client_credentials'">
+              <a-form-item :label="t('case_form.auth.token_url_label')">
+                <a-input v-model:value="cfg.auth.token_url" :placeholder="t('case_form.auth.token_url_placeholder')" />
+              </a-form-item>
+              <a-form-item :label="t('case_form.auth.client_id_label')">
+                <a-input v-model:value="cfg.auth.client_id" />
+              </a-form-item>
+              <a-form-item :label="t('case_form.auth.client_secret_label')">
+                <a-input-password v-model:value="cfg.auth.client_secret" />
+              </a-form-item>
+              <a-form-item :label="t('case_form.auth.token_endpoint_auth_method_label')">
+                <a-select v-model:value="cfg.auth.token_endpoint_auth_method" style="width: 220px">
+                  <a-select-option value="client_secret_basic">{{ t('case_form.auth.client_secret_basic') }}</a-select-option>
+                  <a-select-option value="client_secret_post">{{ t('case_form.auth.client_secret_post') }}</a-select-option>
+                </a-select>
+              </a-form-item>
+              <a-form-item :label="t('case_form.auth.scope_label')">
+                <a-input v-model:value="cfg.auth.scope" :placeholder="t('case_form.auth.scope_placeholder')" />
+              </a-form-item>
+              <a-form-item :label="t('case_form.auth.audience_label')">
+                <a-input v-model:value="cfg.auth.audience" :placeholder="t('case_form.auth.audience_placeholder')" />
               </a-form-item>
             </template>
           </a-tab-pane>
@@ -351,7 +384,7 @@
               :options="schemaAssetOptions"
               :placeholder="t('case_form.assertion.schema_asset_placeholder')"
               style="width: 150px"
-              @change="(id) => applySchemaAsset(a, typeof id === 'number' ? id : undefined)"
+              @change="(id: unknown) => applySchemaAsset(a, typeof id === 'number' ? id : undefined)"
             />
             <a-input v-model:value="a.schema_asset_name" :placeholder="t('case_form.assertion.schema_asset_name_placeholder')" style="width: 135px" />
             <a-button size="small" :loading="savingSchemaAssetIndex === i" @click="saveSchemaAsset(a, i)">
@@ -466,6 +499,8 @@
                 <a-select-option value="bearer">{{ t('case_form.auth.bearer') }}</a-select-option>
                 <a-select-option value="basic">{{ t('case_form.auth.basic') }}</a-select-option>
                 <a-select-option value="apikey">{{ t('case_form.auth.apikey') }}</a-select-option>
+                <a-select-option value="digest">{{ t('case_form.auth.digest') }}</a-select-option>
+                <a-select-option value="oauth2_client_credentials">{{ t('case_form.auth.oauth2_client_credentials') }}</a-select-option>
               </a-select>
             </a-form-item>
             <template v-if="gqlCfg.auth.type === 'bearer'">
@@ -487,6 +522,37 @@
               </a-form-item>
               <a-form-item :label="t('case_form.auth.value_label')">
                 <a-input v-model:value="gqlCfg.auth.value" />
+              </a-form-item>
+            </template>
+            <template v-if="gqlCfg.auth.type === 'digest'">
+              <a-form-item :label="t('case_form.auth.username_label')">
+                <a-input v-model:value="gqlCfg.auth.username" />
+              </a-form-item>
+              <a-form-item :label="t('case_form.auth.password_label')">
+                <a-input-password v-model:value="gqlCfg.auth.password" />
+              </a-form-item>
+            </template>
+            <template v-if="gqlCfg.auth.type === 'oauth2_client_credentials'">
+              <a-form-item :label="t('case_form.auth.token_url_label')">
+                <a-input v-model:value="gqlCfg.auth.token_url" :placeholder="t('case_form.auth.token_url_placeholder')" />
+              </a-form-item>
+              <a-form-item :label="t('case_form.auth.client_id_label')">
+                <a-input v-model:value="gqlCfg.auth.client_id" />
+              </a-form-item>
+              <a-form-item :label="t('case_form.auth.client_secret_label')">
+                <a-input-password v-model:value="gqlCfg.auth.client_secret" />
+              </a-form-item>
+              <a-form-item :label="t('case_form.auth.token_endpoint_auth_method_label')">
+                <a-select v-model:value="gqlCfg.auth.token_endpoint_auth_method" style="width: 220px">
+                  <a-select-option value="client_secret_basic">{{ t('case_form.auth.client_secret_basic') }}</a-select-option>
+                  <a-select-option value="client_secret_post">{{ t('case_form.auth.client_secret_post') }}</a-select-option>
+                </a-select>
+              </a-form-item>
+              <a-form-item :label="t('case_form.auth.scope_label')">
+                <a-input v-model:value="gqlCfg.auth.scope" :placeholder="t('case_form.auth.scope_placeholder')" />
+              </a-form-item>
+              <a-form-item :label="t('case_form.auth.audience_label')">
+                <a-input v-model:value="gqlCfg.auth.audience" :placeholder="t('case_form.auth.audience_placeholder')" />
               </a-form-item>
             </template>
           </a-tab-pane>
@@ -704,6 +770,29 @@
         </a-row>
 
         <a-form-item :label="t('case_form.grpc.proto_label')" :rules="[{ required: true, message: t('case_form.grpc.proto_required') }]">
+          <a-space>
+            <a-upload
+              :show-upload-list="false"
+              accept=".proto,text/plain"
+              :before-upload="(file: File) => loadGrpcProtoFile(file, true)"
+            >
+              <a-button size="small">{{ t('case_form.grpc.choose_main_proto') }}</a-button>
+            </a-upload>
+            <a-upload
+              :show-upload-list="false"
+              :multiple="true"
+              accept=".proto,text/plain"
+              :before-upload="(file: File) => loadGrpcProtoFile(file, false)"
+            >
+              <a-button size="small">{{ t('case_form.grpc.add_import_proto') }}</a-button>
+            </a-upload>
+            <span v-if="grpcProtoMainFileName" class="file-name">
+              {{ t('case_form.grpc.main_proto_selected', { name: grpcProtoMainFileName }) }}
+            </span>
+          </a-space>
+          <div v-if="grpcProtoImportFileNames.length" class="field-hint">
+            {{ t('case_form.grpc.import_proto_selected', { count: grpcProtoImportFileNames.length, names: grpcProtoImportFileNames.join(', ') }) }}
+          </div>
           <a-textarea
             v-model:value="grpcCfg.proto_content"
             :rows="10"
@@ -719,6 +808,7 @@
             placeholder='{"user_id": "123"}'
             style="font-family: monospace; font-size: 13px"
           />
+          <div class="field-hint">{{ t('case_form.grpc.request_json_hint') }}</div>
         </a-form-item>
 
         <a-form-item :label="t('case_form.grpc.metadata_label')">
@@ -839,6 +929,7 @@ import {
   parseGraphqlVariables,
   resolveRequestBody,
 } from '@/utils/caseFormConfig'
+import { GrpcProtoFileError, readGrpcProtoFile, validateGrpcProtoBundle } from '@/utils/grpcProtoFile'
 import KvEditor from '@/components/common/KvEditor.vue'
 
 const { t } = useI18n()
@@ -846,12 +937,18 @@ const { t } = useI18n()
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 
 type AuthConfig = {
-  type: 'none' | 'bearer' | 'basic' | 'apikey'
+  type: 'none' | 'bearer' | 'basic' | 'apikey' | 'digest' | 'oauth2_client_credentials'
   token: string
   username: string
   password: string
   header: string
   value: string
+  token_url: string
+  client_id: string
+  client_secret: string
+  scope: string
+  audience: string
+  token_endpoint_auth_method: 'client_secret_basic' | 'client_secret_post'
 }
 
 type AssertionItem = {
@@ -915,6 +1012,7 @@ type CaseConfigStep = Record<string, unknown> & {
   target?: string
   use_tls?: boolean
   proto_content?: string
+  proto_files?: Record<string, string>
   service?: string
   request_json?: string
   metadata?: Record<string, string>
@@ -987,7 +1085,20 @@ const cfg = reactive({
   body_type: 'none' as 'none' | 'json' | 'form' | 'multipart' | 'xml' | 'raw',
   body: '',
   multipart: [] as MultipartPart[],
-  auth: { type: 'none', token: '', username: '', password: '', header: '', value: '' },
+  auth: {
+    type: 'none',
+    token: '',
+    username: '',
+    password: '',
+    header: '',
+    value: '',
+    token_url: '',
+    client_id: '',
+    client_secret: '',
+    scope: '',
+    audience: '',
+    token_endpoint_auth_method: 'client_secret_basic',
+  },
   reuse_api_session: false,
   failure_strategy: 'continue' as 'continue' | 'stop' | 'skip_dependents',
   context_scope: 'scenario' as 'scenario' | 'step',
@@ -1009,7 +1120,20 @@ const gqlCfg = reactive({
   variables_text: '',
   operation_name: '',
   headers: {} as Record<string, string>,
-  auth: { type: 'none', token: '', username: '', password: '', header: '', value: '' },
+  auth: {
+    type: 'none',
+    token: '',
+    username: '',
+    password: '',
+    header: '',
+    value: '',
+    token_url: '',
+    client_id: '',
+    client_secret: '',
+    scope: '',
+    audience: '',
+    token_endpoint_auth_method: 'client_secret_basic',
+  },
   timeout: 30,
   assertions: [] as AssertionItem[],
   extractions: [] as ExtractionItem[],
@@ -1018,7 +1142,20 @@ const gqlCfg = reactive({
 const wsCfg = reactive({
   url: '',
   headers: {} as Record<string, string>,
-  auth: { type: 'none', token: '', username: '', password: '', header: '', value: '' },
+  auth: {
+    type: 'none',
+    token: '',
+    username: '',
+    password: '',
+    header: '',
+    value: '',
+    token_url: '',
+    client_id: '',
+    client_secret: '',
+    scope: '',
+    audience: '',
+    token_endpoint_auth_method: 'client_secret_basic',
+  },
   timeout: 30,
   messages: [] as WsMessage[],
 })
@@ -1027,6 +1164,7 @@ const grpcCfg = reactive({
   target: '',
   use_tls: false,
   proto_content: '',
+  proto_files: {} as Record<string, string>,
   service: '',
   method: '',
   request_json: '',
@@ -1035,6 +1173,8 @@ const grpcCfg = reactive({
   assertions: [] as AssertionItem[],
   extractions: [] as ExtractionItem[],
 })
+const grpcProtoMainFileName = ref('')
+const grpcProtoImportFileNames = computed(() => Object.keys(grpcCfg.proto_files).filter((name) => name !== grpcProtoMainFileName.value))
 
 const iosCfg = reactive({
   appium_server_url: '',
@@ -1109,7 +1249,7 @@ watch(() => props.open, (v) => {
       body_type: bodyType,
       body: typeof step.body === 'string' ? step.body : JSON.stringify(step.body ?? '', null, 2),
       multipart: step.multipart ? [...step.multipart] : [],
-      auth: { type: 'none', token: '', username: '', password: '', header: '', value: '', ...step.auth },
+      auth: { type: 'none', token: '', username: '', password: '', header: '', value: '', token_url: '', client_id: '', client_secret: '', scope: '', audience: '', token_endpoint_auth_method: 'client_secret_basic', ...step.auth },
       reuse_api_session: Boolean(c.config?.reuse_api_session),
       failure_strategy: c.config?.failure_strategy ?? 'continue',
       context_scope: c.config?.context_scope ?? 'scenario',
@@ -1132,7 +1272,7 @@ watch(() => props.open, (v) => {
         variables_text: vars ? JSON.stringify(vars, null, 2) : '',
         operation_name: step.operation_name ?? '',
         headers: step.headers ?? {},
-        auth: { type: 'none', token: '', username: '', password: '', header: '', value: '', ...step.auth },
+        auth: { type: 'none', token: '', username: '', password: '', header: '', value: '', token_url: '', client_id: '', client_secret: '', scope: '', audience: '', token_endpoint_auth_method: 'client_secret_basic', ...step.auth },
         timeout: step.timeout ?? 30,
         assertions: step.assertions ? [...step.assertions] : [],
         extractions: step.extractions ? [...step.extractions] : [],
@@ -1143,7 +1283,7 @@ watch(() => props.open, (v) => {
       Object.assign(wsCfg, {
         url: step.url ?? '',
         headers: step.headers ?? {},
-        auth: { type: 'none', token: '', username: '', password: '', header: '', value: '', ...step.auth },
+        auth: { type: 'none', token: '', username: '', password: '', header: '', value: '', token_url: '', client_id: '', client_secret: '', scope: '', audience: '', token_endpoint_auth_method: 'client_secret_basic', ...step.auth },
         timeout: step.timeout ?? 30,
         messages: (step.messages ?? []).map((m) => ({
           action: m.action ?? 'send',
@@ -1161,6 +1301,7 @@ watch(() => props.open, (v) => {
         target: step.target ?? '',
         use_tls: step.use_tls ?? false,
         proto_content: step.proto_content ?? '',
+        proto_files: step.proto_files ?? {},
         service: step.service ?? '',
         method: step.method ?? '',
         request_json: step.request_json ?? '',
@@ -1169,6 +1310,7 @@ watch(() => props.open, (v) => {
         assertions: step.assertions ? [...step.assertions] : [],
         extractions: step.extractions ? [...step.extractions] : [],
       })
+      grpcProtoMainFileName.value = step.proto_content ? 'service.proto' : ''
     }
     if (c.case_type === 'ios') {
       Object.assign(iosCfg, {
@@ -1201,7 +1343,7 @@ watch(() => props.open, (v) => {
     Object.assign(cfg, {
       url: '', method: 'GET', headers: {}, params: {}, cookies: {},
       body_type: 'none', body: '', multipart: [],
-      auth: { type: 'none', token: '', username: '', password: '', header: '', value: '' },
+      auth: { type: 'none', token: '', username: '', password: '', header: '', value: '', token_url: '', client_id: '', client_secret: '', scope: '', audience: '', token_endpoint_auth_method: 'client_secret_basic' },
       reuse_api_session: false,
       failure_strategy: 'continue',
       context_scope: 'scenario',
@@ -1214,18 +1356,19 @@ watch(() => props.open, (v) => {
     Object.assign(gqlCfg, {
       endpoint: '', operation_type: 'query', query: '', variables_text: '',
       operation_name: '', headers: {},
-      auth: { type: 'none', token: '', username: '', password: '', header: '', value: '' },
+      auth: { type: 'none', token: '', username: '', password: '', header: '', value: '', token_url: '', client_id: '', client_secret: '', scope: '', audience: '', token_endpoint_auth_method: 'client_secret_basic' },
       timeout: 30, assertions: [], extractions: [],
     })
     Object.assign(wsCfg, {
       url: '', headers: {},
-      auth: { type: 'none', token: '', username: '', password: '', header: '', value: '' },
+      auth: { type: 'none', token: '', username: '', password: '', header: '', value: '', token_url: '', client_id: '', client_secret: '', scope: '', audience: '', token_endpoint_auth_method: 'client_secret_basic' },
       timeout: 30, messages: [],
     })
     Object.assign(grpcCfg, {
-      target: '', use_tls: false, proto_content: '', service: '', method: '',
+      target: '', use_tls: false, proto_content: '', proto_files: {}, service: '', method: '',
       request_json: '', metadata: {}, timeout: 30, assertions: [], extractions: [],
     })
+    grpcProtoMainFileName.value = ''
     Object.assign(iosCfg, {
       appium_server_url: '', udid: '', device_name: '', platform_version: '', bundle_id: '',
       steps_text: '[\n  {"action":"click","name":"点击登录","params":{"strategy":"accessibility_id","value":"登录"}}\n]',
@@ -1359,6 +1502,37 @@ async function uploadMultipartFile(file: File, index: number) {
   return false
 }
 
+async function loadGrpcProtoFile(file: File, asMain: boolean) {
+  try {
+    if (!asMain && !grpcCfg.proto_content.trim()) {
+      message.warning(t('case_form.grpc.main_proto_required'))
+      return false
+    }
+    const content = await readGrpcProtoFile(file)
+    const nextFiles = asMain ? { ...grpcCfg.proto_files } : { ...grpcCfg.proto_files, [file.name]: content }
+    validateGrpcProtoBundle(nextFiles, asMain ? content : grpcCfg.proto_content)
+    grpcCfg.proto_files = nextFiles
+    if (asMain) {
+      grpcCfg.proto_content = content
+      grpcProtoMainFileName.value = file.name
+    }
+    message.success(t(asMain ? 'case_form.grpc.proto_file_loaded' : 'case_form.grpc.import_proto_file_loaded'))
+  } catch (error) {
+    if (error instanceof GrpcProtoFileError) {
+      const key = {
+        extension: 'case_form.grpc.proto_file_extension',
+        size: 'case_form.grpc.proto_file_too_large',
+        empty: 'case_form.grpc.proto_file_empty',
+        bundle_size: 'case_form.grpc.proto_bundle_too_large',
+      }[error.reason]
+      message.warning(t(key))
+    } else {
+      message.error(t('case_form.grpc.proto_file_read_failed'))
+    }
+  }
+  return false
+}
+
 function addGqlAssertion() {
   gqlCfg.assertions.push({ target: 'status_code', operator: 'eq', expected: '200', expression: '' })
 }
@@ -1395,6 +1569,7 @@ function buildGrpcConfig() {
       target: grpcCfg.target,
       use_tls: grpcCfg.use_tls,
       proto_content: grpcCfg.proto_content,
+      proto_files: Object.keys(grpcCfg.proto_files).length ? { ...grpcCfg.proto_files } : undefined,
       service: grpcCfg.service,
       method: grpcCfg.method,
       request_json: grpcCfg.request_json,

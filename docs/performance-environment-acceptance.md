@@ -1,8 +1,45 @@
 # 性能 Worker 环境验收 Runbook
 
+## 2026-08-12 Windows 本地真实执行补充
+
+Windows 本地已完成平台级 k6/Locust 验收：主 Worker 节点 `perf-node-local-01` 消费 `performance` 队列，使用 ATP `/health` 作为本地目标；k6 run `8` 成功并回传 20 次迭代和 3 条资源指标，Locust run `10` 成功并回传 168 次请求、错误率 0。证据分别为 [`performance-windows-local-k6-smoke-2026-08-12.json`](evidence/performance-windows-local-k6-smoke-2026-08-12.json) 和 [`performance-windows-local-locust-smoke-2026-08-12.json`](evidence/performance-windows-local-locust-smoke-2026-08-12.json)。
+
+这只证明 Windows 本地 Worker 的真实队列投递、执行器启动、结果摘要和指标回传。Windows 本地 Prometheus 目标指标闭环也已完成，证据见 [`performance-windows-local-prometheus-target-metrics-2026-08-12.json`](evidence/performance-windows-local-prometheus-target-metrics-2026-08-12.json)；Linux/Kubernetes 镜像、真实外部目标、生产 Prometheus/SLO 历史、TLS gRPC/JMeter 专用节点及 Android 设备仍需按本 Runbook 独立验收。
+
+## Worker 测试外部依赖隔离修复（2026-08-12）
+
+- `test_tasks_mobile_special_dispatch.py` 与 `test_tasks_performance.py` 现在使用 Fake control client，不会在测试期间连接本机真实 Redis；显式取消测试仍单独覆盖取消分支。
+- Worker 全量 `427 passed`，完整非集成后端 `1889 passed`，覆盖率 `82.13%`。
+- 远程 SSH/MCP 会话恢复失败；Windows 本机 k6/Locust、资源指标和本地 Prometheus 目标指标链路已有独立证据，真实外部目标、生产 metrics、Kubernetes/Prometheus 历史及其余外部环境验收仍需在目标主机继续执行。
+
+## 2026-08-12 实际 Linux 验收记录
+
+- 已从 Windows 生成并校验性能验收 bundle，使用显式 allowlist 收集 323 个文件；当前 SHA-256 以包旁 `.sha256` sidecar、`Task.md` 和 `MEMORY.md` 的同步记录为准，不包含真实 `.env`、证书或私钥。
+- 已部署到 `172.31.27.133:/opt/atp-q17-acceptance` 的独立 Compose 项目。PostgreSQL、Redis、MinIO、Backend、验收目标和性能 Worker 均已启动，Backend `/health` 返回 `status=ok`，迁移容器以 0 退出；主机已有服务未被修改。
+- API/节点 smoke 已通过：四类执行器 ready，`worker-a` online，队列为 `performance.worker-a`，目标 `http-target` 命中 egress allowlist。报告路径为远端 `docs/evidence/performance-api-node-2026-08-12.json`。
+- 远端真实 k6 run 首次执行暴露验收脚本的两个缺陷：JSON 报告不能序列化 `Path`，以及写请求未带 `X-Requested-With` 被 CSRF 拒绝；已修复并补充回归测试（本地脚本 `17 passed`）。Windows 本机 k6/Locust 已完成真实 run；远端真实目标、metrics、取消、Kubernetes/Prometheus 验收仍需在目标工具镜像更新后重跑，未将旧失败报告记为通过。
+
 本文用于 Q17-03/Q17-04 的 Linux/Kubernetes 外部环境验收。仓库内的单元测试和本地真实 gRPC server 联调只能证明实现链路可运行，不能替代真实镜像、真实证书、真实目标服务和真实 Celery 队列的验收。
 
-> 当前状态（2026-08-07）：已完成本地工具和门禁验证；JMeter 5.6.3 已使用仓库内无凭据 JMX 对本地 `/login` 完成 1 请求、0 错误的 JTL/HTML 烟测。待接入的 Linux 主机目前仅提供 ARM64 Docker/Compose 基础设施，尚未部署 ATP Worker、Worker 镜像或外部 gRPC/Locust 目标。建立隔离部署后，必须重新执行本文全部命令并保存 JSON 证据，才能关闭 Q17-04。
+> 当前状态（2026-08-11）：Windows 本地已完成门禁验证，JMeter 5.6.3 使用仓库内无凭据 JMX 对本地 `/login` 完成 1 请求、0 错误并生成 JTL/HTML 报告，证据目录为 `.local-run/jmeter-smoke-20260811-233647/`。当前主机没有 Docker/Kubernetes，尚未部署 ATP 专用 Worker 镜像或外部 gRPC/Locust 目标；建立隔离部署后，必须重新执行本文全部命令并保存 JSON 证据，才能关闭 Q17-04。
+
+## Windows 打包并传输验收栈
+
+在 Windows 开发机上使用仓库内的 PowerShell 入口生成不含真实凭据和本地依赖的验收包。脚本只收集性能 Compose、Backend/Worker 构建上下文、目标服务夹具、验收工具和本 Runbook，不会把根目录 `.env`、启动档案、`node_modules`、虚拟环境、测试缓存或 `.local-run` 带入压缩包。
+
+```powershell
+./scripts/package-performance-acceptance.ps1
+```
+
+默认输出到 `.local-run/atp-performance-acceptance-<timestamp>.zip`，并生成同名 `.sha256` 校验文件。需要覆盖同名输出时必须显式使用 `-Force`：
+
+```powershell
+./scripts/package-performance-acceptance.ps1 `
+  -OutputPath .local-run/atp-performance-acceptance-latest.zip `
+  -Force
+```
+
+命令输出 JSON，包含包路径、SHA-256、文件数、源 Git commit 和 `worktree_dirty` 标记。目标 Linux 主机收到压缩包后，应在隔离目录解压，先核对 `.sha256` 和 `bundle-manifest.json`，再按本文 Compose 命令构建；真实 `.env.performance-acceptance` 必须在目标主机单独创建，不能从开发机复制。
 
 ## ARM64 Docker Compose 隔离验收栈
 
@@ -24,6 +61,8 @@ docker compose --env-file .env.performance-acceptance \
   -f docker-compose.performance-acceptance.yml ps
 curl http://127.0.0.1:18080/health
 ```
+
+Compose 会等待迁移完成并确认 Backend `/health` 为 healthy 后才启动专用 Worker 和验收工具，避免 API 尚未就绪时误报节点或执行器失败。
 
 仓库内的 [`jmeter_smoke.jmx`](../deploy/performance-acceptance/jmeter_smoke.jmx) 是无凭据的最小 JMeter 回归样例，只访问 ATP `/login`，可用于确认 JMeter、JTL 和 HTML 报告生成链路：
 
@@ -64,6 +103,8 @@ docker compose --env-file .env.performance-acceptance \
   --smoke-test-id <GRPC_TEST_ID> --smoke-executor grpc \
   --require-metrics --report /evidence/performance-grpc-smoke.json
 ```
+
+验收工具默认最多等待 60 秒，直到专用 Worker 的 Redis 心跳把节点状态刷新为 `online`；若目标环境启动较慢，可显式增加 `--node-ready-timeout-seconds`，避免把正常的启动竞态误判为节点故障。
 
 Locust 定义上传 [`locust_smoke.py`](../deploy/performance-acceptance/locust_smoke.py)，目标使用 `http-target:8080`，将上面命令中的目标替换为 `http://http-target:8080`，并使用 `--smoke-executor locust`。取消验收仍使用一条持续时间足够长的已存在定义和 `--cancel-test-id`。
 

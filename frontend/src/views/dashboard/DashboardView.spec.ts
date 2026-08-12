@@ -1,5 +1,5 @@
 import { flushPromises, mount } from '@vue/test-utils'
-import { defineComponent, h } from 'vue'
+import { defineComponent, h, ref } from 'vue'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DashboardView from './DashboardView.vue'
@@ -29,7 +29,7 @@ const {
 }))
 
 vi.mock('vue-router', () => ({ useRouter: () => ({ push: routerPush }) }))
-vi.mock('vue-i18n', () => ({ useI18n: () => ({ locale: { value: 'zh-CN' }, t: (key: string) => key }) }))
+vi.mock('vue-i18n', () => ({ useI18n: () => ({ locale: ref('zh-CN'), t: (key: string) => key }) }))
 vi.mock('vue-echarts', () => ({ default: defineComponent({ name: 'VChart', setup: () => () => h('div', { 'data-test': 'chart' }) }) }))
 vi.mock('vuedraggable', () => ({ default: defineComponent({ name: 'Draggable', setup: (_p, { slots }) => () => h('div', slots.default?.({ element: { key: 'pass_rate_trend', visible: true }, index: 0 })) }) }))
 vi.mock('@/components/dashboard/LazyChartCard.vue', () => ({

@@ -1,12 +1,88 @@
 # Q18 实施记录
 
+## 2026-08-11 归档项目配置只读补充
+
+- 项目编辑接口改用可写项目依赖，归档项目的配置修改与测试资产写入保持一致，统一返回 409；前端禁用归档项目编辑按钮并显示恢复提示。
+- 增加路由契约和项目列表回归，后端项目相关 `36 passed`，前端项目列表 `4 passed`；`vue-tsc` 与生产构建通过。
+
+## 2026-08-11 Windows Web 低代码冒烟入口
+
+- `scripts/windows-local-smoke.ps1` 新增 `-WebCaseId`、`-RequireWebLowcode`、`-RequireWebDownload` 和 `-WebRunTimeoutSeconds`，可从已认证的 Windows 会话触发已有 Web 低代码用例并轮询执行状态。
+- 运行完成后，脚本会从 `/runs/{run_id}` 的步骤结果中检查 download 动作是否返回对象引用；不传用例 ID 时保持跳过，不会伪造真实页面或下载结果。
+- 回归：PowerShell 脚本解析通过，`backend/tests/scripts/test_windows_local_contract.py` `4 passed`，Ruff 和 `git diff --check` 通过。
+
+## 2026-08-11 Windows Web 下载验收夹具
+
+- 新增 `frontend/public/atp-windows-download.html` 和 `atp-windows-smoke.txt`，页面提供稳定的 `#atp-download-link`，用于构造真实浏览器下载而不依赖公网业务站点。
+- 使用 `goto` + `download` 低代码步骤即可配合 `-WebCaseId -RequireWebDownload` 验证执行结果中的 MinIO 对象引用；新增 Playwright 回归 `1 passed`。
+- 夹具不替代真实 Worker、MinIO、执行队列和下载对象验收，相关证据仍需在 Windows 本地服务运行后产生。
+
+## 2026-08-11 Windows Web 下载自包含冒烟
+
+- `-SeedWebDownloadCase` 为没有现成用例的 Windows 环境提供显式自包含入口：使用管理员会话创建临时 Web 项目、模块和低代码用例，自动完成提交审核/批准为 `active/approved`，使用浏览器网络守卫允许的内联 `data:` 下载页面后触发真实执行；不会为冒烟放开 loopback/内网 HTTP 访问。
+- 运行进入终态后删除临时项目，并通过存储治理接口清理截图、录像和下载对象；轮询超时或状态未知时保留项目/对象并把项目 ID/运行 ID写入结果，避免清理仍可能执行的资源。该模式与 `-WebCaseId` 互斥。
+- 首次环境没有历史运行记录时，建议使用 `-SkipReports`；真实下载对象仍必须由 Worker/MinIO 运行链路产生，不能由脚本直接伪造。
+- 实测：Windows 聚焦 seed 冒烟最近一次通过，临时项目 8/用例 4/运行 4 产生 1 个下载对象，清理阶段删除 1 个环境和 5 个运行产物；此前失败尝试的 6 个遗留对象也已完成补偿清理。
+
+## 2026-08-11 数据集页面 AI 生成
+
+- 新增 `POST /datasets/ai-generate`：使用项目绑定的 AI 配置按业务要求生成合成 JSON 行；已有数据集使用持久化 Schema，新数据集无 Schema 时从结果推断字段类型。
+- AI 生成不直接提交数据库，前端将结果回填到 DatasetLibrary 编辑器，用户确认后复用普通保存流程，确保版本历史和校验策略一致。
+- 服务层过滤非对象数组、解析模型 JSON 围栏/`rows` 包装、限制最多 200 行和 256KB；调用配额使用独立 `ai_dataset_generation` 能力名，敏感信息不写入提示词或响应审计。
+- 回归：`backend/tests/api/test_datasets_crud.py` 与 `backend/tests/services/test_ai_dataset_generator.py` 共 `24 passed`；`DatasetLibrary.spec.ts` `7 passed`；前端 type-check、后端 Ruff/format 通过。
+- 合并回归：后端非集成 `1865 passed`、Python 3.12 覆盖率 `82.05%`，256 个测试文件单独运行 `256 passed`；前端 `41 files / 167 tests passed`，coverage statements/branches/functions/lines 为 `33.13% / 28.49% / 25.73% / 34.52%`，type-check/build 通过。
+
+## 2026-08-11 Mock 规则 AI 生成
+
+- Mock 页面新增独立的“AI 生成 Mock”流程；原有“AI 生成用例”仍跳转到用例生成抽屉，两个能力入口明确区分。
+- `POST /mock-rules/ai-generate` 接受项目、可选参考规则、生成数量和自然语言要求，服务端校验 editor 权限、AI 配置和参考规则项目隔离；输出只包含可编辑规则草稿，不直接写库。
+- 前端先展示可编辑 JSON 预览，用户确认后逐条调用普通 Mock 创建接口，保存后刷新列表；生成失败、预览 JSON 无效和保存失败均有明确提示。
+- 服务层对模型输出做对象数组解析、方法/路径/状态/延迟规范化、条件值字符串化和 256KB 限制，提示词明确禁止密钥、Cookie、Token 和真实个人信息。
+- 定向回归：后端 Mock AI 服务/API `9 passed`，前端 Mock 页面 `5 passed`；`vue-tsc --noEmit`、Ruff check/format 通过。
+
+## 2026-08-11 Worker 测试隔离收口
+
+- `backend/tests/conftest.py` 对历史测试替换的公共模块实行缺失字段补齐，不覆盖测试自己的 hard-set 值；模块收集前和每个测试启动前都会再次刷新，避免 `sys.modules` 污染跨文件传播。
+- 完整 Worker 测试套件 `backend/tests/worker` 已验证 `415 passed`；此前 8 个 MinIO/数据库测试桩隔离失败不再复现。该验证与全仓非集成 `1865 passed`、独立测试 `256 passed` 一致。
+
+## 2026-08-11 Android Agent 扫描状态回传
+
+- `POST /devices/scan` 在 `ADB_SCAN_MODE=worker` 时使用 `ignore_result=False` 投递到 `mobile_special`，返回 Celery task ID；新增状态接口读取 queued/running/completed/failed 并返回 Worker 写回的设备列表。
+- Windows Android Worker 启动脚本自动注入 `ANDROID_WORKER_ID`；新增 Redis TTL 注册服务、心跳任务、`GET /devices/workers` 接口和设备页在线提示，用于区分“本机 Agent 在线”和“仅有数据库设备记录”。
+- 设备页新增最多 10 秒轮询和明确的排队/超时/失败提示；`local` 模式仍保持同步扫描。Beat 周期扫描仍忽略结果，避免产生无用的结果键。
+- 定向回归：设备/Android Worker 后端 API、任务、Redis 注册和启动档案 `23 passed`，前端设备页 `6 passed`；合并后完整后端 `1853 passed`、Python 3.12 覆盖率 `82.01%`，255 个测试文件独立运行通过，前端 `40 files / 164 tests passed`、type-check/build 通过。
+
+## 2026-08-11 Web 录制 Worker 服务化
+
+- 增加 `backend/app/services/web_recording_transport.py`，用 Redis 保存 Worker 心跳和会话所有权，通过短命令回复队列路由 start/snapshot/screenshot/stop；会话轮询会刷新路由 TTL，避免录制时间较长时元数据提前过期。
+- 增加 `backend/app/web_recording_worker.py`，Worker 内部持有 Playwright 会话并通过心跳报告容量；API 仍负责认证、项目权限、录制步骤和 Web 资产持久化。
+- 增加 Compose profile、Helm Deployment、Windows `local-dev.cmd` 托管和启动配置字段；默认 local 行为不变，worker 模式需要 API/Worker 共享 Redis，Linux 需要 Xvfb。
+- 本轮已补充传输层、API 远程模式、Worker 生命周期、部署契约和 Windows 启动脚本回归；后端非集成 `1839 passed`、Python 3.12 覆盖率 `82.12%` 门禁通过，253 个测试文件单独运行通过，前端 `40 files / 161 tests passed`、type-check/build 通过；真实 Linux/Xvfb、Firefox/WebKit、跨副本 E2E 仍需外部环境证据。
+
 最新前后实现对比和剩余任务统一见 [`docs/q18-latest-status-2026-08-07.md`](./q18-latest-status-2026-08-07.md)。
+
+## 2026-08-11 继续开发
+
+### 三方 OpenAI 兼容模型配置
+
+- 新增 `openai_compatible` provider，明确区分原生 Ollama、OpenAI 官方和三方 OpenAI-compatible 服务。
+- 三方配置必须填写 Endpoint；模型列表从 `{Endpoint}/models` 拉取，生成调用沿用 `{Endpoint}/chat/completions`，API Key 仅用于请求头并加密存储。
+- AI 模型配置 UI 增加协议选项、Endpoint 用途说明和兼容服务模型拉取入口，模型能力提示仍只作为辅助信息。
+- 定向回归：`test_ai_case_llm_client.py`、`test_ai_model_discovery.py`、`test_ai_llm_configs_api.py` 共 `31 passed`。
+
+- Android 设备兼容矩阵从共享会话串行执行改为每个子运行独立 `AsyncSessionLocal`、独立设备租约，并通过 `asyncio.gather` 并行调度；父运行保存逐设备状态、耗时和错误摘要。
+- 运行详情页新增 Android 设备矩阵结果卡片，展示总数、通过/失败/异常统计、设备状态、耗时和错误，并支持跳转子运行。
+- HTML/PDF 单运行报告和 JUnit 导出同步展示设备级矩阵结果，每台设备独立输出状态、耗时和错误。
+- Web 低代码执行器和录制器接入共享 Playwright `BrowserContext` 路由守卫，逐请求校验 HTTP/HTTPS/WS/WSS 的公网地址；重定向、页面子资源和录制过程中的内网请求会被中止，并保存脱敏阻断证据。
+- 本轮验证：后端非集成 `1827 passed`，Python 3.12/3.14 覆盖率门禁分别为 `82.50%`/`82.05%`，前端 Vitest 已更新为 `40 files / 161 tests passed`，coverage statements/branches/functions/lines 为 `31.94% / 27.09% / 24.94% / 33.21%`，`vue-tsc --noEmit` 和生产构建均通过；真实设备池抢占、故障恢复仍待外部设备验收。
 
 ## 2026-08-10 文档同步
 
 - 本地后端非集成回归已复核为 `1724 passed`；前端 Vitest 已复核为 `37 files / 146 tests passed`，前端类型检查与生产构建通过。
 - Windows 主线新增 `local-dev.cmd doctor`，覆盖本地配置、运行时、端口、PostgreSQL/Redis/MinIO、ADB 和性能执行器检查；新增 `scripts/android-network-doctor.ps1`，保留 Bash 版本兼容 Git Bash/WSL。
-- Windows 全量本地冒烟新增 `scripts/windows-local-smoke.ps1`：真实后端健康、管理员登录和认证读接口通过，Playwright mock E2E `9 passed`，Chromium/Firefox/WebKit 登录页矩阵、临时文件上传/清理、HTML/JUnit 报告生成和可选停止服务均通过，并生成 `.local-run/windows-smoke-*.json` 脱敏报告；本次运行仅保留无 Android 设备、k6/Locust 未安装的可选告警。
+- Windows 全量本地冒烟新增 `scripts/windows-local-smoke.ps1`：真实后端健康、管理员登录和认证读接口通过，Playwright mock E2E `9 passed`，Chromium/Firefox/WebKit 登录页矩阵、临时文件上传/清理、HTML/JUnit 报告生成和可选停止服务均通过，并生成 `.local-run/windows-smoke-*.json` 脱敏报告；该历史冒烟记录保留当时的 Android/k6/Locust 告警，当前 k6/Locust 已通过独立真实平台执行验收。
+- Windows 冒烟新增 Android Worker 注册校验：当 `ADB_SCAN_MODE=worker`、配置 `ANDROID_WORKER_ID` 或使用 `-RequireAndroid` 时，必须从 `/api/v1/devices/workers` 看到在线 Agent；普通 Web/API 本地模式不增加必需检查。
+- 同一条件下冒烟会调用 `POST /api/v1/devices/scan`，对 Worker 返回的 task ID 轮询 `GET /api/v1/devices/scan/{scan_id}`，验证最终 `completed/failed` 回调；没有真实设备时仍可验证队列与状态链路，但不会伪造设备数据。
 - 本轮修复冒烟边界：相对 `ReportPath` 统一按项目根目录解析；无历史执行记录时报告检查必需失败；文件上传响应异常但已产生对象引用时仍执行补偿清理。修复后 PowerShell 解析、契约测试和完整 Windows 冒烟再次通过。
 - 本次同步不把本地 mock、协议桩或浏览器缓存烟测当作真实发布验收；Android/iOS、Linux/Kubernetes 性能节点、Firefox/WebKit Worker、Prometheus、外部通知和 Provider/Consumer 规格仍保留为外部任务。
 - 下一阶段按以下顺序推进：先完成 Q17-04 性能隔离栈验收，再并行推进真实设备、Web 专用 Worker、API 契约联调和性能观测/通知验收，最后统一归档发布证据。
@@ -20,7 +96,7 @@
 
 这些能力均已增加定向回归测试；真实 Android、macOS/iOS、Prometheus、Firefox/WebKit/JMeter Worker 仍按最新对比文档列为外部验收项。
 
-更新时间：2026-08-07
+更新时间：2026-08-11
 
 这份记录用于补充 `docs/implementation-plan-2026-Q18-capability-expansion.md` 和
 `docs/capability-baseline-2026-08-07.md`，把“代码已完成”和“真实环境已验收”分开记录。
@@ -75,7 +151,7 @@
 ## 历史本地质量核验（2026-08-07）
 
 - 后端非集成测试 `1710 passed`（命令使用 `--ignore=tests/integration`，集成测试仍按环境变量单独运行）；前端 Vitest `37 files / 146 tests passed`。
-- `mypy` 检查 `120` 个源文件无错误；Ruff lint、格式检查、Bandit（无高/中风险）、pip-audit（无已知漏洞）、npm audit（0 vulnerabilities）、`vue-tsc --noEmit`、前端生产构建和 `git diff --check` 全部通过。
+- `mypy` 检查 `128` 个源文件无错误；Ruff lint、格式检查、Bandit（无高/中风险）、pip-audit（无已知漏洞）、npm audit（0 vulnerabilities）、`vue-tsc --noEmit`、前端生产构建和 `git diff --check` 全部通过。
 - 录制/元素资产定向回归 `10 passed`；此前性能/Web 受影响模块定向回归 `27 passed`。
 - 本地完成不代表真实环境验收完成：仍需真实 Android/iOS、Prometheus、Firefox/WebKit/JMeter Worker 和外部通知渠道；集成测试仍需 PostgreSQL/Redis/MinIO 运行环境。
 
@@ -136,3 +212,21 @@
 - 用例 AI 生成抽屉在 OpenAPI 来源下增加策略选择和说明，非 OpenAPI 来源固定使用 `warn`，避免把无关参数传入其他解析器。
 - 回归覆盖外部引用拒绝、API 入参传递、前端静态入口和中英文文案；完整非集成后端回归更新为 `1711 passed`。
 - 真实 Provider/Consumer 规格联调仍需外部提供可访问的 Provider、Consumer 规格和发布流程；本地实现不联网拉取远程 `$ref`。
+## 2026-08-11 前端覆盖率门禁收口
+
+- 新增 `ProjectList.spec.ts`、`UserManagementView.spec.ts`、`AccountSettingsView.spec.ts`，覆盖项目导入成功状态清理、用户新增/编辑/密码长度校验、个人资料保存/改密和异常提示。
+- 修复 `ProjectList.vue` 导入成功后未释放 `importing` 保护，导致 `resetImport()` 提前返回、导入弹窗无法按预期关闭的问题。
+- 验证结果：前端 `40 files / 157 tests passed`；coverage statements/branches/functions/lines `31.54% / 26.53% / 24.73% / 32.76%`；type-check、生产构建通过。后端 Python 3.12 非集成 `1827 passed`、coverage `82.50%`，Python 3.14 非集成 `1827 passed`、coverage `82.05%`，单文件扫描 `252 passed`。
+
+## 2026-08-11 Python 3.14 兼容性与覆盖率复验
+
+- 为 Python 3.14 准备独立虚拟环境并验证运行时依赖；`asyncpg 0.31.0`、`psycopg2-binary 2.9.12` 和 `PyYAML 6.0.3` 均使用可用二进制包，`pip check` 通过。
+- 新增覆盖录制会话生命周期、录制路由异常、资产持久化冲突、用户查询/角色/重复数据/管理员保护等边界回归，避免通过降低覆盖率阈值掩盖新增路径。
+- Python 3.14.3 完整非集成回归 `1827 passed`、覆盖率 `82.05%`；Python 3.12.11 对照回归 `1827 passed`、覆盖率 `82.50%`；252 个测试文件在 Python 3.14 下单独运行全部通过。
+
+## 2026-08-11 低代码 Python 脚本生成补齐
+
+- `frontend/src/utils/pythonScriptGenerator.ts` 的 Web 生成器新增上传、下载、视觉基线断言，并可使用项目元素资产和页面对象数据展开定位器与公共动作；Android 生成器补齐旋转、权限、网络配置和前后台切换。
+- 生成脚本使用 `ATP_WEB_UPLOAD_N`、`ATP_WEB_DOWNLOAD_N` 和 `ATP_VISUAL_BASELINE_N` 环境变量连接脱离平台后的文件/基线输入；视觉断言使用 Pillow 计算像素变化比例并生成差异图。
+- 对缺少定位器、资产未加载、页面对象无动作和未知动作统一生成显式 `pytest.fail`，避免用户保存一个看似完整但实际跳过步骤的脚本。
+- 验证：生成器定向 `6 passed`；前端全量 `40 files / 161 tests passed`；coverage statements/branches/functions/lines `31.94% / 27.09% / 24.94% / 33.21%`；`vue-tsc --noEmit` 和生产构建通过。

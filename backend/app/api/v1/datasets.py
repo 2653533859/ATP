@@ -9,8 +9,8 @@ from __future__ import annotations
 import csv
 import io
 import json
-
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
+import httpx
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,8 @@ from app.core.cache_decorator import cached_json
 from app.core.database import get_db
 from app.core.redis_client import get_json_cache, set_json_cache
 from app.models.dataset import TestDataset, TestDatasetVersion
+from app.models.ai_llm_config import AILLMConfig
+from app.models.project import Project
 from app.models.case import TestCase
 from app.models.plan import TestPlan
 from app.models.suite import TestSuite
@@ -33,6 +35,8 @@ from app.schemas.dataset import (
     DatasetValidateOut,
     DatasetImpactOut,
     DatasetImpactItemOut,
+    DatasetAIGenerateIn,
+    DatasetAIGenerateOut,
     TestDatasetCreate,
     TestDatasetListItem,
     TestDatasetOut,
@@ -40,11 +44,11 @@ from app.schemas.dataset import (
     TestDatasetVersionOut,
 )
 from app.services.dataset_schema import DatasetSchemaField, validate_dataset_rows
+from app.services.dataset_storage import DatasetStorageLimitError, validate_dataset_rows_size
+from app.services.ai_dataset_generator import generate_dataset_rows
 
 router = APIRouter(tags=["测试数据集"])
 
-_MAX_ROWS = 500
-_MAX_ROWS_BYTES = 256 * 1024
 _DATASET_LIST_CACHE_TTL = 60
 
 
@@ -83,17 +87,10 @@ def _deserialize_dataset_list(payload) -> list[TestDatasetListItem]:
 
 
 def _validate_rows(rows: list[dict]) -> None:
-    if len(rows) > _MAX_ROWS:
-        raise HTTPException(
-            status_code=400,
-            detail=f"行数超过 {_MAX_ROWS} 上限；请拆分或改用 MinIO 引用模式",
-        )
-    serialized = json.dumps(rows, ensure_ascii=False)
-    if len(serialized.encode("utf-8")) > _MAX_ROWS_BYTES:
-        raise HTTPException(
-            status_code=400,
-            detail=f"序列化后超过 {_MAX_ROWS_BYTES // 1024}KB；请精简或拆分",
-        )
+    try:
+        validate_dataset_rows_size(rows)
+    except DatasetStorageLimitError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 def _parse_dataset_file(raw: bytes, filename: str, current_format: str) -> tuple[list[dict], str]:
@@ -151,6 +148,59 @@ def _validation_policy(dataset: TestDataset) -> str:
 
 def _can_upload_with_policy(valid: bool, policy: str) -> bool:
     return valid or policy == "soft"
+
+
+@router.post("/datasets/ai-generate", response_model=DatasetAIGenerateOut)
+async def generate_dataset_with_ai(
+    body: DatasetAIGenerateIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Generate rows for the dataset editor without persisting AI output."""
+    await assert_project_access(db, user, body.project_id, ProjectRole.editor)
+    project = await db.get(Project, body.project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    if not project.ai_llm_config_id:
+        raise HTTPException(status_code=400, detail="项目未配置 AI 模型")
+
+    dataset = None
+    if body.dataset_id is not None:
+        dataset = await db.get(TestDataset, body.dataset_id)
+        if dataset is None:
+            raise HTTPException(status_code=404, detail="测试数据集不存在")
+        if dataset.project_id != body.project_id:
+            raise HTTPException(status_code=400, detail="测试数据集不属于当前项目")
+
+    config = await db.get(AILLMConfig, project.ai_llm_config_id)
+    if config is None:
+        raise HTTPException(status_code=400, detail="项目关联的 AI 配置不存在")
+    schema_fields = (
+        _schema_fields_to_json(dataset.schema_fields or [])
+        if dataset is not None
+        else _schema_fields_to_json(body.schema_fields)
+    )
+    try:
+        rows, inferred_schema, warnings = await generate_dataset_rows(
+            config=config,
+            schema_fields=schema_fields,
+            requirement=body.requirement,
+            row_count=body.row_count,
+        )
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"LLM 调用失败: {exc.response.status_code}") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"LLM 网络错误: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return DatasetAIGenerateOut(
+        project_id=body.project_id,
+        dataset_id=body.dataset_id,
+        rows=rows,
+        schema_fields=inferred_schema,
+        warnings=warnings,
+    )
 
 
 async def _next_dataset_version(db: AsyncSession, dataset_id: int) -> int:

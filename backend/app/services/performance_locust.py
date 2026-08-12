@@ -7,6 +7,7 @@ import json
 import os
 import re
 import subprocess
+import sys
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -70,6 +71,8 @@ def run_locust_script(
         env = os.environ.copy()
         env.update({str(key): str(value) for key, value in env_vars.items()})
         command = [
+            sys.executable,
+            "-m",
             "locust",
             "-f",
             str(script_path),

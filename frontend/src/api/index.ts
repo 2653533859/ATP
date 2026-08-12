@@ -15,6 +15,55 @@ export type PlanStatus = 'draft' | 'active' | 'archived'
 export type ScheduleType = 'manual' | 'cron' | 'webhook'
 export type TriggerType = 'manual' | 'cron' | 'webhook'
 export type PlanRunStatus = 'pending' | 'running' | 'passed' | 'failed' | 'error'
+export type ProjectStatus = 'active' | 'archived'
+export type ProjectTemplate = 'blank' | 'api' | 'web' | 'android' | 'full'
+
+export interface ProjectExportPayload {
+  format_version: '1'
+  exported_at: string
+  project: {
+    name: string
+    project_code?: string | null
+    description?: string | null
+    run_retention_days_override?: number | null
+    ai_model?: {
+      name: string
+      provider: string
+      model_name: string
+      supports_vision: boolean
+    } | null
+  }
+  modules: Array<{
+    id: number
+    name: string
+    module_code?: string | null
+    parent_id?: number | null
+    sort_order: number
+  }>
+  environments: Array<{
+    name: string
+    description?: string | null
+    variables: Array<{ key: string; value?: string | null; is_secret: boolean; redacted: boolean }>
+  }>
+  datasets: Array<{
+    name: string
+    description?: string | null
+    format: 'csv' | 'json'
+    rows: Array<Record<string, unknown>>
+    schema_fields: Array<Record<string, unknown>>
+    validation_policy: 'soft' | 'hard'
+  }>
+  warnings: string[]
+}
+
+export interface ProjectImportPreview {
+  valid: boolean
+  conflicts: string[]
+  warnings: string[]
+  project_name: string
+  project_code?: string | null
+  summary: Record<string, number>
+}
 
 export interface ProjectItem {
   id: number
@@ -23,6 +72,7 @@ export interface ProjectItem {
   description?: string | null
   ai_llm_config_id?: number | null
   owner_id: number
+  status: ProjectStatus
   created_at: string
   updated_at: string
 }
@@ -44,6 +94,7 @@ export interface EnvVariableItem {
 }
 
 export type DeviceStatus = 'online' | 'offline' | 'busy'
+export type DeviceScanStatus = 'queued' | 'running' | 'completed' | 'failed'
 
 export interface DeviceItem {
   id: number
@@ -61,6 +112,24 @@ export interface DeviceItem {
   last_seen_at?: string | null
   created_at: string
   updated_at: string
+}
+
+export interface DeviceScanResult {
+  status: DeviceScanStatus
+  scan_id?: string | null
+  devices: DeviceItem[]
+  error?: string | null
+}
+
+export interface AndroidWorkerItem {
+  worker_id: string
+  status: 'online'
+  queues: string[]
+  capabilities: string[]
+  hostname?: string | null
+  pid?: number | null
+  updated_at: number
+  expires_at: number
 }
 
 export interface ApkItem {
@@ -187,6 +256,7 @@ export interface WebRecordingItem {
   status: WebRecordingStatus
   start_url: string
   current_url?: string
+  browser?: 'chromium' | 'firefox' | 'webkit'
   project_id?: number | null
   steps: WebRecordingStep[]
   asset_ids?: number[]
@@ -477,6 +547,26 @@ export interface MockRuleItem {
   creator_id: number
   created_at: string
   updated_at: string
+}
+
+export interface MockAIGeneratedRule {
+  name: string
+  method: string
+  path: string
+  status_code: number
+  response_headers: Record<string, string>
+  response_body: string | null
+  match_conditions: Record<string, Record<string, string>>
+  delay_ms: number
+  is_enabled: boolean
+  render_template: boolean
+  record_requests: boolean
+}
+
+export interface MockAIGenerateResult {
+  project_id: number
+  rules: MockAIGeneratedRule[]
+  warnings: string[]
 }
 
 export type BugTrackerType = 'jira' | 'zentao' | 'github' | 'gitlab'
@@ -800,16 +890,58 @@ export const authApi = {
 
   logout: () => http.post<unknown, { authenticated: boolean }>('/auth/logout'),
 
-  me: () => http.get<unknown, { id: number; username: string; email: string; role: string }>('/auth/me'),
+  me: () => http.get<unknown, { id: number; username: string; email: string; role: string; is_active?: boolean }>('/auth/me'),
+
+  updateMe: (data: {
+    current_password: string
+    username?: string
+    email?: string
+    new_password?: string
+  }) => http.patch<unknown, { authenticated: boolean }>('/auth/me', data),
+}
+
+export interface AdminUserItem {
+  id: number
+  username: string
+  email: string
+  role: 'admin' | 'engineer' | 'tester' | 'viewer'
+  is_active: boolean
+}
+
+export const userApi = {
+  list: (username?: string) => http.get<unknown, AdminUserItem[]>('/users', { params: { username } }),
+  create: (data: {
+    username: string
+    email: string
+    password: string
+    role: AdminUserItem['role']
+    is_active: boolean
+  }) => http.post<unknown, AdminUserItem>('/users', data),
+  update: (id: number, data: Partial<{
+    username: string
+    email: string
+    password: string
+    role: AdminUserItem['role']
+    is_active: boolean
+  }>) => http.patch<unknown, AdminUserItem>(`/users/${id}`, data),
 }
 
 export const projectApi = {
   list: () => http.get<unknown, ProjectItem[]>('/projects'),
-  create: (data: { name: string; description?: string; project_code?: string; ai_llm_config_id?: number | null }) =>
-    http.post('/projects', data),
+  get: (id: number) => http.get<unknown, ProjectItem>(`/projects/${id}`),
+  create: (data: { name: string; description?: string; project_code?: string; ai_llm_config_id?: number | null; template?: ProjectTemplate }) =>
+    http.post<unknown, ProjectItem>('/projects', data),
   update: (id: number, data: { name?: string; description?: string; project_code?: string; ai_llm_config_id?: number | null }) =>
     http.patch(`/projects/${id}`, data),
   delete: (id: number) => http.delete(`/projects/${id}`),
+  archive: (id: number) => http.post<unknown, ProjectItem>(`/projects/${id}/archive`),
+  restore: (id: number) => http.post<unknown, ProjectItem>(`/projects/${id}/restore`),
+  copy: (id: number, data: { name: string }) => http.post<unknown, ProjectItem>(`/projects/${id}/copy`, data),
+  export: (id: number) => http.get<unknown, ProjectExportPayload>(`/projects/${id}/export`),
+  previewImport: (data: { payload: ProjectExportPayload; conflict_policy: 'fail' | 'rename' }) =>
+    http.post<unknown, ProjectImportPreview>('/projects/import/preview', data),
+  importProject: (data: { payload: ProjectExportPayload; conflict_policy: 'fail' | 'rename' }) =>
+    http.post<unknown, { project: ProjectItem; imported: Record<string, number>; warnings: string[] }>('/projects/import', data),
   getModules: (projectId: number) => http.get<unknown, ModuleTreeItem[]>(`/projects/${projectId}/modules`),
 }
 
@@ -1014,7 +1146,7 @@ export const scriptApi = {
 }
 
 export const webRecordingApi = {
-  start: (data: { start_url: string; project_id: number; browser?: 'chromium'; viewport_width?: number; viewport_height?: number }) =>
+  start: (data: { start_url: string; project_id: number; browser?: 'chromium' | 'firefox' | 'webkit'; viewport_width?: number; viewport_height?: number }) =>
     http.post<unknown, WebRecordingItem>('/web-recordings', data),
   get: (id: string) => http.get<unknown, WebRecordingItem>(`/web-recordings/${id}`),
   screenshot: (id: string) => http.post<unknown, Blob>(`/web-recordings/${id}/screenshot`, undefined, { responseType: 'blob' }),
@@ -1037,7 +1169,9 @@ export const environmentApi = {
 export const deviceApi = {
   list: (params?: { status_filter?: string }) =>
     http.get<unknown, DeviceItem[]>('/devices', { params }),
-  scan: () => http.post<unknown, DeviceItem[]>('/devices/scan'),
+  workers: () => http.get<unknown, AndroidWorkerItem[]>('/devices/workers'),
+  scan: () => http.post<unknown, DeviceScanResult>('/devices/scan'),
+  scanStatus: (scanId: string) => http.get<unknown, DeviceScanResult>(`/devices/scan/${scanId}`),
   get: (id: number) => http.get('/devices/' + id),
   update: (id: number, data: { name?: string; description?: string }) =>
     http.patch(`/devices/${id}`, data),
@@ -1181,6 +1315,8 @@ export const mockRuleApi = {
   logs: (projectId: number) => http.get<unknown, MockRuleLogItem[]>(`/mock-rules/logs/${projectId}`),
   exportRules: (projectId: number) => http.get<unknown, { project_id: number; rules: MockRuleItem[] }>(`/mock-rules/export/${projectId}`),
   importRules: (data: { project_id: number; rules: unknown[] }) => http.post<unknown, MockRuleItem[]>('/mock-rules/import', data),
+  aiGenerate: (data: { project_id: number; rule_ids?: number[]; requirement?: string; rule_count?: number }) =>
+    http.post<unknown, MockAIGenerateResult>('/mock-rules/ai-generate', data),
 }
 
 export const bugTrackerApi = {
@@ -1276,7 +1412,7 @@ export const globalVariableApi = {
 }
 
 // ---- AI LLM Config ----
-export type LLMProvider = 'deepseek' | 'claude' | 'openai' | 'qwen' | 'ollama'
+export type LLMProvider = 'deepseek' | 'claude' | 'openai' | 'openai_compatible' | 'qwen' | 'ollama'
 
 export interface AILLMConfigItem {
   id: number
@@ -2016,6 +2152,14 @@ export interface DatasetImpact {
   total_count: number
 }
 
+export interface DatasetAIGenerateResult {
+  project_id: number
+  dataset_id?: number | null
+  rows: Record<string, unknown>[]
+  schema_fields: DatasetSchemaField[]
+  warnings: string[]
+}
+
 export const datasetApi = {
   list: (projectId: number) =>
     http.get<unknown, DatasetListItem[]>(`/projects/${projectId}/datasets`),
@@ -2041,6 +2185,13 @@ export const datasetApi = {
   },
   validate: (body: { schema_fields: DatasetSchemaField[]; rows: Record<string, unknown>[]; preview_limit?: number }) =>
     http.post<unknown, DatasetValidationResult>('/datasets/validate', body),
+  aiGenerate: (body: {
+    project_id: number
+    dataset_id?: number | null
+    requirement?: string
+    row_count?: number
+    schema_fields?: DatasetSchemaField[]
+  }) => http.post<unknown, DatasetAIGenerateResult>('/datasets/ai-generate', body),
 }
 
 // ─── P3.C 项目成员与审计日志 ─────────────────────────────

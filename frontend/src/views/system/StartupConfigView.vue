@@ -42,19 +42,32 @@
     />
 
     <section class="config-toolbar">
-      <div>
-        <div class="toolbar-label">{{ t('system_pages.startup_config.preset_title') }}</div>
-        <a-space wrap>
-          <a-button @click="applyPreset('docker')">
-            <CloudServerOutlined /> {{ t('system_pages.startup_config.preset_docker') }}
-          </a-button>
-          <a-button @click="applyPreset('remote')">
-            <GlobalOutlined /> {{ t('system_pages.startup_config.preset_remote') }}
-          </a-button>
-          <a-button @click="resetDefaults">
-            <UndoOutlined /> {{ t('system_pages.startup_config.preset_reset') }}
-          </a-button>
-        </a-space>
+      <div class="toolbar-groups">
+        <div class="profile-picker">
+          <div class="toolbar-label">{{ t('system_pages.startup_config.profile_title') }}</div>
+          <a-select
+            v-model:value="selectedProfile"
+            :options="profileOptions"
+            :aria-label="t('system_pages.startup_config.profile_title')"
+            style="min-width: 260px"
+            @update:value="applyProfile"
+          />
+          <span class="profile-note">{{ t(profileDescriptionKey) }}</span>
+        </div>
+        <div>
+          <div class="toolbar-label">{{ t('system_pages.startup_config.preset_title') }}</div>
+          <a-space wrap>
+            <a-button @click="applyPreset('docker')">
+              <CloudServerOutlined /> {{ t('system_pages.startup_config.preset_docker') }}
+            </a-button>
+            <a-button @click="applyPreset('remote')">
+              <GlobalOutlined /> {{ t('system_pages.startup_config.preset_remote') }}
+            </a-button>
+            <a-button @click="resetDefaults">
+              <UndoOutlined /> {{ t('system_pages.startup_config.preset_reset') }}
+            </a-button>
+          </a-space>
+        </div>
       </div>
       <a-space wrap>
         <a-button @click="saveDraft">
@@ -204,14 +217,17 @@ interface StartupConfig {
   POSTGRES_DB: string
   POSTGRES_USER: string
   POSTGRES_PASSWORD: string
+  POSTGRES_CONNECT_TIMEOUT_SECONDS: number
   REDIS_HOST: string
   REDIS_PORT: number
   REDIS_PASSWORD: string
+  REDIS_CONNECT_TIMEOUT_SECONDS: number
   MINIO_HOST: string
   MINIO_PORT: number
   MINIO_ROOT_USER: string
   MINIO_ROOT_PASSWORD: string
   MINIO_BUCKET: string
+  MINIO_CONNECT_TIMEOUT_SECONDS: number
   APP_ENV: string
   APP_SECRET_KEY: string
   APP_ACCESS_TOKEN_EXPIRE_MINUTES: number
@@ -239,6 +255,11 @@ interface StartupConfig {
   ADB_SCAN_ENABLED: boolean
   ADB_SCAN_INTERVAL: number
   ADB_SCAN_MODE: string
+  ANDROID_WORKER_ID: string
+  ANDROID_WORKER_QUEUE: string
+  ANDROID_WORKER_REGISTRY_PREFIX: string
+  ANDROID_WORKER_HEARTBEAT_SECONDS: number
+  ANDROID_WORKER_TTL_SECONDS: number
   ADB_RECONNECT_ENABLED: boolean
   ADB_RECONNECT_MAX_ATTEMPTS: number
   ADB_RECONNECT_BACKOFF_MS: string
@@ -279,6 +300,15 @@ interface StartupConfig {
   PERFORMANCE_NODE_EGRESS_ALLOWLIST: string
   PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS: number
   PERFORMANCE_EXECUTORS: string
+  WEB_RECORDER_MODE: string
+  WEB_RECORDER_WORKER_QUEUE_PREFIX: string
+  WEB_RECORDER_WORKER_ID: string
+  WEB_RECORDER_WORKER_MAX_SESSIONS: number
+  WEB_RECORDER_WORKER_HEARTBEAT_SECONDS: number
+  WEB_RECORDER_WORKER_TTL_SECONDS: number
+  WEB_RECORDER_COMMAND_TIMEOUT_SECONDS: number
+  WEB_RECORDER_REPLY_TTL_SECONDS: number
+  WEB_RECORDER_SESSION_TTL_SECONDS: number
   WEB_RECORDER_DISPLAY: string
   RATE_LIMIT_LOGIN: string
   RATE_LIMIT_WEBHOOK: string
@@ -300,6 +330,8 @@ interface StartupConfig {
   JAEGER_UI_URL: string
   VITE_BACKEND_ORIGIN: string
 }
+
+type StartupProfile = 'local-all' | 'remote-infra' | 'android-agent' | 'performance-agent'
 
 type FieldKey = keyof StartupConfig
 
@@ -330,6 +362,7 @@ interface ConfigSection {
 
 const { t } = useI18n()
 const STORAGE_KEY = 'atp-startup-config-draft-v1'
+const PROFILE_STORAGE_KEY = 'atp-startup-profile-v1'
 const SENSITIVE_CONFIG_KEYS = new Set<FieldKey>([
   'POSTGRES_PASSWORD',
   'REDIS_PASSWORD',
@@ -341,6 +374,11 @@ const SENSITIVE_CONFIG_KEYS = new Set<FieldKey>([
   'SMTP_PASSWORD',
 ])
 const PLACEHOLDER_VALUES: Partial<Record<FieldKey, string>> = {
+  POSTGRES_HOST: '<server-host>',
+  POSTGRES_USER: '<database-user>',
+  REDIS_HOST: '<server-host>',
+  MINIO_HOST: '<server-host>',
+  MINIO_ROOT_USER: '<minio-user>',
   POSTGRES_PASSWORD: 'atp_password_change_me',
   MINIO_ROOT_PASSWORD: 'minio_password_change_me',
   APP_SECRET_KEY: 'change_this_to_a_random_secret_key_at_least_32_chars',
@@ -349,16 +387,17 @@ const PLACEHOLDER_VALUES: Partial<Record<FieldKey, string>> = {
 }
 
 const defaultConfig: StartupConfig = {
-  POSTGRES_HOST: 'postgres', POSTGRES_PORT: 5432, POSTGRES_DB: 'atp', POSTGRES_USER: 'atp', POSTGRES_PASSWORD: 'atp_password_change_me',
-  REDIS_HOST: 'redis', REDIS_PORT: 6379, REDIS_PASSWORD: '',
-  MINIO_HOST: 'minio', MINIO_PORT: 9000, MINIO_ROOT_USER: 'minioadmin', MINIO_ROOT_PASSWORD: 'minio_password_change_me', MINIO_BUCKET: 'atp',
+  POSTGRES_HOST: 'postgres', POSTGRES_PORT: 5432, POSTGRES_DB: 'atp', POSTGRES_USER: 'atp', POSTGRES_PASSWORD: 'atp_password_change_me', POSTGRES_CONNECT_TIMEOUT_SECONDS: 5,
+  REDIS_HOST: 'redis', REDIS_PORT: 6379, REDIS_PASSWORD: '', REDIS_CONNECT_TIMEOUT_SECONDS: 5,
+  MINIO_HOST: 'minio', MINIO_PORT: 9000, MINIO_ROOT_USER: 'minioadmin', MINIO_ROOT_PASSWORD: 'minio_password_change_me', MINIO_BUCKET: 'atp', MINIO_CONNECT_TIMEOUT_SECONDS: 5,
   APP_ENV: 'development', APP_SECRET_KEY: 'change_this_to_a_random_secret_key_at_least_32_chars', APP_ACCESS_TOKEN_EXPIRE_MINUTES: 480,
   APP_REFRESH_TOKEN_EXPIRE_DAYS: 7, APP_CORS_ORIGINS: 'http://localhost,http://localhost:80,http://localhost:5173', APP_AUTH_COOKIE_SECURE: false, APP_AUTH_COOKIE_SAMESITE: 'lax', APP_AUTO_CREATE_TABLES: false,
   FIRST_ADMIN_USERNAME: 'parado', FIRST_ADMIN_PASSWORD: 'change_me_before_use', FIRST_ADMIN_EMAIL: 'admin@example.com', WEBHOOK_API_KEY: 'change_this_to_a_random_webhook_key', ENCRYPTION_KEY: '',
   CELERY_CONCURRENCY: 4, CELERY_QUEUES: 'default,android,mobile_special,ios,ai,maintenance,performance', SUITE_CHILD_TASK_TIMEOUT_SECONDS: 3600, WORKER_METRICS_PORT: 9091,
   FILE_RETENTION_DAYS: 30, STALE_PENDING_CLEANUP_ENABLED: true, STALE_PENDING_TIMEOUT_MINUTES: 120, STALE_PENDING_CLEANUP_INTERVAL_SECONDS: 600,
   RUN_CLEANUP_ENABLED: true, RUN_RETENTION_DAYS: 90, RUN_CLEANUP_BATCH_SIZE: 500,
-  ADB_SCAN_ENABLED: true, ADB_SCAN_INTERVAL: 15, ADB_SCAN_MODE: 'local', ADB_RECONNECT_ENABLED: true, ADB_RECONNECT_MAX_ATTEMPTS: 3, ADB_RECONNECT_BACKOFF_MS: '200,800,2000',
+  ADB_SCAN_ENABLED: true, ADB_SCAN_INTERVAL: 15, ADB_SCAN_MODE: 'local', ANDROID_WORKER_ID: '', ANDROID_WORKER_QUEUE: 'mobile_special', ANDROID_WORKER_REGISTRY_PREFIX: 'atp:android-worker', ANDROID_WORKER_HEARTBEAT_SECONDS: 15, ANDROID_WORKER_TTL_SECONDS: 45,
+  ADB_RECONNECT_ENABLED: true, ADB_RECONNECT_MAX_ATTEMPTS: 3, ADB_RECONNECT_BACKOFF_MS: '200,800,2000',
   ADB_HEARTBEAT_ENABLED: true, ADB_HEARTBEAT_INTERVAL_SEC: 15, ADB_HEARTBEAT_FAILURE_THRESHOLD: 2, CASE_SNAPSHOT_MAX_PER_CASE: 50, MOCK_STANDALONE_PORT: 0,
   SMTP_HOST: '', SMTP_PORT: 465, SMTP_USER: '', SMTP_PASSWORD: '', SMTP_FROM: '', SMTP_SSL: true, SMTP_TLS: false,
   AI_HEALING_ENABLED: false, AI_HEALING_TIMEOUT_SECONDS: 60, AI_HEALING_DAILY_LIMIT: 100, AI_HEALING_CACHE_TTL_SECONDS: 3600,
@@ -367,6 +406,8 @@ const defaultConfig: StartupConfig = {
   PERFORMANCE_METRICS_ENABLED: true, PERFORMANCE_METRICS_INTERVAL_SECONDS: 5, PERFORMANCE_METRICS_MAX_SAMPLES: 7200, PERFORMANCE_MINIO_INVENTORY_INTERVAL_SECONDS: 30,
   PERFORMANCE_NODE_ENABLED: true, PERFORMANCE_NODE_ID: '', PERFORMANCE_NODE_NAME: '', PERFORMANCE_NODE_QUEUE: 'performance', PERFORMANCE_NODE_MAX_VUS: 0, PERFORMANCE_NODE_MAX_CONCURRENCY: 0, PERFORMANCE_NODE_EGRESS_ALLOWLIST: '', PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS: 90,
   PERFORMANCE_EXECUTORS: 'k6,locust,grpc',
+  WEB_RECORDER_MODE: 'local', WEB_RECORDER_WORKER_QUEUE_PREFIX: 'atp:web-recording:commands', WEB_RECORDER_WORKER_ID: '', WEB_RECORDER_WORKER_MAX_SESSIONS: 2,
+  WEB_RECORDER_WORKER_HEARTBEAT_SECONDS: 5, WEB_RECORDER_WORKER_TTL_SECONDS: 20, WEB_RECORDER_COMMAND_TIMEOUT_SECONDS: 45, WEB_RECORDER_REPLY_TTL_SECONDS: 60, WEB_RECORDER_SESSION_TTL_SECONDS: 3600,
   WEB_RECORDER_DISPLAY: '',
   RATE_LIMIT_LOGIN: '5/minute', RATE_LIMIT_WEBHOOK: '30/minute', LOG_LEVEL: '', SLOW_QUERY_LOG_ENABLED: true, SLOW_QUERY_THRESHOLD_MS: 1000,
   STORAGE_ALERT_SIZE_GB: 0, STORAGE_ALERT_INTERVAL_SECONDS: 3600, STORAGE_ALERT_MAX_SCAN_OBJECTS: 100000, DASHBOARD_ALERT_DEFAULT_SUPPRESS_MIN: 60,
@@ -376,6 +417,7 @@ const defaultConfig: StartupConfig = {
 
 const config = ref<StartupConfig>({ ...defaultConfig })
 const activeSection = ref('infrastructure')
+const selectedProfile = ref<StartupProfile>('local-all')
 const initialSnapshot = ref(JSON.stringify(defaultConfig))
 
 const text = (key: FieldKey, options: Partial<FieldDef> = {}): FieldDef => ({ key, kind: 'text', ...options })
@@ -389,9 +431,9 @@ const sections: ConfigSection[] = [
   {
     key: 'infrastructure', titleKey: 'system_pages.startup_config.sections.infrastructure.title', subtitleKey: 'system_pages.startup_config.sections.infrastructure.subtitle', icon: CloudServerOutlined,
     fields: [
-      text('POSTGRES_HOST', { required: true }), number('POSTGRES_PORT', { max: 65535 }), text('POSTGRES_DB', { required: true }), text('POSTGRES_USER', { required: true }), password('POSTGRES_PASSWORD', { required: true }),
-      text('REDIS_HOST', { required: true }), number('REDIS_PORT', { max: 65535 }), password('REDIS_PASSWORD'),
-      text('MINIO_HOST', { required: true }), number('MINIO_PORT', { max: 65535 }), text('MINIO_ROOT_USER', { required: true }), password('MINIO_ROOT_PASSWORD', { required: true }), text('MINIO_BUCKET', { required: true }),
+      text('POSTGRES_HOST', { required: true }), number('POSTGRES_PORT', { max: 65535 }), text('POSTGRES_DB', { required: true }), text('POSTGRES_USER', { required: true }), password('POSTGRES_PASSWORD', { required: true }), number('POSTGRES_CONNECT_TIMEOUT_SECONDS', { min: 1, max: 120 }),
+      text('REDIS_HOST', { required: true }), number('REDIS_PORT', { max: 65535 }), password('REDIS_PASSWORD'), number('REDIS_CONNECT_TIMEOUT_SECONDS', { min: 1, max: 120 }),
+      text('MINIO_HOST', { required: true }), number('MINIO_PORT', { max: 65535 }), text('MINIO_ROOT_USER', { required: true }), password('MINIO_ROOT_PASSWORD', { required: true }), text('MINIO_BUCKET', { required: true }), number('MINIO_CONNECT_TIMEOUT_SECONDS', { min: 1, max: 120 }),
     ],
   },
   {
@@ -407,8 +449,8 @@ const sections: ConfigSection[] = [
     fields: [
       number('CELERY_CONCURRENCY'), textarea('CELERY_QUEUES'), number('SUITE_CHILD_TASK_TIMEOUT_SECONDS'), number('WORKER_METRICS_PORT', { max: 65535 }), number('FILE_RETENTION_DAYS'),
       toggle('STALE_PENDING_CLEANUP_ENABLED'), number('STALE_PENDING_TIMEOUT_MINUTES'), number('STALE_PENDING_CLEANUP_INTERVAL_SECONDS'), toggle('RUN_CLEANUP_ENABLED'), number('RUN_RETENTION_DAYS'), number('RUN_CLEANUP_BATCH_SIZE'),
-      toggle('ADB_SCAN_ENABLED'), number('ADB_SCAN_INTERVAL'), select('ADB_SCAN_MODE', [{ label: 'local', value: 'local' }, { label: 'worker', value: 'worker' }]), toggle('ADB_RECONNECT_ENABLED'), number('ADB_RECONNECT_MAX_ATTEMPTS'), text('ADB_RECONNECT_BACKOFF_MS'), toggle('ADB_HEARTBEAT_ENABLED'), number('ADB_HEARTBEAT_INTERVAL_SEC'), number('ADB_HEARTBEAT_FAILURE_THRESHOLD'),
-      number('CASE_SNAPSHOT_MAX_PER_CASE'), number('MOCK_STANDALONE_PORT', { max: 65535 }), text('WEB_RECORDER_DISPLAY'),
+      toggle('ADB_SCAN_ENABLED'), number('ADB_SCAN_INTERVAL'), select('ADB_SCAN_MODE', [{ label: 'local', value: 'local' }, { label: 'worker', value: 'worker' }]), text('ANDROID_WORKER_ID'), text('ANDROID_WORKER_QUEUE'), text('ANDROID_WORKER_REGISTRY_PREFIX'), number('ANDROID_WORKER_HEARTBEAT_SECONDS'), number('ANDROID_WORKER_TTL_SECONDS'), toggle('ADB_RECONNECT_ENABLED'), number('ADB_RECONNECT_MAX_ATTEMPTS'), text('ADB_RECONNECT_BACKOFF_MS'), toggle('ADB_HEARTBEAT_ENABLED'), number('ADB_HEARTBEAT_INTERVAL_SEC'), number('ADB_HEARTBEAT_FAILURE_THRESHOLD'),
+      number('CASE_SNAPSHOT_MAX_PER_CASE'), number('MOCK_STANDALONE_PORT', { max: 65535 }), select('WEB_RECORDER_MODE', [{ label: 'local', value: 'local' }, { label: 'worker', value: 'worker' }]), textarea('WEB_RECORDER_WORKER_QUEUE_PREFIX'), text('WEB_RECORDER_WORKER_ID'), number('WEB_RECORDER_WORKER_MAX_SESSIONS'), number('WEB_RECORDER_WORKER_HEARTBEAT_SECONDS'), number('WEB_RECORDER_WORKER_TTL_SECONDS'), number('WEB_RECORDER_COMMAND_TIMEOUT_SECONDS'), number('WEB_RECORDER_REPLY_TTL_SECONDS'), number('WEB_RECORDER_SESSION_TTL_SECONDS'), text('WEB_RECORDER_DISPLAY'),
     ],
   },
   {
@@ -424,6 +466,23 @@ const sections: ConfigSection[] = [
     ],
   },
 ]
+
+const profileOptions = computed<FieldOption[]>(() => ([
+  { label: t('system_pages.startup_config.profiles.local_all'), value: 'local-all' },
+  { label: t('system_pages.startup_config.profiles.remote_infra'), value: 'remote-infra' },
+  { label: t('system_pages.startup_config.profiles.android_agent'), value: 'android-agent' },
+  { label: t('system_pages.startup_config.profiles.performance_agent'), value: 'performance-agent' },
+]))
+const profileDescriptionKey = computed<string>(() => `system_pages.startup_config.profile_descriptions.${selectedProfile.value}`)
+const profileMessageKeys: Record<StartupProfile, string> = {
+  'local-all': 'system_pages.startup_config.messages.profile_local_all',
+  'remote-infra': 'system_pages.startup_config.messages.profile_remote_infra',
+  'android-agent': 'system_pages.startup_config.messages.profile_android_agent',
+  'performance-agent': 'system_pages.startup_config.messages.profile_performance_agent',
+}
+const isStartupProfile = (value: unknown): value is StartupProfile => (
+  value === 'local-all' || value === 'remote-infra' || value === 'android-agent' || value === 'performance-agent'
+)
 
 const allFields = computed(() => sections.flatMap((section) => section.fields))
 const fieldCount = computed(() => allFields.value.length)
@@ -480,23 +539,64 @@ function updateValue(key: FieldKey, value: unknown) {
 function applyPreset(preset: 'docker' | 'remote') {
   const hosts = preset === 'docker'
     ? { postgres: 'postgres', redis: 'redis', minio: 'minio' }
-    : { postgres: '163.192.40.209', redis: '163.192.40.209', minio: '163.192.40.209' }
+    : { postgres: '<server-host>', redis: '<server-host>', minio: '<server-host>' }
   config.value.POSTGRES_HOST = hosts.postgres
   config.value.REDIS_HOST = hosts.redis
   config.value.MINIO_HOST = hosts.minio
   if (preset === 'remote') {
     config.value.POSTGRES_DB = 'atp'
-    config.value.POSTGRES_USER = 'parado'
-    config.value.MINIO_ROOT_USER = 'aicying'
+    config.value.POSTGRES_USER = '<database-user>'
+    config.value.MINIO_ROOT_USER = '<minio-user>'
     config.value.MINIO_BUCKET = 'atp'
   }
   config.value.APP_ENV = 'development'
   config.value.APP_CORS_ORIGINS = 'http://localhost,http://localhost:80,http://localhost:5173'
+  selectedProfile.value = preset === 'docker' ? 'local-all' : 'remote-infra'
   message.success(t(preset === 'docker' ? 'system_pages.startup_config.messages.preset_docker' : 'system_pages.startup_config.messages.preset_remote'))
+}
+
+function applyProfile(value: unknown) {
+  if (!isStartupProfile(value)) return
+  const profile = value
+  selectedProfile.value = profile
+  const remoteHosts = { postgres: '<server-host>', redis: '<server-host>', minio: '<server-host>' }
+  if (profile === 'local-all') {
+    Object.assign(config.value, {
+      POSTGRES_HOST: 'postgres', REDIS_HOST: 'redis', MINIO_HOST: 'minio', APP_ENV: 'development',
+      CELERY_QUEUES: 'default,android,mobile_special,ios,ai,maintenance,performance', ADB_SCAN_ENABLED: true, ADB_SCAN_MODE: 'local',
+      ANDROID_WORKER_ID: '', PERFORMANCE_NODE_ENABLED: false, PERFORMANCE_NODE_ID: '', PERFORMANCE_NODE_NAME: '', PERFORMANCE_NODE_QUEUE: 'performance',
+      PERFORMANCE_EXECUTORS: 'k6,locust,grpc', WEB_RECORDER_MODE: 'local',
+    })
+  } else if (profile === 'remote-infra') {
+    Object.assign(config.value, {
+      POSTGRES_HOST: remoteHosts.postgres, REDIS_HOST: remoteHosts.redis, MINIO_HOST: remoteHosts.minio, APP_ENV: 'development',
+      POSTGRES_DB: 'atp', POSTGRES_USER: '<database-user>', MINIO_ROOT_USER: '<minio-user>', MINIO_BUCKET: 'atp',
+      CELERY_QUEUES: 'default,android,mobile_special,ios,ai,maintenance,performance', ADB_SCAN_ENABLED: true, ADB_SCAN_MODE: 'local',
+      ANDROID_WORKER_ID: '', PERFORMANCE_NODE_ENABLED: false, PERFORMANCE_NODE_ID: '', PERFORMANCE_NODE_NAME: '', PERFORMANCE_NODE_QUEUE: 'performance',
+      PERFORMANCE_EXECUTORS: 'k6,locust,grpc', WEB_RECORDER_MODE: 'local',
+    })
+  } else if (profile === 'android-agent') {
+    Object.assign(config.value, {
+      POSTGRES_HOST: remoteHosts.postgres, REDIS_HOST: remoteHosts.redis, MINIO_HOST: remoteHosts.minio, APP_ENV: 'production',
+      POSTGRES_DB: 'atp', POSTGRES_USER: '<database-user>', MINIO_ROOT_USER: '<minio-user>', MINIO_BUCKET: 'atp', CELERY_QUEUES: 'android,mobile_special',
+      ADB_SCAN_ENABLED: true, ADB_SCAN_MODE: 'local', ANDROID_WORKER_ID: '', PERFORMANCE_NODE_ENABLED: false, PERFORMANCE_NODE_ID: '',
+      PERFORMANCE_NODE_NAME: '', PERFORMANCE_NODE_QUEUE: 'performance', PERFORMANCE_EXECUTORS: 'k6,locust,grpc', WEB_RECORDER_MODE: 'local',
+    })
+  } else {
+    Object.assign(config.value, {
+      POSTGRES_HOST: remoteHosts.postgres, REDIS_HOST: remoteHosts.redis, MINIO_HOST: remoteHosts.minio, APP_ENV: 'production',
+      POSTGRES_DB: 'atp', POSTGRES_USER: '<database-user>', MINIO_ROOT_USER: '<minio-user>', MINIO_BUCKET: 'atp', CELERY_QUEUES: 'performance.worker-a',
+      ADB_SCAN_ENABLED: false, ADB_SCAN_MODE: 'local', ANDROID_WORKER_ID: '', PERFORMANCE_NODE_ENABLED: true,
+      PERFORMANCE_NODE_ID: 'performance-win-worker-a', PERFORMANCE_NODE_NAME: 'Windows 性能节点 A', PERFORMANCE_NODE_QUEUE: 'performance.worker-a',
+      PERFORMANCE_EXECUTORS: 'jmeter,grpc', WEB_RECORDER_MODE: 'local',
+    })
+  }
+  message.success(t(profileMessageKeys[profile]))
 }
 
 function resetDefaults() {
   config.value = { ...defaultConfig }
+  selectedProfile.value = 'local-all'
   message.success(t('system_pages.startup_config.messages.reset'))
 }
 
@@ -505,6 +605,7 @@ function saveDraft() {
     Object.entries(config.value).filter(([key]) => !SENSITIVE_CONFIG_KEYS.has(key as FieldKey)),
   )
   localStorage.setItem(STORAGE_KEY, JSON.stringify(safeDraft))
+  localStorage.setItem(PROFILE_STORAGE_KEY, selectedProfile.value)
   initialSnapshot.value = JSON.stringify(config.value)
   message.success(t('system_pages.startup_config.messages.saved'))
 }
@@ -521,6 +622,10 @@ function loadDraft() {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(safeSaved))
     }
     config.value = { ...defaultConfig, ...safeSaved }
+    const savedProfile = localStorage.getItem(PROFILE_STORAGE_KEY)
+    if (savedProfile === 'local-all' || savedProfile === 'remote-infra' || savedProfile === 'android-agent' || savedProfile === 'performance-agent') {
+      selectedProfile.value = savedProfile
+    }
     initialSnapshot.value = JSON.stringify(config.value)
   } catch {
     localStorage.removeItem(STORAGE_KEY)
@@ -705,6 +810,27 @@ onMounted(loadDraft)
 
 .config-toolbar {
   margin-top: 14px;
+}
+
+.toolbar-groups {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 24px;
+}
+
+.profile-picker {
+  display: flex;
+  min-width: 320px;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.profile-note {
+  max-width: 430px;
+  color: var(--c-text-tertiary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 .toolbar-label {
@@ -918,6 +1044,15 @@ onMounted(loadDraft)
   }
 
   .config-toolbar :deep(.ant-space) {
+    width: 100%;
+  }
+
+  .toolbar-groups,
+  .profile-picker {
+    width: 100%;
+  }
+
+  .profile-picker :deep(.ant-select) {
     width: 100%;
   }
 

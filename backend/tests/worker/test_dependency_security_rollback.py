@@ -38,3 +38,11 @@ def test_frontend_image_install_is_lockfile_reproducible(repo_file):
     assert "COPY package*.json ./" in dockerfile
     assert "RUN npm ci" in dockerfile
     assert "RUN npm install" not in dockerfile
+
+
+def test_python314_runtime_pins_use_binary_compatible_versions(repo_file):
+    requirements = repo_file("backend/requirements.txt")
+
+    assert "asyncpg==0.31.0" in requirements
+    assert "psycopg2-binary==2.9.12" in requirements
+    assert "pyyaml==6.0.3" in requirements

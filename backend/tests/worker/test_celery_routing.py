@@ -34,6 +34,7 @@ def test_celery_task_routes_split_operational_queues():
     assert routes["run_performance_test"]["queue"] == "performance"
     assert routes["check_performance_schedules"]["queue"] == "performance"
     assert routes["heartbeat_performance_node"]["queue"] == "performance"
+    assert routes["heartbeat_android_worker"]["queue"] == "mobile_special"
     assert routes["cleanup_expired_files"]["queue"] == "maintenance"
     assert routes["backup_postgres_daily"]["queue"] == "maintenance"
 

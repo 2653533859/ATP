@@ -17,6 +17,17 @@ flowchart LR
   Agent --> MinIO
 ```
 
+## ADB 路径自动发现
+
+Windows 启动脚本和网络诊断脚本会复用同一套 ADB 路径发现逻辑，不要求先修改系统 PATH。支持以下来源，按实际存在的 `adb.exe` 注入当前进程及其子 Worker：
+
+- `ATP_ADB_HOME`：ADB 或 `platform-tools` 目录；
+- `ANDROID_HOME` / `ANDROID_SDK_ROOT`：Android SDK 根目录下的 `platform-tools`；
+- `%LOCALAPPDATA%\Android\Sdk\platform-tools`；
+- `%LOCALAPPDATA%\ATP\tools\platform-tools`。
+
+如果路径来自启动档案，使用 `windows-android-worker.ps1 up -EnvFile <profile>`；脚本会在加载档案后重新发现 ADB。路径发现成功只代表 `adb.exe` 可执行，仍需 `adb devices` 显示 `device` 才能执行 Android 用例。
+
 ## 队列和执行范围
 
 - `android`：普通 Android 用例，以及只包含 Android 用例的测试套件/计划。
@@ -88,6 +99,8 @@ powershell -ExecutionPolicy Bypass -File .\scripts\android-network-doctor.ps1 -T
 powershell -ExecutionPolicy Bypass -File .\scripts\windows-android-worker.ps1 doctor
 ```
 
+`up`/`restart` 会先自动执行一次 doctor；PostgreSQL、Redis、MinIO、Python/Celery 或 ADB 不可用时会阻止启动并打印修复提示。没有连接 Android 设备只显示 warning，不阻止 Worker 启动，方便先启动 Agent 再插入设备。
+
 启动、查看状态、查看日志和停止：
 
 ```powershell
@@ -97,7 +110,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows-android-worker.ps1 lo
 powershell -ExecutionPolicy Bypass -File .\scripts\windows-android-worker.ps1 down
 ```
 
-脚本会在 `.local-run/` 保存 PID 和日志。它不会启动 Celery Beat；整个 ATP 部署只保留一个 Beat，通常运行在公网后端主机。
+脚本会在 `.local-run/` 保存 PID 和日志。它不会启动 Celery Beat；整个 ATP 部署只保留一个 Beat，通常运行在公网后端主机。启动时脚本会为当前机器注入稳定的 `ANDROID_WORKER_ID`，Worker 会按 `ANDROID_WORKER_HEARTBEAT_SECONDS` 刷新 Redis TTL 心跳。
+设备管理页的 Android Worker 状态来自 `GET /api/v1/devices/workers`；停止进程后记录会在 `ANDROID_WORKER_TTL_SECONDS` 内自动过期。普通 Linux Worker 不配置 `ANDROID_WORKER_ID`，不会出现在这里。
+
+当后端配置 `ADB_SCAN_MODE=worker` 时，设备管理页面的“扫描设备”会把扫描任务投递到
+`mobile_special` 队列，接口先返回 `queued` 和扫描任务 ID；前端随后轮询
+`GET /api/v1/devices/scan/{scan_id}`，直到 Windows Worker 将 ADB 结果写回 PostgreSQL。
+因此页面不会再把投递成功误报为扫描完成；Worker 未启动、任务失败或查询 Redis 结果后端异常时会显示对应错误。
 
 ## 4. 公网后端 Worker 队列配置
 

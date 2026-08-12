@@ -1187,6 +1187,7 @@ def test_create_performance_node_starts_offline_until_worker_heartbeat():
     result = asyncio.run(performance.create_performance_node(body=body, db=db, _=None))
 
     assert result.status == "offline"
+    assert result.labels["managed_by"] == "ui"
     assert result.egress_allowlist == ["api.example.test"]
     assert result.max_vus == 20
     assert db.commits == 1

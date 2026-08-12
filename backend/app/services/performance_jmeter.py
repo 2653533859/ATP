@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import json
 import os
+import shutil
 import statistics
 import subprocess
 import tempfile
@@ -15,6 +16,23 @@ from typing import Any
 
 from app.core import minio_client
 from app.services.performance_process import run_performance_process
+
+
+def resolve_jmeter_executable(*, windows: bool | None = None) -> str:
+    """Resolve the executable name for the current worker platform.
+
+    Windows JMeter distributions expose ``jmeter.bat`` (and occasionally
+    ``jmeter.exe``), while Linux images normally expose ``jmeter``.  Returning
+    the resolved path also avoids relying on the shell to discover a batch
+    file when the worker uses ``shell=False``.
+    """
+    is_windows = os.name == "nt" if windows is None else windows
+    candidates = ("jmeter.bat", "jmeter.exe", "jmeter") if is_windows else ("jmeter",)
+    for candidate in candidates:
+        resolved = shutil.which(candidate)
+        if resolved:
+            return resolved
+    return candidates[0]
 
 
 def parse_jmeter_jtl(jtl_path: Path, thresholds: object = None) -> dict[str, Any]:
@@ -64,11 +82,12 @@ def run_jmeter_script(
         tmp_path = Path(tmp)
         script_path = tmp_path / "test.jmx"
         jtl_path = tmp_path / "result.jtl"
+        jmeter = resolve_jmeter_executable()
         minio_client.download_file(script_object_name, script_path)
         env = os.environ.copy()
         env.update({str(key): str(value) for key, value in env_values.items()})
         completed, duration_ms = run_performance_process(
-            ["jmeter", "-n", "-t", str(script_path), "-l", str(jtl_path)],
+            [jmeter, "-n", "-t", str(script_path), "-l", str(jtl_path)],
             cwd=tmp_path,
             env=env,
             timeout_seconds=timeout_seconds,
@@ -89,7 +108,7 @@ def run_jmeter_script(
             html_dir = tmp_path / "html-report"
             html_dir.mkdir()
             html_process = subprocess.run(
-                ["jmeter", "-g", str(jtl_path), "-o", str(html_dir)],
+                [jmeter, "-g", str(jtl_path), "-o", str(html_dir)],
                 cwd=tmp_path,
                 env=env,
                 capture_output=True,

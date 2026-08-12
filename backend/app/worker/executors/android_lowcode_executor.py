@@ -687,7 +687,7 @@ async def _run_android_device_matrix(
     await db.commit()
     await _safe_publish(parent_run.id, {"type": "run_status", "run_id": parent_run.id, "status": "running"})
 
-    counts = {"passed": 0, "failed": 0, "error": 0}
+    child_specs: list[tuple[int, int, dict[str, Any]]] = []
     for index, variant in enumerate(variants):
         child = TestRun(
             case_id=case.id,
@@ -702,38 +702,25 @@ async def _run_android_device_matrix(
         db.add(child)
         await db.commit()
         await db.refresh(child)
-        child_config = copy.deepcopy(config)
-        child_config.pop("device_matrix", None)
-        child_config["_device_matrix_variant"] = True
-        child_config["device_serial"] = variant["serial"]
-        child_case = SimpleNamespace(config=child_config)
-        lease_token: str | None = None
-        try:
-            device_id = variant.get("device_id")
-            if device_id is None:
-                raise LookupError(f"设备 {variant['serial']} 缺少注册 ID")
-            lease = await acquire_device_lease(
-                db,
-                int(device_id),
+        child_specs.append((child.id, index, variant))
+
+    matrix_results = await asyncio.gather(
+        *(
+            _run_android_device_matrix_variant(
+                child_id=child_id,
+                case_id=case.id,
+                base_config=config,
+                extra_vars=extra_vars,
+                index=index,
+                variant=variant,
                 owner_id=parent_run.triggered_by,
-                owner_label=f"case-run:{child.id}",
-                ttl_seconds=max(900, int(config.get("device_lease_ttl_seconds", 900))),
             )
-            lease_token = lease.lease_token
-            await db.commit()
-            await run_android_lowcode(db, child, child_case, extra_vars)
-        except (DeviceLeaseConflict, LookupError) as exc:
-            child.status = RunStatus.error
-            child.error_message = f"设备租约冲突: {exc}"
-            await db.commit()
-        finally:
-            if lease_token:
-                try:
-                    await release_device_lease(db, int(variant["device_id"]), lease_token)
-                    await db.commit()
-                except Exception:
-                    logger.exception("Failed to release Android device lease for run %s", child.id)
-        status_value = child.status.value if hasattr(child.status, "value") else str(child.status)
+            for child_id, index, variant in child_specs
+        )
+    )
+    counts = {"passed": 0, "failed": 0, "error": 0}
+    for item in matrix_results:
+        status_value = item["status"]
         counts[status_value if status_value in counts else "error"] += 1
 
     parent_run.status = RunStatus.passed if counts["failed"] == 0 and counts["error"] == 0 else RunStatus.failed
@@ -742,9 +729,82 @@ async def _run_android_device_matrix(
         "device_matrix_passed": counts["passed"],
         "device_matrix_failed": counts["failed"],
         "device_matrix_error": counts["error"],
+        "device_matrix_results": matrix_results,
     }
     await db.commit()
     await _safe_publish(
         parent_run.id,
         {"type": "completed", "run_id": parent_run.id, "status": parent_run.status.value},
     )
+
+
+async def _run_android_device_matrix_variant(
+    *,
+    child_id: int,
+    case_id: int,
+    base_config: dict[str, Any],
+    extra_vars: dict,
+    index: int,
+    variant: dict[str, Any],
+    owner_id: int | None,
+) -> dict[str, Any]:
+    """Execute one Android matrix child with its own DB session and device lease."""
+    from app.core.database import AsyncSessionLocal
+
+    result = {
+        "run_id": child_id,
+        "index": index,
+        "serial": variant.get("serial"),
+        "status": RunStatus.error.value,
+        "duration_ms": None,
+        "error": None,
+    }
+    async with AsyncSessionLocal() as child_db:
+        child = await child_db.get(TestRun, child_id)
+        if child is None:
+            result["error"] = "设备矩阵子运行不存在"
+            return result
+
+        child.status = RunStatus.running
+        await child_db.commit()
+        child_config = copy.deepcopy(base_config)
+        child_config.pop("device_matrix", None)
+        child_config["_device_matrix_variant"] = True
+        child_config["device_serial"] = variant["serial"]
+        child_case = SimpleNamespace(id=case_id, config=child_config)
+        lease_token: str | None = None
+        try:
+            device_id = variant.get("device_id")
+            if device_id is None:
+                raise LookupError(f"设备 {variant['serial']} 缺少注册 ID")
+            lease = await acquire_device_lease(
+                child_db,
+                int(device_id),
+                owner_id=owner_id,
+                owner_label=f"case-run:{child.id}",
+                ttl_seconds=max(900, int(base_config.get("device_lease_ttl_seconds", 900))),
+            )
+            lease_token = lease.lease_token
+            await child_db.commit()
+            await run_android_lowcode(child_db, child, child_case, extra_vars)
+        except (DeviceLeaseConflict, LookupError) as exc:
+            child.status = RunStatus.error
+            child.error_message = f"设备租约冲突: {exc}"
+            await child_db.commit()
+        except Exception as exc:
+            logger.exception("Android matrix child %s failed", child_id)
+            child.status = RunStatus.error
+            child.error_message = str(exc)[:1000]
+            await child_db.commit()
+        finally:
+            if lease_token:
+                try:
+                    await release_device_lease(child_db, int(variant["device_id"]), lease_token)
+                    await child_db.commit()
+                except Exception:
+                    logger.exception("Failed to release Android lease for run %s", child.id)
+
+        result["status"] = child.status.value if hasattr(child.status, "value") else str(child.status)
+        result["duration_ms"] = child.duration_ms
+        result["error"] = child.error_message
+        return result

@@ -30,6 +30,8 @@ from app.models.project import Project
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.models.web_assets import WebElementAsset
+from app.services.web_network_guard import guard_browser_request
+from app.services.web_recording_transport import RemoteWebRecordingManager, WebRecordingTransportError
 
 logger = logging.getLogger(__name__)
 
@@ -117,10 +119,13 @@ _RECORDING_SCRIPT = r"""
 """
 
 
+WebRecordingBrowser = Literal["chromium", "firefox", "webkit"]
+
+
 class WebRecordingStart(BaseModel):
     start_url: str = Field(min_length=1, max_length=2048)
     project_id: int = Field(ge=1)
-    browser: Literal["chromium"] = "chromium"
+    browser: WebRecordingBrowser = "chromium"
     viewport_width: int = Field(default=1280, ge=320, le=3840)
     viewport_height: int = Field(default=720, ge=240, le=2160)
 
@@ -142,6 +147,7 @@ class WebRecordingSession:
     status: str = "starting"
     error: str | None = None
     steps: list[dict[str, Any]] = field(default_factory=list)
+    blocked_requests: list[dict[str, Any]] = field(default_factory=list)
     asset_ids: list[int] = field(default_factory=list)
     assets_persisted: bool = False
     playwright: Playwright | None = None
@@ -167,6 +173,7 @@ class WebRecordingSession:
             self.context = await self.browser.new_context(
                 viewport={"width": self.viewport_width, "height": self.viewport_height},
             )
+            await self.context.route("**/*", self._guard_route)
             self.page = await self.context.new_page()
             await self.page.expose_binding("atpRecordEvent", self._handle_binding)
             await self.page.add_init_script(_RECORDING_SCRIPT)
@@ -218,14 +225,21 @@ class WebRecordingSession:
                 return url
         return self.start_url
 
+    async def _guard_route(self, route: Any) -> bool:
+        return await guard_browser_request(route, self.blocked_requests)
+
     def snapshot(self) -> dict[str, Any]:
         return {
             "id": self.session_id,
             "status": self.status,
             "start_url": self.start_url,
             "current_url": self.current_url(),
+            "browser": self.browser_name,
             "project_id": self.project_id,
+            "viewport_width": self.viewport_width,
+            "viewport_height": self.viewport_height,
             "steps": self.steps,
+            "blocked_requests": self.blocked_requests[-100:],
             "asset_ids": self.asset_ids,
             "error": self.error,
         }
@@ -329,6 +343,28 @@ class WebRecordingManager:
 
 
 manager = WebRecordingManager()
+remote_manager = RemoteWebRecordingManager()
+
+
+def _recording_http_error(exc: WebRecordingTransportError) -> HTTPException:
+    return HTTPException(status_code=exc.status_code, detail=exc.detail)
+
+
+def _session_from_snapshot(snapshot: dict[str, Any], owner_id: int) -> WebRecordingSession:
+    """Rebuild the persistence-only part of a remote session on the API side."""
+    return WebRecordingSession(
+        session_id=str(snapshot.get("id") or ""),
+        owner_id=owner_id,
+        start_url=str(snapshot.get("start_url") or ""),
+        viewport_width=int(snapshot.get("viewport_width") or 1280),
+        viewport_height=int(snapshot.get("viewport_height") or 720),
+        project_id=int(snapshot["project_id"]) if snapshot.get("project_id") is not None else None,
+        status=str(snapshot.get("status") or "stopped"),
+        error=str(snapshot["error"]) if snapshot.get("error") else None,
+        steps=list(snapshot.get("steps") or []),
+        blocked_requests=list(snapshot.get("blocked_requests") or []),
+        asset_ids=[int(value) for value in snapshot.get("asset_ids") or [] if str(value).isdigit()],
+    )
 
 
 async def _persist_recorded_assets(db: AsyncSession, session: WebRecordingSession) -> None:
@@ -402,17 +438,33 @@ async def start_recording(
     await assert_project_access(db, user, payload.project_id, ProjectRole.editor)
     if await db.get(Project, payload.project_id) is None:
         raise HTTPException(status_code=404, detail="项目不存在")
+    if settings.WEB_RECORDER_MODE.strip().lower() == "worker":
+        try:
+            return await remote_manager.start(payload.model_dump(), user.id)
+        except WebRecordingTransportError as exc:
+            raise _recording_http_error(exc) from exc
     session = await manager.start(payload, user.id)
     return session.snapshot()
 
 
 @router.get("/{session_id}")
 async def get_recording(session_id: str, user: User = Depends(get_current_user)):
+    if settings.WEB_RECORDER_MODE.strip().lower() == "worker":
+        try:
+            return await remote_manager.get(session_id, user.id)
+        except WebRecordingTransportError as exc:
+            raise _recording_http_error(exc) from exc
     return manager.get(session_id, user.id).snapshot()
 
 
 @router.post("/{session_id}/screenshot", response_class=Response)
 async def capture_recording_screenshot(session_id: str, user: User = Depends(get_current_user)):
+    if settings.WEB_RECORDER_MODE.strip().lower() == "worker":
+        try:
+            data = await remote_manager.screenshot(session_id, user.id)
+        except WebRecordingTransportError as exc:
+            raise _recording_http_error(exc) from exc
+        return Response(content=data, media_type="image/png", headers={"Cache-Control": "no-store"})
     session = manager.get(session_id, user.id)
     try:
         data = await session.screenshot()
@@ -427,6 +479,14 @@ async def stop_recording(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    if settings.WEB_RECORDER_MODE.strip().lower() == "worker":
+        try:
+            snapshot = await remote_manager.stop(session_id, user.id)
+        except WebRecordingTransportError as exc:
+            raise _recording_http_error(exc) from exc
+        session = _session_from_snapshot(snapshot, user.id)
+        await _persist_recorded_assets(db, session)
+        return session.snapshot()
     session = manager.get(session_id, user.id)
     await session.stop()
     await _persist_recorded_assets(db, session)

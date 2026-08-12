@@ -46,6 +46,11 @@ logger = logging.getLogger(__name__)
 load_all_models()
 
 
+def _node_is_worker_managed(node: PerformanceNode) -> bool:
+    labels = getattr(node, "labels", None)
+    return isinstance(labels, dict) and labels.get("managed_by") == "worker_env"
+
+
 async def _notify_performance_run(db, run, test, metric_samples: list[dict]) -> None:
     """Send performance notifications best-effort after the run is persisted."""
 
@@ -104,6 +109,7 @@ async def _heartbeat_worker_node(db):
             queue_name=worker_node_queue(),
             status="online",
             enabled=True,
+            labels={"managed_by": "worker_env"},
             capabilities={"executors": executors},
             max_vus=settings.PERFORMANCE_NODE_MAX_VUS or None,
             max_concurrency=settings.PERFORMANCE_NODE_MAX_CONCURRENCY or None,
@@ -112,16 +118,23 @@ async def _heartbeat_worker_node(db):
         )
         db.add(node)
     elif node.enabled:
-        if node.status != "draining":
+        if _node_is_worker_managed(node):
+            if node.status != "draining":
+                node.status = "online"
+            node.name = worker_node_name()
+            node.queue_name = worker_node_queue()
+            node.capabilities = {"executors": executors}
+            node.max_vus = settings.PERFORMANCE_NODE_MAX_VUS or None
+            node.max_concurrency = settings.PERFORMANCE_NODE_MAX_CONCURRENCY or None
+            node.egress_allowlist = parse_egress_allowlist(settings.PERFORMANCE_NODE_EGRESS_ALLOWLIST)
+            node.last_error = None
+        elif node.queue_name != worker_node_queue():
+            node.status = "offline"
+            node.last_error = f"节点队列 {node.queue_name} 与 Worker 队列 {worker_node_queue()} 不一致"
+        elif node.status != "draining":
             node.status = "online"
-        node.name = worker_node_name()
-        node.queue_name = worker_node_queue()
-        node.capabilities = {"executors": executors}
-        node.max_vus = settings.PERFORMANCE_NODE_MAX_VUS or None
-        node.max_concurrency = settings.PERFORMANCE_NODE_MAX_CONCURRENCY or None
-        node.egress_allowlist = parse_egress_allowlist(settings.PERFORMANCE_NODE_EGRESS_ALLOWLIST)
+            node.last_error = None
         node.last_heartbeat_at = now
-        node.last_error = None
     else:
         node.status = "disabled"
     await db.flush()

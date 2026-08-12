@@ -129,6 +129,7 @@ def test_effective_node_status_respects_disabled_draining_and_heartbeat_timeout(
     monkeypatch.setattr(performance_node.settings, "PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS", 90)
 
     assert performance_node.effective_node_status(_node(enabled=False), now) == "disabled"
+    assert performance_node.effective_node_status(_node(status="offline"), now) == "offline"
     assert performance_node.effective_node_status(_node(status="draining"), now) == "draining"
     assert performance_node.effective_node_status(_node(last_heartbeat_at=None), now) == "offline"
     assert (

@@ -31,6 +31,12 @@ $ProfileDefinitions = @{
     Example = (Join-Path $ProfileRoot 'android-agent.env.example')
     Script = (Join-Path $RepoRoot 'scripts\windows-android-worker.ps1')
   }
+  'performance-agent' = @{
+    Label = 'Windows performance Agent (local performance Worker, remote ATP services)'
+    Config = (Join-Path $ProfileRoot 'performance-agent.env')
+    Example = (Join-Path $ProfileRoot 'performance-agent.env.example')
+    Script = (Join-Path $RepoRoot 'scripts\windows-performance-worker.ps1')
+  }
 }
 
 function Select-Profile {
@@ -44,7 +50,7 @@ function Select-Profile {
   Write-Host 'Select startup profile:'
   $index = 1
   $choices = @{}
-  foreach ($key in @('local-all', 'remote-infra', 'android-agent')) {
+  foreach ($key in @('local-all', 'remote-infra', 'android-agent', 'performance-agent')) {
     $choices[[string]$index] = $key
     Write-Host "  [$index] $($ProfileDefinitions[$key].Label)"
     $index++

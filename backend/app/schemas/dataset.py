@@ -117,3 +117,21 @@ class DatasetValidateOut(BaseModel):
     issues: list[DatasetValidationIssueOut] = Field(default_factory=list)
     validation_policy: DatasetValidationPolicy | None = None
     can_upload: bool | None = None
+
+
+class DatasetAIGenerateIn(BaseModel):
+    """请求 AI 生成一批可编辑的测试数据。"""
+
+    project_id: int
+    dataset_id: int | None = None
+    requirement: str = Field(default="", max_length=4_000)
+    row_count: int = Field(default=10, ge=1, le=200)
+    schema_fields: list[DatasetSchemaFieldIn] = Field(default_factory=list, max_length=100)
+
+
+class DatasetAIGenerateOut(BaseModel):
+    project_id: int
+    dataset_id: int | None = None
+    rows: list[dict[str, Any]]
+    schema_fields: list[DatasetSchemaFieldIn] = Field(default_factory=list)
+    warnings: list[str] = Field(default_factory=list)

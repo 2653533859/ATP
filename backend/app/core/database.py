@@ -10,6 +10,7 @@ engine = create_async_engine(
     settings.DATABASE_URL,
     echo=settings.APP_ENV == "development",
     pool_pre_ping=True,
+    connect_args={"timeout": settings.POSTGRES_CONNECT_TIMEOUT_SECONDS},
 )
 
 AsyncSessionLocal = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
@@ -21,6 +22,7 @@ sync_engine = create_engine(
     _sync_url,
     echo=settings.APP_ENV == "development",
     pool_pre_ping=True,
+    connect_args={"connect_timeout": settings.POSTGRES_CONNECT_TIMEOUT_SECONDS},
 )
 sync_session_factory = sessionmaker(bind=sync_engine, expire_on_commit=False)
 

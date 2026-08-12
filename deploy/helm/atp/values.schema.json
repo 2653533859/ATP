@@ -38,6 +38,7 @@
       "properties": {
         "backend": { "$ref": "#/definitions/nonNegativeInteger" },
         "worker": { "$ref": "#/definitions/nonNegativeInteger" },
+        "webRecorder": { "$ref": "#/definitions/nonNegativeInteger" },
         "beat": {
           "type": "integer",
           "minimum": 1,
@@ -63,6 +64,20 @@
           "minLength": 1,
           "description": "Comma-separated Celery queues listened by the default worker deployment."
         }
+      }
+    },
+    "webRecorder": {
+      "type": "object",
+      "description": "Optional independent Playwright Web recording worker.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "workerId": { "type": "string", "minLength": 1 },
+        "display": { "type": "string", "minLength": 1 },
+        "maxSessions": { "$ref": "#/definitions/positiveInteger" },
+        "heartbeatSeconds": { "$ref": "#/definitions/positiveInteger" },
+        "workerTtlSeconds": { "$ref": "#/definitions/positiveInteger" },
+        "resources": { "$ref": "#/definitions/resources" }
       }
     },
     "performanceWorker": {
@@ -138,6 +153,9 @@
         "LOG_LEVEL": { "type": "string", "description": "Application log level." },
         "CELERY_CONCURRENCY": { "type": ["string", "integer"], "description": "Celery worker concurrency." },
         "CELERY_QUEUES": { "type": "string", "description": "Comma-separated Celery queues listened by this worker." },
+        "WEB_RECORDER_MODE": { "type": "string", "enum": ["local", "worker"], "description": "Web recording control-plane mode." },
+        "WEB_RECORDER_WORKER_QUEUE_PREFIX": { "type": "string", "minLength": 1, "description": "Redis key prefix for Web recording commands." },
+        "WEB_RECORDER_SESSION_TTL_SECONDS": { "type": ["string", "integer"], "minimum": 60, "description": "TTL for remote recording session routing metadata." },
         "ADB_SCAN_ENABLED": { "type": ["string", "boolean"], "description": "Enable periodic ADB device scanning." },
         "OTEL_SERVICE_NAME": { "type": "string", "description": "OpenTelemetry service name." },
         "OTEL_EXPORTER_OTLP_ENDPOINT": { "type": "string", "description": "Optional OTLP collector endpoint." },
@@ -265,6 +283,10 @@
     "nonNegativeInteger": {
       "type": "integer",
       "minimum": 0
+    },
+    "positiveInteger": {
+      "type": "integer",
+      "minimum": 1
     },
     "resources": {
       "type": "object",

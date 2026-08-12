@@ -90,11 +90,22 @@ async def export_run_junit(
     result = await db.execute(select(StepResult).where(StepResult.run_id == run_id).order_by(StepResult.step_index))
     steps = result.scalars().all()
     run_status = getattr(run.status, "value", str(run.status))
-    has_run_level_issue = not steps and run_status in {"failed", "error", "skipped"}
+    run_summary = getattr(run, "result_summary", None) or {}
+    matrix_results = run_summary.get("device_matrix_results") if isinstance(run_summary, dict) else None
+    has_matrix_results = isinstance(matrix_results, list) and bool(matrix_results)
+    has_run_level_issue = not steps and not has_matrix_results and run_status in {"failed", "error", "skipped"}
 
-    tests_count = len(steps)
-    failures_count = sum(1 for s in steps if s.status.value == "failed")
-    errors_count = sum(1 for s in steps if s.status.value == "error")
+    tests_count = len(matrix_results) if has_matrix_results else len(steps)
+    failures_count = (
+        sum(1 for item in matrix_results if isinstance(item, dict) and item.get("status") == "failed")
+        if has_matrix_results
+        else sum(1 for s in steps if s.status.value == "failed")
+    )
+    errors_count = (
+        sum(1 for item in matrix_results if isinstance(item, dict) and item.get("status") == "error")
+        if has_matrix_results
+        else sum(1 for s in steps if s.status.value == "error")
+    )
     if has_run_level_issue:
         tests_count = 1
         if run_status == "failed":
@@ -134,6 +145,30 @@ async def export_run_junit(
             err.text = message
         elif run_status == "skipped":
             ET.SubElement(tc, "skipped")
+    elif has_matrix_results:
+        for index, item in enumerate(matrix_results):
+            item = item if isinstance(item, dict) else {}
+            status = str(item.get("status") or "error")
+            serial = str(item.get("serial") or f"Device-{index + 1}")
+            duration_ms = item.get("duration_ms") if isinstance(item.get("duration_ms"), (int, float)) else 0
+            tc = ET.SubElement(
+                suite_el,
+                "testcase",
+                {
+                    "name": serial,
+                    "classname": f"TestRun-{run.id}-AndroidMatrix",
+                    "time": f"{duration_ms / 1000:.3f}",
+                },
+            )
+            error_message = str(item.get("error") or "")
+            if status == "failed":
+                failure = ET.SubElement(tc, "failure", {"message": error_message or "Assertion failed"})
+                failure.text = error_message
+            elif status == "error":
+                error = ET.SubElement(tc, "error", {"message": error_message or "Error"})
+                error.text = error_message
+            elif status == "skipped":
+                ET.SubElement(tc, "skipped")
     else:
         for step in steps:
             tc = ET.SubElement(
@@ -343,6 +378,7 @@ h2{font-size:18px;margin:24px 0 12px}
 .badge-pending{background:#d9d9d9;color:#666}.badge-skipped{background:#bfbfbf;color:#666}
 .error-box{background:#fff2f0;border:1px solid #ffccc7;border-radius:4px;padding:8px 12px;color:#cf1322;font-size:13px;white-space:pre-wrap;word-break:break-all}
 .screenshot{max-width:100%;border:1px solid #f0f0f0;border-radius:6px;margin-top:8px}
+.matrix-table{margin-bottom:20px}
 .muted{color:#999}
 .footer{margin-top:32px;padding-top:16px;border-top:1px solid #f0f0f0;color:#999;font-size:12px;text-align:center}
 </style>
@@ -367,6 +403,21 @@ h2{font-size:18px;margin:24px 0 12px}
 <tr><th>用例类型</th><td>{{ case_type or '-' }}</td><th>耗时</th><td>{{ '%.1fs' % ((run.duration_ms or 0) / 1000) }}</td></tr>
 <tr><th>生成时间</th><td>{{ now }}</td><th>错误信息</th><td>{% if run.error_message %}<span class="error-box">{{ run.error_message }}</span>{% else %}<span class="muted">-</span>{% endif %}</td></tr>
 </table>
+{% if device_matrix %}
+<h2>Android 设备矩阵结果</h2>
+<table class="step-table matrix-table">
+<thead><tr><th>设备总数</th><th>通过</th><th>失败</th><th>异常</th></tr></thead>
+<tbody><tr><td>{{ device_matrix.total }}</td><td>{{ device_matrix.passed }}</td><td>{{ device_matrix.failed }}</td><td>{{ device_matrix.error }}</td></tr></tbody>
+</table>
+<table class="step-table matrix-table">
+<thead><tr><th>设备</th><th>子运行 ID</th><th>状态</th><th>耗时</th><th>错误信息</th></tr></thead>
+<tbody>
+{% for item in device_matrix.results %}
+<tr><td>{{ item.serial or '未知设备' }}</td><td>{{ item.run_id or '-' }}</td><td><span class="badge badge-{{ item.status }}">{{ item.status }}</span></td><td>{{ '%.1fs' % ((item.duration_ms or 0) / 1000) }}</td><td>{% if item.error %}<span class="error-box">{{ item.error }}</span>{% else %}<span class="muted">-</span>{% endif %}</td></tr>
+{% endfor %}
+</tbody>
+</table>
+{% endif %}
 <h2>步骤明细</h2>
 {% if steps %}
 <table class="step-table">
@@ -520,6 +571,44 @@ def _build_report_steps_view(steps: list[StepResult]) -> list[dict]:
     return rendered_steps
 
 
+def _build_device_matrix_report_view(summary: object) -> dict | None:
+    """Normalize Android matrix results for the single-run HTML/PDF report."""
+    if not isinstance(summary, dict):
+        return None
+    raw_results = summary.get("device_matrix_results")
+    if not isinstance(raw_results, list):
+        raw_results = summary.get("device_matrix_variants")
+    if not isinstance(raw_results, list):
+        return None
+
+    results: list[dict] = []
+    for index, raw in enumerate(raw_results):
+        item = raw if isinstance(raw, dict) else {}
+        duration_ms = item.get("duration_ms")
+        results.append(
+            {
+                "run_id": item.get("run_id"),
+                "index": item.get("index", index),
+                "serial": str(item.get("serial") or ""),
+                "status": _normalize_status(item.get("status")),
+                "duration_ms": duration_ms if isinstance(duration_ms, (int, float)) else None,
+                "error": str(item.get("error") or ""),
+            }
+        )
+
+    def count(key: str, fallback: int) -> int:
+        value = summary.get(f"device_matrix_{key}")
+        return int(value) if isinstance(value, (int, float)) else fallback
+
+    return {
+        "total": int(summary.get("device_matrix_total", len(results)) or len(results)),
+        "passed": count("passed", sum(item["status"] == "passed" for item in results)),
+        "failed": count("failed", sum(item["status"] == "failed" for item in results)),
+        "error": count("error", sum(item["status"] == "error" for item in results)),
+        "results": results,
+    }
+
+
 async def _build_report_html(
     run: TestRun,
     steps: list[StepResult],
@@ -561,6 +650,7 @@ async def _build_report_html(
             candidate = summary.get("video_url")
             if isinstance(candidate, str) and candidate:
                 video_url = candidate
+    device_matrix = _build_device_matrix_report_view(getattr(run, "result_summary", None))
     html = _REPORT_TEMPLATE.render(
         run=run,
         run_status=run_status,
@@ -571,6 +661,7 @@ async def _build_report_html(
         cover_title=cover_title,
         cover_logo_url=cover_logo_url,
         video_url=video_url,
+        device_matrix=device_matrix,
         now=datetime.now(tz_cst).strftime("%Y-%m-%d %H:%M:%S (UTC+8)"),
     )
     return html

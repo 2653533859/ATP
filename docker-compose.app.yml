@@ -33,6 +33,24 @@ services:
       - backend
     restart: unless-stopped
 
+  web-recorder:
+    profiles: ["web-recorder"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    env_file: .env
+    environment:
+      - APP_ENV=production
+      - WEB_RECORDER_MODE=worker
+      - WEB_RECORDER_DISPLAY=${WEB_RECORDER_DISPLAY:-:99}
+      - WEB_RECORDER_WORKER_ID=${WEB_RECORDER_WORKER_ID:-web-recorder-1}
+    command: ["sh", "-c", "Xvfb ${WEB_RECORDER_DISPLAY:-:99} -screen 0 1280x720x24 -nolisten tcp >/tmp/atp-xvfb.log 2>&1 & exec python -m app.web_recording_worker"]
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      - backend
+    restart: unless-stopped
+
   beat:
     build:
       context: ./backend

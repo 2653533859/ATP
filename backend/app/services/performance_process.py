@@ -7,6 +7,7 @@ executor remains responsible for its command line and result adapter.
 
 from __future__ import annotations
 
+import os
 import subprocess
 import time
 from collections.abc import Callable, Sequence
@@ -78,6 +79,25 @@ def run_performance_process(
 
 def _terminate_process(process: subprocess.Popen) -> None:
     """Terminate a process gracefully, then force kill if it ignores the request."""
+    # Windows executors may launch a .bat wrapper (for example jmeter.bat), which
+    # creates a cmd.exe -> java.exe process tree.  Popen.terminate() only targets
+    # the wrapper and can leave Java holding stdout/stderr files open.  taskkill
+    # with /T is the Windows equivalent of terminating the whole process group.
+    process_pid = getattr(process, "pid", None)
+    if os.name == "nt" and process_pid:
+        subprocess.run(
+            ["taskkill", "/PID", str(process_pid), "/T", "/F"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            check=False,
+        )
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            process.kill()
+            process.wait(timeout=5)
+        return
+
     if process.poll() is not None:
         return
     process.terminate()

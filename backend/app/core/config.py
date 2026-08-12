@@ -2,7 +2,7 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Self
 
-from pydantic import model_validator
+from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -34,11 +34,13 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = "atp"
     POSTGRES_USER: str = "atp"
     POSTGRES_PASSWORD: str = "atp_password_change_me"
+    POSTGRES_CONNECT_TIMEOUT_SECONDS: int = Field(default=5, ge=1, le=120)
 
     # Redis
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
     REDIS_PASSWORD: str = ""
+    REDIS_CONNECT_TIMEOUT_SECONDS: int = Field(default=5, ge=1, le=120)
 
     # MinIO
     MINIO_HOST: str = "localhost"
@@ -46,6 +48,7 @@ class Settings(BaseSettings):
     MINIO_ROOT_USER: str = "minioadmin"
     MINIO_ROOT_PASSWORD: str = "minio_password_change_me"
     MINIO_BUCKET: str = "atp"
+    MINIO_CONNECT_TIMEOUT_SECONDS: int = Field(default=5, ge=1, le=120)
 
     # First admin
     FIRST_ADMIN_USERNAME: str = "admin"
@@ -56,6 +59,12 @@ class Settings(BaseSettings):
     ADB_SCAN_ENABLED: bool = True  # 设为 False 可关闭定时扫描（纯 Web 测试环境）
     ADB_SCAN_INTERVAL: int = 15  # 设备扫描间隔（秒）
     ADB_SCAN_MODE: str = "local"  # local=当前进程扫描；worker=投递到 mobile_special 队列
+    # Windows Android Worker 注册信息；留空时普通 Worker 不会伪装成 Android Agent
+    ANDROID_WORKER_ID: str = ""
+    ANDROID_WORKER_QUEUE: str = "mobile_special"
+    ANDROID_WORKER_REGISTRY_PREFIX: str = "atp:android-worker"
+    ANDROID_WORKER_HEARTBEAT_SECONDS: int = 15
+    ANDROID_WORKER_TTL_SECONDS: int = 45
     # ADB 自愈：执行器检测设备不可达时是否自动 disconnect/connect 重试（仅对 ip:port serial 生效）
     ADB_RECONNECT_ENABLED: bool = True
     ADB_RECONNECT_MAX_ATTEMPTS: int = 3  # ensure_reachable 总尝试次数（含首次）
@@ -136,6 +145,17 @@ class Settings(BaseSettings):
     # Comma-separated load injectors advertised by an explicit performance worker.
     PERFORMANCE_EXECUTORS: str = "k6,locust,grpc"
 
+    # Web recorder. local keeps the existing in-process Windows development path;
+    # worker routes browser commands through Redis to an independent recorder process.
+    WEB_RECORDER_MODE: str = "local"
+    WEB_RECORDER_WORKER_QUEUE_PREFIX: str = "atp:web-recording:commands"
+    WEB_RECORDER_WORKER_ID: str = ""
+    WEB_RECORDER_WORKER_MAX_SESSIONS: int = 2
+    WEB_RECORDER_WORKER_HEARTBEAT_SECONDS: int = 5
+    WEB_RECORDER_WORKER_TTL_SECONDS: int = 20
+    WEB_RECORDER_COMMAND_TIMEOUT_SECONDS: int = 45
+    WEB_RECORDER_REPLY_TTL_SECONDS: int = 60
+    WEB_RECORDER_SESSION_TTL_SECONDS: int = 3600
     # Web recorder display (Linux remote deployments need an accessible X display)
     WEB_RECORDER_DISPLAY: str = ""
 

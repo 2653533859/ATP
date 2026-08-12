@@ -6,7 +6,7 @@ export const useAuthStore = defineStore('auth', () => {
   // JWT 仅保存在 HttpOnly Cookie；token 仅保留给需要显式注入 Bearer 的外部场景。
   const token = ref<string | null>(null)
   const refreshToken = ref<string | null>(null)
-  const user = ref<{ id: number; username: string; role: string } | null>(null)
+  const user = ref<{ id: number; username: string; email: string; role: string; is_active?: boolean } | null>(null)
   const initialized = ref(false)
 
   async function login(username: string, password: string) {

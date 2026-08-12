@@ -193,6 +193,7 @@ const providerOptions = computed(() => [
   { label: 'DeepSeek', value: 'deepseek' },
   { label: 'Claude (Anthropic)', value: 'claude' },
   { label: 'OpenAI', value: 'openai' },
+  { label: t('system_pages.ai_llm.providers.openai_compatible'), value: 'openai_compatible' },
   { label: t('system_pages.ai_llm.providers.qwen_full'), value: 'qwen' },
   { label: t('system_pages.ai_llm.providers.ollama_full'), value: 'ollama' },
 ])
@@ -201,6 +202,7 @@ const providerLabelMap: Record<LLMProvider, string> = {
   deepseek: 'DeepSeek',
   claude: 'Claude',
   openai: 'OpenAI',
+  openai_compatible: 'OpenAI-compatible',
   qwen: t('system_pages.ai_llm.providers.qwen'),
   ollama: 'Ollama',
 }
@@ -209,6 +211,7 @@ const providerColorMap: Record<LLMProvider, string> = {
   deepseek: 'cyan',
   claude: 'purple',
   openai: 'geekblue',
+  openai_compatible: 'blue',
   qwen: 'orange',
   ollama: 'green',
 }
@@ -229,6 +232,7 @@ const selectedModelOption = computed(() =>
 const providerEndpointHint = computed(() => {
   if (form.value.provider === 'ollama') return t('system_pages.ai_llm.ollama_endpoint_hint')
   if (form.value.provider === 'openai') return t('system_pages.ai_llm.openai_endpoint_hint')
+  if (form.value.provider === 'openai_compatible') return t('system_pages.ai_llm.openai_compatible_endpoint_hint')
   return t('system_pages.ai_llm.compatible_endpoint_hint')
 })
 
@@ -381,6 +385,10 @@ async function handleSave() {
   }
   if (!editing.value && form.value.provider !== 'ollama' && !form.value.api_key.trim()) {
     message.warning(t('system_pages.ai_llm.msg.api_key_required'))
+    return
+  }
+  if (form.value.provider === 'openai_compatible' && !form.value.endpoint.trim()) {
+    message.warning(t('system_pages.ai_llm.msg.compatible_endpoint_required'))
     return
   }
   const params = parseDefaultParams()

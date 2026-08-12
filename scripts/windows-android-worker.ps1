@@ -25,6 +25,11 @@ $ConfiguredEnvFile = if ([string]::IsNullOrWhiteSpace($EnvFile)) {
 } else {
   Join-Path $RepoRoot $EnvFile
 }
+$ProcessEnvironmentHelper = Join-Path $PSScriptRoot 'windows-process-env.ps1'
+if (-not (Test-Path -LiteralPath $ProcessEnvironmentHelper)) {
+  throw "Missing process environment helper: $ProcessEnvironmentHelper"
+}
+. $ProcessEnvironmentHelper
 $QueueList = 'android,mobile_special'
 
 function Ensure-RunDir {
@@ -79,6 +84,23 @@ function Test-TcpEndpoint {
   }
 }
 
+function Test-PythonModule {
+  param([string]$ModuleName)
+
+  if (-not (Test-Path $BackendPython)) {
+    return $false
+  }
+
+  $previousPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    & $BackendPython -c "import $ModuleName" 2>&1 | Out-Null
+    return $LASTEXITCODE -eq 0
+  } finally {
+    $ErrorActionPreference = $previousPreference
+  }
+}
+
 function Get-WorkerProcess {
   if (-not (Test-Path $PidFile)) {
     return $null
@@ -104,6 +126,51 @@ function Get-WorkerProcess {
   }
 
   return $process
+}
+
+function Test-WorkerConsumesAndroidQueue {
+  param([string]$CommandLine)
+
+  if ([string]::IsNullOrWhiteSpace($CommandLine)) {
+    return $false
+  }
+
+  if ($CommandLine -notmatch '(?i)(?:^|\s)(?:-Q|--queues)(?:\s+|=)([^\s]+)') {
+    # A Celery worker without an explicit -Q listens to the application default,
+    # which is the full queue set in this project and includes Android queues.
+    return $true
+  }
+
+  foreach ($queue in ($Matches[1].Trim('"') -split ',')) {
+    if (@('android', 'mobile_special') -contains $queue.Trim().ToLowerInvariant()) {
+      return $true
+    }
+  }
+
+  return $false
+}
+
+function Get-ConflictingLocalWorkerProcesses {
+  $processes = @(Get-CimInstance Win32_Process -ErrorAction SilentlyContinue | Where-Object {
+      $commandLine = [string]$_.CommandLine
+      -not [string]::IsNullOrWhiteSpace($commandLine) -and
+        $commandLine.IndexOf($BackendPython, [System.StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+        $commandLine -match 'app\.worker\.celery_app\s+worker' -and
+        $commandLine -notmatch '--hostname\s+android-win-' -and
+        (Test-WorkerConsumesAndroidQueue -CommandLine $commandLine)
+    })
+
+  return @($processes | Sort-Object ProcessId -Unique)
+}
+
+function Assert-NoLocalWorkerQueueConflict {
+  $conflictingWorkers = @(Get-ConflictingLocalWorkerProcesses)
+  if ($conflictingWorkers.Count -eq 0) {
+    return
+  }
+
+  $processIds = ($conflictingWorkers | Select-Object -ExpandProperty ProcessId | Sort-Object -Unique) -join ','
+  throw "A local Celery Worker is already running with the android or mobile_special queue (PID $processIds). Stop local-all first, or use a local Worker environment that excludes android,mobile_special before starting android-agent."
 }
 
 function Write-Check {
@@ -134,6 +201,8 @@ function Show-Doctor {
 
   $failed += Write-Check -Label ".env exists: $envPath" -Passed (Test-Path $envPath) -Hint 'Copy .env.example to .env and fill the public PostgreSQL, Redis and MinIO endpoints.'
   $failed += Write-Check -Label "Python virtual environment: $BackendPython" -Passed (Test-Path $BackendPython) -Hint 'Create backend/.venv and install backend/requirements.txt.'
+  $pythonRuntimeReady = (Test-Path $BackendPython) -and (Test-PythonModule -ModuleName 'celery') -and (Test-PythonModule -ModuleName 'redis')
+  $failed += Write-Check -Label 'Celery and Redis Python dependencies' -Passed $pythonRuntimeReady -Hint 'Install backend requirements in backend/.venv before starting the Android Worker.'
 
   $adb = Get-Command adb.exe -ErrorAction SilentlyContinue
   $failed += Write-Check -Label 'adb.exe is available' -Passed ($null -ne $adb) -Hint 'Install Android Platform Tools and add its directory to PATH.'
@@ -173,12 +242,21 @@ function Start-AndroidWorker {
   if (-not (Test-Path $BackendPython)) {
     throw "Missing $BackendPython. Run the backend dependency installation first."
   }
+  if (-not (Test-Path $ConfiguredEnvFile)) {
+    throw "Missing selected environment file $ConfiguredEnvFile. Run the doctor action first."
+  }
+  if ((Show-Doctor) -ne 0) {
+    throw 'Windows Android Worker prerequisites failed. Fix the doctor errors before starting the Worker.'
+  }
+  Assert-NoLocalWorkerQueueConflict
 
-  $previousQueues = $env:CELERY_QUEUES
-  $previousScan = $env:ADB_SCAN_ENABLED
+  $previousEnvironment = $null
   try {
+    $previousEnvironment = Push-AtpProcessEnvironment -Values (Get-DotEnvValues)
+    Add-AtpOptionalToolPath
     $env:CELERY_QUEUES = $QueueList
     $env:ADB_SCAN_ENABLED = 'true'
+    $env:ANDROID_WORKER_ID = "android-win-$($env:COMPUTERNAME)"
     $hostname = "android-win-$($env:COMPUTERNAME)@%h"
     $arguments = @(
       '-m', 'celery', '-A', 'app.worker.celery_app', 'worker',
@@ -194,8 +272,7 @@ function Start-AndroidWorker {
     }
     Write-Host "Windows Android Worker started (PID $($process.Id)); queues: $QueueList"
   } finally {
-    if ($null -eq $previousQueues) { Remove-Item Env:CELERY_QUEUES -ErrorAction SilentlyContinue } else { $env:CELERY_QUEUES = $previousQueues }
-    if ($null -eq $previousScan) { Remove-Item Env:ADB_SCAN_ENABLED -ErrorAction SilentlyContinue } else { $env:ADB_SCAN_ENABLED = $previousScan }
+    Pop-AtpProcessEnvironment -Previous $previousEnvironment
   }
 }
 

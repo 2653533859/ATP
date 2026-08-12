@@ -1,0 +1,72 @@
+{
+  "generated_at": "2026-08-12T01:21:32.059632+00:00",
+  "command": "scripts/performance-environment-smoke.py --api-base-url http://127.0.0.1:8000 --expected-executors k6,locust,grpc --node-id perf-node-local-01 --expected-queue performance --target 127.0.0.1:8000 --smoke-test-id 7 --smoke-executor k6 --timeout-seconds 120 --poll-interval-seconds 1 --require-metrics --report docs/evidence/performance-windows-local-k6-smoke-2026-08-12.json",
+  "inputs": {
+    "api_base_url": "http://127.0.0.1:8000",
+    "expected_executors": "k6,locust,grpc",
+    "node_id": "perf-node-local-01",
+    "expected_queue": "performance",
+    "target": "127.0.0.1:8000",
+    "require_tls": false,
+    "ca_file": null,
+    "tls_server_name": null,
+    "require_node_allowlist": false,
+    "namespace": "default",
+    "deployment": null,
+    "kube_context": null,
+    "pod_selector": null,
+    "container": null,
+    "verify_worker_image": false,
+    "docker_container": null,
+    "docker_image": null,
+    "smoke_test_id": 7,
+    "smoke_executor": "k6",
+    "cancel_test_id": null,
+    "cancel_after_seconds": 2.0,
+    "timeout_seconds": 120.0,
+    "poll_interval_seconds": 1.0,
+    "node_ready_timeout_seconds": 60.0,
+    "request_timeout_seconds": 10.0,
+    "max_error_rate": 0.0,
+    "require_metrics": true,
+    "report": "docs\\evidence\\performance-windows-local-k6-smoke-2026-08-12.json"
+  },
+  "status": "passed",
+  "checks": [
+    {
+      "name": "target-connectivity",
+      "status": "PASS",
+      "detail": "DNS 1 个地址，TCP 已连接"
+    },
+    {
+      "name": "api-health",
+      "status": "PASS",
+      "detail": "ATP /health 返回 status=ok"
+    },
+    {
+      "name": "api-executors",
+      "status": "PASS",
+      "detail": "执行器 ready: grpc, k6, locust"
+    },
+    {
+      "name": "performance-node-queue",
+      "status": "PASS",
+      "detail": "节点队列为 performance"
+    },
+    {
+      "name": "performance-node",
+      "status": "PASS",
+      "detail": "节点 perf-node-local-01 online，能力为 grpc, k6, locust"
+    },
+    {
+      "name": "performance-node-allowlist",
+      "status": "PASS",
+      "detail": "节点 allowlist 允许 127.0.0.1"
+    },
+    {
+      "name": "performance-smoke",
+      "status": "PASS",
+      "detail": "run=8 executor=k6 iterations=20 error_rate=0"
+    }
+  ]
+}

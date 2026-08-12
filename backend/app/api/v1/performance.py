@@ -427,12 +427,13 @@ async def create_performance_node(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_engineer),
 ):
+    labels = {**body.labels, "managed_by": "ui"}
     item = PerformanceNode(
         node_id=body.node_id,
         name=body.name,
         queue_name=body.queue_name,
         enabled=body.enabled,
-        labels=body.labels,
+        labels=labels,
         capabilities=body.capabilities,
         max_vus=body.max_vus,
         max_concurrency=body.max_concurrency,
@@ -473,6 +474,7 @@ async def update_performance_node(
     if item is None:
         raise HTTPException(status_code=404, detail="性能压测节点不存在")
     values = body.model_dump(exclude_unset=True)
+    values["labels"] = {**(item.labels or {}), "managed_by": "ui"}
     if "egress_allowlist" in values:
         values["egress_allowlist"] = parse_egress_allowlist(values["egress_allowlist"])
     for key, value in values.items():

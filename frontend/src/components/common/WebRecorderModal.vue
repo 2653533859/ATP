@@ -15,6 +15,14 @@
           @press-enter="startRecording"
         />
       </a-form-item>
+      <a-form-item :label="t('case.drawer.web.recorder.browser')">
+        <a-select v-model:value="browser" :disabled="active || starting" style="width: 100%">
+          <a-select-option value="chromium">Chromium</a-select-option>
+          <a-select-option value="firefox">Firefox</a-select-option>
+          <a-select-option value="webkit">WebKit</a-select-option>
+        </a-select>
+        <div class="form-hint">{{ t('case.drawer.web.recorder.browser_hint') }}</div>
+      </a-form-item>
     </a-form>
 
     <a-alert
@@ -84,7 +92,7 @@ const emit = defineEmits<{
 const { t } = useI18n()
 
 const startUrl = ref('')
-const browser = ref<'chromium'>('chromium')
+const browser = ref<'chromium' | 'firefox' | 'webkit'>('chromium')
 const recordingId = ref<string | null>(null)
 const status = ref<WebRecordingStatus>('stopped')
 const steps = ref<WebRecordingStep[]>([])
@@ -185,8 +193,10 @@ async function stopRecording(closeAfter = false) {
   }
   clearPoll()
   stopping.value = true
+  let stopSucceeded = false
   try {
     const result = await webRecordingApi.stop(recordingId.value)
+    stopSucceeded = true
     status.value = result.status
     steps.value = result.steps ?? []
     assetIds.value = result.asset_ids ?? assetIds.value
@@ -198,6 +208,7 @@ async function stopRecording(closeAfter = false) {
   } finally {
     stopping.value = false
     if (props.autoApply && !closeAfter) {
+      if (!stopSucceeded) return
       if (steps.value.length) applySteps()
       else {
         reset()
@@ -205,7 +216,7 @@ async function stopRecording(closeAfter = false) {
       }
       return
     }
-    if (closeAfter) {
+    if (closeAfter && stopSucceeded) {
       reset()
       emit('close')
     }
@@ -265,5 +276,12 @@ onBeforeUnmount(() => clearPoll())
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.form-hint {
+  color: #8c8c8c;
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 4px;
 }
 </style>

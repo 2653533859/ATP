@@ -20,6 +20,18 @@ docker compose --profile observability down
 docker compose up -d           # 不含 prometheus/grafana/celery-exporter
 ```
 
+### Windows 本地最小 Prometheus
+
+Windows 不需要启动完整 Grafana/Compose 栈即可验证性能目标指标关联。将官方 Windows amd64 Prometheus 解压到 `%LOCALAPPDATA%\ATP\tools\prometheus`，然后使用仓库脚本：
+
+```powershell
+.\scripts\windows-prometheus.ps1 -Action doctor
+.\scripts\windows-prometheus.ps1 -Action up
+.\scripts\windows-prometheus.ps1 -Action status
+```
+
+该入口只监听 `127.0.0.1:9090`，配置文件为 `config/prometheus/windows-local.yml`，抓取本机 Backend `/metrics`；停止使用 `-Action down`。性能用例可以通过 `target_metrics.prometheus_url` 和 PromQL 查询将目标指标作为独立样本写入 run 时间线。完整 Windows 运行说明和脱敏验收证据见 [`docs/windows-local-run.md`](windows-local-run.md) 和 [`docs/evidence/performance-windows-local-prometheus-target-metrics-2026-08-12.json`](evidence/performance-windows-local-prometheus-target-metrics-2026-08-12.json)。
+
 ## 二、访问入口
 
 | 服务 | 地址 | 凭证 |

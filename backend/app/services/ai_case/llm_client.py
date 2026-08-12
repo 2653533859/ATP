@@ -1,7 +1,7 @@
 """LLM 调用客户端，统一 prompt → text 接口。
 
-支持五种 provider:
-  - deepseek / openai / qwen / ollama → OpenAI-compatible chat/completions
+支持六种 provider:
+  - deepseek / openai / openai_compatible / qwen / ollama → OpenAI-compatible chat/completions
   - claude → Anthropic /v1/messages
 
 均通过 httpx 直接发起 HTTP 请求，避免引入 SDK。
@@ -166,6 +166,6 @@ async def call_llm(request: LLMRequest) -> LLMResponse:
     provider = request.provider.lower()
     if provider == "claude":
         return await _call_claude(request)
-    if provider in ("deepseek", "openai", "qwen", "ollama"):
+    if provider in ("deepseek", "openai", "openai_compatible", "qwen", "ollama"):
         return await _call_openai_compatible(request)
     raise ValueError(f"不支持的 provider: {provider}")

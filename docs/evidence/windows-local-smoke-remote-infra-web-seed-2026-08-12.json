@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-08-12T03:15:12Z",
+  "status": "passed",
+  "profile": "remote-infra",
+  "scope": "Windows local smoke using the same remote-infra.env profile as the running Backend, Worker, Beat and Frontend",
+  "required_failures": 0,
+  "passed_checks": [
+    "Windows local doctor",
+    "Backend health",
+    "Frontend login page",
+    "Live API admin login",
+    "Live API current user",
+    "Live API project list",
+    "Playwright mock E2E suite (10 passed)",
+    "Playwright browser matrix login page (Chromium, Firefox, WebKit)",
+    "Web file upload",
+    "Web file cleanup",
+    "Seed Web download case approved and executed",
+    "Web low-code run 4 passed with one download object",
+    "Seeded Web project and artifacts cleaned"
+  ],
+  "optional_warnings_or_skips": [
+    "Android device is not connected",
+    "Run report export skipped explicitly",
+    "Android Worker registry and scan callback skipped because the profile uses local ADB scan mode"
+  ],
+  "seed_cleanup": {
+    "temporary_project_id": 3,
+    "temporary_case_id": 10,
+    "run_id": 4,
+    "download_objects": 1,
+    "artifacts_deleted": 5,
+    "artifacts_missing": 0
+  },
+  "note": "This evidence proves the Windows smoke and Web download object path against the active remote-infra runtime. It does not represent Linux/Kubernetes, production Prometheus, or Android device acceptance."
+}

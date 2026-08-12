@@ -378,7 +378,7 @@ def _run_case(steps, device_serial="emu-1"):
     return run, case
 
 
-def test_android_device_matrix_acquires_and_releases_each_device_lease(monkeypatch):
+def test_android_device_matrix_runs_children_in_parallel(monkeypatch):
     class _ScalarResult:
         def __init__(self, values):
             self.values = values
@@ -401,13 +401,72 @@ def test_android_device_matrix_acquires_and_releases_each_device_lease(monkeypat
                         os_version="14",
                         sdk_version="34",
                         resolution="1080x2400",
-                    )
+                    ),
+                    _Obj(
+                        id=42,
+                        serial="emu-2",
+                        model="Pixel 7",
+                        brand="Google",
+                        os_version="13",
+                        sdk_version="33",
+                        resolution="1080x2400",
+                    ),
                 ]
             )
 
         async def refresh(self, _obj):
             return None
 
+    active = 0
+    max_active = 0
+
+    async def fake_variant(**kwargs):
+        nonlocal active, max_active
+        active += 1
+        max_active = max(max_active, active)
+        await asyncio.sleep(0.01)
+        active -= 1
+        return {
+            "run_id": kwargs["child_id"],
+            "index": kwargs["index"],
+            "serial": kwargs["variant"]["serial"],
+            "status": "passed",
+            "duration_ms": 10,
+            "error": None,
+        }
+
+    monkeypatch.setattr(executor, "_run_android_device_matrix_variant", fake_variant)
+
+    parent = _Obj(id=100, status=RunStatus.running, triggered_by=7, environment=None, result_summary={})
+    case = _Obj(id=3, config={"device_matrix": [{"serial": "emu-1"}, {"serial": "emu-2"}]})
+
+    asyncio.run(executor._run_android_device_matrix(_MatrixDB(), parent, case, {}))
+
+    assert max_active == 2
+    assert parent.status == RunStatus.passed
+    assert parent.result_summary["device_matrix_passed"] == 2
+
+
+def test_android_device_matrix_variant_acquires_and_releases_own_lease(monkeypatch):
+    import app.core.database as database
+
+    child = _Obj(id=701, status=RunStatus.pending, duration_ms=12, error_message=None)
+
+    class _ChildDB:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return False
+
+        async def get(self, _model, child_id):
+            assert child_id == child.id
+            return child
+
+        async def commit(self):
+            return None
+
+    monkeypatch.setattr(database, "AsyncSessionLocal", lambda: _ChildDB())
     leases = []
     releases = []
 
@@ -419,21 +478,28 @@ def test_android_device_matrix_acquires_and_releases_each_device_lease(monkeypat
         releases.append((device_id, token))
         return True
 
-    async def fake_run(_db, child, _case, _extra_vars):
-        child.status = RunStatus.passed
+    async def fake_run(_db, child_run, _case, _extra_vars):
+        child_run.status = RunStatus.passed
 
     monkeypatch.setattr(executor, "acquire_device_lease", acquire)
     monkeypatch.setattr(executor, "release_device_lease", release)
     monkeypatch.setattr(executor, "run_android_lowcode", fake_run)
 
-    parent = _Obj(id=100, status=RunStatus.running, triggered_by=7, environment=None, result_summary={})
-    case = _Obj(id=3, config={"device_matrix": [{"serial": "emu-1"}]})
+    result = asyncio.run(
+        executor._run_android_device_matrix_variant(
+            child_id=child.id,
+            case_id=3,
+            base_config={"steps": [], "device_lease_ttl_seconds": 901},
+            extra_vars={},
+            index=0,
+            variant={"serial": "emu-1", "device_id": 41},
+            owner_id=7,
+        )
+    )
 
-    asyncio.run(executor._run_android_device_matrix(_MatrixDB(), parent, case, {}))
-
-    assert leases == [(41, "case-run:None")]
+    assert result["status"] == "passed"
+    assert leases == [(41, "case-run:701")]
     assert releases == [(41, "lease-1")]
-    assert parent.status == RunStatus.passed
 
 
 def test_run_android_lowcode_no_steps_marks_error(run_env):

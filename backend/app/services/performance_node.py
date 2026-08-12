@@ -141,7 +141,7 @@ def effective_node_status(node: Any, now=None) -> str:
     if not getattr(node, "enabled", False):
         return "disabled"
     stored_status = str(getattr(node, "status", "offline"))
-    if stored_status == "draining":
+    if stored_status in {"offline", "draining"}:
         return stored_status
     heartbeat = getattr(node, "last_heartbeat_at", None)
     if heartbeat is None:

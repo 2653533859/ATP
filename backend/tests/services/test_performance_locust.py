@@ -70,14 +70,19 @@ def test_run_locust_script_builds_headless_command_and_uploads_summary(monkeypat
         },
     )
 
-    assert captured["command"][:7] == [
+    assert captured["command"][0:6] == [
+        performance_locust.sys.executable,
+        "-m",
         "locust",
         "-f",
-        captured["command"][2],
+        captured["command"][4],
+        "--headless",
+    ]
+    assert captured["command"][5:9] == [
         "--headless",
         "--only-summary",
         "--csv",
-        captured["command"][6],
+        captured["command"][8],
     ]
     assert "-u" in captured["command"] and "8" in captured["command"]
     assert "--host" in captured["command"] and "https://example.test" in captured["command"]

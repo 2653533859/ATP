@@ -25,6 +25,7 @@ from app.services.api_session import (
     serialize_cookies,
 )
 from app.services.api_hooks import execute_api_hooks
+from app.services.api_auth import build_digest_auth, resolve_oauth2_client_credentials_token
 from app.services.api_scenario import ApiScenarioError, build_api_scenario_policy, step_dependencies
 from app.services.dataset_execution import redact_execution_evidence
 from app.services.safe_expressions import SafeExpressionError, evaluate_safe_expression
@@ -145,6 +146,7 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
     total_start = time.monotonic()
     completed_status: dict[int, RunStatus] = {}
     stop_remaining = False
+    oauth_token_cache: dict[str, tuple[str, float]] = {}
 
     for idx, step in enumerate(steps):
         step_name = step.get("name", f"Step {idx + 1}")
@@ -223,6 +225,15 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                     cookies=cookies,
                     project_id=project_id,
                 )
+                if auth_type == "digest":
+                    request_kwargs["auth"] = build_digest_auth(auth_cfg, lambda value: _render(value, context))
+                elif auth_type == "oauth2_client_credentials":
+                    headers["Authorization"] = await resolve_oauth2_client_credentials_token(
+                        auth_cfg,
+                        lambda value: _render(value, context),
+                        float(timeout),
+                        oauth_token_cache,
+                    )
                 request_data = {
                     "method": method,
                     "url": url,

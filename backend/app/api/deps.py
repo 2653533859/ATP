@@ -6,6 +6,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.security import decode_token
+from app.models.project import Project
 from app.models.user import User, UserRole
 from app.models.user_project import ProjectRole, UserProject, role_satisfies
 from app.services.audit import write_audit_log
@@ -93,6 +94,20 @@ def require_project_access(min_role: ProjectRole = ProjectRole.viewer):
     return checker
 
 
+def require_project_writable_access(min_role: ProjectRole = ProjectRole.editor):
+    """校验项目权限并拒绝 archived 项目的写入/执行入口。"""
+
+    async def checker(
+        project_id: int = Path(..., ge=1),
+        current_user: User = Depends(get_current_user),
+        db: AsyncSession = Depends(get_db),
+    ) -> User:
+        await assert_project_access(db, current_user, project_id, min_role)
+        return current_user
+
+    return checker
+
+
 async def assert_project_access(
     db: AsyncSession, user: User, project_id: int, min_role: ProjectRole = ProjectRole.viewer
 ) -> None:
@@ -113,3 +128,14 @@ async def assert_project_access(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No access to this project",
         )
+
+    # editor/owner 级断言代表写入或执行入口；归档项目保留读取、报告和导出，
+    # 但不能通过任一资源 API 继续产生新配置或运行任务。兼容轻量测试桩：
+    # 没有 get 方法时只验证访问角色，不改变原有单元测试的权限语义。
+    if min_role != ProjectRole.viewer and hasattr(db, "get"):
+        project = await db.get(Project, project_id)
+        if project is not None and getattr(project, "status", "active") == "archived":
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail="Project is archived; restore it before writing or executing",
+            )

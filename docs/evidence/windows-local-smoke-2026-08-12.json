@@ -1,0 +1,30 @@
+{
+  "generated_at": "2026-08-12T08:14:48+08:00",
+  "status": "passed",
+  "profile": {
+    "name": "local-all",
+    "infrastructure_host": "172.31.27.133"
+  },
+  "passed_checks": [
+    "Windows local doctor",
+    "Backend health",
+    "Frontend login page",
+    "Live API admin login",
+    "Live API current user",
+    "Live API project list",
+    "Playwright mock E2E suite (10 passed)",
+    "Web file upload",
+    "Web file cleanup",
+    "Run report HTML",
+    "Run report JUnit XML"
+  ],
+  "optional_warnings_or_skips": [
+    "Android device is not connected",
+    "Windows k6 is not installed",
+    "Windows Locust is not installed",
+    "Browser matrix skipped by command option",
+    "Web low-code case execution not requested",
+    "Android Worker scan not configured in local mode"
+  ],
+  "note": "The root .env used by local-all points to 172.31.27.133. The separately managed performance-agent.env still points to 163.192.40.209 and must be aligned before using that agent with the root project."
+}

@@ -74,6 +74,7 @@ class _FakeDB:
     def __init__(self, mapping: dict[tuple[int, int], ProjectRole] | None = None):
         self.mapping = mapping or {}
         self.audit_records: list[dict] = []
+        self.projects: dict[int, object] = {}
 
     async def execute(self, stmt):
         # stmt = select(UserProject.role).where(user_id == X, project_id == Y)
@@ -116,6 +117,9 @@ class _FakeDB:
 
     async def flush(self):
         return None
+
+    async def get(self, _model, project_id):
+        return self.projects.get(project_id)
 
 
 class _AuthDB:
@@ -251,3 +255,36 @@ def test_assert_project_access_denies_and_writes_audit():
         assert exc.status_code == 403
     assert raised
     assert len(db.audit_records) == 1
+
+
+def test_assert_project_access_blocks_writes_to_archived_project():
+    db = _FakeDB({(10, 5): ProjectRole.editor})
+    db.projects[5] = types.SimpleNamespace(status="archived")
+    user = _user(uid=10)
+
+    try:
+        asyncio.run(deps.assert_project_access(db, user, project_id=5, min_role=ProjectRole.editor))
+    except HTTPException as exc:
+        assert exc.status_code == 409
+        assert "archived" in exc.detail
+    else:
+        raise AssertionError("archived project must reject editor writes")
+
+
+def test_assert_project_access_keeps_archived_project_readable():
+    db = _FakeDB({(10, 5): ProjectRole.viewer})
+    db.projects[5] = types.SimpleNamespace(status="archived")
+    asyncio.run(deps.assert_project_access(db, _user(uid=10), project_id=5, min_role=ProjectRole.viewer))
+
+
+def test_require_project_writable_access_rejects_archived_project():
+    db = _FakeDB({(10, 5): ProjectRole.editor})
+    db.projects[5] = types.SimpleNamespace(status="archived")
+    checker = deps.require_project_writable_access(ProjectRole.editor)
+
+    try:
+        asyncio.run(checker(project_id=5, current_user=_user(uid=10), db=db))
+    except HTTPException as exc:
+        assert exc.status_code == 409
+    else:
+        raise AssertionError("writable dependency must reject archived project")

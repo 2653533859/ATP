@@ -390,6 +390,10 @@ class _FakeContext:
         self._holder = video_dir_holder
         self._write_video = write_video
         self.closed = False
+        self.routes = []
+
+    async def route(self, pattern, handler):
+        self.routes.append((pattern, handler))
 
     async def new_page(self):
         return self._page
@@ -501,6 +505,7 @@ def test_run_web_lowcode_happy_path_with_screenshots_and_video(wired, monkeypatc
     ]
     # 录像在 context.close 后写入并上传
     assert context.closed and browser.closed and pw.stopped
+    assert context.routes and context.routes[0][0] == "**/*"
     assert wired["uploads"]["files"] == [("videos/runs/7/recording.webm", "video/webm")]
     assert run.result_summary["video_url"] == "https://minio/videos/runs/7/recording.webm"
     completed = wired["events"][-1]

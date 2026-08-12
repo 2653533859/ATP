@@ -225,6 +225,29 @@ def test_create_ollama_allows_keyless_configuration(monkeypatch):
     assert out.has_api_key is False
 
 
+def test_create_openai_compatible_requires_endpoint():
+    with pytest.raises(ValueError, match="必须填写 Endpoint"):
+        AILLMConfigCreateIn(
+            name="third-party",
+            provider="openai_compatible",
+            api_key="service-token",
+            model_name="qwen2.5-vl",
+        )
+
+
+def test_update_openai_compatible_requires_endpoint():
+    existing = _make_config_row(endpoint=None)
+    db = _AsyncDB()
+    db._get_value = existing
+    body = AILLMConfigUpdateIn(provider="openai_compatible", api_key="service-token")
+
+    with pytest.raises(Exception) as exc_info:
+        asyncio.run(ai_llm_configs.update_llm_config(config_id=1, body=body, db=db, _=None))
+
+    assert getattr(exc_info.value, "status_code", None) == 400
+    assert "Endpoint" in str(getattr(exc_info.value, "detail", ""))
+
+
 def test_create_duplicate_name_returns_409(monkeypatch):
     monkeypatch.setattr(ai_llm_configs, "encrypt", lambda v: "enc")
     db = _AsyncDB()

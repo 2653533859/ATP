@@ -17,6 +17,9 @@
         <a-button type="primary" @click="openCreate">
           + {{ t('dataset.create') }}
         </a-button>
+        <a-button :disabled="!projectId" @click="openAIDatasetGeneration()">
+          <ThunderboltOutlined />{{ t('dataset.ai_generate_data') }}
+        </a-button>
         <a-button :disabled="!projectId" :loading="loading" @click="loadList">
           {{ t('common.refresh') }}
         </a-button>
@@ -70,6 +73,9 @@
           <a-space>
             <a-button size="small" type="primary" ghost @click="openAIGeneration(asDataset(record))">
               <ThunderboltOutlined />{{ t('dataset.ai_generate') }}
+            </a-button>
+            <a-button size="small" @click="openAIDatasetGeneration(asDataset(record))">
+              <ThunderboltOutlined />{{ t('dataset.ai_generate_data') }}
             </a-button>
             <a-button size="small" @click="openEdit(asDataset(record))">{{ t('common.edit') }}</a-button>
             <a-button size="small" @click="openImpact(asDataset(record))">{{ t('dataset.impact') }}</a-button>
@@ -174,6 +180,41 @@
         </div>
       </template>
     </a-drawer>
+
+    <a-modal
+      v-model:open="aiDatasetOpen"
+      :title="aiDatasetTarget ? t('dataset.ai_generate_existing_title') : t('dataset.ai_generate_data')"
+      :confirm-loading="aiDatasetLoading"
+      :ok-text="t('dataset.ai_generate_confirm')"
+      :cancel-text="t('common.cancel')"
+      @ok="generateAIDataset"
+    >
+      <a-alert
+        type="info"
+        show-icon
+        :message="t('dataset.ai_generate_hint')"
+        :description="t('dataset.ai_generate_review_hint')"
+        class="drawer-notice"
+      />
+      <a-form layout="vertical">
+        <a-form-item v-if="!aiDatasetTarget" :label="t('dataset.name')" required>
+          <a-input v-model:value="aiDatasetName" :placeholder="t('dataset.ai_name_placeholder')" />
+        </a-form-item>
+        <a-form-item v-else :label="t('dataset.name')">
+          <a-input :value="aiDatasetTarget.name" disabled />
+        </a-form-item>
+        <a-form-item :label="t('dataset.ai_row_count')">
+          <a-input-number v-model:value="aiDatasetRowCount" :min="1" :max="200" style="width: 160px" />
+        </a-form-item>
+        <a-form-item :label="t('dataset.ai_requirement')">
+          <a-textarea
+            v-model:value="aiDatasetRequirement"
+            :rows="5"
+            :placeholder="t('dataset.ai_requirement_placeholder')"
+          />
+        </a-form-item>
+      </a-form>
+    </a-modal>
 
     <a-modal
       v-model:open="validationOpen"
@@ -371,6 +412,12 @@ const validationOpen = ref(false)
 const validationResult = ref<DatasetValidationResult | null>(null)
 const pendingUpload = ref<{ id: number; file: File } | null>(null)
 const uploading = ref(false)
+const aiDatasetOpen = ref(false)
+const aiDatasetLoading = ref(false)
+const aiDatasetTarget = ref<DatasetListItem | null>(null)
+const aiDatasetName = ref('')
+const aiDatasetRequirement = ref('')
+const aiDatasetRowCount = ref(10)
 const versionOpen = ref(false)
 const versionLoading = ref(false)
 const versionDatasetId = ref<number | null>(null)
@@ -402,7 +449,7 @@ const columns = computed(() => [
   { title: t('dataset.row_count'), dataIndex: 'row_count', key: 'row_count', width: 120 },
   { title: t('dataset.schema_field_count'), dataIndex: 'schema_field_count', key: 'schema_field_count', width: 120 },
   { title: t('dataset.updated_at'), dataIndex: 'updated_at', key: 'updated_at', width: 180 },
-  { title: t('common.actions'), key: 'actions', width: 440 },
+  { title: t('common.actions'), key: 'actions', width: 540 },
 ])
 
 const filteredDatasets = computed(() => {
@@ -543,6 +590,68 @@ function openCreate() {
   editorOpen.value = true
 }
 
+function openAIDatasetGeneration(dataset?: DatasetListItem) {
+  if (!projectId.value) {
+    message.warning(t('dataset.select_project_before_create'))
+    return
+  }
+  aiDatasetTarget.value = dataset ?? null
+  aiDatasetName.value = dataset ? dataset.name : ''
+  aiDatasetRequirement.value = dataset?.description ?? ''
+  aiDatasetRowCount.value = Math.min(Math.max(dataset?.row_count || 10, 1), 200)
+  aiDatasetOpen.value = true
+}
+
+async function generateAIDataset() {
+  if (aiDatasetLoading.value || !projectId.value) return
+  if (!aiDatasetTarget.value && !aiDatasetName.value.trim()) {
+    message.warning(t('dataset.ai_name_required'))
+    return
+  }
+  aiDatasetLoading.value = true
+  try {
+    const target = aiDatasetTarget.value
+    const result = await datasetApi.aiGenerate({
+      project_id: projectId.value,
+      dataset_id: target?.id,
+      requirement: aiDatasetRequirement.value.trim() || undefined,
+      row_count: aiDatasetRowCount.value,
+    })
+    if (target) {
+      const detail = await datasetApi.get(target.id)
+      editing.value = detail
+      form.value = {
+        name: detail.name,
+        description: detail.description || '',
+        format: detail.format,
+        validation_policy: detail.validation_policy ?? 'soft',
+        rows: result.rows,
+        schema_fields: (result.schema_fields.length ? result.schema_fields : detail.schema_fields).map(schemaFieldToForm),
+      }
+    } else {
+      editing.value = null
+      form.value = {
+        name: aiDatasetName.value.trim(),
+        description: aiDatasetRequirement.value.trim(),
+        format: 'json',
+        validation_policy: 'soft',
+        rows: result.rows,
+        schema_fields: result.schema_fields.map(schemaFieldToForm),
+      }
+    }
+    rowsText.value = JSON.stringify(result.rows, null, 2)
+    rowsTextError.value = ''
+    aiDatasetOpen.value = false
+    editorOpen.value = true
+    if (result.warnings.length) message.warning(result.warnings.join('；'))
+    else message.success(t('dataset.ai_generate_success'))
+  } catch (error) {
+    message.error(errorMessage(error, t('dataset.ai_generate_failed')))
+  } finally {
+    aiDatasetLoading.value = false
+  }
+}
+
 async function openAIGeneration(dataset: DatasetListItem) {
   try {
     const versions = await datasetApi.listVersions(dataset.id)
@@ -671,6 +780,7 @@ async function onSave() {
       await datasetApi.update(editing.value.id, {
         name: form.value.name,
         description: form.value.description,
+        rows: form.value.rows,
         schema_fields: schemaFields,
         validation_policy: form.value.validation_policy,
       })

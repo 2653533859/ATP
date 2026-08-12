@@ -368,4 +368,4 @@ Q16-10/Q16-11 已完成：新增节点注册/心跳、节点队列路由、VU/�
 - 性能调度检查、专用节点心跳和共享控制任务统一使用 `performance` 队列；专用 Worker 同时监听 `performance.<node>` 与共享队列，节点压测任务仍按节点队列隔离。
 - Worker 启动后通过 `worker_ready` 启动自调度心跳，心跳任务在数据库短暂故障后仍会重新排队；空闲节点不会因只在执行压测时刷新心跳而被误判为离线。
 - Webhook 按压测定义的 `executor` 执行校验和节点能力选择；Locust `run_time`、gRPC `duration_seconds` 纳入运行进度估算；定时任务跳过活动 run 时会持久化下一次执行时间。
-- 本轮定向回归共 `93 passed`，性能服务与任务回归 `46 passed`；Ruff、格式检查和 `git diff --check` 通过。完整 Worker 套件仍有 8 个既有测试桩隔离失败，未作为本轮通过证据。
+- 历史记录：本轮定向回归曾为 `93 passed`，性能服务与任务回归 `46 passed`，当时完整 Worker 套件仍有 8 个既有测试桩隔离失败。该问题已在 2026-08-11 通过根级 conftest 的 fill-missing-only 刷新策略收口；当前 `backend/tests/worker` 全量为 `415 passed`，不再作为未完成阻塞项。

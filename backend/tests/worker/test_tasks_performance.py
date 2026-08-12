@@ -52,6 +52,17 @@ class _DatasetResult:
         return self.value
 
 
+class _FakeControlClient:
+    def get(self, _key):
+        return None
+
+    def delete(self, _key):
+        return 1
+
+    def close(self):
+        return None
+
+
 class _DatasetSession(_FakeSession):
     def __init__(self, objects, dataset_version):
         super().__init__(objects)
@@ -75,6 +86,7 @@ def perf_task(monkeypatch):
 
     from app.worker import tasks_performance
 
+    monkeypatch.setattr(tasks_performance, "create_control_client", lambda: _FakeControlClient())
     yield tasks_performance
 
     sys.modules.pop("app.worker.tasks_performance", None)
@@ -325,6 +337,71 @@ def test_explicit_performance_worker_registers_and_refreshes_heartbeat(perf_task
     assert node.egress_allowlist == ["api.example.test"]
     assert node.last_heartbeat_at is not None
     assert session.flushed == 1
+
+
+def test_ui_managed_performance_node_keeps_page_constraints_during_heartbeat(perf_task, monkeypatch):
+    from app.core import config
+
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_ENABLED", True)
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_ID", "worker-a")
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_QUEUE", "performance.worker-a")
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_MAX_VUS", 0)
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_MAX_CONCURRENCY", 0)
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_EGRESS_ALLOWLIST", "")
+
+    node = types.SimpleNamespace(
+        node_id="worker-a",
+        name="Windows UI node",
+        queue_name="performance.worker-a",
+        status="offline",
+        enabled=True,
+        labels={"managed_by": "ui"},
+        capabilities={"executors": ["k6", "jmeter"]},
+        max_vus=100,
+        max_concurrency=2,
+        egress_allowlist=["api.example.test"],
+        last_heartbeat_at=None,
+        last_error="旧错误",
+    )
+    session = _HeartbeatSession(node=node)
+    refreshed = asyncio.run(perf_task._heartbeat_worker_node(session))
+
+    assert refreshed is node
+    assert node.status == "online"
+    assert node.name == "Windows UI node"
+    assert node.max_vus == 100
+    assert node.max_concurrency == 2
+    assert node.egress_allowlist == ["api.example.test"]
+    assert node.capabilities == {"executors": ["k6", "jmeter"]}
+    assert node.last_error is None
+
+
+def test_ui_managed_performance_node_reports_queue_mismatch(perf_task, monkeypatch):
+    from app.core import config
+
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_ENABLED", True)
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_ID", "worker-a")
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_QUEUE", "performance")
+    node = types.SimpleNamespace(
+        node_id="worker-a",
+        name="Windows UI node",
+        queue_name="performance.worker-a",
+        status="online",
+        enabled=True,
+        labels={"managed_by": "ui"},
+        capabilities={"executors": ["k6"]},
+        max_vus=None,
+        max_concurrency=None,
+        egress_allowlist=[],
+        last_heartbeat_at=None,
+        last_error=None,
+    )
+    session = _HeartbeatSession(node=node)
+
+    asyncio.run(perf_task._heartbeat_worker_node(session))
+
+    assert node.status == "offline"
+    assert "队列" in node.last_error
 
 
 def test_performance_worker_heartbeat_refreshes_and_reschedules(perf_task, monkeypatch):

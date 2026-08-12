@@ -109,4 +109,36 @@ describe('RunDetail mount', () => {
 
     expect(routerBack).toHaveBeenCalledOnce()
   })
+
+  it('renders Android device matrix child results', async () => {
+    runGet.mockResolvedValueOnce({
+      id: 42,
+      case_id: 100,
+      status: 'failed',
+      trace_id: null,
+      environment: 'staging',
+      duration_ms: 321,
+      created_at: '2026-07-11T01:00:00Z',
+      error_message: 'one device failed',
+      result_summary: {
+        device_matrix_total: 2,
+        device_matrix_passed: 1,
+        device_matrix_failed: 1,
+        device_matrix_error: 0,
+        device_matrix_results: [
+          { run_id: 43, index: 0, serial: 'emu-1', status: 'passed', duration_ms: 120, error: null },
+          { run_id: 44, index: 1, serial: 'emu-2', status: 'failed', duration_ms: 200, error: 'assertion failed' },
+        ],
+      },
+      steps: [],
+    })
+
+    const wrapper = mountRunDetail()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('emu-1')
+    expect(wrapper.text()).toContain('emu-2')
+    expect(wrapper.text()).toContain('assertion failed')
+    expect(wrapper.text()).toContain('run.device_matrix.total')
+  })
 })

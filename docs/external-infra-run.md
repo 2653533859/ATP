@@ -2,18 +2,27 @@
 
 适用场景：PostgreSQL、Redis、MinIO 已由外部环境提供，ATP 只启动应用服务。
 
-## 当前已接入的外部基础设施
+## 外部基础设施配置
 
-- PostgreSQL: `163.192.40.209:5432`
-- Redis: `163.192.40.209:6379`
-- MinIO API: `163.192.40.209:9000`
-- MinIO Console: `163.192.40.209:9001`
+本文档不固化任何公网地址、用户名或密码。请复制 `.env.example` 为 `.env`，或使用启动配置页面/启动档案填写目标环境的实际值：
 
-当前已完成的初始化：
+```env
+POSTGRES_HOST=<server-host>
+POSTGRES_PORT=5432
+POSTGRES_DB=atp
+POSTGRES_USER=<database-user>
+POSTGRES_PASSWORD=<database-password>
+REDIS_HOST=<server-host>
+REDIS_PORT=6379
+REDIS_PASSWORD=<redis-password-if-enabled>
+MINIO_HOST=<server-host>
+MINIO_PORT=9000
+MINIO_ROOT_USER=<minio-user>
+MINIO_ROOT_PASSWORD=<minio-password>
+MINIO_BUCKET=atp
+```
 
-- PostgreSQL 数据库 `atp` 已创建
-- MinIO bucket `atp` 已创建
-- 根目录 `.env` 已写入上述连接信息
+数据库、MinIO bucket 和初始管理员应由部署环境按实际凭据创建；不要将真实 `.env`、管理员密码或对象存储密钥写入仓库或文档。启动前先执行 `scripts/windows-local.ps1 -Action doctor -EnvFile .env`（Windows）或对应的 Compose/Helm 预检。
 
 ## 启动方式
 
@@ -49,11 +58,9 @@ docker compose -f docker-compose.app.yml down
 - 后端健康检查: `http://localhost:8000/health`
 - Flower: `http://localhost:5555`
 
-## 默认管理员
+## 初始管理员
 
-- 用户名: `aicying`
-- 密码: `020514.Cy`
-- 邮箱: `ruieridianzi@gmail.com`
+初始管理员由 `FIRST_ADMIN_USERNAME`、`FIRST_ADMIN_PASSWORD` 和 `FIRST_ADMIN_EMAIL` 配置。生产环境必须使用部署时生成的强密码，并在首次登录后轮换；本文档不记录具体账号或密码。
 
 ## 注意事项
 

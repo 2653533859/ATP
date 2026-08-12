@@ -12,18 +12,26 @@
         :placeholder="t('project_members.add_placeholder')"
         style="width: 260px"
         :loading="searching"
+        :disabled="!canManageMembers"
         allow-clear
         @search="onSearchUser"
       />
-      <a-select v-model:value="newMemberRole" style="width: 120px">
+      <a-select v-model:value="newMemberRole" style="width: 120px" :disabled="!canManageMembers">
         <a-select-option value="viewer">viewer</a-select-option>
         <a-select-option value="editor">editor</a-select-option>
         <a-select-option value="owner">owner</a-select-option>
       </a-select>
-      <a-button type="primary" :disabled="!candidateUser" :loading="adding" @click="onAddMember">
+      <a-button type="primary" :disabled="!canManageMembers || !candidateUser" :loading="adding" @click="onAddMember">
         {{ t('project_members.add_btn') }}
       </a-button>
     </a-space>
+    <a-alert
+      v-if="!canManageMembers"
+      type="info"
+      show-icon
+      :message="projectStatus === 'archived' ? t('project_members.archived_hint') : t('project_members.read_only_hint')"
+      style="margin-bottom: 12px"
+    />
     <div v-if="candidateUser" style="margin-bottom: 8px; color: #666">
       {{ t('project_members.candidate_hint', { username: candidateUser.username, id: candidateUser.id }) }}
     </div>
@@ -41,7 +49,7 @@
           <a-select
             :value="record.role"
             style="width: 110px"
-            :disabled="record.user_id === currentUserId && record.role === 'owner'"
+            :disabled="!canManageMembers || (record.user_id === currentUserId && record.role === 'owner')"
             @change="(val: unknown) => onUpdateRole(asMember(record), String(val))"
           >
             <a-select-option value="viewer">viewer</a-select-option>
@@ -56,7 +64,7 @@
             :cancel-text="t('common.cancel')"
             @confirm="onRemoveMember(asMember(record))"
           >
-            <a-button size="small" type="link" danger>{{ t('common.delete') }}</a-button>
+            <a-button size="small" type="link" danger :disabled="!canManageMembers">{{ t('common.delete') }}</a-button>
           </a-popconfirm>
         </template>
         <template v-else-if="column.dataIndex === 'created_at'">
@@ -71,7 +79,7 @@
 import { computed, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
-import { projectMemberApi, type ProjectMemberItem, type ProjectRoleType } from '@/api'
+import { projectMemberApi, type ProjectMemberItem, type ProjectRoleType, type ProjectStatus } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import http from '@/api/http'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
@@ -81,6 +89,7 @@ const props = defineProps<{
   open: boolean
   projectId: number | null
   projectName?: string | null
+  projectStatus?: ProjectStatus | null
 }>()
 const emit = defineEmits<{ close: []; updated: [] }>()
 
@@ -95,6 +104,11 @@ const searching = ref(false)
 const newMemberQuery = ref('')
 const newMemberRole = ref<ProjectRoleType>('viewer')
 const candidateUser = ref<{ id: number; username: string } | null>(null)
+const canManageMembers = computed(() =>
+  props.projectStatus !== 'archived' && (
+    auth.user?.role === 'admin' || members.value.some((member) => member.user_id === currentUserId.value && member.role === 'owner')
+  ),
+)
 
 const columns = computed(() => [
   { title: t('project_members.col.username'), dataIndex: 'username', key: 'username' },
@@ -154,7 +168,7 @@ async function onSearchUser(q: string) {
   searching.value = true
   try {
     // 按 username 精确匹配（后端 GET /users?username=xxx；若没有则提示）
-    const result = await http.get<unknown, { id: number; username: string }[]>('/users', {
+    const result = await http.get<unknown, { id: number; username: string }[]>('/users/lookup', {
       params: { username: q.trim() },
     })
     if (Array.isArray(result) && result.length > 0) {

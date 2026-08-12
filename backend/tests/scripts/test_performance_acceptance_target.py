@@ -37,7 +37,10 @@ def test_target_serves_real_unary_grpc_and_http_health():
             request_serializer=request_class.SerializeToString,
             response_deserializer=response_class.FromString,
         )
-        response = call(request_class(name="ATP"), timeout=2)
+        # gRPC server.start() returns before the listening socket is guaranteed
+        # to accept connections on slower Windows CI hosts.  Wait for readiness
+        # so this test validates the handler rather than a startup race.
+        response = call(request_class(name="ATP"), timeout=5, wait_for_ready=True)
         assert response.text == "hello ATP"
         with urlopen(f"http://127.0.0.1:{http_server.server_port}/healthz", timeout=2) as result:
             assert result.status == 200

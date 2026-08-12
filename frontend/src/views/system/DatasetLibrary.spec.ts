@@ -17,6 +17,7 @@ const {
   datasetUpload,
   datasetPreviewUpload,
   datasetValidate,
+  datasetAiGenerate,
   messageError,
   messageSuccess,
   messageWarning,
@@ -34,6 +35,7 @@ const {
   datasetUpload: vi.fn(),
   datasetPreviewUpload: vi.fn(),
   datasetValidate: vi.fn(),
+  datasetAiGenerate: vi.fn(),
   messageError: vi.fn(),
   messageSuccess: vi.fn(),
   messageWarning: vi.fn(),
@@ -66,6 +68,7 @@ vi.mock('@/api', () => ({
     upload: datasetUpload,
     previewUpload: datasetPreviewUpload,
     validate: datasetValidate,
+    aiGenerate: datasetAiGenerate,
   },
 }))
 
@@ -134,6 +137,7 @@ function mountPage() {
         AForm: passthrough('AForm'),
         AFormItem: passthrough('AFormItem'),
         AInput: inputStub('AInput', 'input'),
+        AInputNumber: passthrough('AInputNumber'),
         AInputSearch: passthrough('AInputSearch'),
         AModal: passthrough('AModal'),
         APopconfirm: confirmStub,
@@ -186,6 +190,13 @@ beforeEach(() => {
   datasetUpload.mockResolvedValue({})
   datasetPreviewUpload.mockResolvedValue({ valid: true, can_upload: true, issues: [], normalized_rows: [] })
   datasetValidate.mockResolvedValue({ valid: true, can_upload: true, issues: [], normalized_rows: [] })
+  datasetAiGenerate.mockResolvedValue({
+    project_id: 1,
+    dataset_id: null,
+    rows: [{ username: 'synthetic-1' }],
+    schema_fields: [{ name: 'username', type: 'string', required: false, default: null }],
+    warnings: [],
+  })
 })
 
 describe('DatasetLibrary mount', () => {
@@ -221,6 +232,47 @@ describe('DatasetLibrary mount', () => {
       validation_policy: 'soft',
     }))
     expect(messageSuccess).toHaveBeenCalledWith('common.saved')
+  })
+
+  it('generates synthetic rows in the dataset editor without saving automatically', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openAIDatasetGeneration()
+    vm.aiDatasetName = 'AI Users'
+    vm.aiDatasetRequirement = '生成不含真实个人信息的测试用户'
+    vm.aiDatasetRowCount = 1
+    await vm.generateAIDataset()
+
+    expect(datasetAiGenerate).toHaveBeenCalledWith(expect.objectContaining({
+      project_id: 1,
+      requirement: '生成不含真实个人信息的测试用户',
+      row_count: 1,
+    }))
+    expect(vm.editorOpen).toBe(true)
+    expect(vm.form.name).toBe('AI Users')
+    expect(vm.form.rows).toEqual([{ username: 'synthetic-1' }])
+    expect(datasetCreate).not.toHaveBeenCalled()
+    expect(messageSuccess).toHaveBeenCalledWith('system_pages.dataset.ai_generate_success')
+  })
+
+  it('uses the selected dataset schema when generating replacement rows', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openAIDatasetGeneration(DATASETS[0])
+    await vm.generateAIDataset()
+
+    expect(datasetAiGenerate).toHaveBeenCalledWith(expect.objectContaining({ dataset_id: 11 }))
+    expect(datasetGet).toHaveBeenCalledWith(11)
+    expect(vm.editing.id).toBe(11)
+    expect(vm.form.rows).toEqual([{ username: 'synthetic-1' }])
+    await vm.onSave()
+    expect(datasetUpdate).toHaveBeenCalledWith(11, expect.objectContaining({
+      rows: [{ username: 'synthetic-1' }],
+    }))
   })
 
   it('explains missing project selection and surfaces save failures', async () => {

@@ -152,6 +152,51 @@ def test_api_node_check_rejects_missing_executor_and_does_not_claim_acceptance()
     assert all(item.status == "PASS" for item in report.checks)
 
 
+def test_api_node_check_waits_for_worker_heartbeat(monkeypatch):
+    smoke = _load_smoke_script()
+
+    class _Client:
+        def __init__(self):
+            self.node_reads = 0
+
+        def request(self, method, path, payload=None):
+            del payload
+            if (method, path) == ("GET", "/health"):
+                return {"status": "ok"}
+            if (method, path) == ("GET", "/api/v1/performance/executors"):
+                return [{"name": "grpc", "ready": True}]
+            if (method, path) == ("GET", "/api/v1/performance/nodes"):
+                self.node_reads += 1
+                return [
+                    {
+                        "id": 9,
+                        "node_id": "worker-a",
+                        "queue_name": "performance.worker-a",
+                        "status": "offline" if self.node_reads == 1 else "online",
+                        "capabilities": {"executors": ["grpc"]},
+                        "egress_allowlist": ["grpc.example.test"],
+                    }
+                ]
+            raise AssertionError(f"unexpected request: {method} {path}")
+
+    monkeypatch.setattr(smoke.time, "sleep", lambda _seconds: None)
+    report = smoke.CheckReport()
+    node = smoke.check_api_and_node(
+        report,
+        _Client(),
+        expected_executors={"grpc"},
+        node_id="worker-a",
+        expected_queue="performance.worker-a",
+        target=smoke.Target("grpc.example.test", 443, True),
+        require_allowlist=True,
+        node_ready_timeout=5,
+        node_poll_interval=0,
+    )
+
+    assert node and node["status"] == "online"
+    assert not report.has_failures
+
+
 def test_report_redacts_sensitive_http_error_fields_and_cli_has_no_token_option():
     smoke = _load_smoke_script()
 
@@ -159,6 +204,42 @@ def test_report_redacts_sensitive_http_error_fields_and_cli_has_no_token_option(
     assert smoke._safe_error({"detail": "bad", "access_token": "secret-value", "password": "pw"}) == (
         "{'detail': 'bad', 'access_token': '<redacted>', 'password': '<redacted>'}"
     )
+
+
+def test_report_inputs_serialize_path_arguments():
+    smoke = _load_smoke_script()
+
+    args = smoke.build_parser().parse_args(["--api-base-url", "http://localhost:8000", "--report", "evidence.json"])
+
+    assert smoke._safe_cli_inputs(args)["report"] == "evidence.json"
+
+
+def test_api_client_adds_csrf_header_to_state_changing_requests():
+    smoke = _load_smoke_script()
+    captured = {}
+
+    class _Response:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_args):
+            return False
+
+        def read(self):
+            return b"{}"
+
+    class _Opener:
+        def open(self, request, timeout):
+            captured["request"] = request
+            captured["timeout"] = timeout
+            return _Response()
+
+    client = smoke.ApiClient("http://localhost:8000", token=None, timeout=3)
+    client._opener = _Opener()
+
+    client.request("POST", "/api/v1/performance/runs/1/stop")
+
+    assert captured["request"].headers.get("X-requested-with") == "XMLHttpRequest"
 
 
 def test_real_smoke_waits_for_success_checks_summary_and_metrics(monkeypatch):

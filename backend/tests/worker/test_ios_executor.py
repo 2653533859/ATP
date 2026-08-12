@@ -2,6 +2,8 @@
 
 import asyncio
 
+import pytest
+
 from app.worker.executors.ios_executor import IosAppiumClient, _render_params, _touch_actions
 
 
@@ -89,3 +91,56 @@ def test_appium_client_rejects_protocol_error():
         raise AssertionError("expected Appium protocol failure")
 
     assert "session not created" in asyncio.run(run())
+
+
+def test_appium_client_dispatches_remaining_actions_and_lifecycle_calls():
+    fake = _FakeHttp()
+    client = IosAppiumClient("http://mac-worker:4723", http_client=fake)
+
+    async def run():
+        await client.start_session(udid="device-1", device_name=None, platform_version=None, bundle_id=None, app=None)
+        failed_assert = await client.execute_step("assert_text", {"text": "不存在"})
+        waited = await client.execute_step("wait", {"seconds": 0})
+        screenshot = await client.execute_step("screenshot", {})
+        await client.execute_step("input", {"strategy": "id", "value": "email", "text": "x", "clear": False})
+        await client.execute_step("back", {})
+        await client.execute_step("start_app", {"bundle_id": "com.example.app"})
+        await client.execute_step("stop_app", {"bundle_id": "com.example.app"})
+        source = await client.execute_step("get_source", {})
+        await client.execute_step("tap", {"x": 10, "y": 20})
+        await client.execute_step("swipe", {"x": 10, "y": 20, "to_x": 50, "to_y": 60})
+        await client.start_recording()
+        recording = await client.stop_recording()
+        logs = await client.syslog()
+        with pytest.raises(RuntimeError, match="未知 iOS 操作类型"):
+            await client.execute_step("unsupported", {})
+        await client.quit()
+        return failed_assert, waited, screenshot, source, recording, logs
+
+    failed_assert, waited, screenshot, source, recording, logs = asyncio.run(run())
+
+    assert failed_assert["success"] is False
+    assert waited == {"success": True, "wait_seconds": 0.0}
+    assert screenshot["screenshot_base64"] == "c2NyZWVu"
+    assert source["source"].startswith("<XCUIElementTypeStaticText")
+    assert recording is None
+    assert logs == "{}"
+    assert any(item[1].endswith("/back") for item in fake.requests)
+    assert any(item[1].endswith("/appium/device/activate_app") for item in fake.requests)
+    assert any(item[1].endswith("/actions") for item in fake.requests)
+
+
+def test_appium_client_rejects_invalid_payloads_and_missing_session():
+    client = IosAppiumClient("http://mac-worker:4723", http_client=_FakeHttp())
+
+    async def run():
+        errors = []
+        for action, params in (("click", {}), ("screenshot", {})):
+            try:
+                await client.execute_step(action, params)
+            except RuntimeError as exc:
+                errors.append(str(exc))
+        return errors
+
+    errors = asyncio.run(run())
+    assert any("会话尚未建立" in item for item in errors)

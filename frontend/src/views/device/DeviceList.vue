@@ -10,6 +10,14 @@
       </a-button>
     </div>
 
+    <div class="worker-status">
+      <span class="worker-status-label">{{ t('device.worker.title') }}</span>
+      <span v-if="workers.length" class="worker-online">
+        {{ workers.map((worker) => worker.worker_id).join(', ') }} · {{ t('device.worker.online') }}
+      </span>
+      <span v-else class="worker-offline">{{ t('device.worker.offline') }}</span>
+    </div>
+
     <a-row :gutter="12" class="page-summary">
       <a-col :span="6"><a-card size="small"><a-statistic :title="t('device.summary.total')" :value="devices.length" /></a-card></a-col>
       <a-col :span="6"><a-card size="small"><a-statistic :title="t('device.summary.online')" :value="deviceStats.online" /></a-card></a-col>
@@ -144,12 +152,13 @@ import { message } from 'ant-design-vue'
 import { ReloadOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { deviceApi } from '@/api'
-import type { DeviceItem, DeviceStatus } from '@/api'
+import type { AndroidWorkerItem, DeviceItem, DeviceStatus } from '@/api'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asDevice = (record: unknown) => record as DeviceItem
 
 const { t } = useI18n()
 const devices = ref<DeviceItem[]>([])
+const workers = ref<AndroidWorkerItem[]>([])
 const loading = ref(false)
 const scanning = ref(false)
 const statusFilter = ref<string | undefined>(undefined)
@@ -230,16 +239,53 @@ async function loadDevices() {
   }
 }
 
+async function loadWorkers() {
+  try {
+    workers.value = await deviceApi.workers()
+  } catch (_e) {
+    // Worker registry is supplementary; device loading must remain available if Redis is down.
+    workers.value = []
+  }
+}
+
 async function handleScan() {
   scanning.value = true
   try {
-    devices.value = await deviceApi.scan()
-    message.success(t('device.msg.scan_success', { count: devices.value.length }))
+    const result = await deviceApi.scan()
+    devices.value = result.devices
+    if (result.status === 'failed') {
+      throw new Error(result.error || t('device.msg.scan_failed'))
+    }
+    if (result.status === 'queued' || result.status === 'running') {
+      if (!result.scan_id) {
+        throw new Error(t('device.msg.scan_pending'))
+      }
+      message.info(t('device.msg.scan_queued'))
+      await waitForScan(result.scan_id)
+    } else {
+      message.success(t('device.msg.scan_success', { count: devices.value.length }))
+    }
   } catch (e: unknown) {
     message.error(errorMessage(e, t('device.msg.scan_failed')))
   } finally {
     scanning.value = false
   }
+}
+
+async function waitForScan(scanId: string) {
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    await new Promise((resolve) => window.setTimeout(resolve, 500))
+    const result = await deviceApi.scanStatus(scanId)
+    devices.value = result.devices
+    if (result.status === 'completed') {
+      message.success(t('device.msg.scan_success', { count: devices.value.length }))
+      return
+    }
+    if (result.status === 'failed') {
+      throw new Error(result.error || t('device.msg.scan_failed'))
+    }
+  }
+  message.info(t('device.msg.scan_pending'))
 }
 
 function openEdit(record: DeviceItem) {
@@ -328,7 +374,10 @@ function onMirrorError() {
   // Keep the last frame when the image element reports an error.
 }
 
-onMounted(loadDevices)
+onMounted(() => {
+  void loadDevices()
+  void loadWorkers()
+})
 
 onUnmounted(() => {
   closeMirror()
@@ -339,6 +388,24 @@ onUnmounted(() => {
 .device-page {
   display: flex;
   flex-direction: column;
+}
+.worker-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 12px;
+  color: var(--c-text-secondary);
+  font-size: 13px;
+}
+.worker-status-label {
+  color: var(--c-text-primary);
+  font-weight: 600;
+}
+.worker-online {
+  color: var(--c-success);
+}
+.worker-offline {
+  color: var(--c-text-tertiary);
 }
 .mirror-container {
   display: flex;

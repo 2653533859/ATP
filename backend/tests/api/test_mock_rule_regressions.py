@@ -45,7 +45,7 @@ sys.modules["app.core.redis_client"] = types.SimpleNamespace(
 
 from app.api.v1 import mock_rules
 from app.models.mock import MockMethod
-from app.schemas.mock import MockRuleCreate, MockRulesImportRequest
+from app.schemas.mock import MockAIGenerateIn, MockRuleCreate, MockRulesImportRequest
 
 
 class _FakeMockRule:
@@ -106,3 +106,62 @@ def test_import_mock_rules_overrides_embedded_project_id(monkeypatch):
     assert len(rules) == 1
     assert db.added[0].project_id == 5
     assert invalidations == [5]
+
+
+def test_mock_ai_generate_returns_drafts_without_persisting(monkeypatch):
+    class _AIFakeDB:
+        committed = False
+
+        async def get(self, model, pk):
+            model_name = getattr(model, "__name__", "")
+            if model_name == "Project":
+                return types.SimpleNamespace(id=5, ai_llm_config_id=11)
+            if model_name == "AILLMConfig":
+                return types.SimpleNamespace(id=11, enabled=True)
+            if model_name == "MockRule":
+                return types.SimpleNamespace(
+                    id=8,
+                    project_id=5,
+                    name="Users",
+                    method=MockMethod.GET,
+                    path="/api/users",
+                    status_code=200,
+                    response_headers={},
+                    response_body='{"ok":true}',
+                    match_conditions={"query": {}, "headers": {}, "body": {}},
+                    delay_ms=0,
+                    recorded_samples=[],
+                )
+            return None
+
+    async def fake_generate(**_kwargs):
+        return (
+            [
+                {
+                    "name": "Generated users",
+                    "method": "GET",
+                    "path": "/api/users/generated",
+                    "status_code": 200,
+                    "response_headers": {"Content-Type": "application/json"},
+                    "response_body": '{"ok":true}',
+                    "match_conditions": {"query": {}, "headers": {}, "body": {}},
+                    "delay_ms": 0,
+                    "is_enabled": True,
+                    "render_template": False,
+                    "record_requests": False,
+                }
+            ],
+            [],
+        )
+
+    monkeypatch.setattr(mock_rules, "generate_mock_rule_drafts", fake_generate)
+    result = asyncio.run(
+        mock_rules.generate_mock_rules_with_ai(
+            body=MockAIGenerateIn(project_id=5, rule_ids=[8], requirement="success", rule_count=1),
+            db=_AIFakeDB(),
+            current_user=types.SimpleNamespace(id=7),
+        )
+    )
+
+    assert result.project_id == 5
+    assert result.rules[0].path == "/api/users/generated"

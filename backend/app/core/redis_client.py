@@ -19,7 +19,13 @@ def _redis_url(db: int = 2) -> str:
 
 def get_async_redis(db: int = 2) -> aioredis.Redis:
     """返回一个新的异步 Redis 连接（调用方负责关闭）"""
-    return aioredis.from_url(_redis_url(db), decode_responses=True)
+    timeout = settings.REDIS_CONNECT_TIMEOUT_SECONDS
+    return aioredis.from_url(
+        _redis_url(db),
+        decode_responses=True,
+        socket_connect_timeout=timeout,
+        socket_timeout=timeout,
+    )
 
 
 async def close_async_redis(redis: aioredis.Redis) -> None:

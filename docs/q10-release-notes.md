@@ -13,7 +13,7 @@ This release should be reviewed in split PRs according to `docs/q11-pr-split-pla
 
 ### 1. Environment And Dependency Compatibility
 
-- Fixed local Python 3.14 backend setup when `psycopg2-binary==2.9.10` requires `pg_config`.
+- Fixed local Python 3.14 backend setup by pinning `asyncpg==0.31.0`, `psycopg2-binary==2.9.12` and `PyYAML==6.0.3`, which ship Windows cp314 wheels and avoid local C compiler/`pg_config` builds.
 - Preserved Python 3.12 deployment compatibility with conditional dependency pins.
 - Hardened `make setup` for Homebrew `libpq`, `openssl@3`, `readline`, and `krb5` paths.
 - Unified Playwright / pytest-playwright pins so Docker Python 3.12 and local Python 3.14 resolve cleanly.

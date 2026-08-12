@@ -192,6 +192,7 @@ if not _INTEGRATION_MODE:
             # 可调用对象的工厂）；hard-set 过自己版本的文件不受影响。
             "assert_project_access": _noop_async,
             "require_project_access": lambda *_a, **_kw: _noop_async,
+            "require_project_writable_access": lambda *_a, **_kw: _noop_async,
         },
     )
 

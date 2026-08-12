@@ -38,6 +38,13 @@ def test_vite_splits_antd_across_routes_with_icons_isolated(repo_file):
     assert "chunkSizeWarningLimit: 600" in config
 
 
+def test_vite_config_resolves_alias_in_esm_and_runner_loaders(repo_file):
+    config = repo_file("frontend/vite.config.ts")
+
+    assert "fileURLToPath(import.meta.url)" in config
+    assert "const __dirname = dirname(fileURLToPath(import.meta.url))" in config
+
+
 def test_bundle_decision_records_route_split_decision(repo_file):
     """决策文档记录结论、证据要点与后续触发条件；具体字节数是历史快照，不在测试里冻结。"""
     content = repo_file("docs/frontend-bundle-decision.md")

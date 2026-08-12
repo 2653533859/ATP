@@ -1,0 +1,51 @@
+{{- if .Values.webRecorder.enabled }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "atp.fullname" . }}-web-recorder
+  labels:
+    {{- include "atp.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "web-recorder") | nindent 4 }}
+spec:
+  replicas: {{ .Values.replicas.webRecorder }}
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ .Chart.Name }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: web-recorder
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: web-recorder
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: web-recorder
+          image: "{{ .Values.image.repository }}/worker:{{ .Values.image.worker.tag }}"
+          imagePullPolicy: {{ .Values.image.worker.pullPolicy }}
+          command: ["sh", "-c", "Xvfb ${WEB_RECORDER_DISPLAY:-:99} -screen 0 1280x720x24 -nolisten tcp >/tmp/atp-xvfb.log 2>&1 & exec python -m app.web_recording_worker"]
+          envFrom:
+            - configMapRef:
+                name: {{ include "atp.fullname" . }}-config
+            - secretRef:
+                name: {{ include "atp.secretName" . }}
+          env:
+            - name: WEB_RECORDER_MODE
+              value: "worker"
+            - name: WEB_RECORDER_WORKER_ID
+              value: {{ .Values.webRecorder.workerId | quote }}
+            - name: WEB_RECORDER_DISPLAY
+              value: {{ .Values.webRecorder.display | quote }}
+            - name: WEB_RECORDER_WORKER_MAX_SESSIONS
+              value: {{ .Values.webRecorder.maxSessions | quote }}
+            - name: WEB_RECORDER_WORKER_HEARTBEAT_SECONDS
+              value: {{ .Values.webRecorder.heartbeatSeconds | quote }}
+            - name: WEB_RECORDER_WORKER_TTL_SECONDS
+              value: {{ .Values.webRecorder.workerTtlSeconds | quote }}
+          resources:
+            {{- toYaml .Values.webRecorder.resources | nindent 12 }}
+{{- end }}

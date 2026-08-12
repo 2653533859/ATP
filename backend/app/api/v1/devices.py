@@ -1,3 +1,5 @@
+import asyncio
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -6,10 +8,11 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.models.device import Device, DeviceStatus
 from app.models.user import User
-from app.schemas.device import DeviceOut, DeviceUpdate
+from app.schemas.device import AndroidWorkerOut, DeviceOut, DeviceScanOut, DeviceUpdate
 from app.schemas.device_lease import DeviceLeaseAcquireIn, DeviceLeaseOut, DeviceLeaseTokenIn
 from app.api.deps import get_current_user, require_engineer
 from app.services.adb_service import async_scan_devices
+from app.services.android_worker_registry import AndroidWorkerRegistryError, list_android_workers
 from app.services.device_sync import sync_devices_to_db_async
 from app.services.device_leases import (
     DeviceLeaseConflict,
@@ -38,7 +41,27 @@ async def list_devices(
     return result.scalars().all()
 
 
-@router.post("/devices/scan", response_model=list[DeviceOut])
+async def _list_device_rows(db: AsyncSession) -> list[Device]:
+    result = await db.execute(select(Device).order_by(Device.status.asc(), Device.updated_at.desc()))
+    return list(result.scalars().all())
+
+
+def _scan_result(scan_id: str):
+    from celery.result import AsyncResult
+
+    from app.worker.celery_app import celery_app
+
+    return AsyncResult(scan_id, app=celery_app)
+
+
+def _read_scan_result(scan_id: str) -> tuple[str, object]:
+    task = _scan_result(scan_id)
+    state = str(task.state or "PENDING").upper()
+    payload = task.result if state == "SUCCESS" else None
+    return state, payload
+
+
+@router.post("/devices/scan", response_model=DeviceScanOut)
 async def scan_devices(
     db: AsyncSession = Depends(get_db),
     _=Depends(require_engineer),
@@ -47,9 +70,12 @@ async def scan_devices(
     if settings.ADB_SCAN_MODE.strip().lower() == "worker":
         from app.worker.tasks_device import scan_adb_devices
 
-        scan_adb_devices.apply_async(queue="mobile_special")
-        result = await db.execute(select(Device).order_by(Device.status.asc(), Device.updated_at.desc()))
-        return result.scalars().all()
+        task = scan_adb_devices.apply_async(queue="mobile_special", ignore_result=False)
+        return DeviceScanOut(
+            status="queued",
+            scan_id=str(getattr(task, "id", "") or "") or None,
+            devices=await _list_device_rows(db),
+        )
 
     scanned = await async_scan_devices()
     if scanned is None:
@@ -60,9 +86,55 @@ async def scan_devices(
     await sync_devices_to_db_async(db, scanned)
     await db.commit()
 
-    # 返回最新设备列表
-    result = await db.execute(select(Device).order_by(Device.status.asc(), Device.updated_at.desc()))
-    return result.scalars().all()
+    return DeviceScanOut(status="completed", devices=await _list_device_rows(db))
+
+
+@router.get("/devices/scan/{scan_id}", response_model=DeviceScanOut)
+async def get_scan_status(
+    scan_id: str,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_engineer),
+):
+    """查询 Windows Android Worker 的 ADB 扫描结果。"""
+    from uuid import UUID
+
+    try:
+        UUID(scan_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail="扫描任务不存在") from exc
+
+    try:
+        state, payload = await asyncio.to_thread(_read_scan_result, scan_id)
+        devices = await _list_device_rows(db)
+        if state in {"PENDING", "RECEIVED", "STARTED", "RETRY"}:
+            status_value = "running" if state in {"STARTED", "RETRY"} else "queued"
+            return DeviceScanOut(status=status_value, scan_id=scan_id, devices=devices)
+        if state != "SUCCESS":
+            return DeviceScanOut(status="failed", scan_id=scan_id, devices=devices, error="ADB 扫描任务执行失败")
+        payload = payload if isinstance(payload, dict) else {}
+        if payload.get("status") != "completed":
+            return DeviceScanOut(
+                status="failed",
+                scan_id=scan_id,
+                devices=devices,
+                error=str(payload.get("error") or "ADB 扫描失败"),
+            )
+        return DeviceScanOut(status="completed", scan_id=scan_id, devices=devices)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="暂时无法查询 Android Worker 扫描状态") from exc
+
+
+@router.get("/devices/workers", response_model=list[AndroidWorkerOut])
+async def list_android_worker_status(
+    _=Depends(require_engineer),
+):
+    """返回当前通过 Redis 心跳注册的 Windows Android Worker。"""
+    try:
+        return await list_android_workers()
+    except AndroidWorkerRegistryError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
 
 
 @router.get("/devices/{device_id}", response_model=DeviceOut)

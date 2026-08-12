@@ -97,6 +97,32 @@ def test_export_run_junit_renders_step_outcomes():
     assert "run-1-junit.xml" in response.headers["Content-Disposition"]
 
 
+def test_export_run_junit_renders_android_matrix_children():
+    run = _Obj(
+        id=3,
+        status=RunStatus.failed,
+        duration_ms=4000,
+        error_message=None,
+        result_summary={
+            "device_matrix_results": [
+                {"serial": "emu-1", "status": "passed", "duration_ms": 100},
+                {"serial": "emu-2", "status": "failed", "duration_ms": 200, "error": "断言失败"},
+            ]
+        },
+    )
+    db = _FakeDB({("TestRun", 3): run}, step_rows=[])
+
+    response = asyncio.run(exports_mod.export_run_junit(3, db=db))
+
+    suite = ET.fromstring(response.body).find("testsuite")
+    assert suite.get("tests") == "2"
+    assert suite.get("failures") == "1"
+    assert suite.get("errors") == "0"
+    cases = suite.findall("testcase")
+    assert [case.get("name") for case in cases] == ["emu-1", "emu-2"]
+    assert cases[1].find("failure").get("message") == "断言失败"
+
+
 @pytest.mark.parametrize(
     ("run_status", "element"),
     [(RunStatus.failed, "failure"), (RunStatus.error, "error"), (RunStatus.skipped, "skipped")],

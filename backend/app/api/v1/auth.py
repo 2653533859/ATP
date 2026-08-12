@@ -1,13 +1,27 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from app.core.config import settings
 from app.core.database import get_db
 from app.core.rate_limit import limiter
-from app.core.security import verify_password, create_access_token, create_refresh_token, decode_token
+from app.core.security import (
+    create_access_token,
+    create_refresh_token,
+    decode_token,
+    hash_password,
+    verify_password,
+)
 from app.models.user import User
-from app.schemas.auth import AuthSessionResponse, LoginRequest, RefreshRequest, TokenResponse, UserOut
+from app.schemas.auth import (
+    AuthSessionResponse,
+    LoginRequest,
+    RefreshRequest,
+    TokenResponse,
+    UserOut,
+    UserProfileUpdate,
+)
 from app.api.deps import get_current_user
 from app.services.audit import write_audit_log
 from jwt import InvalidTokenError
@@ -119,3 +133,54 @@ async def logout(response: Response):
 @router.get("/me", response_model=UserOut)
 async def me(current_user: User = Depends(get_current_user)):
     return current_user
+
+
+@router.patch("/me", response_model=AuthSessionResponse | TokenResponse)
+async def update_me(
+    request: Request,
+    response: Response,
+    body: UserProfileUpdate,
+    current_user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """修改当前账号资料或密码，并为用户名变化重新签发会话。"""
+    if not verify_password(body.current_password, current_user.hashed_password):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="当前密码错误")
+
+    username = body.username or current_user.username
+    email = str(body.email) if body.email is not None else current_user.email
+    duplicate = await db.execute(
+        select(User).where(
+            User.id != current_user.id,
+            (User.username == username) | (User.email == email),
+        )
+    )
+    if duplicate.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="用户名或邮箱已被使用")
+
+    current_user.username = username
+    current_user.email = email
+    if body.new_password is not None:
+        current_user.hashed_password = hash_password(body.new_password)
+
+    await write_audit_log(
+        db,
+        action="update_profile",
+        resource_type="user",
+        resource_id=current_user.id,
+        user_id=current_user.id,
+        username=username,
+        detail="更新账号资料" if body.new_password is None else "更新账号资料和密码",
+    )
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="用户名或邮箱已被使用") from exc
+
+    return _build_auth_response(
+        request,
+        response,
+        create_access_token(username),
+        create_refresh_token(username),
+    )

@@ -37,6 +37,7 @@ celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q "$CELERY_Q
 ## Docker Compose
 
 公网部署使用 Windows Android Worker 时，Linux 普通 Worker 必须排除 `android,mobile_special`，Windows 主机按 [`android-windows-worker.md`](android-windows-worker.md) 运行 `android,mobile_special`。整个部署只运行一个 Beat。
+Windows 本地启动也要区分两种模式：`local-all` 的普通 Worker 可以监听全部队列，适合 Backend、基础设施和 ADB 都在同一台机器；`android-agent` 只启动专用 Android Worker，适合远程 Backend/Redis/MinIO；`performance-agent` 只启动专用性能队列。普通 Worker 的进程识别会排除 `android-win-*` 和 `performance-win-*`，避免把专用 Worker 误当成普通 Worker 管理；Android 模式仍会按队列配置双向阻止 `android`/`mobile_special` 重叠消费。
 
 默认 `worker` 服务监听全部队列。只跑普通执行队列：
 
@@ -108,7 +109,8 @@ performanceWorker:
 如需更细粒度隔离 Android、AI 或维护任务，可继续使用多份 values 或平台侧 overlay 渲染多个 worker Deployment，
 每份只覆盖队列、副本数和资源限制。
 
-使用专用压测节点时，`performanceWorker.queues` 必须同时包含与 `nodeQueue` 完全一致的队列名和共享的 `performance` 队列；Chart
+使用专用压测节点时，`performanceWorker.queues` 必须同时包含与 `nodeQueue` 完全一致的队列名和共享的 `performance` 队列；Windows
+`windows-local.ps1` 在检测到 `PERFORMANCE_NODE_ENABLED=true` 且有节点 ID 时也会自动补齐这两个队列。队列名称允许字母、数字、点号、下划线和短横线；Chart
 启动命令会自动补上共享队列。worker 启动后会主动注册 `nodeId` 并持续刷新心跳。`nodeEgressAllowlist` 是应用层目标域名限制，Kubernetes 原生出口隔离请通过
 `performanceWorker.networkPolicy.enabled/egress` 配置，并显式放行 DNS、数据库、Redis、MinIO 和目标服务。
 发布后的真实队列、节点心跳和 Worker 镜像验收可使用

@@ -33,8 +33,15 @@ REQUIRED_FILES = (
 
 
 def _run(command: list[str]) -> tuple[bool, str]:
-    completed = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=False)
-    output = (completed.stdout + completed.stderr).strip()
+    completed = subprocess.run(
+        command,
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        check=False,
+    )
+    output = ((completed.stdout or "") + (completed.stderr or "")).strip()
     return completed.returncode == 0, output
 
 

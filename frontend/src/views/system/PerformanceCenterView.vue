@@ -30,10 +30,16 @@
           <div class="section-label">{{ t('performance.nodes') }}</div>
           <div class="field-hint">{{ t('performance.node_hint') }}</div>
         </div>
-        <a-button size="small" :loading="nodesLoading" @click="loadNodes">
-          <template #icon><ReloadOutlined /></template>
-          {{ t('performance.node_refresh') }}
-        </a-button>
+        <a-space>
+          <a-button size="small" :loading="nodesLoading" @click="loadNodes">
+            <template #icon><ReloadOutlined /></template>
+            {{ t('performance.node_refresh') }}
+          </a-button>
+          <a-button size="small" type="primary" @click="openNodeCreate">
+            <template #icon><PlusOutlined /></template>
+            {{ t('performance.node_register') }}
+          </a-button>
+        </a-space>
       </div>
       <a-empty v-if="nodes.length === 0" :image="false" :description="t('performance.no_nodes')" />
       <div v-else class="node-grid">
@@ -44,12 +50,31 @@
             <a-tag>{{ nodeStatusLabel(node.status) }}</a-tag>
           </div>
           <div class="muted mono">{{ node.node_id }} · {{ node.queue_name }}</div>
+          <div class="muted node-executors">{{ t('performance.node_executors') }}：{{ nodeExecutorLabel(node) }}</div>
           <div class="node-card-meta">
             <span>{{ t('performance.node_capacity') }}</span>
             <strong>{{ nodeCapacityLabel(node) }}</strong>
           </div>
           <div class="muted node-heartbeat">
             {{ node.last_heartbeat_at ? t('performance.node_last_heartbeat', { value: formatDateLabel(node.last_heartbeat_at) }) : t('performance.node_waiting_heartbeat') }}
+          </div>
+          <div v-if="node.last_error" class="node-error">
+            <span>{{ t('performance.node_error') }}：</span>{{ node.last_error }}
+          </div>
+          <div class="node-card-actions">
+            <a-button size="small" @click="openNodeEdit(node)">
+              <template #icon><EditOutlined /></template>
+              {{ t('common.edit') }}
+            </a-button>
+            <a-popconfirm
+              :title="t('performance.node_delete_confirm')"
+              @confirm="deleteNode(node)"
+            >
+              <a-button size="small" danger>
+                <template #icon><DeleteOutlined /></template>
+                {{ t('common.delete') }}
+              </a-button>
+            </a-popconfirm>
           </div>
         </div>
       </div>
@@ -438,8 +463,135 @@
             <a-textarea v-model:value="testForm.defaultOptionsText" class="mono" :rows="10" />
           </a-form-item>
         </template>
+        <div class="target-metrics-editor">
+          <div class="target-metrics-header">
+            <div>
+              <div class="section-label">{{ t('performance.target_metrics') }}</div>
+              <div class="field-hint">{{ t('performance.target_metrics_hint') }}</div>
+            </div>
+            <a-switch
+              v-model:checked="testForm.targetMetrics.enabled"
+              :checked-children="t('common.enabled')"
+              :un-checked-children="t('common.disabled')"
+            />
+          </div>
+          <template v-if="testForm.targetMetrics.enabled">
+            <a-form-item :label="t('performance.target_metrics_source')">
+              <a-radio-group v-model:value="testForm.targetMetrics.source" button-style="solid">
+                <a-radio-button value="url">{{ t('performance.target_metrics_source_url') }}</a-radio-button>
+                <a-radio-button value="env">{{ t('performance.target_metrics_source_env') }}</a-radio-button>
+              </a-radio-group>
+            </a-form-item>
+            <a-form-item
+              v-if="testForm.targetMetrics.source === 'url'"
+              :label="t('performance.prometheus_url')"
+              required
+            >
+              <a-input v-model:value="testForm.targetMetrics.prometheus_url" class="mono" placeholder="http://127.0.0.1:9090" />
+            </a-form-item>
+            <a-form-item
+              v-else
+              :label="t('performance.prometheus_url_env')"
+              required
+            >
+              <a-input v-model:value="testForm.targetMetrics.url_env" class="mono" placeholder="PROMETHEUS_URL" />
+            </a-form-item>
+            <a-form-item :label="t('performance.target_metrics_timeout')">
+              <a-input-number v-model:value="testForm.targetMetrics.timeout_seconds" :min="0.2" :max="10" :step="0.1" style="width: 100%" />
+              <div class="field-hint">{{ t('performance.target_metrics_timeout_hint') }}</div>
+            </a-form-item>
+            <div class="target-metrics-queries">
+              <div class="section-label">{{ t('performance.target_metrics_queries') }}</div>
+              <div v-for="(query, index) in testForm.targetMetrics.queries" :key="index" class="target-metric-row">
+                <a-input v-model:value="query.name" :placeholder="t('performance.target_metrics_name')" />
+                <a-input v-model:value="query.query" class="mono" :placeholder="t('performance.target_metrics_query')" />
+                <a-button type="text" danger :disabled="testForm.targetMetrics.queries.length <= 1" @click="removeTargetMetricQuery(index)">
+                  {{ t('common.delete') }}
+                </a-button>
+              </div>
+              <a-button type="dashed" block :disabled="testForm.targetMetrics.queries.length >= 8" @click="addTargetMetricQuery">{{ t('performance.add_target_metric_query') }}</a-button>
+            </div>
+          </template>
+        </div>
       </a-form>
     </a-drawer>
+
+    <a-modal
+      v-model:open="nodeEditorOpen"
+      :title="nodeEditing ? t('performance.node_edit_title') : t('performance.node_register_title')"
+      :ok-text="t('common.save')"
+      :cancel-text="t('common.cancel')"
+      :confirm-loading="nodeSaving"
+      @ok="saveNode"
+    >
+      <a-alert
+        type="info"
+        show-icon
+        :message="t('performance.node_register_hint')"
+        class="form-alert"
+      />
+      <a-form layout="vertical">
+        <a-row :gutter="12">
+          <a-col :span="12">
+            <a-form-item :label="t('performance.node_id')" required>
+              <a-input
+                v-model:value="nodeForm.node_id"
+                class="mono"
+                :disabled="!!nodeEditing"
+                :placeholder="t('performance.node_id_placeholder')"
+              />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item :label="t('performance.node_name')" required>
+              <a-input v-model:value="nodeForm.name" :placeholder="t('performance.node_name_placeholder')" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-row :gutter="12">
+          <a-col :span="12">
+            <a-form-item :label="t('performance.node_queue')">
+              <a-input v-model:value="nodeForm.queue_name" class="mono" placeholder="performance" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item :label="t('performance.node_enabled')">
+              <a-switch v-model:checked="nodeForm.enabled" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-form-item :label="t('performance.node_executors')" required>
+          <a-select
+            v-model:value="nodeForm.executors"
+            mode="multiple"
+            :options="nodeExecutorOptions"
+            :placeholder="t('performance.node_executors_placeholder')"
+          />
+          <div class="field-hint">{{ t('performance.node_executors_hint') }}</div>
+        </a-form-item>
+        <a-row :gutter="12">
+          <a-col :span="12">
+            <a-form-item :label="t('performance.node_max_vus')">
+              <a-input-number v-model:value="nodeForm.max_vus" :min="1" allow-clear style="width: 100%" />
+            </a-form-item>
+          </a-col>
+          <a-col :span="12">
+            <a-form-item :label="t('performance.node_max_concurrency')">
+              <a-input-number v-model:value="nodeForm.max_concurrency" :min="1" allow-clear style="width: 100%" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <a-form-item :label="t('performance.node_allowlist')">
+          <a-textarea
+            v-model:value="nodeForm.egress_allowlist"
+            :rows="3"
+            class="mono"
+            :placeholder="t('performance.node_allowlist_placeholder')"
+          />
+          <div class="field-hint">{{ t('performance.node_allowlist_hint') }}</div>
+        </a-form-item>
+      </a-form>
+    </a-modal>
 
     <a-modal
       v-model:open="runOpen"
@@ -665,13 +817,23 @@
         <div class="detail-block">
           <div class="resource-toolbar">
             <div class="section-label">{{ t('performance.resource_timeline') }}</div>
-            <a-select
-              v-model:value="resourceMetric"
-              size="small"
-              :options="resourceMetricOptions"
-              :placeholder="t('performance.select_resource_metric')"
-              style="min-width: 220px"
-            />
+            <a-space size="small" wrap>
+              <a-select
+                v-model:value="metricSource"
+                size="small"
+                :options="metricSourceOptions"
+                :placeholder="t('performance.select_metric_source')"
+                style="min-width: 180px"
+                @change="handleMetricSourceChange"
+              />
+              <a-select
+                v-model:value="resourceMetric"
+                size="small"
+                :options="resourceMetricOptions"
+                :placeholder="t('performance.select_resource_metric')"
+                style="min-width: 220px"
+              />
+            </a-space>
           </div>
           <a-empty v-if="metricSamples.length === 0" :description="t('performance.no_resource_metrics')" />
           <v-chart v-else class="resource-chart" :option="resourceTimelineOption" :theme="chartTheme" autoresize />
@@ -743,6 +905,9 @@ const runs = ref<PerformanceRunItem[]>([])
 const loading = ref(false)
 const runsLoading = ref(false)
 const nodesLoading = ref(false)
+const nodeEditorOpen = ref(false)
+const nodeSaving = ref(false)
+const nodeEditing = ref<PerformanceNodeItem | null>(null)
 const editorOpen = ref(false)
 const runOpen = ref(false)
 const detailOpen = ref(false)
@@ -760,13 +925,61 @@ const runTarget = ref<PerformanceTestItem | null>(null)
 const selectedRun = ref<PerformanceRunItem | null>(null)
 const baselineComparison = ref<PerformanceBaselineComparisonItem | null>(null)
 const metricSamples = ref<PerformanceMetricSampleItem[]>([])
+const metricSource = ref('performance-worker')
 const resourceMetric = ref('cpu_percent')
 const scheduleTarget = ref<PerformanceTestItem | null>(null)
 const selectedRunIds = ref<number[]>([])
 const capacityForm = ref({ max_error_rate_percent: 1, max_p95_ms: undefined as number | undefined, min_stable_runs: 1 })
 let runPollingTimer: ReturnType<typeof window.setInterval> | null = null
 
+type PerformanceNodeForm = {
+  node_id: string
+  name: string
+  queue_name: string
+  enabled: boolean
+  executors: string[]
+  max_vus?: number
+  max_concurrency?: number
+  egress_allowlist: string
+}
+
+function createDefaultNodeForm(): PerformanceNodeForm {
+  return {
+    node_id: '',
+    name: '',
+    queue_name: 'performance',
+    enabled: true,
+    executors: ['k6'],
+    max_vus: undefined,
+    max_concurrency: undefined,
+    egress_allowlist: '',
+  }
+}
+
+const nodeForm = ref<PerformanceNodeForm>(createDefaultNodeForm())
+
 type PerformanceCreationMode = 'visual' | 'script'
+type TargetMetricSource = 'url' | 'env'
+type TargetMetricQuery = { name: string; query: string }
+type TargetMetricsForm = {
+  enabled: boolean
+  source: TargetMetricSource
+  prometheus_url: string
+  url_env: string
+  timeout_seconds: number
+  queries: TargetMetricQuery[]
+}
+
+function createDefaultTargetMetrics(): TargetMetricsForm {
+  return {
+    enabled: false,
+    source: 'url',
+    prometheus_url: '',
+    url_env: '',
+    timeout_seconds: 2,
+    queries: [{ name: '', query: '' }],
+  }
+}
 
 const executorOptions = computed(() => executors.value.map((executor) => ({
   label: executor.label,
@@ -774,6 +987,18 @@ const executorOptions = computed(() => executors.value.map((executor) => ({
   disabled: !executor.ready,
   title: executor.description,
 })))
+
+const nodeExecutorOptions = computed(() => {
+  const knownExecutors = new Map(executors.value.map((executor) => [executor.name, executor]))
+  return (['k6', 'locust', 'grpc', 'jmeter'] as const).map((name) => {
+    const executor = knownExecutors.get(name)
+    return {
+      label: executor?.label || name,
+      value: name,
+      disabled: executor ? !executor.ready : false,
+    }
+  })
+})
 
 const loadTemplateOptions = computed(() => [
   { label: t('performance.template_smoke'), value: 'smoke' },
@@ -804,6 +1029,7 @@ const testForm = ref<{
   dataset_id?: number
   defaultOptionsText: string
   scenario: PerformanceScenario
+  targetMetrics: TargetMetricsForm
 }>({
   mode: 'visual',
   executor: 'k6',
@@ -813,6 +1039,7 @@ const testForm = ref<{
   dataset_id: undefined,
   defaultOptionsText: '{\n  "env": {\n    "TARGET_URL": "https://example.test"\n  }\n}',
   scenario: createDefaultPerformanceScenario(),
+  targetMetrics: createDefaultTargetMetrics(),
 })
 
 const selectedExecutor = computed(() => executors.value.find((item) => item.name === testForm.value.executor))
@@ -834,7 +1061,7 @@ const scheduleForm = ref({
 })
 
 const nodeOptions = computed(() => nodes.value.map((node) => ({
-  label: `${node.name} (${node.node_id}) · ${nodeStatusLabel(node.status)}`,
+  label: `${node.name} (${node.node_id}) · ${nodeStatusLabel(node.status)} · ${nodeExecutorLabel(node)}`,
   value: node.id,
   disabled: node.status !== 'online' || !node.enabled,
 })))
@@ -911,24 +1138,34 @@ const resourceMetricKeys = [
   'minio_total_bytes',
 ]
 
-const resourceMetricOptions = computed(() => resourceMetricKeys.map((key) => ({
-  label: t(`performance.resource_metric_${key}`),
-  value: key,
-})))
+const metricSourceOptions = computed(() => {
+  const sources = [...new Set(metricSamples.value.map((sample) => sample.source).filter(Boolean))]
+  return sources.map((source) => ({ label: metricSourceLabel(source), value: source }))
+})
+
+const metricSamplesForSource = computed(() => metricSamples.value.filter((sample) => sample.source === metricSource.value))
+
+const resourceMetricOptions = computed(() => {
+  const keys = [...new Set(metricSamplesForSource.value.flatMap((sample) => Object.keys(sample.metrics)))]
+  return keys.map((key) => ({
+    label: metricLabel(key),
+    value: key,
+  }))
+})
 
 const resourceTimelineOption = computed<EChartsOption>(() => {
-  const labels = metricSamples.value.map((sample) => formatDateLabel(sample.captured_at))
+  const labels = metricSamplesForSource.value.map((sample) => formatDateLabel(sample.captured_at))
   return {
     tooltip: { trigger: 'axis' },
     grid: { top: 24, right: 18, bottom: 42, left: 58 },
     xAxis: { type: 'category', data: labels },
-    yAxis: { type: 'value', name: t(`performance.resource_metric_${resourceMetric.value}`) },
+    yAxis: { type: 'value', name: metricLabel(resourceMetric.value) },
     series: [{
-      name: t(`performance.resource_metric_${resourceMetric.value}`),
+      name: metricLabel(resourceMetric.value),
       type: 'line',
       smooth: true,
       connectNulls: false,
-      data: metricSamples.value.map((sample) => sample.metrics[resourceMetric.value] ?? null),
+      data: metricSamplesForSource.value.map((sample) => sample.metrics[resourceMetric.value] ?? null),
     }],
   }
 })
@@ -1090,6 +1327,98 @@ async function loadNodes() {
   }
 }
 
+function nodeExecutorNames(node: PerformanceNodeItem): string[] {
+  const declared = node.capabilities?.executors
+  if (Array.isArray(declared)) {
+    const values = declared.map((value) => String(value).trim()).filter(Boolean)
+    if (values.length) return values
+  }
+  if (typeof declared === 'string') {
+    const values = declared.split(',').map((value) => value.trim()).filter(Boolean)
+    if (values.length) return values
+  }
+  const legacy = node.capabilities?.executor
+  return typeof legacy === 'string' && legacy.trim() ? [legacy.trim()] : ['k6']
+}
+
+function nodeExecutorLabel(node: PerformanceNodeItem) {
+  return nodeExecutorNames(node).join(', ')
+}
+
+function parseNodeAllowlist(value: string) {
+  return [...new Set(value.split(/[\n,]/).map((item) => item.trim().toLowerCase()).filter(Boolean))]
+}
+
+function openNodeCreate() {
+  nodeEditing.value = null
+  nodeForm.value = createDefaultNodeForm()
+  nodeEditorOpen.value = true
+}
+
+function openNodeEdit(node: PerformanceNodeItem) {
+  nodeEditing.value = node
+  nodeForm.value = {
+    node_id: node.node_id,
+    name: node.name,
+    queue_name: node.queue_name,
+    enabled: node.enabled,
+    executors: nodeExecutorNames(node),
+    max_vus: node.max_vus ?? undefined,
+    max_concurrency: node.max_concurrency ?? undefined,
+    egress_allowlist: node.egress_allowlist.join('\n'),
+  }
+  nodeEditorOpen.value = true
+}
+
+async function saveNode() {
+  const nodeId = nodeForm.value.node_id.trim()
+  const name = nodeForm.value.name.trim()
+  const queueName = nodeForm.value.queue_name.trim()
+  const executorNames = [...new Set(nodeForm.value.executors.map((item) => item.trim()).filter(Boolean))]
+  if (!nodeId || !name || !queueName || executorNames.length === 0) {
+    message.warning(t('performance.msg.node_required'))
+    return
+  }
+  const capabilities = {
+    ...(nodeEditing.value?.capabilities || {}),
+    executors: executorNames,
+  }
+  const payload = {
+    name,
+    queue_name: queueName,
+    enabled: nodeForm.value.enabled,
+    capabilities,
+    max_vus: nodeForm.value.max_vus ?? null,
+    max_concurrency: nodeForm.value.max_concurrency ?? null,
+    egress_allowlist: parseNodeAllowlist(nodeForm.value.egress_allowlist),
+  }
+  nodeSaving.value = true
+  try {
+    if (nodeEditing.value) {
+      await performanceApi.updateNode(nodeEditing.value.id, payload)
+    } else {
+      await performanceApi.createNode({ node_id: nodeId, ...payload })
+    }
+    message.success(nodeEditing.value ? t('performance.msg.node_update_success') : t('performance.msg.node_create_success'))
+    nodeEditorOpen.value = false
+    await loadNodes()
+  } catch {
+    message.error(nodeEditing.value ? t('performance.msg.node_update_failed') : t('performance.msg.node_create_failed'))
+  } finally {
+    nodeSaving.value = false
+  }
+}
+
+async function deleteNode(node: PerformanceNodeItem) {
+  try {
+    await performanceApi.deleteNode(node.id)
+    message.success(t('performance.msg.node_delete_success'))
+    await loadNodes()
+  } catch {
+    message.error(t('performance.msg.node_delete_failed'))
+  }
+}
+
 function openCreate() {
   editing.value = null
   testForm.value = {
@@ -1101,6 +1430,7 @@ function openCreate() {
     dataset_id: undefined,
     defaultOptionsText: '{\n  "env": {\n    "TARGET_URL": "https://example.test"\n  }\n}',
     scenario: createDefaultPerformanceScenario(),
+    targetMetrics: createDefaultTargetMetrics(),
   }
   editorOpen.value = true
 }
@@ -1125,12 +1455,13 @@ function openEdit(record: PerformanceTestItem) {
     dataset_id: executor === 'grpc' ? undefined : record.dataset_id ?? undefined,
     defaultOptionsText: JSON.stringify(record.default_options || {}, null, 2),
     scenario: visual ? cloneScenario(scenarioValue) : createDefaultPerformanceScenario(),
+    targetMetrics: targetMetricsFromOptions(record.default_options),
   }
   editorOpen.value = true
 }
 
 function handleExecutorChange(value: unknown) {
-  if (value !== 'k6' && value !== 'locust' && value !== 'grpc') return
+  if (value !== 'k6' && value !== 'locust' && value !== 'grpc' && value !== 'jmeter') return
   const previousExecutor = testForm.value.executor
   testForm.value.executor = value
   if (value !== 'k6') testForm.value.mode = 'script'
@@ -1248,6 +1579,16 @@ function removeStage(index: number) {
   testForm.value.scenario.stages.splice(index, 1)
 }
 
+function addTargetMetricQuery() {
+  if (testForm.value.targetMetrics.queries.length >= 8) return
+  testForm.value.targetMetrics.queries.push({ name: '', query: '' })
+}
+
+function removeTargetMetricQuery(index: number) {
+  if (testForm.value.targetMetrics.queries.length <= 1) return
+  testForm.value.targetMetrics.queries.splice(index, 1)
+}
+
 function parseJsonObject(text: string, fallback: string): Record<string, unknown> | null {
   try {
     const value = JSON.parse(text || '{}')
@@ -1260,6 +1601,77 @@ function parseJsonObject(text: string, fallback: string): Record<string, unknown
     message.warning(fallback)
     return null
   }
+}
+
+function targetMetricsFromOptions(options: Record<string, unknown>): TargetMetricsForm {
+  const defaults = createDefaultTargetMetrics()
+  const raw = options.target_metrics
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return defaults
+  const config = raw as Record<string, unknown>
+  const rawQueries = config.queries
+  const queries = rawQueries && typeof rawQueries === 'object' && !Array.isArray(rawQueries)
+    ? Object.entries(rawQueries as Record<string, unknown>)
+      .map(([name, query]) => ({ name: name.trim(), query: String(query || '').trim() }))
+      .filter((item) => item.name && item.query)
+    : []
+  const timeout = typeof config.timeout_seconds === 'number' && Number.isFinite(config.timeout_seconds)
+    ? Math.min(10, Math.max(0.2, config.timeout_seconds))
+    : defaults.timeout_seconds
+  const prometheusUrl = typeof config.prometheus_url === 'string' ? config.prometheus_url : ''
+  const urlEnv = typeof config.url_env === 'string' ? config.url_env : ''
+  return {
+    enabled: true,
+    source: prometheusUrl.trim() ? 'url' : 'env',
+    prometheus_url: prometheusUrl,
+    url_env: urlEnv,
+    timeout_seconds: timeout,
+    queries: queries.length ? queries : defaults.queries,
+  }
+}
+
+function applyTargetMetrics(options: Record<string, unknown>): Record<string, unknown> | null {
+  const next = { ...options }
+  delete next.target_metrics
+  const form = testForm.value.targetMetrics
+  if (!form.enabled) return next
+
+  const sourceValue = form.source === 'url' ? form.prometheus_url.trim() : form.url_env.trim()
+  if (!sourceValue) {
+    message.warning(t(form.source === 'url' ? 'performance.msg.prometheus_url_required' : 'performance.msg.prometheus_url_env_required'))
+    return null
+  }
+  if (form.source === 'url') {
+    try {
+      const parsed = new URL(sourceValue)
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') throw new Error('unsupported protocol')
+    } catch {
+      message.warning(t('performance.msg.prometheus_url_invalid'))
+      return null
+    }
+  }
+  const queries = Object.fromEntries(
+    form.queries
+      .map((item) => ({ name: item.name.trim(), query: item.query.trim() }))
+      .filter((item) => item.name && item.query)
+      .map((item) => [item.name, item.query]),
+  )
+  if (Object.keys(queries).length === 0) {
+    message.warning(t('performance.msg.target_metrics_query_required'))
+    return null
+  }
+  const queryNames = form.queries.map((item) => item.name.trim()).filter(Boolean)
+  if (new Set(queryNames).size !== queryNames.length) {
+    message.warning(t('performance.msg.target_metrics_query_duplicate'))
+    return null
+  }
+  const targetMetrics: Record<string, unknown> = {
+    queries,
+    timeout_seconds: Math.min(10, Math.max(0.2, Number(form.timeout_seconds) || 2)),
+  }
+  if (form.source === 'url') targetMetrics.prometheus_url = sourceValue
+  else targetMetrics.url_env = sourceValue
+  next.target_metrics = targetMetrics
+  return next
 }
 
 async function saveTest() {
@@ -1278,6 +1690,8 @@ async function saveTest() {
       return
     }
     defaultOptions = buildPerformanceOptions(testForm.value.scenario)
+    defaultOptions = applyTargetMetrics(defaultOptions)
+    if (!defaultOptions) return
     const filename = 'performance-' + slugify(name) + '.js'
     scriptUploading.value = true
     try {
@@ -1297,6 +1711,8 @@ async function saveTest() {
       return
     }
     defaultOptions = parseJsonObject(testForm.value.defaultOptionsText, t('performance.msg.options_invalid'))
+    if (!defaultOptions) return
+    defaultOptions = applyTargetMetrics(defaultOptions)
     if (!defaultOptions) return
   }
   if (!defaultOptions) return
@@ -1466,8 +1882,10 @@ async function loadResourceMetrics(record: PerformanceRunItem) {
   metricSamples.value = []
   try {
     metricSamples.value = await performanceApi.getMetrics(record.id)
-    const available = resourceMetricKeys.find((key) => metricSamples.value.some((sample) => key in sample.metrics))
-    if (available && !metricSamples.value.some((sample) => resourceMetric.value in sample.metrics)) {
+    const sources = [...new Set(metricSamples.value.map((sample) => sample.source).filter(Boolean))]
+    if (!sources.includes(metricSource.value)) metricSource.value = sources[0] || 'performance-worker'
+    const available = resourceMetricOptions.value[0]?.value
+    if (available && !resourceMetricOptions.value.some((option) => option.value === resourceMetric.value)) {
       resourceMetric.value = available
     }
   } catch {
@@ -1594,6 +2012,21 @@ function nodeCapacityLabel(node: PerformanceNodeItem) {
 
 function metricValue(value: unknown) {
   return typeof value === 'number' ? value : 0
+}
+
+function metricSourceLabel(source: string) {
+  if (source === 'performance-worker') return t('performance.metric_source_worker')
+  if (source === 'target-service-prometheus') return t('performance.metric_source_prometheus')
+  if (source === 'atp-platform') return t('performance.metric_source_platform')
+  return source
+}
+
+function metricLabel(key: string) {
+  return resourceMetricKeys.includes(key) ? t(`performance.resource_metric_${key}`) : key
+}
+
+function handleMetricSourceChange() {
+  resourceMetric.value = resourceMetricOptions.value[0]?.value || ''
 }
 
 function percentValue(value: unknown) {
@@ -1746,6 +2179,32 @@ onBeforeUnmount(stopRunPolling)
   font-size: 11px;
 }
 
+.node-error {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border: 1px solid #ffd591;
+  border-radius: 4px;
+  background: #fff7e6;
+  color: #d46b08;
+  font-size: 11px;
+  line-height: 1.5;
+  word-break: break-word;
+}
+
+.node-executors {
+  margin-top: 5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.node-card-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 10px;
+}
+
 .definition-meta {
   display: flex;
   gap: 6px;
@@ -1833,6 +2292,34 @@ onBeforeUnmount(stopRunPolling)
 
 .form-alert {
   margin-bottom: 16px;
+}
+
+.target-metrics-editor {
+  margin-top: 18px;
+  padding: 14px;
+  border: 1px solid #d6e4ff;
+  border-radius: 8px;
+  background: linear-gradient(135deg, #f7fbff 0%, #f0f5ff 100%);
+}
+
+.target-metrics-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+.target-metrics-queries {
+  padding-top: 4px;
+}
+
+.target-metric-row {
+  display: grid;
+  grid-template-columns: minmax(110px, 0.7fr) minmax(180px, 1.8fr) auto;
+  gap: 8px;
+  align-items: center;
+  margin: 8px 0;
 }
 
 .field-hint {
@@ -1958,6 +2445,10 @@ onBeforeUnmount(stopRunPolling)
 
   .threshold-gate {
     flex-wrap: wrap;
+  }
+
+  .target-metric-row {
+    grid-template-columns: 1fr;
   }
 }
 </style>

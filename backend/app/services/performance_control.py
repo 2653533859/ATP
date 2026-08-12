@@ -17,7 +17,13 @@ def _redis_url(db: int = 2) -> str:
 
 def create_control_client() -> redis.Redis:
     """Create a synchronous client used by the blocking k6 worker."""
-    return redis.Redis.from_url(_redis_url(), decode_responses=True)
+    timeout = settings.REDIS_CONNECT_TIMEOUT_SECONDS
+    return redis.Redis.from_url(
+        _redis_url(),
+        decode_responses=True,
+        socket_connect_timeout=timeout,
+        socket_timeout=timeout,
+    )
 
 
 def request_cancel(run_id: int) -> None:

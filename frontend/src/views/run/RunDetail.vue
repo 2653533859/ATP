@@ -88,6 +88,46 @@
           </a-descriptions-item>
         </a-descriptions>
 
+        <section v-if="androidMatrixSummary" class="device-matrix-summary">
+          <div class="device-matrix-summary-header">
+            <div>
+              <div class="section-title">{{ t('run.device_matrix.title') }}</div>
+              <div class="section-subtitle">{{ t('run.device_matrix.subtitle') }}</div>
+            </div>
+            <a-space wrap>
+              <a-tag>{{ t('run.device_matrix.total') }}: {{ androidMatrixSummary.total }}</a-tag>
+              <a-tag color="green">{{ t('run.device_matrix.passed') }}: {{ androidMatrixSummary.passed }}</a-tag>
+              <a-tag v-if="androidMatrixSummary.failed > 0" color="red">{{ t('run.device_matrix.failed') }}: {{ androidMatrixSummary.failed }}</a-tag>
+              <a-tag v-if="androidMatrixSummary.error > 0" color="orange">{{ t('run.device_matrix.error') }}: {{ androidMatrixSummary.error }}</a-tag>
+            </a-space>
+          </div>
+          <div class="device-matrix-table-wrap">
+            <table class="device-matrix-table">
+              <thead>
+                <tr>
+                  <th>{{ t('run.device_matrix.device') }}</th>
+                  <th>{{ t('run.device_matrix.status') }}</th>
+                  <th>{{ t('run.device_matrix.duration') }}</th>
+                  <th>{{ t('run.device_matrix.error_message') }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="item in androidMatrixSummary.results" :key="`${item.run_id ?? item.index}-${item.serial}`">
+                  <td>
+                    <router-link v-if="item.run_id" :to="{ name: 'run-detail', params: { id: item.run_id } }">
+                      {{ item.serial || t('run.device_matrix.unknown_device') }}
+                    </router-link>
+                    <span v-else>{{ item.serial || t('run.device_matrix.unknown_device') }}</span>
+                  </td>
+                  <td><a-tag :color="statusColor(item.status)">{{ item.status }}</a-tag></td>
+                  <td>{{ item.duration_ms != null ? `${item.duration_ms} ms` : '-' }}</td>
+                  <td class="device-matrix-error">{{ item.error || '-' }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
+
         <section class="investigation-panel">
           <div class="investigation-header">
             <div>
@@ -625,6 +665,15 @@ const runId = Number(route.params.runId)
 
 const run = ref<RunDetailItem | null>(null)
 const steps = ref<RunStepItem[]>([])
+
+type AndroidMatrixResult = {
+  run_id?: number
+  index: number
+  serial: string
+  status: string
+  duration_ms: number | null
+  error: string | null
+}
 const loading = ref(false)
 const expandedKeys = ref<number[]>([])
 const exportingHtml = ref(false)
@@ -671,6 +720,43 @@ const isParameterizedParent = computed(() =>
 const iterationStats = computed(() =>
   readIterationStats(run.value?.result_summary as Record<string, unknown> | undefined),
 )
+
+const androidMatrixSummary = computed(() => {
+  const summary = run.value?.result_summary as Record<string, unknown> | undefined
+  if (!summary || (!Array.isArray(summary.device_matrix_results) && !Array.isArray(summary.device_matrix_variants))) {
+    return null
+  }
+
+  let rawItems: unknown[] = []
+  if (Array.isArray(summary.device_matrix_results)) {
+    rawItems = summary.device_matrix_results
+  } else if (Array.isArray(summary.device_matrix_variants)) {
+    rawItems = summary.device_matrix_variants
+  }
+  const results: AndroidMatrixResult[] = rawItems.map((raw, index) => {
+    const item = raw && typeof raw === 'object' ? raw as Record<string, unknown> : {}
+    return {
+      run_id: typeof item.run_id === 'number' ? item.run_id : undefined,
+      index: typeof item.index === 'number' ? item.index : index,
+      serial: typeof item.serial === 'string' ? item.serial : '',
+      status: typeof item.status === 'string' ? item.status : 'pending',
+      duration_ms: typeof item.duration_ms === 'number' ? item.duration_ms : null,
+      error: typeof item.error === 'string' ? item.error : null,
+    }
+  })
+  const count = (key: 'passed' | 'failed' | 'error', fallback: number) =>
+    typeof summary[`device_matrix_${key}`] === 'number'
+      ? Number(summary[`device_matrix_${key}`])
+      : fallback
+
+  return {
+    total: typeof summary.device_matrix_total === 'number' ? summary.device_matrix_total : results.length,
+    passed: count('passed', results.filter(item => item.status === 'passed').length),
+    failed: count('failed', results.filter(item => item.status === 'failed').length),
+    error: count('error', results.filter(item => item.status === 'error').length),
+    results,
+  }
+})
 
 const stepStats = computed(() => summarizeStepStatuses(steps.value))
 
@@ -1392,6 +1478,45 @@ onUnmounted(() => {
   font-size: 13px;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.device-matrix-summary {
+  margin-bottom: 24px;
+  padding: 16px;
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  background: var(--c-bg-elevated);
+}
+.device-matrix-summary-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+.device-matrix-table-wrap {
+  overflow-x: auto;
+}
+.device-matrix-table {
+  width: 100%;
+  border-collapse: collapse;
+  color: var(--c-text);
+  font-size: 13px;
+}
+.device-matrix-table th,
+.device-matrix-table td {
+  padding: 9px 10px;
+  border-top: 1px solid var(--c-border);
+  text-align: left;
+  vertical-align: top;
+}
+.device-matrix-table th {
+  color: var(--c-text-secondary);
+  font-weight: 600;
+}
+.device-matrix-error {
+  max-width: 420px;
+  color: var(--c-text-secondary);
+  word-break: break-word;
 }
 .steps-header {
   display: flex;

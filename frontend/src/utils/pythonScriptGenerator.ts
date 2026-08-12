@@ -4,8 +4,29 @@ export type ScriptStep = {
   params?: Record<string, unknown> | null
 }
 
+export type WebScriptElementAsset = {
+  id: number
+  locator?: Record<string, unknown> | null
+  fallback_locators?: Array<Record<string, unknown>> | null
+}
+
+export type WebScriptPageObject = {
+  id: number
+  element_refs?: Array<Record<string, unknown>> | null
+  actions?: Array<Record<string, unknown>> | null
+}
+
+export type WebScriptGenerationOptions = {
+  elementAssets?: WebScriptElementAsset[]
+  pageObjects?: WebScriptPageObject[]
+}
+
 function paramsOf(step: ScriptStep) {
   return step.params ?? {}
+}
+
+function recordOf(value: unknown): Record<string, unknown> {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value as Record<string, unknown> : {}
 }
 
 function stringValue(value: unknown, fallback = '') {
@@ -34,6 +55,133 @@ function commentFor(step: ScriptStep, index: number) {
 function webLocator(selector: unknown) {
   const value = stringValue(selector).trim()
   return value ? `page.locator(${pythonString(value)})` : 'page.locator("body")'
+}
+
+function requiredWebSelector(params: Record<string, unknown>, action: string) {
+  const selector = stringValue(params.selector).trim()
+  return selector ? null : [`    pytest.fail(${pythonString(`${action} 步骤缺少元素定位器`)})`]
+}
+
+function locatorValue(locator: Record<string, unknown> | null | undefined) {
+  if (!locator) return ''
+  const strategy = stringValue(locator.strategy, 'css').trim().toLowerCase()
+  const value = stringValue(locator.value).trim()
+  if (!value) return ''
+  if (strategy === 'xpath') return `xpath=${value}`
+  if (strategy === 'test_id' || strategy === 'testid') {
+    return `[data-testid="${value.replace(/\\/g, '\\\\').replace(/"/g, '\\"')}"]`
+  }
+  if (strategy === 'css' || strategy === 'locator') return value
+  if (strategy === 'role') {
+    const name = stringValue(locator.name).trim()
+    return name ? `role=${value}[name="${name.replace(/"/g, '\\"')}"]` : `role=${value}`
+  }
+  return `${strategy}=${value}`
+}
+
+function assetSelector(assetId: unknown, assets: WebScriptElementAsset[]) {
+  const id = Number(assetId)
+  if (!Number.isInteger(id) || id <= 0) return ''
+  const asset = assets.find((item) => item.id === id)
+  if (!asset) return ''
+  return [asset.locator, ...(asset.fallback_locators ?? [])]
+    .map((locator) => locatorValue(locator))
+    .find(Boolean) ?? ''
+}
+
+function resolveStepParams(params: Record<string, unknown>, assets: WebScriptElementAsset[]) {
+  const resolved = { ...params }
+  if (!stringValue(resolved.selector).trim() && resolved.element_asset_id != null) {
+    const selector = assetSelector(resolved.element_asset_id, assets)
+    if (selector) resolved.selector = selector
+  }
+  return resolved
+}
+
+function expandWebSteps(steps: ScriptStep[], options: WebScriptGenerationOptions) {
+  const assets = options.elementAssets ?? []
+  const pageObjects = options.pageObjects ?? []
+  const expanded: ScriptStep[] = []
+
+  for (const step of steps) {
+    if (step.action !== 'page_object') {
+      expanded.push({ ...step, params: resolveStepParams(paramsOf(step), assets) })
+      continue
+    }
+
+    const pageObjectId = Number(paramsOf(step).page_object_id)
+    const pageObject = pageObjects.find((item) => item.id === pageObjectId)
+    if (!pageObject) {
+      expanded.push({
+        action: '__unsupported__',
+        name: step.name ?? `页面对象 ${pageObjectId || ''}`,
+        params: { message: `页面对象 ${pageObjectId || '未知'} 未加载，无法生成独立 Python 脚本` },
+      })
+      continue
+    }
+
+    const refs = new Map<string, unknown>()
+    for (const ref of pageObject.element_refs ?? []) {
+      if (ref.alias != null) refs.set(String(ref.alias), ref.asset_id)
+    }
+    const actions = pageObject.actions ?? []
+    if (!actions.length) {
+      expanded.push({
+        action: '__unsupported__',
+        name: step.name ?? `页面对象 ${pageObjectId || ''}`,
+        params: { message: `页面对象 ${pageObjectId || '未知'} 未配置公共动作` },
+      })
+      continue
+    }
+    for (const [index, actionDef] of actions.entries()) {
+      const action = stringValue(actionDef.step ?? actionDef.action).trim()
+      if (!action || action === 'page_object') {
+        expanded.push({
+          action: '__unsupported__',
+          name: `${step.name ?? '页面对象'} / 动作 ${index + 1}`,
+          params: { message: '页面对象包含无效公共动作' },
+        })
+        continue
+      }
+      const params = resolveStepParams(
+        recordOf(actionDef.params),
+        assets,
+      )
+      const alias = actionDef.alias ?? actionDef.element
+      const assetId = actionDef.asset_id ?? (alias == null ? undefined : refs.get(String(alias)))
+      if (!stringValue(params.selector).trim() && assetId != null) {
+        const selector = assetSelector(assetId, assets)
+        if (selector) params.selector = selector
+      }
+      expanded.push({
+        action,
+        name: `${step.name ?? '页面对象'} / ${stringValue(actionDef.name, `动作 ${index + 1}`)}`,
+        params,
+      })
+    }
+  }
+  return expanded
+}
+
+function visualAssertionHelper() {
+  return [
+    'def assert_visual(page: Page, baseline_path: str, threshold: float, pixel_threshold: int, diff_path: str):',
+    '    baseline_file = Path(baseline_path)',
+    '    if not baseline_file.exists():',
+    '        pytest.fail(f"视觉基线不存在: {baseline_file}")',
+    '    baseline = Image.open(baseline_file).convert("RGBA")',
+    '    actual = Image.open(BytesIO(page.screenshot(type="png"))).convert("RGBA")',
+    '    if actual.size != baseline.size:',
+    '        pytest.fail(f"视觉基线尺寸不一致: {baseline.size} != {actual.size}")',
+    '    diff = ImageChops.difference(baseline, actual)',
+    '    changed = sum(1 for pixel in diff.getdata() if max(pixel) > pixel_threshold)',
+    '    ratio = changed / max(1, baseline.width * baseline.height)',
+    '    if ratio > threshold:',
+    '        diff_file = Path(diff_path)',
+    '        diff_file.parent.mkdir(parents=True, exist_ok=True)',
+    '        diff.save(diff_file)',
+    '        pytest.fail(f"视觉差异超过阈值: {ratio:.4f} > {threshold:.4f}; 差异图: {diff_file}")',
+  ]
 }
 
 function androidTarget(params: Record<string, unknown>) {
@@ -67,30 +215,72 @@ function webStepLines(step: ScriptStep, index: number) {
   switch (step.action) {
     case 'goto':
       return [`    page.goto(${pythonString(params.url)})`]
-    case 'click':
+    case 'click': {
+      const missing = requiredWebSelector(params, 'click')
+      if (missing) return missing
       return [`    ${webLocator(params.selector)}.click()`]
-    case 'fill':
+    }
+    case 'fill': {
+      const missing = requiredWebSelector(params, 'fill')
+      if (missing) return missing
       return [`    ${webLocator(params.selector)}.fill(${pythonString(params.value)})`]
+    }
     case 'assert_text':
       return [`    expect(page.locator("body")).to_contain_text(${pythonString(params.text)})`]
-    case 'assert_visible':
+    case 'assert_visible': {
+      const missing = requiredWebSelector(params, 'assert_visible')
+      if (missing) return missing
       return [`    expect(${webLocator(params.selector)}).to_be_visible()`]
+    }
     case 'wait':
       return [`    page.wait_for_timeout(${pythonNumber(params.ms, 1000)})`]
     case 'screenshot':
       return [`    page.screenshot(path="screenshots/step_${index + 1}.png")`]
-    case 'select':
+    case 'select': {
+      const missing = requiredWebSelector(params, 'select')
+      if (missing) return missing
       return [`    ${webLocator(params.selector)}.select_option(${pythonString(params.value)})`]
+    }
     case 'press': {
       const selector = stringValue(params.selector).trim()
       return selector
         ? [`    ${webLocator(selector)}.press(${pythonString(params.key ?? 'Enter')})`]
         : [`    page.keyboard.press(${pythonString(params.key ?? 'Enter')})`]
     }
-    case 'hover':
+    case 'hover': {
+      const missing = requiredWebSelector(params, 'hover')
+      if (missing) return missing
       return [`    ${webLocator(params.selector)}.hover()`]
+    }
+    case 'upload': {
+      const missing = requiredWebSelector(params, 'upload')
+      if (missing) return missing
+      return [
+        `    upload_path = os.getenv("ATP_WEB_UPLOAD_${index + 1}", "")`,
+        `    if not upload_path: pytest.fail("请设置 ATP_WEB_UPLOAD_${index + 1} 指向待上传文件")`,
+        `    ${webLocator(params.selector)}.set_input_files(upload_path)`,
+      ]
+    }
+    case 'download': {
+      const missing = requiredWebSelector(params, 'download')
+      if (missing) return missing
+      return [
+        `    download_path = Path(os.getenv("ATP_WEB_DOWNLOAD_${index + 1}", "downloads/step_${index + 1}.bin"))`,
+        '    download_path.parent.mkdir(parents=True, exist_ok=True)',
+        '    with page.expect_download() as download_info:',
+        `        ${webLocator(params.selector)}.click()`,
+        '    download_info.value.save_as(str(download_path))',
+      ]
+    }
+    case 'visual_assert':
+      return [
+        `    baseline_path = os.getenv("ATP_VISUAL_BASELINE_${index + 1}", "baseline_${index + 1}.png")`,
+        `    assert_visual(page, baseline_path, ${pythonNumber(params.threshold, 0.01)}, ${pythonNumber(params.pixel_threshold, 10)}, "visual-diffs/step_${index + 1}.png")`,
+      ]
+    case '__unsupported__':
+      return [`    pytest.fail(${pythonString(params.message || '当前步骤无法生成独立 Python 脚本')})`]
     default:
-      return [`    # 未支持的低代码动作：${step.action || `步骤 ${index + 1}`}（请手动补充）`]
+      return [`    pytest.fail(${pythonString(`未支持的低代码动作：${step.action || `步骤 ${index + 1}`}`)})`]
   }
 }
 
@@ -159,21 +349,79 @@ function androidStepLines(step: ScriptStep, index: number) {
       return [`    time.sleep(${pythonNumber(params.ms, 1000)} / 1000)`]
     case 'screenshot':
       return [`    device.screenshot("screenshots/step_${index + 1}.png")`]
+    case 'rotate': {
+      const orientation = stringValue(params.orientation, 'portrait').trim().toLowerCase()
+      const orientationMap: Record<string, string> = {
+        portrait: 'natural',
+        landscape: 'left',
+        reverse_portrait: 'upsidedown',
+        reverse_landscape: 'right',
+      }
+      const value = orientationMap[orientation]
+      return value
+        ? [`    device.set_orientation(${pythonString(value)})`]
+        : [`    pytest.fail(${pythonString(`未知屏幕方向：${orientation || '未配置'}`)})`]
+    }
+    case 'grant_permission':
+    case 'revoke_permission': {
+      const packageName = stringValue(params.package).trim()
+      const permission = stringValue(params.permission).trim()
+      if (!packageName || !permission) {
+        return [`    pytest.fail(${pythonString(`${step.action} 步骤需要 package 和 permission`)})`]
+      }
+      const command = step.action === 'grant_permission' ? 'grant' : 'revoke'
+      return [
+        `    permission_result = device.shell("pm", "${command}", ${pythonString(packageName)}, ${pythonString(permission)})`,
+        '    assert permission_result.exit_code == 0, permission_result.stderr',
+      ]
+    }
+    case 'network_profile': {
+      const profile = stringValue(params.profile, 'normal').trim().toLowerCase()
+      const commands: Record<string, string[][]> = {
+        normal: [['svc', 'wifi', 'enable'], ['svc', 'data', 'enable']],
+        wifi_off: [['svc', 'wifi', 'disable']],
+        data_off: [['svc', 'data', 'disable']],
+        offline: [['svc', 'wifi', 'disable'], ['svc', 'data', 'disable']],
+      }
+      const profileCommands = commands[profile]
+      if (!profileCommands) {
+        return [`    pytest.fail(${pythonString(`未知网络配置：${profile || '未配置'}`)})`]
+      }
+      return profileCommands.flatMap((command, commandIndex) => [
+        `    network_result_${commandIndex + 1} = device.shell(${command.map((part) => pythonString(part)).join(', ')})`,
+        `    assert network_result_${commandIndex + 1}.exit_code == 0, network_result_${commandIndex + 1}.stderr`,
+      ])
+    }
+    case 'background':
+      return [`    device.press("home")`]
+    case 'foreground': {
+      const packageName = stringValue(params.package).trim()
+      return packageName
+        ? [`    device.app_start(${pythonString(packageName)})`]
+        : [`    pytest.fail("前台步骤需要 package")`]
+    }
     default:
-      return [`    # 未支持的低代码动作：${step.action || `步骤 ${index + 1}`}（请手动补充）`]
+      return [`    pytest.fail(${pythonString(`未支持的低代码动作：${step.action || `步骤 ${index + 1}`}`)})`]
   }
 }
 
-export function generateWebPythonScript(steps: ScriptStep[]) {
-  const body = steps.flatMap((step, index) => [commentFor(step, index), ...webStepLines(step, index)])
+export function generateWebPythonScript(steps: ScriptStep[], options: WebScriptGenerationOptions = {}) {
+  const expandedSteps = expandWebSteps(steps, options)
+  const body = expandedSteps.flatMap((step, index) => [commentFor(step, index), ...webStepLines(step, index)])
   if (!body.length) body.push('    pass')
+
+  const hasVisualAssertion = expandedSteps.some((step) => step.action === 'visual_assert')
 
   return [
     '"""由 ATP Web 低代码步骤生成，可按需调整。"""',
     'import os',
+    'from pathlib import Path',
+    'import pytest',
+    ...(hasVisualAssertion ? ['from io import BytesIO', 'from PIL import Image, ImageChops'] : []),
     '',
     'from playwright.sync_api import Page, expect',
     '',
+    ...(hasVisualAssertion ? [...visualAssertionHelper(), ''] : []),
     '',
     'def test_recorded_case(page: Page):',
     ...body,

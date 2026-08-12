@@ -4,7 +4,7 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
-LLMProvider = Literal["deepseek", "claude", "openai", "qwen", "ollama"]
+LLMProvider = Literal["deepseek", "claude", "openai", "openai_compatible", "qwen", "ollama"]
 
 
 class AILLMConfigOut(BaseModel):
@@ -41,6 +41,8 @@ class AILLMConfigCreateIn(BaseModel):
     def validate_api_key(self):
         if self.provider != "ollama" and not self.api_key.strip():
             raise ValueError("该供应商必须填写 API Key")
+        if self.provider == "openai_compatible" and not (self.endpoint or "").strip():
+            raise ValueError("OpenAI 兼容供应商必须填写 Endpoint")
         return self
 
 

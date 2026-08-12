@@ -1,0 +1,13 @@
+{
+  "date": "2026-08-12",
+  "status": "passed",
+  "environment": "Windows local performance agent",
+  "node_id": "performance-win-worker-a",
+  "node_queue": "performance.worker-a",
+  "executor": "grpc",
+  "target": "127.0.0.1:50052",
+  "initial_status": "running",
+  "stop_api_status": 200,
+  "final_status": "cancelled",
+  "temporary_test_data_cleaned": true
+}

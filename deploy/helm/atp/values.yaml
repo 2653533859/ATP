@@ -30,6 +30,7 @@ imagePullSecrets: []
 replicas:
   backend: 2
   worker: 3
+  webRecorder: 1
   beat: 1
   flower: 1
 
@@ -41,6 +42,19 @@ worker:
   # Queues listened by the default worker deployment. For production isolation,
   # deploy separate worker releases or overlay this value per Deployment.
   queues: default,ios,ai,maintenance,performance
+
+webRecorder:
+  # Enable an independent Playwright recording process. The API must also use
+  # config.WEB_RECORDER_MODE=worker when this deployment is enabled.
+  enabled: false
+  workerId: web-recorder-1
+  display: ":99"
+  maxSessions: 2
+  heartbeatSeconds: 5
+  workerTtlSeconds: 20
+  resources:
+    requests: {cpu: 500m, memory: 1Gi}
+    limits: {cpu: 2000m, memory: 3Gi}
 
 performanceWorker:
   # Enable a dedicated Celery worker Deployment for HTTP performance tests.
@@ -101,6 +115,10 @@ config:
   CELERY_CONCURRENCY: "4"
   # Celery queues listened by the default worker container.
   CELERY_QUEUES: default,ios,ai,maintenance,performance
+  # Set to worker together with webRecorder.enabled in a production overlay.
+  WEB_RECORDER_MODE: local
+  WEB_RECORDER_WORKER_QUEUE_PREFIX: atp:web-recording:commands
+  WEB_RECORDER_SESSION_TTL_SECONDS: "3600"
   # Kubernetes clusters usually do not have direct ADB-attached devices.
   ADB_SCAN_ENABLED: "false"
   # OpenTelemetry service name and optional OTLP endpoint.
@@ -153,6 +171,7 @@ secrets:
   # PostgreSQL connection.
   POSTGRES_HOST: postgres
   POSTGRES_PORT: "5432"
+  POSTGRES_CONNECT_TIMEOUT_SECONDS: "5"
   POSTGRES_DB: atp
   POSTGRES_USER: atp
   POSTGRES_PASSWORD: "change-me"
@@ -160,12 +179,14 @@ secrets:
   REDIS_HOST: redis
   REDIS_PORT: "6379"
   REDIS_PASSWORD: ""
+  REDIS_CONNECT_TIMEOUT_SECONDS: "5"
   # MinIO or S3-compatible object storage.
   MINIO_HOST: minio
   MINIO_PORT: "9000"
   MINIO_ROOT_USER: minioadmin
   MINIO_ROOT_PASSWORD: "change-me"
   MINIO_BUCKET: atp
+  MINIO_CONNECT_TIMEOUT_SECONDS: "5"
   # Optional Fernet key. Leave empty to derive from APP_SECRET_KEY.
   ENCRYPTION_KEY: ""
   # API key for CI/CD webhook trigger endpoint.

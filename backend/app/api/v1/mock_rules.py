@@ -1,3 +1,4 @@
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
@@ -11,12 +12,15 @@ from app.api.deps import (
 )
 from app.core.database import get_db
 from app.models.mock import MockMethod, MockRule
+from app.models.ai_llm_config import AILLMConfig
 from app.models.mock_snapshot import MockRuleSnapshot
 from app.models.project import Project
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.schemas.mock import (
     MockRuleCreate,
+    MockAIGenerateIn,
+    MockAIGenerateOut,
     MockRuleOut,
     MockRulePromoteSampleRequest,
     MockRuleSnapshotOut,
@@ -27,6 +31,7 @@ from app.schemas.mock import (
 )
 from app.api.v1.mock_server import get_mock_logs, invalidate_mock_cache
 from app.services.project_scope import scope_to_visible_projects
+from app.services.ai_mock_generator import generate_mock_rule_drafts
 
 router = APIRouter(tags=["mock-rules"])
 
@@ -70,6 +75,53 @@ async def _persist_snapshot(
     db.add(snapshot)
     await db.flush()
     return snapshot
+
+
+@router.post("/mock-rules/ai-generate", response_model=MockAIGenerateOut)
+async def generate_mock_rules_with_ai(
+    body: MockAIGenerateIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_engineer),
+):
+    """Generate editable Mock rule drafts without persisting AI output."""
+    await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
+    project = await db.get(Project, body.project_id)
+    if project is None:
+        raise HTTPException(status_code=404, detail="项目不存在")
+    if not project.ai_llm_config_id:
+        raise HTTPException(status_code=400, detail="项目未配置 AI 模型")
+
+    source_rules = []
+    seen_rule_ids: set[int] = set()
+    for rule_id in body.rule_ids:
+        if rule_id in seen_rule_ids:
+            continue
+        seen_rule_ids.add(rule_id)
+        rule = await db.get(MockRule, rule_id)
+        if rule is None:
+            raise HTTPException(status_code=404, detail="参考 Mock 规则不存在")
+        if rule.project_id != body.project_id:
+            raise HTTPException(status_code=400, detail="参考 Mock 规则不属于当前项目")
+        source_rules.append(rule)
+
+    config = await db.get(AILLMConfig, project.ai_llm_config_id)
+    if config is None:
+        raise HTTPException(status_code=400, detail="项目关联的 AI 配置不存在")
+    try:
+        rules, warnings = await generate_mock_rule_drafts(
+            config=config,
+            source_rules=source_rules,
+            requirement=body.requirement,
+            rule_count=body.rule_count,
+        )
+    except httpx.HTTPStatusError as exc:
+        raise HTTPException(status_code=502, detail=f"LLM 调用失败: {exc.response.status_code}") from exc
+    except httpx.HTTPError as exc:
+        raise HTTPException(status_code=502, detail=f"LLM 网络错误: {exc}") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    return MockAIGenerateOut(project_id=body.project_id, rules=rules, warnings=warnings)
 
 
 @router.post("/mock-rules", response_model=MockRuleOut, status_code=201)

@@ -86,7 +86,7 @@ Windows 全量本地冒烟：
 .\scripts\windows-local-smoke.ps1
 ```
 
-该命令会检查真实后端健康、管理员登录、认证读接口、前端登录页、Playwright mock E2E、Chromium/Firefox/WebKit 页面矩阵、临时文件上传/清理和 HTML/JUnit 报告生成，并在 `.local-run` 生成脱敏 JSON 报告。相对 `-ReportPath` 按项目根目录解析；没有历史执行记录时报告检查会失败，需要跳过时显式使用 `-SkipReports`。需要自动启动服务时加 `-StartServices`；验证结束后停止服务加 `-StopServicesAfter`；Android 设备诊断使用 `-AndroidTarget '<device-ip>:5555'`，完整边界与未覆盖项见 [`docs/windows-local-run.md`](windows-local-run.md)。
+该命令会检查真实后端健康、管理员登录、认证读接口、前端登录页、Playwright mock E2E、Chromium/Firefox/WebKit 页面矩阵、临时文件上传/清理和 HTML/JUnit 报告生成，并在 `.local-run` 生成脱敏 JSON 报告。相对 `-ReportPath` 按项目根目录解析；没有历史执行记录时报告检查会失败，需要跳过时显式使用 `-SkipReports`。如果服务通过 `startup.cmd -Profile remote-infra` 或其他档案运行，应使用相同的 `-EnvFile`，避免 doctor 检查另一套基础设施；首次没有 Web 用例时，可用 `-SeedWebDownloadCase -RequireWebLowcode -RequireWebDownload -SkipReports` 自动创建临时下载用例并在终态后清理；需要自动启动服务时加 `-StartServices`；验证结束后停止服务加 `-StopServicesAfter`；Android 设备诊断使用 `-AndroidTarget '<device-ip>:5555'`，完整边界与未覆盖项见 [`docs/windows-local-run.md`](windows-local-run.md)。
 
 查看状态：
 
@@ -347,6 +347,8 @@ token=xxx
 - 断言
 - 变量提取
 
+gRPC 用例会根据 Proto 中方法的声明自动选择调用模式：Unary、Server Streaming、Client Streaming 或 Bidi Streaming。可以直接粘贴 Proto 内容，也可以分别选择主 `.proto` 和 import 文件；文件会在浏览器端读取并保存到用例配置，不会作为请求文件上传。Worker 执行前会在临时目录重建文件包，并拒绝绝对路径和 `..` 路径。Unary/Server Streaming 的请求填写 JSON 对象；Client/Bidi Streaming 的请求填写非空 JSON 数组。服务端流式响应会以 JSON 数组保存，可继续使用 JSONPath 提取和响应断言。
+
 常见断言：
 
 - 状态码等于 `200`
@@ -563,6 +565,8 @@ adb devices
 
 看到 `<device-ip>:5555 device` 后，再回到平台扫描设备。
 
+如果当前后端使用 Windows Android Agent，并将 `ADB_SCAN_MODE` 配置为 `worker`，点击扫描后页面会先显示任务排队状态，再等待 Worker 将本机 ADB 结果写回；不要把返回的旧列表当作最终扫描结果。若任务长时间未完成，请检查 `windows-android-worker.ps1 status/logs`。
+
 ### 13.2 APK 管理
 
 操作路径：
@@ -653,6 +657,15 @@ Mock 服务
 
 适合在后端接口未完成或需要稳定构造异常场景时使用。
 
+页面也提供“AI 生成 Mock”入口：
+
+1. 先选择项目；可选中已有规则作为生成参考，也可以不选择规则直接填写要求。
+2. 填写生成规则数量和业务要求，点击“开始生成”。项目必须已绑定启用的 AI 模型。
+3. 在预览窗口检查并按需修改 JSON；AI 结果不会自动写入数据库。
+4. 点击“保存 Mock 规则”后才会创建规则。页面上的“AI 生成用例”仍用于根据 Mock 规则生成测试用例草稿，两者用途不同。
+
+生成结果只允许保存为 Mock 规则字段，不应放入真实密码、Cookie、Token 或其他敏感信息；生成数量单次最多 20 条，序列化结果超过限制时需要减少数量或缩短响应体。
+
 ## 16. 通知配置
 
 操作路径：
@@ -714,6 +727,7 @@ Mock 服务
 - 版本历史
 - 回滚
 - 引用影响面查询
+- 项目内 AI 生成合成测试数据（生成结果先进入编辑器，不自动保存）
 
 建议使用方式：
 
@@ -722,6 +736,8 @@ Mock 服务
 3. 上传或录入 rows。
 4. 设置校验策略。
 5. 在用例、套件或计划中引用。
+
+也可以点击页面顶部的“AI 生成数据”快速生成：先选择项目，填写数据集名称、行数和生成要求，点击“开始生成”后检查编辑器中的 JSON 行，再点击“保存”。已有数据集可以从对应操作入口生成覆盖草稿；AI 不会直接覆盖数据库，生成结果仍需经过 Schema 校验和版本保存。项目必须先绑定启用的 AI 模型，单次最多生成 200 行，数据集最终仍受 500 行 / 256KB 限制。
 
 ## 19. 性能压测中心
 
@@ -767,6 +783,13 @@ PERFORMANCE_MAX_DURATION_SECONDS=
 - API Key
 - 模型名称
 - 是否支持视觉能力
+
+三方模型建议选择“OpenAI 兼容（三方）”协议：
+
+- 适用于 Open WebUI、One-API、LiteLLM 等提供 OpenAI-compatible `/v1` 接口的服务。
+- Endpoint 填写服务 Base URL，通常以 `/v1` 结尾；平台会从 `{Endpoint}/models` 拉取模型，并通过 `{Endpoint}/chat/completions` 调用。
+- 这类服务必须填写它自己的 API Token；原生 Ollama 才可以不填 API Key，地址通常是 `http://主机:11434`。
+- 是否支持多模态、思考参数需要以实际模型和供应商文档为准，页面上的模型名称提示不能替代服务端能力确认。
 
 ### 20.2 AI 用例生成
 

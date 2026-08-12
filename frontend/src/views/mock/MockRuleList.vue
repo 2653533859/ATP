@@ -28,6 +28,9 @@
         <a-button :disabled="!projectId || !selectedRuleIds.length" @click="openAIGeneration()">
           <ThunderboltOutlined /> {{ t('mock.ai_generate_selected') }}
         </a-button>
+        <a-button :disabled="!projectId" @click="openAIMockGeneration()">
+          <ThunderboltOutlined /> {{ t('mock.ai_generate_mock') }}
+        </a-button>
         <a-button type="primary" :disabled="!projectId" @click="openCreate">
           <PlusOutlined /> {{ t('mock.add_rule') }}
         </a-button>
@@ -83,6 +86,9 @@
             <a-button type="link" size="small" @click="openAIGeneration(asRule(record))">
               <ThunderboltOutlined />{{ t('mock.ai_generate') }}
             </a-button>
+            <a-button type="link" size="small" @click="openAIMockGeneration(asRule(record))">
+              <ThunderboltOutlined />{{ t('mock.ai_generate_mock_short') }}
+            </a-button>
             <a-button type="link" size="small" @click="openEdit(asRule(record))">{{ t('common.edit') }}</a-button>
             <a-button type="link" size="small" @click="handleCopy(asRule(record))">{{ t('mock.copy') }}</a-button>
             <a-popconfirm :title="t('common.confirm_delete')" @confirm="handleDelete(record.id)">
@@ -92,6 +98,54 @@
         </template>
       </template>
     </a-table>
+
+    <a-modal
+      v-model:open="aiMockGenerateOpen"
+      :title="t('mock.ai_generate_mock_title')"
+      :confirm-loading="aiMockGenerating"
+      :ok-text="t('mock.ai_generate_confirm')"
+      @ok="generateAIMockRules"
+    >
+      <a-alert
+        type="info"
+        show-icon
+        :message="t('mock.ai_generate_hint')"
+        :description="t('mock.ai_generate_review_hint')"
+        style="margin-bottom: 16px"
+      />
+      <a-form layout="vertical">
+        <a-form-item :label="t('mock.ai_rule_count')">
+          <a-input-number v-model:value="aiMockRuleCount" :min="1" :max="20" style="width: 100%" />
+        </a-form-item>
+        <a-form-item :label="t('mock.ai_requirement')">
+          <a-textarea v-model:value="aiMockRequirement" :rows="5" :placeholder="t('mock.ai_requirement_placeholder')" />
+        </a-form-item>
+      </a-form>
+      <div v-if="aiMockSourceRuleIds.length" style="color: var(--c-text-tertiary); font-size: 12px">
+        {{ t('mock.ai_source_rules', { count: aiMockSourceRuleIds.length }) }}
+      </div>
+    </a-modal>
+
+    <a-modal
+      v-model:open="aiMockPreviewOpen"
+      :title="t('mock.ai_preview_title')"
+      :confirm-loading="aiMockSaving"
+      :ok-text="t('mock.ai_save_confirm')"
+      width="760px"
+      @ok="saveAIMockRules"
+    >
+      <a-alert
+        v-if="aiMockWarnings.length"
+        type="warning"
+        show-icon
+        :message="aiMockWarnings.join('；')"
+        style="margin-bottom: 12px"
+      />
+      <div style="margin-bottom: 8px; color: var(--c-text-secondary); font-size: 12px">
+        {{ t('mock.ai_preview_hint') }}
+      </div>
+      <a-textarea v-model:value="aiMockPreviewText" :rows="18" class="code-textarea" />
+    </a-modal>
 
     <a-modal
       v-model:open="formOpen"
@@ -234,7 +288,7 @@ import { message } from 'ant-design-vue'
 import { PlusOutlined, ThunderboltOutlined, UnorderedListOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
-import { mockRuleApi, projectApi, type MockRuleItem, type ProjectItem } from '@/api'
+import { mockRuleApi, projectApi, type MockAIGeneratedRule, type MockRuleItem, type ProjectItem } from '@/api'
 import { getBackendOrigin } from '@/api/http'
 import { buildCasesQuery } from '@/utils/caseNavigation'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
@@ -270,6 +324,16 @@ const loading = ref(false)
 const projectId = ref<number | undefined>(undefined)
 const projectOptions = ref<Array<{ label: string; value: number }>>([])
 const selectedRuleIds = ref<number[]>([])
+
+const aiMockGenerateOpen = ref(false)
+const aiMockPreviewOpen = ref(false)
+const aiMockGenerating = ref(false)
+const aiMockSaving = ref(false)
+const aiMockRequirement = ref('')
+const aiMockRuleCount = ref(1)
+const aiMockSourceRuleIds = ref<number[]>([])
+const aiMockPreviewText = ref('[]')
+const aiMockWarnings = ref<string[]>([])
 
 const formOpen = ref(false)
 const isEdit = ref(false)
@@ -307,7 +371,7 @@ const columns = computed(() => [
   { title: t('mock.columns.status'), key: 'is_enabled', width: 70 },
   { title: t('mock.columns.updated_at'), dataIndex: 'updated_at', width: 170,
     customRender: ({ text }: TableTextRender) => typeof text === 'string' ? text.slice(0, 19).replace('T', ' ') : '-' },
-  { title: t('mock.columns.action'), key: 'action', width: 280, fixed: 'right' as const },
+  { title: t('mock.columns.action'), key: 'action', width: 420, fixed: 'right' as const },
 ])
 
 const logColumns = computed(() => [
@@ -416,6 +480,91 @@ function openAIGeneration(record?: MockRuleRecord) {
       aiMockRuleIds: ruleIds,
     }),
   })
+}
+
+function openAIMockGeneration(record?: MockRuleRecord) {
+  if (!projectId.value) return
+  aiMockSourceRuleIds.value = record ? [record.id] : [...selectedRuleIds.value]
+  aiMockRequirement.value = ''
+  aiMockRuleCount.value = 1
+  aiMockWarnings.value = []
+  aiMockGenerateOpen.value = true
+}
+
+async function generateAIMockRules() {
+  if (!projectId.value) return
+  aiMockGenerating.value = true
+  try {
+    const result = await mockRuleApi.aiGenerate({
+      project_id: projectId.value,
+      rule_ids: aiMockSourceRuleIds.value,
+      requirement: aiMockRequirement.value,
+      rule_count: aiMockRuleCount.value,
+    })
+    aiMockPreviewText.value = JSON.stringify(result.rules, null, 2)
+    aiMockWarnings.value = result.warnings || []
+    aiMockGenerateOpen.value = false
+    aiMockPreviewOpen.value = true
+    message.success(t('mock.ai_generate_success'))
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, t('mock.ai_generate_failed')))
+  } finally {
+    aiMockGenerating.value = false
+  }
+}
+
+function parseAIMockPreview(): MockAIGeneratedRule[] {
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(aiMockPreviewText.value)
+  } catch {
+    throw new Error(t('mock.ai_preview_invalid'))
+  }
+  if (!Array.isArray(parsed) || !parsed.length) {
+    throw new Error(t('mock.ai_preview_array_required'))
+  }
+  return parsed.map((item) => {
+    if (!item || typeof item !== 'object') throw new Error(t('mock.ai_preview_item_invalid'))
+    const rule = item as Partial<MockAIGeneratedRule>
+    if (!rule.name || !rule.path) throw new Error(t('mock.ai_preview_required'))
+    return {
+      name: String(rule.name),
+      method: String(rule.method || 'GET').toUpperCase(),
+      path: String(rule.path).startsWith('/') ? String(rule.path) : `/${String(rule.path)}`,
+      status_code: Number(rule.status_code || 200),
+      response_headers: (rule.response_headers || {}) as Record<string, string>,
+      response_body: rule.response_body == null ? null : String(rule.response_body),
+      match_conditions: (rule.match_conditions || { query: {}, headers: {}, body: {} }) as Record<string, Record<string, string>>,
+      delay_ms: Number(rule.delay_ms || 0),
+      is_enabled: rule.is_enabled !== false,
+      render_template: rule.render_template === true,
+      record_requests: rule.record_requests === true,
+    }
+  })
+}
+
+async function saveAIMockRules() {
+  if (!projectId.value) return
+  let generatedRules: MockAIGeneratedRule[]
+  try {
+    generatedRules = parseAIMockPreview()
+  } catch (error: unknown) {
+    message.warning(getErrorMessage(error, t('mock.ai_preview_invalid')))
+    return
+  }
+  aiMockSaving.value = true
+  try {
+    for (const rule of generatedRules) {
+      await mockRuleApi.create({ ...rule, project_id: projectId.value })
+    }
+    aiMockPreviewOpen.value = false
+    message.success(t('mock.ai_save_success', { count: generatedRules.length }))
+    void loadRules()
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, t('mock.msg.save_failed')))
+  } finally {
+    aiMockSaving.value = false
+  }
 }
 
 function openCreate() {

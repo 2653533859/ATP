@@ -62,6 +62,12 @@ services:
     env_file: .env.performance-acceptance
     ports:
       - "127.0.0.1:18080:8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 20s
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -154,7 +160,7 @@ services:
       migrate:
         condition: service_completed_successfully
       backend:
-        condition: service_started
+        condition: service_healthy
       acceptance-target:
         condition: service_healthy
       redis:
@@ -172,7 +178,7 @@ services:
       - ./docs/evidence:/evidence
     depends_on:
       backend:
-        condition: service_started
+        condition: service_healthy
       performance-worker:
         condition: service_started
       acceptance-target:

@@ -57,6 +57,17 @@ class _FakeResult:
         return self._rows
 
 
+class _FakeControlClient:
+    def get(self, _key):
+        return None
+
+    def delete(self, _key):
+        return 1
+
+    def close(self):
+        return None
+
+
 class _FakeDB:
     def __init__(self, objects=None, execute_rows=None):
         self.objects = dict(objects or {})
@@ -119,6 +130,13 @@ def _stub_device_lease(monkeypatch):
 
     monkeypatch.setattr(tms, "acquire_device_lease", acquire)
     monkeypatch.setattr(tms, "release_device_lease", release)
+
+
+@pytest.fixture(autouse=True)
+def _stub_control_client(monkeypatch):
+    """任务路由测试不得连接开发机上的真实 Redis。"""
+
+    monkeypatch.setattr(tms, "create_control_client", lambda: _FakeControlClient())
 
 
 # ── 纯 helper ───────────────────────────────────────────────

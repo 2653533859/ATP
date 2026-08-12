@@ -363,6 +363,61 @@ def test_api_executor_falls_back_to_single_step_config_and_basic_auth(fake_http,
     assert run.status is RunStatus.passed  # 无断言即视为通过
 
 
+def test_api_executor_oauth2_client_credentials_fetches_and_reuses_token(fake_http, monkeypatch, healing_recorder):
+    _events_recorder(monkeypatch, api_executor)
+    fake_http.script = [
+        _FakeResponse(200, {"access_token": "oauth-token"}),
+        _FakeResponse(200, {"ok": True}),
+        _FakeResponse(200, {"ok": True}),
+    ]
+    auth = {
+        "type": "oauth2_client_credentials",
+        "token_url": "https://issuer.example.com/oauth/token",
+        "client_id": "client-1",
+        "client_secret": "secret-1",
+        "scope": "read",
+    }
+    case = _Obj(
+        config={
+            "steps": [
+                {"url": "https://api.example.com/one", "auth": auth},
+                {"url": "https://api.example.com/two", "auth": auth},
+            ]
+        }
+    )
+
+    asyncio.run(api_executor.run_api_case(_FakeDB(), _run_stub(), case, {}))
+
+    assert len(fake_http.requests) == 3
+    token_request, first_api_request, second_api_request = fake_http.requests
+    assert token_request["url"] == auth["token_url"]
+    assert token_request["auth"] == ("client-1", "secret-1")
+    assert token_request["data"] == {"grant_type": "client_credentials", "scope": "read"}
+    assert first_api_request["headers"]["Authorization"] == "Bearer oauth-token"
+    assert second_api_request["headers"]["Authorization"] == "Bearer oauth-token"
+
+
+def test_api_executor_digest_auth_is_passed_to_httpx(fake_http, monkeypatch, healing_recorder):
+    _events_recorder(monkeypatch, api_executor)
+    marker = object()
+    monkeypatch.setattr(api_executor, "build_digest_auth", lambda *_args: marker)
+    fake_http.script = [_FakeResponse(200, {"ok": True})]
+    case = _Obj(
+        config={
+            "steps": [
+                {
+                    "url": "https://api.example.com/protected",
+                    "auth": {"type": "digest", "username": "u", "password": "p"},
+                }
+            ]
+        }
+    )
+
+    asyncio.run(api_executor.run_api_case(_FakeDB(), _run_stub(), case, {}))
+
+    assert fake_http.requests[0]["auth"] is marker
+
+
 def test_api_executor_reuses_project_cookie_session_when_enabled(fake_http, monkeypatch, healing_recorder):
     _events_recorder(monkeypatch, api_executor)
     loaded = [{"name": "session", "value": "sid-1", "domain": "api.example.com", "path": "/"}]
@@ -611,6 +666,57 @@ def test_graphql_executor_builds_request_and_extracts_variables(fake_http, monke
     }
     assert fake_http.requests[1]["headers"]["X-Token"] == "gq-tok"
     assert events[-1]["type"] == "completed" and events[-1]["status"] == "passed"
+
+
+def test_graphql_executor_oauth2_client_credentials_adds_authorization(fake_http, monkeypatch):
+    _events_recorder(monkeypatch, graphql_executor)
+    fake_http.script = [
+        _FakeResponse(200, {"access_token": "gql-token"}),
+        _FakeResponse(200, {"data": {"ping": True}}),
+    ]
+    case = _Obj(
+        config={
+            "steps": [
+                {
+                    "endpoint": "https://gql.example.com",
+                    "query": "{ ping }",
+                    "auth": {
+                        "type": "oauth2_client_credentials",
+                        "token_url": "https://issuer.example.com/oauth/token",
+                        "client_id": "client-1",
+                        "client_secret": "secret-1",
+                    },
+                }
+            ]
+        }
+    )
+
+    asyncio.run(graphql_executor.run_graphql_case(_FakeDB(), _run_stub(), case, {}))
+
+    assert fake_http.requests[0]["url"] == "https://issuer.example.com/oauth/token"
+    assert fake_http.requests[1]["headers"]["Authorization"] == "Bearer gql-token"
+
+
+def test_graphql_executor_digest_auth_is_passed_to_httpx(fake_http, monkeypatch):
+    _events_recorder(monkeypatch, graphql_executor)
+    marker = object()
+    monkeypatch.setattr(graphql_executor, "build_digest_auth", lambda *_args: marker)
+    fake_http.script = [_FakeResponse(200, {"data": {"ping": True}})]
+    case = _Obj(
+        config={
+            "steps": [
+                {
+                    "endpoint": "https://gql.example.com",
+                    "query": "{ ping }",
+                    "auth": {"type": "digest", "username": "u", "password": "p"},
+                }
+            ]
+        }
+    )
+
+    asyncio.run(graphql_executor.run_graphql_case(_FakeDB(), _run_stub(), case, {}))
+
+    assert fake_http.requests[0]["auth"] is marker
 
 
 def test_graphql_executor_records_transport_error(fake_http, monkeypatch):
@@ -881,10 +987,45 @@ message EchoReply { string text = 1; }
 service Echo { rpc Say (EchoRequest) returns (EchoReply); }
 """
 
+_STREAM_PROTO = """
+syntax = "proto3";
+package demo;
+message EchoRequest { string text = 1; }
+message EchoReply { string text = 1; }
+service Echo {
+  rpc List (EchoRequest) returns (stream EchoReply);
+  rpc Collect (stream EchoRequest) returns (EchoReply);
+  rpc Chat (stream EchoRequest) returns (stream EchoReply);
+}
+"""
+
 
 def test_grpc_compile_proto_rejects_bad_syntax():
     with pytest.raises(RuntimeError, match="Proto 编译失败"):
         grpc_executor._compile_proto("syntax = broken")
+
+
+def test_grpc_compile_proto_supports_imported_files():
+    content = """
+syntax = "proto3";
+package demo;
+import "common/types.proto";
+message Request { common.Shared shared = 1; }
+"""
+    desc_set = grpc_executor._compile_proto(
+        content,
+        {"common/types.proto": 'syntax = "proto3"; package common; message Shared { string id = 1; }'},
+    )
+
+    assert {item.name for item in desc_set.file} == {"service.proto", "common/types.proto"}
+
+
+@pytest.mark.parametrize(
+    "filename", ["../escape.proto", "/tmp/escape.proto", "common/../escape.proto", "common\\..\\escape.proto"]
+)
+def test_grpc_compile_proto_rejects_unsafe_import_paths(filename):
+    with pytest.raises(RuntimeError, match="Proto import 文件名不安全"):
+        grpc_executor._compile_proto('syntax = "proto3";', {filename: 'syntax = "proto3";'})
 
 
 class _FakeChannel:
@@ -897,6 +1038,52 @@ class _FakeChannel:
         async def call(request_msg, timeout=None, metadata=None):
             self.calls.append({"path": method_path, "request": request_msg, "metadata": metadata})
             return self.responder(request_msg)
+
+        return call
+
+    async def close(self):
+        self.closed = True
+
+
+class _FakeStreamingChannel:
+    def __init__(self, response_factory):
+        self.response_factory = response_factory
+        self.closed = False
+        self.calls = []
+
+    def unary_stream(self, method_path, request_serializer=None, response_deserializer=None):
+        def call(request_msg, timeout=None, metadata=None):
+            self.calls.append(
+                {"mode": "server_stream", "path": method_path, "request": request_msg, "metadata": metadata}
+            )
+
+            async def responses():
+                for response in self.response_factory("server_stream", [request_msg]):
+                    yield response
+
+            return responses()
+
+        return call
+
+    def stream_unary(self, method_path, request_serializer=None, response_deserializer=None):
+        async def call(request_iterator, timeout=None, metadata=None):
+            requests = [request async for request in request_iterator]
+            self.calls.append({"mode": "client_stream", "path": method_path, "request": requests, "metadata": metadata})
+            return self.response_factory("client_stream", requests)[0]
+
+        return call
+
+    def stream_stream(self, method_path, request_serializer=None, response_deserializer=None):
+        def call(request_iterator, timeout=None, metadata=None):
+            async def responses():
+                requests = [request async for request in request_iterator]
+                self.calls.append(
+                    {"mode": "bidi_stream", "path": method_path, "request": requests, "metadata": metadata}
+                )
+                for response in self.response_factory("bidi_stream", requests):
+                    yield response
+
+            return responses()
 
         return call
 
@@ -957,6 +1144,151 @@ def test_grpc_executor_compiles_proto_and_asserts_response(monkeypatch):
     assert channel.calls[0]["path"] == "/demo.Echo/Say"
     assert channel.calls[0]["metadata"] == [("x-tenant", "hello")]
     assert events[-1]["status"] == "passed"
+
+
+def test_grpc_executor_compiles_imported_proto_files(monkeypatch):
+    _events_recorder(monkeypatch, grpc_executor)
+
+    main_proto = """
+syntax = "proto3";
+package demo;
+import "common/types.proto";
+message EchoRequest { common.Shared shared = 1; }
+message EchoReply { string text = 1; }
+    service Echo { rpc Say (EchoRequest) returns (EchoReply); }
+"""
+    from google.protobuf import message_factory
+
+    def responder(request_msg):
+        assert request_msg.shared.id == "42"
+        pool = request_msg.DESCRIPTOR.file.pool
+        RespClass = message_factory.GetMessageClass(pool.FindMessageTypeByName("demo.EchoReply"))
+        return RespClass(text="imported")
+
+    channel = _install_grpc_channel(monkeypatch, responder)
+    case = _Obj(
+        config={
+            "steps": [
+                {
+                    "target": "localhost:50051",
+                    "proto_content": main_proto,
+                    "proto_files": {
+                        "common/types.proto": 'syntax = "proto3"; package common; message Shared { string id = 1; }'
+                    },
+                    "service": "demo.Echo",
+                    "method": "Say",
+                    "request_json": '{"shared":{"id":"42"}}',
+                }
+            ]
+        }
+    )
+    run = _run_stub()
+    asyncio.run(grpc_executor.run_grpc_case(_FakeDB(), run, case, {}))
+
+    assert run.status is RunStatus.passed
+    assert channel.calls[0]["path"] == "/demo.Echo/Say"
+
+
+def _stream_case(method: str, request_json: str, assertions=None):
+    return _Obj(
+        config={
+            "steps": [
+                {
+                    "target": "localhost:50051",
+                    "proto_content": _STREAM_PROTO,
+                    "service": "demo.Echo",
+                    "method": method,
+                    "request_json": request_json,
+                    "assertions": assertions or [],
+                }
+            ]
+        }
+    )
+
+
+def _stream_channel(monkeypatch, response_factory):
+    channel = _FakeStreamingChannel(response_factory)
+    monkeypatch.setattr(grpc_executor.grpc.aio, "insecure_channel", lambda target: channel)
+    return channel
+
+
+def test_grpc_executor_supports_server_streaming(monkeypatch):
+    _events_recorder(monkeypatch, grpc_executor)
+
+    def response_factory(_mode, requests):
+        from google.protobuf import message_factory
+
+        pool = requests[0].DESCRIPTOR.file.pool
+        RespClass = message_factory.GetMessageClass(pool.FindMessageTypeByName("demo.EchoReply"))
+        return [RespClass(text="first"), RespClass(text="second")]
+
+    channel = _stream_channel(monkeypatch, response_factory)
+    run = _run_stub()
+    db = _FakeDB()
+    case = _stream_case(
+        "List",
+        '{"text":"hello"}',
+        [{"target": "body", "operator": "eq", "expected": "second", "expression": "$[1].text"}],
+    )
+
+    asyncio.run(grpc_executor.run_grpc_case(db, run, case, {}))
+
+    assert run.status is RunStatus.passed
+    assert channel.calls[0]["mode"] == "server_stream"
+    assert db.added[0].response_data["grpc_mode"] == "server_stream"
+    assert len(db.added[0].response_data["body"]) == 2
+
+
+def test_grpc_executor_supports_client_streaming_with_json_array(monkeypatch):
+    _events_recorder(monkeypatch, grpc_executor)
+
+    def response_factory(_mode, requests):
+        from google.protobuf import message_factory
+
+        pool = requests[0].DESCRIPTOR.file.pool
+        RespClass = message_factory.GetMessageClass(pool.FindMessageTypeByName("demo.EchoReply"))
+        return [RespClass(text="|".join(request.text for request in requests))]
+
+    channel = _stream_channel(monkeypatch, response_factory)
+    run = _run_stub()
+    db = _FakeDB()
+    case = _stream_case(
+        "Collect",
+        '[{"text":"a"},{"text":"b"}]',
+        [{"target": "body", "operator": "eq", "expected": "a|b", "expression": "$.text"}],
+    )
+
+    asyncio.run(grpc_executor.run_grpc_case(db, run, case, {}))
+
+    assert run.status is RunStatus.passed
+    assert channel.calls[0]["mode"] == "client_stream"
+    assert [request.text for request in channel.calls[0]["request"]] == ["a", "b"]
+
+
+def test_grpc_executor_supports_bidi_streaming(monkeypatch):
+    _events_recorder(monkeypatch, grpc_executor)
+
+    def response_factory(_mode, requests):
+        from google.protobuf import message_factory
+
+        pool = requests[0].DESCRIPTOR.file.pool
+        RespClass = message_factory.GetMessageClass(pool.FindMessageTypeByName("demo.EchoReply"))
+        return [RespClass(text=f"reply:{request.text}") for request in requests]
+
+    channel = _stream_channel(monkeypatch, response_factory)
+    run = _run_stub()
+    db = _FakeDB()
+    case = _stream_case(
+        "Chat",
+        '[{"text":"one"},{"text":"two"}]',
+        [{"target": "body", "operator": "contains", "expected": "reply:two", "expression": "$[1].text"}],
+    )
+
+    asyncio.run(grpc_executor.run_grpc_case(db, run, case, {}))
+
+    assert run.status is RunStatus.passed
+    assert channel.calls[0]["mode"] == "bidi_stream"
+    assert db.added[0].response_data["grpc_mode"] == "bidi_stream"
 
 
 def test_grpc_executor_treats_rpc_error_with_matching_assertion_as_pass(monkeypatch):

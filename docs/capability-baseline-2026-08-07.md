@@ -21,32 +21,38 @@
 | GraphQL | ✅ | Query/Mutation、变量、错误断言 | 增加 Schema/订阅能力评估 | GraphQL 执行器回归 |
 | WebSocket | ✅ | 连接、发送、接收、断开、消息断言 | 统一变量和结果契约 | HTTP 家族执行器回归 |
 | SSE | 🔵 | API 执行器 `response_type=sse`，支持事件上限、类型/数据断言；真实服务待验收 | 连接、事件、超时、断言、关闭 | `backend/tests/worker/test_http_family_executors.py` + SSE 真实服务 |
-| gRPC | 🟡 | API 用例支持 Proto + Unary；性能模块支持 Streaming | API 与性能统一流式语义 | Unary/Streaming 联调 |
+| gRPC | 🔵 | API 用例和性能模块均支持 Proto 动态解析；API 按方法声明执行 Unary、Server Streaming、Client Streaming、Bidi Streaming，支持主 Proto 与 import 文件包，统一响应、提取和断言结果 | API 与性能统一流式语义 | `backend/tests/worker/test_http_family_executors.py`；真实 Unary/Streaming 服务联调 |
 | Dubbo 等 RPC | ❌ | 未发现执行器 | 评估协议适配器和依赖隔离 | Dubbo 样例服务验收 |
 | Headers/Params/Body | ✅ | Headers、Query、JSON、Form、Raw | 增加文件和 XML | 请求体矩阵回归 |
 | Cookie | 🔵 | CaseFormDrawer Cookie 编辑器 + 项目 API 会话复用；真实登录服务待验收 | 静态 Cookie、变量 Cookie、会话策略 | `backend/tests/worker/test_http_family_executors.py` |
-| Auth | 🟡 | Bearer、Basic、API Key | OAuth2、Digest 和认证流程封装 | 认证矩阵回归 |
+| Auth | 🔵 | Bearer、Basic、API Key；API/GraphQL 支持 OAuth2 Client Credentials（Basic/Post、scope/audience、单场景 token 缓存）和 Digest | 真实 Token Endpoint、Digest challenge、超时与凭据轮换联调 | `backend/app/services/api_auth.py`、`test_api_auth.py`、`test_http_family_executors.py` |
 | JSON/XML/表单/文件 | 🔵 | JSON、表单、Raw、XML、multipart；文件走 `api-files/` 对象引用 | 完整内容类型与文件字段 | `test_api_request_files_routes.py` + multipart/XML 回归 |
 | 状态码/字段/表达式断言 | ✅ | 状态码、Header、Body、耗时、JSON Schema、XPath、受限 AST 表达式及基础操作符 | Schema、XPath、安全表达式 | `test_http_family_executors.py`、`test_safe_expressions.py` |
 | JSONPath 提取 | ✅ | JSONPath 提取到上下文变量 | 与 XML/XPath 统一 | 提取链路回归 |
 | XPath 提取 | 🔵 | API 执行器安全 XML 解析和 XPath 提取/断言 | XML 提取和断言 | `test_http_family_executors.py` |
 | 接口依赖和上下文变量 | ✅ | 环境、全局、数据集、前步提取、API 会话 | 增加作用域和生命周期可视化 | 登录-Token-业务请求场景 |
 | 前置/后置脚本 | 🟡 | API 受限动作 DSL：变量设置/删除、响应提取和断言；不执行任意代码 | 扩展统一表达式与场景作用域 | API Hook 回归 |
-| 数据驱动 | 🟡 | 数据集按行生成子运行并支持版本；用例支持顺序、随机、固定次数三种有界策略 | 受控组合策略和输入摘要脱敏 | 数据集参数化回归 |
+| 数据驱动 | 🟡 | 数据集按行生成子运行并支持版本；用例支持顺序、随机、固定次数三种有界策略；数据集页面可按项目 AI 配置生成合成数据草稿 | 受控组合策略和输入摘要脱敏 | 数据集参数化回归、`test_ai_dataset_generator.py` |
 | 参数组合 | ✅ | 支持顺序/随机/固定次数、笛卡尔积、Pairwise、组合字段、迭代上限和嵌套脱敏摘要 | 受控组合策略和输入摘要 | `test_dataset_execution.py`、`test_dataset_parameterized.py` |
 | 集合/场景编排 | ✅ | 套件、计划、多步骤用例；API 编辑器展示 `depends_on`，支持失败策略、上下文作用域和登录态生命周期 | API 场景依赖、失败策略和作用域可视化 | `test_api_scenario.py`、`test_http_family_executors.py`；Suite/Plan E2E |
 | OpenAPI/Swagger/Postman | 🟡 | 支持解析、预览、冲突检测、跳过/替换策略、单事务导入和异常回滚；项目级 JSON Schema 与 Provider/Consumer 契约资产已可保存/复用；项目内 `$ref` 可展开，外部/远程 `$ref` 支持默认 `warn` 和发布安全 `reject`，均不联网拉取 | 预览、冲突、回滚、可执行用例导入、Schema/契约资产和真实规格联调 | `test_case_import_routes.py`、`test_api_schema_assets.py`、`test_api_contract_assets.py`、`test_ai_case_parsers.py` |
-| Mock 服务 | ✅ | 路径、方法、匹配条件、模板、录制、版本 | 增加 Schema 和契约联动 | Mock 规则回归 |
+| Mock 服务 | ✅ | 路径、方法、匹配条件、模板、录制、版本；支持按要求或参考规则 AI 生成草稿并确认保存 | 增加 Schema 和契约联动 | Mock 规则回归、Mock AI 生成回归 |
 | 契约/兼容性测试 | 🟡 | OpenAPI/Swagger/JSON Schema 比较、必填字段/类型/状态码变化报告；项目级 Provider/Consumer 资产 CRUD、版本递增、角色筛选和资产比较页面已接入；外部引用已具备 `warn/reject` 发布策略 | 真实 Provider/Consumer 规范样本和关键 UI/E2E | `test_api_contract_assets.py`、`ApiContractAssetsView.spec.ts`；真实规格联调 |
+
+### AI 模型配置补充
+
+| 能力 | 当前状态 | 当前实现 | 后续验收 |
+|---|---|---|---|
+| 三方 OpenAI 兼容模型 | 🟡 | `openai_compatible` 协议、Endpoint 必填、`/models` 模型发现和 `/chat/completions` 调用；适配 Open WebUI/One-API/LiteLLM | 真实 Token、模型列表、多模态输入和思考参数联调 |
 
 ## 2. Web UI 测试
 
 | 能力 | 当前状态 | 当前实现 | 目标状态 | 后续验收 |
 |---|---|---|---|---|
 | Playwright | ✅ | pytest-playwright + Playwright 低代码执行器 | 保持统一配置 | Web 执行器回归 |
-| 浏览器录制/低代码 | ✅ | Chromium 录制、点击/输入/选择/按键转步骤 | 多浏览器录制和资产引用 | 录制 E2E |
+| 浏览器录制/低代码 | ✅ | 录制弹窗可选择 Chromium/Firefox/WebKit，点击/输入/选择/按键转步骤；Web/Android 低代码可生成可编辑 Python 脚本，Web 文件操作/视觉断言/POM 会展开或明确失败 | 真实专用 Worker 上的浏览器矩阵和资产引用深度联动 | 录制 E2E |
 | 页面元素定位 | ✅ | CSS、Playwright locator、文本等基础定位 | 元素库、备用定位器、版本记录 | 元素库组件测试 |
-| 元素库 | 🔵 | `WebElementAsset` 模型、项目级 CRUD 页面/API、备用定位器、版本和失效记录；绑定项目的 Web 录制会自动创建资产并回填 `element_asset_id`，低代码 Worker 按顺序回退 | 与 POM/执行报告联动 | `test_web_recordings.py`、`test_web_assets_routes.py`、`test_web_lowcode_executor.py`；真实录制 E2E 待补 |
+| 元素库 | 🔵 | `WebElementAsset` 模型、项目级 CRUD 页面/API、备用定位器、版本和失效记录；绑定项目的 Web 录制会自动创建资产并回填 `element_asset_id`，低代码 Worker 按顺序回退；录制会话已支持 Redis 路由与独立 Worker 进程 | 与 POM/执行报告联动 | `test_web_recordings.py`、`test_web_assets_routes.py`、`test_web_lowcode_executor.py`、`test_web_recording_transport.py`；真实 Linux/Xvfb 与跨副本录制 E2E 待补 |
 | 页面对象模型 POM | 🔵 | `WebPageObject` 模型、元素引用/公共操作 JSON 编辑、项目级 CRUD 页面/API；低代码 Worker 已展开并执行引用 | 低代码步骤可直接引用页面对象并执行公共操作 | `test_web_assets_routes.py`、`test_web_lowcode_executor.py`；真实浏览器验收 |
 | 多浏览器 | 🔵 | 录制、低代码、脚本均接受 Chromium/Firefox/WebKit；本机三浏览器烟测均可访问 `/login` 并等待输入元素挂载，真实 Worker 矩阵仍待验收 | Chromium/Firefox/WebKit | `frontend/tools/browser-matrix-smoke.mjs`、`docs/evidence/web-browser-matrix-local-smoke-2026-08-07.json`；Docker Worker 验收 |
 | 多分辨率 | ✅ | viewport 宽高配置 | 浏览器×分辨率矩阵 | 矩阵结果回归 |
@@ -70,7 +76,7 @@
 | App 安装/卸载/版本 | 🟡 | APK 资产选择；专项任务支持执行前安装/卸载/清理/启动和执行后卸载 | 真实 ADB 设备生命周期验收 | Android 前置动作回归 |
 | 截图/录屏/设备日志 | 🟡 | Android 截图、可选 MP4 录屏、logcat、设备信息和系统日志上传；受大小/时长限制 | 标准录屏、logcat、设备信息附件 | `test_android_lowcode_executor.py`；真实设备附件回归 |
 | 弱网/权限/旋转/来电 | 🟡 | 已支持网络配置、授予/撤销权限、旋转、后台/前台；来电等外部事件仍待设备环境 | 网络、权限、旋转、系统事件注入 | Android 专项回归和真实设备验收 |
-| 多设备并行 | 🟡 | 设备兼容矩阵创建隔离子运行并汇总；当前矩阵执行按设备串行，设备池并行调度待补 | 设备池自动分配和矩阵聚合 | `test_device_compatibility.py`；真实设备并发回归 |
+| 多设备并行 | 🔵 | 设备兼容矩阵创建隔离子运行；每个子运行使用独立数据库会话和独立设备租约，并通过 `asyncio.gather` 并行调度后聚合结果 | 设备池自动分配、并发抢占、故障恢复和矩阵聚合 | `test_android_lowcode_executor.py`；真实设备并发回归 |
 | 兼容性测试 | 🟡 | 支持设备序列号、型号、系统版本、SDK 和分辨率匹配校验及矩阵汇总 | 兼容性矩阵和失败聚合 | `test_device_compatibility.py`；真实设备矩阵验收 |
 
 ## 4. 性能测试

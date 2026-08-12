@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.case import TestRun, TestCase, StepResult, RunStatus
 from app.core.redis_client import publish_run_event
 from app.services.dataset_execution import redact_execution_evidence
+from app.services.api_auth import build_digest_auth, resolve_oauth2_client_credentials_token
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
 
 
@@ -26,6 +27,7 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
     context: dict = {**extra_vars}
     all_passed = True
     total_start = time.monotonic()
+    oauth_token_cache: dict[str, tuple[str, float]] = {}
 
     for idx, step in enumerate(steps):
         step_start = time.monotonic()
@@ -76,6 +78,17 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
                 if header_name:
                     headers[header_name] = header_value
 
+            request_auth = None
+            if auth_type == "digest":
+                request_auth = build_digest_auth(auth_cfg, lambda value: _render(value, context))
+            elif auth_type == "oauth2_client_credentials":
+                headers["Authorization"] = await resolve_oauth2_client_credentials_token(
+                    auth_cfg,
+                    lambda value: _render(value, context),
+                    float(timeout),
+                    oauth_token_cache,
+                )
+
             # 构造 GraphQL 请求体
             gql_body: dict = {"query": query}
             if rendered_vars:
@@ -91,7 +104,7 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
             }
 
             async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.post(endpoint, headers=headers, json=gql_body)
+                resp = await client.post(endpoint, headers=headers, json=gql_body, auth=request_auth)
 
             duration = int((time.monotonic() - step_start) * 1000)
             try:

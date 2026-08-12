@@ -81,3 +81,21 @@ def test_ollama_discovery_uses_native_tags_endpoint(monkeypatch):
         "http://127.0.0.1:11434/api/tags",
         {"Accept": "application/json"},
     )
+
+
+def test_openai_compatible_discovery_uses_custom_v1_endpoint(monkeypatch):
+    _AsyncClient.requests = []
+    _AsyncClient.response = _Response({"data": [{"id": "qwen2.5-vl", "owned_by": "third-party"}]})
+    monkeypatch.setattr(model_discovery.httpx, "AsyncClient", _AsyncClient)
+
+    models = asyncio.run(
+        model_discovery.discover_models("openai_compatible", "https://llm.example.com/v1", "service-token")
+    )
+
+    assert [model["id"] for model in models] == ["qwen2.5-vl"]
+    assert _AsyncClient.requests == [
+        (
+            "https://llm.example.com/v1/models",
+            {"Accept": "application/json", "Authorization": "Bearer service-token"},
+        )
+    ]
