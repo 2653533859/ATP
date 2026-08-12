@@ -13,6 +13,7 @@ backend/celerybeat-schedule.dat
 backend/celerybeat-schedule.dir
 
 frontend/node_modules/
+node_modules/
 frontend/dist/
 .local-run/
 .env.windows-wsl-backup

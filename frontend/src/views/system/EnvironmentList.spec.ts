@@ -35,6 +35,7 @@ vi.mock('vue-i18n', () => ({
     t: (key: string) => key,
   }),
 }))
+vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }) }))
 
 const passthrough = { template: '<div><slot /></div>' }
 
@@ -80,13 +81,14 @@ describe('EnvironmentList', () => {
     environmentList.mockResolvedValue([])
   })
 
-  it('shows the project-selection empty state after loading projects', async () => {
+  it('selects the first project from the workspace context after loading projects', async () => {
     const wrapper = mountPage()
 
     await flushPromises()
 
     expect(projectList).toHaveBeenCalledOnce()
-    expect(wrapper.find('[data-test="empty"]').text()).toBe('system_pages.environment.select_project_first')
+    expect(environmentList).toHaveBeenCalledWith(1)
+    expect(wrapper.find('[data-test="empty"]').text()).toBe('system_pages.environment.no_environments')
     expect(wrapper.find('[data-test="loading"]').attributes('data-spinning')).toBe('false')
   })
 

@@ -34,7 +34,7 @@ from app.schemas.suite import (
     SuiteBatchDeleteIn,
     SuiteBatchOpOut,
 )
-from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user
 from app.models.user_project import ProjectRole
 from app.services.execution_routing import enqueue_task, resolve_suite_execution_queue
 from app.services.project_scope import scope_to_visible_projects
@@ -82,7 +82,7 @@ async def _validate_suite_case_ids(db: AsyncSession, project_id: int, case_items
 async def create_suite(
     body: TestSuiteCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
     project = await db.get(Project, body.project_id)
@@ -138,7 +138,7 @@ async def update_suite(
     suite_id: int,
     body: TestSuiteUpdate,
     db: AsyncSession = Depends(get_db),
-    user=Depends(require_engineer),
+    user=Depends(get_current_user),
 ):
     suite = await db.get(TestSuite, suite_id)
     if not suite:
@@ -159,7 +159,7 @@ async def update_suite(
 async def delete_suite(
     suite_id: int,
     db: AsyncSession = Depends(get_db),
-    user=Depends(require_engineer),
+    user=Depends(get_current_user),
 ):
     suite = await db.get(TestSuite, suite_id)
     if not suite:
@@ -173,10 +173,12 @@ async def delete_suite(
 async def batch_delete_suites(
     body: SuiteBatchDeleteIn,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     requested_ids = list(dict.fromkeys(body.suite_ids))
     rows = (await db.execute(select(TestSuite).where(TestSuite.id.in_(requested_ids)))).scalars().all()
+    for suite in rows:
+        await assert_project_access(db, current_user, suite.project_id, ProjectRole.editor)
     found_ids = {row.id for row in rows}
     skipped_ids = [sid for sid in requested_ids if sid not in found_ids]
 
@@ -194,10 +196,12 @@ async def batch_delete_suites(
 async def batch_copy_suites(
     body: SuiteBatchCopyIn,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     requested_ids = list(dict.fromkeys(body.suite_ids))
     rows = (await db.execute(select(TestSuite).where(TestSuite.id.in_(requested_ids)))).scalars().all()
+    for suite in rows:
+        await assert_project_access(db, current_user, suite.project_id, ProjectRole.editor)
     found_ids = {row.id for row in rows}
     skipped_ids = [sid for sid in requested_ids if sid not in found_ids]
 
@@ -245,6 +249,8 @@ async def trigger_suite_run(
         env = await db.get(Environment, body.env_id)
         if not env:
             raise HTTPException(status_code=404, detail="环境不存在")
+        if env.project_id != suite.project_id:
+            raise HTTPException(status_code=400, detail="环境不属于套件所在项目")
         env_name = env.name
         result = await db.execute(select(EnvVariable).where(EnvVariable.env_id == env.id))
         env_vars = decrypt_env_vars(result.scalars().all())

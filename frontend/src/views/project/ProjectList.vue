@@ -6,10 +6,10 @@
         <div class="page-subtitle">{{ t('project.subtitle') }}</div>
       </div>
       <a-space>
-        <a-upload :show-upload-list="false" accept=".json" :before-upload="handleImportFile">
+        <a-upload v-if="canCreateProjects" :show-upload-list="false" accept=".json" :before-upload="handleImportFile">
           <a-button>{{ t('project.import') }}</a-button>
         </a-upload>
-        <a-button type="primary" @click="openCreate">{{ t('project.new') }}</a-button>
+        <a-button v-if="canCreateProjects" type="primary" @click="openCreate">{{ t('project.new') }}</a-button>
       </a-space>
     </div>
 
@@ -46,8 +46,9 @@
               {{ t('project.ai_model_label', { model: llmConfigLabel(p.ai_llm_config_id) }) }}
             </p>
             <template #extra>
-              <a-button type="link" @click.stop="openMembers(p)">{{ t('project.members') }}</a-button>
+              <a-button v-if="canManage(p)" type="link" @click.stop="openMembers(p)">{{ t('project.members') }}</a-button>
               <a-button
+                v-if="canManage(p)"
                 type="link"
                 :disabled="p.status === 'archived'"
                 :title="p.status === 'archived' ? t('project.archived_action_hint') : undefined"
@@ -56,6 +57,7 @@
                 {{ t('common.edit') }}
               </a-button>
               <a-button
+                v-if="canManage(p)"
                 type="link"
                 :disabled="p.status === 'archived'"
                 :title="p.status === 'archived' ? t('project.archived_action_hint') : undefined"
@@ -65,7 +67,7 @@
               </a-button>
               <a-button type="link" @click.stop="handleExport(p)">{{ t('project.export') }}</a-button>
               <a-popconfirm
-                v-if="p.status === 'active'"
+                v-if="canManage(p) && p.status === 'active'"
                 :title="t('project.archive_confirm')"
                 :ok-text="t('project.archive')"
                 :cancel-text="t('common.cancel')"
@@ -73,8 +75,8 @@
               >
                 <a-button type="link" @click.stop>{{ t('project.archive') }}</a-button>
               </a-popconfirm>
-              <a-button v-else type="link" @click.stop="handleRestore(p.id)">{{ t('project.restore') }}</a-button>
-              <a-button type="link" danger @click.stop="handleDelete(p.id)">{{ t('common.delete') }}</a-button>
+              <a-button v-else-if="canManage(p)" type="link" @click.stop="handleRestore(p.id)">{{ t('project.restore') }}</a-button>
+              <a-button v-if="canManage(p)" type="link" danger @click.stop="handleDelete(p.id)">{{ t('common.delete') }}</a-button>
             </template>
           </a-card>
         </a-col>
@@ -193,9 +195,14 @@ import {
 } from '@/api'
 import MemberManageDrawer from './MemberManageDrawer.vue'
 import { getProjectErrorMessage } from './project-errors'
+import { useAuthStore } from '@/stores/auth'
+import { canEditProjectAssets, canManageProject } from '@/utils/permissions'
 
 const router = useRouter()
 const { t } = useI18n()
+const auth = useAuthStore()
+const canCreateProjects = computed(() => canEditProjectAssets(auth.user?.role))
+const canManage = (project: ProjectItem) => canManageProject(auth.user?.role, project.current_user_role)
 
 const memberDrawerOpen = ref(false)
 const memberProjectId = ref<number | null>(null)

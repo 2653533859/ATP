@@ -234,6 +234,23 @@ def test_trigger_plan_run_enqueues_with_env_vars(stubs):
     assert stubs["delayed"][0][1] == {"BASE": "x", "X": "1"}
 
 
+def test_trigger_plan_run_rejects_environment_from_another_project(stubs):
+    plan = _Obj(id=1, project_id=5, suite_ids=[{"suite_id": 1}], env_id=None)
+    db = _FakeDB({("TestPlan", 1): plan, ("Environment", 9): _Obj(id=9, project_id=6)})
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            pl.trigger_plan_run(
+                plan_id=1,
+                body=PlanRunTrigger(env_id=9),
+                db=db,
+                current_user=_user(),
+            )
+        )
+
+    assert exc.value.status_code == 400 and "不属于计划所在项目" in exc.value.detail
+
+
 def test_trigger_plan_run_rejects_empty_and_404(stubs):
     with pytest.raises(HTTPException) as exc:
         asyncio.run(pl.trigger_plan_run(plan_id=404, body=PlanRunTrigger(), db=_FakeDB(), current_user=_user()))
@@ -266,12 +283,21 @@ def _hook_plan(**overrides):
 
 
 def test_webhook_trigger_success(stubs):
-    db = _FakeDB({("TestPlan", 1): _hook_plan()})
+    db = _FakeDB({("TestPlan", 1): _hook_plan(), ("Project", 5): _Obj(id=5, status="active")})
 
     run = asyncio.run(pl.webhook_trigger(body=WebhookTriggerRequest(plan_id=1), x_webhook_secret="s3cr3t", db=db))
 
     assert run.trigger_type is TriggerType.webhook and run.triggered_by is None
     assert len(stubs["delayed"]) == 1
+
+
+def test_webhook_trigger_rejects_archived_project(stubs):
+    db = _FakeDB({("TestPlan", 1): _hook_plan(), ("Project", 5): _Obj(id=5, status="archived")})
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(pl.webhook_trigger(body=WebhookTriggerRequest(plan_id=1), x_webhook_secret="s3cr3t", db=db))
+
+    assert exc.value.status_code == 409
 
 
 def test_webhook_trigger_404():

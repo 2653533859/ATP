@@ -49,6 +49,9 @@ vi.mock('vue-router', () => ({
   createWebHistory: () => ({}),
   useRouter: () => ({ push: routerPush }),
 }))
+vi.mock('@/stores/auth', () => ({
+  useAuthStore: () => ({ user: { id: 9, role: 'engineer' } }),
+}))
 vi.mock('ant-design-vue', () => ({
   message: { error: messageError, success: messageSuccess, warning: messageWarning },
 }))
@@ -95,8 +98,8 @@ function mountPage() {
 }
 
 const PROJECTS = [
-  { id: 1, name: 'Core', description: 'API tests', ai_llm_config_id: 7, status: 'active' },
-  { id: 2, name: 'Archived', description: null, ai_llm_config_id: null, status: 'archived' },
+  { id: 1, name: 'Core', description: 'API tests', ai_llm_config_id: 7, status: 'active', current_user_role: 'owner' },
+  { id: 2, name: 'Archived', description: null, ai_llm_config_id: null, status: 'archived', current_user_role: 'owner' },
 ]
 
 beforeEach(() => {

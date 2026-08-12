@@ -454,7 +454,7 @@ def test_trigger_suite_run_merges_env_vars_with_extra_priority(monkeypatch):
     delayed = _wire_dispatch(monkeypatch)
     monkeypatch.setattr(suites, "decrypt_env_vars", lambda rows: {"HOST": "env-host", "TOKEN": "env-token"})
     suite = _FakeSuiteRun(id=33, case_ids=[{"case_id": 1, "sort": 0}], project_id=1)
-    env = types.SimpleNamespace(id=77, name="staging")
+    env = types.SimpleNamespace(id=77, name="staging", project_id=1)
     db = _FakeDB(suite=suite, env=env, cases=[])
 
     result = asyncio.run(
@@ -468,6 +468,25 @@ def test_trigger_suite_run_merges_env_vars_with_extra_priority(monkeypatch):
 
     assert result.environment == "staging"
     assert delayed["extra_vars"] == {"HOST": "override-host", "TOKEN": "env-token"}  # extra 覆盖环境变量
+
+
+def test_trigger_suite_run_rejects_environment_from_another_project(monkeypatch):
+    load_all_models()
+    _wire_dispatch(monkeypatch)
+    suite = _FakeSuiteRun(id=33, case_ids=[{"case_id": 1, "sort": 0}], project_id=1)
+    env = types.SimpleNamespace(id=77, name="foreign", project_id=2)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            suites.trigger_suite_run(
+                suite_id=33,
+                body=suites.SuiteRunTrigger(env_id=77),
+                db=_FakeDB(suite=suite, env=env),
+                current_user=types.SimpleNamespace(id=9),
+            )
+        )
+
+    assert exc.value.status_code == 400 and "不属于套件所在项目" in exc.value.detail
 
 
 def test_list_and_get_suite_runs():

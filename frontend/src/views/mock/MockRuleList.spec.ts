@@ -35,6 +35,10 @@ const {
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => params ? `${key}:${JSON.stringify(params)}` : key }),
 }))
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: {} }),
+  useRouter: () => ({ push: vi.fn() }),
+}))
 vi.mock('ant-design-vue', () => ({
   message: { error: messageError, success: messageSuccess, warning: messageWarning },
 }))

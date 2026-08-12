@@ -1,4 +1,5 @@
 export type UserRole = 'admin' | 'engineer' | 'tester' | 'viewer'
+export type ProjectRole = 'owner' | 'editor' | 'viewer'
 
 const EDITOR_ROLES: UserRole[] = ['admin', 'engineer']
 const ADMIN_ROLES: UserRole[] = ['admin']
@@ -22,4 +23,12 @@ export function canManageSystem(role: string | null | undefined) {
 
 export function canEditProjectAssets(role: string | null | undefined) {
   return hasAnyRole(role, EDITOR_ROLES)
+}
+
+export function canEditProjectByRole(globalRole: string | null | undefined, projectRole?: ProjectRole | null) {
+  return normalizeRole(globalRole) === 'admin' || projectRole === 'owner' || projectRole === 'editor'
+}
+
+export function canManageProject(globalRole: string | null | undefined, projectRole?: ProjectRole | null) {
+  return normalizeRole(globalRole) === 'admin' || projectRole === 'owner'
 }

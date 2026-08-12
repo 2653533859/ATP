@@ -165,6 +165,7 @@
                       <a-menu-item key="grpc" @click="openCreate('grpc')">{{ t('case.types.grpc') }}</a-menu-item>
                       <a-menu-item key="web" @click="openCreate('web')">{{ t('case.types.web') }}</a-menu-item>
                       <a-menu-item key="android" @click="openCreate('android')">{{ t('case.types.android') }}</a-menu-item>
+                      <a-menu-item key="ios" @click="openCreate('ios')">{{ t('case.types.ios') }}</a-menu-item>
                     </a-menu>
                   </template>
                   <a-button type="primary" :disabled="!selectedModuleId || !canModifyCases">
@@ -543,7 +544,7 @@ import AndroidCaseDrawer from '@/views/case/AndroidCaseDrawer.vue'
 import CaseHistoryDrawer from '@/views/case/CaseHistoryDrawer.vue'
 import AIGenerateDrawer from '@/views/case/AIGenerateDrawer.vue'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
-import { canEditProjectAssets, hasAnyRole } from '@/utils/permissions'
+import { canEditProjectByRole } from '@/utils/permissions'
 import {
   buildCaseDetailLocation,
   buildCasesQuery,
@@ -592,6 +593,7 @@ const caseTypeOptions = computed<Array<{ label: string; value: CaseType }>>(() =
   { label: t('case.types.grpc'), value: 'grpc' },
   { label: t('case.types.web'), value: 'web' },
   { label: t('case.types.android'), value: 'android' },
+  { label: t('case.types.ios'), value: 'ios' },
 ])
 
 const priorityOptions: Array<{ label: string; value: CasePriority }> = [
@@ -708,9 +710,12 @@ const pendingReviewCount = computed(() => countPendingReviews(filteredCases.valu
 
 const flakyCaseCount = computed(() => countFlakyCases(filteredCases.value))
 
-const canModifyCases = computed(() => canEditProjectAssets(auth.user?.role))
-const canApproveCases = computed(() => canEditProjectAssets(auth.user?.role))
-const canRunCases = computed(() => hasAnyRole(auth.user?.role, ['admin', 'engineer', 'tester']))
+const selectedProjectRole = computed(() =>
+  projects.value.find((project) => project.id === selectedProjectId.value)?.current_user_role,
+)
+const canModifyCases = computed(() => canEditProjectByRole(auth.user?.role, selectedProjectRole.value))
+const canApproveCases = canModifyCases
+const canRunCases = canModifyCases
 const caseCreateDisabledTip = computed(() => {
   if (!canModifyCases.value) return t('case.msg.read_only_role')
   if (!selectedModuleId.value) return t('case.msg.select_module_first')

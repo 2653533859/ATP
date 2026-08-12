@@ -9,6 +9,7 @@ from app.api.deps import (
     assert_project_access,
     get_current_user,
     require_admin,
+    require_engineer,
     require_project_access,
     require_project_writable_access,
 )
@@ -129,20 +130,29 @@ async def list_projects(
     current_user: User = Depends(get_current_user),
 ):
     # admin 看全部；非 admin 仅看自己在 user_projects 里的项目
-    stmt = select(Project).order_by(Project.created_at.desc())
-    if current_user.role != UserRole.admin:
-        stmt = stmt.join(UserProject, UserProject.project_id == Project.id).where(
-            UserProject.user_id == current_user.id
-        )
-    result = await db.execute(stmt)
-    return result.scalars().all()
+    if current_user.role == UserRole.admin:
+        result = await db.execute(select(Project).order_by(Project.created_at.desc()))
+        return [
+            ProjectOut.model_validate(project).model_copy(update={"current_user_role": ProjectRole.owner})
+            for project in result.scalars().all()
+        ]
+    result = await db.execute(
+        select(Project, UserProject.role)
+        .join(UserProject, UserProject.project_id == Project.id)
+        .where(UserProject.user_id == current_user.id)
+        .order_by(Project.created_at.desc())
+    )
+    return [
+        ProjectOut.model_validate(project).model_copy(update={"current_user_role": role})
+        for project, role in result.all()
+    ]
 
 
 @router.post("/projects", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
 async def create_project(
     body: ProjectCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ):
     payload = body.model_dump()
     payload.pop("template", None)
@@ -189,7 +199,7 @@ async def create_project(
 async def preview_project_import(
     body: ProjectImportIn,
     db: AsyncSession = Depends(get_db),
-    _=Depends(get_current_user),
+    _=Depends(require_engineer),
 ):
     return await _preview_project_import(db, body)
 
@@ -198,7 +208,7 @@ async def preview_project_import(
 async def import_project(
     body: ProjectImportIn,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_engineer),
 ):
     preview = await _preview_project_import(db, body)
     if not preview.valid:

@@ -127,6 +127,11 @@ def stubs(monkeypatch):
     monkeypatch.setattr(cases_pkg, "_generate_case_code", fake_case_code)
     monkeypatch.setattr(cases_pkg, "_get_module_for_case_code", fake_module_for_code)
     monkeypatch.setattr(cases_pkg, "_serialize_steps", lambda steps: [{"step_no": i + 1} for i in range(len(steps))])
+
+    async def allow_cases(_db, _user, rows, _role):
+        return {1} if rows else set()
+
+    monkeypatch.setattr(bt, "_assert_cases_access", allow_cases)
     return {"audit": audit_calls, "invalidate": invalidate_calls}
 
 
@@ -222,7 +227,7 @@ def test_batch_move_skips_already_in_target(stubs):
     already = _case(1, module_id=10)
     movable = _case(2, module_id=3)
     db = _FakeDB(
-        objects={("Module", 10): _Obj(id=10)},
+        objects={("Module", 10): _Obj(id=10, project_id=1)},
         execute_results=[_FakeResult(rows=[already, movable])],
     )
     assert Module.__name__ == "Module"

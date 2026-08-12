@@ -24,6 +24,7 @@ _deps = sys.modules.setdefault("app.api.deps", types.SimpleNamespace())
 for _name, _value in (
     ("get_current_user", lambda: None),
     ("require_admin", lambda: None),
+    ("require_engineer", lambda: None),
     ("assert_project_access", _noop_async),
     ("require_project_access", lambda role: _noop_async),
     ("require_project_writable_access", lambda role: _noop_async),
@@ -139,9 +140,22 @@ def _user(uid=9, role=UserRole.engineer):
 
 
 def test_list_projects_scopes_non_admin_to_memberships():
-    db = _FakeDB(execute_results=[_FakeResult(rows=[_Obj(id=1)])])
+    project = _Obj(
+        id=1,
+        name="P1",
+        project_code="P1",
+        description=None,
+        owner_id=9,
+        ai_llm_config_id=None,
+        status="active",
+        run_retention_days_override=None,
+        created_at=_now(),
+        updated_at=_now(),
+    )
+    db = _FakeDB(execute_results=[_FakeResult(rows=[(project, ProjectRole.editor)])])
     result = asyncio.run(prj.list_projects(db=db, current_user=_user(role=UserRole.engineer)))
     assert [p.id for p in result] == [1]
+    assert result[0].current_user_role is ProjectRole.editor
 
 
 def test_create_project_auto_assigns_owner_and_code():

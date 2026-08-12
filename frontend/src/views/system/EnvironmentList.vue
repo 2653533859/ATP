@@ -127,14 +127,17 @@
 import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import {
   projectApi,
   environmentApi,
   type ProjectItem,
   type EnvironmentItem,
 } from '@/api'
+import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
 
 const { t } = useI18n()
+const route = useRoute()
 
 type EditingVariable = {
   key: string
@@ -185,6 +188,8 @@ onMounted(async () => {
     const list = await projectApi.list()
     projects.value = list
     projectOptions.value = list.map((p) => ({ label: p.name, value: p.id }))
+    selectedProjectId.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), list) ?? null
+    await loadEnvironments()
   } catch (e: unknown) {
     message.error(errorMessage(e, t('system_pages.environment.msg.load_projects_failed')))
   }

@@ -287,10 +287,11 @@ import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, ThunderboltOutlined, UnorderedListOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { mockRuleApi, projectApi, type MockAIGeneratedRule, type MockRuleItem, type ProjectItem } from '@/api'
 import { getBackendOrigin } from '@/api/http'
 import { buildCasesQuery } from '@/utils/caseNavigation'
+import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asRule = (record: unknown) => record as MockRuleRecord
 
@@ -319,6 +320,7 @@ type TableTextRender = { text?: string | number | null }
 
 const { t } = useI18n()
 const router = useRouter()
+const route = useRoute()
 const rules = ref<MockRuleRecord[]>([])
 const loading = ref(false)
 const projectId = ref<number | undefined>(undefined)
@@ -440,6 +442,8 @@ onMounted(async () => {
   try {
     const projects = await projectApi.list()
     projectOptions.value = projects.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
+    projectId.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), projects)
+    await loadRules()
   } catch { /* ignore */ }
 })
 

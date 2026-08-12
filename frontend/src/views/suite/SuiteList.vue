@@ -484,6 +484,7 @@ import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { HolderOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import draggable from 'vuedraggable'
 import type {
   CasePriority,
@@ -502,6 +503,7 @@ import type {
 import { suiteApi, projectApi, caseApi, environmentApi } from '@/api'
 import { buildRunPayload } from '@/utils/caseExecution'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
+import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
 import {
   createDefaultSuiteConfig,
   formatDuration,
@@ -552,6 +554,7 @@ function createDefaultForm(): SuiteFormState {
 }
 
 const suites = ref<SuiteItem[]>([])
+const route = useRoute()
 // a-table #bodyCell 的 record 是 Record<string, any>；三张表的数据源类型在此断言收窄
 const asSuite = (record: unknown) => record as SuiteItem
 const asCaseRow = (record: unknown) => record as CaseSummaryItem
@@ -882,6 +885,7 @@ function stopSuiteRunsRefresh() {
 async function loadProjects() {
   try {
     projects.value = await projectApi.list()
+    projectFilter.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), projects.value)
   } catch (error: unknown) {
     projects.value = []
     message.error(getErrorMessage(error, t('suite.msg.load_projects_failed')))
@@ -1206,9 +1210,9 @@ async function handleDelete(id: number) {
   }
 }
 
-onMounted(() => {
-  loadProjects()
-  loadSuites()
+onMounted(async () => {
+  await loadProjects()
+  await loadSuites()
 })
 
 onUnmounted(() => {

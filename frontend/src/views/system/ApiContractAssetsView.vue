@@ -244,6 +244,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import {
   apiContractApi,
   apiContractAssetApi,
@@ -252,8 +253,10 @@ import {
   type ApiContractCompareResult,
   type ProjectItem,
 } from '@/api'
+import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
 
 const { t } = useI18n()
+const route = useRoute()
 
 const projects = ref<ProjectItem[]>([])
 const projectId = ref<number | undefined>()
@@ -330,7 +333,7 @@ function syncCompareSelection() {
 async function loadProjects() {
   try {
     projects.value = await projectApi.list()
-    projectId.value = projects.value[0]?.id
+    projectId.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), projects.value)
     await loadAssets()
   } catch (error) {
     message.error(errorMessage(error, t('api_contract_assets.load_failed')))

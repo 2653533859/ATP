@@ -32,6 +32,7 @@ from app.models.bootstrap import load_all_models
 from app.models.plan import PlanStatus, ScheduleType, TestPlan
 from app.models.suite import SuiteStatus, TestSuite
 from app.models.user import User, UserRole
+from app.models.user_project import ProjectRole
 from app.schemas.plan import PlanBatchDeleteIn, PlanBatchToggleIn
 from app.schemas.suite import SuiteBatchCopyIn, SuiteBatchDeleteIn
 
@@ -140,12 +141,32 @@ def test_suite_batch_delete_skips_missing(monkeypatch):
     db = _FakeDB(suites={1: _make_suite(1), 2: _make_suite(2)})
     body = SuiteBatchDeleteIn(suite_ids=[1, 2, 999])
 
-    result = asyncio.run(suites_api.batch_delete_suites(body=body, db=db, _=None))
+    result = asyncio.run(suites_api.batch_delete_suites(body=body, db=db, current_user=_make_user()))
 
     assert result.requested == 3
     assert result.processed == 2
     assert result.skipped_ids == [999]
     assert {obj.id for obj in db.deleted} == {1, 2}
+
+
+def test_suite_batch_delete_checks_project_editor_access(monkeypatch):
+    calls = []
+
+    async def record_access(_db, _user, project_id, role):
+        calls.append((project_id, role))
+
+    monkeypatch.setattr(suites_api, "assert_project_access", record_access)
+    db = _FakeDB(suites={1: _make_suite(1)})
+
+    asyncio.run(
+        suites_api.batch_delete_suites(
+            body=SuiteBatchDeleteIn(suite_ids=[1]),
+            db=db,
+            current_user=_make_user(),
+        )
+    )
+
+    assert calls == [(10, ProjectRole.editor)]
 
 
 def test_suite_batch_copy_creates_clones(monkeypatch):
@@ -167,7 +188,7 @@ def test_plan_batch_delete(monkeypatch):
     db = _FakeDB(plans={1: _make_plan(1), 2: _make_plan(2)})
     body = PlanBatchDeleteIn(plan_ids=[1, 2, 3])
 
-    result = asyncio.run(plans_api.batch_delete_plans(body=body, db=db, _=None))
+    result = asyncio.run(plans_api.batch_delete_plans(body=body, db=db, current_user=_make_user()))
 
     assert result.processed == 2
     assert result.skipped_ids == [3]
@@ -178,7 +199,7 @@ def test_plan_batch_toggle_only_changes_diff(monkeypatch):
     db = _FakeDB(plans={1: _make_plan(1, enabled=True), 2: _make_plan(2, enabled=False)})
     body = PlanBatchToggleIn(plan_ids=[1, 2], is_enabled=True)
 
-    result = asyncio.run(plans_api.batch_toggle_plans(body=body, db=db, _=None))
+    result = asyncio.run(plans_api.batch_toggle_plans(body=body, db=db, current_user=_make_user()))
 
     assert result.processed == 1  # 只有 plan 2 状态从 False -> True
     assert 1 in result.skipped_ids

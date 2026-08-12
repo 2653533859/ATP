@@ -37,6 +37,7 @@ const {
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => (params ? `${key}:${JSON.stringify(params)}` : key) }) }))
+vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }) }))
 vi.mock('ant-design-vue', () => ({
   message: { error: messageError, success: messageSuccess, warning: messageWarning },
 }))
@@ -265,7 +266,7 @@ describe('PlanList mount', () => {
   })
 
   it('surfaces load failures', async () => {
-    planList.mockRejectedValueOnce(new Error('boom'))
+    planList.mockRejectedValue(new Error('boom'))
     const wrapper = mountPlanList()
     await chooseProject(wrapper)
 

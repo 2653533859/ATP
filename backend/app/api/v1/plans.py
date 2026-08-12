@@ -35,7 +35,7 @@ from app.schemas.plan import (
     PlanBatchToggleIn,
     PlanBatchOpOut,
 )
-from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user
 from app.models.user_project import ProjectRole
 from app.services.execution_routing import enqueue_task, resolve_plan_execution_queue
 from app.services.project_scope import scope_to_visible_projects
@@ -90,7 +90,7 @@ async def _validate_plan_environment(db: AsyncSession, project_id: int, env_id: 
 async def create_plan(
     body: TestPlanCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
     project = await db.get(Project, body.project_id)
@@ -158,7 +158,7 @@ async def update_plan(
     plan_id: int,
     body: TestPlanUpdate,
     db: AsyncSession = Depends(get_db),
-    user=Depends(require_engineer),
+    user=Depends(get_current_user),
 ):
     plan = await db.get(TestPlan, plan_id)
     if not plan:
@@ -191,7 +191,7 @@ async def update_plan(
 async def delete_plan(
     plan_id: int,
     db: AsyncSession = Depends(get_db),
-    user=Depends(require_engineer),
+    user=Depends(get_current_user),
 ):
     plan = await db.get(TestPlan, plan_id)
     if not plan:
@@ -205,10 +205,12 @@ async def delete_plan(
 async def batch_delete_plans(
     body: PlanBatchDeleteIn,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     requested_ids = list(dict.fromkeys(body.plan_ids))
     rows = (await db.execute(select(TestPlan).where(TestPlan.id.in_(requested_ids)))).scalars().all()
+    for plan in rows:
+        await assert_project_access(db, current_user, plan.project_id, ProjectRole.editor)
     found_ids = {row.id for row in rows}
     skipped_ids = [pid for pid in requested_ids if pid not in found_ids]
     for plan in rows:
@@ -225,10 +227,12 @@ async def batch_delete_plans(
 async def batch_toggle_plans(
     body: PlanBatchToggleIn,
     db: AsyncSession = Depends(get_db),
-    _=Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     requested_ids = list(dict.fromkeys(body.plan_ids))
     rows = (await db.execute(select(TestPlan).where(TestPlan.id.in_(requested_ids)))).scalars().all()
+    for plan in rows:
+        await assert_project_access(db, current_user, plan.project_id, ProjectRole.editor)
     found_ids = {row.id for row in rows}
     skipped_ids = [pid for pid in requested_ids if pid not in found_ids]
     changed: list[int] = []
@@ -267,6 +271,8 @@ async def trigger_plan_run(
         env = await db.get(Environment, env_id)
         if not env:
             raise HTTPException(status_code=404, detail="环境不存在")
+        if env.project_id != plan.project_id:
+            raise HTTPException(status_code=400, detail="环境不属于计划所在项目")
         result = await db.execute(select(EnvVariable).where(EnvVariable.env_id == env.id))
         env_vars = decrypt_env_vars(result.scalars().all())
         merged_vars = {**env_vars, **body.extra_vars}
@@ -306,6 +312,9 @@ async def webhook_trigger(
         raise HTTPException(status_code=403, detail="Webhook Secret 验证失败")
     if not plan.suite_ids:
         raise HTTPException(status_code=400, detail="计划中没有测试套件")
+    project = await db.get(Project, plan.project_id)
+    if not project or project.status == "archived":
+        raise HTTPException(status_code=409, detail="项目已归档，无法触发执行")
 
     # 解析环境变量
     merged_vars = dict(body.extra_vars)

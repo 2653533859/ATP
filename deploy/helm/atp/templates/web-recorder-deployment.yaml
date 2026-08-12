@@ -34,10 +34,14 @@ spec:
             - secretRef:
                 name: {{ include "atp.secretName" . }}
           env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
             - name: WEB_RECORDER_MODE
               value: "worker"
             - name: WEB_RECORDER_WORKER_ID
-              value: {{ .Values.webRecorder.workerId | quote }}
+              value: {{ printf "%s-$(POD_NAME)" .Values.webRecorder.workerId | quote }}
             - name: WEB_RECORDER_DISPLAY
               value: {{ .Values.webRecorder.display | quote }}
             - name: WEB_RECORDER_WORKER_MAX_SESSIONS

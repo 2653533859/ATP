@@ -10,6 +10,7 @@ import asyncio
 import contextlib
 import logging
 import os
+import sys
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -160,7 +161,7 @@ class WebRecordingSession:
         try:
             self.playwright = await async_playwright().start()
             display = settings.WEB_RECORDER_DISPLAY.strip() or os.environ.get("DISPLAY", "").strip()
-            if os.name != "nt" and not display:
+            if sys.platform.startswith("linux") and not display:
                 raise RuntimeError(
                     "Linux Web 录制需要可见的 X display；请在后端配置 WEB_RECORDER_DISPLAY，"
                     "或在本地带桌面环境启动后端"

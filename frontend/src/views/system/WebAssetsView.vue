@@ -151,10 +151,13 @@
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { projectApi, webAssetsApi, webVisualApi, type ProjectItem, type WebElementAssetItem, type WebLocatorRepairCandidate, type WebPageObjectItem, type WebRecordingStep, type WebVisualBaselineItem } from '@/api'
 import WebRecorderModal from '@/components/common/WebRecorderModal.vue'
+import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
 
 const { t } = useI18n()
+const route = useRoute()
 const loading = ref(false)
 const saving = ref(false)
 const activeTab = ref('elements')
@@ -531,7 +534,7 @@ async function deletePageObject(id: number) {
 onMounted(async () => {
   try {
     projects.value = await projectApi.list()
-    selectedProjectId.value = projects.value[0]?.id
+    selectedProjectId.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), projects.value)
     await loadAll()
   } catch {
     message.error(t('web_assets.load_failed'))

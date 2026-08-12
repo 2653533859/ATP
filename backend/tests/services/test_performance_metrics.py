@@ -178,8 +178,13 @@ def test_system_metrics_windows_fallback_uses_native_api(monkeypatch):
 
     monkeypatch.setattr(performance_metrics, "psutil", None)
     monkeypatch.setattr(performance_metrics.sys, "platform", "win32")
-    monkeypatch.setattr(performance_metrics.ctypes, "windll", type("Windll", (), {"kernel32": Kernel32()})())
-    monkeypatch.setattr(performance_metrics.ctypes, "get_last_error", lambda: 1)
+    monkeypatch.setattr(
+        performance_metrics.ctypes,
+        "windll",
+        type("Windll", (), {"kernel32": Kernel32()})(),
+        raising=False,
+    )
+    monkeypatch.setattr(performance_metrics.ctypes, "get_last_error", lambda: 1, raising=False)
     performance_metrics._last_windows_cpu = None
 
     first = {}

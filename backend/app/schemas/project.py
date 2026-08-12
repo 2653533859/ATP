@@ -3,6 +3,8 @@ from typing import Any, Literal
 from pydantic import BaseModel, Field
 from datetime import datetime
 
+from app.models.user_project import ProjectRole
+
 
 # ── Project ─────────────────────────────────────────────
 ProjectTemplate = Literal["blank", "api", "web", "android", "full"]
@@ -110,6 +112,7 @@ class ProjectOut(BaseModel):
     ai_llm_config_id: int | None = None
     status: str
     run_retention_days_override: int | None = None
+    current_user_role: ProjectRole | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -25,6 +25,18 @@ _last_proc_cpu: tuple[int, int] | None = None
 _last_windows_cpu: tuple[int, int] | None = None
 
 
+def _windows_kernel32() -> Any:
+    windll = getattr(ctypes, "windll", None)
+    if windll is None:
+        raise OSError("Windows native APIs are unavailable")
+    return windll.kernel32
+
+
+def _windows_last_error() -> int:
+    getter = getattr(ctypes, "get_last_error", None)
+    return int(getter()) if getter is not None else 0
+
+
 def _record_error(errors: list[str], component: str, exc: Exception) -> None:
     errors.append(f"{component}:{type(exc).__name__}")
 
@@ -57,8 +69,9 @@ def _collect_windows_system_metrics(metrics: dict[str, float], errors: list[str]
         idle = _FileTime()
         kernel = _FileTime()
         user = _FileTime()
-        if not ctypes.windll.kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
-            raise OSError(ctypes.get_last_error(), "GetSystemTimes failed")
+        kernel32 = _windows_kernel32()
+        if not kernel32.GetSystemTimes(ctypes.byref(idle), ctypes.byref(kernel), ctypes.byref(user)):
+            raise OSError(_windows_last_error(), "GetSystemTimes failed")
 
         def filetime_value(value: _FileTime) -> int:
             return (int(value.dwHighDateTime) << 32) | int(value.dwLowDateTime)
@@ -88,8 +101,8 @@ def _collect_windows_system_metrics(metrics: dict[str, float], errors: list[str]
 
         memory = _MemoryStatusEx()
         memory.dwLength = ctypes.sizeof(memory)
-        if not ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(memory)):
-            raise OSError(ctypes.get_last_error(), "GlobalMemoryStatusEx failed")
+        if not kernel32.GlobalMemoryStatusEx(ctypes.byref(memory)):
+            raise OSError(_windows_last_error(), "GlobalMemoryStatusEx failed")
         metrics["memory_percent"] = float(memory.dwMemoryLoad)
         metrics["memory_used_bytes"] = float(memory.ullTotalPhys - memory.ullAvailPhys)
         metrics["memory_available_bytes"] = float(memory.ullAvailPhys)

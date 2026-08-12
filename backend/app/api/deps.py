@@ -108,10 +108,10 @@ def require_project_writable_access(min_role: ProjectRole = ProjectRole.editor):
     return checker
 
 
-async def assert_project_access(
+async def assert_project_role(
     db: AsyncSession, user: User, project_id: int, min_role: ProjectRole = ProjectRole.viewer
 ) -> None:
-    """在非路径参数场景下手动断言项目访问权限。"""
+    """仅断言项目角色，不把高权限读取误判为归档项目写入。"""
     role = await get_project_role(db, user, project_id)
     if role is None or not role_satisfies(role, min_role):
         await write_audit_log(
@@ -128,6 +128,13 @@ async def assert_project_access(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="No access to this project",
         )
+
+
+async def assert_project_access(
+    db: AsyncSession, user: User, project_id: int, min_role: ProjectRole = ProjectRole.viewer
+) -> None:
+    """断言项目访问；editor/owner 入口同时拒绝归档项目写入或执行。"""
+    await assert_project_role(db, user, project_id, min_role)
 
     # editor/owner 级断言代表写入或执行入口；归档项目保留读取、报告和导出，
     # 但不能通过任一资源 API 继续产生新配置或运行任务。兼容轻量测试桩：

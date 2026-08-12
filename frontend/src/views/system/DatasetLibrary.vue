@@ -381,18 +381,20 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import { ThunderboltOutlined } from '@ant-design/icons-vue'
 import { datasetApi, projectApi, type DatasetDetail, type DatasetImpact, type DatasetImpactItem, type DatasetListItem, type DatasetFormat, type DatasetSchemaField, type DatasetSchemaFieldType, type DatasetValidationPolicy, type DatasetValidationResult, type DatasetVersionItem, type ProjectItem } from '@/api'
 import { buildCasesQuery } from '@/utils/caseNavigation'
+import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asDataset = (record: unknown) => record as DatasetListItem
 const asImpact = (record: unknown) => record as ImpactRow
 
 const { t: translate } = useI18n()
 const router = useRouter()
+const route = useRoute()
 
 function t(key: string, params?: Record<string, string | number>) {
   return translate(key.startsWith('dataset.') ? `system_pages.${key}` : key, params ?? {})
@@ -550,7 +552,7 @@ async function loadProjects() {
     const items = await projectApi.list()
     projectOptions.value = items.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
     if (!projectId.value && projectOptions.value.length) {
-      projectId.value = projectOptions.value[0].value
+      projectId.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), items) ?? null
       await loadList()
     }
   } catch (error) {

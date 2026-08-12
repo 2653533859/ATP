@@ -47,6 +47,7 @@ vi.mock('vue-i18n', () => ({
 }))
 
 vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: {} }),
   useRouter: () => ({ push: routerPush }),
 }))
 

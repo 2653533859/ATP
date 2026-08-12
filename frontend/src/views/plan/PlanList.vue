@@ -387,6 +387,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import type {
   EnvironmentItem,
   PlanItem,
@@ -399,6 +400,7 @@ import type {
 } from '@/api'
 import { environmentApi, planApi, projectApi, suiteApi } from '@/api'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
+import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
 import {
   buildPlanMutationPayload,
   createDefaultPlanConfig,
@@ -470,6 +472,7 @@ const plans = ref<PlanItem[]>([])
 const loading = ref(false)
 const selectedRowKeys = ref<number[]>([])
 const projectId = ref<number | undefined>(undefined)
+const route = useRoute()
 const projectOptions = ref<SelectOption[]>([])
 
 const formOpen = ref(false)
@@ -616,6 +619,8 @@ onMounted(async () => {
   try {
     const projects = await projectApi.list()
     projectOptions.value = projects.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
+    projectId.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), projects)
+    await loadPlans()
   } catch (error: unknown) {
     projectOptions.value = []
     message.error(getErrorMessage(error, t('plan.msg.load_projects_failed')))

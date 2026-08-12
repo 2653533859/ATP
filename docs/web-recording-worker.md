@@ -49,7 +49,7 @@ webRecorder:
   maxSessions: 2
 ```
 
-Chart 会创建独立的 `web-recorder` Deployment。扩容时为每个副本设置唯一 `workerId`；API 根据 Redis 心跳和活动会话数选择 Worker，不要求 Ingress 粘性会话。Worker 心跳 key 过期后不会被选择承载新会话。
+Chart 会创建独立的 `web-recorder` Deployment，并自动把 Pod 名追加到 `workerId`，保证每个副本使用唯一 Worker ID。API 根据 Redis 心跳和活动会话数选择 Worker，不要求 Ingress 粘性会话。Worker 心跳 key 过期后不会被选择承载新会话。
 
 ## 关键配置
 
@@ -68,7 +68,7 @@ API 仍负责登录态、项目编辑权限和录制元素资产持久化；Work
 
 1. API 返回“没有可用的 Web 录制 Worker”：检查 Redis 连通性、`WEB_RECORDER_MODE`、队列前缀和 Worker 心跳 key。
 2. API 返回“Worker 响应超时”：检查 Worker 日志、Xvfb display、Chromium 启动依赖和 `WEB_RECORDER_COMMAND_TIMEOUT_SECONDS`。
-3. 录制开始后页面不动：确认 API 与 Worker 使用同一个 Redis，且每个 Worker 的 `WEB_RECORDER_WORKER_ID` 唯一。
+3. 录制开始后页面不动：确认 API 与 Worker 使用同一个 Redis；Helm 部署会自动生成唯一的 `WEB_RECORDER_WORKER_ID`，非 Helm 部署仍需自行保证唯一。
 4. 录制结束但资产没有写入：检查 API 数据库迁移和项目编辑权限；Worker 不直接写资产，资产由 API 在停止会话后事务化保存。
 
 真实 Linux 多副本、Xvfb、Firefox/WebKit 和跨副本 E2E 仍需在发布环境验收；Windows `local` 模式的健康检查不能替代该验收。

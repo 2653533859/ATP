@@ -96,6 +96,7 @@ class _FakeDB:
         self.added = []
         self.commits = 0
         self.execute_rows = list(execute_rows or [])
+        self.executed = []
         self._next_id = 9000
 
     async def get(self, model, pk):
@@ -114,6 +115,7 @@ class _FakeDB:
         return None
 
     async def execute(self, _query):
+        self.executed.append(_query)
         rows = self.execute_rows.pop(0) if self.execute_rows else []
         return _FakeResult(rows)
 
@@ -700,6 +702,8 @@ def test_check_cron_plans_triggers_due_plan_and_advances_schedule(monkeypatch):
     tasks.check_cron_plans()
 
     assert len(delayed) == 1
+    cron_query = str(db.executed[0])
+    assert "JOIN projects" in cron_query and "projects.status" in cron_query
     plan_run = db.added[0]
     assert plan_run.trigger_type.value == "cron"
     assert plan.next_run_at is not None and plan.is_enabled is True

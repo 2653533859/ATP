@@ -73,6 +73,7 @@ export interface ProjectItem {
   ai_llm_config_id?: number | null
   owner_id: number
   status: ProjectStatus
+  current_user_role?: ProjectRoleType | null
   created_at: string
   updated_at: string
 }

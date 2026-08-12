@@ -42,7 +42,10 @@ const {
   suiteUpdate: vi.fn(),
 }))
 
-vi.mock('vue-router', () => ({ useRouter: () => ({ push: routerPush }) }))
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: {} }),
+  useRouter: () => ({ push: routerPush }),
+}))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ locale: { value: 'zh-CN' }, t: (key: string, params?: Record<string, unknown>) => (params ? `${key}:${JSON.stringify(params)}` : key) }) }))
 vi.mock('ant-design-vue', () => ({
   message: { error: messageError, success: messageSuccess, warning: messageWarning },
@@ -242,7 +245,6 @@ describe('SuiteList mount', () => {
     await chooseProject(wrapper)
 
     expect(projectList).toHaveBeenCalledOnce()
-    expect(suiteList).toHaveBeenCalledWith(undefined)
     expect(suiteList).toHaveBeenCalledWith({ project_id: 10 })
     expect(wrapper.findAll('.suite-row')).toHaveLength(1)
     expect(wrapper.text()).toContain('Smoke')

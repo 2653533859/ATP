@@ -24,6 +24,7 @@ sys.modules["app.api.deps"] = types.SimpleNamespace(
     require_admin=_p3c_noop,
     require_project_access=lambda *a, **kw: _p3c_noop,
     assert_project_access=_p3c_noop_async,
+    assert_project_role=_p3c_noop_async,
     ProjectRole=type("ProjectRole", (), {"owner": "owner", "editor": "editor", "viewer": "viewer"}),
 )
 

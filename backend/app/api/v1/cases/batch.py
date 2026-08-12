@@ -15,11 +15,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import get_current_user, require_engineer
+from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
 from app.models.case import CaseStatus, CaseStep, CaseType, TestCase
 from app.models.project import Module
 from app.models.user import User
+from app.models.user_project import ProjectRole
 from app.schemas.case import (
     CaseBatchDeleteIn,
     CaseBatchImportOut,
@@ -67,14 +68,40 @@ _ZIP_TEMPLATE_CASES = [
 ]
 
 
+async def _assert_cases_access(
+    db: AsyncSession,
+    user: User,
+    cases: list[TestCase],
+    role: ProjectRole,
+) -> set[int]:
+    project_ids: set[int] = set()
+    for case in cases:
+        module = getattr(case, "module", None) or await db.get(Module, case.module_id)
+        if not module:
+            raise HTTPException(status_code=404, detail=f"用例 {case.id} 所属模块不存在")
+        project_ids.add(module.project_id)
+    for project_id in project_ids:
+        await assert_project_access(db, user, project_id, role)
+    return project_ids
+
+
 @router.post("/cases/batch/delete", response_model=CaseBatchOpOut)
 async def batch_delete_cases(
     body: CaseBatchDeleteIn,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     requested_ids = list(dict.fromkeys(body.case_ids))
-    rows = (await db.execute(select(TestCase).where(TestCase.id.in_(requested_ids)))).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(TestCase).options(selectinload(TestCase.module)).where(TestCase.id.in_(requested_ids))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    await _assert_cases_access(db, current_user, list(rows), ProjectRole.editor)
     found_ids = {row.id for row in rows}
     skipped_ids = [cid for cid in requested_ids if cid not in found_ids]
 
@@ -106,14 +133,26 @@ async def batch_delete_cases(
 async def batch_move_cases(
     body: CaseBatchMoveIn,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     target_module = await db.get(Module, body.target_module_id)
     if not target_module:
         raise HTTPException(status_code=404, detail="目标模块不存在")
+    await assert_project_access(db, current_user, target_module.project_id, ProjectRole.editor)
 
     requested_ids = list(dict.fromkeys(body.case_ids))
-    rows = (await db.execute(select(TestCase).where(TestCase.id.in_(requested_ids)))).scalars().all()
+    rows = (
+        (
+            await db.execute(
+                select(TestCase).options(selectinload(TestCase.module)).where(TestCase.id.in_(requested_ids))
+            )
+        )
+        .scalars()
+        .all()
+    )
+    source_project_ids = await _assert_cases_access(db, current_user, list(rows), ProjectRole.editor)
+    if source_project_ids and source_project_ids != {target_module.project_id}:
+        raise HTTPException(status_code=400, detail="批量移动不能跨项目")
     found_ids = {row.id for row in rows}
     skipped_ids = [cid for cid in requested_ids if cid not in found_ids]
 
@@ -161,7 +200,12 @@ async def batch_export_cases(
     if len(id_values) > 1000:
         raise HTTPException(status_code=400, detail="单次导出最多 1000 个用例")
 
-    rows = (await db.execute(select(TestCase).where(TestCase.id.in_(id_values)))).scalars().all()
+    rows = (
+        (await db.execute(select(TestCase).options(selectinload(TestCase.module)).where(TestCase.id.in_(id_values))))
+        .scalars()
+        .all()
+    )
+    await _assert_cases_access(db, _, list(rows), ProjectRole.viewer)
     rows_by_id = {row.id: row for row in rows}
     ordered = [rows_by_id[cid] for cid in id_values if cid in rows_by_id]
 
@@ -305,7 +349,7 @@ def _validate_import_cases(cases_data: list[dict]) -> tuple[list[dict], list[str
 
 
 @router.get("/cases/batch/import-template")
-async def download_case_import_template(_: User = Depends(require_engineer)):
+async def download_case_import_template(_: User = Depends(get_current_user)):
     manifest = {
         "schema_version": _ZIP_SCHEMA_VERSION,
         "generated_at": datetime.now(timezone.utc).isoformat(),
@@ -328,7 +372,7 @@ async def download_case_import_template(_: User = Depends(require_engineer)):
 @router.post("/cases/batch/import-preview", response_model=CaseBatchImportPreviewOut)
 async def preview_case_import_zip(
     file: UploadFile = File(...),
-    _: User = Depends(require_engineer),
+    _: User = Depends(get_current_user),
 ):
     cases_data = _read_cases_from_import_zip(await file.read())
     valid_entries, errors, preview_cases = _validate_import_cases(cases_data)
@@ -357,10 +401,17 @@ async def batch_export_cases_zip(
         raise HTTPException(status_code=400, detail="单次 ZIP 导出最多 500 个用例")
 
     rows = (
-        (await db.execute(select(TestCase).options(selectinload(TestCase.steps)).where(TestCase.id.in_(id_values))))
+        (
+            await db.execute(
+                select(TestCase)
+                .options(selectinload(TestCase.steps), selectinload(TestCase.module))
+                .where(TestCase.id.in_(id_values))
+            )
+        )
         .scalars()
         .all()
     )
+    await _assert_cases_access(db, _, list(rows), ProjectRole.viewer)
     rows_by_id = {row.id: row for row in rows}
     ordered = [rows_by_id[cid] for cid in id_values if cid in rows_by_id]
 
@@ -390,11 +441,12 @@ async def batch_import_cases_zip(
     target_module_id: int = Query(..., description="目标模块 ID"),
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(require_engineer),
+    current_user: User = Depends(get_current_user),
 ):
     module = await db.get(Module, target_module_id)
     if not module:
         raise HTTPException(status_code=404, detail="目标模块不存在")
+    await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
 
     cases_data = _read_cases_from_import_zip(await file.read())
     valid_entries, validation_errors, _ = _validate_import_cases(cases_data)

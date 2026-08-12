@@ -26,6 +26,7 @@ for _name, _value in (
     ("require_engineer", lambda: None),
     ("require_admin", lambda: None),
     ("assert_project_access", _noop_async),
+    ("assert_project_role", _noop_async),
 ):
     if not hasattr(_deps, _name):
         setattr(_deps, _name, _value)
@@ -114,6 +115,7 @@ def stubs(monkeypatch):
         access_calls.append((project_id, role))
 
     monkeypatch.setattr(gv, "assert_project_access", record_access)
+    monkeypatch.setattr(gv, "assert_project_role", record_access)
     monkeypatch.setattr(gv, "encrypt", lambda v: f"enc({v})")
     monkeypatch.setattr(gv, "decrypt", _fake_decrypt)
     return {"access": access_calls}
@@ -142,7 +144,7 @@ def _var(vid=1, project_id=None, is_secret=True, value="enc(top-secret-token)"):
 
 def test_mask_value_short_values_pass_through():
     assert gv._mask_value("abcdef", True) == "ab**ef"
-    assert gv._mask_value("abcd", True) == "abcd"  # <=4 位不掩码
+    assert gv._mask_value("abcd", True) == "****"
     assert gv._mask_value("plain", False) == "plain"
 
 
@@ -238,7 +240,20 @@ def test_get_variable_masks_by_default_and_reveals_on_request(stubs):
 
     assert masked.value != "top-secret-token"
     assert revealed.value == "top-secret-token"
-    assert stubs["access"] == [(5, ProjectRole.viewer), (5, ProjectRole.viewer)]
+    assert stubs["access"] == [
+        (5, ProjectRole.viewer),
+        (5, ProjectRole.viewer),
+        (5, ProjectRole.editor),
+    ]
+
+
+def test_get_global_secret_reveal_requires_admin():
+    db = _FakeDB({("GlobalVariable", 1): _var()})
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(gv.get_variable(var_id=1, reveal_secret=True, db=db, user=_user()))
+
+    assert exc.value.status_code == 403
 
 
 # ── update：重加密 / 伪造防护 / 404 ─────────────────────────
@@ -261,7 +276,12 @@ def test_update_without_value_keeps_ciphertext():
     db = _FakeDB({("GlobalVariable", 1): var})
 
     asyncio.run(
-        gv.update_variable(var_id=1, body=GlobalVariableUpdate(description="备注"), db=db, current_user=_user())
+        gv.update_variable(
+            var_id=1,
+            body=GlobalVariableUpdate(description="备注"),
+            db=db,
+            current_user=_user(role=UserRole.admin),
+        )
     )
 
     assert var.value_encrypted == "enc(top-secret-token)"  # 未动 value → 密文不变

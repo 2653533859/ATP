@@ -165,7 +165,8 @@ def test_helm_chart_can_render_dedicated_web_recording_worker():
     assert "app.kubernetes.io/component: web-recorder" in content
     assert "python -m app.web_recording_worker" in content
     assert "Xvfb" in content
-    assert ".Values.webRecorder.workerId" in content
+    assert 'printf "%s-$(POD_NAME)" .Values.webRecorder.workerId' in content
+    assert "fieldPath: metadata.name" in content
     assert ".Values.webRecorder.maxSessions" in content
     assert "webRecorder" in schema["properties"]
 

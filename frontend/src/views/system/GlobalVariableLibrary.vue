@@ -41,7 +41,7 @@
           <template v-else-if="column.key === 'value'">
             <span v-if="record.is_secret">
               <span>{{ revealedValues[record.id] ?? record.value }}</span>
-              <a-button type="link" size="small" @click="toggleReveal(asVariable(record))">
+              <a-button v-if="canMutateVariable(asVariable(record))" type="link" size="small" @click="toggleReveal(asVariable(record))">
                 {{ revealedValues[record.id] ? t('system_pages.global_variable.hide') : t('system_pages.global_variable.show') }}
               </a-button>
             </span>
@@ -56,8 +56,8 @@
             <a-tag>{{ record.scope_type === 'global' ? t('system_pages.global_variable.global') : t('system_pages.global_variable.project') }}</a-tag>
           </template>
           <template v-else-if="column.key === 'action'">
-            <a-button type="link" size="small" @click="openEdit(asVariable(record))">{{ t('common.edit') }}</a-button>
-            <a-popconfirm :title="t('system_pages.global_variable.confirm_delete')" @confirm="handleDelete(record.id)">
+            <a-button v-if="canMutateVariable(asVariable(record))" type="link" size="small" @click="openEdit(asVariable(record))">{{ t('common.edit') }}</a-button>
+            <a-popconfirm v-if="canMutateVariable(asVariable(record))" :title="t('system_pages.global_variable.confirm_delete')" @confirm="handleDelete(record.id)">
               <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
             </a-popconfirm>
           </template>
@@ -104,11 +104,17 @@
 import { ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
+import { useRoute } from 'vue-router'
 import { globalVariableApi, projectApi, type GlobalVariableItem, type ProjectItem, type ScopeType } from '@/api'
+import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
+import { useAuthStore } from '@/stores/auth'
+import { canEditProjectByRole, canManageSystem } from '@/utils/permissions'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asVariable = (record: unknown) => record as GlobalVariableItem
 
 const { t } = useI18n()
+const route = useRoute()
+const auth = useAuthStore()
 const loading = ref(false)
 const saving = ref(false)
 const variables = ref<GlobalVariableItem[]>([])
@@ -125,8 +131,16 @@ const scopeOptions = computed(() => [
 ])
 
 const canCreate = computed(() => {
-  return selectedScope.value === 'global' || selectedProjectId.value !== null
+  if (selectedScope.value === 'global') return canManageSystem(auth.user?.role)
+  const project = projects.value.find((item) => item.id === selectedProjectId.value)
+  return Boolean(project && canEditProjectByRole(auth.user?.role, project.current_user_role))
 })
+
+function canMutateVariable(variable: GlobalVariableItem) {
+  if (variable.scope_type === 'global') return canManageSystem(auth.user?.role)
+  const project = projects.value.find((item) => item.id === variable.project_id)
+  return Boolean(project && canEditProjectByRole(auth.user?.role, project.current_user_role))
+}
 
 const columns = computed(() => [
   { title: t('system_pages.global_variable.columns.key'), key: 'key', dataIndex: 'key', width: '25%' },
@@ -160,6 +174,11 @@ onMounted(async () => {
     const list = await projectApi.list()
     projects.value = list
     projectOptions.value = list.map((p) => ({ label: p.name, value: p.id }))
+    const requestedProjectId = projectIdFromQuery(route.query.project_id)
+    if (requestedProjectId) {
+      selectedScope.value = 'project'
+      selectedProjectId.value = selectAvailableProjectId(requestedProjectId, list) ?? null
+    }
   } catch (e: unknown) {
     message.error(errorMessage(e, t('system_pages.global_variable.msg.load_projects_failed')))
   }

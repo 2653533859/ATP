@@ -84,6 +84,8 @@ async def trigger_run(
         env = await db.get(Environment, body.env_id)
         if not env:
             raise HTTPException(status_code=404, detail="环境不存在")
+        if not module or env.project_id != module.project_id:
+            raise HTTPException(status_code=400, detail="环境不属于用例所在项目")
         env_name = env.name
         result = await db.execute(select(EnvVariable).where(EnvVariable.env_id == env.id))
         env_vars = decrypt_env_vars(result.scalars().all())

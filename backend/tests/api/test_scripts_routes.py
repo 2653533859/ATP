@@ -78,6 +78,11 @@ def minio(monkeypatch):
     )
     monkeypatch.setattr(scripts_module, "delete_file", lambda name: calls["deleted"].append(name))
     monkeypatch.setattr(scripts_module, "read_bytes", lambda name: calls["read"].get(name, b""))
+
+    async def allow_access(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(scripts_module, "_assert_case_script_access", allow_access)
     return calls
 
 

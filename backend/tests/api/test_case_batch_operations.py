@@ -89,7 +89,18 @@ class _ScalarsResult:
 class _FakeDB:
     def __init__(self, items: dict[int, object], modules: dict[int, Module] | None = None):
         self._items = items
-        self._modules = modules or {}
+        self._modules = dict(modules or {})
+        if modules is not None or items:
+            for item in items.values():
+                module_id = getattr(item, "module_id", None)
+                if module_id and module_id not in self._modules:
+                    self._modules[module_id] = Module(
+                        id=module_id,
+                        name=f"module-{module_id}",
+                        project_id=1,
+                        parent_id=None,
+                        sort_order=0,
+                    )
         self.deleted: list[object] = []
         self.commits = 0
 

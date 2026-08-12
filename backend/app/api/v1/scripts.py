@@ -12,12 +12,21 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db
 from app.core.minio_client import ensure_bucket, upload_bytes, read_bytes, delete_file
 from app.models.case import TestCase, CaseType
-from app.api.deps import get_current_user
+from app.models.project import Module
+from app.api.deps import assert_project_access, get_current_user
 from app.models.user import User
+from app.models.user_project import ProjectRole
 
 router = APIRouter(tags=["脚本管理"])
 
 _MAX_SCRIPT_SIZE = 1 * 1024 * 1024  # 1 MB
+
+
+async def _assert_case_script_access(db: AsyncSession, user: User, case: TestCase, role: ProjectRole) -> None:
+    module = await db.get(Module, case.module_id)
+    if not module:
+        raise HTTPException(status_code=404, detail="用例所属模块不存在")
+    await assert_project_access(db, user, module.project_id, role)
 
 
 def _script_object_name(case_id: int) -> str:
@@ -29,11 +38,12 @@ async def upload_script(
     case_id: int,
     file: UploadFile = File(...),
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     case = await db.get(TestCase, case_id)
     if not case:
         raise HTTPException(status_code=404, detail="用例不存在")
+    await _assert_case_script_access(db, current_user, case, ProjectRole.editor)
     if case.case_type not in (CaseType.web, CaseType.android):
         raise HTTPException(status_code=400, detail="仅脚本类用例支持上传脚本")
 
@@ -58,11 +68,12 @@ async def upload_script(
 async def get_script(
     case_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     case = await db.get(TestCase, case_id)
     if not case:
         raise HTTPException(status_code=404, detail="用例不存在")
+    await _assert_case_script_access(db, current_user, case, ProjectRole.viewer)
 
     script_path = (case.config or {}).get("script_path")
     if not script_path:
@@ -79,11 +90,12 @@ async def get_script(
 async def delete_script(
     case_id: int,
     db: AsyncSession = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     case = await db.get(TestCase, case_id)
     if not case:
         raise HTTPException(status_code=404, detail="用例不存在")
+    await _assert_case_script_access(db, current_user, case, ProjectRole.editor)
 
     script_path = (case.config or {}).get("script_path")
     if script_path:

@@ -1080,18 +1080,24 @@ def check_cron_plans():
     """每分钟检查启用的 Cron 计划，到期则触发执行"""
     from app.core.database import AsyncSessionLocal
     from app.models.plan import TestPlan, PlanRun, PlanRunStatus, ScheduleType, TriggerType
+    from app.models.project import Project
     from sqlalchemy import select
     from datetime import datetime, timezone
 
     async def _check():
         async with AsyncSessionLocal() as db:
             now = datetime.now(timezone.utc)
-            q = select(TestPlan).where(
-                TestPlan.schedule_type == ScheduleType.cron,
-                TestPlan.is_enabled == True,  # noqa: E712
-                TestPlan.cron_expression.isnot(None),
-                TestPlan.next_run_at.isnot(None),
-                TestPlan.next_run_at <= now,
+            q = (
+                select(TestPlan)
+                .join(Project, Project.id == TestPlan.project_id)
+                .where(
+                    Project.status == "active",
+                    TestPlan.schedule_type == ScheduleType.cron,
+                    TestPlan.is_enabled == True,  # noqa: E712
+                    TestPlan.cron_expression.isnot(None),
+                    TestPlan.next_run_at.isnot(None),
+                    TestPlan.next_run_at <= now,
+                )
             )
             result = await db.execute(q)
             plans = result.scalars().all()
