@@ -104,11 +104,13 @@
             :placeholder="t('mobile_special.form.select_apk')"
             :options="apkOptions"
             allow-clear
+            @change="handleApkChange"
           />
         </a-form-item>
 
         <a-form-item :label="t('mobile_special.form.app_package')">
           <a-input v-model:value="form.app_package" :placeholder="t('mobile_special.form.app_package_placeholder')" />
+          <span class="form-hint">{{ t('mobile_special.form.app_package_hint') }}</span>
         </a-form-item>
 
         <a-divider>{{ t('mobile_special.form.standard_setup') }}</a-divider>
@@ -149,6 +151,32 @@
 
         <a-form-item :label="t('mobile_special.form.auto_start')">
           <a-switch v-model:checked="form.config_auto_start" />
+        </a-form-item>
+
+        <a-divider>{{ t('mobile_special.form.monitoring_config') }}</a-divider>
+
+        <a-form-item :label="t('mobile_special.form.performance_monitoring')">
+          <a-switch v-model:checked="form.config_collect_performance" />
+          <span class="form-hint">{{ t('mobile_special.form.performance_monitoring_hint') }}</span>
+        </a-form-item>
+
+        <a-form-item :label="t('mobile_special.form.jank_monitoring')">
+          <a-switch v-model:checked="form.config_collect_jank" />
+          <span class="form-hint">{{ t('mobile_special.form.jank_monitoring_hint') }}</span>
+        </a-form-item>
+
+        <a-form-item :label="t('mobile_special.form.incident_monitoring')">
+          <a-switch v-model:checked="form.config_collect_incidents" />
+          <span class="form-hint">{{ t('mobile_special.form.incident_monitoring_hint') }}</span>
+        </a-form-item>
+
+        <a-form-item :label="t('mobile_special.form.incident_replay')">
+          <a-switch v-model:checked="form.config_capture_replay" />
+          <span class="form-hint">{{ t('mobile_special.form.incident_replay_hint') }}</span>
+        </a-form-item>
+
+        <a-form-item v-if="form.config_capture_replay" :label="t('mobile_special.form.replay_seconds')">
+          <a-input-number v-model:value="form.config_replay_seconds" :min="5" :max="1800" style="width: 100%" />
         </a-form-item>
 
         <template v-if="form.task_type === 'stability'">
@@ -192,6 +220,7 @@
 import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
+import { useRouter } from 'vue-router'
 import {
   projectApi,
   mobileSpecialApi,
@@ -208,10 +237,16 @@ import {
 const asTask = (record: unknown) => record as MobileSpecialTaskItem
 
 const { t } = useI18n()
+const router = useRouter()
 
 type SelectOption<T extends string | number> = {
   label: string
   value: T
+}
+
+type ApkOption = SelectOption<number> & {
+  packageName?: string | null
+  filename: string
 }
 
 type TaskForm = {
@@ -228,6 +263,11 @@ type TaskForm = {
   config_interval: number
   config_duration: number
   config_auto_start: boolean
+  config_collect_performance: boolean
+  config_collect_jank: boolean
+  config_collect_incidents: boolean
+  config_capture_replay: boolean
+  config_replay_seconds: number
   config_install_apk: boolean
   config_uninstall_before: boolean
   config_clear_data_before: boolean
@@ -250,7 +290,7 @@ const tasks = ref<MobileSpecialTaskItem[]>([])
 const projects = ref<ProjectItem[]>([])
 const projectOptions = ref<SelectOption<number>[]>([])
 const deviceOptions = ref<SelectOption<number>[]>([])
-const apkOptions = ref<SelectOption<number>[]>([])
+const apkOptions = ref<ApkOption[]>([])
 
 const selectedProjectId = ref<number | null>(null)
 const selectedTaskType = ref<TaskType | null>(null)
@@ -301,6 +341,11 @@ const form = ref<TaskForm>({
   config_interval: 5,
   config_duration: 300,
   config_auto_start: true,
+  config_collect_performance: true,
+  config_collect_jank: true,
+  config_collect_incidents: true,
+  config_capture_replay: true,
+  config_replay_seconds: 30,
   config_install_apk: false,
   config_uninstall_before: false,
   config_clear_data_before: false,
@@ -340,8 +385,21 @@ async function loadApks() {
   try {
     apkOptions.value = []
     const apks = await apkApi.list({ project_id: selectedProjectId.value })
-    apkOptions.value = apks.map((a) => ({ label: a.package_name || a.filename, value: a.id }))
+    apkOptions.value = apks.map((a) => ({
+      label: a.package_name ? `${a.package_name} · ${a.filename}` : a.filename,
+      value: a.id,
+      packageName: a.package_name,
+      filename: a.filename,
+    }))
   } catch {}
+}
+
+function handleApkChange(apkId: unknown) {
+  if (typeof apkId !== 'number') return
+  const selected = apkOptions.value.find((apk) => apk.value === apkId)
+  if (selected?.packageName) {
+    form.value.app_package = selected.packageName
+  }
 }
 
 async function loadTasks() {
@@ -396,6 +454,11 @@ function openCreate() {
     config_interval: 5,
     config_duration: 300,
     config_auto_start: true,
+    config_collect_performance: true,
+    config_collect_jank: true,
+    config_collect_incidents: true,
+    config_capture_replay: true,
+    config_replay_seconds: 30,
     config_install_apk: false,
     config_uninstall_before: false,
     config_clear_data_before: false,
@@ -425,6 +488,11 @@ function openEdit(task: MobileSpecialTaskItem) {
     config_interval: (config.interval_seconds as number) || 5,
     config_duration: (config.duration_seconds as number) || 300,
     config_auto_start: config.auto_start !== false,
+    config_collect_performance: config.collect_performance !== false,
+    config_collect_jank: config.collect_jank !== false,
+    config_collect_incidents: config.collect_incidents !== false,
+    config_capture_replay: config.capture_replay !== false,
+    config_replay_seconds: (config.replay_seconds as number) || 30,
     config_install_apk: config.install_apk === true || config.install_before === true,
     config_uninstall_before: config.uninstall_before === true,
     config_clear_data_before: config.clear_data_before === true,
@@ -433,6 +501,9 @@ function openEdit(task: MobileSpecialTaskItem) {
     config_launch_activity: (config.launch_activity as string) || '.MainActivity',
     config_operation_interval: (config.operation_interval_ms as number) || 500,
     config_stages: config.stages ? JSON.stringify(config.stages, null, 2) : '',
+  }
+  if (!form.value.app_package) {
+    handleApkChange(form.value.apk_id)
   }
   drawerVisible.value = true
 }
@@ -481,6 +552,12 @@ async function handleSave() {
         interval_seconds: form.value.config_interval,
         duration_seconds: form.value.config_duration,
         auto_start: form.value.config_auto_start,
+        collect_performance: form.value.config_collect_performance,
+        collect_jank: form.value.config_collect_jank,
+        collect_incidents: form.value.config_collect_incidents,
+        capture_replay: form.value.config_capture_replay,
+        capture_on_incident: true,
+        replay_seconds: form.value.config_replay_seconds,
         install_apk: form.value.config_install_apk,
         uninstall_before: form.value.config_uninstall_before,
         clear_data_before: form.value.config_clear_data_before,
@@ -512,6 +589,7 @@ async function triggerRun(task: MobileSpecialTaskItem) {
   try {
     const run = await mobileSpecialApi.triggerTask(task.id, {})
     message.success(`${t('mobile_special.msg.run_started')} (Run #${run.id})`)
+    await router.push(`/mobile-special/reports/${run.id}`)
   } catch (e: unknown) {
     message.error(errorMessage(e, t('mobile_special.msg.run_failed')))
   }
@@ -527,3 +605,11 @@ async function handleDelete(id: number) {
   }
 }
 </script>
+
+<style scoped>
+.form-hint {
+  margin-left: 10px;
+  color: #8c8c8c;
+  font-size: 12px;
+}
+</style>

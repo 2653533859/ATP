@@ -184,6 +184,23 @@ class MobileRunArtifactOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class MobileRunEventOut(BaseModel):
+    id: int
+    run_id: int
+    sequence: int
+    event_time: datetime
+    event_type: str
+    phase: Optional[str] = None
+    action: Optional[str] = None
+    level: Optional[str] = None
+    message: Optional[str] = None
+    parameters_json: dict
+    result_json: dict
+    duration_ms: Optional[int] = None
+
+    model_config = {"from_attributes": True}
+
+
 # ---- Statistics Schemas ----
 
 

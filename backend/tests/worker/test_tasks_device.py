@@ -1,3 +1,4 @@
+import base64
 import sys
 import types
 from pathlib import Path
@@ -72,3 +73,26 @@ def test_android_worker_heartbeat_registers_and_reschedules(monkeypatch):
 
     assert result == {"worker_id": "win-a", "status": "online", "queues": ["mobile_special"]}
     assert task.calls == [{"countdown": 15, "queue": "mobile_special"}]
+
+
+def test_android_worker_device_operation_returns_json_safe_results(monkeypatch):
+    from app.worker import tasks_device
+
+    calls = []
+    fake_mirror = types.SimpleNamespace(
+        _adb_screenshot=lambda serial: b"png",
+        _adb_input=lambda serial, *args: calls.append((serial, args)) or True,
+        _adb_ui_target=lambda serial, x, y: {"text": "登录", "x": x, "y": y},
+    )
+    monkeypatch.setitem(sys.modules, "app.api.v1.device_mirror", fake_mirror)
+    task = tasks_device.run_android_device_operation
+    runner = getattr(task, "run", task)
+
+    screenshot = runner("screenshot", "WIN-DEVICE", {})
+    tap = runner("tap", "WIN-DEVICE", {"x": 10, "y": 20})
+    target = runner("ui_target", "WIN-DEVICE", {"x": 10, "y": 20})
+
+    assert screenshot == {"ok": True, "data_base64": base64.b64encode(b"png").decode("ascii"), "error": None}
+    assert tap == {"ok": True, "error": None}
+    assert target == {"ok": True, "target": {"text": "登录", "x": 10, "y": 20}}
+    assert calls == [("WIN-DEVICE", ("tap", "10", "20"))]

@@ -15,6 +15,7 @@
       </div>
       <a-menu
         v-model:selectedKeys="selectedKeys"
+        v-model:openKeys="openKeys"
         :theme="siderTheme"
         mode="inline"
         class="app-menu"
@@ -24,67 +25,66 @@
           <DashboardOutlined />
           <span>{{ t('menu.dashboard') }}</span>
         </a-menu-item>
-        <a-menu-item key="/projects">
-          <ProjectOutlined />
-          <span>{{ t('menu.projects') }}</span>
-        </a-menu-item>
-        <a-menu-item key="/cases">
-          <ProfileOutlined />
-          <span>{{ t('menu.cases') }}</span>
-        </a-menu-item>
-        <a-menu-item key="/runs">
-          <PlayCircleOutlined />
-          <span>{{ t('menu.runs') }}</span>
-        </a-menu-item>
-        <a-menu-item key="/suites">
-          <AppstoreOutlined />
-          <span>{{ t('menu.suites') }}</span>
-        </a-menu-item>
-        <a-menu-item key="/plans">
-          <ClockCircleOutlined />
-          <span>{{ t('menu.plans') }}</span>
-        </a-menu-item>
-        <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/devices">
-          <MobileOutlined />
-          <span>{{ t('menu.devices') }}</span>
-        </a-menu-item>
-        <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/apks">
-          <AndroidOutlined />
-          <span>{{ t('menu.apks') }}</span>
-        </a-menu-item>
-        <a-menu-item key="/mock-rules">
-          <ApiOutlined />
-          <span>{{ t('menu.mock_rules') }}</span>
-        </a-menu-item>
-        <a-sub-menu key="mobile-special">
+        <a-sub-menu key="test-design">
+          <template #icon><ProjectOutlined /></template>
+          <template #title>{{ t('menu.groups.test_design') }}</template>
+          <a-menu-item key="/projects">{{ t('menu.projects') }}</a-menu-item>
+          <a-menu-item key="/cases">{{ t('menu.cases') }}</a-menu-item>
+          <a-menu-item key="/suites">{{ t('menu.suites') }}</a-menu-item>
+          <a-menu-item key="/plans">{{ t('menu.plans') }}</a-menu-item>
+        </a-sub-menu>
+
+        <a-sub-menu key="test-assets">
+          <template #icon><AppstoreOutlined /></template>
+          <template #title>{{ t('menu.groups.test_assets') }}</template>
+          <a-menu-item key="/mock-rules">{{ t('menu.mock_rules') }}</a-menu-item>
+          <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
+          <a-menu-item key="/system/web-assets">{{ t('menu.system.web_assets') }}</a-menu-item>
+          <a-menu-item key="/system/api-contract-assets">{{ t('menu.system.api_contract_assets') }}</a-menu-item>
+        </a-sub-menu>
+
+        <a-sub-menu key="execution-center">
+          <template #icon><PlayCircleOutlined /></template>
+          <template #title>{{ t('menu.groups.execution_center') }}</template>
+          <a-menu-item key="/runs">{{ t('menu.runs') }}</a-menu-item>
+          <a-menu-item key="/system/performance">{{ t('menu.system.performance') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/storage">{{ t('menu.system.storage') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/run-retention">{{ t('menu.system.run_retention') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/dashboard-alerts">{{ t('menu.system.dashboard_alerts') }}</a-menu-item>
+        </a-sub-menu>
+
+        <a-sub-menu v-if="canAccess(['admin', 'engineer'])" key="android-special">
           <template #icon><MobileOutlined /></template>
-          <template #title>{{ t('menu.mobile_special.title') }}</template>
+          <template #title>{{ t('menu.groups.android_special') }}</template>
+          <a-menu-item key="/devices">{{ t('menu.devices') }}</a-menu-item>
+          <a-menu-item key="/apks">{{ t('menu.apks') }}</a-menu-item>
           <a-menu-item key="/mobile-special/tasks">{{ t('menu.mobile_special.tasks') }}</a-menu-item>
           <a-menu-item key="/mobile-special/reports">{{ t('menu.mobile_special.reports') }}</a-menu-item>
         </a-sub-menu>
-      <a-sub-menu key="system">
+
+        <a-sub-menu key="platform-config">
           <template #icon><SettingOutlined /></template>
-          <template #title>{{ t('menu.system.title') }}</template>
+          <template #title>{{ t('menu.groups.platform_config') }}</template>
           <a-menu-item key="/system/environments">{{ t('menu.system.environments') }}</a-menu-item>
-          <a-menu-item v-if="canAccess(['admin'])" key="/system/startup-config">
-            <SlidersOutlined />
-            <span>{{ t('menu.system.startup_config') }}</span>
-          </a-menu-item>
-          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/notifications">{{ t('menu.system.notifications') }}</a-menu-item>
-          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/bug-trackers">{{ t('menu.system.bug_trackers') }}</a-menu-item>
-          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/storage">{{ t('menu.system.storage') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/startup-config">{{ t('menu.system.startup_config') }}</a-menu-item>
           <a-menu-item key="/system/global-variables">{{ t('menu.system.global_variables') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin'])" key="/system/ai-llm-configs">{{ t('menu.system.ai_llm_configs') }}</a-menu-item>
-          <a-menu-item v-if="canAccess(['admin'])" key="/system/healing-examples">AI 自愈示例</a-menu-item>
-          <a-menu-item v-if="canAccess(['admin'])" key="/system/ai-healing-stats">AI 自愈报表</a-menu-item>
-          <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
-          <a-menu-item key="/system/performance">{{ t('menu.system.performance') }}</a-menu-item>
-          <a-menu-item key="/system/web-assets">{{ t('menu.system.web_assets') }}</a-menu-item>
-          <a-menu-item key="/system/api-contract-assets">{{ t('menu.system.api_contract_assets') }}</a-menu-item>
-          <a-menu-item v-if="canAccess(['admin'])" key="/system/audit-logs">{{ t('menu.system.audit_logs') }}</a-menu-item>
-          <a-menu-item v-if="canAccess(['admin'])" key="/system/users">{{ t('menu.system.users') }}</a-menu-item>
-          <a-menu-item v-if="canAccess(['admin'])" key="/system/run-retention">{{ t('menu.system.run_retention') }}</a-menu-item>
-          <a-menu-item v-if="canAccess(['admin'])" key="/system/dashboard-alerts">{{ t('menu.system.dashboard_alerts') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/healing-examples">{{ t('menu.system.ai_healing_examples') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/ai-healing-stats">{{ t('menu.system.ai_healing_stats') }}</a-menu-item>
+        </a-sub-menu>
+
+        <a-sub-menu v-if="canAccess(['admin', 'engineer'])" key="external-integrations">
+          <template #icon><ApiOutlined /></template>
+          <template #title>{{ t('menu.groups.external_integrations') }}</template>
+          <a-menu-item key="/system/notifications">{{ t('menu.system.notifications') }}</a-menu-item>
+          <a-menu-item key="/system/bug-trackers">{{ t('menu.system.bug_trackers') }}</a-menu-item>
+        </a-sub-menu>
+
+        <a-sub-menu v-if="canAccess(['admin'])" key="security-audit">
+          <template #icon><UserOutlined /></template>
+          <template #title>{{ t('menu.groups.security_audit') }}</template>
+          <a-menu-item key="/system/users">{{ t('menu.system.users') }}</a-menu-item>
+          <a-menu-item key="/system/audit-logs">{{ t('menu.system.audit_logs') }}</a-menu-item>
         </a-sub-menu>
       </a-menu>
     </a-layout-sider>
@@ -155,13 +155,10 @@ import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
   ProjectOutlined,
-  ProfileOutlined,
   PlayCircleOutlined,
   SettingOutlined,
   MobileOutlined,
-  AndroidOutlined,
   AppstoreOutlined,
-  ClockCircleOutlined,
   DashboardOutlined,
   ApiOutlined,
   MenuFoldOutlined,
@@ -172,7 +169,6 @@ import {
   LogoutOutlined,
   UserOutlined,
   ThunderboltFilled,
-  SlidersOutlined,
 } from '@ant-design/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
@@ -185,10 +181,73 @@ const auth = useAuthStore()
 const themeStore = useThemeStore()
 const { t } = useI18n()
 
+const routeMenuGroups: Record<string, string> = {
+  '/projects': 'test-design',
+  '/cases': 'test-design',
+  '/suites': 'test-design',
+  '/plans': 'test-design',
+  '/mock-rules': 'test-assets',
+  '/system/datasets': 'test-assets',
+  '/system/web-assets': 'test-assets',
+  '/system/api-contract-assets': 'test-assets',
+  '/runs': 'execution-center',
+  '/system/performance': 'execution-center',
+  '/system/storage': 'execution-center',
+  '/system/run-retention': 'execution-center',
+  '/system/dashboard-alerts': 'execution-center',
+  '/devices': 'android-special',
+  '/apks': 'android-special',
+  '/mobile-special': 'android-special',
+  '/system/environments': 'platform-config',
+  '/system/startup-config': 'platform-config',
+  '/system/global-variables': 'platform-config',
+  '/system/ai-llm-configs': 'platform-config',
+  '/system/healing-examples': 'platform-config',
+  '/system/ai-healing-stats': 'platform-config',
+  '/system/notifications': 'external-integrations',
+  '/system/bug-trackers': 'external-integrations',
+  '/system/users': 'security-audit',
+  '/system/audit-logs': 'security-audit',
+}
+
+const systemRouteTitles: Record<string, string> = {
+  '/system/environments': 'menu.system.environments',
+  '/system/startup-config': 'menu.system.startup_config',
+  '/system/global-variables': 'menu.system.global_variables',
+  '/system/datasets': 'menu.system.datasets',
+  '/system/web-assets': 'menu.system.web_assets',
+  '/system/api-contract-assets': 'menu.system.api_contract_assets',
+  '/system/ai-llm-configs': 'menu.system.ai_llm_configs',
+  '/system/healing-examples': 'menu.system.ai_healing_examples',
+  '/system/ai-healing-stats': 'menu.system.ai_healing_stats',
+  '/system/performance': 'menu.system.performance',
+  '/system/storage': 'menu.system.storage',
+  '/system/run-retention': 'menu.system.run_retention',
+  '/system/dashboard-alerts': 'menu.system.dashboard_alerts',
+  '/system/notifications': 'menu.system.notifications',
+  '/system/bug-trackers': 'menu.system.bug_trackers',
+  '/system/users': 'menu.system.users',
+  '/system/audit-logs': 'menu.system.audit_logs',
+}
+
+function findRouteEntry<T>(entries: Record<string, T>, path: string) {
+  return Object.entries(entries).find(([prefix]) => path.startsWith(prefix))?.[1]
+}
+
+function getMenuOpenKeys(path: string) {
+  const group = findRouteEntry(routeMenuGroups, path)
+  if (group) return [group]
+  return []
+}
+
 const collapsed = ref(false)
 const selectedKeys = ref([route.path])
+const openKeys = ref<string[]>(getMenuOpenKeys(route.path))
 
-watch(() => route.path, (path) => { selectedKeys.value = [path] })
+watch(() => route.path, (path) => {
+  selectedKeys.value = [path]
+  openKeys.value = getMenuOpenKeys(path)
+})
 
 onMounted(() => {
   if (window.matchMedia('(max-width: 768px)').matches) {
@@ -217,7 +276,7 @@ const routeTitleKey = computed(() => {
   if (p.startsWith('/apks')) return 'menu.apks'
   if (p.startsWith('/mock')) return 'menu.mock_rules'
   if (p.startsWith('/mobile-special')) return 'menu.mobile_special.title'
-  if (p.startsWith('/system')) return 'menu.system.title'
+  if (p.startsWith('/system')) return findRouteEntry(systemRouteTitles, p) ?? 'menu.system.title'
   return 'layout.sider_title_full'
 })
 
@@ -290,6 +349,10 @@ function onLocaleChange(value: unknown) {
 .app-menu :deep(.ant-menu-item),
 .app-menu :deep(.ant-menu-submenu-title) {
   border-radius: 8px;
+}
+.app-menu :deep(.ant-menu-submenu > .ant-menu-submenu-title) {
+  color: var(--c-text);
+  font-weight: 600;
 }
 
 .app-header {

@@ -60,4 +60,10 @@ describe('createRunWebSocket', () => {
     expect(FakeWebSocket.instances[1].close).toHaveBeenCalledWith(1000)
     expect(onClose).toHaveBeenCalledOnce()
   })
+
+  it('adds the mobile run type to isolate Android special events', () => {
+    createRunWebSocket(8, vi.fn(), undefined, 'mobile')
+
+    expect(FakeWebSocket.instances[0].url).toBe('ws://localhost:5173/ws/runs/8?run_type=mobile')
+  })
 })

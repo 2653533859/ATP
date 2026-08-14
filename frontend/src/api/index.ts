@@ -133,6 +133,16 @@ export interface AndroidWorkerItem {
   expires_at: number
 }
 
+export interface AndroidUiTarget {
+  text?: string | null
+  resourceId?: string | null
+  contentDesc?: string | null
+  className?: string | null
+  bounds?: { left: number; top: number; right: number; bottom: number } | null
+  clickable?: boolean
+  enabled?: boolean
+}
+
 export interface ApkItem {
   id: number
   project_id: number
@@ -634,7 +644,7 @@ export type DeviceScopeType = 'single_device' | 'device_group' | 'manual_pick'
 export type MobileRunStatus = 'pending' | 'running' | 'completed' | 'failed' | 'stopped'
 export type MobileTriggerType = 'manual' | 'schedule' | 'webhook'
 export type IncidentType = 'crash' | 'anr' | 'fatal_log' | 'watchdog'
-export type ArtifactType = 'csv' | 'json' | 'screenshot' | 'raw_log' | 'trace'
+export type ArtifactType = 'csv' | 'json' | 'screenshot' | 'raw_log' | 'trace' | 'replay'
 export type ScopeType = 'global' | 'project'
 export type NotificationChannel = 'email' | 'wechat' | 'dingtalk'
 
@@ -712,6 +722,21 @@ export interface MobileRunArtifactItem {
   file_name: string
   file_size?: number | null
   created_at: string
+}
+
+export interface MobileRunEventItem {
+  id: number
+  run_id: number
+  sequence: number
+  event_time: string
+  event_type: string
+  phase?: string | null
+  action?: string | null
+  level?: string | null
+  message?: string | null
+  parameters_json: Record<string, unknown>
+  result_json: Record<string, unknown>
+  duration_ms?: number | null
 }
 
 export interface NotificationItem {
@@ -1263,6 +1288,8 @@ export const deviceApi = {
     http.get<unknown, Blob>(`/devices/${id}/screenshot`, { responseType: 'blob' }),
   tap: (id: number, data: { x: number; y: number }) =>
     http.post(`/devices/${id}/tap`, data),
+  uiTarget: (id: number, data: { x: number; y: number }) =>
+    http.get<unknown, { target: AndroidUiTarget | null }>(`/devices/${id}/ui-target`, { params: data }),
   swipe: (id: number, data: { x1: number; y1: number; x2: number; y2: number; duration_ms?: number }) =>
     http.post(`/devices/${id}/swipe`, data),
   screenshotUrl: (id: number) => `/api/v1/devices/${id}/screenshot`,
@@ -1441,9 +1468,14 @@ export const mobileSpecialApi = {
     http.get<unknown, MobileMetricSampleItem[]>(`/mobile-special/runs/${id}/samples`, { params }),
   getRunIncidents: (id: number) =>
     http.get<unknown, MobileIncidentItem[]>(`/mobile-special/runs/${id}/incidents`),
+  getRunEvents: (id: number, params?: { limit?: number }) =>
+    http.get<unknown, MobileRunEventItem[]>(`/mobile-special/runs/${id}/events`, { params }),
   getRunArtifacts: (id: number) =>
     http.get<unknown, MobileRunArtifactItem[]>(`/mobile-special/runs/${id}/artifacts`),
+  getArtifactUrl: (runId: number, artifactId: number) =>
+    http.get<unknown, { url: string; file_name: string }>(`/mobile-special/runs/${runId}/artifacts/${artifactId}/url`),
   stopRun: (id: number) => http.post<unknown, MobileSpecialRunItem>(`/mobile-special/runs/${id}/stop`),
+  replayRun: (id: number) => http.post<unknown, MobileSpecialRunItem>(`/mobile-special/runs/${id}/replay`),
   // Export
   exportRunCsv: (runId: number) =>
     http.get<unknown, Blob>(`/mobile-special/runs/${runId}/export/csv`, { responseType: 'blob' }),

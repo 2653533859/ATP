@@ -41,7 +41,7 @@ class TestAdbClientCommands:
     def test_build_batterystats_cmd(self):
         cmd = build_batterystats_cmd("emulator-5554", "com.example.app")
         assert "dumpsys" in cmd
-        assert "batterystats" in cmd
+        assert cmd[-1] == "battery"
 
     def test_build_logcat_cmd_with_crash_filter(self):
         cmd = build_logcat_cmd("emulator-5554", filter_crash=True)

@@ -24,6 +24,7 @@ from app.models.project import Project
 from app.models.user import User
 from app.schemas.apk import ApkOut, ApkUpdate
 from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.services.apk_metadata import extract_apk_metadata
 from app.services.project_scope import scope_to_visible_projects
 from app.models.user_project import ProjectRole
 
@@ -95,6 +96,17 @@ async def upload_apk(
     object_name = _apk_object_name(project_id, filename)
     try:
         temp_path, file_size = await _save_upload_to_tempfile(file, max_size=_MAX_APK_SIZE)
+        metadata = extract_apk_metadata(temp_path)
+        extracted_package = metadata.get("package_name")
+        if not package_name and isinstance(extracted_package, str):
+            package_name = extracted_package
+        extracted_version_name = metadata.get("version_name")
+        if not version_name and isinstance(extracted_version_name, str):
+            version_name = extracted_version_name
+        if version_code is None:
+            extracted_version_code = metadata.get("version_code")
+            if isinstance(extracted_version_code, int):
+                version_code = extracted_version_code
         ensure_bucket()
         upload_file(
             object_name,

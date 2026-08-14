@@ -22,12 +22,23 @@ def parse_meminfo(raw: str, package: str) -> Optional[dict]:
     if not raw or not package:
         return None
 
-    # Look for "Total PSS: <value> KB" or "TOTAL: <value> KB"
-    pss_match = re.search(r"(?:Total PSS|PSS|TOTAL):\s*(\d+)\s*KB", raw, re.IGNORECASE)
+    # Android 14 may omit the ``KB`` suffix and may print either
+    # ``TOTAL PSS:`` or the tabular ``TOTAL`` row.
+    pss_match = re.search(
+        r"^\s*(?:Total\s+PSS|PSS)\s*:?\s*([\d,]+(?:\.\d+)?)\s*(?:KB)?\b",
+        raw,
+        re.IGNORECASE | re.MULTILINE,
+    )
+    if not pss_match:
+        pss_match = re.search(
+            r"^\s*TOTAL\s*:?\s*([\d,]+(?:\.\d+)?)\s*(?:KB)?\b",
+            raw,
+            re.IGNORECASE | re.MULTILINE,
+        )
     if not pss_match:
         return None
 
-    total_kb = float(pss_match.group(1))
+    total_kb = float(pss_match.group(1).replace(",", ""))
     total_mb = round(total_kb / 1024, 2)
 
     return {
@@ -125,16 +136,12 @@ def parse_cpuinfo(raw: str, package: str) -> Optional[dict]:
     for pattern in patterns:
         match = re.search(pattern, raw, re.IGNORECASE)
         if match:
-            cpu_pct = float(match.group(1) if match.lastindex == 1 else match.group(2))
+            # Group 1 is the process total for all supported output formats.
+            # Do not replace a valid 0% process sample with a host-wide value.
+            cpu_pct = float(match.group(1))
             break
 
     if cpu_pct is None:
-        # Try generic percentage pattern
-        generic = re.search(r"(\d+\.?\d*)%", raw)
-        if generic:
-            cpu_pct = float(generic.group(1))
-
-    if cpu_pct is None or cpu_pct == 0:
         return None
 
     return {
@@ -156,7 +163,11 @@ def parse_batterystats(raw: str, package: str) -> Optional[dict]:
         return None
 
     # Look for battery level: "level: 85%" or "Charge: 85%"
-    level_match = re.search(r"(?:level|charge|battery):\s*(\d+)(?:\s*%)?", raw, re.IGNORECASE)
+    level_match = re.search(
+        r"^\s*(?:level|charge|battery)\s*:\s*(\d+(?:\.\d+)?)\s*%?\b",
+        raw,
+        re.IGNORECASE | re.MULTILINE,
+    )
     if not level_match:
         return None
 
@@ -165,11 +176,16 @@ def parse_batterystats(raw: str, package: str) -> Optional[dict]:
     # Temperature if available: "Temperature: 32.0"
     temp_match = re.search(r"Temperature:\s*(\d+\.?\d*)", raw, re.IGNORECASE)
     temperature_c = float(temp_match.group(1)) if temp_match else None
+    # ``dumpsys battery`` reports temperature in tenths of a degree Celsius
+    # (for example, 324 means 32.4°C), while some test/device outputs already
+    # use degrees Celsius.
+    if temperature_c is not None and temperature_c > 100:
+        temperature_c = round(temperature_c / 10, 1)
 
     return {
         "metric_type": MetricType.battery_pct.value,
         "metric_value": battery_pct,
-        "source": "dumpsys batterystats",
+        "source": "dumpsys battery",
         "extra": {
             "package": package,
             "temperature_c": temperature_c,

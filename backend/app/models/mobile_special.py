@@ -2,7 +2,7 @@ import enum
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import String, Text, Integer, Enum, ForeignKey, DateTime, JSON, BigInteger
+from sqlalchemy import String, Text, Integer, Enum, ForeignKey, DateTime, JSON, BigInteger, Index
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from sqlalchemy import func
 
@@ -67,6 +67,7 @@ class ArtifactType(str, enum.Enum):
     screenshot = "screenshot"
     raw_log = "raw_log"
     trace = "trace"
+    replay = "replay"
 
 
 class MobileSpecialTask(Base, TimestampMixin):
@@ -132,6 +133,34 @@ class MobileSpecialRun(Base, TimestampMixin):
     samples = relationship("MobileMetricSample", back_populates="run", cascade="all, delete-orphan")
     incidents = relationship("MobileIncident", back_populates="run", cascade="all, delete-orphan")
     artifacts = relationship("MobileRunArtifact", back_populates="run", cascade="all, delete-orphan")
+    events = relationship(
+        "MobileRunEvent",
+        back_populates="run",
+        cascade="all, delete-orphan",
+        order_by="MobileRunEvent.sequence",
+    )
+
+
+class MobileRunEvent(Base):
+    """Persistent execution journal entry for a mobile special run."""
+
+    __tablename__ = "mobile_run_events"
+    __table_args__ = (Index("ix_mobile_run_events_run_sequence", "run_id", "sequence"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    run_id: Mapped[int] = mapped_column(ForeignKey("mobile_special_runs.id", ondelete="CASCADE"), nullable=False)
+    sequence: Mapped[int] = mapped_column(Integer, nullable=False)
+    event_time: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    event_type: Mapped[str] = mapped_column(String(64), nullable=False)
+    phase: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    action: Mapped[Optional[str]] = mapped_column(String(128), nullable=True)
+    level: Mapped[Optional[str]] = mapped_column(String(16), nullable=True)
+    message: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    parameters_json: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    result_json: Mapped[dict] = mapped_column(JSON, nullable=False, server_default="{}")
+    duration_ms: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+
+    run = relationship("MobileSpecialRun", back_populates="events")
 
 
 class MobileMetricSample(Base):

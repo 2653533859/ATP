@@ -97,6 +97,11 @@
                   <a-input v-model:value="step.params.resourceId" placeholder="com.app:id/btn" @input="emitUpdate" />
                 </a-form-item>
               </a-col>
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.content_desc')" :label-col="{ span: 8 }">
+                  <a-input v-model:value="step.params.contentDesc" placeholder="content-desc" @input="emitUpdate" />
+                </a-form-item>
+              </a-col>
               <a-col :span="4">
                 <a-form-item label="X" :label-col="{ span: 8 }">
                   <a-input-number v-model:value="step.params.x" style="width:100%" @change="emitUpdate" />
@@ -210,7 +215,7 @@
             <a-row :gutter="12">
               <a-col :span="12">
                 <a-form-item :label="t('case.mobile.package_name')" :label-col="{ span: 6 }">
-                  <a-input v-model:value="step.params.package" placeholder="com.example.app" @input="emitUpdate" />
+                  <a-auto-complete v-model:value="step.params.package" :options="packageOptions" placeholder="com.example.app" @input="emitUpdate" @change="emitUpdate" />
                 </a-form-item>
               </a-col>
               <a-col :span="12">
@@ -224,7 +229,7 @@
           <!-- stop_app -->
           <template v-else-if="step.action === 'stop_app'">
             <a-form-item :label="t('case.mobile.package_name')" :label-col="{ span: 3 }">
-              <a-input v-model:value="step.params.package" placeholder="com.example.app" @input="emitUpdate" />
+              <a-auto-complete v-model:value="step.params.package" :options="packageOptions" placeholder="com.example.app" @input="emitUpdate" @change="emitUpdate" />
             </a-form-item>
           </template>
 
@@ -262,7 +267,7 @@
 
           <template v-else-if="['grant_permission', 'revoke_permission'].includes(step.action)">
             <a-row :gutter="12">
-              <a-col :span="10"><a-form-item :label="t('case.mobile.package_name')"><a-input v-model:value="step.params.package" placeholder="com.example.app" @input="emitUpdate" /></a-form-item></a-col>
+              <a-col :span="10"><a-form-item :label="t('case.mobile.package_name')"><a-auto-complete v-model:value="step.params.package" :options="packageOptions" placeholder="com.example.app" @input="emitUpdate" @change="emitUpdate" /></a-form-item></a-col>
               <a-col :span="14"><a-form-item :label="t('case.android_editor.permission')"><a-input v-model:value="step.params.permission" placeholder="android.permission.CAMERA" @input="emitUpdate" /></a-form-item></a-col>
             </a-row>
           </template>
@@ -280,7 +285,7 @@
 
           <template v-else-if="step.action === 'foreground'">
             <a-form-item :label="t('case.mobile.package_name')" :label-col="{ span: 4 }">
-              <a-input v-model:value="step.params.package" placeholder="com.example.app" @input="emitUpdate" />
+              <a-auto-complete v-model:value="step.params.package" :options="packageOptions" placeholder="com.example.app" @input="emitUpdate" @change="emitUpdate" />
             </a-form-item>
           </template>
 
@@ -296,7 +301,7 @@ import { message } from 'ant-design-vue'
 import { PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons-vue'
 import draggable from 'vuedraggable'
 import { useI18n } from 'vue-i18n'
-import { deviceApi } from '@/api'
+import { deviceApi, type AndroidUiTarget } from '@/api'
 
 type StepParams = Record<string, unknown>
 type ExternalStep = { action: string; name: string; params: StepParams }
@@ -311,6 +316,11 @@ interface StepDef {
 const props = defineProps<{
   modelValue: ExternalStep[]
   deviceId?: number | null
+  apkOptions?: Array<{
+    filename: string
+    package_name?: string | null
+    version_name?: string | null
+  }>
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: ExternalStep[]]
@@ -339,8 +349,17 @@ const actionOptions = computed(() => [
   { label: t('case.android_editor.actions.foreground'), value: 'foreground' },
 ])
 
+const packageOptions = computed(() =>
+  (props.apkOptions || [])
+    .filter((apk) => apk.package_name)
+    .map((apk) => ({
+      value: apk.package_name as string,
+      label: apk.version_name ? `${apk.package_name} · ${apk.filename} · v${apk.version_name}` : `${apk.package_name} · ${apk.filename}`,
+    })),
+)
+
 const defaultParams: Record<string, () => StepParams> = {
-  click: () => ({ text: '', resourceId: '', x: undefined, y: undefined }),
+  click: () => ({ text: '', resourceId: '', contentDesc: '', x: undefined, y: undefined }),
   long_click: () => ({ x: undefined, y: undefined, duration: 1000 }),
   swipe: () => ({ direction: 'up', x1: undefined, y1: undefined, x2: undefined, y2: undefined }),
   input: () => ({ text: '', resourceId: '', clear: false }),
@@ -478,6 +497,31 @@ function eventToDevicePoint(event: PointerEvent) {
   }
 }
 
+async function resolveUiTarget(point: { x: number; y: number }): Promise<AndroidUiTarget | null> {
+  if (!props.deviceId) return null
+  try {
+    const result = await deviceApi.uiTarget(props.deviceId, point)
+    return result.target
+  } catch {
+    // UI 层级不是所有 Android 页面都能提供，录制仍可退回坐标。
+    return null
+  }
+}
+
+function locatorParams(point: { x: number; y: number }, target: AndroidUiTarget | null): StepParams {
+  const text = target?.text?.trim() || ''
+  const resourceId = target?.resourceId?.trim() || ''
+  const contentDesc = target?.contentDesc?.trim() || ''
+  if (text || resourceId || contentDesc) {
+    return { text, resourceId, contentDesc }
+  }
+  return { text: '', resourceId: '', contentDesc: '', x: point.x, y: point.y }
+}
+
+function locatorLabel(target: AndroidUiTarget | null) {
+  return target?.resourceId?.trim() || target?.text?.trim() || target?.contentDesc?.trim() || ''
+}
+
 function onScreenPointerDown(event: PointerEvent) {
   if (recordingAction.value) return
   ;(event.currentTarget as HTMLElement).setPointerCapture?.(event.pointerId)
@@ -493,10 +537,15 @@ async function onScreenPointerUp(event: PointerEvent) {
 
   const distance = Math.hypot(end.x - start.x, end.y - start.y)
   if (distance < 12) {
-    appendStep('click', { text: '', resourceId: '', x: start.x, y: start.y })
+    const target = await resolveUiTarget(start)
+    const params = locatorParams(start, target)
+    appendStep('click', params)
+    const label = locatorLabel(target)
     await performLiveAction(
       () => deviceApi.tap(props.deviceId!, { x: start.x, y: start.y }),
-      t('case.android_editor.visual_click_added', { x: start.x, y: start.y }),
+      label
+        ? t('case.android_editor.visual_click_locator_added', { locator: label })
+        : t('case.android_editor.visual_click_added', { x: start.x, y: start.y }),
     )
     return
   }

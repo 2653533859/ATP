@@ -32,13 +32,14 @@ from app.services.mobile_special.adb_client import (
     build_gfxinfo_cmd,
 )
 from app.services.mobile_special.parsers import parse_gfxinfo_framestats
+from app.services.mobile_special_events import MobileRunEventRecorder
 
 logger = logging.getLogger(__name__)
 
 
 async def _safe_publish(run_id: int, payload: dict) -> None:
     try:
-        await publish_run_event(run_id, payload)
+        await publish_run_event(run_id, payload, run_type="mobile")
     except Exception:
         pass
 
@@ -122,6 +123,8 @@ async def run_mobile_special_fluency(
     device_serial = config.get("device_serial") or run.device_serial
     app_package = config.get("app_package") or run.app_package
     stages = config.get("stages", [])
+    events = MobileRunEventRecorder(db, run.id)
+    await events.initialize()
 
     # 1. 校验输入
     validation_errors = _validate_inputs(device_serial, app_package, config)
@@ -130,6 +133,14 @@ async def run_mobile_special_fluency(
         run.finished_at = datetime.now()
         run.summary_json = {"error_message": "; ".join(validation_errors)}
         await db.commit()
+        await events.record(
+            event_type="validation",
+            phase="validation",
+            level="error",
+            message="输入校验失败",
+            parameters={"device_serial": device_serial, "app_package": app_package},
+            result={"ok": False, "errors": validation_errors},
+        )
         await _safe_publish(
             run.id,
             {
@@ -149,6 +160,14 @@ async def run_mobile_special_fluency(
         run.finished_at = datetime.now()
         run.summary_json = {"error_message": f"设备不可达: {device_message}"}
         await db.commit()
+        await events.record(
+            event_type="device_check",
+            phase="device_setup",
+            level="error",
+            message="设备不可达",
+            parameters={"device_serial": device_serial},
+            result={"ok": False, "detail": device_message},
+        )
         await _safe_publish(
             run.id,
             {
@@ -162,6 +181,14 @@ async def run_mobile_special_fluency(
     run.started_at = datetime.now()
     run.status = RunStatus.running
     await db.commit()
+    await events.record(
+        event_type="run_started",
+        phase="device_setup",
+        action="connect_device",
+        message="开始执行流畅度场景",
+        parameters={"device_serial": device_serial, "app_package": app_package, "stage_count": len(stages)},
+        result={"ok": True},
+    )
 
     await _safe_publish(
         run.id,
@@ -169,15 +196,33 @@ async def run_mobile_special_fluency(
             "type": "started",
             "run_id": run.id,
             "device_serial": device_serial,
+            "phase": "running",
+            "progress": 35,
+            "current_step": "准备流畅度场景",
+            "device_status": "online",
         },
     )
 
     # 3. 启动 App
     start_cmd = ["adb", "-s", device_serial, "shell", "am", "start", "-n", f"{app_package}/.MainActivity"]
     try:
-        await asyncio.to_thread(subprocess.run, start_cmd, capture_output=True, text=True, timeout=15)
+        start_result = await asyncio.to_thread(subprocess.run, start_cmd, capture_output=True, text=True, timeout=15)
+        await events.record(
+            event_type="action",
+            phase="app_setup",
+            action="start_app",
+            parameters={"package": app_package, "command": start_cmd},
+            result={"ok": start_result.returncode == 0, "return_code": start_result.returncode},
+        )
     except Exception as e:
         logger.warning("failed to start app for fluency run %s: %s", run.id, e)
+        await events.record(
+            event_type="action",
+            phase="app_setup",
+            action="start_app",
+            parameters={"package": app_package, "command": start_cmd},
+            result={"ok": False, "error": str(e)},
+        )
 
     # 等待应用启动
     await asyncio.sleep(3)
@@ -217,6 +262,28 @@ async def run_mobile_special_fluency(
                         "run_id": run.id,
                         "stage_index": idx,
                         "stage_name": stage_name,
+                        "phase": "stage",
+                        "progress": 35 + round(idx / max(len(stages), 1) * 60),
+                        "current_step": stage_name,
+                        "device_serial": device_serial,
+                        "device_status": "online",
+                    },
+                )
+                await events.record(
+                    event_type="stage_start",
+                    phase="stage",
+                    action="start_stage",
+                    message=stage_name,
+                    parameters={"stage_index": idx, "stage": stage},
+                    result={"started": True},
+                )
+                await _safe_publish(
+                    run.id,
+                    {
+                        "type": "log",
+                        "run_id": run.id,
+                        "level": "info",
+                        "message": f"开始流畅度步骤：{stage_name}",
                     },
                 )
 
@@ -226,7 +293,7 @@ async def run_mobile_special_fluency(
                 # 执行 stage 操作
                 if action == "swipe":
                     coords = stage.get("coords", {})
-                    await _perform_swipe(
+                    action_ok = await _perform_swipe(
                         device_serial,
                         coords.get("x1", 540),
                         coords.get("y1", 1000),
@@ -235,7 +302,22 @@ async def run_mobile_special_fluency(
                     )
                 elif action == "tap":
                     coords = stage.get("coords", {})
-                    await _perform_tap(device_serial, coords.get("x", 540), coords.get("y", 1000))
+                    action_ok = await _perform_tap(device_serial, coords.get("x", 540), coords.get("y", 1000))
+                else:
+                    action_ok = True
+
+                await events.record(
+                    event_type="action",
+                    phase="stage",
+                    action=action,
+                    message=stage_name,
+                    parameters={
+                        "stage_index": idx,
+                        "coords": stage.get("coords", {}),
+                        "duration_seconds": duration_between,
+                    },
+                    result={"ok": bool(action_ok)},
+                )
 
                 # 等待一段时间
                 remaining = float(duration_between)
@@ -250,6 +332,7 @@ async def run_mobile_special_fluency(
                     break
 
                 # 采样 FPS
+                result: dict = {}
                 raw = await asyncio.get_event_loop().run_in_executor(
                     None,
                     lambda: run_adb_shell(device_serial, build_gfxinfo_cmd(device_serial, app_package), timeout=10),
@@ -268,13 +351,50 @@ async def run_mobile_special_fluency(
                         "run_id": run.id,
                         "stage_index": idx,
                         "stage_name": stage_name,
+                        "phase": "stage",
+                        "progress": 35 + round((idx + 1) / max(len(stages), 1) * 60),
+                        "current_step": f"完成：{stage_name}",
+                        "device_serial": device_serial,
+                        "device_status": "online",
+                        "sample_metrics": [
+                            {
+                                "metric_type": result.get("metric_type", "fps"),
+                                "metric_value": float(result.get("metric_value", 0)),
+                                "sample_time": result.get("sample_time").isoformat()
+                                if hasattr(result.get("sample_time"), "isoformat")
+                                else str(result.get("sample_time") or ""),
+                            }
+                        ]
+                        if result
+                        else [],
                     },
+                )
+                await events.record(
+                    event_type="stage_end",
+                    phase="stage",
+                    action="finish_stage",
+                    message=stage_name,
+                    parameters={"stage_index": idx},
+                    result={"ok": True, "sampled": bool(result)},
                 )
 
     except Exception as e:
         logger.exception("fluency execution error for run %s: %s", run.id, e)
 
     total_ms = int((time.monotonic() - start_time) * 1000)
+
+    await _safe_publish(
+        run.id,
+        {
+            "type": "phase",
+            "run_id": run.id,
+            "phase": "finalizing",
+            "progress": 95,
+            "current_step": "整理流畅度指标",
+            "device_serial": device_serial,
+            "device_status": "online" if device_lost_at is None else "offline",
+        },
+    )
 
     # 5. 保存样本
     for sample_data in all_samples:
@@ -301,6 +421,14 @@ async def run_mobile_special_fluency(
     run.duration_ms = total_ms
     run.summary_json = summary
     await db.commit()
+    await events.record(
+        event_type="run_completed",
+        phase="finalizing",
+        action="complete_run",
+        parameters={"cancelled": cancelled},
+        result={"status": run.status.value, "summary": summary},
+        duration_ms=total_ms,
+    )
 
     await _safe_publish(
         run.id,
@@ -310,5 +438,8 @@ async def run_mobile_special_fluency(
             "status": run.status.value,
             "duration_ms": total_ms,
             "summary": summary,
+            "progress": 100,
+            "current_step": "执行完成" if run.status == RunStatus.completed else "执行已停止",
+            "device_status": "online" if device_lost_at is None else "offline",
         },
     )

@@ -19,6 +19,7 @@ def load_all_models() -> None:
         MobileMetricSample,
         MobileIncident,
         MobileRunArtifact,
+        MobileRunEvent,
     )
     from app.models.global_variable import GlobalVariable
     from app.models.storage_policy import StoragePolicy
@@ -64,6 +65,7 @@ def load_all_models() -> None:
         MobileMetricSample,
         MobileIncident,
         MobileRunArtifact,
+        MobileRunEvent,
         GlobalVariable,
         StoragePolicy,
         AILLMConfig,

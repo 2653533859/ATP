@@ -14,6 +14,7 @@ from app.services.device_leases import (
 )
 from app.services.mobile_special_control import clear_cancel_request, is_cancel_requested
 from app.services.performance_control import create_control_client
+from app.services.mobile_special_events import MobileRunEventRecorder
 import logging
 
 logger = logging.getLogger(__name__)
@@ -23,7 +24,7 @@ load_all_models()
 
 async def _safe_publish_run_event(run_id: int, payload: dict) -> None:
     try:
-        await publish_run_event(run_id, payload)
+        await publish_run_event(run_id, payload, run_type="mobile")
     except Exception:
         logger.exception(f"Failed to publish event for run {run_id}")
 
@@ -42,10 +43,25 @@ def run_mobile_special_task(self, run_id: int):
             if not run:
                 logger.error(f"MobileSpecialRun {run_id} not found")
                 return
+            events = MobileRunEventRecorder(db, run_id)
+            await events.initialize()
+            await events.record(
+                event_type="run_received",
+                phase="dispatch",
+                action="load_run",
+                parameters={"run_id": run_id},
+                result={"status": run.status.value if hasattr(run.status, "value") else str(run.status)},
+            )
             if run.status == RunStatus.stopped or is_cancel_requested(run_id, client=control_client):
                 run.status = RunStatus.stopped
                 run.finished_at = run.finished_at or datetime.now(timezone.utc)
                 await db.commit()
+                await events.record(
+                    event_type="run_stopped",
+                    phase="dispatch",
+                    action="cancel_before_start",
+                    result={"status": RunStatus.stopped.value},
+                )
                 return
 
             task = await db.get(MobileSpecialTask, run.task_id)
@@ -53,6 +69,13 @@ def run_mobile_special_task(self, run_id: int):
                 run.status = RunStatus.failed
                 run.summary_json = {"error_message": "Task not found"}
                 await db.commit()
+                await events.record(
+                    event_type="dispatch_error",
+                    phase="dispatch",
+                    level="error",
+                    message="Task not found",
+                    result={"ok": False},
+                )
                 return
 
             run.config_snapshot = _merge_run_config(task.config_json, run.config_snapshot)
@@ -64,7 +87,18 @@ def run_mobile_special_task(self, run_id: int):
             if run.device_serial:
                 run.config_snapshot["device_serial"] = run.device_serial
             await db.commit()
-
+            await events.record(
+                event_type="configuration",
+                phase="device_setup",
+                action="resolve_run_config",
+                parameters={
+                    "task_type": task.task_type.value,
+                    "device_id": run.device_id,
+                    "device_serial": run.device_serial,
+                    "app_package": run.app_package,
+                },
+                result={"ok": True},
+            )
             lease_token: str | None = None
             if run.device_id is not None:
                 try:
@@ -77,19 +111,80 @@ def run_mobile_special_task(self, run_id: int):
                     )
                     lease_token = lease.lease_token
                     await db.commit()
+                    await events.record(
+                        event_type="device_lease",
+                        phase="device_setup",
+                        action="acquire_device_lease",
+                        level="info",
+                        message="设备租约获取成功",
+                        result={"ok": True, "lease_acquired": True},
+                    )
                 except (DeviceLeaseConflict, LookupError) as exc:
                     run.status = RunStatus.failed
                     run.finished_at = datetime.now(timezone.utc)
                     run.summary_json = {"error_message": f"设备租约冲突: {exc}"}
                     await db.commit()
+                    await events.record(
+                        event_type="device_lease",
+                        phase="device_setup",
+                        action="acquire_device_lease",
+                        level="error",
+                        message="设备租约获取失败",
+                        result={"ok": False, "lease_acquired": False, "error": str(exc)[:500]},
+                    )
                     await _safe_publish_run_event(
                         run_id,
-                        {"type": "completed", "run_id": run_id, "status": "failed"},
+                        {
+                            "type": "log",
+                            "run_id": run_id,
+                            "level": "error",
+                            "message": f"设备租约获取失败：{exc}",
+                        },
+                    )
+                    await _safe_publish_run_event(
+                        run_id,
+                        {
+                            "type": "completed",
+                            "run_id": run_id,
+                            "status": "failed",
+                            "progress": 100,
+                            "current_step": "设备租约获取失败",
+                            "device_status": "offline",
+                            "error": str(exc)[:500],
+                        },
                     )
                     return
 
             try:
-                await _safe_publish_run_event(run_id, {"type": "run_status", "run_id": run_id, "status": "running"})
+                await _safe_publish_run_event(
+                    run_id,
+                    {
+                        "type": "run_status",
+                        "run_id": run_id,
+                        "status": "running",
+                        "phase": "device_setup",
+                        "progress": 15,
+                        "current_step": "连接 Android 设备",
+                        "device_serial": run.device_serial,
+                        "device_status": "online" if run.device_serial else "unknown",
+                    },
+                )
+                await _safe_publish_run_event(
+                    run_id,
+                    {
+                        "type": "log",
+                        "run_id": run_id,
+                        "level": "info",
+                        "message": f"已选择设备 {run.device_serial or '自动发现'}，开始执行前置操作",
+                    },
+                )
+                await events.record(
+                    event_type="dispatch",
+                    phase="executor",
+                    action="start_executor",
+                    parameters={"task_type": task.task_type.value},
+                    result={"ok": True},
+                )
 
                 from app.models.apk import Apk
                 from app.services.mobile_special.preflight import run_android_preflight
@@ -105,6 +200,34 @@ def run_mobile_special_task(self, run_id: int):
                     package=run.app_package,
                     config=run.config_snapshot,
                     apk_object_name=apk.object_name if apk is not None else None,
+                )
+                await _safe_publish_run_event(
+                    run_id,
+                    {
+                        "type": "phase",
+                        "run_id": run_id,
+                        "phase": "preflight",
+                        "progress": 25,
+                        "current_step": "执行 Android 前置操作",
+                        "device_serial": run.device_serial,
+                        "device_status": "online",
+                    },
+                )
+                await _safe_publish_run_event(
+                    run_id,
+                    {
+                        "type": "log",
+                        "run_id": run_id,
+                        "level": "info",
+                        "message": "前置操作完成，准备启动专项执行器",
+                    },
+                )
+                await events.record(
+                    event_type="phase",
+                    phase="device_setup",
+                    action="preflight",
+                    parameters={"device_serial": run.device_serial, "app_package": run.app_package},
+                    result={"ok": True, "actions": preflight_result.get("actions", [])},
                 )
                 if "launch_before" in (preflight_result.get("actions") or []):
                     # Executors also support auto_start; avoid launching the same app twice.
@@ -147,12 +270,34 @@ def run_mobile_special_task(self, run_id: int):
                 run.finished_at = datetime.now(timezone.utc)
                 run.summary_json = {"error_message": str(e)[:500]}
                 await db.commit()
+                await events.record(
+                    event_type="run_error",
+                    phase="dispatch",
+                    action="exception",
+                    level="error",
+                    message=str(e)[:4000],
+                    result={"ok": False, "error": str(e)[:500]},
+                )
+                await _safe_publish_run_event(
+                    run_id,
+                    {
+                        "type": "log",
+                        "run_id": run_id,
+                        "level": "error",
+                        "message": str(e)[:500],
+                    },
+                )
                 await _safe_publish_run_event(
                     run_id,
                     {
                         "type": "completed",
                         "run_id": run_id,
                         "status": "failed",
+                        "progress": 100,
+                        "current_step": "执行失败",
+                        "device_status": "online" if run.device_serial else "unknown",
+                        "error": str(e)[:500],
+                        "summary": run.summary_json,
                     },
                 )
             finally:
@@ -164,6 +309,12 @@ def run_mobile_special_task(self, run_id: int):
                             serial=run.device_serial,
                             package=run.app_package,
                             config=run.config_snapshot or {},
+                        )
+                        await events.record(
+                            event_type="phase",
+                            phase="cleanup",
+                            action="postflight",
+                            result={"ok": True},
                         )
                 except Exception:
                     logger.exception("Failed to apply Android postflight for mobile run %s", run_id)

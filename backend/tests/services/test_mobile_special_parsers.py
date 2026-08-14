@@ -1,20 +1,17 @@
 """Tests for mobile_special parsers."""
 
 import sys
-from datetime import datetime
 from pathlib import Path
-
-import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from app.services.mobile_special.parsers import (
-    parse_meminfo,
-    parse_gfxinfo_framestats,
-    parse_cpuinfo,
     parse_batterystats,
-    parse_logcat_crash,
+    parse_cpuinfo,
+    parse_gfxinfo_framestats,
     parse_logcat_anr,
+    parse_logcat_crash,
+    parse_meminfo,
     parse_pid,
 )
 
@@ -42,10 +39,29 @@ class TestParseMeminfo:
         result = parse_meminfo(raw, "com.example.app")
         assert result["metric_value"] == 500.0
 
+    def test_parse_android14_tabular_meminfo_without_kb_suffix(self):
+        raw = """
+                         Pss  Private  Private
+                TOTAL   105485    10424     8712
+                   TOTAL PSS:   105485            TOTAL RSS:   130044
+        """
+        result = parse_meminfo(raw, "com.example.app")
+        assert result is not None
+        assert result["metric_value"] == 103.01  # 105485 KB / 1024
+
+    def test_parse_meminfo_normalizes_thousands_separator(self):
+        raw = """
+                         Pss  Private  Private
+                TOTAL    33,398     30,000     8,712
+        """
+        result = parse_meminfo(raw, "com.example.app")
+        assert result is not None
+        assert result["metric_value"] == 32.62
+        assert result["extra"]["total_kb"] == 33398.0
+
 
 class TestParseGfxInfo:
     def test_parse_gfxinfo_framestats_extracts_fps_and_jank(self):
-        # Simulated gfxinfo framestats output with jank frames
         raw = """Graphics info:
         Frame info frameTime histogram:
         1.5 ms: 100
@@ -59,7 +75,6 @@ class TestParseGfxInfo:
         result = parse_gfxinfo_framestats(raw, "com.example.app")
         assert result is not None
         assert result["metric_type"] == "fps"
-        # FPS = 1000 / avg_frame_time_ms
         assert result["metric_value"] > 0
         assert "jank_count" in result["extra"]
         assert result["extra"]["jank_count"] == 20
@@ -71,7 +86,6 @@ class TestParseGfxInfo:
 
 class TestParseCpuinfo:
     def test_parse_cpuinfo_returns_percentage(self):
-        # dumpsys cpuinfo for a process
         raw = """CPU usage from 0ms to 1000ms later:
         1000ms:
           +5.2% 1234 com.example.app: 52%user + 3%kernel / 4%iowait
@@ -79,11 +93,33 @@ class TestParseCpuinfo:
         result = parse_cpuinfo(raw, "com.example.app")
         assert result is not None
         assert result["metric_type"] == "cpu_pct"
-        assert result["metric_value"] > 0
+        assert result["metric_value"] == 5.2
+
+    def test_parse_cpuinfo_keeps_zero_percent_process_sample(self):
+        raw = "  0% 11994/com.example.app: 0% user + 0% kernel"
+        result = parse_cpuinfo(raw, "com.example.app")
+        assert result is not None
+        assert result["metric_value"] == 0.0
 
     def test_parse_cpuinfo_returns_none_for_no_match(self):
         assert parse_cpuinfo("", "com.example.app") is None
         assert parse_cpuinfo("no process info", "com.example.app") is None
+
+
+class TestParseBattery:
+    def test_parse_dumpsys_battery_output(self):
+        raw = "status: 2\nlevel: 95\ntemperature: 324\n"
+        result = parse_batterystats(raw, "com.example.app")
+        assert result is not None
+        assert result["metric_value"] == 95.0
+        assert result["extra"]["temperature_c"] == 32.4
+
+    def test_parse_battery_accepts_percent_and_celsius(self):
+        raw = "Charge: 85%\nTemperature: 32.0\n"
+        result = parse_batterystats(raw, "com.example.app")
+        assert result is not None
+        assert result["metric_value"] == 85.0
+        assert result["extra"]["temperature_c"] == 32.0
 
 
 class TestParseLogcatCrash:

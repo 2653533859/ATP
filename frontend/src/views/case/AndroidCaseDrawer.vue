@@ -153,6 +153,7 @@
               <a-select-option v-for="apk in apks" :key="apk.id" :value="apk.id">
                 {{ apk.filename }}
                 <span v-if="apk.version_name" class="muted"> v{{ apk.version_name }}</span>
+                <span v-if="apk.package_name" class="muted"> · {{ apk.package_name }}</span>
               </a-select-option>
             </a-select>
           </a-form-item>
@@ -182,7 +183,7 @@
           </a-button>
           <span>{{ t('case.drawer.android.generate_script_hint') }}</span>
         </div>
-        <AndroidStepEditor v-model="lowcodeSteps" :device-id="selectedDeviceId" />
+        <AndroidStepEditor v-model="lowcodeSteps" :device-id="selectedDeviceId" :apk-options="apks" />
       </template>
 
       <template v-else>
@@ -310,7 +311,7 @@ const deviceMatrixEnabled = ref(false)
 
 const devices = ref<DeviceItem[]>([])
 const devicesLoading = ref(false)
-const apks = ref<Array<{ id: number; filename: string; version_name?: string; object_name?: string }>>([])
+const apks = ref<Array<{ id: number; filename: string; package_name?: string | null; version_name?: string; object_name?: string }>>([])
 const apksLoading = ref(false)
 const apkMap = ref<Record<number, string>>({})
 
@@ -398,7 +399,7 @@ async function loadApks() {
   try {
     const routeProjectId = Number(route.params.projectId || route.query.project_id)
     const projectId = props.projectId ?? (Number.isFinite(routeProjectId) ? routeProjectId : undefined)
-    apks.value = await apkApi.list(projectId ? { project_id: projectId } : undefined) as Array<{ id: number; filename: string; version_name?: string; object_name?: string }>
+    apks.value = await apkApi.list(projectId ? { project_id: projectId } : undefined) as Array<{ id: number; filename: string; package_name?: string | null; version_name?: string; object_name?: string }>
     apkMap.value = apks.value.reduce<Record<number, string>>((acc, item) => {
       if (item.object_name) {
         acc[item.id] = item.object_name

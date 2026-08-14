@@ -259,6 +259,32 @@ def test_upload_apk_happy_path_uploads_and_creates_row(stubs):
     assert db.added == [apk] and db.commits == 1
 
 
+def test_upload_apk_uses_manifest_metadata_when_form_values_are_missing(stubs, monkeypatch):
+    monkeypatch.setattr(
+        ak,
+        "extract_apk_metadata",
+        lambda _path: {"package_name": "com.auto.demo", "version_name": "3.1.0", "version_code": 310},
+    )
+    db = _FakeDB({("Project", 5): _Obj(id=5)})
+
+    apk = asyncio.run(
+        ak.upload_apk(
+            project_id=5,
+            file=_FakeUpload("auto.apk", [b"apk"]),
+            package_name=None,
+            version_name=None,
+            version_code=None,
+            description=None,
+            db=db,
+            current_user=_user(uid=9),
+        )
+    )
+
+    assert apk.package_name == "com.auto.demo"
+    assert apk.version_name == "3.1.0"
+    assert apk.version_code == 310
+
+
 # ── list / get / update / delete / download ─────────────────
 
 

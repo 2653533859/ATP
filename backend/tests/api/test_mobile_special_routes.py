@@ -264,6 +264,60 @@ def test_create_task_refreshes_schedule_and_stamps_creator(access_recorder):
     assert db.commits == 1 and db.added == [task]
 
 
+def test_create_task_copies_package_from_project_apk(access_recorder):
+    db = _FakeDB({("Apk", 12): _Obj(id=12, project_id=5, package_name="com.selected.app")})
+    body = MobileSpecialTaskCreate(
+        project_id=5,
+        name="APK 选择任务",
+        task_type=TaskType.performance,
+        device_scope_type=DeviceScopeType.single_device,
+        apk_id=12,
+    )
+
+    task = asyncio.run(ms.create_task(body=body, db=db, current_user=_user(21)))
+
+    assert task.apk_id == 12
+    assert task.app_package == "com.selected.app"
+
+
+def test_update_task_changes_package_with_selected_apk(access_recorder):
+    task = _task(apk_id=None, app_package="com.old.app")
+    db = _FakeDB(
+        {
+            ("MobileSpecialTask", 1): task,
+            ("Apk", 13): _Obj(id=13, project_id=5, package_name="com.new.app"),
+        }
+    )
+
+    updated = asyncio.run(
+        ms.update_task(
+            1,
+            body=MobileSpecialTaskUpdate(apk_id=13),
+            db=db,
+            current_user=_user(33),
+        )
+    )
+
+    assert updated.apk_id == 13
+    assert updated.app_package == "com.new.app"
+
+
+def test_create_task_rejects_apk_from_another_project(access_recorder):
+    db = _FakeDB({("Apk", 14): _Obj(id=14, project_id=99, package_name="com.other.app")})
+    body = MobileSpecialTaskCreate(
+        project_id=5,
+        name="跨项目 APK",
+        task_type=TaskType.performance,
+        device_scope_type=DeviceScopeType.single_device,
+        apk_id=14,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(ms.create_task(body=body, db=db, current_user=_user(21)))
+
+    assert exc.value.status_code == 400
+
+
 def test_get_update_delete_task_404():
     for call in (
         ms.get_task(404, db=_FakeDB(), user=_user()),
@@ -439,6 +493,78 @@ def test_list_samples_incidents_artifacts_require_run():
             asyncio.run(call)
 
 
+def test_list_run_events_returns_ordered_journal_rows():
+    run = _run()
+    event = _Obj(
+        id=7,
+        run_id=10,
+        sequence=1,
+        event_time=_now(),
+        event_type="run_started",
+        phase="device_setup",
+        action="connect_device",
+        level="info",
+        message="started",
+        parameters_json={"serial": "emu-5554"},
+        result_json={"ok": True},
+        duration_ms=None,
+    )
+    db = _FakeDB({("MobileSpecialRun", 10): run}, execute_rows=[[event]])
+
+    result = asyncio.run(ms.list_run_events(10, limit=1000, db=db))
+
+    assert result == [event]
+
+
+def test_replay_run_preserves_monkey_seed_and_enqueues(access_recorder, monkeypatch):
+    delayed = []
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.tasks_mobile_special",
+        types.SimpleNamespace(run_mobile_special_task=types.SimpleNamespace(delay=lambda rid: delayed.append(rid))),
+    )
+    task = _task(config_json={"duration_seconds": 30, "monkey_seed": 2468})
+    source = _run(config_snapshot={"duration_seconds": 30, "monkey_seed": 2468})
+    db = _FakeDB(
+        {
+            ("MobileSpecialRun", 10): source,
+            ("MobileSpecialTask", 1): task,
+        }
+    )
+
+    replay = asyncio.run(ms.replay_run(10, db=db, current_user=_user()))
+
+    assert replay.config_snapshot["monkey_seed"] == 2468
+    assert replay.config_snapshot["replay_of_run_id"] == 10
+    assert replay.device_serial == source.device_serial
+    assert delayed == [replay.id]
+
+
+def test_get_run_artifact_url_returns_presigned_storage_url(monkeypatch):
+    run = _run()
+    artifact = _Obj(
+        id=3,
+        run_id=10,
+        file_name="incident-replay.mp4",
+        file_path="android-special/runs/10/incident-replay.mp4",
+    )
+    db = _FakeDB(
+        {("MobileSpecialRun", 10): run, ("MobileRunArtifact", 3): artifact},
+    )
+    monkeypatch.setattr(ms, "presigned_url", lambda path: f"https://minio.test/{path}")
+
+    result = asyncio.run(ms.get_run_artifact_url(10, 3, db=db))
+
+    assert result == {
+        "url": "https://minio.test/android-special/runs/10/incident-replay.mp4",
+        "file_name": "incident-replay.mp4",
+    }
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(ms.get_run_artifact_url(10, 404, db=db))
+    assert exc.value.status_code == 404
+
+
 def test_export_run_csv_formats_rows_and_404s_without_samples():
     run = _run()
     db = _FakeDB({("MobileSpecialRun", 10): run}, execute_rows=[[_sample(), _sample(sid=2, value=13.0)]])
@@ -478,7 +604,7 @@ def test_export_run_json_bundles_run_samples_incidents_artifacts():
     )
     db = _FakeDB(
         {("MobileSpecialRun", 10): run, ("MobileSpecialTask", 1): task},
-        execute_rows=[[_sample()], [incident], [artifact]],
+        execute_rows=[[_sample()], [incident], [], [artifact]],
     )
 
     response = asyncio.run(ms.export_run_json(10, db=db))
@@ -488,6 +614,7 @@ def test_export_run_json_bundles_run_samples_incidents_artifacts():
     assert report["run"]["status"] == "pending"
     assert report["samples"][0]["metric_type"] == "cpu_pct"
     assert report["incidents"][0]["incident_type"] == "anr"
+    assert report["events"] == []
     assert report["artifacts"][0]["file_name"] == "r.json"
 
     with pytest.raises(HTTPException):

@@ -141,14 +141,14 @@ def test_stop_app(adb):
 
 
 def test_assert_text_and_element(adb):
-    adb["responses"] = [(True, '<node text="登录成功" />')]
+    adb["responses"] = [(True, '<hierarchy><node text="登录成功" /></hierarchy>')]
     assert _run("assert_text", text="登录成功")["success"] is True
-    adb["responses"] = [(True, "<node/>")]
+    adb["responses"] = [(True, "<hierarchy><node /></hierarchy>")]
     assert _run("assert_text", text="缺失")["success"] is False
 
-    adb["responses"] = [(True, 'resource-id="com.acme:id/btn"')]
+    adb["responses"] = [(True, '<hierarchy><node resource-id="com.acme:id/btn" /></hierarchy>')]
     assert _run("assert_element", resourceId="com.acme:id/btn")["success"] is True
-    adb["responses"] = [(True, "<node/>")]
+    adb["responses"] = [(True, "<hierarchy><node /></hierarchy>")]
     assert _run("assert_element", resource_id="missing")["success"] is False
 
 
@@ -262,21 +262,32 @@ def test_clear_input_text_stops_on_first_failure(adb):
 
 # ── _find_and_click：text / resourceId 的 dump 解析路径 ─────
 
-_DUMP_TEXT = '<node bounds="[100,200][300,400]" text="登录" />'
-_DUMP_RID = '<node resource-id="com.acme:id/btn" bounds="[10,20][30,40]" />'
+_DUMP_TEXT = '<hierarchy><node bounds="[100,200][300,400]" text="登录" /></hierarchy>'
+_DUMP_RID = '<hierarchy><node resource-id="com.acme:id/btn" bounds="[10,20][30,40]" /></hierarchy>'
+
+
+def test_uiautomator_dump_falls_back_to_remote_file(adb):
+    adb["responses"] = [(True, "UI hierchary dumped to: /dev/tty"), (True, "dumped"), (True, _DUMP_TEXT)]
+
+    ok, dump = executor._uiautomator_dump("s1")
+
+    assert ok is True
+    assert dump == _DUMP_TEXT
+    assert ("shell", "uiautomator", "dump", "/sdcard/atp-ui-hierarchy.xml") in adb["calls"]
+    assert ("shell", "cat", "/sdcard/atp-ui-hierarchy.xml") in adb["calls"]
 
 
 def test_find_and_click_by_text_via_dump_fallback(adb):
-    # 组合命令失败 → uiautomator dump 解析 bounds → 中心点 tap
-    adb["responses"] = [(True, ""), (False, ""), (True, _DUMP_TEXT), (True, "")]
+    # UIAutomator dump 解析 bounds → 中心点 tap
+    adb["responses"] = [(True, _DUMP_TEXT), (True, "")]
     assert executor._find_and_click("s1", {"text": "登录"}) == {"success": True, "error": None}
     assert ("shell", "input", "tap", "200", "300") in adb["calls"]  # (100+300)/2, (200+400)/2
 
 
 def test_find_and_click_by_text_reversed_attr_order(adb):
-    dump = '<node text="登录" foo="1" bounds="[0,0][10,10]" />'
-    adb["responses"] = [(True, ""), (False, ""), (True, dump), (True, "")]
-    assert executor._find_and_click("s1", {"text": "登录"})["success"] is True
+    dump = '<node text="Login" foo="1" bounds="[0,0][10,10]" />'
+    adb["responses"] = [(True, f"<hierarchy>{dump}</hierarchy>"), (True, "")]
+    assert executor._find_and_click("s1", {"text": "Login"})["success"] is True
     assert ("shell", "input", "tap", "5", "5") in adb["calls"]
 
 
@@ -286,10 +297,10 @@ def test_find_and_click_by_text_not_found(adb):
     assert result["success"] is False and "未找到文本元素" in result["error"]
 
 
-def test_find_and_click_by_text_combined_command_succeeds(adb):
-    adb["responses"] = [(True, ""), (True, "")]  # 组合命令直接成功，无需 dump
-    assert executor._find_and_click("s1", {"text": "登录"}) == {"success": True}
-    assert not any(c[:2] == ("shell", "uiautomator") for c in adb["calls"])
+def test_find_and_click_by_text_uses_dump_on_all_devices(adb):
+    adb["responses"] = [(True, _DUMP_TEXT), (True, "")]
+    assert executor._find_and_click("s1", {"text": "登录"}) == {"success": True, "error": None}
+    assert ("shell", "input", "tap", "200", "300") in adb["calls"]
 
 
 def test_find_and_click_by_resource_id(adb):
@@ -302,9 +313,27 @@ def test_find_and_click_by_resource_id(adb):
     assert result["success"] is False and "未找到元素" in result["error"]
 
 
+def test_find_and_click_prefers_resource_id_when_both_locators_are_recorded(adb):
+    adb["responses"] = [(True, _DUMP_RID), (True, "")]
+
+    assert executor._find_and_click(
+        "s1",
+        {"text": "登录", "resourceId": "com.acme:id/btn"},
+    ) == {"success": True, "error": None}
+    assert ("shell", "input", "tap", "20", "30") in adb["calls"]
+
+
+def test_find_and_click_by_content_description(adb):
+    dump = '<hierarchy><node content-desc="打开菜单" bounds="[0,0][80,80]" /></hierarchy>'
+    adb["responses"] = [(True, dump), (True, "")]
+
+    assert executor._find_and_click("s1", {"contentDesc": "打开菜单"}) == {"success": True, "error": None}
+    assert ("shell", "input", "tap", "40", "40") in adb["calls"]
+
+
 def test_long_click_by_text_delegates_to_find_and_click(adb):
-    adb["responses"] = [(True, ""), (True, "")]
-    assert _run("long_click", text="登录") == {"success": True}
+    adb["responses"] = [(True, _DUMP_TEXT), (True, "")]
+    assert _run("long_click", text="登录") == {"success": True, "error": None}
 
 
 def test_input_with_resource_id_focuses_first(monkeypatch, adb):

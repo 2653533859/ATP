@@ -3,11 +3,48 @@
  * 自动处理重连（最多 3 次）、消息解析
  */
 export type WsMessage = {
-  type: 'run_status' | 'step_result' | 'completed' | 'healing_suggestion' | 'run_healing_suggestion'
+  type:
+    | 'run_status'
+    | 'step_result'
+    | 'completed'
+    | 'healing_suggestion'
+    | 'run_healing_suggestion'
+    | 'started'
+    | 'phase'
+    | 'progress'
+    | 'sampling'
+    | 'incident'
+    | 'log'
+    | 'stage_start'
+    | 'stage_end'
   run_id: number
   status?: string
   duration_ms?: number
   video_url?: string
+  phase?: string
+  progress?: number
+  current_step?: string
+  sample_count?: number
+  samples?: number
+  elapsed_seconds?: number
+  duration_seconds?: number
+  device_serial?: string | null
+  device_status?: 'online' | 'offline' | 'pending' | 'unknown' | string
+  sample_metrics?: Array<{
+    metric_type: string
+    metric_value: number
+    sample_time?: string
+  }>
+  incident_type?: string
+  incident_count?: number
+  title?: string
+  detail?: string
+  message?: string
+  level?: 'debug' | 'info' | 'warning' | 'error' | string
+  error?: string | null
+  summary?: Record<string, unknown>
+  stage_index?: number
+  stage_name?: string
   step?: {
     step_index: number
     name: string
@@ -31,11 +68,17 @@ export type WsMessage = {
 type MessageHandler = (msg: WsMessage) => void
 type CloseHandler = () => void
 
-export function createRunWebSocket(runId: number, onMessage: MessageHandler, onClose?: CloseHandler) {
+export function createRunWebSocket(
+  runId: number,
+  onMessage: MessageHandler,
+  onClose?: CloseHandler,
+  runType: 'case' | 'mobile' = 'case',
+) {
   const protocol = location.protocol === 'https:' ? 'wss:' : 'ws:'
   // Use the page origin so the browser sends the host-only HttpOnly Cookie.
   // Vite proxies /ws to the backend during local development.
-  const baseUrl = `${protocol}//${location.host}/ws/runs/${runId}`
+  const query = runType === 'mobile' ? '?run_type=mobile' : ''
+  const baseUrl = `${protocol}//${location.host}/ws/runs/${runId}${query}`
 
   let ws: WebSocket | null = null
   let retries = 0

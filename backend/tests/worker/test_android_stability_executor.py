@@ -82,6 +82,24 @@ class TestValidateInputs:
 
 
 class TestParseMonkeys:
+    def test_parse_monkey_action_line_captures_raw_action(self):
+        parsed = android_stability_executor._parse_monkey_event_line(
+            ":Sending Touch (ACTION_DOWN): 0,0"
+        )
+
+        assert parsed == {
+            "action": "Sending Touch (ACTION_DOWN)",
+            "parameters": {"raw": ":Sending Touch (ACTION_DOWN): 0,0"},
+        }
+
+    def test_parse_monkey_summary_line_is_marked_as_summary(self):
+        parsed = android_stability_executor._parse_monkey_event_line("Events injected: 42")
+
+        assert parsed == {
+            "action": "summary",
+            "parameters": {"raw": "Events injected: 42"},
+        }
+
     def test_parse_logcat_crash_extracts_fatal(self):
         raw = """
         FATAL EXCEPTION: main
@@ -107,7 +125,7 @@ class TestParseMonkeys:
 import asyncio  # noqa: E402
 
 from app.models.bootstrap import load_all_models  # noqa: E402
-from app.models.mobile_special import RunStatus  # noqa: E402
+from app.models.mobile_special import MobileRunEvent, RunStatus  # noqa: E402
 
 load_all_models()
 
@@ -265,7 +283,8 @@ def test_stability_run_happy_path_collects_incidents(
     assert run.summary_json["crash_count"] == 1
     assert run.summary_json["anr_count"] == 1
     assert run.summary_json["operation_interval_ms"] == 200
-    assert len(db.added) == 2  # 两条 MobileIncident
+    domain_objects = [item for item in db.added if not isinstance(item, MobileRunEvent)]
+    assert len(domain_objects) == 2
     types_seen = [e["type"] for e in chain_events]
     assert types_seen[0] == "started"
     assert "progress" in types_seen

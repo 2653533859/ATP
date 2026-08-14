@@ -8,13 +8,17 @@ POST /api/v1/devices/{device_id}/swipe       实时滑动
 """
 
 import asyncio
+import base64
 import logging
+import re
 import subprocess
-from fastapi import APIRouter, Depends, HTTPException
+import xml.etree.ElementTree as ET
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.device import Device, DeviceStatus
 from app.api.deps import get_current_user, require_engineer
 from app.schemas.device import DeviceSwipeIn, DeviceTapIn
@@ -22,6 +26,83 @@ from app.schemas.device import DeviceSwipeIn, DeviceTapIn
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["设备镜像"])
+
+_BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
+
+
+def _extract_hierarchy_xml(output: str) -> str | None:
+    """从 uiautomator 的混合输出中提取完整 hierarchy XML。"""
+    start = output.find("<hierarchy")
+    if start < 0:
+        return None
+    end_marker = "</hierarchy>"
+    end = output.find(end_marker, start)
+    if end < 0:
+        return None
+    return output[start : end + len(end_marker)]
+
+
+def _parse_bounds(value: str | None) -> tuple[int, int, int, int] | None:
+    if not value:
+        return None
+    match = _BOUNDS_RE.fullmatch(value.strip())
+    if not match:
+        return None
+    left, top, right, bottom = (int(item) for item in match.groups())
+    if right <= left or bottom <= top:
+        return None
+    return left, top, right, bottom
+
+
+def _parse_ui_target(output: str, x: int, y: int) -> dict[str, object] | None:
+    """返回点击点命中的最佳可定位节点，无法解析时返回 None。"""
+    hierarchy_xml = _extract_hierarchy_xml(output)
+    if not hierarchy_xml:
+        return None
+
+    try:
+        root = ET.fromstring(hierarchy_xml)
+    except ET.ParseError:
+        return None
+
+    candidates: list[tuple[tuple[int, int, int, int], dict[str, object]]] = []
+    for node in root.iter("node"):
+        bounds = _parse_bounds(node.attrib.get("bounds"))
+        if not bounds:
+            continue
+        left, top, right, bottom = bounds
+        if not (left <= x <= right and top <= y <= bottom):
+            continue
+        if node.attrib.get("visible-to-user") == "false":
+            continue
+
+        text = node.attrib.get("text", "").strip()
+        resource_id = node.attrib.get("resource-id", "").strip()
+        content_desc = node.attrib.get("content-desc", "").strip()
+        clickable = node.attrib.get("clickable") == "true"
+        enabled = node.attrib.get("enabled", "true") != "false"
+        meaningful = bool(text or resource_id or content_desc)
+        area = (right - left) * (bottom - top)
+        target = {
+            "text": text or None,
+            "resourceId": resource_id or None,
+            "contentDesc": content_desc or None,
+            "className": node.attrib.get("class", "").strip() or None,
+            "bounds": {"left": left, "top": top, "right": right, "bottom": bottom},
+            "clickable": clickable,
+            "enabled": enabled,
+        }
+        # 优先可点击且有语义的节点，再选面积更小的深层节点，避免把整个页面当成目标。
+        rank = (int(clickable and meaningful), int(meaningful), int(clickable), -area)
+        candidates.append((rank, target))
+
+    if not candidates:
+        return None
+    candidates.sort(key=lambda item: item[0], reverse=True)
+    target = candidates[0][1]
+    if not any(target.get(key) for key in ("text", "resourceId", "contentDesc")):
+        return None
+    return target
 
 
 def _adb_screenshot(serial: str, timeout: int = 10) -> bytes | None:
@@ -48,6 +129,69 @@ def _adb_input(serial: str, *args: str, timeout: int = 10) -> bool:
         return False
 
 
+def _adb_ui_target(serial: str, x: int, y: int, timeout: int = 10) -> dict[str, object] | None:
+    """通过 UIAutomator dump 查找坐标对应的 Android 控件。"""
+    hierarchy_path = "/sdcard/atp-ui-hierarchy.xml"
+    dump_cmd = ["adb", "-s", serial, "shell", "uiautomator", "dump", hierarchy_path]
+    cat_cmd = ["adb", "-s", serial, "shell", "cat", hierarchy_path]
+    try:
+        dump_proc = subprocess.run(dump_cmd, capture_output=True, timeout=timeout)
+        if dump_proc.returncode != 0:
+            output = ((dump_proc.stdout or b"") + (dump_proc.stderr or b"")).decode("utf-8", errors="replace")
+            logger.warning("adb ui hierarchy dump failed for %s: %s", serial, output[-500:])
+            return None
+
+        cat_proc = subprocess.run(cat_cmd, capture_output=True, timeout=timeout)
+        if cat_proc.returncode != 0:
+            logger.warning("adb ui hierarchy read failed for %s", serial)
+            return None
+        output = ((cat_proc.stdout or b"") + (cat_proc.stderr or b"")).decode("utf-8", errors="replace")
+        return _parse_ui_target(output, x, y)
+    except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
+        logger.warning("adb ui hierarchy failed for %s: %s", serial, e)
+        return None
+
+
+def _use_android_worker() -> bool:
+    return settings.ADB_SCAN_MODE.strip().lower() == "worker"
+
+
+async def _dispatch_worker_operation(operation: str, serial: str, params: dict | None = None) -> dict:
+    """将设备操作派发到 Windows Android Worker，并等待受控结果。"""
+    from app.worker.tasks_device import run_android_device_operation
+
+    queue = settings.ANDROID_WORKER_QUEUE.strip() or "mobile_special"
+    try:
+        async_result = run_android_device_operation.apply_async(
+            args=[operation, serial, params or {}],
+            queue=queue,
+            ignore_result=False,
+        )
+        result = await asyncio.to_thread(async_result.get, timeout=15)
+    except Exception as exc:
+        logger.warning("Android Worker operation failed: %s %s: %s", operation, serial, exc)
+        raise HTTPException(status_code=503, detail="Android Worker 不可用或设备操作超时") from exc
+
+    if not isinstance(result, dict) or not result.get("ok"):
+        detail = result.get("error") if isinstance(result, dict) else "Worker 返回结果无效"
+        raise HTTPException(status_code=503, detail=str(detail or "Android Worker 操作失败"))
+    return result
+
+
+async def _screenshot(serial: str) -> bytes | None:
+    if not _use_android_worker():
+        return await asyncio.to_thread(_adb_screenshot, serial)
+    result = await _dispatch_worker_operation("screenshot", serial)
+    encoded = result.get("data_base64")
+    if not isinstance(encoded, str) or not encoded:
+        return None
+    try:
+        return base64.b64decode(encoded, validate=True)
+    except (ValueError, TypeError):
+        logger.warning("Android Worker returned invalid screenshot for %s", serial)
+        return None
+
+
 async def _get_online_device(device_id: int, db: AsyncSession) -> Device:
     device = await db.get(Device, device_id)
     if not device:
@@ -66,7 +210,7 @@ async def device_screenshot(
     """获取设备当前屏幕单帧截图（PNG）"""
     device = await _get_online_device(device_id, db)
 
-    data = await asyncio.get_event_loop().run_in_executor(None, _adb_screenshot, device.serial)
+    data = await _screenshot(device.serial)
     if not data:
         raise HTTPException(status_code=503, detail="截图失败，请检查设备连接")
 
@@ -82,12 +226,30 @@ async def device_tap(
 ):
     """在设备屏幕坐标执行实时点击。"""
     device = await _get_online_device(device_id, db)
-    ok = await asyncio.get_event_loop().run_in_executor(
-        None, _adb_input, device.serial, "tap", str(body.x), str(body.y)
-    )
+    if _use_android_worker():
+        await _dispatch_worker_operation("tap", device.serial, {"x": body.x, "y": body.y})
+        return {"success": True}
+    ok = await asyncio.to_thread(_adb_input, device.serial, "tap", str(body.x), str(body.y))
     if not ok:
         raise HTTPException(status_code=503, detail="点击失败，请检查设备连接")
     return {"success": True}
+
+
+@router.get("/devices/{device_id}/ui-target")
+async def device_ui_target(
+    device_id: int,
+    x: int = Query(..., ge=0),
+    y: int = Query(..., ge=0),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(get_current_user),
+):
+    """根据屏幕坐标返回 UIAutomator 中对应的可定位控件。"""
+    device = await _get_online_device(device_id, db)
+    if _use_android_worker():
+        result = await _dispatch_worker_operation("ui_target", device.serial, {"x": x, "y": y})
+        return {"target": result.get("target")}
+    target = await asyncio.to_thread(_adb_ui_target, device.serial, x, y)
+    return {"target": target}
 
 
 @router.post("/devices/{device_id}/swipe")
@@ -100,8 +262,14 @@ async def device_swipe(
     """在设备屏幕坐标执行实时滑动。"""
     device = await _get_online_device(device_id, db)
     duration_ms = max(100, min(body.duration_ms, 5000))
-    ok = await asyncio.get_event_loop().run_in_executor(
-        None,
+    if _use_android_worker():
+        await _dispatch_worker_operation(
+            "swipe",
+            device.serial,
+            {"x1": body.x1, "y1": body.y1, "x2": body.x2, "y2": body.y2, "duration_ms": duration_ms},
+        )
+        return {"success": True}
+    ok = await asyncio.to_thread(
         _adb_input,
         device.serial,
         "swipe",
@@ -120,7 +288,10 @@ async def _mjpeg_generator(serial: str, fps: float = 2.0):
     """生成 MJPEG 帧流"""
     interval = 1.0 / fps
     while True:
-        data = await asyncio.get_event_loop().run_in_executor(None, _adb_screenshot, serial)
+        try:
+            data = await _screenshot(serial)
+        except HTTPException:
+            data = None
         if data:
             # MJPEG boundary frame (PNG → 直接推送，前端用 img 标签轮询更简单)
             yield (

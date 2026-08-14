@@ -37,6 +37,7 @@ function paramsSummary(step: AndroidLowcodeStep, t: AndroidStepTranslator) {
     case 'click':
       addValue(parts, label('text', '文本'), params.text)
       addValue(parts, label('resource_id', '资源 ID'), params.resourceId ?? params.resource_id)
+      addValue(parts, label('content_desc', '无障碍描述'), params.contentDesc ?? params.content_desc)
       if (params.x !== undefined && params.y !== undefined) {
         addValue(parts, label('coordinates', '坐标'), `(${params.x}, ${params.y})`)
       }

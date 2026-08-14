@@ -33,11 +33,17 @@ async def close_async_redis(redis: aioredis.Redis) -> None:
     await redis.aclose()  # type: ignore[attr-defined]
 
 
-async def publish_run_event(run_id: int, payload: dict) -> None:
-    """发布执行事件到 Redis channel `atp:run:{run_id}`"""
+async def publish_run_event(run_id: int, payload: dict, run_type: str = "case") -> None:
+    """发布执行事件到按类型隔离的 Redis channel。
+
+    ``TestRun`` 与 ``MobileSpecialRun`` 使用独立的数据表，ID 可能相同；
+    将类型写入 channel 可以避免两个运行的实时消息互相串流。
+    """
+    if run_type not in {"case", "mobile"}:
+        raise ValueError(f"unsupported run type: {run_type}")
     r = get_async_redis()
     try:
-        await r.publish(f"atp:run:{run_id}", json.dumps(payload, ensure_ascii=False))
+        await r.publish(f"atp:run:{run_type}:{run_id}", json.dumps(payload, ensure_ascii=False))
     finally:
         await close_async_redis(r)
 

@@ -13,6 +13,7 @@ sys.modules.setdefault(
     types.SimpleNamespace(
         download_file=lambda *args, **kwargs: None,
         upload_file=lambda *args, **kwargs: None,
+        upload_bytes=lambda *args, **kwargs: None,
         presigned_url=lambda *args, **kwargs: "http://example.com/artifact.csv",
     ),
 )
@@ -94,6 +95,13 @@ class TestValidateInputs:
         assert any("duration" in e.lower() for e in errors)
 
 
+def test_replay_window_is_bounded_to_a_rolling_segment():
+    assert android_perf_executor._replay_window_seconds(30) == 30
+    assert android_perf_executor._replay_window_seconds(99999) == 1800
+    assert android_perf_executor._replay_window_seconds(1) == 5
+    assert android_perf_executor._replay_window_seconds("invalid") == 30
+
+
 class TestComputeSummary:
     def test_compute_summary_from_samples(self):
         samples = [
@@ -119,6 +127,22 @@ class TestComputeSummary:
         assert summary["peak_cpu_pct"] is None
         assert summary["crash_count"] == 1
         assert summary["anr_count"] == 1
+
+
+def test_sample_event_metrics_is_json_safe_and_bounded():
+    sample_time = datetime.now()
+    samples = [
+        {"metric_type": "cpu_pct", "metric_value": 42, "sample_time": sample_time},
+        {"metric_type": "mem_mb", "metric_value": 128.5, "sample_time": sample_time},
+        {"metric_type": "ignored", "metric_value": "not-a-number", "sample_time": sample_time},
+    ]
+
+    result = android_perf_executor._sample_event_metrics(samples)
+
+    assert result == [
+        {"metric_type": "cpu_pct", "metric_value": 42.0, "sample_time": sample_time.isoformat()},
+        {"metric_type": "mem_mb", "metric_value": 128.5, "sample_time": sample_time.isoformat()},
+    ]
 
 
 class TestHeartbeatIntegration:
@@ -199,7 +223,7 @@ class _FakeRun:
 import asyncio  # noqa: E402
 
 from app.models.bootstrap import load_all_models  # noqa: E402
-from app.models.mobile_special import RunStatus  # noqa: E402
+from app.models.mobile_special import MobileRunEvent, RunStatus  # noqa: E402
 
 load_all_models()
 
@@ -302,12 +326,12 @@ def test_perf_run_samples_and_uploads_csv(monkeypatch, chain_events, fast_clock,
         ]
     )
 
-    async def fake_sample_once(serial, package):
+    async def fake_sample_once(serial, package, **kwargs):
         return next(sample_batches, [])
 
     monkeypatch.setattr(android_perf_executor, "_sample_once", fake_sample_once)
     uploads = []
-    monkeypatch.setattr(android_perf_executor, "upload_file", lambda name, content, ct: uploads.append(name))
+    monkeypatch.setattr(android_perf_executor, "upload_bytes", lambda name, content, ct: uploads.append(name))
 
     db = _RecordingDB()
     run = _FakeRun(device_serial="emu-5554", app_package="com.example.app", duration_seconds=2)
@@ -319,9 +343,10 @@ def test_perf_run_samples_and_uploads_csv(monkeypatch, chain_events, fast_clock,
     assert run.summary_json["peak_cpu_pct"] == 50.0
     assert run.summary_json["_sample_counts"] == {"cpu_pct": 2, "mem_mb": 1}
     # 3 条 MobileMetricSample + 1 条 CSV artifact
-    assert len(db.added) == 4
+    domain_objects = [item for item in db.added if not isinstance(item, MobileRunEvent)]
+    assert len(domain_objects) == 4
     assert uploads == ["mobile-special/runs/1/metrics.csv"]
-    artifact = db.added[-1]
+    artifact = domain_objects[-1]
     assert artifact.file_path == "mobile-special/runs/1/metrics.csv"
     types_seen = [e["type"] for e in chain_events]
     assert types_seen[0] == "started" and types_seen[-1] == "completed"
@@ -349,7 +374,7 @@ def test_perf_run_honors_cancel_signal(monkeypatch, chain_events, fast_clock, qu
 def test_perf_run_swallows_csv_upload_failure(monkeypatch, chain_events, fast_clock, quiet_heartbeat):
     monkeypatch.setattr(android_perf_executor, "_check_device_reachable", lambda s, timeout=10: (True, "在线"))
 
-    async def fake_sample_once(serial, package):
+    async def fake_sample_once(serial, package, **kwargs):
         return [{"metric_type": "cpu_pct", "metric_value": 10.0, "source": "top"}]
 
     monkeypatch.setattr(android_perf_executor, "_sample_once", fake_sample_once)
@@ -357,7 +382,7 @@ def test_perf_run_swallows_csv_upload_failure(monkeypatch, chain_events, fast_cl
     def broken_upload(name, content, ct):
         raise RuntimeError("minio down")
 
-    monkeypatch.setattr(android_perf_executor, "upload_file", broken_upload)
+    monkeypatch.setattr(android_perf_executor, "upload_bytes", broken_upload)
 
     db = _RecordingDB()
     run = _FakeRun(device_serial="emu-5554", app_package="com.example.app", duration_seconds=1)
@@ -367,6 +392,23 @@ def test_perf_run_swallows_csv_upload_failure(monkeypatch, chain_events, fast_cl
     assert run.status is RunStatus.completed  # 上传失败不影响 run 完成
     # 只有 MobileMetricSample，没有 artifact 行
     assert all(type(o).__name__ != "MobileRunArtifact" for o in db.added)
+
+
+def test_perf_run_fails_when_no_metrics_are_collected(monkeypatch, chain_events, fast_clock, quiet_heartbeat):
+    monkeypatch.setattr(android_perf_executor, "_check_device_reachable", lambda s, timeout=10: (True, "online"))
+
+    async def fake_sample_once(serial, package, **kwargs):
+        return []
+
+    monkeypatch.setattr(android_perf_executor, "_sample_once", fake_sample_once)
+    db = _RecordingDB()
+    run = _FakeRun(device_serial="emu-5554", app_package="com.example.app", duration_seconds=1)
+
+    asyncio.run(android_perf_executor.run_mobile_special_perf(db, run))
+
+    assert run.status is RunStatus.failed
+    assert run.summary_json["error_message"] == "未采集到有效性能指标"
+    assert chain_events[-1]["status"] == "failed"
 
 
 def test_sample_once_routes_raw_to_parsers(monkeypatch):
@@ -389,6 +431,52 @@ def test_sample_once_routes_raw_to_parsers(monkeypatch):
     # battery raw 为 None → 跳过；cpu/mem 带 sample_time
     assert [s["metric_type"] for s in samples] == ["cpu_pct", "mem_mb"]
     assert all("sample_time" in s for s in samples)
+
+
+def test_sample_once_keeps_zero_cpu_when_process_is_alive(monkeypatch):
+    monkeypatch.setattr(android_perf_executor, "build_cpuinfo_cmd", lambda s, p: "cpu")
+    monkeypatch.setattr(android_perf_executor, "build_meminfo_cmd", lambda s, p: "mem")
+    monkeypatch.setattr(android_perf_executor, "build_batterystats_cmd", lambda s, p: "battery")
+    monkeypatch.setattr(
+        android_perf_executor, "run_adb_shell", lambda serial, cmd, timeout=10: "RAW" if cmd != "battery" else None
+    )
+    monkeypatch.setattr(android_perf_executor, "parse_cpuinfo", lambda raw, p: None)
+    monkeypatch.setattr(android_perf_executor, "parse_meminfo", lambda raw, p: None)
+    monkeypatch.setattr(android_perf_executor, "_resolve_pid", lambda serial, package: 11994)
+
+    samples = asyncio.run(android_perf_executor._sample_once("emu-5554", "com.example.app"))
+
+    assert samples[0]["metric_type"] == "cpu_pct"
+    assert samples[0]["metric_value"] == 0.0
+
+
+def test_sample_once_collects_fps_and_jank_when_enabled(monkeypatch):
+    monkeypatch.setattr(android_perf_executor, "build_gfxinfo_cmd", lambda s, p: "gfx")
+    monkeypatch.setattr(
+        android_perf_executor, "run_adb_shell", lambda serial, cmd, timeout=15: "RAW" if cmd == "gfx" else None
+    )
+    monkeypatch.setattr(
+        android_perf_executor,
+        "parse_gfxinfo_framestats",
+        lambda raw, package: {
+            "metric_type": "fps",
+            "metric_value": 58.0,
+            "source": "gfxinfo",
+            "extra": {"jank_count": 3},
+        },
+    )
+
+    samples = asyncio.run(
+        android_perf_executor._sample_once(
+            "emu-5554",
+            "com.example.app",
+            collect_performance=False,
+            collect_jank=True,
+        )
+    )
+
+    assert [sample["metric_type"] for sample in samples] == ["fps", "jank_count"]
+    assert samples[1]["metric_value"] == 3.0
 
 
 def test_resolve_pid_parses_output(monkeypatch):

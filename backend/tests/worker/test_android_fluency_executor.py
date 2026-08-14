@@ -87,7 +87,7 @@ class TestComputeSummary:
 import asyncio  # noqa: E402
 
 from app.models.bootstrap import load_all_models  # noqa: E402
-from app.models.mobile_special import RunStatus  # noqa: E402
+from app.models.mobile_special import MobileRunEvent, RunStatus  # noqa: E402
 
 load_all_models()
 
@@ -244,7 +244,8 @@ def test_fluency_run_samples_each_stage(monkeypatch, chain_events, reachable, fa
 
     assert run.status is RunStatus.completed
     assert quiet_adb == [("swipe", 500, 900, 500, 300), ("tap", 320, 640)]
-    assert len(db.added) == 2  # 两条 MobileMetricSample
+    domain_objects = [item for item in db.added if not isinstance(item, MobileRunEvent)]
+    assert len(domain_objects) == 2
     assert run.summary_json["avg_fps"] is not None
     assert run.summary_json["_fps_sample_count"] == 2
     types_seen = [e["type"] for e in chain_events]
@@ -263,7 +264,7 @@ def test_fluency_run_skips_empty_gfx_output(
     asyncio.run(android_fluency_executor.run_mobile_special_fluency(db, run))
 
     assert run.status is RunStatus.completed
-    assert db.added == []
+    assert not [item for item in db.added if not isinstance(item, MobileRunEvent)]
     assert run.summary_json["avg_fps"] is None
     assert run.summary_json["_fps_sample_count"] == 0
 

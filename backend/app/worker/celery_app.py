@@ -49,6 +49,7 @@ celery_app.conf.update(
         "reclaim_expired_device_leases": {"queue": "mobile_special"},
         "scan_adb_devices": {"queue": "mobile_special"},
         "heartbeat_android_worker": {"queue": "mobile_special"},
+        "run_android_device_operation": {"queue": "mobile_special"},
         # 外部 LLM 调用，便于独立限流与降级
         "diagnose_step_failure": {"queue": "ai"},
         "diagnose_run_failure": {"queue": "ai"},

@@ -592,8 +592,11 @@
 
 ## Android Agent 扫描状态回传（2026-08-11）
 - `POST /devices/scan` 在 `ADB_SCAN_MODE=worker` 时返回 `queued`、Celery task ID 和旧列表；新增 `GET /devices/scan/{scan_id}` 查询队列状态与 Worker 写回后的最新设备列表，限制 task ID 为 UUID 并要求工程师权限。
+- Android Worker 设备操作已闭环：`ADB_SCAN_MODE=worker` 时截图、屏幕流、tap、swipe 和 UIAutomator 坐标控件识别通过 `ANDROID_WORKER_QUEUE` 派发，公网 API 不再直接执行本机 ADB；任务只开放受控操作并返回 JSON/Base64 结果。
 - Windows Android Worker 由 `scripts/windows-android-worker.ps1` 注入 `ANDROID_WORKER_ID=android-win-$COMPUTERNAME`，通过 Redis TTL 心跳写入 `atp:android-worker:workers:*`；设备页调用 `/devices/workers` 展示在线 Agent。心跳任务使用 `ignore_result=True`，避免每 15 秒污染 Celery 结果库。
 - `scripts/windows-local-smoke.ps1` 在 `ADB_SCAN_MODE=worker`、配置 Worker ID 或 `-RequireAndroid` 时会强制校验 `/devices/workers`，再调用 `/devices/scan` 并轮询 `/devices/scan/{scan_id}`；普通 local Web/API 冒烟跳过这两项。
+- 实时运行事件 channel 按 `case` / `mobile` 类型隔离为 `atp:run:{run_type}:{run_id}`，避免普通用例与 Android 专项运行使用相同自增 ID 时互相收到消息；移动专项前端订阅 `run_type=mobile`。
+- Android 性能异常回放按 5-1800 秒滚动分段录制，最多在设备端保留前一段和当前段，异常时上传当前回放；带千分位的 `dumpsys meminfo` 以及设备租约冲突事件均有回归覆盖，移动报告事件时间线按 5000 条加载上限刷新。
 - `scan_adb_devices` 的手动投递使用 `ignore_result=False`，Beat 周期扫描仍保持 `ignore_result=True`，避免周期任务制造结果键；前端设备页轮询最多 10 秒，超时明确提示，不再误报“扫描完成”。
 - 验证：设备/Worker API、任务、Redis 注册和启动档案回归 `23 passed`，设备页 Vitest `6 passed`，随后完整后端 `1867 passed`、覆盖率 `82.05%`，256 个测试文件独立运行通过；Ruff、格式检查、mypy、type-check/build 通过；真实 Android 设备数据面仍待现场验收。
 

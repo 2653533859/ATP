@@ -65,8 +65,11 @@ def build_cpuinfo_cmd(serial: str, package: str) -> list[str]:
 
 
 def build_batterystats_cmd(serial: str, package: str) -> list[str]:
-    """Build command to get battery stats reset and collect."""
-    return ["dumpsys", "batterystats", "--reset"]
+    """Build a permission-safe command that returns the current battery level."""
+    # ``dumpsys batterystats --reset`` requires WRITE_SECURE_SETTINGS on
+    # Android 14 and is not available to a normal ADB shell user.  The battery
+    # service exposes level and temperature without that privileged reset.
+    return ["dumpsys", "battery"]
 
 
 def build_logcat_cmd(

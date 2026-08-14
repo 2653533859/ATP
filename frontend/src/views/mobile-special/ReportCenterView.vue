@@ -164,6 +164,7 @@ const latestTrend = ref<Array<{ date: string; total: number; completed: number; 
 
 const trendChartRef = ref<HTMLDivElement | null>(null)
 let trendChart: ECharts | null = null
+let reportRefreshTimer: number | null = null
 
 function errorMessage(error: unknown, fallback: string) {
   if (typeof error === 'string') return error
@@ -208,9 +209,18 @@ onMounted(async () => {
   await Promise.all([loadOverview(), loadRuns()])
   initTrendChart()
   window.addEventListener('resize', handleResize)
+  reportRefreshTimer = window.setInterval(() => {
+    if (!loading.value && runs.value.some(run => run.status === 'pending' || run.status === 'running')) {
+      void Promise.all([loadRuns(), loadOverview()])
+    }
+  }, 5000)
 })
 
 onUnmounted(() => {
+  if (reportRefreshTimer !== null) {
+    window.clearInterval(reportRefreshTimer)
+    reportRefreshTimer = null
+  }
   trendChart?.dispose()
   window.removeEventListener('resize', handleResize)
 })

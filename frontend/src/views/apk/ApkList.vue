@@ -122,6 +122,7 @@
         </a-form-item>
         <a-form-item :label="t('apk.fields.package_name')">
           <a-input v-model:value="uploadForm.package_name" placeholder="com.example.app" />
+          <div class="form-hint">{{ t('apk.metadata_hint') }}</div>
         </a-form-item>
         <a-form-item :label="t('apk.fields.version')">
           <a-space>

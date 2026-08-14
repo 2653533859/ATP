@@ -163,6 +163,43 @@ def test_can_subscribe_triggerer_allowed(monkeypatch):
     assert asyncio.run(ws_mod._can_subscribe_run(10, _Obj(id=7, role=UserRole.viewer))) is True
 
 
+def test_can_subscribe_mobile_special_triggerer_allowed(monkeypatch):
+    mobile_run = _Obj(id=10, triggered_by=7, task_id=3)
+    db = _FakeDB({("MobileSpecialRun", 10): mobile_run})
+    _install_session(monkeypatch, db)
+    assert asyncio.run(ws_mod._can_subscribe_run(10, _Obj(id=7, role=UserRole.viewer), "mobile")) is True
+
+
+def test_can_subscribe_mobile_special_project_member_allowed(monkeypatch):
+    mobile_run = _Obj(id=10, triggered_by=99, task_id=3)
+    mobile_task = _Obj(id=3, project_id=5)
+    db = _FakeDB(
+        {
+            ("MobileSpecialRun", 10): mobile_run,
+            ("MobileSpecialTask", 3): mobile_task,
+        },
+        execute_results=[_FakeResult(value=123)],
+    )
+    _install_session(monkeypatch, db)
+    assert asyncio.run(ws_mod._can_subscribe_run(10, _Obj(id=7, role=UserRole.viewer), "mobile")) is True
+
+
+def test_can_subscribe_run_type_prevents_cross_table_id_collision(monkeypatch):
+    # TestRun 与 MobileSpecialRun 可以各自存在相同的自增 ID；移动端订阅
+    # 只能检查 MobileSpecialRun，不能借用普通用例的授权结果。
+    db = _FakeDB(
+        {
+            ("TestRun", 10): _run(triggered_by=7),
+            ("MobileSpecialRun", 10): _Obj(id=10, triggered_by=99, task_id=3),
+            ("MobileSpecialTask", 3): _Obj(id=3, project_id=5),
+        }
+    )
+    _install_session(monkeypatch, db)
+
+    assert asyncio.run(ws_mod._can_subscribe_run(10, _Obj(id=7, role=UserRole.viewer), "mobile")) is False
+    assert asyncio.run(ws_mod._can_subscribe_run(10, _Obj(id=7, role=UserRole.viewer), "case")) is True
+
+
 def test_can_subscribe_case_creator_allowed(monkeypatch):
     db = _FakeDB({("TestRun", 10): _run(triggered_by=99), ("TestCase", 1): _Obj(id=1, creator_id=7, module_id=2)})
     _install_session(monkeypatch, db)
@@ -288,10 +325,34 @@ def test_ws_run_events_streams_until_completed(monkeypatch):
 
     assert socket.accepted is True
     assert len(socket.sent) == 2  # step + completed 都转发
-    assert pubsub.subscribed == ["atp:run:10"]
-    assert pubsub.unsubscribed == ["atp:run:10"]  # finally 清理
+    assert pubsub.subscribed == ["atp:run:case:10"]
+    assert pubsub.unsubscribed == ["atp:run:case:10"]  # finally 清理
     assert redis.closed is True
     assert socket.closed is not None
+
+
+def test_ws_run_events_uses_mobile_channel_when_requested(monkeypatch):
+    seen = {}
+
+    monkeypatch.setattr(ws_mod, "_get_ws_user", _async_return(_Obj(id=1)))
+
+    async def allow(_run_id, _user, run_type="case"):
+        seen["run_type"] = run_type
+        return True
+
+    monkeypatch.setattr(ws_mod, "_can_subscribe_run", allow)
+    done_msg = {"type": "message", "data": json.dumps({"type": "completed", "run_id": 10})}
+    pubsub = _FakePubSub([done_msg])
+    redis = _FakeRedis(pubsub)
+    monkeypatch.setattr(ws_mod, "get_async_redis", lambda: redis)
+    monkeypatch.setattr(ws_mod.asyncio, "sleep", _async_return(None))
+    socket = _FakeWebSocket()
+    socket.query_params["run_type"] = "mobile"
+
+    asyncio.run(ws_mod.ws_run_events(socket, 10))
+
+    assert seen["run_type"] == "mobile"
+    assert pubsub.subscribed == ["atp:run:mobile:10"]
 
 
 def _async_return(value):

@@ -5,6 +5,7 @@
 """
 
 import asyncio
+import base64
 import inspect
 import sys
 import types
@@ -77,6 +78,89 @@ def test_read_endpoints_only_require_login():
     assert shot_dep is _noop_current_user
     assert stream_dep is _noop_current_user
     assert _dep_of(device_mirror.device_tap) is not shot_dep
+
+
+def test_ui_target_parser_prefers_clickable_locator():
+    dump = """
+    UI hierchary dumped to: /dev/tty
+    <hierarchy rotation="0">
+      <node class="android.widget.FrameLayout" bounds="[0,0][1080,1920]">
+        <node class="android.widget.Button" text="登录" resource-id="com.demo:id/login"
+              clickable="true" enabled="true" bounds="[40,100][400,180]" />
+      </node>
+    </hierarchy>
+    """
+
+    target = device_mirror._parse_ui_target(dump, 100, 130)
+
+    assert target is not None
+    assert target["text"] == "登录"
+    assert target["resourceId"] == "com.demo:id/login"
+    assert target["clickable"] is True
+    assert target["bounds"] == {"left": 40, "top": 100, "right": 400, "bottom": 180}
+
+
+def test_ui_target_parser_supports_content_description():
+    dump = (
+        '<hierarchy><node class="android.widget.ImageButton" '
+        'content-desc="打开菜单" bounds="[0,0][80,80]" clickable="true" /></hierarchy>'
+    )
+
+    target = device_mirror._parse_ui_target(dump, 20, 20)
+
+    assert target is not None
+    assert target["contentDesc"] == "打开菜单"
+    assert target["text"] is None
+
+
+def test_ui_target_endpoint_returns_locator(monkeypatch):
+    target = {"text": "登录", "resourceId": "com.demo:id/login"}
+    monkeypatch.setattr(device_mirror, "_adb_ui_target", lambda serial, x, y: target)
+
+    result = asyncio.run(
+        device_mirror.device_ui_target(
+            device_id=1,
+            x=10,
+            y=20,
+            db=_FakeDB(_online_device("DEV1")),
+            _=None,
+        )
+    )
+
+    assert result == {"target": target}
+
+
+def test_worker_mode_routes_device_operations_to_android_worker(monkeypatch):
+    calls = []
+
+    async def fake_dispatch(operation, serial, params=None):
+        calls.append((operation, serial, params))
+        if operation == "screenshot":
+            return {"ok": True, "data_base64": base64.b64encode(b"png").decode("ascii")}
+        if operation == "ui_target":
+            return {"ok": True, "target": {"text": "登录"}}
+        return {"ok": True}
+
+    monkeypatch.setattr(device_mirror.settings, "ADB_SCAN_MODE", "worker")
+    monkeypatch.setattr(device_mirror, "_dispatch_worker_operation", fake_dispatch)
+    monkeypatch.setattr(
+        device_mirror, "_adb_input", lambda *_args: (_ for _ in ()).throw(AssertionError("不应在 API 进程调用 ADB"))
+    )
+    device = _FakeDB(_online_device("WIN-DEVICE"))
+
+    screenshot = asyncio.run(device_mirror.device_screenshot(1, db=device, _=None))
+    tap = asyncio.run(device_mirror.device_tap(1, DeviceTapIn(x=10, y=20), db=device, _=None))
+    target = asyncio.run(device_mirror.device_ui_target(1, x=10, y=20, db=device, _=None))
+    swipe = asyncio.run(
+        device_mirror.device_swipe(1, DeviceSwipeIn(x1=1, y1=2, x2=3, y2=4, duration_ms=50), db=device, _=None)
+    )
+
+    assert screenshot.body == b"png"
+    assert tap == {"success": True}
+    assert target == {"target": {"text": "登录"}}
+    assert swipe == {"success": True}
+    assert [call[0] for call in calls] == ["screenshot", "tap", "ui_target", "swipe"]
+    assert calls[-1][2]["duration_ms"] == 100
 
 
 # --------------------------- tap 逻辑 ---------------------------

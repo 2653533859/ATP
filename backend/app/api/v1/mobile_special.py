@@ -11,13 +11,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.cache_decorator import cached_json
 from app.core.database import get_db
+from app.core.minio_client import presigned_url
 from app.core.redis_client import get_json_cache, set_json_cache
+from app.models.apk import Apk
 from app.models.mobile_special import (
     MobileSpecialTask,
     MobileSpecialRun,
     MobileMetricSample,
     MobileIncident,
     MobileRunArtifact,
+    MobileRunEvent,
     RunStatus,
     TaskType,
     TriggerType,
@@ -31,6 +34,7 @@ from app.schemas.mobile_special import (
     MobileMetricSampleOut,
     MobileIncidentOut,
     MobileRunArtifactOut,
+    MobileRunEventOut,
     RunTriggerRequest,
 )
 from app.api.deps import (
@@ -64,6 +68,20 @@ def _refresh_schedule_state(task: MobileSpecialTask) -> None:
         task.next_run_at = _calc_next_run(task.cron_expression)
     else:
         task.next_run_at = None
+
+
+async def _resolve_apk_package(
+    db: AsyncSession,
+    project_id: int,
+    apk_id: int | None,
+) -> str | None:
+    """Validate a selected APK belongs to the task project and return its package."""
+    if apk_id is None:
+        return None
+    apk = await db.get(Apk, apk_id)
+    if apk is None or apk.project_id != project_id:
+        raise HTTPException(status_code=400, detail="APK does not belong to the selected project")
+    return apk.package_name
 
 
 _MOBILE_STATS_CACHE_TTL = 60
@@ -160,9 +178,13 @@ async def create_task(
 ):
     """Create a new mobile special task."""
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
+    data = body.model_dump(exclude={"created_by"})
+    apk_package = await _resolve_apk_package(db, body.project_id, body.apk_id)
+    if not data.get("app_package") and apk_package:
+        data["app_package"] = apk_package
     # created_by 以当前登录用户为准；schema 中的同名字段仅为兼容内部导入，须排除避免键冲突
     task = MobileSpecialTask(
-        **body.model_dump(exclude={"created_by"}),
+        **data,
         created_by=current_user.id,
     )
     _refresh_schedule_state(task)
@@ -199,7 +221,11 @@ async def update_task(
         raise HTTPException(status_code=404, detail="Task not found")
     await assert_project_access(db, current_user, task.project_id, ProjectRole.editor)
 
-    update_data = body.model_dump(exclude_none=True)
+    update_data = body.model_dump(exclude_unset=True)
+    if "apk_id" in update_data:
+        apk_package = await _resolve_apk_package(db, task.project_id, update_data["apk_id"])
+        if "app_package" not in update_data:
+            update_data["app_package"] = apk_package
     for k, v in update_data.items():
         setattr(task, k, v)
     task.updated_by = current_user.id
@@ -294,6 +320,44 @@ async def stop_run(
     return run
 
 
+@router.post("/runs/{run_id}/replay", response_model=MobileSpecialRunOut, status_code=status.HTTP_201_CREATED)
+async def replay_run(
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user=Depends(require_engineer),
+):
+    """Create a new run with the original configuration, including Monkey seed."""
+    source_run = await _get_run_with_access(db, current_user, run_id, ProjectRole.editor)
+    task = await db.get(MobileSpecialTask, source_run.task_id)
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if task.task_type != TaskType.stability:
+        raise HTTPException(status_code=400, detail="Only Monkey stability runs support replay")
+
+    config = dict(source_run.config_snapshot or {})
+    config["replay_of_run_id"] = source_run.id
+    replay = MobileSpecialRun(
+        task_id=task.id,
+        task_type=task.task_type,
+        status=RunStatus.pending,
+        trigger_type=TriggerType.manual,
+        triggered_by=current_user.id,
+        config_snapshot=config,
+        device_id=source_run.device_id,
+        device_serial=source_run.device_serial,
+        apk_id=source_run.apk_id,
+        app_package=source_run.app_package,
+    )
+    db.add(replay)
+    await db.commit()
+    await db.refresh(replay)
+
+    from app.worker.tasks_mobile_special import run_mobile_special_task
+
+    run_mobile_special_task.delay(replay.id)
+    return replay
+
+
 # ---- Runs / Reports ----
 
 
@@ -354,6 +418,24 @@ async def get_run_summary(
     return run.summary_json or {}
 
 
+@router.get("/runs/{run_id}/events", response_model=list[MobileRunEventOut])
+async def list_run_events(
+    run_id: int,
+    limit: int = Query(default=1000, ge=1, le=5000),
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Return the ordered execution journal for a run."""
+    await _get_run_with_access(db, user, run_id)
+    result = await db.execute(
+        select(MobileRunEvent)
+        .where(MobileRunEvent.run_id == run_id)
+        .order_by(MobileRunEvent.sequence.asc())
+        .limit(limit)
+    )
+    return result.scalars().all()
+
+
 @router.get("/runs/{run_id}/samples", response_model=list[MobileMetricSampleOut])
 async def list_run_samples(
     run_id: int,
@@ -404,6 +486,26 @@ async def list_run_artifacts(
     q = select(MobileRunArtifact).where(MobileRunArtifact.run_id == run_id)
     result = await db.execute(q)
     return result.scalars().all()
+
+
+@router.get("/runs/{run_id}/artifacts/{artifact_id}/url", response_model=dict)
+async def get_run_artifact_url(
+    run_id: int,
+    artifact_id: int,
+    db: AsyncSession = Depends(get_db),
+    user=Depends(get_current_user),
+):
+    """Return a short-lived MinIO URL for a mobile run artifact."""
+    await _get_run_with_access(db, user, run_id)
+    artifact = await db.get(MobileRunArtifact, artifact_id)
+    if not artifact or artifact.run_id != run_id:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    try:
+        url = await asyncio.to_thread(presigned_url, artifact.file_path)
+    except Exception as exc:
+        logger.warning("failed to create mobile artifact URL for %s: %s", artifact_id, exc)
+        raise HTTPException(status_code=503, detail="Artifact storage is unavailable") from exc
+    return {"url": url, "file_name": artifact.file_name}
 
 
 # ---- Export ----
@@ -474,6 +576,15 @@ async def export_run_json(
     incidents_result = await db.execute(incidents_q)
     incidents = incidents_result.scalars().all()
 
+    # Fetch execution timeline
+    events_q = (
+        select(MobileRunEvent)
+        .where(MobileRunEvent.run_id == run_id)
+        .order_by(MobileRunEvent.sequence.asc())
+    )
+    events_result = await db.execute(events_q)
+    events = events_result.scalars().all()
+
     # Fetch artifacts
     artifacts_q = select(MobileRunArtifact).where(MobileRunArtifact.run_id == run_id)
     artifacts_result = await db.execute(artifacts_q)
@@ -517,6 +628,22 @@ async def export_run_json(
                 "thread_name": i.thread_name,
             }
             for i in incidents
+        ],
+        "events": [
+            {
+                "id": event.id,
+                "sequence": event.sequence,
+                "event_time": event.event_time.isoformat(),
+                "event_type": event.event_type,
+                "phase": event.phase,
+                "action": event.action,
+                "level": event.level,
+                "message": event.message,
+                "parameters": event.parameters_json,
+                "result": event.result_json,
+                "duration_ms": event.duration_ms,
+            }
+            for event in events
         ],
         "artifacts": [
             {

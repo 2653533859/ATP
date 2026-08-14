@@ -32,13 +32,14 @@ from app.models.mobile_special import (
 from app.services.adb_resilience import HeartbeatMonitor, ensure_reachable, safe_run_adb
 from app.services.mobile_special.adb_client import run_adb_shell
 from app.services.mobile_special.parsers import parse_logcat_crash, parse_logcat_anr
+from app.services.mobile_special_events import MobileRunEventRecorder
 
 logger = logging.getLogger(__name__)
 
 
 async def _safe_publish(run_id: int, payload: dict) -> None:
     try:
-        await publish_run_event(run_id, payload)
+        await publish_run_event(run_id, payload, run_type="mobile")
     except Exception:
         pass
 
@@ -88,6 +89,71 @@ def _build_monkey_cmd(
         "-v",  # verbose
         str(count),
     ]
+
+
+def _parse_monkey_event_line(line: str) -> dict | None:
+    """Normalize a verbose Monkey line for the report timeline."""
+    text = line.strip()
+    if not text:
+        return None
+    if text.startswith(":Sending"):
+        action = text[1:].split(":", 1)[0].strip()
+        return {"action": action, "parameters": {"raw": text}}
+    if text.startswith("Events injected:"):
+        return {"action": "summary", "parameters": {"raw": text}}
+    return None
+
+
+async def _consume_monkey_output(
+    stream,
+    run_id: int,
+    recorder: MobileRunEventRecorder,
+) -> int:
+    """Persist verbose Monkey output without allowing adb pipes to block."""
+    if stream is None:
+        return 0
+    action_count = 0
+    while True:
+        line = await stream.readline()
+        if not line:
+            break
+        text = line.decode("utf-8", errors="replace").strip()
+        if not text:
+            continue
+        parsed = _parse_monkey_event_line(text)
+        if parsed:
+            action_count += 1 if parsed["action"] != "summary" else 0
+            await recorder.record(
+                event_type="monkey_action" if parsed["action"] != "summary" else "monkey_summary",
+                phase="monkey",
+                action=parsed["action"],
+                level="info",
+                message=text[:4000],
+                parameters={**parsed["parameters"], "index": action_count},
+                result={"raw": text},
+                commit=False,
+            )
+        else:
+            await recorder.record(
+                event_type="monkey_log",
+                phase="monkey",
+                level="debug",
+                message=text[:4000],
+                parameters={"raw": text},
+                result={"captured": True},
+                commit=False,
+            )
+        await _safe_publish(
+            run_id,
+            {
+                "type": "log",
+                "run_id": run_id,
+                "level": "info" if parsed else "debug",
+                "message": text[:500],
+            },
+        )
+    await recorder.flush()
+    return action_count
 
 
 def _start_app(serial: str, package: str) -> bool:
@@ -183,6 +249,8 @@ async def run_mobile_special_stability(
     duration_seconds = config.get("duration_seconds", 300)
     operation_interval_ms = config.get("operation_interval_ms", 500)
     seed = config.get("monkey_seed", 12345)
+    events = MobileRunEventRecorder(db, run.id)
+    await events.initialize()
 
     # 1. 校验输入
     validation_errors = _validate_inputs(device_serial, app_package, config)
@@ -191,6 +259,14 @@ async def run_mobile_special_stability(
         run.finished_at = datetime.now()
         run.summary_json = {"error_message": "; ".join(validation_errors)}
         await db.commit()
+        await events.record(
+            event_type="validation",
+            phase="validation",
+            level="error",
+            message="输入校验失败",
+            parameters={"device_serial": device_serial, "app_package": app_package},
+            result={"ok": False, "errors": validation_errors},
+        )
         await _safe_publish(
             run.id,
             {
@@ -210,6 +286,14 @@ async def run_mobile_special_stability(
         run.finished_at = datetime.now()
         run.summary_json = {"error_message": f"设备不可达: {device_message}"}
         await db.commit()
+        await events.record(
+            event_type="device_check",
+            phase="device_setup",
+            level="error",
+            message="设备不可达",
+            parameters={"device_serial": device_serial},
+            result={"ok": False, "detail": device_message},
+        )
         await _safe_publish(
             run.id,
             {
@@ -223,6 +307,14 @@ async def run_mobile_special_stability(
     run.started_at = datetime.now()
     run.status = RunStatus.running
     await db.commit()
+    await events.record(
+        event_type="run_started",
+        phase="device_setup",
+        action="connect_device",
+        message="开始执行 Monkey 稳定性探索",
+        parameters={"device_serial": device_serial, "app_package": app_package},
+        result={"ok": True},
+    )
 
     await _safe_publish(
         run.id,
@@ -230,12 +322,23 @@ async def run_mobile_special_stability(
             "type": "started",
             "run_id": run.id,
             "device_serial": device_serial,
+            "phase": "running",
+            "progress": 35,
+            "current_step": "启动 Monkey 稳定性探索",
+            "device_status": "online",
         },
     )
 
     # 3. 启动 App
     if config.get("auto_start", True):
-        await asyncio.get_event_loop().run_in_executor(None, _start_app, device_serial, app_package)
+        app_started = await asyncio.get_event_loop().run_in_executor(None, _start_app, device_serial, app_package)
+        await events.record(
+            event_type="action",
+            phase="app_setup",
+            action="start_app",
+            parameters={"package": app_package},
+            result={"ok": bool(app_started)},
+        )
         await asyncio.sleep(3)
 
     # 4. 启动 logcat 监控 crash/ANR
@@ -248,6 +351,29 @@ async def run_mobile_special_stability(
         interval_ms=operation_interval_ms,
         seed=seed,
         count=999999999,
+    )
+
+    await _safe_publish(
+        run.id,
+        {
+            "type": "log",
+            "run_id": run.id,
+            "level": "info",
+            "message": "开始执行 Monkey 稳定性探索",
+        },
+    )
+    await events.record(
+        event_type="monkey_start",
+        phase="monkey",
+        action="start_monkey",
+        message="开始执行 Monkey 稳定性探索",
+        parameters={
+            "command": monkey_cmd,
+            "seed": seed,
+            "duration_seconds": duration_seconds,
+            "operation_interval_ms": operation_interval_ms,
+        },
+        result={"started": True},
     )
 
     start_time = time.monotonic()
@@ -277,7 +403,10 @@ async def run_mobile_special_stability(
             monkey_proc = await asyncio.create_subprocess_exec(
                 *monkey_cmd,
                 stdout=asyncio.subprocess.PIPE,
-                stderr=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.DEVNULL,
+            )
+            output_task = asyncio.create_task(
+                _consume_monkey_output(getattr(monkey_proc, "stdout", None), run.id, events)
             )
 
             # 每秒检查取消信号，每 30 秒报告一次进度。
@@ -300,7 +429,20 @@ async def run_mobile_special_stability(
                             "run_id": run.id,
                             "elapsed_seconds": int(elapsed),
                             "completed_actions": completed_actions,
+                            "progress": min(95, 35 + round(elapsed / max(float(duration_seconds), 1) * 60)),
+                            "duration_seconds": float(duration_seconds),
+                            "phase": "running",
+                            "current_step": "Monkey 稳定性探索",
+                            "device_serial": device_serial,
+                            "device_status": "online",
                         },
+                    )
+                    await events.record(
+                        event_type="monkey_progress",
+                        phase="monkey",
+                        action="progress",
+                        parameters={"elapsed_seconds": int(elapsed), "duration_seconds": float(duration_seconds)},
+                        result={"completed_action_count": completed_actions},
                     )
                     next_progress_at += 30
                 if elapsed >= duration_seconds:
@@ -313,6 +455,14 @@ async def run_mobile_special_stability(
                     await asyncio.wait_for(monkey_proc.wait(), timeout=5)
                 except Exception:
                     pass
+
+            if "output_task" in locals():
+                try:
+                    completed_actions = max(completed_actions, await asyncio.wait_for(output_task, timeout=5))
+                except Exception:
+                    output_task.cancel()
+                    with suppress(asyncio.CancelledError):
+                        await output_task
 
     except Exception as e:
         logger.exception("monkey execution error for run %s: %s", run.id, e)
@@ -329,8 +479,39 @@ async def run_mobile_special_stability(
 
     # 7. 保存 incidents
     all_incidents = crashes + anrs
+    await _safe_publish(
+        run.id,
+        {
+            "type": "phase",
+            "run_id": run.id,
+            "phase": "incidents",
+            "progress": 95,
+            "current_step": "分析 Crash/ANR 日志",
+            "device_serial": device_serial,
+            "device_status": "online" if device_lost_at is None else "offline",
+        },
+    )
+    for incident in all_incidents:
+        await _safe_publish(
+            run.id,
+            {
+                "type": "incident",
+                "run_id": run.id,
+                "incident_type": incident.get("incident_type", "crash"),
+                "title": incident.get("title") or "检测到移动端异常",
+                "detail": str(incident.get("detail") or "")[:500],
+                "incident_count": len(all_incidents),
+            },
+        )
     crash_count = len([i for i in all_incidents if i.get("incident_type") == IncidentType.crash.value])
     anr_count = len([i for i in all_incidents if i.get("incident_type") == IncidentType.anr.value])
+    await events.record(
+        event_type="phase",
+        phase="incidents",
+        action="collect_incidents",
+        parameters={"logcat_collected": True},
+        result={"crash_count": crash_count, "anr_count": anr_count},
+    )
 
     for inc in all_incidents:
         incident = MobileIncident(
@@ -364,6 +545,14 @@ async def run_mobile_special_stability(
     run.duration_ms = total_ms
     run.summary_json = summary
     await db.commit()
+    await events.record(
+        event_type="run_completed",
+        phase="finalizing",
+        action="complete_run",
+        parameters={"seed": seed, "cancelled": cancelled},
+        result={"status": run.status.value, "summary": summary},
+        duration_ms=total_ms,
+    )
 
     await _safe_publish(
         run.id,
@@ -373,5 +562,8 @@ async def run_mobile_special_stability(
             "status": run.status.value,
             "duration_ms": total_ms,
             "summary": summary,
+            "progress": 100,
+            "current_step": "执行完成" if run.status == RunStatus.completed else "执行已停止",
+            "device_status": "online" if device_lost_at is None else "offline",
         },
     )

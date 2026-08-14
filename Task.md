@@ -1,5 +1,17 @@
 # ATP 项目任务跟踪
 
+## 2026-08-14 Android 性能监控、卡顿检测与异常回放
+
+- [x] Android 专项性能任务新增性能监控、卡顿/FPS、Crash/ANR 监控和异常回放开关，旧任务配置保持兼容。
+- [x] Worker 采集 CPU、内存、电量、温度、FPS、慢帧次数，并将 Crash/ANR 的 logcat 与录屏证据写入 MinIO 和专项运行记录。
+- [x] Android 报告详情新增设备最新指标卡片、FPS/卡顿/温度趋势选择和报告文件真实下载链接；新增 `replay` artifact 类型及 Alembic 迁移 `20260814_0058`。
+- [x] 修复 Android/普通用例实时事件的 ID 串流风险：Redis channel 和 WebSocket 订阅按 `case` / `mobile` 类型隔离，Android 报告使用 `run_type=mobile`。
+- [x] `ADB_SCAN_MODE=worker` 时，截图、屏幕流、点击、滑动和 UIAutomator 控件识别均通过 `ANDROID_WORKER_QUEUE` 派发到 Windows Android Worker；公网 API 不再直接调用本机 ADB。
+- [x] 性能回放改为按 `replay_seconds`（5-1800 秒）滚动分段录制，设备端最多保留前一段和当前段，避免按整段性能任务时长录屏导致晚期异常没有回放或占满设备空间。
+- [x] 修复带千分位 Android meminfo（如 `33,398 KB`）被截断为 `33 KB` 的解析错误；设备租约冲突也写入执行事件时间线；报告事件拉取上限统一为 5000 条。
+- [x] 回归验证：后端非集成测试 `2073 passed`，本轮 Android/API/Worker 定向测试 `93 passed`，前端 `50 files / 209 tests passed`，type-check、生产 build、Ruff 与 `git diff --check` 通过。
+- [ ] 真实 Crash/ANR 触发和录屏回放仍需在已连接 Android 真机上做一次专门验收；正常性能采样与 Worker 心跳验证已完成。
+
 ## 2026-08-14 通知 Webhook 错误信息脱敏收口
 
 - [x] 修复企业微信 `?key=...` 和钉钉 `access_token/sign` 等 Webhook 查询参数可能进入异常文本的问题；服务端统一脱敏 URL 用户信息及敏感查询参数后，才写入日志、投递历史或返回 API 错误。
@@ -1388,3 +1400,24 @@
 **2026-08-07 AI 生成上下文增强**：AI 用例生成已支持按当前项目选择一个测试数据集和多个 Mock 规则；后端校验项目归属，向模型提供数据集字段/少量样例、Mock 方法/路径/状态码/响应体/录制样本，并在发送前脱敏密码、Token、Cookie、Authorization 等敏感字段。生成草稿使用数据集字段占位符，保存时自动绑定所选数据集；Mock 规则只作为生成上下文，不会被 AI 自动修改。已补充后端脱敏/权限/Prompt 回归测试、前端选择控件和治理文档。
 - [x] 2026-08-11 覆盖率与解释器兼容性收口：新增 `ProjectList`、`UserManagementView`、`AccountSettingsView` 组件级回归，以及录制会话/路由/资产持久化和用户管理边界回归；前端全量 `40 files / 157 tests passed`，coverage statements/branches/functions/lines 为 `31.54% / 26.53% / 24.73% / 32.76%`，通过现有 `31.5 / 26.5 / 24.5 / 32.5` 门禁；`vue-tsc --noEmit`、生产构建通过。后端 Python 3.12/3.14 均为 `1827 passed`，coverage `82.50%`/`82.05%`，252 个测试文件单独运行全部通过。
 - [x] 2026-08-11 Web/Android Python 脚本生成补齐：Web 低代码生成器支持上传、下载、视觉基线断言、元素资产和页面对象展开；Android 生成器支持旋转、权限、网络配置和前后台切换；缺少资产或未知动作生成显式 `pytest.fail`，避免脚本静默漏步骤。新增 4 组生成器回归，前端全量 `40 files / 161 tests passed`，coverage statements/branches/functions/lines `31.94% / 27.09% / 24.94% / 33.21%`，type-check 和生产构建通过。
+## 2026-08-14 Android 专项实时执行过程
+
+- [x] Android 专项 Worker 推送设备准备、前置操作、执行阶段、采样、Crash/ANR、日志和完成事件。
+- [x] WebSocket 订阅权限覆盖 MobileSpecialRun 的触发人、管理员、项目成员和项目 owner。
+- [x] 报告详情页增加实时进度、当前步骤、设备状态、采样数量、Worker 日志和异常事件。
+- [x] WebSocket 断开时由详情页每 3 秒轮询运行状态、指标和异常列表，完成后自动切换为最终报告。
+- [x] 执行任务后直接进入报告详情页；后端定向测试 83 passed，前端 type-check/build 通过。
+## 2026-08-14 Android 执行事件记录、Monkey 操作回放
+
+- [x] 新增 `mobile_run_events` 事件表，按运行保存阶段、操作、时间、参数、结果、耗时和执行序号；单次运行最多保存 5000 条，避免长时间 Monkey 日志无限增长。
+- [x] Android 性能、稳定性、流畅度 Worker 接入持久化事件记录，覆盖设备检查、应用启动、采样、场景操作、Crash/ANR、Monkey 日志和完成结果。
+- [x] Monkey 稳定性任务采集 verbose 输出，记录 Monkey 动作、原始日志、随机种子和命令参数。
+- [x] 报告详情页增加操作时间线，可展开查看参数与结果；JSON 报告同步导出事件记录。
+- [x] 增加稳定性运行回放接口和报告页入口，复用原运行配置与随机种子创建新的回放任务。
+- [x] 新增事件记录、事件 API、回放 API、迁移和 Worker 回归测试；后端目标测试 75 个通过，前端 207 个测试、类型检查和生产构建通过。
+
+## 2026-08-14 APK 包名复用
+
+- [x] 上传 APK 时自动解析二进制 `AndroidManifest.xml`，保存包名、版本名和版本号；解析失败仍允许手工填写。
+- [x] Android 用例和专项任务展示 APK 包名；专项任务选择 APK 后自动带出应用包名，手工输入可覆盖。
+- [x] 后端校验 APK 与任务属于同一项目，避免跨项目引用；相关 API、解析器和前端构建测试通过。

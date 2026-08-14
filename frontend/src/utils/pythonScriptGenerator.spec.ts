@@ -33,6 +33,14 @@ describe('python script generators', () => {
     expect(script).toContain('device.press("back")')
   })
 
+  it('uses content-desc when a recorded control has no text or resource id', () => {
+    const script = generateAndroidPythonScript([
+      { action: 'click', name: '打开菜单', params: { contentDesc: '打开菜单' } },
+    ])
+
+    expect(script).toContain('device(description="打开菜单").click()')
+  })
+
   it('generates Android device control steps and fails explicitly for unknown actions', () => {
     const script = generateAndroidPythonScript([
       { action: 'rotate', name: '切换横屏', params: { orientation: 'landscape' } },

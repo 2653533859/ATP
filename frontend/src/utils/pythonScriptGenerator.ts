@@ -191,6 +191,9 @@ function androidTarget(params: Record<string, unknown>) {
   const text = stringValue(params.text).trim()
   if (text) return `device(text=${pythonString(text)})`
 
+  const contentDesc = stringValue(params.contentDesc ?? params.content_desc).trim()
+  if (contentDesc) return `device(description=${pythonString(contentDesc)})`
+
   return null
 }
 

@@ -111,7 +111,7 @@ def _install_session(monkeypatch, db):
 def _events(monkeypatch):
     recorded = []
 
-    async def publish(run_id, payload):
+    async def publish(run_id, payload, **_kwargs):
         recorded.append(payload)
 
     monkeypatch.setattr(tms, "publish_run_event", publish)
@@ -215,6 +215,25 @@ def test_run_task_returns_when_run_missing(monkeypatch):
     tms.run_mobile_special_task(None, 404)
 
     assert db.commits == 0
+
+
+def test_run_task_records_device_lease_conflict_in_timeline(monkeypatch):
+    run = _run(device_id=77)
+    task = _task()
+    db = _FakeDB({("MobileSpecialRun", 10): run, ("MobileSpecialTask", 1): task})
+    _install_session(monkeypatch, db)
+    events = _events(monkeypatch)
+
+    async def conflict(*_args, **_kwargs):
+        raise tms.DeviceLeaseConflict("设备已被其他任务占用")
+
+    monkeypatch.setattr(tms, "acquire_device_lease", conflict)
+    tms.run_mobile_special_task(None, 10)
+
+    assert run.status is RunStatus.failed
+    lease_events = [item for item in db.added if item.__class__.__name__ == "MobileRunEvent"]
+    assert any(item.event_type == "device_lease" and item.level == "error" for item in lease_events)
+    assert events[-1]["type"] == "completed" and events[-1]["status"] == "failed"
 
 
 def test_run_task_fails_when_task_missing(monkeypatch):

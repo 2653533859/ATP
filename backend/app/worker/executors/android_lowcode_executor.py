@@ -33,6 +33,7 @@ import re
 import shutil
 import subprocess
 import tempfile
+import xml.etree.ElementTree as ET
 import time
 from pathlib import Path
 from types import SimpleNamespace
@@ -196,8 +197,10 @@ def _adb_cmd(serial: str, *args: str, timeout: int = 15) -> tuple[bool, str]:
     """执行 adb shell 命令，返回 (success, output)"""
     cmd = ["adb", "-s", serial, *args]
     try:
-        proc = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
-        output = (proc.stdout or "") + (proc.stderr or "")
+        proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
+        stdout = (proc.stdout or b"").decode("utf-8", errors="replace") if isinstance(proc.stdout, bytes) else (proc.stdout or "")
+        stderr = (proc.stderr or b"").decode("utf-8", errors="replace") if isinstance(proc.stderr, bytes) else (proc.stderr or "")
+        output = stdout + stderr
         return proc.returncode == 0, output.strip()
     except subprocess.TimeoutExpired:
         return False, "命令超时"
@@ -214,10 +217,62 @@ def _clear_input_text(serial: str, max_delete: int = 50) -> None:
             break
 
 
+_UI_BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
+
+
+def _find_ui_bounds(dump: str, attribute: str, value: str) -> tuple[int, int, int, int] | None:
+    """从 UIAutomator XML 中按属性查找控件 bounds。"""
+    hierarchy_start = dump.find("<hierarchy")
+    hierarchy_end = dump.find("</hierarchy>", hierarchy_start)
+    if hierarchy_start >= 0 and hierarchy_end >= 0:
+        try:
+            root = ET.fromstring(dump[hierarchy_start : hierarchy_end + len("</hierarchy>")])
+            for node in root.iter("node"):
+                if node.attrib.get(attribute) != value:
+                    continue
+                match = _UI_BOUNDS_RE.fullmatch(node.attrib.get("bounds", ""))
+                if match:
+                    return tuple(int(item) for item in match.groups())
+        except ET.ParseError:
+            pass
+
+    escaped = re.escape(value)
+    patterns = (
+        rf'{attribute}="{escaped}"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"',
+        rf'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*{attribute}="{escaped}"',
+    )
+    for pattern in patterns:
+        match = re.search(pattern, dump)
+        if match:
+            return tuple(int(item) for item in match.groups())
+    return None
+
+
+def _uiautomator_dump(serial: str, timeout: int = 10) -> tuple[bool, str]:
+    """获取 UI 层级；部分设备不会把 /dev/tty 内容回传给 adb，需要走文件兜底。"""
+    ok, output = _adb_cmd(serial, "shell", "uiautomator", "dump", "/dev/tty", timeout=timeout)
+    if ok and "<hierarchy" in output and "</hierarchy>" in output:
+        return True, output
+
+    hierarchy_path = "/sdcard/atp-ui-hierarchy.xml"
+    dump_ok, dump_output = _adb_cmd(
+        serial,
+        "shell",
+        "uiautomator",
+        "dump",
+        hierarchy_path,
+        timeout=timeout,
+    )
+    if not dump_ok:
+        return False, dump_output
+    return _adb_cmd(serial, "shell", "cat", hierarchy_path, timeout=timeout)
+
+
 def _find_and_click(serial: str, params: dict) -> dict[str, Any]:
     """使用 uiautomator dump + 坐标点击"""
     text = params.get("text")
     resource_id = params.get("resourceId") or params.get("resource_id")
+    content_desc = params.get("contentDesc") or params.get("content_desc")
     x = params.get("x")
     y = params.get("y")
 
@@ -225,69 +280,41 @@ def _find_and_click(serial: str, params: dict) -> dict[str, Any]:
         ok, out = _adb_cmd(serial, "shell", "input", "tap", str(int(x)), str(int(y)))
         return {"success": ok, "error": out if not ok else None}
 
-    if text:
-        # 使用 uiautomator 命令通过文本查找并点击
-        ok, out = _adb_cmd(
-            serial,
-            "shell",
-            "am",
-            "instrument",
-            "-w",
-            "-r",
-            "-e",
-            "text",
-            text,
-            "input",
-            "tap",
-            "0",
-            "0",
-        )
-        # 备选：直接用 input text 搜索（简单实现用 adb shell 组合命令）
-        ok, out = _adb_cmd(
-            serial,
-            "shell",
-            f"input tap $(uiautomator dump /dev/tty 2>/dev/null | "
-            f'grep -oP \'bounds="\\[([0-9]+),([0-9]+)\\]\\[([0-9]+),([0-9]+)\\]"[^>]*text="{text}"\' | '
-            f'head -1 | grep -oP "\\[([0-9]+),([0-9]+)\\]" | head -1 | tr -d "[]" | '
-            f"awk -F, '{{print ($1+0)/1, ($2+0)/1}}')",
-            timeout=10,
-        )
-        if not ok:
-            # 简化方案：使用 uiautomator + grep + tap
-            # 先 dump UI，然后解析坐标
-            ok2, dump = _adb_cmd(serial, "shell", "uiautomator", "dump", "/dev/tty", timeout=10)
-            if ok2 and text in dump:
-                import re as _re
-
-                pattern = rf'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*text="{_re.escape(text)}"'
-                match = _re.search(pattern, dump)
-                if not match:
-                    pattern = rf'text="{_re.escape(text)}"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"'
-                    match = _re.search(pattern, dump)
-                if match:
-                    x1, y1, x2, y2 = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
-                    cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-                    ok3, _ = _adb_cmd(serial, "shell", "input", "tap", str(cx), str(cy))
-                    return {"success": ok3, "error": None if ok3 else "点击失败"}
-            return {"success": False, "error": f"未找到文本元素: {text}"}
-        return {"success": True}
-
-    if resource_id:
-        ok2, dump = _adb_cmd(serial, "shell", "uiautomator", "dump", "/dev/tty", timeout=10)
-        if ok2:
-            import re as _re
-
-            pattern = rf'resource-id="{_re.escape(resource_id)}"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"'
-            match = _re.search(pattern, dump)
-            if not match:
-                pattern = rf'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*resource-id="{_re.escape(resource_id)}"'
-                match = _re.search(pattern, dump)
-            if match:
-                x1, y1, x2, y2 = int(match.group(1)), int(match.group(2)), int(match.group(3)), int(match.group(4))
+    if text and not resource_id:
+        ok, dump = _uiautomator_dump(serial, timeout=10)
+        if ok and text in dump:
+            bounds = _find_ui_bounds(dump, "text", text)
+            if bounds:
+                x1, y1, x2, y2 = bounds
                 cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
                 ok3, _ = _adb_cmd(serial, "shell", "input", "tap", str(cx), str(cy))
                 return {"success": ok3, "error": None if ok3 else "点击失败"}
+        return {"success": False, "error": f"未找到文本元素: {text}"}
+
+    if resource_id:
+        ok2, dump = _uiautomator_dump(serial, timeout=10)
+        if ok2:
+            bounds = _find_ui_bounds(dump, "resource-id", resource_id)
+            if bounds:
+                x1, y1, x2, y2 = bounds
+                cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+                ok3, _ = _adb_cmd(serial, "shell", "input", "tap", str(cx), str(cy))
+                return {"success": ok3, "error": None if ok3 else "点击失败"}
+        if text or content_desc:
+            fallback_params = {**params, "resourceId": None, "resource_id": None}
+            return _find_and_click(serial, fallback_params)
         return {"success": False, "error": f"未找到元素: {resource_id}"}
+
+    if content_desc:
+        ok2, dump = _uiautomator_dump(serial, timeout=10)
+        if ok2:
+            bounds = _find_ui_bounds(dump, "content-desc", content_desc)
+            if bounds:
+                x1, y1, x2, y2 = bounds
+                cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+                ok3, _ = _adb_cmd(serial, "shell", "input", "tap", str(cx), str(cy))
+                return {"success": ok3, "error": None if ok3 else "点击失败"}
+        return {"success": False, "error": f"未找到元素: {content_desc}"}
 
     return {"success": False, "error": "缺少定位参数（text/resourceId/x,y）"}
 
@@ -451,14 +478,14 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
 
     elif action == "assert_text":
         text = params.get("text", "")
-        ok, dump = _adb_cmd(serial, "shell", "uiautomator", "dump", "/dev/tty", timeout=10)
+        ok, dump = _uiautomator_dump(serial, timeout=10)
         if ok and text in dump:
             return {"success": True}
         return {"success": False, "error": f"页面中未找到文本: {text}"}
 
     elif action == "assert_element":
         resource_id = params.get("resourceId") or params.get("resource_id", "")
-        ok, dump = _adb_cmd(serial, "shell", "uiautomator", "dump", "/dev/tty", timeout=10)
+        ok, dump = _uiautomator_dump(serial, timeout=10)
         if ok and resource_id in dump:
             return {"success": True}
         return {"success": False, "error": f"未找到元素: {resource_id}"}

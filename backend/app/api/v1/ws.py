@@ -15,6 +15,7 @@ from app.core.database import AsyncSessionLocal
 from app.core.security import decode_token
 from app.core.redis_client import get_async_redis
 from app.models.case import TestCase, TestRun
+from app.models.mobile_special import MobileSpecialRun, MobileSpecialTask
 from app.models.project import Module, Project
 from app.models.user import User, UserRole
 from app.models.user_project import UserProject
@@ -47,39 +48,59 @@ async def _get_ws_user(websocket: WebSocket) -> User | None:
         return user
 
 
-async def _can_subscribe_run(run_id: int, user: User) -> bool:
+async def _can_subscribe_run(run_id: int, user: User, run_type: str = "case") -> bool:
+    if run_type not in {"case", "mobile"}:
+        return False
     async with AsyncSessionLocal() as db:
-        run = await db.get(TestRun, run_id)
-        if run is None:
+        if run_type == "case":
+            run = await db.get(TestRun, run_id)
+            if run is None:
+                return False
+            if user.role == UserRole.admin:
+                return True
+            if run.triggered_by == user.id:
+                return True
+
+            case = await db.get(TestCase, run.case_id)
+            if case is not None:
+                if case.creator_id == user.id:
+                    return True
+
+                module = await db.get(Module, case.module_id)
+                if module is not None:
+                    # P3.C 项目成员（UserProject）也可订阅
+                    membership = await db.execute(
+                        select(UserProject.id).where(
+                            UserProject.user_id == user.id,
+                            UserProject.project_id == module.project_id,
+                        )
+                    )
+                    if membership.scalar_one_or_none() is not None:
+                        return True
+                    project = await db.get(Project, module.project_id)
+                    if project is not None and project.owner_id == user.id:
+                        return True
             return False
 
-        if user.role == UserRole.admin:
-            return True
-        if run.triggered_by == user.id:
+        mobile_run = await db.get(MobileSpecialRun, run_id)
+        if mobile_run is None:
+            return False
+        if user.role == UserRole.admin or mobile_run.triggered_by == user.id:
             return True
 
-        case = await db.get(TestCase, run.case_id)
-        if case is None:
+        mobile_task = await db.get(MobileSpecialTask, mobile_run.task_id)
+        if mobile_task is None:
             return False
-        if case.creator_id == user.id:
-            return True
-
-        module = await db.get(Module, case.module_id)
-        if module is None:
-            return False
-        # P3.C 项目成员（UserProject）也可订阅
         membership = await db.execute(
             select(UserProject.id).where(
                 UserProject.user_id == user.id,
-                UserProject.project_id == module.project_id,
+                UserProject.project_id == mobile_task.project_id,
             )
         )
         if membership.scalar_one_or_none() is not None:
             return True
-        project = await db.get(Project, module.project_id)
-        if project is None:
-            return False
-        return project.owner_id == user.id
+        project = await db.get(Project, mobile_task.project_id)
+        return project is not None and project.owner_id == user.id
 
 
 @ws_router.websocket("/runs/{run_id}")
@@ -92,18 +113,19 @@ async def ws_run_events(websocket: WebSocket, run_id: int):
       step_result - 单步骤执行完成
       completed   - 执行结束（前端收到后可关闭）
     """
+    run_type = websocket.query_params.get("run_type", "case")
     user = await _get_ws_user(websocket)
     if user is None:
         await websocket.close(code=1008, reason="Unauthorized")
         return
-    if not await _can_subscribe_run(run_id, user):
+    if not await _can_subscribe_run(run_id, user, run_type):
         await websocket.close(code=1008, reason="Forbidden")
         return
 
     await websocket.accept()
     redis = None
     pubsub = None
-    channel = f"atp:run:{run_id}"
+    channel = f"atp:run:{run_type}:{run_id}"
 
     try:
         redis = get_async_redis()
