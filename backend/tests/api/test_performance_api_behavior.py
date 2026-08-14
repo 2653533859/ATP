@@ -7,6 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
+from fastapi import HTTPException
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -82,8 +83,11 @@ class _FakeDB:
         self.added = []
         self.commits = 0
         self.rollbacks = 0
+        self.locked_gets = []
 
-    async def get(self, model, pk):
+    async def get(self, model, pk, **kwargs):
+        if kwargs.get("with_for_update"):
+            self.locked_gets.append((model.__name__, pk))
         return self.objects.get(model.__name__, {}).get(pk)
 
     def add(self, obj):
@@ -109,6 +113,58 @@ class _FakeDB:
             obj.created_at = datetime(2026, 5, 29, tzinfo=timezone.utc)
         if getattr(obj, "updated_at", None) is None:
             obj.updated_at = datetime(2026, 5, 29, tzinfo=timezone.utc)
+
+
+class _IdempotencyResult:
+    def __init__(self, value=None):
+        self.value = value
+
+    def scalar_one_or_none(self):
+        return self.value
+
+
+class _IdempotencyDB(_FakeDB):
+    def __init__(self, test, responses):
+        super().__init__({"PerformanceTest": {test.id: test}})
+        self.responses = list(responses)
+
+    async def execute(self, _statement):
+        value = self.responses.pop(0) if self.responses else None
+        return _IdempotencyResult(value)
+
+
+class _IdempotencyRaceDB(_IdempotencyDB):
+    async def commit(self):
+        self.commits += 1
+        if self.commits == 1:
+            from sqlalchemy.exc import IntegrityError
+
+            raise IntegrityError("insert", {}, RuntimeError("duplicate idempotency key"))
+
+
+class _DeleteNodeResult:
+    def __init__(self, value=None):
+        self.value = value
+
+    def scalar_one_or_none(self):
+        return self.value
+
+
+class _DeleteNodeDB(_FakeDB):
+    def __init__(self, node, *, active_run_id=None, scheduled_test_id=None):
+        super().__init__({"PerformanceNode": {node.id: node}})
+        self.active_run_id = active_run_id
+        self.scheduled_test_id = scheduled_test_id
+        self.deleted = None
+        self.executed = 0
+
+    async def execute(self, _statement):
+        self.executed += 1
+        value = self.active_run_id if self.executed == 1 else self.scheduled_test_id
+        return _DeleteNodeResult(value)
+
+    async def delete(self, item):
+        self.deleted = item
 
 
 def _performance_test(test_id: int = 3):
@@ -333,6 +389,77 @@ def test_trigger_performance_run_merges_options_and_enqueues_task():
     assert _delay_recorder.calls == [result.id]
 
 
+def test_trigger_performance_run_replays_same_idempotency_key_without_new_run():
+    _delay_recorder.calls.clear()
+    test = _performance_test()
+    existing = types.SimpleNamespace(id=88, status=PerformanceRunStatus.running.value)
+    db = _IdempotencyDB(test, [existing])
+
+    result = asyncio.run(
+        performance.trigger_performance_run(
+            test_id=test.id,
+            body=PerformanceRunTrigger(idempotency_key="ci-build-42"),
+            db=db,
+            user=_User(),
+        )
+    )
+
+    assert result is existing
+    assert db.added == []
+    assert db.commits == 0
+
+
+def test_trigger_performance_run_rejects_reused_key_with_different_request():
+    from app.services.performance_idempotency import build_idempotency_fingerprint
+
+    test = _performance_test()
+    existing = types.SimpleNamespace(
+        id=90,
+        status=PerformanceRunStatus.running.value,
+        idempotency_fingerprint=build_idempotency_fingerprint(
+            source="manual",
+            environment_id=None,
+            performance_node_id=None,
+            performance_node_ids=[],
+            options={"vus": 1},
+        ),
+    )
+    db = _IdempotencyDB(test, [existing])
+
+    with pytest.raises(Exception) as caught:
+        asyncio.run(
+            performance.trigger_performance_run(
+                test_id=test.id,
+                body=PerformanceRunTrigger(idempotency_key="ci-build-conflict", options={"vus": 2}),
+                db=db,
+                user=_User(),
+            )
+        )
+
+    assert caught.value.status_code == 409
+    assert db.added == []
+
+
+def test_trigger_performance_run_recovers_from_idempotency_insert_race():
+    _delay_recorder.calls.clear()
+    test = _performance_test()
+    existing = types.SimpleNamespace(id=89, status=PerformanceRunStatus.pending.value)
+    db = _IdempotencyRaceDB(test, [None, existing])
+
+    result = asyncio.run(
+        performance.trigger_performance_run(
+            test_id=test.id,
+            body=PerformanceRunTrigger(idempotency_key="ci-build-race"),
+            db=db,
+            user=_User(),
+        )
+    )
+
+    assert result is existing
+    assert db.rollbacks == 1
+    assert _delay_recorder.calls == []
+
+
 def test_trigger_performance_run_injects_environment_and_hides_secret_snapshot(monkeypatch):
     _delay_recorder.calls.clear()
     test = _performance_test()
@@ -488,6 +615,7 @@ def test_stop_performance_run_marks_running_run_as_cancelling(monkeypatch):
     assert run.error_message == "正在停止压测"
     assert run.finished_at is None
     assert db.commits == 1
+    assert db.locked_gets == [("PerformanceRun", run.id)]
 
 
 def test_stop_performance_run_finishes_pending_run_as_cancelled(monkeypatch):
@@ -509,6 +637,7 @@ def test_stop_performance_run_finishes_pending_run_as_cancelled(monkeypatch):
 
     assert run.status == PerformanceRunStatus.cancelled.value
     assert run.finished_at is not None
+    assert db.locked_gets == [("PerformanceRun", run.id)]
 
 
 def test_stop_performance_run_cascades_to_shards(monkeypatch):
@@ -553,6 +682,7 @@ def test_stop_performance_run_cascades_to_shards(monkeypatch):
     assert running.status == PerformanceRunStatus.cancelling.value
     assert pending.status == PerformanceRunStatus.cancelled.value
     assert pending.finished_at is not None
+    assert db.locked_gets == [("PerformanceRun", 20), ("PerformanceRun", 21), ("PerformanceRun", 22)]
 
 
 def test_stop_performance_run_rejects_terminal_run(monkeypatch):
@@ -750,6 +880,19 @@ def test_parse_duration_seconds_handles_every_unit():
     assert performance._parse_duration_seconds("1h") == 3600.0
     assert performance._parse_duration_seconds("  10M  ") == 600.0
     assert performance._parse_duration_seconds("soon") is None
+    assert performance._parse_duration_seconds(True) is None
+    assert performance._parse_duration_seconds(-1) is None
+    assert performance._parse_duration_seconds(float("nan")) is None
+    assert performance._parse_duration_seconds(float("inf")) is None
+
+
+def test_validate_duration_fields_rejects_non_finite_and_negative_values():
+    with pytest.raises(HTTPException, match="非负有限时长"):
+        performance._validate_duration_fields({"duration_seconds": float("nan")})
+    with pytest.raises(HTTPException, match="非负有限时长"):
+        performance._validate_duration_fields({"duration": -1})
+    with pytest.raises(HTTPException, match=r"stages\[0\]"):
+        performance._validate_duration_fields({"stages": [{"duration": float("inf")}]})
 
 
 def test_max_vus_reads_both_vus_and_stage_targets():
@@ -1206,6 +1349,45 @@ def test_update_performance_node_disabling_it_sets_disabled_status():
     assert node.status == "disabled"
 
 
+def test_delete_performance_node_rejects_active_runs_before_detaching_node():
+    node = _performance_node()
+    db = _DeleteNodeDB(node, active_run_id=55)
+
+    with pytest.raises(Exception) as caught:
+        asyncio.run(performance.delete_performance_node(node_id=node.id, db=db, _=None))
+
+    assert caught.value.status_code == 409
+    assert db.deleted is None
+    assert db.commits == 0
+    assert db.executed == 1
+    assert db.locked_gets == [("PerformanceNode", node.id)]
+
+
+def test_delete_performance_node_rejects_enabled_schedules_before_detaching_node():
+    node = _performance_node()
+    db = _DeleteNodeDB(node, scheduled_test_id=88)
+
+    with pytest.raises(Exception) as caught:
+        asyncio.run(performance.delete_performance_node(node_id=node.id, db=db, _=None))
+
+    assert caught.value.status_code == 409
+    assert db.deleted is None
+    assert db.commits == 0
+    assert db.executed == 2
+
+
+def test_delete_performance_node_allows_delete_without_active_references():
+    node = _performance_node()
+    db = _DeleteNodeDB(node)
+
+    asyncio.run(performance.delete_performance_node(node_id=node.id, db=db, _=None))
+
+    assert db.deleted is node
+    assert db.commits == 1
+    assert db.executed == 2
+    assert db.locked_gets == [("PerformanceNode", node.id)]
+
+
 def test_trigger_performance_run_records_selected_node():
     _delay_recorder.calls.clear()
     test = _performance_test()
@@ -1223,6 +1405,7 @@ def test_trigger_performance_run_records_selected_node():
 
     assert result.performance_node_id == node.id
     assert _delay_recorder.calls == [result.id]
+    assert db.locked_gets == [("PerformanceNode", node.id)]
 
 
 def test_trigger_performance_run_creates_multi_node_shards():

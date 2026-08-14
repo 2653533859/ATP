@@ -1,11 +1,17 @@
 import { test, expect, loginAsAdmin } from './fixtures/mock-api'
 
-async function selectProject(page: import('@playwright/test').Page, targetText: string) {
+async function selectProject(
+  page: import('@playwright/test').Page,
+  targetText: string,
+  projectText = 'E2E 测试项目',
+) {
   const targetAlreadyLoaded = await page.getByText(targetText).isVisible({ timeout: 1_000 }).catch(() => false)
   if (targetAlreadyLoaded) return
 
   await page.locator('.page-shell .toolbar .ant-select-selector').first().click()
-  await page.getByTitle('E2E 测试项目').click()
+  const option = page.locator('.ant-select-dropdown .ant-select-item-option').filter({ hasText: projectText }).first()
+  await expect(option).toBeVisible()
+  await option.click()
 }
 
 test.describe('suite and plan workflows', () => {

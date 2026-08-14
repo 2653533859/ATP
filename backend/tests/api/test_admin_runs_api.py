@@ -34,6 +34,7 @@ _minio.list_objects = lambda prefix: []
 _minio.delete_file = lambda object_name: None
 
 from app.api.v1 import admin_runs
+from app.schemas.admin_runs import RunRetentionPerProjectOut
 
 
 class _FakeAsyncDB:
@@ -49,6 +50,7 @@ def _sample_dict(**overrides):
         "suite_runs": 2,
         "test_runs": 3,
         "mobile_runs": 4,
+        "estimated_objects_sampled": False,
     }
     base.update(overrides)
     return base
@@ -93,6 +95,47 @@ def test_preview_uses_default_days_when_omitted(monkeypatch):
 
     asyncio.run(admin_runs.runs_retention_preview(days=None, db=_FakeAsyncDB(), _=None))
     assert captured["days"] == 120
+
+
+def test_per_project_preview_response_contract_maps_global_alias(monkeypatch):
+    payload = {
+        "global": {
+            "retention_days": 90,
+            "plan_runs": 1,
+            "suite_runs": 2,
+            "test_runs": 3,
+            "mobile_runs": 4,
+            "estimated_objects": 5,
+            "estimated_objects_sampled": True,
+        },
+        "projects": [
+            {
+                "project_id": 7,
+                "project_name": "demo",
+                "retention_days": 14,
+                "plan_runs": 1,
+                "suite_runs": 1,
+                "test_runs": 2,
+                "mobile_runs": 0,
+                "estimated_objects": 3,
+                "estimated_objects_sampled": False,
+            }
+        ],
+    }
+
+    def fake_preview(_session, global_days):
+        assert global_days == 90
+        return payload
+
+    monkeypatch.setattr(admin_runs, "preview_old_runs_by_project", fake_preview)
+    monkeypatch.setattr(admin_runs.settings, "RUN_RETENTION_DAYS", 90)
+
+    result = asyncio.run(admin_runs.runs_retention_per_project_preview(db=_FakeAsyncDB(), _=None))
+    contract = RunRetentionPerProjectOut.model_validate(result)
+
+    assert contract.global_.retention_days == 90
+    assert contract.model_dump(by_alias=True)["global"]["estimated_objects_sampled"] is True
+    assert contract.projects[0].test_runs == 2
 
 
 def test_execute_endpoint_delegates_to_service(monkeypatch):

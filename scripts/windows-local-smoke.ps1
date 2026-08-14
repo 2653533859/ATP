@@ -13,6 +13,8 @@ param(
   [switch]$RequireWebLowcode,
   [switch]$RequireWebDownload,
   [int]$WebRunTimeoutSeconds = 120,
+  [ValidateRange(5, 300)]
+  [int]$LiveRequestTimeoutSeconds = 30,
   [switch]$StopServicesAfter,
   [string]$ReportPath = ''
 )
@@ -198,7 +200,7 @@ function Invoke-LiveLogin {
 
   try {
     $payload = @{ username = $username; password = $password } | ConvertTo-Json -Compress
-    $response = Invoke-RestMethod -Method Post -Uri $LiveLoginUrl -Headers @{ 'X-Requested-With' = 'XMLHttpRequest' } -ContentType 'application/json' -Body $payload -WebSession $script:LiveWebSession -TimeoutSec 10
+    $response = Invoke-RestMethod -Method Post -Uri $LiveLoginUrl -Headers @{ 'X-Requested-With' = 'XMLHttpRequest' } -ContentType 'application/json' -Body $payload -WebSession $script:LiveWebSession -TimeoutSec $LiveRequestTimeoutSeconds
     $sessionCookies = $script:LiveWebSession.Cookies.GetCookies([Uri]$LiveLoginUrl)
     $accessCookie = @($sessionCookies | Where-Object { $_.Name -eq 'atp_access_token' } | Select-Object -First 1)[0]
     $refreshCookie = @($sessionCookies | Where-Object { $_.Name -eq 'atp_refresh_token' } | Select-Object -First 1)[0]
@@ -229,7 +231,7 @@ function Invoke-LiveApiChecks {
 
   foreach ($check in $checks) {
     try {
-      $body = Invoke-RestMethod -Method Get -Uri ($LiveApiBaseUrl + $check.Path) -WebSession $script:LiveWebSession -TimeoutSec 10
+      $body = Invoke-RestMethod -Method Get -Uri ($LiveApiBaseUrl + $check.Path) -WebSession $script:LiveWebSession -TimeoutSec $LiveRequestTimeoutSeconds
       $passed = & $check.Validator $body
       if ($check.Path -eq '/projects' -and $passed) {
         $project = @($body | Where-Object { $null -ne $_.id } | Select-Object -First 1)
@@ -244,6 +246,38 @@ function Invoke-LiveApiChecks {
   }
 }
 
+function Invoke-LiveDependencyCheck {
+  if ([string]::IsNullOrWhiteSpace($script:LiveAccessToken)) {
+    Add-Result -Name 'Live dependency readiness' -Status 'skipped' -Required:$false -Details 'Skipped because live login did not establish an authenticated session.'
+    return
+  }
+
+  try {
+    $payload = Invoke-RestMethod -Method Get -Uri "$LiveApiBaseUrl/health/dependencies" -WebSession $script:LiveWebSession -TimeoutSec $LiveRequestTimeoutSeconds
+    $dependencies = @(
+      @{ Key = 'postgres'; Label = 'PostgreSQL' },
+      @{ Key = 'redis'; Label = 'Redis' },
+      @{ Key = 'minio'; Label = 'MinIO' }
+    )
+    $overallStatus = ([string]$payload.status).Trim().ToLowerInvariant()
+    $valid = $overallStatus -in @('ok', 'degraded')
+    foreach ($dependency in $dependencies) {
+      $item = $payload.dependencies.($dependency.Key)
+      $status = ([string]$item.status).Trim().ToLowerInvariant()
+      $code = ([string]$item.code).Trim().ToLowerInvariant()
+      $latency = [string]$item.latency_ms
+      $itemValid = $status -in @('ok', 'error') -and -not [string]::IsNullOrWhiteSpace($code)
+      $passed = $itemValid -and $status -eq 'ok'
+      Add-Result -Name "Live dependency $($dependency.Label)" -Status $(if ($passed) { 'passed' } else { 'failed' }) -Required:$true -Details "status=$status code=$code latency_ms=$latency"
+      $valid = $valid -and $itemValid
+    }
+    $ready = $valid -and $overallStatus -eq 'ok'
+    Add-Result -Name 'Live dependency readiness' -Status $(if ($ready) { 'passed' } else { 'failed' }) -Required:$true -Details "status=$overallStatus"
+  } catch {
+    Add-Result -Name 'Live dependency readiness' -Status 'failed' -Required:$true -Details $_.Exception.Message
+  }
+}
+
 function Invoke-WebRecordingWorkerCheck {
   if ([string]::IsNullOrWhiteSpace($script:LiveAccessToken)) {
     Add-Result -Name 'Web recording Worker status' -Status 'skipped' -Required:$false -Details 'Skipped because live login did not establish an authenticated session.'
@@ -251,7 +285,7 @@ function Invoke-WebRecordingWorkerCheck {
   }
 
   try {
-    $status = Invoke-RestMethod -Method Get -Uri "$LiveApiBaseUrl/web-recordings/workers" -WebSession $script:LiveWebSession -TimeoutSec 10
+    $status = Invoke-RestMethod -Method Get -Uri "$LiveApiBaseUrl/web-recordings/workers" -WebSession $script:LiveWebSession -TimeoutSec $LiveRequestTimeoutSeconds
     $mode = ([string]$status.mode).Trim().ToLowerInvariant()
     $registered = [int]$status.registered_count
     $available = [int]$status.available_count
@@ -764,6 +798,7 @@ if ($SkipLiveLogin) {
 } else {
   $loginPassed = Invoke-LiveLogin -Values $values
   if ($loginPassed) {
+    Invoke-LiveDependencyCheck
     Invoke-LiveApiChecks
     Invoke-WebRecordingWorkerCheck
   } else {

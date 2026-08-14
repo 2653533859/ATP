@@ -82,6 +82,7 @@ declare module 'vue' {
     ATreeSelect: typeof import('ant-design-vue/es')['TreeSelect']
     AUpload: typeof import('ant-design-vue/es')['Upload']
     BatchOperationBar: typeof import('./components/common/BatchOperationBar.vue')['default']
+    CaseDatasetBinding: typeof import('./components/common/CaseDatasetBinding.vue')['default']
     CaseFormDrawer: typeof import('./components/common/CaseFormDrawer.vue')['default']
     CaseStepEditor: typeof import('./components/case/CaseStepEditor.vue')['default']
     GeneratedScriptModal: typeof import('./components/common/GeneratedScriptModal.vue')['default']

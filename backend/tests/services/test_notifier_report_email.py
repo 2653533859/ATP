@@ -8,8 +8,12 @@ from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
+# Keep SQLAlchemy's registry complete when this service test is executed alone.
+from app.models.bootstrap import load_all_models
 from app.models.notification import NotifyChannel
 from app.services import notifier
+
+load_all_models()
 
 
 class _FakeResult:
@@ -26,9 +30,19 @@ class _FakeResult:
 class _FakeDB:
     def __init__(self, configs):
         self._configs = configs
+        self.added = []
 
     async def execute(self, _query):
         return _FakeResult(self._configs)
+
+    def add_all(self, rows):
+        self.added.extend(rows)
+
+    async def commit(self):
+        return None
+
+    async def rollback(self):
+        return None
 
 
 def _summary():

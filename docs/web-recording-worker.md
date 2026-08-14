@@ -13,6 +13,29 @@ npm run e2e:browser-matrix
 
 证据中的 URL 会移除用户名、密码、查询参数和片段；Trace/HAR 只在显式设置 `ATP_WEB_SMOKE_ARTIFACT_DIR` 时生成。该命令验证浏览器运行时和页面请求链路，不替代独立 Web Recording Worker 的 Redis 路由、Linux/Xvfb 和跨副本录制验收。
 
+## 外部 Worker smoke
+
+仓库提供 `scripts/web-recording-worker-smoke.py`，用于在 Linux/Xvfb、Compose 或 Helm 环境验证独立录制 Worker：
+
+```bash
+python scripts/web-recording-worker-smoke.py \
+  --api-base-url https://atp.example.test \
+  --project-id 7
+```
+
+默认只检查 API 是否处于 `worker` 模式、Worker 心跳注册数和可用容量，不会启动浏览器或访问目标页面。确认需要真实浏览器链路时，必须显式提供目标地址和 `--run-recording`；可追加 `--screenshot` 验证截图接口：
+
+```bash
+python scripts/web-recording-worker-smoke.py \
+  --api-base-url https://atp.example.test \
+  --project-id 7 \
+  --start-url https://target.example.test \
+  --browser chromium --run-recording --screenshot \
+  --report docs/evidence/web-recording-worker-2026-08-13.json
+```
+
+脚本只读取 `ATP_TOKEN` 或 `ATP_USERNAME`/`ATP_PASSWORD`，不接受命令行凭据；报告会移除 URL 查询参数、用户信息和敏感错误内容。预检或本地浏览器通过不替代 Linux/Xvfb、Firefox/WebKit、跨副本 Redis 路由和真实目标页面证据。
+
 Web 录制有两种运行方式：
 
 | 模式 | 适用场景 | 启动方式 | 会话状态 |
@@ -63,7 +86,7 @@ webRecorder:
   healthFile: /tmp/atp-web-recorder.ready
 ```
 
-Chart 会创建独立的 `web-recorder` Deployment，并自动把 Pod 名追加到 `workerId`，保证每个副本使用唯一 Worker ID。Worker 在成功写入 Redis 心跳后更新 `healthFile`，停止或 Redis 心跳失败超过 30 秒后探针会失败；API 根据 Redis 心跳和活动会话数选择 Worker，不要求 Ingress 粘性会话。Worker 心跳 key 过期后不会被选择承载新会话。
+Chart 会创建独立的 `web-recorder` Deployment，并自动把 Pod 名追加到 `workerId`，保证每个副本使用唯一 Worker ID。Worker 启动时会先清理上一次进程可能遗留的 `healthFile`，成功写入 Redis 心跳后才重新更新时间；初始注册或持续心跳遇到底层 Redis 客户端异常时会继续重试，并清理健康文件，直到下一次心跳成功。停止或 Redis 心跳失败超过 30 秒后探针会失败；API 根据 Redis 心跳和活动会话数选择 Worker，不要求 Ingress 粘性会话。Worker 心跳 key 过期后不会被选择承载新会话。
 
 ## 关键配置
 

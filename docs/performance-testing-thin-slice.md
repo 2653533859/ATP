@@ -52,6 +52,18 @@ Q9 Phase 4 在 API 创建 run 或保存默认 options 前增加安全限制：
 
 触发压测时会把所选环境的变量加密固化到本次运行快照，Worker 执行时解密使用；因此运行期间修改环境不会改变已经触发的任务。运行详情接口会移除该内部快照以及历史遗留的敏感 `env` 参数。密码、Token 等敏感变量不能直接写入压测参数，必须通过环境注入。
 
+### 触发幂等
+
+手动触发和 CI/CD Webhook 可传 `idempotency_key`（最多 128 个字母、数字、点号、下划线、冒号或短横线）。相同项目、同一压测定义和相同请求内容重复提交同一个键时，接口会返回第一次创建的 Run，不会再次投递 Worker；数据库唯一约束也会处理多 API 副本并发提交的竞态。相同键如果携带不同环境、节点或 options，会返回 `409`，避免把一次请求误当成另一种压测。
+
+未提供幂等键时保持原有行为，每次请求都可以创建独立 Run；需要重试的客户端应在重试期间复用同一个键。
+
+外部环境验收脚本 `scripts/performance-environment-smoke.py` 也会为真实 smoke/cancel 请求携带幂等键：可用 `--idempotency-key` 或 `ATP_PERFORMANCE_IDEMPOTENCY_KEY` 指定基值，脚本会追加 `-smoke`/`-cancel` 作用域；CI 有固定运行号时应固定该基值，本地未指定时每次命令生成新键。
+
+验收时可重复使用 `--require-metric-source`，分别要求 `performance-worker` 或 `target-service-prometheus` 至少返回一条非空指标样本，避免仅凭空列表或错误样本宣称资源采集通过。
+
+定义已配置基线时可使用 `--require-baseline`，发布回归场景使用 `--fail-on-baseline-regression` 让基线对比出现回归直接失败。
+
 ## 趋势、对比与清理
 
 - Performance Center 基于最近 run 展示 RPS、P95/P99 与错误率趋势。
@@ -179,6 +191,17 @@ gRPC options 至少包含 `target`、完整 `service`、`method`、`request`、`
 - `GET /api/v1/performance/runs/{id}/metrics`：查看与本次压测时间线关联的资源指标样本。
 - `GET /api/v1/performance/runs?project_id={project_id}`：查询项目下压测执行列表。
 - `GET /api/v1/performance/nodes`：查看可用压测节点及容量/心跳状态。
+
+触发请求可使用幂等键：
+
+```json
+{
+  "idempotency_key": "ci-build-20260813-001",
+  "environment_id": 2,
+  "performance_node_ids": [4, 5],
+  "options": {"vus": 20}
+}
+```
 
 脚本上传约定：
 

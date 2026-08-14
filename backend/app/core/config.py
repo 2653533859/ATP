@@ -98,6 +98,12 @@ class Settings(BaseSettings):
     RUN_CLEANUP_ENABLED: bool = True
     RUN_RETENTION_DAYS: int = 90
     RUN_CLEANUP_BATCH_SIZE: int = 500
+    # Notification delivery history retention
+    NOTIFICATION_DELIVERY_CLEANUP_ENABLED: bool = True
+    NOTIFICATION_DELIVERY_RETENTION_DAYS: int = Field(default=30, ge=1, le=3650)
+    # Audit log retention is opt-in because audit records may be subject to compliance retention.
+    AUDIT_LOG_CLEANUP_ENABLED: bool = False
+    AUDIT_LOG_RETENTION_DAYS: int = Field(default=365, ge=1, le=3650)
     # Storage alert (MinIO 使用率告警)
     STORAGE_ALERT_SIZE_GB: float = 0.0  # 0 表示关闭告警
     STORAGE_ALERT_INTERVAL_SECONDS: int = 3600

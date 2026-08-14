@@ -122,8 +122,9 @@ def test_storage_cleanup_preview_delegates_to_service(monkeypatch):
 def test_storage_cleanup_execute_delegates_to_service(monkeypatch):
     called = {}
 
-    def fake_execute(_session, *, object_names, repair_orphan_references):
+    def fake_execute(_session, *, object_names, prefixes, repair_orphan_references):
         called["object_names"] = object_names
+        called["prefixes"] = prefixes
         called["repair_orphan_references"] = repair_orphan_references
         return storage.StorageCleanupExecuteOut(
             requested_count=1,
@@ -149,5 +150,6 @@ def test_storage_cleanup_execute_delegates_to_service(monkeypatch):
     assert result.deleted_objects == ["reports/a.html"]
     assert called == {
         "object_names": ["reports/a.html"],
+        "prefixes": None,
         "repair_orphan_references": True,
     }

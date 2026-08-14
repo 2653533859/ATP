@@ -5,7 +5,7 @@
 import logging
 from datetime import datetime, timedelta, timezone
 
-from sqlalchemy import update
+from sqlalchemy import delete, update
 
 from app.worker.celery_app import celery_app
 from app.core.config import settings
@@ -52,6 +52,7 @@ def cleanup_expired_files():
             result = execute_storage_cleanup(
                 session,
                 object_names=[item.object_name for item in preview.deletable_objects],
+                prefixes=[policy.prefix],
                 repair_orphan_references=True,
             )
             total_deleted += result.deleted_count
@@ -214,6 +215,110 @@ def cleanup_old_completed_runs():
             "test_runs": 0,
             "mobile_runs": 0,
             "deleted_objects": 0,
+        }
+    finally:
+        session.close()
+
+
+@celery_app.task(name="cleanup_old_notification_deliveries")
+def cleanup_old_notification_deliveries():
+    """删除超过保留期的通知投递历史，避免脱敏审计数据无限增长。"""
+
+    if not settings.NOTIFICATION_DELIVERY_CLEANUP_ENABLED:
+        return {"enabled": False, "deleted": 0, "retention_days": settings.NOTIFICATION_DELIVERY_RETENTION_DAYS}
+
+    from app.core.database import sync_session_factory
+    from app.models.audit import AuditLog
+    from app.models.notification import NotificationDelivery
+
+    load_all_models()
+    session = sync_session_factory()
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=settings.NOTIFICATION_DELIVERY_RETENTION_DAYS)
+        result = session.execute(delete(NotificationDelivery).where(NotificationDelivery.created_at < cutoff))
+        deleted = result.rowcount or 0
+        if deleted:
+            session.add(
+                AuditLog(
+                    action="notification_delivery_cleanup",
+                    resource_type="notification_delivery",
+                    username="system",
+                    detail=(
+                        f"Deleted {deleted} notification delivery records older than "
+                        f"{settings.NOTIFICATION_DELIVERY_RETENTION_DAYS} days."
+                    ),
+                )
+            )
+        session.commit()
+        logger.info(
+            "Notification delivery cleanup: deleted=%d retention=%dd",
+            deleted,
+            settings.NOTIFICATION_DELIVERY_RETENTION_DAYS,
+        )
+        return {
+            "enabled": True,
+            "deleted": deleted,
+            "retention_days": settings.NOTIFICATION_DELIVERY_RETENTION_DAYS,
+        }
+    except Exception:
+        session.rollback()
+        logger.exception("Notification delivery cleanup task failed")
+        return {
+            "enabled": True,
+            "deleted": 0,
+            "retention_days": settings.NOTIFICATION_DELIVERY_RETENTION_DAYS,
+            "error": True,
+        }
+    finally:
+        session.close()
+
+
+@celery_app.task(name="cleanup_old_audit_logs")
+def cleanup_old_audit_logs():
+    """按显式配置清理过期审计日志；默认关闭，避免误删合规记录。"""
+
+    if not settings.AUDIT_LOG_CLEANUP_ENABLED:
+        return {"enabled": False, "deleted": 0, "retention_days": settings.AUDIT_LOG_RETENTION_DAYS}
+
+    from app.core.database import sync_session_factory
+    from app.models.audit import AuditLog
+
+    load_all_models()
+    session = sync_session_factory()
+    try:
+        cutoff = datetime.now(timezone.utc) - timedelta(days=settings.AUDIT_LOG_RETENTION_DAYS)
+        result = session.execute(delete(AuditLog).where(AuditLog.created_at < cutoff))
+        deleted = result.rowcount or 0
+        if deleted:
+            session.add(
+                AuditLog(
+                    action="audit_log_cleanup",
+                    resource_type="audit_log",
+                    username="system",
+                    detail=(
+                        f"Deleted {deleted} audit log records older than " f"{settings.AUDIT_LOG_RETENTION_DAYS} days."
+                    ),
+                )
+            )
+        session.commit()
+        logger.info(
+            "Audit log cleanup: deleted=%d retention=%dd",
+            deleted,
+            settings.AUDIT_LOG_RETENTION_DAYS,
+        )
+        return {
+            "enabled": True,
+            "deleted": deleted,
+            "retention_days": settings.AUDIT_LOG_RETENTION_DAYS,
+        }
+    except Exception:
+        session.rollback()
+        logger.exception("Audit log cleanup task failed")
+        return {
+            "enabled": True,
+            "deleted": 0,
+            "retention_days": settings.AUDIT_LOG_RETENTION_DAYS,
+            "error": True,
         }
     finally:
         session.close()

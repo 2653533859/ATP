@@ -192,6 +192,23 @@ def test_successful_k6_run_records_summary_and_success_status(perf_task, monkeyp
     assert session.commits == 2
 
 
+def test_cancel_requested_after_executor_wins_over_success_status(perf_task, monkeypatch):
+    from app.models.performance import PerformanceRunStatus
+
+    run, test = _run_and_test(PerformanceRunStatus)
+    session = _install_session(monkeypatch, {"PerformanceRun": run, "PerformanceTest": test})
+    _install_k6(monkeypatch, result=({"exit_code": 0}, "raw/7.json", 1))
+    requests = iter([False, True])
+    monkeypatch.setattr(perf_task, "is_cancel_requested", lambda *_a, **_kw: next(requests))
+
+    perf_task.run_performance_test(None, 7)
+
+    assert run.status == PerformanceRunStatus.cancelled.value
+    assert run.error_message == "用户已停止压测"
+    assert run.finished_at is not None
+    assert session.commits == 2
+
+
 def test_environment_snapshot_is_decrypted_only_for_k6(perf_task, monkeypatch):
     from app.models.performance import PerformanceRunStatus
     from app.services.performance_options import ENVIRONMENT_SNAPSHOT_KEY

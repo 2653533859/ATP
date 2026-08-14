@@ -232,6 +232,20 @@ Windows 端的完善项属于本地开发体验和联调效率，不要求在 Wi
 - 本机 Prometheus 已安装为用户级 Windows 工具并在 `127.0.0.1:9090` ready，已抓取 ATP Backend `/metrics` 并完成目标指标 run 关联证据；这不等同于生产 Prometheus 连续历史。iOS/Appium 仍必须转移到 macOS + Xcode + WDA + 签名 IPA + iPhone/Simulator。
 - 已对已授权 Linux 主机做只读探测：ARM64、Docker 29.3.0 可用，主机已有健康的 PostgreSQL/Redis/MinIO 容器，但未发现 ATP 验收栈或 Prometheus 9090；为避免覆盖现有业务，未在该主机部署或重启任何服务。
 
+## 2026-08-13 审计日志与本地质量核验
+
+- 管理员审计日志已支持项目、用户、动作和 ISO-8601 时间范围筛选；新增受限 CSV 导出，页面最多 5000 条、服务端最多 10000 条，使用 UTF-8 BOM 并防护表格公式注入。
+- 成功导出写入 JSON 编码的 `audit_log_export` 审计事件，页面动作筛选包含 `audit_log_cleanup` / `audit_log_export`；导出审批、归档和进一步脱敏仍需生产策略确认。
+- 后端完整非集成回归的最新记录为 `2018 passed`，覆盖率 `82.03%`（门禁 82%），`269` 个测试文件逐文件独立通过；前端 Vitest `47 files / 199 tests passed`，type-check 和生产构建通过。
+- 本轮审计 API 定向回归 `4 passed`，Ruff 和 `git diff --check` 通过；Linux/Kubernetes、真实通知渠道、Android/iOS 和外部 API 仍需目标环境证据。
+
+## 2026-08-13 发布前质量门禁复核
+
+- Python 3.12.11 后端完整回归 `2018 passed`，覆盖率 `82.03%`（门禁 82%），`269` 个测试文件逐文件独立通过；前端 `47 files / 199 tests passed`。
+- Python 3.14.3 条件依赖环境下完整非集成后端回归同样为 `2018 passed`；覆盖率门禁以 Python 3.12.11 为准。
+- Bandit、npm audit、pip-audit（锁定 requirements、`--disable-pip --no-deps`）和仓库 pre-commit 全量通过；部署配置校验通过。
+- Docker Compose/Helm lint 因当前 Windows 未安装命令而跳过，不作为真实集群部署证据；Linux/Kubernetes、真实通知渠道、Android/iOS 和外部 API 仍待目标环境。
+
 ## 2026-08-12 最新本地质量核验
 
 - 后端非集成测试：`1886 passed`；Python 3.12 `--cov-fail-under=82` 基线 `82.13%` 通过（使用 `--ignore=backend/tests/integration`，符合仓库对集成环境变量的保护约定）。

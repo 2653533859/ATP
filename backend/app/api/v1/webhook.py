@@ -7,6 +7,7 @@ POST /webhook/trigger   通用 Webhook 触发（API Key 认证）
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
@@ -20,6 +21,12 @@ from app.core.encryption import decrypt_env_vars
 from app.core.tracing import get_trace_id
 from app.services.performance_report import build_performance_gate
 from app.services.performance_runtime import build_options_snapshot
+from app.services.performance_idempotency import (
+    PerformanceIdempotencyConflict,
+    build_idempotency_fingerprint,
+    find_idempotent_run,
+    normalize_idempotency_key,
+)
 from app.services.execution_routing import enqueue_task, resolve_plan_execution_queue, resolve_suite_execution_queue
 
 router = APIRouter(tags=["Webhook"])
@@ -32,6 +39,7 @@ class WebhookTriggerBody(BaseModel):
     extra_vars: dict = Field(default_factory=dict)
     options: dict = Field(default_factory=dict)
     performance_node_id: int | None = Field(default=None, ge=1)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$")
 
 
 class WebhookTriggerResponse(BaseModel):
@@ -154,6 +162,36 @@ async def webhook_trigger(
         test = await db.get(PerformanceTest, body.target_id)
         if not test:
             raise HTTPException(status_code=404, detail="压测定义不存在")
+        try:
+            idempotency_key = normalize_idempotency_key(body.idempotency_key)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        request_fingerprint = build_idempotency_fingerprint(
+            source="webhook",
+            environment_id=body.env_id,
+            performance_node_id=body.performance_node_id,
+            performance_node_ids=[],
+            options=body.options,
+            extra_vars=body.extra_vars,
+        )
+        if idempotency_key:
+            try:
+                existing = await find_idempotent_run(
+                    db,
+                    project_id=test.project_id,
+                    performance_test_id=test.id,
+                    key=idempotency_key,
+                    fingerprint=request_fingerprint,
+                )
+            except PerformanceIdempotencyConflict as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            if existing is not None:
+                return WebhookTriggerResponse(
+                    run_id=existing.id,
+                    target_type="performance_test",
+                    target_id=test.id,
+                    status=existing.status,
+                )
 
         environment_values: dict = {}
         secret_keys: set[str] = set()
@@ -193,6 +231,8 @@ async def webhook_trigger(
             project_id=test.project_id,
             environment_id=body.env_id,
             performance_node_id=node.id if node else None,
+            idempotency_key=idempotency_key,
+            idempotency_fingerprint=request_fingerprint if idempotency_key else None,
             dataset_id=dataset_binding[0] if dataset_binding else None,
             dataset_version=dataset_binding[1] if dataset_binding else None,
             status=PerformanceRunStatus.pending.value,
@@ -201,7 +241,29 @@ async def webhook_trigger(
             summary={},
         )
         db.add(run)
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            if idempotency_key:
+                try:
+                    existing = await find_idempotent_run(
+                        db,
+                        project_id=test.project_id,
+                        performance_test_id=test.id,
+                        key=idempotency_key,
+                        fingerprint=request_fingerprint,
+                    )
+                except PerformanceIdempotencyConflict as exc:
+                    raise HTTPException(status_code=409, detail=str(exc)) from exc
+                if existing is not None:
+                    return WebhookTriggerResponse(
+                        run_id=existing.id,
+                        target_type="performance_test",
+                        target_id=test.id,
+                        status=existing.status,
+                    )
+            raise
         await db.refresh(run)
 
         from app.worker.tasks_performance import run_performance_test

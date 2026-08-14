@@ -61,7 +61,7 @@ class _Session:
     async def refresh(self, _item):
         return None
 
-    async def get(self, model, _pk):
+    async def get(self, model, _pk, **_kwargs):
         return None
 
 
@@ -156,8 +156,14 @@ def test_schedule_task_routes_to_selected_node_queue(perf_schedule_task, monkeyp
     )
 
     class _NodeSession(_Session):
-        async def get(self, model, pk):
+        def __init__(self, *args, **kwargs):
+            super().__init__(*args, **kwargs)
+            self.locked_node_reads = []
+
+        async def get(self, model, pk, **kwargs):
             if model.__name__ == "PerformanceNode" and pk == node.id:
+                if kwargs.get("with_for_update"):
+                    self.locked_node_reads.append(pk)
                 return node
             return None
 
@@ -187,4 +193,5 @@ def test_schedule_task_routes_to_selected_node_queue(perf_schedule_task, monkeyp
     run = session.added[0]
     assert run.performance_node_id == node.id
     assert dispatched == [((55,), "performance.worker-a")]
+    assert session.locked_node_reads == [node.id]
     assert test.next_run_at > datetime.now(timezone.utc)

@@ -1,5 +1,29 @@
 # Q18 测试平台能力扩展开发计划
 
+## 2026-08-13 审计日志查询与证据导出（代码阶段完成）
+
+- [x] 管理员审计日志支持项目、用户、动作和 ISO-8601 时间范围筛选；反向时间范围明确返回 `422`。
+- [x] 新增受限 CSV 导出，页面最多 5000 条、服务端最多 10000 条，使用 UTF-8 BOM 和表格公式注入防护。
+- [x] 导出成功写入 JSON 编码的 `audit_log_export` 审计事件；页面动作筛选包含 `audit_log_cleanup` / `audit_log_export`。
+- [ ] 生产环境仍需确认导出审批、归档周期、进一步脱敏和外部合规留痕策略。
+
+## 2026-08-13 启动配置依赖检查
+
+- [x] 启动配置页增加当前 Backend 依赖检查，直观区分字段完整和 PostgreSQL/Redis/MinIO 实际可达。
+- [x] `GET /api/v1/health/dependencies` 只返回状态、耗时和通用错误码；后端/前端定向回归与真实当前环境检查通过。
+- [ ] 当前 `172.31.27.133` 的 Redis `6379`、MinIO `9000` 仍需目标主机启动或放通后完成完整验收。
+
+## 2026-08-13 Windows Mock E2E 稳定性
+
+- [x] 计划/套件 E2E 的项目选择器限定可见下拉选项，并区分页面目标文本与项目选项文本，避免 Ant Design 重复标题触发 strict mode 失败。
+- [x] Chromium Mock E2E 全量 `10 passed`；真实后端/Redis/MinIO/Worker 仍需目标环境证据。
+
+## 2026-08-13 Windows 当前启动档案验证
+
+- [x] Windows 本地冒烟增加可配置的 `-LiveRequestTimeoutSeconds`，认证/认证读接口/Worker 状态检查不再固定使用 10 秒超时。
+- [x] 当前根 `.env` / `172.31.27.133` 重启后认证和 Web Worker 状态路由验证通过。
+- [ ] Redis `6379` 与 MinIO `9000` 从 Windows 不可达，完整本地冒烟和依赖存储的 Web/API 验收需待目标环境恢复。
+
 > 最新状态与前后实现对比：[`docs/q18-latest-status-2026-08-07.md`](./q18-latest-status-2026-08-07.md)。本计划中的“已实现”仍需结合该文件区分代码完成与真实环境验收。
 
 > 版本：2026-08-11
@@ -9,6 +33,8 @@
 > 2026-08-12 阶段推进：Linux/Kubernetes 性能验收入口已增加 Prometheus readiness/PromQL 检查和 URL 凭据安全校验；真实集群仍需独立执行并留存证据。
 
 > 2026-08-12 Web 阶段推进：独立录制 Worker 增加基于 Redis 心跳的健康标记，并同步 Compose/Helm 探针；真实 Linux/Xvfb、多浏览器和跨副本录制仍需执行验收。
+
+> 2026-08-13 性能阶段推进：已修复多 API 副本并发选择同一性能节点时的 `max_concurrency` 容量竞态，并补充节点容量/队列/状态回归；手动/Webhook 压测触发增加显式幂等键；Linux/Kubernetes 专用 Worker、Prometheus、TLS、目标服务和资源采样仍需真实环境验收。
 
 > 2026-08-12 浏览器证据推进：矩阵 smoke 支持显式生成 Trace/HAR 和 Console/网络失败摘要，默认保持轻量模式；真实 Worker 路由和跨副本 E2E 仍需目标环境。
 

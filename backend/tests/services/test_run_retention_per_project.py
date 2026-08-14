@@ -108,6 +108,7 @@ def test_preview_old_runs_by_project_returns_global_and_projects(monkeypatch):
             "test_runs": 1000,
             "mobile_runs": 20,
             "estimated_objects": 5,
+            "estimated_objects_sampled": False,
         }
 
     def fake_list_overrides(_session):
@@ -121,6 +122,9 @@ def test_preview_old_runs_by_project_returns_global_and_projects(monkeypatch):
             class _R:
                 def scalar(self):
                     return 3
+
+                def all(self):
+                    return []
 
             return _R()
 
@@ -139,7 +143,9 @@ def test_preview_old_runs_by_project_returns_global_and_projects(monkeypatch):
     assert alpha["plan_runs"] == 3
     assert alpha["suite_runs"] == 3
     assert alpha["test_runs"] == 3 and alpha["mobile_runs"] == 3  # 不再是全局兜底 note
+    assert alpha["estimated_objects"] == 0
+    assert alpha["estimated_objects_sampled"] is False
     assert "note" not in alpha
     assert calls["global_kwargs"] == {"exclude_project_ids": [1, 2]}
-    # 每项目四次 count 查询（plan + suite + test + mobile）
-    assert len(calls["project_queries"]) == 8
+    # 每项目四次 count + 两次 sample id 查询（plan + suite + test + mobile + test/mobile sample）
+    assert len(calls["project_queries"]) == 12

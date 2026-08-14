@@ -323,6 +323,56 @@ def test_worker_health_file_tracks_successful_registration(monkeypatch, tmp_path
     assert not health_file.exists()
 
 
+def test_worker_clears_stale_health_file_before_first_registration(monkeypatch, tmp_path):
+    import app.web_recording_worker as worker_module
+
+    health_file = tmp_path / "web-recorder.ready"
+    health_file.touch()
+    monkeypatch.setenv("WEB_RECORDER_HEALTH_FILE", str(health_file))
+    redis = _FakeRedis()
+    worker = WebRecordingWorker("worker-a")
+
+    async def fail_registration(*_args, **_kwargs):
+        raise RuntimeError("redis connection reset")
+
+    async def stop_after_probe(*_args, **_kwargs):
+        assert not health_file.exists()
+        worker.stop_event.set()
+        return None
+
+    redis.blpop = stop_after_probe
+    monkeypatch.setattr(worker_module._redis_client, "get_async_redis", lambda: redis)
+    monkeypatch.setattr(worker_module, "register_recording_worker", fail_registration)
+    monkeypatch.setattr(worker_module, "unregister_recording_worker", lambda *args, **kwargs: asyncio.sleep(0))
+
+    asyncio.run(worker.run())
+
+    assert not health_file.exists()
+
+
+def test_worker_heartbeat_retries_after_unwrapped_client_error(monkeypatch, tmp_path):
+    import app.web_recording_worker as worker_module
+
+    health_file = tmp_path / "web-recorder.ready"
+    monkeypatch.setenv("WEB_RECORDER_HEALTH_FILE", str(health_file))
+    worker = WebRecordingWorker("worker-a")
+    worker._touch_health_file()
+
+    async def fail_registration(*_args, **_kwargs):
+        raise RuntimeError("redis connection reset")
+
+    monkeypatch.setattr(worker_module, "register_recording_worker", fail_registration)
+    monkeypatch.setattr(worker_module.settings, "WEB_RECORDER_WORKER_HEARTBEAT_SECONDS", 1)
+
+    async def run_probe():
+        with pytest.raises(asyncio.TimeoutError):
+            await asyncio.wait_for(worker._heartbeat_loop(_FakeRedis()), timeout=0.1)
+
+    asyncio.run(run_probe())
+
+    assert not health_file.exists()
+
+
 def test_worker_returns_start_failure_and_not_ready_screenshot(monkeypatch):
     import app.web_recording_worker as worker_module
 

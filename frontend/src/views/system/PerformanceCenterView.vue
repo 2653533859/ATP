@@ -614,7 +614,7 @@
         <a-form-item :label="t('performance.node')">
           <a-select
             v-model:value="runForm.performance_node_ids"
-            :options="nodeOptions"
+            :options="runNodeOptions"
             allow-clear
             mode="multiple"
             show-search
@@ -706,7 +706,7 @@
         <a-form-item :label="t('performance.node')">
           <a-select
             v-model:value="scheduleForm.performance_node_id"
-            :options="nodeOptions"
+            :options="scheduleNodeOptions"
             allow-clear
             show-search
             option-filter-prop="label"
@@ -856,6 +856,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import { ClockCircleOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileSearchOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, StarOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons-vue'
+import type { AxiosError } from 'axios'
 import VChart from 'vue-echarts'
 import type { EChartsOption } from 'echarts'
 import {
@@ -892,6 +893,15 @@ const asPerfRun = (record: unknown) => record as PerformanceRunItem
 
 const { t } = useI18n()
 const { chartTheme } = useChartTheme()
+
+function getErrorMessage(error: unknown, fallback: string) {
+  const axiosError = error as AxiosError<{ detail?: string; message?: string }>
+  const detail = axiosError?.response?.data?.detail || axiosError?.response?.data?.message
+  if (typeof detail === 'string' && detail) return detail
+  if (typeof error === 'string' && error) return error
+  if (error instanceof Error && error.message) return error.message
+  return fallback
+}
 
 const projectId = ref<number | null>(null)
 const projectOptions = ref<{ label: string; value: number }[]>([])
@@ -1045,9 +1055,10 @@ const testForm = ref<{
 const selectedExecutor = computed(() => executors.value.find((item) => item.name === testForm.value.executor))
 const scriptAccept = computed(() => (selectedExecutor.value?.script_extensions || ['.js', '.mjs']).join(','))
 
-const runForm = ref<{ environment_id?: number; performance_node_ids: number[]; optionsText: string }>({
+const runForm = ref<{ environment_id?: number; performance_node_ids: number[]; idempotency_key: string; optionsText: string }>({
   environment_id: undefined,
   performance_node_ids: [],
+  idempotency_key: '',
   optionsText: '{}',
 })
 
@@ -1060,11 +1071,24 @@ const scheduleForm = ref({
   optionsText: '{}',
 })
 
-const nodeOptions = computed(() => nodes.value.map((node) => ({
-  label: `${node.name} (${node.node_id}) · ${nodeStatusLabel(node.status)} · ${nodeExecutorLabel(node)}`,
-  value: node.id,
-  disabled: node.status !== 'online' || !node.enabled,
-})))
+function buildNodeOptions(executor?: string | null) {
+  return nodes.value.map((node) => {
+    const executorUnavailable = !!executor && !nodeExecutorNames(node).includes(executor)
+    const disabled = node.status !== 'online' || !node.enabled || executorUnavailable
+    const label = `${node.name} (${node.node_id}) · ${nodeStatusLabel(node.status)} · ${nodeExecutorLabel(node)}`
+    return {
+      label: executorUnavailable
+        ? `${label} · ${t('performance.node_executor_unavailable', { value: executor })}`
+        : label,
+      value: node.id,
+      disabled,
+      title: executorUnavailable ? t('performance.node_executor_unavailable', { value: executor }) : undefined,
+    }
+  })
+}
+
+const runNodeOptions = computed(() => buildNodeOptions(runTarget.value?.executor))
+const scheduleNodeOptions = computed(() => buildNodeOptions(scheduleTarget.value?.executor))
 
 const testColumns = computed(() => [
   { title: 'ID', dataIndex: 'id', key: 'id', width: 80 },
@@ -1256,8 +1280,8 @@ async function loadTests() {
   loading.value = true
   try {
     tests.value = await performanceApi.listTests(projectId.value)
-  } catch {
-    message.error(t('performance.msg.load_tests_failed'))
+  } catch (error) {
+    message.error(getErrorMessage(error, t('performance.msg.load_tests_failed')))
   } finally {
     loading.value = false
   }
@@ -1276,8 +1300,8 @@ async function loadRuns(options: { silent?: boolean } = {}) {
     if (selectedRun.value) {
       selectedRun.value = runs.value.find((run) => run.id === selectedRun.value?.id) || selectedRun.value
     }
-  } catch {
-    if (!options.silent) message.error(t('performance.msg.load_runs_failed'))
+  } catch (error) {
+    if (!options.silent) message.error(getErrorMessage(error, t('performance.msg.load_runs_failed')))
   } finally {
     if (!options.silent) runsLoading.value = false
     syncRunPolling()
@@ -1319,9 +1343,9 @@ async function loadNodes() {
   nodesLoading.value = true
   try {
     nodes.value = await performanceApi.listNodes()
-  } catch {
+  } catch (error) {
     nodes.value = []
-    message.error(t('performance.msg.load_nodes_failed'))
+    message.error(getErrorMessage(error, t('performance.msg.load_nodes_failed')))
   } finally {
     nodesLoading.value = false
   }
@@ -1402,8 +1426,8 @@ async function saveNode() {
     message.success(nodeEditing.value ? t('performance.msg.node_update_success') : t('performance.msg.node_create_success'))
     nodeEditorOpen.value = false
     await loadNodes()
-  } catch {
-    message.error(nodeEditing.value ? t('performance.msg.node_update_failed') : t('performance.msg.node_create_failed'))
+  } catch (error) {
+    message.error(getErrorMessage(error, nodeEditing.value ? t('performance.msg.node_update_failed') : t('performance.msg.node_create_failed')))
   } finally {
     nodeSaving.value = false
   }
@@ -1414,8 +1438,8 @@ async function deleteNode(node: PerformanceNodeItem) {
     await performanceApi.deleteNode(node.id)
     message.success(t('performance.msg.node_delete_success'))
     await loadNodes()
-  } catch {
-    message.error(t('performance.msg.node_delete_failed'))
+  } catch (error) {
+    message.error(getErrorMessage(error, t('performance.msg.node_delete_failed')))
   }
 }
 
@@ -1515,8 +1539,8 @@ async function saveSchedule() {
     message.success(t('performance.msg.schedule_saved'))
     scheduleOpen.value = false
     await loadTests()
-  } catch {
-    message.error(t('performance.msg.schedule_failed'))
+  } catch (error) {
+    message.error(getErrorMessage(error, t('performance.msg.schedule_failed')))
   } finally {
     scheduleSaving.value = false
   }
@@ -1699,8 +1723,8 @@ async function saveTest() {
       const file = new File([script], filename, { type: 'application/javascript' })
       const result = await performanceApi.uploadScript(projectId.value, file, 'k6')
       scriptObjectName = result.script_object_name
-    } catch {
-      message.error(t('performance.msg.upload_failed'))
+    } catch (error) {
+      message.error(getErrorMessage(error, t('performance.msg.upload_failed')))
       return
     } finally {
       scriptUploading.value = false
@@ -1742,8 +1766,8 @@ async function saveTest() {
     }
     editorOpen.value = false
     await loadTests()
-  } catch {
-    message.error(t('performance.msg.save_failed'))
+  } catch (error) {
+    message.error(getErrorMessage(error, t('performance.msg.save_failed')))
   }
 }
 
@@ -1774,8 +1798,8 @@ async function uploadScript(file: File) {
     const result = await performanceApi.uploadScript(projectId.value, file, testForm.value.executor)
     testForm.value.script_object_name = result.script_object_name
     message.success(t('performance.msg.upload_success'))
-  } catch {
-    message.error(t('performance.msg.upload_failed'))
+  } catch (error) {
+    message.error(getErrorMessage(error, t('performance.msg.upload_failed')))
   } finally {
     scriptUploading.value = false
   }
@@ -1784,8 +1808,20 @@ async function uploadScript(file: File) {
 
 function openRun(record: PerformanceTestItem) {
   runTarget.value = record
-  runForm.value = { environment_id: undefined, performance_node_ids: [], optionsText: '{}' }
+  runForm.value = {
+    environment_id: undefined,
+    performance_node_ids: [],
+    idempotency_key: createRunIdempotencyKey(),
+    optionsText: '{}',
+  }
   runOpen.value = true
+}
+
+function createRunIdempotencyKey() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID()
+  }
+  return `performance-${Date.now()}-${Math.random().toString(36).slice(2, 12)}`
 }
 
 async function triggerRun() {
@@ -1797,13 +1833,14 @@ async function triggerRun() {
     const run = await performanceApi.triggerRun(runTarget.value.id, {
       environment_id: runForm.value.environment_id ?? null,
       performance_node_ids: runForm.value.performance_node_ids,
+      idempotency_key: runForm.value.idempotency_key,
       options,
     })
     runOpen.value = false
     message.success(t('performance.msg.run_started', { id: run.id }))
     await loadRuns()
-  } catch {
-    message.error(t('performance.msg.run_failed'))
+  } catch (error) {
+    message.error(getErrorMessage(error, t('performance.msg.run_failed')))
   } finally {
     triggering.value = false
   }
@@ -1822,8 +1859,8 @@ async function analyzeCapacity() {
       max_p95_ms: capacityForm.value.max_p95_ms ?? null,
       min_stable_runs: capacityForm.value.min_stable_runs,
     })
-  } catch {
-    message.error(t('performance.msg.capacity_failed'))
+  } catch (error) {
+    message.error(getErrorMessage(error, t('performance.msg.capacity_failed')))
   } finally {
     capacityLoading.value = false
   }
@@ -1836,8 +1873,8 @@ async function stopRun(record: PerformanceRunItem) {
     await performanceApi.stopRun(record.id)
     message.success(t('performance.msg.stop_success'))
     await loadRuns({ silent: true })
-  } catch {
-    message.error(t('performance.msg.stop_failed'))
+  } catch (error) {
+    message.error(getErrorMessage(error, t('performance.msg.stop_failed')))
   } finally {
     stoppingRunId.value = null
   }
@@ -1851,8 +1888,8 @@ async function setBaseline(record: PerformanceRunItem) {
     message.success(t('performance.msg.baseline_saved'))
     await loadTests()
     if (selectedRun.value?.id === record.id) await loadBaselineComparison(record)
-  } catch {
-    message.error(t('performance.msg.baseline_failed'))
+  } catch (error) {
+    message.error(getErrorMessage(error, t('performance.msg.baseline_failed')))
   }
 }
 
@@ -1862,8 +1899,8 @@ async function clearBaseline(record: PerformanceTestItem) {
     message.success(t('performance.msg.baseline_cleared'))
     await loadTests()
     baselineComparison.value = null
-  } catch {
-    message.error(t('performance.msg.baseline_failed'))
+  } catch (error) {
+    message.error(getErrorMessage(error, t('performance.msg.baseline_failed')))
   }
 }
 

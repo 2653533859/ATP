@@ -2,6 +2,8 @@ import sys
 import types
 from pathlib import Path
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 _minio = sys.modules.setdefault("app.core.minio_client", types.SimpleNamespace())
@@ -65,6 +67,7 @@ def test_preview_returns_counts_without_deleting():
     assert result["mobile_runs"] == 2
     assert result["retention_days"] == 30
     assert result["estimated_objects"] == 0
+    assert result["estimated_objects_sampled"] is False
     assert fake_session.commits == 0
     # 至少 6 个 execute（不一定 6 个，因为空 sample 时不执行 screenshot/artifact 查询）
     assert len(fake_session.statements) == 6
@@ -93,6 +96,24 @@ def test_preview_estimates_objects_from_sample(monkeypatch):
 
     assert result["test_runs"] == 2
     assert result["estimated_objects"] >= 1  # 至少抽到一些对象
+    assert result["estimated_objects_sampled"] is False
+
+
+def test_preview_marks_object_count_as_sampled_when_candidates_exceed_batch_size():
+    fake_session = _FakeSession(
+        responses=[
+            _FakeResult(scalar_value=0),
+            _FakeResult(scalar_value=0),
+            _FakeResult(scalar_value=11),
+            _FakeResult(scalar_value=0),
+            _FakeResult(all_rows=[]),
+            _FakeResult(all_rows=[]),
+        ]
+    )
+
+    result = run_retention.preview_old_runs(fake_session, days=30, batch_size=10)
+
+    assert result["estimated_objects_sampled"] is True
 
 
 def test_preview_can_exclude_project_overrides_with_the_cleanup_scope():
@@ -151,6 +172,74 @@ def test_execute_processes_simple_batch():
 
     assert result["plan_runs"] == 2
     assert fake_session.commits == 1
+
+
+def test_batched_cleanup_commits_database_delete_before_minio_delete(monkeypatch):
+    """数据库提交成功后才删除附件，避免提交失败造成不可恢复的引用丢失。"""
+
+    from sqlalchemy import select
+
+    from app.models.plan import PlanRun
+
+    events: list[object] = []
+
+    class _BatchSession:
+        def __init__(self):
+            self.responses = [_FakeResult(all_rows=[(1,), (2,)]), _FakeResult()]
+
+        def execute(self, _statement):
+            return self.responses.pop(0)
+
+        def commit(self):
+            events.append("commit")
+
+    monkeypatch.setattr(
+        run_retention,
+        "_delete_minio_objects",
+        lambda names: events.append(("minio", names)) or len(names),
+    )
+
+    deleted_runs, deleted_objects = run_retention._batched_delete_runs(
+        _BatchSession(),
+        PlanRun,
+        select(PlanRun.id),
+        batch_size=10,
+        collect_objects=lambda _session, _ids: ["reports/run-1.html"],
+    )
+
+    assert (deleted_runs, deleted_objects) == (2, 1)
+    assert events == ["commit", ("minio", ["reports/run-1.html"])]
+
+
+def test_batched_cleanup_keeps_minio_object_when_database_commit_fails(monkeypatch):
+    from sqlalchemy import select
+
+    from app.models.plan import PlanRun
+
+    minio_deletes: list[list[str]] = []
+
+    class _FailingBatchSession:
+        def __init__(self):
+            self.responses = [_FakeResult(all_rows=[(1,)]), _FakeResult()]
+
+        def execute(self, _statement):
+            return self.responses.pop(0)
+
+        def commit(self):
+            raise RuntimeError("database unavailable")
+
+    monkeypatch.setattr(run_retention, "_delete_minio_objects", lambda names: minio_deletes.append(names) or len(names))
+
+    with pytest.raises(RuntimeError, match="database unavailable"):
+        run_retention._batched_delete_runs(
+            _FailingBatchSession(),
+            PlanRun,
+            select(PlanRun.id),
+            batch_size=10,
+            collect_objects=lambda _session, _ids: ["reports/run-1.html"],
+        )
+
+    assert minio_deletes == []
 
 
 def test_execute_partitions_override_projects_from_global_pass():

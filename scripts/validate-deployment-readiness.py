@@ -139,13 +139,15 @@ def _resolve_compose() -> list[str] | None:
     return None
 
 
-def _check_compose(skipped: list[str], failures: list[str]) -> None:
+def _check_compose(require_compose: bool, skipped: list[str], failures: list[str]) -> None:
     compose = _resolve_compose()
     if compose is None:
-        skipped.append("Compose config (neither COMPOSE, docker-compose, nor docker compose is available)")
+        message = "Compose config (neither COMPOSE, docker-compose, nor docker compose is available)"
+        (failures if require_compose else skipped).append(message)
         return
     if not (ROOT / ".env").is_file():
-        skipped.append("Compose config (.env is not present; use deployment credentials locally)")
+        message = "Compose config (.env is not present; use deployment credentials locally)"
+        (failures if require_compose else skipped).append(message)
         return
     ok, output = _run([*compose, "-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "config", "--quiet"])
     if not ok:
@@ -175,16 +177,22 @@ def main() -> int:
         action="store_true",
         help="fail when sh/bash is unavailable; use this on a release operator workstation",
     )
+    parser.add_argument(
+        "--strict",
+        action="store_true",
+        help="fail when any environment-dependent check is skipped; use this before a real release",
+    )
     args = parser.parse_args()
 
     failures: list[str] = []
     skipped: list[str] = []
     _check_required_files(failures)
     _check_data_files(failures)
-    _check_shell_scripts(args.require_shell, skipped, failures)
+    strict = args.strict
+    _check_shell_scripts(strict or args.require_shell, skipped, failures)
     _check_document_contracts(failures)
-    _check_compose(skipped, failures)
-    _check_helm(args.require_helm, skipped, failures)
+    _check_compose(strict, skipped, failures)
+    _check_helm(strict or args.require_helm, skipped, failures)
 
     for item in REQUIRED_FILES:
         if (ROOT / item).is_file():
@@ -196,7 +204,12 @@ def main() -> int:
         for item in failures:
             print(f"FAIL {item}", file=sys.stderr)
         return 1
-    print("PASS deployment and disaster-recovery repository checks")
+    if skipped:
+        print(
+            f"PASS repository checks ({len(skipped)} environment-dependent check(s) skipped; use --strict to require them)"
+        )
+    else:
+        print("PASS deployment and disaster-recovery repository checks")
     return 0
 
 

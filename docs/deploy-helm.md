@@ -1,5 +1,11 @@
 # ATP Kubernetes Helm Chart 部署指南
 
+## 发布前仓库校验
+
+`make validate-deployment-readiness` 只验证仓库内的配置契约，不代表真实集群已经验收。
+默认模式会把缺少 Docker/Compose、Helm、`.env` 或 POSIX shell 的项目明确打印为 `SKIP`，并在摘要显示跳过数量。
+发布操作员应执行 `make validate-deployment-readiness ARGS=--strict`；严格模式会把任何环境依赖缺失转为失败。
+
 > 状态：完整 Chart 已就位 (`deploy/helm/atp/`)，需运维侧准备外部 PostgreSQL / Redis / MinIO 与镜像仓库。
 > 适用场景：生产部署、跨节点扩缩容、HPA 弹性伸缩。
 > 对照 Compose（`docker-compose.yml`）：Compose 仍为开发与小型部署首选，Helm Chart 为生产推荐。

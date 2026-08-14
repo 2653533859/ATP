@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+from http.cookiejar import Cookie
 from typing import Any
 
+from cryptography.fernet import InvalidToken
 import httpx
 
 from app.core.encryption import decrypt, encrypt
@@ -52,11 +54,32 @@ def apply_cookies(cookies: httpx.Cookies, serialized: list[dict[str, Any]]) -> N
         name = str(item.get("name") or "").strip()
         if not name:
             continue
-        cookies.set(
-            name,
-            str(item.get("value") or ""),
-            domain=str(item.get("domain") or ""),
-            path=str(item.get("path") or "/"),
+        domain = str(item.get("domain") or "")
+        path = str(item.get("path") or "/") or "/"
+        try:
+            expires = None if item.get("expires") is None else int(item["expires"])
+        except (TypeError, ValueError):
+            expires = None
+        cookies.jar.set_cookie(
+            Cookie(
+                version=0,
+                name=name,
+                value=str(item.get("value") or ""),
+                port=None,
+                port_specified=False,
+                domain=domain,
+                domain_specified=bool(domain),
+                domain_initial_dot=domain.startswith("."),
+                path=path,
+                path_specified=True,
+                secure=bool(item.get("secure", False)),
+                expires=expires,
+                discard=expires is None,
+                comment=None,
+                comment_url=None,
+                rest={},
+                rfc2109=False,
+            )
         )
 
 
@@ -69,7 +92,7 @@ async def load_project_api_session(project_id: int) -> list[dict[str, Any]]:
             return []
         try:
             value = json.loads(decrypt(encrypted))
-        except (TypeError, ValueError, json.JSONDecodeError):
+        except (InvalidToken, TypeError, ValueError, json.JSONDecodeError):
             return []
         return value if isinstance(value, list) else []
     finally:
@@ -78,8 +101,6 @@ async def load_project_api_session(project_id: int) -> list[dict[str, Any]]:
 
 async def save_project_api_session(project_id: int, cookies: list[dict[str, Any]]) -> None:
     """Persist a project cookie session encrypted in Redis with a bounded TTL."""
-    if not cookies:
-        return
     redis = get_async_redis()
     try:
         payload = encrypt(json.dumps(cookies, ensure_ascii=False))

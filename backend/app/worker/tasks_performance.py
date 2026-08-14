@@ -378,14 +378,18 @@ def run_performance_test(self, run_id: int):
                         run.summary["metric_boundary"] = metric_boundary
                     run.raw_result_object_name = raw_object_name
                     run.duration_ms = duration_ms
-                    run.status = (
-                        PerformanceRunStatus.success.value
-                        if summary.get("exit_code") == 0
-                        else PerformanceRunStatus.failed.value
-                    )
-                    run.error_message = (
-                        summary.get("k6_error") or summary.get("locust_error") or summary.get("grpc_error")
-                    )
+                    if is_cancel_requested(run_id, client=control_client):
+                        run.status = PerformanceRunStatus.cancelled.value
+                        run.error_message = "用户已停止压测"
+                    else:
+                        run.status = (
+                            PerformanceRunStatus.success.value
+                            if summary.get("exit_code") == 0
+                            else PerformanceRunStatus.failed.value
+                        )
+                        run.error_message = (
+                            summary.get("k6_error") or summary.get("locust_error") or summary.get("grpc_error")
+                        )
                 except PerformanceRunCancelled:
                     run.status = PerformanceRunStatus.cancelled.value
                     run.error_message = "用户已停止压测"
@@ -535,7 +539,10 @@ def check_performance_schedules():
                     continue
                 node = None
                 if test.schedule_node_id is not None:
-                    node = await db.get(PerformanceNode, test.schedule_node_id)
+                    # Keep the scheduled node locked through the run insert and
+                    # commit so concurrent beat/API dispatch cannot oversell
+                    # its max_concurrency capacity.
+                    node = await db.get(PerformanceNode, test.schedule_node_id, with_for_update=True)
                     if node is None or effective_node_status(node) != "online":
                         logger.warning("Scheduled performance test %s has no available node", test.id)
                         test.next_run_at = next_schedule_time(test.cron_expression, test.schedule_timezone, now)

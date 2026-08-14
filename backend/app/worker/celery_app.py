@@ -59,6 +59,8 @@ celery_app.conf.update(
         "cleanup_expired_files": {"queue": "maintenance"},
         "cleanup_stale_pending_runs": {"queue": "maintenance"},
         "cleanup_old_completed_runs": {"queue": "maintenance"},
+        "cleanup_old_notification_deliveries": {"queue": "maintenance"},
+        "cleanup_old_audit_logs": {"queue": "maintenance"},
         "check_storage_usage": {"queue": "maintenance"},
         "check_dashboard_alerts": {"queue": "maintenance"},
         "backup_postgres_daily": {"queue": "maintenance"},
@@ -100,6 +102,14 @@ celery_app.conf.update(
         },
         "cleanup-old-completed-runs": {
             "task": "cleanup_old_completed_runs",
+            "schedule": 86400.0,  # 每 24 小时执行一次
+        },
+        "cleanup-old-notification-deliveries": {
+            "task": "cleanup_old_notification_deliveries",
+            "schedule": 86400.0,  # 每 24 小时执行一次
+        },
+        "cleanup-old-audit-logs": {
+            "task": "cleanup_old_audit_logs",
             "schedule": 86400.0,  # 每 24 小时执行一次
         },
         "check-storage-usage": {

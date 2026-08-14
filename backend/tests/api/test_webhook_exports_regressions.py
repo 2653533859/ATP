@@ -75,6 +75,9 @@ class _FakeExecuteResult:
     def scalars(self):
         return _FakeScalarResult(self._values)
 
+    def scalar_one_or_none(self):
+        return self._values[0] if self._values else None
+
 
 class _FakeSuite:
     def __init__(self, suite_id: int = 11, creator_id: int = 42, case_ids=None):
@@ -112,11 +115,12 @@ class _FakePlanRun:
 
 
 class _FakeWebhookDB:
-    def __init__(self, suite=None, env=None, plan=None, performance_test=None):
+    def __init__(self, suite=None, env=None, plan=None, performance_test=None, existing_performance_run=None):
         self._suite = suite
         self._env = env
         self._plan = plan
         self._performance_test = performance_test
+        self._existing_performance_run = existing_performance_run
         self.added = []
 
     async def get(self, model, _pk):
@@ -132,6 +136,8 @@ class _FakeWebhookDB:
         return None
 
     async def execute(self, _query):
+        if self._existing_performance_run is not None:
+            return _FakeExecuteResult([self._existing_performance_run])
         return _FakeExecuteResult([])
 
     def add(self, obj):
@@ -264,6 +270,23 @@ def test_webhook_performance_trigger_uses_encrypted_runtime_snapshot(monkeypatch
     assert run.options_snapshot["duration"] == "30s"
     assert "API_TOKEN" not in run.options_snapshot.get("env", {})
     assert "__environment_values_encrypted" in run.options_snapshot
+
+
+def test_webhook_performance_trigger_replays_same_idempotency_key():
+    test = types.SimpleNamespace(id=33, project_id=2, default_options={"vus": 3})
+    existing = types.SimpleNamespace(id=1002, status="running")
+    db = _FakeWebhookDB(performance_test=test, existing_performance_run=existing)
+    body = webhook.WebhookTriggerBody(
+        target_type="performance_test",
+        target_id=test.id,
+        idempotency_key="pipeline-33",
+    )
+
+    result = asyncio.run(webhook.webhook_trigger(request=_fake_request(), body=body, db=db, _api_key="ok"))
+
+    assert result.run_id == existing.id
+    assert result.status == existing.status
+    assert db.added == []
 
 
 def test_webhook_performance_trigger_passes_executor_to_validation_and_node_selection(monkeypatch):

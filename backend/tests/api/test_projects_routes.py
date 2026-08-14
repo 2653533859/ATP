@@ -534,6 +534,26 @@ def test_update_project_member_changes_role_and_404():
     assert exc.value.status_code == 404
 
 
+def test_update_project_member_blocks_demoting_last_owner():
+    owner_up = _Obj(id=1, user_id=7, role=ProjectRole.owner, created_at=_now())
+    db = _FakeDB(execute_results=[_FakeResult(scalar=owner_up), _FakeResult(rows=[owner_up])])
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            prj.update_project_member(
+                project_id=5,
+                user_id=7,
+                body=ProjectMemberUpdateIn(role="viewer"),
+                db=db,
+            )
+        )
+
+    assert exc.value.status_code == 400
+    assert "最后一个 owner" in exc.value.detail
+    assert owner_up.role is ProjectRole.owner
+    assert db.commits == 0
+
+
 def test_remove_member_blocks_last_owner():
     owner_up = _Obj(id=1, user_id=7, role=ProjectRole.owner)
     # 查成员命中 owner，再查 owner 计数 = 1 → 拒绝

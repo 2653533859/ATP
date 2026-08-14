@@ -7,6 +7,7 @@ import json
 import os
 import sys
 import time
+import uuid
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
@@ -58,6 +59,21 @@ def _load_options(path: str | None) -> dict:
     return data
 
 
+def default_idempotency_key(test_id: int, environment_id: int | None) -> str:
+    """Use a stable CI execution identifier when available, otherwise isolate a CLI run."""
+
+    ci_run = (
+        os.environ.get("CI_PIPELINE_ID")
+        or os.environ.get("GITHUB_RUN_ID")
+        or os.environ.get("BUILD_BUILDID")
+        or os.environ.get("BUILD_ID")
+    )
+    if ci_run:
+        environment_part = environment_id if environment_id is not None else "none"
+        return f"ci-{ci_run}-performance-{test_id}-env-{environment_part}"[:128]
+    return f"cli-performance-{test_id}-{uuid.uuid4().hex}"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default=os.environ.get("ATP_BASE_URL"), required=False)
@@ -67,6 +83,11 @@ def main() -> int:
         default=os.environ.get("ATP_API_KEY") or os.environ.get("ATP_WEBHOOK_KEY"),
     )
     parser.add_argument("--environment-id", type=int, default=None)
+    parser.add_argument(
+        "--idempotency-key",
+        default=os.environ.get("ATP_PERFORMANCE_IDEMPOTENCY_KEY"),
+        help="重复执行 CI 时复用的幂等键；未提供时优先使用 CI run ID，否则每次 CLI 调用生成新键",
+    )
     parser.add_argument("--options-file", default=None)
     parser.add_argument("--timeout", type=float, default=1800)
     parser.add_argument("--poll-interval", type=float, default=5)
@@ -76,6 +97,7 @@ def main() -> int:
         parser.error("--base-url/ATP_BASE_URL、--test-id/ATP_PERFORMANCE_TEST_ID 和 --api-key/ATP_API_KEY 均为必填")
 
     base_url = args.base_url.rstrip("/")
+    idempotency_key = args.idempotency_key or default_idempotency_key(args.test_id, args.environment_id)
     try:
         trigger = _request_json(
             f"{base_url}/api/v1/webhook/trigger",
@@ -85,6 +107,7 @@ def main() -> int:
                 "target_type": "performance_test",
                 "target_id": args.test_id,
                 "env_id": args.environment_id,
+                "idempotency_key": idempotency_key,
                 "options": _load_options(args.options_file),
             },
         )

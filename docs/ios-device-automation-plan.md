@@ -1,6 +1,13 @@
 # iOS 设备自动化扩展规划
 
-本文档用于记录 ATP 后续扩展 iOS 真机 / 模拟器自动化能力时的选型与实施计划。当前仓库尚未实现 iOS 执行链路；现有 Android 能力仍基于 ADB / uiautomator2。
+本文档用于记录 ATP iOS 真机 / 模拟器自动化能力的架构与环境验收计划。仓库已经完成 iOS 执行链路的代码主链：iOS 资产、专用 `ios` 队列、设备租约、W3C/Appium 执行器、低代码步骤、截图/录屏/syslog 产物和脱敏验收脚本均已接入；真实 macOS/Xcode/WebDriverAgent/设备环境仍待验收。Android 能力仍基于 ADB / uiautomator2。
+
+## 当前代码状态（2026-08-13）
+
+- 已实现：`IosDevice`/`IosApp` 资产及项目权限隔离、iOS 专用任务路由、设备租约获取/心跳/释放、Appium W3C session、XCUITest capabilities、点击/输入/断言/等待/截图/滑动等受控步骤。
+- 已实现：iOS 用例统一结果、截图/录屏/syslog 附件和大小/时长限制；`scripts/ios-appium-acceptance.py` 支持 `/status` 检查，显式 `--session-smoke` 才创建真实会话。
+- 待环境验收：macOS Worker、Xcode/签名证书、Appium 2/XCUITest Driver、WebDriverAgent、真实 iPhone/Simulator、IPA 安装与完整任务回传。
+- Windows/Linux 只适合运行 status-only 或代码回归，不应将其结果作为真实 iOS 执行通过证据。
 
 ## 目标
 

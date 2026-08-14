@@ -302,6 +302,42 @@ def test_report_inputs_serialize_path_arguments():
     assert smoke._safe_cli_inputs(args)["report"] == "evidence.json"
 
 
+def test_default_idempotency_key_reuses_ci_identity_and_scopes_requests(monkeypatch):
+    smoke = _load_smoke_script()
+
+    monkeypatch.setenv("GITHUB_RUN_ID", "9876")
+    monkeypatch.delenv("CI_PIPELINE_ID", raising=False)
+
+    first = smoke.default_idempotency_key("smoke", 42)
+    replay = smoke.default_idempotency_key("smoke", 42)
+    cancel = smoke.default_idempotency_key("cancel", 42)
+
+    assert first == replay == "ci-9876-acceptance-smoke-42"
+    assert cancel == "ci-9876-acceptance-cancel-42"
+    assert first != cancel
+
+
+def test_default_idempotency_key_is_unique_for_local_acceptance(monkeypatch):
+    smoke = _load_smoke_script()
+
+    for name in ("CI_PIPELINE_ID", "GITHUB_RUN_ID", "BUILD_BUILDID", "BUILD_ID"):
+        monkeypatch.delenv(name, raising=False)
+
+    first = smoke.default_idempotency_key("smoke", 42)
+    second = smoke.default_idempotency_key("smoke", 42)
+
+    assert first.startswith("cli-acceptance-smoke-42-")
+    assert second.startswith("cli-acceptance-smoke-42-")
+    assert first != second
+
+
+def test_default_idempotency_key_rejects_invalid_explicit_value():
+    smoke = _load_smoke_script()
+
+    with pytest.raises(smoke.SmokeError, match="幂等键"):
+        smoke.default_idempotency_key("smoke", 42, explicit="invalid key")
+
+
 def test_api_client_adds_csrf_header_to_state_changing_requests():
     smoke = _load_smoke_script()
     captured = {}
@@ -330,6 +366,45 @@ def test_api_client_adds_csrf_header_to_state_changing_requests():
     assert captured["request"].headers.get("X-requested-with") == "XMLHttpRequest"
 
 
+def test_validate_metric_samples_requires_requested_sources_and_nonempty_metrics():
+    smoke = _load_smoke_script()
+
+    sources = smoke.validate_metric_samples(
+        [
+            {"source": "performance-worker", "metrics": {"cpu_percent": 12}, "errors": []},
+            {"source": "target-service-prometheus", "metrics": {"request_count": 8}, "errors": []},
+        ],
+        required_sources={"performance-worker", "target-service-prometheus"},
+    )
+
+    assert sources == "performance-worker, target-service-prometheus"
+
+    with pytest.raises(smoke.SmokeError, match="缺少有效指标来源"):
+        smoke.validate_metric_samples(
+            [{"source": "performance-worker", "metrics": {}, "errors": ["Prometheus unavailable"]}],
+            required_sources={"target-service-prometheus"},
+        )
+
+
+def test_validate_baseline_comparison_can_reject_regressions():
+    smoke = _load_smoke_script()
+    payload = {
+        "baseline_run_id": 10,
+        "run_id": 11,
+        "metrics": [
+            {"metric": "rps", "direction": "improvement"},
+            {"metric": "p95_ms", "direction": "regression"},
+        ],
+    }
+
+    assert smoke.validate_baseline_comparison(payload) == "baseline_run=10 metrics=2 regressions=1"
+    assert smoke.validate_baseline_comparison(payload, expected_run_id=11).startswith("baseline_run=10")
+    with pytest.raises(smoke.SmokeError, match="基线出现回归"):
+        smoke.validate_baseline_comparison(payload, fail_on_regression=True)
+    with pytest.raises(smoke.SmokeError, match="run_id"):
+        smoke.validate_baseline_comparison(payload, expected_run_id=12)
+
+
 def test_real_smoke_waits_for_success_checks_summary_and_metrics(monkeypatch):
     smoke = _load_smoke_script()
 
@@ -347,7 +422,11 @@ def test_real_smoke_waits_for_success_checks_summary_and_metrics(monkeypatch):
                     "default_options": {"target": "grpcs://grpc.example.test:443", "use_tls": True},
                 }
             if method == "POST" and path == "/api/v1/performance/tests/42/run":
-                assert payload == {"options": {}, "performance_node_id": 9}
+                assert payload == {
+                    "options": {},
+                    "performance_node_id": 9,
+                    "idempotency_key": "ci-123-smoke",
+                }
                 return {"id": 77, "status": "pending"}
             if method == "GET" and path == "/api/v1/performance/runs/77":
                 self.run_reads += 1
@@ -359,7 +438,7 @@ def test_real_smoke_waits_for_success_checks_summary_and_metrics(monkeypatch):
                     "summary": {"executor": "grpc", "iterations": 12, "error_rate": 0},
                 }
             if method == "GET" and path == "/api/v1/performance/runs/77/metrics?limit=2000":
-                return [{"node_id": "worker-a", "metrics": {"cpu_percent": 10}}]
+                return [{"node_id": "worker-a", "source": "performance-worker", "metrics": {"cpu_percent": 10}}]
             raise AssertionError((method, path, payload))
 
     monkeypatch.setattr(smoke.time, "sleep", lambda _seconds: None)
@@ -377,6 +456,7 @@ def test_real_smoke_waits_for_success_checks_summary_and_metrics(monkeypatch):
         require_metrics=True,
         max_error_rate=0,
         label="performance-smoke",
+        idempotency_key="ci-123-smoke",
     )
 
     assert run_id == 77
@@ -392,7 +472,11 @@ def test_cancel_real_test_requires_cancelled_terminal_state(monkeypatch):
 
         def request(self, method, path, payload=None):
             if method == "POST" and path == "/api/v1/performance/tests/44/run":
-                assert payload == {"options": {}, "performance_node_id": 9}
+                assert payload == {
+                    "options": {},
+                    "performance_node_id": 9,
+                    "idempotency_key": "ci-123-cancel",
+                }
                 return {"id": 88, "status": "pending"}
             if method == "POST" and path == "/api/v1/performance/runs/88/stop":
                 assert payload is None
@@ -413,6 +497,7 @@ def test_cancel_real_test_requires_cancelled_terminal_state(monkeypatch):
         wait_before_cancel=0,
         timeout=10,
         poll_interval=0.1,
+        idempotency_key="ci-123-cancel",
     )
 
     assert run_id == 88
@@ -426,6 +511,25 @@ def test_main_refuses_real_run_without_target_or_node():
 
     with pytest.raises(SystemExit):
         smoke.main(["--api-base-url", "https://atp.example.test", "--smoke-test-id", "42"])
+
+
+def test_main_rejects_baseline_gate_for_cancel_only_acceptance():
+    smoke = _load_smoke_script()
+
+    with pytest.raises(SystemExit):
+        smoke.main(
+            [
+                "--api-base-url",
+                "https://atp.example.test",
+                "--node-id",
+                "worker-a",
+                "--target",
+                "grpc.example.test:443",
+                "--cancel-test-id",
+                "42",
+                "--require-baseline",
+            ]
+        )
 
 
 def test_docker_worker_check_validates_running_container_and_runtime_dependencies(monkeypatch):

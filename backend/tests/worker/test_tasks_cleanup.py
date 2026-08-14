@@ -32,6 +32,8 @@ class _FakeSession:
         self.closed = False
         self.rolled_back = False
         self.committed = False
+        self.executed = []
+        self.added = []
 
     def rollback(self):
         self.rolled_back = True
@@ -41,6 +43,13 @@ class _FakeSession:
 
     def commit(self):
         self.committed = True
+
+    def execute(self, statement):
+        self.executed.append(statement)
+        return types.SimpleNamespace(rowcount=7)
+
+    def add(self, obj):
+        self.added.append(obj)
 
 
 def test_cleanup_expired_files_iterates_active_policies(monkeypatch):
@@ -79,8 +88,14 @@ def test_cleanup_expired_files_iterates_active_policies(monkeypatch):
             size_evicted_count=1 if policy.max_size_gb else 0,
         )
 
-    def fake_execute(current_session, *, object_names, repair_orphan_references):
-        execute_calls.append({"object_names": list(object_names), "repair_orphan_references": repair_orphan_references})
+    def fake_execute(current_session, *, object_names, prefixes, repair_orphan_references):
+        execute_calls.append(
+            {
+                "object_names": list(object_names),
+                "prefixes": list(prefixes),
+                "repair_orphan_references": repair_orphan_references,
+            }
+        )
         return types.SimpleNamespace(deleted_count=1)
 
     monkeypatch.setattr(tasks_cleanup, "preview_storage_cleanup", fake_preview)
@@ -94,6 +109,7 @@ def test_cleanup_expired_files_iterates_active_policies(monkeypatch):
         {"prefix": "reports/", "retention_days": 60, "max_size_gb": 2.0},
     ]
     assert all(item["repair_orphan_references"] for item in execute_calls)
+    assert [item["prefixes"] for item in execute_calls] == [["screenshots/"], ["reports/"]]
     assert session.closed is True
 
 
@@ -207,6 +223,90 @@ def test_cleanup_old_completed_runs_skip_when_disabled(monkeypatch):
     result = tasks_cleanup.cleanup_old_completed_runs()
 
     assert result == {"enabled": False}
+
+
+def test_cleanup_old_notification_deliveries_skip_when_disabled(monkeypatch):
+    tasks_cleanup = _import_tasks_cleanup(monkeypatch)
+    monkeypatch.setattr(tasks_cleanup.settings, "NOTIFICATION_DELIVERY_CLEANUP_ENABLED", False)
+
+    def fake_session_factory():
+        raise AssertionError("disabled 时不应创建数据库会话")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "app.core.database",
+        types.SimpleNamespace(sync_session_factory=fake_session_factory),
+    )
+
+    result = tasks_cleanup.cleanup_old_notification_deliveries()
+
+    assert result == {"enabled": False, "deleted": 0, "retention_days": 30}
+
+
+def test_cleanup_old_notification_deliveries_deletes_before_cutoff(monkeypatch):
+    tasks_cleanup = _import_tasks_cleanup(monkeypatch)
+    monkeypatch.setattr(tasks_cleanup.settings, "NOTIFICATION_DELIVERY_CLEANUP_ENABLED", True)
+    monkeypatch.setattr(tasks_cleanup.settings, "NOTIFICATION_DELIVERY_RETENTION_DAYS", 14)
+
+    session = _FakeSession()
+    monkeypatch.setitem(
+        sys.modules,
+        "app.core.database",
+        types.SimpleNamespace(sync_session_factory=lambda: session),
+    )
+
+    result = tasks_cleanup.cleanup_old_notification_deliveries()
+
+    assert result == {"enabled": True, "deleted": 7, "retention_days": 14}
+    assert len(session.executed) == 1
+    assert len(session.added) == 1
+    assert session.added[0].action == "notification_delivery_cleanup"
+    assert session.added[0].resource_type == "notification_delivery"
+    assert "14 days" in session.added[0].detail
+    assert session.committed is True
+    assert session.closed is True
+
+
+def test_cleanup_old_audit_logs_skip_when_disabled(monkeypatch):
+    tasks_cleanup = _import_tasks_cleanup(monkeypatch)
+    monkeypatch.setattr(tasks_cleanup.settings, "AUDIT_LOG_CLEANUP_ENABLED", False)
+
+    def fake_session_factory():
+        raise AssertionError("审计日志清理关闭时不应创建数据库会话")
+
+    monkeypatch.setitem(
+        sys.modules,
+        "app.core.database",
+        types.SimpleNamespace(sync_session_factory=fake_session_factory),
+    )
+
+    result = tasks_cleanup.cleanup_old_audit_logs()
+
+    assert result == {"enabled": False, "deleted": 0, "retention_days": 365}
+
+
+def test_cleanup_old_audit_logs_records_cleanup_event(monkeypatch):
+    tasks_cleanup = _import_tasks_cleanup(monkeypatch)
+    monkeypatch.setattr(tasks_cleanup.settings, "AUDIT_LOG_CLEANUP_ENABLED", True)
+    monkeypatch.setattr(tasks_cleanup.settings, "AUDIT_LOG_RETENTION_DAYS", 365)
+
+    session = _FakeSession()
+    monkeypatch.setitem(
+        sys.modules,
+        "app.core.database",
+        types.SimpleNamespace(sync_session_factory=lambda: session),
+    )
+
+    result = tasks_cleanup.cleanup_old_audit_logs()
+
+    assert result == {"enabled": True, "deleted": 7, "retention_days": 365}
+    assert len(session.executed) == 1
+    assert len(session.added) == 1
+    assert session.added[0].action == "audit_log_cleanup"
+    assert session.added[0].resource_type == "audit_log"
+    assert "365 days" in session.added[0].detail
+    assert session.committed is True
+    assert session.closed is True
 
 
 def test_cleanup_old_completed_runs_invokes_cleaners_in_order(monkeypatch):

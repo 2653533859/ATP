@@ -29,3 +29,18 @@ class NotificationConfigOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class NotificationDeliveryOut(BaseModel):
+    id: int
+    project_id: int
+    notification_config_id: int | None
+    notification_name: str
+    channel: NotifyChannel
+    status: str
+    attempts: int
+    summary: dict
+    error_message: str | None
+    created_at: datetime
+
+    model_config = {"from_attributes": True}

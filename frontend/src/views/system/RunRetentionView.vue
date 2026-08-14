@@ -19,7 +19,7 @@
           />
         </a-form-item>
         <a-form-item>
-          <a-button type="primary" :loading="previewLoading" @click="loadPreview">
+          <a-button type="primary" :loading="previewLoading || perProjectLoading" @click="loadAllPreviews">
             {{ t('system_pages.run_retention.generate_preview') }}
           </a-button>
           <a-button style="margin-left: 8px" :loading="perProjectLoading" @click="loadPerProjectPreview">
@@ -57,13 +57,18 @@
             </a-descriptions-item>
             <a-descriptions-item :label="t('system_pages.run_retention.estimated_objects')">
               {{ preview.estimated_objects }}
+              <a-tag v-if="preview.estimated_objects_sampled" color="orange" style="margin-left: 8px">
+                {{ t('system_pages.run_retention.estimated_objects_sampled') }}
+              </a-tag>
             </a-descriptions-item>
           </a-descriptions>
           <div style="margin-top: 16px">
             <a-popconfirm
-              :title="t('system_pages.run_retention.confirm_execute', {
+              :title="t(estimatedObjectsSampled
+                ? 'system_pages.run_retention.confirm_execute_sampled'
+                : 'system_pages.run_retention.confirm_execute', {
                 total: totalToDelete,
-                objects: preview?.estimated_objects ?? 0,
+                objects: estimatedObjectsToDelete,
               })"
               :ok-text="t('common.confirm')"
               :cancel-text="t('common.cancel')"
@@ -74,7 +79,7 @@
                 danger
                 type="primary"
                 :loading="executeLoading"
-                :disabled="!preview || totalToDelete === 0"
+                :disabled="!previewsReady || totalToDelete === 0"
               >
                 {{ t('system_pages.run_retention.execute_cleanup') }}
               </a-button>
@@ -106,7 +111,16 @@
               row-key="project_id"
               size="small"
               :locale="{ emptyText: t('system_pages.run_retention.no_overrides') }"
-            />
+            >
+              <template #bodyCell="{ column, record }">
+                <template v-if="column.key === 'estimated_objects'">
+                  {{ record.estimated_objects }}
+                  <a-tag v-if="record.estimated_objects_sampled" color="orange" style="margin-left: 6px">
+                    {{ t('system_pages.run_retention.estimated_objects_sampled') }}
+                  </a-tag>
+                </template>
+              </template>
+            </a-table>
             <a-descriptions :column="1" size="small" style="margin-top: 16px">
               <a-descriptions-item :label="t('system_pages.run_retention.global_days')">
                 {{ perProject.global.retention_days }}
@@ -116,6 +130,12 @@
               </a-descriptions-item>
               <a-descriptions-item :label="t('system_pages.run_retention.global_mobile_runs')">
                 {{ perProject.global.mobile_runs }}
+              </a-descriptions-item>
+              <a-descriptions-item :label="t('system_pages.run_retention.estimated_objects')">
+                {{ perProject.global.estimated_objects }}
+                <a-tag v-if="perProject.global.estimated_objects_sampled" color="orange" style="margin-left: 8px">
+                  {{ t('system_pages.run_retention.estimated_objects_sampled') }}
+                </a-tag>
               </a-descriptions-item>
             </a-descriptions>
           </template>
@@ -201,9 +221,29 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 const totalToDelete = computed(() => {
-  if (!preview.value) return 0
-  return preview.value.plan_runs + preview.value.suite_runs + preview.value.test_runs + preview.value.mobile_runs
+  if (!preview.value || !perProject.value) return 0
+  const globalTotal = preview.value.plan_runs + preview.value.suite_runs + preview.value.test_runs + preview.value.mobile_runs
+  const projectTotal = perProject.value.projects.reduce(
+    (total, project) => total + project.plan_runs + project.suite_runs + project.test_runs + project.mobile_runs,
+    0,
+  )
+  return globalTotal + projectTotal
 })
+
+const estimatedObjectsToDelete = computed(() => {
+  if (!preview.value || !perProject.value) return 0
+  return preview.value.estimated_objects + perProject.value.projects.reduce(
+    (total, project) => total + project.estimated_objects,
+    0,
+  )
+})
+
+const estimatedObjectsSampled = computed(() => {
+  if (!preview.value || !perProject.value) return false
+  return preview.value.estimated_objects_sampled || perProject.value.projects.some(project => project.estimated_objects_sampled)
+})
+
+const previewsReady = computed(() => Boolean(preview.value && perProject.value))
 
 const projectColumns = computed(() => [
   { title: t('system_pages.run_retention.col.project_id'), dataIndex: 'project_id', key: 'project_id', width: 80 },
@@ -211,6 +251,14 @@ const projectColumns = computed(() => [
   { title: t('system_pages.run_retention.col.retention_days'), dataIndex: 'retention_days', key: 'retention_days', width: 100 },
   { title: t('system_pages.run_retention.col.plan_runs'), dataIndex: 'plan_runs', key: 'plan_runs', width: 100 },
   { title: t('system_pages.run_retention.col.suite_runs'), dataIndex: 'suite_runs', key: 'suite_runs', width: 100 },
+  { title: t('system_pages.run_retention.col.test_runs'), dataIndex: 'test_runs', key: 'test_runs', width: 100 },
+  { title: t('system_pages.run_retention.col.mobile_runs'), dataIndex: 'mobile_runs', key: 'mobile_runs', width: 100 },
+  {
+    title: t('system_pages.run_retention.col.estimated_objects'),
+    dataIndex: 'estimated_objects',
+    key: 'estimated_objects',
+    width: 150,
+  },
 ])
 
 const projectResultColumns = computed(() => [
@@ -251,13 +299,17 @@ async function loadPerProjectPreview() {
   }
 }
 
+async function loadAllPreviews() {
+  await Promise.all([loadPreview(), loadPerProjectPreview()])
+}
+
 async function handleExecute() {
   executeLoading.value = true
   try {
     lastResult.value = await adminRunRetentionApi.run(filter.days)
     message.success(t('system_pages.run_retention.execute_success'))
-    // 重新刷新预览，反映清理后的余量
-    await loadPreview()
+    // 两类预览都要刷新，避免项目级卡片继续展示清理前的旧数量。
+    await loadAllPreviews()
   } catch (e: unknown) {
     message.error(errorMessage(e, t('system_pages.run_retention.execute_failed')))
   } finally {

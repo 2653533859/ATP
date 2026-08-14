@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RunRetentionPreviewOut(BaseModel):
@@ -11,6 +11,7 @@ class RunRetentionPreviewOut(BaseModel):
     test_runs: int
     mobile_runs: int
     estimated_objects: int
+    estimated_objects_sampled: bool
 
 
 class RunRetentionExecuteIn(BaseModel):
@@ -48,6 +49,8 @@ class _ProjectRetentionPreview(BaseModel):
     suite_runs: int
     test_runs: int = 0
     mobile_runs: int = 0
+    estimated_objects: int = 0
+    estimated_objects_sampled: bool = False
     note: str | None = None
 
 
@@ -58,10 +61,11 @@ class _GlobalRetentionPreview(BaseModel):
     test_runs: int
     mobile_runs: int
     estimated_objects: int
+    estimated_objects_sampled: bool
 
 
 class RunRetentionPerProjectOut(BaseModel):
-    global_: _GlobalRetentionPreview
+    global_: _GlobalRetentionPreview = Field(alias="global")
     projects: list[_ProjectRetentionPreview]
 
     model_config = {"populate_by_name": True}

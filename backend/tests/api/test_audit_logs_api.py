@@ -25,3 +25,32 @@ def test_audit_logs_endpoint_requires_admin():
     start = content.index("async def list_audit_logs")
     signature = content[start : content.index("):", start) + 2]
     assert "Depends(require_admin)" in signature
+
+
+def test_audit_logs_endpoint_supports_a_time_window_and_rejects_reversed_bounds():
+    content = repo_path("app/api/v1/projects.py").read_text(encoding="utf-8")
+
+    start = content.index("async def list_audit_logs")
+    body = content[start:]
+    assert "created_from: datetime | None = Query(None)" in body
+    assert "created_to: datetime | None = Query(None)" in body
+    assert "def _audit_log_filters(" in content
+    assert "created_to < created_from" in content
+    assert "AuditLog.created_at >= created_from" in content
+    assert "AuditLog.created_at <= created_to" in content
+
+
+def test_audit_logs_export_is_bounded_and_spreadsheet_safe():
+    content = repo_path("app/api/v1/projects.py").read_text(encoding="utf-8")
+
+    assert '@router.get("/audit-logs/export")' in content
+    assert "limit: int = Query(5000, ge=1, le=10000)" in content
+    assert "_audit_log_csv_cell" in content
+    assert "writer.writerow(" in content
+    start = content.index("async def export_audit_logs")
+    signature = content[start : content.index("):", start) + 2]
+    body = content[start:]
+    assert "current_user: User = Depends(require_admin)" in signature
+    assert 'action="audit_log_export"' in body
+    assert "detail=json.dumps(" in body
+    assert "await db.commit()" in body

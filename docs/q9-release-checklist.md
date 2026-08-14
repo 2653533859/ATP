@@ -1,6 +1,15 @@
 # ATP Release-Readiness Runbook
 
-> Updated: 2026-08-12
+## 发布前部署校验
+
+```bash
+make validate-deployment-readiness
+make validate-deployment-readiness ARGS=--strict
+```
+
+普通模式允许本机缺少 Docker/Compose、Helm、`.env` 或 POSIX shell，但必须明确显示 `SKIP`；严格模式用于实际发布前，任一环境依赖缺失都必须失败。仓库契约通过不能替代真实集群、备份恢复或 smoke 证据。
+
+> Updated: 2026-08-13
 > Status: Q18 release-readiness extension, retaining the historical filename used by CI and release evidence.
 > Scope: release candidate validation for the quality, security, integration, E2E, SLO, data-governance, performance and external-worker gates.
 
@@ -184,7 +193,7 @@ Run these checks on the same release SHA when the corresponding capability is en
 
 - Dataset storage: run migration `20260812_0055`, upload database-mode and MinIO-mode datasets, create a version snapshot and rollback, then run the administrator reconciliation endpoint in dry-run mode. Only after a verified object backup may staging repeat it with `{ "purge": true }`; retain the response and audit-event evidence.
 - Run retention: preview global and project-level scopes, confirm that projects with retention overrides are excluded from the global fallback, execute the cleanup in staging, and retain the returned per-project deletion details.
-- Performance notification: configure an enabled project channel, use channel test-send, execute a performance run that produces metrics or a terminal failure, and verify that the delivered message includes RPS/P95/P99/error rate, threshold status and event reasons. SMTP/WeCom/DingTalk delivery is external evidence; unit tests and a successful API response do not replace it.
+- Performance notification: configure an enabled project channel, use `scripts/notification-channel-smoke.py` with `ATP_TOKEN` or `ATP_USERNAME`/`ATP_PASSWORD`, execute a performance run that produces metrics or a terminal failure, and verify that the delivered message includes RPS/P95/P99/error rate, threshold status and event reasons. Archive the script's redacted JSON report together with provider-side delivery/message evidence. SMTP/WeCom/DingTalk delivery is external evidence; unit tests and a successful API response do not replace it.
 - Windows Android Worker: on a Windows host with an authorized device, run `scripts/windows-android-acceptance.ps1` and the required Android low-code smoke. A missing device must remain `BLOCKED`, not be recorded as a pass.
 - Linux/Kubernetes performance stack: run `scripts/performance-environment-smoke.py` with the real API, node, target, Prometheus, TLS and metrics arguments; retain JSON evidence for the worker queue, allowlist, cancellation and target metrics.
 - Web/iOS external workers: run browser-matrix/recording or Appium acceptance commands only on target worker hosts; local Windows status-only checks cannot close Linux/Xvfb or macOS/iOS gates.
@@ -225,7 +234,7 @@ Record the following in `docs/q9-release-evidence.md` or the active release evid
 - Alembic current/head output and real-infrastructure integration result.
 - Grafana SLO JSON validation and staging SLO panel checks.
 - Helm lint/dry-run output and staging smoke-test result.
-- Q18 dataset storage/reconciliation, run-retention and performance-notification evidence.
+- Q18 dataset storage/reconciliation, run-retention and performance-notification evidence, including the redacted notification-channel smoke report and provider-side delivery evidence.
 - Windows Android, Linux/Kubernetes performance, Web Worker and iOS/Appium evidence or an explicit scope exclusion.
 - Accepted warnings, open risks, rollback owner, and final go/no-go decision.
 

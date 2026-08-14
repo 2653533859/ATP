@@ -2,6 +2,7 @@
 
 import asyncio
 import json
+from http.cookiejar import Cookie
 
 import httpx
 
@@ -10,7 +11,27 @@ from app.services import api_session
 
 def test_cookie_serialization_preserves_request_scope():
     cookies = httpx.Cookies()
-    cookies.set("session", "sid-1", domain="api.example.com", path="/v1")
+    cookies.jar.set_cookie(
+        Cookie(
+            version=0,
+            name="session",
+            value="sid-1",
+            port=None,
+            port_specified=False,
+            domain="api.example.com",
+            domain_specified=True,
+            domain_initial_dot=False,
+            path="/v1",
+            path_specified=True,
+            secure=True,
+            expires=1893456000,
+            discard=False,
+            comment=None,
+            comment_url=None,
+            rest={},
+            rfc2109=False,
+        )
+    )
 
     serialized = api_session.serialize_cookies(cookies)
     restored = httpx.Cookies()
@@ -22,11 +43,14 @@ def test_cookie_serialization_preserves_request_scope():
             "value": "sid-1",
             "domain": "api.example.com",
             "path": "/v1",
-            "expires": None,
-            "secure": False,
+            "expires": 1893456000,
+            "secure": True,
         }
     ]
-    assert next(iter(restored.jar)).value == "sid-1"
+    restored_cookie = next(iter(restored.jar))
+    assert restored_cookie.value == "sid-1"
+    assert restored_cookie.secure is True
+    assert restored_cookie.expires == 1893456000
 
 
 def test_project_session_is_encrypted_and_saved_with_ttl(monkeypatch):
@@ -59,3 +83,11 @@ def test_project_session_is_encrypted_and_saved_with_ttl(monkeypatch):
     assert redis.set_args == {"ex": api_session.API_SESSION_TTL_SECONDS}
     assert redis.value != json.dumps(cookies, ensure_ascii=False)
     assert closed == [redis, redis]
+
+    asyncio.run(api_session.save_project_api_session(1, []))
+    assert asyncio.run(api_session.load_project_api_session(1)) == []
+    assert closed == [redis, redis, redis, redis]
+
+    redis.value = "old-key-ciphertext"
+    assert asyncio.run(api_session.load_project_api_session(1)) == []
+    assert closed == [redis, redis, redis, redis, redis]

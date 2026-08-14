@@ -38,6 +38,7 @@ import subprocess
 import sys
 import time
 from typing import Any, Callable
+import uuid
 from urllib.error import HTTPError, URLError
 from http.cookiejar import CookieJar
 from urllib.parse import urlencode, urlsplit, urlunsplit
@@ -148,6 +149,42 @@ def _safe_argv(argv: list[str]) -> list[str]:
         else:
             safe.append(item)
     return safe
+
+
+def _validate_idempotency_key(value: str) -> str:
+    """Validate the key before sending an acceptance request to the API."""
+    key = str(value or "").strip()
+    if not key:
+        raise SmokeError("幂等键不能为空")
+    if len(key) > 128 or not re.fullmatch(r"[A-Za-z0-9._:-]+", key):
+        raise SmokeError("幂等键只能包含字母、数字、点、下划线、冒号和连字符，长度不能超过 128")
+    return key
+
+
+def default_idempotency_key(scope: str, test_id: int, explicit: str | None = None) -> str:
+    """Build a retry-safe key for one acceptance scope.
+
+    CI reruns should reuse the same key so a lost HTTP response cannot enqueue a
+    second run. Local invocations get a fresh key by default. A caller-provided
+    base key is scoped so smoke and cancellation checks in one command never
+    accidentally address the same Run.
+    """
+    base = (explicit or os.environ.get("ATP_PERFORMANCE_IDEMPOTENCY_KEY", "")).strip()
+    if base:
+        normalized = _validate_idempotency_key(base)
+        return _validate_idempotency_key(f"{normalized}-{scope}")
+
+    ci_run = next(
+        (
+            os.environ.get(name, "").strip()
+            for name in ("CI_PIPELINE_ID", "GITHUB_RUN_ID", "BUILD_BUILDID", "BUILD_ID")
+            if os.environ.get(name, "").strip()
+        ),
+        "",
+    )
+    if ci_run:
+        return _validate_idempotency_key(f"ci-{ci_run}-acceptance-{scope}-{test_id}"[:128])
+    return _validate_idempotency_key(f"cli-acceptance-{scope}-{test_id}-{uuid.uuid4().hex}")
 
 
 def _safe_json(value: Any, *, key: str = "") -> Any:
@@ -411,15 +448,62 @@ def wait_for_run(
     raise SmokeError(f"运行 {run_id} 在 {timeout:.0f}s 内未结束，最后状态为 {last_status}")
 
 
+def validate_metric_samples(samples: Any, *, required_sources: set[str] | None = None) -> str:
+    """Require usable samples and, when requested, prove each source emitted data."""
+    if not isinstance(samples, list) or not samples:
+        raise SmokeError("压测运行没有资源指标采样记录")
+
+    usable_sources: set[str] = set()
+    for sample in samples:
+        if not isinstance(sample, dict):
+            continue
+        metrics = sample.get("metrics")
+        source = str(sample.get("source") or "").strip()
+        if source and isinstance(metrics, dict) and metrics:
+            usable_sources.add(source)
+
+    required = {str(source).strip() for source in (required_sources or set()) if str(source).strip()}
+    missing = sorted(required - usable_sources)
+    if missing:
+        raise SmokeError(f"压测运行缺少有效指标来源: {', '.join(missing)}")
+    if not usable_sources:
+        raise SmokeError("压测运行的指标样本均为空或没有 source")
+    return ", ".join(sorted(usable_sources))
+
+
+def validate_baseline_comparison(
+    payload: Any,
+    *,
+    expected_run_id: int | None = None,
+    fail_on_regression: bool = False,
+) -> str:
+    """Validate the baseline comparison contract and optionally reject regressions."""
+    if not isinstance(payload, dict) or not isinstance(payload.get("metrics"), list):
+        raise SmokeError("压测基线对比响应格式无效")
+    metrics = [item for item in payload["metrics"] if isinstance(item, dict)]
+    if not metrics:
+        raise SmokeError("压测基线对比没有指标记录")
+    if expected_run_id is not None and payload.get("run_id") != expected_run_id:
+        raise SmokeError(f"压测基线对比 run_id={payload.get('run_id')} 与当前 run={expected_run_id} 不一致")
+    regressions = [str(item.get("metric")) for item in metrics if item.get("direction") == "regression"]
+    if fail_on_regression and regressions:
+        raise SmokeError(f"压测基线出现回归: {', '.join(regressions)}")
+    baseline_run_id = payload.get("baseline_run_id")
+    return f"baseline_run={baseline_run_id} metrics={len(metrics)} regressions={len(regressions)}"
+
+
 def trigger_run(
     client: ApiClient,
     test_id: int,
     *,
     node_db_id: int | None,
+    idempotency_key: str | None = None,
 ) -> dict[str, Any]:
     body: dict[str, Any] = {"options": {}}
     if node_db_id is not None:
         body["performance_node_id"] = node_db_id
+    if idempotency_key:
+        body["idempotency_key"] = _validate_idempotency_key(idempotency_key)
     result = client.request("POST", f"/api/v1/performance/tests/{test_id}/run", body)
     if not isinstance(result, dict) or not isinstance(result.get("id"), int):
         raise SmokeError("创建压测运行时返回了无效 run")
@@ -698,6 +782,10 @@ def run_real_test(
     require_metrics: bool,
     max_error_rate: float,
     label: str,
+    idempotency_key: str | None = None,
+    required_metric_sources: set[str] | None = None,
+    require_baseline: bool = False,
+    fail_on_baseline_regression: bool = False,
 ) -> int:
     test = client.request("GET", f"/api/v1/performance/tests/{test_id}")
     if not isinstance(test, dict):
@@ -713,7 +801,7 @@ def run_real_test(
         if not bool(options.get("use_tls")) and not raw_target.startswith(("grpcs://", "https://")):
             raise SmokeError(f"gRPC 压测定义 {test_id} 未启用 TLS")
 
-    run = trigger_run(client, test_id, node_db_id=node_db_id)
+    run = trigger_run(client, test_id, node_db_id=node_db_id, idempotency_key=idempotency_key)
     run_id = int(run["id"])
     final = wait_for_run(client, run_id, timeout=timeout, poll_interval=poll_interval)
     status = final.get("status")
@@ -730,10 +818,18 @@ def run_real_test(
         raise SmokeError(f"{label} run={run_id} 摘要缺少数值 error_rate")
     if error_rate > max_error_rate:
         raise SmokeError(f"{label} run={run_id} error_rate={error_rate} 超过 {max_error_rate}")
-    if require_metrics:
+    if require_metrics or required_metric_sources:
         metrics = client.request("GET", f"/api/v1/performance/runs/{run_id}/metrics?limit=2000")
-        if not isinstance(metrics, list) or not metrics:
-            raise SmokeError(f"{label} run={run_id} 没有资源采样记录")
+        sources = validate_metric_samples(metrics, required_sources=required_metric_sources)
+        report.passed("performance-metrics", f"run={run_id} samples={len(metrics)} sources={sources}")
+    if require_baseline or fail_on_baseline_regression:
+        comparison = client.request("GET", f"/api/v1/performance/runs/{run_id}/baseline-comparison")
+        detail = validate_baseline_comparison(
+            comparison,
+            expected_run_id=run_id,
+            fail_on_regression=fail_on_baseline_regression,
+        )
+        report.passed("performance-baseline", detail)
     report.passed(label, f"run={run_id} executor={executor} iterations={iterations} error_rate={error_rate}")
     return run_id
 
@@ -747,8 +843,9 @@ def cancel_real_test(
     wait_before_cancel: float,
     timeout: float,
     poll_interval: float,
+    idempotency_key: str | None = None,
 ) -> int:
-    run = trigger_run(client, test_id, node_db_id=node_db_id)
+    run = trigger_run(client, test_id, node_db_id=node_db_id, idempotency_key=idempotency_key)
     run_id = int(run["id"])
     time.sleep(max(0.2, wait_before_cancel))
     client.request("POST", f"/api/v1/performance/runs/{run_id}/stop")
@@ -799,6 +896,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--smoke-executor", choices=("k6", "locust", "grpc", "jmeter"), help="限制 smoke 测试执行器")
     parser.add_argument("--cancel-test-id", type=int, help="已有的长时性能测试定义 ID，用于真实取消验收")
     parser.add_argument("--cancel-after-seconds", type=float, default=2.0)
+    parser.add_argument(
+        "--idempotency-key",
+        default=os.environ.get("ATP_PERFORMANCE_IDEMPOTENCY_KEY"),
+        help="验收触发幂等键基值；CI 可固定复用，本地未提供时每次生成新键",
+    )
     parser.add_argument("--timeout-seconds", type=float, default=300.0)
     parser.add_argument("--poll-interval-seconds", type=float, default=2.0)
     parser.add_argument(
@@ -810,6 +912,19 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--request-timeout-seconds", type=float, default=10.0)
     parser.add_argument("--max-error-rate", type=float, default=0.0)
     parser.add_argument("--require-metrics", action="store_true", help="要求真实 run 至少产生一条资源采样")
+    parser.add_argument(
+        "--require-metric-source",
+        action="append",
+        default=[],
+        metavar="SOURCE",
+        help="要求真实 run 至少有一条非空指标样本；可重复传入，例如 performance-worker 或 target-service-prometheus",
+    )
+    parser.add_argument("--require-baseline", action="store_true", help="要求真实 run 返回基线对比指标")
+    parser.add_argument(
+        "--fail-on-baseline-regression",
+        action="store_true",
+        help="基线对比出现任一核心指标 regression 时让验收失败（隐含 --require-baseline）",
+    )
     parser.add_argument("--report", type=Path, help="输出 JSON 验收证据路径")
     return parser
 
@@ -847,6 +962,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("Docker 镜像会自动执行依赖检查，不需要 --verify-worker-image")
     if args.max_error_rate < 0 or args.max_error_rate > 1:
         parser.error("--max-error-rate 必须在 0 到 1 之间")
+    if args.fail_on_baseline_regression:
+        args.require_baseline = True
+    if args.require_baseline and not args.smoke_test_id:
+        parser.error("--require-baseline/--fail-on-baseline-regression 必须同时指定 --smoke-test-id")
     if args.node_ready_timeout_seconds < 0:
         parser.error("--node-ready-timeout-seconds 不能为负数")
 
@@ -951,6 +1070,10 @@ def main(argv: list[str] | None = None) -> int:
                 require_metrics=args.require_metrics,
                 max_error_rate=args.max_error_rate,
                 label="performance-smoke",
+                idempotency_key=default_idempotency_key("smoke", args.smoke_test_id, args.idempotency_key),
+                required_metric_sources=set(args.require_metric_source),
+                require_baseline=args.require_baseline,
+                fail_on_baseline_regression=args.fail_on_baseline_regression,
             ),
         )
     if args.cancel_test_id and client is not None and api_ready:
@@ -965,6 +1088,7 @@ def main(argv: list[str] | None = None) -> int:
                 wait_before_cancel=args.cancel_after_seconds,
                 timeout=args.timeout_seconds,
                 poll_interval=args.poll_interval_seconds,
+                idempotency_key=default_idempotency_key("cancel", args.cancel_test_id, args.idempotency_key),
             ),
         )
 

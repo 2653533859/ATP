@@ -29,7 +29,7 @@ def expand_auto_ramp(options: dict[str, Any]) -> dict[str, Any]:
         maximum = int(config.get("max_vus", config.get("max", 100)))
         ramp_duration = str(config.get("ramp_duration", "30s"))
         hold_duration = str(config.get("hold_duration", "60s"))
-    except (TypeError, ValueError) as exc:
+    except (OverflowError, TypeError, ValueError) as exc:
         raise PerformanceRampError("auto_ramp 的用户数参数必须是整数") from exc
     if start < 1 or step < 1 or maximum < start:
         raise PerformanceRampError("auto_ramp 必须满足 1 <= start_vus <= max_vus 且 step_vus > 0")

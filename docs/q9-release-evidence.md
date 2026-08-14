@@ -20,6 +20,59 @@ This section records repository-local evidence only. It does not close the real 
 | Performance early-terminal notification | `backend/tests/worker/test_tasks_performance.py` and `backend/tests/services/test_performance_notifications.py` | `14 passed` |
 | Diff hygiene | `git diff --check` | passed |
 
+## Q18 Local Gate Continuation (2026-08-13)
+
+This continuation records the current repository-local evidence after notification reliability, delivery history, retention audit, error redaction and test-isolation updates. It does not close the real notification-provider or external-worker gates.
+
+| Gate | Command / evidence | Result |
+|---|---|---|
+| Backend non-integration | `backend\\.venv\\Scripts\\python.exe -m pytest backend/tests -q --ignore=backend/tests/integration` | `2012 passed` |
+| Backend coverage gate | `backend\\.venv\\Scripts\\python.exe -m pytest backend/tests -q --ignore=backend/tests/integration --cov=backend/app --cov-fail-under=82` | `82.13%, 2012 passed` |
+| Standalone isolation | `backend\\.venv\\Scripts\\python.exe scripts/pytest-standalone-sweep.py` by test domain | `267 files passed, 0 failed` |
+| Frontend | `npm --prefix frontend run test` | `46 files / 195 tests passed` |
+| Frontend type/build | `npm --prefix frontend run type-check` and `npm --prefix frontend run build` | passed |
+| Python quality | Ruff check/format and mypy progressive scope | passed |
+| Notification smoke contract | `backend/tests/scripts/test_notification_channel_smoke.py` | `3 passed` |
+| Notification config response masking | `backend/tests/api/test_notifications.py` | `14 passed`; create/update responses mask sensitive fields |
+| Notification config validation | `backend/tests/api/test_notifications.py`, `backend/tests/services/test_notifier.py` | `32 passed`; empty delivery targets rejected |
+| Web Worker heartbeat resilience | `backend/tests/services/test_web_recording_transport.py`, `backend/tests/api/test_web_recordings.py` and deployment contract tests | `55 passed` |
+| Web Worker acceptance contract | `backend/tests/scripts/test_web_recording_worker_smoke.py` and quality-gate consistency tests | `14 passed` |
+| Diff hygiene | `git diff --check` | passed |
+
+The run-retention preview now returns `estimated_objects_sampled` and the UI labels the object count when it is based on the first cleanup batch. This keeps the preview bounded while making the estimate scope explicit.
+The per-project retention table now exposes all four run categories and the corresponding project-scoped object estimate, matching the service cleanup scope.
+The per-project preview route now applies `RunRetentionPerProjectOut`, including the `global_` → `global` response alias, so OpenAPI and runtime response validation match the frontend contract.
+
+## Q18 External Gate Check (2026-08-13)
+
+This is an external-environment status check, not a passing acceptance result.
+
+| Gate | Check | Result |
+|---|---|---|
+| Linux target read-only connectivity | MCP system overview for the configured Linux target | blocked: transport closed; no external evidence collected |
+
+The Linux/Kubernetes, external notification-provider, Web Worker, MinIO and Android gates remain open until the target connection is restored and their dated, redacted evidence is collected.
+
+The notification smoke command is ready for target environments, but no provider credentials or external delivery evidence is stored in this repository. The external gate remains open until the report is paired with SMTP/WeCom/DingTalk provider-side evidence.
+
+## Windows Current Profile Check (2026-08-13)
+
+| Check | Result |
+|---|---|
+| Runtime profile | root `.env`, PostgreSQL/Redis/MinIO configured for `172.31.27.133` |
+| Authenticated application checks | login, `/auth/me`, project list and `/web-recordings/workers` passed after restart |
+| Dependency reachability | PostgreSQL `5432` reachable; Redis `6379` and MinIO `9000` unreachable from Windows |
+| Acceptance status | incomplete; restore Redis/MinIO reachability before full Windows smoke |
+
+| Windows/UI check | Evidence | Result |
+|---|---|---|
+| Browser Mock E2E | `npm run e2e -- --reporter=line` | `10 passed` after project selector isolation fix |
+| Startup dependency check | `GET /api/v1/health/dependencies` on the current root `.env` | PostgreSQL `ok`; Redis/MinIO `unreachable`; no sensitive fields returned |
+| Dependency endpoint authorization | Unauthenticated request plus authenticated Windows smoke | Unauthenticated `401`; administrator session can read the sanitized response |
+| Windows smoke dependency gate | `scripts/windows-local-smoke.ps1` after authenticated login | Implemented; current rerun remains blocked by Redis/MinIO reachability and must not be marked passed |
+
+The result above is environment evidence only. It does not prove Redis/MinIO availability or external-worker readiness.
+
 ### Q18 external evidence still required
 
 - Real MinIO large-object upload, reconciliation, purge authorization and restore drill.

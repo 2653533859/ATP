@@ -26,3 +26,13 @@ def test_settings_normalize_auth_cookie_samesite():
     configured = Settings(APP_AUTH_COOKIE_SAMESITE=" Strict ")
 
     assert configured.APP_AUTH_COOKIE_SAMESITE == "strict"
+
+
+def test_audit_log_cleanup_is_opt_in_with_bounded_retention():
+    configured = Settings(_env_file=None)
+
+    assert configured.AUDIT_LOG_CLEANUP_ENABLED is False
+    assert configured.AUDIT_LOG_RETENTION_DAYS == 365
+
+    with pytest.raises(ValueError):
+        Settings(_env_file=None, AUDIT_LOG_RETENTION_DAYS=0)

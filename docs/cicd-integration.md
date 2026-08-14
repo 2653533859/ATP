@@ -79,9 +79,14 @@ curl -X POST https://atp.example.com/api/v1/webhook/trigger \
   "target_type": "performance_test",
   "target_id": 7,
   "env_id": 2,
+  "idempotency_key": "pipeline-${CI_PIPELINE_ID}-performance-7",
   "options": {}
 }
 ```
+
+CI 重试时必须复用同一个 `idempotency_key`。相同键和相同请求内容会复用原 Run；如果同一个键对应不同 options、环境或节点，接口会返回 `409`，避免重复或错配压测。
+
+仓库脚本 `scripts/performance-gate.py` 会自动读取 `CI_PIPELINE_ID`、`GITHUB_RUN_ID`、`BUILD_BUILDID` 或 `BUILD_ID` 生成稳定键；也可以显式传 `--idempotency-key` 或设置 `ATP_PERFORMANCE_IDEMPOTENCY_KEY`。本地没有 CI 标识时每次命令会生成新键，不会意外复用历史 Run。
 
 推荐在 CI 中使用仓库脚本等待门禁完成：
 

@@ -11,11 +11,13 @@ const {
   executorList,
   testList,
   runList,
+  triggerRun,
   testCreate,
   nodeList,
   nodeCreate,
   nodeUpdate,
   nodeDelete,
+  messageError,
   messageSuccess,
   messageWarning,
 } = vi.hoisted(() => ({
@@ -25,11 +27,13 @@ const {
   executorList: vi.fn(),
   testList: vi.fn(),
   runList: vi.fn(),
+  triggerRun: vi.fn(),
   testCreate: vi.fn(),
   nodeList: vi.fn(),
   nodeCreate: vi.fn(),
   nodeUpdate: vi.fn(),
   nodeDelete: vi.fn(),
+  messageError: vi.fn(),
   messageSuccess: vi.fn(),
   messageWarning: vi.fn(),
 }))
@@ -43,6 +47,7 @@ vi.mock('@/api', () => ({
     listNodes: nodeList,
     listTests: testList,
     listRuns: runList,
+    triggerRun,
     createTest: testCreate,
     createNode: nodeCreate,
     updateNode: nodeUpdate,
@@ -58,7 +63,7 @@ vi.mock('vue-i18n', () => ({
 
 vi.mock('ant-design-vue', () => ({
   message: {
-    error: vi.fn(),
+    error: messageError,
     success: messageSuccess,
     warning: messageWarning,
   },
@@ -109,6 +114,7 @@ describe('PerformanceCenterView', () => {
     ])
     testList.mockResolvedValue([])
     runList.mockResolvedValue([])
+    triggerRun.mockResolvedValue({ id: 10 })
     testCreate.mockResolvedValue({ id: 2 })
     nodeList.mockResolvedValue([])
     nodeCreate.mockResolvedValue({ id: 1 })
@@ -241,6 +247,87 @@ describe('PerformanceCenterView', () => {
     await flushPromises()
 
     expect(wrapper.find('.node-error').text()).toContain('Worker 队列与节点配置不一致')
+    wrapper.unmount()
+  })
+
+  it('disables nodes that do not support the selected executor before submission', async () => {
+    nodeList.mockResolvedValue([
+      {
+        id: 1,
+        node_id: 'k6-node',
+        name: 'k6 node',
+        queue_name: 'performance.k6',
+        status: 'online',
+        enabled: true,
+        labels: {},
+        capabilities: { executors: ['k6'] },
+        max_vus: null,
+        max_concurrency: null,
+        egress_allowlist: [],
+        last_heartbeat_at: '2026-08-12T08:00:00Z',
+        last_error: null,
+        created_at: '2026-08-12T08:00:00Z',
+        updated_at: '2026-08-12T08:00:00Z',
+      },
+      {
+        id: 2,
+        node_id: 'jmeter-node',
+        name: 'JMeter node',
+        queue_name: 'performance.jmeter',
+        status: 'online',
+        enabled: true,
+        labels: {},
+        capabilities: { executors: ['jmeter'] },
+        max_vus: null,
+        max_concurrency: null,
+        egress_allowlist: [],
+        last_heartbeat_at: '2026-08-12T08:00:00Z',
+        last_error: null,
+        created_at: '2026-08-12T08:00:00Z',
+        updated_at: '2026-08-12T08:00:00Z',
+      },
+    ])
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    vm.openRun({ id: 3, executor: 'jmeter' })
+
+    expect(vm.runNodeOptions).toEqual([
+      expect.objectContaining({ value: 1, disabled: true }),
+      expect.objectContaining({ value: 2, disabled: false }),
+    ])
+    expect(vm.runNodeOptions[0].label).toContain('performance.node_executor_unavailable')
+    wrapper.unmount()
+  })
+
+  it('sends a stable idempotency key for a manual run submission', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    vm.openRun({ id: 3 })
+    await vm.triggerRun()
+
+    expect(triggerRun).toHaveBeenCalledWith(3, expect.objectContaining({
+      idempotency_key: expect.any(String),
+    }))
+    expect(vm.runForm.idempotency_key).toBeTruthy()
+    wrapper.unmount()
+  })
+
+  it('surfaces backend run validation details', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    vm.openRun({ id: 3 })
+    triggerRun.mockRejectedValueOnce('性能节点容量不足')
+
+    await vm.triggerRun()
+
+    expect(messageError).toHaveBeenCalledWith('性能节点容量不足')
     wrapper.unmount()
   })
 })

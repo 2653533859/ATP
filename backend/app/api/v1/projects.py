@@ -1,7 +1,11 @@
+import csv
+import io
+import json
 import re
+from datetime import datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -689,6 +693,16 @@ async def update_project_member(
     if not up:
         raise HTTPException(status_code=404, detail="成员不存在")
 
+    if up.role == ProjectRole.owner and body.role != ProjectRole.owner.value:
+        owner_result = await db.execute(
+            select(UserProject)
+            .where(UserProject.project_id == project_id, UserProject.role == ProjectRole.owner)
+            .with_for_update()
+        )
+        owners = owner_result.scalars().all()
+        if len(owners) <= 1:
+            raise HTTPException(status_code=400, detail="不能降级最后一个 owner")
+
     up.role = ProjectRole(body.role)
     await _audit_project_action(
         db,
@@ -742,16 +756,17 @@ async def remove_project_member(
 # ─── P3.C 审计日志查询 ─────────────────────────────────────────────────────
 
 
-@router.get("/audit-logs", response_model=PaginatedAuditLogsOut)
-async def list_audit_logs(
-    project_id: int | None = Query(None),
-    action: str | None = Query(None),
-    user_id: int | None = Query(None),
-    page: int = Query(1, ge=1),
-    page_size: int = Query(50, ge=1, le=200),
-    db: AsyncSession = Depends(get_db),
-    _=Depends(require_admin),
+def _audit_log_filters(
+    *,
+    project_id: int | None,
+    action: str | None,
+    user_id: int | None,
+    created_from: datetime | None,
+    created_to: datetime | None,
 ):
+    if created_from is not None and created_to is not None and created_to < created_from:
+        raise HTTPException(status_code=422, detail="created_to 不能早于 created_from")
+
     where_clauses = []
     if project_id is not None:
         where_clauses.append(AuditLog.project_id == project_id)
@@ -759,6 +774,41 @@ async def list_audit_logs(
         where_clauses.append(AuditLog.action == action)
     if user_id is not None:
         where_clauses.append(AuditLog.user_id == user_id)
+    if created_from is not None:
+        where_clauses.append(AuditLog.created_at >= created_from)
+    if created_to is not None:
+        where_clauses.append(AuditLog.created_at <= created_to)
+    return where_clauses
+
+
+def _audit_log_csv_cell(value) -> str:
+    """Keep exported CSV cells safe when opened by spreadsheet applications."""
+
+    text = "" if value is None else str(value)
+    if text.startswith(("=", "+", "-", "@")):
+        return "'" + text
+    return text
+
+
+@router.get("/audit-logs", response_model=PaginatedAuditLogsOut)
+async def list_audit_logs(
+    project_id: int | None = Query(None),
+    action: str | None = Query(None),
+    user_id: int | None = Query(None),
+    created_from: datetime | None = Query(None),
+    created_to: datetime | None = Query(None),
+    page: int = Query(1, ge=1),
+    page_size: int = Query(50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_admin),
+):
+    where_clauses = _audit_log_filters(
+        project_id=project_id,
+        action=action,
+        user_id=user_id,
+        created_from=created_from,
+        created_to=created_to,
+    )
 
     count_stmt = select(func.count(AuditLog.id))
     if where_clauses:
@@ -772,3 +822,89 @@ async def list_audit_logs(
     items = (await db.execute(stmt)).scalars().all()
 
     return PaginatedAuditLogsOut(items=items, total=total, page=page, page_size=page_size)
+
+
+@router.get("/audit-logs/export")
+async def export_audit_logs(
+    project_id: int | None = Query(None),
+    action: str | None = Query(None),
+    user_id: int | None = Query(None),
+    created_from: datetime | None = Query(None),
+    created_to: datetime | None = Query(None),
+    limit: int = Query(5000, ge=1, le=10000),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_admin),
+):
+    """Export a bounded, filtered audit log snapshot for administrator evidence."""
+
+    where_clauses = _audit_log_filters(
+        project_id=project_id,
+        action=action,
+        user_id=user_id,
+        created_from=created_from,
+        created_to=created_to,
+    )
+    stmt = select(AuditLog).order_by(AuditLog.created_at.desc()).limit(limit)
+    if where_clauses:
+        stmt = stmt.where(*where_clauses)
+    items = (await db.execute(stmt)).scalars().all()
+
+    output = io.StringIO(newline="")
+    writer = csv.writer(output)
+    writer.writerow(
+        [
+            "id",
+            "created_at",
+            "action",
+            "resource_type",
+            "resource_id",
+            "user_id",
+            "username",
+            "project_id",
+            "ip_address",
+            "detail",
+        ]
+    )
+    for item in items:
+        writer.writerow(
+            [
+                _audit_log_csv_cell(item.id),
+                _audit_log_csv_cell(item.created_at.isoformat() if item.created_at else None),
+                _audit_log_csv_cell(item.action),
+                _audit_log_csv_cell(item.resource_type),
+                _audit_log_csv_cell(item.resource_id),
+                _audit_log_csv_cell(item.user_id),
+                _audit_log_csv_cell(item.username),
+                _audit_log_csv_cell(item.project_id),
+                _audit_log_csv_cell(item.ip_address),
+                _audit_log_csv_cell(item.detail),
+            ]
+        )
+
+    await write_audit_log(
+        db,
+        action="audit_log_export",
+        resource_type="audit_log",
+        user_id=current_user.id,
+        username=current_user.username,
+        detail=json.dumps(
+            {
+                "rows": len(items),
+                "limit": limit,
+                "project_id": project_id,
+                "action": action,
+                "user_id": user_id,
+                "created_from": created_from.isoformat() if created_from else None,
+                "created_to": created_to.isoformat() if created_to else None,
+            },
+            ensure_ascii=False,
+            separators=(",", ":"),
+        ),
+    )
+    await db.commit()
+
+    return Response(
+        content="\ufeff" + output.getvalue(),
+        media_type="text/csv; charset=utf-8",
+        headers={"Content-Disposition": 'attachment; filename="audit-logs.csv"'},
+    )

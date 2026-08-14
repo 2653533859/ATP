@@ -44,6 +44,30 @@ def test_deployment_validator_can_require_a_posix_shell(monkeypatch):
     assert failures == ["shell syntax (sh/bash is not available)"]
 
 
+def test_deployment_validator_strict_mode_requires_compose(monkeypatch):
+    validator = _load_deployment_validator()
+    monkeypatch.setattr(validator, "_resolve_compose", lambda: None)
+    skipped: list[str] = []
+    failures: list[str] = []
+
+    validator._check_compose(True, skipped, failures)
+
+    assert skipped == []
+    assert failures == ["Compose config (neither COMPOSE, docker-compose, nor docker compose is available)"]
+
+
+def test_deployment_validator_optional_compose_is_explicitly_skipped(monkeypatch):
+    validator = _load_deployment_validator()
+    monkeypatch.setattr(validator, "_resolve_compose", lambda: None)
+    skipped: list[str] = []
+    failures: list[str] = []
+
+    validator._check_compose(False, skipped, failures)
+
+    assert failures == []
+    assert skipped == ["Compose config (neither COMPOSE, docker-compose, nor docker compose is available)"]
+
+
 def test_deployment_validator_normalizes_missing_and_malformed_process_output(monkeypatch):
     validator = _load_deployment_validator()
     calls = []

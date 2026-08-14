@@ -56,6 +56,11 @@
         </a-col>
       </a-row>
 
+      <CaseDatasetBinding
+        v-model="datasetBinding"
+        :project-id="projectId"
+      />
+
       <a-divider orientation="left">{{ t('case.detail.execution_config') }}</a-divider>
       <a-row :gutter="16">
         <a-col :span="6">
@@ -244,6 +249,8 @@ import LowcodeStepEditor from '@/components/common/LowcodeStepEditor.vue'
 import WebRecorderModal from '@/components/common/WebRecorderModal.vue'
 import GeneratedScriptModal from '@/components/common/GeneratedScriptModal.vue'
 import { generateWebPythonScript } from '@/utils/pythonScriptGenerator'
+import CaseDatasetBinding from '@/components/common/CaseDatasetBinding.vue'
+import { buildCaseDatasetConfig, createCaseDatasetBinding, type CaseDatasetBinding as CaseDatasetBindingState } from '@/types/caseDataset'
 
 type LowcodeStep = {
   action: string
@@ -291,6 +298,7 @@ const form = reactive({
   priority: 'P2' as CasePriority,
   case_level: 'regression' as CaseLevel,
 })
+const datasetBinding = ref<CaseDatasetBindingState>(createCaseDatasetBinding())
 
 const cfg = reactive({
   browser: 'chromium',
@@ -344,6 +352,7 @@ function resetDrawerState() {
   form.tags = []
   form.priority = 'P2'
   form.case_level = 'regression'
+  datasetBinding.value = createCaseDatasetBinding()
   cfg.browser = 'chromium'
   cfg.headless = true
   cfg.timeout = 60
@@ -415,7 +424,21 @@ watch(() => props.open, async (v) => {
       form.priority = detail.priority ?? 'P2'
       form.case_level = detail.case_level ?? 'regression'
       const c = detail.config as WebCaseConfig
-      cfg.browser = 'chromium'
+      datasetBinding.value = {
+        ...createCaseDatasetBinding(),
+        datasetId: detail.dataset_id ?? null,
+        datasetVersion: detail.dataset_version ?? null,
+        strictSchema: Boolean(c.dataset_strict_schema),
+        strategy: c.dataset_strategy === 'random' || c.dataset_strategy === 'fixed_count' || c.dataset_strategy === 'cartesian' || c.dataset_strategy === 'pairwise'
+          ? c.dataset_strategy
+          : 'sequential',
+        fixedCount: c.dataset_fixed_count == null ? null : Number(c.dataset_fixed_count),
+        seed: c.dataset_seed == null ? null : Number(c.dataset_seed),
+        maxIterations: Number(c.dataset_max_iterations ?? 1000),
+        combinationFields: Array.isArray(c.dataset_combination_fields) ? c.dataset_combination_fields.map(String) : [],
+        redactFields: Array.isArray(c.dataset_redact_fields) ? c.dataset_redact_fields.map(String) : [],
+      }
+      cfg.browser = c.browser === 'firefox' || c.browser === 'webkit' ? c.browser : 'chromium'
       cfg.headless = c.headless ?? true
       cfg.timeout = c.timeout ?? 60
       cfg.viewportWidth = c.viewport?.width ?? 1280
@@ -538,6 +561,7 @@ async function handleSaveGeneratedScript(content: string) {
 
 function buildConfig() {
   const base = {
+    ...buildCaseDatasetConfig(datasetBinding.value),
     browser: cfg.browser,
     headless: cfg.headless,
     timeout: cfg.timeout,
@@ -596,6 +620,8 @@ async function handleSave() {
         tags: form.tags,
         priority: form.priority,
         case_level: form.case_level,
+        dataset_id: datasetBinding.value.datasetId,
+        dataset_version: datasetBinding.value.datasetVersion,
         config,
       })
       message.success(t('common.success'))
@@ -610,6 +636,8 @@ async function handleSave() {
         priority: form.priority,
         case_level: form.case_level,
         module_id: props.moduleId!,
+        dataset_id: datasetBinding.value.datasetId,
+        dataset_version: datasetBinding.value.datasetVersion,
         config,
       })
       localCaseId.value = newCase.id

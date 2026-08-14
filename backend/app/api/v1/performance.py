@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import json
+import math
 import os
 import re
 from datetime import datetime, timezone
@@ -16,6 +17,7 @@ from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, 
 from fastapi.responses import Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.exc import IntegrityError
 
 from app.api.deps import assert_project_access, get_current_user, require_engineer, require_project_access
 from app.core.config import settings
@@ -61,6 +63,12 @@ from app.services.performance_node import (
     node_has_capacity,
     parse_egress_allowlist,
     validate_node_options,
+)
+from app.services.performance_idempotency import (
+    PerformanceIdempotencyConflict,
+    build_idempotency_fingerprint,
+    find_idempotent_run,
+    normalize_idempotency_key,
 )
 from app.services.performance_dataset import PerformanceDatasetBindingError, resolve_dataset_binding
 from app.services.performance_dataset import load_dataset_rows, serialize_dataset_rows
@@ -189,8 +197,11 @@ def _build_options_snapshot(
 def _parse_duration_seconds(value) -> float | None:
     if value is None:
         return None
+    if isinstance(value, bool):
+        return None
     if isinstance(value, (int, float)):
-        return float(value)
+        parsed = float(value)
+        return parsed if math.isfinite(parsed) and parsed >= 0 else None
     if not isinstance(value, str):
         return None
     match = _DURATION_RE.match(value)
@@ -205,6 +216,21 @@ def _parse_duration_seconds(value) -> float | None:
     if unit == "h":
         return amount * 3600
     return amount
+
+
+def _validate_duration_fields(options: dict) -> None:
+    for key in ("duration", "run_time", "duration_seconds"):
+        if key in options and options[key] is not None and _parse_duration_seconds(options[key]) is None:
+            raise HTTPException(status_code=400, detail=f"压测 {key} 必须是非负有限时长")
+
+    stages = options.get("stages")
+    if not isinstance(stages, list):
+        return
+    for index, stage in enumerate(stages):
+        if not isinstance(stage, dict) or stage.get("duration") is None:
+            continue
+        if _parse_duration_seconds(stage["duration"]) is None:
+            raise HTTPException(status_code=400, detail=f"压测 stages[{index}].duration 必须是非负有限时长")
 
 
 def _max_vus_from_options(options: dict) -> int:
@@ -321,6 +347,7 @@ def _validate_performance_options(options: dict, executor: str = "k6") -> None:
         normalized_options = expand_auto_ramp(options)
     except PerformanceRampError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    _validate_duration_fields(normalized_options)
     try:
         build_metric_boundary(normalized_options)
     except PerformanceMetricBoundaryError as exc:
@@ -365,7 +392,10 @@ async def _resolve_performance_node(
 ) -> PerformanceNode | None:
     if node_id is None:
         return None
-    node = await db.get(PerformanceNode, node_id)
+    # Keep the node row locked until the caller commits the newly created run.
+    # Without this, concurrent API replicas can all observe the same free slot
+    # and oversubscribe max_concurrency before any of their runs is committed.
+    node = await db.get(PerformanceNode, node_id, with_for_update=True)
     if node is None:
         raise HTTPException(status_code=404, detail="性能压测节点不存在")
     if effective_node_status(node) != "online":
@@ -494,9 +524,44 @@ async def delete_performance_node(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_engineer),
 ):
-    item = await db.get(PerformanceNode, node_id)
+    # Serialize deletion with manual, webhook, and scheduled dispatch. Those
+    # paths lock the same node row before checking capacity and inserting a
+    # run; without this lock, a run can be inserted after the checks below and
+    # lose its node binding through the FK's ON DELETE SET NULL action.
+    item = await db.get(PerformanceNode, node_id, with_for_update=True)
     if item is None:
         raise HTTPException(status_code=404, detail="性能压测节点不存在")
+
+    active_run = await db.execute(
+        select(PerformanceRun.id)
+        .where(
+            PerformanceRun.performance_node_id == node_id,
+            PerformanceRun.status.in_(
+                [
+                    PerformanceRunStatus.pending.value,
+                    PerformanceRunStatus.running.value,
+                    PerformanceRunStatus.cancelling.value,
+                ]
+            ),
+        )
+        .limit(1)
+    )
+    if active_run.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=409, detail="性能压测节点仍有未结束的运行，请先停止或等待运行完成后再删除")
+
+    scheduled_test = await db.execute(
+        select(PerformanceTest.id)
+        .where(
+            PerformanceTest.schedule_node_id == node_id,
+            PerformanceTest.schedule_enabled.is_(True),
+        )
+        .limit(1)
+    )
+    if scheduled_test.scalar_one_or_none() is not None:
+        raise HTTPException(
+            status_code=409, detail="性能压测节点仍被启用的定时任务使用，请先解除节点绑定或停用定时任务"
+        )
+
     await db.delete(item)
     await db.commit()
 
@@ -730,6 +795,30 @@ async def trigger_performance_run(
     if item is None:
         raise HTTPException(status_code=404, detail="压测定义不存在")
     await assert_project_access(db, user, item.project_id, ProjectRole.editor)
+    try:
+        idempotency_key = normalize_idempotency_key(body.idempotency_key)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    request_fingerprint = build_idempotency_fingerprint(
+        source="manual",
+        environment_id=body.environment_id,
+        performance_node_id=body.performance_node_id,
+        performance_node_ids=body.performance_node_ids,
+        options=body.options,
+    )
+    if idempotency_key:
+        try:
+            existing = await find_idempotent_run(
+                db,
+                project_id=item.project_id,
+                performance_test_id=item.id,
+                key=idempotency_key,
+                fingerprint=request_fingerprint,
+            )
+        except PerformanceIdempotencyConflict as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        if existing is not None:
+            return existing
     _validate_environment_overrides(item.default_options)
     _validate_environment_overrides(body.options)
     environment_values: dict = {}
@@ -768,6 +857,8 @@ async def trigger_performance_run(
             project_id=item.project_id,
             environment_id=body.environment_id,
             performance_node_id=None,
+            idempotency_key=idempotency_key,
+            idempotency_fingerprint=request_fingerprint if idempotency_key else None,
             dataset_id=dataset_binding[0] if dataset_binding else None,
             dataset_version=dataset_binding[1] if dataset_binding else None,
             status=PerformanceRunStatus.pending.value,
@@ -796,7 +887,24 @@ async def trigger_performance_run(
             children.append(child)
         await db.flush()
         parent.summary["shard_ids"] = [child.id for child in children]
-        await db.commit()
+        try:
+            await db.commit()
+        except IntegrityError:
+            await db.rollback()
+            if idempotency_key:
+                try:
+                    existing = await find_idempotent_run(
+                        db,
+                        project_id=item.project_id,
+                        performance_test_id=item.id,
+                        key=idempotency_key,
+                        fingerprint=request_fingerprint,
+                    )
+                except PerformanceIdempotencyConflict as exc:
+                    raise HTTPException(status_code=409, detail=str(exc)) from exc
+                if existing is not None:
+                    return existing
+            raise
         await db.refresh(parent)
         for child, node in zip(children, selected_nodes, strict=True):
             enqueue_performance_run(run_performance_test, child.id, node.queue_name)
@@ -809,6 +917,8 @@ async def trigger_performance_run(
         project_id=item.project_id,
         environment_id=body.environment_id,
         performance_node_id=node.id if node else None,
+        idempotency_key=idempotency_key,
+        idempotency_fingerprint=request_fingerprint if idempotency_key else None,
         dataset_id=dataset_binding[0] if dataset_binding else None,
         dataset_version=dataset_binding[1] if dataset_binding else None,
         status=PerformanceRunStatus.pending.value,
@@ -817,7 +927,24 @@ async def trigger_performance_run(
         summary={},
     )
     db.add(run)
-    await db.commit()
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        if idempotency_key:
+            try:
+                existing = await find_idempotent_run(
+                    db,
+                    project_id=item.project_id,
+                    performance_test_id=item.id,
+                    key=idempotency_key,
+                    fingerprint=request_fingerprint,
+                )
+            except PerformanceIdempotencyConflict as exc:
+                raise HTTPException(status_code=409, detail=str(exc)) from exc
+            if existing is not None:
+                return existing
+        raise
     await db.refresh(run)
     enqueue_performance_run(run_performance_test, run.id, node.queue_name if node else None)
     return run
@@ -916,7 +1043,7 @@ async def stop_performance_run(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    run = await db.get(PerformanceRun, run_id)
+    run = await db.get(PerformanceRun, run_id, with_for_update=True)
     if run is None:
         raise HTTPException(status_code=404, detail="压测执行不存在")
     await assert_project_access(db, user, run.project_id, ProjectRole.editor)
@@ -928,7 +1055,7 @@ async def stop_performance_run(
     if isinstance(shard_ids, list):
         for shard_id in shard_ids:
             try:
-                shard = await db.get(PerformanceRun, int(shard_id))
+                shard = await db.get(PerformanceRun, int(shard_id), with_for_update=True)
             except (TypeError, ValueError):
                 shard = None
             if shard is not None:

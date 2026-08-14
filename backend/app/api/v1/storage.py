@@ -84,6 +84,7 @@ async def storage_cleanup_execute(
         lambda session: execute_storage_cleanup(
             session,
             object_names=body.object_names,
+            prefixes=body.prefixes,
             repair_orphan_references=body.repair_orphan_references,
         )
     )

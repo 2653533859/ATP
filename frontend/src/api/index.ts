@@ -521,6 +521,7 @@ export interface RunRetentionPreview {
   test_runs: number
   mobile_runs: number
   estimated_objects: number
+  estimated_objects_sampled: boolean
 }
 
 export interface RunRetentionExecuteResult {
@@ -553,6 +554,10 @@ export interface RunRetentionPerProjectPreview {
     retention_days: number
     plan_runs: number
     suite_runs: number
+    test_runs: number
+    mobile_runs: number
+    estimated_objects: number
+    estimated_objects_sampled: boolean
     note?: string
   }>
 }
@@ -716,6 +721,19 @@ export interface NotificationItem {
   config: Record<string, unknown>
   is_enabled: boolean
   updated_at?: string
+}
+
+export interface NotificationDeliveryItem {
+  id: number
+  project_id: number
+  notification_config_id?: number | null
+  notification_name: string
+  channel: NotificationChannel
+  status: 'sent' | 'failed'
+  attempts: number
+  summary: Record<string, unknown>
+  error_message?: string | null
+  created_at: string
 }
 
 export type MockRuleLogItem = Record<string, unknown>
@@ -939,6 +957,29 @@ export const authApi = {
     email?: string
     new_password?: string
   }) => http.patch<unknown, { authenticated: boolean }>('/auth/me', data),
+}
+
+export type DependencyCheckStatus = 'ok' | 'error'
+export type DependencyCheckCode = 'ok' | 'timeout' | 'unreachable' | 'bucket_missing'
+
+export interface DependencyCheckItem {
+  status: DependencyCheckStatus
+  latency_ms: number
+  code: DependencyCheckCode
+}
+
+export interface DependencyHealthResponse {
+  status: 'ok' | 'degraded'
+  checked_at: string
+  dependencies: {
+    postgres: DependencyCheckItem
+    redis: DependencyCheckItem
+    minio: DependencyCheckItem
+  }
+}
+
+export const healthApi = {
+  dependencies: () => http.get<unknown, DependencyHealthResponse>('/health/dependencies'),
 }
 
 export interface AdminUserItem {
@@ -1305,6 +1346,8 @@ export const notificationApi = {
   update: (id: number, data: object) => http.patch(`/notifications/${id}`, data),
   delete: (id: number) => http.delete(`/notifications/${id}`),
   test: (id: number) => http.post(`/notifications/${id}/test`),
+  deliveries: (params?: { project_id?: number; config_id?: number; status?: 'sent' | 'failed'; limit?: number }) =>
+    http.get<unknown, NotificationDeliveryItem[]>('/notifications/deliveries', { params }),
 }
 
 export const statisticsApi = {
@@ -1419,7 +1462,7 @@ export const storageApi = {
   stats: () => http.get<unknown, StorageStatsItem>('/storage/stats'),
   previewCleanup: (data?: { prefixes?: string[]; retention_days?: number }) =>
     http.post<unknown, StorageCleanupPreviewItem>('/storage/cleanup-preview', data ?? {}),
-  executeCleanup: (data: { object_names: string[]; repair_orphan_references?: boolean }) =>
+  executeCleanup: (data: { object_names: string[]; prefixes?: string[]; repair_orphan_references?: boolean }) =>
     http.post<unknown, StorageCleanupExecuteItem>('/storage/cleanup-execute', data),
   reconcileDatasetStorage: (projectId: number, purge = false) =>
     http.post<unknown, StorageDatasetReconcileItem>(`/projects/${projectId}/datasets/storage/reconcile`, { purge }),
@@ -1808,6 +1851,7 @@ export interface PerformanceRunItem {
   project_id: number
   environment_id?: number | null
   performance_node_id?: number | null
+  idempotency_key?: string | null
   parent_run_id?: number | null
   dataset_id?: number | null
   dataset_version?: number | null
@@ -1980,6 +2024,7 @@ export const performanceApi = {
     environment_id?: number | null
     performance_node_id?: number | null
     performance_node_ids?: number[]
+    idempotency_key?: string
     options?: Record<string, unknown>
   }) =>
     http.post<unknown, PerformanceRunItem>(`/performance/tests/${id}/run`, body ?? {}),
@@ -2291,7 +2336,17 @@ export const auditLogApi = {
     project_id?: number
     action?: string
     user_id?: number
+    created_from?: string
+    created_to?: string
     page?: number
     page_size?: number
   }) => http.get<unknown, PaginatedAuditLogs>('/audit-logs', { params }),
+  export: (params: {
+    project_id?: number
+    action?: string
+    user_id?: number
+    created_from?: string
+    created_to?: string
+    limit?: number
+  }) => http.get<unknown, Blob>('/audit-logs/export', { params, responseType: 'blob' }),
 }

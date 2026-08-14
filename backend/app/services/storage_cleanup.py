@@ -463,6 +463,7 @@ def execute_storage_cleanup(
     session: Session,
     *,
     object_names: Iterable[str],
+    prefixes: Iterable[str] | None = None,
     repair_orphan_references: bool = False,
 ) -> StorageCleanupExecuteOut:
     normalized_object_names = []
@@ -476,8 +477,9 @@ def execute_storage_cleanup(
     for ref in references:
         refs_by_object.setdefault(ref.object_name, []).append(ref)
 
+    existing_prefixes = _normalize_prefixes(prefixes)
     existing_objects = {
-        obj.object_name for prefix in DEFAULT_CLEANUP_PREFIXES for obj in minio_client.list_objects(prefix=prefix)
+        obj.object_name for prefix in existing_prefixes for obj in minio_client.list_objects(prefix=prefix)
     }
 
     deleted_objects: list[str] = []

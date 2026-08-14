@@ -130,4 +130,14 @@ describe('DashboardView mount', () => {
 
     expect(routerPush).toHaveBeenCalledWith({ name: 'runs' })
   })
+
+  it('exposes iOS in the case type filter when iOS cases are supported', async () => {
+    const wrapper = mountDashboard()
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    expect(vm.caseTypeOptions).toEqual(expect.arrayContaining([
+      expect.objectContaining({ value: 'ios', label: 'dashboard.case_types.ios' }),
+    ]))
+  })
 })

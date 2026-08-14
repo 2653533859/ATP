@@ -21,6 +21,7 @@ def test_expand_auto_ramp_builds_auditable_stages():
     [
         {"auto_ramp": {"start_vus": 0}},
         {"auto_ramp": {"start_vus": 10, "step_vus": 0, "max_vus": 20}},
+        {"auto_ramp": {"max_vus": float("inf")}},
         {"auto_ramp": "invalid"},
     ],
 )

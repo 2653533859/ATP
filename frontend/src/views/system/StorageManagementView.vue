@@ -549,6 +549,7 @@ function handleExecute() {
       try {
         result.value = await storageApi.executeCleanup({
           object_names: objectNames,
+          prefixes: selectedPrefixes.value,
           repair_orphan_references: repairOrphans.value,
         })
         message.success(t('system_pages.storage.msg.execute_success'))

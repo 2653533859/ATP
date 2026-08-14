@@ -1,5 +1,292 @@
 # ATP 项目任务跟踪
 
+## 2026-08-14 通知 Webhook 错误信息脱敏收口
+
+- [x] 修复企业微信 `?key=...` 和钉钉 `access_token/sign` 等 Webhook 查询参数可能进入异常文本的问题；服务端统一脱敏 URL 用户信息及敏感查询参数后，才写入日志、投递历史或返回 API 错误。
+- [x] 同步通知渠道验收脚本的错误脱敏，避免脚本输出或 JSON 报告暴露 Webhook 凭据。
+- [x] 新增企业微信 Webhook `key` 脱敏回归；通知服务与验收脚本定向测试 `23 passed`，Ruff check/format 和 `git diff --check` 通过。
+- [ ] 真实 SMTP、企业微信和钉钉公网投递仍需在目标环境完成验收；本地回归不替代供应商后台投递记录。
+
+## 2026-08-14 项目成员 owner 权限完整性
+
+- [x] 修改项目成员角色时锁定 owner 记录并阻止把最后一个 owner 降级为 viewer/editor，避免项目失去可管理者；原有删除最后一个 owner 的保护保持不变。
+- [x] 新增项目成员路由回归，覆盖最后 owner 降级拒绝；项目路由定向 `25 passed`，完整非集成后端 `2030 passed`，Ruff 格式和静态检查通过。
+- [x] Windows 前端质量门禁：全量 `50 files / 207 tests passed`，type-check 和生产 build 通过。
+
+## 2026-08-13 性能压测停止竞态与自动阶梯边界
+
+- [x] 压测停止接口对父运行和分片运行使用事务行锁，避免停止请求与 Worker 完成更新交叉覆盖状态；节点删除与派发已有的节点行锁保持一致。
+- [x] Worker 在执行器返回后再次检查取消标记，用户在最后阶段停止压测时不会被错误记为成功；自动阶梯的无穷大 `max_vus` 也会按非法配置拒绝，而不是触发 500。
+- [x] 定向性能 API/Worker/自动阶梯回归 `87 passed`，完整非集成后端回归 `2029 passed`，Ruff 格式和静态检查通过。
+- [ ] Linux MCP 当前仍返回 `Transport closed`；真实性能 Worker、Prometheus、TLS/目标服务和取消链路的外部验收继续等待目标环境恢复。
+
+## 2026-08-13 性能压测时长边界防绕过
+
+- [x] 拒绝 `NaN`、无穷大、负数和布尔值等非法性能时长，避免最大运行时长比较失效而绕过资源限制。
+- [x] 同时校验顶层时长字段和分阶段时长；性能 API 定向回归 `69 passed`，完整非集成后端 `2027 passed`。
+- [ ] Linux MCP 当前仍返回 `Transport closed`，真实性能 Worker、TLS 目标和 Prometheus 仍待外部验收。
+
+## 2026-08-13 通知策略异常范围安全隔离
+
+- [x] 后端校验通知策略的 `scope`、状态筛选和目标 ID 列表，拒绝 API/历史配置中的未知路由值。
+- [x] 运行时遇到未知 `scope` 时改为 fail-closed，不再把限定通知意外扩大为全部执行；通知服务/API 定向回归 `35 passed`，完整非集成后端 `2026 passed`。
+
+## 2026-08-13 API Cookie 属性安全恢复
+
+- [x] 恢复项目 API 登录态时保留 Cookie 的 `secure`、`expires`、domain 和 path 属性，避免会话恢复时安全属性降级或过期时间丢失。
+- [x] 扩展 Cookie 序列化回归，覆盖安全 Cookie、过期时间、空会话覆盖和旧密钥无效密文降级。
+
+## 2026-08-13 API 登录态清理闭环
+
+- [x] 修复项目级 API Cookie 会话在服务端退出登录/删除 Cookie 后不写回空集合的问题，避免后续用例继续复用旧登录态。
+- [x] 增加 API 会话服务回归，验证空 Cookie 集合会覆盖旧 Redis 会话并保留加密与 TTL 约束。
+- [x] 本轮 API 会话/HTTP 家族定向 `70 passed`，完整非集成后端 `2023 passed`。
+
+## 2026-08-13 通用用例清空数据集后的配置隔离
+
+- [x] 修复 API/GraphQL/WebSocket/gRPC/iOS 通用抽屉清空数据集后仍写回旧 `dataset_*` 参数化配置的问题；未绑定时只保存协议本身的配置。
+- [x] 增加前端入口静态回归，防止后续重新引入无数据集时的参数化残留。
+
+## 2026-08-13 启动依赖诊断原因展示
+
+- [x] 启动配置页的 PostgreSQL、Redis、MinIO 检查结果新增具体原因文案：连接成功、连接超时、无法连接、存储桶不存在，便于 Windows 用户按结果排查地址/端口/服务状态。
+- [x] 新增启动配置页回归断言；本轮前端全量 `50 files / 207 tests passed`，type-check、build 和 `git diff --check` 通过。
+- [ ] 当前 `172.31.27.133` 仅 PostgreSQL `5432` 从 Windows 可达，Redis `6379`、MinIO `9000` 不可达；Linux MCP 只读检查仍返回 `Transport closed`，远端依赖验收保持待完成。
+
+## 2026-08-13 数据集绑定异步请求隔离
+
+- [x] 修复 Web/Android 共享数据集绑定组件在切换项目或清空数据集时，旧请求未返回导致数据集/版本 loading 状态卡住的问题。
+- [x] 请求序列变化时立即清空旧选项并结束无效 loading；旧请求返回后不会覆盖当前项目或绑定状态。
+- [x] 新增 2 个前端回归用例；本轮前端全量 `50 files / 207 tests passed`，type-check、build 和 `git diff --check` 通过。
+
+## 2026-08-13 通用用例数据集版本固定
+
+- [x] API/GraphQL/WebSocket/gRPC/iOS 通用用例抽屉增加数据集版本选择；创建、编辑、切换数据集和清空绑定都会同步维护 `dataset_version`。
+- [x] 数据集版本不存在时不会继续展示失效选项，运行时未固定版本仍按后端语义使用最新版本；补充前端入口静态回归。
+- [x] 本轮验证：后端非集成 `2022 passed`，前端 `49 files / 205 tests passed`，type-check 和 build 通过。
+
+## 2026-08-13 Web/Android 专用用例数据集绑定
+
+- [x] Web/Android 专用抽屉增加项目数据集、固定版本、严格 Schema、组合策略、最大迭代数和结果脱敏字段配置；创建与编辑都会保存 `dataset_id`、`dataset_version` 及对应运行配置。
+- [x] 抽取共享数据集绑定组件，数据集切换后自动加载版本列表；清空绑定时同步移除旧的参数化配置，避免编辑保存残留。
+- [x] Web/Android 回归覆盖新建与编辑数据集绑定；前端全量 `49 files / 205 tests passed`，type-check、build 通过。
+
+## 2026-08-13 发布前部署校验严格模式
+
+- [x] `validate-deployment-readiness.py` 增加 `--strict`：默认模式明确记录 Docker/Compose、Helm、`.env` 或 POSIX shell 缺失为 `SKIP`，严格模式将环境缺失转为失败。
+- [x] Makefile 支持 `make validate-deployment-readiness ARGS=--strict`；该门禁只强化判定语义，不替代真实 Linux/Kubernetes、备份恢复或性能 Worker 验收。
+- [ ] 本次继续尝试读取配置 Linux 主机仍遇到 MCP `Transport closed`；性能 Worker、Prometheus、TLS/目标服务和资源采样保持外部待验收，不以本地回归代替。
+
+## 2026-08-13 Web/Android 专用入口收口
+
+- [x] 通用 `CaseFormDrawer` 不再暴露 Web/Android 类型或显示后续实现占位提示；CaseList 统一使用专用 Web/Android 抽屉，避免用户进入不可配置的入口。
+- [x] 增加前端静态回归，确认专用抽屉挂载且占位文案已移除；真实 Worker/Android 设备执行仍按外部验收边界处理。
+- [x] 本轮验证：后端非集成 `2021 passed`，前端 `49 files / 203 tests passed`，type-check/build、Ruff 和 `git diff --check` 通过。
+
+## 2026-08-13 Web/Android 低代码关键流程回归收口
+
+- [x] 新增 Web/Android 专用用例抽屉创建与编辑回归，覆盖低代码步骤写入、Android 标准步骤生成和关键执行配置保存。
+- [x] 修复 Web 用例编辑时浏览器配置被无条件重置为 Chromium 的问题，编辑 Firefox/WebKit 用例后保存不再静默改写浏览器。
+- [x] 本轮前端定向 `4 passed`，全量 `49 files / 203 tests passed`，type-check 通过；真实 Worker/Android 设备仍需按计划单独验收。
+
+## 2026-08-13 存储治理自定义前缀执行修复
+
+- [x] 清理执行接口透传预览前缀，支持自定义 StoragePolicy 对象正确删除；默认调用仍兼容内置前缀。
+- [x] maintenance 定时清理同步传入单条策略前缀；存储 API/服务/清理任务回归 `29 passed`，Ruff 通过。
+
+## 2026-08-13 项目级运行记录清理范围修复
+
+- [x] 清理页面主预览同时加载全局与项目覆盖预览，避免仅项目覆盖策略命中时按钮错误置灰。
+- [x] 确认提示统一统计全局/项目级运行记录、对象估算和抽样状态；RunRetentionView 回归 `2 passed`，type-check/build 通过。
+
+## 2026-08-13 性能节点删除并发保护收口
+
+- [x] 删除节点与压测派发共用行级锁，避免节点检查与删除之间插入新的活动运行。
+- [x] 性能 API 回归 `68 passed`，Ruff 通过；外部 Redis/MinIO、Linux/Kubernetes Worker 和真实通知渠道继续等待目标环境验收。
+
+## 2026-08-13 启动配置依赖连接检查
+
+- [x] 新增只读依赖检查接口，并行探测 PostgreSQL、Redis、MinIO，状态响应不泄露连接地址、账号、密码或异常详情。
+- [x] 依赖探测路由限制为管理员，保留公开 `/health` 作为轻量存活探针，避免公开接口触发高成本外部连接。
+- [x] 启动配置页增加当前连接检测按钮和三项状态/耗时展示；当前 172 环境已确认 PostgreSQL 可用，Redis/MinIO 不可达。
+- [x] 后端定向 `4 passed`、StartupConfigView `6 passed`、Ruff/type-check 和真实接口检查通过。
+- [x] 最新完整门禁：后端非集成 `2018 passed`，覆盖率 `82.03%`（门禁 82%）；`269` 个测试文件逐文件独立通过；前端 `47 files / 199 tests passed`，type-check/build、Ruff、format-check 和 mypy 通过。
+- [x] Python 3.14.3 条件依赖环境复跑完整非集成后端 `2018 passed`；覆盖率门禁以 CI 使用的 Python 3.12.11 为准。
+- [x] 发布前安全/配置门禁：Bandit、npm audit、pip-audit（锁定 requirements 模式）、pre-commit 和部署配置校验通过；Docker/Helm 工具缺失时按约定跳过真实工具检查。
+
+## 2026-08-13 Windows 冒烟依赖分项检查
+
+- [x] Windows 全量冒烟在登录后检查 `/api/v1/health/dependencies`，输出 PostgreSQL、Redis、MinIO 的分项状态、错误码和耗时。
+- [x] Redis/MinIO 不可达时直接标记必需检查失败，避免后续文件传输、Worker 或报告检查产生级联误报。
+- [ ] 当前远端 Redis/MinIO 仍不可达，恢复后需重新执行带脱敏报告的完整冒烟。
+
+## 2026-08-13 Windows Mock E2E 选择器隔离修复
+
+- [x] 修复计划页项目选择器同时命中已选值和下拉选项导致的 Playwright strict mode 失败，并分离页面目标文本与项目选项文本。
+- [x] Chromium Mock E2E 全量 `10 passed`。
+
+## 2026-08-13 Windows 当前启动档案冒烟复核
+
+- [x] Windows 冒烟脚本新增 `-LiveRequestTimeoutSeconds`，解决远端 PostgreSQL 慢响应时固定 10 秒造成的认证误报；相关脚本契约回归 `10 passed`。
+- [x] 重启项目并确认当前运行档案为根 `.env` / `172.31.27.133`；登录、认证读接口、项目列表和 Web Worker 状态接口通过。
+- [ ] `172.31.27.133:6379` Redis、`:9000` MinIO 从 Windows 不可达；远端服务/防火墙恢复后再补完整冒烟证据。
+
+## 2026-08-13 仪表盘 iOS 类型筛选补齐
+
+- [x] 仪表盘类型筛选新增 iOS 选项，避免 iOS 执行数据无法按类型查看。
+- [x] 增加 Dashboard 回归测试；前端全量回归 `46 files / 194 tests passed`，type-check/build 和 `git diff --check` 通过。
+
+## 2026-08-13 性能节点删除生命周期保护
+
+- [x] 删除性能节点前检查活动压测运行和启用中的定时任务，存在引用时明确返回 `409`，不再静默解除节点绑定。
+- [x] 保留已完成运行记录；无活动运行且无启用定时任务时允许删除。
+- [x] 性能 API 定向回归 `68 passed`；后端完整非集成回归 `2008 passed`、覆盖率 `82.12%`；前端回归 `46 files / 193 tests passed`，type-check/build 和 `git diff --check` 通过。
+
+## 2026-08-13 通知渠道配置校验补强
+
+- [x] 新建通知配置时校验邮件收件人和企业微信/钉钉 `webhook_url`，拒绝空配置或脱敏占位符。
+- [x] 通知发送入口重复校验最小投递目标，避免历史空配置被记录为“发送成功”；仅修改名称/启用状态时保留兼容性。
+- [x] 通知 API/服务定向回归 `32 passed`，并覆盖缺少投递目标时不调用发送器；NotificationList `5 passed`，全量前端 `46 files / 192 tests passed`，type-check/build 通过。
+- [x] 通知测试发送完成或失败后自动刷新最近投递历史，页面可立即看到本次投递结果；NotificationList 回归保持 `5 passed`。
+
+## 2026-08-13 运行记录清理预览刷新
+
+- [x] 执行运行记录清理后同时刷新全局预览和项目级预览，避免项目级数量仍显示清理前的旧数据。
+- [x] 新增 RunRetentionView 页面回归，验证清理成功后两类预览都重新请求；前端全量 `46 files / 192 tests passed`，type-check/build 通过。
+
+## 2026-08-13 运行记录清理对象安全顺序
+
+- [x] 清理运行记录时先提交数据库删除，再删除关联 MinIO 对象；数据库提交失败会保留对象，避免运行记录仍存在但附件不可恢复。
+- [x] MinIO 删除失败只形成可由存储治理发现的孤儿对象；新增提交顺序和失败保护回归，运行记录服务定向 `10 passed`。
+
+## 2026-08-13 运行记录清理对象数语义补强
+
+- [x] 预览接口返回 `estimated_objects_sampled`，当候选 TestRun/MobileRun 超过清理批大小时明确标记对象数仅基于首批记录估算。
+- [x] 全局预览、按项目预览和执行确认提示展示抽样标识，避免把大数据量下的对象估算误认为精确数量。
+- [x] 后端完整非集成回归 `2005 passed`、覆盖率门禁 `82.10%`；前端 `46 files / 192 tests passed`，type-check/build 通过。
+
+## 2026-08-13 按项目清理预览补全
+
+- [x] 按项目预览表格补齐 Plan、Suite、Test、Mobile 四类运行记录和项目级对象估算，展示范围与实际清理范围一致。
+- [x] 项目级对象估算复用批量抽样边界，并在超过批大小时显示抽样标识；补充服务回归，避免只展示部分运行类型造成误判。
+
+## 2026-08-13 按项目预览 API 契约收口
+
+- [x] 启用按项目预览路由的 `response_model`，并将内部 `global_` 字段显式映射为前端使用的 `global` JSON 字段。
+- [x] 新增 API 契约回归，覆盖全局对象估算、抽样标记和项目 TestRun 数量映射。
+
+## 2026-08-13 通知配置响应脱敏补强
+
+- [x] 修复通知配置新建和更新接口直接返回数据库对象的问题；响应现在与列表/详情接口统一经过脱敏，webhook、secret 等敏感字段只返回 `******`。
+- [x] 补充新建/更新响应和底层加密值回归，通知 API 定向回归 `14 passed`；Ruff、格式检查和 `git diff --check` 通过。
+
+## 2026-08-13 通知渠道真实环境验收入口
+
+- [x] 新增 `scripts/notification-channel-smoke.py`，通过 `ATP_TOKEN` 或工程师账号环境变量调用现有测试发送接口，并核对投递历史中的新记录。
+- [x] 验收脚本只输出配置 ID、渠道、状态、尝试次数和脱敏错误；不接受命令行密码/Token，也不把凭据写入报告。
+- [x] 补充脚本契约测试 `3 passed` 和操作说明 `docs/notification-channel-acceptance.md`。
+- [ ] 真实 SMTP、企业微信和钉钉公网联调仍需目标环境凭据、供应商后台投递记录和重复投递验收。
+
+## 2026-08-13 通知服务测试隔离修复
+
+- [x] 修复通知服务测试单独运行时依赖其他测试导入 `Project`/其他模型的问题；测试文件现在显式加载应用启动使用的完整 ORM 模型注册表。
+- [x] `backend/tests/services` 独立扫描 `74 passed, 0 failed`；`backend/tests/worker` 独立扫描 `42 passed, 0 failed`。
+- [x] API 及其余测试文件独立扫描通过；当前非集成后端全量 `2018 passed`，共 `269` 个测试文件逐文件通过。
+- [x] 新增验收脚本已同步到 Makefile、CI 和 pre-commit 的 Ruff/格式检查清单，质量一致性回归恢复通过。
+
+## 2026-08-13 通知错误信息脱敏
+
+- [x] 统一重试、SMTP、企业微信、钉钉和测试发送 API 的异常脱敏，过滤 URL 用户信息、Token、Key、Secret、Password、签名和 Cookie 等敏感值。
+- [x] 错误摘要同时清理 CR/LF/NUL，避免供应商异常文本形成日志注入；通知/API/服务定向 `36 passed`，完整非集成后端 `1992 passed`。
+
+## 2026-08-13 通知历史清理审计
+
+- [x] `cleanup_old_notification_deliveries` 删除记录时写入 `notification_delivery_cleanup` 系统审计事件，记录删除数量和保留天数，并与删除操作同事务提交。
+- [ ] 生产环境仍需结合备份/归档要求确认审计日志保留周期和外部归档方式。
+
+## 2026-08-13 通知投递记录写入容错
+
+- [x] 将投递记录 `add/add_all`、提交和回滚统一纳入保护边界；记录持久化失败只记录日志，不反向打断测试发送或执行通知。
+- [x] 补充新增记录失败与提交回滚回归，通知服务定向测试更新为 `16 passed`。
+
+## 2026-08-13 历史投递记录读取脱敏
+
+- [x] 投递历史查询 API 在读取出口再次执行错误摘要脱敏，兼容清理上线前已经保存的旧记录，避免旧敏感内容通过前端或接口重新暴露。
+- [x] 增加历史记录 Token/换行内容回归，API/通知服务定向测试 `30 passed`。
+
+## 2026-08-13 覆盖率门禁复核
+
+- [x] 后端覆盖率门禁通过：`82.10%`，要求 `82%`；同次非集成回归 `2005 passed`。
+
+## 2026-08-13 外部目标连接复核
+
+- [ ] Linux 目标只读 MCP 系统概览最近一次仍返回 `Transport closed`，未取得外部主机、性能 Worker、Prometheus 或真实目标证据；连接恢复后继续执行 Linux/Kubernetes 验收。
+
+## 2026-08-13 Web 录制 Worker 心跳容错
+
+- [x] Web 录制 Worker 的初始注册和持续心跳同时兜底底层 Redis 客户端的普通异常；心跳失败会清理健康文件并继续重试，避免协程退出后留下过期健康状态。
+- [x] 新增 Worker 心跳异常和启动残留标记回归；Web 录制/API/部署契约定向回归 `55 passed`，Ruff 检查和格式检查通过。
+
+## 2026-08-13 Web Worker 外部验收入口
+
+- [x] 新增 `scripts/web-recording-worker-smoke.py`：默认只检查 Worker 模式、注册数和可用容量，只有显式 `--run-recording` 才执行真实启动、状态查询、可选截图和停止。
+- [x] 验收脚本只使用 `ATP_TOKEN` 或 `ATP_USERNAME`/`ATP_PASSWORD`，报告脱敏 URL、错误和输入；已加入 Makefile、CI 与 pre-commit 的脚本门禁。
+- [x] 脚本契约与质量门禁一致性回归 `14 passed`；真实 Linux/Xvfb、Firefox/WebKit 和跨副本录制仍需目标环境执行。
+
+## 2026-08-13 Linux/Kubernetes 性能栈完善
+
+- [x] 修复手动、Webhook 和定时任务在多 API/Beat 副本同时派发压测时的性能节点容量竞态，节点选择与 `max_concurrency` 校验改为同一数据库行锁事务。
+- [x] 补充节点容量锁、draining、队列路由和心跳超时回归；真实 Linux/Kubernetes、Prometheus、TLS、目标服务和资源采样继续单独验收。
+- [x] 性能相关定向回归 `91 passed`，完整非集成后端 `1988 passed`，Ruff 和格式检查通过。
+- [x] 手动触发和 Webhook 增加显式幂等键；同键同请求复用已有 Run，同键不同请求返回 `409`，并补充数据库唯一约束和前端触发键。
+- [x] 性能环境验收脚本同步携带幂等键：支持 `--idempotency-key`/`ATP_PERFORMANCE_IDEMPOTENCY_KEY`，CI 可重试复用，本地默认生成新键，并区分 smoke/cancel 作用域。
+- [x] 性能验收支持 `--require-metric-source`，要求指定 Worker 或目标 Prometheus 来源至少返回一条非空指标样本，避免空样本/错误样本被记为通过。
+- [x] 性能验收支持 `--require-baseline` 与 `--fail-on-baseline-regression`，可把基线对比和回归方向纳入真实环境验收退出码。
+
+## 2026-08-13 通知渠道可靠性收口
+
+- [x] 通知发送统一经过有限重试链路；默认不重试，保持历史配置行为不变。
+- [x] 仅对网络超时/连接失败、HTTP 5xx 和 429 重试，供应商拒绝、错误 Webhook 和其他配置错误不重复发送；重试次数上限 3 次，退避上限 30 秒。
+- [x] 通知测试发送复用与执行通知相同的重试策略，通知配置页增加失败重试次数和首次退避等待配置。
+- [x] 补充通知服务/API/前端回归；通知配置页面 `4 passed`；完整非集成后端 `1988 passed`。
+- [ ] 邮件、企业微信、钉钉真实公网渠道联调和供应商限流策略仍需目标环境验收。
+
+## 2026-08-13 通知投递结果可观测性
+
+- [x] 新增 `notification_deliveries` 投递历史表，记录渠道、成功/失败状态、实际尝试次数、脱敏摘要和脱敏失败原因；通知配置删除后保留历史并解除配置引用。
+- [x] 执行通知和测试发送均写入投递结果；新增工程师可读的项目范围查询接口和通知配置页“最近投递记录”表格。
+- [x] 补充投递历史模型、迁移、服务/API/前端回归；完整迁移头更新为 `20260813_0057`。
+- [ ] 真实外部渠道联调仍需确认供应商返回码、限流、重复投递和历史保留周期。
+
+## 2026-08-13 通知投递历史保留策略
+
+- [x] 新增 `NOTIFICATION_DELIVERY_CLEANUP_ENABLED` 和 `NOTIFICATION_DELIVERY_RETENTION_DAYS` 启动配置，默认开启、保留 30 天，天数限制为 1-3650。
+- [x] Beat 每日调度维护队列任务 `cleanup_old_notification_deliveries`，按创建时间删除过期投递历史；关闭开关时不创建数据库会话。
+- [x] 启动配置 UI、`.env.example`、启动配置文档和用户手册同步新增两个参数，并补充清理任务回归。
+- [ ] 生产环境仍需根据合规/审计要求决定保留周期或数据库归档策略。
+
+## 2026-08-13 审计日志保留策略
+
+- [x] 新增 `AUDIT_LOG_CLEANUP_ENABLED`（默认关闭）和 `AUDIT_LOG_RETENTION_DAYS`（默认 365，范围 1-3650），未确认合规策略前不会自动删除审计记录。
+- [x] 新增每日 maintenance 清理任务，并在删除成功时写入 `audit_log_cleanup` 审计事件；删除与事件写入同事务，异常整体回滚。
+- [x] 启动配置 UI、`.env.example`、启动配置文档和用户手册已同步；配置边界、清理任务和队列路由回归通过。
+- [ ] 生产环境仍需确认审计日志归档、保留周期和合规访问策略。
+
+## 2026-08-13 审计日志时间范围查询
+
+- [x] 管理员审计日志 API 增加 `created_from` / `created_to` ISO-8601 时间筛选，既有项目、用户、动作筛选和分页行为保持兼容。
+- [x] 结束时间早于开始时间时返回 `422`，前端新增带时间范围选择器并支持重置；补充 API/前端回归。
+- [x] 本轮门禁：后端非集成 `2017 passed`；前端 `47 files / 198 tests passed`，type-check/build 通过。
+
+## 2026-08-13 审计日志 CSV 导出
+
+- [x] 管理员可按当前项目、用户、动作和时间筛选导出审计日志 CSV；页面上限 5000 条，服务端上限 10000 条。
+- [x] 导出复用权限和筛选条件，使用 UTF-8 BOM，并对可能被表格软件解释为公式的文本做保护；成功导出写入 `audit_log_export` 审计事件，记录操作者、筛选摘要、上限和条数。
+- [x] 审计页面动作筛选补齐清理和导出事件，便于直接核对治理操作。
+- [x] 补充 API、权限/边界和前端下载回归。
+- [x] 本轮门禁：后端非集成 `2018 passed`；前端 `47 files / 199 tests passed`，type-check/build 通过。
+- [ ] 生产环境仍需确认导出审批、审计留痕、归档和进一步脱敏策略。
+
 ## 2026-08-12 本轮开发收口
 
 - [x] 完成 Mock 条件匹配与多规则确定性优先级；数据集准备动作增加公网 URL/DNS 安全校验，显式拒绝非数组配置。

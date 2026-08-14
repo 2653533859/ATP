@@ -193,6 +193,8 @@ def test_windows_local_smoke_covers_live_and_browser_paths_without_secrets():
     assert "[switch]$RequireWebLowcode" in script
     assert "[switch]$RequireWebDownload" in script
     assert "[int]$WebRunTimeoutSeconds = 120" in script
+    assert "[int]$LiveRequestTimeoutSeconds = 30" in script
+    assert "-TimeoutSec $LiveRequestTimeoutSeconds" in script
     assert "[switch]$StopServicesAfter" in script
     assert "IsPathRooted" in script
     assert "local-dev.cmd" in script
@@ -202,6 +204,12 @@ def test_windows_local_smoke_covers_live_and_browser_paths_without_secrets():
     assert "atp_access_token" in script
     assert "WebRequestSession" in script
     assert "'/projects'" in script
+    assert "/health/dependencies" in script
+    assert "Invoke-LiveDependencyCheck" in script
+    assert "Key = 'postgres'; Label = 'PostgreSQL'" in script
+    assert "Key = 'redis'; Label = 'Redis'" in script
+    assert "Key = 'minio'; Label = 'MinIO'" in script
+    assert "Live dependency readiness" in script
     assert "/web-recordings/workers" in script
     assert "Invoke-WebRecordingWorkerCheck" in script
     assert "Web recording Worker status" in script

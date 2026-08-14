@@ -21,8 +21,6 @@
               <a-select-option value="graphql">{{ t('case_form.case_types.graphql') }}</a-select-option>
               <a-select-option value="websocket">{{ t('case_form.case_types.websocket') }}</a-select-option>
               <a-select-option value="grpc">{{ t('case_form.case_types.grpc') }}</a-select-option>
-              <a-select-option value="web">{{ t('case_form.case_types.web') }}</a-select-option>
-              <a-select-option value="android">{{ t('case_form.case_types.android') }}</a-select-option>
               <a-select-option value="ios">{{ t('case_form.case_types.ios') }}</a-select-option>
             </a-select>
           </a-form-item>
@@ -67,9 +65,22 @@
           :placeholder="t('case_form.basic.dataset_placeholder')"
           allow-clear
           :options="datasetOptions"
+          @change="handleDatasetChange"
         />
         <div v-if="form.dataset_id" style="color:#999;font-size:12px;margin-top:4px">
           {{ t('case_form.basic.dataset_hint') }}
+        </div>
+      </a-form-item>
+      <a-form-item v-if="form.dataset_id" :label="t('case_form.basic.dataset_version_label')">
+        <a-select
+          v-model:value="(form.dataset_version as number | undefined)"
+          :placeholder="t('case_form.basic.dataset_version_placeholder')"
+          allow-clear
+          :loading="datasetVersionsLoading"
+          :options="datasetVersionOptions"
+        />
+        <div style="color:#999;font-size:12px;margin-top:4px">
+          {{ t('case_form.basic.dataset_version_hint') }}
         </div>
       </a-form-item>
       <a-form-item v-if="form.dataset_id">
@@ -905,14 +916,6 @@
           <a-checkbox v-model:checked="iosCfg.capture_screenshot">{{ t('case_form.ios.capture_screenshot') }}</a-checkbox>
         </a-space>
       </template>
-      <template v-else-if="form.case_type === 'web' || form.case_type === 'android'">
-        <a-alert
-          :message="t('case_form.placeholder_alert', { type: form.case_type === 'web' ? t('case_form.case_types.web') : t('case_form.case_types.android') })"
-          type="info"
-          show-icon
-          style="margin-top: 16px"
-        />
-      </template>
     </a-form>
 
     <template #footer>
@@ -1028,7 +1031,7 @@ type CaseConfigStep = Record<string, unknown> & {
   depends_on?: number[]
 }
 
-type EditableCase = Pick<CaseSummaryItem, 'id' | 'name' | 'description' | 'case_type' | 'tags' | 'dataset_id' | 'priority' | 'case_level'> &
+type EditableCase = Pick<CaseSummaryItem, 'id' | 'name' | 'description' | 'case_type' | 'tags' | 'dataset_id' | 'dataset_version' | 'priority' | 'case_level'> &
   Partial<Pick<CaseDetailItem, 'config'>>
 
 const props = defineProps<{
@@ -1055,6 +1058,7 @@ const form = reactive<{
   priority: CasePriority
   case_level: CaseLevel
   dataset_id: number | null
+  dataset_version: number | null
   dataset_strict_schema: boolean
   dataset_strategy: string
   dataset_fixed_count: number | null
@@ -1071,6 +1075,7 @@ const form = reactive<{
   priority: 'P2',
   case_level: 'regression',
   dataset_id: null,
+  dataset_version: null,
   dataset_strict_schema: false,
   dataset_strategy: 'sequential',
   dataset_fixed_count: null,
@@ -1082,6 +1087,9 @@ const form = reactive<{
 })
 
 const datasetOptions = ref<{ label: string; value: number }[]>([])
+const datasetVersionOptions = ref<{ label: string; value: number }[]>([])
+const datasetVersionsLoading = ref(false)
+const datasetVersionLoadSeq = ref(0)
 const schemaAssets = ref<ApiSchemaAssetItem[]>([])
 const savingSchemaAssetIndex = ref<number | null>(null)
 const schemaAssetOptions = computed(() => schemaAssets.value.map((item) => ({ label: `${item.name} v${item.version}`, value: item.id })))
@@ -1201,6 +1209,7 @@ const iosCfg = reactive({
 async function loadDatasetOptions() {
   if (!props.projectId) {
     datasetOptions.value = []
+    datasetVersionOptions.value = []
     return
   }
   try {
@@ -1209,6 +1218,38 @@ async function loadDatasetOptions() {
   } catch {
     datasetOptions.value = []
   }
+}
+
+async function loadDatasetVersions(datasetId: number | null) {
+  const seq = ++datasetVersionLoadSeq.value
+  if (datasetId == null) {
+    datasetVersionOptions.value = []
+    datasetVersionsLoading.value = false
+    return
+  }
+  datasetVersionsLoading.value = true
+  try {
+    const versions = await datasetApi.listVersions(datasetId)
+    if (seq !== datasetVersionLoadSeq.value) return
+    datasetVersionOptions.value = versions.map((item) => ({
+      label: `v${item.version} (${item.row_count} ${t('case_form.basic.dataset_rows_suffix')})`,
+      value: item.version,
+    }))
+    if (form.dataset_version != null && !versions.some((item) => item.version === form.dataset_version)) {
+      form.dataset_version = null
+    }
+  } catch {
+    if (seq === datasetVersionLoadSeq.value) datasetVersionOptions.value = []
+  } finally {
+    if (seq === datasetVersionLoadSeq.value) datasetVersionsLoading.value = false
+  }
+}
+
+function handleDatasetChange(value: unknown) {
+  const datasetId = value == null || value === '' ? null : Number(value)
+  form.dataset_id = Number.isFinite(datasetId) ? datasetId : null
+  form.dataset_version = null
+  void loadDatasetVersions(form.dataset_id)
 }
 
 async function loadSchemaAssetOptions() {
@@ -1237,6 +1278,8 @@ watch(() => props.open, (v) => {
     form.priority = c.priority ?? 'P2'
     form.case_level = c.case_level ?? 'regression'
     form.dataset_id = c.dataset_id ?? null
+    form.dataset_version = c.dataset_version ?? null
+    void loadDatasetVersions(form.dataset_id)
     form.dataset_strict_schema = Boolean(c.config?.dataset_strict_schema)
     form.dataset_strategy = String(c.config?.dataset_strategy ?? 'sequential')
     form.dataset_fixed_count = c.config?.dataset_fixed_count == null ? null : Number(c.config.dataset_fixed_count)
@@ -1345,6 +1388,8 @@ watch(() => props.open, (v) => {
     form.priority = 'P2'
     form.case_level = 'regression'
     form.dataset_id = null
+    form.dataset_version = null
+    datasetVersionOptions.value = []
     form.dataset_strict_schema = false
     form.dataset_strategy = 'sequential'
     form.dataset_fixed_count = null
@@ -1642,19 +1687,22 @@ function buildGraphqlConfig() {
 }
 
 function buildConfig() {
-  const withDatasetStrictFlag = (config: Record<string, unknown>) => ({
-    ...config,
-    dataset_strict_schema: form.dataset_strict_schema,
-    dataset_strategy: form.dataset_strategy,
-    dataset_fixed_count: form.dataset_fixed_count,
-    dataset_seed: form.dataset_seed,
-    dataset_max_iterations: form.dataset_max_iterations,
-    dataset_combination_fields: form.dataset_combination_fields,
-    dataset_redact_fields: form.dataset_redact_fields,
-    dataset_prepare_actions: form.case_type === 'api'
-      ? parseDatasetPreparationActions(form.dataset_prepare_actions_text)
-      : [],
-  })
+  const withDatasetStrictFlag = (config: Record<string, unknown>) => {
+    if (form.dataset_id == null) return config
+    return {
+      ...config,
+      dataset_strict_schema: form.dataset_strict_schema,
+      dataset_strategy: form.dataset_strategy,
+      dataset_fixed_count: form.dataset_fixed_count,
+      dataset_seed: form.dataset_seed,
+      dataset_max_iterations: form.dataset_max_iterations,
+      dataset_combination_fields: form.dataset_combination_fields,
+      dataset_redact_fields: form.dataset_redact_fields,
+      dataset_prepare_actions: form.case_type === 'api'
+        ? parseDatasetPreparationActions(form.dataset_prepare_actions_text)
+        : [],
+    }
+  }
   if (form.case_type === 'graphql') {
     return withDatasetStrictFlag(buildGraphqlConfig())
   }
@@ -1726,6 +1774,7 @@ async function handleSave() {
       module_id: props.moduleId!,
       config,
       dataset_id: form.dataset_id,
+      dataset_version: form.dataset_version,
     }
     if (isEdit.value && props.editCase) {
       await caseApi.update(props.editCase.id, {
@@ -1736,6 +1785,7 @@ async function handleSave() {
         case_level: payload.case_level,
         config: payload.config,
         dataset_id: form.dataset_id,
+        dataset_version: form.dataset_version,
       })
     } else {
       await caseApi.create(payload)

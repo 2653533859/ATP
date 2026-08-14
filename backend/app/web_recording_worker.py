@@ -86,7 +86,7 @@ class WebRecordingWorker:
         try:
             payload = WebRecordingStart.model_validate(raw_payload)
             session_id = str(command.get("session_id") or "").strip()
-            owner_id = int(command.get("owner_id"))
+            owner_id = int(str(command.get("owner_id")))
             if not session_id or owner_id < 1:
                 raise ValueError("session_id 或 owner_id 无效")
         except (TypeError, ValueError) as exc:
@@ -170,9 +170,20 @@ class WebRecordingWorker:
                 self._touch_health_file()
             except WebRecordingTransportError:
                 logger.exception("Web recording Worker heartbeat failed")
+                self._clear_health_file()
+            except Exception:
+                # Redis client implementations and connection pools may raise
+                # exceptions outside the transport wrapper. Keep the retry
+                # loop alive and make the probe fail until a heartbeat works.
+                logger.exception("Web recording Worker heartbeat crashed")
+                self._clear_health_file()
             await asyncio.sleep(heartbeat_seconds)
 
     async def run(self) -> None:
+        # A previous process may have left the marker behind after a hard
+        # termination. Never expose that stale marker while this process is
+        # waiting for its first successful Redis registration.
+        self._clear_health_file()
         client = _redis_client.get_async_redis()
         heartbeat_seconds = max(1, int(settings.WEB_RECORDER_WORKER_HEARTBEAT_SECONDS))
         try:
@@ -187,6 +198,10 @@ class WebRecordingWorker:
             # Keep the command loop alive; the heartbeat task will retry while
             # Redis is temporarily unavailable during process startup.
             logger.exception("Web recording Worker initial registration failed")
+        except Exception:
+            # Do not terminate the worker when a raw Redis/client exception is
+            # raised before the first heartbeat retry can run.
+            logger.exception("Web recording Worker initial registration crashed")
         heartbeat_task = asyncio.create_task(self._heartbeat_loop(client))
         try:
             while not self.stop_event.is_set():

@@ -80,6 +80,11 @@
         </a-col>
       </a-row>
 
+      <CaseDatasetBinding
+        v-model="datasetBinding"
+        :project-id="projectId"
+      />
+
       <a-row :gutter="16">
         <a-col :span="12">
           <a-form-item :label="t('case.detail.preconditions')">
@@ -249,6 +254,13 @@ import AndroidStepEditor from '@/components/common/AndroidStepEditor.vue'
 import MonacoEditor from '@/components/common/MonacoEditor.vue'
 import GeneratedScriptModal from '@/components/common/GeneratedScriptModal.vue'
 import { generateAndroidPythonScript } from '@/utils/pythonScriptGenerator'
+import CaseDatasetBinding from '@/components/common/CaseDatasetBinding.vue'
+import {
+  buildCaseDatasetConfig,
+  createCaseDatasetBinding,
+  type CaseDatasetBinding as CaseDatasetBindingState,
+  type DatasetExecutionStrategy,
+} from '@/types/caseDataset'
 
 interface AndroidStepDef {
   action: string
@@ -285,6 +297,7 @@ const form = reactive({
   preconditions: [] as string[],
   postconditions: [] as string[],
 })
+const datasetBinding = ref<CaseDatasetBindingState>(createCaseDatasetBinding())
 
 const cfg = reactive({
   device_serial: undefined as string | undefined,
@@ -331,6 +344,12 @@ function resolveEditMode(config: Record<string, unknown>) {
   return 'lowcode' as const
 }
 
+function resolveDatasetStrategy(value: unknown): DatasetExecutionStrategy {
+  return value === 'random' || value === 'fixed_count' || value === 'cartesian' || value === 'pairwise'
+    ? value
+    : 'sequential'
+}
+
 function resetDrawerState() {
   isEdit.value = false
   localCaseId.value = null
@@ -344,6 +363,7 @@ function resetDrawerState() {
   form.automation_status = 'auto'
   form.preconditions = []
   form.postconditions = []
+  datasetBinding.value = createCaseDatasetBinding()
   cfg.device_serial = undefined
   cfg.apk_id = undefined
   cfg.timeout = 120
@@ -440,10 +460,22 @@ watch(
       form.automation_status = detail.automation_status ?? 'auto'
       form.preconditions = detail.preconditions ?? []
       form.postconditions = detail.postconditions ?? []
+      const config = detail.config ?? {}
+      datasetBinding.value = {
+        ...createCaseDatasetBinding(),
+        datasetId: detail.dataset_id ?? null,
+        datasetVersion: detail.dataset_version ?? null,
+        strictSchema: config.dataset_strict_schema === true,
+        strategy: resolveDatasetStrategy(config.dataset_strategy),
+        fixedCount: config.dataset_fixed_count == null ? null : Number(config.dataset_fixed_count),
+        seed: config.dataset_seed == null ? null : Number(config.dataset_seed),
+        maxIterations: Number(config.dataset_max_iterations ?? 1000),
+        combinationFields: Array.isArray(config.dataset_combination_fields) ? config.dataset_combination_fields.map(String) : [],
+        redactFields: Array.isArray(config.dataset_redact_fields) ? config.dataset_redact_fields.map(String) : [],
+      }
       managementSteps.value = detail.steps ?? []
       standardStepsDirty.value = managementSteps.value.length > 0
 
-      const config = detail.config ?? {}
       cfg.device_serial = typeof config.device_serial === 'string' ? config.device_serial : undefined
       cfg.apk_id = typeof config.apk_id === 'number' ? config.apk_id : undefined
       cfg.timeout = typeof config.timeout === 'number' ? config.timeout : 120
@@ -571,7 +603,7 @@ async function handleSaveGeneratedScript(content: string) {
 }
 
 function buildConfig() {
-  const config: Record<string, unknown> = { timeout: cfg.timeout }
+  const config: Record<string, unknown> = { ...buildCaseDatasetConfig(datasetBinding.value), timeout: cfg.timeout }
   if (cfg.record_video) {
     config.record_video = true
   }
@@ -636,6 +668,8 @@ async function handleSave() {
       postconditions: form.postconditions,
       steps: managementSteps.value,
       module_id: props.moduleId ?? undefined,
+      dataset_id: datasetBinding.value.datasetId,
+      dataset_version: datasetBinding.value.datasetVersion,
       config: buildConfig(),
     }
 

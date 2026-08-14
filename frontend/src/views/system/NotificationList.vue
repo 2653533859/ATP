@@ -51,6 +51,39 @@
       </a-table>
     </a-card>
 
+    <a-card v-if="projectId" class="table-panel delivery-panel" :bordered="false">
+      <template #title>
+        <a-space>
+          <span>{{ t('system_pages.notification.delivery_history') }}</span>
+          <a-button type="link" size="small" :loading="deliveryLoading" @click="loadDeliveries">
+            {{ t('common.refresh') }}
+          </a-button>
+        </a-space>
+      </template>
+      <a-table
+        :columns="deliveryColumns"
+        :data-source="deliveries"
+        :loading="deliveryLoading"
+        row-key="id"
+        size="small"
+        :pagination="false"
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'deliveryStatus'">
+            <a-tag :color="record.status === 'sent' ? 'green' : 'red'">
+              {{ deliveryStatusLabel(record.status) }}
+            </a-tag>
+          </template>
+          <template v-else-if="column.key === 'deliveryCreatedAt'">
+            {{ formatDate(record.created_at) }}
+          </template>
+          <template v-else-if="column.key === 'deliveryError'">
+            <span class="delivery-error">{{ record.error_message || '-' }}</span>
+          </template>
+        </template>
+      </a-table>
+    </a-card>
+
     <a-modal
       v-model:open="formOpen"
       :title="isEdit ? t('system_pages.notification.edit') : t('system_pages.notification.add')"
@@ -115,6 +148,18 @@
           <div class="form-hint">{{ t('system_pages.notification.status_filters_hint') }}</div>
         </a-form-item>
 
+        <a-divider orientation="left">{{ t('system_pages.notification.delivery') }}</a-divider>
+
+        <a-form-item :label="t('system_pages.notification.retry_attempts')">
+          <a-input-number v-model:value="retryAttempts" :min="0" :max="3" :step="1" style="width: 100%" />
+          <div class="form-hint">{{ t('system_pages.notification.retry_attempts_hint') }}</div>
+        </a-form-item>
+
+        <a-form-item :label="t('system_pages.notification.retry_backoff_seconds')">
+          <a-input-number v-model:value="retryBackoffSeconds" :min="0" :max="30" :step="0.5" style="width: 100%" />
+          <div class="form-hint">{{ t('system_pages.notification.retry_backoff_hint') }}</div>
+        </a-form-item>
+
         <template v-if="form.channel === 'email'">
           <a-form-item :label="t('system_pages.notification.recipients')">
             <a-textarea
@@ -156,7 +201,17 @@ import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { notificationApi, planApi, projectApi, suiteApi, type PlanItem, type ProjectItem, type SuiteItem } from '@/api'
+import type { AxiosError } from 'axios'
+import {
+  notificationApi,
+  planApi,
+  projectApi,
+  suiteApi,
+  type NotificationDeliveryItem,
+  type PlanItem,
+  type ProjectItem,
+  type SuiteItem,
+} from '@/api'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asNotification = (record: unknown) => record as NotificationRecord
 
@@ -180,7 +235,9 @@ type NotificationForm = {
 }
 
 const configs = ref<NotificationRecord[]>([])
+const deliveries = ref<NotificationDeliveryItem[]>([])
 const loading = ref(false)
+const deliveryLoading = ref(false)
 const projectId = ref<number | undefined>(undefined)
 const projectOptions = ref<Array<{ label: string; value: number }>>([])
 
@@ -204,7 +261,18 @@ const notificationScope = ref<NotificationScope>('all')
 const selectedSuiteIds = ref<number[]>([])
 const selectedPlanIds = ref<number[]>([])
 const statusFilters = ref<NotificationStatusFilter[]>(['failed', 'error'])
+const retryAttempts = ref(0)
+const retryBackoffSeconds = ref(1)
 const { t } = useI18n()
+
+function getErrorMessage(error: unknown, fallback: string) {
+  const axiosError = error as AxiosError<{ detail?: string; message?: string }>
+  const detail = axiosError?.response?.data?.detail || axiosError?.response?.data?.message
+  if (typeof detail === 'string' && detail) return detail
+  if (typeof error === 'string' && error) return error
+  if (error instanceof Error && error.message) return error.message
+  return fallback
+}
 
 const columns = computed(() => [
   { title: t('system_pages.notification.columns.name'), dataIndex: 'name', key: 'name', ellipsis: true },
@@ -213,6 +281,26 @@ const columns = computed(() => [
   { title: t('system_pages.notification.columns.updated_at'), dataIndex: 'updated_at', width: 170,
     customRender: ({ text }: { text?: string | null }) => text?.slice(0, 19).replace('T', ' ') ?? '-' },
   { title: t('system_pages.notification.columns.action'), key: 'action', width: 180, fixed: 'right' as const },
+])
+
+const deliveryColumns = computed(() => [
+  {
+    title: t('system_pages.notification.delivery_columns.channel_name'),
+    dataIndex: 'notification_name',
+    key: 'notificationName',
+    ellipsis: true,
+  },
+  {
+    title: t('system_pages.notification.columns.channel'),
+    dataIndex: 'channel',
+    key: 'deliveryChannel',
+    width: 100,
+    customRender: ({ text }: { text: string }) => channelLabel(text),
+  },
+  { title: t('system_pages.notification.delivery_columns.status'), key: 'deliveryStatus', width: 90 },
+  { title: t('system_pages.notification.delivery_columns.attempts'), dataIndex: 'attempts', key: 'attempts', width: 80 },
+  { title: t('system_pages.notification.delivery_columns.created_at'), key: 'deliveryCreatedAt', width: 170 },
+  { title: t('system_pages.notification.delivery_columns.error'), key: 'deliveryError', ellipsis: true },
 ])
 
 const suiteOptions = computed(() =>
@@ -240,6 +328,16 @@ function channelColor(c: string) {
   return { email: 'blue', wechat: 'green', dingtalk: 'geekblue' }[c] ?? 'default'
 }
 
+function deliveryStatusLabel(status: string) {
+  return status === 'sent'
+    ? t('system_pages.notification.delivery_status.sent')
+    : t('system_pages.notification.delivery_status.failed')
+}
+
+function formatDate(value?: string | null) {
+  return value?.slice(0, 19).replace('T', ' ') ?? '-'
+}
+
 onMounted(async () => {
   try {
     const projects = await projectApi.list()
@@ -248,12 +346,27 @@ onMounted(async () => {
 })
 
 async function loadConfigs() {
-  if (!projectId.value) { configs.value = []; return }
+  if (!projectId.value) { configs.value = []; deliveries.value = []; return }
   loading.value = true
   try {
     configs.value = await notificationApi.list({ project_id: projectId.value })
-  } catch { message.error(t('system_pages.notification.msg.load_failed')) }
+  } catch (error) {
+    configs.value = []
+    message.error(getErrorMessage(error, t('system_pages.notification.msg.load_failed')))
+  }
   finally { loading.value = false }
+}
+
+async function loadDeliveries() {
+  if (!projectId.value) { deliveries.value = []; return }
+  deliveryLoading.value = true
+  try {
+    deliveries.value = await notificationApi.deliveries({ project_id: projectId.value, limit: 20 })
+  } catch (error) {
+    deliveries.value = []
+    message.error(getErrorMessage(error, t('system_pages.notification.msg.delivery_load_failed')))
+  }
+  finally { deliveryLoading.value = false }
 }
 
 async function loadTargets() {
@@ -276,7 +389,7 @@ async function loadTargets() {
 }
 
 async function handleProjectChange() {
-  await Promise.all([loadConfigs(), loadTargets()])
+  await Promise.all([loadConfigs(), loadTargets(), loadDeliveries()])
 }
 
 function resetChannelFields() {
@@ -290,6 +403,8 @@ function resetChannelFields() {
   selectedSuiteIds.value = []
   selectedPlanIds.value = []
   statusFilters.value = ['failed', 'error']
+  retryAttempts.value = 0
+  retryBackoffSeconds.value = 1
 }
 
 function openCreate() {
@@ -315,6 +430,8 @@ function openEdit(record: NotificationRecord) {
     suite_ids?: number[]
     plan_ids?: number[]
     status_filters?: NotificationStatusFilter[]
+    retry_attempts?: number
+    retry_backoff_seconds?: number
   }
   notificationLanguage.value = cfg.language === 'en-US' ? 'en-US' : 'zh-CN'
   notificationScope.value = ['all', 'suites', 'plans'].includes(String(cfg.scope))
@@ -325,6 +442,12 @@ function openEdit(record: NotificationRecord) {
   statusFilters.value = Array.isArray(cfg.status_filters)
     ? cfg.status_filters.filter((item): item is NotificationStatusFilter => ['passed', 'failed', 'error'].includes(item))
     : ['failed', 'error']
+  retryAttempts.value = typeof cfg.retry_attempts === 'number' && Number.isInteger(cfg.retry_attempts)
+    ? Math.max(0, Math.min(3, cfg.retry_attempts))
+    : 0
+  retryBackoffSeconds.value = typeof cfg.retry_backoff_seconds === 'number' && Number.isFinite(cfg.retry_backoff_seconds)
+    ? Math.max(0, Math.min(30, cfg.retry_backoff_seconds))
+    : 1
   if (record.channel === 'email') {
     emailRecipients.value = (cfg.recipients || []).join('\n')
     emailSubjectPrefix.value = cfg.subject_prefix || '[ATP]'
@@ -343,6 +466,8 @@ function buildConfig(): Record<string, unknown> {
     suite_ids: notificationScope.value === 'suites' ? selectedSuiteIds.value : [],
     plan_ids: notificationScope.value === 'plans' ? selectedPlanIds.value : [],
     status_filters: statusFilters.value,
+    retry_attempts: retryAttempts.value,
+    retry_backoff_seconds: retryBackoffSeconds.value,
   }
   if (form.value.channel === 'email') {
     return {
@@ -388,6 +513,14 @@ async function handleSave() {
     message.warning(t('system_pages.notification.msg.select_status'))
     return
   }
+  if (!Number.isInteger(retryAttempts.value) || retryAttempts.value < 0 || retryAttempts.value > 3) {
+    message.warning(t('system_pages.notification.msg.retry_attempts_invalid'))
+    return
+  }
+  if (!Number.isFinite(retryBackoffSeconds.value) || retryBackoffSeconds.value < 0 || retryBackoffSeconds.value > 30) {
+    message.warning(t('system_pages.notification.msg.retry_backoff_invalid'))
+    return
+  }
   saving.value = true
   try {
     const payload = {
@@ -404,7 +537,9 @@ async function handleSave() {
     message.success(isEdit.value ? t('system_pages.notification.msg.update_success') : t('system_pages.notification.msg.create_success'))
     formOpen.value = false
     loadConfigs()
-  } catch { message.error(t('system_pages.notification.msg.save_failed')) }
+  } catch (error) {
+    message.error(getErrorMessage(error, t('system_pages.notification.msg.save_failed')))
+  }
   finally { saving.value = false }
 }
 
@@ -413,8 +548,14 @@ async function handleTest(record: NotificationRecord) {
   try {
     await notificationApi.test(record.id)
     message.success(t('system_pages.notification.msg.test_success'))
-  } catch { message.error(t('system_pages.notification.msg.test_failed')) }
-  finally { testingId.value = null }
+  } catch (error) {
+    message.error(getErrorMessage(error, t('system_pages.notification.msg.test_failed')))
+  }
+  finally {
+    // 测试发送接口会记录成功/失败投递，立即刷新让用户能看到本次结果。
+    await loadDeliveries()
+    testingId.value = null
+  }
 }
 
 async function handleDelete(id: number) {
@@ -422,7 +563,9 @@ async function handleDelete(id: number) {
     await notificationApi.delete(id)
     message.success(t('system_pages.notification.msg.delete_success'))
     loadConfigs()
-  } catch { message.error(t('system_pages.notification.msg.delete_failed')) }
+  } catch (error) {
+    message.error(getErrorMessage(error, t('system_pages.notification.msg.delete_failed')))
+  }
 }
 </script>
 
@@ -431,5 +574,13 @@ async function handleDelete(id: number) {
   margin-top: 6px;
   color: #8c8c8c;
   font-size: 12px;
+}
+
+.delivery-panel {
+  margin-top: 16px;
+}
+
+.delivery-error {
+  color: #cf1322;
 }
 </style>

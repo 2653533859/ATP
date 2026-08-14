@@ -287,7 +287,7 @@ const router = useRouter()
 const { t, locale } = useI18n()
 const { chartTheme } = useChartTheme()
 
-type DashboardCaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android'
+type DashboardCaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android' | 'ios'
 type Aggregate = 'daily' | 'weekly'
 type DashboardScope = 'global' | 'project'
 type ExportChartKey = 'pass_rate_trend' | 'duration_trend' | 'failure_top' | 'executor_top' | 'trigger_type' | 'plan_trend' | 'suite_trend' | 'case_type_distribution'
@@ -456,6 +456,7 @@ const caseTypeOptions = computed(() => [
   { label: t('dashboard.case_types.grpc'), value: 'grpc' },
   { label: t('dashboard.case_types.web'), value: 'web' },
   { label: t('dashboard.case_types.android'), value: 'android' },
+  { label: t('dashboard.case_types.ios'), value: 'ios' },
 ])
 const caseTypeLabel = (type: string) => t(`dashboard.case_types.${type}`)
 const triggerTypeLabel = (type: string) => {

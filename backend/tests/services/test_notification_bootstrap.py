@@ -13,7 +13,7 @@ def test_model_bootstrap_imports_full_metadata_graph():
         "from app.models.device import Device",
         "from app.models.apk import Apk",
         "from app.models.suite import TestSuite, SuiteRun",
-        "from app.models.notification import NotificationConfig",
+        "from app.models.notification import NotificationConfig, NotificationDelivery",
         "from app.models.mock import MockRule",
         "from app.models.bug_tracker import BugTracker",
         "from app.models.audit import AuditLog",

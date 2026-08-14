@@ -188,6 +188,7 @@ describe('StorageManagementView mount', () => {
 
     expect(storageExecute).toHaveBeenCalledWith({
       object_names: ['reports/old.json'],
+      prefixes: ['reports/'],
       repair_orphan_references: true,
     })
     expect(messageSuccess).toHaveBeenCalledWith('system_pages.storage.msg.execute_success')

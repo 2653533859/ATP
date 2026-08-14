@@ -38,6 +38,8 @@ def test_release_checklist_covers_q10_release_gates(repo_file):
     assert "Q18 productization extension" in content
     assert "20260812_0055" in content
     assert "Performance notification" in content
+    assert "scripts/notification-channel-smoke.py" in content
+    assert "provider-side delivery evidence" in content
     assert "scripts/windows-android-acceptance.ps1" in content
     assert "scripts/performance-environment-smoke.py" in content
     assert "82%" in content

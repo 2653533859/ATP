@@ -113,6 +113,23 @@ def _count_id_statement(session: Session, ids_stmt) -> int:
     return int(session.execute(select(func.count()).select_from(ids_stmt.subquery())).scalar() or 0)
 
 
+def _estimate_objects(
+    session: Session,
+    test_ids_stmt,
+    mobile_ids_stmt,
+    batch_size: int,
+    test_count: int,
+    mobile_count: int,
+) -> tuple[int, bool]:
+    """Estimate attachment objects without loading every candidate run id."""
+    test_sample = [row[0] for row in session.execute(test_ids_stmt.limit(batch_size)).all()]
+    mobile_sample = [row[0] for row in session.execute(mobile_ids_stmt.limit(batch_size)).all()]
+    estimated_objects = len(_collect_screenshot_objects(session, test_sample)) + len(
+        _collect_mobile_run_artifact_objects(session, mobile_sample)
+    )
+    return estimated_objects, test_count > batch_size or mobile_count > batch_size
+
+
 def preview_old_runs(
     session: Session,
     days: int,
@@ -139,10 +156,13 @@ def preview_old_runs(
     test_count = _count_id_statement(session, test_ids_stmt)
     mobile_count = _count_id_statement(session, mobile_ids_stmt)
 
-    test_sample = [row[0] for row in session.execute(test_ids_stmt.limit(batch_size)).all()]
-    mobile_sample = [row[0] for row in session.execute(mobile_ids_stmt.limit(batch_size)).all()]
-    estimated_objects = len(_collect_screenshot_objects(session, test_sample)) + len(
-        _collect_mobile_run_artifact_objects(session, mobile_sample)
+    estimated_objects, estimated_objects_sampled = _estimate_objects(
+        session,
+        test_ids_stmt,
+        mobile_ids_stmt,
+        batch_size,
+        test_count,
+        mobile_count,
     )
 
     return {
@@ -153,6 +173,7 @@ def preview_old_runs(
         "test_runs": test_count,
         "mobile_runs": mobile_count,
         "estimated_objects": estimated_objects,
+        "estimated_objects_sampled": estimated_objects_sampled,
     }
 
 
@@ -220,11 +241,15 @@ def _batched_delete_runs(session: Session, model, ids_stmt, batch_size: int, col
         ids = [row[0] for row in rows]
         if not ids:
             break
-        if collect_objects is not None:
-            deleted_objects += _delete_minio_objects(collect_objects(session, ids))
+        object_names = collect_objects(session, ids) if collect_objects is not None else []
+        # 先提交数据库删除，再删除 MinIO 对象。提交失败时保留对象，避免出现
+        # 运行记录仍存在但其截图/附件已经不可恢复的状态；对象删除失败只会
+        # 留下可由存储治理任务发现的孤儿对象。
         session.execute(delete(model).where(model.id.in_(ids)))
         session.commit()
         deleted_runs += len(ids)
+        if object_names:
+            deleted_objects += _delete_minio_objects(object_names)
         if len(ids) < batch_size:
             break
     return deleted_runs, deleted_objects
@@ -397,6 +422,14 @@ def preview_old_runs_by_project(session: Session, global_days: int, batch_size: 
             ).scalar()
             or 0
         )
+        estimated_objects, estimated_objects_sampled = _estimate_objects(
+            session,
+            _test_run_ids_stmt(cutoff, project_id=pid),
+            _mobile_run_ids_stmt(cutoff, project_id=pid),
+            batch_size,
+            test_count,
+            mobile_count,
+        )
         project_previews.append(
             {
                 "project_id": pid,
@@ -406,6 +439,8 @@ def preview_old_runs_by_project(session: Session, global_days: int, batch_size: 
                 "suite_runs": suite_count,
                 "test_runs": test_count,
                 "mobile_runs": mobile_count,
+                "estimated_objects": estimated_objects,
+                "estimated_objects_sampled": estimated_objects_sampled,
             }
         )
 
@@ -423,6 +458,7 @@ def preview_old_runs_by_project(session: Session, global_days: int, batch_size: 
             "test_runs": global_preview["test_runs"],
             "mobile_runs": global_preview["mobile_runs"],
             "estimated_objects": global_preview["estimated_objects"],
+            "estimated_objects_sampled": global_preview["estimated_objects_sampled"],
         },
         "projects": project_previews,
     }

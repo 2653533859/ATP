@@ -3,7 +3,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import StartupConfigView from './StartupConfigView.vue'
 
-const { messageSuccess } = vi.hoisted(() => ({ messageSuccess: vi.fn() }))
+const { messageSuccess, messageWarning, messageError, dependencyCheck } = vi.hoisted(() => ({
+  messageSuccess: vi.fn(),
+  messageWarning: vi.fn(),
+  messageError: vi.fn(),
+  dependencyCheck: vi.fn(),
+}))
+
+vi.mock('@/api', () => ({
+  healthApi: { dependencies: dependencyCheck },
+}))
 
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
@@ -15,7 +24,7 @@ vi.mock('vue-i18n', () => ({
 }))
 
 vi.mock('ant-design-vue', () => ({
-  message: { success: messageSuccess },
+  message: { success: messageSuccess, warning: messageWarning, error: messageError },
 }))
 
 function mountPage() {
@@ -25,6 +34,7 @@ function mountPage() {
 describe('StartupConfigView', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    dependencyCheck.mockReset()
     localStorage.clear()
   })
 
@@ -32,7 +42,7 @@ describe('StartupConfigView', () => {
     const wrapper = mountPage()
     const vm = wrapper.vm as any
 
-    expect(vm.fieldCount).toBe(117)
+    expect(vm.fieldCount).toBe(121)
     expect(vm.envContent).toContain('POSTGRES_HOST=postgres')
     expect(vm.envContent).toContain('POSTGRES_CONNECT_TIMEOUT_SECONDS=5')
     expect(vm.envContent).toContain('REDIS_CONNECT_TIMEOUT_SECONDS=5')
@@ -43,6 +53,10 @@ describe('StartupConfigView', () => {
     expect(vm.envContent).toContain('WEB_RECORDER_MODE=local')
     expect(vm.envContent).toContain('WEB_RECORDER_WORKER_QUEUE_PREFIX=atp:web-recording:commands')
     expect(vm.envContent).toContain('WEB_RECORDER_SESSION_TTL_SECONDS=3600')
+    expect(vm.envContent).toContain('NOTIFICATION_DELIVERY_CLEANUP_ENABLED=true')
+    expect(vm.envContent).toContain('NOTIFICATION_DELIVERY_RETENTION_DAYS=30')
+    expect(vm.envContent).toContain('AUDIT_LOG_CLEANUP_ENABLED=false')
+    expect(vm.envContent).toContain('AUDIT_LOG_RETENTION_DAYS=365')
     expect(vm.envContent).toContain('AI_HEALING_APPLY_ENABLED=false')
     expect(vm.envContent).toContain('VITE_BACKEND_ORIGIN=')
     expect(vm.profileOptions).toHaveLength(4)
@@ -125,5 +139,29 @@ describe('StartupConfigView', () => {
     expect(vm.config.POSTGRES_HOST).toBe('db.example.com')
     expect(saved.POSTGRES_PASSWORD).toBeUndefined()
     expect(saved.APP_SECRET_KEY).toBeUndefined()
+  })
+
+  it('checks current PostgreSQL, Redis, and MinIO connectivity', async () => {
+    dependencyCheck.mockResolvedValue({
+      status: 'degraded',
+      checked_at: '2026-08-13T10:00:00Z',
+      dependencies: {
+        postgres: { status: 'ok', latency_ms: 2.1, code: 'ok' },
+        redis: { status: 'error', latency_ms: 30, code: 'unreachable' },
+        minio: { status: 'error', latency_ms: 30, code: 'timeout' },
+      },
+    })
+
+    const wrapper = mountPage()
+    const vm = wrapper.vm as any
+
+    await vm.checkDependencies()
+
+    expect(dependencyCheck).toHaveBeenCalledOnce()
+    expect(vm.dependencyRows).toHaveLength(3)
+    expect(vm.dependencyRows.find((item: any) => item.key === 'redis')).toMatchObject({ status: 'error' })
+    expect(wrapper.text()).toContain('system_pages.startup_config.dependency_codes.unreachable')
+    expect(wrapper.text()).toContain('system_pages.startup_config.dependency_codes.timeout')
+    expect(messageWarning).toHaveBeenCalled()
   })
 })

@@ -7,7 +7,7 @@ def load_all_models() -> None:
     from app.models.device import Device, DeviceLease
     from app.models.apk import Apk
     from app.models.suite import TestSuite, SuiteRun
-    from app.models.notification import NotificationConfig
+    from app.models.notification import NotificationConfig, NotificationDelivery
     from app.models.mock import MockRule
     from app.models.mock_snapshot import MockRuleSnapshot
     from app.models.bug_tracker import BugTracker
@@ -52,6 +52,7 @@ def load_all_models() -> None:
         TestSuite,
         SuiteRun,
         NotificationConfig,
+        NotificationDelivery,
         MockRule,
         MockRuleSnapshot,
         BugTracker,

@@ -12,6 +12,9 @@ import hmac
 import base64
 import json
 import logging
+import asyncio
+import math
+import re
 import smtplib
 import time
 import urllib.parse
@@ -25,9 +28,32 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.encryption import decrypt_config
-from app.models.notification import NotificationConfig, NotifyChannel
+from app.models.notification import NotificationConfig, NotificationDelivery, NotifyChannel
 
 logger = logging.getLogger(__name__)
+
+MAX_RETRY_ATTEMPTS = 3
+MAX_RETRY_BACKOFF_SECONDS = 30.0
+SUPPORTED_NOTIFICATION_SCOPES = {"all", "suites", "plans"}
+SUPPORTED_NOTIFICATION_STATUSES = {"passed", "failed", "error"}
+_SENSITIVE_ERROR_RE = re.compile(
+    r"(?i)(?P<key>access[_-]?token|api[_-]?key|token|secret|password|passwd|sign(?:ature)?|authorization|cookie)"
+    r"(?P<sep>\s*[:=]\s*)(?P<value>[^&\s,;}\]]+)"
+)
+_URL_QUERY_SECRET_RE = re.compile(
+    r"(?i)(?P<prefix>[?&](?:key|access[_-]?token|api[_-]?key|token|secret|sign(?:ature)?|authorization|cookie)"
+    r"\s*=\s*)(?P<value>[^&#\s,;)}\]<>\"']+)"
+)
+_URL_USERINFO_RE = re.compile(r"(?i)(https?://)([^/@\s]+):([^/@\s]+)@")
+
+
+class NotificationDeliveryError(RuntimeError):
+    """通知发送最终失败，同时保留本次实际尝试次数。"""
+
+    def __init__(self, message: str, *, attempts: int):
+        super().__init__(message)
+        self.attempts = attempts
+
 
 SUPPORTED_LANGUAGES = {"zh-CN", "en-US"}
 
@@ -134,20 +160,265 @@ async def send_notifications(
     )
     configs = result.scalars().all()
 
+    delivery_logs: list[NotificationDelivery] = []
     for cfg in configs:
         try:
             real_config = decrypt_config(cfg.config)
             if not should_send_notification(real_config, summary):
                 continue
-            if cfg.channel == NotifyChannel.email:
-                email_html = report_html if real_config.get("attach_html_report") else None
-                await _send_email(real_config, summary, html_body=email_html)
-            elif cfg.channel == NotifyChannel.wechat:
-                await _send_wechat(real_config, summary)
-            elif cfg.channel == NotifyChannel.dingtalk:
-                await _send_dingtalk(real_config, summary)
-        except Exception as e:
-            logger.error(f"通知发送失败 [{cfg.channel.value}] config_id={cfg.id}: {e}")
+            email_html = report_html if real_config.get("attach_html_report") else None
+            attempts = await send_notification_channel(cfg.channel, real_config, summary, report_html=email_html)
+            delivery_logs.append(
+                _build_delivery_log(
+                    cfg,
+                    summary,
+                    status="sent",
+                    attempts=attempts,
+                    project_id=project_id,
+                )
+            )
+        except Exception as error:
+            attempts = getattr(error, "attempts", 1)
+            logger.error(
+                "通知发送失败 [%s] config_id=%s: %s",
+                cfg.channel.value,
+                cfg.id,
+                _safe_exception_message(error),
+            )
+            delivery_logs.append(
+                _build_delivery_log(
+                    cfg,
+                    summary,
+                    status="failed",
+                    attempts=attempts,
+                    project_id=project_id,
+                    error_message=str(error),
+                )
+            )
+
+    if delivery_logs:
+        try:
+            db.add_all(delivery_logs)
+            await db.commit()
+        except Exception:
+            await db.rollback()
+            logger.exception("通知投递结果写入失败")
+
+
+def _delivery_summary(summary: dict) -> dict:
+    """仅保留通知结果检索所需的非敏感摘要，避免把正文/凭据写入历史。"""
+
+    allowed_keys = ("title", "status", "trigger_type", "entity_type", "suite_id", "plan_id", "run_id")
+    result = {}
+    for key in allowed_keys:
+        value = summary.get(key)
+        if value is None:
+            continue
+        if isinstance(value, (str, int, float, bool)):
+            result[key] = str(value)[:200] if isinstance(value, str) else value
+        else:
+            result[key] = str(value)[:200]
+    return result
+
+
+def _safe_delivery_error(error_message: str | None) -> str | None:
+    if not error_message:
+        return None
+    normalized = str(error_message).replace("\r", " ").replace("\n", " ").replace("\x00", " ")
+    redacted = _SENSITIVE_ERROR_RE.sub(r"\g<key>\g<sep>***", normalized)
+    redacted = _URL_QUERY_SECRET_RE.sub(r"\g<prefix><redacted>", redacted)
+    redacted = _URL_USERINFO_RE.sub(r"\1<redacted>@", redacted)
+    return redacted[:1000]
+
+
+def _safe_exception_message(error: BaseException) -> str:
+    """Return an exception summary safe for logs, API errors and delivery history."""
+
+    return _safe_delivery_error(str(error)) or error.__class__.__name__
+
+
+def _build_delivery_log(
+    cfg: NotificationConfig,
+    summary: dict,
+    *,
+    status: str,
+    attempts: int,
+    project_id: int | None = None,
+    error_message: str | None = None,
+) -> NotificationDelivery:
+    return NotificationDelivery(
+        project_id=project_id if project_id is not None else cfg.project_id,
+        notification_config_id=cfg.id,
+        channel=cfg.channel,
+        status=status,
+        attempts=max(1, int(attempts)),
+        summary=_delivery_summary(summary),
+        error_message=_safe_delivery_error(error_message),
+    )
+
+
+async def persist_notification_delivery(
+    db: AsyncSession,
+    cfg: NotificationConfig,
+    summary: dict,
+    *,
+    status: str,
+    attempts: int,
+    error_message: str | None = None,
+) -> None:
+    """持久化一次投递结果；记录失败不能反向影响执行结果。"""
+
+    try:
+        db.add(
+            _build_delivery_log(
+                cfg,
+                summary,
+                status=status,
+                attempts=attempts,
+                project_id=cfg.project_id,
+                error_message=error_message,
+            )
+        )
+        await db.commit()
+    except Exception:
+        await db.rollback()
+        logger.exception("通知投递结果写入失败")
+
+
+def _retry_policy(config: dict) -> tuple[int, float]:
+    """读取并限制通知重试策略，避免配置错误导致无限重试或长时间阻塞。"""
+
+    raw_attempts = config.get("retry_attempts", 0)
+    raw_backoff = config.get("retry_backoff_seconds", 1.0)
+    try:
+        attempts = int(raw_attempts)
+    except (TypeError, ValueError, OverflowError):
+        attempts = 0
+    try:
+        backoff = float(raw_backoff)
+    except (TypeError, ValueError, OverflowError):
+        backoff = 1.0
+    if isinstance(raw_attempts, bool) or attempts < 0:
+        attempts = 0
+    if isinstance(raw_backoff, bool) or not math.isfinite(backoff) or backoff < 0:
+        backoff = 1.0
+    return min(attempts, MAX_RETRY_ATTEMPTS), min(backoff, MAX_RETRY_BACKOFF_SECONDS)
+
+
+def _is_retryable_error(error: Exception) -> bool:
+    """只对网络/服务端错误重试，配置错误和供应商拒绝不重复发送。"""
+
+    if isinstance(
+        error,
+        (httpx.TimeoutException, httpx.NetworkError, OSError, smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected),
+    ):
+        return True
+    text = str(error)
+    return "HTTP 5" in text or "HTTP 429" in text
+
+
+async def _send_with_retries(config: dict, sender, *args, **kwargs) -> int:
+    retry_attempts, backoff = _retry_policy(config)
+    total_attempts = retry_attempts + 1
+    for attempt in range(total_attempts):
+        try:
+            await sender(config, *args, **kwargs)
+            return attempt + 1
+        except Exception as error:
+            is_last_attempt = attempt >= total_attempts - 1
+            if is_last_attempt or not _is_retryable_error(error):
+                raise NotificationDeliveryError(_safe_exception_message(error), attempts=attempt + 1) from error
+            delay = min(backoff * (2**attempt), MAX_RETRY_BACKOFF_SECONDS)
+            logger.warning(
+                "通知发送失败，将重试 [%s/%s] in %.1fs: %s",
+                attempt + 1,
+                retry_attempts,
+                delay,
+                _safe_exception_message(error),
+            )
+            if delay:
+                await asyncio.sleep(delay)
+    raise NotificationDeliveryError("通知发送未完成", attempts=total_attempts)
+
+
+async def send_notification_channel(
+    channel: NotifyChannel | str,
+    config: dict,
+    summary: dict,
+    *,
+    report_html: str | None = None,
+) -> int:
+    """按渠道发送通知，并使用该渠道配置的有限重试策略。"""
+
+    channel_value = channel.value if isinstance(channel, NotifyChannel) else str(channel)
+    validate_notification_channel_config(channel_value, config)
+    if channel_value == NotifyChannel.email.value:
+        return await _send_with_retries(
+            config,
+            _send_email,
+            summary,
+            html_body=report_html,
+        )
+    elif channel_value == NotifyChannel.wechat.value:
+        return await _send_with_retries(config, _send_wechat, summary)
+    elif channel_value == NotifyChannel.dingtalk.value:
+        return await _send_with_retries(config, _send_dingtalk, summary)
+    else:
+        raise ValueError(f"不支持的通知渠道: {channel_value}")
+
+
+def validate_notification_channel_config(channel: NotifyChannel | str, config: dict) -> None:
+    """Validate the minimum delivery fields before reporting a notification as sent."""
+
+    channel_value = channel.value if isinstance(channel, NotifyChannel) else str(channel)
+    if not isinstance(config, dict):
+        raise ValueError("通知渠道配置必须是对象")
+    _validate_notification_strategy_config(config)
+    if channel_value == NotifyChannel.email.value:
+        recipients = config.get("recipients")
+        if not isinstance(recipients, list) or not any(isinstance(item, str) and item.strip() for item in recipients):
+            raise ValueError("邮件通知至少需要一个收件人")
+        return
+    if channel_value in {NotifyChannel.wechat.value, NotifyChannel.dingtalk.value}:
+        webhook_url = config.get("webhook_url")
+        if not isinstance(webhook_url, str) or not webhook_url.strip() or webhook_url == "******":
+            raise ValueError("Webhook 通知需要 webhook_url")
+        return
+    raise ValueError(f"不支持的通知渠道: {channel_value}")
+
+
+def _validate_notification_strategy_config(config: dict) -> None:
+    """Reject malformed routing filters before a notification can be persisted or sent."""
+
+    scope = config.get("scope", "all")
+    if not isinstance(scope, str) or scope not in SUPPORTED_NOTIFICATION_SCOPES:
+        raise ValueError("通知范围必须是 all、suites 或 plans")
+
+    status_filters = config.get("status_filters")
+    if status_filters is not None:
+        if not isinstance(status_filters, list) or any(
+            not isinstance(item, str) or item not in SUPPORTED_NOTIFICATION_STATUSES for item in status_filters
+        ):
+            raise ValueError("通知状态筛选只能包含 passed、failed 或 error")
+
+    target_key = "suite_ids" if scope == "suites" else "plan_ids" if scope == "plans" else None
+    if target_key is not None:
+        target_ids = config.get(target_key)
+        if target_ids is not None and (
+            not isinstance(target_ids, list) or any(not _is_notification_target_id(item) for item in target_ids)
+        ):
+            raise ValueError(f"{target_key} 必须是数字 ID 列表")
+
+
+def _is_notification_target_id(value: object) -> bool:
+    if isinstance(value, bool):
+        return False
+    if isinstance(value, int):
+        return value > 0
+    if isinstance(value, str):
+        normalized = value.strip()
+        return normalized.isdigit() and int(normalized) > 0
+    return False
 
 
 async def email_html_report_enabled(db: AsyncSession, project_id: int) -> bool:
@@ -205,6 +476,10 @@ def should_send_notification(config: dict, summary: dict) -> bool:
         return False
 
     scope = config.get("scope", "all")
+    if not isinstance(scope, str) or scope not in SUPPORTED_NOTIFICATION_SCOPES:
+        # Invalid legacy/API configuration must fail closed instead of widening
+        # a scoped notification to every execution.
+        return False
     entity_type = summary.get("entity_type")
 
     if scope == "suites":
@@ -373,7 +648,7 @@ def _smtp_send(msg: MIMEMultipart, recipients: list[str]):
         server.quit()
         logger.info(f"邮件通知发送成功 -> {recipients}")
     except Exception as e:
-        logger.error(f"SMTP 发送失败: {e}")
+        logger.error("SMTP 发送失败: %s", _safe_exception_message(e))
         raise
 
 
@@ -399,8 +674,9 @@ async def _send_wechat(config: dict, summary: dict):
 
         data = resp.json()
         if data.get("errcode") != 0:
-            logger.error(f"企业微信通知失败: {data}")
-            raise RuntimeError(data.get("errmsg") or str(data))
+            safe_message = _safe_exception_message(RuntimeError(data.get("errmsg") or str(data)))
+            logger.error("企业微信通知失败: %s", safe_message)
+            raise RuntimeError(safe_message)
 
         logger.info("企业微信通知发送成功")
 
@@ -442,7 +718,8 @@ async def _send_dingtalk(config: dict, summary: dict):
 
         data = resp.json()
         if data.get("errcode") != 0:
-            logger.error(f"钉钉通知失败: {data}")
-            raise RuntimeError(data.get("errmsg") or str(data))
+            safe_message = _safe_exception_message(RuntimeError(data.get("errmsg") or str(data)))
+            logger.error("钉钉通知失败: %s", safe_message)
+            raise RuntimeError(safe_message)
 
         logger.info("钉钉通知发送成功")

@@ -25,6 +25,11 @@ Windows 本地已完成平台级 k6/Locust 验收：主 Worker 节点 `perf-node
 - Worker 全量 `427 passed`，完整非集成后端 `1889 passed`，覆盖率 `82.13%`。
 - 远程 SSH/MCP 会话恢复失败；Windows 本机 k6/Locust、资源指标和本地 Prometheus 目标指标链路已有独立证据，真实外部目标、生产 metrics、Kubernetes/Prometheus 历史及其余外部环境验收仍需在目标主机继续执行。
 
+## 2026-08-13 外部目标连接复核
+
+- 对已配置 Linux 目标执行只读系统概览检查时，MCP 返回 `Transport closed`，本次未取得主机、Worker、Prometheus 或目标服务证据。
+- 在连接恢复前，继续保留 Linux/Kubernetes 性能 Worker、真实 TLS 目标、取消、allowlist、资源采样和生产 Prometheus 为待验收项；本机回归与 Windows 本地指标证据不替代外部结论。
+
 ## 2026-08-12 实际 Linux 验收记录
 
 - 已从 Windows 生成并校验性能验收 bundle，使用显式 allowlist 收集 323 个文件；当前 SHA-256 以包旁 `.sha256` sidecar、`Task.md` 和 `MEMORY.md` 的同步记录为准，不包含真实 `.env`、证书或私钥。
@@ -114,10 +119,18 @@ docker compose --env-file .env.performance-acceptance \
   --target grpcs://grpc-target:50051 --require-tls \
   --ca-file /etc/atp/tls/server.crt --require-node-allowlist \
   --smoke-test-id <GRPC_TEST_ID> --smoke-executor grpc \
+  --idempotency-key "ci-${CI_PIPELINE_ID:-manual}-grpc-smoke" \
+  --require-metric-source performance-worker \
   --require-metrics --report /evidence/performance-grpc-smoke.json
 ```
 
 验收工具默认最多等待 60 秒，直到专用 Worker 的 Redis 心跳把节点状态刷新为 `online`；若目标环境启动较慢，可显式增加 `--node-ready-timeout-seconds`，避免把正常的启动竞态误判为节点故障。
+
+真实 smoke/cancel 触发会把 `--idempotency-key`（或 `ATP_PERFORMANCE_IDEMPOTENCY_KEY`）作为基值，并自动追加 `-smoke`/`-cancel` 作用域。CI 重试应固定该基值，避免 HTTP 超时后重复创建 Run；本地未提供基值时每次命令会生成新键。脚本会在发送前校验幂等键格式，验收报告不会写入账号密码或 Token。
+
+`--require-metric-source` 可重复传入，要求每个来源至少有一条 `metrics` 非空的采样；例如 `performance-worker` 验证 Worker 资源采集，`target-service-prometheus` 验证目标 Prometheus 采集。仅有 `errors` 或空指标的样本不会被当作通过证据。
+
+如果该压测定义已设置成功基线，可追加 `--require-baseline` 检查基线对比响应；发布回归验收再追加 `--fail-on-baseline-regression`，任一核心指标方向为 `regression` 时命令退出失败。未设置基线时不要开启这两个参数，否则应保持验收失败而不是降级为“无基线也通过”。
 
 Locust 定义上传 [`locust_smoke.py`](../deploy/performance-acceptance/locust_smoke.py)，目标使用 `http-target:8080`，将上面命令中的目标替换为 `http://http-target:8080`，并使用 `--smoke-executor locust`。取消验收仍使用一条持续时间足够长的已存在定义和 `--cancel-test-id`。
 

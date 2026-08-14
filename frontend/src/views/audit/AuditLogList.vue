@@ -24,8 +24,21 @@
           />
         </a-form-item>
         <a-form-item>
+          <a-range-picker
+            v-model:value="(dateRange as [Dayjs, Dayjs] | undefined)"
+            :placeholder="[t('audit_logs.filters.start_time'), t('audit_logs.filters.end_time')]"
+            show-time
+            allow-clear
+            style="width: 340px"
+            @change="() => loadLogs(1)"
+          />
+        </a-form-item>
+        <a-form-item>
           <a-button type="primary" @click="loadLogs(1)">{{ t('common.search') }}</a-button>
           <a-button style="margin-left: 8px" @click="onReset">{{ t('common.reset') }}</a-button>
+          <a-button style="margin-left: 8px" :loading="exporting" @click="exportLogs">
+            {{ t('audit_logs.export') }}
+          </a-button>
         </a-form-item>
       </a-form>
     </a-card>
@@ -68,6 +81,7 @@
 import { computed, onMounted, reactive, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
+import type { Dayjs } from 'dayjs'
 import { auditLogApi, type AuditLogItem } from '@/api'
 
 const { t } = useI18n()
@@ -78,6 +92,8 @@ const loading = ref(false)
 const page = ref(1)
 const pageSize = ref(50)
 const total = ref(0)
+const dateRange = ref<[Dayjs, Dayjs] | null>(null)
+const exporting = ref(false)
 
 const actionOptions = computed(() => [
   { label: 'access_denied', value: 'access_denied' },
@@ -87,6 +103,8 @@ const actionOptions = computed(() => [
   { label: 'login', value: 'login' },
   { label: 'logout', value: 'logout' },
   { label: 'case.rollback', value: 'case.rollback' },
+  { label: 'audit_log_cleanup', value: 'audit_log_cleanup' },
+  { label: 'audit_log_export', value: 'audit_log_export' },
 ])
 
 const columns = computed(() => [
@@ -135,6 +153,8 @@ async function loadLogs(targetPage = page.value, targetPageSize = pageSize.value
       project_id: filter.project_id,
       user_id: filter.user_id,
       action: filter.action,
+      created_from: dateRange.value?.[0]?.toISOString(),
+      created_to: dateRange.value?.[1]?.toISOString(),
       page: targetPage,
       page_size: targetPageSize,
     })
@@ -151,7 +171,33 @@ function onReset() {
   filter.project_id = undefined
   filter.user_id = undefined
   filter.action = undefined
+  dateRange.value = null
   loadLogs(1)
+}
+
+async function exportLogs() {
+  exporting.value = true
+  try {
+    const blob = await auditLogApi.export({
+      project_id: filter.project_id,
+      user_id: filter.user_id,
+      action: filter.action,
+      created_from: dateRange.value?.[0]?.toISOString(),
+      created_to: dateRange.value?.[1]?.toISOString(),
+      limit: 5000,
+    })
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = `audit-logs-${new Date().toISOString().slice(0, 10)}.csv`
+    link.click()
+    URL.revokeObjectURL(url)
+    message.success(t('audit_logs.export_success'))
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('audit_logs.export_failed')))
+  } finally {
+    exporting.value = false
+  }
 }
 
 onMounted(() => loadLogs(1))

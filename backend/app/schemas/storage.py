@@ -63,6 +63,7 @@ class StorageCleanupPreviewOut(BaseModel):
 
 class StorageCleanupExecuteIn(BaseModel):
     object_names: list[str] = Field(default_factory=list)
+    prefixes: list[str] | None = Field(default=None, max_length=64)
     repair_orphan_references: bool = False
 
 

@@ -40,6 +40,7 @@ from app.api.v1 import (
     api_contract_assets,
     ios,
     users,
+    health,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -83,3 +84,4 @@ router.include_router(api_schema_assets.router)
 router.include_router(api_contract_assets.router)
 router.include_router(ios.router)
 router.include_router(users.router)
+router.include_router(health.router)

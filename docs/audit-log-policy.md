@@ -13,6 +13,7 @@ ATP audit logs are for traceability of security-sensitive and operations-sensiti
 | Bug tracker config | create, update, delete external defect tracker settings | `bug_tracker_create`, `bug_tracker_update`, `bug_tracker_delete` |
 | AI config | create, update, delete model/provider configuration | `ai_llm_config_create`, `ai_llm_config_update`, `ai_llm_config_delete` |
 | AI generation funnel | generation success/failure and saved drafts | `ai_case_generate`, `ai_case_generate_failed`, `ai_case_draft_saved` |
+| Audit evidence | bounded administrator export of audit logs | `audit_log_export` |
 
 ## Sensitive Data Rules
 
@@ -33,6 +34,10 @@ Use names, IDs, provider/type labels, status, and short non-secret summaries ins
 4. For delete actions, capture `name` / `project_id` before deleting the ORM object.
 5. Do not let audit failures break user actions; `write_audit_log` intentionally swallows audit write exceptions.
 6. Add or update a static regression test for every new audit category.
+7. The admin list endpoint accepts ISO-8601 `created_from` and `created_to` bounds; reversed bounds must be rejected rather than silently returning an empty page.
+8. The admin export endpoint must reuse the same filters, require admin access, and enforce a bounded row count; CSV cells must be protected against spreadsheet formula injection.
+9. Every successful audit export must write an `audit_log_export` event with the actor, JSON-encoded filter summary, limit, and exported row count; the event detail must not contain secrets, log contents, or unescaped control characters.
+10. Notification delivery error text must be sanitized before it reaches logs, API responses, or `NotificationDelivery.error_message`; sanitize URL userinfo and sensitive query parameters such as `key`, `access_token`, `api_key`, `token`, `secret`, `sign/signature`, and `cookie`.
 
 ## Review Checklist
 
@@ -41,4 +46,6 @@ Before adding a new config, permission, execution, or delete operation:
 1. Identify whether the action is audit-worthy using the category table.
 2. Confirm `detail` is useful but secret-free.
 3. Confirm the API has access to `user_id`, `username`, and `project_id`.
-4. Confirm the audit log list can filter the resulting action by `project_id`, `action`, or `user_id`.
+4. Confirm the audit log list can filter the resulting action by `project_id`, `action`, `user_id`, or an ISO-8601 time window.
+5. Confirm audit exports are limited to the current authorized scope and do not include secrets or unbounded result sets.
+6. Confirm a successful export creates an `audit_log_export` event with the actor and bounded result summary.

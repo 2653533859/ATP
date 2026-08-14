@@ -31,7 +31,7 @@ async def runs_retention_preview(
     return RunRetentionPreviewOut(**payload)
 
 
-@router.get("/admin/runs/retention/per-project-preview")
+@router.get("/admin/runs/retention/per-project-preview", response_model=RunRetentionPerProjectOut)
 async def runs_retention_per_project_preview(
     db: AsyncSession = Depends(get_db),
     _: User = Depends(require_admin),

@@ -430,6 +430,31 @@ def test_execute_storage_cleanup_does_not_count_delete_failures_as_referenced_sk
     assert session.commit_calls == 1
 
 
+def test_execute_storage_cleanup_scans_custom_policy_prefix(monkeypatch):
+    deleted: list[str] = []
+    calls: list[str] = []
+
+    def list_objects(prefix: str):
+        calls.append(prefix)
+        if prefix == "custom-artifacts/":
+            return [_FakeObject("custom-artifacts/old.bin", None)]
+        return []
+
+    monkeypatch.setattr(storage_cleanup.minio_client, "list_objects", list_objects)
+    monkeypatch.setattr(storage_cleanup.minio_client, "delete_file", lambda name: deleted.append(name))
+    monkeypatch.setattr(storage_cleanup, "collect_db_references", lambda _session: [])
+
+    result = storage_cleanup.execute_storage_cleanup(
+        _FakeSession(),
+        object_names=["custom-artifacts/old.bin"],
+        prefixes=["custom-artifacts/"],
+    )
+
+    assert result.deleted_objects == ["custom-artifacts/old.bin"]
+    assert deleted == ["custom-artifacts/old.bin"]
+    assert calls == ["custom-artifacts/"]
+
+
 def test_select_size_eviction_returns_empty_when_under_limit():
     now = datetime(2026, 5, 18, tzinfo=timezone.utc)
     objects = [

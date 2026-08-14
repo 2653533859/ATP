@@ -1,5 +1,7 @@
 # ATP 能力基线与目标对比
 
+> 2026-08-13 系统治理补强：管理员审计日志已支持时间范围查询和受限 CSV 证据导出，导出会写入 `audit_log_export` 审计事件；生产审批、归档和进一步脱敏仍待确认。
+
 > 2026-08-12 后续路线同步：当前能力矩阵中标记为“部分支持/待环境验收”的项目，统一按 [`docs/next-development-plan-2026-08-12.md`](next-development-plan-2026-08-12.md) 排序推进。优先完成 Windows 真实 Android 设备验收，再推进 Linux/Kubernetes 性能、Web 专用 Worker、iOS/Appium 和产品化收口。
 
 > 2026-08-12 本轮补强：Linux/Kubernetes 性能验收脚本现在可检查 Prometheus `/-/ready` 和 PromQL 查询；该入口通过本地回归，但不代表目标集群已完成验收。
@@ -44,7 +46,7 @@
 | XPath 提取 | 🔵 | API 执行器安全 XML 解析和 XPath 提取/断言 | XML 提取和断言 | `test_http_family_executors.py` |
 | 接口依赖和上下文变量 | ✅ | 环境、全局、数据集、前步提取、API 会话 | 增加作用域和生命周期可视化 | 登录-Token-业务请求场景 |
 | 前置/后置脚本 | 🟡 | API 受限动作 DSL：变量设置/删除、响应提取和断言；不执行任意代码 | 扩展统一表达式与场景作用域 | API Hook 回归 |
-| 数据驱动 | 🟡 | 数据集按行生成子运行并支持版本；用例支持有界组合策略、MinIO 引用模式和 API 用例运行级数据准备 Hook；数据集页面可按项目 AI 配置生成合成数据草稿 | 真实 seed/MinIO 集群验收、受控组合策略和输入摘要脱敏 | 数据集参数化回归、`test_dataset_preparation.py`、`test_ai_dataset_generator.py` |
+| 数据驱动 | 🟡 | 数据集按行生成子运行并支持版本；API/GraphQL/WebSocket/gRPC/iOS 通用抽屉及 Web/Android 专用抽屉均可选择数据集并固定版本，支持有界组合策略、MinIO 引用模式和 API 用例运行级数据准备 Hook；数据集页面可按项目 AI 配置生成合成数据草稿 | 真实 seed/MinIO 集群验收、受控组合策略和输入摘要脱敏 | 数据集参数化回归、`test_dataset_preparation.py`、`test_ai_dataset_generator.py`、前端用例抽屉回归 |
 | 参数组合 | ✅ | 支持顺序/随机/固定次数、笛卡尔积、Pairwise、组合字段、迭代上限和嵌套脱敏摘要 | 受控组合策略和输入摘要 | `test_dataset_execution.py`、`test_dataset_parameterized.py` |
 | 集合/场景编排 | ✅ | 套件、计划、多步骤用例；API 编辑器展示 `depends_on`，支持失败策略、上下文作用域和登录态生命周期 | API 场景依赖、失败策略和作用域可视化 | `test_api_scenario.py`、`test_http_family_executors.py`；Suite/Plan E2E |
 | OpenAPI/Swagger/Postman | 🟡 | 支持解析、预览、冲突检测、跳过/替换策略、单事务导入和异常回滚；项目级 JSON Schema 与 Provider/Consumer 契约资产已可保存/复用；项目内 `$ref` 可展开，外部/远程 `$ref` 支持默认 `warn` 和发布安全 `reject`，均不联网拉取 | 预览、冲突、回滚、可执行用例导入、Schema/契约资产和真实规格联调 | `test_case_import_routes.py`、`test_api_schema_assets.py`、`test_api_contract_assets.py`、`test_ai_case_parsers.py` |

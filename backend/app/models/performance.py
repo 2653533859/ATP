@@ -63,6 +63,14 @@ class PerformanceTest(Base, TimestampMixin):
 
 class PerformanceRun(Base, TimestampMixin):
     __tablename__ = "performance_runs"
+    __table_args__ = (
+        UniqueConstraint(
+            "project_id",
+            "performance_test_id",
+            "idempotency_key",
+            name="uq_performance_runs_idempotency_key",
+        ),
+    )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     performance_test_id: Mapped[int] = mapped_column(
@@ -73,6 +81,8 @@ class PerformanceRun(Base, TimestampMixin):
     performance_node_id: Mapped[int | None] = mapped_column(
         ForeignKey("performance_nodes.id", ondelete="SET NULL"), nullable=True
     )
+    idempotency_key: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    idempotency_fingerprint: Mapped[str | None] = mapped_column(String(64), nullable=True)
     parent_run_id: Mapped[int | None] = mapped_column(
         ForeignKey("performance_runs.id", ondelete="CASCADE"), nullable=True, index=True
     )

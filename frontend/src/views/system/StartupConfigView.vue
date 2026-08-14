@@ -98,6 +98,27 @@
       <span class="readiness-percent">{{ readinessPercent }}%</span>
     </section>
 
+    <section class="dependency-check-card">
+      <div class="dependency-check-heading">
+        <div>
+          <h2>{{ t('system_pages.startup_config.dependency_title') }}</h2>
+          <p>{{ t('system_pages.startup_config.dependency_description') }}</p>
+        </div>
+        <a-button :loading="dependencyLoading" @click="checkDependencies">
+          {{ t('system_pages.startup_config.action.check_dependencies') }}
+        </a-button>
+      </div>
+      <div v-if="dependencyRows.length" class="dependency-check-list">
+        <a-tag v-for="item in dependencyRows" :key="item.key" :color="item.status === 'ok' ? 'success' : 'error'">
+          {{ t(`system_pages.startup_config.dependencies.${item.key}`) }} ·
+          {{ t(`system_pages.startup_config.dependency_status.${item.status}`) }}
+          <span class="dependency-code">{{ t(`system_pages.startup_config.dependency_codes.${item.code}`) }}</span>
+          <span class="dependency-latency">{{ item.latency_ms }}ms</span>
+        </a-tag>
+      </div>
+      <span v-else class="dependency-empty">{{ t('system_pages.startup_config.dependency_unchecked') }}</span>
+    </section>
+
     <a-tabs v-model:active-key="activeSection" class="config-tabs" type="card">
       <a-tab-pane v-for="section in sections" :key="section.key">
         <template #tab>
@@ -208,6 +229,7 @@ import {
   WarningFilled,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { healthApi, type DependencyHealthResponse } from '@/api'
 
 type FieldKind = 'text' | 'password' | 'number' | 'textarea' | 'switch' | 'select'
 
@@ -252,6 +274,10 @@ interface StartupConfig {
   RUN_CLEANUP_ENABLED: boolean
   RUN_RETENTION_DAYS: number
   RUN_CLEANUP_BATCH_SIZE: number
+  NOTIFICATION_DELIVERY_CLEANUP_ENABLED: boolean
+  NOTIFICATION_DELIVERY_RETENTION_DAYS: number
+  AUDIT_LOG_CLEANUP_ENABLED: boolean
+  AUDIT_LOG_RETENTION_DAYS: number
   ADB_SCAN_ENABLED: boolean
   ADB_SCAN_INTERVAL: number
   ADB_SCAN_MODE: string
@@ -396,6 +422,8 @@ const defaultConfig: StartupConfig = {
   CELERY_CONCURRENCY: 4, CELERY_QUEUES: 'default,android,mobile_special,ios,ai,maintenance,performance', SUITE_CHILD_TASK_TIMEOUT_SECONDS: 3600, WORKER_METRICS_PORT: 9091,
   FILE_RETENTION_DAYS: 30, STALE_PENDING_CLEANUP_ENABLED: true, STALE_PENDING_TIMEOUT_MINUTES: 120, STALE_PENDING_CLEANUP_INTERVAL_SECONDS: 600,
   RUN_CLEANUP_ENABLED: true, RUN_RETENTION_DAYS: 90, RUN_CLEANUP_BATCH_SIZE: 500,
+  NOTIFICATION_DELIVERY_CLEANUP_ENABLED: true, NOTIFICATION_DELIVERY_RETENTION_DAYS: 30,
+  AUDIT_LOG_CLEANUP_ENABLED: false, AUDIT_LOG_RETENTION_DAYS: 365,
   ADB_SCAN_ENABLED: true, ADB_SCAN_INTERVAL: 15, ADB_SCAN_MODE: 'local', ANDROID_WORKER_ID: '', ANDROID_WORKER_QUEUE: 'mobile_special', ANDROID_WORKER_REGISTRY_PREFIX: 'atp:android-worker', ANDROID_WORKER_HEARTBEAT_SECONDS: 15, ANDROID_WORKER_TTL_SECONDS: 45,
   ADB_RECONNECT_ENABLED: true, ADB_RECONNECT_MAX_ATTEMPTS: 3, ADB_RECONNECT_BACKOFF_MS: '200,800,2000',
   ADB_HEARTBEAT_ENABLED: true, ADB_HEARTBEAT_INTERVAL_SEC: 15, ADB_HEARTBEAT_FAILURE_THRESHOLD: 2, CASE_SNAPSHOT_MAX_PER_CASE: 50, MOCK_STANDALONE_PORT: 0,
@@ -419,6 +447,8 @@ const config = ref<StartupConfig>({ ...defaultConfig })
 const activeSection = ref('infrastructure')
 const selectedProfile = ref<StartupProfile>('local-all')
 const initialSnapshot = ref(JSON.stringify(defaultConfig))
+const dependencyLoading = ref(false)
+const dependencyHealth = ref<DependencyHealthResponse | null>(null)
 
 const text = (key: FieldKey, options: Partial<FieldDef> = {}): FieldDef => ({ key, kind: 'text', ...options })
 const password = (key: FieldKey, options: Partial<FieldDef> = {}): FieldDef => ({ key, kind: 'password', ...options })
@@ -448,7 +478,7 @@ const sections: ConfigSection[] = [
     key: 'execution', titleKey: 'system_pages.startup_config.sections.execution.title', subtitleKey: 'system_pages.startup_config.sections.execution.subtitle', icon: GlobalOutlined,
     fields: [
       number('CELERY_CONCURRENCY'), textarea('CELERY_QUEUES'), number('SUITE_CHILD_TASK_TIMEOUT_SECONDS'), number('WORKER_METRICS_PORT', { max: 65535 }), number('FILE_RETENTION_DAYS'),
-      toggle('STALE_PENDING_CLEANUP_ENABLED'), number('STALE_PENDING_TIMEOUT_MINUTES'), number('STALE_PENDING_CLEANUP_INTERVAL_SECONDS'), toggle('RUN_CLEANUP_ENABLED'), number('RUN_RETENTION_DAYS'), number('RUN_CLEANUP_BATCH_SIZE'),
+      toggle('STALE_PENDING_CLEANUP_ENABLED'), number('STALE_PENDING_TIMEOUT_MINUTES'), number('STALE_PENDING_CLEANUP_INTERVAL_SECONDS'), toggle('RUN_CLEANUP_ENABLED'), number('RUN_RETENTION_DAYS'), number('RUN_CLEANUP_BATCH_SIZE'), toggle('NOTIFICATION_DELIVERY_CLEANUP_ENABLED'), number('NOTIFICATION_DELIVERY_RETENTION_DAYS', { min: 1, max: 3650 }), toggle('AUDIT_LOG_CLEANUP_ENABLED'), number('AUDIT_LOG_RETENTION_DAYS', { min: 1, max: 3650 }),
       toggle('ADB_SCAN_ENABLED'), number('ADB_SCAN_INTERVAL'), select('ADB_SCAN_MODE', [{ label: 'local', value: 'local' }, { label: 'worker', value: 'worker' }]), text('ANDROID_WORKER_ID'), text('ANDROID_WORKER_QUEUE'), text('ANDROID_WORKER_REGISTRY_PREFIX'), number('ANDROID_WORKER_HEARTBEAT_SECONDS'), number('ANDROID_WORKER_TTL_SECONDS'), toggle('ADB_RECONNECT_ENABLED'), number('ADB_RECONNECT_MAX_ATTEMPTS'), text('ADB_RECONNECT_BACKOFF_MS'), toggle('ADB_HEARTBEAT_ENABLED'), number('ADB_HEARTBEAT_INTERVAL_SEC'), number('ADB_HEARTBEAT_FAILURE_THRESHOLD'),
       number('CASE_SNAPSHOT_MAX_PER_CASE'), number('MOCK_STANDALONE_PORT', { max: 65535 }), select('WEB_RECORDER_MODE', [{ label: 'local', value: 'local' }, { label: 'worker', value: 'worker' }]), textarea('WEB_RECORDER_WORKER_QUEUE_PREFIX'), text('WEB_RECORDER_WORKER_ID'), number('WEB_RECORDER_WORKER_MAX_SESSIONS'), number('WEB_RECORDER_WORKER_HEARTBEAT_SECONDS'), number('WEB_RECORDER_WORKER_TTL_SECONDS'), number('WEB_RECORDER_COMMAND_TIMEOUT_SECONDS'), number('WEB_RECORDER_REPLY_TTL_SECONDS'), number('WEB_RECORDER_SESSION_TTL_SECONDS'), text('WEB_RECORDER_DISPLAY'),
     ],
@@ -506,6 +536,11 @@ const missingRequired = computed(() => {
 const isReady = computed(() => missingRequired.value.length === 0)
 const isDirty = computed(() => JSON.stringify(config.value) !== initialSnapshot.value)
 const readinessPercent = computed(() => Math.round(((fieldCount.value - missingRequired.value.length) / fieldCount.value) * 100))
+const dependencyRows = computed(() => {
+  const dependencies = dependencyHealth.value?.dependencies
+  if (!dependencies) return []
+  return Object.entries(dependencies).map(([key, item]) => ({ key, ...item }))
+})
 
 function readValue(key: FieldKey): string {
   const value = config.value[key]
@@ -598,6 +633,22 @@ function resetDefaults() {
   config.value = { ...defaultConfig }
   selectedProfile.value = 'local-all'
   message.success(t('system_pages.startup_config.messages.reset'))
+}
+
+async function checkDependencies() {
+  dependencyLoading.value = true
+  try {
+    dependencyHealth.value = await healthApi.dependencies()
+    if (dependencyHealth.value.status === 'ok') {
+      message.success(t('system_pages.startup_config.messages.dependencies_ready'))
+    } else {
+      message.warning(t('system_pages.startup_config.messages.dependencies_degraded'))
+    }
+  } catch (error) {
+    message.error(String(error))
+  } finally {
+    dependencyLoading.value = false
+  }
 }
 
 function saveDraft() {
@@ -908,6 +959,54 @@ onMounted(loadDraft)
   text-align: right;
 }
 
+.dependency-check-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 16px 18px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-elevated);
+  box-shadow: var(--shadow-sm);
+}
+
+.dependency-check-heading h2 {
+  margin: 0;
+  color: var(--c-text);
+  font-size: 15px;
+}
+
+.dependency-check-heading p {
+  margin: 5px 0 0;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+
+.dependency-check-list {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.dependency-latency {
+  margin-left: 4px;
+  opacity: 0.72;
+}
+
+.dependency-code {
+  margin-left: 4px;
+  font-weight: 500;
+  opacity: 0.82;
+}
+
+.dependency-empty {
+  color: var(--c-text-tertiary);
+  font-size: 12px;
+}
+
 .config-tabs {
   margin-top: 14px;
 }
@@ -1030,6 +1129,7 @@ onMounted(loadDraft)
   .config-hero,
   .config-toolbar,
   .readiness-strip,
+  .dependency-check-card,
   .config-footer {
     align-items: flex-start;
     flex-direction: column;
@@ -1063,6 +1163,10 @@ onMounted(loadDraft)
 
   .readiness-percent {
     text-align: left;
+  }
+
+  .dependency-check-list {
+    justify-content: flex-start;
   }
 
   .field-grid {

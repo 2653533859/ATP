@@ -92,6 +92,7 @@ class PerformanceRunTrigger(BaseModel):
     environment_id: int | None = None
     performance_node_id: int | None = Field(default=None, ge=1)
     performance_node_ids: list[int] = Field(default_factory=list, max_length=32)
+    idempotency_key: str | None = Field(default=None, min_length=1, max_length=128, pattern=r"^[A-Za-z0-9._:-]+$")
     options: dict = Field(default_factory=dict)
 
 
@@ -158,6 +159,7 @@ class PerformanceRunOut(BaseModel):
     project_id: int
     environment_id: int | None
     performance_node_id: int | None
+    idempotency_key: str | None
     parent_run_id: int | None = None
     dataset_id: int | None
     dataset_version: int | None

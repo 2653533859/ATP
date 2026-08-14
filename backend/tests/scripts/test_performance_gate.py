@@ -22,3 +22,24 @@ def test_gate_exit_code_is_ci_stable():
     assert gate({"status": "cancelled"}) == 1
     assert gate({"status": "not_configured"}) == 2
     assert gate({"status": "pending"}) == 3
+
+
+def test_default_idempotency_key_reuses_ci_run_identity(monkeypatch):
+    script = _module()
+    monkeypatch.setenv("GITHUB_RUN_ID", "12345")
+
+    assert script.default_idempotency_key(7, 2) == "ci-12345-performance-7-env-2"
+
+
+def test_default_idempotency_key_is_unique_for_local_cli(monkeypatch):
+    script = _module()
+    monkeypatch.delenv("CI_PIPELINE_ID", raising=False)
+    monkeypatch.delenv("GITHUB_RUN_ID", raising=False)
+    monkeypatch.delenv("BUILD_BUILDID", raising=False)
+    monkeypatch.delenv("BUILD_ID", raising=False)
+
+    first = script.default_idempotency_key(7, None)
+    second = script.default_idempotency_key(7, None)
+
+    assert first.startswith("cli-performance-7-")
+    assert first != second

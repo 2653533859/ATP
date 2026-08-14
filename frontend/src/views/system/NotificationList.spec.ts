@@ -11,6 +11,7 @@ const {
   notificationUpdate,
   notificationTest,
   notificationDelete,
+  notificationDeliveries,
   suiteList,
   planList,
   messageError,
@@ -23,6 +24,7 @@ const {
   notificationUpdate: vi.fn(),
   notificationTest: vi.fn(),
   notificationDelete: vi.fn(),
+  notificationDeliveries: vi.fn(),
   suiteList: vi.fn(),
   planList: vi.fn(),
   messageError: vi.fn(),
@@ -42,6 +44,7 @@ vi.mock('@/api', () => ({
     update: notificationUpdate,
     test: notificationTest,
     delete: notificationDelete,
+    deliveries: notificationDeliveries,
   },
   suiteApi: { list: suiteList },
   planApi: { list: planList },
@@ -74,6 +77,7 @@ function mountPage() {
         AForm: passthrough('AForm'),
         AFormItem: passthrough('AFormItem'),
         AInput: passthrough('AInput'),
+        AInputNumber: passthrough('AInputNumber'),
         AInputPassword: passthrough('AInputPassword'),
         AModal: passthrough('AModal'),
         APopconfirm: popconfirmStub,
@@ -104,6 +108,8 @@ const NOTIFICATION = {
     suite_ids: [2],
     plan_ids: [],
     status_filters: ['failed'],
+    retry_attempts: 2,
+    retry_backoff_seconds: 0.5,
   },
 }
 
@@ -115,6 +121,7 @@ beforeEach(() => {
   notificationUpdate.mockResolvedValue({})
   notificationTest.mockResolvedValue({})
   notificationDelete.mockResolvedValue({})
+  notificationDeliveries.mockResolvedValue([])
   suiteList.mockResolvedValue([{ id: 2, name: 'Smoke' }])
   planList.mockResolvedValue([{ id: 3, name: 'Nightly' }])
 })
@@ -131,7 +138,9 @@ describe('NotificationList mount', () => {
     expect(notificationList).toHaveBeenCalledWith({ project_id: 10 })
     expect(suiteList).toHaveBeenCalledWith({ project_id: 10 })
     expect(planList).toHaveBeenCalledWith({ project_id: 10 })
+    expect(notificationDeliveries).toHaveBeenCalledWith({ project_id: 10, limit: 20 })
     expect(vm.suiteOptions).toEqual([{ label: 'Smoke (#2)', value: 2 }])
+    expect(vm.deliveries).toEqual([])
   })
 
   it('validates email settings and builds a scoped create payload', async () => {
@@ -164,6 +173,8 @@ describe('NotificationList mount', () => {
         suite_ids: [2],
         plan_ids: [],
         status_filters: ['failed', 'error'],
+        retry_attempts: 0,
+        retry_backoff_seconds: 1,
       },
     })
   })
@@ -192,6 +203,8 @@ describe('NotificationList mount', () => {
     expect(vm.notificationLanguage).toBe('en-US')
     expect(vm.notificationScope).toBe('suites')
     expect(vm.selectedSuiteIds).toEqual([2])
+    expect(vm.retryAttempts).toBe(2)
+    expect(vm.retryBackoffSeconds).toBe(0.5)
     await vm.handleSave()
     expect(notificationUpdate).toHaveBeenCalledWith(5, expect.objectContaining({ name: 'Failure email' }))
   })
@@ -200,10 +213,12 @@ describe('NotificationList mount', () => {
     const wrapper = mountPage()
     await flushPromises()
     const vm = wrapper.vm as any
+    vm.projectId = 10
 
     await vm.handleTest(NOTIFICATION)
     expect(notificationTest).toHaveBeenCalledWith(5)
     expect(messageSuccess).toHaveBeenCalledWith('system_pages.notification.msg.test_success')
+    expect(notificationDeliveries).toHaveBeenCalledWith({ project_id: 10, limit: 20 })
 
     await vm.handleDelete(5)
     expect(notificationDelete).toHaveBeenCalledWith(5)
@@ -211,6 +226,24 @@ describe('NotificationList mount', () => {
 
     notificationTest.mockRejectedValueOnce(new Error('webhook failed'))
     await vm.handleTest(NOTIFICATION)
-    expect(messageError).toHaveBeenCalledWith('system_pages.notification.msg.test_failed')
+    expect(messageError).toHaveBeenCalledWith('webhook failed')
+    expect(notificationDeliveries).toHaveBeenCalledTimes(2)
+  })
+
+  it('surfaces backend validation details when saving fails', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.projectId = 10
+    vm.openCreate()
+    vm.form.name = 'Broken WeChat'
+    vm.form.channel = 'wechat'
+    vm.wechatUrl = 'https://wechat.example/hook'
+    notificationCreate.mockRejectedValueOnce('Webhook 通知需要 webhook_url')
+
+    await vm.handleSave()
+
+    expect(messageError).toHaveBeenCalledWith('Webhook 通知需要 webhook_url')
   })
 })
