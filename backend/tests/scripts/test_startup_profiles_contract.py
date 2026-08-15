@@ -33,6 +33,21 @@ def test_startup_profile_templates_cover_local_remote_and_android_modes():
     )
 
 
+def test_android_worker_backend_deployment_profile_separates_server_and_agent_modes():
+    profile = ROOT / "config" / "deployment-profiles" / "android-worker-backend.env.example"
+    readme = (ROOT / "config" / "deployment-profiles" / "README.md").read_text(encoding="utf-8")
+    content = profile.read_text(encoding="utf-8")
+
+    assert "ADB_SCAN_MODE=worker" in content
+    assert "CELERY_QUEUES=default,ios,ai,maintenance,performance" in content
+    assert "android,mobile_special" not in content.split("CELERY_QUEUES=", 1)[1].splitlines()[0]
+    assert "ANDROID_WORKER_QUEUE=mobile_special" in content
+    assert "config/startup-profiles/android-agent.env" in readme
+    assert "不要把此文件直接作为 Windows Android Agent 配置" in content
+    assert "change_me" in content
+    assert "172.31.27.133" not in content
+
+
 def test_startup_config_ui_covers_every_env_template_key():
     env_keys = {
         match.group(1)

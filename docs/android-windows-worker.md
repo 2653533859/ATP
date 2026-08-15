@@ -120,7 +120,16 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows-android-worker.ps1 do
 
 ## 4. 公网后端 Worker 队列配置
 
-为了避免 Linux Worker 抢走需要本机 ADB 的任务，公网后端的普通 Worker 需要排除 `android,mobile_special`：
+为了避免 Linux Worker 抢走需要本机 ADB 的任务，公网后端的普通 Worker 需要排除 `android,mobile_special`。
+仓库提供了不含密钥的服务端模板
+`config/deployment-profiles/android-worker-backend.env.example`，可作为 Docker Compose
+或部署平台变量的起点；它与 Windows 的
+`config/startup-profiles/android-agent.env.example` 是两份不同用途的配置：
+
+- 服务端模板设置 `ADB_SCAN_MODE=worker`，并排除 Android 队列；
+- Windows Agent 设置 `ADB_SCAN_MODE=local`，只消费 Android 队列并调用本机 ADB。
+
+服务端普通 Worker 需要达到以下配置：
 
 ```dotenv
 CELERY_QUEUES=default,ios,ai,maintenance,performance
@@ -132,6 +141,11 @@ Windows 主机的脚本会强制使用：
 ```dotenv
 CELERY_QUEUES=android,mobile_special
 ```
+
+如果使用 Compose，确认 `backend`、普通 `worker` 和 `beat` 使用服务端模板，Windows
+Agent 使用自己的启动档案；不要让两侧共享一个同时包含 `ADB_SCAN_MODE=local` 和
+`ADB_SCAN_MODE=worker` 的文件。Web 录制若使用独立 Linux Worker，还需启动
+`web-recorder` profile，并保持 `WEB_RECORDER_MODE=worker` 与 Redis 前缀一致。
 
 修改后重启公网 Worker，并确认 Beat 仍在运行。若部署环境只有一个共享 Worker，不能保证 Android 任务落到 Windows 主机。
 

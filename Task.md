@@ -14,7 +14,8 @@
 - [ ] Android 单设备真实验收仍阻断：`adb devices -l` 没有授权在线设备，`scripts/windows-android-acceptance.ps1` 已按契约失败并生成 `.local-run/android-acceptance-20260815.json`；接入设备后需补执行低代码、截图、日志、Crash/ANR 和回放闭环。
 - [x] Android 无真机安全回归完成：Worker/性能/事件/回放/API/迁移和 Windows 验收契约定向回归 `258 passed`；验收脚本现在会区分未连接、未授权和离线设备，并在报告中输出安全的状态计数。
 - [x] 性能节点 `perf-node-local-01` 已切换到专用队列 `performance.worker-local` 并上线；真实取消、目标服务连通性和资源采样已完成本机闭环。
-- [ ] 当前根 `.env` 仍为 Windows 全栈本地 Android 执行模式（`ADB_SCAN_MODE=local`）；公网后端配合 Windows Android Worker 时，需单独选择 `ADB_SCAN_MODE=worker` 的后端配置，并验证队列隔离与设备回调。
+- [x] 新增 `config/deployment-profiles/android-worker-backend.env.example` 与部署说明：公网 Backend/Beat/普通 Linux Worker 使用 `ADB_SCAN_MODE=worker` 且排除 `android,mobile_special`，Windows Agent 继续使用独立 `android-agent` 档案；实际环境仍需验证队列隔离与设备回调。
+- [ ] 当前根 `.env` 仍为 Windows 全栈本地 Android 执行模式（`ADB_SCAN_MODE=local`）；切换公网后端+Windows Android Worker 时仍需使用服务端模板生成独立部署配置，并完成队列隔离与设备回调验收。
 
 ## 2026-08-15 Linux Docker 性能验收
 
