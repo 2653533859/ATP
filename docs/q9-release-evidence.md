@@ -37,6 +37,19 @@ The Linux MCP connection to `172.31.27.133` was restored. The isolated Docker Co
 
 This closes only the Linux Docker Compose single-node acceptance slice. Kubernetes rollout, real multi-node sharding, production Prometheus, external notification, backup/restore and Android-device gates remain open.
 
+## Web Worker Control Plane and Backup/Restore Drill (2026-08-15)
+
+The following checks were completed after restoring the isolated Linux acceptance stack and exercising the Windows Worker mode. They are dated, redacted evidence only; they do not close Kubernetes or production disaster-recovery gates.
+
+| Gate | Evidence | Result |
+|---|---|---|
+| Redis blocking-read timeout fix | `backend/tests/core/test_database_connection_timeout.py` and `backend/tests/services/test_web_recording_transport.py` | passed; `18 passed`; API command and Worker heartbeat clients now use read timeouts longer than their blocking wait windows |
+| Windows Web Recording Worker | `docs/evidence/web-recording-worker-local-2026-08-15.json` | passed; Worker registered/available, Chromium recording started, 2 steps captured, PNG screenshot returned, recording stopped |
+| PostgreSQL backup/restore | `docs/evidence/backup-restore-linux-docker-2026-08-15.json` | passed in the isolated Docker stack; temporary database restored and migration row verified, then removed |
+| MinIO object mirror/restore | `docs/evidence/backup-restore-linux-docker-2026-08-15.json` | passed in the isolated Docker stack; source/restored SHA-256 matched and temporary objects were removed |
+
+The backup/restore drill does not prove production retention, MinIO lifecycle configuration, scheduled backups, cross-host recovery, Kubernetes rollout or external notification delivery. Those gates remain open.
+
 ## Q18 Local Gate Snapshot (2026-08-12)
 
 This section records repository-local evidence only. It does not close the real MinIO, external notification, Android device, Linux/Kubernetes, Web Worker or macOS/iOS gates.

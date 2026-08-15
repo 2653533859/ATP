@@ -184,8 +184,11 @@ class WebRecordingWorker:
         # termination. Never expose that stale marker while this process is
         # waiting for its first successful Redis registration.
         self._clear_health_file()
-        client = _redis_client.get_async_redis()
         heartbeat_seconds = max(1, int(settings.WEB_RECORDER_WORKER_HEARTBEAT_SECONDS))
+        # The command loop uses BLPOP(timeout=heartbeat_seconds). The shared
+        # Redis read timeout must be longer than that blocking window or a
+        # healthy idle Worker repeatedly disconnects with TimeoutError.
+        client = _redis_client.get_async_redis(socket_timeout=heartbeat_seconds + 1)
         try:
             await register_recording_worker(
                 self.worker_id,

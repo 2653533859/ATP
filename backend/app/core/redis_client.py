@@ -17,14 +17,15 @@ def _redis_url(db: int = 2) -> str:
     return f"redis://{auth}{settings.REDIS_HOST}:{settings.REDIS_PORT}/{db}"
 
 
-def get_async_redis(db: int = 2) -> aioredis.Redis:
+def get_async_redis(db: int = 2, *, socket_timeout: float | None = None) -> aioredis.Redis:
     """返回一个新的异步 Redis 连接（调用方负责关闭）"""
     timeout = settings.REDIS_CONNECT_TIMEOUT_SECONDS
+    read_timeout = timeout if socket_timeout is None else max(0.1, float(socket_timeout))
     return aioredis.from_url(
         _redis_url(db),
         decode_responses=True,
         socket_connect_timeout=timeout,
-        socket_timeout=timeout,
+        socket_timeout=read_timeout,
     )
 
 

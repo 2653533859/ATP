@@ -23,7 +23,8 @@ def test_infrastructure_connection_timeouts_are_bounded_and_wired() -> None:
 
     redis_source = Path(__file__).parents[2].joinpath("app", "core", "redis_client.py").read_text(encoding="utf-8")
     assert "socket_connect_timeout=timeout" in redis_source
-    assert "socket_timeout=timeout" in redis_source
+    assert "read_timeout = timeout if socket_timeout is None" in redis_source
+    assert "socket_timeout=read_timeout" in redis_source
 
     minio_source = Path(__file__).parents[2].joinpath("app", "core", "minio_client.py").read_text(encoding="utf-8")
     assert "connect=settings.MINIO_CONNECT_TIMEOUT_SECONDS" in minio_source

@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from app.core.config import settings
 from app.services import web_recording_transport as transport
 from app.web_recording_worker import WebRecordingWorker
 
@@ -314,7 +315,7 @@ def test_worker_health_file_tracks_successful_registration(monkeypatch, tmp_path
         return None
 
     redis.blpop = stop_after_probe
-    monkeypatch.setattr(worker_module._redis_client, "get_async_redis", lambda: redis)
+    monkeypatch.setattr(worker_module._redis_client, "get_async_redis", lambda **_kwargs: redis)
     monkeypatch.setattr(worker_module, "register_recording_worker", lambda *args, **kwargs: asyncio.sleep(0))
     monkeypatch.setattr(worker_module, "unregister_recording_worker", lambda *args, **kwargs: asyncio.sleep(0))
 
@@ -341,7 +342,7 @@ def test_worker_clears_stale_health_file_before_first_registration(monkeypatch, 
         return None
 
     redis.blpop = stop_after_probe
-    monkeypatch.setattr(worker_module._redis_client, "get_async_redis", lambda: redis)
+    monkeypatch.setattr(worker_module._redis_client, "get_async_redis", lambda **_kwargs: redis)
     monkeypatch.setattr(worker_module, "register_recording_worker", fail_registration)
     monkeypatch.setattr(worker_module, "unregister_recording_worker", lambda *args, **kwargs: asyncio.sleep(0))
 
@@ -446,6 +447,7 @@ def test_worker_replies_and_handles_malformed_or_failed_commands(monkeypatch):
 
 def test_send_recording_command_uses_reply_queue(monkeypatch):
     redis = _FakeRedis()
+    captured = {}
 
     async def rpush(key, value):
         await _FakeRedis.rpush(redis, key, value)
@@ -454,6 +456,12 @@ def test_send_recording_command_uses_reply_queue(monkeypatch):
             await _FakeRedis.rpush(redis, command["reply_key"], json.dumps({"ok": True, "value": 1}))
 
     redis.rpush = rpush
-    monkeypatch.setattr(transport, "get_async_redis", lambda: redis)
+
+    def get_redis(**kwargs):
+        captured.update(kwargs)
+        return redis
+
+    monkeypatch.setattr(transport, "get_async_redis", get_redis)
     response = asyncio.run(transport.send_recording_command("worker-a", "snapshot", session_id="s1"))
     assert response == {"ok": True, "value": 1}
+    assert captured["socket_timeout"] == settings.WEB_RECORDER_COMMAND_TIMEOUT_SECONDS + 1

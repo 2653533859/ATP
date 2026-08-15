@@ -13,6 +13,13 @@
 - [ ] Android 单设备验收等待授权在线设备；当前 `adb devices -l` 为空，性能监控、卡顿、Crash/ANR、屏幕录制和异常回放无法在本机闭环。
 - [x] Windows 性能节点 `perf-node-local-01` 已在线并完成目标 TCP、allowlist、资源采样和取消验证；Linux/Kubernetes 专用 Worker、TLS 目标和多节点验收仍未关闭外部门禁。
 
+## 2026-08-15 Web Worker 与灾备演练进展
+
+- [x] 修复 Web 录制 API/Worker 的 Redis 阻塞读取超时：`socket_timeout` 会覆盖命令等待和 Worker 心跳窗口，避免健康 Worker 因默认 5 秒读超时被误判为不可用；定向回归 `18 passed`。
+- [x] Windows Web Recording Worker 真实 smoke 通过，包含 Worker 可用性、Chromium 录制、2 个步骤、PNG 截图和停止录制；证据见 `docs/evidence/web-recording-worker-local-2026-08-15.json`。
+- [x] Linux Docker Compose 隔离栈完成 PostgreSQL 与 MinIO 备份恢复演练，临时资源已清理；证据见 `docs/evidence/backup-restore-linux-docker-2026-08-15.json`。
+- [ ] 备份恢复仍不是生产灾备签字：MinIO bucket lifecycle/归档策略、生产保留周期与定期恢复任务需明确并在目标环境复核。
+
 ## 2026-08-15 Linux Docker 验收进展
 
 - [x] Linux MCP 已恢复；`172.31.27.133` 的隔离性能 Compose 栈健康检查通过，包含 PostgreSQL、Redis、MinIO、Backend、专用 Worker、Prometheus 指标端口和 HTTP/gRPC 目标。
@@ -25,7 +32,8 @@
 1. 在真实 Kubernetes 环境复现性能节点 readiness、TLS 目标、取消、资源采样、报告导出和多节点分片证据；当前 Docker Compose 证据只能关闭 Linux 单节点隔离栈部分。
 2. 接入并授权 Windows Android 真机，运行 `scripts/windows-android-acceptance.ps1`，再以 `ADB_SCAN_MODE=worker` 验证公网后端到 Android Worker 的注册、设备扫描和操作回调。
 3. 在不影响 API/Web 的前提下完成真实 Android 性能任务：设备指标、卡顿/FPS、Crash/ANR、事件时间线、录屏分段和异常回放。
-4. 最后补 Linux/Xvfb Web Worker、外部通知渠道、MinIO 大对象生命周期和备份恢复等发布门禁，并将每项真实证据归档。
+4. 完成 MinIO 生命周期与生产备份策略确认，补真实恢复演练和清理审计；随后补外部 SMTP/企业微信/钉钉投递证据。
+5. 在 Linux/Xvfb 环境完成 Web Worker 录制验收，并将 Kubernetes、通知、存储和移动端证据统一归档。
 
 ## 2026-08-14 项目成员 owner 权限完整性（代码阶段完成）
 

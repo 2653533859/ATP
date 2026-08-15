@@ -16,6 +16,13 @@
 - Locust run `1` 通过（36 次迭代、错误率 0），gRPC TLS run `2` 通过（5 次迭代、错误率 0），Locust run `3` 的取消链路从运行态进入 `cancelled`；脱敏证据已归档到 `docs/evidence/performance-linux-*-2026-08-15.json`。
 - 该证据只覆盖 Linux Docker Compose 隔离栈，不代表 Kubernetes、多节点生产 Prometheus、外部通知、备份恢复或 Android 真机门禁已完成。
 
+## 2026-08-15 Web Worker 控制面与备份恢复
+
+- 修复 Web 录制控制面 Redis `BLPOP` 的读超时竞态：API 命令等待和 Worker 心跳等待均显式使用大于等待窗口的 `socket_timeout`；定向回归 `18 passed`。
+- Windows Worker 模式真实录制 smoke 通过：Worker 注册/可用、Chromium 启动、2 个步骤、PNG 截图和停止录制均成功；脱敏证据为 `docs/evidence/web-recording-worker-local-2026-08-15.json`。
+- Linux Docker 隔离栈的 PostgreSQL 备份/临时库恢复与 MinIO 临时对象镜像/恢复校验通过，临时资源已清理；证据为 `docs/evidence/backup-restore-linux-docker-2026-08-15.json`。
+- 这些结果不替代 Kubernetes 多节点、生产 MinIO 生命周期/灾备策略、外部通知或 Android 真机验收。
+
 ## 2026-08-14 通知 Webhook 查询参数脱敏
 
 - `_safe_delivery_error` 新增 URL 查询参数脱敏，覆盖企业微信 `key`、钉钉 `access_token/sign` 以及常见 `api_key`、`token`、`secret`、`authorization`、`cookie` 参数；服务端日志、`NotificationDelivery.error_message` 和测试发送 API 错误共用该处理。

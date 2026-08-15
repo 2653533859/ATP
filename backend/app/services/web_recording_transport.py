@@ -25,12 +25,14 @@ from app.core import redis_client as _redis_client
 from app.core.config import settings
 
 
-def get_async_redis(db: int = 2) -> Any:
+def get_async_redis(db: int = 2, *, socket_timeout: float | None = None) -> Any:
     """Resolve the Redis factory lazily so optional test stubs remain isolated."""
     factory = getattr(_redis_client, "get_async_redis", None)
     if factory is None:
         raise WebRecordingTransportError("Web 录制 Redis 客户端不可用")
-    return factory(db)
+    if socket_timeout is None:
+        return factory(db)
+    return factory(db, socket_timeout=socket_timeout)
 
 
 class WebRecordingTransportError(RuntimeError):
@@ -238,10 +240,13 @@ async def send_recording_command(worker_id: str, action: str, **payload: Any) ->
         "action": action,
         **payload,
     }
-    client = get_async_redis()
+    timeout = max(1, int(settings.WEB_RECORDER_COMMAND_TIMEOUT_SECONDS))
+    # redis-py applies socket_timeout to the blocking BLPOP as well. Keep the
+    # read timeout longer than the command window or a healthy Worker can be
+    # disconnected before its reply arrives.
+    client = get_async_redis(socket_timeout=timeout + 1)
     try:
         await client.rpush(worker_queue_key(worker_id), _json(command))
-        timeout = max(1, int(settings.WEB_RECORDER_COMMAND_TIMEOUT_SECONDS))
         try:
             result = await asyncio.wait_for(
                 client.blpop(reply, timeout=timeout),

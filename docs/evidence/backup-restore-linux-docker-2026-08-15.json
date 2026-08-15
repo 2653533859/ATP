@@ -1,0 +1,21 @@
+{
+  "generated_at": "2026-08-15",
+  "environment": "Linux Docker Compose isolated acceptance stack",
+  "status": "passed",
+  "postgres": {
+    "backup_format": "custom compressed dump",
+    "backup_size_bytes": 15986,
+    "backup_sha256": "f8c22a80070f998f77640aca8fcc1fbbe1b0be6c7373cc2cdcb7b889e6c3de42",
+    "restore_check": "temporary database restored; alembic_version row count=1",
+    "temporary_database_cleaned": true
+  },
+  "minio": {
+    "restore_check": "temporary marker object mirrored and restored",
+    "source_sha256": "a0c79414e97100167b2b633ded51c0e466e1c8fdb14f32bd06a11d79cc55ea81",
+    "restored_sha256": "a0c79414e97100167b2b633ded51c0e466e1c8fdb14f32bd06a11d79cc55ea81",
+    "object_size_bytes": 25,
+    "temporary_objects_cleaned": true
+  },
+  "credentials_included": false,
+  "scope_note": "This validates the isolated Docker backup/restore drill only; it is not production retention or disaster-recovery sign-off."
+}

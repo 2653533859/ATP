@@ -21,6 +21,13 @@
 - [x] Locust 取消验收通过：run `3` 在 2 秒取消请求后从运行态进入 `cancelled`；证据见 `docs/evidence/performance-linux-locust-cancel-2026-08-15.json`。
 - [ ] 本轮为 Linux Docker Compose 隔离栈验收，尚未关闭 Kubernetes Deployment、真实多节点分片、外部目标和生产 Prometheus 门禁。
 
+## 2026-08-15 Web Worker 控制面与备份恢复验收
+
+- [x] 修复 Web 录制 API/Worker 使用 Redis `BLPOP` 时的读超时竞态：控制面 Redis 客户端的 `socket_timeout` 现在大于命令/心跳等待窗口，避免连接在等待回复前被 5 秒默认读超时关闭；定向回归 `18 passed`。
+- [x] Windows Web Recording Worker 真实 smoke 通过：Worker 已注册且可用，Chromium 录制启动、记录 `2` 个步骤、截图返回 PNG（`13441` bytes），停止录制成功；脱敏证据见 `docs/evidence/web-recording-worker-local-2026-08-15.json`。
+- [x] Linux Docker Compose 隔离验收栈完成 PostgreSQL 压缩备份/临时库恢复和 MinIO 临时对象镜像/恢复校验，临时数据库、对象和文件均已清理；证据见 `docs/evidence/backup-restore-linux-docker-2026-08-15.json`。
+- [ ] 以上备份恢复仅覆盖隔离栈演练，MinIO 生命周期策略、生产保留周期、Kubernetes 多节点和外部通知仍需目标环境验收。
+
 ## 2026-08-14 Android 性能监控、卡顿检测与异常回放
 
 - [x] Android 专项性能任务新增性能监控、卡顿/FPS、Crash/ANR 监控和异常回放开关，旧任务配置保持兼容。

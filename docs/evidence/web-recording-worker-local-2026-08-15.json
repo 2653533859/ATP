@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-08-15",
+  "environment": "Windows local Web Recording Worker mode",
+  "status": "passed",
+  "mode": "worker",
+  "browser": "chromium",
+  "target": "https://example.com",
+  "checks": {
+    "worker_registered": true,
+    "worker_available": true,
+    "recording_started": true,
+    "recorded_steps": 2,
+    "screenshot_content_type": "image/png",
+    "screenshot_bytes": 13441,
+    "recording_stopped": true
+  },
+  "credentials_included": false,
+  "source_report": ".local-run/web-recording-worker-20260815.json"
+}
