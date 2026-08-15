@@ -113,6 +113,14 @@ alembic upgrade head
 
 详细队列规划见 `docs/celery-queues.md`。
 
+使用 Windows Android Worker 时，可直接套用
+`deploy/helm/atp/values-android-worker.example.yaml`：它将
+`ADB_SCAN_ENABLED=true`、`ADB_SCAN_MODE=worker` 和 `ANDROID_WORKER_QUEUE=mobile_special`
+注入 Backend/Beat，同时让 Linux Worker 继续只监听
+`default,ios,ai,maintenance,performance`。该 overlay 默认使用外部 Secret，不会把
+数据库、Redis、MinIO 或加密密钥写入仓库。Windows Agent 仍需使用独立的
+`config/startup-profiles/android-agent.env`。
+
 Chart 已为 backend / worker / beat / flower 提供 baseline `resources.requests/limits`。上线前应结合实际用例规模、
 浏览器并发、Android 真机数量、LLM 调用频率与压测 VUs / duration 调优。
 

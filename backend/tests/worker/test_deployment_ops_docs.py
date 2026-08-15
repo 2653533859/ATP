@@ -145,6 +145,23 @@ def test_helm_values_expose_worker_queues_and_resources():
         assert values["resources"][component]["limits"]
 
 
+def test_helm_android_worker_overlay_separates_linux_and_windows_queues():
+    overlay = yaml.safe_load(
+        (ROOT / "deploy" / "helm" / "atp" / "values-android-worker.example.yaml").read_text(encoding="utf-8")
+    )
+    content = (ROOT / "docs" / "deploy-helm.md").read_text(encoding="utf-8")
+
+    assert overlay["worker"]["queues"] == "default,ios,ai,maintenance,performance"
+    assert overlay["config"]["ADB_SCAN_ENABLED"] == "true"
+    assert overlay["config"]["ADB_SCAN_MODE"] == "worker"
+    assert overlay["config"]["ANDROID_WORKER_QUEUE"] == "mobile_special"
+    assert overlay["config"]["CELERY_QUEUES"] == overlay["worker"]["queues"]
+    assert overlay["secret"] == {"create": False, "existingName": "atp-runtime-secrets"}
+    assert "android,mobile_special" not in overlay["worker"]["queues"]
+    assert "values-android-worker.example.yaml" in content
+    assert "config/startup-profiles/android-agent.env" in content
+
+
 def test_helm_exposes_opt_in_minio_lifecycle_reconciler():
     values = yaml.safe_load((ROOT / "deploy" / "helm" / "atp" / "values.yaml").read_text(encoding="utf-8"))
     schema = json.loads((ROOT / "deploy" / "helm" / "atp" / "values.schema.json").read_text(encoding="utf-8"))

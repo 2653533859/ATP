@@ -1,0 +1,22 @@
+# ATP 公网 Backend + Windows Android Worker 的 Helm overlay。
+# 使用前通过 ExternalSecrets/SOPS 或 --set 传入生产 Secret，不要修改默认 values.yaml。
+# Windows Agent 仍使用 config/startup-profiles/android-agent.env.example。
+
+worker:
+  # Linux Worker 不消费需要本机 ADB 的 Android 队列。
+  queues: default,ios,ai,maintenance,performance
+
+config:
+  # Android 设备扫描和控制通过 mobile_special 队列派发给 Windows Agent。
+  ADB_SCAN_ENABLED: "true"
+  ADB_SCAN_MODE: worker
+  ANDROID_WORKER_QUEUE: mobile_special
+  ANDROID_WORKER_REGISTRY_PREFIX: atp:android-worker
+  ANDROID_WORKER_HEARTBEAT_SECONDS: "15"
+  ANDROID_WORKER_TTL_SECONDS: "45"
+  CELERY_QUEUES: default,ios,ai,maintenance,performance
+
+# 生产环境建议设为 false，并通过 ExternalSecrets/SOPS 管理现有 Secret。
+secret:
+  create: false
+  existingName: atp-runtime-secrets

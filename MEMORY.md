@@ -13,6 +13,7 @@
 - `windows-android-worker.ps1` 在 doctor 前先调用 `Add-AtpOptionalToolPath`，因此使用 `ATP_ADB_HOME`、`ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 时不要求修改系统 PATH；新增顺序回归。
 - 根 `.env` 当前仍是 `ADB_SCAN_MODE=local` 的 Windows 全栈 Android 模式；公网后端+Windows Android Worker 验收必须使用单独的 `ADB_SCAN_MODE=worker` 配置，避免把后端本机 ADB 与 Worker 路由混用。
 - 已补充受版本控制的 `config/deployment-profiles/android-worker-backend.env.example` 和说明文档：服务端模板使用 `ADB_SCAN_MODE=worker`、普通 Linux Worker 排除 `android,mobile_special`；Windows Agent 仍使用独立 `config/startup-profiles/android-agent.env` 并在本机用 ADB 执行。真实队列隔离和设备回调仍待授权在线设备验收。
+- Helm 同步提供 `deploy/helm/atp/values-android-worker.example.yaml`，默认引用外部 `atp-runtime-secrets`，开启 `ADB_SCAN_MODE=worker` 并保持 Linux Worker 不消费 Android 队列；本机缺少 Helm，因此只完成 YAML/契约验证，真实集群部署仍待验收。
 
 ## 2026-08-15 Linux Docker 性能验收
 

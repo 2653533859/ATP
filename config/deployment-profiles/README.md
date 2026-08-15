@@ -21,6 +21,20 @@ docker compose -f docker-compose.app.yml up -d backend worker beat frontend
 PostgreSQL、Redis 和 MinIO，不适合连接外部基础设施的部署方式。Helm 部署则将同名
 变量注入对应的 Secret/ConfigMap，不要把该示例文件直接提交为生产 `.env`。
 
+Helm 可以直接使用仓库提供的 overlay：
+
+```bash
+helm upgrade --install atp deploy/helm/atp \
+  -f deploy/helm/atp/values-android-worker.example.yaml \
+  --set image.repository=<registry>/atp \
+  --set image.backend.tag=<release> \
+  --set image.worker.tag=<release> \
+  --set image.frontend.tag=<release>
+```
+
+overlay 只放非敏感的扫描模式和队列设置，并默认引用名为
+`atp-runtime-secrets` 的外部 Secret；请按实际 Secret 名称覆盖 `secret.existingName`。
+
 Windows 设备主机仍使用独立的
 `config/startup-profiles/android-agent.env`，只监听 `android,mobile_special`，并在
 本机通过 ADB 执行任务。两份配置必须连接同一个 ATP 数据库、Redis 和 MinIO；不要把
