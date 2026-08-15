@@ -57,6 +57,15 @@ Redis, but the image is older than the current repository and lacks the current
 Worker status route. It was therefore cleaned up and not counted as current
 Linux/Xvfb recording acceptance.
 
+The current repository Web recording API route was then mounted into a temporary
+backend container using the existing Linux/Xvfb runtime images. Worker
+registration/capacity preflight, recording start, session status, PNG screenshot
+and stop all passed; temporary containers and the Redis Worker key were removed.
+This hybrid evidence is recorded in
+`docs/evidence/web-recording-linux-current-2026-08-15.json`. It does not replace
+rebuilding the complete backend/Worker images from the current commit; Firefox,
+WebKit, Trace/network evidence and cross-replica recording remain open.
+
 ## MinIO Lifecycle Deployment Contract (2026-08-15)
 
 | Gate | Evidence | Result |

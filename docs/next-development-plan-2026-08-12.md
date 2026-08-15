@@ -19,6 +19,8 @@
 - [x] Windows Web Recording Worker 真实 smoke 通过，包含 Worker 可用性、Chromium 录制、2 个步骤、PNG 截图和停止录制；证据见 `docs/evidence/web-recording-worker-local-2026-08-15.json`。
 - [x] Linux Docker Compose 隔离栈完成 PostgreSQL 与 MinIO 备份恢复演练，临时资源已清理；证据见 `docs/evidence/backup-restore-linux-docker-2026-08-15.json`。
 - [x] 已检查远端 Linux/Xvfb acceptance 资源：旧镜像可启动 Xvfb/Playwright 和临时 Worker，但缺少当前 `/web-recordings/workers` 路由；证据见 `docs/evidence/web-recording-linux-remote-2026-08-15.json`，不计入当前版本录制验收。
+- [x] 当前仓库 Web 录制 API 路由已在该 Linux/Xvfb acceptance 栈通过混合 smoke：Worker 注册/容量、录制启动、状态查询、PNG 截图和停止录制均成功，临时资源已清理；证据见 `docs/evidence/web-recording-linux-current-2026-08-15.json`。
+- [ ] 仍需从当前 commit 重建完整 backend/Worker 镜像后复跑，随后补 Firefox/WebKit、Trace/网络日志和跨副本录制验收。
 - [ ] 备份恢复仍不是生产灾备签字：MinIO bucket lifecycle/归档策略、生产保留周期与定期恢复任务需明确并在目标环境复核。
 
 ## 2026-08-15 MinIO 生命周期实现进展
@@ -47,7 +49,7 @@
 2. 接入并授权 Windows Android 真机，运行 `scripts/windows-android-acceptance.ps1`，再以 `ADB_SCAN_MODE=worker` 验证公网后端到 Android Worker 的注册、设备扫描和操作回调。
 3. 在不影响 API/Web 的前提下完成真实 Android 性能任务：设备指标、卡顿/FPS、Crash/ANR、事件时间线、录屏分段和异常回放。
 4. 基于已完成的只读审计，由管理员确认 MinIO 保留周期和是否启用 multipart 清理；确认后再显式启用生命周期 hook，补真实恢复演练和清理审计，随后补外部 SMTP/企业微信/钉钉投递证据。
-5. 在 Linux/Xvfb 环境完成 Web Worker 录制验收，并将 Kubernetes、通知、存储和移动端证据统一归档。
+5. 从当前 commit 重建 Linux/Xvfb Web Worker 镜像并复跑完整录制验收，补 Firefox/WebKit、Trace/网络日志和跨副本证据；本轮混合 smoke 仅作为提前发现兼容问题的证据。
 
 ## 2026-08-14 项目成员 owner 权限完整性（代码阶段完成）
 

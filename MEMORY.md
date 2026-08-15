@@ -23,6 +23,7 @@
 - Linux Docker 隔离栈的 PostgreSQL 备份/临时库恢复与 MinIO 临时对象镜像/恢复校验通过，临时资源已清理；证据为 `docs/evidence/backup-restore-linux-docker-2026-08-15.json`。
 - 这些结果不替代 Kubernetes 多节点、生产 MinIO 生命周期/灾备策略、外部通知或 Android 真机验收。
 - 远端 Linux acceptance 镜像具备 Xvfb/Playwright，临时 Web Worker 可注册但旧 API 镜像缺少当前 `/web-recordings/workers` 路由；临时进程已清理，不能作为当前版本 Linux/Xvfb 录制验收，证据为 `docs/evidence/web-recording-linux-remote-2026-08-15.json`。
+- 当前仓库的 Web 录制 API 路由已挂载到该 acceptance 栈完成 Linux/Xvfb 混合 smoke：Worker 可用、录制启动/状态查询、PNG 截图（17117 bytes）和停止录制均通过，临时容器及 Redis Worker key 已清理；证据为 `docs/evidence/web-recording-linux-current-2026-08-15.json`。这仍不替代从当前 commit 重建完整镜像，Firefox/WebKit 和跨副本录制保持待验收。
 
 ## 2026-08-15 MinIO 生命周期部署契约
 

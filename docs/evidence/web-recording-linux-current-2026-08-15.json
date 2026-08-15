@@ -1,0 +1,26 @@
+{
+  "observed_at": "2026-08-15",
+  "target": {
+    "host": "172.31.27.133",
+    "stack": "atp-performance-acceptance",
+    "scope": "current web recording API route with existing Linux/Xvfb runtime images"
+  },
+  "status": "passed",
+  "implementation_under_test": "current repository backend/app/api/v1/web_recordings.py mounted into the isolated acceptance backend container",
+  "checks": {
+    "worker_registered": true,
+    "worker_available": true,
+    "worker_mode": "worker",
+    "recording_started": true,
+    "recording_status": "recording",
+    "recorded_steps": 2,
+    "screenshot_status": 200,
+    "screenshot_content_type": "image/png",
+    "screenshot_bytes": 17117,
+    "recording_stopped": true,
+    "temporary_containers_cleaned": true,
+    "temporary_worker_redis_key_removed": true
+  },
+  "credentials_included": false,
+  "limitations": "The acceptance host still needs a rebuilt image from the current commit before this hybrid route/runtime smoke can be treated as a full-image release acceptance. Firefox/WebKit and cross-replica recording remain pending."
+}
