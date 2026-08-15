@@ -1,0 +1,22 @@
+{
+  "observed_at": "2026-08-15",
+  "target": {
+    "scope": "current Windows frontend development server",
+    "url": "http://127.0.0.1:5173/login",
+    "viewport": "1280x720"
+  },
+  "status": "passed",
+  "command": "ATP_WEB_SMOKE_BROWSERS=chromium,firefox,webkit node frontend/tools/browser-matrix-smoke.mjs",
+  "checks": {
+    "chromium": {"http_status": 200, "login_inputs": 4, "trace_bytes": 57168, "har_bytes": 125974, "console_messages": 4, "failed_requests": 1, "error_responses": 0},
+    "firefox": {"http_status": 200, "login_inputs": 4, "trace_bytes": 74771, "har_bytes": 58739, "console_messages": 2, "failed_requests": 0, "error_responses": 0},
+    "webkit": {"http_status": 200, "login_inputs": 4, "trace_bytes": 29235, "har_bytes": 56024, "console_messages": 2, "failed_requests": 0, "error_responses": 0}
+  },
+  "artifacts": {
+    "report": ".local-run/web-browser-matrix-20260815/report.json",
+    "directory": ".local-run/web-browser-matrix-20260815",
+    "files": ["chromium.trace.zip", "chromium.har", "firefox.trace.zip", "firefox.har", "webkit.trace.zip", "webkit.har"]
+  },
+  "notes": "The single Chromium failed request was the Vite dev-server HMR dependency request ending with net::ERR_ABORTED; no HTTP error response was observed. This is a local frontend trace/network capture and does not replace Linux Worker or Android real-device acceptance.",
+  "credentials_included": false
+}

@@ -19,6 +19,9 @@
     "screenshot_bytes": 17117,
     "recording_stopped": true,
     "full_backend_image_built": true,
+    "full_worker_image_built": true,
+    "full_worker_image_digest": "sha256:4937375e68f2c10de982f19632f960eae402319bc539c34eabbd1eb43c69316a",
+    "full_worker_image_size_bytes": 1303200099,
     "firefox_recording_started": true,
     "firefox_screenshot_content_type": "image/png",
     "firefox_screenshot_bytes": 19076,
@@ -27,6 +30,14 @@
     "webkit_screenshot_content_type": "image/png",
     "webkit_screenshot_bytes": 21192,
     "webkit_recording_stopped": true,
+    "full_worker_image_browser_matrix": {
+      "chromium": {"status": "recording_then_stopped", "screenshot_bytes": 17117},
+      "firefox": {"status": "recording_then_stopped", "screenshot_bytes": 19076},
+      "webkit": {"status": "recording_then_stopped", "screenshot_bytes": 21192}
+    },
+    "capacity_retry_to_second_worker": true,
+    "capacity_retry_sessions_stopped": true,
+    "no_worker_start_returns_503": true,
     "cross_api_replica_session_route": true,
     "cross_api_replica_screenshot_content_type": "image/png",
     "cross_api_replica_screenshot_bytes": 17117,
@@ -35,5 +46,5 @@
     "temporary_worker_redis_key_removed": true
   },
   "credentials_included": false,
-  "limitations": "The current backend image was built successfully from HEAD. The Dockerfile.worker build was interrupted while downloading the Playwright headless shell; Firefox/WebKit used the existing multi-browser Worker runtime with current Worker source mounted. A complete current Worker image build, Trace/network evidence and cross-replica failure/retry cases remain pending."
+  "limitations": "The complete Dockerfile.worker image was built from HEAD and passed the three-browser recording matrix, capacity failover retry, no-worker 503 rejection, and cross-replica session routing. Trace/HAR/console/network artifact capture was separately verified by the repository browser-matrix smoke on the current Windows frontend; the Linux acceptance stack has no frontend container, so that artifact check is recorded separately. Android real-device and production Kubernetes/external-service gates remain open."
 }

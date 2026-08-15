@@ -23,7 +23,7 @@
 - Linux Docker 隔离栈的 PostgreSQL 备份/临时库恢复与 MinIO 临时对象镜像/恢复校验通过，临时资源已清理；证据为 `docs/evidence/backup-restore-linux-docker-2026-08-15.json`。
 - 这些结果不替代 Kubernetes 多节点、生产 MinIO 生命周期/灾备策略、外部通知或 Android 真机验收。
 - 远端 Linux acceptance 镜像具备 Xvfb/Playwright，临时 Web Worker 可注册但旧 API 镜像缺少当前 `/web-recordings/workers` 路由；临时进程已清理，不能作为当前版本 Linux/Xvfb 录制验收，证据为 `docs/evidence/web-recording-linux-remote-2026-08-15.json`。
-- 当前仓库 backend 镜像已从 HEAD 构建并完成 Linux/Xvfb Chromium 录制；当前 Worker 源码挂载到既有多浏览器运行时后，Firefox（19076 bytes）和 WebKit（21192 bytes）也通过，副本 A 启动/副本 B 查询截图并停止的 Redis 路由通过；临时资源已清理，证据为 `docs/evidence/web-recording-linux-current-2026-08-15.json`。完整 `Dockerfile.worker` 构建在 Playwright headless shell 下载阶段中断，仍需重试，并补 Trace/网络日志及失败重试场景。
+- 当前仓库 `Dockerfile.worker` 已从 HEAD 完整构建成功；同一镜像的 Linux/Xvfb Chromium（17117 bytes）、Firefox（19076 bytes）和 WebKit（21192 bytes）录制通过，容量切换重试、无 Worker 503 拒绝以及副本 A 启动/副本 B 查询截图并停止的 Redis 路由也通过；临时资源已清理，证据为 `docs/evidence/web-recording-linux-current-2026-08-15.json`。当前 Windows 前端浏览器矩阵另有三浏览器 Trace/HAR、Console、失败请求和 HTTP 错误摘要证据 `docs/evidence/web-browser-trace-network-2026-08-15.json`。
 
 ## 2026-08-15 MinIO 生命周期部署契约
 

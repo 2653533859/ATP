@@ -28,7 +28,8 @@
 - [x] 远端 Linux/Xvfb 环境兼容性检查完成：旧 acceptance backend 镜像具备 Xvfb/Playwright，临时 Worker 可注册并已清理；但镜像缺少当前版本 `/web-recordings/workers` 路由，未将其计入真实录制验收；证据见 `docs/evidence/web-recording-linux-remote-2026-08-15.json`。
 - [x] 当前仓库 backend 镜像已从 HEAD 构建并完成 Linux/Xvfb Chromium 录制 smoke；Worker 注册/容量预检、录制启动、状态查询、PNG 截图（`17117` bytes）和停止录制均通过。
 - [x] 使用当前 Worker 源码挂载到现有多浏览器 Linux/Xvfb 运行时后，Firefox 截图 `19076` bytes、WebKit 截图 `21192` bytes 均通过；副本 A 启动会话、副本 B 查询/截图/停止的 Redis 路由也通过；临时容器与 Worker key 已清理；证据见 `docs/evidence/web-recording-linux-current-2026-08-15.json`。
-- [ ] `Dockerfile.worker` 从 HEAD 的完整镜像构建在下载 Playwright headless shell 时被中断；需重试完整 Worker 镜像构建，并补 Trace/网络日志及跨副本失败/重试场景。
+- [x] `Dockerfile.worker` 已从 HEAD 完整构建成功（镜像 digest `sha256:4937375e68f2c10de982f19632f960eae402319bc539c34eabbd1eb43c69316a`）；同一镜像的 Chromium/Firefox/WebKit Linux/Xvfb 录制、容量切换重试、无 Worker 时 503 和跨副本 Redis 会话路由均通过，证据见 `docs/evidence/web-recording-linux-current-2026-08-15.json`。
+- [x] 当前前端浏览器矩阵已生成 Chromium/Firefox/WebKit Trace、HAR、Console、失败请求和 HTTP 错误摘要；证据见 `docs/evidence/web-browser-trace-network-2026-08-15.json`。Linux acceptance 栈没有前端容器，因此该项是 Windows 当前前端的独立采集证据。
 - [x] Linux Docker Compose 隔离验收栈完成 PostgreSQL 压缩备份/临时库恢复和 MinIO 临时对象镜像/恢复校验，临时数据库、对象和文件均已清理；证据见 `docs/evidence/backup-restore-linux-docker-2026-08-15.json`。
 - [ ] 以上备份恢复仅覆盖隔离栈演练，MinIO 生命周期策略、生产保留周期、Kubernetes 多节点和外部通知仍需目标环境验收。
 

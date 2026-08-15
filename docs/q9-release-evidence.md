@@ -64,9 +64,17 @@ status, PNG screenshot and stop. A session started through API replica A was
 queried, screenshotted and stopped through replica B, proving Redis session
 routing. Temporary containers and Worker keys were removed. The redacted evidence
 is recorded in `docs/evidence/web-recording-linux-current-2026-08-15.json`.
-The complete `Dockerfile.worker` build was interrupted while downloading the
-Playwright headless shell; Trace/network evidence and failure/retry cases remain
-open.
+The complete `Dockerfile.worker` image was subsequently built from HEAD. The
+same image passed Chromium, Firefox and WebKit Linux/Xvfb recording, capacity
+failover retry, explicit no-Worker `503` rejection, and cross-API-replica
+session routing. The redacted evidence is recorded in
+`docs/evidence/web-recording-linux-current-2026-08-15.json`.
+
+The current frontend browser matrix also generated Trace/HAR artifacts and
+captured Console, failed-request and HTTP-error summaries for all three
+browsers. Because the isolated Linux acceptance stack has no frontend
+container, this is recorded as a separate Windows-side artifact check in
+`docs/evidence/web-browser-trace-network-2026-08-15.json`.
 
 ## MinIO Lifecycle Deployment Contract (2026-08-15)
 

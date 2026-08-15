@@ -20,7 +20,8 @@
 - [x] Linux Docker Compose 隔离栈完成 PostgreSQL 与 MinIO 备份恢复演练，临时资源已清理；证据见 `docs/evidence/backup-restore-linux-docker-2026-08-15.json`。
 - [x] 已检查远端 Linux/Xvfb acceptance 资源：旧镜像可启动 Xvfb/Playwright 和临时 Worker，但缺少当前 `/web-recordings/workers` 路由；证据见 `docs/evidence/web-recording-linux-remote-2026-08-15.json`，不计入当前版本录制验收。
 - [x] 当前仓库 backend 镜像已从 HEAD 构建并完成 Chromium Linux/Xvfb 录制；当前 Worker 源码挂载到既有多浏览器运行时后，Firefox/WebKit 和跨 API 副本 Redis 会话路由也通过；证据见 `docs/evidence/web-recording-linux-current-2026-08-15.json`。
-- [ ] `Dockerfile.worker` 从当前 commit 的完整构建在 Playwright headless shell 下载阶段中断；重试完整 Worker 镜像构建，并补 Trace/网络日志、失败重试和资源恢复验收。
+- [x] `Dockerfile.worker` 已从当前 commit 完整构建成功；同一镜像的 Chromium/Firefox/WebKit Linux/Xvfb 录制、容量切换重试、无 Worker 503 拒绝和跨 API 副本路由均通过，证据见 `docs/evidence/web-recording-linux-current-2026-08-15.json`。
+- [x] 当前前端浏览器矩阵已生成三浏览器 Trace/HAR、Console、失败请求和 HTTP 错误摘要；证据见 `docs/evidence/web-browser-trace-network-2026-08-15.json`。Linux acceptance 栈无前端容器，Trace/HAR 采集因此单独记录。
 - [ ] 备份恢复仍不是生产灾备签字：MinIO bucket lifecycle/归档策略、生产保留周期与定期恢复任务需明确并在目标环境复核。
 
 ## 2026-08-15 MinIO 生命周期实现进展
