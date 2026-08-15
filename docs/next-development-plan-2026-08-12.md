@@ -402,11 +402,11 @@
 
 | 阶段 | 优先级 | 工作项 | 当前状态 |
 | --- | --- | --- | --- |
-| 1 | P1 | Windows 真实 Android 设备验收 | 暂缓：ADB 验收脚本、脱敏证据和回归测试已完成；按当前环境暂不连接真机 |
-| 2 | P1 | Linux/Kubernetes 性能栈验收 | 待开始：专用 Worker、真实目标、TLS、Prometheus、取消和资源采样 |
-| 3 | P1 | Web 专用 Worker 验收 | 待开始：Linux/Xvfb、Firefox/WebKit、Trace、网络日志和跨副本 E2E |
+| 1 | P1 | Windows 真实 Android 设备验收 | 阻断：ADB 验收脚本、脱敏证据和无真机回归已完成；当前等待授权在线设备 |
+| 2 | P1 | Linux/Kubernetes 性能栈验收 | 部分完成：Linux Docker Compose 的 Locust、gRPC/TLS、取消和资源采样已通过；Kubernetes、多节点和生产 Prometheus 待目标环境 |
+| 3 | P1 | Web 专用 Worker 验收 | 部分完成：当前 Worker 镜像已完成 Linux/Xvfb Chromium/Firefox/WebKit、跨副本路由和 Trace/网络摘要 smoke；生产部署复验待目标集群 |
 | 4 | P1 | iOS/macOS/Appium 最小闭环 | 进行中：验收脚本、status/session smoke、受控步骤和脱敏附件证据已完成；真实 macOS、Simulator/iPhone、IPA 签名和 XCUITest 待目标环境 |
-| 5 | P2 | 产品化收口 | 进行中：大型数据集 MinIO、项目级运行记录清理、性能 Run 通知、通知有限重试和存储治理 UI 已完成；真实治理、外部通知渠道、E2E、覆盖率和发布 Runbook 待推进 |
+| 5 | P2 | 产品化收口 | 部分完成：Windows API/Web smoke、配置门禁和灾备隔离演练已通过；真实 MinIO 生命周期、外部通知、生产 E2E 和发布 Runbook 仍待推进 |
 
 ## 阶段 1：Windows Android 真实设备验收
 
