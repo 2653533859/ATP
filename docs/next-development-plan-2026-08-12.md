@@ -14,6 +14,7 @@
 - [x] Windows Android Worker doctor 已修复为先加载 `ATP_ADB_HOME`/Android SDK 路径，再检查 `adb.exe`；对应脚本契约回归通过。
 - [x] 新增 `config/deployment-profiles/android-worker-backend.env.example`：服务端固定 `ADB_SCAN_MODE=worker`，普通 Linux Worker 排除 `android,mobile_special`，并与 Windows `android-agent` 档案分离；新增配置契约回归和部署说明。
 - [x] 新增 Helm overlay `deploy/helm/atp/values-android-worker.example.yaml`，将同一套扫描模式、Android 队列和外部 Secret 约束带入 Kubernetes；部署契约回归 `22 passed`，真实集群 lint/deploy 仍待目标环境。
+- [x] 本机安装 Helm `v4.2.4` 后完成 `helm lint deploy/helm/atp` 和 Android Worker overlay `helm template`；渲染结果确认 `ADB_SCAN_MODE=worker`、`ANDROID_WORKER_QUEUE=mobile_special`、普通 Worker 排除 Android 队列并引用外部 `atp-runtime-secrets`。真实集群部署仍待目标环境。
 - [x] `scripts/validate-deployment-readiness.py` 已接入 Android Worker 配置契约检查，发布前会拒绝服务端错误使用 `local` 扫描模式或让普通 Linux Worker 监听 Android 队列。
 - [ ] Android 单设备验收等待授权在线设备；当前 `adb devices -l` 为空，性能监控、卡顿、Crash/ANR、屏幕录制和异常回放无法在本机闭环。
 - [x] Windows 冒烟新增显式 Android 低代码验收入口：`-AndroidCaseId` 校验已审核用例、设备绑定、步骤和自动化状态后触发真实运行；`-RequireAndroidEvidence` 可要求截图或设备附件。未传用例 ID 时保持跳过，未连接设备不会伪造通过。
