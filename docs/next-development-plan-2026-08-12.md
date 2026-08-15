@@ -8,6 +8,7 @@
 - [x] Windows API/Web smoke、文件上传清理和 Chromium 登录矩阵通过；Web/API 不依赖 Android 真机即可继续使用。
 - [x] 性能 API、k6/Locust/gRPC 执行器、专用节点队列、出口白名单和 Prometheus readiness/query smoke 通过。
 - [x] 已完成真实低流量 Locust smoke：run `1` 为 `957` 次请求、错误率 `0`，并产生 `performance-worker` 采样；run `2` 取消链路从运行态进入 `cancelled`。
+- [x] Windows Android Agent 已在线注册到当前 Redis，`/devices/workers` 返回 `android-win-HPS` 和 `mobile_special` 队列；后端当前仍是 `ADB_SCAN_MODE=local`，未执行 worker-mode 扫描回调。
 - [ ] Android 单设备验收等待授权在线设备；当前 `adb devices -l` 为空，性能监控、卡顿、Crash/ANR、屏幕录制和异常回放无法在本机闭环。
 - [x] Windows 性能节点 `perf-node-local-01` 已在线并完成目标 TCP、allowlist、资源采样和取消验证；Linux/Kubernetes 专用 Worker、TLS 目标和多节点验收仍未关闭外部门禁。
 

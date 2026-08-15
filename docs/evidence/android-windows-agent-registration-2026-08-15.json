@@ -1,0 +1,13 @@
+{
+  "observed_date": "2026-08-15",
+  "scope": "Windows Android Agent registration",
+  "worker_id": "android-win-HPS",
+  "status": "online",
+  "queues": ["mobile_special"],
+  "capabilities": ["adb", "android"],
+  "api_check": "GET /api/v1/devices/workers",
+  "backend_scan_mode": "local",
+  "adb_online_device_count": 0,
+  "device_execution_status": "blocked_until_authorized_device_is_connected",
+  "credentials_included": false
+}

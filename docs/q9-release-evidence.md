@@ -20,6 +20,7 @@ This refresh supersedes the older 2026-08-13 reachability snapshot for the curre
 | Performance node/readiness | `perf-node-local-01` with `performance.worker-local` | passed; node online, executor/allowlist/target/Prometheus checks passed |
 | Performance real smoke | Locust test `1`, 1 user / 3 seconds | passed; run `1`, 957 requests, error rate 0, 2 `performance-worker` samples |
 | Performance cancellation | Locust test `1`, temporary 60-second duration | passed; run `2` entered `cancelled` after the 2-second cancellation request |
+| Android Worker registry | authenticated `GET /api/v1/devices/workers` | passed; `android-win-HPS` online with `mobile_special` and `adb/android` capabilities |
 | Android single-device acceptance | `scripts/windows-android-acceptance.ps1` | blocked; `adb devices -l` has no authorized online device; report is local-only at `.local-run/android-acceptance-20260815.json` |
 
 The smoke reports under `.local-run/` are local runtime artifacts and contain no credentials. They are not treated as a substitute for external device, Worker, TLS target, cancellation or multi-node evidence.
