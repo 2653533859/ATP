@@ -250,6 +250,8 @@ interface StartupConfig {
   MINIO_ROOT_PASSWORD: string
   MINIO_BUCKET: string
   MINIO_CONNECT_TIMEOUT_SECONDS: number
+  MINIO_LIFECYCLE_ABORT_INCOMPLETE_DAYS: number
+  MINIO_LIFECYCLE_EXPIRATION_RULES_JSON: string
   APP_ENV: string
   APP_SECRET_KEY: string
   APP_ACCESS_TOKEN_EXPIRE_MINUTES: number
@@ -415,7 +417,7 @@ const PLACEHOLDER_VALUES: Partial<Record<FieldKey, string>> = {
 const defaultConfig: StartupConfig = {
   POSTGRES_HOST: 'postgres', POSTGRES_PORT: 5432, POSTGRES_DB: 'atp', POSTGRES_USER: 'atp', POSTGRES_PASSWORD: 'atp_password_change_me', POSTGRES_CONNECT_TIMEOUT_SECONDS: 5,
   REDIS_HOST: 'redis', REDIS_PORT: 6379, REDIS_PASSWORD: '', REDIS_CONNECT_TIMEOUT_SECONDS: 5,
-  MINIO_HOST: 'minio', MINIO_PORT: 9000, MINIO_ROOT_USER: 'minioadmin', MINIO_ROOT_PASSWORD: 'minio_password_change_me', MINIO_BUCKET: 'atp', MINIO_CONNECT_TIMEOUT_SECONDS: 5,
+  MINIO_HOST: 'minio', MINIO_PORT: 9000, MINIO_ROOT_USER: 'minioadmin', MINIO_ROOT_PASSWORD: 'minio_password_change_me', MINIO_BUCKET: 'atp', MINIO_CONNECT_TIMEOUT_SECONDS: 5, MINIO_LIFECYCLE_ABORT_INCOMPLETE_DAYS: 1, MINIO_LIFECYCLE_EXPIRATION_RULES_JSON: '[]',
   APP_ENV: 'development', APP_SECRET_KEY: 'change_this_to_a_random_secret_key_at_least_32_chars', APP_ACCESS_TOKEN_EXPIRE_MINUTES: 480,
   APP_REFRESH_TOKEN_EXPIRE_DAYS: 7, APP_CORS_ORIGINS: 'http://localhost,http://localhost:80,http://localhost:5173', APP_AUTH_COOKIE_SECURE: false, APP_AUTH_COOKIE_SAMESITE: 'lax', APP_AUTO_CREATE_TABLES: false,
   FIRST_ADMIN_USERNAME: 'parado', FIRST_ADMIN_PASSWORD: 'change_me_before_use', FIRST_ADMIN_EMAIL: 'admin@example.com', WEBHOOK_API_KEY: 'change_this_to_a_random_webhook_key', ENCRYPTION_KEY: '',
@@ -463,7 +465,7 @@ const sections: ConfigSection[] = [
     fields: [
       text('POSTGRES_HOST', { required: true }), number('POSTGRES_PORT', { max: 65535 }), text('POSTGRES_DB', { required: true }), text('POSTGRES_USER', { required: true }), password('POSTGRES_PASSWORD', { required: true }), number('POSTGRES_CONNECT_TIMEOUT_SECONDS', { min: 1, max: 120 }),
       text('REDIS_HOST', { required: true }), number('REDIS_PORT', { max: 65535 }), password('REDIS_PASSWORD'), number('REDIS_CONNECT_TIMEOUT_SECONDS', { min: 1, max: 120 }),
-      text('MINIO_HOST', { required: true }), number('MINIO_PORT', { max: 65535 }), text('MINIO_ROOT_USER', { required: true }), password('MINIO_ROOT_PASSWORD', { required: true }), text('MINIO_BUCKET', { required: true }), number('MINIO_CONNECT_TIMEOUT_SECONDS', { min: 1, max: 120 }),
+      text('MINIO_HOST', { required: true }), number('MINIO_PORT', { max: 65535 }), text('MINIO_ROOT_USER', { required: true }), password('MINIO_ROOT_PASSWORD', { required: true }), text('MINIO_BUCKET', { required: true }), number('MINIO_CONNECT_TIMEOUT_SECONDS', { min: 1, max: 120 }), number('MINIO_LIFECYCLE_ABORT_INCOMPLETE_DAYS', { min: 1, max: 3650 }), textarea('MINIO_LIFECYCLE_EXPIRATION_RULES_JSON', { rows: 3 }),
     ],
   },
   {

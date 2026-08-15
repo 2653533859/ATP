@@ -124,6 +124,29 @@
         "resources": { "$ref": "#/definitions/resources" }
       }
     },
+    "storageLifecycle": {
+      "type": "object",
+      "description": "Optional post-install hook that reconciles lifecycle rules on an externally managed MinIO bucket.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "jobImage": { "type": "string" },
+        "abortIncompleteMultipartDays": { "$ref": "#/definitions/positiveInteger" },
+        "expirationRules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "prefix", "days"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "prefix": { "type": "string", "minLength": 1 },
+              "days": { "$ref": "#/definitions/positiveInteger" }
+            }
+          }
+        }
+      }
+    },
     "resources": {
       "type": "object",
       "description": "Kubernetes resource requests and limits by component.",

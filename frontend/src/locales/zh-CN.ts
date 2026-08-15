@@ -2853,6 +2853,8 @@ export default {
         MINIO_ROOT_PASSWORD: 'MinIO 管理员密码',
         MINIO_BUCKET: 'ATP 使用的 MinIO bucket 名称',
         MINIO_CONNECT_TIMEOUT_SECONDS: 'MinIO 连接和操作超时时间（秒）',
+        MINIO_LIFECYCLE_ABORT_INCOMPLETE_DAYS: '显式执行生命周期命令时，未完成 multipart 上传的保留天数；普通启动不会应用策略',
+        MINIO_LIFECYCLE_EXPIRATION_RULES_JSON: '显式执行生命周期命令时使用的 JSON 过期规则；必须使用非空相对前缀，避免误删仍被引用的对象',
         APP_ENV: '运行环境，影响默认日志级别和生产行为',
         APP_SECRET_KEY: 'JWT 签名和应用安全密钥，至少 32 个字符',
         APP_ACCESS_TOKEN_EXPIRE_MINUTES: '登录访问令牌有效期（分钟）',

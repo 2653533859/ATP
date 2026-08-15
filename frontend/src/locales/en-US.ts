@@ -2876,6 +2876,8 @@ export default {
         MINIO_ROOT_PASSWORD: 'MinIO administrator password',
         MINIO_BUCKET: 'MinIO bucket used by ATP',
         MINIO_CONNECT_TIMEOUT_SECONDS: 'MinIO connection and operation timeout (seconds)',
+        MINIO_LIFECYCLE_ABORT_INCOMPLETE_DAYS: 'Days to retain incomplete multipart uploads when the explicit lifecycle command runs; normal startup does not apply it',
+        MINIO_LIFECYCLE_EXPIRATION_RULES_JSON: 'JSON expiration rules for the explicit lifecycle command; use a non-empty relative prefix to avoid deleting referenced objects',
         APP_ENV: 'Runtime environment controlling defaults and production behavior',
         APP_SECRET_KEY: 'JWT signing and application security key; use at least 32 characters',
         APP_ACCESS_TOKEN_EXPIRE_MINUTES: 'Access token lifetime in minutes',

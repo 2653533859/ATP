@@ -175,6 +175,29 @@ Helm values 默认启用 `DB_BACKUP_ENABLED=true`，由 Celery beat 调度 Postg
 
 恢复演练与生产恢复步骤见 `docs/disaster-recovery.md`。恢复脚本 `scripts/restore-postgres.sh` 必须显式传入 `--i-know-this-overwrites`，避免误覆盖数据库。
 
+### MinIO 生命周期（显式启用）
+
+Chart 不负责安装 MinIO，只在 `storageLifecycle.enabled=true` 时通过 Helm hook
+调用 `app.ops_minio_lifecycle`。该命令默认只清理未完成的 multipart upload；它会保留
+不是 `atp-managed-` 命名空间的既有生命周期规则，并只替换 ATP 自己管理的规则。
+
+如需为临时对象配置过期规则，必须使用非空的相对前缀，并确认该前缀不包含仍被数据库引用的截图、报告、APK、脚本或
+`pg-backups/` 对象：
+
+```yaml
+storageLifecycle:
+  enabled: true
+  abortIncompleteMultipartDays: 1
+  expirationRules:
+    - id: scratch-objects
+      prefix: tmp/
+      days: 7
+```
+
+该 hook 使用 ATP backend 镜像和外部 Secret 中的 `MINIO_*` 配置；默认关闭，不会因普通
+API/Worker 启动而改变 bucket 策略。Docker Compose 可用
+`docker compose --profile storage-lifecycle run --rm minio-lifecycle` 显式执行同一套合并逻辑。
+
 ## 十、生产 checklist
 
 生产 values 应使用外部 Secret，并在 Prometheus Operator 集群中开启
@@ -187,6 +210,7 @@ Windows 无 Git Bash、WSL 或其他 POSIX shell 时，校验器会跳过 shell 
 --require-shell`，确保发布机具备完整校验能力。
 
 - [ ] PostgreSQL / Redis / MinIO 数据已备份并验证恢复（参见 `docs/disaster-recovery.md`）
+- [ ] MinIO lifecycle 规则已由目标环境管理员确认；若启用 `storageLifecycle`，已验证规则前缀不删除数据库仍引用的对象
 - [ ] values.secrets 已通过 ExternalSecrets / SOPS 注入，未明文提交
 - [ ] Ingress TLS 已配置，HTTP 自动重定向 HTTPS
 - [ ] Prometheus 已 ServiceMonitor 抓取 backend `/metrics`

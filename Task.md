@@ -28,6 +28,13 @@
 - [x] Linux Docker Compose 隔离验收栈完成 PostgreSQL 压缩备份/临时库恢复和 MinIO 临时对象镜像/恢复校验，临时数据库、对象和文件均已清理；证据见 `docs/evidence/backup-restore-linux-docker-2026-08-15.json`。
 - [ ] 以上备份恢复仅覆盖隔离栈演练，MinIO 生命周期策略、生产保留周期、Kubernetes 多节点和外部通知仍需目标环境验收。
 
+## 2026-08-15 MinIO 生命周期部署契约
+
+- [x] 新增 `app.ops_minio_lifecycle` 显式运维命令：默认拒绝执行，仅在 `MINIO_LIFECYCLE_APPLY=true` 时运行；合并时保留非 `atp-managed-*` 规则，避免覆盖外部系统策略。
+- [x] Helm 增加默认关闭的 `storageLifecycle` hook，Docker Compose 增加 `storage-lifecycle` profile；默认只清理未完成 multipart upload，过期规则必须绑定非空相对前缀。
+- [x] 增加生命周期规则解析、边界校验、外部规则保留和部署契约回归；定向部署/服务测试 `23 passed`。
+- [ ] 生产仍需由管理员确认 MinIO bucket 当前规则、对象引用关系和保留周期后，再在目标环境显式启用 hook/profile。
+
 ## 2026-08-14 Android 性能监控、卡顿检测与异常回放
 
 - [x] Android 专项性能任务新增性能监控、卡顿/FPS、Crash/ANR 监控和异常回放开关，旧任务配置保持兼容。

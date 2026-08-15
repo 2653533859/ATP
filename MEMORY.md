@@ -23,6 +23,12 @@
 - Linux Docker 隔离栈的 PostgreSQL 备份/临时库恢复与 MinIO 临时对象镜像/恢复校验通过，临时资源已清理；证据为 `docs/evidence/backup-restore-linux-docker-2026-08-15.json`。
 - 这些结果不替代 Kubernetes 多节点、生产 MinIO 生命周期/灾备策略、外部通知或 Android 真机验收。
 
+## 2026-08-15 MinIO 生命周期部署契约
+
+- 新增 `app.ops_minio_lifecycle` 显式运维命令；只有 `MINIO_LIFECYCLE_APPLY=true` 才会执行，且只替换 `atp-managed-*` 规则，保留其他系统的生命周期配置。
+- Helm `storageLifecycle` hook 和 Docker Compose `storage-lifecycle` profile 默认关闭；默认只设置未完成 multipart upload 的清理，过期规则要求非空相对前缀。
+- 生命周期解析/边界/规则合并与部署契约回归 `23 passed`；生产 bucket 规则、引用关系和保留周期仍需管理员确认后才能启用。
+
 ## 2026-08-14 通知 Webhook 查询参数脱敏
 
 - `_safe_delivery_error` 新增 URL 查询参数脱敏，覆盖企业微信 `key`、钉钉 `access_token/sign` 以及常见 `api_key`、`token`、`secret`、`authorization`、`cookie` 参数；服务端日志、`NotificationDelivery.error_message` 和测试发送 API 错误共用该处理。

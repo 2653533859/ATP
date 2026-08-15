@@ -212,6 +212,22 @@ services:
       retries: 10
     restart: unless-stopped
 
+  # Optional, explicit MinIO lifecycle reconciliation. It preserves rules not
+  # owned by ATP and is never started by the default profile.
+  minio-lifecycle:
+    profiles: ["storage-lifecycle"]
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    command: python -m app.ops_minio_lifecycle
+    env_file: .env
+    environment:
+      - MINIO_LIFECYCLE_APPLY=true
+    depends_on:
+      minio:
+        condition: service_healthy
+    restart: "no"
+
   # ── Jaeger（OpenTelemetry 链路追踪 UI + Collector）─
   jaeger:
     image: jaegertracing/all-in-one:1.62

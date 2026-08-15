@@ -109,6 +109,17 @@ def test_compose_can_start_an_independent_web_recording_worker():
     assert recorder["healthcheck"]["test"][0] == "CMD"
 
 
+def test_compose_minio_lifecycle_requires_explicit_profile():
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    lifecycle = compose["services"]["minio-lifecycle"]
+
+    assert lifecycle["profiles"] == ["storage-lifecycle"]
+    assert lifecycle["command"] == "python -m app.ops_minio_lifecycle"
+    assert "MINIO_LIFECYCLE_APPLY=true" in lifecycle["environment"]
+    assert lifecycle["restart"] == "no"
+    assert lifecycle["depends_on"]["minio"]["condition"] == "service_healthy"
+
+
 def test_helm_values_expose_worker_queues_and_resources():
     values = yaml.safe_load((ROOT / "deploy" / "helm" / "atp" / "values.yaml").read_text(encoding="utf-8"))
 
@@ -132,6 +143,22 @@ def test_helm_values_expose_worker_queues_and_resources():
     for component in ("backend", "worker", "beat", "flower"):
         assert values["resources"][component]["requests"]
         assert values["resources"][component]["limits"]
+
+
+def test_helm_exposes_opt_in_minio_lifecycle_reconciler():
+    values = yaml.safe_load((ROOT / "deploy" / "helm" / "atp" / "values.yaml").read_text(encoding="utf-8"))
+    schema = json.loads((ROOT / "deploy" / "helm" / "atp" / "values.schema.json").read_text(encoding="utf-8"))
+    template = (ROOT / "deploy" / "helm" / "atp" / "templates" / "minio-lifecycle-job.yaml").read_text(encoding="utf-8")
+
+    lifecycle = values["storageLifecycle"]
+    assert lifecycle["enabled"] is False
+    assert lifecycle["abortIncompleteMultipartDays"] == 1
+    assert lifecycle["expirationRules"] == []
+    assert "storageLifecycle" in schema["properties"]
+    assert "app.ops_minio_lifecycle" in template
+    assert "MINIO_LIFECYCLE_APPLY" in template
+    assert "helm.sh/hook" in template
+    assert "before-hook-creation,hook-succeeded" in template
 
 
 def test_helm_production_overlays_have_secret_and_metrics_hooks():

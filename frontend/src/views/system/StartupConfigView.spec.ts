@@ -42,11 +42,13 @@ describe('StartupConfigView', () => {
     const wrapper = mountPage()
     const vm = wrapper.vm as any
 
-    expect(vm.fieldCount).toBe(121)
+    expect(vm.fieldCount).toBe(123)
     expect(vm.envContent).toContain('POSTGRES_HOST=postgres')
     expect(vm.envContent).toContain('POSTGRES_CONNECT_TIMEOUT_SECONDS=5')
     expect(vm.envContent).toContain('REDIS_CONNECT_TIMEOUT_SECONDS=5')
     expect(vm.envContent).toContain('MINIO_CONNECT_TIMEOUT_SECONDS=5')
+    expect(vm.envContent).toContain('MINIO_LIFECYCLE_ABORT_INCOMPLETE_DAYS=1')
+    expect(vm.envContent).toContain('MINIO_LIFECYCLE_EXPIRATION_RULES_JSON="[]"')
     expect(vm.envContent).toContain('CELERY_QUEUES=default,android,mobile_special,ios,ai,maintenance,performance')
     expect(vm.envContent).toContain('ADB_SCAN_MODE=local')
     expect(vm.envContent).toContain('PERFORMANCE_EXECUTORS=k6,locust,grpc')

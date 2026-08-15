@@ -50,6 +50,17 @@ The following checks were completed after restoring the isolated Linux acceptanc
 
 The backup/restore drill does not prove production retention, MinIO lifecycle configuration, scheduled backups, cross-host recovery, Kubernetes rollout or external notification delivery. Those gates remain open.
 
+## MinIO Lifecycle Deployment Contract (2026-08-15)
+
+| Gate | Evidence | Result |
+|---|---|---|
+| Explicit reconciler | `backend/app/ops_minio_lifecycle.py` | implemented; execution requires `MINIO_LIFECYCLE_APPLY=true` and preserves rules outside the `atp-managed-*` namespace |
+| Helm deployment hook | `deploy/helm/atp/templates/minio-lifecycle-job.yaml` | implemented but default disabled; uses the ATP backend image and external Secret values |
+| Docker Compose operator profile | `docker-compose.yml` profile `storage-lifecycle` | implemented but default disabled; can be run explicitly with `docker compose --profile storage-lifecycle run --rm minio-lifecycle` |
+| Lifecycle safety regression | `backend/tests/services/test_minio_lifecycle.py` and deployment contract tests | passed; `23 passed`; scoped-prefix and rule-preservation checks included |
+
+This is a deployment/code contract, not production acceptance. Before enabling it, export and review the target bucket rules, verify database references and backup prefixes, and record the approved retention period.
+
 ## Q18 Local Gate Snapshot (2026-08-12)
 
 This section records repository-local evidence only. It does not close the real MinIO, external notification, Android device, Linux/Kubernetes, Web Worker or macOS/iOS gates.

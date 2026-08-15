@@ -18,6 +18,29 @@ default. Object storage backup commands must exclude `pg-backups/*` when the
 target is intended to hold only application objects; database backups remain
 validated through the PostgreSQL restore flow below.
 
+## Lifecycle policy boundary
+
+Bucket lifecycle is separate from ATP's database-aware `StoragePolicy` cleanup.
+Do not add an expiration rule for the bucket root or for `screenshots/`,
+`reports/`, `apks/`, `scripts/`, or `pg-backups/` unless the corresponding
+database retention and backup policy has been reviewed. An object lifecycle
+rule cannot see whether an object is still referenced by a run or dataset.
+
+The optional Helm hook / Compose profile runs `python -m app.ops_minio_lifecycle`.
+It always reconciles an `atp-managed-` rule namespace, preserves rules owned by
+other systems, and aborts incomplete multipart uploads. It is disabled by
+default; use a scoped prefix such as `tmp/` for any explicit expiration rule.
+Inspect the target before and after a change with:
+
+```bash
+mc ilm export atp-minio/${MINIO_BUCKET}
+mc ilm rule ls atp-minio/${MINIO_BUCKET}
+```
+
+Record the resulting rule set and operator approval with the backup/restore
+drill evidence. A successful object restore does not by itself prove that the
+production lifecycle policy is safe.
+
 ## Backup
 
 Required environment variables:

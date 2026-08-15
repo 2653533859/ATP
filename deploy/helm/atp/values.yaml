@@ -83,6 +83,19 @@ performanceWorker:
     requests: {cpu: 1000m, memory: 1Gi}
     limits: {cpu: 2000m, memory: 2Gi}
 
+# Optional MinIO lifecycle reconciler. The chart does not install MinIO; this
+# hook configures the externally managed bucket when explicitly enabled.
+# Enabling it always aborts incomplete multipart uploads. Expiration rules are
+# opt-in and must target a dedicated prefix whose retention is coordinated
+# with the database/object cleanup policy.
+storageLifecycle:
+  enabled: false
+  # Defaults to the ATP backend image so the Python MinIO client is available.
+  # Override only when the replacement image contains app.ops_minio_lifecycle.
+  jobImage: ""
+  abortIncompleteMultipartDays: 1
+  expirationRules: []
+
 # Resource requests and limits for ATP workloads.
 resources:
   backend:

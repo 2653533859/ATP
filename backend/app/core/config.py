@@ -49,6 +49,10 @@ class Settings(BaseSettings):
     MINIO_ROOT_PASSWORD: str = "minio_password_change_me"
     MINIO_BUCKET: str = "atp"
     MINIO_CONNECT_TIMEOUT_SECONDS: int = Field(default=5, ge=1, le=120)
+    # Lifecycle is reconciled only by the explicit ops command/Helm hook, never
+    # during normal API startup. Expiration rules must use a scoped prefix.
+    MINIO_LIFECYCLE_ABORT_INCOMPLETE_DAYS: int = Field(default=1, ge=1, le=3650)
+    MINIO_LIFECYCLE_EXPIRATION_RULES_JSON: str = "[]"
 
     # First admin
     FIRST_ADMIN_USERNAME: str = "admin"
