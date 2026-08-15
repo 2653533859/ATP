@@ -28,6 +28,11 @@
 - [x] 已对目标 `172.31.27.133` 的 `atp` bucket 完成只读规则、保护能力、对象前缀和数据库引用审计；证据见 `docs/evidence/minio-lifecycle-audit-2026-08-15.json`。
 - [ ] 生产启用前仍需核对 bucket 当前规则、数据库引用关系、备份前缀和合规保留周期。
 
+## 2026-08-15 外部通知验收前置检查
+
+- [x] 目标数据库通知配置只读审计完成：当前 `notification_configs=0`、启用配置 `0`、投递记录 `0`；证据见 `docs/evidence/notification-readiness-audit-2026-08-15.json`。
+- [ ] 管理员提供临时测试目标后，完成 SMTP/企业微信/钉钉真实投递、失败重试、限流、脱敏和重复投递证据。
+
 ## 2026-08-15 Linux Docker 验收进展
 
 - [x] Linux MCP 已恢复；`172.31.27.133` 的隔离性能 Compose 栈健康检查通过，包含 PostgreSQL、Redis、MinIO、Backend、专用 Worker、Prometheus 指标端口和 HTTP/gRPC 目标。

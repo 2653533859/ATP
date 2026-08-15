@@ -61,6 +61,14 @@ The backup/restore drill does not prove production retention, MinIO lifecycle co
 
 This is a deployment/code contract, not production acceptance. Before enabling it, export and review the target bucket rules, verify database references and backup prefixes, and record the approved retention period.
 
+## External Notification Readiness Audit (2026-08-15)
+
+The target `atp` database currently has no notification configurations and no
+delivery records. This is recorded in
+`docs/evidence/notification-readiness-audit-2026-08-15.json`; real SMTP, WeCom,
+and DingTalk delivery remains an external acceptance gate and was not simulated
+with fabricated credentials.
+
 ## MinIO Target Audit (2026-08-15)
 
 The read-only audit of `172.31.27.133` found no lifecycle rules on the `atp`

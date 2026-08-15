@@ -1,0 +1,18 @@
+{
+  "observed_at": "2026-08-15",
+  "target": {
+    "host": "172.31.27.133",
+    "database": "atp",
+    "scope": "read-only audit"
+  },
+  "notification_configs": {
+    "total": 0,
+    "enabled": 0,
+    "channels": []
+  },
+  "notification_deliveries": {
+    "total": 0,
+    "latest": null
+  },
+  "decision": "External SMTP, WeCom, and DingTalk delivery cannot be accepted until a non-secret test configuration and destination are provided."
+}

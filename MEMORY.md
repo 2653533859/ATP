@@ -30,6 +30,10 @@
 - 生命周期解析/边界/规则合并与部署契约回归 `23 passed`；生产 bucket 规则、引用关系和保留周期仍需管理员确认后才能启用。
 - 已对 `172.31.27.133` 的 `atp` bucket 做只读审计：当前无 lifecycle 规则，版本控制/对象锁/复制未启用；数据库仍有截图、报告、APK、脚本保留策略和对象引用，证据见 `docs/evidence/minio-lifecycle-audit-2026-08-15.json`。
 
+## 2026-08-15 外部通知验收前置检查
+
+- 目标 `atp` 数据库当前没有通知配置，也没有通知投递记录；SMTP/企业微信/钉钉真实投递无法在无测试目标和凭据时验收，证据见 `docs/evidence/notification-readiness-audit-2026-08-15.json`。
+
 ## 2026-08-14 通知 Webhook 查询参数脱敏
 
 - `_safe_delivery_error` 新增 URL 查询参数脱敏，覆盖企业微信 `key`、钉钉 `access_token/sign` 以及常见 `api_key`、`token`、`secret`、`authorization`、`cookie` 参数；服务端日志、`NotificationDelivery.error_message` 和测试发送 API 错误共用该处理。
