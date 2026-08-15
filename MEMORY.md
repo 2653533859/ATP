@@ -4,8 +4,9 @@
 
 - Windows Android Worker doctor 通过；从 Windows 到 `172.31.27.133` 的 PostgreSQL `5432`、Redis `6379`、MinIO `9000` 可达，实时依赖 API 也返回 `ok`。本次只记录状态，不保存地址以外的凭据。
 - Windows local smoke 通过后端健康、登录、用户/项目读取、Web Worker 状态、MinIO 文件上传清理和 Chromium 登录矩阵；Android 设备检查因 `adb devices -l` 没有在线设备而保持 warning/blocked。
-- 性能环境 smoke 通过 ATP API、k6/Locust/gRPC 执行器和 Prometheus readiness/query；已登记节点 `perf-node-local-01` 为 `offline`，未启动真实压测流量。
-- 根 `.env` 当前是 `ADB_SCAN_MODE=local` 的 Windows 全栈模式；公网后端+Windows Android Worker 验收必须使用单独的 `ADB_SCAN_MODE=worker` 配置，避免把后端本机 ADB 与 Worker 路由混用。
+- 性能 readiness 通过 ATP API、k6/Locust/gRPC 执行器、专用队列 `performance.worker-local`、目标 allowlist 和 Prometheus readiness/query；节点 `perf-node-local-01` 已在线。
+- 真实低流量 Locust smoke run `1` 完成 957 次请求、错误率 0，产生 2 条 `performance-worker` 采样；run `2` 取消链路验证通过并进入 `cancelled`。
+- 根 `.env` 当前仍是 `ADB_SCAN_MODE=local` 的 Windows 全栈 Android 模式；公网后端+Windows Android Worker 验收必须使用单独的 `ADB_SCAN_MODE=worker` 配置，避免把后端本机 ADB 与 Worker 路由混用。
 
 ## 2026-08-14 通知 Webhook 查询参数脱敏
 

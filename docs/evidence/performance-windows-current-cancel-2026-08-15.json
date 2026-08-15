@@ -1,0 +1,23 @@
+{
+  "observed_date": "2026-08-15",
+  "scope": "Windows local performance worker cancellation",
+  "test_id": 1,
+  "node_id": "perf-node-local-01",
+  "queue": "performance.worker-local",
+  "executor": "locust",
+  "status": "passed",
+  "run_id": 2,
+  "cancel_after_seconds": 2,
+  "final_status": "cancelled",
+  "checks": [
+    "target-connectivity",
+    "prometheus",
+    "api-health",
+    "api-executors",
+    "performance-node-queue",
+    "performance-node",
+    "performance-node-allowlist",
+    "performance-cancel"
+  ],
+  "credentials_included": false
+}

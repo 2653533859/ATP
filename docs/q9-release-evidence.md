@@ -17,7 +17,9 @@ This refresh supersedes the older 2026-08-13 reachability snapshot for the curre
 | Windows API/Web smoke | `scripts/windows-local-smoke.ps1 -SkipPlaywright -SkipReports` | passed; login, project read, Web Worker status, file upload/cleanup passed |
 | Browser matrix | same smoke command with local Chromium | passed; no failed requests or error responses |
 | Performance API/Prometheus | `scripts/performance-environment-smoke.py` with API and Prometheus URLs | passed; API health, k6/Locust/gRPC executors and Prometheus readiness/query passed |
-| Performance node | `perf-node-local-01` | blocked; node is `offline`, so no real load was generated |
+| Performance node/readiness | `perf-node-local-01` with `performance.worker-local` | passed; node online, executor/allowlist/target/Prometheus checks passed |
+| Performance real smoke | Locust test `1`, 1 user / 3 seconds | passed; run `1`, 957 requests, error rate 0, 2 `performance-worker` samples |
+| Performance cancellation | Locust test `1`, temporary 60-second duration | passed; run `2` entered `cancelled` after the 2-second cancellation request |
 | Android single-device acceptance | `scripts/windows-android-acceptance.ps1` | blocked; `adb devices -l` has no authorized online device; report is local-only at `.local-run/android-acceptance-20260815.json` |
 
 The smoke reports under `.local-run/` are local runtime artifacts and contain no credentials. They are not treated as a substitute for external device, Worker, TLS target, cancellation or multi-node evidence.

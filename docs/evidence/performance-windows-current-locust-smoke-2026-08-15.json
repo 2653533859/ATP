@@ -1,0 +1,27 @@
+{
+  "observed_date": "2026-08-15",
+  "scope": "Windows local performance worker",
+  "test_id": 1,
+  "node_id": "perf-node-local-01",
+  "queue": "performance.worker-local",
+  "executor": "locust",
+  "target": "127.0.0.1:8000",
+  "status": "passed",
+  "run_id": 1,
+  "iterations": 957,
+  "error_rate": 0.0,
+  "metric_samples": 2,
+  "metric_sources": ["performance-worker"],
+  "checks": [
+    "target-connectivity",
+    "prometheus",
+    "api-health",
+    "api-executors",
+    "performance-node-queue",
+    "performance-node",
+    "performance-node-allowlist",
+    "performance-metrics",
+    "performance-smoke"
+  ],
+  "credentials_included": false
+}
