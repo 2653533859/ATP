@@ -2,6 +2,8 @@
 
 ## 2026-08-15 当前验收进度与下一步
 
+- [x] 远端依赖恢复后重新执行 Windows API/Web smoke：PostgreSQL/Redis/MinIO readiness、登录、项目读取、浏览器矩阵、文件上传和清理均通过；Android 仅保留无在线设备 warning，证据见 `docs/evidence/windows-smoke-current-2026-08-15.json`。
+
 本轮先完成 Windows 可执行范围内的真实环境复核，不把“代码测试通过”冒充为真实设备或远端 Worker 验收：
 
 - [x] Windows Worker doctor、PostgreSQL/Redis/MinIO TCP 与实时依赖检查通过。
@@ -11,6 +13,7 @@
 - [x] Windows Android Agent 已在线注册到当前 Redis，`/devices/workers` 返回 `android-win-HPS` 和 `mobile_special` 队列；后端当前仍是 `ADB_SCAN_MODE=local`，未执行 worker-mode 扫描回调。
 - [x] Windows Android Worker doctor 已修复为先加载 `ATP_ADB_HOME`/Android SDK 路径，再检查 `adb.exe`；对应脚本契约回归通过。
 - [ ] Android 单设备验收等待授权在线设备；当前 `adb devices -l` 为空，性能监控、卡顿、Crash/ANR、屏幕录制和异常回放无法在本机闭环。
+- [x] Android 无真机安全回归完成：Worker/性能/事件/回放/API/迁移和 Windows 验收契约定向回归 `258 passed`；`windows-android-acceptance.ps1` 现在区分未连接、未授权和离线设备，并在 JSON 报告中记录状态计数，不会伪造通过。
 - [x] Windows 性能节点 `perf-node-local-01` 已在线并完成目标 TCP、allowlist、资源采样和取消验证；Linux/Kubernetes 专用 Worker、TLS 目标和多节点验收仍未关闭外部门禁。
 
 ## 2026-08-15 Web Worker 与灾备演练进展

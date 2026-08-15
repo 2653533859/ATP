@@ -28,6 +28,12 @@ if (-not (Test-Path -LiteralPath $reportDirectory)) {
 
 $checks = [System.Collections.Generic.List[object]]::new()
 $device = [ordered]@{}
+$deviceStatus = [ordered]@{
+  online       = @()
+  unauthorized = @()
+  offline      = @()
+  other        = @()
+}
 $resolvedTarget = $Target
 $adbPath = $null
 
@@ -79,6 +85,12 @@ function Write-Report {
     target           = $resolvedTarget
     adb_path         = $adbPath
     device           = $device
+    device_status    = [ordered]@{
+      online       = @($deviceStatus.online).Count
+      unauthorized = @($deviceStatus.unauthorized).Count
+      offline      = @($deviceStatus.offline).Count
+      other        = @($deviceStatus.other).Count
+    }
     checks           = @($checks)
     required_passed  = $requiredFailed.Count -eq 0
     required_failures = $requiredFailed.Count
@@ -103,6 +115,21 @@ $version = Invoke-Adb -Arguments @('version')
 Add-Check -Name 'adb command responds' -Passed ($version.ExitCode -eq 0) -Required $true -Detail 'ADB command completed.'
 
 $devicesResult = Invoke-Adb -Arguments @('devices')
+$deviceLines = @(
+  $devicesResult.Output -split "`r?`n" |
+    Where-Object { $_ -match '^\s*\S+\s+(device|unauthorized|offline)\b' }
+)
+foreach ($line in $deviceLines) {
+  if ($line -match '^\s*\S+\s+device\b') {
+    $deviceStatus.online += 1
+  } elseif ($line -match '^\s*\S+\s+unauthorized\b') {
+    $deviceStatus.unauthorized += 1
+  } elseif ($line -match '^\s*\S+\s+offline\b') {
+    $deviceStatus.offline += 1
+  } else {
+    $deviceStatus.other += 1
+  }
+}
 $onlineSerials = Get-OnlineSerials -Output $devicesResult.Output
 if ([string]::IsNullOrWhiteSpace($resolvedTarget)) {
   if ($onlineSerials.Count -gt 0) {
@@ -111,7 +138,16 @@ if ([string]::IsNullOrWhiteSpace($resolvedTarget)) {
 }
 
 $targetOnline = $onlineSerials -contains $resolvedTarget
-Add-Check -Name 'an authorized Android device is online' -Passed $targetOnline -Required $true -Detail $(if ($targetOnline) { $resolvedTarget } else { 'Run adb devices and authorize USB debugging or use adb connect <device-ip>:5555.' })
+$deviceDetail = if ($targetOnline) {
+  $resolvedTarget
+} elseif (@($deviceStatus.unauthorized).Count -gt 0) {
+  'An unauthorized device was detected. Unlock the phone and accept the USB debugging RSA prompt, then rerun adb devices.'
+} elseif (@($deviceStatus.offline).Count -gt 0) {
+  'An offline device was detected. Reconnect USB or run adb reconnect, then rerun adb devices.'
+} else {
+  'No authorized device detected. Connect it, authorize USB debugging, or use adb connect <device-ip>:5555.'
+}
+Add-Check -Name 'an authorized Android device is online' -Passed $targetOnline -Required $true -Detail $deviceDetail
 
 if ($targetOnline) {
   $state = Invoke-Adb -Arguments @('-s', $resolvedTarget, 'get-state')

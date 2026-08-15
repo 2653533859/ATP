@@ -2,6 +2,8 @@
 
 ## 2026-08-15 Windows/远端依赖与性能环境复核
 
+- [x] 远端 PostgreSQL/Redis/MinIO 恢复监听后重新执行 Windows API/Web smoke：依赖 readiness、登录、项目读取、浏览器矩阵、47 bytes 文件上传和清理均通过；Android 仅保留无在线设备 warning；脱敏证据见 `docs/evidence/windows-smoke-current-2026-08-15.json`。
+
 - [x] `scripts/windows-android-worker.ps1 doctor -EnvFile .env` 通过：Windows Python/Celery/Redis 依赖、ADB 可执行文件和远端 PostgreSQL/Redis/MinIO 端点均可用；Android 设备在线检查仅提示未发现设备。
 - [x] Windows 到 `172.31.27.133` 的 PostgreSQL `5432`、Redis `6379`、MinIO `9000` TCP 检查通过；实时依赖 API 返回 PostgreSQL、Redis、MinIO 均为 `ok`。
 - [x] `scripts/windows-local-smoke.ps1 -SkipPlaywright -SkipReports` 通过；后端健康检查、登录、当前用户、项目列表、Web Worker 状态、文件上传/清理和 Chromium 登录矩阵均通过，未发现失败请求。
@@ -10,6 +12,7 @@
 - [x] Windows Android Agent 已按当前 `.env` 重新注册：`GET /api/v1/devices/workers` 返回 `android-win-HPS` online，队列为 `mobile_special`，能力为 `adb/android`。
 - [x] 修复 Android Worker doctor 未提前加载 `ATP_ADB_HOME`/Android SDK 可选路径的问题；新增脚本契约回归，避免 PATH 未修改时误报 ADB 缺失。
 - [ ] Android 单设备真实验收仍阻断：`adb devices -l` 没有授权在线设备，`scripts/windows-android-acceptance.ps1` 已按契约失败并生成 `.local-run/android-acceptance-20260815.json`；接入设备后需补执行低代码、截图、日志、Crash/ANR 和回放闭环。
+- [x] Android 无真机安全回归完成：Worker/性能/事件/回放/API/迁移和 Windows 验收契约定向回归 `258 passed`；验收脚本现在会区分未连接、未授权和离线设备，并在报告中输出安全的状态计数。
 - [x] 性能节点 `perf-node-local-01` 已切换到专用队列 `performance.worker-local` 并上线；真实取消、目标服务连通性和资源采样已完成本机闭环。
 - [ ] 当前根 `.env` 仍为 Windows 全栈本地 Android 执行模式（`ADB_SCAN_MODE=local`）；公网后端配合 Windows Android Worker 时，需单独选择 `ADB_SCAN_MODE=worker` 的后端配置，并验证队列隔离与设备回调。
 

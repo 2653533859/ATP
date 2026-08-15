@@ -21,7 +21,8 @@ This refresh supersedes the older 2026-08-13 reachability snapshot for the curre
 | Performance real smoke | Locust test `1`, 1 user / 3 seconds | passed; run `1`, 957 requests, error rate 0, 2 `performance-worker` samples |
 | Performance cancellation | Locust test `1`, temporary 60-second duration | passed; run `2` entered `cancelled` after the 2-second cancellation request |
 | Android Worker registry | authenticated `GET /api/v1/devices/workers` | passed; `android-win-HPS` online with `mobile_special` and `adb/android` capabilities |
-| Android single-device acceptance | `scripts/windows-android-acceptance.ps1` | blocked; `adb devices -l` has no authorized online device; report is local-only at `.local-run/android-acceptance-20260815.json` |
+| Android single-device acceptance | `scripts/windows-android-acceptance.ps1` | blocked; `adb devices -l` has no authorized online device; the report is local-only at `.local-run/android-acceptance-status-20260815.json` and now distinguishes missing, unauthorized and offline devices |
+| Windows API/Web smoke after dependency restore | `docs/evidence/windows-smoke-current-2026-08-15.json` | passed with Android warning; PostgreSQL/Redis/MinIO readiness, cookie login, browser matrix, file upload and cleanup passed |
 
 The smoke reports under `.local-run/` are local runtime artifacts and contain no credentials. They are not treated as a substitute for external device, Worker, TLS target, cancellation or multi-node evidence.
 

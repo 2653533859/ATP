@@ -1,0 +1,25 @@
+{
+  "observed_at": "2026-08-15",
+  "target": "172.31.27.133",
+  "scope": "Windows local API/Web profile with remote PostgreSQL, Redis and MinIO",
+  "status": "passed_with_android_warning",
+  "checks": {
+    "backend_health_status": 200,
+    "frontend_login_status": 200,
+    "cookie_login": true,
+    "dependency_postgres": {"status": "ok", "latency_ms": 52.6},
+    "dependency_redis": {"status": "ok", "latency_ms": 3.8},
+    "dependency_minio": {"status": "ok", "latency_ms": 32.3},
+    "dependency_readiness": "ok",
+    "authenticated_user_read": true,
+    "project_list_read": true,
+    "web_recording_mode": "local",
+    "browser_matrix_login": {"status": 200, "login_inputs": 4, "failed_requests": 0, "error_responses": 0},
+    "file_upload_bytes": 47,
+    "file_cleanup": true,
+    "android_device_online": false
+  },
+  "skipped": ["Android Worker registry", "Android device scan callback", "run report export", "Web low-code execution"],
+  "credentials_included": false,
+  "limitations": "The API/Web and remote infrastructure checks passed. No authorized Android device was present, so Android execution remains an external device gate."
+}
