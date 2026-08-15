@@ -30,6 +30,7 @@ if (-not (Test-Path -LiteralPath $ProcessEnvironmentHelper)) {
   throw "Missing process environment helper: $ProcessEnvironmentHelper"
 }
 . $ProcessEnvironmentHelper
+Add-AtpOptionalToolPath
 $QueueList = 'android,mobile_special'
 
 function Ensure-RunDir {

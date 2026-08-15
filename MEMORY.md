@@ -7,6 +7,7 @@
 - 性能 readiness 通过 ATP API、k6/Locust/gRPC 执行器、专用队列 `performance.worker-local`、目标 allowlist 和 Prometheus readiness/query；节点 `perf-node-local-01` 已在线。
 - 真实低流量 Locust smoke run `1` 完成 957 次请求、错误率 0，产生 2 条 `performance-worker` 采样；run `2` 取消链路验证通过并进入 `cancelled`。
 - Android Agent 已按当前远端配置重新注册，`/devices/workers` 返回 `android-win-HPS` online、队列 `mobile_special` 和 `adb/android` 能力；当前 ADB 无在线设备，不能把 Agent 在线当作设备执行通过。
+- `windows-android-worker.ps1` 在 doctor 前先调用 `Add-AtpOptionalToolPath`，因此使用 `ATP_ADB_HOME`、`ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 时不要求修改系统 PATH；新增顺序回归。
 - 根 `.env` 当前仍是 `ADB_SCAN_MODE=local` 的 Windows 全栈 Android 模式；公网后端+Windows Android Worker 验收必须使用单独的 `ADB_SCAN_MODE=worker` 配置，避免把后端本机 ADB 与 Worker 路由混用。
 
 ## 2026-08-14 通知 Webhook 查询参数脱敏

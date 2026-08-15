@@ -100,6 +100,13 @@ def test_windows_android_worker_checks_runtime_dependencies_before_starting():
     assert "Stop local-all first, or use a local Worker environment that excludes android,mobile_special" in script
 
 
+def test_android_worker_doctor_resolves_optional_adb_path_before_checks():
+    script = _read("scripts/windows-android-worker.ps1")
+
+    assert script.index("Add-AtpOptionalToolPath") < script.index("function Show-Doctor")
+    assert script.index("Add-AtpOptionalToolPath") < script.index("Get-Command adb.exe")
+
+
 def test_windows_performance_worker_has_dedicated_node_queue_and_doctor():
     script = _read("scripts/windows-performance-worker.ps1")
 

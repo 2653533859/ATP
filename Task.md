@@ -8,6 +8,7 @@
 - [x] 性能环境 readiness smoke 通过：ATP `/health`、k6/Locust/gRPC 执行器、专用节点队列、出口白名单、目标 TCP 和 Prometheus `/-/ready`/PromQL 查询均通过。
 - [x] 真实低流量性能 smoke 通过：Locust run `1` 完成 `957` 次请求、错误率 `0`，并回传 `2` 条 `performance-worker` 资源采样；取消 smoke 的 run `2` 从运行态进入 `cancelled`。
 - [x] Windows Android Agent 已按当前 `.env` 重新注册：`GET /api/v1/devices/workers` 返回 `android-win-HPS` online，队列为 `mobile_special`，能力为 `adb/android`。
+- [x] 修复 Android Worker doctor 未提前加载 `ATP_ADB_HOME`/Android SDK 可选路径的问题；新增脚本契约回归，避免 PATH 未修改时误报 ADB 缺失。
 - [ ] Android 单设备真实验收仍阻断：`adb devices -l` 没有授权在线设备，`scripts/windows-android-acceptance.ps1` 已按契约失败并生成 `.local-run/android-acceptance-20260815.json`；接入设备后需补执行低代码、截图、日志、Crash/ANR 和回放闭环。
 - [x] 性能节点 `perf-node-local-01` 已切换到专用队列 `performance.worker-local` 并上线；真实取消、目标服务连通性和资源采样已完成本机闭环。
 - [ ] 当前根 `.env` 仍为 Windows 全栈本地 Android 执行模式（`ADB_SCAN_MODE=local`）；公网后端配合 Windows Android Worker 时，需单独选择 `ADB_SCAN_MODE=worker` 的后端配置，并验证队列隔离与设备回调。
