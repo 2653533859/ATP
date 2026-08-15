@@ -10,6 +10,12 @@
 - `windows-android-worker.ps1` 在 doctor 前先调用 `Add-AtpOptionalToolPath`，因此使用 `ATP_ADB_HOME`、`ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 时不要求修改系统 PATH；新增顺序回归。
 - 根 `.env` 当前仍是 `ADB_SCAN_MODE=local` 的 Windows 全栈 Android 模式；公网后端+Windows Android Worker 验收必须使用单独的 `ADB_SCAN_MODE=worker` 配置，避免把后端本机 ADB 与 Worker 路由混用。
 
+## 2026-08-15 Linux Docker 性能验收
+
+- Linux MCP 已恢复连接 `172.31.27.133`；独立性能验收 Compose 栈的 PostgreSQL、Redis、MinIO、Backend、专用 Worker、Prometheus 和 HTTP/gRPC 目标健康。
+- Locust run `1` 通过（36 次迭代、错误率 0），gRPC TLS run `2` 通过（5 次迭代、错误率 0），Locust run `3` 的取消链路从运行态进入 `cancelled`；脱敏证据已归档到 `docs/evidence/performance-linux-*-2026-08-15.json`。
+- 该证据只覆盖 Linux Docker Compose 隔离栈，不代表 Kubernetes、多节点生产 Prometheus、外部通知、备份恢复或 Android 真机门禁已完成。
+
 ## 2026-08-14 通知 Webhook 查询参数脱敏
 
 - `_safe_delivery_error` 新增 URL 查询参数脱敏，覆盖企业微信 `key`、钉钉 `access_token/sign` 以及常见 `api_key`、`token`、`secret`、`authorization`、`cookie` 参数；服务端日志、`NotificationDelivery.error_message` 和测试发送 API 错误共用该处理。

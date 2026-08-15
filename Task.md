@@ -13,6 +13,14 @@
 - [x] 性能节点 `perf-node-local-01` 已切换到专用队列 `performance.worker-local` 并上线；真实取消、目标服务连通性和资源采样已完成本机闭环。
 - [ ] 当前根 `.env` 仍为 Windows 全栈本地 Android 执行模式（`ADB_SCAN_MODE=local`）；公网后端配合 Windows Android Worker 时，需单独选择 `ADB_SCAN_MODE=worker` 的后端配置，并验证队列隔离与设备回调。
 
+## 2026-08-15 Linux Docker 性能验收
+
+- [x] Linux MCP 已恢复并连接 `172.31.27.133`；独立性能验收栈的 PostgreSQL、Redis、MinIO、Backend、专用 Worker、Prometheus 指标端口和 HTTP/gRPC 目标均健康。
+- [x] Locust 真实 smoke 通过：run `1`、36 次迭代、错误率 `0`，节点 `worker-a` 使用队列 `performance.worker-a`，并通过目标 allowlist 与资源指标门禁；证据见 `docs/evidence/performance-linux-locust-smoke-2026-08-15.json`。
+- [x] gRPC TLS 真实 smoke 通过：run `2`、5 次迭代、错误率 `0`，证书校验和 SNI `grpc-target` 通过；证据见 `docs/evidence/performance-linux-grpc-smoke-2026-08-15.json`。
+- [x] Locust 取消验收通过：run `3` 在 2 秒取消请求后从运行态进入 `cancelled`；证据见 `docs/evidence/performance-linux-locust-cancel-2026-08-15.json`。
+- [ ] 本轮为 Linux Docker Compose 隔离栈验收，尚未关闭 Kubernetes Deployment、真实多节点分片、外部目标和生产 Prometheus 门禁。
+
 ## 2026-08-14 Android 性能监控、卡顿检测与异常回放
 
 - [x] Android 专项性能任务新增性能监控、卡顿/FPS、Crash/ANR 监控和异常回放开关，旧任务配置保持兼容。

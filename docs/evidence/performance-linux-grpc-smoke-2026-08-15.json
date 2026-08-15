@@ -1,0 +1,28 @@
+{
+  "generated_at": "2026-08-15T04:43:33.502305+00:00",
+  "environment": "172.31.27.133 Docker Compose acceptance stack",
+  "status": "passed",
+  "executor": "grpc",
+  "test_id": 3,
+  "run_id": 2,
+  "target": "grpcs://grpc-target:50051",
+  "tls": {
+    "required": true,
+    "server_name": "grpc-target",
+    "certificate_check": "passed"
+  },
+  "node_id": "worker-a",
+  "queue": "performance.worker-a",
+  "checks": {
+    "target_connectivity": "passed",
+    "api_health": "passed",
+    "executors": ["grpc", "jmeter", "k6", "locust"],
+    "node_online": "passed",
+    "node_allowlist": "passed",
+    "iterations": 5,
+    "error_rate": 0.0,
+    "metrics_required": true
+  },
+  "source_report": "/opt/atp-q17-acceptance/docs/evidence/performance-linux-grpc-smoke-20260815.json",
+  "credentials_included": false
+}

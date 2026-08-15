@@ -25,6 +25,18 @@ This refresh supersedes the older 2026-08-13 reachability snapshot for the curre
 
 The smoke reports under `.local-run/` are local runtime artifacts and contain no credentials. They are not treated as a substitute for external device, Worker, TLS target, cancellation or multi-node evidence.
 
+## Linux Docker Performance Evidence (2026-08-15)
+
+The Linux MCP connection to `172.31.27.133` was restored. The isolated Docker Compose acceptance stack passed health checks for PostgreSQL, Redis, MinIO, Backend, the dedicated performance Worker, Prometheus metrics and the HTTP/gRPC targets.
+
+| Gate | Evidence | Result |
+|---|---|---|
+| Locust smoke | `docs/evidence/performance-linux-locust-smoke-2026-08-15.json` | passed; run `1`, 36 iterations, error rate 0, node `worker-a` / queue `performance.worker-a` |
+| gRPC TLS smoke | `docs/evidence/performance-linux-grpc-smoke-2026-08-15.json` | passed; run `2`, 5 iterations, TLS certificate/SNI validation passed, error rate 0 |
+| Cancellation | `docs/evidence/performance-linux-locust-cancel-2026-08-15.json` | passed; run `3` changed from running to `cancelled` after 2 seconds |
+
+This closes only the Linux Docker Compose single-node acceptance slice. Kubernetes rollout, real multi-node sharding, production Prometheus, external notification, backup/restore and Android-device gates remain open.
+
 ## Q18 Local Gate Snapshot (2026-08-12)
 
 This section records repository-local evidence only. It does not close the real MinIO, external notification, Android device, Linux/Kubernetes, Web Worker or macOS/iOS gates.

@@ -1,0 +1,23 @@
+{
+  "generated_at": "2026-08-15T04:43:07.731881+00:00",
+  "environment": "172.31.27.133 Docker Compose acceptance stack",
+  "status": "passed",
+  "executor": "locust",
+  "test_id": 2,
+  "run_id": 1,
+  "target": "http://http-target:8080",
+  "node_id": "worker-a",
+  "queue": "performance.worker-a",
+  "checks": {
+    "target_connectivity": "passed",
+    "api_health": "passed",
+    "executors": ["grpc", "jmeter", "k6", "locust"],
+    "node_online": "passed",
+    "node_allowlist": "passed",
+    "iterations": 36,
+    "error_rate": 0.0,
+    "metrics_required": true
+  },
+  "source_report": "/opt/atp-q17-acceptance/docs/evidence/performance-linux-locust-smoke-20260815.json",
+  "credentials_included": false
+}

@@ -13,12 +13,19 @@
 - [ ] Android 单设备验收等待授权在线设备；当前 `adb devices -l` 为空，性能监控、卡顿、Crash/ANR、屏幕录制和异常回放无法在本机闭环。
 - [x] Windows 性能节点 `perf-node-local-01` 已在线并完成目标 TCP、allowlist、资源采样和取消验证；Linux/Kubernetes 专用 Worker、TLS 目标和多节点验收仍未关闭外部门禁。
 
+## 2026-08-15 Linux Docker 验收进展
+
+- [x] Linux MCP 已恢复；`172.31.27.133` 的隔离性能 Compose 栈健康检查通过，包含 PostgreSQL、Redis、MinIO、Backend、专用 Worker、Prometheus 指标端口和 HTTP/gRPC 目标。
+- [x] Locust smoke 通过（run `1`、36 次迭代、错误率 `0`），gRPC TLS smoke 通过（run `2`、5 次迭代、错误率 `0`），取消 smoke 通过（run `3` 进入 `cancelled`）。
+- [x] 真实证据已归档：`docs/evidence/performance-linux-locust-smoke-2026-08-15.json`、`performance-linux-grpc-smoke-2026-08-15.json`、`performance-linux-locust-cancel-2026-08-15.json`。
+- [ ] Kubernetes Deployment、真实多节点分片、生产 Prometheus、外部目标和外部通知仍未验收；Docker Compose 结果不能替代这些门禁。
+
 下一步按优先级执行：
 
-1. 接入并授权 Windows Android 真机，运行 `scripts/windows-android-acceptance.ps1`，再以 `ADB_SCAN_MODE=worker` 验证公网后端到 Android Worker 的注册、设备扫描和操作回调。
-2. 在不影响 API/Web 的前提下完成真实 Android 性能任务：设备指标、卡顿/FPS、Crash/ANR、事件时间线、录屏分段和异常回放。
-3. 在真实 Linux/Kubernetes 环境复现性能节点 readiness、TLS 目标、取消、资源采样、报告导出和多节点分片证据。
-4. 最后补 Linux/Kubernetes Web Worker、外部通知渠道、MinIO 大对象生命周期和备份恢复等发布门禁，并将每项真实证据归档。
+1. 在真实 Kubernetes 环境复现性能节点 readiness、TLS 目标、取消、资源采样、报告导出和多节点分片证据；当前 Docker Compose 证据只能关闭 Linux 单节点隔离栈部分。
+2. 接入并授权 Windows Android 真机，运行 `scripts/windows-android-acceptance.ps1`，再以 `ADB_SCAN_MODE=worker` 验证公网后端到 Android Worker 的注册、设备扫描和操作回调。
+3. 在不影响 API/Web 的前提下完成真实 Android 性能任务：设备指标、卡顿/FPS、Crash/ANR、事件时间线、录屏分段和异常回放。
+4. 最后补 Linux/Xvfb Web Worker、外部通知渠道、MinIO 大对象生命周期和备份恢复等发布门禁，并将每项真实证据归档。
 
 ## 2026-08-14 项目成员 owner 权限完整性（代码阶段完成）
 
