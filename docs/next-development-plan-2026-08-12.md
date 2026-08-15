@@ -18,6 +18,7 @@
 - [x] 修复 Web 录制 API/Worker 的 Redis 阻塞读取超时：`socket_timeout` 会覆盖命令等待和 Worker 心跳窗口，避免健康 Worker 因默认 5 秒读超时被误判为不可用；定向回归 `18 passed`。
 - [x] Windows Web Recording Worker 真实 smoke 通过，包含 Worker 可用性、Chromium 录制、2 个步骤、PNG 截图和停止录制；证据见 `docs/evidence/web-recording-worker-local-2026-08-15.json`。
 - [x] Linux Docker Compose 隔离栈完成 PostgreSQL 与 MinIO 备份恢复演练，临时资源已清理；证据见 `docs/evidence/backup-restore-linux-docker-2026-08-15.json`。
+- [x] 已检查远端 Linux/Xvfb acceptance 资源：旧镜像可启动 Xvfb/Playwright 和临时 Worker，但缺少当前 `/web-recordings/workers` 路由；证据见 `docs/evidence/web-recording-linux-remote-2026-08-15.json`，不计入当前版本录制验收。
 - [ ] 备份恢复仍不是生产灾备签字：MinIO bucket lifecycle/归档策略、生产保留周期与定期恢复任务需明确并在目标环境复核。
 
 ## 2026-08-15 MinIO 生命周期实现进展

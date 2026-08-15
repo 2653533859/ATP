@@ -1,0 +1,17 @@
+{
+  "observed_at": "2026-08-15",
+  "target": {
+    "host": "172.31.27.133",
+    "stack": "atp-performance-acceptance",
+    "scope": "environment compatibility check"
+  },
+  "checks": {
+    "acceptance_backend_image_has_xvfb": true,
+    "acceptance_backend_image_has_playwright": true,
+    "temporary_worker_registered_in_redis_db": 2,
+    "temporary_worker_cleaned_up": true,
+    "current_worker_status_endpoint_available": false,
+    "real_recording_accepted": false
+  },
+  "finding": "The remote acceptance backend image predates the current repository and does not expose GET /api/v1/web-recordings/workers; it returned 404 with the legacy recording-session detail. The environment must be rebuilt from the current commit before Linux/Xvfb recording evidence can be accepted."
+}

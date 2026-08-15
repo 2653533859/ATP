@@ -50,6 +50,13 @@ The following checks were completed after restoring the isolated Linux acceptanc
 
 The backup/restore drill does not prove production retention, MinIO lifecycle configuration, scheduled backups, cross-host recovery, Kubernetes rollout or external notification delivery. Those gates remain open.
 
+The remote Linux/Xvfb compatibility check is recorded in
+`docs/evidence/web-recording-linux-remote-2026-08-15.json`. The existing
+acceptance image can run Xvfb/Playwright and a temporary Worker registered in
+Redis, but the image is older than the current repository and lacks the current
+Worker status route. It was therefore cleaned up and not counted as current
+Linux/Xvfb recording acceptance.
+
 ## MinIO Lifecycle Deployment Contract (2026-08-15)
 
 | Gate | Evidence | Result |
