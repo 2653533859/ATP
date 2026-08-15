@@ -18,6 +18,7 @@
 - [ ] Android 单设备验收等待授权在线设备；当前 `adb devices -l` 为空，性能监控、卡顿、Crash/ANR、屏幕录制和异常回放无法在本机闭环。
 - [x] Android 无真机安全回归完成：Worker/性能/事件/回放/API/迁移和 Windows 验收契约定向回归 `258 passed`；`windows-android-acceptance.ps1` 现在区分未连接、未授权和离线设备，并在 JSON 报告中记录状态计数，不会伪造通过。
 - [x] 最新完整非集成后端回归 `2082 passed`；发布 readiness 仓库检查通过，Compose/Helm 工具缺失按 `SKIP` 记录，不将其误记为真实环境验收。
+- [x] 最新前端回归 `50 files / 209 tests passed`，type-check 和生产 build 通过；前端质量门禁与 Android 真机门禁保持独立。
 - [x] Windows 性能节点 `perf-node-local-01` 已在线并完成目标 TCP、allowlist、资源采样和取消验证；Linux/Kubernetes 专用 Worker、TLS 目标和多节点验收仍未关闭外部门禁。
 
 ## 2026-08-15 Web Worker 与灾备演练进展

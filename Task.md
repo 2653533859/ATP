@@ -14,6 +14,7 @@
 - [ ] Android 单设备真实验收仍阻断：`adb devices -l` 没有授权在线设备，`scripts/windows-android-acceptance.ps1` 已按契约失败并生成 `.local-run/android-acceptance-20260815.json`；接入设备后需补执行低代码、截图、日志、Crash/ANR 和回放闭环。
 - [x] Android 无真机安全回归完成：Worker/性能/事件/回放/API/迁移和 Windows 验收契约定向回归 `258 passed`；验收脚本现在会区分未连接、未授权和离线设备，并在报告中输出安全的状态计数。
 - [x] 最新完整非集成后端回归 `2082 passed`；发布 readiness 仓库检查通过，Android Worker Compose/Helm 配置契约已纳入门禁；本机缺少 Docker Compose/Helm 时仅记录环境检查为 `SKIP`。
+- [x] 最新前端质量门禁 `50 files / 209 tests passed`，`npm run type-check` 与生产 `npm run build` 通过；ADB 仍无在线设备，真实 Android 数据面保持待验收。
 - [x] 性能节点 `perf-node-local-01` 已切换到专用队列 `performance.worker-local` 并上线；真实取消、目标服务连通性和资源采样已完成本机闭环。
 - [x] 新增 `config/deployment-profiles/android-worker-backend.env.example` 与部署说明：公网 Backend/Beat/普通 Linux Worker 使用 `ADB_SCAN_MODE=worker` 且排除 `android,mobile_special`，Windows Agent 继续使用独立 `android-agent` 档案；实际环境仍需验证队列隔离与设备回调。
 - [x] 新增 Helm overlay `deploy/helm/atp/values-android-worker.example.yaml`：开启服务端 Worker 模式、保留 Android 专用队列给 Windows Agent，并默认引用外部 Secret；部署文档和 Helm 契约回归已同步。

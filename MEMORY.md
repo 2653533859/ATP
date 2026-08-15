@@ -11,6 +11,7 @@
 - Android Agent 已按当前远端配置重新注册，`/devices/workers` 返回 `android-win-HPS` online、队列 `mobile_special` 和 `adb/android` 能力；当前 ADB 无在线设备，不能把 Agent 在线当作设备执行通过。
 - Android 无真机安全回归定向通过 `258 passed`；`windows-android-acceptance.ps1` 现在安全区分未连接、未授权和离线设备，并把状态计数写入脱敏报告；真实设备数据面仍待授权在线设备。
 - 最新完整非集成后端回归为 `2082 passed`；发布 readiness 仓库检查通过，Docker Compose/Helm 工具缺失仅作为 `SKIP`，不能替代真实部署证据。
+- 最新前端质量门禁为 `50 files / 209 tests passed`，type-check 和生产 build 通过；当前 ADB 仍无在线设备。
 - `windows-android-worker.ps1` 在 doctor 前先调用 `Add-AtpOptionalToolPath`，因此使用 `ATP_ADB_HOME`、`ANDROID_HOME` 或 `ANDROID_SDK_ROOT` 时不要求修改系统 PATH；新增顺序回归。
 - 根 `.env` 当前仍是 `ADB_SCAN_MODE=local` 的 Windows 全栈 Android 模式；公网后端+Windows Android Worker 验收必须使用单独的 `ADB_SCAN_MODE=worker` 配置，避免把后端本机 ADB 与 Worker 路由混用。
 - 已补充受版本控制的 `config/deployment-profiles/android-worker-backend.env.example` 和说明文档：服务端模板使用 `ADB_SCAN_MODE=worker`、普通 Linux Worker 排除 `android,mobile_special`；Windows Agent 仍使用独立 `config/startup-profiles/android-agent.env` 并在本机用 ADB 执行。真实队列隔离和设备回调仍待授权在线设备验收。
