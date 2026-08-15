@@ -26,8 +26,9 @@
 - [x] 修复 Web 录制 API/Worker 使用 Redis `BLPOP` 时的读超时竞态：控制面 Redis 客户端的 `socket_timeout` 现在大于命令/心跳等待窗口，避免连接在等待回复前被 5 秒默认读超时关闭；定向回归 `18 passed`。
 - [x] Windows Web Recording Worker 真实 smoke 通过：Worker 已注册且可用，Chromium 录制启动、记录 `2` 个步骤、截图返回 PNG（`13441` bytes），停止录制成功；脱敏证据见 `docs/evidence/web-recording-worker-local-2026-08-15.json`。
 - [x] 远端 Linux/Xvfb 环境兼容性检查完成：旧 acceptance backend 镜像具备 Xvfb/Playwright，临时 Worker 可注册并已清理；但镜像缺少当前版本 `/web-recordings/workers` 路由，未将其计入真实录制验收；证据见 `docs/evidence/web-recording-linux-remote-2026-08-15.json`。
-- [x] 当前仓库的 Web 录制 API 路由已在该 Linux/Xvfb acceptance 栈完成混合 smoke：Worker 注册/容量预检、`https://example.com` 录制启动、状态查询、PNG 截图（`17117` bytes）和停止录制均通过；临时容器与 Redis Worker key 已清理；证据见 `docs/evidence/web-recording-linux-current-2026-08-15.json`。
-- [ ] 该结果验证当前 API 路由与现有 Linux/Xvfb 运行时依赖，不替代从当前 commit 重建完整 backend/Worker 镜像；Firefox/WebKit 与跨副本录制仍待验收。
+- [x] 当前仓库 backend 镜像已从 HEAD 构建并完成 Linux/Xvfb Chromium 录制 smoke；Worker 注册/容量预检、录制启动、状态查询、PNG 截图（`17117` bytes）和停止录制均通过。
+- [x] 使用当前 Worker 源码挂载到现有多浏览器 Linux/Xvfb 运行时后，Firefox 截图 `19076` bytes、WebKit 截图 `21192` bytes 均通过；副本 A 启动会话、副本 B 查询/截图/停止的 Redis 路由也通过；临时容器与 Worker key 已清理；证据见 `docs/evidence/web-recording-linux-current-2026-08-15.json`。
+- [ ] `Dockerfile.worker` 从 HEAD 的完整镜像构建在下载 Playwright headless shell 时被中断；需重试完整 Worker 镜像构建，并补 Trace/网络日志及跨副本失败/重试场景。
 - [x] Linux Docker Compose 隔离验收栈完成 PostgreSQL 压缩备份/临时库恢复和 MinIO 临时对象镜像/恢复校验，临时数据库、对象和文件均已清理；证据见 `docs/evidence/backup-restore-linux-docker-2026-08-15.json`。
 - [ ] 以上备份恢复仅覆盖隔离栈演练，MinIO 生命周期策略、生产保留周期、Kubernetes 多节点和外部通知仍需目标环境验收。
 

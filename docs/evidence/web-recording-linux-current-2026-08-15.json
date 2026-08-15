@@ -3,10 +3,10 @@
   "target": {
     "host": "172.31.27.133",
     "stack": "atp-performance-acceptance",
-    "scope": "current web recording API route with existing Linux/Xvfb runtime images"
+    "scope": "current Web recording API/Worker code with Linux/Xvfb runtime images"
   },
   "status": "passed",
-  "implementation_under_test": "current repository backend/app/api/v1/web_recordings.py mounted into the isolated acceptance backend container",
+  "implementation_under_test": "current repository HEAD; backend image built from the current commit, with the current Worker source mounted into the existing multi-browser runtime for the Firefox/WebKit matrix",
   "checks": {
     "worker_registered": true,
     "worker_available": true,
@@ -18,9 +18,22 @@
     "screenshot_content_type": "image/png",
     "screenshot_bytes": 17117,
     "recording_stopped": true,
+    "full_backend_image_built": true,
+    "firefox_recording_started": true,
+    "firefox_screenshot_content_type": "image/png",
+    "firefox_screenshot_bytes": 19076,
+    "firefox_recording_stopped": true,
+    "webkit_recording_started": true,
+    "webkit_screenshot_content_type": "image/png",
+    "webkit_screenshot_bytes": 21192,
+    "webkit_recording_stopped": true,
+    "cross_api_replica_session_route": true,
+    "cross_api_replica_screenshot_content_type": "image/png",
+    "cross_api_replica_screenshot_bytes": 17117,
+    "cross_api_replica_stopped": true,
     "temporary_containers_cleaned": true,
     "temporary_worker_redis_key_removed": true
   },
   "credentials_included": false,
-  "limitations": "The acceptance host still needs a rebuilt image from the current commit before this hybrid route/runtime smoke can be treated as a full-image release acceptance. Firefox/WebKit and cross-replica recording remain pending."
+  "limitations": "The current backend image was built successfully from HEAD. The Dockerfile.worker build was interrupted while downloading the Playwright headless shell; Firefox/WebKit used the existing multi-browser Worker runtime with current Worker source mounted. A complete current Worker image build, Trace/network evidence and cross-replica failure/retry cases remain pending."
 }
