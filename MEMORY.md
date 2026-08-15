@@ -1,5 +1,12 @@
 # MEMORY
 
+## 2026-08-15 Windows/远端依赖与性能环境复核
+
+- Windows Android Worker doctor 通过；从 Windows 到 `172.31.27.133` 的 PostgreSQL `5432`、Redis `6379`、MinIO `9000` 可达，实时依赖 API 也返回 `ok`。本次只记录状态，不保存地址以外的凭据。
+- Windows local smoke 通过后端健康、登录、用户/项目读取、Web Worker 状态、MinIO 文件上传清理和 Chromium 登录矩阵；Android 设备检查因 `adb devices -l` 没有在线设备而保持 warning/blocked。
+- 性能环境 smoke 通过 ATP API、k6/Locust/gRPC 执行器和 Prometheus readiness/query；已登记节点 `perf-node-local-01` 为 `offline`，未启动真实压测流量。
+- 根 `.env` 当前是 `ADB_SCAN_MODE=local` 的 Windows 全栈模式；公网后端+Windows Android Worker 验收必须使用单独的 `ADB_SCAN_MODE=worker` 配置，避免把后端本机 ADB 与 Worker 路由混用。
+
 ## 2026-08-14 通知 Webhook 查询参数脱敏
 
 - `_safe_delivery_error` 新增 URL 查询参数脱敏，覆盖企业微信 `key`、钉钉 `access_token/sign` 以及常见 `api_key`、`token`、`secret`、`authorization`、`cookie` 参数；服务端日志、`NotificationDelivery.error_message` 和测试发送 API 错误共用该处理。

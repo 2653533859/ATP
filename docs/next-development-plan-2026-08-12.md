@@ -1,5 +1,22 @@
 # ATP 下一阶段开发计划（2026-08-12）
 
+## 2026-08-15 当前验收进度与下一步
+
+本轮先完成 Windows 可执行范围内的真实环境复核，不把“代码测试通过”冒充为真实设备或远端 Worker 验收：
+
+- [x] Windows Worker doctor、PostgreSQL/Redis/MinIO TCP 与实时依赖检查通过。
+- [x] Windows API/Web smoke、文件上传清理和 Chromium 登录矩阵通过；Web/API 不依赖 Android 真机即可继续使用。
+- [x] 性能 API、k6/Locust/gRPC 执行器和 Prometheus readiness/query smoke 通过，未产生真实压测流量。
+- [ ] Android 单设备验收等待授权在线设备；当前 `adb devices -l` 为空，性能监控、卡顿、Crash/ANR、屏幕录制和异常回放无法在本机闭环。
+- [ ] 已登记性能节点 `perf-node-local-01` 当前 offline；真实 Linux/Kubernetes Worker、取消链路、目标服务和资源采样仍未关闭外部验收门禁。
+
+下一步按优先级执行：
+
+1. 接入并授权 Windows Android 真机，运行 `scripts/windows-android-acceptance.ps1`，再以 `ADB_SCAN_MODE=worker` 验证公网后端到 Android Worker 的注册、设备扫描和操作回调。
+2. 启动性能专用 Worker，使 `perf-node-local-01` 变为 online；使用已有测试定义做一次低流量 smoke，再补取消、指标采样、Prometheus 关联和报告导出证据。
+3. 在不影响 API/Web 的前提下完成真实 Android 性能任务：设备指标、卡顿/FPS、Crash/ANR、事件时间线、录屏分段和异常回放。
+4. 最后补 Linux/Kubernetes Web Worker、外部通知渠道、MinIO 大对象生命周期和备份恢复等发布门禁，并将每项真实证据归档。
+
 ## 2026-08-14 项目成员 owner 权限完整性（代码阶段完成）
 
 - [x] 成员角色修改与删除统一维护“至少一个 owner”不变量；角色降级会锁定 owner 记录并拒绝最后一个 owner 被改为 viewer/editor。

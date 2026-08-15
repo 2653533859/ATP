@@ -1,5 +1,15 @@
 # ATP 项目任务跟踪
 
+## 2026-08-15 Windows/远端依赖与性能环境复核
+
+- [x] `scripts/windows-android-worker.ps1 doctor -EnvFile .env` 通过：Windows Python/Celery/Redis 依赖、ADB 可执行文件和远端 PostgreSQL/Redis/MinIO 端点均可用；Android 设备在线检查仅提示未发现设备。
+- [x] Windows 到 `172.31.27.133` 的 PostgreSQL `5432`、Redis `6379`、MinIO `9000` TCP 检查通过；实时依赖 API 返回 PostgreSQL、Redis、MinIO 均为 `ok`。
+- [x] `scripts/windows-local-smoke.ps1 -SkipPlaywright -SkipReports` 通过；后端健康检查、登录、当前用户、项目列表、Web Worker 状态、文件上传/清理和 Chromium 登录矩阵均通过，未发现失败请求。
+- [x] 性能环境 smoke 通过：ATP `/health`、k6/Locust/gRPC 执行器和 Prometheus `/-/ready`、PromQL 查询均通过；未传入性能测试 ID，因此没有产生压测流量。
+- [ ] Android 单设备真实验收仍阻断：`adb devices -l` 没有授权在线设备，`scripts/windows-android-acceptance.ps1` 已按契约失败并生成 `.local-run/android-acceptance-20260815.json`；接入设备后需补执行低代码、截图、日志、Crash/ANR 和回放闭环。
+- [ ] 性能节点 `perf-node-local-01` 当前为 `offline`；Linux/Kubernetes 专用 Worker、真实取消、目标服务连通性、资源采样和多节点验收仍待 Worker 上线后完成。
+- [ ] 当前根 `.env` 为 Windows 全栈本地执行模式（`ADB_SCAN_MODE=local`）；公网后端配合 Windows Android Worker 时，需单独选择 `ADB_SCAN_MODE=worker` 的后端配置，并验证队列隔离与设备回调。
+
 ## 2026-08-14 Android 性能监控、卡顿检测与异常回放
 
 - [x] Android 专项性能任务新增性能监控、卡顿/FPS、Crash/ANR 监控和异常回放开关，旧任务配置保持兼容。

@@ -5,6 +5,23 @@
 
 This file records concrete evidence for the Q9 release-readiness baseline. It is intentionally separate from `docs/q9-release-checklist.md`: the checklist says what must be done, while this file records what was actually run and what still needs a Docker/staging environment.
 
+## Windows/Performance Evidence Refresh (2026-08-15)
+
+This refresh supersedes the older 2026-08-13 reachability snapshot for the current running profile. It records fresh Windows-side evidence and does not close the real Android-device or Linux/Kubernetes Worker gates.
+
+| Gate | Command / evidence | Result |
+|---|---|---|
+| Windows Worker doctor | `scripts/windows-android-worker.ps1 doctor -EnvFile .env` | passed; Python/Celery/Redis/ADB and PostgreSQL/Redis/MinIO endpoint checks passed; no Android device online |
+| Remote dependency TCP | Windows `Test-NetConnection` to `172.31.27.133:5432`, `:6379`, `:9000` | all reachable |
+| Live dependency API | authenticated `scripts/windows-local-smoke.ps1` | PostgreSQL, Redis and MinIO `status=ok` |
+| Windows API/Web smoke | `scripts/windows-local-smoke.ps1 -SkipPlaywright -SkipReports` | passed; login, project read, Web Worker status, file upload/cleanup passed |
+| Browser matrix | same smoke command with local Chromium | passed; no failed requests or error responses |
+| Performance API/Prometheus | `scripts/performance-environment-smoke.py` with API and Prometheus URLs | passed; API health, k6/Locust/gRPC executors and Prometheus readiness/query passed |
+| Performance node | `perf-node-local-01` | blocked; node is `offline`, so no real load was generated |
+| Android single-device acceptance | `scripts/windows-android-acceptance.ps1` | blocked; `adb devices -l` has no authorized online device; report is local-only at `.local-run/android-acceptance-20260815.json` |
+
+The smoke reports under `.local-run/` are local runtime artifacts and contain no credentials. They are not treated as a substitute for external device, Worker, TLS target, cancellation or multi-node evidence.
+
 ## Q18 Local Gate Snapshot (2026-08-12)
 
 This section records repository-local evidence only. It does not close the real MinIO, external notification, Android device, Linux/Kubernetes, Web Worker or macOS/iOS gates.
