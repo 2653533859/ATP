@@ -8,6 +8,10 @@ param(
   [switch]$SkipLiveLogin,
   [switch]$SkipFileTransfer,
   [switch]$SkipReports,
+  [int]$AndroidCaseId = 0,
+  [switch]$RequireAndroidLowcode,
+  [switch]$RequireAndroidEvidence,
+  [int]$AndroidRunTimeoutSeconds = 180,
   [int]$WebCaseId = 0,
   [switch]$SeedWebDownloadCase,
   [switch]$RequireWebLowcode,
@@ -765,6 +769,81 @@ function Invoke-AndroidScanCheck {
   }
 }
 
+function Invoke-AndroidLowcodeCheck {
+  $caseId = [int]$AndroidCaseId
+  $required = $caseId -gt 0 -or $RequireAndroidLowcode -or $RequireAndroidEvidence
+  if (-not $required) {
+    Add-Result -Name 'Android low-code case execution' -Status 'skipped' -Required:$false -Details 'Skipped because -AndroidCaseId was not supplied.'
+    return
+  }
+  if ($caseId -le 0) {
+    Add-Result -Name 'Android low-code case execution' -Status 'failed' -Required:$true -Details 'RequireAndroidLowcode/RequireAndroidEvidence requires a valid Android case ID.'
+    return
+  }
+  if ([string]::IsNullOrWhiteSpace($script:LiveAccessToken)) {
+    Add-Result -Name 'Android low-code case execution' -Status 'failed' -Required:$true -Details 'Cannot execute the Android low-code case without an authenticated session.'
+    return
+  }
+
+  $timeoutSeconds = [Math]::Max(1, $AndroidRunTimeoutSeconds)
+  try {
+    $case = Invoke-RestMethod -Method Get -Uri "$LiveApiBaseUrl/cases/$caseId" -WebSession $script:LiveWebSession -TimeoutSec 20
+    $caseType = [string]$case.case_type
+    $hasLowcodeSteps = $null -ne $case.config -and @($case.config.PSObject.Properties.Name) -contains 'steps'
+    $hasDeviceBinding = $null -ne $case.config -and (
+      @($case.config.PSObject.Properties.Name) -contains 'device_serial' -or
+      @($case.config.PSObject.Properties.Name) -contains 'device_matrix'
+    )
+    if ($caseType -ne 'android' -or -not $hasLowcodeSteps -or -not $hasDeviceBinding) {
+      throw "Case $caseId is not an Android low-code case with a device binding."
+    }
+    if ([string]$case.status -ne 'active' -or [string]$case.review_status -ne 'approved') {
+      throw "Android low-code case $caseId must be active and approved before the smoke run."
+    }
+    if ([string]$case.automation_status -notin @('auto', 'semi_auto')) {
+      throw "Android low-code case $caseId is not configured for automated execution."
+    }
+
+    $triggerBody = @{} | ConvertTo-Json -Compress
+    $started = Invoke-RestMethod -Method Post -Uri "$LiveApiBaseUrl/cases/$caseId/run" -Headers $script:LiveMutationHeaders -WebSession $script:LiveWebSession -ContentType 'application/json' -Body $triggerBody -TimeoutSec 20
+    $runId = [int]$started.id
+    if ($runId -le 0) {
+      throw 'Android low-code run did not return a valid run ID.'
+    }
+
+    $final = $null
+    $finished = $false
+    for ($attempt = 0; $attempt -lt $timeoutSeconds; $attempt++) {
+      Start-Sleep -Seconds 1
+      $final = Invoke-RestMethod -Method Get -Uri "$LiveApiBaseUrl/runs/$runId" -WebSession $script:LiveWebSession -TimeoutSec 20
+      if ([string]$final.status -in @('passed', 'failed', 'error', 'skipped')) {
+        $finished = $true
+        break
+      }
+    }
+
+    $finalStatus = [string]$final.status
+    $stepResults = @($final.steps)
+    $screenshotCount = @($stepResults | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_.screenshot_url) }).Count
+    $artifacts = $final.result_summary.android_artifacts
+    $artifactCount = @($artifacts.PSObject.Properties | Where-Object {
+        $_.Name -notlike '*_error' -and -not [string]::IsNullOrWhiteSpace([string]$_.Value)
+      }).Count
+    $evidencePassed = $screenshotCount -gt 0 -or $artifactCount -gt 0
+    $passed = $finished -and $finalStatus -eq 'passed' -and (-not $RequireAndroidEvidence -or $evidencePassed)
+    $details = if (-not $finished) {
+      "run $runId did not finish within ${timeoutSeconds}s"
+    } elseif ($RequireAndroidEvidence -and -not $evidencePassed) {
+      "run $runId status=$finalStatus; no screenshot or Android artifact evidence was returned"
+    } else {
+      "run $runId status=$finalStatus steps=$($stepResults.Count) screenshots=$screenshotCount artifacts=$artifactCount"
+    }
+    Add-Result -Name 'Android low-code case execution' -Status $(if ($passed) { 'passed' } else { 'failed' }) -Required:$required -Details $details
+  } catch {
+    Add-Result -Name 'Android low-code case execution' -Status 'failed' -Required:$required -Details $_.Exception.Message
+  }
+}
+
 Write-Host '=== ATP Windows Local Smoke ==='
 Write-Host "Repo: $RepoRoot"
 Write-Host "Env:  $ConfiguredEnvFile"
@@ -823,6 +902,7 @@ Invoke-CleanupSeededWebProject
 Invoke-AndroidCheck
 Invoke-AndroidWorkerRegistryCheck -Values $values
 Invoke-AndroidScanCheck -Values $values
+Invoke-AndroidLowcodeCheck
 
 if ($StopServicesAfter) {
   $stop = Invoke-NativeCapture -FilePath $LocalDev -Arguments (@('down') + $serviceArguments) -WorkingDirectory $RepoRoot

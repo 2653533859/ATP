@@ -195,6 +195,10 @@ def test_windows_local_smoke_covers_live_and_browser_paths_without_secrets():
     assert "[switch]$SkipLiveLogin" in script
     assert "[switch]$SkipFileTransfer" in script
     assert "[switch]$SkipReports" in script
+    assert "[int]$AndroidCaseId = 0" in script
+    assert "[switch]$RequireAndroidLowcode" in script
+    assert "[switch]$RequireAndroidEvidence" in script
+    assert "[int]$AndroidRunTimeoutSeconds = 180" in script
     assert "[int]$WebCaseId = 0" in script
     assert "[switch]$SeedWebDownloadCase" in script
     assert "[switch]$RequireWebLowcode" in script
@@ -240,6 +244,13 @@ def test_windows_local_smoke_covers_live_and_browser_paths_without_secrets():
     assert "Invoke-AndroidWorkerRegistryCheck" in script
     assert "/devices/scan" in script
     assert "Invoke-AndroidScanCheck" in script
+    assert "Invoke-AndroidLowcodeCheck" in script
+    assert "Android low-code case execution" in script
+    assert "is not an Android low-code case with a device binding" in script
+    assert "Android low-code case $caseId must be active and approved" in script
+    assert "no screenshot or Android artifact evidence was returned" in script
+    assert "$_.Name -notlike '*_error'" in script
+    assert "Invoke-RestMethod -Method Get -Uri \"$LiveApiBaseUrl/runs/$runId\"" in script
     assert "Worker scan did not return a task ID" in script
     assert "Invoke-WebLowcodeCheck" in script
     assert "Invoke-SeedWebDownloadCase" in script
