@@ -18,6 +18,7 @@
 - [x] `scripts/validate-deployment-readiness.py` 已接入 Android Worker 配置契约检查，发布前会拒绝服务端错误使用 `local` 扫描模式或让普通 Linux Worker 监听 Android 队列。
 - [ ] Android 单设备验收等待授权在线设备；当前 `adb devices -l` 为空，性能监控、卡顿、Crash/ANR、屏幕录制和异常回放无法在本机闭环。
 - [x] Windows 冒烟新增显式 Android 低代码验收入口：`-AndroidCaseId` 校验已审核用例、设备绑定、步骤和自动化状态后触发真实运行；`-RequireAndroidEvidence` 可要求截图或设备附件。未传用例 ID 时保持跳过，未连接设备不会伪造通过。
+- [x] 修复 Android Worker 低代码冒烟的前置竞态：`ADB_SCAN_MODE=worker` 时必须先通过 Worker 注册和设备扫描，失败时直接阻断且不创建待执行 Run。
 - [x] Android 无真机安全回归完成：Worker/性能/事件/回放/API/迁移和 Windows 验收契约定向回归 `258 passed`；`windows-android-acceptance.ps1` 现在区分未连接、未授权和离线设备，并在 JSON 报告中记录状态计数，不会伪造通过。
 - [x] 最新完整非集成后端回归 `2082 passed`；发布 readiness 仓库检查通过，Compose/Helm 工具缺失按 `SKIP` 记录，不将其误记为真实环境验收。
 - [x] 最新前端回归 `50 files / 209 tests passed`，type-check 和生产 build 通过；前端质量门禁与 Android 真机门禁保持独立。

@@ -12,6 +12,7 @@
 - [x] Windows Android Agent 已按当前 `.env` 重新注册：`GET /api/v1/devices/workers` 返回 `android-win-HPS` online，队列为 `mobile_special`，能力为 `adb/android`。
 - [x] 修复 Android Worker doctor 未提前加载 `ATP_ADB_HOME`/Android SDK 可选路径的问题；新增脚本契约回归，避免 PATH 未修改时误报 ADB 缺失。
 - [ ] Android 单设备真实验收仍阻断：`adb devices -l` 没有授权在线设备，`scripts/windows-android-acceptance.ps1` 已按契约失败并生成 `.local-run/android-acceptance-20260815.json`；接入设备后需补执行低代码、截图、日志、Crash/ANR 和回放闭环。Windows 冒烟已新增 `-AndroidCaseId -RequireAndroidLowcode -RequireAndroidEvidence`，可在设备接入后复用已审核用例完成运行结果与证据检查。
+- [x] Android Worker 低代码冒烟现在会先检查 Worker 注册和设备扫描；前置失败时不创建待执行 Run，避免无设备场景留下脏任务。
 - [x] Android 无真机安全回归完成：Worker/性能/事件/回放/API/迁移和 Windows 验收契约定向回归 `258 passed`；验收脚本现在会区分未连接、未授权和离线设备，并在报告中输出安全的状态计数。
 - [x] 最新完整非集成后端回归 `2082 passed`；发布 readiness 仓库检查通过，Android Worker Compose/Helm 配置契约已纳入门禁；本机缺少 Docker Compose/Helm 时仅记录环境检查为 `SKIP`。
 - [x] 最新前端质量门禁 `50 files / 209 tests passed`，`npm run type-check` 与生产 `npm run build` 通过；ADB 仍无在线设备，真实 Android 数据面保持待验收。

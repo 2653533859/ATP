@@ -7,6 +7,7 @@
 - Windows Android Worker doctor 通过；从 Windows 到 `172.31.27.133` 的 PostgreSQL `5432`、Redis `6379`、MinIO `9000` 可达，实时依赖 API 也返回 `ok`。本次只记录状态，不保存地址以外的凭据。
 - Windows local smoke 通过后端健康、登录、用户/项目读取、Web Worker 状态、MinIO 文件上传清理和 Chromium 登录矩阵；Android 设备检查因 `adb devices -l` 没有在线设备而保持 warning/blocked。
 - `scripts/windows-local-smoke.ps1` 新增显式 Android 低代码验收：`-AndroidCaseId` 校验 `active/approved`、自动化状态、`config.steps` 和设备绑定后触发 `/cases/{id}/run` 并轮询终态；`-RequireAndroidEvidence` 要求步骤截图或 Android 附件。未传 ID 时保持跳过，未连接设备不计为通过。
+- Android Worker 低代码验收在 `ADB_SCAN_MODE=worker` 下会先要求 Worker 注册和设备扫描均通过，前置失败直接阻断，不创建待执行 Run。
 - 性能 readiness 通过 ATP API、k6/Locust/gRPC 执行器、专用队列 `performance.worker-local`、目标 allowlist 和 Prometheus readiness/query；节点 `perf-node-local-01` 已在线。
 - 真实低流量 Locust smoke run `1` 完成 957 次请求、错误率 0，产生 2 条 `performance-worker` 采样；run `2` 取消链路验证通过并进入 `cancelled`。
 - Android Agent 已按当前远端配置重新注册，`/devices/workers` 返回 `android-win-HPS` online、队列 `mobile_special` 和 `adb/android` 能力；当前 ADB 无在线设备，不能把 Agent 在线当作设备执行通过。

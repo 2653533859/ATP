@@ -770,6 +770,8 @@ function Invoke-AndroidScanCheck {
 }
 
 function Invoke-AndroidLowcodeCheck {
+  param([hashtable]$Values)
+
   $caseId = [int]$AndroidCaseId
   $required = $caseId -gt 0 -or $RequireAndroidLowcode -or $RequireAndroidEvidence
   if (-not $required) {
@@ -802,6 +804,18 @@ function Invoke-AndroidLowcodeCheck {
     }
     if ([string]$case.automation_status -notin @('auto', 'semi_auto')) {
       throw "Android low-code case $caseId is not configured for automated execution."
+    }
+
+    $scanMode = if ($Values.ContainsKey('ADB_SCAN_MODE')) { [string]$Values['ADB_SCAN_MODE'] } else { '' }
+    if ($scanMode.Trim().ToLowerInvariant() -eq 'worker') {
+      $workerPrerequisites = @(
+        $results | Where-Object { $_.name -in @('Android Worker registry', 'Android device scan callback') }
+      )
+      $workerFailures = @($workerPrerequisites | Where-Object { $_.status -ne 'passed' })
+      if ($workerPrerequisites.Count -lt 2 -or $workerFailures.Count -gt 0) {
+        Add-Result -Name 'Android low-code case execution' -Status 'failed' -Required:$required -Details 'Android Worker registry/scan prerequisites did not pass; no run was created.'
+        return
+      }
     }
 
     $triggerBody = @{} | ConvertTo-Json -Compress
@@ -902,7 +916,7 @@ Invoke-CleanupSeededWebProject
 Invoke-AndroidCheck
 Invoke-AndroidWorkerRegistryCheck -Values $values
 Invoke-AndroidScanCheck -Values $values
-Invoke-AndroidLowcodeCheck
+Invoke-AndroidLowcodeCheck -Values $values
 
 if ($StopServicesAfter) {
   $stop = Invoke-NativeCapture -FilePath $LocalDev -Arguments (@('down') + $serviceArguments) -WorkingDirectory $RepoRoot
