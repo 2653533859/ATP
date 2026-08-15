@@ -14,6 +14,7 @@
 - [x] Windows Android Worker doctor 已修复为先加载 `ATP_ADB_HOME`/Android SDK 路径，再检查 `adb.exe`；对应脚本契约回归通过。
 - [x] 新增 `config/deployment-profiles/android-worker-backend.env.example`：服务端固定 `ADB_SCAN_MODE=worker`，普通 Linux Worker 排除 `android,mobile_special`，并与 Windows `android-agent` 档案分离；新增配置契约回归和部署说明。
 - [x] 新增 Helm overlay `deploy/helm/atp/values-android-worker.example.yaml`，将同一套扫描模式、Android 队列和外部 Secret 约束带入 Kubernetes；部署契约回归 `22 passed`，真实集群 lint/deploy 仍待目标环境。
+- [x] `scripts/validate-deployment-readiness.py` 已接入 Android Worker 配置契约检查，发布前会拒绝服务端错误使用 `local` 扫描模式或让普通 Linux Worker 监听 Android 队列。
 - [ ] Android 单设备验收等待授权在线设备；当前 `adb devices -l` 为空，性能监控、卡顿、Crash/ANR、屏幕录制和异常回放无法在本机闭环。
 - [x] Android 无真机安全回归完成：Worker/性能/事件/回放/API/迁移和 Windows 验收契约定向回归 `258 passed`；`windows-android-acceptance.ps1` 现在区分未连接、未授权和离线设备，并在 JSON 报告中记录状态计数，不会伪造通过。
 - [x] Windows 性能节点 `perf-node-local-01` 已在线并完成目标 TCP、allowlist、资源采样和取消验证；Linux/Kubernetes 专用 Worker、TLS 目标和多节点验收仍未关闭外部门禁。

@@ -162,6 +162,15 @@ def test_helm_android_worker_overlay_separates_linux_and_windows_queues():
     assert "config/startup-profiles/android-agent.env" in content
 
 
+def test_deployment_readiness_validates_android_worker_profile_contract():
+    validator = _load_deployment_validator()
+    failures: list[str] = []
+
+    validator._check_android_worker_profiles(failures)
+
+    assert failures == []
+
+
 def test_helm_exposes_opt_in_minio_lifecycle_reconciler():
     values = yaml.safe_load((ROOT / "deploy" / "helm" / "atp" / "values.yaml").read_text(encoding="utf-8"))
     schema = json.loads((ROOT / "deploy" / "helm" / "atp" / "values.schema.json").read_text(encoding="utf-8"))

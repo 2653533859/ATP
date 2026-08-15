@@ -29,6 +29,8 @@ REQUIRED_FILES = (
     "docs/backup-restore-drill-record.md",
     "scripts/backup-postgres.sh",
     "scripts/restore-postgres.sh",
+    "config/deployment-profiles/android-worker-backend.env.example",
+    "deploy/helm/atp/values-android-worker.example.yaml",
 )
 
 
@@ -122,6 +124,57 @@ def _check_document_contracts(failures: list[str]) -> None:
             failures.append(f"disaster-recovery runbook missing: {marker}")
 
 
+def _read_env_template(path: Path) -> dict[str, str]:
+    values: dict[str, str] = {}
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+            value = value[1:-1]
+        values[key] = value
+    return values
+
+
+def _check_android_worker_profiles(failures: list[str]) -> None:
+    """Ensure server and Windows Agent profiles cannot silently consume the same queue."""
+    env_path = ROOT / "config/deployment-profiles/android-worker-backend.env.example"
+    overlay_path = ROOT / "deploy/helm/atp/values-android-worker.example.yaml"
+    if not env_path.is_file() or not overlay_path.is_file():
+        return
+
+    server_env = _read_env_template(env_path)
+    server_queues = {item.strip().lower() for item in server_env.get("CELERY_QUEUES", "").split(",") if item.strip()}
+    if server_env.get("ADB_SCAN_MODE", "").strip().lower() != "worker":
+        failures.append("Android Worker server profile must set ADB_SCAN_MODE=worker")
+    if server_env.get("ADB_SCAN_ENABLED", "").strip().lower() not in {"1", "true", "yes"}:
+        failures.append("Android Worker server profile must enable ADB_SCAN_ENABLED")
+    if server_env.get("ANDROID_WORKER_QUEUE", "").strip() != "mobile_special":
+        failures.append("Android Worker server profile must route to mobile_special")
+    if server_queues & {"android", "mobile_special"}:
+        failures.append("Android Worker server profile must exclude android,mobile_special")
+
+    try:
+        overlay = yaml.safe_load(overlay_path.read_text(encoding="utf-8")) or {}
+    except (OSError, yaml.YAMLError) as exc:
+        failures.append(f"invalid Android Worker Helm overlay: {exc}")
+        return
+    config = overlay.get("config") or {}
+    worker = overlay.get("worker") or {}
+    overlay_queues = {item.strip().lower() for item in str(config.get("CELERY_QUEUES", "")).split(",") if item.strip()}
+    if config.get("ADB_SCAN_MODE") != "worker":
+        failures.append("Android Worker Helm overlay must set config.ADB_SCAN_MODE=worker")
+    if str(config.get("ADB_SCAN_ENABLED", "")).lower() not in {"1", "true", "yes"}:
+        failures.append("Android Worker Helm overlay must enable config.ADB_SCAN_ENABLED")
+    if config.get("ANDROID_WORKER_QUEUE") != "mobile_special":
+        failures.append("Android Worker Helm overlay must route to mobile_special")
+    if overlay_queues & {"android", "mobile_special"} or worker.get("queues") != config.get("CELERY_QUEUES"):
+        failures.append("Android Worker Helm overlay must keep Linux Worker queues separate from Android queues")
+
+
 def _resolve_compose() -> list[str] | None:
     configured = os.environ.get("COMPOSE")
     if configured:
@@ -191,6 +244,7 @@ def main() -> int:
     strict = args.strict
     _check_shell_scripts(strict or args.require_shell, skipped, failures)
     _check_document_contracts(failures)
+    _check_android_worker_profiles(failures)
     _check_compose(strict, skipped, failures)
     _check_helm(strict or args.require_helm, skipped, failures)
 
