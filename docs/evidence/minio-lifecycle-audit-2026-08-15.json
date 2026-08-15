@@ -1,0 +1,37 @@
+{
+  "observed_at": "2026-08-15",
+  "target": {
+    "host": "172.31.27.133",
+    "bucket": "atp",
+    "scope": "read-only audit"
+  },
+  "lifecycle": {
+    "configured": false,
+    "rules": []
+  },
+  "protection": {
+    "versioning": "disabled",
+    "object_lock": "disabled",
+    "replication": "not_configured"
+  },
+  "observed_object_prefix_counts": {
+    "apks/": 1,
+    "mobile-special/": 6,
+    "performance/": 2,
+    "screenshots/": 7,
+    "traces/": 2,
+    "web-files/": 1
+  },
+  "database_storage_policies": [
+    { "name": "screenshots", "prefix": "screenshots/", "retention_days": 30, "enabled": true },
+    { "name": "reports", "prefix": "reports/", "retention_days": 90, "enabled": true },
+    { "name": "apks", "prefix": "apks/", "retention_days": 180, "enabled": true },
+    { "name": "scripts", "prefix": "scripts/", "retention_days": 365, "enabled": true }
+  ],
+  "database_reference_counts": {
+    "apks": 1,
+    "mobile_run_artifacts": 5,
+    "performance_runs_with_raw_result_object": 1
+  },
+  "decision": "Do not enable expiration rules until an administrator confirms retention and reference cleanup."
+}

@@ -41,6 +41,11 @@ Record the resulting rule set and operator approval with the backup/restore
 drill evidence. A successful object restore does not by itself prove that the
 production lifecycle policy is safe.
 
+The latest read-only audit of the configured target is recorded in
+`docs/evidence/minio-lifecycle-audit-2026-08-15.json`. It found no lifecycle
+rules and confirmed that the bucket contains objects covered by database
+retention/reference policies, so no expiration policy was enabled automatically.
+
 ## Backup
 
 Required environment variables:

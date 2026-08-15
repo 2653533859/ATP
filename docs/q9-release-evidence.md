@@ -61,6 +61,16 @@ The backup/restore drill does not prove production retention, MinIO lifecycle co
 
 This is a deployment/code contract, not production acceptance. Before enabling it, export and review the target bucket rules, verify database references and backup prefixes, and record the approved retention period.
 
+## MinIO Target Audit (2026-08-15)
+
+The read-only audit of `172.31.27.133` found no lifecycle rules on the `atp`
+bucket. Versioning, object locking, and replication were also not configured.
+The bucket contains referenced APK, mobile-run, performance, screenshot, trace,
+and web-file objects, while the database has active retention policies for
+screenshots, reports, APKs, and scripts. The sanitized snapshot is recorded in
+`docs/evidence/minio-lifecycle-audit-2026-08-15.json`; no expiration rule was
+enabled as part of this audit.
+
 ## Q18 Local Gate Snapshot (2026-08-12)
 
 This section records repository-local evidence only. It does not close the real MinIO, external notification, Android device, Linux/Kubernetes, Web Worker or macOS/iOS gates.

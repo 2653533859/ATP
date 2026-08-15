@@ -25,6 +25,7 @@
 - [x] 新增显式 `app.ops_minio_lifecycle` 运维命令，采用 `atp-managed-*` 命名空间合并生命周期规则，不覆盖外部系统已有规则；执行必须设置 `MINIO_LIFECYCLE_APPLY=true`。
 - [x] Helm hook 与 Docker Compose `storage-lifecycle` profile 已接入，默认关闭；过期规则要求非空相对前缀，默认只处理未完成 multipart upload。
 - [x] 生命周期契约回归 `23 passed`，并同步 `.env.example`、Helm values/schema、部署和灾备 Runbook。
+- [x] 已对目标 `172.31.27.133` 的 `atp` bucket 完成只读规则、保护能力、对象前缀和数据库引用审计；证据见 `docs/evidence/minio-lifecycle-audit-2026-08-15.json`。
 - [ ] 生产启用前仍需核对 bucket 当前规则、数据库引用关系、备份前缀和合规保留周期。
 
 ## 2026-08-15 Linux Docker 验收进展
@@ -39,7 +40,7 @@
 1. 在真实 Kubernetes 环境复现性能节点 readiness、TLS 目标、取消、资源采样、报告导出和多节点分片证据；当前 Docker Compose 证据只能关闭 Linux 单节点隔离栈部分。
 2. 接入并授权 Windows Android 真机，运行 `scripts/windows-android-acceptance.ps1`，再以 `ADB_SCAN_MODE=worker` 验证公网后端到 Android Worker 的注册、设备扫描和操作回调。
 3. 在不影响 API/Web 的前提下完成真实 Android 性能任务：设备指标、卡顿/FPS、Crash/ANR、事件时间线、录屏分段和异常回放。
-4. 在目标环境只读导出 MinIO 当前 lifecycle 规则并完成管理员确认，再显式启用生命周期 hook；补真实恢复演练和清理审计，随后补外部 SMTP/企业微信/钉钉投递证据。
+4. 基于已完成的只读审计，由管理员确认 MinIO 保留周期和是否启用 multipart 清理；确认后再显式启用生命周期 hook，补真实恢复演练和清理审计，随后补外部 SMTP/企业微信/钉钉投递证据。
 5. 在 Linux/Xvfb 环境完成 Web Worker 录制验收，并将 Kubernetes、通知、存储和移动端证据统一归档。
 
 ## 2026-08-14 项目成员 owner 权限完整性（代码阶段完成）

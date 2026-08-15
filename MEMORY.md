@@ -28,6 +28,7 @@
 - 新增 `app.ops_minio_lifecycle` 显式运维命令；只有 `MINIO_LIFECYCLE_APPLY=true` 才会执行，且只替换 `atp-managed-*` 规则，保留其他系统的生命周期配置。
 - Helm `storageLifecycle` hook 和 Docker Compose `storage-lifecycle` profile 默认关闭；默认只设置未完成 multipart upload 的清理，过期规则要求非空相对前缀。
 - 生命周期解析/边界/规则合并与部署契约回归 `23 passed`；生产 bucket 规则、引用关系和保留周期仍需管理员确认后才能启用。
+- 已对 `172.31.27.133` 的 `atp` bucket 做只读审计：当前无 lifecycle 规则，版本控制/对象锁/复制未启用；数据库仍有截图、报告、APK、脚本保留策略和对象引用，证据见 `docs/evidence/minio-lifecycle-audit-2026-08-15.json`。
 
 ## 2026-08-14 通知 Webhook 查询参数脱敏
 

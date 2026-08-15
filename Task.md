@@ -33,6 +33,7 @@
 - [x] 新增 `app.ops_minio_lifecycle` 显式运维命令：默认拒绝执行，仅在 `MINIO_LIFECYCLE_APPLY=true` 时运行；合并时保留非 `atp-managed-*` 规则，避免覆盖外部系统策略。
 - [x] Helm 增加默认关闭的 `storageLifecycle` hook，Docker Compose 增加 `storage-lifecycle` profile；默认只清理未完成 multipart upload，过期规则必须绑定非空相对前缀。
 - [x] 增加生命周期规则解析、边界校验、外部规则保留和部署契约回归；定向部署/服务测试 `23 passed`。
+- [x] 对 `172.31.27.133` 的 `atp` bucket 完成只读 lifecycle 审计：当前无生命周期规则，版本控制/对象锁/复制未启用；证据见 `docs/evidence/minio-lifecycle-audit-2026-08-15.json`。
 - [ ] 生产仍需由管理员确认 MinIO bucket 当前规则、对象引用关系和保留周期后，再在目标环境显式启用 hook/profile。
 
 ## 2026-08-14 Android 性能监控、卡顿检测与异常回放
