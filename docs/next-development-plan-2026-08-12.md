@@ -1,5 +1,11 @@
 # ATP 下一阶段开发计划（2026-08-12）
 
+## 2026-08-17 GitHub Actions 触发策略
+
+- [x] 已关闭 integration、E2E、Security 和 Release readiness 的 nightly 定时触发；这些工作流现在只通过 `workflow_dispatch` 手动运行。
+- [x] 主 CI 与 Security 仍保留 push/PR 质量检查，避免关闭日常提交的基本反馈；对应触发契约回归 `6 passed`。
+- [ ] Dependabot 仍保留每周依赖检查；若需要所有自动化都改成手动，下一步再单独关闭 Dependabot。
+
 ## 2026-08-16 Kubernetes 前置审计结果
 
 - [x] 已对目标主机完成只读运行时检查：只有 Docker 容器栈，没有 `kubectl`、`helm`、`k3s`、`microk8s` 或 `minikube`；没有进行安装或远端变更；证据见 `docs/evidence/kubernetes-readiness-audit-2026-08-16.json`。

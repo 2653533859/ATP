@@ -1,5 +1,11 @@
 # ATP 项目任务跟踪
 
+## 2026-08-17 GitHub Actions 触发策略收口
+
+- [x] 移除 integration、E2E、Security 和 Release readiness 的每日 `schedule`，保留 `workflow_dispatch` 手动触发；主 CI 与 Security 的 push/PR 检查保持不变。
+- [x] 新增工作流触发契约回归并修正 Release readiness 历史断言；定向回归 `6 passed`，全部 workflow YAML 解析通过。
+- [ ] `.github/dependabot.yml` 仍按周检查依赖并可能创建 PR；如需完全停止自动依赖检查，需要单独关闭 Dependabot。
+
 ## 2026-08-16 Kubernetes 环境前置审计
 
 - [x] 对 `172.31.27.133` 完成只读探测：当前可见 Docker 容器栈，但没有 `kubectl`、`helm`、`k3s`、`microk8s` 或 `minikube`；未执行安装、部署、重启或其他远端修改；证据见 `docs/evidence/kubernetes-readiness-audit-2026-08-16.json`。

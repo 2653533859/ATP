@@ -6,8 +6,6 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
-  schedule:
-    - cron: '11 20 * * *'
 
 concurrency:
   group: security-${{ github.workflow }}-${{ github.ref }}

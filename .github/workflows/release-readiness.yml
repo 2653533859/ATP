@@ -2,8 +2,6 @@ name: Release readiness
 
 on:
   workflow_dispatch:
-  schedule:
-    - cron: '37 19 * * *'
 
 concurrency:
   group: release-readiness-${{ github.workflow }}-${{ github.ref }}

@@ -1,12 +1,9 @@
 name: CI (integration)
 
 # P2.3 集成测试：真实 postgres / redis / minio 服务，跑 backend/tests/integration。
-# 不在 push/PR 上触发——避免阻塞日常 CI；nightly 自动跑 + workflow_dispatch 手动触发。
+# 不在 push/PR 或定时任务上触发——避免持续消耗 GitHub Actions；需要时手动触发。
 on:
   workflow_dispatch:
-  schedule:
-    # 每日 UTC 03:17（北京时间 11:17），错峰避开 GH runner 早高峰
-    - cron: "17 3 * * *"
 
 concurrency:
   group: ci-integration-${{ github.workflow }}-${{ github.ref }}

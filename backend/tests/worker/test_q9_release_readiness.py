@@ -70,7 +70,7 @@ def test_release_readiness_workflow_builds_images_and_verifies_k6(repo_file):
 
     assert workflow["name"] == "Release readiness"
     assert "workflow_dispatch" in workflow[True]
-    assert "schedule" in workflow[True]
+    assert "schedule" not in workflow[True]
     assert "docker build -t atp-backend:release-readiness backend/" in commands
     assert "docker build -t atp-worker:release-readiness -f backend/Dockerfile.worker backend/" in commands
     assert "docker run --rm --entrypoint k6 atp-worker:release-readiness version" in commands

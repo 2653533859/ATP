@@ -1,6 +1,6 @@
 # GitHub Actions 工作流说明
 
-本文记录仓库当前 CI / E2E / integration / release readiness 工作流的触发条件、依赖服务和常见失败排查方式。
+本文记录仓库当前 CI / E2E / integration / release readiness 工作流的触发条件、依赖服务和常见失败排查方式。除主 CI 的 push/PR 检查外，仓库已关闭 nightly 定时运行；integration、E2E、Security 和 Release readiness 需要时通过 GitHub Actions 的 `workflow_dispatch` 手动启动。
 
 ## `ci.yml` — 主 CI
 
@@ -57,7 +57,7 @@ job 和其他 job 一样只是通知性的 —— 它变红不会阻止任何一
 
 ## `test-integration.yml` — 真实基础设施集成测试
 
-- **触发**：手动 `workflow_dispatch`；每日 UTC 03:17 定时。
+- **触发**：仅手动 `workflow_dispatch`；不再每日定时运行。
 - **范围**：`backend/tests/integration`，覆盖 auth、case-run、mock 等真实链路。
 - **依赖服务**：PostgreSQL 16、Redis 7、MinIO 容器。
 - **Flaky 治理**：仅该 workflow 启用一次有界重试（`--reruns 1 --reruns-delay 2`）。同一失败签名重复出现时，必须按 `docs/flaky-governance.md` 记录 `flaky` marker、原因与退出条件，或直接修复根因。
@@ -72,7 +72,7 @@ job 和其他 job 一样只是通知性的 —— 它变红不会阻止任何一
 
 ## `test-e2e.yml` — 前端 Playwright E2E
 
-- **触发**：手动 `workflow_dispatch`；每日 UTC 03:43 定时。
+- **触发**：仅手动 `workflow_dispatch`；不再每日定时运行。
 - **范围**：`frontend/e2e`，使用 mock API 模式，不依赖真实后端。
 - **依赖服务**：无外部服务；Playwright 会按 `frontend/playwright.config.ts` 启动前端 dev server。
 - **Artifacts**：失败时上传 `frontend/playwright-report/`。
@@ -84,7 +84,7 @@ job 和其他 job 一样只是通知性的 —— 它变红不会阻止任何一
 
 ## `release-readiness.yml` — 发布就绪检查
 
-- **触发**：手动 `workflow_dispatch`；每日 UTC 19:37 定时。
+- **触发**：仅手动 `workflow_dispatch`；不再每日定时运行。
 - **Jobs**：
   - `Docker image build checks`：构建 backend、worker、frontend 镜像，并用 worker 镜像执行 `k6 version`。
   - `Release checklist contract`：运行 `backend/tests/worker/test_q9_release_readiness.py`（契约字符串的唯一定义处），验证 `docs/q9-release-checklist.md` 仍覆盖迁移、Helm、lint、mypy、覆盖率、安全扫描、integration、E2E 和 SLO JSON 校验项。
@@ -96,7 +96,7 @@ job 和其他 job 一样只是通知性的 —— 它变红不会阻止任何一
 
 ## `security.yml` — 安全扫描
 
-- **触发**：push 到 `main`；针对 `main` 的 pull request；手动 `workflow_dispatch`；每日 UTC 20:11 定时。
+- **触发**：push 到 `main`；针对 `main` 的 pull request；手动 `workflow_dispatch`；不再每日定时运行。
 - **Jobs**：
   - `Gitleaks secret scan`：使用 Gitleaks 扫描仓库历史与当前变更，发现密钥时阻断。
   - `Dependency audit`：运行 `pip-audit` 扫描后端依赖；运行 `npm audit --audit-level=high` 扫描前端依赖，high/critical 阻断。

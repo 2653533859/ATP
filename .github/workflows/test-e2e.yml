@@ -1,12 +1,9 @@
 name: CI (e2e)
 
 # P2.4 前端 E2E：Playwright + chromium，mock API 模式（不依赖真后端）。
-# 不在 push/PR 上触发——避免阻塞日常 CI；nightly 自动跑 + workflow_dispatch 手动触发。
+# 不在 push/PR 或定时任务上触发——避免持续消耗 GitHub Actions；需要时手动触发。
 on:
   workflow_dispatch:
-  schedule:
-    # 每日 UTC 03:43（北京时间 11:43），与 integration workflow 错开 26 分钟
-    - cron: "43 3 * * *"
 
 concurrency:
   group: ci-e2e-${{ github.workflow }}-${{ github.ref }}
