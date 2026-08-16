@@ -22,7 +22,7 @@ RUN apt-get update \
     && rm -rf /var/lib/apt/lists/* \
     && git clone --depth 1 --branch v2.2.0 https://github.com/grafana/k6.git . \
     && test "$(git rev-parse HEAD)" = "${K6_COMMIT}" \
-    && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /k6 ./cmd/k6
+    && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /k6 ./cmd
 
 FROM python:3.12-slim-bookworm
 

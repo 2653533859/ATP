@@ -7,7 +7,7 @@
 - [x] 已将前端 `nanoid` 更新到 `3.3.18`，本地高危级别 npm 审计通过。
 - [x] 已将 Worker k6 改为使用固定 digest 的 Go `1.26.6` 构建，并校验 k6 `v2.2.0` commit；JMeter 5.6.3 镜像构建替换 Jackson、XStream、dnsjava、json-smart、HttpCore5、Batik 的固定漏洞版本，并移除当前执行器不使用的 Neo4j/Tika 可选包。
 - [x] 已将 3 处不安全 XML 解析改用 `defusedxml`，并让移动事件独立测试显式 bootstrap 全部模型，修复独立扫描的 `KeyError: Project/NotificationConfig`。
-- [x] 本地非集成后端回归 `2084 passed`，独立文件扫描 `275 passed`，Web 录制定向回归 `22 passed`，Bandit/ruff/npm 审计通过；第二轮远端工作流重跑待确认。
+- [x] 本地非集成后端回归 `2084 passed`，独立文件扫描 `275 passed`，Web 录制定向回归 `22 passed`，Bandit/ruff/npm 审计通过；第二轮远端 CI/Security 全部通过，第三轮仅发现 k6 构建入口路径错误并已修正，第四轮远端结果待确认。
 
 ## 2026-08-17 GitHub Actions 触发策略
 

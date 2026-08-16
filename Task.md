@@ -7,7 +7,7 @@
 - [x] 修复 Security 的前端依赖漏洞：锁定 `nanoid` 到 `3.3.18`，本地 `npm audit --audit-level=high` 无漏洞。
 - [x] 远端复核发现 k6 `2.2.0` 和 `master` 镜像仍内置受影响的 Go 版本，Worker 改为用固定 digest 的 Go `1.26.6` 构建并校验 k6 `v2.2.0` commit；JMeter 5.6.3 镜像构建同步替换存在固定版本的 Jackson、XStream、dnsjava、json-smart、HttpCore5、Batik，并移除当前执行器不使用的 Neo4j/Tika 可选包。
 - [x] 修复远端新增的 Bandit XML 解析告警，统一改用 `defusedxml`；补齐 `test_mobile_special_events.py` 的模型 bootstrap，独立测试不再依赖历史收集顺序。
-- [x] 本地完整非集成后端回归 `2084 passed`，独立文件扫描 `275 passed`，Web 录制定向回归 `22 passed`，Bandit/ruff/npm 审计通过；第二轮远端 CI/Security 重跑结果待推送后确认。
+- [x] 本地完整非集成后端回归 `2084 passed`，独立文件扫描 `275 passed`，Web 录制定向回归 `22 passed`，Bandit/ruff/npm 审计通过；第二轮远端 CI/Security 全部通过，第三轮仅发现 k6 构建入口路径错误并已修正，第四轮远端结果待确认。
 
 ## 2026-08-17 GitHub Actions 触发策略收口
 
