@@ -67,9 +67,7 @@ class MobileRunEventRecorder:
         max_sequence = await self.db.scalar(
             select(func.max(MobileRunEvent.sequence)).where(MobileRunEvent.run_id == self.run_id)
         )
-        count = await self.db.scalar(
-            select(func.count(MobileRunEvent.id)).where(MobileRunEvent.run_id == self.run_id)
-        )
+        count = await self.db.scalar(select(func.count(MobileRunEvent.id)).where(MobileRunEvent.run_id == self.run_id))
         self.sequence = int(max_sequence or 0)
         self.count = int(count or 0)
         self._initialized = True

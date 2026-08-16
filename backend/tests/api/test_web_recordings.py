@@ -313,6 +313,7 @@ def test_recording_session_starts_browser_collects_navigation_and_stops(monkeypa
 
     factory = _Factory()
     monkeypatch.setattr(web_recordings, "async_playwright", lambda: factory)
+    monkeypatch.setattr(web_recordings.settings, "WEB_RECORDER_DISPLAY", ":99")
     session = WebRecordingSession(
         session_id="start-session",
         owner_id=1,

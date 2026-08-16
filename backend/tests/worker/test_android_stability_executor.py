@@ -83,9 +83,7 @@ class TestValidateInputs:
 
 class TestParseMonkeys:
     def test_parse_monkey_action_line_captures_raw_action(self):
-        parsed = android_stability_executor._parse_monkey_event_line(
-            ":Sending Touch (ACTION_DOWN): 0,0"
-        )
+        parsed = android_stability_executor._parse_monkey_event_line(":Sending Touch (ACTION_DOWN): 0,0")
 
         assert parsed == {
             "action": "Sending Touch (ACTION_DOWN)",

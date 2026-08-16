@@ -79,9 +79,7 @@ def _parse_binary_manifest(manifest: bytes) -> dict[str, str | int]:
 def _parse_string_pool(data: bytes, offset: int, header_size: int, chunk_size: int) -> list[str]:
     if header_size < 28 or chunk_size < header_size:
         return []
-    string_count, style_count, flags, strings_start, _styles_start = struct.unpack_from(
-        "<IIIII", data, offset + 8
-    )
+    string_count, style_count, flags, strings_start, _styles_start = struct.unpack_from("<IIIII", data, offset + 8)
     offsets_start = offset + header_size
     strings_base = offset + strings_start
     is_utf8 = bool(flags & 0x100)

@@ -198,8 +198,16 @@ def _adb_cmd(serial: str, *args: str, timeout: int = 15) -> tuple[bool, str]:
     cmd = ["adb", "-s", serial, *args]
     try:
         proc = subprocess.run(cmd, capture_output=True, timeout=timeout)
-        stdout = (proc.stdout or b"").decode("utf-8", errors="replace") if isinstance(proc.stdout, bytes) else (proc.stdout or "")
-        stderr = (proc.stderr or b"").decode("utf-8", errors="replace") if isinstance(proc.stderr, bytes) else (proc.stderr or "")
+        stdout = (
+            (proc.stdout or b"").decode("utf-8", errors="replace")
+            if isinstance(proc.stdout, bytes)
+            else (proc.stdout or "")
+        )
+        stderr = (
+            (proc.stderr or b"").decode("utf-8", errors="replace")
+            if isinstance(proc.stderr, bytes)
+            else (proc.stderr or "")
+        )
         output = stdout + stderr
         return proc.returncode == 0, output.strip()
     except subprocess.TimeoutExpired:

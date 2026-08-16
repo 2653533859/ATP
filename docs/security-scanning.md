@@ -1,6 +1,6 @@
 # Security Scanning
 
-> Last updated: 2026-07-08
+> Last updated: 2026-08-17
 
 ## Bandit SAST
 
@@ -78,6 +78,11 @@ Remediation completed on 2026-07-08:
 - Frontend upgrades: Vite/Vitest 8/4 line, `axios==1.18.1`, `echarts==6.1.0`, `vue-i18n==9.14.5`, `jsdom==29.1.1`, `vue-tsc==3.3.6`.
 - npm overrides: `brace-expansion==5.0.7`, `form-data==4.0.6`, `lodash==4.18.1`, `lodash-es==4.18.1`.
 - Verification: `make security-pip-audit PYTHON=backend/.venv/bin/python` and `make security-npm-audit` pass.
+
+Remote failure remediation on 2026-08-17:
+
+- Frontend `nanoid` was updated from `3.3.17` to `3.3.18` in `frontend/package-lock.json`; `npm audit --audit-level=high` now reports zero vulnerabilities locally.
+- The Worker k6 base image was updated from `grafana/k6:2.1.0` to the versioned `grafana/k6:2.2.0` image to pick up upstream Go dependency fixes; the remote Trivy result must still be confirmed after the next push.
 
 ## Next Scans
 

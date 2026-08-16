@@ -1,4 +1,4 @@
-ARG K6_IMAGE=grafana/k6:2.1.0
+ARG K6_IMAGE=grafana/k6:2.2.0
 ARG JMETER_VERSION=5.6.3
 FROM python:3.12-slim-bookworm AS python-deps
 

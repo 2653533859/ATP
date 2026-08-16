@@ -577,11 +577,7 @@ async def export_run_json(
     incidents = incidents_result.scalars().all()
 
     # Fetch execution timeline
-    events_q = (
-        select(MobileRunEvent)
-        .where(MobileRunEvent.run_id == run_id)
-        .order_by(MobileRunEvent.sequence.asc())
-    )
+    events_q = select(MobileRunEvent).where(MobileRunEvent.run_id == run_id).order_by(MobileRunEvent.sequence.asc())
     events_result = await db.execute(events_q)
     events = events_result.scalars().all()
 

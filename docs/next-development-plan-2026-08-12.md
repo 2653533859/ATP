@@ -1,5 +1,13 @@
 # ATP 下一阶段开发计划（2026-08-12）
 
+## 2026-08-17 GitHub Actions 失败修复
+
+- [x] 已处理本次 push 的 CI Ruff 格式门禁：6 个文件重新格式化，格式检查本地通过。
+- [x] 已隔离 Linux Web 录制测试对宿主机 `DISPLAY` 的依赖；产品运行时仍要求真实可见显示环境。
+- [x] 已将前端 `nanoid` 更新到 `3.3.18`，本地高危级别 npm 审计通过。
+- [x] 已将 Worker k6 镜像更新到 `grafana/k6:2.2.0`，远端 Trivy 结果需在推送后复核。
+- [x] 本地非集成后端回归 `2084 passed`，Web 录制定向回归 `22 passed`；远端工作流重跑待确认。
+
 ## 2026-08-17 GitHub Actions 触发策略
 
 - [x] 已关闭 integration、E2E、Security 和 Release readiness 的 nightly 定时触发；这些工作流现在只通过 `workflow_dispatch` 手动运行。

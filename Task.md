@@ -1,5 +1,13 @@
 # ATP 项目任务跟踪
 
+## 2026-08-17 GitHub Actions 远端失败修复
+
+- [x] 修复 CI 的 Ruff 格式检查失败：格式化 6 个被报告的后端源码/测试文件，并通过完整格式检查。
+- [x] 修复 Linux 无 `DISPLAY` 导致的 Web 录制 API 回归失败：测试显式注入 `WEB_RECORDER_DISPLAY`，保留产品对真实可见显示环境的校验。
+- [x] 修复 Security 的前端依赖漏洞：锁定 `nanoid` 到 `3.3.18`，本地 `npm audit --audit-level=high` 无漏洞。
+- [x] 将 Worker 的 k6 基础镜像从 `grafana/k6:2.1.0` 更新到 `grafana/k6:2.2.0`，用于获取上游安全修复。
+- [x] 本地完整非集成后端回归 `2084 passed`，Web 录制定向回归 `22 passed`；远端 CI/Security 重跑结果待推送后确认。
+
 ## 2026-08-17 GitHub Actions 触发策略收口
 
 - [x] 移除 integration、E2E、Security 和 Release readiness 的每日 `schedule`，保留 `workflow_dispatch` 手动触发；主 CI 与 Security 的 push/PR 检查保持不变。

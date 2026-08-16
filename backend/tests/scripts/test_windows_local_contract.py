@@ -252,7 +252,7 @@ def test_windows_local_smoke_covers_live_and_browser_paths_without_secrets():
     assert "$_.Name -notlike '*_error'" in script
     assert "Android Worker registry/scan prerequisites did not pass; no run was created." in script
     assert "Invoke-AndroidLowcodeCheck -Values $values" in script
-    assert "Invoke-RestMethod -Method Get -Uri \"$LiveApiBaseUrl/runs/$runId\"" in script
+    assert 'Invoke-RestMethod -Method Get -Uri "$LiveApiBaseUrl/runs/$runId"' in script
     assert "Worker scan did not return a task ID" in script
     assert "Invoke-WebLowcodeCheck" in script
     assert "Invoke-SeedWebDownloadCase" in script
