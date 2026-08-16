@@ -1,7 +1,14 @@
 # ATP 下一阶段开发计划（2026-08-12）
 
+## 2026-08-16 Kubernetes 前置审计结果
+
+- [x] 已对目标主机完成只读运行时检查：只有 Docker 容器栈，没有 `kubectl`、`helm`、`k3s`、`microk8s` 或 `minikube`；没有进行安装或远端变更；证据见 `docs/evidence/kubernetes-readiness-audit-2026-08-16.json`。
+- [ ] Kubernetes Deployment、真实多节点分片和生产 Prometheus 验收等待目标集群/API 凭据；当前继续优先完成 Windows API/Web 与代码回归，避免把 Compose 证据冒充集群验收。
+
 ## 2026-08-15 当前验收进度与下一步
 
+- [x] 20:37 实时复核通过：Windows API/Web 与远端 PostgreSQL/Redis/MinIO readiness、登录、项目读取、47 bytes 文件上传和清理通过；本次明确跳过 Playwright、浏览器矩阵和报告导出，Android 保持无在线设备 warning；证据见 `docs/evidence/windows-smoke-live-2026-08-15-2037.json`。
+- [x] 本轮质量门禁重新通过：后端非集成 `2082 passed`，前端 `50 files / 209 tests passed`，type-check 与生产 build 通过。
 - [x] 远端依赖恢复后重新执行 Windows API/Web smoke：PostgreSQL/Redis/MinIO readiness、登录、项目读取、浏览器矩阵、文件上传和清理均通过；Android 仅保留无在线设备 warning，证据见 `docs/evidence/windows-smoke-current-2026-08-15.json`。
 
 本轮先完成 Windows 可执行范围内的真实环境复核，不把“代码测试通过”冒充为真实设备或远端 Worker 验收：

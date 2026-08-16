@@ -1,0 +1,16 @@
+{
+  "observed_at": "2026-08-16",
+  "target": "172.31.27.133",
+  "scope": "read-only remote deployment capability audit",
+  "status": "blocked_missing_kubernetes_runtime",
+  "tools": {
+    "kubectl": false,
+    "helm": false,
+    "k3s": false,
+    "microk8s": false,
+    "minikube": false
+  },
+  "docker_stack": "reachable",
+  "credentials_included": false,
+  "limitations": "The host currently exposes Docker containers but no Kubernetes client or cluster runtime. No installation, deployment, restart or other remote mutation was performed. Kubernetes rollout, multi-node sharding and production Prometheus acceptance remain pending target-environment preparation."
+}

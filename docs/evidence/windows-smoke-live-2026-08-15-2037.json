@@ -1,0 +1,32 @@
+{
+  "observed_at": "2026-08-15T20:37:26+08:00",
+  "target": "172.31.27.133",
+  "scope": "Windows local API/Web profile with remote PostgreSQL, Redis and MinIO",
+  "status": "passed_with_android_warning",
+  "checks": {
+    "backend_health_status": 200,
+    "frontend_login_status": 200,
+    "cookie_login": true,
+    "dependency_postgres": {"status": "ok", "latency_ms": 9.8},
+    "dependency_redis": {"status": "ok", "latency_ms": 7.1},
+    "dependency_minio": {"status": "ok", "latency_ms": 19.2},
+    "dependency_readiness": "ok",
+    "authenticated_user_read": true,
+    "project_list_read": true,
+    "web_recording_mode": "local",
+    "file_upload_bytes": 47,
+    "file_cleanup": true,
+    "android_device_online": false
+  },
+  "skipped": [
+    "Playwright mock E2E suite",
+    "browser matrix login page",
+    "run report export",
+    "Web low-code execution",
+    "Android Worker registry",
+    "Android device scan callback",
+    "Android low-code execution"
+  ],
+  "credentials_included": false,
+  "limitations": "Remote dependencies and Windows API/Web checks passed. This run intentionally skipped Playwright, browser matrix and report export; no authorized Android device was present, so Android execution remains an external device gate."
+}

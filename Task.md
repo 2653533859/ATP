@@ -1,7 +1,14 @@
 # ATP 项目任务跟踪
 
+## 2026-08-16 Kubernetes 环境前置审计
+
+- [x] 对 `172.31.27.133` 完成只读探测：当前可见 Docker 容器栈，但没有 `kubectl`、`helm`、`k3s`、`microk8s` 或 `minikube`；未执行安装、部署、重启或其他远端修改；证据见 `docs/evidence/kubernetes-readiness-audit-2026-08-16.json`。
+- [ ] Kubernetes 性能验收仍需目标环境先提供集群/API 凭据和节点；在此之前不把 Docker Compose 结果计为 Kubernetes、多节点或生产 Prometheus 验收。
+
 ## 2026-08-15 Windows/远端依赖与性能环境复核
 
+- [x] 20:37 实时复核通过：Windows 后端/前端、登录、项目读取、PostgreSQL/Redis/MinIO readiness、47 bytes 文件上传与清理均通过；本次明确跳过 Playwright、浏览器矩阵和报告导出，Android 仅保留无在线设备 warning；脱敏证据见 `docs/evidence/windows-smoke-live-2026-08-15-2037.json`。
+- [x] 本轮质量门禁重新通过：后端非集成测试 `2082 passed`，前端 `50 files / 209 tests passed`，`type-check` 与生产构建通过。
 - [x] 远端 PostgreSQL/Redis/MinIO 恢复监听后重新执行 Windows API/Web smoke：依赖 readiness、登录、项目读取、浏览器矩阵、47 bytes 文件上传和清理均通过；Android 仅保留无在线设备 warning；脱敏证据见 `docs/evidence/windows-smoke-current-2026-08-15.json`。
 
 - [x] `scripts/windows-android-worker.ps1 doctor -EnvFile .env` 通过：Windows Python/Celery/Redis 依赖、ADB 可执行文件和远端 PostgreSQL/Redis/MinIO 端点均可用；Android 设备在线检查仅提示未发现设备。
