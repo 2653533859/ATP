@@ -33,7 +33,7 @@ import re
 import shutil
 import subprocess
 import tempfile
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 import time
 from pathlib import Path
 from types import SimpleNamespace

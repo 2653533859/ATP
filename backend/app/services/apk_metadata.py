@@ -5,7 +5,7 @@ from __future__ import annotations
 import struct
 import zipfile
 from pathlib import Path
-from xml.etree import ElementTree
+from defusedxml import ElementTree
 
 
 _MAX_MANIFEST_SIZE = 4 * 1024 * 1024

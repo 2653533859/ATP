@@ -12,7 +12,7 @@ import base64
 import logging
 import re
 import subprocess
-import xml.etree.ElementTree as ET
+from defusedxml import ElementTree as ET
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession

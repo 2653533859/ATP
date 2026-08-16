@@ -1,4 +1,6 @@
-ARG K6_IMAGE=grafana/k6:2.2.0
+# k6 2.2.0 still embeds Go 1.26.5, which is flagged by the current Trivy DB.
+# Pin the newer upstream master image by digest until the next tagged release ships.
+ARG K6_IMAGE=grafana/k6@sha256:32e124cca020ab26d91837fcf4a45c7a2619d1ef8be2c72bc18095cd8f3aeb5e
 ARG JMETER_VERSION=5.6.3
 FROM python:3.12-slim-bookworm AS python-deps
 
@@ -27,7 +29,42 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN curl -fsSL "https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-${JMETER_VERSION}.tgz" \
     | tar -xz -C /opt \
-    && ln -s "/opt/apache-jmeter-${JMETER_VERSION}/bin/jmeter" /usr/local/bin/jmeter
+    && ln -s "/opt/apache-jmeter-${JMETER_VERSION}/bin/jmeter" /usr/local/bin/jmeter \
+    && jmeter_lib="/opt/apache-jmeter-${JMETER_VERSION}/lib" \
+    && rm -f \
+        "${jmeter_lib}/jackson-annotations-2.16.1.jar" \
+        "${jmeter_lib}/jackson-core-2.16.1.jar" \
+        "${jmeter_lib}/jackson-databind-2.16.1.jar" \
+        "${jmeter_lib}/xstream-1.4.20.jar" \
+        "${jmeter_lib}/dnsjava-2.1.9.jar" \
+        "${jmeter_lib}/json-smart-2.5.0.jar" \
+        "${jmeter_lib}/httpcore5-5.2.4.jar" \
+        "${jmeter_lib}/httpcore5-h2-5.2.4.jar" \
+        "${jmeter_lib}/neo4j-java-driver-4.4.13.jar" \
+        "${jmeter_lib}/tika-core-1.28.5.jar" \
+        "${jmeter_lib}/tika-parsers-1.28.5.jar" \
+    && find "${jmeter_lib}" -maxdepth 1 -type f -name 'batik-*.jar' -delete \
+    && for artifact in jackson-annotations jackson-core jackson-databind; do \
+        curl -fsSL "https://repo1.maven.org/maven2/com/fasterxml/jackson/core/${artifact}/2.18.8/${artifact}-2.18.8.jar" \
+            -o "${jmeter_lib}/${artifact}-2.18.8.jar"; \
+    done \
+    && curl -fsSL "https://repo1.maven.org/maven2/com/thoughtworks/xstream/xstream/1.4.21/xstream-1.4.21.jar" \
+        -o "${jmeter_lib}/xstream-1.4.21.jar" \
+    && curl -fsSL "https://repo1.maven.org/maven2/dnsjava/dnsjava/3.6.0/dnsjava-3.6.0.jar" \
+        -o "${jmeter_lib}/dnsjava-3.6.0.jar" \
+    && curl -fsSL "https://repo1.maven.org/maven2/net/minidev/json-smart/2.5.2/json-smart-2.5.2.jar" \
+        -o "${jmeter_lib}/json-smart-2.5.2.jar" \
+    && for artifact in httpcore5 httpcore5-h2; do \
+        curl -fsSL "https://repo1.maven.org/maven2/org/apache/httpcomponents/core5/${artifact}/5.4.3/${artifact}-5.4.3.jar" \
+            -o "${jmeter_lib}/${artifact}-5.4.3.jar"; \
+    done \
+    && for artifact in \
+        batik-anim batik-awt-util batik-bridge batik-codec batik-constants batik-css \
+        batik-dom batik-ext batik-gvt batik-i18n batik-parser batik-script \
+        batik-shared-resources batik-svg-dom batik-svggen batik-transcoder batik-util batik-xml; do \
+        curl -fsSL "https://repo1.maven.org/maven2/org/apache/xmlgraphics/${artifact}/1.17/${artifact}-1.17.jar" \
+            -o "${jmeter_lib}/${artifact}-1.17.jar"; \
+    done
 
 COPY --from=python-deps /wheels /wheels
 COPY --from=k6-bin /usr/bin/k6 /usr/local/bin/k6

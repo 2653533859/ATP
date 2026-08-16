@@ -1,6 +1,6 @@
 # MEMORY
 
-- 2026-08-17 已定位并修复 GitHub Actions 失败：6 个后端文件 Ruff 格式问题、Linux Web 录制测试缺少 `DISPLAY`、前端 `nanoid` 高危漏洞、Worker k6 镜像上游 Go 依赖漏洞。修复为测试注入 `WEB_RECORDER_DISPLAY=:99`、锁定 `nanoid 3.3.18`、将 `grafana/k6` 从 `2.1.0` 升到 `2.2.0`；本地非集成后端 `2084 passed`，Web 录制定向 `22 passed`，远端重跑待推送后确认。
+- 2026-08-17 GitHub Actions 第一轮修复后继续发现并处理 Bandit 的 3 处 XML 告警、独立测试 `test_mobile_special_events.py` 的模型注册隔离问题，以及 Worker Trivy 对 k6/JMeter 上游组件的漏洞命中。当前使用 `defusedxml`、模型 bootstrap、固定 digest 的 k6 更新镜像，并在 JMeter 5.6.3 构建中替换 Jackson/XStream/dnsjava/json-smart/HttpCore5/Batik、移除当前执行器不使用的 Neo4j/Tika 可选包；本地非集成后端 `2084 passed`、独立扫描 `275 passed`、Bandit/ruff/npm 审计通过，第二轮远端重跑待推送后确认。
 - 2026-08-17 GitHub Actions 已移除 integration、E2E、Security、Release readiness 的每日 schedule，保留手动 `workflow_dispatch`；主 CI/Security 的 push/PR 触发和 Dependabot 每周检查仍保留。
 - 2026-08-16 Kubernetes 前置审计：172.31.27.133 只有 Docker 容器栈，没有 kubectl/Helm/k3s/microk8s/minikube；本次仅只读检查，未安装或修改远端环境。Kubernetes、多节点和生产 Prometheus 仍待目标集群准备，证据为 `docs/evidence/kubernetes-readiness-audit-2026-08-16.json`。
 - 2026-08-15 20:37 实时 Windows smoke 通过：后端/前端、登录、项目读取、PostgreSQL/Redis/MinIO readiness、47 bytes 文件上传与清理均通过；本次跳过 Playwright、浏览器矩阵和报告导出，Android 仍无授权在线设备。脱敏证据为 `docs/evidence/windows-smoke-live-2026-08-15-2037.json`。

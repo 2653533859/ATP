@@ -1,6 +1,10 @@
 import asyncio
 
+from app.models import load_all_models
 from app.services.mobile_special_events import MobileRunEventRecorder, _json_object
+
+
+load_all_models()
 
 
 class _EventDB:

@@ -5,8 +5,9 @@
 - [x] 修复 CI 的 Ruff 格式检查失败：格式化 6 个被报告的后端源码/测试文件，并通过完整格式检查。
 - [x] 修复 Linux 无 `DISPLAY` 导致的 Web 录制 API 回归失败：测试显式注入 `WEB_RECORDER_DISPLAY`，保留产品对真实可见显示环境的校验。
 - [x] 修复 Security 的前端依赖漏洞：锁定 `nanoid` 到 `3.3.18`，本地 `npm audit --audit-level=high` 无漏洞。
-- [x] 将 Worker 的 k6 基础镜像从 `grafana/k6:2.1.0` 更新到 `grafana/k6:2.2.0`，用于获取上游安全修复。
-- [x] 本地完整非集成后端回归 `2084 passed`，Web 录制定向回归 `22 passed`；远端 CI/Security 重跑结果待推送后确认。
+- [x] 远端复核发现 k6 `2.2.0` 仍内置受影响的 Go 版本，Worker 已改用固定 digest 的上游更新镜像；JMeter 5.6.3 镜像构建同步替换存在固定版本的 Jackson、XStream、dnsjava、json-smart、HttpCore5、Batik，并移除当前执行器不使用的 Neo4j/Tika 可选包。
+- [x] 修复远端新增的 Bandit XML 解析告警，统一改用 `defusedxml`；补齐 `test_mobile_special_events.py` 的模型 bootstrap，独立测试不再依赖历史收集顺序。
+- [x] 本地完整非集成后端回归 `2084 passed`，独立文件扫描 `275 passed`，Web 录制定向回归 `22 passed`，Bandit/ruff/npm 审计通过；第二轮远端 CI/Security 重跑结果待推送后确认。
 
 ## 2026-08-17 GitHub Actions 触发策略收口
 

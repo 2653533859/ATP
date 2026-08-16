@@ -257,7 +257,7 @@ def test_helm_chart_can_render_dedicated_web_recording_worker():
 def test_worker_dockerfile_bundles_k6_for_performance_queue():
     content = (ROOT / "backend" / "Dockerfile.worker").read_text(encoding="utf-8")
 
-    assert "ARG K6_IMAGE=grafana/k6:" in content
+    assert "ARG K6_IMAGE=grafana/k6@sha256:" in content
     assert "FROM ${K6_IMAGE} AS k6-bin" in content
     assert "COPY --from=k6-bin /usr/bin/k6 /usr/local/bin/k6" in content
     assert "k6 version" in content
