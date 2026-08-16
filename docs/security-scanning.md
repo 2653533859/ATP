@@ -82,7 +82,7 @@ Remediation completed on 2026-07-08:
 Remote failure remediation on 2026-08-17:
 
 - Frontend `nanoid` was updated from `3.3.17` to `3.3.18` in `frontend/package-lock.json`; `npm audit --audit-level=high` now reports zero vulnerabilities locally.
-- The Worker k6 base image is now pinned to an upstream digest newer than `2.2.0`, because the tagged image still contained a Go version reported by the current Trivy database.
+- The Worker no longer copies a prebuilt k6 binary whose Go runtime is outside the current security baseline. It builds k6 `v2.2.0` from a verified commit with a pinned Go `1.26.6` builder image digest.
 - The Worker Docker build now replaces fixed-version JMeter dependencies (Jackson, XStream, dnsjava, json-smart, HttpCore5 and Batik) and removes the current executor's unused Neo4j/Tika optional jars; this keeps the JMeter CLI/report path while removing the vulnerable bundled versions.
 - Three application XML parsers now use `defusedxml`; the standalone test sweep also bootstraps all SQLAlchemy models in `test_mobile_special_events.py` so it no longer depends on another test file's import order.
 - The first remote rerun passed npm audit but still exposed the Bandit, standalone-test and Worker Trivy issues above; the second rerun must be confirmed after the next push.

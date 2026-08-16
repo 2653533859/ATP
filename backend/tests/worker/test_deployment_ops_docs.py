@@ -257,9 +257,11 @@ def test_helm_chart_can_render_dedicated_web_recording_worker():
 def test_worker_dockerfile_bundles_k6_for_performance_queue():
     content = (ROOT / "backend" / "Dockerfile.worker").read_text(encoding="utf-8")
 
-    assert "ARG K6_IMAGE=grafana/k6@sha256:" in content
-    assert "FROM ${K6_IMAGE} AS k6-bin" in content
-    assert "COPY --from=k6-bin /usr/bin/k6 /usr/local/bin/k6" in content
+    assert "ARG GO_IMAGE=golang:1.26.6-bookworm@sha256:" in content
+    assert "ARG K6_COMMIT=00a9a1b7f552d6bb4337278b10ae25aac0f4e666" in content
+    assert "git clone --depth 1 --branch v2.2.0 https://github.com/grafana/k6.git ." in content
+    assert 'test "$(git rev-parse HEAD)" = "${K6_COMMIT}"' in content
+    assert "COPY --from=k6-build /k6 /usr/local/bin/k6" in content
     assert "k6 version" in content
     assert "locust --version" in content
     assert "import grpc, grpc_tools" in content

@@ -1,6 +1,5 @@
-# k6 2.2.0 still embeds Go 1.26.5, which is flagged by the current Trivy DB.
-# Pin the newer upstream master image by digest until the next tagged release ships.
-ARG K6_IMAGE=grafana/k6@sha256:32e124cca020ab26d91837fcf4a45c7a2619d1ef8be2c72bc18095cd8f3aeb5e
+ARG GO_IMAGE=golang:1.26.6-bookworm@sha256:433f9dc4f8ea3a1ce4e28f9f15d0f7c056b10475307f886d6f1ac1ccc4abd976
+ARG K6_COMMIT=00a9a1b7f552d6bb4337278b10ae25aac0f4e666
 ARG JMETER_VERSION=5.6.3
 FROM python:3.12-slim-bookworm AS python-deps
 
@@ -13,7 +12,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 COPY requirements.txt .
 RUN pip wheel --no-cache-dir --wheel-dir /wheels -r requirements.txt
 
-FROM ${K6_IMAGE} AS k6-bin
+FROM ${GO_IMAGE} AS k6-build
+
+ARG K6_COMMIT
+WORKDIR /src
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends git ca-certificates \
+    && rm -rf /var/lib/apt/lists/* \
+    && git clone --depth 1 --branch v2.2.0 https://github.com/grafana/k6.git . \
+    && test "$(git rev-parse HEAD)" = "${K6_COMMIT}" \
+    && CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /k6 ./cmd/k6
 
 FROM python:3.12-slim-bookworm
 
@@ -67,7 +76,7 @@ RUN curl -fsSL "https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-${
     done
 
 COPY --from=python-deps /wheels /wheels
-COPY --from=k6-bin /usr/bin/k6 /usr/local/bin/k6
+COPY --from=k6-build /k6 /usr/local/bin/k6
 COPY requirements.txt .
 RUN pip install --no-cache-dir --no-index --find-links=/wheels -r requirements.txt \
     && rm -rf /wheels \
