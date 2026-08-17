@@ -1,10 +1,10 @@
 # GitHub Actions 工作流说明
 
-本文记录仓库当前 CI / E2E / integration / release readiness 工作流的触发条件、依赖服务和常见失败排查方式。除主 CI 的 push/PR 检查外，仓库已关闭 nightly 定时运行；integration、E2E、Security 和 Release readiness 需要时通过 GitHub Actions 的 `workflow_dispatch` 手动启动。
+本文记录仓库当前 CI / E2E / integration / release readiness 工作流的触发条件、依赖服务和常见失败排查方式。主 CI 与 Security 每周日北京时间 10:00（UTC 02:00）自动运行一次，并保留 `workflow_dispatch` 手动启动；integration、E2E 和 Release readiness 仅手动运行。
 
 ## `ci.yml` — 主 CI
 
-- **触发**：push 到 `main`；针对 `main` 的 pull request。
+- **触发**：每周日 02:00 UTC（北京时间 10:00）运行一次；也可通过 `workflow_dispatch` 手动运行。不再由 push 或 pull request 触发。
 - **Jobs**：
   - `Backend lint`：安装 `backend/requirements.txt` + `backend/requirements-dev.txt`，运行 `python -m ruff check` 与 `python -m ruff format --check`（覆盖 `backend/app`、`backend/tests` 与 `scripts/` 下受检脚本，清单以 Makefile 的 `LINT_SCRIPTS` 为准）。同一 job 也运行 `python -m mypy` 与 `python -m bandit -c pyproject.toml -r backend/app -ll`。**运行时依赖必须装**：只装 `requirements-dev.txt` 时 mypy 看不到 SQLAlchemy 的真实签名，`d116359^` 的 `run_retention.py` 只报 8 个错而完整环境报 12 个。
   - `Empty database migration`：启动干净 PostgreSQL 16，执行 `cd backend && alembic upgrade head`。
@@ -96,7 +96,7 @@ job 和其他 job 一样只是通知性的 —— 它变红不会阻止任何一
 
 ## `security.yml` — 安全扫描
 
-- **触发**：push 到 `main`；针对 `main` 的 pull request；手动 `workflow_dispatch`；不再每日定时运行。
+- **触发**：每周日 02:00 UTC（北京时间 10:00）运行一次；也可通过 `workflow_dispatch` 手动运行。不再由 push 或 pull request 触发。
 - **Jobs**：
   - `Gitleaks secret scan`：使用 Gitleaks 扫描仓库历史与当前变更，发现密钥时阻断。
   - `Dependency audit`：运行 `pip-audit` 扫描后端依赖；运行 `npm audit --audit-level=high` 扫描前端依赖，high/critical 阻断。

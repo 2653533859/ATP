@@ -1,10 +1,9 @@
 name: Security
 
 on:
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
+  # 与主 CI 统一为每周日北京时间 10:00（UTC 02:00）执行一次。
+  schedule:
+    - cron: "0 2 * * 0"
   workflow_dispatch:
 
 concurrency:

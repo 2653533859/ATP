@@ -7,9 +7,9 @@ ROOT = Path(__file__).resolve().parents[3]
 MANUAL_ONLY_WORKFLOWS = (
     "test-integration.yml",
     "test-e2e.yml",
-    "security.yml",
     "release-readiness.yml",
 )
+WEEKLY_WORKFLOWS = ("ci.yml", "security.yml")
 
 
 def _workflow_triggers(name: str) -> dict:
@@ -26,9 +26,11 @@ def test_extended_workflows_are_manual_only_without_nightly_schedule():
         assert "schedule" not in triggers
 
 
-def test_push_and_pull_request_quality_gates_remain_enabled():
-    for name in ("ci.yml", "security.yml"):
+def test_quality_workflows_run_weekly_and_remain_manually_dispatchable():
+    for name in WEEKLY_WORKFLOWS:
         triggers = _workflow_triggers(name)
 
-        assert "push" in triggers
-        assert "pull_request" in triggers
+        assert "push" not in triggers
+        assert "pull_request" not in triggers
+        assert "workflow_dispatch" in triggers
+        assert triggers["schedule"] == [{"cron": "0 2 * * 0"}]

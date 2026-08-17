@@ -7,13 +7,13 @@
 - [x] 修复 Security 的前端依赖漏洞：锁定 `nanoid` 到 `3.3.18`，本地 `npm audit --audit-level=high` 无漏洞。
 - [x] 远端复核发现 k6 `2.2.0` 和 `master` 镜像仍内置受影响的 Go 版本，Worker 改为用固定 digest 的 Go `1.26.6` 构建并校验 k6 `v2.2.0` commit；JMeter 5.6.3 镜像构建同步替换存在固定版本的 Jackson、XStream、dnsjava、json-smart、HttpCore5、Batik，并移除当前执行器不使用的 Neo4j/Tika 可选包。
 - [x] 修复远端新增的 Bandit XML 解析告警，统一改用 `defusedxml`；补齐 `test_mobile_special_events.py` 的模型 bootstrap，独立测试不再依赖历史收集顺序。
-- [x] 本地完整非集成后端回归 `2084 passed`，独立文件扫描 `275 passed`，Web 录制定向回归 `22 passed`，Bandit/ruff/npm 审计通过；第二轮远端 CI/Security 全部通过，第三轮仅发现 k6 构建入口路径错误并已修正，第四轮远端结果待确认。
+- [x] 本地完整非集成后端回归 `2084 passed`，独立文件扫描 `275 passed`，Web 录制定向回归 `22 passed`，Bandit/ruff/npm 审计通过；最新远端 CI/Security 全部通过，Worker 镜像构建与 Trivy 扫描通过。
 
 ## 2026-08-17 GitHub Actions 触发策略收口
 
-- [x] 移除 integration、E2E、Security 和 Release readiness 的每日 `schedule`，保留 `workflow_dispatch` 手动触发；主 CI 与 Security 的 push/PR 检查保持不变。
-- [x] 新增工作流触发契约回归并修正 Release readiness 历史断言；定向回归 `6 passed`，全部 workflow YAML 解析通过。
-- [ ] `.github/dependabot.yml` 仍按周检查依赖并可能创建 PR；如需完全停止自动依赖检查，需要单独关闭 Dependabot。
+- [x] 主 CI 与 Security 改为每周日北京时间 10:00（UTC 02:00）运行一次，并保留 `workflow_dispatch` 手动触发；不再由 push/PR 触发。
+- [x] integration、E2E 和 Release readiness 保持手动触发；全部工作流 YAML 解析通过，触发契约回归已同步。
+- [x] `.github/dependabot.yml` 继续按周检查依赖；它是独立的依赖更新服务，不会触发本项目 CI。
 
 ## 2026-08-16 Kubernetes 环境前置审计
 
