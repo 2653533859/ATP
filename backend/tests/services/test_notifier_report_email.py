@@ -6,6 +6,8 @@ from email.mime.multipart import MIMEMultipart
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 # Keep SQLAlchemy's registry complete when this service test is executed alone.
@@ -174,12 +176,13 @@ def test_send_email_without_html_falls_back_to_plain_only(monkeypatch):
     assert parts[0].get_content_subtype() == "plain"
 
 
-def test_send_email_skips_when_no_recipients(monkeypatch):
+def test_send_email_rejects_when_no_recipients(monkeypatch):
     called = {"value": False}
 
     def fake_smtp_send(*_a, **_kw):
         called["value"] = True
 
     monkeypatch.setattr(notifier, "_smtp_send", fake_smtp_send)
-    asyncio.run(notifier._send_email({"recipients": []}, _summary(), html_body="<x/>"))
+    with pytest.raises(ValueError, match="有效收件人"):
+        asyncio.run(notifier._send_email({"recipients": []}, _summary(), html_body="<x/>"))
     assert called["value"] is False

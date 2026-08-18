@@ -144,6 +144,15 @@ The run-retention preview now returns `estimated_objects_sampled` and the UI lab
 The per-project retention table now exposes all four run categories and the corresponding project-scoped object estimate, matching the service cleanup scope.
 The per-project preview route now applies `RunRetentionPerProjectOut`, including the `global_` → `global` response alias, so OpenAPI and runtime response validation match the frontend contract.
 
+### 2026-08-13 isolated real-MinIO acceptance
+
+| Gate | Command / evidence | Result |
+|---|---|---|
+| Real MinIO dataset lifecycle | `scripts/minio-dataset-acceptance.py --rows 25000` / [`evidence/minio-dataset-acceptance-2026-08-13.json`](evidence/minio-dataset-acceptance-2026-08-13.json) | passed: 10.55MB round trip, dry-run/purge, transaction compensation, 50MB limit, backup/restore and read-only IAM |
+| Notification target validation | notifier/API focused regression | `29 passed`; empty/unsafe targets no longer report success |
+
+The MinIO report was produced against an isolated real MinIO server, not mocks. It closes the code-level storage drill, but release staging must rerun the same script against its own storage and backup topology. No SMTP, WeCom or DingTalk credentials were available in this environment, so no provider delivery is claimed.
+
 ## Q18 External Gate Check (2026-08-13)
 
 This is an external-environment status check, not a passing acceptance result.
@@ -176,7 +185,7 @@ The result above is environment evidence only. It does not prove Redis/MinIO ava
 
 ### Q18 external evidence still required
 
-- Real MinIO large-object upload, reconciliation, purge authorization and restore drill.
+- Release-environment MinIO rerun using the target IAM and backup topology.
 - Real SMTP, WeCom and DingTalk delivery, including metric/reason text and provider failure observability.
 - Authorized Android device and Windows Android Worker low-code execution.
 - Linux/Kubernetes performance Worker, Prometheus, real TLS target, cancellation, allowlist and multi-node evidence.

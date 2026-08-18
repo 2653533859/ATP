@@ -392,6 +392,7 @@ def test_wechat_sender_raises_when_provider_rejects(monkeypatch):
             return _Response()
 
     monkeypatch.setattr(notifier.httpx, "AsyncClient", _FakeClient)
+    monkeypatch.setattr(notifier, "validate_public_http_url", lambda value: value)
 
     with pytest.raises(RuntimeError) as exc:
         asyncio.run(notifier._send_wechat({"webhook_url": "https://qy.example"}, _summary()))
@@ -421,6 +422,7 @@ def test_dingtalk_sender_raises_when_http_request_fails(monkeypatch):
             return _Response()
 
     monkeypatch.setattr(notifier.httpx, "AsyncClient", _FakeClient)
+    monkeypatch.setattr(notifier, "validate_public_http_url", lambda value: value)
 
     with pytest.raises(RuntimeError) as exc:
         asyncio.run(
@@ -459,6 +461,7 @@ def test_dingtalk_sender_appends_signed_query(monkeypatch):
             return _Response()
 
     monkeypatch.setattr(notifier.httpx, "AsyncClient", _FakeClient)
+    monkeypatch.setattr(notifier, "validate_public_http_url", lambda value: value)
     monkeypatch.setattr(notifier.time, "time", lambda: 1700000000.0)
 
     asyncio.run(
@@ -475,3 +478,26 @@ def test_dingtalk_sender_appends_signed_query(monkeypatch):
     assert "sign=" in captured["url"]
     assert captured["json"]["msgtype"] == "markdown"
     assert "Nightly Plan" in captured["json"]["markdown"]["text"]
+
+
+@pytest.mark.parametrize(
+    ("sender", "config", "message"),
+    [
+        (notifier._send_email, {}, "收件人"),
+        (notifier._send_wechat, {}, "webhook_url"),
+        (notifier._send_dingtalk, {}, "webhook_url"),
+    ],
+)
+def test_channel_senders_reject_missing_delivery_target(sender, config, message):
+    with pytest.raises(ValueError, match=message):
+        asyncio.run(sender(config, _summary()))
+
+
+def test_wechat_sender_rejects_private_webhook_before_request():
+    with pytest.raises(ValueError, match="不允许访问"):
+        asyncio.run(notifier._send_wechat({"webhook_url": "http://127.0.0.1/hook"}, _summary()))
+
+
+def test_email_sender_rejects_header_injection_recipient():
+    with pytest.raises(ValueError, match="有效收件人"):
+        asyncio.run(notifier._send_email({"recipients": ["qa@example.com\r\nBcc: attacker@example.com"]}, _summary()))

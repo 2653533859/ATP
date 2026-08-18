@@ -456,7 +456,11 @@ def test_test_notification_dingtalk_dispatch(monkeypatch):
     async def fake_send(_channel, config, summary):
         called["config"] = config
 
-    monkeypatch.setattr(notifications, "decrypt_config", lambda c: {"webhook_url": "plain", "language": "en-US"})
+    monkeypatch.setattr(
+        notifications,
+        "decrypt_config",
+        lambda c: {"webhook_url": "https://oapi.dingtalk.com/robot/send", "language": "en-US"},
+    )
     sys.modules["app.services.notifier"] = types.SimpleNamespace(
         send_notification_channel=fake_send,
         persist_notification_delivery=_fake_persist_notification_delivery,

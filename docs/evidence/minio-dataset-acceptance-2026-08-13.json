@@ -1,0 +1,57 @@
+{
+  "generated_at": "2026-08-13T03:22:02.434309+00:00",
+  "status": "passed",
+  "environment": {
+    "endpoint": "127.0.0.1:19000",
+    "source_bucket": "atp-acceptance",
+    "backup_bucket": "atp-acceptance-backup",
+    "row_count": 25000
+  },
+  "checks": [
+    {
+      "name": "source bucket reachable",
+      "status": "PASS",
+      "detail": "atp-acceptance"
+    },
+    {
+      "name": "large dataset generated",
+      "status": "PASS",
+      "detail": "rows=25000, bytes=10552781, sha256=2aec10b0a2f192c2b39330cb654e6e5857ad0fa26cd10b1bdeed2ac6a2fac117"
+    },
+    {
+      "name": "ATP upload/read round trip",
+      "status": "PASS",
+      "detail": "rows=25000, sha256=2aec10b0a2f192c2b39330cb654e6e5857ad0fa26cd10b1bdeed2ac6a2fac117"
+    },
+    {
+      "name": "orphan dry-run is non-destructive",
+      "status": "PASS",
+      "detail": "orphan_count=1, deleted_count=0"
+    },
+    {
+      "name": "explicit orphan purge",
+      "status": "PASS",
+      "detail": "deleted_count=1"
+    },
+    {
+      "name": "failed transaction compensation",
+      "status": "PASS",
+      "detail": "cleanup_errors=0"
+    },
+    {
+      "name": "50MB object limit",
+      "status": "PASS",
+      "detail": "oversized payload rejected before upload"
+    },
+    {
+      "name": "backup and restore",
+      "status": "PASS",
+      "detail": "restored_rows=25000, sha256=2aec10b0a2f192c2b39330cb654e6e5857ad0fa26cd10b1bdeed2ac6a2fac117"
+    },
+    {
+      "name": "read-only policy",
+      "status": "PASS",
+      "detail": "read allowed; write denied"
+    }
+  ]
+}

@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.encryption import decrypt_config
+from app.core.url_security import validate_public_http_url
 from app.models.notification import NotificationConfig, NotificationDelivery, NotifyChannel
 
 logger = logging.getLogger(__name__)
@@ -597,8 +598,21 @@ async def _send_email(config: dict, summary: dict, html_body: str | None = None)
     否则仅发送纯文本（兼容历史行为）。
     """
     recipients = config.get("recipients", [])
-    if not recipients:
-        return
+    if (
+        not isinstance(recipients, list)
+        or not recipients
+        or not all(
+            isinstance(item, str)
+            and item == item.strip()
+            and "\r" not in item
+            and "\n" not in item
+            and " " not in item
+            and item.count("@") == 1
+            and all(item.split("@", 1))
+            for item in recipients
+        )
+    ):
+        raise ValueError("邮件通知至少需要一个有效收件人")
 
     language = _normalize_language(config.get("language"))
     labels = _labels(language)
@@ -656,7 +670,8 @@ async def _send_wechat(config: dict, summary: dict):
     """通过企业微信机器人 Webhook 发送通知"""
     webhook_url = config.get("webhook_url", "")
     if not webhook_url:
-        return
+        raise ValueError("企业微信通知缺少 webhook_url")
+    webhook_url = validate_public_http_url(webhook_url)
 
     payload = {
         "msgtype": "markdown",
@@ -685,7 +700,8 @@ async def _send_dingtalk(config: dict, summary: dict):
     """通过钉钉机器人 Webhook 发送通知（支持签名验证）"""
     webhook_url = config.get("webhook_url", "")
     if not webhook_url:
-        return
+        raise ValueError("钉钉通知缺少 webhook_url")
+    webhook_url = validate_public_http_url(webhook_url)
 
     secret = config.get("secret", "")
 
