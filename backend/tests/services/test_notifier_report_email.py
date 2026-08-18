@@ -183,6 +183,6 @@ def test_send_email_rejects_when_no_recipients(monkeypatch):
         called["value"] = True
 
     monkeypatch.setattr(notifier, "_smtp_send", fake_smtp_send)
-    with pytest.raises(ValueError, match="有效收件人"):
+    with pytest.raises(ValueError, match="至少需要一个收件人"):
         asyncio.run(notifier._send_email({"recipients": []}, _summary(), html_body="<x/>"))
     assert called["value"] is False

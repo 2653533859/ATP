@@ -23,6 +23,7 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from minio import Minio  # noqa: E402
 from minio.commonconfig import CopySource  # noqa: E402
+from minio.error import S3Error  # noqa: E402
 
 from app.core import minio_client  # noqa: E402
 from app.core.config import settings  # noqa: E402
@@ -40,6 +41,10 @@ from app.services.dataset_storage import (  # noqa: E402
 
 class AcceptanceError(RuntimeError):
     pass
+
+
+# MinIO/S3 在拒绝写入时返回的授权错误码；其他错误不能当作“权限生效”。
+_ACCESS_DENIED_CODES = {"AccessDenied", "AllAccessDisabled", "InvalidAccessKeyId", "SignatureDoesNotMatch"}
 
 
 def _rows(count: int) -> list[dict]:
@@ -190,15 +195,29 @@ def main() -> int:
             finally:
                 response.close()
                 response.release_conn()
+            forbidden_name = f"{prefix}forbidden.json"
             try:
-                forbidden_name = f"{prefix}forbidden.json"
                 readonly.put_object(settings.MINIO_BUCKET, forbidden_name, io.BytesIO(b"{}"), 2)
-            except Exception:
-                write_blocked = True
+            except S3Error as exc:
+                # 只有明确的授权拒绝才算通过；网络或配置错误不能伪装成权限生效。
+                write_blocked = exc.code in _ACCESS_DENIED_CODES
+                write_detail = f"write rejected with {exc.code}"
+                if not write_blocked:
+                    created_names.add(forbidden_name)
+            except Exception as exc:
+                write_blocked = False
+                write_detail = f"write probe failed without an authorization error: {type(exc).__name__}"
+                created_names.add(forbidden_name)
             else:
                 write_blocked = False
+                write_detail = "write succeeded; the account is not read-only"
                 client.remove_object(settings.MINIO_BUCKET, forbidden_name)
-            _check(checks, "read-only policy", read_ok and write_blocked, "read allowed; write denied")
+            _check(
+                checks,
+                "read-only policy",
+                read_ok and write_blocked,
+                f"read {'allowed' if read_ok else 'failed'}; {write_detail}",
+            )
         else:
             checks.append(
                 {

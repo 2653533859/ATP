@@ -28,7 +28,14 @@ backend/.venv/bin/python scripts/minio-dataset-acceptance.py \
 
 ## 2. SMTP、企业微信与钉钉验收
 
-`scripts/notification-channel-acceptance.py` 发送一条包含 RPS、P95/P99、错误率、阈值状态和触发原因的真实性能摘要。Webhook 会先执行公网 URL/DNS 校验；Webhook、签名和 SMTP 密码不会进入命令行或报告。
+两个脚本分工不同，发布证据需要同时保留：
+
+| 脚本 | 前置条件 | 覆盖范围 |
+| --- | --- | --- |
+| `scripts/notification-channel-smoke.py` | 运行中的 ATP 服务 + 已配置的项目通道 | 真实 API 认证、`POST /notifications/{id}/test`、投递历史行核对 |
+| `scripts/notification-channel-acceptance.py` | 仅需渠道凭据，无需运行服务 | 真实性能摘要正文逐字段核对 + 真实供应商送达 |
+
+`scripts/notification-channel-acceptance.py` 通过生产入口 `send_notification_channel` 发送一条包含 RPS、P95/P99、错误率、阈值状态和触发原因的真实性能摘要，因此渠道配置校验和重试策略与线上一致。Webhook 会先执行公网 URL/DNS 校验；Webhook、签名和 SMTP 密码不会进入命令行或报告。
 
 ```bash
 # SMTP：SMTP_* 继续从应用配置读取
@@ -48,6 +55,14 @@ backend/.venv/bin/python scripts/notification-channel-acceptance.py \
   --channel dingtalk --report docs/evidence/notification-dingtalk-YYYY-MM-DD.json
 ```
 
-Webhook 报告 `passed` 表示供应商返回成功码；SMTP 报告 `passed` 表示 SMTP 服务接受邮件。发布证据还必须保留接收端消息或供应商日志，并确认六类性能字段可见。缺少凭据、DNS 不可解析、HTTP/供应商错误或正文缺字段均返回非零状态，不能记为通过。
+Webhook 报告 `passed` 表示供应商返回成功码；SMTP 报告 `passed` 表示 SMTP 服务接受邮件。报告中的 `content_checks` 按“标签 + 取值”逐字段实测，不是固定值；任一字段为 `false` 时脚本返回非零状态。发布证据还必须保留接收端消息或供应商日志。缺少凭据、DNS 不可解析、HTTP/供应商错误或正文缺字段均返回非零状态，不能记为通过。
 
-通知配置 API 现在会拒绝空收件人、空 Webhook 和非法 Webhook URL；历史无效配置可以先禁用或改名，但重新启用、切换渠道或更新配置前必须修复投递目标。
+## 3. 通知投递目标校验规则
+
+配置校验与实际投递共用 `notifier.normalize_email_recipients` 和同一套 Webhook 规则，保证“保存成功”等于“可投递”：
+
+- 邮件：允许 `Name <addr@example.com>` 显示名格式，自动跳过空白条目；拒绝换行注入和缺少 `@` 或缺少本地部分/域名的地址；全部条目为空时拒绝。
+- Webhook：配置阶段拒绝非 `http`/`https`、带用户名密码、`localhost` 和字面内网/保留地址；投递阶段再解析域名复核公网地址，DNS 解析发生在线程池中，不阻塞事件循环。
+- 因此域名解析到内网的自建网关无法用于通知投递。目标环境若必须使用内网网关，需要先提供公网可解析的出口地址，不能通过配置绕过校验。
+
+历史无效配置可以先禁用或改名，但重新启用、切换渠道或更新配置前必须修复投递目标。

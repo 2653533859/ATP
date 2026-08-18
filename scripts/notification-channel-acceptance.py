@@ -20,7 +20,8 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from app.core.config import settings  # noqa: E402
 from app.core.url_security import validate_public_http_url  # noqa: E402
-from app.services.notifier import _build_markdown, _build_text, _send_dingtalk, _send_email, _send_wechat  # noqa: E402
+from app.models.notification import NotifyChannel  # noqa: E402
+from app.services.notifier import _build_markdown, _build_text, send_notification_channel  # noqa: E402
 
 
 SUMMARY = {
@@ -42,20 +43,35 @@ SUMMARY = {
 }
 
 
-def _report(path: Path, channel: str, status: str, detail: str) -> None:
+def _content_checks() -> dict[str, bool]:
+    """按渠道正文实际内容逐字段核对，不允许把未验证的字段记成通过。
+
+    逐项匹配“标签 + 取值”，避免某个字段的取值恰好包含另一个字段的标签而误判通过。
+    """
+
+    text = _build_text(SUMMARY)
+    markdown = _build_markdown(SUMMARY)
+    expected = {
+        "rps": ("请求速率", "128.5"),
+        "p95_ms": ("P95 延迟", "230ms"),
+        "p99_ms": ("P99 延迟", "410ms"),
+        "error_rate": ("错误率", "2.50%"),
+        "threshold_status": ("阈值", "失败"),
+        "performance_event_reasons": ("触发原因", "阈值失败, 基线回归"),
+    }
+    return {
+        field: f"{label}: {value}" in text and f"**{label}**: {value}" in markdown
+        for field, (label, value) in expected.items()
+    }
+
+
+def _report(path: Path, channel: str, status: str, detail: str, content_checks: dict[str, bool]) -> None:
     payload = {
         "generated_at": datetime.now(timezone.utc).isoformat(),
         "status": status,
         "channel": channel,
         "delivery": detail,
-        "content_checks": {
-            "rps": True,
-            "p95_ms": True,
-            "p99_ms": True,
-            "error_rate": True,
-            "threshold_status": True,
-            "performance_event_reasons": True,
-        },
+        "content_checks": content_checks,
         "credential_values_recorded": False,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -63,6 +79,8 @@ def _report(path: Path, channel: str, status: str, detail: str) -> None:
 
 
 async def _send(channel: str) -> str:
+    """走生产投递入口 send_notification_channel，确保验收覆盖真实校验与重试策略。"""
+
     if channel == "smtp":
         recipients = [
             item.strip() for item in os.getenv("ATP_ACCEPTANCE_SMTP_RECIPIENTS", "").split(",") if item.strip()
@@ -74,8 +92,9 @@ async def _send(channel: str) -> str:
             missing.append("ATP_ACCEPTANCE_SMTP_RECIPIENTS")
         if missing:
             raise ValueError(f"缺少配置: {', '.join(missing)}")
-        await _send_email({"recipients": recipients, "subject_prefix": "[ATP ACCEPTANCE]"}, SUMMARY)
-        return "SMTP server accepted the message; retain recipient-side receipt evidence"
+        config = {"recipients": recipients, "subject_prefix": "[ATP ACCEPTANCE]"}
+        attempts = await send_notification_channel(NotifyChannel.email, config, SUMMARY)
+        return f"SMTP server accepted the message after {attempts} attempt(s); retain recipient-side receipt evidence"
 
     env_name = "ATP_ACCEPTANCE_WECOM_WEBHOOK_URL" if channel == "wecom" else "ATP_ACCEPTANCE_DINGTALK_WEBHOOK_URL"
     webhook_url = os.getenv(env_name, "").strip()
@@ -83,13 +102,14 @@ async def _send(channel: str) -> str:
         raise ValueError(f"缺少配置: {env_name}")
     validate_public_http_url(webhook_url)
     if channel == "wecom":
-        await _send_wechat({"webhook_url": webhook_url}, SUMMARY)
-        return "WeCom returned errcode=0"
-    await _send_dingtalk(
+        attempts = await send_notification_channel(NotifyChannel.wechat, {"webhook_url": webhook_url}, SUMMARY)
+        return f"WeCom returned errcode=0 after {attempts} attempt(s)"
+    attempts = await send_notification_channel(
+        NotifyChannel.dingtalk,
         {"webhook_url": webhook_url, "secret": os.getenv("ATP_ACCEPTANCE_DINGTALK_SECRET", "")},
         SUMMARY,
     )
-    return "DingTalk returned errcode=0"
+    return f"DingTalk returned errcode=0 after {attempts} attempt(s)"
 
 
 def main() -> int:
@@ -98,23 +118,23 @@ def main() -> int:
     parser.add_argument("--report", type=Path, required=True)
     args = parser.parse_args()
 
-    text = _build_text(SUMMARY)
-    markdown = _build_markdown(SUMMARY)
-    expected = ("128.5", "230ms", "410ms", "2.50%", "阈值失败", "基线回归")
-    if not all(value in text and value in markdown for value in expected):
-        _report(args.report, args.channel, "failed", "notification content is incomplete")
-        print("[FAIL] notification content is incomplete", file=sys.stderr)
+    content_checks = _content_checks()
+    missing_fields = sorted(field for field, ok in content_checks.items() if not ok)
+    if missing_fields:
+        detail = f"notification content is incomplete: {', '.join(missing_fields)}"
+        _report(args.report, args.channel, "failed", detail, content_checks)
+        print(f"[FAIL] {detail}", file=sys.stderr)
         return 1
 
     try:
         detail = asyncio.run(_send(args.channel))
     except Exception as exc:
         safe_detail = str(exc).split("?", 1)[0][:500]
-        _report(args.report, args.channel, "failed", safe_detail)
+        _report(args.report, args.channel, "failed", safe_detail, content_checks)
         print(f"[FAIL] {args.channel}: {safe_detail}", file=sys.stderr)
         return 1
 
-    _report(args.report, args.channel, "passed", detail)
+    _report(args.report, args.channel, "passed", detail, content_checks)
     print(f"[PASS] {args.channel}: {detail}")
     return 0
 

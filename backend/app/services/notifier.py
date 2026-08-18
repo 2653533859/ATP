@@ -20,6 +20,7 @@ import time
 import urllib.parse
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.utils import parseaddr
 from smtplib import SMTP
 
 import httpx
@@ -28,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import settings
 from app.core.encryption import decrypt_config
-from app.core.url_security import validate_public_http_url
+from app.core.url_security import validate_http_url_syntax, validate_public_http_url
 from app.models.notification import NotificationConfig, NotificationDelivery, NotifyChannel
 
 logger = logging.getLogger(__name__)
@@ -368,6 +369,32 @@ async def send_notification_channel(
         raise ValueError(f"不支持的通知渠道: {channel_value}")
 
 
+def normalize_email_recipients(recipients: object) -> list[str]:
+    """规范化邮件收件人，作为配置校验与实际投递共用的唯一规则。
+
+    跳过空白项以兼容历史配置，保留 ``Name <addr>`` 显示名格式（smtplib 会自行取出地址），
+    但拒绝换行注入和缺少地址的条目。
+    """
+    if not isinstance(recipients, list):
+        raise ValueError("邮件通知至少需要一个收件人")
+    normalized: list[str] = []
+    for item in recipients:
+        if not isinstance(item, str):
+            raise ValueError("邮件收件人必须是字符串")
+        candidate = item.strip()
+        if not candidate:
+            continue
+        if "\r" in candidate or "\n" in candidate:
+            raise ValueError("邮件收件人不能包含换行符")
+        address = parseaddr(candidate)[1]
+        if address.count("@") != 1 or not all(part.strip() for part in address.split("@", 1)):
+            raise ValueError("邮件收件人格式无效")
+        normalized.append(candidate)
+    if not normalized:
+        raise ValueError("邮件通知至少需要一个收件人")
+    return normalized
+
+
 def validate_notification_channel_config(channel: NotifyChannel | str, config: dict) -> None:
     """Validate the minimum delivery fields before reporting a notification as sent."""
 
@@ -376,14 +403,18 @@ def validate_notification_channel_config(channel: NotifyChannel | str, config: d
         raise ValueError("通知渠道配置必须是对象")
     _validate_notification_strategy_config(config)
     if channel_value == NotifyChannel.email.value:
-        recipients = config.get("recipients")
-        if not isinstance(recipients, list) or not any(isinstance(item, str) and item.strip() for item in recipients):
-            raise ValueError("邮件通知至少需要一个收件人")
+        normalize_email_recipients(config.get("recipients"))
         return
     if channel_value in {NotifyChannel.wechat.value, NotifyChannel.dingtalk.value}:
         webhook_url = config.get("webhook_url")
         if not isinstance(webhook_url, str) or not webhook_url.strip() or webhook_url == "******":
             raise ValueError("Webhook 通知需要 webhook_url")
+        # 投递前还会解析域名复核公网地址；这里先拒绝结构非法与字面内网地址，
+        # 避免配置保存成功却永远无法送达。
+        try:
+            validate_http_url_syntax(webhook_url)
+        except ValueError as exc:
+            raise ValueError(f"Webhook 地址无效: {exc}") from exc
         return
     raise ValueError(f"不支持的通知渠道: {channel_value}")
 
@@ -597,22 +628,7 @@ async def _send_email(config: dict, summary: dict, html_body: str | None = None)
     html_body 存在时，邮件以 HTML 为主、纯文本摘要作为 alternative；
     否则仅发送纯文本（兼容历史行为）。
     """
-    recipients = config.get("recipients", [])
-    if (
-        not isinstance(recipients, list)
-        or not recipients
-        or not all(
-            isinstance(item, str)
-            and item == item.strip()
-            and "\r" not in item
-            and "\n" not in item
-            and " " not in item
-            and item.count("@") == 1
-            and all(item.split("@", 1))
-            for item in recipients
-        )
-    ):
-        raise ValueError("邮件通知至少需要一个有效收件人")
+    recipients = normalize_email_recipients(config.get("recipients"))
 
     language = _normalize_language(config.get("language"))
     labels = _labels(language)
@@ -671,7 +687,8 @@ async def _send_wechat(config: dict, summary: dict):
     webhook_url = config.get("webhook_url", "")
     if not webhook_url:
         raise ValueError("企业微信通知缺少 webhook_url")
-    webhook_url = validate_public_http_url(webhook_url)
+    # DNS 解析是阻塞调用，放到线程池执行，避免占用事件循环。
+    webhook_url = await asyncio.to_thread(validate_public_http_url, webhook_url)
 
     payload = {
         "msgtype": "markdown",
@@ -701,7 +718,8 @@ async def _send_dingtalk(config: dict, summary: dict):
     webhook_url = config.get("webhook_url", "")
     if not webhook_url:
         raise ValueError("钉钉通知缺少 webhook_url")
-    webhook_url = validate_public_http_url(webhook_url)
+    # DNS 解析是阻塞调用，放到线程池执行，避免占用事件循环。
+    webhook_url = await asyncio.to_thread(validate_public_http_url, webhook_url)
 
     secret = config.get("secret", "")
 

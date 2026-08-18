@@ -1,5 +1,17 @@
 # ATP 项目任务跟踪
 
+## 2026-08-19 通知投递目标校验一致性修复
+
+- [x] 修复配置校验与实际投递规则不一致导致的通知丢失：`validate_notification_channel_config` 与 `_send_email` 统一改用新增的 `normalize_email_recipients`。此前 `['qa@example.com', '']` 和 `['qa@example.com', 'QA Team <ops@example.com>']` 能通过配置校验，却在投递时整批抛错，连合法收件人也收不到。
+- [x] 收件人规则改为：允许 `Name <addr>` 显示名格式（`smtplib` 会自行取出地址，改动前本可正常送达），自动跳过空白条目，拒绝换行注入和缺少 `@`/本地部分/域名的地址。
+- [x] Webhook 校验下沉到配置阶段：创建/更新即拒绝非 `http`/`https`、带用户名密码、`localhost` 和字面内网地址，避免保存成功却永久投递失败。
+- [x] 修复阻塞事件循环：`_send_wechat`/`_send_dingtalk` 的公网 DNS 复核改为 `asyncio.to_thread`，与 `exports.py`、`web_recordings.py`、`dataset_preparation.py` 的既有约定一致。
+- [x] 修复 MinIO 验收脚本只读探测把任意异常当作“write denied”的假通过：现在只接受明确的授权错误码，并在报告里输出真实的读写结果。
+- [x] 修复通知验收脚本绕过生产入口和 `content_checks` 硬编码为 `true` 的问题：改为经 `send_notification_channel` 投递，`content_checks` 按“标签 + 取值”逐字段实测（已验证每个字段缺失时只有自己变 `false`）。
+- [x] 新增回归：校验通过的配置必须可投递、被拒配置两层一致拒绝、字面内网 Webhook 在配置阶段被拒、DNS 复核在工作线程而非事件循环执行。
+- [x] 验证：非集成后端 `2111 passed`，两个改动测试文件独立运行 `47 passed` / `7 passed`，通知与脚本契约定向回归 `138 passed`，Ruff check/format、mypy（137 文件）和 `git diff --check` 通过。
+- [ ] SMTP、企业微信、钉钉真实送达仍需注入 sandbox 凭据后分渠道执行并归档；本地回归不替代供应商证据。
+
 ## 2026-08-17 GitHub Actions 远端失败修复
 
 - [x] 修复 CI 的 Ruff 格式检查失败：格式化 6 个被报告的后端源码/测试文件，并通过完整格式检查。

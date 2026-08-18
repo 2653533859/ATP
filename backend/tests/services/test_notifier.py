@@ -499,5 +499,100 @@ def test_wechat_sender_rejects_private_webhook_before_request():
 
 
 def test_email_sender_rejects_header_injection_recipient():
-    with pytest.raises(ValueError, match="有效收件人"):
+    with pytest.raises(ValueError, match="不能包含换行符"):
         asyncio.run(notifier._send_email({"recipients": ["qa@example.com\r\nBcc: attacker@example.com"]}, _summary()))
+
+
+@pytest.mark.parametrize(
+    "recipients",
+    [
+        ["qa@example.com"],
+        ["QA Team <ops@example.com>"],
+        ["qa@example.com", ""],
+        ["qa@example.com", "  "],
+        [" qa@example.com "],
+    ],
+)
+def test_accepted_email_config_is_always_deliverable(monkeypatch, recipients):
+    """配置校验通过的收件人必须能真正投递，避免保存成功却在发送时失败。"""
+
+    sent: dict = {}
+
+    def fake_smtp_send(_msg, actual_recipients):
+        sent["recipients"] = actual_recipients
+
+    monkeypatch.setattr(notifier, "_smtp_send", fake_smtp_send)
+    config = {"recipients": recipients}
+
+    notifier.validate_notification_channel_config("email", config)
+    asyncio.run(notifier._send_email(config, _summary()))
+
+    assert sent["recipients"], "校验通过的配置必须至少投递一个收件人"
+    assert all(item.strip() for item in sent["recipients"])
+
+
+@pytest.mark.parametrize(
+    "recipients",
+    [[], ["   "], ["qa@example.com\nBcc: attacker@example.com"], ["missing-at-sign"], ["@example.com"], "qa@x.com"],
+)
+def test_rejected_email_config_is_rejected_by_both_layers(recipients):
+    """配置校验拒绝的收件人，投递层必须同样拒绝。"""
+
+    config = {"recipients": recipients}
+    with pytest.raises(ValueError):
+        notifier.validate_notification_channel_config("email", config)
+    with pytest.raises(ValueError):
+        asyncio.run(notifier._send_email(config, _summary()))
+
+
+@pytest.mark.parametrize("channel", ["wechat", "dingtalk"])
+@pytest.mark.parametrize(
+    "webhook_url",
+    ["http://127.0.0.1/hook", "http://localhost/hook", "http://10.0.0.5/hook", "ftp://example.com/hook", "not-a-url"],
+)
+def test_webhook_config_rejects_targets_that_can_never_be_delivered(channel, webhook_url):
+    """字面内网地址与非 HTTP 地址必须在配置阶段就被拒绝，而不是保存成功后永久投递失败。"""
+
+    with pytest.raises(ValueError):
+        notifier.validate_notification_channel_config(channel, {"webhook_url": webhook_url})
+
+
+def test_webhook_dns_validation_runs_off_the_event_loop(monkeypatch):
+    """公网复核是阻塞 DNS 调用，必须在线程池执行，不能阻塞事件循环。"""
+
+    calls: list[str] = []
+
+    def fake_validate(value):
+        try:
+            asyncio.get_running_loop()
+        except RuntimeError:
+            calls.append("worker-thread")
+        else:
+            calls.append("event-loop")
+        return value
+
+    class _Response:
+        status_code = 200
+
+        def json(self):
+            return {"errcode": 0}
+
+    class _FakeClient:
+        def __init__(self, *_a, **_kw):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_a):
+            return False
+
+        async def post(self, *_a, **_kw):
+            return _Response()
+
+    monkeypatch.setattr(notifier.httpx, "AsyncClient", _FakeClient)
+    monkeypatch.setattr(notifier, "validate_public_http_url", fake_validate)
+
+    asyncio.run(notifier._send_wechat({"webhook_url": "https://qy.example/hook"}, _summary()))
+
+    assert calls == ["worker-thread"]
