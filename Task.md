@@ -1,5 +1,14 @@
 # ATP 项目任务跟踪
 
+## 2026-08-20 邮件通知链路本地自检
+
+- [x] 新增 `scripts/notification-smtp-link-check.py`：在 `127.0.0.1` 上启动一次性最小 SMTP 接收端（Python 3.12+ 已移除 `smtpd`，改用标准库 socket 手写，不引入新依赖），经生产入口 `send_notification_channel` 真实完成一次 SMTP 会话后解析原始邮件。
+- [x] 12 项检查全部通过：SMTP 信封、收件人规范化、MIME multipart、`To` 头显示名保留和正文六个性能字段；证据见 `docs/evidence/notification-smtp-link-check-2026-08-20.json`。
+- [x] 实测确认上一轮修复生效：配置 `['qa@example.com', '  ', 'QA Team <ops@example.org>']` 的信封为 `['qa@example.com', 'ops@example.org']`，空白项被跳过、显示名被规约为裸地址，而 `To` 头保留显示名。
+- [x] 负向验证：人为让正文缺少 RPS 字段后脚本返回非零并精确指出 `body field rps`，不会把回归报成通过。
+- [x] 补充 7 项契约测试锁定脚本边界：状态只能是 `local_link_only`/`failed`、只绑定回环地址、不接受命令行凭据、不绕过 `send_notification_channel`、只使用 RFC 2606 保留域。
+- [ ] 该自检不覆盖供应商送达、反垃圾/退信、DKIM/SPF、TLS 链路、限流和重复投递；SMTP、企业微信、钉钉的外部门禁保持开启，仍需 sandbox 凭据后分渠道执行并归档。
+
 ## 2026-08-19 通知投递目标校验一致性修复
 
 - [x] 修复配置校验与实际投递规则不一致导致的通知丢失：`validate_notification_channel_config` 与 `_send_email` 统一改用新增的 `normalize_email_recipients`。此前 `['qa@example.com', '']` 和 `['qa@example.com', 'QA Team <ops@example.com>']` 能通过配置校验，却在投递时整批抛错，连合法收件人也收不到。

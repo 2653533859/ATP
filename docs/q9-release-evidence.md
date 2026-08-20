@@ -153,6 +153,15 @@ The per-project preview route now applies `RunRetentionPerProjectOut`, including
 
 The MinIO report was produced against an isolated real MinIO server, not mocks. It closes the code-level storage drill, but release staging must rerun the same script against its own storage and backup topology. No SMTP, WeCom or DingTalk credentials were available in this environment, so no provider delivery is claimed.
 
+### 2026-08-20 email link self-check (local scope only)
+
+| Gate | Command / evidence | Result |
+|---|---|---|
+| Email delivery path over a real SMTP session | `scripts/notification-smtp-link-check.py` / [`evidence/notification-smtp-link-check-2026-08-20.json`](evidence/notification-smtp-link-check-2026-08-20.json) | `local_link_only`: 12 checks passed — envelope, recipient normalisation, MIME multipart, `To` display name and all six performance fields |
+| Notification target validation consistency | `backend/tests/services/test_notifier.py`, `test_notifier_report_email.py`, `backend/tests/api/test_notifications.py` | `70 passed`; configs accepted by validation are now guaranteed deliverable |
+
+This check runs against a throwaway SMTP sink bound to `127.0.0.1`, so it proves only that the platform builds and hands off a correct message. It does **not** cover provider-side delivery, anti-spam, bounces, DKIM/SPF, TLS transport, rate limiting or duplicate-delivery semantics, and its report status is fixed to `local_link_only`. The SMTP, WeCom and DingTalk external gate below stays open.
+
 ## Q18 External Gate Check (2026-08-13)
 
 This is an external-environment status check, not a passing acceptance result.

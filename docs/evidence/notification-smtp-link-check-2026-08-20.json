@@ -1,0 +1,74 @@
+{
+  "generated_at": "2026-08-20T02:02:22.363181+00:00",
+  "status": "local_link_only",
+  "scope": "local SMTP link only; does not close the external SMTP/WeCom/DingTalk delivery gate",
+  "channel": "smtp-local-sink",
+  "environment": {
+    "sink_host": "127.0.0.1",
+    "sink_port": 58929,
+    "tls": false
+  },
+  "checks": [
+    {
+      "name": "send_notification_channel completed",
+      "status": "PASS",
+      "detail": "attempts=1"
+    },
+    {
+      "name": "smtp envelope sender",
+      "status": "PASS",
+      "detail": "MAIL FROM accepted: True"
+    },
+    {
+      "name": "recipient normalisation in envelope",
+      "status": "PASS",
+      "detail": "RCPT TO=['qa@example.com', 'ops@example.org']; blank entry skipped and display name reduced to a bare address"
+    },
+    {
+      "name": "message is MIME multipart",
+      "status": "PASS",
+      "detail": "content_type=multipart/mixed"
+    },
+    {
+      "name": "display name preserved in To header",
+      "status": "PASS",
+      "detail": "To header keeps the configured display name"
+    },
+    {
+      "name": "plain text part decoded",
+      "status": "PASS",
+      "detail": "chars=141"
+    },
+    {
+      "name": "body field rps",
+      "status": "PASS",
+      "detail": "expected '请求速率: 128.5'"
+    },
+    {
+      "name": "body field p95_ms",
+      "status": "PASS",
+      "detail": "expected 'P95 延迟: 230ms'"
+    },
+    {
+      "name": "body field p99_ms",
+      "status": "PASS",
+      "detail": "expected 'P99 延迟: 410ms'"
+    },
+    {
+      "name": "body field error_rate",
+      "status": "PASS",
+      "detail": "expected '错误率: 2.50%'"
+    },
+    {
+      "name": "body field threshold_status",
+      "status": "PASS",
+      "detail": "expected '阈值: 失败'"
+    },
+    {
+      "name": "body field performance_event_reasons",
+      "status": "PASS",
+      "detail": "expected '触发原因: 阈值失败, 基线回归'"
+    }
+  ],
+  "credential_values_recorded": false
+}

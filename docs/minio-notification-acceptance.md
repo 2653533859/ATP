@@ -57,7 +57,20 @@ backend/.venv/bin/python scripts/notification-channel-acceptance.py \
 
 Webhook 报告 `passed` 表示供应商返回成功码；SMTP 报告 `passed` 表示 SMTP 服务接受邮件。报告中的 `content_checks` 按“标签 + 取值”逐字段实测，不是固定值；任一字段为 `false` 时脚本返回非零状态。发布证据还必须保留接收端消息或供应商日志。缺少凭据、DNS 不可解析、HTTP/供应商错误或正文缺字段均返回非零状态，不能记为通过。
 
-## 3. 通知投递目标校验规则
+## 3. 邮件链路本地自检（不替代供应商送达）
+
+在拿到供应商凭据之前，可以先用 `scripts/notification-smtp-link-check.py` 验证邮件渠道自身的链路。它在 `127.0.0.1` 上启动一个一次性 SMTP 接收端，走生产入口 `send_notification_channel` 真实完成一次 SMTP 会话，然后解析收到的原始邮件：
+
+```bash
+backend/.venv/bin/python scripts/notification-smtp-link-check.py \
+  --report docs/evidence/notification-smtp-link-check-YYYY-MM-DD.json
+```
+
+覆盖范围：SMTP 信封（`MAIL FROM`/`RCPT TO`）、收件人规范化结果、MIME multipart 结构、`To` 头显示名保留，以及正文六个性能字段。
+
+明确不覆盖：供应商侧送达、反垃圾与退信、DKIM/SPF、TLS/SSL 链路、限流与重复投递。因此报告状态固定为 `local_link_only`，永远不会写出 `passed`；该脚本不能用于关闭外部渠道门禁。首次执行结果见 [`evidence/notification-smtp-link-check-2026-08-20.json`](evidence/notification-smtp-link-check-2026-08-20.json)。
+
+## 4. 通知投递目标校验规则
 
 配置校验与实际投递共用 `notifier.normalize_email_recipients` 和同一套 Webhook 规则，保证“保存成功”等于“可投递”：
 
