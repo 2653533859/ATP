@@ -133,6 +133,16 @@ export interface AndroidWorkerItem {
   expires_at: number
 }
 
+export interface DeviceLeaseItem {
+  device_id: number
+  owner_id?: number | null
+  owner_label: string
+  acquired_at: string
+  heartbeat_at: string
+  expires_at: string
+  lease_token?: string | null
+}
+
 export interface AndroidUiTarget {
   text?: string | null
   resourceId?: string | null
@@ -1577,6 +1587,12 @@ export const deviceApi = {
   list: (params?: { status_filter?: string }) =>
     http.get<unknown, DeviceItem[]>('/devices', { params }),
   workers: () => http.get<unknown, AndroidWorkerItem[]>('/devices/workers'),
+  acquireLease: (id: number, data?: { ttl_seconds?: number; owner_label?: string }) =>
+    http.post<unknown, DeviceLeaseItem>(`/devices/${id}/lease`, data ?? {}),
+  heartbeatLease: (id: number, leaseToken: string) =>
+    http.post<unknown, DeviceLeaseItem>(`/devices/${id}/lease/heartbeat`, { lease_token: leaseToken }),
+  releaseLease: (id: number, leaseToken: string) =>
+    http.delete(`/devices/${id}/lease`, { data: { lease_token: leaseToken } }),
   scan: () => http.post<unknown, DeviceScanResult>('/devices/scan'),
   scanStatus: (scanId: string) => http.get<unknown, DeviceScanResult>(`/devices/scan/${scanId}`),
   get: (id: number) => http.get('/devices/' + id),

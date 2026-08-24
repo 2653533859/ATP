@@ -66,7 +66,7 @@ const router = createRouter({
         {
           path: 'mobile-special/workbench',
           name: 'mobile-special-workbench',
-          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          component: () => import('@/views/workbench/AppWorkbenchView.vue'),
           meta: {
             roles: ENGINEER_ONLY,
             menuTitleKey: 'menu.capabilities.app',
