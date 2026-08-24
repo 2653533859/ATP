@@ -32,6 +32,15 @@
 - [x] 代码审查确认离线设备只触发必需检查失败，不继续执行设备命令、包管理、日志读取或创建 Android 运行任务；没有把本次失败写成设备执行通过。
 - [E] P0-B 仍需将 ADB 恢复为 `device` 后继续配置配对、Worker 心跳、扫描、预约、截图、APK 包名、Android 低代码、专项任务和结果证据验收。
 
+## 2026-08-25 Android 录屏证据展示补齐
+
+- [x] 运行详情页从 `result_summary.android_artifacts.screen_recording` 读取 Android 录屏，同时保留 Web/接口既有的 `video_url` 优先路径。
+- [x] Android 录屏不可用时展示 `screen_recording_error`，避免任务已经执行但页面没有任何可解释反馈。
+- [x] HTML 报告在开启录像选项时嵌入 Android 录屏；PDF 既有不嵌入视频的行为保持不变。
+- [x] WebSocket 收到运行完成事件后重新读取运行详情，确保执行页面无需手动刷新即可看到刚上传的 Android 录屏和告警。
+- [x] 代码审查后补充回归：后端导出 `13 passed`，RunDetail `6 passed`，前端全量 `66 files / 268 tests passed`，type-check、生产构建、Ruff 和 diff-check 通过；提交 `279b254` 已完成本地提交。
+- [E] 本轮只验证结果展示与报告链路，未使用真实 Android 设备生成录屏；当前 ADB 仍为 `offline`，P0-B 单设备执行证据继续保持未验收。
+
 ## 2026-08-25 工作台任务状态枚举隔离修复
 
 - [x] 根据 q19 工作台日志定位到跨域状态集合问题：普通 `TestRun` 查询被错误带入 Android `stopped` 和性能 `cancelled`，PostgreSQL 会在 `/workbench/overview` 返回 `invalid input value for enum runstatus`。

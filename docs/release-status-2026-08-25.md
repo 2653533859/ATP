@@ -31,6 +31,14 @@
 - 已按任务域限制状态过滤，空交集显式无匹配，重试状态按域恢复；工作台定向 `8 passed`，完整后端非集成 `2229 passed`，Ruff/diff-check 通过。
 - q19 已按 `36cacb9` 受控重建，迁移 `20260824_0065`、Backend `200`、Prometheus 4 targets `up`、Celery 2 节点在线，重启后未出现新的 enum 错误；脱敏证据见 [`q19-workbench-status-filter-2026-08-25.json`](evidence/q19-workbench-status-filter-2026-08-25.json)。鉴权工作台请求仍因缺少当前有效账号未执行，发布结论不因此提前关闭。
 
+## 2026-08-25 Android 录屏证据展示补齐
+
+- Android Worker 产生的 `result_summary.android_artifacts.screen_recording` 现在可在运行详情页直接播放；`screen_recording_error` 会以告警形式展示。
+- HTML 报告会在开启录像选项时嵌入 Android 录屏；通用 `video_url` 仍优先，PDF 不嵌入视频的既有行为不变。
+- 运行详情在收到 WebSocket 完成事件后自动刷新，避免执行页面必须手动刷新才能看到录屏。
+- 本地证据：提交 `279b254`，后端导出 `13 passed`、RunDetail `6 passed`、前端全量 `66 files / 268 tests passed`，类型检查和构建通过；详见 [`android-recording-evidence-2026-08-25.json`](evidence/android-recording-evidence-2026-08-25.json)。
+- 发布边界：当前没有真实 Android 录屏采集证据，ADB 仍为 `offline`；这项改动不关闭 Android 真机发布门禁。
+
 ## 2026-08-25 Windows 已认证浏览器冒烟复核
 
 - 复用当前已登录的 Windows 浏览器会话，实际加载统计看板、工作台概览、我的待办、用例管理、执行记录、测试套件、存储管理和 API 契约资产；页面均保持在业务页，未回到登录页，用户菜单显示为 `admin`。
@@ -50,7 +58,7 @@
 |---|---|---|---|
 | Windows API/Web | 本地与 q19 证据已形成，当前账号页面冒烟通过 | [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`q19-migration-web-worker-readiness-2026-08-24.json`](evidence/q19-migration-web-worker-readiness-2026-08-24.json) | 目标发布环境仍需按版本重放并归档 |
 | Web Worker/录制 | q19 持久 Worker、Chromium/Firefox/WebKit 录制和跨 API 停止快照已验证 | [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json) | Linux/Xvfb、跨副本和目标部署拓扑仍需独立复验 |
-| Android | 代码、配置配对和 doctor 门禁已完成；真实执行阻塞 | [`windows-android-worker.ps1`](../scripts/windows-android-worker.ps1)、[`windows-android-acceptance.ps1`](../scripts/windows-android-acceptance.ps1) | ADB 必须恢复为 `device`，然后完成扫描、租约、截图、APK、低代码、专项任务和证据回传 |
+| Android | 代码、配置配对、doctor 门禁和录屏结果展示已完成；真实执行阻塞 | [`windows-android-worker.ps1`](../scripts/windows-android-worker.ps1)、[`windows-android-acceptance.ps1`](../scripts/windows-android-acceptance.ps1)、[`android-recording-evidence-2026-08-25.json`](evidence/android-recording-evidence-2026-08-25.json) | ADB 必须恢复为 `device`，然后完成扫描、租约、截图、APK、低代码、专项任务、设备端录屏和证据回传 |
 | 性能 | P1-E.1～P1-E.4 本地闭环完成，q19 已按最新提交重建 | [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)、[`performance-shard-capacity-2026-08-25.json`](evidence/performance-shard-capacity-2026-08-25.json)、[`q19-performance-shard-deployment-2026-08-25.json`](evidence/q19-performance-shard-deployment-2026-08-25.json) | 真实 Kubernetes 多节点、生产 Prometheus、MinIO 生命周期和跨主机恢复 |
 | 通知 | 本地 SMTP 链路已验证 | [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json) | 真实供应商送达、重试、限流和重复投递 |
 | 外部缺陷平台 | 本地适配器和脱敏逻辑已实现 | [`docs/capability-baseline-2026-08-07.md`](capability-baseline-2026-08-07.md) | 临时项目、权限、创建/去重/状态同步和清理 |

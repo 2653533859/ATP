@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-25",
+  "source_commit": "279b254",
+  "scope": "android_recording_evidence_presentation",
+  "checks": [
+    {
+      "name": "backend_html_export",
+      "command": "backend/.venv/Scripts/python.exe -m pytest tests/api/test_exports_e1.py -q",
+      "result": "13 passed"
+    },
+    {
+      "name": "frontend_run_detail",
+      "command": "npm test -- --run src/views/run/RunDetail.spec.ts",
+      "result": "6 passed"
+    },
+    {
+      "name": "frontend_full",
+      "command": "npm test -- --run",
+      "result": "66 files passed, 268 tests passed"
+    },
+    {
+      "name": "frontend_type_check",
+      "command": "npm run type-check",
+      "result": "passed"
+    },
+    {
+      "name": "frontend_build",
+      "command": "npm run build",
+      "result": "passed"
+    },
+    {
+      "name": "quality_checks",
+      "command": "ruff check and git diff --check",
+      "result": "passed"
+    }
+  ],
+  "implemented_paths": [
+    "result_summary.android_artifacts.screen_recording -> RunDetail video",
+    "result_summary.android_artifacts.screen_recording_error -> RunDetail warning",
+    "result_summary.android_artifacts.screen_recording -> HTML report video"
+  ],
+  "limitations": [
+    "未使用真实 Android 设备生成录屏；当前 ADB 状态仍为 offline。",
+    "本记录证明结果展示、报告嵌入和完成事件刷新，不证明设备端录屏采集或 MinIO 生产链路。"
+  ]
+}

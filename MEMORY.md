@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 Android 录屏证据展示已补齐并提交 `279b254`：运行详情页优先读取通用 `video_url`，否则读取 `result_summary.android_artifacts.screen_recording`；录屏不可用时展示 `screen_recording_error`；HTML 报告同步嵌入 Android 录屏，PDF 既有无视频行为不变；WebSocket 完成事件后自动刷新详情，确保无需手动刷新即可看到录屏。后端导出 `13 passed`、RunDetail `6 passed`、前端全量 `66 files / 268 tests passed`，type-check/build、Ruff/diff-check 通过。此证据只覆盖结果展示/报告链路，不代表真实设备录屏采集；ADB 当前仍为 `offline`，P0-B 真机验收未关闭。脱敏证据见 `docs/evidence/android-recording-evidence-2026-08-25.json`。
+
 - 2026-08-25 q19 已重建到最新提交 `ca79937`（包含性能多节点分片容量修复）：迁移 `20260824_0065 (head)`，Backend 健康 `200`，Prometheus `atp-backend`/`atp-performance-worker`/`atp-worker`/`prometheus` 4 个 target 全部 `up`，Celery 2 节点 `pong`，重启后 Backend 无 enum/Traceback/ERROR。脱敏证据为 `docs/evidence/q19-performance-shard-deployment-2026-08-25.json`；这仍是 q19 Compose 验证，不替代真实 Kubernetes 多节点、生产 MinIO 生命周期或跨主机恢复。
 
 - 2026-08-25 P1-E.4 性能多节点分片容量校验已完成并推送 `f9e7c54`：多节点运行先按节点数拆分总负载，再按每个节点的 `max_vus`、执行器能力和出口 allowlist 校验；总 VU 10 在两台上限 6 的节点上按 5/5 通过，上限 4 返回 400 且不创建运行。API `72 passed`、性能服务/Worker `24 passed`、完整非集成后端 `2231 passed`、Ruff/diff-check 通过，脱敏证据为 `docs/evidence/performance-shard-capacity-2026-08-25.json`。真实 Kubernetes 多节点调度、生产 Prometheus/MinIO 生命周期和跨主机恢复仍待环境验收。

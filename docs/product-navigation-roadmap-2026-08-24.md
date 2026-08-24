@@ -85,6 +85,14 @@
 - **审查结论**：脚本在离线设备状态下只记录必需检查失败和重连提示，不继续执行设备命令、包管理、日志读取或创建 Android 运行任务；本地报告位于被忽略的 `.local-run/android-acceptance-current-20260825.json`。
 - **边界**：ADB 恢复为 `device` 前，P0-B 的扫描、预约、截图、APK 包名、Android 低代码、专项任务和结果回传仍不能标记为通过；下一步继续等待真实设备恢复。
 
+### 2026-08-25 Android 录屏证据展示补齐
+
+- **问题**：Android Worker 已将录屏上传地址写入 `result_summary.android_artifacts.screen_recording`，但运行详情页和 HTML 报告只读取通用 `video_url`，导致录屏已经产生却不可见。
+- **实现**：运行详情优先使用通用 `video_url`，否则回退到 Android 录屏资产；当设备端返回 `screen_recording_error` 时展示可解释告警。HTML 报告同步嵌入 Android 录屏，PDF 的既有无视频行为保持不变。
+- **实时性**：运行详情收到 WebSocket `completed` 事件后重新获取运行详情，执行页无需手动刷新即可显示刚上传的录屏或告警。
+- **审查与验证**：提交 `279b254`；后端导出 `13 passed`，RunDetail `6 passed`，前端全量 `66 files / 268 tests passed`，`vue-tsc`、生产构建、Ruff 和 `git diff --check` 通过。脱敏验证记录见 [`android-recording-evidence-2026-08-25.json`](evidence/android-recording-evidence-2026-08-25.json)。
+- **边界**：本模块证明结果展示/报告链路，不证明设备端真实录屏采集；ADB 当前 `offline`，P0-B 仍需真实设备恢复为 `device` 后验收。
+
 ### 2026-08-25 工作台任务状态枚举隔离修复
 
 - **问题**：q19 日志显示 `/workbench/overview` 将跨任务域失败状态集合直接用于每张运行表，普通 `TestRun` 查询因此收到 Android `stopped`，触发 PostgreSQL enum 错误。
