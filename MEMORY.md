@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 P1-F 本地发布收口已完成：新增 `docs/release-status-2026-08-25.md` 作为能力、证据、环境边界、复验顺序和禁止事项的统一索引，并同步能力矩阵、Q18 状态/实施日志、Task、路线图、用户操作手册和 Release-Readiness Runbook。新增发布状态文档契约，明确 ADB 当前 `offline`、通知仅 `local_link_only`、真实通知供应商/外部缺陷平台/生产性能环境仍未验收；没有将这些阻塞项写成通过。下一步是设备恢复后完成 Android 单设备，以及取得临时目标后完成通知、外部缺陷平台和生产性能证据。
+
 - 2026-08-25 P1-E.3 性能报告与运行记录保留清理本地交付已完成：现有保留服务新增终态 PerformanceRun 根运行统计，项目覆盖/全局排除保持一致；删除根运行依赖数据库级级联清理分片和 `performance_metric_samples`，并在数据库提交后删除根/直接分片的 MinIO 原始报告。管理员清理页增加压测执行数，前端对旧后端缺失字段按 0 兼容，避免确认数量 `NaN`。保留清理/API 定向 `24 passed`，完整非集成后端 `2226 passed`，3 个受影响测试文件独立运行 `3 passed, 0 failed`，前端全量 `66 files / 265 tests passed`，type-check/build、Ruff、diff-check 通过。真实 MinIO 生命周期、生产保留周期、跨主机恢复和 Kubernetes 多节点仍未完成。
 
 - 2026-08-25 P1-E.2 性能基线回归门禁本地交付已完成：性能运行门禁与 Webhook 支持可选 `require_baseline=true` 和 `fail_on_baseline_regression=true`；CLI `scripts/performance-gate.py` 对应新增两个开关，默认调用 URL 不变。只接受同一压测定义/项目下的成功基线；基线缺失返回 `not_configured`，运行本身失败或取消优先保留原状态。代码审查修复 FastAPI `Query(False)` 在直接调用路由单测中表现为 truthy 查询对象的问题，改为普通布尔默认值；报告/API/Webhook/CLI 定向 `88 passed`，完整非集成后端 `2224 passed`，Ruff/格式检查通过。真实多节点、容量、报告留存和 Android 设备仍未完成。

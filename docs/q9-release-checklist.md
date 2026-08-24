@@ -1,5 +1,7 @@
 # ATP Release-Readiness Runbook
 
+> 当前发布状态索引：[`docs/release-status-2026-08-25.md`](release-status-2026-08-25.md)。该索引优先记录本次候选的真实边界；本清单中的所有“通过”仍需绑定同一提交 SHA 和目标环境证据。
+
 ## 发布前部署校验
 
 ```bash
@@ -9,7 +11,7 @@ make validate-deployment-readiness ARGS=--strict
 
 普通模式允许本机缺少 Docker/Compose、Helm、`.env` 或 POSIX shell，但必须明确显示 `SKIP`；严格模式用于实际发布前，任一环境依赖缺失都必须失败。仓库契约通过不能替代真实集群、备份恢复或 smoke 证据。
 
-> Updated: 2026-08-13
+> Updated: 2026-08-25
 > Status: Q18 release-readiness extension, retaining the historical filename used by CI and release evidence.
 > Scope: release candidate validation for the quality, security, integration, E2E, SLO, data-governance, performance and external-worker gates.
 

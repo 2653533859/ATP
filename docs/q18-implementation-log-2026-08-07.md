@@ -1,5 +1,11 @@
 # Q18 实施记录
 
+## 2026-08-25 P1-F 本地发布收口状态
+
+- [x] 新增 [`docs/release-status-2026-08-25.md`](release-status-2026-08-25.md)，统一维护当前候选的能力证据、真实环境边界、复验顺序和禁止事项。
+- [x] 能力矩阵、Q18 最新状态、用户操作手册、Task、路线图和 MEMORY 已指向同一发布状态索引；文档明确区分本地质量证据与真实环境验收。
+- [ ] Android 真机、生产性能多节点/MinIO、真实通知供应商和外部缺陷平台仍待目标环境证据；本次不将缺失项标记为通过。
+
 ## 2026-08-24 N6.10 q19 性能节点与真实短压验收
 
 - [x] 性能预检通过：Backend `/health`、k6/Locust/gRPC/JMeter、`worker-a` online 和 `performance.worker-a` 队列均正常。

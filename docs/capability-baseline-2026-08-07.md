@@ -1,5 +1,7 @@
 # ATP 能力基线与目标对比
 
+> 2026-08-25 发布收口：当前能力、证据和未关闭环境门禁统一见 [`docs/release-status-2026-08-25.md`](release-status-2026-08-25.md)。P1-E.1/P1-E.2/P1-E.3 已完成本地实现、审查和回归；Android 真机、生产性能、真实通知供应商和外部缺陷平台仍保持“待环境验收”。
+
 > 2026-08-13 系统治理补强：管理员审计日志已支持时间范围查询和受限 CSV 证据导出，导出会写入 `audit_log_export` 审计事件；生产审批、归档和进一步脱敏仍待确认。
 
 > 2026-08-12 后续路线同步：当前能力矩阵中标记为“部分支持/待环境验收”的项目，统一按 [`docs/next-development-plan-2026-08-12.md`](next-development-plan-2026-08-12.md) 排序推进。优先完成 Windows 真实 Android 设备验收，再推进 Linux/Kubernetes 性能、Web 专用 Worker、iOS/Appium 和产品化收口。

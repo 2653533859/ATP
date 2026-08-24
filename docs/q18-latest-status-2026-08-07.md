@@ -1,5 +1,12 @@
 # Q18 最新开发状态与前后实现对比
 
+## 2026-08-25 P1-F 本地发布收口状态
+
+- 已建立统一发布状态索引 [`release-status-2026-08-25.md`](release-status-2026-08-25.md)，集中列出 Windows/Web、Android、性能、通知和外部缺陷平台的证据与边界。
+- P1-E.1/P1-E.2/P1-E.3 的本地实现、代码审查和回归已完成；当前质量证据为后端非集成 `2226 passed`、前端 `66 files / 265 tests passed`，并已同步到 Task、MEMORY、路线图和能力矩阵。
+- 发布结论仍为“暂不具备无条件发布资格”：ADB 当前 `offline`，生产多节点/MinIO、真实通知供应商和外部缺陷平台证据缺失，不能用本地或 q19 证据替代。
+- 下一次环境验收必须绑定同一提交 SHA，按发布状态索引中的顺序生成带日期证据，再更新能力矩阵和发布说明。
+
 ## 2026-08-24 N6.10 q19 性能节点与真实短压验收
 
 - q19 性能预检通过：Backend healthy，k6/Locust/gRPC/JMeter ready；节点 `worker-a` online，队列 `performance.worker-a`，节点能力与四类执行器一致。

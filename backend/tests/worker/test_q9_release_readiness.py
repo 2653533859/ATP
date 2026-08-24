@@ -62,6 +62,20 @@ def test_q9_release_evidence_records_completed_and_pending_checks(repo_file):
     assert "Real SMTP, WeCom and DingTalk delivery" in content
 
 
+def test_current_release_status_keeps_external_gates_explicit(repo_file):
+    content = repo_file("docs/release-status-2026-08-25.md")
+
+    assert "暂不具备无条件发布资格" in content
+    assert "adb devices -l" in content
+    assert "offline" in content
+    assert "local_link_only" in content
+    assert "windows-full-readiness-2026-08-24.json" in content
+    assert "q19-performance-worker-smoke-2026-08-24.json" in content
+    assert "真实供应商送达" in content
+    assert "外部缺陷平台" in content
+    assert "部分实现/待环境验收" in content
+
+
 def test_release_readiness_workflow_builds_images_and_verifies_k6(repo_file):
     workflow = yaml.safe_load(repo_file(".github/workflows/release-readiness.yml"))
     jobs = workflow["jobs"]
