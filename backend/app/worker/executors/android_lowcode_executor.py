@@ -44,11 +44,14 @@ from sqlalchemy import select
 
 from app.core.minio_client import upload_bytes, upload_file, presigned_url
 from app.core.redis_client import publish_run_event
+from app.models.apk import Apk
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.models.device import Device
+from app.models.project import Module
 from app.services.device_compatibility import DeviceCompatibilityError, build_android_device_matrix
 from app.services.device_leases import DeviceLeaseConflict, acquire_device_lease, release_device_lease
 from app.services.dataset_execution import redact_execution_evidence
+from app.services.mobile_special.preflight import AndroidPreflightError, run_android_preflight
 
 logger = logging.getLogger(__name__)
 
@@ -512,7 +515,103 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
         return {"success": False, "error": f"未知操作类型: {action}"}
 
 
+async def _mark_run_error(db: AsyncSession, run: TestRun, message: str) -> None:
+    run.status = RunStatus.error
+    run.error_message = message
+    await db.commit()
+    await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
+
+
+async def _resolve_lowcode_apk(
+    db: AsyncSession,
+    case: TestCase,
+    cfg: dict[str, Any],
+) -> tuple[str | None, str | None]:
+    """Resolve the selected APK from the project-scoped asset record."""
+    apk_id = cfg.get("apk_id")
+    module_id = getattr(case, "module_id", None)
+    module = await db.get(Module, module_id) if module_id is not None else None
+    if module_id is not None and module is None:
+        raise LookupError("用例所属模块不存在")
+    if apk_id is None:
+        object_name = cfg.get("apk_object_name")
+        if object_name and module is not None:
+            expected_prefix = f"apks/projects/{module.project_id}/"
+            if not str(object_name).startswith(expected_prefix):
+                raise PermissionError("APK 资产不属于用例所在项目")
+        return object_name, None
+    try:
+        normalized_apk_id = int(apk_id)
+    except (TypeError, ValueError) as exc:
+        raise LookupError("绑定的 APK ID 无效") from exc
+
+    apk = await db.get(Apk, normalized_apk_id)
+    if apk is None:
+        raise LookupError("绑定的 APK 资产不存在")
+    if module is not None:
+        if apk.project_id != module.project_id:
+            raise PermissionError("APK 资产不属于用例所在项目")
+    return apk.object_name, apk.package_name
+
+
 async def run_android_lowcode(
+    db: AsyncSession,
+    run: TestRun,
+    case: TestCase,
+    extra_vars: dict,
+) -> None:
+    """Acquire a device lease, then execute one Android low-code case."""
+    cfg = case.config or {}
+    steps = cfg.get("steps", [])
+    device_serial = cfg.get("device_serial")
+    # Keep validation errors in the core so they do not require a database lookup.
+    if not steps or not device_serial or (cfg.get("device_matrix") and not cfg.get("_device_matrix_variant")):
+        await _run_android_lowcode_steps(db, run, case, extra_vars)
+        return
+
+    result = await db.execute(select(Device).where(Device.serial == str(device_serial)))
+    device = result.scalar_one_or_none()
+    if device is None:
+        await _mark_run_error(db, run, f"设备未注册: {device_serial}")
+        return
+
+    lease_token: str | None = None
+    try:
+        try:
+            lease_ttl = max(900, int(cfg.get("device_lease_ttl_seconds", 900)))
+        except (TypeError, ValueError):
+            lease_ttl = 900
+        lease = await acquire_device_lease(
+            db,
+            int(device.id),
+            owner_id=getattr(run, "triggered_by", None),
+            owner_label=f"case-run:{run.id}",
+            ttl_seconds=lease_ttl,
+        )
+        lease_token = lease.lease_token
+        await db.commit()
+        await _safe_publish(
+            run.id,
+            {
+                "type": "step_progress",
+                "run_id": run.id,
+                "message": "已占用 Android 设备，开始执行低代码步骤",
+                "device_serial": str(device_serial),
+            },
+        )
+        await _run_android_lowcode_steps(db, run, case, extra_vars)
+    except (DeviceLeaseConflict, LookupError) as exc:
+        await _mark_run_error(db, run, f"设备租约冲突: {exc}")
+    finally:
+        if lease_token:
+            try:
+                await release_device_lease(db, int(device.id), lease_token)
+                await db.commit()
+            except Exception:
+                logger.exception("Failed to release Android lease for run %s", run.id)
+
+
+async def _run_android_lowcode_steps(
     db: AsyncSession,
     run: TestRun,
     case: TestCase,
@@ -526,18 +625,12 @@ async def run_android_lowcode(
         return
     steps = cfg.get("steps", [])
     if not steps:
-        run.status = RunStatus.error
-        run.error_message = "低代码用例未配置任何步骤"
-        await db.commit()
-        await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
+        await _mark_run_error(db, run, "低代码用例未配置任何步骤")
         return
 
     device_serial = cfg.get("device_serial")
     if not device_serial:
-        run.status = RunStatus.error
-        run.error_message = "未选择执行设备"
-        await db.commit()
-        await _safe_publish(run.id, {"type": "completed", "run_id": run.id, "status": "error"})
+        await _mark_run_error(db, run, "未选择执行设备")
         return
 
     # 变量上下文
@@ -547,6 +640,35 @@ async def run_android_lowcode(
     artifact_urls: dict[str, str] = {}
     recording_process = None
     recording_remote_path = f"/sdcard/atp-{run.id}.mp4"
+
+    try:
+        apk_object_name, apk_package = await _resolve_lowcode_apk(db, case, cfg)
+    except (LookupError, PermissionError) as exc:
+        await _mark_run_error(db, run, str(exc))
+        return
+
+    if apk_object_name:
+        preflight_config = {**cfg, "install_apk": True}
+        try:
+            preflight_result = await run_android_preflight(
+                serial=str(device_serial),
+                package=cfg.get("app_package") or apk_package,
+                config=preflight_config,
+                apk_object_name=apk_object_name,
+            )
+        except AndroidPreflightError as exc:
+            await _mark_run_error(db, run, f"Android APK 前置操作失败: {exc}")
+            return
+        await _safe_publish(
+            run.id,
+            {
+                "type": "step_progress",
+                "run_id": run.id,
+                "message": "APK 已安装，开始执行低代码步骤",
+                "actions": preflight_result.get("actions", []),
+            },
+        )
+
     if cfg.get("record_video"):
         recording_process = _start_screen_recording(
             device_serial,
@@ -744,6 +866,7 @@ async def _run_android_device_matrix(
             _run_android_device_matrix_variant(
                 child_id=child_id,
                 case_id=case.id,
+                module_id=getattr(case, "module_id", None),
                 base_config=config,
                 extra_vars=extra_vars,
                 index=index,
@@ -777,6 +900,7 @@ async def _run_android_device_matrix_variant(
     *,
     child_id: int,
     case_id: int,
+    module_id: int | None = None,
     base_config: dict[str, Any],
     extra_vars: dict,
     index: int,
@@ -806,7 +930,7 @@ async def _run_android_device_matrix_variant(
         child_config.pop("device_matrix", None)
         child_config["_device_matrix_variant"] = True
         child_config["device_serial"] = variant["serial"]
-        child_case = SimpleNamespace(id=case_id, config=child_config)
+        child_case = SimpleNamespace(id=case_id, module_id=module_id, config=child_config)
         lease_token: str | None = None
         try:
             device_id = variant.get("device_id")
@@ -821,7 +945,7 @@ async def _run_android_device_matrix_variant(
             )
             lease_token = lease.lease_token
             await child_db.commit()
-            await run_android_lowcode(child_db, child, child_case, extra_vars)
+            await _run_android_lowcode_steps(child_db, child, child_case, extra_vars)
         except (DeviceLeaseConflict, LookupError) as exc:
             child.status = RunStatus.error
             child.error_message = f"设备租约冲突: {exc}"

@@ -19,6 +19,13 @@
 
 Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复核 Windows API/Web、真实通知供应商、外部缺陷平台、性能生产环境和发布收口。详细依赖、出口和状态见 [`product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md) 的“0.5 当前开发计划与跟踪台账”，执行勾选见 [`Task.md`](../Task.md)。
 
+## 2026-08-25 Android 低代码最小执行本地交付
+
+- 单设备执行现在按设备 serial 查询注册设备、申请/释放租约；租约冲突会在执行步骤前结束为 error。设备矩阵保持每个子运行独立租约。
+- Worker 按 `apk_id` 查询项目 APK 资产并校验模块项目归属，执行前复用 Android preflight 下载/安装 APK；步骤结果、截图和完成事件继续回传。
+- Android 相关回归 `145 passed`，后端非集成全量 `2245 passed`，Ruff 和 `git diff --check` 通过；脱敏证据见 [`android-lowcode-execution-2026-08-25.json`](evidence/android-lowcode-execution-2026-08-25.json)。
+- 发布边界：本地代码链路已完成，但当前没有真实 APK 文件，尚未完成在线设备低代码执行、录屏、专项任务和完整事件/日志/报告回传，因此 Android 真机门禁仍未关闭。
+
 ## 2026-08-25 P0-A 本地 E2E 回归复核
 
 - 本地 Playwright 共享 fixture 已修复中文登录按钮自动空格，以及主布局 `/workbench/overview`、运行详情 `/defects` 未隔离导致的真实 401；登录定向 `3 passed`、运行详情定向 `1 passed`、全量 Playwright `12 passed`。

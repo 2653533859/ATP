@@ -370,6 +370,13 @@ class _FakeDB:
     async def commit(self):
         self.commits += 1
 
+    async def execute(self, _statement):
+        class _ScalarResult:
+            def scalar_one_or_none(self):
+                return _Obj(id=41)
+
+        return _ScalarResult()
+
 
 @pytest.fixture()
 def run_env(monkeypatch):
@@ -395,6 +402,15 @@ def run_env(monkeypatch):
     monkeypatch.setattr(executor, "publish_run_event", fake_publish)
     monkeypatch.setattr(executor, "_execute_step_sync", fake_step)
     monkeypatch.setattr(executor, "_take_screenshot", fake_screenshot)
+
+    async def fake_acquire(_db, _device_id, **_kwargs):
+        return _Obj(lease_token="test-lease")
+
+    async def fake_release(_db, _device_id, _token):
+        return True
+
+    monkeypatch.setattr(executor, "acquire_device_lease", fake_acquire)
+    monkeypatch.setattr(executor, "release_device_lease", fake_release)
     return {"events": events, "steps": step_results}
 
 
@@ -512,7 +528,7 @@ def test_android_device_matrix_variant_acquires_and_releases_own_lease(monkeypat
 
     monkeypatch.setattr(executor, "acquire_device_lease", acquire)
     monkeypatch.setattr(executor, "release_device_lease", release)
-    monkeypatch.setattr(executor, "run_android_lowcode", fake_run)
+    monkeypatch.setattr(executor, "_run_android_lowcode_steps", fake_run)
 
     result = asyncio.run(
         executor._run_android_device_matrix_variant(
@@ -548,6 +564,110 @@ def test_run_android_lowcode_missing_device_marks_error(run_env):
     asyncio.run(executor.run_android_lowcode(db, run, case, {}))
 
     assert run.status == RunStatus.error and "未选择执行设备" in run.error_message
+
+
+def test_run_android_lowcode_acquires_and_releases_device_lease(run_env, monkeypatch):
+    db = _FakeDB()
+    run, case = _run_case([{"action": "wait", "params": {"ms": 1}}])
+    calls = []
+
+    async def acquire(_db, device_id, **kwargs):
+        calls.append(("acquire", device_id, kwargs["owner_label"]))
+        return _Obj(lease_token="lease-42")
+
+    async def release(_db, device_id, token):
+        calls.append(("release", device_id, token))
+        return True
+
+    monkeypatch.setattr(executor, "acquire_device_lease", acquire)
+    monkeypatch.setattr(executor, "release_device_lease", release)
+
+    asyncio.run(executor.run_android_lowcode(db, run, case, {}))
+
+    assert run.status == RunStatus.passed
+    assert calls == [("acquire", 41, "case-run:7"), ("release", 41, "lease-42")]
+
+
+def test_run_android_lowcode_lease_conflict_stops_before_steps(run_env, monkeypatch):
+    db = _FakeDB()
+    run, case = _run_case([{"action": "wait", "params": {"ms": 1}}])
+    called = []
+
+    async def acquire(_db, _device_id, **_kwargs):
+        raise executor.DeviceLeaseConflict("设备已被其他任务占用")
+
+    async def fake_steps(*_args):
+        called.append(True)
+
+    monkeypatch.setattr(executor, "acquire_device_lease", acquire)
+    monkeypatch.setattr(executor, "_run_android_lowcode_steps", fake_steps)
+
+    asyncio.run(executor.run_android_lowcode(db, run, case, {}))
+
+    assert run.status == RunStatus.error
+    assert "设备租约冲突" in run.error_message
+    assert called == []
+
+
+def test_lowcode_selected_apk_is_project_scoped_and_installed(run_env, monkeypatch):
+    from app.models.apk import Apk
+    from app.models.project import Module
+
+    class _ApkDB(_FakeDB):
+        async def get(self, model, object_id):
+            if model is Apk:
+                assert object_id == 5
+                return _Obj(project_id=12, object_name="apks/projects/12/demo.apk", package_name="com.demo")
+            assert model is Module
+            assert object_id == 9
+            return _Obj(project_id=12)
+
+    preflight_calls = []
+
+    async def fake_preflight(**kwargs):
+        preflight_calls.append(kwargs)
+        return {"actions": ["install"], "package": kwargs["package"]}
+
+    monkeypatch.setattr(executor, "run_android_preflight", fake_preflight)
+    db = _ApkDB()
+    run, case = _run_case([{"action": "wait", "params": {"ms": 1}}])
+    case.module_id = 9
+    case.config["apk_id"] = 5
+
+    asyncio.run(executor.run_android_lowcode(db, run, case, {}))
+
+    assert run.status == RunStatus.passed
+    assert preflight_calls[0]["apk_object_name"] == "apks/projects/12/demo.apk"
+    assert preflight_calls[0]["package"] == "com.demo"
+    assert preflight_calls[0]["config"]["install_apk"] is True
+
+
+def test_lowcode_rejects_apk_from_another_project(run_env, monkeypatch):
+    from app.models.apk import Apk
+
+    class _CrossProjectDB(_FakeDB):
+        async def get(self, model, _object_id):
+            if model is Apk:
+                return _Obj(project_id=99, object_name="apks/projects/99/other.apk", package_name="com.other")
+            return _Obj(project_id=12)
+
+    preflight_called = []
+
+    async def fake_preflight(**_kwargs):
+        preflight_called.append(True)
+        return {"actions": ["install"]}
+
+    monkeypatch.setattr(executor, "run_android_preflight", fake_preflight)
+    db = _CrossProjectDB()
+    run, case = _run_case([{"action": "wait", "params": {"ms": 1}}])
+    case.module_id = 9
+    case.config["apk_id"] = 5
+
+    asyncio.run(executor.run_android_lowcode(db, run, case, {}))
+
+    assert run.status == RunStatus.error
+    assert run.error_message == "APK 资产不属于用例所在项目"
+    assert preflight_called == []
 
 
 def test_run_android_lowcode_happy_path_publishes_steps(run_env):

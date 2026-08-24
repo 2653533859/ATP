@@ -1,0 +1,24 @@
+{
+  "verified_on": "2026-08-25",
+  "scope": "Android 低代码单设备执行链路本地实现与回归",
+  "checks": {
+    "dispatches_android_lowcode_cases": true,
+    "single_device_lease_acquired_and_released": true,
+    "lease_conflict_stops_before_steps": true,
+    "device_matrix_lease_path_preserved": true,
+    "selected_apk_resolved_from_project_asset": true,
+    "cross_project_apk_rejected": true,
+    "apk_preflight_install_wired": true,
+    "step_results_and_screenshots_preserved": true,
+    "android_related_tests": 145,
+    "backend_non_integration_tests": 2245,
+    "ruff": true,
+    "diff_check": true
+  },
+  "implementation_note": "低代码单设备执行现在由 Worker 统一申请并释放设备租约；选择的 apk_id 从当前项目 APK 资产解析，执行前复用 Android preflight 下载并安装，步骤结果、截图和完成事件保持原有回传。未记录密码、Token 或对象存储密钥。",
+  "remaining_boundaries": [
+    "当前工作区没有可用于真实上传的 APK 文件，尚未完成真实 APK 上传后的包名识别和 Worker 安装验收",
+    "尚未用在线 Android 设备执行真实低代码步骤，因此不能把本地回归写成真机闭环通过",
+    "设备录屏、Android 专项任务以及完整事件/日志/报告回传仍待后续模块验收"
+  ]
+}
