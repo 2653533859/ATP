@@ -173,27 +173,109 @@
             <pre>{{ formatEvidence(link.evidence) }}</pre>
           </div>
         </div>
+        <div class="detail-section external-section">
+          <div class="detail-section-title external-title-row">
+            <span>{{ t('defect.detail.external_links') }}</span>
+            <span v-if="canManageExternal" class="external-actions">
+              <a-button size="small" type="primary" :disabled="!hasEnabledExternalTracker" @click="openExternalModal('create')">
+                {{ t('defect.external.create') }}
+              </a-button>
+              <a-button size="small" :disabled="!externalTrackers.length" @click="openExternalModal('link')">
+                {{ t('defect.external.link') }}
+              </a-button>
+            </span>
+          </div>
+          <a-empty v-if="!selectedDefect.external_links?.length" :description="t('defect.external.empty')" />
+          <div v-for="link in selectedDefect.external_links || []" v-else :key="link.id" class="external-card">
+            <div class="external-card-head">
+              <div>
+                <a-tag :color="externalTrackerColor(link.tracker_type)">{{ externalTrackerLabel(link.tracker_type) }}</a-tag>
+                <strong>{{ link.external_key }}</strong>
+              </div>
+              <a-tag :color="externalSyncColor(link.sync_state)">{{ externalSyncLabel(link.sync_state) }}</a-tag>
+            </div>
+            <a
+              v-if="link.external_url"
+              class="external-link"
+              :href="link.external_url"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              {{ link.external_title || link.external_url }}
+            </a>
+            <span v-else class="muted-text">{{ link.external_title || t('defect.external.no_url') }}</span>
+            <div class="external-card-meta">
+              <span>{{ t('defect.external.status') }}：{{ link.external_status || '—' }}</span>
+              <span v-if="link.last_synced_at">{{ formatTime(link.last_synced_at) }}</span>
+            </div>
+            <div v-if="link.last_error" class="external-error">{{ link.last_error }}</div>
+            <div v-if="canManageExternal" class="external-card-actions">
+              <a-button size="small" :loading="syncingExternalId === link.id" @click="syncExternalLink(link)">
+                {{ t('defect.external.sync') }}
+              </a-button>
+              <a-button size="small" type="link" danger @click="unlinkExternalLink(link)">
+                {{ t('defect.external.unlink') }}
+              </a-button>
+            </div>
+          </div>
+        </div>
         <a-button type="primary" :loading="saving" @click="submitUpdate">{{ t('defect.form.update') }}</a-button>
       </template>
     </a-drawer>
+    <a-modal
+      v-model:open="externalModalOpen"
+      :title="externalModalTitle"
+      :confirm-loading="externalSaving"
+      :ok-button-props="{ disabled: !canSubmitExternal }"
+      @ok="submitExternal"
+      @cancel="closeExternalModal"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('defect.external.tracker')" required>
+          <a-select v-model:value="externalForm.tracker_id" :options="externalTrackerOptions" />
+        </a-form-item>
+        <template v-if="externalMode === 'link'">
+          <a-form-item :label="t('defect.external.key')" required>
+            <a-input v-model:value="externalForm.external_key" :placeholder="t('defect.external.key_placeholder')" />
+          </a-form-item>
+          <a-form-item :label="t('defect.external.url')">
+            <a-input v-model:value="externalForm.external_url" :placeholder="t('defect.external.url_placeholder')" />
+          </a-form-item>
+          <a-form-item :label="t('defect.external.title')">
+            <a-input v-model:value="externalForm.external_title" />
+          </a-form-item>
+          <a-form-item :label="t('defect.external.status')">
+            <a-input v-model:value="externalForm.external_status" />
+          </a-form-item>
+        </template>
+        <p class="external-form-hint">
+          {{ externalMode === 'create' ? t('defect.external.create_hint') : t('defect.external.link_hint') }}
+        </p>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
+import { useAuthStore } from '@/stores/auth'
 import {
+  bugTrackerApi,
   defectApi,
   projectApi,
   projectMemberApi,
   type DefectItem,
+  type DefectExternalLinkItem,
   type DefectPriority,
   type DefectRunLinkItem,
   type DefectRunType,
   type DefectSeverity,
   type DefectStatus,
+  type BugTrackerItem,
+  type BugTrackerType,
   type ProjectItem,
   type ProjectMemberItem,
 } from '@/api'
@@ -201,6 +283,7 @@ import {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
+const auth = useAuthStore()
 
 const projects = ref<ProjectItem[]>([])
 const members = ref<ProjectMemberItem[]>([])
@@ -218,6 +301,18 @@ const membersLoading = ref(false)
 const createOpen = ref(false)
 const detailOpen = ref(false)
 const saving = ref(false)
+const externalTrackers = ref<BugTrackerItem[]>([])
+const externalModalOpen = ref(false)
+const externalSaving = ref(false)
+const syncingExternalId = ref<number | null>(null)
+const externalMode = ref<'create' | 'link'>('create')
+const externalForm = reactive({
+  tracker_id: undefined as number | undefined,
+  external_key: '',
+  external_url: '',
+  external_title: '',
+  external_status: '',
+})
 const contextRunType = ref<DefectRunType | undefined>(validRunType(route.query.run_type))
 const contextRunId = ref<number | undefined>(positiveInt(route.query.run_id))
 
@@ -259,9 +354,22 @@ const resolvedCount = computed(() => defects.value.filter((item) => item.status 
 const evidenceCount = computed(() => defects.value.reduce((sum, item) => sum + item.run_links.length, 0))
 const occurrenceCount = computed(() => defects.value.reduce((sum, item) => sum + item.occurrence_count, 0))
 const canSubmitCreate = computed(() => Boolean(createForm.title.trim() && (contextRunId.value || projectId.value)))
+const canManageExternal = computed(() => ['admin', 'engineer'].includes(auth.user?.role || ''))
 const contextRunLabel = computed(() => contextRunType.value && contextRunId.value
   ? `${t(`defect.evidence.run_type.${contextRunType.value}`)} #${contextRunId.value}`
   : '')
+const externalTrackerOptions = computed(() => externalTrackers.value.map((item) => ({
+  label: `${item.name} · ${externalTrackerLabel(item.tracker_type)}${item.is_enabled ? '' : ` · ${t('defect.external.disabled')}`}`,
+  value: item.id,
+  disabled: externalMode.value === 'create' && !item.is_enabled,
+})))
+const hasEnabledExternalTracker = computed(() => externalTrackers.value.some((item) => item.is_enabled))
+const externalModalTitle = computed(() => externalMode.value === 'create'
+  ? t('defect.external.create_title')
+  : t('defect.external.link_title'))
+const canSubmitExternal = computed(() => Boolean(
+  externalForm.tracker_id && (externalMode.value === 'create' || externalForm.external_key.trim()),
+))
 
 function positiveInt(value: unknown) {
   const parsed = Number(Array.isArray(value) ? value[0] : value)
@@ -293,6 +401,22 @@ function statusColor(status: DefectStatus) {
   return ({ open: 'orange', in_progress: 'blue', resolved: 'green', reopened: 'purple', closed: 'default' } as Record<DefectStatus, string>)[status]
 }
 
+function externalTrackerLabel(type: BugTrackerType) {
+  return ({ jira: 'Jira', zentao: '禅道', github: 'GitHub Issues', gitlab: 'GitLab Issues' } as Record<BugTrackerType, string>)[type]
+}
+
+function externalTrackerColor(type: BugTrackerType) {
+  return ({ jira: 'blue', zentao: 'purple', github: 'default', gitlab: 'orange' } as Record<BugTrackerType, string>)[type]
+}
+
+function externalSyncLabel(state: DefectExternalLinkItem['sync_state']) {
+  return t(`defect.external.sync_state.${state}`)
+}
+
+function externalSyncColor(state: DefectExternalLinkItem['sync_state']) {
+  return ({ linked: 'processing', synced: 'success', error: 'error' } as Record<DefectExternalLinkItem['sync_state'], string>)[state]
+}
+
 async function loadProjects() {
   try {
     projects.value = await projectApi.list()
@@ -317,6 +441,15 @@ async function loadMembers(targetProjectId = projectId.value) {
   }
 }
 
+async function loadExternalTrackers(targetProjectId: number) {
+  try {
+    externalTrackers.value = await bugTrackerApi.list({ project_id: targetProjectId })
+  } catch {
+    externalTrackers.value = []
+    message.error(t('defect.external.tracker_load_failed'))
+  }
+}
+
 async function loadDefects() {
   loading.value = true
   try {
@@ -328,7 +461,7 @@ async function loadDefects() {
       page: page.value,
       page_size: pageSize,
     })
-    defects.value = result.items
+    defects.value = result.items.map((item) => ({ ...item, external_links: item.external_links || [] }))
     total.value = result.total
   } catch {
     message.error(t('defect.msg.load_failed'))
@@ -389,6 +522,100 @@ function closeCreate() {
   }
 }
 
+function resetExternalForm() {
+  externalForm.tracker_id = (externalMode.value === 'create'
+    ? externalTrackers.value.find((item) => item.is_enabled)
+    : externalTrackers.value[0])?.id
+  externalForm.external_key = ''
+  externalForm.external_url = ''
+  externalForm.external_title = ''
+  externalForm.external_status = ''
+}
+
+function openExternalModal(mode: 'create' | 'link') {
+  if (!selectedDefect.value || !externalTrackers.value.length) return
+  externalMode.value = mode
+  resetExternalForm()
+  externalModalOpen.value = true
+}
+
+function closeExternalModal() {
+  externalModalOpen.value = false
+}
+
+function updateSelectedExternalLink(link: DefectExternalLinkItem) {
+  if (!selectedDefect.value) return
+  const links = selectedDefect.value.external_links || []
+  selectedDefect.value = {
+    ...selectedDefect.value,
+    external_links: [...links.filter((item) => item.id !== link.id), link],
+  }
+  const index = defects.value.findIndex((item) => item.id === selectedDefect.value?.id)
+  if (index >= 0 && selectedDefect.value) defects.value[index] = selectedDefect.value
+}
+
+async function submitExternal() {
+  if (!selectedDefect.value || !canSubmitExternal.value || !externalForm.tracker_id) return
+  externalSaving.value = true
+  try {
+    const link = externalMode.value === 'create'
+      ? await defectApi.createExternal(selectedDefect.value.id, { tracker_id: externalForm.tracker_id })
+      : await defectApi.linkExternal(selectedDefect.value.id, {
+        tracker_id: externalForm.tracker_id,
+        external_key: externalForm.external_key.trim(),
+        external_url: externalForm.external_url.trim() || undefined,
+        external_title: externalForm.external_title.trim() || undefined,
+        external_status: externalForm.external_status.trim() || undefined,
+      })
+    updateSelectedExternalLink(link)
+    externalModalOpen.value = false
+    message.success(t('defect.external.save_success'))
+  } catch {
+    message.error(t('defect.external.save_failed'))
+  } finally {
+    externalSaving.value = false
+  }
+}
+
+async function syncExternalLink(link: DefectExternalLinkItem) {
+  if (!selectedDefect.value) return
+  syncingExternalId.value = link.id
+  try {
+    const result = await defectApi.syncExternal(selectedDefect.value.id, link.id, { apply_status: true })
+    updateSelectedExternalLink(result.link)
+    if (selectedDefect.value) {
+      selectedDefect.value = { ...selectedDefect.value, status: result.defect_status }
+      editForm.status = result.defect_status
+      const index = defects.value.findIndex((item) => item.id === selectedDefect.value?.id)
+      if (index >= 0) defects.value[index] = selectedDefect.value
+    }
+    message.success(t('defect.external.sync_success'))
+  } catch {
+    message.error(t('defect.external.sync_failed'))
+  } finally {
+    syncingExternalId.value = null
+  }
+}
+
+function unlinkExternalLink(link: DefectExternalLinkItem) {
+  if (!selectedDefect.value) return
+  Modal.confirm({
+    title: t('defect.external.unlink_confirm'),
+    onOk: async () => {
+      try {
+        await defectApi.unlinkExternal(selectedDefect.value!.id, link.id)
+        selectedDefect.value = {
+          ...selectedDefect.value!,
+          external_links: (selectedDefect.value!.external_links || []).filter((item) => item.id !== link.id),
+        }
+        message.success(t('defect.external.unlink_success'))
+      } catch {
+        message.error(t('defect.external.unlink_failed'))
+      }
+    },
+  })
+}
+
 async function submitCreate() {
   if (!canSubmitCreate.value) {
     message.warning(contextRunId.value ? t('defect.form.title') : t('defect.msg.select_project'))
@@ -428,13 +655,14 @@ async function submitCreate() {
 }
 
 function openDetail(item: DefectItem) {
-  selectedDefect.value = item
+  selectedDefect.value = { ...item, external_links: item.external_links || [] }
   editForm.status = item.status
   editForm.priority = item.priority
   editForm.severity = item.severity
   editForm.assignee_id = item.assignee_id ?? undefined
   detailOpen.value = true
   void loadMembers(item.project_id)
+  if (canManageExternal.value) void loadExternalTrackers(item.project_id)
 }
 
 async function submitUpdate() {
@@ -680,6 +908,17 @@ onMounted(async () => {
 .detail-section { margin-top: 24px; }
 .detail-section-title { margin-bottom: 9px; font-weight: 700; }
 .detail-description { white-space: pre-wrap; color: var(--defect-muted); line-height: 1.7; }
+.external-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.external-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.external-card { margin-bottom: 10px; padding: 12px 13px; border: 1px solid #dfe5f3; border-radius: 10px; background: linear-gradient(135deg, #fbfcff, #f7f9ff); }
+.external-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.external-card-head > div { display: flex; align-items: center; gap: 7px; min-width: 0; }
+.external-card-head strong { overflow: hidden; color: var(--defect-ink); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
+.external-link { display: block; margin-top: 8px; overflow: hidden; color: #315efb; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
+.external-card-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px; margin-top: 8px; color: var(--defect-muted); font-size: 11px; }
+.external-error { margin-top: 8px; color: #c41d7f; font-size: 11px; line-height: 1.5; }
+.external-card-actions { display: flex; justify-content: flex-end; gap: 6px; margin-top: 9px; }
+.external-form-hint { margin: 14px 0 0; color: var(--defect-muted); font-size: 12px; line-height: 1.6; }
 
 .evidence-card {
   margin-bottom: 10px;

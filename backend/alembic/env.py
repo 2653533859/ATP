@@ -14,6 +14,7 @@ from app.models.base import Base
 from app.models.user import User  # noqa
 from app.models.project import Project, Module  # noqa
 from app.models.case import TestCase, CaseStep, TestRun, StepResult, CaseSnapshot  # noqa
+from app.models.bug_tracker import BugTracker  # noqa
 from app.models.environment import Environment, EnvVariable  # noqa
 from app.models.suite import TestSuite, SuiteRun  # noqa
 from app.models.plan import TestPlan, PlanRun  # noqa
@@ -21,6 +22,7 @@ from app.models.notification import NotificationConfig  # noqa
 from app.models.ios import IosApp, IosDevice, IosDeviceLease  # noqa
 from app.models.dataset import TestDataset, TestDatasetVersion  # noqa
 from app.models.defect import Defect, DefectRunLink  # noqa
+from app.models.defect_external import DefectExternalLink  # noqa
 
 config = context.config
 if config.config_file_name is not None:

@@ -11,6 +11,7 @@ def load_all_models() -> None:
     from app.models.mock import MockRule
     from app.models.bug_tracker import BugTracker
     from app.models.defect import Defect, DefectRunLink
+    from app.models.defect_external import DefectExternalLink
     from app.models.audit import AuditLog
     from app.models.plan import TestPlan, PlanRun
     from app.models.mobile_special import (
@@ -55,6 +56,7 @@ def load_all_models() -> None:
         BugTracker,
         Defect,
         DefectRunLink,
+        DefectExternalLink,
         AuditLog,
         TestPlan,
         PlanRun,

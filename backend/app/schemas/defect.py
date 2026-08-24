@@ -3,11 +3,14 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.models.bug_tracker import TrackerType
+
 
 DefectStatus = Literal["open", "in_progress", "resolved", "reopened", "closed"]
 DefectPriority = Literal["P0", "P1", "P2", "P3"]
 DefectSeverity = Literal["blocker", "critical", "major", "minor", "trivial"]
 DefectRunType = Literal["case", "suite", "plan", "android", "performance"]
+ExternalSyncState = Literal["linked", "synced", "error"]
 
 
 class DefectRunLinkCreate(BaseModel):
@@ -71,6 +74,53 @@ class DefectRunLinkOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class DefectExternalLinkCreate(BaseModel):
+    tracker_id: int = Field(ge=1)
+    external_key: str = Field(min_length=1, max_length=128)
+    external_url: str | None = Field(default=None, max_length=1_024)
+    external_title: str | None = Field(default=None, max_length=512)
+    external_status: str | None = Field(default=None, max_length=128)
+
+    @field_validator("external_key")
+    @classmethod
+    def external_key_must_not_be_blank(cls, value: str) -> str:
+        value = value.strip()
+        if not value:
+            raise ValueError("外部 Issue 标识不能为空")
+        return value
+
+
+class DefectExternalCreate(BaseModel):
+    tracker_id: int = Field(ge=1)
+
+
+class DefectExternalSyncIn(BaseModel):
+    apply_status: bool = True
+
+
+class DefectExternalLinkOut(BaseModel):
+    id: int
+    defect_id: int
+    tracker_id: int
+    tracker_name: str
+    tracker_type: TrackerType
+    external_key: str
+    external_url: str | None = None
+    external_title: str | None = None
+    external_status: str | None = None
+    sync_state: ExternalSyncState
+    last_synced_at: datetime | None = None
+    last_error: str | None = None
+    created_by: int | None = None
+    created_at: datetime
+    updated_at: datetime
+
+
+class DefectExternalSyncOut(BaseModel):
+    link: DefectExternalLinkOut
+    defect_status: DefectStatus
+
+
 class DefectOut(BaseModel):
     id: int
     project_id: int
@@ -90,6 +140,7 @@ class DefectOut(BaseModel):
     created_at: datetime
     updated_at: datetime
     run_links: list[DefectRunLinkOut] = Field(default_factory=list)
+    external_links: list[DefectExternalLinkOut] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}
 

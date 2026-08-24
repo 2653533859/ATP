@@ -30,3 +30,7 @@ class BugTracker(Base, TimestampMixin):
     field_mapping: Mapped[dict] = mapped_column(JSON, default=dict)
 
     project: Mapped["Project"] = relationship(back_populates="bug_trackers")  # noqa: F821
+    external_links: Mapped[list["DefectExternalLink"]] = relationship(  # noqa: F821
+        back_populates="tracker",
+        cascade="all, delete-orphan",
+    )

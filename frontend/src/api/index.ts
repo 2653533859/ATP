@@ -782,6 +782,26 @@ export interface DefectRunLinkItem {
   created_at: string
 }
 
+export type DefectExternalSyncState = 'linked' | 'synced' | 'error'
+
+export interface DefectExternalLinkItem {
+  id: number
+  defect_id: number
+  tracker_id: number
+  tracker_name: string
+  tracker_type: BugTrackerType
+  external_key: string
+  external_url?: string | null
+  external_title?: string | null
+  external_status?: string | null
+  sync_state: DefectExternalSyncState
+  last_synced_at?: string | null
+  last_error?: string | null
+  created_by?: number | null
+  created_at: string
+  updated_at: string
+}
+
 export interface DefectItem {
   id: number
   project_id: number
@@ -801,6 +821,7 @@ export interface DefectItem {
   created_at: string
   updated_at: string
   run_links: DefectRunLinkItem[]
+  external_links: DefectExternalLinkItem[]
 }
 
 export interface DefectMutationResult {
@@ -1776,6 +1797,21 @@ export const defectApi = {
   linkRun: (id: number, data: { run_type: DefectRunType; run_id: number; case_id?: number | null }) =>
     http.post<unknown, DefectRunLinkItem>(`/defects/${id}/links`, data),
   unlinkRun: (id: number, linkId: number) => http.delete(`/defects/${id}/links/${linkId}`),
+  externalLinks: (id: number) => http.get<unknown, DefectExternalLinkItem[]>(`/defects/${id}/external-links`),
+  linkExternal: (id: number, data: {
+    tracker_id: number
+    external_key: string
+    external_url?: string
+    external_title?: string
+    external_status?: string
+  }) => http.post<unknown, DefectExternalLinkItem>(`/defects/${id}/external-links`, data),
+  createExternal: (id: number, data: { tracker_id: number }) =>
+    http.post<unknown, DefectExternalLinkItem>(`/defects/${id}/external-links/create`, data),
+  syncExternal: (id: number, linkId: number, data?: { apply_status?: boolean }) =>
+    http.post<unknown, { link: DefectExternalLinkItem; defect_status: DefectStatus }>(
+      `/defects/${id}/external-links/${linkId}/sync`, data ?? {},
+    ),
+  unlinkExternal: (id: number, linkId: number) => http.delete(`/defects/${id}/external-links/${linkId}`),
 }
 
 // ---- Mobile Special Testing ----

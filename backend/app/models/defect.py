@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import DateTime, ForeignKey, Index, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.models.base import Base, TimestampMixin
+
+if TYPE_CHECKING:
+    from app.models.defect_external import DefectExternalLink
 
 
 class Defect(Base, TimestampMixin):
@@ -39,6 +43,11 @@ class Defect(Base, TimestampMixin):
         back_populates="defect",
         cascade="all, delete-orphan",
         order_by="DefectRunLink.created_at",
+    )
+    external_links: Mapped[list["DefectExternalLink"]] = relationship(
+        back_populates="defect",
+        cascade="all, delete-orphan",
+        order_by="DefectExternalLink.created_at",
     )
 
 

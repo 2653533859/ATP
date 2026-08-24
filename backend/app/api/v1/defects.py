@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import logging
 import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -14,10 +15,12 @@ from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
-from app.api.deps import assert_project_access, get_current_user
+from app.api.deps import assert_project_access, get_current_user, require_engineer
 from app.core.database import get_db
+from app.models.bug_tracker import BugTracker
 from app.models.case import StepResult, TestCase, TestRun
 from app.models.defect import Defect, DefectRunLink
+from app.models.defect_external import DefectExternalLink
 from app.models.mobile_special import MobileIncident, MobileRunArtifact, MobileSpecialRun, MobileSpecialTask
 from app.models.performance import PerformanceRun, PerformanceTest
 from app.models.plan import PlanRun, TestPlan
@@ -28,6 +31,11 @@ from app.models.user_project import ProjectRole, UserProject
 from app.schemas.defect import (
     DefectCreate,
     DefectCreateFromRun,
+    DefectExternalCreate,
+    DefectExternalLinkCreate,
+    DefectExternalLinkOut,
+    DefectExternalSyncIn,
+    DefectExternalSyncOut,
     DefectListOut,
     DefectMutationOut,
     DefectOut,
@@ -36,9 +44,13 @@ from app.schemas.defect import (
     DefectUpdate,
 )
 from app.services.audit import write_audit_log
+from app.services.bug_reporter import create_bug, find_duplicate_bug, get_bug_status
+from app.services.defect_external import EXTERNAL_SYNC_ERROR, build_external_defect_description, map_external_status
+from app.core.encryption import decrypt_config
 from app.services.project_scope import scope_to_visible_projects
 
 router = APIRouter(tags=["缺陷管理"])
+logger = logging.getLogger(__name__)
 
 _RUN_TYPES = {"case", "suite", "plan", "android", "performance"}
 _FAILED_RUN_STATUSES = {"failed", "error", "cancelled", "stopped"}
@@ -92,6 +104,25 @@ def _safe_asset_ref(value: Any) -> str | None:
     return raw.split("?", 1)[0].split("#", 1)[0][:512]
 
 
+def _safe_external_url(value: Any, *, reject_invalid: bool = False) -> str | None:
+    if not value:
+        return None
+    raw = str(value).strip()
+    try:
+        parsed = urlsplit(raw)
+    except ValueError:
+        parsed = None
+    if parsed is None or parsed.scheme.lower() not in {"http", "https"} or not parsed.netloc:
+        if reject_invalid:
+            raise HTTPException(status_code=422, detail="外部 Issue 地址必须是 http 或 https URL")
+        return None
+    if parsed.username or parsed.password:
+        if reject_invalid:
+            raise HTTPException(status_code=422, detail="外部 Issue 地址不能包含账号或密码")
+        return None
+    return urlunsplit((parsed.scheme.lower(), parsed.netloc, parsed.path, "", ""))[:1_024]
+
+
 def _safe_json(value: Any, depth: int = 0) -> Any:
     """Copy small evidence summaries while redacting nested strings and limiting size."""
     if depth > 3:
@@ -130,6 +161,27 @@ def _serialize_link(link: DefectRunLink) -> DefectRunLinkOut:
     )
 
 
+def _serialize_external_link(link: DefectExternalLink) -> DefectExternalLinkOut:
+    tracker = link.tracker
+    return DefectExternalLinkOut(
+        id=link.id,
+        defect_id=link.defect_id,
+        tracker_id=link.tracker_id,
+        tracker_name=tracker.name,
+        tracker_type=tracker.tracker_type,
+        external_key=link.external_key,
+        external_url=link.external_url,
+        external_title=link.external_title,
+        external_status=link.external_status,
+        sync_state=link.sync_state,
+        last_synced_at=link.last_synced_at,
+        last_error=link.last_error,
+        created_by=link.created_by,
+        created_at=link.created_at,
+        updated_at=link.updated_at,
+    )
+
+
 def _serialize_defect(defect: Defect) -> DefectOut:
     return DefectOut(
         id=defect.id,
@@ -150,11 +202,19 @@ def _serialize_defect(defect: Defect) -> DefectOut:
         created_at=defect.created_at,
         updated_at=defect.updated_at,
         run_links=[_serialize_link(link) for link in (defect.run_links or [])],
+        external_links=[_serialize_external_link(link) for link in getattr(defect, "external_links", [])],
     )
 
 
 async def _get_defect(db: AsyncSession, defect_id: int, user: User, min_role: ProjectRole) -> Defect:
-    result = await db.execute(select(Defect).where(Defect.id == defect_id).options(selectinload(Defect.run_links)))
+    result = await db.execute(
+        select(Defect)
+        .where(Defect.id == defect_id)
+        .options(
+            selectinload(Defect.run_links),
+            selectinload(Defect.external_links).selectinload(DefectExternalLink.tracker),
+        )
+    )
     defect = result.scalar_one_or_none()
     if defect is None:
         raise HTTPException(status_code=404, detail="内部缺陷不存在")
@@ -404,9 +464,37 @@ async def _attach_link(
 
 
 async def _load_defect_after_write(db: AsyncSession, defect_id: int) -> Defect:
-    result = await db.execute(select(Defect).where(Defect.id == defect_id).options(selectinload(Defect.run_links)))
+    result = await db.execute(
+        select(Defect)
+        .where(Defect.id == defect_id)
+        .options(
+            selectinload(Defect.run_links),
+            selectinload(Defect.external_links).selectinload(DefectExternalLink.tracker),
+        )
+    )
     defect = result.scalar_one()
     return defect
+
+
+async def _get_tracker_for_defect(db: AsyncSession, defect: Defect, tracker_id: int) -> BugTracker:
+    tracker = await db.get(BugTracker, tracker_id)
+    if tracker is None:
+        raise HTTPException(status_code=404, detail="缺陷跟踪配置不存在")
+    if tracker.project_id != defect.project_id:
+        raise HTTPException(status_code=400, detail="缺陷跟踪配置不属于该项目")
+    return tracker
+
+
+async def _get_external_link(db: AsyncSession, defect_id: int, link_id: int) -> DefectExternalLink:
+    result = await db.execute(
+        select(DefectExternalLink)
+        .where(DefectExternalLink.id == link_id, DefectExternalLink.defect_id == defect_id)
+        .options(selectinload(DefectExternalLink.tracker))
+    )
+    link = result.scalar_one_or_none()
+    if link is None:
+        raise HTTPException(status_code=404, detail="外部 Issue 关联不存在")
+    return link
 
 
 @router.get("/defects", response_model=DefectListOut)
@@ -454,7 +542,10 @@ async def list_defects(
         query = query.where(Defect.severity == severity)
     total = int((await db.execute(select(func.count()).select_from(query.subquery()))).scalar_one() or 0)
     result = await db.execute(
-        query.options(selectinload(Defect.run_links))
+        query.options(
+            selectinload(Defect.run_links),
+            selectinload(Defect.external_links).selectinload(DefectExternalLink.tracker),
+        )
         .order_by(Defect.updated_at.desc(), Defect.id.desc())
         .offset((page - 1) * page_size)
         .limit(page_size)
@@ -700,5 +791,208 @@ async def unlink_defect_run(
         username=user.username,
         project_id=defect.project_id,
         detail=f"解除执行记录关联: {link.run_type}:{link.run_id}",
+    )
+    await db.commit()
+
+
+@router.get("/defects/{defect_id}/external-links", response_model=list[DefectExternalLinkOut])
+async def list_defect_external_links(
+    defect_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    defect = await _get_defect(db, defect_id, user, ProjectRole.viewer)
+    return [_serialize_external_link(link) for link in getattr(defect, "external_links", [])]
+
+
+@router.post(
+    "/defects/{defect_id}/external-links",
+    response_model=DefectExternalLinkOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def link_defect_external_issue(
+    defect_id: int,
+    body: DefectExternalLinkCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+):
+    defect = await _get_defect(db, defect_id, user, ProjectRole.editor)
+    tracker = await _get_tracker_for_defect(db, defect, body.tracker_id)
+    existing = await db.execute(
+        select(DefectExternalLink).where(
+            DefectExternalLink.defect_id == defect.id,
+            DefectExternalLink.tracker_id == tracker.id,
+            DefectExternalLink.external_key == body.external_key,
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=409, detail="该外部 Issue 已关联")
+
+    link = DefectExternalLink(
+        defect_id=defect.id,
+        tracker_id=tracker.id,
+        external_key=body.external_key,
+        external_url=_safe_external_url(body.external_url, reject_invalid=True),
+        external_title=_safe_text(body.external_title, 512),
+        external_status=_safe_text(body.external_status, 128),
+        sync_state="linked",
+        created_by=user.id,
+    )
+    db.add(link)
+    await write_audit_log(
+        db,
+        action="defect_external_link",
+        resource_type="defect",
+        resource_id=defect.id,
+        user_id=user.id,
+        username=user.username,
+        project_id=defect.project_id,
+        detail=f"关联外部 Issue: {tracker.tracker_type.value}:{body.external_key}",
+    )
+    await db.commit()
+    return _serialize_external_link(await _get_external_link(db, defect.id, link.id))
+
+
+@router.post(
+    "/defects/{defect_id}/external-links/create",
+    response_model=DefectExternalLinkOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_defect_external_issue(
+    defect_id: int,
+    body: DefectExternalCreate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+):
+    defect = await _get_defect(db, defect_id, user, ProjectRole.editor)
+    tracker = await _get_tracker_for_defect(db, defect, body.tracker_id)
+    if not tracker.is_enabled:
+        raise HTTPException(status_code=409, detail="该缺陷跟踪配置已禁用")
+
+    config = decrypt_config(tracker.config or {})
+    description = build_external_defect_description(defect)
+    try:
+        duplicate = await find_duplicate_bug(tracker.tracker_type.value, config, defect.title)
+        result = duplicate or await create_bug(
+            tracker_type=tracker.tracker_type.value,
+            config=config,
+            title=defect.title,
+            description=description,
+            field_mapping=tracker.field_mapping or {},
+        )
+    except Exception as exc:
+        logger.warning("External defect creation failed", exc_info=True)
+        raise HTTPException(status_code=502, detail="创建外部 Issue 失败，请检查集成配置和 Issue 权限") from exc
+
+    external_key = str(result.get("bug_id") or "").strip()
+    if not external_key:
+        raise HTTPException(status_code=502, detail="外部平台未返回有效 Issue 标识")
+    existing = await db.execute(
+        select(DefectExternalLink).where(
+            DefectExternalLink.defect_id == defect.id,
+            DefectExternalLink.tracker_id == tracker.id,
+            DefectExternalLink.external_key == external_key,
+        )
+    )
+    if existing.scalar_one_or_none() is not None:
+        raise HTTPException(status_code=409, detail="该外部 Issue 已关联")
+
+    link = DefectExternalLink(
+        defect_id=defect.id,
+        tracker_id=tracker.id,
+        external_key=external_key,
+        external_url=_safe_external_url(result.get("bug_url")),
+        external_title=_safe_text(result.get("title") or defect.title, 512),
+        sync_state="linked",
+        created_by=user.id,
+    )
+    db.add(link)
+    await write_audit_log(
+        db,
+        action="defect_external_create",
+        resource_type="defect",
+        resource_id=defect.id,
+        user_id=user.id,
+        username=user.username,
+        project_id=defect.project_id,
+        detail=f"创建外部 Issue: {tracker.tracker_type.value}:{external_key}",
+    )
+    await db.commit()
+    return _serialize_external_link(await _get_external_link(db, defect.id, link.id))
+
+
+@router.post(
+    "/defects/{defect_id}/external-links/{link_id}/sync",
+    response_model=DefectExternalSyncOut,
+)
+async def sync_defect_external_issue(
+    defect_id: int,
+    link_id: int,
+    body: DefectExternalSyncIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+):
+    defect = await _get_defect(db, defect_id, user, ProjectRole.editor)
+    link = await _get_external_link(db, defect.id, link_id)
+    tracker = link.tracker
+    if not tracker.is_enabled:
+        raise HTTPException(status_code=409, detail="该缺陷跟踪配置已禁用")
+
+    try:
+        result = await get_bug_status(
+            tracker_type=tracker.tracker_type.value,
+            config=decrypt_config(tracker.config or {}),
+            bug_id=link.external_key,
+        )
+    except Exception as exc:
+        logger.warning("External defect status sync failed", exc_info=True)
+        link.sync_state = "error"
+        link.last_error = EXTERNAL_SYNC_ERROR
+        await db.commit()
+        raise HTTPException(status_code=502, detail=EXTERNAL_SYNC_ERROR) from exc
+
+    external_status = str(result.get("status") or "unknown")[:128]
+    link.external_status = external_status
+    link.external_url = _safe_external_url(result.get("bug_url")) or link.external_url
+    link.sync_state = "synced"
+    link.last_error = None
+    link.last_synced_at = datetime.now(timezone.utc)
+    if body.apply_status:
+        mapped_status = map_external_status(external_status)
+        if mapped_status:
+            defect.status = mapped_status
+    await write_audit_log(
+        db,
+        action="defect_external_sync",
+        resource_type="defect",
+        resource_id=defect.id,
+        user_id=user.id,
+        username=user.username,
+        project_id=defect.project_id,
+        detail=f"同步外部 Issue 状态: {tracker.tracker_type.value}:{link.external_key} -> {external_status}",
+    )
+    await db.commit()
+    return DefectExternalSyncOut(link=_serialize_external_link(link), defect_status=defect.status)
+
+
+@router.delete("/defects/{defect_id}/external-links/{link_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def unlink_defect_external_issue(
+    defect_id: int,
+    link_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+):
+    defect = await _get_defect(db, defect_id, user, ProjectRole.editor)
+    link = await _get_external_link(db, defect.id, link_id)
+    await db.delete(link)
+    await write_audit_log(
+        db,
+        action="defect_external_unlink",
+        resource_type="defect",
+        resource_id=defect.id,
+        user_id=user.id,
+        username=user.username,
+        project_id=defect.project_id,
+        detail=f"解除外部 Issue 关联: {link.tracker.tracker_type.value}:{link.external_key}",
     )
     await db.commit()
