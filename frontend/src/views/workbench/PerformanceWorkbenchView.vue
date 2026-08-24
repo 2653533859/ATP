@@ -73,6 +73,27 @@
         </div>
       </section>
 
+      <section class="trend-panel panel">
+        <div class="panel-head">
+          <div>
+            <div class="panel-kicker">05 / {{ t('performance.trend_title') }}</div>
+            <h2>{{ t('performance.trend_title') }}</h2>
+            <p class="panel-description">{{ t('performance.trend_average_hint') }}</p>
+          </div>
+          <a-select
+            v-model:value="trendDays"
+            size="small"
+            :options="trendWindowOptions"
+            :loading="trendLoading"
+            :aria-label="t('performance.trend_window')"
+            @change="loadTrend"
+          />
+        </div>
+        <a-spin v-if="trendLoading" :tip="t('performance.trend_loading')" />
+        <a-empty v-else-if="!trendHasData" :description="t('performance.trend_empty')" />
+        <v-chart v-else class="trend-chart" :option="trendOption" :theme="chartTheme" autoresize />
+      </section>
+
       <section class="runway" aria-label="Performance execution flow">
         <div class="runway-step active"><b>01</b><span>{{ t('performance_workbench.flow.define') }}</span><small>{{ t('performance_workbench.flow.define_hint') }}</small></div>
         <span class="runway-line" />
@@ -351,6 +372,7 @@ import {
   type PerformanceNodeItem,
   type PerformanceRunItem,
   type PerformanceTestItem,
+  type PerformanceTrendItem,
   type ProjectItem,
 } from '@/api'
 import { useChartTheme } from '@/utils/chartTheme'
@@ -395,6 +417,9 @@ const launchOptionsText = ref('{}')
 const metricSamples = ref<PerformanceMetricSampleItem[]>([])
 const metricSource = ref('performance-worker')
 const resourceMetric = ref('cpu_percent')
+const trend = ref<PerformanceTrendItem | null>(null)
+const trendDays = ref(30)
+const trendLoading = ref(false)
 const gate = ref<{ status: string; passed: number; total: number } | null>(null)
 const baselineComparison = ref<PerformanceBaselineComparisonItem | null>(null)
 const quickForm = ref({
@@ -405,6 +430,7 @@ const quickForm = ref({
 })
 let loadSequence = 0
 let evidenceSequence = 0
+let trendSequence = 0
 let pollTimer: ReturnType<typeof window.setInterval> | null = null
 
 const selectedTest = computed(() => tests.value.find((item) => item.id === selectedTestId.value) || null)
@@ -435,6 +461,13 @@ const recentRuns = computed(() => [...runs.value].sort((a, b) => b.created_at.lo
 const metricSamplesForSource = computed(() => metricSamples.value.filter((item) => item.source === metricSource.value))
 const metricSourceOptions = computed(() => [...new Set(metricSamples.value.map((item) => item.source).filter(Boolean))].map((source) => ({ label: metricSourceLabel(source), value: source })))
 const resourceMetricOptions = computed(() => [...new Set(metricSamplesForSource.value.flatMap((item) => Object.keys(item.metrics)))].map((key) => ({ label: metricLabel(key), value: key })))
+const trendWindowOptions = computed(() => [
+  { label: t('performance.trend_window_7'), value: 7 },
+  { label: t('performance.trend_window_30'), value: 30 },
+  { label: t('performance.trend_window_90'), value: 90 },
+])
+const trendPoints = computed(() => trend.value?.points || [])
+const trendHasData = computed(() => (trend.value?.run_count || 0) > 0)
 const gateStatus = computed(() => gate.value?.status || 'pending')
 const gateLabel = computed(() => {
   if (!gate.value || gate.value.status === 'pending') return t('performance_workbench.gate_loading')
@@ -447,6 +480,22 @@ const resourceTimelineOption = computed<EChartsOption>(() => ({
   xAxis: { type: 'category', data: metricSamplesForSource.value.map((item) => formatDate(item.captured_at)) },
   yAxis: { type: 'value', name: metricLabel(resourceMetric.value) },
   series: [{ name: metricLabel(resourceMetric.value), type: 'line', smooth: true, showSymbol: false, data: metricSamplesForSource.value.map((item) => item.metrics[resourceMetric.value] ?? null) }],
+}))
+const trendOption = computed<EChartsOption>(() => ({
+  tooltip: { trigger: 'axis' },
+  legend: { top: 0, data: [t('performance.rps'), t('performance.p95'), t('performance.p99'), t('performance.error_rate')] },
+  grid: { top: 42, right: 18, bottom: 32, left: 48 },
+  xAxis: { type: 'category', data: trendPoints.value.map((point) => point.date) },
+  yAxis: [
+    { type: 'value', name: t('performance.latency_axis') },
+    { type: 'value', name: t('performance.error_axis'), min: 0, max: 100 },
+  ],
+  series: [
+    { name: t('performance.rps'), type: 'line', smooth: true, data: trendPoints.value.map((point) => numericMetric(point.avg_rps)) },
+    { name: t('performance.p95'), type: 'line', smooth: true, data: trendPoints.value.map((point) => numericMetric(point.avg_p95_ms)) },
+    { name: t('performance.p99'), type: 'line', smooth: true, data: trendPoints.value.map((point) => numericMetric(point.avg_p99_ms)) },
+    { name: t('performance.error_rate'), type: 'line', smooth: true, yAxisIndex: 1, data: trendPoints.value.map((point) => percentValue(point.avg_error_rate)) },
+  ],
 }))
 
 function positiveInt(value: unknown): number | null {
@@ -481,6 +530,8 @@ function isActive(status: string) { return ['pending', 'running', 'cancelling'].
 function runStatusLabel(status: string) { return t(`performance.status.${status}`, status) }
 function displayMetric(value: unknown, suffix = '') { return typeof value === 'number' ? `${value.toFixed(Math.abs(value) >= 100 ? 0 : 2)}${suffix}` : '—' }
 function displayPercent(value: unknown) { return typeof value === 'number' ? `${(value * 100).toFixed(2)}%` : '—' }
+function numericMetric(value: unknown) { return typeof value === 'number' && Number.isFinite(value) ? value : null }
+function percentValue(value: unknown) { return typeof value === 'number' && Number.isFinite(value) ? value * 100 : null }
 function formatBaselineDelta(value: unknown) { return typeof value === 'number' ? `${value > 0 ? '+' : ''}${value.toFixed(2)}%` : '—' }
 function testName(id: number) { return tests.value.find((item) => item.id === id)?.name || `#${id}` }
 function isExecutorReady(name: string) { return executors.value.find((item) => item.name === name)?.ready === true }
@@ -511,6 +562,9 @@ function clearProjectData() {
   selectedTestId.value = null
   selectedRunId.value = null
   metricSamples.value = []
+  trendSequence += 1
+  trend.value = null
+  trendLoading.value = false
   gate.value = null
   baselineComparison.value = null
   evidenceLoading.value = false
@@ -558,12 +612,35 @@ async function loadProjectData() {
     if (!selectedRunId.value || !runs.value.some((item) => item.id === selectedRunId.value)) selectedRunId.value = recentRuns.value[0]?.id ?? null
     syncLaunchFromTest()
     syncPolling()
+    void loadTrend()
     if (selectedRunId.value) await loadEvidence(selectedRunId.value)
     else clearEvidence()
   } catch (error: unknown) {
     if (sequence === loadSequence) loadError.value = errorMessage(error, t('performance_workbench.load_failed'))
   } finally {
     if (sequence === loadSequence) loading.value = false
+  }
+}
+
+async function loadTrend() {
+  const projectId = selectedProjectId.value
+  const sequence = ++trendSequence
+  if (!projectId) {
+    trend.value = null
+    trendLoading.value = false
+    return
+  }
+  trendLoading.value = true
+  try {
+    const result = await performanceApi.getTrend(projectId, trendDays.value)
+    if (sequence !== trendSequence || selectedProjectId.value !== projectId) return
+    trend.value = result
+  } catch (error: unknown) {
+    if (sequence !== trendSequence || selectedProjectId.value !== projectId) return
+    trend.value = null
+    loadError.value = errorMessage(error, t('performance_workbench.load_warning'))
+  } finally {
+    if (sequence === trendSequence) trendLoading.value = false
   }
 }
 
@@ -808,6 +885,9 @@ onBeforeUnmount(stopPolling)
 
 <style scoped>
 .performance-workbench { --perf-ink: #20282f; --perf-muted: #74818a; --perf-line: #d9e0e3; --perf-paper: #f3f6f5; --perf-panel: #fff; --perf-blue: #4a91d9; --perf-amber: #d69a3a; --perf-teal: #43aa9c; --perf-red: #dc6b5d; color: var(--perf-ink); }
+.trend-panel { margin-bottom: 14px; padding: 18px 20px; }
+.trend-panel .panel-description { margin-bottom: 0; }
+.trend-chart { width: 100%; height: 240px; margin-top: 10px; }
 .perf-hero { display: flex; justify-content: space-between; gap: 28px; padding: 30px 32px 26px; overflow: hidden; border: 1px solid #202a31; border-radius: 15px; background: radial-gradient(circle at 86% 20%, rgba(74, 145, 217, .24), transparent 23%), linear-gradient(122deg, #182329, #253844 68%, #344c58); color: #f9fbfb; box-shadow: 0 18px 38px rgba(30, 43, 50, .15); }
 .hero-copy { min-width: 0; }.eyebrow, .panel-kicker { color: #7fc4be; font-size: 10px; font-weight: 800; letter-spacing: .14em; text-transform: uppercase; }.eyebrow { display: flex; align-items: center; gap: 7px; }.hero-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 8px 0 7px; }.perf-hero h1 { margin: 0; color: #fff; font-size: 31px; letter-spacing: -.05em; }.hero-chip { padding: 4px 8px; border: 1px solid rgba(124, 196, 190, .42); border-radius: 4px; color: #b8e2de; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; letter-spacing: .04em; }.perf-hero p { max-width: 720px; margin: 0; color: #c9d6dc; line-height: 1.7; }.hero-rail { display: flex; align-items: center; gap: 9px; margin-top: 21px; color: #e4eef1; font-size: 12px; font-weight: 650; }.live-dot { display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: var(--perf-teal); box-shadow: 0 0 0 4px rgba(67, 170, 156, .14); }.live-dot.muted { background: var(--perf-amber); box-shadow: 0 0 0 4px rgba(214, 154, 58, .14); }.rail-separator { width: 28px; height: 1px; background: rgba(231, 242, 245, .28); }.rail-muted { color: #aebdc4; font-weight: 500; }.hero-controls { width: 250px; flex: 0 0 250px; }.hero-controls label { display: block; margin-bottom: 7px; color: #bdcbd1; font-size: 11px; font-weight: 700; }.hero-controls :deep(.ant-select-selector) { border-color: #657781 !important; background: rgba(255, 255, 255, .08) !important; color: #fff !important; }.hero-controls :deep(.ant-select-selection-placeholder), .hero-controls :deep(.ant-select-selection-item) { color: #fff !important; }.hero-control-row { display: flex; align-items: center; justify-content: space-between; margin-top: 13px; }.hero-control-row .ant-btn { color: #cedce1; }.readonly-alert, .load-alert { margin-top: 14px; }.signal-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 14px 0; }.signal-card { min-height: 106px; padding: 17px 18px; border: 1px solid var(--perf-line); border-radius: 10px; background: var(--perf-panel); box-shadow: 0 7px 18px rgba(31, 48, 58, .045); }.signal-card-primary { border-top: 3px solid var(--perf-teal); }.signal-card-blue { border-top: 3px solid var(--perf-blue); }.signal-card-amber { border-top: 3px solid var(--perf-amber); }.signal-card-run { border-top: 3px solid var(--perf-red); }.signal-label { display: block; color: var(--perf-muted); font-size: 11px; font-weight: 750; letter-spacing: .08em; text-transform: uppercase; }.signal-card strong { display: block; margin-top: 8px; font-size: 28px; letter-spacing: -.05em; }.signal-card strong small { margin-left: 4px; color: var(--perf-muted); font-size: 14px; letter-spacing: 0; }.signal-note { display: block; margin-top: 5px; color: #99a4aa; font-size: 11px; }.runway { display: flex; align-items: center; gap: 10px; margin: 14px 0; padding: 13px 17px; border: 1px solid #cbd8dc; border-radius: 9px; background: #edf4f5; }.runway-step { display: grid; grid-template-columns: 25px auto; grid-template-rows: auto auto; column-gap: 7px; min-width: 0; color: #9ba5a8; }.runway-step b { grid-row: 1 / span 2; color: #aab5b9; font-family: ui-monospace, monospace; font-size: 11px; }.runway-step span { font-size: 11px; font-weight: 800; }.runway-step small { margin-top: 2px; font-size: 9px; white-space: nowrap; }.runway-step.active { color: var(--perf-ink); }.runway-step.active b { color: var(--perf-blue); }.runway-line { flex: 1; min-width: 12px; height: 1px; background: #b8c8ce; }.control-grid { display: grid; grid-template-columns: 255px minmax(0, 1fr) 275px; gap: 14px; align-items: start; }.panel { min-width: 0; border: 1px solid var(--perf-line); border-radius: 12px; background: var(--perf-panel); box-shadow: 0 8px 20px rgba(31, 48, 58, .045); }.scenario-panel, .observe-panel, .context-panel { padding: 18px; }.launch-panel, .evidence-panel { padding: 20px; }.panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }.panel h2 { margin: 5px 0 7px; font-size: 18px; letter-spacing: -.035em; }.panel-description { margin: 0 0 14px; color: var(--perf-muted); font-size: 11px; line-height: 1.65; }.scenario-list { display: grid; gap: 5px; max-height: 350px; overflow-y: auto; }.scenario-row { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px 8px; border: 1px solid transparent; border-radius: 7px; background: #f7f9f8; color: var(--perf-ink); cursor: pointer; text-align: left; transition: border-color .16s ease, background .16s ease, transform .16s ease; }.scenario-row:hover, .scenario-row:focus-visible { border-color: #9dc9e8; background: #f3f8fd; transform: translateX(2px); }.scenario-row.selected { border-color: #6fa9db; background: #edf5fc; }.scenario-mark { flex: 0 0 auto; width: 6px; height: 30px; border-radius: 2px; background: var(--perf-blue); }.scenario-mark.executor-locust { background: var(--perf-teal); }.scenario-mark.executor-grpc { background: var(--perf-amber); }.scenario-mark.executor-jmeter { background: #9a7bc4; }.scenario-row-main { min-width: 0; flex: 1; }.scenario-row-main strong, .scenario-row-main small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.scenario-row-main strong { font-size: 12px; }.scenario-row-main small { margin-top: 3px; color: var(--perf-muted); font-family: ui-monospace, monospace; font-size: 9px; }.scenario-row-meta { display: flex; align-items: flex-end; flex-direction: column; gap: 3px; color: var(--perf-muted); font-size: 9px; white-space: nowrap; }.panel-footer-actions { margin-top: 13px; padding-top: 10px; border-top: 1px solid #edf0f1; }.launch-head h2 { font-size: 22px; }.launch-head p { max-width: 540px; margin: 0; color: var(--perf-muted); font-size: 11px; }.launch-badge { display: flex; align-items: center; gap: 7px; padding: 7px 9px; border: 1px solid #d9e5e9; border-radius: 5px; background: #f4f8f9; color: #53666f; font-family: ui-monospace, monospace; font-size: 10px; text-transform: uppercase; }.signal-line { display: inline-block; width: 18px; height: 2px; background: var(--perf-blue); box-shadow: 5px 4px 0 var(--perf-amber), 10px -4px 0 var(--perf-teal); }.selection-card { margin: 17px 0 15px; padding: 12px; border: 1px solid #c7dce8; border-radius: 8px; background: #f4f9fc; }.selection-title { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }.selection-kicker { display: block; color: var(--perf-blue); font-size: 9px; font-weight: 800; letter-spacing: .1em; text-transform: uppercase; }.selection-title strong { display: block; margin-top: 3px; font-size: 14px; }.selection-meta { display: flex; flex-wrap: wrap; gap: 6px 14px; margin-top: 10px; color: var(--perf-muted); font-size: 10px; }.launch-form { margin-top: 13px; }.launch-form.disabled { opacity: .7; }.launch-form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }.launch-form label { display: block; margin: 10px 0 6px; color: #51636c; font-size: 11px; font-weight: 750; }.launch-form small { display: block; margin-top: 5px; color: #99a4aa; font-size: 10px; line-height: 1.4; }.launch-actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 14px; }.launch-note { display: flex; align-items: center; gap: 6px; margin: 12px 0 0; color: var(--perf-muted); font-size: 10px; }.observe-live { display: inline-flex; align-items: center; gap: 5px; color: #9aa6aa; font-size: 10px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }.observe-live i { width: 7px; height: 7px; border-radius: 50%; background: #b7c0c3; }.observe-live.on { color: #3a8d81; }.observe-live.on i { background: var(--perf-teal); box-shadow: 0 0 0 4px rgba(67, 170, 156, .12); }.run-list { display: grid; gap: 3px; margin-top: 10px; }.run-row { display: flex; align-items: center; gap: 8px; width: 100%; padding: 8px 0; border: 0; border-bottom: 1px solid #edf0f1; background: transparent; color: var(--perf-ink); cursor: pointer; text-align: left; }.run-row:hover, .run-row:focus-visible { color: var(--perf-blue); }.run-row.selected { color: var(--perf-blue); }.run-status-dot { flex: 0 0 auto; width: 7px; height: 7px; border-radius: 50%; background: #bcc6c9; }.run-status-dot.status-success { background: var(--perf-teal); }.run-status-dot.status-failed { background: var(--perf-red); }.run-status-dot.status-running, .run-status-dot.status-pending, .run-status-dot.status-cancelling { background: var(--perf-amber); }.run-row-main { min-width: 0; flex: 1; }.run-row-main strong, .run-row-main small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.run-row-main strong { font-size: 10px; }.run-row-main small { margin-top: 2px; color: var(--perf-muted); font-size: 9px; }.run-progress-label { color: var(--perf-muted); font-family: ui-monospace, monospace; font-size: 9px; }.evidence-grid { display: grid; grid-template-columns: minmax(0, 1fr) 275px; gap: 14px; margin-top: 14px; }.evidence-status-row { display: grid; grid-template-columns: 1fr 1.1fr auto; gap: 9px; align-items: stretch; margin: 15px 0 12px; }.run-state-card, .gate-card { display: flex; flex-direction: column; justify-content: center; min-height: 60px; padding: 9px 11px; border: 1px solid #dae2e5; border-radius: 7px; background: #f8faf9; }.run-state-card { flex-direction: row; align-items: center; gap: 7px; flex-wrap: wrap; }.run-state-card strong { font-size: 12px; }.run-state-card small, .gate-card small { width: 100%; color: var(--perf-muted); font-size: 9px; }.state-success { border-color: #b8dfd7; background: #f1fbf8; }.state-failed { border-color: #ebc0bb; background: #fff5f3; }.gate-passed { border-color: #b8dfd7; background: #f1fbf8; }.gate-failed { border-color: #ebc0bb; background: #fff5f3; }.gate-card span { color: var(--perf-muted); font-size: 9px; }.gate-card strong { display: block; margin-top: 3px; font-size: 12px; }.evidence-actions { display: flex; flex-direction: column; justify-content: center; gap: 5px; }.metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }.metric-grid div { padding: 11px; border-left: 2px solid #bcd4e5; background: #f8faf9; }.metric-grid span, .metric-grid strong, .metric-grid small { display: block; }.metric-grid span { color: var(--perf-muted); font-size: 9px; }.metric-grid strong { margin: 5px 0 3px; font-family: ui-monospace, monospace; font-size: 18px; letter-spacing: -.04em; }.metric-grid small { color: #9aa6aa; font-size: 9px; }.run-error { margin-top: 10px; }.resource-head { display: flex; justify-content: space-between; align-items: flex-end; gap: 10px; margin-top: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--perf-line); }.resource-chart { width: 100%; height: 230px; margin-top: 10px; }.evidence-foot { display: flex; justify-content: space-between; align-items: center; margin-top: 8px; color: var(--perf-muted); font-size: 10px; }.context-panel h2 { margin: 5px 0 15px; }.context-block { display: grid; gap: 7px; }.context-block-head { display: flex; align-items: center; justify-content: space-between; color: var(--perf-muted); font-size: 10px; }.context-block > strong { font-size: 15px; }.context-block > small { color: var(--perf-muted); font-size: 10px; line-height: 1.5; }.context-block .ant-btn { justify-self: start; padding-left: 0; }.context-divider { height: 1px; margin: 17px 0; background: var(--perf-line); }.count-pill { padding: 3px 6px; border-radius: 3px; background: #edf4f2; color: #438a80; font-size: 9px; font-weight: 800; }.baseline-list { display: grid; gap: 5px; margin-top: 10px; }.baseline-row { display: flex; justify-content: space-between; padding: 6px 8px; border-radius: 4px; background: #fafbfa; font-family: ui-monospace, monospace; font-size: 10px; }.direction-regression { color: var(--perf-red); }.direction-improvement { color: var(--perf-teal); }.mini-node-list { display: grid; gap: 8px; }.mini-node-row { display: flex; align-items: flex-start; gap: 7px; }.mini-node-row > span:last-child { min-width: 0; }.mini-node-row strong, .mini-node-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }.mini-node-row strong { font-size: 10px; }.mini-node-row small { margin-top: 2px; color: var(--perf-muted); font-size: 9px; }.node-dot { flex: 0 0 auto; width: 7px; height: 7px; margin-top: 3px; border-radius: 50%; background: #bdc6c9; }.node-online { background: var(--perf-teal); box-shadow: 0 0 0 3px rgba(67, 170, 156, .12); }.node-offline { background: var(--perf-red); }.node-draining { background: var(--perf-amber); }.compact-context > strong { font-size: 12px; }.mono { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; }
 .quick-create-title { font-weight: 700; }

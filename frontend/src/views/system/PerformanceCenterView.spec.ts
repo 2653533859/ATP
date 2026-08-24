@@ -11,6 +11,7 @@ const {
   executorList,
   testList,
   runList,
+  trend,
   triggerRun,
   testCreate,
   nodeList,
@@ -27,6 +28,7 @@ const {
   executorList: vi.fn(),
   testList: vi.fn(),
   runList: vi.fn(),
+  trend: vi.fn(),
   triggerRun: vi.fn(),
   testCreate: vi.fn(),
   nodeList: vi.fn(),
@@ -47,6 +49,7 @@ vi.mock('@/api', () => ({
     listNodes: nodeList,
     listTests: testList,
     listRuns: runList,
+    getTrend: trend,
     triggerRun,
     createTest: testCreate,
     createNode: nodeCreate,
@@ -114,6 +117,24 @@ describe('PerformanceCenterView', () => {
     ])
     testList.mockResolvedValue([])
     runList.mockResolvedValue([])
+    trend.mockResolvedValue({
+      project_id: 1,
+      days: 30,
+      from_at: '2026-07-26T00:00:00Z',
+      to_at: '2026-08-24T12:00:00Z',
+      run_count: 0,
+      success_count: 0,
+      failed_count: 0,
+      cancelled_count: 0,
+      active_count: 0,
+      other_count: 0,
+      avg_rps: null,
+      avg_p95_ms: null,
+      avg_p99_ms: null,
+      avg_error_rate: null,
+      max_p95_ms: null,
+      points: [],
+    })
     triggerRun.mockResolvedValue({ id: 10 })
     testCreate.mockResolvedValue({ id: 2 })
     nodeList.mockResolvedValue([])
@@ -149,6 +170,62 @@ describe('PerformanceCenterView', () => {
     expect(testList).toHaveBeenCalledWith(2)
     expect(runList).toHaveBeenCalledWith(2)
     window.history.replaceState({}, '', '/')
+    wrapper.unmount()
+  })
+
+  it('loads a bounded server-side trend instead of deriving it from the run list', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(trend).toHaveBeenCalledWith(1, 30)
+    const vm = wrapper.vm as any
+    vm.trendDays = 7
+    await vm.loadTrend()
+
+    expect(trend).toHaveBeenLastCalledWith(1, 7)
+    wrapper.unmount()
+  })
+
+  it('ignores a stale trend response after the project changes', async () => {
+    let resolveFirst: ((value: unknown) => void) | undefined
+    let resolveSecond: ((value: unknown) => void) | undefined
+    const payload = (projectId: number) => ({
+      project_id: projectId,
+      days: 30,
+      from_at: '',
+      to_at: '',
+      run_count: 0,
+      success_count: 0,
+      failed_count: 0,
+      cancelled_count: 0,
+      active_count: 0,
+      other_count: 0,
+      avg_rps: null,
+      avg_p95_ms: null,
+      avg_p99_ms: null,
+      avg_error_rate: null,
+      max_p95_ms: null,
+      points: [],
+    })
+    trend.mockReset()
+    trend
+      .mockReturnValueOnce(new Promise((resolve) => { resolveFirst = resolve }))
+      .mockReturnValueOnce(new Promise((resolve) => { resolveSecond = resolve }))
+
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    expect(trend).toHaveBeenCalledWith(1, 30)
+
+    vm.projectId = 2
+    const latestLoad = vm.loadTrend()
+    resolveFirst?.(payload(1))
+    await flushPromises()
+    expect(vm.trend).toBeNull()
+
+    resolveSecond?.(payload(2))
+    await latestLoad
+    expect(vm.trend.project_id).toBe(2)
     wrapper.unmount()
   })
 

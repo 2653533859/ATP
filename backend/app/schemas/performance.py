@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from datetime import timezone
 import re
 from typing import Literal
@@ -151,6 +151,40 @@ class PerformanceMetricSampleOut(BaseModel):
     errors: list[str]
 
     model_config = {"from_attributes": True}
+
+
+class PerformanceTrendPointOut(BaseModel):
+    date: date
+    run_count: int
+    success_count: int
+    failed_count: int
+    cancelled_count: int
+    active_count: int
+    other_count: int
+    avg_rps: float | None
+    avg_p95_ms: float | None
+    avg_p99_ms: float | None
+    avg_error_rate: float | None
+    max_p95_ms: float | None
+
+
+class PerformanceTrendOut(BaseModel):
+    project_id: int
+    days: int
+    from_at: datetime
+    to_at: datetime
+    run_count: int
+    success_count: int
+    failed_count: int
+    cancelled_count: int
+    active_count: int
+    other_count: int
+    avg_rps: float | None
+    avg_p95_ms: float | None
+    avg_p99_ms: float | None
+    avg_error_rate: float | None
+    max_p95_ms: float | None
+    points: list[PerformanceTrendPointOut]
 
 
 class PerformanceRunOut(BaseModel):

@@ -50,6 +50,7 @@ from app.schemas.performance import (
     PerformanceBaselineUpdate,
     PerformanceRunOut,
     PerformanceRunTrigger,
+    PerformanceTrendOut,
     PerformanceScheduleUpdate,
     PerformanceTestCreate,
 )
@@ -1209,6 +1210,32 @@ def test_list_performance_runs_is_scoped_and_capped():
 
     assert result == [run]
     assert "LIMIT" in str(db.statements[0]).upper(), "列表必须封顶，避免一次拉回全部历史"
+
+
+def test_performance_trend_is_project_scoped_and_returns_daily_points():
+    now = datetime.now(timezone.utc)
+    run = PerformanceRun(
+        id=12,
+        performance_test_id=3,
+        project_id=2,
+        status=PerformanceRunStatus.success.value,
+        options_snapshot={},
+        summary={"rps": 12, "p95_ms": 80, "error_rate": 0.0},
+        created_at=now,
+        updated_at=now,
+    )
+    db = _QueryDB([run])
+
+    result = asyncio.run(performance.get_performance_trend(project_id=2, days=7, db=db, user=_User()))
+
+    assert result["project_id"] == 2
+    assert result["days"] == 7
+    assert len(result["points"]) == 7
+    assert result["run_count"] == 1
+    assert result["points"][-1]["success_count"] == 1
+    assert "performance_runs" in str(db.statements[0])
+    assert "created_at" in str(db.statements[0])
+    assert PerformanceTrendOut.model_validate(result).points[-1].success_count == 1
 
 
 def test_get_performance_run_returns_the_run():

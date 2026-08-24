@@ -2659,6 +2659,40 @@ export interface PerformanceMetricSampleItem {
   errors: string[]
 }
 
+export interface PerformanceTrendPointItem {
+  date: string
+  run_count: number
+  success_count: number
+  failed_count: number
+  cancelled_count: number
+  active_count: number
+  other_count: number
+  avg_rps: number | null
+  avg_p95_ms: number | null
+  avg_p99_ms: number | null
+  avg_error_rate: number | null
+  max_p95_ms: number | null
+}
+
+export interface PerformanceTrendItem {
+  project_id: number
+  days: number
+  from_at: string
+  to_at: string
+  run_count: number
+  success_count: number
+  failed_count: number
+  cancelled_count: number
+  active_count: number
+  other_count: number
+  avg_rps: number | null
+  avg_p95_ms: number | null
+  avg_p99_ms: number | null
+  avg_error_rate: number | null
+  max_p95_ms: number | null
+  points: PerformanceTrendPointItem[]
+}
+
 export type PerformanceNodeStatus = 'online' | 'offline' | 'disabled' | 'draining'
 
 export interface PerformanceNodeItem {
@@ -2783,6 +2817,10 @@ export const performanceApi = {
     http.post<unknown, PerformanceRunItem>(`/performance/tests/${id}/run`, body ?? {}),
   listRuns: (projectId: number) =>
     http.get<unknown, PerformanceRunItem[]>('/performance/runs', { params: { project_id: projectId } }),
+  getTrend: (projectId: number, days = 30, performanceTestId?: number) =>
+    http.get<unknown, PerformanceTrendItem>(`/projects/${projectId}/performance/trend`, {
+      params: { days, performance_test_id: performanceTestId },
+    }),
   analyzeCapacity: (projectId: number, body: { run_ids: number[]; max_error_rate?: number; max_p95_ms?: number | null; min_stable_runs?: number }) =>
     http.post<unknown, PerformanceCapacityAnalysis>(`/projects/${projectId}/performance/capacity/analyze`, body),
   getRun: (id: number) => http.get<unknown, PerformanceRunItem>(`/performance/runs/${id}`),

@@ -14,6 +14,7 @@ const {
   projectList,
   routerReplace,
   runList,
+  trend,
   testCreate,
   testList,
   triggerRun,
@@ -27,6 +28,7 @@ const {
   projectList: vi.fn(),
   routerReplace: vi.fn(),
   runList: vi.fn(),
+  trend: vi.fn(),
   testCreate: vi.fn(),
   testList: vi.fn(),
   triggerRun: vi.fn(),
@@ -66,6 +68,7 @@ vi.mock('@/api', () => ({
   performanceApi: {
     listTests: testList,
     listRuns: runList,
+    getTrend: trend,
     listNodes: nodeList,
     listExecutors: executorList,
     getGate: gate,
@@ -82,7 +85,7 @@ const passthrough = defineComponent({
 })
 
 const globalStubs = Object.fromEntries([
-  'AAlert', 'AButton', 'ADrawer', 'AEmpty', 'AForm', 'AFormItem', 'AInput', 'ASelect',
+  'AAlert', 'AButton', 'ADrawer', 'AEmpty', 'AForm', 'AFormItem', 'AInput', 'ASelect', 'ASpin',
   'ASpace', 'ATag', 'ATextarea',
 ].map((name) => [name, passthrough]))
 
@@ -126,6 +129,28 @@ beforeEach(() => {
   projectList.mockResolvedValue([{ id: 1, name: '核心项目', owner_id: 1, current_user_role: 'owner' }])
   testList.mockResolvedValue([testItem])
   runList.mockResolvedValue([runItem])
+  trend.mockResolvedValue({
+    project_id: 1,
+    days: 30,
+    from_at: '2026-07-26T00:00:00Z',
+    to_at: '2026-08-24T10:00:00Z',
+    run_count: 1,
+    success_count: 1,
+    failed_count: 0,
+    cancelled_count: 0,
+    active_count: 0,
+    other_count: 0,
+    avg_rps: 42.5,
+    avg_p95_ms: 180,
+    avg_p99_ms: 260,
+    avg_error_rate: 0.01,
+    max_p95_ms: 180,
+    points: [{
+      date: '2026-08-24', run_count: 1, success_count: 1, failed_count: 0, cancelled_count: 0,
+      active_count: 0, other_count: 0, avg_rps: 42.5, avg_p95_ms: 180, avg_p99_ms: 260,
+      avg_error_rate: 0.01, max_p95_ms: 180,
+    }],
+  })
   environmentList.mockResolvedValue([{ id: 8, name: '测试环境', project_id: 1 }])
   nodeList.mockResolvedValue([{
     id: 3,
@@ -158,6 +183,7 @@ describe('PerformanceWorkbenchView', () => {
     const vm = wrapper.vm as any
     expect(testList).toHaveBeenCalledWith(1)
     expect(runList).toHaveBeenCalledWith(1)
+    expect(trend).toHaveBeenCalledWith(1, 30)
     expect(nodeList).toHaveBeenCalled()
     expect(vm.tests).toHaveLength(1)
     expect(vm.selectedTestId).toBe(101)
@@ -200,6 +226,7 @@ describe('PerformanceWorkbenchView', () => {
     expect(vm.runs).toHaveLength(0)
     expect(vm.nodes).toHaveLength(0)
     expect(vm.selectedRunId).toBeNull()
+    expect(vm.trendLoading).toBe(false)
     wrapper.unmount()
   })
 

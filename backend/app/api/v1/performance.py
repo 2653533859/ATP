@@ -8,14 +8,14 @@ import json
 import math
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from urllib.parse import urlparse
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.exc import IntegrityError
 
@@ -36,6 +36,7 @@ from app.schemas.performance import (
     PerformanceGateOut,
     PerformanceRunOut,
     PerformanceMetricSampleOut,
+    PerformanceTrendOut,
     PerformanceRunTrigger,
     PerformanceRunRawResultOut,
     PerformanceScriptUploadOut,
@@ -81,6 +82,7 @@ from app.services.performance_executor import (
 )
 from app.services.performance_sharding import PerformanceShardingError, split_performance_options
 from app.services.performance_capacity import analyze_capacity_runs
+from app.services.performance_trend import build_performance_trend
 from app.services.performance_ramp import PerformanceRampError, expand_auto_ramp
 from app.services.performance_metric_boundary import PerformanceMetricBoundaryError, build_metric_boundary
 from app.worker.tasks_performance import run_performance_test
@@ -1001,6 +1003,39 @@ async def list_performance_runs(
         .limit(100)
     )
     return result.scalars().all()
+
+
+@router.get("/projects/{project_id}/performance/trend", response_model=PerformanceTrendOut)
+async def get_performance_trend(
+    project_id: int,
+    days: int = Query(default=30, ge=1, le=365),
+    performance_test_id: int | None = Query(default=None, ge=1),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Return a bounded daily trend without exposing runs from other projects."""
+
+    await assert_project_access(db, user, project_id, ProjectRole.viewer)
+    now = datetime.now(timezone.utc)
+    start_at = datetime.combine(
+        (now - timedelta(days=days - 1)).date(),
+        datetime.min.time(),
+        tzinfo=timezone.utc,
+    )
+    conditions = [
+        PerformanceRun.project_id == project_id,
+        or_(
+            PerformanceRun.created_at >= start_at,
+            PerformanceRun.started_at >= start_at,
+            PerformanceRun.finished_at >= start_at,
+        ),
+    ]
+    if performance_test_id is not None:
+        conditions.append(PerformanceRun.performance_test_id == performance_test_id)
+    result = await db.execute(
+        select(PerformanceRun).where(*conditions).order_by(PerformanceRun.created_at.asc(), PerformanceRun.id.asc())
+    )
+    return build_performance_trend(result.scalars().all(), project_id=project_id, days=days, now=now)
 
 
 @router.get("/performance/runs/{run_id}", response_model=PerformanceRunOut)

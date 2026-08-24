@@ -137,8 +137,21 @@
 
     <div class="insight-grid">
       <div class="insight-panel">
-        <div class="section-title">{{ t('performance.trend_title') }}</div>
-        <v-chart class="trend-chart" :option="trendOption" :theme="chartTheme" autoresize />
+        <div class="insight-heading">
+          <div class="section-title">{{ t('performance.trend_title') }}</div>
+          <a-select
+            v-model:value="trendDays"
+            size="small"
+            :options="trendWindowOptions"
+            :loading="trendLoading"
+            :aria-label="t('performance.trend_window')"
+            @change="loadTrend"
+          />
+        </div>
+        <a-spin v-if="trendLoading" :tip="t('performance.trend_loading')" />
+        <a-empty v-else-if="!trendHasData" :description="t('performance.trend_empty')" />
+        <v-chart v-else class="trend-chart" :option="trendOption" :theme="chartTheme" autoresize />
+        <div v-if="trend" class="trend-hint">{{ t('performance.trend_average_hint') }}</div>
       </div>
       <div class="insight-panel">
         <div class="section-title">{{ t('performance.compare_title') }}</div>
@@ -873,6 +886,7 @@ import {
   type PerformanceExecutorItem,
   type PerformanceRunItem,
   type PerformanceTestItem,
+  type PerformanceTrendItem,
   type ProjectItem,
 } from '@/api'
 import KvEditor from '@/components/common/KvEditor.vue'
@@ -912,6 +926,9 @@ const nodes = ref<PerformanceNodeItem[]>([])
 const executors = ref<PerformanceExecutorItem[]>([])
 const tests = ref<PerformanceTestItem[]>([])
 const runs = ref<PerformanceRunItem[]>([])
+const trend = ref<PerformanceTrendItem | null>(null)
+const trendDays = ref(30)
+const trendLoading = ref(false)
 const loading = ref(false)
 const runsLoading = ref(false)
 const nodesLoading = ref(false)
@@ -941,6 +958,7 @@ const scheduleTarget = ref<PerformanceTestItem | null>(null)
 const selectedRunIds = ref<number[]>([])
 const capacityForm = ref({ max_error_rate_percent: 1, max_p95_ms: undefined as number | undefined, min_stable_runs: 1 })
 let runPollingTimer: ReturnType<typeof window.setInterval> | null = null
+let trendSequence = 0
 
 type PerformanceNodeForm = {
   node_id: string
@@ -1016,6 +1034,12 @@ const loadTemplateOptions = computed(() => [
   { label: t('performance.template_stress'), value: 'stress' },
   { label: t('performance.template_spike'), value: 'spike' },
   { label: t('performance.template_soak'), value: 'soak' },
+])
+
+const trendWindowOptions = computed(() => [
+  { label: t('performance.trend_window_7'), value: 7 },
+  { label: t('performance.trend_window_30'), value: 30 },
+  { label: t('performance.trend_window_90'), value: 90 },
 ])
 
 const methodOptions = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'].map((value) => ({ label: value, value }))
@@ -1194,10 +1218,11 @@ const resourceTimelineOption = computed<EChartsOption>(() => {
   }
 })
 
-const trendRuns = computed(() => [...runs.value].reverse().filter((run) => run.status === 'success'))
+const trendPoints = computed(() => trend.value?.points || [])
+const trendHasData = computed(() => (trend.value?.run_count || 0) > 0)
 
 const trendOption = computed<EChartsOption>(() => {
-  const labels = trendRuns.value.map((run) => formatDateLabel(run.created_at))
+  const labels = trendPoints.value.map((point) => point.date)
   return {
     tooltip: { trigger: 'axis' },
     legend: { top: 0, data: [t('performance.rps'), t('performance.p95'), t('performance.p99'), t('performance.error_rate')] },
@@ -1208,15 +1233,15 @@ const trendOption = computed<EChartsOption>(() => {
       { type: 'value', name: t('performance.error_axis'), min: 0, max: 100 },
     ],
     series: [
-      { name: t('performance.rps'), type: 'line', smooth: true, data: trendRuns.value.map((run) => numericMetric(run.summary.rps)) },
-      { name: t('performance.p95'), type: 'line', smooth: true, data: trendRuns.value.map((run) => numericMetric(run.summary.p95_ms)) },
-      { name: t('performance.p99'), type: 'line', smooth: true, data: trendRuns.value.map((run) => numericMetric(run.summary.p99_ms)) },
+      { name: t('performance.rps'), type: 'line', smooth: true, data: trendPoints.value.map((point) => numericMetric(point.avg_rps)) },
+      { name: t('performance.p95'), type: 'line', smooth: true, data: trendPoints.value.map((point) => numericMetric(point.avg_p95_ms)) },
+      { name: t('performance.p99'), type: 'line', smooth: true, data: trendPoints.value.map((point) => numericMetric(point.avg_p99_ms)) },
       {
         name: t('performance.error_rate'),
         type: 'line',
         smooth: true,
         yAxisIndex: 1,
-        data: trendRuns.value.map((run) => percentValue(run.summary.error_rate)),
+        data: trendPoints.value.map((point) => percentValue(point.avg_error_rate)),
       },
     ],
   }
@@ -1268,7 +1293,7 @@ async function handleProjectChange() {
 }
 
 async function refreshAll() {
-  await Promise.all([loadTests(), loadRuns(), loadEnvironments(), loadDatasets(), loadNodes(), loadExecutors()])
+  await Promise.all([loadTests(), loadRuns(), loadTrend(), loadEnvironments(), loadDatasets(), loadNodes(), loadExecutors()])
 }
 
 async function loadExecutors() {
@@ -1312,6 +1337,28 @@ async function loadRuns(options: { silent?: boolean } = {}) {
   } finally {
     if (!options.silent) runsLoading.value = false
     syncRunPolling()
+  }
+}
+
+async function loadTrend() {
+  const currentProjectId = projectId.value
+  const sequence = ++trendSequence
+  if (!currentProjectId) {
+    trend.value = null
+    trendLoading.value = false
+    return
+  }
+  trendLoading.value = true
+  try {
+    const result = await performanceApi.getTrend(currentProjectId, trendDays.value)
+    if (sequence !== trendSequence || projectId.value !== currentProjectId) return
+    trend.value = result
+  } catch (error) {
+    if (sequence !== trendSequence || projectId.value !== currentProjectId) return
+    trend.value = null
+    message.error(getErrorMessage(error, t('performance.msg.load_trend_failed')))
+  } finally {
+    if (sequence === trendSequence) trendLoading.value = false
   }
 }
 
@@ -2422,6 +2469,23 @@ onBeforeUnmount(stopRunPolling)
   margin: 24px 0 12px;
   font-size: 16px;
   font-weight: 600;
+}
+
+.insight-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.insight-heading .section-title {
+  margin-bottom: 12px;
+}
+
+.trend-hint {
+  margin-top: 8px;
+  color: #8c8c8c;
+  font-size: 11px;
 }
 
 .insight-grid {

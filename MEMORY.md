@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 P1-E.1 性能长期趋势本地交付已完成：新增项目级 `GET /api/v1/projects/{project_id}/performance/trend`，支持 1～365 天固定 UTC 日窗口、空日期补齐、项目 viewer 权限、性能场景筛选、完成/开始/创建时间归档、分片父运行去重和摘要指标聚合；`/system/performance` 与 `/performance-workbench` 均支持近 7/30/90 天切换。审查发现并修复项目清空时趋势请求被丢弃后 `trendLoading` 残留，新增回归断言。后端趋势/容量/API 定向 `79 passed`，完整非集成后端 `2220 passed`；前端定向 `15 passed`、全量 `66 files / 265 tests passed`，type-check/build、Ruff、格式检查和 diff-check 通过。真实多节点容量、节点资源限制、长周期报告留存和阈值回归仍未完成，不能用本地 mock 历史替代。
+
 - 2026-08-24 已将参考导航同步为可执行开发计划：主计划为 `docs/product-navigation-roadmap-2026-08-24.md` 的“导航对齐执行版计划”，`Task.md` 维护勾选状态。计划按工作台、测试能力（API/APP/UI/性能/AI）、测试资产、智能中枢、系统和质量发布六阶段跟踪；每个模块必须执行实现 → 定向/全量测试 → 代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 推送。当前本地工作台和业务模块大多已完成，真实验收仍受 Android ADB `offline`、通知供应商/外部缺陷平台凭据和真实性能多节点环境限制；这些状态不能改记为完成。
 
 - 2026-08-24 P0-B Android Worker 设备状态诊断已完成代码交付：`windows-android-worker.ps1 doctor` 新增 ADB 状态计数，排除 `List of devices attached` 标题，区分 online/unauthorized/offline/other，并对 RSA 授权、USB 重连和 TCP ADB 可达性给出不同提示。当前真实结果为 `online=0, unauthorized=0, offline=1, other=0`；Worker 仍运行且 PostgreSQL/Redis/MinIO 可达，但没有设备执行证据。Windows 脚本契约 `11 passed`、PowerShell AST 解析、doctor 和 `git diff --check` 通过；代码审查发现并修复了标题行被误计为 other 的问题。P0-B 仍标记为“已实现，待真实环境验收”，设备恢复 `device` 后再继续扫描、预约、截图、APK 包名和 Android 用例/专项任务验证。
