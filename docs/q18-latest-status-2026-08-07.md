@@ -1,5 +1,11 @@
 # Q18 最新开发状态与前后实现对比
 
+## 2026-08-24 N6.10 q19 性能节点与真实短压验收
+
+- q19 性能预检通过：Backend healthy，k6/Locust/gRPC/JMeter ready；节点 `worker-a` online，队列 `performance.worker-a`，节点能力与四类执行器一致。
+- 临时项目执行 1 VU、5 次迭代的真实 k6 smoke，目标为 q19 内部 `http-target`，运行状态 `success`，产生 1 条 `performance-worker` 采样；Prometheus readiness 和三个 ATP target（Backend、通用 Worker、性能 Worker）均通过。
+- 临时项目、测试、运行和脚本对象已清理；脱敏证据见 [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)。Android Worker 当前只有心跳，设备仍 offline；下一步恢复 Android 真机后再做单设备运行。
+
 ## 2026-08-24 N6.9 Firefox/WebKit 与跨 API 副本录制验收
 
 - Linux `WEB_RECORDER_MODE=worker` 下 WebKit 已改为无头启动，避免 Xvfb 中 headed WebKit 挂起；Windows/local 与 Firefox 仍保持 headed 行为，新增回归断言覆盖该边界。

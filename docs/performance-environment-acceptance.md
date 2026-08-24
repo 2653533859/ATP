@@ -1,6 +1,6 @@
 # 性能 Worker 环境验收 Runbook
 
-> 2026-08-24 N6.8：q19 独立 `web-recorder` 已完成 Chromium Trace/HAR/Console/网络日志/运行报告链路；首次部署和重启后均通过 Worker 注册、录制、快照、PNG 截图、停止、证据 URL 与停止后查询。证据见 [`q19-web-recording-evidence-2026-08-24.json`](evidence/q19-web-recording-evidence-2026-08-24.json) 和 [`q19-web-recording-evidence-restart-2026-08-24.json`](evidence/q19-web-recording-evidence-restart-2026-08-24.json)。Firefox/WebKit、跨 API 副本、Android、真实性能节点和外部通知/缺陷平台仍需单独验收。
+> 2026-08-24 N6.10：q19 性能预检和一次真实短压已通过：`worker-a` online，k6/Locust/gRPC/JMeter ready，1 VU/5 次迭代 k6 运行成功并产生 `performance-worker` 采样；Prometheus ready，Backend/通用 Worker/性能 Worker targets 均为 up。脱敏证据见 [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)。Android Worker 当前仅心跳在线、设备 offline，通知和外部通知/缺陷平台仍需单独验收。
 
 ## 2026-08-17 当前代码隔离栈验收
 

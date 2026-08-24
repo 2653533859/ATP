@@ -1,0 +1,31 @@
+{
+  "generated_at": "2026-08-24T14:50:00+00:00",
+  "environment": "q19 / 172.31.27.133",
+  "source_commit": "41ff87a",
+  "status": "passed",
+  "preflight": {
+    "api_health": "ok",
+    "executors": ["grpc", "jmeter", "k6", "locust"],
+    "node_id": "worker-a",
+    "node_status": "online",
+    "queue": "performance.worker-a",
+    "node_executors": ["grpc", "jmeter", "k6", "locust"]
+  },
+  "real_run": {
+    "executor": "k6",
+    "target": "http-target",
+    "status": "success",
+    "metrics_count": 1,
+    "metric_sources": ["performance-worker"],
+    "iterations_requested": 5,
+    "max_vus": 1,
+    "temporary_project_id": 12,
+    "temporary_test_id": 2,
+    "temporary_run_id": 1
+  },
+  "prometheus": {
+    "ready": true,
+    "up_jobs": ["atp-backend", "atp-worker", "atp-performance-worker"]
+  },
+  "cleanup": "Temporary project, performance test/run and one performance script object were removed; no temporary fixture remains"
+}

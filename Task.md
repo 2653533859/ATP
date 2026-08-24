@@ -2,7 +2,7 @@
 
 ## 2026-08-24 产品导航与能力扩展路线（持续跟踪）
 
-开发计划和单模块交付规则已记录在 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md)，本节只维护阶段状态；导航已按参考方案固定为五组，N0 导航壳、N1 工作台与任务中心、N2.1/N2.2/N2.3/N2.4/N2.5、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心本地实现、审查和回归已完成，均待真实环境验收；N6.3/N6.4/N6.5/N6.6/N6.7/N6.8/N6.9 已补充远端依赖、完整 Windows API/Web readiness、q19 真实迁移、持久通用 Web Worker、独立录制 Worker、Chromium/Firefox/WebKit 证据链和跨 API 副本一致性，Android、真实性能节点、通知和外部平台仍待独立验收。
+开发计划和单模块交付规则已记录在 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md)，本节只维护阶段状态；导航已按参考方案固定为五组，N0 导航壳、N1 工作台与任务中心、N2.1/N2.2/N2.3/N2.4/N2.5、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心本地实现、审查和回归已完成，均待真实环境验收；N6.3/N6.4/N6.5/N6.6/N6.7/N6.8/N6.9/N6.10 已补充远端依赖、完整 Windows API/Web readiness、q19 真实迁移、持久通用 Web Worker、独立录制 Worker、Chromium/Firefox/WebKit 证据链、跨 API 副本一致性和真实性能节点执行，Android、通知和外部平台仍待独立验收。
 
 - [x] 完成现状盘点：确认现有导航与图片目标存在结构差异，已有能力主要分散在测试设计、测试资产、执行中心、Android 专项和平台配置菜单。
 - [x] 建立目标导航：工作台、测试能力、测试资产、智能中枢、系统。
@@ -13,7 +13,7 @@
 - [E] N3.1 API 测试工作台：接口协议筛选、模块目录、导入/AI 生成、详情、环境选择执行和运行结果入口已完成；复用现有接口执行器与 API，待真实数据/权限/执行环境验收。
 - [E] N3.2 APP 自动化工作台：设备池、Worker 状态、设备预约/心跳/释放、截图预览、Android 用例与专项任务执行、APK 选择、最近运行和兼容性概览已完成；待 Windows Worker/ADB、真实设备和报告链路验收。
 - [E] N3.3 UI 自动化工作台：项目/模块工作区、Web 用例目录与详情、Playwright 录制创建、元素库/页面对象/视觉基线快捷入口、基线采集、运行观察和 Trace 状态已完成；q19 通用 Web 低代码执行 Worker 与独立 Playwright 录制 Worker 已完成持久部署，Chromium/Firefox/WebKit 录制、截图、停止、Trace/HAR/Console/网络日志和运行报告链路已验证，跨 API 副本可读取共享 Redis 停止快照。
-- [E] N3.4 性能测试工作台：性能场景、环境/节点发起、实时运行队列、吞吐/延迟/错误率、资源采样时间线、门禁、基线和报告导出已完成；待真实性能 Worker、节点容量、Prometheus 采样和多执行器验收。
+- [E] N3.4 性能测试工作台：性能场景、环境/节点发起、实时运行队列、吞吐/延迟/错误率、资源采样时间线、门禁、基线和报告导出已完成；q19 已验证专用性能 Worker、四类执行器、Prometheus 采样和一次真实 k6 运行，节点容量、多节点和长期报告趋势仍待补充。
 - [E] N3 测试能力工作台：API、APP、UI 和性能统一配置/执行/观察入口已完成本地实现和审查；待真实 Worker、节点、协议服务、浏览器和性能环境验收。
 - [E] N4 智能中枢：N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪和 N4.4 知识中枢已完成本地实现、审查和回归，全部待真实环境验收。
 - [E] N4.1 AI 智能测试工作台：统一项目模型门禁、AI 用例/数据集/Mock 生成入口、自动化覆盖缺口、失败热点、诊断入口和自愈反馈；待真实模型、权限和调用审计验收。
@@ -22,9 +22,9 @@
 - [E] N4.4 知识中枢：新增带项目边界的知识条目、来源/状态筛选、统一搜索结果、来源引用、项目权限、全局发布可见性和敏感信息脱敏；聚合需求、缺陷和失败运行作为只读知识来源，待真实数据、权限和生产迁移验收。
 - [E] N5.1 远程工具箱：基础设施、Android/ADB、Web Worker 和性能节点统一诊断，支持脱敏 JSON 导出与处理入口；待真实环境验收。
 - [E] N5.2 配置中心：N5.2.1～N5.2.6（只读聚合、版本快照与审计、差异与影响提示、单资源回滚、前端统一工作台、质量收口）已完成本地实现、审查和回归；待真实环境验收。
-- [~] N6 质量收口：回归、E2E、迁移、文档、外部环境证据和发布检查；N6.1/N6.2 已完成本地回归与文档收口，N6.3/N6.4 已完成远端依赖恢复和完整 Windows API/Web readiness，N6.5 已完成 q19 `0059 -> 0065` 真实迁移和项目删除回归，N6.6 已完成持久通用 Web Worker 的队列隔离、低代码执行和重启恢复，N6.7 已完成独立 Web 录制 Worker 的 q19 持久部署、Chromium 录制、截图、停止和重启恢复，N6.8 已完成 Chromium 证据链，N6.9 已完成 Firefox/WebKit 录制与跨 API 副本停止快照读取；Android Worker/真机、真实性能节点、通知和外部平台证据仍待补齐。
+- [~] N6 质量收口：回归、E2E、迁移、文档、外部环境证据和发布检查；N6.1/N6.2 已完成本地回归与文档收口，N6.3/N6.4 已完成远端依赖恢复和完整 Windows API/Web readiness，N6.5 已完成 q19 `0059 -> 0065` 真实迁移和项目删除回归，N6.6 已完成持久通用 Web Worker 的队列隔离、低代码执行和重启恢复，N6.7 已完成独立 Web 录制 Worker 的 q19 持久部署、Chromium 录制、截图、停止和重启恢复，N6.8 已完成 Chromium 证据链，N6.9 已完成 Firefox/WebKit 录制与跨 API 副本停止快照读取，N6.10 已完成 q19 性能节点、Prometheus 和真实 k6 短压证据；Android Worker/真机、通知和外部平台证据仍待补齐。
 
-当前推荐下一步：优先完成 Android Worker/真机单设备证据，再验收真实性能节点、通知渠道和外部缺陷平台。N5.2 已统一聚合启动配置、环境、全局变量、AI、存储、通知和性能配置，N6.1～N6.9 已完成本地回归、代码审查、文档和 Windows/q19 API/Web 环境证据；每个子模块完成后先审查和修复，再同步文档并提交推送。
+当前推荐下一步：恢复并完成 Android Worker/真机单设备证据，再验收通知渠道和外部缺陷平台；性能节点已完成一轮真实短压，但多节点/容量/长期趋势仍可继续增强。N5.2 已统一聚合启动配置、环境、全局变量、AI、存储、通知和性能配置，N6.1～N6.10 已完成本地回归、代码审查、文档和 Windows/q19 API/Web/性能环境证据；每个子模块完成后先审查和修复，再同步文档并提交推送。
 
 ### 2026-08-24 N6.4 Windows 完整 API/Web 验收与项目删除级联修复计划
 
@@ -85,6 +85,13 @@
 - [x] q19 使用 `41ff87a` 重建后，Firefox 录制、2 步快照、PNG 截图 `19076` bytes、停止、3 类证据 URL 和停止后查询通过；WebKit 同链路通过，截图 `21192` bytes，Linux Worker 走无头启动路径。证据见 [`q19-web-recording-firefox-2026-08-24.json`](docs/evidence/q19-web-recording-firefox-2026-08-24.json) 和 [`q19-web-recording-webkit-2026-08-24.json`](docs/evidence/q19-web-recording-webkit-2026-08-24.json)。
 - [x] 启动临时第二 API 副本：副本 A 停止录制后，副本 B 通过共享 Redis 查询同一会话并返回 `status=stopped`；证据见 [`q19-web-recording-cross-api-2026-08-24.json`](docs/evidence/q19-web-recording-cross-api-2026-08-24.json)。临时项目、18 个录制对象和第二副本均已清理。
 - [ ] Android Worker/真机、真实性能节点、通知和外部缺陷平台仍待独立环境验收。
+
+### 2026-08-24 N6.10 q19 性能节点与真实短压验收
+
+- [x] 性能预检通过：Backend `/health` 正常，k6、Locust、gRPC、JMeter 均 ready；专用节点 `worker-a` online，队列为 `performance.worker-a`，节点能力与四类执行器一致。
+- [x] 真实低并发 k6 smoke 通过：临时项目执行 1 VU、5 次迭代，目标为 q19 内部 `http-target`，运行状态为 `success`，产生 1 条 `performance-worker` 资源采样。
+- [x] Prometheus `/-/ready` 通过，`atp-backend`、`atp-worker`、`atp-performance-worker` 三个 target 均为 `up`；临时项目、测试、运行和脚本对象已清理。脱敏证据见 [`q19-performance-worker-smoke-2026-08-24.json`](docs/evidence/q19-performance-worker-smoke-2026-08-24.json)。
+- [ ] Android Worker/真机、通知和外部缺陷平台仍待独立环境验收；当前 Android Worker 虽已注册心跳，但 ADB 设备处于 offline，未创建 Android 运行任务。
 
 ### 2026-08-24 N5.2 配置中心开发计划（文档跟踪）
 

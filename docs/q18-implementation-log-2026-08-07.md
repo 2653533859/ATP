@@ -1,5 +1,12 @@
 # Q18 实施记录
 
+## 2026-08-24 N6.10 q19 性能节点与真实短压验收
+
+- [x] 性能预检通过：Backend `/health`、k6/Locust/gRPC/JMeter、`worker-a` online 和 `performance.worker-a` 队列均正常。
+- [x] 临时项目执行 1 VU、5 次迭代的 k6 真实短压，目标为 q19 `http-target`，运行状态 `success`，产生 1 条 `performance-worker` 采样；Prometheus ready，三个 ATP targets 均为 `up`。
+- [x] 临时项目、测试、运行和脚本对象已清理；证据见 [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)。
+- [ ] Android Worker/真机、通知和外部缺陷平台仍待独立环境证据；当前 Android 设备为 offline，未创建 Android 运行任务。
+
 ## 2026-08-24 N6.9 Firefox/WebKit 与跨 API 副本录制验收
 
 - [x] Linux Worker 模式的 WebKit headed 启动挂起已修复为无头启动；Windows/local 与 Firefox 的 headed 行为保持不变，并补充启动参数回归。
