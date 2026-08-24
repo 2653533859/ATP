@@ -1,6 +1,6 @@
 # 产品导航与能力扩展开发计划（2026-08-24）
 
-> 状态：导航信息架构已按参考导航完成基线设计；N0 导航壳、N1 工作台与任务中心、N2.1/N2.2 内部缺陷与失败证据闭环、N2.3 报告中心、N2.4 用例评审工作台、N2.5 外部缺陷兼容、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心已完成本地实现、审查和回归，均待真实环境验收；N6.1/N6.2 文档与浏览器回归、N6.3/N6.4 Windows API/Web readiness、N6.5 q19 真实迁移与临时 Web Worker 低代码验收已形成证据，持久 Web Worker、完整 Android/Worker、性能、通知和外部平台验收仍待补齐。
+> 状态：导航信息架构已按参考导航完成基线设计；N0 导航壳、N1 工作台与任务中心、N2.1/N2.2 内部缺陷与失败证据闭环、N2.3 报告中心、N2.4 用例评审工作台、N2.5 外部缺陷兼容、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心已完成本地实现、审查和回归，均待真实环境验收；N6.1/N6.2 文档与浏览器回归、N6.3/N6.4 Windows API/Web readiness、N6.5 q19 真实迁移与临时 Web Worker 低代码验收、N6.6 q19 持久通用 Web Worker 验收已形成证据，独立录制 Worker、完整 Android/Worker、性能、通知和外部平台验收仍待补齐。
 > 目标：将现有 ATP 平台从“按已实现页面分组”调整为参考导航中的“工作台、测试能力、测试资产、智能中枢、系统”五层产品导航，并按模块逐步补齐统一入口与业务闭环。
 
 > 使用方式：本文件是本轮导航重构的主计划。每个模块完成后必须依次完成“实现 → 测试 → 代码审查 → 修复 → 文档/记忆同步 → 提交推送”，并在下方实施记录和 `Task.md` 中更新同一状态。未完成联调的功能只能标记为“已实现，待环境验收”。
@@ -129,7 +129,7 @@ N5.2 验收口径：管理员/工程师能够从统一入口定位可见配置�
 - [E] N6.1 已为配置中心新增管理员回退链、普通角色路由拦截和版本差异浏览器回归；其余新增路由、权限、聚合 API、迁移和关键交互继续按模块补齐回归。
 - [E] N6.2 已同步能力矩阵、用户操作手册、导航说明、Task、MEMORY 和 Q18 实施日志；真实环境验收证据仍需按发布环境补齐。
 - [E] N6.1 已完成前端 Vitest、type-check、生产构建和 Playwright 必要 E2E；后端回归、独立测试扫描和其余发布门禁继续收口。
-- [E] N6.3 已完成远端 Redis/验收栈恢复和 Windows API/Web 最小发布 readiness；N6.4 已完成完整 Windows 登录、认证读接口、Playwright、浏览器矩阵、文件传输和报告导出证据，并修复项目删除级联阻断；N6.5 已完成 q19 真实迁移、项目删除回归和临时 Web Worker 低代码验收。
+- [E] N6.3 已完成远端 Redis/验收栈恢复和 Windows API/Web 最小发布 readiness；N6.4 已完成完整 Windows 登录、认证读接口、Playwright、浏览器矩阵、文件传输和报告导出证据，并修复项目删除级联阻断；N6.5 已完成 q19 真实迁移、项目删除回归和临时 Web Worker 低代码验收；N6.6 已完成 q19 持久通用 Web Worker 的队列隔离、低代码执行、监控和重启恢复。
 - [ ] 真实 Android、Worker、性能节点、通知和外部缺陷平台继续按环境证据单独验收。
 
 ### 2026-08-24 N6.1 配置中心浏览器回归交付记录
@@ -155,7 +155,7 @@ N5.2 验收口径：管理员/工程师能够从统一入口定位可见配置�
 
 - **Windows 验收**：在当前 Windows 运行档案和远端 q19 PostgreSQL/Redis/MinIO 上，管理员登录、认证读接口、Web Recording 状态、Playwright mock E2E `12 passed`、Chromium/Firefox/WebKit 登录页矩阵、47 bytes 文件上传/清理、HTML/JUnit 报告导出均通过；脱敏证据见 [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)，必需失败数为 `0`。Web 低代码真实执行和 Android 项目因未指定用例/未启用 Worker 保持 optional skip。
 - **问题修复**：清理临时项目时发现删除项目被 `environments_project_id_fkey` 阻断。模型与迁移 `20260824_0065` 统一补齐 APK、环境、模块、计划、套件的项目级 `ON DELETE CASCADE`，环境变量使用 `CASCADE`，计划环境引用使用 `SET NULL`；不在 API 中维护容易遗漏的手工删除清单。
-- **审查与回归**：项目路由及新迁移契约 `34 passed`，迁移目录 `66 passed`，Alembic head 为 `20260824_0065`，Ruff 和 `git diff --check` 通过；远端 q19 临时项目/环境已清理并复核为不存在。完整迁移升级/降级仍需随最新镜像在目标数据库执行。
+- **审查与回归**：项目路由及新迁移契约 `34 passed`，迁移目录 `66 passed`，Alembic head 为 `20260824_0065`，Ruff 和 `git diff --check` 通过；远端 q19 临时项目/环境已清理并复核为不存在。该条记录当时仍等待目标数据库迁移，已由 N6.5 的真实迁移记录覆盖。
 - **边界**：本轮证明 Windows API/Web 和远端三项依赖可用，不代表 Android Worker/真机、真实性能节点、通知渠道或外部缺陷平台已验收；严格 readiness 仍受当前 Windows 缺少 Docker Compose 工具影响。
 
 ### 2026-08-24 N6.5 q19 真实迁移与 Web Worker 临时验收交付记录
@@ -163,7 +163,14 @@ N5.2 验收口径：管理员/工程师能够从统一入口定位可见配置�
 - **真实迁移**：从提交 `5179826` 构建 q19 最新 Backend、性能 Worker、Beat 和迁移镜像，在目标数据库完成 Alembic `20260814_0059 -> 20260824_0065` 升级；Backend、PostgreSQL、Redis、MinIO、性能 Worker 和 Beat 健康，Backend `/health` 返回 HTTP 200。
 - **删除回归**：通过项目 API 创建并删除临时项目，HTTP 返回 `204`，项目、环境和模块残留均为 `0`，证明项目级资源级联和计划环境 `SET NULL` 迁移已在目标数据库生效。
 - **Web 执行**：临时启动默认队列 Worker，完成 Web 低代码下载执行 `run 3`，下载对象回传和清理均通过；验收后已移除临时 Worker，未把临时进程写成持久 Worker 部署。脱敏证据见 [`q19-migration-web-worker-readiness-2026-08-24.json`](evidence/q19-migration-web-worker-readiness-2026-08-24.json) 与 [`windows-web-worker-readiness-2026-08-24.json`](evidence/windows-web-worker-readiness-2026-08-24.json)。
-- **边界**：q19 当前持久编排仍未加入通用 Web Worker；Android 因 ADB 设备 offline 且本轮未启用 Android Worker 未执行，真实性能节点、通知渠道和外部缺陷平台仍待独立验收。下一模块是将通用 Web Worker 固化到持久部署并验证重启恢复、Trace/报告和队列隔离。
+- **边界**：本条记录对应临时 Worker 验收阶段；后续 N6.6 已补齐通用 Worker 持久部署和重启恢复。Android 因 ADB 设备 offline 且本轮未启用 Android Worker 未执行，真实性能节点、通知渠道和外部缺陷平台仍待独立验收。
+
+### 2026-08-24 N6.6 q19 持久通用 Web Worker 部署与恢复验收交付记录
+
+- **编排实现**：`docker-compose.performance-acceptance.yml` 新增独立 `worker` 服务，固定监听 `default,maintenance`；性能 Worker 保持 `performance.worker-a,performance`，避免 Web/API 执行占用性能队列。
+- **监控与回归**：通用 Worker 使用 `9091` 指标端口，q19 Prometheus target `atp-worker`、Backend、性能 Worker 和 Prometheus 均为 `up`；部署契约回归 `24 passed`，YAML 和 `git diff --check` 通过，代码审查无可修复问题。
+- **真实执行**：q19 使用提交 `f1473d2` 重建持久 Worker，Celery ping 和队列隔离通过；首次 Web 低代码下载 `run 4`、Worker 重启后的 `run 5` 均成功并回传 1 个下载对象，临时项目和对象清理均通过。脱敏证据见 [`q19-persistent-web-worker-readiness-2026-08-24.json`](evidence/q19-persistent-web-worker-readiness-2026-08-24.json)、[`windows-persistent-web-worker-readiness-2026-08-24.json`](evidence/windows-persistent-web-worker-readiness-2026-08-24.json) 与 [`windows-persistent-web-worker-restart-readiness-2026-08-24.json`](evidence/windows-persistent-web-worker-restart-readiness-2026-08-24.json)。
+- **边界**：本模块只完成通用 Celery Web/API 执行 Worker；独立 Playwright 录制 Worker、Trace/报告完整链路、Android Worker/真机、真实性能节点、通知渠道和外部缺陷平台仍待后续环境验收。
 
 ## 4. 推荐执行顺序
 

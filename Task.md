@@ -2,7 +2,7 @@
 
 ## 2026-08-24 产品导航与能力扩展路线（持续跟踪）
 
-开发计划和单模块交付规则已记录在 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md)，本节只维护阶段状态；导航已按参考方案固定为五组，N0 导航壳、N1 工作台与任务中心、N2.1/N2.2/N2.3/N2.4/N2.5、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心本地实现、审查和回归已完成，均待真实环境验收；N6.3/N6.4/N6.5 已补充远端依赖、完整 Windows API/Web readiness 和 q19 真实迁移证据，Android、持久 Web Worker、真实性能节点、通知和外部平台仍待独立验收。
+开发计划和单模块交付规则已记录在 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md)，本节只维护阶段状态；导航已按参考方案固定为五组，N0 导航壳、N1 工作台与任务中心、N2.1/N2.2/N2.3/N2.4/N2.5、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心本地实现、审查和回归已完成，均待真实环境验收；N6.3/N6.4/N6.5/N6.6 已补充远端依赖、完整 Windows API/Web readiness、q19 真实迁移和持久通用 Web Worker 证据，Android、独立录制 Worker、真实性能节点、通知和外部平台仍待独立验收。
 
 - [x] 完成现状盘点：确认现有导航与图片目标存在结构差异，已有能力主要分散在测试设计、测试资产、执行中心、Android 专项和平台配置菜单。
 - [x] 建立目标导航：工作台、测试能力、测试资产、智能中枢、系统。
@@ -12,7 +12,7 @@
 - [E] N2 测试资产闭环：N2.1 内部缺陷、N2.2 失败证据、N2.3 报告中心、N2.4 用例评审、N2.5 外部缺陷兼容均已完成本地实现、审查和回归；待真实环境验收。
 - [E] N3.1 API 测试工作台：接口协议筛选、模块目录、导入/AI 生成、详情、环境选择执行和运行结果入口已完成；复用现有接口执行器与 API，待真实数据/权限/执行环境验收。
 - [E] N3.2 APP 自动化工作台：设备池、Worker 状态、设备预约/心跳/释放、截图预览、Android 用例与专项任务执行、APK 选择、最近运行和兼容性概览已完成；待 Windows Worker/ADB、真实设备和报告链路验收。
-- [E] N3.3 UI 自动化工作台：项目/模块工作区、Web 用例目录与详情、Playwright 录制创建、元素库/页面对象/视觉基线快捷入口、基线采集、运行观察和 Trace 状态已完成；待真实 Web Worker、浏览器录制、截图上传和运行报告验收。
+- [E] N3.3 UI 自动化工作台：项目/模块工作区、Web 用例目录与详情、Playwright 录制创建、元素库/页面对象/视觉基线快捷入口、基线采集、运行观察和 Trace 状态已完成；q19 通用 Web 低代码执行 Worker 已完成持久部署验收，独立录制 Worker、浏览器录制、截图上传和运行报告仍待验收。
 - [E] N3.4 性能测试工作台：性能场景、环境/节点发起、实时运行队列、吞吐/延迟/错误率、资源采样时间线、门禁、基线和报告导出已完成；待真实性能 Worker、节点容量、Prometheus 采样和多执行器验收。
 - [E] N3 测试能力工作台：API、APP、UI 和性能统一配置/执行/观察入口已完成本地实现和审查；待真实 Worker、节点、协议服务、浏览器和性能环境验收。
 - [E] N4 智能中枢：N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪和 N4.4 知识中枢已完成本地实现、审查和回归，全部待真实环境验收。
@@ -22,9 +22,9 @@
 - [E] N4.4 知识中枢：新增带项目边界的知识条目、来源/状态筛选、统一搜索结果、来源引用、项目权限、全局发布可见性和敏感信息脱敏；聚合需求、缺陷和失败运行作为只读知识来源，待真实数据、权限和生产迁移验收。
 - [E] N5.1 远程工具箱：基础设施、Android/ADB、Web Worker 和性能节点统一诊断，支持脱敏 JSON 导出与处理入口；待真实环境验收。
 - [E] N5.2 配置中心：N5.2.1～N5.2.6（只读聚合、版本快照与审计、差异与影响提示、单资源回滚、前端统一工作台、质量收口）已完成本地实现、审查和回归；待真实环境验收。
-- [~] N6 质量收口：回归、E2E、迁移、文档、外部环境证据和发布检查；N6.1/N6.2 已完成本地回归与文档收口，N6.3/N6.4 已完成远端依赖恢复和完整 Windows API/Web readiness，N6.5 已完成 q19 `0059 -> 0065` 真实迁移、项目删除回归和临时 Web Worker 低代码执行；持久 Web Worker、Android Worker/真机、真实性能节点、通知和外部平台证据仍待补齐。
+- [~] N6 质量收口：回归、E2E、迁移、文档、外部环境证据和发布检查；N6.1/N6.2 已完成本地回归与文档收口，N6.3/N6.4 已完成远端依赖恢复和完整 Windows API/Web readiness，N6.5 已完成 q19 `0059 -> 0065` 真实迁移和项目删除回归，N6.6 已完成持久通用 Web Worker 的队列隔离、低代码执行和重启恢复；独立录制 Worker、Android Worker/真机、真实性能节点、通知和外部平台证据仍待补齐。
 
-当前推荐下一步：先把通用 Web Worker 固化到 q19 Compose/部署配置并完成持久注册与低代码执行，再按优先级完成 Android Worker/真机、真实性能节点、通知渠道和外部缺陷平台证据。N5.2 已统一聚合启动配置、环境、全局变量、AI、存储、通知和性能配置，N6.1～N6.5 已完成本地回归、文档、Windows API/Web 环境证据和 q19 迁移证据；每个子模块完成后先审查和修复，再同步文档并提交推送。
+当前推荐下一步：先补独立 Web 录制 Worker 的 q19 持久部署与真实录制/Trace/报告链路，再按优先级完成 Android Worker/真机、真实性能节点、通知渠道和外部缺陷平台证据。N5.2 已统一聚合启动配置、环境、全局变量、AI、存储、通知和性能配置，N6.1～N6.6 已完成本地回归、代码审查、文档和 Windows/q19 API/Web 环境证据；每个子模块完成后先审查和修复，再同步文档并提交推送。
 
 ### 2026-08-24 N6.4 Windows 完整 API/Web 验收与项目删除级联修复计划
 
@@ -35,7 +35,7 @@
 - [x] 通过项目路由、迁移和 Ruff 定向回归；清理远端 q19 临时验收项目及其环境，未保留测试夹具数据。
 - [x] 将最新 `main` 部署到 q19，真实执行 `20260814_0059 -> 20260824_0065` 迁移；Backend、PostgreSQL、Redis、MinIO、性能 Worker 和 Beat 健康，Backend `/health` 返回 HTTP 200。
 - [x] 通过项目删除 API 回归：临时项目返回 `204`，项目、环境和模块残留均为 `0`；启动临时默认队列 Web Worker 完成低代码下载执行 `run 3`，下载对象和清理均通过，验收后已移除临时 Worker。
-- [ ] 将通用 Web Worker 固化到 q19 持久部署并完成注册/执行证据；Android Worker/真机、真实性能节点、通知和外部缺陷平台继续独立验收。
+- [x] 将通用 Web Worker 固化到 q19 持久部署并完成注册/执行证据；Android Worker/真机、真实性能节点、通知和外部缺陷平台继续独立验收。
 
 ### 2026-08-24 N6.5 q19 真实迁移与 Web Worker 临时验收计划
 
@@ -46,7 +46,18 @@
 - [x] 创建并删除临时项目，确认 HTTP `204` 且项目、环境、模块没有残留。
 - [x] 启动临时默认队列 Worker，完成 Web 低代码下载执行和对象清理；脱敏证据见 [`q19-migration-web-worker-readiness-2026-08-24.json`](docs/evidence/q19-migration-web-worker-readiness-2026-08-24.json) 与 [`windows-web-worker-readiness-2026-08-24.json`](docs/evidence/windows-web-worker-readiness-2026-08-24.json)。
 - [x] 验收后移除临时 Web Worker，不改变 q19 既有性能 Worker/Beat 部署。
-- [ ] 后续将通用 Web Worker 加入持久 Compose/部署编排，再执行注册、低代码、Trace/报告和重启恢复验收；Android 因 ADB 设备 offline 本轮未执行。
+- [x] 后续模块已将通用 Web Worker 加入持久 Compose/部署编排，完成注册、`default,maintenance` 队列隔离、低代码下载和重启恢复验收；脱敏证据见 [`q19-persistent-web-worker-readiness-2026-08-24.json`](docs/evidence/q19-persistent-web-worker-readiness-2026-08-24.json)、[`windows-persistent-web-worker-readiness-2026-08-24.json`](docs/evidence/windows-persistent-web-worker-readiness-2026-08-24.json) 和 [`windows-persistent-web-worker-restart-readiness-2026-08-24.json`](docs/evidence/windows-persistent-web-worker-restart-readiness-2026-08-24.json)。Android 因 ADB 设备 offline 本轮未执行。
+
+### 2026-08-24 N6.6 q19 持久通用 Web Worker 部署与恢复验收
+
+目标：把此前只用于临时验收的默认队列 Worker 固化到 q19 Compose，和性能 Worker 做队列、资源及监控隔离，并验证低代码执行、Worker 重启恢复和对象清理。
+
+- [x] 在 `docker-compose.performance-acceptance.yml` 新增独立 `worker` 服务，固定监听 `default,maintenance`；性能 Worker 保持 `performance.worker-a,performance`，不与通用 Worker 交叉消费。
+- [x] 为通用 Worker 暴露 `9091` 指标并加入 q19 Prometheus target；Backend、通用 Worker、性能 Worker 和 Prometheus targets 均为 `up`。
+- [x] 本地部署契约回归 `24 passed`，YAML 和 `git diff --check` 通过；代码审查未发现需要修复的问题。
+- [x] q19 使用提交 `f1473d2` 重建并持久启动通用 Worker；Celery ping、队列隔离和服务健康通过。
+- [x] Worker 重启后重新注册，Web 低代码 `run 5` 成功并回传 1 个下载对象，临时项目和 5 个证据对象清理通过；首次执行 `run 4` 同样通过。
+- [x] 脱敏证据已归档；独立录制 Worker、Android、真实性能节点、通知和外部缺陷平台仍按后续模块验收。
 
 ### 2026-08-24 N5.2 配置中心开发计划（文档跟踪）
 

@@ -20,6 +20,8 @@
 
 > 2026-08-24 N6.5 环境证据：q19 目标数据库已从 `20260814_0059` 真实升级到 `20260824_0065`，项目删除返回 `204` 且项目/环境/模块无残留；临时默认队列 Web Worker 完成低代码下载执行和清理，证据见 [`q19-migration-web-worker-readiness-2026-08-24.json`](evidence/q19-migration-web-worker-readiness-2026-08-24.json) 与 [`windows-web-worker-readiness-2026-08-24.json`](evidence/windows-web-worker-readiness-2026-08-24.json)。持久 Web Worker、Android、真实性能节点、通知和外部缺陷平台仍待环境验收。
 
+> 2026-08-24 N6.6 环境证据：q19 已持久部署独立通用 Worker，监听 `default,maintenance`，与 `performance.worker-a,performance` 队列隔离；Prometheus `atp-worker`、Backend、性能 Worker 和 Prometheus targets 为 `up`。Worker 重启后重新注册，Web 低代码 `run 4`/`run 5` 均通过并完成对象清理，证据见 [`q19-persistent-web-worker-readiness-2026-08-24.json`](evidence/q19-persistent-web-worker-readiness-2026-08-24.json)、[`windows-persistent-web-worker-readiness-2026-08-24.json`](evidence/windows-persistent-web-worker-readiness-2026-08-24.json) 与 [`windows-persistent-web-worker-restart-readiness-2026-08-24.json`](evidence/windows-persistent-web-worker-restart-readiness-2026-08-24.json)。独立录制 Worker、Android、真实性能节点、通知和外部缺陷平台仍待环境验收。
+
 > 2026-08-12 iOS/Appium 补强：新增 status/session smoke、受控步骤和脱敏附件证据入口；真实 macOS/XCUITest/WDA/设备执行仍待验收。
 
 > 最新实现状态和前后对比请先查看 [`docs/q18-latest-status-2026-08-07.md`](./q18-latest-status-2026-08-07.md)。
@@ -124,7 +126,7 @@
 | 五组产品导航 | ✅ | `MainLayout.vue` 与路由权限将入口分为工作台、测试能力、测试资产、智能中枢、系统；旧 URL 与领域页面保持兼容 | 统一入口、项目上下文和动态任务提示 | 导航路由回归、不同角色真实登录 |
 | 远程工具箱 | 🔵 | `/system/toolbox` 聚合 PostgreSQL、Redis、MinIO、Android/Web Worker、ADB 和性能节点诊断，并支持脱敏 JSON 导出 | 真实依赖、Worker、ADB、浏览器和性能节点一站式诊断 | 目标主机与 Worker 环境验收 |
 | 配置中心 | 🔵 | `/system/config` 聚合启动配置、环境、全局变量、AI、存储、通知和性能节点；提供脱敏摘要、原页面深链接、版本快照、字段差异、影响提示和单资源 `ROLLBACK` 回退 | 真实数据库、项目角色、密钥轮换和三方依赖可发布验收 | `frontend/e2e/configuration-center.spec.ts`、配置中心 API/迁移回归；真实环境证据 |
-| 发布质量门禁 | 🟡 | 前端 Vitest、Playwright、type-check、生产构建、后端非集成、独立测试扫描、Ruff、mypy、Bandit 和 diff-check 已有统一命令/记录；Windows 完整 API/Web readiness、q19 `20260824_0065` 真实迁移和项目删除回归已归档脱敏证据，临时 Web Worker 低代码执行已通过 | 持久 Web Worker 注册/重启恢复、真实 Android、性能、通知和外部缺陷平台证据归档 | `make test`、`scripts/windows-local-smoke.ps1`、Alembic、发布 readiness、目标环境 Runbook |
+| 发布质量门禁 | 🟡 | 前端 Vitest、Playwright、type-check、生产构建、后端非集成、独立测试扫描、Ruff、mypy、Bandit 和 diff-check 已有统一命令/记录；Windows 完整 API/Web readiness、q19 `20260824_0065` 真实迁移/项目删除回归、持久通用 Web Worker 队列隔离/低代码执行/重启恢复均已归档脱敏证据 | 独立录制 Worker、Trace/报告完整链路、真实 Android、性能、通知和外部缺陷平台证据归档 | `make test`、`scripts/windows-local-smoke.ps1`、Alembic、发布 readiness、目标环境 Runbook |
 
 ## 6. 后续如何使用本表
 

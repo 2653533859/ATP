@@ -1,0 +1,161 @@
+{
+  "generated_at": "2026-08-24T13:17:49.7694187Z",
+  "repo_root": "E:\\csh\\MyProject\\ATP",
+  "required_failures": 0,
+  "results": [
+    {
+      "name": "Windows local doctor",
+      "status": "passed",
+      "required": true,
+      "details": "[ok]   Web recording mode: local\n[ok]   Python Playwright package\n[ok]   Python Playwright Chromium browser\n[ok]   APP_SECRET_KEY is configured (value hidden)\n[ok]   POSTGRES_PASSWORD is configured (value hidden)\n[ok]   MINIO_ROOT_PASSWORD is configured (value hidden)\n[ok]   FIRST_ADMIN_PASSWORD is configured (value hidden)\n[ok]   port 8000 for Backend API\n[ok]   port 5173 for Frontend Vite\n[ok]   PostgreSQL endpoint 172.31.27.133:5432\n[ok]   Redis endpoint 172.31.27.133:6379\n[ok]   MinIO endpoint 172.31.27.133:9000\n[ok]   ADB executable\n[warn] Android device online\n       Connect a device or use adb connect <device-ip>:5555; Web/API development does not require an Android device.\n[ok]   Performance executor k6\n[ok]   Performance executor Locust\n[ok]   Performance executor gRPC\n[ok]   Performance node queue: performance.worker-local\nDoctor passed with 1 warning(s).",
+      "timestamp": "2026-08-24T13:17:32.9892279Z"
+    },
+    {
+      "name": "Backend health",
+      "status": "passed",
+      "required": true,
+      "details": "HTTP 200",
+      "timestamp": "2026-08-24T13:17:33.0944483Z"
+    },
+    {
+      "name": "Frontend login page",
+      "status": "passed",
+      "required": true,
+      "details": "HTTP 200",
+      "timestamp": "2026-08-24T13:17:33.1195839Z"
+    },
+    {
+      "name": "Live API admin login",
+      "status": "passed",
+      "required": true,
+      "details": "HttpOnly cookie session established",
+      "timestamp": "2026-08-24T13:17:33.2188242Z"
+    },
+    {
+      "name": "Live dependency PostgreSQL",
+      "status": "passed",
+      "required": true,
+      "details": "status=ok code=ok latency_ms=24.8",
+      "timestamp": "2026-08-24T13:17:33.2742381Z"
+    },
+    {
+      "name": "Live dependency Redis",
+      "status": "passed",
+      "required": true,
+      "details": "status=ok code=ok latency_ms=2.9",
+      "timestamp": "2026-08-24T13:17:33.2759110Z"
+    },
+    {
+      "name": "Live dependency MinIO",
+      "status": "passed",
+      "required": true,
+      "details": "status=ok code=ok latency_ms=19.5",
+      "timestamp": "2026-08-24T13:17:33.2783642Z"
+    },
+    {
+      "name": "Live dependency readiness",
+      "status": "passed",
+      "required": true,
+      "details": "status=ok",
+      "timestamp": "2026-08-24T13:17:33.2790034Z"
+    },
+    {
+      "name": "Live API current user",
+      "status": "passed",
+      "required": true,
+      "details": "authenticated read response valid",
+      "timestamp": "2026-08-24T13:17:33.3117858Z"
+    },
+    {
+      "name": "Live API project list",
+      "status": "passed",
+      "required": true,
+      "details": "authenticated read response valid",
+      "timestamp": "2026-08-24T13:17:33.3254493Z"
+    },
+    {
+      "name": "Web recording Worker status",
+      "status": "passed",
+      "required": true,
+      "details": "mode=local registered=0 available=0",
+      "timestamp": "2026-08-24T13:17:33.3382863Z"
+    },
+    {
+      "name": "Playwright mock E2E suite",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped by -SkipPlaywright.",
+      "timestamp": "2026-08-24T13:17:33.3413737Z"
+    },
+    {
+      "name": "Playwright browser matrix login page",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped by -SkipBrowserMatrix.",
+      "timestamp": "2026-08-24T13:17:33.3428494Z"
+    },
+    {
+      "name": "Web file upload and cleanup",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped by -SkipFileTransfer.",
+      "timestamp": "2026-08-24T13:17:33.3489573Z"
+    },
+    {
+      "name": "Run report export",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped by -SkipReports.",
+      "timestamp": "2026-08-24T13:17:33.3524273Z"
+    },
+    {
+      "name": "Seed Web download case",
+      "status": "passed",
+      "required": true,
+      "details": "temporary project 4, case 4 approved for execution",
+      "timestamp": "2026-08-24T13:17:33.5944774Z"
+    },
+    {
+      "name": "Web low-code case execution",
+      "status": "passed",
+      "required": true,
+      "details": "run 4 passed with 1 download object(s)",
+      "timestamp": "2026-08-24T13:17:48.7614983Z"
+    },
+    {
+      "name": "Clean up seeded Web project",
+      "status": "passed",
+      "required": true,
+      "details": "temporary project 4 deleted with 1 environment(s); artifacts deleted=5 missing=0",
+      "timestamp": "2026-08-24T13:17:49.7503930Z"
+    },
+    {
+      "name": "Android network doctor",
+      "status": "skipped",
+      "required": false,
+      "details": "Android is optional for Windows API/Web smoke.",
+      "timestamp": "2026-08-24T13:17:49.7526063Z"
+    },
+    {
+      "name": "Android Worker registry",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped because ADB_SCAN_MODE is not worker and no Android Worker ID is configured.",
+      "timestamp": "2026-08-24T13:17:49.7567574Z"
+    },
+    {
+      "name": "Android device scan callback",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped because ADB_SCAN_MODE is not worker and -RequireAndroid was not supplied.",
+      "timestamp": "2026-08-24T13:17:49.7593112Z"
+    },
+    {
+      "name": "Android low-code case execution",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped because -AndroidCaseId was not supplied.",
+      "timestamp": "2026-08-24T13:17:49.7628961Z"
+    }
+  ]
+}

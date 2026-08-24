@@ -1,0 +1,51 @@
+{
+  "generated_at": "2026-08-24T13:19:00+08:00",
+  "target": "q19 acceptance stack",
+  "source_commit": "f1473d2",
+  "deployment": {
+    "compose_service": "worker",
+    "status": "running",
+    "queues": ["default", "maintenance"],
+    "performance_worker_queues": ["performance.worker-a", "performance"],
+    "queue_overlap": false,
+    "celery_ping": "passed",
+    "restart_recovery": "passed"
+  },
+  "services": {
+    "backend": "healthy",
+    "postgres": "healthy",
+    "redis": "healthy",
+    "minio": "healthy",
+    "worker": "running",
+    "performance_worker": "running",
+    "beat": "running",
+    "prometheus": "healthy",
+    "prometheus_targets": {
+      "atp-backend": "up",
+      "atp-worker": "up",
+      "atp-performance-worker": "up",
+      "prometheus": "up"
+    }
+  },
+  "web_lowcode": {
+    "before_restart": {
+      "temporary_project_id": 4,
+      "run_id": 4,
+      "status": "passed",
+      "download_objects": 1,
+      "cleanup": "passed"
+    },
+    "after_restart": {
+      "temporary_project_id": 5,
+      "run_id": 5,
+      "status": "passed",
+      "download_objects": 1,
+      "cleanup": "passed"
+    }
+  },
+  "android": {
+    "status": "not_exercised",
+    "reason": "ADB device was offline and Android Worker mode was not enabled"
+  },
+  "secrets": "not included"
+}

@@ -1,11 +1,19 @@
 # Q18 实施记录
 
+## 2026-08-24 N6.6 q19 持久通用 Web Worker 部署与恢复验收
+
+- [x] q19 Compose 新增独立 `worker` 服务，固定监听 `default,maintenance`；性能 Worker 保持 `performance.worker-a,performance`，Prometheus 新增 `atp-worker:9091` target。
+- [x] 本地部署契约回归 `24 passed`，YAML、代码审查和 `git diff --check` 通过；提交 `f1473d2` 已推送。
+- [x] q19 真实重建后 Celery ping、队列隔离、服务健康和 Prometheus targets 通过；首次 `run 4` 与 Worker 重启后的 `run 5` Web 低代码下载均通过，清理均通过。
+- [x] 脱敏证据归档为 `docs/evidence/q19-persistent-web-worker-readiness-2026-08-24.json`、`docs/evidence/windows-persistent-web-worker-readiness-2026-08-24.json` 和 `docs/evidence/windows-persistent-web-worker-restart-readiness-2026-08-24.json`。
+- [ ] 独立录制 Worker、Android Worker/真机、真实性能节点、通知和外部缺陷平台仍待后续环境证据。
+
 ## 2026-08-24 N6.5 q19 真实迁移与 Web Worker 临时验收
 
 - [x] 从最新 `main` 构建 q19 Backend、性能 Worker、Beat 和迁移镜像，目标数据库真实执行 `20260814_0059 -> 20260824_0065`，服务健康且 Backend `/health` 返回 HTTP 200。
 - [x] 通过项目删除 API 回归：临时项目返回 `204`，项目、环境、模块残留均为 `0`；确认项目资源级联迁移已在目标数据库生效。
 - [x] 启动临时默认队列 Worker 完成 Web 低代码下载执行 `run 3`，下载对象回传和清理通过；验收后移除临时 Worker。脱敏证据见 `docs/evidence/q19-migration-web-worker-readiness-2026-08-24.json` 与 `docs/evidence/windows-web-worker-readiness-2026-08-24.json`。
-- [ ] 将通用 Web Worker 加入 q19 持久 Compose/部署编排并验证注册、队列隔离、Trace/报告和重启恢复；Android 因 ADB offline 本轮未执行，真实性能节点、通知和外部缺陷平台仍待独立证据。
+- [x] 将通用 Web Worker 加入 q19 持久 Compose/部署编排并验证注册、队列隔离、低代码执行和重启恢复；Android 因 ADB offline 本轮未执行，真实性能节点、通知和外部缺陷平台仍待独立证据。
 
 ## 2026-08-24 N6.4 Windows 完整 API/Web 验收与项目删除级联修复
 

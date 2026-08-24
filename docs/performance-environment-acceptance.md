@@ -1,5 +1,7 @@
 # 性能 Worker 环境验收 Runbook
 
+> 2026-08-24 N6.6：隔离 Compose 已包含独立通用 `worker` 服务，监听 `default,maintenance`，与 `performance.worker-a,performance` 队列隔离；q19 已完成 Celery 注册、Prometheus target、Web 低代码执行和 Worker 重启恢复验收。独立录制 Worker、Android、真实性能节点和外部通知/缺陷平台仍需单独验收。
+
 ## 2026-08-17 当前代码隔离栈验收
 
 已在 `172.31.27.133` 的 `/opt/atp-q18-acceptance-20260817` 使用当前代码部署隔离 Compose 栈。由于旧 q17 栈占用默认回环端口，当前栈使用 Backend `28080`、Prometheus `28090`、Worker metrics `28092`；旧栈未停止。Backend `/health`、Prometheus `/-/ready` 和 PromQL 均通过，Backend 与 `performance-worker` 两个 target 均为 `up`。
@@ -12,7 +14,7 @@ Worker 镜像已固定使用 PostgreSQL 16.15 客户端。实际日备份已上�
 
 性能环境 smoke 现在可以把 Prometheus readiness 和 PromQL 查询纳入同一份 JSON 证据。`--prometheus-url` 只接受不带用户信息、查询参数或片段的 HTTP(S) 根地址；查询内容通过请求参数编码，不从命令行读取 Token 或密码。
 
-隔离 Compose 栈现在默认启动 Prometheus（宿主机回环端口 `18090`），同时抓取 Backend 和专用性能 Worker；配置位于 `deploy/performance-acceptance/prometheus.yml`，保留 7 天本地历史。生产 Kubernetes 使用 Helm 的 `performance-worker` Service + ServiceMonitor，仍需在目标集群用 Prometheus Operator 实际确认 target 为 `up`。
+隔离 Compose 栈现在默认启动 Prometheus（宿主机回环端口 `18090`），同时抓取 Backend、通用执行 Worker 和专用性能 Worker；配置位于 `deploy/performance-acceptance/prometheus.yml`，保留 7 天本地历史。生产 Kubernetes 使用 Helm 的 `performance-worker` Service + ServiceMonitor，仍需在目标集群用 Prometheus Operator 实际确认 target 为 `up`。
 
 ```bash
 python scripts/performance-environment-smoke.py \
@@ -92,17 +94,26 @@ docker compose --env-file .env.performance-acceptance \
 curl http://127.0.0.1:18080/health
 ```
 
-Compose 会等待迁移完成并确认 Backend `/health` 为 healthy 后才启动专用 Worker 和验收工具，避免 API 尚未就绪时误报节点或执行器失败。
+Compose 会等待迁移完成并确认 Backend `/health` 为 healthy 后才启动通用执行 Worker、专用性能 Worker 和验收工具，避免 API 尚未就绪时误报队列或执行器失败。
 
 启动后可直接验证隔离 Prometheus：
 
 ```bash
 curl http://127.0.0.1:18090/-/ready
-curl --get --data-urlencode 'query=up{job=~"atp-backend|atp-performance-worker"}' \\
+curl --get --data-urlencode 'query=up{job=~"atp-backend|atp-worker|atp-performance-worker"}' \\
   http://127.0.0.1:18090/api/v1/query
 ```
 
-两个 target 都必须返回 `up=1`；这只关闭隔离栈指标采集门，不替代生产 Prometheus 的长期历史和告警验收。
+三个 target 都必须返回 `up=1`；这只关闭隔离栈指标采集门，不替代生产 Prometheus 的长期历史和告警验收。需要确认队列注册时，可在目标主机执行：
+
+```bash
+docker compose --env-file .env.performance-acceptance \
+  -f docker-compose.performance-acceptance.yml exec -T worker \
+  celery -A app.worker.celery_app inspect ping --timeout=10
+docker compose --env-file .env.performance-acceptance \
+  -f docker-compose.performance-acceptance.yml exec -T worker \
+  celery -A app.worker.celery_app inspect active_queues --timeout=10
+```
 
 仓库内的 [`jmeter_smoke.jmx`](../deploy/performance-acceptance/jmeter_smoke.jmx) 是无凭据的最小 JMeter 回归样例，只访问 ATP `/login`，可用于确认 JMeter、JTL 和 HTML 报告生成链路：
 

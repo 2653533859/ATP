@@ -1,5 +1,11 @@
 # Q18 最新开发状态与前后实现对比
 
+## 2026-08-24 N6.6 q19 持久通用 Web Worker 部署与恢复验收
+
+- q19 使用提交 `f1473d2` 重建并持久启动独立 `worker` 服务，监听 `default,maintenance`；性能 Worker 保持 `performance.worker-a,performance`，Celery ping、队列隔离和 Prometheus targets 均通过。
+- Web 低代码下载首次执行 `run 4`、Worker 重启后的 `run 5` 均通过并回传 1 个下载对象，临时项目和对象清理通过；脱敏证据见 [`q19-persistent-web-worker-readiness-2026-08-24.json`](evidence/q19-persistent-web-worker-readiness-2026-08-24.json)、[`windows-persistent-web-worker-readiness-2026-08-24.json`](evidence/windows-persistent-web-worker-readiness-2026-08-24.json) 与 [`windows-persistent-web-worker-restart-readiness-2026-08-24.json`](evidence/windows-persistent-web-worker-restart-readiness-2026-08-24.json)。
+- 当前独立录制 Worker、Android 真机、真实性能节点、通知和外部缺陷平台仍待验收；下一步优先补独立录制 Worker 的 q19 持久部署和 Trace/报告链路。
+
 ## 2026-08-24 N6.5 q19 真实迁移与 Web Worker 临时验收
 
 - 最新 `main`（提交 `5179826`）已部署到 q19 验收栈，目标数据库从 `20260814_0059` 真实升级到 `20260824_0065`；Backend、PostgreSQL、Redis、MinIO、性能 Worker 和 Beat 健康，Backend `/health` 返回 HTTP 200。
@@ -10,7 +16,7 @@
 
 - Windows 完整 smoke 已通过管理员登录、认证读接口、远端 PostgreSQL/Redis/MinIO readiness、Web Recording 状态、Playwright `12 passed`、Chromium/Firefox/WebKit 矩阵、文件上传/清理和 HTML/JUnit 报告导出；脱敏证据见 [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)，必需失败数为 `0`。Web 低代码真实执行和 Android 相关检查因未指定用例/未启用 Worker 保持 optional skip。
 - 清理验收夹具时发现项目删除会被 `environments_project_id_fkey` 阻断；已补充 Alembic `20260824_0065`，并同步模型上的 APK、环境、模块、计划、套件项目级级联，环境变量级联删除和计划环境引用 `SET NULL`。项目路由、新迁移契约、迁移目录和 Ruff 定向回归通过；远端 q19 临时项目已清理。
-- 当前下一步是将通用 Web Worker 固化到 q19 持久编排并完成注册、低代码、Trace/报告和重启恢复验收，再继续 Android Worker/真机、真实性能节点、通知渠道和外部缺陷平台验收。严格 readiness 仍因当前 Windows 缺少 Docker Compose 工具保持明确阻塞，不将其伪装为通过。
+- 当前下一步是补独立录制 Worker 的 q19 持久编排与真实录制/Trace/报告链路，再继续 Android Worker/真机、真实性能节点、通知渠道和外部缺陷平台验收。严格 readiness 仍因当前 Windows 缺少 Docker Compose 工具保持明确阻塞，不将其伪装为通过。
 
 ## 2026-08-24 N6.3 Windows 发布 readiness 与远端依赖恢复
 
