@@ -12,6 +12,9 @@ test.describe('run detail report', () => {
     await mockedPage.route('**/api/v1/bug-trackers**', (route) =>
       route.fulfill({ json: [] }),
     )
+    await mockedPage.route('**/api/v1/defects?**', (route) =>
+      route.fulfill({ json: { items: [], total: 0, page: 1, page_size: 20 } }),
+    )
 
     await loginAsAdmin(mockedPage)
     await mockedPage.goto('/runs/9000')

@@ -1,5 +1,18 @@
 # Q18 实施记录
 
+## 2026-08-25 参考导航开发计划同步
+
+- [x] 在主路线图新增当前跟踪版计划，明确五组导航、入口职责、模块边界、验收出口和剩余开发顺序。
+- [x] 同步 `Task.md`、`MEMORY.md` 和 Q18 最新状态，统一记录旧 URL 兼容、真实环境验收边界和单模块交付门禁。
+- [x] 计划顺序固定为 Windows API/Web 复核、Android 单设备、真实通知、外部缺陷平台、生产性能和发布收口；未提供真实环境时只推进可独立验证的代码/回归，不修改通过结论。
+
+## 2026-08-25 P0-A Windows 本地 E2E 回归修复
+
+- [x] 修复中文登录按钮自动空格选择器，补齐 `/workbench/overview` 和 `/defects` 的隔离 mock。
+- [x] 代码审查确认未改变生产认证、路由或执行逻辑；登录定向 `3 passed`、运行详情定向 `1 passed`、全量 Playwright `12 passed`。
+- [x] 前端 Vitest `66 files / 265 tests passed`，type-check、生产构建和 `git diff --check` 通过。
+- [ ] Windows 真实 API/Web smoke 仍需当前有效账号；mock 回归不替代真实认证、文件传输和报告导出证据。
+
 ## 2026-08-25 P1-F 本地发布收口状态
 
 - [x] 新增 [`docs/release-status-2026-08-25.md`](release-status-2026-08-25.md)，统一维护当前候选的能力证据、真实环境边界、复验顺序和禁止事项。

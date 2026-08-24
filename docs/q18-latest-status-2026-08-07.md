@@ -1,5 +1,17 @@
 # Q18 最新开发状态与前后实现对比
 
+## 2026-08-25 参考导航开发计划同步
+
+- 当前产品导航按五组维护：工作台（首页、我的待办、项目中心、任务中心）、测试能力（接口/APP/UI/性能/AI）、测试资产（用例/计划/缺陷/报告/评审）、智能中枢（Hermes/需求与用例/知识）和系统（远程工具箱/配置中心）。
+- 详细计划、模块验收出口和交付门禁见 [`product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md) 的“0.2 导航对齐持续开发计划（当前跟踪版本）”；`Task.md` 和 `MEMORY.md` 已同步同一排序。
+- 本地工作台和业务模块仍按“已实现，待真实环境验收”管理；当前未关闭项为 Windows 有效账号复核、Android ADB `device`、真实通知供应商、外部缺陷平台和生产性能环境，不能用 mock 或跳过项替代。
+
+## 2026-08-25 P0-A Windows 本地 E2E 回归修复
+
+- Playwright 共享登录 fixture 已兼容中文按钮自动空格，并补齐主布局 `/workbench/overview`、运行详情 `/defects` 隔离 mock，避免测试访问真实后端 401 后被重定向到登录页。
+- 登录定向 `3 passed`、运行详情定向 `1 passed`、全量 Playwright `12 passed`；前端 Vitest `66 files / 265 tests passed`，type-check 和生产构建通过。
+- 这只证明本地浏览器回归隔离已修复；Windows 真实 API/Web smoke 仍等待当前有效账号，未将认证读接口、文件上传、报告导出或其他跳过项写成通过。
+
 ## 2026-08-25 P1-F 本地发布收口状态
 
 - 已建立统一发布状态索引 [`release-status-2026-08-25.md`](release-status-2026-08-25.md)，集中列出 Windows/Web、Android、性能、通知和外部缺陷平台的证据与边界。

@@ -1,5 +1,25 @@
 # ATP 项目任务跟踪
 
+## 2026-08-25 参考导航对齐开发计划（当前版本）
+
+主计划已更新至 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md) 的“0.2 导航对齐持续开发计划（当前跟踪版本）”。目标导航与参考方案保持一致：工作台（首页、我的待办、项目中心、任务中心）、测试能力（接口/APP/UI/性能/AI）、测试资产（用例/计划/缺陷/报告/评审）、智能中枢（Hermes/需求与用例/知识）和系统（远程工具箱/配置中心）。旧资产和治理页面不从系统管理重复铺开，而是从对应工作台或配置中心进入并保持 URL 兼容。
+
+- [x] 记录五组导航、入口职责、模块边界和当前本地/真实环境状态。
+- [x] 记录后续模块顺序：导航壳与工作台 → API → APP → UI → 性能 → AI/Hermes → 测试资产/智能中枢 → 系统 → 发布收口。
+- [x] 记录每个模块的验收出口和统一交付门禁：实现/调整 → 测试 → 代码审查 → 修复 → 文档与记忆同步 → 提交推送。
+- [~] 当前优先处理 Windows API/Web 复核和 Android 单设备环境验收；ADB、真实通知供应商、外部缺陷平台和生产性能仍不能标记为通过。
+
+当前计划的唯一排序仍为：`P0-A → P0-B → P1-C/P1-D → P1-E → P1-F`。本节只维护勾选状态，详细范围、验收标准和禁止事项以主计划及 [`docs/release-status-2026-08-25.md`](docs/release-status-2026-08-25.md) 为准。
+
+## 2026-08-25 P0-A Windows 本地 E2E 回归修复
+
+- [x] 修复 Playwright 共享登录 fixture 对 Ant Design Vue 中文按钮自动空格的兼容，支持“登录”实际渲染为“登 录”以及英文 `Sign in`。
+- [x] 补齐主布局侧栏徽标所需的 `/workbench/overview` mock，避免未拦截的真实 401 清理会话并把登录后的页面重定向回 `/login`。
+- [x] 补齐运行详情加载内部缺陷关联所需的 `/defects` mock，避免运行详情回归受未拦截 401 干扰。
+- [x] 代码审查确认改动仅限 E2E 测试隔离，不改变生产认证、路由或执行逻辑；登录定向 `3 passed`，运行详情定向 `1 passed`，全量 Playwright `12 passed`。
+- [x] 前端 Vitest `66 files / 265 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过。
+- [E] Windows 真实 API/Web smoke 仍需使用当前有效账号复跑；本轮 401 只说明账号未被接受，不能使用 `FIRST_ADMIN_*` 代替当前账号，也未将认证读接口、文件传输和报告导出记为通过。
+
 ## 2026-08-24 产品导航与能力扩展路线（持续跟踪）
 
 开发计划和单模块交付规则已记录在 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md)，本节只维护阶段状态；导航已按参考方案固定为五组，N0 导航壳、N1 工作台与任务中心、N2.1/N2.2/N2.3/N2.4/N2.5、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心本地实现、审查和回归已完成，均待真实环境验收；N6.3/N6.4/N6.5/N6.6/N6.7/N6.8/N6.9/N6.10/N6.11/N6.12/N6.13 已补充远端依赖、完整 Windows API/Web readiness、q19 真实迁移、持久通用 Web Worker、独立录制 Worker、Chromium/Firefox/WebKit 证据链、跨 API 副本一致性、真实性能节点执行、通知本地链路、Android Backend/Agent 配置一致性门禁和全量质量门禁复核，Android、通知供应商和外部平台仍待独立验收。

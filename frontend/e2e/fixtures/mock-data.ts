@@ -77,6 +77,24 @@ export const environments = [
   },
 ]
 
+export const workbenchOverview = {
+  generated_at: '2026-05-21T10:00:00Z',
+  project_id: null,
+  counts: {
+    pending_reviews: 0,
+    failed_runs: 0,
+    overdue_plans: 0,
+    device_anomalies: 0,
+    active_tasks: 0,
+    total_todos: 0,
+    returned_tasks: 0,
+  },
+  todos: [],
+  tasks: [],
+  has_more_todos: false,
+  has_more_tasks: false,
+}
+
 export const suites = [
   {
     id: 200,

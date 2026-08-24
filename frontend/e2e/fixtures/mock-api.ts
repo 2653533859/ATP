@@ -67,6 +67,11 @@ export async function installCommonMocks(page: Page) {
   await page.route('**/api/v1/runs?**', (route) =>
     route.fulfill({ json: { items: [data.completedRun], total: 1, page: 1, page_size: 5 } }),
   )
+  // MainLayout 登录后会轮询该聚合接口更新侧栏徽标；未 mock 时真实后端的 401
+  // 会触发响应拦截器清理会话，导致登录回归用例被错误重定向回 /login。
+  await page.route('**/api/v1/workbench/overview**', (route) =>
+    route.fulfill({ json: data.workbenchOverview }),
+  )
 
   await page.route('**/api/v1/environments**', (route) =>
     route.fulfill({ json: data.environments }),
@@ -132,6 +137,8 @@ export async function loginAsAdmin(page: Page) {
   await page.goto('/login')
   await page.getByPlaceholder(/用户名|Username/i).fill('admin')
   await page.getByPlaceholder(/密码|Password/i).fill('Admin@123456')
-  await page.getByRole('button', { name: /登录|Login|Sign in/i }).click()
+  // Ant Design Vue 会对两个汉字的按钮文案自动插入空格（“登录”→“登 录”）。
+  // 允许该渲染差异，同时保留英文环境的登录文案匹配。
+  await page.getByRole('button', { name: /登\s*录|Login|Sign in/i }).click()
   await page.waitForURL(/\/dashboard/, { timeout: 10_000 })
 }
