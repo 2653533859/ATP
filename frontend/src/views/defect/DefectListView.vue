@@ -290,6 +290,7 @@ const members = ref<ProjectMemberItem[]>([])
 const defects = ref<DefectItem[]>([])
 const selectedDefect = ref<DefectItem | null>(null)
 const projectId = ref<number | undefined>(positiveInt(route.query.project_id))
+const requestedDefectId = ref<number | undefined>(positiveInt(route.query.defect_id))
 const statusFilter = ref<DefectStatus | undefined>(undefined)
 const priorityFilter = ref<DefectPriority | undefined>(undefined)
 const severityFilter = ref<DefectSeverity | undefined>(undefined)
@@ -463,6 +464,24 @@ async function loadDefects() {
     })
     defects.value = result.items.map((item) => ({ ...item, external_links: item.external_links || [] }))
     total.value = result.total
+    const requested = requestedDefectId.value
+    if (requested) {
+      const listed = defects.value.find((item) => item.id === requested)
+      if (listed) {
+        openDetail(listed)
+        requestedDefectId.value = undefined
+      } else {
+        try {
+          const detail = await defectApi.get(requested)
+          if (!projectId.value || detail.project_id === projectId.value) {
+            openDetail(detail)
+            requestedDefectId.value = undefined
+          }
+        } catch {
+          // 目标缺陷不可访问时保留列表，避免影响正常使用。
+        }
+      }
+    }
   } catch {
     message.error(t('defect.msg.load_failed'))
   } finally {

@@ -46,6 +46,7 @@ from app.api.v1 import (
     workbench,
     defects,
     requirements,
+    knowledge,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -95,3 +96,4 @@ router.include_router(health.router)
 router.include_router(workbench.router)
 router.include_router(defects.router)
 router.include_router(requirements.router)
+router.include_router(knowledge.router)

@@ -342,6 +342,7 @@ const projects = ref<ProjectItem[]>([])
 const requirements = ref<RequirementListItem[]>([])
 const cases = ref<CaseSummaryItem[]>([])
 const selectedProjectId = ref<number | null>(positiveInt(route.query.project_id))
+const requestedRequirementId = ref<number | null>(positiveInt(route.query.requirement_id))
 const selectedRequirementId = ref<number | null>(null)
 const selectedRequirement = ref<RequirementDetailItem | null>(null)
 const impact = ref<RequirementImpactItem | null>(null)
@@ -448,7 +449,14 @@ async function loadProjectData() {
   const failures: string[] = []
   if (requirementsResult.status === 'fulfilled') {
     requirements.value = requirementsResult.value.items
-    if (requirements.value[0]) await selectRequirement(requirements.value[0].id)
+    const requested = requestedRequirementId.value
+    const initialRequirement = requested && requirements.value.some((item) => item.id === requested)
+      ? requested
+      : requirements.value[0]?.id
+    if (initialRequirement) {
+      await selectRequirement(initialRequirement)
+      if (requested === initialRequirement) requestedRequirementId.value = null
+    }
   } else failures.push(t('requirement_trace.requirements_load_failed'))
   if (casesResult.status === 'fulfilled') cases.value = casesResult.value
   else failures.push(t('requirement_trace.cases_load_failed'))

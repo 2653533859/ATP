@@ -172,12 +172,13 @@ const router = createRouter({
         {
           path: 'knowledge',
           name: 'knowledge',
-          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          component: () => import('@/views/intelligence/KnowledgeHubView.vue'),
           meta: {
             menuTitleKey: 'menu.intelligence.knowledge',
             descriptionKey: 'navigation.placeholder.description.knowledge',
             existingLinks: [
-              { path: '/cases', labelKey: 'menu.cases' },
+              { path: '/bugs', labelKey: 'menu.bugs' },
+              { path: '/requirements', labelKey: 'menu.intelligence.requirements' },
               { path: '/runs', labelKey: 'menu.runs' },
             ],
           },

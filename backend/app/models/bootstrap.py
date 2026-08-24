@@ -36,6 +36,7 @@ def load_all_models() -> None:
     from app.models.performance_node import PerformanceNode
     from app.models.web_assets import WebElementAsset, WebPageObject, WebVisualBaseline
     from app.models.requirement import TestRequirement, RequirementCaseLink
+    from app.models.knowledge import KnowledgeEntry
     from app.models.ios import IosApp, IosDevice, IosDeviceLease
 
     _ = (
@@ -93,6 +94,7 @@ def load_all_models() -> None:
         WebVisualBaseline,
         TestRequirement,
         RequirementCaseLink,
+        KnowledgeEntry,
         IosApp,
         IosDevice,
         IosDeviceLease,

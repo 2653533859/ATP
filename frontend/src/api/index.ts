@@ -535,6 +535,65 @@ export interface RequirementCaseLinkPayload {
   note?: string | null
 }
 
+export type KnowledgeSourceType = 'standard' | 'defect' | 'solution' | 'runbook' | 'experience' | 'requirement' | 'execution'
+export type KnowledgeStatusType = 'draft' | 'published' | 'archived'
+
+export interface KnowledgeSearchItem {
+  key: string
+  document_id?: number | null
+  source_type: KnowledgeSourceType
+  title: string
+  excerpt: string
+  project_id?: number | null
+  project_name?: string | null
+  source_ref?: string | null
+  tags: string[]
+  status: string
+  match_terms: string[]
+  match_score: number
+  target_path?: string | null
+  is_global: boolean
+  is_editable: boolean
+  updated_at: string
+}
+
+export interface KnowledgeDetailItem extends KnowledgeSearchItem {
+  summary?: string | null
+  content: string
+  version: number
+  author_id?: number | null
+  created_at: string
+}
+
+export interface KnowledgeListResult {
+  items: KnowledgeSearchItem[]
+  total: number
+  page: number
+  page_size: number
+  source_counts: Record<string, number>
+}
+
+export interface KnowledgeSavePayload {
+  project_id?: number | null
+  source_type: KnowledgeSourceType
+  title: string
+  summary?: string | null
+  content: string
+  source_ref?: string | null
+  tags?: string[]
+  status?: KnowledgeStatusType
+}
+
+export interface KnowledgeUpdatePayload {
+  source_type?: KnowledgeSourceType
+  title?: string
+  summary?: string | null
+  content?: string
+  source_ref?: string | null
+  tags?: string[]
+  status?: KnowledgeStatusType
+}
+
 export interface SuiteCaseRef {
   case_id: number
   sort: number
@@ -2907,4 +2966,19 @@ export const requirementsApi = {
   unlinkCase: (id: number, linkId: number) =>
     http.delete<unknown, { deleted: boolean; id: number }>(`/requirements/${id}/case-links/${linkId}`),
   impact: (id: number) => http.get<unknown, RequirementImpactItem>(`/requirements/${id}/impact`),
+}
+
+export const knowledgeApi = {
+  list: (params?: {
+    project_id?: number
+    keyword?: string
+    source_type?: KnowledgeSourceType
+    status?: KnowledgeStatusType
+    page?: number
+    page_size?: number
+  }) => http.get<unknown, KnowledgeListResult>('/knowledge', { params }),
+  get: (id: number) => http.get<unknown, KnowledgeDetailItem>(`/knowledge/${id}`),
+  create: (body: KnowledgeSavePayload) => http.post<unknown, KnowledgeDetailItem>('/knowledge', body),
+  update: (id: number, body: KnowledgeUpdatePayload) => http.patch<unknown, KnowledgeDetailItem>(`/knowledge/${id}`, body),
+  delete: (id: number) => http.delete<unknown, { deleted: boolean; id: number }>(`/knowledge/${id}`),
 }
