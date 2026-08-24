@@ -30,6 +30,13 @@ def test_notification_smoke_redacts_urls_and_credentials_from_report_inputs():
     safe = module._safe_error("request failed: https://qyapi.weixin.qq.com/cgi-bin/webhook/send?key=wechat-secret")
     assert "wechat-secret" not in safe
     assert "?key=<redacted>" in safe
+    safe = module._safe_error(
+        "request failed: https://user:password@example.test/hook?access_token=ding-secret&sign=sig"
+    )
+    assert "password" not in safe
+    assert "ding-secret" not in safe
+    assert "=sig" not in safe
+    assert "https://<redacted>@example.test/hook?access_token=<redacted>&sign=<redacted>" in safe
 
 
 def test_notification_smoke_acceptance_uses_environment_credentials_only():

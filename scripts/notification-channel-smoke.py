@@ -34,12 +34,14 @@ from urllib.request import HTTPCookieProcessor, Request, build_opener
 
 
 _SENSITIVE_TEXT_RE = re.compile(
-    r"(?i)(?P<key>token|secret|password|passwd|api[_-]?key|authorization|cookie)(?P<sep>\s*[:=]\s*)[^,;\s}]+"
+    r"(?i)(?<![A-Za-z0-9_-])(?P<key>access[_-]?token|api[_-]?key|authorization|password|passwd|token|secret|sign(?:ature)?|cookie)"
+    r"(?P<sep>\s*[:=]\s*)[^,;\s}&]+"
 )
 _URL_QUERY_SECRET_RE = re.compile(
-    r"(?i)(?P<prefix>[?&](?:key|token|secret|api[_-]?key|authorization|cookie)\s*=\s*)"
+    r"(?i)(?P<prefix>[?&](?:key|access[_-]?token|api[_-]?key|token|secret|sign(?:ature)?|authorization|cookie)\s*=\s*)"
     r"(?P<value>[^&#\s,;)}\]<>\"']+)"
 )
+_URL_USERINFO_RE = re.compile(r"(?i)(https?://)([^/@\s]+):([^/@\s]+)@")
 
 
 class SmokeError(RuntimeError):
@@ -87,6 +89,7 @@ def _safe_error(value: Any) -> str:
     text = str(value).replace("\r", " ").replace("\n", " ").strip()
     text = _SENSITIVE_TEXT_RE.sub(lambda match: f"{match.group('key')}{match.group('sep')}<redacted>", text)
     text = _URL_QUERY_SECRET_RE.sub(lambda match: f"{match.group('prefix')}<redacted>", text)
+    text = _URL_USERINFO_RE.sub(r"\1<redacted>@", text)
     return text[:800] or "unknown error"
 
 
