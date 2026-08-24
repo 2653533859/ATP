@@ -6,7 +6,8 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 
 - 当前仓库已具备统一自动化测试平台的主线能力，不再是规划稿或仅验证单点功能的原型。
 - 前后端、任务调度、对象存储、通知集成、测试套件、测试计划、报告导出、缺陷跟踪、统计看板、Mock 能力与 Android 联调说明均已落地。
-- 当前剩余工作已从“主线功能缺失”转为“持续优化项”，例如 Android 环境稳定性验证、部署运维打磨与少量工程化尾项。
+- 导航已按工作台、测试能力、测试资产、智能中枢、系统五组组织；远程工具箱和配置中心已完成本地实现、审查与自动化回归，配置中心支持脱敏查看、版本差异和单资源回退。
+- 当前剩余工作已从“主线功能缺失”转为“真实环境与发布收口”，例如 Android/Windows Worker、性能节点、通知、外部缺陷平台、生产密钥和数据库迁移证据。
 
 ## 已实现能力
 
@@ -62,15 +63,16 @@ ATP（Automated Testing Platform）是一个面向团队协作的自动化测试
 - 结构化日志统一收集、截图/报告文件清理任务、一键部署脚本
 - Android 真机联调沉淀：执行前设备可达性校验、ADB over TCP 联调说明、Docker worker 连接建议
 - 前端国际化基础能力：已接入 `vue-i18n`、语言切换与本地存储记忆；登录、导航、Dashboard、计划 / 套件 / 用例主列表、执行记录 / 执行详情、Android 专项任务，以及环境、通知、全局变量、AI 模型配置等系统页面已完成中英文文案迁移
-- 启动配置中心：管理员可在“系统管理 → 启动配置”集中编辑启动变量，使用 Docker Compose / 远端基础设施预设，并复制或下载完整 `.env`；使用说明见 `docs/startup-config.md`
+- 启动配置中心：管理员可在“系统 -> 启动配置”集中编辑启动变量，使用 Docker Compose / 远端基础设施预设，并复制或下载完整 `.env`；使用说明见 `docs/startup-config.md`
 - AI 自愈建议（iter5）：结构化定位 / 等待 / 断言 / 安全参数修复建议，人审应用、回归 run 关联与运行详情页预览采纳
 - AI 用例生成：需求 / OpenAPI / cURL 输入生成可编辑草稿，生成→保存漏斗统计与质量权重 prompt 示例
 - 性能压测中心：k6 脚本上传、独立 `performance` 队列与 worker、指标 / threshold / raw summary 展示、趋势与 run 对比、目标 allowlist 与 VUs / duration 限制
 - 数据集 Dataset v2 治理：schema 字段校验、上传预览、soft / hard-block 策略、版本历史与回滚、引用影响面查询
 - 用户偏好服务端持久化：Dashboard 布局等偏好同步到服务端并保留 localStorage 兜底
 - AI 自愈采纳率报表：按用例类型 / 错误特征查看采纳率、生产反馈回归通过率与用例生成漏斗
+- 远程工具箱与配置中心：统一诊断 PostgreSQL/Redis/MinIO/Worker/ADB/性能节点；统一查看脱敏配置、历史差异、影响提示和 `ROLLBACK` 回退，入口与验收边界见 `docs/product-navigation-roadmap-2026-08-24.md`
 
-> Q8/Q9/Q10/Q11/Q13/Q14 能力的设计与验收详见：`docs/implementation-plan-2026-Q8.md`、`docs/implementation-plan-2026-Q9.md`、`docs/implementation-plan-2026-Q10.md`、`docs/q8-acceptance-summary.md`、`docs/q9-acceptance-summary.md`、`docs/q10-acceptance-summary.md`、`docs/q11-acceptance-summary.md`、`docs/q13-acceptance-summary.md`、`docs/q14-acceptance-summary.md`、`docs/q14-completion-audit.md`、`docs/dataset-v2.md`、`docs/performance-testing-thin-slice.md`、`docs/q9-release-checklist.md`、`docs/scheduled-plan-incident-drill.md`、`docs/dependency-security-rollback.md`、`docs/frontend-bundle-decision.md`。
+> Q8/Q9/Q10/Q11/Q13/Q14 能力的设计与验收详见：`docs/implementation-plan-2026-Q8.md`、`docs/implementation-plan-2026-Q9.md`、`docs/implementation-plan-2026-Q10.md`、`docs/q8-acceptance-summary.md`、`docs/q9-acceptance-summary.md`、`docs/q10-acceptance-summary.md`、`docs/q11-acceptance-summary.md`、`docs/q13-acceptance-summary.md`、`docs/q14-acceptance-summary.md`、`docs/q14-completion-audit.md`、`docs/dataset-v2.md`、`docs/performance-testing-thin-slice.md`、`docs/q9-release-checklist.md`、`docs/scheduled-plan-incident-drill.md`、`docs/dependency-security-rollback.md`、`docs/frontend-bundle-decision.md`、`docs/product-navigation-roadmap-2026-08-24.md`、`docs/capability-baseline-2026-08-07.md`。
 
 ### Q10 质量与稳定性收口
 

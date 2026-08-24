@@ -12,6 +12,8 @@
 
 > 2026-08-12 Windows 本机矩阵真实通过：Chromium、Firefox、WebKit 均返回 HTTP 200 且登录页输入框挂载，汇总证据已归档；Linux/Xvfb Worker 和跨副本 E2E 仍待验收。
 
+> 2026-08-24 N6.2 文档收口：导航已按“工作台、测试能力、测试资产、智能中枢、系统”五组固定；新增配置中心 `/system/config`、远程工具箱 `/system/toolbox` 和配置中心浏览器回归。配置中心支持脱敏聚合、版本差异、影响提示和精确 `ROLLBACK` 回退；本地代码与自动化证据已完成，真实配置、数据库迁移、生产密钥、Worker 和外部服务仍标记为待环境验收。
+
 > 2026-08-12 iOS/Appium 补强：新增 status/session smoke、受控步骤和脱敏附件证据入口；真实 macOS/XCUITest/WDA/设备执行仍待验收。
 
 > 最新实现状态和前后对比请先查看 [`docs/q18-latest-status-2026-08-07.md`](./q18-latest-status-2026-08-07.md)。
@@ -109,7 +111,16 @@
 | k6/Locust | ✅ | 已接入并有统一执行器接口 | 保持兼容 | k6/Locust 环境验收 |
 | JMeter | 🔵 | Worker 镜像安装 JMeter 5.6.3，支持 JMX 非 GUI 执行、JTL 统一摘要和可选 HTML 报告 ZIP 附件；本机无凭据 JMX 已完成 1 请求/0 错误烟测 | JTL/HTML 附件与真实任务 | `test_performance_jmeter.py`、`deploy/performance-acceptance/jmeter_smoke.jmx`、`docs/evidence/performance-jmeter-local-smoke-2026-08-07.json`；真实 Worker 验收 |
 
-## 5. 后续如何使用本表
+## 5. 平台治理与发布能力
+
+| 能力 | 当前状态 | 当前实现 | 目标状态 | 后续验收 |
+|---|---|---|---|---|
+| 五组产品导航 | ✅ | `MainLayout.vue` 与路由权限将入口分为工作台、测试能力、测试资产、智能中枢、系统；旧 URL 与领域页面保持兼容 | 统一入口、项目上下文和动态任务提示 | 导航路由回归、不同角色真实登录 |
+| 远程工具箱 | 🔵 | `/system/toolbox` 聚合 PostgreSQL、Redis、MinIO、Android/Web Worker、ADB 和性能节点诊断，并支持脱敏 JSON 导出 | 真实依赖、Worker、ADB、浏览器和性能节点一站式诊断 | 目标主机与 Worker 环境验收 |
+| 配置中心 | 🔵 | `/system/config` 聚合启动配置、环境、全局变量、AI、存储、通知和性能节点；提供脱敏摘要、原页面深链接、版本快照、字段差异、影响提示和单资源 `ROLLBACK` 回退 | 真实数据库、项目角色、密钥轮换和三方依赖可发布验收 | `frontend/e2e/configuration-center.spec.ts`、配置中心 API/迁移回归；真实环境证据 |
+| 发布质量门禁 | 🟡 | 前端 Vitest、Playwright、type-check、生产构建、后端非集成、独立测试扫描、Ruff、mypy、Bandit 和 diff-check 已有统一命令/记录 | 真实 Android、Worker、性能、通知和外部缺陷平台证据归档 | `make test`、发布 readiness、目标环境 Runbook |
+
+## 6. 后续如何使用本表
 
 每完成一个能力，按以下顺序更新：
 

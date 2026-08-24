@@ -1,5 +1,11 @@
 # Q18 最新开发状态与前后实现对比
 
+## 2026-08-24 N6.2 导航、配置中心与发布文档状态
+
+- 当前产品导航已固定为“工作台、测试能力、测试资产、智能中枢、系统”五组；旧 URL、旧 API 和领域页面保持兼容。配置中心入口为 `/system/config`，远程工具箱入口为 `/system/toolbox`。
+- 配置中心已完成本地实现和自动化回归：管理员可查看脱敏配置、版本差异和影响提示，并通过精确 `ROLLBACK` 回退单个资源；普通测试角色访问会被权限守卫拦截。该证据不代表真实数据库、生产密钥或外部依赖已验收。
+- N6.1 浏览器回归定向 `2 passed`、全量 Playwright `12 passed`，前端 Vitest `65 files / 258 tests passed`，type-check 和生产构建通过。下一步是 N6.2 的真实环境证据、发布 readiness 和外部依赖验收。
+
 ## 2026-08-12 iOS/Appium 验收入口
 
 - 新增 `scripts/ios-appium-acceptance.py`，支持 Appium readiness、显式 W3C/XCUITest session、受控 iOS 步骤、截图、可选录屏/syslog 和脱敏 JSON 报告。
@@ -34,7 +40,7 @@
 - `docs/external-infra-run.md` 已移除公网地址、管理员账号和明文密码，改为 `.env`/启动档案占位符说明。
 - 当前前端全量回归为 `44 files / 180 tests passed`，`vue-tsc --noEmit`、Vite 构建和 Windows doctor 均通过；k6/Locust 已在 Windows 本机 ATP `/health` 目标完成真实平台执行，Android 真机及 Linux MCP 外部验收仍保持 pending。
 - 补充运行态：Locust `2.32.10` 已安装并通过 Windows doctor；由于 `172.31.27.133:5432` 当前握手超时，本机服务暂用已验收的 `remote-infra.env`（163.192.40.209）运行，根目录 `.env` 未修改，不能把当前运行证据归属到 172 主机。
-- Windows 本地性能证据：k6 测试 `7` / run `8` 成功（20 次迭代、错误率 0、3 条资源指标），Locust 测试 `8` / run `10` 成功（168 次请求、错误率 0）；详见 [`k6 smoke`](docs/evidence/performance-windows-local-k6-smoke-2026-08-12.json) 与 [`Locust smoke`](docs/evidence/performance-windows-local-locust-smoke-2026-08-12.json)。
+- Windows 本地性能证据：k6 测试 `7` / run `8` 成功（20 次迭代、错误率 0、3 条资源指标），Locust 测试 `8` / run `10` 成功（168 次请求、错误率 0）；详见 [`k6 smoke`](evidence/performance-windows-local-k6-smoke-2026-08-12.json) 与 [`Locust smoke`](evidence/performance-windows-local-locust-smoke-2026-08-12.json)。
 - Windows `status` 已增加脱敏运行元数据，直接显示实际生效档案、基础设施地址和队列；`down` 会清理元数据。
 
 ## Worker 测试外部依赖隔离修复（2026-08-12）
