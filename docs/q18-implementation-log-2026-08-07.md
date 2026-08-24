@@ -25,7 +25,8 @@
 - [x] 根据 q19 运行日志定位并修复工作台跨域状态过滤：`TestRun`/套件/计划不再接收 Android `stopped` 或性能 `cancelled` 等不属于自身 enum 的值。
 - [x] 无效状态交集会生成无匹配查询，避免空集合被当作未过滤；重试能力按 case/suite/plan/android/performance 分域判断，并保留 case `skipped` 策略。
 - [x] 审查和回归：工作台定向 `8 passed`，完整后端非集成 `2229 passed`，Ruff、差异检查通过；无模型、迁移、权限或执行器改动。
-- [ ] 远端 q19 需要基于新提交重建后，重新验证 `/workbench/overview` 和任务中心；当前旧容器日志不作为修复通过证据。
+- [x] q19 已使用 `36cacb9` 的独立工作树重建并启动；迁移 `20260824_0065`、Backend 健康 `200`、Prometheus 4 targets `up`、Celery 2 节点在线，重启后日志未出现新的 enum 错误。脱敏证据见 [`q19-workbench-status-filter-2026-08-25.json`](evidence/q19-workbench-status-filter-2026-08-25.json)。
+- [ ] 真实项目数据下的 `/workbench/overview` 和任务中心仍需当前有效账号；本次未认证请求只返回 `401`，不替代角色、权限和数据聚合验收。
 
 ## 2026-08-25 P1-F 本地发布收口状态
 

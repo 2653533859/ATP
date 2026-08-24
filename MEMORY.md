@@ -6,7 +6,7 @@
 
 - 2026-08-25 P0-B Android 单设备验收前置复核已完成：运行 `scripts/windows-android-acceptance.ps1`，`adb.exe` 和 ADB 命令响应正常，但当前设备状态为 `online=0, unauthorized=0, offline=1, other=0`，必需检查失败并生成脱敏报告 `.local-run/android-acceptance-current-20260825.json`。脚本在离线状态下不会继续执行设备命令、包管理、日志采集或创建 Android 运行任务；代码审查确认结果边界正确。P0-B 仍需用户恢复 USB/TCP ADB 为 `device` 后，再继续扫描、预约、截图、APK 包名、低代码、专项任务和结果回传，不把 offline 记为通过。
 
-- 2026-08-25 工作台任务状态枚举隔离修复已完成：q19 日志确认 `/workbench/overview` 将 Android `stopped`、性能 `cancelled` 与普通 `TestRun`/套件/计划状态混用，触发 PostgreSQL `runstatus` 枚举错误。`backend/app/api/v1/workbench.py` 现在按五个任务域过滤状态，空交集使用无匹配条件，重试状态也恢复按域判断（含 case `skipped`）。工作台定向 `8 passed`，完整后端非集成 `2229 passed`，Ruff/diff-check 通过；未改执行器、权限或迁移。修复已推送，远端 q19 仍需受控重建后再做 `/workbench/overview` 真实复核，不能把旧容器日志当成修复证据。
+- 2026-08-25 工作台任务状态枚举隔离修复已完成：q19 日志确认 `/workbench/overview` 将 Android `stopped`、性能 `cancelled` 与普通 `TestRun`/套件/计划状态混用，触发 PostgreSQL `runstatus` 枚举错误。`backend/app/api/v1/workbench.py` 现在按五个任务域过滤状态，空交集使用无匹配条件，重试状态也恢复按域判断（含 case `skipped`）。工作台定向 `8 passed`，完整后端非集成 `2229 passed`，Ruff/diff-check 通过；未改执行器、权限或迁移。q19 已按 `36cacb9` 受控重建，迁移 `20260824_0065`、Backend `200`、Prometheus 4 targets `up`、Celery 2 节点在线，重启后未出现新的 enum 错误；脱敏证据见 `docs/evidence/q19-workbench-status-filter-2026-08-25.json`。鉴权工作台请求仍因缺少当前有效账号未执行，不能把 `401` 或无凭据状态记为完整聚合通过。
 
 - 2026-08-25 P1-F 本地发布收口已完成：新增 `docs/release-status-2026-08-25.md` 作为能力、证据、环境边界、复验顺序和禁止事项的统一索引，并同步能力矩阵、Q18 状态/实施日志、Task、路线图、用户操作手册和 Release-Readiness Runbook。新增发布状态文档契约，明确 ADB 当前 `offline`、通知仅 `local_link_only`、真实通知供应商/外部缺陷平台/生产性能环境仍未验收；没有将这些阻塞项写成通过。下一步是设备恢复后完成 Android 单设备，以及取得临时目标后完成通知、外部缺陷平台和生产性能证据。
 

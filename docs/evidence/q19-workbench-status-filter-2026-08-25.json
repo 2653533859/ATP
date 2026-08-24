@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "kind": "q19_workbench_status_filter_readiness",
+  "recorded_at": "2026-08-25",
+  "commit": "36cacb90a02af8864b5f323e08fd4c75d6e81728",
+  "source": "q19 isolated acceptance stack",
+  "migration": "20260824_0065",
+  "services": {
+    "backend": "healthy",
+    "worker": "started",
+    "beat": "started",
+    "web_recorder": "healthy",
+    "performance_worker": "started",
+    "prometheus": "healthy"
+  },
+  "backend_health_http_status": 200,
+  "unauthenticated_workbench_http_status": 401,
+  "prometheus_targets": {
+    "atp-backend": "up",
+    "atp-performance-worker": "up",
+    "atp-worker": "up",
+    "prometheus": "up"
+  },
+  "celery_nodes_online": 2,
+  "fresh_backend_enum_error_count": 0,
+  "authenticated_workbench_request": "not_run",
+  "limitations": [
+    "The authenticated workbench request requires a currently valid account.",
+    "The q19 status proves the rebuilt stack is healthy and no fresh enum error was logged; it does not prove project-role data or task aggregation with authenticated data."
+  ]
+}

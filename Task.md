@@ -32,7 +32,8 @@
 - [x] 根据 q19 工作台日志定位到跨域状态集合问题：普通 `TestRun` 查询被错误带入 Android `stopped` 和性能 `cancelled`，PostgreSQL 会在 `/workbench/overview` 返回 `invalid input value for enum runstatus`。
 - [x] 按 case/suite/plan/android/performance 分别限制状态过滤值；空交集使用始终不匹配条件，避免不支持的状态退化为查询全部；重试能力继续使用各域既有策略并保留 case `skipped` 重试。
 - [x] 代码审查确认未修改执行器、权限和数据库结构；工作台定向 `8 passed`，Ruff、差异检查和完整后端非集成回归 `2229 passed` 通过。
-- [E] 修复已提交到本地代码并待远端 q19 受控重建；当前 q19 容器仍运行旧提交，不能把远端日志恢复前的状态写成已部署通过。
+- [x] q19 已在独立工作树按 `36cacb9` 受控重建；迁移为 `20260824_0065`，Backend 健康 `200`，Prometheus 4 个 target 为 `up`，2 个 Celery 节点在线，重启后日志未再出现 enum 错误。脱敏证据见 [`q19-workbench-status-filter-2026-08-25.json`](docs/evidence/q19-workbench-status-filter-2026-08-25.json)。
+- [E] 真实项目数据下的鉴权工作台请求仍需当前有效账号；本次只验证未认证边界 `401`，不把无凭据状态写成完整聚合通过。
 
 ## 2026-08-24 产品导航与能力扩展路线（持续跟踪）
 

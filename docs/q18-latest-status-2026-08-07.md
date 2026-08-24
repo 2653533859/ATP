@@ -22,7 +22,7 @@
 
 - q19 日志定位到工作台聚合把 Android `stopped` 和性能 `cancelled` 传入普通 `TestRun`/套件/计划 PostgreSQL enum，导致 `/workbench/overview` 可能返回 `invalid input value for enum runstatus`。
 - 已按任务域拆分状态过滤，并对空交集使用无匹配条件；重试状态改为复用各域策略。工作台定向 `8 passed`，完整后端非集成 `2229 passed`，Ruff、差异检查通过。
-- 本条只证明仓库代码修复；远端 q19 当前容器仍为旧提交，必须受控重建后重新请求工作台接口，不能用旧日志或本地测试替代部署复核。
+- q19 已按 `36cacb9` 受控重建，迁移为 `20260824_0065`，Backend `200`、Prometheus 4 个 target `up`、Celery 2 节点在线，重启后无新的 enum 错误；脱敏证据见 [`q19-workbench-status-filter-2026-08-25.json`](evidence/q19-workbench-status-filter-2026-08-25.json)。鉴权工作台请求仍需当前有效账号，本轮只验证未认证 `401`，未将其写成完整聚合通过。
 
 ## 2026-08-25 P1-F 本地发布收口状态
 

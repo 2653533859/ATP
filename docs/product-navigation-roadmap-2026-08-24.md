@@ -83,7 +83,7 @@
 
 - **问题**：q19 日志显示 `/workbench/overview` 将跨任务域失败状态集合直接用于每张运行表，普通 `TestRun` 查询因此收到 Android `stopped`，触发 PostgreSQL enum 错误。
 - **修复与审查**：工作台按五个任务域映射状态过滤，空交集显式返回无匹配条件；重试按钮按域状态集合判断。未改执行器、权限或数据库结构，工作台定向 `8 passed`、完整后端非集成 `2229 passed`、Ruff/diff-check 通过。
-- **验收边界**：本地代码已修复并推送；远端 q19 当前容器尚未按新提交重建，需受控重建后再次验证工作台 API，不能把旧容器状态记为通过。
+- **验收边界**：q19 已按 `36cacb9` 受控重建，迁移、Backend、Worker、Prometheus 和 Celery 基础状态通过，重启后未出现新的 enum 错误；脱敏证据见 [`q19-workbench-status-filter-2026-08-25.json`](evidence/q19-workbench-status-filter-2026-08-25.json)。鉴权工作台请求仍需当前有效账号，本轮未认证 `401` 不代表真实项目聚合、角色和任务操作验收通过。
 
 ## 0. 当前执行总表（2026-08-24 更新）
 

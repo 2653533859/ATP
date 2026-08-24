@@ -29,7 +29,7 @@
 
 - q19 日志暴露工作台将 Android `stopped`、性能 `cancelled` 混入普通 `TestRun`/套件/计划状态查询，可能导致 PostgreSQL `runstatus` enum 错误。
 - 已按任务域限制状态过滤，空交集显式无匹配，重试状态按域恢复；工作台定向 `8 passed`，完整后端非集成 `2229 passed`，Ruff/diff-check 通过。
-- 这只代表仓库代码已修复；远端 q19 仍需基于新提交重建并复核工作台接口，发布结论不因此提前关闭。
+- q19 已按 `36cacb9` 受控重建，迁移 `20260824_0065`、Backend `200`、Prometheus 4 targets `up`、Celery 2 节点在线，重启后未出现新的 enum 错误；脱敏证据见 [`q19-workbench-status-filter-2026-08-25.json`](evidence/q19-workbench-status-filter-2026-08-25.json)。鉴权工作台请求仍因缺少当前有效账号未执行，发布结论不因此提前关闭。
 
 ## 能力与证据索引
 
