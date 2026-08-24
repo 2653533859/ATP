@@ -73,6 +73,12 @@
 - **验证**：登录定向 `3 passed`，运行详情定向 `1 passed`，全量 Playwright `12 passed`；前端 Vitest `66 files / 265 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过。
 - **边界**：Windows 真实 smoke 仍需用当前有效账号重跑；本地 mock 只证明浏览器回归隔离正确，不替代认证读接口、文件传输、报告导出和真实部署验收。
 
+### 2026-08-25 P0-A 已认证浏览器冒烟复核记录
+
+- **验证**：复用当前有效登录会话加载统计看板、工作台概览、我的待办、用例管理、执行记录、测试套件、存储管理和 API 契约资产；页面均未回到登录页，用户菜单显示 `admin`。
+- **运行状态**：q19 Backend 最近 5 分钟无 `Traceback`、`ERROR` 或 `invalid input value for enum`；脱敏证据见 [`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)。
+- **边界**：本轮只覆盖已认证页面链路，不替代文件传输、报告导出、浏览器矩阵和 Web 低代码的既有完整 readiness；P0-A 仍需目标环境完整复验。
+
 ### 2026-08-25 P0-B Android 单设备验收前置复核
 
 - **验证**：执行 `scripts/windows-android-acceptance.ps1`，`adb.exe` 和 ADB 命令响应正常；脱敏报告记录 `online=0, unauthorized=0, offline=1, other=0`。
@@ -91,7 +97,7 @@
 
 | 顺序 | 模块 | 状态 | 交付与验收边界 |
 | --- | --- | --- | --- |
-| P0-A | Windows API/Web 可用性复核 | `[E]` | 401 安全诊断和凭据来源说明已完成；仍需使用当前有效账号重新验证登录、认证读接口、Playwright、浏览器矩阵、文件传输和报告导出。账号密码只能通过本机环境变量传入，不写入仓库或证据。 |
+| P0-A | Windows API/Web 可用性复核 | `[E]` | 401 安全诊断和凭据来源说明已完成，当前有效会话页面冒烟通过；仍需完整重放登录、认证读接口、Playwright、浏览器矩阵、文件传输和报告导出。账号密码只能通过本机环境变量传入，不写入仓库或证据。 |
 | P0-B | Android Worker 单设备验收 | `[E]` | 恢复 `adb devices` 为 `device`，确认 Backend/Windows Agent 配置配对、Worker 心跳、扫描、预约、截图、APK 包名、Android 低代码执行、专项任务和结果证据；当前设备为 `offline`，不能记录为通过。 |
 | P1-C | 真实通知供应商验收 | `[E]` | 在不提交凭据的前提下，用临时 SMTP/企业微信/钉钉目标验证投递、失败重试、历史记录、敏感信息脱敏和性能摘要；本地 SMTP sink 仅作为链路通过，不替代供应商送达。 |
 | P1-D | 外部缺陷平台验收 | `[E]` | 在提供临时测试项目和凭据后，验证 Jira/禅道/GitHub/GitLab 的创建、重复识别、状态同步、内部状态回写、权限和错误脱敏；所有临时 Issue 和凭据使用后清理。 |

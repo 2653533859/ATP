@@ -1,0 +1,31 @@
+{
+  "schema_version": 1,
+  "kind": "windows_browser_authenticated_smoke",
+  "recorded_at": "2026-08-25",
+  "source_commit": "6095939",
+  "environment": {
+    "frontend": "http://127.0.0.1:5173",
+    "backend_path": "Windows SSH tunnel to q19 backend",
+    "account": "existing authenticated browser session; visible user admin"
+  },
+  "pages": [
+    { "path": "/dashboard", "status": "loaded", "resolved_path": "/dashboard" },
+    { "path": "/workbench/overview", "status": "loaded", "resolved_path": "/dashboard" },
+    { "path": "/workbench/todos", "status": "loaded", "resolved_path": "/workbench/todos" },
+    { "path": "/cases?project_id=1", "status": "loaded", "resolved_path": "/cases?project_id=1" },
+    { "path": "/runs", "status": "loaded", "resolved_path": "/runs" },
+    { "path": "/suites", "status": "loaded", "resolved_path": "/suites" },
+    { "path": "/system/storage", "status": "loaded", "resolved_path": "/system/storage" },
+    { "path": "/system/api-contract-assets", "status": "loaded", "resolved_path": "/system/api-contract-assets" }
+  ],
+  "checks": {
+    "redirected_to_login": false,
+    "authenticated_user_visible": true,
+    "backend_recent_error_matches": 0
+  },
+  "limitations": [
+    "This smoke reused an already authenticated browser session; it does not record credentials or re-run password login.",
+    "File upload, report export, browser matrix and Web low-code execution remain covered by prior full readiness evidence and were not repeated in this UI-only pass.",
+    "Android remains blocked by the separate ADB offline state."
+  ]
+}

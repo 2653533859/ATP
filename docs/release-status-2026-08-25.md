@@ -31,11 +31,17 @@
 - 已按任务域限制状态过滤，空交集显式无匹配，重试状态按域恢复；工作台定向 `8 passed`，完整后端非集成 `2229 passed`，Ruff/diff-check 通过。
 - q19 已按 `36cacb9` 受控重建，迁移 `20260824_0065`、Backend `200`、Prometheus 4 targets `up`、Celery 2 节点在线，重启后未出现新的 enum 错误；脱敏证据见 [`q19-workbench-status-filter-2026-08-25.json`](evidence/q19-workbench-status-filter-2026-08-25.json)。鉴权工作台请求仍因缺少当前有效账号未执行，发布结论不因此提前关闭。
 
+## 2026-08-25 Windows 已认证浏览器冒烟复核
+
+- 复用当前已登录的 Windows 浏览器会话，实际加载统计看板、工作台概览、我的待办、用例管理、执行记录、测试套件、存储管理和 API 契约资产；页面均保持在业务页，未回到登录页，用户菜单显示为 `admin`。
+- q19 Backend 最近 5 分钟日志未发现 `Traceback`、`ERROR` 或 `invalid input value for enum`；这轮验证确认前端到远端后端的已认证页面链路可用。
+- 脱敏证据见 [`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)。本轮复用了已有会话，未记录密码/Token；文件传输、报告导出、浏览器矩阵和 Web 低代码仍沿用既有完整 readiness 证据，不因本轮页面冒烟重复通过。
+
 ## 能力与证据索引
 
 | 能力域 | 当前结论 | 主要证据 | 未关闭边界 |
 |---|---|---|---|
-| Windows API/Web | 本地与 q19 证据已形成 | [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)、[`q19-migration-web-worker-readiness-2026-08-24.json`](evidence/q19-migration-web-worker-readiness-2026-08-24.json) | 目标发布环境仍需按版本重放并归档 |
+| Windows API/Web | 本地与 q19 证据已形成，当前账号页面冒烟通过 | [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`q19-migration-web-worker-readiness-2026-08-24.json`](evidence/q19-migration-web-worker-readiness-2026-08-24.json) | 目标发布环境仍需按版本重放并归档 |
 | Web Worker/录制 | q19 持久 Worker、Chromium/Firefox/WebKit 录制和跨 API 停止快照已验证 | [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json) | Linux/Xvfb、跨副本和目标部署拓扑仍需独立复验 |
 | Android | 代码、配置配对和 doctor 门禁已完成；真实执行阻塞 | [`windows-android-worker.ps1`](../scripts/windows-android-worker.ps1)、[`windows-android-acceptance.ps1`](../scripts/windows-android-acceptance.ps1) | ADB 必须恢复为 `device`，然后完成扫描、租约、截图、APK、低代码、专项任务和证据回传 |
 | 性能 | P1-E.1/P1-E.2/P1-E.3 本地闭环完成，q19 单节点 k6 短压已有证据 | [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)、[`product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md) | 多节点/容量、生产 Prometheus、MinIO 生命周期和跨主机恢复 |

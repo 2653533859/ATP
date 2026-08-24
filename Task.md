@@ -20,6 +20,11 @@
 - [x] 前端 Vitest `66 files / 265 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过。
 - [E] Windows 真实 API/Web smoke 仍需使用当前有效账号复跑；本轮 401 只说明账号未被接受，不能使用 `FIRST_ADMIN_*` 代替当前账号，也未将认证读接口、文件传输和报告导出记为通过。
 
+## 2026-08-25 P0-A Windows 已认证浏览器冒烟复核
+
+- [x] 复用当前有效登录会话完成统计看板、工作台概览、我的待办、用例管理、执行记录、测试套件、存储管理和 API 契约资产页面加载；均未回到登录页，q19 Backend 最近 5 分钟无 enum/Traceback/ERROR。
+- [E] 证据见 [`docs/evidence/windows-browser-smoke-2026-08-25.json`](docs/evidence/windows-browser-smoke-2026-08-25.json)。本轮只覆盖已认证页面链路，文件传输、报告导出、浏览器矩阵和 Web 低代码不重复替代既有完整 readiness；P0-A 仍保持“已实现，待完整目标环境复验”。
+
 ## 2026-08-25 P0-B Android 单设备验收前置复核
 
 - [x] 执行 `scripts/windows-android-acceptance.ps1`，确认 `adb.exe` 可用且 ADB 命令正常响应。

@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 P0-A 已补一轮 Windows 已认证浏览器冒烟：复用当前登录会话实际加载 `/dashboard`、`/workbench/overview`、`/workbench/todos`、`/cases`、`/runs`、`/suites`、`/system/storage` 和 `/system/api-contract-assets`，均未回登录页，q19 Backend 最近 5 分钟无 enum/Traceback/ERROR。脱敏证据为 `docs/evidence/windows-browser-smoke-2026-08-25.json`；本轮不记录密码/Token，也不替代文件传输、报告导出、浏览器矩阵和 Web 低代码的既有完整 readiness，P0-A 仍待目标环境完整复验。
+
 - 2026-08-25 已将参考导航固化为当前开发计划版本：主计划 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md) 新增“0.2 导航对齐持续开发计划（当前跟踪版本）”，明确工作台、测试能力、测试资产、智能中枢、系统五组入口、每组职责、模块验收出口和剩余工作。`Task.md` 已同步维护状态；旧设备、APK、专项任务、报告、Mock、数据集、Web/API 资产和平台治理页面保持 URL 兼容，但从所属工作台或配置中心进入，不再继续堆到系统管理。当前顺序为 Windows API/Web 复核 → Android 单设备 → 真实通知 → 外部缺陷平台 → 性能生产环境 → 发布收口；每个模块必须完成实现/调整、测试、代码审查、问题修复、文档/记忆同步后再提交推送。真实环境未提供时，不能把 mock、跳过项或 ADB `offline` 记为通过。
 
 - 2026-08-25 P0-A 本地 Playwright 回归修复已完成：共享登录 fixture 兼容 Ant Design Vue 将“登录”渲染为“登 录”，并补齐主布局 `/workbench/overview` 与运行详情 `/defects` 的隔离 mock，避免真实 401 清理会话导致登录页假失败。登录定向 `3 passed`、运行详情定向 `1 passed`、全量 Playwright `12 passed`；前端 Vitest `66 files / 265 tests passed`，type-check、生产构建和 diff-check 通过。代码审查确认未改生产认证/路由/执行逻辑。Windows 真实 API/Web smoke 仍待当前有效账号，401、跳过认证检查或本地 mock 不能记为真实环境通过。
