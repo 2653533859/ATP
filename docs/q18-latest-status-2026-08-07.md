@@ -1,5 +1,11 @@
 # Q18 最新开发状态与前后实现对比
 
+## 2026-08-24 N6.3 Windows 发布 readiness 与远端依赖恢复
+
+- 复核 `172.31.27.133` 时发现旧 Redis 容器的网络与 6379 发布状态不一致，清理异常容器元数据并保留挂载数据目录；重启 Docker 网络层后，Redis 6379、PostgreSQL 5432、MinIO 9000 从 Windows 可达，q19 验收栈依赖链的 Backend `/health` 返回 HTTP 200，其他 Worker/目标服务仍需单独复核。
+- Windows 最小 smoke 通过 doctor、后端健康、前端登录页、三项远端依赖、ADB 可执行文件、k6/Locust/gRPC 和性能队列检查，证据见 [`windows-release-readiness-2026-08-24.json`](evidence/windows-release-readiness-2026-08-24.json)。报告中的 Android 设备为 warning，未把无真机状态计为通过。
+- 本轮命令显式跳过管理员登录、认证读接口、Playwright/浏览器矩阵、文件上传、报告导出和 Android 用例；本机 readiness 默认仓库检查通过，严格模式因 Windows 缺少 Docker Compose 工具而失败。该记录只覆盖 API/Web 最小链路和远端依赖恢复，完整发布及 Android/Worker、性能、通知、外部缺陷平台仍 pending。
+
 ## 2026-08-24 N6.2 导航、配置中心与发布文档状态
 
 - 当前产品导航已固定为“工作台、测试能力、测试资产、智能中枢、系统”五组；旧 URL、旧 API 和领域页面保持兼容。配置中心入口为 `/system/config`，远程工具箱入口为 `/system/toolbox`。

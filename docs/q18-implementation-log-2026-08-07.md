@@ -1,5 +1,12 @@
 # Q18 实施记录
 
+## 2026-08-24 N6.3 Windows 发布 readiness 与远端依赖恢复
+
+- [x] 远端复核定位到 Redis 6379 的旧 Docker 代理/容器网络残留；仅清理 Redis 异常容器状态并保留挂载数据目录，重启 Docker 网络层后恢复 6379 发布，再按 q19 compose 项目补齐 PostgreSQL、Redis、MinIO、迁移和 Backend 依赖。
+- [x] Windows 最小 smoke 通过：`scripts/windows-local-smoke.ps1 -SkipPlaywright -SkipBrowserMatrix -SkipFileTransfer -SkipReports -SkipLiveLogin` 的 doctor、Backend `/health`、Frontend `/login`、PostgreSQL/Redis/MinIO、ADB、k6/Locust/gRPC 和性能队列检查通过；脱敏报告归档为 `docs/evidence/windows-release-readiness-2026-08-24.json`。
+- [x] `scripts/validate-deployment-readiness.py` 默认仓库检查通过；严格模式仅因当前 Windows 缺少 Docker Compose 命令失败，保留为本机工具缺口，不修改代码绕过门禁。
+- [ ] 完整管理员登录、认证读接口、Playwright/浏览器矩阵、文件上传、报告导出、Android Worker/真机、性能节点、通知和外部缺陷平台仍未由本轮命令覆盖，必须在后续环境证据中单独确认。
+
 ## 2026-08-24 N6.2 发布文档、能力矩阵与操作手册收口
 
 - [x] 将产品导航、能力矩阵、用户操作手册、Task 和 MEMORY 统一到五组导航：工作台、测试能力、测试资产、智能中枢、系统；保留原有 URL、API 和领域页面兼容。

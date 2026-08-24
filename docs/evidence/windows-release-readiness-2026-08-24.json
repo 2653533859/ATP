@@ -1,0 +1,105 @@
+{
+  "generated_at": "2026-08-24T12:09:31.5890149Z",
+  "repo_root": "E:\\csh\\MyProject\\ATP",
+  "required_failures": 0,
+  "results": [
+    {
+      "name": "Windows local doctor",
+      "status": "passed",
+      "required": true,
+      "details": "[ok]   Web recording mode: local\n[ok]   Python Playwright package\n[ok]   Python Playwright Chromium browser\n[ok]   APP_SECRET_KEY is configured (value hidden)\n[ok]   POSTGRES_PASSWORD is configured (value hidden)\n[ok]   MINIO_ROOT_PASSWORD is configured (value hidden)\n[ok]   FIRST_ADMIN_PASSWORD is configured (value hidden)\n[ok]   port 8000 for Backend API\n[ok]   port 5173 for Frontend Vite\n[ok]   PostgreSQL endpoint 172.31.27.133:5432\n[ok]   Redis endpoint 172.31.27.133:6379\n[ok]   MinIO endpoint 172.31.27.133:9000\n[ok]   ADB executable\n[warn] Android device online\n       Connect a device or use adb connect <device-ip>:5555; Web/API development does not require an Android device.\n[ok]   Performance executor k6\n[ok]   Performance executor Locust\n[ok]   Performance executor gRPC\n[ok]   Performance node queue: performance.worker-local\nDoctor passed with 1 warning(s).",
+      "timestamp": "2026-08-24T12:09:31.3271561Z"
+    },
+    {
+      "name": "Backend health",
+      "status": "passed",
+      "required": true,
+      "details": "HTTP 200",
+      "timestamp": "2026-08-24T12:09:31.4904643Z"
+    },
+    {
+      "name": "Frontend login page",
+      "status": "passed",
+      "required": true,
+      "details": "HTTP 200",
+      "timestamp": "2026-08-24T12:09:31.5188676Z"
+    },
+    {
+      "name": "Live API admin login",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped by -SkipLiveLogin.",
+      "timestamp": "2026-08-24T12:09:31.5196954Z"
+    },
+    {
+      "name": "Live API authenticated read checks",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped because live login was disabled.",
+      "timestamp": "2026-08-24T12:09:31.5205081Z"
+    },
+    {
+      "name": "Playwright mock E2E suite",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped by -SkipPlaywright.",
+      "timestamp": "2026-08-24T12:09:31.5238993Z"
+    },
+    {
+      "name": "Playwright browser matrix login page",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped by -SkipBrowserMatrix.",
+      "timestamp": "2026-08-24T12:09:31.5254811Z"
+    },
+    {
+      "name": "Web file upload and cleanup",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped by -SkipFileTransfer.",
+      "timestamp": "2026-08-24T12:09:31.5487336Z"
+    },
+    {
+      "name": "Run report export",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped by -SkipReports.",
+      "timestamp": "2026-08-24T12:09:31.5534745Z"
+    },
+    {
+      "name": "Web low-code case execution",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped because -WebCaseId was not supplied.",
+      "timestamp": "2026-08-24T12:09:31.5633786Z"
+    },
+    {
+      "name": "Android network doctor",
+      "status": "skipped",
+      "required": false,
+      "details": "Android is optional for Windows API/Web smoke.",
+      "timestamp": "2026-08-24T12:09:31.5669194Z"
+    },
+    {
+      "name": "Android Worker registry",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped because Android Worker mode is not enabled and live login was skipped.",
+      "timestamp": "2026-08-24T12:09:31.5741631Z"
+    },
+    {
+      "name": "Android device scan callback",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped because ADB_SCAN_MODE is not worker and -RequireAndroid was not supplied.",
+      "timestamp": "2026-08-24T12:09:31.5773592Z"
+    },
+    {
+      "name": "Android low-code case execution",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped because -AndroidCaseId was not supplied.",
+      "timestamp": "2026-08-24T12:09:31.5817400Z"
+    }
+  ]
+}
