@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "kind": "windows_api_web_full_readiness",
+  "generated_at": "2026-08-24T22:56:11.2513494Z",
+  "source_commit": "00ae3cf",
+  "status": "passed",
+  "required_failures": 0,
+  "checks": {
+    "backend_health_http": 200,
+    "frontend_login_http": 200,
+    "authenticated_session": true,
+    "dependencies": ["postgresql", "redis", "minio"],
+    "web_recording_worker": "registered=1 available=1",
+    "playwright_e2e": "12 passed",
+    "browser_matrix": "passed; failed_requests=0; error_responses=0",
+    "file_upload_cleanup": "passed; 47 bytes; temporary object deleted",
+    "web_lowcode": "passed; run 9; download_objects=1",
+    "report_exports": "HTML 18715 bytes and JUnit XML 317 bytes",
+    "temporary_project_cleanup": "passed; project 24; artifacts_deleted=5"
+  },
+  "skipped_optional_checks": [
+    "Android network doctor",
+    "Android Worker registry",
+    "Android device scan callback",
+    "Android low-code case execution"
+  ],
+  "follow_up": "This proves the Windows API/Web smoke path. It does not close Karing-specific Android acceptance, real external notification delivery, external defect tracker integration, or production Kubernetes performance acceptance."
+}

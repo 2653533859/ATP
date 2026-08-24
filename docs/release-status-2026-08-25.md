@@ -37,6 +37,12 @@
 - 通知供应商：当前只有回环 SMTP 的 `local_link_only` 证据，没有真实 SMTP/企业微信/钉钉送达回执。
 - 外部缺陷平台：没有可使用的临时 Jira/禅道/GitHub/GitLab 项目和凭据，创建、同步和脱敏链路未做真实验收。
 
+### 2026-08-25 P0-A Windows API/Web 完整 smoke
+
+- 使用当前有效账号运行完整 `scripts/windows-local-smoke.ps1 -SeedWebDownloadCase -RequireWebLowcode -RequireWebDownload`：Backend/Frontend HTTP 200、HttpOnly Cookie 登录、PostgreSQL/Redis/MinIO readiness、Web Worker、Playwright `12 passed`、浏览器矩阵无失败请求/错误响应、文件上传/清理、Web 低代码下载和 HTML/JUnit 报告导出均通过。
+- 修复了空历史数据库中的阶段顺序缺陷：临时 Web run 现在先于报告导出，run 9 报告 HTML/JUnit 分别为 18,715/317 bytes；临时项目 24 与 5 个产物已清理。脱敏证据见 [`windows-full-readiness-2026-08-25.json`](evidence/windows-full-readiness-2026-08-25.json)。
+- P0-A 仍保留 `[~]`：环境/认证复用和真实 API 协议目标需要单独验证；本次不替代 Karing Android、真实通知、外部缺陷平台或生产性能验收。
+
 ## 当前开发计划
 
 当前按参考导航的五组结构推进：工作台、测试能力、测试资产、智能中枢、系统。旧设备/APK/专项任务、Mock、数据集和治理页面保留兼容 URL，但从所属工作台或配置中心进入；“入口可见”不作为业务闭环通过条件。

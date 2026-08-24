@@ -516,6 +516,7 @@ bash scripts/android-network-doctor.sh <device-ip>:5555
 - [x] 性能依赖检测：doctor 检查 k6、Locust、grpcio/grpcio-tools；JMeter 仍需 Windows Java/JMeter 5.6.3，并在 `PERFORMANCE_EXECUTORS` 中显式加入 `jmeter`。Windows Worker 会自动解析 PATH 中的 `jmeter.bat`/`jmeter.exe`，无需手工改成 Unix 命令名。
 - [x] Android 网络诊断：新增 `android-network-doctor.ps1`，原 `android-network-doctor.sh` 继续保留给 Git Bash/WSL。
 - [~] Windows 全量本地冒烟：`windows-local-smoke.ps1` 已自动执行服务预检、真实登录、认证读接口、Web 录制 Worker 状态预检、API 健康、Web 登录页、Playwright mock E2E、三浏览器页面矩阵、临时文件上传/清理、HTML/JUnit 报告生成和可选停止服务，并生成脱敏 JSON 报告；Web 低代码新增 `-SeedWebDownloadCase` 自包含创建/执行/清理链路，已在当前运行环境留下真实 Worker/MinIO 下载对象证据并自动清理，Android 扫描仍需真实设备。
+- 2026-08-25 Windows smoke 修复：`-SeedWebDownloadCase` 现在先完成临时 Web 低代码运行，再执行 HTML/JUnit 报告导出；空历史数据库首次验收不会因“没有历史 run”误报失败。当前完整 smoke 的脱敏证据见 [`windows-full-readiness-2026-08-25.json`](evidence/windows-full-readiness-2026-08-25.json)。
 - [x] Worker 边界：Windows 使用 Celery `--pool=solo` 适合功能联调，不用于判断生产级并发、吞吐或多节点性能；相关结论转到 Linux/Kubernetes 目标环境。
 
 Windows 本地回归建议执行：
