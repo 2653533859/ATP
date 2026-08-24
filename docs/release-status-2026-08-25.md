@@ -8,7 +8,7 @@
 
 本地代码、回归和 Windows/q19 API/Web/性能链路已经形成可复核证据；以下外部门禁仍未关闭，因此发布只能按“部分实现/待环境验收”处理：
 
-- Android Worker/真机：当前 `adb devices -l` 为 `172.16.102.91:5555 offline`，不能执行单设备用例验收。
+- Android Worker/真机：ADB 已发现在线目标并通过基础设备检查，但 Windows Worker 注册 Redis 与 q19 Backend 使用的 Redis 不一致，`/devices/workers` 尚未看到在线 Worker，单设备执行仍不能验收。
 - 性能生产环境：真实 Kubernetes 多节点、容量限制、生产 Prometheus、MinIO 生命周期和跨主机恢复未验收。
 - 通知供应商：当前只有回环 SMTP 的 `local_link_only` 证据，没有真实 SMTP/企业微信/钉钉送达回执。
 - 外部缺陷平台：没有可使用的临时 Jira/禅道/GitHub/GitLab 项目和凭据，创建、同步和脱敏链路未做真实验收。
@@ -19,11 +19,18 @@
 - 前端 Vitest `66 files / 265 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过。
 - 这不改变发布结论：Windows 完整 smoke 仍需使用当前有效账号重跑；认证读接口、文件传输和报告导出在账号未通过前保持未验收，不记录任何密码或 Token。
 
-## 2026-08-25 P0-B Android 单设备验收前置复核
+## 2026-08-25 P0-B Android 单设备验收前置复核（历史记录）
 
-- `scripts/windows-android-acceptance.ps1` 已执行；`adb.exe` 可用且命令响应正常，但设备统计为 `online=0, unauthorized=0, offline=1, other=0`，必需检查失败。
+- 早期执行 `scripts/windows-android-acceptance.ps1` 时，设备统计为 `online=0, unauthorized=0, offline=1, other=0`，必需检查失败；该结果只代表当时的设备状态。
 - 脱敏本地报告：`.local-run/android-acceptance-current-20260825.json`。脚本在离线状态下不会继续执行设备命令、包管理、日志读取或创建 Android 运行任务。
-- 这不改变发布结论：ADB 恢复到 `device` 后，仍需完成扫描、租约、截图、APK 包名、低代码、专项任务和证据回传；`offline` 只能作为阻塞项记录。
+- 后续设备已恢复在线，当前阻塞已转为 Worker 注册 Redis 通道配对，见下方最新记录；历史 `offline` 不能被重新解释为当前通过。
+
+## 2026-08-25 P0-B Android ADB 在线但 Worker 注册未配对
+
+- ADB 通过 mDNS 发现在线目标；目标 `172.16.102.15:5555` 的授权、shell、属性、包管理和 logcat 基础检查通过。
+- Windows Android Worker 的 Redis DB 2 中存在心跳注册，但 q19 Backend 通过 SSH 隧道使用 q19 Compose 内部 Redis，因此 `/devices/workers` 返回没有在线 Android Worker。
+- 发布边界：这不是 ADB 失败，而是 Agent/Backend 注册通道配置不一致。完成同实例、DB、注册前缀配对并重新验证 Worker registry、扫描和结果回传之前，Android 发布门禁仍保持未关闭。
+- 当前重新发现的设备未确认存在 Karing 包名；任何 Karing 专项任务必须先通过设备包管理确认真实包名。
 
 ## 2026-08-25 工作台任务状态枚举隔离修复
 
@@ -38,7 +45,7 @@
 - 运行详情在收到 WebSocket 完成事件后自动刷新，避免执行页面必须手动刷新才能看到录屏。
 - 本地证据：提交 `279b254`，后端导出 `13 passed`、RunDetail `6 passed`、前端全量 `66 files / 268 tests passed`，类型检查和构建通过；详见 [`android-recording-evidence-2026-08-25.json`](evidence/android-recording-evidence-2026-08-25.json)。
 - q19 已从 `origin/main` 的 `257c479` 独立工作树重建并启动；迁移 `20260824_0065 (head)`、健康 `200`、Prometheus 4 个 target `up`、Celery 2 节点响应、后端最近 3 分钟错误匹配数为 0；详见 [`q19-android-recording-deployment-2026-08-25.json`](evidence/q19-android-recording-deployment-2026-08-25.json)。
-- 发布边界：当前没有真实 Android 录屏采集证据，ADB 仍为 `offline`；这项改动不关闭 Android 真机发布门禁。
+- 发布边界：当前没有真实 Android 录屏采集证据，且 Worker 注册通道尚未配对；这项改动不关闭 Android 真机发布门禁。
 
 ## 2026-08-25 P1-D 外部缺陷平台错误安全收口
 
@@ -79,7 +86,7 @@
 |---|---|---|---|
 | Windows API/Web | 本地与 q19 证据已形成，当前账号页面冒烟通过 | [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`q19-migration-web-worker-readiness-2026-08-24.json`](evidence/q19-migration-web-worker-readiness-2026-08-24.json) | 目标发布环境仍需按版本重放并归档 |
 | Web Worker/录制 | q19 持久 Worker、Chromium/Firefox/WebKit 录制和跨 API 停止快照已验证 | [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json) | Linux/Xvfb、跨副本和目标部署拓扑仍需独立复验 |
-| Android | 代码、配置配对、doctor 门禁和录屏结果展示已完成；真实执行阻塞 | [`windows-android-worker.ps1`](../scripts/windows-android-worker.ps1)、[`windows-android-acceptance.ps1`](../scripts/windows-android-acceptance.ps1)、[`android-recording-evidence-2026-08-25.json`](evidence/android-recording-evidence-2026-08-25.json) | ADB 必须恢复为 `device`，然后完成扫描、租约、截图、APK、低代码、专项任务、设备端录屏和证据回传 |
+| Android | 代码、配置配对门禁和录屏结果展示已完成；ADB 基础检查通过，但 Worker 注册通道未配对，真实执行阻塞 | [`windows-android-worker.ps1`](../scripts/windows-android-worker.ps1)、[`windows-android-acceptance.ps1`](../scripts/windows-android-acceptance.ps1)、[`android-recording-evidence-2026-08-25.json`](evidence/android-recording-evidence-2026-08-25.json) | 先统一 Agent/Backend Redis 实例、DB、注册前缀，再完成 Worker registry、扫描、租约、截图、APK、低代码、专项任务、设备端录屏和证据回传 |
 | 性能 | P1-E.1～P1-E.4 本地闭环完成，q19 已按最新提交重建 | [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)、[`performance-shard-capacity-2026-08-25.json`](evidence/performance-shard-capacity-2026-08-25.json)、[`q19-performance-shard-deployment-2026-08-25.json`](evidence/q19-performance-shard-deployment-2026-08-25.json) | 真实 Kubernetes 多节点、生产 Prometheus、MinIO 生命周期和跨主机恢复 |
 | 通知 | 本地 SMTP 链路已验证 | [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json) | 真实供应商送达、重试、限流和重复投递 |
 | 外部缺陷平台 | 本地适配器和脱敏逻辑已实现 | [`docs/capability-baseline-2026-08-07.md`](capability-baseline-2026-08-07.md) | 临时项目、权限、创建/去重/状态同步和清理 |
@@ -94,7 +101,7 @@
 ## 发布前复验顺序
 
 1. 在 Windows 上使用当前有效账号重跑完整 API/Web smoke，并记录同一提交 SHA。
-2. 将 ADB 设备恢复到 `device`，执行 `scripts/windows-android-acceptance.ps1`；任何 `offline`、`unauthorized` 或无设备结果都保持阻塞。
+2. 先统一 Windows Agent 与 q19 Backend 的 Redis 实例、DB 和注册前缀，确认 `/devices/workers` 能看到在线 Worker；再执行 `scripts/windows-android-acceptance.ps1` 并完成 Android 单设备链路，任何 `offline`、`unauthorized`、无 Worker 或无设备结果都保持阻塞。
 3. 在目标 Linux/Kubernetes 环境执行 `scripts/performance-environment-smoke.py`，补齐真实节点、目标服务、Prometheus、取消和资源采样证据。
 4. 注入不落库的临时通知供应商凭据，按渠道取得供应商侧送达回执后清理目标和凭据。
 5. 使用临时外部缺陷项目验证创建、重复识别、状态同步、权限、错误脱敏和清理。

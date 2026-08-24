@@ -1,5 +1,9 @@
 # MEMORY
 
+- 2026-08-25 已新增参考导航后续执行台账，统一跟踪工作台、API、APP、UI、性能、AI/Hermes、测试资产/智能中枢和远程工具箱/配置中心八项交付；每项均按“实现/调整 → 定向与全量测试 → 代码审查 → 修复 → 文档/记忆同步 → Conventional Commit 推送”闭环，入口存在不等于真实环境通过。主计划见 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md) 的“0.3 参考导航后续执行台账”，`Task.md` 已同步当前状态。
+
+- 2026-08-25 P0-B Android 状态更新：ADB 已通过 mDNS 发现在线目标，`172.16.102.15:5555` 的授权、命令、属性、包管理和 logcat 基础检查通过；但 Windows Android Worker 写入的是主机 Redis DB 2，q19 Backend 通过 SSH 隧道使用 q19 Compose 内部 Redis，导致 `/devices/workers` 看不到在线 Worker。下一步必须完成 Agent 与 Backend 的 Redis 实例/DB/注册前缀配对后，才能继续扫描、租约、控件属性、截图/录屏、APK 包名、低代码、专项任务和结果回传；当前设备也未确认存在 Karing 包名，不能凭应用显示名执行专项任务。
+
 - 2026-08-25 P1-C 通知 Smoke 追加脱敏修复已提交 `8fd129b`：补齐 `access_token`、`sign` 和 URL 用户信息匹配，避免 DingTalk/Webhook 异常变体泄露；通知脚本定向 `12 passed`，完整后端非集成 `2236 passed`。真实 SMTP/企业微信/钉钉仍待供应商目标与凭据；证据见 `docs/evidence/notification-smoke-redaction-2026-08-25.json`。
 
 - 2026-08-25 P1-C 通知验收脚本安全修复已提交 `9852387`：`notification-channel-acceptance.py` 异常分支改为复用通知服务 `_safe_exception_message`，不再把 Token、密码或 URL 用户信息写入终端/JSON 报告；新增测试在全量套件中独立加载真实通知模块，修复历史 `sys.modules` 桩污染。通知定向 `12 passed`，完整后端非集成 `2236 passed`，改动文件 Ruff/格式/diff-check 通过。未触达真实 SMTP/企业微信/钉钉供应商，真实投递门禁仍待临时目标与凭据；证据见 `docs/evidence/notification-acceptance-redaction-2026-08-25.json`。

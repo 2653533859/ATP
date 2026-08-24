@@ -11,6 +11,25 @@
 
 当前计划的唯一排序仍为：`P0-A → P0-B → P1-C/P1-D → P1-E → P1-F`。本节只维护勾选状态，详细范围、验收标准和禁止事项以主计划及 [`docs/release-status-2026-08-25.md`](docs/release-status-2026-08-25.md) 为准。
 
+## 2026-08-25 参考导航后续执行台账
+
+本轮按照参考导航的五组结构继续推进：工作台、测试能力、测试资产、智能中枢、系统。导航入口和本地工作台已完成，不把入口存在误记为真实环境闭环；详细交付矩阵见 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md) 的“0.3 参考导航后续执行台账”。
+
+- [x] A1 工作台/任务中心：本地项目筛选、待办聚合、轮询、重试、终止、批量操作、失败事件和权限边界已实现；真实账号链路仍需复核。
+- [x] A2 接口测试：本地环境变量、认证复用、OpenAPI/Postman 导入、HTTP/GraphQL/WebSocket/gRPC 工作台和执行结果入口已实现；真实协议目标仍待验收。
+- [~] A3 APP 自动化：ADB 已恢复到在线目标，基础 ADB/包管理/logcat 检查通过；当前 Windows Worker 心跳与 q19 API 使用的 Redis 实例不一致，必须先完成同 Redis/DB/注册前缀配对，再验证扫描、租约、控件属性、截图/录屏、APK 包名、低代码和专项任务。
+- [x] A4 UI 自动化：录制、元素库、页面对象、视觉基线、Trace/HAR/Console/网络日志和多浏览器本地/q19 链路已有证据；目标环境仍需按发布版本复核。
+- [~] A5 性能测试：P1-E.1～P1-E.4 本地 API、前端、容量和保留清理已完成；真实 Kubernetes 多节点、Prometheus/MinIO 生命周期和跨主机恢复未验收。
+- [x] A6 AI/Hermes、A7 测试资产/智能中枢、A8 远程工具箱/配置中心：本地实现、权限、审查和回归已完成；真实模型、项目数据、外部缺陷平台和目标部署仍待验收。
+- [ ] 每个台账项均须执行“实现/调整 → 定向测试 → 全量质量门禁 → 代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 推送”；在当前 A3 未解除前，不开始把真实外部集成写成通过。
+
+### 当前推荐开发顺序
+
+1. 修复 Windows Android Agent → q19 Backend 的 Redis 通道配对，确认 `/devices/workers` 能看到在线 Worker。
+2. 完成单设备 Android 扫描、租约、控件属性、截图/录屏、APK 包名、低代码、专项任务和结果回传，每个阶段记录执行事件。
+3. 复核 Windows API/Web 完整 smoke，再依次验收真实通知供应商、外部缺陷平台和生产性能环境。
+4. 汇总同一提交 SHA 的证据，更新能力矩阵、发布状态、用户手册和记忆文档后再做发布收口。
+
 ## 2026-08-25 P0-A Windows 本地 E2E 回归修复
 
 - [x] 修复 Playwright 共享登录 fixture 对 Ant Design Vue 中文按钮自动空格的兼容，支持“登录”实际渲染为“登 录”以及英文 `Sign in`。
@@ -31,6 +50,14 @@
 - [x] 验收脚本正确识别当前状态为 `online=0, unauthorized=0, offline=1, other=0`，输出重连/`adb reconnect` 提示，并生成脱敏本地报告 `.local-run/android-acceptance-current-20260825.json`。
 - [x] 代码审查确认离线设备只触发必需检查失败，不继续执行设备命令、包管理、日志读取或创建 Android 运行任务；没有把本次失败写成设备执行通过。
 - [E] P0-B 仍需将 ADB 恢复为 `device` 后继续配置配对、Worker 心跳、扫描、预约、截图、APK 包名、Android 低代码、专项任务和结果证据验收。
+
+## 2026-08-25 P0-B Android ADB 已恢复但 Worker 注册未配对
+
+- [x] 通过 ADB mDNS 发现在线目标，并对 `172.16.102.15:5555` 完成设备授权、命令执行、属性、包管理和 logcat 基础检查；本次基础验收通过。
+- [x] Windows Android Worker 进程和心跳任务正常，Redis DB 2 中存在 Worker 注册记录；这只证明 Agent 写入了某个 Redis，不代表 q19 Backend 已读到该记录。
+- [x] 定位 `/devices/workers` 为空的根因：本地 API 通过 SSH 隧道访问 q19 Backend，Backend 使用 q19 Compose 内部 Redis；Windows Worker 使用主机 Redis，二者不是同一注册表。
+- [ ] 解除条件：建立明确的 Agent→q19 Redis 通道（同实例、DB、注册前缀），清理重复旧 Worker 进程，重新验证 Worker registry 和设备扫描；未完成前不创建 Android 真实运行任务。
+- [ ] 当前目标设备未确认存在用户指定的 Karing 包名；执行 Karing 专项任务前必须重新用 `pm list packages` 确认，不以应用显示名代替包名。
 
 ## 2026-08-25 Android 录屏证据展示补齐
 
@@ -141,7 +168,7 @@
 
 - [x] 新增 [`docs/release-status-2026-08-25.md`](docs/release-status-2026-08-25.md)，集中维护能力域、证据链接、真实环境边界、复验顺序和发布禁止事项。
 - [x] 同步能力矩阵、Q18 最新状态、Q18 实施日志、`Task.md`、路线图、`MEMORY.md` 和 Release-Readiness Runbook，统一标注 P1-E.1/P1-E.2/P1-E.3 的本地完成状态。
-- [x] 增加发布状态文档契约回归，确保 ADB `offline`、通知 `local_link_only`、外部缺陷平台和生产性能门禁不会被文档误标为通过。
+- [x] 增加发布状态文档契约回归，确保 Android 无在线 Worker、通知 `local_link_only`、外部缺陷平台和生产性能门禁不会被文档误标为通过。
 - [ ] 后续：恢复 ADB 为 `device` 后完成 Android 单设备验收；取得临时供应商/外部平台目标和生产性能环境后，补齐带日期证据，再进行最终发布收口。
 
 ## 2026-08-24 参考导航执行跟踪版
@@ -153,16 +180,16 @@
 - [E] **测试资产**：用例、计划、缺陷、报告、评审已完成本地关联和审计闭环；待真实运行证据、项目数据和外部缺陷平台验收。
 - [E] **智能中枢**：Hermes、需求与用例、知识中枢已完成项目边界、来源和脱敏处理；待真实模型、需求/知识数据和调用审计验收。
 - [E] **系统**：远程工具箱和配置中心已完成诊断、版本、差异、审计、回滚和权限门禁；待真实数据库、生产密钥和部署配置验收。
-- [~] **质量发布**：Windows API/Web 可用性和 q19 Web/性能证据已形成；Android 当前 ADB 为 `offline`，真实通知供应商和外部缺陷平台尚未验收，真实性能多节点/容量和生产报告治理仍需环境验收。
+- [~] **质量发布**：Windows API/Web 可用性和 q19 Web/性能证据已形成；Android ADB 基础检查通过但 Worker 注册通道未配对，真实通知供应商和外部缺陷平台尚未验收，真实性能多节点/容量和生产报告治理仍需环境验收。
 
-当前开发入口固定为：**P0-A Windows 完整复核 → P0-B Android 单设备 → P1-E 性能增强 → P1-C/P1-D 外部联调 → P1-F 发布收口**。如果外部环境不可用，继续完成不依赖外部凭据的代码、测试和文档，但不得伪造环境通过。
+当前开发入口固定为：**P0-A Windows 完整复核 → P0-B Android 单设备 → P1-C/P1-D 外部联调 → P1-E 性能增强 → P1-F 发布收口**。如果外部环境不可用，继续完成不依赖外部凭据的代码、测试和文档，但不得伪造环境通过。
 
 ## 2026-08-24 当前开发计划总表
 
 详细计划和验收边界见 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md) 的“当前执行总表”。本表用于日常勾选，避免把本地代码完成误认为真实环境通过：
 
 - [E] **P0-A Windows API/Web 可用性复核**：已改善 `windows-local-smoke.ps1` 在管理员登录返回 401/403/其他 HTTP 状态时的安全诊断，补充当前账号环境变量用法；Windows smoke 契约 `11 passed`、PowerShell 解析通过。仍需使用当前有效账号重跑登录、认证读接口、Playwright、浏览器矩阵、文件传输和报告导出，不在仓库记录凭据。
-- [E] **P0-B Android Worker 单设备验收**：已补 `windows-android-worker.ps1 doctor` 的 ADB 状态分类和离线/未授权提示，契约回归 `11 passed`；仍需 ADB 从 `offline/unauthorized` 恢复为 `device` 后，依次验证配置配对、Worker 心跳、设备扫描、预约、截图、APK 包名、Android 低代码、专项任务和结果证据，当前仍受真实设备状态限制。
+- [~] **P0-B Android Worker 单设备验收**：ADB 已通过在线目标的授权、命令、属性、包管理和 logcat 基础检查；但 Windows Worker 写入的 Redis 与 q19 Backend 使用的 Redis 不一致，`/devices/workers` 尚未看到在线 Worker。需先完成实例/DB/注册前缀配对，再依次验证扫描、预约、截图、控件属性、APK 包名、Android 低代码、专项任务和结果证据。
 - [E] **P1-C 真实通知供应商验收**：SMTP/企业微信/钉钉临时目标的投递、重试、历史记录和脱敏；本地 SMTP sink 只能作为前置链路证据。
 - [E] **P1-D 外部缺陷平台验收**：Jira/禅道/GitHub/GitLab 创建、重复识别、状态同步、权限和错误脱敏；临时数据使用后清理。
 - [~] **P1-E 性能能力增强**：单节点 q19 k6 短压已有证据；长期趋势、基线门禁和运行记录/报告清理已完成本地实现，继续补多节点容量、资源限制、生产 MinIO 生命周期和跨主机恢复，再进行真实性能环境验收。
