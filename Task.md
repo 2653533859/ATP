@@ -2,7 +2,7 @@
 
 ## 2026-08-24 产品导航与能力扩展路线（持续跟踪）
 
-开发计划和单模块交付规则已记录在 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md)，本节只维护阶段状态；导航已按参考方案固定为五组，N0 导航壳、N1 工作台与任务中心、N2.1/N2.2/N2.3/N2.4/N2.5、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心本地实现、审查和回归已完成，均待真实环境验收；N6.3/N6.4/N6.5/N6.6 已补充远端依赖、完整 Windows API/Web readiness、q19 真实迁移和持久通用 Web Worker 证据，Android、独立录制 Worker、真实性能节点、通知和外部平台仍待独立验收。
+开发计划和单模块交付规则已记录在 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md)，本节只维护阶段状态；导航已按参考方案固定为五组，N0 导航壳、N1 工作台与任务中心、N2.1/N2.2/N2.3/N2.4/N2.5、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心本地实现、审查和回归已完成，均待真实环境验收；N6.3/N6.4/N6.5/N6.6/N6.7 已补充远端依赖、完整 Windows API/Web readiness、q19 真实迁移、持久通用 Web Worker 和独立录制 Worker 证据，Trace/HAR/Console/网络日志/运行报告完整链路、Android、真实性能节点、通知和外部平台仍待独立验收。
 
 - [x] 完成现状盘点：确认现有导航与图片目标存在结构差异，已有能力主要分散在测试设计、测试资产、执行中心、Android 专项和平台配置菜单。
 - [x] 建立目标导航：工作台、测试能力、测试资产、智能中枢、系统。
@@ -12,7 +12,7 @@
 - [E] N2 测试资产闭环：N2.1 内部缺陷、N2.2 失败证据、N2.3 报告中心、N2.4 用例评审、N2.5 外部缺陷兼容均已完成本地实现、审查和回归；待真实环境验收。
 - [E] N3.1 API 测试工作台：接口协议筛选、模块目录、导入/AI 生成、详情、环境选择执行和运行结果入口已完成；复用现有接口执行器与 API，待真实数据/权限/执行环境验收。
 - [E] N3.2 APP 自动化工作台：设备池、Worker 状态、设备预约/心跳/释放、截图预览、Android 用例与专项任务执行、APK 选择、最近运行和兼容性概览已完成；待 Windows Worker/ADB、真实设备和报告链路验收。
-- [E] N3.3 UI 自动化工作台：项目/模块工作区、Web 用例目录与详情、Playwright 录制创建、元素库/页面对象/视觉基线快捷入口、基线采集、运行观察和 Trace 状态已完成；q19 通用 Web 低代码执行 Worker 已完成持久部署验收，独立录制 Worker、浏览器录制、截图上传和运行报告仍待验收。
+- [E] N3.3 UI 自动化工作台：项目/模块工作区、Web 用例目录与详情、Playwright 录制创建、元素库/页面对象/视觉基线快捷入口、基线采集、运行观察和 Trace 状态已完成；q19 通用 Web 低代码执行 Worker 与独立 Playwright 录制 Worker 已完成持久部署、Chromium 录制、截图和停止验收，Trace/报告完整链路仍待补证。
 - [E] N3.4 性能测试工作台：性能场景、环境/节点发起、实时运行队列、吞吐/延迟/错误率、资源采样时间线、门禁、基线和报告导出已完成；待真实性能 Worker、节点容量、Prometheus 采样和多执行器验收。
 - [E] N3 测试能力工作台：API、APP、UI 和性能统一配置/执行/观察入口已完成本地实现和审查；待真实 Worker、节点、协议服务、浏览器和性能环境验收。
 - [E] N4 智能中枢：N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪和 N4.4 知识中枢已完成本地实现、审查和回归，全部待真实环境验收。
@@ -22,9 +22,9 @@
 - [E] N4.4 知识中枢：新增带项目边界的知识条目、来源/状态筛选、统一搜索结果、来源引用、项目权限、全局发布可见性和敏感信息脱敏；聚合需求、缺陷和失败运行作为只读知识来源，待真实数据、权限和生产迁移验收。
 - [E] N5.1 远程工具箱：基础设施、Android/ADB、Web Worker 和性能节点统一诊断，支持脱敏 JSON 导出与处理入口；待真实环境验收。
 - [E] N5.2 配置中心：N5.2.1～N5.2.6（只读聚合、版本快照与审计、差异与影响提示、单资源回滚、前端统一工作台、质量收口）已完成本地实现、审查和回归；待真实环境验收。
-- [~] N6 质量收口：回归、E2E、迁移、文档、外部环境证据和发布检查；N6.1/N6.2 已完成本地回归与文档收口，N6.3/N6.4 已完成远端依赖恢复和完整 Windows API/Web readiness，N6.5 已完成 q19 `0059 -> 0065` 真实迁移和项目删除回归，N6.6 已完成持久通用 Web Worker 的队列隔离、低代码执行和重启恢复；独立录制 Worker、Android Worker/真机、真实性能节点、通知和外部平台证据仍待补齐。
+- [~] N6 质量收口：回归、E2E、迁移、文档、外部环境证据和发布检查；N6.1/N6.2 已完成本地回归与文档收口，N6.3/N6.4 已完成远端依赖恢复和完整 Windows API/Web readiness，N6.5 已完成 q19 `0059 -> 0065` 真实迁移和项目删除回归，N6.6 已完成持久通用 Web Worker 的队列隔离、低代码执行和重启恢复，N6.7 已完成独立 Web 录制 Worker 的 q19 持久部署、Chromium 录制、截图、停止和重启恢复；Trace/HAR/Console/网络日志/运行报告完整链路、Android Worker/真机、真实性能节点、通知和外部平台证据仍待补齐。
 
-当前推荐下一步：先补独立 Web 录制 Worker 的 q19 持久部署与真实录制/Trace/报告链路，再按优先级完成 Android Worker/真机、真实性能节点、通知渠道和外部缺陷平台证据。N5.2 已统一聚合启动配置、环境、全局变量、AI、存储、通知和性能配置，N6.1～N6.6 已完成本地回归、代码审查、文档和 Windows/q19 API/Web 环境证据；每个子模块完成后先审查和修复，再同步文档并提交推送。
+当前推荐下一步：补齐独立录制 Worker 的 Trace/网络/Console/运行报告证据，再按优先级完成 Android Worker/真机、真实性能节点、通知渠道和外部缺陷平台证据。N5.2 已统一聚合启动配置、环境、全局变量、AI、存储、通知和性能配置，N6.1～N6.7 已完成本地回归、代码审查、文档和 Windows/q19 API/Web 环境证据；每个子模块完成后先审查和修复，再同步文档并提交推送。
 
 ### 2026-08-24 N6.4 Windows 完整 API/Web 验收与项目删除级联修复计划
 
@@ -58,6 +58,15 @@
 - [x] q19 使用提交 `f1473d2` 重建并持久启动通用 Worker；Celery ping、队列隔离和服务健康通过。
 - [x] Worker 重启后重新注册，Web 低代码 `run 5` 成功并回传 1 个下载对象，临时项目和 5 个证据对象清理通过；首次执行 `run 4` 同样通过。
 - [x] 脱敏证据已归档；独立录制 Worker、Android、真实性能节点、通知和外部缺陷平台仍按后续模块验收。
+
+### 2026-08-24 N6.7 q19 独立 Web 录制 Worker 持久部署与真实录制验收
+
+- [x] 在 q19 Compose 新增独立 `web-recorder` 服务，Backend 固定使用 `WEB_RECORDER_MODE=worker`，API 与 Worker 使用同一 Redis 路由前缀；通用 Celery Worker、性能 Worker 和录制 Worker 边界保持分离。
+- [x] 录制容器使用 Xvfb `:99`，启动时清理容器内残留 X99 锁并等待 socket 就绪后再启动 Worker；启用 Compose `init: true` 回收 Chromium 子进程，避免重启或多次录制累积僵尸进程。
+- [x] 本地录制 API/传输/smoke/部署契约回归 `61 passed`，Ruff 和 `git diff --check` 通过；代码审查发现并修复 Xvfb 重启锁与僵尸进程两个问题。
+- [x] q19 使用提交 `dfe86b1` 重建并持久启动录制 Worker；Backend、录制 Worker、通用 Worker、性能 Worker、Prometheus 和依赖服务运行，Backend `/health` 返回 200，Prometheus `atp-backend`、`atp-worker`、`atp-performance-worker` 和自身 targets 均为 `up`。
+- [x] 临时 Web 项目真实录制、快照（2 步）、PNG 截图（17,117 bytes）、停止和项目删除通过；录制 Worker 重启后再次完成同一链路，`active_sessions=0` 且容器 `zombie_count=0`。脱敏证据见 [`q19-web-recorder-readiness-2026-08-24.json`](docs/evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recorder-restart-readiness-2026-08-24.json`](docs/evidence/q19-web-recorder-restart-readiness-2026-08-24.json) 和 [`q19-web-recorder-init-readiness-2026-08-24.json`](docs/evidence/q19-web-recorder-init-readiness-2026-08-24.json)。
+- [ ] Trace、HAR、Console/网络日志、Firefox/WebKit、跨 API 副本和运行报告完整链路，以及 Android Worker/真机、真实性能节点、通知和外部缺陷平台仍待后续环境验收。
 
 ### 2026-08-24 N5.2 配置中心开发计划（文档跟踪）
 

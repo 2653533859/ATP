@@ -1,5 +1,13 @@
 # Q18 实施记录
 
+## 2026-08-24 N6.7 q19 独立 Web 录制 Worker 持久部署与真实录制验收
+
+- [x] q19 Compose 新增独立 `web-recorder` 服务，Backend 固定使用 `WEB_RECORDER_MODE=worker`，共用 Redis 路由前缀；Xvfb `:99` 启动会清理残留锁并等待 socket，就绪后使用 `init: true` 回收 Chromium 子进程。
+- [x] 本地 API/传输/smoke/部署契约回归 `61 passed`，Ruff 和 `git diff --check` 通过；代码审查修复 Xvfb 重启锁和 Chromium 僵尸进程两个问题，提交 `3ddf4f1`、`7a94e62`、`dfe86b1` 已推送。
+- [x] q19 真实临时项目完成 Worker 注册、Chromium 录制、2 步快照、PNG 截图、停止、项目删除和 Worker 重启恢复；Backend `/health` 与 Prometheus targets 正常，`active_sessions=0`、容器 `zombie_count=0`。
+- [x] 脱敏证据归档为 `docs/evidence/q19-web-recorder-readiness-2026-08-24.json`、`docs/evidence/q19-web-recorder-restart-readiness-2026-08-24.json` 和 `docs/evidence/q19-web-recorder-init-readiness-2026-08-24.json`。
+- [ ] Trace/HAR/Console/网络日志/运行报告完整链路、Firefox/WebKit、Android Worker/真机、真实性能节点、通知和外部缺陷平台仍待后续环境证据。
+
 ## 2026-08-24 N6.6 q19 持久通用 Web Worker 部署与恢复验收
 
 - [x] q19 Compose 新增独立 `worker` 服务，固定监听 `default,maintenance`；性能 Worker 保持 `performance.worker-a,performance`，Prometheus 新增 `atp-worker:9091` target。

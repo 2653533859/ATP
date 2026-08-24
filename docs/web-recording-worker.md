@@ -71,6 +71,8 @@ docker compose --profile web-recorder up -d backend web-recorder
 
 API 和 Worker 必须使用同一个 Redis。录制 Worker 使用 `backend/Dockerfile.worker`，启动时创建 `Xvfb :99`，并通过 `WEB_RECORDER_DISPLAY=:99` 运行可见 Chromium。若使用外部 X server，可覆盖 `WEB_RECORDER_DISPLAY` 和 Compose command。
 
+q19 性能验收栈已把该边界固化为独立 `web-recorder` 服务：Backend 固定为 `WEB_RECORDER_MODE=worker`，与录制 Worker 共用 `WEB_RECORDER_WORKER_QUEUE_PREFIX`；启动时清理残留 X99 锁、等待 Xvfb socket 就绪，并使用 Compose `init: true` 回收 Chromium 子进程。真实验收已覆盖 Worker 注册、Chromium 录制、2 步快照、PNG 截图、停止、临时项目删除和 Worker 重启恢复；脱敏证据见 [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recorder-restart-readiness-2026-08-24.json`](evidence/q19-web-recorder-restart-readiness-2026-08-24.json) 和 [`q19-web-recorder-init-readiness-2026-08-24.json`](evidence/q19-web-recorder-init-readiness-2026-08-24.json)。该证据不代表 Trace/HAR/Console/网络日志、Firefox/WebKit 或运行报告完整链路已完成。
+
 ## Kubernetes Helm
 
 在生产 overlay 中同时开启 Worker 和 API 路由模式：

@@ -1,0 +1,44 @@
+{
+  "generated_at": "2026-08-24T13:46:42.585820+00:00",
+  "command": "'scripts\\web-recording-worker-smoke.py' --api-base-url http://127.0.0.1:8000 --project-id 8 --start-url https://example.com --browser chromium --run-recording --screenshot --wait-seconds 45 --timeout 45 --report 'docs\\evidence\\q19-web-recorder-restart-readiness-2026-08-24.json'",
+  "inputs": {
+    "api_base_url": "http://127.0.0.1:8000",
+    "project_id": 8,
+    "start_url": "https://example.com",
+    "browser": "chromium",
+    "run_recording": true,
+    "screenshot": true,
+    "wait_seconds": 45.0,
+    "poll_interval": 1,
+    "timeout": 45.0,
+    "report": "docs\\evidence\\q19-web-recorder-restart-readiness-2026-08-24.json"
+  },
+  "status": "passed",
+  "checks": [
+    {
+      "name": "worker-preflight",
+      "status": "PASS",
+      "detail": "mode=worker, registered_count=1, available_count=1"
+    },
+    {
+      "name": "recording-start",
+      "status": "PASS",
+      "detail": "browser=chromium, status=recording"
+    },
+    {
+      "name": "recording-snapshot",
+      "status": "PASS",
+      "detail": "steps=2"
+    },
+    {
+      "name": "recording-screenshot",
+      "status": "PASS",
+      "detail": "content_type=image/png, bytes=17117"
+    },
+    {
+      "name": "recording-stop",
+      "status": "PASS",
+      "detail": "status=stopped"
+    }
+  ]
+}

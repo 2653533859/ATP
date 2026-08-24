@@ -1,5 +1,12 @@
 # Q18 最新开发状态与前后实现对比
 
+## 2026-08-24 N6.7 q19 独立 Web 录制 Worker 持久部署与真实录制验收
+
+- q19 Compose 已新增独立 `web-recorder` 服务，Backend 固定为 Worker 模式，录制服务使用同一 Redis 路由前缀、Xvfb `:99`、启动锁清理、socket 就绪等待和 `init: true` 子进程回收。
+- 本地 API/传输/smoke/部署契约回归 `61 passed`；代码审查发现并修复 Xvfb 重启残留锁和 Chromium 僵尸进程问题，Ruff 与 `git diff --check` 通过。
+- q19 真实临时项目完成 Chromium 录制、2 步快照、PNG 截图、停止、删除和 Worker 重启恢复；Backend `/health`、Prometheus targets 正常，Worker `active_sessions=0`、容器僵尸进程数为 `0`。
+- 脱敏证据见 [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recorder-restart-readiness-2026-08-24.json`](evidence/q19-web-recorder-restart-readiness-2026-08-24.json) 与 [`q19-web-recorder-init-readiness-2026-08-24.json`](evidence/q19-web-recorder-init-readiness-2026-08-24.json)。Trace/HAR/Console/网络日志/运行报告完整链路、Firefox/WebKit、Android、真实性能节点、通知和外部缺陷平台仍待验收。
+
 ## 2026-08-24 N6.6 q19 持久通用 Web Worker 部署与恢复验收
 
 - q19 使用提交 `f1473d2` 重建并持久启动独立 `worker` 服务，监听 `default,maintenance`；性能 Worker 保持 `performance.worker-a,performance`，Celery ping、队列隔离和 Prometheus targets 均通过。

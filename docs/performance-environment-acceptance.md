@@ -1,6 +1,6 @@
 # 性能 Worker 环境验收 Runbook
 
-> 2026-08-24 N6.6：隔离 Compose 已包含独立通用 `worker` 服务，监听 `default,maintenance`，与 `performance.worker-a,performance` 队列隔离；q19 已完成 Celery 注册、Prometheus target、Web 低代码执行和 Worker 重启恢复验收。独立录制 Worker、Android、真实性能节点和外部通知/缺陷平台仍需单独验收。
+> 2026-08-24 N6.7：隔离 Compose 已包含独立通用 `worker` 和独立 `web-recorder` 服务；录制 Worker 固定使用 Worker 模式、Redis 路由前缀、Xvfb `:99` 和 `init: true`，q19 已完成注册、Chromium 录制、快照、PNG 截图、停止和重启恢复验收。Trace/HAR/Console/网络日志/运行报告完整链路、Android、真实性能节点和外部通知/缺陷平台仍需单独验收。
 
 ## 2026-08-17 当前代码隔离栈验收
 
