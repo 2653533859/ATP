@@ -1,6 +1,8 @@
 # Web 录制 Worker
 
-> 2026-08-24 N6.8：独立 Worker 录制已完成 Chromium 证据链。停止时生成并上传 Trace、脱敏 HAR 和运行报告，采集 Console、页面异常、请求/失败请求/错误响应事件；录制弹窗可打开三类证据并预览最近网络事件。独立 Worker 模式会在 Redis 保留停止后的脱敏快照，支持报告查询和重复停止。q19 首次部署及重启后证据见 [`q19-web-recording-evidence-2026-08-24.json`](evidence/q19-web-recording-evidence-2026-08-24.json) 和 [`q19-web-recording-evidence-restart-2026-08-24.json`](evidence/q19-web-recording-evidence-restart-2026-08-24.json)。Firefox/WebKit、跨 API 副本和其他测试能力仍需单独验收。
+> 2026-08-24 N6.9：q19 已完成 Firefox/WebKit 真实 Worker 录制和跨 API 副本共享 Redis 停止快照验收。Linux `WEB_RECORDER_MODE=worker` 下 WebKit 使用无头启动，避免 Xvfb 中 headed WebKit 挂起；Windows/local 与 Firefox 仍保持 headed 行为。Firefox/WebKit 证据分别见 [`q19-web-recording-firefox-2026-08-24.json`](evidence/q19-web-recording-firefox-2026-08-24.json)、[`q19-web-recording-webkit-2026-08-24.json`](evidence/q19-web-recording-webkit-2026-08-24.json)，跨副本证据见 [`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json)。
+
+> 2026-08-24 N6.8：独立 Worker 录制已完成 Chromium 证据链。停止时生成并上传 Trace、脱敏 HAR 和运行报告，采集 Console、页面异常、请求/失败请求/错误响应事件；录制弹窗可打开三类证据并预览最近网络事件。独立 Worker 模式会在 Redis 保留停止后的脱敏快照，支持报告查询和重复停止。q19 首次部署及重启后证据见 [`q19-web-recording-evidence-2026-08-24.json`](evidence/q19-web-recording-evidence-2026-08-24.json) 和 [`q19-web-recording-evidence-restart-2026-08-24.json`](evidence/q19-web-recording-evidence-restart-2026-08-24.json)。
 
 ## 浏览器矩阵证据烟测
 
@@ -73,7 +75,7 @@ docker compose --profile web-recorder up -d backend web-recorder
 
 API 和 Worker 必须使用同一个 Redis。录制 Worker 使用 `backend/Dockerfile.worker`，启动时创建 `Xvfb :99`，并通过 `WEB_RECORDER_DISPLAY=:99` 运行可见 Chromium。若使用外部 X server，可覆盖 `WEB_RECORDER_DISPLAY` 和 Compose command。
 
-q19 性能验收栈已把该边界固化为独立 `web-recorder` 服务：Backend 固定为 `WEB_RECORDER_MODE=worker`，与录制 Worker 共用 `WEB_RECORDER_WORKER_QUEUE_PREFIX`；启动时清理残留 X99 锁、等待 Xvfb socket 就绪，并使用 Compose `init: true` 回收 Chromium 子进程。基础部署证据已覆盖 Worker 注册、Chromium 录制、2 步快照、PNG 截图、停止、临时项目删除和 Worker 重启恢复；证据链由 N6.8 单独补充，见 [`q19-web-recording-evidence-2026-08-24.json`](evidence/q19-web-recording-evidence-2026-08-24.json) 和 [`q19-web-recording-evidence-restart-2026-08-24.json`](evidence/q19-web-recording-evidence-restart-2026-08-24.json)。Firefox/WebKit、跨 API 副本仍待单独验收。
+q19 性能验收栈已把该边界固化为独立 `web-recorder` 服务：Backend 固定为 `WEB_RECORDER_MODE=worker`，与录制 Worker 共用 `WEB_RECORDER_WORKER_QUEUE_PREFIX`；启动时清理残留 X99 锁、等待 Xvfb socket 就绪，并使用 Compose `init: true` 回收 Chromium 子进程。Chromium、Firefox、WebKit 的录制证据链和跨 API 副本共享 Redis 停止快照均已验收；Linux Worker WebKit 使用无头启动，Windows/local 模式不受影响。对应证据见 [`q19-web-recording-firefox-2026-08-24.json`](evidence/q19-web-recording-firefox-2026-08-24.json)、[`q19-web-recording-webkit-2026-08-24.json`](evidence/q19-web-recording-webkit-2026-08-24.json) 和 [`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json)。
 
 ## Kubernetes Helm
 
@@ -120,4 +122,4 @@ API 仍负责登录态、项目编辑权限和录制元素资产持久化；Work
 3. 录制开始后页面不动：确认 API 与 Worker 使用同一个 Redis；Helm 部署会自动生成唯一的 `WEB_RECORDER_WORKER_ID`，非 Helm 部署仍需自行保证唯一。
 4. 录制结束但资产没有写入：检查 API 数据库迁移和项目编辑权限；Worker 不直接写资产，资产由 API 在停止会话后事务化保存。
 
-真实 Linux 多副本、Xvfb、Firefox/WebKit 和跨副本 E2E 仍需在发布环境验收；Windows `local` 模式的健康检查不能替代该验收。
+真实 Android Worker/真机、性能节点、通知和外部缺陷平台仍需在发布环境验收；Windows `local` 模式的健康检查不能替代 Linux Worker 或跨副本录制验收。

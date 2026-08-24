@@ -1,5 +1,12 @@
 # Q18 最新开发状态与前后实现对比
 
+## 2026-08-24 N6.9 Firefox/WebKit 与跨 API 副本录制验收
+
+- Linux `WEB_RECORDER_MODE=worker` 下 WebKit 已改为无头启动，避免 Xvfb 中 headed WebKit 挂起；Windows/local 与 Firefox 仍保持 headed 行为，新增回归断言覆盖该边界。
+- q19 使用提交 `41ff87a` 重建后，Firefox（截图 `19076` bytes）和 WebKit（截图 `21192` bytes）均完成 Worker 注册、2 步快照、截图、停止、Trace/HAR/报告 URL 和停止后查询。
+- 启动临时第二 API 副本后，副本 A 停止会话，副本 B 通过共享 Redis 查询同一停止快照成功；证据见 [`q19-web-recording-firefox-2026-08-24.json`](evidence/q19-web-recording-firefox-2026-08-24.json)、[`q19-web-recording-webkit-2026-08-24.json`](evidence/q19-web-recording-webkit-2026-08-24.json) 和 [`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json)。临时资源已清理。
+- 后端目标回归 `45 passed`，Ruff/diff-check 通过；下一步转向 Android Worker/真机、真实性能节点、通知和外部缺陷平台验收。
+
 ## 2026-08-24 N6.8 Web 录制证据链交付与 q19 验收
 
 - 录制会话现在采集 Playwright Trace、HAR、Console、页面异常、请求/失败请求/错误响应事件；持久化前统一脱敏 URL、请求头、Cookie、请求体、步骤和错误文本，报告不保存响应正文。

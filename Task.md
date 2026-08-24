@@ -2,7 +2,7 @@
 
 ## 2026-08-24 产品导航与能力扩展路线（持续跟踪）
 
-开发计划和单模块交付规则已记录在 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md)，本节只维护阶段状态；导航已按参考方案固定为五组，N0 导航壳、N1 工作台与任务中心、N2.1/N2.2/N2.3/N2.4/N2.5、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心本地实现、审查和回归已完成，均待真实环境验收；N6.3/N6.4/N6.5/N6.6/N6.7/N6.8 已补充远端依赖、完整 Windows API/Web readiness、q19 真实迁移、持久通用 Web Worker、独立录制 Worker 和 Chromium 证据链，Firefox/WebKit、跨 API 副本、Android、真实性能节点、通知和外部平台仍待独立验收。
+开发计划和单模块交付规则已记录在 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md)，本节只维护阶段状态；导航已按参考方案固定为五组，N0 导航壳、N1 工作台与任务中心、N2.1/N2.2/N2.3/N2.4/N2.5、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心本地实现、审查和回归已完成，均待真实环境验收；N6.3/N6.4/N6.5/N6.6/N6.7/N6.8/N6.9 已补充远端依赖、完整 Windows API/Web readiness、q19 真实迁移、持久通用 Web Worker、独立录制 Worker、Chromium/Firefox/WebKit 证据链和跨 API 副本一致性，Android、真实性能节点、通知和外部平台仍待独立验收。
 
 - [x] 完成现状盘点：确认现有导航与图片目标存在结构差异，已有能力主要分散在测试设计、测试资产、执行中心、Android 专项和平台配置菜单。
 - [x] 建立目标导航：工作台、测试能力、测试资产、智能中枢、系统。
@@ -12,7 +12,7 @@
 - [E] N2 测试资产闭环：N2.1 内部缺陷、N2.2 失败证据、N2.3 报告中心、N2.4 用例评审、N2.5 外部缺陷兼容均已完成本地实现、审查和回归；待真实环境验收。
 - [E] N3.1 API 测试工作台：接口协议筛选、模块目录、导入/AI 生成、详情、环境选择执行和运行结果入口已完成；复用现有接口执行器与 API，待真实数据/权限/执行环境验收。
 - [E] N3.2 APP 自动化工作台：设备池、Worker 状态、设备预约/心跳/释放、截图预览、Android 用例与专项任务执行、APK 选择、最近运行和兼容性概览已完成；待 Windows Worker/ADB、真实设备和报告链路验收。
-- [E] N3.3 UI 自动化工作台：项目/模块工作区、Web 用例目录与详情、Playwright 录制创建、元素库/页面对象/视觉基线快捷入口、基线采集、运行观察和 Trace 状态已完成；q19 通用 Web 低代码执行 Worker 与独立 Playwright 录制 Worker 已完成持久部署，Chromium 录制、截图、停止、Trace/HAR/Console/网络日志和运行报告链路已验证，Firefox/WebKit 与跨 API 副本仍待补证。
+- [E] N3.3 UI 自动化工作台：项目/模块工作区、Web 用例目录与详情、Playwright 录制创建、元素库/页面对象/视觉基线快捷入口、基线采集、运行观察和 Trace 状态已完成；q19 通用 Web 低代码执行 Worker 与独立 Playwright 录制 Worker 已完成持久部署，Chromium/Firefox/WebKit 录制、截图、停止、Trace/HAR/Console/网络日志和运行报告链路已验证，跨 API 副本可读取共享 Redis 停止快照。
 - [E] N3.4 性能测试工作台：性能场景、环境/节点发起、实时运行队列、吞吐/延迟/错误率、资源采样时间线、门禁、基线和报告导出已完成；待真实性能 Worker、节点容量、Prometheus 采样和多执行器验收。
 - [E] N3 测试能力工作台：API、APP、UI 和性能统一配置/执行/观察入口已完成本地实现和审查；待真实 Worker、节点、协议服务、浏览器和性能环境验收。
 - [E] N4 智能中枢：N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪和 N4.4 知识中枢已完成本地实现、审查和回归，全部待真实环境验收。
@@ -22,9 +22,9 @@
 - [E] N4.4 知识中枢：新增带项目边界的知识条目、来源/状态筛选、统一搜索结果、来源引用、项目权限、全局发布可见性和敏感信息脱敏；聚合需求、缺陷和失败运行作为只读知识来源，待真实数据、权限和生产迁移验收。
 - [E] N5.1 远程工具箱：基础设施、Android/ADB、Web Worker 和性能节点统一诊断，支持脱敏 JSON 导出与处理入口；待真实环境验收。
 - [E] N5.2 配置中心：N5.2.1～N5.2.6（只读聚合、版本快照与审计、差异与影响提示、单资源回滚、前端统一工作台、质量收口）已完成本地实现、审查和回归；待真实环境验收。
-- [~] N6 质量收口：回归、E2E、迁移、文档、外部环境证据和发布检查；N6.1/N6.2 已完成本地回归与文档收口，N6.3/N6.4 已完成远端依赖恢复和完整 Windows API/Web readiness，N6.5 已完成 q19 `0059 -> 0065` 真实迁移和项目删除回归，N6.6 已完成持久通用 Web Worker 的队列隔离、低代码执行和重启恢复，N6.7 已完成独立 Web 录制 Worker 的 q19 持久部署、Chromium 录制、截图、停止和重启恢复，N6.8 已完成 Chromium Trace/HAR/Console/网络日志/运行报告完整链路和重启后复验；Firefox/WebKit、跨 API 副本、Android Worker/真机、真实性能节点、通知和外部平台证据仍待补齐。
+- [~] N6 质量收口：回归、E2E、迁移、文档、外部环境证据和发布检查；N6.1/N6.2 已完成本地回归与文档收口，N6.3/N6.4 已完成远端依赖恢复和完整 Windows API/Web readiness，N6.5 已完成 q19 `0059 -> 0065` 真实迁移和项目删除回归，N6.6 已完成持久通用 Web Worker 的队列隔离、低代码执行和重启恢复，N6.7 已完成独立 Web 录制 Worker 的 q19 持久部署、Chromium 录制、截图、停止和重启恢复，N6.8 已完成 Chromium 证据链，N6.9 已完成 Firefox/WebKit 录制与跨 API 副本停止快照读取；Android Worker/真机、真实性能节点、通知和外部平台证据仍待补齐。
 
-当前推荐下一步：优先补 Firefox/WebKit 与跨 API 副本录制一致性，再按优先级完成 Android Worker/真机、真实性能节点、通知渠道和外部缺陷平台证据。N5.2 已统一聚合启动配置、环境、全局变量、AI、存储、通知和性能配置，N6.1～N6.8 已完成本地回归、代码审查、文档和 Windows/q19 API/Web 环境证据；每个子模块完成后先审查和修复，再同步文档并提交推送。
+当前推荐下一步：优先完成 Android Worker/真机单设备证据，再验收真实性能节点、通知渠道和外部缺陷平台。N5.2 已统一聚合启动配置、环境、全局变量、AI、存储、通知和性能配置，N6.1～N6.9 已完成本地回归、代码审查、文档和 Windows/q19 API/Web 环境证据；每个子模块完成后先审查和修复，再同步文档并提交推送。
 
 ### 2026-08-24 N6.4 Windows 完整 API/Web 验收与项目删除级联修复计划
 
@@ -77,6 +77,14 @@
 - [x] 代码审查修复 JSON 形式凭据和错误文本完整 URL 的脱敏边界；本地后端目标回归 `45 passed`，前端 Web Recorder `3 passed`、type-check、生产构建、Ruff 和 `git diff --check` 通过。
 - [x] q19 使用提交 `9e93379` 重建并重启 `web-recorder`，首次及重启后录制均通过：Worker 注册、2 步快照、PNG 截图、停止、3 类证据、停止后报告查询；测试项目与 6 个录制对象已清理。脱敏证据见 [`q19-web-recording-evidence-2026-08-24.json`](docs/evidence/q19-web-recording-evidence-2026-08-24.json) 和 [`q19-web-recording-evidence-restart-2026-08-24.json`](docs/evidence/q19-web-recording-evidence-restart-2026-08-24.json)。
 - [ ] Firefox/WebKit、跨 API 副本以及 Android、真实性能、通知和外部缺陷平台仍不属于本模块验收范围。
+
+### 2026-08-24 N6.9 Firefox/WebKit 与跨 API 副本录制验收
+
+- [x] 代码修复：Linux `WEB_RECORDER_MODE=worker` 下 WebKit 使用无头启动，避免 Xvfb 下 WebKit headed 启动挂起；Windows/local 模式与 Firefox 保持原有 headed 行为。回归新增 Linux Worker WebKit 启动断言。
+- [x] 代码审查与回归：后端 Web Recording/传输/smoke/部署目标 `45 passed`，Ruff 和 `git diff --check` 通过；提交 `41ff87a` 已推送。
+- [x] q19 使用 `41ff87a` 重建后，Firefox 录制、2 步快照、PNG 截图 `19076` bytes、停止、3 类证据 URL 和停止后查询通过；WebKit 同链路通过，截图 `21192` bytes，Linux Worker 走无头启动路径。证据见 [`q19-web-recording-firefox-2026-08-24.json`](docs/evidence/q19-web-recording-firefox-2026-08-24.json) 和 [`q19-web-recording-webkit-2026-08-24.json`](docs/evidence/q19-web-recording-webkit-2026-08-24.json)。
+- [x] 启动临时第二 API 副本：副本 A 停止录制后，副本 B 通过共享 Redis 查询同一会话并返回 `status=stopped`；证据见 [`q19-web-recording-cross-api-2026-08-24.json`](docs/evidence/q19-web-recording-cross-api-2026-08-24.json)。临时项目、18 个录制对象和第二副本均已清理。
+- [ ] Android Worker/真机、真实性能节点、通知和外部缺陷平台仍待独立环境验收。
 
 ### 2026-08-24 N5.2 配置中心开发计划（文档跟踪）
 

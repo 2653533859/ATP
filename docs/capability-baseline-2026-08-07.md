@@ -26,6 +26,8 @@
 
 > 2026-08-24 N6.8 环境证据：q19 使用提交 `9e93379` 重建并重启 `web-recorder`，首次及重启后 Chromium 录制均通过 Worker 注册、2 步快照、PNG 截图、停止、Trace/HAR/运行报告 URL 和停止后报告查询；证据见 [`q19-web-recording-evidence-2026-08-24.json`](evidence/q19-web-recording-evidence-2026-08-24.json) 与 [`q19-web-recording-evidence-restart-2026-08-24.json`](evidence/q19-web-recording-evidence-restart-2026-08-24.json)。Firefox/WebKit、跨 API 副本、Android、真实性能节点、通知和外部缺陷平台仍待环境验收。
 
+> 2026-08-24 N6.9 环境证据：q19 使用提交 `41ff87a` 重建后，Firefox 与 WebKit 真实 Worker 录制均通过 2 步快照、PNG 截图、停止、Trace/HAR/运行报告 URL 和停止后查询；WebKit 在 Linux Worker 使用无头启动。第二 API 副本可通过共享 Redis 查询副本 A 停止的会话快照；证据见 [`q19-web-recording-firefox-2026-08-24.json`](evidence/q19-web-recording-firefox-2026-08-24.json)、[`q19-web-recording-webkit-2026-08-24.json`](evidence/q19-web-recording-webkit-2026-08-24.json) 和 [`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json)。Android、真实性能节点、通知和外部缺陷平台仍待验收。
+
 > 2026-08-12 iOS/Appium 补强：新增 status/session smoke、受控步骤和脱敏附件证据入口；真实 macOS/XCUITest/WDA/设备执行仍待验收。
 
 > 最新实现状态和前后对比请先查看 [`docs/q18-latest-status-2026-08-07.md`](./q18-latest-status-2026-08-07.md)。
@@ -80,9 +82,9 @@
 | Playwright | ✅ | pytest-playwright + Playwright 低代码执行器 | 保持统一配置 | Web 执行器回归 |
 | 浏览器录制/低代码 | ✅ | 录制弹窗可选择 Chromium/Firefox/WebKit，点击/输入/选择/按键转步骤；Web/Android 低代码可生成可编辑 Python 脚本，Web 文件操作/视觉断言/POM 会展开或明确失败 | 真实专用 Worker 上的浏览器矩阵和资产引用深度联动 | 录制 E2E |
 | 页面元素定位 | ✅ | CSS、Playwright locator、文本等基础定位 | 元素库、备用定位器、版本记录 | 元素库组件测试 |
-| 元素库 | 🔵 | `WebElementAsset` 模型、项目级 CRUD 页面/API、备用定位器、版本和失效记录；绑定项目的 Web 录制会自动创建资产并回填 `element_asset_id`，低代码 Worker 按顺序回退；录制会话已支持 Redis 路由与独立 Worker 进程 | 与 POM/执行报告联动 | `test_web_recordings.py`、`test_web_assets_routes.py`、`test_web_lowcode_executor.py`、`test_web_recording_transport.py`；真实 Linux/Xvfb 与跨副本录制 E2E 待补 |
+| 元素库 | 🔵 | `WebElementAsset` 模型、项目级 CRUD 页面/API、备用定位器、版本和失效记录；绑定项目的 Web 录制会自动创建资产并回填 `element_asset_id`，低代码 Worker 按顺序回退；录制会话已支持 Redis 路由与独立 Worker 进程，q19 Firefox/WebKit 与跨 API 停止快照已通过 | 与 POM/执行报告联动 | `test_web_recordings.py`、`test_web_assets_routes.py`、`test_web_lowcode_executor.py`、`test_web_recording_transport.py`；元素库/POM 与真实运行报告深度联动仍待补 |
 | 页面对象模型 POM | 🔵 | `WebPageObject` 模型、元素引用/公共操作 JSON 编辑、项目级 CRUD 页面/API；低代码 Worker 已展开并执行引用 | 低代码步骤可直接引用页面对象并执行公共操作 | `test_web_assets_routes.py`、`test_web_lowcode_executor.py`；真实浏览器验收 |
-| 多浏览器 | 🔵 | 录制、低代码、脚本均接受 Chromium/Firefox/WebKit；本机三浏览器烟测均可访问 `/login` 并等待输入元素挂载，真实 Worker 矩阵仍待验收 | Chromium/Firefox/WebKit | `frontend/tools/browser-matrix-smoke.mjs`、`docs/evidence/web-browser-matrix-local-smoke-2026-08-07.json`；Docker Worker 验收 |
+| 多浏览器 | ✅ | 录制、低代码、脚本均接受 Chromium/Firefox/WebKit；q19 Worker 已真实验证三浏览器录制、截图、停止和证据上传，Linux Worker WebKit 使用无头启动 | Chromium/Firefox/WebKit | `scripts/web-recording-worker-smoke.py`、`docs/evidence/q19-web-recording-firefox-2026-08-24.json`、`docs/evidence/q19-web-recording-webkit-2026-08-24.json` |
 | 多分辨率 | ✅ | viewport 宽高配置 | 浏览器×分辨率矩阵 | 矩阵结果回归 |
 | 并行执行 | ✅ | 套件/计划支持并行 | 浏览器矩阵和资源限额 | 并行 E2E |
 | 截图/录像 | ✅ | 截图和 WebM 上传 MinIO | 保持并关联 Trace | 报告附件回归 |
@@ -130,7 +132,7 @@
 | 五组产品导航 | ✅ | `MainLayout.vue` 与路由权限将入口分为工作台、测试能力、测试资产、智能中枢、系统；旧 URL 与领域页面保持兼容 | 统一入口、项目上下文和动态任务提示 | 导航路由回归、不同角色真实登录 |
 | 远程工具箱 | 🔵 | `/system/toolbox` 聚合 PostgreSQL、Redis、MinIO、Android/Web Worker、ADB 和性能节点诊断，并支持脱敏 JSON 导出 | 真实依赖、Worker、ADB、浏览器和性能节点一站式诊断 | 目标主机与 Worker 环境验收 |
 | 配置中心 | 🔵 | `/system/config` 聚合启动配置、环境、全局变量、AI、存储、通知和性能节点；提供脱敏摘要、原页面深链接、版本快照、字段差异、影响提示和单资源 `ROLLBACK` 回退 | 真实数据库、项目角色、密钥轮换和三方依赖可发布验收 | `frontend/e2e/configuration-center.spec.ts`、配置中心 API/迁移回归；真实环境证据 |
-| 发布质量门禁 | 🟡 | 前端 Vitest、Playwright、type-check、生产构建、后端非集成、独立测试扫描、Ruff、mypy、Bandit 和 diff-check 已有统一命令/记录；Windows 完整 API/Web readiness、q19 `20260824_0065` 真实迁移/项目删除回归、持久通用 Web Worker 队列隔离/低代码执行/重启恢复、独立 Chromium 录制及 Trace/HAR/Console/网络日志/运行报告链路均已归档脱敏证据 | Firefox/WebKit、跨 API 副本、真实 Android、性能、通知和外部缺陷平台证据归档 | `make test`、`scripts/windows-local-smoke.ps1`、Alembic、发布 readiness、Web Recording Worker smoke、目标环境 Runbook |
+| 发布质量门禁 | 🟡 | 前端 Vitest、Playwright、type-check、生产构建、后端非集成、独立测试扫描、Ruff、mypy、Bandit 和 diff-check 已有统一命令/记录；Windows 完整 API/Web readiness、q19 `20260824_0065` 真实迁移/项目删除回归、持久通用 Web Worker 队列隔离/低代码执行/重启恢复、独立 Chromium/Firefox/WebKit 录制及 Trace/HAR/Console/网络日志/运行报告、跨 API 副本停止快照均已归档脱敏证据 | 真实 Android、性能、通知和外部缺陷平台证据归档 | `make test`、`scripts/windows-local-smoke.ps1`、Alembic、发布 readiness、Web Recording Worker smoke、目标环境 Runbook |
 
 ## 6. 后续如何使用本表
 

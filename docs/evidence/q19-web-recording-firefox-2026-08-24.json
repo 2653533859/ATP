@@ -1,0 +1,19 @@
+{
+  "generated_at": "2026-08-24T14:34:32+00:00",
+  "environment": "q19 / 172.31.27.133",
+  "commit": "41ff87a",
+  "project_id": 11,
+  "browser": "firefox",
+  "target_url": "https://example.com",
+  "status": "passed",
+  "checks": [
+    "Worker mode preflight: registered_count=1, available_count=1",
+    "Recording started with Firefox and entered recording",
+    "Recording snapshot returned 2 steps",
+    "Screenshot returned image/png, 19076 bytes",
+    "Stop returned stopped",
+    "Trace, HAR and report evidence URLs returned; console=0, network=2",
+    "Stopped snapshot remained queryable"
+  ],
+  "cleanup": "Temporary project 11 and 18 recording objects were removed after verification"
+}

@@ -1,5 +1,13 @@
 # Q18 实施记录
 
+## 2026-08-24 N6.9 Firefox/WebKit 与跨 API 副本录制验收
+
+- [x] Linux Worker 模式的 WebKit headed 启动挂起已修复为无头启动；Windows/local 与 Firefox 的 headed 行为保持不变，并补充启动参数回归。
+- [x] 代码审查和定向回归通过：后端 Web Recording/传输/smoke/部署目标 `45 passed`，Ruff 和 `git diff --check` 通过，提交 `41ff87a` 已推送。
+- [x] q19 Firefox 与 WebKit 均完成真实录制、2 步快照、PNG 截图、停止、三类证据 URL 和停止后查询；跨 API 副本读取共享 Redis 停止快照通过。证据见 [`q19-web-recording-firefox-2026-08-24.json`](evidence/q19-web-recording-firefox-2026-08-24.json)、[`q19-web-recording-webkit-2026-08-24.json`](evidence/q19-web-recording-webkit-2026-08-24.json) 和 [`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json)。
+- [x] 临时项目、18 个 MinIO 录制对象和第二 API 副本均已清理。
+- [ ] Android Worker/真机、真实性能节点、通知和外部缺陷平台仍待后续环境证据。
+
 ## 2026-08-24 N6.8 Web 录制证据链交付与 q19 验收
 
 - [x] 录制会话采集 Trace、HAR、Console、页面异常、请求/失败请求/错误响应事件；URL、请求头、Cookie、请求体、步骤和错误文本在持久化前脱敏，响应正文不落盘。

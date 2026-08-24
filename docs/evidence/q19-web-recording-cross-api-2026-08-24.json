@@ -1,0 +1,14 @@
+{
+  "generated_at": "2026-08-24T14:38:00+00:00",
+  "environment": "q19 / 172.31.27.133",
+  "commit": "41ff87a",
+  "project_id": 11,
+  "status": "passed",
+  "checks": [
+    "API replica A started and stopped a recording session",
+    "API replica B queried the same stopped snapshot through the shared Redis state",
+    "Replica B returned HTTP 200 with status=stopped",
+    "The temporary API replica was removed after verification"
+  ],
+  "cleanup": "Temporary project 11 and 18 recording objects were removed after verification"
+}
