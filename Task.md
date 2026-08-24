@@ -27,6 +27,13 @@
 - [x] 代码审查确认离线设备只触发必需检查失败，不继续执行设备命令、包管理、日志读取或创建 Android 运行任务；没有把本次失败写成设备执行通过。
 - [E] P0-B 仍需将 ADB 恢复为 `device` 后继续配置配对、Worker 心跳、扫描、预约、截图、APK 包名、Android 低代码、专项任务和结果证据验收。
 
+## 2026-08-25 工作台任务状态枚举隔离修复
+
+- [x] 根据 q19 工作台日志定位到跨域状态集合问题：普通 `TestRun` 查询被错误带入 Android `stopped` 和性能 `cancelled`，PostgreSQL 会在 `/workbench/overview` 返回 `invalid input value for enum runstatus`。
+- [x] 按 case/suite/plan/android/performance 分别限制状态过滤值；空交集使用始终不匹配条件，避免不支持的状态退化为查询全部；重试能力继续使用各域既有策略并保留 case `skipped` 重试。
+- [x] 代码审查确认未修改执行器、权限和数据库结构；工作台定向 `8 passed`，Ruff、差异检查和完整后端非集成回归 `2229 passed` 通过。
+- [E] 修复已提交到本地代码并待远端 q19 受控重建；当前 q19 容器仍运行旧提交，不能把远端日志恢复前的状态写成已部署通过。
+
 ## 2026-08-24 产品导航与能力扩展路线（持续跟踪）
 
 开发计划和单模块交付规则已记录在 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md)，本节只维护阶段状态；导航已按参考方案固定为五组，N0 导航壳、N1 工作台与任务中心、N2.1/N2.2/N2.3/N2.4/N2.5、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心本地实现、审查和回归已完成，均待真实环境验收；N6.3/N6.4/N6.5/N6.6/N6.7/N6.8/N6.9/N6.10/N6.11/N6.12/N6.13 已补充远端依赖、完整 Windows API/Web readiness、q19 真实迁移、持久通用 Web Worker、独立录制 Worker、Chromium/Firefox/WebKit 证据链、跨 API 副本一致性、真实性能节点执行、通知本地链路、Android Backend/Agent 配置一致性门禁和全量质量门禁复核，Android、通知供应商和外部平台仍待独立验收。

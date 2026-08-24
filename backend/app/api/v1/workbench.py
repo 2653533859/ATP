@@ -12,7 +12,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user
@@ -50,6 +50,13 @@ router = APIRouter(tags=["工作台"])
 _TASK_TYPES = {"case", "suite", "plan", "android", "performance"}
 _ACTIVE_STATUSES = {"pending", "running", "cancelling"}
 _FAILED_STATUSES = {"failed", "error", "cancelled", "stopped"}
+_STATUS_VALUES_BY_TYPE = {
+    "case": {status.value for status in RunStatus},
+    "suite": {status.value for status in SuiteRunStatus},
+    "plan": {status.value for status in PlanRunStatus},
+    "android": {status.value for status in MobileRunStatus},
+    "performance": {status.value for status in PerformanceRunStatus},
+}
 _RETRYABLE_STATUSES = {
     "case": {"failed", "error", "skipped"},
     "suite": {"failed", "error"},
@@ -69,11 +76,30 @@ def _project_filter(stmt, project_column, user: User, project_id: int | None):
 
 
 def _apply_status_filter(stmt, status_column, status_filter: StatusFilter):
-    if not status_filter:
+    if status_filter is None:
         return stmt
     if isinstance(status_filter, (set, frozenset, list, tuple)):
+        if not status_filter:
+            return stmt.where(false())
         return stmt.where(status_column.in_(status_filter))
     return stmt.where(status_column == status_filter)
+
+
+def _status_filter_for_type(status_filter: StatusFilter, task_type: str) -> StatusFilter:
+    """Keep status literals valid for the enum used by a task domain.
+
+    The workbench aggregates several tables, but their PostgreSQL enums are
+    intentionally different.  Passing the union of all terminal statuses to
+    every table makes PostgreSQL reject a query before it can return an empty
+    result (for example, ``TestRun.status IN ('stopped')``).
+    """
+
+    if status_filter is None:
+        return None
+    allowed = _STATUS_VALUES_BY_TYPE[task_type]
+    if isinstance(status_filter, (set, frozenset, list, tuple)):
+        return {str(value) for value in status_filter if str(value) in allowed}
+    return status_filter if status_filter in allowed else set()
 
 
 def _task_item(
@@ -94,10 +120,9 @@ def _task_item(
     metadata: dict | None = None,
 ) -> WorkbenchTaskItem:
     status = _enum_value(status_value)
-    can_retry = status in _FAILED_STATUSES
+    can_retry = status in _RETRYABLE_STATUSES.get(task_type, set())
     can_stop = task_type in {"android", "performance"} and status in {"pending", "running"}
     if task_type == "android":
-        can_retry = status in {"failed", "stopped"}
         can_stop = status in {"pending", "running"}
     if task_type == "performance":
         can_retry = status in {"failed", "cancelled"}
@@ -339,7 +364,13 @@ async def _collect_tasks(
     has_more = False
     per_type_limit = min(limit, 100)
     for selected_type in selected:
-        items, source_has_more = await collectors[selected_type](db, user, project_id, status_filter, per_type_limit)
+        items, source_has_more = await collectors[selected_type](
+            db,
+            user,
+            project_id,
+            _status_filter_for_type(status_filter, selected_type),
+            per_type_limit,
+        )
         collected.extend(items)
         has_more = has_more or source_has_more
     collected.sort(key=lambda item: item.created_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
@@ -364,22 +395,43 @@ async def _count_tasks(
             .join(Module, TestCase.module_id == Module.id)
         )
         stmt = _project_filter(stmt, Module.project_id, user, project_id)
-        total += int((await db.execute(_apply_status_filter(stmt, TestRun.status, status_filter))).scalar_one() or 0)
+        total += int(
+            (await db.execute(_apply_status_filter(stmt, TestRun.status, _status_filter_for_type(status_filter, "case"))))
+            .scalar_one()
+            or 0
+        )
     if "suite" in selected:
         stmt = select(func.count(SuiteRun.id)).join(TestSuite, SuiteRun.suite_id == TestSuite.id)
         stmt = _project_filter(stmt, TestSuite.project_id, user, project_id)
-        total += int((await db.execute(_apply_status_filter(stmt, SuiteRun.status, status_filter))).scalar_one() or 0)
+        total += int(
+            (await db.execute(_apply_status_filter(stmt, SuiteRun.status, _status_filter_for_type(status_filter, "suite"))))
+            .scalar_one()
+            or 0
+        )
     if "plan" in selected:
         stmt = select(func.count(PlanRun.id)).join(TestPlan, PlanRun.plan_id == TestPlan.id)
         stmt = _project_filter(stmt, TestPlan.project_id, user, project_id)
-        total += int((await db.execute(_apply_status_filter(stmt, PlanRun.status, status_filter))).scalar_one() or 0)
+        total += int(
+            (await db.execute(_apply_status_filter(stmt, PlanRun.status, _status_filter_for_type(status_filter, "plan"))))
+            .scalar_one()
+            or 0
+        )
     if "android" in selected:
         stmt = select(func.count(MobileSpecialRun.id)).join(
             MobileSpecialTask, MobileSpecialRun.task_id == MobileSpecialTask.id
         )
         stmt = _project_filter(stmt, MobileSpecialTask.project_id, user, project_id)
         total += int(
-            (await db.execute(_apply_status_filter(stmt, MobileSpecialRun.status, status_filter))).scalar_one() or 0
+            (
+                await db.execute(
+                    _apply_status_filter(
+                        stmt,
+                        MobileSpecialRun.status,
+                        _status_filter_for_type(status_filter, "android"),
+                    )
+                )
+            ).scalar_one()
+            or 0
         )
     if "performance" in selected:
         stmt = select(func.count(PerformanceRun.id)).join(
@@ -387,7 +439,16 @@ async def _count_tasks(
         )
         stmt = _project_filter(stmt, PerformanceRun.project_id, user, project_id)
         total += int(
-            (await db.execute(_apply_status_filter(stmt, PerformanceRun.status, status_filter))).scalar_one() or 0
+            (
+                await db.execute(
+                    _apply_status_filter(
+                        stmt,
+                        PerformanceRun.status,
+                        _status_filter_for_type(status_filter, "performance"),
+                    )
+                )
+            ).scalar_one()
+            or 0
         )
     return total
 

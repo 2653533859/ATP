@@ -18,6 +18,12 @@
 - 验收脚本生成脱敏本地报告 `.local-run/android-acceptance-current-20260825.json`，离线状态下没有继续执行设备命令、包管理、日志读取或创建 Android 任务。
 - 这只证明 Worker/ADB 诊断入口边界正确；ADB 恢复为 `device` 前，扫描、预约、截图、APK 包名、低代码、专项任务和结果回传都保持未验收。
 
+## 2026-08-25 工作台任务状态枚举隔离修复
+
+- q19 日志定位到工作台聚合把 Android `stopped` 和性能 `cancelled` 传入普通 `TestRun`/套件/计划 PostgreSQL enum，导致 `/workbench/overview` 可能返回 `invalid input value for enum runstatus`。
+- 已按任务域拆分状态过滤，并对空交集使用无匹配条件；重试状态改为复用各域策略。工作台定向 `8 passed`，完整后端非集成 `2229 passed`，Ruff、差异检查通过。
+- 本条只证明仓库代码修复；远端 q19 当前容器仍为旧提交，必须受控重建后重新请求工作台接口，不能用旧日志或本地测试替代部署复核。
+
 ## 2026-08-25 P1-F 本地发布收口状态
 
 - 已建立统一发布状态索引 [`release-status-2026-08-25.md`](release-status-2026-08-25.md)，集中列出 Windows/Web、Android、性能、通知和外部缺陷平台的证据与边界。

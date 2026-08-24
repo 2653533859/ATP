@@ -75,6 +75,39 @@ def test_task_item_exposes_domain_specific_actions():
     assert performance.can_retry is True
 
 
+def test_status_filters_are_restricted_to_each_domain_enum():
+    failed = workbench._status_filter_for_type(workbench._FAILED_STATUSES, "case")
+    assert failed == {"failed", "error"}
+    assert workbench._status_filter_for_type(workbench._FAILED_STATUSES, "android") == {"failed", "stopped"}
+    assert workbench._status_filter_for_type(workbench._FAILED_STATUSES, "performance") == {"failed", "cancelled"}
+    assert workbench._status_filter_for_type(workbench._ACTIVE_STATUSES, "case") == {"pending", "running"}
+    assert workbench._status_filter_for_type("stopped", "case") == set()
+
+
+def test_collect_tasks_passes_domain_safe_status_filters(monkeypatch):
+    seen = {}
+
+    def collector(task_type):
+        async def _collect(_db, _user, _project_id, status_filter, _limit):
+            seen[task_type] = status_filter
+            return [], False
+
+        return _collect
+
+    for task_type in ("case", "suite", "plan", "android", "performance"):
+        monkeypatch.setattr(workbench, f"_collect_{task_type}_tasks", collector(task_type))
+
+    asyncio.run(workbench._collect_tasks(_FakeDB(), types.SimpleNamespace(), None, workbench._FAILED_STATUSES, None, 10))
+
+    assert seen == {
+        "case": {"failed", "error"},
+        "suite": {"failed", "error"},
+        "plan": {"failed", "error"},
+        "android": {"failed", "stopped"},
+        "performance": {"failed", "cancelled"},
+    }
+
+
 def test_retry_guard_rejects_non_retryable_status():
     ref = WorkbenchTaskRef(task_type="case", run_id=9)
 
