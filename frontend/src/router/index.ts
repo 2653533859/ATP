@@ -152,7 +152,7 @@ const router = createRouter({
         {
           path: 'hermes',
           name: 'hermes',
-          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          component: () => import('@/views/intelligence/HermesAssistantView.vue'),
           meta: {
             menuTitleKey: 'menu.intelligence.hermes',
             descriptionKey: 'navigation.placeholder.description.hermes',
