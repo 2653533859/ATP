@@ -15,6 +15,7 @@ from app.api.v1 import (
     notifications,
     statistics,
     reports,
+    case_reviews,
     mock_rules,
     bug_trackers,
     mobile_special,
@@ -62,6 +63,7 @@ router.include_router(exports.router)
 router.include_router(notifications.router)
 router.include_router(statistics.router)
 router.include_router(reports.router)
+router.include_router(case_reviews.router)
 router.include_router(mock_rules.router)
 router.include_router(bug_trackers.router)
 router.include_router(mobile_special.router)

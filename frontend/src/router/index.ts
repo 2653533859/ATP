@@ -129,7 +129,7 @@ const router = createRouter({
         {
           path: 'case-reviews',
           name: 'case-reviews',
-          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          component: () => import('@/views/case/CaseReviewWorkbench.vue'),
           meta: {
             menuTitleKey: 'menu.assets.reviews',
             descriptionKey: 'navigation.placeholder.description.reviews',

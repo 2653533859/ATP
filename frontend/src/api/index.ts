@@ -242,6 +242,62 @@ export interface CaseSnapshotItem {
   created_at: string
 }
 
+export interface CaseReviewQueueItem {
+  id: number
+  project_id: number
+  project_name: string
+  module_id: number
+  module_name: string
+  name: string
+  case_code: string
+  summary: string
+  case_type: string
+  priority: string
+  case_level: string
+  review_status: ReviewStatus
+  automation_status: AutomationStatus
+  creator_id: number
+  owner_id?: number | null
+  submitted_at?: string | null
+  reviewed_at?: string | null
+  reviewed_by?: number | null
+  reviewer_name?: string | null
+  review_comment?: string | null
+  step_count: number
+  snapshot_count: number
+  latest_snapshot_version?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface CaseReviewQueueResult {
+  items: CaseReviewQueueItem[]
+  total: number
+  page: number
+  page_size: number
+  counts: { all: number; pending: number; approved: number; rejected: number }
+}
+
+export interface CaseReviewBatchResult {
+  requested: number
+  processed: number
+  processed_ids: number[]
+  skipped_ids: number[]
+}
+
+export interface CaseReviewHistoryItem {
+  id: number
+  case_id: number
+  action: string
+  status: string
+  comment?: string | null
+  reviewer_id?: number | null
+  reviewer_name: string
+  source: string
+  snapshot_version?: number | null
+  created_at: string
+}
+
 export interface ScriptUploadResponse {
   script_path: string
   size: number
@@ -1281,6 +1337,10 @@ export const caseApi = {
     ),
   rollback: (caseId: number, snapshotId: number) =>
     http.post<unknown, CaseDetailItem>(`/cases/${caseId}/rollback/${snapshotId}`),
+  diffSnapshots: (caseId: number, params: { from: number; to: number }) =>
+    http.get<unknown, { from_version: number; to_version: number; changes: Record<string, { from: unknown; to: unknown }> }>(
+      `/cases/${caseId}/snapshots/diff`, { params },
+    ),
   batchDelete: (caseIds: number[]) =>
     http.post<unknown, { requested: number; processed: number; skipped_ids: number[] }>(
       '/cases/batch/delete',
@@ -1354,7 +1414,21 @@ export const apiContractApi = {
     http.post<unknown, ApiContractCompareResult>(`/projects/${projectId}/api-contracts/compare-assets`, {
       baseline_asset_id: baselineAssetId,
       current_asset_id: currentAssetId,
-    }),
+  }),
+}
+
+export const caseReviewApi = {
+  list: (params?: {
+    project_id?: number
+    module_id?: number
+    review_status?: 'all' | ReviewStatus
+    keyword?: string
+    page?: number
+    page_size?: number
+  }) => http.get<unknown, CaseReviewQueueResult>('/case-reviews', { params }),
+  batch: (data: { case_ids: number[]; action: 'approve' | 'reject'; comment?: string }) =>
+    http.post<unknown, CaseReviewBatchResult>('/case-reviews/batch', data),
+  history: (caseId: number) => http.get<unknown, CaseReviewHistoryItem[]>(`/case-reviews/${caseId}/history`),
 }
 
 export interface ApiContractAssetItem {

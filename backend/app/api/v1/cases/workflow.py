@@ -27,6 +27,7 @@ from app.schemas.case import (
     PaginatedSnapshotsOut,
     TestCaseDetailOut,
 )
+from app.services.case_review import build_review_audit_detail
 
 router = APIRouter(tags=["用例管理"])
 
@@ -49,6 +50,16 @@ async def submit_review(
     case.reviewed_at = None
     case.reviewed_by = None
     case.review_comment = body.comment
+    await _cases.write_audit_log(
+        db,
+        action="case_review_submit",
+        resource_type="test_case",
+        resource_id=case.id,
+        user_id=_current_user.id,
+        username=getattr(_current_user, "username", ""),
+        project_id=module.project_id if module else None,
+        detail=build_review_audit_detail(action="submit", status="pending", comment=body.comment),
+    )
     await db.commit()
     return await _cases._get_case_detail_or_404(db, case_id)
 
@@ -73,6 +84,16 @@ async def approve_case(
     case.reviewed_at = datetime.now(timezone.utc)
     case.reviewed_by = current_user.id
     case.review_comment = body.comment
+    await _cases.write_audit_log(
+        db,
+        action="case_review_approve",
+        resource_type="test_case",
+        resource_id=case.id,
+        user_id=current_user.id,
+        username=getattr(current_user, "username", ""),
+        project_id=module.project_id if module else None,
+        detail=build_review_audit_detail(action="approve", status="approved", comment=body.comment),
+    )
     await db.commit()
     return await _cases._get_case_detail_or_404(db, case_id)
 
@@ -95,6 +116,16 @@ async def reject_case(
     case.reviewed_at = datetime.now(timezone.utc)
     case.reviewed_by = current_user.id
     case.review_comment = body.comment
+    await _cases.write_audit_log(
+        db,
+        action="case_review_reject",
+        resource_type="test_case",
+        resource_id=case.id,
+        user_id=current_user.id,
+        username=getattr(current_user, "username", ""),
+        project_id=module.project_id if module else None,
+        detail=build_review_audit_detail(action="reject", status="rejected", comment=body.comment),
+    )
     await db.commit()
     return await _cases._get_case_detail_or_404(db, case_id)
 
