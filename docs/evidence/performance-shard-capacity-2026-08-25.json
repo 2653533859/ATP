@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "kind": "performance_shard_node_capacity",
+  "recorded_at": "2026-08-25",
+  "source_commit": "f9e7c54",
+  "scope": "local code and regression evidence",
+  "checks": [
+    {
+      "name": "per-shard node limit accepts valid distribution",
+      "total_vus": 10,
+      "node_count": 2,
+      "node_max_vus": [6, 6],
+      "shard_vus": [5, 5],
+      "status": "passed"
+    },
+    {
+      "name": "per-shard node limit rejects invalid distribution",
+      "total_vus": 10,
+      "node_count": 2,
+      "node_max_vus": [4, 4],
+      "http_status": 400,
+      "status": "passed"
+    }
+  ],
+  "tests": {
+    "performance_api": "72 passed",
+    "performance_services_and_worker": "24 passed",
+    "backend_non_integration": "2231 passed",
+    "ruff": "passed",
+    "git_diff_check": "passed"
+  },
+  "limitations": [
+    "This evidence covers local validation and does not prove real Kubernetes multi-node scheduling, production Prometheus, MinIO lifecycle, or cross-host recovery."
+  ]
+}

@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 P1-E.4 性能多节点分片容量校验已完成并推送 `f9e7c54`：多节点运行先按节点数拆分总负载，再按每个节点的 `max_vus`、执行器能力和出口 allowlist 校验；总 VU 10 在两台上限 6 的节点上按 5/5 通过，上限 4 返回 400 且不创建运行。API `72 passed`、性能服务/Worker `24 passed`、完整非集成后端 `2231 passed`、Ruff/diff-check 通过，脱敏证据为 `docs/evidence/performance-shard-capacity-2026-08-25.json`。真实 Kubernetes 多节点调度、生产 Prometheus/MinIO 生命周期和跨主机恢复仍待环境验收。
+
 - 2026-08-25 P0-A 已补一轮 Windows 已认证浏览器冒烟：复用当前登录会话实际加载 `/dashboard`、`/workbench/overview`、`/workbench/todos`、`/cases`、`/runs`、`/suites`、`/system/storage` 和 `/system/api-contract-assets`，均未回登录页，q19 Backend 最近 5 分钟无 enum/Traceback/ERROR。脱敏证据为 `docs/evidence/windows-browser-smoke-2026-08-25.json`；本轮不记录密码/Token，也不替代文件传输、报告导出、浏览器矩阵和 Web 低代码的既有完整 readiness，P0-A 仍待目标环境完整复验。
 
 - 2026-08-25 已将参考导航固化为当前开发计划版本：主计划 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md) 新增“0.2 导航对齐持续开发计划（当前跟踪版本）”，明确工作台、测试能力、测试资产、智能中枢、系统五组入口、每组职责、模块验收出口和剩余工作。`Task.md` 已同步维护状态；旧设备、APK、专项任务、报告、Mock、数据集、Web/API 资产和平台治理页面保持 URL 兼容，但从所属工作台或配置中心进入，不再继续堆到系统管理。当前顺序为 Windows API/Web 复核 → Android 单设备 → 真实通知 → 外部缺陷平台 → 性能生产环境 → 发布收口；每个模块必须完成实现/调整、测试、代码审查、问题修复、文档/记忆同步后再提交推送。真实环境未提供时，不能把 mock、跳过项或 ADB `offline` 记为通过。
