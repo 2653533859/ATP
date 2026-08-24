@@ -6,7 +6,9 @@ param(
   [ValidateRange(20, 500)]
   [int]$Tail = 120,
 
-  [string]$EnvFile = ''
+  [string]$EnvFile = '',
+
+  [string]$BackendEnvFile = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -25,6 +27,14 @@ $ConfiguredEnvFile = if ([string]::IsNullOrWhiteSpace($EnvFile)) {
 } else {
   Join-Path $RepoRoot $EnvFile
 }
+$ConfiguredBackendEnvFile = if ([string]::IsNullOrWhiteSpace($BackendEnvFile)) {
+  ''
+} elseif ([System.IO.Path]::IsPathRooted($BackendEnvFile)) {
+  $BackendEnvFile
+} else {
+  Join-Path $RepoRoot $BackendEnvFile
+}
+$AndroidConfigValidator = Join-Path $RepoRoot 'scripts\validate-android-worker-config.py'
 $ProcessEnvironmentHelper = Join-Path $PSScriptRoot 'windows-process-env.ps1'
 if (-not (Test-Path -LiteralPath $ProcessEnvironmentHelper)) {
   throw "Missing process environment helper: $ProcessEnvironmentHelper"
@@ -204,6 +214,20 @@ function Show-Doctor {
   $failed += Write-Check -Label "Python virtual environment: $BackendPython" -Passed (Test-Path $BackendPython) -Hint 'Create backend/.venv and install backend/requirements.txt.'
   $pythonRuntimeReady = (Test-Path $BackendPython) -and (Test-PythonModule -ModuleName 'celery') -and (Test-PythonModule -ModuleName 'redis')
   $failed += Write-Check -Label 'Celery and Redis Python dependencies' -Passed $pythonRuntimeReady -Hint 'Install backend requirements in backend/.venv before starting the Android Worker.'
+
+  if (-not [string]::IsNullOrWhiteSpace($ConfiguredBackendEnvFile)) {
+    $pairInputsReady = (Test-Path -LiteralPath $ConfiguredBackendEnvFile) -and (Test-Path -LiteralPath $ConfiguredEnvFile) -and (Test-Path -LiteralPath $AndroidConfigValidator) -and (Test-Path -LiteralPath $BackendPython)
+    $pairPassed = $false
+    $pairOutput = @()
+    if ($pairInputsReady) {
+      $pairOutput = @(& $BackendPython $AndroidConfigValidator --backend-env $ConfiguredBackendEnvFile --agent-env $ConfiguredEnvFile 2>&1)
+      $pairPassed = $LASTEXITCODE -eq 0
+    }
+    $failed += Write-Check -Label 'Backend/Agent configuration pair' -Passed $pairPassed -Hint 'Run validate-android-worker-config.py with the matching Backend and Agent env files; values are never printed.'
+    if (-not $pairPassed -and $pairOutput.Count -gt 0) {
+      $pairOutput | ForEach-Object { Write-Host "       $_" }
+    }
+  }
 
   $adb = Get-Command adb.exe -ErrorAction SilentlyContinue
   $failed += Write-Check -Label 'adb.exe is available' -Passed ($null -ne $adb) -Hint 'Install Android Platform Tools and add its directory to PATH.'

@@ -5,7 +5,9 @@ param(
 
   [string]$Profile = '',
 
-  [string]$ConfigFile = ''
+  [string]$ConfigFile = '',
+
+  [string]$BackendEnvFile = ''
 )
 
 $ErrorActionPreference = 'Stop'
@@ -141,9 +143,17 @@ try {
   }
 
   if (-not [string]::IsNullOrWhiteSpace($profileConfig)) {
-    & $definition.Script -Action $Action -EnvFile $profileConfig
+    if ($selected -eq 'android-agent' -and -not [string]::IsNullOrWhiteSpace($BackendEnvFile)) {
+      & $definition.Script -Action $Action -EnvFile $profileConfig -BackendEnvFile $BackendEnvFile
+    } else {
+      & $definition.Script -Action $Action -EnvFile $profileConfig
+    }
   } else {
-    & $definition.Script -Action $Action
+    if ($selected -eq 'android-agent' -and -not [string]::IsNullOrWhiteSpace($BackendEnvFile)) {
+      & $definition.Script -Action $Action -BackendEnvFile $BackendEnvFile
+    } else {
+      & $definition.Script -Action $Action
+    }
   }
   if ($null -ne $LASTEXITCODE) {
     $exitCode = [int]$LASTEXITCODE

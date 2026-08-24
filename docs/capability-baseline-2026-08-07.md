@@ -32,6 +32,8 @@
 
 > 2026-08-24 N6.11 环境证据：通知生产入口在回环 SMTP sink 上完成 12 项本地链路检查，验证 envelope、收件人规范化、MIME、显示名及六项性能摘要字段；报告状态为 `local_link_only`，不替代真实 SMTP/企业微信/钉钉供应商侧送达。脱敏证据见 [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json)。
 
+> 2026-08-24 N6.12 代码门禁：新增 Android Backend/Windows Agent 配置配对校验器，比较共享 PostgreSQL/Redis/MinIO/密钥并检查 `ADB_SCAN_MODE`、Celery 队列、Worker 队列和 Redis 注册前缀；`windows-android-worker.ps1 doctor -BackendEnvFile` 和 `startup.ps1` 已接入，输出不包含配置值。定向回归 `55 passed`，真实网络/Worker/ADB 仍需环境验收。
+
 > 2026-08-12 iOS/Appium 补强：新增 status/session smoke、受控步骤和脱敏附件证据入口；真实 macOS/XCUITest/WDA/设备执行仍待验收。
 
 > 最新实现状态和前后对比请先查看 [`docs/q18-latest-status-2026-08-07.md`](./q18-latest-status-2026-08-07.md)。

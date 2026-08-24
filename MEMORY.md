@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-24 N6.12 Android Worker 配置配对门禁已完成：新增 `scripts/validate-android-worker-config.py`，只输出字段名/队列状态，不输出 PostgreSQL、Redis、MinIO、APP_SECRET_KEY 或 ENCRYPTION_KEY 值；校验 Backend/Windows Agent 共享基础设施和密钥、`ADB_SCAN_MODE`、Celery 队列、Worker 队列及 Redis 注册前缀。`windows-android-worker.ps1 doctor` 支持 `-BackendEnvFile` 自动执行配对检查，`startup.ps1` 支持透传该参数，Make/CI/pre-commit/部署 readiness 已接入脚本；统一两个示例档案的密钥占位符。配置/Worker/PowerShell/质量门禁定向 `55 passed`，部署门禁通过（仅跳过本机缺少 Docker Compose 的环境检查）。Android 真机仍因 ADB offline 待恢复。
+
 - 2026-08-24 N6.11 通知链路本地安全验收已完成：通过回环 SMTP sink 走生产入口 `send_notification_channel`，12 项检查全部通过，覆盖 SMTP envelope、收件人规范化、MIME multipart、显示名和 RPS/P95/P99/错误率/阈值/触发原因六项正文；报告固定为 `local_link_only`，未触达真实邮箱、未记录凭据，证据见 `docs/evidence/notification-smtp-link-check-2026-08-24.json`。真实 SMTP/企业微信/钉钉仍需管理员提供临时目标和供应商侧送达证据，Android 真机仍因 ADB offline 待恢复。
 
 - 2026-08-24 N6.10 q19 性能节点真实验收已完成：性能 smoke 预检确认 API healthy、k6/Locust/gRPC/JMeter ready，专用节点 `worker-a` online、队列 `performance.worker-a`；临时项目执行一次低并发 k6（1 VU、5 次迭代、目标 `http-target`），运行状态 `success`，产生 1 条 `performance-worker` 资源采样。Prometheus readiness 通过，`atp-backend`、`atp-worker`、`atp-performance-worker` 三个 target 为 up。临时项目、测试、运行和性能脚本对象已清理；脱敏证据见 `docs/evidence/q19-performance-worker-smoke-2026-08-24.json`。Android Worker 已启动并有心跳，但当前 ADB 设备仍为 offline，Android 真机闭环继续待设备恢复；下一步优先补 Android 单设备验收，再验收通知和外部缺陷平台。

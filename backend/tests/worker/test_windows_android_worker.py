@@ -8,6 +8,9 @@ def test_windows_android_worker_script_has_safe_queue_and_adb_contract():
     content = (ROOT / "scripts" / "windows-android-worker.ps1").read_text(encoding="utf-8")
 
     assert "ValidateSet('up', 'down', 'restart', 'status', 'logs', 'doctor')" in content
+    assert "[string]$BackendEnvFile = ''" in content
+    assert "validate-android-worker-config.py" in content
+    assert "Backend/Agent configuration pair" in content
     assert "$QueueList = 'android,mobile_special'" in content
     assert "'--pool=solo'" in content
     assert "'--concurrency=1'" in content

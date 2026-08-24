@@ -13,6 +13,8 @@ def test_startup_selector_exposes_profiles_and_does_not_overwrite_root_env():
     assert "android-agent" in script
     assert "Import-ProfileEnvironment" in script
     assert "Restore-ProfileEnvironment" in script
+    assert "BackendEnvFile" in script
+    assert "-BackendEnvFile $BackendEnvFile" in script
     assert "Copy the template first" in script
     assert "Set-Content" not in script
 
@@ -42,6 +44,8 @@ def test_android_worker_backend_deployment_profile_separates_server_and_agent_mo
     assert "CELERY_QUEUES=default,ios,ai,maintenance,performance" in content
     assert "android,mobile_special" not in content.split("CELERY_QUEUES=", 1)[1].splitlines()[0]
     assert "ANDROID_WORKER_QUEUE=mobile_special" in content
+    assert "APP_SECRET_KEY=use_the_same_value_across_atp_processes" in content
+    assert "ENCRYPTION_KEY=use_the_same_value_across_atp_processes" in content
     assert "config/startup-profiles/android-agent.env" in readme
     assert "不要把此文件直接作为 Windows Android Agent 配置" in content
     assert "change_me" in content

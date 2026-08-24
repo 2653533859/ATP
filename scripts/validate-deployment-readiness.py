@@ -29,6 +29,7 @@ REQUIRED_FILES = (
     "docs/backup-restore-drill-record.md",
     "scripts/backup-postgres.sh",
     "scripts/restore-postgres.sh",
+    "scripts/validate-android-worker-config.py",
     "config/deployment-profiles/android-worker-backend.env.example",
     "deploy/helm/atp/values-android-worker.example.yaml",
 )

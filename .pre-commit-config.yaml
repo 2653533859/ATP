@@ -22,7 +22,7 @@ repos:
     hooks:
       - id: backend-ruff-check
         name: backend ruff check
-        entry: ruff check backend/app backend/tests scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py scripts/collect-q12-evidence.py scripts/pytest-standalone-sweep.py scripts/validate-deployment-readiness.py scripts/performance-gate.py scripts/performance-environment-smoke.py scripts/performance_acceptance_target.py scripts/notification-channel-smoke.py scripts/notification-channel-acceptance.py scripts/web-recording-worker-smoke.py scripts/minio-dataset-acceptance.py
+        entry: ruff check backend/app backend/tests scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py scripts/collect-q12-evidence.py scripts/pytest-standalone-sweep.py scripts/validate-deployment-readiness.py scripts/validate-android-worker-config.py scripts/performance-gate.py scripts/performance-environment-smoke.py scripts/performance_acceptance_target.py scripts/notification-channel-smoke.py scripts/notification-channel-acceptance.py scripts/web-recording-worker-smoke.py scripts/minio-dataset-acceptance.py
         language: python
         additional_dependencies: [ruff==0.8.4]
         pass_filenames: false
@@ -30,7 +30,7 @@ repos:
 
       - id: backend-ruff-format-check
         name: backend ruff format check
-        entry: ruff format --check backend/app backend/tests scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py scripts/collect-q12-evidence.py scripts/pytest-standalone-sweep.py scripts/validate-deployment-readiness.py scripts/performance-gate.py scripts/performance-environment-smoke.py scripts/performance_acceptance_target.py scripts/notification-channel-smoke.py scripts/notification-channel-acceptance.py scripts/web-recording-worker-smoke.py scripts/minio-dataset-acceptance.py
+        entry: ruff format --check backend/app backend/tests scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py scripts/collect-q12-evidence.py scripts/pytest-standalone-sweep.py scripts/validate-deployment-readiness.py scripts/validate-android-worker-config.py scripts/performance-gate.py scripts/performance-environment-smoke.py scripts/performance_acceptance_target.py scripts/notification-channel-smoke.py scripts/notification-channel-acceptance.py scripts/web-recording-worker-smoke.py scripts/minio-dataset-acceptance.py
         language: python
         additional_dependencies: [ruff==0.8.4]
         pass_filenames: false

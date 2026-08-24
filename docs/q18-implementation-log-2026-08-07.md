@@ -13,6 +13,12 @@
 - [x] 报告固定为 `local_link_only`，未触达真实邮箱或记录凭据；证据见 [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json)。
 - [ ] 真实 SMTP/企业微信/钉钉及外部缺陷平台仍待目标环境证据。
 
+## 2026-08-24 N6.12 Android Backend/Agent 配置配对门禁
+
+- [x] 新增无泄漏配置配对校验器，检查共享 PostgreSQL/Redis/MinIO/密钥、`ADB_SCAN_MODE`、队列、Worker 队列和注册前缀。
+- [x] Windows Android Worker doctor/startup、Make、CI、pre-commit 和 deployment readiness 已接入；示例配置配对通过，定向回归 `55 passed`。
+- [ ] 真实网络、Worker 心跳和 Android 真机执行仍待目标环境证据。
+
 ## 2026-08-24 N6.9 Firefox/WebKit 与跨 API 副本录制验收
 
 - [x] Linux Worker 模式的 WebKit headed 启动挂起已修复为无头启动；Windows/local 与 Firefox 的 headed 行为保持不变，并补充启动参数回归。

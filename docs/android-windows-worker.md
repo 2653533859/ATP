@@ -147,12 +147,33 @@ Agent 使用自己的启动档案；不要让两侧共享一个同时包含 `ADB
 `ADB_SCAN_MODE=worker` 的文件。Web 录制若使用独立 Linux Worker，还需启动
 `web-recorder` profile，并保持 `WEB_RECORDER_MODE=worker` 与 Redis 前缀一致。
 
+在启动前可以对实际两份配置做无泄漏的配对检查。它会比较数据库、Redis、MinIO、
+应用密钥/加密密钥是否一致，并检查 ADB 模式和队列是否分离；输出只包含字段名和状态，
+不会打印密钥值：
+
+```powershell
+python .\scripts\validate-android-worker-config.py `
+  --backend-env .\config\deployment-profiles\android-worker-backend.env `
+  --agent-env .\config\startup-profiles\android-agent.env `
+  --report .\.local-run\android-worker-config-pair.json
+```
+
+也可以让 Android Worker 的 doctor 在启动前自动执行配对检查：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\scripts\windows-android-worker.ps1 doctor `
+  -EnvFile .\config\startup-profiles\android-agent.env `
+  -BackendEnvFile .\config\deployment-profiles\android-worker-backend.env
+```
+
+该检查只验证配置一致性；PostgreSQL、Redis、MinIO 的实际连通性仍由 doctor 单独检查。
+
 修改后重启公网 Worker，并确认 Beat 仍在运行。若部署环境只有一个共享 Worker，不能保证 Android 任务落到 Windows 主机。
 
 ## 5. 验收流程
 
 1. 在 Windows 执行 `adb devices`，确认目标设备状态为 `device`。
-2. 执行 `windows-android-worker.ps1 doctor`，确认 PostgreSQL、Redis、MinIO 和 ADB 检查通过。
+2. 执行配置配对检查和 `windows-android-worker.ps1 doctor`，确认 Backend/Agent 配置一致，且 PostgreSQL、Redis、MinIO 和 ADB 检查通过。
 3. 在 ATP 中触发一个 Android 用例。
 4. 查看 Windows Worker 日志，应出现 `android` 队列任务和对应的 `adb` 执行日志。
 5. 在运行详情查看状态、步骤结果和 MinIO 证据。

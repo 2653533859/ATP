@@ -11,6 +11,11 @@
 - 回环 SMTP sink 通过生产通知入口完成 12 项检查，覆盖 SMTP envelope、收件人规范化、MIME、显示名和性能摘要正文。
 - 报告状态为 `local_link_only`，未触达真实邮箱，证据见 [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json)；真实 SMTP/企业微信/钉钉仍需供应商侧送达证据。
 
+## 2026-08-24 N6.12 Android Backend/Agent 配置配对门禁
+
+- 新增配置配对校验器并接入 Windows Android Worker doctor/startup；比较共享基础设施与密钥、扫描模式和队列边界，输出不包含敏感值。
+- 示例配置配对通过，配置/Worker/PowerShell/质量门禁定向 `55 passed`；真实网络、Worker 心跳和 Android 真机仍待验收。
+
 ## 2026-08-24 N6.9 Firefox/WebKit 与跨 API 副本录制验收
 
 - Linux `WEB_RECORDER_MODE=worker` 下 WebKit 已改为无头启动，避免 Xvfb 中 headed WebKit 挂起；Windows/local 与 Firefox 仍保持 headed 行为，新增回归断言覆盖该边界。
