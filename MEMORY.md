@@ -1,6 +1,8 @@
 # MEMORY
 
-- 2026-08-25 参考导航计划跟踪已更新：主计划 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md) 的“0.4 参考导航下一阶段开发计划（当前跟踪版）”、`Task.md`、发布状态和本记忆同步维护五组导航、阶段出口、证据口径与下一步顺序。Android 配对、Worker registry、扫描回调、租约绑定的截图/UI 属性/点击/滑动和 APK 资产选择/包名传递已通过，下一步进入真实 APK 上传包名识别、低代码真实运行、录屏、专项任务和结果回传；真实通知供应商、外部缺陷平台和生产性能仍保持待环境验收。每个模块必须按“实现/调整 → 定向与全量测试 → 代码审查 → 修复 → 文档/记忆同步 → Conventional Commit 推送”闭环，入口存在不等于真实环境通过。
+- 2026-08-25 已同步当前开发计划：主路线图新增“0.5 当前开发计划与跟踪台账”，`Task.md`、发布状态和本记忆统一按 P0-B.3.1 APK/包名、P0-B.3.2 Android 低代码、P0-B.3.3 录屏回放、P0-B.3.4 专项任务、P0-B.3.5 事件/日志/报告五个子模块跟踪。当前优先先核对低代码从用例保存到 Worker 的真实调度，再用真实 APK 和在线设备完成最小无破坏步骤；Android 闭环后依次复核 Windows API/Web、通知供应商、外部缺陷平台、性能生产环境和发布收口。每个子模块必须完成实现、定向/全量测试、代码审查、问题修复、文档同步和 Conventional Commit 推送；没有 APK、包名或在线 `device` 时只能记录阻塞，不能把 Worker 心跳、截图、mock 或跳过项当作通过。
+
+- 2026-08-25 参考导航计划跟踪已更新：主计划 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md) 的“0.5 当前开发计划与跟踪台账”、`Task.md`、发布状态和本记忆同步维护五组导航、阶段出口、证据口径与下一步顺序。Android 配对、Worker registry、扫描回调、租约绑定的截图/UI 属性/点击/滑动和 APK 资产选择/包名传递已通过，下一步进入真实 APK 上传包名识别、低代码真实运行、录屏、专项任务和结果回传；真实通知供应商、外部缺陷平台和生产性能仍保持待环境验收。每个模块必须按“实现/调整 → 定向与全量测试 → 代码审查 → 修复 → 文档/记忆同步 → Conventional Commit 推送”闭环，入口存在不等于真实环境通过。
 
 - 2026-08-25 P0-B Android 状态更新：ADB 已通过 mDNS 发现在线目标，`172.16.102.15:5555` 的授权、命令、属性、包管理和 logcat 基础检查通过；Windows Agent 与 q19 Backend 的 Redis 实例、DB、认证、队列和注册前缀已配对，配置校验、Worker doctor、`/devices/workers` registry、Worker 扫描回调和租约绑定控制均已通过，扫描返回 2 台设备。根因是 `scan_adb_devices` 原先丢弃 Celery 结果，现已修复并补回归；点击/滑动现在要求有效设备租约，脱敏证据见 `docs/evidence/android-worker-scan-2026-08-25.json` 和 `docs/evidence/android-control-lease-2026-08-25.json`。下一步验证 APK 包名、低代码真实运行、录屏、专项任务和结果回传；当前设备也未确认存在 Karing 包名，不能凭应用显示名执行专项任务。
 

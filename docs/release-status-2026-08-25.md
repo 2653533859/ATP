@@ -13,6 +13,12 @@
 - 通知供应商：当前只有回环 SMTP 的 `local_link_only` 证据，没有真实 SMTP/企业微信/钉钉送达回执。
 - 外部缺陷平台：没有可使用的临时 Jira/禅道/GitHub/GitLab 项目和凭据，创建、同步和脱敏链路未做真实验收。
 
+## 当前开发计划
+
+当前优先关闭 Android P0-B.3 单设备执行闭环，拆分为：真实 APK 上传/包名识别与选择、低代码最小执行、录屏与异常回放、专项任务、事件/日志/报告回传。每一项都必须同时具备代码、回归测试、代码审查修复和脱敏证据；没有 APK、包名或在线 `device` 时，只记录阻塞，不创建脏运行。
+
+Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复核 Windows API/Web、真实通知供应商、外部缺陷平台、性能生产环境和发布收口。详细依赖、出口和状态见 [`product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md) 的“0.5 当前开发计划与跟踪台账”，执行勾选见 [`Task.md`](../Task.md)。
+
 ## 2026-08-25 P0-A 本地 E2E 回归复核
 
 - 本地 Playwright 共享 fixture 已修复中文登录按钮自动空格，以及主布局 `/workbench/overview`、运行详情 `/defects` 未隔离导致的真实 401；登录定向 `3 passed`、运行详情定向 `1 passed`、全量 Playwright `12 passed`。
