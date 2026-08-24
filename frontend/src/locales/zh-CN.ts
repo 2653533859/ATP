@@ -4018,6 +4018,7 @@ export default {
         },
       },
       title: '专项测试报告',
+      replay_unavailable: '异常回放不可用',
       status: '执行状态',
       start_date: '开始日期',
       end_date: '结束日期',

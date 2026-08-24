@@ -1,0 +1,24 @@
+{
+  "verified_on": "2026-08-25",
+  "scope": "Android 低代码录屏与专项异常回放失败可观测性本地实现与回归",
+  "checks": {
+    "lowcode_recording_start_failure_is_reported": true,
+    "special_replay_start_failure_is_reported": true,
+    "saved_replay_clears_stale_start_warning": true,
+    "run_detail_replay_warning_rendered": true,
+    "android_executor_tests": 64,
+    "backend_non_integration_tests": 2248,
+    "frontend_vitest_files": 66,
+    "frontend_vitest_tests": 269,
+    "frontend_type_check": true,
+    "frontend_build": true,
+    "ruff": true,
+    "diff_check": true
+  },
+  "implementation_note": "低代码录屏启动失败会写入 result_summary.android_artifacts.screen_recording_error；专项任务会写入 summary_json.incident_replay 的 requested、saved 和 error，并在回放成功时清除过时启动告警；报告详情页展示回放不可用提示。未记录密码、Token 或对象存储密钥。",
+  "remaining_boundaries": [
+    "当前工作区没有可用于真实上传的 APK 文件，尚未完成真实 APK 上传后的包名识别和 Worker 安装验收",
+    "尚未用在线 Android 设备执行真实低代码录屏或触发 Crash/ANR，因此不能把本地回归写成真机媒体闭环通过",
+    "MinIO 实际视频上传、设备 screenrecord 权限和远端报告回传仍待在线设备验收"
+  ]
+}

@@ -4014,6 +4014,7 @@ export default {
         },
       },
       title: 'Special Test Reports',
+      replay_unavailable: 'Incident replay unavailable',
       status: 'Run status',
       start_date: 'Start date',
       end_date: 'End date',

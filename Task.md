@@ -17,7 +17,7 @@
 
 - [~] P0-B.3.1 APK 资产与包名：选择传递、项目隔离和运行快照已完成；真实 APK 上传、包名识别和对象存储下载待验证。
 - [E] P0-B.3.2 Android 低代码最小执行：单设备租约、Worker 调度、步骤执行、截图、APK 前置安装和终态回传已完成本地实现与回归；真实 APK/真机最小步骤待验收。证据见 [`android-lowcode-execution-2026-08-25.json`](docs/evidence/android-lowcode-execution-2026-08-25.json)。
-- [~] P0-B.3.3 录屏与异常回放：结果展示已补齐，真实设备采集、上传、异常保留和清理待验证。
+- [E] P0-B.3.3 录屏与异常回放：低代码/专项录屏失败状态、回放保存状态和报告告警已补齐并完成本地回归；真实设备采集、上传、异常保留和清理待验证。证据见 [`android-recording-observability-2026-08-25.json`](docs/evidence/android-recording-observability-2026-08-25.json)。
 - [ ] P0-B.3.4 Android 专项任务：包名确认后再验证安装/启动、动作、超时、取消、崩溃和 logcat；不能用应用显示名替代包名。
 - [~] P0-B.3.5 事件、日志与报告：按阶段/操作/参数摘要/结果/耗时形成时间线，并核对截图、录屏、设备日志和报告引用的完整性与脱敏。
 - [ ] P0-A 完整 Windows API/Web 复核：Android 闭环后复跑登录、认证读接口、浏览器矩阵、文件传输、报告导出和 Web 低代码。

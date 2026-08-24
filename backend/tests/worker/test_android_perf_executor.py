@@ -353,6 +353,62 @@ def test_perf_run_samples_and_uploads_csv(monkeypatch, chain_events, fast_clock,
     assert types_seen.count("sampling") == 2
 
 
+def test_perf_run_reports_replay_start_failure(monkeypatch, chain_events, fast_clock, quiet_heartbeat):
+    monkeypatch.setattr(android_perf_executor, "_check_device_reachable", lambda s, timeout=10: (True, "在线"))
+    monkeypatch.setattr(android_perf_executor, "_start_screen_recording", lambda *_args: None)
+    monkeypatch.setattr(android_perf_executor, "_collect_incidents", lambda *_args: ([], ""))
+
+    async def fake_finish(*_args, **_kwargs):
+        return None, None
+
+    async def fake_sample_once(*_args, **_kwargs):
+        return [{"metric_type": "cpu_pct", "metric_value": 10.0, "source": "top"}]
+
+    monkeypatch.setattr(android_perf_executor, "_finish_screen_recording", fake_finish)
+    monkeypatch.setattr(android_perf_executor, "_sample_once", fake_sample_once)
+
+    run = _FakeRun(device_serial="emu-5554", app_package="com.example.app", duration_seconds=1)
+    run.config_snapshot["capture_replay"] = True
+
+    asyncio.run(android_perf_executor.run_mobile_special_perf(_RecordingDB(), run))
+
+    assert run.status is RunStatus.completed
+    assert run.summary_json["incident_replay"] == {
+        "requested": True,
+        "saved": False,
+        "error": "设备不支持或无法启动异常回放录屏",
+    }
+
+
+def test_perf_run_clears_replay_start_warning_when_video_is_saved(
+    monkeypatch, chain_events, fast_clock, quiet_heartbeat
+):
+    monkeypatch.setattr(android_perf_executor, "_check_device_reachable", lambda s, timeout=10: (True, "在线"))
+
+    class _RecordingProcess:
+        def poll(self):
+            return None
+
+    monkeypatch.setattr(android_perf_executor, "_start_screen_recording", lambda *_args: _RecordingProcess())
+    monkeypatch.setattr(android_perf_executor, "_collect_incidents", lambda *_args: ([], ""))
+
+    async def fake_finish(*_args, **_kwargs):
+        return "android-special/runs/1/incident-replay.mp4", 12
+
+    async def fake_sample_once(*_args, **_kwargs):
+        return [{"metric_type": "cpu_pct", "metric_value": 10.0, "source": "top"}]
+
+    monkeypatch.setattr(android_perf_executor, "_finish_screen_recording", fake_finish)
+    monkeypatch.setattr(android_perf_executor, "_sample_once", fake_sample_once)
+
+    run = _FakeRun(device_serial="emu-5554", app_package="com.example.app", duration_seconds=1)
+    run.config_snapshot["capture_replay"] = True
+
+    asyncio.run(android_perf_executor.run_mobile_special_perf(_RecordingDB(), run))
+
+    assert run.summary_json["incident_replay"] == {"requested": True, "saved": True, "error": None}
+
+
 def test_perf_run_honors_cancel_signal(monkeypatch, chain_events, fast_clock, quiet_heartbeat):
     monkeypatch.setattr(android_perf_executor, "_check_device_reachable", lambda s, timeout=10: (True, "在线"))
     sample_calls = []

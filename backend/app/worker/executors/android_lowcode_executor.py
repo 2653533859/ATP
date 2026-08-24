@@ -639,6 +639,7 @@ async def _run_android_lowcode_steps(
     all_passed = True
     artifact_urls: dict[str, str] = {}
     recording_process = None
+    recording_error: str | None = None
     recording_remote_path = f"/sdcard/atp-{run.id}.mp4"
 
     try:
@@ -675,6 +676,8 @@ async def _run_android_lowcode_steps(
             recording_remote_path,
             int(cfg.get("record_video_max_seconds", 600)),
         )
+        if recording_process is None:
+            recording_error = "设备不支持或无法启动录屏"
 
     try:
         for idx, step_def in enumerate(steps):
@@ -775,6 +778,8 @@ async def _run_android_lowcode_steps(
             artifact_urls["screen_recording"] = recording_url
         else:
             artifact_urls["screen_recording_error"] = "设备未生成可上传的录屏文件"
+    elif recording_error:
+        artifact_urls["screen_recording_error"] = recording_error
 
     total_ms = int((time.monotonic() - total_start) * 1000)
     run.status = RunStatus.passed if all_passed else RunStatus.failed

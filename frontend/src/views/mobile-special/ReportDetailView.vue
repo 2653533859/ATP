@@ -85,6 +85,15 @@
           </div>
         </a-card>
 
+        <a-alert
+          v-if="replayError"
+          type="warning"
+          show-icon
+          :message="t('mobile_special.reports.replay_unavailable')"
+          :description="replayError"
+          style="margin-bottom: 16px"
+        />
+
         <a-card class="event-timeline-card" :body-style="{ padding: '0 20px 20px' }">
           <template #title>
             <div class="timeline-heading">
@@ -310,6 +319,12 @@ const isLiveRun = computed(() => run.value?.status === 'pending' || run.value?.s
 const monkeySeed = computed(() => {
   const value = run.value?.config_snapshot?.monkey_seed
   return typeof value === 'number' || typeof value === 'string' ? value : null
+})
+const replayError = computed(() => {
+  const replay = run.value?.summary_json?.incident_replay
+  if (!replay || typeof replay !== 'object' || Array.isArray(replay)) return ''
+  const error = (replay as Record<string, unknown>).error
+  return typeof error === 'string' ? error : ''
 })
 const liveProgressStatus = computed(() => live.value.error ? 'exception' : undefined)
 const deviceStatusLabel = computed(() => {

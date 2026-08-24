@@ -493,6 +493,7 @@ async def run_mobile_special_perf(
         await asyncio.sleep(3)
 
     recording_process = None
+    replay_error: str | None = None
     recording_segment = 0
     recording_remote_path = f"/sdcard/atp_mobile_run_{run.id}_{recording_segment}.mp4"
     recording_remote_paths: list[str] = []
@@ -517,6 +518,8 @@ async def run_mobile_special_perf(
             recording_remote_path,
             replay_seconds,
         )
+        if recording_process is None:
+            replay_error = "设备不支持或无法启动异常回放录屏"
         recording_remote_paths.append(recording_remote_path)
         await events.record(
             event_type="action",
@@ -564,6 +567,8 @@ async def run_mobile_special_perf(
                         recording_remote_path,
                         replay_seconds,
                     )
+                    if recording_process is None:
+                        replay_error = "设备不支持或无法启动异常回放录屏"
                     recording_remote_paths.append(recording_remote_path)
                     await events.record(
                         event_type="action",
@@ -770,6 +775,17 @@ async def run_mobile_special_perf(
         )
         for incident in incident_rows:
             incident.artifact_path = replay_object_name
+
+    if capture_replay:
+        if incidents_data and capture_on_incident and not replay_object_name:
+            replay_error = replay_error or "检测到异常，但未生成可上传的回放视频"
+        if replay_object_name:
+            replay_error = None
+        summary["incident_replay"] = {
+            "requested": True,
+            "saved": bool(replay_object_name),
+            "error": replay_error,
+        }
 
     # 8. 更新 Run
     if cancelled:

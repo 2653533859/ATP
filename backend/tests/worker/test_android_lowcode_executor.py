@@ -670,6 +670,19 @@ def test_lowcode_rejects_apk_from_another_project(run_env, monkeypatch):
     assert preflight_called == []
 
 
+def test_lowcode_recording_start_failure_is_reported(run_env, monkeypatch):
+    monkeypatch.setattr(executor, "_start_screen_recording", lambda *_args: None)
+    db = _FakeDB()
+    run, case = _run_case([{"action": "wait", "params": {}}])
+    case.config["record_video"] = True
+    case.config["collect_device_artifacts"] = False
+
+    asyncio.run(executor.run_android_lowcode(db, run, case, {}))
+
+    assert run.status == RunStatus.passed
+    assert run.result_summary["android_artifacts"] == {"screen_recording_error": "设备不支持或无法启动录屏"}
+
+
 def test_run_android_lowcode_happy_path_publishes_steps(run_env):
     db = _FakeDB()
     run, case = _run_case(

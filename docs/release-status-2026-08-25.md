@@ -8,7 +8,7 @@
 
 本地代码、回归和 Windows/q19 API/Web/性能链路已经形成可复核证据；以下外部门禁仍未关闭，因此发布只能按“部分实现/待环境验收”处理：
 
-- Android Worker/真机：ADB、Agent/Backend Redis 配对、Worker registry、扫描回调、租约绑定控制和 APK 资产选择/包名传递已通过，但真实 APK 上传、低代码、录屏、专项任务和结果回传仍不能验收。
+- Android Worker/真机：ADB、Agent/Backend Redis 配对、Worker registry、扫描回调、租约绑定控制和 APK 资产选择/包名传递已通过；低代码/专项录屏失败状态与报告告警已完成本地回归，但真实 APK 上传、低代码、录屏、专项任务和结果回传仍不能验收。
 - 性能生产环境：真实 Kubernetes 多节点、容量限制、生产 Prometheus、MinIO 生命周期和跨主机恢复未验收。
 - 通知供应商：当前只有回环 SMTP 的 `local_link_only` 证据，没有真实 SMTP/企业微信/钉钉送达回执。
 - 外部缺陷平台：没有可使用的临时 Jira/禅道/GitHub/GitLab 项目和凭据，创建、同步和脱敏链路未做真实验收。
@@ -25,6 +25,13 @@ Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复
 - Worker 按 `apk_id` 查询项目 APK 资产并校验模块项目归属，执行前复用 Android preflight 下载/安装 APK；步骤结果、截图和完成事件继续回传。
 - Android 相关回归 `145 passed`，后端非集成全量 `2245 passed`，Ruff 和 `git diff --check` 通过；脱敏证据见 [`android-lowcode-execution-2026-08-25.json`](evidence/android-lowcode-execution-2026-08-25.json)。
 - 发布边界：本地代码链路已完成，但当前没有真实 APK 文件，尚未完成在线设备低代码执行、录屏、专项任务和完整事件/日志/报告回传，因此 Android 真机门禁仍未关闭。
+
+## 2026-08-25 P0-B.3.3 录屏与异常回放可观测性本地交付
+
+- 低代码录屏启动失败现在写入 `result_summary.android_artifacts.screen_recording_error`；专项异常回放写入 `summary_json.incident_replay`，包含是否请求、是否保存和失败原因。
+- 报告详情页展示异常回放不可用告警；如果后续录屏轮换成功并保存回放，会清除过时的启动失败告警，避免与可播放视频同时出现矛盾提示。
+- Android 执行器定向 `64 passed`，后端非集成全量 `2248 passed`，前端 Vitest `66 files / 269 tests passed`，类型检查、生产构建、Ruff 和差异检查通过；脱敏证据见 [`android-recording-observability-2026-08-25.json`](evidence/android-recording-observability-2026-08-25.json)。
+- 发布边界：没有真实 APK 和在线设备录屏/Crash/ANR 证据，MinIO 视频上传、设备权限和专项回放仍待真实环境验收；本地回归不关闭 Android 真机门禁。
 
 ## 2026-08-25 P0-A 本地 E2E 回归复核
 
