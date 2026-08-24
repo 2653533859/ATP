@@ -20,7 +20,7 @@ def _string_pool(strings: list[str]) -> bytes:
         payload.append(0)
     strings_start = 28 + len(offsets) * 4
     chunk_size = strings_start + len(payload)
-    header = struct.pack("<HHIIIIII", 0x001C, 28, chunk_size, len(strings), 0, 0x100, strings_start, 0)
+    header = struct.pack("<HHIIIIII", 0x0001, 28, chunk_size, len(strings), 0, 0x100, strings_start, 0)
     return header + b"".join(struct.pack("<I", item) for item in offsets) + payload
 
 
@@ -51,6 +51,11 @@ def _binary_manifest() -> bytes:
     return pool + start_element + extension + attributes
 
 
+def _wrapped_binary_manifest() -> bytes:
+    content = _binary_manifest()
+    return struct.pack("<HHI", 0x0003, 8, 8 + len(content)) + content
+
+
 def _write_apk(path: Path, manifest: bytes) -> None:
     with zipfile.ZipFile(path, "w") as archive:
         archive.writestr("AndroidManifest.xml", manifest)
@@ -59,6 +64,17 @@ def _write_apk(path: Path, manifest: bytes) -> None:
 def test_extract_apk_metadata_reads_binary_android_manifest(tmp_path: Path):
     apk_path = tmp_path / "demo.apk"
     _write_apk(apk_path, _binary_manifest())
+
+    assert extract_apk_metadata(apk_path) == {
+        "package_name": "com.example.demo",
+        "version_name": "1.2.3",
+        "version_code": 42,
+    }
+
+
+def test_extract_apk_metadata_reads_wrapped_binary_android_manifest(tmp_path: Path):
+    apk_path = tmp_path / "wrapped-demo.apk"
+    _write_apk(apk_path, _wrapped_binary_manifest())
 
     assert extract_apk_metadata(apk_path) == {
         "package_name": "com.example.demo",

@@ -60,12 +60,28 @@ def _parse_binary_manifest(manifest: bytes) -> dict[str, str | int]:
     strings: list[str] = []
     values: dict[str, str | int] = {}
     offset = 0
+    end = len(manifest)
 
-    while offset + 8 <= len(manifest):
+    # Standard binary Android manifests start with a ResXMLTree wrapper and
+    # place the string pool and XML nodes after its header. Older/minimal APK
+    # fixtures may start directly with the first child chunk, so keep both
+    # layouts supported.
+    if len(manifest) >= 8:
+        root_type, root_header_size, root_chunk_size = struct.unpack_from("<HHI", manifest, 0)
+        if root_type == 0x0003:
+            if root_header_size < 8 or root_chunk_size < root_header_size:
+                return {}
+            offset = root_header_size
+            end = min(root_chunk_size, len(manifest))
+
+    while offset + 8 <= end:
         chunk_type, header_size, chunk_size = struct.unpack_from("<HHI", manifest, offset)
-        if chunk_size < header_size or offset + chunk_size > len(manifest):
+        if chunk_size < header_size or offset + chunk_size > end:
             break
-        if chunk_type == 0x001C:
+        # 0x0001 is the Android RES_STRING_POOL_TYPE.  Keep accepting the
+        # historical fixture value 0x001C so older test fixtures remain
+        # readable while real APKs use the standard chunk type.
+        if chunk_type in {0x0001, 0x001C}:
             strings = _parse_string_pool(manifest, offset, header_size, chunk_size)
         elif chunk_type == 0x0102 and strings:
             values.update(_parse_start_element(manifest, offset, header_size, chunk_size, strings))
