@@ -1,4 +1,5 @@
 import asyncio
+import json
 from types import SimpleNamespace
 
 import pytest
@@ -6,6 +7,8 @@ from fastapi import HTTPException
 
 from app.api.v1.web_recordings import (
     _RECORDING_SCRIPT,
+    _safe_text,
+    _sanitize_har,
     _persist_recorded_assets,
     WebRecordingManager,
     WebRecordingSession,
@@ -93,6 +96,102 @@ def test_recording_does_not_store_password_value():
 
     assert session.steps[0]["params"] == {"selector": "#password", "value": ""}
     assert "敏感值" in session.steps[0]["name"]
+
+
+def test_recording_har_evidence_is_redacted_before_persistence():
+    raw = json.dumps(
+        {
+            "log": {
+                "entries": [
+                    {
+                        "request": {
+                            "url": "https://example.com/login?token=secret&next=/home",
+                            "headers": [
+                                {"name": "Authorization", "value": "Bearer secret"},
+                                {"name": "Accept", "value": "application/json"},
+                            ],
+                            "cookies": [{"name": "session", "value": "secret"}],
+                            "postData": {"text": "password=secret"},
+                        },
+                        "response": {
+                            "headers": [{"name": "Set-Cookie", "value": "session=secret"}],
+                            "cookies": [{"name": "session", "value": "secret"}],
+                            "content": {"text": "secret response"},
+                        },
+                    }
+                ]
+            }
+        }
+    ).encode()
+
+    sanitized = json.loads(_sanitize_har(raw))
+    request = sanitized["log"]["entries"][0]["request"]
+    response = sanitized["log"]["entries"][0]["response"]
+    assert "secret" not in json.dumps(sanitized)
+    assert request["url"] == "https://example.com/login?token=%2A%2A%2A&next=%2Fhome"
+    assert request["cookies"] == []
+    assert "postData" not in request
+    assert response["cookies"] == []
+    assert "content" not in response
+
+
+def test_recording_text_evidence_redacts_json_credentials_and_urls():
+    sanitized = _safe_text(
+        'login failed: {"password":"secret","token":"abc"} '
+        "https://example.com/login?api_key=private&next=/home"
+    )
+
+    assert "secret" not in sanitized
+    assert "abc" not in sanitized
+    assert "private" not in sanitized
+    assert "api_key=<redacted>" in sanitized
+
+
+def test_recording_persists_trace_har_and_report_artifacts(monkeypatch, tmp_path):
+    import app.api.v1.web_recordings as web_recordings
+
+    uploaded: list[tuple[str, str, str]] = []
+
+    def upload(object_name, path, content_type):
+        uploaded.append((object_name, str(path), content_type))
+
+    monkeypatch.setattr(web_recordings, "upload_file", upload)
+    monkeypatch.setattr(web_recordings, "presigned_url", lambda object_name: f"https://minio.test/{object_name}")
+
+    artifact_dir = tmp_path / "artifacts"
+    artifact_dir.mkdir()
+    trace_path = artifact_dir / "trace.zip"
+    har_path = artifact_dir / "network.har"
+    report_path = artifact_dir / "report.json"
+    trace_path.write_bytes(b"trace")
+    har_path.write_text(
+        json.dumps({"log": {"entries": [{"request": {"url": "https://example.com?token=secret"}}]}}),
+        encoding="utf-8",
+    )
+    session = WebRecordingSession(
+        session_id="artifact-session",
+        owner_id=1,
+        project_id=7,
+        start_url="https://example.com?token=secret",
+        viewport_width=1280,
+        viewport_height=720,
+        status="stopping",
+        artifact_dir=artifact_dir,
+        trace_path=trace_path,
+        har_path=har_path,
+        report_path=report_path,
+        steps=[{"action": "goto", "name": "打开页面", "params": {"url": "https://example.com?token=secret"}}],
+        network_events=[{"type": "response", "url": "https://example.com?token=secret", "status": 200}],
+    )
+
+    asyncio.run(session._persist_artifacts())
+
+    assert set(session.artifacts) == {"trace", "har", "report"}
+    assert len(uploaded) == 3
+    assert "secret" not in har_path.read_text(encoding="utf-8")
+    report_payload = json.loads(report_path.read_text(encoding="utf-8"))
+    assert report_payload["start_url"] == "https://example.com?token=%2A%2A%2A"
+    assert "secret" not in json.dumps(report_payload)
 
 
 def test_recording_script_does_not_duplicate_checkbox_or_radio_changes():

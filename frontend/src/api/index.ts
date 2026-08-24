@@ -425,6 +425,14 @@ export interface WebRecordingStep {
   params: Record<string, unknown>
 }
 
+export interface WebRecordingArtifact {
+  kind: 'trace' | 'har' | 'report' | string
+  filename: string
+  content_type: string
+  size: number
+  url: string
+}
+
 export interface WebRecordingItem {
   id: string
   status: WebRecordingStatus
@@ -434,6 +442,13 @@ export interface WebRecordingItem {
   project_id?: number | null
   steps: WebRecordingStep[]
   asset_ids?: number[]
+  console_messages?: Array<{ type: string; text: string }>
+  page_errors?: Array<{ message: string }>
+  network_events?: Array<Record<string, unknown>>
+  failed_requests?: Array<Record<string, unknown>>
+  error_responses?: Array<Record<string, unknown>>
+  artifacts?: Record<string, WebRecordingArtifact>
+  artifact_error?: string | null
   error?: string | null
 }
 

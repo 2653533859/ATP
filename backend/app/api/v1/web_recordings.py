@@ -9,12 +9,17 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import hashlib
+import json
 import logging
 import os
+import re
+import shutil
 import sys
+import tempfile
 import time
 import uuid
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Response
@@ -27,12 +32,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import assert_project_access, get_current_user
 from app.core.config import settings
 from app.core.database import get_db
+from app.core.minio_client import presigned_url, upload_file
 from app.core.url_security import validate_http_url_syntax, validate_public_http_url
 from app.models.project import Project
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.models.web_assets import WebElementAsset
-from app.services.web_network_guard import guard_browser_request
+from app.services.web_network_guard import guard_browser_request, sanitize_network_url
 from app.services.web_recording_transport import (
     RemoteWebRecordingManager,
     WebRecordingTransportError,
@@ -42,6 +48,62 @@ from app.services.web_recording_transport import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/web-recordings", tags=["Web 用例录制"])
+
+
+_SENSITIVE_TEXT_RE = re.compile(
+    r"(?i)(?P<key>[\"']?(?:token|secret|password|passwd|api[_-]?key|authorization|cookie|credential)[\"']?)"
+    r"(?P<sep>\s*[:=]\s*)[\"']?[^,;\s}\]\\\"']+[\"']?"
+)
+_SENSITIVE_HEADER_RE = re.compile(
+    r"(?i)^(authorization|cookie|set-cookie|proxy-authorization|x-api-key|x-auth-token)$"
+)
+_URL_RE = re.compile(r"https?://[^\s'\"<>]+", re.IGNORECASE)
+
+
+def _safe_text(value: Any, max_length: int = 800) -> str:
+    text = str(value or "").replace("\r", " ").replace("\n", " ").replace("\x00", " ").strip()
+    text = _URL_RE.sub(lambda match: sanitize_network_url(match.group(0)), text)
+    text = _SENSITIVE_TEXT_RE.sub(lambda match: f"{match.group('key')}{match.group('sep')}<redacted>", text)
+    return text[:max_length]
+
+
+def _safe_headers(headers: Any) -> list[dict[str, str]]:
+    if not isinstance(headers, list):
+        return []
+    result: list[dict[str, str]] = []
+    for item in headers:
+        if not isinstance(item, dict):
+            continue
+        name = _safe_text(item.get("name"), 128)
+        if not name:
+            continue
+        value = "<redacted>" if _SENSITIVE_HEADER_RE.match(name) else _safe_text(item.get("value"), 512)
+        result.append({"name": name, "value": value})
+    return result[:100]
+
+
+def _sanitize_har(data: bytes) -> bytes:
+    """Remove credentials, cookies and request bodies before HAR persistence."""
+    payload = json.loads(data.decode("utf-8"))
+    log = payload.get("log") if isinstance(payload, dict) else None
+    entries = log.get("entries") if isinstance(log, dict) else None
+    if not isinstance(entries, list):
+        raise ValueError("HAR 文件缺少 entries")
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        request = entry.get("request")
+        if isinstance(request, dict):
+            request["url"] = sanitize_network_url(str(request.get("url") or ""))
+            request["headers"] = _safe_headers(request.get("headers"))
+            request["cookies"] = []
+            request.pop("postData", None)
+        response = entry.get("response")
+        if isinstance(response, dict):
+            response["headers"] = _safe_headers(response.get("headers"))
+            response["cookies"] = []
+            response.pop("content", None)
+    return json.dumps(payload, ensure_ascii=False, indent=2).encode("utf-8")
 
 
 _RECORDING_SCRIPT = r"""
@@ -154,12 +216,24 @@ class WebRecordingSession:
     error: str | None = None
     steps: list[dict[str, Any]] = field(default_factory=list)
     blocked_requests: list[dict[str, Any]] = field(default_factory=list)
+    console_messages: list[dict[str, Any]] = field(default_factory=list)
+    page_errors: list[dict[str, Any]] = field(default_factory=list)
+    network_events: list[dict[str, Any]] = field(default_factory=list)
+    failed_requests: list[dict[str, Any]] = field(default_factory=list)
+    error_responses: list[dict[str, Any]] = field(default_factory=list)
     asset_ids: list[int] = field(default_factory=list)
     assets_persisted: bool = False
+    artifacts: dict[str, dict[str, Any]] = field(default_factory=dict)
+    artifact_error: str | None = None
     playwright: Playwright | None = None
     browser: Browser | None = None
     context: BrowserContext | None = None
     page: Page | None = None
+    artifact_dir: Path | None = None
+    trace_path: Path | None = None
+    har_path: Path | None = None
+    report_path: Path | None = None
+    trace_started: bool = False
     finished_at: float | None = None
 
     async def start(self) -> None:
@@ -176,14 +250,30 @@ class WebRecordingSession:
                 launch_env["DISPLAY"] = display
             browser_launcher = getattr(self.playwright, self.browser_name)
             self.browser = await browser_launcher.launch(headless=False, env=launch_env)
+            self.artifact_dir = Path(tempfile.mkdtemp(prefix=f"atp_web_recording_{self.session_id}_"))
+            self.trace_path = self.artifact_dir / "trace.zip"
+            self.har_path = self.artifact_dir / "network.har"
+            self.report_path = self.artifact_dir / "report.json"
             self.context = await self.browser.new_context(
                 viewport={"width": self.viewport_width, "height": self.viewport_height},
+                record_har_path=str(self.har_path),
+                record_har_content="omit",
+                record_har_mode="minimal",
             )
+            tracing = getattr(self.context, "tracing", None)
+            if tracing is not None:
+                await tracing.start(screenshots=True, snapshots=True, sources=False)
+                self.trace_started = True
             await self.context.route("**/*", self._guard_route)
             self.page = await self.context.new_page()
             await self.page.expose_binding("atpRecordEvent", self._handle_binding)
             await self.page.add_init_script(_RECORDING_SCRIPT)
             self.page.on("framenavigated", self._handle_navigation)
+            self.page.on("console", self._handle_console)
+            self.page.on("pageerror", self._handle_page_error)
+            self.page.on("request", self._handle_request)
+            self.page.on("requestfailed", self._handle_request_failed)
+            self.page.on("response", self._handle_response)
             self._append_step("goto", f"打开 {self.start_url}", {"url": self.start_url})
             await self.page.goto(self.start_url, wait_until="domcontentloaded", timeout=30_000)
             self.status = "recording"
@@ -202,6 +292,7 @@ class WebRecordingSession:
             self.finished_at = time.monotonic()
 
     async def close(self) -> None:
+        await self._stop_tracing()
         if self.context:
             with contextlib.suppress(Exception):
                 await self.context.close()
@@ -215,6 +306,9 @@ class WebRecordingSession:
                 await self.playwright.stop()
             self.playwright = None
         self.page = None
+        if self.status == "stopping":
+            await self._persist_artifacts()
+        self._cleanup_artifacts()
 
     async def screenshot(self) -> bytes:
         if self.page is None or self.status not in {"starting", "recording", "stopping"}:
@@ -234,6 +328,170 @@ class WebRecordingSession:
     async def _guard_route(self, route: Any) -> bool:
         return await guard_browser_request(route, self.blocked_requests)
 
+    def _append_capped(self, target: list[dict[str, Any]], value: dict[str, Any], limit: int = 200) -> None:
+        if len(target) < limit:
+            target.append(value)
+
+    def _handle_console(self, message: Any) -> None:
+        self._append_capped(
+            self.console_messages,
+            {
+                "type": _safe_text(getattr(message, "type", "log"), 32),
+                "text": _safe_text(getattr(message, "text", "")),
+            },
+            100,
+        )
+
+    def _handle_page_error(self, error: Any) -> None:
+        self._append_capped(self.page_errors, {"message": _safe_text(getattr(error, "message", error))}, 100)
+
+    def _handle_request(self, request: Any) -> None:
+        self._append_capped(self.network_events, {"type": "request", **self._request_event(request)})
+
+    def _request_event(self, request: Any, *, status: int | None = None, error: str | None = None) -> dict[str, Any]:
+        event = {
+            "method": _safe_text(getattr(request, "method", "GET"), 16),
+            "url": sanitize_network_url(str(getattr(request, "url", ""))),
+            "resource_type": _safe_text(getattr(request, "resource_type", "unknown"), 32),
+        }
+        if status is not None:
+            event["status"] = int(status)
+        if error:
+            event["error"] = _safe_text(error)
+        return event
+
+    def _handle_request_failed(self, request: Any) -> None:
+        failure = getattr(request, "failure", None)
+        if callable(failure):
+            failure = failure()
+        event = self._request_event(request, error=str(failure or "request failed"))
+        self._append_capped(self.failed_requests, event)
+        self._append_capped(self.network_events, {"type": "request_failed", **event})
+
+    def _handle_response(self, response: Any) -> None:
+        request = getattr(response, "request", None)
+        if request is None:
+            return
+        try:
+            status = int(getattr(response, "status", 0))
+        except (TypeError, ValueError):
+            status = 0
+        event = self._request_event(request, status=status)
+        self._append_capped(self.network_events, {"type": "response", **event})
+        if status >= 400:
+            self._append_capped(self.error_responses, event)
+
+    async def _stop_tracing(self) -> None:
+        if not self.trace_started or self.context is None or self.trace_path is None:
+            return
+        tracing = getattr(self.context, "tracing", None)
+        try:
+            if tracing is not None:
+                await tracing.stop(path=str(self.trace_path))
+        except Exception as exc:
+            self.artifact_error = _safe_text(f"Trace 保存失败: {exc}")
+        finally:
+            self.trace_started = False
+
+    def _report_steps(self) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for step in self.steps:
+            item = dict(step)
+            params = dict(item.get("params") or {}) if isinstance(item.get("params"), dict) else {}
+            if params.get("sensitive") or "敏感值" in str(item.get("name") or ""):
+                params["value"] = "<redacted>"
+            if "url" in params:
+                params["url"] = sanitize_network_url(str(params["url"]))
+            item["params"] = params
+            result.append(item)
+        return result
+
+    @staticmethod
+    def _report_events(events: list[dict[str, Any]], limit: int) -> list[dict[str, Any]]:
+        result: list[dict[str, Any]] = []
+        for event in events[:limit]:
+            item = dict(event)
+            if "url" in item:
+                item["url"] = sanitize_network_url(str(item["url"]))
+            if "error" in item:
+                item["error"] = _safe_text(item["error"])
+            result.append(item)
+        return result
+
+    def _report_payload(self) -> dict[str, Any]:
+        return {
+            "report_version": 1,
+            "session_id": self.session_id,
+            "status": "stopped",
+            "project_id": self.project_id,
+            "start_url": sanitize_network_url(self.start_url),
+            "current_url": sanitize_network_url(self.current_url()),
+            "browser": self.browser_name,
+            "viewport": {"width": self.viewport_width, "height": self.viewport_height},
+            "steps": self._report_steps(),
+            "console_messages": self.console_messages[:100],
+            "page_errors": self.page_errors[:100],
+            "network_events": self._report_events(self.network_events, 200),
+            "failed_requests": self._report_events(self.failed_requests, 100),
+            "error_responses": self._report_events(self.error_responses, 100),
+            "blocked_requests": self._report_events(self.blocked_requests, 100),
+            "artifacts": self.artifacts,
+        }
+
+    async def _persist_artifacts(self) -> None:
+        if self.artifact_dir is None:
+            return
+        failures: list[str] = []
+        if self.har_path and self.har_path.exists():
+            try:
+                self.har_path.write_bytes(_sanitize_har(self.har_path.read_bytes()))
+            except Exception as exc:
+                failures.append(_safe_text(f"HAR 脱敏失败: {exc}"))
+        specs = (
+            ("trace", self.trace_path, "application/zip", f"traces/recordings/{self.project_id}/{self.session_id}/trace.zip"),
+            ("har", self.har_path, "application/json", f"reports/recordings/{self.project_id}/{self.session_id}/network.har"),
+        )
+        for kind, path, content_type, object_name in specs:
+            if path is None or not path.exists():
+                continue
+            try:
+                await asyncio.to_thread(upload_file, object_name, path, content_type)
+                url = await asyncio.to_thread(presigned_url, object_name)
+                self.artifacts[kind] = {
+                    "kind": kind,
+                    "filename": path.name,
+                    "content_type": content_type,
+                    "size": path.stat().st_size,
+                    "url": url,
+                }
+            except Exception as exc:
+                failures.append(_safe_text(f"{kind} 上传失败: {exc}"))
+        if self.report_path is not None:
+            try:
+                self.report_path.write_text(
+                    json.dumps(self._report_payload(), ensure_ascii=False, indent=2),
+                    encoding="utf-8",
+                )
+                object_name = f"reports/recordings/{self.project_id}/{self.session_id}/report.json"
+                await asyncio.to_thread(upload_file, object_name, self.report_path, "application/json")
+                url = await asyncio.to_thread(presigned_url, object_name)
+                self.artifacts["report"] = {
+                    "kind": "report",
+                    "filename": self.report_path.name,
+                    "content_type": "application/json",
+                    "size": self.report_path.stat().st_size,
+                    "url": url,
+                }
+            except Exception as exc:
+                failures.append(_safe_text(f"运行报告上传失败: {exc}"))
+        if failures:
+            self.artifact_error = "; ".join(filter(None, [self.artifact_error, *failures]))[:1000]
+
+    def _cleanup_artifacts(self) -> None:
+        if self.artifact_dir is not None:
+            shutil.rmtree(self.artifact_dir, ignore_errors=True)
+            self.artifact_dir = None
+
     def snapshot(self) -> dict[str, Any]:
         return {
             "id": self.session_id,
@@ -246,7 +504,14 @@ class WebRecordingSession:
             "viewport_height": self.viewport_height,
             "steps": self.steps,
             "blocked_requests": self.blocked_requests[-100:],
+            "console_messages": self.console_messages[-100:],
+            "page_errors": self.page_errors[-100:],
+            "network_events": self.network_events[-200:],
+            "failed_requests": self.failed_requests[-100:],
+            "error_responses": self.error_responses[-100:],
             "asset_ids": self.asset_ids,
+            "artifacts": self.artifacts,
+            "artifact_error": self.artifact_error,
             "error": self.error,
         }
 
@@ -369,7 +634,14 @@ def _session_from_snapshot(snapshot: dict[str, Any], owner_id: int) -> WebRecord
         error=str(snapshot["error"]) if snapshot.get("error") else None,
         steps=list(snapshot.get("steps") or []),
         blocked_requests=list(snapshot.get("blocked_requests") or []),
+        console_messages=list(snapshot.get("console_messages") or []),
+        page_errors=list(snapshot.get("page_errors") or []),
+        network_events=list(snapshot.get("network_events") or []),
+        failed_requests=list(snapshot.get("failed_requests") or []),
+        error_responses=list(snapshot.get("error_responses") or []),
         asset_ids=[int(value) for value in snapshot.get("asset_ids") or [] if str(value).isdigit()],
+        artifacts=dict(snapshot.get("artifacts") or {}),
+        artifact_error=str(snapshot["artifact_error"]) if snapshot.get("artifact_error") else None,
     )
 
 

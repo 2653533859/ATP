@@ -3333,6 +3333,10 @@ export default {
           worker_local_hint: '浏览器将在 API 进程所在的 Windows 主机上启动；本地模式不需要独立 Worker。',
           worker_unavailable: '当前没有可用的录制 Worker，请先启动 Worker 或释放已有录制会话',
           refresh_worker_status: '刷新 Worker 状态',
+          evidence_title: '录制证据已生成',
+          evidence_ready: '已保存 {count} 个证据文件，可打开 Trace、HAR 和运行报告。',
+          evidence_events: '查看最近 {count} 条浏览器事件',
+          artifacts: { trace: '打开 Trace', har: '打开 HAR 网络日志', report: '打开运行报告' },
         },
         msg: {
           load_failed_cancel: '加载用例详情失败，已取消编辑',

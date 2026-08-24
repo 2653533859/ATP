@@ -62,6 +62,8 @@ def test_worker_smoke_uses_environment_credentials_and_worker_routes():
     assert "/api/v1/web-recordings/{session_id}/screenshot" in source
     assert 'headers.get("content-type"' in source
     assert "--run-recording" in source
+    assert '"recording-evidence"' in source
+    assert '"recording-report-query"' in source
 
 
 def test_worker_smoke_normalizes_response_header_names():

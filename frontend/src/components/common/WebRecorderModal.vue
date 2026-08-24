@@ -73,6 +73,31 @@
       </a-list-item>
     </a-list>
 
+    <section v-if="evidenceArtifacts.length || evidence?.artifact_error" class="recording-evidence">
+      <a-alert
+        :type="evidence?.artifact_error ? 'warning' : 'success'"
+        show-icon
+        :message="t('case.drawer.web.recorder.evidence_title')"
+        :description="evidence?.artifact_error || t('case.drawer.web.recorder.evidence_ready', { count: evidenceArtifacts.length })"
+      />
+      <div v-if="evidenceArtifacts.length" class="evidence-links">
+        <a
+          v-for="artifact in evidenceArtifacts"
+          :key="artifact.kind"
+          :href="artifact.url"
+          target="_blank"
+          rel="noreferrer"
+        >
+          {{ artifactLabel(artifact.kind) }}
+        </a>
+      </div>
+      <a-collapse v-if="evidenceEventCount" size="small" class="evidence-collapse">
+        <a-collapse-panel key="events" :header="t('case.drawer.web.recorder.evidence_events', { count: evidenceEventCount })">
+          <pre class="evidence-preview">{{ formatEvidence(evidence?.network_events?.slice(-8)) }}</pre>
+        </a-collapse-panel>
+      </a-collapse>
+    </section>
+
     <div class="recorder-actions">
       <a-button v-if="!active" type="primary" :loading="starting" :disabled="workerUnavailable" @click="startRecording">
         {{ t('case.drawer.web.recorder.start') }}
@@ -120,6 +145,7 @@ const status = ref<WebRecordingStatus>('stopped')
 const steps = ref<WebRecordingStep[]>([])
 const assetIds = ref<number[]>([])
 const currentUrl = ref('')
+const evidence = ref<import('@/api').WebRecordingItem | null>(null)
 const error = ref('')
 const starting = ref(false)
 const stopping = ref(false)
@@ -151,6 +177,12 @@ const workerStatusDescription = computed(() => {
     ? t('case.drawer.web.recorder.worker_status_hint')
     : t('case.drawer.web.recorder.worker_local_hint')
 })
+const evidenceArtifacts = computed(() => Object.values(evidence.value?.artifacts ?? {}))
+const evidenceEventCount = computed(() =>
+  (evidence.value?.network_events?.length ?? 0) +
+  (evidence.value?.console_messages?.length ?? 0) +
+  (evidence.value?.page_errors?.length ?? 0),
+)
 
 function reset() {
   clearPoll()
@@ -161,6 +193,7 @@ function reset() {
   steps.value = []
   assetIds.value = []
   currentUrl.value = ''
+  evidence.value = null
   error.value = ''
   starting.value = false
   stopping.value = false
@@ -179,6 +212,23 @@ function clearPoll() {
 
 function actionLabel(action: string) {
   return t(`case.lowcode_editor.actions.${action}`, action)
+}
+
+function artifactLabel(kind: string) {
+  return t(`case.drawer.web.recorder.artifacts.${kind}`, kind)
+}
+
+function formatEvidence(value: unknown) {
+  return JSON.stringify(value ?? [], null, 2)
+}
+
+function applyRecordingResult(result: import('@/api').WebRecordingItem) {
+  status.value = result.status
+  steps.value = result.steps ?? []
+  assetIds.value = result.asset_ids ?? assetIds.value
+  currentUrl.value = result.current_url ?? currentUrl.value
+  evidence.value = result
+  if (result.error) error.value = result.error
 }
 
 async function loadWorkerStatus() {
@@ -217,9 +267,8 @@ async function startRecording() {
       browser: browser.value,
     })
     recordingId.value = result.id
-    status.value = result.status
-    steps.value = result.steps ?? []
-    assetIds.value = result.asset_ids ?? []
+    assetIds.value = []
+    applyRecordingResult(result)
     currentUrl.value = result.current_url ?? result.start_url
     schedulePoll()
   } catch (e: unknown) {
@@ -240,11 +289,7 @@ async function pollRecording() {
   if (!recordingId.value) return
   try {
     const result = await webRecordingApi.get(recordingId.value)
-    status.value = result.status
-    steps.value = result.steps ?? []
-    assetIds.value = result.asset_ids ?? assetIds.value
-    currentUrl.value = result.current_url ?? currentUrl.value
-    if (result.error) error.value = result.error
+    applyRecordingResult(result)
     schedulePoll()
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : String(e)
@@ -263,11 +308,7 @@ async function stopRecording(closeAfter = false) {
   try {
     const result = await webRecordingApi.stop(recordingId.value)
     stopSucceeded = true
-    status.value = result.status
-    steps.value = result.steps ?? []
-    assetIds.value = result.asset_ids ?? assetIds.value
-    currentUrl.value = result.current_url ?? currentUrl.value
-    if (result.error) error.value = result.error
+    applyRecordingResult(result)
   } catch (e: unknown) {
     error.value = e instanceof Error ? e.message : String(e)
     status.value = 'error'
@@ -345,6 +386,29 @@ onBeforeUnmount(() => clearPoll())
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.recording-evidence {
+  margin-top: 16px;
+}
+
+.evidence-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin: 10px 2px;
+}
+
+.evidence-collapse {
+  margin-top: 8px;
+}
+
+.evidence-preview {
+  max-height: 180px;
+  margin: 0;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 .form-hint {

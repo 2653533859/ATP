@@ -191,6 +191,32 @@ async def save_session_metadata(
         await _close_redis(client)
 
 
+async def save_session_result(
+    session_id: str,
+    *,
+    owner_id: int,
+    project_id: int,
+    worker_id: str,
+    snapshot: dict[str, Any],
+) -> None:
+    """Keep the sanitized final snapshot available until the route TTL expires."""
+    client = get_async_redis()
+    try:
+        payload = {
+            "session_id": session_id,
+            "owner_id": owner_id,
+            "project_id": project_id,
+            "worker_id": worker_id,
+            "final_snapshot": snapshot,
+        }
+        ttl = max(60, int(settings.WEB_RECORDER_SESSION_TTL_SECONDS))
+        await client.set(session_key(session_id), _json(payload), ex=ttl)
+    except RedisError as exc:
+        raise WebRecordingTransportError("无法保存 Web 录制最终报告") from exc
+    finally:
+        await _close_redis(client)
+
+
 async def load_session_metadata(session_id: str) -> dict[str, Any] | None:
     client = get_async_redis()
     try:
@@ -360,6 +386,9 @@ class RemoteWebRecordingManager:
 
     async def get(self, session_id: str, owner_id: int) -> dict[str, Any]:
         metadata = await self._route(session_id, owner_id)
+        final_snapshot = metadata.get("final_snapshot")
+        if isinstance(final_snapshot, dict):
+            return final_snapshot
         response = await send_recording_command(str(metadata["worker_id"]), "snapshot", session_id=session_id)
         if not response.get("ok"):
             if response.get("code") == "not_found":
@@ -372,6 +401,8 @@ class RemoteWebRecordingManager:
 
     async def screenshot(self, session_id: str, owner_id: int) -> bytes:
         metadata = await self._route(session_id, owner_id)
+        if isinstance(metadata.get("final_snapshot"), dict):
+            raise WebRecordingTransportError("录制会话已结束，无法继续截图", 409)
         response = await send_recording_command(str(metadata["worker_id"]), "screenshot", session_id=session_id)
         if not response.get("ok"):
             if response.get("code") == "not_found":
@@ -384,15 +415,24 @@ class RemoteWebRecordingManager:
 
     async def stop(self, session_id: str, owner_id: int) -> dict[str, Any]:
         metadata = await self._route(session_id, owner_id)
+        final_snapshot = metadata.get("final_snapshot")
+        if isinstance(final_snapshot, dict):
+            return final_snapshot
         response = await send_recording_command(str(metadata["worker_id"]), "stop", session_id=session_id)
         if not response.get("ok"):
             if response.get("code") == "not_found":
                 await delete_session_metadata(session_id)
             raise _transport_error(response, fallback="无法停止录制会话")
-        await delete_session_metadata(session_id)
         snapshot = response.get("snapshot")
         if not isinstance(snapshot, dict):
             raise WebRecordingTransportError("停止录制未返回会话状态")
+        await save_session_result(
+            session_id,
+            owner_id=owner_id,
+            project_id=int(metadata["project_id"]),
+            worker_id=str(metadata["worker_id"]),
+            snapshot=snapshot,
+        )
         return snapshot
 
 

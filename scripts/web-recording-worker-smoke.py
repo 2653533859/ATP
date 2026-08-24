@@ -282,6 +282,21 @@ def _run_recording(client: ApiClient, args: argparse.Namespace, report: CheckRep
         if not isinstance(stopped_snapshot, dict) or str(stopped_snapshot.get("status") or "") != "stopped":
             raise SmokeError("录制停止响应未进入 stopped 状态")
         report.passed("recording-stop", "status=stopped")
+        artifacts = stopped_snapshot.get("artifacts")
+        required_artifacts = {"trace", "har", "report"}
+        if not isinstance(artifacts, dict) or not required_artifacts.issubset(artifacts):
+            raise SmokeError("停止响应缺少 Trace、HAR 或运行报告证据")
+        if any(not isinstance(artifacts[name], dict) or not artifacts[name].get("url") for name in required_artifacts):
+            raise SmokeError("录制证据缺少可访问 URL")
+        report.passed(
+            "recording-evidence",
+            f"trace/har/report=3, console={len(stopped_snapshot.get('console_messages') or [])}, "
+            f"network={len(stopped_snapshot.get('network_events') or [])}",
+        )
+        final_snapshot = client.request_json("GET", f"/api/v1/web-recordings/{session_id}")
+        if not isinstance(final_snapshot, dict) or str(final_snapshot.get("status") or "") != "stopped":
+            raise SmokeError("停止后的录制报告无法再次查询")
+        report.passed("recording-report-query", "stopped snapshot remains available")
     finally:
         if not stopped:
             try:

@@ -3329,6 +3329,10 @@ export default {
           worker_local_hint: 'The browser will start on the Windows host running the API process; local mode does not need an independent Worker.',
           worker_unavailable: 'No recording Worker is available. Start a Worker or release an existing recording session.',
           refresh_worker_status: 'Refresh Worker status',
+          evidence_title: 'Recording evidence is ready',
+          evidence_ready: '{count} evidence file(s) saved. Open the Trace, HAR, or run report.',
+          evidence_events: 'View the latest {count} browser events',
+          artifacts: { trace: 'Open Trace', har: 'Open HAR network log', report: 'Open run report' },
         },
         msg: {
           load_failed_cancel: 'Failed to load case details. Editing was canceled.',

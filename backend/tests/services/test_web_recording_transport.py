@@ -136,13 +136,9 @@ def test_remote_manager_routes_session_and_screenshot(monkeypatch):
         return session_id
 
     session_id = asyncio.run(run())
-    assert transport.session_key(session_id) not in redis.values
+    assert transport.session_key(session_id) in redis.values
+    assert asyncio.run(manager.get(session_id, 3))["status"] == "stopped"
     assert [call[1] for call in calls] == ["start", "snapshot", "screenshot", "stop"]
-
-    with pytest.raises(transport.WebRecordingTransportError) as missing:
-        asyncio.run(manager.get(session_id, 3))
-    assert missing.value.status_code == 404
-
 
 def test_remote_manager_retries_explicit_busy_on_another_worker(monkeypatch):
     redis = _FakeRedis()
