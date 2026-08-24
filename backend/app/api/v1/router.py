@@ -48,6 +48,7 @@ from app.api.v1 import (
     requirements,
     knowledge,
     remote_toolbox,
+    configuration_center,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -99,3 +100,4 @@ router.include_router(defects.router)
 router.include_router(requirements.router)
 router.include_router(knowledge.router)
 router.include_router(remote_toolbox.router)
+router.include_router(configuration_center.router)

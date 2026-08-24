@@ -127,6 +127,19 @@ def _refresh_common_test_stubs() -> None:
             "engine": types.SimpleNamespace(dispose=lambda: None, sync_engine=None),
         },
     )
+    _ensure_stub_attrs(
+        "app.api.deps",
+        {
+            "get_current_user": lambda: None,
+            "require_engineer": lambda: None,
+            "require_admin": lambda: None,
+            "assert_project_access": _noop_async,
+            "assert_project_role": _noop_async,
+            "get_project_role": _noop_async,
+            "require_project_access": lambda *_a, **_kw: _noop_async,
+            "require_project_writable_access": lambda *_a, **_kw: _noop_async,
+        },
+    )
 
 
 @pytest.hookimpl(tryfirst=True)
@@ -192,6 +205,7 @@ if not _INTEGRATION_MODE:
             # 可调用对象的工厂）；hard-set 过自己版本的文件不受影响。
             "assert_project_access": _noop_async,
             "assert_project_role": _noop_async,
+            "get_project_role": _noop_async,
             "require_project_access": lambda *_a, **_kw: _noop_async,
             "require_project_writable_access": lambda *_a, **_kw: _noop_async,
         },
