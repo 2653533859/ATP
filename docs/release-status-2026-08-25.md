@@ -20,7 +20,8 @@
 
 - 已修复 `backend/app/main.py::_init_admin` 按用户名/邮箱幂等识别和并发唯一键复查逻辑，避免管理员改名后 q19 Backend 因默认邮箱重复进入重启循环。
 - 新增管理员初始化回归；定向 `2 passed`，后端非集成全量 `2262 passed`，Ruff、格式检查和 `git diff --check` 通过。
-- 真实 q19 重建、健康、登录和基础读接口尚未复验，当前仍保持发布阻塞；远端 Compose 的端口映射等现场改动必须保留，不能用仓库文件覆盖。
+- q19 已按 `65eef50` 更新 Backend，迁移 `20260824_0065 (head)`，Backend `running/healthy`，当前账号登录、依赖 readiness、Web/Android Worker registry 和 2 台设备扫描通过，最近 2 分钟无启动错误；脱敏证据见 [`q19-admin-bootstrap-2026-08-25.json`](evidence/q19-admin-bootstrap-2026-08-25.json)。
+- P0-0 的启动与认证阻塞已关闭，但 Android 真实 APK/package name、低代码、录屏、专项任务和报告媒体仍未验收；远端 Compose 的端口映射等现场改动已保留，不能用仓库文件覆盖。
 
 本地代码、回归和 Windows/q19 API/Web/性能链路已经形成可复核证据；以下外部门禁仍未关闭，因此发布只能按“部分实现/待环境验收”处理：
 

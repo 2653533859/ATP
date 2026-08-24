@@ -838,4 +838,5 @@ N0 导航壳
 - **根因**：管理员账号改名但继续占用 `FIRST_ADMIN_EMAIL` 时，启动初始化只按用户名查找，误判为不存在并插入重复邮箱，导致 q19 Backend 启动失败；并发启动也可能出现同类唯一键竞争。
 - **修复**：`backend/app/main.py::_init_admin` 现在按用户名或邮箱查找，已有身份不重复创建；提交遇到并发 `IntegrityError` 时回滚并复查，确认另一实例已创建后才继续，否则保留异常。不会自动覆盖已有账号密码、角色或邮箱。
 - **回归与审查**：新增 `backend/tests/services/test_admin_bootstrap.py`，覆盖改名保留邮箱和首次创建；定向测试 `2 passed`，后端非集成全量 `2262 passed`，Ruff、格式检查和 `git diff --check` 通过。
-- **真实边界**：本地修复尚未替代 q19 重建、健康、登录和基础读接口证据；部署完成前 P0-0 仍保持 `[~]`，Android 控制面与真实 APK 验收不提前解锁。
+- **真实验收**：q19 已按 `65eef50` 更新 Backend，迁移 `20260824_0065 (head)`，Backend `running/healthy`，登录、依赖 readiness、Web/Android Worker registry 和 2 台设备扫描通过；未创建 Android 运行记录。脱敏证据见 [`q19-admin-bootstrap-2026-08-25.json`](evidence/q19-admin-bootstrap-2026-08-25.json)。
+- **剩余边界**：Android 仍需确认/安装真实 APK 并取得包名，才能继续低代码、录屏、专项任务和事件/日志/报告执行；远端现场 Compose 端口映射等未提交配置已保留。

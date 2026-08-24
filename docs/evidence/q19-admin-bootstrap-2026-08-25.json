@@ -1,0 +1,42 @@
+{
+  "schema_version": 1,
+  "kind": "q19_admin_bootstrap_recovery",
+  "generated_at": "2026-08-25",
+  "source_commit": "65eef50",
+  "status": "passed",
+  "deployment": {
+    "environment": "q19-compose-acceptance",
+    "backend_status": "running/healthy",
+    "migration_head": "20260824_0065",
+    "backend_recent_error_lines": 0,
+    "compose_site_configuration_preserved": true
+  },
+  "application": {
+    "backend_health_http": 200,
+    "frontend_login_page_http": 200,
+    "current_account_login": "passed",
+    "authenticated_current_user_read": "passed",
+    "authenticated_project_list_read": "passed",
+    "dependency_readiness": {
+      "postgresql": "passed",
+      "redis": "passed",
+      "minio": "passed"
+    }
+  },
+  "android_control_plane": {
+    "web_recorder_worker_registered": true,
+    "android_worker_ids": ["android-win-HPS"],
+    "online_android_devices": 2,
+    "scan_callback": "passed",
+    "lowcode_run_created": false
+  },
+  "validation_scope": [
+    "backend health and migration head",
+    "authenticated read smoke",
+    "dependency readiness",
+    "web recorder worker registry",
+    "android worker registry",
+    "android device scan callback"
+  ],
+  "follow_up": "Confirm or install the requested Android APK and record its real package name before low-code, recording, special-task, artifact and report execution checks."
+}

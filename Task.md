@@ -22,7 +22,8 @@
 
 - [x] 修复管理员改名后保留默认邮箱时的启动崩溃：初始化同时按用户名/邮箱查询，已有账号不重复插入；并发唯一键冲突仅在复查到已有身份时忽略，不覆盖已有密码或角色。
 - [x] 新增 `backend/tests/services/test_admin_bootstrap.py`，覆盖已有邮箱身份和缺失身份创建；定向 `2 passed`，后端非集成全量 `2262 passed`，Ruff、格式检查、`git diff --check` 通过。
-- [~] q19 仍需用保留端口映射的 Compose 配置更新 Backend/Worker、恢复健康并用当前账号验证登录和基础读接口；在此之前不把 P0-0 标为真实环境通过。
+- [x] q19 已用保留端口映射的 Compose 配置更新 Backend；迁移 `20260824_0065 (head)`、Backend `running/healthy`、当前账号登录、依赖 readiness、Web/Android Worker registry 和 2 台设备扫描通过，最近 2 分钟无启动错误。脱敏证据见 [`docs/evidence/q19-admin-bootstrap-2026-08-25.json`](docs/evidence/q19-admin-bootstrap-2026-08-25.json)。
+- [~] P0-0 已关闭启动与认证阻塞，但 Android 真实 APK/package name、低代码和媒体执行仍待后续门禁；远端 Compose 现场配置未覆盖。
 
 当前计划的唯一排序为：`P0-B.3 真实 Android 门禁 → P0-A Windows API/Web 复核 → P1-C/P1-D → P1-E → P1-F`。本节只维护勾选状态，详细范围、验收标准和禁止事项以主计划及 [`docs/release-status-2026-08-25.md`](docs/release-status-2026-08-25.md) 为准。
 
