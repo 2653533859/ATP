@@ -205,6 +205,33 @@ function Write-Check {
   return [int]$Required
 }
 
+function Get-AdbDeviceStateSummary {
+  param([string]$Output)
+
+  $summary = [ordered]@{
+    online       = 0
+    unauthorized = 0
+    offline      = 0
+    other        = 0
+  }
+  foreach ($line in ($Output -split "`r?`n")) {
+    if ($line -match '^\s*List of devices attached\s*$') {
+      continue
+    }
+    if ($line -match '^\s*\S+\s+device\b') {
+      $summary.online++
+    } elseif ($line -match '^\s*\S+\s+unauthorized\b') {
+      $summary.unauthorized++
+    } elseif ($line -match '^\s*\S+\s+offline\b') {
+      $summary.offline++
+    } elseif ($line -match '^\s*\S+\s+\S+\b') {
+      $summary.other++
+    }
+  }
+
+  return [pscustomobject]$summary
+}
+
 function Show-Doctor {
   $failed = 0
   $values = Get-DotEnvValues
@@ -233,8 +260,19 @@ function Show-Doctor {
   $failed += Write-Check -Label 'adb.exe is available' -Passed ($null -ne $adb) -Hint 'Install Android Platform Tools and add its directory to PATH.'
   if ($null -ne $adb) {
     $devicesOutput = (& $adb.Source devices 2>&1 | Out-String)
-    $hasDevice = $devicesOutput -match '(?m)^\S+\s+device\s*$'
-    $null = Write-Check -Label 'at least one Android device is online' -Passed $hasDevice -Required:$false -Hint 'Connect USB debugging or run adb connect <device-ip>:5555.'
+    $deviceSummary = Get-AdbDeviceStateSummary -Output $devicesOutput
+    $hasDevice = $deviceSummary.online -gt 0
+    $deviceHint = if ($hasDevice) {
+      'ADB has at least one usable device.'
+    } elseif ($deviceSummary.unauthorized -gt 0) {
+      'Unlock the phone and accept the USB debugging RSA prompt, then rerun adb devices.'
+    } elseif ($deviceSummary.offline -gt 0) {
+      'Reconnect USB or run adb reconnect; for TCP ADB, verify the device is reachable and authorized.'
+    } else {
+      'Connect USB debugging or run adb connect <device-ip>:5555.'
+    }
+    $null = Write-Check -Label 'at least one Android device is online' -Passed $hasDevice -Required:$false -Hint $deviceHint
+    Write-Host ("       ADB state counts: online={0}, unauthorized={1}, offline={2}, other={3}" -f $deviceSummary.online, $deviceSummary.unauthorized, $deviceSummary.offline, $deviceSummary.other)
   }
 
   foreach ($endpoint in @(

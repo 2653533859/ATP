@@ -258,6 +258,12 @@ N5.2 验收口径：管理员/工程师能够从统一入口定位可见配置�
 - **验证与审查**：Windows smoke 契约回归 `11 passed`，PowerShell AST 解析通过，`git diff --check` 通过；代码审查未发现需要修复的问题。
 - **待验收**：当前只证明诊断逻辑和脚本语法，尚未使用真实有效账号重跑 Windows 登录、认证读接口、Playwright、浏览器矩阵、文件传输和报告导出，因此仍标记为“已实现，待环境验收”。
 
+### 2026-08-24 P0-B Android Worker 设备状态诊断交付记录
+
+- **实现**：`scripts/windows-android-worker.ps1 doctor` 新增 ADB 状态汇总，区分 `online`、`unauthorized`、`offline` 和其他状态，并排除 `List of devices attached` 标题行；针对未授权和离线分别提示 RSA 授权、USB 重连或 TCP ADB 可达性。
+- **验证**：Worker doctor 在当前环境完成配置、Python 依赖、ADB、PostgreSQL、Redis、MinIO 检查，输出 `online=0, unauthorized=0, offline=1, other=0`；Windows 脚本契约 `11 passed`，PowerShell AST 解析和 `git diff --check` 通过；审查发现并修复了标题行误计数问题。
+- **待验收**：Windows Android Worker 进程和队列正常，但真实设备仍为 `offline`；只有 ADB 状态恢复为 `device` 后，才能继续扫描、预约、截图、APK 包名、Android 低代码和专项任务执行，不能将本次 doctor 通过解释为 Android 执行通过。
+
 ## 4. 推荐执行顺序
 
 ```text

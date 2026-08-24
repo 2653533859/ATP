@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-24 P0-B Android Worker 设备状态诊断已完成代码交付：`windows-android-worker.ps1 doctor` 新增 ADB 状态计数，排除 `List of devices attached` 标题，区分 online/unauthorized/offline/other，并对 RSA 授权、USB 重连和 TCP ADB 可达性给出不同提示。当前真实结果为 `online=0, unauthorized=0, offline=1, other=0`；Worker 仍运行且 PostgreSQL/Redis/MinIO 可达，但没有设备执行证据。Windows 脚本契约 `11 passed`、PowerShell AST 解析、doctor 和 `git diff --check` 通过；代码审查发现并修复了标题行被误计为 other 的问题。P0-B 仍标记为“已实现，待真实环境验收”，设备恢复 `device` 后再继续扫描、预约、截图、APK 包名和 Android 用例/专项任务验证。
+
 - 2026-08-24 P0-A Windows smoke 401 诊断已完成代码交付：`scripts/windows-local-smoke.ps1` 现在只提取 HTTP 状态并给出脱敏提示，401 说明当前账号被拒绝且 `FIRST_ADMIN_*` 仅用于首次创建管理员，403 指向 CSRF/Cookie/权限链路，其他异常不输出原始异常文本；文档补充通过当前 PowerShell 进程的 `ATP_USERNAME`/`ATP_PASSWORD` 临时覆盖和清理方式。Windows smoke 契约 `11 passed`、PowerShell AST 解析和 `git diff --check` 通过，代码审查未发现问题。真实有效账号登录、认证读接口、Playwright/浏览器矩阵、文件传输和报告导出尚未重跑，P0-A 标记为“已实现，待环境验收”，不把未知凭据或 401 失败改成通过。
 
 - 2026-08-24 已同步当前开发计划总表：主计划为 `docs/product-navigation-roadmap-2026-08-24.md`，`Task.md` 同步维护勾选状态。当前顺序固定为 P0-A Windows API/Web 可用性复核（先改善 smoke 的 401 安全诊断，再用当前有效账号重跑完整 Windows 验收）→ P0-B Android Worker 单设备真实验收（设备必须从 `offline/unauthorized` 恢复为 `device`）→ P1-C 真实通知供应商 → P1-D Jira/禅道/GitHub/GitLab 外部缺陷平台 → P1-E 性能多节点/容量/长期趋势 → P1-F 发布文档收口。P0-B/P1-C/P1-D 的代码已完成、待真实环境验收；P1-E 的单节点短压已有证据，但多节点/容量/长期趋势仍在开发和验收计划中。不能把 mock、本地 SMTP sink、ADB offline 或无凭据状态记为通过；凭据只能由本机环境变量/临时环境提供，禁止写入仓库、日志和证据。每个模块必须按“实现/调整 → 测试 → 代码审查 → 修复 → 文档与记忆同步 → 提交推送”闭环。

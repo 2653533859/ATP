@@ -25,7 +25,7 @@ Android 工具说明：Windows 启动脚本和 `android-network-doctor.ps1` 会�
 
 Web 录制默认使用 `WEB_RECORDER_MODE=local`，浏览器在 API 进程内启动。如果配置为 `WEB_RECORDER_MODE=worker`，`local-dev.cmd up` 会额外托管 `python -m app.web_recording_worker`；可通过 `local-dev.cmd status` 和 `local-dev.cmd logs` 检查录制 Worker。Windows 桌面模式不需要 `WEB_RECORDER_DISPLAY`。
 
-`local-dev.cmd doctor` 会在启动前校验 `WEB_RECORDER_MODE`、Python Playwright 包和 Chromium 浏览器是否存在；Worker 模式还会校验 Worker 入口、Redis 队列前缀和正整数并发上限。缺少 Chromium 时按提示执行 `backend\.venv\Scripts\python.exe -m playwright install chromium`。Android Agent 的 `scripts\windows-android-worker.ps1 doctor` 会额外检查 Celery/Redis Python 依赖和 ADB，避免进程启动后才暴露依赖问题。
+`local-dev.cmd doctor` 会在启动前校验 `WEB_RECORDER_MODE`、Python Playwright 包和 Chromium 浏览器是否存在；Worker 模式还会校验 Worker 入口、Redis 队列前缀和正整数并发上限。缺少 Chromium 时按提示执行 `backend\.venv\Scripts\python.exe -m playwright install chromium`。Android Agent 的 `scripts\windows-android-worker.ps1 doctor` 会额外检查 Celery/Redis Python 依赖和 ADB，并区分 `online`、`unauthorized`、`offline` 和其他设备状态，避免进程启动后才暴露依赖或授权问题。
 
 这种模式适合本地开发与联调：Windows 侧进程直接访问真机与浏览器，基础设施继续复用 Linux Docker 环境。
 
@@ -469,6 +469,14 @@ adb kill-server
 adb start-server
 adb devices
 ```
+
+也可以直接查看 Android Worker 的分类诊断：
+
+```powershell
+.\scripts\windows-android-worker.ps1 doctor
+```
+
+`unauthorized` 需要解锁手机并接受 USB 调试 RSA 弹窗；`offline` 需要重新插拔设备或执行 `adb reconnect`，TCP ADB 还要确认设备可达且已授权。只有状态为 `device` 才能继续 ATP 的扫描、预约和用例执行。
 
 如果你准备让 Docker Worker 连接真机，建议继续切到 ADB over TCP：
 

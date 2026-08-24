@@ -91,6 +91,11 @@ def test_android_network_doctor_has_a_powershell_entrypoint_and_safe_modes():
 def test_windows_android_worker_checks_runtime_dependencies_before_starting():
     script = _read("scripts/windows-android-worker.ps1")
 
+    assert "function Get-AdbDeviceStateSummary" in script
+    assert "List of devices attached" in script
+    assert "ADB state counts: online={0}, unauthorized={1}, offline={2}, other={3}" in script
+    assert "accept the USB debugging RSA prompt" in script
+    assert "Reconnect USB or run adb reconnect" in script
     assert "function Test-PythonModule" in script
     assert "Celery and Redis Python dependencies" in script
     assert "Test-PythonModule -ModuleName 'celery'" in script

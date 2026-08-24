@@ -34,7 +34,7 @@
 详细计划和验收边界见 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md) 的“当前执行总表”。本表用于日常勾选，避免把本地代码完成误认为真实环境通过：
 
 - [E] **P0-A Windows API/Web 可用性复核**：已改善 `windows-local-smoke.ps1` 在管理员登录返回 401/403/其他 HTTP 状态时的安全诊断，补充当前账号环境变量用法；Windows smoke 契约 `11 passed`、PowerShell 解析通过。仍需使用当前有效账号重跑登录、认证读接口、Playwright、浏览器矩阵、文件传输和报告导出，不在仓库记录凭据。
-- [E] **P0-B Android Worker 单设备验收**：ADB 从 `offline/unauthorized` 恢复为 `device` 后，依次验证配置配对、Worker 心跳、设备扫描、预约、截图、APK 包名、Android 低代码、专项任务和结果证据；当前仍受真实设备状态限制。
+- [E] **P0-B Android Worker 单设备验收**：已补 `windows-android-worker.ps1 doctor` 的 ADB 状态分类和离线/未授权提示，契约回归 `11 passed`；仍需 ADB 从 `offline/unauthorized` 恢复为 `device` 后，依次验证配置配对、Worker 心跳、设备扫描、预约、截图、APK 包名、Android 低代码、专项任务和结果证据，当前仍受真实设备状态限制。
 - [E] **P1-C 真实通知供应商验收**：SMTP/企业微信/钉钉临时目标的投递、重试、历史记录和脱敏；本地 SMTP sink 只能作为前置链路证据。
 - [E] **P1-D 外部缺陷平台验收**：Jira/禅道/GitHub/GitLab 创建、重复识别、状态同步、权限和错误脱敏；临时数据使用后清理。
 - [~] **P1-E 性能能力增强**：单节点 q19 k6 短压已有证据；继续补多节点容量、资源限制、长趋势、阈值回归和报告留存，再进行真实性能环境验收。
