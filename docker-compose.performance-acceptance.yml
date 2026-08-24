@@ -60,6 +60,9 @@ services:
       context: ./backend
       dockerfile: Dockerfile
     env_file: .env.performance-acceptance
+    environment:
+      WEB_RECORDER_MODE: worker
+      WEB_RECORDER_WORKER_QUEUE_PREFIX: atp:web-recording:commands
     ports:
       - "127.0.0.1:18080:8000"
     healthcheck:
@@ -111,6 +114,42 @@ services:
       - sh
       - -c
       - exec celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q "$${CELERY_QUEUES}"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  # Independent Playwright recording Worker. Keep browser sessions out of the
+  # API container and route them through the same Redis control plane as the
+  # Backend. This service is deliberately separate from Celery execution
+  # workers because recording owns long-lived browser state.
+  web-recorder:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    env_file: .env.performance-acceptance
+    environment:
+      APP_ENV: production
+      WEB_RECORDER_MODE: worker
+      WEB_RECORDER_WORKER_QUEUE_PREFIX: atp:web-recording:commands
+      WEB_RECORDER_DISPLAY: :99
+      WEB_RECORDER_WORKER_ID: web-recorder-q19-1
+      WEB_RECORDER_WORKER_MAX_SESSIONS: "2"
+      WEB_RECORDER_HEALTH_FILE: /tmp/atp-web-recorder.ready
+    command:
+      - sh
+      - -c
+      - Xvfb $${WEB_RECORDER_DISPLAY:-:99} -screen 0 1280x720x24 -nolisten tcp >/tmp/atp-xvfb.log 2>&1 & exec python -m app.web_recording_worker
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,time; p=os.environ['WEB_RECORDER_HEALTH_FILE']; raise SystemExit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p) <= 30 else 1)"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 15s
     depends_on:
       migrate:
         condition: service_completed_successfully
@@ -254,6 +293,8 @@ services:
         condition: service_healthy
       worker:
         condition: service_started
+      web-recorder:
+        condition: service_healthy
       performance-worker:
         condition: service_started
       acceptance-target:

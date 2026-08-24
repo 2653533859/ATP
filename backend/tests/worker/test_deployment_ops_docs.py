@@ -288,8 +288,22 @@ def test_docker_compose_acceptance_stack_isolated_and_has_real_targets():
     services = compose["services"]
 
     assert compose["name"] == "atp-performance-acceptance"
-    assert {"postgres", "redis", "minio", "backend", "worker", "performance-worker", "acceptance-target"} <= services.keys()
+    assert {
+        "postgres",
+        "redis",
+        "minio",
+        "backend",
+        "worker",
+        "web-recorder",
+        "performance-worker",
+        "acceptance-target",
+    } <= services.keys()
     assert services["backend"]["ports"] == ["127.0.0.1:18080:8000"]
+    assert services["backend"]["environment"]["WEB_RECORDER_MODE"] == "worker"
+    assert (
+        services["backend"]["environment"]["WEB_RECORDER_WORKER_QUEUE_PREFIX"]
+        == "atp:web-recording:commands"
+    )
     assert services["backend"]["healthcheck"]["test"][0] == "CMD"
     assert "/health" in " ".join(services["backend"]["healthcheck"]["test"])
     worker = services["worker"]
@@ -313,8 +327,19 @@ def test_docker_compose_acceptance_stack_isolated_and_has_real_targets():
     assert 'queues="$${CELERY_QUEUES:-performance}"' in performance_command
     assert 'queues="$${queues},performance"' in performance_command
     assert "acceptance_tls:/etc/atp/tls:ro" in services["performance-worker"]["volumes"]
+    recorder = services["web-recorder"]
+    assert recorder["environment"]["WEB_RECORDER_MODE"] == "worker"
+    assert recorder["environment"]["WEB_RECORDER_WORKER_QUEUE_PREFIX"] == "atp:web-recording:commands"
+    assert recorder["environment"]["WEB_RECORDER_WORKER_ID"] == "web-recorder-q19-1"
+    assert recorder["environment"]["WEB_RECORDER_HEALTH_FILE"] == "/tmp/atp-web-recorder.ready"
+    recorder_command = " ".join(recorder["command"])
+    assert "Xvfb" in recorder_command
+    assert "python -m app.web_recording_worker" in recorder_command
+    assert recorder["healthcheck"]["test"][0] == "CMD"
+    assert recorder["depends_on"]["backend"]["condition"] == "service_healthy"
     assert "./docs/evidence:/evidence" in services["acceptance-tools"]["volumes"]
     assert services["acceptance-tools"]["depends_on"]["backend"]["condition"] == "service_healthy"
+    assert services["acceptance-tools"]["depends_on"]["web-recorder"]["condition"] == "service_healthy"
     assert (ROOT / "deploy" / "performance-acceptance" / "acceptance.proto").is_file()
     assert (ROOT / "deploy" / "performance-acceptance" / "locust_smoke.py").is_file()
 
