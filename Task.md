@@ -12,7 +12,7 @@
 ### 2026-08-25 当前执行计划登记
 
 - [~] **P0-0 运行基础与账号初始化**：修复管理员账号改名后，启动 bootstrap 只按用户名查找并按重复邮箱插入，导致 q19 Backend 进入重启循环的问题；补用户名/邮箱幂等回归，重建并验证 q19 健康、登录和基础读接口。
-- [~] **P0-B.3 Android 单设备闭环**：前置 ADB、Worker、设备扫描、租约、截图和控件操作已通过；当前账号恢复后确认真实 APK 的 `package_name`，再按低代码、录屏、专项任务、事件/日志/报告顺序验收。
+- [~] **P0-B.3 Android 单设备闭环**：前置 ADB、Worker、设备扫描、租约、截图和控件操作已通过；通用 APK 的低代码、录屏、设备产物和结果回传已通过，Karing 专项任务与完整报告回传仍待真实包验证。
 - [ ] **P0-A Windows API/Web 复核**：Android 闭环后使用当前账号复跑认证读接口、环境/认证复用、浏览器矩阵、文件传输、报告导出和 Web 低代码。
 - [ ] **P1-C/P1-D/P1-E/P1-F**：依次完成真实通知、外部缺陷平台、生产性能环境和发布收口，保留目标环境证据。
 
@@ -29,8 +29,10 @@
 
 - [x] 使用在线设备 `172.16.102.214:5555` 和已安装包 `com.microsoft.emmx` 完成临时 Android 低代码冒烟；3/3 步骤通过，开启录屏后设备信息、logcat、3 个步骤截图和录屏均回传成功，临时项目/用例/运行已清理。
 - [x] 真实 APK 上传约 262 MB 时定位 q19 MinIO 读超时复用 5 秒连接超时的问题；新增 `MINIO_READ_TIMEOUT_SECONDS=60`、MinIO 连接池 `maxsize=10/block=True`，并同步启动配置页面、示例和文档。
-- [x] 定向后端 `19 passed`，前端启动配置 `6 passed`，后端非集成全量 `2262 passed`，`vue-tsc`、生产构建、Ruff 和 `git diff --check` 通过。
-- [~] 待最新代码重建 q19 后重试 APK 自动解析/对象绑定/清理；当前包不是 Karing，不能替代 Karing 应用专项验收。
+- [x] 定向后端 `19 passed`，前端启动配置 `6 passed`，后端非集成全量基线为 `2263 passed`，`vue-tsc`、生产构建、Ruff 和 `git diff --check` 通过。
+- [x] q19 重建到 `e1dc113` 后，262,615,229 字节 APK 上传、`com.microsoft.emmx`/版本元数据解析、项目对象绑定、列表回读和临时数据清理通过；证据见 [`android-apk-upload-2026-08-25.json`](docs/evidence/android-apk-upload-2026-08-25.json)。
+- [x] 修复标准 `ResXMLTree` 包装与 `RES_STRING_POOL_TYPE` 解析缺口；APK 元数据/API 定向 `17 passed`，Ruff 和格式检查通过。
+- [~] 当前包不是 Karing，不能替代 Karing 应用专项验收；APK 下载端点、Karing 低代码/专项动作和完整报告回传仍需后续真实包验证。
 
 当前计划的唯一排序为：`P0-B.3 真实 Android 门禁 → P0-A Windows API/Web 复核 → P1-C/P1-D → P1-E → P1-F`。本节只维护勾选状态，详细范围、验收标准和禁止事项以主计划及 [`docs/release-status-2026-08-25.md`](docs/release-status-2026-08-25.md) 为准。
 
@@ -56,13 +58,13 @@
 - `[x]` Windows Android Worker 正在运行，队列为 `android,mobile_special`；doctor 对 Python/Celery/Redis、PostgreSQL、Redis、MinIO 和 ADB 检查通过。
 - `[E]` 两台在线设备的第三方包列表均未发现 Karing，不能用应用显示名替代真实 `package_name`，也没有执行启动、点击、Monkey 或其他应用操作。
 - `[E]` 控制面 smoke 因 `.env` 中的 bootstrap 账号收到 HTTP 401，未能认证调用 `/devices/workers` 和 `/devices/scan`；未创建 Android 运行记录。证据见 [`android-device-control-preflight-2026-08-25.json`](docs/evidence/android-device-control-preflight-2026-08-25.json)。
-- `[ ]` 解除条件：使用当前有效账号完成控制面认证，确认/安装真实 APK 并取得 `package_name`，再继续 Worker registry、扫描、租约、低代码、录屏、专项任务和事件/日志/报告验收。
+- `[ ]` 解除条件：安装/提供 Karing APK 并取得真实 `package_name`，完成 Karing 低代码、专项任务、异常日志/录屏回放和报告下载验收；通用 APK 的资产上传门禁已由 [`android-apk-upload-2026-08-25.json`](docs/evidence/android-apk-upload-2026-08-25.json) 关闭。
 
 ## 2026-08-25 P0-B.3 后续开发计划（当前跟踪）
 
 详细计划以路线图的“0.5 当前开发计划与跟踪台账”为准。本节同步当前执行顺序，避免把已经存在的页面或执行器误记成真实闭环：
 
-- [~] P0-B.3.1 APK 资产与包名：选择传递、项目隔离和运行快照已完成；真实 APK 上传、包名识别和对象存储下载待验证。
+- [~] P0-B.3.1 APK 资产与包名：选择传递、项目隔离、运行快照、真实 APK 上传、标准 Manifest 包名/版本识别、对象绑定和清理已通过；APK 下载端点和 Karing 包仍待验证。证据见 [`android-apk-upload-2026-08-25.json`](docs/evidence/android-apk-upload-2026-08-25.json)。
 - [E] P0-B.3.2 Android 低代码最小执行：单设备租约、Worker 调度、步骤执行、截图、APK 前置安装和终态回传已完成本地实现与回归；真实 APK/真机最小步骤待验收。证据见 [`android-lowcode-execution-2026-08-25.json`](docs/evidence/android-lowcode-execution-2026-08-25.json)。
 - [E] P0-B.3.3 录屏与异常回放：低代码/专项录屏失败状态、回放保存状态和报告告警已补齐并完成本地回归；真实设备采集、上传、异常保留和清理待验证。证据见 [`android-recording-observability-2026-08-25.json`](docs/evidence/android-recording-observability-2026-08-25.json)。
 - [E] P0-B.3.4 Android 专项任务：已完成包名一致性校验、应用启动失败终态、Monkey 异常终态和流畅度动作失败终态的本地实现与回归；真实 APK/真机上的安装、启动、动作、超时、取消、崩溃和 logcat 仍待验收，不能用应用显示名替代包名。证据见 [`android-special-task-2026-08-25.json`](docs/evidence/android-special-task-2026-08-25.json)。

@@ -1,0 +1,26 @@
+{
+  "schema_version": 1,
+  "kind": "android_apk_upload_acceptance",
+  "generated_at": "2026-08-25",
+  "source_commit": "e1dc113",
+  "status": "passed_with_follow_up",
+  "environment": "q19-compose",
+  "backend_commit": "e1dc113",
+  "backend_health_http": 200,
+  "minio_read_timeout_seconds": 60,
+  "apk": {
+    "fixture": "installed com.microsoft.emmx base APK",
+    "file_size": 262615229,
+    "package_name": "com.microsoft.emmx",
+    "version_name": "150.0.4078.81",
+    "version_code": 407808105,
+    "list_visible": true,
+    "object_bound_to_project": true
+  },
+  "cleanup": {
+    "temporary_apk_record_deleted": true,
+    "temporary_project_deleted": true,
+    "source_file_removed_from_remote_temp": true
+  },
+  "follow_up": "Karing was not present in the connected device package lists; install/provide its APK and repeat package-specific Android low-code and special-task acceptance. APK download endpoint and Karing-specific actions remain separate follow-ups."
+}

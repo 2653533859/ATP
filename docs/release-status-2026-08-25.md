@@ -27,7 +27,8 @@
 
 - 已在真实在线设备 `172.16.102.214:5555` 上用已安装包 `com.microsoft.emmx` 完成临时低代码、步骤截图、设备信息、logcat 和录屏回传；3/3 步骤通过，临时业务数据已清理。该证据只覆盖平台执行链路，不代表 Karing 包存在。
 - 真实上传约 262 MB APK 时发现 q19 MinIO multipart 分片使用 5 秒读超时并返回 HTTP 500；已在本地修复为独立 `MINIO_READ_TIMEOUT_SECONDS` 和并发连接池，前端配置/示例/文档已同步。
-- q19 需要以新提交重建后再次验证 APK 自动解析包名、MinIO 对象绑定、下载/清理；在该复验完成前，Android 发布门禁仍保持未关闭。
+- q19 已按 `e1dc113` 重建并健康运行；262,615,229 字节 APK 上传、标准 `ResXMLTree` Manifest 解析出 `com.microsoft.emmx`/版本信息、项目对象绑定、列表回读和临时记录/对象/项目清理均通过。证据见 [`android-apk-upload-2026-08-25.json`](evidence/android-apk-upload-2026-08-25.json)。
+- 本项仍不关闭 Android 总门禁：当前设备包列表没有 Karing，Karing 专项动作、APK 下载端点、异常回放和完整报告下载仍需真实 Karing APK/设备复验。
 
 本地代码、回归和 Windows/q19 API/Web/性能链路已经形成可复核证据；以下外部门禁仍未关闭，因此发布只能按“部分实现/待环境验收”处理：
 
@@ -42,7 +43,7 @@
 
 当前优先关闭 Android P0-B.3 单设备执行闭环，拆分为：真实 APK 上传/包名识别与选择、低代码最小执行、录屏与异常回放、专项任务、事件/日志/报告回传。每一项都必须同时具备代码、回归测试、代码审查修复和脱敏证据；没有 APK、包名或在线 `device` 时，只记录阻塞，不创建脏运行。
 
-P0-B.3.5 事件、日志与报告回传已完成本地实现：专项任务可配置结束 logcat/截图，Worker 统一写入产物与状态，事件和 JSON 报告统一脱敏；真实 APK/在线设备/MinIO 执行仍保持未验收。下一步是在线 Android 环境端到端复验，再按 P0-A → P1-C → P1-D → P1-E → P1-F 推进。
+P0-B.3.5 事件、日志与报告回传已完成本地实现，并已用通用 APK 完成低代码录屏、设备信息、logcat、截图和结果回传验证；Karing 专项动作、APK 下载端点、异常回放和完整报告下载仍待真实 Karing APK。下一步是补 Karing 包验证，再按 P0-A → P1-C → P1-D → P1-E → P1-F 推进。
 
 Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复核 Windows API/Web、真实通知供应商、外部缺陷平台、性能生产环境和发布收口。详细依赖、出口和状态见 [`product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md) 的“0.5 当前开发计划与跟踪台账”，执行勾选见 [`Task.md`](../Task.md)。
 
