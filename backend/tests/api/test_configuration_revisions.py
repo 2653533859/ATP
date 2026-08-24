@@ -56,13 +56,17 @@ class _DB:
         self.variables = list(variables)
         self.revisions = list(revisions)
         self.added: list[object] = []
+        self.get_calls: list[tuple[object, int, dict[str, object]]] = []
+        self.statements: list[object] = []
         self.flush_count = 0
         self.commit_count = 0
 
     async def get(self, model, resource_id, **_kwargs):
+        self.get_calls.append((model, resource_id, dict(_kwargs)))
         return self.objects.get((model, resource_id))
 
     async def execute(self, statement):
+        self.statements.append(statement)
         entities = {item.get("entity") for item in statement.column_descriptions}
         if EnvVariable in entities:
             return _Result(self.variables)
@@ -194,6 +198,21 @@ def test_revision_list_rejects_ambiguous_resource_filter_and_admin_domains():
             assert exc.status_code == expected_status
         else:
             raise AssertionError(f"应拒绝过滤条件: {kwargs}")
+
+
+def test_revision_list_returns_empty_history_without_leaking_resource_data():
+    result = asyncio.run(
+        configuration_center.list_configuration_revisions(
+            domain="environment",
+            resource_id=999,
+            project_id=None,
+            limit=50,
+            db=_DB(),
+            user=_user(UserRole.admin),
+        )
+    )
+
+    assert result == []
 
 
 def test_revision_diff_returns_safe_field_changes_and_impacts():
@@ -345,6 +364,42 @@ def test_non_admin_cannot_diff_ai_revision():
         raise AssertionError("非管理员不应查看 AI 配置差异")
 
 
+def test_revision_diff_rejects_revision_from_another_project(monkeypatch):
+    environment = Environment(id=1, name="staging", project_id=10, description="safe")
+    variable = EnvVariable(id=2, env_id=1, key="BASE_URL", value="https://example.test", is_secret=False)
+    db = _DB(objects=[environment], variables=[variable])
+    source = asyncio.run(
+        configuration_center.create_configuration_revision(
+            body=ConfigurationRevisionCreateIn(domain="environment", resource_id=1),
+            db=db,
+            user=_user(UserRole.admin),
+        )
+    )
+    revision = next(item for item in db.added if isinstance(item, ConfigurationRevision))
+    assert revision.project_id == 10
+    calls: list[tuple[int, object]] = []
+
+    async def deny_other_project(_db, _user, project_id, required_role):
+        calls.append((project_id, required_role))
+        raise HTTPException(status_code=403, detail="No access to this project")
+
+    monkeypatch.setattr(configuration_center, "assert_project_access", deny_other_project)
+    try:
+        asyncio.run(
+            configuration_center.diff_configuration_revision(
+                revision_id=source.id,
+                db=db,
+                user=_user(UserRole.engineer),
+            )
+        )
+    except HTTPException as exc:
+        assert exc.status_code == 403
+    else:
+        raise AssertionError("跨项目配置版本不应返回差异")
+    assert calls and calls[0][0] == 10
+    assert calls[0][1].value == "viewer"
+
+
 def test_revision_diff_rejects_tampered_historical_fingerprint():
     environment = Environment(id=1, name="staging", project_id=10, description="safe")
     variable = EnvVariable(id=2, env_id=1, key="TIMEOUT_SECONDS", value="10", is_secret=False)
@@ -436,6 +491,37 @@ def test_revision_rollback_restores_single_environment_and_creates_a_new_revisio
     )
     assert "source_revision_id=" in (audit.detail or "")
     assert "TIMEOUT_SECONDS" not in (audit.detail or "")
+
+
+def test_revision_rollback_locks_resource_and_environment_variables():
+    environment = Environment(id=1, name="旧环境", project_id=10, description="原始")
+    variable = EnvVariable(id=2, env_id=1, key="TIMEOUT_SECONDS", value="10", is_secret=False)
+    db = _DB(objects=[environment], variables=[variable])
+    source = asyncio.run(
+        configuration_center.create_configuration_revision(
+            body=ConfigurationRevisionCreateIn(domain="environment", resource_id=1),
+            db=db,
+            user=_user(UserRole.admin),
+        )
+    )
+    environment.name = "新环境"
+    variable.value = "20"
+
+    asyncio.run(
+        configuration_center.rollback_configuration_revision_endpoint(
+            body=ConfigurationRevisionRollbackIn(confirmation="ROLLBACK"),
+            revision_id=source.id,
+            db=db,
+            user=_user(UserRole.admin),
+        )
+    )
+
+    assert any(model is Environment and options.get("with_for_update") is True for model, _, options in db.get_calls)
+    assert any(
+        getattr(statement, "_for_update_arg", None) is not None
+        and any(item.get("entity") is EnvVariable for item in statement.column_descriptions)
+        for statement in db.statements
+    )
 
 
 def test_revision_rollback_reencrypts_ai_secret_and_keeps_it_out_of_response():
@@ -545,3 +631,53 @@ def test_revision_rollback_rejects_tampered_payload_and_rolls_back_transaction()
     assert db.rollback_count == 1
     assert config.model_name == "stable-model"
     assert decrypt(config.api_key_encrypted) == "stable-secret"
+
+
+class _RefreshFailureDB(_DB):
+    def __init__(self, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.refresh_count = 0
+
+    async def refresh(self, _obj):
+        self.refresh_count += 1
+        if self.refresh_count >= 2:
+            raise RuntimeError("refresh failed")
+
+
+def test_revision_rollback_refresh_failure_aborts_transaction():
+    config = AILLMConfig(
+        id=1,
+        name="primary",
+        provider="ollama",
+        api_key_encrypted=encrypt("stable-secret"),
+        model_name="stable-model",
+        enabled=True,
+    )
+    db = _RefreshFailureDB(objects=[config])
+    source = asyncio.run(
+        configuration_center.create_configuration_revision(
+            body=ConfigurationRevisionCreateIn(domain="ai_llm", resource_id=1),
+            db=db,
+            user=_user(UserRole.admin),
+        )
+    )
+    config.model_name = "changed-before-failure"
+
+    try:
+        asyncio.run(
+            configuration_center.rollback_configuration_revision_endpoint(
+                body=ConfigurationRevisionRollbackIn(confirmation="ROLLBACK"),
+                revision_id=source.id,
+                db=db,
+                user=_user(UserRole.admin),
+            )
+        )
+    except HTTPException as exc:
+        assert exc.status_code == 409
+        assert "未应用任何变更" in str(exc.detail)
+    else:
+        raise AssertionError("提交前刷新失败必须终止回滚")
+
+    assert db.refresh_count == 2
+    assert db.rollback_count == 1
+    assert db.commit_count == 1

@@ -168,9 +168,11 @@ async def _collect_suite_tasks(
     status_filter: StatusFilter,
     limit: int,
 ) -> tuple[list[WorkbenchTaskItem], bool]:
-    stmt = select(SuiteRun, TestSuite.name, TestSuite.project_id, Project.name).join(
-        TestSuite, SuiteRun.suite_id == TestSuite.id
-    ).join(Project, TestSuite.project_id == Project.id)
+    stmt = (
+        select(SuiteRun, TestSuite.name, TestSuite.project_id, Project.name)
+        .join(TestSuite, SuiteRun.suite_id == TestSuite.id)
+        .join(Project, TestSuite.project_id == Project.id)
+    )
     stmt = _project_filter(stmt, TestSuite.project_id, user, project_id)
     stmt = _apply_status_filter(stmt, SuiteRun.status, status_filter)
     rows = (await db.execute(stmt.order_by(SuiteRun.created_at.desc(), SuiteRun.id.desc()).limit(limit + 1))).all()
@@ -202,9 +204,11 @@ async def _collect_plan_tasks(
     status_filter: StatusFilter,
     limit: int,
 ) -> tuple[list[WorkbenchTaskItem], bool]:
-    stmt = select(PlanRun, TestPlan.name, TestPlan.project_id, Project.name).join(
-        TestPlan, PlanRun.plan_id == TestPlan.id
-    ).join(Project, TestPlan.project_id == Project.id)
+    stmt = (
+        select(PlanRun, TestPlan.name, TestPlan.project_id, Project.name)
+        .join(TestPlan, PlanRun.plan_id == TestPlan.id)
+        .join(Project, TestPlan.project_id == Project.id)
+    )
     stmt = _project_filter(stmt, TestPlan.project_id, user, project_id)
     stmt = _apply_status_filter(stmt, PlanRun.status, status_filter)
     rows = (await db.execute(stmt.order_by(PlanRun.created_at.desc(), PlanRun.id.desc()).limit(limit + 1))).all()
@@ -236,12 +240,16 @@ async def _collect_android_tasks(
     status_filter: StatusFilter,
     limit: int,
 ) -> tuple[list[WorkbenchTaskItem], bool]:
-    stmt = select(MobileSpecialRun, MobileSpecialTask.name, MobileSpecialTask.project_id, Project.name).join(
-        MobileSpecialTask, MobileSpecialRun.task_id == MobileSpecialTask.id
-    ).join(Project, MobileSpecialTask.project_id == Project.id)
+    stmt = (
+        select(MobileSpecialRun, MobileSpecialTask.name, MobileSpecialTask.project_id, Project.name)
+        .join(MobileSpecialTask, MobileSpecialRun.task_id == MobileSpecialTask.id)
+        .join(Project, MobileSpecialTask.project_id == Project.id)
+    )
     stmt = _project_filter(stmt, MobileSpecialTask.project_id, user, project_id)
     stmt = _apply_status_filter(stmt, MobileSpecialRun.status, status_filter)
-    rows = (await db.execute(stmt.order_by(MobileSpecialRun.created_at.desc(), MobileSpecialRun.id.desc()).limit(limit + 1))).all()
+    rows = (
+        await db.execute(stmt.order_by(MobileSpecialRun.created_at.desc(), MobileSpecialRun.id.desc()).limit(limit + 1))
+    ).all()
     has_more = len(rows) > limit
     items = [
         _task_item(
@@ -272,18 +280,22 @@ async def _collect_performance_tasks(
     status_filter: StatusFilter,
     limit: int,
 ) -> tuple[list[WorkbenchTaskItem], bool]:
-    stmt = select(
-        PerformanceRun,
-        PerformanceTest.name,
-        PerformanceTest.executor,
-        PerformanceRun.project_id,
-        Project.name,
-    ).join(
-        PerformanceTest, PerformanceRun.performance_test_id == PerformanceTest.id
-    ).join(Project, PerformanceRun.project_id == Project.id)
+    stmt = (
+        select(
+            PerformanceRun,
+            PerformanceTest.name,
+            PerformanceTest.executor,
+            PerformanceRun.project_id,
+            Project.name,
+        )
+        .join(PerformanceTest, PerformanceRun.performance_test_id == PerformanceTest.id)
+        .join(Project, PerformanceRun.project_id == Project.id)
+    )
     stmt = _project_filter(stmt, PerformanceRun.project_id, user, project_id)
     stmt = _apply_status_filter(stmt, PerformanceRun.status, status_filter)
-    rows = (await db.execute(stmt.order_by(PerformanceRun.created_at.desc(), PerformanceRun.id.desc()).limit(limit + 1))).all()
+    rows = (
+        await db.execute(stmt.order_by(PerformanceRun.created_at.desc(), PerformanceRun.id.desc()).limit(limit + 1))
+    ).all()
     has_more = len(rows) > limit
     items = [
         _task_item(
@@ -366,13 +378,17 @@ async def _count_tasks(
             MobileSpecialTask, MobileSpecialRun.task_id == MobileSpecialTask.id
         )
         stmt = _project_filter(stmt, MobileSpecialTask.project_id, user, project_id)
-        total += int((await db.execute(_apply_status_filter(stmt, MobileSpecialRun.status, status_filter))).scalar_one() or 0)
+        total += int(
+            (await db.execute(_apply_status_filter(stmt, MobileSpecialRun.status, status_filter))).scalar_one() or 0
+        )
     if "performance" in selected:
         stmt = select(func.count(PerformanceRun.id)).join(
             PerformanceTest, PerformanceRun.performance_test_id == PerformanceTest.id
         )
         stmt = _project_filter(stmt, PerformanceRun.project_id, user, project_id)
-        total += int((await db.execute(_apply_status_filter(stmt, PerformanceRun.status, status_filter))).scalar_one() or 0)
+        total += int(
+            (await db.execute(_apply_status_filter(stmt, PerformanceRun.status, status_filter))).scalar_one() or 0
+        )
     return total
 
 
@@ -387,15 +403,12 @@ async def _count_todos(db: AsyncSession, user: User, project_id: int | None) -> 
 
     failed_runs = await _count_tasks(db, user, project_id, _FAILED_STATUSES, None)
 
-    overdue_stmt = (
-        select(func.count(TestPlan.id))
-        .where(
-            TestPlan.status == "active",
-            TestPlan.is_enabled.is_(True),
-            TestPlan.schedule_type == ScheduleType.cron,
-            TestPlan.next_run_at.is_not(None),
-            TestPlan.next_run_at < datetime.now(timezone.utc),
-        )
+    overdue_stmt = select(func.count(TestPlan.id)).where(
+        TestPlan.status == "active",
+        TestPlan.is_enabled.is_(True),
+        TestPlan.schedule_type == ScheduleType.cron,
+        TestPlan.next_run_at.is_not(None),
+        TestPlan.next_run_at < datetime.now(timezone.utc),
     )
     overdue_stmt = _project_filter(overdue_stmt, TestPlan.project_id, user, project_id)
     overdue_plans = int((await db.execute(overdue_stmt)).scalar_one() or 0)
@@ -438,7 +451,9 @@ async def _collect_todos(
         .where(TestCase.review_status == "pending")
     )
     review_stmt = _project_filter(review_stmt, Module.project_id, user, project_id)
-    review_rows = (await db.execute(review_stmt.order_by(TestCase.updated_at.asc(), TestCase.id.asc()).limit(limit + 1))).all()
+    review_rows = (
+        await db.execute(review_stmt.order_by(TestCase.updated_at.asc(), TestCase.id.asc()).limit(limit + 1))
+    ).all()
     has_more = has_more or len(review_rows) > limit
     todos.extend(
         WorkbenchTodoItem(
@@ -528,7 +543,9 @@ async def _collect_todos(
             Device.last_seen_at.is_not(None),
             Device.last_seen_at < stale_before,
         )
-        device_rows = (await db.execute(device_stmt.order_by(Device.last_seen_at.desc()).limit(limit + 1))).scalars().all()
+        device_rows = (
+            (await db.execute(device_stmt.order_by(Device.last_seen_at.desc()).limit(limit + 1))).scalars().all()
+        )
         has_more = has_more or len(device_rows) > limit
         todos.extend(
             WorkbenchTodoItem(
