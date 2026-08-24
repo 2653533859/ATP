@@ -107,7 +107,7 @@ const router = createRouter({
         {
           path: 'ai-workbench',
           name: 'ai-workbench',
-          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          component: () => import('@/views/workbench/AIWorkbenchView.vue'),
           meta: {
             menuTitleKey: 'menu.capabilities.ai',
             descriptionKey: 'navigation.placeholder.description.ai',
