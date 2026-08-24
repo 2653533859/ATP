@@ -66,6 +66,7 @@ def test_parse_openapi_json_basic():
     assert get_endpoint.parameters[0].required is True
     post_endpoint = next(e for e in result.endpoints if e.method == "POST")
     assert post_endpoint.request_body_example == {"name": "alice"}
+    assert post_endpoint.response_status == 201
 
 
 def test_parse_openapi_yaml_basic():
@@ -143,6 +144,27 @@ def test_parse_openapi_preserves_falsy_examples_and_media_examples():
     assert [parameter.example for parameter in endpoint.parameters] == [False, 0]
     assert endpoint.request_body_example is False
     assert endpoint.response_example == 0
+    assert endpoint.response_status == 200
+
+
+def test_parse_openapi_uses_first_success_response_status_without_content():
+    doc = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/created": {
+                "post": {
+                    "responses": {
+                        "400": {"description": "invalid"},
+                        "202": {"description": "accepted"},
+                    }
+                }
+            }
+        },
+    }
+
+    endpoint = parse_schema("openapi", json.dumps(doc)).endpoints[0]
+
+    assert endpoint.response_status == 202
 
 
 def test_parse_openapi_reports_external_refs_without_network_access():

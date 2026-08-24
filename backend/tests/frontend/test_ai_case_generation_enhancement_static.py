@@ -16,6 +16,7 @@ def test_ai_case_schema_supports_openapi_samples_and_natural_language():
     assert 'if source_type == "sample":' in parser
     assert "request_body_example" in parser
     assert "response_example" in parser
+    assert "response_status" in schema
     assert "OpenAPI、接口样例和自然语言需求" in prompt
     assert "如果只提供自然语言需求" in prompt
     assert "如果提供请求/响应样例" in prompt
@@ -39,6 +40,7 @@ def test_ai_case_drawer_exposes_sample_and_natural_language_modes():
     assert "externalRefPolicy" in drawer
     assert "external_ref_policy" in drawer
     assert "external_ref_policy" in api
+    assert "response_status" in api
     assert "external_ref_policy_label" in zh
     assert "external_ref_policy_label" in en
 

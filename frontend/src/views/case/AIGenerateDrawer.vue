@@ -533,6 +533,7 @@ function endpointToCaseConfig(endpoint: AIEndpointSummary) {
   }
   const body = endpoint.request_body_example
   const bodyType = body == null ? 'none' : typeof body === 'object' ? 'json' : 'raw'
+  const expectedStatus = endpoint.response_status ?? 200
   return {
     steps: [{
       name: endpoint.summary || `${endpoint.method} ${endpoint.path}`,
@@ -542,7 +543,7 @@ function endpointToCaseConfig(endpoint: AIEndpointSummary) {
       params,
       body_type: bodyType,
       body: body ?? null,
-      assertions: [{ target: 'status_code', operator: 'eq', expected: '200' }],
+      assertions: [{ target: 'status_code', operator: 'eq', expected: String(expectedStatus) }],
       extractions: [],
     }],
   }
@@ -605,7 +606,7 @@ async function handleImportSelected() {
       config: endpointToCaseConfig(endpoint),
       steps: [{
         action: `发送 ${endpoint.method.toUpperCase()} ${endpoint.path}`,
-        expected_result: '返回 200 状态码',
+        expected_result: `返回 ${endpoint.response_status ?? 200} 状态码`,
         is_key_step: true,
       }],
     })))

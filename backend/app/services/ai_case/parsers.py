@@ -36,6 +36,7 @@ class Endpoint:
     parameters: list[EndpointParameter] = field(default_factory=list)
     request_body_example: Any | None = None
     response_example: Any | None = None
+    response_status: int | None = None
 
 
 @dataclass
@@ -221,18 +222,23 @@ def parse_openapi(content: str, *, external_ref_policy: ExternalRefPolicy = "war
                     body_example = _example_from_media(json_media, resolver)
 
             resp_example: Any = None
+            resp_status: int | None = None
             responses = op.get("responses") or {}
-            for code in ("200", "201", "default"):
-                resp = responses.get(code)
-                if isinstance(resp, dict):
-                    resp = resolver.resolve(resp)
-                    content_map = resp.get("content") or {}
-                    json_media = content_map.get("application/json") or {}
-                    if isinstance(json_media, dict):
-                        json_media = resolver.resolve(json_media)
-                        resp_example = _example_from_media(json_media, resolver)
-                        if resp_example is not None:
-                            break
+            for code, raw_response in responses.items():
+                try:
+                    candidate_status = int(code)
+                except (TypeError, ValueError):
+                    continue
+                if not 200 <= candidate_status < 300 or not isinstance(raw_response, dict):
+                    continue
+                resp_status = candidate_status
+                resp = resolver.resolve(raw_response)
+                content_map = resp.get("content") or {}
+                json_media = content_map.get("application/json") or {}
+                if isinstance(json_media, dict):
+                    json_media = resolver.resolve(json_media)
+                    resp_example = _example_from_media(json_media, resolver)
+                break
 
             endpoints.append(
                 Endpoint(
@@ -246,6 +252,7 @@ def parse_openapi(content: str, *, external_ref_policy: ExternalRefPolicy = "war
                     parameters=params,
                     request_body_example=body_example,
                     response_example=resp_example,
+                    response_status=resp_status,
                 )
             )
 

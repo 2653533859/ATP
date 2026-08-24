@@ -46,6 +46,7 @@ class AIEndpointSummary(BaseModel):
     parameters: list[AIEndpointParameter] = Field(default_factory=list)
     request_body_example: object | None = None
     response_example: object | None = None
+    response_status: int | None = Field(default=None, ge=100, le=599)
 
 
 class AIParseSchemaOut(BaseModel):

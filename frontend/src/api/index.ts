@@ -2459,6 +2459,7 @@ export interface AIEndpointSummary {
   parameters: AIEndpointParameter[]
   request_body_example?: unknown
   response_example?: unknown
+  response_status?: number | null
 }
 
 export interface AIParseSchemaPayload {
