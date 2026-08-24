@@ -162,7 +162,7 @@ const router = createRouter({
         {
           path: 'requirements',
           name: 'requirements',
-          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          component: () => import('@/views/intelligence/RequirementTraceabilityView.vue'),
           meta: {
             menuTitleKey: 'menu.intelligence.requirements',
             descriptionKey: 'navigation.placeholder.description.requirements',

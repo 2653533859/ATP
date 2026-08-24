@@ -414,6 +414,127 @@ export interface CaseImportResult {
   conflicts: CaseImportConflict[]
 }
 
+export type RequirementStatusType = 'draft' | 'active' | 'archived'
+export type RequirementRelationType = 'covers' | 'validates'
+export type CriterionStatusType = 'draft' | 'approved'
+
+export interface AcceptanceCriterionItem {
+  id: string
+  text: string
+  priority: CasePriority
+  status: CriterionStatusType
+}
+
+export interface RequirementCaseLinkItem {
+  id: number
+  requirement_id: number
+  case_id: number
+  case_name: string
+  case_code: string
+  case_type: string
+  case_status: string
+  review_status: string
+  module_id: number
+  module_name: string
+  relation_type: RequirementRelationType
+  criterion_ids: string[]
+  note?: string | null
+  created_by?: number | null
+  created_at: string
+}
+
+export interface RequirementListItem {
+  id: number
+  project_id: number
+  requirement_code?: string | null
+  title: string
+  description?: string | null
+  status: RequirementStatusType
+  priority: CasePriority
+  acceptance_criteria: AcceptanceCriterionItem[]
+  source: string
+  source_ref?: string | null
+  version: number
+  creator_id: number
+  owner_id?: number | null
+  linked_case_count: number
+  covered_criterion_count: number
+  coverage_rate: number
+  created_at: string
+  updated_at: string
+}
+
+export interface RequirementDetailItem extends RequirementListItem {
+  links: RequirementCaseLinkItem[]
+}
+
+export interface RequirementListResult {
+  items: RequirementListItem[]
+  total: number
+  page: number
+  page_size: number
+}
+
+export interface RequirementImpactCandidateItem {
+  case_id: number
+  case_name: string
+  case_code: string
+  case_type: string
+  module_id: number
+  module_name: string
+  match_terms: string[]
+}
+
+export interface RequirementImpactItem {
+  requirement_id: number
+  requirement_version: number
+  criteria_total: number
+  criteria_covered: number
+  coverage_rate: number
+  linked_case_count: number
+  impact_level: 'high' | 'medium' | 'low'
+  uncovered_criteria: AcceptanceCriterionItem[]
+  candidate_cases: RequirementImpactCandidateItem[]
+}
+
+export interface RequirementParseResult {
+  title: string
+  description: string
+  acceptance_criteria: AcceptanceCriterionItem[]
+  keywords: string[]
+  warnings: string[]
+}
+
+export interface RequirementCreatePayload {
+  project_id: number
+  title: string
+  description?: string | null
+  status?: RequirementStatusType
+  priority?: CasePriority
+  acceptance_criteria?: Array<Partial<AcceptanceCriterionItem> & { text: string }>
+  source?: string
+  source_ref?: string | null
+  owner_id?: number | null
+}
+
+export interface RequirementUpdatePayload {
+  title?: string
+  description?: string | null
+  status?: RequirementStatusType
+  priority?: CasePriority
+  acceptance_criteria?: Array<Partial<AcceptanceCriterionItem> & { text: string }>
+  source?: string
+  source_ref?: string | null
+  owner_id?: number | null
+}
+
+export interface RequirementCaseLinkPayload {
+  case_id: number
+  relation_type?: RequirementRelationType
+  criterion_ids?: string[]
+  note?: string | null
+}
+
 export interface SuiteCaseRef {
   case_id: number
   sort: number
@@ -2763,4 +2884,27 @@ export const auditLogApi = {
     created_to?: string
     limit?: number
   }) => http.get<unknown, Blob>('/audit-logs/export', { params, responseType: 'blob' }),
+}
+
+export const requirementsApi = {
+  list: (params?: {
+    project_id?: number
+    status?: RequirementStatusType
+    keyword?: string
+    page?: number
+    page_size?: number
+  }) => http.get<unknown, RequirementListResult>('/requirements', { params }),
+  parse: (body: { project_id: number; text: string }) =>
+    http.post<unknown, RequirementParseResult>('/requirements/parse', body),
+  create: (body: RequirementCreatePayload) =>
+    http.post<unknown, RequirementDetailItem>('/requirements', body),
+  get: (id: number) => http.get<unknown, RequirementDetailItem>(`/requirements/${id}`),
+  update: (id: number, body: RequirementUpdatePayload) =>
+    http.patch<unknown, RequirementDetailItem>(`/requirements/${id}`, body),
+  delete: (id: number) => http.delete<unknown, { deleted: boolean; id: number }>(`/requirements/${id}`),
+  linkCase: (id: number, body: RequirementCaseLinkPayload) =>
+    http.post<unknown, RequirementCaseLinkItem>(`/requirements/${id}/case-links`, body),
+  unlinkCase: (id: number, linkId: number) =>
+    http.delete<unknown, { deleted: boolean; id: number }>(`/requirements/${id}/case-links/${linkId}`),
+  impact: (id: number) => http.get<unknown, RequirementImpactItem>(`/requirements/${id}/impact`),
 }
