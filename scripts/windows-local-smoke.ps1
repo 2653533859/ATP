@@ -192,6 +192,41 @@ function Invoke-HttpCheck {
   }
 }
 
+function Get-HttpStatusCodeFromError {
+  param([object]$ErrorRecord)
+
+  try {
+    $response = $ErrorRecord.Exception.Response
+    if ($null -ne $response -and $null -ne $response.StatusCode) {
+      return [int]$response.StatusCode
+    }
+  } catch {
+    # Some PowerShell/.NET response types do not expose StatusCode consistently.
+  }
+
+  return $null
+}
+
+function Get-LiveLoginFailureDetails {
+  param([object]$ErrorRecord)
+
+  $statusCode = Get-HttpStatusCodeFromError -ErrorRecord $ErrorRecord
+  switch ($statusCode) {
+    401 {
+      return 'HTTP 401 Unauthorized: current account rejected. FIRST_ADMIN_* is bootstrap-only; set ATP_USERNAME/ATP_PASSWORD to the current account and rerun.'
+    }
+    403 {
+      return 'HTTP 403 Forbidden: login request was blocked. Check CSRF headers, cookie policy and backend logs before retrying.'
+    }
+    default {
+      if ($null -ne $statusCode) {
+        return "HTTP $statusCode from live login endpoint."
+      }
+      return 'Live login request failed without a readable HTTP status; check backend health and server logs.'
+    }
+  }
+}
+
 function Invoke-LiveLogin {
   param([hashtable]$Values)
 
@@ -217,7 +252,7 @@ function Invoke-LiveLogin {
     Add-Result -Name 'Live API admin login' -Status $(if ($passed) { 'passed' } else { 'failed' }) -Required:$true -Details $(if ($passed) { 'HttpOnly cookie session established' } else { 'login response did not establish an access cookie' })
     return $passed
   } catch {
-    Add-Result -Name 'Live API admin login' -Status 'failed' -Required:$true -Details $_.Exception.Message
+    Add-Result -Name 'Live API admin login' -Status 'failed' -Required:$true -Details (Get-LiveLoginFailureDetails -ErrorRecord $_)
     return $false
   }
 }

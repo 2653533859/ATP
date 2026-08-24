@@ -235,6 +235,12 @@ def test_windows_local_smoke_covers_live_and_browser_paths_without_secrets():
     assert "'run', 'e2e'" in script
     assert "e2e:browser-matrix" in script
     assert "HttpOnly cookie session established" in script
+    assert "function Get-HttpStatusCodeFromError" in script
+    assert "function Get-LiveLoginFailureDetails" in script
+    assert "HTTP 401 Unauthorized" in script
+    assert "FIRST_ADMIN_* is bootstrap-only" in script
+    assert "HTTP 403 Forbidden" in script
+    assert "Get-LiveLoginFailureDetails -ErrorRecord $_" in script
     assert "LiveMutationHeaders" in script
     assert "X-Requested-With" in script
     assert "request.Headers.Add('X-Requested-With', 'XMLHttpRequest')" in script

@@ -320,6 +320,17 @@ Set-Location $RepoRoot
 
 `-EnvFile` 会同时用于本地 doctor、登录凭据读取以及 `-StartServices`/`-StopServicesAfter` 的子进程启动，不会修改根目录 `.env` 或当前 PowerShell 会话。
 
+如果登录返回 `HTTP 401 Unauthorized`，脚本会明确提示当前账号被拒绝。`FIRST_ADMIN_USERNAME`/`FIRST_ADMIN_PASSWORD` 只用于首次启动时创建管理员，已有数据库中的账号或后来修改过的密码不会因为修改这两个配置而自动更新；请在当前 PowerShell 进程临时提供有效账号后重跑，不要把凭据写入 `.env`、脚本、报告或 Git：
+
+```powershell
+$env:ATP_USERNAME = '<current-account>'
+$env:ATP_PASSWORD = '<current-password>'
+.\scripts\windows-local-smoke.ps1 -EnvFile .\config\startup-profiles\remote-infra.env
+Remove-Item Env:ATP_USERNAME, Env:ATP_PASSWORD -ErrorAction SilentlyContinue
+```
+
+`HTTP 403 Forbidden` 表示请求被 CSRF、Cookie 策略或服务端权限链路拦截；其他状态只记录状态码，不输出原始异常，避免将 URL、Cookie 或凭据带入报告。
+
 脚本会在 `.local-run/windows-smoke-*.json` 生成脱敏结果报告，不会把登录密码或 access token 写入终端和报告。登录成功后还会检查 `/api/v1/web-recordings/workers`：`local` 模式要求 API 进程本地录制就绪，`worker` 模式要求至少一个已注册且有空闲容量的 Web 录制 Worker；报告会记录模式、注册数和可用数。当 `.env` 使用 `ADB_SCAN_MODE=worker`、配置了 `ANDROID_WORKER_ID` 或传入 `-RequireAndroid` 时，还会要求 `/api/v1/devices/workers` 返回在线 Agent，并发起一次设备扫描、轮询扫描任务回调；普通 `local` 模式会跳过该检查。可按场景跳过检查：
 
 脚本的状态变更请求会统一携带 `X-Requested-With: XMLHttpRequest` 以满足平台 CSRF 防护；文件上传使用登录会话的 `CookieContainer` 传递 HttpOnly access cookie，避免手工拼接 Cookie 导致 401。2026-08-12 在当前 Windows 环境实际验证通过管理员登录、10 项 Playwright、三浏览器矩阵、文件上传和临时对象清理。

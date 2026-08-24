@@ -11,7 +11,7 @@
 
 | 顺序 | 模块 | 状态 | 交付与验收边界 |
 | --- | --- | --- | --- |
-| P0-A | Windows API/Web 可用性复核 | `[~]` | 先解决本地 smoke 使用过期 bootstrap 凭据导致的 401 诊断问题；使用当前有效账号重新验证登录、认证读接口、Playwright、浏览器矩阵、文件传输和报告导出。账号密码只能通过本机环境变量传入，不写入仓库或证据。 |
+| P0-A | Windows API/Web 可用性复核 | `[E]` | 401 安全诊断和凭据来源说明已完成；仍需使用当前有效账号重新验证登录、认证读接口、Playwright、浏览器矩阵、文件传输和报告导出。账号密码只能通过本机环境变量传入，不写入仓库或证据。 |
 | P0-B | Android Worker 单设备验收 | `[E]` | 恢复 `adb devices` 为 `device`，确认 Backend/Windows Agent 配置配对、Worker 心跳、扫描、预约、截图、APK 包名、Android 低代码执行、专项任务和结果证据；当前设备为 `offline`，不能记录为通过。 |
 | P1-C | 真实通知供应商验收 | `[E]` | 在不提交凭据的前提下，用临时 SMTP/企业微信/钉钉目标验证投递、失败重试、历史记录、敏感信息脱敏和性能摘要；本地 SMTP sink 仅作为链路通过，不替代供应商送达。 |
 | P1-D | 外部缺陷平台验收 | `[E]` | 在提供临时测试项目和凭据后，验证 Jira/禅道/GitHub/GitLab 的创建、重复识别、状态同步、内部状态回写、权限和错误脱敏；所有临时 Issue 和凭据使用后清理。 |
@@ -27,7 +27,7 @@
 
 ### 当前推荐动作
 
-先完成 P0-A 的 Windows smoke 账号来源与 401 提示改进，然后用当前有效账号重跑完整 Windows 验收；随后恢复 Android 设备在线状态并开始 P0-B。若设备或外部供应商不可用，继续完善不依赖外部环境的测试、诊断和文档，不把阻塞项改成完成项。
+P0-A 的 Windows smoke 账号来源与 401 提示改进已经完成；下一步用当前有效账号重跑完整 Windows 验收，然后恢复 Android 设备在线状态并开始 P0-B。若设备或外部供应商不可用，继续完善不依赖外部环境的测试、诊断和文档，不把阻塞项改成完成项。
 
 ## 1. 当前基线
 
@@ -250,6 +250,13 @@ N5.2 验收口径：管理员/工程师能够从统一入口定位可见配置�
 - **校验器**：新增 `scripts/validate-android-worker-config.py`，比较 Backend 与 Windows Agent 的共享基础设施/密钥并检查扫描模式、队列、Worker 队列和 Redis 注册前缀；报告只记录字段名和状态。
 - **启动集成**：`windows-android-worker.ps1 doctor -BackendEnvFile <backend-env>` 可在启动前执行配对检查，`startup.ps1` 支持透传；示例配置已统一共享密钥占位符。
 - **边界**：定向回归 `55 passed`，示例配置配对通过；该门禁不替代真实网络、服务凭据、Worker 心跳或 Android 真机证据。
+
+### 2026-08-24 P0-A Windows smoke 401 诊断交付记录
+
+- **实现**：`scripts/windows-local-smoke.ps1` 现在提取登录异常的 HTTP 状态；401 明确提示当前账号被拒绝以及 `FIRST_ADMIN_*` 仅用于首次创建管理员，并引导使用当前账号的 `ATP_USERNAME`/`ATP_PASSWORD`；403 提示检查 CSRF、Cookie 和服务端权限链路，其他异常只保留状态码或通用提示。
+- **安全边界**：不再把登录原始异常文本写入终端或脱敏报告，账号、密码、Cookie 和 Token 仍只通过当前 PowerShell 进程传递；`docs/windows-local-run.md` 已补充临时环境变量用法和清理命令。
+- **验证与审查**：Windows smoke 契约回归 `11 passed`，PowerShell AST 解析通过，`git diff --check` 通过；代码审查未发现需要修复的问题。
+- **待验收**：当前只证明诊断逻辑和脚本语法，尚未使用真实有效账号重跑 Windows 登录、认证读接口、Playwright、浏览器矩阵、文件传输和报告导出，因此仍标记为“已实现，待环境验收”。
 
 ## 4. 推荐执行顺序
 
