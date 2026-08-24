@@ -43,3 +43,20 @@ def test_default_idempotency_key_is_unique_for_local_cli(monkeypatch):
 
     assert first.startswith("cli-performance-7-")
     assert first != second
+
+
+def test_build_gate_url_only_adds_opt_in_baseline_policies():
+    script = _module()
+
+    assert script.build_gate_url("https://atp.example/", 9) == (
+        "https://atp.example/api/v1/webhook/performance-runs/9/gate"
+    )
+    assert script.build_gate_url(
+        "https://atp.example",
+        9,
+        require_baseline=True,
+        fail_on_baseline_regression=True,
+    ) == (
+        "https://atp.example/api/v1/webhook/performance-runs/9/gate?"
+        "require_baseline=true&fail_on_baseline_regression=true"
+    )

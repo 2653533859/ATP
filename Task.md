@@ -37,7 +37,17 @@
 - [x] `/system/performance` 与 `/performance-workbench` 增加近 7/30/90 天趋势切换、加载/空状态、双语文案和异步响应隔离。
 - [x] 代码审查修复项目清空时趋势加载状态残留，并新增回归断言。
 - [x] 验证：后端趋势/容量/API 定向 `79 passed`，完整非集成后端 `2220 passed`；前端趋势定向 `15 passed`、全量 `66 files / 265 tests passed`，type-check/build、Ruff、格式检查和 diff-check 通过。
-- [ ] 后续：真实性能多节点、容量限制、长周期报告留存和阈值回归环境验收。
+- [x] P1-E.2 已补齐可选基线门禁：`require_baseline`、`fail_on_baseline_regression`、CLI 参数和 Webhook 透传；默认阈值门禁兼容，运行失败/取消状态优先；定向 `88 passed`，完整非集成后端 `2224 passed`。
+- [ ] 后续：真实性能多节点、容量限制和长周期报告留存环境验收。
+
+## 2026-08-25 P1-E.2 性能基线回归门禁本地交付
+
+- [x] 性能运行门禁和 CI Webhook 支持 `require_baseline=true`，无可用成功基线时返回 `not_configured`。
+- [x] 支持 `fail_on_baseline_regression=true`，对 RPS、P95、P99、错误率按业务方向判断回归；仅对成功运行覆盖门禁，不覆盖运行本身失败/取消状态。
+- [x] `scripts/performance-gate.py` 新增 `--require-baseline`、`--fail-on-baseline-regression`，默认 URL 不带策略参数，保持旧 CI 调用兼容。
+- [x] 代码审查修复 FastAPI 查询默认值与直接函数单测不一致的问题，并补齐无基线、回归、失败运行和 CLI URL 回归。
+- [x] 验证：性能报告/API/Webhook/CLI 定向 `88 passed`，完整非集成后端 `2224 passed`，Ruff/格式检查通过。
+- [ ] 后续：真实多节点/容量、节点资源限制、长周期报告留存和外部性能环境验收。
 
 ## 2026-08-24 参考导航执行跟踪版
 

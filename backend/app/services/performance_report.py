@@ -62,6 +62,39 @@ def build_performance_gate(status: str, summary: dict[str, Any] | None) -> dict[
     }
 
 
+def apply_baseline_gate(
+    gate: dict[str, Any],
+    *,
+    run_id: int,
+    baseline_run_id: int | None,
+    baseline_available: bool,
+    baseline_summary: dict[str, Any] | None,
+    current_summary: dict[str, Any] | None,
+    require_baseline: bool = False,
+    fail_on_baseline_regression: bool = False,
+) -> dict[str, Any]:
+    """Apply optional baseline policy without changing the default gate contract."""
+
+    result = dict(gate)
+    if not result["ready"]:
+        return result
+    if result["run_status"] != "success":
+        return result
+    if require_baseline and not baseline_available:
+        result["status"] = "not_configured"
+        return result
+    if fail_on_baseline_regression and baseline_available and baseline_run_id != run_id:
+        comparison = build_baseline_comparison(
+            baseline_run_id=baseline_run_id or 0,
+            run_id=run_id,
+            baseline_summary=baseline_summary,
+            current_summary=current_summary,
+        )
+        if any(metric["direction"] == "regression" for metric in comparison["metrics"]):
+            result["status"] = "failed"
+    return result
+
+
 _BASELINE_METRICS: tuple[tuple[str, str], ...] = (
     ("rps", "higher"),
     ("p95_ms", "lower"),

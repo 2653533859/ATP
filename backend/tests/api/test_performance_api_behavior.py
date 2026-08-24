@@ -1174,6 +1174,14 @@ def test_baseline_comparison_and_gate_are_project_scoped_contracts():
 
     comparison = asyncio.run(performance.get_performance_baseline_comparison(run_id=current.id, db=db, user=_User()))
     gate = asyncio.run(performance.get_performance_run_gate(run_id=current.id, db=db, user=_User()))
+    regression_gate = asyncio.run(
+        performance.get_performance_run_gate(
+            run_id=current.id,
+            fail_on_baseline_regression=True,
+            db=db,
+            user=_User(),
+        )
+    )
 
     assert comparison["baseline_run_id"] == baseline.id
     assert {row["metric"]: row["direction"] for row in comparison["metrics"]} == {
@@ -1190,6 +1198,7 @@ def test_baseline_comparison_and_gate_are_project_scoped_contracts():
         "passed": 0,
         "failed": 0,
     }
+    assert regression_gate["status"] == "failed"
 
 
 def test_list_performance_runs_is_scoped_and_capped():

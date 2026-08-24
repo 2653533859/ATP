@@ -19,7 +19,7 @@ from app.models.performance import PerformanceRun, PerformanceRunStatus, Perform
 from app.models.environment import Environment, EnvVariable
 from app.core.encryption import decrypt_env_vars
 from app.core.tracing import get_trace_id
-from app.services.performance_report import build_performance_gate
+from app.services.performance_report import apply_baseline_gate, build_performance_gate
 from app.services.performance_runtime import build_options_snapshot
 from app.services.performance_idempotency import (
     PerformanceIdempotencyConflict,
@@ -288,6 +288,8 @@ async def webhook_trigger(
 )
 async def webhook_performance_gate(
     run_id: int,
+    require_baseline: bool = False,
+    fail_on_baseline_regression: bool = False,
     db: AsyncSession = Depends(get_db),
     _api_key: str = Depends(_verify_api_key),
 ):
@@ -295,4 +297,27 @@ async def webhook_performance_gate(
     run = await db.get(PerformanceRun, run_id)
     if run is None:
         raise HTTPException(status_code=404, detail="压测执行不存在")
-    return WebhookPerformanceGateResponse(run_id=run.id, **build_performance_gate(run.status, run.summary))
+    gate = build_performance_gate(run.status, run.summary)
+    if not require_baseline and not fail_on_baseline_regression:
+        return WebhookPerformanceGateResponse(run_id=run.id, **gate)
+    test = await db.get(PerformanceTest, run.performance_test_id)
+    baseline_id = getattr(test, "baseline_run_id", None)
+    baseline = await db.get(PerformanceRun, baseline_id) if baseline_id else None
+    baseline_available = bool(
+        test
+        and baseline
+        and baseline.performance_test_id == test.id
+        and baseline.project_id == run.project_id
+        and baseline.status == PerformanceRunStatus.success.value
+    )
+    gate = apply_baseline_gate(
+        gate,
+        run_id=run.id,
+        baseline_run_id=baseline_id,
+        baseline_available=baseline_available,
+        baseline_summary=baseline.summary if baseline_available else None,
+        current_summary=run.summary,
+        require_baseline=require_baseline,
+        fail_on_baseline_regression=fail_on_baseline_regression,
+    )
+    return WebhookPerformanceGateResponse(run_id=run.id, **gate)

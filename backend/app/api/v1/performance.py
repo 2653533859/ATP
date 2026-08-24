@@ -51,6 +51,7 @@ from app.schemas.performance_node import PerformanceNodeCreate, PerformanceNodeO
 from app.services.performance_options import ENVIRONMENT_SNAPSHOT_KEY
 from app.services.performance_control import request_cancel
 from app.services.performance_report import (
+    apply_baseline_gate,
     build_baseline_comparison,
     build_performance_gate,
     build_threshold_gate,
@@ -1149,6 +1150,8 @@ async def stop_performance_run(
 @router.get("/performance/runs/{run_id}/gate", response_model=PerformanceGateOut)
 async def get_performance_run_gate(
     run_id: int,
+    require_baseline: bool = False,
+    fail_on_baseline_regression: bool = False,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
@@ -1156,7 +1159,29 @@ async def get_performance_run_gate(
     if run is None:
         raise HTTPException(status_code=404, detail="压测执行不存在")
     await assert_project_access(db, user, run.project_id, ProjectRole.viewer)
-    return build_performance_gate(run.status, run.summary)
+    gate = build_performance_gate(run.status, run.summary)
+    if not require_baseline and not fail_on_baseline_regression:
+        return gate
+    test = await db.get(PerformanceTest, run.performance_test_id)
+    baseline_id = getattr(test, "baseline_run_id", None)
+    baseline = await db.get(PerformanceRun, baseline_id) if baseline_id else None
+    baseline_available = bool(
+        test
+        and baseline
+        and baseline.performance_test_id == test.id
+        and baseline.project_id == run.project_id
+        and baseline.status == PerformanceRunStatus.success.value
+    )
+    return apply_baseline_gate(
+        gate,
+        run_id=run.id,
+        baseline_run_id=baseline_id,
+        baseline_available=baseline_available,
+        baseline_summary=baseline.summary if baseline_available else None,
+        current_summary=run.summary,
+        require_baseline=require_baseline,
+        fail_on_baseline_regression=fail_on_baseline_regression,
+    )
 
 
 @router.get(

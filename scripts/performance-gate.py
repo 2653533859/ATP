@@ -11,6 +11,7 @@ import uuid
 from pathlib import Path
 from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
+from urllib.parse import urlencode
 
 
 def _request_json(url: str, method: str, api_key: str, payload: dict | None = None) -> dict:
@@ -74,6 +75,24 @@ def default_idempotency_key(test_id: int, environment_id: int | None) -> str:
     return f"cli-performance-{test_id}-{uuid.uuid4().hex}"
 
 
+def build_gate_url(
+    base_url: str,
+    run_id: int,
+    *,
+    require_baseline: bool = False,
+    fail_on_baseline_regression: bool = False,
+) -> str:
+    """Build the polling URL while keeping baseline policy opt-in."""
+
+    params = {}
+    if require_baseline:
+        params["require_baseline"] = "true"
+    if fail_on_baseline_regression:
+        params["fail_on_baseline_regression"] = "true"
+    url = f"{base_url.rstrip('/')}/api/v1/webhook/performance-runs/{run_id}/gate"
+    return f"{url}?{urlencode(params)}" if params else url
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--base-url", default=os.environ.get("ATP_BASE_URL"), required=False)
@@ -89,6 +108,16 @@ def main() -> int:
         help="重复执行 CI 时复用的幂等键；未提供时优先使用 CI run ID，否则每次 CLI 调用生成新键",
     )
     parser.add_argument("--options-file", default=None)
+    parser.add_argument(
+        "--require-baseline",
+        action="store_true",
+        help="没有可用基线时返回 not_configured（退出码 2）",
+    )
+    parser.add_argument(
+        "--fail-on-baseline-regression",
+        action="store_true",
+        help="基线核心指标出现回归时让门禁失败",
+    )
     parser.add_argument("--timeout", type=float, default=1800)
     parser.add_argument("--poll-interval", type=float, default=5)
     args = parser.parse_args()
@@ -115,7 +144,12 @@ def main() -> int:
         deadline = time.monotonic() + args.timeout
         while True:
             gate = _request_json(
-                f"{base_url}/api/v1/webhook/performance-runs/{run_id}/gate",
+                build_gate_url(
+                    base_url,
+                    run_id,
+                    require_baseline=args.require_baseline,
+                    fail_on_baseline_regression=args.fail_on_baseline_regression,
+                ),
                 "GET",
                 args.api_key,
             )

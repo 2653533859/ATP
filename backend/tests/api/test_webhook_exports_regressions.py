@@ -165,6 +165,20 @@ class _FakeExportDB:
         return _FakeExecuteResult([])
 
 
+class _FakeGateDB:
+    def __init__(self, test, runs):
+        self.test = test
+        self.runs = runs
+
+    async def get(self, model, object_id):
+        model_name = getattr(model, "__name__", "")
+        if model_name == "PerformanceTest":
+            return self.test
+        if model_name == "PerformanceRun":
+            return self.runs.get(object_id)
+        return None
+
+
 def test_webhook_suite_trigger_uses_valid_user_reference(monkeypatch):
     delayed = {}
     monkeypatch.setattr(webhook, "SuiteRun", _FakeSuiteRun)
@@ -330,6 +344,61 @@ def test_webhook_performance_trigger_passes_executor_to_validation_and_node_sele
     asyncio.run(webhook.webhook_trigger(request=_fake_request(), body=body, db=db, _api_key="ok"))
 
     assert calls == {"validation": "grpc", "node": "grpc"}
+
+
+def test_webhook_performance_gate_can_fail_on_baseline_regression():
+    test = types.SimpleNamespace(id=7, baseline_run_id=1)
+    baseline = types.SimpleNamespace(
+        id=1,
+        project_id=2,
+        performance_test_id=7,
+        status="success",
+        summary={"rps": 100, "p95_ms": 100},
+    )
+    current = types.SimpleNamespace(
+        id=2,
+        project_id=2,
+        performance_test_id=7,
+        status="success",
+        summary={"rps": 90, "p95_ms": 120},
+    )
+    db = _FakeGateDB(test, {1: baseline, 2: current})
+
+    result = asyncio.run(
+        webhook.webhook_performance_gate(
+            run_id=current.id,
+            fail_on_baseline_regression=True,
+            db=db,
+            _api_key="ok",
+        )
+    )
+
+    assert result.status == "failed"
+    assert result.ready is True
+
+
+def test_webhook_performance_gate_requires_a_configured_baseline():
+    test = types.SimpleNamespace(id=8, baseline_run_id=None)
+    current = types.SimpleNamespace(
+        id=3,
+        project_id=2,
+        performance_test_id=8,
+        status="success",
+        summary={"thresholds": {"rps": {">1": {"ok": True}}}},
+    )
+    db = _FakeGateDB(test, {3: current})
+
+    result = asyncio.run(
+        webhook.webhook_performance_gate(
+            run_id=current.id,
+            require_baseline=True,
+            db=db,
+            _api_key="ok",
+        )
+    )
+
+    assert result.status == "not_configured"
+    assert result.ready is True
 
 
 def test_export_run_junit_reports_run_failure_without_steps(monkeypatch):

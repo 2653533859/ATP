@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 P1-E.2 性能基线回归门禁本地交付已完成：性能运行门禁与 Webhook 支持可选 `require_baseline=true` 和 `fail_on_baseline_regression=true`；CLI `scripts/performance-gate.py` 对应新增两个开关，默认调用 URL 不变。只接受同一压测定义/项目下的成功基线；基线缺失返回 `not_configured`，运行本身失败或取消优先保留原状态。代码审查修复 FastAPI `Query(False)` 在直接调用路由单测中表现为 truthy 查询对象的问题，改为普通布尔默认值；报告/API/Webhook/CLI 定向 `88 passed`，完整非集成后端 `2224 passed`，Ruff/格式检查通过。真实多节点、容量、报告留存和 Android 设备仍未完成。
+
 - 2026-08-25 P1-E.1 性能长期趋势本地交付已完成：新增项目级 `GET /api/v1/projects/{project_id}/performance/trend`，支持 1～365 天固定 UTC 日窗口、空日期补齐、项目 viewer 权限、性能场景筛选、完成/开始/创建时间归档、分片父运行去重和摘要指标聚合；`/system/performance` 与 `/performance-workbench` 均支持近 7/30/90 天切换。审查发现并修复项目清空时趋势请求被丢弃后 `trendLoading` 残留，新增回归断言。后端趋势/容量/API 定向 `79 passed`，完整非集成后端 `2220 passed`；前端定向 `15 passed`、全量 `66 files / 265 tests passed`，type-check/build、Ruff、格式检查和 diff-check 通过。真实多节点容量、节点资源限制、长周期报告留存和阈值回归仍未完成，不能用本地 mock 历史替代。
 
 - 2026-08-24 已将参考导航同步为可执行开发计划：主计划为 `docs/product-navigation-roadmap-2026-08-24.md` 的“导航对齐执行版计划”，`Task.md` 维护勾选状态。计划按工作台、测试能力（API/APP/UI/性能/AI）、测试资产、智能中枢、系统和质量发布六阶段跟踪；每个模块必须执行实现 → 定向/全量测试 → 代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 推送。当前本地工作台和业务模块大多已完成，真实验收仍受 Android ADB `offline`、通知供应商/外部缺陷平台凭据和真实性能多节点环境限制；这些状态不能改记为完成。
