@@ -290,3 +290,15 @@ def test_windows_local_smoke_covers_live_and_browser_paths_without_secrets():
     assert "ADB_SCAN_MODE" in script
     assert "ConvertTo-Json" in script
     assert "F:\\csh\\MyProjectAutoTest" not in script
+
+
+def test_windows_local_smoke_seeds_web_run_before_report_export():
+    script = _read("scripts/windows-local-smoke.ps1")
+
+    call_order = [
+        script.rfind("Invoke-SeedWebDownloadCase"),
+        script.rfind("Invoke-WebLowcodeCheck"),
+        script.rfind("Invoke-ReportChecks"),
+        script.rfind("Invoke-CleanupSeededWebProject"),
+    ]
+    assert call_order == sorted(call_order)

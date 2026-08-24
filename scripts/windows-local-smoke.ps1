@@ -944,9 +944,10 @@ if ($healthReady -and $frontendReady) {
 }
 
 Invoke-FileTransferCheck
-Invoke-ReportChecks
 Invoke-SeedWebDownloadCase
 Invoke-WebLowcodeCheck
+# A seeded Web run also provides a report source for a clean database.
+Invoke-ReportChecks
 Invoke-CleanupSeededWebProject
 Invoke-AndroidCheck
 Invoke-AndroidWorkerRegistryCheck -Values $values
