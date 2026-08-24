@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-24 已同步当前开发计划总表：主计划为 `docs/product-navigation-roadmap-2026-08-24.md`，`Task.md` 同步维护勾选状态。当前顺序固定为 P0-A Windows API/Web 可用性复核（先改善 smoke 的 401 安全诊断，再用当前有效账号重跑完整 Windows 验收）→ P0-B Android Worker 单设备真实验收（设备必须从 `offline/unauthorized` 恢复为 `device`）→ P1-C 真实通知供应商 → P1-D Jira/禅道/GitHub/GitLab 外部缺陷平台 → P1-E 性能多节点/容量/长期趋势 → P1-F 发布文档收口。P0-B/P1-C/P1-D 的代码已完成、待真实环境验收；P1-E 的单节点短压已有证据，但多节点/容量/长期趋势仍在开发和验收计划中。不能把 mock、本地 SMTP sink、ADB offline 或无凭据状态记为通过；凭据只能由本机环境变量/临时环境提供，禁止写入仓库、日志和证据。每个模块必须按“实现/调整 → 测试 → 代码审查 → 修复 → 文档与记忆同步 → 提交推送”闭环。
+
 - 2026-08-24 N0 导航分组收口已完成：侧栏按参考导航仅保留工作台、测试能力五项、测试资产五项、智能中枢三项和系统远程工具箱/配置中心；设备、APK、专项任务、报告、Mock、数据集、Web/API 资产及系统治理旧页面保留 URL，并映射到所属工作台或配置中心高亮。配置中心新增按管理员权限显示的用户、审计、保留策略和告警快捷区，避免删掉入口。定向前端 `9 passed`、后端静态契约 `7 passed`，全量前端 `66 files / 263 tests passed`，type-check/build 通过。
 
 - 2026-08-24 N0 导航壳体验收口已完成：新增统一导航状态模块 `frontend/src/layouts/navigation.ts` 和回归测试，主布局新增五组导航面包屑；深层用例/项目路由保持正确选中，Android 专项任务/报告详情使用具体页面标题，系统页和旧 URL 保持兼容。导航定向 `6 passed`，前端全量 `66 files / 262 tests passed`，type-check 通过；本次未改变权限规则或后端执行逻辑。
