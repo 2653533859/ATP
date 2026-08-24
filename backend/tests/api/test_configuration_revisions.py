@@ -30,7 +30,7 @@ from app.models.configuration_revision import ConfigurationRevision
 from app.models.environment import Environment, EnvVariable
 from app.models.performance_node import PerformanceNode
 from app.models.user import User, UserRole
-from app.schemas.configuration_center import ConfigurationRevisionCreateIn
+from app.schemas.configuration_center import ConfigurationRevisionCreateIn, ConfigurationRevisionRollbackIn
 
 load_all_models()
 
@@ -59,7 +59,7 @@ class _DB:
         self.flush_count = 0
         self.commit_count = 0
 
-    async def get(self, model, resource_id):
+    async def get(self, model, resource_id, **_kwargs):
         return self.objects.get((model, resource_id))
 
     async def execute(self, statement):
@@ -83,6 +83,13 @@ class _DB:
 
     async def commit(self):
         self.commit_count += 1
+
+    async def rollback(self):
+        self.rollback_count = getattr(self, "rollback_count", 0) + 1
+
+    async def delete(self, obj):
+        if isinstance(obj, EnvVariable):
+            self.variables = [item for item in self.variables if item is not obj]
 
     async def refresh(self, _obj):
         return None
@@ -391,3 +398,150 @@ def test_engineer_can_create_performance_node_revision():
     assert result.domain == "performance_node"
     assert result.project_id is None
     assert result.redacted_payload["resource"]["egress_allowlist"] == {"count": 1}
+
+
+def test_revision_rollback_restores_single_environment_and_creates_a_new_revision():
+    environment = Environment(id=1, name="旧环境", project_id=10, description="原始")
+    variable = EnvVariable(id=2, env_id=1, key="TIMEOUT_SECONDS", value="10", is_secret=False)
+    db = _DB(objects=[environment], variables=[variable])
+    source = asyncio.run(
+        configuration_center.create_configuration_revision(
+            body=ConfigurationRevisionCreateIn(domain="environment", resource_id=1, reason="回滚前备份"),
+            db=db,
+            user=_user(UserRole.admin),
+        )
+    )
+    environment.name = "新环境"
+    environment.description = "错误配置"
+    variable.value = "20"
+
+    result = asyncio.run(
+        configuration_center.rollback_configuration_revision_endpoint(
+            body=ConfigurationRevisionRollbackIn(confirmation="ROLLBACK"),
+            revision_id=source.id,
+            db=db,
+            user=_user(UserRole.admin),
+        )
+    )
+
+    assert result.changed is True
+    assert result.source_revision_id == source.id
+    assert result.revision.reason == "配置回滚"
+    assert environment.name == "旧环境"
+    assert environment.description == "原始"
+    assert variable.value == "10"
+    assert result.revision.id != source.id
+    audit = next(
+        item for item in db.added if isinstance(item, AuditLog) and item.action == "configuration_revision_rollback"
+    )
+    assert "source_revision_id=" in (audit.detail or "")
+    assert "TIMEOUT_SECONDS" not in (audit.detail or "")
+
+
+def test_revision_rollback_reencrypts_ai_secret_and_keeps_it_out_of_response():
+    config = AILLMConfig(
+        id=1,
+        name="primary",
+        provider="ollama",
+        api_key_encrypted=encrypt("old-ai-secret"),
+        model_name="old-model",
+        default_params={"temperature": 0.2},
+        enabled=True,
+    )
+    db = _DB(objects=[config])
+    source = asyncio.run(
+        configuration_center.create_configuration_revision(
+            body=ConfigurationRevisionCreateIn(domain="ai_llm", resource_id=1),
+            db=db,
+            user=_user(UserRole.admin),
+        )
+    )
+    config.model_name = "new-model"
+    config.api_key_encrypted = encrypt("new-ai-secret")
+
+    result = asyncio.run(
+        configuration_center.rollback_configuration_revision_endpoint(
+            body=ConfigurationRevisionRollbackIn(confirmation="ROLLBACK"),
+            revision_id=source.id,
+            db=db,
+            user=_user(UserRole.admin),
+        )
+    )
+
+    assert result.changed is True
+    assert config.model_name == "old-model"
+    assert decrypt(config.api_key_encrypted) == "old-ai-secret"
+    assert "old-ai-secret" not in str(result.model_dump())
+    assert "new-ai-secret" not in str(result.model_dump())
+
+
+def test_non_admin_cannot_rollback_ai_revision():
+    config = AILLMConfig(
+        id=1,
+        name="restricted",
+        provider="ollama",
+        api_key_encrypted=encrypt("ai-secret"),
+        model_name="local",
+        enabled=True,
+    )
+    db = _DB(objects=[config])
+    source = asyncio.run(
+        configuration_center.create_configuration_revision(
+            body=ConfigurationRevisionCreateIn(domain="ai_llm", resource_id=1),
+            db=db,
+            user=_user(UserRole.admin),
+        )
+    )
+
+    try:
+        asyncio.run(
+            configuration_center.rollback_configuration_revision_endpoint(
+                body=ConfigurationRevisionRollbackIn(confirmation="ROLLBACK"),
+                revision_id=source.id,
+                db=db,
+                user=_user(UserRole.engineer),
+            )
+        )
+    except HTTPException as exc:
+        assert exc.status_code == 403
+    else:
+        raise AssertionError("非管理员不应回滚 AI 配置")
+
+
+def test_revision_rollback_rejects_tampered_payload_and_rolls_back_transaction():
+    config = AILLMConfig(
+        id=1,
+        name="primary",
+        provider="ollama",
+        api_key_encrypted=encrypt("stable-secret"),
+        model_name="stable-model",
+        enabled=True,
+    )
+    db = _DB(objects=[config])
+    source = asyncio.run(
+        configuration_center.create_configuration_revision(
+            body=ConfigurationRevisionCreateIn(domain="ai_llm", resource_id=1),
+            db=db,
+            user=_user(UserRole.admin),
+        )
+    )
+    source_revision = next(item for item in db.added if isinstance(item, ConfigurationRevision))
+    source_revision.fingerprint = "0" * 64
+
+    try:
+        asyncio.run(
+            configuration_center.rollback_configuration_revision_endpoint(
+                body=ConfigurationRevisionRollbackIn(confirmation="ROLLBACK"),
+                revision_id=source.id,
+                db=db,
+                user=_user(UserRole.admin),
+            )
+        )
+    except HTTPException as exc:
+        assert exc.status_code == 409
+    else:
+        raise AssertionError("篡改后的配置版本不应被回滚")
+
+    assert db.rollback_count == 1
+    assert config.model_name == "stable-model"
+    assert decrypt(config.api_key_encrypted) == "stable-secret"

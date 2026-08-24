@@ -255,7 +255,7 @@ def _walk_diff(
     return False
 
 
-def _decode_revision_payload(revision: ConfigurationRevision) -> dict[str, Any]:
+def decode_configuration_revision_payload(revision: ConfigurationRevision) -> dict[str, Any]:
     try:
         payload = json.loads(decrypt(revision.payload_encrypted))
     except Exception as exc:
@@ -267,6 +267,11 @@ def _decode_revision_payload(revision: ConfigurationRevision) -> dict[str, Any]:
     if _fingerprint(_canonical_json(payload)) != revision.fingerprint:
         raise ConfigurationRevisionIntegrityError("历史配置版本校验失败")
     return payload
+
+
+# Kept as a private alias for callers that imported the helper while the diff
+# endpoint was being developed.  New write paths use the explicit public name.
+_decode_revision_payload = decode_configuration_revision_payload
 
 
 def _impact_for(domain: str, *, current_available: bool, changed: bool) -> list[dict[str, Any]]:
@@ -286,7 +291,7 @@ async def build_configuration_revision_diff(
     user: User,
     revision: ConfigurationRevision,
 ) -> ConfigurationRevisionDiff:
-    historical_payload = _decode_revision_payload(revision)
+    historical_payload = decode_configuration_revision_payload(revision)
 
     try:
         current = await load_configuration_snapshot(

@@ -15,3 +15,4 @@ def test_api_v1_router_registers_core_and_recent_resource_routes():
     assert "/api/v1/users" in paths
     assert "/api/v1/configuration-center/overview" in paths
     assert "/api/v1/configuration-center/revisions/{revision_id}/diff" in paths
+    assert "/api/v1/configuration-center/revisions/{revision_id}/rollback" in paths

@@ -1,18 +1,21 @@
-"""Safe, read-only aggregation for the system configuration center.
+"""Safe aggregation and controlled revision operations for the configuration center.
 
-The configuration center is an index, not a second write API.  Existing resource
-APIs remain the source of truth for edits and permissions.  This endpoint only
-returns metadata and deliberately avoids decrypting any secret value.
+Existing resource APIs remain the source of truth for ordinary edits and
+permissions.  Revision snapshots and explicitly confirmed single-resource
+rollbacks are the only write operations here; responses deliberately avoid
+decrypting any secret value.
 """
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+import logging
 from dataclasses import asdict
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy import and_, or_, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_project_role, require_engineer
@@ -33,6 +36,8 @@ from app.schemas.configuration_center import (
     ConfigurationRevisionCreateIn,
     ConfigurationRevisionDiffOut,
     ConfigurationRevisionOut,
+    ConfigurationRevisionRollbackIn,
+    ConfigurationRevisionRollbackOut,
     ConfigurationSectionOut,
 )
 from app.services.audit import write_audit_log
@@ -45,9 +50,16 @@ from app.services.configuration_snapshots import (
 )
 from app.services.configuration_diffs import (
     ConfigurationRevisionDiffError,
+    ConfigurationRevisionIntegrityError,
     build_configuration_revision_diff,
 )
+from app.services.configuration_rollbacks import (
+    ConfigurationRollbackError,
+    rollback_configuration_revision,
+)
 from app.services.project_scope import visible_project_ids
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/configuration-center", tags=["配置中心"])
 
@@ -568,3 +580,72 @@ async def diff_configuration_revision(
     except ConfigurationRevisionDiffError as exc:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
     return ConfigurationRevisionDiffOut.model_validate(asdict(diff))
+
+
+@router.post(
+    "/revisions/{revision_id}/rollback",
+    response_model=ConfigurationRevisionRollbackOut,
+)
+async def rollback_configuration_revision_endpoint(
+    body: ConfigurationRevisionRollbackIn,
+    revision_id: int = Path(..., ge=1),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+) -> ConfigurationRevisionRollbackOut:
+    """Restore one visible revision after an explicit confirmation."""
+
+    revision = await db.get(ConfigurationRevision, revision_id)
+    if revision is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="配置版本不存在")
+    await _assert_revision_visible(db, user, revision)
+    try:
+        result = await rollback_configuration_revision(db, user, revision)
+        # Refresh while the transaction is still open so a refresh failure can
+        # still abort the configuration mutation before it becomes durable.
+        await db.refresh(result.revision)
+        await write_audit_log(
+            db,
+            action="configuration_revision_rollback",
+            resource_type=f"configuration:{result.domain}",
+            resource_id=result.resource_id,
+            user_id=user.id,
+            username=user.username,
+            project_id=result.revision.project_id,
+            detail=(
+                f"配置版本回滚: source_revision_id={result.source_revision_id}, "
+                f"domain={result.domain}, resource_id={result.resource_id}, "
+                f"source_fingerprint={revision.fingerprint}, "
+                f"result_fingerprint={result.revision.fingerprint}, changed={result.changed}"
+            ),
+        )
+        await db.commit()
+    except (ConfigurationRevisionIntegrityError, ConfigurationRollbackError) as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ConfigurationSnapshotNotFound as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ConfigurationSnapshotForbidden as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except ConfigurationSnapshotUnsupported as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="回滚后的配置与现有唯一约束冲突") from exc
+    except HTTPException:
+        await db.rollback()
+        raise
+    except Exception as exc:
+        await db.rollback()
+        logger.error("Configuration revision rollback failed: %s", type(exc).__name__)
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="配置回滚失败，未应用任何变更") from exc
+    return ConfigurationRevisionRollbackOut(
+        source_revision_id=result.source_revision_id,
+        resource_id=result.resource_id,
+        domain=result.domain,
+        changed=result.changed,
+        message=result.message,
+        revision=_revision_out(result.revision),
+    )

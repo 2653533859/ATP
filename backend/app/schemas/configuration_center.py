@@ -61,6 +61,12 @@ class ConfigurationRevisionCreateIn(BaseModel):
     reason: str | None = Field(default=None, max_length=512)
 
 
+class ConfigurationRevisionRollbackIn(BaseModel):
+    """Explicit confirmation required before a historical version is restored."""
+
+    confirmation: Literal["ROLLBACK"] = Field(description="必须明确填写 ROLLBACK，避免误触发配置回滚")
+
+
 class ConfigurationRevisionOut(BaseModel):
     id: int
     domain: str
@@ -75,6 +81,15 @@ class ConfigurationRevisionOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ConfigurationRevisionRollbackOut(BaseModel):
+    source_revision_id: int
+    resource_id: int
+    domain: str
+    changed: bool
+    message: str
+    revision: ConfigurationRevisionOut
 
 
 class ConfigurationRevisionDiffChangeOut(BaseModel):
