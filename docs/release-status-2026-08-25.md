@@ -40,6 +40,13 @@
 - q19 已从 `origin/main` 的 `257c479` 独立工作树重建并启动；迁移 `20260824_0065 (head)`、健康 `200`、Prometheus 4 个 target `up`、Celery 2 节点响应、后端最近 3 分钟错误匹配数为 0；详见 [`q19-android-recording-deployment-2026-08-25.json`](evidence/q19-android-recording-deployment-2026-08-25.json)。
 - 发布边界：当前没有真实 Android 录屏采集证据，ADB 仍为 `offline`；这项改动不关闭 Android 真机发布门禁。
 
+## 2026-08-25 P1-D 外部缺陷平台错误安全收口
+
+- 连接测试、创建缺陷和刷新状态入口已统一脱敏供应商异常，覆盖 Token、密码、Webhook 查询参数和 URL 用户信息；创建/状态刷新返回 502，连接测试返回 `ok=false`。
+- 缺陷跟踪入口的 mypy 变量复用问题已修复，成功创建、重复检测、状态同步和附件上传路径保持不变。
+- 本地证据：提交 `31df065`，外部缺陷定向 `40 passed`、完整后端非集成 `2234 passed`，Ruff、格式、mypy 和 diff-check 通过；详见 [`external-tracker-error-safety-2026-08-25.json`](evidence/external-tracker-error-safety-2026-08-25.json)。
+- 发布边界：没有真实外部缺陷平台项目与凭据，本模块不关闭 Jira/禅道/GitHub/GitLab 的环境验收门禁。
+
 ## 2026-08-25 Windows 已认证浏览器冒烟复核
 
 - 复用当前已登录的 Windows 浏览器会话，实际加载统计看板、工作台概览、我的待办、用例管理、执行记录、测试套件、存储管理和 API 契约资产；页面均保持在业务页，未回到登录页，用户菜单显示为 `admin`。

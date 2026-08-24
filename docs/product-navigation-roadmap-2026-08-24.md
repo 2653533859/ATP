@@ -94,6 +94,13 @@
 - **远端部署**：q19 已从 `origin/main` 的 `257c479` 独立工作树重建并启动；迁移 `20260824_0065 (head)`、健康 `200`、Prometheus 4 个 target `up`、Celery 2 节点响应、后端最近 3 分钟错误匹配数为 0。证据见 [`q19-android-recording-deployment-2026-08-25.json`](evidence/q19-android-recording-deployment-2026-08-25.json)。
 - **边界**：本模块证明结果展示/报告链路，不证明设备端真实录屏采集；ADB 当前 `offline`，P0-B 仍需真实设备恢复为 `device` 后验收。
 
+### 2026-08-25 P1-D 外部缺陷平台错误安全收口
+
+- **问题**：缺陷跟踪连接、创建和状态刷新入口会把第三方异常原文直接返回，异常可能包含 Token、密码、Webhook 查询参数或 URL 用户信息；缺陷创建入口还存在查询结果变量复用导致的 mypy 类型错误。
+- **实现**：新增统一 `safe_external_error`，覆盖敏感字段、URL 查询密钥和 URL 用户信息脱敏，并限制错误长度；连接测试、创建缺陷、刷新状态分别保持失败响应结构或返回 502，不泄露供应商原文。
+- **审查与验证**：提交 `31df065`；外部缺陷定向 `40 passed`，完整后端非集成 `2234 passed`，Ruff、格式、mypy 和 `git diff --check` 通过。脱敏证据见 [`external-tracker-error-safety-2026-08-25.json`](evidence/external-tracker-error-safety-2026-08-25.json)。
+- **边界**：本模块只证明本地错误边界和脱敏逻辑，真实 Jira、禅道、GitHub Issues、GitLab Issues 的创建、去重、状态同步、权限和清理仍待临时目标与凭据。
+
 ### 2026-08-25 工作台任务状态枚举隔离修复
 
 - **问题**：q19 日志显示 `/workbench/overview` 将跨任务域失败状态集合直接用于每张运行表，普通 `TestRun` 查询因此收到 Android `stopped`，触发 PostgreSQL enum 错误。

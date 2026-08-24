@@ -42,6 +42,14 @@
 - [x] q19 已从 `origin/main` 的 `257c479` 独立工作树重建并启动；迁移 `20260824_0065 (head)`、健康 `200`、Prometheus 4 个 target `up`、Celery 2 节点响应、后端最近 3 分钟错误匹配数为 0。证据见 [`q19-android-recording-deployment-2026-08-25.json`](docs/evidence/q19-android-recording-deployment-2026-08-25.json)。
 - [E] 本轮只验证结果展示与报告链路，未使用真实 Android 设备生成录屏；当前 ADB 仍为 `offline`，P0-B 单设备执行证据继续保持未验收。
 
+## 2026-08-25 P1-D 外部缺陷平台错误安全收口
+
+- [x] 新增统一 `safe_external_error`，对供应商异常中的字段密钥、查询参数密钥和 URL 用户信息脱敏并限制返回长度。
+- [x] 连接测试、创建缺陷、刷新缺陷状态三个入口不再把供应商原始异常直接返回；创建/状态刷新统一返回 502，连接测试保留 `ok=false` 结构。
+- [x] 修复 `bug_trackers.py` 中查询结果变量被创建结果覆盖的 mypy 类型问题，避免外部缺陷入口继续携带基线类型错误。
+- [x] 代码审查后回归：外部缺陷定向 `40 passed`，完整后端非集成 `2234 passed`，Ruff、格式、mypy 和 diff-check 通过；提交 `31df065` 已完成本地提交。
+- [E] 未连接真实 Jira、禅道、GitHub Issues 或 GitLab Issues 项目；真实创建、去重、状态同步、权限和清理仍需临时项目与凭据。证据见 [`external-tracker-error-safety-2026-08-25.json`](docs/evidence/external-tracker-error-safety-2026-08-25.json)。
+
 ## 2026-08-25 工作台任务状态枚举隔离修复
 
 - [x] 根据 q19 工作台日志定位到跨域状态集合问题：普通 `TestRun` 查询被错误带入 Android `stopped` 和性能 `cancelled`，PostgreSQL 会在 `/workbench/overview` 返回 `invalid input value for enum runstatus`。

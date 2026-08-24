@@ -1,0 +1,32 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-25",
+  "source_commit": "31df065",
+  "scope": "external_tracker_error_safety",
+  "checks": [
+    {
+      "name": "targeted_external_tracker_regression",
+      "command": "backend/.venv/Scripts/python.exe -m pytest backend/tests/api/test_bug_trackers.py backend/tests/services/test_bug_reporter_unit.py backend/tests/api/test_defect_external.py -q",
+      "result": "40 passed"
+    },
+    {
+      "name": "backend_full_non_integration",
+      "command": "backend/.venv/Scripts/python.exe -m pytest backend/tests -q --ignore=backend/tests/integration",
+      "result": "2234 passed"
+    },
+    {
+      "name": "quality",
+      "command": "ruff check, ruff format --check, mypy, git diff --check",
+      "result": "passed"
+    }
+  ],
+  "protected_paths": [
+    "POST /bug-trackers/test-connection",
+    "GET /runs/{run_id}/bug-status",
+    "POST /runs/{run_id}/create-bug"
+  ],
+  "limitations": [
+    "未连接真实 Jira、禅道、GitHub Issues 或 GitLab Issues 项目，本记录只证明本地错误边界和脱敏逻辑。",
+    "真实外部平台的创建、去重、状态同步、权限和清理仍需临时项目与凭据。"
+  ]
+}
