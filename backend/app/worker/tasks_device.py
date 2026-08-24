@@ -40,7 +40,7 @@ def heartbeat_android_worker(self):
     return payload
 
 
-@celery_app.task(name="scan_adb_devices", ignore_result=True)
+@celery_app.task(name="scan_adb_devices")
 def scan_adb_devices():
     """同步任务：扫描 ADB 设备并更新数据库"""
     from app.core.config import settings

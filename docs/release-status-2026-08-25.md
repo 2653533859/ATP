@@ -8,7 +8,7 @@
 
 本地代码、回归和 Windows/q19 API/Web/性能链路已经形成可复核证据；以下外部门禁仍未关闭，因此发布只能按“部分实现/待环境验收”处理：
 
-- Android Worker/真机：ADB 已发现在线目标并通过基础设备检查，但 Windows Worker 注册 Redis 与 q19 Backend 使用的 Redis 不一致，`/devices/workers` 尚未看到在线 Worker，单设备执行仍不能验收。
+- Android Worker/真机：ADB 已发现在线目标并通过基础设备检查，Agent/Backend Redis 配对、Worker registry 和扫描回调已通过，但租约、执行和结果回传仍不能验收。
 - 性能生产环境：真实 Kubernetes 多节点、容量限制、生产 Prometheus、MinIO 生命周期和跨主机恢复未验收。
 - 通知供应商：当前只有回环 SMTP 的 `local_link_only` 证据，没有真实 SMTP/企业微信/钉钉送达回执。
 - 外部缺陷平台：没有可使用的临时 Jira/禅道/GitHub/GitLab 项目和凭据，创建、同步和脱敏链路未做真实验收。
@@ -31,6 +31,21 @@
 - Windows Android Worker 的 Redis DB 2 中存在心跳注册，但 q19 Backend 通过 SSH 隧道使用 q19 Compose 内部 Redis，因此 `/devices/workers` 返回没有在线 Android Worker。
 - 发布边界：这不是 ADB 失败，而是 Agent/Backend 注册通道配置不一致。完成同实例、DB、注册前缀配对并重新验证 Worker registry、扫描和结果回传之前，Android 发布门禁仍保持未关闭。
 - 当前重新发现的设备未确认存在 Karing 包名；任何 Karing 专项任务必须先通过设备包管理确认真实包名。
+
+## 2026-08-25 P0-B Android Redis 配对与 Worker 注册复核（扫描回调修复前快照）
+
+- Windows Agent 与 q19 Backend 已通过受控临时 SSH 隧道共用同一 Redis 实例、DB、认证、队列和注册前缀；配置配对校验、Worker doctor 和 `/devices/workers` 查询通过，在线 Worker 为 `android-win-HPS`。
+- ADB 基础检查仍通过；本条记录保留的是修复前扫描 smoke 未在 10 秒窗口内收到完成回调的历史状态，后续已定位并修复 `scan_adb_devices` 丢弃 Celery 结果的问题，当前结论以紧随其后的 P0-B.2 验收记录为准。
+- 本机复验命令为 `adb devices -l`；只有明确显示目标为 `device` 才能继续 Android 单设备链路，`offline` 或 `unauthorized` 仍保持阻塞。
+- 为避免 Beat 继续生成维护任务，q19 Beat 当前保持受控停用；恢复前必须确认队列已清理、只保留预期任务，并重新取得扫描回调证据。
+- 发布边界：Worker registry 在线不等于 Android 单设备闭环通过；租约、控件属性、截图/录屏、APK 包名、低代码、专项任务、事件和报告回传仍保持未验收。当前设备是否安装 Karing 仍须以 `pm list packages` 为准。
+
+## 2026-08-25 P0-B.2 Android 扫描回调修复与验收
+
+- 修复 `scan_adb_devices` 声明 `ignore_result=True` 的问题。任务此前已经在 Windows Worker 成功执行，但 API 读取不到 Celery 结果，导致 `scan_id` 长时间保持 `queued`；现已保留任务结果并新增契约回归。
+- 重新启动单个受控 Worker 后，配置配对、ADB、Worker registry 和扫描回调均通过；扫描返回 2 台在线设备，扫描后 `mobile_special` 队列长度为 `0`。
+- 定向测试 `24 passed`，三份受影响测试文件独立运行 `4/17/3 passed`，完整后端非集成 `2237 passed`，Ruff 和 `git diff --check` 通过。脱敏证据见 [`android-worker-scan-2026-08-25.json`](evidence/android-worker-scan-2026-08-25.json)。
+- 发布边界：本项只关闭 Worker 配对和扫描回调门禁；租约、控件属性、截图/录屏、APK 包名、Android 低代码、专项任务、事件和报告回传仍待 P0-B.3。
 
 ## 2026-08-25 工作台任务状态枚举隔离修复
 
@@ -86,7 +101,7 @@
 |---|---|---|---|
 | Windows API/Web | 本地与 q19 证据已形成，当前账号页面冒烟通过 | [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`q19-migration-web-worker-readiness-2026-08-24.json`](evidence/q19-migration-web-worker-readiness-2026-08-24.json) | 目标发布环境仍需按版本重放并归档 |
 | Web Worker/录制 | q19 持久 Worker、Chromium/Firefox/WebKit 录制和跨 API 停止快照已验证 | [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json) | Linux/Xvfb、跨副本和目标部署拓扑仍需独立复验 |
-| Android | 代码、配置配对门禁和录屏结果展示已完成；ADB 基础检查通过，但 Worker 注册通道未配对，真实执行阻塞 | [`windows-android-worker.ps1`](../scripts/windows-android-worker.ps1)、[`windows-android-acceptance.ps1`](../scripts/windows-android-acceptance.ps1)、[`android-recording-evidence-2026-08-25.json`](evidence/android-recording-evidence-2026-08-25.json) | 先统一 Agent/Backend Redis 实例、DB、注册前缀，再完成 Worker registry、扫描、租约、截图、APK、低代码、专项任务、设备端录屏和证据回传 |
+| Android | 代码、配置配对门禁、Worker registry 和扫描回调已完成；ADB 基础检查通过，真实执行仍阻塞在后续单设备闭环 | [`android-worker-scan-2026-08-25.json`](evidence/android-worker-scan-2026-08-25.json)、[`windows-android-worker.ps1`](../scripts/windows-android-worker.ps1)、[`windows-android-acceptance.ps1`](../scripts/windows-android-acceptance.ps1) | 继续完成租约、截图/控件属性、APK、低代码、专项任务、设备端录屏和证据回传 |
 | 性能 | P1-E.1～P1-E.4 本地闭环完成，q19 已按最新提交重建 | [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)、[`performance-shard-capacity-2026-08-25.json`](evidence/performance-shard-capacity-2026-08-25.json)、[`q19-performance-shard-deployment-2026-08-25.json`](evidence/q19-performance-shard-deployment-2026-08-25.json) | 真实 Kubernetes 多节点、生产 Prometheus、MinIO 生命周期和跨主机恢复 |
 | 通知 | 本地 SMTP 链路已验证 | [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json) | 真实供应商送达、重试、限流和重复投递 |
 | 外部缺陷平台 | 本地适配器和脱敏逻辑已实现 | [`docs/capability-baseline-2026-08-07.md`](capability-baseline-2026-08-07.md) | 临时项目、权限、创建/去重/状态同步和清理 |

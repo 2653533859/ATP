@@ -1,0 +1,29 @@
+{
+  "verified_on": "2026-08-25",
+  "scope": "Windows Android Worker 单设备扫描回调",
+  "environment": {
+    "backend": "q19 Compose acceptance runtime",
+    "transport": "temporary SSH tunnel; credentials omitted",
+    "adb_target": "172.16.102.15:5555",
+    "worker_id": "android-win-HPS",
+    "worker_queues": ["android", "mobile_special"]
+  },
+  "checks": {
+    "backend_agent_config_pair": "passed",
+    "adb_device_state": "online",
+    "online_device_count": 2,
+    "worker_registry": "passed",
+    "scan_task": "completed",
+    "scan_result_device_count": 2,
+    "queue_length_after_scan": 0,
+    "backend_health": "passed",
+    "redis_health": "passed",
+    "backend_recent_error_matches": 0,
+    "windows_android_smoke": "passed"
+  },
+  "implementation_note": "scan_adb_devices 保留 Celery 结果，API 可以通过 scan_id 读取 completed 状态；未记录密码、Token 或对象存储密钥。",
+  "remaining_boundaries": [
+    "尚未执行租约、控件属性、截图/录屏、APK 包名、Android 低代码和专项任务",
+    "当前设备是否安装 Karing 仍须以 pm list packages 的真实结果为准"
+  ]
+}

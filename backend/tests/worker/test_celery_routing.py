@@ -55,3 +55,20 @@ def test_performance_task_is_included_by_worker():
 def test_default_queue_remains_default():
     assert _conf_keyword("task_default_queue") == "default"
     assert _conf_keyword("task_create_missing_queues") is True
+
+
+def test_android_scan_task_keeps_result_for_worker_callback_polling():
+    tree = ast.parse((ROOT / "backend" / "app" / "worker" / "tasks_device.py").read_text(encoding="utf-8"))
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef) or node.name != "scan_adb_devices":
+            continue
+        for decorator in node.decorator_list:
+            if not isinstance(decorator, ast.Call) or not isinstance(decorator.func, ast.Attribute):
+                continue
+            if decorator.func.attr != "task":
+                continue
+            options = {keyword.arg: keyword.value for keyword in decorator.keywords if keyword.arg}
+            ignore_result = options.get("ignore_result")
+            assert not (isinstance(ignore_result, ast.Constant) and ignore_result.value is True)
+            return
+    raise AssertionError("scan_adb_devices task decorator not found")
