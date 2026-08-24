@@ -4,7 +4,7 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
-> API 受控目标和显式会话复用证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)。这些证据不代表生产 API、其他协议或完整报告验收通过。
+> API 受控目标、显式会话复用和 gRPC TLS Unary 证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)。这些证据不代表生产 API、GraphQL/WebSocket/流式 gRPC、其他导入能力或完整报告验收通过。
 
 ## 发布结论
 
@@ -14,9 +14,18 @@
 
 当前执行顺序为：运行基础/账号初始化 → Android 单设备真实闭环 → Windows API/Web 复核 → 真实通知 → 外部缺陷平台 → 生产性能 → 发布收口。
 
-- q19 Backend 当前暴露出一个待修复的启动缺陷：管理员账号从默认用户名改名后，如果仍占用默认邮箱，`_init_admin` 只按用户名查询会再次插入同一邮箱并触发 `users_email_key`，导致容器重启循环。修复范围是让 bootstrap 按用户名或邮箱幂等识别，并补并发/重复启动回归；不自动覆盖已有账号密码或角色。
-- Android 前置证据仍有效：Windows ADB 有 2 台 `device`，Worker doctor、PostgreSQL、Redis、MinIO 和 logcat 检查通过；两台设备均未发现 Karing，且此前 bootstrap 账号认证返回 401，因此尚未执行控制面 registry/scan、APK、低代码或专项操作。
-- 账号初始化修复并恢复 q19 后，必须使用当前有效账号取得登录、`/devices/workers` 和 `/devices/scan` 证据；确认/安装真实 APK 并取得包名后，才能继续单设备闭环。
+### 2026-08-25 API gRPC TLS 受控目标验收
+
+- 已补齐 API gRPC TLS 的自签名/私有 CA 配置：用例表单支持公有 PEM 根证书和 SNI 服务名，执行器限制证书大小、拒绝私钥，并且只在步骤快照记录“已配置”状态，不保存证书内容。
+- q19 已按 `96c7db0` 重建 Backend/Worker；临时项目完成 gRPC Unary TLS 用例创建、评审、审批、执行、`grpc_status=OK`、响应断言、JSONPath 提取和清理，运行 `17` 通过。
+- 本地回归：gRPC Worker `69 passed`，Ruff、前端类型检查、生产构建和配置工具测试 `6 passed`；脱敏证据见 [`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)。
+- 发布边界：这只关闭 q19 受控 gRPC TLS Unary 证据；OpenAPI/Postman 导入、GraphQL/WebSocket/流式 gRPC、生产目标和完整报告仍待验收。
+
+### 当前剩余阻塞
+
+- q19 Backend 的管理员 bootstrap 启动缺陷已按 `65eef50` 修复并完成真实复验：初始化按用户名/邮箱幂等识别，不覆盖已有账号密码或角色；当前账号登录、依赖 readiness、Worker registry 和设备扫描均已通过。
+- Android 前置证据仍有效：Windows ADB 有 2 台 `device`，Worker doctor、PostgreSQL、Redis、MinIO 和 logcat 检查通过；两台设备均未发现 Karing，真实 APK/package name、低代码或专项操作仍未执行。
+- 仍需取得或上传 Karing APK 并以设备包管理确认真实包名，才能继续单设备闭环；不能用其他应用替代 Karing 关闭门禁。
 
 本节计划与 [`docs/product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md) 的 0.7 节、[`Task.md`](../Task.md) 和 [`MEMORY.md`](../MEMORY.md) 同步维护。
 
@@ -193,7 +202,7 @@ Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复
 
 | 能力域 | 当前结论 | 主要证据 | 未关闭边界 |
 |---|---|---|---|
-| Windows API/Web | 本地与 q19 证据已形成，当前账号页面冒烟通过 | [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`q19-migration-web-worker-readiness-2026-08-24.json`](evidence/q19-migration-web-worker-readiness-2026-08-24.json) | 目标发布环境仍需按版本重放并归档 |
+| Windows API/Web | 本地与 q19 证据已形成，当前账号页面冒烟通过 | [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json) | OpenAPI/Postman、GraphQL/WebSocket/流式 gRPC、完整报告和目标发布环境仍需验收 |
 | Web Worker/录制 | q19 持久 Worker、Chromium/Firefox/WebKit 录制和跨 API 停止快照已验证 | [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json) | Linux/Xvfb、跨副本和目标部署拓扑仍需独立复验 |
 | Android | 代码、配置配对、Worker registry、扫描回调、租约控制和 APK 选择传递已完成；真实 APK 上传和设备执行仍待验收 | [`android-worker-scan-2026-08-25.json`](evidence/android-worker-scan-2026-08-25.json)、[`android-control-lease-2026-08-25.json`](evidence/android-control-lease-2026-08-25.json)、[`android-apk-selection-2026-08-25.json`](evidence/android-apk-selection-2026-08-25.json) | 继续完成真实 APK 包名识别、低代码、录屏、专项任务和事件/报告回传 |
 | 性能 | P1-E.1～P1-E.4 本地闭环完成，q19 已按最新提交重建 | [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)、[`performance-shard-capacity-2026-08-25.json`](evidence/performance-shard-capacity-2026-08-25.json)、[`q19-performance-shard-deployment-2026-08-25.json`](evidence/q19-performance-shard-deployment-2026-08-25.json) | 真实 Kubernetes 多节点、生产 Prometheus、MinIO 生命周期和跨主机恢复 |

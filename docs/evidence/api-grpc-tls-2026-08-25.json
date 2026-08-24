@@ -1,0 +1,57 @@
+{
+  "evidence_type": "api_grpc_tls_readiness",
+  "date": "2026-08-25",
+  "status": "passed",
+  "source_commit": "96c7db0",
+  "environment": "q19 isolated compose acceptance stack",
+  "target": "controlled acceptance-target gRPC TLS service",
+  "workflow": {
+    "login_status": 200,
+    "project_status": 201,
+    "module_status": 201,
+    "case_status": 201,
+    "review_submit_status": 200,
+    "review_approve_status": 200,
+    "run_create_status": 202,
+    "run_id": 17,
+    "run_status": "passed",
+    "cleanup_case_status": 204,
+    "cleanup_project_status": 204
+  },
+  "step": {
+    "status": "passed",
+    "mode": "unary",
+    "grpc_status": "OK",
+    "response": {
+      "text": "hello grpc-tls"
+    },
+    "assertions": [
+      {
+        "target": "grpc_status",
+        "operator": "eq",
+        "expected": "OK",
+        "passed": true
+      },
+      {
+        "target": "body",
+        "expression": "$.text",
+        "operator": "eq",
+        "expected": "hello grpc-tls",
+        "passed": true
+      }
+    ],
+    "extraction": {
+      "expression": "$.text",
+      "variable": "reply_text",
+      "value": "hello grpc-tls",
+      "success": true
+    },
+    "tls": {
+      "enabled": true,
+      "server_name": "grpc-target",
+      "root_certificate_configured": true,
+      "root_certificate_redacted": true
+    }
+  },
+  "scope_note": "该证据证明 API gRPC Unary 可在 q19 受控 TLS 目标上使用自签名/私有 CA 公有 PEM 根证书和 SNI 执行、断言、提取及清理；不代表 GraphQL/WebSocket 流式目标、OpenAPI/Postman 导入、生产 API 或完整报告已完成环境验收。"
+}

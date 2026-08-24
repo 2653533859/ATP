@@ -7,7 +7,7 @@
 
 > 当前执行版：[`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 汇总本轮五组导航、模块台账、下一步顺序、风险解除条件和状态口径；本文件继续保存完整历史方案与实施记录。
 
-> 最新进度：API 工作台已在 q19 受控 HTTP 目标完成最小真实执行和显式会话复用闭环；证据见 [`evidence/api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json) 与 [`evidence/api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)，不替代生产 API、其他协议或完整报告验收。
+> 最新进度：API 工作台已在 q19 受控 HTTP 目标完成最小真实执行、显式会话复用，并在受控 gRPC TLS 目标完成 Unary 执行；证据见 [`evidence/api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`evidence/api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json) 与 [`evidence/api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)，不替代生产 API、GraphQL/WebSocket/流式 gRPC、其他导入能力或完整报告验收。
 
 ## 0.1 导航对齐执行版计划（2026-08-24）
 
@@ -57,7 +57,7 @@
 | --- | --- | --- | --- | --- |
 | 1 | 导航壳与工作台 | 复核侧栏折叠/刷新/窄屏、中文/英文文案、深层路由选中、旧 URL 映射和动态徽标 | 每个入口可打开；刷新与深链不丢项目上下文；权限隐藏和面包屑一致 | `[E]` 本地回归完成，随真实账号复核 |
 | 2 | 工作台与任务中心 | 用当前有效账号验证待办、任务队列、轮询、重试、终止和批量操作 | 五类任务均能查询；越权操作拒绝；失败原因和操作事件可追踪 | `[E]` 本地完成，Windows API/Web smoke 仍需复跑 |
-| 3 | API 测试工作台 | 用真实项目验证环境变量、认证复用、OpenAPI/Postman 导入及 HTTP/GraphQL/WebSocket/gRPC 执行 | 请求、断言、变量提取、依赖传递和报告证据完整 | `[E]` 本地完成，待真实协议服务和项目权限验收 |
+| 3 | API 测试工作台 | 用真实项目验证环境变量、认证复用、OpenAPI/Postman 导入及 HTTP/GraphQL/WebSocket/gRPC 执行 | 请求、断言、变量提取、依赖传递和报告证据完整 | `[E]` q19 HTTP、会话复用和 gRPC TLS Unary 已通过；导入、其他协议和完整报告仍待验收 |
 | 4 | APP 自动化工作台 | 先配对 Windows Android Worker 与 q19 Backend 的 Redis 注册通道，再验证设备扫描、租约、截图、APK 包名、低代码和专项任务 | 单设备执行、日志/截图/录屏/结果回传完整；设备冲突可解释 | `[~]` ADB 基础检查通过，但 `/devices/workers` 尚未看到在线 Worker |
 | 5 | UI 自动化工作台 | 复核 Playwright 登录、录制、元素/页面对象/视觉基线、Trace/HAR/网络日志和多浏览器链路 | Chromium/Firefox/WebKit 均能录制、停止、回放并查看失败证据 | `[E]` q19 证据已有，Windows 最新 smoke 需用当前有效账号复跑 |
 | 6 | 性能测试工作台 | 补多节点容量、资源限制、生产 Prometheus/MinIO 生命周期、跨主机恢复和长期趋势治理 | 压测执行、采样、基线门禁、趋势、保留清理和报告可复核 | `[~]` 本地趋势/门禁/保留清理完成，生产多节点仍待验收 |
@@ -310,7 +310,7 @@ P0-A 的 Windows smoke 账号来源与 401 提示改进已经完成；P1-E.1～P
 | 阶段 | 目标 | 开发/验证内容 | 最小验收出口 | 状态 |
 | --- | --- | --- | --- | --- |
 | P0-1 | 导航壳与工作台 | 侧栏分组、折叠/窄屏、深层路由选中、旧 URL 映射、项目上下文和动态徽标 | 五组入口可打开；刷新/深链不丢上下文；权限隐藏一致 | `[E]` |
-| P0-2 | API 测试工作台 | 环境变量、认证复用、OpenAPI/Postman 导入、HTTP/GraphQL/WebSocket/gRPC、断言、提取、依赖传递 | 至少一个接口场景可配置、执行、查看步骤结果和报告 | `[E]` 本地完成，真实协议目标待验收 |
+| P0-2 | API 测试工作台 | 环境变量、认证复用、OpenAPI/Postman 导入、HTTP/GraphQL/WebSocket/gRPC、断言、提取、依赖传递 | 至少一个接口场景可配置、执行、查看步骤结果和报告 | `[E]` q19 HTTP、会话复用和 gRPC TLS Unary 已通过；导入、其他协议和完整报告待验收 |
 | P0-3 | APP 自动化工作台 | Windows Worker/ADB 配对、设备扫描/租约、APK 包名、低代码、录屏、专项任务、事件/日志/报告 | 在线单设备完成真实 APK 用例，结果、媒体和失败原因可追踪 | `[~]` 本地闭环完成，真实设备/APK/MinIO 待验收 |
 | P0-4 | UI 自动化工作台 | Playwright 录制、元素库、页面对象、视觉基线、Trace/HAR、网络/Console 日志、多浏览器回放 | Chromium/Firefox/WebKit 均能录制、执行、查看失败证据 | `[E]` 本地/q19 证据已有，最新 Windows smoke 待复核 |
 | P1-1 | 性能测试工作台 | 多节点容量、资源采样、长期趋势、基线门禁、报告保留、Prometheus/MinIO 生命周期和恢复 | 真实节点完成短压、取消、采样、报告和恢复演练 | `[~]` 本地闭环完成，生产环境待验收 |
@@ -685,6 +685,7 @@ N0 导航壳
 
 - **前端入口**：`/api-workbench` 已替换能力导航占位页，提供项目选择、模块树、协议图例、API 用例目录、关键词/协议筛选、用例详情、最近运行、执行环境选择和运行详情跳转；旧 `/cases`、API 契约资产和 Mock URL 保持兼容。
 - **能力复用**：新建/编辑复用 `CaseFormDrawer`，OpenAPI/Postman/cURL/样例导入和 AI 生成复用 `AIGenerateDrawer`；新增 `allowedCaseTypes`，工作台只允许 API、GraphQL、WebSocket、gRPC，执行复用 `caseApi.run` 和既有 API Worker，不新增后端模型或迁移。
+- **真实协议补充**：gRPC 用例现支持 TLS 根证书 PEM 和 SNI 服务名配置；q19 受控 Unary TLS 目标已完成评审、执行、断言、提取、清理和根证书脱敏证据，见 [`evidence/api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)。
 - **权限与状态**：项目查看者保持只读；新建、编辑、导入、执行按项目编辑权限控制；用例未满足 `is_ready_for_execution` 时禁止执行；最近运行状态、通过率和环境变量选择均从现有接口读取。
 - **代码审查修复**：修复刷新按钮并发触发项目/环境/用例重复加载的问题，并补充 AI 类型过滤的类型约束。
 - **验证**：前端定向工作台/导航 `4 passed`，前端全量 `56 files / 223 tests passed`，`npm run type-check`、`npm run build` 和 `git diff --check` 通过。该模块未修改后端，因此未重复运行后端全量；真实项目角色、环境变量、协议服务和运行结果仍待环境验收。

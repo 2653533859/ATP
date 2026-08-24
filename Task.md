@@ -2,7 +2,14 @@
 
 > 当前执行版计划与状态口径统一维护在 [`docs/development-plan-2026-08-25.md`](docs/development-plan-2026-08-25.md)；本文件保留任务勾选和历史交付记录。每个模块均须完成实现、测试、代码审查、修复、文档/记忆同步、提交推送后再进入下一项。
 
-> 当前有效顺序：API 受控 HTTP 与显式会话复用已通过，下一步继续 Karing APK 驱动的 Android 单设备闭环，随后复跑 Windows API/Web，再补 API 导入/多协议/完整报告与真实通知、外部缺陷平台、生产性能和发布收口；下方更早的历史记录不覆盖当前执行版。
+> 当前有效顺序：API 受控 HTTP、显式会话复用和 gRPC TLS Unary 已通过，下一步继续 Karing APK 驱动的 Android 单设备闭环，随后复跑 Windows API/Web，再补 API 导入/其他协议/完整报告与真实通知、外部缺陷平台、生产性能和发布收口；下方更早的历史记录不覆盖当前执行版。
+
+## 2026-08-25 API gRPC TLS 真实目标闭环
+
+- [x] q19 受控 gRPC TLS 目标完成临时项目、模块、用例创建、评审提交、审批、Unary 执行和终态查询。
+- [x] TLS 使用目标公开 PEM 根证书和 `tls_server_name=grpc-target`，gRPC 状态 `OK`，响应断言和 JSONPath `$.text` 提取通过；根证书未进入执行请求快照。
+- [x] 定向执行器回归 `69 passed`，Ruff、前端类型检查、生产构建和前端配置工具测试 `6 passed` 通过；证据见 [`docs/evidence/api-grpc-tls-2026-08-25.json`](docs/evidence/api-grpc-tls-2026-08-25.json)。
+- [E] 本项只关闭受控 gRPC TLS Unary 证据；OpenAPI/Postman 导入、GraphQL/WebSocket/流式 gRPC 真实目标和完整报告仍需后续环境验收。
 
 ## 2026-08-25 API 测试工作台真实目标最小闭环
 

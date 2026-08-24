@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 API gRPC TLS 真实目标闭环：提交 `96c7db0` 补齐 gRPC 用例的可选 PEM 根证书和 SNI 服务名配置；执行器限制证书大小、拒绝私钥，执行请求快照只记录是否配置根证书，不保存证书内容。q19 受控 `grpc-target:50051` TLS Unary 运行 `17` 通过，状态断言、响应 JSONPath 提取和临时项目清理均成功。脱敏证据为 `docs/evidence/api-grpc-tls-2026-08-25.json`；OpenAPI/Postman、GraphQL/WebSocket/流式 gRPC、生产目标和完整报告仍待验收。
+
 - 2026-08-25 已登记当前参考导航版开发计划：先修复管理员 bootstrap 按用户名/邮箱幂等识别并恢复 q19，再完成 Android 单设备真实 APK/package name、低代码、录屏、专项任务和事件/日志/报告闭环，之后复跑 Windows API/Web，再验收真实通知、外部缺陷平台、生产性能和发布收口。计划同步于 `docs/product-navigation-roadmap-2026-08-24.md` 0.7、`Task.md` 和 `docs/release-status-2026-08-25.md`；每个模块必须经过实现、测试、代码审查、修复、文档/记忆同步和 Conventional Commit 推送，未具备真实环境时只记为阻塞。
 
 - 2026-08-25 发现 q19 Backend 启动缺陷：管理员被改名后仍占用默认邮箱，`backend/app/main.py::_init_admin` 只按 `FIRST_ADMIN_USERNAME` 查询，随后尝试插入重复邮箱并触发 `users_email_key`，容器进入重启循环。下一代码动作是按用户名或邮箱幂等查询并补回归测试；不在仓库或证据中记录账号密码。
