@@ -21,7 +21,12 @@ sys.path.insert(0, str(ROOT / "backend"))
 from app.core.config import settings  # noqa: E402
 from app.core.url_security import validate_public_http_url  # noqa: E402
 from app.models.notification import NotifyChannel  # noqa: E402
-from app.services.notifier import _build_markdown, _build_text, send_notification_channel  # noqa: E402
+from app.services.notifier import (  # noqa: E402
+    _build_markdown,
+    _build_text,
+    _safe_exception_message,
+    send_notification_channel,
+)
 
 
 SUMMARY = {
@@ -129,7 +134,7 @@ def main() -> int:
     try:
         detail = asyncio.run(_send(args.channel))
     except Exception as exc:
-        safe_detail = str(exc).split("?", 1)[0][:500]
+        safe_detail = _safe_exception_message(exc)
         _report(args.report, args.channel, "failed", safe_detail, content_checks)
         print(f"[FAIL] {args.channel}: {safe_detail}", file=sys.stderr)
         return 1
