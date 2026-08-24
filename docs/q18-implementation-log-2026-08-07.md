@@ -1,11 +1,18 @@
 # Q18 实施记录
 
+## 2026-08-24 N6.5 q19 真实迁移与 Web Worker 临时验收
+
+- [x] 从最新 `main` 构建 q19 Backend、性能 Worker、Beat 和迁移镜像，目标数据库真实执行 `20260814_0059 -> 20260824_0065`，服务健康且 Backend `/health` 返回 HTTP 200。
+- [x] 通过项目删除 API 回归：临时项目返回 `204`，项目、环境、模块残留均为 `0`；确认项目资源级联迁移已在目标数据库生效。
+- [x] 启动临时默认队列 Worker 完成 Web 低代码下载执行 `run 3`，下载对象回传和清理通过；验收后移除临时 Worker。脱敏证据见 `docs/evidence/q19-migration-web-worker-readiness-2026-08-24.json` 与 `docs/evidence/windows-web-worker-readiness-2026-08-24.json`。
+- [ ] 将通用 Web Worker 加入 q19 持久 Compose/部署编排并验证注册、队列隔离、Trace/报告和重启恢复；Android 因 ADB offline 本轮未执行，真实性能节点、通知和外部缺陷平台仍待独立证据。
+
 ## 2026-08-24 N6.4 Windows 完整 API/Web 验收与项目删除级联修复
 
 - [x] 完整 Windows smoke 通过管理员登录、认证读接口、Web Recording 状态、Playwright `12 passed`、Chromium/Firefox/WebKit 页面矩阵、47 bytes 文件上传/清理和 HTML/JUnit 报告导出；脱敏证据归档为 `docs/evidence/windows-full-readiness-2026-08-24.json`，必需失败数为 `0`。
 - [x] 代码审查修复项目删除被 `environments_project_id_fkey` 阻断的问题：补齐项目直接资源外键 `CASCADE`，环境变量改为 `CASCADE`，计划环境引用改为 `SET NULL`，新增 `20260824_0065` 及回归契约。
 - [x] 项目路由/迁移定向 `34 passed`，迁移目录 `66 passed`，Alembic head `20260824_0065`，Ruff 和 `git diff --check` 通过；远端 q19 临时验收项目/环境已清理。
-- [ ] `20260824_0065` 的目标数据库真实升级/降级、Android Worker/真机、真实性能节点、通知和外部缺陷平台仍待独立环境证据；严格 readiness 仍因 Windows 缺少 Docker Compose 工具未通过。
+- [x] `20260824_0065` 已在 q19 目标数据库真实升级并验证项目删除回归；Android Worker/真机、真实性能节点、通知和外部缺陷平台仍待独立环境证据；严格 readiness 仍因 Windows 缺少 Docker Compose 工具未通过。
 
 ## 2026-08-24 N6.3 Windows 发布 readiness 与远端依赖恢复
 

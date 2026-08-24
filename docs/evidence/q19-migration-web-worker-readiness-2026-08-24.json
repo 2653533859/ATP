@@ -1,0 +1,39 @@
+{
+  "generated_at": "2026-08-24T12:59:59.8051636Z",
+  "target": "q19 acceptance stack",
+  "source_commit": "5179826",
+  "migration": {
+    "before": "20260814_0059",
+    "after": "20260824_0065",
+    "status": "passed",
+    "scope": "project-owned resource delete cascades and environment references"
+  },
+  "services": {
+    "backend": "healthy",
+    "postgres": "healthy",
+    "redis": "healthy",
+    "minio": "healthy",
+    "performance_worker": "running",
+    "backend_health_http_status": 200
+  },
+  "project_delete_regression": {
+    "temporary_project_id": 2,
+    "delete_http_status": 204,
+    "remaining_project_rows": 0,
+    "remaining_environment_rows": 0,
+    "remaining_module_rows": 0
+  },
+  "web_worker_smoke": {
+    "temporary_project_id": 3,
+    "run_id": 3,
+    "status": "passed",
+    "download_objects": 1,
+    "cleanup": "passed",
+    "worker": "temporary default queue worker, removed after verification"
+  },
+  "android": {
+    "status": "not_exercised",
+    "reason": "ADB device was offline and Android Worker mode was not enabled"
+  },
+  "secrets": "not included"
+}

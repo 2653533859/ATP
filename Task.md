@@ -2,7 +2,7 @@
 
 ## 2026-08-24 产品导航与能力扩展路线（持续跟踪）
 
-开发计划和单模块交付规则已记录在 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md)，本节只维护阶段状态；导航已按参考方案固定为五组，N0 导航壳、N1 工作台与任务中心、N2.1/N2.2/N2.3/N2.4/N2.5、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心本地实现、审查和回归已完成，均待真实环境验收；N6.3/N6.4 已补充远端依赖及完整 Windows API/Web readiness 证据，Android、真实性能节点、通知和外部平台仍待独立验收。
+开发计划和单模块交付规则已记录在 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md)，本节只维护阶段状态；导航已按参考方案固定为五组，N0 导航壳、N1 工作台与任务中心、N2.1/N2.2/N2.3/N2.4/N2.5、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心本地实现、审查和回归已完成，均待真实环境验收；N6.3/N6.4/N6.5 已补充远端依赖、完整 Windows API/Web readiness 和 q19 真实迁移证据，Android、持久 Web Worker、真实性能节点、通知和外部平台仍待独立验收。
 
 - [x] 完成现状盘点：确认现有导航与图片目标存在结构差异，已有能力主要分散在测试设计、测试资产、执行中心、Android 专项和平台配置菜单。
 - [x] 建立目标导航：工作台、测试能力、测试资产、智能中枢、系统。
@@ -22,9 +22,9 @@
 - [E] N4.4 知识中枢：新增带项目边界的知识条目、来源/状态筛选、统一搜索结果、来源引用、项目权限、全局发布可见性和敏感信息脱敏；聚合需求、缺陷和失败运行作为只读知识来源，待真实数据、权限和生产迁移验收。
 - [E] N5.1 远程工具箱：基础设施、Android/ADB、Web Worker 和性能节点统一诊断，支持脱敏 JSON 导出与处理入口；待真实环境验收。
 - [E] N5.2 配置中心：N5.2.1～N5.2.6（只读聚合、版本快照与审计、差异与影响提示、单资源回滚、前端统一工作台、质量收口）已完成本地实现、审查和回归；待真实环境验收。
-- [~] N6 质量收口：回归、E2E、迁移、文档、外部环境证据和发布检查；N6.1/N6.2 已完成本地回归与文档收口，N6.3/N6.4 已完成远端依赖恢复和完整 Windows API/Web readiness，Android Worker/真机、真实性能节点、通知和外部平台证据仍待补齐。
+- [~] N6 质量收口：回归、E2E、迁移、文档、外部环境证据和发布检查；N6.1/N6.2 已完成本地回归与文档收口，N6.3/N6.4 已完成远端依赖恢复和完整 Windows API/Web readiness，N6.5 已完成 q19 `0059 -> 0065` 真实迁移、项目删除回归和临时 Web Worker 低代码执行；持久 Web Worker、Android Worker/真机、真实性能节点、通知和外部平台证据仍待补齐。
 
-当前推荐下一步：先部署并执行 `20260824_0065` 项目删除级联迁移，再按优先级完成 Android Worker/真机、真实性能节点、通知渠道和外部缺陷平台证据。N5.2 已统一聚合启动配置、环境、全局变量、AI、存储、通知和性能配置，N6.1～N6.4 已完成本地回归、文档和 Windows API/Web 环境证据；每个子模块完成后先审查和修复，再同步文档并提交推送。
+当前推荐下一步：先把通用 Web Worker 固化到 q19 Compose/部署配置并完成持久注册与低代码执行，再按优先级完成 Android Worker/真机、真实性能节点、通知渠道和外部缺陷平台证据。N5.2 已统一聚合启动配置、环境、全局变量、AI、存储、通知和性能配置，N6.1～N6.5 已完成本地回归、文档、Windows API/Web 环境证据和 q19 迁移证据；每个子模块完成后先审查和修复，再同步文档并提交推送。
 
 ### 2026-08-24 N6.4 Windows 完整 API/Web 验收与项目删除级联修复计划
 
@@ -33,7 +33,20 @@
 - [x] 执行 Windows 完整 smoke，覆盖管理员登录、认证读接口、Playwright `12 passed`、Chromium/Firefox/WebKit 矩阵、47 bytes 文件上传/清理和 HTML/JUnit 报告导出；脱敏证据归档到 `docs/evidence/windows-full-readiness-2026-08-24.json`，必需失败数为 0。
 - [x] 审查发现删除项目会被 `environments.project_id` 外键阻断；补齐 APK、环境、模块、计划、套件的项目级 `CASCADE`，环境变量级联删除，计划环境引用改为 `SET NULL`，新增 Alembic `20260824_0065` 和迁移契约回归。
 - [x] 通过项目路由、迁移和 Ruff 定向回归；清理远端 q19 临时验收项目及其环境，未保留测试夹具数据。
-- [ ] 将 `20260824_0065` 随最新代码部署到目标数据库，完成真实迁移升级/降级检查；Android Worker/真机、真实性能节点、通知和外部缺陷平台继续独立验收。
+- [x] 将最新 `main` 部署到 q19，真实执行 `20260814_0059 -> 20260824_0065` 迁移；Backend、PostgreSQL、Redis、MinIO、性能 Worker 和 Beat 健康，Backend `/health` 返回 HTTP 200。
+- [x] 通过项目删除 API 回归：临时项目返回 `204`，项目、环境和模块残留均为 `0`；启动临时默认队列 Web Worker 完成低代码下载执行 `run 3`，下载对象和清理均通过，验收后已移除临时 Worker。
+- [ ] 将通用 Web Worker 固化到 q19 持久部署并完成注册/执行证据；Android Worker/真机、真实性能节点、通知和外部缺陷平台继续独立验收。
+
+### 2026-08-24 N6.5 q19 真实迁移与 Web Worker 临时验收计划
+
+目标：把项目删除级联迁移部署到 q19 目标数据库，验证资源清理不再被外键阻断，并用一次受控的临时默认队列 Worker 补齐 Windows Web 低代码真实执行证据；临时 Worker 不作为持久部署完成标志。
+
+- [x] 从最新 `main` 构建 q19 Backend、性能 Worker、Beat 和迁移镜像。
+- [x] 在 q19 执行 Alembic `20260814_0059 -> 20260824_0065`，确认迁移完成后服务健康。
+- [x] 创建并删除临时项目，确认 HTTP `204` 且项目、环境、模块没有残留。
+- [x] 启动临时默认队列 Worker，完成 Web 低代码下载执行和对象清理；脱敏证据见 [`q19-migration-web-worker-readiness-2026-08-24.json`](docs/evidence/q19-migration-web-worker-readiness-2026-08-24.json) 与 [`windows-web-worker-readiness-2026-08-24.json`](docs/evidence/windows-web-worker-readiness-2026-08-24.json)。
+- [x] 验收后移除临时 Web Worker，不改变 q19 既有性能 Worker/Beat 部署。
+- [ ] 后续将通用 Web Worker 加入持久 Compose/部署编排，再执行注册、低代码、Trace/报告和重启恢复验收；Android 因 ADB 设备 offline 本轮未执行。
 
 ### 2026-08-24 N5.2 配置中心开发计划（文档跟踪）
 
