@@ -42,6 +42,7 @@ from app.api.v1 import (
     users,
     health,
     workbench,
+    defects,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -87,3 +88,4 @@ router.include_router(ios.router)
 router.include_router(users.router)
 router.include_router(health.router)
 router.include_router(workbench.router)
+router.include_router(defects.router)

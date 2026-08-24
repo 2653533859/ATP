@@ -20,6 +20,7 @@ from app.models.plan import TestPlan, PlanRun  # noqa
 from app.models.notification import NotificationConfig  # noqa
 from app.models.ios import IosApp, IosDevice, IosDeviceLease  # noqa
 from app.models.dataset import TestDataset, TestDatasetVersion  # noqa
+from app.models.defect import Defect, DefectRunLink  # noqa
 
 config = context.config
 if config.config_file_name is not None:

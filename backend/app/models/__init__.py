@@ -10,6 +10,7 @@ def load_all_models() -> None:
     from app.models.notification import NotificationConfig, NotificationDelivery
     from app.models.mock import MockRule
     from app.models.bug_tracker import BugTracker
+    from app.models.defect import Defect, DefectRunLink
     from app.models.audit import AuditLog
     from app.models.plan import TestPlan, PlanRun
     from app.models.mobile_special import (
@@ -52,6 +53,8 @@ def load_all_models() -> None:
         NotificationDelivery,
         MockRule,
         BugTracker,
+        Defect,
+        DefectRunLink,
         AuditLog,
         TestPlan,
         PlanRun,

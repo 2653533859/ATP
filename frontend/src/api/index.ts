@@ -637,6 +637,48 @@ export interface BugLinkInfo {
   linked_manually?: boolean
 }
 
+export type DefectStatus = 'open' | 'in_progress' | 'resolved' | 'reopened' | 'closed'
+export type DefectPriority = 'P0' | 'P1' | 'P2' | 'P3'
+export type DefectSeverity = 'blocker' | 'critical' | 'major' | 'minor' | 'trivial'
+export type DefectRunType = 'case' | 'suite' | 'plan' | 'android' | 'performance'
+
+export interface DefectRunLinkItem {
+  id: number
+  run_type: DefectRunType
+  run_id: number
+  case_id?: number | null
+  evidence: Record<string, unknown>
+  linked_by?: number | null
+  created_at: string
+}
+
+export interface DefectItem {
+  id: number
+  project_id: number
+  case_id?: number | null
+  title: string
+  description?: string | null
+  status: DefectStatus
+  priority: DefectPriority
+  severity: DefectSeverity
+  fingerprint?: string | null
+  resolution?: string | null
+  labels: string[]
+  occurrence_count: number
+  last_seen_at?: string | null
+  creator_id?: number | null
+  assignee_id?: number | null
+  created_at: string
+  updated_at: string
+  run_links: DefectRunLinkItem[]
+}
+
+export interface DefectMutationResult {
+  defect: DefectItem
+  created: boolean
+  duplicate_of?: number | null
+}
+
 // ---- Mobile Special Testing ----
 export type TaskType = 'performance' | 'stability' | 'fluency'
 export type SourceType = 'apk_only' | 'case' | 'suite' | 'monkey'
@@ -1534,6 +1576,51 @@ export const bugTrackerApi = {
     http.post<unknown, { bug_id: string; status: string; bug_url?: string }>(`/runs/${runId}/link-bug`, data),
   createBug: (runId: number, data: { tracker_id: number; step_index?: number }) =>
     http.post<unknown, { bug_id: string; bug_url: string; title: string; duplicate_of?: string | null; attachment_uploaded?: boolean }>(`/runs/${runId}/create-bug`, data),
+}
+
+export const defectApi = {
+  list: (params?: {
+    project_id?: number
+    case_id?: number
+    run_type?: DefectRunType
+    run_id?: number
+    status?: DefectStatus
+    priority?: DefectPriority
+    severity?: DefectSeverity
+    page?: number
+    page_size?: number
+  }) => http.get<unknown, { items: DefectItem[]; total: number; page: number; page_size: number }>('/defects', { params }),
+  get: (id: number) => http.get<unknown, DefectItem>(`/defects/${id}`),
+  create: (data: {
+    project_id: number
+    case_id?: number | null
+    title: string
+    description?: string | null
+    priority?: DefectPriority
+    severity?: DefectSeverity
+    assignee_id?: number | null
+    labels?: string[]
+  }) => http.post<unknown, DefectMutationResult>('/defects', data),
+  createFromRun: (runType: DefectRunType, runId: number, data?: {
+    title?: string
+    description?: string | null
+    priority?: DefectPriority
+    severity?: DefectSeverity
+    assignee_id?: number | null
+  }) => http.post<unknown, DefectMutationResult>(`/defects/from-run/${runType}/${runId}`, data ?? {}),
+  update: (id: number, data: Partial<{
+    title: string
+    description: string | null
+    status: DefectStatus
+    priority: DefectPriority
+    severity: DefectSeverity
+    resolution: string | null
+    labels: string[]
+    assignee_id: number | null
+  }>) => http.patch<unknown, DefectItem>(`/defects/${id}`, data),
+  linkRun: (id: number, data: { run_type: DefectRunType; run_id: number; case_id?: number | null }) =>
+    http.post<unknown, DefectRunLinkItem>(`/defects/${id}/links`, data),
+  unlinkRun: (id: number, linkId: number) => http.delete(`/defects/${id}/links/${linkId}`),
 }
 
 // ---- Mobile Special Testing ----

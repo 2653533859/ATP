@@ -18,6 +18,13 @@
           >
             <BugOutlined /> {{ t('run.create_bug') }}
           </a-button>
+          <a-button
+            v-if="canCreateBug && run && (run.status === 'failed' || run.status === 'error')"
+            size="small"
+            @click="openInternalDefect"
+          >
+            <BugOutlined /> {{ t('run.create_internal_defect') }}
+          </a-button>
           <a-tag v-if="run" :color="statusColor(run.status)" style="font-size: 14px">
             {{ run.status }}
           </a-tag>
@@ -86,6 +93,15 @@
             <a-tag v-if="bugInfo.status" style="margin-left: 8px">{{ bugInfo.status }}</a-tag>
             <a-button size="small" type="link" :loading="bugStatusRefreshing" @click="refreshBugStatus">{{ t('run.msg.refresh_status') }}</a-button>
           </a-descriptions-item>
+          <a-descriptions-item v-if="internalDefects.length" :label="t('run.labels.internal_defects')" :span="2">
+            <a-space wrap>
+              <a-tag v-for="defect in internalDefects" :key="defect.id" color="purple">
+                <router-link :to="{ name: 'bugs', query: { run_type: 'case', run_id: String(defect.run_links[0]?.run_id || runId) } }">
+                  #{{ defect.id }} · {{ defect.title }}
+                </router-link>
+              </a-tag>
+            </a-space>
+          </a-descriptions-item>
         </a-descriptions>
 
         <section v-if="androidMatrixSummary" class="device-matrix-summary">
@@ -153,6 +169,13 @@
                 @click="openBugModal"
               >
                 <BugOutlined /> {{ t('run.create_bug') }}
+              </a-button>
+              <a-button
+                v-if="canCreateBug && run && (run.status === 'failed' || run.status === 'error')"
+                size="small"
+                @click="openInternalDefect"
+              >
+                <BugOutlined /> {{ t('run.create_internal_defect') }}
               </a-button>
             </a-space>
           </div>
@@ -638,7 +661,7 @@ import { useRouter, useRoute } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
 import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { runApi, bugTrackerApi, tracingApi, aiHealingPatchApi, type BugLinkInfo, type BugTrackerItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem } from '@/api'
+import { runApi, bugTrackerApi, defectApi, tracingApi, aiHealingPatchApi, type BugLinkInfo, type BugTrackerItem, type DefectItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem } from '@/api'
 import { useAuthStore } from '@/stores/auth'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
 import {
@@ -665,6 +688,7 @@ const runId = Number(route.params.runId)
 
 const run = ref<RunDetailItem | null>(null)
 const steps = ref<RunStepItem[]>([])
+const internalDefects = ref<DefectItem[]>([])
 
 type AndroidMatrixResult = {
   run_id?: number
@@ -883,6 +907,27 @@ function errorMessage(error: unknown, fallback = '') {
   if (typeof error === 'string') return error
   if (error instanceof Error) return error.message
   return fallback
+}
+
+function openInternalDefect() {
+  if (!run.value) return
+  void router.push({
+    name: 'bugs',
+    query: {
+      project_id: run.value.project_id ? String(run.value.project_id) : undefined,
+      run_type: 'case',
+      run_id: String(run.value.id),
+    },
+  })
+}
+
+async function loadInternalDefects() {
+  try {
+    const result = await defectApi.list({ run_type: 'case', run_id: runId, page: 1, page_size: 20 })
+    internalDefects.value = result.items
+  } catch {
+    internalDefects.value = []
+  }
 }
 
 // a-collapse 的 Key 是 string | number；本面板 key 恒为步骤序号 number
@@ -1244,6 +1289,7 @@ onMounted(async () => {
     run.value = data
     steps.value = data.steps ?? []
     expandedKeys.value = computeExpandedKeys(steps.value)
+    await loadInternalDefects()
   } finally {
     loading.value = false
   }

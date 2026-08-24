@@ -107,11 +107,10 @@ const router = createRouter({
         {
           path: 'bugs',
           name: 'bugs',
-          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          component: () => import('@/views/defect/DefectListView.vue'),
           meta: {
             menuTitleKey: 'menu.assets.bugs',
             descriptionKey: 'navigation.placeholder.description.bugs',
-            existingLinks: [{ path: '/runs', labelKey: 'menu.runs' }],
           },
         },
         {
