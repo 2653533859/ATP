@@ -4,7 +4,7 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
-> API 受控目标、显式会话复用和 gRPC TLS Unary 证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)。这些证据不代表生产 API、GraphQL/WebSocket/流式 gRPC、其他导入能力或完整报告验收通过。
+> API 受控目标、显式会话复用、gRPC TLS Unary 和 OpenAPI/Postman 解析证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)。这些证据不代表导入预览/落库、生产 API、GraphQL/WebSocket/流式 gRPC 或完整报告验收通过。
 
 ## 发布结论
 
@@ -20,6 +20,12 @@
 - q19 已按 `96c7db0` 重建 Backend/Worker；临时项目完成 gRPC Unary TLS 用例创建、评审、审批、执行、`grpc_status=OK`、响应断言、JSONPath 提取和清理，运行 `17` 通过。
 - 本地回归：gRPC Worker `69 passed`，Ruff、前端类型检查、生产构建和配置工具测试 `6 passed`；脱敏证据见 [`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)。
 - 发布边界：这只关闭 q19 受控 gRPC TLS Unary 证据；OpenAPI/Postman 导入、GraphQL/WebSocket/流式 gRPC、生产目标和完整报告仍待验收。
+
+### 2026-08-25 API OpenAPI/Postman 导入解析验收
+
+- q19 已按 `75ed756` 重建 Backend/Worker；当前账号调用 `/api/v1/ai/cases/parse-schema` 的 OpenAPI 与 Postman 样例均返回 `200`，分别解析出 `1/1` 和 `1/3`（接口/参数）。
+- 本地解析与端点回归 `38 passed`，Ruff 和差异检查通过；证据见 [`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)。
+- 发布边界：本项只关闭解析层；导入预览/落库后的真实用例执行、GraphQL/WebSocket/流式 gRPC、生产目标和完整报告仍待验收。
 
 ### 当前剩余阻塞
 

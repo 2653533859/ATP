@@ -2,7 +2,7 @@
 
 > 当前执行版计划与状态口径统一维护在 [`docs/development-plan-2026-08-25.md`](docs/development-plan-2026-08-25.md)；本文件保留任务勾选和历史交付记录。每个模块均须完成实现、测试、代码审查、修复、文档/记忆同步、提交推送后再进入下一项。
 
-> 当前有效顺序：API 受控 HTTP、显式会话复用和 gRPC TLS Unary 已通过，下一步继续 Karing APK 驱动的 Android 单设备闭环，随后复跑 Windows API/Web，再补 API 导入/其他协议/完整报告与真实通知、外部缺陷平台、生产性能和发布收口；下方更早的历史记录不覆盖当前执行版。
+> 当前有效顺序：API 受控 HTTP、显式会话复用、gRPC TLS Unary 和 OpenAPI/Postman 解析已通过，下一步继续 Karing APK 驱动的 Android 单设备闭环，随后复跑 Windows API/Web，再补 API 导入预览/落库、其他协议/完整报告与真实通知、外部缺陷平台、生产性能和发布收口；下方更早的历史记录不覆盖当前执行版。
 
 ## 2026-08-25 API gRPC TLS 真实目标闭环
 
@@ -10,6 +10,13 @@
 - [x] TLS 使用目标公开 PEM 根证书和 `tls_server_name=grpc-target`，gRPC 状态 `OK`，响应断言和 JSONPath `$.text` 提取通过；根证书未进入执行请求快照。
 - [x] 定向执行器回归 `69 passed`，Ruff、前端类型检查、生产构建和前端配置工具测试 `6 passed` 通过；证据见 [`docs/evidence/api-grpc-tls-2026-08-25.json`](docs/evidence/api-grpc-tls-2026-08-25.json)。
 - [E] 本项只关闭受控 gRPC TLS Unary 证据；OpenAPI/Postman 导入、GraphQL/WebSocket/流式 gRPC 真实目标和完整报告仍需后续环境验收。
+
+## 2026-08-25 API OpenAPI/Postman 导入解析加固
+
+- [x] OpenAPI 参数、请求体和响应体保留显式 `0`、`false` 等合法假值，并支持 media `examples` 的首个值。
+- [x] Postman 字符串 URL 的查询参数、空值查询参数和 urlencoded/formdata 请求体可解析；明确标记为 disabled 的查询项和请求头会跳过。
+- [x] 定向解析与 API 端点回归 `38 passed`，Ruff 和 `git diff --check` 通过；q19 按 `75ed756` 重建 Backend/Worker 后，`/ai/cases/parse-schema` 的 OpenAPI/Postman 真实请求均返回 `200`，结果分别为 `1/1` 和 `1/3`（接口/参数）。脱敏证据见 [`docs/evidence/api-import-parser-2026-08-25.json`](docs/evidence/api-import-parser-2026-08-25.json)。
+- [E] 本项只关闭导入解析层证据；导入预览/落库后的真实用例执行、GraphQL/WebSocket/流式 gRPC 和完整报告仍需后续验收。
 
 ## 2026-08-25 API 测试工作台真实目标最小闭环
 
@@ -106,7 +113,7 @@
 本轮按照参考导航的五组结构继续推进：工作台、测试能力、测试资产、智能中枢、系统。导航入口和本地工作台已完成，不把入口存在误记为真实环境闭环；详细交付矩阵见 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md) 的“0.5 当前开发计划与跟踪台账”。
 
 - [x] A1 工作台/任务中心：本地项目筛选、待办聚合、轮询、重试、终止、批量操作、失败事件和权限边界已实现；真实账号链路仍需复核。
-- [x] A2 接口测试：本地环境变量、认证复用、OpenAPI/Postman 导入、HTTP/GraphQL/WebSocket/gRPC 工作台和执行结果入口已实现；真实协议目标仍待验收。
+- [E] A2 接口测试：本地环境变量、认证复用、OpenAPI/Postman 导入解析、HTTP/GraphQL/WebSocket/gRPC 工作台和执行结果入口已实现；q19 已形成 HTTP/会话复用/gRPC TLS/导入解析证据，导入预览/落库、其他协议和完整报告仍待验收。
 - [~] A3 APP 自动化：ADB 基础检查、Redis 配对、Worker registry、扫描回调、租约绑定控制、APK 资产选择/包名传递，以及专项任务失败终态本地闭环已通过；下一步验证真实 APK 上传包名识别、低代码真实运行、录屏、专项任务和结果回传。
 - [x] A4 UI 自动化：录制、元素库、页面对象、视觉基线、Trace/HAR/Console/网络日志和多浏览器本地/q19 链路已有证据；目标环境仍需按发布版本复核。
 - [~] A5 性能测试：P1-E.1～P1-E.4 本地 API、前端、容量和保留清理已完成；真实 Kubernetes 多节点、Prometheus/MinIO 生命周期和跨主机恢复未验收。

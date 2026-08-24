@@ -30,7 +30,7 @@
 | --- | --- | --- | --- | --- | --- |
 | 0 | 导航壳与信息架构 | 五组侧栏、深层路由选中、旧 URL 映射、面包屑和权限入口 | 用当前账号补刷新、窄屏、角色和项目上下文复核 | 五组入口可达；刷新/深链不丢上下文；权限隐藏一致 | `[E]` |
 | 1 | 工作台与任务中心 | 项目筛选、待办聚合、轮询、重试、终止、批量操作和失败事件 | 用真实项目数据复核五类任务及越权操作 | 任务状态、失败原因、操作事件可追踪 | `[E]` |
-| 2 | API 测试工作台 | 环境变量、认证复用、OpenAPI/Postman、HTTP/GraphQL/WebSocket/gRPC、断言/提取/依赖 | q19 已通过 HTTP 最小执行、显式 `session_lifecycle=reuse` 登录 Cookie 复用和 gRPC TLS Unary；仍需真实项目复核导入、GraphQL/WebSocket/流式 gRPC 和完整报告 | 请求、断言、变量传递、报告和权限边界完整 | `[E]` |
+| 2 | API 测试工作台 | 环境变量、认证复用、OpenAPI/Postman、HTTP/GraphQL/WebSocket/gRPC、断言/提取/依赖 | q19 已通过 HTTP 最小执行、显式 `session_lifecycle=reuse` 登录 Cookie 复用、gRPC TLS Unary 和 OpenAPI/Postman 解析；仍需真实项目复核导入预览/落库、GraphQL/WebSocket/流式 gRPC 和完整报告 | 请求、断言、变量传递、报告和权限边界完整 | `[E]` |
 | 3 | APP 自动化工作台 | Windows Android Worker 配对、扫描、租约、截图/控件、APK 上传与包名解析、通用 APK 低代码录屏和设备产物 | Karing APK/真实包名、专项任务、APK 下载、完整报告和异常回放验收 | 单设备真实 APK 执行；事件、日志、媒体、报告和清理可追踪 | `[~]` |
 | 4 | UI 自动化工作台 | Playwright 录制、元素库、页面对象、视觉基线、Trace/HAR、网络/Console 日志、多浏览器 | 用最新 Windows 运行档案复核录制和回放失败证据 | Chromium/Firefox/WebKit 可录制、执行和定位失败 | `[E]` |
 | 5 | 性能测试工作台 | 本地压测模型、采样、趋势、基线、报告、保留清理和 q19 短压 | 真实多节点、容量限制、Prometheus/MinIO 生命周期、跨主机恢复 | 真实节点完成短压、取消、采样、报告和恢复演练 | `[~]` |
@@ -43,7 +43,7 @@
 
 ### 4.1 P0：先关闭当前可验证链路
 
-1. **API 真实协议目标** `[x]`：q19 受控目标已完成临时 API 用例创建、评审审批、HTTP 请求、状态码断言、JSONPath 提取、显式会话复用、gRPC TLS Unary、终态查询和清理。证据见 [`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json) 和 [`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)。OpenAPI/Postman 导入、GraphQL/WebSocket/流式 gRPC 和完整报告仍保持环境验收项。
+1. **API 真实协议目标** `[x]`：q19 受控目标已完成临时 API 用例创建、评审审批、HTTP 请求、状态码断言、JSONPath 提取、显式会话复用、gRPC TLS Unary、OpenAPI/Postman 解析、终态查询和清理。证据见 [`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json) 和 [`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)。OpenAPI/Postman 导入预览/落库、GraphQL/WebSocket/流式 gRPC 和完整报告仍保持环境验收项。
 2. **Android 单设备闭环**：取得 Karing APK 或真实 `package_name`，按“APK 下载 → 低代码 → 录屏 → 性能/稳定性/流畅度专项 → 事件/日志/报告 → 下载与清理”顺序执行；没有真实包时保持阻塞，不使用其他应用冒充 Karing。
 3. **Windows API/Web 复核**：在 Android 阶段不阻塞的同时，用当前有效账号复跑认证、依赖、文件传输、Web 低代码、报告导出和浏览器矩阵，保留脱敏 JSON 证据。
 
@@ -70,7 +70,7 @@
 | 风险 | 影响 | 解除条件 |
 | --- | --- | --- |
 | Karing APK/包名未在当前设备确认 | APP 专项任务、应用级动作和完整报告不能验收 | 提供或上传 Karing APK，并以 `pm list packages`/解析结果确认包名 |
-| API 导入、多协议和完整报告尚未形成真实证据 | API 工作台只能维持“已实现待环境验收” | 提供可控项目/目标，完成 OpenAPI/Postman、GraphQL/WebSocket/gRPC 和报告链路并清理 |
+| API 导入落库、多协议和完整报告尚未形成真实证据 | API 工作台只能维持“已实现待环境验收” | 提供可控项目/目标，完成 OpenAPI/Postman 导入预览/落库、GraphQL/WebSocket/gRPC 和报告链路并清理 |
 | 通知、外部缺陷平台无目标凭据 | 不能声称真实投递或外部同步通过 | 提供临时目标和最小权限凭据，且不写入仓库 |
 | 生产性能环境未提供 | 多节点、跨主机恢复和生产监控保持待验收 | 提供可控 Kubernetes/Prometheus/MinIO 目标及回滚窗口 |
 
@@ -80,3 +80,4 @@
 - 2026-08-25：API 工作台在 q19 受控 HTTP 目标完成真实创建/审批/执行/状态码断言/JSONPath 提取/清理，定向执行器回归 `77 passed`；证据见 [`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)。
 - 2026-08-25：API 工作台显式 `session_lifecycle=reuse` 的两步登录/当前用户场景通过，登录请求体密码在执行证据中脱敏，临时项目清理成功；证据见 [`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)。
 - 2026-08-25：补齐 API gRPC TLS 自签名/私有 CA 支持：用例可配置公有 PEM 根证书和 SNI 服务名，执行器拒绝私钥且不把证书写入步骤请求快照；q19 Unary 真实目标通过，临时项目清理成功。证据见 [`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)，代码提交为 `96c7db0`。
+- 2026-08-25：加固 OpenAPI/Postman 导入解析：保留 `0/false/空字符串` 示例，解析 Postman 字符串 URL 查询参数，跳过禁用请求头/查询项并支持 urlencoded/formdata 示例；q19 按 `75ed756` 的 `/ai/cases/parse-schema` 真实接口返回 OpenAPI 1 个接口/1 个参数、Postman 1 个接口/3 个参数。证据见 [`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)；导入预览/落库、后续协议和完整报告仍待验收。

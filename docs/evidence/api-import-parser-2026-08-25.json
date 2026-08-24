@@ -1,0 +1,34 @@
+{
+  "evidence_type": "api_import_parser_readiness",
+  "date": "2026-08-25",
+  "status": "passed",
+  "source_commit": "75ed756",
+  "environment": "q19 isolated compose acceptance stack",
+  "endpoint": "/api/v1/ai/cases/parse-schema",
+  "fixtures": [
+    {
+      "source_type": "openapi",
+      "status": 200,
+      "endpoint_count": 1,
+      "parameter_count": 1,
+      "checks": ["explicit 0 and false examples are preserved"]
+    },
+    {
+      "source_type": "postman",
+      "status": 200,
+      "endpoint_count": 1,
+      "parameter_count": 3,
+      "checks": [
+        "string URL query parameters, including an empty value, are retained",
+        "disabled headers are omitted"
+      ]
+    }
+  ],
+  "local_regression": {
+    "parser_tests": 19,
+    "api_generation_tests": 38,
+    "ruff": "passed",
+    "diff_check": "passed"
+  },
+  "scope_note": "该证据证明 OpenAPI/Postman 解析接口在 q19 受控目标上按提交 75ed756 返回结构化接口清单；不代表导入预览/落库后的真实用例执行、GraphQL/WebSocket/流式 gRPC、生产 API 或完整报告已完成验收。"
+}
