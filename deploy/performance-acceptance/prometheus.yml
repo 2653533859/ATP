@@ -8,6 +8,11 @@ scrape_configs:
       - targets: ["backend:8000"]
     metrics_path: /metrics
 
+  - job_name: atp-worker
+    static_configs:
+      - targets: ["worker:9091"]
+    metrics_path: /metrics
+
   - job_name: atp-performance-worker
     static_configs:
       - targets: ["performance-worker:9092"]

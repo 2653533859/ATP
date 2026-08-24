@@ -94,6 +94,32 @@ services:
         condition: service_healthy
     restart: unless-stopped
 
+  # General execution Worker for API/Web cases. Keep it separate from the
+  # performance node so Web/API work cannot consume performance capacity.
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    env_file: .env.performance-acceptance
+    environment:
+      CELERY_QUEUES: default,maintenance
+      CELERY_CONCURRENCY: "1"
+      WORKER_METRICS_PORT: "9091"
+      ADB_SCAN_ENABLED: "false"
+      PERFORMANCE_NODE_ENABLED: "false"
+    command:
+      - sh
+      - -c
+      - exec celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q "$${CELERY_QUEUES}"
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
+
   acceptance-tls:
     image: alpine:3.20
     volumes:
@@ -226,6 +252,8 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+      worker:
+        condition: service_started
       performance-worker:
         condition: service_started
       acceptance-target:

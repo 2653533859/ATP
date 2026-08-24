@@ -288,12 +288,22 @@ def test_docker_compose_acceptance_stack_isolated_and_has_real_targets():
     services = compose["services"]
 
     assert compose["name"] == "atp-performance-acceptance"
-    assert {"postgres", "redis", "minio", "backend", "performance-worker", "acceptance-target"} <= services.keys()
+    assert {"postgres", "redis", "minio", "backend", "worker", "performance-worker", "acceptance-target"} <= services.keys()
     assert services["backend"]["ports"] == ["127.0.0.1:18080:8000"]
     assert services["backend"]["healthcheck"]["test"][0] == "CMD"
     assert "/health" in " ".join(services["backend"]["healthcheck"]["test"])
+    worker = services["worker"]
+    assert worker["environment"]["CELERY_QUEUES"] == "default,maintenance"
+    assert worker["environment"]["WORKER_METRICS_PORT"] == "9091"
+    assert worker["environment"]["ADB_SCAN_ENABLED"] == "false"
+    assert worker["environment"]["PERFORMANCE_NODE_ENABLED"] == "false"
+    assert worker["depends_on"]["backend"]["condition"] == "service_healthy"
+    worker_command = " ".join(worker["command"])
+    assert "celery -A app.worker.celery_app worker" in worker_command
+    assert '"$${CELERY_QUEUES}"' in worker_command
     assert services["performance-worker"]["environment"]["PERFORMANCE_NODE_ID"] == "worker-a"
     assert services["performance-worker"]["environment"]["PERFORMANCE_NODE_QUEUE"] == "performance.worker-a"
+    assert services["performance-worker"]["environment"]["CELERY_QUEUES"] == "performance.worker-a"
     assert services["performance-worker"]["depends_on"]["backend"]["condition"] == "service_healthy"
     assert "grpc-target" in services["acceptance-target"]["networks"]["default"]["aliases"]
     assert "http-target" in services["acceptance-target"]["networks"]["default"]["aliases"]

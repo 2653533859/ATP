@@ -35,4 +35,5 @@ def test_acceptance_prometheus_scrapes_backend_and_performance_worker():
     jobs = {item["job_name"]: item for item in config["scrape_configs"]}
 
     assert jobs["atp-backend"]["static_configs"][0]["targets"] == ["backend:8000"]
+    assert jobs["atp-worker"]["static_configs"][0]["targets"] == ["worker:9091"]
     assert jobs["atp-performance-worker"]["static_configs"][0]["targets"] == ["performance-worker:9092"]
