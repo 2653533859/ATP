@@ -68,7 +68,7 @@ backend/.venv/bin/python scripts/notification-smtp-link-check.py \
 
 覆盖范围：SMTP 信封（`MAIL FROM`/`RCPT TO`）、收件人规范化结果、MIME multipart 结构、`To` 头显示名保留，以及正文六个性能字段。
 
-明确不覆盖：供应商侧送达、反垃圾与退信、DKIM/SPF、TLS/SSL 链路、限流与重复投递。因此报告状态固定为 `local_link_only`，永远不会写出 `passed`；该脚本不能用于关闭外部渠道门禁。首次执行结果见 [`evidence/notification-smtp-link-check-2026-08-20.json`](evidence/notification-smtp-link-check-2026-08-20.json)。
+明确不覆盖：供应商侧送达、反垃圾与退信、DKIM/SPF、TLS/SSL 链路、限流与重复投递。因此报告状态固定为 `local_link_only`，永远不会写出 `passed`；该脚本不能用于关闭外部渠道门禁。首次执行结果见 [`evidence/notification-smtp-link-check-2026-08-20.json`](evidence/notification-smtp-link-check-2026-08-20.json)，最新复核见 [`evidence/notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json)。
 
 ## 4. 通知投递目标校验规则
 

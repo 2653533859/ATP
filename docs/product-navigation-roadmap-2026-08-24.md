@@ -1,6 +1,6 @@
 # 产品导航与能力扩展开发计划（2026-08-24）
 
-> 状态：导航信息架构已按参考导航完成基线设计；N0 导航壳、N1 工作台与任务中心、N2.1/N2.2 内部缺陷与失败证据闭环、N2.3 报告中心、N2.4 用例评审工作台、N2.5 外部缺陷兼容、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心已完成本地实现、审查和回归，均待真实环境验收；N6.1/N6.2 文档与浏览器回归、N6.3/N6.4 Windows API/Web readiness、N6.5 q19 真实迁移与临时 Web Worker 低代码验收、N6.6 q19 持久通用 Web Worker 验收、N6.7 q19 独立 Web 录制 Worker 部署、N6.8 Chromium 证据链、N6.9 Firefox/WebKit 与跨 API 副本、N6.10 性能节点与真实短压验收已形成证据，Android/Worker、通知和外部平台验收仍待补齐。
+> 状态：导航信息架构已按参考导航完成基线设计；N0 导航壳、N1 工作台与任务中心、N2.1/N2.2 内部缺陷与失败证据闭环、N2.3 报告中心、N2.4 用例评审工作台、N2.5 外部缺陷兼容、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心已完成本地实现、审查和回归，均待真实环境验收；N6.1/N6.2 文档与浏览器回归、N6.3/N6.4 Windows API/Web readiness、N6.5 q19 真实迁移与临时 Web Worker 低代码验收、N6.6 q19 持久通用 Web Worker 验收、N6.7 q19 独立 Web 录制 Worker 部署、N6.8 Chromium 证据链、N6.9 Firefox/WebKit 与跨 API 副本、N6.10 性能节点与真实短压验收、N6.11 通知本地链路验收已形成证据，Android/Worker、真实通知供应商和外部平台验收仍待补齐。
 > 目标：将现有 ATP 平台从“按已实现页面分组”调整为参考导航中的“工作台、测试能力、测试资产、智能中枢、系统”五层产品导航，并按模块逐步补齐统一入口与业务闭环。
 
 > 使用方式：本文件是本轮导航重构的主计划。每个模块完成后必须依次完成“实现 → 测试 → 代码审查 → 修复 → 文档/记忆同步 → 提交推送”，并在下方实施记录和 `Task.md` 中更新同一状态。未完成联调的功能只能标记为“已实现，待环境验收”。
@@ -200,6 +200,11 @@ N5.2 验收口径：管理员/工程师能够从统一入口定位可见配置�
 - **预检**：Backend `/health` 正常，k6/Locust/gRPC/JMeter 均 ready；`worker-a` online，队列 `performance.worker-a`，节点 allowlist 包含 q19 `http-target`。
 - **真实运行**：临时项目执行 1 VU、5 次迭代的 k6 短压，运行状态 `success`，产生 1 条 `performance-worker` 采样；Prometheus ready，Backend、通用 Worker、性能 Worker 三个 target 均为 `up`。
 - **清理与证据**：临时项目、测试、运行和脚本对象已删除，脱敏证据见 [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)。多节点容量、长期趋势、Android、通知和外部缺陷平台仍待后续验收。
+
+### 2026-08-24 N6.11 通知链路本地安全验收记录
+
+- **本地链路**：使用回环 SMTP sink 调用生产入口 `send_notification_channel`，12 项检查通过，覆盖 envelope、收件人规范化、MIME、显示名和性能摘要正文。
+- **边界**：报告状态为 `local_link_only`，未触达真实邮箱或外部供应商，未记录凭据；证据见 [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json)。真实 SMTP/企业微信/钉钉投递、供应商侧送达和外部缺陷平台仍待目标环境证据。
 
 ## 4. 推荐执行顺序
 

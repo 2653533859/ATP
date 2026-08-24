@@ -30,6 +30,8 @@
 
 > 2026-08-24 N6.10 环境证据：q19 性能预检确认专用 `worker-a`、`performance.worker-a` 队列及 k6/Locust/gRPC/JMeter 执行器可用；一次 1 VU、5 次迭代的真实 k6 短压成功，并产生 `performance-worker` 资源采样。Prometheus readiness 通过，Backend、通用 Worker 和性能 Worker targets 均为 `up`；脱敏证据见 [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)。多节点容量、长期趋势、Android、通知和外部缺陷平台仍待后续验收。
 
+> 2026-08-24 N6.11 环境证据：通知生产入口在回环 SMTP sink 上完成 12 项本地链路检查，验证 envelope、收件人规范化、MIME、显示名及六项性能摘要字段；报告状态为 `local_link_only`，不替代真实 SMTP/企业微信/钉钉供应商侧送达。脱敏证据见 [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json)。
+
 > 2026-08-12 iOS/Appium 补强：新增 status/session smoke、受控步骤和脱敏附件证据入口；真实 macOS/XCUITest/WDA/设备执行仍待验收。
 
 > 最新实现状态和前后对比请先查看 [`docs/q18-latest-status-2026-08-07.md`](./q18-latest-status-2026-08-07.md)。

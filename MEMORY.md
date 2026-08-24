@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-24 N6.11 通知链路本地安全验收已完成：通过回环 SMTP sink 走生产入口 `send_notification_channel`，12 项检查全部通过，覆盖 SMTP envelope、收件人规范化、MIME multipart、显示名和 RPS/P95/P99/错误率/阈值/触发原因六项正文；报告固定为 `local_link_only`，未触达真实邮箱、未记录凭据，证据见 `docs/evidence/notification-smtp-link-check-2026-08-24.json`。真实 SMTP/企业微信/钉钉仍需管理员提供临时目标和供应商侧送达证据，Android 真机仍因 ADB offline 待恢复。
+
 - 2026-08-24 N6.10 q19 性能节点真实验收已完成：性能 smoke 预检确认 API healthy、k6/Locust/gRPC/JMeter ready，专用节点 `worker-a` online、队列 `performance.worker-a`；临时项目执行一次低并发 k6（1 VU、5 次迭代、目标 `http-target`），运行状态 `success`，产生 1 条 `performance-worker` 资源采样。Prometheus readiness 通过，`atp-backend`、`atp-worker`、`atp-performance-worker` 三个 target 为 up。临时项目、测试、运行和性能脚本对象已清理；脱敏证据见 `docs/evidence/q19-performance-worker-smoke-2026-08-24.json`。Android Worker 已启动并有心跳，但当前 ADB 设备仍为 offline，Android 真机闭环继续待设备恢复；下一步优先补 Android 单设备验收，再验收通知和外部缺陷平台。
 
 - 2026-08-24 N6.9 Firefox/WebKit 与跨 API 副本录制验收已完成并推送提交 `41ff87a`：Linux `WEB_RECORDER_MODE=worker` 下 WebKit 改为无头启动，避免 Xvfb 中 headed WebKit 挂起；新增 Linux Worker WebKit 启动回归，Windows/local 与 Firefox 行为保持不变。q19 使用 `41ff87a` 重建后，Firefox 截图 `19076` bytes、WebKit 截图 `21192` bytes，二者均完成 2 步快照、停止、Trace/HAR/运行报告 URL 和停止后查询；启动临时第二 API 副本后，副本 A 停止的会话可由副本 B 通过共享 Redis 查询为 `stopped`。后端目标回归 `45 passed`，Ruff/diff-check 通过；证据见 `docs/evidence/q19-web-recording-firefox-2026-08-24.json`、`docs/evidence/q19-web-recording-webkit-2026-08-24.json` 和 `docs/evidence/q19-web-recording-cross-api-2026-08-24.json`。临时项目、18 个录制对象和第二副本已清理。下一步优先验收 Android Worker/真机，再验收真实性能节点、通知和外部缺陷平台。

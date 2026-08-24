@@ -6,6 +6,11 @@
 - 临时项目执行 1 VU、5 次迭代的真实 k6 smoke，目标为 q19 内部 `http-target`，运行状态 `success`，产生 1 条 `performance-worker` 采样；Prometheus readiness 和三个 ATP target（Backend、通用 Worker、性能 Worker）均通过。
 - 临时项目、测试、运行和脚本对象已清理；脱敏证据见 [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)。Android Worker 当前只有心跳，设备仍 offline；下一步恢复 Android 真机后再做单设备运行。
 
+## 2026-08-24 N6.11 通知链路本地安全验收
+
+- 回环 SMTP sink 通过生产通知入口完成 12 项检查，覆盖 SMTP envelope、收件人规范化、MIME、显示名和性能摘要正文。
+- 报告状态为 `local_link_only`，未触达真实邮箱，证据见 [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json)；真实 SMTP/企业微信/钉钉仍需供应商侧送达证据。
+
 ## 2026-08-24 N6.9 Firefox/WebKit 与跨 API 副本录制验收
 
 - Linux `WEB_RECORDER_MODE=worker` 下 WebKit 已改为无头启动，避免 Xvfb 中 headed WebKit 挂起；Windows/local 与 Firefox 仍保持 headed 行为，新增回归断言覆盖该边界。

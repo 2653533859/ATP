@@ -7,6 +7,12 @@
 - [x] 临时项目、测试、运行和脚本对象已清理；证据见 [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)。
 - [ ] Android Worker/真机、通知和外部缺陷平台仍待独立环境证据；当前 Android 设备为 offline，未创建 Android 运行任务。
 
+## 2026-08-24 N6.11 通知链路本地安全验收
+
+- [x] 回环 SMTP sink 通过生产通知入口完成 12 项检查，覆盖 envelope、收件人规范化、MIME、显示名和六项性能摘要字段。
+- [x] 报告固定为 `local_link_only`，未触达真实邮箱或记录凭据；证据见 [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json)。
+- [ ] 真实 SMTP/企业微信/钉钉及外部缺陷平台仍待目标环境证据。
+
 ## 2026-08-24 N6.9 Firefox/WebKit 与跨 API 副本录制验收
 
 - [x] Linux Worker 模式的 WebKit headed 启动挂起已修复为无头启动；Windows/local 与 Firefox 的 headed 行为保持不变，并补充启动参数回归。
