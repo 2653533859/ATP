@@ -1,6 +1,8 @@
 # MEMORY
 
-- 2026-08-24 N6.13 全量质量门禁复核已完成：后端非集成测试 `2215 passed`；前端 `npm run type-check` 和生产 `npm run build` 均通过；`git diff --check`、工作区清洁和 `origin/main` 同步检查通过，当前提交为 `c54a57c`。本轮未把 Android 离线设备、真实通知供应商或外部缺陷平台联调误记为通过；下一步仍按计划先恢复 Android 单设备证据，再补真实通知与外部平台验收。
+- 2026-08-24 N0 导航壳体验收口已完成：新增统一导航状态模块 `frontend/src/layouts/navigation.ts` 和回归测试，主布局新增五组导航面包屑；深层用例/项目路由保持正确选中，Android 专项任务/报告详情使用具体页面标题，系统页和旧 URL 保持兼容。导航定向 `6 passed`，前端全量 `66 files / 262 tests passed`，type-check 通过；本次未改变权限规则或后端执行逻辑。
+
+- 2026-08-24 N6.13 全量质量门禁复核已完成：后端非集成测试 `2215 passed`；前端 `npm run type-check` 和生产 `npm run build` 均通过；`git diff --check`、工作区清洁和远端同步检查通过，配置校验模块基线提交为 `c54a57c`。本轮未把 Android 离线设备、真实通知供应商或外部缺陷平台联调误记为通过；下一步仍按计划先恢复 Android 单设备证据，再补真实通知与外部平台验收。
 
 - 2026-08-24 N6.12 Android Worker 配置配对门禁已完成：新增 `scripts/validate-android-worker-config.py`，只输出字段名/队列状态，不输出 PostgreSQL、Redis、MinIO、APP_SECRET_KEY 或 ENCRYPTION_KEY 值；校验 Backend/Windows Agent 共享基础设施和密钥、`ADB_SCAN_MODE`、Celery 队列、Worker 队列及 Redis 注册前缀。`windows-android-worker.ps1 doctor` 支持 `-BackendEnvFile` 自动执行配对检查，`startup.ps1` 支持透传该参数，Make/CI/pre-commit/部署 readiness 已接入脚本；统一两个示例档案的密钥占位符。配置/Worker/PowerShell/质量门禁定向 `55 passed`，部署门禁通过（仅跳过本机缺少 Docker Compose 的环境检查）。Android 真机仍因 ADB offline 待恢复。
 

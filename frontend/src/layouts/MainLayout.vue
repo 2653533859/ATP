@@ -108,7 +108,9 @@
             <MenuUnfoldOutlined v-if="collapsed" />
             <MenuFoldOutlined v-else />
           </a-button>
-          <span class="header-title">{{ t(routeTitleKey) }}</span>
+          <a-breadcrumb class="header-breadcrumb">
+            <a-breadcrumb-item v-for="key in breadcrumbKeys" :key="key">{{ t(key) }}</a-breadcrumb-item>
+          </a-breadcrumb>
           <span v-if="activeProjectId" class="project-context">{{ t('layout.project_context', { id: activeProjectId }) }}</span>
         </div>
         <div class="header-right">
@@ -185,6 +187,12 @@ import { useThemeStore } from '@/stores/theme'
 import { getLocale, setLocale, type SupportedLocale } from '@/locales'
 import { hasAnyRole, type UserRole } from '@/utils/permissions'
 import { workbenchApi } from '@/api'
+import {
+  getBreadcrumbKeys,
+  getMenuOpenKeys,
+  getRouteTitleKey,
+  getSelectedMenuKey,
+} from './navigation'
 
 const router = useRouter()
 const route = useRoute()
@@ -196,72 +204,7 @@ const workbenchTodoCount = ref(0)
 const activeTaskCount = ref(0)
 let workbenchRefreshTimer: number | undefined
 
-const routeMenuGroups: Record<string, string> = {
-  '/dashboard': 'workbench',
-  '/workbench': 'workbench',
-  '/projects': 'workbench',
-  '/tasks': 'workbench',
-  '/runs': 'workbench',
-  '/api-workbench': 'test-capabilities',
-  '/mobile-special': 'test-capabilities',
-  '/ui-workbench': 'test-capabilities',
-  '/performance-workbench': 'test-capabilities',
-  '/ai-workbench': 'test-capabilities',
-  '/cases': 'test-assets',
-  '/plans': 'test-assets',
-  '/bugs': 'test-assets',
-  '/reports': 'test-assets',
-  '/case-reviews': 'test-assets',
-  '/suites': 'test-assets',
-  '/mock-rules': 'test-assets',
-  '/system/datasets': 'test-assets',
-  '/system/web-assets': 'test-assets',
-  '/system/api-contract-assets': 'test-assets',
-  '/system/performance': 'test-capabilities',
-  '/system': 'system-center',
-  '/devices': 'test-capabilities',
-  '/apks': 'test-capabilities',
-}
-
-const systemRouteTitles: Record<string, string> = {
-  '/system/environments': 'menu.system.environments',
-  '/system/startup-config': 'menu.system.startup_config',
-  '/system/global-variables': 'menu.system.global_variables',
-  '/system/datasets': 'menu.system.datasets',
-  '/system/web-assets': 'menu.system.web_assets',
-  '/system/api-contract-assets': 'menu.system.api_contract_assets',
-  '/system/ai-llm-configs': 'menu.system.ai_llm_configs',
-  '/system/healing-examples': 'menu.system.ai_healing_examples',
-  '/system/ai-healing-stats': 'menu.system.ai_healing_stats',
-  '/system/performance': 'menu.system.performance',
-  '/system/storage': 'menu.system.storage',
-  '/system/run-retention': 'menu.system.run_retention',
-  '/system/dashboard-alerts': 'menu.system.dashboard_alerts',
-  '/system/notifications': 'menu.system.notifications',
-  '/system/bug-trackers': 'menu.system.bug_trackers',
-  '/system/users': 'menu.system.users',
-  '/system/audit-logs': 'menu.system.audit_logs',
-}
-
-function findRouteEntry<T>(entries: Record<string, T>, path: string) {
-  return Object.entries(entries).find(([prefix]) => path.startsWith(prefix))?.[1]
-}
-
-function getMenuOpenKeys(path: string) {
-  const group = findRouteEntry(routeMenuGroups, path)
-  if (group) return [group]
-  return []
-}
-
 const collapsed = ref(false)
-function getSelectedMenuKey(path: string) {
-  if (path.startsWith('/projects/') && path.endsWith('/cases')) return '/cases'
-  if (path.startsWith('/projects/')) return '/projects'
-  if (path.startsWith('/cases/')) return '/cases'
-  if (path.startsWith('/runs/')) return '/runs'
-  if (path.startsWith('/mobile-special/reports/')) return '/mobile-special/reports'
-  return path
-}
 
 const selectedKeys = ref([getSelectedMenuKey(route.path)])
 const openKeys = ref<string[]>(getMenuOpenKeys(route.path))
@@ -318,22 +261,10 @@ function canAccess(roles: UserRole[]) {
 }
 
 const routeTitleKey = computed(() => {
-  if (route.meta.menuTitleKey) return String(route.meta.menuTitleKey)
-  const p = route.path
-  if (p.startsWith('/dashboard')) return 'menu.dashboard'
-  if (p.startsWith('/projects')) return 'menu.projects'
-  if (p.startsWith('/account')) return 'account.title'
-  if (p.startsWith('/cases')) return 'menu.cases'
-  if (p.startsWith('/runs')) return 'menu.runs'
-  if (p.startsWith('/suites')) return 'menu.suites'
-  if (p.startsWith('/plans')) return 'menu.plans'
-  if (p.startsWith('/devices')) return 'menu.devices'
-  if (p.startsWith('/apks')) return 'menu.apks'
-  if (p.startsWith('/mock')) return 'menu.mock_rules'
-  if (p.startsWith('/mobile-special')) return 'menu.mobile_special.title'
-  if (p.startsWith('/system')) return findRouteEntry(systemRouteTitles, p) ?? 'menu.system.title'
-  return 'layout.sider_title_full'
+  return getRouteTitleKey(route.path, route.meta.menuTitleKey)
 })
+
+const breadcrumbKeys = computed(() => getBreadcrumbKeys(route.path, routeTitleKey.value))
 
 const activeProjectId = computed(() => {
   const projectId = route.query.project_id ?? route.params.projectId
@@ -445,10 +376,13 @@ function onLocaleChange(value: unknown) {
   align-items: center;
   gap: 8px;
 }
-.header-title {
+.header-breadcrumb {
+  min-width: 0;
+}
+.header-breadcrumb :deep(.ant-breadcrumb-link) {
+  color: var(--c-text);
   font-size: 15px;
   font-weight: 600;
-  color: var(--c-text);
 }
 .project-context {
   padding: 4px 9px;
@@ -540,11 +474,15 @@ function onLocaleChange(value: unknown) {
     gap: 8px;
   }
 
-  .header-title {
+  .header-breadcrumb {
     max-width: 42vw;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .header-breadcrumb :deep(.ant-breadcrumb-separator) {
+    margin-inline: 4px;
   }
 
   .project-context {
