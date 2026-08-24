@@ -21,70 +21,71 @@
         class="app-menu"
         @click="onMenuClick"
       >
-        <a-menu-item key="/dashboard">
-          <DashboardOutlined />
-          <span>{{ t('menu.dashboard') }}</span>
-        </a-menu-item>
-        <a-sub-menu key="test-design">
-          <template #icon><ProjectOutlined /></template>
-          <template #title>{{ t('menu.groups.test_design') }}</template>
-          <a-menu-item key="/projects">{{ t('menu.projects') }}</a-menu-item>
-          <a-menu-item key="/cases">{{ t('menu.cases') }}</a-menu-item>
-          <a-menu-item key="/suites">{{ t('menu.suites') }}</a-menu-item>
-          <a-menu-item key="/plans">{{ t('menu.plans') }}</a-menu-item>
+        <a-sub-menu key="workbench">
+          <template #icon><DashboardOutlined /></template>
+          <template #title>{{ t('menu.groups.workbench') }}</template>
+          <a-menu-item key="/dashboard">{{ t('menu.workbench.home') }}</a-menu-item>
+          <a-menu-item key="/workbench/todos">{{ t('menu.workbench.todos') }}</a-menu-item>
+          <a-menu-item key="/projects">{{ t('menu.workbench.projects') }}</a-menu-item>
+          <a-menu-item key="/tasks">{{ t('menu.workbench.tasks') }}</a-menu-item>
+          <a-menu-item key="/runs">{{ t('menu.runs') }}</a-menu-item>
+        </a-sub-menu>
+
+        <a-sub-menu key="test-capabilities">
+          <template #icon><PlayCircleOutlined /></template>
+          <template #title>{{ t('menu.groups.test_capabilities') }}</template>
+          <a-menu-item key="/api-workbench">{{ t('menu.capabilities.api') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/mobile-special/workbench">{{ t('menu.capabilities.app') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/devices">{{ t('menu.devices') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/apks">{{ t('menu.apks') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/mobile-special/tasks">{{ t('menu.mobile_special.tasks') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/mobile-special/reports">{{ t('menu.mobile_special.reports') }}</a-menu-item>
+          <a-menu-item key="/ui-workbench">{{ t('menu.capabilities.ui') }}</a-menu-item>
+          <a-menu-item key="/system/performance">{{ t('menu.capabilities.performance') }}</a-menu-item>
+          <a-menu-item key="/ai-workbench">{{ t('menu.capabilities.ai') }}</a-menu-item>
         </a-sub-menu>
 
         <a-sub-menu key="test-assets">
           <template #icon><AppstoreOutlined /></template>
-          <template #title>{{ t('menu.groups.test_assets') }}</template>
+          <template #title>{{ t('menu.groups.test_assets_new') }}</template>
+          <a-menu-item key="/cases">{{ t('menu.assets.cases') }}</a-menu-item>
+          <a-menu-item key="/plans">{{ t('menu.assets.plans') }}</a-menu-item>
+          <a-menu-item key="/bugs">{{ t('menu.assets.bugs') }}</a-menu-item>
+          <a-menu-item key="/reports">{{ t('menu.assets.reports') }}</a-menu-item>
+          <a-menu-item key="/case-reviews">{{ t('menu.assets.reviews') }}</a-menu-item>
+          <a-menu-item key="/suites">{{ t('menu.suites') }}</a-menu-item>
           <a-menu-item key="/mock-rules">{{ t('menu.mock_rules') }}</a-menu-item>
           <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
           <a-menu-item key="/system/web-assets">{{ t('menu.system.web_assets') }}</a-menu-item>
           <a-menu-item key="/system/api-contract-assets">{{ t('menu.system.api_contract_assets') }}</a-menu-item>
         </a-sub-menu>
 
-        <a-sub-menu key="execution-center">
-          <template #icon><PlayCircleOutlined /></template>
-          <template #title>{{ t('menu.groups.execution_center') }}</template>
-          <a-menu-item key="/runs">{{ t('menu.runs') }}</a-menu-item>
-          <a-menu-item key="/system/performance">{{ t('menu.system.performance') }}</a-menu-item>
-          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/storage">{{ t('menu.system.storage') }}</a-menu-item>
-          <a-menu-item v-if="canAccess(['admin'])" key="/system/run-retention">{{ t('menu.system.run_retention') }}</a-menu-item>
-          <a-menu-item v-if="canAccess(['admin'])" key="/system/dashboard-alerts">{{ t('menu.system.dashboard_alerts') }}</a-menu-item>
+        <a-sub-menu key="intelligence-center">
+          <template #icon><ApiOutlined /></template>
+          <template #title>{{ t('menu.groups.intelligence_center') }}</template>
+          <a-menu-item key="/hermes">{{ t('menu.intelligence.hermes') }}</a-menu-item>
+          <a-menu-item key="/requirements">{{ t('menu.intelligence.requirements') }}</a-menu-item>
+          <a-menu-item key="/knowledge">{{ t('menu.intelligence.knowledge') }}</a-menu-item>
         </a-sub-menu>
 
-        <a-sub-menu v-if="canAccess(['admin', 'engineer'])" key="android-special">
-          <template #icon><MobileOutlined /></template>
-          <template #title>{{ t('menu.groups.android_special') }}</template>
-          <a-menu-item key="/devices">{{ t('menu.devices') }}</a-menu-item>
-          <a-menu-item key="/apks">{{ t('menu.apks') }}</a-menu-item>
-          <a-menu-item key="/mobile-special/tasks">{{ t('menu.mobile_special.tasks') }}</a-menu-item>
-          <a-menu-item key="/mobile-special/reports">{{ t('menu.mobile_special.reports') }}</a-menu-item>
-        </a-sub-menu>
-
-        <a-sub-menu key="platform-config">
+        <a-sub-menu key="system-center">
           <template #icon><SettingOutlined /></template>
-          <template #title>{{ t('menu.groups.platform_config') }}</template>
+          <template #title>{{ t('menu.groups.system_center') }}</template>
+          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/toolbox">{{ t('menu.system_center.toolbox') }}</a-menu-item>
+          <a-menu-item key="/system/config">{{ t('menu.system_center.config') }}</a-menu-item>
           <a-menu-item key="/system/environments">{{ t('menu.system.environments') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin'])" key="/system/startup-config">{{ t('menu.system.startup_config') }}</a-menu-item>
           <a-menu-item key="/system/global-variables">{{ t('menu.system.global_variables') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin'])" key="/system/ai-llm-configs">{{ t('menu.system.ai_llm_configs') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin'])" key="/system/healing-examples">{{ t('menu.system.ai_healing_examples') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin'])" key="/system/ai-healing-stats">{{ t('menu.system.ai_healing_stats') }}</a-menu-item>
-        </a-sub-menu>
-
-        <a-sub-menu v-if="canAccess(['admin', 'engineer'])" key="external-integrations">
-          <template #icon><ApiOutlined /></template>
-          <template #title>{{ t('menu.groups.external_integrations') }}</template>
-          <a-menu-item key="/system/notifications">{{ t('menu.system.notifications') }}</a-menu-item>
-          <a-menu-item key="/system/bug-trackers">{{ t('menu.system.bug_trackers') }}</a-menu-item>
-        </a-sub-menu>
-
-        <a-sub-menu v-if="canAccess(['admin'])" key="security-audit">
-          <template #icon><UserOutlined /></template>
-          <template #title>{{ t('menu.groups.security_audit') }}</template>
-          <a-menu-item key="/system/users">{{ t('menu.system.users') }}</a-menu-item>
-          <a-menu-item key="/system/audit-logs">{{ t('menu.system.audit_logs') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/storage">{{ t('menu.system.storage') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/notifications">{{ t('menu.system.notifications') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/bug-trackers">{{ t('menu.system.bug_trackers') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/users">{{ t('menu.system.users') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/audit-logs">{{ t('menu.system.audit_logs') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/run-retention">{{ t('menu.system.run_retention') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin'])" key="/system/dashboard-alerts">{{ t('menu.system.dashboard_alerts') }}</a-menu-item>
         </a-sub-menu>
       </a-menu>
     </a-layout-sider>
@@ -98,6 +99,7 @@
             <MenuFoldOutlined v-else />
           </a-button>
           <span class="header-title">{{ t(routeTitleKey) }}</span>
+          <span v-if="activeProjectId" class="project-context">{{ t('layout.project_context', { id: activeProjectId }) }}</span>
         </div>
         <div class="header-right">
           <a-tooltip :title="t('layout.theme_toggle')">
@@ -154,10 +156,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
-  ProjectOutlined,
   PlayCircleOutlined,
   SettingOutlined,
-  MobileOutlined,
   AppstoreOutlined,
   DashboardOutlined,
   ApiOutlined,
@@ -182,32 +182,29 @@ const themeStore = useThemeStore()
 const { t } = useI18n()
 
 const routeMenuGroups: Record<string, string> = {
-  '/projects': 'test-design',
-  '/cases': 'test-design',
-  '/suites': 'test-design',
-  '/plans': 'test-design',
+  '/dashboard': 'workbench',
+  '/workbench': 'workbench',
+  '/projects': 'workbench',
+  '/tasks': 'workbench',
+  '/runs': 'workbench',
+  '/api-workbench': 'test-capabilities',
+  '/mobile-special': 'test-capabilities',
+  '/ui-workbench': 'test-capabilities',
+  '/ai-workbench': 'test-capabilities',
+  '/cases': 'test-assets',
+  '/plans': 'test-assets',
+  '/bugs': 'test-assets',
+  '/reports': 'test-assets',
+  '/case-reviews': 'test-assets',
+  '/suites': 'test-assets',
   '/mock-rules': 'test-assets',
   '/system/datasets': 'test-assets',
   '/system/web-assets': 'test-assets',
   '/system/api-contract-assets': 'test-assets',
-  '/runs': 'execution-center',
-  '/system/performance': 'execution-center',
-  '/system/storage': 'execution-center',
-  '/system/run-retention': 'execution-center',
-  '/system/dashboard-alerts': 'execution-center',
-  '/devices': 'android-special',
-  '/apks': 'android-special',
-  '/mobile-special': 'android-special',
-  '/system/environments': 'platform-config',
-  '/system/startup-config': 'platform-config',
-  '/system/global-variables': 'platform-config',
-  '/system/ai-llm-configs': 'platform-config',
-  '/system/healing-examples': 'platform-config',
-  '/system/ai-healing-stats': 'platform-config',
-  '/system/notifications': 'external-integrations',
-  '/system/bug-trackers': 'external-integrations',
-  '/system/users': 'security-audit',
-  '/system/audit-logs': 'security-audit',
+  '/system/performance': 'test-capabilities',
+  '/system': 'system-center',
+  '/devices': 'test-capabilities',
+  '/apks': 'test-capabilities',
 }
 
 const systemRouteTitles: Record<string, string> = {
@@ -241,11 +238,20 @@ function getMenuOpenKeys(path: string) {
 }
 
 const collapsed = ref(false)
-const selectedKeys = ref([route.path])
+function getSelectedMenuKey(path: string) {
+  if (path.startsWith('/projects/') && path.endsWith('/cases')) return '/cases'
+  if (path.startsWith('/projects/')) return '/projects'
+  if (path.startsWith('/cases/')) return '/cases'
+  if (path.startsWith('/runs/')) return '/runs'
+  if (path.startsWith('/mobile-special/reports/')) return '/mobile-special/reports'
+  return path
+}
+
+const selectedKeys = ref([getSelectedMenuKey(route.path)])
 const openKeys = ref<string[]>(getMenuOpenKeys(route.path))
 
 watch(() => route.path, (path) => {
-  selectedKeys.value = [path]
+  selectedKeys.value = [getSelectedMenuKey(path)]
   openKeys.value = getMenuOpenKeys(path)
 })
 
@@ -264,6 +270,7 @@ function canAccess(roles: UserRole[]) {
 }
 
 const routeTitleKey = computed(() => {
+  if (route.meta.menuTitleKey) return String(route.meta.menuTitleKey)
   const p = route.path
   if (p.startsWith('/dashboard')) return 'menu.dashboard'
   if (p.startsWith('/projects')) return 'menu.projects'
@@ -278,6 +285,11 @@ const routeTitleKey = computed(() => {
   if (p.startsWith('/mobile-special')) return 'menu.mobile_special.title'
   if (p.startsWith('/system')) return findRouteEntry(systemRouteTitles, p) ?? 'menu.system.title'
   return 'layout.sider_title_full'
+})
+
+const activeProjectId = computed(() => {
+  const projectId = route.query.project_id ?? route.params.projectId
+  return projectId ? String(projectId) : ''
 })
 
 function onMenuClick({ key }: { key: string | number }) {
@@ -378,6 +390,15 @@ function onLocaleChange(value: unknown) {
   font-weight: 600;
   color: var(--c-text);
 }
+.project-context {
+  padding: 4px 9px;
+  color: var(--c-primary);
+  background: color-mix(in srgb, var(--c-primary) 10%, transparent);
+  border: 1px solid color-mix(in srgb, var(--c-primary) 20%, transparent);
+  border-radius: 999px;
+  font-size: 12px;
+  white-space: nowrap;
+}
 .collapse-btn {
   font-size: 16px;
   color: var(--c-text-secondary);
@@ -464,6 +485,12 @@ function onLocaleChange(value: unknown) {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .project-context {
+    max-width: 28vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .header-right {

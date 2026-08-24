@@ -1,5 +1,10 @@
 # MEMORY
 
+- 2026-08-24 已建立新的产品导航与能力扩展路线，计划文档为 `docs/product-navigation-roadmap-2026-08-24.md`。目标导航分为“工作台、测试能力、测试资产、智能中枢、系统”五组，按 N0 导航壳、N1 工作台/任务中心、N2 测试资产闭环、N3 API/APP/UI/性能工作台、N4 AI/Hermes/需求/知识、N5 远程工具箱/配置中心、N6 质量收口执行。
+- 2026-08-24 当前状态：N0 基础导航已实现为五层菜单（工作台、测试能力、测试资产、智能中枢、系统），新增路由元数据、占位入口、项目上下文徽标和旧路由选中兼容；项目选择器、动态徽标、Hermes、知识中枢、统一任务中心、内部缺陷管理和统一报告中心仍未完整实现。
+- 2026-08-24 N0 回归：前端 Vitest `50 files / 209 tests passed`（含导航路由注册测试），type-check、生产 build 和 `git diff --check` 通过；审查后恢复 Android 旧入口，并移除未被 CaseList 支持的类型筛选链接。下一步进入 N1 工作台与任务中心。
+- 2026-08-24 文档跟踪规则：代码完成但未联调必须标记“已实现，待环境验收”；每阶段先审查和回归，再同步 `Task.md`、`MEMORY.md` 与路线文档；旧 URL 和已有 API 保持兼容。
+
 - 2026-08-17 GitHub Actions 第一轮修复后继续发现并处理 Bandit 的 3 处 XML 告警、独立测试 `test_mobile_special_events.py` 的模型注册隔离问题，以及 Worker Trivy 对 k6/JMeter 上游组件的漏洞命中。JMeter 漏洞已清零；k6 镜像仍使用 Go `1.26.5`，现改为固定 digest 的 Go `1.26.6` 构建并校验 k6 `v2.2.0` commit。第二轮远端 CI/Security 全部通过，第三轮仅因 k6 入口应为 `./cmd` 而非 `./cmd/k6` 构建失败，已修正。
 - 2026-08-17 GitHub Actions 已调整为低频运行：主 CI/Security 每周日 UTC 02:00（北京时间 10:00）运行一次并保留手动 `workflow_dispatch`，不再由 push/PR 触发；integration、E2E、Release readiness 仍仅手动运行，Dependabot 继续每周检查。
 - 2026-08-17 第 1/2/4 项推进完成代码与可执行环境收口：`172.31.27.133:/opt/atp-q18-acceptance-20260817` 隔离 Compose 栈使用 28080/28090/28092，Backend、Prometheus、performance Worker、Beat、PostgreSQL、Redis、MinIO 和目标服务健康，PromQL 的 Backend/Worker targets 均为 up；旧 q17 栈保持运行。

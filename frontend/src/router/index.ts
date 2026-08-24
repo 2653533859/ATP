@@ -26,6 +26,178 @@ const router = createRouter({
           component: () => import('@/views/dashboard/DashboardView.vue'),
         },
         {
+          path: 'workbench/todos',
+          name: 'workbench-todos',
+          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          meta: {
+            menuTitleKey: 'menu.workbench.todos',
+            descriptionKey: 'navigation.placeholder.description.todos',
+            existingLinks: [
+              { path: '/cases', labelKey: 'menu.cases' },
+              { path: '/runs', labelKey: 'menu.runs' },
+              { path: '/plans', labelKey: 'menu.plans' },
+            ],
+          },
+        },
+        {
+          path: 'tasks',
+          name: 'tasks',
+          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          meta: {
+            menuTitleKey: 'menu.workbench.tasks',
+            descriptionKey: 'navigation.placeholder.description.tasks',
+            existingLinks: [{ path: '/runs', labelKey: 'menu.runs' }],
+          },
+        },
+        {
+          path: 'api-workbench',
+          name: 'api-workbench',
+          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          meta: {
+            menuTitleKey: 'menu.capabilities.api',
+            descriptionKey: 'navigation.placeholder.description.api',
+            existingLinks: [
+              { path: '/cases', labelKey: 'menu.cases' },
+              { path: '/system/api-contract-assets', labelKey: 'menu.system.api_contract_assets' },
+              { path: '/mock-rules', labelKey: 'menu.mock_rules' },
+            ],
+          },
+        },
+        {
+          path: 'mobile-special/workbench',
+          name: 'mobile-special-workbench',
+          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          meta: {
+            roles: ENGINEER_ONLY,
+            menuTitleKey: 'menu.capabilities.app',
+            descriptionKey: 'navigation.placeholder.description.app',
+            existingLinks: [
+              { path: '/devices', labelKey: 'menu.devices' },
+              { path: '/apks', labelKey: 'menu.apks' },
+              { path: '/mobile-special/tasks', labelKey: 'menu.mobile_special.tasks' },
+            ],
+          },
+        },
+        {
+          path: 'ui-workbench',
+          name: 'ui-workbench',
+          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          meta: {
+            menuTitleKey: 'menu.capabilities.ui',
+            descriptionKey: 'navigation.placeholder.description.ui',
+            existingLinks: [
+              { path: '/system/web-assets', labelKey: 'menu.system.web_assets' },
+              { path: '/cases', labelKey: 'menu.cases' },
+            ],
+          },
+        },
+        {
+          path: 'ai-workbench',
+          name: 'ai-workbench',
+          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          meta: {
+            menuTitleKey: 'menu.capabilities.ai',
+            descriptionKey: 'navigation.placeholder.description.ai',
+            existingLinks: [
+              { path: '/cases', labelKey: 'menu.cases' },
+              { path: '/mock-rules', labelKey: 'menu.mock_rules' },
+            ],
+          },
+        },
+        {
+          path: 'bugs',
+          name: 'bugs',
+          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          meta: {
+            menuTitleKey: 'menu.assets.bugs',
+            descriptionKey: 'navigation.placeholder.description.bugs',
+            existingLinks: [{ path: '/runs', labelKey: 'menu.runs' }],
+          },
+        },
+        {
+          path: 'reports',
+          name: 'reports',
+          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          meta: {
+            menuTitleKey: 'menu.assets.reports',
+            descriptionKey: 'navigation.placeholder.description.reports',
+            existingLinks: [
+              { path: '/runs', labelKey: 'menu.runs' },
+              { path: '/mobile-special/reports', labelKey: 'menu.mobile_special.reports' },
+            ],
+          },
+        },
+        {
+          path: 'case-reviews',
+          name: 'case-reviews',
+          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          meta: {
+            menuTitleKey: 'menu.assets.reviews',
+            descriptionKey: 'navigation.placeholder.description.reviews',
+            existingLinks: [{ path: '/cases?review_status=pending', labelKey: 'menu.cases' }],
+          },
+        },
+        {
+          path: 'hermes',
+          name: 'hermes',
+          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          meta: {
+            menuTitleKey: 'menu.intelligence.hermes',
+            descriptionKey: 'navigation.placeholder.description.hermes',
+            existingLinks: [{ path: '/runs', labelKey: 'menu.runs' }],
+          },
+        },
+        {
+          path: 'requirements',
+          name: 'requirements',
+          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          meta: {
+            menuTitleKey: 'menu.intelligence.requirements',
+            descriptionKey: 'navigation.placeholder.description.requirements',
+            existingLinks: [{ path: '/cases', labelKey: 'menu.cases' }],
+          },
+        },
+        {
+          path: 'knowledge',
+          name: 'knowledge',
+          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          meta: {
+            menuTitleKey: 'menu.intelligence.knowledge',
+            descriptionKey: 'navigation.placeholder.description.knowledge',
+            existingLinks: [
+              { path: '/cases', labelKey: 'menu.cases' },
+              { path: '/runs', labelKey: 'menu.runs' },
+            ],
+          },
+        },
+        {
+          path: 'system/toolbox',
+          name: 'system-toolbox',
+          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          meta: {
+            roles: ENGINEER_ONLY,
+            menuTitleKey: 'menu.system_center.toolbox',
+            descriptionKey: 'navigation.placeholder.description.toolbox',
+            existingLinks: [
+              { path: '/devices', labelKey: 'menu.devices' },
+              { path: '/system/performance', labelKey: 'menu.system.performance' },
+            ],
+          },
+        },
+        {
+          path: 'system/config',
+          name: 'system-config',
+          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          meta: {
+            menuTitleKey: 'menu.system_center.config',
+            descriptionKey: 'navigation.placeholder.description.config',
+            existingLinks: [
+              { path: '/system/environments', labelKey: 'menu.system.environments' },
+              { path: '/system/global-variables', labelKey: 'menu.system.global_variables' },
+            ],
+          },
+        },
+        {
           path: 'projects',
           name: 'projects',
           component: () => import('@/views/project/ProjectList.vue'),
