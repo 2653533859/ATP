@@ -82,7 +82,7 @@
           <template #icon><SettingOutlined /></template>
           <template #title>{{ t('menu.groups.system_center') }}</template>
           <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/toolbox">{{ t('menu.system_center.toolbox') }}</a-menu-item>
-          <a-menu-item key="/system/config">{{ t('menu.system_center.config') }}</a-menu-item>
+          <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/config">{{ t('menu.system_center.config') }}</a-menu-item>
           <a-menu-item key="/system/environments">{{ t('menu.system.environments') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin'])" key="/system/startup-config">{{ t('menu.system.startup_config') }}</a-menu-item>
           <a-menu-item key="/system/global-variables">{{ t('menu.system.global_variables') }}</a-menu-item>

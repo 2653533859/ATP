@@ -200,8 +200,9 @@ const router = createRouter({
         {
           path: 'system/config',
           name: 'system-config',
-          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          component: () => import('@/views/system/ConfigurationCenterView.vue'),
           meta: {
+            roles: ENGINEER_ONLY,
             menuTitleKey: 'menu.system_center.config',
             descriptionKey: 'navigation.placeholder.description.config',
             existingLinks: [

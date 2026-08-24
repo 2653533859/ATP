@@ -87,6 +87,103 @@ export interface EnvironmentItem {
   updated_at?: string
 }
 
+export type ConfigurationSnapshotDomain =
+  | 'environment'
+  | 'global_variable'
+  | 'ai_llm'
+  | 'storage_policy'
+  | 'notification'
+  | 'performance_node'
+
+export interface ConfigurationEntryItem {
+  domain: string
+  resource_id?: number | null
+  project_id?: number | null
+  name: string
+  status: string
+  updated_at?: string | null
+  summary: Record<string, unknown>
+  route: string
+  can_manage: boolean
+}
+
+export interface ConfigurationSectionItem {
+  key: string
+  title: string
+  description: string
+  route: string
+  project_scoped: boolean
+  readonly: boolean
+  available: boolean
+  count: number
+  entries: ConfigurationEntryItem[]
+}
+
+export interface ConfigurationCenterOverview {
+  checked_at: string
+  project_id?: number | null
+  sections: ConfigurationSectionItem[]
+}
+
+export interface ConfigurationRevisionItem {
+  id: number
+  domain: string
+  resource_id: number
+  project_id?: number | null
+  resource_name: string
+  fingerprint: string
+  reason?: string | null
+  redacted_payload: Record<string, unknown>
+  created_by?: number | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ConfigurationRevisionDiffChange {
+  path: string
+  change_type: 'added' | 'removed' | 'changed'
+  changed: boolean
+  sensitive: boolean
+  before?: unknown
+  after?: unknown
+}
+
+export interface ConfigurationRevisionImpact {
+  code: string
+  title: string
+  description: string
+  severity: 'high' | 'medium' | 'low'
+  affected_features: string[]
+}
+
+export interface ConfigurationRevisionDiff {
+  revision_id: number
+  domain: string
+  resource_id: number
+  project_id?: number | null
+  resource_name: string
+  historical_fingerprint: string
+  current_fingerprint?: string | null
+  current_available: boolean
+  current_status: 'available' | 'missing'
+  changed: boolean
+  changed_field_count: number
+  sensitive_changed_field_count: number
+  truncated: boolean
+  message?: string | null
+  changes: ConfigurationRevisionDiffChange[]
+  impacts: ConfigurationRevisionImpact[]
+}
+
+export interface ConfigurationRevisionRollbackResult {
+  source_revision_id: number
+  resource_id: number
+  domain: string
+  changed: boolean
+  message: string
+  revision: ConfigurationRevisionItem
+}
+
 export interface EnvVariableItem {
   id?: number
   key: string
@@ -1791,6 +1888,23 @@ export const environmentApi = {
   getVariables: (id: number) => http.get<unknown, EnvVariableItem[]>(`/environments/${id}/variables`),
   saveVariables: (id: number, data: { variables: Array<{ key: string; value: string; is_secret: boolean }> }) =>
     http.put(`/environments/${id}/variables`, data),
+}
+
+export const configurationCenterApi = {
+  overview: (projectId?: number | null) =>
+    http.get<unknown, ConfigurationCenterOverview>('/configuration-center/overview', {
+      params: projectId ? { project_id: projectId } : undefined,
+    }),
+  revisions: (params: { domain: string; resource_id: number; project_id?: number | null; limit?: number }) =>
+    http.get<unknown, ConfigurationRevisionItem[]>('/configuration-center/revisions', { params }),
+  diff: (revisionId: number) =>
+    http.get<unknown, ConfigurationRevisionDiff>(`/configuration-center/revisions/${revisionId}/diff`),
+  createRevision: (data: { domain: ConfigurationSnapshotDomain; resource_id: number; reason?: string }) =>
+    http.post<unknown, ConfigurationRevisionItem>('/configuration-center/revisions', data),
+  rollback: (revisionId: number) =>
+    http.post<unknown, ConfigurationRevisionRollbackResult>(`/configuration-center/revisions/${revisionId}/rollback`, {
+      confirmation: 'ROLLBACK',
+    }),
 }
 
 export const deviceApi = {
