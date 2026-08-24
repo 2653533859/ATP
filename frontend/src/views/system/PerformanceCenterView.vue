@@ -1250,8 +1250,15 @@ const compareRows = computed(() => {
 async function loadProjects() {
   const items = await projectApi.list()
   projectOptions.value = items.map((project: ProjectItem) => ({ label: project.name, value: project.id }))
-  if (!projectId.value && projectOptions.value.length) {
+  const queryValue = typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('project_id') : null
+  const queryProjectId = Number(queryValue)
+  const hasQueryProject = Number.isInteger(queryProjectId) && queryProjectId > 0 && projectOptions.value.some((option) => option.value === queryProjectId)
+  if (hasQueryProject) {
+    projectId.value = queryProjectId
+  } else if ((!projectId.value || !projectOptions.value.some((option) => option.value === projectId.value)) && projectOptions.value.length) {
     projectId.value = projectOptions.value[0].value
+  }
+  if (projectId.value) {
     await refreshAll()
   }
 }

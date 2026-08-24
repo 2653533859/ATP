@@ -51,7 +51,7 @@
           <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/mobile-special/tasks">{{ t('menu.mobile_special.tasks') }}</a-menu-item>
           <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/mobile-special/reports">{{ t('menu.mobile_special.reports') }}</a-menu-item>
           <a-menu-item key="/ui-workbench">{{ t('menu.capabilities.ui') }}</a-menu-item>
-          <a-menu-item key="/system/performance">{{ t('menu.capabilities.performance') }}</a-menu-item>
+          <a-menu-item key="/performance-workbench">{{ t('menu.capabilities.performance') }}</a-menu-item>
           <a-menu-item key="/ai-workbench">{{ t('menu.capabilities.ai') }}</a-menu-item>
         </a-sub-menu>
 
@@ -205,6 +205,7 @@ const routeMenuGroups: Record<string, string> = {
   '/api-workbench': 'test-capabilities',
   '/mobile-special': 'test-capabilities',
   '/ui-workbench': 'test-capabilities',
+  '/performance-workbench': 'test-capabilities',
   '/ai-workbench': 'test-capabilities',
   '/cases': 'test-assets',
   '/plans': 'test-assets',

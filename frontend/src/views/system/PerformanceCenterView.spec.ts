@@ -136,6 +136,22 @@ describe('PerformanceCenterView', () => {
     wrapper.unmount()
   })
 
+  it('honors the project query when opened from a project-scoped workbench', async () => {
+    projectList.mockResolvedValue([
+      { id: 1, name: 'Demo', owner_id: 1 },
+      { id: 2, name: 'Second', owner_id: 1 },
+    ])
+    window.history.replaceState({}, '', '/system/performance?project_id=2')
+
+    const wrapper = mountPage()
+    await flushPromises()
+
+    expect(testList).toHaveBeenCalledWith(2)
+    expect(runList).toHaveBeenCalledWith(2)
+    window.history.replaceState({}, '', '/')
+    wrapper.unmount()
+  })
+
   it('saves Prometheus target metrics together with the performance definition', async () => {
     const wrapper = mountPage()
     await flushPromises()

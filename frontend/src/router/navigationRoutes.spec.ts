@@ -10,6 +10,7 @@ describe('product navigation routes', () => {
       'api-workbench',
       'mobile-special-workbench',
       'ui-workbench',
+      'performance-workbench',
       'ai-workbench',
       'bugs',
       'reports',

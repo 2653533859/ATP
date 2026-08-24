@@ -92,6 +92,19 @@ const router = createRouter({
           },
         },
         {
+          path: 'performance-workbench',
+          name: 'performance-workbench',
+          component: () => import('@/views/workbench/PerformanceWorkbenchView.vue'),
+          meta: {
+            menuTitleKey: 'menu.capabilities.performance',
+            descriptionKey: 'navigation.placeholder.description.performance',
+            existingLinks: [
+              { path: '/system/performance', labelKey: 'menu.system.performance' },
+              { path: '/runs', labelKey: 'menu.runs' },
+            ],
+          },
+        },
+        {
           path: 'ai-workbench',
           name: 'ai-workbench',
           component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
