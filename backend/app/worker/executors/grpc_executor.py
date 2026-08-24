@@ -25,6 +25,9 @@ from app.services.execution_contract import assertion_result, extraction_result,
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
 
 
+_MAX_TLS_ROOT_CERTIFICATE_BYTES = 1024 * 1024
+
+
 async def _safe_publish_run_event(run_id: int, payload: dict) -> None:
     try:
         await publish_run_event(run_id, payload)
@@ -221,6 +224,29 @@ def _build_pool(desc_set: descriptor_pb2.FileDescriptorSet) -> descriptor_pool.D
     return pool
 
 
+def _grpc_tls_config(step: dict, context: dict) -> tuple[bytes | None, tuple[tuple[str, str], ...] | None, str | None]:
+    """Build TLS inputs without allowing private keys into a case configuration."""
+
+    raw_root_certificates = step.get("tls_root_certificates")
+    root_certificates: bytes | None = None
+    if raw_root_certificates is not None:
+        if not isinstance(raw_root_certificates, str) or not raw_root_certificates.strip():
+            raise ValueError("tls_root_certificates 必须是非空 PEM 字符串")
+        if len(raw_root_certificates.encode("utf-8")) > _MAX_TLS_ROOT_CERTIFICATE_BYTES:
+            raise ValueError("tls_root_certificates 不能超过 1 MiB")
+        if "BEGIN CERTIFICATE" not in raw_root_certificates:
+            raise ValueError("tls_root_certificates 必须包含 PEM 证书")
+        if "PRIVATE KEY" in raw_root_certificates:
+            raise ValueError("tls_root_certificates 不能包含私钥")
+        root_certificates = raw_root_certificates.encode("utf-8")
+
+    server_name = _render(str(step.get("tls_server_name") or ""), context).strip()
+    if any(char in server_name for char in "\r\n"):
+        raise ValueError("tls_server_name 无效")
+    channel_options = (("grpc.ssl_target_name_override", server_name),) if server_name else None
+    return root_certificates, channel_options, server_name or None
+
+
 async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_vars: dict):
     cfg = case.config
     evidence_redact_fields = cfg.get("dataset_redact_fields") or []
@@ -252,6 +278,11 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
         try:
             target = _render(step.get("target", ""), context)
             use_tls = step.get("use_tls", False)
+            tls_root_certificates = None
+            tls_channel_options = None
+            tls_server_name = None
+            if use_tls:
+                tls_root_certificates, tls_channel_options, tls_server_name = _grpc_tls_config(step, context)
             proto_content = step.get("proto_content", "")
             proto_files = step.get("proto_files")
             service_name = _render(step.get("service", ""), context)
@@ -272,6 +303,8 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
                 "request_json": request_json_str,
                 "metadata": metadata,
                 "use_tls": use_tls,
+                "tls_server_name": tls_server_name,
+                "tls_root_certificate_configured": tls_root_certificates is not None,
             }
 
             # 编译 proto（在线程池中执行，避免阻塞事件循环）
@@ -301,7 +334,8 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
 
             # 建立 channel 并调用
             if use_tls:
-                channel = grpc.aio.secure_channel(target, grpc.ssl_channel_credentials())
+                credentials = grpc.ssl_channel_credentials(root_certificates=tls_root_certificates)
+                channel = grpc.aio.secure_channel(target, credentials, options=tls_channel_options)
             else:
                 channel = grpc.aio.insecure_channel(target)
 

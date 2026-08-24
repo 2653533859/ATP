@@ -1371,11 +1371,17 @@ def test_grpc_executor_uses_tls_channel_when_configured(monkeypatch):
     channel = _FakeChannel(lambda _m: None)
     secure_calls = []
 
-    def fake_secure_channel(target, creds):
-        secure_calls.append(target)
+    def fake_secure_channel(target, creds, options=None):
+        secure_calls.append({"target": target, "creds": creds, "options": options})
         return channel
 
-    monkeypatch.setattr(grpc_executor.grpc, "ssl_channel_credentials", lambda: "creds", raising=False)
+    credential_calls = []
+
+    def fake_ssl_channel_credentials(root_certificates=None):
+        credential_calls.append(root_certificates)
+        return "creds"
+
+    monkeypatch.setattr(grpc_executor.grpc, "ssl_channel_credentials", fake_ssl_channel_credentials, raising=False)
     monkeypatch.setattr(grpc_executor.grpc.aio, "secure_channel", fake_secure_channel)
     case = _grpc_case()
     case.config["steps"][0]["use_tls"] = True
@@ -1386,6 +1392,8 @@ def test_grpc_executor_uses_tls_channel_when_configured(monkeypatch):
     # request_json 在 channel 创建之前失败，TLS 分支不应被触达；改用合法 JSON 再驱动一次
     case2 = _grpc_case(assertions=[{"target": "grpc_status", "operator": "eq", "expected": "OK"}])
     case2.config["steps"][0]["use_tls"] = True
+    case2.config["steps"][0]["tls_root_certificates"] = "-----BEGIN CERTIFICATE-----\npublic-ca\n-----END CERTIFICATE-----"
+    case2.config["steps"][0]["tls_server_name"] = "grpc-target"
 
     def responder(request_msg):
         from google.protobuf import message_factory
@@ -1396,10 +1404,32 @@ def test_grpc_executor_uses_tls_channel_when_configured(monkeypatch):
 
     channel.responder = responder
     run = _run_stub()
-    asyncio.run(grpc_executor.run_grpc_case(_FakeDB(), run, case2, {"word": "x"}))
+    db = _FakeDB()
+    asyncio.run(grpc_executor.run_grpc_case(db, run, case2, {"word": "x"}))
 
-    assert secure_calls[-1] == "localhost:50051"
+    assert secure_calls[-1]["target"] == "localhost:50051"
+    assert secure_calls[-1]["options"] == (("grpc.ssl_target_name_override", "grpc-target"),)
+    assert credential_calls[-1] == b"-----BEGIN CERTIFICATE-----\npublic-ca\n-----END CERTIFICATE-----"
+    assert db.added[0].request_data["tls_root_certificate_configured"] is True
+    assert "tls_root_certificates" not in db.added[0].request_data
     assert run.status is RunStatus.passed
+
+
+def test_grpc_executor_rejects_private_key_in_tls_root_certificates(monkeypatch):
+    _events_recorder(monkeypatch, grpc_executor)
+    case = _grpc_case()
+    case.config["steps"][0]["use_tls"] = True
+    case.config["steps"][0]["tls_root_certificates"] = (
+        "-----BEGIN CERTIFICATE-----\npublic-ca\n-----END CERTIFICATE-----\n"
+        "-----BEGIN PRIVATE KEY-----\nsecret\n-----END PRIVATE KEY-----"
+    )
+    db = _FakeDB()
+    run = _run_stub()
+
+    asyncio.run(grpc_executor.run_grpc_case(db, run, case, {"word": "x"}))
+
+    assert db.added[0].status is RunStatus.error
+    assert "不能包含私钥" in db.added[0].error_message
 
 
 @pytest.mark.parametrize("module", [api_executor, graphql_executor, websocket_executor, grpc_executor])

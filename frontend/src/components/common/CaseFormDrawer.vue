@@ -776,6 +776,28 @@
           </a-col>
         </a-row>
 
+        <div v-if="grpcCfg.use_tls" class="tls-options-panel">
+          <a-row :gutter="16">
+            <a-col :span="12">
+              <a-form-item :label="t('case_form.grpc.tls_server_name_label')">
+                <a-input v-model:value="grpcCfg.tls_server_name" placeholder="grpc.example.com" />
+                <div class="field-hint">{{ t('case_form.grpc.tls_server_name_hint') }}</div>
+              </a-form-item>
+            </a-col>
+            <a-col :span="12">
+              <a-form-item :label="t('case_form.grpc.tls_root_certificates_label')">
+                <a-textarea
+                  v-model:value="grpcCfg.tls_root_certificates"
+                  :rows="4"
+                  :placeholder="t('case_form.grpc.tls_root_certificates_placeholder')"
+                  style="font-family: monospace; font-size: 12px"
+                />
+                <div class="field-hint">{{ t('case_form.grpc.tls_root_certificates_hint') }}</div>
+              </a-form-item>
+            </a-col>
+          </a-row>
+        </div>
+
         <a-row :gutter="16">
           <a-col :span="12">
             <a-form-item :label="t('case_form.grpc.service_label')" :rules="[{ required: true, message: t('case_form.grpc.service_required') }]">
@@ -1023,6 +1045,8 @@ type CaseConfigStep = Record<string, unknown> & {
   messages?: WsMessage[]
   target?: string
   use_tls?: boolean
+  tls_server_name?: string
+  tls_root_certificates?: string
   proto_content?: string
   proto_files?: Record<string, string>
   service?: string
@@ -1182,6 +1206,8 @@ const wsCfg = reactive({
 const grpcCfg = reactive({
   target: '',
   use_tls: false,
+  tls_server_name: '',
+  tls_root_certificates: '',
   proto_content: '',
   proto_files: {} as Record<string, string>,
   service: '',
@@ -1355,6 +1381,8 @@ watch(() => props.open, (v) => {
       Object.assign(grpcCfg, {
         target: step.target ?? '',
         use_tls: step.use_tls ?? false,
+        tls_server_name: step.tls_server_name ?? '',
+        tls_root_certificates: step.tls_root_certificates ?? '',
         proto_content: step.proto_content ?? '',
         proto_files: step.proto_files ?? {},
         service: step.service ?? '',
@@ -1423,7 +1451,7 @@ watch(() => props.open, (v) => {
       timeout: 30, messages: [],
     })
     Object.assign(grpcCfg, {
-      target: '', use_tls: false, proto_content: '', proto_files: {}, service: '', method: '',
+      target: '', use_tls: false, tls_server_name: '', tls_root_certificates: '', proto_content: '', proto_files: {}, service: '', method: '',
       request_json: '', metadata: {}, timeout: 30, assertions: [], extractions: [],
     })
     grpcProtoMainFileName.value = ''
@@ -1633,6 +1661,8 @@ function buildGrpcConfig() {
       name: form.name,
       target: grpcCfg.target,
       use_tls: grpcCfg.use_tls,
+      tls_server_name: grpcCfg.tls_server_name.trim() || undefined,
+      tls_root_certificates: grpcCfg.tls_root_certificates.trim() || undefined,
       proto_content: grpcCfg.proto_content,
       proto_files: Object.keys(grpcCfg.proto_files).length ? { ...grpcCfg.proto_files } : undefined,
       service: grpcCfg.service,
