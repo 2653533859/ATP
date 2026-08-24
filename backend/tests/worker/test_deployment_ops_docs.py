@@ -101,6 +101,7 @@ def test_compose_can_start_an_independent_web_recording_worker():
     recorder = compose["services"]["web-recorder"]
 
     assert recorder["profiles"] == ["web-recorder"]
+    assert recorder["init"] is True
     assert recorder["environment"]
     assert "WEB_RECORDER_MODE=worker" in recorder["environment"]
     assert "python -m app.web_recording_worker" in recorder["command"][-1]
@@ -328,6 +329,7 @@ def test_docker_compose_acceptance_stack_isolated_and_has_real_targets():
     assert 'queues="$${queues},performance"' in performance_command
     assert "acceptance_tls:/etc/atp/tls:ro" in services["performance-worker"]["volumes"]
     recorder = services["web-recorder"]
+    assert recorder["init"] is True
     assert recorder["environment"]["WEB_RECORDER_MODE"] == "worker"
     assert recorder["environment"]["WEB_RECORDER_WORKER_QUEUE_PREFIX"] == "atp:web-recording:commands"
     assert recorder["environment"]["WEB_RECORDER_WORKER_ID"] == "web-recorder-q19-1"

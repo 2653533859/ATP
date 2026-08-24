@@ -106,6 +106,7 @@ services:
 
   web-recorder:
     profiles: ["web-recorder"]
+    init: true
     build:
       context: ./backend
       dockerfile: Dockerfile.worker

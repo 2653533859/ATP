@@ -128,6 +128,7 @@ services:
   # Backend. This service is deliberately separate from Celery execution
   # workers because recording owns long-lived browser state.
   web-recorder:
+    init: true
     build:
       context: ./backend
       dockerfile: Dockerfile.worker
