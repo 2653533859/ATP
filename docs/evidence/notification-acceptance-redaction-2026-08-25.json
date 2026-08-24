@@ -1,0 +1,28 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-25",
+  "source_commit": "9852387",
+  "scope": "notification_acceptance_error_redaction",
+  "checks": [
+    {
+      "name": "notification_acceptance_regression",
+      "command": "backend/.venv/Scripts/python.exe -m pytest backend/tests/scripts/test_notification_channel_acceptance.py backend/tests/scripts/test_notification_channel_smoke.py backend/tests/scripts/test_notification_smtp_link_check.py -q",
+      "result": "12 passed"
+    },
+    {
+      "name": "backend_full_non_integration",
+      "command": "backend/.venv/Scripts/python.exe -m pytest backend/tests -q --ignore=backend/tests/integration",
+      "result": "2236 passed"
+    },
+    {
+      "name": "quality",
+      "command": "Ruff changed files, Ruff format changed files, git diff --check",
+      "result": "passed"
+    }
+  ],
+  "review_fix": "验收脚本异常处理原先只截断问号后的内容，可能把 token、password 或 URL 用户信息写入报告；现改为复用通知服务统一脱敏函数，并补充全量测试下的模块隔离回归。",
+  "limitations": [
+    "本轮未触达真实 SMTP、企业微信或钉钉供应商；真实投递、供应商侧送达、限流和重复投递仍需临时目标与凭据。",
+    "本证据只覆盖验收脚本错误边界和本地回归，不关闭 P1-C 真实供应商环境门禁。"
+  ]
+}

@@ -56,6 +56,13 @@
 - [x] 远端验证：迁移 `20260824_0065 (head)`、Backend 健康 `200`、Redis `PONG`、Prometheus `ready` 且 `4` 个 target 为 `up`；通用 Worker、性能 Worker、Beat、Web Recorder 共 `4` 个容器运行，最近 3 分钟 Backend/Worker 错误匹配数为 `0`。
 - [E] q19 只证明最新代码在 Compose 验收环境可启动；未连接真实 Jira、禅道、GitHub Issues 或 GitLab Issues，也不替代 Kubernetes 多节点、生产外部平台和 Android 真机验收。证据见 [`q19-external-tracker-deployment-2026-08-25.json`](docs/evidence/q19-external-tracker-deployment-2026-08-25.json)。
 
+## 2026-08-25 P1-C 通知验收脚本错误脱敏修复
+
+- [x] 修复 `notification-channel-acceptance.py` 异常分支只截断问号后内容的问题，改为复用通知服务统一脱敏函数，避免 Token、密码和 URL 用户信息进入终端或 JSON 报告。
+- [x] 代码审查发现并修复全量套件中的模块桩污染：新增测试独立加载真实通知服务模块，不依赖其他测试对 `sys.modules` 的修改。
+- [x] 通知定向 `12 passed`，完整后端非集成 `2236 passed`，改动文件 Ruff/格式检查和 `git diff --check` 通过；提交 `9852387` 已完成本地提交。
+- [E] 未触达真实 SMTP、企业微信或钉钉供应商；真实投递、供应商侧送达、限流和重复投递仍需临时目标与凭据。证据见 [`notification-acceptance-redaction-2026-08-25.json`](docs/evidence/notification-acceptance-redaction-2026-08-25.json)。
+
 ## 2026-08-25 工作台任务状态枚举隔离修复
 
 - [x] 根据 q19 工作台日志定位到跨域状态集合问题：普通 `TestRun` 查询被错误带入 Android `stopped` 和性能 `cancelled`，PostgreSQL 会在 `/workbench/overview` 返回 `invalid input value for enum runstatus`。

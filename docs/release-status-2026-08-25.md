@@ -53,6 +53,12 @@
 - 运行验证通过：Backend `200`、Redis `PONG`、Prometheus ready 且 `4` 个 target 为 `up`；通用 Worker、性能 Worker、Beat、Web Recorder 正常运行，最近 3 分钟 Backend/Worker 错误匹配数为 `0`。
 - 发布边界：q19 Compose 不是 Kubernetes 多节点或生产外部平台证据；真实 Jira/禅道/GitHub/GitLab、Android 真机和生产性能验收仍待独立完成。详见 [`q19-external-tracker-deployment-2026-08-25.json`](evidence/q19-external-tracker-deployment-2026-08-25.json)。
 
+## 2026-08-25 P1-C 通知验收脚本错误脱敏修复
+
+- 通知供应商验收脚本已改为复用统一异常脱敏逻辑，Token、密码和 URL 用户信息不会进入终端或 JSON 报告；全量测试下的历史模块桩污染也已隔离。
+- 本地证据：提交 `9852387`，通知定向 `12 passed`、完整后端非集成 `2236 passed`，改动文件 Ruff、格式和 diff-check 通过；详见 [`notification-acceptance-redaction-2026-08-25.json`](evidence/notification-acceptance-redaction-2026-08-25.json)。
+- 发布边界：未连接真实 SMTP、企业微信或钉钉供应商，本模块不关闭真实投递、供应商侧送达、限流和重复投递门禁。
+
 ## 2026-08-25 Windows 已认证浏览器冒烟复核
 
 - 复用当前已登录的 Windows 浏览器会话，实际加载统计看板、工作台概览、我的待办、用例管理、执行记录、测试套件、存储管理和 API 契约资产；页面均保持在业务页，未回到登录页，用户菜单显示为 `admin`。
