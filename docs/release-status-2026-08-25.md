@@ -37,6 +37,7 @@
 - HTML 报告会在开启录像选项时嵌入 Android 录屏；通用 `video_url` 仍优先，PDF 不嵌入视频的既有行为不变。
 - 运行详情在收到 WebSocket 完成事件后自动刷新，避免执行页面必须手动刷新才能看到录屏。
 - 本地证据：提交 `279b254`，后端导出 `13 passed`、RunDetail `6 passed`、前端全量 `66 files / 268 tests passed`，类型检查和构建通过；详见 [`android-recording-evidence-2026-08-25.json`](evidence/android-recording-evidence-2026-08-25.json)。
+- q19 已从 `origin/main` 的 `257c479` 独立工作树重建并启动；迁移 `20260824_0065 (head)`、健康 `200`、Prometheus 4 个 target `up`、Celery 2 节点响应、后端最近 3 分钟错误匹配数为 0；详见 [`q19-android-recording-deployment-2026-08-25.json`](evidence/q19-android-recording-deployment-2026-08-25.json)。
 - 发布边界：当前没有真实 Android 录屏采集证据，ADB 仍为 `offline`；这项改动不关闭 Android 真机发布门禁。
 
 ## 2026-08-25 Windows 已认证浏览器冒烟复核

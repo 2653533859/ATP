@@ -39,6 +39,7 @@
 - [x] HTML 报告在开启录像选项时嵌入 Android 录屏；PDF 既有不嵌入视频的行为保持不变。
 - [x] WebSocket 收到运行完成事件后重新读取运行详情，确保执行页面无需手动刷新即可看到刚上传的 Android 录屏和告警。
 - [x] 代码审查后补充回归：后端导出 `13 passed`，RunDetail `6 passed`，前端全量 `66 files / 268 tests passed`，type-check、生产构建、Ruff 和 diff-check 通过；提交 `279b254` 已完成本地提交。
+- [x] q19 已从 `origin/main` 的 `257c479` 独立工作树重建并启动；迁移 `20260824_0065 (head)`、健康 `200`、Prometheus 4 个 target `up`、Celery 2 节点响应、后端最近 3 分钟错误匹配数为 0。证据见 [`q19-android-recording-deployment-2026-08-25.json`](docs/evidence/q19-android-recording-deployment-2026-08-25.json)。
 - [E] 本轮只验证结果展示与报告链路，未使用真实 Android 设备生成录屏；当前 ADB 仍为 `offline`，P0-B 单设备执行证据继续保持未验收。
 
 ## 2026-08-25 工作台任务状态枚举隔离修复

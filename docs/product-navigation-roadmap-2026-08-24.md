@@ -91,6 +91,7 @@
 - **实现**：运行详情优先使用通用 `video_url`，否则回退到 Android 录屏资产；当设备端返回 `screen_recording_error` 时展示可解释告警。HTML 报告同步嵌入 Android 录屏，PDF 的既有无视频行为保持不变。
 - **实时性**：运行详情收到 WebSocket `completed` 事件后重新获取运行详情，执行页无需手动刷新即可显示刚上传的录屏或告警。
 - **审查与验证**：提交 `279b254`；后端导出 `13 passed`，RunDetail `6 passed`，前端全量 `66 files / 268 tests passed`，`vue-tsc`、生产构建、Ruff 和 `git diff --check` 通过。脱敏验证记录见 [`android-recording-evidence-2026-08-25.json`](evidence/android-recording-evidence-2026-08-25.json)。
+- **远端部署**：q19 已从 `origin/main` 的 `257c479` 独立工作树重建并启动；迁移 `20260824_0065 (head)`、健康 `200`、Prometheus 4 个 target `up`、Celery 2 节点响应、后端最近 3 分钟错误匹配数为 0。证据见 [`q19-android-recording-deployment-2026-08-25.json`](evidence/q19-android-recording-deployment-2026-08-25.json)。
 - **边界**：本模块证明结果展示/报告链路，不证明设备端真实录屏采集；ADB 当前 `offline`，P0-B 仍需真实设备恢复为 `device` 后验收。
 
 ### 2026-08-25 工作台任务状态枚举隔离修复

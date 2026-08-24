@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-25",
+  "source_commit": "257c479",
+  "worktree": "/opt/atp-q19-android-evidence-20260825",
+  "compose_project": "atp-q19-acceptance-20260824",
+  "checks": {
+    "compose_config": "passed",
+    "migration": "20260824_0065 (head)",
+    "health_http": 200,
+    "prometheus_targets": {
+      "atp-backend": "up",
+      "atp-performance-worker": "up",
+      "atp-worker": "up",
+      "prometheus": "up"
+    },
+    "celery_nodes_pong": 2,
+    "recent_backend_error_matches": 0
+  },
+  "limitations": [
+    "这是 q19 Compose 部署验证，不替代生产 Kubernetes、多节点、MinIO 生命周期或跨主机恢复验收。",
+    "当前 Android ADB 设备仍为 offline，未执行真实 Android 录屏采集。"
+  ]
+}
