@@ -1,0 +1,29 @@
+{
+  "verified_on": "2026-08-25",
+  "scope": "Windows Android Worker 单设备租约与控制操作",
+  "environment": {
+    "api": "local backend on 127.0.0.1:18000 using q19 acceptance dependencies",
+    "worker_id": "android-win-HPS",
+    "device_id": 1,
+    "adb_serial": "172.16.102.15:5555",
+    "transport": "temporary SSH tunnels; credentials omitted"
+  },
+  "checks": {
+    "worker_registry": true,
+    "scan_status": "completed",
+    "scan_device_count": 2,
+    "lease_acquired": true,
+    "screenshot_status": 200,
+    "screenshot_bytes": 29099,
+    "ui_target_response": true,
+    "tap_status": 200,
+    "swipe_status": 200,
+    "missing_lease_status": "Conflict",
+    "release_status": 204
+  },
+  "implementation_note": "点击和滑动接口要求 X-Device-Lease-Token；Android 低代码抽屉自动申请、续租并在切换或关闭时释放；未记录密码、Token 或对象存储密钥。",
+  "remaining_boundaries": [
+    "截图/控件属性和输入控制已通过，APK 包名、Android 低代码真实运行、专项任务、录屏和报告回传仍待验证",
+    "当前设备是否安装 Karing 仍须以 pm list packages 的真实结果为准"
+  ]
+}

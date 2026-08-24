@@ -183,7 +183,26 @@
           </a-button>
           <span>{{ t('case.drawer.android.generate_script_hint') }}</span>
         </div>
-        <AndroidStepEditor v-model="lowcodeSteps" :device-id="selectedDeviceId" :apk-options="apks" />
+        <a-alert
+          v-if="selectedDeviceId && editorLeaseLoading"
+          :message="t('case.android_editor.lease_acquiring')"
+          type="info"
+          show-icon
+          style="margin-bottom: 12px"
+        />
+        <a-alert
+          v-else-if="selectedDeviceId && !editorLease"
+          :message="t('case.android_editor.lease_required')"
+          type="warning"
+          show-icon
+          style="margin-bottom: 12px"
+        />
+        <AndroidStepEditor
+          v-model="lowcodeSteps"
+          :device-id="selectedDeviceId"
+          :lease-token="editorLease?.lease_token"
+          :apk-options="apks"
+        />
       </template>
 
       <template v-else>
@@ -233,7 +252,7 @@
 
     <template #footer>
       <a-space style="float: right">
-        <a-button @click="emit('close')">{{ t('common.cancel') }}</a-button>
+        <a-button @click="handleClose">{{ t('common.cancel') }}</a-button>
         <a-button type="primary" :loading="saving" @click="handleSave">
           {{ localCaseId ? t('case.drawer.save_config') : t('case.drawer.create_case') }}
         </a-button>
@@ -243,12 +262,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { CheckCircleOutlined, CodeOutlined, UploadOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { apkApi, caseApi, deviceApi, type DeviceItem, scriptApi, type CaseStepItem } from '@/api'
+import { apkApi, caseApi, deviceApi, type DeviceItem, type DeviceLeaseItem, scriptApi, type CaseStepItem } from '@/api'
 import CaseStepEditor from '@/components/case/CaseStepEditor.vue'
 import { buildAndroidStandardSteps } from '@/utils/androidStandardSteps'
 import AndroidStepEditor from '@/components/common/AndroidStepEditor.vue'
@@ -311,6 +330,10 @@ const deviceMatrixEnabled = ref(false)
 
 const devices = ref<DeviceItem[]>([])
 const devicesLoading = ref(false)
+const editorLease = ref<DeviceLeaseItem | null>(null)
+const editorLeaseLoading = ref(false)
+let editorLeaseSeq = 0
+let editorLeaseHeartbeatTimer: ReturnType<typeof setInterval> | null = null
 const apks = ref<Array<{ id: number; filename: string; package_name?: string | null; version_name?: string; object_name?: string }>>([])
 const apksLoading = ref(false)
 const apkMap = ref<Record<number, string>>({})
@@ -429,6 +452,77 @@ async function loadScript() {
   }
 }
 
+async function releaseEditorLease() {
+  const current = editorLease.value
+  editorLease.value = null
+  editorLeaseLoading.value = false
+  stopEditorLeaseHeartbeat()
+  if (!current?.lease_token) return
+  try {
+    await deviceApi.releaseLease(current.device_id, current.lease_token)
+  } catch {
+    // 关闭抽屉时租约释放失败由后台过期回收，不阻塞表单关闭。
+  }
+}
+
+function stopEditorLeaseHeartbeat() {
+  if (editorLeaseHeartbeatTimer !== null) {
+    clearInterval(editorLeaseHeartbeatTimer)
+    editorLeaseHeartbeatTimer = null
+  }
+}
+
+function startEditorLeaseHeartbeat() {
+  stopEditorLeaseHeartbeat()
+  editorLeaseHeartbeatTimer = setInterval(() => { void heartbeatEditorLease() }, 240000)
+}
+
+async function heartbeatEditorLease() {
+  const current = editorLease.value
+  if (!current?.lease_token) return
+  try {
+    const refreshed = await deviceApi.heartbeatLease(current.device_id, current.lease_token)
+    editorLease.value = { ...refreshed, lease_token: current.lease_token }
+  } catch {
+    stopEditorLeaseHeartbeat()
+    editorLease.value = null
+    message.warning(t('case.android_editor.lease_expired'))
+  }
+}
+
+async function syncEditorLease(deviceId: number | null) {
+  const seq = ++editorLeaseSeq
+  await releaseEditorLease()
+  if (!props.open || !deviceId || seq !== editorLeaseSeq) return
+
+  editorLeaseLoading.value = true
+  try {
+    const lease = await deviceApi.acquireLease(deviceId, {
+      ttl_seconds: 900,
+      owner_label: 'android-case-editor',
+    })
+    if (seq !== editorLeaseSeq || !props.open) {
+      if (lease.lease_token) await deviceApi.releaseLease(lease.device_id, lease.lease_token)
+      return
+    }
+    editorLease.value = lease
+    startEditorLeaseHeartbeat()
+  } catch (error) {
+    if (seq === editorLeaseSeq) {
+      editorLease.value = null
+      message.warning(String(error ?? t('case.android_editor.lease_failed')))
+    }
+  } finally {
+    if (seq === editorLeaseSeq) editorLeaseLoading.value = false
+  }
+}
+
+async function handleClose() {
+  ++editorLeaseSeq
+  await releaseEditorLease()
+  emit('close')
+}
+
 watch(
   () => props.open,
   async (opened) => {
@@ -498,6 +592,20 @@ watch(
       emit('close')
     }
   },
+)
+
+watch(
+  [selectedDeviceId, () => props.open, editMode],
+  ([deviceId, opened, mode]) => {
+    if (!opened || mode !== 'lowcode' || !deviceId) {
+      ++editorLeaseSeq
+      editorLeaseLoading.value = false
+      void releaseEditorLease()
+      return
+    }
+    void syncEditorLease(deviceId)
+  },
+  { immediate: true },
 )
 
 watch(
@@ -678,7 +786,7 @@ async function handleSave() {
       await caseApi.update(localCaseId.value, payload)
       message.success(t('common.success'))
       emit('saved')
-      emit('close')
+      await handleClose()
       return
     }
 
@@ -699,7 +807,7 @@ async function handleSave() {
     message.success(t('case.drawer.msg.case_created'))
     emit('saved')
     if (editMode.value === 'lowcode') {
-      emit('close')
+      await handleClose()
     }
   } catch (error) {
     message.error(String(error ?? t('case.drawer.msg.save_failed')))
@@ -707,6 +815,11 @@ async function handleSave() {
     saving.value = false
   }
 }
+
+onBeforeUnmount(() => {
+  ++editorLeaseSeq
+  void releaseEditorLease()
+})
 </script>
 
 <style scoped>

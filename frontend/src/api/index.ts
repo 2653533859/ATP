@@ -1944,12 +1944,12 @@ export const deviceApi = {
   delete: (id: number) => http.delete(`/devices/${id}`),
   screenshot: (id: number) =>
     http.get<unknown, Blob>(`/devices/${id}/screenshot`, { responseType: 'blob' }),
-  tap: (id: number, data: { x: number; y: number }) =>
-    http.post(`/devices/${id}/tap`, data),
+  tap: (id: number, data: { x: number; y: number }, leaseToken?: string | null) =>
+    http.post(`/devices/${id}/tap`, data, leaseToken ? { headers: { 'X-Device-Lease-Token': leaseToken } } : undefined),
   uiTarget: (id: number, data: { x: number; y: number }) =>
     http.get<unknown, { target: AndroidUiTarget | null }>(`/devices/${id}/ui-target`, { params: data }),
-  swipe: (id: number, data: { x1: number; y1: number; x2: number; y2: number; duration_ms?: number }) =>
-    http.post(`/devices/${id}/swipe`, data),
+  swipe: (id: number, data: { x1: number; y1: number; x2: number; y2: number; duration_ms?: number }, leaseToken?: string | null) =>
+    http.post(`/devices/${id}/swipe`, data, leaseToken ? { headers: { 'X-Device-Lease-Token': leaseToken } } : undefined),
   screenshotUrl: (id: number) => `/api/v1/devices/${id}/screenshot`,
   screenStreamUrl: (id: number, fps?: number) =>
     `/api/v1/devices/${id}/screen${fps ? `?fps=${fps}` : ''}`,

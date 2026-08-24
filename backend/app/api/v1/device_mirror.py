@@ -13,7 +13,7 @@ import logging
 import re
 import subprocess
 from defusedxml import ElementTree as ET
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from fastapi.responses import StreamingResponse, Response
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +21,7 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.models.device import Device, DeviceStatus
 from app.api.deps import get_current_user, require_engineer
+from app.services.device_leases import get_active_device_lease
 from app.schemas.device import DeviceSwipeIn, DeviceTapIn
 
 logger = logging.getLogger(__name__)
@@ -201,6 +202,15 @@ async def _get_online_device(device_id: int, db: AsyncSession) -> Device:
     return device
 
 
+async def _require_control_lease(db: AsyncSession, device_id: int, lease_token: str | None) -> None:
+    """设备写操作必须使用当前租约，避免绕过工作台直接控制真机。"""
+    if not lease_token:
+        raise HTTPException(status_code=409, detail="设备控制需要先获取有效租约")
+    lease = await get_active_device_lease(db, device_id, lease_token)
+    if lease is None:
+        raise HTTPException(status_code=409, detail="设备租约不存在或已过期，请重新获取租约")
+
+
 @router.get("/devices/{device_id}/screenshot")
 async def device_screenshot(
     device_id: int,
@@ -222,10 +232,12 @@ async def device_tap(
     device_id: int,
     body: DeviceTapIn,
     db: AsyncSession = Depends(get_db),
+    lease_token: str | None = Header(default=None, alias="X-Device-Lease-Token"),
     _=Depends(require_engineer),
 ):
     """在设备屏幕坐标执行实时点击。"""
     device = await _get_online_device(device_id, db)
+    await _require_control_lease(db, device_id, lease_token)
     if _use_android_worker():
         await _dispatch_worker_operation("tap", device.serial, {"x": body.x, "y": body.y})
         return {"success": True}
@@ -257,10 +269,12 @@ async def device_swipe(
     device_id: int,
     body: DeviceSwipeIn,
     db: AsyncSession = Depends(get_db),
+    lease_token: str | None = Header(default=None, alias="X-Device-Lease-Token"),
     _=Depends(require_engineer),
 ):
     """在设备屏幕坐标执行实时滑动。"""
     device = await _get_online_device(device_id, db)
+    await _require_control_lease(db, device_id, lease_token)
     duration_ms = max(100, min(body.duration_ms, 5000))
     if _use_android_worker():
         await _dispatch_worker_operation(

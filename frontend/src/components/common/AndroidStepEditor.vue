@@ -316,6 +316,7 @@ interface StepDef {
 const props = defineProps<{
   modelValue: ExternalStep[]
   deviceId?: number | null
+  leaseToken?: string | null
   apkOptions?: Array<{
     filename: string
     package_name?: string | null
@@ -542,7 +543,7 @@ async function onScreenPointerUp(event: PointerEvent) {
     appendStep('click', params)
     const label = locatorLabel(target)
     await performLiveAction(
-      () => deviceApi.tap(props.deviceId!, { x: start.x, y: start.y }),
+      () => deviceApi.tap(props.deviceId!, { x: start.x, y: start.y }, props.leaseToken),
       label
         ? t('case.android_editor.visual_click_locator_added', { locator: label })
         : t('case.android_editor.visual_click_added', { x: start.x, y: start.y }),
@@ -565,7 +566,7 @@ async function onScreenPointerUp(event: PointerEvent) {
       x2: end.x,
       y2: end.y,
       duration_ms: 300,
-    }),
+    }, props.leaseToken),
     t('case.android_editor.visual_swipe_added'),
   )
 }

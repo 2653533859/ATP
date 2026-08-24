@@ -9,6 +9,7 @@ import base64
 import inspect
 import sys
 import types
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import pytest
@@ -47,11 +48,22 @@ from app.api.v1 import device_mirror
 class _FakeDB:
     """最小 AsyncSession 替身，仅实现 device_mirror 用到的 get。"""
 
-    def __init__(self, device):
+    def __init__(self, device, lease_token="test-lease-token"):
         self._device = device
+        self._lease = (
+            types.SimpleNamespace(
+                lease_token=lease_token,
+                expires_at=datetime.now(timezone.utc) + timedelta(minutes=5),
+            )
+            if lease_token
+            else None
+        )
 
     async def get(self, _model, _id):
         return self._device
+
+    async def execute(self, _statement):
+        return types.SimpleNamespace(scalar_one_or_none=lambda: self._lease)
 
 
 def _online_device(serial="SERIAL123"):
@@ -149,10 +161,24 @@ def test_worker_mode_routes_device_operations_to_android_worker(monkeypatch):
     device = _FakeDB(_online_device("WIN-DEVICE"))
 
     screenshot = asyncio.run(device_mirror.device_screenshot(1, db=device, _=None))
-    tap = asyncio.run(device_mirror.device_tap(1, DeviceTapIn(x=10, y=20), db=device, _=None))
+    tap = asyncio.run(
+        device_mirror.device_tap(
+            1,
+            DeviceTapIn(x=10, y=20),
+            db=device,
+            lease_token="test-lease-token",
+            _=None,
+        )
+    )
     target = asyncio.run(device_mirror.device_ui_target(1, x=10, y=20, db=device, _=None))
     swipe = asyncio.run(
-        device_mirror.device_swipe(1, DeviceSwipeIn(x1=1, y1=2, x2=3, y2=4, duration_ms=50), db=device, _=None)
+        device_mirror.device_swipe(
+            1,
+            DeviceSwipeIn(x1=1, y1=2, x2=3, y2=4, duration_ms=50),
+            db=device,
+            lease_token="test-lease-token",
+            _=None,
+        )
     )
 
     assert screenshot.body == b"png"
@@ -180,6 +206,7 @@ def test_tap_success_invokes_adb_with_coords(monkeypatch):
             device_id=1,
             body=DeviceTapIn(x=10, y=20),
             db=_FakeDB(_online_device("DEV1")),
+            lease_token="test-lease-token",
             _=None,
         )
     )
@@ -192,23 +219,61 @@ def test_tap_adb_failure_raises_503(monkeypatch):
     monkeypatch.setattr(device_mirror, "_adb_input", lambda *a: False)
     with pytest.raises(HTTPException) as exc:
         asyncio.run(
-            device_mirror.device_tap(device_id=1, body=DeviceTapIn(x=1, y=2), db=_FakeDB(_online_device()), _=None)
+            device_mirror.device_tap(
+                device_id=1,
+                body=DeviceTapIn(x=1, y=2),
+                db=_FakeDB(_online_device()),
+                lease_token="test-lease-token",
+                _=None,
+            )
         )
     assert exc.value.status_code == 503
+
+
+def test_tap_requires_active_device_lease(monkeypatch):
+    monkeypatch.setattr(device_mirror, "_adb_input", lambda *_args: True)
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            device_mirror.device_tap(
+                device_id=1,
+                body=DeviceTapIn(x=1, y=2),
+                db=_FakeDB(_online_device(), lease_token=None),
+                lease_token=None,
+                _=None,
+            )
+        )
+    assert exc.value.status_code == 409
+    assert exc.value.detail == "设备控制需要先获取有效租约"
 
 
 def test_tap_offline_device_raises_400(monkeypatch):
     monkeypatch.setattr(device_mirror, "_adb_input", lambda *a: True)
     offline = types.SimpleNamespace(serial="X", status=DeviceStatus.offline)
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(device_mirror.device_tap(device_id=1, body=DeviceTapIn(x=1, y=2), db=_FakeDB(offline), _=None))
+        asyncio.run(
+            device_mirror.device_tap(
+                device_id=1,
+                body=DeviceTapIn(x=1, y=2),
+                db=_FakeDB(offline),
+                lease_token="test-lease-token",
+                _=None,
+            )
+        )
     assert exc.value.status_code == 400
 
 
 def test_tap_missing_device_raises_404(monkeypatch):
     monkeypatch.setattr(device_mirror, "_adb_input", lambda *a: True)
     with pytest.raises(HTTPException) as exc:
-        asyncio.run(device_mirror.device_tap(device_id=99, body=DeviceTapIn(x=1, y=2), db=_FakeDB(None), _=None))
+        asyncio.run(
+            device_mirror.device_tap(
+                device_id=99,
+                body=DeviceTapIn(x=1, y=2),
+                db=_FakeDB(None),
+                lease_token="test-lease-token",
+                _=None,
+            )
+        )
     assert exc.value.status_code == 404
 
 
@@ -228,6 +293,7 @@ def test_swipe_success_passes_all_coords(monkeypatch):
             device_id=1,
             body=DeviceSwipeIn(x1=1, y1=2, x2=3, y2=4, duration_ms=300),
             db=_FakeDB(_online_device()),
+            lease_token="test-lease-token",
             _=None,
         )
     )
@@ -250,6 +316,7 @@ def test_swipe_clamps_duration(monkeypatch, requested, expected):
             device_id=1,
             body=DeviceSwipeIn(x1=1, y1=2, x2=3, y2=4, duration_ms=requested),
             db=_FakeDB(_online_device()),
+            lease_token="test-lease-token",
             _=None,
         )
     )
@@ -264,6 +331,7 @@ def test_swipe_adb_failure_raises_503(monkeypatch):
                 device_id=1,
                 body=DeviceSwipeIn(x1=1, y1=2, x2=3, y2=4),
                 db=_FakeDB(_online_device()),
+                lease_token="test-lease-token",
                 _=None,
             )
         )

@@ -8,7 +8,7 @@ from sqlalchemy.dialects import postgresql
 from app.models import load_all_models
 from app.models.device import DeviceStatus
 from app.models.ios import IosDeviceStatus
-from app.services.device_leases import acquire_device_lease
+from app.services.device_leases import acquire_device_lease, get_active_device_lease
 from app.services.ios_device_leases import acquire_ios_device_lease
 from app.services import device_leases, ios_device_leases
 
@@ -64,6 +64,18 @@ def test_ios_lease_locks_device_row_before_checking_current_lease():
     assert "FOR UPDATE" in _postgres_sql(db.statements[0])
     assert lease.device_id == 5
     assert device.status is IosDeviceStatus.busy
+
+
+def test_android_active_lease_lookup_rejects_expired_token():
+    now = datetime.now(timezone.utc)
+    active = SimpleNamespace(lease_token="active", expires_at=now + timedelta(minutes=5))
+    expired = SimpleNamespace(lease_token="expired", expires_at=now - timedelta(seconds=1))
+
+    active_db = _LifecycleDB([active])
+    assert asyncio.run(get_active_device_lease(active_db, 3, "active")) is active
+
+    expired_db = _LifecycleDB([expired])
+    assert asyncio.run(get_active_device_lease(expired_db, 3, "expired")) is None
 
 
 class _LifecycleDB:

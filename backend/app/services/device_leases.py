@@ -77,6 +77,22 @@ async def heartbeat_device_lease(
     return lease
 
 
+async def get_active_device_lease(
+    db: AsyncSession,
+    device_id: int,
+    lease_token: str,
+) -> DeviceLease | None:
+    """返回指定设备的有效租约；控制面调用必须使用该令牌。"""
+    lease = (
+        await db.execute(
+            select(DeviceLease).where(DeviceLease.device_id == device_id, DeviceLease.lease_token == lease_token)
+        )
+    ).scalar_one_or_none()
+    if lease is None or lease.expires_at <= _now():
+        return None
+    return lease
+
+
 async def release_device_lease(db: AsyncSession, device_id: int, lease_token: str) -> bool:
     lease = (
         await db.execute(
