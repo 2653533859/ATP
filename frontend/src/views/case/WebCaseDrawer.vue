@@ -280,6 +280,9 @@ const props = defineProps<{
   moduleId: number | null
   projectId: number | null
   editCase?: CaseSummaryItem | null
+  initialName?: string
+  initialDescription?: string
+  initialSteps?: LowcodeStep[]
 }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
 const { t } = useI18n()
@@ -373,6 +376,19 @@ function resetDrawerState() {
   scriptPageObjects.value = []
 }
 
+function applyInitialDraft() {
+  if (props.editCase) return
+  if (props.initialName?.trim()) form.name = props.initialName.trim()
+  if (props.initialDescription?.trim()) form.description = props.initialDescription.trim()
+  if (props.initialSteps?.length) {
+    lowcodeSteps.value = props.initialSteps.map((step) => ({
+      action: step.action,
+      name: step.name,
+      params: { ...step.params },
+    }))
+  }
+}
+
 function resolveEditMode(config: WebCaseConfig) {
   if (hasOwn(config, 'steps')) {
     return 'lowcode' as const
@@ -404,6 +420,8 @@ watch(() => props.open, async (v) => {
       scriptPageObjects.value = []
     }
   }
+
+  applyInitialDraft()
 
   if (props.editCase) {
     try {

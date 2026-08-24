@@ -148,7 +148,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
@@ -246,6 +246,13 @@ async function loadAll() {
     message.error(t('web_assets.load_failed'))
   } finally {
     loading.value = false
+  }
+}
+
+function applyRequestedTab(value: unknown) {
+  const requestedTab = Array.isArray(value) ? value[0] : value
+  if (requestedTab === 'elements' || requestedTab === 'page_objects' || requestedTab === 'visual_baselines') {
+    activeTab.value = requestedTab
   }
 }
 
@@ -535,11 +542,14 @@ onMounted(async () => {
   try {
     projects.value = await projectApi.list()
     selectedProjectId.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), projects.value)
+    applyRequestedTab(route.query.tab)
     await loadAll()
   } catch {
     message.error(t('web_assets.load_failed'))
   }
 })
+
+watch(() => route.query.tab, applyRequestedTab)
 </script>
 
 <style scoped>

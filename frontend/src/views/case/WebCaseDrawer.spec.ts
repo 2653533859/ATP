@@ -89,9 +89,9 @@ const formStub = defineComponent({
   },
 })
 
-function mountDrawer(editCase: { id: number } | null = null) {
+function mountDrawer(editCase: { id: number } | null = null, draft: Record<string, unknown> = {}) {
   return mount(WebCaseDrawer, {
-    props: { open: true, moduleId: 7, projectId: 11, editCase: editCase as CaseSummaryItem | null },
+    props: { open: true, moduleId: 7, projectId: 11, editCase: editCase as CaseSummaryItem | null, ...draft },
     global: {
       stubs: {
         AButton: buttonStub,
@@ -138,6 +138,27 @@ beforeEach(() => {
 })
 
 describe('WebCaseDrawer low-code flow', () => {
+  it('hydrates a recorded draft into a new web case', async () => {
+    const wrapper = mountDrawer(null, {
+      initialName: '录制登录流程',
+      initialDescription: '由浏览器录制生成',
+      initialSteps: [{ action: 'goto', name: '打开登录页', params: { url: 'https://example.test/login' } }],
+    })
+    await wrapper.setProps({ open: false })
+    await wrapper.setProps({ open: true })
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text() === 'case.drawer.create_case')?.trigger('click')
+    await flushPromises()
+
+    expect(caseCreate).toHaveBeenCalledWith(expect.objectContaining({
+      name: '录制登录流程',
+      description: '由浏览器录制生成',
+      config: expect.objectContaining({
+        steps: [{ action: 'goto', name: '打开登录页', params: { url: 'https://example.test/login' } }],
+      }),
+    }))
+  })
+
   it('creates a web case with the steps emitted by the low-code editor', async () => {
     const wrapper = mountDrawer()
     await flushPromises()

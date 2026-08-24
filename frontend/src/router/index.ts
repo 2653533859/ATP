@@ -81,7 +81,7 @@ const router = createRouter({
         {
           path: 'ui-workbench',
           name: 'ui-workbench',
-          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          component: () => import('@/views/workbench/UiWorkbenchView.vue'),
           meta: {
             menuTitleKey: 'menu.capabilities.ui',
             descriptionKey: 'navigation.placeholder.description.ui',
