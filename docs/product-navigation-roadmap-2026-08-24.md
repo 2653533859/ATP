@@ -840,3 +840,10 @@ N0 导航壳
 - **回归与审查**：新增 `backend/tests/services/test_admin_bootstrap.py`，覆盖改名保留邮箱和首次创建；定向测试 `2 passed`，后端非集成全量 `2262 passed`，Ruff、格式检查和 `git diff --check` 通过。
 - **真实验收**：q19 已按 `65eef50` 更新 Backend，迁移 `20260824_0065 (head)`，Backend `running/healthy`，登录、依赖 readiness、Web/Android Worker registry 和 2 台设备扫描通过；未创建 Android 运行记录。脱敏证据见 [`q19-admin-bootstrap-2026-08-25.json`](evidence/q19-admin-bootstrap-2026-08-25.json)。
 - **剩余边界**：Android 仍需确认/安装真实 APK 并取得包名，才能继续低代码、录屏、专项任务和事件/日志/报告执行；远端现场 Compose 端口映射等未提交配置已保留。
+
+### 2026-08-25 P0-B.3 单设备真实执行与大对象上传修复
+
+- **真实设备执行**：使用已安装且包管理确认存在的 `com.microsoft.emmx`，在 `172.16.102.214:5555` 完成一次临时 Android 低代码运行，启动应用/等待/截图 3/3 通过；开启录屏和设备产物采集后，3/3 步骤截图、设备信息、logcat 和录屏均成功。临时项目、用例和运行均已清理；这不代表用户指定的 Karing 已安装。
+- **真实问题**：上传约 262 MB APK 时，q19 MinIO 客户端将读超时复用 5 秒连接超时，multipart 分片超时并返回 HTTP 500；Backend 日志确认 `minio` read timeout，临时项目已自动清理。
+- **代码修复**：新增 `MINIO_READ_TIMEOUT_SECONDS`（默认 60 秒、范围 1～3600），MinIO 连接池调整为最多 10 个并发连接且阻塞等待；启动配置 UI、`.env.example`、Windows/启动文档和中英文说明同步补齐。定向 `19 passed`，前端配置页 `6 passed`，后端非集成全量 `2262 passed`，`vue-tsc`、生产构建、Ruff 和 `git diff --check` 通过。
+- **当前出口**：代码已完成本地审查，待以最新提交重建 q19 并重试同一真实 APK 上传，确认自动解析包名、对象绑定和清理；Karing 仍需用户安装或提供 APK 后单独验收。

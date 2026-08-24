@@ -33,9 +33,11 @@ def get_client() -> Minio:
             secret_key=settings.MINIO_ROOT_PASSWORD,
             secure=False,
             http_client=urllib3.PoolManager(
+                maxsize=10,
+                block=True,
                 timeout=urllib3.Timeout(
                     connect=settings.MINIO_CONNECT_TIMEOUT_SECONDS,
-                    read=settings.MINIO_CONNECT_TIMEOUT_SECONDS,
+                    read=settings.MINIO_READ_TIMEOUT_SECONDS,
                 ),
                 retries=urllib3.Retry(total=0),
             ),

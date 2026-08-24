@@ -8,6 +8,8 @@
 
 - 2026-08-25 P0-0 真实复验完成：q19 按 `65eef50` 更新 Backend，迁移 `20260824_0065 (head)`、Backend `running/healthy`，当前账号登录、PostgreSQL/Redis/MinIO readiness、Web/Android Worker registry、2 台设备扫描和最近 2 分钟无启动错误均通过。脱敏证据为 `docs/evidence/q19-admin-bootstrap-2026-08-25.json`；未创建 Android 运行记录，真实 APK/package name、低代码、录屏、专项任务和报告仍待验证。
 
+- 2026-08-25 Android 单设备真实执行复核：在 `172.16.102.214:5555` 使用包管理确认存在的 `com.microsoft.emmx` 完成临时低代码运行，3/3 步骤、3 个步骤截图、设备信息、logcat 和录屏均成功，临时项目/用例/运行已清理；Karing 仍未出现在两台设备包列表中。上传约 262 MB APK 时 q19 MinIO 5 秒读超时导致 HTTP 500，根因已定位并修复为独立 `MINIO_READ_TIMEOUT_SECONDS=60` 与 `PoolManager(maxsize=10, block=True)`；待最新 q19 重建后复验 APK 上传/包名解析和对象清理。
+
 - 2026-08-25 已将参考导航进一步固化为可执行开发计划并同步到 `docs/product-navigation-roadmap-2026-08-24.md` 的“0.6 参考导航版开发计划（执行跟踪）”、`Task.md` 和发布状态：五组入口为工作台、测试能力、测试资产、智能中枢、系统；每组均明确入口职责、模块状态、最小验收出口和未关闭边界。当前顺序固定为 APP 真实门禁 → Windows API/Web 完整 smoke → 真实通知 → 外部缺陷平台 → 生产性能 → 发布收口。旧设备/APK/专项任务、Mock、数据集、Web/API 资产和治理页面保留 URL 兼容，但从所属工作台或配置中心进入。每个模块必须完成实现/调整、定向与全量测试、代码审查、问题修复、文档/记忆同步和 Conventional Commit 推送；`[E]` 只代表本地实现完成，不能把 mock、跳过项、Worker 心跳或 `offline` 设备写成真实通过。本轮只同步计划，没有新增代码或环境验收证据。
 
 - 2026-08-25 Android 设备前置验收复核：ADB 发现 `172.16.102.15:5555` 和 `172.16.102.214:5555` 两台 `device`，选定设备的命令、属性、包管理和 logcat 通过；Windows Android Worker 队列 `android,mobile_special` 与 PostgreSQL/Redis/MinIO doctor 通过。两台设备第三方包列表均未发现 Karing，且 bootstrap 账号登录目标后端返回 HTTP 401，未认证调用 `/devices/workers`/`/devices/scan`，未创建 Android 运行记录。脱敏证据见 `docs/evidence/android-device-control-preflight-2026-08-25.json`；下一步需当前有效账号和真实 APK/package name，不能把在线设备或 Worker 心跳当作 Android 执行通过。

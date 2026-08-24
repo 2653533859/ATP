@@ -23,6 +23,12 @@
 - q19 已按 `65eef50` 更新 Backend，迁移 `20260824_0065 (head)`，Backend `running/healthy`，当前账号登录、依赖 readiness、Web/Android Worker registry 和 2 台设备扫描通过，最近 2 分钟无启动错误；脱敏证据见 [`q19-admin-bootstrap-2026-08-25.json`](evidence/q19-admin-bootstrap-2026-08-25.json)。
 - P0-0 的启动与认证阻塞已关闭，但 Android 真实 APK/package name、低代码、录屏、专项任务和报告媒体仍未验收；远端 Compose 的端口映射等现场改动已保留，不能用仓库文件覆盖。
 
+### 2026-08-25 P0-B.3 单设备运行与 APK 上传问题
+
+- 已在真实在线设备 `172.16.102.214:5555` 上用已安装包 `com.microsoft.emmx` 完成临时低代码、步骤截图、设备信息、logcat 和录屏回传；3/3 步骤通过，临时业务数据已清理。该证据只覆盖平台执行链路，不代表 Karing 包存在。
+- 真实上传约 262 MB APK 时发现 q19 MinIO multipart 分片使用 5 秒读超时并返回 HTTP 500；已在本地修复为独立 `MINIO_READ_TIMEOUT_SECONDS` 和并发连接池，前端配置/示例/文档已同步。
+- q19 需要以新提交重建后再次验证 APK 自动解析包名、MinIO 对象绑定、下载/清理；在该复验完成前，Android 发布门禁仍保持未关闭。
+
 本地代码、回归和 Windows/q19 API/Web/性能链路已经形成可复核证据；以下外部门禁仍未关闭，因此发布只能按“部分实现/待环境验收”处理：
 
 - Android Worker/真机：ADB、Agent/Backend Redis 配对、Worker registry、扫描回调、租约绑定控制和 APK 资产选择/包名传递已通过；专项任务包名一致性、应用启动/Monkey/动作失败终态已完成本地回归，但真实 APK 上传、低代码、录屏、专项任务和结果回传仍不能验收。

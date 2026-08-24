@@ -27,13 +27,13 @@ Web 录制默认在后端进程内启动可见 Chromium，适合 Windows 本地�
 
 完整的 Compose、Helm 和故障排查说明见 [`docs/web-recording-worker.md`](web-recording-worker.md)。
 
-页面与 `.env.example`、后端 `backend/app/core/config.py` 对齐，当前包含 121 个配置项：
+页面与 `.env.example`、后端 `backend/app/core/config.py` 对齐，当前包含 124 个配置项：
 
 ### 基础设施
 
-`POSTGRES_HOST`、`POSTGRES_PORT`、`POSTGRES_CONNECT_TIMEOUT_SECONDS`、`POSTGRES_DB`、`POSTGRES_USER`、`POSTGRES_PASSWORD`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`、`REDIS_CONNECT_TIMEOUT_SECONDS`、`MINIO_HOST`、`MINIO_PORT`、`MINIO_ROOT_USER`、`MINIO_ROOT_PASSWORD`、`MINIO_BUCKET`、`MINIO_CONNECT_TIMEOUT_SECONDS`
+`POSTGRES_HOST`、`POSTGRES_PORT`、`POSTGRES_CONNECT_TIMEOUT_SECONDS`、`POSTGRES_DB`、`POSTGRES_USER`、`POSTGRES_PASSWORD`、`REDIS_HOST`、`REDIS_PORT`、`REDIS_PASSWORD`、`REDIS_CONNECT_TIMEOUT_SECONDS`、`MINIO_HOST`、`MINIO_PORT`、`MINIO_ROOT_USER`、`MINIO_ROOT_PASSWORD`、`MINIO_BUCKET`、`MINIO_CONNECT_TIMEOUT_SECONDS`、`MINIO_READ_TIMEOUT_SECONDS`
 
-其中三个 `*_CONNECT_TIMEOUT_SECONDS` 默认值均为 `5`，取值范围为 `1-120` 秒，分别限制 PostgreSQL、Redis 和 MinIO 的连接/操作等待时间；PostgreSQL 超时还覆盖 Backend 的 Alembic 启动检查和数据库初始化。远端档案会将 `POSTGRES_HOST`、`POSTGRES_USER`、`MINIO_HOST` 和 `MINIO_ROOT_USER` 设置为占位符，必须替换为目标主机的真实连接信息后才能通过必填检查；源码不预置任何特定环境的用户名或地址。
+其中三个 `*_CONNECT_TIMEOUT_SECONDS` 默认值均为 `5`，取值范围为 `1-120` 秒，分别限制 PostgreSQL、Redis 和 MinIO 的连接等待时间；`MINIO_READ_TIMEOUT_SECONDS` 默认 `60` 秒、范围 `1-3600` 秒，专门覆盖大文件/多段对象上传和读取，避免用短连接超时误判 APK、录像或报告上传失败。PostgreSQL 超时还覆盖 Backend 的 Alembic 启动检查和数据库初始化。远端档案会将 `POSTGRES_HOST`、`POSTGRES_USER`、`MINIO_HOST` 和 `MINIO_ROOT_USER` 设置为占位符，必须替换为目标主机的真实连接信息后才能通过必填检查；源码不预置任何特定环境的用户名或地址。
 
 ### 应用与安全
 

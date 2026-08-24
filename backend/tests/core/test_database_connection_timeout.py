@@ -8,6 +8,7 @@ def test_infrastructure_connection_timeouts_are_bounded_and_wired() -> None:
     assert settings.POSTGRES_CONNECT_TIMEOUT_SECONDS == 5
     assert settings.REDIS_CONNECT_TIMEOUT_SECONDS == 5
     assert settings.MINIO_CONNECT_TIMEOUT_SECONDS == 5
+    assert settings.MINIO_READ_TIMEOUT_SECONDS == 60
     assert all(
         1 <= value <= 120
         for value in (
@@ -16,6 +17,7 @@ def test_infrastructure_connection_timeouts_are_bounded_and_wired() -> None:
             settings.MINIO_CONNECT_TIMEOUT_SECONDS,
         )
     )
+    assert 1 <= settings.MINIO_READ_TIMEOUT_SECONDS <= 3600
 
     database_source = Path(__file__).parents[2].joinpath("app", "core", "database.py").read_text(encoding="utf-8")
     assert 'connect_args={"timeout": settings.POSTGRES_CONNECT_TIMEOUT_SECONDS}' in database_source
@@ -28,6 +30,8 @@ def test_infrastructure_connection_timeouts_are_bounded_and_wired() -> None:
 
     minio_source = Path(__file__).parents[2].joinpath("app", "core", "minio_client.py").read_text(encoding="utf-8")
     assert "connect=settings.MINIO_CONNECT_TIMEOUT_SECONDS" in minio_source
+    assert "read=settings.MINIO_READ_TIMEOUT_SECONDS" in minio_source
+    assert "maxsize=10" in minio_source
 
     celery_source = Path(__file__).parents[2].joinpath("app", "worker", "celery_app.py").read_text(encoding="utf-8")
     assert '"socket_connect_timeout": settings.REDIS_CONNECT_TIMEOUT_SECONDS' in celery_source
@@ -46,3 +50,10 @@ def test_infrastructure_connection_timeouts_reject_zero_and_large_values() -> No
             except ValueError:
                 continue
             raise AssertionError(f"{field_name} value {value} should be rejected")
+
+    for value in (0, 3601):
+        try:
+            Settings(_env_file=None, MINIO_READ_TIMEOUT_SECONDS=value)
+        except ValueError:
+            continue
+        raise AssertionError("MINIO_READ_TIMEOUT_SECONDS out of range should be rejected")

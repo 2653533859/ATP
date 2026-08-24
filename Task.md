@@ -25,6 +25,13 @@
 - [x] q19 已用保留端口映射的 Compose 配置更新 Backend；迁移 `20260824_0065 (head)`、Backend `running/healthy`、当前账号登录、依赖 readiness、Web/Android Worker registry 和 2 台设备扫描通过，最近 2 分钟无启动错误。脱敏证据见 [`docs/evidence/q19-admin-bootstrap-2026-08-25.json`](docs/evidence/q19-admin-bootstrap-2026-08-25.json)。
 - [~] P0-0 已关闭启动与认证阻塞，但 Android 真实 APK/package name、低代码和媒体执行仍待后续门禁；远端 Compose 现场配置未覆盖。
 
+### 2026-08-25 P0-B.3 单设备真实执行与 MinIO 大对象上传修复
+
+- [x] 使用在线设备 `172.16.102.214:5555` 和已安装包 `com.microsoft.emmx` 完成临时 Android 低代码冒烟；3/3 步骤通过，开启录屏后设备信息、logcat、3 个步骤截图和录屏均回传成功，临时项目/用例/运行已清理。
+- [x] 真实 APK 上传约 262 MB 时定位 q19 MinIO 读超时复用 5 秒连接超时的问题；新增 `MINIO_READ_TIMEOUT_SECONDS=60`、MinIO 连接池 `maxsize=10/block=True`，并同步启动配置页面、示例和文档。
+- [x] 定向后端 `19 passed`，前端启动配置 `6 passed`，后端非集成全量 `2262 passed`，`vue-tsc`、生产构建、Ruff 和 `git diff --check` 通过。
+- [~] 待最新代码重建 q19 后重试 APK 自动解析/对象绑定/清理；当前包不是 Karing，不能替代 Karing 应用专项验收。
+
 当前计划的唯一排序为：`P0-B.3 真实 Android 门禁 → P0-A Windows API/Web 复核 → P1-C/P1-D → P1-E → P1-F`。本节只维护勾选状态，详细范围、验收标准和禁止事项以主计划及 [`docs/release-status-2026-08-25.md`](docs/release-status-2026-08-25.md) 为准。
 
 ## 2026-08-25 参考导航版开发计划登记

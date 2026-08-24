@@ -99,7 +99,7 @@ REDIS_PORT=6379
 MINIO_PORT=9000
 ```
 
-`POSTGRES_CONNECT_TIMEOUT_SECONDS`、`REDIS_CONNECT_TIMEOUT_SECONDS` 和 `MINIO_CONNECT_TIMEOUT_SECONDS` 默认均为 `5`，允许范围为 `1-120` 秒，分别限制三类基础设施的连接/操作等待时间。远程 PostgreSQL 不可达时，启动会在 PostgreSQL 超时后记录明确警告并退出本次迁移检查，不会无限停在 application startup。
+`POSTGRES_CONNECT_TIMEOUT_SECONDS`、`REDIS_CONNECT_TIMEOUT_SECONDS` 和 `MINIO_CONNECT_TIMEOUT_SECONDS` 默认均为 `5`，允许范围为 `1-120` 秒，负责连接等待；`MINIO_READ_TIMEOUT_SECONDS` 默认 `60` 秒、允许范围为 `1-3600` 秒，负责 APK、录像和报告等大对象的读取/上传等待。远程 PostgreSQL 不可达时，启动会在 PostgreSQL 超时后记录明确警告并退出本次迁移检查，不会无限停在 application startup。
 
 远端档案中的主机地址和用户名只是占位符，需改成实际 PostgreSQL、Redis 和 MinIO 连接信息；启动配置页面会把这些占位符列为未完成项。密码、应用密钥和 Webhook Key 也必须使用目标环境的真实值，且不要提交到 Git。
 
