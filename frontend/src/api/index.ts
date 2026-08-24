@@ -523,6 +523,80 @@ export interface StatisticsCaseTypeDistributionItem {
   pass_rate: number
 }
 
+export interface ReportTrendItem {
+  date: string
+  total: number
+  passed: number
+  failed: number
+  error: number
+  pass_rate: number
+  avg_duration_ms?: number | null
+}
+
+export interface ReportRunItem {
+  id: number
+  project_id: number
+  case_id: number
+  case_name: string
+  case_type: string
+  status: string
+  duration_ms?: number | null
+  error_message?: string | null
+  created_at: string
+}
+
+export interface ReportOverviewItem {
+  project_id?: number | null
+  days: number
+  total_cases: number
+  executed_cases: number
+  coverage_rate: number
+  total_runs: number
+  passed_runs: number
+  failed_runs: number
+  error_runs: number
+  pass_rate: number
+  avg_duration_ms?: number | null
+  open_defects: number
+  defect_health_rate: number
+  quality_score: number
+  trend: ReportTrendItem[]
+  recent_runs: ReportRunItem[]
+}
+
+export interface ReportRunSnapshot {
+  id: number
+  project_id: number
+  case_id: number
+  case_name: string
+  case_type: string
+  status: string
+  duration_ms?: number | null
+  total_steps: number
+  passed_steps: number
+  failed_steps: number
+  error_steps: number
+  error_message?: string | null
+  created_at: string
+}
+
+export interface ReportCompareMetric {
+  key: string
+  label: string
+  baseline: number
+  current: number
+  delta: number
+  unit?: string | null
+}
+
+export interface ReportCompareItem {
+  project_id: number
+  baseline: ReportRunSnapshot
+  current: ReportRunSnapshot
+  metrics: ReportCompareMetric[]
+  has_regression: boolean
+}
+
 export interface RunRetentionPreview {
   cutoff: string
   retention_days: number
@@ -1536,6 +1610,13 @@ export const statisticsApi = {
     http.get<unknown, StatisticsCaseTypeDistributionItem[]>('/statistics/case-type-distribution', { params }),
   exportCsv: (params: { chart: string; project_id?: number; days?: number; case_type?: string; aggregate?: 'daily' | 'weekly'; top?: number }) =>
     http.get<unknown, Blob>('/statistics/export/csv', { params, responseType: 'blob' }),
+}
+
+export const reportApi = {
+  overview: (params?: { project_id?: number; days?: number; recent_limit?: number }) =>
+    http.get<unknown, ReportOverviewItem>('/reports/overview', { params }),
+  compare: (params: { baseline_run_id: number; current_run_id: number }) =>
+    http.get<unknown, ReportCompareItem>('/reports/compare', { params }),
 }
 
 export const adminRunRetentionApi = {

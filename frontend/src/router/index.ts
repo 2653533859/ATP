@@ -116,7 +116,7 @@ const router = createRouter({
         {
           path: 'reports',
           name: 'reports',
-          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          component: () => import('@/views/report/ReportCenterView.vue'),
           meta: {
             menuTitleKey: 'menu.assets.reports',
             descriptionKey: 'navigation.placeholder.description.reports',
