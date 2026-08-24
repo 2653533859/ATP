@@ -840,21 +840,38 @@ async def trigger_performance_run(
     if body.performance_node_id is not None and body.performance_node_ids:
         raise HTTPException(status_code=400, detail="performance_node_id 与 performance_node_ids 不能同时传入")
     selected_nodes: list[PerformanceNode] = []
+    shard_snapshots: list[dict] | None = None
+    shard_validation_options: list[dict] | None = None
     if body.performance_node_ids:
         if len(set(body.performance_node_ids)) != len(body.performance_node_ids):
             raise HTTPException(status_code=400, detail="性能压测节点不能重复")
-        for node_id in body.performance_node_ids:
-            selected_nodes.append(await _resolve_performance_node(db, node_id, validation_options, item.executor))
+        if len(body.performance_node_ids) > 1:
+            try:
+                # Node guardrails apply to each shard, not to the unsplit aggregate load. The
+                # aggregate options are still checked above against the global safety limits.
+                shard_snapshots = split_performance_options(options_snapshot, len(body.performance_node_ids))
+                shard_validation_options = split_performance_options(
+                    validation_options, len(body.performance_node_ids)
+                )
+            except PerformanceShardingError as exc:
+                raise HTTPException(status_code=400, detail=str(exc)) from exc
+        for index, node_id in enumerate(body.performance_node_ids):
+            node_options = (
+                shard_validation_options[index]
+                if shard_validation_options is not None
+                else validation_options
+            )
+            selected_nodes.append(await _resolve_performance_node(db, node_id, node_options, item.executor))
     else:
         node = await _resolve_performance_node(db, body.performance_node_id, validation_options, item.executor)
         if node is not None:
             selected_nodes.append(node)
 
     if len(selected_nodes) > 1:
-        try:
-            shard_snapshots = split_performance_options(options_snapshot, len(selected_nodes))
-        except PerformanceShardingError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+        # Multiple selected nodes always prepare shard snapshots above. Keep this assertion
+        # close to the write path so a future selection change cannot persist unsplit runs.
+        if shard_snapshots is None:
+            raise HTTPException(status_code=400, detail="多节点压测分片配置缺失")
         parent = PerformanceRun(
             performance_test_id=item.id,
             project_id=item.project_id,

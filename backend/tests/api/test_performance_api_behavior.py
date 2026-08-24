@@ -1473,6 +1473,57 @@ def test_trigger_performance_run_creates_multi_node_shards():
     assert _delay_recorder.calls == [child.id for child in children]
 
 
+def test_trigger_performance_run_validates_node_limits_after_sharding():
+    _delay_recorder.calls.clear()
+    test = _performance_test()
+    first = _performance_node(17, max_vus=6)
+    second = _performance_node(18, max_vus=6)
+    db = _FakeDB(
+        {
+            "PerformanceTest": {test.id: test},
+            "PerformanceNode": {first.id: first, second.id: second},
+        }
+    )
+
+    result = asyncio.run(
+        performance.trigger_performance_run(
+            test_id=test.id,
+            body=PerformanceRunTrigger(performance_node_ids=[first.id, second.id], options={"vus": 10}),
+            db=db,
+            user=_User(),
+        )
+    )
+
+    children = [item for item in db.added if isinstance(item, PerformanceRun) and item is not result]
+    assert [child.options_snapshot["vus"] for child in children] == [5, 5]
+
+
+def test_trigger_performance_run_rejects_shard_over_node_limit():
+    test = _performance_test()
+    first = _performance_node(17, max_vus=4)
+    second = _performance_node(18, max_vus=4)
+    db = _FakeDB(
+        {
+            "PerformanceTest": {test.id: test},
+            "PerformanceNode": {first.id: first, second.id: second},
+        }
+    )
+
+    with pytest.raises(Exception) as caught:
+        asyncio.run(
+            performance.trigger_performance_run(
+                test_id=test.id,
+                body=PerformanceRunTrigger(performance_node_ids=[first.id, second.id], options={"vus": 10}),
+                db=db,
+                user=_User(),
+            )
+        )
+
+    assert caught.value.status_code == 400
+    assert "节点" in caught.value.detail
+    assert db.added == []
+
+
 def test_trigger_performance_run_rejects_an_offline_selected_node():
     test = _performance_test()
     node = _performance_node(status="offline")
