@@ -52,7 +52,7 @@ const router = createRouter({
         {
           path: 'api-workbench',
           name: 'api-workbench',
-          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          component: () => import('@/views/workbench/ApiWorkbenchView.vue'),
           meta: {
             menuTitleKey: 'menu.capabilities.api',
             descriptionKey: 'navigation.placeholder.description.api',

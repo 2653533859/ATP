@@ -13,7 +13,7 @@
         >
           {{ t('common.view_all') }}
         </a-button>
-        <a-tooltip :title="t('case.module_tree.new_root')">
+          <a-tooltip v-if="editable" :title="t('case.module_tree.new_root')">
           <PlusOutlined class="tree-add-btn" @click="showAddModal(null)" />
         </a-tooltip>
       </div>
@@ -31,7 +31,7 @@
         <template #title="node">
           <div class="tree-node">
             <span class="node-name">{{ node.name }}</span>
-            <span class="node-actions" @click.stop>
+            <span v-if="editable" class="node-actions" @click.stop>
               <a-tooltip :title="t('case.module_tree.new_child')">
                 <PlusOutlined @click="showAddModal(node)" />
               </a-tooltip>
@@ -80,10 +80,12 @@ const props = withDefaults(defineProps<{
   title?: string
   showReset?: boolean
   resetDisabled?: boolean
+  editable?: boolean
 }>(), {
   title: undefined,
   showReset: false,
   resetDisabled: true,
+  editable: true,
 })
 const emit = defineEmits<{ select: [moduleId: number | null]; reset: [] }>()
 const { t } = useI18n()
@@ -122,6 +124,7 @@ function showAddModal(parent: ModuleTreeItem | null) {
 }
 
 async function handleAdd() {
+  if (!props.editable) return
   if (!newModuleName.value.trim()) {
     message.warning(t('case.module_tree.msg.name_required'))
     return
@@ -142,6 +145,7 @@ async function handleAdd() {
 }
 
 async function handleDelete(node: ModuleTreeItem) {
+  if (!props.editable) return
   await moduleApi.delete(node.id)
   message.success(t('case.module_tree.msg.delete_success'))
   if (selectedKeys.value.includes(node.id)) {

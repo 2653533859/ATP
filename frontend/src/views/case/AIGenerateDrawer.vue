@@ -327,6 +327,7 @@ const props = defineProps<{
   open: boolean
   projectId: number | null
   moduleId: number | null
+  allowedCaseTypes?: CaseType[]
   initialDatasetId?: number | null
   initialDatasetVersion?: number | null
   initialMockRuleIds?: number[]
@@ -421,14 +422,14 @@ const placeholderForType = computed(() => {
   }
 })
 
-const caseTypeOptions = computed(() => [
+const caseTypeOptions = computed<Array<{ label: string; value: CaseType }>>(() => ([
   { label: t('case.types.api'), value: 'api' },
   { label: t('case.types.graphql'), value: 'graphql' },
   { label: t('case.types.websocket'), value: 'websocket' },
   { label: t('case.types.grpc'), value: 'grpc' },
   { label: t('case.types.web'), value: 'web' },
   { label: t('case.types.android'), value: 'android' },
-])
+] as Array<{ label: string; value: CaseType }>).filter((item) => !props.allowedCaseTypes?.length || props.allowedCaseTypes.includes(item.value)))
 const priorityOptions = ['P0', 'P1', 'P2', 'P3'].map((v) => ({ label: v, value: v }))
 const caseLevelOptions = computed(() => [
   { label: t('case.levels.smoke'), value: 'smoke' },
@@ -844,6 +845,16 @@ watch(
     }
     resetGeneration()
   },
+)
+
+watch(
+  caseTypeOptions,
+  (options) => {
+    if (options.length && !options.some((item) => item.value === caseType.value)) {
+      caseType.value = options[0].value
+    }
+  },
+  { immediate: true },
 )
 
 watch(
