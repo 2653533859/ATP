@@ -27,6 +27,14 @@
 
 后续执行顺序固定为：APP 真实门禁 → Windows API/Web 完整 smoke → 真实通知 → 外部缺陷平台 → 生产性能 → 发布收口。每个模块均执行“实现/调整 → 定向与全量测试 → 代码审查 → 修复 → 文档/记忆同步 → Conventional Commit 推送”；`[E]` 不等于真实环境通过，`offline`、mock 和跳过项不得关闭验收门禁。
 
+## 2026-08-25 Android 设备前置验收复核
+
+- `[x]` `172.16.102.15:5555` 通过 ADB 命令、`get-state`、shell、设备属性、包管理和 logcat 检查；另一台 `172.16.102.214:5555` 也处于 `device`，当前共 2 台在线设备。
+- `[x]` Windows Android Worker 正在运行，队列为 `android,mobile_special`；doctor 对 Python/Celery/Redis、PostgreSQL、Redis、MinIO 和 ADB 检查通过。
+- `[E]` 两台在线设备的第三方包列表均未发现 Karing，不能用应用显示名替代真实 `package_name`，也没有执行启动、点击、Monkey 或其他应用操作。
+- `[E]` 控制面 smoke 因 `.env` 中的 bootstrap 账号收到 HTTP 401，未能认证调用 `/devices/workers` 和 `/devices/scan`；未创建 Android 运行记录。证据见 [`android-device-control-preflight-2026-08-25.json`](docs/evidence/android-device-control-preflight-2026-08-25.json)。
+- `[ ]` 解除条件：使用当前有效账号完成控制面认证，确认/安装真实 APK 并取得 `package_name`，再继续 Worker registry、扫描、租约、低代码、录屏、专项任务和事件/日志/报告验收。
+
 ## 2026-08-25 P0-B.3 后续开发计划（当前跟踪）
 
 详细计划以路线图的“0.5 当前开发计划与跟踪台账”为准。本节同步当前执行顺序，避免把已经存在的页面或执行器误记成真实闭环：

@@ -23,6 +23,12 @@ P0-B.3.5 事件、日志与报告回传已完成本地实现：专项任务可�
 
 Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复核 Windows API/Web、真实通知供应商、外部缺陷平台、性能生产环境和发布收口。详细依赖、出口和状态见 [`product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md) 的“0.5 当前开发计划与跟踪台账”，执行勾选见 [`Task.md`](../Task.md)。
 
+### 2026-08-25 Android 设备前置验收复核
+
+- 两台 ADB 设备均为 `device`，选定 `172.16.102.15:5555` 完成命令、属性、包管理和 logcat 检查；Windows Android Worker 正在消费 `android,mobile_special`，PostgreSQL/Redis/MinIO doctor 通过。
+- 当前在线设备第三方包列表没有 Karing，且 `.env` bootstrap 账号登录返回 HTTP 401；因此未调用认证 Worker registry/扫描接口，也未创建 Android 运行记录。
+- 脱敏证据见 [`android-device-control-preflight-2026-08-25.json`](evidence/android-device-control-preflight-2026-08-25.json)。这项证据只关闭设备前置检查，不关闭 Android 真实执行门禁。
+
 ## 2026-08-25 Android 低代码最小执行本地交付
 
 - 单设备执行现在按设备 serial 查询注册设备、申请/释放租约；租约冲突会在执行步骤前结束为 error。设备矩阵保持每个子运行独立租约。

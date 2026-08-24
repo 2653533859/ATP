@@ -325,6 +325,12 @@ P0-A 的 Windows smoke 账号来源与 401 提示改进已经完成；P1-E.1～P
 4. 验收生产性能多节点、Prometheus/MinIO 生命周期和跨主机恢复。
 5. 绑定同一提交 SHA，完成发布状态、能力矩阵、操作手册、证据索引和回滚说明。
 
+### 2026-08-25 APP 真实门禁前置复核
+
+- ADB 选定设备 `172.16.102.15:5555` 与另一台设备均为 `device`；Windows Android Worker 和专用队列 doctor 通过，设备前置证据见 [`android-device-control-preflight-2026-08-25.json`](evidence/android-device-control-preflight-2026-08-25.json)。
+- 在线设备未发现 Karing 的真实包名，控制面认证因 bootstrap 账号 HTTP 401 未完成 `/devices/workers`/`/devices/scan`；未创建运行记录，不把设备在线或 Worker 心跳写成 Android 执行通过。
+- 下一步只在当前账号完成认证并确认真实 APK/package name 后，继续扫描、租约、低代码、录屏、专项任务和产物报告回传。
+
 ### 模块追踪模板
 
 每个模块必须在 `Task.md` 和本路线图登记：范围、依赖、最小验收出口、测试文件/命令、代码审查结论、修复记录、证据路径、提交 SHA 和未关闭边界。交付顺序固定为：

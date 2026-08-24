@@ -1,0 +1,37 @@
+{
+  "schema_version": 1,
+  "kind": "android_device_control_preflight",
+  "generated_at": "2026-08-25",
+  "source_commit": "b055512",
+  "status": "passed_with_follow_up",
+  "selected_target": "172.16.102.15:5555",
+  "adb": {
+    "command_available": true,
+    "selected_target_state": "device",
+    "online_devices": 2,
+    "unauthorized_devices": 0,
+    "offline_devices": 0,
+    "package_manager_readable": true,
+    "reported_package_count": 151,
+    "logcat_readable": true,
+    "logcat_lines_read": 21
+  },
+  "worker": {
+    "process_status": "running",
+    "queues": ["android", "mobile_special"],
+    "doctor": "passed",
+    "postgresql_reachable": true,
+    "redis_reachable": true,
+    "minio_reachable": true
+  },
+  "application": {
+    "karing_package_found_on_online_devices": false,
+    "package_actions_performed": false
+  },
+  "control_plane": {
+    "authenticated_registry_and_scan": "blocked",
+    "reason": "The bootstrap credentials in the selected environment were rejected with HTTP 401; no current account credential was written to this evidence.",
+    "run_created": false
+  },
+  "next_action": "Use the current account to authenticate, confirm the real APK/package name (or install the requested app on the selected device), then run Worker registry, scan, APK, low-code and artifact checks."
+}
