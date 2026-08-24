@@ -17,7 +17,7 @@
 
 当前优先关闭 Android P0-B.3 单设备执行闭环，拆分为：真实 APK 上传/包名识别与选择、低代码最小执行、录屏与异常回放、专项任务、事件/日志/报告回传。每一项都必须同时具备代码、回归测试、代码审查修复和脱敏证据；没有 APK、包名或在线 `device` 时，只记录阻塞，不创建脏运行。
 
-当前本地下一项为 P0-B.3.5 事件、日志与报告回传；P0-B.3.4 的专项任务失败终态和包名一致性已完成本地闭环，但真实 APK/在线设备执行仍保持未验收。
+P0-B.3.5 事件、日志与报告回传已完成本地实现：专项任务可配置结束 logcat/截图，Worker 统一写入产物与状态，事件和 JSON 报告统一脱敏；真实 APK/在线设备/MinIO 执行仍保持未验收。下一步是在线 Android 环境端到端复验，再按 P0-A → P1-C → P1-D → P1-E → P1-F 推进。
 
 Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复核 Windows API/Web、真实通知供应商、外部缺陷平台、性能生产环境和发布收口。详细依赖、出口和状态见 [`product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md) 的“0.5 当前开发计划与跟踪台账”，执行勾选见 [`Task.md`](../Task.md)。
 
@@ -41,6 +41,14 @@ Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复
 - 性能、稳定性和流畅度执行器在应用启动失败、Monkey 启动/异常退出或流畅度动作失败时写入 `summary_json.error_message` 并终态为 `failed`；完成事件会携带失败状态和错误摘要，正常取消仍为 `stopped`。
 - 定向回归 `86 passed`，4 个受影响文件独立运行 `28/25/19/14 passed`，后端非集成全量 `2255 passed`；前端 Vitest `66 files / 269 tests passed`，`vue-tsc`、生产构建、Ruff 和 `git diff --check` 通过。脱敏证据见 [`android-special-task-2026-08-25.json`](evidence/android-special-task-2026-08-25.json)。
 - 发布边界：未获得真实 APK 和在线 `device` 执行证据前，不关闭真实安装/启动、专项动作、超时取消、Crash/ANR logcat、录屏、MinIO 或报告回传门禁；Karing 仍需先通过包管理确认真实包名。
+
+## 2026-08-25 P0-B.3.5 事件、日志与报告回传本地交付
+
+- Worker 收尾阶段按任务配置采集结束时的设备 logcat 和 PNG 截图，分别限制在 5 MB/10 MB；上传成功登记 `MobileRunArtifact`，摘要记录 `requested/saved/file_name/file_size/error`，采集、上传或 ADB 失败不会覆盖专项原始状态。
+- 专项任务配置页已增加设备日志/结束截图开关；报告详情页展示产物状态，报告文件表通过受保护的 artifact URL 下载；已有性能 CSV、异常日志、录屏和异常回放不改变原有路径。
+- 事件记录器与 JSON 报告导出统一脱敏常见 Authorization、Cookie、密码、Token、Secret、API Key 以及 URL 查询凭据；事件达到上限时仍会提交产物行和摘要。
+- 定向 84 项、后端非集成 `2260 passed`，前端 Vitest `66 files / 269 tests passed`，`vue-tsc`、生产构建、Ruff 和 `git diff --check` 通过；脱敏证据见 [`android-event-artifact-reporting-2026-08-25.json`](evidence/android-event-artifact-reporting-2026-08-25.json)。
+- 发布边界：真实 APK、在线 `device`、MinIO 上传/下载/清理、三类专项端到端日志/截图和性能录屏/异常回放仍待真实环境验收，本地证据不关闭 Android 真机门禁。
 
 ## 2026-08-25 P0-A 本地 E2E 回归复核
 

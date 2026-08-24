@@ -1,0 +1,49 @@
+{
+  "date": "2026-08-25",
+  "module": "P0-B.3.5",
+  "title": "Android event, device artifact and report handoff local evidence",
+  "scope": [
+    "durable event payload redaction",
+    "end-of-run logcat and screenshot capture",
+    "artifact status in run summary and report detail",
+    "JSON report redaction and artifact ordering"
+  ],
+  "implementation": {
+    "event_payload_limit": 12000,
+    "max_events_per_run": 5000,
+    "logcat_lines": 10000,
+    "logcat_max_bytes": 5000000,
+    "screenshot_max_bytes": 10000000,
+    "capture_failures_change_run_status": false,
+    "artifact_status_path": "summary_json.android_artifacts"
+  },
+  "verification": {
+    "targeted_backend_tests": 84,
+    "backend_non_integration_tests": "2260 passed",
+    "frontend_vitest": "66 files / 269 tests passed",
+    "frontend_type_check": "passed",
+    "frontend_build": "passed",
+    "ruff_changed_files": "passed",
+    "git_diff_check": "passed"
+  },
+  "security": {
+    "redacted_event_fields": [
+      "authorization",
+      "cookie",
+      "password",
+      "token",
+      "secret",
+      "api_key",
+      "access_key",
+      "private_key"
+    ],
+    "url_query_credentials_redacted": true,
+    "secrets_written_to_evidence": false
+  },
+  "environment_boundary": {
+    "real_android_device": "not exercised in this local change",
+    "real_apk": "not provided",
+    "minio_upload_download_cleanup": "requires target environment verification",
+    "recording_and_incident_replay": "existing paths preserved; requires real device verification"
+  }
+}

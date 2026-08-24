@@ -19,11 +19,19 @@
 - [E] P0-B.3.2 Android 低代码最小执行：单设备租约、Worker 调度、步骤执行、截图、APK 前置安装和终态回传已完成本地实现与回归；真实 APK/真机最小步骤待验收。证据见 [`android-lowcode-execution-2026-08-25.json`](docs/evidence/android-lowcode-execution-2026-08-25.json)。
 - [E] P0-B.3.3 录屏与异常回放：低代码/专项录屏失败状态、回放保存状态和报告告警已补齐并完成本地回归；真实设备采集、上传、异常保留和清理待验证。证据见 [`android-recording-observability-2026-08-25.json`](docs/evidence/android-recording-observability-2026-08-25.json)。
 - [E] P0-B.3.4 Android 专项任务：已完成包名一致性校验、应用启动失败终态、Monkey 异常终态和流畅度动作失败终态的本地实现与回归；真实 APK/真机上的安装、启动、动作、超时、取消、崩溃和 logcat 仍待验收，不能用应用显示名替代包名。证据见 [`android-special-task-2026-08-25.json`](docs/evidence/android-special-task-2026-08-25.json)。
-- [~] P0-B.3.5 事件、日志与报告：按阶段/操作/参数摘要/结果/耗时形成时间线，并核对截图、录屏、设备日志和报告引用的完整性与脱敏。
+- [E] P0-B.3.5 事件、日志与报告：Worker 收尾阶段支持按配置保存最近 10000 行设备 logcat 与结束截图，写入 `MobileRunArtifact` 并在 `summary_json.android_artifacts` 返回状态；事件参数、结果、消息和 JSON 报告配置统一脱敏，运行详情展示产物状态、操作时间线和下载引用。真实 APK/真机/MinIO 媒体回传仍待验收。证据见 [`android-event-artifact-reporting-2026-08-25.json`](docs/evidence/android-event-artifact-reporting-2026-08-25.json)。
 - [ ] P0-A 完整 Windows API/Web 复核：Android 闭环后复跑登录、认证读接口、浏览器矩阵、文件传输、报告导出和 Web 低代码。
 - [ ] P1-C/P1-D/P1-E/P1-F：按真实通知、外部缺陷平台、性能生产环境、发布收口顺序推进。
 
 每个子模块都必须完成“实现/调整 → 定向测试 → 全量质量门禁 → 代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 推送”后才能进入下一项；真实环境未提供时保留 `[E]` 或 `[~]`，不把 mock、跳过项、Worker 心跳或 offline 设备写成通过。
+
+### 2026-08-25 P0-B.3.5 事件、日志与报告回传本地交付
+
+- [x] 新增 Android 专项 Worker 公共收尾采集：按任务配置保存设备结束时的 logcat（最多 10000 行、5 MB）和 PNG 截图（最多 10 MB），上传 MinIO 后写入 `MobileRunArtifact`；ADB、截图、上传失败只进入 `summary_json.android_artifacts` 和事件时间线的告警，不覆盖原始运行状态。
+- [x] 新建/编辑专项任务增加“保存设备日志”和“保存结束截图”开关；报告详情增加设备产物状态卡片，报告文件表继续提供统一下载入口，已有性能专项异常回放/录屏产物保持兼容。
+- [x] `MobileRunEventRecorder` 对参数、结果和消息递归遮盖 Authorization、Cookie、密码、Token、Secret、API Key 等常见敏感字段，并遮盖 URL 查询凭据；JSON 报告导出对运行摘要和配置快照复用同一脱敏逻辑。
+- [x] 代码审查修复事件达到上限时摘要/产物未提交的边界，并补充事件脱敏、ADB 缺失/上传失败隔离、报告导出脱敏和产物入库回归；定向 84 项、后端非集成 `2260 passed`，前端 `66 files / 269 tests passed`，`vue-tsc`、生产构建、Ruff 和 `git diff --check` 通过。证据见 [`android-event-artifact-reporting-2026-08-25.json`](docs/evidence/android-event-artifact-reporting-2026-08-25.json)。
+- [ ] 真实环境仍需用在线 `device`、真实 APK 和可用 MinIO 验证三类专项的结束日志/截图、性能录屏/异常回放、报告下载和对象清理；本地回归不关闭 Android 真机发布门禁。
 
 ## 2026-08-25 参考导航后续执行台账
 

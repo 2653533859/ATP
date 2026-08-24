@@ -94,6 +94,22 @@
           style="margin-bottom: 16px"
         />
 
+        <a-card v-if="artifactStatuses.length" style="margin-bottom: 16px" :body-style="{ padding: '12px 16px' }">
+          <template #title>
+            <span style="font-size: 14px">{{ t('mobile_special.reports.artifact_status_title') }}</span>
+          </template>
+          <div class="artifact-status-list">
+            <div v-for="item in artifactStatuses" :key="item.kind" class="artifact-status-item">
+              <a-tag :color="item.saved ? 'green' : 'orange'">
+                {{ item.saved ? t('mobile_special.reports.artifact_saved') : t('mobile_special.reports.artifact_not_saved') }}
+              </a-tag>
+              <strong>{{ item.label }}</strong>
+              <span v-if="item.fileName">{{ item.fileName }}</span>
+              <span v-if="item.error" class="artifact-status-error">{{ item.error }}</span>
+            </div>
+          </div>
+        </a-card>
+
         <a-card class="event-timeline-card" :body-style="{ padding: '0 20px 20px' }">
           <template #title>
             <div class="timeline-heading">
@@ -325,6 +341,24 @@ const replayError = computed(() => {
   if (!replay || typeof replay !== 'object' || Array.isArray(replay)) return ''
   const error = (replay as Record<string, unknown>).error
   return typeof error === 'string' ? error : ''
+})
+type ArtifactStatus = { kind: string; label: string; saved: boolean; fileName?: string; error?: string }
+const artifactStatuses = computed<ArtifactStatus[]>(() => {
+  const raw = run.value?.summary_json?.android_artifacts
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return []
+  return Object.entries(raw as Record<string, unknown>).flatMap(([kind, value]) => {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) return []
+    const item = value as Record<string, unknown>
+    return [{
+      kind,
+      label: kind === 'logcat'
+        ? t('mobile_special.reports.device_log_artifact')
+        : t('mobile_special.reports.screenshot_artifact'),
+      saved: item.saved === true,
+      fileName: typeof item.file_name === 'string' ? item.file_name : undefined,
+      error: typeof item.error === 'string' ? item.error : undefined,
+    }]
+  })
 })
 const liveProgressStatus = computed(() => live.value.error ? 'exception' : undefined)
 const deviceStatusLabel = computed(() => {
@@ -1053,6 +1087,25 @@ watch(chartTheme, () => {
   width: 72px;
   color: #98a2b3;
   font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+
+.artifact-status-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+}
+
+.artifact-status-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+  color: #667085;
+  font-size: 12px;
+}
+
+.artifact-status-error {
+  color: #d92d20;
 }
 
 @media (max-width: 720px) {

@@ -175,6 +175,16 @@
           <span class="form-hint">{{ t('mobile_special.form.incident_replay_hint') }}</span>
         </a-form-item>
 
+        <a-form-item :label="t('mobile_special.form.device_log_artifact')">
+          <a-switch v-model:checked="form.config_capture_device_logs" />
+          <span class="form-hint">{{ t('mobile_special.form.device_log_artifact_hint') }}</span>
+        </a-form-item>
+
+        <a-form-item :label="t('mobile_special.form.screenshot_artifact')">
+          <a-switch v-model:checked="form.config_capture_screenshot" />
+          <span class="form-hint">{{ t('mobile_special.form.screenshot_artifact_hint') }}</span>
+        </a-form-item>
+
         <a-form-item v-if="form.config_capture_replay" :label="t('mobile_special.form.replay_seconds')">
           <a-input-number v-model:value="form.config_replay_seconds" :min="5" :max="1800" style="width: 100%" />
         </a-form-item>
@@ -267,6 +277,8 @@ type TaskForm = {
   config_collect_jank: boolean
   config_collect_incidents: boolean
   config_capture_replay: boolean
+  config_capture_device_logs: boolean
+  config_capture_screenshot: boolean
   config_replay_seconds: number
   config_install_apk: boolean
   config_uninstall_before: boolean
@@ -345,6 +357,8 @@ const form = ref<TaskForm>({
   config_collect_jank: true,
   config_collect_incidents: true,
   config_capture_replay: true,
+  config_capture_device_logs: true,
+  config_capture_screenshot: true,
   config_replay_seconds: 30,
   config_install_apk: false,
   config_uninstall_before: false,
@@ -458,6 +472,8 @@ function openCreate() {
     config_collect_jank: true,
     config_collect_incidents: true,
     config_capture_replay: true,
+    config_capture_device_logs: true,
+    config_capture_screenshot: true,
     config_replay_seconds: 30,
     config_install_apk: false,
     config_uninstall_before: false,
@@ -492,6 +508,8 @@ function openEdit(task: MobileSpecialTaskItem) {
     config_collect_jank: config.collect_jank !== false,
     config_collect_incidents: config.collect_incidents !== false,
     config_capture_replay: config.capture_replay !== false,
+    config_capture_device_logs: config.capture_device_logs !== false,
+    config_capture_screenshot: config.capture_screenshot !== false,
     config_replay_seconds: (config.replay_seconds as number) || 30,
     config_install_apk: config.install_apk === true || config.install_before === true,
     config_uninstall_before: config.uninstall_before === true,
@@ -556,6 +574,8 @@ async function handleSave() {
         collect_jank: form.value.config_collect_jank,
         collect_incidents: form.value.config_collect_incidents,
         capture_replay: form.value.config_capture_replay,
+        capture_device_logs: form.value.config_capture_device_logs,
+        capture_screenshot: form.value.config_capture_screenshot,
         capture_on_incident: true,
         replay_seconds: form.value.config_replay_seconds,
         install_apk: form.value.config_install_apk,

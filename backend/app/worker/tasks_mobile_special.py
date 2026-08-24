@@ -302,6 +302,13 @@ def run_mobile_special_task(self, run_id: int):
                 )
             finally:
                 try:
+                    from app.services.mobile_special_artifacts import capture_mobile_run_artifacts
+
+                    await capture_mobile_run_artifacts(db, run, events)
+                except Exception:
+                    # 设备日志/截图属于辅助证据，不能覆盖专项执行本身的成功或失败状态。
+                    logger.exception("Failed to capture final Android artifacts for mobile run %s", run_id)
+                try:
                     from app.services.mobile_special.preflight import run_android_postflight
 
                     if run.device_serial:

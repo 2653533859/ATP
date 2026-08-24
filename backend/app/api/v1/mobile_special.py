@@ -44,6 +44,7 @@ from app.api.deps import (
 )
 from app.models.user_project import ProjectRole
 from app.services.mobile_special_control import request_cancel
+from app.services.mobile_special_events import sanitize_mobile_payload
 from app.services.project_scope import scope_to_visible_projects
 
 router = APIRouter(prefix="/mobile-special", tags=["Android专项测试"])
@@ -484,7 +485,7 @@ async def list_run_incidents(
     """Get incidents for a run."""
     await _get_run_with_access(db, user, run_id)
 
-    q = select(MobileIncident).where(MobileIncident.run_id == run_id)
+    q = select(MobileIncident).where(MobileIncident.run_id == run_id).order_by(MobileIncident.event_time.asc())
     result = await db.execute(q)
     return result.scalars().all()
 
@@ -498,7 +499,7 @@ async def list_run_artifacts(
     """Get artifacts for a run."""
     await _get_run_with_access(db, user, run_id)
 
-    q = select(MobileRunArtifact).where(MobileRunArtifact.run_id == run_id)
+    q = select(MobileRunArtifact).where(MobileRunArtifact.run_id == run_id).order_by(MobileRunArtifact.created_at.asc())
     result = await db.execute(q)
     return result.scalars().all()
 
@@ -614,8 +615,8 @@ async def export_run_json(
             "finished_at": run.finished_at.isoformat() if run.finished_at else None,
             "duration_ms": run.duration_ms,
             "trigger_type": run.trigger_type.value,
-            "summary": run.summary_json,
-            "config_snapshot": run.config_snapshot,
+            "summary": sanitize_mobile_payload(run.summary_json),
+            "config_snapshot": sanitize_mobile_payload(run.config_snapshot),
         },
         "samples": [
             {

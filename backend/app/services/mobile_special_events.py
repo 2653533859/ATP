@@ -1,6 +1,7 @@
 """Durable execution event journal for Android special-test runs."""
 
 import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -13,14 +14,46 @@ from app.models.mobile_special import MobileRunEvent
 MAX_PERSISTED_EVENTS_PER_RUN = 5000
 EVENT_PAYLOAD_LIMIT = 12000
 EVENT_FLUSH_BATCH_SIZE = 25
+REDACTED_VALUE = "[REDACTED]"
+
+_SENSITIVE_KEY_PATTERN = re.compile(
+    r"(?i)(authorization|cookie|set-cookie|password|passwd|pwd|token|secret|api[_-]?key|access[_-]?key|private[_-]?key)"
+)
+_URL_SECRET_PATTERN = re.compile(
+    r"(?i)([?&](?:authorization|token|access_token|refresh_token|api[_-]?key|secret|password)=)[^&#\s]+"
+)
+_FREEFORM_SECRET_PATTERN = re.compile(
+    r"(?i)\b(authorization|token|access_token|refresh_token|api[_-]?key|secret|password)\s*([:=])\s*[^\s,;&]+"
+)
+
+
+def _redact_value(value: Any, *, key: str | None = None) -> Any:
+    """Recursively remove credentials before an event/report is persisted."""
+    if key and _SENSITIVE_KEY_PATTERN.search(key):
+        return REDACTED_VALUE
+    if isinstance(value, dict):
+        return {str(item_key): _redact_value(item_value, key=str(item_key)) for item_key, item_value in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_redact_value(item) for item in value]
+    if isinstance(value, str):
+        redacted = _URL_SECRET_PATTERN.sub(r"\1" + REDACTED_VALUE, value)
+        return _FREEFORM_SECRET_PATTERN.sub(r"\1\2" + REDACTED_VALUE, redacted)
+    return value
+
+
+def sanitize_mobile_payload(value: Any) -> dict:
+    """Return a JSON-safe object with common credentials redacted."""
+    redacted = _redact_value(value)
+    if redacted is None:
+        return {}
+    if not isinstance(redacted, dict):
+        redacted = {"value": redacted}
+    return redacted
 
 
 def _json_object(value: Any) -> dict:
     """Keep event payloads JSON-safe and bounded before storing them."""
-    if value is None:
-        return {}
-    if not isinstance(value, dict):
-        value = {"value": value}
+    value = sanitize_mobile_payload(value)
     try:
         encoded = json.dumps(value, ensure_ascii=False, default=str)
         if len(encoded) > EVENT_PAYLOAD_LIMIT:
@@ -100,7 +133,7 @@ class MobileRunEventRecorder:
             phase=phase[:64] if phase else None,
             action=action[:128] if action else None,
             level=level[:16] if level else None,
-            message=message[:4000] if message else None,
+            message=_redact_value(message[:4000]) if message else None,
             parameters_json=_json_object(parameters),
             result_json=_json_object(result),
             duration_ms=duration_ms,

@@ -45,3 +45,18 @@ def test_event_recorder_assigns_sequence_and_bounds_payload():
 def test_json_object_normalizes_scalar_values():
     assert _json_object(None) == {}
     assert _json_object("ok") == {"value": "ok"}
+
+
+def test_json_object_redacts_credentials_and_url_secrets():
+    payload = _json_object(
+        {
+            "Authorization": "Bearer top-secret",
+            "nested": {"password": "p@ss", "safe": "ok"},
+            "url": "https://example.test/api?token=abc123&keep=yes",
+        }
+    )
+
+    assert payload["Authorization"] == "[REDACTED]"
+    assert payload["nested"]["password"] == "[REDACTED]"
+    assert "abc123" not in payload["url"]
+    assert "keep=yes" in payload["url"]

@@ -754,3 +754,23 @@ def test_export_run_json_bundles_run_samples_incidents_artifacts():
 
     with pytest.raises(HTTPException):
         asyncio.run(ms.export_run_json(404, db=_FakeDB()))
+
+
+def test_export_run_json_redacts_run_configuration_and_summary():
+    run = _run(
+        summary_json={"error": "https://example.test?token=secret", "password": "secret"},
+        config_snapshot={"Authorization": "Bearer secret", "safe": "value"},
+    )
+    db = _FakeDB(
+        {("MobileSpecialRun", 10): run, ("MobileSpecialTask", 1): _task()},
+        execute_rows=[[], [], [], []],
+    )
+
+    response = asyncio.run(ms.export_run_json(10, db=db))
+    report = json.loads(response.body)
+
+    encoded = json.dumps(report, ensure_ascii=False)
+    assert "secret" not in encoded
+    assert report["run"]["summary"]["password"] == "[REDACTED]"
+    assert report["run"]["config_snapshot"]["Authorization"] == "[REDACTED]"
+    assert report["run"]["config_snapshot"]["safe"] == "value"
