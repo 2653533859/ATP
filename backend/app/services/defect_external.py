@@ -47,9 +47,22 @@ _SECRET_PATTERN = re.compile(
 _SECRET_FIELD_PATTERN = re.compile(
     r"(?i)([\"']?(?:authorization|cookie|set-cookie|password|passwd|token|secret|api[_-]?key)[\"']?\s*[:=]\s*[\"']?)([^\"',;\s}\]]+)"
 )
+_URL_QUERY_SECRET_PATTERN = re.compile(
+    r"(?i)([?&](?:key|access[_-]?token|api[_-]?key|token|secret|sign|authorization|cookie)=)([^&#\s,;)}\]<>\"']+)"
+)
+_URL_USERINFO_PATTERN = re.compile(r"(?i)(https?://)([^/@\s]+):([^/@\s]+)@")
 
 
 def _redact_text(value: Any, limit: int = 20_000) -> str:
     text = str(value or "")
     text = _SECRET_PATTERN.sub(lambda match: f"{match.group(1)}=[REDACTED]", text)
-    return _SECRET_FIELD_PATTERN.sub(lambda match: f"{match.group(1)}[REDACTED]", text)[:limit]
+    text = _SECRET_FIELD_PATTERN.sub(lambda match: f"{match.group(1)}[REDACTED]", text)
+    text = _URL_QUERY_SECRET_PATTERN.sub(lambda match: f"{match.group(1)}[REDACTED]", text)
+    return _URL_USERINFO_PATTERN.sub(r"\1<redacted>@", text)[:limit]
+
+
+def safe_external_error(error: BaseException | Any, limit: int = 500) -> str:
+    """Return a provider error safe for API responses and audit-facing messages."""
+
+    redacted = _redact_text(error, limit)
+    return redacted or (error.__class__.__name__ if isinstance(error, BaseException) else "外部服务错误")

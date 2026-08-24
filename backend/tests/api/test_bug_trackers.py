@@ -108,7 +108,7 @@ def test_create_bug_from_run_rejects_tracker_from_other_project(monkeypatch):
 
 def test_test_bug_tracker_connection_returns_false_on_error(monkeypatch):
     async def fake_test_connection(*_args, **_kwargs):
-        raise RuntimeError("auth failed")
+        raise RuntimeError("auth failed: token=raw-secret")
 
     monkeypatch.setattr(bug_trackers, "test_connection", fake_test_connection)
     body = bug_trackers.BugTrackerConnectionTestRequest(tracker_type=TrackerType.jira, config={})
@@ -117,6 +117,80 @@ def test_test_bug_tracker_connection_returns_false_on_error(monkeypatch):
 
     assert result.ok is False
     assert "auth failed" in result.message
+    assert "raw-secret" not in result.message
+    assert "token=[REDACTED]" in result.message
+
+
+def test_create_bug_from_run_redacts_provider_error(monkeypatch):
+    async def fake_find_duplicate_bug(**_kwargs):
+        return None
+
+    async def fake_create_bug(**_kwargs):
+        raise RuntimeError("provider rejected https://user:password@example.com/hook?token=raw-secret")
+
+    monkeypatch.setattr(bug_trackers, "find_duplicate_bug", fake_find_duplicate_bug)
+    monkeypatch.setattr(bug_trackers, "create_bug", fake_create_bug)
+
+    db = _FakeDB(
+        run=types.SimpleNamespace(id=5, case_id=9, environment="test", error_message="boom", result_summary={}),
+        tracker=types.SimpleNamespace(
+            id=3,
+            project_id=1,
+            tracker_type=types.SimpleNamespace(value="jira"),
+            config={},
+            field_mapping={},
+            is_enabled=True,
+        ),
+        case=types.SimpleNamespace(id=9, module_id=7, name="支付失败"),
+        module=types.SimpleNamespace(id=7, project_id=1),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            bug_trackers.create_bug_from_run(
+                run_id=5,
+                body=bug_trackers.CreateBugRequest(tracker_id=3),
+                db=db,
+                _=None,
+            )
+        )
+
+    assert exc.value.status_code == 502
+    assert "raw-secret" not in str(exc.value.detail)
+    assert "password" not in str(exc.value.detail)
+
+
+def test_get_run_bug_status_redacts_provider_error(monkeypatch):
+    async def fake_get_bug_status(**_kwargs):
+        raise RuntimeError("status failed: api_key=raw-secret")
+
+    monkeypatch.setattr(bug_trackers, "get_bug_status", fake_get_bug_status)
+    run = types.SimpleNamespace(
+        id=5,
+        case_id=9,
+        result_summary={"bug": {"bug_id": "99", "bug_url": "https://jira/browse/99", "title": "bug"}},
+    )
+    tracker = types.SimpleNamespace(
+        id=3,
+        project_id=1,
+        tracker_type=types.SimpleNamespace(value="jira"),
+        config={},
+        field_mapping={},
+        is_enabled=True,
+    )
+    db = _FakeDB(
+        run=run,
+        tracker=tracker,
+        case=types.SimpleNamespace(id=9, module_id=7, name="支付失败"),
+        module=types.SimpleNamespace(id=7, project_id=1),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(bug_trackers.get_run_bug_status(run_id=5, db=db, _=None))
+
+    assert exc.value.status_code == 502
+    assert "raw-secret" not in str(exc.value.detail)
+    assert "api_key=[REDACTED]" in str(exc.value.detail)
 
 
 def test_test_bug_tracker_connection_uses_decrypted_saved_config(monkeypatch):

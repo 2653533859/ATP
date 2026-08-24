@@ -42,6 +42,7 @@ from app.services.bug_reporter import (
 )
 from app.services.audit import write_audit_log
 from app.core.encryption import mask_config, encrypt_config, decrypt_config
+from app.services.defect_external import safe_external_error
 
 router = APIRouter(tags=["缺陷跟踪"])
 
@@ -207,7 +208,7 @@ async def test_bug_tracker_connection(
     except HTTPException as exc:
         return BugTrackerConnectionTestOut(ok=False, message=str(exc.detail))
     except Exception as exc:
-        return BugTrackerConnectionTestOut(ok=False, message=str(exc))
+        return BugTrackerConnectionTestOut(ok=False, message=safe_external_error(exc))
 
 
 @router.get("/runs/{run_id}/bug-status", response_model=BugStatusOut)
@@ -241,11 +242,14 @@ async def get_run_bug_status(
         tracker = tracker_row[0]
 
     tracker_config = decrypt_config(tracker.config)
-    status_result = await get_bug_status(
-        tracker_type=tracker.tracker_type.value,
-        config=tracker_config,
-        bug_id=bug_info["bug_id"],
-    )
+    try:
+        status_result = await get_bug_status(
+            tracker_type=tracker.tracker_type.value,
+            config=tracker_config,
+            bug_id=bug_info["bug_id"],
+        )
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"缺陷状态查询失败: {safe_external_error(exc)}") from exc
 
     summary = dict(run.result_summary or {})
     summary["bug"] = {
@@ -414,7 +418,7 @@ async def create_bug_from_run(
 
     # 调用服务创建缺陷
     try:
-        result = await create_bug(
+        created_bug = await create_bug(
             tracker_type=tracker.tracker_type.value,
             config=tracker_config,
             title=title,
@@ -423,7 +427,7 @@ async def create_bug_from_run(
             override_product_id=body.override_product_id,
         )
     except Exception as e:
-        raise HTTPException(status_code=502, detail=f"创建缺陷失败: {str(e)}")
+        raise HTTPException(status_code=502, detail=f"创建缺陷失败: {safe_external_error(e)}") from e
 
     attachment_uploaded = False
     screenshot_source = None
@@ -454,7 +458,7 @@ async def create_bug_from_run(
                 attachment_uploaded = await upload_attachment(
                     tracker_type=tracker.tracker_type.value,
                     config=tracker_config,
-                    bug_id=result["bug_id"],
+                    bug_id=created_bug["bug_id"],
                     filename=f"run-{run_id}-screenshot.png",
                     content=read_bytes(object_name),
                 )
@@ -464,8 +468,8 @@ async def create_bug_from_run(
     # 将缺陷信息写回 result_summary 以便前端持久展示
     summary = dict(run.result_summary or {})
     summary["bug"] = {
-        "bug_id": result["bug_id"],
-        "bug_url": result["bug_url"],
+        "bug_id": created_bug["bug_id"],
+        "bug_url": created_bug["bug_url"],
         "title": title,
         "duplicate_of": None,
         "attachment_uploaded": attachment_uploaded,
@@ -480,8 +484,8 @@ async def create_bug_from_run(
         user_id=getattr(_, "id", None),
         username=getattr(_, "username", ""),
         project_id=tracker.project_id,
-        detail=f"执行记录 {run.id} 创建缺陷: {result['bug_id']}",
+        detail=f"执行记录 {run.id} 创建缺陷: {created_bug['bug_id']}",
     )
     await db.commit()
 
-    return BugResultOut(**result, duplicate_of=None, attachment_uploaded=attachment_uploaded)
+    return BugResultOut(**created_bug, duplicate_of=None, attachment_uploaded=attachment_uploaded)
