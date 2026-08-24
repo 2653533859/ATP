@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 q19 已重建到最新提交 `ca79937`（包含性能多节点分片容量修复）：迁移 `20260824_0065 (head)`，Backend 健康 `200`，Prometheus `atp-backend`/`atp-performance-worker`/`atp-worker`/`prometheus` 4 个 target 全部 `up`，Celery 2 节点 `pong`，重启后 Backend 无 enum/Traceback/ERROR。脱敏证据为 `docs/evidence/q19-performance-shard-deployment-2026-08-25.json`；这仍是 q19 Compose 验证，不替代真实 Kubernetes 多节点、生产 MinIO 生命周期或跨主机恢复。
+
 - 2026-08-25 P1-E.4 性能多节点分片容量校验已完成并推送 `f9e7c54`：多节点运行先按节点数拆分总负载，再按每个节点的 `max_vus`、执行器能力和出口 allowlist 校验；总 VU 10 在两台上限 6 的节点上按 5/5 通过，上限 4 返回 400 且不创建运行。API `72 passed`、性能服务/Worker `24 passed`、完整非集成后端 `2231 passed`、Ruff/diff-check 通过，脱敏证据为 `docs/evidence/performance-shard-capacity-2026-08-25.json`。真实 Kubernetes 多节点调度、生产 Prometheus/MinIO 生命周期和跨主机恢复仍待环境验收。
 
 - 2026-08-25 P0-A 已补一轮 Windows 已认证浏览器冒烟：复用当前登录会话实际加载 `/dashboard`、`/workbench/overview`、`/workbench/todos`、`/cases`、`/runs`、`/suites`、`/system/storage` 和 `/system/api-contract-assets`，均未回登录页，q19 Backend 最近 5 分钟无 enum/Traceback/ERROR。脱敏证据为 `docs/evidence/windows-browser-smoke-2026-08-25.json`；本轮不记录密码/Token，也不替代文件传输、报告导出、浏览器矩阵和 Web 低代码的既有完整 readiness，P0-A 仍待目标环境完整复验。

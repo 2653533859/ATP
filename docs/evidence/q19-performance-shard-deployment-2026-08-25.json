@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "kind": "q19_performance_shard_deployment",
+  "recorded_at": "2026-08-25",
+  "source_commit": "ca79937",
+  "migration": "20260824_0065 (head)",
+  "services": {
+    "backend_health_http_status": 200,
+    "backend_health_body": { "status": "ok" },
+    "prometheus_targets": [
+      { "job": "atp-backend", "health": "up" },
+      { "job": "atp-performance-worker", "health": "up" },
+      { "job": "atp-worker", "health": "up" },
+      { "job": "prometheus", "health": "up" }
+    ],
+    "celery_nodes_online": 2,
+    "celery_ping": "pong"
+  },
+  "checks": {
+    "compose_config": "passed",
+    "rebuild_and_start": "passed",
+    "fresh_backend_error_matches": 0
+  },
+  "limitations": [
+    "This is a q19 Compose deployment check; it does not prove Kubernetes multi-node capacity, production MinIO lifecycle, or cross-host recovery."
+  ]
+}

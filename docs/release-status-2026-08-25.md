@@ -42,6 +42,7 @@
 - 多节点压测现在先按节点数拆分总负载，再用每个节点的 `max_vus`、执行器能力和出口 allowlist 校验分片；总负载 10、两台节点上限 6 时生成 5/5 分片，上限 4 时返回 400 且不写入运行记录。
 - 代码审查未发现问题；性能 API `72 passed`、性能服务/Worker `24 passed`、完整后端非集成 `2231 passed`，Ruff 和 `git diff --check` 通过。脱敏证据见 [`performance-shard-capacity-2026-08-25.json`](evidence/performance-shard-capacity-2026-08-25.json)。
 - 这只完成本地分片校验，不代表真实 Kubernetes 多节点调度、生产 Prometheus/MinIO 生命周期或跨主机恢复已通过。
+- q19 已按 `ca79937` 重建并启动，迁移 `20260824_0065 (head)`、Backend `200`、Prometheus 4 targets `up`、Celery 2 节点 `pong`；重启后 Backend 无 enum/Traceback/ERROR。脱敏证据见 [`q19-performance-shard-deployment-2026-08-25.json`](evidence/q19-performance-shard-deployment-2026-08-25.json)。
 
 ## 能力与证据索引
 
@@ -50,7 +51,7 @@
 | Windows API/Web | 本地与 q19 证据已形成，当前账号页面冒烟通过 | [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`q19-migration-web-worker-readiness-2026-08-24.json`](evidence/q19-migration-web-worker-readiness-2026-08-24.json) | 目标发布环境仍需按版本重放并归档 |
 | Web Worker/录制 | q19 持久 Worker、Chromium/Firefox/WebKit 录制和跨 API 停止快照已验证 | [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json) | Linux/Xvfb、跨副本和目标部署拓扑仍需独立复验 |
 | Android | 代码、配置配对和 doctor 门禁已完成；真实执行阻塞 | [`windows-android-worker.ps1`](../scripts/windows-android-worker.ps1)、[`windows-android-acceptance.ps1`](../scripts/windows-android-acceptance.ps1) | ADB 必须恢复为 `device`，然后完成扫描、租约、截图、APK、低代码、专项任务和证据回传 |
-| 性能 | P1-E.1～P1-E.4 本地闭环完成，q19 单节点 k6 短压已有证据 | [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)、[`performance-shard-capacity-2026-08-25.json`](evidence/performance-shard-capacity-2026-08-25.json) | 真实 Kubernetes 多节点、生产 Prometheus、MinIO 生命周期和跨主机恢复 |
+| 性能 | P1-E.1～P1-E.4 本地闭环完成，q19 已按最新提交重建 | [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)、[`performance-shard-capacity-2026-08-25.json`](evidence/performance-shard-capacity-2026-08-25.json)、[`q19-performance-shard-deployment-2026-08-25.json`](evidence/q19-performance-shard-deployment-2026-08-25.json) | 真实 Kubernetes 多节点、生产 Prometheus、MinIO 生命周期和跨主机恢复 |
 | 通知 | 本地 SMTP 链路已验证 | [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json) | 真实供应商送达、重试、限流和重复投递 |
 | 外部缺陷平台 | 本地适配器和脱敏逻辑已实现 | [`docs/capability-baseline-2026-08-07.md`](capability-baseline-2026-08-07.md) | 临时项目、权限、创建/去重/状态同步和清理 |
 

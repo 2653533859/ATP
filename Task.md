@@ -85,6 +85,7 @@
 
 - [x] 先按节点数拆分总负载，再按每个节点的 `max_vus`、执行器和出口 allowlist 校验；总 VU 10 在两台上限 6 的节点上按 5/5 通过，上限 4 时返回 400 且不创建运行。
 - [x] 代码审查、性能 API `72 passed`、性能服务/Worker `24 passed`、完整非集成后端 `2231 passed`、Ruff/diff-check 已通过，证据见 [`docs/evidence/performance-shard-capacity-2026-08-25.json`](docs/evidence/performance-shard-capacity-2026-08-25.json)。提交 `f9e7c54` 已推送。
+- [x] q19 已重建到 `ca79937`；迁移 `20260824_0065 (head)`、Backend 健康 `200`、Prometheus 4 个 target、Celery 2 节点均通过，重启后 Backend 无 enum/Traceback/ERROR；证据见 [`docs/evidence/q19-performance-shard-deployment-2026-08-25.json`](docs/evidence/q19-performance-shard-deployment-2026-08-25.json)。
 - [ ] 后续：真实 Kubernetes 多节点调度、节点资源限制、生产 MinIO 生命周期和跨主机恢复环境验收。
 
 ## 2026-08-25 P1-E.2 性能基线回归门禁本地交付

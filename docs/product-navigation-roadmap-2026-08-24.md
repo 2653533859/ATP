@@ -581,6 +581,7 @@ N0 导航壳
 - **实现**：多节点运行先按节点数拆分总负载，再按每个节点的 `max_vus`、执行器能力和出口 allowlist 校验；提交 `f9e7c54`。
 - **验证**：两台上限 6 的节点承载总 VU 10 时生成 5/5 分片，上限 4 时返回 400 且不创建运行；性能 API `72 passed`、服务/Worker `24 passed`、完整后端非集成 `2231 passed`，Ruff/diff-check 通过。脱敏证据见 [`performance-shard-capacity-2026-08-25.json`](evidence/performance-shard-capacity-2026-08-25.json)。
 - **边界**：本次完成本地分片容量校验，不替代真实 Kubernetes 多节点调度、生产 Prometheus/MinIO 生命周期和跨主机恢复验收。
+- **q19 部署**：已按 `ca79937` 重建并启动，迁移 `20260824_0065 (head)`、Backend 健康 `200`、Prometheus 4 targets、Celery 2 节点在线；重启后 Backend 日志无 enum/Traceback/ERROR。证据见 [`q19-performance-shard-deployment-2026-08-25.json`](evidence/q19-performance-shard-deployment-2026-08-25.json)。
 
 ### 2026-08-25 P1-F 本地发布收口记录
 
