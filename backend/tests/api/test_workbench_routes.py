@@ -1,0 +1,150 @@
+"""工作台聚合与统一任务操作的边界测试。"""
+
+import asyncio
+import types
+from datetime import datetime, timezone
+
+import pytest
+from fastapi import HTTPException
+
+from app.api.v1 import workbench
+from app.models.case import RunStatus
+from app.models.mobile_special import RunStatus as MobileRunStatus
+from app.models.performance import PerformanceRunStatus
+from app.models.user import UserRole
+from app.schemas.workbench import WorkbenchTaskRef
+
+
+class _FakeResult:
+    def __init__(self, rows=None):
+        self.rows = list(rows or [])
+
+    def all(self):
+        return self.rows
+
+    def scalars(self):
+        return self
+
+
+class _FakeDB:
+    def __init__(self, results=None, objects=None):
+        self.results = list(results or [])
+        self.objects = dict(objects or {})
+        self.rollback_count = 0
+
+    async def execute(self, _statement):
+        return self.results.pop(0) if self.results else _FakeResult()
+
+    async def get(self, model, key):
+        return self.objects.get((model.__name__, key))
+
+    async def rollback(self):
+        self.rollback_count += 1
+
+
+def _now():
+    return datetime(2026, 8, 24, 10, 0, tzinfo=timezone.utc)
+
+
+def _task(task_type, status):
+    return workbench._task_item(
+        task_type=task_type,
+        run_id=9,
+        source_id=3,
+        project_id=1,
+        project_name="ATP",
+        name="sample",
+        status_value=status,
+        created_at=_now(),
+        detail_path="/runs/9",
+    )
+
+
+def test_task_item_exposes_domain_specific_actions():
+    case = _task("case", RunStatus.failed)
+    pending_case = _task("case", RunStatus.pending)
+    passed_case = _task("case", RunStatus.passed)
+    android = _task("android", MobileRunStatus.stopped)
+    performance = _task("performance", PerformanceRunStatus.cancelled)
+
+    assert case.can_retry is True
+    assert case.can_stop is False
+    assert pending_case.can_stop is False
+    assert passed_case.can_retry is False
+    assert android.can_retry is True
+    assert performance.can_retry is True
+
+
+def test_retry_guard_rejects_non_retryable_status():
+    ref = WorkbenchTaskRef(task_type="case", run_id=9)
+
+    with pytest.raises(HTTPException) as exc:
+        workbench._ensure_retryable(ref, RunStatus.passed)
+
+    assert exc.value.status_code == 409
+
+
+def test_retry_guard_accepts_failed_statuses_for_each_domain():
+    statuses = {
+        "case": RunStatus.error,
+        "suite": "failed",
+        "plan": "error",
+        "android": MobileRunStatus.stopped,
+        "performance": PerformanceRunStatus.cancelled,
+    }
+
+    for task_type, task_status in statuses.items():
+        workbench._ensure_retryable(WorkbenchTaskRef(task_type=task_type, run_id=1), task_status)
+
+
+def test_collect_todos_includes_review_and_reports_truncation():
+    case = types.SimpleNamespace(id=3, name="登录用例", updated_at=_now(), review_status="pending")
+    # One review result, five empty failed-task collectors, and one empty overdue-plan result.
+    db = _FakeDB([_FakeResult([(case, "项目 A", 1)])] + [_FakeResult() for _ in range(6)])
+    user = types.SimpleNamespace(id=7, role=UserRole.tester)
+
+    todos, has_more = asyncio.run(workbench._collect_todos(db, user, 1, 10))
+
+    assert has_more is False
+    assert len(todos) == 1
+    assert todos[0].kind == "case_review"
+    assert todos[0].path == "/cases/3"
+
+
+def test_collect_performance_tasks_uses_test_executor_metadata():
+    run = types.SimpleNamespace(
+        id=12,
+        performance_test_id=4,
+        project_id=1,
+        status=PerformanceRunStatus.failed.value,
+        created_at=_now(),
+        started_at=None,
+        finished_at=None,
+        duration_ms=None,
+        error_message="timeout",
+    )
+    db = _FakeDB([_FakeResult([(run, "压测场景", "locust", 1, "项目 A")])])
+    user = types.SimpleNamespace(id=7, role=UserRole.tester)
+
+    items, has_more = asyncio.run(workbench._collect_performance_tasks(db, user, 1, None, 10))
+
+    assert has_more is False
+    assert items[0].metadata["executor"] == "locust"
+
+
+def test_retry_endpoint_does_not_dispatch_passed_run(monkeypatch):
+    source = types.SimpleNamespace(status=RunStatus.passed, case_id=3)
+    case = types.SimpleNamespace(module_id=8)
+    module = types.SimpleNamespace(project_id=1)
+    db = _FakeDB(objects={("TestRun", 9): source, ("TestCase", 3): case, ("Module", 8): module})
+    user = types.SimpleNamespace(id=7, role=UserRole.tester)
+
+    async def allow_access(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(workbench, "assert_project_access", allow_access)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(workbench._retry_task(WorkbenchTaskRef(task_type="case", run_id=9), db, user))
+
+    assert exc.value.status_code == 409

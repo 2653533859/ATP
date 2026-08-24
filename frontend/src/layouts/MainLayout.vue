@@ -25,9 +25,19 @@
           <template #icon><DashboardOutlined /></template>
           <template #title>{{ t('menu.groups.workbench') }}</template>
           <a-menu-item key="/dashboard">{{ t('menu.workbench.home') }}</a-menu-item>
-          <a-menu-item key="/workbench/todos">{{ t('menu.workbench.todos') }}</a-menu-item>
+          <a-menu-item key="/workbench/todos">
+            <span class="menu-item-with-badge">
+              <span>{{ t('menu.workbench.todos') }}</span>
+              <a-badge v-if="workbenchTodoCount > 0" :count="workbenchTodoCount" :overflow-count="99" />
+            </span>
+          </a-menu-item>
           <a-menu-item key="/projects">{{ t('menu.workbench.projects') }}</a-menu-item>
-          <a-menu-item key="/tasks">{{ t('menu.workbench.tasks') }}</a-menu-item>
+          <a-menu-item key="/tasks">
+            <span class="menu-item-with-badge">
+              <span>{{ t('menu.workbench.tasks') }}</span>
+              <a-badge v-if="activeTaskCount > 0" :count="activeTaskCount" :overflow-count="99" />
+            </span>
+          </a-menu-item>
           <a-menu-item key="/runs">{{ t('menu.runs') }}</a-menu-item>
         </a-sub-menu>
 
@@ -152,7 +162,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import {
@@ -174,12 +184,17 @@ import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import { getLocale, setLocale, type SupportedLocale } from '@/locales'
 import { hasAnyRole, type UserRole } from '@/utils/permissions'
+import { workbenchApi } from '@/api'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const themeStore = useThemeStore()
 const { t } = useI18n()
+
+const workbenchTodoCount = ref(0)
+const activeTaskCount = ref(0)
+let workbenchRefreshTimer: number | undefined
 
 const routeMenuGroups: Record<string, string> = {
   '/dashboard': 'workbench',
@@ -255,10 +270,42 @@ watch(() => route.path, (path) => {
   openKeys.value = getMenuOpenKeys(path)
 })
 
+function queryProjectId(value: unknown) {
+  const raw = Array.isArray(value) ? value[0] : value
+  const parsed = Number(raw)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
+async function refreshWorkbenchSummary() {
+  try {
+    const summary = await workbenchApi.overview({
+      project_id: queryProjectId(route.query.project_id),
+      todo_limit: 1,
+      task_limit: 1,
+    })
+    workbenchTodoCount.value = summary.counts.total_todos ?? 0
+    activeTaskCount.value = summary.counts.active_tasks ?? 0
+  } catch {
+    // 侧栏徽标是辅助信息，聚合接口失败时不打断当前页面。
+    workbenchTodoCount.value = 0
+    activeTaskCount.value = 0
+  }
+}
+
+watch(() => route.query.project_id, () => {
+  void refreshWorkbenchSummary()
+})
+
 onMounted(() => {
   if (window.matchMedia('(max-width: 768px)').matches) {
     collapsed.value = true
   }
+  void refreshWorkbenchSummary()
+  workbenchRefreshTimer = window.setInterval(refreshWorkbenchSummary, 30_000)
+})
+
+onBeforeUnmount(() => {
+  if (workbenchRefreshTimer !== undefined) window.clearInterval(workbenchRefreshTimer)
 })
 
 const isDark = computed(() => themeStore.mode === 'dark')
@@ -357,6 +404,18 @@ function onLocaleChange(value: unknown) {
   background: transparent;
   border-inline-end: none !important;
   padding: 8px;
+}
+
+.menu-item-with-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  gap: 8px;
+}
+
+.menu-item-with-badge :deep(.ant-badge-count) {
+  box-shadow: none;
 }
 .app-menu :deep(.ant-menu-item),
 .app-menu :deep(.ant-menu-submenu-title) {

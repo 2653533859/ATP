@@ -949,6 +949,81 @@ export interface RunDetailItem {
   case?: { name?: string }
 }
 
+export type WorkbenchTaskType = 'case' | 'suite' | 'plan' | 'android' | 'performance'
+export type WorkbenchAction = 'retry' | 'stop'
+
+export interface WorkbenchTodoItem {
+  id: string
+  kind: string
+  priority: 'high' | 'medium' | 'low'
+  project_id?: number | null
+  project_name?: string | null
+  title: string
+  description?: string | null
+  status: string
+  created_at?: string | null
+  due_at?: string | null
+  path: string
+  metadata: Record<string, unknown>
+}
+
+export interface WorkbenchTaskItem {
+  id: string
+  task_type: WorkbenchTaskType
+  run_id: number
+  source_id: number
+  project_id?: number | null
+  project_name?: string | null
+  name: string
+  status: string
+  created_at?: string | null
+  started_at?: string | null
+  finished_at?: string | null
+  duration_ms?: number | null
+  error_message?: string | null
+  detail_path: string
+  can_retry: boolean
+  can_stop: boolean
+  metadata: Record<string, unknown>
+}
+
+export interface WorkbenchOverviewItem {
+  generated_at: string
+  project_id?: number | null
+  counts: Record<string, number>
+  todos: WorkbenchTodoItem[]
+  tasks: WorkbenchTaskItem[]
+  has_more_todos: boolean
+  has_more_tasks: boolean
+}
+
+export interface WorkbenchTaskPage {
+  generated_at: string
+  project_id?: number | null
+  status_filter?: string | null
+  task_type?: string | null
+  items: WorkbenchTaskItem[]
+  total: number
+  has_more: boolean
+}
+
+export interface WorkbenchTaskActionResult {
+  action: WorkbenchAction
+  task_type: WorkbenchTaskType
+  run_id: number
+  new_run_id?: number | null
+  status: string
+  message: string
+}
+
+export interface WorkbenchBatchActionResult {
+  action: WorkbenchAction
+  requested: number
+  processed: number
+  results: WorkbenchTaskActionResult[]
+  failures: Array<{ task_type: WorkbenchTaskType; run_id: number; detail: string }>
+}
+
 export interface FailureDiagnosisResult {
   status: 'done' | 'skipped'
   source: 'llm' | 'rule' | 'rule_fallback'
@@ -1232,6 +1307,19 @@ export const runApi = {
     http.get<unknown, Blob>(`/runs/${id}/export/pdf`, { responseType: 'blob' }),
   submitHealingFeedback: (runId: number, stepId: number, action: 'adopted' | 'rejected') =>
     http.post<unknown, void>(`/runs/${runId}/steps/${stepId}/healing/feedback`, { action }),
+}
+
+export const workbenchApi = {
+  overview: (params?: { project_id?: number; todo_limit?: number; task_limit?: number }) =>
+    http.get<unknown, WorkbenchOverviewItem>('/workbench/overview', { params }),
+  tasks: (params?: { project_id?: number; status?: string; task_type?: WorkbenchTaskType; limit?: number }) =>
+    http.get<unknown, WorkbenchTaskPage>('/workbench/tasks', { params }),
+  retry: (taskType: WorkbenchTaskType, runId: number) =>
+    http.post<unknown, WorkbenchTaskActionResult>(`/workbench/tasks/${taskType}/${runId}/retry`),
+  stop: (taskType: WorkbenchTaskType, runId: number) =>
+    http.post<unknown, WorkbenchTaskActionResult>(`/workbench/tasks/${taskType}/${runId}/stop`),
+  batchAction: (action: WorkbenchAction, tasks: Array<{ task_type: WorkbenchTaskType; run_id: number }>) =>
+    http.post<unknown, WorkbenchBatchActionResult>('/workbench/tasks/batch-action', { action, tasks }),
 }
 
 export const scriptApi = {

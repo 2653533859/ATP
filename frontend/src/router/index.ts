@@ -28,7 +28,7 @@ const router = createRouter({
         {
           path: 'workbench/todos',
           name: 'workbench-todos',
-          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          component: () => import('@/views/workbench/WorkbenchTodosView.vue'),
           meta: {
             menuTitleKey: 'menu.workbench.todos',
             descriptionKey: 'navigation.placeholder.description.todos',
@@ -42,7 +42,7 @@ const router = createRouter({
         {
           path: 'tasks',
           name: 'tasks',
-          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          component: () => import('@/views/workbench/TaskCenterView.vue'),
           meta: {
             menuTitleKey: 'menu.workbench.tasks',
             descriptionKey: 'navigation.placeholder.description.tasks',
