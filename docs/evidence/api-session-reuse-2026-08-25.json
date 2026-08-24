@@ -1,0 +1,35 @@
+{
+  "evidence_type": "api_session_reuse_readiness",
+  "date": "2026-08-25",
+  "status": "passed",
+  "source_commit": "e1dc113",
+  "environment": "q19 isolated compose acceptance stack",
+  "target": "q19 backend internal auth endpoints",
+  "session_lifecycle": "reuse",
+  "workflow": {
+    "control_login_status": 200,
+    "run_status": "passed",
+    "run_id": 13,
+    "cleanup": "passed"
+  },
+  "steps": [
+    {
+      "name": "登录建立会话",
+      "status": "passed",
+      "status_code": 200,
+      "password_redacted": true
+    },
+    {
+      "name": "复用会话读取当前用户",
+      "status": "passed",
+      "status_code": 200,
+      "jsonpath_extraction": {
+        "expression": "$.username",
+        "variable": "authenticated_user",
+        "success": true,
+        "value": "parado"
+      }
+    }
+  ],
+  "scope_note": "该证据证明项目级 API 场景显式选择 session_lifecycle=reuse 后可跨步骤复用登录 Cookie，并且执行证据按配置脱敏；不代表默认 isolated 之外的所有认证协议、生产身份提供商或其他 API 协议均已验收。"
+}

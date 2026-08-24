@@ -4,7 +4,7 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
-> API 受控目标最小闭环证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)。该证据不代表生产 API 或全部协议验收通过。
+> API 受控目标和显式会话复用证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)。这些证据不代表生产 API、其他协议或完整报告验收通过。
 
 ## 发布结论
 

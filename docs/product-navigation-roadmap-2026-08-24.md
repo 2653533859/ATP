@@ -7,7 +7,7 @@
 
 > 当前执行版：[`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 汇总本轮五组导航、模块台账、下一步顺序、风险解除条件和状态口径；本文件继续保存完整历史方案与实施记录。
 
-> 最新进度：API 工作台已在 q19 受控 HTTP 目标完成最小真实执行闭环；证据见 [`evidence/api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)，不替代生产 API、认证复用或其他协议验收。
+> 最新进度：API 工作台已在 q19 受控 HTTP 目标完成最小真实执行和显式会话复用闭环；证据见 [`evidence/api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json) 与 [`evidence/api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)，不替代生产 API、其他协议或完整报告验收。
 
 ## 0.1 导航对齐执行版计划（2026-08-24）
 
