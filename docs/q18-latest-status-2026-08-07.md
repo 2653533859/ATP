@@ -1,5 +1,11 @@
 # Q18 最新开发状态与前后实现对比
 
+## 2026-08-24 N6.4 Windows 完整 API/Web 验收与项目删除级联修复
+
+- Windows 完整 smoke 已通过管理员登录、认证读接口、远端 PostgreSQL/Redis/MinIO readiness、Web Recording 状态、Playwright `12 passed`、Chromium/Firefox/WebKit 矩阵、文件上传/清理和 HTML/JUnit 报告导出；脱敏证据见 [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)，必需失败数为 `0`。Web 低代码真实执行和 Android 相关检查因未指定用例/未启用 Worker 保持 optional skip。
+- 清理验收夹具时发现项目删除会被 `environments_project_id_fkey` 阻断；已补充 Alembic `20260824_0065`，并同步模型上的 APK、环境、模块、计划、套件项目级级联，环境变量级联删除和计划环境引用 `SET NULL`。项目路由、新迁移契约、迁移目录和 Ruff 定向回归通过；远端 q19 临时项目已清理。
+- 当前下一步是把 `20260824_0065` 随最新代码部署到目标数据库并完成升级/降级验证，再继续 Android Worker/真机、真实性能节点、通知渠道和外部缺陷平台验收。严格 readiness 仍因当前 Windows 缺少 Docker Compose 工具保持明确阻塞，不将其伪装为通过。
+
 ## 2026-08-24 N6.3 Windows 发布 readiness 与远端依赖恢复
 
 - 复核 `172.31.27.133` 时发现旧 Redis 容器的网络与 6379 发布状态不一致，清理异常容器元数据并保留挂载数据目录；重启 Docker 网络层后，Redis 6379、PostgreSQL 5432、MinIO 9000 从 Windows 可达，q19 验收栈依赖链的 Backend `/health` 返回 HTTP 200，其他 Worker/目标服务仍需单独复核。

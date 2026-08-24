@@ -38,7 +38,7 @@ class TestPlan(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     status: Mapped[PlanStatus] = mapped_column(Enum(PlanStatus), default=PlanStatus.active)
     creator_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
 
@@ -54,7 +54,7 @@ class TestPlan(Base, TimestampMixin):
     auto_create_bugs: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # 环境配置
-    env_id: Mapped[int | None] = mapped_column(ForeignKey("environments.id"))
+    env_id: Mapped[int | None] = mapped_column(ForeignKey("environments.id", ondelete="SET NULL"))
 
     # 执行配置（与 TestSuite.config 一致风格）
     # 结构: {"execution_mode": "sequential" | "parallel",

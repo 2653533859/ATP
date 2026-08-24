@@ -1,5 +1,12 @@
 # Q18 实施记录
 
+## 2026-08-24 N6.4 Windows 完整 API/Web 验收与项目删除级联修复
+
+- [x] 完整 Windows smoke 通过管理员登录、认证读接口、Web Recording 状态、Playwright `12 passed`、Chromium/Firefox/WebKit 页面矩阵、47 bytes 文件上传/清理和 HTML/JUnit 报告导出；脱敏证据归档为 `docs/evidence/windows-full-readiness-2026-08-24.json`，必需失败数为 `0`。
+- [x] 代码审查修复项目删除被 `environments_project_id_fkey` 阻断的问题：补齐项目直接资源外键 `CASCADE`，环境变量改为 `CASCADE`，计划环境引用改为 `SET NULL`，新增 `20260824_0065` 及回归契约。
+- [x] 项目路由/迁移定向 `34 passed`，迁移目录 `66 passed`，Alembic head `20260824_0065`，Ruff 和 `git diff --check` 通过；远端 q19 临时验收项目/环境已清理。
+- [ ] `20260824_0065` 的目标数据库真实升级/降级、Android Worker/真机、真实性能节点、通知和外部缺陷平台仍待独立环境证据；严格 readiness 仍因 Windows 缺少 Docker Compose 工具未通过。
+
 ## 2026-08-24 N6.3 Windows 发布 readiness 与远端依赖恢复
 
 - [x] 远端复核定位到 Redis 6379 的旧 Docker 代理/容器网络残留；仅清理 Redis 异常容器状态并保留挂载数据目录，重启 Docker 网络层后恢复 6379 发布，再按 q19 compose 项目补齐 PostgreSQL、Redis、MinIO、迁移和 Backend 依赖。

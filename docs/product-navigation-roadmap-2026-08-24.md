@@ -1,6 +1,6 @@
 # 产品导航与能力扩展开发计划（2026-08-24）
 
-> 状态：导航信息架构已按参考导航完成基线设计；N0 导航壳、N1 工作台与任务中心、N2.1/N2.2 内部缺陷与失败证据闭环、N2.3 报告中心、N2.4 用例评审工作台、N2.5 外部缺陷兼容、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心已完成本地实现、审查和回归，均待真实环境验收；N6.1 配置中心浏览器回归、N6.2 文档收口和 N6.3 Windows API/Web 最小发布 readiness 已形成证据，完整 Android/Worker、性能、通知和外部平台验收仍待补齐。
+> 状态：导航信息架构已按参考导航完成基线设计；N0 导航壳、N1 工作台与任务中心、N2.1/N2.2 内部缺陷与失败证据闭环、N2.3 报告中心、N2.4 用例评审工作台、N2.5 外部缺陷兼容、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心已完成本地实现、审查和回归，均待真实环境验收；N6.1/N6.2 文档与浏览器回归、N6.3/N6.4 Windows API/Web readiness 已形成证据，完整 Android/Worker、性能、通知和外部平台验收仍待补齐。
 > 目标：将现有 ATP 平台从“按已实现页面分组”调整为参考导航中的“工作台、测试能力、测试资产、智能中枢、系统”五层产品导航，并按模块逐步补齐统一入口与业务闭环。
 
 > 使用方式：本文件是本轮导航重构的主计划。每个模块完成后必须依次完成“实现 → 测试 → 代码审查 → 修复 → 文档/记忆同步 → 提交推送”，并在下方实施记录和 `Task.md` 中更新同一状态。未完成联调的功能只能标记为“已实现，待环境验收”。
@@ -129,7 +129,7 @@ N5.2 验收口径：管理员/工程师能够从统一入口定位可见配置�
 - [E] N6.1 已为配置中心新增管理员回退链、普通角色路由拦截和版本差异浏览器回归；其余新增路由、权限、聚合 API、迁移和关键交互继续按模块补齐回归。
 - [E] N6.2 已同步能力矩阵、用户操作手册、导航说明、Task、MEMORY 和 Q18 实施日志；真实环境验收证据仍需按发布环境补齐。
 - [E] N6.1 已完成前端 Vitest、type-check、生产构建和 Playwright 必要 E2E；后端回归、独立测试扫描和其余发布门禁继续收口。
-- [E] N6.3 已完成远端 Redis/验收栈恢复和 Windows API/Web 最小发布 readiness：PostgreSQL、Redis、MinIO、后端健康、前端登录页和性能执行器检查通过；完整登录、Playwright、报告、Android Worker 和真机检查仍按本次显式跳过或待环境验收处理。
+- [E] N6.3 已完成远端 Redis/验收栈恢复和 Windows API/Web 最小发布 readiness；N6.4 已完成完整 Windows 登录、认证读接口、Playwright、浏览器矩阵、文件传输和报告导出证据，并修复项目删除级联阻断。
 - [ ] 真实 Android、Worker、性能节点、通知和外部缺陷平台继续按环境证据单独验收。
 
 ### 2026-08-24 N6.1 配置中心浏览器回归交付记录
@@ -150,6 +150,13 @@ N5.2 验收口径：管理员/工程师能够从统一入口定位可见配置�
 - **Windows 证据**：`scripts/windows-local-smoke.ps1 -SkipPlaywright -SkipBrowserMatrix -SkipFileTransfer -SkipReports -SkipLiveLogin` 通过 Windows doctor、后端健康、前端登录页、PostgreSQL/Redis/MinIO、ADB 可执行文件、k6/Locust/gRPC 和性能队列检查，脱敏结果见 [`windows-release-readiness-2026-08-24.json`](evidence/windows-release-readiness-2026-08-24.json)。Android 设备仅保留无在线设备 warning。
 - **发布边界**：本次命令显式跳过管理员登录、认证读接口、Playwright/浏览器矩阵、文件上传、报告导出和 Android 执行；本机仓库 readiness 默认检查通过，严格模式因 Windows 未安装 Docker Compose 工具而失败，不能将该结果解释为完整发布通过。
 - **审查结论**：本模块只涉及远端运行态恢复和脱敏证据归档，无仓库业务代码变更；文档与 JSON 证据已检查敏感值未输出。下一入口是补做完整 Windows 登录/Web/报告验收，再分别完成 Android Worker/真机、真实性能节点、通知和外部缺陷平台证据。
+
+### 2026-08-24 N6.4 Windows 完整 API/Web 验收与项目删除级联修复交付记录
+
+- **Windows 验收**：在当前 Windows 运行档案和远端 q19 PostgreSQL/Redis/MinIO 上，管理员登录、认证读接口、Web Recording 状态、Playwright mock E2E `12 passed`、Chromium/Firefox/WebKit 登录页矩阵、47 bytes 文件上传/清理、HTML/JUnit 报告导出均通过；脱敏证据见 [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)，必需失败数为 `0`。Web 低代码真实执行和 Android 项目因未指定用例/未启用 Worker 保持 optional skip。
+- **问题修复**：清理临时项目时发现删除项目被 `environments_project_id_fkey` 阻断。模型与迁移 `20260824_0065` 统一补齐 APK、环境、模块、计划、套件的项目级 `ON DELETE CASCADE`，环境变量使用 `CASCADE`，计划环境引用使用 `SET NULL`；不在 API 中维护容易遗漏的手工删除清单。
+- **审查与回归**：项目路由及新迁移契约 `34 passed`，迁移目录 `66 passed`，Alembic head 为 `20260824_0065`，Ruff 和 `git diff --check` 通过；远端 q19 临时项目/环境已清理并复核为不存在。完整迁移升级/降级仍需随最新镜像在目标数据库执行。
+- **边界**：本轮证明 Windows API/Web 和远端三项依赖可用，不代表 Android Worker/真机、真实性能节点、通知渠道或外部缺陷平台已验收；严格 readiness 仍受当前 Windows 缺少 Docker Compose 工具影响。
 
 ## 4. 推荐执行顺序
 

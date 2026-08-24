@@ -15,7 +15,7 @@ class TestSuite(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     status: Mapped[SuiteStatus] = mapped_column(Enum(SuiteStatus), default=SuiteStatus.active)
     creator_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
 

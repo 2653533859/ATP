@@ -16,6 +16,8 @@
 
 > 2026-08-24 N6.3 环境证据：恢复 `172.31.27.133` Redis 6379 与 q19 验收栈后，Windows API/Web 最小 smoke 的远端 PostgreSQL/Redis/MinIO、Backend `/health`、Frontend `/login` 和性能执行器检查通过；脱敏证据见 [`docs/evidence/windows-release-readiness-2026-08-24.json`](evidence/windows-release-readiness-2026-08-24.json)。登录、Playwright、报告、Android 真机等本轮跳过，严格 readiness 仍受本机 Docker Compose 工具缺失影响，不能标记为完整发布通过。
 
+> 2026-08-24 N6.4 环境证据：Windows 完整 API/Web smoke 已补齐管理员登录、认证读接口、Playwright `12 passed`、Chromium/Firefox/WebKit 矩阵、47 bytes 文件上传/清理和 HTML/JUnit 报告导出，必需失败数为 0，脱敏证据见 [`docs/evidence/windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)。代码审查同时修复项目删除被环境外键阻断的问题，新增 Alembic `20260824_0065`；Android、真实性能节点、通知和外部缺陷平台仍待环境验收。
+
 > 2026-08-12 iOS/Appium 补强：新增 status/session smoke、受控步骤和脱敏附件证据入口；真实 macOS/XCUITest/WDA/设备执行仍待验收。
 
 > 最新实现状态和前后对比请先查看 [`docs/q18-latest-status-2026-08-07.md`](./q18-latest-status-2026-08-07.md)。
@@ -120,7 +122,7 @@
 | 五组产品导航 | ✅ | `MainLayout.vue` 与路由权限将入口分为工作台、测试能力、测试资产、智能中枢、系统；旧 URL 与领域页面保持兼容 | 统一入口、项目上下文和动态任务提示 | 导航路由回归、不同角色真实登录 |
 | 远程工具箱 | 🔵 | `/system/toolbox` 聚合 PostgreSQL、Redis、MinIO、Android/Web Worker、ADB 和性能节点诊断，并支持脱敏 JSON 导出 | 真实依赖、Worker、ADB、浏览器和性能节点一站式诊断 | 目标主机与 Worker 环境验收 |
 | 配置中心 | 🔵 | `/system/config` 聚合启动配置、环境、全局变量、AI、存储、通知和性能节点；提供脱敏摘要、原页面深链接、版本快照、字段差异、影响提示和单资源 `ROLLBACK` 回退 | 真实数据库、项目角色、密钥轮换和三方依赖可发布验收 | `frontend/e2e/configuration-center.spec.ts`、配置中心 API/迁移回归；真实环境证据 |
-| 发布质量门禁 | 🟡 | 前端 Vitest、Playwright、type-check、生产构建、后端非集成、独立测试扫描、Ruff、mypy、Bandit 和 diff-check 已有统一命令/记录；Windows API/Web 最小 readiness 已通过并归档脱敏证据 | 完整 Windows 登录/Web/报告、真实 Android、Worker、性能、通知和外部缺陷平台证据归档 | `make test`、`scripts/windows-local-smoke.ps1`、发布 readiness、目标环境 Runbook |
+| 发布质量门禁 | 🟡 | 前端 Vitest、Playwright、type-check、生产构建、后端非集成、独立测试扫描、Ruff、mypy、Bandit 和 diff-check 已有统一命令/记录；Windows 完整 API/Web readiness 已通过并归档脱敏证据，项目删除级联迁移已补齐 | `20260824_0065` 目标数据库升级/降级、真实 Android、Worker、性能、通知和外部缺陷平台证据归档 | `make test`、`scripts/windows-local-smoke.ps1`、Alembic、发布 readiness、目标环境 Runbook |
 
 ## 6. 后续如何使用本表
 

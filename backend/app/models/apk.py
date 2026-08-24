@@ -7,7 +7,7 @@ class Apk(Base, TimestampMixin):
     __tablename__ = "apks"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id"), nullable=False)
+    project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
     filename: Mapped[str] = mapped_column(String(256), nullable=False)
     package_name: Mapped[str | None] = mapped_column(String(256))
     version_name: Mapped[str | None] = mapped_column(String(64))

@@ -1,0 +1,161 @@
+{
+  "generated_at": "2026-08-24T12:24:30.0035600Z",
+  "repo_root": "E:\\csh\\MyProject\\ATP",
+  "required_failures": 0,
+  "results": [
+    {
+      "name": "Windows local doctor",
+      "status": "passed",
+      "required": true,
+      "details": "[ok]   Web recording mode: local\n[ok]   Python Playwright package\n[ok]   Python Playwright Chromium browser\n[ok]   APP_SECRET_KEY is configured (value hidden)\n[ok]   POSTGRES_PASSWORD is configured (value hidden)\n[ok]   MINIO_ROOT_PASSWORD is configured (value hidden)\n[ok]   FIRST_ADMIN_PASSWORD is configured (value hidden)\n[ok]   port 8000 for Backend API\n[ok]   port 5173 for Frontend Vite\n[ok]   PostgreSQL endpoint 172.31.27.133:5432\n[ok]   Redis endpoint 172.31.27.133:6379\n[ok]   MinIO endpoint 172.31.27.133:9000\n[ok]   ADB executable\n[warn] Android device online\n       Connect a device or use adb connect <device-ip>:5555; Web/API development does not require an Android device.\n[ok]   Performance executor k6\n[ok]   Performance executor Locust\n[ok]   Performance executor gRPC\n[ok]   Performance node queue: performance.worker-local\nDoctor passed with 1 warning(s).",
+      "timestamp": "2026-08-24T12:23:55.4755410Z"
+    },
+    {
+      "name": "Backend health",
+      "status": "passed",
+      "required": true,
+      "details": "HTTP 200",
+      "timestamp": "2026-08-24T12:23:55.5885448Z"
+    },
+    {
+      "name": "Frontend login page",
+      "status": "passed",
+      "required": true,
+      "details": "HTTP 200",
+      "timestamp": "2026-08-24T12:23:55.6130474Z"
+    },
+    {
+      "name": "Live API admin login",
+      "status": "passed",
+      "required": true,
+      "details": "HttpOnly cookie session established",
+      "timestamp": "2026-08-24T12:23:55.6978560Z"
+    },
+    {
+      "name": "Live dependency PostgreSQL",
+      "status": "passed",
+      "required": true,
+      "details": "status=ok code=ok latency_ms=3",
+      "timestamp": "2026-08-24T12:23:55.7306053Z"
+    },
+    {
+      "name": "Live dependency Redis",
+      "status": "passed",
+      "required": true,
+      "details": "status=ok code=ok latency_ms=2.4",
+      "timestamp": "2026-08-24T12:23:55.7327827Z"
+    },
+    {
+      "name": "Live dependency MinIO",
+      "status": "passed",
+      "required": true,
+      "details": "status=ok code=ok latency_ms=3.5",
+      "timestamp": "2026-08-24T12:23:55.7345296Z"
+    },
+    {
+      "name": "Live dependency readiness",
+      "status": "passed",
+      "required": true,
+      "details": "status=ok",
+      "timestamp": "2026-08-24T12:23:55.7352200Z"
+    },
+    {
+      "name": "Live API current user",
+      "status": "passed",
+      "required": true,
+      "details": "authenticated read response valid",
+      "timestamp": "2026-08-24T12:23:55.7490640Z"
+    },
+    {
+      "name": "Live API project list",
+      "status": "passed",
+      "required": true,
+      "details": "authenticated read response valid",
+      "timestamp": "2026-08-24T12:23:55.7601524Z"
+    },
+    {
+      "name": "Web recording Worker status",
+      "status": "passed",
+      "required": true,
+      "details": "mode=local registered=0 available=0",
+      "timestamp": "2026-08-24T12:23:55.7717614Z"
+    },
+    {
+      "name": "Playwright mock E2E suite",
+      "status": "passed",
+      "required": true,
+      "details": "\n[3/12] [chromium] › e2e\\case-run.spec.ts:5:3 › case run trigger › 触发用例执行接口返回 pending 时跳转/打开 RunDetail\n[4/12] [chromium] › e2e\\case-list.spec.ts:5:3 › case list › 进入 /cases 触发项目列表请求\n[5/12] [chromium] › e2e\\login.spec.ts:4:3 › login flow › 未登录访问根路径应重定向到 /login\n[6/12] [chromium] › e2e\\dashboard.spec.ts:5:3 › dashboard › 登录后进入 /dashboard 可见 KPI 数字与图表容器\n[7/12] [chromium] › e2e\\login.spec.ts:13:3 › login flow › 凭证正确时登录成功并进入 dashboard\n[8/12] [chromium] › e2e\\login.spec.ts:18:3 › login flow › 登录后不把 JWT 写入 localStorage 且调用 me 接口\n[9/12] [chromium] › e2e\\run-detail.spec.ts:5:3 › run detail report › 打开已完成 run 详情可见步骤 passed 标签\n[10/12] [chromium] › e2e\\suite-plan.spec.ts:18:3 › suite and plan workflows › 套件页可加载套件、触发执行并打开执行记录\n[11/12] [chromium] › e2e\\suite-plan.spec.ts:59:3 › suite and plan workflows › 计划页可加载计划、手动触发并查看计划执行记录\n[12/12] [chromium] › e2e\\windows-download-fixture.spec.ts:4:3 › Windows Web 下载验收夹具 › 静态页面可以触发可保存的下载文件\n  12 passed (20.8s)",
+      "timestamp": "2026-08-24T12:24:17.8785580Z"
+    },
+    {
+      "name": "Playwright browser matrix login page",
+      "status": "passed",
+      "required": true,
+      "details": "      \"loginInputs\": 4,\n      \"console\": [\n        {\n          \"type\": \"debug\",\n          \"text\": \"[vite] connecting...\"\n        },\n        {\n          \"type\": \"debug\",\n          \"text\": \"[vite] connected.\"\n        }\n      ],\n      \"failedRequests\": [],\n      \"errorResponses\": []\n    }\n  ]\n}",
+      "timestamp": "2026-08-24T12:24:28.6442093Z"
+    },
+    {
+      "name": "Web file upload",
+      "status": "passed",
+      "required": true,
+      "details": "uploaded 47 bytes",
+      "timestamp": "2026-08-24T12:24:29.1654171Z"
+    },
+    {
+      "name": "Web file cleanup",
+      "status": "passed",
+      "required": true,
+      "details": "temporary smoke object deleted",
+      "timestamp": "2026-08-24T12:24:29.4883402Z"
+    },
+    {
+      "name": "Run report HTML",
+      "status": "passed",
+      "required": true,
+      "details": "run 1, 2238 bytes",
+      "timestamp": "2026-08-24T12:24:29.9611902Z"
+    },
+    {
+      "name": "Run report JUnit XML",
+      "status": "passed",
+      "required": true,
+      "details": "run 1, 141 bytes",
+      "timestamp": "2026-08-24T12:24:29.9778576Z"
+    },
+    {
+      "name": "Web low-code case execution",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped because -WebCaseId was not supplied.",
+      "timestamp": "2026-08-24T12:24:29.9840873Z"
+    },
+    {
+      "name": "Android network doctor",
+      "status": "skipped",
+      "required": false,
+      "details": "Android is optional for Windows API/Web smoke.",
+      "timestamp": "2026-08-24T12:24:29.9869989Z"
+    },
+    {
+      "name": "Android Worker registry",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped because ADB_SCAN_MODE is not worker and no Android Worker ID is configured.",
+      "timestamp": "2026-08-24T12:24:29.9905790Z"
+    },
+    {
+      "name": "Android device scan callback",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped because ADB_SCAN_MODE is not worker and -RequireAndroid was not supplied.",
+      "timestamp": "2026-08-24T12:24:29.9937111Z"
+    },
+    {
+      "name": "Android low-code case execution",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped because -AndroidCaseId was not supplied.",
+      "timestamp": "2026-08-24T12:24:29.9974763Z"
+    }
+  ]
+}
