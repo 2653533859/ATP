@@ -6,6 +6,22 @@
 
 当前结论：**暂不具备无条件发布资格**。
 
+## 2026-08-25 当前执行计划与新增阻塞
+
+当前执行顺序为：运行基础/账号初始化 → Android 单设备真实闭环 → Windows API/Web 复核 → 真实通知 → 外部缺陷平台 → 生产性能 → 发布收口。
+
+- q19 Backend 当前暴露出一个待修复的启动缺陷：管理员账号从默认用户名改名后，如果仍占用默认邮箱，`_init_admin` 只按用户名查询会再次插入同一邮箱并触发 `users_email_key`，导致容器重启循环。修复范围是让 bootstrap 按用户名或邮箱幂等识别，并补并发/重复启动回归；不自动覆盖已有账号密码或角色。
+- Android 前置证据仍有效：Windows ADB 有 2 台 `device`，Worker doctor、PostgreSQL、Redis、MinIO 和 logcat 检查通过；两台设备均未发现 Karing，且此前 bootstrap 账号认证返回 401，因此尚未执行控制面 registry/scan、APK、低代码或专项操作。
+- 账号初始化修复并恢复 q19 后，必须使用当前有效账号取得登录、`/devices/workers` 和 `/devices/scan` 证据；确认/安装真实 APK 并取得包名后，才能继续单设备闭环。
+
+本节计划与 [`docs/product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md) 的 0.7 节、[`Task.md`](../Task.md) 和 [`MEMORY.md`](../MEMORY.md) 同步维护。
+
+### 2026-08-25 P0-0 管理员初始化幂等修复（本地证据）
+
+- 已修复 `backend/app/main.py::_init_admin` 按用户名/邮箱幂等识别和并发唯一键复查逻辑，避免管理员改名后 q19 Backend 因默认邮箱重复进入重启循环。
+- 新增管理员初始化回归；定向 `2 passed`，后端非集成全量 `2262 passed`，Ruff、格式检查和 `git diff --check` 通过。
+- 真实 q19 重建、健康、登录和基础读接口尚未复验，当前仍保持发布阻塞；远端 Compose 的端口映射等现场改动必须保留，不能用仓库文件覆盖。
+
 本地代码、回归和 Windows/q19 API/Web/性能链路已经形成可复核证据；以下外部门禁仍未关闭，因此发布只能按“部分实现/待环境验收”处理：
 
 - Android Worker/真机：ADB、Agent/Backend Redis 配对、Worker registry、扫描回调、租约绑定控制和 APK 资产选择/包名传递已通过；专项任务包名一致性、应用启动/Monkey/动作失败终态已完成本地回归，但真实 APK 上传、低代码、录屏、专项任务和结果回传仍不能验收。

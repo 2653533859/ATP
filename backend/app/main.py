@@ -6,6 +6,7 @@ from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 
 from app.api.v1.router import router
 from app.api.v1.ws import ws_router
@@ -28,10 +29,13 @@ load_all_models()
 
 
 async def _init_admin():
-    """首次启动时创建默认管理员"""
+    """首次启动时创建默认管理员，并对用户名/邮箱保持幂等。"""
     async with AsyncSessionLocal() as db:
-        result = await db.execute(select(User).where(User.username == settings.FIRST_ADMIN_USERNAME))
-        if result.scalar_one_or_none() is None:
+        admin_lookup = select(User).where(
+            (User.username == settings.FIRST_ADMIN_USERNAME) | (User.email == settings.FIRST_ADMIN_EMAIL)
+        )
+        result = await db.execute(admin_lookup)
+        if result.scalars().first() is None:
             admin = User(
                 username=settings.FIRST_ADMIN_USERNAME,
                 email=settings.FIRST_ADMIN_EMAIL,
@@ -39,7 +43,15 @@ async def _init_admin():
                 role=UserRole.admin,
             )
             db.add(admin)
-            await db.commit()
+            try:
+                await db.commit()
+            except IntegrityError:
+                # Multiple API replicas can bootstrap concurrently. If another
+                # replica won the insert, the existing identity is sufficient.
+                await db.rollback()
+                result = await db.execute(admin_lookup)
+                if result.scalars().first() is None:
+                    raise
 
 
 @asynccontextmanager
