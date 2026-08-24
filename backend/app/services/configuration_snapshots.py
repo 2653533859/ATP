@@ -110,6 +110,46 @@ def _redact_json(value: Any, key: str | None = None) -> Any:
     return value
 
 
+def redact_configuration_resource(domain: str, resource: dict[str, Any]) -> dict[str, Any]:
+    """Rebuild a safe resource view, including domain-specific redaction rules."""
+
+    redacted = _redact_json(resource)
+    if not isinstance(redacted, dict):
+        return {}
+    if domain == "environment":
+        raw_variables = resource.get("variables")
+        redacted_variables = redacted.get("variables")
+        if isinstance(raw_variables, list) and isinstance(redacted_variables, list):
+            safe_variables: list[Any] = []
+            for index, raw_variable in enumerate(raw_variables):
+                safe_variable = redacted_variables[index] if index < len(redacted_variables) else {}
+                safe_item = dict(safe_variable) if isinstance(safe_variable, dict) else {}
+                safe_item.pop("stored_ciphertext", None)
+                if isinstance(raw_variable, dict):
+                    variable_key = raw_variable.get("key")
+                    if (
+                        raw_variable.get("is_secret")
+                        or isinstance(variable_key, str)
+                        and _SENSITIVE_KEY_RE.search(variable_key)
+                    ):
+                        safe_item["value"] = "******" if raw_variable.get("value") else raw_variable.get("value")
+                safe_variables.append(safe_item)
+            redacted["variables"] = safe_variables
+    elif domain == "global_variable":
+        redacted.pop("stored_ciphertext", None)
+        variable_key = resource.get("key")
+        if resource.get("is_secret") or isinstance(variable_key, str) and _SENSITIVE_KEY_RE.search(variable_key):
+            redacted["value"] = "******" if resource.get("value") else resource.get("value")
+    elif domain == "performance_node":
+        labels = resource.get("labels")
+        capabilities = resource.get("capabilities")
+        egress_allowlist = resource.get("egress_allowlist")
+        redacted["labels"] = {"count": len(labels)} if isinstance(labels, dict) else {}
+        redacted["capabilities"] = {"executors": sorted(_safe_executor_names(capabilities))}
+        redacted["egress_allowlist"] = {"count": len(egress_allowlist)} if isinstance(egress_allowlist, list) else {}
+    return redacted
+
+
 def _wrap_payload(domain: str, resource_id: int, resource: dict[str, Any]) -> dict[str, Any]:
     return {
         "schema_version": 1,
@@ -142,7 +182,14 @@ def _finish_snapshot(
     )
 
 
-async def _assert_snapshot_access(db: AsyncSession, user: User, domain: str, project_id: int | None) -> None:
+async def _assert_snapshot_access(
+    db: AsyncSession,
+    user: User,
+    domain: str,
+    project_id: int | None,
+    *,
+    require_write: bool = True,
+) -> None:
     if domain == "ai_llm" or domain == "storage_policy":
         if user.role != UserRole.admin:
             raise ConfigurationSnapshotForbidden("只有管理员可以创建此配置版本")
@@ -151,20 +198,26 @@ async def _assert_snapshot_access(db: AsyncSession, user: User, domain: str, pro
         if user.role != UserRole.admin:
             raise ConfigurationSnapshotForbidden("只有管理员可以创建全局变量版本")
         return
+    if domain == "performance_node":
+        if user.role not in {UserRole.admin, UserRole.engineer}:
+            raise ConfigurationSnapshotForbidden("只有管理员或工程师可以创建性能节点版本")
+        return
     if domain == "notification":
-        required_role = ProjectRole.owner
+        required_role = ProjectRole.owner if require_write else ProjectRole.viewer
     else:
-        required_role = ProjectRole.editor
+        required_role = ProjectRole.editor if require_write else ProjectRole.viewer
     if project_id is None:
         raise ConfigurationSnapshotForbidden("配置资源缺少项目范围")
     await assert_project_access(db, user, project_id, required_role)
 
 
-async def _environment_snapshot(db: AsyncSession, user: User, resource_id: int) -> ConfigurationSnapshot:
+async def _environment_snapshot(
+    db: AsyncSession, user: User, resource_id: int, *, require_write: bool = True
+) -> ConfigurationSnapshot:
     environment = await db.get(Environment, resource_id)
     if environment is None:
         raise ConfigurationSnapshotNotFound("环境不存在")
-    await _assert_snapshot_access(db, user, "environment", environment.project_id)
+    await _assert_snapshot_access(db, user, "environment", environment.project_id, require_write=require_write)
     variables = (
         (
             await db.execute(
@@ -175,7 +228,6 @@ async def _environment_snapshot(db: AsyncSession, user: User, resource_id: int) 
         .all()
     )
     raw_variables: list[dict[str, Any]] = []
-    redacted_variables: list[dict[str, Any]] = []
     for variable in variables:
         if variable.is_secret:
             value, stored_ciphertext = _decrypt_or_keep(variable.value)
@@ -185,25 +237,13 @@ async def _environment_snapshot(db: AsyncSession, user: User, resource_id: int) 
         if stored_ciphertext:
             raw_item["stored_ciphertext"] = True
         raw_variables.append(raw_item)
-        redacted_variables.append(
-            {
-                "key": variable.key,
-                "value": "******" if variable.is_secret and value else value,
-                "is_secret": bool(variable.is_secret),
-            }
-        )
     resource = {
         "name": environment.name,
         "description": environment.description,
         "project_id": environment.project_id,
         "variables": raw_variables,
     }
-    redacted_resource = {
-        "name": environment.name,
-        "description": environment.description,
-        "project_id": environment.project_id,
-        "variables": redacted_variables,
-    }
+    redacted_resource = redact_configuration_resource("environment", resource)
     return _finish_snapshot(
         "environment",
         environment.id,
@@ -214,11 +254,13 @@ async def _environment_snapshot(db: AsyncSession, user: User, resource_id: int) 
     )
 
 
-async def _global_variable_snapshot(db: AsyncSession, user: User, resource_id: int) -> ConfigurationSnapshot:
+async def _global_variable_snapshot(
+    db: AsyncSession, user: User, resource_id: int, *, require_write: bool = True
+) -> ConfigurationSnapshot:
     variable = await db.get(GlobalVariable, resource_id)
     if variable is None:
         raise ConfigurationSnapshotNotFound("变量不存在")
-    await _assert_snapshot_access(db, user, "global_variable", variable.project_id)
+    await _assert_snapshot_access(db, user, "global_variable", variable.project_id, require_write=require_write)
     value, stored_ciphertext = _decrypt_or_keep(variable.value_encrypted)
     resource: dict[str, Any] = {
         "scope_type": _enum_value(variable.scope_type),
@@ -230,9 +272,7 @@ async def _global_variable_snapshot(db: AsyncSession, user: User, resource_id: i
     }
     if stored_ciphertext:
         resource["stored_ciphertext"] = True
-    redacted_resource = dict(resource)
-    redacted_resource["value"] = "******" if variable.is_secret and value else value
-    redacted_resource.pop("stored_ciphertext", None)
+    redacted_resource = redact_configuration_resource("global_variable", resource)
     return _finish_snapshot(
         "global_variable",
         variable.id,
@@ -243,7 +283,9 @@ async def _global_variable_snapshot(db: AsyncSession, user: User, resource_id: i
     )
 
 
-async def _ai_snapshot(db: AsyncSession, user: User, resource_id: int) -> ConfigurationSnapshot:
+async def _ai_snapshot(
+    db: AsyncSession, user: User, resource_id: int, *, require_write: bool = True
+) -> ConfigurationSnapshot:
     config = await db.get(AILLMConfig, resource_id)
     if config is None:
         raise ConfigurationSnapshotNotFound("AI 配置不存在")
@@ -262,11 +304,13 @@ async def _ai_snapshot(db: AsyncSession, user: User, resource_id: int) -> Config
     }
     if stored_ciphertext:
         resource["api_key_stored_ciphertext"] = True
-    redacted_resource = _redact_json(resource)
+    redacted_resource = redact_configuration_resource("ai_llm", resource)
     return _finish_snapshot("ai_llm", config.id, None, config.name, resource, redacted_resource)
 
 
-async def _storage_snapshot(db: AsyncSession, user: User, resource_id: int) -> ConfigurationSnapshot:
+async def _storage_snapshot(
+    db: AsyncSession, user: User, resource_id: int, *, require_write: bool = True
+) -> ConfigurationSnapshot:
     policy = await db.get(StoragePolicy, resource_id)
     if policy is None:
         raise ConfigurationSnapshotNotFound("存储策略不存在")
@@ -279,14 +323,23 @@ async def _storage_snapshot(db: AsyncSession, user: User, resource_id: int) -> C
         "enabled": bool(policy.enabled),
         "description": policy.description,
     }
-    return _finish_snapshot("storage_policy", policy.id, None, policy.name, resource, _redact_json(resource))
+    return _finish_snapshot(
+        "storage_policy",
+        policy.id,
+        None,
+        policy.name,
+        resource,
+        redact_configuration_resource("storage_policy", resource),
+    )
 
 
-async def _notification_snapshot(db: AsyncSession, user: User, resource_id: int) -> ConfigurationSnapshot:
+async def _notification_snapshot(
+    db: AsyncSession, user: User, resource_id: int, *, require_write: bool = True
+) -> ConfigurationSnapshot:
     config = await db.get(NotificationConfig, resource_id)
     if config is None:
         raise ConfigurationSnapshotNotFound("通知配置不存在")
-    await _assert_snapshot_access(db, user, "notification", config.project_id)
+    await _assert_snapshot_access(db, user, "notification", config.project_id, require_write=require_write)
     raw_config = decrypt_config(config.config or {})
     resource = {
         "name": config.name,
@@ -301,11 +354,13 @@ async def _notification_snapshot(db: AsyncSession, user: User, resource_id: int)
         config.project_id,
         config.name,
         resource,
-        _redact_json(resource),
+        redact_configuration_resource("notification", resource),
     )
 
 
-async def _performance_node_snapshot(db: AsyncSession, user: User, resource_id: int) -> ConfigurationSnapshot:
+async def _performance_node_snapshot(
+    db: AsyncSession, user: User, resource_id: int, *, require_write: bool = True
+) -> ConfigurationSnapshot:
     node = await db.get(PerformanceNode, resource_id)
     if node is None:
         raise ConfigurationSnapshotNotFound("性能节点不存在")
@@ -321,10 +376,7 @@ async def _performance_node_snapshot(db: AsyncSession, user: User, resource_id: 
         "max_concurrency": node.max_concurrency,
         "egress_allowlist": _clone_json(node.egress_allowlist or []),
     }
-    redacted_resource = dict(resource)
-    redacted_resource["labels"] = {"count": len(resource["labels"])} if isinstance(resource["labels"], dict) else {}
-    redacted_resource["capabilities"] = {"executors": sorted(_safe_executor_names(node.capabilities))}
-    redacted_resource["egress_allowlist"] = {"count": len(resource["egress_allowlist"])}
+    redacted_resource = redact_configuration_resource("performance_node", resource)
     return _finish_snapshot("performance_node", node.id, None, node.name, resource, redacted_resource)
 
 
@@ -342,6 +394,8 @@ async def load_configuration_snapshot(
     user: User,
     domain: str,
     resource_id: int,
+    *,
+    require_write: bool = True,
 ) -> ConfigurationSnapshot:
     if domain not in SUPPORTED_SNAPSHOT_DOMAINS:
         raise ConfigurationSnapshotUnsupported("该配置域不支持版本快照")
@@ -354,6 +408,6 @@ async def load_configuration_snapshot(
         "performance_node": _performance_node_snapshot,
     }
     try:
-        return await loaders[domain](db, user, resource_id)
+        return await loaders[domain](db, user, resource_id, require_write=require_write)
     except ConfigurationSnapshotError:
         raise

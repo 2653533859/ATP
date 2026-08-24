@@ -8,9 +8,10 @@ returns metadata and deliberately avoids decrypting any secret value.
 from __future__ import annotations
 
 from datetime import datetime, timezone
+from dataclasses import asdict
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Path, Query, status
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -30,6 +31,7 @@ from app.schemas.configuration_center import (
     ConfigurationCenterOverviewOut,
     ConfigurationEntryOut,
     ConfigurationRevisionCreateIn,
+    ConfigurationRevisionDiffOut,
     ConfigurationRevisionOut,
     ConfigurationSectionOut,
 )
@@ -40,6 +42,10 @@ from app.services.configuration_snapshots import (
     ConfigurationSnapshotUnsupported,
     SUPPORTED_SNAPSHOT_DOMAINS,
     load_configuration_snapshot,
+)
+from app.services.configuration_diffs import (
+    ConfigurationRevisionDiffError,
+    build_configuration_revision_diff,
 )
 from app.services.project_scope import visible_project_ids
 
@@ -440,6 +446,20 @@ def _assert_revision_domain_visible(user: User, domain: str | None) -> None:
     raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="没有权限查看此配置版本")
 
 
+async def _assert_revision_visible(db: AsyncSession, user: User, revision: ConfigurationRevision) -> None:
+    """Apply the same visibility boundary to a single revision lookup."""
+
+    if user.role == UserRole.admin:
+        return
+    if revision.domain in {"ai_llm", "storage_policy"}:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="没有权限查看此配置版本")
+    if revision.project_id is None:
+        if revision.domain == "performance_node":
+            return
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="没有权限查看此配置版本")
+    await assert_project_access(db, user, revision.project_id, ProjectRole.viewer)
+
+
 @router.post(
     "/revisions",
     response_model=ConfigurationRevisionOut,
@@ -525,3 +545,26 @@ async def list_configuration_revisions(
         statement = statement.where(ConfigurationRevision.project_id == project_id)
     revisions = (await db.execute(statement.limit(limit))).scalars().all()
     return [_revision_out(revision) for revision in revisions]
+
+
+@router.get("/revisions/{revision_id}/diff", response_model=ConfigurationRevisionDiffOut)
+async def diff_configuration_revision(
+    revision_id: int = Path(..., ge=1),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+) -> ConfigurationRevisionDiffOut:
+    """Compare one historical revision with the current resource safely."""
+
+    revision = await db.get(ConfigurationRevision, revision_id)
+    if revision is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="配置版本不存在")
+    await _assert_revision_visible(db, user, revision)
+    try:
+        diff = await build_configuration_revision_diff(db, user, revision)
+    except ConfigurationSnapshotForbidden as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except ConfigurationSnapshotUnsupported as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    except ConfigurationRevisionDiffError as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+    return ConfigurationRevisionDiffOut.model_validate(asdict(diff))

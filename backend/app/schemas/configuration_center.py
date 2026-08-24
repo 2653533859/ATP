@@ -16,6 +16,9 @@ ConfigurationSnapshotDomain = Literal[
     "notification",
     "performance_node",
 ]
+ConfigurationDiffChangeType = Literal["added", "removed", "changed"]
+ConfigurationCurrentStatus = Literal["available", "missing"]
+ConfigurationImpactSeverity = Literal["high", "medium", "low"]
 
 
 class ConfigurationEntryOut(BaseModel):
@@ -72,3 +75,41 @@ class ConfigurationRevisionOut(BaseModel):
     updated_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class ConfigurationRevisionDiffChangeOut(BaseModel):
+    """One changed field; sensitive fields deliberately omit both values."""
+
+    path: str
+    change_type: ConfigurationDiffChangeType
+    changed: bool = True
+    sensitive: bool = False
+    before: Any = None
+    after: Any = None
+
+
+class ConfigurationImpactOut(BaseModel):
+    code: str
+    title: str
+    description: str
+    severity: ConfigurationImpactSeverity
+    affected_features: list[str] = Field(default_factory=list)
+
+
+class ConfigurationRevisionDiffOut(BaseModel):
+    revision_id: int
+    domain: str
+    resource_id: int
+    project_id: int | None = None
+    resource_name: str
+    historical_fingerprint: str
+    current_fingerprint: str | None = None
+    current_available: bool
+    current_status: ConfigurationCurrentStatus
+    changed: bool
+    changed_field_count: int = Field(ge=0)
+    sensitive_changed_field_count: int = Field(ge=0)
+    truncated: bool = False
+    message: str | None = None
+    changes: list[ConfigurationRevisionDiffChangeOut] = Field(default_factory=list)
+    impacts: list[ConfigurationImpactOut] = Field(default_factory=list)
