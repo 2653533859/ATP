@@ -452,6 +452,21 @@ def test_recording_session_starts_browser_collects_navigation_and_stops(monkeypa
         assert getattr(factory.playwright, browser_name).launch_args["headless"] is False
         asyncio.run(session.stop())
 
+    monkeypatch.setattr(web_recordings.settings, "WEB_RECORDER_MODE", "worker")
+    session = WebRecordingSession(
+        session_id="webkit-worker-session",
+        owner_id=1,
+        project_id=2,
+        start_url="https://example.com/login",
+        viewport_width=1440,
+        viewport_height=900,
+        browser_name="webkit",
+    )
+    monkeypatch.setattr(web_recordings.sys, "platform", "linux")
+    asyncio.run(session.start())
+    assert factory.playwright.webkit.launch_args["headless"] is True
+    asyncio.run(session.stop())
+
 
 def test_recording_session_start_failure_closes_partial_resources(monkeypatch):
     import app.api.v1.web_recordings as web_recordings

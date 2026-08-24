@@ -249,7 +249,17 @@ class WebRecordingSession:
             if display:
                 launch_env["DISPLAY"] = display
             browser_launcher = getattr(self.playwright, self.browser_name)
-            self.browser = await browser_launcher.launch(headless=False, env=launch_env)
+            # Playwright WebKit can launch headless on Linux, but its headed
+            # process may never finish startup inside the isolated Xvfb
+            # recorder container. The independent Worker has no browser window
+            # to expose to the user, so keep local/Windows recording visible
+            # while using the supported headless path only in Linux Worker mode.
+            headless = (
+                self.browser_name == "webkit"
+                and sys.platform.startswith("linux")
+                and settings.WEB_RECORDER_MODE.strip().lower() == "worker"
+            )
+            self.browser = await browser_launcher.launch(headless=headless, env=launch_env)
             self.artifact_dir = Path(tempfile.mkdtemp(prefix=f"atp_web_recording_{self.session_id}_"))
             self.trace_path = self.artifact_dir / "trace.zip"
             self.har_path = self.artifact_dir / "network.har"
