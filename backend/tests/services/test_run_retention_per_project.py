@@ -142,10 +142,12 @@ def test_preview_old_runs_by_project_returns_global_and_projects(monkeypatch):
     assert alpha["retention_days"] == 14
     assert alpha["plan_runs"] == 3
     assert alpha["suite_runs"] == 3
-    assert alpha["test_runs"] == 3 and alpha["mobile_runs"] == 3  # 不再是全局兜底 note
+    assert (
+        alpha["test_runs"] == 3 and alpha["mobile_runs"] == 3 and alpha["performance_runs"] == 3
+    )  # 不再是全局兜底 note
     assert alpha["estimated_objects"] == 0
     assert alpha["estimated_objects_sampled"] is False
     assert "note" not in alpha
     assert calls["global_kwargs"] == {"exclude_project_ids": [1, 2]}
-    # 每项目四次 count + 两次 sample id 查询（plan + suite + test + mobile + test/mobile sample）
-    assert len(calls["project_queries"]) == 12
+    # 每项目五次 count + 三次 sample id 查询（含 PerformanceRun 和压测报告样本）
+    assert len(calls["project_queries"]) == 16

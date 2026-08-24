@@ -71,6 +71,7 @@ Q9 Phase 4 在 API 创建 run 或保存默认 options 前增加安全限制：
 - `performance/` 已纳入存储清理默认 prefix；`performance/scripts/*` 被压测定义引用时会阻止删除，`performance/runs/*/summary.json` 可按策略清理。
 - 若 DB 中存在缺失的 `PerformanceRun.raw_result_object_name` 引用，存储清理的 orphan repair 会将该字段置空。
 - 性能门禁默认只检查运行状态和执行器 thresholds；CI 可在轮询 `/api/v1/webhook/performance-runs/{run_id}/gate` 时追加 `require_baseline=true`，要求当前压测定义存在同项目成功基线，或追加 `fail_on_baseline_regression=true`，让 RPS/P95/P99/错误率按业务方向出现回归时返回 `failed`。两项策略只覆盖成功完成的运行，运行本身失败/取消仍保留原状态。
+- 管理员运行记录保留清理现在同时统计并清理终态 PerformanceRun 根运行；根运行级联删除分片和 `performance_metric_samples`，关联 `performance/runs/*` 报告在数据库提交成功后删除。未完成运行、真实生产 MinIO 生命周期和跨主机恢复仍需单独验收。
 
 ## Q16-09 资源指标采样
 
@@ -384,7 +385,7 @@ Q16-10/Q16-11 已完成：新增节点注册/心跳、节点队列路由、VU/�
 - [x] Q9 Phase 4 补齐安全限制、独立 performance worker Helm 示例、趋势/对比 UI 与 raw summary 清理策略验证。
 - [x] Q16-06 执行控制：压测运行状态自动刷新、进度展示、停止确认与 worker 安全终止；补齐 API、worker、runner 回归测试。
 - [x] Q16-07 结果导出、报告摘要和阈值门禁可读性：新增 JSON/CSV 导出接口，导出复用脱敏运行快照，详情抽屉展示通过/失败门禁计数。
-- [x] Q16-08 基线对比、定时执行和 CI 阈值门禁：成功 run 可设置为性能基线，详情展示 RPS/P95/P99/错误率方向；定义级 Cron 使用配置时区、Environment 与 options；`scripts/performance-gate.py` 通过 `WEBHOOK_API_KEY` 触发压测并以退出码承接门禁结果，支持 `--require-baseline` 和 `--fail-on-baseline-regression`。
+- [x] Q16-08 基线对比、定时执行和 CI 阈值门禁：成功 run 可设置为性能基线，详情展示 RPS/P95/P99/错误率方向；定义级 Cron 使用配置时区、Environment 与 options；`scripts/performance-gate.py` 通过 `WEBHOOK_API_KEY` 触发压测并以退出码承接门禁结果，支持 `--require-baseline` 和 `--fail-on-baseline-regression`；运行记录清理同时覆盖终态 PerformanceRun 和分片报告对象。
 - [x] Q16-10 分布式压测节点：节点注册/心跳、队列绑定、VU/并发/目标出口约束、性能中心节点状态与节点选择、Helm NetworkPolicy 配置及回归测试。
 
 ## 2026-08-07 调度与执行器修复

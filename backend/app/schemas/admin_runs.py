@@ -10,6 +10,7 @@ class RunRetentionPreviewOut(BaseModel):
     suite_runs: int
     test_runs: int
     mobile_runs: int
+    performance_runs: int = 0
     estimated_objects: int
     estimated_objects_sampled: bool
 
@@ -26,6 +27,7 @@ class ProjectRetentionCleanup(BaseModel):
     suite_runs: int
     test_runs: int
     mobile_runs: int
+    performance_runs: int = 0
     deleted_objects: int
 
 
@@ -36,6 +38,7 @@ class RunRetentionExecuteOut(BaseModel):
     suite_runs: int
     test_runs: int
     mobile_runs: int
+    performance_runs: int = 0
     deleted_objects: int
     projects: list[ProjectRetentionCleanup] = []
 
@@ -49,6 +52,7 @@ class _ProjectRetentionPreview(BaseModel):
     suite_runs: int
     test_runs: int = 0
     mobile_runs: int = 0
+    performance_runs: int = 0
     estimated_objects: int = 0
     estimated_objects_sampled: bool = False
     note: str | None = None
@@ -60,6 +64,7 @@ class _GlobalRetentionPreview(BaseModel):
     suite_runs: int
     test_runs: int
     mobile_runs: int
+    performance_runs: int = 0
     estimated_objects: int
     estimated_objects_sampled: bool
 

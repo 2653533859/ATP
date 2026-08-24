@@ -48,15 +48,17 @@ class _FakeSession:
 
 
 def test_preview_returns_counts_without_deleting():
-    """4 个 count + 2 个 sample id 查询；无 delete 无 commit。"""
+    """5 个 count + 3 个 sample id 查询；无 delete 无 commit。"""
     fake_session = _FakeSession(
         responses=[
             _FakeResult(scalar_value=3),  # plan count
             _FakeResult(scalar_value=5),  # suite count
             _FakeResult(scalar_value=7),  # test count
             _FakeResult(scalar_value=2),  # mobile count
+            _FakeResult(scalar_value=4),  # performance count
             _FakeResult(all_rows=[]),  # test sample ids -> empty
             _FakeResult(all_rows=[]),  # mobile sample ids -> empty
+            _FakeResult(all_rows=[]),  # performance sample ids -> empty
         ]
     )
     result = run_retention.preview_old_runs(fake_session, days=30, batch_size=10)
@@ -65,12 +67,13 @@ def test_preview_returns_counts_without_deleting():
     assert result["suite_runs"] == 5
     assert result["test_runs"] == 7
     assert result["mobile_runs"] == 2
+    assert result["performance_runs"] == 4
     assert result["retention_days"] == 30
     assert result["estimated_objects"] == 0
     assert result["estimated_objects_sampled"] is False
     assert fake_session.commits == 0
-    # 至少 6 个 execute（不一定 6 个，因为空 sample 时不执行 screenshot/artifact 查询）
-    assert len(fake_session.statements) == 6
+    # 5 个 count + 3 个 sample id 查询；空 sample 不执行对象查询
+    assert len(fake_session.statements) == 8
 
 
 def test_preview_estimates_objects_from_sample(monkeypatch):
@@ -81,8 +84,10 @@ def test_preview_estimates_objects_from_sample(monkeypatch):
             _FakeResult(scalar_value=1),  # suite count
             _FakeResult(scalar_value=2),  # test count
             _FakeResult(scalar_value=1),  # mobile count
+            _FakeResult(scalar_value=1),  # performance count
             _FakeResult(all_rows=[(100,), (101,)]),  # test sample
             _FakeResult(all_rows=[(200,)]),  # mobile sample
+            _FakeResult(all_rows=[]),  # performance sample
             # screenshot query for test sample
             _FakeResult(all_rows=[("screenshots/runs/100/a.png",), ("screenshots/runs/101/b.png",)]),
             # mobile artifact query
@@ -106,6 +111,8 @@ def test_preview_marks_object_count_as_sampled_when_candidates_exceed_batch_size
             _FakeResult(scalar_value=0),
             _FakeResult(scalar_value=11),
             _FakeResult(scalar_value=0),
+            _FakeResult(scalar_value=0),
+            _FakeResult(all_rows=[]),
             _FakeResult(all_rows=[]),
             _FakeResult(all_rows=[]),
         ]
@@ -123,6 +130,8 @@ def test_preview_can_exclude_project_overrides_with_the_cleanup_scope():
             _FakeResult(scalar_value=2),
             _FakeResult(scalar_value=3),
             _FakeResult(scalar_value=4),
+            _FakeResult(scalar_value=5),
+            _FakeResult(all_rows=[]),
             _FakeResult(all_rows=[]),
             _FakeResult(all_rows=[]),
         ]
@@ -134,6 +143,31 @@ def test_preview_can_exclude_project_overrides_with_the_cleanup_scope():
     assert all("NOT IN" in str(statement).upper() for statement in fake_session.statements[:4])
 
 
+def test_performance_retention_selects_root_runs_and_collects_shard_reports():
+    from datetime import datetime, timezone
+
+    statement = run_retention._performance_run_ids_stmt(datetime.now(timezone.utc), project_id=7)
+    sql = str(statement).upper()
+    assert "PARENT_RUN_ID IS NULL" in sql
+    assert "PROJECT_ID" in sql
+
+    session = _FakeSession(
+        responses=[
+            _FakeResult(
+                all_rows=[
+                    ("performance/runs/10/summary.json",),
+                    ("performance/runs/11/summary.json",),
+                    ("performance/runs/10/summary.json",),
+                ]
+            )
+        ]
+    )
+    assert run_retention._collect_performance_run_objects(session, [10]) == [
+        "performance/runs/10/summary.json",
+        "performance/runs/11/summary.json",
+    ]
+
+
 def test_execute_with_empty_results_is_noop():
     fake_session = _FakeSession(
         responses=[
@@ -142,6 +176,7 @@ def test_execute_with_empty_results_is_noop():
             _FakeResult(all_rows=[]),  # suite select
             _FakeResult(all_rows=[]),  # test select
             _FakeResult(all_rows=[]),  # mobile select
+            _FakeResult(all_rows=[]),  # performance select
         ]
     )
     result = run_retention.execute_old_runs_cleanup(fake_session, days=30, batch_size=10)
@@ -166,6 +201,7 @@ def test_execute_processes_simple_batch():
             _FakeResult(all_rows=[]),  # suite select empty
             _FakeResult(all_rows=[]),  # test select empty
             _FakeResult(all_rows=[]),  # mobile select empty
+            _FakeResult(all_rows=[]),  # performance select empty
         ]
     )
     result = run_retention.execute_old_runs_cleanup(fake_session, days=30, batch_size=10)
@@ -242,6 +278,54 @@ def test_batched_cleanup_keeps_minio_object_when_database_commit_fails(monkeypat
     assert minio_deletes == []
 
 
+def test_batched_cleanup_deletes_performance_root_and_shard_reports_after_commit(monkeypatch):
+    from sqlalchemy import select
+
+    from app.models.performance import PerformanceRun
+
+    events: list[object] = []
+
+    class _PerformanceBatchSession:
+        def __init__(self):
+            self.responses = [
+                _FakeResult(all_rows=[(10,)]),
+                _FakeResult(
+                    all_rows=[
+                        ("performance/runs/10/summary.json",),
+                        ("performance/runs/11/summary.json",),
+                        ("performance/runs/10/summary.json",),
+                    ]
+                ),
+                _FakeResult(),
+            ]
+
+        def execute(self, _statement):
+            return self.responses.pop(0)
+
+        def commit(self):
+            events.append("commit")
+
+    monkeypatch.setattr(
+        run_retention,
+        "_delete_minio_objects",
+        lambda names: events.append(("minio", names)) or len(names),
+    )
+
+    deleted_runs, deleted_objects = run_retention._batched_delete_runs(
+        _PerformanceBatchSession(),
+        PerformanceRun,
+        select(PerformanceRun.id),
+        batch_size=10,
+        collect_objects=run_retention._collect_performance_run_objects,
+    )
+
+    assert (deleted_runs, deleted_objects) == (1, 2)
+    assert events == [
+        "commit",
+        ("minio", ["performance/runs/10/summary.json", "performance/runs/11/summary.json"]),
+    ]
+
+
 def test_execute_partitions_override_projects_from_global_pass():
     """override 项目按其天数单独清理；全局兜底 pass 的查询排除 override 项目。"""
     fake_session = _FakeSession(
@@ -253,12 +337,14 @@ def test_execute_partitions_override_projects_from_global_pass():
             _FakeResult(all_rows=[]),  # suite select
             _FakeResult(all_rows=[]),  # test select
             _FakeResult(all_rows=[]),  # mobile select
+            _FakeResult(all_rows=[]),  # performance select
             # 全局范围（排除项目 5）：plan 1 条，其余空
             _FakeResult(all_rows=[(31,)]),  # plan select (global, excl 5)
             _FakeResult(all_rows=[]),  # plan delete
             _FakeResult(all_rows=[]),  # suite select
             _FakeResult(all_rows=[]),  # test select
             _FakeResult(all_rows=[]),  # mobile select
+            _FakeResult(all_rows=[]),  # performance select
         ]
     )
     result = run_retention.execute_old_runs_cleanup(fake_session, days=90, batch_size=10)
@@ -274,6 +360,7 @@ def test_execute_partitions_override_projects_from_global_pass():
             "suite_runs": 0,
             "test_runs": 0,
             "mobile_runs": 0,
+            "performance_runs": 0,
             "deleted_objects": 0,
         }
     ]
@@ -281,7 +368,7 @@ def test_execute_partitions_override_projects_from_global_pass():
 
     # 项目 pass 的 plan 查询按 project_id 过滤；全局 pass 用 NOT IN 排除
     project_plan_sql = str(fake_session.statements[1])
-    global_plan_sql = str(fake_session.statements[6])
+    global_plan_sql = str(fake_session.statements[7])
     assert "project_id" in project_plan_sql and "JOIN" in project_plan_sql.upper()
     assert "NOT IN" in global_plan_sql.upper()
 
@@ -292,7 +379,14 @@ def test_execute_project_cutoff_uses_override_days():
 
     def fake_scope(_session, cutoff, _batch, **scope):
         captured.append((cutoff, scope))
-        return {"plan_runs": 0, "suite_runs": 0, "test_runs": 0, "mobile_runs": 0, "deleted_objects": 0}
+        return {
+            "plan_runs": 0,
+            "suite_runs": 0,
+            "test_runs": 0,
+            "mobile_runs": 0,
+            "performance_runs": 0,
+            "deleted_objects": 0,
+        }
 
     import unittest.mock as mock
 
@@ -319,6 +413,8 @@ def test_cutoff_reflects_days_argument():
             _FakeResult(scalar_value=0),
             _FakeResult(scalar_value=0),
             _FakeResult(scalar_value=0),
+            _FakeResult(scalar_value=0),
+            _FakeResult(all_rows=[]),
             _FakeResult(all_rows=[]),
             _FakeResult(all_rows=[]),
         ]

@@ -962,6 +962,7 @@ export interface RunRetentionPreview {
   suite_runs: number
   test_runs: number
   mobile_runs: number
+  performance_runs: number
   estimated_objects: number
   estimated_objects_sampled: boolean
 }
@@ -973,6 +974,7 @@ export interface RunRetentionExecuteResult {
   suite_runs: number
   test_runs: number
   mobile_runs: number
+  performance_runs: number
   deleted_objects: number
   projects: RunRetentionProjectCleanup[]
 }
@@ -985,6 +987,7 @@ export interface RunRetentionProjectCleanup {
   suite_runs: number
   test_runs: number
   mobile_runs: number
+  performance_runs: number
   deleted_objects: number
 }
 
@@ -998,6 +1001,7 @@ export interface RunRetentionPerProjectPreview {
     suite_runs: number
     test_runs: number
     mobile_runs: number
+    performance_runs: number
     estimated_objects: number
     estimated_objects_sampled: boolean
     note?: string

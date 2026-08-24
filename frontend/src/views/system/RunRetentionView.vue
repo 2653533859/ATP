@@ -55,6 +55,9 @@
             <a-descriptions-item :label="t('system_pages.run_retention.mobile_runs')">
               {{ preview.mobile_runs }}
             </a-descriptions-item>
+            <a-descriptions-item :label="t('system_pages.run_retention.performance_runs')">
+              {{ preview.performance_runs ?? 0 }}
+            </a-descriptions-item>
             <a-descriptions-item :label="t('system_pages.run_retention.estimated_objects')">
               {{ preview.estimated_objects }}
               <a-tag v-if="preview.estimated_objects_sampled" color="orange" style="margin-left: 8px">
@@ -119,6 +122,9 @@
                     {{ t('system_pages.run_retention.estimated_objects_sampled') }}
                   </a-tag>
                 </template>
+                <template v-else-if="column.key === 'performance_runs'">
+                  {{ record.performance_runs ?? 0 }}
+                </template>
               </template>
             </a-table>
             <a-descriptions :column="1" size="small" style="margin-top: 16px">
@@ -130,6 +136,9 @@
               </a-descriptions-item>
               <a-descriptions-item :label="t('system_pages.run_retention.global_mobile_runs')">
                 {{ perProject.global.mobile_runs }}
+              </a-descriptions-item>
+              <a-descriptions-item :label="t('system_pages.run_retention.global_performance_runs')">
+                {{ perProject.global.performance_runs ?? 0 }}
               </a-descriptions-item>
               <a-descriptions-item :label="t('system_pages.run_retention.estimated_objects')">
                 {{ perProject.global.estimated_objects }}
@@ -163,6 +172,9 @@
         <a-descriptions-item :label="t('system_pages.run_retention.mobile_runs')">
           {{ lastResult.mobile_runs }}
         </a-descriptions-item>
+        <a-descriptions-item :label="t('system_pages.run_retention.performance_runs')">
+          {{ lastResult.performance_runs ?? 0 }}
+        </a-descriptions-item>
         <a-descriptions-item :label="t('system_pages.run_retention.deleted_objects')">
           {{ lastResult.deleted_objects }}
         </a-descriptions-item>
@@ -175,7 +187,13 @@
         row-key="project_id"
         size="small"
         style="margin-top: 16px"
-      />
+      >
+        <template #bodyCell="{ column, record }">
+          <template v-if="column.key === 'performance_runs'">
+            {{ record.performance_runs ?? 0 }}
+          </template>
+        </template>
+      </a-table>
     </a-card>
   </div>
 </template>
@@ -222,9 +240,9 @@ function errorMessage(error: unknown, fallback: string) {
 
 const totalToDelete = computed(() => {
   if (!preview.value || !perProject.value) return 0
-  const globalTotal = preview.value.plan_runs + preview.value.suite_runs + preview.value.test_runs + preview.value.mobile_runs
+  const globalTotal = preview.value.plan_runs + preview.value.suite_runs + preview.value.test_runs + preview.value.mobile_runs + (preview.value.performance_runs ?? 0)
   const projectTotal = perProject.value.projects.reduce(
-    (total, project) => total + project.plan_runs + project.suite_runs + project.test_runs + project.mobile_runs,
+    (total, project) => total + project.plan_runs + project.suite_runs + project.test_runs + project.mobile_runs + (project.performance_runs ?? 0),
     0,
   )
   return globalTotal + projectTotal
@@ -253,6 +271,7 @@ const projectColumns = computed(() => [
   { title: t('system_pages.run_retention.col.suite_runs'), dataIndex: 'suite_runs', key: 'suite_runs', width: 100 },
   { title: t('system_pages.run_retention.col.test_runs'), dataIndex: 'test_runs', key: 'test_runs', width: 100 },
   { title: t('system_pages.run_retention.col.mobile_runs'), dataIndex: 'mobile_runs', key: 'mobile_runs', width: 100 },
+  { title: t('system_pages.run_retention.col.performance_runs'), dataIndex: 'performance_runs', key: 'performance_runs', width: 110 },
   {
     title: t('system_pages.run_retention.col.estimated_objects'),
     dataIndex: 'estimated_objects',
@@ -269,6 +288,7 @@ const projectResultColumns = computed(() => [
   { title: t('system_pages.run_retention.col.suite_runs'), dataIndex: 'suite_runs', key: 'suite_runs', width: 100 },
   { title: t('system_pages.run_retention.col.test_runs'), dataIndex: 'test_runs', key: 'test_runs', width: 100 },
   { title: t('system_pages.run_retention.col.mobile_runs'), dataIndex: 'mobile_runs', key: 'mobile_runs', width: 100 },
+  { title: t('system_pages.run_retention.col.performance_runs'), dataIndex: 'performance_runs', key: 'performance_runs', width: 110 },
   { title: t('system_pages.run_retention.col.deleted_objects'), dataIndex: 'deleted_objects', key: 'deleted_objects', width: 120 },
 ])
 

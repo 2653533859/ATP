@@ -39,6 +39,16 @@ def _terminal_mobile_run_statuses():
     return (MobileRunStatus.completed, MobileRunStatus.failed, MobileRunStatus.stopped)
 
 
+def _terminal_performance_run_statuses():
+    from app.models.performance import PerformanceRunStatus
+
+    return (
+        PerformanceRunStatus.success.value,
+        PerformanceRunStatus.failed.value,
+        PerformanceRunStatus.cancelled.value,
+    )
+
+
 def _collect_screenshot_objects(session: Session, test_run_ids: list[int]) -> list[str]:
     from app.core.object_refs import extract_object_name
     from app.models.case import StepResult
@@ -90,6 +100,29 @@ def _collect_mobile_run_artifact_objects(session: Session, run_ids: list[int]) -
     return objects
 
 
+def _collect_performance_run_objects(session: Session, run_ids: list[int]) -> list[str]:
+    """Collect raw reports for root runs and their distributed shards."""
+    from app.core.object_refs import extract_object_name
+    from app.models.performance import PerformanceRun
+
+    if not run_ids:
+        return []
+    rows = session.execute(
+        select(PerformanceRun.raw_result_object_name).where(
+            (PerformanceRun.id.in_(run_ids)) | (PerformanceRun.parent_run_id.in_(run_ids)),
+            PerformanceRun.raw_result_object_name.is_not(None),
+        )
+    ).all()
+    objects: list[str] = []
+    seen: set[str] = set()
+    for (value,) in rows:
+        object_name = extract_object_name(value)
+        if object_name and object_name not in seen:
+            seen.add(object_name)
+            objects.append(object_name)
+    return objects
+
+
 def _delete_minio_objects(object_names: list[str]) -> int:
     from app.core import minio_client
 
@@ -117,17 +150,22 @@ def _estimate_objects(
     session: Session,
     test_ids_stmt,
     mobile_ids_stmt,
+    performance_ids_stmt,
     batch_size: int,
     test_count: int,
     mobile_count: int,
+    performance_count: int,
 ) -> tuple[int, bool]:
     """Estimate attachment objects without loading every candidate run id."""
     test_sample = [row[0] for row in session.execute(test_ids_stmt.limit(batch_size)).all()]
     mobile_sample = [row[0] for row in session.execute(mobile_ids_stmt.limit(batch_size)).all()]
-    estimated_objects = len(_collect_screenshot_objects(session, test_sample)) + len(
-        _collect_mobile_run_artifact_objects(session, mobile_sample)
+    performance_sample = [row[0] for row in session.execute(performance_ids_stmt.limit(batch_size)).all()]
+    estimated_objects = (
+        len(_collect_screenshot_objects(session, test_sample))
+        + len(_collect_mobile_run_artifact_objects(session, mobile_sample))
+        + len(_collect_performance_run_objects(session, performance_sample))
     )
-    return estimated_objects, test_count > batch_size or mobile_count > batch_size
+    return estimated_objects, any(count > batch_size for count in (test_count, mobile_count, performance_count))
 
 
 def preview_old_runs(
@@ -150,19 +188,23 @@ def preview_old_runs(
     suite_ids_stmt = _suite_run_ids_stmt(cutoff, project_id, exclude_project_ids)
     test_ids_stmt = _test_run_ids_stmt(cutoff, project_id, exclude_project_ids)
     mobile_ids_stmt = _mobile_run_ids_stmt(cutoff, project_id, exclude_project_ids)
+    performance_ids_stmt = _performance_run_ids_stmt(cutoff, project_id, exclude_project_ids)
 
     plan_count = _count_id_statement(session, plan_ids_stmt)
     suite_count = _count_id_statement(session, suite_ids_stmt)
     test_count = _count_id_statement(session, test_ids_stmt)
     mobile_count = _count_id_statement(session, mobile_ids_stmt)
+    performance_count = _count_id_statement(session, performance_ids_stmt)
 
     estimated_objects, estimated_objects_sampled = _estimate_objects(
         session,
         test_ids_stmt,
         mobile_ids_stmt,
+        performance_ids_stmt,
         batch_size,
         test_count,
         mobile_count,
+        performance_count,
     )
 
     return {
@@ -172,6 +214,7 @@ def preview_old_runs(
         "suite_runs": suite_count,
         "test_runs": test_count,
         "mobile_runs": mobile_count,
+        "performance_runs": performance_count,
         "estimated_objects": estimated_objects,
         "estimated_objects_sampled": estimated_objects_sampled,
     }
@@ -232,6 +275,26 @@ def _mobile_run_ids_stmt(cutoff: datetime, project_id: int | None = None, exclud
     return stmt.order_by(MobileSpecialRun.id.asc())
 
 
+def _performance_run_ids_stmt(
+    cutoff: datetime,
+    project_id: int | None = None,
+    exclude_project_ids: list[int] | None = None,
+):
+    """Select terminal root performance runs; deleting a root cascades its shards and samples."""
+    from app.models.performance import PerformanceRun
+
+    stmt = select(PerformanceRun.id).where(
+        PerformanceRun.status.in_(_terminal_performance_run_statuses()),
+        PerformanceRun.created_at < cutoff,
+        PerformanceRun.parent_run_id.is_(None),
+    )
+    if project_id is not None:
+        stmt = stmt.where(PerformanceRun.project_id == project_id)
+    elif exclude_project_ids:
+        stmt = stmt.where(PerformanceRun.project_id.not_in(exclude_project_ids))
+    return stmt.order_by(PerformanceRun.id.asc())
+
+
 def _batched_delete_runs(session: Session, model, ids_stmt, batch_size: int, collect_objects=None) -> tuple[int, int]:
     """按批删除 ids_stmt 命中的运行记录；collect_objects 提供时先清理关联 MinIO 对象。"""
     deleted_runs = 0
@@ -263,16 +326,18 @@ def _cleanup_scope(
     project_id: int | None = None,
     exclude_project_ids: list[int] | None = None,
 ) -> dict[str, int]:
-    """清理一个范围（单项目 / 全局排除 override 项目）内的四类终态运行。"""
+    """清理一个范围（单项目 / 全局排除 override 项目）内的五类终态运行。"""
     from app.models.case import TestRun
     from app.models.mobile_special import MobileSpecialRun
     from app.models.plan import PlanRun
+    from app.models.performance import PerformanceRun
     from app.models.suite import SuiteRun
 
     plan_ids_stmt = _plan_run_ids_stmt(cutoff, project_id, exclude_project_ids)
     suite_ids_stmt = _suite_run_ids_stmt(cutoff, project_id, exclude_project_ids)
     test_ids_stmt = _test_run_ids_stmt(cutoff, project_id, exclude_project_ids)
     mobile_ids_stmt = _mobile_run_ids_stmt(cutoff, project_id, exclude_project_ids)
+    performance_ids_stmt = _performance_run_ids_stmt(cutoff, project_id, exclude_project_ids)
 
     plan_runs, _ = _batched_delete_runs(session, PlanRun, plan_ids_stmt, batch_size)
     suite_runs, _ = _batched_delete_runs(session, SuiteRun, suite_ids_stmt, batch_size)
@@ -286,12 +351,20 @@ def _cleanup_scope(
         batch_size,
         collect_objects=_collect_mobile_run_artifact_objects,
     )
+    performance_runs, performance_objects = _batched_delete_runs(
+        session,
+        PerformanceRun,
+        performance_ids_stmt,
+        batch_size,
+        collect_objects=_collect_performance_run_objects,
+    )
     return {
         "plan_runs": plan_runs,
         "suite_runs": suite_runs,
         "test_runs": test_runs,
         "mobile_runs": mobile_runs,
-        "deleted_objects": test_objects + mobile_objects,
+        "performance_runs": performance_runs,
+        "deleted_objects": test_objects + mobile_objects + performance_objects,
     }
 
 
@@ -302,17 +375,24 @@ def execute_old_runs_cleanup(session: Session, days: int, batch_size: int = 500)
     overrides = list_projects_with_retention_override(session)
     override_ids = [pid for pid, _, _ in overrides]
 
-    totals = {"plan_runs": 0, "suite_runs": 0, "test_runs": 0, "mobile_runs": 0, "deleted_objects": 0}
+    totals = {
+        "plan_runs": 0,
+        "suite_runs": 0,
+        "test_runs": 0,
+        "mobile_runs": 0,
+        "performance_runs": 0,
+        "deleted_objects": 0,
+    }
     per_project: list[dict] = []
     for pid, name, project_days in overrides:
         stats = _cleanup_scope(session, _cutoff(project_days), batch_size, project_id=pid)
         per_project.append({"project_id": pid, "project_name": name, "retention_days": project_days, **stats})
         for key in totals:
-            totals[key] += stats[key]
+            totals[key] += stats.get(key, 0)
 
     global_stats = _cleanup_scope(session, _cutoff(days), batch_size, exclude_project_ids=override_ids or None)
     for key in totals:
-        totals[key] += global_stats[key]
+        totals[key] += global_stats.get(key, 0)
 
     return {
         "cutoff": _cutoff(days),
@@ -364,6 +444,7 @@ def preview_old_runs_by_project(session: Session, global_days: int, batch_size: 
     from app.models.case import TestCase, TestRun
     from app.models.mobile_special import MobileSpecialRun, MobileSpecialTask
     from app.models.plan import PlanRun, TestPlan
+    from app.models.performance import PerformanceRun
     from app.models.project import Module
     from app.models.suite import SuiteRun, TestSuite
 
@@ -422,13 +503,26 @@ def preview_old_runs_by_project(session: Session, global_days: int, batch_size: 
             ).scalar()
             or 0
         )
+        performance_count = int(
+            session.execute(
+                select(func.count(PerformanceRun.id)).where(
+                    PerformanceRun.status.in_(_terminal_performance_run_statuses()),
+                    PerformanceRun.created_at < cutoff,
+                    PerformanceRun.parent_run_id.is_(None),
+                    PerformanceRun.project_id == pid,
+                )
+            ).scalar()
+            or 0
+        )
         estimated_objects, estimated_objects_sampled = _estimate_objects(
             session,
             _test_run_ids_stmt(cutoff, project_id=pid),
             _mobile_run_ids_stmt(cutoff, project_id=pid),
+            _performance_run_ids_stmt(cutoff, project_id=pid),
             batch_size,
             test_count,
             mobile_count,
+            performance_count,
         )
         project_previews.append(
             {
@@ -439,6 +533,7 @@ def preview_old_runs_by_project(session: Session, global_days: int, batch_size: 
                 "suite_runs": suite_count,
                 "test_runs": test_count,
                 "mobile_runs": mobile_count,
+                "performance_runs": performance_count,
                 "estimated_objects": estimated_objects,
                 "estimated_objects_sampled": estimated_objects_sampled,
             }
@@ -457,6 +552,7 @@ def preview_old_runs_by_project(session: Session, global_days: int, batch_size: 
             "suite_runs": global_preview["suite_runs"],
             "test_runs": global_preview["test_runs"],
             "mobile_runs": global_preview["mobile_runs"],
+            "performance_runs": global_preview.get("performance_runs", 0),
             "estimated_objects": global_preview["estimated_objects"],
             "estimated_objects_sampled": global_preview["estimated_objects_sampled"],
         },
