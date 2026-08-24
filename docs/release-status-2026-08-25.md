@@ -8,7 +8,7 @@
 
 本地代码、回归和 Windows/q19 API/Web/性能链路已经形成可复核证据；以下外部门禁仍未关闭，因此发布只能按“部分实现/待环境验收”处理：
 
-- Android Worker/真机：ADB、Agent/Backend Redis 配对、Worker registry、扫描回调、租约绑定控制和 APK 资产选择/包名传递已通过；低代码/专项录屏失败状态与报告告警已完成本地回归，但真实 APK 上传、低代码、录屏、专项任务和结果回传仍不能验收。
+- Android Worker/真机：ADB、Agent/Backend Redis 配对、Worker registry、扫描回调、租约绑定控制和 APK 资产选择/包名传递已通过；专项任务包名一致性、应用启动/Monkey/动作失败终态已完成本地回归，但真实 APK 上传、低代码、录屏、专项任务和结果回传仍不能验收。
 - 性能生产环境：真实 Kubernetes 多节点、容量限制、生产 Prometheus、MinIO 生命周期和跨主机恢复未验收。
 - 通知供应商：当前只有回环 SMTP 的 `local_link_only` 证据，没有真实 SMTP/企业微信/钉钉送达回执。
 - 外部缺陷平台：没有可使用的临时 Jira/禅道/GitHub/GitLab 项目和凭据，创建、同步和脱敏链路未做真实验收。
@@ -16,6 +16,8 @@
 ## 当前开发计划
 
 当前优先关闭 Android P0-B.3 单设备执行闭环，拆分为：真实 APK 上传/包名识别与选择、低代码最小执行、录屏与异常回放、专项任务、事件/日志/报告回传。每一项都必须同时具备代码、回归测试、代码审查修复和脱敏证据；没有 APK、包名或在线 `device` 时，只记录阻塞，不创建脏运行。
+
+当前本地下一项为 P0-B.3.5 事件、日志与报告回传；P0-B.3.4 的专项任务失败终态和包名一致性已完成本地闭环，但真实 APK/在线设备执行仍保持未验收。
 
 Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复核 Windows API/Web、真实通知供应商、外部缺陷平台、性能生产环境和发布收口。详细依赖、出口和状态见 [`product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md) 的“0.5 当前开发计划与跟踪台账”，执行勾选见 [`Task.md`](../Task.md)。
 
@@ -32,6 +34,13 @@ Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复
 - 报告详情页展示异常回放不可用告警；如果后续录屏轮换成功并保存回放，会清除过时的启动失败告警，避免与可播放视频同时出现矛盾提示。
 - Android 执行器定向 `64 passed`，后端非集成全量 `2248 passed`，前端 Vitest `66 files / 269 tests passed`，类型检查、生产构建、Ruff 和差异检查通过；脱敏证据见 [`android-recording-observability-2026-08-25.json`](evidence/android-recording-observability-2026-08-25.json)。
 - 发布边界：没有真实 APK 和在线设备录屏/Crash/ANR 证据，MinIO 视频上传、设备权限和专项回放仍待真实环境验收；本地回归不关闭 Android 真机门禁。
+
+## 2026-08-25 P0-B.3.4 Android 专项任务本地交付
+
+- 任务新建、编辑和手工触发现在统一校验项目内 APK 的已确认 `package_name`；缺少包名或手工包名与 APK 不一致时返回 `400`，默认任务 APK 也会被解析并写入运行快照。
+- 性能、稳定性和流畅度执行器在应用启动失败、Monkey 启动/异常退出或流畅度动作失败时写入 `summary_json.error_message` 并终态为 `failed`；完成事件会携带失败状态和错误摘要，正常取消仍为 `stopped`。
+- 定向回归 `86 passed`，4 个受影响文件独立运行 `28/25/19/14 passed`，后端非集成全量 `2255 passed`；前端 Vitest `66 files / 269 tests passed`，`vue-tsc`、生产构建、Ruff 和 `git diff --check` 通过。脱敏证据见 [`android-special-task-2026-08-25.json`](evidence/android-special-task-2026-08-25.json)。
+- 发布边界：未获得真实 APK 和在线 `device` 执行证据前，不关闭真实安装/启动、专项动作、超时取消、Crash/ANR logcat、录屏、MinIO 或报告回传门禁；Karing 仍需先通过包管理确认真实包名。
 
 ## 2026-08-25 P0-A 本地 E2E 回归复核
 

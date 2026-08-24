@@ -262,6 +262,17 @@ def test_stability_run_fails_when_device_unreachable(monkeypatch, chain_events):
     assert "设备不可达" in run.summary_json["error_message"]
 
 
+def test_stability_run_fails_when_app_start_fails(monkeypatch, chain_events, reachable):
+    monkeypatch.setattr(android_stability_executor, "_start_app", lambda serial, package: False)
+    run = _run_stub(device_serial="emu-5554", app_package="com.example.app", duration_seconds=60)
+
+    asyncio.run(android_stability_executor.run_mobile_special_stability(_FakeDB(), run))
+
+    assert run.status is RunStatus.failed
+    assert run.summary_json["error_message"] == "应用启动失败: com.example.app"
+    assert chain_events[-1]["status"] == "failed"
+
+
 def test_stability_run_happy_path_collects_incidents(
     monkeypatch, chain_events, reachable, fast_clock, quiet_heartbeat, quiet_start_app
 ):
@@ -327,7 +338,8 @@ def test_stability_run_survives_monkey_exec_failure(
 
     asyncio.run(android_stability_executor.run_mobile_special_stability(_FakeDB(), run))
 
-    assert run.status is RunStatus.completed
+    assert run.status is RunStatus.failed
+    assert run.summary_json["error_message"] == "Monkey 执行失败: adb missing"
     assert run.summary_json["crash_count"] == 0
     assert fast["procs"] == []
 

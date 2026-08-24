@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 P0-B.3.4 Android 专项任务本地交付已完成：任务新建/编辑/手工触发统一校验项目内 APK 的已确认 `package_name`，默认任务 APK 会解析进运行快照，缺包名或手工包名不一致时返回 `400`；性能、稳定性和流畅度执行器对应用启动失败、Monkey 启动/异常退出及动作失败写入 `summary_json.error_message` 并终态为 `failed`，完成事件同步失败状态，正常取消仍为 `stopped`。代码审查修复默认 APK 未解析、包名覆盖和异常误报完成问题；专项定向 `86 passed`，4 个受影响测试文件独立 `28/25/19/14 passed`，后端非集成全量 `2255 passed`，前端 Vitest `66 files / 269 tests passed`，vue-tsc/build/Ruff/diff-check 通过。证据见 `docs/evidence/android-special-task-2026-08-25.json`。真实 APK、在线设备专项动作、超时/取消、Crash/ANR logcat、录屏和报告媒体回传仍待在线真机验收，Karing 必须先确认真实包名。
+
 - 2026-08-25 P0-B.3.3 录屏与异常回放可观测性本地交付已完成：低代码录屏启动失败写入 `result_summary.android_artifacts.screen_recording_error`；性能/专项异常回放写入 `summary_json.incident_replay`，记录 requested/saved/error，并在后续轮换成功上传后清理过时启动告警；专项报告页展示回放不可用提示。审查修复了“后续保存成功仍显示旧告警”的状态一致性问题。Android 执行器定向 `64 passed`，后端非集成全量 `2248 passed`，前端 Vitest `66 files / 269 tests passed`，vue-tsc、生产构建、Ruff/diff-check 通过；证据见 `docs/evidence/android-recording-observability-2026-08-25.json`。真实 APK、设备 screenrecord 权限、MinIO 视频上传、Crash/ANR 和远端报告媒体回传仍待在线真机验收。
 
 - 2026-08-25 已同步当前开发计划：主路线图新增“0.5 当前开发计划与跟踪台账”，`Task.md`、发布状态和本记忆统一按 P0-B.3.1 APK/包名、P0-B.3.2 Android 低代码、P0-B.3.3 录屏回放、P0-B.3.4 专项任务、P0-B.3.5 事件/日志/报告五个子模块跟踪。当前优先先核对低代码从用例保存到 Worker 的真实调度，再用真实 APK 和在线设备完成最小无破坏步骤；Android 闭环后依次复核 Windows API/Web、通知供应商、外部缺陷平台、性能生产环境和发布收口。每个子模块必须完成实现、定向/全量测试、代码审查、问题修复、文档同步和 Conventional Commit 推送；没有 APK、包名或在线 `device` 时只能记录阻塞，不能把 Worker 心跳、截图、mock 或跳过项当作通过。

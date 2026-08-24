@@ -312,6 +312,19 @@ def test_perf_run_fails_when_device_unreachable(monkeypatch, chain_events):
     assert "设备不可达" in run.summary_json["error_message"]
 
 
+def test_perf_run_fails_when_app_start_fails(monkeypatch, chain_events):
+    monkeypatch.setattr(android_perf_executor, "_check_device_reachable", lambda s, timeout=10: (True, "在线"))
+    monkeypatch.setattr(android_perf_executor, "_start_app", lambda s, p: False)
+    run = _FakeRun(device_serial="emu-5554", app_package="com.example.app", duration_seconds=60)
+    run.config_snapshot["auto_start"] = True
+
+    asyncio.run(android_perf_executor.run_mobile_special_perf(_RecordingDB(), run))
+
+    assert run.status is RunStatus.failed
+    assert run.summary_json["error_message"] == "应用启动失败: com.example.app"
+    assert chain_events[-1]["status"] == "failed"
+
+
 def test_perf_run_samples_and_uploads_csv(monkeypatch, chain_events, fast_clock, quiet_heartbeat):
     monkeypatch.setattr(android_perf_executor, "_check_device_reachable", lambda s, timeout=10: (True, "在线"))
     sample_batches = iter(

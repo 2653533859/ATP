@@ -489,6 +489,34 @@ async def run_mobile_special_perf(
             parameters={"package": app_package},
             result={"ok": bool(app_started)},
         )
+        if not app_started:
+            error_message = f"应用启动失败: {app_package}"
+            run.status = RunStatus.failed
+            run.finished_at = datetime.now()
+            run.duration_ms = 0
+            run.summary_json = {"error_message": error_message, "app_package": app_package}
+            await db.commit()
+            await events.record(
+                event_type="run_completed",
+                phase="finalizing",
+                action="complete_run",
+                result={"status": run.status.value, "summary": run.summary_json},
+            )
+            await _safe_publish(
+                run.id,
+                {
+                    "type": "completed",
+                    "run_id": run.id,
+                    "status": run.status.value,
+                    "duration_ms": 0,
+                    "summary": run.summary_json,
+                    "progress": 100,
+                    "current_step": "应用启动失败",
+                    "device_status": "online",
+                    "error": error_message,
+                },
+            )
+            return
         # 等待应用完全启动
         await asyncio.sleep(3)
 

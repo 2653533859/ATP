@@ -205,27 +205,43 @@ async def run_mobile_special_fluency(
 
     # 3. 启动 App
     start_cmd = ["adb", "-s", device_serial, "shell", "am", "start", "-n", f"{app_package}/.MainActivity"]
+    execution_error: str | None = None
     try:
-        start_result = await asyncio.to_thread(subprocess.run, start_cmd, capture_output=True, text=True, timeout=15)
+        start_result = await asyncio.get_event_loop().run_in_executor(
+            None,
+            lambda: subprocess.run(start_cmd, capture_output=True, text=True, timeout=15),
+        )
+        if start_result.returncode != 0:
+            detail = (start_result.stderr or start_result.stdout or "未知错误").strip()
+            execution_error = f"应用启动失败: {detail[:500]}"
         await events.record(
             event_type="action",
             phase="app_setup",
             action="start_app",
             parameters={"package": app_package, "command": start_cmd},
-            result={"ok": start_result.returncode == 0, "return_code": start_result.returncode},
+            result={
+                "ok": start_result.returncode == 0,
+                "return_code": start_result.returncode,
+                "error": execution_error,
+            },
         )
     except Exception as e:
         logger.warning("failed to start app for fluency run %s: %s", run.id, e)
+        execution_error = f"应用启动失败: {str(e)[:500]}"
         await events.record(
             event_type="action",
             phase="app_setup",
             action="start_app",
             parameters={"package": app_package, "command": start_cmd},
-            result={"ok": False, "error": str(e)},
+            result={"ok": False, "error": execution_error},
         )
 
     # 等待应用启动
-    await asyncio.sleep(3)
+    if not execution_error:
+        await asyncio.sleep(3)
+    else:
+        # 启动失败时不再对设备发送动作，避免把前置失败误报为场景成功。
+        stages = []
 
     # 4. 每个 stage 循环采样（外包心跳监控，掉线时提前停止）
     all_samples: list[dict] = []
@@ -304,7 +320,8 @@ async def run_mobile_special_fluency(
                     coords = stage.get("coords", {})
                     action_ok = await _perform_tap(device_serial, coords.get("x", 540), coords.get("y", 1000))
                 else:
-                    action_ok = True
+                    action_ok = False
+                    execution_error = f"不支持的流畅度操作: {action}"
 
                 await events.record(
                     event_type="action",
@@ -316,8 +333,11 @@ async def run_mobile_special_fluency(
                         "coords": stage.get("coords", {}),
                         "duration_seconds": duration_between,
                     },
-                    result={"ok": bool(action_ok)},
+                    result={"ok": bool(action_ok), "error": execution_error if not action_ok else None},
                 )
+                if not action_ok:
+                    execution_error = execution_error or f"流畅度操作失败: {stage_name}"
+                    break
 
                 # 等待一段时间
                 remaining = float(duration_between)
@@ -380,6 +400,7 @@ async def run_mobile_special_fluency(
 
     except Exception as e:
         logger.exception("fluency execution error for run %s: %s", run.id, e)
+        execution_error = f"流畅度执行失败: {str(e)[:500]}"
 
     total_ms = int((time.monotonic() - start_time) * 1000)
 
@@ -414,9 +435,16 @@ async def run_mobile_special_fluency(
     if device_lost_at is not None:
         summary["device_lost"] = True
         summary["device_lost_at_sec"] = round(device_lost_at, 2)
+    if execution_error:
+        summary["error_message"] = execution_error
 
     # 7. 更新 Run
-    run.status = RunStatus.stopped if cancelled else RunStatus.completed
+    if cancelled:
+        run.status = RunStatus.stopped
+    elif execution_error:
+        run.status = RunStatus.failed
+    else:
+        run.status = RunStatus.completed
     run.finished_at = datetime.now()
     run.duration_ms = total_ms
     run.summary_json = summary
@@ -439,7 +467,14 @@ async def run_mobile_special_fluency(
             "duration_ms": total_ms,
             "summary": summary,
             "progress": 100,
-            "current_step": "执行完成" if run.status == RunStatus.completed else "执行已停止",
+            "current_step": (
+                "执行完成"
+                if run.status == RunStatus.completed
+                else "执行失败"
+                if run.status == RunStatus.failed
+                else "执行已停止"
+            ),
             "device_status": "online" if device_lost_at is None else "offline",
+            "error": summary.get("error_message"),
         },
     )

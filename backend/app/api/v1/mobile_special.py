@@ -81,6 +81,8 @@ async def _resolve_apk_package(
     apk = await db.get(Apk, apk_id)
     if apk is None or apk.project_id != project_id:
         raise HTTPException(status_code=400, detail="APK does not belong to the selected project")
+    if not apk.package_name:
+        raise HTTPException(status_code=400, detail="APK package name is not available")
     return apk.package_name
 
 
@@ -180,7 +182,9 @@ async def create_task(
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
     data = body.model_dump(exclude={"created_by"})
     apk_package = await _resolve_apk_package(db, body.project_id, body.apk_id)
-    if not data.get("app_package") and apk_package:
+    if apk_package and data.get("app_package") and data["app_package"] != apk_package:
+        raise HTTPException(status_code=400, detail="app_package must match the selected APK package")
+    if apk_package:
         data["app_package"] = apk_package
     # created_by 以当前登录用户为准；schema 中的同名字段仅为兼容内部导入，须排除避免键冲突
     task = MobileSpecialTask(
@@ -222,9 +226,12 @@ async def update_task(
     await assert_project_access(db, current_user, task.project_id, ProjectRole.editor)
 
     update_data = body.model_dump(exclude_unset=True)
-    if "apk_id" in update_data:
-        apk_package = await _resolve_apk_package(db, task.project_id, update_data["apk_id"])
-        if "app_package" not in update_data:
+    selected_apk_id = update_data.get("apk_id", task.apk_id)
+    if "apk_id" in update_data or "app_package" in update_data:
+        apk_package = await _resolve_apk_package(db, task.project_id, selected_apk_id)
+        if apk_package and update_data.get("app_package") and update_data["app_package"] != apk_package:
+            raise HTTPException(status_code=400, detail="app_package must match the selected APK package")
+        if apk_package:
             update_data["app_package"] = apk_package
     for k, v in update_data.items():
         setattr(task, k, v)
@@ -270,15 +277,15 @@ async def trigger_task_run(
     config = dict(task.config_json or {})
     selected_device_id = body.device_id if body.device_id is not None else task.device_id
     selected_apk_id = body.apk_id if body.apk_id is not None else task.apk_id
-    selected_apk_package = await _resolve_apk_package(db, task.project_id, body.apk_id)
+    selected_apk_package = await _resolve_apk_package(db, task.project_id, selected_apk_id)
     if body.device_id is not None:
         config["device_id"] = body.device_id
     if selected_apk_id is not None:
         config["apk_id"] = selected_apk_id
-    if body.apk_id is not None:
-        if selected_apk_package:
-            config["app_package"] = selected_apk_package
-    if body.app_package:
+        if body.app_package and body.app_package != selected_apk_package:
+            raise HTTPException(status_code=400, detail="app_package must match the selected APK package")
+        config["app_package"] = selected_apk_package
+    elif body.app_package:
         config["app_package"] = body.app_package
 
     run = MobileSpecialRun(
@@ -290,7 +297,7 @@ async def trigger_task_run(
         config_snapshot=config,
         device_id=selected_device_id,
         apk_id=selected_apk_id,
-        app_package=body.app_package or selected_apk_package or task.app_package,
+        app_package=selected_apk_package or body.app_package or task.app_package,
     )
     db.add(run)
     await db.commit()

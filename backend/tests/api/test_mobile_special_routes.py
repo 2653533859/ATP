@@ -280,6 +280,23 @@ def test_create_task_copies_package_from_project_apk(access_recorder):
     assert task.app_package == "com.selected.app"
 
 
+def test_create_task_rejects_package_mismatch_with_selected_apk(access_recorder):
+    db = _FakeDB({("Apk", 12): _Obj(id=12, project_id=5, package_name="com.selected.app")})
+    body = MobileSpecialTaskCreate(
+        project_id=5,
+        name="包名不一致任务",
+        task_type=TaskType.performance,
+        device_scope_type=DeviceScopeType.single_device,
+        apk_id=12,
+        app_package="com.other.app",
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(ms.create_task(body=body, db=db, current_user=_user(21)))
+
+    assert exc.value.status_code == 400
+
+
 def test_update_task_changes_package_with_selected_apk(access_recorder):
     task = _task(apk_id=None, app_package="com.old.app")
     db = _FakeDB(
@@ -302,6 +319,28 @@ def test_update_task_changes_package_with_selected_apk(access_recorder):
     assert updated.app_package == "com.new.app"
 
 
+def test_update_task_rejects_package_mismatch_with_bound_apk(access_recorder):
+    task = _task(apk_id=13, app_package="com.bound.app")
+    db = _FakeDB(
+        {
+            ("MobileSpecialTask", 1): task,
+            ("Apk", 13): _Obj(id=13, project_id=5, package_name="com.bound.app"),
+        }
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            ms.update_task(
+                1,
+                body=MobileSpecialTaskUpdate(app_package="com.other.app"),
+                db=db,
+                current_user=_user(33),
+            )
+        )
+
+    assert exc.value.status_code == 400
+
+
 def test_create_task_rejects_apk_from_another_project(access_recorder):
     db = _FakeDB({("Apk", 14): _Obj(id=14, project_id=99, package_name="com.other.app")})
     body = MobileSpecialTaskCreate(
@@ -316,6 +355,23 @@ def test_create_task_rejects_apk_from_another_project(access_recorder):
         asyncio.run(ms.create_task(body=body, db=db, current_user=_user(21)))
 
     assert exc.value.status_code == 400
+
+
+def test_create_task_rejects_apk_without_confirmed_package(access_recorder):
+    db = _FakeDB({("Apk", 15): _Obj(id=15, project_id=5, package_name=None)})
+    body = MobileSpecialTaskCreate(
+        project_id=5,
+        name="未识别包名 APK",
+        task_type=TaskType.performance,
+        device_scope_type=DeviceScopeType.single_device,
+        apk_id=15,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(ms.create_task(body=body, db=db, current_user=_user(21)))
+
+    assert exc.value.status_code == 400
+    assert "package name" in str(exc.value.detail)
 
 
 def test_get_update_delete_task_404():
@@ -418,6 +474,36 @@ def test_trigger_task_run_binds_selected_apk_and_package(access_recorder, monkey
     assert run.app_package == "com.selected.app"
     assert run.config_snapshot["apk_id"] == 12
     assert run.config_snapshot["app_package"] == "com.selected.app"
+
+
+def test_trigger_task_run_resolves_task_apk_and_rejects_package_override(access_recorder, monkeypatch):
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.tasks_mobile_special",
+        types.SimpleNamespace(run_mobile_special_task=types.SimpleNamespace(delay=lambda _rid: None)),
+    )
+    task = _task(apk_id=11, app_package=None)
+    apk = _Obj(id=11, project_id=5, package_name="com.task.app")
+    db = _FakeDB({("MobileSpecialTask", 1): task, ("Apk", 11): apk})
+
+    run = asyncio.run(ms.trigger_task_run(1, body=RunTriggerRequest(), db=db, current_user=_user()))
+
+    assert run.apk_id == 11
+    assert run.app_package == "com.task.app"
+    assert run.config_snapshot["apk_id"] == 11
+    assert run.config_snapshot["app_package"] == "com.task.app"
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            ms.trigger_task_run(
+                1,
+                body=RunTriggerRequest(app_package="com.other.app"),
+                db=_FakeDB({("MobileSpecialTask", 1): task, ("Apk", 11): apk}),
+                current_user=_user(),
+            )
+        )
+
+    assert exc.value.status_code == 400
 
 
 def test_trigger_task_run_rejects_apk_from_another_project(access_recorder, monkeypatch):

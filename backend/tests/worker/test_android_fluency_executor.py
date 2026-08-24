@@ -228,6 +228,24 @@ def test_fluency_run_fails_when_device_unreachable(monkeypatch, chain_events):
     assert "设备不可达" in run.summary_json["error_message"]
 
 
+def test_fluency_run_fails_when_app_start_fails(
+    monkeypatch, chain_events, reachable, fast_sleep, quiet_heartbeat, quiet_adb
+):
+    monkeypatch.setattr(
+        android_fluency_executor.subprocess,
+        "run",
+        lambda cmd, **kw: types.SimpleNamespace(returncode=1, stdout="", stderr="activity missing"),
+    )
+    run = _run_stub(device_serial="emu-5554", app_package="com.example.app", stages=[{"name": "s1"}])
+
+    asyncio.run(android_fluency_executor.run_mobile_special_fluency(_FakeDB(), run))
+
+    assert run.status is RunStatus.failed
+    assert run.summary_json["error_message"] == "应用启动失败: activity missing"
+    assert quiet_adb == []
+    assert chain_events[-1]["status"] == "failed"
+
+
 def test_fluency_run_samples_each_stage(monkeypatch, chain_events, reachable, fast_sleep, quiet_heartbeat, quiet_adb):
     _gfx_stub(monkeypatch, [_GFX_RAW, _GFX_RAW])
     db = _FakeDB()
@@ -304,9 +322,10 @@ def test_fluency_run_survives_stage_exception(
 
     asyncio.run(android_fluency_executor.run_mobile_special_fluency(_FakeDB(), run))
 
-    assert run.status is RunStatus.completed
+    assert run.status is RunStatus.failed
+    assert run.summary_json["error_message"] == "流畅度执行失败: input service died"
     assert run.summary_json["_fps_sample_count"] == 0
-    assert chain_events[-1]["status"] == "completed"
+    assert chain_events[-1]["status"] == "failed"
 
 
 def test_perform_swipe_and_tap_run_adb_input(monkeypatch):

@@ -18,6 +18,7 @@ import logging
 import subprocess
 import time
 from datetime import datetime
+from asyncio import CancelledError
 from typing import Callable, Optional
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -339,6 +340,34 @@ async def run_mobile_special_stability(
             parameters={"package": app_package},
             result={"ok": bool(app_started)},
         )
+        if not app_started:
+            error_message = f"应用启动失败: {app_package}"
+            run.status = RunStatus.failed
+            run.finished_at = datetime.now()
+            run.duration_ms = 0
+            run.summary_json = {"error_message": error_message, "app_package": app_package}
+            await db.commit()
+            await events.record(
+                event_type="run_completed",
+                phase="finalizing",
+                action="complete_run",
+                result={"status": run.status.value, "summary": run.summary_json},
+            )
+            await _safe_publish(
+                run.id,
+                {
+                    "type": "completed",
+                    "run_id": run.id,
+                    "status": run.status.value,
+                    "duration_ms": 0,
+                    "summary": run.summary_json,
+                    "progress": 100,
+                    "current_step": "应用启动失败",
+                    "device_status": "online",
+                    "error": error_message,
+                },
+            )
+            return
         await asyncio.sleep(3)
 
     # 4. 启动 logcat 监控 crash/ANR
@@ -381,6 +410,7 @@ async def run_mobile_special_stability(
     device_lost_at: Optional[float] = None
     monkey_proc: Optional[asyncio.subprocess.Process] = None
     cancelled = False
+    execution_error: str | None = None
 
     def _on_device_lost(reason: str) -> None:
         nonlocal device_lost_at
@@ -414,6 +444,10 @@ async def run_mobile_special_stability(
             next_progress_at = 30.0
             while (time.monotonic() - start_time) < duration_seconds:
                 if hb.lost:
+                    break
+                if monkey_proc.returncode is not None:
+                    if monkey_proc.returncode != 0:
+                        execution_error = f"Monkey 进程异常退出: return code {monkey_proc.returncode}"
                     break
                 if cancel_check is not None and await asyncio.to_thread(cancel_check):
                     cancelled = True
@@ -461,16 +495,22 @@ async def run_mobile_special_stability(
                     completed_actions = max(completed_actions, await asyncio.wait_for(output_task, timeout=5))
                 except Exception:
                     output_task.cancel()
-                    with suppress(asyncio.CancelledError):
+                    with suppress(CancelledError):
                         await output_task
 
     except Exception as e:
         logger.exception("monkey execution error for run %s: %s", run.id, e)
+        execution_error = f"Monkey 执行失败: {str(e)[:500]}"
 
     # 6. 等待 logcat 完成；取消时立即终止 logcat 子进程。
-    if cancelled:
+    if execution_error:
         logcat_task.cancel()
-        with suppress(asyncio.CancelledError):
+        with suppress(CancelledError):
+            await logcat_task
+        crashes, anrs = [], []
+    elif cancelled:
+        logcat_task.cancel()
+        with suppress(CancelledError):
             await logcat_task
         crashes, anrs = [], []
     else:
@@ -538,9 +578,16 @@ async def run_mobile_special_stability(
     if device_lost_at is not None:
         summary["device_lost"] = True
         summary["device_lost_at_sec"] = round(device_lost_at, 2)
+    if execution_error:
+        summary["error_message"] = execution_error
 
     # 9. 更新 Run
-    run.status = RunStatus.stopped if cancelled else RunStatus.completed
+    if cancelled:
+        run.status = RunStatus.stopped
+    elif execution_error:
+        run.status = RunStatus.failed
+    else:
+        run.status = RunStatus.completed
     run.finished_at = datetime.now()
     run.duration_ms = total_ms
     run.summary_json = summary
@@ -563,7 +610,14 @@ async def run_mobile_special_stability(
             "duration_ms": total_ms,
             "summary": summary,
             "progress": 100,
-            "current_step": "执行完成" if run.status == RunStatus.completed else "执行已停止",
+            "current_step": (
+                "执行完成"
+                if run.status == RunStatus.completed
+                else "执行失败"
+                if run.status == RunStatus.failed
+                else "执行已停止"
+            ),
             "device_status": "online" if device_lost_at is None else "offline",
+            "error": summary.get("error_message"),
         },
     )

@@ -1,0 +1,35 @@
+{
+  "verified_on": "2026-08-25",
+  "scope": "Android 专项任务包名一致性与失败终态本地实现与回归",
+  "checks": {
+    "selected_apk_package_is_project_scoped": true,
+    "default_task_apk_is_resolved_on_trigger": true,
+    "apk_without_confirmed_package_is_rejected": true,
+    "manual_package_override_mismatch_is_rejected": true,
+    "performance_app_start_failure_is_failed": true,
+    "stability_app_start_failure_is_failed": true,
+    "stability_monkey_failure_is_failed": true,
+    "fluency_app_start_failure_is_failed": true,
+    "fluency_action_failure_is_failed": true,
+    "normal_cancel_status_remains_stopped": true,
+    "targeted_tests": 86,
+    "standalone_route_tests": 28,
+    "standalone_performance_executor_tests": 25,
+    "standalone_stability_executor_tests": 19,
+    "standalone_fluency_executor_tests": 14,
+    "backend_non_integration_tests": 2255,
+    "frontend_vitest_files": 66,
+    "frontend_vitest_tests": 269,
+    "frontend_type_check": true,
+    "frontend_build": true,
+    "ruff": true,
+    "diff_check": true
+  },
+  "implementation_note": "任务创建、编辑和手工触发统一以项目内 APK 的已确认 package_name 为准；性能、稳定性和流畅度执行器会把应用启动、Monkey 或动作执行异常写入 summary_json.error_message 并发布 failed 终态。未记录密码、Token 或对象存储密钥。",
+  "remaining_boundaries": [
+    "当前工作区没有可用于真实上传的 APK 文件，尚未完成真实 APK 安装和包名识别后的 Worker 验收",
+    "尚未在在线 Android device 上执行专项任务，因此超时、取消、Monkey、Crash/ANR logcat 和真实动作不能记为真机通过",
+    "设备录屏、MinIO 媒体上传、事件/日志和报告回传仍待真实设备闭环验收",
+    "Karing 的真实 applicationId 必须先通过设备包管理或 APK 元数据确认，不能使用应用显示名替代"
+  ]
+}
