@@ -1,5 +1,18 @@
 # Q18 测试平台能力扩展开发计划
 
+## 2026-08-17 本轮推进记录
+
+- [x] 当前代码已部署到 `172.31.27.133:/opt/atp-q18-acceptance-20260817` 隔离 Compose 栈（28080/28090/28092），Backend、Prometheus、专用 performance Worker、Beat、PostgreSQL、Redis、MinIO 和目标服务健康；旧 q17 栈保持运行。
+- [x] Prometheus readiness/PromQL 已确认 Backend 与专用 performance Worker target 均为 `up`；PostgreSQL 16.15 `pg_dump` 日备份上传 MinIO，并恢复到临时数据库验证 53 张 public 表后清理；证据见 [`performance-linux-q18-acceptance-2026-08-17.json`](evidence/performance-linux-q18-acceptance-2026-08-17.json)。
+- [x] 修复 Worker 镜像默认 Debian `postgresql-client` 可能落到 15.x、无法备份 PostgreSQL 16 的问题，Dockerfile 现在显式安装 `postgresql-client-16`。
+- [x] Helm 多副本 performance Worker 增加 `autoIdentity`，按 Pod hostname 派生节点 ID/名称/专用 Celery 队列，保持默认固定节点行为兼容；Helm lint 与模板渲染通过。
+- [x] 通知通道代码和验收入口完成定向回归（45 项通知回归、28 项部署/Compose/通知契约回归）；真实 SMTP/企业微信/钉钉投递仍因目标数据库无配置、未提供临时外部目标而保留待验收。
+- [x] 性能验收 Compose 栈默认包含 Prometheus 和单副本 Beat；Prometheus 抓取 Backend 与专用 performance Worker，并保留 7 天隔离环境历史。
+- [x] Helm 为启用的专用 performance Worker 增加 metrics Service 和 ServiceMonitor，生产 Prometheus 不再只看到 Backend 指标。
+- [x] Worker 自动 PostgreSQL 备份改用容器内 `pg_dump` + Python MinIO SDK，去除对 `mc` 和仓库根目录脚本路径的运行时依赖；保留根目录脚本供手工运维。
+- [x] iOS IPA 上传自动解析 Bundle ID/版本号；增加 macOS iOS Worker `doctor/start` 入口和 `ios` 队列隔离。
+- [ ] 真实 Kubernetes、多节点/生产 Prometheus、跨主机灾备、外部通知和 macOS/iOS 设备仍属于环境验收，不能由本地代码回归替代。
+
 ## 2026-08-13 审计日志查询与证据导出（代码阶段完成）
 
 - [x] 管理员审计日志支持项目、用户、动作和 ISO-8601 时间范围筛选；反向时间范围明确返回 `422`。

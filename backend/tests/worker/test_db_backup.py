@@ -1,5 +1,7 @@
 """F.2 PostgreSQL 自动备份测试：保留策略 / 调度任务 / noop on disabled."""
 
+import gzip
+import io
 import sys
 import types
 from datetime import datetime, timezone
@@ -192,6 +194,79 @@ def test_run_backup_script_passes_the_kind_through_the_environment(monkeypatch, 
     assert captured["timeout"] == 1800
 
 
+def test_python_backup_streams_pg_dump_and_uploads_with_minio_sdk(monkeypatch, tmp_path):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "DB_BACKUP_PREFIX", "pg-backups")
+    monkeypatch.setattr(settings, "POSTGRES_HOST", "postgres")
+    monkeypatch.setattr(settings, "POSTGRES_PORT", 5432)
+    monkeypatch.setattr(settings, "POSTGRES_USER", "atp")
+    monkeypatch.setattr(settings, "POSTGRES_DB", "atp")
+    monkeypatch.setattr(settings, "POSTGRES_PASSWORD", "secret")
+
+    class FakeProcess:
+        def __init__(self):
+            self.stdout = io.BytesIO(b"CREATE TABLE smoke (id integer);\n")
+            self.stderr = io.BytesIO(b"")
+            self._returncode = 0
+
+        def poll(self):
+            return self._returncode
+
+        def wait(self):
+            return self._returncode
+
+    process = FakeProcess()
+    captured: dict = {}
+
+    def fake_popen(command, **kwargs):
+        captured["command"] = command
+        captured["env"] = kwargs["env"]
+        return process
+
+    def fake_upload(object_name, local_path, content_type):
+        captured["object_name"] = object_name
+        captured["content_type"] = content_type
+        captured["payload"] = gzip.open(local_path, "rb").read()
+
+    monkeypatch.setattr(backup_mod.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(_minio_stub(), "upload_file", fake_upload, raising=False)
+
+    result = backup_mod._run_python_backup("daily")
+
+    assert result["code"] == 0
+    assert captured["command"][:1] == ["pg_dump"]
+    assert captured["env"]["PGPASSWORD"] == "secret"
+    assert captured["object_name"].startswith("pg-backups/daily/atp-")
+    assert captured["content_type"] == "application/gzip"
+    assert captured["payload"] == b"CREATE TABLE smoke (id integer);\n"
+
+
+def test_python_backup_returns_dump_failure_without_uploading(monkeypatch):
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "POSTGRES_PASSWORD", "secret")
+
+    class FailedProcess:
+        stdout = io.BytesIO(b"")
+        stderr = io.BytesIO(b"pg_dump failed")
+
+        def poll(self):
+            return 2
+
+        def wait(self):
+            return 2
+
+    monkeypatch.setattr(backup_mod.subprocess, "Popen", lambda *_a, **_kw: FailedProcess())
+    monkeypatch.setattr(
+        _minio_stub(), "upload_file", lambda *_a, **_kw: (_ for _ in ()).throw(AssertionError()), raising=False
+    )
+
+    result = backup_mod._run_python_backup("weekly")
+
+    assert result == {"code": 2, "stdout": "", "stderr": "pg_dump failed"}
+
+
 def test_list_backup_objects_reads_both_name_attributes(monkeypatch):
     objects = [
         types.SimpleNamespace(object_name="pg-backups/daily/a.sql.gz"),
@@ -258,7 +333,7 @@ def test_daily_backup_reports_deletions_and_a_stdout_tail(monkeypatch):
     monkeypatch.setattr(settings, "DB_BACKUP_ENABLED", True)
     monkeypatch.setattr(
         backup_mod,
-        "_run_backup_script",
+        "_run_python_backup",
         lambda kind: {"code": 0, "stdout": "x" * 500, "stderr": ""},
     )
     monkeypatch.setattr(backup_mod, "_enforce_retention", lambda kind: 3)
@@ -276,7 +351,7 @@ def test_daily_backup_retries_on_a_non_zero_exit(monkeypatch):
     monkeypatch.setattr(settings, "DB_BACKUP_ENABLED", True)
     monkeypatch.setattr(
         backup_mod,
-        "_run_backup_script",
+        "_run_python_backup",
         lambda kind: {"code": 2, "stdout": "", "stderr": "pg_dump: connection failed"},
     )
 
@@ -298,7 +373,7 @@ def test_daily_backup_retries_on_a_non_zero_exit(monkeypatch):
     else:
         raise AssertionError("失败必须抛出 self.retry 的结果，否则 Celery 认为任务成功")
 
-    assert "exit=2" in str(retries[0])
+    assert "PostgreSQL backup exit=2" in str(retries[0])
 
 
 def test_weekly_backup_covers_the_same_two_paths(monkeypatch):
@@ -308,7 +383,7 @@ def test_weekly_backup_covers_the_same_two_paths(monkeypatch):
     monkeypatch.setattr(backup_mod, "_enforce_retention", lambda kind: 1)
     monkeypatch.setattr(
         backup_mod,
-        "_run_backup_script",
+        "_run_python_backup",
         lambda kind: {"code": 0, "stdout": "ok", "stderr": ""},
     )
 
@@ -317,7 +392,7 @@ def test_weekly_backup_covers_the_same_two_paths(monkeypatch):
 
     monkeypatch.setattr(
         backup_mod,
-        "_run_backup_script",
+        "_run_python_backup",
         lambda kind: {"code": 1, "stdout": "", "stderr": "boom"},
     )
 
@@ -327,6 +402,6 @@ def test_weekly_backup_covers_the_same_two_paths(monkeypatch):
     try:
         backup_mod.backup_postgres_weekly(types.SimpleNamespace(retry=fake_retry))
     except RuntimeError as raised:
-        assert "exit=1" in str(raised)
+        assert "PostgreSQL backup exit=1" in str(raised)
     else:
         raise AssertionError("weekly 失败同样必须抛出")

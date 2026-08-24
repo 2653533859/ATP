@@ -24,7 +24,8 @@ def test_worker_dockerfile_uses_multistage_runtime_without_build_deps():
     assert "AS python-deps" in content
     assert "pip wheel" in content
     assert "COPY --from=python-deps /wheels /wheels" in content
-    assert "postgresql-client" in content
+    assert "postgresql-client-16" in content
+    assert "apt.postgresql.org/pub/repos/apt bookworm-pgdg main" in content
     assert "android-tools-adb" in content
     runtime_section = content.split("FROM python:3.12-slim-bookworm", maxsplit=2)[-1]
     assert "gcc libpq-dev" not in runtime_section

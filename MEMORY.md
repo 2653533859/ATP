@@ -2,6 +2,10 @@
 
 - 2026-08-17 GitHub Actions 第一轮修复后继续发现并处理 Bandit 的 3 处 XML 告警、独立测试 `test_mobile_special_events.py` 的模型注册隔离问题，以及 Worker Trivy 对 k6/JMeter 上游组件的漏洞命中。JMeter 漏洞已清零；k6 镜像仍使用 Go `1.26.5`，现改为固定 digest 的 Go `1.26.6` 构建并校验 k6 `v2.2.0` commit。第二轮远端 CI/Security 全部通过，第三轮仅因 k6 入口应为 `./cmd` 而非 `./cmd/k6` 构建失败，已修正。
 - 2026-08-17 GitHub Actions 已调整为低频运行：主 CI/Security 每周日 UTC 02:00（北京时间 10:00）运行一次并保留手动 `workflow_dispatch`，不再由 push/PR 触发；integration、E2E、Release readiness 仍仅手动运行，Dependabot 继续每周检查。
+- 2026-08-17 第 1/2/4 项推进完成代码与可执行环境收口：`172.31.27.133:/opt/atp-q18-acceptance-20260817` 隔离 Compose 栈使用 28080/28090/28092，Backend、Prometheus、performance Worker、Beat、PostgreSQL、Redis、MinIO 和目标服务健康，PromQL 的 Backend/Worker targets 均为 up；旧 q17 栈保持运行。
+- 2026-08-17 备份验收发现 Worker 通用 `postgresql-client` 为 15.x、不能连接 PostgreSQL 16，已在 `backend/Dockerfile.worker` 固定安装 `postgresql-client-16` 并补契约测试；最终 `pg_dump 16.15` 日备份上传 MinIO，恢复到临时库验证 53 张 public 表后清理。证据：`docs/evidence/performance-linux-q18-acceptance-2026-08-17.json`。
+- 2026-08-17 Helm 专用 performance Worker 增加默认关闭的 `performanceWorker.autoIdentity`；多副本开启时按 Pod hostname 生成节点 ID/名称和 `performance.<pod>` 队列，配合 metrics Service/ServiceMonitor 做节点级采集，Helm lint/template 通过。
+- 2026-08-17 通知代码/API/验收脚本定向回归通过 45 项，部署/Compose/通知契约回归通过 28 项；真实 SMTP/企业微信/钉钉仍因当前数据库无配置、未提供临时外部目标而待现场验收，不能把本地回归当作送达证据。
 - 2026-08-16 Kubernetes 前置审计：172.31.27.133 只有 Docker 容器栈，没有 kubectl/Helm/k3s/microk8s/minikube；本次仅只读检查，未安装或修改远端环境。Kubernetes、多节点和生产 Prometheus 仍待目标集群准备，证据为 `docs/evidence/kubernetes-readiness-audit-2026-08-16.json`。
 - 2026-08-15 20:37 实时 Windows smoke 通过：后端/前端、登录、项目读取、PostgreSQL/Redis/MinIO readiness、47 bytes 文件上传与清理均通过；本次跳过 Playwright、浏览器矩阵和报告导出，Android 仍无授权在线设备。脱敏证据为 `docs/evidence/windows-smoke-live-2026-08-15-2037.json`。
 - 本轮质量门禁重新通过：后端非集成 `2082 passed`，前端 `50 files / 209 tests passed`，type-check 与生产 build 通过。

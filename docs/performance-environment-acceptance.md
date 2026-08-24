@@ -1,8 +1,18 @@
 # 性能 Worker 环境验收 Runbook
 
+## 2026-08-17 当前代码隔离栈验收
+
+已在 `172.31.27.133` 的 `/opt/atp-q18-acceptance-20260817` 使用当前代码部署隔离 Compose 栈。由于旧 q17 栈占用默认回环端口，当前栈使用 Backend `28080`、Prometheus `28090`、Worker metrics `28092`；旧栈未停止。Backend `/health`、Prometheus `/-/ready` 和 PromQL 均通过，Backend 与 `performance-worker` 两个 target 均为 `up`。
+
+Worker 镜像已固定使用 PostgreSQL 16.15 客户端。实际日备份已上传 `pg-backups/daily/`，从 MinIO 下载后恢复到临时数据库并验证 53 张 public 表，临时数据库随后删除。完整脱敏证据见 [`performance-linux-q18-acceptance-2026-08-17.json`](evidence/performance-linux-q18-acceptance-2026-08-17.json)。
+
+这次验收只关闭 Linux Docker Compose 隔离环境、Prometheus 采集和单次备份恢复门禁；没有关闭 Kubernetes 多节点、生产 Prometheus 历史、跨主机 MinIO 灾备或外部通知投递门禁。
+
 ## Prometheus 监控验收
 
 性能环境 smoke 现在可以把 Prometheus readiness 和 PromQL 查询纳入同一份 JSON 证据。`--prometheus-url` 只接受不带用户信息、查询参数或片段的 HTTP(S) 根地址；查询内容通过请求参数编码，不从命令行读取 Token 或密码。
+
+隔离 Compose 栈现在默认启动 Prometheus（宿主机回环端口 `18090`），同时抓取 Backend 和专用性能 Worker；配置位于 `deploy/performance-acceptance/prometheus.yml`，保留 7 天本地历史。生产 Kubernetes 使用 Helm 的 `performance-worker` Service + ServiceMonitor，仍需在目标集群用 Prometheus Operator 实际确认 target 为 `up`。
 
 ```bash
 python scripts/performance-environment-smoke.py \
@@ -38,6 +48,8 @@ Windows 本地已完成平台级 k6/Locust 验收：主 Worker 节点 `perf-node
 - 远端真实 k6 run 首次执行暴露验收脚本的两个缺陷：JSON 报告不能序列化 `Path`，以及写请求未带 `X-Requested-With` 被 CSRF 拒绝；已修复并补充回归测试（本地脚本 `17 passed`）。Windows 本机 k6/Locust 已完成真实 run；远端真实目标、metrics、取消、Kubernetes/Prometheus 验收仍需在目标工具镜像更新后重跑，未将旧失败报告记为通过。
 
 本文用于 Q17-03/Q17-04 的 Linux/Kubernetes 外部环境验收。仓库内的单元测试和本地真实 gRPC server 联调只能证明实现链路可运行，不能替代真实镜像、真实证书、真实目标服务和真实 Celery 队列的验收。
+
+性能验收 Compose 栈同时包含单副本 Beat。它仅用于隔离环境的计划任务/备份联调，生产仍必须保证 Beat 单副本；备份任务在 Worker 内直接使用 `pg_dump` + Python MinIO SDK，不依赖容器内的仓库根目录脚本或 `mc` CLI。
 
 > 当前状态（2026-08-11）：Windows 本地已完成门禁验证，JMeter 5.6.3 使用仓库内无凭据 JMX 对本地 `/login` 完成 1 请求、0 错误并生成 JTL/HTML 报告，证据目录为 `.local-run/jmeter-smoke-20260811-233647/`。当前主机没有 Docker/Kubernetes，尚未部署 ATP 专用 Worker 镜像或外部 gRPC/Locust 目标；建立隔离部署后，必须重新执行本文全部命令并保存 JSON 证据，才能关闭 Q17-04。
 
@@ -81,6 +93,16 @@ curl http://127.0.0.1:18080/health
 ```
 
 Compose 会等待迁移完成并确认 Backend `/health` 为 healthy 后才启动专用 Worker 和验收工具，避免 API 尚未就绪时误报节点或执行器失败。
+
+启动后可直接验证隔离 Prometheus：
+
+```bash
+curl http://127.0.0.1:18090/-/ready
+curl --get --data-urlencode 'query=up{job=~"atp-backend|atp-performance-worker"}' \\
+  http://127.0.0.1:18090/api/v1/query
+```
+
+两个 target 都必须返回 `up=1`；这只关闭隔离栈指标采集门，不替代生产 Prometheus 的长期历史和告警验收。
 
 仓库内的 [`jmeter_smoke.jmx`](../deploy/performance-acceptance/jmeter_smoke.jmx) 是无凭据的最小 JMeter 回归样例，只访问 ATP `/login`，可用于确认 JMeter、JTL 和 HTML 报告生成链路：
 

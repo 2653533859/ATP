@@ -33,8 +33,20 @@ WORKDIR /app
 ENV PLAYWRIGHT_BROWSERS_PATH=/ms-playwright
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    android-tools-adb ca-certificates curl gzip openjdk-17-jre-headless postgresql-client tar xvfb \
+    android-tools-adb ca-certificates curl gzip gnupg openjdk-17-jre-headless tar xvfb \
     && rm -rf /var/lib/apt/lists/*
+
+# Keep pg_dump aligned with the supported PostgreSQL 16 deployment image. The
+# Debian bookworm archive only provides the 15.x client under the generic
+# postgresql-client package, which refuses to dump a PostgreSQL 16 server.
+RUN set -eux; \
+    curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc \
+      | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg; \
+    echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] https://apt.postgresql.org/pub/repos/apt bookworm-pgdg main" \
+      > /etc/apt/sources.list.d/pgdg.list; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends postgresql-client-16; \
+    rm -rf /var/lib/apt/lists/* /etc/apt/sources.list.d/pgdg.list /usr/share/keyrings/postgresql.gpg
 
 RUN curl -fsSL "https://archive.apache.org/dist/jmeter/binaries/apache-jmeter-${JMETER_VERSION}.tgz" \
     | tar -xz -C /opt \

@@ -1,0 +1,52 @@
+{
+  "recorded_at": "2026-08-17",
+  "host": "172.31.27.133",
+  "stack": {
+    "compose_project": "atp-q18-acceptance-20260817",
+    "remote_path": "/opt/atp-q18-acceptance-20260817",
+    "ports": {
+      "backend": 28080,
+      "prometheus": 28090,
+      "performance_worker_metrics": 28092
+    },
+    "old_stack_preserved": true,
+    "services_healthy": [
+      "postgres",
+      "redis",
+      "minio",
+      "backend",
+      "beat",
+      "performance-worker",
+      "prometheus",
+      "acceptance-target"
+    ]
+  },
+  "health": {
+    "backend": "ok",
+    "prometheus_ready": true,
+    "prometheus_targets": {
+      "atp-backend": "up",
+      "atp-performance-worker": "up"
+    },
+    "performance_worker_metrics": true
+  },
+  "backup": {
+    "pg_dump_version": "16.15",
+    "object": "pg-backups/daily/atp-20260817-110545.sql.gz",
+    "uploaded": true,
+    "celery_wrapper": {
+      "kind": "daily",
+      "deleted": 0,
+      "uploaded": true,
+      "latest_object": "pg-backups/daily/atp-20260817-111606.sql.gz"
+    },
+    "daily_object_count_after_validation": 3,
+    "restore_database": "atp_restore_verify_20260817",
+    "restored_public_table_count": 53,
+    "temporary_database_removed": true
+  },
+  "notes": [
+    "第一次启动因旧栈占用 18080 被安全拒绝，随后切换到 28080/28090/28092；未停止旧栈。",
+    "验收发现并修复 Worker 使用 PostgreSQL 15 pg_dump 连接 PostgreSQL 16 的版本不匹配；最终 Worker 使用 PostgreSQL 16.15 客户端。"
+  ]
+}

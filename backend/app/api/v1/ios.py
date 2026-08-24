@@ -7,8 +7,10 @@ the web process only registers devices/assets and manages leases.
 from __future__ import annotations
 
 import os
+import plistlib
 import tempfile
 import uuid
+import zipfile
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy import select
@@ -62,6 +64,40 @@ async def _save_upload(file: UploadFile) -> tuple[str, int]:
 
 def _ipa_object_name(project_id: int, filename: str) -> str:
     return f"ios-apps/projects/{project_id}/{uuid.uuid4().hex[:8]}_{filename}"
+
+
+def _read_ipa_metadata(path: str) -> dict[str, str]:
+    """Read bundle metadata from the first ``Payload/*.app/Info.plist``.
+
+    IPA uploads remain valid when the archive is incomplete or the caller
+    explicitly supplies the fields; metadata extraction is deliberately
+    best-effort and never executes anything from the archive.
+    """
+
+    try:
+        with zipfile.ZipFile(path) as archive:
+            plist_names = sorted(
+                name
+                for name in archive.namelist()
+                if name.startswith("Payload/") and name.count("/") == 2 and name.endswith(".app/Info.plist")
+            )
+            if not plist_names:
+                return {}
+            with archive.open(plist_names[0]) as plist_file:
+                metadata = plistlib.load(plist_file)
+    except (OSError, KeyError, zipfile.BadZipFile, plistlib.InvalidFileException, ValueError, TypeError):
+        return {}
+    if not isinstance(metadata, dict):
+        return {}
+
+    bundle_id = str(metadata.get("CFBundleIdentifier") or "").strip()
+    version = str(metadata.get("CFBundleShortVersionString") or metadata.get("CFBundleVersion") or "").strip()
+    result: dict[str, str] = {}
+    if bundle_id:
+        result["bundle_id"] = bundle_id[:256]
+    if version:
+        result["version_name"] = version[:64]
+    return result
 
 
 @router.get("/ios-devices", response_model=list[IosDeviceOut])
@@ -199,6 +235,9 @@ async def upload_ios_app(
     object_name = _ipa_object_name(project_id, filename)
     try:
         temp_path, file_size = await _save_upload(file)
+        metadata = _read_ipa_metadata(temp_path)
+        bundle_id = bundle_id or metadata.get("bundle_id")
+        version_name = version_name or metadata.get("version_name")
         ensure_bucket()
         upload_file(object_name, temp_path, content_type="application/octet-stream")
     finally:

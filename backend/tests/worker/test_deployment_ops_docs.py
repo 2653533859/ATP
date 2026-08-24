@@ -129,11 +129,14 @@ def test_helm_values_expose_worker_queues_and_resources():
     assert values["performanceWorker"]["queues"] == "performance"
     assert values["performanceWorker"]["concurrency"] == "1"
     assert values["performanceWorker"]["nodeEnabled"] is True
+    assert values["performanceWorker"]["autoIdentity"] is False
     assert values["performanceWorker"]["nodeId"] == ""
     assert values["performanceWorker"]["nodeQueue"] == "performance"
     assert values["performanceWorker"]["networkPolicy"]["enabled"] is False
     assert values["performanceWorker"]["resources"]["requests"]
     assert values["performanceWorker"]["resources"]["limits"]
+    assert values["service"]["performanceWorker"]["type"] == "ClusterIP"
+    assert values["service"]["performanceWorker"]["port"] == 9092
     assert values["replicas"]["webRecorder"] == 1
     assert values["webRecorder"]["enabled"] is False
     assert values["webRecorder"]["maxSessions"] == 2
@@ -194,6 +197,9 @@ def test_helm_production_overlays_have_secret_and_metrics_hooks():
     service_monitor = (ROOT / "deploy" / "helm" / "atp" / "templates" / "servicemonitor.yaml").read_text(
         encoding="utf-8"
     )
+    performance_service = (
+        ROOT / "deploy" / "helm" / "atp" / "templates" / "performance-worker-service.yaml"
+    ).read_text(encoding="utf-8")
     ingress = (ROOT / "deploy" / "helm" / "atp" / "templates" / "ingress.yaml").read_text(encoding="utf-8")
 
     assert values["secret"] == {"create": True, "existingName": ""}
@@ -204,6 +210,11 @@ def test_helm_production_overlays_have_secret_and_metrics_hooks():
     assert "monitoring.coreos.com/v1" in service_monitor
     assert ".Values.metrics.serviceMonitor.enabled" in service_monitor
     assert "path: /metrics" in service_monitor
+    assert "performance-worker" in service_monitor
+    assert "performance-worker" in performance_service
+    assert "targetPort: metrics" in performance_service
+    assert "gt (int .Values.performanceWorker.metricsPort) 0" in service_monitor
+    assert "gt (int .Values.performanceWorker.metricsPort) 0" in performance_service
     assert "force-ssl-redirect" in ingress
 
 
@@ -222,6 +233,9 @@ def test_helm_chart_can_render_dedicated_performance_worker():
     assert ".Values.performanceWorker.metricsPort" in content
     assert ".Values.performanceWorker.nodeId" in content
     assert ".Values.performanceWorker.nodeQueue" in content
+    assert ".Values.performanceWorker.autoIdentity" in content
+    assert 'export PERFORMANCE_NODE_ID="${HOSTNAME}"' in content
+    assert 'export PERFORMANCE_NODE_QUEUE="performance.${HOSTNAME}"' in content
     assert 'queues="${CELERY_QUEUES:-performance}"' in content
     assert 'queues="${queues},performance"' in content
     assert "readinessProbe" in content

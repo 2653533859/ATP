@@ -208,6 +208,22 @@ def test_ios_appium_runbook_matches_acceptance_script():
     assert "Windows/Linux" in runbook
 
 
+def test_macos_ios_worker_launcher_is_queue_isolated_and_has_preflight():
+    content = (ROOT / "scripts" / "macos-ios-worker.sh").read_text(encoding="utf-8")
+    env = (ROOT / "config" / "startup-profiles" / "macos-ios-worker.env.example").read_text(encoding="utf-8")
+
+    assert 'PYTHON_BIN="${ATP_PYTHON:-python3}"' in content
+    assert "import celery" in content
+    assert "xcodebuild" in content
+    assert "xcrun" in content
+    assert "xcuitest" in content.lower()
+    assert "export CELERY_QUEUES=ios" in content
+    assert '"$PYTHON_BIN" -m celery' in content
+    assert '-Q "$CELERY_QUEUES"' in content
+    assert "CELERY_QUEUES=ios" in env
+    assert "ADB_SCAN_ENABLED=false" in env
+
+
 def test_acceptance_report_does_not_include_input_text_or_remote_app_query(monkeypatch, tmp_path):
     script = _load_script()
 

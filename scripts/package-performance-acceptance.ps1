@@ -39,6 +39,7 @@ $manifestPath = Join-Path $stageRoot 'bundle-manifest.json'
 $explicitFiles = @(
   '.env.performance-acceptance.example',
   'docker-compose.performance-acceptance.yml',
+  'deploy/performance-acceptance/prometheus.yml',
   'docs/performance-environment-acceptance.md',
   'deploy/performance-acceptance/acceptance.proto',
   'deploy/performance-acceptance/Dockerfile.target',

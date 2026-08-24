@@ -25,6 +25,7 @@ deploy/helm/atp/
     ├── backend-deployment.yaml   # backend + Service
     ├── worker-deployment.yaml
     ├── performance-worker-deployment.yaml # 可选独立压测 worker
+    ├── performance-worker-service.yaml    # 专用 worker metrics Service
     ├── beat-deployment.yaml      # 强制单副本 + Recreate 策略
     ├── flower-deployment.yaml    # flower + Service
     ├── ingress.yaml              # /api /ws /mock /metrics 路由
@@ -137,6 +138,7 @@ performanceWorker:
   queues: performance.node-a,performance
   concurrency: "1"
   metricsPort: 9092
+  autoIdentity: false
   nodeEnabled: true
   nodeId: worker-a
   nodeName: Worker A
@@ -154,6 +156,10 @@ performanceWorker:
   resources:
     requests: {cpu: 1000m, memory: 1Gi}
     limits: {cpu: 2000m, memory: 2Gi}
+service:
+  performanceWorker:
+    type: ClusterIP
+    port: 9092
 hpa:
   performanceWorker:
     enabled: true
@@ -167,6 +173,9 @@ hpa:
 启动命令会自动补上共享队列。建议同时配置
 `PERFORMANCE_TARGET_ALLOWLIST`、`PERFORMANCE_MAX_VUS`、`PERFORMANCE_MAX_DURATION_SECONDS` 和节点级
 `nodeEgressAllowlist`；启用 NetworkPolicy 时还必须显式配置 DNS、数据库、Redis、MinIO 与目标服务出口。
+如果需要用多个副本作为独立性能节点，将 `autoIdentity` 设为 `true`；每个 Pod 会用自身 hostname 生成唯一节点和
+`performance.<pod>` 队列，避免多个副本共享队列后误消费其他节点的定向任务。固定节点身份时保持
+`autoIdentity=false`，并为每个 Helm release 使用 `replicas: 1`、不同的 `nodeId` 和 `nodeQueue`。
 部署完成后的真实 Worker、TLS、allowlist、取消和资源采样验收命令见
 [`docs/performance-environment-acceptance.md`](performance-environment-acceptance.md)。
 
@@ -209,7 +218,8 @@ API/Worker 启动而改变 bucket 策略。Docker Compose 可用
 ## 十、生产 checklist
 
 生产 values 应使用外部 Secret，并在 Prometheus Operator 集群中开启
-`metrics.serviceMonitor.enabled`。Helm chart 会在 `ingress.tls.enabled=true` 时
+`metrics.serviceMonitor.enabled`。开启 `performanceWorker.enabled` 后，Chart 会同时
+创建专用 metrics Service 和 ServiceMonitor，采集性能 Worker 的 `/metrics`；Helm chart 会在 `ingress.tls.enabled=true` 时
 自动加上 HTTP→HTTPS 重定向；`secret.create=false` + `secret.existingName` 可绑定
 ExternalSecrets/SOPS 创建的 Secret。`make validate-deployment-readiness` 只验证
 仓库内的配置契约，不会把真实集群状态误判为已验收。
@@ -221,7 +231,7 @@ Windows 无 Git Bash、WSL 或其他 POSIX shell 时，校验器会跳过 shell 
 - [ ] MinIO lifecycle 规则已由目标环境管理员确认；若启用 `storageLifecycle`，已验证规则前缀不删除数据库仍引用的对象
 - [ ] values.secrets 已通过 ExternalSecrets / SOPS 注入，未明文提交
 - [ ] Ingress TLS 已配置，HTTP 自动重定向 HTTPS
-- [ ] Prometheus 已 ServiceMonitor 抓取 backend `/metrics`
+- [ ] Prometheus 已通过 ServiceMonitor 抓取 backend 与（启用时）performance-worker `/metrics`
 - [ ] Grafana 告警模板已按环境导入（参见 `deploy/grafana/alerts/atp-alerts.yaml`）
 - [ ] Beat 单副本 + Recreate 已确认（防重复触发 cron）
 - [ ] alembic migration 已先于流量切入

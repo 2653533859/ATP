@@ -2,7 +2,9 @@
 
 import asyncio
 from datetime import datetime, timezone
+import plistlib
 from types import SimpleNamespace
+import zipfile
 
 import pytest
 from fastapi import HTTPException
@@ -101,6 +103,32 @@ def test_list_ios_devices_filters_and_returns_rows():
         ios.list_ios_devices(status_filter=IosDeviceStatus.online, db=_DB(rows=[[device]]), _user=None)
     )
     assert result == [device]
+
+
+def test_read_ipa_metadata_extracts_bundle_id_and_version(tmp_path):
+    ipa = tmp_path / "karing.ipa"
+    with zipfile.ZipFile(ipa, "w") as archive:
+        archive.writestr(
+            "Payload/Karing.app/Info.plist",
+            plistlib.dumps(
+                {
+                    "CFBundleIdentifier": "com.example.karing",
+                    "CFBundleShortVersionString": "1.2.3",
+                }
+            ),
+        )
+
+    assert ios._read_ipa_metadata(str(ipa)) == {
+        "bundle_id": "com.example.karing",
+        "version_name": "1.2.3",
+    }
+
+
+def test_read_ipa_metadata_is_best_effort_for_invalid_archives(tmp_path):
+    invalid = tmp_path / "invalid.ipa"
+    invalid.write_bytes(b"not an ipa")
+
+    assert ios._read_ipa_metadata(str(invalid)) == {}
 
 
 def test_create_ios_device_normalizes_appium_url_and_rejects_duplicate():

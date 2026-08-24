@@ -31,11 +31,18 @@ spec:
             - sh
             - -c
             - |
-              queues="${CELERY_QUEUES:-performance}"
-              case ",${queues}," in
-                *,performance,*) ;;
-                *) queues="${queues},performance" ;;
-              esac
+              if [ "{{ .Values.performanceWorker.autoIdentity }}" = "true" ]; then
+                export PERFORMANCE_NODE_ID="${HOSTNAME}"
+                export PERFORMANCE_NODE_NAME="${PERFORMANCE_NODE_NAME:-${HOSTNAME}}"
+                export PERFORMANCE_NODE_QUEUE="performance.${HOSTNAME}"
+                queues="${PERFORMANCE_NODE_QUEUE}"
+              else
+                queues="${CELERY_QUEUES:-performance}"
+                case ",${queues}," in
+                  *,performance,*) ;;
+                  *) queues="${queues},performance" ;;
+                esac
+              fi
               exec celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q "${queues}"
           envFrom:
             - configMapRef:

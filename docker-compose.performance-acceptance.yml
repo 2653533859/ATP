@@ -73,6 +73,27 @@ services:
         condition: service_completed_successfully
     restart: unless-stopped
 
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    ports:
+      - "127.0.0.1:18090:9090"
+    volumes:
+      - ./deploy/performance-acceptance/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - acceptance_prometheus:/prometheus
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=7d
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:9090/-/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
   acceptance-tls:
     image: alpine:3.20
     volumes:
@@ -163,7 +184,33 @@ services:
         condition: service_healthy
       acceptance-target:
         condition: service_healthy
+      prometheus:
+        condition: service_healthy
       redis:
+        condition: service_healthy
+    restart: unless-stopped
+
+  beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    env_file: .env.performance-acceptance
+    environment:
+      CELERY_QUEUES: maintenance
+      CELERY_CONCURRENCY: "1"
+      WORKER_METRICS_PORT: "0"
+      ADB_SCAN_ENABLED: "false"
+      PERFORMANCE_NODE_ENABLED: "false"
+      DB_BACKUP_ENABLED: "true"
+    command: ["celery", "-A", "app.worker.celery_app", "beat", "--loglevel=info"]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      backend:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio:
         condition: service_healthy
     restart: unless-stopped
 
@@ -183,9 +230,12 @@ services:
         condition: service_started
       acceptance-target:
         condition: service_healthy
+      prometheus:
+        condition: service_healthy
 
 volumes:
   acceptance_postgres:
   acceptance_redis:
   acceptance_minio:
   acceptance_tls:
+  acceptance_prometheus:

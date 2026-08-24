@@ -21,6 +21,21 @@
 - [x] 验证：非集成后端 `2111 passed`，两个改动测试文件独立运行 `47 passed` / `7 passed`，通知与脚本契约定向回归 `138 passed`，Ruff check/format、mypy（137 文件）和 `git diff --check` 通过。
 - [ ] SMTP、企业微信、钉钉真实送达仍需注入 sandbox 凭据后分渠道执行并归档；本地回归不替代供应商证据。
 
+## 2026-08-17 非 Android/API 外部项收口推进
+
+- [x] 在 `172.31.27.133` 的 `/opt/atp-q18-acceptance-20260817` 部署当前代码隔离 Compose 栈，改用 28080/28090/28092，旧 q17 栈未停止；Backend、Prometheus、专用 Worker、Beat、PostgreSQL、Redis、MinIO 和目标服务均健康，PromQL 同时看到 Backend/Worker target。
+- [x] 完成真实 PostgreSQL→MinIO 日备份和临时库恢复：固定 Worker 使用 PostgreSQL 16.15 `pg_dump`，备份对象已上传，临时库恢复 53 张 public 表后删除；证据见 `docs/evidence/performance-linux-q18-acceptance-2026-08-17.json`。
+- [x] Helm 专用 performance Worker 增加 `autoIdentity`：多副本时按 Pod hostname 生成独立节点 ID、名称和 `performance.<pod>` 队列；默认关闭以保持旧固定节点配置兼容。
+- [x] 通知通道代码契约已通过 API/服务/验收脚本定向回归 `45 passed`，部署/Compose/通知契约回归 `28 passed`；重试、429/5xx 退避、脱敏和投递历史入口已具备。
+- [x] 性能验收 Compose 栈增加 Prometheus（Backend、专用 performance Worker 两个 scrape target、7 天本地历史）和单副本 Beat；Helm 增加专用 performance Worker metrics Service 与 ServiceMonitor，避免 Kubernetes 只采集 Backend 而遗漏压测节点指标。
+- [x] 自动 PostgreSQL 备份不再依赖 Worker 镜像中的 `mc` 或仓库根目录 `scripts/backup-postgres.sh`：Worker 内直接流式执行 `pg_dump`、gzip 并通过 Python MinIO SDK 上传；补充成功、失败和临时文件清理回归。
+- [x] iOS IPA 上传会尽力解析 `Payload/*.app/Info.plist`，自动回填 Bundle ID 和版本号；手工字段仍优先，损坏/非标准归档不会阻断上传。
+- [x] 增加 `scripts/macos-ios-worker.sh` 与 `config/startup-profiles/macos-ios-worker.env.example`：启动前检查 macOS/Xcode/Appium/XCUITest，并强制 Worker 只监听 `ios` 队列。
+- [x] 本轮定向回归 `84 passed`，完整非集成后端回归 `2091 passed`；Ruff check/format 与 `git diff --check` 通过。
+- [ ] Kubernetes 多节点、生产 Prometheus 历史、真实 MinIO 保留/跨主机恢复仍需目标集群和运维确认；远端 `172.31.27.133` 当前无 kubectl/helm，未将 Compose 结果冒充生产验收。
+- [ ] SMTP/企业微信/钉钉真实投递仍需管理员提供临时测试目标；当前代码已有重试、429/5xx 退避、脱敏和投递历史，未伪造外部送达证据。
+- [ ] iOS 真机/模拟器闭环仍需 macOS、Xcode、签名应用、WebDriverAgent 和设备；Windows/Linux 只完成代码契约与启动前检查。
+
 ## 2026-08-17 GitHub Actions 远端失败修复
 
 - [x] 修复 CI 的 Ruff 格式检查失败：格式化 6 个被报告的后端源码/测试文件，并通过完整格式检查。

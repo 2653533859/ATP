@@ -106,6 +106,10 @@
           "maximum": 65535,
           "description": "Prometheus metrics port for the dedicated performance worker."
         },
+        "autoIdentity": {
+          "type": "boolean",
+          "description": "Derive a unique node ID and Celery queue from the Kubernetes Pod hostname for each replica."
+        },
         "nodeEnabled": { "type": "boolean", "description": "Enable performance-node heartbeat registration for the dedicated worker." },
         "nodeId": { "type": "string", "maxLength": 128, "description": "Stable performance node ID. Empty disables explicit node registration." },
         "nodeName": { "type": "string", "maxLength": 128, "description": "Display name for the performance node." },
@@ -241,6 +245,7 @@
       "description": "Kubernetes Service settings.",
       "properties": {
         "backend": { "$ref": "#/definitions/service" },
+        "performanceWorker": { "$ref": "#/definitions/service" },
         "flower": { "$ref": "#/definitions/service" }
       }
     },

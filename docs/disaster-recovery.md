@@ -4,6 +4,14 @@ This runbook covers PostgreSQL backups created by `scripts/backup-postgres.sh`,
 database restores through `scripts/restore-postgres.sh`, and MinIO object
 storage backup/restore drills.
 
+Celery Worker 的自动备份路径直接调用容器内的 `pg_dump` 和 Python MinIO SDK，
+不要求镜像额外安装 `mc`，也不依赖只在仓库根目录存在的运维脚本；根目录脚本仍可供
+具备 `pg_dump`/`mc` 的运维主机手工执行。
+
+Worker 镜像显式安装 PostgreSQL 16 客户端，避免 Debian bookworm 的通用
+`postgresql-client` 落到 15.x 后拒绝备份 PostgreSQL 16 服务端。2026-08-17 的隔离
+备份/恢复演练证据见 [`performance-linux-q18-acceptance-2026-08-17.json`](evidence/performance-linux-q18-acceptance-2026-08-17.json)。
+
 ## Scope
 
 - PostgreSQL application database.

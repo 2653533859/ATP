@@ -67,6 +67,9 @@ performanceWorker:
   metricsPort: 9092
   # Node identity and application-level performance guardrails. Leave nodeId
   # empty to keep this worker on the shared performance queue without pinning runs.
+  # Set true when replicas > 1. Each Pod registers its hostname as a distinct
+  # node and consumes its own performance.<pod> queue.
+  autoIdentity: false
   nodeEnabled: true
   nodeId: ""
   nodeName: ""
@@ -227,6 +230,11 @@ service:
     type: ClusterIP
     # Backend Service port.
     port: 8000
+  performanceWorker:
+    # Internal metrics Service for the dedicated performance Worker.
+    # It is created only when performanceWorker.enabled is true.
+    type: ClusterIP
+    port: 9092
   flower:
     # Flower Service type.
     type: ClusterIP
