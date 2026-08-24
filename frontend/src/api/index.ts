@@ -1465,6 +1465,36 @@ export const healthApi = {
   dependencies: () => http.get<unknown, DependencyHealthResponse>('/health/dependencies'),
 }
 
+export type RemoteToolboxCheckStatus = 'ok' | 'warning' | 'error'
+export type RemoteToolboxCheckCategory = 'infrastructure' | 'execution'
+
+export interface RemoteToolboxResourceItem {
+  id: string
+  name: string
+  status: RemoteToolboxCheckStatus
+  summary: string
+  metadata: Record<string, unknown>
+}
+
+export interface RemoteToolboxCheckItem {
+  key: string
+  category: RemoteToolboxCheckCategory
+  status: RemoteToolboxCheckStatus
+  code: string
+  latency_ms: number
+  resources: RemoteToolboxResourceItem[]
+}
+
+export interface RemoteToolboxOverview {
+  status: 'ok' | 'degraded' | 'error'
+  checked_at: string
+  checks: RemoteToolboxCheckItem[]
+}
+
+export const remoteToolboxApi = {
+  overview: () => http.get<unknown, RemoteToolboxOverview>('/remote-toolbox/overview'),
+}
+
 export interface AdminUserItem {
   id: number
   username: string

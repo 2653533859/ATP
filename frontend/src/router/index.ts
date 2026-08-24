@@ -186,7 +186,7 @@ const router = createRouter({
         {
           path: 'system/toolbox',
           name: 'system-toolbox',
-          component: () => import('@/views/navigation/NavigationPlaceholderView.vue'),
+          component: () => import('@/views/system/RemoteToolboxView.vue'),
           meta: {
             roles: ENGINEER_ONLY,
             menuTitleKey: 'menu.system_center.toolbox',
