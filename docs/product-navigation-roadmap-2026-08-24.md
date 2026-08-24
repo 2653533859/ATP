@@ -101,6 +101,12 @@
 - **审查与验证**：提交 `31df065`；外部缺陷定向 `40 passed`，完整后端非集成 `2234 passed`，Ruff、格式、mypy 和 `git diff --check` 通过。脱敏证据见 [`external-tracker-error-safety-2026-08-25.json`](evidence/external-tracker-error-safety-2026-08-25.json)。
 - **边界**：本模块只证明本地错误边界和脱敏逻辑，真实 Jira、禅道、GitHub Issues、GitLab Issues 的创建、去重、状态同步、权限和清理仍待临时目标与凭据。
 
+### 2026-08-25 P1-D q19 运行态部署
+
+- **部署**：q19 从 `origin/main` 的 `cec8eaf` 独立工作树重建，显式复用 `atp-q19-acceptance-20260824` Compose 项目名，不删除已有数据卷。
+- **验证**：迁移 `20260824_0065 (head)`、Backend `200`、Redis `PONG`、Prometheus ready/`4` targets up；通用 Worker、性能 Worker、Beat、Web Recorder 共 `4` 个容器运行，最近 3 分钟 Backend/Worker 错误匹配数为 `0`。
+- **边界**：这是 q19 Compose 运行态证据，不关闭真实 Jira/禅道/GitHub/GitLab 联调、Kubernetes 多节点或 Android 真机门禁。证据见 [`q19-external-tracker-deployment-2026-08-25.json`](evidence/q19-external-tracker-deployment-2026-08-25.json)。
+
 ### 2026-08-25 工作台任务状态枚举隔离修复
 
 - **问题**：q19 日志显示 `/workbench/overview` 将跨任务域失败状态集合直接用于每张运行表，普通 `TestRun` 查询因此收到 Android `stopped`，触发 PostgreSQL enum 错误。

@@ -1,0 +1,25 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-25",
+  "source_commit": "cec8eaf",
+  "scope": "q19_external_tracker_error_safety_deployment",
+  "deployment": {
+    "host": "172.31.27.133",
+    "compose_project": "atp-q19-acceptance-20260824",
+    "worktree": "/opt/atp-q19-external-tracker-20260825",
+    "migration": "20260824_0065 (head)"
+  },
+  "checks": [
+    {"name": "backend_health", "result": "200"},
+    {"name": "redis", "result": "PONG"},
+    {"name": "prometheus_ready", "result": "ready"},
+    {"name": "prometheus_targets", "result": "4 up"},
+    {"name": "runtime_containers", "result": "worker/performance-worker/beat/web-recorder 4 running"},
+    {"name": "recent_backend_worker_errors", "result": "0 matching ERROR/Traceback/enum in last 3 minutes"}
+  ],
+  "limitations": [
+    "q19 是 Compose 验收环境，不代表 Kubernetes 多节点或生产外部缺陷平台已验收。",
+    "没有在真实 Jira、禅道、GitHub Issues 或 GitLab Issues 创建临时缺陷；真实创建、去重、状态同步、权限和清理仍待目标与凭据。",
+    "Android ADB 仍未恢复为 device，本部署不关闭 Android 真机验收门禁。"
+  ]
+}

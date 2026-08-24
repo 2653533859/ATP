@@ -47,6 +47,12 @@
 - 本地证据：提交 `31df065`，外部缺陷定向 `40 passed`、完整后端非集成 `2234 passed`，Ruff、格式、mypy 和 diff-check 通过；详见 [`external-tracker-error-safety-2026-08-25.json`](evidence/external-tracker-error-safety-2026-08-25.json)。
 - 发布边界：没有真实外部缺陷平台项目与凭据，本模块不关闭 Jira/禅道/GitHub/GitLab 的环境验收门禁。
 
+## 2026-08-25 P1-D q19 运行态部署
+
+- q19 已重建到 `cec8eaf`，复用 `atp-q19-acceptance-20260824` Compose 项目名，迁移为 `20260824_0065 (head)`。
+- 运行验证通过：Backend `200`、Redis `PONG`、Prometheus ready 且 `4` 个 target 为 `up`；通用 Worker、性能 Worker、Beat、Web Recorder 正常运行，最近 3 分钟 Backend/Worker 错误匹配数为 `0`。
+- 发布边界：q19 Compose 不是 Kubernetes 多节点或生产外部平台证据；真实 Jira/禅道/GitHub/GitLab、Android 真机和生产性能验收仍待独立完成。详见 [`q19-external-tracker-deployment-2026-08-25.json`](evidence/q19-external-tracker-deployment-2026-08-25.json)。
+
 ## 2026-08-25 Windows 已认证浏览器冒烟复核
 
 - 复用当前已登录的 Windows 浏览器会话，实际加载统计看板、工作台概览、我的待办、用例管理、执行记录、测试套件、存储管理和 API 契约资产；页面均保持在业务页，未回到登录页，用户菜单显示为 `admin`。

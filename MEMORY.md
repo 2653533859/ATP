@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 P1-D 运行态已同步：q19 从 `origin/main` 的 `cec8eaf` 独立工作树重建，迁移 `20260824_0065 (head)`、Backend `200`、Redis `PONG`、Prometheus `4` targets `up`，通用 Worker/性能 Worker/Beat/Web Recorder 共 4 个容器运行，最近 3 分钟 Backend/Worker 错误匹配数为 0。证据见 `docs/evidence/q19-external-tracker-deployment-2026-08-25.json`。该证据只覆盖 Compose 运行态，不替代真实 Jira/禅道/GitHub/GitLab、Kubernetes 多节点、生产性能或 Android 真机验收。
+
 - 2026-08-25 P1-D 外部缺陷平台错误安全收口已提交 `31df065`：新增 `safe_external_error`，统一脱敏供应商异常中的字段密钥、URL 查询参数密钥和 URL 用户信息；连接测试、创建缺陷、刷新状态不再返回原始异常，创建/状态刷新返回 502，连接测试保留 `ok=false`。同时修复 `bug_trackers.py` 的查询结果/创建结果变量复用 mypy 问题。外部缺陷定向 `40 passed`，完整后端非集成 `2234 passed`，Ruff、格式、mypy、diff-check 通过。未连接真实 Jira、禅道、GitHub Issues 或 GitLab Issues，真实创建/去重/状态同步/权限/清理仍待临时目标与凭据；证据见 `docs/evidence/external-tracker-error-safety-2026-08-25.json`。
 
 - 2026-08-25 Android 录屏证据展示已补齐并提交 `279b254`：运行详情页优先读取通用 `video_url`，否则读取 `result_summary.android_artifacts.screen_recording`；录屏不可用时展示 `screen_recording_error`；HTML 报告同步嵌入 Android 录屏，PDF 既有无视频行为不变；WebSocket 完成事件后自动刷新详情，确保无需手动刷新即可看到录屏。后端导出 `13 passed`、RunDetail `6 passed`、前端全量 `66 files / 268 tests passed`，type-check/build、Ruff/diff-check 通过。q19 已用 `257c479` 重建，迁移 `20260824_0065 (head)`、健康 `200`、Prometheus 4 targets `up`、Celery 2 节点响应、最近 3 分钟后端错误匹配数为 0。此证据只覆盖结果展示/报告链路，不代表真实设备录屏采集；ADB 当前仍为 `offline`，P0-B 真机验收未关闭。脱敏证据见 `docs/evidence/android-recording-evidence-2026-08-25.json` 和 `docs/evidence/q19-android-recording-deployment-2026-08-25.json`。

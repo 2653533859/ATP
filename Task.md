@@ -50,6 +50,12 @@
 - [x] 代码审查后回归：外部缺陷定向 `40 passed`，完整后端非集成 `2234 passed`，Ruff、格式、mypy 和 diff-check 通过；提交 `31df065` 已完成本地提交。
 - [E] 未连接真实 Jira、禅道、GitHub Issues 或 GitLab Issues 项目；真实创建、去重、状态同步、权限和清理仍需临时项目与凭据。证据见 [`external-tracker-error-safety-2026-08-25.json`](docs/evidence/external-tracker-error-safety-2026-08-25.json)。
 
+## 2026-08-25 P1-D q19 运行态部署
+
+- [x] q19 已从 `origin/main` 的 `cec8eaf` 独立工作树重建，显式复用 `atp-q19-acceptance-20260824` Compose 项目名，未删除数据库、Redis 或 MinIO 卷。
+- [x] 远端验证：迁移 `20260824_0065 (head)`、Backend 健康 `200`、Redis `PONG`、Prometheus `ready` 且 `4` 个 target 为 `up`；通用 Worker、性能 Worker、Beat、Web Recorder 共 `4` 个容器运行，最近 3 分钟 Backend/Worker 错误匹配数为 `0`。
+- [E] q19 只证明最新代码在 Compose 验收环境可启动；未连接真实 Jira、禅道、GitHub Issues 或 GitLab Issues，也不替代 Kubernetes 多节点、生产外部平台和 Android 真机验收。证据见 [`q19-external-tracker-deployment-2026-08-25.json`](docs/evidence/q19-external-tracker-deployment-2026-08-25.json)。
+
 ## 2026-08-25 工作台任务状态枚举隔离修复
 
 - [x] 根据 q19 工作台日志定位到跨域状态集合问题：普通 `TestRun` 查询被错误带入 Android `stopped` 和性能 `cancelled`，PostgreSQL 会在 `/workbench/overview` 返回 `invalid input value for enum runstatus`。
