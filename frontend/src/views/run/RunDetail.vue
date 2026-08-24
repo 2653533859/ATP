@@ -373,17 +373,19 @@
         </div>
 
         <!-- 录像播放 -->
-        <div v-if="videoUrl" class="video-section">
+        <div v-if="videoUrl || videoError" class="video-section">
           <a-divider orientation="left" style="margin: 16px 0 12px">
             <VideoCameraOutlined /> {{ t('run.labels.video') }}
           </a-divider>
           <video
+            v-if="videoUrl"
             :src="videoUrl"
             controls
             class="video-player"
           >
             {{ t('run.no_video_support') }}
           </video>
+          <div v-else class="video-error" role="alert">{{ videoError }}</div>
         </div>
 
         <a-collapse
@@ -1016,8 +1018,23 @@ const bugInfo = computed<BugLinkInfo | null>(() => {
 })
 
 const videoUrl = computed(() => {
-  const value = run.value?.result_summary?.video_url
-  return typeof value === 'string' ? value : ''
+  const summary = run.value?.result_summary
+  if (!summary) return ''
+  const direct = summary.video_url
+  if (typeof direct === 'string' && direct) return direct
+  const artifacts = summary.android_artifacts
+  if (artifacts && typeof artifacts === 'object' && !Array.isArray(artifacts)) {
+    const recording = (artifacts as Record<string, unknown>).screen_recording
+    if (typeof recording === 'string' && recording) return recording
+  }
+  return ''
+})
+
+const videoError = computed(() => {
+  const artifacts = run.value?.result_summary?.android_artifacts
+  if (!artifacts || typeof artifacts !== 'object' || Array.isArray(artifacts)) return ''
+  const error = (artifacts as Record<string, unknown>).screen_recording_error
+  return typeof error === 'string' ? error : ''
 })
 
 const runHealing = computed<RunHealingPayload | null>(() =>
@@ -1211,6 +1228,17 @@ async function refreshBugStatus() {
   }
 }
 
+async function refreshRunDetail() {
+  try {
+    const data = await runApi.get(runId) as RunDetailItem
+    run.value = data
+    steps.value = data.steps ?? []
+    expandedKeys.value = computeExpandedKeys(steps.value)
+  } catch {
+    // 保留 WebSocket 已推送的状态，详情刷新失败不影响当前结果展示。
+  }
+}
+
 function applyWsMessage(msg: WsMessage) {
   if (msg.type === 'run_status') {
     if (run.value && msg.status) run.value.status = msg.status
@@ -1267,6 +1295,7 @@ function applyWsMessage(msg: WsMessage) {
       }
     }
     wsHandle?.close()
+    void refreshRunDetail()
   }
 }
 
@@ -1296,11 +1325,7 @@ onMounted(async () => {
 
   if (run.value?.status === 'pending' || run.value?.status === 'running') {
     wsHandle = createRunWebSocket(runId, applyWsMessage, () => {
-      runApi.get(runId).then((d: RunDetailItem) => {
-        run.value = d
-        steps.value = d.steps ?? []
-        expandedKeys.value = computeExpandedKeys(steps.value)
-      })
+      void refreshRunDetail()
     })
   }
 
@@ -1652,6 +1677,14 @@ onUnmounted(() => {
   max-width: 800px;
   border-radius: 8px;
   background: #000;
+}
+.video-error {
+  max-width: 800px;
+  padding: 10px 12px;
+  color: #ad6800;
+  background: #fffbe6;
+  border: 1px solid #ffe58f;
+  border-radius: 6px;
 }
 
 .panel-label {

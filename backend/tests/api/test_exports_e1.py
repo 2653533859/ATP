@@ -166,6 +166,20 @@ def test_build_report_html_embeds_video_when_url_present():
     assert "执行录像" in html
 
 
+def test_build_report_html_embeds_android_screen_recording_artifact():
+    run = _make_run()
+    run.result_summary = {
+        "android_artifacts": {
+            "screen_recording": "https://minio.local/android-artifacts/runs/1/screen-recording.mp4"
+        }
+    }
+
+    html = asyncio.run(exports_mod._build_report_html(run, [], "android-case", case_type="android"))
+
+    assert "<video" in html
+    assert "https://minio.local/android-artifacts/runs/1/screen-recording.mp4" in html
+
+
 def test_build_report_html_omits_video_when_url_absent():
     run = _make_run()
     run.result_summary = {}

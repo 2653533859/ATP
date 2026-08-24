@@ -31,6 +31,9 @@ vi.mock('@/api', () => ({
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_p, { slots }) => () => h('div', slots.default?.()) })
 
+type TestWsMessage = { type: string; status?: string; duration_ms?: number }
+let wsMessageHandler: ((message: TestWsMessage) => void) | null = null
+
 function mountRunDetail() {
   return mount(RunDetail, {
     global: {
@@ -73,6 +76,7 @@ function mountRunDetail() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  wsMessageHandler = null
   tracingGetConfig.mockResolvedValue({ jaeger_ui_url: 'http://jaeger' })
   runGet.mockResolvedValue({
     id: 42,
@@ -87,7 +91,10 @@ beforeEach(() => {
     steps: [{ step_index: 0, name: 'assert text', status: 'failed', error_message: 'missing text', screenshot_url: 'https://minio/1.png' }],
   })
   runExportHtml.mockResolvedValue(new Blob(['html']))
-  createRunWebSocket.mockReturnValue({ close: vi.fn() })
+  createRunWebSocket.mockImplementation((_runId: number, onMessage: (message: TestWsMessage) => void) => {
+    wsMessageHandler = onMessage
+    return { close: vi.fn() }
+  })
 })
 
 describe('RunDetail mount', () => {
@@ -140,5 +147,90 @@ describe('RunDetail mount', () => {
     expect(wrapper.text()).toContain('emu-2')
     expect(wrapper.text()).toContain('assertion failed')
     expect(wrapper.text()).toContain('run.device_matrix.total')
+  })
+
+  it('renders an Android screen recording stored in android artifacts', async () => {
+    runGet.mockResolvedValueOnce({
+      id: 42,
+      case_id: 100,
+      status: 'passed',
+      trace_id: null,
+      environment: 'staging',
+      duration_ms: 321,
+      created_at: '2026-07-11T01:00:00Z',
+      error_message: null,
+      result_summary: {
+        android_artifacts: {
+          screen_recording: 'https://minio/android-artifacts/runs/42/screen-recording.mp4',
+        },
+      },
+      steps: [],
+    })
+
+    const wrapper = mountRunDetail()
+    await flushPromises()
+
+    expect(wrapper.find('video').attributes('src')).toBe('https://minio/android-artifacts/runs/42/screen-recording.mp4')
+  })
+
+  it('shows an Android recording warning when the device cannot produce a video', async () => {
+    runGet.mockResolvedValueOnce({
+      id: 42,
+      case_id: 100,
+      status: 'passed',
+      trace_id: null,
+      environment: 'staging',
+      duration_ms: 321,
+      created_at: '2026-07-11T01:00:00Z',
+      error_message: null,
+      result_summary: {
+        android_artifacts: { screen_recording_error: '设备未生成可上传的录屏文件' },
+      },
+      steps: [],
+    })
+
+    const wrapper = mountRunDetail()
+    await flushPromises()
+
+    expect(wrapper.find('[role="alert"]').text()).toContain('设备未生成可上传的录屏文件')
+  })
+
+  it('refreshes Android artifacts when a live run completes', async () => {
+    runGet.mockResolvedValueOnce({
+      id: 42,
+      case_id: 100,
+      status: 'running',
+      trace_id: null,
+      environment: 'staging',
+      duration_ms: null,
+      created_at: '2026-07-11T01:00:00Z',
+      error_message: null,
+      result_summary: {},
+      steps: [],
+    })
+    runGet.mockResolvedValueOnce({
+      id: 42,
+      case_id: 100,
+      status: 'passed',
+      trace_id: null,
+      environment: 'staging',
+      duration_ms: 321,
+      created_at: '2026-07-11T01:00:00Z',
+      error_message: null,
+      result_summary: {
+        android_artifacts: {
+          screen_recording: 'https://minio/android-artifacts/runs/42/screen-recording.mp4',
+        },
+      },
+      steps: [],
+    })
+
+    const wrapper = mountRunDetail()
+    await flushPromises()
+
+    wsMessageHandler?.({ type: 'completed', status: 'passed', duration_ms: 321 })
+    await flushPromises()
+
+    expect(wrapper.find('video').attributes('src')).toBe('https://minio/android-artifacts/runs/42/screen-recording.mp4')
   })
 })

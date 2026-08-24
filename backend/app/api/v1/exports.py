@@ -648,6 +648,10 @@ async def _build_report_html(
         summary = getattr(run, "result_summary", None) or {}
         if isinstance(summary, dict):
             candidate = summary.get("video_url")
+            if not isinstance(candidate, str) or not candidate:
+                android_artifacts = summary.get("android_artifacts")
+                if isinstance(android_artifacts, dict):
+                    candidate = android_artifacts.get("screen_recording")
             if isinstance(candidate, str) and candidate:
                 video_url = candidate
     device_matrix = _build_device_matrix_report_view(getattr(run, "result_summary", None))
