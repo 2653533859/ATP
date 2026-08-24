@@ -17,14 +17,14 @@ export const routeMenuGroups: Record<string, NavigationGroup> = {
   '/reports': 'test-assets',
   '/case-reviews': 'test-assets',
   '/suites': 'test-assets',
-  '/mock-rules': 'test-assets',
-  '/system/datasets': 'test-assets',
-  '/system/web-assets': 'test-assets',
-  '/system/api-contract-assets': 'test-assets',
+  '/system/datasets': 'test-capabilities',
+  '/system/web-assets': 'test-capabilities',
+  '/system/api-contract-assets': 'test-capabilities',
   '/system/performance': 'test-capabilities',
   '/system': 'system-center',
   '/devices': 'test-capabilities',
   '/apks': 'test-capabilities',
+  '/mock-rules': 'test-capabilities',
 }
 
 export const navigationGroupTitleKeys: Record<NavigationGroup, string> = {
@@ -74,7 +74,15 @@ export function getSelectedMenuKey(path: string): string {
   if (path.startsWith('/projects/')) return '/projects'
   if (path.startsWith('/cases/')) return '/cases'
   if (path.startsWith('/runs/')) return '/runs'
-  if (path.startsWith('/mobile-special/reports/')) return '/mobile-special/reports'
+  if (path.startsWith('/mobile-special/')) return '/mobile-special/workbench'
+  if (path.startsWith('/devices') || path.startsWith('/apks')) return '/mobile-special/workbench'
+  if (path.startsWith('/system/performance')) return '/performance-workbench'
+  if (path.startsWith('/system/web-assets')) return '/ui-workbench'
+  if (path.startsWith('/system/api-contract-assets')) return '/api-workbench'
+  if (path.startsWith('/system/datasets') || path.startsWith('/mock-rules')) return '/ai-workbench'
+  if (path.startsWith('/suites')) return '/plans'
+  if (path.startsWith('/system/toolbox')) return '/system/toolbox'
+  if (path.startsWith('/system/config') || path.startsWith('/system/')) return '/system/config'
   return path
 }
 

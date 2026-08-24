@@ -5,6 +5,7 @@ import ConfigurationCenterView from './ConfigurationCenterView.vue'
 
 const {
   projectList,
+  authRole,
   overview,
   revisions,
   diff,
@@ -15,6 +16,7 @@ const {
   messageSuccess,
 } = vi.hoisted(() => ({
   projectList: vi.fn(),
+  authRole: 'admin' as string,
   overview: vi.fn(),
   revisions: vi.fn(),
   diff: vi.fn(),
@@ -30,6 +32,8 @@ vi.mock('@/api', () => ({
   configurationCenterApi: { overview, revisions, diff, createRevision, rollback },
 }))
 vi.mock('vue-router', () => ({ useRouter: () => ({ push }) }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: { role: authRole } }) }))
+vi.mock('@/utils/permissions', () => ({ hasAnyRole: (role: string, roles: string[]) => roles.includes(role) }))
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({
     t: (key: string, params?: Record<string, unknown>) => params ? `${key}:${JSON.stringify(params)}` : key,
@@ -120,6 +124,9 @@ describe('ConfigurationCenterView', () => {
     expect(revisions).toHaveBeenCalledWith({ domain: 'environment', resource_id: 11, project_id: 1, limit: 50 })
     expect(wrapper.text()).toContain('测试环境')
     expect(wrapper.text()).toContain('v41')
+    expect(wrapper.findAll('.governance-link')).toHaveLength(4)
+    await wrapper.find('.governance-link').trigger('click')
+    expect(push).toHaveBeenCalledWith('/system/users')
     wrapper.unmount()
   })
 

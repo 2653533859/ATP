@@ -8,11 +8,11 @@ from tests._paths import repo_path
 
 def test_dashboard_alert_route_and_menu_registered():
     router = repo_path("frontend/src/router/index.ts").read_text(encoding="utf-8")
-    layout = repo_path("frontend/src/layouts/MainLayout.vue").read_text(encoding="utf-8")
+    configuration = repo_path("frontend/src/views/system/ConfigurationCenterView.vue").read_text(encoding="utf-8")
 
     assert "system/dashboard-alerts" in router
     assert "DashboardAlertRulesView.vue" in router
-    assert "/system/dashboard-alerts" in layout
+    assert "path: '/system/dashboard-alerts'" in configuration
 
 
 def test_dashboard_alert_api_client_registered():

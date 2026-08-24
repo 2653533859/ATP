@@ -22,6 +22,18 @@
       </div>
     </header>
 
+    <nav v-if="governanceLinks.length" class="governance-strip" :aria-label="t('configuration_center.governance_kicker')">
+      <div>
+        <p class="section-kicker">{{ t('configuration_center.governance_kicker') }}</p>
+        <p class="governance-copy">{{ t('configuration_center.governance_description') }}</p>
+      </div>
+      <div class="governance-links">
+        <button v-for="link in governanceLinks" :key="link.path" type="button" class="governance-link" @click="openGovernance(link.path)">
+          {{ t(link.labelKey) }} <span aria-hidden="true">↗</span>
+        </button>
+      </div>
+    </nav>
+
     <div v-if="loadError" class="state-banner state-error" role="alert">
       <span class="state-mark">!</span>
       <span>{{ loadError }}</span>
@@ -261,6 +273,8 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+import { useAuthStore } from '@/stores/auth'
+import { hasAnyRole, type UserRole } from '@/utils/permissions'
 import {
   configurationCenterApi,
   projectApi,
@@ -275,6 +289,7 @@ import {
 
 const { t } = useI18n()
 const router = useRouter()
+const auth = useAuthStore()
 const projects = ref<ProjectItem[]>([])
 const selectedProjectId = ref<number | null>(null)
 const overview = ref<ConfigurationCenterOverview | null>(null)
@@ -294,6 +309,15 @@ const rollbackToken = ref('')
 const rollbackLoading = ref(false)
 let revisionsRequestSequence = 0
 let diffRequestSequence = 0
+
+const governanceTargets: Array<{ path: string; labelKey: string; roles: UserRole[] }> = [
+  { path: '/system/users', labelKey: 'menu.system.users', roles: ['admin'] },
+  { path: '/system/audit-logs', labelKey: 'menu.system.audit_logs', roles: ['admin'] },
+  { path: '/system/run-retention', labelKey: 'menu.system.run_retention', roles: ['admin'] },
+  { path: '/system/dashboard-alerts', labelKey: 'menu.system.dashboard_alerts', roles: ['admin'] },
+]
+
+const governanceLinks = computed(() => governanceTargets.filter((target) => hasAnyRole(auth.user?.role, target.roles)))
 
 const supportedRevisionDomains = new Set<ConfigurationSnapshotDomain>([
   'environment', 'global_variable', 'ai_llm', 'storage_policy', 'notification', 'performance_node',
@@ -493,6 +517,10 @@ function openSource(route: string, resource?: ConfigurationEntryItem) {
   void router.push(projectId ? { path: route, query: { project_id: String(projectId) } } : route)
 }
 
+function openGovernance(path: string) {
+  void router.push(path)
+}
+
 function openRollback() {
   if (!selectedRevision.value) return
   rollbackToken.value = ''
@@ -544,6 +572,11 @@ h1, h2, h3, p { margin-top: 0; }
 h1 { margin-bottom: 8px; font-size: clamp(30px, 4vw, 48px); letter-spacing: -.045em; line-height: 1; }
 .hero-copy { max-width: 650px; margin-bottom: 0; color: var(--muted); font-size: 14px; line-height: 1.65; }
 .hero-actions { display: flex; align-items: flex-end; gap: 10px; }
+.governance-strip { display: flex; align-items: center; justify-content: space-between; gap: 18px; max-width: 1600px; margin: 0 auto 18px; border: 1px solid #cfe2de; border-radius: 12px; background: rgba(255,255,255,.68); padding: 12px 14px; }
+.governance-copy { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
+.governance-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.governance-link { border: 1px solid #c7ddd8; border-radius: 999px; background: #f5fbf9; padding: 7px 10px; color: var(--teal-dark); cursor: pointer; font: inherit; font-size: 11px; font-weight: 800; }
+.governance-link:hover { border-color: var(--teal); background: #eaf7f3; }
 .project-filter { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
 select, input { min-height: 38px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); padding: 0 12px; font: inherit; outline: none; }
 select:focus, input:focus, button:focus-visible { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(17, 136, 137, .16); outline: none; }
@@ -668,6 +701,6 @@ select:focus, input:focus, button:focus-visible { border-color: var(--teal); box
 .modal-actions { justify-content: flex-end; margin-top: 22px; }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .01ms !important; } }
 @media (max-width: 1180px) { .configuration-layout { grid-template-columns: 190px minmax(330px, 1fr); } .detail-pane { grid-column: 1 / -1; border-top: 1px solid var(--line); border-right: 0; } }
-@media (max-width: 760px) { .configuration-page { padding: 20px 14px 35px; } .configuration-hero { display: grid; align-items: stretch; } .hero-actions { align-items: stretch; } .project-filter { flex: 1; } .hero-actions .button { align-self: end; } .metric-strip { grid-template-columns: repeat(2, 1fr); } .metric-cell:nth-child(2) { border-right: 0; } .metric-cell:nth-child(-n+2) { border-bottom: 1px solid var(--line); } .configuration-layout { display: block; } .domain-rail, .resource-pane { border-right: 0; border-bottom: 1px solid var(--line); } .domain-item { display: inline-grid; width: calc(50% - 6px); margin-right: 6px; vertical-align: top; } .rail-note { margin-top: 13px; } .detail-pane { min-height: 400px; } .snapshot-action { display: grid; } }
+@media (max-width: 760px) { .configuration-page { padding: 20px 14px 35px; } .configuration-hero { display: grid; align-items: stretch; } .hero-actions { align-items: stretch; } .governance-strip { display: grid; align-items: stretch; } .governance-links { justify-content: flex-start; } .project-filter { flex: 1; } .hero-actions .button { align-self: end; } .metric-strip { grid-template-columns: repeat(2, 1fr); } .metric-cell:nth-child(2) { border-right: 0; } .metric-cell:nth-child(-n+2) { border-bottom: 1px solid var(--line); } .configuration-layout { display: block; } .domain-rail, .resource-pane { border-right: 0; border-bottom: 1px solid var(--line); } .domain-item { display: inline-grid; width: calc(50% - 6px); margin-right: 6px; vertical-align: top; } .rail-note { margin-top: 13px; } .detail-pane { min-height: 400px; } .snapshot-action { display: grid; } }
 @media (max-width: 460px) { .hero-actions { display: grid; } .hero-actions .button { width: 100%; } .metric-cell { padding: 13px; } .metric-cell strong { font-size: 20px; } .domain-item { width: 100%; margin-right: 0; } .detail-summary { grid-template-columns: 1fr 1fr; } .detail-summary div:last-child { grid-column: 1 / -1; } }
 </style>

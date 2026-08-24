@@ -1022,6 +1022,8 @@ export default {
     empty_title: 'No configuration resources yet',
     empty_description: 'Open the original configuration page to create a resource, then return here to capture a version.',
     open_source: 'Open source page',
+    governance_kicker: 'PLATFORM GOVERNANCE',
+    governance_description: 'User, audit, retention, and alert pages stay discoverable here while preserving their existing permissions.',
     detail_empty_title: 'Select a resource',
     detail_empty_description: 'Choose a resource from the register to inspect versions, diffs, and the rollback entry point.',
     detail_status: 'Current status',

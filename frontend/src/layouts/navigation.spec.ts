@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { getBreadcrumbKeys, getRouteTitleKey, getSelectedMenuKey } from './navigation'
+import { getBreadcrumbKeys, getMenuOpenKeys, getRouteTitleKey, getSelectedMenuKey } from './navigation'
 
 describe('layout navigation state', () => {
   it('builds a group and page breadcrumb for system pages', () => {
@@ -19,6 +19,15 @@ describe('layout navigation state', () => {
   it('uses the specific title for mobile task and report detail routes', () => {
     expect(getRouteTitleKey('/mobile-special/tasks/12')).toBe('menu.mobile_special.tasks')
     expect(getRouteTitleKey('/mobile-special/reports/12')).toBe('menu.mobile_special.reports')
+    expect(getSelectedMenuKey('/mobile-special/reports/12')).toBe('/mobile-special/workbench')
+  })
+
+  it('keeps legacy asset pages under their owning workbench while preserving the URL', () => {
+    expect(getSelectedMenuKey('/system/web-assets')).toBe('/ui-workbench')
+    expect(getSelectedMenuKey('/system/api-contract-assets')).toBe('/api-workbench')
+    expect(getSelectedMenuKey('/system/datasets')).toBe('/ai-workbench')
+    expect(getSelectedMenuKey('/system/users')).toBe('/system/config')
+    expect(getMenuOpenKeys('/system/web-assets')).toEqual(['test-capabilities'])
   })
 
   it('does not duplicate a group when the route title is the group title', () => {

@@ -1022,6 +1022,8 @@ export default {
     empty_title: '这里还没有配置资源',
     empty_description: '可以打开原配置页面创建资源，创建后返回这里保存版本。',
     open_source: '打开原页面',
+    governance_kicker: '平台治理',
+    governance_description: '用户、审计、保留策略和告警入口集中在这里，权限沿用各页面原有规则。',
     detail_empty_title: '选择一个资源',
     detail_empty_description: '从中间列表选择资源，查看最近版本、差异和回退入口。',
     detail_status: '当前状态',

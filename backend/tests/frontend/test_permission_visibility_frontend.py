@@ -28,9 +28,9 @@ def test_layout_hides_non_operable_role_entries():
     content = repo_path("frontend/src/layouts/MainLayout.vue").read_text(encoding="utf-8")
 
     assert "canAccess(['admin', 'engineer'])" in content
-    assert "canAccess(['admin'])" in content
-    assert 'key="/system/ai-llm-configs"' in content
-    assert 'key="/system/dashboard-alerts"' in content
+    assert 'key="/system/config"' in content
+    assert 'key="/system/ai-llm-configs"' not in content
+    assert 'key="/system/dashboard-alerts"' not in content
 
 
 def test_case_list_exposes_disabled_read_only_actions():
