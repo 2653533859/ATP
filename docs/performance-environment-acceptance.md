@@ -1,6 +1,6 @@
 # 性能 Worker 环境验收 Runbook
 
-> 2026-08-24 N6.7：隔离 Compose 已包含独立通用 `worker` 和独立 `web-recorder` 服务；录制 Worker 固定使用 Worker 模式、Redis 路由前缀、Xvfb `:99` 和 `init: true`，q19 已完成注册、Chromium 录制、快照、PNG 截图、停止和重启恢复验收。Trace/HAR/Console/网络日志/运行报告完整链路、Android、真实性能节点和外部通知/缺陷平台仍需单独验收。
+> 2026-08-24 N6.8：q19 独立 `web-recorder` 已完成 Chromium Trace/HAR/Console/网络日志/运行报告链路；首次部署和重启后均通过 Worker 注册、录制、快照、PNG 截图、停止、证据 URL 与停止后查询。证据见 [`q19-web-recording-evidence-2026-08-24.json`](evidence/q19-web-recording-evidence-2026-08-24.json) 和 [`q19-web-recording-evidence-restart-2026-08-24.json`](evidence/q19-web-recording-evidence-restart-2026-08-24.json)。Firefox/WebKit、跨 API 副本、Android、真实性能节点和外部通知/缺陷平台仍需单独验收。
 
 ## 2026-08-17 当前代码隔离栈验收
 

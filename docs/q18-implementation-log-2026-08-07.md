@@ -1,12 +1,20 @@
 # Q18 实施记录
 
+## 2026-08-24 N6.8 Web 录制证据链交付与 q19 验收
+
+- [x] 录制会话采集 Trace、HAR、Console、页面异常、请求/失败请求/错误响应事件；URL、请求头、Cookie、请求体、步骤和错误文本在持久化前脱敏，响应正文不落盘。
+- [x] 停止录制后将 Trace、HAR、运行报告上传 MinIO；独立 Worker 模式在 Redis 保留脱敏最终快照，停止后可查询，重复停止幂等，结束后截图返回 409；前端显示证据入口和网络事件预览。
+- [x] 代码审查修复 JSON 凭据和完整 URL 文本脱敏边界；本地后端目标 `45 passed`，前端 Web Recorder `3 passed`，type-check/build、Ruff/diff-check 通过。
+- [x] q19 使用 `9e93379` 重建并重启 `web-recorder`，首次和重启后均通过 Worker 注册、2 步快照、PNG 截图、停止、3 类证据和停止后报告查询；测试项目及 6 个录制对象已清理。证据见 [`q19-web-recording-evidence-2026-08-24.json`](evidence/q19-web-recording-evidence-2026-08-24.json) 与 [`q19-web-recording-evidence-restart-2026-08-24.json`](evidence/q19-web-recording-evidence-restart-2026-08-24.json)。
+- [ ] Firefox/WebKit、跨 API 副本、Android Worker/真机、真实性能节点、通知和外部缺陷平台仍待后续环境证据。
+
 ## 2026-08-24 N6.7 q19 独立 Web 录制 Worker 持久部署与真实录制验收
 
 - [x] q19 Compose 新增独立 `web-recorder` 服务，Backend 固定使用 `WEB_RECORDER_MODE=worker`，共用 Redis 路由前缀；Xvfb `:99` 启动会清理残留锁并等待 socket，就绪后使用 `init: true` 回收 Chromium 子进程。
 - [x] 本地 API/传输/smoke/部署契约回归 `61 passed`，Ruff 和 `git diff --check` 通过；代码审查修复 Xvfb 重启锁和 Chromium 僵尸进程两个问题，提交 `3ddf4f1`、`7a94e62`、`dfe86b1` 已推送。
 - [x] q19 真实临时项目完成 Worker 注册、Chromium 录制、2 步快照、PNG 截图、停止、项目删除和 Worker 重启恢复；Backend `/health` 与 Prometheus targets 正常，`active_sessions=0`、容器 `zombie_count=0`。
 - [x] 脱敏证据归档为 `docs/evidence/q19-web-recorder-readiness-2026-08-24.json`、`docs/evidence/q19-web-recorder-restart-readiness-2026-08-24.json` 和 `docs/evidence/q19-web-recorder-init-readiness-2026-08-24.json`。
-- [ ] Trace/HAR/Console/网络日志/运行报告完整链路、Firefox/WebKit、Android Worker/真机、真实性能节点、通知和外部缺陷平台仍待后续环境证据。
+- [x] N6.7 基础 Worker 部署范围已完成；Trace/HAR/Console/网络日志/运行报告证据链在 N6.8 单独完成。
 
 ## 2026-08-24 N6.6 q19 持久通用 Web Worker 部署与恢复验收
 

@@ -1,0 +1,46 @@
+{
+  "generated_at": "2026-08-24T14:16:21Z",
+  "environment": "q19-web-recorder-20260824",
+  "commit": "9e93379",
+  "project_id": 10,
+  "start_url": "https://example.com",
+  "browser": "chromium",
+  "status": "passed",
+  "checks": [
+    {
+      "name": "worker-preflight",
+      "status": "PASS",
+      "detail": "mode=worker, registered_count=1, available_count=1"
+    },
+    {
+      "name": "recording-start",
+      "status": "PASS",
+      "detail": "browser=chromium, status=recording"
+    },
+    {
+      "name": "recording-snapshot",
+      "status": "PASS",
+      "detail": "steps=2"
+    },
+    {
+      "name": "recording-screenshot",
+      "status": "PASS",
+      "detail": "content_type=image/png, bytes=17117"
+    },
+    {
+      "name": "recording-stop",
+      "status": "PASS",
+      "detail": "status=stopped"
+    },
+    {
+      "name": "recording-evidence",
+      "status": "PASS",
+      "detail": "trace/har/report=3, console=0, network=2"
+    },
+    {
+      "name": "recording-report-query",
+      "status": "PASS",
+      "detail": "stopped snapshot remains available"
+    }
+  ]
+}

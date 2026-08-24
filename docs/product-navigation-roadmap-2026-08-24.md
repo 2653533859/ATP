@@ -1,6 +1,6 @@
 # 产品导航与能力扩展开发计划（2026-08-24）
 
-> 状态：导航信息架构已按参考导航完成基线设计；N0 导航壳、N1 工作台与任务中心、N2.1/N2.2 内部缺陷与失败证据闭环、N2.3 报告中心、N2.4 用例评审工作台、N2.5 外部缺陷兼容、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心已完成本地实现、审查和回归，均待真实环境验收；N6.1/N6.2 文档与浏览器回归、N6.3/N6.4 Windows API/Web readiness、N6.5 q19 真实迁移与临时 Web Worker 低代码验收、N6.6 q19 持久通用 Web Worker 验收、N6.7 q19 独立 Web 录制 Worker 验收已形成证据，Trace/HAR/Console/网络日志/运行报告完整链路、Android/Worker、性能、通知和外部平台验收仍待补齐。
+> 状态：导航信息架构已按参考导航完成基线设计；N0 导航壳、N1 工作台与任务中心、N2.1/N2.2 内部缺陷与失败证据闭环、N2.3 报告中心、N2.4 用例评审工作台、N2.5 外部缺陷兼容、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心已完成本地实现、审查和回归，均待真实环境验收；N6.1/N6.2 文档与浏览器回归、N6.3/N6.4 Windows API/Web readiness、N6.5 q19 真实迁移与临时 Web Worker 低代码验收、N6.6 q19 持久通用 Web Worker 验收、N6.7 q19 独立 Web 录制 Worker 部署、N6.8 Chromium 录制证据链验收已形成证据，Firefox/WebKit、跨 API 副本、Android/Worker、性能、通知和外部平台验收仍待补齐。
 > 目标：将现有 ATP 平台从“按已实现页面分组”调整为参考导航中的“工作台、测试能力、测试资产、智能中枢、系统”五层产品导航，并按模块逐步补齐统一入口与业务闭环。
 
 > 使用方式：本文件是本轮导航重构的主计划。每个模块完成后必须依次完成“实现 → 测试 → 代码审查 → 修复 → 文档/记忆同步 → 提交推送”，并在下方实施记录和 `Task.md` 中更新同一状态。未完成联调的功能只能标记为“已实现，待环境验收”。
@@ -129,8 +129,8 @@ N5.2 验收口径：管理员/工程师能够从统一入口定位可见配置�
 - [E] N6.1 已为配置中心新增管理员回退链、普通角色路由拦截和版本差异浏览器回归；其余新增路由、权限、聚合 API、迁移和关键交互继续按模块补齐回归。
 - [E] N6.2 已同步能力矩阵、用户操作手册、导航说明、Task、MEMORY 和 Q18 实施日志；真实环境验收证据仍需按发布环境补齐。
 - [E] N6.1 已完成前端 Vitest、type-check、生产构建和 Playwright 必要 E2E；后端回归、独立测试扫描和其余发布门禁继续收口。
-- [E] N6.3 已完成远端 Redis/验收栈恢复和 Windows API/Web 最小发布 readiness；N6.4 已完成完整 Windows 登录、认证读接口、Playwright、浏览器矩阵、文件传输和报告导出证据，并修复项目删除级联阻断；N6.5 已完成 q19 真实迁移、项目删除回归和临时 Web Worker 低代码验收；N6.6 已完成 q19 持久通用 Web Worker 的队列隔离、低代码执行、监控和重启恢复；N6.7 已完成 q19 独立 Web 录制 Worker 的持久部署、Chromium 录制、截图、停止和重启恢复。
-- [ ] 继续补独立录制 Worker 的 Trace/HAR/Console/网络日志/运行报告完整链路，并按环境单独验收真实 Android/Worker、性能节点、通知和外部缺陷平台。
+- [E] N6.3 已完成远端 Redis/验收栈恢复和 Windows API/Web 最小发布 readiness；N6.4 已完成完整 Windows 登录、认证读接口、Playwright、浏览器矩阵、文件传输和报告导出证据，并修复项目删除级联阻断；N6.5 已完成 q19 真实迁移、项目删除回归和临时 Web Worker 低代码验收；N6.6 已完成 q19 持久通用 Web Worker 的队列隔离、低代码执行、监控和重启恢复；N6.7 已完成 q19 独立 Web 录制 Worker 的持久部署、Chromium 录制、截图、停止和重启恢复；N6.8 已完成 Chromium Trace/HAR/Console/网络日志/运行报告证据链和重启后复验。
+- [ ] 继续补 Firefox/WebKit、跨 API 副本录制一致性，并按环境单独验收真实 Android/Worker、性能节点、通知和外部缺陷平台。
 
 ### 2026-08-24 N6.1 配置中心浏览器回归交付记录
 
@@ -178,6 +178,14 @@ N5.2 验收口径：管理员/工程师能够从统一入口定位可见配置�
 - **代码审查与修复**：本地 API/传输/smoke/部署契约回归 `61 passed`；审查发现 Xvfb 重启锁和 Chromium 僵尸进程两个问题，分别由 `7a94e62`、`dfe86b1` 修复；Ruff 与 `git diff --check` 通过。
 - **真实证据**：q19 使用 `dfe86b1` 重建后，Worker 注册、Chromium 录制、2 步快照、PNG 截图 17,117 bytes、停止和临时项目删除通过；重启后再次通过，Worker `active_sessions=0`、容器 `zombie_count=0`，Backend `/health` 和 Prometheus 四个 targets 均正常。证据见 [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recorder-restart-readiness-2026-08-24.json`](evidence/q19-web-recorder-restart-readiness-2026-08-24.json) 和 [`q19-web-recorder-init-readiness-2026-08-24.json`](evidence/q19-web-recorder-init-readiness-2026-08-24.json)。
 - **边界**：本模块关闭 q19 独立 Chromium 录制基础链路，不等同于 Trace/HAR/Console/网络日志、Firefox/WebKit、跨 API 副本、运行报告完整链路或 Android/性能/通知/外部平台验收。
+
+### 2026-08-24 N6.8 Web 录制证据链交付记录
+
+- **实现**：录制会话采集 Playwright Trace、HAR、Console、页面异常、请求/失败请求/错误响应事件；停止时脱敏并上传 Trace、HAR 和运行报告到 MinIO，前端录制弹窗展示证据链接和网络事件预览。
+- **持久查询**：独立 Worker 模式停止后在 Redis 保留最终快照，`GET` 可继续查询，重复 `stop` 幂等，已结束会话截图返回 409；报告中不保存 Cookie、请求体、响应体或敏感请求头。
+- **代码审查与回归**：审查修复 JSON 凭据和完整 URL 文本脱敏边界；后端目标回归 `45 passed`，前端 Web Recorder `3 passed`，type-check、生产构建、Ruff 和 `git diff --check` 通过。
+- **q19 证据**：提交 `9e93379` 重建并重启 `web-recorder` 后，首次和重启后录制均通过 Worker 注册、2 步快照、PNG 截图、停止、Trace/HAR/报告 URL 和停止后查询；证据见 [`q19-web-recording-evidence-2026-08-24.json`](evidence/q19-web-recording-evidence-2026-08-24.json) 与 [`q19-web-recording-evidence-restart-2026-08-24.json`](evidence/q19-web-recording-evidence-restart-2026-08-24.json)。测试项目和 6 个对象已清理。
+- **边界**：Firefox/WebKit、跨 API 副本、Android Worker/真机、真实性能节点、通知和外部缺陷平台仍待后续环境验收。
 
 ## 4. 推荐执行顺序
 

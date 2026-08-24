@@ -24,6 +24,8 @@
 
 > 2026-08-24 N6.7 环境证据：q19 已持久部署独立 `web-recorder`，Backend 固定为 Worker 模式，录制服务使用 Redis 路由前缀、Xvfb `:99` 和 `init: true`；真实临时项目完成 Chromium 录制、2 步快照、PNG 截图、停止、删除和 Worker 重启恢复，`active_sessions=0` 且容器僵尸进程数为 `0`。Backend `/health` 和 Prometheus targets 正常，证据见 [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recorder-restart-readiness-2026-08-24.json`](evidence/q19-web-recorder-restart-readiness-2026-08-24.json) 与 [`q19-web-recorder-init-readiness-2026-08-24.json`](evidence/q19-web-recorder-init-readiness-2026-08-24.json)。Trace/HAR/Console/网络日志/运行报告完整链路、Firefox/WebKit、Android、真实性能节点、通知和外部缺陷平台仍待环境验收。
 
+> 2026-08-24 N6.8 环境证据：q19 使用提交 `9e93379` 重建并重启 `web-recorder`，首次及重启后 Chromium 录制均通过 Worker 注册、2 步快照、PNG 截图、停止、Trace/HAR/运行报告 URL 和停止后报告查询；证据见 [`q19-web-recording-evidence-2026-08-24.json`](evidence/q19-web-recording-evidence-2026-08-24.json) 与 [`q19-web-recording-evidence-restart-2026-08-24.json`](evidence/q19-web-recording-evidence-restart-2026-08-24.json)。Firefox/WebKit、跨 API 副本、Android、真实性能节点、通知和外部缺陷平台仍待环境验收。
+
 > 2026-08-12 iOS/Appium 补强：新增 status/session smoke、受控步骤和脱敏附件证据入口；真实 macOS/XCUITest/WDA/设备执行仍待验收。
 
 > 最新实现状态和前后对比请先查看 [`docs/q18-latest-status-2026-08-07.md`](./q18-latest-status-2026-08-07.md)。
@@ -128,7 +130,7 @@
 | 五组产品导航 | ✅ | `MainLayout.vue` 与路由权限将入口分为工作台、测试能力、测试资产、智能中枢、系统；旧 URL 与领域页面保持兼容 | 统一入口、项目上下文和动态任务提示 | 导航路由回归、不同角色真实登录 |
 | 远程工具箱 | 🔵 | `/system/toolbox` 聚合 PostgreSQL、Redis、MinIO、Android/Web Worker、ADB 和性能节点诊断，并支持脱敏 JSON 导出 | 真实依赖、Worker、ADB、浏览器和性能节点一站式诊断 | 目标主机与 Worker 环境验收 |
 | 配置中心 | 🔵 | `/system/config` 聚合启动配置、环境、全局变量、AI、存储、通知和性能节点；提供脱敏摘要、原页面深链接、版本快照、字段差异、影响提示和单资源 `ROLLBACK` 回退 | 真实数据库、项目角色、密钥轮换和三方依赖可发布验收 | `frontend/e2e/configuration-center.spec.ts`、配置中心 API/迁移回归；真实环境证据 |
-| 发布质量门禁 | 🟡 | 前端 Vitest、Playwright、type-check、生产构建、后端非集成、独立测试扫描、Ruff、mypy、Bandit 和 diff-check 已有统一命令/记录；Windows 完整 API/Web readiness、q19 `20260824_0065` 真实迁移/项目删除回归、持久通用 Web Worker 队列隔离/低代码执行/重启恢复、独立 Chromium 录制/截图/停止/重启恢复均已归档脱敏证据 | Trace/HAR/Console/网络日志/运行报告完整链路、Firefox/WebKit、真实 Android、性能、通知和外部缺陷平台证据归档 | `make test`、`scripts/windows-local-smoke.ps1`、Alembic、发布 readiness、Web Recording Worker smoke、目标环境 Runbook |
+| 发布质量门禁 | 🟡 | 前端 Vitest、Playwright、type-check、生产构建、后端非集成、独立测试扫描、Ruff、mypy、Bandit 和 diff-check 已有统一命令/记录；Windows 完整 API/Web readiness、q19 `20260824_0065` 真实迁移/项目删除回归、持久通用 Web Worker 队列隔离/低代码执行/重启恢复、独立 Chromium 录制及 Trace/HAR/Console/网络日志/运行报告链路均已归档脱敏证据 | Firefox/WebKit、跨 API 副本、真实 Android、性能、通知和外部缺陷平台证据归档 | `make test`、`scripts/windows-local-smoke.ps1`、Alembic、发布 readiness、Web Recording Worker smoke、目标环境 Runbook |
 
 ## 6. 后续如何使用本表
 

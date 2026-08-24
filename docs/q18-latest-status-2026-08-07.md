@@ -1,11 +1,19 @@
 # Q18 最新开发状态与前后实现对比
 
+## 2026-08-24 N6.8 Web 录制证据链交付与 q19 验收
+
+- 录制会话现在采集 Playwright Trace、HAR、Console、页面异常、请求/失败请求/错误响应事件；持久化前统一脱敏 URL、请求头、Cookie、请求体、步骤和错误文本，报告不保存响应正文。
+- 停止录制会把 Trace、HAR、运行报告上传 MinIO，独立 Worker 模式保留脱敏最终快照，停止后仍可查询；前端录制弹窗提供三类证据链接和最近网络事件预览。
+- 代码审查修复 JSON 凭据和完整 URL 文本脱敏边界；后端目标 `45 passed`，前端 Web Recorder `3 passed`，type-check/build、Ruff 和 diff-check 通过。
+- q19 使用提交 `9e93379` 重建并重启 `web-recorder`，首次与重启后录制均通过 Worker 注册、2 步快照、PNG 截图、停止、Trace/HAR/报告 URL 和停止后查询；证据见 [`q19-web-recording-evidence-2026-08-24.json`](evidence/q19-web-recording-evidence-2026-08-24.json) 与 [`q19-web-recording-evidence-restart-2026-08-24.json`](evidence/q19-web-recording-evidence-restart-2026-08-24.json)。
+- Firefox/WebKit、跨 API 副本、Android Worker/真机、真实性能节点、通知和外部缺陷平台仍待验收。
+
 ## 2026-08-24 N6.7 q19 独立 Web 录制 Worker 持久部署与真实录制验收
 
 - q19 Compose 已新增独立 `web-recorder` 服务，Backend 固定为 Worker 模式，录制服务使用同一 Redis 路由前缀、Xvfb `:99`、启动锁清理、socket 就绪等待和 `init: true` 子进程回收。
 - 本地 API/传输/smoke/部署契约回归 `61 passed`；代码审查发现并修复 Xvfb 重启残留锁和 Chromium 僵尸进程问题，Ruff 与 `git diff --check` 通过。
 - q19 真实临时项目完成 Chromium 录制、2 步快照、PNG 截图、停止、删除和 Worker 重启恢复；Backend `/health`、Prometheus targets 正常，Worker `active_sessions=0`、容器僵尸进程数为 `0`。
-- 脱敏证据见 [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recorder-restart-readiness-2026-08-24.json`](evidence/q19-web-recorder-restart-readiness-2026-08-24.json) 与 [`q19-web-recorder-init-readiness-2026-08-24.json`](evidence/q19-web-recorder-init-readiness-2026-08-24.json)。Trace/HAR/Console/网络日志/运行报告完整链路、Firefox/WebKit、Android、真实性能节点、通知和外部缺陷平台仍待验收。
+- 脱敏证据见 [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recorder-restart-readiness-2026-08-24.json`](evidence/q19-web-recorder-restart-readiness-2026-08-24.json) 与 [`q19-web-recorder-init-readiness-2026-08-24.json`](evidence/q19-web-recorder-init-readiness-2026-08-24.json)。本节只记录 Worker 基础部署，证据链由 N6.8 单独记录。
 
 ## 2026-08-24 N6.6 q19 持久通用 Web Worker 部署与恢复验收
 
