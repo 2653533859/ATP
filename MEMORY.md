@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-24 N6.13 全量质量门禁复核已完成：后端非集成测试 `2215 passed`；前端 `npm run type-check` 和生产 `npm run build` 均通过；`git diff --check`、工作区清洁和 `origin/main` 同步检查通过，当前提交为 `c54a57c`。本轮未把 Android 离线设备、真实通知供应商或外部缺陷平台联调误记为通过；下一步仍按计划先恢复 Android 单设备证据，再补真实通知与外部平台验收。
+
 - 2026-08-24 N6.12 Android Worker 配置配对门禁已完成：新增 `scripts/validate-android-worker-config.py`，只输出字段名/队列状态，不输出 PostgreSQL、Redis、MinIO、APP_SECRET_KEY 或 ENCRYPTION_KEY 值；校验 Backend/Windows Agent 共享基础设施和密钥、`ADB_SCAN_MODE`、Celery 队列、Worker 队列及 Redis 注册前缀。`windows-android-worker.ps1 doctor` 支持 `-BackendEnvFile` 自动执行配对检查，`startup.ps1` 支持透传该参数，Make/CI/pre-commit/部署 readiness 已接入脚本；统一两个示例档案的密钥占位符。配置/Worker/PowerShell/质量门禁定向 `55 passed`，部署门禁通过（仅跳过本机缺少 Docker Compose 的环境检查）。Android 真机仍因 ADB offline 待恢复。
 
 - 2026-08-24 N6.11 通知链路本地安全验收已完成：通过回环 SMTP sink 走生产入口 `send_notification_channel`，12 项检查全部通过，覆盖 SMTP envelope、收件人规范化、MIME multipart、显示名和 RPS/P95/P99/错误率/阈值/触发原因六项正文；报告固定为 `local_link_only`，未触达真实邮箱、未记录凭据，证据见 `docs/evidence/notification-smtp-link-check-2026-08-24.json`。真实 SMTP/企业微信/钉钉仍需管理员提供临时目标和供应商侧送达证据，Android 真机仍因 ADB offline 待恢复。
