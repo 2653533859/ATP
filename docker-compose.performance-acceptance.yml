@@ -143,7 +143,27 @@ services:
     command:
       - sh
       - -c
-      - Xvfb $${WEB_RECORDER_DISPLAY:-:99} -screen 0 1280x720x24 -nolisten tcp >/tmp/atp-xvfb.log 2>&1 & exec python -m app.web_recording_worker
+      - |
+        display="$${WEB_RECORDER_DISPLAY:-:99}"
+        display_number="$${display#:}"
+        rm -f "/tmp/.X$${display_number}-lock" "/tmp/.X11-unix/X$${display_number}"
+        Xvfb "$${display}" -screen 0 1280x720x24 -nolisten tcp >/tmp/atp-xvfb.log 2>&1 &
+        xvfb_pid=$$!
+        for _ in $$(seq 1 50); do
+          if [ -S "/tmp/.X11-unix/X$${display_number}" ]; then
+            export DISPLAY="$${display}"
+            exec python -m app.web_recording_worker
+          fi
+          if ! kill -0 "$${xvfb_pid}" 2>/dev/null; then
+            wait "$${xvfb_pid}"
+            exit 1
+          fi
+          sleep 0.1
+        done
+        echo "Xvfb did not become ready on $${display}" >&2
+        kill "$${xvfb_pid}" 2>/dev/null || true
+        wait "$${xvfb_pid}" 2>/dev/null || true
+        exit 1
     healthcheck:
       test: ["CMD", "python", "-c", "import os,time; p=os.environ['WEB_RECORDER_HEALTH_FILE']; raise SystemExit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p) <= 30 else 1)"]
       interval: 10s

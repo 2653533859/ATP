@@ -335,6 +335,9 @@ def test_docker_compose_acceptance_stack_isolated_and_has_real_targets():
     recorder_command = " ".join(recorder["command"])
     assert "Xvfb" in recorder_command
     assert "python -m app.web_recording_worker" in recorder_command
+    assert "rm -f \"/tmp/.X$${display_number}-lock\"" in recorder_command
+    assert "export DISPLAY=\"$${display}\"" in recorder_command
+    assert "xvfb_pid=$$!" in recorder_command
     assert recorder["healthcheck"]["test"][0] == "CMD"
     assert recorder["depends_on"]["backend"]["condition"] == "service_healthy"
     assert "./docs/evidence:/evidence" in services["acceptance-tools"]["volumes"]
