@@ -119,6 +119,32 @@ def test_parse_openapi_resolves_local_refs_in_parameters_and_examples():
     assert result.warnings == []
 
 
+def test_parse_openapi_preserves_falsy_examples_and_media_examples():
+    doc = {
+        "openapi": "3.0.0",
+        "paths": {
+            "/flags": {
+                "get": {
+                    "parameters": [
+                        {"name": "enabled", "in": "query", "example": False, "schema": {"type": "boolean"}},
+                        {"name": "limit", "in": "query", "example": 0, "schema": {"type": "integer"}},
+                    ],
+                    "requestBody": {
+                        "content": {"application/json": {"example": False, "schema": {"type": "boolean"}}}
+                    },
+                    "responses": {"200": {"content": {"application/json": {"example": 0}}}},
+                }
+            }
+        },
+    }
+
+    endpoint = parse_schema("openapi", json.dumps(doc)).endpoints[0]
+
+    assert [parameter.example for parameter in endpoint.parameters] == [False, 0]
+    assert endpoint.request_body_example is False
+    assert endpoint.response_example == 0
+
+
 def test_parse_openapi_reports_external_refs_without_network_access():
     result = parse_schema(
         "openapi",
@@ -187,6 +213,60 @@ def test_parse_postman_collection_basic():
     create_endpoint = next(e for e in result.endpoints if e.method == "POST")
     assert create_endpoint.request_body_example == {"name": "bob"}
     assert create_endpoint.base_url == "https://api.example.com"
+
+
+def test_parse_postman_string_url_query_and_disabled_fields():
+    collection = {
+        "info": {"name": "Query"},
+        "item": [
+            {
+                "name": "Search",
+                "request": {
+                    "method": "GET",
+                    "url": "https://api.example.com/search?limit=0&enabled=false&empty=",
+                    "header": [
+                        {"key": "X-Enabled", "value": "yes"},
+                        {"key": "X-Skipped", "value": "no", "disabled": True},
+                    ],
+                },
+            }
+        ],
+    }
+
+    endpoint = parse_schema("postman", json.dumps(collection)).endpoints[0]
+
+    assert [(parameter.name, parameter.example) for parameter in endpoint.parameters] == [
+        ("limit", "0"),
+        ("enabled", "false"),
+        ("empty", ""),
+        ("X-Enabled", "yes"),
+    ]
+
+
+def test_parse_postman_form_data_body_and_skips_disabled_fields():
+    collection = {
+        "info": {"name": "Form"},
+        "item": [
+            {
+                "name": "Upload metadata",
+                "request": {
+                    "method": "POST",
+                    "url": {"raw": "https://api.example.com/upload", "host": ["api", "example", "com"], "path": ["upload"]},
+                    "body": {
+                        "mode": "formdata",
+                        "formdata": [
+                            {"key": "name", "value": "alice"},
+                            {"key": "ignored", "value": "x", "disabled": True},
+                        ],
+                    },
+                },
+            }
+        ],
+    }
+
+    endpoint = parse_schema("postman", json.dumps(collection)).endpoints[0]
+
+    assert endpoint.request_body_example == {"name": "alice"}
 
 
 def test_parse_postman_empty_items_warning():

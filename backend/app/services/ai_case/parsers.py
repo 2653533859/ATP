@@ -9,7 +9,7 @@ import json
 import re
 from dataclasses import dataclass, field
 from typing import Any, Literal
-from urllib.parse import urlparse
+from urllib.parse import parse_qsl, urlparse
 
 import yaml
 
@@ -151,6 +151,18 @@ def _example_from_schema(schema: dict | None, resolver: _OpenApiResolver | None 
     return None
 
 
+def _example_from_media(media: dict[str, Any], resolver: _OpenApiResolver) -> Any:
+    """Return an explicit media example, including valid falsy JSON values."""
+    if "example" in media:
+        return media["example"]
+    examples = media.get("examples")
+    if isinstance(examples, dict):
+        for item in examples.values():
+            if isinstance(item, dict) and "value" in item:
+                return item["value"]
+    return _example_from_schema(media.get("schema"), resolver)
+
+
 def parse_openapi(content: str, *, external_ref_policy: ExternalRefPolicy = "warn") -> ParseResult:
     if external_ref_policy not in {"warn", "reject"}:
         raise ValueError(f"不支持的外部 OpenAPI $ref 策略: {external_ref_policy}")
@@ -194,7 +206,7 @@ def parse_openapi(content: str, *, external_ref_policy: ExternalRefPolicy = "war
                         required=bool(raw.get("required", False)),
                         schema_type=schema.get("type"),
                         description=raw.get("description"),
-                        example=raw.get("example") or _example_from_schema(schema, resolver),
+                        example=(raw["example"] if "example" in raw else _example_from_schema(schema, resolver)),
                     )
                 )
 
@@ -206,7 +218,7 @@ def parse_openapi(content: str, *, external_ref_policy: ExternalRefPolicy = "war
                 json_media = content_map.get("application/json") or {}
                 if isinstance(json_media, dict):
                     json_media = resolver.resolve(json_media)
-                    body_example = json_media.get("example") or _example_from_schema(json_media.get("schema"), resolver)
+                    body_example = _example_from_media(json_media, resolver)
 
             resp_example: Any = None
             responses = op.get("responses") or {}
@@ -218,9 +230,7 @@ def parse_openapi(content: str, *, external_ref_policy: ExternalRefPolicy = "war
                     json_media = content_map.get("application/json") or {}
                     if isinstance(json_media, dict):
                         json_media = resolver.resolve(json_media)
-                        resp_example = json_media.get("example") or _example_from_schema(
-                            json_media.get("schema"), resolver
-                        )
+                        resp_example = _example_from_media(json_media, resolver)
                         if resp_example is not None:
                             break
 
@@ -270,12 +280,12 @@ def _walk_postman_items(items: list, accumulator: list[Endpoint]) -> None:
         else:
             parsed = urlparse(str(url or ""))
             path = parsed.path or "/"
-            query_items = []
+            query_items = [{"key": key, "value": value} for key, value in parse_qsl(parsed.query, keep_blank_values=True)]
             base_url = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else None
 
         params: list[EndpointParameter] = []
         for q in query_items:
-            if isinstance(q, dict):
+            if isinstance(q, dict) and not q.get("disabled") and q.get("key"):
                 params.append(
                     EndpointParameter(
                         name=q.get("key", ""),
@@ -286,7 +296,7 @@ def _walk_postman_items(items: list, accumulator: list[Endpoint]) -> None:
                     )
                 )
         for h in request.get("header") or []:
-            if isinstance(h, dict):
+            if isinstance(h, dict) and not h.get("disabled") and h.get("key"):
                 params.append(
                     EndpointParameter(
                         name=h.get("key", ""),
@@ -299,12 +309,20 @@ def _walk_postman_items(items: list, accumulator: list[Endpoint]) -> None:
 
         body_example: Any = None
         body = request.get("body")
-        if isinstance(body, dict) and body.get("mode") == "raw":
-            raw = body.get("raw") or ""
-            try:
-                body_example = json.loads(raw)
-            except (TypeError, ValueError):
-                body_example = raw
+        if isinstance(body, dict):
+            if body.get("mode") == "raw":
+                raw = body.get("raw") or ""
+                try:
+                    body_example = json.loads(raw)
+                except (TypeError, ValueError):
+                    body_example = raw
+            elif body.get("mode") in {"urlencoded", "formdata"}:
+                fields = body.get(body["mode"]) or []
+                body_example = {
+                    field.get("key"): field.get("value")
+                    for field in fields
+                    if isinstance(field, dict) and not field.get("disabled") and field.get("key")
+                }
 
         accumulator.append(
             Endpoint(
