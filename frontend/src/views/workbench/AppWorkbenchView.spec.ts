@@ -187,8 +187,34 @@ describe('AppWorkbenchView', () => {
     vm.launchDeviceId = null
     await vm.runSpecialTask()
 
-    expect(mobileTriggerTask).toHaveBeenCalledWith(9, { device_id: undefined, app_package: undefined })
+    expect(mobileTriggerTask).toHaveBeenCalledWith(9, { device_id: undefined, apk_id: undefined, app_package: undefined })
     expect(routerPush).toHaveBeenCalledWith('/mobile-special/reports/901')
+
+    wrapper.unmount()
+  })
+
+  it('passes the selected APK asset when overriding a special task launch', async () => {
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      launchMode: 'case' | 'special'
+      runSpecialTask: () => Promise<void>
+      selectedSpecialTaskId: number | undefined
+      selectedApkId: number | undefined
+      launchDeviceId: number | null
+    }
+
+    vm.launchMode = 'special'
+    vm.selectedSpecialTaskId = 9
+    vm.selectedApkId = 21
+    vm.launchDeviceId = 10
+    await vm.runSpecialTask()
+
+    expect(mobileTriggerTask).toHaveBeenCalledWith(9, {
+      device_id: 10,
+      apk_id: 21,
+      app_package: 'com.example.karing',
+    })
 
     wrapper.unmount()
   })

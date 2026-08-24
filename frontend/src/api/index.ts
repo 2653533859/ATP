@@ -2182,7 +2182,7 @@ export const mobileSpecialApi = {
   createTask: (data: object) => http.post<unknown, MobileSpecialTaskItem>('/mobile-special/tasks', data),
   updateTask: (id: number, data: object) => http.patch<unknown, MobileSpecialTaskItem>(`/mobile-special/tasks/${id}`, data),
   deleteTask: (id: number) => http.delete(`/mobile-special/tasks/${id}`),
-  triggerTask: (id: number, data?: { device_id?: number; app_package?: string }) =>
+  triggerTask: (id: number, data?: { device_id?: number; apk_id?: number; app_package?: string }) =>
     http.post<unknown, MobileSpecialRunItem>(`/mobile-special/tasks/${id}/run`, data ?? {}),
   // Runs
   listRuns: (params?: { task_id?: number; task_type?: TaskType; status_filter?: MobileRunStatus; project_id?: number; limit?: number; offset?: number }) =>

@@ -117,8 +117,9 @@ class TestMobileSpecialRunSchema:
     def test_run_trigger_request(self):
         from app.schemas.mobile_special import RunTriggerRequest
 
-        req = RunTriggerRequest(device_id=5, app_package="com.example.app")
+        req = RunTriggerRequest(device_id=5, apk_id=3, app_package="com.example.app")
         assert req.device_id == 5
+        assert req.apk_id == 3
         assert req.app_package == "com.example.app"
 
     def test_run_trigger_request_optional(self):
@@ -126,6 +127,7 @@ class TestMobileSpecialRunSchema:
 
         req = RunTriggerRequest()
         assert req.device_id is None
+        assert req.apk_id is None
         assert req.app_package is None
 
 

@@ -1,0 +1,22 @@
+{
+  "verified_on": "2026-08-25",
+  "scope": "APP 自动化工作台 APK 资产选择与专项任务运行快照",
+  "checks": {
+    "selected_apk_id_forwarded": true,
+    "selected_apk_package_snapshotted": true,
+    "task_default_apk_id_preserved": true,
+    "cross_project_apk_rejected": true,
+    "cross_project_status": 400,
+    "backend_targeted_tests": 53,
+    "frontend_workbench_tests": 3,
+    "frontend_type_check": true,
+    "ruff": true,
+    "diff_check": true
+  },
+  "implementation_note": "APP 工作台触发专项任务时传递 apk_id；后端按当前任务项目校验资产归属，并将 apk_id 与包名写入运行记录和配置快照。未记录密码、Token 或对象存储密钥。",
+  "remaining_boundaries": [
+    "当前工作区没有可用于真实上传的 APK 文件，尚未进行真实上传后的 Manifest 包名识别验收",
+    "两台已连接设备的 pm list packages 未发现 Karing 包名，不能以应用显示名代替真实包名",
+    "Android 低代码真实执行、设备录屏、专项任务和事件/日志/报告回传仍待验收"
+  ]
+}

@@ -269,8 +269,15 @@ async def trigger_task_run(
 
     config = dict(task.config_json or {})
     selected_device_id = body.device_id if body.device_id is not None else task.device_id
+    selected_apk_id = body.apk_id if body.apk_id is not None else task.apk_id
+    selected_apk_package = await _resolve_apk_package(db, task.project_id, body.apk_id)
     if body.device_id is not None:
         config["device_id"] = body.device_id
+    if selected_apk_id is not None:
+        config["apk_id"] = selected_apk_id
+    if body.apk_id is not None:
+        if selected_apk_package:
+            config["app_package"] = selected_apk_package
     if body.app_package:
         config["app_package"] = body.app_package
 
@@ -282,7 +289,8 @@ async def trigger_task_run(
         triggered_by=current_user.id,
         config_snapshot=config,
         device_id=selected_device_id,
-        app_package=body.app_package or task.app_package,
+        apk_id=selected_apk_id,
+        app_package=body.app_package or selected_apk_package or task.app_package,
     )
     db.add(run)
     await db.commit()

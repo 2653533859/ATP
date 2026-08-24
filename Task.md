@@ -17,7 +17,7 @@
 
 - [x] A1 工作台/任务中心：本地项目筛选、待办聚合、轮询、重试、终止、批量操作、失败事件和权限边界已实现；真实账号链路仍需复核。
 - [x] A2 接口测试：本地环境变量、认证复用、OpenAPI/Postman 导入、HTTP/GraphQL/WebSocket/gRPC 工作台和执行结果入口已实现；真实协议目标仍待验收。
-- [~] A3 APP 自动化：ADB 基础检查、Redis 配对、Worker registry、扫描回调，以及租约绑定的截图/UI 属性/点击/滑动已通过；下一步验证 APK 包名、低代码真实运行、录屏、专项任务和结果回传。
+- [~] A3 APP 自动化：ADB 基础检查、Redis 配对、Worker registry、扫描回调、租约绑定控制，以及 APK 资产选择/包名传递已通过；下一步验证真实 APK 上传包名识别、低代码真实运行、录屏、专项任务和结果回传。
 - [x] A4 UI 自动化：录制、元素库、页面对象、视觉基线、Trace/HAR/Console/网络日志和多浏览器本地/q19 链路已有证据；目标环境仍需按发布版本复核。
 - [~] A5 性能测试：P1-E.1～P1-E.4 本地 API、前端、容量和保留清理已完成；真实 Kubernetes 多节点、Prometheus/MinIO 生命周期和跨主机恢复未验收。
 - [x] A6 AI/Hermes、A7 测试资产/智能中枢、A8 远程工具箱/配置中心：本地实现、权限、审查和回归已完成；真实模型、项目数据、外部缺陷平台和目标部署仍待验收。
@@ -25,7 +25,7 @@
 
 ### 当前推荐开发顺序
 
-1. 完成单设备 Android APK 包名、低代码真实运行、录屏、专项任务和结果回传，每个阶段记录执行事件。
+1. 完成单设备 Android 真实 APK 上传包名识别与选择、低代码真实运行、录屏、专项任务和结果回传，每个阶段记录执行事件。
 2. 保持受控队列和单 Worker，执行失败时保留事件、日志、媒体和报告证据。
 3. 复核 Windows API/Web 完整 smoke，再依次验收真实通知供应商、外部缺陷平台和生产性能环境。
 4. 汇总同一提交 SHA 的证据，更新能力矩阵、发布状态、用户手册和记忆文档后再做发布收口。
@@ -59,7 +59,9 @@
 - [x] 重启受控 Worker、清理历史心跳链并重跑 smoke；Worker registry 在线，扫描返回 2 台设备，队列扫描后为 0。脱敏证据见 [`android-worker-scan-2026-08-25.json`](docs/evidence/android-worker-scan-2026-08-25.json)。
 - [x] 完成租约绑定控制门禁：点击/滑动必须携带 `X-Device-Lease-Token`；Android 低代码抽屉自动申请、续租并在切换/关闭时释放租约。定向后端 `43 passed`、前端抽屉 `3 passed`、类型检查/Ruff 通过。
 - [x] 真实设备链路通过：租约申请、29,099 bytes 截图、UI 属性响应、点击/滑动 `200`、无租约点击 `409`、释放 `204`；脱敏证据见 [`android-control-lease-2026-08-25.json`](docs/evidence/android-control-lease-2026-08-25.json)。
-- [ ] 解除条件：继续 APK 包名、Android 低代码真实运行、录屏、专项任务和结果回传；未完成前不把 Android 单设备闭环标记为完成。
+- [x] APP 自动化工作台选择 APK 后，运行请求会传递 `apk_id`；后端校验 APK 属于当前项目，并将 APK ID、包名写入运行记录和配置快照；定向后端 `53 passed`、前端工作台 `3 passed`、类型检查/Ruff/diff-check 通过。
+- [x] APK 选择跨项目请求被拒绝，脱敏证据见 [`android-apk-selection-2026-08-25.json`](docs/evidence/android-apk-selection-2026-08-25.json)。
+- [ ] 解除条件：继续真实 APK 上传包名识别、Android 低代码真实运行、录屏、专项任务和结果回传；未完成前不把 Android 单设备闭环标记为完成。
 - [ ] 当前目标设备未确认存在用户指定的 Karing 包名；执行 Karing 专项任务前必须重新用 `pm list packages` 确认，不以应用显示名代替包名。
 
 ## 2026-08-25 Android 录屏证据展示补齐

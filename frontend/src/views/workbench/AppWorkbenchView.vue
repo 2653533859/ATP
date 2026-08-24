@@ -757,6 +757,7 @@ async function runSpecialTask() {
   try {
     const result = await mobileSpecialApi.triggerTask(task.id, {
       device_id: launchDeviceId.value ?? undefined,
+      apk_id: selectedApkId.value || undefined,
       app_package: selectedApk.value?.package_name ?? undefined,
     })
     message.success(t('app_workbench.run_started'))

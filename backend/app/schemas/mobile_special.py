@@ -134,6 +134,7 @@ class RunSummary(BaseModel):
 
 class RunTriggerRequest(BaseModel):
     device_id: Optional[int] = None
+    apk_id: Optional[int] = None
     app_package: Optional[str] = None
 
 

@@ -8,7 +8,7 @@
 
 本地代码、回归和 Windows/q19 API/Web/性能链路已经形成可复核证据；以下外部门禁仍未关闭，因此发布只能按“部分实现/待环境验收”处理：
 
-- Android Worker/真机：ADB、Agent/Backend Redis 配对、Worker registry、扫描回调和租约绑定的截图/UI 属性/点击/滑动已通过，但 APK、低代码、录屏、专项任务和结果回传仍不能验收。
+- Android Worker/真机：ADB、Agent/Backend Redis 配对、Worker registry、扫描回调、租约绑定控制和 APK 资产选择/包名传递已通过，但真实 APK 上传、低代码、录屏、专项任务和结果回传仍不能验收。
 - 性能生产环境：真实 Kubernetes 多节点、容量限制、生产 Prometheus、MinIO 生命周期和跨主机恢复未验收。
 - 通知供应商：当前只有回环 SMTP 的 `local_link_only` 证据，没有真实 SMTP/企业微信/钉钉送达回执。
 - 外部缺陷平台：没有可使用的临时 Jira/禅道/GitHub/GitLab 项目和凭据，创建、同步和脱敏链路未做真实验收。
@@ -54,6 +54,13 @@
 - 定向后端 `43 passed`，前端 Android 抽屉 `3 passed`，类型检查、Ruff 和差异检查通过；脱敏真实证据见 [`android-control-lease-2026-08-25.json`](evidence/android-control-lease-2026-08-25.json)。
 - Windows Worker/q19 依赖上的真实链路：设备 ID `1`、扫描 2 台；租约申请成功，截图 `29,099` bytes，UI 属性响应，点击/滑动 `200`，无租约点击 `409`，释放 `204`。
 - 发布边界：APK 包名、Android 低代码真实运行、设备录屏、专项任务、事件/日志/报告回传仍保持未验收。
+
+## 2026-08-25 P0-B.3 APK 资产选择与包名传递验收
+
+- APP 自动化工作台选择 APK 后现在传递 `apk_id`；后端校验 APK 属于当前项目，并将 APK ID、包名写入手工触发运行的记录和配置快照，Worker 可据此取得安装资产。
+- 任务默认 APK 的 ID 会继续进入运行快照；跨项目 APK 选择返回 `400` 且不写入运行记录。
+- 定向后端 `53 passed`，前端 APP 工作台 `3 passed`，类型检查、Ruff 和差异检查通过；脱敏证据见 [`android-apk-selection-2026-08-25.json`](evidence/android-apk-selection-2026-08-25.json)。
+- 发布边界：当前没有真实 APK 文件可上传，连接设备的包管理结果也未发现 Karing 包名；真实 APK 上传/包名识别、低代码、录屏、专项任务和事件/报告回传仍待验收。
 
 ## 2026-08-25 工作台任务状态枚举隔离修复
 
@@ -109,7 +116,7 @@
 |---|---|---|---|
 | Windows API/Web | 本地与 q19 证据已形成，当前账号页面冒烟通过 | [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`q19-migration-web-worker-readiness-2026-08-24.json`](evidence/q19-migration-web-worker-readiness-2026-08-24.json) | 目标发布环境仍需按版本重放并归档 |
 | Web Worker/录制 | q19 持久 Worker、Chromium/Firefox/WebKit 录制和跨 API 停止快照已验证 | [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json) | Linux/Xvfb、跨副本和目标部署拓扑仍需独立复验 |
-| Android | 代码、配置配对门禁、Worker registry 和扫描回调已完成；ADB 基础检查通过，真实执行仍阻塞在后续单设备闭环 | [`android-worker-scan-2026-08-25.json`](evidence/android-worker-scan-2026-08-25.json)、[`windows-android-worker.ps1`](../scripts/windows-android-worker.ps1)、[`windows-android-acceptance.ps1`](../scripts/windows-android-acceptance.ps1) | 继续完成租约、截图/控件属性、APK、低代码、专项任务、设备端录屏和证据回传 |
+| Android | 代码、配置配对、Worker registry、扫描回调、租约控制和 APK 选择传递已完成；真实 APK 上传和设备执行仍待验收 | [`android-worker-scan-2026-08-25.json`](evidence/android-worker-scan-2026-08-25.json)、[`android-control-lease-2026-08-25.json`](evidence/android-control-lease-2026-08-25.json)、[`android-apk-selection-2026-08-25.json`](evidence/android-apk-selection-2026-08-25.json) | 继续完成真实 APK 包名识别、低代码、录屏、专项任务和事件/报告回传 |
 | 性能 | P1-E.1～P1-E.4 本地闭环完成，q19 已按最新提交重建 | [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)、[`performance-shard-capacity-2026-08-25.json`](evidence/performance-shard-capacity-2026-08-25.json)、[`q19-performance-shard-deployment-2026-08-25.json`](evidence/q19-performance-shard-deployment-2026-08-25.json) | 真实 Kubernetes 多节点、生产 Prometheus、MinIO 生命周期和跨主机恢复 |
 | 通知 | 本地 SMTP 链路已验证 | [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json) | 真实供应商送达、重试、限流和重复投递 |
 | 外部缺陷平台 | 本地适配器和脱敏逻辑已实现 | [`docs/capability-baseline-2026-08-07.md`](capability-baseline-2026-08-07.md) | 临时项目、权限、创建/去重/状态同步和清理 |

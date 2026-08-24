@@ -1,10 +1,12 @@
 # MEMORY
 
-- 2026-08-25 参考导航计划跟踪已更新：主计划 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md) 的“0.4 参考导航下一阶段开发计划（当前跟踪版）”、`Task.md`、发布状态和本记忆同步维护五组导航、阶段出口、证据口径与下一步顺序。Android 配对、Worker registry、扫描回调和租约绑定的截图/UI 属性/点击/滑动已通过，下一步进入 APK 包名、低代码真实运行、录屏、专项任务和结果回传；真实通知供应商、外部缺陷平台和生产性能仍保持待环境验收。每个模块必须按“实现/调整 → 定向与全量测试 → 代码审查 → 修复 → 文档/记忆同步 → Conventional Commit 推送”闭环，入口存在不等于真实环境通过。
+- 2026-08-25 参考导航计划跟踪已更新：主计划 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md) 的“0.4 参考导航下一阶段开发计划（当前跟踪版）”、`Task.md`、发布状态和本记忆同步维护五组导航、阶段出口、证据口径与下一步顺序。Android 配对、Worker registry、扫描回调、租约绑定的截图/UI 属性/点击/滑动和 APK 资产选择/包名传递已通过，下一步进入真实 APK 上传包名识别、低代码真实运行、录屏、专项任务和结果回传；真实通知供应商、外部缺陷平台和生产性能仍保持待环境验收。每个模块必须按“实现/调整 → 定向与全量测试 → 代码审查 → 修复 → 文档/记忆同步 → Conventional Commit 推送”闭环，入口存在不等于真实环境通过。
 
 - 2026-08-25 P0-B Android 状态更新：ADB 已通过 mDNS 发现在线目标，`172.16.102.15:5555` 的授权、命令、属性、包管理和 logcat 基础检查通过；Windows Agent 与 q19 Backend 的 Redis 实例、DB、认证、队列和注册前缀已配对，配置校验、Worker doctor、`/devices/workers` registry、Worker 扫描回调和租约绑定控制均已通过，扫描返回 2 台设备。根因是 `scan_adb_devices` 原先丢弃 Celery 结果，现已修复并补回归；点击/滑动现在要求有效设备租约，脱敏证据见 `docs/evidence/android-worker-scan-2026-08-25.json` 和 `docs/evidence/android-control-lease-2026-08-25.json`。下一步验证 APK 包名、低代码真实运行、录屏、专项任务和结果回传；当前设备也未确认存在 Karing 包名，不能凭应用显示名执行专项任务。
 
 - 2026-08-25 P0-B.3 Android 租约绑定控制已完成代码闭环和真实验收：点击/滑动接口要求 `X-Device-Lease-Token`，Android 低代码抽屉自动申请、每 4 分钟续租并在切换/关闭时释放；定向后端 `43 passed`、前端抽屉 `3 passed`、类型检查/Ruff/diff-check 通过。真实设备租约、截图、UI 属性、点击/滑动、无租约 `409` 和释放 `204` 均通过；证据见 `docs/evidence/android-control-lease-2026-08-25.json`。下一步是 APK 包名、低代码真实运行、设备录屏、专项任务和报告回传。
+
+- 2026-08-25 P0-B.3 APK 资产选择传递已完成代码闭环：APP 工作台选择 APK 后传递 `apk_id`，后端校验项目归属并把 APK ID/包名写入运行记录和配置快照；任务默认 APK 也保留 ID，跨项目选择返回 `400`。后端定向 `53 passed`、前端工作台 `3 passed`、类型检查/Ruff/diff-check 通过；证据见 `docs/evidence/android-apk-selection-2026-08-25.json`。当前仍缺真实 APK 文件和 Karing 包名，真实上传/低代码/录屏/专项任务/报告回传继续待验收。
 
 - 2026-08-25 P1-C 通知 Smoke 追加脱敏修复已提交 `8fd129b`：补齐 `access_token`、`sign` 和 URL 用户信息匹配，避免 DingTalk/Webhook 异常变体泄露；通知脚本定向 `12 passed`，完整后端非集成 `2236 passed`。真实 SMTP/企业微信/钉钉仍待供应商目标与凭据；证据见 `docs/evidence/notification-smoke-redaction-2026-08-25.json`。
 

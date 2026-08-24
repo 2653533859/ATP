@@ -395,6 +395,55 @@ def test_trigger_task_run_falls_back_to_task_defaults(access_recorder, monkeypat
     assert "device_id" not in run.config_snapshot
 
 
+def test_trigger_task_run_binds_selected_apk_and_package(access_recorder, monkeypatch):
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.tasks_mobile_special",
+        types.SimpleNamespace(run_mobile_special_task=types.SimpleNamespace(delay=lambda _rid: None)),
+    )
+    task = _task(apk_id=11, app_package="com.task.app")
+    apk = _Obj(id=12, project_id=5, package_name="com.selected.app")
+    db = _FakeDB({("MobileSpecialTask", 1): task, ("Apk", 12): apk})
+
+    run = asyncio.run(
+        ms.trigger_task_run(
+            1,
+            body=RunTriggerRequest(apk_id=12),
+            db=db,
+            current_user=_user(),
+        )
+    )
+
+    assert run.apk_id == 12
+    assert run.app_package == "com.selected.app"
+    assert run.config_snapshot["apk_id"] == 12
+    assert run.config_snapshot["app_package"] == "com.selected.app"
+
+
+def test_trigger_task_run_rejects_apk_from_another_project(access_recorder, monkeypatch):
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.tasks_mobile_special",
+        types.SimpleNamespace(run_mobile_special_task=types.SimpleNamespace(delay=lambda _rid: None)),
+    )
+    task = _task()
+    apk = _Obj(id=13, project_id=99, package_name="com.other.app")
+    db = _FakeDB({("MobileSpecialTask", 1): task, ("Apk", 13): apk})
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            ms.trigger_task_run(
+                1,
+                body=RunTriggerRequest(apk_id=13),
+                db=db,
+                current_user=_user(),
+            )
+        )
+
+    assert exc.value.status_code == 400
+    assert db.added == []
+
+
 def test_stop_run_transitions_and_guards():
     run = _run(status=RunStatus.running)
     db = _FakeDB({("MobileSpecialRun", 10): run})
