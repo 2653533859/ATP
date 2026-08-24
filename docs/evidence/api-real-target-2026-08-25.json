@@ -1,0 +1,37 @@
+{
+  "evidence_type": "api_real_target_readiness",
+  "date": "2026-08-25",
+  "status": "passed",
+  "source_commit": "e1dc113",
+  "environment": "q19 isolated compose acceptance stack",
+  "target": "controlled acceptance-target HTTP service",
+  "workflow": {
+    "login_status": 200,
+    "project_created": true,
+    "module_created": true,
+    "case_created": true,
+    "review_submitted": true,
+    "case_approved": true,
+    "run_status": "passed",
+    "run_id": 11,
+    "cleanup": "passed"
+  },
+  "step": {
+    "name": "GET acceptance target",
+    "status": "passed",
+    "status_code": 200,
+    "assertion": {
+      "target": "status_code",
+      "operator": "eq",
+      "expected": 200,
+      "passed": true
+    },
+    "jsonpath_extraction": {
+      "expression": "$.service",
+      "variable": "service_name",
+      "success": true,
+      "value": "atp-performance-target"
+    }
+  },
+  "scope_note": "该证据证明受控 q19 HTTP 目标上的 API 创建、审批、执行、断言、提取和清理链路，不代表生产 API、认证复用、OpenAPI/Postman 导入或其他协议均已完成环境验收。"
+}

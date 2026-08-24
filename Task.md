@@ -2,7 +2,14 @@
 
 > 当前执行版计划与状态口径统一维护在 [`docs/development-plan-2026-08-25.md`](docs/development-plan-2026-08-25.md)；本文件保留任务勾选和历史交付记录。每个模块均须完成实现、测试、代码审查、修复、文档/记忆同步、提交推送后再进入下一项。
 
-> 当前有效顺序：先用 q19 受控目标完成 API 真实协议最小闭环，再继续 Karing APK 驱动的 Android 单设备闭环，随后复跑 Windows API/Web，最后推进真实通知、外部缺陷平台、生产性能和发布收口；下方更早的历史记录不覆盖当前执行版。
+> 当前有效顺序：API 受控 HTTP 最小闭环已通过，下一步继续 Karing APK 驱动的 Android 单设备闭环，随后复跑 Windows API/Web，再补 API 认证复用/导入/多协议与真实通知、外部缺陷平台、生产性能和发布收口；下方更早的历史记录不覆盖当前执行版。
+
+## 2026-08-25 API 测试工作台真实目标最小闭环
+
+- [x] 使用当前有效账号在 q19 受控 HTTP 目标创建临时项目、模块和 API 用例，完成提交评审、审批、执行和运行终态查询。
+- [x] HTTP `GET` 返回 `200`，状态码断言通过，JSONPath `$.service` 提取成功；临时项目、用例、运行及关联数据清理成功。
+- [x] API 执行器相关回归 `77 passed`；脱敏证据见 [`docs/evidence/api-real-target-2026-08-25.json`](docs/evidence/api-real-target-2026-08-25.json)。
+- [E] 本项只关闭受控 HTTP 目标的最小真实执行证据；认证复用、OpenAPI/Postman 导入、GraphQL/WebSocket/gRPC 真实目标和完整报告仍需后续环境验收。
 
 ## 2026-08-25 参考导航对齐开发计划（当前版本）
 
