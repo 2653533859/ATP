@@ -3,9 +3,19 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field
+
+
+ConfigurationSnapshotDomain = Literal[
+    "environment",
+    "global_variable",
+    "ai_llm",
+    "storage_policy",
+    "notification",
+    "performance_node",
+]
 
 
 class ConfigurationEntryOut(BaseModel):
@@ -40,3 +50,25 @@ class ConfigurationCenterOverviewOut(BaseModel):
     checked_at: datetime
     project_id: int | None = None
     sections: list[ConfigurationSectionOut] = Field(default_factory=list)
+
+
+class ConfigurationRevisionCreateIn(BaseModel):
+    domain: ConfigurationSnapshotDomain
+    resource_id: int = Field(gt=0)
+    reason: str | None = Field(default=None, max_length=512)
+
+
+class ConfigurationRevisionOut(BaseModel):
+    id: int
+    domain: str
+    resource_id: int
+    project_id: int | None = None
+    resource_name: str
+    fingerprint: str
+    reason: str | None = None
+    redacted_payload: dict[str, Any] = Field(default_factory=dict)
+    created_by: int | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}

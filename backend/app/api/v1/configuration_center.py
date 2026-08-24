@@ -10,14 +10,15 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
-from sqlalchemy import or_, select
+from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_project_role, require_engineer
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.ai_llm_config import AILLMConfig
+from app.models.configuration_revision import ConfigurationRevision
 from app.models.environment import Environment, EnvVariable
 from app.models.global_variable import GlobalVariable, ScopeType
 from app.models.notification import NotificationConfig
@@ -28,7 +29,17 @@ from app.models.user_project import ProjectRole, role_satisfies
 from app.schemas.configuration_center import (
     ConfigurationCenterOverviewOut,
     ConfigurationEntryOut,
+    ConfigurationRevisionCreateIn,
+    ConfigurationRevisionOut,
     ConfigurationSectionOut,
+)
+from app.services.audit import write_audit_log
+from app.services.configuration_snapshots import (
+    ConfigurationSnapshotForbidden,
+    ConfigurationSnapshotNotFound,
+    ConfigurationSnapshotUnsupported,
+    SUPPORTED_SNAPSHOT_DOMAINS,
+    load_configuration_snapshot,
 )
 from app.services.project_scope import visible_project_ids
 
@@ -393,3 +404,124 @@ async def get_configuration_center_overview(
     sections.append(_section(*_SECTION_DEFINITIONS[6], performance_entries))
 
     return ConfigurationCenterOverviewOut(checked_at=now, project_id=project_id, sections=sections)
+
+
+def _revision_out(revision: ConfigurationRevision) -> ConfigurationRevisionOut:
+    return ConfigurationRevisionOut(
+        id=revision.id,
+        domain=revision.domain,
+        resource_id=revision.resource_id,
+        project_id=revision.project_id,
+        resource_name=revision.resource_name,
+        fingerprint=revision.fingerprint,
+        reason=revision.reason,
+        redacted_payload=dict(revision.redacted_payload or {}),
+        created_by=revision.created_by,
+        created_at=revision.created_at,
+        updated_at=revision.updated_at,
+    )
+
+
+def _revision_visibility_clause(user: User):
+    if user.role == UserRole.admin:
+        return None
+    return or_(
+        ConfigurationRevision.project_id.in_(visible_project_ids(user)),
+        and_(
+            ConfigurationRevision.project_id.is_(None),
+            ConfigurationRevision.domain == "performance_node",
+        ),
+    )
+
+
+def _assert_revision_domain_visible(user: User, domain: str | None) -> None:
+    if user.role == UserRole.admin or domain not in {"ai_llm", "storage_policy"}:
+        return
+    raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="没有权限查看此配置版本")
+
+
+@router.post(
+    "/revisions",
+    response_model=ConfigurationRevisionOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_configuration_revision(
+    body: ConfigurationRevisionCreateIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+) -> ConfigurationRevisionOut:
+    """Persist one encrypted snapshot of an existing configuration resource."""
+
+    try:
+        snapshot = await load_configuration_snapshot(db, user, body.domain, body.resource_id)
+    except ConfigurationSnapshotNotFound as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc)) from exc
+    except ConfigurationSnapshotForbidden as exc:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=str(exc)) from exc
+    except ConfigurationSnapshotUnsupported as exc:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc)) from exc
+
+    revision = ConfigurationRevision(
+        domain=snapshot.domain,
+        resource_id=snapshot.resource_id,
+        project_id=snapshot.project_id,
+        resource_name=snapshot.resource_name,
+        payload_encrypted=snapshot.payload_encrypted,
+        redacted_payload=snapshot.redacted_payload,
+        fingerprint=snapshot.fingerprint,
+        reason=body.reason,
+        created_by=user.id,
+    )
+    db.add(revision)
+    await db.flush()
+    await write_audit_log(
+        db,
+        action="configuration_revision_create",
+        resource_type="configuration_revision",
+        resource_id=revision.id,
+        user_id=user.id,
+        username=user.username,
+        project_id=revision.project_id,
+        detail=(
+            f"创建配置版本: domain={revision.domain}, resource_id={revision.resource_id}, "
+            f"fingerprint={revision.fingerprint}"
+        ),
+    )
+    await db.commit()
+    await db.refresh(revision)
+    return _revision_out(revision)
+
+
+@router.get("/revisions", response_model=list[ConfigurationRevisionOut])
+async def list_configuration_revisions(
+    domain: str | None = Query(default=None),
+    resource_id: int | None = Query(default=None, ge=1),
+    project_id: int | None = Query(default=None, ge=1),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+) -> list[ConfigurationRevisionOut]:
+    """List safe revision history visible to the current engineer."""
+
+    if resource_id is not None and not domain:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="按资源查询时必须指定配置域")
+    if domain and domain not in SUPPORTED_SNAPSHOT_DOMAINS:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail="不支持的配置域")
+    _assert_revision_domain_visible(user, domain)
+    if project_id is not None:
+        await assert_project_access(db, user, project_id, ProjectRole.viewer)
+
+    statement = select(ConfigurationRevision).order_by(
+        ConfigurationRevision.created_at.desc(), ConfigurationRevision.id.desc()
+    )
+    visibility = _revision_visibility_clause(user)
+    if visibility is not None:
+        statement = statement.where(visibility)
+    if domain:
+        statement = statement.where(ConfigurationRevision.domain == domain)
+    if resource_id is not None:
+        statement = statement.where(ConfigurationRevision.resource_id == resource_id)
+    if project_id is not None:
+        statement = statement.where(ConfigurationRevision.project_id == project_id)
+    revisions = (await db.execute(statement.limit(limit))).scalars().all()
+    return [_revision_out(revision) for revision in revisions]

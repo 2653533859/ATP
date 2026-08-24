@@ -23,6 +23,7 @@ from app.models.ios import IosApp, IosDevice, IosDeviceLease  # noqa
 from app.models.dataset import TestDataset, TestDatasetVersion  # noqa
 from app.models.defect import Defect, DefectRunLink  # noqa
 from app.models.defect_external import DefectExternalLink  # noqa
+from app.models.configuration_revision import ConfigurationRevision  # noqa
 
 config = context.config
 if config.config_file_name is not None:
