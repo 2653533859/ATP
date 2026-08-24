@@ -73,6 +73,12 @@
 - **验证**：登录定向 `3 passed`，运行详情定向 `1 passed`，全量 Playwright `12 passed`；前端 Vitest `66 files / 265 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过。
 - **边界**：Windows 真实 smoke 仍需用当前有效账号重跑；本地 mock 只证明浏览器回归隔离正确，不替代认证读接口、文件传输、报告导出和真实部署验收。
 
+### 2026-08-25 P0-B Android 单设备验收前置复核
+
+- **验证**：执行 `scripts/windows-android-acceptance.ps1`，`adb.exe` 和 ADB 命令响应正常；脱敏报告记录 `online=0, unauthorized=0, offline=1, other=0`。
+- **审查结论**：脚本在离线设备状态下只记录必需检查失败和重连提示，不继续执行设备命令、包管理、日志读取或创建 Android 运行任务；本地报告位于被忽略的 `.local-run/android-acceptance-current-20260825.json`。
+- **边界**：ADB 恢复为 `device` 前，P0-B 的扫描、预约、截图、APK 包名、Android 低代码、专项任务和结果回传仍不能标记为通过；下一步继续等待真实设备恢复。
+
 ## 0. 当前执行总表（2026-08-24 更新）
 
 本表是当前开发入口的唯一排序依据。`[x]` 表示代码、测试和审查已经完成；`[E]` 表示本地实现已完成但仍需真实环境证据；`[~]` 表示正在推进；`[ ]` 表示尚未开始。每完成一个模块，都必须完成实现、测试、代码审查、问题修复、文档同步和提交推送，再进入下一项。

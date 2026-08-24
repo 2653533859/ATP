@@ -4,6 +4,8 @@
 
 - 2026-08-25 P0-A 本地 Playwright 回归修复已完成：共享登录 fixture 兼容 Ant Design Vue 将“登录”渲染为“登 录”，并补齐主布局 `/workbench/overview` 与运行详情 `/defects` 的隔离 mock，避免真实 401 清理会话导致登录页假失败。登录定向 `3 passed`、运行详情定向 `1 passed`、全量 Playwright `12 passed`；前端 Vitest `66 files / 265 tests passed`，type-check、生产构建和 diff-check 通过。代码审查确认未改生产认证/路由/执行逻辑。Windows 真实 API/Web smoke 仍待当前有效账号，401、跳过认证检查或本地 mock 不能记为真实环境通过。
 
+- 2026-08-25 P0-B Android 单设备验收前置复核已完成：运行 `scripts/windows-android-acceptance.ps1`，`adb.exe` 和 ADB 命令响应正常，但当前设备状态为 `online=0, unauthorized=0, offline=1, other=0`，必需检查失败并生成脱敏报告 `.local-run/android-acceptance-current-20260825.json`。脚本在离线状态下不会继续执行设备命令、包管理、日志采集或创建 Android 运行任务；代码审查确认结果边界正确。P0-B 仍需用户恢复 USB/TCP ADB 为 `device` 后，再继续扫描、预约、截图、APK 包名、低代码、专项任务和结果回传，不把 offline 记为通过。
+
 - 2026-08-25 P1-F 本地发布收口已完成：新增 `docs/release-status-2026-08-25.md` 作为能力、证据、环境边界、复验顺序和禁止事项的统一索引，并同步能力矩阵、Q18 状态/实施日志、Task、路线图、用户操作手册和 Release-Readiness Runbook。新增发布状态文档契约，明确 ADB 当前 `offline`、通知仅 `local_link_only`、真实通知供应商/外部缺陷平台/生产性能环境仍未验收；没有将这些阻塞项写成通过。下一步是设备恢复后完成 Android 单设备，以及取得临时目标后完成通知、外部缺陷平台和生产性能证据。
 
 - 2026-08-25 P1-E.3 性能报告与运行记录保留清理本地交付已完成：现有保留服务新增终态 PerformanceRun 根运行统计，项目覆盖/全局排除保持一致；删除根运行依赖数据库级级联清理分片和 `performance_metric_samples`，并在数据库提交后删除根/直接分片的 MinIO 原始报告。管理员清理页增加压测执行数，前端对旧后端缺失字段按 0 兼容，避免确认数量 `NaN`。保留清理/API 定向 `24 passed`，完整非集成后端 `2226 passed`，3 个受影响测试文件独立运行 `3 passed, 0 failed`，前端全量 `66 files / 265 tests passed`，type-check/build、Ruff、diff-check 通过。真实 MinIO 生命周期、生产保留周期、跨主机恢复和 Kubernetes 多节点仍未完成。

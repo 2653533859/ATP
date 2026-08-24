@@ -12,6 +12,12 @@
 - 登录定向 `3 passed`、运行详情定向 `1 passed`、全量 Playwright `12 passed`；前端 Vitest `66 files / 265 tests passed`，type-check 和生产构建通过。
 - 这只证明本地浏览器回归隔离已修复；Windows 真实 API/Web smoke 仍等待当前有效账号，未将认证读接口、文件上传、报告导出或其他跳过项写成通过。
 
+## 2026-08-25 P0-B Android 单设备验收前置复核
+
+- 已执行 `scripts/windows-android-acceptance.ps1`：`adb.exe` 可用、ADB 命令响应正常，但设备统计为 `online=0, unauthorized=0, offline=1, other=0`，必需检查失败。
+- 验收脚本生成脱敏本地报告 `.local-run/android-acceptance-current-20260825.json`，离线状态下没有继续执行设备命令、包管理、日志读取或创建 Android 任务。
+- 这只证明 Worker/ADB 诊断入口边界正确；ADB 恢复为 `device` 前，扫描、预约、截图、APK 包名、低代码、专项任务和结果回传都保持未验收。
+
 ## 2026-08-25 P1-F 本地发布收口状态
 
 - 已建立统一发布状态索引 [`release-status-2026-08-25.md`](release-status-2026-08-25.md)，集中列出 Windows/Web、Android、性能、通知和外部缺陷平台的证据与边界。

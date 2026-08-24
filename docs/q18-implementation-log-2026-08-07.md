@@ -13,6 +13,13 @@
 - [x] 前端 Vitest `66 files / 265 tests passed`，type-check、生产构建和 `git diff --check` 通过。
 - [ ] Windows 真实 API/Web smoke 仍需当前有效账号；mock 回归不替代真实认证、文件传输和报告导出证据。
 
+## 2026-08-25 P0-B Android 单设备验收前置复核
+
+- [x] 运行 `scripts/windows-android-acceptance.ps1`，确认 `adb.exe` 和 ADB 命令正常响应。
+- [x] 脱敏报告 `.local-run/android-acceptance-current-20260825.json` 记录 `online=0, unauthorized=0, offline=1, other=0`；脚本在必需检查失败后不再执行设备命令，也不创建 Android 运行任务。
+- [x] 代码审查确认离线状态的失败边界和提示正确，没有把诊断通过误记为真机执行通过。
+- [ ] ADB 恢复为 `device` 后，继续验证配置配对、Worker 心跳、扫描、预约、截图、APK 包名、Android 低代码、专项任务和结果证据。
+
 ## 2026-08-25 P1-F 本地发布收口状态
 
 - [x] 新增 [`docs/release-status-2026-08-25.md`](release-status-2026-08-25.md)，统一维护当前候选的能力证据、真实环境边界、复验顺序和禁止事项。

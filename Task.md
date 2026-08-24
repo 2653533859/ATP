@@ -20,6 +20,13 @@
 - [x] 前端 Vitest `66 files / 265 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过。
 - [E] Windows 真实 API/Web smoke 仍需使用当前有效账号复跑；本轮 401 只说明账号未被接受，不能使用 `FIRST_ADMIN_*` 代替当前账号，也未将认证读接口、文件传输和报告导出记为通过。
 
+## 2026-08-25 P0-B Android 单设备验收前置复核
+
+- [x] 执行 `scripts/windows-android-acceptance.ps1`，确认 `adb.exe` 可用且 ADB 命令正常响应。
+- [x] 验收脚本正确识别当前状态为 `online=0, unauthorized=0, offline=1, other=0`，输出重连/`adb reconnect` 提示，并生成脱敏本地报告 `.local-run/android-acceptance-current-20260825.json`。
+- [x] 代码审查确认离线设备只触发必需检查失败，不继续执行设备命令、包管理、日志读取或创建 Android 运行任务；没有把本次失败写成设备执行通过。
+- [E] P0-B 仍需将 ADB 恢复为 `device` 后继续配置配对、Worker 心跳、扫描、预约、截图、APK 包名、Android 低代码、专项任务和结果证据验收。
+
 ## 2026-08-24 产品导航与能力扩展路线（持续跟踪）
 
 开发计划和单模块交付规则已记录在 [`docs/product-navigation-roadmap-2026-08-24.md`](docs/product-navigation-roadmap-2026-08-24.md)，本节只维护阶段状态；导航已按参考方案固定为五组，N0 导航壳、N1 工作台与任务中心、N2.1/N2.2/N2.3/N2.4/N2.5、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心本地实现、审查和回归已完成，均待真实环境验收；N6.3/N6.4/N6.5/N6.6/N6.7/N6.8/N6.9/N6.10/N6.11/N6.12/N6.13 已补充远端依赖、完整 Windows API/Web readiness、q19 真实迁移、持久通用 Web Worker、独立录制 Worker、Chromium/Firefox/WebKit 证据链、跨 API 副本一致性、真实性能节点执行、通知本地链路、Android Backend/Agent 配置一致性门禁和全量质量门禁复核，Android、通知供应商和外部平台仍待独立验收。

@@ -19,6 +19,12 @@
 - 前端 Vitest `66 files / 265 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过。
 - 这不改变发布结论：Windows 完整 smoke 仍需使用当前有效账号重跑；认证读接口、文件传输和报告导出在账号未通过前保持未验收，不记录任何密码或 Token。
 
+## 2026-08-25 P0-B Android 单设备验收前置复核
+
+- `scripts/windows-android-acceptance.ps1` 已执行；`adb.exe` 可用且命令响应正常，但设备统计为 `online=0, unauthorized=0, offline=1, other=0`，必需检查失败。
+- 脱敏本地报告：`.local-run/android-acceptance-current-20260825.json`。脚本在离线状态下不会继续执行设备命令、包管理、日志读取或创建 Android 运行任务。
+- 这不改变发布结论：ADB 恢复到 `device` 后，仍需完成扫描、租约、截图、APK 包名、低代码、专项任务和证据回传；`offline` 只能作为阻塞项记录。
+
 ## 能力与证据索引
 
 | 能力域 | 当前结论 | 主要证据 | 未关闭边界 |
