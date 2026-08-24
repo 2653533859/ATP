@@ -62,6 +62,7 @@
 - [x] 代码审查发现并修复全量套件中的模块桩污染：新增测试独立加载真实通知服务模块，不依赖其他测试对 `sys.modules` 的修改。
 - [x] 通知定向 `12 passed`，完整后端非集成 `2236 passed`，改动文件 Ruff/格式检查和 `git diff --check` 通过；提交 `9852387` 已完成本地提交。
 - [E] 未触达真实 SMTP、企业微信或钉钉供应商；真实投递、供应商侧送达、限流和重复投递仍需临时目标与凭据。证据见 [`notification-acceptance-redaction-2026-08-25.json`](docs/evidence/notification-acceptance-redaction-2026-08-25.json)。
+- [x] 追加修复 `notification-channel-smoke.py` 的 `access_token`、`sign` 和 URL 用户信息脱敏边界，提交 `8fd129b`；通知脚本定向 `12 passed`、完整后端非集成 `2236 passed`，证据见 [`notification-smoke-redaction-2026-08-25.json`](docs/evidence/notification-smoke-redaction-2026-08-25.json)。
 
 ## 2026-08-25 工作台任务状态枚举隔离修复
 

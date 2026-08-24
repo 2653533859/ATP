@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 P1-C 通知 Smoke 追加脱敏修复已提交 `8fd129b`：补齐 `access_token`、`sign` 和 URL 用户信息匹配，避免 DingTalk/Webhook 异常变体泄露；通知脚本定向 `12 passed`，完整后端非集成 `2236 passed`。真实 SMTP/企业微信/钉钉仍待供应商目标与凭据；证据见 `docs/evidence/notification-smoke-redaction-2026-08-25.json`。
+
 - 2026-08-25 P1-C 通知验收脚本安全修复已提交 `9852387`：`notification-channel-acceptance.py` 异常分支改为复用通知服务 `_safe_exception_message`，不再把 Token、密码或 URL 用户信息写入终端/JSON 报告；新增测试在全量套件中独立加载真实通知模块，修复历史 `sys.modules` 桩污染。通知定向 `12 passed`，完整后端非集成 `2236 passed`，改动文件 Ruff/格式/diff-check 通过。未触达真实 SMTP/企业微信/钉钉供应商，真实投递门禁仍待临时目标与凭据；证据见 `docs/evidence/notification-acceptance-redaction-2026-08-25.json`。
 
 - 2026-08-25 P1-D 运行态已同步：q19 从 `origin/main` 的 `cec8eaf` 独立工作树重建，迁移 `20260824_0065 (head)`、Backend `200`、Redis `PONG`、Prometheus `4` targets `up`，通用 Worker/性能 Worker/Beat/Web Recorder 共 4 个容器运行，最近 3 分钟 Backend/Worker 错误匹配数为 0。证据见 `docs/evidence/q19-external-tracker-deployment-2026-08-25.json`。该证据只覆盖 Compose 运行态，不替代真实 Jira/禅道/GitHub/GitLab、Kubernetes 多节点、生产性能或 Android 真机验收。

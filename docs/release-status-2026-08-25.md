@@ -58,6 +58,7 @@
 - 通知供应商验收脚本已改为复用统一异常脱敏逻辑，Token、密码和 URL 用户信息不会进入终端或 JSON 报告；全量测试下的历史模块桩污染也已隔离。
 - 本地证据：提交 `9852387`，通知定向 `12 passed`、完整后端非集成 `2236 passed`，改动文件 Ruff、格式和 diff-check 通过；详见 [`notification-acceptance-redaction-2026-08-25.json`](evidence/notification-acceptance-redaction-2026-08-25.json)。
 - 发布边界：未连接真实 SMTP、企业微信或钉钉供应商，本模块不关闭真实投递、供应商侧送达、限流和重复投递门禁。
+- 追加提交 `8fd129b` 补齐通知 Smoke 对 `access_token`、`sign` 和 URL 用户信息的错误脱敏；定向 `12 passed`、后端非集成 `2236 passed`，详见 [`notification-smoke-redaction-2026-08-25.json`](evidence/notification-smoke-redaction-2026-08-25.json)。
 
 ## 2026-08-25 Windows 已认证浏览器冒烟复核
 

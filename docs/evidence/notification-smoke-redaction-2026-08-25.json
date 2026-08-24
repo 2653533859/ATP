@@ -1,0 +1,33 @@
+{
+  "schema_version": 1,
+  "captured_at": "2026-08-25",
+  "source_commit": "8fd129b",
+  "scope": "notification_smoke_error_redaction",
+  "checks": [
+    {
+      "name": "notification_scripts_regression",
+      "command": "backend/.venv/Scripts/python.exe -m pytest backend/tests/scripts/test_notification_channel_acceptance.py backend/tests/scripts/test_notification_channel_smoke.py backend/tests/scripts/test_notification_smtp_link_check.py -q",
+      "result": "12 passed"
+    },
+    {
+      "name": "backend_full_non_integration",
+      "command": "backend/.venv/Scripts/python.exe -m pytest backend/tests -q --ignore=backend/tests/integration",
+      "result": "2236 passed"
+    },
+    {
+      "name": "quality",
+      "command": "Ruff/format changed files and git diff --check",
+      "result": "passed"
+    }
+  ],
+  "protected_values": [
+    "access_token",
+    "sign",
+    "URL userinfo",
+    "token",
+    "password"
+  ],
+  "limitations": [
+    "本轮未触达真实 SMTP、企业微信或钉钉供应商；真实投递和供应商侧送达仍待临时目标与凭据。"
+  ]
+}

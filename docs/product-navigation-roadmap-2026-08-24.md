@@ -113,6 +113,7 @@
 - **实现**：复用通知服务统一 `_safe_exception_message`，并让回归测试在唯一模块名下加载真实通知服务，保持单文件和完整套件均可运行。
 - **审查与验证**：提交 `9852387`；通知定向 `12 passed`，完整后端非集成 `2236 passed`，改动文件 Ruff、格式和 `git diff --check` 通过。证据见 [`notification-acceptance-redaction-2026-08-25.json`](evidence/notification-acceptance-redaction-2026-08-25.json)。
 - **边界**：本模块只收口本地验收脚本和错误脱敏，不代表真实 SMTP/企业微信/钉钉供应商送达、限流或重复投递已验收。
+- **追加修复**：提交 `8fd129b` 补齐 `notification-channel-smoke.py` 对 `access_token`、`sign` 和 URL 用户信息的脱敏，避免 DingTalk/Webhook 错误变体泄露；定向与完整回归保持 `12 passed` / `2236 passed`。证据见 [`notification-smoke-redaction-2026-08-25.json`](evidence/notification-smoke-redaction-2026-08-25.json)。
 
 ### 2026-08-25 工作台任务状态枚举隔离修复
 
