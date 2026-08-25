@@ -4,6 +4,8 @@
 
 > 机器可校验的门禁索引：[`docs/release-evidence-index-2026-08-25.json`](release-evidence-index-2026-08-25.json)。滚动索引不保存候选 SHA；发布候选必须用实际 SHA 执行：
 
+> 当前开发计划跟踪版本为 2.2.0；模块顺序、状态和验收出口以 [`docs/development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.2.0 为准，未关闭的真实环境门禁不得被本地 mock 或跳过项覆盖。
+
 ```bash
 python scripts/validate-release-evidence.py --candidate-sha "$(git rev-parse HEAD)" --require-candidate-sha --require-clean
 ```
