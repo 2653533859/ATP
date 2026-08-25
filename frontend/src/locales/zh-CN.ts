@@ -2616,6 +2616,14 @@ export default {
       defect_health: '缺陷健康度',
       definition: '覆盖率只表示选定周期内至少执行过一次的用例比例，不等同于代码覆盖率。',
     },
+    protocol: {
+      eyebrow: 'CASE TYPES',
+      title: '用例类型分布',
+      note: '按完成运行统计各类型的通过表现',
+      runs: '{count} 次运行',
+      result: '{passed} 次通过 · {failed} 次失败 / 异常',
+      empty: '当前周期暂无可用的类型统计',
+    },
     runs: {
       eyebrow: 'SOURCE RUNS',
       title: '最近执行记录',

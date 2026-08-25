@@ -15,6 +15,15 @@ class ReportTrendItem(BaseModel):
     avg_duration_ms: float | None = None
 
 
+class ReportCaseTypeItem(BaseModel):
+    case_type: str
+    total_runs: int
+    passed_runs: int
+    failed_runs: int
+    error_runs: int
+    pass_rate: float
+
+
 class ReportRunItem(BaseModel):
     id: int
     project_id: int
@@ -43,6 +52,7 @@ class ReportOverviewOut(BaseModel):
     defect_health_rate: float
     quality_score: float
     trend: list[ReportTrendItem] = Field(default_factory=list)
+    case_type_stats: list[ReportCaseTypeItem] = Field(default_factory=list)
     recent_runs: list[ReportRunItem] = Field(default_factory=list)
 
 

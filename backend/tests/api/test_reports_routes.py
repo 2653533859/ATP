@@ -90,6 +90,12 @@ def test_report_overview_returns_coverage_quality_trend_and_recent_runs(monkeypa
                     executed_cases=7,
                 )
             ),
+            _Result(
+                rows=[
+                    SimpleNamespace(case_type=CaseType.api, total=5, passed=4, failed=1, error=0),
+                    SimpleNamespace(case_type=CaseType.web, total=3, passed=2, failed=0, error=1),
+                ]
+            ),
             _Result(scalar=1),
             _Result(rows=[SimpleNamespace(date="2026-08-24", total=8, passed=6, failed=1, error=1, avg_duration=1250)]),
             _Result(rows=[(recent_run, "登录用例", CaseType.api, 3)]),
@@ -103,6 +109,8 @@ def test_report_overview_returns_coverage_quality_trend_and_recent_runs(monkeypa
     assert result.coverage_rate == 70.0
     assert result.pass_rate == 75.0
     assert result.open_defects == 1
+    assert [item.case_type for item in result.case_type_stats] == ["api", "web"]
+    assert result.case_type_stats[0].pass_rate == 80.0
     assert result.trend[0].failed == 1
     assert result.recent_runs[0].case_name == "登录用例"
     assert result.quality_score == 76.0

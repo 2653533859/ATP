@@ -2616,6 +2616,14 @@ export default {
       defect_health: 'Defect health',
       definition: 'Coverage is the share of cases executed at least once in the selected period; it is not code coverage.',
     },
+    protocol: {
+      eyebrow: 'CASE TYPES',
+      title: 'Case type distribution',
+      note: 'Pass performance grouped by completed run type',
+      runs: '{count} runs',
+      result: '{passed} passed · {failed} failed / error',
+      empty: 'No type statistics are available for this period',
+    },
     runs: {
       eyebrow: 'SOURCE RUNS',
       title: 'Recent executions',

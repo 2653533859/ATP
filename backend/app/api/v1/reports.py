@@ -20,6 +20,7 @@ from app.models.user_project import ProjectRole
 from app.schemas.reports import (
     ReportCompareMetric,
     ReportCompareOut,
+    ReportCaseTypeItem,
     ReportOverviewOut,
     ReportRunItem,
     ReportRunSnapshot,
@@ -173,6 +174,35 @@ async def get_report_overview(
     coverage_rate = round(executed_cases / total_cases * 100, 1) if total_cases else 0.0
     avg_duration = round(float(summary.avg_duration), 0) if summary.avg_duration is not None else None
 
+    case_type_query = (
+        select(
+            TestCase.case_type.label("case_type"),
+            func.count(TestRun.id).label("total"),
+            func.sum(sql_case((TestRun.status == RunStatus.passed, 1), else_=0)).label("passed"),
+            func.sum(sql_case((TestRun.status == RunStatus.failed, 1), else_=0)).label("failed"),
+            func.sum(sql_case((TestRun.status == RunStatus.error, 1), else_=0)).label("error"),
+        )
+        .select_from(TestRun)
+        .join(TestCase, TestRun.case_id == TestCase.id)
+        .join(Module, TestCase.module_id == Module.id)
+        .where(TestRun.status.in_(_FINISHED_STATUSES), TestRun.created_at >= since)
+    )
+    case_type_query = scope_to_visible_projects(case_type_query, Module.project_id, user, project_id)
+    case_type_rows = (
+        await db.execute(case_type_query.group_by(TestCase.case_type).order_by(TestCase.case_type))
+    ).all()
+    case_type_stats = [
+        ReportCaseTypeItem(
+            case_type=_value(row.case_type),
+            total_runs=int(row.total or 0),
+            passed_runs=int(row.passed or 0),
+            failed_runs=int(row.failed or 0),
+            error_runs=int(row.error or 0),
+            pass_rate=round((row.passed or 0) / row.total * 100, 1) if row.total else 0.0,
+        )
+        for row in case_type_rows
+    ]
+
     defect_query = select(func.count(Defect.id)).where(Defect.status.in_(_ACTIVE_DEFECT_STATUSES))
     defect_query = scope_to_visible_projects(defect_query, Defect.project_id, user, project_id)
     open_defects = int((await db.execute(defect_query)).scalar_one() or 0)
@@ -245,6 +275,7 @@ async def get_report_overview(
         defect_health_rate=defect_health,
         quality_score=quality_score,
         trend=trend,
+        case_type_stats=case_type_stats,
         recent_runs=recent_runs,
     )
 

@@ -66,6 +66,7 @@ const OVERVIEW = {
   defect_health_rate: 90,
   quality_score: 76,
   trend: [{ date: '2026-08-24', total: 8, passed: 6, failed: 1, error: 1, pass_rate: 75, avg_duration_ms: 1250 }],
+  case_type_stats: [{ case_type: 'api', total_runs: 8, passed_runs: 6, failed_runs: 1, error_runs: 1, pass_rate: 75 }],
   recent_runs: [
     { id: 44, project_id: 1, case_id: 9, case_name: '登录用例', case_type: 'api', status: 'passed', duration_ms: 1200, created_at: '2026-08-24T12:00:00Z' },
     { id: 43, project_id: 1, case_id: 9, case_name: '登录用例', case_type: 'api', status: 'failed', duration_ms: 1600, created_at: '2026-08-23T12:00:00Z' },
@@ -137,6 +138,7 @@ describe('ReportCenterView', () => {
     expect((wrapper.vm as any).baselineRunId).toBe(43)
     expect((wrapper.vm as any).currentRunId).toBe(44)
     expect(wrapper.text()).toContain('report_center.title')
+    expect(wrapper.text()).toContain('report_center.protocol.title')
     const vm = wrapper.vm as any
     vm.days = 7
     await nextTick()

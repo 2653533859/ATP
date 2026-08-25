@@ -7,7 +7,7 @@
 
 > 当前执行版：[`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 汇总本轮五组导航、模块台账、下一步顺序、风险解除条件和状态口径；本文件继续保存完整历史方案与实施记录。
 
-> 最新进度：API 工作台已在 q19 受控 HTTP 目标完成最小真实执行、显式会话复用、gRPC TLS Unary 执行、OpenAPI/Postman 解析及导入预览/落库/回读/清理；证据见 [`evidence/api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`evidence/api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`evidence/api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`evidence/api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json) 与 [`evidence/api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)，不替代生产 API、GraphQL/WebSocket/流式 gRPC 或完整报告验收。
+> 最新进度：API 工作台已在 q19 受控 HTTP 目标完成最小真实执行、显式会话复用、gRPC TLS Unary 执行、OpenAPI/Postman 解析及导入预览/落库/回读/清理；报告中心新增按用例类型的本地统计展示。证据见 [`evidence/api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`evidence/api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`evidence/api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`evidence/api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json) 与 [`evidence/api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)，不替代生产 API、GraphQL/WebSocket/流式 gRPC 或完整报告验收。
 
 ## 0.1 导航对齐执行版计划（2026-08-24）
 
@@ -873,3 +873,7 @@ GraphQL、WebSocket 和 gRPC 派发前现在要求 `config.steps` 为非空数�
 ### 0.8.2 N1 协议配置保存校验
 
 创建/更新协议用例时已在 API 层校验 GraphQL 的 endpoint/query、WebSocket 的 url/messages 以及 gRPC 的 target/proto/service/method；无效请求返回 `422`，快照创建在校验之后，避免保存后才在 Worker 失败。用例管理回归 `35 passed`、后端非集成全量 `2282 passed`；真实协议目标和完整报告仍未关闭。
+
+### 0.8.3 N1 报告中心按用例类型统计
+
+报告概览 API 已按当前用户可见项目聚合已完成运行的用例类型，返回总运行、通过、失败、异常和通过率；报告中心以卡片、进度条和空态展示这些统计，并提供中英文文案。报告定向 `5 passed`、前端报告页 `3 passed`、后端非集成全量 `2282 passed`，`vue-tsc`、生产构建、Ruff 和差异检查通过，代码审查未发现问题。该项只完成本地报告能力，不关闭真实 GraphQL/WebSocket/流式 gRPC 和完整报告环境验收。

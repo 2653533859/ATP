@@ -891,6 +891,15 @@ export interface ReportTrendItem {
   avg_duration_ms?: number | null
 }
 
+export interface ReportCaseTypeItem {
+  case_type: string
+  total_runs: number
+  passed_runs: number
+  failed_runs: number
+  error_runs: number
+  pass_rate: number
+}
+
 export interface ReportRunItem {
   id: number
   project_id: number
@@ -919,6 +928,7 @@ export interface ReportOverviewItem {
   defect_health_rate: number
   quality_score: number
   trend: ReportTrendItem[]
+  case_type_stats: ReportCaseTypeItem[]
   recent_runs: ReportRunItem[]
 }
 

@@ -130,6 +130,30 @@
         </a-card>
       </section>
 
+      <section class="report-card protocol-card">
+        <div class="card-heading runs-heading">
+          <div>
+            <span class="eyebrow">{{ t('report_center.protocol.eyebrow') }}</span>
+            <h2>{{ t('report_center.protocol.title') }}</h2>
+          </div>
+          <span class="card-note">{{ t('report_center.protocol.note') }}</span>
+        </div>
+        <div v-if="overview.case_type_stats.length" class="protocol-list">
+          <div v-for="item in overview.case_type_stats" :key="item.case_type" class="protocol-row">
+            <div class="protocol-row-top">
+              <strong>{{ caseTypeLabel(item.case_type) }}</strong>
+              <span>{{ item.pass_rate.toFixed(1) }}%</span>
+            </div>
+            <div class="protocol-track"><span :style="{ width: `${Math.max(0, Math.min(item.pass_rate, 100))}%` }" /></div>
+            <div class="protocol-meta">
+              <span>{{ t('report_center.protocol.runs', { count: item.total_runs }) }}</span>
+              <span>{{ t('report_center.protocol.result', { passed: item.passed_runs, failed: item.failed_runs + item.error_runs }) }}</span>
+            </div>
+          </div>
+        </div>
+        <a-empty v-else :description="t('report_center.protocol.empty')" />
+      </section>
+
       <section class="report-card runs-card">
         <div class="card-heading runs-heading">
           <div>
@@ -247,6 +271,7 @@ const emptyOverview = (selectedProjectId = projectId.value, selectedDays = days.
   defect_health_rate: 100,
   quality_score: 0,
   trend: [],
+  case_type_stats: [],
   recent_runs: [],
 })
 const overview = reactive<ReportOverviewItem>(emptyOverview())
@@ -536,6 +561,15 @@ onMounted(async () => {
 .health-note { display: flex; gap: 9px; margin-top: 20px; color: var(--report-muted); font-size: 12px; line-height: 1.6; }
 .health-note-mark { display: grid; width: 19px; height: 19px; flex: 0 0 19px; place-items: center; border-radius: 50%; color: #4f46e5; background: #e9eaff; font-weight: 800; }
 .health-note p { margin: 0; }
+.protocol-card { margin-bottom: 16px; }
+.protocol-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 20px; }
+.protocol-row { padding: 14px; border: 1px solid var(--report-line); border-radius: 10px; background: #fbfcfe; }
+.protocol-row-top, .protocol-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.protocol-row-top { color: var(--report-ink); font-size: 14px; }
+.protocol-row-top span { color: #4f46e5; font-weight: 800; }
+.protocol-track { height: 7px; margin: 13px 0 10px; overflow: hidden; border-radius: 5px; background: #e9ecf5; }
+.protocol-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #4f46e5, #16a085); transition: width .35s ease; }
+.protocol-meta { color: var(--report-muted); font-size: 11px; }
 .runs-card, .compare-card { margin-bottom: 16px; }
 .runs-heading { margin-bottom: 16px; }
 .run-link { display: inline-flex; flex-direction: column; align-items: flex-start; padding: 0; border: 0; color: var(--report-ink); background: transparent; text-align: left; cursor: pointer; }
@@ -575,6 +609,7 @@ onMounted(async () => {
   .project-select { min-width: 0; width: 100%; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .breakdown-track span { transition: none; }
+.breakdown-track span { transition: none; }
+.protocol-track span { transition: none; }
 }
 </style>
