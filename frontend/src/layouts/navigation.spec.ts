@@ -16,6 +16,15 @@ describe('layout navigation state', () => {
     expect(getBreadcrumbKeys('/cases/42', 'menu.cases')).toEqual(['menu.groups.test_assets_new', 'menu.cases'])
   })
 
+  it('keeps test suite deep links selected as test suites instead of test plans', () => {
+    expect(getSelectedMenuKey('/suites')).toBe('/suites')
+    expect(getSelectedMenuKey('/suites/42')).toBe('/suites')
+    expect(getBreadcrumbKeys('/suites/42', 'menu.assets.suites')).toEqual([
+      'menu.groups.test_assets_new',
+      'menu.assets.suites',
+    ])
+  })
+
   it('uses the specific title for mobile task and report detail routes', () => {
     expect(getRouteTitleKey('/mobile-special/tasks/12')).toBe('menu.mobile_special.tasks')
     expect(getRouteTitleKey('/mobile-special/reports/12')).toBe('menu.mobile_special.reports')

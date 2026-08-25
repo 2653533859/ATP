@@ -80,7 +80,7 @@ export function getSelectedMenuKey(path: string): string {
   if (path.startsWith('/system/web-assets')) return '/ui-workbench'
   if (path.startsWith('/system/api-contract-assets')) return '/api-workbench'
   if (path.startsWith('/system/datasets') || path.startsWith('/mock-rules')) return '/ai-workbench'
-  if (path.startsWith('/suites')) return '/plans'
+  if (path.startsWith('/suites')) return '/suites'
   if (path.startsWith('/system/toolbox')) return '/system/toolbox'
   if (path.startsWith('/system/config') || path.startsWith('/system/')) return '/system/config'
   return path

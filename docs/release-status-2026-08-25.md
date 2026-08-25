@@ -8,6 +8,8 @@
 
 > N2 控件属性获取诊断已完成本地交付：API 进程和 Windows Android Worker 返回 `found`/`not_found`/`unavailable` 及脱敏诊断码；录制界面在不可用时提示并保留坐标回退。后端定向 `22 passed`、前端相关定向 `23 passed`、后端非集成全量 `2305 passed`、前端全量 `69 files / 284 tests passed`，类型检查、生产构建、Ruff、格式检查和差异检查通过。真实 Karing 页面、UIAutomator 权限和真机 Worker 回传仍未关闭发布门禁。
 
+> N0/N6 测试套件导航归位已完成本地交付：`/suites` 已加入测试资产侧栏，深链、面包屑、菜单标题和能力描述元数据一致；导航定向 `8 passed`、前端全量 `69 files / 285 tests passed`，类型检查、生产构建和差异检查通过。真实账号、角色和项目权限复核仍待环境验收，不改变当前发布结论。
+
 > N1 受控协议与报告证据已补齐：GraphQL、WebSocket、gRPC Server/Client/Bidi Streaming 以及 HTML/JUnit/PDF 报告详情和清理均通过 q19 真实网络；详见 [`api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json) 与 [`report-closure-2026-08-25.json`](evidence/report-closure-2026-08-25.json)。生产协议服务和发布环境仍未关闭。
 
 > API 受控目标、显式会话复用、gRPC TLS Unary、GraphQL/WebSocket/流式 gRPC、OpenAPI/Postman 解析和导入落库证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)、[`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)、[`api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json)。这些证据不代表生产协议服务、完整报告或发布环境验收通过。

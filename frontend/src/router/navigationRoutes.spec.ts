@@ -13,6 +13,7 @@ describe('product navigation routes', () => {
       'performance-workbench',
       'ai-workbench',
       'bugs',
+      'suites',
       'reports',
       'case-reviews',
       'hermes',

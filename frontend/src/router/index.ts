@@ -290,6 +290,10 @@ const router = createRouter({
           path: 'suites',
           name: 'suites',
           component: () => import('@/views/suite/SuiteList.vue'),
+          meta: {
+            menuTitleKey: 'menu.assets.suites',
+            descriptionKey: 'navigation.placeholder.description.suites',
+          },
         },
         {
           path: 'plans',

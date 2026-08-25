@@ -55,6 +55,7 @@
           <template #icon><AppstoreOutlined /></template>
           <template #title>{{ t('menu.groups.test_assets_new') }}</template>
           <a-menu-item key="/cases">{{ t('menu.assets.cases') }}</a-menu-item>
+          <a-menu-item key="/suites">{{ t('menu.assets.suites') }}</a-menu-item>
           <a-menu-item key="/plans">{{ t('menu.assets.plans') }}</a-menu-item>
           <a-menu-item key="/bugs">{{ t('menu.assets.bugs') }}</a-menu-item>
           <a-menu-item key="/reports">{{ t('menu.assets.reports') }}</a-menu-item>

@@ -4,6 +4,8 @@
 
 > 2026-08-25 N2 控件属性获取诊断已完成本地交付：UIAutomator/Worker/API 统一返回脱敏诊断状态，录制界面在不可用时提示并保留坐标回退；定向 `22/23 passed`、后端非集成全量 `2305 passed`、前端全量 `69 files / 284 tests passed`，真实 Karing 页面和 UIAutomator 权限仍待真机验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.1。
 
+> 2026-08-25 N0/N6 测试套件导航归位已完成本地交付：`/suites` 加入测试资产侧栏，深链选中和路由元数据补齐；导航定向 `8 passed`、前端全量 `69 files / 285 tests passed`，真实账号/项目权限复核仍待环境验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.2。
+
 > 2026-08-25 Android 低代码录制局部交付：可视化点击录制保存文本、resource-id、content-desc、className、bounds 与原始坐标，回放按控件属性优先、坐标兜底；后端定向 `42 passed`、非集成全量 `2297 passed`，前端定向 `4 passed`、全量 `68 files / 277 tests passed`，类型检查、构建、Ruff、差异检查和独立代码审查通过。真实 Karing/Worker 真机验收仍未关闭，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 1.3。
 
 > 2026-08-25 Android 低代码动作语义补强：长按支持控件属性定位和真实同点 swipe 长按，输入步骤分离输入内容与目标控件并支持 targetText/resource-id/content-desc；后端定向 `45 passed`、非集成全量 `2300 passed`，前端定向 `11 passed`、全量 `68 files / 279 tests passed`，类型检查、构建、Ruff、差异检查和独立代码审查通过。真实 Karing/Worker 真机验收仍未关闭，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 1.4。

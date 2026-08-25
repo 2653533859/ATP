@@ -124,6 +124,7 @@ export default {
     },
     assets: {
       cases: 'Test Cases',
+      suites: 'Test Suites',
       plans: 'Test Plans',
       bugs: 'Defects',
       reports: 'Test Reports',
@@ -206,6 +207,7 @@ export default {
         bugs: 'Manage the defect lifecycle and link defects to failed runs and test assets.',
         reports: 'View multi-project results, historical trends, execution comparisons, coverage, and quality scores.',
         reviews: 'Manage case reviews, comments, version differences, approvals, rejections, and review history.',
+        suites: 'Compose executable cases into reusable collections with sequential or parallel execution and failure strategies.',
         hermes: 'Use conversation to inspect failed tasks, explain errors, generate test plans, and summarize quality metrics.',
         requirements: 'Draft acceptance criteria, link executable cases, and analyze coverage gaps and potential impact.',
         knowledge: 'Search standards, defects, solutions, runbooks, and project experience with source and permission boundaries.',
