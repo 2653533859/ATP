@@ -4,7 +4,7 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
-> 当前计划登记（2.0）：导航已按工作台、测试能力、测试资产、智能中枢、系统五组统一，N0-N9 的范围与验收出口见开发计划 2.0。N4 的 Worker/目标服务采样、Kubernetes 多节点/副本/Worker 资源预检、保留清理和跨端点 MinIO 复制/恢复 smoke 已形成可执行入口；真实目标仍缺 Kubernetes/独立灾备 MinIO/生产 Prometheus，下一步只做环境验收。N2 Karing 包名、启动入口、Worker 前置、低代码和录屏回传已通过，异常回放、专项任务、事件/日志/报告和最终清理待验收；随后推进 N5-N8 外部依赖复核和 N9 发布收口。未关闭门禁继续按“待环境验收”处理。
+> 当前计划登记（2.0.0）：导航已按工作台、测试能力、测试资产、智能中枢、系统五组统一，N0-N9 的范围与验收出口见开发计划 2.0.0。N2 Karing 包名、启动入口、Worker 前置、低代码和录屏回传已通过，当前继续验收异常回放、专项任务、Monkey/事件日志、操作时间线、报告详情和最终清理；随后推进 N4 真实性能环境、N5-N8 外部依赖复核和 N9 发布收口。N4 仍缺真实 Kubernetes/独立灾备 MinIO/生产 Prometheus，未关闭门禁继续按“待环境验收”处理。
 
 > 2026-08-25 N2 Karing 真机前置阶段已通过：设备 `172.16.102.91:5555` 安装并解析 `com.nebula.karing/.MainActivity`，Windows Android Worker、依赖 readiness、Worker registry 和设备扫描通过；后续低代码与录屏结果见最新 N2 记录。发布结论保持“不具备无条件发布资格”。脱敏证据见 [`android-karing-acceptance-2026-08-25.json`](evidence/android-karing-acceptance-2026-08-25.json) 与 [`windows-android-karing-worker-2026-08-25.json`](evidence/windows-android-karing-worker-2026-08-25.json)。
 
@@ -48,7 +48,7 @@
 
 ## 2026-08-25 当前执行计划与新增阻塞
 
-当前执行顺序为：N4 真实性能环境 → N2 Karing 单设备解阻 → N5-N8 真实通知/外部缺陷平台/模型/目标部署复核 → N9 发布收口；Windows API/Web 和 N1 受控 API/报告闭环已复核完成。
+当前执行顺序为：N2 Karing 专项任务/事件/报告闭环 → N4 真实性能环境 → N5-N8 真实通知/外部缺陷平台/模型/目标部署复核 → N9 发布收口；Windows API/Web 和 N1 受控 API/报告闭环已复核完成。
 
 ### 2026-08-25 Windows Android 包名与启动入口验收探针
 
