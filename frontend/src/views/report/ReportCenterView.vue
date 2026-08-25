@@ -198,12 +198,12 @@
         <div class="compare-controls">
           <div class="compare-select">
             <label>{{ t('report_center.compare.baseline') }}</label>
-            <a-select v-model:value="baselineRunId" :options="runOptions" :placeholder="t('report_center.compare.select_run')" />
+            <a-select v-model:value="baselineRunId" :options="runOptions" :placeholder="t('report_center.compare.select_run')" @change="syncCurrentRun" />
           </div>
           <span class="compare-arrow">→</span>
           <div class="compare-select">
             <label>{{ t('report_center.compare.current') }}</label>
-            <a-select v-model:value="currentRunId" :options="runOptions" :placeholder="t('report_center.compare.select_run')" />
+            <a-select v-model:value="currentRunId" :options="runOptions" :placeholder="t('report_center.compare.select_run')" @change="syncBaselineRun" />
           </div>
           <a-button type="primary" :disabled="!canCompare" :loading="compareLoading" @click="compareRuns">
             {{ t('report_center.compare.action') }}
@@ -283,10 +283,13 @@ const dayOptions = computed(() => [
   { label: t('report_center.days.90'), value: 90 },
   { label: t('report_center.days.365'), value: 365 },
 ])
-const runOptions = computed(() => overview.recent_runs.map((run) => ({
-  label: `#${run.id} · ${run.case_name} · ${statusLabel(run.status)}`,
-  value: run.id,
-})))
+function buildRunOptions() {
+  return overview.recent_runs.map((run) => ({
+    label: `#${run.id} · ${run.case_name} · ${statusLabel(run.status)}`,
+    value: run.id,
+  }))
+}
+const runOptions = computed(() => buildRunOptions())
 const qualityLabel = computed(() => {
   if (overview.quality_score >= 90) return t('report_center.score.excellent')
   if (overview.quality_score >= 75) return t('report_center.score.good')
@@ -299,7 +302,11 @@ const scoreBreakdown = computed(() => [
   { key: 'coverage', label: t('report_center.score.coverage'), value: overview.coverage_rate },
   { key: 'defect', label: t('report_center.score.defect_health'), value: overview.defect_health_rate },
 ])
-const canCompare = computed(() => Boolean(baselineRunId.value && currentRunId.value && baselineRunId.value !== currentRunId.value))
+const canCompare = computed(() => {
+  const baseline = overview.recent_runs.find((run) => run.id === baselineRunId.value)
+  const current = overview.recent_runs.find((run) => run.id === currentRunId.value)
+  return Boolean(baseline && current && baseline.id !== current.id && baseline.case_id === current.case_id)
+})
 
 const trendOption = computed(() => ({
   grid: { left: 42, right: 44, top: 28, bottom: 28 },
@@ -376,6 +383,45 @@ function caseTypeLabel(caseType: string) {
   return t(`report_center.case_type.${caseType}`, caseType)
 }
 
+function findComparableRunPair(runs: ReportOverviewItem['recent_runs']) {
+  for (const current of runs) {
+    const baseline = runs.find((candidate) => candidate.id !== current.id && candidate.case_id === current.case_id)
+    if (baseline) return { baselineId: baseline.id, currentId: current.id }
+  }
+  return { baselineId: undefined, currentId: undefined }
+}
+
+function setComparableRunPair(runs: ReportOverviewItem['recent_runs']) {
+  const baseline = runs.find((run) => run.id === baselineRunId.value)
+  const current = runs.find((run) => run.id === currentRunId.value)
+  if (baseline && current && baseline.id !== current.id && baseline.case_id === current.case_id) return
+  const pair = findComparableRunPair(runs)
+  baselineRunId.value = pair.baselineId
+  currentRunId.value = pair.currentId
+}
+
+function syncCurrentRun() {
+  const baseline = overview.recent_runs.find((run) => run.id === baselineRunId.value)
+  if (!baseline) {
+    currentRunId.value = undefined
+    return
+  }
+  currentRunId.value = overview.recent_runs.find(
+    (run) => run.case_id === baseline.case_id && run.id !== baseline.id,
+  )?.id
+}
+
+function syncBaselineRun() {
+  const current = overview.recent_runs.find((run) => run.id === currentRunId.value)
+  if (!current) {
+    baselineRunId.value = undefined
+    return
+  }
+  baselineRunId.value = overview.recent_runs.find(
+    (run) => run.case_id === current.case_id && run.id !== current.id,
+  )?.id
+}
+
 function openRun(runId: number) {
   void router.push({ name: 'run-detail', params: { runId } })
 }
@@ -403,9 +449,7 @@ async function loadReport() {
     const result = await reportApi.overview({ project_id: projectId.value, days: days.value, recent_limit: 20 })
     if (serial !== requestSerial) return
     Object.assign(overview, result)
-    const ids = new Set(result.recent_runs.map((run) => run.id))
-    if (!baselineRunId.value || !ids.has(baselineRunId.value)) baselineRunId.value = result.recent_runs[1]?.id
-    if (!currentRunId.value || !ids.has(currentRunId.value)) currentRunId.value = result.recent_runs[0]?.id
+    setComparableRunPair(result.recent_runs)
     comparison.value = null
     compareError.value = ''
   } catch {
@@ -423,7 +467,7 @@ async function loadReport() {
 }
 
 async function compareRuns() {
-  if (!baselineRunId.value || !currentRunId.value || baselineRunId.value === currentRunId.value) return
+  if (!canCompare.value || !baselineRunId.value || !currentRunId.value) return
   compareLoading.value = true
   compareError.value = ''
   try {

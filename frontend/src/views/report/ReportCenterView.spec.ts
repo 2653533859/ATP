@@ -178,4 +178,43 @@ describe('ReportCenterView', () => {
     revokeObjectURL.mockRestore()
     wrapper.unmount()
   })
+
+  it('selects a comparable pair when the newest runs belong to different cases', async () => {
+    reportOverview.mockResolvedValueOnce({
+      ...OVERVIEW,
+      recent_runs: [
+        { ...OVERVIEW.recent_runs[0], id: 60, case_id: 10 },
+        { ...OVERVIEW.recent_runs[1], id: 59, case_id: 9 },
+        { ...OVERVIEW.recent_runs[1], id: 58, case_id: 9 },
+      ],
+    })
+    const wrapper = mount(ReportCenterView, {
+      global: {
+        stubs: {
+          AAlert: passthrough('AAlert'),
+          AButton: buttonStub,
+          ACard: passthrough('ACard'),
+          AEmpty: passthrough('AEmpty'),
+          ASelect: passthrough('ASelect'),
+          ASpin: passthrough('ASpin'),
+          ATable: passthrough('ATable'),
+          ATag: passthrough('ATag'),
+          VChart: passthrough('VChart'),
+        },
+      },
+    })
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    expect(vm.baselineRunId).toBe(58)
+    expect(vm.currentRunId).toBe(59)
+    expect(vm.canCompare).toBe(true)
+    vm.baselineRunId = 60
+    vm.syncCurrentRun()
+    expect(vm.currentRunId).toBeUndefined()
+    vm.currentRunId = 59
+    vm.syncBaselineRun()
+    expect(vm.baselineRunId).toBe(58)
+    wrapper.unmount()
+  })
 })
