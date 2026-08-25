@@ -12,6 +12,8 @@
 
 > 2026-08-25 N5 模型能力提示与思考快捷配置已完成本地交付：AI 配置页默认关闭思考，可选择三种思考参数形式和 `reasoning_effort` 档位，能力提示不等同于供应商承诺；前端全量 `69 files / 289 tests passed`，类型检查、生产构建和差异检查通过。真实模型参数接受情况仍待环境验收，不改变发布结论。
 
+> 2026-08-25 N5 AI 生成安全边界已完成本地交付：用例、测试数据集、Mock 和模型列表的网络错误不回显供应商响应正文或异常字符串；用例 `raw_response` 限制为 12,000 字符并对 JSON 敏感字段、键值文本和 URL 凭据脱敏。AI 用例/治理定向 `21 passed`、数据集/Mock/LLM 相关回归 `78 passed`、后端非集成全量 `2322 passed`，真实供应商错误格式和模型返回内容仍待环境验收，不改变“不具备无条件发布资格”的结论。
+
 > 2026-08-25 N2 Karing 性能与流畅度专项已完成真实单设备复核：性能运行 `10` 完成 CPU/内存/电量/温度/FPS/卡顿采样，流畅度运行 `13` 完成滑动/点击两个阶段并采集 FPS/jank；事件序列无重复，两个 JSON 报告导出均 HTTP 200，临时项目 `51` 删除 204 且删除后查询 404。Android 14 兼容修复已补入性能内存 VmRSS 兜底和 gfxinfo UI HISTOGRAM 解析/GPU 直方图排除；相关定向回归 `60 passed`，脱敏证据见 [`android-karing-performance-fluency-2026-08-25.json`](evidence/android-karing-performance-fluency-2026-08-25.json)。N2 单设备门禁已关闭，但不代表多设备矩阵或 N4 真实性能环境通过。
 
 > 2026-08-25 N2 Karing 真机前置阶段已通过：设备 `172.16.102.91:5555` 安装并解析 `com.nebula.karing/.MainActivity`，Windows Android Worker、依赖 readiness、Worker registry 和设备扫描通过；后续低代码与录屏结果见最新 N2 记录。发布结论保持“不具备无条件发布资格”。脱敏证据见 [`android-karing-acceptance-2026-08-25.json`](evidence/android-karing-acceptance-2026-08-25.json) 与 [`windows-android-karing-worker-2026-08-25.json`](evidence/windows-android-karing-worker-2026-08-25.json)。

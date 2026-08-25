@@ -37,6 +37,21 @@ labels are hints from model discovery or model-name matching, not proof that a
 provider accepts a parameter; always verify with **Test connection** and the
 provider documentation.
 
+## Provider Error and Raw Output Safety
+
+AI generation endpoints never return a provider response body or the string
+representation of a network exception. HTTP failures expose only the HTTP
+status, timeouts use a 504 response, and network failures use a fixed generic
+message. The same boundary applies to dataset generation, Mock generation and
+model discovery.
+
+The AI case generation `raw_response` field is for bounded troubleshooting
+only: it is limited to 12,000 characters and redacts sensitive JSON fields,
+key/value secrets, URL query credentials and URL user information before
+leaving the API. Do not add provider response bodies, prompts, API keys or
+exception strings to audit details, logs, evidence files or frontend
+notifications.
+
 For a direct Ollama server, use its native `http://host:11434` endpoint and
 leave API Key empty. For Open WebUI, select the OpenAI-compatible provider,
 use `http://host:3000/v1`, and provide an Open WebUI API token from Settings ->

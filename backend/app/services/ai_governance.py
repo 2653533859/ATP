@@ -7,6 +7,8 @@ separate from platform controls.
 
 from __future__ import annotations
 
+import json
+import re
 from datetime import datetime, timezone
 from typing import Any
 
@@ -24,6 +26,38 @@ _ALLOWED_LLM_EXTRA_PARAMS = {
     "thinking",
     "top_p",
 }
+
+_SENSITIVE_TEXT_RE = re.compile(
+    r"(?i)(?P<key>access[_-]?token|api[_-]?key|token|secret|password|passwd|sign(?:ature)?|authorization|cookie)"
+    r"(?P<sep>\s*[:=]\s*)(?P<value>[^&\s,;)}\]<>\"']+)"
+)
+_URL_QUERY_SECRET_RE = re.compile(
+    r"(?i)(?P<prefix>[?&](?:key|access[_-]?token|api[_-]?key|token|secret|sign(?:ature)?|authorization|cookie)"
+    r"\s*=\s*)(?P<value>[^&#\s,;)}\]<>\"']+)"
+)
+_URL_USERINFO_RE = re.compile(r"(?i)(https?://)([^/@\s]+):([^/@\s]+)@")
+
+
+def redact_llm_text(value: object, *, limit: int = 12_000) -> str:
+    """Return bounded LLM text safe to expose in an API response.
+
+    JSON responses are redacted by field name first, while plain-text responses
+    use conservative key/value and URL credential patterns. Provider response
+    bodies are untrusted input and must never be returned verbatim.
+    """
+
+    normalized = ("" if value is None else str(value)).replace("\r", " ").replace("\n", " ").replace("\x00", " ")
+    try:
+        from app.services.ai_case.context import redact_context
+
+        parsed = json.loads(normalized)
+        safe = json.dumps(redact_context(parsed), ensure_ascii=False, separators=(",", ":"))
+    except (TypeError, ValueError):
+        safe = normalized
+    safe = _SENSITIVE_TEXT_RE.sub(r"\g<key>\g<sep>***", safe)
+    safe = _URL_QUERY_SECRET_RE.sub(r"\g<prefix><redacted>", safe)
+    safe = _URL_USERINFO_RE.sub(r"\1<redacted>@", safe)
+    return safe[:limit]
 
 
 def _params(config: AILLMConfig | None) -> dict[str, Any]:

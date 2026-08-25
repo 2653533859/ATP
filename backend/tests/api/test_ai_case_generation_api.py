@@ -449,7 +449,10 @@ def test_generate_failure_writes_funnel_audit_event(monkeypatch):
     )
 
     async def fake_generate(**kwargs):
-        raise ai_case_generation.httpx.HTTPError("network down")
+        raise ai_case_generation.httpx.RequestError(
+            "network down",
+            request=ai_case_generation.httpx.Request("POST", "https://provider.test/v1/chat/completions"),
+        )
 
     monkeypatch.setattr(ai_case_generation, "generate_case_drafts", fake_generate)
 
@@ -473,7 +476,10 @@ def test_generate_502_on_llm_network_error(monkeypatch):
     )
 
     async def fake_generate(**kwargs):
-        raise ai_case_generation.httpx.HTTPError("network down")
+        raise ai_case_generation.httpx.RequestError(
+            "network down",
+            request=ai_case_generation.httpx.Request("POST", "https://provider.test/v1/chat/completions"),
+        )
 
     monkeypatch.setattr(ai_case_generation, "generate_case_drafts", fake_generate)
 
@@ -482,7 +488,7 @@ def test_generate_502_on_llm_network_error(monkeypatch):
         asyncio.run(ai_case_generation.generate_cases_endpoint(body=body, db=db, user=None))
     except Exception as exc:
         assert getattr(exc, "status_code", None) == 502
-        assert "网络错误" in exc.detail  # type: ignore[attr-defined]
+        assert "网络请求失败" in exc.detail  # type: ignore[attr-defined]
     else:
         raise AssertionError("应 502")
 
@@ -508,3 +514,64 @@ def test_generate_400_on_value_error(monkeypatch):
         assert getattr(exc, "status_code", None) == 400
     else:
         raise AssertionError("应 400")
+
+
+def test_generate_http_failure_does_not_expose_provider_body(monkeypatch):
+    db = _AsyncDB(
+        {
+            "Project": {1: _fake_project()},
+            "Module": {1: _fake_module()},
+            "AILLMConfig": {1: _fake_config()},
+        }
+    )
+    request = ai_case_generation.httpx.Request("POST", "https://provider.test/v1/chat/completions")
+    response = ai_case_generation.httpx.Response(
+        401,
+        request=request,
+        text='{"error":{"message":"invalid api_key=provider-secret"}}',
+    )
+
+    async def fake_generate(**kwargs):
+        raise ai_case_generation.httpx.HTTPStatusError("provider rejected request", request=request, response=response)
+
+    monkeypatch.setattr(ai_case_generation, "generate_case_drafts", fake_generate)
+
+    with pytest.raises(Exception) as exc_info:
+        asyncio.run(
+            ai_case_generation.generate_cases_endpoint(
+                body=AICaseGenerateIn(project_id=1, module_id=1), db=db, user=None
+            )
+        )
+
+    detail = str(exc_info.value.detail)  # type: ignore[attr-defined]
+    assert getattr(exc_info.value, "status_code", None) == 502
+    assert "HTTP 401" in detail
+    assert "provider-secret" not in detail
+    assert "invalid api_key" not in detail
+
+
+def test_generate_raw_response_is_bounded_and_redacted(monkeypatch):
+    db = _AsyncDB(
+        {
+            "Project": {1: _fake_project()},
+            "Module": {1: _fake_module()},
+            "AILLMConfig": {1: _fake_config()},
+        }
+    )
+
+    async def fake_generate(**kwargs):
+        return GenerationResult(
+            drafts=[],
+            raw_text='{"password":"provider-secret","notes":"token=raw-secret"}',
+            warnings=["LLM 未生成有效用例"],
+        )
+
+    monkeypatch.setattr(ai_case_generation, "generate_case_drafts", fake_generate)
+    result = asyncio.run(
+        ai_case_generation.generate_cases_endpoint(body=AICaseGenerateIn(project_id=1, module_id=1), db=db, user=None)
+    )
+
+    assert result.raw_response is not None
+    assert "provider-secret" not in result.raw_response
+    assert "raw-secret" not in result.raw_response
+    assert "[已脱敏]" in result.raw_response

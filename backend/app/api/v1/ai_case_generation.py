@@ -36,6 +36,7 @@ from app.services.ai_case.funnel import AICaseFunnelEvent, build_funnel_stats
 from app.services.ai_case.context import build_dataset_context, build_mock_rule_context
 from app.services.ai_case.generator import generate_case_drafts
 from app.services.ai_case.parsers import parse_schema
+from app.services.ai_governance import redact_llm_text
 
 router = APIRouter(prefix="/ai/cases", tags=["AI 用例生成"])
 
@@ -156,15 +157,18 @@ async def generate_cases_endpoint(
             dataset_id=body.dataset_id,
             dataset_version=body.dataset_version,
         )
+    except httpx.TimeoutException:
+        await _record_generation_event(db, user, body, action="ai_case_generate_failed", error_type="timeout")
+        raise HTTPException(status_code=504, detail="LLM 请求超时")
     except httpx.HTTPStatusError as exc:
         await _record_generation_event(db, user, body, action="ai_case_generate_failed", error_type="http_status")
         raise HTTPException(
             status_code=502,
-            detail=f"LLM 调用失败: {exc.response.status_code} {exc.response.text[:200]}",
+            detail=f"LLM 调用失败（HTTP {exc.response.status_code}）",
         )
-    except httpx.HTTPError as exc:
+    except httpx.RequestError:
         await _record_generation_event(db, user, body, action="ai_case_generate_failed", error_type="network")
-        raise HTTPException(status_code=502, detail=f"LLM 网络错误: {exc}")
+        raise HTTPException(status_code=502, detail="LLM 网络请求失败")
     except ValueError as exc:
         await _record_generation_event(db, user, body, action="ai_case_generate_failed", error_type="validation")
         raise HTTPException(status_code=400, detail=str(exc))
@@ -182,7 +186,7 @@ async def generate_cases_endpoint(
         project_id=body.project_id,
         module_id=body.module_id,
         drafts=result.drafts,  # type: ignore[arg-type]
-        raw_response=result.raw_text,
+        raw_response=redact_llm_text(result.raw_text),
         warnings=result.warnings,
     )
 

@@ -272,10 +272,12 @@ async def generate_dataset_with_ai(
             requirement=body.requirement,
             row_count=body.row_count,
         )
+    except httpx.TimeoutException:
+        raise HTTPException(status_code=504, detail="LLM 请求超时") from None
     except httpx.HTTPStatusError as exc:
         raise HTTPException(status_code=502, detail=f"LLM 调用失败: {exc.response.status_code}") from exc
-    except httpx.HTTPError as exc:
-        raise HTTPException(status_code=502, detail=f"LLM 网络错误: {exc}") from exc
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="LLM 网络请求失败") from None
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 

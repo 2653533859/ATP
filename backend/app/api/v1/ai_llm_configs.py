@@ -100,8 +100,8 @@ async def discover_llm_models(
         raise HTTPException(status_code=502, detail=detail) from exc
     except httpx.TimeoutException as exc:
         raise HTTPException(status_code=504, detail="供应商模型列表请求超时") from exc
-    except httpx.RequestError as exc:
-        raise HTTPException(status_code=502, detail=f"无法连接供应商模型接口: {exc}") from exc
+    except httpx.RequestError:
+        raise HTTPException(status_code=502, detail="无法连接供应商模型接口") from None
 
     return AILLMModelDiscoveryOut(provider=body.provider, endpoint=resolved, models=models)
 
