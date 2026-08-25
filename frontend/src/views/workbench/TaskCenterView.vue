@@ -113,7 +113,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
-import { message } from 'ant-design-vue'
+import { message, Modal } from 'ant-design-vue'
 import { ReloadOutlined } from '@ant-design/icons-vue'
 import {
   projectApi,
@@ -282,11 +282,11 @@ function handlePageChange(nextPage: number) {
   void loadTasks()
 }
 
-async function handleAction(task: WorkbenchTaskItem, action: WorkbenchAction) {
+async function executeAction(task: WorkbenchTaskItem, action: WorkbenchAction) {
+  if (action === 'retry' && !task.can_retry) return
+  if (action === 'stop' && !task.can_stop) return
   actionKey.value = task.id
   try {
-    if (action === 'retry' && !task.can_retry) return
-    if (action === 'stop' && !task.can_stop) return
     const result = action === 'retry'
       ? await workbenchApi.retry(task.task_type, task.run_id)
       : await workbenchApi.stop(task.task_type, task.run_id)
@@ -299,13 +299,24 @@ async function handleAction(task: WorkbenchTaskItem, action: WorkbenchAction) {
   }
 }
 
-async function handleBatch(action: WorkbenchAction) {
-  const selected = tasks.value.filter((task) => selectedRowKeys.value.includes(task.id))
-  const eligible = selected.filter((task) => action === 'retry' ? task.can_retry : task.can_stop)
-  if (!eligible.length) {
-    message.warning(t('task_center.no_eligible_tasks'))
+function handleAction(task: WorkbenchTaskItem, action: WorkbenchAction) {
+  if (action === 'retry' && !task.can_retry) return
+  if (action === 'stop' && !task.can_stop) return
+  if (action === 'stop') {
+    Modal.confirm({
+      title: t('task_center.stop_confirm_title'),
+      content: t('task_center.stop_confirm_content', { count: 1 }),
+      okText: t('task_center.stop'),
+      okType: 'danger',
+      cancelText: t('common.cancel'),
+      onOk: () => executeAction(task, action),
+    })
     return
   }
+  void executeAction(task, action)
+}
+
+async function executeBatch(action: WorkbenchAction, eligible: WorkbenchTaskItem[]) {
   try {
     const result = await workbenchApi.batchAction(action, eligible.map((task) => ({ task_type: task.task_type, run_id: task.run_id })))
     if (result.failures.length) {
@@ -318,6 +329,27 @@ async function handleBatch(action: WorkbenchAction) {
   } catch {
     message.error(t('task_center.action_failed'))
   }
+}
+
+function handleBatch(action: WorkbenchAction) {
+  const selected = tasks.value.filter((task) => selectedRowKeys.value.includes(task.id))
+  const eligible = selected.filter((task) => action === 'retry' ? task.can_retry : task.can_stop)
+  if (!eligible.length) {
+    message.warning(t('task_center.no_eligible_tasks'))
+    return
+  }
+  if (action === 'stop') {
+    Modal.confirm({
+      title: t('task_center.stop_confirm_title'),
+      content: t('task_center.stop_confirm_content', { count: eligible.length }),
+      okText: t('task_center.stop_selected'),
+      okType: 'danger',
+      cancelText: t('common.cancel'),
+      onOk: () => executeBatch(action, eligible),
+    })
+    return
+  }
+  void executeBatch(action, eligible)
 }
 
 onMounted(async () => {

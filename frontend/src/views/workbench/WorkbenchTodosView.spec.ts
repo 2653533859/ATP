@@ -11,12 +11,20 @@ const {
   projectList,
   routerReplace,
   routerPush,
+  retry,
+  stop,
+  batchAction,
+  modalConfirm,
 } = vi.hoisted(() => ({
   overview: vi.fn(),
   tasks: vi.fn(),
   projectList: vi.fn(),
   routerReplace: vi.fn(),
   routerPush: vi.fn(),
+  retry: vi.fn(),
+  stop: vi.fn(),
+  batchAction: vi.fn(),
+  modalConfirm: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
@@ -28,6 +36,7 @@ vi.mock('vue-i18n', () => ({
 }))
 vi.mock('ant-design-vue', () => ({
   message: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
+  Modal: { confirm: modalConfirm },
 }))
 vi.mock('@ant-design/icons-vue', () => ({ ReloadOutlined: true }))
 vi.mock('@/api', () => ({
@@ -35,24 +44,51 @@ vi.mock('@/api', () => ({
   workbenchApi: {
     overview,
     tasks,
-    retry: vi.fn(),
-    stop: vi.fn(),
-    batchAction: vi.fn(),
+    retry,
+    stop,
+    batchAction,
   },
 }))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
 
+const buttonStub = defineComponent({
+  name: 'AButton',
+  props: { disabled: Boolean },
+  emits: ['click'],
+  setup(props, { slots, emit }) {
+    return () => h('button', { disabled: props.disabled, onClick: () => emit('click') }, slots.default?.())
+  },
+})
+
+const tableStub = defineComponent({
+  name: 'ATable',
+  props: {
+    columns: { type: Array, default: () => [] },
+    dataSource: { type: Array, default: () => [] },
+  },
+  setup(props, { slots }) {
+    return () => h(
+      'div',
+      (props.dataSource as Array<Record<string, unknown>>).flatMap((record) =>
+        (props.columns as Array<Record<string, unknown>>).map((column) =>
+          slots.bodyCell?.({ column, record }),
+        ),
+      ),
+    )
+  },
+})
+
 const globalStubs = {
   AAlert: passthrough('AAlert'),
-  AButton: passthrough('AButton'),
+  AButton: buttonStub,
   ACard: passthrough('ACard'),
   ASelect: passthrough('ASelect'),
   ASelectOption: passthrough('ASelectOption'),
   AStatistic: passthrough('AStatistic'),
   ASpace: passthrough('ASpace'),
-  ATable: passthrough('ATable'),
+  ATable: tableStub,
   ATag: passthrough('ATag'),
   APagination: passthrough('APagination'),
   ReloadOutlined: true,
@@ -77,6 +113,7 @@ beforeEach(() => {
     total: 0,
     has_more: false,
   })
+  stop.mockResolvedValue({ message: 'stopped' })
   routerReplace.mockResolvedValue(undefined)
 })
 
@@ -113,6 +150,43 @@ describe('TaskCenterView', () => {
     })
     expect(wrapper.text()).toContain('task_center.title')
 
+    wrapper.unmount()
+  })
+
+  it('confirms before stopping an individual task', async () => {
+    tasks.mockResolvedValue({
+      generated_at: '2026-08-24T10:00:00Z',
+      project_id: null,
+      items: [{
+        id: 'android:8',
+        task_type: 'android',
+        run_id: 8,
+        name: '设备任务',
+        project_name: '核心项目',
+        status: 'running',
+        created_at: '2026-08-24T10:00:00Z',
+        detail_path: '/mobile-special/reports/8',
+        can_retry: false,
+        can_stop: true,
+      }],
+      total: 1,
+      has_more: false,
+    })
+    const wrapper = mount(TaskCenterView, { global: { stubs: globalStubs } })
+    await flushPromises()
+
+    const stopButton = wrapper.findAll('button').find((button) => button.text() === 'task_center.stop')
+    expect(stopButton).toBeDefined()
+    await stopButton!.trigger('click')
+
+    expect(modalConfirm).toHaveBeenCalledOnce()
+    const options = modalConfirm.mock.calls[0][0]
+    expect(options.title).toBe('task_center.stop_confirm_title')
+    expect(options.content).toBe('task_center.stop_confirm_content')
+    expect(stop).not.toHaveBeenCalled()
+
+    await options.onOk()
+    expect(stop).toHaveBeenCalledWith('android', 8)
     wrapper.unmount()
   })
 })

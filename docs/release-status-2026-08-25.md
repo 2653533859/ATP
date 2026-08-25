@@ -18,6 +18,8 @@
 
 > 2026-08-25 N6 viewer 令牌接入本地交付：角色矩阵脚本优先使用短期 `ATP_VIEWER_TOKEN`，未提供时兼容账号密码；认证值只从环境变量读取，不写入报告。脚本/API 定向回归 `93 passed`、后端非集成全量 `2385 passed`，真实 viewer/admin 账号和项目数据仍待环境验收，不改变发布阻塞结论。
 
+> 2026-08-25 P0 任务中心终止确认本地交付：单任务和批量终止均要求二次确认，执行回调再次验证动作资格，避免过期确认绕过前端状态保护；前端全量 `69 files / 303 tests passed`，`vue-tsc`、生产 build 和 diff-check 通过。真实角色权限和执行器终止效果仍待环境复核，不改变发布阻塞结论。
+
 > 2026-08-25 P7 Hermes 项目级检索本地交付已完成：`POST /hermes/query` 返回需求、知识和用例的脱敏来源与项目深链，Hermes 自由提问和知识条目深链已接通；N7 验收脚本现在校验三类 marker 来源、项目路径、source_ref 及需求/知识/用例详情读取。后端定向 `21 passed`、前端 Hermes/知识定向 `11 passed`，真实模型、角色账号和远端数据仍待受控验收，不改变 N7 及发布阻塞结论。
 
 > 2026-08-25 P7/N6 真实验收发现并修复两个本地缺陷：blank 项目模块缺失导致脚本无法继续，需求创建在 async commit 后读取过期 ORM 属性导致 q19 返回 HTTP 500/MissingGreenlet；脚本现在创建临时模块，接口在响应前 refresh。q19 已按 `716d1b3` 重建并复验基础数据链路，最新脱敏证据见 [`evidence/n6-project-asset-acceptance-2026-08-25.json`](evidence/n6-project-asset-acceptance-2026-08-25.json) 与 [`evidence/n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json)。

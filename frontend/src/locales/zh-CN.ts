@@ -1140,6 +1140,8 @@ export default {
     no_eligible_tasks: '所选任务没有可执行的操作',
     batch_partial: '已处理 {processed} 项，{failed} 项失败',
     batch_success: '已处理 {count} 项',
+    stop_confirm_title: '确认终止任务？',
+    stop_confirm_content: '将向 {count} 项任务发送终止请求，是否继续？',
     types: {
       case: '用例',
       suite: '套件',

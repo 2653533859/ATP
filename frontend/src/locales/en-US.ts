@@ -1140,6 +1140,8 @@ export default {
     no_eligible_tasks: 'No selected task can perform this action',
     batch_partial: 'Processed {processed}; {failed} failed',
     batch_success: 'Processed {count}',
+    stop_confirm_title: 'Stop task?',
+    stop_confirm_content: 'A stop request will be sent to {count} task(s). Continue?',
     types: {
       case: 'Case',
       suite: 'Suite',

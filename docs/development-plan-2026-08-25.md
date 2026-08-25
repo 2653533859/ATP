@@ -35,7 +35,7 @@
 3. viewer 矩阵之后再在受控模型配置下复核 P5/P7 的模型发现、连接、多模态/思考参数、可编辑草稿、来源审计和清理；没有真实模型时保持阻塞，不用 HTTP 401 或 mock 结果替代。
 4. 最后复核 P8 目标部署的 PostgreSQL/Redis/MinIO/Worker/ADB 诊断、配置差异、单资源回滚、脱敏审计和权限拒绝，再进入 P9 发布收口。
 5. 每一项必须执行：实现/调整 → 定向测试 → 受影响全量门禁 → 独立代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 提交并推送。
-6. 2.4.10 的 N6 viewer 角色矩阵验收工具已完成本地补强；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据执行角色矩阵，再进入真实模型与目标治理门禁。
+6. 2.4.11 的 P0 任务中心终止确认已完成本地补强；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据执行角色矩阵，再进入真实模型与目标治理门禁。
 
 ### 2.4.0 状态口径
 
@@ -126,6 +126,13 @@
 - [x] Viewer authentication accepts a short-lived `ATP_VIEWER_TOKEN` in preference to username/password; the token is never written to request evidence or reports, while the password path remains compatible. Added the password-free runbook example.
 - [x] N6 script/API role regression `93 passed`, backend non-integration `2385 passed`, Ruff/format/diff-check passed; independent review found no actionable issue.
 - **Status**: `[E]` local role-matrix harness, tests, review, fixes and documentation are complete; controlled viewer/admin credentials and real project data are still required to close the external N6 gate.
+
+## 2.4.11 P0 task-center stop confirmation (local complete, 2026-08-25)
+
+- [x] Added a second confirmation before single-task and batch stop actions in `frontend/src/views/workbench/TaskCenterView.vue`; retry behavior remains direct, while stop uses localized destructive-action copy.
+- [x] Revalidated action eligibility inside the actual execution callback so a stale confirmation cannot send a stop request after the task is no longer stoppable.
+- [x] Added frontend regression coverage for the confirmation boundary; frontend full suite `69 files / 303 tests passed`, `vue-tsc --noEmit` and production build passed. Independent review found and fixed the stale-confirmation race.
+- **Status**: `[E]` local implementation, tests, review, fix and documentation are complete; real role/action permission behavior remains part of the N1/P0 external environment review.
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 
