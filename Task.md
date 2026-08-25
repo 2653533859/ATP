@@ -2,17 +2,25 @@
 
 > 当前执行版计划与状态口径统一维护在 [`docs/development-plan-2026-08-25.md`](docs/development-plan-2026-08-25.md)；本文件保留任务勾选和历史交付记录。每个模块均须完成实现、测试、代码审查、修复、文档/记忆同步、提交推送后再进入下一项。
 
-> 当前有效顺序（2026-08-25 2.0）：导航已统一为“工作台、测试能力、测试资产、智能中枢、系统”五组；N4 真实性能环境仍等待 Kubernetes/Prometheus/独立 MinIO，N2 仍需 Karing APK/真实包名和在线 Worker 做单设备闭环，随后推进 N5-N8 外部依赖复核和 N9 发布收口。详细阶段、验收出口和状态口径以开发计划 2.0 为准，下方更早的历史记录不覆盖当前执行版。
+> 当前有效顺序（2026-08-25 2.0）：导航已统一为“工作台、测试能力、测试资产、智能中枢、系统”五组；N4 真实性能环境仍等待 Kubernetes/Prometheus/独立 MinIO，N2 的 Karing 包名、启动入口、Windows Worker 和设备扫描前置已通过，下一步进入单设备低代码及媒体/专项/报告闭环，随后推进 N5-N8 外部依赖复核和 N9 发布收口。详细阶段、验收出口和状态口径以开发计划 2.0 为准，下方更早的历史记录不覆盖当前执行版。
 
 ## 2026-08-25 导航对齐开发计划 2.0
 
 - [x] 固化五组导航边界：工作台、测试能力、测试资产、智能中枢、系统；旧设备、APK、Mock、数据集和资产 URL 保持兼容，但不再作为系统管理下的业务入口。
 - [x] 为 N0-N9 登记交付范围、最小验收出口、依赖和状态；`[E]` 只代表本地实现完成，不代表生产或真实设备通过。
 - [ ] N4 真实 Kubernetes/Prometheus/独立 MinIO 门禁；缺少目标时保留阻塞原因和复验命令。
-- [ ] N2 Karing 单设备闭环；取得真实包名后按 APK、低代码、录屏/回放、专项任务、事件/日志/报告和清理顺序执行。
+- [ ] N2 Karing 单设备闭环；包名/启动入口和 Worker 前置已通过，按低代码、录屏/回放、专项任务、事件/日志/报告和清理顺序执行。
 - [ ] N5-N8 外部依赖复核与 N9 发布收口；每一项完成实现、测试、审查修复、文档同步和提交推送后再移动游标。
 
 计划登记本身不伪造环境验收证据；随后完成的 N2 控件属性诊断已在下方单独记录，本地代码门禁与真实设备门禁保持分开。
+
+### 2026-08-25 N2 Karing 真机包名与 Worker 前置验收
+
+- [x] 目标设备 `172.16.102.91:5555` 的包管理确认 `com.nebula.karing` 已安装，入口解析为 `com.nebula.karing/.MainActivity`。
+- [x] Windows Android Worker doctor、Backend 登录、PostgreSQL/Redis/MinIO readiness、Worker registry 和设备扫描通过；脱敏证据见 [`docs/evidence/android-karing-acceptance-2026-08-25.json`](docs/evidence/android-karing-acceptance-2026-08-25.json) 与 [`docs/evidence/windows-android-karing-worker-2026-08-25.json`](docs/evidence/windows-android-karing-worker-2026-08-25.json)。
+- [ ] 创建或选择可清理的已审批 Android 低代码用例，执行无破坏的启动/等待/截图并确认步骤、设备产物和终态。
+- [ ] 完成录屏/异常回放、专项任务、事件/日志/报告详情、下载和清理；当前低代码执行仍未运行，不能标记 N2 完成。
+- [~] Karing 包身份和 Worker 前置门禁已关闭，N2 单设备业务闭环继续进行。
 
 ### 2026-08-25 N2 Android 控件属性获取诊断
 

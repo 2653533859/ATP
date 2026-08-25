@@ -2,6 +2,8 @@
 
 > 2026-08-25 当前跟踪版本已升级为开发计划 2.0：五组导航边界、N0-N9 阶段、最小验收出口和交付门禁统一以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.0 为准。本路线图保留历史方案与实施记录；当前执行顺序为 N4 真实性能环境 → N2 Karing 单设备 → N5-N8 外部依赖复核 → N9 发布收口。
 
+> 2026-08-25 N2 Karing 真机前置已推进：目标设备 `172.16.102.91:5555` 的设备包管理确认 `com.nebula.karing` 和 `com.nebula.karing/.MainActivity`，Windows Android Worker、依赖 readiness、Worker registry 和设备扫描通过。下一步是无破坏低代码最小执行，再验证录屏/异常回放、专项任务、事件/日志/报告和清理；低代码尚未执行，不关闭 N2。脱敏证据见 [`evidence/android-karing-acceptance-2026-08-25.json`](evidence/android-karing-acceptance-2026-08-25.json) 与 [`evidence/windows-android-karing-worker-2026-08-25.json`](evidence/windows-android-karing-worker-2026-08-25.json)。
+
 > 2026-08-25 N2 控件属性获取诊断已完成本地交付：UIAutomator/Worker/API 统一返回脱敏诊断状态，录制界面在不可用时提示并保留坐标回退；定向 `22/23 passed`、后端非集成全量 `2305 passed`、前端全量 `69 files / 284 tests passed`，真实 Karing 页面和 UIAutomator 权限仍待真机验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.1。
 
 > 2026-08-25 N0/N6 测试套件导航归位已完成本地交付：`/suites` 加入测试资产侧栏，深链选中和路由元数据补齐；导航定向 `8 passed`、前端全量 `69 files / 285 tests passed`，真实账号/项目权限复核仍待环境验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.2。
