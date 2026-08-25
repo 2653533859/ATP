@@ -163,6 +163,12 @@
 - [x] APK/API 与发布契约定向 `22 passed`，完整后端非集成 `2284 passed`，Ruff 和 `git diff --check` 通过；独立代码审查未发现可操作问题。
 - [E] 本项只关闭本地包名身份一致性风险，不代表真实 Karing APK、下载端点、专项任务和完整报告已验收。
 
+### 2026-08-25 P0-B.3 Android 设备目标校验
+
+- [x] Android 专项任务创建、更新和手工触发统一校验 `device_id` 对应设备仍存在；不存在或已下线时提前返回 `400`，不创建脏任务、运行记录或投递 Worker。
+- [x] 新增创建、更新、触发三条入口的回归；专项任务路由定向 `32 passed`，后端非集成全量 `2287 passed`，Ruff 和 `git diff --check` 通过；独立代码审查未发现可操作问题。
+- [E] 设备是全局资产，本项只校验目标存在性，不替代真实在线状态、租约、ADB 操作和 Karing 应用闭环验收。
+
 ### 2026-08-25 P0-B.3.5 事件、日志与报告回传本地交付
 
 - [x] 新增 Android 专项 Worker 公共收尾采集：按任务配置保存设备结束时的 logcat（最多 10000 行、5 MB）和 PNG 截图（最多 10 MB），上传 MinIO 后写入 `MobileRunArtifact`；ADB、截图、上传失败只进入 `summary_json.android_artifacts` 和事件时间线的告警，不覆盖原始运行状态。

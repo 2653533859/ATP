@@ -374,6 +374,21 @@ def test_create_task_rejects_apk_without_confirmed_package(access_recorder):
     assert "package name" in str(exc.value.detail)
 
 
+def test_create_task_rejects_missing_device(access_recorder):
+    body = MobileSpecialTaskCreate(
+        project_id=5,
+        name="无效设备任务",
+        task_type=TaskType.performance,
+        device_scope_type=DeviceScopeType.single_device,
+        device_id=404,
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(ms.create_task(body=body, db=_FakeDB(), current_user=_user(21)))
+
+    assert exc.value.status_code == 400
+
+
 def test_get_update_delete_task_404():
     for call in (
         ms.get_task(404, db=_FakeDB(), user=_user()),
@@ -398,6 +413,22 @@ def test_update_task_applies_non_none_fields_and_reschedules(access_recorder):
     assert updated.app_package == "com.acme.app"  # None 字段不覆盖
 
 
+def test_update_task_rejects_missing_device(access_recorder):
+    task = _task()
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            ms.update_task(
+                1,
+                body=MobileSpecialTaskUpdate(device_id=404),
+                db=_FakeDB({("MobileSpecialTask", 1): task}),
+                current_user=_user(33),
+            )
+        )
+
+    assert exc.value.status_code == 400
+
+
 def test_delete_task_removes_after_access_check(access_recorder):
     task = _task()
     db = _FakeDB({("MobileSpecialTask", 1): task})
@@ -418,7 +449,7 @@ def test_trigger_task_run_snapshots_config_and_enqueues(access_recorder, monkeyp
         types.SimpleNamespace(run_mobile_special_task=types.SimpleNamespace(delay=lambda rid: delayed.append(rid))),
     )
     task = _task()
-    db = _FakeDB({("MobileSpecialTask", 1): task})
+    db = _FakeDB({("MobileSpecialTask", 1): task, ("Device", 88): _Obj(id=88)})
     body = RunTriggerRequest(device_id=88, app_package="com.acme.beta")
 
     run = asyncio.run(ms.trigger_task_run(1, body=body, db=db, current_user=_user(9)))
@@ -435,6 +466,27 @@ def test_trigger_task_run_snapshots_config_and_enqueues(access_recorder, monkeyp
         asyncio.run(ms.trigger_task_run(404, body=body, db=_FakeDB(), current_user=_user()))
 
 
+def test_trigger_task_run_rejects_missing_device(access_recorder, monkeypatch):
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.tasks_mobile_special",
+        types.SimpleNamespace(run_mobile_special_task=types.SimpleNamespace(delay=lambda _rid: None)),
+    )
+    task = _task()
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            ms.trigger_task_run(
+                1,
+                body=RunTriggerRequest(device_id=404),
+                db=_FakeDB({("MobileSpecialTask", 1): task}),
+                current_user=_user(),
+            )
+        )
+
+    assert exc.value.status_code == 400
+
+
 def test_trigger_task_run_falls_back_to_task_defaults(access_recorder, monkeypatch):
     monkeypatch.setitem(
         sys.modules,
@@ -442,7 +494,7 @@ def test_trigger_task_run_falls_back_to_task_defaults(access_recorder, monkeypat
         types.SimpleNamespace(run_mobile_special_task=types.SimpleNamespace(delay=lambda rid: None)),
     )
     task = _task()
-    db = _FakeDB({("MobileSpecialTask", 1): task})
+    db = _FakeDB({("MobileSpecialTask", 1): task, ("Device", 77): _Obj(id=77)})
 
     run = asyncio.run(ms.trigger_task_run(1, body=RunTriggerRequest(), db=db, current_user=_user()))
 
@@ -459,7 +511,7 @@ def test_trigger_task_run_binds_selected_apk_and_package(access_recorder, monkey
     )
     task = _task(apk_id=11, app_package="com.task.app")
     apk = _Obj(id=12, project_id=5, package_name="com.selected.app")
-    db = _FakeDB({("MobileSpecialTask", 1): task, ("Apk", 12): apk})
+    db = _FakeDB({("MobileSpecialTask", 1): task, ("Apk", 12): apk, ("Device", 77): _Obj(id=77)})
 
     run = asyncio.run(
         ms.trigger_task_run(
@@ -484,7 +536,7 @@ def test_trigger_task_run_resolves_task_apk_and_rejects_package_override(access_
     )
     task = _task(apk_id=11, app_package=None)
     apk = _Obj(id=11, project_id=5, package_name="com.task.app")
-    db = _FakeDB({("MobileSpecialTask", 1): task, ("Apk", 11): apk})
+    db = _FakeDB({("MobileSpecialTask", 1): task, ("Apk", 11): apk, ("Device", 77): _Obj(id=77)})
 
     run = asyncio.run(ms.trigger_task_run(1, body=RunTriggerRequest(), db=db, current_user=_user()))
 
@@ -498,7 +550,7 @@ def test_trigger_task_run_resolves_task_apk_and_rejects_package_override(access_
             ms.trigger_task_run(
                 1,
                 body=RunTriggerRequest(app_package="com.other.app"),
-                db=_FakeDB({("MobileSpecialTask", 1): task, ("Apk", 11): apk}),
+                db=_FakeDB({("MobileSpecialTask", 1): task, ("Apk", 11): apk, ("Device", 77): _Obj(id=77)}),
                 current_user=_user(),
             )
         )
@@ -514,7 +566,7 @@ def test_trigger_task_run_rejects_apk_from_another_project(access_recorder, monk
     )
     task = _task()
     apk = _Obj(id=13, project_id=99, package_name="com.other.app")
-    db = _FakeDB({("MobileSpecialTask", 1): task, ("Apk", 13): apk})
+    db = _FakeDB({("MobileSpecialTask", 1): task, ("Apk", 13): apk, ("Device", 77): _Obj(id=77)})
 
     with pytest.raises(HTTPException) as exc:
         asyncio.run(

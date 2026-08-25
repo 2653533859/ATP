@@ -14,6 +14,7 @@ from app.core.database import get_db
 from app.core.minio_client import presigned_url
 from app.core.redis_client import get_json_cache, set_json_cache
 from app.models.apk import Apk
+from app.models.device import Device
 from app.models.mobile_special import (
     MobileSpecialTask,
     MobileSpecialRun,
@@ -85,6 +86,17 @@ async def _resolve_apk_package(
     if not apk.package_name:
         raise HTTPException(status_code=400, detail="APK package name is not available")
     return apk.package_name
+
+
+async def _validate_device(
+    db: AsyncSession,
+    device_id: int | None,
+) -> None:
+    """Reject a task target that no longer exists before it reaches a Worker."""
+    if device_id is None:
+        return
+    if await db.get(Device, device_id) is None:
+        raise HTTPException(status_code=400, detail="设备不存在或已下线")
 
 
 _MOBILE_STATS_CACHE_TTL = 60
@@ -182,6 +194,7 @@ async def create_task(
     """Create a new mobile special task."""
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
     data = body.model_dump(exclude={"created_by"})
+    await _validate_device(db, body.device_id)
     apk_package = await _resolve_apk_package(db, body.project_id, body.apk_id)
     if apk_package and data.get("app_package") and data["app_package"] != apk_package:
         raise HTTPException(status_code=400, detail="app_package must match the selected APK package")
@@ -227,6 +240,8 @@ async def update_task(
     await assert_project_access(db, current_user, task.project_id, ProjectRole.editor)
 
     update_data = body.model_dump(exclude_unset=True)
+    if "device_id" in update_data:
+        await _validate_device(db, update_data["device_id"])
     selected_apk_id = update_data.get("apk_id", task.apk_id)
     if "apk_id" in update_data or "app_package" in update_data:
         apk_package = await _resolve_apk_package(db, task.project_id, selected_apk_id)
@@ -278,6 +293,7 @@ async def trigger_task_run(
     config = dict(task.config_json or {})
     selected_device_id = body.device_id if body.device_id is not None else task.device_id
     selected_apk_id = body.apk_id if body.apk_id is not None else task.apk_id
+    await _validate_device(db, selected_device_id)
     selected_apk_package = await _resolve_apk_package(db, task.project_id, selected_apk_id)
     if body.device_id is not None:
         config["device_id"] = body.device_id
