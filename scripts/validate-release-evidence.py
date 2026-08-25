@@ -31,22 +31,28 @@ def _is_non_empty_string(value: Any) -> bool:
     return isinstance(value, str) and bool(value.strip())
 
 
-def _validate_repo_path(raw_path: Any, field: str, repo_root: Path, errors: list[str]) -> None:
+def _resolve_repo_file(raw_path: Any, field: str, repo_root: Path, errors: list[str]) -> Path | None:
     if not _is_non_empty_string(raw_path):
         errors.append(f"{field} must be a non-empty relative path")
-        return
+        return None
     candidate = Path(raw_path)
     if candidate.is_absolute() or ".." in candidate.parts:
         errors.append(f"{field} must stay inside the repository: {raw_path!r}")
-        return
+        return None
     resolved = (repo_root / candidate).resolve()
     try:
         resolved.relative_to(repo_root.resolve())
     except ValueError:
         errors.append(f"{field} resolves outside the repository: {raw_path!r}")
-        return
+        return None
     if not resolved.is_file():
         errors.append(f"{field} does not exist: {raw_path!r}")
+        return None
+    return resolved
+
+
+def _validate_repo_path(raw_path: Any, field: str, repo_root: Path, errors: list[str]) -> None:
+    _resolve_repo_file(raw_path, field, repo_root, errors)
 
 
 def _scan_sensitive_keys(value: Any, path: str, errors: list[str]) -> None:
@@ -157,6 +163,32 @@ def validate_manifest(manifest: Any, repo_root: Path = REPO_ROOT) -> list[str]:
         errors.append("release.status must be ready when all gates are passed")
     if release.get("eligible") != (not has_blocking_gate):
         errors.append("release.eligible must be false while blocked and true only when all gates pass")
+
+    documents = manifest.get("documents")
+    if not isinstance(documents, list) or not documents:
+        errors.append("documents must be a non-empty array")
+        documents = []
+    for index, document in enumerate(documents):
+        prefix = f"documents[{index}]"
+        if not isinstance(document, dict):
+            errors.append(f"{prefix} must be an object")
+            continue
+        document_path = document.get("path")
+        resolved = _resolve_repo_file(document_path, f"{prefix}.path", repo_root, errors)
+        markers = document.get("markers")
+        if not isinstance(markers, list) or not markers or not all(_is_non_empty_string(item) for item in markers):
+            errors.append(f"{prefix}.markers must contain at least one non-empty string")
+            continue
+        if resolved is None:
+            continue
+        try:
+            content = resolved.read_text(encoding="utf-8")
+        except (OSError, UnicodeError) as exc:
+            errors.append(f"{prefix}.path cannot be read as UTF-8 text: {exc}")
+            continue
+        for marker in markers:
+            if marker not in content:
+                errors.append(f"{prefix}.markers is missing from {document_path!r}: {marker!r}")
 
     return errors
 

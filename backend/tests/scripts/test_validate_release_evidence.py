@@ -95,3 +95,13 @@ def test_non_object_manifest_returns_validation_error_instead_of_crashing(tmp_pa
     current_sha = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, text=True).strip()
 
     assert script.main(["--manifest", str(manifest_path), "--candidate-sha", current_sha]) == 1
+
+
+def test_document_marker_drift_is_rejected():
+    script = _module()
+    manifest = _manifest()
+    manifest["documents"][0]["markers"] = ["marker-that-is-not-in-the-plan"]
+
+    errors = script.validate_manifest(manifest, ROOT)
+
+    assert any("markers is missing" in error for error in errors)

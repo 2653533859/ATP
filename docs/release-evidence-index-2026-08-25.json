@@ -15,6 +15,32 @@
       "N9.release-closure"
     ]
   },
+  "documents": [
+    {
+      "path": "docs/development-plan-2026-08-25.md",
+      "markers": ["2.1.8 N9.2 发布文档同步一致性契约"]
+    },
+    {
+      "path": "Task.md",
+      "markers": ["N9.2 发布文档同步一致性契约"]
+    },
+    {
+      "path": "MEMORY.md",
+      "markers": ["N9.2 发布文档同步一致性契约"]
+    },
+    {
+      "path": "docs/product-navigation-roadmap-2026-08-24.md",
+      "markers": ["N9.2 发布文档同步一致性契约"]
+    },
+    {
+      "path": "docs/release-status-2026-08-25.md",
+      "markers": ["N9.2 发布文档同步一致性契约"]
+    },
+    {
+      "path": "docs/q9-release-checklist.md",
+      "markers": ["release-evidence-index-2026-08-25.json"]
+    }
+  ],
   "gates": [
     {
       "id": "N2.android-single-device",
