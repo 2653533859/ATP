@@ -38,6 +38,12 @@
 - [x] 报告定向回归 `5 passed`、前端报告页 `3 passed`，后端非集成全量 `2282 passed`；`vue-tsc`、生产构建、Ruff 和 `git diff --check` 通过。
 - [x] 独立代码审查未发现可操作问题；真实 GraphQL/WebSocket/流式 gRPC 和完整报告环境证据仍保持 `[E]` 待验收。
 
+### 2026-08-25 N0/N3 Windows smoke 当前账号边界
+
+- [x] Windows smoke 默认只读取当前账号 `ATP_USERNAME/ATP_PASSWORD`，不再自动回退或混用 `FIRST_ADMIN_*`；新数据库初始化验证必须显式传入 `-UseBootstrapCredentials`。
+- [x] 补充脚本契约和 Windows 操作手册，缺少当前账号时给出明确提示且不输出凭据；既有 HTTP 401 诊断仍保留。
+- [E] 代码和脚本边界已完成，需用当前有效账号重新执行完整 Windows API/Web smoke 才能关闭真实环境证据。
+
 ## 2026-08-25 API gRPC TLS 真实目标闭环
 
 - [x] q19 受控 gRPC TLS 目标完成临时项目、模块、用例创建、评审提交、审批、Unary 执行和终态查询。

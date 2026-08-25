@@ -6,6 +6,7 @@ param(
   [switch]$RequireAndroid,
   [string]$AndroidTarget = '',
   [switch]$SkipLiveLogin,
+  [switch]$UseBootstrapCredentials,
   [switch]$SkipFileTransfer,
   [switch]$SkipReports,
   [int]$AndroidCaseId = 0,
@@ -228,12 +229,31 @@ function Get-LiveLoginFailureDetails {
 }
 
 function Invoke-LiveLogin {
-  param([hashtable]$Values)
+  param(
+    [hashtable]$Values,
+    [switch]$UseBootstrapCredentials
+  )
 
-  $username = if (-not [string]::IsNullOrWhiteSpace($env:ATP_USERNAME)) { $env:ATP_USERNAME } elseif ($Values.ContainsKey('FIRST_ADMIN_USERNAME')) { [string]$Values['FIRST_ADMIN_USERNAME'] } else { '' }
-  $password = if (-not [string]::IsNullOrWhiteSpace($env:ATP_PASSWORD)) { $env:ATP_PASSWORD } elseif ($Values.ContainsKey('FIRST_ADMIN_PASSWORD')) { [string]$Values['FIRST_ADMIN_PASSWORD'] } else { '' }
+  $hasRuntimeUsername = -not [string]::IsNullOrWhiteSpace($env:ATP_USERNAME)
+  $hasRuntimePassword = -not [string]::IsNullOrWhiteSpace($env:ATP_PASSWORD)
+  if ($hasRuntimeUsername -or $hasRuntimePassword) {
+    # Never combine a current username with a bootstrap password (or vice versa).
+    $username = [string]$env:ATP_USERNAME
+    $password = [string]$env:ATP_PASSWORD
+  } elseif ($UseBootstrapCredentials) {
+    $username = if ($Values.ContainsKey('FIRST_ADMIN_USERNAME')) { [string]$Values['FIRST_ADMIN_USERNAME'] } else { '' }
+    $password = if ($Values.ContainsKey('FIRST_ADMIN_PASSWORD')) { [string]$Values['FIRST_ADMIN_PASSWORD'] } else { '' }
+  } else {
+    $username = ''
+    $password = ''
+  }
   if ([string]::IsNullOrWhiteSpace($username) -or [string]::IsNullOrWhiteSpace($password)) {
-    Add-Result -Name 'Live API admin login' -Status 'failed' -Required:$true -Details 'FIRST_ADMIN_USERNAME/FIRST_ADMIN_PASSWORD or ATP_USERNAME/ATP_PASSWORD is missing.'
+    $details = if ($UseBootstrapCredentials) {
+      'Bootstrap credentials are missing; set FIRST_ADMIN_USERNAME/FIRST_ADMIN_PASSWORD in the selected env file.'
+    } else {
+      'ATP_USERNAME/ATP_PASSWORD is missing; set the current account. FIRST_ADMIN_* is bootstrap-only; use -UseBootstrapCredentials only for a fresh database.'
+    }
+    Add-Result -Name 'Live API admin login' -Status 'failed' -Required:$true -Details $details
     return $false
   }
 
@@ -924,7 +944,7 @@ if ($SkipLiveLogin) {
   Add-Result -Name 'Live API admin login' -Status 'skipped' -Required:$false -Details 'Skipped by -SkipLiveLogin.'
   Add-Result -Name 'Live API authenticated read checks' -Status 'skipped' -Required:$false -Details 'Skipped because live login was disabled.'
 } else {
-  $loginPassed = Invoke-LiveLogin -Values $values
+  $loginPassed = Invoke-LiveLogin -Values $values -UseBootstrapCredentials:$UseBootstrapCredentials
   if ($loginPassed) {
     Invoke-LiveDependencyCheck
     Invoke-LiveApiChecks

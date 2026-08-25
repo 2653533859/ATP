@@ -877,3 +877,7 @@ GraphQL、WebSocket 和 gRPC 派发前现在要求 `config.steps` 为非空数�
 ### 0.8.3 N1 报告中心按用例类型统计
 
 报告概览 API 已按当前用户可见项目聚合已完成运行的用例类型，返回总运行、通过、失败、异常和通过率；报告中心以卡片、进度条和空态展示这些统计，并提供中英文文案。报告定向 `5 passed`、前端报告页 `3 passed`、后端非集成全量 `2282 passed`，`vue-tsc`、生产构建、Ruff 和差异检查通过，代码审查未发现问题。该项只完成本地报告能力，不关闭真实 GraphQL/WebSocket/流式 gRPC 和完整报告环境验收。
+
+### 0.8.4 N0/N3 Windows smoke 当前账号边界
+
+Windows smoke 现在默认只接受当前账号 `ATP_USERNAME/ATP_PASSWORD`，不再自动回退或混用 `FIRST_ADMIN_*`；只有显式 `-UseBootstrapCredentials` 才读取全新数据库的初始化账号。缺少当前账号时脚本会失败并给出操作提示，不会把 bootstrap 账号当作当前登录成功。脚本契约回归和操作手册已同步；真实完整 smoke 仍需使用当前有效账号复验。

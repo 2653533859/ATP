@@ -21,6 +21,7 @@
 当前执行顺序为：运行基础/账号初始化 → Android 单设备真实闭环 → Windows API/Web 复核 → 真实通知 → 外部缺陷平台 → 生产性能 → 发布收口。
 
 - 本轮 Windows smoke 复核中，健康检查、前端登录页、Playwright `12 passed` 和浏览器矩阵通过；认证链路使用的 `.env` bootstrap 账号返回 `401`，因此认证读接口、文件传输、Web 低代码和报告导出未重新关闭，需改用当前有效账号后复验。未在文档或证据中记录账号、密码或 Token。
+- Windows smoke 已调整为默认只读取当前账号 `ATP_USERNAME/ATP_PASSWORD`，不再自动回退或混用 `FIRST_ADMIN_*`；全新数据库初始化验证必须显式使用 `-UseBootstrapCredentials`。这修复了管理员改密后脚本默认使用失效 bootstrap 账号的问题，但仍需用当前有效账号重跑真实 API/Web smoke。
 
 ### 2026-08-25 N1 报告中心按用例类型统计
 

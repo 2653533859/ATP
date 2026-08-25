@@ -198,6 +198,7 @@ def test_windows_local_smoke_covers_live_and_browser_paths_without_secrets():
     assert "runtime.env_file" in script
     assert 'Write-Host "Env:  $ConfiguredEnvFile"' in script
     assert "[switch]$SkipLiveLogin" in script
+    assert "[switch]$UseBootstrapCredentials" in script
     assert "[switch]$SkipFileTransfer" in script
     assert "[switch]$SkipReports" in script
     assert "[int]$AndroidCaseId = 0" in script
@@ -244,6 +245,8 @@ def test_windows_local_smoke_covers_live_and_browser_paths_without_secrets():
     assert "function Get-LiveLoginFailureDetails" in script
     assert "HTTP 401 Unauthorized" in script
     assert "FIRST_ADMIN_* is bootstrap-only" in script
+    assert "Never combine a current username with a bootstrap password" in script
+    assert "use -UseBootstrapCredentials only for a fresh database" in script
     assert "HTTP 403 Forbidden" in script
     assert "Get-LiveLoginFailureDetails -ErrorRecord $_" in script
     assert "LiveMutationHeaders" in script

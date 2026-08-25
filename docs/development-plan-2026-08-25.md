@@ -85,6 +85,7 @@
 - 2026-08-25：修复 GraphQL/WebSocket/gRPC 空步骤误报通过：派发层在协议执行前拒绝缺失、空数组和 `null` 的 `config.steps`，运行终态为 `error` 并写入可解释原因；API 的旧配置默认主请求兼容不变。派发/HTTP 家族定向 `94 passed`，后端非集成全量 `2279 passed`，前端类型检查、生产构建、Ruff 和差异检查通过；代码审查未发现问题。真实 GraphQL/WebSocket/流式 gRPC 和完整报告目标仍待环境验收。
 - 2026-08-25：补齐协议用例保存时校验：创建/更新 GraphQL、WebSocket、gRPC 配置时检查步骤、endpoint/url、消息、target/proto/service/method，失败返回 `422` 且不创建快照/脏用例；与派发层规则保持一致。用例管理定向 `35 passed`，后端非集成全量 `2282 passed`，Ruff、差异检查和代码审查通过。真实协议目标和完整报告仍待环境验收。
 - 2026-08-25：补齐报告中心按用例类型统计：后端按当前用户可见项目聚合 API、GraphQL、WebSocket、gRPC、Web、Android 等已完成运行，返回总运行/通过/失败/异常/通过率；前端报告中心增加类型分布、通过率进度条和空态，补齐中英文文案。报告定向回归 `5 passed`、前端报告页 `3 passed`、后端非集成全量 `2282 passed`，`vue-tsc`、生产构建、Ruff 和差异检查通过，代码审查未发现问题。真实多协议目标和完整报告环境证据仍待验收。
+- 2026-08-25：修复 Windows smoke 凭据边界：默认只读取当前账号 `ATP_USERNAME/ATP_PASSWORD`，不再自动回退或混用 `FIRST_ADMIN_*`；仅通过显式 `-UseBootstrapCredentials` 才验证全新数据库的初始化账号。补充脚本契约回归和操作手册，避免管理员改密后误报/反复 401；Windows 真实 API/Web smoke 仍需使用当前有效账号复验。
 
 ## 8. 参考导航学习版执行台账（2026-08-25）
 

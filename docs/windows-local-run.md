@@ -320,7 +320,7 @@ Set-Location $RepoRoot
 
 `-EnvFile` 会同时用于本地 doctor、登录凭据读取以及 `-StartServices`/`-StopServicesAfter` 的子进程启动，不会修改根目录 `.env` 或当前 PowerShell 会话。
 
-如果登录返回 `HTTP 401 Unauthorized`，脚本会明确提示当前账号被拒绝。`FIRST_ADMIN_USERNAME`/`FIRST_ADMIN_PASSWORD` 只用于首次启动时创建管理员，已有数据库中的账号或后来修改过的密码不会因为修改这两个配置而自动更新；请在当前 PowerShell 进程临时提供有效账号后重跑，不要把凭据写入 `.env`、脚本、报告或 Git：
+冒烟脚本默认只使用当前账号：请在当前 PowerShell 进程临时提供 `ATP_USERNAME`/`ATP_PASSWORD`。`FIRST_ADMIN_USERNAME`/`FIRST_ADMIN_PASSWORD` 只用于首次启动时创建管理员，已有数据库中的账号或后来修改过的密码不会因为修改这两个配置而自动更新；脚本不会自动回退到 bootstrap 凭据，也不会混用当前用户名和 bootstrap 密码。不要把凭据写入 `.env`、脚本、报告或 Git：
 
 ```powershell
 $env:ATP_USERNAME = '<current-account>'
@@ -328,6 +328,14 @@ $env:ATP_PASSWORD = '<current-password>'
 .\scripts\windows-local-smoke.ps1 -EnvFile .\config\startup-profiles\remote-infra.env
 Remove-Item Env:ATP_USERNAME, Env:ATP_PASSWORD -ErrorAction SilentlyContinue
 ```
+
+只有在确认目标数据库是全新库、且确实要验证初始化管理员时，才显式使用 bootstrap 配置：
+
+```powershell
+.\scripts\windows-local-smoke.ps1 -UseBootstrapCredentials
+```
+
+如果当前数据库已有用户，`-UseBootstrapCredentials` 只会导致登录失败并提示改用当前账号；它不会修改数据库用户或密码。
 
 `HTTP 403 Forbidden` 表示请求被 CSRF、Cookie 策略或服务端权限链路拦截；其他状态只记录状态码，不输出原始异常，避免将 URL、Cookie 或凭据带入报告。
 
