@@ -364,11 +364,13 @@ describe('DatasetLibrary mount', () => {
     await flushPromises()
     const vm = wrapper.vm as any
 
+    vm.openImpactTarget({ category: 'case', id: 11 })
     vm.openImpactTarget({ category: 'suite', id: 21 })
     vm.openImpactTarget({ category: 'plan', id: 31 })
 
-    expect(routerPush).toHaveBeenNthCalledWith(1, { name: 'suites', query: { project_id: '1' } })
-    expect(routerPush).toHaveBeenNthCalledWith(2, { name: 'plans', query: { project_id: '1' } })
+    expect(routerPush).toHaveBeenNthCalledWith(1, { name: 'case-detail', params: { caseId: '11' }, query: { project_id: '1' } })
+    expect(routerPush).toHaveBeenNthCalledWith(2, { name: 'suites', query: { project_id: '1' } })
+    expect(routerPush).toHaveBeenNthCalledWith(3, { name: 'plans', query: { project_id: '1' } })
     wrapper.unmount()
   })
 })

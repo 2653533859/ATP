@@ -547,11 +547,11 @@ function impactRows(category: ImpactCategory, items: DatasetImpactItem[]): Impac
 }
 
 function openImpactTarget(row: ImpactRow) {
+  const query = projectId.value ? { project_id: String(projectId.value) } : undefined
   if (row.category === 'case') {
-    void router.push({ name: 'case-detail', params: { caseId: String(row.id) } })
+    void router.push({ name: 'case-detail', params: { caseId: String(row.id) }, query })
     return
   }
-  const query = projectId.value ? { project_id: String(projectId.value) } : undefined
   if (row.category === 'suite') {
     void router.push({ name: 'suites', query })
     return
