@@ -7,6 +7,7 @@ import copy
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 import app.api.v1.cases as _cases
 from app.api.deps import assert_project_access, get_current_user
@@ -27,7 +28,10 @@ async def _preview(
     for item in body.cases:
         if item.module_id in modules:
             continue
-        module = await db.get(Module, item.module_id)
+        module_result = await db.execute(
+            select(Module).options(selectinload(Module.project)).where(Module.id == item.module_id)
+        )
+        module = module_result.scalar_one_or_none()
         if module is not None and module.project_id == project_id:
             modules[item.module_id] = module
 

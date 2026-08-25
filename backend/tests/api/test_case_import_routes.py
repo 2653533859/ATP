@@ -7,7 +7,7 @@ from fastapi import HTTPException
 import app.api.v1.cases as cases
 from app.api.v1.cases import importing
 from app.models.case import TestCase
-from app.models.project import Module
+from app.models.project import Module, Project
 from app.schemas.case import TestCaseCreate
 from app.schemas.case_import import CaseImportRequest
 
@@ -21,6 +21,9 @@ class _Result:
 
     def all(self):
         return self.rows
+
+    def scalar_one_or_none(self):
+        return self.rows[0] if self.rows else None
 
 
 class _DB:
@@ -37,8 +40,9 @@ class _DB:
             return self.module
         return None
 
-    async def execute(self, _query):
-        return _Result(self.existing)
+    async def execute(self, query):
+        entity = query.column_descriptions[0].get("entity")
+        return _Result([self.module] if entity is Module else self.existing)
 
     def add(self, item):
         self.added.append(item)
@@ -119,3 +123,36 @@ def test_import_rolls_back_when_commit_fails(monkeypatch):
     assert len(db.added) == 1
     assert db.commits == 1
     assert db.rollbacks == 1
+
+
+def test_import_preloads_module_project_for_case_code(monkeypatch):
+    async def allow_access(*_args, **_kwargs):
+        return None
+
+    async def no_dataset(*_args, **_kwargs):
+        return None, None
+
+    async def fake_replace(*_args, **_kwargs):
+        return None
+
+    async def fake_invalidate(*_args, **_kwargs):
+        return None
+
+    seen: dict[str, str] = {}
+
+    async def read_project_code(_db, module, _case_type):
+        seen["project_code"] = module.project.project_code
+        return "API-001"
+
+    monkeypatch.setattr(importing, "assert_project_access", allow_access)
+    monkeypatch.setattr(cases, "_resolve_dataset_binding", no_dataset)
+    monkeypatch.setattr(cases, "_generate_case_code", read_project_code)
+    monkeypatch.setattr(cases, "_replace_case_steps", fake_replace)
+    monkeypatch.setattr(cases, "invalidate_stats_cache", fake_invalidate)
+    module = Module(id=10, project_id=1, name="API", project=Project(id=1, project_code="ATP"))
+    db = _DB(module)
+
+    result = asyncio.run(importing.import_cases(1, _body(), db, SimpleNamespace(id=8)))
+
+    assert result.imported == 1
+    assert seen["project_code"] == "ATP"
