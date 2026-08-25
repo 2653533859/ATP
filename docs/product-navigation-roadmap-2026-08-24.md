@@ -869,3 +869,7 @@ N0 导航壳
 ### 0.8.1 N1 协议空步骤执行边界
 
 GraphQL、WebSocket 和 gRPC 派发前现在要求 `config.steps` 为非空数组；缺失、空数组或 `null` 会直接结束为 `error`，避免零步骤运行被误记为通过。API 仍保留旧配置的默认主请求兼容行为。定向回归 `94 passed`、后端非集成全量 `2279 passed`，代码审查无问题；真实协议目标和完整报告仍待后续环境证据。
+
+### 0.8.2 N1 协议配置保存校验
+
+创建/更新协议用例时已在 API 层校验 GraphQL 的 endpoint/query、WebSocket 的 url/messages 以及 gRPC 的 target/proto/service/method；无效请求返回 `422`，快照创建在校验之后，避免保存后才在 Worker 失败。用例管理回归 `35 passed`、后端非集成全量 `2282 passed`；真实协议目标和完整报告仍未关闭。

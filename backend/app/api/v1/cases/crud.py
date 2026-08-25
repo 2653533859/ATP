@@ -193,6 +193,8 @@ async def create_case(
     dataset_id, dataset_version = await _resolve_dataset_binding(
         db, body.dataset_id, body.dataset_version, module.project_id
     )
+    config = copy.deepcopy(body.config)
+    _cases._validate_protocol_config(body.case_type, config)
     steps_payload = _cases._normalize_steps(body.steps, body.case_type, body.config, body.name)
     case = TestCase(
         name=body.name,
@@ -211,7 +213,7 @@ async def create_case(
         owner_id=body.owner_id or current_user.id,
         preconditions=list(body.preconditions),
         postconditions=list(body.postconditions),
-        config=copy.deepcopy(body.config),
+        config=config,
         dataset_id=dataset_id,
         dataset_version=dataset_version,
     )
@@ -273,10 +275,12 @@ async def update_case(
     module = await db.get(Module, case.module_id)
     if module:
         await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
+    payload = body.model_dump(exclude_unset=True)
+    if "config" in payload:
+        _cases._validate_protocol_config(case.case_type, payload["config"])
     db.add(_cases._build_snapshot(case, await _cases._next_snapshot_version(db, case_id), current_user.id))
     await _cases._enforce_snapshot_retention(db, case_id)
 
-    payload = body.model_dump(exclude_unset=True)
     if "name" in payload:
         case.name = payload["name"]
     if "description" in payload:

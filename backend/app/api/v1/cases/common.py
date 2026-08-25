@@ -45,6 +45,46 @@ def _type_code(case_type: CaseType) -> str:
     return mapping[case_type]
 
 
+def _validate_protocol_config(case_type: CaseType, config: object) -> None:
+    """Validate the minimum executable shape for protocol cases before persistence."""
+    if case_type not in {CaseType.graphql, CaseType.websocket, CaseType.grpc}:
+        return
+    if not isinstance(config, dict):
+        raise HTTPException(status_code=422, detail="协议用例配置必须是对象")
+
+    steps = config.get("steps")
+    if not isinstance(steps, list) or not steps:
+        raise HTTPException(status_code=422, detail="协议用例至少需要一个可执行步骤")
+
+    required_fields = {
+        CaseType.graphql: ("endpoint", "query"),
+        CaseType.websocket: ("url",),
+        CaseType.grpc: ("target", "proto_content", "service", "method"),
+    }[case_type]
+    labels = {
+        "endpoint": "endpoint",
+        "query": "query",
+        "url": "url",
+        "target": "target",
+        "proto_content": "proto_content",
+        "service": "service",
+        "method": "method",
+    }
+    for index, step in enumerate(steps, start=1):
+        if not isinstance(step, dict):
+            raise HTTPException(status_code=422, detail=f"协议用例第 {index} 步配置必须是对象")
+        for field in required_fields:
+            if not str(step.get(field) or "").strip():
+                raise HTTPException(
+                    status_code=422,
+                    detail=f"协议用例第 {index} 步缺少 {labels[field]}",
+                )
+        if case_type == CaseType.websocket:
+            messages = step.get("messages")
+            if not isinstance(messages, list) or not messages:
+                raise HTTPException(status_code=422, detail=f"WebSocket 用例第 {index} 步至少需要一条消息")
+
+
 def _serialize_steps(steps: list[CaseStep] | list[object]) -> list[dict]:
     ordered = sorted(steps, key=lambda item: getattr(item, "step_no", 0))
     return [

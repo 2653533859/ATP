@@ -4,6 +4,9 @@ import types
 from datetime import datetime, timezone
 from pathlib import Path
 
+import pytest
+from fastapi import HTTPException
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 sys.modules["app.core.database"] = types.SimpleNamespace(get_db=lambda: None)
@@ -306,6 +309,44 @@ def test_create_case_invalidates_stats_cache(monkeypatch):
 
     assert invalidated == [True]
     assert db.commit_calls == 2
+
+
+@pytest.mark.parametrize(
+    ("case_type", "config", "expected_detail"),
+    [
+        (CaseType.graphql, {}, "协议用例至少需要一个可执行步骤"),
+        (CaseType.websocket, {"steps": [{"url": "ws://example"}]}, "WebSocket 用例第 1 步至少需要一条消息"),
+        (CaseType.grpc, {"steps": [{"target": "localhost:50051"}]}, "协议用例第 1 步缺少 proto_content"),
+    ],
+)
+def test_create_protocol_case_rejects_incomplete_config(monkeypatch, case_type, config, expected_detail):
+    load_all_models()
+    db = _CreateDB()
+    module = types.SimpleNamespace(
+        id=2,
+        name="Protocol",
+        module_code="PROTO",
+        project=types.SimpleNamespace(id=1, name="ATP", project_code="ATP"),
+        project_id=1,
+    )
+
+    async def fake_module_loader(*_args):
+        return module
+
+    monkeypatch.setattr(cases, "_get_module_for_case_code", fake_module_loader)
+
+    with pytest.raises(HTTPException) as exc_info:
+        asyncio.run(
+            cases.create_case(
+                body=TestCaseCreate(name="Invalid protocol", case_type=case_type, module_id=2, config=config),
+                db=db,
+                current_user=types.SimpleNamespace(id=9, username="tester"),
+            )
+        )
+
+    assert exc_info.value.status_code == 422
+    assert exc_info.value.detail == expected_detail
+    assert db.added == []
 
 
 def test_create_case_persists_dataset_and_immutable_version(monkeypatch):

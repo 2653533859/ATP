@@ -25,6 +25,12 @@
 - [x] 定向派发/HTTP 家族回归 `94 passed`，后端非集成全量 `2279 passed`；前端类型检查、生产构建、Ruff 和 `git diff --check` 通过。
 - [x] 独立代码审查未发现可操作问题；真实 GraphQL/WebSocket/流式 gRPC 和完整报告目标仍保持 `[E]` 待环境验收。
 
+### 2026-08-25 N1 协议配置保存校验
+
+- [x] 创建/更新 GraphQL、WebSocket、gRPC 时校验最小可执行配置：步骤、endpoint/url、WebSocket 消息、gRPC target/proto/service/method。
+- [x] 校验失败返回 `422`，并且发生在创建快照前，不产生脏用例或无效快照；派发层仍保留运行期兜底。
+- [x] 用例管理定向回归 `35 passed`，后端非集成全量 `2282 passed`，Ruff/diff-check 通过；独立代码审查未发现问题。
+
 ## 2026-08-25 API gRPC TLS 真实目标闭环
 
 - [x] q19 受控 gRPC TLS 目标完成临时项目、模块、用例创建、评审提交、审批、Unary 执行和终态查询。

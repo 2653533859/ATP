@@ -60,6 +60,7 @@ from .common import (
     _serialize_case_snapshot,
     _serialize_steps,
     _type_code,
+    _validate_protocol_config,
 )
 
 # === 3. 子模块（此时它们 import app.api.v1.cases 时已能看到所有外部依赖与 common 函数） ===
@@ -135,6 +136,7 @@ __all__ = [
     "trigger_run",
     "list_runs",
     "get_run",
+    "_validate_protocol_config",
     # 子模块（供测试访问 cases.batch / cases.workflow 等）
     "batch",
     "crud",
