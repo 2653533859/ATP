@@ -12,6 +12,7 @@ from app.models.case import RunStatus
 from app.models.mobile_special import RunStatus as MobileRunStatus
 from app.models.performance import PerformanceRunStatus
 from app.models.user import UserRole
+from app.models.user_project import ProjectRole
 from app.schemas.workbench import WorkbenchTaskRef
 
 
@@ -183,3 +184,35 @@ def test_retry_endpoint_does_not_dispatch_passed_run(monkeypatch):
         asyncio.run(workbench._retry_task(WorkbenchTaskRef(task_type="case", run_id=9), db, user))
 
     assert exc.value.status_code == 409
+
+
+def test_diagnosis_endpoint_scopes_and_dispatches_non_case_task(monkeypatch):
+    run = types.SimpleNamespace(project_id=1)
+    db = _FakeDB(objects={("PerformanceRun", 14): run})
+    user = types.SimpleNamespace(id=7, role=UserRole.tester)
+    seen = {}
+
+    async def allow_access(_db, _user, project_id, role):
+        seen["access"] = (project_id, role)
+
+    async def fake_diagnosis(_db, task_type, run_id):
+        seen["dispatch"] = (task_type, run_id)
+        return {
+            "status": "done",
+            "source": "rule",
+            "summary": "压测节点异常",
+            "at": "2026-08-24T10:00:00Z",
+            "failed_step_count": 1,
+            "screenshot_count": 0,
+            "repair_suggestions": [],
+            "error_samples": [],
+        }
+
+    monkeypatch.setattr(workbench, "assert_project_access", allow_access)
+    monkeypatch.setattr(workbench, "generate_workbench_failure_diagnosis", fake_diagnosis)
+
+    result = asyncio.run(workbench.diagnose_workbench_task_failure("performance", 14, db, user))
+
+    assert seen["access"] == (1, ProjectRole.viewer)
+    assert seen["dispatch"] == ("performance", 14)
+    assert result["summary"] == "压测节点异常"

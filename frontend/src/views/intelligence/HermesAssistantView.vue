@@ -568,11 +568,9 @@ async function explainFailure(task?: WorkbenchTaskItem) {
   appendMessage('user', t('hermes.user_explain', { name: target.name }))
   diagnosing.value = true
   try {
-    if (target.task_type !== 'case') {
-      appendMessage('assistant', t('hermes.answers.unsupported_diagnosis', { type: target.task_type, error: target.error_message || t('hermes.not_available') }), [source(t('hermes.source_tasks'), '/tasks')])
-      return
-    }
-    const result = await runApi.generateFailureDiagnosis(target.run_id)
+    const result = target.task_type === 'case'
+      ? await runApi.generateFailureDiagnosis(target.run_id)
+      : await workbenchApi.failureDiagnosis(target.task_type, target.run_id)
     diagnosis.value = { taskId: target.id, result }
     appendMessage('assistant', t('hermes.answers.diagnosis', { name: target.name, status: result.status }), [source(t('hermes.source_run_detail'), target.detail_path)])
   } catch (error) {

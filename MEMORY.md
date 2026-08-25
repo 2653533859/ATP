@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 N7 Hermes 跨任务失败诊断已完成本地交付：工作台为 suite/plan/android/performance 增加按项目 viewer 权限校验的统一诊断入口，case 继续复用原 LLM/规则链；Android 使用崩溃、ANR、卡顿和执行事件，性能使用执行器错误、错误率、p95/基线线索，成功任务明确返回暂无失败原因。Hermes 不再对非 case 任务提示不支持，保留任务详情来源；后端定向 `13 passed`、后端非集成全量 `2345 passed`，前端全量 `69 files / 293 tests passed`，新增服务 mypy、Ruff、格式、`vue-tsc`、生产构建和独立审查通过。真实模型、需求/知识数据、角色矩阵和可清理项目仍待 N7 验收，未记录凭据或执行配置。
+
 - 2026-08-25 N5 真实模型环境只读复核确认阻塞：q19 acceptance 部署的 AI LLM 配置数量为 `0`；外部模型服务不带凭据探针返回 HTTP `401`，只能证明入口可达，不能证明模型列表、连接、多模态/思考参数或项目生成可用。未创建/修改远端配置，未记录 Token、响应正文或其他凭据；脱敏证据为 `docs/evidence/ai-model-environment-audit-2026-08-25.json`。真实模型门禁保持 `[-]`，需要受控模型配置、有效凭据和可清理项目数据后复验。
 
 - 2026-08-25 N5 AI 模型能力元数据解析已完成本地交付：模型发现现在识别供应商 `capabilities`、`modalities`、`input_modalities`、`output_modalities` 和 `supported_modalities` 中的 `vision/image/multimodal` 与 `reasoning/thinking` 阳性标记；供应商已提供能力字段但没有阳性证据时保持未知，没有能力字段时继续兼容模型名提示。模型发现/API 定向 `20 passed`，受影响 AI 定向 `69 passed`，后端非集成全量 `2340 passed`，Ruff、格式、mypy、差异检查和独立审查通过。真实供应商格式、参数接受情况和项目级生成仍待受控环境复核，未记录任何密钥。

@@ -8,6 +8,8 @@
 
 > 2026-08-25 计划同步标记：2.3.0 只更新导航职责、执行顺序、验收出口和状态口径，不伪造真实环境证据。N4 缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 保持 `[-]`；N2～N3、N5～N8 的本地实现保持 `[E]`，N9 保持 `[~]`。
 
+> 2026-08-25 N7 Hermes 跨任务失败诊断已完成本地交付：新增工作台诊断接口并复用项目 viewer 权限边界，case 走原诊断链，suite/plan/android/performance 使用各域执行摘要和事件/指标生成规则线索；后端定向 `13 passed`、非集成全量 `2345 passed`，前端全量 `69 files / 293 tests passed`，`vue-tsc` 和生产构建通过。真实模型、需求/知识数据和角色矩阵仍待 N7 验收，不改变 N4-N8 未关闭门禁及当前发布阻塞结论。
+
 > 2026-08-25 N5 AI 模型能力元数据解析已完成本地交付：模型发现支持第三方能力/模态字段，能力提示无阳性证据时保持未知；模型发现/API 定向 `20 passed`、受影响 AI 定向 `69 passed`、后端非集成全量 `2340 passed`，真实模型和项目级生成仍待受控环境验收，不改变当前发布阻塞结论。
 
 > 2026-08-25 N5 真实模型环境只读复核确认阻塞：q19 acceptance 没有 AI LLM 配置，外部模型入口不带凭据返回 HTTP `401`；脱敏证据为 [`evidence/ai-model-environment-audit-2026-08-25.json`](evidence/ai-model-environment-audit-2026-08-25.json)，不改变发布结论，也不代表真实模型能力通过。

@@ -4,6 +4,8 @@
 
 > 2026-08-25 当前开发计划已升级为 2.3.0：参考导航的五组职责现在作为模块跟踪边界，执行顺序为 N0 导航壳与 N1 工作台 → N2-API、N2-APP、N3-UI、N4 性能、N5 AI、N6 测试资产 → N7 智能中枢 → N8 系统治理 → N9 发布收口。N4 真实性能环境仍因缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 保持阻塞；Windows 是默认开发/验收环境，Android 真机由本地 Windows Worker 执行，不作为 Web/API 的前置条件。详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.0。
 
+> 2026-08-25 N7 Hermes 跨任务失败诊断已完成本地交付：工作台统一为 suite/plan/android/performance 提供按项目权限保护的规则诊断，case 复用既有 LLM/规则链；Android 与性能诊断引用各自持久化的异常事件、错误事件和指标线索，Hermes 保留任务详情来源，不再把非 case 任务标记为不支持。后端定向 `13 passed`、非集成全量 `2345 passed`，前端全量 `69 files / 293 tests passed`，真实模型、需求/知识数据和角色矩阵仍待验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.3。
+
 > 2026-08-25 N5 AI 模型能力元数据解析已完成本地交付：模型发现识别 `capabilities`/`modalities` 等第三方字段中的多模态和思考阳性标记；能力无阳性证据时保持未知，缺字段时兼容模型名提示。模型发现/API 定向 `20 passed`、受影响 AI 定向 `69 passed`、后端非集成全量 `2340 passed`，真实供应商参数接受和项目级生成仍待环境验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.1。
 
 > 2026-08-25 N5 真实模型环境只读复核确认阻塞：q19 acceptance 无 AI LLM 配置，外部模型入口不带凭据返回 HTTP `401`；未修改远端、未记录凭据或响应正文。真实模型列表、连接、思考/多模态参数、可编辑生成和清理仍待受控配置，脱敏证据见 [`evidence/ai-model-environment-audit-2026-08-25.json`](evidence/ai-model-environment-audit-2026-08-25.json)。

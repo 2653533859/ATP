@@ -26,7 +26,7 @@ from app.models.project import Module, Project
 from app.models.suite import SuiteRun, SuiteRunStatus, TestSuite
 from app.models.user import User, UserRole
 from app.models.user_project import ProjectRole
-from app.schemas.case import RunTriggerRequest
+from app.schemas.case import FailureDiagnosisOut, RunTriggerRequest
 from app.schemas.mobile_special import RunTriggerRequest as MobileRunTriggerRequest
 from app.schemas.performance import PerformanceRunTrigger
 from app.schemas.plan import PlanRunTrigger
@@ -44,6 +44,7 @@ from app.schemas.workbench import (
     WorkbenchTodoItem,
 )
 from app.services.project_scope import scope_to_visible_projects
+from app.services.workbench_diagnosis import generate_workbench_failure_diagnosis
 
 router = APIRouter(tags=["工作台"])
 
@@ -690,6 +691,50 @@ async def list_workbench_tasks(
         total=total,
         has_more=has_more,
     )
+
+
+async def _workbench_task_project_id(db: AsyncSession, task_type: WorkbenchTaskType, run_id: int) -> int | None:
+    """Resolve the project before dispatching a cross-domain diagnosis request."""
+
+    if task_type == "case":
+        run = await db.get(TestRun, run_id)
+        case = await db.get(TestCase, run.case_id) if run else None
+        module = await db.get(Module, case.module_id) if case else None
+        return module.project_id if module else None
+    if task_type == "suite":
+        run = await db.get(SuiteRun, run_id)
+        suite = await db.get(TestSuite, run.suite_id) if run else None
+        return suite.project_id if suite else None
+    if task_type == "plan":
+        run = await db.get(PlanRun, run_id)
+        plan = await db.get(TestPlan, run.plan_id) if run else None
+        return plan.project_id if plan else None
+    if task_type == "android":
+        run = await db.get(MobileSpecialRun, run_id)
+        task = await db.get(MobileSpecialTask, run.task_id) if run else None
+        return task.project_id if task else None
+    run = await db.get(PerformanceRun, run_id)
+    return run.project_id if run else None
+
+
+@router.post(
+    "/workbench/tasks/{task_type}/{run_id}/failure-diagnosis",
+    response_model=FailureDiagnosisOut,
+)
+async def diagnose_workbench_task_failure(
+    task_type: WorkbenchTaskType,
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project_id = await _workbench_task_project_id(db, task_type, run_id)
+    if project_id is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    await assert_project_access(db, current_user, project_id, ProjectRole.viewer)
+    diagnosis = await generate_workbench_failure_diagnosis(db, task_type, run_id)
+    if diagnosis is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    return diagnosis
 
 
 async def _retry_task(ref: WorkbenchTaskRef, db: AsyncSession, user: User) -> WorkbenchTaskActionOut:

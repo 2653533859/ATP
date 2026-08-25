@@ -14,6 +14,7 @@ const {
   routerPush,
   routerReplace,
   taskList,
+  workbenchFailureDiagnosis,
 } = vi.hoisted(() => ({
   caseList: vi.fn(),
   failureTop: vi.fn(),
@@ -24,6 +25,7 @@ const {
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
   taskList: vi.fn(),
+  workbenchFailureDiagnosis: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
@@ -42,7 +44,7 @@ vi.mock('@/api', () => ({
   reportApi: { overview: reportOverview },
   runApi: { generateFailureDiagnosis: generateDiagnosis },
   statisticsApi: { failureTop },
-  workbenchApi: { tasks: taskList },
+  workbenchApi: { tasks: taskList, failureDiagnosis: workbenchFailureDiagnosis },
 }))
 vi.mock('@ant-design/icons-vue', () => {
   const iconStub = { setup: () => () => null }
@@ -117,6 +119,16 @@ beforeEach(() => {
     repair_suggestions: [{ step_index: 0, step_name: '请求登录接口', suggestion_type: 'update_request', target: 'status', suggested_change: '检查服务状态', evidence: 'HTTP 500', confidence: 0.9 }],
     error_samples: [],
   })
+  workbenchFailureDiagnosis.mockResolvedValue({
+    status: 'done',
+    source: 'rule',
+    summary: 'Android 设备前置操作失败',
+    at: '2026-08-24T10:00:00Z',
+    failed_step_count: 1,
+    screenshot_count: 0,
+    repair_suggestions: [],
+    error_samples: [],
+  })
   routerReplace.mockResolvedValue(undefined)
 })
 
@@ -186,6 +198,20 @@ describe('HermesAssistantView', () => {
     expect(vm.messages.at(-1).sources[0].path).toBe('/runs/77?project_id=1')
     expect(vm.diagnosing).toBe(false)
 
+    wrapper.unmount()
+  })
+
+  it('uses the unified workbench diagnosis for Android failures', async () => {
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    const androidTask = { ...failedCase, id: 'android:8', task_type: 'android', run_id: 88, detail_path: '/mobile-special/reports/88' }
+
+    await vm.explainFailure(androidTask)
+
+    expect(workbenchFailureDiagnosis).toHaveBeenCalledWith('android', 88)
+    expect(vm.diagnosis.result.summary).toBe('Android 设备前置操作失败')
+    expect(vm.diagnosing).toBe(false)
     wrapper.unmount()
   })
 

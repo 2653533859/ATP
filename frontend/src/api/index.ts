@@ -1878,6 +1878,8 @@ export const workbenchApi = {
     http.get<unknown, WorkbenchOverviewItem>('/workbench/overview', { params }),
   tasks: (params?: { project_id?: number; status?: string; task_type?: WorkbenchTaskType; limit?: number }) =>
     http.get<unknown, WorkbenchTaskPage>('/workbench/tasks', { params }),
+  failureDiagnosis: (taskType: WorkbenchTaskType, runId: number) =>
+    http.post<unknown, FailureDiagnosisResult>(`/workbench/tasks/${taskType}/${runId}/failure-diagnosis`),
   retry: (taskType: WorkbenchTaskType, runId: number) =>
     http.post<unknown, WorkbenchTaskActionResult>(`/workbench/tasks/${taskType}/${runId}/retry`),
   stop: (taskType: WorkbenchTaskType, runId: number) =>
