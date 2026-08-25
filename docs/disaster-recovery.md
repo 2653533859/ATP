@@ -125,8 +125,9 @@ mc du "dr-minio/${DR_MINIO_BUCKET}/atp-objects/"
 ## Cross-endpoint MinIO recovery smoke
 
 For a repeatable non-production drill, use `scripts/minio-dr-acceptance.py`.
-It requires separate source and target MinIO endpoints on different hosts and
-reads all access keys from environment variables. The command copies a
+It requires separate source and target MinIO endpoints on different hosts,
+rejects same-host aliases (including loopback aliases) or endpoints that
+resolve to the same IP, and reads all access keys from environment variables. The command copies a
 uniquely scoped probe object to the
 target, reads it back, restores it to a new source object, compares SHA-256 at
 each boundary, and removes the temporary objects.

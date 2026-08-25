@@ -6,6 +6,8 @@
 
 > 2026-08-25 N4 本地门禁补强已完成：性能 smoke 新增 `--require-kubernetes`，发布级 Kubernetes 验收必须显式提供 Deployment；定向相关回归 `46 passed`。172.31.27.133 的 q19 Prometheus 仅作为 Compose 观察，真实多节点、发布级指标覆盖和独立 MinIO 灾备仍保持待环境验收。
 
+> 2026-08-25 N4 MinIO 灾备门禁补强已完成：source/target 端点会拒绝同机文本、回环别名和同 IP 解析结果；相关定向回归 `51 passed`。真实不同主机 MinIO、生命周期和恢复回读仍待环境验收。
+
 > 2026-08-25 N5 本地 AI 密钥边界已完成：Ollama 可不填写 API Key，所有 AI 生成/诊断/自愈入口保持一致；非 Ollama 空密钥继续拒绝，相关定向 `88 passed`、后端非集成全量 `2315 passed`。真实模型和项目数据验收仍保持 `[E]`，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.1.1。
 
 > 2026-08-25 N5 AI 模型连接健康检查已完成本地交付：AI 配置页新增“测试连接”，后端复用已保存密钥并允许新建 keyless Ollama；健康请求固定短文本、超时和 token 上限，Endpoint 规范化，响应/错误/审计均不泄露密钥。后端非集成全量 `2317 passed`、前端全量 `69 files / 287 tests passed`，真实模型连接、多模态/思考参数和项目生成仍待环境验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.1.2。

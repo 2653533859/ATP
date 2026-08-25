@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 N4 MinIO 灾备端点独立性门禁已完成本地交付：`scripts/minio-dr-acceptance.py` 现在拒绝同一主机文本、`localhost`/回环别名以及解析到同一 IP 的 source/target，先于 MinIO 连接写入脱敏失败检查；不同端点的复制、回读、恢复、SHA-256 和临时对象清理路径保持不变。相关定向回归 `51 passed`，Ruff/格式/差异检查通过；172.31.27.133 仍未提供真实独立 MinIO source/target，未执行远端写入或保存凭据。
+
 - 2026-08-25 N4 性能 smoke 防误验收已完成本地交付：`scripts/performance-environment-smoke.py` 新增 `--require-kubernetes`，要求同时提供真实 Deployment，遗漏 Kubernetes 参数时在执行前失败；Docker Compose 本地检查保持兼容。定向性能脚本、发布契约和质量一致性回归 `46 passed`，Ruff/格式/差异检查通过。对 `172.31.27.133` 的只读复核显示 `kubectl/helm` 缺失，q19 `29090` Prometheus readiness 和四个 Compose targets 可观察但不代表发布级多节点环境，未发现独立 MinIO source/target；N4 继续阻塞，未执行远端修改或写入凭据。
 
 - 2026-08-25 当前开发计划已更新为 2.2.0：继续沿用“工作台、测试能力、测试资产、智能中枢、系统”五组导航，新增 P0/N4 真实性能环境、P1/N5 真实模型、P2/N6 测试资产、P3/N7 智能中枢、P4/N8 系统治理和 P5/N9 发布收口的顺序、依赖及验收出口。N4 因缺少 Kubernetes、发布级 Prometheus 指标覆盖和独立 MinIO 保持阻塞，N5-N8 本地实现保持 `[E]`，N9 保持进行中；不得用 mock、单节点 Compose、页面可打开或跳过项替代真实证据。每个模块必须完成实现/调整、测试、独立审查、修复、文档/记忆同步、提交推送后才能移动游标；本次仅同步计划和跟踪文档，未写入凭据或新增业务代码。

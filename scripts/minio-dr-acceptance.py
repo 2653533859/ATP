@@ -20,8 +20,8 @@ Required environment variables::
 
 Set ``ATP_MINIO_DR_SOURCE_SECURE`` or ``ATP_MINIO_DR_TARGET_SECURE`` to a
 truthy value when the endpoint uses HTTPS.  The target endpoint must use a
-different host from the source so this command cannot accidentally claim a
-same-host bucket copy as cross-host recovery.
+different host from the source; loopback aliases and endpoints resolving to the
+same IP are rejected so a same-host bucket copy cannot be claimed as recovery.
 """
 
 from __future__ import annotations
@@ -30,11 +30,13 @@ import argparse
 from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
+import ipaddress
 import io
 import json
 import os
 from pathlib import Path
 import re
+import socket
 from typing import Any, Iterable
 from uuid import uuid4
 from urllib.parse import urlsplit
@@ -80,6 +82,40 @@ def parse_endpoint(value: str) -> str:
 
 def endpoint_host(value: str) -> str:
     return (urlsplit(f"//{value}").hostname or "").casefold().rstrip(".")
+
+
+def endpoint_addresses(value: str) -> set[str]:
+    """Resolve an endpoint host to stable IP identities when possible.
+
+    Unresolvable names return an empty set so an offline contract check does not
+    turn DNS availability into a false failure; the live MinIO connection still
+    has to succeed before the drill can pass.
+    """
+
+    host = endpoint_host(value)
+    if host == "localhost":
+        return {"127.0.0.1", "::1"}
+    try:
+        return {ipaddress.ip_address(host).compressed}
+    except ValueError:
+        pass
+    try:
+        infos = socket.getaddrinfo(host, None, type=socket.SOCK_STREAM)
+    except OSError:
+        return set()
+    return {ipaddress.ip_address(item[4][0]).compressed for item in infos if len(item) > 4 and item[4] and item[4][0]}
+
+
+def endpoints_share_host(source: str, target: str) -> bool:
+    """Return whether source and target are textually or network-identically co-located."""
+
+    source_host = endpoint_host(source)
+    target_host = endpoint_host(target)
+    if source_host == target_host:
+        return True
+    source_addresses = endpoint_addresses(source)
+    target_addresses = endpoint_addresses(target)
+    return bool(source_addresses and target_addresses and source_addresses.intersection(target_addresses))
 
 
 def _required_env(prefix: str, field: str) -> str:
@@ -252,8 +288,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         source = load_endpoint_config("SOURCE")
         target = load_endpoint_config("TARGET")
-        if endpoint_host(source.endpoint) == endpoint_host(target.endpoint):
-            raise AcceptanceError("源端和目标端点必须位于不同主机，不能把同一主机的 bucket copy 写成跨主机恢复")
+        _check(
+            checks,
+            "endpoint-independence",
+            not endpoints_share_host(source.endpoint, target.endpoint),
+            "源端和目标端点必须位于不同主机，不能把同一主机的 bucket copy 写成跨主机恢复",
+        )
         required_rules = [parse_lifecycle_requirement(item) for item in args.require_lifecycle_rule]
         source_client = build_client(source)
         target_client = build_client(target)

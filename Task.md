@@ -26,10 +26,11 @@
 - [x] N9 发布证据索引与一致性校验子模块：新增脱敏索引、校验脚本、Make/CI/预提交入口；定向校验与发布契约 `22 passed`、后端非集成全量 `2333 passed`、Ruff/格式/差异检查通过。候选 SHA 必须匹配当前 HEAD，最终 N9 仍待真实门禁收口。
 - [x] N9.2 发布文档同步一致性契约：发布索引校验开发计划、Task、MEMORY、路线图、发布状态和发布清单的关键标记；定向校验与发布契约 `23 passed`、后端非集成全量 `2334 passed`，缺少文件或标记会阻断发布校验。
 - [x] N4 smoke 显式 Kubernetes 门禁：新增 `--require-kubernetes`，缺少 Deployment 时启动即拒绝；性能脚本、发布契约和质量一致性定向 `46 passed`，真实 N4 仍待 Kubernetes、发布级 Prometheus 和独立 MinIO。
+- [x] N4 MinIO 灾备端点独立性门禁：拒绝同机文本/回环别名及解析到同一 IP 的 source/target；MinIO 灾备、性能 smoke、发布契约定向 `51 passed`，真实独立 MinIO source/target 仍待环境验收。
 - [~] N9 发布收口整体：继续绑定最终提交 SHA，汇总测试、审查、环境证据、操作手册和剩余阻塞。
 - [ ] 每个后续模块仍必须完成“实现/调整 → 测试 → 独立审查 → 修复 → 文档/记忆同步 → 提交推送”后才能移动游标。
 
-详细拆分、解除条件和复验命令见 [`docs/development-plan-2026-08-25.md`](docs/development-plan-2026-08-25.md) 的 2.1.0 节；以下旧章节仅作历史记录。
+详细拆分、解除条件和复验命令见 [`docs/development-plan-2026-08-25.md`](docs/development-plan-2026-08-25.md) 的 2.2.0～2.2.2 节；以下旧章节仅作历史记录。
 
 ## 2026-08-25 导航对齐开发计划 2.0
 

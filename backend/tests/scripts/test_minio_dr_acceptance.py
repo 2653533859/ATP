@@ -48,6 +48,45 @@ def test_endpoint_and_lifecycle_requirement_validation():
         smoke.parse_lifecycle_requirement("/tmp/=7")
 
 
+def test_endpoint_independence_rejects_loopback_aliases_and_same_ip(monkeypatch):
+    smoke = _load_script()
+
+    assert smoke.endpoints_share_host("localhost:9000", "127.0.0.1:9001") is True
+    assert smoke.endpoints_share_host("[::1]:9000", "localhost:9001") is True
+
+    def fake_getaddrinfo(host, *_args, **_kwargs):
+        address = "192.0.2.10" if host in {"source.example.test", "backup.example.test"} else "192.0.2.11"
+        return [(None, None, None, None, (address, 0))]
+
+    monkeypatch.setattr(smoke.socket, "getaddrinfo", fake_getaddrinfo)
+    assert smoke.endpoints_share_host("source.example.test:9000", "backup.example.test:9000") is True
+    assert smoke.endpoints_share_host("source.example.test:9000", "other.example.test:9000") is False
+
+
+def test_main_rejects_same_host_alias_before_connecting_to_minio(monkeypatch, tmp_path):
+    smoke = _load_script()
+    for prefix, endpoint, access_key, secret_key, bucket in (
+        ("SOURCE", "localhost:9000", "source-user", "source-value", "atp"),
+        ("TARGET", "127.0.0.1:9001", "target-user", "target-value", "atp-dr"),
+    ):
+        monkeypatch.setenv(f"ATP_MINIO_DR_{prefix}_ENDPOINT", endpoint)
+        monkeypatch.setenv(f"ATP_MINIO_DR_{prefix}_ACCESS_KEY", access_key)
+        monkeypatch.setenv(f"ATP_MINIO_DR_{prefix}_SECRET_KEY", secret_key)
+        monkeypatch.setenv(f"ATP_MINIO_DR_{prefix}_BUCKET", bucket)
+
+    class _UnexpectedClient:
+        def __init__(self, *_args, **_kwargs):
+            raise AssertionError("same-host validation must run before MinIO connection")
+
+    monkeypatch.setattr(smoke, "Minio", _UnexpectedClient)
+    report_path = tmp_path / "same-host.json"
+
+    assert smoke.main(["--report", str(report_path)]) == 1
+    evidence = json.loads(report_path.read_text(encoding="utf-8"))
+    assert evidence["status"] == "failed"
+    assert any(item["name"] == "endpoint-independence" and item["status"] == "FAIL" for item in evidence["checks"])
+
+
 def test_main_copies_restores_and_cleans_objects_across_endpoints(monkeypatch, tmp_path):
     smoke = _load_script()
 
