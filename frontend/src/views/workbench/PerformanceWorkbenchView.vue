@@ -609,7 +609,12 @@ async function loadProjectData() {
       loadError.value = t('performance_workbench.load_warning')
     }
     if (!selectedTestId.value || !tests.value.some((item) => item.id === selectedTestId.value)) selectedTestId.value = tests.value[0]?.id ?? null
-    if (!selectedRunId.value || !runs.value.some((item) => item.id === selectedRunId.value)) selectedRunId.value = recentRuns.value[0]?.id ?? null
+    const requestedRunId = positiveInt(route.query.run_id)
+    if (requestedRunId && runs.value.some((item) => item.id === requestedRunId)) {
+      selectedRunId.value = requestedRunId
+    } else if (!selectedRunId.value || !runs.value.some((item) => item.id === selectedRunId.value)) {
+      selectedRunId.value = recentRuns.value[0]?.id ?? null
+    }
     syncLaunchFromTest()
     syncPolling()
     void loadTrend()

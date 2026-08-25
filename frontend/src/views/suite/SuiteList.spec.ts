@@ -18,8 +18,10 @@ const {
   suiteBatchDelete,
   suiteCreate,
   suiteDelete,
+  suiteGetRun,
   suiteList,
   suiteListRuns,
+  suiteRouteQuery,
   suiteRun,
   suiteUpdate,
 } = vi.hoisted(() => ({
@@ -36,14 +38,16 @@ const {
   suiteBatchDelete: vi.fn(),
   suiteCreate: vi.fn(),
   suiteDelete: vi.fn(),
+  suiteGetRun: vi.fn(),
   suiteList: vi.fn(),
   suiteListRuns: vi.fn(),
+  suiteRouteQuery: {} as Record<string, string>,
   suiteRun: vi.fn(),
   suiteUpdate: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: {} }),
+  useRoute: () => ({ query: suiteRouteQuery }),
   useRouter: () => ({ push: routerPush }),
 }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ locale: { value: 'zh-CN' }, t: (key: string, params?: Record<string, unknown>) => (params ? `${key}:${JSON.stringify(params)}` : key) }) }))
@@ -63,6 +67,7 @@ vi.mock('@/api', () => ({
     batchDelete: suiteBatchDelete,
     create: suiteCreate,
     delete: suiteDelete,
+    getRun: suiteGetRun,
     exportRunHtml: vi.fn(),
     exportRunPdf: vi.fn(),
     list: suiteList,
@@ -219,6 +224,7 @@ const CASES = [
 
 beforeEach(() => {
   vi.clearAllMocks()
+  Object.keys(suiteRouteQuery).forEach((key) => delete suiteRouteQuery[key])
   projectList.mockResolvedValue(PROJECTS)
   suiteList.mockResolvedValue(SUITES)
   caseList.mockResolvedValue(CASES)
@@ -226,6 +232,7 @@ beforeEach(() => {
   environmentList.mockResolvedValue([{ id: 7, name: 'staging' }])
   suiteRun.mockResolvedValue({ id: 55 })
   suiteListRuns.mockResolvedValue([{ id: 66, status: 'passed', case_runs: [], created_at: '2026-07-11T02:00:00Z' }])
+  suiteGetRun.mockResolvedValue({ id: 66, suite_id: 1 })
   suiteDelete.mockResolvedValue({})
   suiteCreate.mockResolvedValue({ id: 2 })
   suiteUpdate.mockResolvedValue({})
@@ -264,6 +271,18 @@ describe('SuiteList mount', () => {
     await wrapper.findAll('button').find((button) => button.text().includes('suite.actions.records'))!.trigger('click')
     await flushPromises()
     expect(suiteListRuns).toHaveBeenCalledWith({ suite_id: 1 })
+  })
+
+  it('opens the requested suite run from a defect evidence link', async () => {
+    suiteRouteQuery.run_id = '66'
+    const wrapper = mountSuiteList()
+    await chooseProject(wrapper)
+
+    expect(suiteGetRun).toHaveBeenCalledWith(66)
+    expect(suiteListRuns).toHaveBeenCalledWith({ suite_id: 1 })
+    expect((wrapper.vm as any).runsDrawerOpen).toBe(true)
+    expect((wrapper.vm as any).expandedSuiteRunKeys).toEqual([66])
+    wrapper.unmount()
   })
 
   it('opens create flow and loads selectable cases/modules', async () => {

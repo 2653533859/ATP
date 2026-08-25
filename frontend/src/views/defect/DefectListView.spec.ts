@@ -4,7 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DefectListView from './DefectListView.vue'
 
-const { authUser, routeQuery, bugTrackerList, defectCreateExternal, projectList, memberList, defectList, defectUpdate } = vi.hoisted(() => ({
+const { authUser, routeQuery, bugTrackerList, defectCreateExternal, projectList, memberList, defectList, defectUpdate, routerPush } = vi.hoisted(() => ({
   authUser: { role: 'engineer' as string },
   routeQuery: {} as Record<string, string>,
   bugTrackerList: vi.fn(),
@@ -13,6 +13,7 @@ const { authUser, routeQuery, bugTrackerList, defectCreateExternal, projectList,
   memberList: vi.fn(),
   defectList: vi.fn(),
   defectUpdate: vi.fn(),
+  routerPush: vi.fn(),
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -20,7 +21,7 @@ vi.mock('vue-i18n', () => ({
 }))
 vi.mock('vue-router', () => ({
   useRoute: () => ({ query: routeQuery }),
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ replace: vi.fn(), push: routerPush }),
 }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: authUser }) }))
 vi.mock('ant-design-vue', () => ({
@@ -214,6 +215,29 @@ describe('DefectListView', () => {
 
     expect(wrapper.find('.external-card-actions').exists()).toBe(false)
     expect(bugTrackerList).not.toHaveBeenCalled()
+    wrapper.unmount()
+  })
+
+  it('routes every linked run type to its owning report surface', async () => {
+    const wrapper = mount(DefectListView, { global: { stubs: globalStubs } })
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.selectedDefect = { project_id: 1 }
+
+    vm.openRun({ run_type: 'case', run_id: 11 })
+    vm.openRun({ run_type: 'android', run_id: 12 })
+    vm.openRun({ run_type: 'performance', run_id: 13 })
+    vm.openRun({ run_type: 'suite', run_id: 14 })
+    vm.openRun({ run_type: 'plan', run_id: 15 })
+
+    expect(routerPush).toHaveBeenNthCalledWith(1, { name: 'run-detail', params: { runId: 11 } })
+    expect(routerPush).toHaveBeenNthCalledWith(2, { name: 'mobile-special-report-detail', params: { runId: 12 } })
+    expect(routerPush).toHaveBeenNthCalledWith(3, {
+      name: 'performance-workbench',
+      query: { project_id: '1', run_id: '13' },
+    })
+    expect(routerPush).toHaveBeenNthCalledWith(4, { path: '/suites', query: { project_id: '1', run_id: '14' } })
+    expect(routerPush).toHaveBeenNthCalledWith(5, { path: '/plans', query: { project_id: '1', run_id: '15' } })
     wrapper.unmount()
   })
 })

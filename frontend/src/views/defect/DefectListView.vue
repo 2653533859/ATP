@@ -712,7 +712,27 @@ function openRun(link: DefectRunLinkItem) {
     void router.push({ name: 'run-detail', params: { runId: link.run_id } })
     return
   }
-  void router.push({ path: '/runs', query: { defect_run_type: link.run_type, defect_run_id: String(link.run_id) } })
+  if (link.run_type === 'android') {
+    void router.push({ name: 'mobile-special-report-detail', params: { runId: link.run_id } })
+    return
+  }
+  if (link.run_type === 'performance') {
+    void router.push({
+      name: 'performance-workbench',
+      query: {
+        project_id: String(selectedDefect.value?.project_id || ''),
+        run_id: String(link.run_id),
+      },
+    })
+    return
+  }
+  void router.push({
+    path: link.run_type === 'suite' ? '/suites' : '/plans',
+    query: {
+      project_id: String(selectedDefect.value?.project_id || ''),
+      run_id: String(link.run_id),
+    },
+  })
 }
 
 watch(() => route.query, (query) => {

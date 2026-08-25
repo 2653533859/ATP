@@ -13,11 +13,13 @@ const {
   planBatchToggle,
   planCreate,
   planDelete,
+  planGetRun,
   planList,
   planListRuns,
   planRun,
   planUpdate,
   projectList,
+  planRouteQuery,
   suiteList,
 } = vi.hoisted(() => ({
   environmentList: vi.fn(),
@@ -28,16 +30,18 @@ const {
   planBatchToggle: vi.fn(),
   planCreate: vi.fn(),
   planDelete: vi.fn(),
+  planGetRun: vi.fn(),
   planList: vi.fn(),
   planListRuns: vi.fn(),
   planRun: vi.fn(),
   planUpdate: vi.fn(),
   projectList: vi.fn(),
+  planRouteQuery: {} as Record<string, string>,
   suiteList: vi.fn(),
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => (params ? `${key}:${JSON.stringify(params)}` : key) }) }))
-vi.mock('vue-router', () => ({ useRoute: () => ({ query: {} }) }))
+vi.mock('vue-router', () => ({ useRoute: () => ({ query: planRouteQuery }) }))
 vi.mock('ant-design-vue', () => ({
   message: { error: messageError, success: messageSuccess, warning: messageWarning },
 }))
@@ -48,6 +52,7 @@ vi.mock('@/api', () => ({
     batchToggle: planBatchToggle,
     create: planCreate,
     delete: planDelete,
+    getRun: planGetRun,
     exportRunHtml: vi.fn(),
     exportRunPdf: vi.fn(),
     list: planList,
@@ -188,6 +193,7 @@ const PLANS = [
 
 beforeEach(() => {
   vi.clearAllMocks()
+  Object.keys(planRouteQuery).forEach((key) => delete planRouteQuery[key])
   projectList.mockResolvedValue(PROJECTS)
   planList.mockResolvedValue(PLANS)
   suiteList.mockResolvedValue([{ id: 2, name: 'Smoke' }])
@@ -195,6 +201,7 @@ beforeEach(() => {
   planRun.mockResolvedValue({ id: 99 })
   planDelete.mockResolvedValue({})
   planListRuns.mockResolvedValue([{ id: 77, status: 'passed', created_at: '2026-07-11T02:00:00Z' }])
+  planGetRun.mockResolvedValue({ id: 77, plan_id: 1 })
   planCreate.mockResolvedValue({ id: 3 })
   planUpdate.mockResolvedValue({})
   planBatchDelete.mockResolvedValue({ requested: 1, processed: 1 })
@@ -237,6 +244,18 @@ describe('PlanList mount', () => {
     await confirms[confirms.length - 1].trigger('click')
     await flushPromises()
     expect(planDelete).toHaveBeenCalledWith(1)
+  })
+
+  it('opens the requested plan run from a defect evidence link', async () => {
+    planRouteQuery.run_id = '77'
+    const wrapper = mountPlanList()
+    await chooseProject(wrapper)
+
+    expect(planGetRun).toHaveBeenCalledWith(77)
+    expect(planListRuns).toHaveBeenCalledWith({ plan_id: 1 })
+    expect((wrapper.vm as any).runsOpen).toBe(true)
+    expect((wrapper.vm as any).expandedRunKeys).toEqual([77])
+    wrapper.unmount()
   })
 
   it('opens create flow and saves a valid manual plan', async () => {

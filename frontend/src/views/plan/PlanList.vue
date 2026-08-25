@@ -459,6 +459,12 @@ function getErrorMessage(error: unknown, fallback: string) {
   return typeof error === 'string' ? error : fallback
 }
 
+function positiveInt(value: unknown) {
+  const raw = Array.isArray(value) ? value[0] : value
+  const parsed = Number(raw)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
 function formatTime(t: string) {
   return t?.slice(0, 19).replace('T', ' ') ?? '-'
 }
@@ -621,6 +627,7 @@ onMounted(async () => {
     projectOptions.value = projects.map((p: ProjectItem) => ({ label: p.name, value: p.id }))
     projectId.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), projects)
     await loadPlans()
+    await openRequestedRun()
   } catch (error: unknown) {
     projectOptions.value = []
     message.error(getErrorMessage(error, t('plan.msg.load_projects_failed')))
@@ -815,6 +822,20 @@ async function viewRuns(record: PlanItem) {
     message.error(getErrorMessage(error, t('plan.msg.load_runs_failed')))
   } finally {
     runsLoading.value = false
+  }
+}
+
+async function openRequestedRun() {
+  const runId = positiveInt(route.query.run_id)
+  if (!runId) return
+  try {
+    const run = await planApi.getRun(runId)
+    const plan = plans.value.find((item) => item.id === run.plan_id)
+    if (!plan) return
+    await viewRuns(plan)
+    expandedRunKeys.value = [runId]
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, t('plan.msg.load_runs_failed')))
   }
 }
 

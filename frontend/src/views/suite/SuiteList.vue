@@ -553,6 +553,12 @@ function getErrorMessage(error: unknown, fallback: string) {
   return fallback
 }
 
+function positiveInt(value: unknown) {
+  const raw = Array.isArray(value) ? value[0] : value
+  const parsed = Number(raw)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
 function createDefaultForm(): SuiteFormState {
   return {
     name: '',
@@ -913,6 +919,20 @@ async function loadSuites() {
   }
 }
 
+async function openRequestedRun() {
+  const runId = positiveInt(route.query.run_id)
+  if (!runId) return
+  try {
+    const run = await suiteApi.getRun(runId)
+    const suite = suites.value.find((item) => item.id === run.suite_id)
+    if (!suite) return
+    await viewRuns(suite)
+    expandedSuiteRunKeys.value = [runId]
+  } catch (error: unknown) {
+    message.error(getErrorMessage(error, t('suite.msg.load_runs_failed')))
+  }
+}
+
 async function handleBatchDelete() {
   if (!selectedRowKeys.value.length) return
   try {
@@ -1221,6 +1241,7 @@ async function handleDelete(id: number) {
 onMounted(async () => {
   await loadProjects()
   await loadSuites()
+  await openRequestedRun()
 })
 
 onUnmounted(() => {

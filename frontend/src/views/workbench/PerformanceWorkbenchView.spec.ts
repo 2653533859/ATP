@@ -12,6 +12,7 @@ const {
   metricList,
   nodeList,
   projectList,
+  routeQuery,
   routerReplace,
   runList,
   trend,
@@ -26,6 +27,7 @@ const {
   metricList: vi.fn(),
   nodeList: vi.fn(),
   projectList: vi.fn(),
+  routeQuery: { project_id: '1' } as Record<string, string>,
   routerReplace: vi.fn(),
   runList: vi.fn(),
   trend: vi.fn(),
@@ -35,7 +37,7 @@ const {
 }))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: { project_id: '1' } }),
+  useRoute: () => ({ query: routeQuery }),
   useRouter: () => ({ push: vi.fn(), replace: routerReplace }),
 }))
 vi.mock('vue-i18n', () => ({
@@ -126,6 +128,7 @@ function mountWorkbench() {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  delete routeQuery.run_id
   projectList.mockResolvedValue([{ id: 1, name: '核心项目', owner_id: 1, current_user_role: 'owner' }])
   testList.mockResolvedValue([testItem])
   runList.mockResolvedValue([runItem])
@@ -211,6 +214,18 @@ describe('PerformanceWorkbenchView', () => {
       options: { vus: 20 },
     }))
     expect(vm.selectedRunId).toBe(201)
+    wrapper.unmount()
+  })
+
+  it('selects a performance run requested by a defect evidence link', async () => {
+    routeQuery.run_id = '201'
+    runList.mockResolvedValueOnce([runItem, { ...runItem, id: 201, status: 'failed' }])
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    expect((wrapper.vm as any).selectedRunId).toBe(201)
+    expect(gate).toHaveBeenCalledWith(201)
+    expect(metricList).toHaveBeenCalledWith(201)
     wrapper.unmount()
   })
 
