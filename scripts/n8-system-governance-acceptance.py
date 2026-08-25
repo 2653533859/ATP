@@ -366,17 +366,25 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, Any]:
             raise AcceptanceError("audit export did not return a bounded CSV evidence file")
         recorder.add("audit-export", "passed", "administrator audit export returned bounded CSV evidence")
 
+        viewer_token = os.getenv("ATP_VIEWER_TOKEN")
         viewer_username, viewer_password = _credentials("VIEWER")
-        if not viewer_username or not viewer_password:
+        if not viewer_token and (not viewer_username or not viewer_password):
             if args.require_role_matrix:
-                recorder.add("role-matrix", "failed", "viewer credentials are required by --require-role-matrix")
+                recorder.add(
+                    "role-matrix",
+                    "failed",
+                    "set ATP_VIEWER_TOKEN or ATP_VIEWER_USERNAME/ATP_VIEWER_PASSWORD for --require-role-matrix",
+                )
             else:
                 recorder.add(
-                    "role-matrix", "skipped", "set ATP_VIEWER_USERNAME/ATP_VIEWER_PASSWORD to verify governance denial"
+                    "role-matrix",
+                    "skipped",
+                    "set ATP_VIEWER_TOKEN or ATP_VIEWER_USERNAME/ATP_VIEWER_PASSWORD to verify governance denial",
                 )
         else:
-            viewer = ApiClient(args.base_url, timeout=args.timeout)
-            viewer.login(viewer_username, viewer_password)
+            viewer = ApiClient(args.base_url, timeout=args.timeout, token=viewer_token)
+            if not viewer_token:
+                viewer.login(viewer_username or "", viewer_password or "")
             viewer_me = viewer.request("GET", "/auth/me")
             if isinstance(viewer_me, dict) and viewer_me.get("role") in {"admin", "engineer"}:
                 raise AcceptanceError("role-matrix account must be an ordinary viewer")

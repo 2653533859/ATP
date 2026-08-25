@@ -9,8 +9,10 @@
 ```powershell
 $env:ATP_USERNAME = '<global-admin>'
 $env:ATP_PASSWORD = '<password>'
-$env:ATP_VIEWER_USERNAME = '<ordinary-user>'
-$env:ATP_VIEWER_PASSWORD = '<password>'
+# 推荐使用短期 viewer 令牌；没有令牌时再使用普通账号密码。
+$env:ATP_VIEWER_TOKEN = '<short-lived-viewer-token>'
+# $env:ATP_VIEWER_USERNAME = '<ordinary-user>'
+# $env:ATP_VIEWER_PASSWORD = '<password>'
 
 python scripts/n8-system-governance-acceptance.py `
   --base-url 'http://127.0.0.1:8000/api/v1' `
@@ -32,6 +34,8 @@ python scripts/n8-system-governance-acceptance.py `
 - `passed`：远程诊断、配置元数据、审计导出和已要求的回滚/角色拒绝均完成。
 - `partial`：只读检查完成，但未提供 viewer、未启用变更或未要求回滚；不能关闭 N8 目标部署门禁。
 - `failed`：连接、响应契约、权限边界、脱敏或回滚失败。优先处理服务端事务和审计记录，再重复验收。
+
+`ATP_VIEWER_TOKEN` 与 `ATP_VIEWER_USERNAME`/`ATP_VIEWER_PASSWORD` 二选一，令牌优先；认证值只从环境变量读取，不会写入证据文件。
 
 远程工具箱返回 `error` 或 `warning` 只会被记录为目标环境状态；脚本不把“诊断接口可访问”误写成 PostgreSQL、Redis、MinIO、Worker 或 ADB 已健康。N8 完整门禁还需要目标部署的管理员和普通角色证据，以及配置差异、精确 `ROLLBACK` 和审计事件可回看。
 
