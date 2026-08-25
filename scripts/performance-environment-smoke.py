@@ -592,6 +592,9 @@ def check_kubernetes(
     pod_selector: str | None,
     container: str | None,
     verify_worker_image: bool,
+    min_ready_nodes: int = 0,
+    min_worker_replicas: int = 0,
+    require_worker_resources: bool = False,
     timeout: float,
 ) -> None:
     prefix = ["kubectl"]
@@ -622,6 +625,72 @@ def check_kubernetes(
         raise SmokeError(f"Deployment {deployment} 未 ready: available={available}, desired={desired}")
     run(["rollout", "status", f"deployment/{deployment}", f"--timeout={max(1, int(timeout))}s"])
     report.passed("kubernetes-rollout", f"Deployment {deployment} ready {available}/{desired}")
+
+    if min_worker_replicas:
+        if desired < min_worker_replicas or available < min_worker_replicas:
+            raise SmokeError(
+                f"Deployment {deployment} 副本不足: available={available}, desired={desired}, "
+                f"required={min_worker_replicas}"
+            )
+        report.passed("kubernetes-replicas", f"Deployment {deployment} 副本满足 {available}/{min_worker_replicas}")
+
+    if min_ready_nodes:
+        nodes = json.loads(run(["get", "nodes", "-o", "json"]))
+        items = nodes.get("items", []) if isinstance(nodes, dict) else []
+        ready_nodes: list[str] = []
+        for node in items:
+            if not isinstance(node, dict):
+                continue
+            metadata = node.get("metadata") if isinstance(node.get("metadata"), dict) else {}
+            status = node.get("status") if isinstance(node.get("status"), dict) else {}
+            conditions = status.get("conditions", [])
+            ready = any(
+                isinstance(condition, dict) and condition.get("type") == "Ready" and condition.get("status") == "True"
+                for condition in conditions
+            )
+            spec = node.get("spec") if isinstance(node.get("spec"), dict) else {}
+            if ready and spec.get("unschedulable") is not True:
+                name = metadata.get("name")
+                ready_nodes.append(str(name) if name else "<unnamed>")
+        if len(ready_nodes) < min_ready_nodes:
+            raise SmokeError(f"Kubernetes 可调度 Ready 节点不足: ready={len(ready_nodes)}, required={min_ready_nodes}")
+        report.passed(
+            "kubernetes-nodes",
+            f"可调度 Ready 节点 {len(ready_nodes)}/{min_ready_nodes}: {', '.join(ready_nodes)}",
+        )
+
+    if require_worker_resources:
+        template = deployment_json.get("spec", {}).get("template", {})
+        pod_spec = template.get("spec", {}) if isinstance(template, dict) else {}
+        containers = pod_spec.get("containers", []) if isinstance(pod_spec, dict) else []
+        selected_container: dict[str, Any] | None = None
+        for item in containers:
+            if not isinstance(item, dict):
+                continue
+            if container and item.get("name") == container:
+                selected_container = item
+                break
+            if not container and selected_container is None:
+                selected_container = item
+        if container and selected_container is None:
+            raise SmokeError(f"Deployment {deployment} 未找到容器 {container}")
+        resources = selected_container.get("resources") if isinstance(selected_container, dict) else None
+        requests = resources.get("requests") if isinstance(resources, dict) else None
+        limits = resources.get("limits") if isinstance(resources, dict) else None
+        if not isinstance(requests, dict) or not isinstance(limits, dict):
+            raise SmokeError(f"Deployment {deployment} 未配置 Worker resources.requests/limits")
+        missing = [
+            f"{section}.{key}"
+            for section, values in (("requests", requests), ("limits", limits))
+            for key in ("cpu", "memory")
+            if not str(values.get(key, "")).strip()
+        ]
+        if missing:
+            raise SmokeError(f"Deployment {deployment} Worker 资源配置缺少: {', '.join(missing)}")
+        report.passed(
+            "kubernetes-worker-resources",
+            f"Worker resources.requests/limits 已配置 cpu、memory（容器={selected_container.get('name') if selected_container else 'unknown'}）",
+        )
 
     if not pod_selector:
         labels = deployment_json.get("spec", {}).get("selector", {}).get("matchLabels", {})
@@ -886,6 +955,23 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--pod-selector", help="可选 Pod selector；默认从 Deployment 推导")
     parser.add_argument("--container", help="Worker Pod 容器名称")
     parser.add_argument(
+        "--min-ready-nodes",
+        type=int,
+        default=0,
+        help="要求 Kubernetes 至少有指定数量的可调度 Ready 节点；必须同时指定 --deployment",
+    )
+    parser.add_argument(
+        "--min-worker-replicas",
+        type=int,
+        default=0,
+        help="要求性能 Worker Deployment 至少有指定数量的 desired/available 副本",
+    )
+    parser.add_argument(
+        "--require-worker-resources",
+        action="store_true",
+        help="要求性能 Worker Deployment 配置 requests/limits.cpu 和 memory",
+    )
+    parser.add_argument(
         "--verify-worker-image",
         action="store_true",
         help="kubectl exec 检查 grpc/Locust/k6/JMeter 和 Chromium/Firefox/WebKit 依赖",
@@ -958,6 +1044,10 @@ def main(argv: list[str] | None = None) -> int:
         parser.error("真实压测验收必须指定 --target，以验证目标连通性和 allowlist")
     if args.verify_worker_image and not args.deployment:
         parser.error("--verify-worker-image 必须同时指定 --deployment")
+    if (args.min_ready_nodes or args.min_worker_replicas or args.require_worker_resources) and not args.deployment:
+        parser.error("--min-ready-nodes/--min-worker-replicas/--require-worker-resources 必须同时指定 --deployment")
+    if args.min_ready_nodes < 0 or args.min_worker_replicas < 0:
+        parser.error("--min-ready-nodes 和 --min-worker-replicas 不能为负数")
     if args.docker_image and args.verify_worker_image:
         parser.error("Docker 镜像会自动执行依赖检查，不需要 --verify-worker-image")
     if args.max_error_rate < 0 or args.max_error_rate > 1:
@@ -1034,6 +1124,9 @@ def main(argv: list[str] | None = None) -> int:
                 pod_selector=args.pod_selector,
                 container=args.container,
                 verify_worker_image=args.verify_worker_image,
+                min_ready_nodes=args.min_ready_nodes,
+                min_worker_replicas=args.min_worker_replicas,
+                require_worker_resources=args.require_worker_resources,
                 timeout=args.request_timeout_seconds,
             ),
         )

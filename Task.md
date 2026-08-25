@@ -12,7 +12,7 @@
 - `[E]` N1 接口测试：HTTP、会话复用、gRPC TLS Unary、OpenAPI/Postman 导入预览/落库、GraphQL、WebSocket、三种流式 gRPC 以及 HTML/JUnit/PDF 报告详情闭环已在 q19 受控环境通过；生产协议服务仍保持独立门禁。
 - `[~]` N2 APP 自动化：通用 APK 的执行、录屏、设备产物和结果回传已通过；必须确认 Karing 真实包名后再关闭专项任务和完整报告门禁。
 - `[E]` N3 UI 自动化：本地/q19 录制、回放、Trace/HAR 和浏览器矩阵证据已有，继续用当前账号复核。
-- `[~]` N4 性能测试：本地与 q19 短压链路已完成，生产多节点、监控生命周期和跨主机恢复待验收。
+- `[~]` N4 性能测试：本地与 q19 短压链路已完成，性能验收脚本已支持生产 Kubernetes 多节点、副本和 Worker CPU/内存资源预检；Prometheus/MinIO 生命周期和跨主机恢复仍待验收。
 - `[E]` N5 AI 智能测试、N6 测试资产、N7 智能中枢、N8 系统：本地实现已完成，真实模型、项目数据、目标部署和外部平台边界仍需单独验收。
 - `[~]` N9 发布收口：依赖 N2、N4 和真实外部服务；未完成项必须保留阻塞原因与复验命令。
 
@@ -41,6 +41,13 @@
 - [x] q19 真实网络闭环：临时项目 `42`、用例 `27`、运行 `26` 通过；详情接口 `200`，HTML `200/2561 bytes`、JUnit XML `200/220 bytes` 且 XML 可解析、PDF `200/167056 bytes`；项目删除 `204`，清理后匹配数 `0`。
 - [x] 质量门禁：前端定向 `11 passed`、后端报告/导出 `24 passed`、前端全量 `67 files / 275 tests passed`，类型检查、生产构建、差异检查和独立代码审查通过；代码提交 `86f3bf7`，证据见 [`docs/evidence/report-closure-2026-08-25.json`](docs/evidence/report-closure-2026-08-25.json)。
 - [E] 本项关闭 q19 受控报告详情/导出证据；生产协议服务、生产对象存储和外部发布环境仍保持独立门禁。
+
+### 2026-08-25 N4 Kubernetes 性能容量预检
+
+- [x] 扩展 `scripts/performance-environment-smoke.py`：可选校验 Kubernetes 可调度 Ready 节点数、性能 Worker Deployment 的 desired/available 副本数，以及指定容器的 CPU/内存 `resources.requests/limits`。
+- [x] 节点不足、副本不足或资源配置缺失会让验收失败；默认不启用新门禁，兼容已有单 Deployment/Pod smoke。
+- [x] 补充 2 个回归场景；性能环境脚本定向回归 `29 passed`，Ruff、格式检查和 `git diff --check` 通过，独立代码审查未发现可操作问题。
+- [E] 本项只完成可复用的生产预检代码和本地证据；当前目标主机没有 Kubernetes 集群，因此真实多节点/副本、Prometheus/MinIO 生命周期和跨主机恢复仍未关闭。
 
 ### 2026-08-25 N1 协议用例空步骤防护
 

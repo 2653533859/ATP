@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import importlib.util
+import json
 from pathlib import Path
 import sys
+from types import SimpleNamespace
 
 import pytest
 
@@ -254,6 +256,135 @@ def test_api_node_check_waits_for_worker_heartbeat(monkeypatch):
 
     assert node and node["status"] == "online"
     assert not report.has_failures
+
+
+def test_kubernetes_check_can_prove_nodes_replicas_and_worker_resources(monkeypatch):
+    smoke = _load_smoke_script()
+    deployment = {
+        "spec": {
+            "replicas": 2,
+            "selector": {"matchLabels": {"app": "performance-worker"}},
+            "template": {
+                "spec": {
+                    "containers": [
+                        {
+                            "name": "performance-worker",
+                            "resources": {
+                                "requests": {"cpu": "1000m", "memory": "1Gi"},
+                                "limits": {"cpu": "2000m", "memory": "2Gi"},
+                            },
+                        }
+                    ]
+                }
+            },
+        },
+        "status": {"availableReplicas": 2},
+    }
+    nodes = {
+        "items": [
+            {
+                "metadata": {"name": "node-a"},
+                "spec": {},
+                "status": {"conditions": [{"type": "Ready", "status": "True"}]},
+            },
+            {
+                "metadata": {"name": "node-b"},
+                "spec": {},
+                "status": {"conditions": [{"type": "Ready", "status": "True"}]},
+            },
+        ]
+    }
+    pods = {
+        "items": [
+            {
+                "metadata": {"name": "performance-worker-0"},
+                "status": {
+                    "phase": "Running",
+                    "containerStatuses": [{"name": "performance-worker", "ready": True}],
+                },
+            }
+        ]
+    }
+
+    def fake_run(command, **_kwargs):
+        if command[-5:] == ["get", "deployment", "atp-performance-worker", "-o", "json"]:
+            return SimpleNamespace(returncode=0, stdout=json.dumps(deployment), stderr="")
+        if command[-4:-1] == ["rollout", "status", "deployment/atp-performance-worker"]:
+            return SimpleNamespace(returncode=0, stdout="deployment successfully rolled out", stderr="")
+        if command[-4:] == ["get", "nodes", "-o", "json"]:
+            return SimpleNamespace(returncode=0, stdout=json.dumps(nodes), stderr="")
+        if command[-6:] == ["get", "pods", "-l", "app=performance-worker", "-o", "json"]:
+            return SimpleNamespace(returncode=0, stdout=json.dumps(pods), stderr="")
+        raise AssertionError(command)
+
+    monkeypatch.setattr(smoke.subprocess, "run", fake_run)
+    report = smoke.CheckReport()
+
+    smoke.check_kubernetes(
+        report,
+        context=None,
+        namespace="qa",
+        deployment="atp-performance-worker",
+        pod_selector="app=performance-worker",
+        container="performance-worker",
+        verify_worker_image=False,
+        min_ready_nodes=2,
+        min_worker_replicas=2,
+        require_worker_resources=True,
+        timeout=2,
+    )
+
+    assert not report.has_failures
+    assert {item.name for item in report.checks} == {
+        "kubernetes-rollout",
+        "kubernetes-replicas",
+        "kubernetes-nodes",
+        "kubernetes-worker-resources",
+        "kubernetes-pod",
+    }
+
+
+def test_kubernetes_check_rejects_insufficient_ready_nodes(monkeypatch):
+    smoke = _load_smoke_script()
+    responses = {
+        "deployment": {
+            "spec": {"replicas": 2, "selector": {"matchLabels": {"app": "performance-worker"}}},
+            "status": {"availableReplicas": 2},
+        },
+        "nodes": {
+            "items": [
+                {
+                    "metadata": {"name": "node-a"},
+                    "spec": {},
+                    "status": {"conditions": [{"type": "Ready", "status": "True"}]},
+                }
+            ]
+        },
+    }
+
+    def fake_run(command, **_kwargs):
+        if "get" in command and "deployment" in command:
+            return SimpleNamespace(returncode=0, stdout=json.dumps(responses["deployment"]), stderr="")
+        if "rollout" in command:
+            return SimpleNamespace(returncode=0, stdout="rolled out", stderr="")
+        if "get" in command and "nodes" in command:
+            return SimpleNamespace(returncode=0, stdout=json.dumps(responses["nodes"]), stderr="")
+        raise AssertionError(command)
+
+    monkeypatch.setattr(smoke.subprocess, "run", fake_run)
+
+    with pytest.raises(smoke.SmokeError, match="Ready 节点不足"):
+        smoke.check_kubernetes(
+            smoke.CheckReport(),
+            context=None,
+            namespace="qa",
+            deployment="atp-performance-worker",
+            pod_selector="app=performance-worker",
+            container=None,
+            verify_worker_image=False,
+            min_ready_nodes=2,
+            timeout=2,
+        )
 
 
 def test_report_redacts_sensitive_http_error_fields_and_cli_has_no_token_option():

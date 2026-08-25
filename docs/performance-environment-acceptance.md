@@ -2,6 +2,24 @@
 
 > 2026-08-24 N6.10：q19 性能预检和一次真实短压已通过：`worker-a` online，k6/Locust/gRPC/JMeter ready，1 VU/5 次迭代 k6 运行成功并产生 `performance-worker` 采样；Prometheus ready，Backend/通用 Worker/性能 Worker targets 均为 up。脱敏证据见 [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)。Android Worker 当前仅心跳在线、设备 offline，通知和外部通知/缺陷平台仍需单独验收。
 
+## 2026-08-25 Kubernetes 多节点与 Worker 资源预检
+
+`performance-environment-smoke.py` 的 Kubernetes 检查默认保持兼容；接入真实集群时，可以把 Deployment Ready、节点数量、副本数量和资源边界放在同一份脱敏 JSON 证据中：
+
+```bash
+python scripts/performance-environment-smoke.py \
+  --namespace atp-staging \
+  --deployment atp-atp-performance-worker \
+  --min-ready-nodes 2 \
+  --min-worker-replicas 2 \
+  --require-worker-resources \
+  --report docs/evidence/performance-kubernetes-capacity-2026-08-25.json
+```
+
+其中 `--min-ready-nodes` 只统计 `Ready=True` 且未标记 `unschedulable` 的节点；`--min-worker-replicas` 同时检查 Deployment 的 desired/available 副本；`--require-worker-resources` 检查指定 `--container`（未指定时取第一个容器）的 CPU/内存 requests 和 limits。任一条件不满足都会失败，不会生成“容量通过”的误导性结论。
+
+当前 `172.31.27.133` 只有 Docker Compose，未提供 Kubernetes 集群，因此本项目前只有代码和回归证据，不能据此关闭真实多节点、Prometheus/MinIO 生命周期或跨主机恢复门禁。
+
 ## 2026-08-17 当前代码隔离栈验收
 
 已在 `172.31.27.133` 的 `/opt/atp-q18-acceptance-20260817` 使用当前代码部署隔离 Compose 栈。由于旧 q17 栈占用默认回环端口，当前栈使用 Backend `28080`、Prometheus `28090`、Worker metrics `28092`；旧栈未停止。Backend `/health`、Prometheus `/-/ready` 和 PromQL 均通过，Backend 与 `performance-worker` 两个 target 均为 `up`。
