@@ -30,9 +30,10 @@ from app.models.mobile_special import (
     RunStatus,
     IncidentType,
 )
-from app.services.adb_resilience import HeartbeatMonitor, ensure_reachable, safe_run_adb
+from app.services.adb_resilience import HeartbeatMonitor, ensure_reachable
 from app.services.mobile_special.adb_client import run_adb_shell
 from app.services.mobile_special.parsers import parse_logcat_crash, parse_logcat_anr
+from app.services.mobile_special.preflight import AndroidPreflightError, launch_android_app
 from app.services.mobile_special_events import MobileRunEventRecorder
 
 logger = logging.getLogger(__name__)
@@ -157,14 +158,13 @@ async def _consume_monkey_output(
     return action_count
 
 
-def _start_app(serial: str, package: str) -> bool:
-    proc = safe_run_adb(
-        serial,
-        ["shell", "am", "start", "-n", f"{package}/.MainActivity"],
-        timeout=15,
-        retries=1,
-    )
-    return proc is not None and proc.returncode == 0
+def _start_app(serial: str, package: str, activity: str | None = None) -> bool:
+    """启动 App；未指定 Activity 时使用 Launcher Intent 自动发现入口。"""
+    try:
+        launch_android_app(serial, package, activity)
+        return True
+    except AndroidPreflightError:
+        return False
 
 
 def _parse_logcat_crashes(raw: str) -> list[dict]:
@@ -332,7 +332,13 @@ async def run_mobile_special_stability(
 
     # 3. 启动 App
     if config.get("auto_start", True):
-        app_started = await asyncio.get_event_loop().run_in_executor(None, _start_app, device_serial, app_package)
+        launch_activity = str(config.get("launch_activity") or "").strip() or None
+        if launch_activity:
+            app_started = await asyncio.get_event_loop().run_in_executor(
+                None, _start_app, device_serial, app_package, launch_activity
+            )
+        else:
+            app_started = await asyncio.get_event_loop().run_in_executor(None, _start_app, device_serial, app_package)
         await events.record(
             event_type="action",
             phase="app_setup",

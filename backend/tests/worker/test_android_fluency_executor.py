@@ -232,9 +232,9 @@ def test_fluency_run_fails_when_app_start_fails(
     monkeypatch, chain_events, reachable, fast_sleep, quiet_heartbeat, quiet_adb
 ):
     monkeypatch.setattr(
-        android_fluency_executor.subprocess,
-        "run",
-        lambda cmd, **kw: types.SimpleNamespace(returncode=1, stdout="", stderr="activity missing"),
+        android_fluency_executor,
+        "launch_android_app",
+        lambda *args: (_ for _ in ()).throw(android_fluency_executor.AndroidPreflightError("activity missing")),
     )
     run = _run_stub(device_serial="emu-5554", app_package="com.example.app", stages=[{"name": "s1"}])
 
@@ -270,6 +270,32 @@ def test_fluency_run_samples_each_stage(monkeypatch, chain_events, reachable, fa
     assert types_seen[0] == "started"
     assert types_seen.count("stage_start") == 2 and types_seen.count("stage_end") == 2
     assert types_seen[-1] == "completed"
+
+
+def test_fluency_run_skips_duplicate_start_after_preflight(
+    monkeypatch, chain_events, reachable, fast_sleep, quiet_heartbeat, quiet_adb
+):
+    _gfx_stub(monkeypatch, [_GFX_RAW])
+    launch_calls = []
+    monkeypatch.setattr(
+        android_fluency_executor,
+        "launch_android_app",
+        lambda *args: launch_calls.append(args),
+    )
+    db = _FakeDB()
+    run = _run_stub(
+        device_serial="emu-5554",
+        app_package="com.example.app",
+        auto_start=False,
+        stages=[{"name": "home", "action": "swipe"}],
+    )
+
+    asyncio.run(android_fluency_executor.run_mobile_special_fluency(db, run))
+
+    assert run.status is RunStatus.completed
+    assert launch_calls == []
+    app_events = [event for event in db.added if isinstance(event, MobileRunEvent) and event.action == "start_app"]
+    assert app_events and app_events[0].result_json["skipped"] is True
 
 
 def test_fluency_run_skips_empty_gfx_output(

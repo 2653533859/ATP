@@ -7,6 +7,8 @@
 
 > 当前执行版：[`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 汇总本轮五组导航、模块台账、下一步顺序、风险解除条件和状态口径；本文件继续保存完整历史方案与实施记录。
 
+> 2026-08-25 Android 专项应用启动兼容已完成本地交付：性能、稳定性和流畅度执行器统一支持显式 Activity 或 Launcher Intent 自动发现，流畅度任务避免前置启动后的重复启动，专项任务表单空 Activity 不再写入 `.MainActivity`。后端非集成 `2295 passed`，四个受影响测试文件独立 `3/25/19/15 passed`，前端 `67 files / 275 tests passed`，类型检查、生产构建、Ruff、差异检查和代码审查通过。真实 Karing APK/包名、Windows Android Worker/ADB、专项媒体和报告仍待环境验收；下一入口是 Karing 单设备闭环，N4 真实 Kubernetes/Prometheus/独立 MinIO 继续保持独立外部门禁。
+
 > 2026-08-25 计划同步：当前执行版已升级为 1.0。N4 的 Worker/目标服务采样、Kubernetes 容量预检、保留清理和 MinIO 跨端点恢复已具备本地可执行入口，后续只做真实 Kubernetes/Prometheus/独立 MinIO 环境验收；随后按 N2 Karing 真实包名、N5-N8 外部依赖和 N9 发布收口推进。真实环境未提供时保留 `[E]`，不以 q19 Compose、mock 或跳过项替代。
 
 > 最新进度：API 工作台已在 q19 受控目标完成 HTTP、显式会话复用、gRPC TLS Unary、GraphQL、WebSocket、三种流式 gRPC、OpenAPI/Postman 解析及导入预览/落库/回读/清理；运行详情可导出 HTML/JUnit/PDF，报告中心已有按用例类型的本地统计展示。N4 性能验收脚本新增 Kubernetes 多节点/副本/Worker 资源预检和跨端点 MinIO 复制/恢复 smoke，但目标主机仍无 Kubernetes/独立灾备 MinIO，生产 Prometheus/MinIO 生命周期和跨主机恢复未关闭。证据见 [`evidence/api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json) 与 [`evidence/report-closure-2026-08-25.json`](evidence/report-closure-2026-08-25.json)，不替代生产协议服务、生产对象存储或外部环境验收。

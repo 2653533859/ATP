@@ -2,6 +2,15 @@
 
 > 本文是参考导航对应的当前执行版计划，负责记录“接下来做什么、完成到什么程度、如何验收”。历史方案和详细实施记录见 [`product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md)；任务勾选同步到 [`Task.md`](../Task.md)，长期记忆同步到 [`MEMORY.md`](../MEMORY.md)。
 
+## 1.1 Android 专项应用启动兼容交付（2026-08-25）
+
+本模块作为 N2 Karing 真机门禁前的本地补强，解决 Android 专项执行器把入口固定为 `.MainActivity` 导致真实 APK 无法启动的问题。性能、稳定性和流畅度执行器现在共用 Android 启动辅助：明确填写 Activity 时使用 `am start -n`，留空时使用 Launcher Intent 自动发现入口；流畅度执行器同时尊重前置操作设置的 `auto_start=false`，避免同一任务重复启动应用。专项任务表单留空启动 Activity 时不再写入 `.MainActivity` 默认值，旧任务中已有的显式 Activity 仍保持兼容。
+
+- **代码范围**：`backend/app/services/mobile_special/preflight.py`、Android 性能/稳定性/流畅度执行器，以及专项任务中英文启动 Activity 提示和默认值。
+- **回归范围**：显式 Activity、Launcher 自动发现、启动失败、前置启动后不重复启动均有回归；受影响后端全量 `2295 passed`，四个改动测试文件独立运行 `3/25/19/15 passed`，前端全量 `67 files / 275 tests passed`，`vue-tsc`、生产构建、Ruff 和 `git diff --check` 通过。
+- **状态**：`[E]` 本地实现、代码审查和回归完成；真实 Karing APK、Windows Android Worker/ADB、真实启动组件、专项任务媒体和报告仍待环境验收，不使用其他应用替代。
+- **下一入口**：先取得 Karing APK 或真实 `package_name`，在在线 Android Worker 上按 APK → 低代码 → 录屏/异常回放 → 专项任务 → 事件/日志/报告 → 清理执行；N4 Kubernetes/Prometheus/独立 MinIO 仍作为独立外部环境门禁等待目标。
+
 ## 1.0 当前计划登记（2026-08-25）
 
 本节是当前最新执行口径，优先于本文后面的历史交付记录。N4 的本地代码链路已经覆盖 Worker/目标服务采样、Kubernetes 容量预检、保留清理、跨端点 MinIO 恢复和生命周期门禁；下一步不重复开发已有采样器，而是按真实目标逐项验收，并同步推进被外部条件阻塞的 N2 与发布收口。

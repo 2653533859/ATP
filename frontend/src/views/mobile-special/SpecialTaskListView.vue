@@ -367,7 +367,7 @@ const form = ref<TaskForm>({
   config_clear_data_before: false,
   config_uninstall_after: false,
   config_launch_before: false,
-  config_launch_activity: '.MainActivity',
+  config_launch_activity: '',
   config_operation_interval: 500,
   config_stages: '',
 })
@@ -476,7 +476,7 @@ function openCreate() {
     config_clear_data_before: false,
     config_uninstall_after: false,
     config_launch_before: false,
-    config_launch_activity: '.MainActivity',
+    config_launch_activity: '',
     config_operation_interval: 500,
     config_stages: '',
   }
@@ -512,7 +512,7 @@ function openEdit(task: MobileSpecialTaskItem) {
     config_clear_data_before: config.clear_data_before === true,
     config_uninstall_after: config.uninstall_after === true,
     config_launch_before: config.launch_before === true,
-    config_launch_activity: (config.launch_activity as string) || '.MainActivity',
+    config_launch_activity: (config.launch_activity as string) || '',
     config_operation_interval: (config.operation_interval_ms as number) || 500,
     config_stages: config.stages ? JSON.stringify(config.stages, null, 2) : '',
   }
@@ -579,7 +579,7 @@ async function handleSave() {
         clear_data_before: form.value.config_clear_data_before,
         uninstall_after: form.value.config_uninstall_after,
         launch_before: form.value.config_launch_before,
-        launch_activity: form.value.config_launch_activity.trim() || '.MainActivity',
+        launch_activity: form.value.config_launch_activity.trim() || undefined,
         operation_interval_ms: form.value.config_operation_interval,
         stages,
       },

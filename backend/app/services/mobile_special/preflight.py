@@ -30,6 +30,44 @@ def _run_adb_checked(serial: str, args: list[str], *, timeout: int = 60) -> None
         raise AndroidPreflightError(f"ADB 操作失败: {' '.join(args)}{suffix}")
 
 
+def build_android_launch_command(package: str, activity: str | None = None) -> list[str]:
+    """Build a safe launch command for an Android package.
+
+    An explicit activity is useful for deep links or apps with a known entry
+    point. When it is omitted, Android's launcher intent is used so the
+    executor does not assume every APK has ``.MainActivity``.
+    """
+
+    normalized_package = str(package or "").strip()
+    if not normalized_package:
+        raise AndroidPreflightError("启动应用需要 app_package")
+    normalized_activity = str(activity or "").strip()
+    if normalized_activity:
+        component = (
+            normalized_activity
+            if "/" in normalized_activity
+            else f"{normalized_package}/{normalized_activity}"
+        )
+        return ["shell", "am", "start", "-n", component]
+    return [
+        "shell",
+        "monkey",
+        "-p",
+        normalized_package,
+        "-c",
+        "android.intent.category.LAUNCHER",
+        "1",
+    ]
+
+
+def launch_android_app(serial: str, package: str, activity: str | None = None) -> list[str]:
+    """Launch an Android app and return the executed ADB arguments."""
+
+    command = build_android_launch_command(package, activity)
+    _run_adb_checked(serial, command, timeout=15)
+    return command
+
+
 async def run_android_preflight(
     *,
     serial: str,
@@ -87,9 +125,12 @@ async def run_android_preflight(
         actions.append("clear_data_before")
 
     if config.get("launch_before"):
-        activity = str(config.get("launch_activity") or ".MainActivity").strip()
-        component = activity if "/" in activity else f"{normalized_package}/{activity}"
-        await asyncio.to_thread(_run_adb_checked, serial, ["shell", "am", "start", "-n", component])
+        await asyncio.to_thread(
+            launch_android_app,
+            serial,
+            normalized_package,
+            str(config.get("launch_activity") or "").strip() or None,
+        )
         actions.append("launch_before")
 
     return {"actions": actions, "package": normalized_package}

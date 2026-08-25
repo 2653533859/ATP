@@ -3939,7 +3939,7 @@ export default {
       uninstall_after: 'Uninstall app after run',
       launch_before: 'Launch app before run',
       launch_activity: 'Launch Activity',
-      launch_activity_placeholder: 'e.g. .MainActivity or com.example.app/.MainActivity',
+      launch_activity_placeholder: 'Leave empty to discover Launcher, or enter .MainActivity / full component',
       execution_config: 'Execution configuration',
       sample_interval: 'Sample interval (s)',
       duration: 'Duration (s)',

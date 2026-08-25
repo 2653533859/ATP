@@ -32,6 +32,13 @@
 
 当前执行顺序为：N4 真实性能环境 → N2 Karing 单设备解阻 → N5-N8 真实通知/外部缺陷平台/模型/目标部署复核 → N9 发布收口；Windows API/Web 和 N1 受控 API/报告闭环已复核完成。
 
+### 2026-08-25 Android 专项应用启动兼容
+
+- Android 性能、稳定性和流畅度执行器已统一应用启动策略：填写 Activity 时执行显式组件启动，未填写时通过 Launcher Intent 自动发现，不再固定拼接 `.MainActivity`；流畅度任务会跳过已由前置操作完成的重复启动。
+- 专项任务表单的启动 Activity 为空时不再写入默认 `.MainActivity`，已有显式 Activity 配置保持兼容；启动失败仍会记录失败结果，不会把后续步骤误报为成功。
+- 后端非集成 `2295 passed`，四个改动测试文件独立运行 `3/25/19/15 passed`，前端全量 `67 files / 275 tests passed`，`vue-tsc`、生产构建、Ruff、差异检查和独立代码审查通过。
+- 该项只关闭本地启动兼容代码门禁；真实 Karing APK/包名、Windows Android Worker/ADB、启动组件、录屏/异常回放、专项任务和报告仍待环境验收。
+
 ### 2026-08-25 1.0 计划同步
 
 - N4 本地实现不再列为待开发项：性能指标采样、目标服务 Prometheus 指标、Kubernetes 容量预检、保留清理和 MinIO 跨端点恢复入口均已有回归和代码审查记录。

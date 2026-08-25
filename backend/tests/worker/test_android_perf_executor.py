@@ -559,16 +559,23 @@ def test_resolve_pid_parses_output(monkeypatch):
     assert android_perf_executor._resolve_pid("emu-5554", "com.example.app") is None
 
 
-def test_start_app_uses_safe_run_adb(monkeypatch):
-    seen = {}
+def test_start_app_uses_launcher_or_explicit_activity(monkeypatch):
+    calls = []
 
-    def fake_safe_run(serial, args, timeout=15, retries=1):
-        seen["args"] = args
-        return types.SimpleNamespace(returncode=0, stdout="", stderr="")
+    def fake_launch(serial, package, activity=None):
+        calls.append((serial, package, activity))
+        return ["shell", "monkey"]
 
-    monkeypatch.setattr(android_perf_executor, "safe_run_adb", fake_safe_run)
+    monkeypatch.setattr(android_perf_executor, "launch_android_app", fake_launch)
     assert android_perf_executor._start_app("emu-5554", "com.example.app") is True
-    assert seen["args"][:3] == ["shell", "am", "start"]
+    assert calls[-1] == ("emu-5554", "com.example.app", None)
 
-    monkeypatch.setattr(android_perf_executor, "safe_run_adb", lambda *a, **kw: None)
+    assert android_perf_executor._start_app("emu-5554", "com.example.app", ".WelcomeActivity") is True
+    assert calls[-1] == ("emu-5554", "com.example.app", ".WelcomeActivity")
+
+    monkeypatch.setattr(
+        android_perf_executor,
+        "launch_android_app",
+        lambda *a, **kw: (_ for _ in ()).throw(android_perf_executor.AndroidPreflightError("failed")),
+    )
     assert android_perf_executor._start_app("emu-5554", "com.example.app") is False

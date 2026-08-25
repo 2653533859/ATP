@@ -26,12 +26,17 @@ from app.models.mobile_special import (
     MobileMetricSample,
     RunStatus,
 )
-from app.services.adb_resilience import HeartbeatMonitor, ensure_reachable, safe_run_adb
+from app.services.adb_resilience import HeartbeatMonitor, ensure_reachable
 from app.services.mobile_special.adb_client import (
     run_adb_shell,
     build_gfxinfo_cmd,
 )
 from app.services.mobile_special.parsers import parse_gfxinfo_framestats
+from app.services.mobile_special.preflight import (
+    AndroidPreflightError,
+    build_android_launch_command,
+    launch_android_app,
+)
 from app.services.mobile_special_events import MobileRunEventRecorder
 
 logger = logging.getLogger(__name__)
@@ -203,17 +208,24 @@ async def run_mobile_special_fluency(
         },
     )
 
-    # 3. 启动 App
-    start_cmd = ["adb", "-s", device_serial, "shell", "am", "start", "-n", f"{app_package}/.MainActivity"]
+    # 3. 启动 App（前置操作已启动时由 tasks_mobile_special 设置 auto_start=false）
+    launch_activity = str(config.get("launch_activity") or "").strip() or None
+    launch_args = build_android_launch_command(app_package, launch_activity)
+    start_cmd = ["adb", "-s", device_serial, *launch_args]
     execution_error: str | None = None
-    try:
-        start_result = await asyncio.get_event_loop().run_in_executor(
-            None,
-            lambda: subprocess.run(start_cmd, capture_output=True, text=True, timeout=15),
-        )
-        if start_result.returncode != 0:
-            detail = (start_result.stderr or start_result.stdout or "未知错误").strip()
-            execution_error = f"应用启动失败: {detail[:500]}"
+    if config.get("auto_start", True):
+        try:
+            await asyncio.get_event_loop().run_in_executor(
+                None,
+                launch_android_app,
+                device_serial,
+                app_package,
+                launch_activity,
+            )
+            start_result = type("StartResult", (), {"returncode": 0})()
+        except AndroidPreflightError as exc:
+            execution_error = f"应用启动失败: {str(exc)[:500]}"
+            start_result = type("StartResult", (), {"returncode": 1})()
         await events.record(
             event_type="action",
             phase="app_setup",
@@ -225,15 +237,14 @@ async def run_mobile_special_fluency(
                 "error": execution_error,
             },
         )
-    except Exception as e:
-        logger.warning("failed to start app for fluency run %s: %s", run.id, e)
-        execution_error = f"应用启动失败: {str(e)[:500]}"
+    else:
+        start_result = type("StartResult", (), {"returncode": 0})()
         await events.record(
             event_type="action",
             phase="app_setup",
             action="start_app",
             parameters={"package": app_package, "command": start_cmd},
-            result={"ok": False, "error": execution_error},
+            result={"ok": True, "skipped": True, "reason": "前置操作已启动应用"},
         )
 
     # 等待应用启动

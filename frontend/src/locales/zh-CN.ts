@@ -3943,7 +3943,7 @@ export default {
       uninstall_after: '执行后卸载应用',
       launch_before: '执行前启动应用',
       launch_activity: '启动 Activity',
-      launch_activity_placeholder: '如 .MainActivity 或 com.example.app/.MainActivity',
+      launch_activity_placeholder: '可留空自动发现 Launcher，也可填 .MainActivity 或完整组件名',
       execution_config: '执行配置',
       sample_interval: '采样间隔(秒)',
       duration: '运行时长(秒)',

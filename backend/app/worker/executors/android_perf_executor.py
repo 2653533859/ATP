@@ -35,7 +35,7 @@ from app.models.mobile_special import (
     RunStatus,
     ArtifactType,
 )
-from app.services.adb_resilience import HeartbeatMonitor, ensure_reachable, safe_run_adb
+from app.services.adb_resilience import HeartbeatMonitor, ensure_reachable
 from app.services.mobile_special.adb_client import (
     run_adb_shell,
     build_meminfo_cmd,
@@ -53,6 +53,7 @@ from app.services.mobile_special.parsers import (
     parse_logcat_crash,
     parse_pid,
 )
+from app.services.mobile_special.preflight import AndroidPreflightError, launch_android_app
 from app.services.mobile_special_events import MobileRunEventRecorder
 
 logger = logging.getLogger(__name__)
@@ -107,15 +108,13 @@ def _validate_inputs(
     return errors
 
 
-def _start_app(serial: str, package: str) -> bool:
-    """使用 am start 启动 App，返回是否成功；走 safe_run_adb 自动重试。"""
-    proc = safe_run_adb(
-        serial,
-        ["shell", "am", "start", "-n", f"{package}/.MainActivity"],
-        timeout=15,
-        retries=1,
-    )
-    return proc is not None and proc.returncode == 0
+def _start_app(serial: str, package: str, activity: str | None = None) -> bool:
+    """启动 App；未指定 Activity 时使用 Launcher Intent 自动发现入口。"""
+    try:
+        launch_android_app(serial, package, activity)
+        return True
+    except AndroidPreflightError:
+        return False
 
 
 def _resolve_pid(serial: str, package: str) -> Optional[int]:
@@ -481,7 +480,13 @@ async def run_mobile_special_perf(
                 "message": f"启动应用 {app_package}",
             },
         )
-        app_started = await asyncio.get_event_loop().run_in_executor(None, _start_app, device_serial, app_package)
+        launch_activity = str(config.get("launch_activity") or "").strip() or None
+        if launch_activity:
+            app_started = await asyncio.get_event_loop().run_in_executor(
+                None, _start_app, device_serial, app_package, launch_activity
+            )
+        else:
+            app_started = await asyncio.get_event_loop().run_in_executor(None, _start_app, device_serial, app_package)
         await events.record(
             event_type="action",
             phase="app_setup",
