@@ -30,7 +30,7 @@
 
 > 2026-08-24 N6.9 环境证据：q19 使用提交 `41ff87a` 重建后，Firefox 与 WebKit 真实 Worker 录制均通过 2 步快照、PNG 截图、停止、Trace/HAR/运行报告 URL 和停止后查询；WebKit 在 Linux Worker 使用无头启动。第二 API 副本可通过共享 Redis 查询副本 A 停止的会话快照；证据见 [`q19-web-recording-firefox-2026-08-24.json`](evidence/q19-web-recording-firefox-2026-08-24.json)、[`q19-web-recording-webkit-2026-08-24.json`](evidence/q19-web-recording-webkit-2026-08-24.json) 和 [`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json)。Android、真实性能节点、通知和外部缺陷平台仍待验收。
 
-> 2026-08-25 API 证据：q19 受控目标已完成 HTTP 最小执行、显式会话复用、gRPC TLS Unary 和 OpenAPI/Postman 解析；gRPC 使用公开 PEM 根证书和 SNI，状态断言/JSONPath 提取/清理通过，根证书不进入执行快照；导入解析保留合法假值并跳过 disabled 项。脱敏证据见 [`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json) 和 [`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)。导入预览/落库、GraphQL/WebSocket/流式 gRPC、生产目标和完整报告仍待验收。
+> 2026-08-25 API 证据：q19 受控目标已完成 HTTP 最小执行、显式会话复用、gRPC TLS Unary、OpenAPI/Postman 解析以及 OpenAPI 导入预览/落库/回读/清理；gRPC 使用公开 PEM 根证书和 SNI，状态断言/JSONPath 提取/清理通过，根证书不进入执行快照；导入解析保留合法假值并跳过 disabled 项。脱敏证据见 [`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json) 和 [`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)。GraphQL/WebSocket/流式 gRPC、生产目标和完整报告仍待验收。
 
 > 2026-08-24 N6.10 环境证据：q19 性能预检确认专用 `worker-a`、`performance.worker-a` 队列及 k6/Locust/gRPC/JMeter 执行器可用；一次 1 VU、5 次迭代的真实 k6 短压成功，并产生 `performance-worker` 资源采样。Prometheus readiness 通过，Backend、通用 Worker 和性能 Worker targets 均为 `up`；脱敏证据见 [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)。多节点容量、长期趋势、Android、通知和外部缺陷平台仍待后续验收。
 

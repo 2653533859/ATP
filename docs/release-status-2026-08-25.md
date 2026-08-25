@@ -4,7 +4,7 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
-> API 受控目标、显式会话复用、gRPC TLS Unary 和 OpenAPI/Postman 解析证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)。这些证据不代表导入预览/落库、生产 API、GraphQL/WebSocket/流式 gRPC 或完整报告验收通过。
+> API 受控目标、显式会话复用、gRPC TLS Unary、OpenAPI/Postman 解析和导入落库证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)、[`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)。这些证据不代表生产 API、GraphQL/WebSocket/流式 gRPC 或完整报告验收通过。
 
 ## 发布结论
 
@@ -25,7 +25,13 @@
 
 - q19 已按 `75ed756` 重建 Backend/Worker；当前账号调用 `/api/v1/ai/cases/parse-schema` 的 OpenAPI 与 Postman 样例均返回 `200`，分别解析出 `1/1` 和 `1/3`（接口/参数）。
 - 本地解析与端点回归 `38 passed`，Ruff 和差异检查通过；证据见 [`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)。
-- 发布边界：本项只关闭解析层；导入预览/落库后的真实用例执行、GraphQL/WebSocket/流式 gRPC、生产目标和完整报告仍待验收。
+- 发布边界：本项只关闭解析层；导入预览/落库闭环见下节，GraphQL/WebSocket/流式 gRPC、生产目标和完整报告仍待验收。
+
+### 2026-08-25 API 导入预览与落库验收
+
+- q19 已按 `a8f6e26` 重建 Backend/Worker；受控流程完成 OpenAPI 解析（成功响应码 `201`）、临时项目/模块创建、导入预览 `valid=1/invalid=0`、用例落库 `201`、回读断言/步骤预期和项目删除清理 `204`。
+- 验收中发现并修复 `Module.project` 异步懒加载导致的 `MissingGreenlet` 500：导入预览读取模块时预加载所属项目；定向回归 `42 passed`，后端非集成全量 `2270 passed`，Ruff/diff-check 通过。
+- 脱敏证据见 [`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)。发布边界：仅关闭 OpenAPI 导入预览/落库/回读/清理；其他协议和完整报告仍待验收。
 
 ### 当前剩余阻塞
 
@@ -208,7 +214,7 @@ Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复
 
 | 能力域 | 当前结论 | 主要证据 | 未关闭边界 |
 |---|---|---|---|
-| Windows API/Web | 本地与 q19 证据已形成，当前账号页面冒烟通过 | [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json) | OpenAPI/Postman、GraphQL/WebSocket/流式 gRPC、完整报告和目标发布环境仍需验收 |
+| Windows API/Web | 本地与 q19 证据已形成，当前账号页面冒烟通过 | [`windows-full-readiness-2026-08-24.json`](evidence/windows-full-readiness-2026-08-24.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json) | GraphQL/WebSocket/流式 gRPC、完整报告和目标发布环境仍需验收 |
 | Web Worker/录制 | q19 持久 Worker、Chromium/Firefox/WebKit 录制和跨 API 停止快照已验证 | [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json) | Linux/Xvfb、跨副本和目标部署拓扑仍需独立复验 |
 | Android | 代码、配置配对、Worker registry、扫描回调、租约控制和 APK 选择传递已完成；真实 APK 上传和设备执行仍待验收 | [`android-worker-scan-2026-08-25.json`](evidence/android-worker-scan-2026-08-25.json)、[`android-control-lease-2026-08-25.json`](evidence/android-control-lease-2026-08-25.json)、[`android-apk-selection-2026-08-25.json`](evidence/android-apk-selection-2026-08-25.json) | 继续完成真实 APK 包名识别、低代码、录屏、专项任务和事件/报告回传 |
 | 性能 | P1-E.1～P1-E.4 本地闭环完成，q19 已按最新提交重建 | [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)、[`performance-shard-capacity-2026-08-25.json`](evidence/performance-shard-capacity-2026-08-25.json)、[`q19-performance-shard-deployment-2026-08-25.json`](evidence/q19-performance-shard-deployment-2026-08-25.json) | 真实 Kubernetes 多节点、生产 Prometheus、MinIO 生命周期和跨主机恢复 |

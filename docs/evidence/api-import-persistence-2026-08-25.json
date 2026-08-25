@@ -1,0 +1,43 @@
+{
+  "evidence_type": "api_import_preview_persistence_readback",
+  "date": "2026-08-25",
+  "status": "passed",
+  "source_commit": "a8f6e26",
+  "environment": "q19 isolated compose acceptance stack",
+  "base_url": "http://127.0.0.1:29080",
+  "flow": {
+    "login_status": 200,
+    "parse_schema": {
+      "status": 200,
+      "source_type": "openapi",
+      "endpoint_count": 1,
+      "response_status": 201
+    },
+    "import_preview": {
+      "status": 200,
+      "valid_count": 1,
+      "invalid_count": 0
+    },
+    "import": {
+      "status": 201,
+      "imported": 1
+    },
+    "readback": {
+      "status": 200,
+      "case_type": "api",
+      "status_assertion_expected": "201",
+      "step_expected_result": "Return 201 status"
+    },
+    "cleanup": {
+      "project_delete_status": 204
+    }
+  },
+  "local_regression": {
+    "targeted_tests": 42,
+    "backend_non_integration_tests": 2270,
+    "ruff": "passed",
+    "diff_check": "passed"
+  },
+  "fix_note": "导入预览读取模块时预加载 Module.project，避免异步 SQLAlchemy 在生成用例编码时触发 MissingGreenlet。",
+  "scope_note": "该证据关闭 OpenAPI 解析、导入预览、导入落库、回读和临时数据清理的 q19 受控链路；不代表 GraphQL/WebSocket/流式 gRPC、生产 API 或完整报告已完成验收。"
+}
