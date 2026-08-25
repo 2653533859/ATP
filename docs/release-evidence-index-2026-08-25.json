@@ -79,7 +79,7 @@
       "id": "N6.project-asset-permissions",
       "status": "pending",
       "owner": "test-platform",
-      "evidence": ["docs/development-plan-2026-08-25.md"],
+      "evidence": ["docs/development-plan-2026-08-25.md", "docs/n6-project-asset-acceptance.md"],
       "blocking_reason": "The local asset links are covered, but the full project/member/role chain has not been verified against clean real data.",
       "dependencies": ["Temporary project", "administrator and ordinary project members", "cleanable execution history"],
       "recheck_command": "Create a temporary project and verify case-to-suite-to-plan-to-run-to-report-to-defect-to-review links and ordinary-role isolation, then clean all objects."

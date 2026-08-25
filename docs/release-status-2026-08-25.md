@@ -22,6 +22,8 @@
 
 > 2026-08-25 N6 工作台任务详情上下文已完成本地交付：case、suite、plan、Android、performance 任务详情统一保留 `project_id`，suite/plan/performance 额外携带 `run_id`，任务中心可直接定位具体执行记录；工作台 API 定向 `14 passed`、后端非集成全量 `2352 passed`，数据集静态契约旧路由断言修复后相关回归 `17 passed`。真实项目角色、跨项目可见性、可清理运行和报告环境仍待 N6 验收，不改变当前发布阻塞结论。
 
+> 2026-08-25 N6 项目资产与角色矩阵验收工具已完成本地交付：新增 `scripts/n6-project-asset-acceptance.py` 及运行手册，支持临时项目资产链、可选执行/报告、缺陷关联、viewer 隔离和清理后 404；凭据只从环境变量读取，副作用/执行需显式授权，错误响应不回显。脚本定向 `6 passed`、质量门禁一致性 `10 passed`，真实角色、执行报告和清理证据仍待 N6 验收，不改变当前发布阻塞结论。
+
 > 2026-08-25 N5 AI 模型能力元数据解析已完成本地交付：模型发现支持第三方能力/模态字段，能力提示无阳性证据时保持未知；模型发现/API 定向 `20 passed`、受影响 AI 定向 `69 passed`、后端非集成全量 `2340 passed`，真实模型和项目级生成仍待受控环境验收，不改变当前发布阻塞结论。
 
 > 2026-08-25 N5 真实模型环境只读复核确认阻塞：q19 acceptance 没有 AI LLM 配置，外部模型入口不带凭据返回 HTTP `401`；脱敏证据为 [`evidence/ai-model-environment-audit-2026-08-25.json`](evidence/ai-model-environment-audit-2026-08-25.json)，不改变发布结论，也不代表真实模型能力通过。
