@@ -1,0 +1,73 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-25T10:43:08.519993+00:00",
+  "scope": "N6 project asset and role matrix",
+  "status": "partial",
+  "endpoint": "http://127.0.0.1:8000/api/v1",
+  "checks": [
+    {
+      "name": "authentication",
+      "status": "passed",
+      "details": "authenticated as admin; credentials were not recorded"
+    },
+    {
+      "name": "project-create",
+      "status": "passed",
+      "details": "created temporary project id=61"
+    },
+    {
+      "name": "module-discovery",
+      "status": "passed",
+      "details": "created temporary module id=80"
+    },
+    {
+      "name": "case-create",
+      "status": "passed",
+      "details": "created case id=34"
+    },
+    {
+      "name": "case-review",
+      "status": "passed",
+      "details": "case submitted, approved and review history was readable"
+    },
+    {
+      "name": "suite-create",
+      "status": "passed",
+      "details": "created suite id=3"
+    },
+    {
+      "name": "plan-create",
+      "status": "passed",
+      "details": "created plan id=3"
+    },
+    {
+      "name": "execution-report",
+      "status": "passed",
+      "details": "plan run id=2 reached terminal status=failed"
+    },
+    {
+      "name": "defect-link",
+      "status": "passed",
+      "details": "created defect id=2 linked to plan run id=2"
+    },
+    {
+      "name": "role-matrix",
+      "status": "skipped",
+      "details": "set ATP_VIEWER_USERNAME/ATP_VIEWER_PASSWORD to verify ordinary-role isolation"
+    },
+    {
+      "name": "cleanup",
+      "status": "passed",
+      "details": "temporary project id=61 deleted"
+    }
+  ],
+  "resources": {
+    "project_id": 61,
+    "module_id": 80,
+    "case_id": 34,
+    "suite_id": 3,
+    "plan_id": 3,
+    "plan_run_id": 2,
+    "defect_id": 2
+  }
+}

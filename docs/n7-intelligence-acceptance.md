@@ -17,6 +17,8 @@
 
 也可以使用 ATP_ACCEPTANCE_BASE_URL、ATP_TOKEN 或 ATP_USERNAME/ATP_PASSWORD 配置连接信息。报告只记录脱敏 endpoint、资源 ID、检查状态和有限长度说明，不记录密码、Token、Cookie、请求正文或响应正文。
 
+2026-08-25 q19 基础数据证据：[`docs/evidence/n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json) 为 `partial`；需求/知识/用例创建、详情读取、Hermes 三类来源引用和清理均通过，普通 viewer 矩阵与真实 AI 草稿未启用。完整 N7 门禁仍需受控模型和普通角色账号。
+
 ## 验收出口
 
 - editable-retrieval：需求解析返回可编辑验收标准，需求和知识可按项目与关键词读取。

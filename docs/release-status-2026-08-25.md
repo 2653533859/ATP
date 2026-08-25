@@ -6,11 +6,15 @@
 
 > 当前计划跟踪版本为 2.4.0：参考导航按工作台、测试能力、测试资产、智能中枢、系统五组跟踪，按 P0 工作台、P1 接口、P2 APP、P3 UI、P4 性能、P5 AI、P6 测试资产、P7 智能中枢、P8 系统和 P9 发布收口推进。P4-P8 未完成真实环境复核前，发布结论继续保持“存在未关闭门禁”，不因本地实现完成而变更；Windows 与 Android Worker 的本地边界不影响 Web/API 使用。
 
-> 2026-08-25 计划同步标记：2.4.0 只更新导航分组、阶段编号、执行顺序和验收口径，不新增业务代码或伪造真实环境证据。P4 缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 保持 `[-]`；P1～P3、P5～P8 的本地实现保持 `[E]`，P9 保持 `[~]`。当前下一项为 P7 智能中枢真实需求/知识数据验收准备。
+> 2026-08-25 计划同步标记：2.4.0 只更新导航分组、阶段编号、执行顺序和验收口径，不新增业务代码或伪造真实环境证据。P4 缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 保持 `[-]`；P1～P3、P5～P8 的本地实现保持 `[E]`，P9 保持 `[~]`。P7 q19 基础需求/知识/来源链路已复验，当前剩余为受控真实 AI 草稿和普通 viewer 角色矩阵。
 
 > 2026-08-25 P7 Hermes 项目级检索本地交付已完成：`POST /hermes/query` 返回需求、知识和用例的脱敏来源与项目深链，Hermes 自由提问和知识条目深链已接通；N7 验收脚本现在校验三类 marker 来源、项目路径、source_ref 及需求/知识/用例详情读取。后端定向 `21 passed`、前端 Hermes/知识定向 `11 passed`，真实模型、角色账号和远端数据仍待受控验收，不改变 N7 及发布阻塞结论。
 
-> 2026-08-25 P7/N6 真实验收发现并修复两个本地缺陷：blank 项目模块缺失导致脚本无法继续，需求创建在 async commit 后读取过期 ORM 属性导致 q19 返回 HTTP 500/MissingGreenlet；脚本现在创建临时模块，接口在响应前 refresh。q19 失败运行已清理临时项目，脱敏证据见 [`evidence/n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json)；远端重建前不改变 N7 阻塞结论。
+> 2026-08-25 P7/N6 真实验收发现并修复两个本地缺陷：blank 项目模块缺失导致脚本无法继续，需求创建在 async commit 后读取过期 ORM 属性导致 q19 返回 HTTP 500/MissingGreenlet；脚本现在创建临时模块，接口在响应前 refresh。q19 已按 `716d1b3` 重建并复验基础数据链路，最新脱敏证据见 [`evidence/n6-project-asset-acceptance-2026-08-25.json`](evidence/n6-project-asset-acceptance-2026-08-25.json) 与 [`evidence/n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json)。
+
+> 2026-08-25 N6 清理级联问题已修复并复验：首次真实执行在删除临时项目时因 `plan_runs.plan_id` 外键缺少级联返回 HTTP 500；提交 `716d1b3` 新增迁移 `20260825_0066`，q19 重建后 N6 执行/缺陷关联/项目清理均通过。N6 仍因普通 viewer 账号缺失保持未关闭。
+
+> 2026-08-25 N7 真实数据基础链路已复验：需求/知识/用例创建、详情读取、Hermes 三类来源引用和清理均通过；N7 报告为 `partial`，因为没有普通 viewer 凭据且未启用受控真实 AI 草稿。真实模型和角色矩阵仍是发布阻塞。
 
 > 2026-08-25 计划同步标记：2.3.0 只更新导航职责、执行顺序、验收出口和状态口径，不伪造真实环境证据。N4 缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 保持 `[-]`；N2～N3、N5～N8 的本地实现保持 `[E]`，N9 保持 `[~]`。
 

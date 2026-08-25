@@ -57,8 +57,16 @@
 
 - [x] N7/N6 acceptance scripts now create an explicit temporary module when a blank project has no modules; the branch is covered by script regression tests.
 - [x] Real local acceptance reached the requirement creation endpoint and exposed an existing async SQLAlchemy bug: `POST /requirements` committed the ORM object and then serialized expired attributes, causing `MissingGreenlet`/HTTP 500. The endpoint now refreshes the requirement before serialization, with a regression assertion for the refresh.
-- [x] The temporary remote project was deleted successfully after the failed run; no credentials or response bodies were written. Failure evidence is recorded in [`n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json).
-- **Status**: `[E]` source and tests are fixed, but the q19 deployment must be rebuilt/restarted from the pushed commit before the real-data gate can be rerun. Do not treat the failed run as a passed N7 environment gate.
+- [x] The temporary remote project was deleted successfully after the initial failed run; no credentials or response bodies were written. The initial failure was fixed and the latest base acceptance is recorded in section 2.4.3.
+- **Status**: `[E]` source and tests are fixed; the q19 base data path was reverified after redeploy, while the viewer and controlled-AI checks remain open.
+
+## 2.4.3 P6/P7 q19 real-data base acceptance and cleanup repair (2026-08-25)
+
+- [x] q19 was fast-forwarded to commit `716d1b3`, rebuilt with migration head `20260825_0066`, and restarted for `backend`, `worker` and `migrate`.
+- [x] N6 with `--execute` completed the project → module → case → review → suite → plan → terminal run → internal defect chain; the failed target run was recorded and the temporary project was deleted successfully. The latest report is [`n6-project-asset-acceptance-2026-08-25.json`](evidence/n6-project-asset-acceptance-2026-08-25.json).
+- [x] The first N6 cleanup failure was caused by `plan_runs.plan_id` lacking `ON DELETE CASCADE`; migration `20260825_0066` now cascades project-owned module/case/run/suite/plan history and sets deleted dataset references on cases to `NULL`. The stale temporary project from the failed run was removed through the normal API after the migration.
+- [x] N7 real-data base checks passed: temporary requirement, knowledge entry and case creation, editable retrieval, all three Hermes source citations and cleanup. The latest report is [`n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json).
+- **Status**: `[E]` base q19 data and cleanup paths are verified, but N6/N7 remain environment gates because no ordinary viewer credentials were available; N7 also did not enable a controlled real AI model. Keep both gates partial until those checks are executed.
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 

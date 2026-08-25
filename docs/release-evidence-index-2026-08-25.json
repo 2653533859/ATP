@@ -79,8 +79,8 @@
       "id": "N6.project-asset-permissions",
       "status": "pending",
       "owner": "test-platform",
-      "evidence": ["docs/development-plan-2026-08-25.md", "docs/n6-project-asset-acceptance.md"],
-      "blocking_reason": "The local asset links are covered, but the full project/member/role chain has not been verified against clean real data.",
+      "evidence": ["docs/development-plan-2026-08-25.md", "docs/n6-project-asset-acceptance.md", "docs/evidence/n6-project-asset-acceptance-2026-08-25.json"],
+      "blocking_reason": "The q19 administrator asset chain, executable run, defect link and cleanup now pass, but ordinary viewer isolation was skipped because no controlled viewer account was available.",
       "dependencies": ["Temporary project", "administrator and ordinary project members", "cleanable execution history"],
       "recheck_command": "Create a temporary project and verify case-to-suite-to-plan-to-run-to-report-to-defect-to-review links and ordinary-role isolation, then clean all objects."
     },
@@ -89,9 +89,9 @@
       "status": "pending",
       "owner": "ai-platform",
       "evidence": ["docs/development-plan-2026-08-25.md", "docs/n7-intelligence-acceptance.md", "docs/evidence/n7-intelligence-acceptance-2026-08-25.json"],
-      "blocking_reason": "Hermes, requirements and knowledge flows still need controlled real model/data verification with source display.",
-      "dependencies": ["Controlled model endpoint", "temporary requirement and knowledge entries"],
-      "recheck_command": "Run Hermes query and editable requirement/case/knowledge retrieval checks, verify citations, then remove temporary entries."
+      "blocking_reason": "The q19 requirement, knowledge, case retrieval and Hermes source checks now pass, but controlled AI draft generation and ordinary viewer isolation were skipped.",
+      "dependencies": ["Controlled model endpoint", "temporary requirement and knowledge entries", "administrator and ordinary project members"],
+      "recheck_command": "Run Hermes query and editable requirement/case/knowledge retrieval with --require-ai and --require-role-matrix, verify citations, then remove temporary entries."
     },
     {
       "id": "N8.system-governance-deployment",

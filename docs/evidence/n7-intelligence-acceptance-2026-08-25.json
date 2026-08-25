@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-25T10:22:55.627274+00:00",
+  "generated_at": "2026-08-25T10:43:23.290674+00:00",
   "scope": "N7 Hermes, requirement and knowledge retrieval",
-  "status": "failed",
+  "status": "partial",
   "endpoint": "http://127.0.0.1:8000/api/v1",
   "checks": [
     {
@@ -13,26 +13,49 @@
     {
       "name": "project-create",
       "status": "passed",
-      "details": "created temporary project id=53"
+      "details": "created temporary project id=62"
     },
     {
       "name": "module-create",
       "status": "passed",
-      "details": "created temporary module id=73"
+      "details": "created temporary module id=81"
     },
     {
-      "name": "acceptance-execution",
-      "status": "failed",
-      "details": "POST /requirements returned HTTP 500"
+      "name": "temporary-data-create",
+      "status": "passed",
+      "details": "created one requirement, knowledge entry and case"
+    },
+    {
+      "name": "editable-retrieval",
+      "status": "passed",
+      "details": "requirement parsing and project-scoped requirement/knowledge/case detail retrieval passed"
+    },
+    {
+      "name": "hermes-sources",
+      "status": "passed",
+      "details": "Hermes returned project-scoped requirement, knowledge and case citations"
+    },
+    {
+      "name": "ai-draft",
+      "status": "skipped",
+      "details": "pass --require-ai to verify a controlled real model and editable case drafts"
+    },
+    {
+      "name": "role-matrix",
+      "status": "skipped",
+      "details": "set ATP_VIEWER_USERNAME/ATP_VIEWER_PASSWORD to verify ordinary-role isolation"
     },
     {
       "name": "cleanup",
       "status": "passed",
-      "details": "temporary project id=53 deleted"
+      "details": "temporary project id=62 deleted"
     }
   ],
   "resources": {
-    "project_id": 53,
-    "module_id": 73
+    "project_id": 62,
+    "module_id": 81,
+    "requirement_id": 6,
+    "knowledge_id": 2,
+    "case_id": 35
   }
 }

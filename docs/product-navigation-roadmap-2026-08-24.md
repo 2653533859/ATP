@@ -8,7 +8,11 @@
 
 > 2026-08-25 P7 Hermes 项目级检索本地交付已完成：新增项目 viewer 权限保护的需求/知识/用例检索和来源深链，Hermes 自由提问可进入检索链路，知识中心支持 `knowledge_id` 深链；N7 验收脚本覆盖临时数据、详情读取、三类引用、可选 AI 草稿、viewer 隔离和清理。后端定向 `21 passed`、前端 Hermes/知识定向 `11 passed`；真实模型、角色账号和远端数据仍待受控环境验收，详见 [`n7-intelligence-acceptance.md`](n7-intelligence-acceptance.md)。
 
-> 2026-08-25 P7/N6 验收缺陷已修复：blank 项目无模块时脚本自动创建临时模块；需求创建接口在 async commit 后序列化过期 ORM 属性导致的 `MissingGreenlet`/HTTP 500 已通过提交后 refresh 修复。q19 旧部署的失败证据已脱敏保存并确认临时项目清理成功，必须重建最新提交后重新验收，不能将本次失败写成通过。
+> 2026-08-25 P7/N6 验收缺陷已修复：blank 项目无模块时脚本自动创建临时模块；需求创建接口在 async commit 后序列化过期 ORM 属性导致的 `MissingGreenlet`/HTTP 500 已通过提交后 refresh 修复。q19 旧部署的失败证据已脱敏保存，后续已按 `716d1b3` 重建到迁移 `20260825_0066` 并完成基础链路复验。
+
+> 2026-08-25 N6 q19 基础资产链路已复验：`--execute` 下用例评审、套件、计划、终态执行、内部缺陷关联和临时项目清理均通过；首次项目删除因 `plan_runs` 外键无级联返回 500，已由 `20260825_0066` 补齐模块/用例/运行/套件/计划历史级联，最新证据见 [`evidence/n6-project-asset-acceptance-2026-08-25.json`](evidence/n6-project-asset-acceptance-2026-08-25.json)。普通 viewer 角色矩阵仍未验证，N6 不关闭为完整通过。
+
+> 2026-08-25 N7 q19 基础数据链路已复验：临时需求、知识条目和用例创建，需求解析、详情读取、Hermes 三类来源引用及清理均通过；最新证据见 [`evidence/n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json)。普通 viewer 和真实 AI 草稿未启用，N7 仍保持环境待验收。
 
 > 2026-08-25 N7 Hermes 跨任务失败诊断已完成本地交付：工作台统一为 suite/plan/android/performance 提供按项目权限保护的规则诊断，case 复用既有 LLM/规则链；Android 与性能诊断引用各自持久化的异常事件、错误事件和指标线索，Hermes 保留任务详情来源，不再把非 case 任务标记为不支持。后端定向 `13 passed`、非集成全量 `2345 passed`，前端全量 `69 files / 293 tests passed`，真实模型、需求/知识数据和角色矩阵仍待验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.3。
 
