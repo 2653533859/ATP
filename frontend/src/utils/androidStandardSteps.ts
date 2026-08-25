@@ -62,6 +62,9 @@ function paramsSummary(step: AndroidLowcodeStep, t: AndroidStepTranslator) {
       if ([params.x1, params.y1, params.x2, params.y2].every((value) => value !== undefined)) {
         addValue(parts, label('coordinates', '坐标'), `(${params.x1}, ${params.y1}) → (${params.x2}, ${params.y2})`)
       }
+      if (params.screenWidth !== undefined && params.screenHeight !== undefined) {
+        addValue(parts, label('screen_size', '录制屏幕'), `${params.screenWidth} × ${params.screenHeight}`)
+      }
       addValue(parts, label('duration', '持续时间（毫秒）'), params.duration)
       break
     case 'input':

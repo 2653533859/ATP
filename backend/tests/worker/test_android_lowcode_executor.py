@@ -115,6 +115,32 @@ def test_swipe_direction_unknown_and_custom(adb):
     assert _run("swipe")["success"] is False
 
 
+# ── 屏幕尺寸与滑动缩放 ────────────────────────────────────────
+
+
+def test_direction_swipe_uses_current_screen_size(adb):
+    adb["responses"] = [(True, "Physical size: 1440x2560")]
+
+    assert _run("swipe", direction="up") == {"success": True, "error": None}
+    assert ("shell", "input", "swipe", "720", "2133", "720", "533", "300") in adb["calls"]
+
+
+def test_recorded_swipe_scales_to_current_screen_size(adb):
+    adb["responses"] = [(True, "Physical size: 2160x4800")]
+
+    assert _run(
+        "swipe",
+        x1=100,
+        y1=200,
+        x2=100,
+        y2=1000,
+        duration=400,
+        screenWidth=1080,
+        screenHeight=2400,
+    ) == {"success": True, "error": None}
+    assert ("shell", "input", "swipe", "200", "400", "200", "2000", "400") in adb["calls"]
+
+
 # ── 按键与应用 ──────────────────────────────────────────────
 
 

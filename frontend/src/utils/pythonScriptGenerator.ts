@@ -313,19 +313,42 @@ function androidStepLines(step: ScriptStep, index: number) {
           : [`    pytest.fail("长按步骤缺少定位信息")`]
     case 'swipe': {
       const direction = stringValue(params.direction).toLowerCase()
-      const directionCoordinates: Record<string, [number, number, number, number]> = {
-        up: [540, 1600, 540, 400],
-        down: [540, 400, 540, 1600],
-        left: [900, 960, 100, 960],
-        right: [100, 960, 900, 960],
+      const directionCoordinates = new Set(['up', 'down', 'left', 'right'])
+      if (directionCoordinates.has(direction)) {
+        const factor = direction === 'left' || direction === 'right' ? 'current_height * 0.5' : 'current_width * 0.5'
+        const directionCoordinates: Record<string, string[]> = {
+          up: ['current_width * 0.5', 'current_height * 5 / 6', 'current_width * 0.5', 'current_height * 5 / 24'],
+          down: ['current_width * 0.5', 'current_height * 5 / 24', 'current_width * 0.5', 'current_height * 5 / 6'],
+          left: ['current_width * 5 / 6', factor, 'current_width * 5 / 54', factor],
+          right: ['current_width * 5 / 54', factor, 'current_width * 5 / 6', factor],
+        }
+        const coordinates = directionCoordinates[direction]
+        return [
+          '    current_width, current_height = device.window_size()',
+          `    device.swipe(${coordinates.map((value) => `int(${value})`).join(', ')}, duration=${pythonNumber(params.duration, 300)} / 1000)`,
+        ]
       }
-      const coordinates = directionCoordinates[direction] ?? [
+
+      const coordinates = [
         Number(params.x1 ?? params.startX),
         Number(params.y1 ?? params.startY),
         Number(params.x2 ?? params.endX),
         Number(params.y2 ?? params.endY),
       ]
       if (coordinates.every(Number.isFinite)) {
+        const recordedWidth = Number(params.screenWidth ?? params.screen_width)
+        const recordedHeight = Number(params.screenHeight ?? params.screen_height)
+        if (Number.isFinite(recordedWidth) && recordedWidth > 0 && Number.isFinite(recordedHeight) && recordedHeight > 0) {
+          const scaled = coordinates.map((value, index) => {
+            const axis = index % 2 === 0 ? 'current_width' : 'current_height'
+            const recorded = index % 2 === 0 ? recordedWidth : recordedHeight
+            return `max(0, min(${axis} - 1, int(round(${value} * ${axis} / ${recorded}))))`
+          })
+          return [
+            '    current_width, current_height = device.window_size()',
+            `    device.swipe(${scaled.join(', ')}, duration=${pythonNumber(params.duration, 300)} / 1000)`,
+          ]
+        }
         return [`    device.swipe(${coordinates.join(', ')}, duration=${pythonNumber(params.duration, 300)} / 1000)`]
       }
       return [`    pytest.fail("滑动步骤缺少方向或坐标")`]

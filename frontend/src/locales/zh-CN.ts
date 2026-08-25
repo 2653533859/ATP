@@ -3524,6 +3524,7 @@ export default {
         resource_id: '资源 ID',
         content_desc: '无障碍描述',
         coordinates: '坐标',
+        screen_size: '录制屏幕',
         duration: '持续时间（毫秒）',
         direction: '方向',
         clear: '清空原内容',
@@ -3541,7 +3542,7 @@ export default {
     },
     android_editor: {
       visual_title: '可视化录制',
-      visual_hint: '点击截图会优先识别控件文本、资源 ID 或 content-desc；识别不到时使用坐标。按住拖动会生成滑动步骤。',
+      visual_hint: '点击截图会优先识别控件文本、资源 ID 或 content-desc；识别不到时使用坐标。按住拖动会生成带录制屏幕尺寸的滑动步骤，回放时自动适配分辨率。',
       visual_no_device: '请先在上方选择在线目标设备，再使用可视化录制。',
       visual_empty: '点击刷新获取设备画面',
       refresh_screen: '刷新画面',

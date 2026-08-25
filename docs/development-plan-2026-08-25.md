@@ -40,6 +40,16 @@
 - **状态**：`[E]` 本地实现、回归和审查完成；真实 Karing APK、Worker UIAutomator 权限及真机长按/输入行为仍待环境验收。
 - **下一入口**：保持 N4 真实 Kubernetes/Prometheus/独立 MinIO 门禁等待目标；取得 Karing 后继续单设备完整闭环。
 
+## 1.5 Android 可视化滑动的分辨率适配（2026-08-25）
+
+本模块补齐 Android 可视化录制滑动在不同设备上的坐标稳定性。截图拖动生成的滑动步骤现在保存录制屏幕的宽高；Worker 回放时读取当前设备生效的 `wm size`，按宽高比例缩放并限制坐标范围，方向滑动也优先使用当前屏幕尺寸。无法读取尺寸或历史步骤没有尺寸元数据时保留原有默认坐标和原始坐标行为。独立 Python 脚本同样使用 `device.window_size()` 适配方向滑动和带尺寸元数据的坐标滑动，标准步骤摘要显示录制屏幕尺寸。
+
+- **代码范围**：`frontend/src/utils/androidRecording.ts`、`frontend/src/components/common/AndroidStepEditor.vue`、Android 标准步骤/脚本生成器、中英文文案，以及 `backend/app/worker/executors/android_lowcode_executor.py`。
+- **回归范围**：后端 Android 低代码定向 `47 passed`，非集成全量 `2302 passed`；前端录制/标准步骤/脚本生成定向 `16 passed`，前端全量 `68 files / 282 tests passed`；`vue-tsc`、生产构建、Ruff、格式检查和 `git diff --check` 通过。
+- **代码审查**：独立检查确认旧步骤无尺寸元数据仍兼容，设备尺寸读取失败时保留旧默认值，动态坐标在当前屏幕范围内裁剪；未发现可操作问题。
+- **状态**：`[E]` 本地实现、回归和审查完成；真实 Karing APK、Windows Android Worker、横竖屏切换和不同分辨率真机回放仍待环境验收，不把本地测试替代为真实设备证据。
+- **下一入口**：N4 真实 Kubernetes/Prometheus/独立 MinIO 环境门禁仍是主游标；取得 Karing 后，在单设备闭环中验证截图尺寸、方向滑动、跨分辨率滑动、录屏/异常回放和报告证据。
+
 ## 1.0 当前计划登记（2026-08-25）
 
 本节是当前最新执行口径，优先于本文后面的历史交付记录。N4 的本地代码链路已经覆盖 Worker/目标服务采样、Kubernetes 容量预检、保留清理、跨端点 MinIO 恢复和生命周期门禁；下一步不重复开发已有采样器，而是按真实目标逐项验收，并同步推进被外部条件阻塞的 N2 与发布收口。

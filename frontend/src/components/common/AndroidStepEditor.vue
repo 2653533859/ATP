@@ -329,7 +329,7 @@ import { PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons-
 import draggable from 'vuedraggable'
 import { useI18n } from 'vue-i18n'
 import { deviceApi, type AndroidUiTarget } from '@/api'
-import { buildAndroidRecordedClickParams } from '@/utils/androidRecording'
+import { buildAndroidRecordedClickParams, buildAndroidRecordedSwipeParams } from '@/utils/androidRecording'
 
 type StepParams = Record<string, unknown>
 type ExternalStep = { action: string; name: string; params: StepParams }
@@ -573,14 +573,12 @@ async function onScreenPointerUp(event: PointerEvent) {
     return
   }
 
-  appendStep('swipe', {
-    direction: undefined,
-    x1: start.x,
-    y1: start.y,
-    x2: end.x,
-    y2: end.y,
-    duration: 300,
-  })
+  const swipeParams = buildAndroidRecordedSwipeParams(
+    start,
+    end,
+    { width: screenImageRef.value?.naturalWidth ?? 0, height: screenImageRef.value?.naturalHeight ?? 0 },
+  )
+  appendStep('swipe', swipeParams)
   await performLiveAction(
     () => deviceApi.swipe(props.deviceId!, {
       x1: start.x,

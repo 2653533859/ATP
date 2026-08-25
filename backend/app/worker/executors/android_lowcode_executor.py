@@ -228,6 +228,77 @@ def _clear_input_text(serial: str, max_delete: int = 50) -> None:
             break
 
 
+_SCREEN_SIZE_RE = re.compile(r"(?:Physical|Override)\s+size:\s*(\d+)x(\d+)", re.IGNORECASE)
+
+
+def _device_screen_size(serial: str) -> tuple[int, int] | None:
+    """读取设备当前生效的显示尺寸；旧设备或权限不足时返回 None。"""
+    ok, output = _adb_cmd(serial, "shell", "wm", "size", timeout=10)
+    if not ok:
+        return None
+    matches = _SCREEN_SIZE_RE.findall(output)
+    if not matches:
+        return None
+    width, height = (int(value) for value in matches[-1])
+    return (width, height) if width > 0 and height > 0 else None
+
+
+def _scale_swipe_coordinates(
+    serial: str,
+    coordinates: tuple[float, float, float, float],
+    params: dict,
+) -> tuple[int, int, int, int]:
+    """将录制坐标缩放到当前设备；没有录制尺寸时保持历史行为。"""
+    recorded_width = params.get("screenWidth", params.get("screen_width"))
+    recorded_height = params.get("screenHeight", params.get("screen_height"))
+    try:
+        recorded_width = float(recorded_width)
+        recorded_height = float(recorded_height)
+    except (TypeError, ValueError):
+        return tuple(int(round(value)) for value in coordinates)
+    if recorded_width <= 0 or recorded_height <= 0:
+        return tuple(int(round(value)) for value in coordinates)
+
+    current_size = _device_screen_size(serial)
+    if not current_size:
+        return tuple(int(round(value)) for value in coordinates)
+    current_width, current_height = current_size
+    scaled = (
+        round(coordinates[0] * current_width / recorded_width),
+        round(coordinates[1] * current_height / recorded_height),
+        round(coordinates[2] * current_width / recorded_width),
+        round(coordinates[3] * current_height / recorded_height),
+    )
+    return (
+        max(0, min(current_width - 1, scaled[0])),
+        max(0, min(current_height - 1, scaled[1])),
+        max(0, min(current_width - 1, scaled[2])),
+        max(0, min(current_height - 1, scaled[3])),
+    )
+
+
+def _direction_coordinates(serial: str, direction: str) -> tuple[int, int, int, int] | None:
+    """根据当前尺寸生成方向滑动坐标，取不到尺寸时兼容旧的 1080x1920 默认值。"""
+    size = _device_screen_size(serial)
+    if not size:
+        return {
+            "up": (540, 1600, 540, 400),
+            "down": (540, 400, 540, 1600),
+            "left": (900, 960, 100, 960),
+            "right": (100, 960, 900, 960),
+        }.get(direction)
+    width, height = size
+    if direction == "up":
+        return (width // 2, int(height * 5 / 6), width // 2, int(height * 5 / 24))
+    if direction == "down":
+        return (width // 2, int(height * 5 / 24), width // 2, int(height * 5 / 6))
+    if direction == "left":
+        return (int(width * 5 / 6), height // 2, int(width * 5 / 54), height // 2)
+    if direction == "right":
+        return (int(width * 5 / 54), height // 2, int(width * 5 / 6), height // 2)
+    return None
+
+
 _UI_BOUNDS_RE = re.compile(r"\[(\d+),(\d+)\]\[(\d+),(\d+)\]")
 
 
@@ -381,16 +452,10 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
     elif action == "swipe":
         direction = params.get("direction")
         if direction:
-            swipe_map = {
-                "up": ("540", "1600", "540", "400"),
-                "down": ("540", "400", "540", "1600"),
-                "left": ("900", "960", "100", "960"),
-                "right": ("100", "960", "900", "960"),
-            }
-            coords = swipe_map.get(direction)
+            coords = _direction_coordinates(serial, str(direction).lower())
             if coords:
                 duration = str(params.get("duration", 300))
-                ok, out = _adb_cmd(serial, "shell", "input", "swipe", *coords, duration)
+                ok, out = _adb_cmd(serial, "shell", "input", "swipe", *(str(value) for value in coords), duration)
                 return {"success": ok, "error": out if not ok else None}
             return {"success": False, "error": f"未知滑动方向: {direction}"}
         # 自定义坐标滑动
@@ -400,9 +465,8 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
         y2 = params.get("y2", params.get("endY"))
         if all(v is not None for v in [x1, y1, x2, y2]):
             duration = str(params.get("duration", 300))
-            ok, out = _adb_cmd(
-                serial, "shell", "input", "swipe", str(int(x1)), str(int(y1)), str(int(x2)), str(int(y2)), duration
-            )
+            coords = _scale_swipe_coordinates(serial, (float(x1), float(y1), float(x2), float(y2)), params)
+            ok, out = _adb_cmd(serial, "shell", "input", "swipe", *(str(value) for value in coords), duration)
             return {"success": ok, "error": out if not ok else None}
         return {"success": False, "error": "滑动需要 direction 或坐标参数"}
 

@@ -1,5 +1,7 @@
 export type AndroidRecordedPoint = { x: number; y: number }
 
+export type AndroidRecordedScreen = { width: number; height: number }
+
 export type AndroidRecordedTarget = {
   text?: string | null
   resourceId?: string | null
@@ -35,4 +37,26 @@ export function buildAndroidRecordedClickParams(
   }
 
   return params
+}
+
+/**
+ * Preserve the screenshot coordinate space for recorded swipes. The worker
+ * can use it to scale the gesture when the replay device has another size.
+ */
+export function buildAndroidRecordedSwipeParams(
+  start: AndroidRecordedPoint,
+  end: AndroidRecordedPoint,
+  screen: AndroidRecordedScreen,
+  duration = 300,
+) {
+  return {
+    direction: undefined,
+    x1: start.x,
+    y1: start.y,
+    x2: end.x,
+    y2: end.y,
+    duration,
+    screenWidth: screen.width,
+    screenHeight: screen.height,
+  }
 }

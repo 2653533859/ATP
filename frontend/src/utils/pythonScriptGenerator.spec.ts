@@ -51,6 +51,32 @@ describe('python script generators', () => {
     expect(script).toContain('input_target.set_text("tester")')
   })
 
+  it('scales recorded Android swipes to the replay device size', () => {
+    const script = generateAndroidPythonScript([
+      { action: 'swipe', name: '滑动列表', params: {
+        x1: 100,
+        y1: 200,
+        x2: 100,
+        y2: 1000,
+        screenWidth: 1080,
+        screenHeight: 2400,
+      } },
+    ])
+
+    expect(script).toContain('current_width, current_height = device.window_size()')
+    expect(script).toContain('100 * current_width / 1080')
+    expect(script).toContain('200 * current_height / 2400')
+  })
+
+  it('uses the replay device size for direction swipes', () => {
+    const script = generateAndroidPythonScript([
+      { action: 'swipe', name: '上滑', params: { direction: 'up' } },
+    ])
+
+    expect(script).toContain('device.window_size()')
+    expect(script).toContain('current_height * 5 / 6')
+  })
+
   it('generates Android device control steps and fails explicitly for unknown actions', () => {
     const script = generateAndroidPythonScript([
       { action: 'rotate', name: '切换横屏', params: { orientation: 'landscape' } },

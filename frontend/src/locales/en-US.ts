@@ -3520,6 +3520,7 @@ export default {
         resource_id: 'Resource ID',
         content_desc: 'Content description',
         coordinates: 'Coordinates',
+        screen_size: 'Recording screen',
         duration: 'Duration (ms)',
         direction: 'Direction',
         clear: 'Clear existing content',
@@ -3537,7 +3538,7 @@ export default {
     },
     android_editor: {
       visual_title: 'Visual recorder',
-      visual_hint: 'Click the screenshot to detect text, resource ID, or content-desc first; coordinates are used as a fallback. Press and drag to create a swipe step.',
+      visual_hint: 'Click the screenshot to detect text, resource ID, or content-desc first; coordinates are used as a fallback. Press and drag to create a swipe step with screen-size metadata so replay adapts to the device resolution.',
       visual_no_device: 'Select an online target device above before using visual recording.',
       visual_empty: 'Refresh to capture the device screen',
       refresh_screen: 'Refresh screen',

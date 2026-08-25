@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 Android 可视化滑动分辨率适配已完成本地交付：截图拖动生成的滑动步骤保存 `screenWidth/screenHeight`，Worker 读取当前设备 `wm size` 后按宽高比例缩放并裁剪坐标，方向滑动也按当前尺寸计算；读取失败或旧步骤没有元数据时保持历史默认/原始坐标行为。独立 Python 脚本生成器同步支持运行时尺寸适配，Android 标准步骤摘要显示录制屏幕尺寸。后端 Android 低代码定向 `47 passed`、非集成全量 `2302 passed`，前端录制/标准步骤/脚本生成定向 `16 passed`、全量 `68 files / 282 tests passed`，类型检查、生产构建、Ruff、格式检查、`git diff --check` 和独立代码审查通过。真实 Karing APK、Windows Android Worker、不同分辨率/横竖屏、录屏和报告回放仍待真机验收。计划已同步到 `docs/development-plan-2026-08-25.md` 1.5、`Task.md`、路线图和发布状态。
+
 - 2026-08-25 Android 低代码长按与输入控件定位已完成本地交付：长按按 resource-id、文本、content-desc 定位后执行同点 swipe 长按，兼容坐标；输入分离输入内容与目标控件，支持 `targetText`、resource-id、content-desc，目标不存在时明确失败；Python 脚本不再把输入值误当成控件文本。后端 Android 低代码定向 `45 passed`、非集成全量 `2300 passed`，前端标准步骤/脚本生成定向 `11 passed`、全量 `68 files / 279 tests passed`，类型检查、生产构建、Ruff、格式检查、`git diff --check` 和独立代码审查通过。真实 Karing APK、Windows Android Worker UIAutomator 权限及真机长按/输入行为仍待验收。计划已同步到 `docs/development-plan-2026-08-25.md` 1.4、`Task.md`、路线图和发布状态。
 
 - 2026-08-25 Android 低代码控件属性录制与坐标回退已完成本地交付：可视化点击录制现在同时保存 UIAutomator 的文本、resource-id、content-desc、className、bounds 和原始坐标；执行器按 resource-id → 文本 → content-desc 优先定位，找不到控件或 dump 失败时回退坐标，兼容已有坐标步骤。后端 Android 低代码定向 `42 passed`、非集成全量 `2297 passed`，前端录制参数/标准步骤定向 `4 passed`、全量 `68 files / 277 tests passed`，`vue-tsc`、生产构建、Ruff、格式检查、`git diff --check` 和独立代码审查通过。真实 Karing APK、Windows Android Worker UIAutomator 权限、控件属性录制/回放、录屏/异常回放、专项任务和报告仍待真机验收；不能用 `com.android.settings` 探针替代。计划已同步到 `docs/development-plan-2026-08-25.md` 1.3、`Task.md`、路线图和发布状态。
