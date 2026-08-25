@@ -18,6 +18,10 @@ const {
   nodeCreate,
   nodeUpdate,
   nodeDelete,
+  defectList,
+  defectCreate,
+  getMetrics,
+  routerPush,
   messageError,
   messageSuccess,
   messageWarning,
@@ -35,6 +39,10 @@ const {
   nodeCreate: vi.fn(),
   nodeUpdate: vi.fn(),
   nodeDelete: vi.fn(),
+  defectList: vi.fn(),
+  defectCreate: vi.fn(),
+  getMetrics: vi.fn(),
+  routerPush: vi.fn(),
   messageError: vi.fn(),
   messageSuccess: vi.fn(),
   messageWarning: vi.fn(),
@@ -55,7 +63,17 @@ vi.mock('@/api', () => ({
     createNode: nodeCreate,
     updateNode: nodeUpdate,
     deleteNode: nodeDelete,
+    getMetrics,
+    getBaselineComparison: vi.fn(),
   },
+  defectApi: {
+    list: defectList,
+    createFromRun: defectCreate,
+  },
+}))
+
+vi.mock('vue-router', () => ({
+  useRouter: () => ({ push: routerPush }),
 }))
 
 vi.mock('vue-i18n', () => ({
@@ -141,6 +159,9 @@ describe('PerformanceCenterView', () => {
     nodeCreate.mockResolvedValue({ id: 1 })
     nodeUpdate.mockResolvedValue({ id: 1 })
     nodeDelete.mockResolvedValue(undefined)
+    defectList.mockResolvedValue({ items: [], total: 0, page: 1, page_size: 20 })
+    defectCreate.mockResolvedValue({ created: true, duplicate_of: null, defect: { id: 11, title: 'Load failure' } })
+    getMetrics.mockResolvedValue([])
   })
 
   it('accepts JMeter when switching the performance executor', async () => {
@@ -183,6 +204,47 @@ describe('PerformanceCenterView', () => {
     await vm.loadTrend()
 
     expect(trend).toHaveBeenLastCalledWith(1, 7)
+    wrapper.unmount()
+  })
+
+  it('creates an internal defect from a failed performance run and exposes the run filter', async () => {
+    const failedRun = {
+      id: 10,
+      performance_test_id: 2,
+      project_id: 1,
+      status: 'failed',
+      summary: { rps: 1, p95_ms: 200, p99_ms: 300, error_rate: 0.5 },
+      options_snapshot: {},
+      progress_percent: 100,
+      created_at: '2026-08-25T10:00:00Z',
+      updated_at: '2026-08-25T10:01:00Z',
+    }
+    runList.mockResolvedValue([failedRun])
+    const wrapper = mountPage()
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    await vm.openRunDetail(failedRun)
+    expect(defectList).toHaveBeenCalledWith({ run_type: 'performance', run_id: 10, page: 1, page_size: 20 })
+    expect(vm.canCreateInternalDefect(failedRun)).toBe(true)
+
+    await vm.createInternalDefect()
+    expect(defectCreate).toHaveBeenCalledWith('performance', 10)
+    expect(messageSuccess).toHaveBeenCalledWith('performance.msg.defect_created')
+    vm.openInternalDefects()
+    expect(routerPush).toHaveBeenCalledWith({
+      name: 'bugs',
+      query: { project_id: '1', run_type: 'performance', run_id: '10', view: 'linked' },
+    })
+    wrapper.unmount()
+  })
+
+  it('does not expose defect creation for a successful performance run', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    expect(vm.canCreateInternalDefect({ status: 'success' })).toBe(false)
+    expect(vm.canCreateInternalDefect({ status: 'running' })).toBe(false)
     wrapper.unmount()
   })
 

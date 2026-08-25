@@ -743,6 +743,19 @@
             <span>{{ thresholdGateSummary }}</span>
           </div>
           <a-space>
+            <a-button
+              v-if="canCreateInternalDefect(selectedRun)"
+              size="small"
+              danger
+              :loading="creatingInternalDefect"
+              @click="createInternalDefect"
+            >
+              <template #icon><BugOutlined /></template>
+              {{ t('performance.create_internal_defect') }}
+            </a-button>
+            <a-button v-if="internalDefects.length" size="small" type="link" @click="openInternalDefects">
+              {{ t('performance.internal_defects', { count: internalDefects.length }) }}
+            </a-button>
             <a-button size="small" :loading="exportingFormat === 'json'" @click="exportRunJson(selectedRun)">
               <template #icon><DownloadOutlined /></template>
               {{ t('performance.export_json') }}
@@ -784,6 +797,14 @@
         </a-descriptions>
         <div v-if="selectedRun.error_message" class="detail-block">
           <a-alert type="error" :message="selectedRun.error_message" show-icon />
+        </div>
+        <div v-if="internalDefects.length" class="detail-block">
+          <div class="section-label">{{ t('performance.internal_defects') }}</div>
+          <a-space wrap>
+            <a-tag v-for="defect in internalDefects" :key="defect.id" color="purple">
+              #{{ defect.id }} · {{ defect.title }}
+            </a-tag>
+          </a-space>
         </div>
         <div class="detail-block">
           <div class="section-label">{{ t('performance.thresholds') }}</div>
@@ -866,18 +887,21 @@
 
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
-import { ClockCircleOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileSearchOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, StarOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons-vue'
+import { BugOutlined, ClockCircleOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileSearchOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, StarOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons-vue'
 import type { AxiosError } from 'axios'
 import VChart from 'vue-echarts'
 import type { EChartsOption } from 'echarts'
 import {
   datasetApi,
+  defectApi,
   environmentApi,
   performanceApi,
   projectApi,
   type DatasetListItem,
+  type DefectItem,
   type EnvironmentItem,
   type PerformanceBaselineComparisonItem,
   type PerformanceCapacityAnalysis,
@@ -907,6 +931,7 @@ const asPerfRun = (record: unknown) => record as PerformanceRunItem
 
 const { t } = useI18n()
 const { chartTheme } = useChartTheme()
+const router = useRouter()
 
 function getErrorMessage(error: unknown, fallback: string) {
   const axiosError = error as AxiosError<{ detail?: string; message?: string }>
@@ -950,6 +975,8 @@ const scriptUploading = ref(false)
 const editing = ref<PerformanceTestItem | null>(null)
 const runTarget = ref<PerformanceTestItem | null>(null)
 const selectedRun = ref<PerformanceRunItem | null>(null)
+const internalDefects = ref<DefectItem[]>([])
+const creatingInternalDefect = ref(false)
 const baselineComparison = ref<PerformanceBaselineComparisonItem | null>(null)
 const metricSamples = ref<PerformanceMetricSampleItem[]>([])
 const metricSource = ref('performance-worker')
@@ -1986,8 +2013,54 @@ async function loadResourceMetrics(record: PerformanceRunItem) {
 
 async function openRunDetail(record: PerformanceRunItem) {
   selectedRun.value = record
-  await Promise.all([loadBaselineComparison(record), loadResourceMetrics(record)])
+  internalDefects.value = []
+  await Promise.all([loadBaselineComparison(record), loadResourceMetrics(record), loadInternalDefects(record)])
   detailOpen.value = true
+}
+
+function canCreateInternalDefect(record: PerformanceRunItem | null) {
+  return !!record && ['failed', 'error', 'cancelled', 'stopped'].includes(record.status)
+}
+
+async function loadInternalDefects(record: PerformanceRunItem) {
+  try {
+    const result = await defectApi.list({ run_type: 'performance', run_id: record.id, page: 1, page_size: 20 })
+    internalDefects.value = result.items
+  } catch {
+    internalDefects.value = []
+  }
+}
+
+async function createInternalDefect() {
+  const record = selectedRun.value
+  if (!record || !canCreateInternalDefect(record) || creatingInternalDefect.value) return
+  creatingInternalDefect.value = true
+  try {
+    const result = await defectApi.createFromRun('performance', record.id)
+    await loadInternalDefects(record)
+    if (!result.created && result.duplicate_of) {
+      message.warning(t('performance.msg.defect_duplicate', { id: result.duplicate_of }))
+    } else {
+      message.success(t('performance.msg.defect_created'))
+    }
+  } catch (error) {
+    message.error(getErrorMessage(error, t('performance.msg.defect_create_failed')))
+  } finally {
+    creatingInternalDefect.value = false
+  }
+}
+
+function openInternalDefects() {
+  if (!selectedRun.value) return
+  void router.push({
+    name: 'bugs',
+      query: {
+        project_id: String(selectedRun.value.project_id),
+        run_type: 'performance',
+        run_id: String(selectedRun.value.id),
+        view: 'linked',
+      },
+    })
 }
 
 async function openRawResult(record: PerformanceRunItem) {

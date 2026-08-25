@@ -32,12 +32,26 @@
               {{ triggerLabel(run.trigger_type) }}
             </a-descriptions-item>
           </a-descriptions>
-          <div v-if="run.task_type === 'stability'" class="run-toolbar">
+          <div v-if="run.task_type === 'stability' || canCreateInternalDefect || internalDefects.length" class="run-toolbar">
             <a-tag v-if="monkeySeed !== null" color="purple">
               {{ t('mobile_special.replay_seed') }}: {{ monkeySeed }}
             </a-tag>
-            <a-button type="primary" ghost size="small" @click="replayRun">
+            <a-button v-if="run.task_type === 'stability'" type="primary" ghost size="small" @click="replayRun">
               {{ t('mobile_special.replay_run') }}
+            </a-button>
+            <a-button
+              v-if="canCreateInternalDefect"
+              type="primary"
+              danger
+              ghost
+              size="small"
+              :loading="creatingInternalDefect"
+              @click="createInternalDefect"
+            >
+              {{ t('mobile_special.reports.create_internal_defect') }}
+            </a-button>
+            <a-button v-if="internalDefects.length" type="link" size="small" @click="openInternalDefects">
+              {{ t('mobile_special.reports.internal_defects', { count: internalDefects.length }) }}
             </a-button>
           </div>
         </a-card>
@@ -270,6 +284,7 @@ import { useChartTheme } from '@/utils/chartTheme'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
 import {
   mobileSpecialApi,
+  defectApi,
   type MobileSpecialRunItem,
   type MobileSpecialTaskItem,
   type MobileMetricSampleItem,
@@ -281,6 +296,7 @@ import {
   type MobileRunStatus,
   type MobileTriggerType,
   type TaskType,
+  type DefectItem,
 } from '@/api'
 
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
@@ -312,6 +328,8 @@ const samples = ref<MobileMetricSampleItem[]>([])
 const incidents = ref<MobileIncidentItem[]>([])
 const artifacts = ref<MobileRunArtifactItem[]>([])
 const events = ref<MobileRunEventItem[]>([])
+const internalDefects = ref<DefectItem[]>([])
+const creatingInternalDefect = ref(false)
 const EVENT_LIMIT = 5000
 const liveSamples = ref<MobileMetricSampleItem[]>([])
 type LiveLog = { id: number; at: string; level: string; message: string }
@@ -332,6 +350,7 @@ let livePollTimer: number | null = null
 let liveLogSequence = 0
 
 const isLiveRun = computed(() => run.value?.status === 'pending' || run.value?.status === 'running')
+const canCreateInternalDefect = computed(() => ['failed', 'error', 'cancelled', 'stopped'].includes(run.value?.status || ''))
 const monkeySeed = computed(() => {
   const value = run.value?.config_snapshot?.monkey_seed
   return typeof value === 'number' || typeof value === 'string' ? value : null
@@ -510,6 +529,7 @@ async function loadAll() {
         taskInfo.value = await mobileSpecialApi.getTask(runData.task_id)
       } catch { /* ignore */ }
     }
+    await loadInternalDefects()
 
     updateTrendChart()
   } catch (e: unknown) {
@@ -517,6 +537,45 @@ async function loadAll() {
   } finally {
     loading.value = false
   }
+}
+
+async function loadInternalDefects() {
+  try {
+    const result = await defectApi.list({ run_type: 'android', run_id: runId.value, page: 1, page_size: 20 })
+    internalDefects.value = result.items
+  } catch {
+    internalDefects.value = []
+  }
+}
+
+async function createInternalDefect() {
+  if (!canCreateInternalDefect.value || creatingInternalDefect.value) return
+  creatingInternalDefect.value = true
+  try {
+    const result = await defectApi.createFromRun('android', runId.value)
+    await loadInternalDefects()
+    if (!result.created && result.duplicate_of) {
+      message.warning(t('mobile_special.reports.msg.defect_duplicate', { id: result.duplicate_of }))
+    } else {
+      message.success(t('mobile_special.reports.msg.defect_created'))
+    }
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('mobile_special.reports.msg.defect_create_failed')))
+  } finally {
+    creatingInternalDefect.value = false
+  }
+}
+
+function openInternalDefects() {
+  void router.push({
+    name: 'bugs',
+    query: {
+      project_id: taskInfo.value?.project_id ? String(taskInfo.value.project_id) : undefined,
+      run_type: 'android',
+      run_id: String(runId.value),
+      view: 'linked',
+    },
+  })
 }
 
 async function loadSamples() {

@@ -4,8 +4,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import DefectListView from './DefectListView.vue'
 
-const { authUser, bugTrackerList, defectCreateExternal, projectList, memberList, defectList, defectUpdate } = vi.hoisted(() => ({
+const { authUser, routeQuery, bugTrackerList, defectCreateExternal, projectList, memberList, defectList, defectUpdate } = vi.hoisted(() => ({
   authUser: { role: 'engineer' as string },
+  routeQuery: {} as Record<string, string>,
   bugTrackerList: vi.fn(),
   defectCreateExternal: vi.fn(),
   projectList: vi.fn(),
@@ -18,7 +19,7 @@ vi.mock('vue-i18n', () => ({
   useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => params ? `${key}:${JSON.stringify(params)}` : key }),
 }))
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: {} }),
+  useRoute: () => ({ query: routeQuery }),
   useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
 }))
 vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ user: authUser }) }))
@@ -74,6 +75,7 @@ const globalStubs = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  Object.keys(routeQuery).forEach((key) => delete routeQuery[key])
   authUser.role = 'engineer'
   projectList.mockResolvedValue([{ id: 1, name: 'Core' }])
   memberList.mockResolvedValue([{ user_id: 8, username: 'qa', email: 'qa@example.com', role: 'editor', created_at: '2026-08-24T00:00:00Z' }])
@@ -98,6 +100,27 @@ describe('DefectListView', () => {
       page_size: 20,
     })
     expect(wrapper.text()).toContain('defect.title')
+    wrapper.unmount()
+  })
+
+  it('filters the list for a linked run without opening the create form', async () => {
+    routeQuery.run_type = 'performance'
+    routeQuery.run_id = '10'
+    routeQuery.view = 'linked'
+    const wrapper = mount(DefectListView, { global: { stubs: globalStubs } })
+    await flushPromises()
+
+    expect(defectList).toHaveBeenCalledWith({
+      project_id: undefined,
+      run_type: 'performance',
+      run_id: 10,
+      status: undefined,
+      priority: undefined,
+      severity: undefined,
+      page: 1,
+      page_size: 20,
+    })
+    expect((wrapper.vm as any).createOpen).toBe(false)
     wrapper.unmount()
   })
 

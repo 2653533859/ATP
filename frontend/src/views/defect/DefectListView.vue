@@ -316,6 +316,7 @@ const externalForm = reactive({
 })
 const contextRunType = ref<DefectRunType | undefined>(validRunType(route.query.run_type))
 const contextRunId = ref<number | undefined>(positiveInt(route.query.run_id))
+const linkedRunView = computed(() => route.query.view === 'linked')
 
 const createForm = reactive({
   title: '',
@@ -456,6 +457,8 @@ async function loadDefects() {
   try {
     const result = await defectApi.list({
       project_id: projectId.value,
+      run_type: linkedRunView.value ? contextRunType.value : undefined,
+      run_id: linkedRunView.value ? contextRunId.value : undefined,
       status: statusFilter.value,
       priority: priorityFilter.value,
       severity: severityFilter.value,
@@ -718,7 +721,8 @@ watch(() => route.query, (query) => {
   if (nextRunType && nextRunId && (nextRunType !== contextRunType.value || nextRunId !== contextRunId.value)) {
     contextRunType.value = nextRunType
     contextRunId.value = nextRunId
-    openCreate(true)
+    if (query.view === 'linked') void loadDefects()
+    else openCreate(true)
   }
 }, { deep: true })
 
@@ -726,7 +730,7 @@ onMounted(async () => {
   await loadProjects()
   await loadMembers()
   await loadDefects()
-  if (contextRunType.value && contextRunId.value) openCreate(true)
+  if (contextRunType.value && contextRunId.value && !linkedRunView.value) openCreate(true)
 })
 </script>
 
