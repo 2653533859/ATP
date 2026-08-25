@@ -356,6 +356,7 @@ async def run_mobile_special_perf(
     db: AsyncSession,
     run: MobileSpecialRun,
     cancel_check: Callable[[], bool] | None = None,
+    recorder: MobileRunEventRecorder | None = None,
 ) -> None:
     """执行一个 Android 性能专项任务"""
     task = run.task
@@ -374,7 +375,7 @@ async def run_mobile_special_perf(
     collect_incidents = config.get("collect_incidents", False) or capture_replay
     capture_on_incident = config.get("capture_on_incident", True)
     replay_seconds = _replay_window_seconds(config.get("replay_seconds", 30))
-    events = MobileRunEventRecorder(db, run.id)
+    events = recorder or MobileRunEventRecorder(db, run.id)
     await events.initialize()
 
     # 1. 校验输入

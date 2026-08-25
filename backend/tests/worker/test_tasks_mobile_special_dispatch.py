@@ -263,10 +263,12 @@ def test_run_task_routes_to_executor_by_type(monkeypatch, task_type, executor_na
     events = _events(monkeypatch)
     dispatched = []
     cancel_checks = []
+    recorders = []
 
     async def fake_executor(_db, run_obj, **kwargs):
         dispatched.append(run_obj.id)
         cancel_checks.append(kwargs.get("cancel_check"))
+        recorders.append(kwargs.get("recorder"))
 
     monkeypatch.setitem(
         sys.modules,
@@ -278,6 +280,7 @@ def test_run_task_routes_to_executor_by_type(monkeypatch, task_type, executor_na
 
     assert dispatched == [10]
     assert callable(cancel_checks[0])
+    assert isinstance(recorders[0], tms.MobileRunEventRecorder)
     # config 合并 + 设备解析落到 run 上
     assert run.config_snapshot["interval_seconds"] == 5
     assert run.device_id == 77 and run.app_package == "com.acme"
@@ -311,7 +314,7 @@ def test_run_task_resolves_device_serial_from_device(monkeypatch):
     _install_session(monkeypatch, db)
     _events(monkeypatch)
 
-    async def fake_executor(_db, _run):
+    async def fake_executor(_db, _run, **_kwargs):
         return None
 
     monkeypatch.setitem(

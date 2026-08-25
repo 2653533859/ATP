@@ -2330,3 +2330,15 @@ N5.2 验收口径：管理员/工程师能从统一入口定位可见配置，�
 - [x] 上传 APK 时自动解析二进制 `AndroidManifest.xml`，保存包名、版本名和版本号；解析失败仍允许手工填写。
 - [x] Android 用例和专项任务展示 APK 包名；专项任务选择 APK 后自动带出应用包名，手工输入可覆盖。
 - [x] 后端校验 APK 与任务属于同一项目，避免跨项目引用；相关 API、解析器和前端构建测试通过。
+
+## 2026-08-25 N2 Karing 单设备稳定性专项闭环（最新快照）
+
+> 本节覆盖并更新早期“专项任务/事件报告待验收”的历史记录；历史条目保留原状，当前执行口径以本节和 `docs/development-plan-2026-08-25.md` 为准。
+
+- [x] 修复 Monkey 输出采集与执行过程并发写入同一个 `AsyncSession` 导致的重叠提交；`MobileRunEventRecorder` 增加事件循环级写锁和串行 flush。
+- [x] 修复调度层与稳定性/性能/流畅度执行器分别创建记录器导致的重复事件序号；调度层把同一个记录器传入执行器和产物收尾路径。
+- [x] q19 受控依赖 + Windows Android Worker 真实执行 Karing：设备 `153 / 172.16.102.91:5555`、包名 `com.nebula.karing`，稳定性运行 `6` 与回放 `7` 均 `completed`，随机种子 `20260825` 保持一致。
+- [x] 回放运行 `7` 保存 78 条事件，序号 1～78 无重复；包含 Monkey 日志/动作、Crash、完成、设备 logcat 和 screenshot；JSON 报告与产物 URL 均返回 200。
+- [x] 临时项目 `50` 清理：删除 204、删除后查询 404、匹配项目 0；证据见 [`docs/evidence/android-karing-special-task-2026-08-25.json`](docs/evidence/android-karing-special-task-2026-08-25.json)。
+- [x] 代码审查与问题修复后，定向回归 82 项，后端非集成全量 2306 项，Ruff、格式检查和 `git diff --check` 通过。
+- [ ] N2 总体验收仍未完成：下一步验证同一 Worker/设备上的性能专项 CPU/内存/电池/网络样本与报告，再验证流畅度专项 FPS/jank 阶段采样。

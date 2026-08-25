@@ -1,5 +1,6 @@
 """Durable execution event journal for Android special-test runs."""
 
+import asyncio
 import json
 import re
 from datetime import datetime, timezone
@@ -87,8 +88,21 @@ class MobileRunEventRecorder:
         self.count = 0
         self.pending = 0
         self._initialized = False
+        # A Monkey run writes from the output-consumer task and the executor
+        # task at the same time.  AsyncSession does not allow overlapping
+        # commits, so serialize the recorder's append/flush operations.
+        self._write_lock: asyncio.Lock | None = None
+        self._write_lock_loop: asyncio.AbstractEventLoop | None = None
 
-    async def initialize(self) -> None:
+    def _get_write_lock(self) -> asyncio.Lock:
+        """Return a lock bound to the currently running event loop."""
+        loop = asyncio.get_running_loop()
+        if self._write_lock is None or self._write_lock_loop is not loop:
+            self._write_lock = asyncio.Lock()
+            self._write_lock_loop = loop
+        return self._write_lock
+
+    async def _initialize_unlocked(self) -> None:
         if self._initialized:
             return
         # Lightweight executor tests use a minimal DB double.  The real
@@ -105,6 +119,10 @@ class MobileRunEventRecorder:
         self.count = int(count or 0)
         self._initialized = True
 
+    async def initialize(self) -> None:
+        async with self._get_write_lock():
+            await self._initialize_unlocked()
+
     async def record(
         self,
         *,
@@ -118,32 +136,37 @@ class MobileRunEventRecorder:
         duration_ms: int | None = None,
         commit: bool = True,
     ) -> MobileRunEvent | None:
-        await self.initialize()
-        if self.count >= self.max_events:
-            return None
+        async with self._get_write_lock():
+            await self._initialize_unlocked()
+            if self.count >= self.max_events:
+                return None
 
-        self.sequence += 1
-        self.count += 1
-        self.pending += 1
-        event = MobileRunEvent(
-            run_id=self.run_id,
-            sequence=self.sequence,
-            event_time=datetime.now(timezone.utc),
-            event_type=event_type[:64],
-            phase=phase[:64] if phase else None,
-            action=action[:128] if action else None,
-            level=level[:16] if level else None,
-            message=_redact_value(message[:4000]) if message else None,
-            parameters_json=_json_object(parameters),
-            result_json=_json_object(result),
-            duration_ms=duration_ms,
-        )
-        self.db.add(event)
-        if commit or self.pending >= EVENT_FLUSH_BATCH_SIZE:
-            await self.flush()
-        return event
+            self.sequence += 1
+            self.count += 1
+            self.pending += 1
+            event = MobileRunEvent(
+                run_id=self.run_id,
+                sequence=self.sequence,
+                event_time=datetime.now(timezone.utc),
+                event_type=event_type[:64],
+                phase=phase[:64] if phase else None,
+                action=action[:128] if action else None,
+                level=level[:16] if level else None,
+                message=_redact_value(message[:4000]) if message else None,
+                parameters_json=_json_object(parameters),
+                result_json=_json_object(result),
+                duration_ms=duration_ms,
+            )
+            self.db.add(event)
+            if commit or self.pending >= EVENT_FLUSH_BATCH_SIZE:
+                await self._flush_unlocked()
+            return event
 
     async def flush(self) -> None:
+        async with self._get_write_lock():
+            await self._flush_unlocked()
+
+    async def _flush_unlocked(self) -> None:
         if self.pending:
             await self.db.commit()
             self.pending = 0

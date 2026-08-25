@@ -241,6 +241,7 @@ def run_mobile_special_task(self, run_id: int):
                     await run_mobile_special_perf(
                         db,
                         run,
+                        recorder=events,
                         cancel_check=lambda: is_cancel_requested(run_id, client=control_client),
                     )
                 elif task.task_type == TaskType.stability:
@@ -249,6 +250,7 @@ def run_mobile_special_task(self, run_id: int):
                     await run_mobile_special_stability(
                         db,
                         run,
+                        recorder=events,
                         cancel_check=lambda: is_cancel_requested(run_id, client=control_client),
                     )
                 elif task.task_type == TaskType.fluency:
@@ -257,6 +259,7 @@ def run_mobile_special_task(self, run_id: int):
                     await run_mobile_special_fluency(
                         db,
                         run,
+                        recorder=events,
                         cancel_check=lambda: is_cancel_requested(run_id, client=control_client),
                     )
                 else:

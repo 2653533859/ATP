@@ -240,6 +240,7 @@ async def run_mobile_special_stability(
     db: AsyncSession,
     run: MobileSpecialRun,
     cancel_check: Callable[[], bool] | None = None,
+    recorder: MobileRunEventRecorder | None = None,
 ) -> None:
     """执行一个 Android 稳定性专项任务（Monkey 探索模式）"""
     config = run.config_snapshot or {}
@@ -250,7 +251,7 @@ async def run_mobile_special_stability(
     duration_seconds = config.get("duration_seconds", 300)
     operation_interval_ms = config.get("operation_interval_ms", 500)
     seed = config.get("monkey_seed", 12345)
-    events = MobileRunEventRecorder(db, run.id)
+    events = recorder or MobileRunEventRecorder(db, run.id)
     await events.initialize()
 
     # 1. 校验输入

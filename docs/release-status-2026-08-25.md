@@ -4,7 +4,7 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
-> 当前计划登记（2.0.0）：导航已按工作台、测试能力、测试资产、智能中枢、系统五组统一，N0-N9 的范围与验收出口见开发计划 2.0.0。N2 Karing 包名、启动入口、Worker 前置、低代码和录屏回传已通过，当前继续验收异常回放、专项任务、Monkey/事件日志、操作时间线、报告详情和最终清理；随后推进 N4 真实性能环境、N5-N8 外部依赖复核和 N9 发布收口。N4 仍缺真实 Kubernetes/独立灾备 MinIO/生产 Prometheus，未关闭门禁继续按“待环境验收”处理。
+> 当前计划登记（2.0.0）：导航已按工作台、测试能力、测试资产、智能中枢、系统五组统一，N0-N9 的范围与验收出口见开发计划 2.0.0。N2 Karing 包名、启动入口、Worker 前置、低代码、录屏和稳定性/Monkey 事件报告闭环已通过，当前继续验收性能、流畅度专项后再收口 N2；随后推进 N4 真实性能环境、N5-N8 外部依赖复核和 N9 发布收口。N4 仍缺真实 Kubernetes/独立灾备 MinIO/生产 Prometheus，未关闭门禁继续按“待环境验收”处理。
 
 > 2026-08-25 N2 Karing 真机前置阶段已通过：设备 `172.16.102.91:5555` 安装并解析 `com.nebula.karing/.MainActivity`，Windows Android Worker、依赖 readiness、Worker registry 和设备扫描通过；后续低代码与录屏结果见最新 N2 记录。发布结论保持“不具备无条件发布资格”。脱敏证据见 [`android-karing-acceptance-2026-08-25.json`](evidence/android-karing-acceptance-2026-08-25.json) 与 [`windows-android-karing-worker-2026-08-25.json`](evidence/windows-android-karing-worker-2026-08-25.json)。
 
@@ -303,13 +303,21 @@ Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复
 - 这只完成本地分片校验，不代表真实 Kubernetes 多节点调度、生产 Prometheus/MinIO 生命周期或跨主机恢复已通过。
 - q19 已按 `ca79937` 重建并启动，迁移 `20260824_0065 (head)`、Backend `200`、Prometheus 4 targets `up`、Celery 2 节点 `pong`；重启后 Backend 无 enum/Traceback/ERROR。脱敏证据见 [`q19-performance-shard-deployment-2026-08-25.json`](evidence/q19-performance-shard-deployment-2026-08-25.json)。
 
+## 2026-08-25 N2 Karing 稳定性专项真实闭环（最新）
+
+- Windows Android Worker 已与当前 q19 受控 Backend 使用同一 Redis、数据库、MinIO 和注册前缀；`android-win-HPS` 在线，设备 `153 / 172.16.102.91:5555` 为 `online`，目标包名为 `com.nebula.karing`。
+- 稳定性运行 `6` 与回放运行 `7` 均为 `completed`，随机种子 `20260825` 保持一致；回放保存 78 条事件，序号 1～78 无重复，记录 Monkey 动作/日志、Crash、设备 logcat 和截图。
+- 运行详情 JSON 导出和 2 个产物 URL 均返回 200；临时项目 `50` 已删除并确认不存在。脱敏证据见 [`evidence/android-karing-special-task-2026-08-25.json`](evidence/android-karing-special-task-2026-08-25.json)。
+- 真实运行先暴露并发提交缺陷，代码审查再发现多记录器序号重复；已完成写锁串行化和共享记录器修复。定向回归 `82 passed`，后端非集成全量 `2306 passed`，Ruff、格式、差异检查通过。
+- **发布边界**：这只关闭 N2 的稳定性/Monkey、事件时间线、Crash、设备日志/截图、报告导出和清理证据；性能专项、流畅度专项以及 N2 总体验收仍未关闭，不能以本项替代。
+
 ## 能力与证据索引
 
 | 能力域 | 当前结论 | 主要证据 | 未关闭边界 |
 |---|---|---|---|
 | Windows API/Web | 当前账号下完整 smoke 已重新通过；N1 受控协议与报告闭环已补齐，生产协议和外部环境仍按各自门禁独立跟踪 | [`windows-full-readiness-2026-08-25.json`](evidence/windows-full-readiness-2026-08-25.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)、[`api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json)、[`report-closure-2026-08-25.json`](evidence/report-closure-2026-08-25.json) | 生产协议服务、生产对象存储和发布环境仍需验收 |
 | Web Worker/录制 | q19 持久 Worker、Chromium/Firefox/WebKit 录制和跨 API 停止快照已验证 | [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json) | Linux/Xvfb、跨副本和目标部署拓扑仍需独立复验 |
-| Android | 代码、配置配对、Worker registry、扫描回调、租约控制和 APK 选择传递已完成；真实 APK 上传和设备执行仍待验收 | [`android-worker-scan-2026-08-25.json`](evidence/android-worker-scan-2026-08-25.json)、[`android-control-lease-2026-08-25.json`](evidence/android-control-lease-2026-08-25.json)、[`android-apk-selection-2026-08-25.json`](evidence/android-apk-selection-2026-08-25.json) | 继续完成真实 APK 包名识别、低代码、录屏、专项任务和事件/报告回传 |
+| Android | Karing 包名、配置配对、Worker registry、扫描、租约、低代码、录屏和稳定性/Monkey 事件/报告回传已验证 | [`android-karing-acceptance-2026-08-25.json`](evidence/android-karing-acceptance-2026-08-25.json)、[`android-karing-special-task-2026-08-25.json`](evidence/android-karing-special-task-2026-08-25.json) | 继续完成性能专项、流畅度专项和 N2 总体验收 |
 | 性能 | P1-E.1～P1-E.4 本地闭环完成，q19 已按最新提交重建 | [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)、[`performance-shard-capacity-2026-08-25.json`](evidence/performance-shard-capacity-2026-08-25.json)、[`q19-performance-shard-deployment-2026-08-25.json`](evidence/q19-performance-shard-deployment-2026-08-25.json) | 真实 Kubernetes 多节点、生产 Prometheus、MinIO 生命周期和跨主机恢复 |
 | 通知 | 本地 SMTP 链路已验证 | [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json) | 真实供应商送达、重试、限流和重复投递 |
 | 外部缺陷平台 | 本地适配器和脱敏逻辑已实现 | [`docs/capability-baseline-2026-08-07.md`](capability-baseline-2026-08-07.md) | 临时项目、权限、创建/去重/状态同步和清理 |
@@ -324,7 +332,7 @@ Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复
 ## 发布前复验顺序
 
 1. 在 Windows 上使用当前有效账号重跑完整 API/Web smoke，并记录同一提交 SHA。
-2. 先统一 Windows Agent 与 q19 Backend 的 Redis 实例、DB 和注册前缀，确认 `/devices/workers` 能看到在线 Worker；再执行 `scripts/windows-android-acceptance.ps1` 并完成 Android 单设备链路，任何 `offline`、`unauthorized`、无 Worker 或无设备结果都保持阻塞。
+2. 已完成 Windows Agent 与 q19 Backend 的 Redis 实例、DB 和注册前缀配对，并确认 `/devices/workers` 在线；下一步在同一设备执行性能/流畅度专项，任何 `offline`、`unauthorized`、无 Worker 或无设备结果都保持阻塞。
 3. 在目标 Linux/Kubernetes 环境执行 `scripts/performance-environment-smoke.py`，补齐真实节点、目标服务、Prometheus、取消和资源采样证据。
 4. 注入不落库的临时通知供应商凭据，按渠道取得供应商侧送达回执后清理目标和凭据。
 5. 使用临时外部缺陷项目验证创建、重复识别、状态同步、权限、错误脱敏和清理。

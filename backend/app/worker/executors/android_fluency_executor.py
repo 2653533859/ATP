@@ -121,6 +121,7 @@ async def run_mobile_special_fluency(
     db: AsyncSession,
     run: MobileSpecialRun,
     cancel_check: Callable[[], bool] | None = None,
+    recorder: MobileRunEventRecorder | None = None,
 ) -> None:
     """执行一个 Android 流畅度专项任务"""
     config = run.config_snapshot or {}
@@ -128,7 +129,7 @@ async def run_mobile_special_fluency(
     device_serial = config.get("device_serial") or run.device_serial
     app_package = config.get("app_package") or run.app_package
     stages = config.get("stages", [])
-    events = MobileRunEventRecorder(db, run.id)
+    events = recorder or MobileRunEventRecorder(db, run.id)
     await events.initialize()
 
     # 1. 校验输入
