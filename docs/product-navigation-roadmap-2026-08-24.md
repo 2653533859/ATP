@@ -9,6 +9,8 @@
 
 > 最新进度：API 工作台已在 q19 受控 HTTP 目标完成最小真实执行、显式会话复用、gRPC TLS Unary 执行、OpenAPI/Postman 解析及导入预览/落库/回读/清理；报告中心新增按用例类型的本地统计展示。证据见 [`evidence/api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`evidence/api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`evidence/api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`evidence/api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json) 与 [`evidence/api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)，不替代生产 API、GraphQL/WebSocket/流式 gRPC 或完整报告验收。
 
+> 2026-08-25 N1 前端保存边界已补齐：GraphQL、WebSocket、gRPC 用例在 `CaseFormDrawer` 发起创建/更新请求前检查必填配置，空格和空消息会使用既有中英文提示直接返回；纯函数回归 `8 passed`，前端全量 `66 files / 272 tests passed`，类型检查、生产构建和差异检查通过。该项只改善本地反馈，不替代后端校验和真实多协议/完整报告环境验收。
+
 ## 0.1 导航对齐执行版计划（2026-08-24）
 
 这份执行版把参考导航拆成可交付模块，作为后续开发和验收的跟踪口径。导航入口已经完成的模块不重复造执行器，只补齐“配置 → 执行 → 过程 → 报告/证据”闭环以及真实环境证据。

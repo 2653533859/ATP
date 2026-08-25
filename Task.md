@@ -40,6 +40,13 @@
 - [x] 修复报告对比选择边界：默认选择最近一组同用例运行，切换任一侧时自动对齐另一侧的同用例记录，前端在调用前校验同一项目用例约束。
 - [x] 报告页回归 `4 passed`，前端全量 `66 files / 270 tests passed`，type-check、生产构建和差异检查通过；真实多协议和完整报告环境证据仍保持 `[E]` 待验收。
 
+### 2026-08-25 N1 协议用例前端保存校验
+
+- [x] 抽取 GraphQL、WebSocket、gRPC 保存前必填校验纯函数，统一检查空字符串/空格、消息数组和 target/proto/service/method，并复用既有中英文提示。
+- [x] `CaseFormDrawer` 在发起创建/更新请求前执行校验；后端 `422` 仍是最终防线，未知或 API 用例不受协议校验影响。
+- [x] 工具函数回归 `8 passed`；前端全量 `66 files / 272 tests passed`，`vue-tsc`、生产构建和 `git diff --check` 通过；独立代码审查未发现可操作问题。
+- [E] 本项只改善本地保存反馈，不关闭 GraphQL/WebSocket/流式 gRPC 真实目标和完整报告环境验收。
+
 ### 2026-08-25 N0/N3 Windows smoke 当前账号边界
 
 - [x] Windows smoke 默认只读取当前账号 `ATP_USERNAME/ATP_PASSWORD`，不再自动回退或混用 `FIRST_ADMIN_*`；新数据库初始化验证必须显式传入 `-UseBootstrapCredentials`。

@@ -958,6 +958,7 @@ import { apiSchemaAssetApi, caseApi, datasetApi, type ApiSchemaAssetItem } from 
 import type { CaseDetailItem, CaseLevel, CasePriority, CaseSavePayload, CaseSummaryItem, CaseType } from '@/api'
 import {
   getFirstStep,
+  getProtocolConfigError,
   normalizeWsMessage,
   parseFormBody,
   parseGraphqlVariables,
@@ -1771,19 +1772,19 @@ async function handleSave() {
       return
     }
   }
-  if (form.case_type === 'graphql') {
-    if (!gqlCfg.endpoint) { message.warning(t('case_form.msg.graphql_endpoint_required')); return }
-    if (!gqlCfg.query.trim()) { message.warning(t('case_form.msg.graphql_query_required')); return }
-  }
-  if (form.case_type === 'websocket') {
-    if (!wsCfg.url) { message.warning(t('case_form.msg.ws_url_required')); return }
-    if (wsCfg.messages.length === 0) { message.warning(t('case_form.msg.ws_messages_required')); return }
-  }
-  if (form.case_type === 'grpc') {
-    if (!grpcCfg.target) { message.warning(t('case_form.msg.grpc_target_required')); return }
-    if (!grpcCfg.proto_content.trim()) { message.warning(t('case_form.msg.grpc_proto_required')); return }
-    if (!grpcCfg.service) { message.warning(t('case_form.msg.grpc_service_required')); return }
-    if (!grpcCfg.method) { message.warning(t('case_form.msg.grpc_method_required')); return }
+  const protocolError = getProtocolConfigError(form.case_type, {
+    endpoint: gqlCfg.endpoint,
+    query: gqlCfg.query,
+    url: wsCfg.url,
+    messages: wsCfg.messages,
+    target: grpcCfg.target,
+    proto_content: grpcCfg.proto_content,
+    service: grpcCfg.service,
+    method: grpcCfg.method,
+  })
+  if (protocolError) {
+    message.warning(t(`case_form.msg.${protocolError}`))
+    return
   }
   let config: Record<string, unknown>
   try {

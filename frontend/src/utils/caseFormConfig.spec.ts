@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   asStringMap,
   getFirstStep,
+  getProtocolConfigError,
   isRecord,
   normalizeWsMessage,
   parseFormBody,
@@ -48,6 +49,36 @@ describe('case form config helpers', () => {
     expect(parseGraphqlVariables('')).toEqual({})
     expect(parseGraphqlVariables('   ')).toEqual({})
     expect(parseGraphqlVariables('{bad')).toEqual({})
+  })
+
+  it('validates required graphql, websocket, and grpc config fields', () => {
+    expect(getProtocolConfigError('graphql', {})).toBe('graphql_endpoint_required')
+    expect(getProtocolConfigError('graphql', { endpoint: '/graphql', query: '  ' })).toBe('graphql_query_required')
+    expect(getProtocolConfigError('graphql', { endpoint: '/graphql', query: ' query { health } ' })).toBeNull()
+
+    expect(getProtocolConfigError('websocket', {})).toBe('ws_url_required')
+    expect(getProtocolConfigError('websocket', { url: 'ws://localhost' })).toBe('ws_messages_required')
+    expect(getProtocolConfigError('websocket', { url: 'ws://localhost', messages: [{}] })).toBeNull()
+
+    expect(getProtocolConfigError('grpc', {})).toBe('grpc_target_required')
+    expect(getProtocolConfigError('grpc', { target: 'localhost:50051' })).toBe('grpc_proto_required')
+    expect(getProtocolConfigError('grpc', { target: 'localhost:50051', proto_content: 'syntax = "proto3";' })).toBe('grpc_service_required')
+    expect(getProtocolConfigError('grpc', {
+      target: 'localhost:50051',
+      proto_content: 'syntax = "proto3";',
+      service: 'Health',
+    })).toBe('grpc_method_required')
+    expect(getProtocolConfigError('grpc', {
+      target: 'localhost:50051',
+      proto_content: 'syntax = "proto3";',
+      service: 'Health',
+      method: 'Check',
+    })).toBeNull()
+  })
+
+  it('ignores protocol validation for other case types', () => {
+    expect(getProtocolConfigError('api', {})).toBeNull()
+    expect(getProtocolConfigError('unknown', { messages: [] })).toBeNull()
   })
 
   it('normalizes websocket messages by action', () => {

@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 N1 协议用例前端保存校验已完成：新增纯函数统一检查 GraphQL endpoint/query、WebSocket url/messages、gRPC target/proto/service/method，空字符串/空格和空消息数组在 `CaseFormDrawer` 创建/更新请求前复用中英文提示；API/其他用例不受影响，后端 `422` 仍为最终防线。工具函数回归 `8 passed`，前端全量 `66 files / 272 tests passed`，`vue-tsc`、生产构建和 `git diff --check` 通过，独立代码审查未发现问题。该项不替代真实 GraphQL/WebSocket/流式 gRPC 和完整报告环境验收；下一执行游标仍为 Karing Android 单设备闭环 → Windows API/Web 复核。
+
 - 2026-08-25 API OpenAPI/Postman 导入解析加固：提交 `75ed756` 保留 OpenAPI 参数/请求体/响应体中的 `0/false` 等合法假值，解析 Postman 字符串 URL 查询参数和 urlencoded/formdata 请求体，并跳过 disabled 查询项/请求头。q19 按该提交重建后，`/api/v1/ai/cases/parse-schema` 的 OpenAPI/Postman 真实请求均返回 `200`，分别解析 `1/1`、`1/3`（接口/参数）；本地 API 生成相关回归 `38 passed`，脱敏证据为 `docs/evidence/api-import-parser-2026-08-25.json`。导入预览/落库闭环见下一条；GraphQL/WebSocket/流式 gRPC、生产目标和完整报告仍待验收。
 
 - 2026-08-25 API 导入预览/落库闭环：提交 `a8f6e26` 在 q19 完成 OpenAPI 解析（保留成功响应码 `201`）→导入预览 `valid=1/invalid=0`→用例落库 `201`→回读断言与步骤预期→临时项目删除 `204`。验收发现导入读取 `Module.project` 的异步懒加载会触发 `MissingGreenlet` 500，已改为预加载项目关系并补回归测试；定向 `42 passed`，后端非集成全量 `2270 passed`，Ruff/diff-check 通过。脱敏证据为 `docs/evidence/api-import-persistence-2026-08-25.json`；其他协议和完整报告仍待验收。

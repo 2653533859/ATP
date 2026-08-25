@@ -60,6 +60,53 @@ export function parseGraphqlVariables(variablesText: string): unknown {
   }
 }
 
+export type ProtocolConfigError =
+  | 'graphql_endpoint_required'
+  | 'graphql_query_required'
+  | 'ws_url_required'
+  | 'ws_messages_required'
+  | 'grpc_target_required'
+  | 'grpc_proto_required'
+  | 'grpc_service_required'
+  | 'grpc_method_required'
+
+export interface ProtocolConfigInput {
+  endpoint?: unknown
+  query?: unknown
+  url?: unknown
+  messages?: unknown
+  target?: unknown
+  proto_content?: unknown
+  service?: unknown
+  method?: unknown
+}
+
+function hasText(value: unknown): boolean {
+  return typeof value === 'string' && value.trim().length > 0
+}
+
+/** 协议用例保存前的必填项校验；后端仍会执行同等校验。 */
+export function getProtocolConfigError(
+  caseType: string,
+  config: ProtocolConfigInput,
+): ProtocolConfigError | null {
+  if (caseType === 'graphql') {
+    if (!hasText(config.endpoint)) return 'graphql_endpoint_required'
+    if (!hasText(config.query)) return 'graphql_query_required'
+  }
+  if (caseType === 'websocket') {
+    if (!hasText(config.url)) return 'ws_url_required'
+    if (!Array.isArray(config.messages) || config.messages.length === 0) return 'ws_messages_required'
+  }
+  if (caseType === 'grpc') {
+    if (!hasText(config.target)) return 'grpc_target_required'
+    if (!hasText(config.proto_content)) return 'grpc_proto_required'
+    if (!hasText(config.service)) return 'grpc_service_required'
+    if (!hasText(config.method)) return 'grpc_method_required'
+  }
+  return null
+}
+
 export interface WsMessageInput {
   action: string
   data?: string
