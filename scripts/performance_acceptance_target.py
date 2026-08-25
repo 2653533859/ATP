@@ -10,13 +10,17 @@ environment; the script never generates or logs private keys.
 from __future__ import annotations
 
 import argparse
+import base64
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 import json
 from pathlib import Path
 import signal
+import struct
 import threading
 from typing import Any
+from urllib.parse import urlsplit
 
 import grpc
 from google.protobuf import descriptor_pb2, descriptor_pool, message_factory
@@ -127,25 +131,153 @@ def build_grpc_server(bind: str, port: int, *, certificate: Path | None = None, 
 
 
 class _HttpHandler(BaseHTTPRequestHandler):
-    server_version = "ATP-Performance-Target/1.0"
+    protocol_version = "HTTP/1.1"
+    server_version = "ATP-Performance-Target/1.1"
+    _MAX_HTTP_BODY_BYTES = 1024 * 1024
+    _WEBSOCKET_GUID = "258EAFA5-E914-47DA-95CA-C5AB0DC85B11"
 
     def do_GET(self) -> None:  # noqa: N802 - stdlib handler API
-        if self.path not in {"/", "/healthz", "/api/hello"}:
+        path = urlsplit(self.path).path
+        if path == "/ws" and self.headers.get("Upgrade", "").lower() == "websocket":
+            self._serve_websocket()
+            return
+        if path not in {"/", "/healthz", "/api/hello"}:
             self.send_error(404)
             return
-        body = json.dumps({"status": "ok", "service": "atp-performance-target"}).encode("utf-8")
-        self.send_response(200)
+        self._send_json(200, {"status": "ok", "service": "atp-performance-target"})
+
+    def do_POST(self) -> None:  # noqa: N802 - stdlib handler API
+        if urlsplit(self.path).path != "/graphql":
+            self.send_error(404)
+            return
+        try:
+            content_length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            self._send_json(400, {"errors": [{"message": "invalid content length"}]})
+            return
+        if content_length < 0 or content_length > self._MAX_HTTP_BODY_BYTES:
+            self._send_json(413, {"errors": [{"message": "request body too large"}]})
+            return
+        try:
+            raw_body = self.rfile.read(content_length)
+            request = json.loads(raw_body.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            self._send_json(400, {"errors": [{"message": "request body must be JSON"}]})
+            return
+        if not isinstance(request, dict) or not isinstance(request.get("query"), str) or not request["query"].strip():
+            self._send_json(400, {"errors": [{"message": "query is required"}]})
+            return
+
+        variables = request.get("variables")
+        if not isinstance(variables, dict):
+            variables = {}
+        name = str(variables.get("name") or "ATP")
+        data: dict[str, Any] = {
+            "hello": f"hello {name}",
+            "service": "atp-graphql-target",
+            "echo": variables,
+        }
+        if "viewer" in request["query"]:
+            data["viewer"] = {"name": "ATP", "role": "acceptance"}
+        self._send_json(200, {"data": data})
+
+    def _send_json(self, status: int, payload: dict[str, Any]) -> None:
+        body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def _serve_websocket(self) -> None:
+        key = self.headers.get("Sec-WebSocket-Key")
+        if not key:
+            self.send_error(400, "missing websocket key")
+            return
+        accept = base64.b64encode(hashlib.sha1((key + self._WEBSOCKET_GUID).encode("ascii")).digest()).decode("ascii")
+        self.send_response_only(101, "Switching Protocols")
+        self.send_header("Upgrade", "websocket")
+        self.send_header("Connection", "Upgrade")
+        self.send_header("Sec-WebSocket-Accept", accept)
+        self.end_headers()
+        self.connection.settimeout(30)
+        try:
+            while True:
+                frame = self._read_websocket_frame()
+                if frame is None:
+                    return
+                opcode, payload = frame
+                if opcode == 0x8:  # close
+                    self._write_websocket_frame(0x8, payload[:125])
+                    return
+                if opcode == 0x9:  # ping
+                    self._write_websocket_frame(0xA, payload)
+                    continue
+                if opcode != 0x1:  # only text frames are needed by the acceptance executor
+                    self._write_websocket_frame(0x8, b"\x03\xeaunsupported frame")
+                    return
+                try:
+                    decoded: Any = json.loads(payload.decode("utf-8"))
+                except (UnicodeDecodeError, json.JSONDecodeError):
+                    decoded = payload.decode("utf-8", errors="replace")
+                response = {
+                    "ok": True,
+                    "service": "atp-websocket-target",
+                    "echo": decoded,
+                }
+                self._write_websocket_frame(0x1, json.dumps(response, ensure_ascii=False).encode("utf-8"))
+        except (ConnectionError, OSError, TimeoutError):
+            return
+        finally:
+            self.close_connection = True
+
+    def _read_websocket_frame(self) -> tuple[int, bytes] | None:
+        header = self._read_exact(2)
+        if not header:
+            return None
+        first, second = header
+        if not first & 0x80:
+            self._write_websocket_frame(0x8, b"\x03\xeafragmentation unsupported")
+            return None
+        opcode = first & 0x0F
+        masked = bool(second & 0x80)
+        length = second & 0x7F
+        if length == 126:
+            length = struct.unpack("!H", self._read_exact(2))[0]
+        elif length == 127:
+            length = struct.unpack("!Q", self._read_exact(8))[0]
+        if length > self._MAX_HTTP_BODY_BYTES or not masked:
+            self._write_websocket_frame(0x8, b"\x03\xeainvalid frame")
+            return None
+        mask = self._read_exact(4)
+        payload = self._read_exact(length)
+        return opcode, bytes(value ^ mask[index % 4] for index, value in enumerate(payload))
+
+    def _read_exact(self, length: int) -> bytes:
+        data = self.rfile.read(length)
+        if len(data) != length:
+            raise ConnectionError("incomplete websocket frame")
+        return data
+
+    def _write_websocket_frame(self, opcode: int, payload: bytes) -> None:
+        length = len(payload)
+        if length < 126:
+            header = bytes([0x80 | opcode, length])
+        elif length <= 0xFFFF:
+            header = bytes([0x80 | opcode, 126]) + struct.pack("!H", length)
+        else:
+            header = bytes([0x80 | opcode, 127]) + struct.pack("!Q", length)
+        self.wfile.write(header + payload)
+        self.wfile.flush()
 
     def log_message(self, _format: str, *_args: Any) -> None:
         return
 
 
 def build_http_server(bind: str, port: int) -> ThreadingHTTPServer:
-    return ThreadingHTTPServer((bind, port), _HttpHandler)
+    server = ThreadingHTTPServer((bind, port), _HttpHandler)
+    server.daemon_threads = True
+    return server
 
 
 def build_parser() -> argparse.ArgumentParser:
