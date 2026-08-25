@@ -109,7 +109,11 @@
         </a-form-item>
 
         <a-form-item :label="t('mobile_special.form.app_package')">
-          <a-input v-model:value="form.app_package" :placeholder="t('mobile_special.form.app_package_placeholder')" />
+          <a-input
+            v-model:value="form.app_package"
+            :placeholder="t('mobile_special.form.app_package_placeholder')"
+            :disabled="Boolean(form.apk_id && selectedApkPackage)"
+          />
           <span class="form-hint">{{ t('mobile_special.form.app_package_hint') }}</span>
         </a-form-item>
 
@@ -242,6 +246,7 @@ import {
   type SourceType,
   type DeviceScopeType,
 } from '@/api'
+import { buildMobileApkOptions, findMobileApkPackage, type MobileApkOption } from '@/utils/mobileSpecialForm'
 
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asTask = (record: unknown) => record as MobileSpecialTaskItem
@@ -254,10 +259,7 @@ type SelectOption<T extends string | number> = {
   value: T
 }
 
-type ApkOption = SelectOption<number> & {
-  packageName?: string | null
-  filename: string
-}
+type ApkOption = SelectOption<number> & MobileApkOption
 
 type TaskForm = {
   name: string
@@ -369,6 +371,7 @@ const form = ref<TaskForm>({
   config_operation_interval: 500,
   config_stages: '',
 })
+const selectedApkPackage = computed(() => findMobileApkPackage(apkOptions.value, form.value.apk_id))
 
 onMounted(async () => {
   try {
@@ -399,21 +402,14 @@ async function loadApks() {
   try {
     apkOptions.value = []
     const apks = await apkApi.list({ project_id: selectedProjectId.value })
-    apkOptions.value = apks.map((a) => ({
-      label: a.package_name ? `${a.package_name} · ${a.filename}` : a.filename,
-      value: a.id,
-      packageName: a.package_name,
-      filename: a.filename,
-    }))
+    apkOptions.value = buildMobileApkOptions(apks)
   } catch {}
 }
 
 function handleApkChange(apkId: unknown) {
-  if (typeof apkId !== 'number') return
-  const selected = apkOptions.value.find((apk) => apk.value === apkId)
-  if (selected?.packageName) {
-    form.value.app_package = selected.packageName
-  }
+  form.value.app_package = typeof apkId === 'number'
+    ? findMobileApkPackage(apkOptions.value, apkId)
+    : ''
 }
 
 async function loadTasks() {

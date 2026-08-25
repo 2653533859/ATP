@@ -3932,7 +3932,7 @@ export default {
       select_apk: '选择 APK',
       app_package: '应用包名',
       app_package_placeholder: '如 com.example.app',
-      app_package_hint: '选择 APK 后会自动带出包名，也可以手动修改。',
+      app_package_hint: '选择 APK 后自动绑定已解析的包名；未选择 APK 时可手动填写。',
       standard_setup: '标准安装与启动步骤',
       install_apk: '执行前安装 APK',
       uninstall_before: '执行前卸载旧版本',

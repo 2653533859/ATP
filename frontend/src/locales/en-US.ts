@@ -3928,7 +3928,7 @@ export default {
       select_apk: 'Select APK',
       app_package: 'App package',
       app_package_placeholder: 'e.g. com.example.app',
-      app_package_hint: 'Selecting an APK fills this value automatically; manual input can override it.',
+      app_package_hint: 'Selecting an APK binds its parsed package name; enter one manually only without an APK.',
       standard_setup: 'Standard install and launch steps',
       install_apk: 'Install APK before run',
       uninstall_before: 'Uninstall old app before run',

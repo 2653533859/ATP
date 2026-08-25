@@ -47,6 +47,12 @@
 - [x] 工具函数回归 `8 passed`；前端全量 `66 files / 272 tests passed`，`vue-tsc`、生产构建和 `git diff --check` 通过；独立代码审查未发现可操作问题。
 - [E] 本项只改善本地保存反馈，不关闭 GraphQL/WebSocket/流式 gRPC 真实目标和完整报告环境验收。
 
+### 2026-08-25 P0-B.3.1 Android 专项 APK 选择体验
+
+- [x] 专项任务只展示已解析包名的 APK；选择后自动绑定并锁定包名输入，清空 APK 时同步清空包名；未选择 APK 时仍可手工填写。
+- [x] 中英文提示与后端包名不可覆盖规则一致；工具函数回归 `2 passed`，前端全量 `67 files / 274 tests passed`，`vue-tsc`、生产构建和 `git diff --check` 通过。
+- [x] 独立代码审查未发现可操作问题；真实 Karing APK、设备执行、专项任务和完整报告仍保持环境验收边界。
+
 ### 2026-08-25 N0/N3 Windows smoke 当前账号边界
 
 - [x] Windows smoke 默认只读取当前账号 `ATP_USERNAME/ATP_PASSWORD`，不再自动回退或混用 `FIRST_ADMIN_*`；新数据库初始化验证必须显式传入 `-UseBootstrapCredentials`。
