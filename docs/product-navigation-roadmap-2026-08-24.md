@@ -7,7 +7,7 @@
 
 > 当前执行版：[`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 汇总本轮五组导航、模块台账、下一步顺序、风险解除条件和状态口径；本文件继续保存完整历史方案与实施记录。
 
-> 最新进度：API 工作台已在 q19 受控目标完成 HTTP、显式会话复用、gRPC TLS Unary、GraphQL、WebSocket、三种流式 gRPC、OpenAPI/Postman 解析及导入预览/落库/回读/清理；报告中心已有按用例类型的本地统计展示。协议目标证据见 [`evidence/api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json)，不替代完整报告、生产协议服务或外部环境验收。
+> 最新进度：API 工作台已在 q19 受控目标完成 HTTP、显式会话复用、gRPC TLS Unary、GraphQL、WebSocket、三种流式 gRPC、OpenAPI/Postman 解析及导入预览/落库/回读/清理；运行详情可导出 HTML/JUnit/PDF，报告中心已有按用例类型的本地统计展示。证据见 [`evidence/api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json) 与 [`evidence/report-closure-2026-08-25.json`](evidence/report-closure-2026-08-25.json)，不替代生产协议服务、生产对象存储或外部环境验收。
 
 > 2026-08-25 N1 前端保存边界已补齐：GraphQL、WebSocket、gRPC 用例在 `CaseFormDrawer` 发起创建/更新请求前检查必填配置，空格和空消息会使用既有中英文提示直接返回；纯函数回归 `8 passed`，前端全量 `66 files / 272 tests passed`，类型检查、生产构建和差异检查通过。该项只改善本地反馈，不替代后端校验和真实多协议/完整报告环境验收。
 
@@ -67,7 +67,7 @@
 | --- | --- | --- | --- | --- |
 | 1 | 导航壳与工作台 | 复核侧栏折叠/刷新/窄屏、中文/英文文案、深层路由选中、旧 URL 映射和动态徽标 | 每个入口可打开；刷新与深链不丢项目上下文；权限隐藏和面包屑一致 | `[E]` 本地回归完成，随真实账号复核 |
 | 2 | 工作台与任务中心 | 用当前有效账号验证待办、任务队列、轮询、重试、终止和批量操作 | 五类任务均能查询；越权操作拒绝；失败原因和操作事件可追踪 | `[E]` 本地完成，Windows API/Web smoke 仍需复跑 |
-| 3 | API 测试工作台 | 用真实项目验证环境变量、认证复用、OpenAPI/Postman 导入及 HTTP/GraphQL/WebSocket/gRPC 执行 | 请求、断言、变量提取、依赖传递和报告证据完整 | `[~]` q19 协议目标和导入链路已通过；完整报告仍待验收 |
+| 3 | API 测试工作台 | 用真实项目验证环境变量、认证复用、OpenAPI/Postman 导入及 HTTP/GraphQL/WebSocket/gRPC 执行 | 请求、断言、变量提取、依赖传递和报告证据完整 | `[E]` q19 协议目标、导入链路和 HTML/JUnit/PDF 报告已通过；生产环境独立跟踪 |
 | 4 | APP 自动化工作台 | 先配对 Windows Android Worker 与 q19 Backend 的 Redis 注册通道，再验证设备扫描、租约、截图、APK 包名、低代码和专项任务 | 单设备执行、日志/截图/录屏/结果回传完整；设备冲突可解释 | `[~]` ADB 基础检查通过，但 `/devices/workers` 尚未看到在线 Worker |
 | 5 | UI 自动化工作台 | 复核 Playwright 登录、录制、元素/页面对象/视觉基线、Trace/HAR/网络日志和多浏览器链路 | Chromium/Firefox/WebKit 均能录制、停止、回放并查看失败证据 | `[E]` q19 证据已有，Windows 最新 smoke 需用当前有效账号复跑 |
 | 6 | 性能测试工作台 | 补多节点容量、资源限制、生产 Prometheus/MinIO 生命周期、跨主机恢复和长期趋势治理 | 压测执行、采样、基线门禁、趋势、保留清理和报告可复核 | `[~]` 本地趋势/门禁/保留清理完成，生产多节点仍待验收 |
@@ -87,7 +87,7 @@
 | 台账项 | 对应导航 | 本轮交付内容 | 必须留下的验收证据 | 当前状态 |
 | --- | --- | --- | --- | --- |
 | A1 | 工作台 / 任务中心 | 用当前有效账号验证项目筛选、待办聚合、轮询、重试、终止、批量操作和失败事件 | 页面深链、角色边界、操作事件、失败原因和 q19 日志无新增错误 | `[E]` 本地完成，真实账号链路随 P0-A smoke 已复核 |
-| A2 | 接口测试 | 验证环境变量、认证复用、OpenAPI/Postman 导入、HTTP/GraphQL/WebSocket/gRPC 最小执行 | 请求、断言、变量提取、依赖传递、报告和权限边界 | `[~]` q19 已通过 HTTP、会话复用、gRPC TLS Unary、GraphQL、WebSocket、流式 gRPC、导入解析和导入预览/落库；完整报告待验收 |
+| A2 | 接口测试 | 验证环境变量、认证复用、OpenAPI/Postman 导入、HTTP/GraphQL/WebSocket/gRPC 最小执行 | 请求、断言、变量提取、依赖传递、报告和权限边界 | `[E]` q19 已通过 HTTP、会话复用、gRPC TLS Unary、GraphQL、WebSocket、流式 gRPC、导入解析、导入预览/落库和 HTML/JUnit/PDF 报告；生产环境独立跟踪 |
 | A3 | APP 自动化 | Redis/DB/注册前缀已配对并确认 Worker 在线；扫描、租约绑定控制、通用 APK 上传/包名识别、低代码、录屏和设备产物回传已通过，继续验证 Karing 专项任务和完整报告 | Worker 在线记录、目标设备、租约冲突、APK ID/包名快照、每个阶段事件、结果/日志/媒体和设备冲突说明 | `[~]` 通用 APK 链路已通过；Karing 专项动作、APK 下载端点和完整报告闭环仍待验收 |
 | A4 | UI 自动化 | 复核录制、元素库、页面对象、视觉基线、回放、Trace/HAR/Console/网络日志和多浏览器 | Chromium/Firefox/WebKit 的录制、停止、回放、失败证据和报告链接 | `[E]` q19/本地证据与 Windows 最新 smoke 已形成 |
 | A5 | 性能测试 | 补生产多节点调度、容量限制、Prometheus/MinIO 生命周期、跨主机恢复和长期趋势治理 | 节点分片、资源采样、基线门禁、趋势、清理、报告和恢复演练 | `[~]` 本地 P1-E.1～P1-E.4 完成，生产环境待验收 |
@@ -131,7 +131,7 @@
 
 1. 继续 P0-B.3：按“真实 APK 上传/包名 → 低代码 → 录屏 → 专项任务 → 报告”顺序逐项验收；当前设备是否安装 Karing 必须以包管理结果为准。
 2. 保持 q19 Beat 受控停用，直到单设备执行闭环需要调度维护任务；恢复前确认队列没有历史积压。
-3. Windows API/Web 完整 smoke 已复核通过；在 Karing 真机条件具备前，继续 N1 完整报告真实证据，再按 P1-C、P1-D、P1-E 的顺序补真实外部环境证据。
+3. Windows API/Web 和 N1 受控 API/报告闭环已复核通过；在 Karing 真机条件具备前，下一执行入口转为 N4 性能真实环境，再按 P1-C、P1-D、P1-E 的顺序补真实外部环境证据。
 4. 每个模块均执行“实现/调整 → 定向测试 → 全量质量门禁 → 代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 推送”；任何失败只记录为阻塞，不改写为完成。
 
 ### 证据与风险口径

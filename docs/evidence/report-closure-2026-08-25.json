@@ -1,0 +1,31 @@
+{
+  "evidence_type": "api_report_closure_readiness",
+  "date": "2026-08-25",
+  "status": "passed",
+  "source_commit": "86f3bf7",
+  "environment": "q19 isolated compose acceptance stack",
+  "workflow": {
+    "temporary_project_id": 42,
+    "temporary_case_id": 27,
+    "temporary_run_id": 26,
+    "run_status": "passed",
+    "run_detail_status": 200,
+    "temporary_project_delete_status": 204,
+    "temporary_project_matches_after_cleanup": 0
+  },
+  "exports": [
+    {"format": "html", "status": 200, "bytes": 2561},
+    {"format": "junit_xml", "status": 200, "bytes": 220, "xml_parse": "passed"},
+    {"format": "pdf", "status": 200, "bytes": 167056}
+  ],
+  "local_quality": {
+    "frontend_targeted_tests": "11 passed",
+    "backend_report_export_tests": "24 passed",
+    "frontend_full_tests": "67 files / 275 tests passed",
+    "frontend_type_check": "passed",
+    "frontend_build": "passed",
+    "diff_check": "passed",
+    "independent_code_review": "no actionable findings"
+  },
+  "scope_note": "该证据证明受控 API 运行可进入详情并导出 HTML、JUnit XML、PDF，且临时项目可清理；不代表生产协议服务、生产对象存储或外部发布环境已验收。"
+}
