@@ -4,11 +4,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import RunDetail from './RunDetail.vue'
 
-const { createRunWebSocket, messageError, routerBack, runExportHtml, runGet, tracingGetConfig } = vi.hoisted(() => ({
+const { createRunWebSocket, messageError, routerBack, runExportHtml, runExportJunit, runGet, tracingGetConfig } = vi.hoisted(() => ({
   createRunWebSocket: vi.fn(),
   messageError: vi.fn(),
   routerBack: vi.fn(),
   runExportHtml: vi.fn(),
+  runExportJunit: vi.fn(),
   runGet: vi.fn(),
   tracingGetConfig: vi.fn(),
 }))
@@ -24,7 +25,7 @@ vi.mock('@/utils/websocket', () => ({ createRunWebSocket }))
 vi.mock('@/api', () => ({
   aiHealingPatchApi: { apply: vi.fn(), preview: vi.fn() },
   bugTrackerApi: { createBug: vi.fn(), list: vi.fn().mockResolvedValue([]), linkBug: vi.fn(), refreshStatus: vi.fn() },
-  runApi: { exportHtml: runExportHtml, exportPdf: vi.fn(), get: runGet },
+  runApi: { exportHtml: runExportHtml, exportPdf: vi.fn(), exportJunit: runExportJunit, get: runGet },
   tracingApi: { getConfig: tracingGetConfig },
 }))
 
@@ -91,6 +92,7 @@ beforeEach(() => {
     steps: [{ step_index: 0, name: 'assert text', status: 'failed', error_message: 'missing text', screenshot_url: 'https://minio/1.png' }],
   })
   runExportHtml.mockResolvedValue(new Blob(['html']))
+  runExportJunit.mockResolvedValue(new Blob(['junit']))
   createRunWebSocket.mockImplementation((_runId: number, onMessage: (message: TestWsMessage) => void) => {
     wsMessageHandler = onMessage
     return { close: vi.fn() }
@@ -115,6 +117,18 @@ describe('RunDetail mount', () => {
     await wrapper.find('[data-test="back"]').trigger('click')
 
     expect(routerBack).toHaveBeenCalledOnce()
+  })
+
+  it('exposes JUnit XML export from the run detail', async () => {
+    const wrapper = mountRunDetail()
+    await flushPromises()
+
+    const junitButton = wrapper.findAll('button').find((button) => button.text().includes('run.export_junit'))
+    expect(junitButton).toBeDefined()
+    await junitButton!.trigger('click')
+    await flushPromises()
+
+    expect(runExportJunit).toHaveBeenCalledWith(42)
   })
 
   it('renders Android device matrix child results', async () => {

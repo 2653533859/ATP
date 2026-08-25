@@ -2804,8 +2804,10 @@ export default {
     detail_title: '执行详情',
     export_html: '导出 HTML',
     export_pdf: '导出 PDF',
+    export_junit: '导出 JUnit XML',
     generating: '生成中...',
     generating_pdf: '正在生成 PDF...',
+    generating_junit: '正在生成 JUnit XML...',
     create_bug: '创建缺陷',
     create_internal_defect: '创建内部缺陷',
     open_in_jaeger: '在 Jaeger 中打开',
@@ -2976,6 +2978,7 @@ export default {
     msg: {
       export_html_failed: '导出 HTML 失败',
       export_pdf_failed: '导出 PDF 失败',
+      export_junit_failed: '导出 JUnit XML 失败',
       select_tracker: '请选择缺陷跟踪平台',
       enter_bug_id: '请输入已有缺陷 ID',
       bug_linked: '已关联缺陷: {id}',

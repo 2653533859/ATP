@@ -9,6 +9,9 @@
           <a-button size="small" :loading="exportingPdf" @click="handleExportPdf">
             <FilePdfOutlined /> {{ exportingPdf ? t('run.generating_pdf') : t('run.export_pdf') }}
           </a-button>
+          <a-button size="small" :loading="exportingJunit" @click="handleExportJunit">
+            <FileTextOutlined /> {{ exportingJunit ? t('run.generating_junit') : t('run.export_junit') }}
+          </a-button>
           <a-button
             v-if="canCreateBug && run && (run.status === 'failed' || run.status === 'error')"
             size="small"
@@ -714,6 +717,7 @@ const jaegerSearchUrl = computed(() => {
   return `${base.replace(/\/$/, '')}/search?tags=${tags}`
 })
 const exportingPdf = ref(false)
+const exportingJunit = ref(false)
 const bugModalOpen = ref(false)
 const bugMode = ref<'create' | 'link'>('create')
 const bugTrackerId = ref<number | undefined>(undefined)
@@ -999,6 +1003,18 @@ async function handleExportPdf() {
     message.error(errorMessage(e, t('run.msg.export_pdf_failed')))
   } finally {
     exportingPdf.value = false
+  }
+}
+
+async function handleExportJunit() {
+  exportingJunit.value = true
+  try {
+    const blob = await runApi.exportJunit(runId)
+    downloadBlob(blob, `run-${runId}-junit.xml`)
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('run.msg.export_junit_failed')))
+  } finally {
+    exportingJunit.value = false
   }
 }
 

@@ -1862,6 +1862,8 @@ export const runApi = {
     http.get<unknown, Blob>(`/runs/${id}/export/html`, { responseType: 'blob' }),
   exportPdf: (id: number) =>
     http.get<unknown, Blob>(`/runs/${id}/export/pdf`, { responseType: 'blob' }),
+  exportJunit: (id: number) =>
+    http.get<unknown, Blob>(`/runs/${id}/junit`, { responseType: 'blob' }),
   submitHealingFeedback: (runId: number, stepId: number, action: 'adopted' | 'rejected') =>
     http.post<unknown, void>(`/runs/${runId}/steps/${stepId}/healing/feedback`, { action }),
 }

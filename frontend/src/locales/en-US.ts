@@ -2800,8 +2800,10 @@ export default {
     detail_title: 'Execution Details',
     export_html: 'Export HTML',
     export_pdf: 'Export PDF',
+    export_junit: 'Export JUnit XML',
     generating: 'Generating...',
     generating_pdf: 'Generating PDF...',
+    generating_junit: 'Generating JUnit XML...',
     create_bug: 'Create bug',
     create_internal_defect: 'Create internal defect',
     open_in_jaeger: 'Open in Jaeger',
@@ -2972,6 +2974,7 @@ export default {
     msg: {
       export_html_failed: 'Failed to export HTML',
       export_pdf_failed: 'Failed to export PDF',
+      export_junit_failed: 'Failed to export JUnit XML',
       select_tracker: 'Please select a bug tracker',
       enter_bug_id: 'Please enter an existing bug ID',
       bug_linked: 'Bug linked: {id}',
