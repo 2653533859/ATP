@@ -26,6 +26,8 @@
 
 > Android 低代码控件属性录制与坐标回退已补齐：可视化点击步骤同时保存文本、resource-id、content-desc、className、bounds 和原始坐标；回放优先使用控件属性，UIAutomator 不可用或控件找不到时回退录制坐标。后端定向 `42 passed`、非集成全量 `2297 passed`，前端定向 `4 passed`、全量 `68 files / 277 tests passed`，`vue-tsc`、生产构建、Ruff、格式检查、差异检查和独立代码审查通过。该项只关闭本地录制/回放代码门禁，真实 Karing APK、Windows Worker UIAutomator 权限、媒体、专项任务和报告仍待验收。
 
+> Android 低代码长按与输入控件定位已补齐：长按支持 resource-id/文本/content-desc 并按控件中心执行真实长按，输入步骤分离输入内容与目标控件并在定位失败时明确失败；Python 脚本不再把输入值误当成控件文本。后端定向 `45 passed`、非集成全量 `2300 passed`，前端定向 `11 passed`、全量 `68 files / 279 tests passed`，类型检查、生产构建、Ruff、格式检查、差异检查和独立代码审查通过。该项只关闭本地代码门禁，真实 Karing/Worker 真机行为仍待验收。
+
 ## 发布结论
 
 当前结论：**暂不具备无条件发布资格**。

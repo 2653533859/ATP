@@ -2,7 +2,7 @@
 
 > 当前执行版计划与状态口径统一维护在 [`docs/development-plan-2026-08-25.md`](docs/development-plan-2026-08-25.md)；本文件保留任务勾选和历史交付记录。每个模块均须完成实现、测试、代码审查、修复、文档/记忆同步、提交推送后再进入下一项。
 
-> 当前有效顺序（2026-08-25 1.3）：N4 真实性能环境仍等待 Kubernetes/Prometheus/独立 MinIO；N2 已补齐 Windows Android 包名/启动入口探针和通用低代码控件属性/坐标回退，但仍需 Karing APK/真实包名和在线 Worker 做单设备闭环；随后推进 N5-N8 外部依赖复核和 N9 发布收口。下方更早的历史记录不覆盖当前执行版。
+> 当前有效顺序（2026-08-25 1.4）：N4 真实性能环境仍等待 Kubernetes/Prometheus/独立 MinIO；N2 已补齐 Windows Android 包名/启动入口探针、控件属性/坐标回退以及长按/输入定位，但仍需 Karing APK/真实包名和在线 Worker 做单设备闭环；随后推进 N5-N8 外部依赖复核和 N9 发布收口。下方更早的历史记录不覆盖当前执行版。
 
 ## 2026-08-25 参考导航分组执行游标
 
@@ -38,6 +38,13 @@
 - [x] 回放按 resource-id → 文本 → content-desc 优先定位；UIAutomator dump 失败或找不到控件时回退到录制坐标，保留旧坐标步骤兼容性。
 - [x] 后端 Android 低代码定向 `42 passed`、非集成全量 `2297 passed`，前端录制参数/标准步骤定向 `4 passed`、全量 `68 files / 277 tests passed`，`vue-tsc`、生产构建、Ruff、格式检查和 `git diff --check` 通过；独立代码审查未发现可操作问题。
 - [E] 真实 Karing APK、Worker 上的 UIAutomator 权限、控件属性录制/回放、录屏/异常回放、专项任务和报告仍待真机验收。
+
+### 2026-08-25 1.4 Android 低代码长按与输入控件定位
+
+- [x] 长按步骤支持 resource-id、文本、content-desc 定位，按控件中心执行同点 swipe 长按；无控件属性时继续兼容坐标，目标不存在时明确失败。
+- [x] 输入步骤分离输入内容和目标控件，支持 `targetText`、resource-id、content-desc；目标定位失败不再继续向当前焦点输入，Python 脚本也不会把输入值误当成控件文本。
+- [x] 后端 Android 低代码定向 `45 passed`、非集成全量 `2300 passed`，前端标准步骤/脚本生成定向 `11 passed`、全量 `68 files / 279 tests passed`，类型检查、生产构建、Ruff、格式检查和差异检查通过；独立代码审查未发现可操作问题。
+- [E] 真实 Karing APK、Windows Worker UIAutomator 权限及真机长按/输入行为仍待环境验收。
 
 ### 2026-08-25 1.0 开发计划同步
 

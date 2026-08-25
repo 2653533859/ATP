@@ -2,6 +2,8 @@
 
 > 2026-08-25 Android 低代码录制局部交付：可视化点击录制保存文本、resource-id、content-desc、className、bounds 与原始坐标，回放按控件属性优先、坐标兜底；后端定向 `42 passed`、非集成全量 `2297 passed`，前端定向 `4 passed`、全量 `68 files / 277 tests passed`，类型检查、构建、Ruff、差异检查和独立代码审查通过。真实 Karing/Worker 真机验收仍未关闭，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 1.3。
 
+> 2026-08-25 Android 低代码动作语义补强：长按支持控件属性定位和真实同点 swipe 长按，输入步骤分离输入内容与目标控件并支持 targetText/resource-id/content-desc；后端定向 `45 passed`、非集成全量 `2300 passed`，前端定向 `11 passed`、全量 `68 files / 279 tests passed`，类型检查、构建、Ruff、差异检查和独立代码审查通过。真实 Karing/Worker 真机验收仍未关闭，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 1.4。
+
 > 状态：导航信息架构已按参考导航完成基线设计；N0 导航壳、N1 工作台与任务中心、N2.1/N2.2 内部缺陷与失败证据闭环、N2.3 报告中心、N2.4 用例评审工作台、N2.5 外部缺陷兼容、N3.1 API、N3.2 APP、N3.3 UI、N3.4 性能、N4.1 AI 智能测试工作台、N4.2 Hermes 助手、N4.3 需求与用例追踪、N4.4 知识中枢、N5.1 远程工具箱和 N5.2.1～N5.2.6 配置中心已完成本地实现、审查和回归，均待真实环境验收；P1-E.1 性能长期趋势、P1-E.2 性能基线回归门禁和 P1-E.3 性能报告/运行记录保留清理已完成本地 API、CLI、前端、回归和兼容修复；P1-F 已完成本地发布状态索引和边界同步，性能多节点/容量仍在推进；N6.1/N6.2 文档与浏览器回归、N6.3/N6.4 Windows API/Web readiness、N6.5 q19 真实迁移与临时 Web Worker 低代码验收、N6.6 q19 持久通用 Web Worker 验收、N6.7 q19 独立 Web 录制 Worker 部署、N6.8 Chromium 证据链、N6.9 Firefox/WebKit 与跨 API 副本、N6.10 性能节点与真实短压验收、N6.11 通知本地链路验收、N6.12 Android Backend/Agent 配置配对门禁、N6.13 全量质量门禁复核已形成证据，Android/Worker、真实通知供应商和外部平台验收仍待补齐。
 > 目标：将现有 ATP 平台从“按已实现页面分组”调整为参考导航中的“工作台、测试能力、测试资产、智能中枢、系统”五层产品导航，并按模块逐步补齐统一入口与业务闭环。
 

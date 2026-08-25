@@ -118,6 +118,21 @@
           <!-- long_click -->
           <template v-else-if="step.action === 'long_click'">
             <a-row :gutter="12">
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.text')" :label-col="{ span: 8 }">
+                  <a-input v-model:value="step.params.text" :placeholder="t('case.android_editor.button_text_placeholder')" @input="emitUpdate" />
+                </a-form-item>
+              </a-col>
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.resource_id')" :label-col="{ span: 8 }">
+                  <a-input v-model:value="step.params.resourceId" placeholder="com.app:id/btn" @input="emitUpdate" />
+                </a-form-item>
+              </a-col>
+              <a-col :span="8">
+                <a-form-item :label="t('case.android_editor.content_desc')" :label-col="{ span: 8 }">
+                  <a-input v-model:value="step.params.contentDesc" placeholder="content-desc" @input="emitUpdate" />
+                </a-form-item>
+              </a-col>
               <a-col :span="6">
                 <a-form-item label="X" :label-col="{ span: 6 }">
                   <a-input-number v-model:value="step.params.x" style="width:100%" @change="emitUpdate" />
@@ -180,9 +195,21 @@
                   <a-input v-model:value="step.params.text" :placeholder="t('case.android_editor.input_text_placeholder')" @input="emitUpdate" />
                 </a-form-item>
               </a-col>
-              <a-col :span="8">
+              <a-col :span="12">
+                <a-form-item :label="t('case.android_editor.target_text')" :label-col="{ span: 6 }">
+                  <a-input v-model:value="step.params.targetText" :placeholder="t('case.android_editor.target_text_placeholder')" @input="emitUpdate" />
+                </a-form-item>
+              </a-col>
+            </a-row>
+            <a-row :gutter="12">
+              <a-col :span="10">
                 <a-form-item :label="t('case.android_editor.resource_id')" :label-col="{ span: 8 }">
                   <a-input v-model:value="step.params.resourceId" :placeholder="t('case.android_editor.target_input_placeholder')" @input="emitUpdate" />
+                </a-form-item>
+              </a-col>
+              <a-col :span="10">
+                <a-form-item :label="t('case.android_editor.content_desc')" :label-col="{ span: 8 }">
+                  <a-input v-model:value="step.params.contentDesc" placeholder="content-desc" @input="emitUpdate" />
                 </a-form-item>
               </a-col>
               <a-col :span="4">
@@ -362,9 +389,9 @@ const packageOptions = computed(() =>
 
 const defaultParams: Record<string, () => StepParams> = {
   click: () => ({ text: '', resourceId: '', contentDesc: '', x: undefined, y: undefined }),
-  long_click: () => ({ x: undefined, y: undefined, duration: 1000 }),
+  long_click: () => ({ text: '', resourceId: '', contentDesc: '', x: undefined, y: undefined, duration: 1000 }),
   swipe: () => ({ direction: 'up', x1: undefined, y1: undefined, x2: undefined, y2: undefined }),
-  input: () => ({ text: '', resourceId: '', clear: false }),
+  input: () => ({ text: '', targetText: '', resourceId: '', contentDesc: '', clear: false }),
   press_key: () => ({ key: 'BACK' }),
   start_app: () => ({ package: '', activity: '' }),
   stop_app: () => ({ package: '' }),

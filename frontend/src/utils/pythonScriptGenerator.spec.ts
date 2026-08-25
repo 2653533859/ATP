@@ -41,6 +41,16 @@ describe('python script generators', () => {
     expect(script).toContain('device(description="打开菜单").click()')
   })
 
+  it('does not use input content as the input control locator', () => {
+    const script = generateAndroidPythonScript([
+      { action: 'input', name: '输入账号', params: { text: 'tester', targetText: '账号', contentDesc: '账号输入框' } },
+    ])
+
+    expect(script).toContain('input_target = device(text="账号")')
+    expect(script).not.toContain('input_target = device(text="tester")')
+    expect(script).toContain('input_target.set_text("tester")')
+  })
+
   it('generates Android device control steps and fails explicitly for unknown actions', () => {
     const script = generateAndroidPythonScript([
       { action: 'rotate', name: '切换横屏', params: { orientation: 'landscape' } },

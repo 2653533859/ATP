@@ -48,4 +48,17 @@ describe('buildAndroidStandardSteps', () => {
     expect(result[1].action).toBe('screenshot')
     expect(result[1].test_data).toBeNull()
   })
+
+  it('includes long-press and input target locators in the standard step', () => {
+    const result = buildAndroidStandardSteps([
+      { action: 'long_click', params: { resourceId: 'com.demo:id/item', duration: 1200 } },
+      { action: 'input', params: { text: 'tester', targetText: '账号', contentDesc: '账号输入框' } },
+    ], translate)
+
+    expect(result[0].test_data).toContain('资源 ID：com.demo:id/item')
+    expect(result[0].test_data).toContain('持续时间（毫秒）：1200')
+    expect(result[1].test_data).toContain('文本：tester')
+    expect(result[1].test_data).toContain('目标文本：账号')
+    expect(result[1].test_data).toContain('无障碍描述：账号输入框')
+  })
 })

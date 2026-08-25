@@ -197,6 +197,13 @@ function androidTarget(params: Record<string, unknown>) {
   return null
 }
 
+function androidInputTarget(params: Record<string, unknown>) {
+  return androidTarget({
+    ...params,
+    text: params.targetText ?? params.target_text,
+  })
+}
+
 function androidKey(value: unknown) {
   const key = stringValue(value, 'BACK').toUpperCase()
   const keys: Record<string, string> = {
@@ -325,8 +332,9 @@ function androidStepLines(step: ScriptStep, index: number) {
     }
     case 'input': {
       const value = pythonString(params.text ?? params.value)
-      if (target) {
-        const lines = [`    input_target = ${target}`, '    input_target.click()']
+      const inputTarget = androidInputTarget(params)
+      if (inputTarget) {
+        const lines = [`    input_target = ${inputTarget}`, '    input_target.click()']
         if (params.clear) lines.push('    input_target.clear_text()')
         lines.push(`    input_target.set_text(${value})`)
         return lines

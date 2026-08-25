@@ -30,6 +30,16 @@
 - **状态**：`[E]` 本地实现、回归和审查完成；真实 Karing 仍需在 Windows Android Worker 上验证 UIAutomator 权限、录制控件属性、低代码执行和媒体/报告链路，不能用 `com.android.settings` 探针替代。
 - **下一入口**：取得 Karing APK/真实包名后，执行单设备 APK → 控件属性录制 → 低代码回放 → 录屏/异常回放 → 专项任务 → 事件/日志/报告 → 清理闭环。
 
+## 1.4 Android 低代码长按与输入控件定位（2026-08-25）
+
+本模块修复两个会让低代码步骤“看似保存、执行却不符合操作语义”的问题：长按步骤此前只对坐标执行，文本/resource-id 只会走普通点击；输入步骤此前只按 resource-id 聚焦，且 Python 脚本可能把要输入的内容误当成控件文本。现在长按统一按 resource-id、文本、content-desc 定位后发送同点 swipe 长按，输入将输入内容与目标控件定位分离，支持 `targetText`、resource-id 和 content-desc，目标不存在时明确失败，不会误写当前焦点。
+
+- **代码范围**：`backend/app/worker/executors/android_lowcode_executor.py`、`frontend/src/components/common/AndroidStepEditor.vue`、Android 标准步骤/独立 Python 脚本生成器及中英文文案。
+- **回归范围**：后端 Android 低代码定向 `45 passed`，非集成全量 `2300 passed`；前端标准步骤/脚本生成定向 `11 passed`，前端全量 `68 files / 279 tests passed`；`vue-tsc`、生产构建、Ruff、格式检查和 `git diff --check` 均通过。
+- **代码审查**：独立检查确认旧坐标步骤仍兼容，长按和输入均复用控件属性优先、明确失败的定位链路；未发现可操作问题。
+- **状态**：`[E]` 本地实现、回归和审查完成；真实 Karing APK、Worker UIAutomator 权限及真机长按/输入行为仍待环境验收。
+- **下一入口**：保持 N4 真实 Kubernetes/Prometheus/独立 MinIO 门禁等待目标；取得 Karing 后继续单设备完整闭环。
+
 ## 1.0 当前计划登记（2026-08-25）
 
 本节是当前最新执行口径，优先于本文后面的历史交付记录。N4 的本地代码链路已经覆盖 Worker/目标服务采样、Kubernetes 容量预检、保留清理、跨端点 MinIO 恢复和生命周期门禁；下一步不重复开发已有采样器，而是按真实目标逐项验收，并同步推进被外部条件阻塞的 N2 与发布收口。

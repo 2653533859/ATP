@@ -279,6 +279,55 @@ def _uiautomator_dump(serial: str, timeout: int = 10) -> tuple[bool, str]:
     return _adb_cmd(serial, "shell", "cat", hierarchy_path, timeout=timeout)
 
 
+def _locator_selectors(params: dict, *, text_key: str = "text") -> tuple[tuple[str, str], ...]:
+    """按执行动作返回 UIAutomator 属性定位候选，保持 resource-id 优先。"""
+    raw_selectors = (
+        ("resource-id", params.get("resourceId") or params.get("resource_id")),
+        ("text", params.get(text_key)),
+        ("content-desc", params.get("contentDesc") or params.get("content_desc")),
+    )
+    return tuple(
+        (attribute, value.strip() if isinstance(value, str) else str(value).strip())
+        for attribute, value in raw_selectors
+        if value is not None and str(value).strip()
+    )
+
+
+def _find_ui_center(serial: str, selectors: tuple[tuple[str, str], ...]) -> tuple[int, int] | None:
+    """根据 UIAutomator 属性返回控件中心点；dump 失败或未命中时返回 None。"""
+    if not selectors:
+        return None
+    ok, dump = _uiautomator_dump(serial, timeout=10)
+    if not ok:
+        return None
+    for attribute, value in selectors:
+        bounds = _find_ui_bounds(dump, attribute, value)
+        if bounds:
+            x1, y1, x2, y2 = bounds
+            return (x1 + x2) // 2, (y1 + y2) // 2
+    return None
+
+
+def _tap_point(serial: str, x: int, y: int) -> dict[str, Any]:
+    ok, out = _adb_cmd(serial, "shell", "input", "tap", str(int(x)), str(int(y)))
+    return {"success": ok, "error": out if not ok else None}
+
+
+def _long_press_point(serial: str, x: int, y: int, duration: int) -> dict[str, Any]:
+    ok, out = _adb_cmd(
+        serial,
+        "shell",
+        "input",
+        "swipe",
+        str(int(x)),
+        str(int(y)),
+        str(int(x)),
+        str(int(y)),
+        str(int(duration)),
+    )
+    return {"success": ok, "error": out if not ok else None}
+
+
 def _find_and_click(serial: str, params: dict) -> dict[str, Any]:
     """优先按录制到的控件属性点击，找不到时回退到录制坐标。"""
     text = params.get("text")
@@ -287,28 +336,15 @@ def _find_and_click(serial: str, params: dict) -> dict[str, Any]:
     x = params.get("x")
     y = params.get("y")
 
-    selectors = (
-        ("resource-id", resource_id),
-        ("text", text),
-        ("content-desc", content_desc),
-    )
-    selectors = tuple((attribute, value) for attribute, value in selectors if value)
+    selectors = _locator_selectors(params)
     if selectors:
-        ok2, dump = _uiautomator_dump(serial, timeout=10)
-        if ok2:
-            for attribute, value in selectors:
-                bounds = _find_ui_bounds(dump, attribute, value)
-                if not bounds:
-                    continue
-                x1, y1, x2, y2 = bounds
-                cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-                ok3, _ = _adb_cmd(serial, "shell", "input", "tap", str(cx), str(cy))
-                return {"success": ok3, "error": None if ok3 else "点击失败"}
+        center = _find_ui_center(serial, selectors)
+        if center:
+            return _tap_point(serial, *center)
 
         # 录制步骤同时保存原始坐标，控件属性变化或 UIAutomator 不可用时仍可执行。
         if x is not None and y is not None:
-            ok3, out = _adb_cmd(serial, "shell", "input", "tap", str(int(x)), str(int(y)))
-            return {"success": ok3, "error": out if not ok3 else None}
+            return _tap_point(serial, x, y)
 
         if resource_id:
             return {"success": False, "error": f"未找到元素: {resource_id}"}
@@ -317,8 +353,7 @@ def _find_and_click(serial: str, params: dict) -> dict[str, Any]:
         return {"success": False, "error": f"未找到元素: {content_desc}"}
 
     if x is not None and y is not None:
-        ok, out = _adb_cmd(serial, "shell", "input", "tap", str(int(x)), str(int(y)))
-        return {"success": ok, "error": out if not ok else None}
+        return _tap_point(serial, x, y)
 
     return {"success": False, "error": "缺少定位参数（text/resourceId/x,y）"}
 
@@ -333,25 +368,15 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
         x = params.get("x")
         y = params.get("y")
         duration = params.get("duration", 1000)
+        selectors = _locator_selectors(params)
+        center = _find_ui_center(serial, selectors)
+        if center:
+            return _long_press_point(serial, *center, int(duration))
         if x is not None and y is not None:
-            ok, out = _adb_cmd(
-                serial,
-                "shell",
-                "input",
-                "swipe",
-                str(int(x)),
-                str(int(y)),
-                str(int(x)),
-                str(int(y)),
-                str(int(duration)),
-            )
-            return {"success": ok, "error": out if not ok else None}
-        text = params.get("text")
-        if text:
-            result = _find_and_click(serial, params)
-            # 长按需要用 swipe 模拟，这里简化为先找到再长按坐标
-            return result
-        return {"success": False, "error": "长按需要提供坐标（x, y）"}
+            return _long_press_point(serial, x, y, int(duration))
+        if selectors:
+            return {"success": False, "error": "未找到长按目标元素"}
+        return {"success": False, "error": "长按需要定位属性或坐标（x, y）"}
 
     elif action == "swipe":
         direction = params.get("direction")
@@ -384,10 +409,17 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
     elif action == "input":
         text = params.get("text", params.get("value", ""))
         clear = params.get("clear", False)
-        # 先聚焦到元素（如果有 selector）
-        selector = params.get("resourceId") or params.get("resource_id")
-        if selector:
-            _find_and_click(serial, {"resourceId": selector})
+        # text 是输入内容，targetText 才是输入框的文本定位，避免把输入值当成控件。
+        target_params = {
+            "text": params.get("targetText") or params.get("target_text"),
+            "resourceId": params.get("resourceId") or params.get("resource_id"),
+            "contentDesc": params.get("contentDesc") or params.get("content_desc"),
+        }
+        target_selectors = _locator_selectors(target_params)
+        if target_selectors:
+            target_result = _find_and_click(serial, target_params)
+            if not target_result["success"]:
+                return target_result
             import time as _time
 
             _time.sleep(0.3)

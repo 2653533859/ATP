@@ -43,6 +43,9 @@ function paramsSummary(step: AndroidLowcodeStep, t: AndroidStepTranslator) {
       }
       break
     case 'long_click':
+      addValue(parts, label('text', '文本'), params.text)
+      addValue(parts, label('resource_id', '资源 ID'), params.resourceId ?? params.resource_id)
+      addValue(parts, label('content_desc', '无障碍描述'), params.contentDesc ?? params.content_desc)
       if (params.x !== undefined && params.y !== undefined) {
         addValue(parts, label('coordinates', '坐标'), `(${params.x}, ${params.y})`)
       }
@@ -63,7 +66,9 @@ function paramsSummary(step: AndroidLowcodeStep, t: AndroidStepTranslator) {
       break
     case 'input':
       addValue(parts, label('text', '输入内容'), params.text ?? params.value)
+      addValue(parts, label('target_text', '目标文本'), params.targetText ?? params.target_text)
       addValue(parts, label('resource_id', '资源 ID'), params.resourceId ?? params.resource_id)
+      addValue(parts, label('content_desc', '无障碍描述'), params.contentDesc ?? params.content_desc)
       if (params.clear) addValue(parts, label('clear', '清空原内容'), '是')
       break
     case 'press_key':

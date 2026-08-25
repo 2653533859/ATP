@@ -361,14 +361,45 @@ def test_long_click_by_text_delegates_to_find_and_click(adb):
     assert _run("long_click", text="登录") == {"success": True, "error": None}
 
 
+def test_long_click_by_resource_id_uses_center_and_duration(adb):
+    adb["responses"] = [(True, _DUMP_RID), (True, "")]
+
+    result = _run("long_click", resourceId="com.acme:id/btn", duration=1200)
+
+    assert result == {"success": True, "error": None}
+    assert ("shell", "input", "swipe", "20", "30", "20", "30", "1200") in adb["calls"]
+
+
 def test_input_with_resource_id_focuses_first(monkeypatch, adb):
     focused = []
     monkeypatch.setattr(executor, "_find_and_click", lambda serial, params: focused.append(params) or {"success": True})
     monkeypatch.setattr(executor.time, "sleep", lambda s: None)
 
     assert _run("input", text="hi there", resourceId="com.acme:id/edit")["success"] is True
-    assert focused == [{"resourceId": "com.acme:id/edit"}]
+    assert focused == [{"text": None, "resourceId": "com.acme:id/edit", "contentDesc": None}]
     assert ("shell", "input", "text", "hi%sthere") in adb["calls"]  # 空格转义为 %s
+
+
+def test_input_uses_target_text_and_content_desc_for_focus(monkeypatch, adb):
+    dump = '<hierarchy><node content-desc="账号输入框" bounds="[10,20][30,40]" /></hierarchy>'
+    adb["responses"] = [(True, dump), (True, ""), (True, "")]
+    monkeypatch.setattr(executor.time, "sleep", lambda s: None)
+
+    result = _run("input", text="tester", contentDesc="账号输入框")
+
+    assert result == {"success": True, "error": None}
+    assert ("shell", "input", "tap", "20", "30") in adb["calls"]
+    assert ("shell", "input", "text", "tester") in adb["calls"]
+
+
+def test_input_does_not_type_when_target_locator_is_missing(monkeypatch, adb):
+    adb["responses"] = [(True, _DUMP_RID)]
+    monkeypatch.setattr(executor.time, "sleep", lambda s: None)
+
+    result = _run("input", text="tester", resourceId="com.acme:id/missing")
+
+    assert result["success"] is False
+    assert not any(call[:3] == ("shell", "input", "text") for call in adb["calls"])
 
 
 # ── run_android_lowcode 主执行链 ────────────────────────────
