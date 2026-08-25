@@ -98,8 +98,14 @@ async def upload_apk(
         temp_path, file_size = await _save_upload_to_tempfile(file, max_size=_MAX_APK_SIZE)
         metadata = extract_apk_metadata(temp_path)
         extracted_package = metadata.get("package_name")
-        if not package_name and isinstance(extracted_package, str):
+        if isinstance(extracted_package, str) and extracted_package.strip():
+            extracted_package = extracted_package.strip()
+            supplied_package = package_name.strip() if isinstance(package_name, str) else ""
+            if supplied_package and supplied_package != extracted_package:
+                raise HTTPException(status_code=400, detail="填写的包名与 APK Manifest 包名不一致")
             package_name = extracted_package
+        elif isinstance(package_name, str):
+            package_name = package_name.strip() or None
         extracted_version_name = metadata.get("version_name")
         if not version_name and isinstance(extracted_version_name, str):
             version_name = extracted_version_name

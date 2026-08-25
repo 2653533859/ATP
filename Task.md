@@ -156,6 +156,13 @@
 
 每个子模块都必须完成“实现/调整 → 定向测试 → 全量质量门禁 → 代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 推送”后才能进入下一项；真实环境未提供时保留 `[E]` 或 `[~]`，不把 mock、跳过项、Worker 心跳或 offline 设备写成通过。
 
+### 2026-08-25 P0-B.3.1 APK 包名一致性保护
+
+- [x] Manifest 能解析出包名时，以 Manifest 包名作为唯一可信值；手工填写的非空包名与 Manifest 不一致时在 MinIO 上传和数据库写入前返回 `400`。
+- [x] 手工包名支持空白归一化；Manifest 无法解析包名时仍兼容手工填写，保持已有上传兼容性。
+- [x] APK/API 与发布契约定向 `22 passed`，完整后端非集成 `2284 passed`，Ruff 和 `git diff --check` 通过；独立代码审查未发现可操作问题。
+- [E] 本项只关闭本地包名身份一致性风险，不代表真实 Karing APK、下载端点、专项任务和完整报告已验收。
+
 ### 2026-08-25 P0-B.3.5 事件、日志与报告回传本地交付
 
 - [x] 新增 Android 专项 Worker 公共收尾采集：按任务配置保存设备结束时的 logcat（最多 10000 行、5 MB）和 PNG 截图（最多 10 MB），上传 MinIO 后写入 `MobileRunArtifact`；ADB、截图、上传失败只进入 `summary_json.android_artifacts` 和事件时间线的告警，不覆盖原始运行状态。

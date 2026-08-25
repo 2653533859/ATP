@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 P0-B.3.1 APK 包名一致性保护已完成：`backend/app/api/v1/apks.py` 在 Manifest 可解析包名时以其为准，手工填写不一致返回 `400`，且发生在 MinIO 上传和数据库写入前；匹配包名和 Manifest 缺失场景保持兼容并归一化空白。APK/API 与发布契约定向 `22 passed`，后端非集成全量 `2284 passed`，Ruff、差异检查和独立代码审查通过。真实 Karing APK、下载端点、专项任务和完整报告仍待验收；两台当前 ADB 在线设备的包列表仍未发现 Karing。
+
 - 2026-08-25 N1 协议用例前端保存校验已完成：新增纯函数统一检查 GraphQL endpoint/query、WebSocket url/messages、gRPC target/proto/service/method，空字符串/空格和空消息数组在 `CaseFormDrawer` 创建/更新请求前复用中英文提示；API/其他用例不受影响，后端 `422` 仍为最终防线。工具函数回归 `8 passed`，前端全量 `66 files / 272 tests passed`，`vue-tsc`、生产构建和 `git diff --check` 通过，独立代码审查未发现问题。该项不替代真实 GraphQL/WebSocket/流式 gRPC 和完整报告环境验收；下一执行游标仍为 Karing Android 单设备闭环 → Windows API/Web 复核。
 
 - 2026-08-25 API OpenAPI/Postman 导入解析加固：提交 `75ed756` 保留 OpenAPI 参数/请求体/响应体中的 `0/false` 等合法假值，解析 Postman 字符串 URL 查询参数和 urlencoded/formdata 请求体，并跳过 disabled 查询项/请求头。q19 按该提交重建后，`/api/v1/ai/cases/parse-schema` 的 OpenAPI/Postman 真实请求均返回 `200`，分别解析 `1/1`、`1/3`（接口/参数）；本地 API 生成相关回归 `38 passed`，脱敏证据为 `docs/evidence/api-import-parser-2026-08-25.json`。导入预览/落库闭环见下一条；GraphQL/WebSocket/流式 gRPC、生产目标和完整报告仍待验收。

@@ -285,6 +285,49 @@ def test_upload_apk_uses_manifest_metadata_when_form_values_are_missing(stubs, m
     assert apk.version_code == 310
 
 
+def test_upload_apk_rejects_package_name_mismatch_with_manifest(stubs, monkeypatch):
+    monkeypatch.setattr(ak, "extract_apk_metadata", lambda _path: {"package_name": "com.real.demo"})
+    db = _FakeDB({("Project", 5): _Obj(id=5)})
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            ak.upload_apk(
+                project_id=5,
+                file=_FakeUpload("mismatch.apk", [b"apk"]),
+                package_name="com.wrong.demo",
+                version_name=None,
+                version_code=None,
+                description=None,
+                db=db,
+                current_user=_user(uid=9),
+            )
+        )
+
+    assert exc.value.status_code == 400
+    assert stubs["minio"]["upload"] == []
+    assert db.added == []
+
+
+def test_upload_apk_normalizes_matching_or_manual_package_name(stubs, monkeypatch):
+    monkeypatch.setattr(ak, "extract_apk_metadata", lambda _path: {"package_name": "com.real.demo"})
+    db = _FakeDB({("Project", 5): _Obj(id=5)})
+
+    apk = asyncio.run(
+        ak.upload_apk(
+            project_id=5,
+            file=_FakeUpload("matching.apk", [b"apk"]),
+            package_name="  com.real.demo  ",
+            version_name=None,
+            version_code=None,
+            description=None,
+            db=db,
+            current_user=_user(uid=9),
+        )
+    )
+
+    assert apk.package_name == "com.real.demo"
+
+
 # ── list / get / update / delete / download ─────────────────
 
 

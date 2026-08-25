@@ -69,7 +69,7 @@ def test_current_release_status_keeps_external_gates_explicit(repo_file):
     assert "adb devices -l" in content
     assert "offline" in content
     assert "local_link_only" in content
-    assert "windows-full-readiness-2026-08-24.json" in content
+    assert "windows-full-readiness-2026-08-25.json" in content
     assert "q19-performance-worker-smoke-2026-08-24.json" in content
     assert "真实供应商送达" in content
     assert "外部缺陷平台" in content
