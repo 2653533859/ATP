@@ -1,7 +1,8 @@
 # MEMORY
 
-- 2026-08-25 计划检查点 2.4.4 已同步：q19 的 N6/N7 管理员基础资产、Hermes 三类来源和清理链路已具备脱敏真实证据；当前执行顺序调整为普通 viewer 角色矩阵 → 受控真实 AI 草稿/来源审计 → P8 目标部署诊断与回滚 → P9 发布收口。P4 仍因缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 阻塞。无 viewer 或真实模型凭据时保持 `partial`/未关闭，不记录密码、Token、响应正文或对象内容。
+- 2026-08-25 计划检查点 2.4.6 已同步：q19 的 N6/N7 管理员基础资产、Hermes 三类来源和清理链路已具备脱敏真实证据；P8 目标只读预检的 health/运行栈通过，但管理员登录返回 HTTP 401，当前执行顺序仍为普通 viewer/管理员受控账号 → 受控真实 AI 草稿/来源审计 → P8 目标治理 → P9 发布收口。P4 仍因缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 阻塞。无 viewer、可用管理员或真实模型凭据时保持 `partial`/未关闭，不记录密码、Token、响应正文或对象内容。
 - 2026-08-25 P8 系统治理本地验收入口已完成：新增 `scripts/n8-system-governance-acceptance.py` 与 `docs/n8-system-governance-acceptance.md`，默认只读检查远程工具箱、配置中心、审计导出和普通角色拒绝；只有 `--allow-mutations --rollback` 才创建加密配置版本并执行精确回滚，掩码值允许、明文敏感值拒绝，响应正文不写入证据。已接入 Make/CI/pre-commit，契约/质量回归 `34 passed`；目标部署、真实管理员/viewer 账号和回滚审计证据仍待验收。
+- 2026-08-25 q19 N8 目标只读预检已记录：后端 health 返回 `status=ok`，q19 acceptance 运行栈可见；管理员登录探针返回 HTTP 401，因此未继续猜测密码、未执行配置/回滚/审计变更，也未记录凭据或响应正文。脱敏证据为 `docs/evidence/n8-system-governance-environment-audit-2026-08-25.json`；完整 N8 仍需受控管理员和普通 viewer 凭据。
 - 2026-08-25 N6/N7 q19 基础数据验收与清理级联修复已完成：提交 `716d1b3` 新增 `20260825_0066`，让项目删除沿模块、用例、测试运行、步骤结果、套件运行、计划运行级联，测试数据集引用置空；首次 N6 清理因 `plan_runs.plan_id` 外键缺少级联返回 500，迁移后重建 q19 并复验通过。N6 `--execute` 的用例评审→套件→计划→终态执行→内部缺陷→清理全部通过；N7 的需求/知识/用例创建、详情读取、Hermes 三类来源和清理全部通过。脱敏证据为 `docs/evidence/n6-project-asset-acceptance-2026-08-25.json`、`docs/evidence/n7-intelligence-acceptance-2026-08-25.json`；两份报告均为 `partial`，因为没有普通 viewer 凭据，且 N7 未启用真实 AI 草稿。未记录密码、Token、响应正文或对象内容。
 - 2026-08-25 P7 Hermes 项目级检索本地交付已完成：新增 `POST /hermes/query`，按项目 viewer 权限检索需求、知识和用例，返回脱敏摘要、稳定匹配分、引用和项目深链；Hermes 自由提问对未命中本地意图时调用检索，知识中心支持 `knowledge_id` 深链。新增 `scripts/n7-intelligence-acceptance.py` 与运行手册，覆盖临时项目、需求解析、需求/知识/用例列表和详情读取、三类来源校验、可选真实 AI 草稿、可选 viewer 隔离、显式副作用授权和 finally 清理。独立审查补强了每类 marker 来源的项目路径和 source_ref 校验；后端定向 `21 passed`、前端 Hermes/知识定向 `11 passed`。真实模型、角色账号和远端数据仍待 N7 验收，未记录凭据或响应正文。
 

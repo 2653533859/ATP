@@ -85,6 +85,14 @@
 - [x] Wired the command into Make, CI and pre-commit Ruff coverage; contract/quality tests passed `34` items together with the existing deployment-doc checks.
 - **Status**: `[E]` The local harness, security boundaries and runbook are complete; N8 still requires a target deployment, controlled administrator/viewer accounts and real diagnostic/configuration/audit/rollback evidence before it can close.
 
+## 2.4.6 q19 target governance preflight (blocked, 2026-08-25)
+
+- [x] The target q19 backend health endpoint returned `status=ok` through the local tunnel; the acceptance stack was observed running with backend, Worker, PostgreSQL, Redis, MinIO, Prometheus and Web Recorder containers.
+- [x] The administrator login probe returned HTTP 401; no password was guessed beyond the controlled probe, no credential or response body was recorded, and no remote mutation was attempted.
+- [ ] N8 governance acceptance remains pending: inject a verified administrator and ordinary viewer account through the controlled environment, then run the N8 harness with `--require-role-matrix --allow-mutations --rollback --require-rollback`.
+- **Evidence**: [`n8-system-governance-environment-audit-2026-08-25.json`](evidence/n8-system-governance-environment-audit-2026-08-25.json).
+- **Status**: `[-]` target authentication is currently blocked; this does not change the local implementation status or close any external release gate.
+
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 
 本节是当前导航重构的最新执行游标，按参考侧栏的五组职责组织功能，不再把设备、APK、Mock、数据集、Web/API 资产和治理能力全部堆在“系统管理”下面。导航入口、旧 URL 兼容和业务闭环分别记录：入口存在只代表可访问，只有完成配置→执行→过程→报告/证据→清理才算模块闭环。

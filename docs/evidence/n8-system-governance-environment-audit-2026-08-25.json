@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-25",
+  "scope": "N8 target deployment read-only preflight",
+  "target": "q19 acceptance deployment",
+  "status": "blocked",
+  "checks": [
+    {
+      "name": "backend-health",
+      "status": "passed",
+      "details": "Target backend health returned status=ok through the local tunnel."
+    },
+    {
+      "name": "runtime-stack",
+      "status": "passed",
+      "details": "The q19 acceptance backend, worker, PostgreSQL, Redis, MinIO, Prometheus and web recorder containers were running during the read-only check."
+    },
+    {
+      "name": "administrator-authentication",
+      "status": "blocked",
+      "details": "The controlled administrator login probe returned HTTP 401; no credential value was recorded and no further password guesses or mutations were attempted."
+    },
+    {
+      "name": "governance-acceptance",
+      "status": "skipped",
+      "details": "Remote diagnostics, configuration revision/rollback, audit and role-denial checks require verified administrator and viewer credentials."
+    }
+  ],
+  "security": {
+    "credentials_recorded": false,
+    "response_bodies_recorded": false,
+    "mutations_performed": false,
+    "recheck": "Run scripts/n8-system-governance-acceptance.py with --require-role-matrix --allow-mutations --rollback --require-rollback after controlled credentials are injected."
+  }
+}

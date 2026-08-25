@@ -97,8 +97,8 @@
       "id": "N8.system-governance-deployment",
       "status": "pending",
       "owner": "platform-infra",
-      "evidence": ["docs/development-plan-2026-08-25.md", "docs/n8-system-governance-acceptance.md"],
-      "blocking_reason": "The local N8 governance harness is ready, but remote diagnostics, configuration rollback and audit boundaries are not verified on the target deployment.",
+      "evidence": ["docs/development-plan-2026-08-25.md", "docs/n8-system-governance-acceptance.md", "docs/evidence/n8-system-governance-environment-audit-2026-08-25.json"],
+      "blocking_reason": "The target q19 stack is healthy, but the controlled administrator login probe returned HTTP 401; remote diagnostics, configuration rollback, audit and role-denial checks were not run and no mutations were attempted.",
       "dependencies": ["Target deployment", "administrator and ordinary role accounts", "controlled encrypted configuration values"],
       "recheck_command": "Run scripts/n8-system-governance-acceptance.py with --require-role-matrix --allow-mutations --rollback --require-rollback against the target deployment, then retain the redacted report and audit evidence."
     },
