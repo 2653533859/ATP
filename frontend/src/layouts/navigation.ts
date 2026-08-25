@@ -73,7 +73,7 @@ export function getSelectedMenuKey(path: string): string {
   if (path.startsWith('/projects/') && path.endsWith('/cases')) return '/cases'
   if (path.startsWith('/projects/')) return '/projects'
   if (path.startsWith('/cases/')) return '/cases'
-  if (path.startsWith('/runs/')) return '/runs'
+  if (path === '/runs' || path.startsWith('/runs/')) return '/tasks'
   if (path.startsWith('/mobile-special/')) return '/mobile-special/workbench'
   if (path.startsWith('/devices') || path.startsWith('/apks')) return '/mobile-special/workbench'
   if (path.startsWith('/system/performance')) return '/performance-workbench'

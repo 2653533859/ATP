@@ -10,6 +10,10 @@
 
 > N0/N6 测试套件导航归位已完成本地交付：`/suites` 已加入测试资产侧栏，深链、面包屑、菜单标题和能力描述元数据一致；导航定向 `8 passed`、前端全量 `69 files / 285 tests passed`，类型检查、生产构建和差异检查通过。真实账号、角色和项目权限复核仍待环境验收，不改变当前发布结论。
 
+> N0 工作台运行记录入口收敛已完成本地交付：侧栏不再展示重复的“执行记录”，`/runs` 与 `/runs/:id` 旧地址继续可访问并选中任务中心；导航定向 `9 passed`、前端全量 `69 files / 286 tests passed`，类型检查、生产构建和差异检查通过。运行权限和真实账号复核仍待环境验收，不改变当前发布结论。
+
+> N4 真实性能环境只读复核：`172.31.27.133` 未提供 Kubernetes CLI、默认 Prometheus readiness 或独立 MinIO 源/目标，现有 q19 Compose 只能作为受控本地/单节点观察，不关闭真实性能发布门禁。脱敏证据见 [`performance-environment-audit-2026-08-25.json`](evidence/performance-environment-audit-2026-08-25.json)。
+
 > N1 受控协议与报告证据已补齐：GraphQL、WebSocket、gRPC Server/Client/Bidi Streaming 以及 HTML/JUnit/PDF 报告详情和清理均通过 q19 真实网络；详见 [`api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json) 与 [`report-closure-2026-08-25.json`](evidence/report-closure-2026-08-25.json)。生产协议服务和发布环境仍未关闭。
 
 > API 受控目标、显式会话复用、gRPC TLS Unary、GraphQL/WebSocket/流式 gRPC、OpenAPI/Postman 解析和导入落库证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)、[`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)、[`api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json)。这些证据不代表生产协议服务、完整报告或发布环境验收通过。

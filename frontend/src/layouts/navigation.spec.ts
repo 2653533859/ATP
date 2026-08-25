@@ -16,6 +16,15 @@ describe('layout navigation state', () => {
     expect(getBreadcrumbKeys('/cases/42', 'menu.cases')).toEqual(['menu.groups.test_assets_new', 'menu.cases'])
   })
 
+  it('routes legacy run details through the task center navigation entry', () => {
+    expect(getSelectedMenuKey('/runs')).toBe('/tasks')
+    expect(getSelectedMenuKey('/runs/42')).toBe('/tasks')
+    expect(getBreadcrumbKeys('/runs/42', 'menu.runs')).toEqual([
+      'menu.groups.workbench',
+      'menu.runs',
+    ])
+  })
+
   it('keeps test suite deep links selected as test suites instead of test plans', () => {
     expect(getSelectedMenuKey('/suites')).toBe('/suites')
     expect(getSelectedMenuKey('/suites/42')).toBe('/suites')

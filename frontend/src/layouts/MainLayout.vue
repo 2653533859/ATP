@@ -38,7 +38,6 @@
               <a-badge v-if="activeTaskCount > 0" :count="activeTaskCount" :overflow-count="99" />
             </span>
           </a-menu-item>
-          <a-menu-item key="/runs">{{ t('menu.runs') }}</a-menu-item>
         </a-sub-menu>
 
         <a-sub-menu key="test-capabilities">

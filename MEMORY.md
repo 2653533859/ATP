@@ -6,6 +6,10 @@
 
 - 2026-08-25 N0/N6 测试套件导航归位已完成本地交付：已有 `/suites` 页面加入测试资产侧栏，路由补齐 `menu.assets.suites` 和能力描述，`/suites` 与 `/suites/:id` 深链选中测试套件而不是测试计划，旧 URL 和页面能力保持兼容。导航定向 `8 passed`、前端全量 `69 files / 285 tests passed`，类型检查、生产构建和差异检查通过，独立代码审查未发现问题。真实账号、角色和项目数据复核仍待 N0/N6 环境验收；计划已同步到 `docs/development-plan-2026-08-25.md` 2.2、`Task.md`、路线图和发布状态。
 
+- 2026-08-25 N0 工作台运行记录入口收敛已完成本地交付：侧栏移除重复的“执行记录”，保留 `/runs` 与 `/runs/:id` 旧地址，旧运行页面统一选中任务中心，运行详情面包屑保持“工作台 → 执行记录”。首次审查发现并修复 `/runs` 列表地址未映射的边界；导航定向 `9 passed`、前端全量 `69 files / 286 tests passed`，类型检查、生产构建和差异检查通过。计划已同步到 `docs/development-plan-2026-08-25.md` 2.3、`Task.md`、路线图和发布状态。
+
+- 2026-08-25 N4 真实性能环境只读复核仍阻塞：`172.31.27.133` 未发现 `kubectl/helm`，默认 Prometheus `127.0.0.1:9090` 不可达，现有 q19 是单性能 Worker 的 Docker Compose 栈，未提供独立 MinIO 源/目标；未执行远端修改。脱敏证据为 `docs/evidence/performance-environment-audit-2026-08-25.json`，不能用该 Compose 观察结果替代真实 Kubernetes/Prometheus/跨主机 MinIO 验收。
+
 - 2026-08-25 Android 可视化滑动分辨率适配已完成本地交付：截图拖动生成的滑动步骤保存 `screenWidth/screenHeight`，Worker 读取当前设备 `wm size` 后按宽高比例缩放并裁剪坐标，方向滑动也按当前尺寸计算；读取失败或旧步骤没有元数据时保持历史默认/原始坐标行为。独立 Python 脚本生成器同步支持运行时尺寸适配，Android 标准步骤摘要显示录制屏幕尺寸。后端 Android 低代码定向 `47 passed`、非集成全量 `2302 passed`，前端录制/标准步骤/脚本生成定向 `16 passed`、全量 `68 files / 282 tests passed`，类型检查、生产构建、Ruff、格式检查、`git diff --check` 和独立代码审查通过。真实 Karing APK、Windows Android Worker、不同分辨率/横竖屏、录屏和报告回放仍待真机验收。计划已同步到 `docs/development-plan-2026-08-25.md` 1.5、`Task.md`、路线图和发布状态。
 
 - 2026-08-25 Android 低代码长按与输入控件定位已完成本地交付：长按按 resource-id、文本、content-desc 定位后执行同点 swipe 长按，兼容坐标；输入分离输入内容与目标控件，支持 `targetText`、resource-id、content-desc，目标不存在时明确失败；Python 脚本不再把输入值误当成控件文本。后端 Android 低代码定向 `45 passed`、非集成全量 `2300 passed`，前端标准步骤/脚本生成定向 `11 passed`、全量 `68 files / 279 tests passed`，类型检查、生产构建、Ruff、格式检查、`git diff --check` 和独立代码审查通过。真实 Karing APK、Windows Android Worker UIAutomator 权限及真机长按/输入行为仍待验收。计划已同步到 `docs/development-plan-2026-08-25.md` 1.4、`Task.md`、路线图和发布状态。

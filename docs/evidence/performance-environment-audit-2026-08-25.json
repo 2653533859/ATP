@@ -1,0 +1,40 @@
+{
+  "generated_at": "2026-08-25",
+  "target": {
+    "host": "172.31.27.133"
+  },
+  "checks": [
+    {
+      "name": "kubernetes_cli",
+      "status": "failed",
+      "detail": "kubectl and helm were not available on the target host; no Kubernetes CLI evidence was produced."
+    },
+    {
+      "name": "default_prometheus",
+      "status": "failed",
+      "detail": "127.0.0.1:9090 refused the readiness request."
+    },
+    {
+      "name": "compose_prometheus",
+      "status": "observed",
+      "detail": "The q19 Compose stack exposes Prometheus through a loopback-mapped port; this is not a production Prometheus target."
+    },
+    {
+      "name": "minio_disaster_recovery",
+      "status": "failed",
+      "detail": "No independent MinIO source/target pair was available for cross-endpoint replication and recovery."
+    },
+    {
+      "name": "performance_topology",
+      "status": "observed",
+      "detail": "The visible acceptance deployment is Docker Compose with a single performance worker and target service, not a multi-node Kubernetes deployment."
+    }
+  ],
+  "conclusion": "blocked",
+  "blocking_conditions": [
+    "Provide a controllable Kubernetes cluster with multiple schedulable nodes and performance-worker replicas.",
+    "Provide an independent MinIO source/target pair with lifecycle rules.",
+    "Provide a reachable Prometheus endpoint covering worker and target-service metrics."
+  ],
+  "secrets_included": false
+}

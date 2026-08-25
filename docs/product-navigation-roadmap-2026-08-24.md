@@ -6,6 +6,8 @@
 
 > 2026-08-25 N0/N6 测试套件导航归位已完成本地交付：`/suites` 加入测试资产侧栏，深链选中和路由元数据补齐；导航定向 `8 passed`、前端全量 `69 files / 285 tests passed`，真实账号/项目权限复核仍待环境验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.2。
 
+> 2026-08-25 N0 工作台运行记录入口收敛已完成本地交付：侧栏按参考导航保留首页、待办、项目中心和任务中心，`/runs` 与 `/runs/:id` 旧地址继续可用并归入任务中心选中态；导航定向 `9 passed`、前端全量 `69 files / 286 tests passed`，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3。
+
 > 2026-08-25 Android 低代码录制局部交付：可视化点击录制保存文本、resource-id、content-desc、className、bounds 与原始坐标，回放按控件属性优先、坐标兜底；后端定向 `42 passed`、非集成全量 `2297 passed`，前端定向 `4 passed`、全量 `68 files / 277 tests passed`，类型检查、构建、Ruff、差异检查和独立代码审查通过。真实 Karing/Worker 真机验收仍未关闭，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 1.3。
 
 > 2026-08-25 Android 低代码动作语义补强：长按支持控件属性定位和真实同点 swipe 长按，输入步骤分离输入内容与目标控件并支持 targetText/resource-id/content-desc；后端定向 `45 passed`、非集成全量 `2300 passed`，前端定向 `11 passed`、全量 `68 files / 279 tests passed`，类型检查、构建、Ruff、差异检查和独立代码审查通过。真实 Karing/Worker 真机验收仍未关闭，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 1.4。
