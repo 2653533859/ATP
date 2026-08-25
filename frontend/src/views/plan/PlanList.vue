@@ -314,6 +314,16 @@
                   <template v-if="column.key === 'reason'">
                     <span class="aggregate-report-reason">{{ getSuiteRunReportReason(suiteRun) }}</span>
                   </template>
+                  <template v-if="column.key === 'action'">
+                    <a-button
+                      type="link"
+                      size="small"
+                      :disabled="!positiveInt(suiteRun.suite_run_id)"
+                      @click="openSuiteRun(suiteRun)"
+                    >
+                      {{ t('common.view_detail') }}
+                    </a-button>
+                  </template>
                 </template>
               </a-table>
             </div>
@@ -387,7 +397,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import type {
   EnvironmentItem,
   PlanItem,
@@ -424,6 +434,7 @@ import {
 const asPlan = (record: unknown) => record as PlanItem
 
 const { t } = useI18n()
+const router = useRouter()
 
 type SelectOption = { label: string; value: number }
 
@@ -597,6 +608,7 @@ const planRunSuiteColumns = computed(() => [
   { title: t('plan.report.columns.suite_run_id'), key: 'suite_run_id', width: 120 },
   { title: t('plan.report.columns.status'), key: 'status', width: 100 },
   { title: t('plan.report.columns.reason'), key: 'reason', width: 220 },
+  { title: t('common.action'), key: 'action', width: 100 },
 ])
 
 function scheduleLabel(type: string) {
@@ -610,6 +622,14 @@ function getSuiteRunReportName(item: Record<string, unknown>) {
 
 function getSuiteRunReportReason(item: Record<string, unknown>) {
   return String(item.error_message || item.error || item.reason || t('plan.report.no_reason'))
+}
+
+function openSuiteRun(item: Record<string, unknown>) {
+  const runId = positiveInt(item.suite_run_id)
+  if (!runId) return
+  const query: Record<string, string> = { run_id: String(runId) }
+  if (projectId.value) query.project_id = String(projectId.value)
+  void router.push({ path: '/suites', query })
 }
 
 function resetCronEditor(expression?: string | null) {

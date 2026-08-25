@@ -20,6 +20,7 @@ const {
   planUpdate,
   projectList,
   planRouteQuery,
+  routerPush,
   suiteList,
 } = vi.hoisted(() => ({
   environmentList: vi.fn(),
@@ -37,11 +38,15 @@ const {
   planUpdate: vi.fn(),
   projectList: vi.fn(),
   planRouteQuery: {} as Record<string, string>,
+  routerPush: vi.fn(),
   suiteList: vi.fn(),
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => (params ? `${key}:${JSON.stringify(params)}` : key) }) }))
-vi.mock('vue-router', () => ({ useRoute: () => ({ query: planRouteQuery }) }))
+vi.mock('vue-router', () => ({
+  useRoute: () => ({ query: planRouteQuery }),
+  useRouter: () => ({ push: routerPush }),
+}))
 vi.mock('ant-design-vue', () => ({
   message: { error: messageError, success: messageSuccess, warning: messageWarning },
 }))
@@ -255,6 +260,16 @@ describe('PlanList mount', () => {
     expect(planListRuns).toHaveBeenCalledWith({ plan_id: 1 })
     expect((wrapper.vm as any).runsOpen).toBe(true)
     expect((wrapper.vm as any).expandedRunKeys).toEqual([77])
+    wrapper.unmount()
+  })
+
+  it('opens a linked suite report from the plan run details', async () => {
+    const wrapper = mountPlanList()
+    await chooseProject(wrapper)
+
+    ;(wrapper.vm as any).openSuiteRun({ suite_run_id: 88 })
+
+    expect(routerPush).toHaveBeenCalledWith({ path: '/suites', query: { project_id: '10', run_id: '88' } })
     wrapper.unmount()
   })
 
