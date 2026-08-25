@@ -471,18 +471,20 @@ async function loadModules(projectId: number) {
   }
 }
 
-async function loadRuns(caseIds: number[]) {
+async function loadRuns(caseIds: number[], sequence?: number) {
+  if (sequence !== undefined && sequence !== loadSequence) return
   if (!caseIds.length) {
     recentRuns.value = []
     return
   }
   try {
     const result = await runApi.list({ page: 1, page_size: 100 })
+    if (sequence !== undefined && sequence !== loadSequence) return
     recentRuns.value = result.items
       .filter((run) => caseIds.includes(run.case_id))
       .sort((left, right) => right.created_at.localeCompare(left.created_at))
   } catch {
-    recentRuns.value = []
+    if (sequence === undefined || sequence === loadSequence) recentRuns.value = []
   }
 }
 
@@ -492,10 +494,11 @@ async function loadCases(projectId: number) {
     const result = await caseApi.list({ project_id: projectId, module_id: selectedModuleId.value ?? undefined, case_type: 'web' as CaseType, keyword: keyword.value.trim() || undefined })
     if (sequence !== loadSequence) return
     webCases.value = result.filter((item) => item.case_type === 'web')
-    await loadRuns(webCases.value.map((item) => item.id))
+    await loadRuns(webCases.value.map((item) => item.id), sequence)
+    if (sequence !== loadSequence) return
     const nextId = selectedCaseId.value && webCases.value.some((item) => item.id === selectedCaseId.value) ? selectedCaseId.value : webCases.value[0]?.id ?? null
     selectedCaseId.value = nextId
-    if (nextId) await loadCaseDetail(nextId)
+    if (nextId) await loadCaseDetail(nextId, sequence)
     else selectedCaseDetail.value = null
   } catch (error: unknown) {
     if (sequence === loadSequence) message.error(errorMessage(error, t('ui_workbench.load_failed')))
@@ -592,16 +595,17 @@ async function selectCase(item: CaseSummaryItem) {
   await loadCaseDetail(item.id)
 }
 
-async function loadCaseDetail(caseId: number) {
+async function loadCaseDetail(caseId: number, caseSequence?: number) {
+  if (caseSequence !== undefined && caseSequence !== loadSequence) return
   const sequence = ++detailSequence
   detailLoading.value = true
   try {
     const detail = await caseApi.get(caseId)
-    if (sequence === detailSequence) selectedCaseDetail.value = detail
+    if (sequence === detailSequence && (caseSequence === undefined || caseSequence === loadSequence)) selectedCaseDetail.value = detail
   } catch (error: unknown) {
-    if (sequence === detailSequence) message.error(errorMessage(error, t('ui_workbench.detail_failed')))
+    if (sequence === detailSequence && (caseSequence === undefined || caseSequence === loadSequence)) message.error(errorMessage(error, t('ui_workbench.detail_failed')))
   } finally {
-    if (sequence === detailSequence) detailLoading.value = false
+    if (sequence === detailSequence && (caseSequence === undefined || caseSequence === loadSequence)) detailLoading.value = false
   }
 }
 

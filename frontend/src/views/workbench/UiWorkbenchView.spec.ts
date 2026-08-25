@@ -140,6 +140,12 @@ function mountWorkbench() {
   return mount(UiWorkbenchView, { global: { stubs: globalStubs } })
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => { resolve = nextResolve })
+  return { promise, resolve }
+}
+
 describe('UiWorkbenchView', () => {
   it('loads only Web cases and connects the selected case to detail data', async () => {
     const wrapper = mountWorkbench()
@@ -205,6 +211,56 @@ describe('UiWorkbenchView', () => {
     expect(vm.pageObjects).toHaveLength(0)
     expect(vm.baselines).toHaveLength(0)
     expect(vm.workerStatus).toBeNull()
+    wrapper.unmount()
+  })
+
+  it('does not let stale run history replace the latest module', async () => {
+    const firstCases = deferred<typeof webCase[]>()
+    const secondCases = deferred<typeof webCase[]>()
+    const firstRuns = deferred<{ items: Array<Record<string, unknown>>; total: number; page: number; page_size: number }>()
+    const secondRuns = deferred<{ items: Array<Record<string, unknown>>; total: number; page: number; page_size: number }>()
+    caseList.mockReset()
+    caseList
+      .mockImplementationOnce(() => firstCases.promise)
+      .mockImplementationOnce(() => secondCases.promise)
+    runList.mockReset()
+    runList
+      .mockImplementationOnce(() => firstRuns.promise)
+      .mockImplementationOnce(() => secondRuns.promise)
+    caseGet.mockImplementation(async (caseId: number) => ({ ...webCase, id: caseId, config: { steps: [] } }))
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    firstCases.resolve([webCase])
+    await flushPromises()
+    expect(runList).toHaveBeenCalledTimes(1)
+
+    const vm = wrapper.vm as unknown as {
+      handleModuleSelect: (moduleId: number | null) => Promise<void>
+      recentRuns: Array<{ id: number; case_id: number }>
+      selectedCaseDetail: { id: number } | null
+    }
+    const latestLoad = vm.handleModuleSelect(8)
+    await flushPromises()
+    secondCases.resolve([{ ...webCase, id: 52, name: '最新页面用例' }])
+    await flushPromises()
+    secondRuns.resolve({
+      items: [{ id: 2, case_id: 52, status: 'passed', created_at: '2026-08-24T10:00:00Z' }],
+      total: 1,
+      page: 1,
+      page_size: 100,
+    })
+    await latestLoad
+    firstRuns.resolve({
+      items: [{ id: 1, case_id: 51, status: 'failed', created_at: '2026-08-24T09:00:00Z' }],
+      total: 1,
+      page: 1,
+      page_size: 100,
+    })
+    await flushPromises()
+
+    expect(vm.recentRuns).toEqual([{ id: 2, case_id: 52, status: 'passed', created_at: '2026-08-24T10:00:00Z' }])
+    expect(vm.selectedCaseDetail?.id).toBe(52)
     wrapper.unmount()
   })
 })
