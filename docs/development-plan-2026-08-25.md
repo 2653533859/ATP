@@ -123,7 +123,8 @@
 - [x] Extended `scripts/n6-project-asset-acceptance.py`: when viewer credentials are provided, the command creates a separate temporary isolation project and case, then verifies the viewer can read the primary project's case/review/suite/plan assets (and execution/defect details when `--execute` is enabled).
 - [x] Added explicit cross-project read denial checks for project, members, cases, suites, plans and defects, plus write denial for case/module creation; all expected permission failures must be redacted HTTP 403 responses.
 - [x] Cleanup now removes the viewer membership and independently deletes/verifies both temporary projects, so a failed secondary cleanup cannot hide the primary cleanup attempt. Added helper contract tests and updated the N6 runbook.
-- [x] N6 script/API role regression `92 passed`, backend non-integration `2384 passed`, Ruff/format/diff-check passed; independent review found no actionable issue.
+- [x] Viewer authentication accepts a short-lived `ATP_VIEWER_TOKEN` in preference to username/password; the token is never written to request evidence or reports, while the password path remains compatible. Added the password-free runbook example.
+- [x] N6 script/API role regression `93 passed`, backend non-integration `2385 passed`, Ruff/format/diff-check passed; independent review found no actionable issue.
 - **Status**: `[E]` local role-matrix harness, tests, review, fixes and documentation are complete; controlled viewer/admin credentials and real project data are still required to close the external N6 gate.
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）

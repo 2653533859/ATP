@@ -386,19 +386,25 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, Any]:
             admin_client.request("GET", f"/defects/{defect_id}")
             recorder.add("defect-link", "passed", f"created defect id={defect_id} linked to plan run id={plan_run_id}")
 
+        viewer_token = os.getenv("ATP_VIEWER_TOKEN")
         viewer_username, viewer_password = _credentials("VIEWER")
-        if not viewer_username or not viewer_password:
+        if not viewer_token and (not viewer_username or not viewer_password):
             if args.require_role_matrix:
-                recorder.add("role-matrix", "failed", "viewer credentials are required by --require-role-matrix")
+                recorder.add(
+                    "role-matrix",
+                    "failed",
+                    "ATP_VIEWER_TOKEN or ATP_VIEWER_USERNAME/ATP_VIEWER_PASSWORD is required by --require-role-matrix",
+                )
             else:
                 recorder.add(
                     "role-matrix",
                     "skipped",
-                    "set ATP_VIEWER_USERNAME/ATP_VIEWER_PASSWORD to verify ordinary-role isolation",
+                    "set ATP_VIEWER_TOKEN or ATP_VIEWER_USERNAME/ATP_VIEWER_PASSWORD to verify ordinary-role isolation",
                 )
         else:
-            viewer_client = ApiClient(args.base_url, timeout=args.timeout)
-            viewer_client.login(viewer_username, viewer_password)
+            viewer_client = ApiClient(args.base_url, timeout=args.timeout, token=viewer_token)
+            if not viewer_token:
+                viewer_client.login(viewer_username or "", viewer_password or "")
             viewer_me = viewer_client.request("GET", "/auth/me")
             if isinstance(viewer_me, dict) and viewer_me.get("role") == "admin":
                 raise AcceptanceError("role-matrix account must not be a global admin")

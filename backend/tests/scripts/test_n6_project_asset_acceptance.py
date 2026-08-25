@@ -135,6 +135,15 @@ def test_expect_http_status_only_accepts_the_expected_redacted_status():
         module._expect_http_status(_Client(response={}), "GET", "/projects/2", None, 403, "read")
 
 
+def test_viewer_token_is_documented_as_password_free_role_matrix_credential():
+    source = SCRIPT.read_text(encoding="utf-8")
+    runbook = (ROOT / "docs" / "n6-project-asset-acceptance.md").read_text(encoding="utf-8")
+
+    assert "ATP_VIEWER_TOKEN" in source
+    assert "ATP_VIEWER_TOKEN" in runbook
+    assert "viewer_client.login" in source
+
+
 def test_acceptance_script_and_runbook_keep_credentials_out_of_cli_and_evidence():
     source = SCRIPT.read_text(encoding="utf-8")
     runbook = (ROOT / "docs" / "n6-project-asset-acceptance.md").read_text(encoding="utf-8")

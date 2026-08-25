@@ -9,8 +9,10 @@
 ```powershell
 $env:ATP_USERNAME = '<admin-or-engineer>'
 $env:ATP_PASSWORD = '<password>'
-$env:ATP_VIEWER_USERNAME = '<ordinary-project-user>'
-$env:ATP_VIEWER_PASSWORD = '<password>'
+# 推荐使用短期令牌；没有令牌时再使用普通账号密码。
+$env:ATP_VIEWER_TOKEN = '<short-lived-viewer-token>'
+# $env:ATP_VIEWER_USERNAME = '<ordinary-project-user>'
+# $env:ATP_VIEWER_PASSWORD = '<password>'
 
 python scripts/n6-project-asset-acceptance.py `
   --base-url 'http://127.0.0.1:8000/api/v1' `
@@ -21,12 +23,12 @@ python scripts/n6-project-asset-acceptance.py `
   --report 'docs/evidence/n6-project-asset-acceptance-YYYY-MM-DD.json'
 ```
 
-Linux/macOS 可使用同名参数；也可以通过 `ATP_ACCEPTANCE_BASE_URL`、`ATP_ACCEPTANCE_TARGET_URL` 和 `ATP_TOKEN` 提供连接信息。`--execute` 只允许无认证、无 query/fragment 的 HTTP(S) 目标，默认只发起只读 GET。
+Linux/macOS 可使用同名参数；也可以通过 `ATP_ACCEPTANCE_BASE_URL`、`ATP_ACCEPTANCE_TARGET_URL`、`ATP_TOKEN` 和 `ATP_VIEWER_TOKEN` 提供连接信息。`ATP_VIEWER_TOKEN` 与 `ATP_VIEWER_USERNAME/ATP_VIEWER_PASSWORD` 二选一，令牌优先；认证值只从环境变量读取，报告不会记录。`--execute` 只允许无认证、无 query/fragment 的 HTTP(S) 目标，默认只发起只读 GET。
 
 ## 结果解释
 
 - `passed`：所有步骤完成并清理临时项目；只有同时提供 `--execute` 和 `--require-role-matrix` 才覆盖完整执行与角色门禁，提供 viewer 账号时还会覆盖跨项目读取拒绝。
-- `partial`：没有执行或没有提供普通角色账号，只能作为本地链路准备结果，不能关闭 N6 发布门禁。
+- `partial`：没有执行或没有提供普通角色账号/令牌，只能作为本地链路准备结果，不能关闭 N6 发布门禁。
 - `failed`：连接、权限、链路、执行超时或清理失败；优先处理 `cleanup`，避免遗留临时数据。
 
 证据 JSON 只记录检查状态、脱敏 endpoint、资源 ID 和有限长度的安全说明，不记录密码、Token、请求正文、响应正文、Cookie 或预签名 URL。真实验收后应审查并确认主项目、隔离项目、成员、套件、计划、运行、缺陷和对象存储产物均已清理。

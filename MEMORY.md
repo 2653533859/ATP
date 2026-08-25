@@ -1,6 +1,6 @@
 # MEMORY
 
-- 2026-08-25 N6 viewer 隔离矩阵本地交付已完成：`scripts/n6-project-asset-acceptance.py` 在提供 `ATP_VIEWER_USERNAME/ATP_VIEWER_PASSWORD` 时创建独立隔离项目和用例，验证主项目用例/评审/套件/计划/运行/缺陷读取、跨项目项目/成员/用例/套件/计划/缺陷读取拒绝和用例/模块写入拒绝；成员、主项目、隔离项目分别清理。定向 API/脚本 `92 passed`、后端非集成 `2384 passed`、Ruff/格式/diff-check 通过；真实 viewer/admin 凭据和真实项目数据仍待受控验收，未记录密码、Token、响应正文或对象内容。
+- 2026-08-25 N6 viewer 隔离矩阵本地交付已完成：`scripts/n6-project-asset-acceptance.py` 在提供短期 `ATP_VIEWER_TOKEN`（优先）或 `ATP_VIEWER_USERNAME/ATP_VIEWER_PASSWORD` 时创建独立隔离项目和用例，验证主项目用例/评审/套件/计划/运行/缺陷读取、跨项目项目/成员/用例/套件/计划/缺陷读取拒绝和用例/模块写入拒绝；成员、主项目、隔离项目分别清理。定向 API/脚本 `93 passed`、后端非集成 `2385 passed`、Ruff/格式/diff-check 通过；真实 viewer/admin 凭据和真实项目数据仍待受控验收，未记录密码、Token、响应正文或对象内容。
 - 2026-08-25 计划检查点 2.4.10 已同步：N6 viewer 角色矩阵工具完成本地实现、测试、审查、修复和文档同步；下一项是提供受控 viewer/admin 凭据执行真实项目隔离，然后进入真实 AI 与 P8 目标治理复核。P4 仍因缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 阻塞。
 - 2026-08-25 N5/N7 真实模型验收前置已完成本地交付：`scripts/n7-intelligence-acceptance.py --require-ai` 要求管理员账号和已保存 `llm_config_id`，先验证模型列表、短文本连接测试，再将配置绑定临时项目并请求可编辑 AI 草稿；`--require-vision`/`--require-thinking` 要求保存配置和发现模型明确声明能力，独立传入能力参数会拒绝。脚本只记录配置 ID、供应商/模型摘要、能力布尔值和发现数量，不在自定义业务 payload 中携带 API Key、不记录 Token/响应正文。N7 脚本 `10 passed`、后端非集成 `2383 passed`、Ruff/格式/diff-check 通过；真实模型、参数接受和项目清理证据仍待受控环境。
 - 2026-08-25 计划检查点 2.4.9 已同步：N1 任务/待办分页与 N5/N7 模型验收前置均完成本地实现、审查、修复和文档同步；外部顺序仍为受控 viewer/管理员角色矩阵 → 真实 AI 模型/来源审计 → P8 目标治理 → P9 发布收口。P4 仍因缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 阻塞。未提供受控凭据或真实模型时保持 `partial`/未关闭，不记录密码、Token、响应正文或对象内容。
