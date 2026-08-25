@@ -193,6 +193,67 @@ def test_get_run_bug_status_redacts_provider_error(monkeypatch):
     assert "api_key=[REDACTED]" in str(exc.value.detail)
 
 
+def test_get_run_bug_status_rejects_user_without_run_project_access(monkeypatch):
+    async def deny_access(*_args, **_kwargs):
+        raise HTTPException(status_code=403, detail="No access to this project")
+
+    async def should_not_query_provider(**_kwargs):
+        raise AssertionError("must not query an inaccessible run")
+
+    monkeypatch.setattr(bug_trackers, "assert_project_access", deny_access)
+    monkeypatch.setattr(bug_trackers, "get_bug_status", should_not_query_provider)
+    run = types.SimpleNamespace(
+        id=5,
+        case_id=9,
+        result_summary={"bug": {"bug_id": "99", "tracker_id": 3}},
+    )
+    db = _FakeDB(
+        run=run,
+        tracker=types.SimpleNamespace(
+            id=3,
+            project_id=2,
+            tracker_type=types.SimpleNamespace(value="jira"),
+            config={},
+        ),
+        case=types.SimpleNamespace(id=9, module_id=7),
+        module=types.SimpleNamespace(id=7, project_id=2),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(bug_trackers.get_run_bug_status(run_id=5, db=db, _=object()))
+
+    assert exc.value.status_code == 403
+
+
+def test_get_run_bug_status_rejects_tracker_from_another_project(monkeypatch):
+    async def fake_get_bug_status(**_kwargs):
+        raise AssertionError("must not query a cross-project tracker")
+
+    monkeypatch.setattr(bug_trackers, "get_bug_status", fake_get_bug_status)
+    run = types.SimpleNamespace(
+        id=5,
+        case_id=9,
+        result_summary={"bug": {"bug_id": "99", "tracker_id": 3}},
+    )
+    db = _FakeDB(
+        run=run,
+        tracker=types.SimpleNamespace(
+            id=3,
+            project_id=2,
+            tracker_type=types.SimpleNamespace(value="jira"),
+            config={},
+        ),
+        case=types.SimpleNamespace(id=9, module_id=7),
+        module=types.SimpleNamespace(id=7, project_id=1),
+    )
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(bug_trackers.get_run_bug_status(run_id=5, db=db, _=object()))
+
+    assert exc.value.status_code == 400
+    assert "不属于该执行记录所在项目" in str(exc.value.detail)
+
+
 def test_test_bug_tracker_connection_uses_decrypted_saved_config(monkeypatch):
     captured = {}
 

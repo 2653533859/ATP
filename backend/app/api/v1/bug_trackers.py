@@ -69,6 +69,16 @@ def _get_tracker_or_404(tracker: BugTracker | None) -> BugTracker:
     return tracker
 
 
+async def _assert_case_run_project_access(db: AsyncSession, user, run: TestRun) -> int:
+    """Resolve and authorize the project that owns a case run."""
+    case = await db.get(TestCase, run.case_id)
+    module = await db.get(Module, case.module_id) if case else None
+    if case is None or module is None:
+        raise HTTPException(status_code=404, detail="执行记录所属用例不存在")
+    await assert_project_access(db, user, module.project_id, ProjectRole.viewer)
+    return module.project_id
+
+
 # ── CRUD ──────────────────────────────────────────────────
 
 
@@ -221,6 +231,8 @@ async def get_run_bug_status(
     if not run:
         raise HTTPException(status_code=404, detail="执行记录不存在")
 
+    run_project_id = await _assert_case_run_project_access(db, _, run)
+
     bug_info = (run.result_summary or {}).get("bug")
     if not bug_info:
         raise HTTPException(status_code=404, detail="当前执行记录未关联缺陷")
@@ -228,6 +240,8 @@ async def get_run_bug_status(
     tracker_id = bug_info.get("tracker_id")
     if tracker_id is not None:
         tracker = _get_tracker_or_404(await db.get(BugTracker, tracker_id))
+        if tracker.project_id != run_project_id:
+            raise HTTPException(status_code=400, detail="缺陷跟踪配置不属于该执行记录所在项目")
     else:
         result = await db.execute(
             select(BugTracker, Module)
