@@ -6,6 +6,8 @@
 
 > API 受控目标、显式会话复用、gRPC TLS Unary、OpenAPI/Postman 解析和导入落库证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)、[`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)。这些证据不代表生产 API、GraphQL/WebSocket/流式 gRPC 或完整报告验收通过。
 
+> N1 协议执行边界已补齐：GraphQL、WebSocket、gRPC 的缺失/空 `config.steps` 会 fail-fast 为 `error`，避免产生零步骤的虚假通过；该项有本地回归，不替代真实协议目标验收。
+
 ## 发布结论
 
 当前结论：**暂不具备无条件发布资格**。

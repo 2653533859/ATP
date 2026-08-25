@@ -48,7 +48,7 @@ def test_dispatch_case_routes_protocol_cases(monkeypatch, case_type, executor_na
     called = []
     db = _FakeDB()
     run = types.SimpleNamespace(status=None, error_message=None)
-    case = types.SimpleNamespace(case_type=case_type, config={})
+    case = types.SimpleNamespace(case_type=case_type, config={"steps": [{"name": "请求"}]})
 
     async def _recorder(_db, _run, _case, _extra_vars):
         called.append(executor_name)
@@ -68,6 +68,21 @@ def test_dispatch_case_routes_protocol_cases(monkeypatch, case_type, executor_na
 
     assert called == [executor_name]
     assert db.commit_calls == 0
+
+
+@pytest.mark.parametrize("case_type", [CaseType.graphql, CaseType.websocket, CaseType.grpc])
+@pytest.mark.parametrize("config", [{}, {"steps": []}, {"steps": None}])
+def test_dispatch_case_rejects_protocol_cases_without_steps(case_type, config):
+    db = _FakeDB()
+    run = types.SimpleNamespace(status=None, error_message=None)
+    case = types.SimpleNamespace(case_type=case_type, config=config)
+
+    result = asyncio.run(case_dispatch.dispatch_case(db, run, case, {}))
+
+    assert result is False
+    assert run.status == RunStatus.error
+    assert run.error_message == "协议用例未配置可执行步骤"
+    assert db.commit_calls == 1
 
 
 @pytest.mark.parametrize(

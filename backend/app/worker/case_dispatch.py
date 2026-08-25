@@ -4,6 +4,22 @@ from app.models.case import CaseType, RunStatus
 from app.worker.dispatch import is_web_lowcode_config
 
 _tracer = get_tracer("atp.dispatch")
+_STEP_REQUIRED_PROTOCOLS = {CaseType.graphql, CaseType.websocket, CaseType.grpc}
+
+
+async def _reject_empty_protocol_case(db, run, case) -> bool:
+    """Fail protocol cases before dispatch when no executable step is configured."""
+    if case.case_type not in _STEP_REQUIRED_PROTOCOLS:
+        return False
+    config = case.config or {}
+    steps = config.get("steps")
+    if isinstance(steps, list) and steps:
+        return False
+
+    run.status = RunStatus.error
+    run.error_message = "协议用例未配置可执行步骤"
+    await db.commit()
+    return True
 
 
 async def dispatch_case(db, run, case, extra_vars: dict) -> bool:
@@ -31,6 +47,9 @@ async def dispatch_case(db, run, case, extra_vars: dict) -> bool:
         if environment:
             span.set_attribute("run.environment", str(environment))
         attach_app_trace_id_to_current_span(getattr(run, "trace_id", None))
+
+        if await _reject_empty_protocol_case(db, run, case):
+            return False
 
         if case.case_type == CaseType.api:
             from app.worker.executors.api_executor import run_api_case
