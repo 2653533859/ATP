@@ -4,9 +4,11 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
-> 当前计划登记：主游标为 N1 GraphQL/WebSocket/流式 gRPC 与完整报告真实证据；N2 Karing 真机因未确认真实包名暂缓但不阻塞 N1；随后是 N4 生产性能、N5-N8 外部依赖复核和 N9 发布收口。未关闭门禁继续按“待环境验收”处理。
+> 当前计划登记：主游标为 N1 完整报告真实证据；N2 Karing 真机因未确认真实包名暂缓但不阻塞 N1；随后是 N4 生产性能、N5-N8 外部依赖复核和 N9 发布收口。未关闭门禁继续按“待环境验收”处理。
 
-> API 受控目标、显式会话复用、gRPC TLS Unary、OpenAPI/Postman 解析和导入落库证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)、[`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)。这些证据不代表生产 API、GraphQL/WebSocket/流式 gRPC 或完整报告验收通过。
+> N1 受控协议目标证据已补齐：GraphQL、WebSocket、gRPC Server/Client/Bidi Streaming 均通过 q19 真实网络执行和清理；详见 [`api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json)。完整报告导出/详情治理仍未关闭。
+
+> API 受控目标、显式会话复用、gRPC TLS Unary、GraphQL/WebSocket/流式 gRPC、OpenAPI/Postman 解析和导入落库证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)、[`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)、[`api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json)。这些证据不代表生产协议服务、完整报告或发布环境验收通过。
 
 > N1 协议执行边界已补齐：GraphQL、WebSocket、gRPC 的缺失/空 `config.steps` 会 fail-fast 为 `error`，避免产生零步骤的虚假通过；该项有本地回归，不替代真实协议目标验收。
 
@@ -28,7 +30,13 @@
 
 ## 2026-08-25 当前执行计划与新增阻塞
 
-当前执行顺序为：N1 其他协议/完整报告 → N4 生产性能 → 真实通知/外部缺陷平台 → N9 发布收口；N2 Android Karing 单设备真实闭环因未确认包名并行阻塞，Windows API/Web 完整 smoke 已复核完成。
+当前执行顺序为：N1 完整报告闭环 → N4 生产性能 → 真实通知/外部缺陷平台 → N9 发布收口；N2 Android Karing 单设备真实闭环因未确认包名并行阻塞，Windows API/Web 完整 smoke 已复核完成。
+
+### 2026-08-25 N1 受控协议目标交付
+
+- q19 受控目标完成 GraphQL、WebSocket、gRPC Server/Client/Bidi Streaming 的创建、审批、执行、断言/提取和清理；运行编号分别为 `19/20/23/24/25`，均为 `passed`。
+- 本地目标/执行器回归 `90 passed`，后端非集成全量 `2288 passed`，Ruff、格式和差异检查通过；提交 `5b07a3e` 已推送。
+- 发布边界：本项不代表生产协议服务或完整报告导出/详情治理通过，下一入口为完整报告闭环。
 
 - 本轮 Windows smoke 已使用当前账号重新通过认证；健康检查、前端登录页、PostgreSQL/Redis/MinIO readiness、Web Worker、Playwright `12 passed`、浏览器矩阵、文件传输、Web 低代码和报告导出均通过。未在文档或证据中记录账号、密码或 Token。
 - Windows smoke 继续只读取当前账号 `ATP_USERNAME/ATP_PASSWORD`，不自动回退或混用 `FIRST_ADMIN_*`；全新数据库初始化验证仍必须显式使用 `-UseBootstrapCredentials`。
@@ -242,7 +250,7 @@ Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复
 
 | 能力域 | 当前结论 | 主要证据 | 未关闭边界 |
 |---|---|---|---|
-| Windows API/Web | 当前账号下完整 smoke 已重新通过；Android、其他协议和生产外部环境仍按各自门禁独立跟踪 | [`windows-full-readiness-2026-08-25.json`](evidence/windows-full-readiness-2026-08-25.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json) | GraphQL/WebSocket/流式 gRPC、完整多协议目标和目标发布环境仍需验收 |
+| Windows API/Web | 当前账号下完整 smoke 已重新通过；协议目标已补齐，完整报告和生产外部环境仍按各自门禁独立跟踪 | [`windows-full-readiness-2026-08-25.json`](evidence/windows-full-readiness-2026-08-25.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)、[`api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json) | 完整报告、生产协议目标和发布环境仍需验收 |
 | Web Worker/录制 | q19 持久 Worker、Chromium/Firefox/WebKit 录制和跨 API 停止快照已验证 | [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json) | Linux/Xvfb、跨副本和目标部署拓扑仍需独立复验 |
 | Android | 代码、配置配对、Worker registry、扫描回调、租约控制和 APK 选择传递已完成；真实 APK 上传和设备执行仍待验收 | [`android-worker-scan-2026-08-25.json`](evidence/android-worker-scan-2026-08-25.json)、[`android-control-lease-2026-08-25.json`](evidence/android-control-lease-2026-08-25.json)、[`android-apk-selection-2026-08-25.json`](evidence/android-apk-selection-2026-08-25.json) | 继续完成真实 APK 包名识别、低代码、录屏、专项任务和事件/报告回传 |
 | 性能 | P1-E.1～P1-E.4 本地闭环完成，q19 已按最新提交重建 | [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)、[`performance-shard-capacity-2026-08-25.json`](evidence/performance-shard-capacity-2026-08-25.json)、[`q19-performance-shard-deployment-2026-08-25.json`](evidence/q19-performance-shard-deployment-2026-08-25.json) | 真实 Kubernetes 多节点、生产 Prometheus、MinIO 生命周期和跨主机恢复 |

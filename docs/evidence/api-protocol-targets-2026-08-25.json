@@ -1,0 +1,67 @@
+{
+  "evidence_type": "api_protocol_targets_readiness",
+  "date": "2026-08-25",
+  "status": "passed",
+  "source_commit": "5b07a3e",
+  "environment": "q19 isolated compose acceptance stack",
+  "target": "controlled acceptance-target HTTP/WebSocket/gRPC service",
+  "target_version": "ATP-Performance-Target/1.1",
+  "workflow": {
+    "login_status": 200,
+    "project_and_module_created": true,
+    "review_and_approval": "passed",
+    "temporary_project_cleanup": "passed",
+    "temporary_project_matches_after_cleanup": 0
+  },
+  "runs": [
+    {
+      "protocol": "graphql",
+      "case_id": 20,
+      "run_id": 19,
+      "status": "passed",
+      "step_statuses": ["passed"],
+      "assertions": ["status_code=200", "$.data.service=atp-graphql-target", "$.data.hello=hello GraphQL", "graphql_errors absent"],
+      "extraction": {"expression": "$.data.service", "variable": "graphql_service", "success": true}
+    },
+    {
+      "protocol": "websocket",
+      "case_id": 21,
+      "run_id": 20,
+      "status": "passed",
+      "step_statuses": ["passed"],
+      "assertions": ["$.service=atp-websocket-target", "$.echo.message=hello"],
+      "extraction": {"expression": "$.service", "variable": "websocket_service", "success": true}
+    },
+    {
+      "protocol": "grpc",
+      "mode": "server_stream",
+      "case_id": 24,
+      "run_id": 23,
+      "status": "passed",
+      "grpc_status": "OK",
+      "tls": {"enabled": true, "server_name": "grpc-target", "root_certificate_configured": true, "root_certificate_redacted": true},
+      "assertions_passed": 3
+    },
+    {
+      "protocol": "grpc",
+      "mode": "client_stream",
+      "case_id": 25,
+      "run_id": 24,
+      "status": "passed",
+      "grpc_status": "OK",
+      "tls": {"enabled": true, "server_name": "grpc-target", "root_certificate_configured": true, "root_certificate_redacted": true},
+      "assertions_passed": 2
+    },
+    {
+      "protocol": "grpc",
+      "mode": "bidi_stream",
+      "case_id": 26,
+      "run_id": 25,
+      "status": "passed",
+      "grpc_status": "OK",
+      "tls": {"enabled": true, "server_name": "grpc-target", "root_certificate_configured": true, "root_certificate_redacted": true},
+      "assertions_passed": 3
+    }
+  ],
+  "scope_note": "该证据证明 GraphQL、WebSocket 和三种流式 gRPC 形态可在 q19 受控网络目标上完成创建、审批、执行、断言/提取和清理；不代表生产协议服务、完整报告导出/详情治理或外部环境已验收。"
+}

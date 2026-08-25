@@ -1,6 +1,8 @@
 # MEMORY
 
-- 2026-08-25 当前开发计划已重新登记并统一到参考导航五组：工作台、测试能力、测试资产、智能中枢、系统。当前主游标调整为 **N1 GraphQL/WebSocket/流式 gRPC 与完整报告真实证据**；N2 Karing 因设备未确认真实 `package_name` 保持阻塞但不阻塞 N1，之后推进 N4 生产性能、N5-N8 外部依赖复核和 N9 发布收口。计划详见 `docs/development-plan-2026-08-25.md` 的“0.9 当前开发计划登记”；`Task.md`、路线图和发布状态已同步。每个模块必须完成实现、测试、独立代码审查、问题修复、文档/记忆同步和 Conventional Commit 推送，不能用 mock、跳过项或页面可打开替代真实证据。
+- 2026-08-25 当前开发计划已重新登记并统一到参考导航五组：工作台、测试能力、测试资产、智能中枢、系统。当前主游标调整为 **N1 完整报告真实证据**；N2 Karing 因设备未确认真实 `package_name` 保持阻塞但不阻塞 N1，之后推进 N4 生产性能、N5-N8 外部依赖复核和 N9 发布收口。计划详见 `docs/development-plan-2026-08-25.md` 的“0.9 当前开发计划登记”；`Task.md`、路线图和发布状态已同步。每个模块必须完成实现、测试、独立代码审查、问题修复、文档/记忆同步和 Conventional Commit 推送，不能用 mock、跳过项或页面可打开替代真实证据。
+
+- 2026-08-25 N1 受控协议目标已完成：提交 `5b07a3e` 扩展 q19 `acceptance-target` 的 GraphQL POST、WebSocket 握手/文本回显，并用真实网络完成 GraphQL run `19`、WebSocket run `20`、gRPC Server Streaming run `23`、Client Streaming run `24`、Bidi Streaming run `25`；均通过创建、审批、执行、断言/提取和临时项目清理。目标/部署契约和协议执行器回归 `90 passed`，后端非集成全量 `2288 passed`，Ruff/格式/diff-check/独立审查通过。脱敏证据为 `docs/evidence/api-protocol-targets-2026-08-25.json`；下一步只剩完整报告导出/详情闭环，生产协议服务仍未验收。
 
 - 2026-08-25 P0-A Windows API/Web 完整 smoke 已重新验收：使用当前账号在本机连接远端 PostgreSQL/Redis/MinIO，Backend/Frontend HTTP 200、HttpOnly Cookie 登录、依赖 readiness、Web Recording Worker `registered=1 available=1`、Playwright `12 passed`、浏览器矩阵无失败请求/错误响应、47 bytes 文件上传与清理、临时 Web 下载低代码 run `18 passed`、HTML `18718` bytes/JUnit `320` bytes 报告和临时项目 `35` 清理均通过。Android 相关检查按参数跳过，不影响 Windows 结论；脱敏证据为 `docs/evidence/windows-full-readiness-2026-08-25.json`，来源提交 `35ad777`。下一游标为 N1 其他协议/完整报告；Karing Android 仍因设备包列表未发现真实包名保持阻塞。
 
