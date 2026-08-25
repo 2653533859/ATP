@@ -282,4 +282,35 @@ describe('ApiWorkbenchView', () => {
     expect(vm.editingCase).toBeNull()
     wrapper.unmount()
   })
+
+  it('does not let a stale project environment response replace the latest project', async () => {
+    const secondProjectEnvironments = deferred<Array<{ id: number; name: string }>>()
+    const latestProjectEnvironments = deferred<Array<{ id: number; name: string }>>()
+    environmentList.mockReset()
+    environmentList
+      .mockResolvedValueOnce([{ id: 1, name: '项目一环境' }])
+      .mockImplementationOnce(() => secondProjectEnvironments.promise)
+      .mockImplementationOnce(() => latestProjectEnvironments.promise)
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      handleProjectChange: (projectId: number) => Promise<void>
+      environments: Array<{ id: number; name: string }>
+    }
+    const staleLoad = vm.handleProjectChange(2)
+    await flushPromises()
+    const latestLoad = vm.handleProjectChange(3)
+    await flushPromises()
+
+    latestProjectEnvironments.resolve([{ id: 3, name: '项目三环境' }])
+    await latestLoad
+    secondProjectEnvironments.resolve([{ id: 2, name: '项目二环境' }])
+    await staleLoad
+    await flushPromises()
+
+    expect(vm.environments).toEqual([{ id: 3, name: '项目三环境' }])
+    wrapper.unmount()
+  })
 })

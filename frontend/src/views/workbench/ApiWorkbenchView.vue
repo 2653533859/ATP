@@ -313,6 +313,7 @@ const pendingRunCase = ref<CaseSummaryItem | null>(null)
 const runEnvironmentId = ref<number | undefined>(undefined)
 let loadSequence = 0
 let detailSequence = 0
+let environmentSequence = 0
 
 const projectOptions = computed(() => projects.value.map((project) => ({
   label: project.name,
@@ -421,17 +422,22 @@ function syncRoute() {
 }
 
 async function loadEnvironments() {
-  if (!selectedProjectId.value) {
+  const projectId = selectedProjectId.value
+  const sequence = ++environmentSequence
+  if (!projectId) {
     environments.value = []
+    environmentsLoading.value = false
     return
   }
   environmentsLoading.value = true
   try {
-    environments.value = await environmentApi.list(selectedProjectId.value)
+    const result = await environmentApi.list(projectId)
+    if (sequence !== environmentSequence) return
+    environments.value = result
   } catch {
-    environments.value = []
+    if (sequence === environmentSequence) environments.value = []
   } finally {
-    environmentsLoading.value = false
+    if (sequence === environmentSequence) environmentsLoading.value = false
   }
 }
 
