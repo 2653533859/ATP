@@ -203,6 +203,24 @@ def _ensure_module(client: ApiClient, project_id: int) -> tuple[int, bool]:
     return _first_module_id(modules), False
 
 
+def _expect_http_status(
+    client: ApiClient,
+    method: str,
+    path: str,
+    payload: dict[str, Any] | None,
+    expected_status: int,
+    label: str,
+) -> None:
+    """Assert a redacted HTTP status without exposing a response body."""
+    try:
+        client.request(method, path, payload)
+    except AcceptanceError as exc:
+        if f"HTTP {expected_status}" in str(exc):
+            return
+        raise AcceptanceError(f"{label} did not return HTTP {expected_status}") from None
+    raise AcceptanceError(f"{label} unexpectedly succeeded")
+
+
 def _case_payload(module_id: int, target_url: str) -> dict[str, Any]:
     return {
         "name": "N6 acceptance API case",
@@ -238,6 +256,7 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, Any]:
     admin_client: ApiClient | None = None
     viewer_client: ApiClient | None = None
     viewer_id: int | None = None
+    isolation_project_id: int | None = None
 
     try:
         if not args.base_url:
@@ -384,9 +403,90 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, Any]:
             if isinstance(viewer_me, dict) and viewer_me.get("role") == "admin":
                 raise AcceptanceError("role-matrix account must not be a global admin")
             viewer_id = _resource_id(viewer_me)
+
+            isolation_project = admin_client.request(
+                "POST",
+                "/projects",
+                {
+                    "name": f"ATP N6 isolation {datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S')}",
+                    "description": "Temporary N6 cross-project isolation project",
+                    "template": "blank",
+                },
+            )
+            isolation_project_id = _resource_id(isolation_project)
+            report["resources"]["isolation_project_id"] = isolation_project_id
+            isolation_module_id, _ = _ensure_module(admin_client, isolation_project_id)
+            isolation_case = admin_client.request("POST", "/cases", _case_payload(isolation_module_id, target_url))
+            isolation_case_id = _resource_id(isolation_case)
+            report["resources"]["isolation_case_id"] = isolation_case_id
+
             admin_client.request("POST", f"/projects/{project_id}/members", {"user_id": viewer_id, "role": "viewer"})
             viewer_client.request("GET", f"/projects/{project_id}")
             viewer_client.request("GET", f"/cases?project_id={project_id}")
+            viewer_client.request("GET", f"/cases/{case_id}")
+            viewer_client.request("GET", f"/case-reviews/{case_id}/history")
+            viewer_client.request("GET", f"/suites/{suite_id}")
+            viewer_client.request("GET", f"/plans/{plan_id}")
+            if args.execute:
+                viewer_client.request("GET", f"/plan-runs/{plan_run_id}")
+                viewer_client.request("GET", f"/defects/{defect_id}")
+
+            _expect_http_status(
+                viewer_client,
+                "GET",
+                f"/projects/{isolation_project_id}",
+                None,
+                403,
+                "cross-project project read",
+            )
+            _expect_http_status(
+                viewer_client,
+                "GET",
+                f"/projects/{isolation_project_id}/members",
+                None,
+                403,
+                "cross-project member read",
+            )
+            _expect_http_status(
+                viewer_client,
+                "GET",
+                f"/cases?project_id={isolation_project_id}",
+                None,
+                403,
+                "cross-project case list",
+            )
+            _expect_http_status(
+                viewer_client,
+                "GET",
+                f"/cases/{isolation_case_id}",
+                None,
+                403,
+                "cross-project case detail",
+            )
+            _expect_http_status(
+                viewer_client,
+                "GET",
+                f"/suites?project_id={isolation_project_id}",
+                None,
+                403,
+                "cross-project suite list",
+            )
+            _expect_http_status(
+                viewer_client,
+                "GET",
+                f"/plans?project_id={isolation_project_id}",
+                None,
+                403,
+                "cross-project plan list",
+            )
+            _expect_http_status(
+                viewer_client,
+                "GET",
+                f"/defects?project_id={isolation_project_id}",
+                None,
+                403,
+                "cross-project defect list",
+            )
             try:
                 viewer_client.request("POST", "/cases", _case_payload(module_id, target_url))
             except AcceptanceError as exc:
@@ -394,21 +494,38 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, Any]:
                     raise
             else:
                 raise AcceptanceError("viewer unexpectedly created a case")
+            _expect_http_status(
+                viewer_client,
+                "POST",
+                "/modules",
+                {"project_id": isolation_project_id, "name": "forbidden", "module_code": "N6_FORBIDDEN"},
+                403,
+                "cross-project module write",
+            )
             recorder.add(
-                "role-matrix", "passed", "viewer could read the project but mutation was rejected with HTTP 403"
+                "role-matrix",
+                "passed",
+                "viewer could read all primary assets; cross-project reads and writes were rejected with HTTP 403",
             )
     except (AcceptanceError, ValueError) as exc:
         recorder.add("acceptance-execution", "failed", str(exc))
     finally:
-        if admin_client is not None and project_id is not None:
-            try:
-                if viewer_id is not None:
+        if admin_client is not None:
+            if viewer_id is not None and project_id is not None:
+                try:
                     admin_client.request("DELETE", f"/projects/{project_id}/members/{viewer_id}")
-                admin_client.request("DELETE", f"/projects/{project_id}")
-                admin_client.assert_not_found(f"/projects/{project_id}")
-                recorder.add("cleanup", "passed", f"temporary project id={project_id} deleted")
-            except AcceptanceError as exc:
-                recorder.add("cleanup", "failed", str(exc))
+                except AcceptanceError as exc:
+                    recorder.add("cleanup-member", "failed", str(exc))
+            cleanup_project_ids = [
+                cleanup_id for cleanup_id in (isolation_project_id, project_id) if cleanup_id is not None
+            ]
+            for cleanup_project_id in cleanup_project_ids:
+                try:
+                    admin_client.request("DELETE", f"/projects/{cleanup_project_id}")
+                    admin_client.assert_not_found(f"/projects/{cleanup_project_id}")
+                    recorder.add("cleanup", "passed", f"temporary project id={cleanup_project_id} deleted")
+                except AcceptanceError as exc:
+                    recorder.add("cleanup", "failed", str(exc))
     _set_overall_status(report)
     return report
 

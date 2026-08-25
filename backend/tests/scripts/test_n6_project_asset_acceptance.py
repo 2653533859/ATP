@@ -110,6 +110,31 @@ def test_empty_project_modules_are_filled_with_a_temporary_module():
     ]
 
 
+def test_expect_http_status_only_accepts_the_expected_redacted_status():
+    module = _module()
+
+    class _Client:
+        def __init__(self, response=None, error=None):
+            self.response = response
+            self.error = error
+
+        def request(self, method, path, payload=None):
+            if self.error:
+                raise module.AcceptanceError(self.error)
+            return self.response
+
+    module._expect_http_status(
+        _Client(error="GET /projects/2 returned HTTP 403"), "GET", "/projects/2", None, 403, "read"
+    )
+
+    with pytest.raises(module.AcceptanceError, match="did not return HTTP 403"):
+        module._expect_http_status(
+            _Client(error="GET /projects/2 returned HTTP 404"), "GET", "/projects/2", None, 403, "read"
+        )
+    with pytest.raises(module.AcceptanceError, match="unexpectedly succeeded"):
+        module._expect_http_status(_Client(response={}), "GET", "/projects/2", None, 403, "read")
+
+
 def test_acceptance_script_and_runbook_keep_credentials_out_of_cli_and_evidence():
     source = SCRIPT.read_text(encoding="utf-8")
     runbook = (ROOT / "docs" / "n6-project-asset-acceptance.md").read_text(encoding="utf-8")
@@ -122,3 +147,5 @@ def test_acceptance_script_and_runbook_keep_credentials_out_of_cli_and_evidence(
     assert "n6-project-asset-acceptance" in makefile
     assert "n6-project-asset-acceptance.py" in runbook
     assert "credentials were not recorded" in source
+    assert "cross-project" in source
+    assert "isolation_project_id" in source

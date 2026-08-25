@@ -35,7 +35,7 @@
 3. viewer 矩阵之后再在受控模型配置下复核 P5/P7 的模型发现、连接、多模态/思考参数、可编辑草稿、来源审计和清理；没有真实模型时保持阻塞，不用 HTTP 401 或 mock 结果替代。
 4. 最后复核 P8 目标部署的 PostgreSQL/Redis/MinIO/Worker/ADB 诊断、配置差异、单资源回滚、脱敏审计和权限拒绝，再进入 P9 发布收口。
 5. 每一项必须执行：实现/调整 → 定向测试 → 受影响全量门禁 → 独立代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 提交并推送。
-6. 2.4.9 的 N5/N7 真实模型验收前置已完成本地闭环；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据和真实模型配置执行角色矩阵与 AI 门禁。
+6. 2.4.10 的 N6 viewer 角色矩阵验收工具已完成本地补强；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据执行角色矩阵，再进入真实模型与目标治理门禁。
 
 ### 2.4.0 状态口径
 
@@ -117,6 +117,14 @@
 - [x] The preflight never sends an API Key in its own request payload and reports only configuration ID, provider/model summary, capability booleans and model count; the existing redacted error/client/cleanup boundaries remain in force. Added script/runbook contract coverage.
 - [x] N7 script regression `10 passed`, affected AI/LLM tests are included in backend non-integration `2383 passed`, and Ruff/format/diff-check passed.
 - **Status**: `[E]` local acceptance preparation, tests, independent review, fixes and documentation are complete; real model credentials/configuration, provider parameter acceptance, project generation and cleanup evidence remain pending.
+
+## 2.4.10 N6 viewer isolation matrix harness (local complete, 2026-08-25)
+
+- [x] Extended `scripts/n6-project-asset-acceptance.py`: when viewer credentials are provided, the command creates a separate temporary isolation project and case, then verifies the viewer can read the primary project's case/review/suite/plan assets (and execution/defect details when `--execute` is enabled).
+- [x] Added explicit cross-project read denial checks for project, members, cases, suites, plans and defects, plus write denial for case/module creation; all expected permission failures must be redacted HTTP 403 responses.
+- [x] Cleanup now removes the viewer membership and independently deletes/verifies both temporary projects, so a failed secondary cleanup cannot hide the primary cleanup attempt. Added helper contract tests and updated the N6 runbook.
+- [x] N6 script/API role regression `92 passed`, backend non-integration `2384 passed`, Ruff/format/diff-check passed; independent review found no actionable issue.
+- **Status**: `[E]` local role-matrix harness, tests, review, fixes and documentation are complete; controlled viewer/admin credentials and real project data are still required to close the external N6 gate.
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 

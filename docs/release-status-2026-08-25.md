@@ -14,6 +14,8 @@
 
 > 2026-08-25 N5/N7 真实模型验收前置本地交付：N7 验收脚本的 `--require-ai` 现在要求管理员、已保存配置、模型发现、连接测试、临时项目绑定和可编辑草稿；`--require-vision`/`--require-thinking` 要求发现模型明确声明对应能力，独立能力参数会拒绝。脚本定向 `10 passed`、后端非集成全量 `2383 passed`、Ruff/格式/diff-check 通过；不在自定义业务 payload 中携带 API Key，也不记录 Token 或供应商响应，真实模型/参数接受和项目生成仍待受控环境验收。
 
+> 2026-08-25 N6 viewer 隔离矩阵工具本地交付：提供普通 viewer 账号时，N6 脚本会创建独立隔离项目，验证主项目用例/评审/套件/计划/运行/缺陷读取，以及跨项目读取和用例/模块写入拒绝；成员、主项目和隔离项目分别清理。定向 API/脚本回归 `92 passed`、后端非集成全量 `2384 passed`、Ruff/格式/diff-check 通过；真实 viewer/admin 账号和项目数据仍待环境验收，不改变发布阻塞结论。
+
 > 2026-08-25 P7 Hermes 项目级检索本地交付已完成：`POST /hermes/query` 返回需求、知识和用例的脱敏来源与项目深链，Hermes 自由提问和知识条目深链已接通；N7 验收脚本现在校验三类 marker 来源、项目路径、source_ref 及需求/知识/用例详情读取。后端定向 `21 passed`、前端 Hermes/知识定向 `11 passed`，真实模型、角色账号和远端数据仍待受控验收，不改变 N7 及发布阻塞结论。
 
 > 2026-08-25 P7/N6 真实验收发现并修复两个本地缺陷：blank 项目模块缺失导致脚本无法继续，需求创建在 async commit 后读取过期 ORM 属性导致 q19 返回 HTTP 500/MissingGreenlet；脚本现在创建临时模块，接口在响应前 refresh。q19 已按 `716d1b3` 重建并复验基础数据链路，最新脱敏证据见 [`evidence/n6-project-asset-acceptance-2026-08-25.json`](evidence/n6-project-asset-acceptance-2026-08-25.json) 与 [`evidence/n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json)。

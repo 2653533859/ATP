@@ -23,6 +23,7 @@
 - [x] N1 任务中心分页：统一任务接口增加有界 `offset`，跨 Case/Suite/Plan/Android/Performance 合并排序后再切页；前端增加服务端分页并保留项目、状态、类型和页码深链，筛选时回到第一页。工作台定向 `15 passed`、后端非集成全量 `2380 passed`、前端全量 `69 files / 302 tests passed`，type-check/build/Ruff/diff-check 通过；真实角色和执行数据仍待环境复核。
 - [x] N1 我的待办分页：工作台概览接口增加有界 `todo_offset`，跨评审、失败运行、逾期计划和设备异常按优先级/时间合并后切页；前端保留项目与 `todo_page` 深链，切换项目回到第一页并移除固定 100 条的本地截断。工作台定向 `16 passed`、后端非集成全量 `2381 passed`、前端全量 `69 files / 302 tests passed`，focused todos `2 passed`，type-check/build/Ruff/format/diff-check 通过；真实角色和待办数据仍待环境复核。
 - [x] N5/N7 真实模型验收前置：`--require-ai` 现在要求管理员并校验保存的 AI 配置、模型发现、连接测试、临时项目绑定和可编辑草稿；`--require-vision`/`--require-thinking` 分别要求发现模型明确声明视觉/推理能力，单独传入能力参数会直接拒绝。脚本不在自定义业务 payload 中携带 API Key，也不写入报告；定向 `10 passed`、后端非集成全量 `2383 passed`、Ruff/格式/diff-check 通过；真实模型、参数接受和清理证据仍待外部门禁。
+- [x] N6 viewer 角色矩阵验收工具补强：提供普通 viewer 账号时创建独立隔离项目，验证主项目的用例/评审/套件/计划/运行/缺陷读取，以及跨项目项目、成员、用例、套件、计划、缺陷读取拒绝和用例/模块写入拒绝；分别清理成员、主项目和隔离项目。定向 API/脚本回归 `92 passed`、后端非集成全量 `2384 passed`、Ruff/格式/diff-check 通过；真实 viewer/admin 凭据和真实项目数据仍待外部门禁。
 - [x] N6 缺陷状态刷新项目隔离：刷新执行记录关联缺陷状态前校验所属项目 viewer 权限，并拒绝跨项目已保存 tracker；新增无权限/跨项目回归，缺陷跟踪 API 定向 `11 passed`，独立审查和差异检查通过。真实项目角色、外部平台和可清理失败运行仍待 N6 环境复核。
 - [x] N6 缺陷证据跨类型报告导航：case/Android/性能/suite/plan 缺陷证据均跳转到对应报告入口，suite/plan 深链按运行记录解析并恢复项目上下文；前端定向 `23 passed`、全量 `69 files / 297 tests passed`，`vue-tsc` 和生产构建通过，独立审查已修复项目上下文缺失。真实项目角色和报告环境仍待 N6 复核。
 - [x] N6 计划报告套件明细导航：计划运行报告中的套件明细可携带 `project_id`/`suite_run_id` 跳转到套件执行记录并展开对应运行，无效运行 ID 禁止跳转；计划列表定向 `7 passed`、前端全量 `69 files / 298 tests passed`，`vue-tsc`、生产构建和独立审查通过。真实项目角色、可清理失败运行和报告环境仍待 N6 复核。
