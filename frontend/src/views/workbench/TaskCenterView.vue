@@ -80,6 +80,9 @@
         <template v-else-if="column.key === 'action'">
           <a-space>
             <a-button type="link" @click="router.push(record.detail_path)">{{ t('task_center.view') }}</a-button>
+            <a-button v-if="isFailureStatus(record.status)" type="link" @click="openFailureDiagnosis(asTask(record))">
+              {{ t('task_center.diagnose') }}
+            </a-button>
             <a-button v-if="record.can_retry" type="link" :loading="actionKey === record.id" @click="handleAction(asTask(record), 'retry')">
               {{ t('task_center.retry') }}
             </a-button>
@@ -90,6 +93,37 @@
         </template>
       </template>
     </a-table>
+
+    <a-modal
+      v-model:open="diagnosisOpen"
+      :title="t('task_center.diagnosis_title')"
+      :footer="null"
+      destroy-on-close
+      @cancel="closeDiagnosis"
+    >
+      <a-spin :spinning="diagnosisLoading">
+        <a-alert v-if="diagnosisError" type="error" :message="t('task_center.diagnosis_failed')" />
+        <div v-else-if="diagnosis" class="diagnosis-content">
+          <div class="diagnosis-meta">
+            <a-tag :color="diagnosis.status === 'done' ? 'green' : 'orange'">
+              {{ diagnosisSourceLabel(diagnosis.source) }}
+            </a-tag>
+            <span>{{ formatTime(diagnosis.at) }}</span>
+          </div>
+          <p class="diagnosis-summary">{{ diagnosis.summary }}</p>
+          <div v-if="diagnosis.repair_suggestions.length" class="repair-suggestions">
+            <h3>{{ t('task_center.repair_suggestions') }}</h3>
+            <div v-for="suggestion in diagnosis.repair_suggestions" :key="`${suggestion.step_index}-${suggestion.step_name}`" class="repair-suggestion">
+              <strong>{{ t('task_center.suggestion_step', { index: suggestion.step_index + 1 }) }} · {{ suggestion.step_name }}</strong>
+              <p>{{ suggestion.suggested_change }}</p>
+              <small>{{ suggestion.evidence }}</small>
+            </div>
+          </div>
+          <a-empty v-else :description="t('task_center.no_repair_suggestions')" />
+        </div>
+        <a-empty v-else :description="t('task_center.diagnosis_loading')" />
+      </a-spin>
+    </a-modal>
 
     <div v-if="total > pageSize" class="pagination-row">
       <a-pagination
@@ -117,7 +151,9 @@ import { message, Modal } from 'ant-design-vue'
 import { ReloadOutlined } from '@ant-design/icons-vue'
 import {
   projectApi,
+  runApi,
   workbenchApi,
+  type FailureDiagnosisResult,
   type ProjectItem,
   type WorkbenchAction,
   type WorkbenchTaskItem,
@@ -155,8 +191,13 @@ const generatedAt = ref<string | null>(null)
 const hasMore = ref(false)
 const loading = ref(false)
 const actionKey = ref<string | null>(null)
+const diagnosisOpen = ref(false)
+const diagnosisLoading = ref(false)
+const diagnosisError = ref(false)
+const diagnosis = ref<FailureDiagnosisResult | null>(null)
 let refreshTimer: number | undefined
 let loadSequence = 0
+let diagnosisSequence = 0
 
 const columns = computed(() => [
   { title: t('task_center.columns.type'), key: 'type', width: 120 },
@@ -164,7 +205,7 @@ const columns = computed(() => [
   { title: t('task_center.columns.project'), key: 'project', width: 160 },
   { title: t('task_center.columns.status'), key: 'status', width: 120 },
   { title: t('task_center.columns.created_at'), key: 'created_at', width: 180 },
-  { title: t('task_center.columns.action'), key: 'action', width: 220, fixed: 'right' as const },
+  { title: t('task_center.columns.action'), key: 'action', width: 290, fixed: 'right' as const },
 ])
 
 const rowSelection = computed(() => ({
@@ -222,6 +263,41 @@ function statusColor(status: string) {
     cancelled: 'orange',
     stopped: 'orange',
   }[status] ?? 'default'
+}
+
+function isFailureStatus(status: string) {
+  return ['failed', 'error', 'cancelled', 'stopped'].includes(status)
+}
+
+function diagnosisSourceLabel(source: FailureDiagnosisResult['source']) {
+  return t(`task_center.diagnosis_sources.${source}`)
+}
+
+async function openFailureDiagnosis(task: WorkbenchTaskItem) {
+  const requestSequence = ++diagnosisSequence
+  diagnosis.value = null
+  diagnosisError.value = false
+  diagnosisLoading.value = true
+  diagnosisOpen.value = true
+  try {
+    const result = task.task_type === 'case'
+      ? await runApi.generateFailureDiagnosis(task.run_id)
+      : await workbenchApi.failureDiagnosis(task.task_type, task.run_id)
+    if (requestSequence !== diagnosisSequence) return
+    diagnosis.value = result
+  } catch {
+    if (requestSequence !== diagnosisSequence) return
+    diagnosisError.value = true
+    message.error(t('task_center.diagnosis_failed'))
+  } finally {
+    if (requestSequence === diagnosisSequence) diagnosisLoading.value = false
+  }
+}
+
+function closeDiagnosis() {
+  diagnosisSequence += 1
+  diagnosisOpen.value = false
+  diagnosisLoading.value = false
 }
 
 async function loadProjects() {
@@ -459,6 +535,62 @@ h1 {
 .sync-note {
   font-size: 12px;
   text-align: right;
+}
+
+.diagnosis-content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.diagnosis-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+
+.diagnosis-summary {
+  margin: 0;
+  color: var(--c-text);
+  line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.repair-suggestions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.repair-suggestions h3 {
+  margin: 0;
+  color: var(--c-text);
+  font-size: 14px;
+}
+
+.repair-suggestion {
+  padding: 10px 12px;
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+}
+
+.repair-suggestion strong,
+.repair-suggestion p,
+.repair-suggestion small {
+  display: block;
+}
+
+.repair-suggestion p {
+  margin: 6px 0 4px;
+  color: var(--c-text);
+  line-height: 1.5;
+}
+
+.repair-suggestion small {
+  color: var(--c-text-secondary);
 }
 
 @media (max-width: 760px) {

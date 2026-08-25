@@ -14,6 +14,8 @@ const {
   retry,
   stop,
   batchAction,
+  failureDiagnosis,
+  generateFailureDiagnosis,
   modalConfirm,
 } = vi.hoisted(() => ({
   overview: vi.fn(),
@@ -24,6 +26,8 @@ const {
   retry: vi.fn(),
   stop: vi.fn(),
   batchAction: vi.fn(),
+  failureDiagnosis: vi.fn(),
+  generateFailureDiagnosis: vi.fn(),
   modalConfirm: vi.fn(),
 }))
 
@@ -41,12 +45,14 @@ vi.mock('ant-design-vue', () => ({
 vi.mock('@ant-design/icons-vue', () => ({ ReloadOutlined: true }))
 vi.mock('@/api', () => ({
   projectApi: { list: projectList },
+  runApi: { generateFailureDiagnosis },
   workbenchApi: {
     overview,
     tasks,
     retry,
     stop,
     batchAction,
+    failureDiagnosis,
   },
 }))
 
@@ -83,13 +89,16 @@ const tableStub = defineComponent({
 const globalStubs = {
   AAlert: passthrough('AAlert'),
   AButton: buttonStub,
+  AModal: passthrough('AModal'),
   ACard: passthrough('ACard'),
   ASelect: passthrough('ASelect'),
   ASelectOption: passthrough('ASelectOption'),
   AStatistic: passthrough('AStatistic'),
   ASpace: passthrough('ASpace'),
+  ASpin: passthrough('ASpin'),
   ATable: tableStub,
   ATag: passthrough('ATag'),
+  AEmpty: passthrough('AEmpty'),
   APagination: passthrough('APagination'),
   ReloadOutlined: true,
 }
@@ -114,6 +123,24 @@ beforeEach(() => {
     has_more: false,
   })
   stop.mockResolvedValue({ message: 'stopped' })
+  failureDiagnosis.mockResolvedValue({
+    status: 'done',
+    source: 'rule',
+    summary: '设备前置操作失败',
+    at: '2026-08-24T10:00:00Z',
+    failed_step_count: 1,
+    screenshot_count: 0,
+    repair_suggestions: [{
+      step_index: 0,
+      step_name: '启动应用',
+      suggestion_type: 'investigate_environment',
+      target: 'device',
+      suggested_change: '检查设备连接',
+      evidence: '设备未响应',
+      confidence: 0.8,
+    }],
+    error_samples: [],
+  })
   routerReplace.mockResolvedValue(undefined)
 })
 
@@ -187,6 +214,39 @@ describe('TaskCenterView', () => {
 
     await options.onOk()
     expect(stop).toHaveBeenCalledWith('android', 8)
+    wrapper.unmount()
+  })
+
+  it('opens the existing failure diagnosis chain for failed tasks', async () => {
+    tasks.mockResolvedValue({
+      generated_at: '2026-08-24T10:00:00Z',
+      project_id: null,
+      items: [{
+        id: 'android:9',
+        task_type: 'android',
+        run_id: 9,
+        name: '失败设备任务',
+        project_name: '核心项目',
+        status: 'failed',
+        created_at: '2026-08-24T10:00:00Z',
+        detail_path: '/mobile-special/reports/9',
+        can_retry: true,
+        can_stop: false,
+      }],
+      total: 1,
+      has_more: false,
+    })
+    const wrapper = mount(TaskCenterView, { global: { stubs: globalStubs } })
+    await flushPromises()
+
+    const diagnoseButton = wrapper.findAll('button').find((button) => button.text() === 'task_center.diagnose')
+    expect(diagnoseButton).toBeDefined()
+    await diagnoseButton!.trigger('click')
+    await flushPromises()
+
+    expect(failureDiagnosis).toHaveBeenCalledWith('android', 9)
+    expect(wrapper.text()).toContain('设备前置操作失败')
+    expect(wrapper.text()).toContain('检查设备连接')
     wrapper.unmount()
   })
 })
