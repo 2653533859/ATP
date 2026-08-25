@@ -551,11 +551,12 @@ function openImpactTarget(row: ImpactRow) {
     void router.push({ name: 'case-detail', params: { caseId: String(row.id) } })
     return
   }
+  const query = projectId.value ? { project_id: String(projectId.value) } : undefined
   if (row.category === 'suite') {
-    void router.push({ name: 'suites' })
+    void router.push({ name: 'suites', query })
     return
   }
-  void router.push({ name: 'plans' })
+  void router.push({ name: 'plans', query })
 }
 
 async function loadProjects() {

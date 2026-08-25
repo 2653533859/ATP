@@ -358,4 +358,17 @@ describe('DatasetLibrary mount', () => {
     expect(datasetDelete).toHaveBeenCalledWith(11)
     expect(messageSuccess).toHaveBeenCalledWith('common.deleted')
   })
+
+  it('keeps the selected project when opening suite or plan impact targets', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.openImpactTarget({ category: 'suite', id: 21 })
+    vm.openImpactTarget({ category: 'plan', id: 31 })
+
+    expect(routerPush).toHaveBeenNthCalledWith(1, { name: 'suites', query: { project_id: '1' } })
+    expect(routerPush).toHaveBeenNthCalledWith(2, { name: 'plans', query: { project_id: '1' } })
+    wrapper.unmount()
+  })
 })
