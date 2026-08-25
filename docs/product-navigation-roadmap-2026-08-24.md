@@ -854,3 +854,14 @@ N0 导航壳
 - **真实问题**：上传约 262 MB APK 时，q19 MinIO 客户端将读超时复用 5 秒连接超时，multipart 分片超时并返回 HTTP 500；Backend 日志确认 `minio` read timeout，临时项目已自动清理。
 - **代码修复**：新增 `MINIO_READ_TIMEOUT_SECONDS`（默认 60 秒、范围 1～3600），MinIO 连接池调整为最多 10 个并发连接且阻塞等待；启动配置 UI、`.env.example`、Windows/启动文档和中英文说明同步补齐。定向 `19 passed`，前端配置页 `6 passed`，后端非集成全量 `2262 passed`，`vue-tsc`、生产构建、Ruff 和 `git diff --check` 通过。
 - **当前出口**：代码已完成本地审查，待以最新提交重建 q19 并重试同一真实 APK 上传，确认自动解析包名、对象绑定和清理；Karing 仍需用户安装或提供 APK 后单独验收。
+
+## 0.8 2026-08-25 导航分组开发跟踪同步
+
+参考导航的五组结构已进一步拆成 N0～N9 可追踪阶段，完整台账和当前执行游标见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 的“参考导航学习版执行台账”。本次同步只统一计划和状态口径，不改变代码完成状态：
+
+- 当前先处理 N2 APP 自动化的 Karing 真实包名与单设备闭环；没有真实包时保持阻塞。
+- N0/N3 Windows 导航、API/Web 和 Playwright 复核不等待 Android，可并行推进。
+- N1 的 GraphQL、WebSocket、流式 gRPC 和完整报告仍是待环境验收项；已有执行器代码不视为真实协议通过。
+- N4～N9 的生产性能、通知、外部缺陷平台和发布收口依赖目标环境，继续保留 `[E]`/`[~]` 状态。
+
+后续每个阶段固定执行“实现/调整 → 测试 → 代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 推送”，并在 `Task.md`、当前开发计划和 `MEMORY.md` 保持同一状态。
