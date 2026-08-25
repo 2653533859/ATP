@@ -1,5 +1,7 @@
 # 产品导航与能力扩展开发计划（2026-08-24）
 
+> 2026-08-25 当前跟踪版本已升级为开发计划 2.0：五组导航边界、N0-N9 阶段、最小验收出口和交付门禁统一以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.0 为准。本路线图保留历史方案与实施记录；当前执行顺序为 N4 真实性能环境 → N2 Karing 单设备 → N5-N8 外部依赖复核 → N9 发布收口。
+
 > 2026-08-25 Android 低代码录制局部交付：可视化点击录制保存文本、resource-id、content-desc、className、bounds 与原始坐标，回放按控件属性优先、坐标兜底；后端定向 `42 passed`、非集成全量 `2297 passed`，前端定向 `4 passed`、全量 `68 files / 277 tests passed`，类型检查、构建、Ruff、差异检查和独立代码审查通过。真实 Karing/Worker 真机验收仍未关闭，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 1.3。
 
 > 2026-08-25 Android 低代码动作语义补强：长按支持控件属性定位和真实同点 swipe 长按，输入步骤分离输入内容与目标控件并支持 targetText/resource-id/content-desc；后端定向 `45 passed`、非集成全量 `2300 passed`，前端定向 `11 passed`、全量 `68 files / 279 tests passed`，类型检查、构建、Ruff、差异检查和独立代码审查通过。真实 Karing/Worker 真机验收仍未关闭，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 1.4。

@@ -4,7 +4,7 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
-> 当前计划登记（1.0）：N4 的 Worker/目标服务采样、Kubernetes 多节点/副本/Worker 资源预检、保留清理和跨端点 MinIO 复制/恢复 smoke 已形成可执行入口；真实目标仍缺 Kubernetes/独立灾备 MinIO/生产 Prometheus，下一步只做环境验收。N2 Karing 真机因未确认真实包名暂缓但不阻塞 N4；随后是 N5-N8 外部依赖复核和 N9 发布收口。未关闭门禁继续按“待环境验收”处理。
+> 当前计划登记（2.0）：导航已按工作台、测试能力、测试资产、智能中枢、系统五组统一，N0-N9 的范围与验收出口见开发计划 2.0。N4 的 Worker/目标服务采样、Kubernetes 多节点/副本/Worker 资源预检、保留清理和跨端点 MinIO 复制/恢复 smoke 已形成可执行入口；真实目标仍缺 Kubernetes/独立灾备 MinIO/生产 Prometheus，下一步只做环境验收。N2 Karing 真机因未确认真实包名暂缓但不阻塞 N4；随后是 N5-N8 外部依赖复核和 N9 发布收口。未关闭门禁继续按“待环境验收”处理。
 
 > N1 受控协议与报告证据已补齐：GraphQL、WebSocket、gRPC Server/Client/Bidi Streaming 以及 HTML/JUnit/PDF 报告详情和清理均通过 q19 真实网络；详见 [`api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json) 与 [`report-closure-2026-08-25.json`](evidence/report-closure-2026-08-25.json)。生产协议服务和发布环境仍未关闭。
 
