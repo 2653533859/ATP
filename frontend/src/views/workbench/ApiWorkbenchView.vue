@@ -229,7 +229,7 @@
       :module-id="selectedModuleId"
       :edit-case="editingCase"
       :default-case-type="defaultCaseType"
-      @close="caseFormOpen = false"
+      @close="closeCaseForm"
       @saved="handleSaved"
     />
 
@@ -312,6 +312,7 @@ const runLoading = ref(false)
 const pendingRunCase = ref<CaseSummaryItem | null>(null)
 const runEnvironmentId = ref<number | undefined>(undefined)
 let loadSequence = 0
+let detailSequence = 0
 
 const projectOptions = computed(() => projects.value.map((project) => ({
   label: project.name,
@@ -528,34 +529,52 @@ function openCreate() {
     message.warning(t('api_workbench.readonly_title'))
     return
   }
+  invalidateDetailRequest()
   editingCase.value = null
   caseFormOpen.value = true
 }
 
+function invalidateDetailRequest() {
+  detailSequence += 1
+  detailLoading.value = false
+}
+
+function closeCaseForm() {
+  invalidateDetailRequest()
+  caseFormOpen.value = false
+  editingCase.value = null
+}
+
 async function openEdit(item: CaseSummaryItem) {
   if (!canModify.value) return
+  const sequence = ++detailSequence
   detailLoading.value = true
   try {
-    editingCase.value = await caseApi.get(item.id)
+    const detail = await caseApi.get(item.id)
+    if (sequence !== detailSequence) return
+    editingCase.value = detail
     caseFormOpen.value = true
   } catch (error: unknown) {
-    message.error(errorMessage(error, t('api_workbench.detail_failed')))
+    if (sequence === detailSequence) message.error(errorMessage(error, t('api_workbench.detail_failed')))
   } finally {
-    detailLoading.value = false
+    if (sequence === detailSequence) detailLoading.value = false
   }
 }
 
 async function openDetail(item: CaseSummaryItem) {
+  const sequence = ++detailSequence
   selectedCase.value = item
   selectedCaseDetail.value = null
   detailOpen.value = true
   detailLoading.value = true
   try {
-    selectedCaseDetail.value = await caseApi.get(item.id)
+    const detail = await caseApi.get(item.id)
+    if (sequence !== detailSequence) return
+    selectedCaseDetail.value = detail
   } catch (error: unknown) {
-    message.error(errorMessage(error, t('api_workbench.detail_failed')))
+    if (sequence === detailSequence) message.error(errorMessage(error, t('api_workbench.detail_failed')))
   } finally {
-    detailLoading.value = false
+    if (sequence === detailSequence) detailLoading.value = false
   }
 }
 
@@ -568,6 +587,7 @@ function openImport() {
 }
 
 function handleSaved() {
+  invalidateDetailRequest()
   caseFormOpen.value = false
   importDrawerOpen.value = false
   void loadCases()

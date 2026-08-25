@@ -222,4 +222,64 @@ describe('ApiWorkbenchView', () => {
     expect(vm.recentRuns).toEqual([{ id: 2, case_id: 102, status: 'passed', created_at: '2026-08-24T10:00:00Z' }])
     wrapper.unmount()
   })
+
+  it('does not let a stale case detail replace the latest selection', async () => {
+    const firstDetail = deferred<Record<string, unknown>>()
+    const secondDetail = deferred<Record<string, unknown>>()
+    caseGet.mockReset()
+    caseGet
+      .mockImplementationOnce(() => firstDetail.promise)
+      .mockImplementationOnce(() => secondDetail.promise)
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      openDetail: (item: typeof apiCase) => Promise<void>
+      selectedCase: typeof apiCase | null
+      selectedCaseDetail: { id: number } | null
+      detailLoading: boolean
+    }
+    const firstLoad = vm.openDetail(apiCase)
+    await flushPromises()
+    const latestCase = { ...apiCase, id: 102, name: '最新接口' }
+    const latestLoad = vm.openDetail(latestCase)
+    await flushPromises()
+
+    secondDetail.resolve({ ...latestCase, config: { steps: [] } })
+    await latestLoad
+    firstDetail.resolve({ ...apiCase, config: { steps: [{ method: 'GET', url: '/old' }] } })
+    await firstLoad
+    await flushPromises()
+
+    expect(vm.selectedCase?.id).toBe(102)
+    expect(vm.selectedCaseDetail?.id).toBe(102)
+    expect(vm.detailLoading).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('does not reopen the edit drawer after a pending detail request is closed', async () => {
+    const editDetail = deferred<Record<string, unknown>>()
+    caseGet.mockReset().mockImplementationOnce(() => editDetail.promise)
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      openEdit: (item: typeof apiCase) => Promise<void>
+      closeCaseForm: () => void
+      caseFormOpen: boolean
+      editingCase: Record<string, unknown> | null
+    }
+    const editLoad = vm.openEdit(apiCase)
+    await flushPromises()
+    vm.closeCaseForm()
+    editDetail.resolve({ ...apiCase, config: { steps: [] } })
+    await editLoad
+    await flushPromises()
+
+    expect(vm.caseFormOpen).toBe(false)
+    expect(vm.editingCase).toBeNull()
+    wrapper.unmount()
+  })
 })

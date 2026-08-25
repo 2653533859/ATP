@@ -35,7 +35,7 @@
 3. viewer 矩阵之后再在受控模型配置下复核 P5/P7 的模型发现、连接、多模态/思考参数、可编辑草稿、来源审计和清理；没有真实模型时保持阻塞，不用 HTTP 401 或 mock 结果替代。
 4. 最后复核 P8 目标部署的 PostgreSQL/Redis/MinIO/Worker/ADB 诊断、配置差异、单资源回滚、脱敏审计和权限拒绝，再进入 P9 发布收口。
 5. 每一项必须执行：实现/调整 → 定向测试 → 受影响全量门禁 → 独立代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 提交并推送。
-6. 2.4.14 的 API 工作台最近运行记录竞态修复已完成本地补强；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据执行角色矩阵，再进入真实模型与目标治理门禁。
+6. 2.4.15 的 API 工作台用例详情竞态修复已完成本地补强；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据执行角色矩阵，再进入真实模型与目标治理门禁。
 
 ### 2.4.0 状态口径
 
@@ -152,6 +152,12 @@
 
 - [x] API 工作台将用例列表请求序列传递到最近运行记录加载；旧的 `runApi.list` 成功响应或错误不会覆盖新模块、项目或筛选结果，空用例结果也受到当前序列保护。
 - [x] 新增延迟响应回归，覆盖旧模块运行记录晚于最新模块响应返回的场景；定向测试 `3 passed`，前端全量 `69 files / 305 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过；独立审查未发现需修复的问题。
+- **Status**: `[E]` local implementation, tests, review, fix and documentation are complete; real project-role and execution-data verification remains part of the N1/P1 external environment review.
+
+## 2.4.15 P1 API workbench case-detail race protection (local complete, 2026-08-25)
+
+- [x] API 工作台为用例详情和编辑详情请求增加独立序列保护；快速切换用例、关闭编辑抽屉、新建用例或保存完成时，旧请求的成功、失败和 loading 收尾都不会覆盖当前 UI。
+- [x] 新增快速切换详情和关闭待处理编辑请求的回归；定向测试 `5 passed`，前端全量 `69 files / 307 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过；独立审查发现并修复了关闭/新建操作未失效旧编辑请求的问题。
 - **Status**: `[E]` local implementation, tests, review, fix and documentation are complete; real project-role and execution-data verification remains part of the N1/P1 external environment review.
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
