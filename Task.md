@@ -16,10 +16,11 @@
 - [x] P7 Hermes 跨任务失败诊断本地闭环：case 复用原诊断链，suite/plan/android/performance 通过统一工作台入口读取执行摘要、Android 异常事件/错误事件和性能指标生成规则诊断；后端定向 `13 passed`、后端非集成全量 `2345 passed`，前端全量 `69 files / 293 tests passed`，新增服务 mypy、Ruff、格式、`vue-tsc` 和生产构建通过。真实模型、需求/知识数据和角色矩阵仍待验收。
 - [x] P7 Hermes 项目级检索本地交付：新增项目 viewer 权限保护的 Hermes 查询接口，统一检索需求、知识和用例并返回脱敏摘要、来源引用和深链；Hermes 自由提问可调用检索，知识条目支持 `knowledge_id` 深链；新增 N7 临时数据验收脚本、运行手册和质量门禁。独立审查补强来源类型/项目路径/引用校验及需求、知识、用例详情读取；后端定向 `21 passed`、前端 Hermes/知识定向 `11 passed`。真实模型、角色账号和远端数据仍待验收。
 - [x] P7/N6 验收缺陷修复与 q19 复验：空白临时项目无模块时脚本会显式创建模块；需求创建接口在异步提交后序列化过期 ORM 属性导致 `MissingGreenlet`/HTTP 500，已增加 `refresh` 和回归测试。q19 已按 `716d1b3` 重建到迁移 `20260825_0066`；N6 执行/缺陷关联/清理和 N7 需求/知识/用例检索/来源/清理均通过基础链路，脱敏证据见 `docs/evidence/n6-project-asset-acceptance-2026-08-25.json` 与 `docs/evidence/n7-intelligence-acceptance-2026-08-25.json`。普通 viewer 和 N7 真实 AI 草稿未验证，两个环境门禁保持 `[E]`/`partial`。
-- [x] 计划检查点 2.4.6：已将 q19 N6/N7 基础验收结果、P8 本地治理入口、目标只读预检结果和下一执行顺序同步到开发计划、路线图、发布状态与 MEMORY；下一项固定为提供受控管理员/viewer 账号后执行角色矩阵，之后才进入受控真实 AI 与 P8 目标治理复核。
+- [x] 计划检查点 2.4.7：已将 q19 N6/N7 基础验收结果、P8 本地治理入口、目标只读预检结果、N1 任务中心分页和下一执行顺序同步到开发计划、路线图、发布状态与 MEMORY；下一项固定为提供受控管理员/viewer 账号后执行角色矩阵，之后才进入受控真实 AI 与 P8 目标治理复核。
 - [ ] 下一验收门：准备受控 viewer 账号并执行 N6/N7 `--require-role-matrix`；无账号时保持 `partial`，不得用管理员结果推断普通角色隔离。
 - [x] P8 系统治理验收入口：新增 `scripts/n8-system-governance-acceptance.py` 和运行手册，覆盖远程工具箱诊断、配置聚合、配置版本/差异、审计 CSV、普通角色拒绝以及显式 `--allow-mutations --rollback`；接入 Make/CI/pre-commit，契约与质量回归 `34 passed`。目标部署和真实账号验收仍待完成。
 - [x] P8 q19 目标只读预检：健康检查和 q19 运行栈通过；数据库只读检查确认启用管理员用户名为 `parado`，但受控登录仍返回 HTTP 401，随后停止继续尝试，未读取/记录密码字段、凭据或响应正文且未执行远端变更。脱敏证据见 `docs/evidence/n8-system-governance-environment-audit-2026-08-25.json`；完整治理验收仍待受控管理员与 viewer 凭据。
+- [x] N1 任务中心分页：统一任务接口增加有界 `offset`，跨 Case/Suite/Plan/Android/Performance 合并排序后再切页；前端增加服务端分页并保留项目、状态、类型和页码深链，筛选时回到第一页。工作台定向 `15 passed`、后端非集成全量 `2380 passed`、前端全量 `69 files / 302 tests passed`，type-check/build/Ruff/diff-check 通过；真实角色和执行数据仍待环境复核。
 - [x] N6 缺陷状态刷新项目隔离：刷新执行记录关联缺陷状态前校验所属项目 viewer 权限，并拒绝跨项目已保存 tracker；新增无权限/跨项目回归，缺陷跟踪 API 定向 `11 passed`，独立审查和差异检查通过。真实项目角色、外部平台和可清理失败运行仍待 N6 环境复核。
 - [x] N6 缺陷证据跨类型报告导航：case/Android/性能/suite/plan 缺陷证据均跳转到对应报告入口，suite/plan 深链按运行记录解析并恢复项目上下文；前端定向 `23 passed`、全量 `69 files / 297 tests passed`，`vue-tsc` 和生产构建通过，独立审查已修复项目上下文缺失。真实项目角色和报告环境仍待 N6 复核。
 - [x] N6 计划报告套件明细导航：计划运行报告中的套件明细可携带 `project_id`/`suite_run_id` 跳转到套件执行记录并展开对应运行，无效运行 ID 禁止跳转；计划列表定向 `7 passed`、前端全量 `69 files / 298 tests passed`，`vue-tsc`、生产构建和独立审查通过。真实项目角色、可清理失败运行和报告环境仍待 N6 复核。

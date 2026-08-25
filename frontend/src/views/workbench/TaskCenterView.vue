@@ -12,7 +12,7 @@
           allow-clear
           class="project-select"
           :placeholder="t('task_center.all_projects')"
-          @change="loadTasks"
+          @change="handleFilterChange"
         >
           <a-select-option v-for="project in projects" :key="project.id" :value="project.id">
             {{ project.name }}
@@ -25,12 +25,12 @@
     </div>
 
     <div class="filter-bar">
-      <a-select v-model:value="statusFilter" allow-clear :placeholder="t('task_center.status_filter')" @change="loadTasks">
+      <a-select v-model:value="statusFilter" allow-clear :placeholder="t('task_center.status_filter')" @change="handleFilterChange">
         <a-select-option v-for="option in statusOptions" :key="option.value" :value="option.value">
           {{ t(`task_center.statuses.${option.value}`) }}
         </a-select-option>
       </a-select>
-      <a-select v-model:value="taskType" allow-clear :placeholder="t('task_center.type_filter')" @change="loadTasks">
+      <a-select v-model:value="taskType" allow-clear :placeholder="t('task_center.type_filter')" @change="handleFilterChange">
         <a-select-option v-for="option in taskTypeOptions" :key="option" :value="option">
           {{ t(`task_center.types.${option}`) }}
         </a-select-option>
@@ -56,7 +56,7 @@
       :loading="loading"
       row-key="id"
       :row-selection="rowSelection"
-      :pagination="{ pageSize: 20, hideOnSinglePage: true }"
+      :pagination="false"
       :locale="{ emptyText: t('task_center.empty') }"
       :scroll="{ x: 1180 }"
     >
@@ -91,7 +91,18 @@
       </template>
     </a-table>
 
+    <div v-if="total > pageSize" class="pagination-row">
+      <a-pagination
+        :current="page"
+        :page-size="pageSize"
+        :total="paginationTotal"
+        show-less-items
+        @change="handlePageChange"
+      />
+    </div>
+
     <div class="sync-note">
+      <span v-if="total">{{ t('task_center.page_summary', { page, total }) }} · </span>
       {{ t('task_center.last_sync', { time: formatTime(generatedAt) }) }}
       <span v-if="hasMore"> · {{ t('task_center.has_more') }}</span>
     </div>
@@ -116,20 +127,10 @@ import {
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
-const projects = ref<ProjectItem[]>([])
-const projectId = ref<number | undefined>(toProjectId(route.query.project_id))
-const statusFilter = ref<string | undefined>()
-const taskType = ref<WorkbenchTaskType | undefined>()
-const tasks = ref<WorkbenchTaskItem[]>([])
-const selectedRowKeys = ref<string[]>([])
-const generatedAt = ref<string | null>(null)
-const hasMore = ref(false)
-const loading = ref(false)
-const actionKey = ref<string | null>(null)
-let refreshTimer: number | undefined
-let loadSequence = 0
-
 const taskTypeOptions: WorkbenchTaskType[] = ['case', 'suite', 'plan', 'android', 'performance']
+const maxTaskOffset = 1000
+const pageSize = 50
+const maxPage = Math.floor(maxTaskOffset / pageSize) + 1
 const statusOptions = [
   { value: 'pending' },
   { value: 'running' },
@@ -141,6 +142,21 @@ const statusOptions = [
   { value: 'cancelled' },
   { value: 'stopped' },
 ]
+const projects = ref<ProjectItem[]>([])
+const projectId = ref<number | undefined>(toProjectId(route.query.project_id))
+const statusFilter = ref<string | undefined>(toStringValue(route.query.status))
+const taskType = ref<WorkbenchTaskType | undefined>(toTaskType(route.query.task_type))
+const page = ref(toPage(route.query.page))
+const tasks = ref<WorkbenchTaskItem[]>([])
+const total = ref(0)
+const paginationTotal = computed(() => Math.min(total.value, maxTaskOffset + pageSize))
+const selectedRowKeys = ref<string[]>([])
+const generatedAt = ref<string | null>(null)
+const hasMore = ref(false)
+const loading = ref(false)
+const actionKey = ref<string | null>(null)
+let refreshTimer: number | undefined
+let loadSequence = 0
 
 const columns = computed(() => [
   { title: t('task_center.columns.type'), key: 'type', width: 120 },
@@ -161,6 +177,23 @@ const rowSelection = computed(() => ({
 function toProjectId(value: unknown) {
   const parsed = Number(Array.isArray(value) ? value[0] : value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
+function toStringValue(value: unknown) {
+  const normalized = Array.isArray(value) ? value[0] : value
+  return typeof normalized === 'string' && normalized.trim() ? normalized : undefined
+}
+
+function toTaskType(value: unknown): WorkbenchTaskType | undefined {
+  const normalized = toStringValue(value)
+  return normalized && taskTypeOptions.includes(normalized as WorkbenchTaskType)
+    ? normalized as WorkbenchTaskType
+    : undefined
+}
+
+function toPage(value: unknown) {
+  const parsed = Number(Array.isArray(value) ? value[0] : value)
+  return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, maxPage) : 1
 }
 
 function formatTime(value?: string | null) {
@@ -203,18 +236,32 @@ async function loadTasks() {
   const requestSequence = ++loadSequence
   loading.value = true
   try {
-    const nextQuery = projectId.value ? { project_id: String(projectId.value) } : {}
-    if (route.query.project_id !== nextQuery.project_id) {
+    const nextQuery: Record<string, string> = {}
+    if (projectId.value) nextQuery.project_id = String(projectId.value)
+    if (statusFilter.value) nextQuery.status = statusFilter.value
+    if (taskType.value) nextQuery.task_type = taskType.value
+    if (page.value > 1) nextQuery.page = String(page.value)
+    const knownQueryKeys = new Set(['project_id', 'status', 'task_type', 'page'])
+    const currentQuery: Record<string, string> = {}
+    for (const key of knownQueryKeys) {
+      const value = toStringValue(route.query[key])
+      if (value) currentQuery[key] = value
+    }
+    const queryChanged = Object.keys(route.query).some((key) => !knownQueryKeys.has(key))
+      || JSON.stringify(currentQuery) !== JSON.stringify(nextQuery)
+    if (queryChanged) {
       await router.replace({ query: nextQuery })
     }
     const result = await workbenchApi.tasks({
       project_id: projectId.value,
       status: statusFilter.value,
       task_type: taskType.value,
-      limit: 200,
+      limit: pageSize,
+      offset: Math.min((page.value - 1) * pageSize, maxTaskOffset),
     })
     if (requestSequence !== loadSequence) return
     tasks.value = result.items
+    total.value = result.total
     generatedAt.value = result.generated_at
     hasMore.value = result.has_more
     selectedRowKeys.value = selectedRowKeys.value.filter((key) => tasks.value.some((task) => task.id === key))
@@ -223,6 +270,16 @@ async function loadTasks() {
   } finally {
     if (requestSequence === loadSequence) loading.value = false
   }
+}
+
+function handleFilterChange() {
+  page.value = 1
+  void loadTasks()
+}
+
+function handlePageChange(nextPage: number) {
+  page.value = Math.min(nextPage, maxPage)
+  void loadTasks()
 }
 
 async function handleAction(task: WorkbenchTaskItem, action: WorkbenchAction) {
@@ -294,6 +351,11 @@ onBeforeUnmount(() => {
 .page-heading,
 .action-bar {
   justify-content: space-between;
+}
+
+.pagination-row {
+  display: flex;
+  justify-content: flex-end;
 }
 
 .page-heading {

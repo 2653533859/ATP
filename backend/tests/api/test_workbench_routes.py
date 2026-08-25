@@ -2,7 +2,7 @@
 
 import asyncio
 import types
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 from fastapi import HTTPException
@@ -47,16 +47,16 @@ def _now():
     return datetime(2026, 8, 24, 10, 0, tzinfo=timezone.utc)
 
 
-def _task(task_type, status):
+def _task(task_type, status, *, run_id=9, created_at=None):
     return workbench._task_item(
         task_type=task_type,
-        run_id=9,
+        run_id=run_id,
         source_id=3,
         project_id=1,
         project_name="ATP",
         name="sample",
         status_value=status,
-        created_at=_now(),
+        created_at=created_at or _now(),
         detail_path="/runs/9",
     )
 
@@ -109,6 +109,36 @@ def test_collect_tasks_passes_domain_safe_status_filters(monkeypatch):
         "android": {"failed", "stopped"},
         "performance": {"failed", "cancelled"},
     }
+
+
+def test_collect_tasks_applies_offset_after_merging_domains(monkeypatch):
+    seen_limits = []
+    task_types = ("case", "suite", "plan", "android", "performance")
+
+    def collector(task_type):
+        async def _collect(_db, _user, _project_id, _status_filter, limit):
+            seen_limits.append(limit)
+            index = task_types.index(task_type)
+            return [
+                _task(
+                    task_type,
+                    "failed",
+                    run_id=index * 10 + row_index,
+                    created_at=_now() - timedelta(seconds=index * 3 + row_index),
+                )
+                for row_index in range(3)
+            ], False
+
+        return _collect
+
+    for task_type in task_types:
+        monkeypatch.setattr(workbench, f"_collect_{task_type}_tasks", collector(task_type))
+
+    items, has_more = asyncio.run(workbench._collect_tasks(_FakeDB(), types.SimpleNamespace(), None, None, None, 2, 2))
+
+    assert seen_limits == [4] * len(task_types)
+    assert [item.run_id for item in items] == [2, 10]
+    assert has_more is True
 
 
 def test_retry_guard_rejects_non_retryable_status():

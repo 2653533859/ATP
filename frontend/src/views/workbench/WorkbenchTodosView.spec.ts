@@ -54,6 +54,7 @@ const globalStubs = {
   ASpace: passthrough('ASpace'),
   ATable: passthrough('ATable'),
   ATag: passthrough('ATag'),
+  APagination: passthrough('APagination'),
   ReloadOutlined: true,
 }
 
@@ -102,7 +103,8 @@ describe('TaskCenterView', () => {
       project_id: undefined,
       status: undefined,
       task_type: undefined,
-      limit: 200,
+      limit: 50,
+      offset: 0,
     })
     expect(wrapper.text()).toContain('task_center.title')
 

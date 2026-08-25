@@ -352,6 +352,7 @@ async def _collect_tasks(
     status_filter: StatusFilter,
     task_type: str | None,
     limit: int,
+    offset: int = 0,
 ) -> tuple[list[WorkbenchTaskItem], bool]:
     collectors = {
         "case": _collect_case_tasks,
@@ -363,7 +364,9 @@ async def _collect_tasks(
     selected = [task_type] if task_type else list(collectors)
     collected: list[WorkbenchTaskItem] = []
     has_more = False
-    per_type_limit = min(limit, 100)
+    # Query each domain before applying the global offset because the final
+    # order is assembled across all five run tables.
+    per_type_limit = min(limit + offset, 1200)
     for selected_type in selected:
         items, source_has_more = await collectors[selected_type](
             db,
@@ -375,9 +378,10 @@ async def _collect_tasks(
         collected.extend(items)
         has_more = has_more or source_has_more
     collected.sort(key=lambda item: item.created_at or datetime.min.replace(tzinfo=timezone.utc), reverse=True)
-    if len(collected) > limit:
+    page_end = offset + limit
+    if len(collected) > page_end:
         has_more = True
-    return collected[:limit], has_more
+    return collected[offset:page_end], has_more
 
 
 async def _count_tasks(
@@ -672,6 +676,7 @@ async def list_workbench_tasks(
     status_filter: str | None = Query(None, alias="status"),
     task_type: str | None = Query(None),
     limit: int = Query(100, ge=1, le=200),
+    offset: int = Query(0, ge=0, le=1000),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -680,7 +685,7 @@ async def list_workbench_tasks(
     if task_type is not None and task_type not in _TASK_TYPES:
         raise HTTPException(status_code=400, detail="任务类型不支持")
     generated_at = datetime.now(timezone.utc)
-    items, has_more = await _collect_tasks(db, current_user, project_id, status_filter, task_type, limit)
+    items, has_more = await _collect_tasks(db, current_user, project_id, status_filter, task_type, limit, offset)
     total = await _count_tasks(db, current_user, project_id, status_filter, task_type)
     return WorkbenchTaskPageOut(
         generated_at=generated_at,
