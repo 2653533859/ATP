@@ -4,6 +4,8 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
+> 当前计划登记：主游标为 N1 GraphQL/WebSocket/流式 gRPC 与完整报告真实证据；N2 Karing 真机因未确认真实包名暂缓但不阻塞 N1；随后是 N4 生产性能、N5-N8 外部依赖复核和 N9 发布收口。未关闭门禁继续按“待环境验收”处理。
+
 > API 受控目标、显式会话复用、gRPC TLS Unary、OpenAPI/Postman 解析和导入落库证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)、[`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)。这些证据不代表生产 API、GraphQL/WebSocket/流式 gRPC 或完整报告验收通过。
 
 > N1 协议执行边界已补齐：GraphQL、WebSocket、gRPC 的缺失/空 `config.steps` 会 fail-fast 为 `error`，避免产生零步骤的虚假通过；该项有本地回归，不替代真实协议目标验收。
@@ -26,7 +28,7 @@
 
 ## 2026-08-25 当前执行计划与新增阻塞
 
-当前执行顺序为：Android Karing 单设备真实闭环（当前阻塞）→ N1 其他协议/完整报告 → 真实通知 → 外部缺陷平台 → 生产性能 → 发布收口；Windows API/Web 完整 smoke 已复核完成。
+当前执行顺序为：N1 其他协议/完整报告 → N4 生产性能 → 真实通知/外部缺陷平台 → N9 发布收口；N2 Android Karing 单设备真实闭环因未确认包名并行阻塞，Windows API/Web 完整 smoke 已复核完成。
 
 - 本轮 Windows smoke 已使用当前账号重新通过认证；健康检查、前端登录页、PostgreSQL/Redis/MinIO readiness、Web Worker、Playwright `12 passed`、浏览器矩阵、文件传输、Web 低代码和报告导出均通过。未在文档或证据中记录账号、密码或 Token。
 - Windows smoke 继续只读取当前账号 `ATP_USERNAME/ATP_PASSWORD`，不自动回退或混用 `FIRST_ADMIN_*`；全新数据库初始化验证仍必须显式使用 `-UseBootstrapCredentials`。
