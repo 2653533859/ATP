@@ -313,4 +313,56 @@ describe('ApiWorkbenchView', () => {
     expect(vm.environments).toEqual([{ id: 3, name: '项目三环境' }])
     wrapper.unmount()
   })
+
+  it('does not let a stale refresh response replace the latest project list', async () => {
+    const staleRefresh = deferred<Array<{ id: number; name: string; current_user_role: string }>>()
+    const latestRefresh = deferred<Array<{ id: number; name: string; current_user_role: string }>>()
+    projectList.mockReset()
+    projectList
+      .mockResolvedValueOnce([{ id: 1, name: '初始项目', current_user_role: 'owner' }])
+      .mockImplementationOnce(() => staleRefresh.promise)
+      .mockImplementationOnce(() => latestRefresh.promise)
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      refreshWorkbench: () => Promise<void>
+      projects: Array<{ id: number; name: string }>
+      selectedProjectId: number | null
+    }
+    const staleLoad = vm.refreshWorkbench()
+    await flushPromises()
+    const latestLoad = vm.refreshWorkbench()
+    await flushPromises()
+
+    latestRefresh.resolve([{ id: 3, name: '最新项目', current_user_role: 'owner' }])
+    await latestLoad
+    staleRefresh.resolve([{ id: 1, name: '旧项目', current_user_role: 'owner' }])
+    await staleLoad
+    await flushPromises()
+
+    expect(vm.projects).toEqual([{ id: 3, name: '最新项目', current_user_role: 'owner' }])
+    expect(vm.selectedProjectId).toBe(3)
+    wrapper.unmount()
+  })
+
+  it('clears cases and invalidates an in-flight request when the project is cleared', async () => {
+    const staleCases = deferred<typeof apiCase[]>()
+    caseList.mockReset().mockImplementationOnce(() => staleCases.promise)
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      handleProjectChange: (projectId: number | null) => Promise<void>
+      cases: Array<typeof apiCase>
+    }
+    await vm.handleProjectChange(null)
+    staleCases.resolve([apiCase])
+    await flushPromises()
+
+    expect(vm.cases).toEqual([])
+    wrapper.unmount()
+  })
 })

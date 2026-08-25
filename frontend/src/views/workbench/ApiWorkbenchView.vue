@@ -314,6 +314,7 @@ const runEnvironmentId = ref<number | undefined>(undefined)
 let loadSequence = 0
 let detailSequence = 0
 let environmentSequence = 0
+let projectSequence = 0
 
 const projectOptions = computed(() => projects.value.map((project) => ({
   label: project.name,
@@ -460,12 +461,13 @@ async function loadRecentRuns(caseIds: number[], sequence?: number) {
 
 async function loadCases() {
   const projectId = selectedProjectId.value
+  const sequence = ++loadSequence
   if (!projectId) {
     cases.value = []
     recentRuns.value = []
+    loading.value = false
     return
   }
-  const sequence = ++loadSequence
   loading.value = true
   try {
     const result = await caseApi.list({
@@ -484,15 +486,19 @@ async function loadCases() {
 }
 
 async function loadProjects() {
+  const sequence = ++projectSequence
   try {
-    projects.value = await projectApi.list()
+    const result = await projectApi.list()
+    if (sequence !== projectSequence) return
+    projects.value = result
     if (!selectedProjectId.value || !projects.value.some((item) => item.id === selectedProjectId.value)) {
       selectedProjectId.value = projects.value[0]?.id ?? null
     }
     await Promise.all([loadEnvironments(), loadCases()])
+    if (sequence !== projectSequence) return
     syncRoute()
   } catch (error: unknown) {
-    message.error(errorMessage(error, t('api_workbench.load_failed')))
+    if (sequence === projectSequence) message.error(errorMessage(error, t('api_workbench.load_failed')))
   }
 }
 

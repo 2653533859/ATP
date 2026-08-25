@@ -35,7 +35,7 @@
 3. viewer 矩阵之后再在受控模型配置下复核 P5/P7 的模型发现、连接、多模态/思考参数、可编辑草稿、来源审计和清理；没有真实模型时保持阻塞，不用 HTTP 401 或 mock 结果替代。
 4. 最后复核 P8 目标部署的 PostgreSQL/Redis/MinIO/Worker/ADB 诊断、配置差异、单资源回滚、脱敏审计和权限拒绝，再进入 P9 发布收口。
 5. 每一项必须执行：实现/调整 → 定向测试 → 受影响全量门禁 → 独立代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 提交并推送。
-6. 2.4.16 的 API 工作台项目环境列表竞态修复已完成本地补强；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据执行角色矩阵，再进入真实模型与目标治理门禁。
+6. 2.4.17 的 API 工作台项目列表刷新竞态修复已完成本地补强；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据执行角色矩阵，再进入真实模型与目标治理门禁。
 
 ### 2.4.0 状态口径
 
@@ -164,6 +164,12 @@
 
 - [x] API 工作台为项目环境列表请求增加项目序列保护；快速切换项目时，旧项目的环境成功响应、失败清空和 loading 收尾都不会覆盖当前项目状态，清空项目也会立即失效旧请求。
 - [x] 新增连续切换两个项目的延迟响应回归；定向测试 `6 passed`，前端全量 `69 files / 308 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过；独立审查未发现需修复的问题。
+- **Status**: `[E]` local implementation, tests, review, fix and documentation are complete; real project-role and execution-data verification remains part of the N1/P1 external environment review.
+
+## 2.4.17 P1 API workbench project-refresh race protection (local complete, 2026-08-25)
+
+- [x] API 工作台为项目列表刷新增加序列保护；连续刷新时旧项目列表响应和错误不会覆盖最新结果或重置当前项目，最新结果完成后仍会刷新环境、用例并同步 URL。
+- [x] 用例列表在清空项目时也推进请求序列，避免旧项目响应回写，并将 loading 正确恢复；定向测试 `8 passed`，前端全量 `69 files / 310 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过；独立审查发现并修复了清空项目分支的旧请求回写问题。
 - **Status**: `[E]` local implementation, tests, review, fix and documentation are complete; real project-role and execution-data verification remains part of the N1/P1 external environment review.
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
