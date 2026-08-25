@@ -46,7 +46,7 @@ class SuiteRun(Base, TimestampMixin):
     __tablename__ = "suite_runs"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    suite_id: Mapped[int] = mapped_column(ForeignKey("test_suites.id"), nullable=False)
+    suite_id: Mapped[int] = mapped_column(ForeignKey("test_suites.id", ondelete="CASCADE"), nullable=False)
     triggered_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     trace_id: Mapped[str | None] = mapped_column(String(64), index=True)
     status: Mapped[SuiteRunStatus] = mapped_column(Enum(SuiteRunStatus), default=SuiteRunStatus.pending)

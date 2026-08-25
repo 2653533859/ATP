@@ -51,7 +51,7 @@ class Module(Base, TimestampMixin):
     name: Mapped[str] = mapped_column(String(128), nullable=False)
     module_code: Mapped[str | None] = mapped_column(String(32))
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
-    parent_id: Mapped[int | None] = mapped_column(ForeignKey("modules.id"))
+    parent_id: Mapped[int | None] = mapped_column(ForeignKey("modules.id", ondelete="CASCADE"))
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 
     project: Mapped["Project"] = relationship(back_populates="modules")

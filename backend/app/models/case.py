@@ -50,7 +50,7 @@ class TestCase(Base, TimestampMixin):
     review_status: Mapped[str] = mapped_column(String(32), default="pending", nullable=False)
     automation_status: Mapped[str] = mapped_column(String(32), default="auto", nullable=False)
     tags: Mapped[list[str]] = mapped_column(JSON, default=list)
-    module_id: Mapped[int] = mapped_column(ForeignKey("modules.id"), nullable=False)
+    module_id: Mapped[int] = mapped_column(ForeignKey("modules.id", ondelete="CASCADE"), nullable=False)
     creator_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     owner_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
@@ -59,7 +59,7 @@ class TestCase(Base, TimestampMixin):
     review_comment: Mapped[str | None] = mapped_column(Text)
     config: Mapped[dict] = mapped_column(JSON, default=dict)
     # P3.B MVP-B 参数化执行：绑定数据集后按行触发 N 次 child run
-    dataset_id: Mapped[int | None] = mapped_column(ForeignKey("test_datasets.id"), nullable=True)
+    dataset_id: Mapped[int | None] = mapped_column(ForeignKey("test_datasets.id", ondelete="SET NULL"), nullable=True)
     # AI/parameterized executions may pin an immutable dataset version. Null keeps legacy cases on current data.
     dataset_version: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
@@ -116,7 +116,7 @@ class TestRun(Base, TimestampMixin):
     __tablename__ = "test_runs"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    case_id: Mapped[int] = mapped_column(ForeignKey("test_cases.id"), nullable=False)
+    case_id: Mapped[int] = mapped_column(ForeignKey("test_cases.id", ondelete="CASCADE"), nullable=False)
     triggered_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     trace_id: Mapped[str | None] = mapped_column(String(64), index=True)
     status: Mapped[RunStatus] = mapped_column(Enum(RunStatus), default=RunStatus.pending)
@@ -128,7 +128,9 @@ class TestRun(Base, TimestampMixin):
     # P3.B MVP-B 参数化执行：parent run（容器）+ 多个 child runs（实际跑）
     iteration_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     iteration_data: Mapped[dict | None] = mapped_column(JSON, nullable=True)
-    parent_run_id: Mapped[int | None] = mapped_column(ForeignKey("test_runs.id"), nullable=True, index=True)
+    parent_run_id: Mapped[int | None] = mapped_column(
+        ForeignKey("test_runs.id", ondelete="CASCADE"), nullable=True, index=True
+    )
 
     case: Mapped["TestCase"] = relationship(back_populates="runs")
     steps: Mapped[list["StepResult"]] = relationship(back_populates="run", cascade="all, delete-orphan")
@@ -138,7 +140,7 @@ class StepResult(Base, TimestampMixin):
     __tablename__ = "step_results"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    run_id: Mapped[int] = mapped_column(ForeignKey("test_runs.id"), nullable=False)
+    run_id: Mapped[int] = mapped_column(ForeignKey("test_runs.id", ondelete="CASCADE"), nullable=False)
     step_index: Mapped[int] = mapped_column(Integer, nullable=False)
     name: Mapped[str] = mapped_column(String(256))
     status: Mapped[RunStatus] = mapped_column(Enum(RunStatus))

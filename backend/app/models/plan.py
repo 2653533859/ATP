@@ -78,7 +78,7 @@ class PlanRun(Base, TimestampMixin):
     __tablename__ = "plan_runs"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    plan_id: Mapped[int] = mapped_column(ForeignKey("test_plans.id"), nullable=False)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("test_plans.id", ondelete="CASCADE"), nullable=False)
     triggered_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     trace_id: Mapped[str | None] = mapped_column(String(64), index=True)
     trigger_type: Mapped[TriggerType] = mapped_column(Enum(TriggerType), default=TriggerType.manual)
