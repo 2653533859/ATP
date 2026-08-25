@@ -5,6 +5,7 @@
   2. generate：根据接口清单 + 用户需求，调用 LLM 生成用例草稿
 """
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -96,10 +97,24 @@ class AICaseDraft(BaseModel):
     dataset_version: int | None = None
 
 
+class AICaseGenerationSource(BaseModel):
+    """Safe, non-secret provenance summary for an AI generation session."""
+
+    config_id: int
+    provider: str
+    model_name: str
+    endpoint_count: int = Field(ge=0)
+    dataset_id: int | None = None
+    dataset_version: int | None = None
+    mock_rule_ids: list[int] = Field(default_factory=list)
+    generated_at: datetime
+
+
 class AICaseGenerateOut(BaseModel):
     project_id: int
     module_id: int
     drafts: list[AICaseDraft]
+    source: AICaseGenerationSource
     raw_response: str | None = None
     warnings: list[str] = Field(default_factory=list)
 

@@ -45,6 +45,21 @@ def test_ai_case_drawer_exposes_sample_and_natural_language_modes():
     assert "external_ref_policy_label" in en
 
 
+def test_ai_case_generation_persists_safe_source_provenance():
+    schema = repo_path("backend/app/schemas/ai_case.py").read_text(encoding="utf-8")
+    api = repo_path("backend/app/api/v1/ai_case_generation.py").read_text(encoding="utf-8")
+    drawer = repo_path("frontend/src/views/case/AIGenerateDrawer.vue").read_text(encoding="utf-8")
+    detail = repo_path("frontend/src/views/case/CaseDetail.vue").read_text(encoding="utf-8")
+
+    assert "class AICaseGenerationSource(BaseModel):" in schema
+    assert '"model_name": str(config.model_name)' in api
+    assert '"generated_at": generated_at' in api
+    assert "generationSource.value" in drawer
+    assert "_ai_source" in drawer
+    assert "aiSourceSummary" in detail
+    assert "user_requirement" not in detail
+
+
 def test_s5_02_is_marked_complete_in_roadmap():
     roadmap = repo_path("docs/optimization-roadmap-2026.md").read_text(encoding="utf-8")
 

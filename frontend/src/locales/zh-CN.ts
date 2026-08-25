@@ -3176,6 +3176,10 @@ export default {
       executable_no: '不可执行',
       execution_ready_hint: '满足执行前置校验，可直接发起执行。',
       ai_generated: 'AI 生成',
+      ai_source: '生成来源',
+      ai_source_endpoints: '个接口',
+      ai_source_dataset: '数据集',
+      ai_source_mocks: '个 Mock 规则',
       script_status: '脚本状态',
       msg: {
         load_failed: '加载用例详情失败',

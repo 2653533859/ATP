@@ -111,6 +111,9 @@
                     <span v-if="!caseDetail.tags.length">-</span>
                   </a-space>
                 </a-descriptions-item>
+                <a-descriptions-item v-if="aiSourceSummary" :label="t('case.detail.ai_source')" :span="2">
+                  {{ aiSourceSummary }}
+                </a-descriptions-item>
                 <a-descriptions-item :label="t('common.created_at')">{{ formatDateTime(caseDetail.created_at) }}</a-descriptions-item>
                 <a-descriptions-item :label="t('common.updated_at')">{{ formatDateTime(caseDetail.updated_at) }}</a-descriptions-item>
                 <a-descriptions-item :label="t('case.detail.creator_id')">{{ caseDetail.creator_id }}</a-descriptions-item>
@@ -326,6 +329,24 @@ const executionStatusHint = computed(() => caseDetail.value?.is_ready_for_execut
   : t('case.detail.run_disabled_tooltip')
 )
 const prettyConfig = computed(() => JSON.stringify(caseDetail.value?.config ?? {}, null, 2))
+const aiSourceSummary = computed(() => {
+  const raw = caseDetail.value?.config?._ai_source
+  if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return ''
+  const source = raw as Record<string, unknown>
+  const parts: string[] = []
+  if (source.provider || source.model_name) {
+    parts.push(`${String(source.provider || '-')} / ${String(source.model_name || '-')}`)
+  }
+  if (source.endpoint_count !== undefined) parts.push(`${String(source.endpoint_count)} ${t('case.detail.ai_source_endpoints')}`)
+  if (source.dataset_id) {
+    const version = source.dataset_version ? ` v${String(source.dataset_version)}` : ''
+    parts.push(`${t('case.detail.ai_source_dataset')} #${String(source.dataset_id)}${version}`)
+  }
+  const mockCount = Array.isArray(source.mock_rule_ids) ? source.mock_rule_ids.length : 0
+  if (mockCount) parts.push(`${t('case.detail.ai_source_mocks')} ${mockCount}`)
+  if (source.generated_at) parts.push(formatDateTime(String(source.generated_at)))
+  return parts.join(' · ')
+})
 const canSubmitReview = computed(() => !!caseDetail.value && caseDetail.value.status !== 'deprecated' && caseDetail.value.review_status !== 'pending')
 const canApprove = computed(() => !!caseDetail.value && caseDetail.value.status !== 'deprecated' && caseDetail.value.review_status === 'pending')
 const canReject = computed(() => !!caseDetail.value && caseDetail.value.review_status === 'pending')

@@ -3172,6 +3172,10 @@ export default {
       executable_no: 'Not executable',
       execution_ready_hint: 'Execution checks passed. You can start a run.',
       ai_generated: 'AI generated',
+      ai_source: 'Generation source',
+      ai_source_endpoints: 'endpoints',
+      ai_source_dataset: 'Dataset',
+      ai_source_mocks: 'Mock rules',
       script_status: 'Script status',
       msg: {
         load_failed: 'Failed to load case details',

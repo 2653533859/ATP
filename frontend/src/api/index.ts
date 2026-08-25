@@ -2544,10 +2544,22 @@ export interface AICaseGeneratePayload {
   mock_rule_ids?: number[]
 }
 
+export interface AICaseGenerationSource {
+  config_id: number
+  provider: LLMProvider
+  model_name: string
+  endpoint_count: number
+  dataset_id?: number | null
+  dataset_version?: number | null
+  mock_rule_ids: number[]
+  generated_at: string
+}
+
 export interface AICaseGenerateResult {
   project_id: number
   module_id: number
   drafts: AICaseDraft[]
+  source: AICaseGenerationSource
   raw_response?: string | null
   warnings: string[]
 }

@@ -158,19 +158,27 @@ async def generate_cases_endpoint(
             dataset_version=body.dataset_version,
         )
     except httpx.TimeoutException:
-        await _record_generation_event(db, user, body, action="ai_case_generate_failed", error_type="timeout")
+        await _record_generation_event(
+            db, user, body, action="ai_case_generate_failed", error_type="timeout", config=config
+        )
         raise HTTPException(status_code=504, detail="LLM 请求超时")
     except httpx.HTTPStatusError as exc:
-        await _record_generation_event(db, user, body, action="ai_case_generate_failed", error_type="http_status")
+        await _record_generation_event(
+            db, user, body, action="ai_case_generate_failed", error_type="http_status", config=config
+        )
         raise HTTPException(
             status_code=502,
             detail=f"LLM 调用失败（HTTP {exc.response.status_code}）",
         )
     except httpx.RequestError:
-        await _record_generation_event(db, user, body, action="ai_case_generate_failed", error_type="network")
+        await _record_generation_event(
+            db, user, body, action="ai_case_generate_failed", error_type="network", config=config
+        )
         raise HTTPException(status_code=502, detail="LLM 网络请求失败")
     except ValueError as exc:
-        await _record_generation_event(db, user, body, action="ai_case_generate_failed", error_type="validation")
+        await _record_generation_event(
+            db, user, body, action="ai_case_generate_failed", error_type="validation", config=config
+        )
         raise HTTPException(status_code=400, detail=str(exc))
 
     await _record_generation_event(
@@ -180,12 +188,26 @@ async def generate_cases_endpoint(
         action="ai_case_generate",
         draft_count=len(result.drafts),
         warning_count=len(result.warnings),
+        config=config,
     )
+
+    generated_at = datetime.now(timezone.utc)
+    source = {
+        "config_id": config.id,
+        "provider": str(config.provider),
+        "model_name": str(config.model_name),
+        "endpoint_count": len(body.endpoints),
+        "dataset_id": body.dataset_id,
+        "dataset_version": body.dataset_version,
+        "mock_rule_ids": list(dict.fromkeys(body.mock_rule_ids)),
+        "generated_at": generated_at,
+    }
 
     return AICaseGenerateOut(
         project_id=body.project_id,
         module_id=body.module_id,
         drafts=result.drafts,  # type: ignore[arg-type]
+        source=source,
         raw_response=redact_llm_text(result.raw_text),
         warnings=result.warnings,
     )
@@ -200,6 +222,7 @@ async def _record_generation_event(
     draft_count: int = 0,
     warning_count: int = 0,
     error_type: str | None = None,
+    config: AILLMConfig | None = None,
 ) -> None:
     detail = {
         "project_id": body.project_id,
@@ -213,6 +236,9 @@ async def _record_generation_event(
         "dataset_version": body.dataset_version,
         "mock_rule_count": len(body.mock_rule_ids),
         "mock_rule_ids": list(dict.fromkeys(body.mock_rule_ids)),
+        "ai_config_id": getattr(config, "id", None),
+        "provider": getattr(config, "provider", None),
+        "model_name": getattr(config, "model_name", None),
     }
     if error_type:
         detail["error_type"] = error_type

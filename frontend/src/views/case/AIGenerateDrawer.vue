@@ -306,6 +306,7 @@ import {
   datasetApi,
   mockRuleApi,
   type AICaseDraft,
+  type AICaseGenerationSource,
   type AICaseStepDraft,
   type AIEndpointSummary,
   type CaseImportResult,
@@ -366,6 +367,7 @@ const generating = ref(false)
 const generateWarnings = ref<string[]>([])
 const drafts = ref<AICaseDraft[]>([])
 const selectedDraftKeys = ref<string[]>([])
+const generationSource = ref<AICaseGenerationSource | null>(null)
 
 const saving = ref(false)
 const draftEditorOpen = ref(false)
@@ -628,6 +630,7 @@ function resetGeneration() {
   drafts.value = []
   selectedDraftKeys.value = []
   generateWarnings.value = []
+  generationSource.value = null
   externalRefPolicy.value = 'warn'
 }
 
@@ -720,6 +723,7 @@ async function handleGenerate() {
     })
     drafts.value = result.drafts ?? []
     selectedDraftKeys.value = drafts.value.map((_, i) => String(i))
+    generationSource.value = result.source ?? null
     generateWarnings.value = result.warnings ?? []
     if (!drafts.value.length) {
       message.warning(t('case.ai.msg.no_drafts'))
@@ -771,6 +775,7 @@ async function handleSaveSelected() {
           ...(draft.config ?? {}),
           _ai_generated: true,
           _ai_source: {
+            ...(generationSource.value ?? {}),
             dataset_id: boundDatasetId,
             dataset_version: boundDatasetVersion,
             mock_rule_ids: [...new Set(mockRuleIds.value)],

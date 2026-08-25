@@ -302,11 +302,17 @@ def test_generate_success_invokes_generator(monkeypatch):
     assert result.module_id == 2
     assert len(result.drafts) == 1
     assert result.drafts[0].name == "draft 1"
+    assert result.source.provider == "deepseek"
+    assert result.source.model_name == "deepseek-chat"
+    assert result.source.endpoint_count == 0
+    assert result.source.config_id == 1
     assert called_with["max_cases"] == 3
     assert called_with["user_requirement"] == "登录"
     assert db.added[-1].action == "ai_case_generate"
     assert db.added[-1].project_id == 1
     assert '"draft_count": 1' in db.added[-1].detail
+    assert '"ai_config_id": 1' in db.added[-1].detail
+    assert '"model_name": "deepseek-chat"' in db.added[-1].detail
 
 
 def test_generate_passes_selected_dataset_and_mock_context(monkeypatch):

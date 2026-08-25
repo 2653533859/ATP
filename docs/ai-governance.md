@@ -147,6 +147,13 @@ and multiple project Mock rules:
   dataset version, and Mock rule IDs. This is provenance metadata only; AI does
   not mutate the source dataset or Mock rules.
 
+The generation response and saved `_ai_source` may also contain the safe
+generation summary: AI config ID, provider, model name, endpoint count and UTC
+generation time. The audit event records the same model summary. Do not add the
+endpoint URL, prompt, API key, raw provider response or arbitrary request
+content to this summary. Older cases with only dataset/Mock provenance remain
+valid and should render without a model line.
+
 ## Error Degradation
 
 - AI case generation has no reliable deterministic replacement for LLM output;
