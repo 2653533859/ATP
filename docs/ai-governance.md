@@ -26,6 +26,8 @@ leave API Key empty. For Open WebUI, select the OpenAI-compatible provider,
 use `http://host:3000/v1`, and provide an Open WebUI API token from Settings ->
 Account; the host login password is not an API token. The client accepts either
 a Base URL with or without the `/v1` suffix and avoids duplicating the prefix.
+All AI generation, diagnosis, and healing paths preserve this keyless Ollama
+behavior; an empty key remains invalid for non-Ollama providers.
 
 `supports_vision` should be enabled only when the selected model accepts image
 input and the workflow actually sends images or screenshots. For AI healing,

@@ -235,7 +235,11 @@ async def generate_failure_diagnosis(db: AsyncSession, run_id: int) -> dict[str,
                 response = await call_llm(
                     LLMRequest(
                         provider=config.provider,
-                        api_key=decrypt(config.api_key_encrypted),
+                        api_key=(
+                            ""
+                            if getattr(config, "provider", None) == "ollama" and not config.api_key_encrypted
+                            else decrypt(config.api_key_encrypted)
+                        ),
                         model_name=config.model_name,
                         prompt=prompt,
                         endpoint=config.endpoint,

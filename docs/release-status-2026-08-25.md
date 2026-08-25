@@ -6,6 +6,8 @@
 
 > 当前计划登记（2.1.0）：导航已按工作台、测试能力、测试资产、智能中枢、系统五组统一，N0-N9 的范围与验收出口见开发计划 2.1.0。N2 Karing 单设备包身份、Worker 前置、低代码、录屏、稳定性/Monkey、性能/流畅度专项、事件/报告和清理已通过；当前转入 N4 真实性能环境，随后推进 N5-N8 外部依赖复核和 N9 发布收口。N4 仍缺真实 Kubernetes/独立灾备 MinIO/生产 Prometheus，未关闭门禁继续按“待环境验收”处理。
 
+> 2026-08-25 N5 本地 AI 密钥边界已完成：Ollama 空 API Key 可用于用例/数据集/Mock 生成、失败诊断和自愈，非 Ollama 空密钥仍拒绝，兼容请求不发送空 Authorization；相关 AI 定向 `88 passed`、后端非集成全量 `2315 passed`。真实模型列表、健康检查、多模态/思考参数和项目级生成仍待环境验收，不改变发布结论。
+
 > 2026-08-25 N2 Karing 性能与流畅度专项已完成真实单设备复核：性能运行 `10` 完成 CPU/内存/电量/温度/FPS/卡顿采样，流畅度运行 `13` 完成滑动/点击两个阶段并采集 FPS/jank；事件序列无重复，两个 JSON 报告导出均 HTTP 200，临时项目 `51` 删除 204 且删除后查询 404。Android 14 兼容修复已补入性能内存 VmRSS 兜底和 gfxinfo UI HISTOGRAM 解析/GPU 直方图排除；相关定向回归 `60 passed`，脱敏证据见 [`android-karing-performance-fluency-2026-08-25.json`](evidence/android-karing-performance-fluency-2026-08-25.json)。N2 单设备门禁已关闭，但不代表多设备矩阵或 N4 真实性能环境通过。
 
 > 2026-08-25 N2 Karing 真机前置阶段已通过：设备 `172.16.102.91:5555` 安装并解析 `com.nebula.karing/.MainActivity`，Windows Android Worker、依赖 readiness、Worker registry 和设备扫描通过；后续低代码与录屏结果见最新 N2 记录。发布结论保持“不具备无条件发布资格”。脱敏证据见 [`android-karing-acceptance-2026-08-25.json`](evidence/android-karing-acceptance-2026-08-25.json) 与 [`windows-android-karing-worker-2026-08-25.json`](evidence/windows-android-karing-worker-2026-08-25.json)。

@@ -93,7 +93,11 @@ async def generate_case_drafts(
     if not config.enabled:
         raise ValueError("AI 配置已禁用")
     try:
-        api_key = decrypt(config.api_key_encrypted)
+        api_key = (
+            ""
+            if getattr(config, "provider", None) == "ollama" and not config.api_key_encrypted
+            else decrypt(config.api_key_encrypted)
+        )
     except Exception as exc:  # noqa: BLE001
         raise ValueError("API Key 解密失败，请重新录入") from exc
 

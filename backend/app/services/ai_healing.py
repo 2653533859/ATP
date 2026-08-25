@@ -325,7 +325,11 @@ async def run_diagnosis(db: AsyncSession, step_result_id: int) -> None:
 
     # 构造 prompt + 调 LLM
     try:
-        api_key = decrypt(config.api_key_encrypted)
+        api_key = (
+            ""
+            if getattr(config, "provider", None) == "ollama" and not config.api_key_encrypted
+            else decrypt(config.api_key_encrypted)
+        )
     except Exception:
         await _finalize(db, step, status="failed", message="LLM API key 解密失败")
         await _safe_publish(run.id, step, "failed", "LLM API key 解密失败")
@@ -569,7 +573,11 @@ async def run_diagnosis_for_run(db: AsyncSession, run_id: int) -> None:
         return
 
     try:
-        api_key = decrypt(config.api_key_encrypted)
+        api_key = (
+            ""
+            if getattr(config, "provider", None) == "ollama" and not config.api_key_encrypted
+            else decrypt(config.api_key_encrypted)
+        )
     except Exception:
         await _finalize_run_healing(db, run, status="failed", suggestion="LLM API key 解密失败", cache_hit=False)
         await _safe_publish_run(run.id, "failed", "LLM API key 解密失败", cache_hit=False)

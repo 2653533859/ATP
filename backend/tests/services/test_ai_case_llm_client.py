@@ -205,6 +205,26 @@ def test_call_llm_custom_endpoint(monkeypatch):
     assert captured.captured["url"] == "http://my-host:8000/v1/chat/completions"
 
 
+def test_call_llm_ollama_without_api_key_omits_authorization_header(monkeypatch):
+    payload = {"choices": [{"message": {"content": "local response"}}]}
+    captured = _patch_httpx(monkeypatch, payload)
+
+    response = asyncio.run(
+        call_llm(
+            LLMRequest(
+                provider="ollama",
+                api_key="",
+                model_name="qwen3",
+                prompt="hello",
+                endpoint="http://ollama:11434",
+            )
+        )
+    )
+
+    assert response.text == "local response"
+    assert captured.captured["headers"] == {"Content-Type": "application/json"}
+
+
 def test_call_llm_custom_v1_endpoint_does_not_duplicate_prefix(monkeypatch):
     payload = {"choices": [{"message": {"content": "x"}}]}
     captured = _patch_httpx(monkeypatch, payload)

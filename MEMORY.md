@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 N5 本地 AI 密钥边界已修复并完成审查：界面允许的 Ollama 空 API Key 现在可用于 AI 用例、测试数据集、Mock 规则、失败诊断和自愈；非 Ollama 空密钥仍进入原有 Fernet 解密失败保护。OpenAI 兼容请求无密钥时不发送空 `Authorization` 头。新增用例/数据集/Mock/请求头回归，相关 AI 定向 `88 passed`，后端非集成全量 `2315 passed`，Ruff、格式和差异检查通过。N5 仍是 `[E]`：真实 Ollama/三方模型列表、健康检查、多模态/思考参数和项目级生成尚未做环境验收；未记录任何密钥。
+
 - 2026-08-25 已同步开发计划跟踪版本 2.1.0：N2 Karing 单设备闭环保持 `[x]`；当前游标为 N4 真实性能环境，因目标主机缺少 Kubernetes/Prometheus/独立 MinIO source/target 保持 `[-]`，不以 q19 Compose、mock 或跳过项替代。后续顺序固定为 N4 环境门禁 → N5 AI 真实模型 → N6 测试资产与权限 → N7 智能中枢来源链路 → N8 系统治理与回滚 → N9 发布收口。N4 拆分为集群容量、Prometheus 采样、MinIO 生命周期/跨端点恢复和门禁复核；具体解除条件与复验命令见 `docs/development-plan-2026-08-25.md` 2.1.0，`Task.md`、路线图和发布状态已同步。此次只更新计划/记忆文档，未写入凭据或新增业务代码。
 
 - 2026-08-25 N2 Karing 性能与流畅度专项已完成真实单设备闭环：同一 Windows Android Worker、设备 `172.16.102.91:5555`、包 `com.nebula.karing` 上，性能运行 `10` 完成 CPU/内存/电量/温度/FPS/卡顿采样，流畅度运行 `13` 完成滑动/点击两个阶段并采集 FPS/jank；事件序号无重复，两个 JSON 报告导出 HTTP 200，临时项目 `51` 删除 204 且查询 404。真实复验发现 Android 14 包级 `dumpsys meminfo` 可能只有标题，已增加 `/proc/<pid>/status` 的 VmRSS 兜底；`gfxinfo` 已支持 `Total frames`/等号 `HISTOGRAM` 并排除 GPU 直方图。相关定向回归 `60 passed`，Ruff 通过，脱敏证据见 `docs/evidence/android-karing-performance-fluency-2026-08-25.json`。N2 单设备闭环完成，下一游标为 N4 真实性能环境；Kubernetes、Prometheus、独立 MinIO 缺失时仍保持阻塞，不以 q19 Compose 替代。未写入凭据、预签名 URL、原始日志或二进制内容。

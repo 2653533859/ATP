@@ -164,3 +164,37 @@ def test_generate_mock_rule_drafts_redacts_context_and_calls_llm(monkeypatch):
     assert warnings == []
     assert captured["request"].api_key == "decrypted:encrypted"
     assert "Users" in captured["request"].prompt
+
+
+def test_generate_mock_rule_drafts_allows_keyless_ollama(monkeypatch):
+    config = SimpleNamespace(
+        enabled=True,
+        api_key_encrypted="",
+        provider="ollama",
+        model_name="qwen3",
+        endpoint="http://ollama:11434",
+        default_params={},
+    )
+    captured = {}
+
+    async def allow_quota(**_kwargs):
+        return True
+
+    async def fake_call(request):
+        captured["request"] = request
+        return SimpleNamespace(text='[{"name":"Local rule","path":"/health"}]')
+
+    monkeypatch.setattr(generator, "check_and_incr_daily_limit", allow_quota)
+    monkeypatch.setattr(generator, "call_llm", fake_call)
+
+    rules, _ = asyncio.run(
+        generator.generate_mock_rule_drafts(
+            config=config,
+            source_rules=[],
+            requirement="生成本地健康检查规则",
+            rule_count=1,
+        )
+    )
+
+    assert rules[0]["path"] == "/health"
+    assert captured["request"].api_key == ""

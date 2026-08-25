@@ -94,10 +94,9 @@ async def _call_openai_compatible(request: LLMRequest) -> LLMResponse:
     if request.extra_params:
         payload.update(request.extra_params)
 
-    headers = {
-        "Authorization": f"Bearer {request.api_key}",
-        "Content-Type": "application/json",
-    }
+    headers = {"Content-Type": "application/json"}
+    if request.api_key:
+        headers["Authorization"] = f"Bearer {request.api_key}"
 
     async with httpx.AsyncClient(timeout=request.timeout_seconds) as client:
         resp = await client.post(url, json=payload, headers=headers)

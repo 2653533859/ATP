@@ -68,3 +68,37 @@ def test_generate_dataset_rows_decrypts_checks_quota_and_calls_llm(monkeypatch):
     assert warnings == []
     assert captured["request"].api_key == "decrypted:encrypted"
     assert captured["request"].model_name == "test-model"
+
+
+def test_generate_dataset_rows_allows_keyless_ollama(monkeypatch):
+    config = SimpleNamespace(
+        enabled=True,
+        api_key_encrypted="",
+        provider="ollama",
+        model_name="qwen3",
+        endpoint="http://ollama:11434",
+        default_params={},
+    )
+    captured = {}
+
+    async def allow_quota(**_kwargs):
+        return True
+
+    async def fake_call(request):
+        captured["request"] = request
+        return SimpleNamespace(text='[{"ok": true}]')
+
+    monkeypatch.setattr(generator, "check_and_incr_daily_limit", allow_quota)
+    monkeypatch.setattr(generator, "call_llm", fake_call)
+
+    rows, _, _ = asyncio.run(
+        generator.generate_dataset_rows(
+            config=config,
+            schema_fields=[],
+            requirement="生成本地测试数据",
+            row_count=1,
+        )
+    )
+
+    assert rows == [{"ok": True}]
+    assert captured["request"].api_key == ""
