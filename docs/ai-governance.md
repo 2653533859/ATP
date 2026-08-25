@@ -21,6 +21,14 @@ models before showing the remaining choices. OpenAI-compatible providers use
 The returned list is a provider catalog, not a full chat health check. Keep the
 model name editable so a provider-specific alias can still be entered manually.
 
+The same form provides **Test connection**. It sends a fixed, bounded text
+request and returns only the provider, selected model, latency, and a generic
+success message; provider output, API keys, and raw error bodies are not
+returned. Existing configurations reuse their encrypted key, while a new
+Ollama configuration may omit the key. The request uses a 15-second timeout and
+four-token limit, preserves only explicitly allowed provider parameters such as
+`thinking`/`reasoning_effort`, and records a safe audit summary on success.
+
 For a direct Ollama server, use its native `http://host:11434` endpoint and
 leave API Key empty. For Open WebUI, select the OpenAI-compatible provider,
 use `http://host:3000/v1`, and provide an Open WebUI API token from Settings ->

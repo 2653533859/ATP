@@ -8,6 +8,8 @@
 
 > 2026-08-25 N5 本地 AI 密钥边界已完成：Ollama 空 API Key 可用于用例/数据集/Mock 生成、失败诊断和自愈，非 Ollama 空密钥仍拒绝，兼容请求不发送空 Authorization；相关 AI 定向 `88 passed`、后端非集成全量 `2315 passed`。真实模型列表、健康检查、多模态/思考参数和项目级生成仍待环境验收，不改变发布结论。
 
+> 2026-08-25 N5 AI 模型连接健康检查已完成本地交付：新增管理员接口和配置页入口，复用已保存密钥并允许新建 keyless Ollama；请求固定短文本、15 秒超时、4 token 上限，Endpoint 规范化，错误和审计摘要脱敏。后端非集成全量 `2317 passed`、前端全量 `69 files / 287 tests passed`，真实模型连接、多模态/思考参数和项目生成仍待环境验收，不改变“不具备无条件发布资格”的结论。
+
 > 2026-08-25 N2 Karing 性能与流畅度专项已完成真实单设备复核：性能运行 `10` 完成 CPU/内存/电量/温度/FPS/卡顿采样，流畅度运行 `13` 完成滑动/点击两个阶段并采集 FPS/jank；事件序列无重复，两个 JSON 报告导出均 HTTP 200，临时项目 `51` 删除 204 且删除后查询 404。Android 14 兼容修复已补入性能内存 VmRSS 兜底和 gfxinfo UI HISTOGRAM 解析/GPU 直方图排除；相关定向回归 `60 passed`，脱敏证据见 [`android-karing-performance-fluency-2026-08-25.json`](evidence/android-karing-performance-fluency-2026-08-25.json)。N2 单设备门禁已关闭，但不代表多设备矩阵或 N4 真实性能环境通过。
 
 > 2026-08-25 N2 Karing 真机前置阶段已通过：设备 `172.16.102.91:5555` 安装并解析 `com.nebula.karing/.MainActivity`，Windows Android Worker、依赖 readiness、Worker registry 和设备扫描通过；后续低代码与录屏结果见最新 N2 记录。发布结论保持“不具备无条件发布资格”。脱敏证据见 [`android-karing-acceptance-2026-08-25.json`](evidence/android-karing-acceptance-2026-08-25.json) 与 [`windows-android-karing-worker-2026-08-25.json`](evidence/windows-android-karing-worker-2026-08-25.json)。

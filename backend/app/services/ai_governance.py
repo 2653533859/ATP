@@ -32,10 +32,16 @@ def _params(config: AILLMConfig | None) -> dict[str, Any]:
     return dict(config.default_params)
 
 
+def llm_extra_params_from_values(values: Any) -> dict[str, Any] | None:
+    """Filter provider parameters from a config or unsaved health-check payload."""
+    source = values if isinstance(values, dict) else {}
+    params = {key: value for key, value in source.items() if key in _ALLOWED_LLM_EXTRA_PARAMS}
+    return params or None
+
+
 def llm_extra_params(config: AILLMConfig | None) -> dict[str, Any] | None:
     """Return provider params after removing ATP governance keys."""
-    params = {key: value for key, value in _params(config).items() if key in _ALLOWED_LLM_EXTRA_PARAMS}
-    return params or None
+    return llm_extra_params_from_values(_params(config))
 
 
 def resolve_system_prompt(config: AILLMConfig | None, capability: str, default_prompt: str) -> str:

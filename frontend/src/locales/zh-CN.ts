@@ -4522,6 +4522,7 @@ export default {
       model_name: '模型名称（Model）',
       model_placeholder: '例如 deepseek-chat',
       fetch_models: '拉取模型',
+      test_connection: '测试连接',
       models_loaded: '已拉取 {count} 个可用模型',
       params_hint: '思考不是通用参数。只有模型和供应商明确支持时，才在此 JSON 中配置 thinking、enable_thinking 或 reasoning_effort；多模态模型也需要开启下方图片能力开关。',
       vision_label: '支持多模态',
@@ -4563,6 +4564,8 @@ export default {
         no_models: '供应商未返回可用模型',
         models_loaded: '已拉取 {count} 个模型',
         models_load_failed: '拉取模型失败',
+        connection_success: '连接成功，响应耗时 {latency} ms',
+        connection_failed: '模型连接测试失败',
       },
     },
     storage: {

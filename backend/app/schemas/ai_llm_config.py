@@ -65,6 +65,15 @@ class AILLMModelDiscoveryIn(BaseModel):
     endpoint: str | None = Field(default=None, max_length=256)
 
 
+class AILLMConnectionTestIn(BaseModel):
+    config_id: int | None = None
+    provider: LLMProvider | None = None
+    api_key: str | None = Field(default=None, max_length=512)
+    endpoint: str | None = Field(default=None, max_length=256)
+    model_name: str | None = Field(default=None, min_length=1, max_length=64)
+    default_params: dict | None = None
+
+
 class AILLMModelOptionOut(BaseModel):
     id: str
     label: str
@@ -79,3 +88,11 @@ class AILLMModelDiscoveryOut(BaseModel):
     provider: LLMProvider
     endpoint: str
     models: list[AILLMModelOptionOut] = Field(default_factory=list)
+
+
+class AILLMConnectionTestOut(BaseModel):
+    provider: LLMProvider
+    model_name: str
+    latency_ms: float
+    response_received: bool = True
+    message: str

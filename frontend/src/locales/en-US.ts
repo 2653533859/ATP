@@ -4551,6 +4551,7 @@ export default {
       model_name: 'Model name',
       model_placeholder: 'e.g. deepseek-chat',
       fetch_models: 'Fetch models',
+      test_connection: 'Test connection',
       models_loaded: 'Loaded {count} available model(s)',
       params_hint: 'Thinking is not universal. Configure thinking, enable_thinking, or reasoning_effort here only when the model and provider document support it; enable image capability separately for multimodal input.',
       vision_label: 'Multimodal input',
@@ -4592,6 +4593,8 @@ export default {
         no_models: 'The provider returned no usable models',
         models_loaded: 'Loaded {count} model(s)',
         models_load_failed: 'Failed to fetch models',
+        connection_success: 'Connection succeeded in {latency} ms',
+        connection_failed: 'Model connection test failed',
       },
     },
     storage: {

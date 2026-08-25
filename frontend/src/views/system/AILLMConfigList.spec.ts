@@ -7,12 +7,14 @@ import AILLMConfigList from './AILLMConfigList.vue'
 const {
   configList,
   discoverModels,
+  testConnection,
   messageError,
   messageSuccess,
   messageWarning,
 } = vi.hoisted(() => ({
   configList: vi.fn(),
   discoverModels: vi.fn(),
+  testConnection: vi.fn(),
   messageError: vi.fn(),
   messageSuccess: vi.fn(),
   messageWarning: vi.fn(),
@@ -37,6 +39,7 @@ vi.mock('@/api', () => ({
   aiLLMConfigApi: {
     list: configList,
     discoverModels,
+    testConnection,
   },
 }))
 
@@ -87,6 +90,13 @@ describe('AILLMConfigList', () => {
         capabilities: ['vision'],
       }],
     })
+    testConnection.mockResolvedValue({
+      provider: 'ollama',
+      model_name: 'qwen3',
+      latency_ms: 42.5,
+      response_received: true,
+      message: '连接成功',
+    })
   })
 
   it('offers a dedicated third-party compatible provider and requires its endpoint', async () => {
@@ -130,6 +140,30 @@ describe('AILLMConfigList', () => {
     })
     expect(vm.modelOptions).toHaveLength(1)
     expect(messageSuccess).toHaveBeenCalledWith('system_pages.ai_llm.msg.models_loaded:{"count":1}')
+    wrapper.unmount()
+  })
+
+  it('tests an Ollama connection without requiring an API key', async () => {
+    const wrapper = mountPage()
+    const vm = wrapper.vm as any
+
+    vm.resetForm()
+    vm.form.provider = 'ollama'
+    vm.form.model_name = 'qwen3'
+    vm.form.endpoint = 'http://ollama.example.test:11434'
+    await vm.handleTestConnection()
+
+    expect(testConnection).toHaveBeenCalledWith({
+      config_id: undefined,
+      provider: 'ollama',
+      api_key: undefined,
+      endpoint: 'http://ollama.example.test:11434',
+      model_name: 'qwen3',
+      default_params: {},
+    })
+    expect(messageSuccess).toHaveBeenCalledWith(
+      'system_pages.ai_llm.msg.connection_success:{"latency":42.5}',
+    )
     wrapper.unmount()
   })
 })

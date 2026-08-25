@@ -100,6 +100,9 @@
             <a-button :loading="discoveringModels" @click="handleDiscoverModels">
               {{ t('system_pages.ai_llm.fetch_models') }}
             </a-button>
+            <a-button :loading="testingConnection" @click="handleTestConnection">
+              {{ t('system_pages.ai_llm.test_connection') }}
+            </a-button>
           </div>
           <div v-if="modelOptions.length" class="model-picker-hint">
             {{ t('system_pages.ai_llm.models_loaded', { count: modelOptions.length }) }}
@@ -177,6 +180,7 @@ const defaultParamsText = ref('{}')
 const defaultParamsError = ref('')
 const modelOptions = ref<AILLMModelOption[]>([])
 const discoveringModels = ref(false)
+const testingConnection = ref(false)
 
 const form = ref<FormState>({
   name: '',
@@ -358,6 +362,37 @@ async function handleDiscoverModels() {
     message.error(errorMessage(error, t('system_pages.ai_llm.msg.models_load_failed')))
   } finally {
     discoveringModels.value = false
+  }
+}
+
+async function handleTestConnection() {
+  if (!form.value.model_name.trim()) {
+    message.warning(t('system_pages.ai_llm.msg.required'))
+    return
+  }
+  const apiKey = form.value.api_key.trim()
+  if (!editing.value && form.value.provider !== 'ollama' && !apiKey) {
+    message.warning(t('system_pages.ai_llm.msg.api_key_required'))
+    return
+  }
+  const params = parseDefaultParams()
+  if (params === null) return
+
+  testingConnection.value = true
+  try {
+    const result = await aiLLMConfigApi.testConnection({
+      config_id: editing.value?.id,
+      provider: form.value.provider,
+      api_key: apiKey || undefined,
+      endpoint: form.value.endpoint.trim() || null,
+      model_name: form.value.model_name.trim(),
+      default_params: params,
+    })
+    message.success(t('system_pages.ai_llm.msg.connection_success', { latency: result.latency_ms }))
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('system_pages.ai_llm.msg.connection_failed')))
+  } finally {
+    testingConnection.value = false
   }
 }
 

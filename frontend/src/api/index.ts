@@ -2330,11 +2330,27 @@ export interface AILLMModelDiscoveryResult {
   models: AILLMModelOption[]
 }
 
+export interface AILLMConnectionTestResult {
+  provider: LLMProvider
+  model_name: string
+  latency_ms: number
+  response_received: boolean
+  message: string
+}
+
 export const aiLLMConfigApi = {
   list: () => http.get<unknown, AILLMConfigItem[]>('/ai/llm-configs'),
   get: (id: number) => http.get<unknown, AILLMConfigItem>(`/ai/llm-configs/${id}`),
   discoverModels: (data: { config_id?: number; provider: LLMProvider; api_key?: string; endpoint?: string | null }) =>
     http.post<unknown, AILLMModelDiscoveryResult>('/ai/llm-configs/models', data),
+  testConnection: (data: {
+    config_id?: number
+    provider?: LLMProvider
+    api_key?: string
+    endpoint?: string | null
+    model_name?: string
+    default_params?: Record<string, unknown>
+  }) => http.post<unknown, AILLMConnectionTestResult>('/ai/llm-configs/test-connection', data),
   create: (data: AILLMConfigCreatePayload) => http.post<unknown, AILLMConfigItem>('/ai/llm-configs', data),
   update: (id: number, data: AILLMConfigUpdatePayload) =>
     http.patch<unknown, AILLMConfigItem>(`/ai/llm-configs/${id}`, data),

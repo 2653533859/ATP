@@ -5,6 +5,8 @@ api_key 在保存时 Fernet 加密，返回时仅暴露 ``has_api_key`` 标记�
 
 from __future__ import annotations
 
+import time
+
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
@@ -17,14 +19,18 @@ from app.core.encryption import decrypt, encrypt
 from app.models.ai_llm_config import AILLMConfig
 from app.models.user import User
 from app.schemas.ai_llm_config import (
+    AILLMConnectionTestIn,
+    AILLMConnectionTestOut,
     AILLMConfigCreateIn,
     AILLMModelDiscoveryIn,
     AILLMModelDiscoveryOut,
     AILLMConfigOut,
     AILLMConfigUpdateIn,
 )
-from app.services.audit import write_audit_log
 from app.services.ai_case.model_discovery import discover_models, resolve_endpoint
+from app.services.ai_case.llm_client import LLMRequest, call_llm
+from app.services.ai_governance import llm_extra_params, llm_extra_params_from_values
+from app.services.audit import write_audit_log
 
 router = APIRouter(prefix="/ai/llm-configs", tags=["AI 配置"])
 
@@ -98,6 +104,99 @@ async def discover_llm_models(
         raise HTTPException(status_code=502, detail=f"无法连接供应商模型接口: {exc}") from exc
 
     return AILLMModelDiscoveryOut(provider=body.provider, endpoint=resolved, models=models)
+
+
+@router.post("/test-connection", response_model=AILLMConnectionTestOut)
+async def test_llm_connection(
+    body: AILLMConnectionTestIn,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """Run a bounded text request without returning provider output or secrets."""
+    config = None
+    if body.config_id is not None:
+        config = await db.get(AILLMConfig, body.config_id)
+        if not config:
+            raise HTTPException(status_code=404, detail="配置不存在")
+
+    provider = body.provider or (config.provider if config else None)
+    if not provider:
+        raise HTTPException(status_code=400, detail="请先选择供应商")
+    model_name = (body.model_name or (config.model_name if config else "")).strip()
+    if not model_name:
+        raise HTTPException(status_code=400, detail="请先填写模型名称")
+
+    same_provider = config is not None and config.provider == provider
+    endpoint = body.endpoint if body.endpoint is not None else config.endpoint if same_provider else None
+    api_key = (body.api_key or "").strip()
+    if not api_key and same_provider and config is not None and config.api_key_encrypted:
+        try:
+            api_key = decrypt(config.api_key_encrypted)
+        except Exception as exc:
+            raise HTTPException(status_code=400, detail="现有 API Key 解密失败，请重新输入") from exc
+    if provider != "ollama" and not api_key:
+        raise HTTPException(status_code=400, detail="请先填写 API Key")
+
+    try:
+        resolved_endpoint = resolve_endpoint(provider, endpoint)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    extra_params = (
+        llm_extra_params(config) if body.default_params is None else llm_extra_params_from_values(body.default_params)
+    )
+    if extra_params:
+        extra_params.pop("temperature", None)
+        extra_params.pop("max_tokens", None)
+
+    started = time.perf_counter()
+    try:
+        await call_llm(
+            LLMRequest(
+                provider=provider,
+                api_key=api_key,
+                model_name=model_name,
+                prompt="Reply with OK only.",
+                endpoint=resolved_endpoint,
+                temperature=0.0,
+                max_tokens=4,
+                timeout_seconds=15.0,
+                extra_params=extra_params,
+            )
+        )
+    except httpx.HTTPStatusError as exc:
+        if exc.response.status_code in {401, 403}:
+            detail = "供应商鉴权失败，请检查 API Key"
+        elif exc.response.status_code == 404:
+            detail = "模型或接口不存在，请检查 Endpoint 和模型名称"
+        else:
+            detail = f"供应商请求失败（HTTP {exc.response.status_code}）"
+        raise HTTPException(status_code=502, detail=detail) from exc
+    except httpx.TimeoutException as exc:
+        raise HTTPException(status_code=504, detail="模型连接测试超时") from exc
+    except httpx.RequestError as exc:
+        raise HTTPException(status_code=502, detail="无法连接供应商模型接口") from exc
+    except (ValueError, TypeError) as exc:
+        raise HTTPException(status_code=502, detail="供应商返回格式无法识别") from exc
+
+    latency_ms = round((time.perf_counter() - started) * 1000, 2)
+    await write_audit_log(
+        db,
+        action="ai_llm_config_test",
+        resource_type="ai_llm_config",
+        resource_id=getattr(config, "id", None),
+        user_id=getattr(_, "id", None),
+        username=getattr(_, "username", ""),
+        detail=f"测试 AI LLM 连接: {provider}/{model_name}, latency_ms={latency_ms}",
+    )
+    await db.commit()
+    return AILLMConnectionTestOut(
+        provider=provider,
+        model_name=model_name,
+        latency_ms=latency_ms,
+        response_received=True,
+        message="连接成功",
+    )
 
 
 @router.post("", response_model=AILLMConfigOut, status_code=status.HTTP_201_CREATED)
