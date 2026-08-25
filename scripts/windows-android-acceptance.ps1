@@ -2,6 +2,7 @@
 param(
   [string]$Target = '',
   [string]$AppPackage = '',
+  [string]$LaunchActivity = '',
   [string]$ReportPath = ''
 )
 
@@ -28,6 +29,7 @@ if (-not (Test-Path -LiteralPath $reportDirectory)) {
 
 $checks = [System.Collections.Generic.List[object]]::new()
 $device = [ordered]@{}
+$app = [ordered]@{}
 $deviceStatus = [ordered]@{
   online       = @()
   unauthorized = @()
@@ -85,6 +87,7 @@ function Write-Report {
     target           = $resolvedTarget
     adb_path         = $adbPath
     device           = $device
+    app              = $app
     device_status    = [ordered]@{
       online       = @($deviceStatus.online).Count
       unauthorized = @($deviceStatus.unauthorized).Count
@@ -176,8 +179,47 @@ if ($targetOnline) {
   Add-Check -Name 'device logcat is readable' -Passed ($logcat.ExitCode -eq 0) -Required $false -Detail ("{0} recent lines readable; log content is not stored in the report." -f $logLines.Count)
 
   if (-not [string]::IsNullOrWhiteSpace($AppPackage)) {
+    $app.package = $AppPackage
     $packagePath = Invoke-Adb -Arguments @('-s', $resolvedTarget, 'shell', 'pm', 'path', $AppPackage)
-    Add-Check -Name "application package is installed: $AppPackage" -Passed ($packagePath.ExitCode -eq 0 -and $packagePath.Output -match '^package:') -Required $true -Detail 'The requested package is installed.'
+    $packageInstalled = $packagePath.ExitCode -eq 0 -and $packagePath.Output -match '^package:'
+    Add-Check -Name "application package is installed: $AppPackage" -Passed $packageInstalled -Required $true -Detail 'The requested package is installed.'
+
+    if ($packageInstalled) {
+      $activityArgs = @('-s', $resolvedTarget, 'shell', 'cmd', 'package', 'resolve-activity', '--brief')
+      $expectedComponent = ''
+      if (-not [string]::IsNullOrWhiteSpace($LaunchActivity)) {
+        $expectedComponent = if ($LaunchActivity.Contains('/')) {
+          $LaunchActivity.Trim()
+        } else {
+          "$AppPackage/$($LaunchActivity.Trim())"
+        }
+        $activityArgs += @('-n', $expectedComponent)
+      } else {
+        $activityArgs += @('-a', 'android.intent.action.MAIN', '-c', 'android.intent.category.LAUNCHER', $AppPackage)
+      }
+
+      $activityResult = Invoke-Adb -Arguments $activityArgs
+      $resolvedActivityLines = @(
+        $activityResult.Output -split "`r?`n" |
+          ForEach-Object { $_.Trim() } |
+          Where-Object { $_ -like "$AppPackage/*" }
+      )
+      $resolvedActivity = if ($resolvedActivityLines.Count -gt 0) {
+        $resolvedActivityLines[-1]
+      } else {
+        ''
+      }
+      $activityResolvable = $activityResult.ExitCode -eq 0 -and -not [string]::IsNullOrWhiteSpace($resolvedActivity)
+      $app.launch_activity = $resolvedActivity
+      $app.launch_activity_requested = if ($expectedComponent) { $expectedComponent } else { $null }
+      $activityLabel = if ($expectedComponent) { "application activity is resolvable: $expectedComponent" } else { "application launcher activity is resolvable: $AppPackage" }
+      $activityDetail = if ($activityResolvable) {
+        "Resolved $resolvedActivity."
+      } else {
+        'No launchable activity was resolved; verify the package or LaunchActivity value.'
+      }
+      Add-Check -Name $activityLabel -Passed $activityResolvable -Required $true -Detail $activityDetail
+    }
   }
 }
 

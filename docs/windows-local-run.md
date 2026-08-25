@@ -12,9 +12,10 @@ Android 工具说明：Windows 启动脚本和 `android-network-doctor.ps1` 会�
 .\scripts\windows-android-acceptance.ps1
 .\scripts\windows-android-acceptance.ps1 -Target '<device-ip>:5555'
 .\scripts\windows-android-acceptance.ps1 -Target '<serial>' -AppPackage 'com.example.app'
+.\scripts\windows-android-acceptance.ps1 -Target '<serial>' -AppPackage 'com.example.app' -LaunchActivity '.MainActivity'
 ```
 
-该命令检查设备状态、shell、设备属性、Package Manager 和 logcat；`-AppPackage` 可选，用于确认待测 APK 已安装。它验证的是 Windows 本机 ADB 和设备可用性；要验证 ATP 后端到 Windows Android Worker 的完整链路，还需再执行 `windows-local-smoke.ps1 -RequireAndroid -AndroidTarget '<device-ip>:5555'`。
+该命令检查设备状态、shell、设备属性、Package Manager 和 logcat；`-AppPackage` 可选，用于确认待测 APK 已安装并解析其 Launcher Activity；`-LaunchActivity` 可选，用于校验指定 Activity，留空时按 `MAIN/LAUNCHER` 解析，脚本不会启动或修改应用。报告只保存包名、请求/解析出的组件和状态，不保存包内容或日志正文。它验证的是 Windows 本机 ADB 和设备可用性；要验证 ATP 后端到 Windows Android Worker 的完整链路，还需再执行 `windows-local-smoke.ps1 -RequireAndroid -AndroidTarget '<device-ip>:5555'`。
 
 ## 适用场景
 

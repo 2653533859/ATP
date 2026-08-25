@@ -11,6 +11,15 @@
 - **状态**：`[E]` 本地实现、代码审查和回归完成；真实 Karing APK、Windows Android Worker/ADB、真实启动组件、专项任务媒体和报告仍待环境验收，不使用其他应用替代。
 - **下一入口**：先取得 Karing APK 或真实 `package_name`，在在线 Android Worker 上按 APK → 低代码 → 录屏/异常回放 → 专项任务 → 事件/日志/报告 → 清理执行；N4 Kubernetes/Prometheus/独立 MinIO 仍作为独立外部环境门禁等待目标。
 
+## 1.2 Windows Android 包名与启动入口验收探针（2026-08-25）
+
+为推进 N2 真机门禁，`scripts/windows-android-acceptance.ps1` 现在支持可选 `-LaunchActivity`：指定 `-AppPackage` 后，脚本先确认包已安装，再通过 `cmd package resolve-activity --brief` 校验显式 Activity，未指定时校验 `MAIN/LAUNCHER` 入口。该检查只解析 Package Manager，不启动或修改应用；脱敏报告新增 `app.package`、请求组件和解析组件，仍不保存包内容或日志正文。
+
+- **回归范围**：脚本契约 `2 passed`，脚本目录 `93 passed`，质量/发布文档回归 `15 passed`，PowerShell 语法检查通过。
+- **设备验证**：当前在线设备使用 `com.android.settings` 做自动 Launcher 和显式 `.Settings` 两条只读探针，均通过；这不代表 Karing 已安装或关闭 Karing 真机门禁。
+- **状态**：`[E]` 本地脚本、文档、回归和设备探针完成；真实 Karing APK/包名、Worker 调度、低代码、录屏/异常回放、专项任务和报告仍待验收。
+- **下一入口**：用户提供或上传 Karing APK 后，以 Manifest 包名、设备 `pm path` 和 Activity 解析三重证据确认目标，再执行单设备 Android 闭环。
+
 ## 1.0 当前计划登记（2026-08-25）
 
 本节是当前最新执行口径，优先于本文后面的历史交付记录。N4 的本地代码链路已经覆盖 Worker/目标服务采样、Kubernetes 容量预检、保留清理、跨端点 MinIO 恢复和生命周期门禁；下一步不重复开发已有采样器，而是按真实目标逐项验收，并同步推进被外部条件阻塞的 N2 与发布收口。

@@ -17,6 +17,7 @@ def test_windows_android_acceptance_has_safe_device_checks_and_report_contract()
     assert "unauthorized" in source
     assert "offline" in source
     assert "device_status" in source
+    assert "app              = $app" in source
     assert "get-state" in source
     assert "shell', 'echo', 'atp-android-acceptance" in source
     assert "pm', 'list', 'packages" in source
@@ -32,5 +33,8 @@ def test_windows_android_acceptance_supports_target_package_and_report_overrides
 
     assert "[string]$Target = ''" in source
     assert "[string]$AppPackage = ''" in source
+    assert "[string]$LaunchActivity = ''" in source
     assert "[string]$ReportPath = ''" in source
     assert "pm', 'path', $AppPackage" in source
+    assert "resolve-activity" in source
+    assert "android.intent.category.LAUNCHER" in source

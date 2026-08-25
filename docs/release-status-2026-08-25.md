@@ -32,6 +32,13 @@
 
 当前执行顺序为：N4 真实性能环境 → N2 Karing 单设备解阻 → N5-N8 真实通知/外部缺陷平台/模型/目标部署复核 → N9 发布收口；Windows API/Web 和 N1 受控 API/报告闭环已复核完成。
 
+### 2026-08-25 Windows Android 包名与启动入口验收探针
+
+- `scripts/windows-android-acceptance.ps1` 新增 `-LaunchActivity`；指定 `-AppPackage` 后确认安装状态，并用 `cmd package resolve-activity --brief` 校验显式 Activity 或 `MAIN/LAUNCHER` 默认入口。
+- 报告仅记录包名、请求组件、解析组件和检查状态，不启动或修改应用，不保存 APK 内容和日志正文。
+- 脚本契约 `2 passed`、脚本目录 `93 passed`、质量/发布文档回归 `15 passed`，PowerShell 语法检查通过；当前在线设备用 `com.android.settings` 的自动/显式 Activity 只读探针均通过。
+- 该证据只关闭本地验收探针，不关闭 Karing：当前设备仍未发现 Karing，真实 APK/Manifest 包名、Worker 调度、低代码、媒体、专项任务和报告仍待验收。
+
 ### 2026-08-25 Android 专项应用启动兼容
 
 - Android 性能、稳定性和流畅度执行器已统一应用启动策略：填写 Activity 时执行显式组件启动，未填写时通过 Launcher Intent 自动发现，不再固定拼接 `.MainActivity`；流畅度任务会跳过已由前置操作完成的重复启动。
