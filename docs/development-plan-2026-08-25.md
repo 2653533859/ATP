@@ -78,6 +78,13 @@
 - [ ] N8 target deployment: run the remote toolbox/configuration-center/audit/rollback permission checks on the target deployment; local tests cannot close this gate.
 - **Status**: `[~]` The next development/acceptance entry is the viewer isolation matrix. P4 remains `[-]` until Kubernetes, release-grade Prometheus and independent MinIO are available; P9 remains open until every external gate has evidence or an explicit owner/waiver.
 
+## 2.4.5 P8 system-governance acceptance harness (local complete, 2026-08-25)
+
+- [x] Added `scripts/n8-system-governance-acceptance.py` and [`n8-system-governance-acceptance.md`](n8-system-governance-acceptance.md): read-only remote toolbox diagnostics, configuration-center section/metadata checks, bounded audit CSV export and optional viewer denial checks.
+- [x] Configuration revision creation and exact `ROLLBACK` are separate explicit opt-ins; the harness rejects secret-bearing response values, accepts only redacted placeholders, never writes response bodies to evidence, and records revision IDs without pretending audit history is cleanup data.
+- [x] Wired the command into Make, CI and pre-commit Ruff coverage; contract/quality tests passed `34` items together with the existing deployment-doc checks.
+- **Status**: `[E]` The local harness, security boundaries and runbook are complete; N8 still requires a target deployment, controlled administrator/viewer accounts and real diagnostic/configuration/audit/rollback evidence before it can close.
+
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 
 本节是当前导航重构的最新执行游标，按参考侧栏的五组职责组织功能，不再把设备、APK、Mock、数据集、Web/API 资产和治理能力全部堆在“系统管理”下面。导航入口、旧 URL 兼容和业务闭环分别记录：入口存在只代表可访问，只有完成配置→执行→过程→报告/证据→清理才算模块闭环。

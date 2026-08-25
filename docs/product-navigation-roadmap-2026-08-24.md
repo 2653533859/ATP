@@ -4,7 +4,7 @@
 
 > 2026-08-25 当前开发计划已升级为 2.3.0：参考导航的五组职责现在作为模块跟踪边界，执行顺序为 N0 导航壳与 N1 工作台 → N2-API、N2-APP、N3-UI、N4 性能、N5 AI、N6 测试资产 → N7 智能中枢 → N8 系统治理 → N9 发布收口。N4 真实性能环境仍因缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 保持阻塞；Windows 是默认开发/验收环境，Android 真机由本地 Windows Worker 执行，不作为 Web/API 的前置条件。详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.0。
 
-> 2026-08-25 当前开发计划已升级为 2.4.0，最新检查点为 2.4.4：q19 已完成 N6/N7 管理员基础资产、来源和清理链路，下一项是普通 viewer 角色矩阵；随后才复核受控真实 AI 和 P8 目标部署。P4 因 Kubernetes、发布级 Prometheus 和独立 MinIO 缺失保持阻塞。Windows/Android Worker 边界、真实环境证据和模块级审查规则不变，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.4.0～2.4.4。
+> 2026-08-25 当前开发计划已升级为 2.4.0，最新检查点为 2.4.5：q19 已完成 N6/N7 管理员基础资产、来源和清理链路，P8 本地治理验收入口已补齐；下一项仍是普通 viewer 角色矩阵，随后复核受控真实 AI 和 P8 目标部署。P4 因 Kubernetes、发布级 Prometheus 和独立 MinIO 缺失保持阻塞。Windows/Android Worker 边界、真实环境证据和模块级审查规则不变，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.4.0～2.4.5。
 
 > 2026-08-25 P7 Hermes 项目级检索本地交付已完成：新增项目 viewer 权限保护的需求/知识/用例检索和来源深链，Hermes 自由提问可进入检索链路，知识中心支持 `knowledge_id` 深链；N7 验收脚本覆盖临时数据、详情读取、三类引用、可选 AI 草稿、viewer 隔离和清理。后端定向 `21 passed`、前端 Hermes/知识定向 `11 passed`；真实模型、角色账号和远端数据仍待受控环境验收，详见 [`n7-intelligence-acceptance.md`](n7-intelligence-acceptance.md)。
 
