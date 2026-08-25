@@ -83,6 +83,43 @@ def test_ollama_discovery_uses_native_tags_endpoint(monkeypatch):
     )
 
 
+def test_discovery_uses_provider_modalities_and_reasoning_metadata(monkeypatch):
+    _AsyncClient.requests = []
+    _AsyncClient.response = _Response(
+        {
+            "data": [
+                {
+                    "id": "vendor-chat",
+                    "modalities": ["text", "image"],
+                    "capabilities": ["completion", "reasoning"],
+                }
+            ]
+        }
+    )
+    monkeypatch.setattr(model_discovery.httpx, "AsyncClient", _AsyncClient)
+
+    models = asyncio.run(model_discovery.discover_models("openai", "https://llm.example.com/v1", "token"))
+
+    assert models[0]["supports_vision"] is True
+    assert models[0]["supports_reasoning"] is True
+    assert models[0]["capability_source"] == "provider"
+    assert set(models[0]["capabilities"]) == {"vision", "reasoning"}
+
+
+def test_discovery_keeps_unknown_when_provider_metadata_has_no_positive_capability(monkeypatch):
+    _AsyncClient.requests = []
+    _AsyncClient.response = _Response(
+        {"data": [{"id": "qwen3", "modalities": ["text"], "capabilities": ["completion"]}]}
+    )
+    monkeypatch.setattr(model_discovery.httpx, "AsyncClient", _AsyncClient)
+
+    models = asyncio.run(model_discovery.discover_models("openai", "https://llm.example.com/v1", "token"))
+
+    assert models[0]["supports_vision"] is None
+    assert models[0]["supports_reasoning"] is None
+    assert models[0]["capability_source"] == "provider"
+
+
 def test_openai_compatible_discovery_uses_custom_v1_endpoint(monkeypatch):
     _AsyncClient.requests = []
     _AsyncClient.response = _Response({"data": [{"id": "qwen2.5-vl", "owned_by": "third-party"}]})

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import re
+from collections.abc import Iterator
 from typing import Any
 from urllib.parse import urlparse
 
@@ -39,6 +41,15 @@ _REASONING_MARKERS = (
     "o3",
     "o4",
 )
+_CAPABILITY_FIELDS = (
+    "capabilities",
+    "modalities",
+    "input_modalities",
+    "output_modalities",
+    "supported_modalities",
+)
+_VISION_CAPABILITY_MARKERS = {"vision", "image", "images", "multimodal", "multimodal_input"}
+_REASONING_CAPABILITY_MARKERS = {"reasoning", "thinking", "reasoning_effort", "chain_of_thought", "cot"}
 
 
 def resolve_endpoint(provider: str, endpoint: str | None) -> str:
@@ -72,16 +83,50 @@ def _headers(provider: str, api_key: str) -> dict[str, str]:
     return headers
 
 
+def _capability_tokens(value: Any) -> Iterator[str]:
+    """Yield normalized positive capability names from provider metadata."""
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if item is True:
+                yield str(key)
+            elif isinstance(item, (dict, list, tuple, set)):
+                yield from _capability_tokens(item)
+        return
+    if isinstance(value, (list, tuple, set)):
+        for item in value:
+            yield from _capability_tokens(item)
+        return
+    if isinstance(value, str):
+        normalized = value.strip().lower().replace("-", "_")
+        if normalized:
+            yield normalized
+            yield from (part for part in re.split(r"[^a-z0-9_]+", normalized) if part)
+
+
+def _provider_capabilities(raw: dict[str, Any] | None) -> tuple[set[str], bool]:
+    if not isinstance(raw, dict):
+        return set(), False
+    tokens: set[str] = set()
+    metadata_present = False
+    for field in _CAPABILITY_FIELDS:
+        if field not in raw:
+            continue
+        metadata_present = True
+        tokens.update(_capability_tokens(raw[field]))
+    return tokens, metadata_present
+
+
 def _capability_hint(model_id: str, provider: str, raw: dict[str, Any] | None = None) -> dict[str, Any]:
     lowered = model_id.lower()
-    raw_capabilities = raw.get("capabilities") if isinstance(raw, dict) else None
-    if isinstance(raw_capabilities, list):
-        capability_names = {str(item).lower() for item in raw_capabilities}
-        supports_vision: bool | None = "vision" in capability_names
+    provider_capabilities, provider_metadata_present = _provider_capabilities(raw)
+    if provider_metadata_present:
+        supports_vision: bool | None = True if provider_capabilities & _VISION_CAPABILITY_MARKERS else None
+        supports_reasoning: bool | None = True if provider_capabilities & _REASONING_CAPABILITY_MARKERS else None
+        capability_source = "provider"
     else:
         supports_vision = True if any(marker in lowered for marker in _VISION_MARKERS) else None
-
-    supports_reasoning = True if any(marker in lowered for marker in _REASONING_MARKERS) else None
+        supports_reasoning = True if any(marker in lowered for marker in _REASONING_MARKERS) else None
+        capability_source = "model-name-hint"
     hints: list[str] = []
     if supports_vision is True:
         hints.append("vision")
@@ -90,7 +135,7 @@ def _capability_hint(model_id: str, provider: str, raw: dict[str, Any] | None = 
     return {
         "supports_vision": supports_vision,
         "supports_reasoning": supports_reasoning,
-        "capability_source": "provider" if isinstance(raw_capabilities, list) else "model-name-hint",
+        "capability_source": capability_source,
         "capabilities": hints,
     }
 

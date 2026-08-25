@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 N5 AI 模型能力元数据解析已完成本地交付：模型发现现在识别供应商 `capabilities`、`modalities`、`input_modalities`、`output_modalities` 和 `supported_modalities` 中的 `vision/image/multimodal` 与 `reasoning/thinking` 阳性标记；供应商已提供能力字段但没有阳性证据时保持未知，没有能力字段时继续兼容模型名提示。模型发现/API 定向 `20 passed`，受影响 AI 定向 `69 passed`，后端非集成全量 `2340 passed`，Ruff、格式、mypy、差异检查和独立审查通过。真实供应商格式、参数接受情况和项目级生成仍待受控环境复核，未记录任何密钥。
+
 - 2026-08-25 当前开发计划已同步为 2.3.0：按参考导航拆分为工作台、测试能力、测试资产、智能中枢、系统五组，新增 N0～N9 的模块顺序、职责边界、依赖和最小验收出口；Windows 作为默认开发/验收环境，Android ADB 由 Windows Worker 独立执行，Web/API 不依赖真机。N4 真实性能环境因缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 保持 `[-]`，其余本地闭环保持 `[E]`，N9 发布收口为 `[~]`。本次只同步开发计划、任务台账、路线图、发布状态和记忆文档，未写入凭据或新增业务代码。
 
 - 2026-08-25 N4 MinIO 灾备端点独立性门禁已完成本地交付：`scripts/minio-dr-acceptance.py` 现在拒绝同一主机文本、`localhost`/回环别名以及解析到同一 IP 的 source/target，先于 MinIO 连接写入脱敏失败检查；不同端点的复制、回读、恢复、SHA-256 和临时对象清理路径保持不变。相关定向回归 `51 passed`，Ruff/格式/差异检查通过；172.31.27.133 仍未提供真实独立 MinIO source/target，未执行远端写入或保存凭据。
