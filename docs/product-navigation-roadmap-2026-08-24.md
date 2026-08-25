@@ -1,6 +1,6 @@
 # 产品导航与能力扩展开发计划（2026-08-24）
 
-> 2026-08-25 当前跟踪版本已升级为开发计划 2.0.0：五组导航边界、N0-N9 阶段、最小验收出口和交付门禁统一以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.0.0 为准。本路线图保留历史方案与实施记录；N2 Karing 单设备专项/事件/报告闭环已完成，当前执行顺序转为 N4 真实性能环境 → N5-N8 外部依赖复核 → N9 发布收口。
+> 2026-08-25 当前跟踪版本已升级为开发计划 2.1.0：五组导航边界、N0-N9 阶段、最小验收出口和交付门禁统一以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.1.0 为准。本路线图保留历史方案与实施记录；N2 Karing 单设备专项/事件/报告闭环已完成，当前执行顺序转为 N4 真实性能环境 → N5-N8 外部依赖复核 → N9 发布收口。
 
 > 2026-08-25 N2 Karing 真机前置阶段已完成：目标设备 `172.16.102.91:5555` 的设备包管理确认 `com.nebula.karing` 和 `com.nebula.karing/.MainActivity`，Windows Android Worker、依赖 readiness、Worker registry 和设备扫描通过；后续低代码与录屏结果见下方最新记录。脱敏证据见 [`evidence/android-karing-acceptance-2026-08-25.json`](evidence/android-karing-acceptance-2026-08-25.json) 与 [`evidence/windows-android-karing-worker-2026-08-25.json`](evidence/windows-android-karing-worker-2026-08-25.json)。
 
