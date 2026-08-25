@@ -381,6 +381,8 @@ let previewObjectUrl: string | null = null
 let previewTimer: number | null = null
 let previewSession = 0
 let leaseHeartbeatTimer: number | null = null
+let projectSequence = 0
+let projectDataSequence = 0
 
 const projectOptions = computed<SelectOption<number>[]>(() => projects.value.map((project) => ({ label: project.name, value: project.id })))
 const selectedProject = computed(() => projects.value.find((project) => project.id === selectedProjectId.value))
@@ -504,20 +506,31 @@ function syncRoute() {
 }
 
 async function loadProjects() {
+  const sequence = ++projectSequence
   try {
-    projects.value = await projectApi.list()
+    const result = await projectApi.list()
+    if (sequence !== projectSequence) return
+    projects.value = result
     if (!selectedProjectId.value || !projects.value.some((project) => project.id === selectedProjectId.value)) {
       selectedProjectId.value = projects.value[0]?.id ?? null
     }
     syncRoute()
     await loadProjectData()
+    if (sequence !== projectSequence) return
   } catch (error: unknown) {
-    message.error(errorMessage(error, t('app_workbench.load_failed')))
+    if (sequence === projectSequence) {
+      message.error(errorMessage(error, t('app_workbench.load_failed')))
+    }
   }
+}
+
+function isCurrentProjectData(sequence: number, projectId: number) {
+  return sequence === projectDataSequence && selectedProjectId.value === projectId
 }
 
 async function loadProjectData() {
   const projectId = selectedProjectId.value
+  const sequence = ++projectDataSequence
   if (!projectId) {
     devices.value = []
     workers.value = []
@@ -527,19 +540,22 @@ async function loadProjectData() {
     specialRuns.value = []
     androidRuns.value = []
     selectedDeviceId.value = null
+    loading.value = false
     return
   }
   loading.value = true
   try {
     await Promise.all([
-      loadDevices(),
-      loadWorkers(),
-      loadApks(projectId),
-      loadAndroidCases(projectId),
-      loadSpecialTasks(projectId),
-      loadSpecialRuns(projectId),
+      loadDevices(projectId, sequence),
+      loadWorkers(projectId, sequence),
+      loadApks(projectId, sequence),
+      loadAndroidCases(projectId, sequence),
+      loadSpecialTasks(projectId, sequence),
+      loadSpecialRuns(projectId, sequence),
     ])
-    await loadAndroidRuns()
+    if (!isCurrentProjectData(sequence, projectId)) return
+    await loadAndroidRuns(projectId, sequence)
+    if (!isCurrentProjectData(sequence, projectId)) return
     if (!selectedDeviceId.value || !devices.value.some((device) => device.id === selectedDeviceId.value)) {
       selectedDeviceId.value = onlineDevices.value[0]?.id ?? devices.value[0]?.id ?? null
     }
@@ -550,60 +566,70 @@ async function loadProjectData() {
       selectedSpecialTaskId.value = specialTasks.value[0]?.id
     }
   } finally {
-    loading.value = false
+    if (isCurrentProjectData(sequence, projectId)) {
+      loading.value = false
+    }
   }
 }
 
-async function loadDevices() {
+async function loadDevices(projectId: number, sequence: number) {
   try {
-    devices.value = await deviceApi.list()
+    const result = await deviceApi.list()
+    if (isCurrentProjectData(sequence, projectId)) devices.value = result
   } catch {
-    devices.value = []
+    if (isCurrentProjectData(sequence, projectId)) devices.value = []
   }
 }
 
-async function loadWorkers() {
+async function loadWorkers(projectId: number, sequence: number) {
   try {
-    workers.value = await deviceApi.workers()
+    const result = await deviceApi.workers()
+    if (isCurrentProjectData(sequence, projectId)) workers.value = result
   } catch {
-    workers.value = []
+    if (isCurrentProjectData(sequence, projectId)) workers.value = []
   }
 }
 
-async function loadApks(projectId: number) {
+async function loadApks(projectId: number, sequence: number) {
   try {
-    apks.value = await apkApi.list({ project_id: projectId })
+    const result = await apkApi.list({ project_id: projectId })
+    if (isCurrentProjectData(sequence, projectId)) apks.value = result
   } catch {
-    apks.value = []
+    if (isCurrentProjectData(sequence, projectId)) apks.value = []
   }
 }
 
-async function loadAndroidCases(projectId: number) {
+async function loadAndroidCases(projectId: number, sequence: number) {
   try {
     const result = await caseApi.list({ project_id: projectId, case_type: 'android' as CaseType })
-    androidCases.value = result.filter((item) => item.case_type === 'android')
+    if (isCurrentProjectData(sequence, projectId)) {
+      androidCases.value = result.filter((item) => item.case_type === 'android')
+    }
   } catch {
-    androidCases.value = []
+    if (isCurrentProjectData(sequence, projectId)) androidCases.value = []
   }
 }
 
-async function loadSpecialTasks(projectId: number) {
+async function loadSpecialTasks(projectId: number, sequence: number) {
   try {
-    specialTasks.value = await mobileSpecialApi.listTasks({ project_id: projectId })
+    const result = await mobileSpecialApi.listTasks({ project_id: projectId })
+    if (isCurrentProjectData(sequence, projectId)) specialTasks.value = result
   } catch {
-    specialTasks.value = []
+    if (isCurrentProjectData(sequence, projectId)) specialTasks.value = []
   }
 }
 
-async function loadSpecialRuns(projectId: number) {
+async function loadSpecialRuns(projectId: number, sequence: number) {
   try {
-    specialRuns.value = await mobileSpecialApi.listRuns({ project_id: projectId, limit: 8 })
+    const result = await mobileSpecialApi.listRuns({ project_id: projectId, limit: 8 })
+    if (isCurrentProjectData(sequence, projectId)) specialRuns.value = result
   } catch {
-    specialRuns.value = []
+    if (isCurrentProjectData(sequence, projectId)) specialRuns.value = []
   }
 }
 
-async function loadAndroidRuns() {
+async function loadAndroidRuns(projectId: number, sequence: number) {
+  if (!isCurrentProjectData(sequence, projectId)) return
   const caseIds = new Set(androidCases.value.map((item) => item.id))
   if (!caseIds.size) {
     androidRuns.value = []
@@ -611,23 +637,26 @@ async function loadAndroidRuns() {
   }
   try {
     const result = await runApi.list({ page: 1, page_size: 100 })
-    androidRuns.value = result.items
-      .filter((run) => caseIds.has(run.case_id))
-      .sort((left, right) => right.created_at.localeCompare(left.created_at))
-      .slice(0, 8)
+    if (isCurrentProjectData(sequence, projectId)) {
+      androidRuns.value = result.items
+        .filter((run) => caseIds.has(run.case_id))
+        .sort((left, right) => right.created_at.localeCompare(left.created_at))
+        .slice(0, 8)
+    }
   } catch {
-    androidRuns.value = []
+    if (isCurrentProjectData(sequence, projectId)) androidRuns.value = []
   }
 }
 
 async function handleProjectChange(value: unknown) {
+  const sequence = ++projectSequence
   selectedProjectId.value = positiveInt(value)
   selectedCaseId.value = undefined
   selectedSpecialTaskId.value = undefined
   selectedApkId.value = undefined
   launchDeviceId.value = null
   await loadProjectData()
-  syncRoute()
+  if (sequence === projectSequence) syncRoute()
 }
 
 async function refreshAll() {

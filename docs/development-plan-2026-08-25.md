@@ -35,7 +35,7 @@
 3. viewer 矩阵之后再在受控模型配置下复核 P5/P7 的模型发现、连接、多模态/思考参数、可编辑草稿、来源审计和清理；没有真实模型时保持阻塞，不用 HTTP 401 或 mock 结果替代。
 4. 最后复核 P8 目标部署的 PostgreSQL/Redis/MinIO/Worker/ADB 诊断、配置差异、单资源回滚、脱敏审计和权限拒绝，再进入 P9 发布收口。
 5. 每一项必须执行：实现/调整 → 定向测试 → 受影响全量门禁 → 独立代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 提交并推送。
-6. 2.4.18 的 UI 自动化工作台最近运行记录竞态修复已完成本地补强；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据执行角色矩阵，再进入真实模型与目标治理门禁。
+6. 2.4.19 的 APP 自动化工作台项目数据竞态修复已完成本地补强；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据执行角色矩阵，再进入真实模型与目标治理门禁。
 
 ### 2.4.0 状态口径
 
@@ -177,6 +177,12 @@
 - [x] UI 自动化工作台将最近运行记录加载绑定到用例加载序列；旧模块的运行记录成功、失败和空结果不会覆盖当前模块。
 - [x] 旧运行记录返回后继续执行的旧用例详情加载也增加项目/模块序列保护，避免旧详情覆盖最新用例；定向测试 `5 passed`，前端全量 `69 files / 311 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过；独立审查发现并修复了 await 后旧详情继续加载的问题。
 - **Status**: `[E]` local implementation, tests, review, fix and documentation are complete; real project-role and execution-data verification remains part of the N1/P3 external environment review.
+
+## 2.4.19 P2 APP workbench project-data race protection (local complete, 2026-08-25)
+
+- [x] APP 自动化工作台为项目列表刷新和项目数据整组加载增加代际保护；设备/Worker、APK、Android 用例、专项任务/运行和 Android 用例运行记录的旧响应、错误与 loading 收尾不会覆盖当前项目，清空项目也会失效旧请求。
+- [x] 新增项目切换延迟响应回归；定向测试 `4 passed`，前端全量 `69 files / 312 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过；独立审查未发现需修复的问题。
+- **Status**: `[E]` local implementation, tests, review, fix and documentation are complete; real project-role and Android/Worker execution-data verification remains part of the N1/P2 external environment review.
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 

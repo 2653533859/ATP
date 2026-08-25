@@ -158,6 +158,14 @@ function mountWorkbench() {
   return mount(AppWorkbenchView, { global: { stubs: globalStubs } })
 }
 
+function deferred<T>() {
+  let resolve!: (value: T | PromiseLike<T>) => void
+  const promise = new Promise<T>((resolvePromise) => {
+    resolve = resolvePromise
+  })
+  return { promise, resolve }
+}
+
 describe('AppWorkbenchView', () => {
   it('loads the Android capability assets and filters out non-Android cases', async () => {
     const wrapper = mountWorkbench()
@@ -215,6 +223,38 @@ describe('AppWorkbenchView', () => {
       apk_id: 21,
       app_package: 'com.example.karing',
     })
+
+    wrapper.unmount()
+  })
+
+  it('does not let stale project data replace the latest project', async () => {
+    const firstProjectCases = deferred<typeof androidCase[]>()
+    const latestProjectCases = deferred<typeof androidCase[]>()
+    caseList.mockReset()
+      .mockImplementationOnce(() => firstProjectCases.promise)
+      .mockImplementationOnce(() => latestProjectCases.promise)
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      androidCases: Array<{ id: number; name: string }>
+      handleProjectChange: (projectId: number) => Promise<void>
+      selectedProjectId: number | null
+    }
+
+    const latestProjectLoad = vm.handleProjectChange(2)
+    await flushPromises()
+    expect(caseList).toHaveBeenCalledTimes(2)
+
+    const latestCase = { ...androidCase, id: 202, name: '最新项目用例' }
+    latestProjectCases.resolve([latestCase])
+    await latestProjectLoad
+
+    firstProjectCases.resolve([androidCase])
+    await flushPromises()
+
+    expect(vm.selectedProjectId).toBe(2)
+    expect(vm.androidCases).toEqual([latestCase])
 
     wrapper.unmount()
   })
