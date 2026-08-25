@@ -21,6 +21,7 @@
 - [x] P8 系统治理验收入口：新增 `scripts/n8-system-governance-acceptance.py` 和运行手册，覆盖远程工具箱诊断、配置聚合、配置版本/差异、审计 CSV、普通角色拒绝以及显式 `--allow-mutations --rollback`；接入 Make/CI/pre-commit，契约与质量回归 `34 passed`。目标部署和真实账号验收仍待完成。
 - [x] P8 q19 目标只读预检：健康检查和 q19 运行栈通过；数据库只读检查确认启用管理员用户名为 `parado`，但受控登录仍返回 HTTP 401，随后停止继续尝试，未读取/记录密码字段、凭据或响应正文且未执行远端变更。脱敏证据见 `docs/evidence/n8-system-governance-environment-audit-2026-08-25.json`；完整治理验收仍待受控管理员与 viewer 凭据。
 - [x] N1 任务中心分页：统一任务接口增加有界 `offset`，跨 Case/Suite/Plan/Android/Performance 合并排序后再切页；前端增加服务端分页并保留项目、状态、类型和页码深链，筛选时回到第一页。工作台定向 `15 passed`、后端非集成全量 `2380 passed`、前端全量 `69 files / 302 tests passed`，type-check/build/Ruff/diff-check 通过；真实角色和执行数据仍待环境复核。
+- [x] N1 我的待办分页：工作台概览接口增加有界 `todo_offset`，跨评审、失败运行、逾期计划和设备异常按优先级/时间合并后切页；前端保留项目与 `todo_page` 深链，切换项目回到第一页并移除固定 100 条的本地截断。工作台定向 `16 passed`、后端非集成全量 `2381 passed`、前端全量 `69 files / 302 tests passed`，focused todos `2 passed`，type-check/build/Ruff/format/diff-check 通过；真实角色和待办数据仍待环境复核。
 - [x] N6 缺陷状态刷新项目隔离：刷新执行记录关联缺陷状态前校验所属项目 viewer 权限，并拒绝跨项目已保存 tracker；新增无权限/跨项目回归，缺陷跟踪 API 定向 `11 passed`，独立审查和差异检查通过。真实项目角色、外部平台和可清理失败运行仍待 N6 环境复核。
 - [x] N6 缺陷证据跨类型报告导航：case/Android/性能/suite/plan 缺陷证据均跳转到对应报告入口，suite/plan 深链按运行记录解析并恢复项目上下文；前端定向 `23 passed`、全量 `69 files / 297 tests passed`，`vue-tsc` 和生产构建通过，独立审查已修复项目上下文缺失。真实项目角色和报告环境仍待 N6 复核。
 - [x] N6 计划报告套件明细导航：计划运行报告中的套件明细可携带 `project_id`/`suite_run_id` 跳转到套件执行记录并展开对应运行，无效运行 ID 禁止跳转；计划列表定向 `7 passed`、前端全量 `69 files / 298 tests passed`，`vue-tsc`、生产构建和独立审查通过。真实项目角色、可清理失败运行和报告环境仍待 N6 复核。

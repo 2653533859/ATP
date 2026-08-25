@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 N1 我的待办分页本地交付已完成：工作台概览 API 增加有界 `todo_offset`，先按来源拉取评审、失败运行、逾期计划和设备异常，再按优先级/时间合并后切页；前端使用服务端分页，项目与 `todo_page` 进入 URL，切换项目回到第一页，移除固定 100 条的本地截断。工作台定向 `16 passed`、后端非集成 `2381 passed`、前端全量 `69 files / 302 tests passed`，focused todos `2 passed`，type-check/build、Ruff、格式和 diff-check 通过；审查补齐了分页容器布局。真实角色、待办数据和执行器环境仍待 N1 外部验收。
+- 2026-08-25 计划检查点 2.4.8 已同步：N1 工作台待办服务端分页与任务中心分页均已完成本地实现、回归、独立审查和文档同步；外部顺序仍为受控 viewer/管理员角色矩阵 → 真实 AI 草稿/来源审计 → P8 目标治理 → P9 发布收口。P4 仍因缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 阻塞。无受控凭据或真实模型时保持 `partial`/未关闭，不记录密码、Token、响应正文或对象内容。
 - 2026-08-25 计划检查点 2.4.7 已同步：在保留 q19 N6/N7 管理员基础资产、Hermes 三类来源、清理链路和 P8 目标认证阻塞边界的同时，N1 任务中心分页本地闭环已完成；外部执行顺序仍为普通 viewer/管理员受控账号 → 受控真实 AI 草稿/来源审计 → P8 目标治理 → P9 发布收口。P4 仍因缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 阻塞。无 viewer、可用管理员或真实模型凭据时保持 `partial`/未关闭，不记录密码、Token、响应正文或对象内容。
 - 2026-08-25 P8 系统治理本地验收入口已完成：新增 `scripts/n8-system-governance-acceptance.py` 与 `docs/n8-system-governance-acceptance.md`，默认只读检查远程工具箱、配置中心、审计导出和普通角色拒绝；只有 `--allow-mutations --rollback` 才创建加密配置版本并执行精确回滚，掩码值允许、明文敏感值拒绝，响应正文不写入证据。已接入 Make/CI/pre-commit，契约/质量回归 `34 passed`；目标部署、真实管理员/viewer 账号和回滚审计证据仍待验收。
 - 2026-08-25 q19 N8 目标只读预检已记录：后端 health 返回 `status=ok`，q19 acceptance 运行栈可见；管理员登录探针返回 HTTP 401，因此未继续猜测密码、未执行配置/回滚/审计变更，也未记录凭据或响应正文。脱敏证据为 `docs/evidence/n8-system-governance-environment-audit-2026-08-25.json`；完整 N8 仍需受控管理员和普通 viewer 凭据。

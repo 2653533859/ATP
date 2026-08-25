@@ -12,7 +12,7 @@
           allow-clear
           class="project-select"
           :placeholder="t('workbench.all_projects')"
-          @change="loadOverview"
+          @change="handleProjectChange"
         >
           <a-select-option v-for="project in projects" :key="project.id" :value="project.id">
             {{ project.name }}
@@ -52,7 +52,7 @@
         :columns="columns"
         :loading="loading"
         row-key="id"
-        :pagination="{ pageSize: 10, hideOnSinglePage: true }"
+        :pagination="false"
         :locale="{ emptyText: t('workbench.todos_empty') }"
       >
         <template #bodyCell="{ column, record }">
@@ -74,9 +74,21 @@
           </template>
         </template>
       </a-table>
+      <div v-if="count('total_todos') > todoPageSize" class="pagination-row">
+        <a-pagination
+          :current="todoPage"
+          :page-size="todoPageSize"
+          :total="todoPaginationTotal"
+          show-less-items
+          @change="handleTodoPageChange"
+        />
+      </div>
     </a-card>
 
     <div class="sync-note">
+      <span v-if="count('total_todos')">
+        {{ t('workbench.todo_page_summary', { page: todoPage, total: count('total_todos') }) }} ·
+      </span>
       {{ t('workbench.last_sync', { time: formatTime(overview?.generated_at) }) }}
     </div>
   </section>
@@ -95,7 +107,12 @@ const route = useRoute()
 const router = useRouter()
 const projects = ref<ProjectItem[]>([])
 const projectId = ref<number | undefined>(toProjectId(route.query.project_id))
+const todoPageSize = 50
+const maxTodoOffset = 1000
+const maxTodoPage = Math.floor(maxTodoOffset / todoPageSize) + 1
+const todoPage = ref(toPage(route.query.todo_page, maxTodoPage))
 const overview = ref<WorkbenchOverviewItem | null>(null)
+const todoPaginationTotal = computed(() => Math.min(count('total_todos'), maxTodoOffset + todoPageSize))
 const loading = ref(false)
 let refreshTimer: number | undefined
 let loadSequence = 0
@@ -118,6 +135,11 @@ const columns = computed(() => [
 function toProjectId(value: unknown) {
   const parsed = Number(Array.isArray(value) ? value[0] : value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : undefined
+}
+
+function toPage(value: unknown, maximum: number) {
+  const parsed = Number(Array.isArray(value) ? value[0] : value)
+  return Number.isInteger(parsed) && parsed > 0 ? Math.min(parsed, maximum) : 1
 }
 
 function count(key: string) {
@@ -145,13 +167,25 @@ async function loadOverview() {
   const requestSequence = ++loadSequence
   loading.value = true
   try {
-    const nextQuery = projectId.value ? { project_id: String(projectId.value) } : {}
-    if (route.query.project_id !== nextQuery.project_id) {
+    const nextQuery: Record<string, string> = {}
+    if (projectId.value) nextQuery.project_id = String(projectId.value)
+    if (todoPage.value > 1) nextQuery.todo_page = String(todoPage.value)
+    const knownQueryKeys = new Set(['project_id', 'todo_page'])
+    const currentQuery: Record<string, string> = {}
+    for (const key of knownQueryKeys) {
+      const value = route.query[key]
+      const normalized = Array.isArray(value) ? value[0] : value
+      if (typeof normalized === 'string' && normalized.trim()) currentQuery[key] = normalized
+    }
+    const queryChanged = Object.keys(route.query).some((key) => !knownQueryKeys.has(key))
+      || JSON.stringify(currentQuery) !== JSON.stringify(nextQuery)
+    if (queryChanged) {
       await router.replace({ query: nextQuery })
     }
     const result = await workbenchApi.overview({
       project_id: projectId.value,
-      todo_limit: 100,
+      todo_limit: todoPageSize,
+      todo_offset: Math.min((todoPage.value - 1) * todoPageSize, maxTodoOffset),
       task_limit: 100,
     })
     if (requestSequence === loadSequence) overview.value = result
@@ -160,6 +194,16 @@ async function loadOverview() {
   } finally {
     if (requestSequence === loadSequence) loading.value = false
   }
+}
+
+function handleProjectChange() {
+  todoPage.value = 1
+  loadOverview()
+}
+
+function handleTodoPageChange(nextPage: number) {
+  todoPage.value = Math.min(Math.max(nextPage, 1), maxTodoPage)
+  loadOverview()
 }
 
 onMounted(async () => {
@@ -252,6 +296,12 @@ h1 {
 
 .todo-card {
   border: 1px solid var(--c-border);
+}
+
+.pagination-row {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 16px;
 }
 
 .list-hint {

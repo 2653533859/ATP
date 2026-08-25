@@ -10,6 +10,8 @@
 
 > 2026-08-25 N1 任务中心分页本地交付：统一任务接口支持有界 `offset`，跨五类任务域合并排序后切页；前端支持服务端分页和项目/状态/类型/页码深链。工作台定向 `15 passed`、后端非集成 `2380 passed`、前端全量 `69 files / 302 tests passed`，type-check/build/Ruff/diff-check 通过。该项仍不替代真实角色、任务数据和执行器环境验收。
 
+> 2026-08-25 N1 我的待办分页本地交付：工作台概览接口支持有界 `todo_offset`，跨评审、失败运行、逾期计划和设备异常合并排序后切页；前端支持项目与 `todo_page` 深链，切换项目回到第一页。工作台定向 `16 passed`、后端非集成全量 `2381 passed`、前端全量 `69 files / 302 tests passed`，focused todos `2 passed`，type-check/build/Ruff/format/diff-check 通过。该项仍不替代真实角色、待办数据和执行器环境验收。
+
 > 2026-08-25 P7 Hermes 项目级检索本地交付已完成：`POST /hermes/query` 返回需求、知识和用例的脱敏来源与项目深链，Hermes 自由提问和知识条目深链已接通；N7 验收脚本现在校验三类 marker 来源、项目路径、source_ref 及需求/知识/用例详情读取。后端定向 `21 passed`、前端 Hermes/知识定向 `11 passed`，真实模型、角色账号和远端数据仍待受控验收，不改变 N7 及发布阻塞结论。
 
 > 2026-08-25 P7/N6 真实验收发现并修复两个本地缺陷：blank 项目模块缺失导致脚本无法继续，需求创建在 async commit 后读取过期 ORM 属性导致 q19 返回 HTTP 500/MissingGreenlet；脚本现在创建临时模块，接口在响应前 refresh。q19 已按 `716d1b3` 重建并复验基础数据链路，最新脱敏证据见 [`evidence/n6-project-asset-acceptance-2026-08-25.json`](evidence/n6-project-asset-acceptance-2026-08-25.json) 与 [`evidence/n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json)。

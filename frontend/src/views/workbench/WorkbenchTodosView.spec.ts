@@ -86,7 +86,12 @@ describe('WorkbenchTodosView', () => {
     await flushPromises()
 
     expect(projectList).toHaveBeenCalledOnce()
-    expect(overview).toHaveBeenCalledWith({ project_id: undefined, todo_limit: 100, task_limit: 100 })
+    expect(overview).toHaveBeenCalledWith({
+      project_id: undefined,
+      todo_limit: 50,
+      todo_offset: 0,
+      task_limit: 100,
+    })
     expect(wrapper.text()).toContain('workbench.todos_title')
 
     wrapper.unmount()

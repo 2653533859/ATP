@@ -1034,3 +1034,10 @@ N1 的真实协议目标已从“执行器存在”推进到 q19 网络闭环：
 - 两个运行事件序列均无重复，JSON 报告导出均 HTTP 200；临时项目 `51` 删除 204，删除后查询 404。脱敏证据见 [`evidence/android-karing-performance-fluency-2026-08-25.json`](evidence/android-karing-performance-fluency-2026-08-25.json)。
 - 真实复验发现并修复 Android 14 包级 `dumpsys meminfo` 标题-only 的 VmRSS 兜底，以及 `gfxinfo` `Total frames`/等号 `HISTOGRAM` 解析和 GPU 直方图排除；相关定向回归 `60 passed`，Ruff 通过。
 - **状态**：N2 Karing 单设备专项、事件/报告下载和临时清理闭环完成；N4 真实性能环境仍缺 Kubernetes、Prometheus 和独立 MinIO，保持待环境验收。
+
+## 0.15 2026-08-25 N1 工作台待办分页本地交付
+
+- 工作台概览 API 新增有界 `todo_offset`，先按来源拉取足够的评审、失败运行、逾期计划和设备异常，再按优先级/时间合并排序后切页，避免某一类待办占满固定返回窗口。
+- “我的待办”前端改为服务端分页，项目与 `todo_page` 保留在 URL，切换项目回到第一页；原本固定 100 条并在表格内局部分页的行为已移除，并补充了中英文分页提示和控件布局。
+- 工作台定向回归 `16 passed`，后端非集成全量 `2381 passed`，前端全量 `69 files / 302 tests passed`，focused todos `2 passed`，type-check/build、Ruff、格式检查和 `git diff --check` 通过；独立代码审查已修复分页容器布局。
+- 本项只完成本地代码和自动化门禁，真实项目角色、待办数据和任务执行环境仍按 N1 外部验收门禁跟踪。

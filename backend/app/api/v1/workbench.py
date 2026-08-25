@@ -515,9 +515,14 @@ async def _collect_todos(
     user: User,
     project_id: int | None,
     limit: int,
+    offset: int = 0,
 ) -> tuple[list[WorkbenchTodoItem], bool]:
     todos: list[WorkbenchTodoItem] = []
     has_more = False
+    # Each todo source is queried before the global priority/time sort.  Fetch
+    # enough rows for the requested page so a large review queue cannot hide
+    # failed runs or device anomalies from later pages.
+    source_limit = min(limit + offset, 1200)
 
     review_stmt = (
         select(TestCase, Project.name, Module.project_id)
@@ -527,9 +532,9 @@ async def _collect_todos(
     )
     review_stmt = _project_filter(review_stmt, Module.project_id, user, project_id)
     review_rows = (
-        await db.execute(review_stmt.order_by(TestCase.updated_at.asc(), TestCase.id.asc()).limit(limit + 1))
+        await db.execute(review_stmt.order_by(TestCase.updated_at.asc(), TestCase.id.asc()).limit(source_limit + 1))
     ).all()
-    has_more = has_more or len(review_rows) > limit
+    has_more = has_more or len(review_rows) > source_limit
     todos.extend(
         WorkbenchTodoItem(
             id=f"review:{case.id}",
@@ -544,7 +549,7 @@ async def _collect_todos(
             path=f"/cases/{case.id}",
             metadata={"case_id": case.id, "review_status": case.review_status},
         )
-        for case, project_name, case_project_id in review_rows[:limit]
+        for case, project_name, case_project_id in review_rows[:source_limit]
     )
 
     failed_tasks, failed_has_more = await _collect_tasks(
@@ -553,7 +558,7 @@ async def _collect_todos(
         project_id,
         _FAILED_STATUSES,
         None,
-        limit,
+        source_limit,
     )
     has_more = has_more or failed_has_more
     todos.extend(
@@ -591,8 +596,8 @@ async def _collect_todos(
         )
     )
     overdue_stmt = _project_filter(overdue_stmt, TestPlan.project_id, user, project_id)
-    overdue_rows = (await db.execute(overdue_stmt.order_by(TestPlan.next_run_at.asc()).limit(limit + 1))).all()
-    has_more = has_more or len(overdue_rows) > limit
+    overdue_rows = (await db.execute(overdue_stmt.order_by(TestPlan.next_run_at.asc()).limit(source_limit + 1))).all()
+    has_more = has_more or len(overdue_rows) > source_limit
     todos.extend(
         WorkbenchTodoItem(
             id=f"overdue-plan:{plan.id}",
@@ -608,7 +613,7 @@ async def _collect_todos(
             path="/plans",
             metadata={"plan_id": plan.id, "next_run_at": plan.next_run_at.isoformat()},
         )
-        for plan, project_name in overdue_rows[:limit]
+        for plan, project_name in overdue_rows[:source_limit]
     )
 
     if user.role in {UserRole.admin, UserRole.engineer} and project_id is None:
@@ -619,9 +624,9 @@ async def _collect_todos(
             Device.last_seen_at < stale_before,
         )
         device_rows = (
-            (await db.execute(device_stmt.order_by(Device.last_seen_at.desc()).limit(limit + 1))).scalars().all()
+            (await db.execute(device_stmt.order_by(Device.last_seen_at.desc()).limit(source_limit + 1))).scalars().all()
         )
-        has_more = has_more or len(device_rows) > limit
+        has_more = has_more or len(device_rows) > source_limit
         todos.extend(
             WorkbenchTodoItem(
                 id=f"device:{device.id}",
@@ -636,18 +641,22 @@ async def _collect_todos(
                 path="/devices",
                 metadata={"device_id": device.id, "serial": device.serial},
             )
-            for device in device_rows[:limit]
+            for device in device_rows[:source_limit]
         )
 
     priority_order = {"high": 0, "medium": 1, "low": 2}
     todos.sort(key=lambda item: (priority_order[item.priority], item.due_at or item.created_at or now))
-    return todos[:limit], has_more or len(todos) > limit
+    page_end = offset + limit
+    if len(todos) > page_end:
+        has_more = True
+    return todos[offset:page_end], has_more
 
 
 @router.get("/workbench/overview", response_model=WorkbenchOverviewOut)
 async def get_workbench_overview(
     project_id: int | None = Query(None, ge=1),
     todo_limit: int = Query(50, ge=1, le=100),
+    todo_offset: int = Query(0, ge=0, le=1000),
     task_limit: int = Query(50, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -655,7 +664,7 @@ async def get_workbench_overview(
     if project_id is not None:
         await assert_project_access(db, current_user, project_id, ProjectRole.viewer)
     generated_at = datetime.now(timezone.utc)
-    todos, has_more_todos = await _collect_todos(db, current_user, project_id, todo_limit)
+    todos, has_more_todos = await _collect_todos(db, current_user, project_id, todo_limit, todo_offset)
     tasks, has_more_tasks = await _collect_tasks(db, current_user, project_id, None, None, task_limit)
     counts = await _count_todos(db, current_user, project_id)
     counts["returned_tasks"] = len(tasks)

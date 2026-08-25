@@ -1898,7 +1898,7 @@ export const runApi = {
 }
 
 export const workbenchApi = {
-  overview: (params?: { project_id?: number; todo_limit?: number; task_limit?: number }) =>
+  overview: (params?: { project_id?: number; todo_limit?: number; todo_offset?: number; task_limit?: number }) =>
     http.get<unknown, WorkbenchOverviewItem>('/workbench/overview', { params }),
   tasks: (params?: { project_id?: number; status?: string; task_type?: WorkbenchTaskType; limit?: number; offset?: number }) =>
     http.get<unknown, WorkbenchTaskPage>('/workbench/tasks', { params }),

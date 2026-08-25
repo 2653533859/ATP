@@ -177,6 +177,28 @@ def test_collect_todos_includes_review_and_reports_truncation():
     assert todos[0].path == "/cases/3"
 
 
+def test_collect_todos_applies_offset_after_priority_merge(monkeypatch):
+    first_review = types.SimpleNamespace(id=3, name="登录用例", updated_at=_now(), review_status="pending")
+    second_review = types.SimpleNamespace(
+        id=4,
+        name="支付用例",
+        updated_at=_now() + timedelta(minutes=1),
+        review_status="pending",
+    )
+    db = _FakeDB([_FakeResult([(first_review, "项目 A", 1), (second_review, "项目 A", 1)]), _FakeResult()])
+    monkeypatch.setattr(
+        workbench,
+        "_collect_tasks",
+        lambda *_args, **_kwargs: asyncio.sleep(0, result=([_task("case", "failed", run_id=10)], False)),
+    )
+    user = types.SimpleNamespace(id=7, role=UserRole.tester)
+
+    todos, has_more = asyncio.run(workbench._collect_todos(db, user, 1, 1, 1))
+
+    assert todos[0].id == "review:3"
+    assert has_more is True
+
+
 def test_collect_performance_tasks_uses_test_executor_metadata():
     run = types.SimpleNamespace(
         id=12,
