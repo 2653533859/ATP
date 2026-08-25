@@ -121,9 +121,27 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--report", type=Path, default=Path("docs/evidence/n7-intelligence-acceptance.json"))
     parser.add_argument("--allow-mutations", action="store_true", help="required before creating or deleting data")
     parser.add_argument("--require-ai", action="store_true", help="require a real model to return editable case drafts")
+    parser.add_argument(
+        "--llm-config-id",
+        type=int,
+        help="saved AI LLM configuration to exercise; defaults to ATP_LLM_CONFIG_ID",
+    )
+    parser.add_argument(
+        "--require-vision",
+        action="store_true",
+        help="require the selected saved configuration to advertise vision support",
+    )
+    parser.add_argument(
+        "--require-thinking",
+        action="store_true",
+        help="require the selected saved configuration to contain a supported thinking parameter",
+    )
     parser.add_argument("--require-role-matrix", action="store_true", help="fail if viewer credentials are absent")
     parser.add_argument("--timeout", type=float, default=20.0)
-    return parser.parse_args(argv)
+    args = parser.parse_args(argv)
+    if (args.require_vision or args.require_thinking) and not args.require_ai:
+        parser.error("--require-vision and --require-thinking require --require-ai")
+    return args
 
 
 def _write_report(path: Path, report: dict[str, Any]) -> None:
@@ -158,6 +176,76 @@ def _first_module_id(payload: Any) -> int:
         if isinstance(item, dict) and isinstance(item.get("children"), list):
             queue.extend(item["children"])
     raise AcceptanceError("temporary project did not contain a module")
+
+
+def _thinking_parameter_keys(default_params: Any) -> list[str]:
+    if not isinstance(default_params, dict):
+        return []
+    return [key for key in ("thinking", "enable_thinking", "reasoning_effort") if key in default_params]
+
+
+def _llm_config_id(args: argparse.Namespace) -> int:
+    value = args.llm_config_id
+    if value is None:
+        raw = os.getenv("ATP_LLM_CONFIG_ID") or os.getenv("ATP_AI_CONFIG_ID")
+        try:
+            value = int(raw or "")
+        except ValueError:
+            value = None
+    if not isinstance(value, int) or value < 1:
+        raise AcceptanceError("--require-ai needs --llm-config-id or ATP_LLM_CONFIG_ID")
+    return value
+
+
+def _load_and_check_ai_config(client: ApiClient, args: argparse.Namespace) -> dict[str, Any]:
+    config_id = _llm_config_id(args)
+    configs = client.request("GET", "/ai/llm-configs")
+    if not isinstance(configs, list):
+        raise AcceptanceError("AI configuration response was not a list")
+    config = next((item for item in configs if isinstance(item, dict) and item.get("id") == config_id), None)
+    if config is None:
+        raise AcceptanceError(f"saved AI configuration id={config_id} was not found")
+    if config.get("enabled") is not True:
+        raise AcceptanceError("selected AI configuration is disabled")
+    provider = str(config.get("provider") or "")
+    model_name = str(config.get("model_name") or "").strip()
+    if not provider or not model_name:
+        raise AcceptanceError("selected AI configuration is missing provider or model")
+    supports_vision = config.get("supports_vision") is True
+    thinking_keys = _thinking_parameter_keys(config.get("default_params"))
+    if args.require_vision and not supports_vision:
+        raise AcceptanceError("selected AI configuration does not advertise vision support")
+    if args.require_thinking and not thinking_keys:
+        raise AcceptanceError("selected AI configuration has no thinking parameter")
+
+    models = client.request("POST", "/ai/llm-configs/models", {"config_id": config_id, "provider": provider})
+    model_options = models.get("models") if isinstance(models, dict) else None
+    if not isinstance(model_options, list) or not model_options:
+        raise AcceptanceError("AI model discovery returned no models")
+    discovered = next(
+        (item for item in model_options if isinstance(item, dict) and item.get("id") == model_name),
+        None,
+    )
+    if discovered is None:
+        raise AcceptanceError("saved AI model was not present in the discovered model list")
+    if args.require_vision and discovered.get("supports_vision") is not True:
+        raise AcceptanceError("discovered AI model did not explicitly declare vision support")
+    if args.require_thinking and discovered.get("supports_reasoning") is not True:
+        raise AcceptanceError("discovered AI model did not explicitly declare reasoning support")
+
+    connection = client.request("POST", "/ai/llm-configs/test-connection", {"config_id": config_id})
+    if not isinstance(connection, dict) or connection.get("response_received") is not True:
+        raise AcceptanceError("AI connection test did not confirm a response")
+    if connection.get("model_name") != model_name:
+        raise AcceptanceError("AI connection test used an unexpected model")
+    return {
+        "id": config_id,
+        "provider": provider,
+        "model_name": model_name,
+        "supports_vision": supports_vision,
+        "thinking_parameter_keys": thinking_keys,
+        "discovered_model_count": len(model_options),
+    }
 
 
 def _ensure_module(client: ApiClient, project_id: int) -> tuple[int, bool]:
@@ -233,7 +321,7 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, Any]:
     report: dict[str, Any] = {
         "schema_version": 1,
         "generated_at": datetime.now(timezone.utc).isoformat(),
-        "scope": "N7 Hermes, requirement and knowledge retrieval",
+        "scope": "N5/N7 AI model, Hermes, requirement and knowledge retrieval",
         "status": "failed",
         "endpoint": _safe_url(args.base_url or ""),
         "checks": recorder.checks,
@@ -242,6 +330,7 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, Any]:
     project_id: int | None = None
     admin_client: ApiClient | None = None
     viewer_id: int | None = None
+    ai_config: dict[str, Any] | None = None
 
     try:
         if not args.base_url:
@@ -269,7 +358,22 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, Any]:
         role = str(me.get("role")) if isinstance(me, dict) else ""
         if role not in {"admin", "engineer"}:
             raise AcceptanceError("authenticated account must be admin or engineer")
+        if args.require_ai and role != "admin":
+            raise AcceptanceError("--require-ai needs a global admin account for saved-model checks")
         recorder.add("authentication", "passed", f"authenticated as {role}; credentials were not recorded")
+
+        if args.require_ai:
+            assert admin_client is not None
+            ai_config = _load_and_check_ai_config(admin_client, args)
+            recorder.add(
+                "ai-model-preflight",
+                "passed",
+                "saved AI configuration, model discovery and connection passed "
+                f"(config_id={ai_config['id']}, provider={ai_config['provider']}, "
+                f"model={ai_config['model_name']}, discovered={ai_config['discovered_model_count']}, "
+                f"vision={ai_config['supports_vision']}, "
+                f"thinking_keys={','.join(ai_config['thinking_parameter_keys']) or 'none'})",
+            )
 
         marker = datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S")
         project = admin_client.request(
@@ -278,6 +382,7 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, Any]:
             {
                 "name": f"ATP N7 acceptance {marker}",
                 "description": "temporary N7 intelligence project",
+                "ai_llm_config_id": ai_config["id"] if ai_config else None,
                 "template": "blank",
             },
         )

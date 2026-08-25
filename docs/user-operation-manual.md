@@ -853,6 +853,8 @@ PERFORMANCE_MAX_DURATION_SECONDS=
 - 这类服务必须填写它自己的 API Token；原生 Ollama 才可以不填 API Key，地址通常是 `http://主机:11434`。
 - 是否支持多模态、思考参数需要以实际模型和供应商文档为准，页面上的模型名称提示不能替代服务端能力确认。
 
+管理员保存配置后可先使用“拉取模型”和“测试连接”确认模型列表与短文本连通性；测试不会在页面显示 API Key。真实验收可使用 `scripts/n7-intelligence-acceptance.py --require-ai --llm-config-id <id>`，需要多模态/思考门槛时追加 `--require-vision --require-thinking`；配置 ID 也可通过 `ATP_LLM_CONFIG_ID` 提供，密码和 Token 只从环境变量注入。
+
 ### 20.2 AI 用例生成
 
 在用例管理中通过需求、OpenAPI 或 cURL 生成用例草稿。生成后必须人工检查再保存。

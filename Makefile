@@ -185,7 +185,7 @@ n6-project-asset-acceptance:
 
 n7-intelligence-acceptance:
 	@if [ -z "$(ARGS)" ]; then \
-		echo "Usage: make n7-intelligence-acceptance ARGS='--base-url ... --allow-mutations --require-role-matrix [--require-ai]'"; \
+		echo "Usage: make n7-intelligence-acceptance ARGS='--base-url ... --allow-mutations --require-role-matrix [--require-ai --llm-config-id ... --require-vision --require-thinking]'"; \
 		exit 2; \
 	fi
 	$(PYTHON) scripts/n7-intelligence-acceptance.py $(ARGS)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import sys
+import types
 from pathlib import Path
 
 import pytest
@@ -141,6 +142,65 @@ def test_empty_project_modules_are_filled_with_a_temporary_module():
     ]
 
 
+def test_ai_preflight_uses_saved_config_without_sending_or_recording_secrets():
+    module = _module()
+    calls = []
+
+    class _Client:
+        def request(self, method, path, payload=None):
+            calls.append((method, path, payload))
+            if path == "/ai/llm-configs":
+                return [
+                    {
+                        "id": 7,
+                        "provider": "openai_compatible",
+                        "model_name": "vision-reasoner",
+                        "enabled": True,
+                        "supports_vision": True,
+                        "default_params": {"reasoning_effort": "medium"},
+                    }
+                ]
+            if path == "/ai/llm-configs/models":
+                return {
+                    "models": [
+                        {
+                            "id": "vision-reasoner",
+                            "supports_vision": True,
+                            "supports_reasoning": True,
+                        }
+                    ]
+                }
+            if path == "/ai/llm-configs/test-connection":
+                return {"response_received": True, "model_name": "vision-reasoner"}
+            raise AssertionError(path)
+
+    result = module._load_and_check_ai_config(
+        _Client(),
+        types.SimpleNamespace(llm_config_id=7, require_vision=True, require_thinking=True),
+    )
+
+    assert result == {
+        "id": 7,
+        "provider": "openai_compatible",
+        "model_name": "vision-reasoner",
+        "supports_vision": True,
+        "thinking_parameter_keys": ["reasoning_effort"],
+        "discovered_model_count": 1,
+    }
+    assert calls == [
+        ("GET", "/ai/llm-configs", None),
+        ("POST", "/ai/llm-configs/models", {"config_id": 7, "provider": "openai_compatible"}),
+        ("POST", "/ai/llm-configs/test-connection", {"config_id": 7}),
+    ]
+
+
+def test_capability_flags_require_ai_generation_gate():
+    module = _module()
+
+    with pytest.raises(SystemExit):
+        module._parse_args(["--base-url", "https://example.test", "--require-vision"])
+
+
 def test_acceptance_script_and_runbook_keep_credentials_out_of_cli_and_evidence():
     source = SCRIPT.read_text(encoding="utf-8")
     runbook = (ROOT / "docs" / "n7-intelligence-acceptance.md").read_text(encoding="utf-8")
@@ -149,6 +209,8 @@ def test_acceptance_script_and_runbook_keep_credentials_out_of_cli_and_evidence(
     assert "ATP_PASSWORD" in source
     assert "--password" not in source
     assert "--allow-mutations" in source
+    assert "--llm-config-id" in source
+    assert "ATP_LLM_CONFIG_ID" in source
     assert "finally:" in source
     assert "n7-intelligence-acceptance" in makefile
     assert "n7-intelligence-acceptance.py" in runbook
