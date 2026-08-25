@@ -1,0 +1,86 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-25",
+  "scope": "N2/N4/N5/N6/N7/N8/N9 release gates",
+  "release": {
+    "status": "blocked",
+    "eligible": false,
+    "candidate_sha": null,
+    "blocking_gates": [
+      "N4.performance-real-environment",
+      "N5.ai-real-model",
+      "N6.project-asset-permissions",
+      "N7.intelligence-real-data",
+      "N8.system-governance-deployment",
+      "N9.release-closure"
+    ]
+  },
+  "gates": [
+    {
+      "id": "N2.android-single-device",
+      "status": "passed",
+      "owner": "test-platform",
+      "evidence": [
+        "docs/evidence/android-karing-performance-fluency-2026-08-25.json",
+        "docs/evidence/android-karing-recording-gate-2026-08-25.json"
+      ],
+      "blocking_reason": null,
+      "dependencies": [],
+      "recheck_command": "Run the Windows Android single-device acceptance bundle for the pinned APK and device."
+    },
+    {
+      "id": "N4.performance-real-environment",
+      "status": "blocked",
+      "owner": "platform-infra",
+      "evidence": ["docs/evidence/performance-environment-audit-2026-08-25.json"],
+      "blocking_reason": "The target host has no Kubernetes cluster, Prometheus readiness, or independent MinIO source/target endpoints.",
+      "dependencies": ["Kubernetes cluster with two schedulable nodes", "Prometheus", "independent MinIO source and target"],
+      "recheck_command": "Run make performance-environment-smoke with real API, nodes, target and Prometheus, then make minio-dr-acceptance with independent endpoints."
+    },
+    {
+      "id": "N5.ai-real-model",
+      "status": "pending",
+      "owner": "ai-platform",
+      "evidence": ["docs/development-plan-2026-08-25.md"],
+      "blocking_reason": "Local AI configuration and safety boundaries are implemented, but a controlled real model and project data have not been verified.",
+      "dependencies": ["Controlled model endpoint", "test project with generation permissions"],
+      "recheck_command": "Run model listing, connection, multimodal/thinking parameter and editable generation checks with a temporary project, then remove the data."
+    },
+    {
+      "id": "N6.project-asset-permissions",
+      "status": "pending",
+      "owner": "test-platform",
+      "evidence": ["docs/development-plan-2026-08-25.md"],
+      "blocking_reason": "The local asset links are covered, but the full project/member/role chain has not been verified against clean real data.",
+      "dependencies": ["Temporary project", "administrator and ordinary project members", "cleanable execution history"],
+      "recheck_command": "Create a temporary project and verify case-to-suite-to-plan-to-run-to-report-to-defect-to-review links and ordinary-role isolation, then clean all objects."
+    },
+    {
+      "id": "N7.intelligence-real-data",
+      "status": "pending",
+      "owner": "ai-platform",
+      "evidence": ["docs/development-plan-2026-08-25.md"],
+      "blocking_reason": "Hermes, requirements and knowledge flows still need controlled real model/data verification with source display.",
+      "dependencies": ["Controlled model endpoint", "temporary requirement and knowledge entries"],
+      "recheck_command": "Run Hermes query and editable requirement/case/knowledge retrieval checks, verify citations, then remove temporary entries."
+    },
+    {
+      "id": "N8.system-governance-deployment",
+      "status": "pending",
+      "owner": "platform-infra",
+      "evidence": ["docs/development-plan-2026-08-25.md"],
+      "blocking_reason": "Remote diagnostics, configuration rollback and audit boundaries are locally implemented but not verified on the target deployment.",
+      "dependencies": ["Target deployment", "administrator and ordinary role accounts", "controlled encrypted configuration values"],
+      "recheck_command": "Run remote dependency diagnostics, configuration diff, single-resource rollback, audit and permission-denial checks on the target deployment."
+    },
+    {
+      "id": "N9.release-closure",
+      "status": "pending",
+      "owner": "release-engineering",
+      "evidence": ["docs/q9-release-checklist.md", "docs/release-status-2026-08-25.md"],
+      "blocking_reason": "Release closure must wait until all external gates are either verified or explicitly accepted with an owner and recheck command.",
+      "dependencies": ["N4 through N8 gate decisions", "same-SHA test and environment evidence"],
+      "recheck_command": "Run scripts/validate-release-evidence.py --candidate-sha <release-sha> --require-candidate-sha --require-clean after all gate evidence is archived."
+    }
+  ]
+}

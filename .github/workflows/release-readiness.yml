@@ -44,6 +44,9 @@ jobs:
       - name: Install contract test dependencies
         run: pip install pytest pyyaml
 
+      - name: Validate release evidence index
+        run: python scripts/validate-release-evidence.py --candidate-sha "${{ github.sha }}" --require-candidate-sha --require-clean
+
       # 契约的唯一定义在 pytest 文件里（普通 CI 同样执行它），
       # 这里直接运行该文件而不是在 YAML 里再抄一份 grep 清单，避免双份漂移。
       - name: Run release checklist contract tests

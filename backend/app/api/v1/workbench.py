@@ -396,24 +396,33 @@ async def _count_tasks(
         )
         stmt = _project_filter(stmt, Module.project_id, user, project_id)
         total += int(
-            (await db.execute(_apply_status_filter(stmt, TestRun.status, _status_filter_for_type(status_filter, "case"))))
-            .scalar_one()
+            (
+                await db.execute(
+                    _apply_status_filter(stmt, TestRun.status, _status_filter_for_type(status_filter, "case"))
+                )
+            ).scalar_one()
             or 0
         )
     if "suite" in selected:
         stmt = select(func.count(SuiteRun.id)).join(TestSuite, SuiteRun.suite_id == TestSuite.id)
         stmt = _project_filter(stmt, TestSuite.project_id, user, project_id)
         total += int(
-            (await db.execute(_apply_status_filter(stmt, SuiteRun.status, _status_filter_for_type(status_filter, "suite"))))
-            .scalar_one()
+            (
+                await db.execute(
+                    _apply_status_filter(stmt, SuiteRun.status, _status_filter_for_type(status_filter, "suite"))
+                )
+            ).scalar_one()
             or 0
         )
     if "plan" in selected:
         stmt = select(func.count(PlanRun.id)).join(TestPlan, PlanRun.plan_id == TestPlan.id)
         stmt = _project_filter(stmt, TestPlan.project_id, user, project_id)
         total += int(
-            (await db.execute(_apply_status_filter(stmt, PlanRun.status, _status_filter_for_type(status_filter, "plan"))))
-            .scalar_one()
+            (
+                await db.execute(
+                    _apply_status_filter(stmt, PlanRun.status, _status_filter_for_type(status_filter, "plan"))
+                )
+            ).scalar_one()
             or 0
         )
     if "android" in selected:

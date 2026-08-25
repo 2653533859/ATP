@@ -54,9 +54,7 @@ _SENSITIVE_TEXT_RE = re.compile(
     r"(?i)(?P<key>[\"']?(?:token|secret|password|passwd|api[_-]?key|authorization|cookie|credential)[\"']?)"
     r"(?P<sep>\s*[:=]\s*)[\"']?[^,;\s}\]\\\"']+[\"']?"
 )
-_SENSITIVE_HEADER_RE = re.compile(
-    r"(?i)^(authorization|cookie|set-cookie|proxy-authorization|x-api-key|x-auth-token)$"
-)
+_SENSITIVE_HEADER_RE = re.compile(r"(?i)^(authorization|cookie|set-cookie|proxy-authorization|x-api-key|x-auth-token)$")
 _URL_RE = re.compile(r"https?://[^\s'\"<>]+", re.IGNORECASE)
 
 
@@ -458,8 +456,18 @@ class WebRecordingSession:
             except Exception as exc:
                 failures.append(_safe_text(f"HAR 脱敏失败: {exc}"))
         specs = (
-            ("trace", self.trace_path, "application/zip", f"traces/recordings/{self.project_id}/{self.session_id}/trace.zip"),
-            ("har", self.har_path, "application/json", f"reports/recordings/{self.project_id}/{self.session_id}/network.har"),
+            (
+                "trace",
+                self.trace_path,
+                "application/zip",
+                f"traces/recordings/{self.project_id}/{self.session_id}/trace.zip",
+            ),
+            (
+                "har",
+                self.har_path,
+                "application/json",
+                f"reports/recordings/{self.project_id}/{self.session_id}/network.har",
+            ),
         )
         for kind, path, content_type, object_name in specs:
             if path is None or not path.exists():

@@ -188,9 +188,7 @@ async def get_report_overview(
         .where(TestRun.status.in_(_FINISHED_STATUSES), TestRun.created_at >= since)
     )
     case_type_query = scope_to_visible_projects(case_type_query, Module.project_id, user, project_id)
-    case_type_rows = (
-        await db.execute(case_type_query.group_by(TestCase.case_type).order_by(TestCase.case_type))
-    ).all()
+    case_type_rows = (await db.execute(case_type_query.group_by(TestCase.case_type).order_by(TestCase.case_type))).all()
     case_type_stats = [
         ReportCaseTypeItem(
             case_type=_value(row.case_type),

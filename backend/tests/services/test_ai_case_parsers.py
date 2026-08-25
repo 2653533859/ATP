@@ -130,9 +130,7 @@ def test_parse_openapi_preserves_falsy_examples_and_media_examples():
                         {"name": "enabled", "in": "query", "example": False, "schema": {"type": "boolean"}},
                         {"name": "limit", "in": "query", "example": 0, "schema": {"type": "integer"}},
                     ],
-                    "requestBody": {
-                        "content": {"application/json": {"example": False, "schema": {"type": "boolean"}}}
-                    },
+                    "requestBody": {"content": {"application/json": {"example": False, "schema": {"type": "boolean"}}}},
                     "responses": {"200": {"content": {"application/json": {"example": 0}}}},
                 }
             }
@@ -273,7 +271,11 @@ def test_parse_postman_form_data_body_and_skips_disabled_fields():
                 "name": "Upload metadata",
                 "request": {
                     "method": "POST",
-                    "url": {"raw": "https://api.example.com/upload", "host": ["api", "example", "com"], "path": ["upload"]},
+                    "url": {
+                        "raw": "https://api.example.com/upload",
+                        "host": ["api", "example", "com"],
+                        "path": ["upload"],
+                    },
                     "body": {
                         "mode": "formdata",
                         "formdata": [

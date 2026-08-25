@@ -94,6 +94,7 @@ def test_capture_mobile_run_artifacts_redacts_upload_error(monkeypatch):
         "run",
         lambda _command, **_kwargs: types.SimpleNamespace(returncode=0, stdout=b"log", stderr=b""),
     )
+
     def broken_upload(*_args):
         raise RuntimeError("upload failed token=secret-value")
 

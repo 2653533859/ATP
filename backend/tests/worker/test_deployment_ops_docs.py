@@ -301,10 +301,7 @@ def test_docker_compose_acceptance_stack_isolated_and_has_real_targets():
     } <= services.keys()
     assert services["backend"]["ports"] == ["127.0.0.1:18080:8000"]
     assert services["backend"]["environment"]["WEB_RECORDER_MODE"] == "worker"
-    assert (
-        services["backend"]["environment"]["WEB_RECORDER_WORKER_QUEUE_PREFIX"]
-        == "atp:web-recording:commands"
-    )
+    assert services["backend"]["environment"]["WEB_RECORDER_WORKER_QUEUE_PREFIX"] == "atp:web-recording:commands"
     assert services["backend"]["healthcheck"]["test"][0] == "CMD"
     assert "/health" in " ".join(services["backend"]["healthcheck"]["test"])
     worker = services["worker"]
@@ -337,8 +334,8 @@ def test_docker_compose_acceptance_stack_isolated_and_has_real_targets():
     recorder_command = " ".join(recorder["command"])
     assert "Xvfb" in recorder_command
     assert "python -m app.web_recording_worker" in recorder_command
-    assert "rm -f \"/tmp/.X$${display_number}-lock\"" in recorder_command
-    assert "export DISPLAY=\"$${display}\"" in recorder_command
+    assert 'rm -f "/tmp/.X$${display_number}-lock"' in recorder_command
+    assert 'export DISPLAY="$${display}"' in recorder_command
     assert "xvfb_pid=$$!" in recorder_command
     assert recorder["healthcheck"]["test"][0] == "CMD"
     assert recorder["depends_on"]["backend"]["condition"] == "service_healthy"

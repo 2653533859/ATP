@@ -21,6 +21,6 @@ def test_project_delete_migration_is_reversible_for_all_changed_constraints():
     content = MIGRATION.read_text(encoding="utf-8")
 
     assert 'down_revision: Union[str, None] = "20260824_0064"' in content
-    assert 'for table_name, constraint_name, _ondelete in reversed(_PROJECT_FOREIGN_KEYS)' in content
+    assert "for table_name, constraint_name, _ondelete in reversed(_PROJECT_FOREIGN_KEYS)" in content
     assert 'op.drop_constraint("env_variables_env_id_fkey", "env_variables", type_="foreignkey")' in content
     assert 'op.drop_constraint("test_plans_env_id_fkey", "test_plans", type_="foreignkey")' in content

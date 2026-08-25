@@ -169,9 +169,7 @@ def test_build_report_html_embeds_video_when_url_present():
 def test_build_report_html_embeds_android_screen_recording_artifact():
     run = _make_run()
     run.result_summary = {
-        "android_artifacts": {
-            "screen_recording": "https://minio.local/android-artifacts/runs/1/screen-recording.mp4"
-        }
+        "android_artifacts": {"screen_recording": "https://minio.local/android-artifacts/runs/1/screen-recording.mp4"}
     }
 
     html = asyncio.run(exports_mod._build_report_html(run, [], "android-case", case_type="android"))

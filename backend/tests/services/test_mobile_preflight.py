@@ -46,9 +46,7 @@ async def test_android_preflight_uses_explicit_activity_when_provided(monkeypatc
         config={"launch_before": True, "launch_activity": ".WelcomeActivity"},
     )
 
-    assert calls == [
-        ("emulator-5554", ["shell", "am", "start", "-n", "com.example.app/.WelcomeActivity"])
-    ]
+    assert calls == [("emulator-5554", ["shell", "am", "start", "-n", "com.example.app/.WelcomeActivity"])]
 
 
 @pytest.mark.asyncio

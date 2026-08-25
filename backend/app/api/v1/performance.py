@@ -850,16 +850,12 @@ async def trigger_performance_run(
                 # Node guardrails apply to each shard, not to the unsplit aggregate load. The
                 # aggregate options are still checked above against the global safety limits.
                 shard_snapshots = split_performance_options(options_snapshot, len(body.performance_node_ids))
-                shard_validation_options = split_performance_options(
-                    validation_options, len(body.performance_node_ids)
-                )
+                shard_validation_options = split_performance_options(validation_options, len(body.performance_node_ids))
             except PerformanceShardingError as exc:
                 raise HTTPException(status_code=400, detail=str(exc)) from exc
         for index, node_id in enumerate(body.performance_node_ids):
             node_options = (
-                shard_validation_options[index]
-                if shard_validation_options is not None
-                else validation_options
+                shard_validation_options[index] if shard_validation_options is not None else validation_options
             )
             selected_nodes.append(await _resolve_performance_node(db, node_id, node_options, item.executor))
     else:

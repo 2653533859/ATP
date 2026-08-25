@@ -43,11 +43,7 @@ def build_android_launch_command(package: str, activity: str | None = None) -> l
         raise AndroidPreflightError("启动应用需要 app_package")
     normalized_activity = str(activity or "").strip()
     if normalized_activity:
-        component = (
-            normalized_activity
-            if "/" in normalized_activity
-            else f"{normalized_package}/{normalized_activity}"
-        )
+        component = normalized_activity if "/" in normalized_activity else f"{normalized_package}/{normalized_activity}"
         return ["shell", "am", "start", "-n", component]
     return [
         "shell",

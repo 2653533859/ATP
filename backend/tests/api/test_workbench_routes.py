@@ -97,7 +97,9 @@ def test_collect_tasks_passes_domain_safe_status_filters(monkeypatch):
     for task_type in ("case", "suite", "plan", "android", "performance"):
         monkeypatch.setattr(workbench, f"_collect_{task_type}_tasks", collector(task_type))
 
-    asyncio.run(workbench._collect_tasks(_FakeDB(), types.SimpleNamespace(), None, workbench._FAILED_STATUSES, None, 10))
+    asyncio.run(
+        workbench._collect_tasks(_FakeDB(), types.SimpleNamespace(), None, workbench._FAILED_STATUSES, None, 10)
+    )
 
     assert seen == {
         "case": {"failed", "error"},

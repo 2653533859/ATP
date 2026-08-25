@@ -2,6 +2,14 @@
 
 > 当前发布状态索引：[`docs/release-status-2026-08-25.md`](release-status-2026-08-25.md)。该索引优先记录本次候选的真实边界；本清单中的所有“通过”仍需绑定同一提交 SHA 和目标环境证据。
 
+> 机器可校验的门禁索引：[`docs/release-evidence-index-2026-08-25.json`](release-evidence-index-2026-08-25.json)。滚动索引不保存候选 SHA；发布候选必须用实际 SHA 执行：
+
+```bash
+python scripts/validate-release-evidence.py --candidate-sha "$(git rev-parse HEAD)" --require-candidate-sha --require-clean
+```
+
+校验器会拒绝重复门禁、非法状态、敏感字段、仓库外证据路径，以及缺少阻塞原因、依赖、负责人或复验命令的未关闭门禁。
+
 ## 发布前部署校验
 
 ```bash

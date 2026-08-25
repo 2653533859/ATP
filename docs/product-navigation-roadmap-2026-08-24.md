@@ -39,6 +39,8 @@
 
 > 2026-08-25 N6 失败运行转内部缺陷入口已完成本地交付：Android 专项报告和性能压测详情支持失败/异常/取消/停止运行一键创建内部缺陷，详情展示关联项并跳转缺陷管理执行记录过滤；重复指纹由后端追加脱敏证据。性能定向前端/缺陷页 `17 passed`、后端缺陷/静态契约 `14 passed`、前端全量 `69 files / 292 tests passed`、后端非集成全量 `2326 passed`，真实项目角色和失败运行仍待环境验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.1.6。
 
+> 2026-08-25 N9 发布证据索引与一致性校验子模块已完成本地交付：新增脱敏 JSON 索引、校验脚本及 Make/CI/预提交入口，定向校验与发布契约 `22 passed`、后端非集成全量 `2333 passed`、Ruff/格式/差异检查通过；候选 SHA 必须匹配当前 HEAD，最终 N9 仍待真实门禁收口。详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.1.7。
+
 > 2026-08-25 Android 专项应用启动兼容已完成本地交付：性能、稳定性和流畅度执行器统一支持显式 Activity 或 Launcher Intent 自动发现，流畅度任务避免前置启动后的重复启动，专项任务表单空 Activity 不再写入 `.MainActivity`。后端非集成 `2295 passed`，四个受影响测试文件独立 `3/25/19/15 passed`，前端 `67 files / 275 tests passed`，类型检查、生产构建、Ruff、差异检查和代码审查通过。真实 Karing APK/包名、Windows Android Worker/ADB、专项媒体和报告仍待环境验收；下一入口是 Karing 单设备闭环，N4 真实 Kubernetes/Prometheus/独立 MinIO 继续保持独立外部门禁。
 
 > 2026-08-25 Windows Android 验收探针已补齐：`windows-android-acceptance.ps1` 支持 `-LaunchActivity`，指定包名后以 Package Manager 非破坏性解析显式 Activity 或 `MAIN/LAUNCHER` 入口，脱敏报告记录应用元数据；脚本契约 `2 passed`、脚本目录 `93 passed`、质量/发布文档回归 `15 passed`，PowerShell 语法和当前设备自动/显式 Activity 探针通过。`com.android.settings` 仅用于验证探针行为，当前仍未发现 Karing，下一入口是 Karing APK/包名确认后的单设备闭环。

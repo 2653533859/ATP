@@ -140,6 +140,7 @@ def test_remote_manager_routes_session_and_screenshot(monkeypatch):
     assert asyncio.run(manager.get(session_id, 3))["status"] == "stopped"
     assert [call[1] for call in calls] == ["start", "snapshot", "screenshot", "stop"]
 
+
 def test_remote_manager_retries_explicit_busy_on_another_worker(monkeypatch):
     redis = _FakeRedis()
     monkeypatch.setattr(transport, "get_async_redis", lambda: redis)

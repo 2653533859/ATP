@@ -287,7 +287,9 @@ def _walk_postman_items(items: list, accumulator: list[Endpoint]) -> None:
         else:
             parsed = urlparse(str(url or ""))
             path = parsed.path or "/"
-            query_items = [{"key": key, "value": value} for key, value in parse_qsl(parsed.query, keep_blank_values=True)]
+            query_items = [
+                {"key": key, "value": value} for key, value in parse_qsl(parsed.query, keep_blank_values=True)
+            ]
             base_url = f"{parsed.scheme}://{parsed.netloc}" if parsed.scheme and parsed.netloc else None
 
         params: list[EndpointParameter] = []

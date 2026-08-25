@@ -1392,7 +1392,9 @@ def test_grpc_executor_uses_tls_channel_when_configured(monkeypatch):
     # request_json 在 channel 创建之前失败，TLS 分支不应被触达；改用合法 JSON 再驱动一次
     case2 = _grpc_case(assertions=[{"target": "grpc_status", "operator": "eq", "expected": "OK"}])
     case2.config["steps"][0]["use_tls"] = True
-    case2.config["steps"][0]["tls_root_certificates"] = "-----BEGIN CERTIFICATE-----\npublic-ca\n-----END CERTIFICATE-----"
+    case2.config["steps"][0]["tls_root_certificates"] = (
+        "-----BEGIN CERTIFICATE-----\npublic-ca\n-----END CERTIFICATE-----"
+    )
     case2.config["steps"][0]["tls_server_name"] = "grpc-target"
 
     def responder(request_msg):

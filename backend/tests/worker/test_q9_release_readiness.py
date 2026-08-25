@@ -35,6 +35,7 @@ def test_release_checklist_covers_q10_release_gates(repo_file):
     assert "run success rate" in content
     assert "API error-budget" in content
     assert "docs/q9-release-evidence.md" in content
+    assert "scripts/validate-release-evidence.py" in content
     assert "Q18 productization extension" in content
     assert "20260812_0055" in content
     assert "Performance notification" in content
@@ -98,3 +99,5 @@ def test_release_readiness_workflow_runs_checklist_contract_tests(repo_file):
     commands = "\n".join(step.get("run", "") for step in workflow["jobs"]["release-checklist-contract"]["steps"])
 
     assert "pytest backend/tests/worker/test_q9_release_readiness.py" in commands
+    assert "python scripts/validate-release-evidence.py --candidate-sha" in commands
+    assert "--require-candidate-sha --require-clean" in commands

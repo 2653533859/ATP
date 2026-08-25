@@ -137,8 +137,7 @@ def test_recording_har_evidence_is_redacted_before_persistence():
 
 def test_recording_text_evidence_redacts_json_credentials_and_urls():
     sanitized = _safe_text(
-        'login failed: {"password":"secret","token":"abc"} '
-        "https://example.com/login?api_key=private&next=/home"
+        'login failed: {"password":"secret","token":"abc"} ' "https://example.com/login?api_key=private&next=/home"
     )
 
     assert "secret" not in sanitized
