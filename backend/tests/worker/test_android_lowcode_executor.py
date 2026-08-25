@@ -323,6 +323,31 @@ def test_find_and_click_prefers_resource_id_when_both_locators_are_recorded(adb)
     assert ("shell", "input", "tap", "20", "30") in adb["calls"]
 
 
+def test_find_and_click_prefers_recorded_locator_over_coordinate_fallback(adb):
+    adb["responses"] = [(True, _DUMP_RID), (True, "")]
+
+    result = executor._find_and_click(
+        "s1",
+        {"resourceId": "com.acme:id/btn", "x": 900, "y": 1000},
+    )
+
+    assert result == {"success": True, "error": None}
+    assert ("shell", "input", "tap", "20", "30") in adb["calls"]
+    assert ("shell", "input", "tap", "900", "1000") not in adb["calls"]
+
+
+def test_find_and_click_falls_back_to_recorded_coordinate(adb):
+    adb["responses"] = [(True, _DUMP_RID), (True, "")]
+
+    result = executor._find_and_click(
+        "s1",
+        {"resourceId": "com.acme:id/missing", "x": 900, "y": 1000},
+    )
+
+    assert result == {"success": True, "error": None}
+    assert ("shell", "input", "tap", "900", "1000") in adb["calls"]
+
+
 def test_find_and_click_by_content_description(adb):
     dump = '<hierarchy><node content-desc="打开菜单" bounds="[0,0][80,80]" /></hierarchy>'
     adb["responses"] = [(True, dump), (True, "")]

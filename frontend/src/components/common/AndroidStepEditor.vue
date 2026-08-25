@@ -302,6 +302,7 @@ import { PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons-
 import draggable from 'vuedraggable'
 import { useI18n } from 'vue-i18n'
 import { deviceApi, type AndroidUiTarget } from '@/api'
+import { buildAndroidRecordedClickParams } from '@/utils/androidRecording'
 
 type StepParams = Record<string, unknown>
 type ExternalStep = { action: string; name: string; params: StepParams }
@@ -510,13 +511,7 @@ async function resolveUiTarget(point: { x: number; y: number }): Promise<Android
 }
 
 function locatorParams(point: { x: number; y: number }, target: AndroidUiTarget | null): StepParams {
-  const text = target?.text?.trim() || ''
-  const resourceId = target?.resourceId?.trim() || ''
-  const contentDesc = target?.contentDesc?.trim() || ''
-  if (text || resourceId || contentDesc) {
-    return { text, resourceId, contentDesc }
-  }
-  return { text: '', resourceId: '', contentDesc: '', x: point.x, y: point.y }
+  return buildAndroidRecordedClickParams(point, target)
 }
 
 function locatorLabel(target: AndroidUiTarget | null) {

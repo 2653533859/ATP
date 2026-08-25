@@ -20,6 +20,16 @@
 - **状态**：`[E]` 本地脚本、文档、回归和设备探针完成；真实 Karing APK/包名、Worker 调度、低代码、录屏/异常回放、专项任务和报告仍待验收。
 - **下一入口**：用户提供或上传 Karing APK 后，以 Manifest 包名、设备 `pm path` 和 Activity 解析三重证据确认目标，再执行单设备 Android 闭环。
 
+## 1.3 Android 低代码控件属性录制与坐标回退（2026-08-25）
+
+本模块补齐 Android 可视化录制的“可读定位 + 可执行兜底”链路。点击截图时保留 UIAutomator 返回的文本、resource-id、content-desc、className 和 bounds，同时保存原始屏幕坐标；回放优先按 resource-id、文本、无障碍描述定位，控件属性找不到或 UIAutomator 不可用时回退录制坐标。这样既不会把录制结果退化成只有坐标，也避免页面轻微变化后步骤完全无法执行。
+
+- **代码范围**：`frontend/src/utils/androidRecording.ts`、`frontend/src/components/common/AndroidStepEditor.vue`、`backend/app/worker/executors/android_lowcode_executor.py`。
+- **回归范围**：后端 Android 低代码执行器定向 `42 passed`，非集成全量 `2297 passed`；前端录制参数与标准步骤定向 `4 passed`，前端全量 `68 files / 277 tests passed`；`vue-tsc`、生产构建、后端 Ruff、格式检查和 `git diff --check` 均通过。
+- **代码审查**：独立检查确认选择器优先级为 resource-id → 文本 → content-desc，坐标仅作为最后回退；未发现可操作问题。
+- **状态**：`[E]` 本地实现、回归和审查完成；真实 Karing 仍需在 Windows Android Worker 上验证 UIAutomator 权限、录制控件属性、低代码执行和媒体/报告链路，不能用 `com.android.settings` 探针替代。
+- **下一入口**：取得 Karing APK/真实包名后，执行单设备 APK → 控件属性录制 → 低代码回放 → 录屏/异常回放 → 专项任务 → 事件/日志/报告 → 清理闭环。
+
 ## 1.0 当前计划登记（2026-08-25）
 
 本节是当前最新执行口径，优先于本文后面的历史交付记录。N4 的本地代码链路已经覆盖 Worker/目标服务采样、Kubernetes 容量预检、保留清理、跨端点 MinIO 恢复和生命周期门禁；下一步不重复开发已有采样器，而是按真实目标逐项验收，并同步推进被外部条件阻塞的 N2 与发布收口。

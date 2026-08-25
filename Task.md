@@ -2,7 +2,7 @@
 
 > 当前执行版计划与状态口径统一维护在 [`docs/development-plan-2026-08-25.md`](docs/development-plan-2026-08-25.md)；本文件保留任务勾选和历史交付记录。每个模块均须完成实现、测试、代码审查、修复、文档/记忆同步、提交推送后再进入下一项。
 
-> 当前有效顺序（2026-08-25 1.2）：N4 真实性能环境仍等待 Kubernetes/Prometheus/独立 MinIO；N2 已补齐 Windows Android 包名/启动入口验收探针，但仍需 Karing APK/真实包名和在线 Worker 做单设备闭环；随后推进 N5-N8 外部依赖复核和 N9 发布收口。下方更早的历史记录不覆盖当前执行版。
+> 当前有效顺序（2026-08-25 1.3）：N4 真实性能环境仍等待 Kubernetes/Prometheus/独立 MinIO；N2 已补齐 Windows Android 包名/启动入口探针和通用低代码控件属性/坐标回退，但仍需 Karing APK/真实包名和在线 Worker 做单设备闭环；随后推进 N5-N8 外部依赖复核和 N9 发布收口。下方更早的历史记录不覆盖当前执行版。
 
 ## 2026-08-25 参考导航分组执行游标
 
@@ -31,6 +31,13 @@
 - [x] 报告新增脱敏应用元数据；探针只读取 Package Manager，不启动/修改应用，不保存包内容或日志正文。
 - [x] 脚本契约 `2 passed`，脚本目录 `93 passed`，质量/发布文档回归 `15 passed`，PowerShell 语法检查通过；当前设备用 `com.android.settings` 完成自动/显式两条只读探针。
 - [E] Karing APK/真实包名、Windows Android Worker 调度、低代码、录屏/异常回放、专项任务和报告仍待环境验收，系统设置包探针不替代 Karing 验收。
+
+### 2026-08-25 1.3 Android 低代码控件属性录制与坐标回退
+
+- [x] 可视化点击录制同时保存文本、resource-id、content-desc、className、bounds 和原始坐标；控件属性可用于阅读、标准步骤生成和稳定回放。
+- [x] 回放按 resource-id → 文本 → content-desc 优先定位；UIAutomator dump 失败或找不到控件时回退到录制坐标，保留旧坐标步骤兼容性。
+- [x] 后端 Android 低代码定向 `42 passed`、非集成全量 `2297 passed`，前端录制参数/标准步骤定向 `4 passed`、全量 `68 files / 277 tests passed`，`vue-tsc`、生产构建、Ruff、格式检查和 `git diff --check` 通过；独立代码审查未发现可操作问题。
+- [E] 真实 Karing APK、Worker 上的 UIAutomator 权限、控件属性录制/回放、录屏/异常回放、专项任务和报告仍待真机验收。
 
 ### 2026-08-25 1.0 开发计划同步
 

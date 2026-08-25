@@ -280,52 +280,45 @@ def _uiautomator_dump(serial: str, timeout: int = 10) -> tuple[bool, str]:
 
 
 def _find_and_click(serial: str, params: dict) -> dict[str, Any]:
-    """使用 uiautomator dump + 坐标点击"""
+    """优先按录制到的控件属性点击，找不到时回退到录制坐标。"""
     text = params.get("text")
     resource_id = params.get("resourceId") or params.get("resource_id")
     content_desc = params.get("contentDesc") or params.get("content_desc")
     x = params.get("x")
     y = params.get("y")
 
+    selectors = (
+        ("resource-id", resource_id),
+        ("text", text),
+        ("content-desc", content_desc),
+    )
+    selectors = tuple((attribute, value) for attribute, value in selectors if value)
+    if selectors:
+        ok2, dump = _uiautomator_dump(serial, timeout=10)
+        if ok2:
+            for attribute, value in selectors:
+                bounds = _find_ui_bounds(dump, attribute, value)
+                if not bounds:
+                    continue
+                x1, y1, x2, y2 = bounds
+                cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
+                ok3, _ = _adb_cmd(serial, "shell", "input", "tap", str(cx), str(cy))
+                return {"success": ok3, "error": None if ok3 else "点击失败"}
+
+        # 录制步骤同时保存原始坐标，控件属性变化或 UIAutomator 不可用时仍可执行。
+        if x is not None and y is not None:
+            ok3, out = _adb_cmd(serial, "shell", "input", "tap", str(int(x)), str(int(y)))
+            return {"success": ok3, "error": out if not ok3 else None}
+
+        if resource_id:
+            return {"success": False, "error": f"未找到元素: {resource_id}"}
+        if text:
+            return {"success": False, "error": f"未找到文本元素: {text}"}
+        return {"success": False, "error": f"未找到元素: {content_desc}"}
+
     if x is not None and y is not None:
         ok, out = _adb_cmd(serial, "shell", "input", "tap", str(int(x)), str(int(y)))
         return {"success": ok, "error": out if not ok else None}
-
-    if text and not resource_id:
-        ok, dump = _uiautomator_dump(serial, timeout=10)
-        if ok and text in dump:
-            bounds = _find_ui_bounds(dump, "text", text)
-            if bounds:
-                x1, y1, x2, y2 = bounds
-                cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-                ok3, _ = _adb_cmd(serial, "shell", "input", "tap", str(cx), str(cy))
-                return {"success": ok3, "error": None if ok3 else "点击失败"}
-        return {"success": False, "error": f"未找到文本元素: {text}"}
-
-    if resource_id:
-        ok2, dump = _uiautomator_dump(serial, timeout=10)
-        if ok2:
-            bounds = _find_ui_bounds(dump, "resource-id", resource_id)
-            if bounds:
-                x1, y1, x2, y2 = bounds
-                cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-                ok3, _ = _adb_cmd(serial, "shell", "input", "tap", str(cx), str(cy))
-                return {"success": ok3, "error": None if ok3 else "点击失败"}
-        if text or content_desc:
-            fallback_params = {**params, "resourceId": None, "resource_id": None}
-            return _find_and_click(serial, fallback_params)
-        return {"success": False, "error": f"未找到元素: {resource_id}"}
-
-    if content_desc:
-        ok2, dump = _uiautomator_dump(serial, timeout=10)
-        if ok2:
-            bounds = _find_ui_bounds(dump, "content-desc", content_desc)
-            if bounds:
-                x1, y1, x2, y2 = bounds
-                cx, cy = (x1 + x2) // 2, (y1 + y2) // 2
-                ok3, _ = _adb_cmd(serial, "shell", "input", "tap", str(cx), str(cy))
-                return {"success": ok3, "error": None if ok3 else "点击失败"}
-        return {"success": False, "error": f"未找到元素: {content_desc}"}
 
     return {"success": False, "error": "缺少定位参数（text/resourceId/x,y）"}
 

@@ -24,6 +24,8 @@
 
 > Android 专项 APK 选择体验已补齐：选择器只展示已解析包名的 APK，选中后自动绑定并锁定包名，清空 APK 会同步清空包名；未选 APK 仍可手工填写。工具函数回归 `2 passed`，前端全量 `67 files / 274 tests passed`，类型检查和生产构建通过。该项不代表真实 Karing APK、设备执行、专项任务或完整报告验收通过。
 
+> Android 低代码控件属性录制与坐标回退已补齐：可视化点击步骤同时保存文本、resource-id、content-desc、className、bounds 和原始坐标；回放优先使用控件属性，UIAutomator 不可用或控件找不到时回退录制坐标。后端定向 `42 passed`、非集成全量 `2297 passed`，前端定向 `4 passed`、全量 `68 files / 277 tests passed`，`vue-tsc`、生产构建、Ruff、格式检查、差异检查和独立代码审查通过。该项只关闭本地录制/回放代码门禁，真实 Karing APK、Windows Worker UIAutomator 权限、媒体、专项任务和报告仍待验收。
+
 ## 发布结论
 
 当前结论：**暂不具备无条件发布资格**。
