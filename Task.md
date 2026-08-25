@@ -2,7 +2,7 @@
 
 > 当前执行版计划与状态口径统一维护在 [`docs/development-plan-2026-08-25.md`](docs/development-plan-2026-08-25.md)；本文件保留任务勾选和历史交付记录。每个模块均须完成实现、测试、代码审查、修复、文档/记忆同步、提交推送后再进入下一项。
 
-> 当前有效顺序：API 受控 HTTP、显式会话复用、gRPC TLS Unary 和 OpenAPI/Postman 导入预览/落库已通过，下一步继续 Karing APK 驱动的 Android 单设备闭环，随后复跑 Windows API/Web，再补其他协议/完整报告与真实通知、外部缺陷平台、生产性能和发布收口；下方更早的历史记录不覆盖当前执行版。
+> 当前有效顺序：API 受控 HTTP、显式会话复用、gRPC TLS Unary、OpenAPI/Postman 导入预览/落库和本轮 Windows API/Web 完整 smoke 已通过；Android 继续等待 Karing APK/包名，随后补其他协议/完整报告与真实通知、外部缺陷平台、生产性能和发布收口；下方更早的历史记录不覆盖当前执行版。
 
 ## 2026-08-25 参考导航分组执行游标
 
@@ -16,7 +16,7 @@
 - `[E]` N5 AI 智能测试、N6 测试资产、N7 智能中枢、N8 系统：本地实现已完成，真实模型、项目数据、目标部署和外部平台边界仍需单独验收。
 - `[~]` N9 发布收口：依赖 N2、N4 和真实外部服务；未完成项必须保留阻塞原因与复验命令。
 
-当前执行游标为 **N2 → N0/N3 Windows 复核 → N1 其他协议/完整报告 → N4～N9 外部收口**。每个游标项都要完成实现、测试、代码审查、修复、文档/记忆同步和提交推送后再移动。
+当前执行游标为 **N2 Karing 真机阻塞 → N1 其他协议/完整报告 → N4～N9 外部收口**；N0/N3 Windows 复核已由本轮完整 smoke 关闭。每个游标项都要完成实现、测试、代码审查、修复、文档/记忆同步和提交推送后再移动。
 
 ### 2026-08-25 N1 协议用例空步骤防护
 
@@ -101,7 +101,7 @@
 
 - [~] **P0-0 运行基础与账号初始化**：修复管理员账号改名后，启动 bootstrap 只按用户名查找并按重复邮箱插入，导致 q19 Backend 进入重启循环的问题；补用户名/邮箱幂等回归，重建并验证 q19 健康、登录和基础读接口。
 - [~] **P0-B.3 Android 单设备闭环**：前置 ADB、Worker、设备扫描、租约、截图和控件操作已通过；通用 APK 的低代码、录屏、设备产物和结果回传已通过，Karing 专项任务与完整报告回传仍待真实包验证。
-- [~] **P0-A Windows API/Web 复核**：当前账号下完整 smoke 已通过认证读接口、依赖 readiness、浏览器矩阵、文件传输、报告导出和 Web 低代码；环境/认证复用与真实协议目标仍需单独复核。证据见 [`windows-full-readiness-2026-08-25.json`](docs/evidence/windows-full-readiness-2026-08-25.json)。
+- [x] **P0-A Windows API/Web 复核**：当前账号下完整 smoke 已通过认证读接口、依赖 readiness、浏览器矩阵、文件传输、报告导出和 Web 低代码；GraphQL/WebSocket/流式 gRPC 仍按 N1 其他协议门禁单独跟踪。证据见 [`windows-full-readiness-2026-08-25.json`](docs/evidence/windows-full-readiness-2026-08-25.json)。
 - [ ] **P1-C/P1-D/P1-E/P1-F**：依次完成真实通知、外部缺陷平台、生产性能环境和发布收口，保留目标环境证据。
 
 每项均执行“实现/调整 → 定向测试 → 代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 推送”；真实环境未具备时只能记录阻塞。
@@ -133,7 +133,7 @@
 - `[E]` 导航壳与工作台：侧栏分组、项目上下文、深链选中、待办/任务聚合和统一操作已完成本地回归；真实角色和任务数据待复核。
 - `[E]` API 测试工作台：环境、认证复用、导入、协议执行、断言/提取/依赖和报告入口已完成本地实现；真实协议目标待验收。
 - `[~]` APP 自动化工作台：先完成真实在线设备、APK 包名、低代码、录屏、专项任务和事件/日志/报告回传；没有在线 `device`、真实 APK 或 MinIO 证据时保持阻塞。
-- `[E]` UI 自动化工作台：录制、元素库、页面对象、视觉基线、Trace/HAR、网络/Console 日志和多浏览器本地/q19 链路已有证据；最新 Windows 完整 smoke 仍需复核。
+- `[E]` UI 自动化工作台：录制、元素库、页面对象、视觉基线、Trace/HAR、网络/Console 日志和多浏览器本地/q19 链路已有证据；本轮 Windows 完整 smoke 已复核通过。
 - `[~]` 性能测试工作台：本地趋势、基线、容量和保留清理已完成；真实多节点、Prometheus/MinIO 生命周期和跨主机恢复待验收。
 - `[E]` AI/Hermes、测试资产/智能中枢、远程工具箱/配置中心：本地实现、权限、审查和回归已完成；真实模型、项目数据、外部平台和目标部署待验收。
 - `[~]` 发布收口：统一提交 SHA、证据索引、能力矩阵、操作手册和回滚边界，未关闭门禁必须保留负责人/证据/复验命令。
@@ -157,7 +157,7 @@
 - [E] P0-B.3.3 录屏与异常回放：低代码/专项录屏失败状态、回放保存状态和报告告警已补齐并完成本地回归；真实设备采集、上传、异常保留和清理待验证。证据见 [`android-recording-observability-2026-08-25.json`](docs/evidence/android-recording-observability-2026-08-25.json)。
 - [E] P0-B.3.4 Android 专项任务：已完成包名一致性校验、应用启动失败终态、Monkey 异常终态和流畅度动作失败终态的本地实现与回归；真实 APK/真机上的安装、启动、动作、超时、取消、崩溃和 logcat 仍待验收，不能用应用显示名替代包名。证据见 [`android-special-task-2026-08-25.json`](docs/evidence/android-special-task-2026-08-25.json)。
 - [E] P0-B.3.5 事件、日志与报告：Worker 收尾阶段支持按配置保存最近 10000 行设备 logcat 与结束截图，写入 `MobileRunArtifact` 并在 `summary_json.android_artifacts` 返回状态；事件参数、结果、消息和 JSON 报告配置统一脱敏，运行详情展示产物状态、操作时间线和下载引用。真实 APK/真机/MinIO 媒体回传仍待验收。证据见 [`android-event-artifact-reporting-2026-08-25.json`](docs/evidence/android-event-artifact-reporting-2026-08-25.json)。
-- [ ] P0-A 完整 Windows API/Web 复核：Android 闭环后复跑登录、认证读接口、浏览器矩阵、文件传输、报告导出和 Web 低代码。
+- [x] P0-A 完整 Windows API/Web 复核：当前账号登录、认证读接口、浏览器矩阵、文件传输、报告导出和 Web 低代码均通过；12 个 Playwright 用例通过，临时项目和产物已清理。脱敏证据见 [`docs/evidence/windows-full-readiness-2026-08-25.json`](docs/evidence/windows-full-readiness-2026-08-25.json)。
 - [ ] P1-C/P1-D/P1-E/P1-F：按真实通知、外部缺陷平台、性能生产环境、发布收口顺序推进。
 
 每个子模块都必须完成“实现/调整 → 定向测试 → 全量质量门禁 → 代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 推送”后才能进入下一项；真实环境未提供时保留 `[E]` 或 `[~]`，不把 mock、跳过项、Worker 心跳或 offline 设备写成通过。

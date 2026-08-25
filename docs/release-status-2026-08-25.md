@@ -26,10 +26,10 @@
 
 ## 2026-08-25 当前执行计划与新增阻塞
 
-当前执行顺序为：运行基础/账号初始化 → Android 单设备真实闭环 → Windows API/Web 复核 → 真实通知 → 外部缺陷平台 → 生产性能 → 发布收口。
+当前执行顺序为：Android Karing 单设备真实闭环（当前阻塞）→ N1 其他协议/完整报告 → 真实通知 → 外部缺陷平台 → 生产性能 → 发布收口；Windows API/Web 完整 smoke 已复核完成。
 
-- 本轮 Windows smoke 复核中，健康检查、前端登录页、Playwright `12 passed` 和浏览器矩阵通过；认证链路使用的 `.env` bootstrap 账号返回 `401`，因此认证读接口、文件传输、Web 低代码和报告导出未重新关闭，需改用当前有效账号后复验。未在文档或证据中记录账号、密码或 Token。
-- Windows smoke 已调整为默认只读取当前账号 `ATP_USERNAME/ATP_PASSWORD`，不再自动回退或混用 `FIRST_ADMIN_*`；全新数据库初始化验证必须显式使用 `-UseBootstrapCredentials`。这修复了管理员改密后脚本默认使用失效 bootstrap 账号的问题，但仍需用当前有效账号重跑真实 API/Web smoke。
+- 本轮 Windows smoke 已使用当前账号重新通过认证；健康检查、前端登录页、PostgreSQL/Redis/MinIO readiness、Web Worker、Playwright `12 passed`、浏览器矩阵、文件传输、Web 低代码和报告导出均通过。未在文档或证据中记录账号、密码或 Token。
+- Windows smoke 继续只读取当前账号 `ATP_USERNAME/ATP_PASSWORD`，不自动回退或混用 `FIRST_ADMIN_*`；全新数据库初始化验证仍必须显式使用 `-UseBootstrapCredentials`。
 
 ### 2026-08-25 N1 报告中心按用例类型统计
 
@@ -91,8 +91,8 @@
 ### 2026-08-25 P0-A Windows API/Web 完整 smoke
 
 - 使用当前有效账号运行完整 `scripts/windows-local-smoke.ps1 -SeedWebDownloadCase -RequireWebLowcode -RequireWebDownload`：Backend/Frontend HTTP 200、HttpOnly Cookie 登录、PostgreSQL/Redis/MinIO readiness、Web Worker、Playwright `12 passed`、浏览器矩阵无失败请求/错误响应、文件上传/清理、Web 低代码下载和 HTML/JUnit 报告导出均通过。
-- 修复了空历史数据库中的阶段顺序缺陷：临时 Web run 现在先于报告导出，run 9 报告 HTML/JUnit 分别为 18,715/317 bytes；临时项目 24 与 5 个产物已清理。脱敏证据见 [`windows-full-readiness-2026-08-25.json`](evidence/windows-full-readiness-2026-08-25.json)。
-- P0-A 仍保留 `[~]`：环境/认证复用和真实 API 协议目标需要单独验证；本次不替代 Karing Android、真实通知、外部缺陷平台或生产性能验收。
+- 临时 Web run `18` 通过，HTML/JUnit 报告分别为 `18,718/320` bytes；临时项目 `35` 与 5 个产物已清理。脱敏证据已更新为 [`windows-full-readiness-2026-08-25.json`](evidence/windows-full-readiness-2026-08-25.json)，来源提交 `35ad777`。
+- P0-A Windows API/Web 复核本轮关闭；该证据不替代 Karing Android、GraphQL/WebSocket/流式 gRPC 完整真实目标、真实通知、外部缺陷平台或生产性能验收。
 
 ## 当前开发计划
 
@@ -100,7 +100,7 @@
 
 当前优先关闭 Android P0-B.3 单设备执行闭环，拆分为：真实 APK 上传/包名识别与选择、低代码最小执行、录屏与异常回放、专项任务、事件/日志/报告回传。每一项都必须同时具备代码、回归测试、代码审查修复和脱敏证据；没有 APK、包名或在线 `device` 时，只记录阻塞，不创建脏运行。
 
-P0-B.3.5 事件、日志与报告回传已完成本地实现，并已用通用 APK 完成低代码录屏、设备信息、logcat、截图和结果回传验证；Karing 专项动作、APK 下载端点、异常回放和完整报告下载仍待真实 Karing APK。下一步是补 Karing 包验证，再按 P0-A → P1-C → P1-D → P1-E → P1-F 推进。
+P0-B.3.5 事件、日志与报告回传已完成本地实现，并已用通用 APK 完成低代码录屏、设备信息、logcat、截图和结果回传验证；Karing 专项动作、APK 下载端点、异常回放和完整报告下载仍待真实 Karing APK。下一步是补 Karing 包验证；在外部包具备前，继续按 N1 其他协议/完整报告 → P1-C → P1-D → P1-E → P1-F 推进。
 
 Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复核 Windows API/Web、真实通知供应商、外部缺陷平台、性能生产环境和发布收口。详细依赖、出口和状态见 [`product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md) 的“0.5 当前开发计划与跟踪台账”，执行勾选见 [`Task.md`](../Task.md)。
 
@@ -240,7 +240,7 @@ Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复
 
 | 能力域 | 当前结论 | 主要证据 | 未关闭边界 |
 |---|---|---|---|
-| Windows API/Web | 历史 q19 与页面证据已形成；最新完整 smoke 因当前账号未通过认证而未重新关闭 | [`windows-full-readiness-2026-08-25.json`](evidence/windows-full-readiness-2026-08-25.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json) | 使用当前有效账号复跑认证读接口、文件传输、Web 低代码和报告导出；GraphQL/WebSocket/流式 gRPC、完整报告和目标发布环境仍需验收 |
+| Windows API/Web | 当前账号下完整 smoke 已重新通过；Android、其他协议和生产外部环境仍按各自门禁独立跟踪 | [`windows-full-readiness-2026-08-25.json`](evidence/windows-full-readiness-2026-08-25.json)、[`windows-browser-smoke-2026-08-25.json`](evidence/windows-browser-smoke-2026-08-25.json)、[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json) | GraphQL/WebSocket/流式 gRPC、完整多协议目标和目标发布环境仍需验收 |
 | Web Worker/录制 | q19 持久 Worker、Chromium/Firefox/WebKit 录制和跨 API 停止快照已验证 | [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json) | Linux/Xvfb、跨副本和目标部署拓扑仍需独立复验 |
 | Android | 代码、配置配对、Worker registry、扫描回调、租约控制和 APK 选择传递已完成；真实 APK 上传和设备执行仍待验收 | [`android-worker-scan-2026-08-25.json`](evidence/android-worker-scan-2026-08-25.json)、[`android-control-lease-2026-08-25.json`](evidence/android-control-lease-2026-08-25.json)、[`android-apk-selection-2026-08-25.json`](evidence/android-apk-selection-2026-08-25.json) | 继续完成真实 APK 包名识别、低代码、录屏、专项任务和事件/报告回传 |
 | 性能 | P1-E.1～P1-E.4 本地闭环完成，q19 已按最新提交重建 | [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)、[`performance-shard-capacity-2026-08-25.json`](evidence/performance-shard-capacity-2026-08-25.json)、[`q19-performance-shard-deployment-2026-08-25.json`](evidence/q19-performance-shard-deployment-2026-08-25.json) | 真实 Kubernetes 多节点、生产 Prometheus、MinIO 生命周期和跨主机恢复 |

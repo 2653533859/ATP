@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 P0-A Windows API/Web 完整 smoke 已重新验收：使用当前账号在本机连接远端 PostgreSQL/Redis/MinIO，Backend/Frontend HTTP 200、HttpOnly Cookie 登录、依赖 readiness、Web Recording Worker `registered=1 available=1`、Playwright `12 passed`、浏览器矩阵无失败请求/错误响应、47 bytes 文件上传与清理、临时 Web 下载低代码 run `18 passed`、HTML `18718` bytes/JUnit `320` bytes 报告和临时项目 `35` 清理均通过。Android 相关检查按参数跳过，不影响 Windows 结论；脱敏证据为 `docs/evidence/windows-full-readiness-2026-08-25.json`，来源提交 `35ad777`。下一游标为 N1 其他协议/完整报告；Karing Android 仍因设备包列表未发现真实包名保持阻塞。
+
 - 2026-08-25 P0-B.3.1 Android 专项 APK 选择体验已完成：专项任务选择器过滤没有已确认包名的 APK，显示包名/文件名/版本；选中后自动绑定并锁定包名，清空 APK 同步清空包名，未选 APK 仍支持手工填写，与后端 Manifest 包名一致性保护保持一致。新增 `frontend/src/utils/mobileSpecialForm.ts` 及 `2 passed` 工具回归；前端全量 `67 files / 274 tests passed`，`vue-tsc`、生产构建、`git diff --check` 和独立代码审查通过。该项只改善选择体验，不代表真实 Karing APK、设备执行、专项任务或完整报告验收；当前两台 ADB 在线设备仍未发现 Karing。
 
 - 2026-08-25 P0-B.3 Android 设备目标校验已完成：`mobile_special` 创建任务、更新任务和手工触发统一检查 `device_id` 是否存在，不存在/已下线在写入或投递 Worker 前返回 `400`，避免等待态脏任务和运行记录；设备作为全局资产不做项目归属判断。专项任务路由 `32 passed`，后端非集成全量 `2287 passed`，Ruff、差异检查和独立代码审查通过。真实设备在线、租约、ADB 操作和 Karing 应用闭环仍待验收。
