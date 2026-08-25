@@ -31,9 +31,10 @@
 ### 2.4.0 执行顺序与当前下一项
 
 1. 先保持 P4 性能真实环境的阻塞边界，不用单节点 Compose、mock 或跳过项替代 Kubernetes/Prometheus/独立 MinIO 证据。
-2. 继续完成 P7 智能中枢的真实数据验收准备：建立可清理的临时需求和知识条目，验证 Hermes 查询、需求/用例草稿、来源展示、项目权限和清理结果；真实模型不可用时只交付本地工具与阻塞证据。
-3. 随后按 P6 → P5 → P8 的顺序复核真实项目角色、模型、审计和目标部署，最后进入 P9 发布收口。
-4. 每一项必须执行：实现/调整 → 定向测试 → 受影响全量门禁 → 独立代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 提交并推送。
+2. q19 已完成 P6/P7 的管理员基础资产链路和清理复验；下一项先补普通 viewer 角色矩阵，确认项目、用例、运行、报告、缺陷、评审和 Hermes 来源的读写隔离。
+3. viewer 矩阵之后再在受控模型配置下复核 P5/P7 的模型发现、连接、多模态/思考参数、可编辑草稿、来源审计和清理；没有真实模型时保持阻塞，不用 HTTP 401 或 mock 结果替代。
+4. 最后复核 P8 目标部署的 PostgreSQL/Redis/MinIO/Worker/ADB 诊断、配置差异、单资源回滚、脱敏审计和权限拒绝，再进入 P9 发布收口。
+5. 每一项必须执行：实现/调整 → 定向测试 → 受影响全量门禁 → 独立代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 提交并推送。
 
 ### 2.4.0 状态口径
 
@@ -67,6 +68,15 @@
 - [x] The first N6 cleanup failure was caused by `plan_runs.plan_id` lacking `ON DELETE CASCADE`; migration `20260825_0066` now cascades project-owned module/case/run/suite/plan history and sets deleted dataset references on cases to `NULL`. The stale temporary project from the failed run was removed through the normal API after the migration.
 - [x] N7 real-data base checks passed: temporary requirement, knowledge entry and case creation, editable retrieval, all three Hermes source citations and cleanup. The latest report is [`n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json).
 - **Status**: `[E]` base q19 data and cleanup paths are verified, but N6/N7 remain environment gates because no ordinary viewer credentials were available; N7 also did not enable a controlled real AI model. Keep both gates partial until those checks are executed.
+
+## 2.4.4 q19 acceptance checkpoint and next gate (2026-08-25)
+
+- [x] N6 administrator path is now recorded as a real q19 base acceptance: project/module/case/review/suite/plan/terminal run/defect link and project cleanup all passed after migration `20260825_0066`.
+- [x] N7 base data path is now recorded as a real q19 acceptance: temporary requirement/knowledge/case creation, detail reads, editable retrieval, all three Hermes source types and cleanup passed.
+- [ ] N6 ordinary viewer matrix: provide a controlled viewer account, verify cross-project read denial and write denial, then remove the temporary account/project data without touching existing data.
+- [ ] N7 controlled AI: provide a temporary model configuration and verify model discovery, connection, multimodal/thinking parameters, editable draft generation, source audit and cleanup; credentials and provider response bodies must not enter evidence.
+- [ ] N8 target deployment: run the remote toolbox/configuration-center/audit/rollback permission checks on the target deployment; local tests cannot close this gate.
+- **Status**: `[~]` The next development/acceptance entry is the viewer isolation matrix. P4 remains `[-]` until Kubernetes, release-grade Prometheus and independent MinIO are available; P9 remains open until every external gate has evidence or an explicit owner/waiver.
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 

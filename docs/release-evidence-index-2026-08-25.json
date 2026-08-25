@@ -82,7 +82,7 @@
       "evidence": ["docs/development-plan-2026-08-25.md", "docs/n6-project-asset-acceptance.md", "docs/evidence/n6-project-asset-acceptance-2026-08-25.json"],
       "blocking_reason": "The q19 administrator asset chain, executable run, defect link and cleanup now pass, but ordinary viewer isolation was skipped because no controlled viewer account was available.",
       "dependencies": ["Temporary project", "administrator and ordinary project members", "cleanable execution history"],
-      "recheck_command": "Create a temporary project and verify case-to-suite-to-plan-to-run-to-report-to-defect-to-review links and ordinary-role isolation, then clean all objects."
+      "recheck_command": "Run scripts/n6-project-asset-acceptance.py with --allow-mutations --execute --require-role-matrix against a controlled target, verify case-to-suite-to-plan-to-run-to-report-to-defect-to-review links and ordinary-role isolation, then clean all objects."
     },
     {
       "id": "N7.intelligence-real-data",
