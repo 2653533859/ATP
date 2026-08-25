@@ -168,6 +168,99 @@ def test_collect_performance_tasks_uses_test_executor_metadata():
     assert items[0].metadata["executor"] == "locust"
 
 
+@pytest.mark.parametrize(
+    ("collector_name", "row", "expected_path"),
+    [
+        (
+            "case",
+            (
+                types.SimpleNamespace(
+                    id=21, case_id=31, status=RunStatus.failed, created_at=_now(), duration_ms=None, error_message=None
+                ),
+                "登录用例",
+                7,
+                "项目 A",
+            ),
+            "/runs/21?project_id=7",
+        ),
+        (
+            "suite",
+            (
+                types.SimpleNamespace(
+                    id=22, suite_id=32, status="failed", created_at=_now(), duration_ms=None, error_message=None
+                ),
+                "回归套件",
+                8,
+                "项目 B",
+            ),
+            "/suites?project_id=8&run_id=22",
+        ),
+        (
+            "plan",
+            (
+                types.SimpleNamespace(
+                    id=23, plan_id=33, status="error", created_at=_now(), duration_ms=None, error_message=None
+                ),
+                "冒烟计划",
+                9,
+                "项目 C",
+            ),
+            "/plans?project_id=9&run_id=23",
+        ),
+        (
+            "android",
+            (
+                types.SimpleNamespace(
+                    id=24,
+                    task_id=34,
+                    status=MobileRunStatus.stopped,
+                    created_at=_now(),
+                    started_at=None,
+                    finished_at=None,
+                    duration_ms=None,
+                    summary_json={},
+                    task_type="monkey",
+                ),
+                "Karing 测试",
+                10,
+                "项目 D",
+            ),
+            "/mobile-special/reports/24?project_id=10",
+        ),
+        (
+            "performance",
+            (
+                types.SimpleNamespace(
+                    id=25,
+                    performance_test_id=35,
+                    project_id=11,
+                    status=PerformanceRunStatus.failed,
+                    created_at=_now(),
+                    started_at=None,
+                    finished_at=None,
+                    duration_ms=None,
+                    error_message=None,
+                ),
+                "接口压测",
+                "k6",
+                11,
+                "项目 E",
+            ),
+            "/system/performance?project_id=11&run_id=25",
+        ),
+    ],
+)
+def test_collect_task_detail_paths_preserve_project_and_run_context(collector_name, row, expected_path):
+    collector = getattr(workbench, f"_collect_{collector_name}_tasks")
+    db = _FakeDB([_FakeResult([row])])
+    user = types.SimpleNamespace(id=7, role=UserRole.tester)
+
+    items, has_more = asyncio.run(collector(db, user, None, None, 10))
+
+    assert has_more is False
+    assert items[0].detail_path == expected_path
+
+
 def test_retry_endpoint_does_not_dispatch_passed_run(monkeypatch):
     source = types.SimpleNamespace(status=RunStatus.passed, case_id=3)
     case = types.SimpleNamespace(module_id=8)

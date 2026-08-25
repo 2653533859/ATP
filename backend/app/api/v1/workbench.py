@@ -179,7 +179,7 @@ async def _collect_case_tasks(
             created_at=run.created_at,
             duration_ms=run.duration_ms,
             error_message=run.error_message,
-            detail_path=f"/runs/{run.id}",
+            detail_path=f"/runs/{run.id}?project_id={case_project_id}",
             metadata={"case_id": run.case_id},
         )
         for run, case_name, case_project_id, project_name in rows[:limit]
@@ -215,7 +215,7 @@ async def _collect_suite_tasks(
             created_at=run.created_at,
             duration_ms=run.duration_ms,
             error_message=run.error_message,
-            detail_path=f"/suites?project_id={suite_project_id}",
+            detail_path=f"/suites?project_id={suite_project_id}&run_id={run.id}",
             metadata={"suite_id": run.suite_id},
         )
         for run, suite_name, suite_project_id, project_name in rows[:limit]
@@ -251,7 +251,7 @@ async def _collect_plan_tasks(
             created_at=run.created_at,
             duration_ms=run.duration_ms,
             error_message=run.error_message,
-            detail_path=f"/plans?project_id={plan_project_id}",
+            detail_path=f"/plans?project_id={plan_project_id}&run_id={run.id}",
             metadata={"plan_id": run.plan_id},
         )
         for run, plan_name, plan_project_id, project_name in rows[:limit]
@@ -291,7 +291,7 @@ async def _collect_android_tasks(
             finished_at=run.finished_at,
             duration_ms=run.duration_ms,
             error_message=(run.summary_json or {}).get("error_message") if isinstance(run.summary_json, dict) else None,
-            detail_path=f"/mobile-special/reports/{run.id}",
+            detail_path=f"/mobile-special/reports/{run.id}?project_id={task_project_id}",
             metadata={"task_id": run.task_id, "task_type": _enum_value(run.task_type)},
         )
         for run, task_name, task_project_id, project_name in rows[:limit]
@@ -337,7 +337,7 @@ async def _collect_performance_tasks(
             finished_at=run.finished_at,
             duration_ms=run.duration_ms,
             error_message=run.error_message,
-            detail_path=f"/system/performance?project_id={run_project_id}",
+            detail_path=f"/system/performance?project_id={run_project_id}&run_id={run.id}",
             metadata={"performance_test_id": run.performance_test_id, "executor": test_executor},
         )
         for run, test_name, test_executor, run_project_id, project_name in rows[:limit]

@@ -22,8 +22,8 @@ def test_dataset_impact_targets_link_to_case_suite_and_plan_pages():
     content = repo_path("frontend/src/views/system/DatasetLibrary.vue").read_text(encoding="utf-8")
 
     assert "router.push({ name: 'case-detail'" in content
-    assert "router.push({ name: 'suites' })" in content
-    assert "router.push({ name: 'plans' })" in content
+    assert "router.push({ name: 'suites', query })" in content
+    assert "router.push({ name: 'plans', query })" in content
     assert "activeImpactDataset.value = record" in content
 
 
