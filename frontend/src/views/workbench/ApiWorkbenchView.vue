@@ -434,18 +434,20 @@ async function loadEnvironments() {
   }
 }
 
-async function loadRecentRuns(caseIds: number[]) {
+async function loadRecentRuns(caseIds: number[], sequence?: number) {
+  if (sequence !== undefined && sequence !== loadSequence) return
   if (!caseIds.length) {
     recentRuns.value = []
     return
   }
   try {
     const result = await runApi.list({ page: 1, page_size: 100 })
+    if (sequence !== undefined && sequence !== loadSequence) return
     recentRuns.value = result.items
       .filter((run) => caseIds.includes(run.case_id))
       .sort((left, right) => right.created_at.localeCompare(left.created_at))
   } catch {
-    recentRuns.value = []
+    if (sequence === undefined || sequence === loadSequence) recentRuns.value = []
   }
 }
 
@@ -466,7 +468,7 @@ async function loadCases() {
     })
     if (sequence !== loadSequence) return
     cases.value = result.filter((item) => API_CASE_TYPES.includes(item.case_type))
-    await loadRecentRuns(cases.value.map((item) => item.id))
+    await loadRecentRuns(cases.value.map((item) => item.id), sequence)
   } catch (error: unknown) {
     if (sequence === loadSequence) message.error(errorMessage(error, t('api_workbench.load_failed')))
   } finally {

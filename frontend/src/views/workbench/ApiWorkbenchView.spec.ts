@@ -140,6 +140,12 @@ function mountWorkbench() {
   return mount(ApiWorkbenchView, { global: { stubs: globalStubs } })
 }
 
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((nextResolve) => { resolve = nextResolve })
+  return { promise, resolve }
+}
+
 describe('ApiWorkbenchView', () => {
   it('loads the selected project and keeps only API protocols', async () => {
     const wrapper = mountWorkbench()
@@ -167,6 +173,53 @@ describe('ApiWorkbenchView', () => {
     expect(caseRun).toHaveBeenCalledWith(101, { env_id: undefined })
     expect(routerPush).toHaveBeenCalledWith({ name: 'run-detail', params: { runId: '500' } })
 
+    wrapper.unmount()
+  })
+
+  it('does not let a stale run-history response replace the latest module', async () => {
+    const firstCases = deferred<typeof apiCase[]>()
+    const secondCases = deferred<typeof apiCase[]>()
+    const firstRuns = deferred<{ items: Array<Record<string, unknown>>; total: number; page: number; page_size: number }>()
+    const secondRuns = deferred<{ items: Array<Record<string, unknown>>; total: number; page: number; page_size: number }>()
+    caseList.mockReset()
+    caseList
+      .mockImplementationOnce(() => firstCases.promise)
+      .mockImplementationOnce(() => secondCases.promise)
+    runList.mockReset()
+    runList
+      .mockImplementationOnce(() => firstRuns.promise)
+      .mockImplementationOnce(() => secondRuns.promise)
+
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    firstCases.resolve([apiCase])
+    await flushPromises()
+    expect(runList).toHaveBeenCalledTimes(1)
+
+    const vm = wrapper.vm as unknown as {
+      handleModuleSelect: (moduleId: number | null) => Promise<void>
+      recentRuns: Array<{ case_id: number }>
+    }
+    const latestLoad = vm.handleModuleSelect(8)
+    await flushPromises()
+    secondCases.resolve([{ ...apiCase, id: 102, name: '最新接口' }])
+    await flushPromises()
+    secondRuns.resolve({
+      items: [{ id: 2, case_id: 102, status: 'passed', created_at: '2026-08-24T10:00:00Z' }],
+      total: 1,
+      page: 1,
+      page_size: 100,
+    })
+    await latestLoad
+    firstRuns.resolve({
+      items: [{ id: 1, case_id: 101, status: 'failed', created_at: '2026-08-24T09:00:00Z' }],
+      total: 1,
+      page: 1,
+      page_size: 100,
+    })
+    await flushPromises()
+
+    expect(vm.recentRuns).toEqual([{ id: 2, case_id: 102, status: 'passed', created_at: '2026-08-24T10:00:00Z' }])
     wrapper.unmount()
   })
 })

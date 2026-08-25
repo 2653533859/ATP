@@ -35,7 +35,7 @@
 3. viewer 矩阵之后再在受控模型配置下复核 P5/P7 的模型发现、连接、多模态/思考参数、可编辑草稿、来源审计和清理；没有真实模型时保持阻塞，不用 HTTP 401 或 mock 结果替代。
 4. 最后复核 P8 目标部署的 PostgreSQL/Redis/MinIO/Worker/ADB 诊断、配置差异、单资源回滚、脱敏审计和权限拒绝，再进入 P9 发布收口。
 5. 每一项必须执行：实现/调整 → 定向测试 → 受影响全量门禁 → 独立代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 提交并推送。
-6. 2.4.13 的 P0 任务中心失败证据展示已完成本地补强；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据执行角色矩阵，再进入真实模型与目标治理门禁。
+6. 2.4.14 的 API 工作台最近运行记录竞态修复已完成本地补强；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据执行角色矩阵，再进入真实模型与目标治理门禁。
 
 ### 2.4.0 状态口径
 
@@ -147,6 +147,12 @@
 - [x] 错误样本响应新增明确的前端类型；截图链接仅允许 `http`/`https` 协议并使用 `noopener noreferrer`，非安全地址不渲染为可点击链接。
 - [x] 新增缺字段和不安全截图地址回归覆盖；定向测试 `4 passed`，前端全量 `69 files / 304 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过；独立审查发现并修复了可空链接类型问题。
 - **Status**: `[E]` local implementation, tests, review, fix and documentation are complete; real role/diagnosis data and executor evidence remain part of the N1/P0 external environment review.
+
+## 2.4.14 P1 API workbench run-history race protection (local complete, 2026-08-25)
+
+- [x] API 工作台将用例列表请求序列传递到最近运行记录加载；旧的 `runApi.list` 成功响应或错误不会覆盖新模块、项目或筛选结果，空用例结果也受到当前序列保护。
+- [x] 新增延迟响应回归，覆盖旧模块运行记录晚于最新模块响应返回的场景；定向测试 `3 passed`，前端全量 `69 files / 305 tests passed`，`vue-tsc --noEmit`、生产构建和 `git diff --check` 通过；独立审查未发现需修复的问题。
+- **Status**: `[E]` local implementation, tests, review, fix and documentation are complete; real project-role and execution-data verification remains part of the N1/P1 external environment review.
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 
