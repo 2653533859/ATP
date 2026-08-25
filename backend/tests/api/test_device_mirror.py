@@ -125,9 +125,48 @@ def test_ui_target_parser_supports_content_description():
     assert target["text"] is None
 
 
+def test_ui_target_diagnostic_hides_adb_dump_error(monkeypatch):
+    class _Process:
+        returncode = 1
+        stdout = b""
+        stderr = b"Permission denied: raw device detail must not leave this helper"
+
+    monkeypatch.setattr(device_mirror.subprocess, "run", lambda *_args, **_kwargs: _Process())
+
+    target, diagnostic = device_mirror._adb_ui_target_diagnostic("DEV1", 10, 20)
+
+    assert target is None
+    assert diagnostic == {"status": "unavailable", "code": "uiautomator_dump_failed"}
+
+
+def test_ui_target_diagnostic_reports_coordinate_without_locator(monkeypatch):
+    class _Process:
+        def __init__(self, returncode, stdout=b"", stderr=b""):
+            self.returncode = returncode
+            self.stdout = stdout
+            self.stderr = stderr
+
+    processes = iter(
+        [
+            _Process(0, stdout=b"UI hierarchy dumped to: /sdcard/atp-ui-hierarchy.xml"),
+            _Process(0, stdout=b'<hierarchy><node bounds="[0,0][100,100]" /></hierarchy>'),
+        ]
+    )
+    monkeypatch.setattr(device_mirror.subprocess, "run", lambda *_args, **_kwargs: next(processes))
+
+    target, diagnostic = device_mirror._adb_ui_target_diagnostic("DEV1", 10, 20)
+
+    assert target is None
+    assert diagnostic == {"status": "not_found", "code": "target_not_found"}
+
+
 def test_ui_target_endpoint_returns_locator(monkeypatch):
     target = {"text": "登录", "resourceId": "com.demo:id/login"}
-    monkeypatch.setattr(device_mirror, "_adb_ui_target", lambda serial, x, y: target)
+    monkeypatch.setattr(
+        device_mirror,
+        "_adb_ui_target_diagnostic",
+        lambda serial, x, y: (target, {"status": "found", "code": None}),
+    )
 
     result = asyncio.run(
         device_mirror.device_ui_target(
@@ -139,7 +178,30 @@ def test_ui_target_endpoint_returns_locator(monkeypatch):
         )
     )
 
-    assert result == {"target": target}
+    assert result == {"target": target, "diagnostic": {"status": "found", "code": None}}
+
+
+def test_ui_target_endpoint_exposes_sanitized_unavailable_diagnostic(monkeypatch):
+    monkeypatch.setattr(
+        device_mirror,
+        "_adb_ui_target_diagnostic",
+        lambda serial, x, y: (None, {"status": "unavailable", "code": "uiautomator_dump_failed"}),
+    )
+
+    result = asyncio.run(
+        device_mirror.device_ui_target(
+            device_id=1,
+            x=10,
+            y=20,
+            db=_FakeDB(_online_device("DEV1")),
+            _=None,
+        )
+    )
+
+    assert result == {
+        "target": None,
+        "diagnostic": {"status": "unavailable", "code": "uiautomator_dump_failed"},
+    }
 
 
 def test_worker_mode_routes_device_operations_to_android_worker(monkeypatch):

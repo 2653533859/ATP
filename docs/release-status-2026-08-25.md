@@ -6,6 +6,8 @@
 
 > 当前计划登记（2.0）：导航已按工作台、测试能力、测试资产、智能中枢、系统五组统一，N0-N9 的范围与验收出口见开发计划 2.0。N4 的 Worker/目标服务采样、Kubernetes 多节点/副本/Worker 资源预检、保留清理和跨端点 MinIO 复制/恢复 smoke 已形成可执行入口；真实目标仍缺 Kubernetes/独立灾备 MinIO/生产 Prometheus，下一步只做环境验收。N2 Karing 真机因未确认真实包名暂缓但不阻塞 N4；随后是 N5-N8 外部依赖复核和 N9 发布收口。未关闭门禁继续按“待环境验收”处理。
 
+> N2 控件属性获取诊断已完成本地交付：API 进程和 Windows Android Worker 返回 `found`/`not_found`/`unavailable` 及脱敏诊断码；录制界面在不可用时提示并保留坐标回退。后端定向 `22 passed`、前端相关定向 `23 passed`、后端非集成全量 `2305 passed`、前端全量 `69 files / 284 tests passed`，类型检查、生产构建、Ruff、格式检查和差异检查通过。真实 Karing 页面、UIAutomator 权限和真机 Worker 回传仍未关闭发布门禁。
+
 > N1 受控协议与报告证据已补齐：GraphQL、WebSocket、gRPC Server/Client/Bidi Streaming 以及 HTML/JUnit/PDF 报告详情和清理均通过 q19 真实网络；详见 [`api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json) 与 [`report-closure-2026-08-25.json`](evidence/report-closure-2026-08-25.json)。生产协议服务和发布环境仍未关闭。
 
 > API 受控目标、显式会话复用、gRPC TLS Unary、GraphQL/WebSocket/流式 gRPC、OpenAPI/Postman 解析和导入落库证据：[`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)、[`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)、[`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)、[`api-import-parser-2026-08-25.json`](evidence/api-import-parser-2026-08-25.json)、[`api-import-persistence-2026-08-25.json`](evidence/api-import-persistence-2026-08-25.json)、[`api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json)。这些证据不代表生产协议服务、完整报告或发布环境验收通过。

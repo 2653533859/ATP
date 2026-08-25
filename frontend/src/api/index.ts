@@ -250,6 +250,11 @@ export interface AndroidUiTarget {
   enabled?: boolean
 }
 
+export interface AndroidUiTargetDiagnostic {
+  status: 'found' | 'not_found' | 'unavailable'
+  code?: string | null
+}
+
 export interface ApkItem {
   id: number
   project_id: number
@@ -1959,7 +1964,7 @@ export const deviceApi = {
   tap: (id: number, data: { x: number; y: number }, leaseToken?: string | null) =>
     http.post(`/devices/${id}/tap`, data, leaseToken ? { headers: { 'X-Device-Lease-Token': leaseToken } } : undefined),
   uiTarget: (id: number, data: { x: number; y: number }) =>
-    http.get<unknown, { target: AndroidUiTarget | null }>(`/devices/${id}/ui-target`, { params: data }),
+    http.get<unknown, { target: AndroidUiTarget | null; diagnostic?: AndroidUiTargetDiagnostic }>(`/devices/${id}/ui-target`, { params: data }),
   swipe: (id: number, data: { x1: number; y1: number; x2: number; y2: number; duration_ms?: number }, leaseToken?: string | null) =>
     http.post(`/devices/${id}/swipe`, data, leaseToken ? { headers: { 'X-Device-Lease-Token': leaseToken } } : undefined),
   screenshotUrl: (id: number) => `/api/v1/devices/${id}/screenshot`,

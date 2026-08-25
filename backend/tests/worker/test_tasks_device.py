@@ -82,7 +82,10 @@ def test_android_worker_device_operation_returns_json_safe_results(monkeypatch):
     fake_mirror = types.SimpleNamespace(
         _adb_screenshot=lambda serial: b"png",
         _adb_input=lambda serial, *args: calls.append((serial, args)) or True,
-        _adb_ui_target=lambda serial, x, y: {"text": "登录", "x": x, "y": y},
+        _adb_ui_target_diagnostic=lambda serial, x, y: (
+            {"text": "登录", "x": x, "y": y},
+            {"status": "found", "code": None},
+        ),
     )
     monkeypatch.setitem(sys.modules, "app.api.v1.device_mirror", fake_mirror)
     task = tasks_device.run_android_device_operation
@@ -94,5 +97,9 @@ def test_android_worker_device_operation_returns_json_safe_results(monkeypatch):
 
     assert screenshot == {"ok": True, "data_base64": base64.b64encode(b"png").decode("ascii"), "error": None}
     assert tap == {"ok": True, "error": None}
-    assert target == {"ok": True, "target": {"text": "登录", "x": 10, "y": 20}}
+    assert target == {
+        "ok": True,
+        "target": {"text": "登录", "x": 10, "y": 20},
+        "diagnostic": {"status": "found", "code": None},
+    }
     assert calls == [("WIN-DEVICE", ("tap", "10", "20"))]

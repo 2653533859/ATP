@@ -85,7 +85,7 @@ def run_android_device_operation(operation: str, serial: str, params: dict | Non
 
     try:
         # 延迟导入避免 Celery 启动时把 FastAPI 路由模块作为强依赖加载。
-        from app.api.v1.device_mirror import _adb_input, _adb_screenshot, _adb_ui_target
+        from app.api.v1.device_mirror import _adb_input, _adb_screenshot, _adb_ui_target_diagnostic
 
         if operation == "screenshot":
             data = _adb_screenshot(serial)
@@ -96,8 +96,8 @@ def run_android_device_operation(operation: str, serial: str, params: dict | Non
             }
 
         if operation == "ui_target":
-            target = _adb_ui_target(serial, int(params["x"]), int(params["y"]))
-            return {"ok": True, "target": target}
+            target, diagnostic = _adb_ui_target_diagnostic(serial, int(params["x"]), int(params["y"]))
+            return {"ok": True, "target": target, "diagnostic": diagnostic}
 
         if operation == "tap":
             args = ["tap", str(int(params["x"])), str(int(params["y"]))]

@@ -328,8 +328,9 @@ import { message } from 'ant-design-vue'
 import { PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons-vue'
 import draggable from 'vuedraggable'
 import { useI18n } from 'vue-i18n'
-import { deviceApi, type AndroidUiTarget } from '@/api'
+import { deviceApi, type AndroidUiTarget, type AndroidUiTargetDiagnostic } from '@/api'
 import { buildAndroidRecordedClickParams, buildAndroidRecordedSwipeParams } from '@/utils/androidRecording'
+import { androidLocatorWarning } from '@/utils/androidLocatorDiagnostics'
 
 type StepParams = Record<string, unknown>
 type ExternalStep = { action: string; name: string; params: StepParams }
@@ -442,6 +443,11 @@ const screenImageRef = ref<HTMLImageElement | null>(null)
 const dragStart = ref<{ x: number; y: number } | null>(null)
 let screenshotObjectUrl: string | null = null
 
+type UiTargetResolution = {
+  target: AndroidUiTarget | null
+  diagnostic?: AndroidUiTargetDiagnostic
+}
+
 function isSameSteps(items: ExternalStep[]) {
   return JSON.stringify(items) === JSON.stringify(toExternal(steps.value))
 }
@@ -526,14 +532,13 @@ function eventToDevicePoint(event: PointerEvent) {
   }
 }
 
-async function resolveUiTarget(point: { x: number; y: number }): Promise<AndroidUiTarget | null> {
-  if (!props.deviceId) return null
+async function resolveUiTarget(point: { x: number; y: number }): Promise<UiTargetResolution> {
+  if (!props.deviceId) return { target: null }
   try {
-    const result = await deviceApi.uiTarget(props.deviceId, point)
-    return result.target
+    return await deviceApi.uiTarget(props.deviceId, point)
   } catch {
     // UI 层级不是所有 Android 页面都能提供，录制仍可退回坐标。
-    return null
+    return { target: null, diagnostic: { status: 'unavailable', code: 'request_failed' } }
   }
 }
 
@@ -560,7 +565,12 @@ async function onScreenPointerUp(event: PointerEvent) {
 
   const distance = Math.hypot(end.x - start.x, end.y - start.y)
   if (distance < 12) {
-    const target = await resolveUiTarget(start)
+    const resolution = await resolveUiTarget(start)
+    const target = resolution.target
+    const locatorWarning = androidLocatorWarning(resolution.diagnostic)
+    if (locatorWarning) {
+      message.warning(t(`case.android_editor.visual_locator_${locatorWarning}`))
+    }
     const params = locatorParams(start, target)
     appendStep('click', params)
     const label = locatorLabel(target)

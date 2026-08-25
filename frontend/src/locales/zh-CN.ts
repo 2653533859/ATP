@@ -3549,6 +3549,8 @@ export default {
       visual_refresh_failed: '获取设备截图失败，请检查设备连接',
       visual_operating: '正在操作设备...',
       visual_action_failed: '实时操作失败，步骤已保留，请检查设备连接和权限',
+      visual_locator_unavailable: '未获取到控件属性，已使用坐标保存；请确认设备解锁、UIAutomator 权限和当前页面是否支持控件层级。',
+      visual_locator_request_failed: '控件属性请求失败，已使用坐标保存；请检查 Android Worker、设备连接和权限。',
       lease_acquiring: '正在获取设备控制租约…',
       lease_required: '设备控制需要有效租约；请选择在线设备并等待租约获取完成。',
       lease_failed: '设备租约获取失败，请确认设备未被其他任务占用。',

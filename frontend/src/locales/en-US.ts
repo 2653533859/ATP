@@ -3545,6 +3545,8 @@ export default {
       visual_refresh_failed: 'Failed to capture device screenshot. Check the device connection.',
       visual_operating: 'Operating device...',
       visual_action_failed: 'Live device action failed. The step was kept; check the device connection and permissions.',
+      visual_locator_unavailable: 'Control properties were unavailable, so the step was saved with coordinates. Check that the device is unlocked, UIAutomator is permitted, and the page exposes a hierarchy.',
+      visual_locator_request_failed: 'The control-property request failed, so the step was saved with coordinates. Check the Android Worker, device connection, and permissions.',
       lease_acquiring: 'Acquiring the device control lease…',
       lease_required: 'Device control requires a valid lease. Select an online device and wait for the lease.',
       lease_failed: 'Failed to acquire the device lease. Check whether another task is using the device.',

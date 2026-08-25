@@ -46,6 +46,15 @@
 - mock、协议桩、页面可打开、Worker 心跳和跳过项不能替代真实业务证据；敏感配置、测试数据和外部凭据不得写入代码、日志或证据文件。
 - 每完成一个阶段，必须同步 `Task.md`、`MEMORY.md`、路线图和发布状态，并在下一阶段开始前完成提交和推送。
 
+## 2.1 Android 控件属性获取诊断（2026-08-25）
+
+本模块针对 Android 可视化录制中“点击后只能看到坐标、无法判断是否为权限问题”的反馈，补齐 UIAutomator 获取链路的可解释状态。API 进程和 Windows Android Worker 现在都会返回 `found`、`not_found` 或 `unavailable` 状态，并只返回稳定诊断码，不回传 ADB 原始错误；录制界面在设备侧或 Worker 不可用时提示检查设备解锁、UIAutomator、Worker 和权限，同时继续保存坐标步骤，单纯未命中语义控件时保持静默坐标回退。
+
+- **代码范围**：`backend/app/api/v1/device_mirror.py`、`backend/app/worker/tasks_device.py`、`frontend/src/api/index.ts`、`frontend/src/components/common/AndroidStepEditor.vue`、Android 录制诊断工具和中英文文案。
+- **回归范围**：后端控件镜像/设备 Worker 定向 `22 passed`；前端录制相关定向 `23 passed`，前端全量 `69 files / 284 tests passed`；后端非集成全量 `2305 passed`；`vue-tsc`、生产构建、Ruff、格式检查和 `git diff --check` 通过。
+- **代码审查与修复**：审查发现旧 Worker 未返回 `diagnostic` 时 API 不应新增 `diagnostic: null`，已改为仅在有诊断时返回字段并补兼容回归；未发现权限绕过、原始错误泄露或坐标回退回归。
+- **状态**：`[E]` 本地实现、测试、审查和修复完成；真实 Karing 页面、Windows Worker 上的 UIAutomator 权限和实际控件属性回传仍待 N2 真机门禁，不以系统设置探针替代。
+
 ## 1.1 Android 专项应用启动兼容交付（2026-08-25）
 
 本模块作为 N2 Karing 真机门禁前的本地补强，解决 Android 专项执行器把入口固定为 `.MainActivity` 导致真实 APK 无法启动的问题。性能、稳定性和流畅度执行器现在共用 Android 启动辅助：明确填写 Activity 时使用 `am start -n`，留空时使用 Launcher Intent 自动发现入口；流畅度执行器同时尊重前置操作设置的 `auto_start=false`，避免同一任务重复启动应用。专项任务表单留空启动 Activity 时不再写入 `.MainActivity` 默认值，旧任务中已有的显式 Activity 仍保持兼容。

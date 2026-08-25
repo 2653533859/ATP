@@ -130,8 +130,15 @@ def _adb_input(serial: str, *args: str, timeout: int = 10) -> bool:
         return False
 
 
-def _adb_ui_target(serial: str, x: int, y: int, timeout: int = 10) -> dict[str, object] | None:
-    """通过 UIAutomator dump 查找坐标对应的 Android 控件。"""
+def _ui_target_diagnostic(status: str, code: str | None = None) -> dict[str, str | None]:
+    """构造不包含 ADB 原始输出的控件属性诊断。"""
+    return {"status": status, "code": code}
+
+
+def _adb_ui_target_diagnostic(
+    serial: str, x: int, y: int, timeout: int = 10
+) -> tuple[dict[str, object] | None, dict[str, str | None]]:
+    """通过 UIAutomator dump 查找控件，并返回可供前端解释的脱敏状态。"""
     hierarchy_path = "/sdcard/atp-ui-hierarchy.xml"
     dump_cmd = ["adb", "-s", serial, "shell", "uiautomator", "dump", hierarchy_path]
     cat_cmd = ["adb", "-s", serial, "shell", "cat", hierarchy_path]
@@ -140,17 +147,24 @@ def _adb_ui_target(serial: str, x: int, y: int, timeout: int = 10) -> dict[str, 
         if dump_proc.returncode != 0:
             output = ((dump_proc.stdout or b"") + (dump_proc.stderr or b"")).decode("utf-8", errors="replace")
             logger.warning("adb ui hierarchy dump failed for %s: %s", serial, output[-500:])
-            return None
+            return None, _ui_target_diagnostic("unavailable", "uiautomator_dump_failed")
 
         cat_proc = subprocess.run(cat_cmd, capture_output=True, timeout=timeout)
         if cat_proc.returncode != 0:
             logger.warning("adb ui hierarchy read failed for %s", serial)
-            return None
+            return None, _ui_target_diagnostic("unavailable", "uiautomator_read_failed")
         output = ((cat_proc.stdout or b"") + (cat_proc.stderr or b"")).decode("utf-8", errors="replace")
-        return _parse_ui_target(output, x, y)
+        target = _parse_ui_target(output, x, y)
+        return target, _ui_target_diagnostic("found" if target else "not_found", None if target else "target_not_found")
     except (subprocess.TimeoutExpired, FileNotFoundError, Exception) as e:
         logger.warning("adb ui hierarchy failed for %s: %s", serial, e)
-        return None
+        return None, _ui_target_diagnostic("unavailable", "uiautomator_request_failed")
+
+
+def _adb_ui_target(serial: str, x: int, y: int, timeout: int = 10) -> dict[str, object] | None:
+    """兼容旧调用方：只返回控件，不暴露诊断字段。"""
+    target, _ = _adb_ui_target_diagnostic(serial, x, y, timeout)
+    return target
 
 
 def _use_android_worker() -> bool:
@@ -259,9 +273,12 @@ async def device_ui_target(
     device = await _get_online_device(device_id, db)
     if _use_android_worker():
         result = await _dispatch_worker_operation("ui_target", device.serial, {"x": x, "y": y})
-        return {"target": result.get("target")}
-    target = await asyncio.to_thread(_adb_ui_target, device.serial, x, y)
-    return {"target": target}
+        response: dict[str, object] = {"target": result.get("target")}
+        if result.get("diagnostic") is not None:
+            response["diagnostic"] = result["diagnostic"]
+        return response
+    target, diagnostic = await asyncio.to_thread(_adb_ui_target_diagnostic, device.serial, x, y)
+    return {"target": target, "diagnostic": diagnostic}
 
 
 @router.post("/devices/{device_id}/swipe")
