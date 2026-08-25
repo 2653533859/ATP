@@ -2,6 +2,32 @@
 
 > 本文是参考导航对应的当前执行版计划，负责记录“接下来做什么、完成到什么程度、如何验收”。历史方案和详细实施记录见 [`product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md)；任务勾选同步到 [`Task.md`](../Task.md)，长期记忆同步到 [`MEMORY.md`](../MEMORY.md)。
 
+## 1.0 当前计划登记（2026-08-25）
+
+本节是当前最新执行口径，优先于本文后面的历史交付记录。N4 的本地代码链路已经覆盖 Worker/目标服务采样、Kubernetes 容量预检、保留清理、跨端点 MinIO 恢复和生命周期门禁；下一步不重复开发已有采样器，而是按真实目标逐项验收，并同步推进被外部条件阻塞的 N2 与发布收口。
+
+### 下一阶段顺序
+
+1. **N4 性能生产环境验收**：先用真实 Kubernetes 目标执行多节点、Worker 副本和资源门禁；再用独立 MinIO 目标执行复制、回源、生命周期和清理；最后用真实 Prometheus 验证 Worker 与目标服务指标来源、查询失败记录和报告时间线。没有对应目标时保持“待环境验收”，不得用 q19 Compose 或 mock 替代。
+2. **N2 Karing Android 单设备闭环**：用户提供/上传 Karing APK 后，以 `pm list packages` 和 Manifest 双重确认 `package_name`，再执行 APK 下载、低代码点击/滑动、录屏/异常回放、专项任务、事件/日志/报告和清理；在真实包确认前不使用其他应用替代。
+3. **N5-N8 外部依赖复核**：按真实三方模型、通知供应商、外部缺陷平台、项目/角色数据和目标部署顺序验收；凭据只通过环境变量或临时部署注入，测试数据完成后清理。
+4. **N9 发布收口**：绑定最终提交 SHA，整理能力矩阵、测试输出、代码审查记录、环境证据、操作手册、回滚边界和未关闭门禁，形成可复核的发布结论。
+
+### 下一项模块登记：N4 真实性能环境门禁
+
+| 项目 | 内容 |
+| --- | --- |
+| 范围 | Kubernetes 多节点/副本/Worker 资源预检、Worker/目标服务指标采样、MinIO 生命周期与跨端点恢复、运行指标/报告和临时对象清理 |
+| 已有入口 | `scripts/performance-environment-smoke.py`、`scripts/minio-dr-acceptance.py`、`make minio-dr-acceptance`、`--require-metric-source` |
+| 依赖 | 可控 Kubernetes 集群、独立 MinIO 源/目标端点、Prometheus 地址及最小权限凭据 |
+| 最小验收出口 | 多节点短压成功；容量不足/资源缺失明确失败；至少得到 `performance-worker` 和 `target-service-prometheus` 非空样本；MinIO 复制/回源 SHA-256 一致；生命周期规则命中；临时对象清理为零；证据不含凭据 |
+| 当前状态 | `[E]` 本地实现与回归完成，真实环境缺失，暂不关闭 N4 发布门禁 |
+| 复验命令 | `make performance-environment-smoke`；`make minio-dr-acceptance`；按目标配置追加 `--min-ready-nodes`、`--min-worker-replicas`、`--require-worker-resources` 和 `--require-metric-source` |
+
+### 统一交付门禁
+
+下一项模块仍必须按“实现/调整 → 定向回归 → 受影响全量质量门禁 → 独立代码审查 → 修复 → 同步 `Task.md`、路线图、发布状态和 `MEMORY.md` → Conventional Commit 提交并推送”执行。外部目标缺失时，只记录可复用入口和阻塞证据，不把跳过项标为通过。
+
 ## 0.9 当前开发计划登记（2026-08-25）
 
 本节是当前执行口径，优先级高于本文后面的历史交付记录。产品导航按参考方案保持五组：工作台、测试能力、测试资产、智能中枢、系统；设备、APK、专项任务、Mock、数据集、Web/API 资产和平台治理页面保留兼容 URL，但从所属工作台或配置中心进入，不再全部堆在系统管理下。
@@ -14,13 +40,13 @@
 | N1 | 接口测试 | 受控 GraphQL、WebSocket、流式 gRPC 和 HTML/JUnit/PDF 完整报告闭环已完成 | `[E]` | 协议创建/执行/断言/提取/报告/清理均有脱敏证据 |
 | N2 | APP 自动化 | 等待 Karing 真实 APK/包名，完成单设备执行、录屏、专项任务和结果回传 | `[-]` | 设备包管理确认包名，且低代码、专项、媒体、报告和清理通过 |
 | N3 | UI 自动化 | 维护 Playwright 录制、回放、元素/页面对象、Trace/HAR 和浏览器矩阵 | `[E]` | Chromium、Firefox、WebKit 的失败证据可追踪 |
-| N4 | 性能测试 | 已补 Kubernetes 多节点/副本/Worker 资源预检和跨端点 MinIO 复制/恢复 smoke；继续补采样、Prometheus/MinIO 生命周期和真实跨主机恢复 | `[~]` | 多节点容量、取消、采样、报告和恢复演练有环境证据 |
+| N4 | 性能测试 | Worker/目标服务采样、Kubernetes 多节点/副本/Worker 资源预检、保留清理和跨端点 MinIO 复制/恢复 smoke 已完成 | `[E]` | 多节点容量、取消、采样、报告、生命周期和恢复演练有真实环境证据 |
 | N5-N8 | AI、测试资产、智能中枢、系统 | 以真实项目、模型、角色和目标部署复核本地能力 | `[E]` | 来源、权限、脱敏、审计和回滚均可复核 |
 | N9 | 发布收口 | 汇总代码 SHA、测试、证据、操作手册和剩余阻塞 | `[~]` | 所有未关闭门禁都有负责人、原因和复验命令 |
 
 ### 当前执行顺序
 
-1. **N4 性能真实环境**：已完成 Kubernetes 多节点/副本/Worker 资源预检和跨端点 MinIO 复制/恢复 smoke；继续在真实目标验证多节点调度、资源采样、Prometheus/MinIO 生命周期、保留清理和跨主机恢复。
+1. **N4 性能真实环境**：本地代码入口已齐；下一步只做真实 Kubernetes、Prometheus、MinIO 目标验收，验证多节点调度、资源采样、生命周期、保留清理和跨主机恢复。
 2. **N2 Android Karing 单设备门禁（阻塞但不阻塞 N4）**：用户提供或上传 Karing APK 后，以 `pm list packages` 和 Manifest 解析结果确认真实 `package_name`，再按 APK → 低代码 → 录屏/异常回放 → 专项任务 → 事件/日志/报告 → 下载/清理执行。
 3. **N5-N8 外部依赖复核**：在 N4 不具备生产目标时，继续验证真实模型、通知、外部缺陷平台、项目数据、权限、审计和配置回滚。
 4. **N5-N8 外部依赖复核**：依次验证真实 AI 模型、通知供应商、外部缺陷平台、项目数据、权限、审计和配置回滚。
@@ -132,7 +158,7 @@
 
 ## 7. 更新记录
 
-- 2026-08-25：按参考导航建立当前执行版计划，统一五组导航边界、模块台账、验收出口、状态口径和强制交付流程；当前优先 API 真实目标、Android Karing 单设备闭环和 Windows API/Web 复核。
+- 2026-08-25：登记 1.0 当前执行计划：N4 本地性能采样、Kubernetes 容量预检、MinIO 跨端点恢复和生命周期门禁代码已齐，下一步转为真实目标验收；N2 Karing、N5-N8 外部依赖和 N9 发布收口按依赖顺序跟踪。
 - 2026-08-25：API 工作台在 q19 受控 HTTP 目标完成真实创建/审批/执行/状态码断言/JSONPath 提取/清理，定向执行器回归 `77 passed`；证据见 [`api-real-target-2026-08-25.json`](evidence/api-real-target-2026-08-25.json)。
 - 2026-08-25：API 工作台显式 `session_lifecycle=reuse` 的两步登录/当前用户场景通过，登录请求体密码在执行证据中脱敏，临时项目清理成功；证据见 [`api-session-reuse-2026-08-25.json`](evidence/api-session-reuse-2026-08-25.json)。
 - 2026-08-25：补齐 API gRPC TLS 自签名/私有 CA 支持：用例可配置公有 PEM 根证书和 SNI 服务名，执行器拒绝私钥且不把证书写入步骤请求快照；q19 Unary 真实目标通过，临时项目清理成功。证据见 [`api-grpc-tls-2026-08-25.json`](evidence/api-grpc-tls-2026-08-25.json)，代码提交为 `96c7db0`。
@@ -168,7 +194,7 @@
 
 ### 当前执行游标
 
-1. **N4 性能真实环境**：N1 q19 受控协议与报告闭环已通过；下一步验证性能多节点、资源采样、Prometheus/MinIO 生命周期和跨主机恢复。
+1. **N4 性能真实环境**：N1 q19 受控协议与报告闭环已通过；N4 本地采样、容量预检、保留清理和跨端点恢复入口已齐，下一步验证真实多节点、Prometheus/MinIO 生命周期和跨主机恢复。
 2. **N2 APP 自动化**：Karing 的真实 `package_name` 尚未确认，暂保持阻塞；拿到 APK 或设备包名后再完成 APK 选择、低代码、录屏/异常回放、专项任务和事件/日志/报告回传。
 3. **N0/N3 Windows 复核**：已完成当前账号认证、依赖、文件传输、Web 低代码、浏览器矩阵和报告导出的完整 smoke；脱敏证据见 [`windows-full-readiness-2026-08-25.json`](evidence/windows-full-readiness-2026-08-25.json)。
 4. **N4～N9 外部收口**：依次验证性能真实环境、通知、外部缺陷平台与发布索引，保持凭据只存在于受控环境。

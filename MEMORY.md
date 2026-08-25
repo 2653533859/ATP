@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 当前开发计划已同步为 1.0：N4 的 Worker/目标服务采样、Kubernetes 多节点/副本/Worker 资源预检、保留清理、MinIO 生命周期审计和跨端点复制/恢复 smoke 均已完成本地代码与回归；下一步是使用真实 Kubernetes、Prometheus、独立 MinIO 目标做环境验收，不重复开发已有采样器。随后按 N2 Karing（等待真实 APK/package name）→ N5-N8 外部依赖 → N9 发布收口推进。计划、依赖、最小验收出口和复验命令见 `docs/development-plan-2026-08-25.md` 的 1.0 节，`Task.md`、路线图和发布状态已同步；真实目标缺失时保持 `[E]`，不把 q19 Compose、mock 或跳过项写成通过。
+
 - 2026-08-25 N4 跨端点 MinIO 恢复验收入口已完成：新增 `scripts/minio-dr-acceptance.py` 和 `make minio-dr-acceptance`，从 `ATP_MINIO_DR_SOURCE_*`/`ATP_MINIO_DR_TARGET_*` 读取独立端点和凭据，验证生命周期审计、源端回读、跨端点复制/目标回读、恢复回源、SHA-256 和唯一前缀清理；同一主机拒绝，凭据不写入报告；异常也会脱敏写失败证据并返回非零。脚本回归 `3 passed`，质量门禁一致性/灾备文档回归 `17 passed`，Ruff、格式检查、差异检查和独立审查通过。当前 `172.31.27.133` 没有独立 MinIO 灾备端点，真实跨主机恢复和生产生命周期仍待验收；计划与边界已同步到 `Task.md`、`docs/development-plan-2026-08-25.md`、`docs/disaster-recovery.md`、`docs/performance-environment-acceptance.md` 和 `docs/release-status-2026-08-25.md`。
 
 - 2026-08-25 N4 性能 Kubernetes 容量预检已完成代码实现：`scripts/performance-environment-smoke.py` 可选检查可调度 Ready 节点数、性能 Worker Deployment desired/available 副本数，以及 Worker 容器 CPU/内存 `resources.requests/limits`；节点不足、副本不足或资源缺失会失败，默认参数保持旧 smoke 兼容。脚本回归 `29 passed`，Ruff、格式检查、`git diff --check` 和独立代码审查通过。当前 `172.31.27.133` 没有 Kubernetes 集群，因此真实多节点、生产 Prometheus/MinIO 生命周期和跨主机恢复仍待环境验收；计划与边界已同步到 `Task.md`、`docs/development-plan-2026-08-25.md`、`docs/performance-environment-acceptance.md` 和 `docs/release-status-2026-08-25.md`。

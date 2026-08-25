@@ -4,7 +4,7 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
-> 当前计划登记：主游标为 N4 性能真实环境；N4 已补 Kubernetes 多节点/副本/Worker 资源预检和跨端点 MinIO 复制/恢复 smoke，但真实目标仍缺 Kubernetes/独立灾备端点；N2 Karing 真机因未确认真实包名暂缓但不阻塞 N4；随后是 N5-N8 外部依赖复核和 N9 发布收口。未关闭门禁继续按“待环境验收”处理。
+> 当前计划登记（1.0）：N4 的 Worker/目标服务采样、Kubernetes 多节点/副本/Worker 资源预检、保留清理和跨端点 MinIO 复制/恢复 smoke 已形成可执行入口；真实目标仍缺 Kubernetes/独立灾备 MinIO/生产 Prometheus，下一步只做环境验收。N2 Karing 真机因未确认真实包名暂缓但不阻塞 N4；随后是 N5-N8 外部依赖复核和 N9 发布收口。未关闭门禁继续按“待环境验收”处理。
 
 > N1 受控协议与报告证据已补齐：GraphQL、WebSocket、gRPC Server/Client/Bidi Streaming 以及 HTML/JUnit/PDF 报告详情和清理均通过 q19 真实网络；详见 [`api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json) 与 [`report-closure-2026-08-25.json`](evidence/report-closure-2026-08-25.json)。生产协议服务和发布环境仍未关闭。
 
@@ -30,7 +30,13 @@
 
 ## 2026-08-25 当前执行计划与新增阻塞
 
-当前执行顺序为：N4 生产性能 → 真实通知/外部缺陷平台 → N9 发布收口；N2 Android Karing 单设备真实闭环因未确认包名并行阻塞，Windows API/Web 和 N1 受控 API/报告闭环已复核完成。
+当前执行顺序为：N4 真实性能环境 → N2 Karing 单设备解阻 → N5-N8 真实通知/外部缺陷平台/模型/目标部署复核 → N9 发布收口；Windows API/Web 和 N1 受控 API/报告闭环已复核完成。
+
+### 2026-08-25 1.0 计划同步
+
+- N4 本地实现不再列为待开发项：性能指标采样、目标服务 Prometheus 指标、Kubernetes 容量预检、保留清理和 MinIO 跨端点恢复入口均已有回归和代码审查记录。
+- N4 发布门禁仍未关闭：必须取得真实 Kubernetes、独立 MinIO 源/目标和 Prometheus；使用 `docs/development-plan-2026-08-25.md` 1.0 节的最小出口和复验命令。
+- N2、N5-N8 和 N9 的阻塞条件、凭据边界与清理要求保持不变，不能用替代应用、mock 或跳过项宣称通过。
 
 ### 2026-08-25 N4 Kubernetes 性能容量预检
 

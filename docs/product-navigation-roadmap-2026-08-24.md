@@ -7,6 +7,8 @@
 
 > 当前执行版：[`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 汇总本轮五组导航、模块台账、下一步顺序、风险解除条件和状态口径；本文件继续保存完整历史方案与实施记录。
 
+> 2026-08-25 计划同步：当前执行版已升级为 1.0。N4 的 Worker/目标服务采样、Kubernetes 容量预检、保留清理和 MinIO 跨端点恢复已具备本地可执行入口，后续只做真实 Kubernetes/Prometheus/独立 MinIO 环境验收；随后按 N2 Karing 真实包名、N5-N8 外部依赖和 N9 发布收口推进。真实环境未提供时保留 `[E]`，不以 q19 Compose、mock 或跳过项替代。
+
 > 最新进度：API 工作台已在 q19 受控目标完成 HTTP、显式会话复用、gRPC TLS Unary、GraphQL、WebSocket、三种流式 gRPC、OpenAPI/Postman 解析及导入预览/落库/回读/清理；运行详情可导出 HTML/JUnit/PDF，报告中心已有按用例类型的本地统计展示。N4 性能验收脚本新增 Kubernetes 多节点/副本/Worker 资源预检和跨端点 MinIO 复制/恢复 smoke，但目标主机仍无 Kubernetes/独立灾备 MinIO，生产 Prometheus/MinIO 生命周期和跨主机恢复未关闭。证据见 [`evidence/api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json) 与 [`evidence/report-closure-2026-08-25.json`](evidence/report-closure-2026-08-25.json)，不替代生产协议服务、生产对象存储或外部环境验收。
 
 > 2026-08-25 N1 前端保存边界已补齐：GraphQL、WebSocket、gRPC 用例在 `CaseFormDrawer` 发起创建/更新请求前检查必填配置，空格和空消息会使用既有中英文提示直接返回；纯函数回归 `8 passed`，前端全量 `66 files / 272 tests passed`，类型检查、生产构建和差异检查通过。该项只改善本地反馈，不替代后端校验和真实多协议/完整报告环境验收。
@@ -906,7 +908,7 @@ Windows smoke 现在默认只接受当前账号 `ATP_USERNAME/ATP_PASSWORD`，�
 | N1 接口测试 | `[E]` | 维护受控协议和报告证据，生产协议服务独立跟踪 | 创建、审批、执行、断言/提取、报告、清理均有脱敏证据 |
 | N2 APP 自动化 | `[-]` | 等待 Karing APK/真实包名，完成单设备应用级闭环 | 包名确认后低代码、录屏、专项、日志/报告和清理通过 |
 | N3 UI 自动化 | `[E]` | 维护多浏览器录制/回放和失败证据 | Chromium/Firefox/WebKit 均可复核定位失败 |
-| N4 性能测试 | `[~]` | 已补 Kubernetes 多节点/副本/Worker 资源预检和跨端点 MinIO 复制/恢复 smoke，继续补真实采样、生命周期和恢复 | 多节点容量、取消、采样、报告、恢复可复核 |
+| N4 性能测试 | `[E]` | Worker/目标服务采样、Kubernetes 多节点/副本/Worker 资源预检、保留清理和跨端点 MinIO 复制/恢复 smoke 已完成；继续做真实目标验收 | 多节点容量、取消、采样、报告、生命周期和恢复可复核 |
 | N5-N8 | `[E]` | 复核真实模型、项目数据、角色、外部平台和目标部署 | 来源、权限、脱敏、审计、回滚边界成立 |
 | N9 发布收口 | `[~]` | 汇总 SHA、测试、环境证据、手册和阻塞 | 每个未关闭门禁都有负责人、原因和复验命令 |
 
