@@ -35,7 +35,7 @@
 3. viewer 矩阵之后再在受控模型配置下复核 P5/P7 的模型发现、连接、多模态/思考参数、可编辑草稿、来源审计和清理；没有真实模型时保持阻塞，不用 HTTP 401 或 mock 结果替代。
 4. 最后复核 P8 目标部署的 PostgreSQL/Redis/MinIO/Worker/ADB 诊断、配置差异、单资源回滚、脱敏审计和权限拒绝，再进入 P9 发布收口。
 5. 每一项必须执行：实现/调整 → 定向测试 → 受影响全量门禁 → 独立代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 提交并推送。
-6. 2.4.20 的 N8 系统治理角色矩阵凭据契约已完成本地补强；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据执行角色矩阵，再进入真实模型与目标治理门禁。
+6. 2.4.21 的 N7 智能中枢角色矩阵凭据契约已完成本地补强；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据执行 N6/N7/N8 角色矩阵，再进入真实模型与目标治理门禁。
 
 ### 2.4.0 状态口径
 
@@ -189,6 +189,12 @@
 - [x] N8 系统治理验收脚本的普通 viewer 角色矩阵支持短期 `ATP_VIEWER_TOKEN`，令牌优先；没有令牌时继续兼容 `ATP_VIEWER_USERNAME`/`ATP_VIEWER_PASSWORD`，认证值仍只从环境变量读取且不进入证据文件。
 - [x] 新增令牌路径运行时回归和运行手册契约；N8 定向测试 `7 passed`，后端非集成全量 `2387 passed`，Ruff、格式检查、发布契约 `19 passed` 和 `git diff --check` 通过；独立审查未发现需修复的问题。
 - **Status**: `[E]` local harness, tests, review, fix and documentation are complete; controlled administrator/viewer credentials and target deployment governance evidence remain pending.
+
+## 2.4.21 P7 N7 intelligence role-matrix token contract (local complete, 2026-08-25)
+
+- [x] N7 智能中枢验收脚本的普通 viewer 角色矩阵支持短期 `ATP_VIEWER_TOKEN`，令牌优先；没有令牌时继续兼容 `ATP_VIEWER_USERNAME`/`ATP_VIEWER_PASSWORD`，认证值仍只从环境变量读取且不进入证据文件。
+- [x] 新增令牌路径运行时回归和运行手册契约；N7 定向测试 `12 passed`，后端非集成全量 `2389 passed`，Ruff、格式检查和 `git diff --check` 通过；独立审查未发现需修复的问题。
+- **Status**: `[E]` local harness, tests, review, fix and documentation are complete; controlled viewer/admin credentials, real model and target deployment evidence remain pending.
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 

@@ -8,14 +8,16 @@
 
     $env:ATP_USERNAME = '<admin-or-engineer>'
     $env:ATP_PASSWORD = '<password>'
-    $env:ATP_VIEWER_USERNAME = '<ordinary-project-user>'
-    $env:ATP_VIEWER_PASSWORD = '<password>'
+    # 推荐使用短期 viewer 令牌；没有令牌时再使用普通账号密码。
+    $env:ATP_VIEWER_TOKEN = '<short-lived-viewer-token>'
+    # $env:ATP_VIEWER_USERNAME = '<ordinary-project-user>'
+    # $env:ATP_VIEWER_PASSWORD = '<password>'
 
     python scripts/n7-intelligence-acceptance.py --base-url 'http://127.0.0.1:8000/api/v1' --allow-mutations --require-role-matrix --report 'docs/evidence/n7-intelligence-acceptance-YYYY-MM-DD.json'
 
 加入 `--require-ai` 后，脚本要求全局管理员账号，并先读取已保存的配置（不会读取或输出 API Key），再依次调用模型列表、连接测试和临时项目上的 AI 用例草稿生成。使用 `--llm-config-id <id>` 或环境变量 `ATP_LLM_CONFIG_ID` 选择配置；`--require-vision` 可要求配置和发现的模型声明多模态能力，`--require-thinking` 可要求保存的高级参数包含 `thinking`、`enable_thinking` 或 `reasoning_effort`。没有受控模型配置时该项应保持失败或跳过，不能将本地检索结果写成真实模型通过。
 
-也可以使用 ATP_ACCEPTANCE_BASE_URL、ATP_TOKEN 或 ATP_USERNAME/ATP_PASSWORD 配置连接信息。报告只记录脱敏 endpoint、资源 ID、检查状态和有限长度说明，不记录密码、Token、Cookie、请求正文或响应正文。
+也可以使用 ATP_ACCEPTANCE_BASE_URL、ATP_TOKEN 或 ATP_USERNAME/ATP_PASSWORD 配置管理员连接信息。`ATP_VIEWER_TOKEN` 与 `ATP_VIEWER_USERNAME`/`ATP_VIEWER_PASSWORD` 二选一，令牌优先；认证值只从环境变量读取。报告只记录脱敏 endpoint、资源 ID、检查状态和有限长度说明，不记录密码、Token、Cookie、请求正文或响应正文。
 
 2026-08-25 q19 基础数据证据：[`docs/evidence/n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json) 为 `partial`；需求/知识/用例创建、详情读取、Hermes 三类来源引用和清理均通过，普通 viewer 矩阵与真实 AI 草稿未启用。完整 N7 门禁仍需受控模型和普通角色账号。
 

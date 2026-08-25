@@ -264,6 +264,16 @@ def _credentials(name: str) -> tuple[str | None, str | None]:
     return os.getenv(f"ATP_{name}_USERNAME"), os.getenv(f"ATP_{name}_PASSWORD")
 
 
+def _build_viewer_client(base_url: str, timeout: float) -> ApiClient:
+    token = os.getenv("ATP_VIEWER_TOKEN")
+    if token:
+        return ApiClient(base_url, timeout=timeout, token=token)
+    username, password = _credentials("VIEWER")
+    viewer_client = ApiClient(base_url, timeout=timeout)
+    viewer_client.login(username or "", password or "")
+    return viewer_client
+
+
 def _case_payload(module_id: int, marker: str) -> dict[str, Any]:
     return {
         "name": f"N7 acceptance case {marker}",
@@ -490,19 +500,23 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, Any]:
                 "ai-draft", "skipped", "pass --require-ai to verify a controlled real model and editable case drafts"
             )
 
+        viewer_token = os.getenv("ATP_VIEWER_TOKEN")
         viewer_username, viewer_password = _credentials("VIEWER")
-        if not viewer_username or not viewer_password:
+        if not viewer_token and (not viewer_username or not viewer_password):
             if args.require_role_matrix:
-                recorder.add("role-matrix", "failed", "viewer credentials are required by --require-role-matrix")
+                recorder.add(
+                    "role-matrix",
+                    "failed",
+                    "set ATP_VIEWER_TOKEN or ATP_VIEWER_USERNAME/ATP_VIEWER_PASSWORD for --require-role-matrix",
+                )
             else:
                 recorder.add(
                     "role-matrix",
                     "skipped",
-                    "set ATP_VIEWER_USERNAME/ATP_VIEWER_PASSWORD to verify ordinary-role isolation",
+                    "set ATP_VIEWER_TOKEN or ATP_VIEWER_USERNAME/ATP_VIEWER_PASSWORD to verify ordinary-role isolation",
                 )
         else:
-            viewer_client = ApiClient(args.base_url, timeout=args.timeout)
-            viewer_client.login(viewer_username, viewer_password)
+            viewer_client = _build_viewer_client(args.base_url, args.timeout)
             viewer_me = viewer_client.request("GET", "/auth/me")
             if isinstance(viewer_me, dict) and viewer_me.get("role") == "admin":
                 raise AcceptanceError("role-matrix account must not be a global admin")

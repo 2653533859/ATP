@@ -42,6 +42,25 @@ def test_api_client_rejects_secret_bearing_base_url():
         module.ApiClient("https://example.test/api/v1?token=secret")
 
 
+def test_viewer_client_uses_token_without_password_login(monkeypatch):
+    module = _module()
+    monkeypatch.setenv("ATP_VIEWER_TOKEN", "viewer-token")
+    monkeypatch.delenv("ATP_VIEWER_USERNAME", raising=False)
+    monkeypatch.delenv("ATP_VIEWER_PASSWORD", raising=False)
+
+    class FakeClient:
+        def __init__(self, base_url, timeout=20.0, token=None):
+            self.token = token
+
+        def login(self, username, password):
+            raise AssertionError("token-authenticated viewers must not call login")
+
+    monkeypatch.setattr(module, "ApiClient", FakeClient)
+    client = module._build_viewer_client("https://example.test/api/v1", 20.0)
+
+    assert client.token == "viewer-token"
+
+
 def test_http_error_does_not_return_response_body(monkeypatch):
     module = _module()
     client = module.ApiClient("https://example.test/api/v1")
@@ -207,6 +226,7 @@ def test_acceptance_script_and_runbook_keep_credentials_out_of_cli_and_evidence(
     makefile = (ROOT / "Makefile").read_text(encoding="utf-8")
 
     assert "ATP_PASSWORD" in source
+    assert "ATP_VIEWER_TOKEN" in source
     assert "--password" not in source
     assert "--allow-mutations" in source
     assert "--llm-config-id" in source
@@ -215,3 +235,12 @@ def test_acceptance_script_and_runbook_keep_credentials_out_of_cli_and_evidence(
     assert "n7-intelligence-acceptance" in makefile
     assert "n7-intelligence-acceptance.py" in runbook
     assert "credentials were not recorded" in source
+
+
+def test_viewer_token_is_documented_as_password_free_role_matrix_credential():
+    source = SCRIPT.read_text(encoding="utf-8")
+    runbook = (ROOT / "docs" / "n7-intelligence-acceptance.md").read_text(encoding="utf-8")
+
+    assert "ATP_VIEWER_TOKEN" in source
+    assert "ATP_VIEWER_TOKEN" in runbook
+    assert "_build_viewer_client" in source
