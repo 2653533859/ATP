@@ -18,7 +18,7 @@
     {
       "name": "administrator-authentication",
       "status": "blocked",
-      "details": "The controlled administrator login probe returned HTTP 401; no credential value was recorded and no further password guesses or mutations were attempted."
+      "details": "A read-only database inspection identified the active administrator username as 'parado', but the controlled login probe returned HTTP 401; no password field or credential value was read or recorded, and no further password guesses or mutations were attempted."
     },
     {
       "name": "governance-acceptance",

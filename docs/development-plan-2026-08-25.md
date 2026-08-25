@@ -88,7 +88,7 @@
 ## 2.4.6 q19 target governance preflight (blocked, 2026-08-25)
 
 - [x] The target q19 backend health endpoint returned `status=ok` through the local tunnel; the acceptance stack was observed running with backend, Worker, PostgreSQL, Redis, MinIO, Prometheus and Web Recorder containers.
-- [x] The administrator login probe returned HTTP 401; no password was guessed beyond the controlled probe, no credential or response body was recorded, and no remote mutation was attempted.
+- [x] A read-only database inspection identified the active administrator username as `parado`; the controlled login probe still returned HTTP 401. No password field, credential value or response body was read/recorded, no password was guessed further, and no remote mutation was attempted.
 - [ ] N8 governance acceptance remains pending: inject a verified administrator and ordinary viewer account through the controlled environment, then run the N8 harness with `--require-role-matrix --allow-mutations --rollback --require-rollback`.
 - **Evidence**: [`n8-system-governance-environment-audit-2026-08-25.json`](evidence/n8-system-governance-environment-audit-2026-08-25.json).
 - **Status**: `[-]` target authentication is currently blocked; this does not change the local implementation status or close any external release gate.
