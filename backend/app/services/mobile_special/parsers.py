@@ -52,6 +52,24 @@ def parse_meminfo(raw: str, package: str) -> Optional[dict]:
     }
 
 
+def parse_proc_status_memory(raw: str, package: str) -> Optional[dict]:
+    """Parse VmRSS from ``/proc/<pid>/status`` as a meminfo fallback."""
+    if not raw or not package:
+        return None
+
+    rss_match = re.search(r"^\s*VmRSS:\s*([\d,]+(?:\.\d+)?)\s*kB\b", raw, re.IGNORECASE | re.MULTILINE)
+    if not rss_match:
+        return None
+
+    rss_kb = float(rss_match.group(1).replace(",", ""))
+    return {
+        "metric_type": MetricType.mem_mb.value,
+        "metric_value": round(rss_kb / 1024, 2),
+        "source": "/proc/status VmRSS",
+        "extra": {"package": package, "rss_kb": rss_kb, "fallback": True},
+    }
+
+
 def parse_gfxinfo_framestats(raw: str, package: str) -> Optional[dict]:
     """Parse `dumpsys gfxinfo <package> framestats` output.
 
@@ -65,8 +83,10 @@ def parse_gfxinfo_framestats(raw: str, package: str) -> Optional[dict]:
     if not raw:
         return None
 
-    # Check if this looks like framestats output
-    if "Frame" not in raw and "fps" not in raw.lower():
+    # Android 14 uses ``Total frames``/``HISTOGRAM`` in lower case, while
+    # older releases may use the title-cased ``Frame`` spelling.
+    raw_lower = raw.lower()
+    if "frame" not in raw_lower and "fps" not in raw_lower:
         return None
 
     # Look for janky frames count
@@ -81,15 +101,23 @@ def parse_gfxinfo_framestats(raw: str, package: str) -> Optional[dict]:
     # Try to compute average FPS from frame time histogram
     # Pattern: "16.7 ms: 200" meaning 200 frames took 16.7ms each
     fps = 0.0
-    frame_times: list[float] = []
 
-    for match in re.finditer(r"(\d+\.?\d*)\s*ms:\s*(\d+)", raw):
+    # AOSP has emitted both ``16.7 ms: 200`` and ``16ms=200`` histogram
+    # formats.  Accept both forms and keep the calculation bounded by the
+    # numeric histogram count rather than expanding every frame into memory.
+    histogram_count = 0
+    weighted_frame_time = 0.0
+    # Ignore the separate GPU histogram; mixing GPU render time with UI frame
+    # time produces impossible FPS values on Android 14.
+    frame_histogram_raw = re.split(r"GPU HISTOGRAM", raw, maxsplit=1, flags=re.IGNORECASE)[0]
+    for match in re.finditer(r"(\d+\.?\d*)\s*ms\s*[:=]\s*(\d+)", frame_histogram_raw, re.IGNORECASE):
         frame_time_ms = float(match.group(1))
         count = int(match.group(2))
-        frame_times.extend([frame_time_ms] * count)
+        weighted_frame_time += frame_time_ms * count
+        histogram_count += count
 
-    if frame_times:
-        avg_frame_time = sum(frame_times) / len(frame_times)
+    if histogram_count:
+        avg_frame_time = weighted_frame_time / histogram_count
         if avg_frame_time > 0:
             fps = round(1000.0 / avg_frame_time, 2)
 

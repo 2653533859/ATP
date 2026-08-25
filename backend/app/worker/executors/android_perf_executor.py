@@ -43,9 +43,11 @@ from app.services.mobile_special.adb_client import (
     build_gfxinfo_cmd,
     build_batterystats_cmd,
     build_pidof_cmd,
+    build_proc_status_cmd,
 )
 from app.services.mobile_special.parsers import (
     parse_meminfo,
+    parse_proc_status_memory,
     parse_cpuinfo,
     parse_gfxinfo_framestats,
     parse_batterystats,
@@ -269,10 +271,16 @@ async def _sample_once(
 
         # Memory
         raw_mem = run_adb_shell(serial, build_meminfo_cmd(serial, package), timeout=10)
-        if raw_mem:
-            result = parse_meminfo(raw_mem, package)
-            if result:
-                samples.append({**result, "sample_time": sample_time})
+        result = parse_meminfo(raw_mem or "", package)
+        if result:
+            samples.append({**result, "sample_time": sample_time})
+        else:
+            pid = _resolve_pid(serial, package)
+            if pid is not None:
+                raw_status = run_adb_shell(serial, build_proc_status_cmd(serial, pid), timeout=5)
+                result = parse_proc_status_memory(raw_status or "", package)
+                if result:
+                    samples.append({**result, "sample_time": sample_time})
 
         # Battery
         raw_battery = run_adb_shell(serial, build_batterystats_cmd(serial, package), timeout=10)

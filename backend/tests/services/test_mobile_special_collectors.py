@@ -14,6 +14,7 @@ from app.services.mobile_special.adb_client import (
     build_batterystats_cmd,
     build_logcat_cmd,
     build_pidof_cmd,
+    build_proc_status_cmd,
     run_adb_shell,
 )
 
@@ -55,6 +56,10 @@ class TestAdbClientCommands:
         cmd = build_pidof_cmd("emulator-5554", "com.example.app")
         assert "pidof" in cmd
         assert "com.example.app" in cmd
+
+    def test_build_proc_status_cmd(self):
+        cmd = build_proc_status_cmd("emulator-5554", 12345)
+        assert cmd == ["cat", "/proc/12345/status"]
 
     def test_run_adb_shell_returns_none_on_error(self, monkeypatch):
         # Mock subprocess.run to simulate ADB failure

@@ -12,7 +12,7 @@
 
 | 当前顺序 | 模块 | 本轮目标 | 当前状态与出口 |
 | --- | --- | --- | --- |
-| 1 | N2 APP 自动化 | 在已通过 Karing 包身份、Worker、低代码和录屏的基础上，完成异常回放、专项任务、Monkey/事件日志、操作时间线、设备日志/媒体和报告详情，再做临时数据清理 | `[~]` 稳定性/Monkey 单设备闭环已验收；性能、流畅度专项和完整 N2 收口仍是当前游标 |
+| 1 | N2 APP 自动化 | 在已通过 Karing 包身份、Worker、低代码和录屏的基础上，完成异常回放、专项任务、Monkey/事件日志、操作时间线、设备日志/媒体和报告详情，再做临时数据清理 | `[x]` Karing 单设备专项与报告/清理闭环已验收；证据见 N2.0.7 |
 | 2 | N4 性能测试 | 取得真实 Kubernetes、Prometheus、独立 MinIO 后完成多节点、采样、生命周期、跨主机恢复和清理 | `[-]` 外部环境未提供时保持阻塞，不用 q19 Compose、mock 或跳过项替代 |
 | 3 | N5-N8 外部复核 | 复核真实模型、通知/缺陷平台、项目角色、目标部署、权限、脱敏、审计和单资源回滚 | `[E]` 本地实现和回归已完成，真实边界待验收 |
 | 4 | N9 发布收口 | 汇总代码、测试、审查、文档、环境证据、回滚边界和剩余阻塞，绑定最终提交 SHA | `[~]` 依赖前置真实环境门禁 |
@@ -43,7 +43,7 @@
 | --- | --- | --- | --- | --- |
 | N0 | 导航壳与工作台 | 五组侧栏、折叠/刷新/窄屏、深链选中、面包屑、项目上下文和权限入口 | 五组入口可达；刷新和深链不丢上下文；无权限入口不展示 | `[E]` 本地完成，真实账号复核持续维护 |
 | N1 | 接口测试 | HTTP、会话复用、环境变量、OpenAPI/Postman、GraphQL、WebSocket、gRPC、报告导出 | 请求、断言、提取、依赖、报告和清理均可追踪 | `[E]` q19 受控目标已通过，生产协议服务独立跟踪 |
-| N2 | APP 自动化 | Windows Agent/ADB、设备池、APK 包名、低代码、录屏、专项任务和报告 | Karing 真实 APK 在单设备完成执行、事件、日志、媒体、报告和清理 | `[~]` Karing 低代码/截图/录屏回传已通过，专项任务和报告闭环待验收 |
+| N2 | APP 自动化 | Windows Agent/ADB、设备池、APK 包名、低代码、录屏、专项任务和报告 | Karing 真实 APK 在单设备完成执行、事件、日志、媒体、报告和清理 | `[x]` Karing 单设备真实闭环已验收；真实多设备/兼容性矩阵仍属后续能力 |
 | N3 | UI 自动化 | Playwright 录制、元素库、页面对象、视觉基线、Trace/HAR、浏览器矩阵 | Chromium/Firefox/WebKit 均可录制、回放并查看失败证据 | `[E]` 本地/q19 证据已具备，随 Windows 复核 |
 | N4 | 性能测试 | 压测模型、节点/副本预检、采样、趋势、基线、报告、保留清理和恢复 | 真实多节点短压、取消、采样、生命周期和跨主机恢复均有证据 | `[~]` 本地入口完成，真实 Kubernetes/Prometheus/独立 MinIO 待验收 |
 | N5 | AI 智能测试 | 三方模型、多模态/思考参数、用例/数据集/Mock 草稿生成、诊断和审计 | 结果可编辑、有来源、有权限和限额；失败明确且不泄露密钥 | `[E]` 本地完成，真实模型和项目数据待验收 |
@@ -54,7 +54,7 @@
 
 ### 2.0.3 当前执行顺序
 
-1. **N2 Karing 单设备闭环**：包名和启动入口、Worker 前置、低代码和录屏回传已经通过；下一步按异常回放 → 性能/稳定性/流畅度专项任务 → Monkey/事件/日志 → 操作时间线/报告详情 → 下载与清理执行。如需要 APK 上传/下载链路，必须另取得同一版本 APK，不能用显示名替代包名。
+1. **N2 Karing 单设备闭环**：包名和启动入口、Worker 前置、低代码/录屏、稳定性/Monkey、性能/流畅度专项、事件/日志/报告详情、下载与清理均已通过；下一步转入 N4 真实性能环境门禁。如需要 APK 上传/下载链路，必须另取得同一版本 APK，不能用显示名替代包名。
 2. **N4 真实性能环境门禁**：在 N2 可验证项完成后，对真实 Kubernetes、Prometheus 和独立 MinIO 逐项执行多节点/副本、资源采样、生命周期、跨主机恢复和清理验收；缺目标时保持待验收，不以 q19 Compose、mock 或跳过项替代。
 3. **N5-N8 外部依赖复核**：依次复核真实模型、通知/缺陷平台、项目角色数据、目标部署、权限、脱敏、审计和回滚；凭据只通过受控环境注入。
 4. **N9 发布收口**：绑定最终提交 SHA，汇总测试输出、审查记录、环境证据和剩余阻塞，形成可复核结论。
@@ -73,8 +73,8 @@
 - [x] Windows Android Worker doctor、Backend 登录、PostgreSQL/Redis/MinIO readiness、Worker registry 和 Android 设备扫描通过；扫描返回 3 台在线设备。脱敏证据见 [`android-karing-acceptance-2026-08-25.json`](evidence/android-karing-acceptance-2026-08-25.json) 和 [`windows-android-karing-worker-2026-08-25.json`](evidence/windows-android-karing-worker-2026-08-25.json)。
 - [x] 以 `172.16.102.91:5555` 和 `com.nebula.karing` 创建可清理的已审批 Android 低代码用例，完成启动/等待/截图等无破坏动作；`run 27` 的 3/3 步骤、3 张截图和 2 个 Android 产物通过，临时项目已清理。
 - [x] 录屏门禁已补强：`windows-local-smoke.ps1` 新增 `-RequireAndroidRecording`，只有 `result_summary.android_artifacts.screen_recording` 存在才算录屏通过；真实 `run 29` 为 `passed`，3/3 步骤、3 张截图、3 个产物且 `recording=True`，临时项目已清理。脱敏证据见 [`android-karing-lowcode-2026-08-25.json`](evidence/android-karing-lowcode-2026-08-25.json) 和 [`android-karing-recording-gate-2026-08-25.json`](evidence/android-karing-recording-gate-2026-08-25.json)。
-- [ ] 继续验证异常回放、性能/稳定性/流畅度专项任务、事件/日志/报告详情、下载和对象清理；任一环节失败只记录实际失败原因，不以 Worker 心跳或跳过项替代。
-- **状态**：`[~]` Karing 包身份、Windows Worker、低代码、截图和录屏回传门禁已通过；异常回放、专项任务、事件/日志/报告和最终清理闭环仍未关闭。
+- [x] 已完成异常回放、性能/稳定性/流畅度专项任务、事件/日志/报告详情、下载和对象清理；真实运行记录只保存脱敏摘要。
+- **状态**：`[x]` Karing 包身份、Windows Worker、低代码、截图/录屏、专项任务、事件/日志/报告和临时清理门禁已通过。
 
 ## 2.0.6 N2 Karing 单设备稳定性专项与事件时间线验收（2026-08-25）
 
@@ -86,8 +86,18 @@
 - [x] 临时项目 `50` 删除返回 204，删除后查询为 404，匹配项目数为 0；未在仓库、文档或证据中写入凭据、预签名 URL 或原始 logcat。
 - [x] 代码审查发现的独立记录器序号重复问题已修复；定向回归 82 项，后端非集成全量 2306 项，Ruff、格式检查和 `git diff --check` 通过。
 - **证据**：脱敏记录见 [`android-karing-special-task-2026-08-25.json`](evidence/android-karing-special-task-2026-08-25.json)。
-- **状态**：`[~]` 稳定性/Monkey、事件时间线、Crash、设备日志/截图、报告导出和清理已闭环；性能专项、流畅度专项及 N2 总体验收仍未关闭。
-- **下一入口**：先在同一 Worker/设备上验证性能专项的 CPU/内存/电池/网络样本和报告，再验证流畅度专项的 FPS/jank 阶段采样；两项完成后再回到 N2 总体验收。
+- **状态**：`[x]` 稳定性/Monkey、事件时间线、Crash、设备日志/截图、报告导出和清理已闭环；性能与流畅度结果在 N2.0.7 补齐。
+- **下一入口**：转入 N4 真实性能环境；本地 q19 Compose 单节点结果不能替代 Kubernetes/Prometheus/独立 MinIO 门禁。
+
+## 2.0.7 N2 Karing 性能与流畅度专项真实闭环（2026-08-25）
+
+本轮在同一 Windows Android Worker、同一设备 `153 / 172.16.102.91:5555` 和包名 `com.nebula.karing` 上完成性能与流畅度专项，发现并修复两类 Android 14 兼容问题：部分设备的包级 `dumpsys meminfo` 只有标题，性能采样增加 `/proc/<pid>/status` 的 `VmRSS` 兜底；`gfxinfo framestats` 使用 `Total frames` 与 `HISTOGRAM` 的等号格式，解析器改为大小写不敏感并排除 `GPU HISTOGRAM`，避免 FPS 样本为空或混入 GPU 时间。
+
+- [x] 性能运行 `10` 为 `completed`，采集 18 个样本：CPU、`mem_mb`、电量、温度、FPS 和卡顿各 3 条；平均 CPU `34.0%`、平均内存 `346.98 MB`、峰值内存 `350.23 MB`，Crash/ANR 均为 0，事件 12 条且重复序号分组为 0。
+- [x] 流畅度运行 `13` 为 `completed`，执行 2 个阶段（滑动、点击），采集 2 个 FPS 样本，平均 FPS `105.26`、峰值 `157.89`、卡顿总数 1，事件 15 条且重复序号分组为 0。
+- [x] 两个运行的 JSON 报告导出均返回 HTTP 200；临时项目 `51` 删除返回 204，删除后查询为 404。脱敏证据见 [`android-karing-performance-fluency-2026-08-25.json`](evidence/android-karing-performance-fluency-2026-08-25.json)。
+- [x] 代码审查发现并修复 Android 14 内存兜底和 `gfxinfo` 直方图解析问题；相关定向回归 `60 passed`，Ruff 通过；随后重启 Worker 并完成真实复验。
+- **状态**：`[x]` N2 Karing 单设备专项、事件/报告下载和临时数据清理闭环完成；N4 真实性能环境仍因缺 Kubernetes/Prometheus/独立 MinIO 保持 `[-]`。
 
 ## 2.1 Android 控件属性获取诊断（2026-08-25）
 

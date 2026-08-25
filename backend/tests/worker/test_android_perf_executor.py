@@ -519,6 +519,31 @@ def test_sample_once_keeps_zero_cpu_when_process_is_alive(monkeypatch):
     assert samples[0]["metric_value"] == 0.0
 
 
+def test_sample_once_uses_proc_status_memory_when_dumpsys_has_no_details(monkeypatch):
+    monkeypatch.setattr(android_perf_executor, "build_cpuinfo_cmd", lambda s, p: "cpu")
+    monkeypatch.setattr(android_perf_executor, "build_meminfo_cmd", lambda s, p: "mem")
+    monkeypatch.setattr(android_perf_executor, "build_batterystats_cmd", lambda s, p: "battery")
+    monkeypatch.setattr(android_perf_executor, "build_proc_status_cmd", lambda s, pid: "status")
+    monkeypatch.setattr(
+        android_perf_executor,
+        "run_adb_shell",
+        lambda serial, cmd, timeout=10: {
+            "cpu": None,
+            "mem": "Applications Memory Usage (in Kilobytes):",
+            "status": "VmRSS:\t409600 kB",
+            "battery": None,
+        }.get(cmd),
+    )
+    monkeypatch.setattr(android_perf_executor, "parse_meminfo", lambda raw, p: None)
+    monkeypatch.setattr(android_perf_executor, "_resolve_pid", lambda serial, package: 12345)
+
+    samples = asyncio.run(android_perf_executor._sample_once("emu-5554", "com.example.app"))
+
+    assert [sample["metric_type"] for sample in samples] == ["mem_mb"]
+    assert samples[0]["metric_value"] == 400.0
+    assert samples[0]["extra"]["fallback"] is True
+
+
 def test_sample_once_collects_fps_and_jank_when_enabled(monkeypatch):
     monkeypatch.setattr(android_perf_executor, "build_gfxinfo_cmd", lambda s, p: "gfx")
     monkeypatch.setattr(

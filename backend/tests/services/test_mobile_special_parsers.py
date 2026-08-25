@@ -12,6 +12,7 @@ from app.services.mobile_special.parsers import (
     parse_logcat_anr,
     parse_logcat_crash,
     parse_meminfo,
+    parse_proc_status_memory,
     parse_pid,
 )
 
@@ -59,6 +60,15 @@ class TestParseMeminfo:
         assert result["metric_value"] == 32.62
         assert result["extra"]["total_kb"] == 33398.0
 
+    def test_parse_proc_status_memory_uses_rss_fallback(self):
+        raw = "Name:\tm.nebula.karing\nVmRSS:\t413860 kB\nVmHWM:\t909468 kB\n"
+        result = parse_proc_status_memory(raw, "com.nebula.karing")
+        assert result is not None
+        assert result["metric_type"] == "mem_mb"
+        assert result["metric_value"] == 404.16
+        assert result["source"] == "/proc/status VmRSS"
+        assert result["extra"]["fallback"] is True
+
 
 class TestParseGfxInfo:
     def test_parse_gfxinfo_framestats_extracts_fps_and_jank(self):
@@ -82,6 +92,19 @@ class TestParseGfxInfo:
     def test_parse_gfxinfo_returns_none_for_invalid_input(self):
         assert parse_gfxinfo_framestats("", "com.example.app") is None
         assert parse_gfxinfo_framestats("no data here", "com.example.app") is None
+
+    def test_parse_android14_gfxinfo_histogram_with_equals(self):
+        raw = """Applications Graphics Acceleration Info:
+        Total frames rendered: 5
+        Janky frames: 1 (20.00%)
+        HISTOGRAM: 5ms=1 6ms=1 7ms=1 18ms=1 32ms=1
+        GPU HISTOGRAM: 1ms=100 2ms=100
+        """
+        result = parse_gfxinfo_framestats(raw, "com.nebula.karing")
+        assert result is not None
+        assert result["metric_type"] == "fps"
+        assert result["metric_value"] == 73.53
+        assert result["extra"]["jank_count"] == 1
 
 
 class TestParseCpuinfo:

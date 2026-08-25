@@ -12,9 +12,11 @@ from app.services.mobile_special.adb_client import (
     build_batterystats_cmd,
     build_logcat_cmd,
     build_pidof_cmd,
+    build_proc_status_cmd,
 )
 from app.services.mobile_special.parsers import (
     parse_meminfo,
+    parse_proc_status_memory,
     parse_gfxinfo_framestats,
     parse_cpuinfo,
     parse_batterystats,
@@ -36,8 +38,10 @@ __all__ = [
     "build_batterystats_cmd",
     "build_logcat_cmd",
     "build_pidof_cmd",
+    "build_proc_status_cmd",
     # parsers
     "parse_meminfo",
+    "parse_proc_status_memory",
     "parse_gfxinfo_framestats",
     "parse_cpuinfo",
     "parse_batterystats",

@@ -100,6 +100,11 @@ def build_pidof_cmd(serial: str, package: str) -> list[str]:
     return ["pidof", package]
 
 
+def build_proc_status_cmd(serial: str, pid: int) -> list[str]:
+    """Build a permission-safe process RSS query for devices with sparse meminfo."""
+    return ["cat", f"/proc/{pid}/status"]
+
+
 def build_package_info_cmd(serial: str, package: str, activity: str) -> list[str]:
     """Build command to get package activity info."""
     return ["dumpsys", "package", package, "|", "grep", activity]

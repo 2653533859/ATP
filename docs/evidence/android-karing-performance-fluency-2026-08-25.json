@@ -1,0 +1,74 @@
+{
+  "evidence_type": "android_karing_performance_fluency",
+  "captured_at": "2026-08-25T13:40:00+08:00",
+  "environment": {
+    "worker_os": "Windows",
+    "worker_queues": ["android", "mobile_special"],
+    "online_device_count": 3,
+    "target_device_serial": "172.16.102.91:5555",
+    "app_package": "com.nebula.karing"
+  },
+  "performance_run": {
+    "run_id": 10,
+    "status": "completed",
+    "duration_ms": 10062,
+    "sample_count": 18,
+    "metric_sample_counts": {
+      "cpu_pct": 3,
+      "mem_mb": 3,
+      "battery_pct": 3,
+      "temperature_c": 3,
+      "fps": 3,
+      "jank_count": 3
+    },
+    "summary": {
+      "avg_cpu_pct": 34.0,
+      "avg_mem_mb": 346.98,
+      "peak_mem_mb": 350.23,
+      "avg_battery_pct": 26.0,
+      "avg_temperature_c": 39.1,
+      "total_jank_count": 115,
+      "crash_count": 0,
+      "anr_count": 0
+    },
+    "event_count": 12,
+    "duplicate_sequence_groups": 0,
+    "artifact_count": 1,
+    "json_export_status": 200,
+    "memory_source": "/proc/status VmRSS fallback"
+  },
+  "fluency_run": {
+    "run_id": 13,
+    "status": "completed",
+    "duration_ms": 7468,
+    "stage_count": 2,
+    "sample_count": 2,
+    "summary": {
+      "avg_fps": 105.26,
+      "peak_fps": 157.89,
+      "total_jank_count": 1,
+      "crash_count": 0,
+      "anr_count": 0
+    },
+    "event_count": 15,
+    "duplicate_sequence_groups": 0,
+    "timeline_actions": [
+      "start_app",
+      "swipe",
+      "tap"
+    ],
+    "json_export_status": 200,
+    "gfxinfo_format": "Android 14 Total frames/HISTOGRAM"
+  },
+  "cleanup": {
+    "temporary_project_id": 51,
+    "delete_status": 204,
+    "project_not_found_after_delete": true
+  },
+  "notes": [
+    "性能运行实际覆盖 CPU、内存、电量、温度、FPS 和卡顿样本。",
+    "Android 14 的包级 dumpsys meminfo 仅返回标题时，使用进程 VmRSS 作为内存兜底。",
+    "Android 14 gfxinfo 的 UI HISTOGRAM 会排除 GPU HISTOGRAM，避免混合后产生虚高 FPS。",
+    "证据不包含数据库、Redis、MinIO 凭据、预签名 URL、原始 logcat 或二进制内容。"
+  ]
+}
