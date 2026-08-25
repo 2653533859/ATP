@@ -160,6 +160,18 @@ def _first_module_id(payload: Any) -> int:
     raise AcceptanceError("temporary project did not contain a module")
 
 
+def _ensure_module(client: ApiClient, project_id: int) -> tuple[int, bool]:
+    modules = client.request("GET", f"/projects/{project_id}/modules")
+    if isinstance(modules, list) and not modules:
+        created = client.request(
+            "POST",
+            "/modules",
+            {"project_id": project_id, "name": "N7 acceptance module", "module_code": "N7_ACCEPTANCE"},
+        )
+        return _resource_id(created), True
+    return _first_module_id(modules), False
+
+
 def _credentials(name: str) -> tuple[str | None, str | None]:
     return os.getenv(f"ATP_{name}_USERNAME"), os.getenv(f"ATP_{name}_PASSWORD")
 
@@ -273,8 +285,10 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, Any]:
         report["resources"]["project_id"] = project_id
         recorder.add("project-create", "passed", f"created temporary project id={project_id}")
 
-        module_id = _first_module_id(admin_client.request("GET", f"/projects/{project_id}/modules"))
+        module_id, module_created = _ensure_module(admin_client, project_id)
         report["resources"]["module_id"] = module_id
+        if module_created:
+            recorder.add("module-create", "passed", f"created temporary module id={module_id}")
         requirement = admin_client.request(
             "POST",
             "/requirements",

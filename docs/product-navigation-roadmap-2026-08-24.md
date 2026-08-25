@@ -8,6 +8,8 @@
 
 > 2026-08-25 P7 Hermes 项目级检索本地交付已完成：新增项目 viewer 权限保护的需求/知识/用例检索和来源深链，Hermes 自由提问可进入检索链路，知识中心支持 `knowledge_id` 深链；N7 验收脚本覆盖临时数据、详情读取、三类引用、可选 AI 草稿、viewer 隔离和清理。后端定向 `21 passed`、前端 Hermes/知识定向 `11 passed`；真实模型、角色账号和远端数据仍待受控环境验收，详见 [`n7-intelligence-acceptance.md`](n7-intelligence-acceptance.md)。
 
+> 2026-08-25 P7/N6 验收缺陷已修复：blank 项目无模块时脚本自动创建临时模块；需求创建接口在 async commit 后序列化过期 ORM 属性导致的 `MissingGreenlet`/HTTP 500 已通过提交后 refresh 修复。q19 旧部署的失败证据已脱敏保存并确认临时项目清理成功，必须重建最新提交后重新验收，不能将本次失败写成通过。
+
 > 2026-08-25 N7 Hermes 跨任务失败诊断已完成本地交付：工作台统一为 suite/plan/android/performance 提供按项目权限保护的规则诊断，case 复用既有 LLM/规则链；Android 与性能诊断引用各自持久化的异常事件、错误事件和指标线索，Hermes 保留任务详情来源，不再把非 case 任务标记为不支持。后端定向 `13 passed`、非集成全量 `2345 passed`，前端全量 `69 files / 293 tests passed`，真实模型、需求/知识数据和角色矩阵仍待验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.3。
 
 > 2026-08-25 N6 缺陷状态刷新项目隔离已补齐：刷新 case 执行记录关联缺陷状态前校验所属项目 viewer 权限，已保存 tracker 必须属于同一项目，跨项目配置在外部调用前拒绝；缺陷跟踪 API 定向 `11 passed`，真实项目角色矩阵、外部缺陷平台和可清理失败运行仍待环境验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.4。

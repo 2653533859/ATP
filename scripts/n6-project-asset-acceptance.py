@@ -191,6 +191,18 @@ def _first_module_id(payload: Any) -> int:
     raise AcceptanceError("temporary project did not contain a module")
 
 
+def _ensure_module(client: ApiClient, project_id: int) -> tuple[int, bool]:
+    modules = client.request("GET", f"/projects/{project_id}/modules")
+    if isinstance(modules, list) and not modules:
+        created = client.request(
+            "POST",
+            "/modules",
+            {"project_id": project_id, "name": "N6 acceptance module", "module_code": "N6_ACCEPTANCE"},
+        )
+        return _resource_id(created), True
+    return _first_module_id(modules), False
+
+
 def _case_payload(module_id: int, target_url: str) -> dict[str, Any]:
     return {
         "name": "N6 acceptance API case",
@@ -271,10 +283,13 @@ def run_acceptance(args: argparse.Namespace) -> dict[str, Any]:
         report["resources"]["project_id"] = project_id
         recorder.add("project-create", "passed", f"created temporary project id={project_id}")
 
-        modules = admin_client.request("GET", f"/projects/{project_id}/modules")
-        module_id = _first_module_id(modules)
+        module_id, module_created = _ensure_module(admin_client, project_id)
         report["resources"]["module_id"] = module_id
-        recorder.add("module-discovery", "passed", f"selected module id={module_id}")
+        recorder.add(
+            "module-discovery",
+            "passed",
+            f"{'created' if module_created else 'selected'} temporary module id={module_id}",
+        )
 
         case = admin_client.request("POST", "/cases", _case_payload(module_id, target_url))
         case_id = _resource_id(case)

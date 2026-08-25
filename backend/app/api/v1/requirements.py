@@ -337,6 +337,10 @@ async def create_requirement(
         detail=f"创建需求: {requirement.requirement_code}",
     )
     await db.commit()
+    # AsyncSession expires ORM attributes on commit by default. Refresh before
+    # building the response so serialization never triggers implicit IO outside
+    # an awaitable context (which raises MissingGreenlet under async SQLAlchemy).
+    await db.refresh(requirement)
     return RequirementDetailOut(
         **_requirement_item(requirement, linked_case_count=0, covered_ids=set()).model_dump(),
         links=[],

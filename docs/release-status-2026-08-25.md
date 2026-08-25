@@ -10,6 +10,8 @@
 
 > 2026-08-25 P7 Hermes 项目级检索本地交付已完成：`POST /hermes/query` 返回需求、知识和用例的脱敏来源与项目深链，Hermes 自由提问和知识条目深链已接通；N7 验收脚本现在校验三类 marker 来源、项目路径、source_ref 及需求/知识/用例详情读取。后端定向 `21 passed`、前端 Hermes/知识定向 `11 passed`，真实模型、角色账号和远端数据仍待受控验收，不改变 N7 及发布阻塞结论。
 
+> 2026-08-25 P7/N6 真实验收发现并修复两个本地缺陷：blank 项目模块缺失导致脚本无法继续，需求创建在 async commit 后读取过期 ORM 属性导致 q19 返回 HTTP 500/MissingGreenlet；脚本现在创建临时模块，接口在响应前 refresh。q19 失败运行已清理临时项目，脱敏证据见 [`evidence/n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json)；远端重建前不改变 N7 阻塞结论。
+
 > 2026-08-25 计划同步标记：2.3.0 只更新导航职责、执行顺序、验收出口和状态口径，不伪造真实环境证据。N4 缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 保持 `[-]`；N2～N3、N5～N8 的本地实现保持 `[E]`，N9 保持 `[~]`。
 
 > 2026-08-25 N7 Hermes 跨任务失败诊断已完成本地交付：新增工作台诊断接口并复用项目 viewer 权限边界，case 走原诊断链，suite/plan/android/performance 使用各域执行摘要和事件/指标生成规则线索；后端定向 `13 passed`、非集成全量 `2345 passed`，前端全量 `69 files / 293 tests passed`，`vue-tsc` 和生产构建通过。真实模型、需求/知识数据和角色矩阵仍待 N7 验收，不改变 N4-N8 未关闭门禁及当前发布阻塞结论。

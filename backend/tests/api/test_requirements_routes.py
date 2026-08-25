@@ -47,6 +47,7 @@ class _DB:
         self.execute_results = list(execute_results or [])
         self.added = []
         self.commits = 0
+        self.refreshes = 0
 
     async def get(self, model, entity_id):
         name = getattr(model, "__name__", "")
@@ -75,6 +76,9 @@ class _DB:
 
     async def commit(self):
         self.commits += 1
+
+    async def refresh(self, _value):
+        self.refreshes += 1
 
     async def delete(self, value):
         self.added.remove(value)
@@ -163,6 +167,7 @@ def test_create_requirement_assigns_project_scoped_code_and_audits(monkeypatch):
     assert result.requirement_code == "REQ-001-00041"
     assert result.title == "登录"
     assert db.commits == 1
+    assert db.refreshes == 1
     assert len(db.added) == 1
 
 

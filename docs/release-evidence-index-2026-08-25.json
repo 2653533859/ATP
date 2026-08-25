@@ -88,7 +88,7 @@
       "id": "N7.intelligence-real-data",
       "status": "pending",
       "owner": "ai-platform",
-      "evidence": ["docs/development-plan-2026-08-25.md", "docs/n7-intelligence-acceptance.md"],
+      "evidence": ["docs/development-plan-2026-08-25.md", "docs/n7-intelligence-acceptance.md", "docs/evidence/n7-intelligence-acceptance-2026-08-25.json"],
       "blocking_reason": "Hermes, requirements and knowledge flows still need controlled real model/data verification with source display.",
       "dependencies": ["Controlled model endpoint", "temporary requirement and knowledge entries"],
       "recheck_command": "Run Hermes query and editable requirement/case/knowledge retrieval checks, verify citations, then remove temporary entries."

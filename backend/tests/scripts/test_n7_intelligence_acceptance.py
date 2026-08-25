@@ -122,6 +122,25 @@ def test_source_contract_requires_marker_paths_and_references():
         module._assert_source_types({"mode": "project_retrieval", "sources": sources}, "marker", 1)
 
 
+def test_empty_project_modules_are_filled_with_a_temporary_module():
+    module = _module()
+
+    class _Client:
+        def __init__(self):
+            self.calls = []
+
+        def request(self, method, path, payload=None):
+            self.calls.append((method, path, payload))
+            return [] if method == "GET" else {"id": 17}
+
+    client = _Client()
+    assert module._ensure_module(client, 9) == (17, True)
+    assert client.calls == [
+        ("GET", "/projects/9/modules", None),
+        ("POST", "/modules", {"project_id": 9, "name": "N7 acceptance module", "module_code": "N7_ACCEPTANCE"}),
+    ]
+
+
 def test_acceptance_script_and_runbook_keep_credentials_out_of_cli_and_evidence():
     source = SCRIPT.read_text(encoding="utf-8")
     runbook = (ROOT / "docs" / "n7-intelligence-acceptance.md").read_text(encoding="utf-8")

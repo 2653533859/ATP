@@ -53,6 +53,13 @@
 - **Local evidence**: backend Hermes/acceptance/quality tests `21 passed`; frontend Hermes/knowledge tests `11 passed`; targeted Ruff passed; full backend/frontend/type/build gates still run before commit.
 - **Status**: `[E]` local implementation and automated evidence are complete; controlled real model, real requirement/knowledge data, viewer credentials and clean remote deployment evidence remain pending. Do not change N7 to `[x]` until the acceptance command completes against a controlled environment.
 
+## 2.4.2 P7 acceptance defect repair (local fixed, remote redeploy pending, 2026-08-25)
+
+- [x] N7/N6 acceptance scripts now create an explicit temporary module when a blank project has no modules; the branch is covered by script regression tests.
+- [x] Real local acceptance reached the requirement creation endpoint and exposed an existing async SQLAlchemy bug: `POST /requirements` committed the ORM object and then serialized expired attributes, causing `MissingGreenlet`/HTTP 500. The endpoint now refreshes the requirement before serialization, with a regression assertion for the refresh.
+- [x] The temporary remote project was deleted successfully after the failed run; no credentials or response bodies were written. Failure evidence is recorded in [`n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json).
+- **Status**: `[E]` source and tests are fixed, but the q19 deployment must be rebuilt/restarted from the pushed commit before the real-data gate can be rerun. Do not treat the failed run as a passed N7 environment gate.
+
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 
 本节是当前导航重构的最新执行游标，按参考侧栏的五组职责组织功能，不再把设备、APK、Mock、数据集、Web/API 资产和治理能力全部堆在“系统管理”下面。导航入口、旧 URL 兼容和业务闭环分别记录：入口存在只代表可访问，只有完成配置→执行→过程→报告/证据→清理才算模块闭环。

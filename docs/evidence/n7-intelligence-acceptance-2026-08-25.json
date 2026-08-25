@@ -1,0 +1,38 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-25T10:22:55.627274+00:00",
+  "scope": "N7 Hermes, requirement and knowledge retrieval",
+  "status": "failed",
+  "endpoint": "http://127.0.0.1:8000/api/v1",
+  "checks": [
+    {
+      "name": "authentication",
+      "status": "passed",
+      "details": "authenticated as admin; credentials were not recorded"
+    },
+    {
+      "name": "project-create",
+      "status": "passed",
+      "details": "created temporary project id=53"
+    },
+    {
+      "name": "module-create",
+      "status": "passed",
+      "details": "created temporary module id=73"
+    },
+    {
+      "name": "acceptance-execution",
+      "status": "failed",
+      "details": "POST /requirements returned HTTP 500"
+    },
+    {
+      "name": "cleanup",
+      "status": "passed",
+      "details": "temporary project id=53 deleted"
+    }
+  ],
+  "resources": {
+    "project_id": 53,
+    "module_id": 73
+  }
+}
