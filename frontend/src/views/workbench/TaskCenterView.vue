@@ -110,7 +110,30 @@
             </a-tag>
             <span>{{ formatTime(diagnosis.at) }}</span>
           </div>
+          <div class="diagnosis-stats">
+            <div class="diagnosis-stat">
+              <strong>{{ diagnosis.failed_step_count }}</strong>
+              <span>{{ t('task_center.failed_steps') }}</span>
+            </div>
+            <div class="diagnosis-stat">
+              <strong>{{ diagnosis.screenshot_count }}</strong>
+              <span>{{ t('task_center.screenshots') }}</span>
+            </div>
+          </div>
           <p class="diagnosis-summary">{{ diagnosis.summary }}</p>
+          <div v-if="diagnosis.error_samples.length" class="error-samples">
+            <h3>{{ t('task_center.failure_evidence') }}</h3>
+            <article v-for="(sample, index) in diagnosis.error_samples" :key="`${sample.step_index ?? index}-${sample.name ?? index}`" class="error-sample">
+              <div class="error-sample-heading">
+                <strong>{{ t('task_center.error_sample_step', { index: (sample.step_index ?? index) + 1, name: sample.name || t('task_center.not_available') }) }}</strong>
+                <a v-if="isSafeScreenshotUrl(sample.screenshot_url)" :href="sample.screenshot_url ?? undefined" target="_blank" rel="noopener noreferrer">
+                  {{ t('task_center.view_screenshot') }}
+                </a>
+              </div>
+              <p>{{ sample.error_message || t('task_center.no_error_message') }}</p>
+            </article>
+          </div>
+          <a-empty v-else :description="t('task_center.no_error_samples')" />
           <div v-if="diagnosis.repair_suggestions.length" class="repair-suggestions">
             <h3>{{ t('task_center.repair_suggestions') }}</h3>
             <div v-for="suggestion in diagnosis.repair_suggestions" :key="`${suggestion.step_index}-${suggestion.step_name}`" class="repair-suggestion">
@@ -240,6 +263,16 @@ function toPage(value: unknown) {
 function formatTime(value?: string | null) {
   if (!value) return t('task_center.not_available')
   return value.slice(0, 19).replace('T', ' ')
+}
+
+function isSafeScreenshotUrl(value?: string | null) {
+  if (!value) return false
+  try {
+    const protocol = new URL(value, window.location.origin).protocol
+    return protocol === 'http:' || protocol === 'https:'
+  } catch {
+    return false
+  }
 }
 
 function asTask(value: unknown) {
@@ -555,6 +588,78 @@ h1 {
   margin: 0;
   color: var(--c-text);
   line-height: 1.7;
+  white-space: pre-wrap;
+}
+
+.diagnosis-stats {
+  display: flex;
+  gap: 10px;
+}
+
+.diagnosis-stat {
+  min-width: 92px;
+  padding: 8px 10px;
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+}
+
+.diagnosis-stat strong,
+.diagnosis-stat span {
+  display: block;
+}
+
+.diagnosis-stat strong {
+  color: var(--c-text);
+  font-size: 18px;
+}
+
+.diagnosis-stat span {
+  margin-top: 2px;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+
+.error-samples {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.error-samples h3 {
+  margin: 0;
+  color: var(--c-text);
+  font-size: 14px;
+}
+
+.error-sample {
+  padding: 10px 12px;
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+}
+
+.error-sample-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.error-sample-heading strong {
+  color: var(--c-text);
+}
+
+.error-sample-heading a {
+  flex: none;
+  color: var(--c-primary);
+  font-size: 12px;
+}
+
+.error-sample p {
+  margin: 6px 0 0;
+  color: var(--c-text-secondary);
+  line-height: 1.5;
   white-space: pre-wrap;
 }
 

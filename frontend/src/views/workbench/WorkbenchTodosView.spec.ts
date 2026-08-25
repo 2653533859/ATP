@@ -139,7 +139,17 @@ beforeEach(() => {
       evidence: '设备未响应',
       confidence: 0.8,
     }],
-    error_samples: [],
+    error_samples: [{
+      step_index: 0,
+      name: '启动应用',
+      error_message: '控件未响应',
+      screenshot_url: 'https://minio.example.test/screenshot.png',
+    }, {
+      step_index: 1,
+      name: '异常样本',
+      error_message: '不安全地址不应渲染为链接',
+      screenshot_url: 'javascript:alert(1)',
+    }],
   })
   routerReplace.mockResolvedValue(undefined)
 })
@@ -247,6 +257,10 @@ describe('TaskCenterView', () => {
     expect(failureDiagnosis).toHaveBeenCalledWith('android', 9)
     expect(wrapper.text()).toContain('设备前置操作失败')
     expect(wrapper.text()).toContain('检查设备连接')
+    expect(wrapper.text()).toContain('控件未响应')
+    expect(wrapper.text()).toContain('task_center.view_screenshot')
+    expect(wrapper.findAll('a[target="_blank"]')).toHaveLength(1)
+    expect(wrapper.find('a[target="_blank"]').attributes('href')).toBe('https://minio.example.test/screenshot.png')
     wrapper.unmount()
   })
 })

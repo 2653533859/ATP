@@ -1538,6 +1538,13 @@ export interface WorkbenchBatchActionResult {
   failures: Array<{ task_type: WorkbenchTaskType; run_id: number; detail: string }>
 }
 
+export interface FailureDiagnosisErrorSample {
+  step_index?: number | null
+  name?: string | null
+  error_message?: string | null
+  screenshot_url?: string | null
+}
+
 export interface FailureDiagnosisResult {
   status: 'done' | 'skipped'
   source: 'llm' | 'rule' | 'rule_fallback'
@@ -1554,7 +1561,7 @@ export interface FailureDiagnosisResult {
     evidence: string
     confidence: number
   }>
-  error_samples: Array<Record<string, unknown>>
+  error_samples: FailureDiagnosisErrorSample[]
 }
 
 export type HermesSourceType = 'knowledge' | 'requirement' | 'case'
