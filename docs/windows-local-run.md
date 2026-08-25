@@ -357,7 +357,7 @@ Remove-Item Env:ATP_USERNAME, Env:ATP_PASSWORD -ErrorAction SilentlyContinue
 .\scripts\windows-local-smoke.ps1 -RequireAndroid -AndroidTarget '<device-ip>:5555'
 
 # 触发一个已审核、已绑定设备的 Android 低代码用例，并轮询最终结果
-.\scripts\windows-local-smoke.ps1 -AndroidCaseId 123 -RequireAndroidLowcode -RequireAndroidEvidence -AndroidRunTimeoutSeconds 300 -SkipReports
+.\scripts\windows-local-smoke.ps1 -AndroidCaseId 123 -RequireAndroidLowcode -RequireAndroidEvidence -RequireAndroidRecording -AndroidRunTimeoutSeconds 300 -SkipReports
 
 # 执行一个已有的 Web 低代码用例，并强制检查 download 对象证据
 .\scripts\windows-local-smoke.ps1 -WebCaseId 123 -RequireWebDownload -WebRunTimeoutSeconds 180
@@ -368,7 +368,7 @@ Remove-Item Env:ATP_USERNAME, Env:ATP_PASSWORD -ErrorAction SilentlyContinue
 
 `-ReportPath` 可以指定自定义报告路径；传入相对路径时按项目根目录解析。默认会选择最近的历史执行记录生成 HTML/JUnit 报告；如果当前没有历史执行记录，报告检查会失败，避免冒烟结果误报为已验证。首次使用临时 Web 用例时可显式使用 `-SkipReports` 跳过这项与历史记录相关的检查。临时 Web 文件上传成功后会调用存储清理接口删除测试对象；如果上传响应异常但已返回对象引用，脚本仍会执行补偿清理。
 
-传入 `-AndroidCaseId` 后，脚本会校验用例是 `active/approved`、可自动执行、包含 `config.steps` 且绑定 `device_serial` 或 `device_matrix`；在 `ADB_SCAN_MODE=worker` 下还要求 Worker 注册和设备扫描先通过，否则直接阻断且不创建 Run。前置条件通过后才会触发 `/cases/{id}/run` 并轮询 `/runs/{id}`。`-RequireAndroidLowcode` 将该项设为必需，`-RequireAndroidEvidence` 还会要求最终结果包含步骤截图或 Android 设备附件（例如 logcat）；用例 ID、运行 ID 和数量会写入脱敏报告，不写入设备序列号。该入口不会创建、修改或删除现有 Android 用例；未连接设备时应保持失败/阻断，不能记录为通过。
+传入 `-AndroidCaseId` 后，脚本会校验用例是 `active/approved`、可自动执行、包含 `config.steps` 且绑定 `device_serial` 或 `device_matrix`；在 `ADB_SCAN_MODE=worker` 下还要求 Worker 注册和设备扫描先通过，否则直接阻断且不创建 Run。前置条件通过后才会触发 `/cases/{id}/run` 并轮询 `/runs/{id}`。`-RequireAndroidLowcode` 将该项设为必需，`-RequireAndroidEvidence` 要求最终结果包含步骤截图或 Android 设备附件（例如 logcat），`-RequireAndroidRecording` 则进一步要求 `result_summary.android_artifacts.screen_recording` 存在，避免只凭截图或 logcat 把录屏失败误判为通过；用例 ID、运行 ID 和数量会写入脱敏报告，不写入设备序列号。该入口不会创建、修改或删除现有 Android 用例；未连接设备时应保持失败/阻断，不能记录为通过。
 
 Android 扫描和低代码执行都仍需连接真实设备；Linux/Kubernetes 性能验收也不在 Windows 本地冒烟范围内。
 

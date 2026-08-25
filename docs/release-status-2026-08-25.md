@@ -4,9 +4,11 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
-> 当前计划登记（2.0）：导航已按工作台、测试能力、测试资产、智能中枢、系统五组统一，N0-N9 的范围与验收出口见开发计划 2.0。N4 的 Worker/目标服务采样、Kubernetes 多节点/副本/Worker 资源预检、保留清理和跨端点 MinIO 复制/恢复 smoke 已形成可执行入口；真实目标仍缺 Kubernetes/独立灾备 MinIO/生产 Prometheus，下一步只做环境验收。N2 Karing 包名、启动入口和 Worker 前置已通过，低代码及后续媒体/专项/报告证据待验收；随后推进 N5-N8 外部依赖复核和 N9 发布收口。未关闭门禁继续按“待环境验收”处理。
+> 当前计划登记（2.0）：导航已按工作台、测试能力、测试资产、智能中枢、系统五组统一，N0-N9 的范围与验收出口见开发计划 2.0。N4 的 Worker/目标服务采样、Kubernetes 多节点/副本/Worker 资源预检、保留清理和跨端点 MinIO 复制/恢复 smoke 已形成可执行入口；真实目标仍缺 Kubernetes/独立灾备 MinIO/生产 Prometheus，下一步只做环境验收。N2 Karing 包名、启动入口、Worker 前置、低代码和录屏回传已通过，异常回放、专项任务、事件/日志/报告和最终清理待验收；随后推进 N5-N8 外部依赖复核和 N9 发布收口。未关闭门禁继续按“待环境验收”处理。
 
-> 2026-08-25 N2 Karing 真机前置已通过：设备 `172.16.102.91:5555` 安装并解析 `com.nebula.karing/.MainActivity`，Windows Android Worker、依赖 readiness、Worker registry 和设备扫描通过。低代码、录屏/异常回放、专项任务、事件/日志/报告和清理尚未执行，发布结论保持“不具备无条件发布资格”。脱敏证据见 [`android-karing-acceptance-2026-08-25.json`](evidence/android-karing-acceptance-2026-08-25.json) 与 [`windows-android-karing-worker-2026-08-25.json`](evidence/windows-android-karing-worker-2026-08-25.json)。
+> 2026-08-25 N2 Karing 真机前置阶段已通过：设备 `172.16.102.91:5555` 安装并解析 `com.nebula.karing/.MainActivity`，Windows Android Worker、依赖 readiness、Worker registry 和设备扫描通过；后续低代码与录屏结果见最新 N2 记录。发布结论保持“不具备无条件发布资格”。脱敏证据见 [`android-karing-acceptance-2026-08-25.json`](evidence/android-karing-acceptance-2026-08-25.json) 与 [`windows-android-karing-worker-2026-08-25.json`](evidence/windows-android-karing-worker-2026-08-25.json)。
+
+> 2026-08-25 N2 Karing 低代码与录屏已通过真实单设备复核：`run 27` 通过启动/等待/截图 3/3，`run 29` 在 `-RequireAndroidRecording` 门禁下返回 3/3 步骤、3 张截图、3 个产物且 `recording=True`；两个临时项目均已清理。异常回放、专项任务、事件/日志/报告和最终对象清理仍未关闭发布门禁。证据见 [`android-karing-lowcode-2026-08-25.json`](evidence/android-karing-lowcode-2026-08-25.json) 与 [`android-karing-recording-gate-2026-08-25.json`](evidence/android-karing-recording-gate-2026-08-25.json)。
 
 > N2 控件属性获取诊断已完成本地交付：API 进程和 Windows Android Worker 返回 `found`/`not_found`/`unavailable` 及脱敏诊断码；录制界面在不可用时提示并保留坐标回退。后端定向 `22 passed`、前端相关定向 `23 passed`、后端非集成全量 `2305 passed`、前端全量 `69 files / 284 tests passed`，类型检查、生产构建、Ruff、格式检查和差异检查通过。真实 Karing 页面、UIAutomator 权限和真机 Worker 回传仍未关闭发布门禁。
 
@@ -127,8 +129,8 @@
 ### 当前剩余阻塞
 
 - q19 Backend 的管理员 bootstrap 启动缺陷已按 `65eef50` 修复并完成真实复验：初始化按用户名/邮箱幂等识别，不覆盖已有账号密码或角色；当前账号登录、依赖 readiness、Worker registry 和设备扫描均已通过。
-- 历史 Android 前置证据仍有效，但已由最新复核补充：Windows ADB 当前有 3 台 `device`，Worker doctor、PostgreSQL、Redis、MinIO 和 logcat 检查通过；目标设备 `172.16.102.91:5555` 已发现 Karing，低代码和专项操作仍未执行。
-- 最新前置证据已在 `172.16.102.91:5555` 确认 Karing 包名和启动入口，且 Windows Worker 注册/扫描通过；剩余阻塞转为低代码最小执行、录屏/异常回放、专项任务、事件/日志/报告和对象清理，不能用其他应用、Worker 心跳或跳过项替代。
+- 历史 Android 前置证据仍有效，但已由最新复核补充：Windows ADB 当前有 3 台 `device`，Worker doctor、PostgreSQL、Redis、MinIO 和 logcat 检查通过；目标设备 `172.16.102.91:5555` 已发现 Karing。
+- 最新复核已关闭 Karing 包名、启动入口、Worker 注册/扫描、低代码最小执行和录屏回传；剩余阻塞转为异常回放、专项任务、事件/日志/报告和对象清理，不能用其他应用、Worker 心跳或跳过项替代。
 
 本节计划与 [`docs/product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md) 的 0.7 节、[`Task.md`](../Task.md) 和 [`MEMORY.md`](../MEMORY.md) 同步维护。
 
@@ -165,7 +167,7 @@
 
 当前优先关闭 Android P0-B.3 单设备执行闭环，拆分为：真实 APK 上传/包名识别与选择、低代码最小执行、录屏与异常回放、专项任务、事件/日志/报告回传。每一项都必须同时具备代码、回归测试、代码审查修复和脱敏证据；没有 APK、包名或在线 `device` 时，只记录阻塞，不创建脏运行。
 
-P0-B.3.5 事件、日志与报告回传已完成本地实现，并已用通用 APK 完成低代码录屏、设备信息、logcat、截图和结果回传验证；Karing 包身份和 Worker 前置现已通过，下一步是 Karing 无破坏低代码最小执行，再继续录屏/异常回放、专项任务、事件/日志/报告和清理。未完成前不移动 N2 游标。
+P0-B.3.5 事件、日志与报告回传已完成本地实现，并已用通用 APK 完成低代码录屏、设备信息、logcat、截图和结果回传验证；Karing 包身份、Worker 前置、低代码和录屏回传现已通过，下一步是异常回放、专项任务、事件/日志/报告详情与最终对象清理。未完成前不移动 N2 游标。
 
 Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复核 Windows API/Web、真实通知供应商、外部缺陷平台、性能生产环境和发布收口。详细依赖、出口和状态见 [`product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md) 的“0.5 当前开发计划与跟踪台账”，执行勾选见 [`Task.md`](../Task.md)。
 

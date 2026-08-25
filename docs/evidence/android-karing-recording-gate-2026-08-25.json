@@ -1,0 +1,147 @@
+{
+  "generated_at": "2026-08-25T04:45:21.8084921Z",
+  "repo_root": "E:\\csh\\MyProject\\ATP",
+  "required_failures": 0,
+  "results": [
+    {
+      "name": "Windows local doctor",
+      "status": "passed",
+      "required": true,
+      "details": "[ok]   Node.js 20+, Vite and Playwright packages\n[ok]   Web recording mode: local\n[ok]   Python Playwright package\n[ok]   Python Playwright Chromium browser\n[ok]   APP_SECRET_KEY is configured (value hidden)\n[ok]   POSTGRES_PASSWORD is configured (value hidden)\n[ok]   MINIO_ROOT_PASSWORD is configured (value hidden)\n[ok]   FIRST_ADMIN_PASSWORD is configured (value hidden)\n[ok]   port 8000 for Backend API\n[ok]   port 5173 for Frontend Vite\n[ok]   PostgreSQL endpoint 172.31.27.133:5432\n[ok]   Redis endpoint 172.31.27.133:6379\n[ok]   MinIO endpoint 172.31.27.133:9000\n[ok]   ADB executable\n[ok]   Android device online\n[ok]   Performance executor k6\n[ok]   Performance executor Locust\n[ok]   Performance executor gRPC\n[ok]   Performance node queue: performance.worker-local\nDoctor passed with 0 warning(s).",
+      "timestamp": "2026-08-25T04:45:06.7142875Z"
+    },
+    {
+      "name": "Backend health",
+      "status": "passed",
+      "required": true,
+      "details": "HTTP 200",
+      "timestamp": "2026-08-25T04:45:06.8341495Z"
+    },
+    {
+      "name": "Frontend login page",
+      "status": "passed",
+      "required": true,
+      "details": "HTTP 200",
+      "timestamp": "2026-08-25T04:45:06.8584033Z"
+    },
+    {
+      "name": "Live API admin login",
+      "status": "passed",
+      "required": true,
+      "details": "HttpOnly cookie session established",
+      "timestamp": "2026-08-25T04:45:06.9504101Z"
+    },
+    {
+      "name": "Live dependency PostgreSQL",
+      "status": "passed",
+      "required": true,
+      "details": "status=ok code=ok latency_ms=4.7",
+      "timestamp": "2026-08-25T04:45:06.9859502Z"
+    },
+    {
+      "name": "Live dependency Redis",
+      "status": "passed",
+      "required": true,
+      "details": "status=ok code=ok latency_ms=3.2",
+      "timestamp": "2026-08-25T04:45:06.9878424Z"
+    },
+    {
+      "name": "Live dependency MinIO",
+      "status": "passed",
+      "required": true,
+      "details": "status=ok code=ok latency_ms=5.7",
+      "timestamp": "2026-08-25T04:45:06.9898052Z"
+    },
+    {
+      "name": "Live dependency readiness",
+      "status": "passed",
+      "required": true,
+      "details": "status=ok",
+      "timestamp": "2026-08-25T04:45:06.9905317Z"
+    },
+    {
+      "name": "Live API current user",
+      "status": "passed",
+      "required": true,
+      "details": "authenticated read response valid",
+      "timestamp": "2026-08-25T04:45:07.0041287Z"
+    },
+    {
+      "name": "Live API project list",
+      "status": "passed",
+      "required": true,
+      "details": "authenticated read response valid",
+      "timestamp": "2026-08-25T04:45:07.0167823Z"
+    },
+    {
+      "name": "Web recording Worker status",
+      "status": "passed",
+      "required": true,
+      "details": "mode=worker registered=1 available=1",
+      "timestamp": "2026-08-25T04:45:07.0311957Z"
+    },
+    {
+      "name": "Playwright mock E2E suite",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped by -SkipPlaywright.",
+      "timestamp": "2026-08-25T04:45:07.0347779Z"
+    },
+    {
+      "name": "Playwright browser matrix login page",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped by -SkipBrowserMatrix.",
+      "timestamp": "2026-08-25T04:45:07.0362191Z"
+    },
+    {
+      "name": "Web file upload and cleanup",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped by -SkipFileTransfer.",
+      "timestamp": "2026-08-25T04:45:07.0417838Z"
+    },
+    {
+      "name": "Web low-code case execution",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped because -WebCaseId was not supplied.",
+      "timestamp": "2026-08-25T04:45:07.0514807Z"
+    },
+    {
+      "name": "Run report export",
+      "status": "skipped",
+      "required": false,
+      "details": "Skipped by -SkipReports.",
+      "timestamp": "2026-08-25T04:45:07.0561005Z"
+    },
+    {
+      "name": "Android network doctor",
+      "status": "passed",
+      "required": true,
+      "details": "=== ATP Android Network Doctor (PowerShell) ===\nTarget: 172.16.102.91:5555\n\n[OK]   adb binary found: E:\\csh\\adb\\platform-tools\\adb.exe\n[OK]   adb server restart skipped\n[OK]   connect 172.16.102.91:5555\n[OK]   device listed: 172.16.102.91:5555  device\n[OK]   shell echo: ok\n\nAll checks passed.",
+      "timestamp": "2026-08-25T04:45:08.3143514Z"
+    },
+    {
+      "name": "Android Worker registry",
+      "status": "passed",
+      "required": true,
+      "details": "online Worker(s): android-win-HPS",
+      "timestamp": "2026-08-25T04:45:08.3342178Z"
+    },
+    {
+      "name": "Android device scan callback",
+      "status": "passed",
+      "required": true,
+      "details": "Worker scan completed with 3 device(s).",
+      "timestamp": "2026-08-25T04:45:12.4915625Z"
+    },
+    {
+      "name": "Android low-code case execution",
+      "status": "passed",
+      "required": true,
+      "details": "run 29 status=passed steps=3 screenshots=3 artifacts=3 recording=True",
+      "timestamp": "2026-08-25T04:45:21.7965847Z"
+    }
+  ]
+}

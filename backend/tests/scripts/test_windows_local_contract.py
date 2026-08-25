@@ -204,6 +204,7 @@ def test_windows_local_smoke_covers_live_and_browser_paths_without_secrets():
     assert "[int]$AndroidCaseId = 0" in script
     assert "[switch]$RequireAndroidLowcode" in script
     assert "[switch]$RequireAndroidEvidence" in script
+    assert "[switch]$RequireAndroidRecording" in script
     assert "[int]$AndroidRunTimeoutSeconds = 180" in script
     assert "[int]$WebCaseId = 0" in script
     assert "[switch]$SeedWebDownloadCase" in script
@@ -263,6 +264,9 @@ def test_windows_local_smoke_covers_live_and_browser_paths_without_secrets():
     assert "is not an Android low-code case with a device binding" in script
     assert "Android low-code case $caseId must be active and approved" in script
     assert "no screenshot or Android artifact evidence was returned" in script
+    assert "screen_recording artifact was not returned" in script
+    assert "$recordingPassed = -not [string]::IsNullOrWhiteSpace([string]$artifacts.screen_recording)" in script
+    assert "-not $RequireAndroidRecording -or $recordingPassed" in script
     assert "$_.Name -notlike '*_error'" in script
     assert "Android Worker registry/scan prerequisites did not pass; no run was created." in script
     assert "Invoke-AndroidLowcodeCheck -Values $values" in script

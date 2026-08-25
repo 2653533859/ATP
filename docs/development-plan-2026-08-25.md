@@ -22,7 +22,7 @@
 | --- | --- | --- | --- | --- |
 | N0 | 导航壳与工作台 | 五组侧栏、折叠/刷新/窄屏、深链选中、面包屑、项目上下文和权限入口 | 五组入口可达；刷新和深链不丢上下文；无权限入口不展示 | `[E]` 本地完成，真实账号复核持续维护 |
 | N1 | 接口测试 | HTTP、会话复用、环境变量、OpenAPI/Postman、GraphQL、WebSocket、gRPC、报告导出 | 请求、断言、提取、依赖、报告和清理均可追踪 | `[E]` q19 受控目标已通过，生产协议服务独立跟踪 |
-| N2 | APP 自动化 | Windows Agent/ADB、设备池、APK 包名、低代码、录屏、专项任务和报告 | Karing 真实 APK 在单设备完成执行、事件、日志、媒体、报告和清理 | `[~]` Karing 包名/Worker 前置已通过，低代码及后续证据待验收 |
+| N2 | APP 自动化 | Windows Agent/ADB、设备池、APK 包名、低代码、录屏、专项任务和报告 | Karing 真实 APK 在单设备完成执行、事件、日志、媒体、报告和清理 | `[~]` Karing 低代码/截图/录屏回传已通过，专项任务和报告闭环待验收 |
 | N3 | UI 自动化 | Playwright 录制、元素库、页面对象、视觉基线、Trace/HAR、浏览器矩阵 | Chromium/Firefox/WebKit 均可录制、回放并查看失败证据 | `[E]` 本地/q19 证据已具备，随 Windows 复核 |
 | N4 | 性能测试 | 压测模型、节点/副本预检、采样、趋势、基线、报告、保留清理和恢复 | 真实多节点短压、取消、采样、生命周期和跨主机恢复均有证据 | `[~]` 本地入口完成，真实 Kubernetes/Prometheus/独立 MinIO 待验收 |
 | N5 | AI 智能测试 | 三方模型、多模态/思考参数、用例/数据集/Mock 草稿生成、诊断和审计 | 结果可编辑、有来源、有权限和限额；失败明确且不泄露密钥 | `[E]` 本地完成，真实模型和项目数据待验收 |
@@ -50,9 +50,10 @@
 
 - [x] 在明确目标设备 `172.16.102.91:5555` 上以设备包管理确认 `com.nebula.karing` 已安装，解析到 `com.nebula.karing/.MainActivity`；设备为 Android 14 / SDK 34，未保存 APK 内容或日志正文。
 - [x] Windows Android Worker doctor、Backend 登录、PostgreSQL/Redis/MinIO readiness、Worker registry 和 Android 设备扫描通过；扫描返回 3 台在线设备。脱敏证据见 [`android-karing-acceptance-2026-08-25.json`](evidence/android-karing-acceptance-2026-08-25.json) 和 [`windows-android-karing-worker-2026-08-25.json`](evidence/windows-android-karing-worker-2026-08-25.json)。
-- [ ] 以 `172.16.102.91:5555` 和 `com.nebula.karing` 创建或选择临时、可清理的已审批 Android 低代码用例，完成启动/等待/截图等无破坏动作；运行必须具备步骤结果、截图/设备产物和终态，并在验证后清理临时项目数据。
-- [ ] 低代码通过后继续验证录屏/异常回放、性能/稳定性/流畅度专项任务、事件/日志/报告详情、下载和对象清理；任一环节失败只记录实际失败原因，不以 Worker 心跳或跳过项替代。
-- **状态**：`[~]` Karing 包身份和 Windows 执行前置门禁已解除；真实用例执行、媒体、专项任务和报告门禁仍未关闭。
+- [x] 以 `172.16.102.91:5555` 和 `com.nebula.karing` 创建可清理的已审批 Android 低代码用例，完成启动/等待/截图等无破坏动作；`run 27` 的 3/3 步骤、3 张截图和 2 个 Android 产物通过，临时项目已清理。
+- [x] 录屏门禁已补强：`windows-local-smoke.ps1` 新增 `-RequireAndroidRecording`，只有 `result_summary.android_artifacts.screen_recording` 存在才算录屏通过；真实 `run 29` 为 `passed`，3/3 步骤、3 张截图、3 个产物且 `recording=True`，临时项目已清理。脱敏证据见 [`android-karing-lowcode-2026-08-25.json`](evidence/android-karing-lowcode-2026-08-25.json) 和 [`android-karing-recording-gate-2026-08-25.json`](evidence/android-karing-recording-gate-2026-08-25.json)。
+- [ ] 继续验证异常回放、性能/稳定性/流畅度专项任务、事件/日志/报告详情、下载和对象清理；任一环节失败只记录实际失败原因，不以 Worker 心跳或跳过项替代。
+- **状态**：`[~]` Karing 包身份、Windows Worker、低代码、截图和录屏回传门禁已通过；异常回放、专项任务、事件/日志/报告和最终清理闭环仍未关闭。
 
 ## 2.1 Android 控件属性获取诊断（2026-08-25）
 
@@ -314,7 +315,7 @@
 | --- | --- | --- | --- | --- |
 | N0 | 导航壳与工作台 | 首页、待办、项目中心、任务中心统一项目上下文，深链和权限入口稳定 | 折叠/刷新/窄屏/深链可用；待办、任务状态和失败事件可追踪 | `[E]` 本地完成，真实账号复核随 Windows smoke 维护 |
 | N1 | 接口测试 | HTTP、环境变量、会话复用、OpenAPI/Postman 导入、gRPC TLS Unary、GraphQL、WebSocket、流式 gRPC 和完整报告形成闭环 | 请求、断言、提取、依赖、导入预览/落库/回读、报告和清理有证据 | `[E]` q19 受控协议与报告闭环已通过；生产环境独立跟踪 |
-| N2 | APP 自动化 | Windows Agent/ADB、APK 包名、低代码、录屏、专项任务、事件/日志/报告回传 | Karing 真实 APK 在单设备上完成执行、失败定位、媒体查看和清理 | `[~]` 通用 APK 链路已通过；Karing 包与专项报告仍阻塞 |
+| N2 | APP 自动化 | Windows Agent/ADB、APK 包名、低代码、录屏、专项任务、事件/日志/报告回传 | Karing 真实 APK 在单设备上完成执行、失败定位、媒体查看和清理 | `[~]` 包身份、Worker、低代码和录屏回传已通过；专项与报告仍待验收 |
 | N3 | UI 自动化 | Playwright 录制、元素/页面对象、视觉基线、Trace/HAR、日志和多浏览器 | Chromium/Firefox/WebKit 均可录制、回放并查看失败证据 | `[E]` 本地/q19 证据已有，继续随 Windows 复核 |
 | N4 | 性能测试 | 压测模型、节点分片、采样、趋势、基线、报告和保留清理 | 多节点容量校验、采样、基线门禁、报告和恢复演练可复核 | `[~]` 本地和 q19 短压完成；生产多节点/监控/恢复待验收 |
 | N5 | AI 智能测试 | 模型拉取、多模态/思考参数、草稿生成、诊断和调用审计 | 结果带来源、可编辑、可限额；失败和敏感值处理可解释 | `[E]` 本地完成，真实模型和项目数据待验收 |
@@ -326,7 +327,7 @@
 ### 当前执行游标
 
 1. **N4 性能真实环境**：N1 q19 受控协议与报告闭环已通过；N4 本地采样、容量预检、保留清理和跨端点恢复入口已齐，下一步验证真实多节点、Prometheus/MinIO 生命周期和跨主机恢复。
-2. **N2 APP 自动化**：Karing 的真实 `package_name` 尚未确认，暂保持阻塞；拿到 APK 或设备包名后再完成 APK 选择、低代码、录屏/异常回放、专项任务和事件/日志/报告回传。
+2. **N2 APP 自动化**：Karing 的真实 `package_name`、Worker 前置、低代码和录屏回传已确认；下一步完成异常回放、性能/稳定性/流畅度专项任务、事件/日志/报告详情、下载和最终清理。
 3. **N0/N3 Windows 复核**：已完成当前账号认证、依赖、文件传输、Web 低代码、浏览器矩阵和报告导出的完整 smoke；脱敏证据见 [`windows-full-readiness-2026-08-25.json`](evidence/windows-full-readiness-2026-08-25.json)。
 4. **N4～N9 外部收口**：依次验证性能真实环境、通知、外部缺陷平台与发布索引，保持凭据只存在于受控环境。
 

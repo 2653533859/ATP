@@ -12,6 +12,7 @@ param(
   [int]$AndroidCaseId = 0,
   [switch]$RequireAndroidLowcode,
   [switch]$RequireAndroidEvidence,
+  [switch]$RequireAndroidRecording,
   [int]$AndroidRunTimeoutSeconds = 180,
   [int]$WebCaseId = 0,
   [switch]$SeedWebDownloadCase,
@@ -828,13 +829,13 @@ function Invoke-AndroidLowcodeCheck {
   param([hashtable]$Values)
 
   $caseId = [int]$AndroidCaseId
-  $required = $caseId -gt 0 -or $RequireAndroidLowcode -or $RequireAndroidEvidence
+  $required = $caseId -gt 0 -or $RequireAndroidLowcode -or $RequireAndroidEvidence -or $RequireAndroidRecording
   if (-not $required) {
     Add-Result -Name 'Android low-code case execution' -Status 'skipped' -Required:$false -Details 'Skipped because -AndroidCaseId was not supplied.'
     return
   }
   if ($caseId -le 0) {
-    Add-Result -Name 'Android low-code case execution' -Status 'failed' -Required:$true -Details 'RequireAndroidLowcode/RequireAndroidEvidence requires a valid Android case ID.'
+    Add-Result -Name 'Android low-code case execution' -Status 'failed' -Required:$true -Details 'RequireAndroidLowcode/RequireAndroidEvidence/RequireAndroidRecording requires a valid Android case ID.'
     return
   }
   if ([string]::IsNullOrWhiteSpace($script:LiveAccessToken)) {
@@ -898,14 +899,17 @@ function Invoke-AndroidLowcodeCheck {
     $artifactCount = @($artifacts.PSObject.Properties | Where-Object {
         $_.Name -notlike '*_error' -and -not [string]::IsNullOrWhiteSpace([string]$_.Value)
       }).Count
+    $recordingPassed = -not [string]::IsNullOrWhiteSpace([string]$artifacts.screen_recording)
     $evidencePassed = $screenshotCount -gt 0 -or $artifactCount -gt 0
-    $passed = $finished -and $finalStatus -eq 'passed' -and (-not $RequireAndroidEvidence -or $evidencePassed)
+    $passed = $finished -and $finalStatus -eq 'passed' -and (-not $RequireAndroidEvidence -or $evidencePassed) -and (-not $RequireAndroidRecording -or $recordingPassed)
     $details = if (-not $finished) {
       "run $runId did not finish within ${timeoutSeconds}s"
+    } elseif ($RequireAndroidRecording -and -not $recordingPassed) {
+      "run $runId status=$finalStatus; screen_recording artifact was not returned"
     } elseif ($RequireAndroidEvidence -and -not $evidencePassed) {
       "run $runId status=$finalStatus; no screenshot or Android artifact evidence was returned"
     } else {
-      "run $runId status=$finalStatus steps=$($stepResults.Count) screenshots=$screenshotCount artifacts=$artifactCount"
+      "run $runId status=$finalStatus steps=$($stepResults.Count) screenshots=$screenshotCount artifacts=$artifactCount recording=$recordingPassed"
     }
     Add-Result -Name 'Android low-code case execution' -Status $(if ($passed) { 'passed' } else { 'failed' }) -Required:$required -Details $details
   } catch {
