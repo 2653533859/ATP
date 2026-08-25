@@ -6,6 +6,8 @@
 
 > 2026-08-25 N5 AI 模型连接健康检查已完成本地交付：AI 配置页新增“测试连接”，后端复用已保存密钥并允许新建 keyless Ollama；健康请求固定短文本、超时和 token 上限，Endpoint 规范化，响应/错误/审计均不泄露密钥。后端非集成全量 `2317 passed`、前端全量 `69 files / 287 tests passed`，真实模型连接、多模态/思考参数和项目生成仍待环境验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.1.2。
 
+> 2026-08-25 N5 模型能力提示与思考快捷配置已完成本地交付：AI 配置页默认关闭思考，支持 `thinking`、`enable_thinking`、`reasoning_effort` 快捷设置，并提示模型的思考/多模态能力线索；前端全量 `69 files / 289 tests passed`，真实参数接受情况仍待受控模型验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.1.3。
+
 > 2026-08-25 N2 Karing 真机前置阶段已完成：目标设备 `172.16.102.91:5555` 的设备包管理确认 `com.nebula.karing` 和 `com.nebula.karing/.MainActivity`，Windows Android Worker、依赖 readiness、Worker registry 和设备扫描通过；后续低代码与录屏结果见下方最新记录。脱敏证据见 [`evidence/android-karing-acceptance-2026-08-25.json`](evidence/android-karing-acceptance-2026-08-25.json) 与 [`evidence/windows-android-karing-worker-2026-08-25.json`](evidence/windows-android-karing-worker-2026-08-25.json)。
 
 > 2026-08-25 N2 Karing 低代码与录屏回传已通过：真实 `run 27` 完成启动/等待/截图 3/3，`run 29` 开启录屏后 3/3 步骤、3 张截图、3 个产物且专用 `screen_recording` 门禁通过；临时项目均已清理。`windows-local-smoke.ps1` 新增 `-RequireAndroidRecording`，脚本契约 `12 passed`、PowerShell 解析通过。稳定性/Monkey、性能、流畅度、事件/日志/报告和最终清理已由后续 N2 证据关闭，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.0.5～2.0.7。

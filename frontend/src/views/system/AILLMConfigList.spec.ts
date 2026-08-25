@@ -166,4 +166,44 @@ describe('AILLMConfigList', () => {
     )
     wrapper.unmount()
   })
+
+  it('provides thinking shortcuts without enabling reasoning by default', async () => {
+    const wrapper = mountPage()
+    const vm = wrapper.vm as any
+
+    vm.resetForm()
+    vm.defaultParamsText = '{"temperature":0.2,"thinking":true}'
+    expect(vm.parseDefaultParams()).toEqual({ temperature: 0.2, thinking: true })
+
+    vm.handleThinkingModeChange('reasoning_effort_medium')
+    expect(JSON.parse(vm.defaultParamsText)).toEqual({
+      temperature: 0.2,
+      reasoning_effort: 'medium',
+    })
+    expect(vm.thinkingMode).toBe('reasoning_effort_medium')
+
+    vm.handleThinkingModeChange('')
+    expect(JSON.parse(vm.defaultParamsText)).toEqual({ temperature: 0.2 })
+    wrapper.unmount()
+  })
+
+  it('shows model capability hints after model discovery', () => {
+    const wrapper = mountPage()
+    const vm = wrapper.vm as any
+
+    vm.resetForm()
+    vm.form.model_name = 'qwen3'
+    vm.modelOptions = [{
+      id: 'qwen3',
+      label: 'qwen3',
+      supports_vision: false,
+      supports_reasoning: true,
+      capability_source: 'model-name-hint',
+      capabilities: ['reasoning'],
+    }]
+
+    expect(vm.reasoningCapabilityHint).toBe('system_pages.ai_llm.reasoning_supported')
+    expect(vm.selectedModelOption.supports_reasoning).toBe(true)
+    wrapper.unmount()
+  })
 })

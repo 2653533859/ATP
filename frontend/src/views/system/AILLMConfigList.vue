@@ -124,13 +124,24 @@
             style="margin-top: 8px"
           />
         </a-form-item>
+        <a-form-item :label="t('system_pages.ai_llm.thinking_label')">
+          <a-select
+            v-model:value="thinkingMode"
+            :options="thinkingModeOptions"
+            @change="handleThinkingModeChange"
+          />
+          <div class="capability-hint">{{ reasoningCapabilityHint }}</div>
+        </a-form-item>
         <a-form-item :label="t('common.enabled')">
           <a-switch v-model:checked="form.enabled" />
         </a-form-item>
         <a-form-item :label="t('system_pages.ai_llm.vision_label')">
           <a-switch v-model:checked="form.supports_vision" />
-          <span v-if="selectedModelOption?.supports_vision" class="capability-hint">
+          <span v-if="selectedModelOption?.supports_vision === true" class="capability-hint">
             {{ t('system_pages.ai_llm.vision_detected') }}
+          </span>
+          <span v-else-if="selectedModelOption?.supports_vision === false" class="capability-warning">
+            {{ t('system_pages.ai_llm.vision_not_detected') }}
           </span>
           <span v-else class="capability-hint">
             {{ t('system_pages.ai_llm.vision_hint') }}
@@ -171,6 +182,10 @@ interface FormState {
   description: string
 }
 
+type ThinkingMode = '' | 'thinking' | 'enable_thinking' | 'reasoning_effort_low' | 'reasoning_effort_medium' | 'reasoning_effort_high'
+
+const THINKING_PARAM_KEYS = ['thinking', 'enable_thinking', 'reasoning_effort'] as const
+
 const configs = ref<AILLMConfigItem[]>([])
 const loading = ref(false)
 const saving = ref(false)
@@ -178,6 +193,8 @@ const showModal = ref(false)
 const editing = ref<AILLMConfigItem | null>(null)
 const defaultParamsText = ref('{}')
 const defaultParamsError = ref('')
+const thinkingMode = ref<ThinkingMode>('')
+const thinkingModeDirty = ref(false)
 const modelOptions = ref<AILLMModelOption[]>([])
 const discoveringModels = ref(false)
 const testingConnection = ref(false)
@@ -232,6 +249,25 @@ const modelSelectOptions = computed(() => modelOptions.value.map((model) => {
 const selectedModelOption = computed(() =>
   modelOptions.value.find((model) => model.id === form.value.model_name),
 )
+
+const thinkingModeOptions = computed(() => [
+  { value: '', label: t('system_pages.ai_llm.thinking_options.off') },
+  { value: 'thinking', label: t('system_pages.ai_llm.thinking_options.thinking') },
+  { value: 'enable_thinking', label: t('system_pages.ai_llm.thinking_options.enable_thinking') },
+  { value: 'reasoning_effort_low', label: t('system_pages.ai_llm.thinking_options.low') },
+  { value: 'reasoning_effort_medium', label: t('system_pages.ai_llm.thinking_options.medium') },
+  { value: 'reasoning_effort_high', label: t('system_pages.ai_llm.thinking_options.high') },
+])
+
+const reasoningCapabilityHint = computed(() => {
+  if (selectedModelOption.value?.supports_reasoning === true) {
+    return t('system_pages.ai_llm.reasoning_supported')
+  }
+  if (selectedModelOption.value?.supports_reasoning === false) {
+    return t('system_pages.ai_llm.reasoning_not_detected')
+  }
+  return t('system_pages.ai_llm.reasoning_unknown')
+})
 
 const providerEndpointHint = computed(() => {
   if (form.value.provider === 'ollama') return t('system_pages.ai_llm.ollama_endpoint_hint')
@@ -288,6 +324,8 @@ function resetForm() {
   editing.value = null
   defaultParamsText.value = '{}'
   defaultParamsError.value = ''
+  thinkingMode.value = ''
+  thinkingModeDirty.value = false
   modelOptions.value = []
   form.value = {
     name: '',
@@ -310,6 +348,8 @@ function openEdit(record: AILLMConfigItem) {
   editing.value = record
   defaultParamsText.value = JSON.stringify(record.default_params ?? {}, null, 2)
   defaultParamsError.value = ''
+  thinkingMode.value = inferThinkingMode(record.default_params ?? {})
+  thinkingModeDirty.value = false
   modelOptions.value = []
   form.value = {
     name: record.name,
@@ -328,6 +368,8 @@ function handleProviderChange() {
   modelOptions.value = []
   form.value.model_name = ''
   form.value.supports_vision = false
+  thinkingMode.value = ''
+  thinkingModeDirty.value = false
 }
 
 function handleModelSelect(value: unknown) {
@@ -335,6 +377,52 @@ function handleModelSelect(value: unknown) {
   form.value.model_name = value
   const option = modelOptions.value.find((model) => model.id === value)
   form.value.supports_vision = option?.supports_vision === true
+}
+
+function inferThinkingMode(params: Record<string, unknown>): ThinkingMode {
+  if (params.thinking === true) return 'thinking'
+  if (params.enable_thinking === true) return 'enable_thinking'
+  if (params.reasoning_effort === 'low') return 'reasoning_effort_low'
+  if (params.reasoning_effort === 'medium') return 'reasoning_effort_medium'
+  if (params.reasoning_effort === 'high') return 'reasoning_effort_high'
+  return ''
+}
+
+function applyThinkingMode(params: Record<string, unknown>) {
+  for (const key of THINKING_PARAM_KEYS) delete params[key]
+  if (thinkingMode.value === 'thinking') params.thinking = true
+  if (thinkingMode.value === 'enable_thinking') params.enable_thinking = true
+  if (thinkingMode.value.startsWith('reasoning_effort_')) {
+    params.reasoning_effort = thinkingMode.value.replace('reasoning_effort_', '')
+  }
+}
+
+function parseDefaultParamsText(): Record<string, unknown> | null {
+  const text = (defaultParamsText.value ?? '').trim()
+  if (!text) return {}
+  try {
+    const parsed = JSON.parse(text)
+    if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
+      defaultParamsError.value = t('system_pages.ai_llm.msg.params_object_required')
+      return null
+    }
+    defaultParamsError.value = ''
+    return parsed as Record<string, unknown>
+  } catch (e) {
+    defaultParamsError.value = t('system_pages.ai_llm.msg.params_parse_failed')
+    return null
+  }
+}
+
+function handleThinkingModeChange(value: unknown) {
+  thinkingMode.value = typeof value === 'string' && thinkingModeOptions.value.some((option) => option.value === value)
+    ? value as ThinkingMode
+    : ''
+  thinkingModeDirty.value = true
+  const params = parseDefaultParamsText()
+  if (params === null) return
+  applyThinkingMode(params)
+  defaultParamsText.value = JSON.stringify(params, null, 2)
 }
 
 async function handleDiscoverModels() {
@@ -397,20 +485,9 @@ async function handleTestConnection() {
 }
 
 function parseDefaultParams(): Record<string, unknown> | null {
-  const text = (defaultParamsText.value ?? '').trim()
-  if (!text) return {}
-  try {
-    const parsed = JSON.parse(text)
-    if (typeof parsed !== 'object' || Array.isArray(parsed) || parsed === null) {
-      defaultParamsError.value = t('system_pages.ai_llm.msg.params_object_required')
-      return null
-    }
-    defaultParamsError.value = ''
-    return parsed as Record<string, unknown>
-  } catch (e) {
-    defaultParamsError.value = t('system_pages.ai_llm.msg.params_parse_failed')
-    return null
-  }
+  const params = parseDefaultParamsText()
+  if (params !== null && thinkingModeDirty.value) applyThinkingMode(params)
+  return params
 }
 
 async function handleSave() {
@@ -509,5 +586,11 @@ onMounted(loadConfigs)
 
 .capability-hint {
   margin-left: 8px;
+}
+
+.capability-warning {
+  margin-left: 8px;
+  color: var(--c-warning, #d48806);
+  font-size: 12px;
 }
 </style>

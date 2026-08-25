@@ -29,6 +29,14 @@ Ollama configuration may omit the key. The request uses a 15-second timeout and
 four-token limit, preserves only explicitly allowed provider parameters such as
 `thinking`/`reasoning_effort`, and records a safe audit summary on success.
 
+The form also offers thinking-mode shortcuts for `thinking=true`,
+`enable_thinking=true`, and `reasoning_effort=low|medium|high`. The default is
+off. The shortcut only edits the same `default_params` JSON field and does not
+override manually entered parameters until the user selects a mode. Capability
+labels are hints from model discovery or model-name matching, not proof that a
+provider accepts a parameter; always verify with **Test connection** and the
+provider documentation.
+
 For a direct Ollama server, use its native `http://host:11434` endpoint and
 leave API Key empty. For Open WebUI, select the OpenAI-compatible provider,
 use `http://host:3000/v1`, and provide an Open WebUI API token from Settings ->
