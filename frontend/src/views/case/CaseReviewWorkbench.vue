@@ -441,7 +441,11 @@ function goCases() {
 }
 
 function goCase(record: CaseReviewQueueItem) {
-  void router.push({ name: 'case-detail', params: { caseId: record.id } })
+  void router.push({
+    name: 'case-detail',
+    params: { caseId: record.id },
+    query: { project_id: String(record.project_id) },
+  })
 }
 
 function caseTypeLabel(type: string) {

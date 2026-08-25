@@ -137,4 +137,19 @@ describe('CaseReviewWorkbench', () => {
     expect(caseReviewList).toHaveBeenCalledTimes(2)
     expect(vm.selectedRowKeys).toEqual([])
   })
+
+  it('keeps the case project context when opening the case detail page', async () => {
+    const wrapper = mountPage()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.goCase(ITEM)
+
+    expect(routerPush).toHaveBeenCalledWith({
+      name: 'case-detail',
+      params: { caseId: 11 },
+      query: { project_id: '7' },
+    })
+    wrapper.unmount()
+  })
 })

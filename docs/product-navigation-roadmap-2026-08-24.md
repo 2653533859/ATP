@@ -14,6 +14,8 @@
 
 > 2026-08-25 N6 数据集影响范围项目上下文已补齐：测试数据集影响范围的案例/套件/计划入口保留 `project_id`，案例详情可加载项目环境并返回项目筛选；数据集定向 `9 passed`、前端全量 `69 files / 299 tests passed`，真实角色、跨项目可见性和数据清理仍待验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.7。
 
+> 2026-08-25 N6 用例评审打开详情项目上下文已补齐：评审工作台打开案例详情时携带记录自身 `project_id`，保留项目环境和返回筛选；定向 `3 passed`、前端全量 `69 files / 300 tests passed`，真实角色、跨项目可见性和评审数据清理仍待验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.8。
+
 > 2026-08-25 N5 AI 模型能力元数据解析已完成本地交付：模型发现识别 `capabilities`/`modalities` 等第三方字段中的多模态和思考阳性标记；能力无阳性证据时保持未知，缺字段时兼容模型名提示。模型发现/API 定向 `20 passed`、受影响 AI 定向 `69 passed`、后端非集成全量 `2340 passed`，真实供应商参数接受和项目级生成仍待环境验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.1。
 
 > 2026-08-25 N5 真实模型环境只读复核确认阻塞：q19 acceptance 无 AI LLM 配置，外部模型入口不带凭据返回 HTTP `401`；未修改远端、未记录凭据或响应正文。真实模型列表、连接、思考/多模态参数、可编辑生成和清理仍待受控配置，脱敏证据见 [`evidence/ai-model-environment-audit-2026-08-25.json`](evidence/ai-model-environment-audit-2026-08-25.json)。
