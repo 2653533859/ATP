@@ -10,13 +10,14 @@
 python scripts/performance-environment-smoke.py \
   --namespace atp-staging \
   --deployment atp-atp-performance-worker \
+  --require-kubernetes \
   --min-ready-nodes 2 \
   --min-worker-replicas 2 \
   --require-worker-resources \
   --report docs/evidence/performance-kubernetes-capacity-2026-08-25.json
 ```
 
-其中 `--min-ready-nodes` 只统计 `Ready=True` 且未标记 `unschedulable` 的节点；`--min-worker-replicas` 同时检查 Deployment 的 desired/available 副本；`--require-worker-resources` 检查指定 `--container`（未指定时取第一个容器）的 CPU/内存 requests 和 limits。任一条件不满足都会失败，不会生成“容量通过”的误导性结论。
+其中 `--require-kubernetes` 强制本次验收必须执行 Deployment/Pod 检查，避免遗漏 `--deployment` 时把跳过 Kubernetes 误读为通过；`--min-ready-nodes` 只统计 `Ready=True` 且未标记 `unschedulable` 的节点；`--min-worker-replicas` 同时检查 Deployment 的 desired/available 副本；`--require-worker-resources` 检查指定 `--container`（未指定时取第一个容器）的 CPU/内存 requests 和 limits。任一条件不满足都会失败，不会生成“容量通过”的误导性结论。
 
 当前 `172.31.27.133` 只有 Docker Compose，未提供 Kubernetes 集群，因此本项目前只有代码和回归证据，不能据此关闭真实多节点、Prometheus/MinIO 生命周期或跨主机恢复门禁。
 
@@ -290,6 +291,7 @@ python scripts/performance-environment-smoke.py \
   --api-base-url https://atp-staging.example.test \
   --namespace atp-staging \
   --deployment atp-atp-performance-worker \
+  --require-kubernetes \
   --node-id worker-a \
   --expected-queue performance.worker-a \
   --target grpcs://grpc.example.test:443 \

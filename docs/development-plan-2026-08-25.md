@@ -34,6 +34,13 @@
 - 在 P0 等待期间，可并行准备 P1～P4 的可清理测试数据、角色矩阵和真实环境复验脚本，但不能把本地回归写成真实环境通过。
 - P5/N9 只在所有未关闭门禁均有明确边界后收口；当前发布结论仍不是“无条件可发布”。
 
+## 2.2.1 N4 性能 smoke 显式 Kubernetes 门禁（本地完成，2026-08-25）
+
+- [x] `scripts/performance-environment-smoke.py` 新增 `--require-kubernetes`；传入后必须同时提供 `--deployment`，否则在执行前失败，避免漏传 Kubernetes 参数时把跳过项误读为通过。
+- [x] Kubernetes 多节点/副本/Worker 资源预检示例、发布清单和 N4 发布证据复验命令均显式使用该门禁；Docker Compose 本地验收仍可不启用该参数。
+- [x] 性能脚本定向、发布契约与质量一致性回归 `46 passed`，Ruff、格式、文档标记和差异检查通过。
+- **状态**：`[E]` 本地实现、测试、审查和文档同步完成；172.31.27.133 仍只有 Docker Compose，q19 Prometheus 仅作为单节点观察，真实 Kubernetes、发布级 Prometheus 指标覆盖和独立 MinIO 灾备仍未关闭 N4。
+
 ## 2.1.0 开发计划与跟踪快照（历史基线，2026-08-25）
 
 本节保留 2.1.0 的执行快照；当前唯一有效的执行游标以本文件上方 2.2.0 为准。N2 Karing 单设备闭环已经完成；N4 的真实性能环境门禁在 2.2.0 中继续保持阻塞，环境条件不足时不把本地代码或 q19 Compose 观察结果写成生产通过。每个可交付模块继续执行：**实现/调整 → 定向测试 → 受影响全量门禁 → 独立代码审查 → 修复 → 文档与记忆同步 → 提交推送**。
@@ -58,7 +65,7 @@ N4 的本地实现已经具备，不重复开发已有采样器。下一轮只�
 3. **对象存储生命周期**：确认独立 MinIO source/target、生命周期策略和最小权限；运行 `make minio-dr-acceptance`，校验复制、目标回读、恢复回源、SHA-256 和临时对象清理。
 4. **门禁复核**：对失败重试、任务取消、节点故障和清理结果进行独立审查；任一依赖缺失就保留 `[-]`，并记录复验命令，不用同机 MinIO、单节点 Compose、mock 或跳过项替代。
 
-当前目标主机的只读复核仍显示缺少 Kubernetes CLI/集群、默认 Prometheus readiness 和独立 MinIO 源/目标，因此 N4 保持阻塞；证据见 [`performance-environment-audit-2026-08-25.json`](evidence/performance-environment-audit-2026-08-25.json)。
+当前目标主机的只读复核仍显示缺少 Kubernetes CLI/集群、默认 Prometheus readiness 和独立 MinIO 源/目标；q19 的 `29090` Prometheus readiness 和四个 Compose targets 仅作为观察，不替代发布级证据，因此 N4 保持阻塞；证据见 [`performance-environment-audit-2026-08-25.json`](evidence/performance-environment-audit-2026-08-25.json)。
 
 ### 后续 N5-N9 入口
 

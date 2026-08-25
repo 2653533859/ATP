@@ -6,6 +6,8 @@
 
 > 当前计划跟踪版本为 2.2.0：N4 真实性能环境是首个外部门禁，随后依次复核 N5 真实模型、N6 测试资产、N7 智能中枢、N8 系统治理，最后进行 N9 发布收口。N4-N8 未完成真实环境复核前，发布结论继续保持“存在未关闭门禁”，不因本地实现完成而变更。
 
+> 2026-08-25 N4 smoke 防误验收已完成本地交付：发布级性能检查必须显式传入 `--require-kubernetes` 和 Deployment；缺少参数会失败，Docker Compose 本地检查保持兼容。目标主机 q19 的 Prometheus readiness/targets 只作为单节点观察，不能替代 Kubernetes 多节点、发布级 Prometheus 和独立 MinIO 灾备证据。
+
 > 历史计划登记（2.1.0）：导航已按工作台、测试能力、测试资产、智能中枢、系统五组统一，N0-N9 的范围与验收出口见开发计划 2.1.0。N2 Karing 单设备包身份、Worker 前置、低代码、录屏、稳定性/Monkey、性能/流畅度专项、事件/报告和清理已通过；N4 仍缺真实 Kubernetes/独立灾备 MinIO/生产 Prometheus，未关闭门禁继续按“待环境验收”处理。当前顺序以本文件上方 2.2.0 计划跟踪为准。
 
 > 2026-08-25 N5/N6 AI 用例来源追踪摘要已完成本地交付：生成与审计记录配置/供应商/模型摘要和上下文计数，保存的 `_ai_source` 在详情页可查看；不记录 Endpoint、提示词、API Key 或原始响应。后端非集成全量 `2323 passed`、前端全量 `69 files / 289 tests passed`，真实模型、项目权限和测试资产全链路仍待环境验收，不改变“不具备无条件发布资格”的结论。
@@ -36,7 +38,7 @@
 
 > N0 工作台运行记录入口收敛已完成本地交付：侧栏不再展示重复的“执行记录”，`/runs` 与 `/runs/:id` 旧地址继续可访问并选中任务中心；导航定向 `9 passed`、前端全量 `69 files / 286 tests passed`，类型检查、生产构建和差异检查通过。运行权限和真实账号复核仍待环境验收，不改变当前发布结论。
 
-> N4 真实性能环境只读复核：`172.31.27.133` 未提供 Kubernetes CLI、默认 Prometheus readiness 或独立 MinIO 源/目标，现有 q19 Compose 只能作为受控本地/单节点观察，不关闭真实性能发布门禁。脱敏证据见 [`performance-environment-audit-2026-08-25.json`](evidence/performance-environment-audit-2026-08-25.json)。
+> N4 真实性能环境只读复核：`172.31.27.133` 未提供 Kubernetes CLI/集群、默认 `127.0.0.1:9090` readiness 或独立 MinIO 源/目标；q19 `127.0.0.1:29090` readiness 和四个 Compose targets 只能作为受控单节点观察，不关闭真实性能发布门禁。脱敏证据见 [`performance-environment-audit-2026-08-25.json`](evidence/performance-environment-audit-2026-08-25.json)。
 
 > N1 受控协议与报告证据已补齐：GraphQL、WebSocket、gRPC Server/Client/Bidi Streaming 以及 HTML/JUnit/PDF 报告详情和清理均通过 q19 真实网络；详见 [`api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json) 与 [`report-closure-2026-08-25.json`](evidence/report-closure-2026-08-25.json)。生产协议服务和发布环境仍未关闭。
 

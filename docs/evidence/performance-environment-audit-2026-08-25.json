@@ -7,7 +7,7 @@
     {
       "name": "kubernetes_cli",
       "status": "failed",
-      "detail": "kubectl and helm were not available on the target host; no Kubernetes CLI evidence was produced."
+      "detail": "The target host exposes Docker Compose only; kubectl and helm were not available, so no Kubernetes cluster evidence was produced."
     },
     {
       "name": "default_prometheus",
@@ -17,7 +17,7 @@
     {
       "name": "compose_prometheus",
       "status": "observed",
-      "detail": "The q19 Compose stack exposes Prometheus through a loopback-mapped port; this is not a production Prometheus target."
+      "detail": "The q19 Compose stack returned readiness HTTP 200 on loopback port 29090 and four up-query targets; this is a single-node Compose observation, not release-scoped Prometheus evidence."
     },
     {
       "name": "minio_disaster_recovery",
@@ -34,7 +34,7 @@
   "blocking_conditions": [
     "Provide a controllable Kubernetes cluster with multiple schedulable nodes and performance-worker replicas.",
     "Provide an independent MinIO source/target pair with lifecycle rules.",
-    "Provide a reachable Prometheus endpoint covering worker and target-service metrics."
+    "Provide a release-scoped Prometheus endpoint covering backend, general worker, performance worker and target-service metrics."
   ],
   "secrets_included": false
 }

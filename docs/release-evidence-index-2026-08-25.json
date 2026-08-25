@@ -59,9 +59,9 @@
       "status": "blocked",
       "owner": "platform-infra",
       "evidence": ["docs/evidence/performance-environment-audit-2026-08-25.json"],
-      "blocking_reason": "The target host has no Kubernetes cluster, Prometheus readiness, or independent MinIO source/target endpoints.",
+      "blocking_reason": "The target host has no Kubernetes cluster or independent MinIO source/target endpoints; its q19 Compose Prometheus is only a single-node observation and not release-scoped evidence.",
       "dependencies": ["Kubernetes cluster with two schedulable nodes", "Prometheus", "independent MinIO source and target"],
-      "recheck_command": "Run make performance-environment-smoke with real API, nodes, target and Prometheus, then make minio-dr-acceptance with independent endpoints."
+      "recheck_command": "Run performance-environment-smoke with --require-kubernetes, a real Deployment, API, nodes, target and Prometheus, then make minio-dr-acceptance with independent endpoints."
     },
     {
       "id": "N5.ai-real-model",

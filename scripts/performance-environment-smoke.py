@@ -951,6 +951,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--require-node-allowlist", action="store_true", help="要求节点配置非空且允许目标域名")
     parser.add_argument("--namespace", default="default", help="Kubernetes namespace")
     parser.add_argument("--deployment", help="Kubernetes performance worker Deployment 名称")
+    parser.add_argument(
+        "--require-kubernetes",
+        action="store_true",
+        help="要求本次验收执行 Kubernetes Deployment/Pod 检查；必须同时指定 --deployment",
+    )
     parser.add_argument("--kube-context", help="Kubernetes context")
     parser.add_argument("--pod-selector", help="可选 Pod selector；默认从 Deployment 推导")
     parser.add_argument("--container", help="Worker Pod 容器名称")
@@ -1032,6 +1037,8 @@ def main(argv: list[str] | None = None) -> int:
     )
     if not selected:
         parser.error("至少选择 --api-base-url、--target、--deployment、--smoke-test-id 或 --cancel-test-id 之一")
+    if args.require_kubernetes and not args.deployment:
+        parser.error("--require-kubernetes 必须同时指定 --deployment")
     if args.require_node_allowlist and (not args.node_id or not args.target):
         parser.error("--require-node-allowlist 必须同时指定 --node-id 和 --target")
     if args.prometheus_query != "up" and not args.prometheus_url:

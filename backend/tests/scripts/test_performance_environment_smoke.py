@@ -344,6 +344,21 @@ def test_kubernetes_check_can_prove_nodes_replicas_and_worker_resources(monkeypa
     }
 
 
+def test_main_requires_deployment_when_kubernetes_is_required():
+    smoke = _load_smoke_script()
+
+    with pytest.raises(SystemExit):
+        smoke.main(["--api-base-url", "http://localhost:8000", "--require-kubernetes"])
+
+
+def test_parser_exposes_explicit_kubernetes_gate():
+    smoke = _load_smoke_script()
+
+    args = smoke.build_parser().parse_args(["--deployment", "atp-performance-worker", "--require-kubernetes"])
+
+    assert args.require_kubernetes is True
+
+
 def test_kubernetes_check_rejects_insufficient_ready_nodes(monkeypatch):
     smoke = _load_smoke_script()
     responses = {
