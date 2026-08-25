@@ -1,0 +1,24 @@
+{
+  "schema_version": 1,
+  "checked_at": "2026-08-25",
+  "scope": "N5.ai-real-model",
+  "target": "q19 acceptance deployment",
+  "checks": [
+    {
+      "name": "q19_ai_llm_config",
+      "status": "blocked",
+      "observed_config_count": 0,
+      "details": "A read-only query returned no AI LLM configuration rows; no remote configuration was created or modified."
+    },
+    {
+      "name": "external_model_endpoint_probe",
+      "status": "blocked",
+      "http_status": 401,
+      "details": "The unauthenticated probe reached a model endpoint but was rejected; no token or response body was recorded."
+    }
+  ],
+  "conclusion": {
+    "status": "blocked",
+    "blocking_reason": "A controlled model configuration, valid credentials and clean project data are required before model listing, connection, multimodal/thinking parameters and editable generation can be verified."
+  }
+}

@@ -65,11 +65,14 @@
     },
     {
       "id": "N5.ai-real-model",
-      "status": "pending",
+      "status": "blocked",
       "owner": "ai-platform",
-      "evidence": ["docs/development-plan-2026-08-25.md"],
-      "blocking_reason": "Local AI configuration and safety boundaries are implemented, but a controlled real model and project data have not been verified.",
-      "dependencies": ["Controlled model endpoint", "test project with generation permissions"],
+      "evidence": [
+        "docs/development-plan-2026-08-25.md",
+        "docs/evidence/ai-model-environment-audit-2026-08-25.json"
+      ],
+      "blocking_reason": "The q19 deployment has no AI LLM configuration, and an unauthenticated model endpoint probe returned HTTP 401; controlled credentials and clean project data are still required.",
+      "dependencies": ["Controlled model endpoint", "valid credentials", "test project with generation permissions"],
       "recheck_command": "Run model listing, connection, multimodal/thinking parameter and editable generation checks with a temporary project, then remove the data."
     },
     {

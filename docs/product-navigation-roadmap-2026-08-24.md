@@ -6,6 +6,8 @@
 
 > 2026-08-25 N5 AI 模型能力元数据解析已完成本地交付：模型发现识别 `capabilities`/`modalities` 等第三方字段中的多模态和思考阳性标记；能力无阳性证据时保持未知，缺字段时兼容模型名提示。模型发现/API 定向 `20 passed`、受影响 AI 定向 `69 passed`、后端非集成全量 `2340 passed`，真实供应商参数接受和项目级生成仍待环境验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.1。
 
+> 2026-08-25 N5 真实模型环境只读复核确认阻塞：q19 acceptance 无 AI LLM 配置，外部模型入口不带凭据返回 HTTP `401`；未修改远端、未记录凭据或响应正文。真实模型列表、连接、思考/多模态参数、可编辑生成和清理仍待受控配置，脱敏证据见 [`evidence/ai-model-environment-audit-2026-08-25.json`](evidence/ai-model-environment-audit-2026-08-25.json)。
+
 > 2026-08-25 计划跟踪已同步为 2.2.0：后续顺序固定为 P0/N4 真实性能环境 → P1/N5 真实模型 → P2/N6 测试资产 → P3/N7 智能中枢 → P4/N8 系统治理 → P5/N9 发布收口；N4 缺少 Kubernetes、Prometheus 和独立 MinIO 继续阻塞，N5-N8 本地完成但待真实环境验收。每个模块仍须经过测试、独立审查、修复、文档/记忆同步和提交推送，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.2.0。
 
 > 2026-08-25 N4 本地门禁补强已完成：性能 smoke 新增 `--require-kubernetes`，发布级 Kubernetes 验收必须显式提供 Deployment；定向相关回归 `46 passed`。172.31.27.133 的 q19 Prometheus 仅作为 Compose 观察，真实多节点、发布级指标覆盖和独立 MinIO 灾备仍保持待环境验收。

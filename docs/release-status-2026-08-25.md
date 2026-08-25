@@ -10,6 +10,8 @@
 
 > 2026-08-25 N5 AI 模型能力元数据解析已完成本地交付：模型发现支持第三方能力/模态字段，能力提示无阳性证据时保持未知；模型发现/API 定向 `20 passed`、受影响 AI 定向 `69 passed`、后端非集成全量 `2340 passed`，真实模型和项目级生成仍待受控环境验收，不改变当前发布阻塞结论。
 
+> 2026-08-25 N5 真实模型环境只读复核确认阻塞：q19 acceptance 没有 AI LLM 配置，外部模型入口不带凭据返回 HTTP `401`；脱敏证据为 [`evidence/ai-model-environment-audit-2026-08-25.json`](evidence/ai-model-environment-audit-2026-08-25.json)，不改变发布结论，也不代表真实模型能力通过。
+
 > 2026-08-25 N4 smoke 防误验收已完成本地交付：发布级性能检查必须显式传入 `--require-kubernetes` 和 Deployment；缺少参数会失败，Docker Compose 本地检查保持兼容。目标主机 q19 的 Prometheus readiness/targets 只作为单节点观察，不能替代 Kubernetes 多节点、发布级 Prometheus 和独立 MinIO 灾备证据。
 
 > 2026-08-25 N4 MinIO 灾备端点独立性门禁已完成本地交付：跨端点脚本拒绝同机文本、回环别名和同 IP 解析结果；定向回归 `51 passed`。真实独立 MinIO source/target 和生命周期/恢复证据仍未关闭发布门禁。
