@@ -2,6 +2,57 @@
 
 > 本文是参考导航对应的当前执行版计划，负责记录“接下来做什么、完成到什么程度、如何验收”。历史方案和详细实施记录见 [`product-navigation-roadmap-2026-08-24.md`](product-navigation-roadmap-2026-08-24.md)；任务勾选同步到 [`Task.md`](../Task.md)，长期记忆同步到 [`MEMORY.md`](../MEMORY.md)。
 
+## 2.4.0 参考导航第三轮开发计划（2026-08-25）
+
+本节是当前最新的计划跟踪入口，学习参考导航的“工作台 → 测试能力 → 测试资产 → 智能中枢 → 系统”结构，继续把高频测试动作从系统管理中移出。2.3.0 及更早内容保留为历史交付记录；后续开发、审查、文档同步和提交均以本节的阶段出口为准。
+
+### 2.4.0 建设目标
+
+- 让用户按“我要做什么”进入功能，而不是先理解后端服务或基础设施菜单。
+- 五组入口只负责导航和上下文，具体页面仍可保留兼容 URL；旧 URL 必须能正确映射到所属分组、面包屑和项目上下文。
+- 所有可执行能力都按“配置 → 预检 → 执行 → 过程事件 → 报告/证据 → 清理”验收；只有页面打开或接口返回 200 不算闭环。
+- Windows 是默认开发与验收环境；Android ADB 由本地 Windows Worker 承担，Web/API 不依赖 Android 真机。Kubernetes、发布级 Prometheus、独立 MinIO、真实模型和外部平台继续作为独立环境门禁。
+
+### 2.4.0 导航分组与开发范围
+
+| 阶段 | 导航分组 | 计划建设内容 | 交付出口 | 当前状态 |
+| --- | --- | --- | --- | --- |
+| P0 | 工作台 | 首页、我的待办、项目中心、任务中心；统一任务队列、状态、重试、终止、批量操作和失败事件 | 从待办或任务可定位到项目、具体运行、报告和失败证据；权限拒绝可解释 | `[E]` 本地基础已完成，待真实角色数据复核 |
+| P1 | 接口测试 | HTTP/HTTPS、REST、GraphQL、WebSocket、SSE、gRPC/Dubbo 适配；认证复用、导入、断言、变量和依赖编排 | 受控目标完成请求、参数/变量传递、断言、报告、导入和清理 | `[E]` 本地能力已完成，协议目标仍需独立验收 |
+| P2 | APP 自动化 | Windows Android Worker、设备租约、APK 包身份、低代码/录制、录屏、稳定性/Monkey、性能与事件报告 | 单设备完成步骤、控件属性、日志、截图、录像、事件、报告和清理 | `[E]` Karing 单设备证据已有，跨设备和持续运行仍待复核 |
+| P3 | UI 自动化 | Playwright 录制、元素库、页面对象、视觉基线、多浏览器、Trace/HAR/控制台日志和失败定位 | Chromium/Firefox/WebKit 至少完成一次录制、回放、失败证据和资源清理 | `[E]` 本地闭环已完成，真实 Worker/浏览器矩阵待复核 |
+| P4 | 性能测试 | 节点注册、并发/速率模型、阶梯/峰值/稳定性、Prometheus 采样、基线/回归、MinIO 保留 | 真实短压、取消、资源指标、报告、告警、留存清理和跨主机恢复有脱敏证据 | `[-]` 缺 Kubernetes、发布级 Prometheus 和独立 MinIO |
+| P5 | AI 智能测试 | 模型发现/连接、多模态/思考参数、用例/数据集/Mock 草稿、限额和审计 | 生成结果可编辑、来源可回看、敏感值脱敏、失败和权限边界清晰 | `[E]` 本地实现完成，真实模型仍待受控验收 |
+| P6 | 测试资产 | 用例、套件、计划、缺陷、报告、评审之间的上下文和双向追踪 | 失败运行可追到报告/证据/缺陷，角色隔离有效，临时资产可清理 | `[E]` 本地链路和验收工具完成，真实项目矩阵待复核 |
+| P7 | 智能中枢 | Hermes 助手、需求与用例生成、知识中枢；查询来源、可编辑草稿和审计 | 使用真实需求/知识条目完成查询与生成，来源可回看且不静默写入业务数据 | `[E]` 本地诊断已完成，真实模型/数据验收待执行 |
+| P8 | 系统 | 远程工具箱、配置中心、审计、差异、回滚和能力矩阵 | PostgreSQL/Redis/MinIO/Worker/ADB 诊断可解释，回滚精确且可审计 | `[E]` 本地入口已完成，目标部署复核待执行 |
+| P9 | 发布收口 | 能力矩阵、证据索引、运行手册、回滚边界和最终 SHA | 每个未关闭门禁都有原因、依赖、证据路径和复验命令 | `[~]` 等待 P4/P5/P6/P7/P8 外部门禁 |
+
+### 2.4.0 执行顺序与当前下一项
+
+1. 先保持 P4 性能真实环境的阻塞边界，不用单节点 Compose、mock 或跳过项替代 Kubernetes/Prometheus/独立 MinIO 证据。
+2. 继续完成 P7 智能中枢的真实数据验收准备：建立可清理的临时需求和知识条目，验证 Hermes 查询、需求/用例草稿、来源展示、项目权限和清理结果；真实模型不可用时只交付本地工具与阻塞证据。
+3. 随后按 P6 → P5 → P8 的顺序复核真实项目角色、模型、审计和目标部署，最后进入 P9 发布收口。
+4. 每一项必须执行：实现/调整 → 定向测试 → 受影响全量门禁 → 独立代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 提交并推送。
+
+### 2.4.0 状态口径
+
+- `[x]`：代码、测试、独立审查、问题修复、文档同步和必要的本地证据均完成。
+- `[E]`：本地实现和自动化证据完成，但真实设备、服务、角色、模型或目标部署仍未验收。
+- `[~]`：正在实施，或等待前置门禁解除。
+- `[-]`：外部条件明确缺失或验证失败；必须保留阻塞原因和复验命令。
+
+任何模块从 `[E]` 变为 `[x]` 前，都必须新增脱敏真实环境证据；不能用“页面可访问”“Worker 在线”“HTTP 401”“mock 返回”替代业务闭环。
+
+## 2.4.1 P7 Hermes project retrieval and acceptance harness (local complete, 2026-08-25)
+
+- [x] Added `POST /hermes/query`, scoped by project viewer permission, to retrieve matching requirement, knowledge and case sources with redacted excerpts, stable scores, source references and project navigation paths.
+- [x] Hermes free-form prompts now fall back to project retrieval when they do not match an existing local intent; source buttons retain deep links, and the knowledge hub can select the requested `knowledge_id`.
+- [x] Added `scripts/n7-intelligence-acceptance.py` and [`n7-intelligence-acceptance.md`](n7-intelligence-acceptance.md): temporary project data, parser, list/detail retrieval, source citations, optional real AI drafts, optional viewer isolation, explicit mutation opt-in and finally cleanup with 404 verification.
+- [x] Independent review strengthened the harness to validate every marker-bearing source type, project-scoped path and traceable source reference, and to read requirement/knowledge/case details instead of only list responses.
+- **Local evidence**: backend Hermes/acceptance/quality tests `21 passed`; frontend Hermes/knowledge tests `11 passed`; targeted Ruff passed; full backend/frontend/type/build gates still run before commit.
+- **Status**: `[E]` local implementation and automated evidence are complete; controlled real model, real requirement/knowledge data, viewer credentials and clean remote deployment evidence remain pending. Do not change N7 to `[x]` until the acceptance command completes against a controlled environment.
+
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 
 本节是当前导航重构的最新执行游标，按参考侧栏的五组职责组织功能，不再把设备、APK、Mock、数据集、Web/API 资产和治理能力全部堆在“系统管理”下面。导航入口、旧 URL 兼容和业务闭环分别记录：入口存在只代表可访问，只有完成配置→执行→过程→报告/证据→清理才算模块闭环。

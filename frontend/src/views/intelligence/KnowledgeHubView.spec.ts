@@ -9,6 +9,7 @@ const {
   knowledgeGet,
   knowledgeList,
   projectList,
+  routeQuery,
   routerPush,
   routerReplace,
 } = vi.hoisted(() => ({
@@ -16,12 +17,13 @@ const {
   knowledgeGet: vi.fn(),
   knowledgeList: vi.fn(),
   projectList: vi.fn(),
+  routeQuery: { project_id: '1' } as Record<string, string>,
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: { project_id: '1' } }),
+  useRoute: () => ({ query: routeQuery }),
   useRouter: () => ({ push: routerPush, replace: routerReplace }),
 }))
 vi.mock('vue-i18n', () => ({
@@ -113,6 +115,7 @@ const builtin = {
 
 beforeEach(() => {
   vi.clearAllMocks()
+  delete routeQuery.knowledge_id
   projectList.mockResolvedValue([{ id: 1, name: '核心项目', owner_id: 1, current_user_role: 'owner' }])
   knowledgeList.mockResolvedValue({ items: [entry, builtin], total: 2, page: 1, page_size: 40, source_counts: { runbook: 1, defect: 1 } })
   knowledgeGet.mockResolvedValue({ ...entry, summary: '认证服务异常时的排查顺序。', content: '先确认认证服务和 Redis 状态。', version: 2, author_id: 7, created_at: entry.updated_at })
@@ -132,6 +135,17 @@ describe('KnowledgeHubView', () => {
     expect(knowledgeGet).toHaveBeenCalledWith(1)
     expect((wrapper.vm as any).selectedDetail.content).toContain('Redis')
     expect((wrapper.vm as any).sourceCounts.runbook).toBe(1)
+    wrapper.unmount()
+  })
+
+  it('opens the knowledge source requested by a Hermes deep link', async () => {
+    routeQuery.knowledge_id = '1'
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(knowledgeGet).toHaveBeenCalledWith(1)
+    expect((wrapper.vm as any).selectedItem.document_id).toBe(1)
+    expect(routerReplace).toHaveBeenLastCalledWith({ query: { project_id: '1' } })
     wrapper.unmount()
   })
 

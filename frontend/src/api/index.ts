@@ -1557,6 +1557,30 @@ export interface FailureDiagnosisResult {
   error_samples: Array<Record<string, unknown>>
 }
 
+export type HermesSourceType = 'knowledge' | 'requirement' | 'case'
+
+export interface HermesSourceItem {
+  source_type: HermesSourceType
+  source_id: number
+  project_id?: number | null
+  title: string
+  excerpt: string
+  source_ref?: string | null
+  path: string
+  match_terms: string[]
+  match_score: number
+  updated_at?: string | null
+}
+
+export interface HermesQueryResult {
+  project_id: number
+  query: string
+  mode: 'project_retrieval' | 'no_results'
+  answer: string
+  sources: HermesSourceItem[]
+  generated_at: string
+}
+
 export const authApi = {
   login: (username: string, password: string) =>
     http.post<unknown, { authenticated: boolean }>('/auth/login', { username, password }),
@@ -1886,6 +1910,11 @@ export const workbenchApi = {
     http.post<unknown, WorkbenchTaskActionResult>(`/workbench/tasks/${taskType}/${runId}/stop`),
   batchAction: (action: WorkbenchAction, tasks: Array<{ task_type: WorkbenchTaskType; run_id: number }>) =>
     http.post<unknown, WorkbenchBatchActionResult>('/workbench/tasks/batch-action', { action, tasks }),
+}
+
+export const hermesApi = {
+  query: (body: { project_id: number; query: string; limit?: number }) =>
+    http.post<unknown, HermesQueryResult>('/hermes/query', body),
 }
 
 export const scriptApi = {

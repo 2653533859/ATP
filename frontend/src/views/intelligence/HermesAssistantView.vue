@@ -108,6 +108,10 @@
               <span class="thinking-pulse" />
               <span>{{ t('hermes.diagnosing') }}</span>
             </div>
+            <div v-if="querying" class="thinking-row">
+              <span class="thinking-pulse" />
+              <span>{{ t('hermes.querying') }}</span>
+            </div>
           </div>
 
           <div class="prompt-stations">
@@ -118,7 +122,7 @@
                 :key="prompt.key"
                 type="button"
                 class="prompt-card"
-                :disabled="loading || diagnosing"
+                :disabled="loading || diagnosing || querying"
                 @click="askPrompt(prompt.key)"
               >
                 <span class="prompt-icon" :class="`prompt-icon-${prompt.key}`">{{ prompt.mark }}</span>
@@ -134,11 +138,11 @@
           <form class="composer" @submit.prevent="submitPrompt">
             <input
               v-model="inputText"
-              :disabled="loading || diagnosing"
+              :disabled="loading || diagnosing || querying"
               :placeholder="t('hermes.input_placeholder')"
               :aria-label="t('hermes.input_aria')"
             />
-            <a-button type="primary" html-type="submit" :disabled="!inputText.trim() || loading || diagnosing">
+            <a-button type="primary" html-type="submit" :disabled="!inputText.trim() || loading || diagnosing || querying">
               {{ t('hermes.send') }} <ArrowRightOutlined />
             </a-button>
           </form>
@@ -278,6 +282,7 @@ import {
 } from '@ant-design/icons-vue'
 import {
   caseApi,
+  hermesApi,
   projectApi,
   reportApi,
   runApi,
@@ -324,6 +329,7 @@ const diagnosis = ref<{ taskId: string; result: FailureDiagnosisResult } | null>
 const planDraft = ref<PlanDraft | null>(null)
 const loading = ref(false)
 const diagnosing = ref(false)
+const querying = ref(false)
 const loadError = ref('')
 let loadSequence = 0
 let projectsSequence = 0
@@ -510,6 +516,24 @@ function openPlans() {
   void router.push(source(t('hermes.source_plans'), '/plans').path)
 }
 
+async function queryHermes(text: string) {
+  const projectId = selectedProjectId.value
+  if (!projectId) return
+  querying.value = true
+  try {
+    const result = await hermesApi.query({ project_id: projectId, query: text, limit: 8 })
+    const sources = result.sources.map((item) => ({
+      label: [item.source_ref || item.source_type, item.title].join(' · '),
+      path: item.path,
+    }))
+    appendMessage('assistant', result.answer, sources)
+  } catch (error) {
+    appendMessage('assistant', t('hermes.query_failed', { error: errorMessage(error, t('hermes.query_unavailable')) }))
+  } finally {
+    querying.value = false
+  }
+}
+
 function addPlanPoint() {
   if (planDraft.value) planDraft.value.testPoints.push(t('hermes.default_plan_point'))
 }
@@ -609,11 +633,8 @@ async function submitPrompt() {
   inputText.value = ''
   appendMessage('user', text)
   const key = intentFor(text)
-  if (!key) {
-    appendMessage('assistant', t('hermes.answers.unknown'), [source(t('hermes.source_tasks'), '/tasks'), source(t('hermes.source_reports'), '/reports')])
-    return
-  }
-  await executeIntent(key)
+  if (key) await executeIntent(key)
+  else await queryHermes(text)
 }
 
 onMounted(async () => {

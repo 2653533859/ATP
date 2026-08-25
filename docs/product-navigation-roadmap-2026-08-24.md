@@ -4,6 +4,10 @@
 
 > 2026-08-25 当前开发计划已升级为 2.3.0：参考导航的五组职责现在作为模块跟踪边界，执行顺序为 N0 导航壳与 N1 工作台 → N2-API、N2-APP、N3-UI、N4 性能、N5 AI、N6 测试资产 → N7 智能中枢 → N8 系统治理 → N9 发布收口。N4 真实性能环境仍因缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 保持阻塞；Windows 是默认开发/验收环境，Android 真机由本地 Windows Worker 执行，不作为 Web/API 的前置条件。详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.0。
 
+> 2026-08-25 当前开发计划已升级为 2.4.0：参考导航的五组职责继续作为产品入口，阶段编号统一为 P0 工作台、P1 接口、P2 APP、P3 UI、P4 性能、P5 AI、P6 测试资产、P7 智能中枢、P8 系统和 P9 发布收口。当前下一项是 P7 智能中枢的真实数据验收准备；P4 因 Kubernetes、发布级 Prometheus 和独立 MinIO 缺失保持阻塞。Windows/Android Worker 边界、真实环境证据和模块级审查规则不变，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.4.0。
+
+> 2026-08-25 P7 Hermes 项目级检索本地交付已完成：新增项目 viewer 权限保护的需求/知识/用例检索和来源深链，Hermes 自由提问可进入检索链路，知识中心支持 `knowledge_id` 深链；N7 验收脚本覆盖临时数据、详情读取、三类引用、可选 AI 草稿、viewer 隔离和清理。后端定向 `21 passed`、前端 Hermes/知识定向 `11 passed`；真实模型、角色账号和远端数据仍待受控环境验收，详见 [`n7-intelligence-acceptance.md`](n7-intelligence-acceptance.md)。
+
 > 2026-08-25 N7 Hermes 跨任务失败诊断已完成本地交付：工作台统一为 suite/plan/android/performance 提供按项目权限保护的规则诊断，case 复用既有 LLM/规则链；Android 与性能诊断引用各自持久化的异常事件、错误事件和指标线索，Hermes 保留任务详情来源，不再把非 case 任务标记为不支持。后端定向 `13 passed`、非集成全量 `2345 passed`，前端全量 `69 files / 293 tests passed`，真实模型、需求/知识数据和角色矩阵仍待验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.3。
 
 > 2026-08-25 N6 缺陷状态刷新项目隔离已补齐：刷新 case 执行记录关联缺陷状态前校验所属项目 viewer 权限，已保存 tracker 必须属于同一项目，跨项目配置在外部调用前拒绝；缺陷跟踪 API 定向 `11 passed`，真实项目角色矩阵、外部缺陷平台和可清理失败运行仍待环境验收，详见 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.4。

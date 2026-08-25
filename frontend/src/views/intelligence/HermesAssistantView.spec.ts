@@ -8,6 +8,7 @@ const {
   caseList,
   failureTop,
   generateDiagnosis,
+  hermesQuery,
   moduleList,
   projectList,
   reportOverview,
@@ -19,6 +20,7 @@ const {
   caseList: vi.fn(),
   failureTop: vi.fn(),
   generateDiagnosis: vi.fn(),
+  hermesQuery: vi.fn(),
   moduleList: vi.fn(),
   projectList: vi.fn(),
   reportOverview: vi.fn(),
@@ -40,6 +42,7 @@ vi.mock('ant-design-vue', () => ({
 }))
 vi.mock('@/api', () => ({
   caseApi: { list: caseList },
+  hermesApi: { query: hermesQuery },
   projectApi: { list: projectList, getModules: moduleList },
   reportApi: { overview: reportOverview },
   runApi: { generateFailureDiagnosis: generateDiagnosis },
@@ -129,6 +132,25 @@ beforeEach(() => {
     repair_suggestions: [],
     error_samples: [],
   })
+  hermesQuery.mockResolvedValue({
+    project_id: 1,
+    query: '登录排查',
+    mode: 'project_retrieval',
+    answer: '找到相关来源',
+    sources: [{
+      source_type: 'knowledge',
+      source_id: 2,
+      project_id: 1,
+      title: '登录排查手册',
+      excerpt: '先检查认证服务',
+      source_ref: 'SOP-LOGIN',
+      path: '/knowledge?project_id=1&knowledge_id=2',
+      match_terms: ['登录'],
+      match_score: 20,
+      updated_at: '2026-08-25T10:00:00Z',
+    }],
+    generated_at: '2026-08-25T10:00:00Z',
+  })
   routerReplace.mockResolvedValue(undefined)
 })
 
@@ -165,6 +187,21 @@ describe('HermesAssistantView', () => {
     await vm.askPrompt('quality')
     expect(vm.messages.at(-1).text).toContain('hermes.answers.quality')
     expect(generateDiagnosis).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('sends free-form questions to project retrieval and keeps source links', async () => {
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    await vm.queryHermes('登录排查')
+
+    expect(hermesQuery).toHaveBeenCalledWith({ project_id: 1, query: '登录排查', limit: 8 })
+    expect(vm.messages.at(-1).text).toBe('找到相关来源')
+    expect(vm.messages.at(-1).sources[0].path).toBe('/knowledge?project_id=1&knowledge_id=2')
+    expect(vm.querying).toBe(false)
 
     wrapper.unmount()
   })

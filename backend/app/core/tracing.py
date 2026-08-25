@@ -1,7 +1,7 @@
 import uuid
 from contextvars import ContextVar, Token
 
-from opentelemetry import trace
+import opentelemetry.trace as trace
 
 trace_id_var: ContextVar[str] = ContextVar("trace_id", default="")
 

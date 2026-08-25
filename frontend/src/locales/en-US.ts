@@ -704,6 +704,7 @@ export default {
     open_task_center: 'Task center',
     open_runs: 'Run history',
     diagnosing: 'Reading run evidence and preparing a diagnosis…',
+    querying: 'Searching project requirements, knowledge, and cases…',
     diagnosis_kicker: 'EVIDENCE → DIAGNOSIS',
     diagnosis_title: 'Failure explanation and repair clues',
     suggestion_step: 'Step {index}',
@@ -759,6 +760,8 @@ export default {
     load_report_failed: 'Failed to load test report',
     load_hotspots_failed: 'Failed to load failure hotspots',
     diagnosis_failed: 'Diagnosis service is unavailable',
+    query_unavailable: 'Retrieval service is unavailable',
+    query_failed: 'Project retrieval is unavailable: {error}',
     user_explain: 'Explain the failed task “{name}”',
   },
   requirement_trace: {

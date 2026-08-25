@@ -18,23 +18,23 @@
   "documents": [
     {
       "path": "docs/development-plan-2026-08-25.md",
-      "markers": ["2.3.0 参考导航第二轮开发计划"]
+      "markers": ["2.4.0 参考导航第三轮开发计划"]
     },
     {
       "path": "Task.md",
-      "markers": ["当前开发计划 2.3.0 跟踪摘要"]
+      "markers": ["当前开发计划 2.4.0 跟踪摘要"]
     },
     {
       "path": "MEMORY.md",
-      "markers": ["当前开发计划已同步为 2.3.0"]
+      "markers": ["导航第三轮开发计划已同步为 2.4.0"]
     },
     {
       "path": "docs/product-navigation-roadmap-2026-08-24.md",
-      "markers": ["当前开发计划已升级为 2.3.0"]
+      "markers": ["当前开发计划已升级为 2.4.0"]
     },
     {
       "path": "docs/release-status-2026-08-25.md",
-      "markers": ["2.3.0 只更新导航职责"]
+      "markers": ["2.4.0 只更新导航分组"]
     },
     {
       "path": "docs/q9-release-checklist.md",
@@ -88,7 +88,7 @@
       "id": "N7.intelligence-real-data",
       "status": "pending",
       "owner": "ai-platform",
-      "evidence": ["docs/development-plan-2026-08-25.md"],
+      "evidence": ["docs/development-plan-2026-08-25.md", "docs/n7-intelligence-acceptance.md"],
       "blocking_reason": "Hermes, requirements and knowledge flows still need controlled real model/data verification with source display.",
       "dependencies": ["Controlled model endpoint", "temporary requirement and knowledge entries"],
       "recheck_command": "Run Hermes query and editable requirement/case/knowledge retrieval checks, verify citations, then remove temporary entries."

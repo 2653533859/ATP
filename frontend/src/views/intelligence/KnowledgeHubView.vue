@@ -264,6 +264,7 @@ const results = ref<KnowledgeSearchItem[]>([])
 const sourceCounts = ref<Record<string, number>>({})
 const total = ref(0)
 const selectedProjectId = ref<number | null>(positiveInt(route.query.project_id))
+const requestedKnowledgeId = ref<number | null>(positiveInt(route.query.knowledge_id))
 const keyword = ref('')
 const sourceFilter = ref<KnowledgeSourceType | undefined>(undefined)
 const statusFilter = ref<KnowledgeStatusType | undefined>(undefined)
@@ -316,8 +317,12 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
 
-function syncRoute() {
-  void router.replace({ query: selectedProjectId.value ? { project_id: String(selectedProjectId.value) } : {} })
+function syncRoute(knowledgeId = requestedKnowledgeId.value) {
+  const query: Record<string, string> = selectedProjectId.value
+    ? { project_id: String(selectedProjectId.value) }
+    : {}
+  if (knowledgeId) query.knowledge_id = String(knowledgeId)
+  void router.replace({ query })
 }
 
 async function loadProjects() {
@@ -346,9 +351,16 @@ async function loadKnowledge() {
     results.value = result.items
     sourceCounts.value = result.source_counts
     total.value = result.total
-    const next = results.value.find((item) => item.key === selectedItem.value?.key) || results.value[0] || null
+    const requested = requestedKnowledgeId.value
+      ? results.value.find((item) => item.document_id === requestedKnowledgeId.value)
+      : null
+    const next = requested || results.value.find((item) => item.key === selectedItem.value?.key) || results.value[0] || null
     if (next) await selectItem(next)
     else { selectedItem.value = null; selectedDetail.value = null }
+    if (requested) {
+      requestedKnowledgeId.value = null
+      syncRoute(null)
+    }
   } catch (error) {
     if (sequence === loadSequence) loadError.value = errorMessage(error, t('knowledge_hub.load_failed'))
   } finally {
@@ -374,6 +386,7 @@ async function selectItem(item: KnowledgeSearchItem) {
 
 async function handleProjectChange(value?: unknown) {
   selectedProjectId.value = positiveInt(value)
+  requestedKnowledgeId.value = null
   syncRoute()
   await loadKnowledge()
 }

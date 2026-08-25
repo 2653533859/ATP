@@ -704,6 +704,7 @@ export default {
     open_task_center: '任务中心',
     open_runs: '运行记录',
     diagnosing: '正在读取运行证据并生成诊断…',
+    querying: '正在检索当前项目的需求、知识和用例来源…',
     diagnosis_kicker: 'EVIDENCE → DIAGNOSIS',
     diagnosis_title: '失败解释与修复线索',
     suggestion_step: '步骤 {index}',
@@ -759,6 +760,8 @@ export default {
     load_report_failed: '测试报告加载失败',
     load_hotspots_failed: '失败热点加载失败',
     diagnosis_failed: '诊断服务暂不可用',
+    query_unavailable: '检索服务暂不可用',
+    query_failed: '暂时无法完成项目检索：{error}',
     user_explain: '请解释失败任务“{name}”',
   },
   requirement_trace: {
