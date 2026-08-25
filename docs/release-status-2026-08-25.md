@@ -4,7 +4,7 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
-> 当前计划登记：主游标为 N4 性能真实环境；N4 已补 Kubernetes 多节点/副本/Worker 资源预检，但真实目标仍缺 Kubernetes；N2 Karing 真机因未确认真实包名暂缓但不阻塞 N4；随后是 N5-N8 外部依赖复核和 N9 发布收口。未关闭门禁继续按“待环境验收”处理。
+> 当前计划登记：主游标为 N4 性能真实环境；N4 已补 Kubernetes 多节点/副本/Worker 资源预检和跨端点 MinIO 复制/恢复 smoke，但真实目标仍缺 Kubernetes/独立灾备端点；N2 Karing 真机因未确认真实包名暂缓但不阻塞 N4；随后是 N5-N8 外部依赖复核和 N9 发布收口。未关闭门禁继续按“待环境验收”处理。
 
 > N1 受控协议与报告证据已补齐：GraphQL、WebSocket、gRPC Server/Client/Bidi Streaming 以及 HTML/JUnit/PDF 报告详情和清理均通过 q19 真实网络；详见 [`api-protocol-targets-2026-08-25.json`](evidence/api-protocol-targets-2026-08-25.json) 与 [`report-closure-2026-08-25.json`](evidence/report-closure-2026-08-25.json)。生产协议服务和发布环境仍未关闭。
 
@@ -37,6 +37,13 @@
 - 性能验收脚本新增可选 `--min-ready-nodes`、`--min-worker-replicas` 和 `--require-worker-resources`，分别校验可调度 Ready 节点、性能 Worker desired/available 副本和 Worker CPU/内存 requests/limits。
 - 定向回归 `29 passed`，Ruff、格式检查、`git diff --check` 和独立代码审查通过；默认参数不改变已有 Docker/Kubernetes smoke。
 - 当前目标主机没有 Kubernetes 集群，故只记录实现与回归完成；真实多节点、生产 Prometheus/MinIO 生命周期和跨主机恢复仍为发布阻塞。
+
+### 2026-08-25 N4 跨端点 MinIO 恢复验收入口
+
+- 新增 `scripts/minio-dr-acceptance.py` 和 `make minio-dr-acceptance`，使用独立 source/target MinIO 环境变量验证对象复制、目标回读、恢复回源、SHA-256 和临时对象清理。
+- 默认审计两端生命周期规则；`--require-lifecycle-rule PREFIX=DAYS` 可把精确的启用规则纳入门禁。凭据只从进程环境读取，不进入报告；同一主机会被拒绝，避免把同桶/不同桶误报为跨主机恢复。
+- 脚本回归 `3 passed`，质量门禁一致性和灾备文档回归 `17 passed`，Ruff、格式检查、`git diff --check` 和独立代码审查通过。
+- 当前目标没有独立 MinIO 灾备端点，因此本项不关闭真实跨主机恢复和生产生命周期门禁。
 
 ### 2026-08-25 N1 受控协议目标交付
 

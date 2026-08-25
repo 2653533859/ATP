@@ -20,6 +20,12 @@ python scripts/performance-environment-smoke.py \
 
 当前 `172.31.27.133` 只有 Docker Compose，未提供 Kubernetes 集群，因此本项目前只有代码和回归证据，不能据此关闭真实多节点、Prometheus/MinIO 生命周期或跨主机恢复门禁。
 
+跨主机 MinIO 复制/恢复使用 [`scripts/minio-dr-acceptance.py`](../scripts/minio-dr-acceptance.py)，
+需要独立的 source/target endpoint 和安全注入的 `ATP_MINIO_DR_*` 凭据；它会记录
+生命周期审计、源端回读、目标端回读、恢复回源、SHA-256 和临时对象清理。完整参数和
+灾备记录要求见 [`disaster-recovery.md`](disaster-recovery.md)，没有独立目标时不得用
+同一 MinIO 的不同 bucket 代替真实跨主机证据。
+
 ## 2026-08-17 当前代码隔离栈验收
 
 已在 `172.31.27.133` 的 `/opt/atp-q18-acceptance-20260817` 使用当前代码部署隔离 Compose 栈。由于旧 q17 栈占用默认回环端口，当前栈使用 Backend `28080`、Prometheus `28090`、Worker metrics `28092`；旧栈未停止。Backend `/health`、Prometheus `/-/ready` 和 PromQL 均通过，Backend 与 `performance-worker` 两个 target 均为 `up`。

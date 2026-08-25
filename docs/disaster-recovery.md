@@ -122,6 +122,42 @@ mc ls "dr-minio/${DR_MINIO_BUCKET}/atp-objects/"
 mc du "dr-minio/${DR_MINIO_BUCKET}/atp-objects/"
 ```
 
+## Cross-endpoint MinIO recovery smoke
+
+For a repeatable non-production drill, use `scripts/minio-dr-acceptance.py`.
+It requires separate source and target MinIO endpoints on different hosts and
+reads all access keys from environment variables. The command copies a
+uniquely scoped probe object to the
+target, reads it back, restores it to a new source object, compares SHA-256 at
+each boundary, and removes the temporary objects.
+
+```bash
+export ATP_MINIO_DR_SOURCE_ENDPOINT=primary.example.test:9000
+export ATP_MINIO_DR_SOURCE_ACCESS_KEY="由安全渠道注入"
+export ATP_MINIO_DR_SOURCE_SECRET_KEY="由安全渠道注入"
+export ATP_MINIO_DR_SOURCE_BUCKET=atp
+export ATP_MINIO_DR_TARGET_ENDPOINT=backup.example.test:9000
+export ATP_MINIO_DR_TARGET_ACCESS_KEY="由安全渠道注入"
+export ATP_MINIO_DR_TARGET_SECRET_KEY="由安全渠道注入"
+export ATP_MINIO_DR_TARGET_BUCKET=atp-dr
+
+make minio-dr-acceptance \
+  ARGS='--report docs/evidence/minio-dr-acceptance-YYYY-MM-DD.json'
+```
+
+如需把生命周期规则纳入发布门禁，可重复传入 `--require-lifecycle-rule
+PREFIX=DAYS`；两端都必须存在 `Enabled` 且前缀、过期天数精确匹配的规则：
+
+```bash
+python scripts/minio-dr-acceptance.py \
+  --report docs/evidence/minio-dr-acceptance-YYYY-MM-DD.json \
+  --require-lifecycle-rule 'tmp/=7'
+```
+
+没有独立目标主机时不要把同一 MinIO 或同一主机的不同 bucket 记录为跨主机恢复通过；
+该命令会拒绝相同主机。完成 live drill 后，把报告路径、对象前缀、耗时和
+恢复后的业务对象检查结果记录到 `docs/backup-restore-drill-record.md`。
+
 ## Restore
 
 Restores are destructive. The restore script refuses to run unless the

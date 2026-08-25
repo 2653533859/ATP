@@ -41,13 +41,16 @@ $explicitFiles = @(
   'docker-compose.performance-acceptance.yml',
   'deploy/performance-acceptance/prometheus.yml',
   'docs/performance-environment-acceptance.md',
+  'docs/disaster-recovery.md',
+  'docs/backup-restore-drill-record.md',
   'deploy/performance-acceptance/acceptance.proto',
   'deploy/performance-acceptance/Dockerfile.target',
   'deploy/performance-acceptance/Dockerfile.tools',
   'deploy/performance-acceptance/jmeter_smoke.jmx',
   'deploy/performance-acceptance/locust_smoke.py',
   'scripts/performance-environment-smoke.py',
-  'scripts/performance_acceptance_target.py'
+  'scripts/performance_acceptance_target.py',
+  'scripts/minio-dr-acceptance.py'
 )
 $sourceDirectories = @('backend')
 $excludedDirectoryNames = @(

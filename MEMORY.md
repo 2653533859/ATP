@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-25 N4 跨端点 MinIO 恢复验收入口已完成：新增 `scripts/minio-dr-acceptance.py` 和 `make minio-dr-acceptance`，从 `ATP_MINIO_DR_SOURCE_*`/`ATP_MINIO_DR_TARGET_*` 读取独立端点和凭据，验证生命周期审计、源端回读、跨端点复制/目标回读、恢复回源、SHA-256 和唯一前缀清理；同一主机拒绝，凭据不写入报告；异常也会脱敏写失败证据并返回非零。脚本回归 `3 passed`，质量门禁一致性/灾备文档回归 `17 passed`，Ruff、格式检查、差异检查和独立审查通过。当前 `172.31.27.133` 没有独立 MinIO 灾备端点，真实跨主机恢复和生产生命周期仍待验收；计划与边界已同步到 `Task.md`、`docs/development-plan-2026-08-25.md`、`docs/disaster-recovery.md`、`docs/performance-environment-acceptance.md` 和 `docs/release-status-2026-08-25.md`。
+
 - 2026-08-25 N4 性能 Kubernetes 容量预检已完成代码实现：`scripts/performance-environment-smoke.py` 可选检查可调度 Ready 节点数、性能 Worker Deployment desired/available 副本数，以及 Worker 容器 CPU/内存 `resources.requests/limits`；节点不足、副本不足或资源缺失会失败，默认参数保持旧 smoke 兼容。脚本回归 `29 passed`，Ruff、格式检查、`git diff --check` 和独立代码审查通过。当前 `172.31.27.133` 没有 Kubernetes 集群，因此真实多节点、生产 Prometheus/MinIO 生命周期和跨主机恢复仍待环境验收；计划与边界已同步到 `Task.md`、`docs/development-plan-2026-08-25.md`、`docs/performance-environment-acceptance.md` 和 `docs/release-status-2026-08-25.md`。
 
 - 2026-08-25 当前开发计划已重新登记并统一到参考导航五组：工作台、测试能力、测试资产、智能中枢、系统。当前主游标调整为 **N4 性能真实环境**；N1 受控协议与完整报告闭环已通过，N2 Karing 因设备未确认真实 `package_name` 保持阻塞但不阻塞 N4，之后推进 N5-N8 外部依赖复核和 N9 发布收口。计划详见 `docs/development-plan-2026-08-25.md` 的“0.9 当前开发计划登记”；`Task.md`、路线图和发布状态已同步。每个模块必须完成实现、测试、独立代码审查、问题修复、文档/记忆同步和 Conventional Commit 推送，不能用 mock、跳过项或页面可打开替代真实证据。

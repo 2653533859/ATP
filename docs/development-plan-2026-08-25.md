@@ -14,13 +14,13 @@
 | N1 | 接口测试 | 受控 GraphQL、WebSocket、流式 gRPC 和 HTML/JUnit/PDF 完整报告闭环已完成 | `[E]` | 协议创建/执行/断言/提取/报告/清理均有脱敏证据 |
 | N2 | APP 自动化 | 等待 Karing 真实 APK/包名，完成单设备执行、录屏、专项任务和结果回传 | `[-]` | 设备包管理确认包名，且低代码、专项、媒体、报告和清理通过 |
 | N3 | UI 自动化 | 维护 Playwright 录制、回放、元素/页面对象、Trace/HAR 和浏览器矩阵 | `[E]` | Chromium、Firefox、WebKit 的失败证据可追踪 |
-| N4 | 性能测试 | 已补 Kubernetes 多节点/副本/Worker 资源预检；继续补采样、Prometheus/MinIO 生命周期和跨主机恢复 | `[~]` | 多节点容量、取消、采样、报告和恢复演练有环境证据 |
+| N4 | 性能测试 | 已补 Kubernetes 多节点/副本/Worker 资源预检和跨端点 MinIO 复制/恢复 smoke；继续补采样、Prometheus/MinIO 生命周期和真实跨主机恢复 | `[~]` | 多节点容量、取消、采样、报告和恢复演练有环境证据 |
 | N5-N8 | AI、测试资产、智能中枢、系统 | 以真实项目、模型、角色和目标部署复核本地能力 | `[E]` | 来源、权限、脱敏、审计和回滚均可复核 |
 | N9 | 发布收口 | 汇总代码 SHA、测试、证据、操作手册和剩余阻塞 | `[~]` | 所有未关闭门禁都有负责人、原因和复验命令 |
 
 ### 当前执行顺序
 
-1. **N4 性能真实环境**：已完成可复用的 Kubernetes 多节点/副本/Worker 资源预检；继续在真实目标验证多节点调度、资源采样、Prometheus/MinIO 生命周期、保留清理和跨主机恢复。
+1. **N4 性能真实环境**：已完成 Kubernetes 多节点/副本/Worker 资源预检和跨端点 MinIO 复制/恢复 smoke；继续在真实目标验证多节点调度、资源采样、Prometheus/MinIO 生命周期、保留清理和跨主机恢复。
 2. **N2 Android Karing 单设备门禁（阻塞但不阻塞 N4）**：用户提供或上传 Karing APK 后，以 `pm list packages` 和 Manifest 解析结果确认真实 `package_name`，再按 APK → 低代码 → 录屏/异常回放 → 专项任务 → 事件/日志/报告 → 下载/清理执行。
 3. **N5-N8 外部依赖复核**：在 N4 不具备生产目标时，继续验证真实模型、通知、外部缺陷平台、项目数据、权限、审计和配置回滚。
 4. **N5-N8 外部依赖复核**：依次验证真实 AI 模型、通知供应商、外部缺陷平台、项目数据、权限、审计和配置回滚。
@@ -50,6 +50,13 @@
 - **使用方式**：在真实集群验收时追加 `--min-ready-nodes`、`--min-worker-replicas` 和 `--require-worker-resources`；默认不启用，既有 Deployment/Pod smoke 行为保持兼容。
 - **质量门禁**：脚本回归 `29 passed`，Ruff、格式检查和 `git diff --check` 通过；独立代码审查未发现可操作问题。
 - **边界**：当前 Linux 目标只有 Docker Compose、没有 Kubernetes 集群，本项只关闭预检实现和本地回归，不关闭真实多节点、生产 Prometheus/MinIO 生命周期或跨主机恢复。
+
+### 0.9.5 N4 跨端点 MinIO 恢复验收入口
+
+- **实现范围**：新增 `scripts/minio-dr-acceptance.py`，从 `ATP_MINIO_DR_SOURCE_*` 与 `ATP_MINIO_DR_TARGET_*` 读取两端连接信息，验证源端探针回读、目标端复制/回读、恢复回源和 SHA-256 一致性，并在结束时清理唯一前缀下的临时对象。
+- **生命周期门禁**：默认审计两端规则数量；通过重复参数 `--require-lifecycle-rule PREFIX=DAYS` 时，要求两端均存在 `Enabled`、前缀和过期天数完全匹配的规则。报告只包含端点、桶、规则要求和摘要，不包含账号、密钥或对象内容。
+- **质量门禁**：脚本回归 `3 passed`；质量门禁一致性和灾备文档回归 `17 passed`，Ruff、格式检查和 `git diff --check` 通过；独立代码审查未发现可操作问题。
+- **边界**：当前 `172.31.27.133` 没有独立 MinIO 灾备端点，因此本项只关闭验收入口和本地回归；真实跨主机恢复、生产生命周期和长期保留仍待目标环境。
 
 ## 1. 目标导航
 
