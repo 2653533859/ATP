@@ -120,6 +120,27 @@ def test_discovery_keeps_unknown_when_provider_metadata_has_no_positive_capabili
     assert models[0]["capability_source"] == "provider"
 
 
+def test_discovery_ignores_negated_reasoning_marker_in_model_name(monkeypatch):
+    _AsyncClient.requests = []
+    _AsyncClient.response = _Response(
+        {
+            "data": [
+                {"id": "grok-4.20-0309-non-reasoning", "owned_by": "xai"},
+                {"id": "grok-4.20-0309-reasoning", "owned_by": "xai"},
+            ]
+        }
+    )
+    monkeypatch.setattr(model_discovery.httpx, "AsyncClient", _AsyncClient)
+
+    models = asyncio.run(model_discovery.discover_models("openai", "https://llm.example.com/v1", "token"))
+    by_id = {model["id"]: model for model in models}
+
+    assert by_id["grok-4.20-0309-non-reasoning"]["supports_reasoning"] is None
+    assert by_id["grok-4.20-0309-non-reasoning"]["capabilities"] == []
+    assert by_id["grok-4.20-0309-reasoning"]["supports_reasoning"] is True
+    assert by_id["grok-4.20-0309-non-reasoning"]["capability_source"] == "model-name-hint"
+
+
 def test_openai_compatible_discovery_uses_custom_v1_endpoint(monkeypatch):
     _AsyncClient.requests = []
     _AsyncClient.response = _Response({"data": [{"id": "qwen2.5-vl", "owned_by": "third-party"}]})

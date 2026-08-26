@@ -41,6 +41,26 @@ _REASONING_MARKERS = (
     "o3",
     "o4",
 )
+# Model names may advertise the explicit absence of a capability (for example
+# "grok-4.20-0309-non-reasoning"). Strip those fragments before substring matching so a
+# negated name is not read as positive support.
+_NEGATED_CAPABILITY_MARKERS = (
+    "non-reasoning",
+    "non_reasoning",
+    "nonreasoning",
+    "no-reasoning",
+    "no_reasoning",
+    "non-thinking",
+    "non_thinking",
+    "nonthinking",
+    "no-thinking",
+    "no_thinking",
+    "non-vision",
+    "non_vision",
+    "nonvision",
+    "no-vision",
+    "no_vision",
+)
 _CAPABILITY_FIELDS = (
     "capabilities",
     "modalities",
@@ -116,6 +136,13 @@ def _provider_capabilities(raw: dict[str, Any] | None) -> tuple[set[str], bool]:
     return tokens, metadata_present
 
 
+def _strip_negated_markers(lowered: str) -> str:
+    """Remove explicit "no capability" fragments so they cannot match positive markers."""
+    for marker in _NEGATED_CAPABILITY_MARKERS:
+        lowered = lowered.replace(marker, "")
+    return lowered
+
+
 def _capability_hint(model_id: str, provider: str, raw: dict[str, Any] | None = None) -> dict[str, Any]:
     lowered = model_id.lower()
     provider_capabilities, provider_metadata_present = _provider_capabilities(raw)
@@ -124,8 +151,9 @@ def _capability_hint(model_id: str, provider: str, raw: dict[str, Any] | None = 
         supports_reasoning: bool | None = True if provider_capabilities & _REASONING_CAPABILITY_MARKERS else None
         capability_source = "provider"
     else:
-        supports_vision = True if any(marker in lowered for marker in _VISION_MARKERS) else None
-        supports_reasoning = True if any(marker in lowered for marker in _REASONING_MARKERS) else None
+        hinted = _strip_negated_markers(lowered)
+        supports_vision = True if any(marker in hinted for marker in _VISION_MARKERS) else None
+        supports_reasoning = True if any(marker in hinted for marker in _REASONING_MARKERS) else None
         capability_source = "model-name-hint"
     hints: list[str] = []
     if supports_vision is True:
