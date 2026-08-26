@@ -653,6 +653,7 @@ export default {
     adopted_count: '已采纳 {count} 条',
     example_count: '高质量示例 {count} 条',
     open_healing_stats: '打开自愈统计',
+    open_healing_examples: '打开自愈示例',
     healing_unavailable: '自愈统计暂时没有可用数据',
     load_projects_failed: '加载项目失败',
     load_modules_failed: '模块上下文加载失败',

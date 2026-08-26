@@ -48,6 +48,12 @@ describe('layout navigation state', () => {
     expect(getMenuOpenKeys('/system/web-assets')).toEqual(['test-capabilities'])
   })
 
+  it('keeps AI healing pages under the AI workbench instead of the configuration center', () => {
+    expect(getSelectedMenuKey('/system/healing-examples')).toBe('/ai-workbench')
+    expect(getSelectedMenuKey('/system/ai-healing-stats')).toBe('/ai-workbench')
+    expect(getMenuOpenKeys('/system/healing-examples')).toEqual(['test-capabilities'])
+  })
+
   it('does not duplicate a group when the route title is the group title', () => {
     expect(getBreadcrumbKeys('/unknown', 'menu.groups.workbench')).toEqual(['menu.groups.workbench'])
   })

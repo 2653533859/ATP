@@ -22,6 +22,7 @@ from app.api.deps import assert_project_access, get_project_role, require_engine
 from app.core.config import settings
 from app.core.database import get_db
 from app.models.ai_llm_config import AILLMConfig
+from app.models.bug_tracker import BugTracker
 from app.models.configuration_revision import ConfigurationRevision
 from app.models.environment import Environment, EnvVariable
 from app.models.global_variable import GlobalVariable, ScopeType
@@ -72,6 +73,9 @@ _SECTION_DEFINITIONS = (
     ("storage_policy", "存储策略", "对象存储清理策略与保留规则", "/system/storage", False, False),
     ("notification", "通知配置", "项目通知渠道和启用状态", "/system/notifications", True, False),
     ("performance_node", "性能节点", "压测节点队列、状态和容量摘要", "/system/performance", False, False),
+    # 缺陷平台与通知同属带加密凭据的外部集成，只做只读聚合：不在 ConfigurationSnapshotDomain
+    # 里登记，因此不进入快照、差异和回滚链路。
+    ("bug_tracker", "缺陷平台", "项目缺陷平台类型和启用状态", "/system/bug-trackers", True, False),
 )
 
 
@@ -297,6 +301,37 @@ async def _load_notification_entries(
     ]
 
 
+async def _load_bug_tracker_entries(
+    db: AsyncSession,
+    user: User,
+    project_id: int | None,
+    cache: dict[tuple[int, ProjectRole], bool],
+) -> list[ConfigurationEntryOut]:
+    query = select(BugTracker).where(BugTracker.project_id.in_(visible_project_ids(user)))
+    if project_id is not None:
+        query = query.where(BugTracker.project_id == project_id)
+    trackers = (await db.execute(query)).scalars().all()
+    return [
+        _entry(
+            domain="bug_tracker",
+            resource_id=tracker.id,
+            project_id=tracker.project_id,
+            name=tracker.name,
+            status="enabled" if tracker.is_enabled else "disabled",
+            updated_at=tracker.updated_at,
+            # config 里存的是 api_token / password / token，只输出类型与开关，不暴露任何字段值。
+            summary={
+                "tracker_type": _enum_value(tracker.tracker_type),
+                "is_enabled": bool(tracker.is_enabled),
+                "field_mapping_count": len(tracker.field_mapping) if isinstance(tracker.field_mapping, dict) else 0,
+            },
+            route=f"/system/bug-trackers?project_id={tracker.project_id}",
+            can_manage=await _can_manage_project(db, user, tracker.project_id, ProjectRole.owner, cache),
+        )
+        for tracker in trackers
+    ]
+
+
 @router.get("/overview", response_model=ConfigurationCenterOverviewOut)
 async def get_configuration_center_overview(
     project_id: int | None = Query(default=None, ge=1),
@@ -420,6 +455,13 @@ async def get_configuration_center_overview(
         for node in performance_nodes
     ]
     sections.append(_section(*_SECTION_DEFINITIONS[6], performance_entries))
+
+    sections.append(
+        _section(
+            *_SECTION_DEFINITIONS[7],
+            await _load_bug_tracker_entries(db, user, project_id, role_cache),
+        )
+    )
 
     return ConfigurationCenterOverviewOut(checked_at=now, project_id=project_id, sections=sections)
 

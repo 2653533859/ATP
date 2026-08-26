@@ -21,6 +21,8 @@ export const routeMenuGroups: Record<string, NavigationGroup> = {
   '/system/web-assets': 'test-capabilities',
   '/system/api-contract-assets': 'test-capabilities',
   '/system/performance': 'test-capabilities',
+  '/system/ai-healing-stats': 'test-capabilities',
+  '/system/healing-examples': 'test-capabilities',
   '/system': 'system-center',
   '/devices': 'test-capabilities',
   '/apks': 'test-capabilities',
@@ -80,6 +82,9 @@ export function getSelectedMenuKey(path: string): string {
   if (path.startsWith('/system/web-assets')) return '/ui-workbench'
   if (path.startsWith('/system/api-contract-assets')) return '/api-workbench'
   if (path.startsWith('/system/datasets') || path.startsWith('/mock-rules')) return '/ai-workbench'
+  // 自愈统计和自愈示例是 AI 能力页而非配置域，入口在 AI 工作台；若不在这里拦下，
+  // 会被下面的 '/system/' 兜底高亮成配置中心。
+  if (path.startsWith('/system/ai-healing-stats') || path.startsWith('/system/healing-examples')) return '/ai-workbench'
   if (path.startsWith('/suites')) return '/suites'
   if (path.startsWith('/system/toolbox')) return '/system/toolbox'
   if (path.startsWith('/system/config') || path.startsWith('/system/')) return '/system/config'

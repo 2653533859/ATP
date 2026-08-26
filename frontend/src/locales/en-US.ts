@@ -653,6 +653,7 @@ export default {
     adopted_count: '{count} adopted',
     example_count: '{count} high-quality examples',
     open_healing_stats: 'Open healing statistics',
+    open_healing_examples: 'Open healing examples',
     healing_unavailable: 'Self-healing statistics are unavailable',
     load_projects_failed: 'Failed to load projects',
     load_modules_failed: 'Failed to load module context',

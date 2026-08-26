@@ -26,6 +26,7 @@ from app.api.v1 import configuration_center
 from app.api.deps import require_engineer
 from app.models.ai_llm_config import AILLMConfig
 from app.models.bootstrap import load_all_models
+from app.models.bug_tracker import BugTracker, TrackerType
 from app.models.environment import Environment, EnvVariable
 from app.models.global_variable import GlobalVariable, ScopeType
 from app.models.notification import NotificationConfig, NotifyChannel
@@ -63,6 +64,7 @@ class _DB:
         ai_rows=(),
         storage_rows=(),
         node_rows=(),
+        bug_tracker_rows=(),
     ):
         self.rows = {
             Environment: list(environment_rows),
@@ -72,6 +74,7 @@ class _DB:
             AILLMConfig: list(ai_rows),
             StoragePolicy: list(storage_rows),
             PerformanceNode: list(node_rows),
+            BugTracker: list(bug_tracker_rows),
         }
 
     async def execute(self, statement):
@@ -153,6 +156,21 @@ def test_admin_overview_aggregates_domains_without_secret_values():
         egress_allowlist=["10.0.0.1"],
         updated_at=updated_at,
     )
+    bug_tracker = BugTracker(
+        id=6,
+        name="Jira",
+        project_id=10,
+        tracker_type=TrackerType.jira,
+        config={
+            "base_url": "https://tracker-secret.example.invalid",
+            "email": "reporter@example.invalid",
+            "api_token": "tracker-must-not-leak",
+            "project_key": "ATP",
+        },
+        field_mapping={"severity": "priority"},
+        is_enabled=True,
+        updated_at=updated_at,
+    )
     db = _DB(
         environment_rows=[environment],
         variable_rows=[variable],
@@ -161,6 +179,7 @@ def test_admin_overview_aggregates_domains_without_secret_values():
         ai_rows=[ai],
         storage_rows=[storage],
         node_rows=[node],
+        bug_tracker_rows=[bug_tracker],
     )
 
     result = asyncio.run(configuration_center.get_configuration_center_overview(project_id=None, db=db, user=_admin()))
@@ -175,16 +194,24 @@ def test_admin_overview_aggregates_domains_without_secret_values():
         "storage_policy",
         "notification",
         "performance_node",
+        "bug_tracker",
     }
     assert sections["environment"]["entries"][0]["summary"] == {"variable_count": 1, "secret_count": 1}
     assert sections["ai_llm"]["entries"][0]["summary"]["has_api_key"] is True
     assert sections["performance_node"]["entries"][0]["summary"]["executors"] == ["k6"]
+    assert sections["bug_tracker"]["entries"][0]["summary"] == {
+        "tracker_type": "jira",
+        "is_enabled": True,
+        "field_mapping_count": 1,
+    }
     assert sections["startup"]["readonly"] is True
     assert "encrypted-secret" not in str(payload)
     assert "encrypted-global-secret" not in str(payload)
     assert "secret-model.example.invalid" not in str(payload)
     assert "do-not-return" not in str(payload)
     assert "must-not-leak" not in str(payload)
+    assert "tracker-secret.example.invalid" not in str(payload)
+    assert "reporter@example.invalid" not in str(payload)
 
 
 def test_engineer_cannot_see_admin_only_domains():

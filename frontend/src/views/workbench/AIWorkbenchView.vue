@@ -234,6 +234,7 @@
             <div class="healing-meter"><span :style="{ width: `${Math.min(100, Math.max(0, healingStats.adopted_rate))}%` }" /></div>
             <div class="healing-counts"><span>{{ t('ai_workbench.adopted_count', { count: healingStats.adopted_count }) }}</span><span>{{ t('ai_workbench.example_count', { count: healingStats.high_quality_example_count }) }}</span></div>
             <a-button v-if="isAdmin" type="link" class="context-action" @click="openHealingStats">{{ t('ai_workbench.open_healing_stats') }} →</a-button>
+            <a-button v-if="isAdmin" type="link" class="context-action" @click="openHealingExamples">{{ t('ai_workbench.open_healing_examples') }} →</a-button>
           </template>
           <div v-else class="restricted-panel healing-restricted"><LockOutlined /><span>{{ isAdmin ? t('ai_workbench.healing_unavailable') : t('ai_workbench.admin_signal_hint') }}</span></div>
         </aside>
@@ -531,6 +532,10 @@ function openModelConfig() {
 
 function openHealingStats() {
   void router.push('/system/ai-healing-stats')
+}
+
+function openHealingExamples() {
+  void router.push('/system/healing-examples')
 }
 
 onMounted(() => { void loadProjects() })

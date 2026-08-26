@@ -32,11 +32,6 @@ const router = createRouter({
           meta: {
             menuTitleKey: 'menu.workbench.todos',
             descriptionKey: 'navigation.placeholder.description.todos',
-            existingLinks: [
-              { path: '/cases', labelKey: 'menu.cases' },
-              { path: '/runs', labelKey: 'menu.runs' },
-              { path: '/plans', labelKey: 'menu.plans' },
-            ],
           },
         },
         {
@@ -46,7 +41,6 @@ const router = createRouter({
           meta: {
             menuTitleKey: 'menu.workbench.tasks',
             descriptionKey: 'navigation.placeholder.description.tasks',
-            existingLinks: [{ path: '/runs', labelKey: 'menu.runs' }],
           },
         },
         {
@@ -56,11 +50,6 @@ const router = createRouter({
           meta: {
             menuTitleKey: 'menu.capabilities.api',
             descriptionKey: 'navigation.placeholder.description.api',
-            existingLinks: [
-              { path: '/cases', labelKey: 'menu.cases' },
-              { path: '/system/api-contract-assets', labelKey: 'menu.system.api_contract_assets' },
-              { path: '/mock-rules', labelKey: 'menu.mock_rules' },
-            ],
           },
         },
         {
@@ -71,11 +60,6 @@ const router = createRouter({
             roles: ENGINEER_ONLY,
             menuTitleKey: 'menu.capabilities.app',
             descriptionKey: 'navigation.placeholder.description.app',
-            existingLinks: [
-              { path: '/devices', labelKey: 'menu.devices' },
-              { path: '/apks', labelKey: 'menu.apks' },
-              { path: '/mobile-special/tasks', labelKey: 'menu.mobile_special.tasks' },
-            ],
           },
         },
         {
@@ -85,10 +69,6 @@ const router = createRouter({
           meta: {
             menuTitleKey: 'menu.capabilities.ui',
             descriptionKey: 'navigation.placeholder.description.ui',
-            existingLinks: [
-              { path: '/system/web-assets', labelKey: 'menu.system.web_assets' },
-              { path: '/cases', labelKey: 'menu.cases' },
-            ],
           },
         },
         {
@@ -98,10 +78,6 @@ const router = createRouter({
           meta: {
             menuTitleKey: 'menu.capabilities.performance',
             descriptionKey: 'navigation.placeholder.description.performance',
-            existingLinks: [
-              { path: '/system/performance', labelKey: 'menu.system.performance' },
-              { path: '/runs', labelKey: 'menu.runs' },
-            ],
           },
         },
         {
@@ -111,10 +87,6 @@ const router = createRouter({
           meta: {
             menuTitleKey: 'menu.capabilities.ai',
             descriptionKey: 'navigation.placeholder.description.ai',
-            existingLinks: [
-              { path: '/cases', labelKey: 'menu.cases' },
-              { path: '/mock-rules', labelKey: 'menu.mock_rules' },
-            ],
           },
         },
         {
@@ -133,10 +105,6 @@ const router = createRouter({
           meta: {
             menuTitleKey: 'menu.assets.reports',
             descriptionKey: 'navigation.placeholder.description.reports',
-            existingLinks: [
-              { path: '/runs', labelKey: 'menu.runs' },
-              { path: '/mobile-special/reports', labelKey: 'menu.mobile_special.reports' },
-            ],
           },
         },
         {
@@ -146,7 +114,6 @@ const router = createRouter({
           meta: {
             menuTitleKey: 'menu.assets.reviews',
             descriptionKey: 'navigation.placeholder.description.reviews',
-            existingLinks: [{ path: '/cases?review_status=pending', labelKey: 'menu.cases' }],
           },
         },
         {
@@ -156,7 +123,6 @@ const router = createRouter({
           meta: {
             menuTitleKey: 'menu.intelligence.hermes',
             descriptionKey: 'navigation.placeholder.description.hermes',
-            existingLinks: [{ path: '/runs', labelKey: 'menu.runs' }],
           },
         },
         {
@@ -166,7 +132,6 @@ const router = createRouter({
           meta: {
             menuTitleKey: 'menu.intelligence.requirements',
             descriptionKey: 'navigation.placeholder.description.requirements',
-            existingLinks: [{ path: '/cases', labelKey: 'menu.cases' }],
           },
         },
         {
@@ -176,11 +141,6 @@ const router = createRouter({
           meta: {
             menuTitleKey: 'menu.intelligence.knowledge',
             descriptionKey: 'navigation.placeholder.description.knowledge',
-            existingLinks: [
-              { path: '/bugs', labelKey: 'menu.bugs' },
-              { path: '/requirements', labelKey: 'menu.intelligence.requirements' },
-              { path: '/runs', labelKey: 'menu.runs' },
-            ],
           },
         },
         {
@@ -191,10 +151,6 @@ const router = createRouter({
             roles: ENGINEER_ONLY,
             menuTitleKey: 'menu.system_center.toolbox',
             descriptionKey: 'navigation.placeholder.description.toolbox',
-            existingLinks: [
-              { path: '/devices', labelKey: 'menu.devices' },
-              { path: '/system/performance', labelKey: 'menu.system.performance' },
-            ],
           },
         },
         {
@@ -205,10 +161,6 @@ const router = createRouter({
             roles: ENGINEER_ONLY,
             menuTitleKey: 'menu.system_center.config',
             descriptionKey: 'navigation.placeholder.description.config',
-            existingLinks: [
-              { path: '/system/environments', labelKey: 'menu.system.environments' },
-              { path: '/system/global-variables', labelKey: 'menu.system.global_variables' },
-            ],
           },
         },
         {
