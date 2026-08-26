@@ -136,9 +136,32 @@ def test_discovery_ignores_negated_reasoning_marker_in_model_name(monkeypatch):
     by_id = {model["id"]: model for model in models}
 
     assert by_id["grok-4.20-0309-non-reasoning"]["supports_reasoning"] is None
-    assert by_id["grok-4.20-0309-non-reasoning"]["capabilities"] == []
+    assert "reasoning" not in by_id["grok-4.20-0309-non-reasoning"]["capabilities"]
     assert by_id["grok-4.20-0309-reasoning"]["supports_reasoning"] is True
     assert by_id["grok-4.20-0309-non-reasoning"]["capability_source"] == "model-name-hint"
+
+
+def test_discovery_hints_vision_for_multimodal_series_and_image_models(monkeypatch):
+    _AsyncClient.requests = []
+    _AsyncClient.response = _Response(
+        {
+            "data": [
+                {"id": "claude-sonnet-4-6", "owned_by": "antigravity"},
+                {"id": "gemini-3.1-flash-image", "owned_by": "antigravity"},
+                {"id": "gpt-oss-120b-medium", "owned_by": "antigravity"},
+            ]
+        }
+    )
+    monkeypatch.setattr(model_discovery.httpx, "AsyncClient", _AsyncClient)
+
+    models = asyncio.run(model_discovery.discover_models("openai", "https://llm.example.com/v1", "token"))
+    by_id = {model["id"]: model for model in models}
+
+    assert by_id["claude-sonnet-4-6"]["supports_vision"] is True
+    assert by_id["gemini-3.1-flash-image"]["supports_vision"] is True
+    # A text-only model must stay unknown rather than inherit a sibling's hint.
+    assert by_id["gpt-oss-120b-medium"]["supports_vision"] is None
+    assert by_id["claude-sonnet-4-6"]["capability_source"] == "model-name-hint"
 
 
 def test_openai_compatible_discovery_uses_custom_v1_endpoint(monkeypatch):

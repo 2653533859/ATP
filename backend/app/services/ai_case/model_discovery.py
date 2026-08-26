@@ -31,6 +31,18 @@ _VISION_MARKERS = (
     "gpt-4.1",
     "claude-3",
     "claude-4",
+    # Vendor families that are multimodal across the whole line. The dated Claude ids
+    # ("claude-sonnet-4-6") do not contain the "claude-4" fragment above, so the series
+    # names are matched directly.
+    "claude-sonnet",
+    "claude-opus",
+    "claude-haiku",
+    "gemini",
+    "grok-4",
+    # Image-capable model names. Mirrors the "image" token already accepted as positive
+    # evidence in _VISION_CAPABILITY_MARKERS.
+    "-image",
+    "_image",
 )
 _REASONING_MARKERS = (
     "reason",
