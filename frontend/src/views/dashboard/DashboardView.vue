@@ -63,7 +63,13 @@
       <div class="workbench-header">
         <div>
           <div class="section-title">{{ t('dashboard.workbench.title') }}</div>
-          <div class="section-subtitle">{{ t('dashboard.workbench.subtitle') }}</div>
+          <div v-if="workbenchLoading" class="section-subtitle">{{ t('dashboard.workbench.subtitle') }}</div>
+          <div v-else class="section-subtitle" :class="`workbench-verdict-${workbenchVerdict.tone}`">
+            {{ workbenchVerdict.text }}
+            <span v-if="workbenchUpdatedAt" class="workbench-verdict-time">
+              {{ t('dashboard.workbench.updated_at', { at: workbenchUpdatedAt }) }}
+            </span>
+          </div>
         </div>
         <a-space wrap>
           <a-button size="small" @click="goToCaseManagement(effectiveProjectId)">
@@ -117,6 +123,29 @@
           </button>
         </a-col>
       </a-row>
+
+      <div v-if="canSeeServices" class="service-status">
+        <div class="service-status-header">
+          <div class="section-title">{{ t('dashboard.workbench.services_title') }}</div>
+          <a-space :size="8">
+            <span v-if="serviceOverviewStatus" class="service-overall" :class="`service-overall-${serviceOverviewStatus}`">
+              {{ t(`dashboard.workbench.service_overall.${serviceOverviewStatus}`) }}
+            </span>
+            <a-button type="link" size="small" @click="goToToolbox">{{ t('dashboard.workbench.services_open') }}</a-button>
+          </a-space>
+        </div>
+        <a-skeleton v-if="servicesLoading" active :title="false" :paragraph="{ rows: 1 }" />
+        <div v-else-if="serviceChecks.length" class="service-row-list">
+          <div v-for="check in serviceChecks" :key="check.key" class="service-row">
+            <span class="service-dot" :class="`service-dot-${check.status}`" />
+            <span class="service-name">{{ t(`remote_toolbox.check.${check.key}`) }}</span>
+            <span class="service-state" :class="`service-state-${check.status}`">
+              {{ t(`remote_toolbox.status.${check.status}`) }}
+            </span>
+          </div>
+        </div>
+        <div v-else class="service-unavailable">{{ t('dashboard.workbench.services_unavailable') }}</div>
+      </div>
 
       <div class="recent-runs">
         <div class="recent-runs-header">
@@ -275,7 +304,9 @@ import VChart from 'vue-echarts'
 import { DownloadOutlined, SettingOutlined, ProfileOutlined, PlayCircleOutlined, CheckCircleOutlined, ThunderboltOutlined, ClockCircleOutlined, ExclamationCircleOutlined, FileSearchOutlined, AlertOutlined } from '@ant-design/icons-vue'
 import LazyChartCard from '@/components/dashboard/LazyChartCard.vue'
 import { useChartTheme } from '@/utils/chartTheme'
-import { caseApi, dashboardAlertApi, projectApi, runApi, statisticsApi, storageApi, userSettingsApi, type DashboardAlertEventItem, type RunDetailItem, type StatisticsAggregateTrendItem, type StatisticsCaseTypeDistributionItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
+import { caseApi, dashboardAlertApi, projectApi, remoteToolboxApi, runApi, statisticsApi, storageApi, userSettingsApi, type DashboardAlertEventItem, type RemoteToolboxCheckItem, type RunDetailItem, type StatisticsAggregateTrendItem, type StatisticsCaseTypeDistributionItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
+import { useAuthStore } from '@/stores/auth'
+import { hasAnyRole } from '@/utils/permissions'
 import {
   cloneDefaultDashboardLayout,
   fillTrendGaps,
@@ -286,6 +317,7 @@ import {
 const router = useRouter()
 const { t, locale } = useI18n()
 const { chartTheme } = useChartTheme()
+const auth = useAuthStore()
 
 type DashboardCaseType = 'api' | 'graphql' | 'websocket' | 'grpc' | 'web' | 'android' | 'ios'
 type Aggregate = 'daily' | 'weekly'
@@ -424,6 +456,16 @@ const days = ref(30)
 const caseType = ref<DashboardCaseType | undefined>(undefined)
 const loading = ref(false)
 const workbenchLoading = ref(false)
+const workbenchUpdatedAt = ref('')
+// 加载失败时 resetWorkbench() 会把计数归零，若不单独标记，结论会显示「一切正常」——
+// 那是假报平安。这个标记让结论退化成「数据不可用」而不是宣称没有失败。
+const workbenchLoadFailed = ref(false)
+// 服务状态复用远程工具箱的 /remote-toolbox/overview，不新增后端接口。
+// 该端点是 require_engineer，tester/viewer 会拿到 403，因此按角色先行拦下，
+// 并且请求失败时只置空、不弹错误——首页不该因为诊断接口不可用而报错。
+const serviceChecks = ref<RemoteToolboxCheckItem[]>([])
+const servicesLoading = ref(false)
+const serviceOverviewStatus = ref<'ok' | 'degraded' | 'error' | null>(null)
 const storageAlert = ref<StorageAlertPayload | null>(null)
 const dashboardAlertEvents = ref<DashboardAlertEventItem[]>([])
 const recentRuns = ref<RunDetailItem[]>([])
@@ -716,6 +758,10 @@ function goToDashboardAlerts() {
 
 function goToRuns() {
   void router.push({ name: 'runs' })
+}
+
+function goToToolbox() {
+  void router.push({ name: 'system-toolbox' })
 }
 
 function goToRunDetail(runId: number) {
@@ -1087,8 +1133,47 @@ async function loadFirstScreen() {
   }
 }
 
+const canSeeServices = computed(() => hasAnyRole(auth.user?.role, ['admin', 'engineer']))
+
+const degradedServiceCount = computed(() => serviceChecks.value.filter(check => check.status !== 'ok').length)
+
+// 先给结论再给数据。优先级：今日失败要立刻处理 > 活跃告警待确认 > 服务未就绪只是风险。
+const workbenchVerdict = computed(() => {
+  if (workbenchLoadFailed.value) {
+    return { tone: 'warning', text: t('dashboard.workbench.verdict_unavailable') }
+  }
+  if (workbench.todayFailed > 0) {
+    return { tone: 'error', text: t('dashboard.workbench.verdict_failed', { count: workbench.todayFailed }) }
+  }
+  if (workbench.alertCount > 0) {
+    return { tone: 'warning', text: t('dashboard.workbench.verdict_alerts', { count: workbench.alertCount }) }
+  }
+  if (degradedServiceCount.value > 0) {
+    return { tone: 'warning', text: t('dashboard.workbench.verdict_services', { count: degradedServiceCount.value }) }
+  }
+  return { tone: 'ok', text: t('dashboard.workbench.verdict_ok') }
+})
+
+async function loadServices() {
+  if (!canSeeServices.value) return
+  servicesLoading.value = true
+  try {
+    const overview = await remoteToolboxApi.overview()
+    serviceOverviewStatus.value = overview.status
+    // 有问题的排前面，但一项都不隐藏：截断会让「全绿」读起来像是已经全面检查过。
+    const rank: Record<RemoteToolboxCheckItem['status'], number> = { error: 0, warning: 1, ok: 2 }
+    serviceChecks.value = [...overview.checks].sort((a, b) => rank[a.status] - rank[b.status])
+  } catch {
+    serviceOverviewStatus.value = null
+    serviceChecks.value = []
+  } finally {
+    servicesLoading.value = false
+  }
+}
+
 async function loadWorkbench() {
   workbenchLoading.value = true
+  workbenchLoadFailed.value = false
   try {
     const params = currentTrendParams()
     const [trend, pendingCases, runs] = await Promise.all([
@@ -1105,7 +1190,9 @@ async function loadWorkbench() {
     workbench.pendingReviews = pendingCases.length
     workbench.alertCount = dashboardAlertEvents.value.length
     recentRuns.value = runs.items
+    workbenchUpdatedAt.value = new Date().toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
   } catch {
+    workbenchLoadFailed.value = true
     recentRuns.value = []
     resetWorkbench()
   } finally {
@@ -1256,6 +1343,7 @@ onMounted(() => {
   void loadProjects()
   void loadFirstScreen()
   void loadStorageAlert()
+  void loadServices()
   void loadDashboardAlerts().then(() => loadWorkbench())
 })
 
@@ -1346,6 +1434,89 @@ function formatAlertTime(value?: string | null) {
 }
 .section-subtitle {
   margin-top: 2px;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+.workbench-verdict-ok {
+  color: var(--c-success);
+}
+.workbench-verdict-warning {
+  color: var(--c-warning);
+}
+.workbench-verdict-error {
+  color: var(--c-error);
+}
+.workbench-verdict-time {
+  margin-left: 8px;
+  color: var(--c-text-secondary);
+}
+.service-status {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--c-border);
+}
+.service-status-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+.service-overall {
+  padding: 1px 8px;
+  border-radius: 10px;
+  font-size: 12px;
+  background: var(--c-bg-subtle);
+  color: var(--c-text-secondary);
+}
+.service-overall-ok {
+  color: var(--c-success);
+}
+.service-overall-degraded {
+  color: var(--c-warning);
+}
+.service-overall-error {
+  color: var(--c-error);
+}
+.service-row-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 20px;
+}
+.service-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+}
+.service-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c-text-secondary);
+}
+.service-dot-ok {
+  background: var(--c-success);
+}
+.service-dot-warning {
+  background: var(--c-warning);
+}
+.service-dot-error {
+  background: var(--c-error);
+}
+.service-name {
+  color: var(--c-text);
+}
+.service-state {
+  color: var(--c-text-secondary);
+}
+.service-state-warning {
+  color: var(--c-warning);
+}
+.service-state-error {
+  color: var(--c-error);
+}
+.service-unavailable {
   color: var(--c-text-secondary);
   font-size: 12px;
 }
