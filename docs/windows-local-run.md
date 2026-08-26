@@ -110,6 +110,39 @@ MINIO_PORT=9000
 - 应用启动时会做一次 Alembic head 校验，DB revision 与 head 不一致会在日志输出 WARNING
 - `APP_AUTO_CREATE_TABLES=true` 只建议用于本地临时排障，不建议作为日常启动路径
 
+## 本机完整栈一键启动
+
+只在本机跑完整栈（Backend + Worker + Beat + Frontend，连本机基础设施）时，用
+`scripts/local-up.ps1`：
+
+```powershell
+powershell -ExecutionPolicy Bypass -File scripts\local-up.ps1
+powershell -ExecutionPolicy Bypass -File scripts\local-up.ps1 -Action status
+powershell -ExecutionPolicy Bypass -File scripts\local-up.ps1 -Action down
+```
+
+它在委派给 `windows-local.ps1` 之前补两步，这两步是下面 `startup.cmd` 和
+`windows-local.ps1` 都不做的：
+
+1. 确认 `.env` 指向的 PostgreSQL / Redis / MinIO 容器已在 WSL Docker 中运行，未运行则启动，
+   并等待 5432/6379/9000 真正可连接。容器 `running` 不等于服务就绪，宿主重启后出现过
+   容器已启动但 PostgreSQL 仍拒绝连接的情况。
+2. 执行 `alembic upgrade head`。schema 由 Alembic 管理，后端启动时只「警告」数据库不在
+   head、不会自动升级，落后的 schema 会在运行期报错而不是启动期。
+
+`-Action down` 只停应用进程，不停基础设施容器（它们可能被其他项目或验收栈共用）。要停基础设施：
+
+```powershell
+wsl -u root -e docker stop postgresql redis MinIO
+```
+
+已确认数据库在 head 时可用 `-SkipMigrate` 缩短启动；基础设施不在本机 WSL 时用 `-SkipInfra`。
+
+登录用数据库里的账号，不要用 `.env` 的 `FIRST_ADMIN_PASSWORD`：`FIRST_ADMIN_*` 只在
+首次启动播种，之后改过密码，`.env` 里的值就是过期的，表现为持续 HTTP 401。
+
+需要在多种运行方式（远程基础设施、Android Agent、性能 Agent）之间切换时，用下面的配置档案入口。
+
 ## 单命令启动与配置档案
 
 如果需要在多种运行方式之间切换，不要反复覆盖根目录 `.env`，使用配置档案入口：
