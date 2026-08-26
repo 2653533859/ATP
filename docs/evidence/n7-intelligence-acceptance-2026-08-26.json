@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-26T02:43:02.243656+00:00",
+  "scope": "N5/N7 AI model, Hermes, requirement and knowledge retrieval",
+  "status": "passed",
+  "endpoint": "http://127.0.0.1:29080/api/v1",
+  "checks": [
+    {
+      "name": "authentication",
+      "status": "passed",
+      "details": "authenticated as admin; credentials were not recorded"
+    },
+    {
+      "name": "ai-model-preflight",
+      "status": "passed",
+      "details": "saved AI configuration, model discovery and connection passed (config_id=1, provider=openai_compatible, model=claude-opus-4-6-thinking, discovered=29, vision=True, thinking_keys=thinking)"
+    },
+    {
+      "name": "project-create",
+      "status": "passed",
+      "details": "created temporary project id=64"
+    },
+    {
+      "name": "module-create",
+      "status": "passed",
+      "details": "created temporary module id=83"
+    },
+    {
+      "name": "temporary-data-create",
+      "status": "passed",
+      "details": "created one requirement, knowledge entry and case"
+    },
+    {
+      "name": "editable-retrieval",
+      "status": "passed",
+      "details": "requirement parsing and project-scoped requirement/knowledge/case detail retrieval passed"
+    },
+    {
+      "name": "hermes-sources",
+      "status": "passed",
+      "details": "Hermes returned project-scoped requirement, knowledge and case citations"
+    },
+    {
+      "name": "ai-draft",
+      "status": "passed",
+      "details": "real model returned 3 editable case drafts"
+    },
+    {
+      "name": "role-matrix",
+      "status": "passed",
+      "details": "viewer could query project sources but requirement mutation was rejected with HTTP 403"
+    },
+    {
+      "name": "cleanup",
+      "status": "passed",
+      "details": "temporary project id=64 deleted"
+    }
+  ],
+  "resources": {
+    "project_id": 64,
+    "module_id": 83,
+    "requirement_id": 8,
+    "knowledge_id": 4,
+    "case_id": 37
+  }
+}

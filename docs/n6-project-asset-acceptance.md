@@ -33,7 +33,9 @@ Linux/macOS 可使用同名参数；也可以通过 `ATP_ACCEPTANCE_BASE_URL`、
 
 证据 JSON 只记录检查状态、脱敏 endpoint、资源 ID 和有限长度的安全说明，不记录密码、Token、请求正文、响应正文、Cookie 或预签名 URL。真实验收后应审查并确认主项目、隔离项目、成员、套件、计划、运行、缺陷和对象存储产物均已清理。
 
-2026-08-25 q19 基础链路证据：[`docs/evidence/n6-project-asset-acceptance-2026-08-25.json`](evidence/n6-project-asset-acceptance-2026-08-25.json) 为 `partial`；管理员链路、`--execute` 终态运行、缺陷关联和清理均通过，仅因未提供普通 viewer 账号跳过角色矩阵。完整 N6 门禁仍需使用普通项目成员复验。
+2026-08-26 q19 受控真实验收证据：[`docs/evidence/n6-project-asset-acceptance-2026-08-26.json`](evidence/n6-project-asset-acceptance-2026-08-26.json) 为 `passed`；项目 → 模块 → 用例 → 评审 → 套件 → 计划 → 计划运行（终态 `passed`）→ 内部缺陷关联全链路完成，viewer 可读主项目全部资产而跨项目读取与用例/模块写入均被 `HTTP 403` 拒绝，主项目与隔离项目分别删除。N6 门禁已关闭。
+
+2026-08-25 q19 基础链路证据（历史）：[`docs/evidence/n6-project-asset-acceptance-2026-08-25.json`](evidence/n6-project-asset-acceptance-2026-08-25.json) 为 `partial`；管理员链路、`--execute` 终态运行、缺陷关联和清理均通过，仅因未提供普通 viewer 账号跳过角色矩阵。
 
 命令入口：
 

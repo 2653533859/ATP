@@ -22,20 +22,20 @@
 | P2 | APP 自动化 | Windows Android Worker、设备租约、APK 包身份、低代码/录制、录屏、稳定性/Monkey、性能与事件报告 | 单设备完成步骤、控件属性、日志、截图、录像、事件、报告和清理 | `[E]` Karing 单设备证据已有，跨设备和持续运行仍待复核 |
 | P3 | UI 自动化 | Playwright 录制、元素库、页面对象、视觉基线、多浏览器、Trace/HAR/控制台日志和失败定位 | Chromium/Firefox/WebKit 至少完成一次录制、回放、失败证据和资源清理 | `[E]` 本地闭环已完成，真实 Worker/浏览器矩阵待复核 |
 | P4 | 性能测试 | 节点注册、并发/速率模型、阶梯/峰值/稳定性、Prometheus 采样、基线/回归、MinIO 保留 | 真实短压、取消、资源指标、报告、告警、留存清理和跨主机恢复有脱敏证据 | `[-]` 缺 Kubernetes、发布级 Prometheus 和独立 MinIO |
-| P5 | AI 智能测试 | 模型发现/连接、多模态/思考参数、用例/数据集/Mock 草稿、限额和审计 | 生成结果可编辑、来源可回看、敏感值脱敏、失败和权限边界清晰 | `[E]` 本地实现完成，真实模型仍待受控验收 |
-| P6 | 测试资产 | 用例、套件、计划、缺陷、报告、评审之间的上下文和双向追踪 | 失败运行可追到报告/证据/缺陷，角色隔离有效，临时资产可清理 | `[E]` 本地链路和验收工具完成，真实项目矩阵待复核 |
-| P7 | 智能中枢 | Hermes 助手、需求与用例生成、知识中枢；查询来源、可编辑草稿和审计 | 使用真实需求/知识条目完成查询与生成，来源可回看且不静默写入业务数据 | `[E]` 本地诊断已完成，真实模型/数据验收待执行 |
-| P8 | 系统 | 远程工具箱、配置中心、审计、差异、回滚和能力矩阵 | PostgreSQL/Redis/MinIO/Worker/ADB 诊断可解释，回滚精确且可审计 | `[E]` 本地入口已完成，目标部署复核待执行 |
-| P9 | 发布收口 | 能力矩阵、证据索引、运行手册、回滚边界和最终 SHA | 每个未关闭门禁都有原因、依赖、证据路径和复验命令 | `[~]` 等待 P4/P5/P6/P7/P8 外部门禁 |
+| P5 | AI 智能测试 | 模型发现/连接、多模态/思考参数、用例/数据集/Mock 草稿、限额和审计 | 生成结果可编辑、来源可回看、敏感值脱敏、失败和权限边界清晰 | `[x]` q19 受控真实模型已完成发现、连接、多模态/思考门槛和可编辑草稿验收 |
+| P6 | 测试资产 | 用例、套件、计划、缺陷、报告、评审之间的上下文和双向追踪 | 失败运行可追到报告/证据/缺陷，角色隔离有效，临时资产可清理 | `[x]` q19 完成资产链、执行报告、缺陷关联、viewer 隔离和清理验收 |
+| P7 | 智能中枢 | Hermes 助手、需求与用例生成、知识中枢；查询来源、可编辑草稿和审计 | 使用真实需求/知识条目完成查询与生成，来源可回看且不静默写入业务数据 | `[x]` q19 完成需求/知识/用例检索、Hermes 来源、真实草稿和角色矩阵验收 |
+| P8 | 系统 | 远程工具箱、配置中心、审计、差异、回滚和能力矩阵 | PostgreSQL/Redis/MinIO/Worker/ADB 诊断可解释，回滚精确且可审计 | `[x]` q19 完成远程诊断、配置版本/差异、单资源回滚、审计导出和角色拒绝验收 |
+| P9 | 发布收口 | 能力矩阵、证据索引、运行手册、回滚边界和最终 SHA | 每个未关闭门禁都有原因、依赖、证据路径和复验命令 | `[~]` 仅等待 P4 外部门禁 |
 
 ### 2.4.0 执行顺序与当前下一项
 
 1. 先保持 P4 性能真实环境的阻塞边界，不用单节点 Compose、mock 或跳过项替代 Kubernetes/Prometheus/独立 MinIO 证据。
-2. q19 已完成 P6/P7 的管理员基础资产链路和清理复验；下一项先补普通 viewer 角色矩阵，确认项目、用例、运行、报告、缺陷、评审和 Hermes 来源的读写隔离。
-3. viewer 矩阵之后再在受控模型配置下复核 P5/P7 的模型发现、连接、多模态/思考参数、可编辑草稿、来源审计和清理；没有真实模型时保持阻塞，不用 HTTP 401 或 mock 结果替代。
-4. 最后复核 P8 目标部署的 PostgreSQL/Redis/MinIO/Worker/ADB 诊断、配置差异、单资源回滚、脱敏审计和权限拒绝，再进入 P9 发布收口。
+2. q19 已完成 P6/P7 的管理员基础资产链路和清理复验，并已在 2.4.22 用受控 viewer 账号补齐角色矩阵，项目、用例、运行、报告、缺陷、评审和 Hermes 来源的读写隔离均已验收。
+3. P5/P7 的真实模型门禁已在 2.4.22 用受控 `openai_compatible` 配置关闭：模型发现、连接测试、多模态/思考门槛、可编辑草稿和清理均通过。
+4. P8 目标部署的远程诊断、配置差异、单资源回滚、脱敏审计和权限拒绝已在 2.4.22 验收通过。
 5. 每一项必须执行：实现/调整 → 定向测试 → 受影响全量门禁 → 独立代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 提交并推送。
-6. 2.4.21 的 N7 智能中枢角色矩阵凭据契约已完成本地补强；外部验收顺序不变，下一项仍是提供受控 viewer/管理员凭据执行 N6/N7/N8 角色矩阵，再进入真实模型与目标治理门禁。
+6. 当前下一项：P4 性能真实环境仍是唯一未关闭的能力门禁，需要 Kubernetes、发布级 Prometheus 和独立 MinIO source/target；P9 发布收口在 P4 关闭后绑定最终 SHA。
 
 ### 2.4.0 状态口径
 
@@ -195,6 +195,19 @@
 - [x] N7 智能中枢验收脚本的普通 viewer 角色矩阵支持短期 `ATP_VIEWER_TOKEN`，令牌优先；没有令牌时继续兼容 `ATP_VIEWER_USERNAME`/`ATP_VIEWER_PASSWORD`，认证值仍只从环境变量读取且不进入证据文件。
 - [x] 新增令牌路径运行时回归和运行手册契约；N7 定向测试 `12 passed`，后端非集成全量 `2389 passed`，Ruff、格式检查和 `git diff --check` 通过；独立审查未发现需修复的问题。
 - **Status**: `[E]` local harness, tests, review, fix and documentation are complete; controlled viewer/admin credentials, real model and target deployment evidence remain pending.
+
+## 2.4.22 P5/P6/P7/P8 q19 受控真实验收（门禁关闭，2026-08-26）
+
+本轮用受控第三方 `openai_compatible` 模型配置、q19 管理员和临时 viewer 账号，一次性关闭 N5、N6、N7、N8 四个外部门禁。q19 栈在宿主重启后 `postgres`/`redis`/`minio`/`acceptance-target` 均为 `Exited (255)`、`backend` 处于重启循环，已先恢复依赖容器并将部署从 `716d1b3` 前进到 `4087974`；`716d1b3..4087974` 无迁移或模型变更，迁移头保持 `20260825_0066`，无需额外升级。
+
+- [x] 模型能力识别修复：模型名提示路径此前用纯子串匹配，`grok-4.20-0309-non-reasoning` 因命中 `reason` 被误判为支持推理；现在先剥离否定片段再匹配，真实端点的推理识别从 3 个降为 2 个正确结果。
+- [x] 多模态标记补齐：真实端点 `/models` 只返回 `id`/`object`/`owned_by`，不含任何 `capabilities`/`modalities` 字段，因此走 `model-name-hint` 兼容路径。带日期的 `claude-sonnet-4-6` 既不含 `claude-3` 也不含 `claude-4`，整个 Claude 4 系列此前被漏判；已补充系列名与 `-image`/`_image`，与 `_VISION_CAPABILITY_MARKERS` 中已有的 `image` 阳性标记保持一致，`gpt-oss-120b-medium` 等纯文本模型仍为未知。
+- [x] N5/N7 真实模型验收通过：`claude-opus-4-6-thinking` 同时满足多模态与思考门槛，`ai-model-preflight` 记录 `discovered=29, vision=True, thinking_keys=thinking`，`ai-draft` 返回 3 份可编辑用例草稿，`role-matrix` 的 viewer 需求写入被 `HTTP 403` 拒绝，临时项目已删除。证据见 [`n7-intelligence-acceptance-2026-08-26.json`](evidence/n7-intelligence-acceptance-2026-08-26.json)。
+- [x] N6 测试资产与角色矩阵验收通过：项目 → 模块 → 用例 → 评审 → 套件 → 计划 → 计划运行（终态 `passed`）→ 内部缺陷关联全链路完成；viewer 可读主项目全部资产，跨项目读取与用例/模块写入均被 `HTTP 403` 拒绝，主项目与隔离项目分别删除。证据见 [`n6-project-asset-acceptance-2026-08-26.json`](evidence/n6-project-asset-acceptance-2026-08-26.json)。
+- [x] N8 系统治理验收通过：远程工具箱返回 7 项脱敏检查，配置聚合无密钥值，`performance_node` 配置版本创建与差异、单资源精确确认回滚、有界审计 CSV 导出均通过，普通 viewer 对远程诊断、配置和审计的访问被拒绝。证据见 [`n8-system-governance-acceptance-2026-08-26.json`](evidence/n8-system-governance-acceptance-2026-08-26.json)。
+- [x] 验收发现的脚本边界：N7 默认 `--timeout 20` 低于后端 LLM 调用的 60 秒上限，thinking 模型生成用例时脚本先超时并报 `request failed`；真实验收使用 `--timeout 150`，复验命令已同步到运行手册与发布索引。
+- **保留资源**：按验收决定保留 q19 的 AI 配置 `config_id=1`（API Key 以 Fernet 加密存储，未写入仓库、文档或证据）和临时 viewer 账号 `n7-acceptance-viewer-tmp`（`id=18`），供后续角色矩阵与 AI 验收复用。N8 的配置版本 `revision_id=1` 按设计保留在审计历史中，不作为清理对象。
+- **Status**: `[x]` N5、N6、N7、N8 均已取得 q19 受控真实证据；P4 性能真实环境仍缺 Kubernetes、发布级 Prometheus 和独立 MinIO source/target，保持 `[-]`，因此 P9 发布收口继续保持 `[~]`，发布结论仍为“存在未关闭门禁”。
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 

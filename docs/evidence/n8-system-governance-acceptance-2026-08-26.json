@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-26T02:50:25.465502+00:00",
+  "scope": "N8 system governance and configuration boundaries",
+  "status": "passed",
+  "endpoint": "http://127.0.0.1:29080/api/v1",
+  "checks": [
+    {
+      "name": "authentication",
+      "status": "passed",
+      "details": "authenticated as admin; credentials were not recorded"
+    },
+    {
+      "name": "remote-diagnostics",
+      "status": "passed",
+      "details": "remote toolbox returned 7 redacted checks; service status remains environment evidence"
+    },
+    {
+      "name": "configuration-overview",
+      "status": "passed",
+      "details": "configuration metadata and availability were returned without secret values"
+    },
+    {
+      "name": "configuration-revision",
+      "status": "passed",
+      "details": "created and diffed redacted performance_node revision"
+    },
+    {
+      "name": "configuration-rollback",
+      "status": "passed",
+      "details": "single-resource rollback completed with exact confirmation"
+    },
+    {
+      "name": "audit-export",
+      "status": "passed",
+      "details": "administrator audit export returned bounded CSV evidence"
+    },
+    {
+      "name": "role-matrix",
+      "status": "passed",
+      "details": "ordinary viewer was denied remote diagnostics, configuration and audit access"
+    }
+  ],
+  "resources": {
+    "revision_id": 1
+  }
+}

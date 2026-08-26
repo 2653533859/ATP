@@ -19,7 +19,11 @@
 
 也可以使用 ATP_ACCEPTANCE_BASE_URL、ATP_TOKEN 或 ATP_USERNAME/ATP_PASSWORD 配置管理员连接信息。`ATP_VIEWER_TOKEN` 与 `ATP_VIEWER_USERNAME`/`ATP_VIEWER_PASSWORD` 二选一，令牌优先；认证值只从环境变量读取。报告只记录脱敏 endpoint、资源 ID、检查状态和有限长度说明，不记录密码、Token、Cookie、请求正文或响应正文。
 
-2026-08-25 q19 基础数据证据：[`docs/evidence/n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json) 为 `partial`；需求/知识/用例创建、详情读取、Hermes 三类来源引用和清理均通过，普通 viewer 矩阵与真实 AI 草稿未启用。完整 N7 门禁仍需受控模型和普通角色账号。
+2026-08-26 q19 受控真实验收证据：[`docs/evidence/n7-intelligence-acceptance-2026-08-26.json`](evidence/n7-intelligence-acceptance-2026-08-26.json) 为 `passed`；`ai-model-preflight` 记录 `config_id=1`、`provider=openai_compatible`、`model=claude-opus-4-6-thinking`、`discovered=29`、`vision=True`、`thinking_keys=thinking`，`ai-draft` 返回 3 份可编辑草稿，`role-matrix` 的 viewer 需求写入被 `HTTP 403` 拒绝，临时项目已删除。N7 门禁已关闭。
+
+注意 `--timeout`：默认 20 秒低于后端 LLM 调用的 60 秒上限，思考类模型生成用例时脚本会先超时并只报 `POST /ai/cases/generate: request failed`（按安全边界不回显响应正文）。启用 `--require-ai` 时请显式传入大于 60 秒的值，上述验收使用 `--timeout 150`。
+
+2026-08-25 q19 基础数据证据（历史）：[`docs/evidence/n7-intelligence-acceptance-2026-08-25.json`](evidence/n7-intelligence-acceptance-2026-08-25.json) 为 `partial`；需求/知识/用例创建、详情读取、Hermes 三类来源引用和清理均通过，普通 viewer 矩阵与真实 AI 草稿未启用。
 
 ## 验收出口
 

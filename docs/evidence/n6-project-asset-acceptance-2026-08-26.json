@@ -1,0 +1,80 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-08-26T02:44:25.291053+00:00",
+  "scope": "N6 project asset and role matrix",
+  "status": "passed",
+  "endpoint": "http://127.0.0.1:29080/api/v1",
+  "checks": [
+    {
+      "name": "authentication",
+      "status": "passed",
+      "details": "authenticated as admin; credentials were not recorded"
+    },
+    {
+      "name": "project-create",
+      "status": "passed",
+      "details": "created temporary project id=65"
+    },
+    {
+      "name": "module-discovery",
+      "status": "passed",
+      "details": "created temporary module id=84"
+    },
+    {
+      "name": "case-create",
+      "status": "passed",
+      "details": "created case id=38"
+    },
+    {
+      "name": "case-review",
+      "status": "passed",
+      "details": "case submitted, approved and review history was readable"
+    },
+    {
+      "name": "suite-create",
+      "status": "passed",
+      "details": "created suite id=4"
+    },
+    {
+      "name": "plan-create",
+      "status": "passed",
+      "details": "created plan id=4"
+    },
+    {
+      "name": "execution-report",
+      "status": "passed",
+      "details": "plan run id=3 reached terminal status=passed"
+    },
+    {
+      "name": "defect-link",
+      "status": "passed",
+      "details": "created defect id=3 linked to plan run id=3"
+    },
+    {
+      "name": "role-matrix",
+      "status": "passed",
+      "details": "viewer could read all primary assets; cross-project reads and writes were rejected with HTTP 403"
+    },
+    {
+      "name": "cleanup",
+      "status": "passed",
+      "details": "temporary project id=66 deleted"
+    },
+    {
+      "name": "cleanup",
+      "status": "passed",
+      "details": "temporary project id=65 deleted"
+    }
+  ],
+  "resources": {
+    "project_id": 65,
+    "module_id": 84,
+    "case_id": 38,
+    "suite_id": 4,
+    "plan_id": 4,
+    "plan_run_id": 3,
+    "defect_id": 3,
+    "isolation_project_id": 66,
+    "isolation_case_id": 39
+  }
+}

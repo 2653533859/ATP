@@ -1,6 +1,6 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-25",
+  "generated_at": "2026-08-26",
   "scope": "N2/N4/N5/N6/N7/N8/N9 release gates",
   "release": {
     "status": "blocked",
@@ -8,10 +8,6 @@
     "candidate_sha": null,
     "blocking_gates": [
       "N4.performance-real-environment",
-      "N5.ai-real-model",
-      "N6.project-asset-permissions",
-      "N7.intelligence-real-data",
-      "N8.system-governance-deployment",
       "N9.release-closure"
     ]
   },
@@ -65,42 +61,42 @@
     },
     {
       "id": "N5.ai-real-model",
-      "status": "blocked",
+      "status": "passed",
       "owner": "ai-platform",
       "evidence": [
         "docs/development-plan-2026-08-25.md",
-        "docs/evidence/ai-model-environment-audit-2026-08-25.json"
+        "docs/evidence/n7-intelligence-acceptance-2026-08-26.json"
       ],
-      "blocking_reason": "The q19 deployment has no AI LLM configuration, and an unauthenticated model endpoint probe returned HTTP 401; controlled credentials and clean project data are still required.",
-      "dependencies": ["Controlled model endpoint", "valid credentials", "test project with generation permissions"],
-      "recheck_command": "Run model listing, connection, multimodal/thinking parameter and editable generation checks with a temporary project, then remove the data."
+      "blocking_reason": null,
+      "dependencies": [],
+      "recheck_command": "Run scripts/n7-intelligence-acceptance.py with --require-ai --llm-config-id <id> --require-vision --require-thinking and --timeout above the 60s backend LLM timeout, then confirm model discovery, connection and editable drafts."
     },
     {
       "id": "N6.project-asset-permissions",
-      "status": "pending",
+      "status": "passed",
       "owner": "test-platform",
-      "evidence": ["docs/development-plan-2026-08-25.md", "docs/n6-project-asset-acceptance.md", "docs/evidence/n6-project-asset-acceptance-2026-08-25.json"],
-      "blocking_reason": "The q19 administrator asset chain, executable run, defect link and cleanup now pass, but ordinary viewer isolation was skipped because no controlled viewer account was available.",
-      "dependencies": ["Temporary project", "administrator and ordinary project members", "cleanable execution history"],
-      "recheck_command": "Run scripts/n6-project-asset-acceptance.py with --allow-mutations --execute --require-role-matrix against a controlled target, verify case-to-suite-to-plan-to-run-to-report-to-defect-to-review links and ordinary-role isolation, then clean all objects."
+      "evidence": ["docs/n6-project-asset-acceptance.md", "docs/evidence/n6-project-asset-acceptance-2026-08-26.json"],
+      "blocking_reason": null,
+      "dependencies": [],
+      "recheck_command": "Run scripts/n6-project-asset-acceptance.py with --allow-mutations --execute --require-role-matrix against a controlled target, verify case-to-suite-to-plan-to-run-to-report-to-defect links and ordinary-role isolation, then clean all objects."
     },
     {
       "id": "N7.intelligence-real-data",
-      "status": "pending",
+      "status": "passed",
       "owner": "ai-platform",
-      "evidence": ["docs/development-plan-2026-08-25.md", "docs/n7-intelligence-acceptance.md", "docs/evidence/n7-intelligence-acceptance-2026-08-25.json"],
-      "blocking_reason": "The q19 requirement, knowledge, case retrieval and Hermes source checks now pass, but controlled AI draft generation and ordinary viewer isolation were skipped.",
-      "dependencies": ["Controlled model endpoint", "temporary requirement and knowledge entries", "administrator and ordinary project members"],
-      "recheck_command": "Run Hermes query and editable requirement/case/knowledge retrieval with --require-ai and --require-role-matrix, verify citations, then remove temporary entries."
+      "evidence": ["docs/n7-intelligence-acceptance.md", "docs/evidence/n7-intelligence-acceptance-2026-08-26.json"],
+      "blocking_reason": null,
+      "dependencies": [],
+      "recheck_command": "Run scripts/n7-intelligence-acceptance.py with --allow-mutations --require-role-matrix --require-ai --require-vision --require-thinking --timeout 150, then confirm Hermes citations, editable drafts and cleanup."
     },
     {
       "id": "N8.system-governance-deployment",
-      "status": "pending",
+      "status": "passed",
       "owner": "platform-infra",
-      "evidence": ["docs/development-plan-2026-08-25.md", "docs/n8-system-governance-acceptance.md", "docs/evidence/n8-system-governance-environment-audit-2026-08-25.json"],
-      "blocking_reason": "The target q19 stack is healthy, but the controlled administrator login probe returned HTTP 401; remote diagnostics, configuration rollback, audit and role-denial checks were not run and no mutations were attempted.",
-      "dependencies": ["Target deployment", "administrator and ordinary role accounts", "controlled encrypted configuration values"],
-      "recheck_command": "Run scripts/n8-system-governance-acceptance.py with --require-role-matrix --allow-mutations --rollback --require-rollback against the target deployment, then retain the redacted report and audit evidence."
+      "evidence": ["docs/n8-system-governance-acceptance.md", "docs/evidence/n8-system-governance-acceptance-2026-08-26.json"],
+      "blocking_reason": null,
+      "dependencies": [],
+      "recheck_command": "Run scripts/n8-system-governance-acceptance.py with --require-role-matrix --allow-mutations --rollback --require-rollback against the target deployment, then retain the redacted report; the revision stays in audit history by design."
     },
     {
       "id": "N9.release-closure",

@@ -10,14 +10,15 @@
 - [ ] P0 工作台与任务中心：复核深链、待办、轮询、重试、终止、批量操作、失败事件和越权边界。
 - [ ] P1～P3 接口、APP、UI：按配置→预检→执行→过程→报告/证据→清理顺序复核，分别记录真实协议、Windows Worker 和浏览器矩阵证据。
 - [ ] P4 性能测试工作台：等待 Kubernetes、发布级 Prometheus、独立 MinIO source/target；保持 `[-]`，不以 mock、单节点 Compose 或跳过项替代。
-- [ ] P5～P8 AI、测试资产、智能中枢和系统：准备真实模型、临时项目、角色矩阵、需求/知识数据和目标部署，验证来源、审计、项目隔离、回滚和可清理性。
+- [x] P5～P8 AI、测试资产、智能中枢和系统：已用受控真实模型、临时项目、viewer 角色矩阵、需求/知识数据和 q19 目标部署完成来源、审计、项目隔离、回滚和可清理性验收（见 2.4.22）。
 - [x] N5 AI 模型能力元数据解析：识别供应商 `capabilities`/`modalities` 等字段中的多模态与思考能力，能力无阳性证据时保持未知；模型发现/API 定向 `20 passed`、受影响 AI 定向 `69 passed`、后端非集成全量 `2340 passed`，真实模型参数接受情况仍待环境验收。
-- [ ] N5 真实模型环境门禁：q19 AI LLM 配置数量为 `0`，外部模型端点不带凭据返回 HTTP `401`；真实模型列表、连接、参数接受、项目生成和清理暂不能验收，脱敏证据见 `docs/evidence/ai-model-environment-audit-2026-08-25.json`。
+- [x] N5 真实模型环境门禁已关闭：q19 上创建受控 `openai_compatible` 配置（`config_id=1`）后，模型发现 `29`、连接测试、多模态/思考门槛和可编辑草稿均通过；此前"配置数量为 `0`、裸探针 HTTP `401`"的阻塞快照见 `docs/evidence/ai-model-environment-audit-2026-08-25.json`，最新通过证据见 `docs/evidence/n7-intelligence-acceptance-2026-08-26.json`。
 - [x] P7 Hermes 跨任务失败诊断本地闭环：case 复用原诊断链，suite/plan/android/performance 通过统一工作台入口读取执行摘要、Android 异常事件/错误事件和性能指标生成规则诊断；后端定向 `13 passed`、后端非集成全量 `2345 passed`，前端全量 `69 files / 293 tests passed`，新增服务 mypy、Ruff、格式、`vue-tsc` 和生产构建通过。真实模型、需求/知识数据和角色矩阵仍待验收。
 - [x] P7 Hermes 项目级检索本地交付：新增项目 viewer 权限保护的 Hermes 查询接口，统一检索需求、知识和用例并返回脱敏摘要、来源引用和深链；Hermes 自由提问可调用检索，知识条目支持 `knowledge_id` 深链；新增 N7 临时数据验收脚本、运行手册和质量门禁。独立审查补强来源类型/项目路径/引用校验及需求、知识、用例详情读取；后端定向 `21 passed`、前端 Hermes/知识定向 `11 passed`。真实模型、角色账号和远端数据仍待验收。
 - [x] P7/N6 验收缺陷修复与 q19 复验：空白临时项目无模块时脚本会显式创建模块；需求创建接口在异步提交后序列化过期 ORM 属性导致 `MissingGreenlet`/HTTP 500，已增加 `refresh` 和回归测试。q19 已按 `716d1b3` 重建到迁移 `20260825_0066`；N6 执行/缺陷关联/清理和 N7 需求/知识/用例检索/来源/清理均通过基础链路，脱敏证据见 `docs/evidence/n6-project-asset-acceptance-2026-08-25.json` 与 `docs/evidence/n7-intelligence-acceptance-2026-08-25.json`。普通 viewer 和 N7 真实 AI 草稿未验证，两个环境门禁保持 `[E]`/`partial`。
 - [x] 计划检查点 2.4.7：已将 q19 N6/N7 基础验收结果、P8 本地治理入口、目标只读预检结果、N1 任务中心分页和下一执行顺序同步到开发计划、路线图、发布状态与 MEMORY；下一项固定为提供受控管理员/viewer 账号后执行角色矩阵，之后才进入受控真实 AI 与 P8 目标治理复核。
-- [ ] 下一验收门：准备受控 viewer 账号并执行 N6/N7 `--require-role-matrix`；无账号时保持 `partial`，不得用管理员结果推断普通角色隔离。
+- [x] 验收门已关闭：用受控临时 viewer 账号执行 N6/N7/N8 `--require-role-matrix` 全部通过，跨项目读取和写入均被 `HTTP 403` 拒绝，未用管理员结果推断普通角色隔离。
+- [x] 2.4.22 q19 受控真实验收：恢复宿主重启后 `Exited (255)` 的 postgres/redis/minio/acceptance-target 并将 q19 从 `716d1b3` 前进到 `4087974`（区间无迁移/模型变更，迁移头仍为 `20260825_0066`）。修复模型能力识别的否定标记误判（`non-reasoning` 曾被判为支持推理）并补齐多模态系列标记（带日期的 `claude-sonnet-4-6` 不含 `claude-3`/`claude-4`，Claude 4 系列此前被漏判）。N7 `passed`（`discovered=29, vision=True, thinking_keys=thinking`，真实模型返回 3 份可编辑草稿）、N6 `passed`（资产链到计划运行终态 `passed` 加缺陷关联，双项目清理）、N8 `passed`（7 项脱敏诊断、配置版本/差异、单资源精确回滚、有界审计 CSV、viewer 拒绝）。定向 `22 passed`、后端非集成全量 `2391 passed`、Ruff/格式/差异检查和发布索引校验通过。P4 仍缺 Kubernetes/发布级 Prometheus/独立 MinIO，保持 `[-]`；P9 继续 `[~]`。
 - [x] P8 系统治理验收入口：新增 `scripts/n8-system-governance-acceptance.py` 和运行手册，覆盖远程工具箱诊断、配置聚合、配置版本/差异、审计 CSV、普通角色拒绝以及显式 `--allow-mutations --rollback`；接入 Make/CI/pre-commit，契约与质量回归 `34 passed`。目标部署和真实账号验收仍待完成。
 - [x] P8 q19 目标只读预检：健康检查和 q19 运行栈通过；数据库只读检查确认启用管理员用户名为 `parado`，但受控登录仍返回 HTTP 401，随后停止继续尝试，未读取/记录密码字段、凭据或响应正文且未执行远端变更。脱敏证据见 `docs/evidence/n8-system-governance-environment-audit-2026-08-25.json`；完整治理验收仍待受控管理员与 viewer 凭据。
 - [x] N1 任务中心分页：统一任务接口增加有界 `offset`，跨 Case/Suite/Plan/Android/Performance 合并排序后再切页；前端增加服务端分页并保留项目、状态、类型和页码深链，筛选时回到第一页。工作台定向 `15 passed`、后端非集成全量 `2380 passed`、前端全量 `69 files / 302 tests passed`，type-check/build/Ruff/diff-check 通过；真实角色和执行数据仍待环境复核。
@@ -52,7 +53,7 @@
 - [x] N6 用例评审打开详情项目上下文：评审工作台打开案例详情时携带记录自身 `project_id`，保留项目环境和返回筛选；评审工作台定向 `3 passed`、前端全量 `69 files / 300 tests passed`，`vue-tsc`、生产构建和独立审查通过。真实项目角色、跨项目可见性和可清理评审数据仍待 N6 复核。
 - [x] N6 工作台任务详情上下文：case、suite、plan、Android、performance 任务详情统一保留 `project_id`；suite/plan/performance 额外携带 `run_id`，任务中心可直接定位具体运行记录；工作台 API 定向 `14 passed`，后端非集成全量 `2352 passed`，数据集影响范围静态契约旧路由断言修复后相关回归 `17 passed`，Ruff/差异检查通过。真实项目角色、跨项目可见性、可清理运行和报告环境仍待 N6 复核。
 - [x] N6 项目资产与角色矩阵验收工具及 q19 基础链路：脚本覆盖用例评审、套件/计划、执行/报告、缺陷关联、普通 viewer 只读/写入拒绝和删除后 404 清理；脚本定向 `6 passed`、质量门禁一致性 `10 passed`。q19 `--execute` 的执行记录、缺陷关联和清理已通过，首次清理外键问题由 `716d1b3`/迁移 `20260825_0066` 修复；普通 viewer 未提供，角色矩阵仍待验收。
-- [~] N8/N9 系统治理与发布收口：汇总脱敏证据、配置差异、回滚边界、操作手册和最终提交 SHA。
+- [~] N9 发布收口：N8 系统治理已在 2.4.22 关闭并取得 q19 脱敏证据；剩余工作是等 P4 性能真实环境解除后绑定最终提交 SHA，并汇总回滚边界与操作手册。
 - [ ] 每个模块必须完成“实现/调整 → 测试 → 独立审查 → 修复 → 文档与记忆同步 → 提交推送”后才能移动游标。
 
 详细拆分、依赖和状态口径见 [`docs/development-plan-2026-08-25.md`](docs/development-plan-2026-08-25.md) 的 2.4.0；2.3.0 以下内容仅作历史记录。

@@ -37,7 +37,9 @@ python scripts/n8-system-governance-acceptance.py `
 
 `ATP_VIEWER_TOKEN` 与 `ATP_VIEWER_USERNAME`/`ATP_VIEWER_PASSWORD` 二选一，令牌优先；认证值只从环境变量读取，不会写入证据文件。
 
-远程工具箱返回 `error` 或 `warning` 只会被记录为目标环境状态；脚本不把“诊断接口可访问”误写成 PostgreSQL、Redis、MinIO、Worker 或 ADB 已健康。N8 完整门禁还需要目标部署的管理员和普通角色证据，以及配置差异、精确 `ROLLBACK` 和审计事件可回看。
+远程工具箱返回 `error` 或 `warning` 只会被记录为目标环境状态；脚本不把“诊断接口可访问”误写成 PostgreSQL、Redis、MinIO、Worker 或 ADB 已健康。
+
+2026-08-26 q19 受控真实验收证据：[`docs/evidence/n8-system-governance-acceptance-2026-08-26.json`](evidence/n8-system-governance-acceptance-2026-08-26.json) 为 `passed`；远程工具箱返回 7 项脱敏检查，配置聚合无密钥值，`performance_node` 配置版本创建与差异、单资源精确确认回滚、有界审计 CSV 导出均通过，普通 viewer 对远程诊断、配置和审计的访问被拒绝。N8 门禁已关闭。配置版本 `revision_id=1` 按设计保留在审计历史中，不属于清理对象。
 
 命令入口：
 
