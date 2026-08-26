@@ -125,10 +125,16 @@ powershell -ExecutionPolicy Bypass -File scripts\local-up.ps1 -Action down
 `windows-local.ps1` 都不做的：
 
 1. 确认 `.env` 指向的 PostgreSQL / Redis / MinIO 容器已在 WSL Docker 中运行，未运行则启动，
-   并等待 5432/6379/9000 真正可连接。容器 `running` 不等于服务就绪，宿主重启后出现过
-   容器已启动但 PostgreSQL 仍拒绝连接的情况。
+   并等待 `.env` 里配置的 `host:port` 真正可连接。探测目标从 `.env` 读取、不写死
+   `127.0.0.1`：`.env` 目前指向 WSL 网卡 IP，而该 IP 在 WSL 重启后会变，写死会造成
+   「探测全绿但 alembic 连不上」这种最难排查的失败。PostgreSQL 另外做一次 `pg_isready`
+   握手——它在恢复期间就已接受 TCP 连接却回 `the database system is starting up`，
+   只测 TCP 拦不住这种情况。
 2. 执行 `alembic upgrade head`。schema 由 Alembic 管理，后端启动时只「警告」数据库不在
    head、不会自动升级，落后的 schema 会在运行期报错而不是启动期。
+
+脚本以 `windows-local.ps1` 的退出码退出，因此 `-Action doctor` 在环境存在阻塞项时返回非 0，
+可以直接用于 CI 或批处理判断。
 
 `-Action down` 只停应用进程，不停基础设施容器（它们可能被其他项目或验收栈共用）。要停基础设施：
 
