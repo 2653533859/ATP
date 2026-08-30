@@ -8,7 +8,7 @@
 
 > 2026-08-26 P5/P6/P7/P8 q19 受控真实验收已关闭四个外部门禁：q19 栈在宿主重启后 postgres/redis/minio/acceptance-target 均为 `Exited (255)`、backend 处于重启循环，已恢复依赖容器并将部署从 `716d1b3` 前进到 `4087974`（区间无迁移或模型变更，迁移头仍为 `20260825_0066`）。N7 `passed`：`config_id=1`、`provider=openai_compatible`、`model=claude-opus-4-6-thinking`、`discovered=29`、`vision=True`、`thinking_keys=thinking`，真实模型返回 3 份可编辑草稿，viewer 需求写入被 `HTTP 403` 拒绝，临时项目已删除。N6 `passed`：项目→模块→用例→评审→套件→计划→计划运行（终态 `passed`）→内部缺陷全链路完成，viewer 跨项目读写均被 `HTTP 403` 拒绝，主项目与隔离项目分别清理。N8 `passed`：7 项脱敏远程诊断、无密钥配置聚合、`performance_node` 版本创建与差异、单资源精确确认回滚、有界审计 CSV 导出，viewer 对诊断/配置/审计的访问被拒绝。验收同时修复模型能力识别的否定标记误判并补齐多模态系列标记；定向 `22 passed`、后端非集成全量 `2391 passed`、Ruff/格式/差异检查和发布索引校验通过。证据见 [`evidence/n7-intelligence-acceptance-2026-08-26.json`](evidence/n7-intelligence-acceptance-2026-08-26.json)、[`evidence/n6-project-asset-acceptance-2026-08-26.json`](evidence/n6-project-asset-acceptance-2026-08-26.json) 和 [`evidence/n8-system-governance-acceptance-2026-08-26.json`](evidence/n8-system-governance-acceptance-2026-08-26.json)。按验收决定保留 q19 的 AI 配置 `config_id=1`（Key 以 Fernet 加密存储，未进入仓库或证据）与临时 viewer `n7-acceptance-viewer-tmp`；N8 的 `revision_id=1` 按设计留在审计历史。P4 仍缺 Kubernetes、发布级 Prometheus 和独立 MinIO source/target，保持 `[-]`，发布结论仍为存在未关闭门禁。
 
-> 2026-08-25 计划检查点 2.4.21：2.4.0 只更新导航分组、阶段编号、执行顺序和验收口径；在此基础上，N1 任务中心/待办分页、P1 API 工作台运行记录、用例详情、项目环境列表和项目刷新竞态保护、P1 UI 工作台运行记录/详情竞态保护、P2 APP 工作台项目数据竞态保护、P7 N7 与 P8 N8 治理角色矩阵 token 契约、P0 终止确认、失败诊断入口和失败证据展示、N5 真实模型验收前置、N6 viewer 隔离矩阵工具均已完成本地闭环；P8 本地治理验收入口已具备，q19 目标只读预检健康通过但管理员认证仍返回 401，未读取密码或执行远端变更。当前剩余为普通 viewer/管理员受控账号、真实 AI 草稿和 P8 目标治理复核。P4 缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 保持 `[-]`，发布结论仍为存在未关闭门禁；脱敏预检见 `docs/evidence/n8-system-governance-environment-audit-2026-08-25.json`。
+> 2026-08-25 历史计划检查点 2.4.21（已由 2.4.22 更新）：2.4.0 只更新导航分组、阶段编号、执行顺序和验收口径；在此基础上，N1 任务中心/待办分页、P1 API 工作台运行记录、用例详情、项目环境列表和项目刷新竞态保护、P1 UI 工作台运行记录/详情竞态保护、P2 APP 工作台项目数据竞态保护、P7 N7 与 P8 N8 治理角色矩阵 token 契约、P0 终止确认、失败诊断入口和失败证据展示、N5 真实模型验收前置、N6 viewer 隔离矩阵工具均已完成本地闭环；P8 本地治理验收入口已具备，q19 目标只读预检健康通过但管理员认证仍返回 401，未读取密码或执行远端变更。该段剩余项已在 2.4.22 受控验收中关闭；P4 缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 保持 `[-]`。
 
 > 2026-08-25 N1 任务中心分页本地交付：统一任务接口支持有界 `offset`，跨五类任务域合并排序后切页；前端支持服务端分页和项目/状态/类型/页码深链。工作台定向 `15 passed`、后端非集成 `2380 passed`、前端全量 `69 files / 302 tests passed`，type-check/build/Ruff/diff-check 通过。该项仍不替代真实角色、任务数据和执行器环境验收。
 
@@ -136,7 +136,11 @@
 
 当前结论：**暂不具备无条件发布资格**。
 
-## 2026-08-25 当前执行计划与新增阻塞
+## 当前统一状态（截至 2026-08-31）
+
+状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.4.0 总表和 2.4.22 为准：P0/P1/P2/P3 为 `[E]`，P4 为 `[-]`，P5/P6/P7/P8 为 `[x]`，P9 为 `[~]`。N2 Karing 单设备闭环已通过；当前唯一未关闭的核心能力门禁是 P4 真实性能环境，发布收口等待 P4 后绑定最终 SHA。下方原“当前执行计划与新增阻塞”内容保留为历史快照。
+
+## 历史执行快照：2026-08-25 当前执行计划与新增阻塞（已由 2.4.22 更新）
 
 当前执行顺序为：保持 N4 真实性能环境阻塞边界，先复核 N6/N7 普通 viewer 角色矩阵，再复核 N5 真实模型和 N8 目标部署治理，最后进入 N9 发布收口；N2 Karing 单设备专项任务/事件/报告闭环、Windows API/Web 和 N1 受控 API/报告闭环已复核完成。
 

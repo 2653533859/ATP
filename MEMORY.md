@@ -1,5 +1,7 @@
 # MEMORY
 
+- 2026-08-31 计划状态统一：以 `docs/development-plan-2026-08-25.md` 2.4.0 总表和 2.4.22 受控真实验收为当前口径。P0/P1/P2/P3 为 `[E]`，P4 因缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 为 `[-]`，P5/P6/P7/P8 为 `[x]`，P9 为 `[~]`；N2 Karing 单设备闭环已完成，多设备矩阵仍是独立边界。`Task.md`、导航路线图和发布状态已同步；更早条目中的“待真实模型、viewer 或目标治理验收”均为历史快照，不覆盖 2.4.22 结论。
+
 - 2026-08-25 P7 N7 智能中枢角色矩阵 token 契约本地交付已完成：普通 viewer 支持短期 `ATP_VIEWER_TOKEN`，令牌优先并兼容用户名/密码，认证值只从环境变量读取且不写入证据；新增运行时令牌路径回归。N7 定向 `12 passed`、后端非集成全量 `2389 passed`，Ruff/格式和 diff-check 通过；真实 viewer/admin、模型与目标部署治理证据仍待环境复核。
 - 2026-08-25 计划检查点 2.4.21 已同步：N7 角色矩阵 token 契约完成本地实现、测试、独立审查、问题修复和文档同步；下一项仍是提供受控 viewer/admin 真实角色矩阵执行 N6/N7/N8，再进入真实 AI 与 P8 目标治理复核。P4 仍因缺少 Kubernetes、发布级 Prometheus 和独立 MinIO 阻塞。
 - 2026-08-25 P8 N8 治理角色矩阵 token 契约本地交付已完成：普通 viewer 支持短期 `ATP_VIEWER_TOKEN`，令牌优先并兼容用户名/密码，认证值只从环境变量读取且不写入证据；新增运行时令牌路径回归。N8 定向 `7 passed`、后端非集成全量 `2387 passed`，Ruff/格式、发布契约 `19 passed` 和 diff-check 通过；真实管理员/viewer 与目标部署治理证据仍待环境复核。
