@@ -23,6 +23,17 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- if .Values.performanceWorker.spreadAcrossNodes }}
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            - labelSelector:
+                matchLabels:
+                  app.kubernetes.io/name: {{ .Chart.Name }}
+                  app.kubernetes.io/instance: {{ .Release.Name }}
+                  app.kubernetes.io/component: performance-worker
+              topologyKey: kubernetes.io/hostname
+      {{- end }}
       containers:
         - name: performance-worker
           image: "{{ .Values.image.repository }}/worker:{{ .Values.image.worker.tag }}"

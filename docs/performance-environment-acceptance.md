@@ -27,6 +27,117 @@ python scripts/performance-environment-smoke.py \
 灾备记录要求见 [`disaster-recovery.md`](disaster-recovery.md)，没有独立目标时不得用
 同一 MinIO 的不同 bucket 代替真实跨主机证据。
 
+## P4 真实 Kubernetes 最小部署包
+
+仓库提供 [`values-performance-acceptance.example.yaml`](../deploy/helm/atp/values-performance-acceptance.example.yaml)
+作为真实集群的最小 overlay。它明确部署 2 个专用 performance Worker，每个 Pod 配置
+`requests.cpu=1000m`、`requests.memory=1Gi`、`limits.cpu=2000m`、`limits.memory=2Gi`，
+使用 Pod hostname 生成独立的性能节点和 `performance.<pod>` 队列，并要求副本分布到不同
+Kubernetes 节点；普通 Worker 不再消费 `performance` 队列。overlay 同时打开 Backend 和
+performance Worker 的 ServiceMonitor，
+但不安装 PostgreSQL、Redis、MinIO 或 Prometheus，也不创建凭据。
+
+先复制 overlay 并替换镜像 tag、目标主机、Prometheus Operator selector label 和现有 Secret 名称；
+`secret.existingName` 指向的 Secret 至少要提供 ATP 运行所需的数据库、Redis、source MinIO、加密和
+性能采样配置。source MinIO 的 `MINIO_HOST`、`MINIO_PORT`、`MINIO_BUCKET` 必须与下方 DR 环境文件中的
+`ATP_MINIO_DR_SOURCE_*` 对应；target MinIO 不得复用 source 主机或 IP。
+
+```bash
+cp deploy/helm/atp/values-performance-acceptance.example.yaml /tmp/atp-performance-values.yaml
+$EDITOR /tmp/atp-performance-values.yaml
+
+helm lint deploy/helm/atp -f /tmp/atp-performance-values.yaml
+helm template atp deploy/helm/atp -n atp-staging \
+  -f /tmp/atp-performance-values.yaml > /tmp/atp-performance-rendered.yaml
+helm upgrade --install atp deploy/helm/atp \
+  --namespace atp-staging --create-namespace \
+  -f /tmp/atp-performance-values.yaml
+kubectl -n atp-staging rollout status deployment/atp-atp-performance-worker --timeout=180s
+kubectl -n atp-staging get pods -l app.kubernetes.io/component=performance-worker -o wide
+```
+
+`helm lint`/`helm template` 和契约测试只证明仓库配置可渲染，不是集群通过证据。发布级 Prometheus
+必须实际发现两个 ServiceMonitor 生成的 target，并由 smoke 查询到非空结果；目标服务自己的 Prometheus
+也必须从 Worker Pod 可访问，并在压测定义的 `target_metrics` 中配置真实 URL 或 `url_env`。
+
+例如，使用 overlay 注入的 `TARGET_PROMETHEUS_URL` 时，压测定义的 options 至少应包含一个有界查询；
+查询名和 PromQL 必须按目标服务实际暴露的指标调整：
+
+```json
+{
+  "target_metrics": {
+    "url_env": "TARGET_PROMETHEUS_URL",
+    "timeout_seconds": 2,
+    "queries": {
+      "target_up": "up{job=\"target-service\"}"
+    }
+  }
+}
+```
+
+容量预检使用显式 Kubernetes 门禁：
+
+```bash
+python scripts/performance-environment-smoke.py \
+  --namespace atp-staging \
+  --deployment atp-atp-performance-worker \
+  --container performance-worker \
+  --require-kubernetes \
+  --min-ready-nodes 2 \
+  --min-worker-replicas 2 \
+  --require-worker-resources \
+  --report docs/evidence/performance-kubernetes-capacity-YYYY-MM-DD.json
+```
+
+自动身份模式下，每个 Pod 名称就是对应 `node-id`。应对每个 Ready Pod 至少执行一次真实短压，
+将 `<POD_NAME>` 替换为 `kubectl get pods` 输出的名称，并使用 `performance.<POD_NAME>` 作为队列：
+
+```bash
+export ATP_TOKEN='由安全渠道注入的短期 Token'
+python scripts/performance-environment-smoke.py \
+  --api-base-url https://atp-staging.example.test \
+  --namespace atp-staging \
+  --deployment atp-atp-performance-worker \
+  --pod-selector 'app.kubernetes.io/component=performance-worker' \
+  --container performance-worker \
+  --require-kubernetes \
+  --node-id '<POD_NAME>' \
+  --expected-queue 'performance.<POD_NAME>' \
+  --target grpcs://grpc.example.test:443 \
+  --require-tls --ca-file /etc/atp/ca.pem \
+  --require-node-allowlist \
+  --prometheus-url https://prometheus.example.test \
+  --prometheus-query 'up{namespace="atp-staging"}' \
+  --verify-worker-image \
+  --smoke-test-id '<GRPC_TEST_ID>' --smoke-executor grpc \
+  --require-metrics \
+  --require-metric-source performance-worker \
+  --require-metric-source target-service-prometheus \
+  --report docs/evidence/performance-kubernetes-<POD_NAME>-YYYY-MM-DD.json
+```
+
+其中 `target-service-prometheus` 只有在测试定义确实配置了目标 Prometheus 查询且返回非空 scalar
+时才会通过。`--prometheus-query` 仅验证发布级 Prometheus readiness/query；查询标签需按目标集群实际
+标签调整。没有 Kubernetes、发布级 Prometheus 或独立 MinIO source/target 时，命令必须失败或明确
+跳过，不能把本地 Compose、mock、空查询或单个 Worker 心跳写成 P4 通过。
+
+MinIO source/target 的环境变量模板见 [`minio-dr.env.example`](../deploy/performance-acceptance/minio-dr.env.example)。
+在验收操作机复制并安全注入后运行：
+
+```bash
+cp deploy/performance-acceptance/minio-dr.env.example /tmp/atp-minio-dr.env
+$EDITOR /tmp/atp-minio-dr.env
+set -a
+. /tmp/atp-minio-dr.env
+set +a
+python scripts/minio-dr-acceptance.py \
+  --report docs/evidence/minio-dr-acceptance-YYYY-MM-DD.json \
+  --require-lifecycle-rule 'atp-dr-acceptance/=7'
+```
+
+只有在 source 和 target 两端都已由管理员配置并确认该精确生命周期规则时，才保留
+`--require-lifecycle-rule`；否则应省略它并单独记录生命周期审计，不得把未验证规则写成通过。
+
 ## 2026-08-17 当前代码隔离栈验收
 
 已在 `172.31.27.133` 的 `/opt/atp-q18-acceptance-20260817` 使用当前代码部署隔离 Compose 栈。由于旧 q17 栈占用默认回环端口，当前栈使用 Backend `28080`、Prometheus `28090`、Worker metrics `28092`；旧栈未停止。Backend `/health`、Prometheus `/-/ready` 和 PromQL 均通过，Backend 与 `performance-worker` 两个 target 均为 `up`。
@@ -82,7 +193,7 @@ Windows 本地已完成平台级 k6/Locust 验收：主 Worker 节点 `perf-node
 
 ## Windows 打包并传输验收栈
 
-在 Windows 开发机上使用仓库内的 PowerShell 入口生成不含真实凭据和本地依赖的验收包。脚本只收集性能 Compose、Backend/Worker 构建上下文、目标服务夹具、验收工具和本 Runbook，不会把根目录 `.env`、启动档案、`node_modules`、虚拟环境、测试缓存或 `.local-run` 带入压缩包。
+在 Windows 开发机上使用仓库内的 PowerShell 入口生成不含真实凭据和本地依赖的验收包。脚本收集性能 Compose、Backend/Worker 构建上下文、完整 ATP Helm Chart（含 Kubernetes 性能 overlay）、MinIO DR 占位符环境文件、目标服务夹具、验收工具和本 Runbook，不会把根目录 `.env`、启动档案、`node_modules`、虚拟环境、测试缓存或 `.local-run` 带入压缩包。
 
 ```powershell
 ./scripts/package-performance-acceptance.ps1
@@ -96,7 +207,7 @@ Windows 本地已完成平台级 k6/Locust 验收：主 Worker 节点 `perf-node
   -Force
 ```
 
-命令输出 JSON，包含包路径、SHA-256、文件数、源 Git commit 和 `worktree_dirty` 标记。目标 Linux 主机收到压缩包后，应在隔离目录解压，先核对 `.sha256` 和 `bundle-manifest.json`，再按本文 Compose 命令构建；真实 `.env.performance-acceptance` 必须在目标主机单独创建，不能从开发机复制。
+命令输出 JSON，包含包路径、SHA-256、文件数、源 Git commit 和 `worktree_dirty` 标记。目标 Linux 主机收到压缩包后，应在隔离目录解压，先核对 `.sha256` 和 `bundle-manifest.json`，再按本节或下方 Kubernetes 命令执行；真实 `.env.performance-acceptance`、Helm Secret 和 MinIO DR 环境必须在目标主机单独创建，不能从开发机复制或直接 source 示例文件。
 
 ## ARM64 Docker Compose 隔离验收栈
 

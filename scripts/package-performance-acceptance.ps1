@@ -48,11 +48,13 @@ $explicitFiles = @(
   'deploy/performance-acceptance/Dockerfile.tools',
   'deploy/performance-acceptance/jmeter_smoke.jmx',
   'deploy/performance-acceptance/locust_smoke.py',
+  'deploy/performance-acceptance/minio-dr.env.example',
+  'deploy/helm/atp/values-performance-acceptance.example.yaml',
   'scripts/performance-environment-smoke.py',
   'scripts/performance_acceptance_target.py',
   'scripts/minio-dr-acceptance.py'
 )
-$sourceDirectories = @('backend')
+$sourceDirectories = @('backend', 'deploy/helm/atp')
 $excludedDirectoryNames = @(
   '.git',
   '.mypy_cache',

@@ -41,6 +41,7 @@ deploy/helm/atp/
 | PostgreSQL 16 | 托管 RDS | values.secrets.POSTGRES_* |
 | Redis 7 | 托管 ElastiCache | values.secrets.REDIS_* |
 | MinIO | 集群 / S3 兼容 | values.secrets.MINIO_* |
+| Prometheus Operator | kube-prometheus-stack 或等价实现 | 提供 ServiceMonitor CRD，并按 selector 选择 ATP ServiceMonitor |
 | Metrics Server | 必装 | HPA 依赖 |
 | 镜像仓库 | 内网 Harbor | values.image.repository |
 
@@ -178,6 +179,20 @@ hpa:
 `autoIdentity=false`，并为每个 Helm release 使用 `replicas: 1`、不同的 `nodeId` 和 `nodeQueue`。
 部署完成后的真实 Worker、TLS、allowlist、取消和资源采样验收命令见
 [`docs/performance-environment-acceptance.md`](performance-environment-acceptance.md)。
+
+### P4 真实 Kubernetes 最小验收 overlay
+
+`deploy/helm/atp/values-performance-acceptance.example.yaml` 是与上述脚本契约配套的最小真实集群
+配置：2 个自动身份性能 Worker、跨节点反亲和、明确的 CPU/内存 requests/limits、普通 Worker 排除
+`performance` 队列、Backend/性能 Worker 的 ServiceMonitor，以及外部 Secret 引用。它不安装 PostgreSQL、Redis、
+MinIO 或 Prometheus，也不包含真实凭据；source MinIO 由 `secret.existingName` 提供，target MinIO
+只在 [`deploy/performance-acceptance/minio-dr.env.example`](../deploy/performance-acceptance/minio-dr.env.example)
+中作为独立 DR 验收端点配置。
+
+复制 overlay 后先替换镜像 tag、实际目标/Prometheus 主机、Prometheus selector label 和 Secret 名称，
+再按 `performance-environment-acceptance.md` 执行 `helm lint`、`helm template`、部署、容量预检、
+ServiceMonitor target 查询和跨端点 MinIO smoke。Chart 渲染或契约测试通过不代表真实集群、监控或
+灾备验收通过。
 
 ## 八、升级与回滚
 

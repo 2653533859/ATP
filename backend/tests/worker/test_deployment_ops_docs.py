@@ -131,6 +131,7 @@ def test_helm_values_expose_worker_queues_and_resources():
     assert values["performanceWorker"]["concurrency"] == "1"
     assert values["performanceWorker"]["nodeEnabled"] is True
     assert values["performanceWorker"]["autoIdentity"] is False
+    assert values["performanceWorker"]["spreadAcrossNodes"] is False
     assert values["performanceWorker"]["nodeId"] == ""
     assert values["performanceWorker"]["nodeQueue"] == "performance"
     assert values["performanceWorker"]["networkPolicy"]["enabled"] is False
@@ -164,6 +165,40 @@ def test_helm_android_worker_overlay_separates_linux_and_windows_queues():
     assert "android,mobile_special" not in overlay["worker"]["queues"]
     assert "values-android-worker.example.yaml" in content
     assert "config/startup-profiles/android-agent.env" in content
+
+
+def test_helm_performance_acceptance_overlay_is_real_cluster_ready_without_secrets():
+    overlay = yaml.safe_load(
+        (ROOT / "deploy" / "helm" / "atp" / "values-performance-acceptance.example.yaml").read_text(encoding="utf-8")
+    )
+    schema = json.loads((ROOT / "deploy" / "helm" / "atp" / "values.schema.json").read_text(encoding="utf-8"))
+    content = (ROOT / "docs" / "performance-environment-acceptance.md").read_text(encoding="utf-8")
+
+    assert overlay["performanceWorker"]["enabled"] is True
+    assert overlay["performanceWorker"]["replicas"] == 2
+    assert overlay["performanceWorker"]["autoIdentity"] is True
+    assert overlay["performanceWorker"]["spreadAcrossNodes"] is True
+    assert overlay["performanceWorker"]["nodeEnabled"] is True
+    assert overlay["performanceWorker"]["resources"] == {
+        "requests": {"cpu": "1000m", "memory": "1Gi"},
+        "limits": {"cpu": "2000m", "memory": "2Gi"},
+    }
+    assert overlay["worker"]["queues"] == "default,ios,ai,maintenance"
+    assert overlay["config"]["CELERY_QUEUES"] == overlay["worker"]["queues"]
+    assert overlay["config"]["PERFORMANCE_TARGET_ALLOWLIST"]
+    assert overlay["config"]["TARGET_PROMETHEUS_URL"].startswith("https://")
+    assert "PERFORMANCE_TARGET_ALLOWLIST" in schema["properties"]["config"]["properties"]
+    assert "TARGET_PROMETHEUS_URL" in schema["properties"]["config"]["properties"]
+    assert "spreadAcrossNodes" in schema["properties"]["performanceWorker"]["properties"]
+    assert overlay["metrics"]["serviceMonitor"]["enabled"] is True
+    assert overlay["metrics"]["serviceMonitor"]["interval"] == "15s"
+    assert overlay["secret"] == {
+        "create": False,
+        "existingName": "atp-performance-acceptance-secrets",
+    }
+    assert overlay["storageLifecycle"]["enabled"] is False
+    assert "values-performance-acceptance.example.yaml" in content
+    assert "minio-dr.env.example" in content
 
 
 def test_deployment_readiness_validates_android_worker_profile_contract():
@@ -237,6 +272,7 @@ def test_helm_chart_can_render_dedicated_performance_worker():
     assert ".Values.performanceWorker.autoIdentity" in content
     assert 'export PERFORMANCE_NODE_ID="${HOSTNAME}"' in content
     assert 'export PERFORMANCE_NODE_QUEUE="performance.${HOSTNAME}"' in content
+    assert ".Values.performanceWorker.spreadAcrossNodes" in content
     assert 'queues="${CELERY_QUEUES:-performance}"' in content
     assert 'queues="${queues},performance"' in content
     assert "readinessProbe" in content

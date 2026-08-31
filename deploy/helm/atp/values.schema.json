@@ -110,6 +110,10 @@
           "type": "boolean",
           "description": "Derive a unique node ID and Celery queue from the Kubernetes Pod hostname for each replica."
         },
+        "spreadAcrossNodes": {
+          "type": "boolean",
+          "description": "Require dedicated performance Worker replicas to run on different Kubernetes nodes."
+        },
         "nodeEnabled": { "type": "boolean", "description": "Enable performance-node heartbeat registration for the dedicated worker." },
         "nodeId": { "type": "string", "maxLength": 128, "description": "Stable performance node ID. Empty disables explicit node registration." },
         "nodeName": { "type": "string", "maxLength": 128, "description": "Display name for the performance node." },
@@ -208,7 +212,11 @@
         "PERFORMANCE_NODE_MAX_CONCURRENCY": { "type": ["string", "integer"], "description": "Maximum active runs for the node; zero means unlimited." },
         "PERFORMANCE_NODE_EGRESS_ALLOWLIST": { "type": "string", "description": "Comma-separated application-level egress hostname allowlist." },
         "PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS": { "type": ["string", "integer"], "description": "Seconds before a node heartbeat is considered stale." },
-        "PERFORMANCE_EXECUTORS": { "type": "string", "description": "Comma-separated load injectors advertised by the performance worker." }
+        "PERFORMANCE_EXECUTORS": { "type": "string", "description": "Comma-separated load injectors advertised by the performance worker." },
+        "PERFORMANCE_TARGET_ALLOWLIST": { "type": "string", "description": "Comma-separated hostnames permitted as performance test targets." },
+        "PERFORMANCE_MAX_VUS": { "type": ["string", "integer"], "minimum": 0, "description": "Maximum VUs accepted by performance test validation." },
+        "PERFORMANCE_MAX_DURATION_SECONDS": { "type": ["string", "integer"], "minimum": 0, "description": "Maximum performance test duration in seconds." },
+        "TARGET_PROMETHEUS_URL": { "type": "string", "description": "Optional target-service Prometheus URL used by performance test definitions via url_env." }
       }
     },
     "secrets": {

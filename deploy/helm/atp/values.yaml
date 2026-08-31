@@ -70,6 +70,8 @@ performanceWorker:
   # Set true when replicas > 1. Each Pod registers its hostname as a distinct
   # node and consumes its own performance.<pod> queue.
   autoIdentity: false
+  # Require performance Worker replicas to land on different Kubernetes nodes.
+  spreadAcrossNodes: false
   nodeEnabled: true
   nodeId: ""
   nodeName: ""

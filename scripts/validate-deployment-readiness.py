@@ -32,6 +32,8 @@ REQUIRED_FILES = (
     "scripts/validate-android-worker-config.py",
     "config/deployment-profiles/android-worker-backend.env.example",
     "deploy/helm/atp/values-android-worker.example.yaml",
+    "deploy/helm/atp/values-performance-acceptance.example.yaml",
+    "deploy/performance-acceptance/minio-dr.env.example",
 )
 
 
@@ -55,7 +57,12 @@ def _check_required_files(failures: list[str]) -> None:
 
 
 def _check_data_files(failures: list[str]) -> None:
-    yaml_files = ("deploy/helm/atp/values.yaml", "docker-compose.yml", "docker-compose.dev.yml")
+    yaml_files = (
+        "deploy/helm/atp/values.yaml",
+        "deploy/helm/atp/values-performance-acceptance.example.yaml",
+        "docker-compose.yml",
+        "docker-compose.dev.yml",
+    )
     json_files = (
         "deploy/helm/atp/values.schema.json",
         "docker/grafana/dashboards/atp-overview.json",

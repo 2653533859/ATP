@@ -10,6 +10,10 @@ def test_performance_acceptance_bundle_is_allowlisted_and_auditable():
     assert "$explicitFiles" in script
     assert "backend" in script
     assert ".env.performance-acceptance.example" in script
+    assert "deploy/performance-acceptance/minio-dr.env.example" in script
+    assert "deploy/helm/atp/values-performance-acceptance.example.yaml" in script
+    assert "sourceDirectories = @('backend', 'deploy/helm/atp')" in script
+    assert "deploy/helm/atp" in script
     assert "Write-PortableZip" in script
     assert "ZipArchiveMode]::Create" in script
     assert "Replace('\\', '/')" in script
