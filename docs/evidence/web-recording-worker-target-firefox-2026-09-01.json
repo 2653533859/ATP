@@ -1,0 +1,54 @@
+{
+  "generated_at": "2026-08-31T22:55:53.270492+00:00",
+  "command": "/mnt/e/csh/MyProject/ATP/scripts/web-recording-worker-smoke.py --api-base-url http://127.0.0.1:39081 --project-id 19 --start-url https://example.com --browser firefox --run-recording --screenshot --wait-seconds 45 --timeout 30 --report /mnt/e/csh/MyProject/ATP/docs/evidence/web-recording-worker-target-firefox-2026-09-01.json",
+  "inputs": {
+    "api_base_url": "http://127.0.0.1:39081",
+    "project_id": 19,
+    "start_url": "https://example.com",
+    "browser": "firefox",
+    "run_recording": true,
+    "screenshot": true,
+    "wait_seconds": 45.0,
+    "poll_interval": 1,
+    "timeout": 30.0,
+    "report": "/mnt/e/csh/MyProject/ATP/docs/evidence/web-recording-worker-target-firefox-2026-09-01.json"
+  },
+  "status": "passed",
+  "checks": [
+    {
+      "name": "worker-preflight",
+      "status": "PASS",
+      "detail": "mode=worker, registered_count=1, available_count=1"
+    },
+    {
+      "name": "recording-start",
+      "status": "PASS",
+      "detail": "browser=firefox, status=recording"
+    },
+    {
+      "name": "recording-snapshot",
+      "status": "PASS",
+      "detail": "steps=2"
+    },
+    {
+      "name": "recording-screenshot",
+      "status": "PASS",
+      "detail": "content_type=image/png, bytes=19076"
+    },
+    {
+      "name": "recording-stop",
+      "status": "PASS",
+      "detail": "status=stopped"
+    },
+    {
+      "name": "recording-evidence",
+      "status": "PASS",
+      "detail": "trace/har/report=3, console=0, network=2"
+    },
+    {
+      "name": "recording-report-query",
+      "status": "PASS",
+      "detail": "stopped snapshot remains available"
+    }
+  ]
+}

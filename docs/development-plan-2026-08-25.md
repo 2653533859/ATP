@@ -190,6 +190,15 @@
 
 **第二轮结论**：受控账号、N6、N7 完整 AI、N8、三类浏览器 Worker 真实录制和后端独立性门禁已取得证据；浏览器回放/失败重现和覆盖率仍未达标。P4 的 Kubernetes、发布级 Prometheus、独立 MinIO 仍为外部基础设施阻塞，P9 继续保持“存在未关闭门禁”。
 
+### 2.4.0.5 第三轮执行记录（2026-09-01）
+
+- [x] 在迁移后的目标栈上完成 N6 管理员端真实资产链复验：临时项目、模块、用例、评审、套件、计划、终态执行、报告、内部缺陷关联和临时项目清理均通过；证据见 [`n6-project-asset-acceptance-target-2026-09-01.json`](evidence/n6-project-asset-acceptance-target-2026-09-01.json)。
+- [ ] N6 普通 Viewer 角色矩阵仍未执行：目标库现有 Viewer 凭据不可用，当前证据保持 `partial`，不得据此关闭 U-P0 的权限边界验收。
+- [x] 在迁移后的目标栈上完成 Chromium、Firefox、WebKit 三类真实 Worker 录制矩阵；每类均通过 Worker 预检、录制启动、快照、截图、停止、Trace/HAR/报告、网络证据和停止快照查询。证据分别见 [`web-recording-worker-target-chromium-2026-09-01.json`](evidence/web-recording-worker-target-chromium-2026-09-01.json)、[`web-recording-worker-target-firefox-2026-09-01.json`](evidence/web-recording-worker-target-firefox-2026-09-01.json)、[`web-recording-worker-target-webkit-2026-09-01.json`](evidence/web-recording-worker-target-webkit-2026-09-01.json)。
+- [ ] U-P3.1 的回放、失败重现和异常清理仍待补齐；当前 `web-recording-worker-smoke.py` 覆盖录制/停止/证据查询，不等同于低代码用例回放或失败注入验收。
+
+**第三轮结论**：目标迁移栈的管理员资产链和三浏览器 Worker 录制已取得新的脱敏证据；U-P0 仍受 Viewer 凭据阻塞，U-P3 仍缺回放/失败重现/异常清理证据，覆盖率门禁和 P4 性能基础设施阻塞保持不变。
+
 ## 2.4.1 P7 Hermes project retrieval and acceptance harness (local complete, 2026-08-25)
 
 - [x] Added `POST /hermes/query`, scoped by project viewer permission, to retrieve matching requirement, knowledge and case sources with redacted excerpts, stable scores, source references and project navigation paths.
