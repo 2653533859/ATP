@@ -631,6 +631,9 @@ def test_recording_routes_validate_start_screenshot_and_stop(monkeypatch):
     )
     monkeypatch.setattr(web_recordings, "assert_project_access", _allow_access)
     monkeypatch.setattr(web_recordings, "validate_public_http_url", lambda url: url + "/checked")
+    # 单元测试覆盖本地路由 manager；真实 Worker 模式由独立 transport 测试和
+    # Web Worker smoke 验收覆盖，不能让开发机 .env 决定该单测走哪条分支。
+    monkeypatch.setattr(web_recordings.settings, "WEB_RECORDER_MODE", "local")
 
     async def _start(_payload, _owner_id):
         return session
