@@ -37,7 +37,7 @@
 3. P5/P7 的真实模型门禁已在 2.4.22 用受控 `openai_compatible` 配置关闭：模型发现、连接测试、多模态/思考门槛、可编辑草稿和清理均通过。
 4. P8 目标部署的远程诊断、配置差异、单资源回滚、脱敏审计和权限拒绝已在 2.4.22 验收通过。
 5. 每一项必须执行：实现/调整 → 定向测试 → 受影响全量门禁 → 独立代码审查 → 修复 → 文档与记忆同步 → Conventional Commit 提交并推送。
-6. 当前下一项：P4 性能真实环境仍是唯一未关闭的能力门禁，需要 Kubernetes、发布级 Prometheus 和独立 MinIO source/target；P9 发布收口在 P4 关闭后绑定最终 SHA。
+6. 当前下一项：按 2.4.0.2 的最快推进顺序执行；P4 环境资源准备立即启动并与 P0～P3、外部供应商复核并行，P9 发布收口在所有必要门禁完成后绑定最终 SHA。
 
 ### 2.4.0 状态口径
 
@@ -47,6 +47,148 @@
 - `[-]`：外部条件明确缺失或验证失败；必须保留阻塞原因和复验命令。
 
 任何模块从 `[E]` 变为 `[x]` 前，都必须新增脱敏真实环境证据；不能用“页面可访问”“Worker 在线”“HTTP 401”“mock 返回”替代业务闭环。
+
+### 2.4.0.1 未完成与待验证任务登记（截至 2026-08-31）
+
+本节是当前所有未完成、待验证和发布前置任务的唯一登记入口。它把“本地代码已经完成”和“真实环境已经验收”明确分开；下方任务未完成前，不得把对应阶段改为 `[x]`，也不得把 q19 受控证据直接推断为生产环境通过。
+
+> 说明：P5～P8 的 q19 受控核心门禁已在 2.4.22 关闭，本节不重复列为未完成；仅登记其目标部署、第三方供应商和生产发布边界。P4 是当前唯一明确阻塞的核心能力门禁，P9 依赖 P4 收口。
+
+#### 当前未完成项总览
+
+| 编号 | 模块 | 未完成/待验证内容 | 前置条件 | 最小验收出口 | 状态 |
+| --- | --- | --- | --- | --- | --- |
+| U-P0 | 工作台与任务中心 | 真实账号、角色、项目任务数据；深链/刷新/窄屏；重试、终止、批量操作、失败诊断和越权边界 | 受控管理员/viewer 账号、可清理项目和运行数据 | 五类任务可查询和定位；操作权限正确；失败原因、事件和证据可追溯 | `[E]` 待真实环境复核 |
+| U-P1 | 接口测试 | 生产协议目标、生产对象存储、认证复用、变量/依赖、导入、报告和清理 | 可控 HTTP/GraphQL/WebSocket/gRPC 目标、生产级存储和测试窗口 | 请求、断言、提取、报告、导出和清理全链路有脱敏证据 | `[E]` 待生产目标复核 |
+| U-P2 | APP 自动化 | 多设备/兼容性矩阵、持续运行和设备冲突场景；iOS/Appium 真实设备边界 | 多台真实设备、Windows Worker、可清理 APK/IPA | 多设备调度、租约冲突、持续运行、媒体/日志/报告回传可复核 | `[E]` 单设备已完成，扩展边界待验证 |
+| U-P3 | UI 自动化 | 真实 Worker 下 Chromium/Firefox/WebKit 录制、回放、失败证据和资源清理 | 可用浏览器 Worker、可访问目标站点和测试账号 | 三类浏览器各完成一次真实录制、回放、失败诊断和清理 | `[E]` 三类 Worker 录制已复核，回放与失败重现边界待验证 |
+| U-P4 | 性能测试 | Kubernetes 多节点、发布级 Prometheus、独立 MinIO source/target、多节点短压与恢复 | 目标集群、性能 Worker、Prometheus、跨主机 MinIO | 短压、取消、采样、Threshold、报告、告警、留存清理和跨主机恢复均有证据 | `[-]` 外部环境缺失 |
+| U-EXT-1 | 通知供应商 | SMTP、企业微信、钉钉真实投递、重试、限流、送达结果和凭据清理 | 临时供应商目标和受控凭据 | 每类目标至少完成一次成功/失败重试验证，证据不含密钥，测试数据已清理 | `[E]` 待真实供应商验证 |
+| U-EXT-2 | 外部缺陷平台 | Jira、禅道、GitHub Issues、GitLab 的创建、去重、状态同步、附件和清理 | 临时项目、真实平台账号和可撤销权限 | 失败运行 → 外部缺陷 → 状态回写 → 附件 → 删除/清理全链路可追溯 | `[E]` 待真实平台验证 |
+| U-P5-P8-EXT | AI、测试资产、智能中枢、系统的生产边界 | q19 核心已关闭；不同于 q19 的生产模型、需求/知识数据、外部平台和目标部署仍需按发布范围复核 | 目标部署、生产数据边界、管理员/viewer 账号和回滚窗口 | 来源、权限、脱敏、审计、配置回滚及清理在目标环境可复核 | `[E]` q19 核心完成，生产边界待验证 |
+| U-OPS | 发布运维 | 生产迁移、备份恢复、SLO 历史、Android 真机演练和部署 readiness 证据 | 生产/准生产窗口、备份介质、真实设备和监控数据 | 迁移、回滚、恢复、SLO 和真机演练记录可复核且不含敏感值 | `[E]` 待目标环境补证 |
+| U-P9 | 发布收口 | 统一能力矩阵、证据索引、操作手册、回滚边界和最终提交 SHA | U-P4 关闭或获得正式豁免，其他外部边界有负责人和证据 | 所有未关闭门禁都有原因、依赖、负责人、证据路径和复验命令，发布结论可复核 | `[~]` 等待前置门禁 |
+
+#### U-P0 工作台与任务中心
+
+- [ ] `U-P0.1` 使用受控管理员和 viewer 账号复核首页、我的待办、项目中心和任务中心的项目上下文、刷新、深链、窄屏/折叠和权限隐藏。
+- [ ] `U-P0.2` 在可清理的真实项目数据上复核 Case、Suite、Plan、Android、Performance 五类任务的分页、状态轮询、重试、单任务终止、批量终止和失败诊断。
+- [ ] `U-P0.3` 验证过期确认、无权限操作、跨项目访问、失败截图/错误样本、事件时间线和报告深链均按预期拒绝或落到正确项目。
+- **复验入口**：Windows/API/Web smoke、`make n6-project-asset-acceptance`（带 `--execute --require-role-matrix`）以及工作台/前端定向回归。
+- **完成条件**：真实角色和真实任务数据的成功、失败、取消、停止、重试及越权证据均脱敏保存；不得用本地 mock 或页面可打开替代。
+
+#### U-P1 接口测试与报告生产边界
+
+- [ ] `U-P1.1` 在生产或准生产目标复核 HTTP/REST、GraphQL、WebSocket、gRPC Unary/Streaming 的认证、环境变量、会话复用、断言、提取和依赖传递。
+- [ ] `U-P1.2` 复核 OpenAPI/Postman 导入预览、落库、回读、审批、执行、HTML/JUnit/PDF 导出和报告对象清理。
+- [ ] `U-P1.3` 验证生产对象存储的报告、截图和临时文件生命周期；失败时不得残留测试项目、运行记录、对象或凭据。
+- **复验入口**：现有 API 协议/报告验收脚本、`make test-integration`、Windows API/Web smoke 和发布证据校验。
+- **完成条件**：生产目标的请求、报告、对象存储和清理均有独立脱敏证据；q19 受控目标证据不能直接替代生产证据。
+
+#### U-P2 APP 自动化扩展边界
+
+- [ ] `U-P2.1` 在两台及以上真实设备上复核 Worker 注册、设备扫描、租约抢占/释放、并行任务、设备离线和重复 Worker 场景。
+- [ ] `U-P2.2` 执行兼容性矩阵：Android 版本、分辨率、横竖屏、控件定位回退、录屏、截图、Logcat、专项任务和持续运行。
+- [ ] `U-P2.3` 若 iOS/Appium 纳入本次发布，补齐真实 IPA、设备配对、执行、媒体/日志/报告和清理；否则在发布状态中明确标为非本次发布范围。
+- **复验入口**：`scripts/windows-android-acceptance.ps1`、`scripts/windows-android-worker.ps1`、`scripts/ios-appium-acceptance.py` 及 Android Worker 运行手册。
+- **完成条件**：多设备冲突可解释，持续运行无不可追踪的事件/媒体丢失，所有 APK/IPA、设备数据和临时运行均可清理。
+
+#### U-P3 UI 自动化真实 Worker 边界
+
+- [x] `U-P3.1a` 在 Windows Worker 模式下完成 Chromium 真实录制、快照、截图、停止，以及 Trace/HAR/报告和网络证据检查；临时项目已通过正常 API 删除。
+- [x] `U-P3.1b` 在 Windows Worker 模式下完成 Firefox 真实录制、快照、截图、停止，以及 Trace/HAR/报告和网络证据检查；临时项目已通过正常 API 删除。
+- [x] `U-P3.1c` 在 Windows Worker 模式下完成 WebKit 真实录制、快照、截图、停止，以及 Trace/HAR/报告和网络证据检查；使用可访问的公网目标，临时项目已通过正常 API 删除。
+- [ ] `U-P3.1` 使用真实 Web Worker 分别完成 Chromium、Firefox、WebKit 的录制、停止、回放和失败重现；三种浏览器的本轮录制已完成，回放和失败重现仍待验证。
+- [ ] `U-P3.2` 复核元素库、页面对象、视觉基线、Trace/HAR、Console/网络日志、截图/录像和失败诊断的关联关系。
+- [ ] `U-P3.3` 验证浏览器崩溃、目标站点不可用、登录失效、录制中断和取消任务后的临时目录/对象清理。
+- **复验入口**：`make web-recording-worker-smoke`、Windows Web smoke、浏览器矩阵验收脚本和前端 E2E。
+- **完成条件**：三种浏览器均有真实成功/失败证据，资源和测试账号清理完成；不能只用 mock 浏览器结果。
+
+#### U-P5-P8-EXT AI、资产、智能中枢和系统的生产边界
+
+- [ ] `U-P5-P8-EXT.1` 若本次发布目标不同于 q19，使用目标环境的管理员/viewer 账号复核 AI 模型发现、连接、多模态/思考参数、可编辑草稿、来源审计、限额和敏感信息脱敏。
+- [ ] `U-P5-P8-EXT.2` 使用目标环境的真实需求、知识、测试资产和运行数据复核项目隔离、来源引用、缺陷/评审关联、清理和禁止静默写入；q19 证据不直接替代目标环境证据。
+- [ ] `U-P5-P8-EXT.3` 在目标部署复核远程诊断、配置聚合、版本差异、精确回滚、审计 CSV 和普通角色拒绝；若目标部署与 q19 相同，至少记录部署版本和证据复用依据。
+- **复验入口**：`make n7-intelligence-acceptance`、`make n8-system-governance-acceptance`，以及 [`n7-intelligence-acceptance.md`](n7-intelligence-acceptance.md)、[`n8-system-governance-acceptance.md`](n8-system-governance-acceptance.md)。
+- **完成条件**：目标环境证据与 q19 证据分别可定位；模型、项目、配置、审计和测试数据均可清理或有明确保留理由。
+
+#### U-P4 性能真实环境门禁（当前阻塞）
+
+- [ ] `U-P4.1` 提供 Kubernetes 集群，确认可调度 Ready 节点、性能 Worker Deployment 的 desired/available 副本，以及 CPU/内存 requests/limits。
+- [ ] `U-P4.2` 提供发布级 Prometheus，确认 readiness、性能 Worker/目标服务 targets、采样查询和资源指标覆盖。
+- [ ] `U-P4.3` 提供不同主机或不同 IP 的独立 MinIO source/target，确认生命周期规则、对象复制、目标回读、恢复回源、SHA-256 校验和清理。
+- [ ] `U-P4.4` 在真实多节点上执行短压、取消、阶梯/峰值/稳定性任务，复核节点分片、容量限制、Threshold、基线/回归、告警、趋势和报告。
+- [ ] `U-P4.5` 完成跨主机恢复演练和失败回滚，保存脱敏证据并确认没有临时对象、队列任务或测试数据残留。
+- **复验入口**：`make performance-environment-smoke`（显式 `--require-kubernetes`）、`make minio-dr-acceptance`、性能验收目标脚本和 `docs/performance-environment-acceptance.md`。
+- **阻塞规则**：缺少任一 Kubernetes、发布级 Prometheus 或独立 MinIO 条件时，保持 `[-]`；不得用 q19 Compose、单节点 Worker、mock 或跳过项替代。
+
+#### U-EXT-1/U-EXT-2 外部供应商验证
+
+- [ ] `U-EXT-1.1` 为 SMTP、企业微信、钉钉各准备临时目标，验证成功投递、失败重试、限流、超时、送达结果和测试数据/凭据清理。
+- [ ] `U-EXT-2.1` 为 Jira、禅道、GitHub Issues、GitLab 选择纳入发布范围的平台，验证创建、重复指纹、状态同步、截图附件、权限拒绝和删除/撤销。
+- [ ] `U-EXT-3` 将供应商 endpoint、账号、Token、密钥和响应正文限制在受控环境；报告只保留脱敏摘要、资源 ID 和清理状态。
+- **复验入口**：`scripts/notification-channel-smoke.py`、`scripts/notification-channel-acceptance.py`、缺陷跟踪运行手册和 N6 资产验收脚本。
+- **完成条件**：每个纳入发布范围的供应商至少有一份成功/失败/清理证据；未纳入的供应商必须在能力矩阵中明确排除。
+
+#### U-OPS 发布运维与 U-P9 收口
+
+- [ ] `U-OPS.1` 在目标环境执行部署 readiness、数据库迁移空库验证、备份恢复和回滚演练；记录迁移头、回滚边界和恢复结果。
+- [ ] `U-OPS.2` 补齐生产 SLO 历史、Android 真机演练、监控/告警和运行手册所需证据；敏感配置只从环境注入。
+- [ ] `U-P9.1` 将所有阶段状态、测试输出、独立审查、真实环境证据、负责人、阻塞原因和复验命令汇总到发布索引。
+- [ ] `U-P9.2` 待 U-P4 完成或取得正式书面豁免后，绑定同一最终提交 SHA，运行发布索引和文档同步一致性校验。
+- [ ] `U-P9.3` 给出“可发布/有条件发布/不可发布”结论；在 U-P4 未关闭时，结论必须保持“存在未关闭门禁”，不得标记为无条件发布。
+- **复验入口**：`make validate-deployment-readiness`、`make validate-release-evidence`、必要时 `make collect-q12-evidence` / `make validate-q12-evidence`。
+
+### 2.4.0.2 最快推进顺序与并行安排
+
+目标是优先关闭不需要新增基础设施的任务，同时尽早启动 P4 外部资源准备；有外部依赖的任务按资源到位情况并行，不让单个供应商或设备阻塞整个项目。
+
+| 顺序 | 执行阶段 | 任务 | 依赖/动作 | 阶段出口 |
+| --- | --- | --- | --- | --- |
+| 0 | 立即准备，零等待 | `U-P9.1`、`U-EXT-3`、`U-P2.3`、`U-OPS.1` 预检 | 整理发布索引字段、凭据边界、iOS 是否纳入本次发布、部署/迁移/回滚检查清单；同时发起 P4 环境申请 | 范围、负责人、证据模板和阻塞条件明确；P4 资源进入准备状态 |
+| 1 | 既有环境快速复核 | `U-P0`、`U-P3` | 使用现有受控账号、项目数据、Windows smoke、Web Worker 和浏览器矩阵；优先验证深链、权限、任务操作、录制/回放和失败证据 | 关闭能在现有环境完成的工作台和 UI 真实边界 |
+| 2 | 设备与接口并行 | `U-P2`、`U-P1` | 有设备时执行多设备/兼容性/持续运行；有协议目标时执行生产接口、对象存储、报告和清理；两条链路互不等待 | 分别取得 APP 和接口生产边界证据，或留下明确阻塞证据 |
+| 3 | 外部供应商与目标部署并行 | `U-EXT-1`、`U-EXT-2`、`U-P5-P8-EXT`、`U-OPS.2` | 按发布范围选择通知/缺陷平台；复核生产模型、目标部署、SLO、Android 演练和备份恢复；所有凭据只进受控环境 | 外部集成、生产 AI/治理和运维证据完成或明确排除范围 |
+| 4 | 性能环境解除与验收 | `U-P4.1 → U-P4.2 → U-P4.3 → U-P4.4 → U-P4.5` | 先确认 Kubernetes 节点/Worker，再确认 Prometheus，再确认独立 MinIO，最后执行多节点压测、取消、采样、报告、恢复和清理 | P4 从 `[-]` 变为可验收，并形成完整脱敏证据 |
+| 5 | 最终发布收口 | `U-P9.1` 收尾、`U-P9.2`、`U-P9.3` | 汇总所有证据和未关闭项；P4 完成或取得正式书面豁免后绑定同一最终 SHA | 输出可发布/有条件发布/不可发布结论；未关闭门禁不得隐藏 |
+
+**并行规则**：第 0 阶段必须立即启动 P4 资源准备；第 1～3 阶段可并行执行，具体先后取决于账号、设备、协议目标和供应商凭据到位时间。若外部条件未具备，只准备脚本、数据和文档，不伪造通过证据。
+
+#### 任务推进规则
+
+1. 按 `U-P9.1/U-EXT-3/U-P2.3/U-OPS.1 预备 → U-P0/U-P3 → U-P2/U-P1 → U-EXT/U-P5-P8-EXT/U-OPS.2 → U-P4 → U-P9` 推进，并行阶段以实际资源到位情况为准。
+2. 每个任务均执行：实现/调整 → 定向回归 → 受影响全量质量门禁 → 独立审查 → 修复 → 文档/记忆同步 → Conventional Commit 提交并推送。
+3. 所有真实验收数据必须使用临时项目、临时账号或可清理资源；凭据、Token、密钥、原始响应和敏感参数不得写入代码、日志、证据或提交。
+4. 每次验收失败都记录失败原因、影响范围、解除条件和复验命令；失败不能通过删除记录、跳过步骤或改写状态消失。
+
+### 2.4.0.3 首轮执行记录（2026-08-31）
+
+- [x] 完成仓库 readiness 预检：`scripts/validate-deployment-readiness.py` 的仓库文件检查通过；本机未安装 Docker/Compose，因此 Compose 配置检查按环境依赖跳过，不能据此关闭部署验收。
+- [x] 完成发布证据格式预检：`scripts/validate-release-evidence.py` 报告 `gates=7`、`blocking=2`、`candidate_sha=unbound`；说明索引格式可用，但仍有两个阻塞门禁且尚未绑定最终提交 SHA。
+- [x] 完成前端自动化质量门禁：`vue-tsc --noEmit` 通过，生产构建通过（4051 modules），Vitest 全量通过（69 个文件、320 个测试）。Vitest 仍输出组件未注册等非失败警告，列入后续测试环境治理，不将警告当作外部验收通过。
+- [ ] 后端全量回归本轮未执行：已确认项目 Python 3.12 虚拟环境可用，但本轮尚未执行完整 pytest 门禁；不能把该项记为通过。下一步按项目要求执行 `make test-backend` / `make test-backend-standalone`，保留完整输出。
+- [x] 完成无凭据浏览器矩阵基线：Chromium、Firefox、WebKit 访问 `/login` 均返回 200、页面标题正确、4 个登录输入框存在且无失败请求；该结果只覆盖登录入口，不关闭 U-P0/U-P3 的登录后真实数据、权限、任务、录制和回放验收。
+- [x] 后端健康检查返回 `{"status":"ok"}`；未授权访问受保护接口按预期返回 401。
+- [x] 已完成受控账号注入与登录：Backend 重启时按 `.env` bootstrap 创建临时管理员，管理员登录成功；Viewer 由管理员 API 创建并成功登录，未开放公共注册。N6 角色矩阵和真实执行验收通过，证据见 `.local-run/n6-project-asset-acceptance-20260831.json`。
+- [x] 已解除 Web Recording Worker disabled 阻塞：启用 `WEB_RECORDER_MODE=worker` 后，Worker 注册并可用；Chromium 真实录制、截图、停止及 Trace/HAR/报告证据检查通过，证据见 `.local-run/web-recording-worker-smoke-20260831.json`。本机 `127.0.0.1` 与远程内网地址仍按 SSRF 策略拒绝，使用公开 IP 完成本次目标访问验证。
+- [ ] P4 环境预检被基础设施阻塞：`scripts/performance-environment-smoke.py --require-kubernetes` 明确报告本机找不到 `kubectl`；本机同时没有 Docker/Compose。解除条件是提供 Kubernetes Worker、发布级 Prometheus 和独立 MinIO，并按 `U-P4.1 → U-P4.5` 执行真实证据链。
+- [x] 完成 Windows 运行栈启动：`scripts/windows-local.ps1 up` 已启动 Backend、Celery Worker、Celery Beat 和前端 Vite；运行元数据确认 PostgreSQL/Redis/MinIO 均指向 `172.31.27.133`。
+- [x] 完成远程资源连接复核：Alembic 只读检查返回 `20260825_0066 (head)`，MinIO `/minio/health/live` 返回 HTTP 200，Worker 日志确认连接远程 Redis 并成功处理 Android/Performance 心跳任务；Backend `/health` 与前端 `/login` 均返回 HTTP 200。
+- [x] 清理重复运行实例：发现并停止了 2026-08-26 遗留的 ATP Worker/Beat 进程组，避免与当前实例重复消费并耗尽远端 PostgreSQL 连接；当前 Backend、Worker、Beat 和前端保持运行。
+
+**本轮结论**：受控管理员/Viewer 登录、N6 角色矩阵和 Web Recording Worker Chromium 真实会话已通过；项目仍处于“存在未关闭门禁”，不可标记为无条件发布。下一次执行优先级为：补齐 U-P0/U-P3 的登录后任务、回放、Firefox/WebKit 和失败清理边界 → 并行补 U-P1/U-P2 与外部供应商证据 → 基础设施到位后关闭 U-P4 → 绑定最终 SHA 并完成 U-P9 收口。
+
+### 2.4.0.4 第二轮执行记录（2026-08-31）
+
+- [x] 完成浏览器 Worker 真实矩阵的 Chromium、Firefox 录制验证：Worker 预检、录制启动、快照、截图、停止、Trace/HAR/报告、网络证据和临时项目清理均通过；证据见 `.local-run/web-recording-worker-smoke-20260831.json` 与 `.local-run/web-recording-worker-smoke-firefox-20260831.json`。
+- [E] WebKit Worker 已注册且可接收录制任务，但当前主机访问公开 IP 目标时 `Page.goto` 超时；项目清理成功。该项不是 Worker disabled，解除条件是提供从 Worker 主机可访问、且通过公网 URL 安全校验的目标站点后复验。
+- [x] N7 完整真实 AI 验收通过：管理员认证、模型发现（29 个模型）、连接测试、视觉/思考能力门槛、临时项目/模块/需求/知识/用例、3 份可编辑草稿、Hermes 三类来源、Viewer 角色矩阵和清理均通过；配置为 `openai_compatible`、`claude-opus-4-6-thinking`，API Key 仅以 Fernet 加密存储。证据见 `.local-run/n7-intelligence-acceptance-ai-20260831.json`。
+- [x] WebKit 真实录制复验通过：使用公网目标 `https://aicying.us.kg`，录制启动、快照、截图、停止、Trace/HAR/报告和网络证据全部通过；证据见 `.local-run/web-recording-worker-smoke-webkit-20260831.json`。
+- [x] N8 受控验收通过：管理员/Viewer 角色矩阵、远程工具箱、配置中心、审计导出、配置修订和精确 `ROLLBACK` 均通过；证据见 `.local-run/n8-system-governance-acceptance-20260831.json`。
+- [x] 后端全量非集成测试通过：`2391 passed`；逐文件独立扫测通过：`307 passed, 0 failed standalone`；Ruff 检查、格式检查和 mypy 均通过。为隔离 `.env` 的 Worker 模式，路由单测显式固定 local 分支，修复位置为 `backend/tests/api/test_web_recordings.py`。
+- [ ] 覆盖率门禁未达到要求：测试本身 `2391 passed`，但总覆盖率为 `80.16%`，低于 `--cov-fail-under=82`；需补充低覆盖 API/服务分支测试，不能通过降低阈值或排除模块关闭该项。
+
+**第二轮结论**：受控账号、N6、N7 完整 AI、N8、三类浏览器 Worker 真实录制和后端独立性门禁已取得证据；浏览器回放/失败重现和覆盖率仍未达标。P4 的 Kubernetes、发布级 Prometheus、独立 MinIO 仍为外部基础设施阻塞，P9 继续保持“存在未关闭门禁”。
 
 ## 2.4.1 P7 Hermes project retrieval and acceptance harness (local complete, 2026-08-25)
 
