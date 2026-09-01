@@ -7,8 +7,12 @@ import HermesAssistantView from './HermesAssistantView.vue'
 
 const {
   caseList,
+  createDraft,
+  createSession,
+  confirmDraft,
   failureTop,
   generateDiagnosis,
+  governance,
   hermesQuery,
   moduleList,
   projectList,
@@ -19,8 +23,12 @@ const {
   workbenchFailureDiagnosis,
 } = vi.hoisted(() => ({
   caseList: vi.fn(),
+  createDraft: vi.fn(),
+  createSession: vi.fn(),
+  confirmDraft: vi.fn(),
   failureTop: vi.fn(),
   generateDiagnosis: vi.fn(),
+  governance: vi.fn(),
   hermesQuery: vi.fn(),
   moduleList: vi.fn(),
   projectList: vi.fn(),
@@ -36,14 +44,19 @@ vi.mock('vue-router', () => ({
   useRouter: () => ({ push: routerPush, replace: routerReplace }),
 }))
 vi.mock('vue-i18n', () => ({
-  useI18n: () => ({ locale: ref('zh-CN'), t: (key: string) => key }),
+  useI18n: () => ({
+    locale: ref('zh-CN'),
+    t: (key: string, params?: { version?: string }) =>
+      key === 'hermes.governance_eval_set' ? `${key}:${params?.version || ''}` : key,
+  }),
 }))
 vi.mock('ant-design-vue', () => ({
   message: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
+  Modal: { confirm: vi.fn() },
 }))
 vi.mock('@/api', () => ({
   caseApi: { list: caseList },
-  hermesApi: { query: hermesQuery },
+  hermesApi: { query: hermesQuery, createSession, createDraft, confirmDraft, governance },
   projectApi: { list: projectList, getModules: moduleList },
   reportApi: { overview: reportOverview },
   runApi: { generateFailureDiagnosis: generateDiagnosis },
@@ -160,6 +173,26 @@ beforeEach(() => {
     }],
     generated_at: '2026-08-25T10:00:00Z',
   })
+  createSession.mockResolvedValue({ id: 101 })
+  createDraft.mockResolvedValue({ id: 'draft-1', status: 'pending_confirmation' })
+  confirmDraft.mockResolvedValue({ draft_id: 'draft-1', status: 'confirmed', plan_id: 22 })
+  governance.mockResolvedValue({
+    prompt_version: 'hermes-v2',
+    prompt_versions: ['hermes-v2'],
+    evaluation_set: { id: 'hermes-core-v1', version: '2026-09-01', size: 5 },
+    sessions: 2,
+    assistant_messages: 3,
+    citation_coverage: 0.8,
+    refusal_rate: 0.2,
+    no_result_rate: 0.2,
+    helpful_count: 2,
+    not_helpful_count: 1,
+    feedback_total: 3,
+    helpful_rate: 0.6667,
+    average_latency_ms: 120,
+    p95_latency_ms: 220,
+    cost_tracking: { available: false, reason: 'not configured' },
+  })
   routerReplace.mockResolvedValue(undefined)
 })
 
@@ -179,6 +212,10 @@ describe('HermesAssistantView', () => {
     expect(taskList).toHaveBeenCalledWith({ project_id: 1, limit: 100 })
     expect(reportOverview).toHaveBeenCalledWith({ project_id: 1, days: 30, recent_limit: 20 })
     expect(failureTop).toHaveBeenCalledWith({ project_id: 1, days: 30, top: 8 })
+    expect(governance).toHaveBeenCalledWith(1)
+    expect(wrapper.find('.governance-card').exists()).toBe(true)
+    expect(wrapper.find('.governance-card').text()).toContain('80%')
+    expect(wrapper.find('.governance-card').text()).toContain('2026-09-01')
     expect(vm.qualityScore).toBe(78)
     expect(vm.failedTasks).toHaveLength(1)
     expect(vm.messages[0].sources).toHaveLength(2)
@@ -256,10 +293,12 @@ describe('HermesAssistantView', () => {
     const vm = wrapper.vm as any
     const previousId = vm.conversationId
 
+    vm.sessionId = 42
     vm.appendMessage('user', '不要保留')
     vm.startNewConversation()
 
     expect(vm.conversationId).not.toBe(previousId)
+    expect(vm.sessionId).toBeNull()
     expect(vm.messages).toHaveLength(1)
     expect(vm.messages[0].isWelcome).toBe(true)
 
@@ -320,7 +359,7 @@ describe('HermesAssistantView', () => {
     wrapper.unmount()
   })
 
-  it('creates an editable, non-persisted test plan draft and links to plans', async () => {
+  it('creates an editable structured test plan draft and links to plans after confirmation', async () => {
     const wrapper = mountHermes()
     await flushPromises()
     const vm = wrapper.vm as any
@@ -328,12 +367,49 @@ describe('HermesAssistantView', () => {
     await vm.askPrompt('test_plan')
     expect(vm.planDraft.name).toContain('hermes.plan_default_name')
     expect(vm.planDraft.testPoints.length).toBe(2)
+    expect(vm.planDraft.scopeModules).toHaveLength(1)
+    expect(vm.planDraft.caseDrafts).toHaveLength(1)
+    expect(vm.planDraft.regressionScope).toHaveLength(1)
+    expect(vm.planDraft.sources).toHaveLength(4)
+    expect(vm.draftChangedCount).toBe(0)
     vm.addPlanPoint()
     expect(vm.planDraft.testPoints).toHaveLength(3)
+    expect(vm.draftChangedCount).toBe(1)
     vm.removePlanPoint(2)
     expect(vm.planDraft.testPoints).toHaveLength(2)
+    expect(vm.draftChangedCount).toBe(0)
     vm.openPlans()
-    expect(routerPush).toHaveBeenCalledWith('/plans?project_id=1')
+    expect(routerPush).not.toHaveBeenCalled()
+    await vm.confirmPlanDraft()
+    expect(vm.draftConfirmed).toBe(true)
+    expect(routerPush).toHaveBeenCalledWith(expect.objectContaining({
+      path: '/plans',
+      query: { project_id: '1', hermes_draft: '1' },
+      state: expect.objectContaining({
+        hermesPlanDraft: expect.objectContaining({
+          projectId: 1,
+          name: vm.planDraft.name,
+          caseIds: [5],
+          moduleIds: [10],
+          regressionTaskIds: ['case:5'],
+        }),
+      }),
+    }))
+
+    wrapper.unmount()
+  })
+
+  it('bootstraps a persistent session before saving a draft from a new conversation', async () => {
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    await vm.askPrompt('test_plan')
+    await vm.savePlanDraft()
+
+    expect(createSession).toHaveBeenCalledWith(1, 'hermes.conversation_title')
+    expect(vm.sessionId).toBe(101)
+    expect(createDraft).toHaveBeenCalledWith(101, expect.objectContaining({ project_id: 1, draft_type: 'test_plan' }))
 
     wrapper.unmount()
   })

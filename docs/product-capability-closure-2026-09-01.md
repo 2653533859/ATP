@@ -47,7 +47,7 @@ iOS 仍不在本次正式支持范围；没有 macOS、Xcode、WebDriverAgent、
 - H2：最多保留最近 40 条脱敏会话消息，刷新后恢复最近会话；查询可按来源类型过滤，最近历史进入下一轮 grounded prompt。
 - H3：提供 `failed_runs` 与 `quality_summary` 只读工具；调用参数和有界结果写入会话审计，不提供写工具。
 - H4：计划草稿先写入 Session，只有用户显式 `CONFIRM` 后才创建禁用的手工 `draft` 计划；不会自动调度或执行。
-- H5：记录 prompt 版本、延迟、引用覆盖、无结果率和 helpful/not-helpful 反馈；`/hermes/governance/summary` 返回项目级汇总。
+- H5：提供版本化 `hermes-core-v1` 五题只读评测集与元数据接口；`/hermes/governance/summary` 返回项目级 prompt 版本、有效引用覆盖率、拒答/无结果率、平均/P95 延迟、helpful/not-helpful 反馈、活动量和成本不可用状态，Hermes 页面同步展示治理状态卡片。
 
 这些是最小治理链路，不等同于真实模型、完整角色矩阵或目标部署验收。真实模型效果阈值、成本与更大评测集仍需环境证据。
 

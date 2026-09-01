@@ -33,9 +33,12 @@ from app.models.user_project import ProjectRole
 from app.schemas.hermes import (
     HermesDraftConfirmIn,
     HermesDraftIn,
+    HermesEvaluationSetOut,
     HermesFeedbackIn,
+    HermesGovernanceSummaryOut,
     HermesQueryIn,
     HermesQueryOut,
+    HermesSessionCreateIn,
     HermesSessionOut,
     HermesSourceOut,
     HermesToolIn,
@@ -52,9 +55,14 @@ from app.services.audit import write_audit_log
 from app.services.knowledge import redact_knowledge_text
 from app.services.hermes import (
     HERMES_SYSTEM_PROMPT,
+    HERMES_EVALUATION_SET,
+    HERMES_EVALUATION_SET_ID,
+    HERMES_EVALUATION_SET_VERSION,
+    HERMES_PROMPT_VERSION,
     HermesCandidate,
     HermesHistoryContext,
     HermesRankedSource,
+    build_governance_summary,
     build_answer,
     build_grounded_prompt,
     build_history_context,
@@ -403,7 +411,7 @@ async def query_hermes(
                     for source in sources
                 ],
                 "tool": "project_evidence_search",
-                "prompt_version": "hermes-v2",
+                "prompt_version": HERMES_PROMPT_VERSION,
                 "latency_ms": latency_ms,
                 "at": generated_at.isoformat(),
             },
@@ -459,7 +467,29 @@ async def list_hermes_sessions(
     return (await db.execute(query)).scalars().all()
 
 
-@router.get("/hermes/governance/summary")
+@router.post("/hermes/sessions", response_model=HermesSessionOut, status_code=201)
+async def create_hermes_session(
+    body: HermesSessionCreateIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
+    session = HermesSession(
+        project_id=body.project_id,
+        user_id=user.id,
+        title=body.title,
+        context_filters={},
+        messages=[],
+        drafts=[],
+        metrics={"queries": 0, "tool_calls": 0, "helpful": 0, "not_helpful": 0},
+    )
+    db.add(session)
+    await db.commit()
+    await db.refresh(session)
+    return session
+
+
+@router.get("/hermes/governance/summary", response_model=HermesGovernanceSummaryOut)
 async def hermes_governance_summary(
     project_id: int,
     db: AsyncSession = Depends(get_db),
@@ -471,25 +501,18 @@ async def hermes_governance_summary(
         .scalars()
         .all()
     )
-    assistant_messages = [
-        message for session in rows for message in (session.messages or []) if message.get("role") == "assistant"
-    ]
-    helpful = sum(int((session.metrics or {}).get("helpful", 0)) for session in rows)
-    not_helpful = sum(int((session.metrics or {}).get("not_helpful", 0)) for session in rows)
-    rated = helpful + not_helpful
-    grounded = sum(1 for message in assistant_messages if message.get("sources"))
-    no_results = sum(1 for message in assistant_messages if message.get("mode") == "no_results")
-    latencies = [
-        int(message.get("latency_ms", 0)) for message in assistant_messages if message.get("latency_ms") is not None
-    ]
+    return build_governance_summary(rows)
+
+
+@router.get("/hermes/governance/evaluation-set", response_model=HermesEvaluationSetOut)
+async def hermes_evaluation_set(user: User = Depends(get_current_user)):
+    """Return the bounded, non-project-specific H5 evaluation prompts."""
+
+    _ = user
     return {
-        "prompt_version": "hermes-v2",
-        "sessions": len(rows),
-        "assistant_messages": len(assistant_messages),
-        "citation_coverage": round(grounded / len(assistant_messages), 4) if assistant_messages else 0,
-        "no_result_rate": round(no_results / len(assistant_messages), 4) if assistant_messages else 0,
-        "helpful_rate": round(helpful / rated, 4) if rated else None,
-        "average_latency_ms": round(sum(latencies) / len(latencies)) if latencies else 0,
+        "id": HERMES_EVALUATION_SET_ID,
+        "version": HERMES_EVALUATION_SET_VERSION,
+        "questions": list(HERMES_EVALUATION_SET),
     }
 
 

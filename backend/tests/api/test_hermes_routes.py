@@ -8,7 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.v1 import hermes
-from app.schemas.hermes import HermesQueryIn
+from app.schemas.hermes import HermesQueryIn, HermesSessionCreateIn
 from app.services.hermes import HermesCandidate, build_answer, rank_candidates
 from app.models.user_project import ProjectRole
 
@@ -22,6 +22,11 @@ class _Result:
 
     def all(self):
         return self.rows
+
+
+class _ScalarResult(_Result):
+    def scalars(self):
+        return self
 
 
 class _DB:
@@ -53,6 +58,9 @@ class _DB:
         return None
 
     async def commit(self):
+        return None
+
+    async def refresh(self, _item):
         return None
 
 
@@ -137,6 +145,71 @@ def test_query_schema_validates_h2_context_contract():
 
     with pytest.raises(ValueError, match="更新时间范围无效"):
         HermesQueryIn(project_id=1, query="登录", updated_from="2026-09-01", updated_to="2026-08-31")
+
+
+def test_session_create_schema_trims_title_and_uses_safe_fallback():
+    assert HermesSessionCreateIn(project_id=1, title="  回归规划  ").title == "回归规划"
+    assert HermesSessionCreateIn(project_id=1, title="   ").title == "Hermes 会话"
+
+
+def test_create_hermes_session_is_project_scoped_and_starts_empty(monkeypatch):
+    access = []
+
+    async def allow_access(_db, _user, project_id, role):
+        access.append((project_id, role))
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    db = _DB()
+
+    result = asyncio.run(
+        hermes.create_hermes_session(HermesSessionCreateIn(project_id=1, title="回归规划"), db, _user())
+    )
+
+    assert access == [(1, ProjectRole.viewer)]
+    assert result.id == 100
+    assert result.project_id == 1
+    assert result.user_id == 7
+    assert result.title == "回归规划"
+    assert result.messages == []
+    assert result.drafts == []
+    assert result.metrics["queries"] == 0
+
+
+def test_hermes_governance_summary_is_aggregate_only_and_exposes_eval_metadata(monkeypatch):
+    async def allow_access(*_args):
+        return None
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    session = SimpleNamespace(
+        metrics={"helpful": 1, "not_helpful": 0},
+        messages=[
+            {
+                "role": "assistant",
+                "mode": "project_retrieval",
+                "content": "依据来源给出结论",
+                "sources": [{"path": "/cases/4"}],
+                "prompt_version": "hermes-v2",
+                "latency_ms": 42,
+            }
+        ],
+    )
+    db = _DB(results=[_ScalarResult([session])])
+
+    result = asyncio.run(hermes.hermes_governance_summary(1, db, _user()))
+
+    assert result["assistant_messages"] == 1
+    assert result["citation_coverage"] == 1
+    assert result["helpful_rate"] == 1
+    assert result["evaluation_set"]["id"] == "hermes-core-v1"
+    assert "content" not in result
+
+
+def test_hermes_evaluation_set_is_bounded_and_authenticated():
+    result = asyncio.run(hermes.hermes_evaluation_set(_user()))
+
+    assert result["id"] == "hermes-core-v1"
+    assert len(result["questions"]) == 5
+    assert {item["expected_mode"] for item in result["questions"]} == {"project_retrieval", "no_results"}
 
 
 def test_rank_candidates_redacts_source_text_and_is_stable():

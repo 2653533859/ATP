@@ -83,6 +83,14 @@
       width="640px"
       @ok="handleSave"
     >
+      <a-alert
+        v-if="hermesDraftLoaded"
+        type="info"
+        show-icon
+        :message="t('plan.hermes_draft_imported')"
+        :description="t('plan.hermes_draft_imported_hint', hermesDraftScope)"
+        style="margin-bottom: 16px"
+      />
       <a-form :model="form" layout="vertical">
         <a-form-item :label="t('plan.form.name')" :rules="[{ required: true }]">
           <a-input v-model:value="form.name" :placeholder="t('plan.form.name_placeholder')" />
@@ -437,6 +445,20 @@ const { t } = useI18n()
 const router = useRouter()
 
 type SelectOption = { label: string; value: number }
+type HermesPlanDraftHandoff = {
+  projectId: number
+  name: string
+  objective: string
+  testPoints: string[]
+  moduleIds: number[]
+  caseIds: number[]
+  regressionTaskIds: string[]
+}
+type HermesDraftScopeSummary = {
+  modules: number
+  cases: number
+  regressions: number
+}
 
 const planExecutionModeOptions = computed<Array<{ label: string; value: SuiteExecutionMode }>>(() => [
   { label: t('suite.execution_modes.sequential'), value: 'sequential' },
@@ -493,6 +515,8 @@ const route = useRoute()
 const projectOptions = ref<SelectOption[]>([])
 
 const formOpen = ref(false)
+const hermesDraftLoaded = ref(false)
+const hermesDraftScope = ref<HermesDraftScopeSummary>({ modules: 0, cases: 0, regressions: 0 })
 const isEdit = ref(false)
 const saving = ref(false)
 const editingPlan = ref<PlanItem | null>(null)
@@ -648,11 +672,71 @@ onMounted(async () => {
     projectId.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), projects)
     await loadPlans()
     await openRequestedRun()
+    applyHermesDraft()
   } catch (error: unknown) {
     projectOptions.value = []
     message.error(getErrorMessage(error, t('plan.msg.load_projects_failed')))
   }
 })
+
+function boundedStringArray(value: unknown, max: number) {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((item): item is string => typeof item === 'string' && item.trim().length > 0)
+    .map((item) => item.trim().slice(0, 512))
+    .slice(0, max)
+}
+
+function boundedNumberArray(value: unknown, max: number) {
+  if (!Array.isArray(value)) return []
+  return value
+    .filter((item): item is number => Number.isInteger(item) && item > 0)
+    .slice(0, max)
+}
+
+function readHermesPlanDraft(): HermesPlanDraftHandoff | null {
+  if (route.query.hermes_draft !== '1' || typeof window === 'undefined') return null
+  const raw = window.history.state?.hermesPlanDraft
+  if (!raw || typeof raw !== 'object') return null
+  const value = raw as Record<string, unknown>
+  const draftProjectId = positiveInt(value.projectId)
+  const name = typeof value.name === 'string' ? value.name.trim().slice(0, 256) : ''
+  if (!draftProjectId || !name) return null
+  return {
+    projectId: draftProjectId,
+    name,
+    objective: typeof value.objective === 'string' ? value.objective.trim().slice(0, 2000) : '',
+    testPoints: boundedStringArray(value.testPoints, 16),
+    moduleIds: boundedNumberArray(value.moduleIds, 16),
+    caseIds: boundedNumberArray(value.caseIds, 16),
+    regressionTaskIds: boundedStringArray(value.regressionTaskIds, 16),
+  }
+}
+
+function clearHermesDraftMarker() {
+  const query = { ...route.query }
+  delete query.hermes_draft
+  void router.replace({ query })
+}
+
+function applyHermesDraft() {
+  if (route.query.hermes_draft !== '1') return
+  const draft = readHermesPlanDraft()
+  if (!draft || draft.projectId !== projectId.value) {
+    clearHermesDraftMarker()
+    return
+  }
+  openCreate()
+  form.value.name = draft.name
+  form.value.description = [draft.objective, ...draft.testPoints.map((point) => `• ${point}`)].filter(Boolean).join('\n')
+  hermesDraftScope.value = {
+    modules: draft.moduleIds.length,
+    cases: draft.caseIds.length,
+    regressions: draft.regressionTaskIds.length,
+  }
+  hermesDraftLoaded.value = true
+  clearHermesDraftMarker()
+}
 
 async function loadPlans() {
   if (!projectId.value) {

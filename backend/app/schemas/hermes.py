@@ -115,6 +115,57 @@ class HermesSessionOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class HermesSessionCreateIn(BaseModel):
+    project_id: int = Field(ge=1)
+    title: str = Field(default="Hermes 会话", max_length=80)
+
+    @field_validator("title")
+    @classmethod
+    def trim_title(cls, value: str) -> str:
+        return value.strip() or "Hermes 会话"
+
+
+class HermesEvaluationQuestionOut(BaseModel):
+    id: str
+    prompt: str
+    expected_mode: Literal["llm_grounded", "project_retrieval", "no_results"]
+
+
+class HermesEvaluationSetOut(BaseModel):
+    id: str
+    version: str
+    questions: list[HermesEvaluationQuestionOut] = Field(default_factory=list, max_length=20)
+
+
+class HermesEvaluationSetMetaOut(BaseModel):
+    id: str
+    version: str
+    size: int = Field(ge=0)
+
+
+class HermesCostTrackingOut(BaseModel):
+    available: bool
+    reason: str
+
+
+class HermesGovernanceSummaryOut(BaseModel):
+    prompt_version: str
+    prompt_versions: list[str] = Field(default_factory=list, max_length=20)
+    evaluation_set: HermesEvaluationSetMetaOut
+    sessions: int = Field(ge=0)
+    assistant_messages: int = Field(ge=0)
+    citation_coverage: float = Field(ge=0, le=1)
+    refusal_rate: float = Field(ge=0, le=1)
+    no_result_rate: float = Field(ge=0, le=1)
+    helpful_count: int = Field(ge=0)
+    not_helpful_count: int = Field(ge=0)
+    feedback_total: int = Field(ge=0)
+    helpful_rate: float | None = Field(default=None, ge=0, le=1)
+    average_latency_ms: int = Field(ge=0)
+    p95_latency_ms: int = Field(ge=0)
+    cost_tracking: HermesCostTrackingOut
+
+
 class HermesToolIn(BaseModel):
     project_id: int = Field(ge=1)
     arguments: dict = Field(default_factory=dict)

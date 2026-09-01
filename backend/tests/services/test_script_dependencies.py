@@ -20,5 +20,5 @@ def test_validate_script_requirements_rejects_unlocked_sources(content):
 
 def test_extend_pythonpath_keeps_dependencies_isolated_and_preserves_existing():
     env = extend_pythonpath({"PYTHONPATH": "/existing"}, Path("/tmp/deps"), Path("/tmp/run"))
-    assert env["PYTHONPATH"].split(os.pathsep) == ["/tmp/deps", "/tmp/run", "/existing"]
+    assert env["PYTHONPATH"].split(os.pathsep) == [str(Path("/tmp/deps")), str(Path("/tmp/run")), "/existing"]
     assert env["PYTHONNOUSERSITE"] == "1"

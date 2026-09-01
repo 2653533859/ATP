@@ -1648,6 +1648,24 @@ export interface HermesSessionItem {
   updated_at: string
 }
 
+export interface HermesGovernanceSummary {
+  prompt_version: string
+  prompt_versions: string[]
+  evaluation_set: { id: string; version: string; size: number }
+  sessions: number
+  assistant_messages: number
+  citation_coverage: number
+  refusal_rate: number
+  no_result_rate: number
+  helpful_count: number
+  not_helpful_count: number
+  feedback_total: number
+  helpful_rate: number | null
+  average_latency_ms: number
+  p95_latency_ms: number
+  cost_tracking: { available: boolean; reason: string }
+}
+
 export type HermesToolName =
   | 'failed_tasks'
   | 'run_detail'
@@ -2058,6 +2076,8 @@ export const hermesApi = {
   listTools: () => http.get<unknown, { tools: HermesToolDescriptor[]; generated_at: string }>('/hermes/tools'),
   executeTool: (body: HermesToolCall) => http.post<unknown, HermesToolResult>('/hermes/tools/execute', body),
   sessions: (projectId: number) => http.get<unknown, HermesSessionItem[]>('/hermes/sessions', { params: { project_id: projectId } }),
+  createSession: (projectId: number, title: string) =>
+    http.post<unknown, HermesSessionItem>('/hermes/sessions', { project_id: projectId, title }),
   createDraft: (sessionId: number, body: { project_id: number; draft_type: 'test_plan'; payload: Record<string, unknown>; sources?: Array<Record<string, unknown>> }) =>
     http.post<unknown, { id: string; status: string }>(`/hermes/sessions/${sessionId}/drafts`, body),
   confirmDraft: (sessionId: number, body: { project_id: number; draft_id: string; confirmation: 'CONFIRM' }) =>
@@ -2066,7 +2086,7 @@ export const hermesApi = {
     http.post(`/hermes/sessions/${sessionId}/feedback`, body),
   tool: (sessionId: number, toolName: 'failed_runs' | 'quality_summary', body: { project_id: number; arguments?: Record<string, unknown> }) =>
     http.post(`/hermes/sessions/${sessionId}/tools/${toolName}`, body),
-  governance: (projectId: number) => http.get('/hermes/governance/summary', { params: { project_id: projectId } }),
+  governance: (projectId: number) => http.get<unknown, HermesGovernanceSummary>('/hermes/governance/summary', { params: { project_id: projectId } }),
 }
 
 export const scriptApi = {

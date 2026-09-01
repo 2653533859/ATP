@@ -55,6 +55,42 @@
         </div>
       </section>
 
+      <section v-if="governanceSummary" class="governance-card" :aria-label="t('hermes.governance_aria')">
+        <div class="governance-heading">
+          <div>
+            <span class="section-kicker">{{ t('hermes.governance_kicker') }}</span>
+            <h2>{{ t('hermes.governance_title') }}</h2>
+          </div>
+          <div class="governance-meta">
+            <span class="governance-version">{{ governanceSummary.prompt_version }}</span>
+            <span>{{ t('hermes.governance_eval_set', { size: governanceSummary.evaluation_set.size, version: governanceSummary.evaluation_set.version }) }}</span>
+          </div>
+        </div>
+        <div class="governance-metrics">
+          <div class="governance-metric governance-metric-citation">
+            <strong>{{ governanceRate(governanceSummary.citation_coverage) }}</strong>
+            <span>{{ t('hermes.governance_citation') }}</span>
+          </div>
+          <div class="governance-metric governance-metric-refusal">
+            <strong>{{ governanceRate(governanceSummary.refusal_rate) }}</strong>
+            <span>{{ t('hermes.governance_refusal') }}</span>
+          </div>
+          <div class="governance-metric">
+            <strong>{{ governanceSummary.average_latency_ms }}<small>ms</small></strong>
+            <span>{{ t('hermes.governance_latency') }}</span>
+          </div>
+          <div class="governance-metric">
+            <strong>{{ governanceRate(governanceSummary.helpful_rate) }}</strong>
+            <span>{{ t('hermes.governance_helpful') }}</span>
+          </div>
+        </div>
+        <div class="governance-footer">
+          <span>{{ t('hermes.governance_activity', { sessions: governanceSummary.sessions, messages: governanceSummary.assistant_messages }) }}</span>
+          <span>{{ t('hermes.governance_feedback', { count: governanceSummary.feedback_total }) }}</span>
+          <span v-if="!governanceSummary.cost_tracking.available" class="governance-cost-note">{{ t('hermes.governance_cost_unavailable') }}</span>
+        </div>
+      </section>
+
       <section class="conversation-context-card" :aria-label="t('hermes.conversation_context_aria')">
         <div class="conversation-context-heading">
           <div>
@@ -285,20 +321,28 @@
             <span class="section-kicker">{{ t('hermes.plan_kicker') }}</span>
             <h2>{{ t('hermes.plan_title') }}</h2>
             <p>{{ t('hermes.plan_description') }}</p>
+            <div class="draft-status-line">
+              <span class="draft-status-dot" :class="{ confirmed: draftConfirmed }" />
+              <strong>{{ draftConfirmed ? t('hermes.plan_status_confirmed') : t('hermes.plan_status_review') }}</strong>
+              <span>·</span>
+              <span>{{ t('hermes.plan_change_count', { count: draftChangedCount }) }}</span>
+            </div>
           </div>
           <a-space>
-            <a-button :disabled="!sessionId" :loading="savingDraft" @click="savePlanDraft">{{ t('hermes.confirm_save_draft') }}</a-button>
-            <a-button type="primary" @click="openPlans"><ArrowRightOutlined /> {{ t('hermes.open_plans') }}</a-button>
+            <a-button :loading="savingDraft" @click="savePlanDraft">{{ t('hermes.confirm_save_draft') }}</a-button>
+            <a-button type="primary" @click="confirmPlanDraft">
+              <ArrowRightOutlined /> {{ draftConfirmed ? t('hermes.open_plans') : t('hermes.confirm_plan_draft') }}
+            </a-button>
           </a-space>
         </div>
         <div class="plan-form-grid">
           <label>
             <span>{{ t('hermes.plan_name') }}</span>
-            <input v-model="planDraft.name" />
+            <input v-model="planDraft.name" maxlength="256" />
           </label>
           <label>
             <span>{{ t('hermes.plan_objective') }}</span>
-            <textarea v-model="planDraft.objective" rows="3" />
+            <textarea v-model="planDraft.objective" maxlength="2000" rows="3" />
           </label>
         </div>
         <div class="plan-points">
@@ -308,9 +352,74 @@
           </div>
           <div v-for="(_, index) in planDraft.testPoints" :key="`point-${index}`" class="point-row">
             <span>{{ String(index + 1).padStart(2, '0') }}</span>
-            <input v-model="planDraft.testPoints[index]" />
+            <input v-model="planDraft.testPoints[index]" maxlength="512" />
             <button type="button" class="icon-action" :aria-label="t('hermes.remove_point')" @click="removePlanPoint(index)"><CloseOutlined /></button>
           </div>
+        </div>
+        <div class="draft-impact-grid">
+          <div><span>{{ t('hermes.plan_impact_modules') }}</span><strong>{{ selectedDraftModuleCount }}</strong></div>
+          <div><span>{{ t('hermes.plan_impact_cases') }}</span><strong>{{ selectedDraftCaseCount }}</strong></div>
+          <div><span>{{ t('hermes.plan_impact_regression') }}</span><strong>{{ selectedDraftRegressionCount }}</strong></div>
+          <div><span>{{ t('hermes.plan_impact_failures') }}</span><strong>{{ failedTasks.length }}</strong></div>
+        </div>
+        <div class="draft-structure-grid">
+          <section class="draft-block">
+            <div class="draft-block-heading">
+              <span>{{ t('hermes.plan_scope_modules') }}</span>
+              <small>{{ t('hermes.plan_scope_hint') }}</small>
+            </div>
+            <div v-for="module in planDraft.scopeModules" :key="module.id" class="draft-check-row">
+              <input v-model="module.selected" type="checkbox" />
+              <button type="button" class="draft-item-link" @click="openPath(module.path)">{{ module.name }} <ArrowRightOutlined /></button>
+            </div>
+            <p v-if="!planDraft.scopeModules.length" class="draft-empty">{{ t('hermes.plan_no_modules') }}</p>
+          </section>
+          <section class="draft-block">
+            <div class="draft-block-heading">
+              <span>{{ t('hermes.plan_case_drafts') }}</span>
+              <small>{{ t('hermes.plan_case_hint') }}</small>
+            </div>
+            <div v-for="item in planDraft.caseDrafts" :key="item.id" class="draft-case-row">
+              <label class="draft-check-row">
+                <input v-model="item.selected" type="checkbox" />
+              </label>
+              <button type="button" class="draft-item-link" @click="openPath(item.path)">{{ item.id }} <ArrowRightOutlined /></button>
+              <input v-model="item.title" class="draft-case-title" maxlength="256" :aria-label="t('hermes.plan_case_title')" />
+              <input v-model="item.expected" class="draft-case-expected" maxlength="512" :aria-label="t('hermes.plan_case_expected')" />
+            </div>
+            <p v-if="!planDraft.caseDrafts.length" class="draft-empty">{{ t('hermes.plan_no_cases') }}</p>
+          </section>
+        </div>
+        <div class="draft-structure-grid">
+          <section class="draft-block">
+            <div class="draft-block-heading">
+              <span>{{ t('hermes.plan_regression_scope') }}</span>
+              <small>{{ t('hermes.plan_regression_hint') }}</small>
+            </div>
+            <label v-for="item in planDraft.regressionScope" :key="item.taskId" class="draft-regression-row">
+              <input v-model="item.selected" type="checkbox" />
+              <span class="draft-regression-copy"><strong>{{ item.name }}</strong><small>{{ item.reason }}</small></span>
+              <button type="button" class="text-action" @click="openPath(item.path)">{{ t('hermes.view_evidence') }}</button>
+            </label>
+            <p v-if="!planDraft.regressionScope.length" class="draft-empty">{{ t('hermes.plan_no_regressions') }}</p>
+          </section>
+          <section class="draft-block draft-diff-block">
+            <div class="draft-block-heading">
+              <span>{{ t('hermes.plan_diff_title') }}</span>
+              <small>{{ t('hermes.plan_diff_hint') }}</small>
+            </div>
+            <div v-for="row in planDraftDiffRows" :key="row.key" class="draft-diff-row" :class="{ changed: row.changed }">
+              <strong>{{ row.label }}</strong>
+              <div><small>{{ t('hermes.plan_diff_before') }}</small><span>{{ row.before }}</span></div>
+              <div><small>{{ t('hermes.plan_diff_after') }}</small><span>{{ row.after }}</span></div>
+            </div>
+          </section>
+        </div>
+        <div class="draft-sources">
+          <span class="source-label">{{ t('hermes.plan_sources') }}</span>
+          <button v-for="item in planDraft.sources" :key="item.path" type="button" class="source-link" @click="openSource(item)">
+            {{ item.label }} <ArrowRightOutlined />
+          </button>
         </div>
         <p class="draft-note"><BulbOutlined /> {{ t('hermes.plan_draft_note') }}</p>
       </section>
@@ -319,7 +428,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -342,6 +451,7 @@ import {
   statisticsApi,
   workbenchApi,
   type FailureDiagnosisResult,
+  type HermesGovernanceSummary,
   type HermesSourceType,
   type HermesQueryResult,
   type ModuleTreeItem,
@@ -364,7 +474,37 @@ type HermesMessage = {
   backendIndex?: number
 }
 type PromptKey = 'failed_tasks' | 'explain_failure' | 'test_plan' | 'quality'
-type PlanDraft = { name: string; objective: string; testPoints: string[] }
+type DraftModule = { id: number; name: string; selected: boolean; path: string }
+type DraftCase = { id: number; title: string; expected: string; selected: boolean; path: string }
+type DraftRegressionItem = { taskId: string; name: string; reason: string; selected: boolean; path: string }
+type HermesPlanDraftHandoff = {
+  projectId: number
+  name: string
+  objective: string
+  testPoints: string[]
+  moduleIds: number[]
+  caseIds: number[]
+  regressionTaskIds: string[]
+}
+type PlanDraftSnapshot = {
+  name: string
+  objective: string
+  testPoints: string[]
+  moduleNames: string[]
+  caseTitles: string[]
+  regressionTaskIds: string[]
+  regressionTaskNames: string[]
+}
+type PlanDraft = {
+  name: string
+  objective: string
+  testPoints: string[]
+  scopeModules: DraftModule[]
+  caseDrafts: DraftCase[]
+  regressionScope: DraftRegressionItem[]
+  sources: HermesSource[]
+  baseline: PlanDraftSnapshot
+}
 
 const { t } = useI18n()
 const route = useRoute()
@@ -381,6 +521,7 @@ const cases = ref<Array<{ id?: number; name?: string; automation_status?: string
 const failedTasks = ref<WorkbenchTaskItem[]>([])
 const reportOverview = ref<ReportOverviewItem | null>(null)
 const failureHotspots = ref<Array<{ case_name: string; failure_count: number }>>([])
+const governanceSummary = ref<HermesGovernanceSummary | null>(null)
 const messages = ref<HermesMessage[]>([])
 const sessionId = ref<number | null>(null)
 const savingDraft = ref(false)
@@ -388,6 +529,7 @@ const inputText = ref('')
 const selectedTaskId = ref<string | null>(null)
 const diagnosis = ref<{ taskId: string; result: FailureDiagnosisResult } | null>(null)
 const planDraft = ref<PlanDraft | null>(null)
+const draftConfirmed = ref(false)
 const loading = ref(false)
 const diagnosing = ref(false)
 const querying = ref(false)
@@ -413,6 +555,34 @@ const passRate = computed(() => Math.round(Number(reportOverview.value?.pass_rat
 const qualityScore = computed(() => Math.round(Number(reportOverview.value?.quality_score ?? passRate.value)))
 const coverageRate = computed(() => Math.round(Number(reportOverview.value?.coverage_rate ?? 0)))
 const openDefects = computed(() => reportOverview.value?.open_defects ?? 0)
+const selectedDraftModuleCount = computed(() => planDraft.value?.scopeModules.filter((item) => item.selected).length ?? 0)
+const selectedDraftCaseCount = computed(() => planDraft.value?.caseDrafts.filter((item) => item.selected).length ?? 0)
+const selectedDraftRegressionCount = computed(() => planDraft.value?.regressionScope.filter((item) => item.selected).length ?? 0)
+const planDraftDiffRows = computed(() => {
+  const draft = planDraft.value
+  if (!draft) return []
+  const current = {
+    name: draft.name,
+    objective: draft.objective,
+    testPoints: draft.testPoints,
+    moduleNames: draft.scopeModules.filter((item) => item.selected).map((item) => item.name),
+    caseTitles: draft.caseDrafts.filter((item) => item.selected).map((item) => item.title.trim()).filter(Boolean),
+    regressionTaskIds: draft.regressionScope.filter((item) => item.selected).map((item) => item.taskId),
+    regressionTaskNames: draft.regressionScope.filter((item) => item.selected).map((item) => item.name),
+  }
+  const display = (value: string | string[]) => Array.isArray(value)
+    ? value.join('、') || t('hermes.plan_none_selected')
+    : value.trim() || t('hermes.plan_not_filled')
+  return [
+    { key: 'name', label: t('hermes.plan_diff_name'), before: display(draft.baseline.name), after: display(current.name), changed: draft.baseline.name !== current.name },
+    { key: 'objective', label: t('hermes.plan_diff_objective'), before: display(draft.baseline.objective), after: display(current.objective), changed: draft.baseline.objective !== current.objective },
+    { key: 'testPoints', label: t('hermes.plan_diff_points'), before: display(draft.baseline.testPoints), after: display(current.testPoints), changed: JSON.stringify(draft.baseline.testPoints) !== JSON.stringify(current.testPoints) },
+    { key: 'modules', label: t('hermes.plan_diff_modules'), before: display(draft.baseline.moduleNames), after: display(current.moduleNames), changed: JSON.stringify(draft.baseline.moduleNames) !== JSON.stringify(current.moduleNames) },
+    { key: 'cases', label: t('hermes.plan_diff_cases'), before: display(draft.baseline.caseTitles), after: display(current.caseTitles), changed: JSON.stringify(draft.baseline.caseTitles) !== JSON.stringify(current.caseTitles) },
+    { key: 'regression', label: t('hermes.plan_diff_regression'), before: display(draft.baseline.regressionTaskNames), after: display(current.regressionTaskNames), changed: JSON.stringify(draft.baseline.regressionTaskIds) !== JSON.stringify(current.regressionTaskIds) },
+  ]
+})
+const draftChangedCount = computed(() => planDraftDiffRows.value.filter((row) => row.changed).length)
 const promptOptions = computed(() => [
   { key: 'failed_tasks' as const, mark: '!', title: t('hermes.prompts.failed_tasks'), description: t('hermes.prompts.failed_tasks_hint') },
   { key: 'explain_failure' as const, mark: '?', title: t('hermes.prompts.explain_failure'), description: t('hermes.prompts.explain_failure_hint') },
@@ -444,6 +614,10 @@ function flattenModules(items: ModuleTreeItem[]): ModuleTreeItem[] {
 
 function formatTime(value?: string | null) {
   return value ? value.slice(0, 19).replace('T', ' ') : t('hermes.not_available')
+}
+
+function governanceRate(value: number | null | undefined) {
+  return value == null ? '—' : `${Math.round(value * 100)}%`
 }
 
 function newConversationId() {
@@ -488,6 +662,7 @@ function resetConversation() {
 }
 
 function startNewConversation() {
+  sessionId.value = null
   resetConversation()
 }
 
@@ -500,7 +675,9 @@ function clearProjectData() {
   selectedTaskId.value = null
   diagnosis.value = null
   planDraft.value = null
+  governanceSummary.value = null
   sessionId.value = null
+  draftConfirmed.value = false
   resetConversation()
 }
 
@@ -572,6 +749,17 @@ async function loadProjectData() {
   }
   loadError.value = failures.join('；')
   loading.value = false
+  await loadGovernance(projectId)
+}
+
+async function loadGovernance(projectId: number) {
+  const sequence = loadSequence
+  try {
+    const summary = await hermesApi.governance(projectId)
+    if (sequence === loadSequence && selectedProjectId.value === projectId) governanceSummary.value = summary
+  } catch {
+    if (sequence === loadSequence && selectedProjectId.value === projectId) governanceSummary.value = null
+  }
 }
 
 async function loadProjects() {
@@ -643,7 +831,11 @@ function selectFailureTask(taskId: string) {
 }
 
 function openSource(item: HermesSource) {
-  void router.push(item.path)
+  openPath(item.path)
+}
+
+function openPath(path: string) {
+  void router.push(path)
 }
 
 function openTaskById(taskId: string) {
@@ -660,7 +852,33 @@ function openRuns() {
 }
 
 function openPlans() {
+  if (planDraft.value && !draftConfirmed.value) return
+  if (planDraft.value && selectedProjectId.value) {
+    const draft = planDraft.value
+    const handoff: HermesPlanDraftHandoff = {
+      projectId: selectedProjectId.value,
+      name: draft.name.trim().slice(0, 256),
+      objective: draft.objective.trim().slice(0, 2000),
+      testPoints: draft.testPoints.map((point) => point.trim().slice(0, 512)).filter(Boolean).slice(0, 16),
+      moduleIds: draft.scopeModules.filter((item) => item.selected).map((item) => item.id).slice(0, 16),
+      caseIds: draft.caseDrafts.filter((item) => item.selected).map((item) => item.id).slice(0, 16),
+      regressionTaskIds: draft.regressionScope.filter((item) => item.selected).map((item) => item.taskId).slice(0, 16),
+    }
+    void router.push({
+      path: '/plans',
+      query: { project_id: String(selectedProjectId.value), hermes_draft: '1' },
+      state: { hermesPlanDraft: handoff },
+    })
+    return
+  }
   void router.push(source(t('hermes.source_plans'), '/plans').path)
+}
+
+function confirmPlanDraft() {
+  if (!planDraft.value) return
+  draftConfirmed.value = true
+  appendMessage('assistant', t('hermes.answers.plan_confirmed'), planDraft.value.sources)
+  openPlans()
 }
 
 async function queryHermes(text: string, history = conversationHistory()) {
@@ -718,20 +936,23 @@ async function rateMessage(item: HermesMessage, rating: 'helpful' | 'not_helpful
 }
 
 async function savePlanDraft() {
-  if (!sessionId.value || !selectedProjectId.value || !planDraft.value) return
+  if (!selectedProjectId.value || !planDraft.value) return
   savingDraft.value = true
   try {
-    const draft = await hermesApi.createDraft(sessionId.value, {
+    const currentSessionId = sessionId.value ?? (await hermesApi.createSession(selectedProjectId.value, t('hermes.conversation_title'))).id
+    sessionId.value = currentSessionId
+    const draft = await hermesApi.createDraft(currentSessionId, {
       project_id: selectedProjectId.value,
       draft_type: 'test_plan',
       payload: planDraft.value,
-      sources: [{ path: source(t('hermes.source_cases'), '/cases').path }],
+      sources: planDraft.value.sources.map((item) => ({ path: item.path })),
     })
     Modal.confirm({
       title: t('hermes.confirm_draft_title'),
       content: t('hermes.confirm_draft_content'),
       async onOk() {
-        const result = await hermesApi.confirmDraft(sessionId.value!, { project_id: selectedProjectId.value!, draft_id: draft.id, confirmation: 'CONFIRM' })
+        const result = await hermesApi.confirmDraft(currentSessionId, { project_id: selectedProjectId.value!, draft_id: draft.id, confirmation: 'CONFIRM' })
+        draftConfirmed.value = true
         message.success(t('hermes.draft_saved', { id: result.plan_id }))
       },
     })
@@ -776,16 +997,61 @@ function buildQualityAnswer() {
 }
 
 function buildPlanDraft() {
-  const moduleNames = flattenModules(modules.value).slice(0, 4).map((item) => item.name)
+  const moduleDrafts: DraftModule[] = flattenModules(modules.value).slice(0, 8).map((item) => ({
+    id: item.id,
+    name: item.name,
+    selected: true,
+    path: source(t('hermes.source_cases'), `/cases?module_id=${item.id}`).path,
+  }))
+  const caseDrafts: DraftCase[] = cases.value
+    .map((item) => ({ id: positiveInt(item.id), name: item.name || '' }))
+    .filter((item): item is { id: number; name: string } => item.id !== null)
+    .slice(0, 8)
+    .map((item) => ({
+      id: item.id,
+      title: item.name,
+      expected: t('hermes.case_draft_expected', { name: item.name }),
+      selected: true,
+      path: source(t('hermes.source_cases'), `/cases?case_id=${item.id}`).path,
+    }))
+  const regressionScope: DraftRegressionItem[] = failedTasks.value.slice(0, 8).map((item) => ({
+    taskId: item.id,
+    name: item.name,
+    reason: item.error_message || t('hermes.plan_regression_default_reason'),
+    selected: true,
+    path: item.detail_path,
+  }))
+  const moduleNames = moduleDrafts.filter((item) => item.selected).map((item) => item.name)
   const pointSeed = moduleNames.length
     ? moduleNames.map((name) => t('hermes.plan_point_module', { name }))
     : [t('hermes.default_plan_point')]
-  planDraft.value = {
+  const sources = [
+    source(t('hermes.source_cases'), '/cases'),
+    source(t('hermes.source_tasks'), '/tasks'),
+    source(t('hermes.source_reports'), '/reports'),
+    source(t('hermes.source_statistics'), '/dashboard'),
+  ]
+  const draft: PlanDraft = {
     name: t('hermes.plan_default_name', { project: selectedProjectName.value }),
     objective: t('hermes.plan_default_objective', { cases: cases.value.length, passRate: passRate.value }),
     testPoints: [...pointSeed, t('hermes.plan_point_failure', { count: failedTasks.value.length })],
+    scopeModules: moduleDrafts,
+    caseDrafts,
+    regressionScope,
+    sources,
+    baseline: {
+      name: t('hermes.plan_default_name', { project: selectedProjectName.value }),
+      objective: t('hermes.plan_default_objective', { cases: cases.value.length, passRate: passRate.value }),
+      testPoints: [...pointSeed, t('hermes.plan_point_failure', { count: failedTasks.value.length })],
+      moduleNames,
+      caseTitles: caseDrafts.filter((item) => item.selected).map((item) => item.title),
+      regressionTaskIds: regressionScope.filter((item) => item.selected).map((item) => item.taskId),
+      regressionTaskNames: regressionScope.filter((item) => item.selected).map((item) => item.name),
+    },
   }
-  appendMessage('assistant', t('hermes.answers.plan', { count: pointSeed.length }), [source(t('hermes.source_cases'), '/cases'), source(t('hermes.source_plans'), '/plans')])
+  planDraft.value = draft
+  draftConfirmed.value = false
+  appendMessage('assistant', t('hermes.answers.plan', { count: pointSeed.length }), [...sources, source(t('hermes.source_plans'), '/plans')])
 }
 
 async function explainFailure(task?: WorkbenchTaskItem) {
@@ -848,6 +1114,10 @@ async function submitPrompt() {
   if (key) await executeIntent(key)
   else await queryHermes(text, conversationHistory().slice(0, -1))
 }
+
+watch(planDraft, () => {
+  draftConfirmed.value = false
+}, { deep: true, flush: 'sync' })
 
 onMounted(async () => {
   await loadProjects()
@@ -1034,6 +1304,7 @@ h1 {
 }
 
 .context-strip,
+.governance-card,
 .conversation-context-card,
 .conversation-card,
 .evidence-card,
@@ -1051,6 +1322,116 @@ h1 {
   gap: 20px;
   padding: 16px 20px;
   border-radius: var(--radius-lg);
+}
+
+.governance-card {
+  position: relative;
+  overflow: hidden;
+  padding: 17px 20px 15px;
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(100deg, color-mix(in srgb, var(--c-ai) 7%, var(--c-bg-elevated)), var(--c-bg-elevated) 58%),
+    var(--c-bg-elevated);
+}
+
+.governance-card::after {
+  position: absolute;
+  top: -44px;
+  right: 7%;
+  width: 140px;
+  height: 140px;
+  border: 1px solid color-mix(in srgb, var(--c-ai) 22%, transparent);
+  border-radius: 50%;
+  content: '';
+  pointer-events: none;
+}
+
+.governance-heading,
+.governance-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+.governance-meta,
+.governance-footer {
+  color: var(--c-text-tertiary);
+  font-size: 10px;
+}
+
+.governance-meta {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 7px;
+  text-align: right;
+}
+
+.governance-version {
+  padding: 3px 7px;
+  color: var(--c-ai);
+  border: 1px solid color-mix(in srgb, var(--c-ai) 30%, transparent);
+  border-radius: var(--radius-full);
+  background: color-mix(in srgb, var(--c-ai) 9%, transparent);
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.governance-metrics {
+  position: relative;
+  z-index: 1;
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.governance-metric {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 10px 12px;
+  border-left: 2px solid var(--c-border-strong);
+  background: color-mix(in srgb, var(--c-bg-subtle) 68%, transparent);
+}
+
+.governance-metric strong {
+  color: var(--c-text);
+  font-size: 21px;
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: -.04em;
+}
+
+.governance-metric strong small {
+  margin-left: 2px;
+  color: var(--c-text-tertiary);
+  font-size: 10px;
+  letter-spacing: 0;
+}
+
+.governance-metric span {
+  overflow: hidden;
+  color: var(--c-text-tertiary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.governance-metric-citation { border-left-color: var(--c-success); }
+.governance-metric-refusal { border-left-color: var(--c-warning); }
+
+.governance-footer {
+  justify-content: flex-start;
+  flex-wrap: wrap;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--c-border);
+}
+
+.governance-cost-note {
+  margin-left: auto;
+  color: var(--c-warning);
 }
 
 .conversation-context-card {
@@ -1782,6 +2163,37 @@ h2 {
   font-size: 12px;
 }
 
+.plan-draft-heading :deep(.ant-btn) {
+  flex: 0 0 auto;
+}
+
+.draft-status-line {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-top: 12px;
+  color: var(--c-text-tertiary);
+  font-size: 11px;
+}
+
+.draft-status-line strong {
+  color: var(--c-ai);
+  font-size: 11px;
+}
+
+.draft-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--c-warning);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-warning) 12%, transparent);
+}
+
+.draft-status-dot.confirmed {
+  background: var(--c-success);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--c-success) 12%, transparent);
+}
+
 .plan-form-grid {
   display: grid;
   grid-template-columns: .8fr 1.2fr;
@@ -1804,6 +2216,237 @@ h2 {
 
 .plan-points {
   margin-top: 16px;
+}
+
+.draft-impact-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+  margin-top: 18px;
+}
+
+.draft-impact-grid > div {
+  display: grid;
+  gap: 4px;
+  padding: 11px 12px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-subtle);
+}
+
+.draft-impact-grid span,
+.draft-block-heading small,
+.draft-diff-row small {
+  color: var(--c-text-tertiary);
+  font-size: 10px;
+}
+
+.draft-impact-grid strong {
+  color: var(--c-text);
+  font-size: 18px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.draft-structure-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.draft-block {
+  min-width: 0;
+  padding: 14px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: color-mix(in srgb, var(--c-bg-subtle) 72%, var(--c-bg-elevated));
+}
+
+.draft-block-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.draft-block-heading small {
+  font-weight: 400;
+  text-align: right;
+}
+
+.draft-check-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 0;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.draft-check-row input,
+.draft-regression-row > input {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  accent-color: var(--c-ai);
+}
+
+.draft-item-link {
+  display: inline-flex;
+  align-items: center;
+  min-width: 0;
+  gap: 4px;
+  padding: 0;
+  overflow: hidden;
+  border: 0;
+  background: transparent;
+  color: var(--c-ai);
+  font: inherit;
+  font-size: 11px;
+  text-align: left;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.draft-item-link:hover {
+  color: var(--c-text);
+}
+
+.draft-item-link:focus-visible {
+  outline: 2px solid var(--c-ai);
+  outline-offset: 2px;
+}
+
+.draft-case-row {
+  display: grid;
+  grid-template-columns: auto auto minmax(0, 1fr);
+  gap: 7px 9px;
+  align-items: center;
+  padding: 7px 0;
+  border-top: 1px solid var(--c-border);
+}
+
+.draft-case-row:first-of-type {
+  border-top: 0;
+}
+
+.draft-case-row .draft-check-row {
+  grid-row: span 2;
+  padding: 0;
+}
+
+.draft-case-title {
+  grid-column: 3;
+}
+
+.draft-case-expected {
+  grid-column: 2 / -1;
+}
+
+.draft-case-row > input {
+  min-width: 0;
+  padding: 6px 8px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-bg-elevated);
+  color: var(--c-text);
+  font-size: 11px;
+}
+
+.draft-regression-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid var(--c-border);
+}
+
+.draft-regression-row:first-of-type {
+  border-top: 0;
+}
+
+.draft-regression-copy {
+  display: grid;
+  flex: 1;
+  min-width: 0;
+  gap: 3px;
+}
+
+.draft-regression-copy strong,
+.draft-regression-copy small {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.draft-regression-copy strong {
+  color: var(--c-text);
+  font-size: 12px;
+}
+
+.draft-regression-copy small {
+  color: var(--c-text-tertiary);
+  font-size: 10px;
+}
+
+.draft-empty {
+  margin: 10px 0 0;
+  color: var(--c-text-tertiary);
+  font-size: 11px;
+}
+
+.draft-diff-row {
+  display: grid;
+  grid-template-columns: 90px minmax(0, 1fr) minmax(0, 1fr);
+  gap: 8px;
+  align-items: start;
+  padding: 8px 0;
+  border-top: 1px solid var(--c-border);
+}
+
+.draft-diff-row:first-of-type {
+  border-top: 0;
+}
+
+.draft-diff-row > strong {
+  color: var(--c-text-secondary);
+  font-size: 11px;
+}
+
+.draft-diff-row > div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.draft-diff-row > div span {
+  overflow: hidden;
+  color: var(--c-text-secondary);
+  font-size: 11px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+}
+
+.draft-diff-row.changed > div:last-child span {
+  color: var(--c-ai);
+  font-weight: 600;
+}
+
+.draft-sources {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+  padding-top: 12px;
+  border-top: 1px solid var(--c-border);
 }
 
 .points-heading {
@@ -1888,6 +2531,7 @@ textarea:focus-visible,
 
   .hero-title-row,
   .context-strip,
+  .governance-heading,
   .conversation-context-heading,
   .plan-draft-heading {
     display: block;
@@ -1906,6 +2550,20 @@ textarea:focus-visible,
     margin-top: 12px;
   }
 
+  .governance-meta {
+    justify-content: flex-start;
+    margin-top: 10px;
+    text-align: left;
+  }
+
+  .governance-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .governance-cost-note {
+    margin-left: 0;
+  }
+
   .conversation-context-heading :deep(.ant-btn) {
     margin-top: 10px;
   }
@@ -1916,7 +2574,9 @@ textarea:focus-visible,
 
   .evidence-column,
   .prompt-grid,
-  .plan-form-grid {
+  .plan-form-grid,
+  .draft-impact-grid,
+  .draft-structure-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1940,6 +2600,14 @@ textarea:focus-visible,
   .composer {
     align-items: stretch;
     flex-direction: column;
+  }
+
+  .draft-diff-row {
+    grid-template-columns: 1fr;
+  }
+
+  .draft-diff-row > strong {
+    margin-bottom: -2px;
   }
 }
 </style>

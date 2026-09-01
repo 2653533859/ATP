@@ -21,6 +21,7 @@ const {
   projectList,
   planRouteQuery,
   routerPush,
+  routerReplace,
   suiteList,
 } = vi.hoisted(() => ({
   environmentList: vi.fn(),
@@ -39,13 +40,14 @@ const {
   projectList: vi.fn(),
   planRouteQuery: {} as Record<string, string>,
   routerPush: vi.fn(),
+  routerReplace: vi.fn(),
   suiteList: vi.fn(),
 }))
 
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string, params?: Record<string, unknown>) => (params ? `${key}:${JSON.stringify(params)}` : key) }) }))
 vi.mock('vue-router', () => ({
   useRoute: () => ({ query: planRouteQuery }),
-  useRouter: () => ({ push: routerPush }),
+  useRouter: () => ({ push: routerPush, replace: routerReplace }),
 }))
 vi.mock('ant-design-vue', () => ({
   message: { error: messageError, success: messageSuccess, warning: messageWarning },
@@ -198,6 +200,7 @@ const PLANS = [
 
 beforeEach(() => {
   vi.clearAllMocks()
+  window.history.replaceState({}, '', '/')
   Object.keys(planRouteQuery).forEach((key) => delete planRouteQuery[key])
   projectList.mockResolvedValue(PROJECTS)
   planList.mockResolvedValue(PLANS)
@@ -228,6 +231,34 @@ describe('PlanList mount', () => {
     expect(planList).toHaveBeenCalledWith({ project_id: 10 })
     expect(wrapper.findAll('.plan-row')).toHaveLength(1)
     expect(wrapper.text()).toContain('Nightly')
+  })
+
+  it('imports a confirmed Hermes draft without saving it', async () => {
+    planRouteQuery.project_id = '10'
+    planRouteQuery.hermes_draft = '1'
+    window.history.replaceState({
+      hermesPlanDraft: {
+        projectId: 10,
+        name: 'Hermes release gate',
+        objective: '验证核心登录链路',
+        testPoints: ['校验成功登录', '校验失败提示'],
+        moduleIds: [3],
+        caseIds: [21],
+        regressionTaskIds: ['task-1'],
+      },
+    }, '', '/plans?project_id=10&hermes_draft=1')
+
+    const wrapper = mountPlanList()
+    await flushPromises()
+
+    expect((wrapper.vm as any).hermesDraftLoaded).toBe(true)
+    expect((wrapper.vm as any).form.name).toBe('Hermes release gate')
+    expect((wrapper.vm as any).form.description).toContain('验证核心登录链路')
+    expect((wrapper.vm as any).form.description).toContain('• 校验失败提示')
+    expect((wrapper.vm as any).hermesDraftScope).toEqual({ modules: 1, cases: 1, regressions: 1 })
+    expect(planCreate).not.toHaveBeenCalled()
+    expect(routerReplace).toHaveBeenCalledWith({ query: { project_id: '10' } })
+    wrapper.unmount()
   })
 
   it('runs, opens records, and deletes from row actions', async () => {
