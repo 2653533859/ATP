@@ -55,6 +55,50 @@
         </div>
       </section>
 
+      <section class="conversation-context-card" :aria-label="t('hermes.conversation_context_aria')">
+        <div class="conversation-context-heading">
+          <div>
+            <span class="section-kicker">{{ t('hermes.session_kicker') }}</span>
+            <strong>{{ t('hermes.session_id', { id: shortConversationId }) }}</strong>
+            <p>{{ t('hermes.session_description') }}</p>
+          </div>
+          <a-button size="small" @click="startNewConversation">
+            <PlusOutlined /> {{ t('hermes.new_conversation') }}
+          </a-button>
+        </div>
+        <div class="conversation-filter-grid">
+          <div class="conversation-filter">
+            <label for="hermes-source-filter">{{ t('hermes.source_filter') }}</label>
+            <a-select
+              id="hermes-source-filter"
+              v-model:value="sourceTypes"
+              mode="multiple"
+              :options="sourceTypeOptions"
+              :max-tag-count="1"
+              allow-clear
+              :placeholder="t('hermes.source_filter_placeholder')"
+            />
+          </div>
+          <div class="conversation-filter">
+            <label for="hermes-date-filter">{{ t('hermes.date_filter') }}</label>
+            <a-range-picker
+              id="hermes-date-filter"
+              v-model:value="(dateRange as [Dayjs, Dayjs] | undefined)"
+              :placeholder="[t('hermes.date_from'), t('hermes.date_to')]"
+              allow-clear
+            />
+          </div>
+          <div class="conversation-filter">
+            <label for="hermes-context-budget">{{ t('hermes.context_budget') }}</label>
+            <a-select id="hermes-context-budget" v-model:value="contextBudget" :options="contextBudgetOptions" />
+          </div>
+        </div>
+        <div class="conversation-context-status">
+          <span class="status-dot" />
+          <span>{{ t('hermes.context_status', { used: historyUsed, omitted: historyOmitted, chars: contextChars, budget: contextBudget }) }}</span>
+        </div>
+      </section>
+
       <div class="assistant-layout">
         <section class="conversation-card" aria-live="polite">
           <header class="conversation-header">
@@ -290,12 +334,14 @@ import {
   statisticsApi,
   workbenchApi,
   type FailureDiagnosisResult,
+  type HermesSourceType,
   type HermesQueryResult,
   type ModuleTreeItem,
   type ProjectItem,
   type WorkbenchTaskItem,
   type ReportOverviewItem,
 } from '@/api'
+import type { Dayjs } from 'dayjs'
 
 type HermesSource = { label: string; path: string }
 type HermesMessage = {
@@ -306,6 +352,7 @@ type HermesMessage = {
   sources?: HermesSource[]
   taskIds?: string[]
   mode?: HermesQueryResult['mode']
+  isWelcome?: boolean
 }
 type PromptKey = 'failed_tasks' | 'explain_failure' | 'test_plan' | 'quality'
 type PlanDraft = { name: string; objective: string; testPoints: string[] }
@@ -334,9 +381,17 @@ const loading = ref(false)
 const diagnosing = ref(false)
 const querying = ref(false)
 const loadError = ref('')
+const conversationId = ref('')
+const sourceTypes = ref<HermesSourceType[]>([])
+const dateRange = ref<[Dayjs, Dayjs] | undefined>(undefined)
+const contextBudget = ref(6_000)
+const historyUsed = ref(0)
+const historyOmitted = ref(0)
+const contextChars = ref(0)
 let loadSequence = 0
 let projectsSequence = 0
 let messageSequence = 0
+let querySequence = 0
 
 const projectOptions = computed(() => projects.value.map((project) => ({ label: project.name, value: project.id })))
 const selectedProject = computed(() => projects.value.find((project) => project.id === selectedProjectId.value))
@@ -353,6 +408,18 @@ const promptOptions = computed(() => [
   { key: 'test_plan' as const, mark: '+', title: t('hermes.prompts.test_plan'), description: t('hermes.prompts.test_plan_hint') },
   { key: 'quality' as const, mark: '%', title: t('hermes.prompts.quality'), description: t('hermes.prompts.quality_hint') },
 ])
+const sourceTypeOptions = computed(() => [
+  { label: t('hermes.source_types.knowledge'), value: 'knowledge' as const },
+  { label: t('hermes.source_types.requirement'), value: 'requirement' as const },
+  { label: t('hermes.source_types.case'), value: 'case' as const },
+])
+const contextBudgetOptions = computed(() => [
+  { label: t('hermes.context_budget_option', { chars: 4_000 }), value: 4_000 },
+  { label: t('hermes.context_budget_option', { chars: 6_000 }), value: 6_000 },
+  { label: t('hermes.context_budget_option', { chars: 8_000 }), value: 8_000 },
+  { label: t('hermes.context_budget_option', { chars: 12_000 }), value: 12_000 },
+])
+const shortConversationId = computed(() => conversationId.value.slice(-8) || '—')
 
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -366,6 +433,11 @@ function flattenModules(items: ModuleTreeItem[]): ModuleTreeItem[] {
 
 function formatTime(value?: string | null) {
   return value ? value.slice(0, 19).replace('T', ' ') : t('hermes.not_available')
+}
+
+function newConversationId() {
+  const randomPart = globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random().toString(36).slice(2)}`
+  return `hermes-${selectedProjectId.value || 'none'}-${randomPart}`
 }
 
 function modeLabel(mode: HermesQueryResult['mode']) {
@@ -388,13 +460,24 @@ function source(label: string, path: string): HermesSource {
 }
 
 function resetConversation() {
+  querySequence += 1
+  querying.value = false
+  conversationId.value = newConversationId()
+  historyUsed.value = 0
+  historyOmitted.value = 0
+  contextChars.value = 0
   messages.value = [{
     id: ++messageSequence,
     role: 'assistant',
     text: t('hermes.welcome', { project: selectedProjectName.value }),
     createdAt: new Date().toISOString(),
     sources: [source(t('hermes.source_reports'), '/reports'), source(t('hermes.source_tasks'), '/tasks')],
+    isWelcome: true,
   }]
+}
+
+function startNewConversation() {
+  resetConversation()
 }
 
 function clearProjectData() {
@@ -494,7 +577,15 @@ function appendMessage(
     sources,
     taskIds,
     mode,
+    isWelcome: false,
   })
+}
+
+function conversationHistory() {
+  return messages.value
+    .filter((message) => !message.isWelcome && message.text.trim())
+    .slice(-12)
+    .map((message) => ({ role: message.role, content: message.text }))
 }
 
 function taskName(taskId: string) {
@@ -530,21 +621,48 @@ function openPlans() {
   void router.push(source(t('hermes.source_plans'), '/plans').path)
 }
 
-async function queryHermes(text: string) {
+async function queryHermes(text: string, history = conversationHistory()) {
   const projectId = selectedProjectId.value
   if (!projectId) return
+  const requestConversationId = conversationId.value
+  const requestSequence = ++querySequence
   querying.value = true
   try {
-    const result = await hermesApi.query({ project_id: projectId, query: text, limit: 8 })
+    const range = dateRange.value
+    const result = await hermesApi.query({
+      project_id: projectId,
+      query: text,
+      limit: 8,
+      conversation_id: requestConversationId,
+      history,
+      source_types: [...sourceTypes.value],
+      updated_from: range?.[0]?.format('YYYY-MM-DD'),
+      updated_to: range?.[1]?.format('YYYY-MM-DD'),
+      context_budget: contextBudget.value,
+    })
+    if (
+      querySequence !== requestSequence
+      || selectedProjectId.value !== projectId
+      || conversationId.value !== requestConversationId
+    ) return
+    conversationId.value = result.conversation_id
+    historyUsed.value = result.history_used
+    historyOmitted.value = result.history_omitted
+    contextChars.value = result.context_chars
     const sources = result.sources.map((item) => ({
       label: [item.source_ref || item.source_type, item.title].join(' · '),
       path: item.path,
     }))
     appendMessage('assistant', result.answer, sources, undefined, result.mode)
   } catch (error) {
+    if (
+      querySequence !== requestSequence
+      || selectedProjectId.value !== projectId
+      || conversationId.value !== requestConversationId
+    ) return
     appendMessage('assistant', t('hermes.query_failed', { error: errorMessage(error, t('hermes.query_unavailable')) }))
   } finally {
-    querying.value = false
+    if (querySequence === requestSequence) querying.value = false
   }
 }
 
@@ -648,7 +766,7 @@ async function submitPrompt() {
   appendMessage('user', text)
   const key = intentFor(text)
   if (key) await executeIntent(key)
-  else await queryHermes(text)
+  else await queryHermes(text, conversationHistory().slice(0, -1))
 }
 
 onMounted(async () => {
@@ -836,6 +954,7 @@ h1 {
 }
 
 .context-strip,
+.conversation-context-card,
 .conversation-card,
 .evidence-card,
 .diagnosis-result,
@@ -852,6 +971,81 @@ h1 {
   gap: 20px;
   padding: 16px 20px;
   border-radius: var(--radius-lg);
+}
+
+.conversation-context-card {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 16px 20px;
+  border-radius: var(--radius-lg);
+  background:
+    linear-gradient(110deg, color-mix(in srgb, var(--c-ai) 5%, var(--c-bg-elevated)), var(--c-bg-elevated));
+}
+
+.conversation-context-heading,
+.conversation-context-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.conversation-context-heading strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--c-text);
+  font-size: 13px;
+  font-family: 'JetBrains Mono', monospace;
+}
+
+.conversation-context-heading p {
+  margin: 5px 0 0;
+  color: var(--c-text-secondary);
+  font-size: 12px;
+}
+
+.conversation-context-heading :deep(.ant-btn) {
+  flex: 0 0 auto;
+  border-color: var(--c-border-strong);
+  border-radius: var(--radius-md);
+}
+
+.conversation-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) minmax(240px, 1.2fr) minmax(150px, .7fr);
+  gap: 12px;
+}
+
+.conversation-filter {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.conversation-filter label {
+  color: var(--c-text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .04em;
+}
+
+.conversation-filter :deep(.ant-select),
+.conversation-filter :deep(.ant-picker) {
+  width: 100%;
+}
+
+.conversation-context-status {
+  justify-content: flex-start;
+  color: var(--c-text-secondary);
+  font-size: 11px;
+}
+
+.conversation-context-status .status-dot {
+  flex: 0 0 auto;
+  width: 6px;
+  height: 6px;
 }
 
 .context-intro,
@@ -1614,6 +1808,7 @@ textarea:focus-visible,
 
   .hero-title-row,
   .context-strip,
+  .conversation-context-heading,
   .plan-draft-heading {
     display: block;
   }
@@ -1629,6 +1824,14 @@ textarea:focus-visible,
 
   .context-metrics {
     margin-top: 12px;
+  }
+
+  .conversation-context-heading :deep(.ant-btn) {
+    margin-top: 10px;
+  }
+
+  .conversation-filter-grid {
+    grid-template-columns: 1fr;
   }
 
   .evidence-column,

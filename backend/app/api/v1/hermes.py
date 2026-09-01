@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import datetime, time, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import and_, or_, select
@@ -32,9 +32,11 @@ from app.services.knowledge import redact_knowledge_text
 from app.services.hermes import (
     HERMES_SYSTEM_PROMPT,
     HermesCandidate,
+    HermesHistoryContext,
     HermesRankedSource,
     build_answer,
     build_grounded_prompt,
+    build_history_context,
     has_valid_source_citation,
     rank_candidates,
 )
@@ -45,11 +47,22 @@ logger = logging.getLogger(__name__)
 router = APIRouter(tags=["智能中枢"])
 
 
+def _updated_bounds(body: HermesQueryIn) -> tuple[datetime | None, datetime | None]:
+    start = datetime.combine(body.updated_from, time.min, tzinfo=timezone.utc) if body.updated_from else None
+    end = (
+        datetime.combine(body.updated_to + timedelta(days=1), time.min, tzinfo=timezone.utc)
+        if body.updated_to
+        else None
+    )
+    return start, end
+
+
 async def _llm_answer(
     db: AsyncSession,
     project: Project,
     query: str,
     sources: list[HermesRankedSource],
+    history_context: HermesHistoryContext,
 ) -> str | None:
     """Generate a grounded answer when the project has an enabled AI config."""
 
@@ -70,7 +83,7 @@ async def _llm_answer(
                 provider=config.provider,
                 api_key=api_key,
                 model_name=config.model_name,
-                prompt=build_grounded_prompt(redact_knowledge_text(query, limit=2_000) or "", sources),
+                prompt=build_grounded_prompt(redact_knowledge_text(query, limit=2_000) or "", sources, history_context),
                 endpoint=config.endpoint,
                 system_prompt=resolve_system_prompt(config, "hermes_query", HERMES_SYSTEM_PROMPT),
                 timeout_seconds=60.0,
@@ -161,49 +174,89 @@ async def query_hermes(
     if project is None:
         raise HTTPException(status_code=404, detail="项目不存在")
 
-    knowledge_query = (
-        select(KnowledgeEntry, Project.name)
-        .outerjoin(Project, Project.id == KnowledgeEntry.project_id)
-        .where(
-            or_(
-                KnowledgeEntry.project_id == body.project_id,
-                and_(KnowledgeEntry.project_id.is_(None), KnowledgeEntry.status == "published"),
+    updated_from, updated_to = _updated_bounds(body)
+    selected_types = set(body.source_types)
+    knowledge_rows: list[tuple[KnowledgeEntry, str | None]] = []
+    requirement_rows: list[tuple[TestRequirement, str]] = []
+    case_rows: list[tuple[TestCase, Module]] = []
+    if not selected_types or "knowledge" in selected_types:
+        knowledge_query = (
+            select(KnowledgeEntry, Project.name)
+            .outerjoin(Project, Project.id == KnowledgeEntry.project_id)
+            .where(
+                or_(
+                    KnowledgeEntry.project_id == body.project_id,
+                    and_(KnowledgeEntry.project_id.is_(None), KnowledgeEntry.status == "published"),
+                )
             )
         )
-        .order_by(KnowledgeEntry.updated_at.desc(), KnowledgeEntry.id.desc())
-        .limit(200)
-    )
-    requirement_query = (
-        select(TestRequirement, Project.name)
-        .join(Project, Project.id == TestRequirement.project_id)
-        .where(TestRequirement.project_id == body.project_id)
-        .order_by(TestRequirement.updated_at.desc(), TestRequirement.id.desc())
-        .limit(200)
-    )
-    case_query = (
-        select(TestCase, Module)
-        .join(Module, Module.id == TestCase.module_id)
-        .where(Module.project_id == body.project_id)
-        .order_by(TestCase.updated_at.desc(), TestCase.id.desc())
-        .limit(300)
-    )
-    knowledge_rows = (await db.execute(knowledge_query)).all()
-    requirement_rows = (await db.execute(requirement_query)).all()
-    case_rows = (await db.execute(case_query)).all()
+        if updated_from:
+            knowledge_query = knowledge_query.where(KnowledgeEntry.updated_at >= updated_from)
+        if updated_to:
+            knowledge_query = knowledge_query.where(KnowledgeEntry.updated_at < updated_to)
+        knowledge_query = knowledge_query.order_by(KnowledgeEntry.updated_at.desc(), KnowledgeEntry.id.desc()).limit(
+            200
+        )
+        knowledge_rows = (await db.execute(knowledge_query)).all()
+    if not selected_types or "requirement" in selected_types:
+        requirement_query = (
+            select(TestRequirement, Project.name)
+            .join(Project, Project.id == TestRequirement.project_id)
+            .where(TestRequirement.project_id == body.project_id)
+        )
+        if updated_from:
+            requirement_query = requirement_query.where(TestRequirement.updated_at >= updated_from)
+        if updated_to:
+            requirement_query = requirement_query.where(TestRequirement.updated_at < updated_to)
+        requirement_query = requirement_query.order_by(
+            TestRequirement.updated_at.desc(), TestRequirement.id.desc()
+        ).limit(200)
+        requirement_rows = (await db.execute(requirement_query)).all()
+    if not selected_types or "case" in selected_types:
+        case_query = (
+            select(TestCase, Module)
+            .join(Module, Module.id == TestCase.module_id)
+            .where(Module.project_id == body.project_id)
+        )
+        if updated_from:
+            case_query = case_query.where(TestCase.updated_at >= updated_from)
+        if updated_to:
+            case_query = case_query.where(TestCase.updated_at < updated_to)
+        case_query = case_query.order_by(TestCase.updated_at.desc(), TestCase.id.desc()).limit(300)
+        case_rows = (await db.execute(case_query)).all()
 
     candidates = (
         _knowledge_candidates(knowledge_rows, body.project_id)
         + _requirement_candidates(requirement_rows, body.project_id)
         + _case_candidates(case_rows)
     )
-    sources = rank_candidates(body.query, candidates, body.limit)
+    sources = rank_candidates(
+        body.query,
+        candidates,
+        body.limit,
+        source_types=body.source_types,
+        updated_from=body.updated_from,
+        updated_to=body.updated_to,
+    )
+    history_context = build_history_context(
+        [(item.role, item.content) for item in body.history],
+        body.context_budget,
+    )
     answer, mode = build_answer(sources)
-    llm_answer = await _llm_answer(db, project, body.query, sources)
+    llm_answer = await _llm_answer(db, project, body.query, sources, history_context)
     if llm_answer:
         answer, mode = llm_answer, "llm_grounded"
     return HermesQueryOut(
         project_id=body.project_id,
         query=body.query,
+        conversation_id=body.conversation_id,
+        history_used=len(history_context.turns),
+        history_omitted=history_context.omitted,
+        context_chars=history_context.chars,
+        context_budget=body.context_budget,
+        source_types=list(body.source_types),
+        updated_from=body.updated_from,
+        updated_to=body.updated_to,
         mode=mode,
         answer=answer,
         sources=[HermesSourceOut(**asdict(source)) for source in sources],

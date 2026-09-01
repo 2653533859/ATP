@@ -1,6 +1,7 @@
 import { defineComponent, h, ref } from 'vue'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import dayjs from 'dayjs'
 
 import HermesAssistantView from './HermesAssistantView.vue'
 
@@ -68,7 +69,7 @@ const passthrough = defineComponent({
 })
 
 const globalStubs = Object.fromEntries(
-  ['AAlert', 'AButton', 'AEmpty', 'ASelect', 'ATag'].map((name) => [name, passthrough]),
+  ['AAlert', 'AButton', 'AEmpty', 'ARangePicker', 'ASelect', 'ATag'].map((name) => [name, passthrough]),
 )
 
 const failedCase = {
@@ -135,6 +136,14 @@ beforeEach(() => {
   hermesQuery.mockResolvedValue({
     project_id: 1,
     query: '登录排查',
+    conversation_id: 'hermes-session-1',
+    history_used: 0,
+    history_omitted: 0,
+    context_chars: 0,
+    context_budget: 6000,
+    source_types: [],
+    updated_from: null,
+    updated_to: null,
     mode: 'project_retrieval',
     answer: '找到相关来源',
     sources: [{
@@ -198,9 +207,114 @@ describe('HermesAssistantView', () => {
 
     await vm.queryHermes('登录排查')
 
-    expect(hermesQuery).toHaveBeenCalledWith({ project_id: 1, query: '登录排查', limit: 8 })
+    expect(hermesQuery).toHaveBeenCalledWith({
+      project_id: 1,
+      query: '登录排查',
+      limit: 8,
+      conversation_id: expect.stringMatching(/^hermes-1-/),
+      history: [],
+      source_types: [],
+      updated_from: undefined,
+      updated_to: undefined,
+      context_budget: 6000,
+    })
     expect(vm.messages.at(-1).text).toBe('找到相关来源')
     expect(vm.messages.at(-1).sources[0].path).toBe('/knowledge?project_id=1&knowledge_id=2')
+    expect(vm.querying).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('sends bounded conversation history and the selected evidence filters', async () => {
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.appendMessage('user', '上一轮问题')
+    vm.sourceTypes = ['knowledge']
+    vm.dateRange = [dayjs('2026-08-01'), dayjs('2026-08-31')]
+    vm.contextBudget = 4000
+    await vm.queryHermes('当前问题')
+
+    expect(hermesQuery).toHaveBeenCalledWith(expect.objectContaining({
+      query: '当前问题',
+      history: [{ role: 'user', content: '上一轮问题' }],
+      source_types: ['knowledge'],
+      updated_from: '2026-08-01',
+      updated_to: '2026-08-31',
+      context_budget: 4000,
+    }))
+    expect(vm.historyUsed).toBe(0)
+    expect(vm.contextChars).toBe(0)
+
+    wrapper.unmount()
+  })
+
+  it('starts a new project-bound conversation without retaining old messages', async () => {
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    const previousId = vm.conversationId
+
+    vm.appendMessage('user', '不要保留')
+    vm.startNewConversation()
+
+    expect(vm.conversationId).not.toBe(previousId)
+    expect(vm.messages).toHaveLength(1)
+    expect(vm.messages[0].isWelcome).toBe(true)
+
+    wrapper.unmount()
+  })
+
+  it('drops a stale response when a new conversation starts while querying', async () => {
+    let resolveQuery!: (value: unknown) => void
+    hermesQuery.mockImplementationOnce(() => new Promise((resolve) => { resolveQuery = resolve }))
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    const pending = vm.queryHermes('旧问题')
+
+    await flushPromises()
+    vm.startNewConversation()
+    resolveQuery({
+      project_id: 1,
+      query: '旧问题',
+      conversation_id: 'hermes-old-session',
+      history_used: 0,
+      history_omitted: 0,
+      context_chars: 0,
+      context_budget: 6000,
+      source_types: [],
+      updated_from: null,
+      updated_to: null,
+      mode: 'project_retrieval',
+      answer: '旧回答不应出现',
+      sources: [],
+      generated_at: '2026-08-25T10:00:00Z',
+    })
+    await pending
+
+    expect(vm.messages.some((message: { text: string }) => message.text === '旧回答不应出现')).toBe(false)
+    expect(vm.conversationId).not.toBe('hermes-old-session')
+    expect(vm.querying).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('drops a stale error when a new conversation starts while querying', async () => {
+    let rejectQuery!: (reason?: unknown) => void
+    hermesQuery.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectQuery = reject }))
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    const pending = vm.queryHermes('旧问题')
+
+    await flushPromises()
+    vm.startNewConversation()
+    rejectQuery(new Error('旧会话失败'))
+    await pending
+
+    expect(vm.messages.some((message: { text: string }) => message.text.includes('旧会话失败'))).toBe(false)
     expect(vm.querying).toBe(false)
 
     wrapper.unmount()

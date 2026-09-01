@@ -1582,6 +1582,14 @@ export interface HermesSourceItem {
 export interface HermesQueryResult {
   project_id: number
   query: string
+  conversation_id: string
+  history_used: number
+  history_omitted: number
+  context_chars: number
+  context_budget: number
+  source_types: HermesSourceType[]
+  updated_from?: string | null
+  updated_to?: string | null
   mode: 'llm_grounded' | 'project_retrieval' | 'no_results'
   answer: string
   sources: HermesSourceItem[]
@@ -1920,7 +1928,17 @@ export const workbenchApi = {
 }
 
 export const hermesApi = {
-  query: (body: { project_id: number; query: string; limit?: number }) =>
+  query: (body: {
+    project_id: number
+    query: string
+    limit?: number
+    conversation_id?: string
+    history?: Array<{ role: 'user' | 'assistant'; content: string }>
+    source_types?: HermesSourceType[]
+    updated_from?: string
+    updated_to?: string
+    context_budget?: number
+  }) =>
     http.post<unknown, HermesQueryResult>('/hermes/query', body),
 }
 

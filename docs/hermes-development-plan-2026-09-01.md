@@ -1,8 +1,8 @@
 # Hermes 助手开发文档
 
-> 版本：H1 / 2026-09-01
-> 状态：本地实现完成，真实模型、目标部署和生产角色矩阵待复核
-> 关联计划：[`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.4.24
+> 版本：H2 / 2026-09-01
+> 状态：H1/H2 本地实现完成，真实模型、目标部署和生产角色矩阵待复核
+> 关联计划：[`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.4.25
 
 ## 1. 产品定位
 
@@ -25,7 +25,7 @@ Hermes 的默认原则：
 | 测试计划草稿 | 已完成 | 生成可编辑草稿，不自动保存 |
 | 项目证据检索 | 已完成 | 检索 Knowledge、Requirement、Case 三类来源 |
 | 证据约束 LLM 问答 | H1 已完成 | 有启用项目 AI 配置且命中来源时返回 `llm_grounded` |
-| 多轮对话 | H2 计划中 | 当前对话仅保存在前端内存，不跨请求传递历史 |
+| 多轮对话 | H2 已完成 | 当前会话生成项目绑定 ID；历史按请求传递并在服务端脱敏、裁剪，不持久化 |
 | 工具调用 | H3 计划中 | 下一阶段先做权限保护的只读工具 |
 | 结构化草稿保存 | H4 计划中 | 必须先展示 diff、来源和影响范围，再由用户确认 |
 
@@ -60,6 +60,22 @@ Hermes 页面
 - 前端页面：`frontend/src/views/intelligence/HermesAssistantView.vue`
 - 前端接口类型：`frontend/src/api/index.ts`
 
+### H2 多轮上下文链路
+
+```text
+选择项目 / 开始新会话
+        │ 生成 conversation_id
+        ▼
+前端保留当前会话消息（内存）
+        │ 仅发送最近历史、来源类型、更新时间范围和预算
+        ▼
+后端校验 → 脱敏 → 保留最近上下文 → SQL 先筛选再限量
+        │
+        └─ LLM prompt 标记历史为不具备指令权限的数据
+```
+
+H2 不在数据库或 Redis 中保存会话。刷新页面、切换项目或点击“新会话”会生成新的 `conversation_id` 并清空旧历史；后端响应返回历史使用量、裁剪量和字符数，便于解释当前回答上下文。
+
 ## 4. API 契约
 
 ### 请求
@@ -73,7 +89,16 @@ Content-Type: application/json
 {
   "project_id": 1,
   "query": "最近登录失败的主要原因是什么？",
-  "limit": 8
+  "limit": 8,
+  "conversation_id": "hermes-1-5f9c2f8c",
+  "history": [
+    {"role": "user", "content": "上一轮先看认证服务"},
+    {"role": "assistant", "content": "已找到认证相关来源 [S1]"}
+  ],
+  "source_types": ["knowledge", "requirement"],
+  "updated_from": "2026-08-01",
+  "updated_to": "2026-08-31",
+  "context_budget": 6000
 }
 ```
 
@@ -82,6 +107,11 @@ Content-Type: application/json
 - `project_id` 必须为正整数。
 - `query` 会去除首尾空格，长度为 1～2000。
 - `limit` 范围为 1～20，默认 8。
+- `conversation_id` 只允许有限字符，默认自动生成；它用于会话关联，不作为权限凭据。
+- `history` 最多 12 条，每条最多 2000 字符；只接受 `user` / `assistant`。
+- `source_types` 可选 `knowledge`、`requirement`、`case`，空数组代表全部来源。
+- `updated_from` / `updated_to` 为包含边界的日期范围；日期筛选在来源 limit 之前执行。
+- `context_budget` 范围为 1000～12000 字符，服务端仅保留最近的有界历史。
 
 ### 响应
 
@@ -89,6 +119,14 @@ Content-Type: application/json
 {
   "project_id": 1,
   "query": "最近登录失败的主要原因是什么？",
+  "conversation_id": "hermes-1-5f9c2f8c",
+  "history_used": 2,
+  "history_omitted": 0,
+  "context_chars": 48,
+  "context_budget": 6000,
+  "source_types": ["knowledge", "requirement"],
+  "updated_from": "2026-08-01",
+  "updated_to": "2026-08-31",
   "mode": "llm_grounded",
   "answer": "结论：…… [S1]",
   "sources": [
@@ -114,6 +152,7 @@ Content-Type: application/json
 - `llm_grounded`：使用项目来源生成了证据约束回答。
 - `project_retrieval`：未使用模型，返回规则检索摘要。
 - `no_results`：当前项目没有匹配来源。
+- `history_used` / `history_omitted` / `context_chars`：本次 prompt 实际带入的历史条数、被预算裁剪的条数和字符数。
 
 ## 5. AI 配置与安全边界
 
@@ -127,13 +166,14 @@ Hermes 使用项目的 `ai_llm_config_id`，复用系统已有的 provider、模
 4. LLM 调用异常只记录配置 ID 和异常类型，不记录 API Key、请求正文或供应商响应正文。
 5. 模型回答必须包含指向本次返回来源列表的有效 `[S#]` 引用；引用缺失、越界或格式无效时回退 `project_retrieval`。
 6. Hermes H1 只读，不执行重试、终止、创建、修改或删除操作。
+7. H2 的会话历史是客户端提供的不可信数据，只作为上下文参考，不获得系统指令权限，也不会成为来源证据；历史同样执行脱敏和长度预算。
 
 ## 6. 后续开发计划
 
 | 阶段 | 开发内容 | 验收出口 |
 | --- | --- | --- |
 | H1 | 项目检索、脱敏、LLM 总结、引用、规则回退 | 本地测试通过；真实模型完成成功与失败回退 |
-| H2 | 会话 ID、历史摘要、项目/时间/来源筛选、上下文预算 | 切换项目不串话；历史数据脱敏；刷新后状态可解释 |
+| H2 | 会话 ID、历史摘要、项目/时间/来源筛选、上下文预算 | 本地测试通过；切换项目/新会话不串话；历史脱敏并可观察裁剪统计 |
 | H3 | 失败任务、运行详情、质量趋势、需求/用例关联、知识详情只读工具 | 每个工具具备权限、超时、审计和可复现实例 |
 | H4 | 测试计划、用例和回归范围结构化草稿 | 编辑前后 diff 可见；用户确认后才允许保存 |
 | H5 | 问题集、引用准确率、拒答率、延迟、成本、提示词版本和反馈 | 真实模型、角色矩阵、审计和目标部署证据齐全 |
@@ -174,14 +214,15 @@ Windows 没有 `make` 时，使用等价命令：
 
 ```powershell
 # Hermes 后端定向测试
-.venv\Scripts\python.exe -m pytest backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py -q
+.venv\Scripts\python.exe -m pytest backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py backend/tests/services/test_hermes.py -q
 
 # 后端非集成全量测试
 .venv\Scripts\python.exe -m pytest backend/tests -q --ignore=backend/tests/integration
 
 # Python 质量门禁
-.venv\Scripts\python.exe -m ruff check backend/app/api/v1/hermes.py backend/app/services/ai_governance.py backend/app/services/hermes.py backend/app/schemas/hermes.py backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py
-.venv\Scripts\python.exe -m ruff format --check backend/app/api/v1/hermes.py backend/app/services/ai_governance.py backend/app/services/hermes.py backend/app/schemas/hermes.py backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py
+.venv\Scripts\python.exe -m ruff check backend/app/api/v1/hermes.py backend/app/services/ai_governance.py backend/app/services/hermes.py backend/app/schemas/hermes.py backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py backend/tests/services/test_hermes.py
+.venv\Scripts\python.exe -m ruff format --check backend/app/api/v1/hermes.py backend/app/services/ai_governance.py backend/app/services/hermes.py backend/app/schemas/hermes.py backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py backend/tests/services/test_hermes.py
+.venv\Scripts\python.exe -m compileall -q backend/app backend/tests
 
 # 前端测试与构建
 cd frontend
@@ -189,7 +230,7 @@ npm run test
 npm run build
 ```
 
-H1 当前验证记录：Hermes 后端定向 `8 passed`、LLM 脱敏定向 `4 passed`，后端非集成测试 `2396 passed`，前端全量测试 `69 files / 321 tests passed`，Ruff、Python 编译、TypeScript 检查、生产构建和差异检查通过。
+H2 当前验证记录：Hermes 后端 H1/H2 定向 `16 passed`（含 LLM 脱敏），后端非集成全量 `2400 passed`，前端 Hermes 定向 `11 passed`、前端全量 `69 files / 325 tests passed`；Ruff、Python 编译、TypeScript 检查、生产构建和差异检查通过。
 
 ## 9. 发布前检查清单
 
@@ -197,11 +238,18 @@ H1 当前验证记录：Hermes 后端定向 `8 passed`、LLM 脱敏定向 `4 pas
 - [ ] 真实模型异常、超时、限额及无有效 `[S#]` 引用场景仍能回退规则结果。
 - [ ] 管理员和 viewer 完成跨项目读写隔离验证。
 - [ ] 供应商请求、回答、审计日志中没有 API Key、Token、Cookie 或敏感正文。
-- [ ] H2 会话隔离完成后，再开放 H3 工具调用。
+- [x] H2 会话隔离、历史脱敏和筛选预算已完成本地切片；H3 工具调用仍需权限、超时、审计和可复现实例。
 - [ ] H4 草稿保存必须经过人工确认，不允许后台静默落库。
 - [ ] P4 性能环境门禁和 P9 发布收口仍需单独完成，Hermes 本地通过不等价于整体发布通过。
 
 ## 10. 变更记录
+
+### 2026-09-01 / H2
+
+- 增加项目绑定的前端内存会话 ID；刷新、切换项目或点击“新会话”会清空旧历史。
+- `POST /hermes/query` 支持有界历史、来源类型、来源更新时间范围和上下文字符预算；后端先做 SQL 时间筛选，再执行来源数量限制。
+- 历史按最近消息优先裁剪，统一执行脱敏，并在 prompt 中明确标记为不具备指令权限的数据；响应返回使用量和裁剪量。
+- 增加后端筛选/预算/提示词回归及前端筛选、会话重置、异步旧响应丢弃回归。
 
 ### 2026-09-01 / H1
 
