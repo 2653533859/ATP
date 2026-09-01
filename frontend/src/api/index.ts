@@ -212,6 +212,15 @@ export interface DeviceItem {
   updated_at: string
 }
 
+export interface DeviceGroupItem {
+  id: number
+  name: string
+  description?: string | null
+  devices: DeviceItem[]
+  created_at: string
+  updated_at: string
+}
+
 export interface DeviceScanResult {
   status: DeviceScanStatus
   scan_id?: string | null
@@ -238,6 +247,33 @@ export interface DeviceLeaseItem {
   heartbeat_at: string
   expires_at: string
   lease_token?: string | null
+}
+
+export interface IosDeviceItem {
+  id: number
+  udid: string
+  name?: string | null
+  model?: string | null
+  platform_version?: string | null
+  status: DeviceStatus
+  appium_server_url: string
+  wda_local_port?: number | null
+  description?: string | null
+  last_seen_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface IosAppItem {
+  id: number
+  project_id: number
+  filename: string
+  bundle_id?: string | null
+  version_name?: string | null
+  file_size: number
+  description?: string | null
+  created_at: string
+  updated_at: string
 }
 
 export interface AndroidUiTarget {
@@ -1594,6 +1630,22 @@ export interface HermesQueryResult {
   answer: string
   sources: HermesSourceItem[]
   generated_at: string
+  session_id: number
+  message_index: number
+  prompt_version: string
+  latency_ms: number
+}
+
+export interface HermesSessionItem {
+  id: number
+  project_id: number
+  title: string
+  context_filters: Record<string, unknown>
+  messages: Array<Record<string, unknown>>
+  drafts: Array<Record<string, unknown>>
+  metrics: Record<string, unknown>
+  created_at: string
+  updated_at: string
 }
 
 export type HermesToolName =
@@ -1932,6 +1984,20 @@ export interface ApiSchemaAssetItem {
   updated_at: string
 }
 
+export interface GraphqlIntrospectionField {
+  operation_type: 'query' | 'mutation' | 'subscription'
+  parent_type: string
+  name: string
+  arguments: string[]
+}
+
+export interface GraphqlIntrospectionResult {
+  query_type?: string | null
+  mutation_type?: string | null
+  subscription_type?: string | null
+  fields: GraphqlIntrospectionField[]
+}
+
 export const apiSchemaAssetApi = {
   list: (projectId: number) =>
     http.get<unknown, ApiSchemaAssetItem[]>(`/projects/${projectId}/api-schema-assets`),
@@ -1940,6 +2006,8 @@ export const apiSchemaAssetApi = {
   update: (id: number, body: Record<string, unknown>) =>
     http.patch<unknown, ApiSchemaAssetItem>(`/api-schema-assets/${id}`, body),
   delete: (id: number) => http.delete<unknown, void>(`/api-schema-assets/${id}`),
+  introspectGraphql: (projectId: number, body: { endpoint: string; headers?: Record<string, string>; timeout?: number }) =>
+    http.post<unknown, GraphqlIntrospectionResult>(`/projects/${projectId}/graphql/introspect`, body),
 }
 
 export const runApi = {
@@ -1984,10 +2052,21 @@ export const hermesApi = {
     updated_from?: string
     updated_to?: string
     context_budget?: number
+    session_id?: number
   }) =>
     http.post<unknown, HermesQueryResult>('/hermes/query', body),
   listTools: () => http.get<unknown, { tools: HermesToolDescriptor[]; generated_at: string }>('/hermes/tools'),
   executeTool: (body: HermesToolCall) => http.post<unknown, HermesToolResult>('/hermes/tools/execute', body),
+  sessions: (projectId: number) => http.get<unknown, HermesSessionItem[]>('/hermes/sessions', { params: { project_id: projectId } }),
+  createDraft: (sessionId: number, body: { project_id: number; draft_type: 'test_plan'; payload: Record<string, unknown>; sources?: Array<Record<string, unknown>> }) =>
+    http.post<unknown, { id: string; status: string }>(`/hermes/sessions/${sessionId}/drafts`, body),
+  confirmDraft: (sessionId: number, body: { project_id: number; draft_id: string; confirmation: 'CONFIRM' }) =>
+    http.post<unknown, { draft_id: string; status: string; plan_id: number }>(`/hermes/sessions/${sessionId}/drafts/confirm`, body),
+  feedback: (sessionId: number, body: { project_id: number; message_index: number; rating: 'helpful' | 'not_helpful'; comment?: string }) =>
+    http.post(`/hermes/sessions/${sessionId}/feedback`, body),
+  tool: (sessionId: number, toolName: 'failed_runs' | 'quality_summary', body: { project_id: number; arguments?: Record<string, unknown> }) =>
+    http.post(`/hermes/sessions/${sessionId}/tools/${toolName}`, body),
+  governance: (projectId: number) => http.get('/hermes/governance/summary', { params: { project_id: projectId } }),
 }
 
 export const scriptApi = {
@@ -2006,6 +2085,10 @@ export const scriptApi = {
     return http.post<unknown, ScriptUploadResponse>(`/cases/${caseId}/script`, form)
   },
   delete: (caseId: number) => http.delete(`/cases/${caseId}/script`),
+  getRequirements: (caseId: number) =>
+    http.get<unknown, { content: string; exists: boolean; requirements_path?: string }>(`/cases/${caseId}/script/requirements`),
+  saveRequirements: (caseId: number, content: string) =>
+    http.put<unknown, { content: string; requirements_path: string }>(`/cases/${caseId}/script/requirements`, { content }),
 }
 
 export const webRecordingApi = {
@@ -2074,6 +2157,22 @@ export const deviceApi = {
   screenshotUrl: (id: number) => `/api/v1/devices/${id}/screenshot`,
   screenStreamUrl: (id: number, fps?: number) =>
     `/api/v1/devices/${id}/screen${fps ? `?fps=${fps}` : ''}`,
+  groups: () => http.get<unknown, DeviceGroupItem[]>('/device-groups'),
+  createGroup: (data: { name: string; description?: string; device_ids: number[] }) =>
+    http.post<unknown, DeviceGroupItem>('/device-groups', data),
+  updateGroup: (id: number, data: { name: string; description?: string; device_ids: number[] }) =>
+    http.put<unknown, DeviceGroupItem>(`/device-groups/${id}`, data),
+  deleteGroup: (id: number) => http.delete(`/device-groups/${id}`),
+}
+
+export const iosApi = {
+  devices: () => http.get<unknown, IosDeviceItem[]>('/ios-devices'),
+  createDevice: (data: { udid: string; name?: string; model?: string; platform_version?: string; appium_server_url: string; wda_local_port?: number }) =>
+    http.post<unknown, IosDeviceItem>('/ios-devices', data),
+  deleteDevice: (id: number) => http.delete(`/ios-devices/${id}`),
+  apps: (projectId?: number) => http.get<unknown, IosAppItem[]>('/ios-apps', { params: { project_id: projectId } }),
+  uploadApp: (form: FormData) => http.post<unknown, IosAppItem>('/ios-apps', form),
+  deleteApp: (id: number) => http.delete(`/ios-apps/${id}`),
 }
 
 export const apkApi = {

@@ -126,9 +126,10 @@ async def test_notification_config_masks_and_test_send_paths(async_client, auth_
     project_id = await _create_project(async_client, auth_headers, unique_name, "notification")
     sent: dict[str, object] = {}
 
-    async def fake_send_email(config, summary):
+    async def fake_send_email(config, summary, html_body=None):
         sent["email_config"] = config
         sent["email_summary"] = summary
+        sent["email_html_body"] = html_body
 
     async def fake_send_wechat(_config, _summary):
         raise RuntimeError("invalid webhook")

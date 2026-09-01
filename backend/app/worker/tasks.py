@@ -13,6 +13,7 @@ from app.core.tracing import (
     set_trace_id,
 )
 from app.worker.async_runner import run_async
+from app.services.api_hooks import ApiHookError, execute_api_hooks
 
 logger = logging.getLogger(__name__)
 
@@ -247,6 +248,19 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict, *, execut
     total_cases = len(case_items)
     case_run_results: list[dict] = []
     counts = {"total": 0, "passed": 0, "failed": 0, "error": 0, "skipped": 0}
+    raw_config = suite.config if isinstance(suite.config, dict) else {}
+    shared_variables = (
+        raw_config.get("shared_variables") if isinstance(raw_config.get("shared_variables"), dict) else {}
+    )
+    fixture_context = {**shared_variables, **extra_vars}
+    fixtures = raw_config.get("fixtures") if isinstance(raw_config.get("fixtures"), dict) else {}
+    setup_summary: list[dict] = []
+    teardown_summary: list[dict] = []
+    fixture_error: str | None = None
+    try:
+        setup_summary = execute_api_hooks(fixtures.get("setup"), fixture_context)
+    except ApiHookError as exc:
+        fixture_error = f"Suite Fixture setup 失败: {exc}"
 
     # Device-bound children run inline only when the parent is already on the
     # matching dedicated queue. This also covers a homogeneous device suite
@@ -281,8 +295,8 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict, *, execut
             }
 
         if case.id in remote_case_ids:
-            return await _execute_case_run(case_db, suite_run, case, extra_vars, route_to_worker=True)
-        return await _execute_case_run(case_db, suite_run, case, extra_vars)
+            return await _execute_case_run(case_db, suite_run, case, fixture_context, route_to_worker=True)
+        return await _execute_case_run(case_db, suite_run, case, fixture_context)
 
     async def run_one(item: dict) -> dict:
         # AsyncSession is not safe for concurrent use. Parallel suites get one
@@ -310,7 +324,17 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict, *, execut
             suite_config["min_pass_rate"],
         )
 
-    if suite_config["execution_mode"] == "parallel":
+    if fixture_error:
+        for fixture_index, item in enumerate(case_items):
+            case_id = item.get("case_id")
+            if case_id:
+                status_value = "error" if fixture_index == 0 else "skipped"
+                case_run_results.append(
+                    {"case_id": case_id, "run_id": None, "status": status_value, "error": fixture_error}
+                )
+                counts["total"] += 1
+                counts[status_value] += 1
+    elif suite_config["execution_mode"] == "parallel":
         for start in range(0, total_cases, suite_config["max_workers"]):
             batch = case_items[start : start + suite_config["max_workers"]]
             for result in await asyncio.gather(*(run_one(item) for item in batch)):
@@ -330,7 +354,7 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict, *, execut
             if should_stop:
                 break
 
-    skipped_items = case_items[counts["total"] :]
+    skipped_items = [] if fixture_error else case_items[counts["total"] :]
     for item in skipped_items:
         case_id = item.get("case_id")
         if not case_id:
@@ -346,6 +370,12 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict, *, execut
         counts["total"] += 1
         counts["skipped"] += 1
 
+    try:
+        teardown_summary = execute_api_hooks(fixtures.get("teardown"), fixture_context)
+    except ApiHookError as exc:
+        fixture_error = f"Suite Fixture teardown 失败: {exc}"
+        counts["error"] += 1
+
     all_passed = counts["failed"] == 0 and counts["error"] == 0
     suite_run.status = SuiteRunStatus.passed if all_passed else SuiteRunStatus.failed
     await _mark_flaky_case_results(db, case_run_results)
@@ -353,6 +383,12 @@ async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict, *, execut
     suite_run.result_summary = {
         **counts,
         **suite_config,
+        "fixtures": {
+            "setup": setup_summary,
+            "teardown": teardown_summary,
+            "status": "failed" if fixture_error else "passed",
+            "error": fixture_error,
+        },
     }
 
 

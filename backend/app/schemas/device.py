@@ -31,6 +31,23 @@ class DeviceUpdate(BaseModel):
     port: int | None = None
 
 
+class DeviceGroupSave(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    description: str | None = Field(default=None, max_length=1000)
+    device_ids: list[int] = Field(default_factory=list, max_length=200)
+
+
+class DeviceGroupOut(BaseModel):
+    id: int
+    name: str
+    description: str | None
+    devices: list[DeviceOut]
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class DeviceScanOut(BaseModel):
     """设备扫描结果；worker 模式下先返回 queued，再由状态接口返回最终列表。"""
 

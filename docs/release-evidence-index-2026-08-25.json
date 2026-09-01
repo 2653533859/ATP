@@ -1,7 +1,7 @@
 {
   "schema_version": 1,
-  "generated_at": "2026-08-26",
-  "scope": "N2/N4/N5/N6/N7/N8/N9 release gates",
+  "generated_at": "2026-09-01",
+  "scope": "N2/N4/N5/N6/N7/N8/N9 release gates and explicit current-release exclusions",
   "release": {
     "status": "blocked",
     "eligible": false,
@@ -31,6 +31,10 @@
     {
       "path": "docs/release-status-2026-08-25.md",
       "markers": ["2.4.0 只更新导航分组"]
+    },
+    {
+      "path": "docs/release-scope-2026-09-01.md",
+      "markers": ["ATP 本次发布范围", "不纳入", "技术预览"]
     },
     {
       "path": "docs/q9-release-checklist.md",
@@ -103,8 +107,8 @@
       "status": "pending",
       "owner": "release-engineering",
       "evidence": ["docs/q9-release-checklist.md", "docs/release-status-2026-08-25.md"],
-      "blocking_reason": "Release closure must wait until all external gates are either verified or explicitly accepted with an owner and recheck command.",
-      "dependencies": ["N4 through N8 gate decisions", "same-SHA test and environment evidence"],
+      "blocking_reason": "Release closure must wait for the N4 real-performance gate or a formal waiver; current-release exclusions are recorded separately and must not be described as verified capabilities.",
+      "dependencies": ["N4 performance gate decision", "explicit release-scope exclusions", "same-SHA test and environment evidence"],
       "recheck_command": "Run scripts/validate-release-evidence.py --candidate-sha <release-sha> --require-candidate-sha --require-clean after all gate evidence is archived."
     }
   ]

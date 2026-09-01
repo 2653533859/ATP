@@ -1,5 +1,6 @@
 """Contracts for the project-scoped Hermes retrieval assistant."""
 
+import json
 from datetime import date, datetime
 from typing import Literal
 from uuid import uuid4
@@ -39,6 +40,7 @@ class HermesQueryIn(BaseModel):
     updated_from: date | None = None
     updated_to: date | None = None
     context_budget: int = Field(default=6_000, ge=1_000, le=12_000)
+    session_id: int | None = Field(default=None, ge=1)
 
     @field_validator("query")
     @classmethod
@@ -93,3 +95,53 @@ class HermesQueryOut(BaseModel):
     answer: str
     sources: list[HermesSourceOut] = Field(default_factory=list, max_length=20)
     generated_at: datetime
+    session_id: int
+    message_index: int
+    prompt_version: str = "hermes-v2"
+    latency_ms: int = Field(ge=0)
+
+
+class HermesSessionOut(BaseModel):
+    id: int
+    project_id: int
+    title: str
+    context_filters: dict
+    messages: list[dict]
+    drafts: list[dict]
+    metrics: dict
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class HermesToolIn(BaseModel):
+    project_id: int = Field(ge=1)
+    arguments: dict = Field(default_factory=dict)
+
+
+class HermesDraftIn(BaseModel):
+    project_id: int = Field(ge=1)
+    draft_type: Literal["test_plan"] = "test_plan"
+    payload: dict
+    sources: list[dict] = Field(default_factory=list, max_length=20)
+
+    @field_validator("payload")
+    @classmethod
+    def bound_payload(cls, value: dict) -> dict:
+        if len(json.dumps(value, ensure_ascii=False, default=str).encode("utf-8")) > 64 * 1024:
+            raise ValueError("Hermes 草稿不能超过 64KB")
+        return value
+
+
+class HermesDraftConfirmIn(BaseModel):
+    project_id: int = Field(ge=1)
+    draft_id: str = Field(min_length=1, max_length=64)
+    confirmation: Literal["CONFIRM"]
+
+
+class HermesFeedbackIn(BaseModel):
+    project_id: int = Field(ge=1)
+    message_index: int = Field(ge=0)
+    rating: Literal["helpful", "not_helpful"]
+    comment: str | None = Field(default=None, max_length=1000)

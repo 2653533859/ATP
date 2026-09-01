@@ -26,6 +26,7 @@ export const routeMenuGroups: Record<string, NavigationGroup> = {
   '/system': 'system-center',
   '/devices': 'test-capabilities',
   '/apks': 'test-capabilities',
+  '/ios-assets': 'test-capabilities',
   '/mock-rules': 'test-capabilities',
 }
 
@@ -77,7 +78,7 @@ export function getSelectedMenuKey(path: string): string {
   if (path.startsWith('/cases/')) return '/cases'
   if (path === '/runs' || path.startsWith('/runs/')) return '/tasks'
   if (path.startsWith('/mobile-special/')) return '/mobile-special/workbench'
-  if (path.startsWith('/devices') || path.startsWith('/apks')) return '/mobile-special/workbench'
+  if (path.startsWith('/devices') || path.startsWith('/apks') || path.startsWith('/ios-assets')) return '/mobile-special/workbench'
   if (path.startsWith('/system/performance')) return '/performance-workbench'
   if (path.startsWith('/system/web-assets')) return '/ui-workbench'
   if (path.startsWith('/system/api-contract-assets')) return '/api-workbench'
@@ -104,6 +105,7 @@ export function getRouteTitleKey(path: string, menuTitleKey?: unknown): string {
   if (path.startsWith('/plans')) return 'menu.plans'
   if (path.startsWith('/devices')) return 'menu.devices'
   if (path.startsWith('/apks')) return 'menu.apks'
+  if (path.startsWith('/ios-assets')) return 'menu.ios_assets'
   if (path.startsWith('/mock')) return 'menu.mock_rules'
   if (path.startsWith('/mobile-special')) return 'menu.mobile_special.title'
   if (path.startsWith('/system')) return findRouteEntry(systemRouteTitles, path) ?? 'menu.system.title'

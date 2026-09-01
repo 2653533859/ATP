@@ -147,6 +147,10 @@
                     {{ source.label }} <ArrowRightOutlined />
                   </button>
                 </div>
+                <a-space v-if="message.role === 'assistant' && message.backendIndex != null" size="small">
+                  <a-button type="text" size="small" @click="rateMessage(message, 'helpful')">{{ t('hermes.helpful') }}</a-button>
+                  <a-button type="text" size="small" @click="rateMessage(message, 'not_helpful')">{{ t('hermes.not_helpful') }}</a-button>
+                </a-space>
               </div>
             </article>
             <div v-if="diagnosing" class="thinking-row">
@@ -282,7 +286,10 @@
             <h2>{{ t('hermes.plan_title') }}</h2>
             <p>{{ t('hermes.plan_description') }}</p>
           </div>
-          <a-button type="primary" @click="openPlans"><ArrowRightOutlined /> {{ t('hermes.open_plans') }}</a-button>
+          <a-space>
+            <a-button :disabled="!sessionId" :loading="savingDraft" @click="savePlanDraft">{{ t('hermes.confirm_save_draft') }}</a-button>
+            <a-button type="primary" @click="openPlans"><ArrowRightOutlined /> {{ t('hermes.open_plans') }}</a-button>
+          </a-space>
         </div>
         <div class="plan-form-grid">
           <label>
@@ -313,6 +320,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { message, Modal } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -353,6 +361,7 @@ type HermesMessage = {
   taskIds?: string[]
   mode?: HermesQueryResult['mode']
   isWelcome?: boolean
+  backendIndex?: number
 }
 type PromptKey = 'failed_tasks' | 'explain_failure' | 'test_plan' | 'quality'
 type PlanDraft = { name: string; objective: string; testPoints: string[] }
@@ -373,6 +382,8 @@ const failedTasks = ref<WorkbenchTaskItem[]>([])
 const reportOverview = ref<ReportOverviewItem | null>(null)
 const failureHotspots = ref<Array<{ case_name: string; failure_count: number }>>([])
 const messages = ref<HermesMessage[]>([])
+const sessionId = ref<number | null>(null)
+const savingDraft = ref(false)
 const inputText = ref('')
 const selectedTaskId = ref<string | null>(null)
 const diagnosis = ref<{ taskId: string; result: FailureDiagnosisResult } | null>(null)
@@ -489,6 +500,7 @@ function clearProjectData() {
   selectedTaskId.value = null
   diagnosis.value = null
   planDraft.value = null
+  sessionId.value = null
   resetConversation()
 }
 
@@ -529,6 +541,36 @@ async function loadProjectData() {
   else failures.push(t('hermes.load_hotspots_failed'))
   loadError.value = failures.join('；')
   resetConversation()
+  try {
+    const sessions = await hermesApi.sessions(projectId)
+    const latest = sessions[0]
+    if (latest) {
+      sessionId.value = latest.id
+      const restored = latest.messages
+        .map((item, index): HermesMessage | null => {
+          const role = item.role === 'assistant' ? 'assistant' : item.role === 'user' ? 'user' : null
+          if (!role || typeof item.content !== 'string') return null
+          const storedSources = Array.isArray(item.sources) ? item.sources : []
+          return {
+            id: ++messageSequence,
+            role,
+            text: item.content,
+            createdAt: typeof item.at === 'string' ? item.at : latest.updated_at,
+            sources: storedSources.map((entry) => {
+              const sourceItem = entry as Record<string, unknown>
+              return { label: String(sourceItem.source_ref || sourceItem.title || sourceItem.source_type || 'source'), path: String(sourceItem.path || '/') }
+            }),
+            mode: item.mode as HermesQueryResult['mode'] | undefined,
+            backendIndex: role === 'assistant' ? index : undefined,
+          }
+        })
+        .filter((item): item is HermesMessage => item !== null)
+      if (restored.length) messages.value = restored
+    }
+  } catch {
+    failures.push(t('hermes.load_sessions_failed'))
+  }
+  loadError.value = failures.join('；')
   loading.value = false
 }
 
@@ -639,12 +681,14 @@ async function queryHermes(text: string, history = conversationHistory()) {
       updated_from: range?.[0]?.format('YYYY-MM-DD'),
       updated_to: range?.[1]?.format('YYYY-MM-DD'),
       context_budget: contextBudget.value,
+      session_id: sessionId.value ?? undefined,
     })
     if (
       querySequence !== requestSequence
       || selectedProjectId.value !== projectId
       || conversationId.value !== requestConversationId
     ) return
+    sessionId.value = result.session_id
     conversationId.value = result.conversation_id
     historyUsed.value = result.history_used
     historyOmitted.value = result.history_omitted
@@ -654,6 +698,7 @@ async function queryHermes(text: string, history = conversationHistory()) {
       path: item.path,
     }))
     appendMessage('assistant', result.answer, sources, undefined, result.mode)
+    messages.value[messages.value.length - 1].backendIndex = result.message_index
   } catch (error) {
     if (
       querySequence !== requestSequence
@@ -663,6 +708,35 @@ async function queryHermes(text: string, history = conversationHistory()) {
     appendMessage('assistant', t('hermes.query_failed', { error: errorMessage(error, t('hermes.query_unavailable')) }))
   } finally {
     if (querySequence === requestSequence) querying.value = false
+  }
+}
+
+async function rateMessage(item: HermesMessage, rating: 'helpful' | 'not_helpful') {
+  if (!sessionId.value || item.backendIndex == null || !selectedProjectId.value) return
+  await hermesApi.feedback(sessionId.value, { project_id: selectedProjectId.value, message_index: item.backendIndex, rating })
+  message.success(t('hermes.feedback_saved'))
+}
+
+async function savePlanDraft() {
+  if (!sessionId.value || !selectedProjectId.value || !planDraft.value) return
+  savingDraft.value = true
+  try {
+    const draft = await hermesApi.createDraft(sessionId.value, {
+      project_id: selectedProjectId.value,
+      draft_type: 'test_plan',
+      payload: planDraft.value,
+      sources: [{ path: source(t('hermes.source_cases'), '/cases').path }],
+    })
+    Modal.confirm({
+      title: t('hermes.confirm_draft_title'),
+      content: t('hermes.confirm_draft_content'),
+      async onOk() {
+        const result = await hermesApi.confirmDraft(sessionId.value!, { project_id: selectedProjectId.value!, draft_id: draft.id, confirmation: 'CONFIRM' })
+        message.success(t('hermes.draft_saved', { id: result.plan_id }))
+      },
+    })
+  } finally {
+    savingDraft.value = false
   }
 }
 
@@ -746,8 +820,14 @@ function intentFor(text: string): PromptKey | null {
 }
 
 async function executeIntent(key: PromptKey) {
-  if (key === 'failed_tasks') buildFailedTaskAnswer()
-  else if (key === 'quality') buildQualityAnswer()
+  if (key === 'failed_tasks') {
+    if (sessionId.value && selectedProjectId.value) await hermesApi.tool(sessionId.value, 'failed_runs', { project_id: selectedProjectId.value, arguments: { limit: 20 } }).catch(() => undefined)
+    buildFailedTaskAnswer()
+  }
+  else if (key === 'quality') {
+    if (sessionId.value && selectedProjectId.value) await hermesApi.tool(sessionId.value, 'quality_summary', { project_id: selectedProjectId.value }).catch(() => undefined)
+    buildQualityAnswer()
+  }
   else if (key === 'test_plan') buildPlanDraft()
   else await explainFailure()
 }

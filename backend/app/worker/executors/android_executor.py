@@ -26,6 +26,7 @@ from pathlib import Path
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.minio_client import download_file, upload_file, presigned_url
+from app.services.script_dependencies import extend_pythonpath, prepare_script_dependencies
 from app.core.redis_client import publish_run_event
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.services.adb_resilience import (
@@ -142,6 +143,7 @@ async def run_android_case(
         # ── 2. 下载脚本 ────────────────────────────────────
         local_script = tmpdir / "test_case.py"
         await asyncio.get_event_loop().run_in_executor(None, download_file, script_path, str(local_script))
+        dependencies_dir = await prepare_script_dependencies(cfg.get("requirements_path"), tmpdir)
 
         # ── 3. 生成 conftest.py（注入设备 serial + 环境变量）──
         env_lines = "\n".join(f"    os.environ[{k!r}] = {v!r}" for k, v in extra_vars.items())
@@ -178,11 +180,14 @@ def device_serial():
             "--tb=short",
         ]
 
-        env = {
-            **os.environ,
-            "PYTHONPATH": str(tmpdir),
-            "DEVICE_SERIAL": device_serial,
-        }
+        env = extend_pythonpath(
+            {
+                **os.environ,
+                "DEVICE_SERIAL": device_serial,
+            },
+            dependencies_dir,
+            tmpdir,
+        )
 
         # 心跳监控：执行期间设备掉线时立即终止 pytest 子进程
         pytest_proc: asyncio.subprocess.Process | None = None

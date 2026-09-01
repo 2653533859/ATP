@@ -1,7 +1,11 @@
-"""GraphQL 接口测试执行器"""
+"""GraphQL 接口测试执行器。"""
 
+import asyncio
+import json
 import time
+
 import httpx
+import websockets
 from jsonpath_ng import parse as jp_parse
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -96,29 +100,50 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
             if operation_name:
                 gql_body["operationName"] = operation_name
 
+            operation_type = str(step.get("operation_type") or "query").lower()
+            is_subscription = operation_type == "subscription"
             request_data = {
-                "method": "POST",
+                "method": "WS" if is_subscription else "POST",
                 "url": endpoint,
                 "headers": headers,
                 "body": gql_body,
             }
 
-            async with httpx.AsyncClient(timeout=timeout) as client:
-                resp = await client.post(endpoint, headers=headers, json=gql_body, auth=request_auth)
+            if is_subscription:
+                if request_auth is not None:
+                    raise ValueError("GraphQL Subscription 暂不支持 Digest 认证")
+                subscription_url = _subscription_url(step.get("subscription_url") or endpoint)
+                request_data["url"] = subscription_url
+                messages = await _run_subscription(subscription_url, headers, gql_body, step, float(timeout))
+                resp_body = messages[-1]["payload"] if messages else None
+                duration = int((time.monotonic() - step_start) * 1000)
+                resp = httpx.Response(status_code=101)
+                response_data = response_contract(
+                    "graphql",
+                    status_code=101,
+                    headers={},
+                    body=resp_body,
+                    duration_ms=duration,
+                    metadata={"operation_type": "subscription", "messages": messages},
+                )
+                response_data["messages"] = messages
+            else:
+                async with httpx.AsyncClient(timeout=timeout) as client:
+                    resp = await client.post(endpoint, headers=headers, json=gql_body, auth=request_auth)
 
-            duration = int((time.monotonic() - step_start) * 1000)
-            try:
-                resp_body = resp.json()
-            except Exception:
-                resp_body = resp.text
+                duration = int((time.monotonic() - step_start) * 1000)
+                try:
+                    resp_body = resp.json()
+                except Exception:
+                    resp_body = resp.text
 
-            response_data = response_contract(
-                "graphql",
-                status_code=resp.status_code,
-                headers=dict(resp.headers),
-                body=resp_body,
-                duration_ms=duration,
-            )
+                response_data = response_contract(
+                    "graphql",
+                    status_code=resp.status_code,
+                    headers=dict(resp.headers),
+                    body=resp_body,
+                    duration_ms=duration,
+                )
 
             # 变量提取
             for extraction in step.get("extractions", []):
@@ -191,6 +216,70 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
             "duration_ms": total_ms,
         },
     )
+
+
+def _subscription_url(value: str) -> str:
+    if value.startswith("https://"):
+        return f"wss://{value[8:]}"
+    if value.startswith("http://"):
+        return f"ws://{value[7:]}"
+    if value.startswith(("ws://", "wss://")):
+        return value
+    raise ValueError("GraphQL Subscription 地址必须使用 http(s):// 或 ws(s)://")
+
+
+async def _run_subscription(url: str, headers: dict, gql_body: dict, step: dict, timeout: float) -> list[dict]:
+    """按 graphql-transport-ws 协议读取有界事件流。"""
+    max_messages = max(1, min(int(step.get("max_messages", 1)), 100))
+    reconnect_attempts = max(0, min(int(step.get("reconnect_attempts", 0)), 5))
+    reconnect_delay = max(0, min(int(step.get("reconnect_delay_ms", 500)), 30_000)) / 1000
+    connection_payload = step.get("connection_payload") or {}
+    last_error: Exception | None = None
+
+    for attempt in range(reconnect_attempts + 1):
+        try:
+            messages: list[dict] = []
+            async with websockets.connect(
+                url,
+                additional_headers=headers or None,
+                subprotocols=["graphql-transport-ws"],
+                open_timeout=timeout,
+                close_timeout=5,
+            ) as ws:
+                await ws.send(
+                    json.dumps({"type": "connection_init", "payload": connection_payload}, ensure_ascii=False)
+                )
+                ack = json.loads(await asyncio.wait_for(ws.recv(), timeout=timeout))
+                if ack.get("type") != "connection_ack":
+                    raise RuntimeError(f"GraphQL Subscription 握手失败: {ack.get('type', 'unknown')}")
+                operation_id = str(step.get("subscription_id") or "1")
+                await ws.send(
+                    json.dumps(
+                        {"id": operation_id, "type": "subscribe", "payload": gql_body},
+                        ensure_ascii=False,
+                    )
+                )
+                while len(messages) < max_messages:
+                    raw = await asyncio.wait_for(ws.recv(), timeout=timeout)
+                    message = json.loads(raw)
+                    message_type = message.get("type")
+                    if message_type == "next":
+                        messages.append({"type": "next", "payload": message.get("payload")})
+                    elif message_type == "error":
+                        raise RuntimeError(f"GraphQL Subscription 返回错误: {message.get('payload')}")
+                    elif message_type == "complete":
+                        break
+                    elif message_type == "ping":
+                        await ws.send(json.dumps({"type": "pong", "payload": message.get("payload")}))
+                await ws.send(json.dumps({"id": operation_id, "type": "complete"}))
+                return messages
+        except Exception as exc:
+            last_error = exc
+            if attempt >= reconnect_attempts:
+                raise
+            if reconnect_delay:
+                await asyncio.sleep(reconnect_delay)
+    raise RuntimeError("GraphQL Subscription 连接失败") from last_error
 
 
 def _render(template: str, context: dict) -> str:

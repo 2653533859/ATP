@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 from collections.abc import Sequence
 import logging
+import uuid
 from dataclasses import asdict
 from datetime import datetime, time, timedelta, timezone
 from time import perf_counter
@@ -20,12 +21,25 @@ from app.core.encryption import decrypt
 from app.core.database import get_db
 from app.models.ai_llm_config import AILLMConfig
 from app.models.case import TestCase
+from app.models.case import TestRun
+from app.models.hermes import HermesSession
+from app.models.bootstrap import load_all_models
 from app.models.knowledge import KnowledgeEntry
 from app.models.project import Module, Project
 from app.models.requirement import TestRequirement
+from app.models.plan import PlanStatus, ScheduleType, TestPlan
 from app.models.user import User
 from app.models.user_project import ProjectRole
-from app.schemas.hermes import HermesQueryIn, HermesQueryOut, HermesSourceOut
+from app.schemas.hermes import (
+    HermesDraftConfirmIn,
+    HermesDraftIn,
+    HermesFeedbackIn,
+    HermesQueryIn,
+    HermesQueryOut,
+    HermesSessionOut,
+    HermesSourceOut,
+    HermesToolIn,
+)
 from app.schemas.hermes_tools import HermesToolCallIn, HermesToolCatalogOut, HermesToolOut, HermesToolStatus
 from app.services.ai_case.llm_client import LLMRequest, call_llm
 from app.services.ai_governance import (
@@ -58,6 +72,8 @@ from app.services.hermes_tools import (
 logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["智能中枢"])
+
+load_all_models()
 
 
 def _updated_bounds(body: HermesQueryIn) -> tuple[datetime | None, datetime | None]:
@@ -253,16 +269,45 @@ def _case_candidates(rows: Sequence[Any]) -> list[HermesCandidate]:
     ]
 
 
+async def _get_or_create_session(db: AsyncSession, user: User, body: HermesQueryIn) -> HermesSession:
+    if body.session_id is not None:
+        session = await db.get(HermesSession, body.session_id)
+        if session is None or session.project_id != body.project_id or session.user_id != user.id:
+            raise HTTPException(status_code=404, detail="Hermes 会话不存在")
+        return session
+    session = HermesSession(
+        project_id=body.project_id,
+        user_id=user.id,
+        title=body.query[:80],
+        context_filters={"source_types": body.source_types},
+        messages=[],
+        drafts=[],
+        metrics={"queries": 0, "tool_calls": 0, "helpful": 0, "not_helpful": 0},
+    )
+    db.add(session)
+    await db.flush()
+    return session
+
+
+async def _owned_session(db: AsyncSession, user: User, session_id: int, project_id: int) -> HermesSession:
+    session = await db.get(HermesSession, session_id)
+    if session is None or session.project_id != project_id or session.user_id != user.id:
+        raise HTTPException(status_code=404, detail="Hermes 会话不存在")
+    return session
+
+
 @router.post("/hermes/query", response_model=HermesQueryOut)
 async def query_hermes(
     body: HermesQueryIn,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    started_at = perf_counter()
     await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
     project = await db.get(Project, body.project_id)
     if project is None:
         raise HTTPException(status_code=404, detail="项目不存在")
+    session = await _get_or_create_session(db, user, body)
 
     updated_from, updated_to = _updated_bounds(body)
     selected_types = set(body.source_types)
@@ -328,10 +373,14 @@ async def query_hermes(
         updated_from=body.updated_from,
         updated_to=body.updated_to,
     )
-    history_context = build_history_context(
-        [(item.role, item.content) for item in body.history],
-        body.context_budget,
-    )
+    history_turns = [(item.role, item.content) for item in body.history]
+    if not history_turns:
+        history_turns = [
+            (str(item.get("role")), str(item.get("content")))
+            for item in (session.messages or [])[-12:]
+            if item.get("role") in {"user", "assistant"} and str(item.get("content") or "").strip()
+        ]
+    history_context = build_history_context(history_turns, body.context_budget)
     answer, raw_mode = build_answer(sources)
     mode: Literal["llm_grounded", "project_retrieval", "no_results"] = cast(
         Literal["llm_grounded", "project_retrieval", "no_results"], raw_mode
@@ -339,6 +388,40 @@ async def query_hermes(
     llm_answer = await _llm_answer(db, project, body.query, sources, history_context)
     if llm_answer:
         answer, mode = llm_answer, "llm_grounded"
+    generated_at = datetime.now(timezone.utc)
+    latency_ms = int((perf_counter() - started_at) * 1000)
+    messages = list(session.messages or [])
+    messages.extend(
+        [
+            {"role": "user", "content": redact_knowledge_text(body.query, limit=2_000), "at": generated_at.isoformat()},
+            {
+                "role": "assistant",
+                "content": answer,
+                "mode": mode,
+                "sources": [
+                    {**asdict(source), "updated_at": source.updated_at.isoformat() if source.updated_at else None}
+                    for source in sources
+                ],
+                "tool": "project_evidence_search",
+                "prompt_version": "hermes-v2",
+                "latency_ms": latency_ms,
+                "at": generated_at.isoformat(),
+            },
+        ]
+    )
+    session.messages = messages[-40:]
+    session.context_filters = {
+        "conversation_id": body.conversation_id,
+        "source_types": body.source_types,
+        "updated_from": body.updated_from.isoformat() if body.updated_from else None,
+        "updated_to": body.updated_to.isoformat() if body.updated_to else None,
+        "context_budget": body.context_budget,
+    }
+    metrics = dict(session.metrics or {})
+    metrics["queries"] = int(metrics.get("queries", 0)) + 1
+    metrics["last_latency_ms"] = latency_ms
+    session.metrics = metrics
+    await db.commit()
     return HermesQueryOut(
         project_id=body.project_id,
         query=body.query,
@@ -353,5 +436,206 @@ async def query_hermes(
         mode=mode,
         answer=answer,
         sources=[HermesSourceOut(**asdict(source)) for source in sources],
-        generated_at=datetime.now(timezone.utc),
+        generated_at=generated_at,
+        session_id=session.id,
+        message_index=len(session.messages) - 1,
+        latency_ms=latency_ms,
     )
+
+
+@router.get("/hermes/sessions", response_model=list[HermesSessionOut])
+async def list_hermes_sessions(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await assert_project_access(db, user, project_id, ProjectRole.viewer)
+    query = (
+        select(HermesSession)
+        .where(HermesSession.project_id == project_id, HermesSession.user_id == user.id)
+        .order_by(HermesSession.updated_at.desc())
+        .limit(50)
+    )
+    return (await db.execute(query)).scalars().all()
+
+
+@router.get("/hermes/governance/summary")
+async def hermes_governance_summary(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await assert_project_access(db, user, project_id, ProjectRole.viewer)
+    rows = (
+        (await db.execute(select(HermesSession).where(HermesSession.project_id == project_id).limit(500)))
+        .scalars()
+        .all()
+    )
+    assistant_messages = [
+        message for session in rows for message in (session.messages or []) if message.get("role") == "assistant"
+    ]
+    helpful = sum(int((session.metrics or {}).get("helpful", 0)) for session in rows)
+    not_helpful = sum(int((session.metrics or {}).get("not_helpful", 0)) for session in rows)
+    rated = helpful + not_helpful
+    grounded = sum(1 for message in assistant_messages if message.get("sources"))
+    no_results = sum(1 for message in assistant_messages if message.get("mode") == "no_results")
+    latencies = [
+        int(message.get("latency_ms", 0)) for message in assistant_messages if message.get("latency_ms") is not None
+    ]
+    return {
+        "prompt_version": "hermes-v2",
+        "sessions": len(rows),
+        "assistant_messages": len(assistant_messages),
+        "citation_coverage": round(grounded / len(assistant_messages), 4) if assistant_messages else 0,
+        "no_result_rate": round(no_results / len(assistant_messages), 4) if assistant_messages else 0,
+        "helpful_rate": round(helpful / rated, 4) if rated else None,
+        "average_latency_ms": round(sum(latencies) / len(latencies)) if latencies else 0,
+    }
+
+
+@router.post("/hermes/sessions/{session_id}/tools/{tool_name}")
+async def run_hermes_readonly_tool(
+    session_id: int,
+    tool_name: str,
+    body: HermesToolIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
+    session = await _owned_session(db, user, session_id, body.project_id)
+    if tool_name == "failed_runs":
+        query = (
+            select(TestRun)
+            .join(TestCase, TestCase.id == TestRun.case_id)
+            .join(Module, Module.id == TestCase.module_id)
+            .where(Module.project_id == body.project_id, TestRun.status.in_(["failed", "error"]))
+            .order_by(TestRun.created_at.desc())
+            .limit(max(1, min(int(body.arguments.get("limit", 10)), 50)))
+        )
+        rows = (await db.execute(query)).scalars().all()
+        result = [
+            {
+                "run_id": row.id,
+                "case_id": row.case_id,
+                "status": _enum_value(row.status),
+                "error": redact_llm_text(row.error_message or "", limit=500),
+            }
+            for row in rows
+        ]
+    elif tool_name == "quality_summary":
+        query = (
+            select(TestRun)
+            .join(TestCase, TestCase.id == TestRun.case_id)
+            .join(Module, Module.id == TestCase.module_id)
+            .where(Module.project_id == body.project_id)
+            .order_by(TestRun.created_at.desc())
+            .limit(500)
+        )
+        rows = (await db.execute(query)).scalars().all()
+        statuses = [_enum_value(row.status) for row in rows]
+        passed = statuses.count("passed")
+        result = {"total": len(rows), "passed": passed, "pass_rate": round(passed / len(rows) * 100, 2) if rows else 0}
+    else:
+        raise HTTPException(status_code=404, detail="Hermes 只读工具不存在")
+    messages = list(session.messages or [])
+    messages.append(
+        {
+            "role": "tool",
+            "tool": tool_name,
+            "arguments": body.arguments,
+            "result": result,
+            "at": datetime.now(timezone.utc).isoformat(),
+        }
+    )
+    session.messages = messages[-40:]
+    metrics = dict(session.metrics or {})
+    metrics["tool_calls"] = int(metrics.get("tool_calls", 0)) + 1
+    session.metrics = metrics
+    await db.commit()
+    return {"session_id": session.id, "tool": tool_name, "result": result}
+
+
+@router.post("/hermes/sessions/{session_id}/drafts")
+async def create_hermes_draft(
+    session_id: int,
+    body: HermesDraftIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await assert_project_access(db, user, body.project_id, ProjectRole.editor)
+    session = await _owned_session(db, user, session_id, body.project_id)
+    draft = {
+        "id": uuid.uuid4().hex,
+        "draft_type": body.draft_type,
+        "payload": body.payload,
+        "sources": body.sources,
+        "status": "pending_confirmation",
+        "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    session.drafts = [*(session.drafts or []), draft][-20:]
+    await db.commit()
+    return draft
+
+
+@router.post("/hermes/sessions/{session_id}/drafts/confirm")
+async def confirm_hermes_draft(
+    session_id: int,
+    body: HermesDraftConfirmIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await assert_project_access(db, user, body.project_id, ProjectRole.editor)
+    session = await _owned_session(db, user, session_id, body.project_id)
+    drafts = list(session.drafts or [])
+    draft = next((item for item in drafts if item.get("id") == body.draft_id), None)
+    if draft is None or draft.get("status") != "pending_confirmation":
+        raise HTTPException(status_code=409, detail="Hermes 草稿不存在或已处理")
+    payload = draft.get("payload") if isinstance(draft.get("payload"), dict) else {}
+    name = str(payload.get("name") or "").strip()
+    if not name:
+        raise HTTPException(status_code=422, detail="测试计划草稿缺少名称")
+    plan = TestPlan(
+        name=name[:256],
+        description=str(payload.get("objective") or "")[:4000] or None,
+        project_id=body.project_id,
+        suite_ids=[],
+        schedule_type=ScheduleType.manual,
+        status=PlanStatus.draft,
+        is_enabled=False,
+        auto_create_bugs=False,
+        config={"hermes_sources": draft.get("sources") or [], "test_points": payload.get("testPoints") or []},
+        creator_id=user.id,
+    )
+    db.add(plan)
+    await db.flush()
+    draft["status"] = "confirmed"
+    draft["plan_id"] = plan.id
+    draft["confirmed_at"] = datetime.now(timezone.utc).isoformat()
+    session.drafts = drafts
+    await db.commit()
+    return {"draft_id": draft["id"], "status": "confirmed", "plan_id": plan.id}
+
+
+@router.post("/hermes/sessions/{session_id}/feedback")
+async def submit_hermes_feedback(
+    session_id: int,
+    body: HermesFeedbackIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
+    session = await _owned_session(db, user, session_id, body.project_id)
+    messages = list(session.messages or [])
+    if body.message_index >= len(messages) or messages[body.message_index].get("role") != "assistant":
+        raise HTTPException(status_code=422, detail="只能评价 Hermes 助手消息")
+    messages[body.message_index] = {
+        **messages[body.message_index],
+        "feedback": body.rating,
+        "feedback_comment": body.comment,
+    }
+    session.messages = messages
+    metrics = dict(session.metrics or {})
+    metrics[body.rating] = int(metrics.get(body.rating, 0)) + 1
+    session.metrics = metrics
+    await db.commit()
+    return {"session_id": session.id, "message_index": body.message_index, "rating": body.rating}

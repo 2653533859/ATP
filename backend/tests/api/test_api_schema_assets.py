@@ -112,6 +112,56 @@ def test_schema_asset_definition_is_bounded():
         ApiSchemaAssetCreate(name="too-large", definition={"value": "x" * (512 * 1024)})
 
 
+def test_graphql_introspection_returns_root_field_completion(monkeypatch):
+    _allow_access(monkeypatch)
+    monkeypatch.setattr(api_schema_assets, "validate_public_http_url", lambda value: value)
+
+    class Response:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "data": {
+                    "__schema": {
+                        "queryType": {"name": "Query"},
+                        "mutationType": None,
+                        "subscriptionType": {"name": "Subscription"},
+                        "types": [
+                            {"name": "Query", "fields": [{"name": "user", "args": [{"name": "id"}]}]},
+                            {"name": "Subscription", "fields": [{"name": "events", "args": []}]},
+                        ],
+                    }
+                }
+            }
+
+    class Client:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        async def post(self, *_args, **_kwargs):
+            return Response()
+
+    monkeypatch.setattr(api_schema_assets.httpx, "AsyncClient", lambda **_kwargs: Client())
+    db = _DB(objects={("Project", 1): types.SimpleNamespace(id=1)})
+    result = asyncio.run(
+        api_schema_assets.introspect_graphql_schema(
+            1,
+            api_schema_assets.GraphqlIntrospectionIn(endpoint="https://graphql.example.test"),
+            db,
+            types.SimpleNamespace(id=8),
+        )
+    )
+
+    assert [(field.operation_type, field.name, field.arguments) for field in result.fields] == [
+        ("query", "user", ["id"]),
+        ("subscription", "events", []),
+    ]
+
+
 def test_executor_resolves_schema_asset_and_rejects_foreign_asset():
     asset = ApiSchemaAsset(id=7, project_id=1, name="UserResponse", definition={"type": "object"}, version=1)
     db = _DB(objects={("ApiSchemaAsset", 7): asset})

@@ -797,6 +797,80 @@ def test_graphql_render_and_jsonpath_edges():
     assert graphql_executor._jsonpath_extract({}, "((bad") is None
 
 
+def test_graphql_subscription_uses_transport_ws_and_records_messages(monkeypatch):
+    _events_recorder(monkeypatch, graphql_executor)
+    incoming = [
+        json.dumps({"type": "connection_ack"}),
+        json.dumps({"id": "1", "type": "next", "payload": {"data": {"event": "ready"}}}),
+    ]
+    connection = _FakeConnect("wss://gql.example.com/graphql", incoming=incoming)
+
+    def connect(url, **kwargs):
+        assert url == "wss://gql.example.com/graphql"
+        assert kwargs["subprotocols"] == ["graphql-transport-ws"]
+        return connection
+
+    monkeypatch.setattr(graphql_executor.websockets, "connect", connect)
+    run = _run_stub()
+    db = _FakeDB()
+    case = _Obj(
+        config={
+            "steps": [
+                {
+                    "endpoint": "https://gql.example.com/graphql",
+                    "operation_type": "subscription",
+                    "query": "subscription { event }",
+                    "max_messages": 1,
+                    "assertions": [
+                        {"target": "body", "operator": "eq", "expected": "ready", "expression": "$.data.event"}
+                    ],
+                }
+            ]
+        }
+    )
+
+    asyncio.run(graphql_executor.run_graphql_case(db, run, case, {}))
+
+    assert run.status is RunStatus.passed
+    assert json.loads(connection.ws.sent[0])["type"] == "connection_init"
+    assert json.loads(connection.ws.sent[1])["type"] == "subscribe"
+    assert db.added[0].response_data["messages"][0]["payload"]["data"]["event"] == "ready"
+
+
+def test_graphql_subscription_retries_bounded_connection_failures(monkeypatch):
+    _events_recorder(monkeypatch, graphql_executor)
+    attempts = 0
+
+    def connect(url, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("temporary")
+        return _FakeConnect(
+            url,
+            incoming=[json.dumps({"type": "connection_ack"}), json.dumps({"id": "1", "type": "complete"})],
+        )
+
+    monkeypatch.setattr(graphql_executor.websockets, "connect", connect)
+    case = _Obj(
+        config={
+            "steps": [
+                {
+                    "endpoint": "ws://gql",
+                    "operation_type": "subscription",
+                    "query": "subscription { event }",
+                    "reconnect_attempts": 1,
+                    "reconnect_delay_ms": 0,
+                }
+            ]
+        }
+    )
+
+    asyncio.run(graphql_executor.run_graphql_case(_FakeDB(), _run_stub(), case, {}))
+
+    assert attempts == 2
+
+
 # ── websocket_executor ─────────────────────────────────────
 
 
@@ -905,6 +979,38 @@ def test_websocket_executor_records_connection_error(monkeypatch):
     assert run.status is RunStatus.failed
     assert db.added[0].status is RunStatus.error
     assert "handshake rejected" in db.added[0].error_message
+
+
+def test_websocket_executor_retries_only_connection_phase(monkeypatch):
+    _events_recorder(monkeypatch, websocket_executor)
+    attempts = 0
+
+    def connect(url, **kwargs):
+        nonlocal attempts
+        attempts += 1
+        if attempts == 1:
+            raise RuntimeError("temporary handshake failure")
+        return _FakeConnect(url, additional_headers=kwargs.get("additional_headers"), incoming=[])
+
+    monkeypatch.setattr(websocket_executor.websockets, "connect", connect)
+    db = _FakeDB()
+    case = _Obj(
+        config={
+            "steps": [
+                {
+                    "url": "wss://ws",
+                    "messages": [{"action": "disconnect"}],
+                    "reconnect_attempts": 1,
+                    "reconnect_delay_ms": 0,
+                }
+            ]
+        }
+    )
+
+    asyncio.run(websocket_executor.run_websocket_case(db, _run_stub(), case, {}))
+
+    assert attempts == 2
+    assert db.added[0].response_data["connection_attempts"] == 2
 
 
 @pytest.mark.parametrize(

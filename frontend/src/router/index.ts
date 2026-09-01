@@ -239,6 +239,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'ios-assets',
+          name: 'ios-assets',
+          component: () => import('@/views/device/IosAssetsView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'suites',
           name: 'suites',
           component: () => import('@/views/suite/SuiteList.vue'),

@@ -29,15 +29,31 @@ class _DB:
         self.results = list(results or [])
         self.project = project
         self.statements = []
+        self.added = []
+        self._next_id = 100
 
     async def get(self, model, entity_id):
         if getattr(model, "__name__", "") == "Project" and self.project and entity_id == self.project.id:
             return self.project
+        if getattr(model, "__name__", "") == "HermesSession":
+            return next((item for item in self.added if getattr(item, "id", None) == entity_id), None)
         return None
 
     async def execute(self, statement):
         self.statements.append(statement)
         return self.results.pop(0) if self.results else _Result()
+
+    def add(self, item):
+        if getattr(item, "id", None) is None:
+            item.id = self._next_id
+            self._next_id += 1
+        self.added.append(item)
+
+    async def flush(self):
+        return None
+
+    async def commit(self):
+        return None
 
 
 def _user():
@@ -218,6 +234,10 @@ def test_query_hermes_returns_project_sources_and_citations(monkeypatch):
 
     assert access == [(1, ProjectRole.viewer)]
     assert result.mode == "project_retrieval"
+    assert result.session_id == 100
+    assert result.message_index == 1
+    assert db.added[0].messages[0]["role"] == "user"
+    assert db.added[0].messages[1]["tool"] == "project_evidence_search"
     assert result.sources
     assert {item.source_type for item in result.sources} == {"knowledge", "requirement", "case"}
     assert "SOP-LOGIN" in result.answer
@@ -410,5 +430,27 @@ def test_query_hermes_rejects_missing_project(monkeypatch):
 
     with pytest.raises(HTTPException) as exc:
         asyncio.run(hermes.query_hermes(HermesQueryIn(project_id=99, query="登录"), _DB(), _user()))
-
     assert exc.value.status_code == 404
+
+
+def test_hermes_feedback_is_project_and_message_scoped(monkeypatch):
+    async def allow_access(*_args):
+        return None
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    project = SimpleNamespace(id=1, name="核心项目")
+    db = _matching_db(project)
+    result = asyncio.run(hermes.query_hermes(HermesQueryIn(project_id=1, query="登录"), db, _user()))
+
+    feedback = asyncio.run(
+        hermes.submit_hermes_feedback(
+            result.session_id,
+            hermes.HermesFeedbackIn(project_id=1, message_index=result.message_index, rating="helpful"),
+            db,
+            _user(),
+        )
+    )
+
+    assert feedback["rating"] == "helpful"
+    assert db.added[0].messages[result.message_index]["feedback"] == "helpful"
+    assert db.added[0].metrics["helpful"] == 1

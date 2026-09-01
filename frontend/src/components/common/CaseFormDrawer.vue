@@ -471,7 +471,10 @@
         <a-divider orientation="left">{{ t('case_form.sections.graphql_config') }}</a-divider>
 
         <a-form-item :label="t('case_form.graphql.endpoint_label')" :rules="[{ required: true, message: t('case_form.graphql.endpoint_required') }]">
-          <a-input v-model:value="gqlCfg.endpoint" placeholder="https://api.example.com/graphql" />
+          <a-input-group compact>
+            <a-input v-model:value="gqlCfg.endpoint" placeholder="https://api.example.com/graphql" style="width: calc(100% - 132px)" />
+            <a-button :loading="gqlIntrospectionLoading" @click="loadGraphqlSchema">{{ t('case_form.graphql.introspect') }}</a-button>
+          </a-input-group>
         </a-form-item>
 
         <a-row :gutter="16">
@@ -480,6 +483,7 @@
               <a-select v-model:value="gqlCfg.operation_type">
                 <a-select-option value="query">{{ t('case_form.graphql.operation_types.query') }}</a-select-option>
                 <a-select-option value="mutation">{{ t('case_form.graphql.operation_types.mutation') }}</a-select-option>
+                <a-select-option value="subscription">{{ t('case_form.graphql.operation_types.subscription') }}</a-select-option>
               </a-select>
             </a-form-item>
           </a-col>
@@ -489,6 +493,15 @@
             </a-form-item>
           </a-col>
         </a-row>
+
+        <a-form-item v-if="gqlSchemaFieldOptions.length" :label="t('case_form.graphql.schema_field_label')">
+          <a-select
+            show-search
+            :options="gqlSchemaFieldOptions"
+            :placeholder="t('case_form.graphql.schema_field_placeholder')"
+            @select="applyGraphqlField"
+          />
+        </a-form-item>
 
         <a-form-item :label="t('case_form.graphql.query_label')" :rules="[{ required: true, message: t('case_form.graphql.query_required') }]">
           <a-textarea
@@ -507,6 +520,20 @@
             style="font-family: monospace; font-size: 13px"
           />
         </a-form-item>
+
+        <template v-if="gqlCfg.operation_type === 'subscription'">
+          <a-form-item :label="t('case_form.graphql.subscription_url_label')">
+            <a-input v-model:value="gqlCfg.subscription_url" placeholder="wss://api.example.com/graphql" />
+          </a-form-item>
+          <a-form-item :label="t('case_form.graphql.connection_payload_label')">
+            <a-textarea v-model:value="gqlCfg.connection_payload_text" :rows="3" placeholder='{"authToken":"{{token}}"}' />
+          </a-form-item>
+          <a-row :gutter="16">
+            <a-col :span="8"><a-form-item :label="t('case_form.graphql.max_messages_label')"><a-input-number v-model:value="gqlCfg.max_messages" :min="1" :max="100" /></a-form-item></a-col>
+            <a-col :span="8"><a-form-item :label="t('case_form.websocket.reconnect_attempts_label')"><a-input-number v-model:value="gqlCfg.reconnect_attempts" :min="0" :max="5" /></a-form-item></a-col>
+            <a-col :span="8"><a-form-item :label="t('case_form.websocket.reconnect_delay_label')"><a-input-number v-model:value="gqlCfg.reconnect_delay_ms" :min="0" :max="30000" /></a-form-item></a-col>
+          </a-row>
+        </template>
 
         <a-tabs v-model:activeKey="gqlActiveTab" size="small">
           <a-tab-pane key="headers" :tab="t('case_form.tabs.headers')">
@@ -668,6 +695,10 @@
         <a-form-item :label="t('case_form.websocket.timeout_label')" style="margin-top: 16px">
           <a-input-number v-model:value="wsCfg.timeout" :min="1" :max="300" style="width: 120px" />
         </a-form-item>
+        <a-row :gutter="16">
+          <a-col :span="12"><a-form-item :label="t('case_form.websocket.reconnect_attempts_label')"><a-input-number v-model:value="wsCfg.reconnect_attempts" :min="0" :max="5" /></a-form-item></a-col>
+          <a-col :span="12"><a-form-item :label="t('case_form.websocket.reconnect_delay_label')"><a-input-number v-model:value="wsCfg.reconnect_delay_ms" :min="0" :max="30000" /></a-form-item></a-col>
+        </a-row>
 
         <a-divider orientation="left">{{ t('case_form.sections.message_sequence') }}</a-divider>
         <div v-for="(m, mi) in wsCfg.messages" :key="mi" class="ws-message-block">
@@ -954,7 +985,7 @@ import { computed, ref, reactive, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons-vue'
-import { apiSchemaAssetApi, caseApi, datasetApi, type ApiSchemaAssetItem } from '@/api'
+import { apiSchemaAssetApi, caseApi, datasetApi, type ApiSchemaAssetItem, type GraphqlIntrospectionField } from '@/api'
 import type { CaseDetailItem, CaseLevel, CasePriority, CaseSavePayload, CaseSummaryItem, CaseType } from '@/api'
 import {
   getFirstStep,
@@ -1039,7 +1070,7 @@ type CaseConfigStep = Record<string, unknown> & {
   pre_actions?: HookAction[]
   post_actions?: HookAction[]
   endpoint?: string
-  operation_type?: 'query' | 'mutation'
+  operation_type?: 'query' | 'mutation' | 'subscription'
   query?: string
   variables?: unknown
   operation_name?: string
@@ -1072,6 +1103,8 @@ const isEdit = ref(false)
 const saving = ref(false)
 const activeTab = ref('headers')
 const gqlActiveTab = ref('headers')
+const gqlIntrospectionLoading = ref(false)
+const gqlSchemaFields = ref<GraphqlIntrospectionField[]>([])
 const wsActiveTab = ref('headers')
 const formRef = ref()
 
@@ -1159,7 +1192,12 @@ const formBody = ref<Record<string, string>>({})
 
 const gqlCfg = reactive({
   endpoint: '',
-  operation_type: 'query' as 'query' | 'mutation',
+  operation_type: 'query' as 'query' | 'mutation' | 'subscription',
+  subscription_url: '',
+  connection_payload_text: '',
+  max_messages: 1,
+  reconnect_attempts: 0,
+  reconnect_delay_ms: 500,
   query: '',
   variables_text: '',
   operation_name: '',
@@ -1201,8 +1239,14 @@ const wsCfg = reactive({
     token_endpoint_auth_method: 'client_secret_basic',
   },
   timeout: 30,
+  reconnect_attempts: 0,
+  reconnect_delay_ms: 500,
   messages: [] as WsMessage[],
 })
+
+const gqlSchemaFieldOptions = computed(() => gqlSchemaFields.value
+  .filter((item) => item.operation_type === gqlCfg.operation_type)
+  .map((item) => ({ label: `${item.name}${item.arguments.length ? `(${item.arguments.join(', ')})` : ''}`, value: item.name })))
 
 const grpcCfg = reactive({
   target: '',
@@ -1245,6 +1289,36 @@ async function loadDatasetOptions() {
   } catch {
     datasetOptions.value = []
   }
+}
+
+async function loadGraphqlSchema() {
+  if (!props.projectId || !gqlCfg.endpoint.trim()) {
+    message.warning(t('case_form.graphql.introspect_endpoint_required'))
+    return
+  }
+  gqlIntrospectionLoading.value = true
+  try {
+    const result = await apiSchemaAssetApi.introspectGraphql(props.projectId, {
+      endpoint: gqlCfg.endpoint.trim(),
+      headers: gqlCfg.headers,
+      timeout: gqlCfg.timeout,
+    })
+    gqlSchemaFields.value = result.fields
+    message.success(t('case_form.graphql.introspect_success', { count: result.fields.length }))
+  } catch (error: any) {
+    message.error(error?.response?.data?.detail || t('case_form.graphql.introspect_failed'))
+  } finally {
+    gqlIntrospectionLoading.value = false
+  }
+}
+
+function applyGraphqlField(selected: unknown) {
+  const fieldName = String(selected)
+  const field = gqlSchemaFields.value.find((item) => item.operation_type === gqlCfg.operation_type && item.name === fieldName)
+  if (!field) return
+  const operationName = gqlCfg.operation_name.trim() ? ` ${gqlCfg.operation_name.trim()}` : ''
+  const argumentHint = field.arguments.length ? `(${field.arguments.map((name) => `${name}: $${name}`).join(', ')})` : ''
+  gqlCfg.query = `${gqlCfg.operation_type}${operationName} {\n  ${field.name}${argumentHint}\n}`
 }
 
 async function loadDatasetVersions(datasetId: number | null) {
@@ -1350,6 +1424,11 @@ watch(() => props.open, (v) => {
       Object.assign(gqlCfg, {
         endpoint: step.endpoint ?? '',
         operation_type: step.operation_type ?? 'query',
+        subscription_url: step.subscription_url ?? '',
+        connection_payload_text: step.connection_payload ? JSON.stringify(step.connection_payload, null, 2) : '',
+        max_messages: step.max_messages ?? 1,
+        reconnect_attempts: step.reconnect_attempts ?? 0,
+        reconnect_delay_ms: step.reconnect_delay_ms ?? 500,
         query: step.query ?? '',
         variables_text: vars ? JSON.stringify(vars, null, 2) : '',
         operation_name: step.operation_name ?? '',
@@ -1367,6 +1446,8 @@ watch(() => props.open, (v) => {
         headers: step.headers ?? {},
         auth: { type: 'none', token: '', username: '', password: '', header: '', value: '', token_url: '', client_id: '', client_secret: '', scope: '', audience: '', token_endpoint_auth_method: 'client_secret_basic', ...step.auth },
         timeout: step.timeout ?? 30,
+        reconnect_attempts: step.reconnect_attempts ?? 0,
+        reconnect_delay_ms: step.reconnect_delay_ms ?? 500,
         messages: (step.messages ?? []).map((m) => ({
           action: m.action ?? 'send',
           data: m.data ?? '',
@@ -1442,6 +1523,7 @@ watch(() => props.open, (v) => {
     apiScenarioSteps.value = []
     Object.assign(gqlCfg, {
       endpoint: '', operation_type: 'query', query: '', variables_text: '',
+      subscription_url: '', connection_payload_text: '', max_messages: 1, reconnect_attempts: 0, reconnect_delay_ms: 500,
       operation_name: '', headers: {},
       auth: { type: 'none', token: '', username: '', password: '', header: '', value: '', token_url: '', client_id: '', client_secret: '', scope: '', audience: '', token_endpoint_auth_method: 'client_secret_basic' },
       timeout: 30, assertions: [], extractions: [],
@@ -1449,7 +1531,7 @@ watch(() => props.open, (v) => {
     Object.assign(wsCfg, {
       url: '', headers: {},
       auth: { type: 'none', token: '', username: '', password: '', header: '', value: '', token_url: '', client_id: '', client_secret: '', scope: '', audience: '', token_endpoint_auth_method: 'client_secret_basic' },
-      timeout: 30, messages: [],
+      timeout: 30, reconnect_attempts: 0, reconnect_delay_ms: 500, messages: [],
     })
     Object.assign(grpcCfg, {
       target: '', use_tls: false, tls_server_name: '', tls_root_certificates: '', proto_content: '', proto_files: {}, service: '', method: '',
@@ -1647,6 +1729,8 @@ function buildWebsocketConfig() {
       headers: wsCfg.headers,
       auth: wsCfg.auth,
       timeout: wsCfg.timeout,
+      reconnect_attempts: wsCfg.reconnect_attempts,
+      reconnect_delay_ms: wsCfg.reconnect_delay_ms,
       messages: wsCfg.messages.map(normalizeWsMessage),
     }],
   }
@@ -1700,11 +1784,17 @@ function buildIosConfig() {
 
 function buildGraphqlConfig() {
   const variables = parseGraphqlVariables(gqlCfg.variables_text)
+  const connectionPayload = parseGraphqlVariables(gqlCfg.connection_payload_text)
   return {
     steps: [{
       name: form.name,
       endpoint: gqlCfg.endpoint,
       operation_type: gqlCfg.operation_type,
+      subscription_url: gqlCfg.operation_type === 'subscription' ? gqlCfg.subscription_url.trim() || undefined : undefined,
+      connection_payload: gqlCfg.operation_type === 'subscription' ? connectionPayload : undefined,
+      max_messages: gqlCfg.operation_type === 'subscription' ? gqlCfg.max_messages : undefined,
+      reconnect_attempts: gqlCfg.operation_type === 'subscription' ? gqlCfg.reconnect_attempts : undefined,
+      reconnect_delay_ms: gqlCfg.operation_type === 'subscription' ? gqlCfg.reconnect_delay_ms : undefined,
       query: gqlCfg.query,
       variables,
       operation_name: gqlCfg.operation_name || null,

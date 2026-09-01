@@ -88,6 +88,39 @@ def minio(monkeypatch):
 
 def test_object_name_is_namespaced_per_case():
     assert scripts_module._script_object_name(42) == "scripts/cases/42/script.py"
+    assert scripts_module._requirements_object_name(42) == "scripts/cases/42/requirements.txt"
+
+
+def test_save_requirements_requires_exact_pins_and_records_path(minio):
+    case = _case(config={"script_path": "scripts/cases/5/script.py"})
+    db = _FakeDB(case)
+
+    result = _run(
+        scripts_module.save_script_requirements(
+            5,
+            scripts_module.ScriptRequirementsIn(content="requests==2.32.3\n# keep locked\n"),
+            db,
+            None,
+        )
+    )
+
+    assert result["content"] == "requests==2.32.3\n"
+    assert case.config["requirements_path"] == "scripts/cases/5/requirements.txt"
+    assert minio["uploaded"][-1][2] == "text/plain"
+
+
+def test_save_requirements_rejects_unlocked_or_remote_dependencies(minio):
+    for content in ("requests>=2\n", "https://example.test/pkg.whl\n", "-i https://index.test/simple\n"):
+        with pytest.raises(HTTPException) as excinfo:
+            _run(
+                scripts_module.save_script_requirements(
+                    5,
+                    scripts_module.ScriptRequirementsIn(content=content),
+                    _FakeDB(_case()),
+                    None,
+                )
+            )
+        assert excinfo.value.status_code == 422
 
 
 def test_upload_stores_the_object_and_records_the_path_in_the_case_config(minio):

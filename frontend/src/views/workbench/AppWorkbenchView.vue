@@ -28,6 +28,7 @@
         <div class="hero-control-row">
           <a-button :loading="loading" @click="refreshAll"><ReloadOutlined /> {{ t('common.refresh') }}</a-button>
           <a-button type="link" @click="openDevices"><ToolOutlined /> {{ t('app_workbench.device_management') }}</a-button>
+          <a-button type="link" @click="openIosAssets">{{ t('app_workbench.ios_preview') }}</a-button>
         </div>
       </div>
     </section>
@@ -808,6 +809,7 @@ function openActivity(activity: ActivityItem) {
 
 function openDevices() { void router.push('/devices') }
 function openApks() { void router.push('/apks') }
+function openIosAssets() { void router.push('/ios-assets') }
 function openSpecialTasks() { void router.push('/mobile-special/tasks') }
 function openSpecialReports() { void router.push('/mobile-special/reports') }
 function openAndroidCases() {

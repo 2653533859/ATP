@@ -27,6 +27,7 @@ from app.core.minio_client import download_file, upload_file, presigned_url
 from app.core.redis_client import publish_run_event
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.services.ai_healing import apply_healing_hook, enqueue_diagnosis, maybe_enqueue_run_healing
+from app.services.script_dependencies import extend_pythonpath, prepare_script_dependencies
 
 logger = logging.getLogger(__name__)
 
@@ -72,6 +73,7 @@ async def run_web_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
         # ── 1. 下载脚本 ──────────────────────────────────────────
         local_script = tmpdir / "test_case.py"
         await asyncio.get_event_loop().run_in_executor(None, download_file, script_path, str(local_script))
+        dependencies_dir = await prepare_script_dependencies(cfg.get("requirements_path"), tmpdir)
 
         # ── 2. 生成 conftest.py（注入环境变量 + playwright 配置）──
         env_lines = "\n".join(f"    os.environ[{k!r}] = {v!r}" for k, v in extra_vars.items())
@@ -118,7 +120,7 @@ def browser_context_args(browser_context_args):
             "--tb=short",
         ]
 
-        env = {**os.environ, "PYTHONPATH": str(tmpdir)}
+        env = extend_pythonpath(dict(os.environ), dependencies_dir, tmpdir)
         try:
             proc = await asyncio.get_event_loop().run_in_executor(
                 None,

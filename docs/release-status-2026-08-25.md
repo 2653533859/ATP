@@ -148,6 +148,10 @@
 
 状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.4.0 总表和 2.4.22 为准：P0/P1/P2/P3 为 `[E]`，P4 为 `[-]`，P5/P6/P7/P8 为 `[x]`，P9 为 `[~]`。N2 Karing 单设备闭环已通过；当前唯一未关闭的核心能力门禁是 P4 真实性能环境，发布收口等待 P4 后绑定最终 SHA。下方原“当前执行计划与新增阻塞”内容保留为历史快照。
 
+## 本次发布范围决策（2026-09-01）
+
+本次正式支持范围不包含 iOS/Appium、SMTP、企业微信、钉钉、Jira、禅道、GitHub Issues 或 GitLab Issues。相关代码、配置页和本地测试继续保留为技术预览；范围排除不等于真实环境验收通过，也不允许在发布说明中宣称供应商送达或平台兼容性通过。上述能力不再作为本次发布阻塞项，未来重新纳入必须重开真实环境门禁。完整矩阵见 [`release-scope-2026-09-01.md`](release-scope-2026-09-01.md)。
+
 ## 历史执行快照：2026-08-25 当前执行计划与新增阻塞（已由 2.4.22 更新）
 
 当前执行顺序为：保持 N4 真实性能环境阻塞边界，先复核 N6/N7 普通 viewer 角色矩阵，再复核 N5 真实模型和 N8 目标部署治理，最后进入 N9 发布收口；N2 Karing 单设备专项任务/事件/报告闭环、Windows API/Web 和 N1 受控 API/报告闭环已复核完成。
@@ -428,8 +432,8 @@ Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复
 | Web Worker/录制 | q19 持久 Worker、Chromium/Firefox/WebKit 录制和跨 API 停止快照已验证 | [`q19-web-recorder-readiness-2026-08-24.json`](evidence/q19-web-recorder-readiness-2026-08-24.json)、[`q19-web-recording-cross-api-2026-08-24.json`](evidence/q19-web-recording-cross-api-2026-08-24.json) | Linux/Xvfb、跨副本和目标部署拓扑仍需独立复验 |
 | Android | Karing 包名、配置配对、Worker registry、扫描、租约、低代码、录屏、稳定性/Monkey、性能/流畅度和事件/报告回传已验证 | [`android-karing-acceptance-2026-08-25.json`](evidence/android-karing-acceptance-2026-08-25.json)、[`android-karing-special-task-2026-08-25.json`](evidence/android-karing-special-task-2026-08-25.json)、[`android-karing-performance-fluency-2026-08-25.json`](evidence/android-karing-performance-fluency-2026-08-25.json) | 多设备矩阵、真实兼容性覆盖和 N4 生产性能环境仍待验收 |
 | 性能 | P1-E.1～P1-E.4 本地闭环完成，q19 已按最新提交重建 | [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)、[`performance-shard-capacity-2026-08-25.json`](evidence/performance-shard-capacity-2026-08-25.json)、[`q19-performance-shard-deployment-2026-08-25.json`](evidence/q19-performance-shard-deployment-2026-08-25.json) | 真实 Kubernetes 多节点、生产 Prometheus、MinIO 生命周期和跨主机恢复 |
-| 通知 | 本地 SMTP 链路已验证 | [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json) | 真实供应商送达、重试、限流和重复投递 |
-| 外部缺陷平台 | 本地适配器和脱敏逻辑已实现 | [`docs/capability-baseline-2026-08-07.md`](capability-baseline-2026-08-07.md) | 临时项目、权限、创建/去重/状态同步和清理 |
+| 通知 | `[OUT]` SMTP、企业微信、钉钉不纳入本次正式支持；本地链路仅作为技术预览保留 | [`notification-smtp-link-check-2026-08-24.json`](evidence/notification-smtp-link-check-2026-08-24.json)、[`release-scope-2026-09-01.md`](release-scope-2026-09-01.md) | 未取得真实供应商送达证据；不阻塞本次发布，也不宣称通过 |
+| 外部缺陷平台 | `[OUT]` Jira、禅道、GitHub/GitLab Issues 不纳入本次正式支持；适配器作为技术预览保留 | [`capability-baseline-2026-08-07.md`](capability-baseline-2026-08-07.md)、[`release-scope-2026-09-01.md`](release-scope-2026-09-01.md) | 未执行真实平台闭环；不阻塞本次发布，也不宣称兼容性通过 |
 
 ## 当前本地质量证据
 
@@ -443,9 +447,8 @@ Android 闭环完成后，按 P0-A → P1-C → P1-D → P1-E → P1-F 继续复
 1. 在 Windows 上使用当前有效账号重跑完整 API/Web smoke，并记录同一提交 SHA。
 2. 已完成 Windows Agent 与 q19 Backend 的 Redis 实例、DB 和注册前缀配对，并确认 `/devices/workers` 在线；下一步在同一设备执行性能/流畅度专项，任何 `offline`、`unauthorized`、无 Worker 或无设备结果都保持阻塞。
 3. 在目标 Linux/Kubernetes 环境执行 `scripts/performance-environment-smoke.py`，补齐真实节点、目标服务、Prometheus、取消和资源采样证据。
-4. 注入不落库的临时通知供应商凭据，按渠道取得供应商侧送达回执后清理目标和凭据。
-5. 使用临时外部缺陷项目验证创建、重复识别、状态同步、权限、错误脱敏和清理。
-6. 汇总新的带日期证据后，再更新本文件、能力矩阵、Q18 状态和发布说明；在此之前保持“部分实现/待环境验收”。
+4. 核对发布说明和能力矩阵继续把 iOS、通知渠道和外部缺陷平台标为 `[OUT]` 技术预览，不把本地证据描述为真实环境通过。
+5. 汇总新的带日期证据后，再更新本文件、能力矩阵、Q18 状态和发布说明；在此之前保持“部分实现/待环境验收”。
 
 ## 禁止事项
 

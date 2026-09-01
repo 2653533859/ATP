@@ -73,16 +73,25 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
                 if header_name:
                     headers[header_name] = header_value
 
-            request_data = {"url": url, "headers": headers, "messages": []}
+            reconnect_attempts = max(0, min(int(step.get("reconnect_attempts", 0)), 5))
+            reconnect_delay_ms = max(0, min(int(step.get("reconnect_delay_ms", 500)), 30_000))
+            request_data = {
+                "url": url,
+                "headers": headers,
+                "messages": [],
+                "reconnect": {"attempts": reconnect_attempts, "delay_ms": reconnect_delay_ms},
+            }
             message_log: list[dict] = []
 
             # 建立 WebSocket 连接
-            async with websockets.connect(
+            connection = _ReconnectableConnect(
                 url,
-                additional_headers=headers if headers else None,
-                open_timeout=connect_timeout,
-                close_timeout=5,
-            ) as ws:
+                headers=headers,
+                timeout=float(connect_timeout),
+                reconnect_attempts=reconnect_attempts,
+                reconnect_delay_ms=reconnect_delay_ms,
+            )
+            async with connection as ws:
                 # 遍历消息序列
                 for msg_idx, msg_cfg in enumerate(messages_cfg):
                     action = msg_cfg.get("action", "send")
@@ -182,6 +191,7 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
             response_data["messages"] = message_log
             response_data["assertions"] = assertion_records
             response_data["extractions"] = extraction_records
+            response_data["connection_attempts"] = connection.connection_attempts
             request_data["messages"] = [m for m in message_log if m.get("action") == "send"]
 
         except Exception as e:
@@ -229,6 +239,43 @@ async def run_websocket_case(db: AsyncSession, run: TestRun, case: TestCase, ext
             "duration_ms": total_ms,
         },
     )
+
+
+class _ReconnectableConnect:
+    """仅对建连阶段执行有界重试，避免消息已发送后隐式重放。"""
+
+    def __init__(self, url: str, *, headers: dict, timeout: float, reconnect_attempts: int, reconnect_delay_ms: int):
+        self.url = url
+        self.headers = headers
+        self.timeout = timeout
+        self.reconnect_attempts = reconnect_attempts
+        self.reconnect_delay = reconnect_delay_ms / 1000
+        self.connection_attempts = 0
+        self._manager = None
+
+    async def __aenter__(self):
+        for attempt in range(self.reconnect_attempts + 1):
+            self.connection_attempts = attempt + 1
+            try:
+                self._manager = websockets.connect(
+                    self.url,
+                    additional_headers=self.headers or None,
+                    open_timeout=self.timeout,
+                    close_timeout=5,
+                )
+                return await self._manager.__aenter__()
+            except Exception:
+                self._manager = None
+                if attempt >= self.reconnect_attempts:
+                    raise
+                if self.reconnect_delay:
+                    await asyncio.sleep(self.reconnect_delay)
+        raise RuntimeError("WebSocket 连接失败")
+
+    async def __aexit__(self, exc_type, exc, traceback):
+        if self._manager is not None:
+            return await self._manager.__aexit__(exc_type, exc, traceback)
+        return False
 
 
 def _render(template: str, context: dict) -> str:

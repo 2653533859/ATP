@@ -190,6 +190,16 @@
             />
           </a-spin>
 
+          <a-collapse style="margin-top: 12px">
+            <a-collapse-panel key="requirements" :header="t('case.drawer.script_requirements')">
+              <a-alert :message="t('case.drawer.script_requirements_hint')" type="info" show-icon style="margin-bottom: 8px" />
+              <a-textarea v-model:value="requirementsContent" :rows="5" placeholder="requests==2.32.3" />
+              <a-button :loading="savingRequirements" style="margin-top: 8px" @click="handleSaveRequirements">
+                {{ t('case.drawer.save_requirements') }}
+              </a-button>
+            </a-collapse-panel>
+          </a-collapse>
+
           <div style="margin-top: 8px; display: flex; justify-content: flex-end">
             <a-button
               :loading="savingScript"
@@ -335,6 +345,8 @@ const scriptPath = ref<string | null>(null)
 const uploading = ref(false)
 const savingScript = ref(false)
 const loadingScript = ref(false)
+const requirementsContent = ref('')
+const savingRequirements = ref(false)
 const initSeq = ref(0)
 
 function hasOwn(obj: object | null | undefined, key: string) {
@@ -504,10 +516,26 @@ async function loadScript() {
   try {
     const res = await scriptApi.get(localCaseId.value)
     scriptContent.value = res.exists ? res.content : ''
+    const requirements = await scriptApi.getRequirements(localCaseId.value)
+    requirementsContent.value = requirements.exists ? requirements.content : ''
   } catch {
     scriptContent.value = ''
   } finally {
     loadingScript.value = false
+  }
+}
+
+async function handleSaveRequirements() {
+  if (!localCaseId.value) return
+  savingRequirements.value = true
+  try {
+    const result = await scriptApi.saveRequirements(localCaseId.value, requirementsContent.value)
+    requirementsContent.value = result.content
+    message.success(t('case.drawer.msg.requirements_saved'))
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('case.drawer.msg.save_failed')))
+  } finally {
+    savingRequirements.value = false
   }
 }
 

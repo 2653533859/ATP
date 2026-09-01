@@ -6,9 +6,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
 from app.core.config import settings
-from app.models.device import Device, DeviceStatus
+from app.models.device import Device, DeviceGroup, DeviceStatus
 from app.models.user import User
-from app.schemas.device import AndroidWorkerOut, DeviceOut, DeviceScanOut, DeviceUpdate
+from app.schemas.device import AndroidWorkerOut, DeviceGroupOut, DeviceGroupSave, DeviceOut, DeviceScanOut, DeviceUpdate
 from app.schemas.device_lease import DeviceLeaseAcquireIn, DeviceLeaseOut, DeviceLeaseTokenIn
 from app.api.deps import get_current_user, require_engineer
 from app.services.adb_service import async_scan_devices
@@ -26,6 +26,74 @@ router = APIRouter(tags=["设备管理"])
 
 def _lease_error(exc: DeviceLeaseConflict) -> HTTPException:
     return HTTPException(status_code=status.HTTP_409_CONFLICT, detail=str(exc))
+
+
+async def _resolve_group_devices(db: AsyncSession, device_ids: list[int]) -> list[Device]:
+    unique_ids = list(dict.fromkeys(device_ids))
+    if not unique_ids:
+        return []
+    result = await db.execute(select(Device).where(Device.id.in_(unique_ids)))
+    devices = list(result.scalars().all())
+    if len(devices) != len(unique_ids):
+        raise HTTPException(status_code=422, detail="设备组包含不存在的设备")
+    return devices
+
+
+@router.get("/device-groups", response_model=list[DeviceGroupOut])
+async def list_device_groups(db: AsyncSession = Depends(get_db), _=Depends(get_current_user)):
+    result = await db.execute(select(DeviceGroup).order_by(DeviceGroup.name.asc()))
+    return result.scalars().unique().all()
+
+
+@router.post("/device-groups", response_model=DeviceGroupOut, status_code=status.HTTP_201_CREATED)
+async def create_device_group(
+    body: DeviceGroupSave,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_engineer),
+):
+    if await db.scalar(select(DeviceGroup.id).where(DeviceGroup.name == body.name.strip())):
+        raise HTTPException(status_code=409, detail="设备组名称已存在")
+    group = DeviceGroup(
+        name=body.name.strip(),
+        description=body.description,
+        devices=await _resolve_group_devices(db, body.device_ids),
+    )
+    db.add(group)
+    await db.commit()
+    await db.refresh(group)
+    return group
+
+
+@router.put("/device-groups/{group_id}", response_model=DeviceGroupOut)
+async def update_device_group(
+    group_id: int,
+    body: DeviceGroupSave,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_engineer),
+):
+    group = await db.get(DeviceGroup, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="设备组不存在")
+    duplicate = await db.scalar(
+        select(DeviceGroup.id).where(DeviceGroup.name == body.name.strip(), DeviceGroup.id != group_id)
+    )
+    if duplicate:
+        raise HTTPException(status_code=409, detail="设备组名称已存在")
+    group.name = body.name.strip()
+    group.description = body.description
+    group.devices = await _resolve_group_devices(db, body.device_ids)
+    await db.commit()
+    await db.refresh(group)
+    return group
+
+
+@router.delete("/device-groups/{group_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_device_group(group_id: int, db: AsyncSession = Depends(get_db), _=Depends(require_engineer)):
+    group = await db.get(DeviceGroup, group_id)
+    if not group:
+        raise HTTPException(status_code=404, detail="设备组不存在")
+    await db.delete(group)
+    await db.commit()
 
 
 @router.get("/devices", response_model=list[DeviceOut])

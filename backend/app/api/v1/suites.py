@@ -43,6 +43,24 @@ from app.services.project_scope import scope_to_visible_projects
 router = APIRouter(tags=["测试套件"])
 
 
+def _validate_suite_fixtures(config: object) -> None:
+    if not isinstance(config, dict):
+        return
+    shared_variables = config.get("shared_variables", {})
+    if not isinstance(shared_variables, dict) or len(shared_variables) > 100:
+        raise HTTPException(status_code=422, detail="套件共享变量必须是最多 100 项的对象")
+    fixtures = config.get("fixtures", {})
+    if not isinstance(fixtures, dict):
+        raise HTTPException(status_code=422, detail="Suite Fixtures 必须是对象")
+    allowed_actions = {"set_variable", "delete_variable", "assert"}
+    for phase in ("setup", "teardown"):
+        actions = fixtures.get(phase, [])
+        if not isinstance(actions, list) or len(actions) > 50:
+            raise HTTPException(status_code=422, detail=f"Suite Fixture {phase} 必须是最多 50 项的数组")
+        if any(not isinstance(action, dict) or action.get("action") not in allowed_actions for action in actions):
+            raise HTTPException(status_code=422, detail=f"Suite Fixture {phase} 包含不受支持的动作")
+
+
 def _normalize_case_items(case_items: list[object]) -> list[dict]:
     return [item if isinstance(item, dict) else item.model_dump() for item in case_items]
 
@@ -120,6 +138,7 @@ async def create_suite(
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
     case_ids = await _validate_suite_case_ids(db, body.project_id, body.case_ids)
+    _validate_suite_fixtures(body.config)
     await _validate_parallel_api_session_reuse(db, case_ids, body.config)
 
     suite = TestSuite(
@@ -180,6 +199,7 @@ async def update_suite(
     update_data = body.model_dump(exclude_none=True)
     if "case_ids" in update_data:
         update_data["case_ids"] = await _validate_suite_case_ids(db, suite.project_id, update_data["case_ids"])
+    _validate_suite_fixtures(update_data.get("config", suite.config))
     await _validate_parallel_api_session_reuse(
         db,
         update_data.get("case_ids", suite.case_ids or []),

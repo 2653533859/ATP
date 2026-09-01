@@ -148,6 +148,18 @@
           </a-row>
           <div class="suite-config-tip">{{ suiteConfigTip }}</div>
         </a-form-item>
+        <a-collapse style="margin-bottom: 16px">
+          <a-collapse-panel key="fixtures" :header="t('suite.form.fixtures_label')">
+            <a-alert :message="t('suite.form.fixtures_hint')" type="info" show-icon style="margin-bottom: 12px" />
+            <a-form-item :label="t('suite.form.shared_variables_label')">
+              <a-textarea v-model:value="form.sharedVariablesText" :rows="4" placeholder='{"tenant":"staging"}' />
+            </a-form-item>
+            <a-row :gutter="16">
+              <a-col :span="12"><a-form-item :label="t('suite.form.fixture_setup_label')"><a-textarea v-model:value="form.fixtureSetupText" :rows="6" placeholder='[{"action":"set_variable","variable":"token","value":"demo"}]' /></a-form-item></a-col>
+              <a-col :span="12"><a-form-item :label="t('suite.form.fixture_teardown_label')"><a-textarea v-model:value="form.fixtureTeardownText" :rows="6" placeholder='[{"action":"delete_variable","variable":"token"}]' /></a-form-item></a-col>
+            </a-row>
+          </a-collapse-panel>
+        </a-collapse>
         <a-form-item :label="t('suite.form.case_list_label')">
           <a-row :gutter="16">
             <a-col :span="16">
@@ -537,6 +549,9 @@ interface SuiteFormState {
   name: string
   description: string
   config: Required<Pick<SuiteConfig, 'execution_mode' | 'max_workers' | 'fail_strategy' | 'min_pass_rate'>>
+  sharedVariablesText: string
+  fixtureSetupText: string
+  fixtureTeardownText: string
 }
 
 
@@ -564,6 +579,9 @@ function createDefaultForm(): SuiteFormState {
     name: '',
     description: '',
     config: createDefaultSuiteConfig(),
+    sharedVariablesText: '{}',
+    fixtureSetupText: '[]',
+    fixtureTeardownText: '[]',
   }
 }
 
@@ -1004,6 +1022,9 @@ async function openEdit(record: SuiteItem) {
     name: record.name,
     description: record.description ?? '',
     config: normalizeSuiteConfig(record.config),
+    sharedVariablesText: JSON.stringify(record.config?.shared_variables ?? {}, null, 2),
+    fixtureSetupText: JSON.stringify((record.config?.fixtures as Record<string, unknown> | undefined)?.setup ?? [], null, 2),
+    fixtureTeardownText: JSON.stringify((record.config?.fixtures as Record<string, unknown> | undefined)?.teardown ?? [], null, 2),
   }
   selectedCaseIds.value = (record.case_ids || []).map((c) => c.case_id)
   caseKeyword.value = ''
@@ -1058,7 +1079,16 @@ async function persistSuite() {
   saving.value = true
   try {
     const caseIds = selectedCaseIds.value.map((id, idx) => ({ case_id: id, sort: idx }))
-    const config = normalizeSuiteConfig(form.value.config)
+    const sharedVariables = JSON.parse(form.value.sharedVariablesText || '{}')
+    const fixtureSetup = JSON.parse(form.value.fixtureSetupText || '[]')
+    const fixtureTeardown = JSON.parse(form.value.fixtureTeardownText || '[]')
+    if (!sharedVariables || Array.isArray(sharedVariables) || typeof sharedVariables !== 'object') throw new Error(t('suite.msg.fixtures_invalid'))
+    if (!Array.isArray(fixtureSetup) || !Array.isArray(fixtureTeardown)) throw new Error(t('suite.msg.fixtures_invalid'))
+    const config = {
+      ...normalizeSuiteConfig(form.value.config),
+      shared_variables: sharedVariables,
+      fixtures: { setup: fixtureSetup, teardown: fixtureTeardown },
+    }
     if (editingId.value) {
       await suiteApi.update(editingId.value, {
         name: form.value.name,

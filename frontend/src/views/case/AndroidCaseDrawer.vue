@@ -24,6 +24,13 @@
         <a-switch v-model:checked="deviceMatrixEnabled" />
         <span class="mode-hint">{{ t('case.drawer.android.device_matrix_hint') }}</span>
       </a-form-item>
+      <a-form-item v-if="deviceMatrixEnabled" :label="t('case.drawer.android.device_group')">
+        <a-select v-model:value="cfg.device_group_id" allow-clear :placeholder="t('case.drawer.android.device_group_placeholder')" @change="applyDeviceGroup">
+          <a-select-option v-for="group in deviceGroups" :key="group.id" :value="group.id">
+            {{ group.name }}（{{ group.devices.length }}）
+          </a-select-option>
+        </a-select>
+      </a-form-item>
       <div v-if="deviceMatrixEnabled" class="device-matrix">
         <a-space v-for="(variant, index) in cfg.device_matrix" :key="index" style="display: flex; margin-bottom: 8px">
           <a-select v-model:value="variant.serial" :placeholder="t('case.drawer.android.select_device')" style="min-width: 360px">
@@ -232,6 +239,16 @@
             <MonacoEditor v-model="scriptContent" height="420px" language="python" />
           </a-spin>
 
+          <a-collapse style="margin-top: 12px">
+            <a-collapse-panel key="requirements" :header="t('case.drawer.script_requirements')">
+              <a-alert :message="t('case.drawer.script_requirements_hint')" type="info" show-icon style="margin-bottom: 8px" />
+              <a-textarea v-model:value="requirementsContent" :rows="5" placeholder="requests==2.32.3" />
+              <a-button :loading="savingRequirements" style="margin-top: 8px" @click="handleSaveRequirements">
+                {{ t('case.drawer.save_requirements') }}
+              </a-button>
+            </a-collapse-panel>
+          </a-collapse>
+
           <div class="script-actions">
             <a-button :loading="savingScript" :disabled="!scriptContent.trim()" @click="handleSaveScript">
               {{ t('case.drawer.save_script') }}
@@ -267,7 +284,7 @@ import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { CheckCircleOutlined, CodeOutlined, UploadOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { apkApi, caseApi, deviceApi, type DeviceItem, type DeviceLeaseItem, scriptApi, type CaseStepItem } from '@/api'
+import { apkApi, caseApi, deviceApi, type DeviceGroupItem, type DeviceItem, type DeviceLeaseItem, scriptApi, type CaseStepItem } from '@/api'
 import CaseStepEditor from '@/components/case/CaseStepEditor.vue'
 import { buildAndroidStandardSteps } from '@/utils/androidStandardSteps'
 import AndroidStepEditor from '@/components/common/AndroidStepEditor.vue'
@@ -323,12 +340,14 @@ const cfg = reactive({
   device_serial: undefined as string | undefined,
   apk_id: undefined as number | undefined,
   timeout: 120,
+  device_group_id: undefined as number | undefined,
   device_matrix: [] as Array<{ serial: string }>,
   record_video: false,
 })
 const deviceMatrixEnabled = ref(false)
 
 const devices = ref<DeviceItem[]>([])
+const deviceGroups = ref<DeviceGroupItem[]>([])
 const devicesLoading = ref(false)
 const editorLease = ref<DeviceLeaseItem | null>(null)
 const editorLeaseLoading = ref(false)
@@ -352,6 +371,8 @@ const scriptPath = ref<string | null>(null)
 const uploading = ref(false)
 const savingScript = ref(false)
 const loadingScript = ref(false)
+const requirementsContent = ref('')
+const savingRequirements = ref(false)
 const initSeq = ref(0)
 
 const selectedDeviceId = computed(() =>
@@ -389,6 +410,7 @@ function resetDrawerState() {
   form.postconditions = []
   datasetBinding.value = createCaseDatasetBinding()
   cfg.device_serial = undefined
+  cfg.device_group_id = undefined
   cfg.apk_id = undefined
   cfg.timeout = 120
   cfg.device_matrix = []
@@ -409,9 +431,12 @@ function resetDrawerState() {
 async function loadDevices() {
   devicesLoading.value = true
   try {
-    devices.value = await deviceApi.list()
+    const [deviceItems, groupItems] = await Promise.all([deviceApi.list(), deviceApi.groups()])
+    devices.value = deviceItems
+    deviceGroups.value = groupItems
   } catch {
     devices.value = []
+    deviceGroups.value = []
   } finally {
     devicesLoading.value = false
   }
@@ -445,10 +470,26 @@ async function loadScript() {
   try {
     const response = await scriptApi.get(localCaseId.value)
     scriptContent.value = response.exists ? response.content : ''
+    const requirements = await scriptApi.getRequirements(localCaseId.value)
+    requirementsContent.value = requirements.exists ? requirements.content : ''
   } catch {
     scriptContent.value = ''
   } finally {
     loadingScript.value = false
+  }
+}
+
+async function handleSaveRequirements() {
+  if (!localCaseId.value) return
+  savingRequirements.value = true
+  try {
+    const result = await scriptApi.saveRequirements(localCaseId.value, requirementsContent.value)
+    requirementsContent.value = result.content
+    message.success(t('case.drawer.msg.requirements_saved'))
+  } catch (error: unknown) {
+    message.error(String(error ?? t('case.drawer.msg.save_failed')))
+  } finally {
+    savingRequirements.value = false
   }
 }
 
@@ -572,6 +613,7 @@ watch(
       standardStepsDirty.value = managementSteps.value.length > 0
 
       cfg.device_serial = typeof config.device_serial === 'string' ? config.device_serial : undefined
+      cfg.device_group_id = typeof config.device_group_id === 'number' ? config.device_group_id : undefined
       cfg.apk_id = typeof config.apk_id === 'number' ? config.apk_id : undefined
       cfg.timeout = typeof config.timeout === 'number' ? config.timeout : 120
       cfg.record_video = config.record_video === true
@@ -718,6 +760,7 @@ function buildConfig() {
   }
   if (deviceMatrixEnabled.value && cfg.device_matrix.length) {
     config.device_matrix = cfg.device_matrix.filter((item) => item.serial.trim())
+    if (cfg.device_group_id) config.device_group_id = cfg.device_group_id
   } else if (cfg.device_serial) {
     config.device_serial = cfg.device_serial
   }
@@ -738,6 +781,12 @@ function buildConfig() {
 
 function addDeviceVariant() {
   cfg.device_matrix.push({ serial: cfg.device_serial || devices.value[0]?.serial || '' })
+}
+
+function applyDeviceGroup(groupId: unknown) {
+  const group = deviceGroups.value.find((item) => item.id === Number(groupId))
+  if (!group) return
+  cfg.device_matrix = group.devices.map((device) => ({ serial: device.serial }))
 }
 
 function removeDeviceVariant(index: number) {

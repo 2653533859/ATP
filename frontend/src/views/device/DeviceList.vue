@@ -25,6 +25,16 @@
       <a-col :span="6"><a-card size="small"><a-statistic :title="t('device.summary.offline')" :value="deviceStats.offline" /></a-card></a-col>
     </a-row>
 
+    <a-card size="small" :title="t('device.groups.title')" style="margin-bottom: 16px">
+      <template #extra><a-button size="small" @click="openGroup()">{{ t('device.groups.new') }}</a-button></template>
+      <a-space wrap>
+        <a-tag v-for="group in groups" :key="group.id" closable @close.prevent="deleteGroup(group.id)" @click="openGroup(group)">
+          {{ group.name }} · {{ group.devices.length }}
+        </a-tag>
+        <span v-if="!groups.length" class="muted-text">{{ t('device.groups.empty') }}</span>
+      </a-space>
+    </a-card>
+
     <div class="page-toolbar">
       <div class="page-toolbar-main">
         <a-select
@@ -116,6 +126,18 @@
       </a-form>
     </a-modal>
 
+    <a-modal v-model:open="groupOpen" :title="t('device.groups.edit')" :confirm-loading="groupSaving" @ok="saveGroup">
+      <a-form layout="vertical">
+        <a-form-item :label="t('device.groups.name')" required><a-input v-model:value="groupForm.name" /></a-form-item>
+        <a-form-item :label="t('device.groups.members')">
+          <a-select v-model:value="groupForm.device_ids" mode="multiple" style="width: 100%">
+            <a-select-option v-for="device in devices" :key="device.id" :value="device.id">{{ device.name || device.model || device.serial }}</a-select-option>
+          </a-select>
+        </a-form-item>
+        <a-form-item :label="t('device.fields.description')"><a-textarea v-model:value="groupForm.description" :rows="3" /></a-form-item>
+      </a-form>
+    </a-modal>
+
     <a-modal
       v-model:open="mirrorOpen"
       :title="t('device.mirror_title', { name: `${mirrorDevice?.brand ?? ''} ${mirrorDevice?.model ?? ''}`.trim() })"
@@ -152,13 +174,14 @@ import { message } from 'ant-design-vue'
 import { ReloadOutlined, EyeOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { deviceApi } from '@/api'
-import type { AndroidWorkerItem, DeviceItem, DeviceStatus } from '@/api'
+import type { AndroidWorkerItem, DeviceGroupItem, DeviceItem, DeviceStatus } from '@/api'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asDevice = (record: unknown) => record as DeviceItem
 
 const { t } = useI18n()
 const devices = ref<DeviceItem[]>([])
 const workers = ref<AndroidWorkerItem[]>([])
+const groups = ref<DeviceGroupItem[]>([])
 const loading = ref(false)
 const scanning = ref(false)
 const statusFilter = ref<string | undefined>(undefined)
@@ -168,6 +191,10 @@ const editOpen = ref(false)
 const saving = ref(false)
 const editingId = ref<number | null>(null)
 const editForm = ref({ name: '', description: '' })
+const groupOpen = ref(false)
+const groupSaving = ref(false)
+const editingGroupId = ref<number | null>(null)
+const groupForm = ref({ name: '', description: '', device_ids: [] as number[] })
 
 const mirrorOpen = ref(false)
 const mirrorDevice = ref<DeviceItem | null>(null)
@@ -247,6 +274,29 @@ async function loadWorkers() {
     workers.value = []
   }
 }
+
+async function loadGroups() {
+  try { groups.value = await deviceApi.groups() } catch { groups.value = [] }
+}
+
+function openGroup(group?: DeviceGroupItem) {
+  editingGroupId.value = group?.id ?? null
+  groupForm.value = { name: group?.name ?? '', description: group?.description ?? '', device_ids: group?.devices.map((item) => item.id) ?? [] }
+  groupOpen.value = true
+}
+
+async function saveGroup() {
+  if (!groupForm.value.name.trim()) return message.warning(t('device.groups.name_required'))
+  groupSaving.value = true
+  try {
+    if (editingGroupId.value) await deviceApi.updateGroup(editingGroupId.value, groupForm.value)
+    else await deviceApi.createGroup(groupForm.value)
+    groupOpen.value = false
+    await loadGroups()
+  } finally { groupSaving.value = false }
+}
+
+async function deleteGroup(id: number) { await deviceApi.deleteGroup(id); await loadGroups() }
 
 async function handleScan() {
   scanning.value = true
@@ -377,6 +427,7 @@ function onMirrorError() {
 onMounted(() => {
   void loadDevices()
   void loadWorkers()
+  void loadGroups()
 })
 
 onUnmounted(() => {

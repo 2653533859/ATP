@@ -131,6 +131,47 @@ def test_normalize_suite_config_falls_back_to_safe_defaults():
     }
 
 
+def test_suite_fixtures_share_setup_variables_and_record_teardown(monkeypatch):
+    monkeypatch.setitem(
+        sys.modules,
+        "app.models.case",
+        types.SimpleNamespace(TestCase=type("TestCase", (), {}), CaseType=_REAL_CASE_MODELS.CaseType),
+    )
+    monkeypatch.setitem(
+        sys.modules,
+        "app.models.suite",
+        types.SimpleNamespace(SuiteRunStatus=_FakeSuiteRunStatus, TestSuite=_REAL_SUITE_MODELS.TestSuite),
+    )
+    received = []
+
+    async def fake_execute(_db, _suite_run, case, extra_vars, **_kwargs):
+        received.append(dict(extra_vars))
+        return {"case_id": case.id, "run_id": case.id + 100, "status": "passed"}
+
+    async def no_flaky(*_args):
+        return None
+
+    monkeypatch.setattr(tasks, "_execute_case_run", fake_execute)
+    monkeypatch.setattr(tasks, "_mark_flaky_case_results", no_flaky)
+    suite_run = _FakeSuiteRun()
+    suite = _FakeSuite(
+        [{"case_id": 1, "sort": 0}],
+        {
+            "shared_variables": {"tenant": "demo"},
+            "fixtures": {
+                "setup": [{"action": "set_variable", "variable": "token", "value": "{{tenant}}-token"}],
+                "teardown": [{"action": "delete_variable", "variable": "token"}],
+            },
+        },
+    )
+
+    asyncio.run(tasks._execute_suite_cases(_FakeDB({1: _FakeCase(1, "Case-1")}), suite_run, suite, {}))
+
+    assert received == [{"tenant": "demo", "token": "demo-token"}]
+    assert suite_run.result_summary["fixtures"]["status"] == "passed"
+    assert suite_run.result_summary["fixtures"]["setup"] == [{"action": "set_variable", "variable": "token"}]
+
+
 def test_suite_run_should_stop_for_fast_fail():
     should_stop = tasks._suite_run_should_stop(
         {"total": 1, "passed": 0, "failed": 1, "error": 0, "skipped": 0},

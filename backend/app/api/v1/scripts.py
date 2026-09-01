@@ -7,6 +7,7 @@ DELETE /cases/{case_id}/script 删除脚本
 """
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
+from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
@@ -16,10 +17,16 @@ from app.models.project import Module
 from app.api.deps import assert_project_access, get_current_user
 from app.models.user import User
 from app.models.user_project import ProjectRole
+from app.services.script_dependencies import validate_script_requirements
 
 router = APIRouter(tags=["脚本管理"])
 
 _MAX_SCRIPT_SIZE = 1 * 1024 * 1024  # 1 MB
+_MAX_REQUIREMENTS_SIZE = 64 * 1024
+
+
+class ScriptRequirementsIn(BaseModel):
+    content: str = Field(max_length=_MAX_REQUIREMENTS_SIZE)
 
 
 async def _assert_case_script_access(db: AsyncSession, user: User, case: TestCase, role: ProjectRole) -> None:
@@ -31,6 +38,60 @@ async def _assert_case_script_access(db: AsyncSession, user: User, case: TestCas
 
 def _script_object_name(case_id: int) -> str:
     return f"scripts/cases/{case_id}/script.py"
+
+
+def _requirements_object_name(case_id: int) -> str:
+    return f"scripts/cases/{case_id}/requirements.txt"
+
+
+@router.put("/cases/{case_id}/script/requirements")
+async def save_script_requirements(
+    case_id: int,
+    body: ScriptRequirementsIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    case = await db.get(TestCase, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="用例不存在")
+    await _assert_case_script_access(db, current_user, case, ProjectRole.editor)
+    if case.case_type not in (CaseType.web, CaseType.android):
+        raise HTTPException(status_code=400, detail="仅脚本类用例支持依赖配置")
+    try:
+        content = validate_script_requirements(body.content)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    object_name = _requirements_object_name(case_id)
+    ensure_bucket()
+    upload_bytes(object_name, content.encode("utf-8"), content_type="text/plain")
+    config = dict(case.config or {})
+    config["requirements_path"] = object_name
+    case.config = config
+    await db.commit()
+    return {"requirements_path": object_name, "content": content}
+
+
+@router.get("/cases/{case_id}/script/requirements")
+async def get_script_requirements(
+    case_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    case = await db.get(TestCase, case_id)
+    if not case:
+        raise HTTPException(status_code=404, detail="用例不存在")
+    await _assert_case_script_access(db, current_user, case, ProjectRole.viewer)
+    requirements_path = (case.config or {}).get("requirements_path")
+    if not requirements_path:
+        return {"content": "", "exists": False}
+    try:
+        return {
+            "content": read_bytes(requirements_path).decode("utf-8", errors="replace"),
+            "exists": True,
+            "requirements_path": requirements_path,
+        }
+    except Exception:
+        return {"content": "", "exists": False}
 
 
 @router.post("/cases/{case_id}/script")
@@ -98,12 +159,20 @@ async def delete_script(
     await _assert_case_script_access(db, current_user, case, ProjectRole.editor)
 
     script_path = (case.config or {}).get("script_path")
-    if script_path:
-        try:
-            delete_file(script_path)
-        except Exception:
-            pass
+    requirements_path = (case.config or {}).get("requirements_path")
+    if script_path or requirements_path:
         config = dict(case.config)
-        config.pop("script_path", None)
+        if script_path:
+            try:
+                delete_file(script_path)
+            except Exception:
+                pass
+            config.pop("script_path", None)
+        if requirements_path:
+            try:
+                delete_file(requirements_path)
+            except Exception:
+                pass
+            config.pop("requirements_path", None)
         case.config = config
         await db.commit()

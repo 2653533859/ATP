@@ -1,5 +1,5 @@
 import enum
-from sqlalchemy import String, Text, Integer, Enum, DateTime, ForeignKey
+from sqlalchemy import String, Text, Integer, Enum, DateTime, ForeignKey, Table, Column
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from datetime import datetime
 from app.models.base import Base, TimestampMixin
@@ -9,6 +9,23 @@ class DeviceStatus(str, enum.Enum):
     online = "online"
     offline = "offline"
     busy = "busy"  # 正在执行测试
+
+
+device_group_members = Table(
+    "device_group_members",
+    Base.metadata,
+    Column("group_id", ForeignKey("device_groups.id", ondelete="CASCADE"), primary_key=True),
+    Column("device_id", ForeignKey("devices.id", ondelete="CASCADE"), primary_key=True),
+)
+
+
+class DeviceGroup(Base, TimestampMixin):
+    __tablename__ = "device_groups"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String(128), unique=True, nullable=False)
+    description: Mapped[str | None] = mapped_column(Text)
+    devices: Mapped[list["Device"]] = relationship(secondary=device_group_members, lazy="selectin")
 
 
 class Device(Base, TimestampMixin):

@@ -4,7 +4,7 @@ def load_all_models() -> None:
     from app.models.project import Project, Module
     from app.models.case import TestCase, CaseStep, TestRun, StepResult, CaseSnapshot
     from app.models.environment import Environment, EnvVariable
-    from app.models.device import Device, DeviceLease
+    from app.models.device import Device, DeviceGroup, DeviceLease
     from app.models.apk import Apk
     from app.models.suite import TestSuite, SuiteRun
     from app.models.notification import NotificationConfig, NotificationDelivery
@@ -39,6 +39,7 @@ def load_all_models() -> None:
     from app.models.knowledge import KnowledgeEntry
     from app.models.configuration_revision import ConfigurationRevision
     from app.models.ios import IosApp, IosDevice, IosDeviceLease
+    from app.models.hermes import HermesSession
 
     _ = (
         User,
@@ -53,6 +54,7 @@ def load_all_models() -> None:
         Environment,
         EnvVariable,
         Device,
+        DeviceGroup,
         DeviceLease,
         Apk,
         TestSuite,
@@ -100,4 +102,5 @@ def load_all_models() -> None:
         IosApp,
         IosDevice,
         IosDeviceLease,
+        HermesSession,
     )

@@ -54,22 +54,18 @@ async def db_session() -> AsyncSession:
         yield session
 
 
-# ── admin 登录 token（function 级，避免 token 过期）────────────
-@pytest_asyncio.fixture()
-async def admin_token(async_client) -> str:
-    from app.core.config import settings
+# ── admin token（function 级，避免 token 过期）─────────────────
+@pytest.fixture()
+def admin_token() -> str:
+    """直接签发测试 token，避免整套集成测试竞争生产登录限流配额。
 
-    resp = await async_client.post(
-        "/api/v1/auth/login",
-        json={
-            "username": settings.FIRST_ADMIN_USERNAME,
-            "password": settings.FIRST_ADMIN_PASSWORD,
-        },
-    )
-    assert resp.status_code == 200, f"admin login failed: {resp.status_code} {resp.text}"
-    access_token = async_client.cookies.get("atp_access_token")
-    assert access_token, "login did not set the HttpOnly access cookie"
-    return access_token
+    登录、错误密码和 Cookie 行为由 test_auth_flow 单独通过真实路由覆盖；其他业务
+    集成测试只需要一个有效管理员身份，不应为了准备夹具反复调用受限流保护的接口。
+    """
+    from app.core.config import settings
+    from app.core.security import create_access_token
+
+    return create_access_token(settings.FIRST_ADMIN_USERNAME)
 
 
 @pytest.fixture()

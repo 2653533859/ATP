@@ -15,6 +15,8 @@ ATP 是统一自动化测试平台，当前已支持：
 
 iOS/Appium 已具备本地 W3C 执行边界、资产和租约；真实 macOS/Xcode/XCUITest/签名 IPA/设备验收仍属于目标环境开发。
 
+GraphQL Subscription、Schema introspection、脚本 `requirements.txt`、Android 设备组、Suite Fixtures、iOS 技术预览入口和 Hermes H2～H5 最小治理链的配置与运行边界见 [`product-capability-closure-2026-09-01.md`](product-capability-closure-2026-09-01.md)。
+
 ## 2. 访问入口与账号
 
 ### 2.1 本地开发入口

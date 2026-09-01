@@ -75,6 +75,33 @@ def test_current_release_status_keeps_external_gates_explicit(repo_file):
     assert "真实供应商送达" in content
     assert "外部缺陷平台" in content
     assert "部分实现/待环境验收" in content
+    assert "release-scope-2026-09-01.md" in content
+    assert "不纳入本次正式支持" in content
+    assert "范围排除不等于真实环境验收通过" in content
+
+
+def test_current_release_scope_excludes_unverified_preview_integrations(repo_file):
+    scope = repo_file("docs/release-scope-2026-09-01.md")
+
+    for marker in (
+        "iOS / Appium",
+        "SMTP 邮件",
+        "企业微信机器人",
+        "钉钉机器人",
+        "Jira / 禅道",
+        "GitHub Issues / GitLab Issues",
+        "不阻塞本次发布",
+        "不得宣称",
+        "P4",
+    ):
+        assert marker in scope
+
+    task = repo_file("Task.md")
+    plan = repo_file("docs/development-plan-2026-08-25.md")
+    readme = repo_file("README.md")
+    for content in (task, plan, readme):
+        assert "release-scope-2026-09-01.md" in content
+        assert "技术预览" in content
 
 
 def test_release_readiness_workflow_builds_images_and_verifies_k6(repo_file):
