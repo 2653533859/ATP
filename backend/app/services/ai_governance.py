@@ -31,6 +31,16 @@ _SENSITIVE_TEXT_RE = re.compile(
     r"(?i)(?P<key>access[_-]?token|api[_-]?key|token|secret|password|passwd|sign(?:ature)?|authorization|cookie)"
     r"(?P<sep>\s*[:=]\s*)(?P<value>[^&\s,;)}\]<>\"']+)"
 )
+_SENSITIVE_JSON_FIELD_RE = re.compile(
+    r'(?i)(?P<quote>["\'])(?P<key>access[_-]?token|api[_-]?key|token|secret|password|passwd|'
+    r"sign(?:ature)?|authorization|cookie)(?P=quote)(?P<sep>\s*:\s*)"
+    r'(?P<value_quote>["\'])(?P<value>.*?)(?P=value_quote)'
+)
+_SENSITIVE_QUOTED_VALUE_RE = re.compile(
+    r"(?i)(?P<key>access[_-]?token|api[_-]?key|token|secret|password|passwd|"
+    r"sign(?:ature)?|authorization|cookie)(?P<sep>\s*[:=]\s*)"
+    r'(?P<value_quote>["\'])(?P<value>.*?)(?P=value_quote)'
+)
 _URL_QUERY_SECRET_RE = re.compile(
     r"(?i)(?P<prefix>[?&](?:key|access[_-]?token|api[_-]?key|token|secret|sign(?:ature)?|authorization|cookie)"
     r"\s*=\s*)(?P<value>[^&#\s,;)}\]<>\"']+)"
@@ -54,6 +64,20 @@ def redact_llm_text(value: object, *, limit: int = 12_000) -> str:
         safe = json.dumps(redact_context(parsed), ensure_ascii=False, separators=(",", ":"))
     except (TypeError, ValueError):
         safe = normalized
+    safe = _SENSITIVE_JSON_FIELD_RE.sub(
+        lambda match: (
+            f"{match.group('quote')}{match.group('key')}{match.group('quote')}"
+            f"{match.group('sep')}{match.group('value_quote')}[已脱敏]{match.group('value_quote')}"
+        ),
+        safe,
+    )
+    safe = _SENSITIVE_QUOTED_VALUE_RE.sub(
+        lambda match: (
+            f"{match.group('key')}{match.group('sep')}{match.group('value_quote')}"
+            f"[已脱敏]{match.group('value_quote')}"
+        ),
+        safe,
+    )
     safe = _SENSITIVE_TEXT_RE.sub(r"\g<key>\g<sep>***", safe)
     safe = _URL_QUERY_SECRET_RE.sub(r"\g<prefix><redacted>", safe)
     safe = _URL_USERINFO_RE.sub(r"\1<redacted>@", safe)

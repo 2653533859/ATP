@@ -11,6 +11,14 @@ def test_redact_llm_text_masks_sensitive_json_fields_and_embedded_values():
     assert "[已脱敏]" in safe
 
 
+def test_redact_llm_text_masks_sensitive_json_fields_inside_mixed_text():
+    safe = redact_llm_text('结论 [S1] provider_payload={"api_key":"sk-live","password":"pw-live"}')
+
+    assert "sk-live" not in safe
+    assert "pw-live" not in safe
+    assert safe.endswith('provider_payload={"api_key":"[已脱敏]","password":"[已脱敏]"}')
+
+
 def test_redact_llm_text_masks_url_credentials_and_query_secrets():
     safe = redact_llm_text("https://user:password@example.test/api?access_token=secret")
 

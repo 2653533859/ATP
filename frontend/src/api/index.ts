@@ -1582,7 +1582,7 @@ export interface HermesSourceItem {
 export interface HermesQueryResult {
   project_id: number
   query: string
-  mode: 'project_retrieval' | 'no_results'
+  mode: 'llm_grounded' | 'project_retrieval' | 'no_results'
   answer: string
   sources: HermesSourceItem[]
   generated_at: string

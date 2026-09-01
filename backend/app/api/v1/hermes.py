@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import logging
 from dataclasses import asdict
 from datetime import datetime, timezone
 
@@ -10,7 +11,9 @@ from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user
+from app.core.encryption import decrypt
 from app.core.database import get_db
+from app.models.ai_llm_config import AILLMConfig
 from app.models.case import TestCase
 from app.models.knowledge import KnowledgeEntry
 from app.models.project import Module, Project
@@ -18,9 +21,71 @@ from app.models.requirement import TestRequirement
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.schemas.hermes import HermesQueryIn, HermesQueryOut, HermesSourceOut
-from app.services.hermes import HermesCandidate, build_answer, rank_candidates
+from app.services.ai_case.llm_client import LLMRequest, call_llm
+from app.services.ai_governance import (
+    check_and_incr_daily_limit,
+    llm_extra_params,
+    redact_llm_text,
+    resolve_system_prompt,
+)
+from app.services.knowledge import redact_knowledge_text
+from app.services.hermes import (
+    HERMES_SYSTEM_PROMPT,
+    HermesCandidate,
+    HermesRankedSource,
+    build_answer,
+    build_grounded_prompt,
+    has_valid_source_citation,
+    rank_candidates,
+)
+
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(tags=["智能中枢"])
+
+
+async def _llm_answer(
+    db: AsyncSession,
+    project: Project,
+    query: str,
+    sources: list[HermesRankedSource],
+) -> str | None:
+    """Generate a grounded answer when the project has an enabled AI config."""
+
+    config_id = getattr(project, "ai_llm_config_id", None)
+    if not sources or not config_id:
+        return None
+    config = await db.get(AILLMConfig, config_id)
+    if config is None or not config.enabled:
+        return None
+    try:
+        api_key = (
+            "" if config.provider == "ollama" and not config.api_key_encrypted else decrypt(config.api_key_encrypted)
+        )
+        if not await check_and_incr_daily_limit(config=config, capability="hermes_query"):
+            return None
+        response = await call_llm(
+            LLMRequest(
+                provider=config.provider,
+                api_key=api_key,
+                model_name=config.model_name,
+                prompt=build_grounded_prompt(redact_knowledge_text(query, limit=2_000) or "", sources),
+                endpoint=config.endpoint,
+                system_prompt=resolve_system_prompt(config, "hermes_query", HERMES_SYSTEM_PROMPT),
+                timeout_seconds=60.0,
+                extra_params=llm_extra_params(config),
+            )
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Hermes LLM query failed: config_id=%s error_type=%s", config.id, type(exc).__name__)
+        return None
+
+    answer = redact_llm_text(response.text, limit=4_000).strip()
+    if not has_valid_source_citation(answer, len(sources)):
+        logger.warning("Hermes LLM query returned no valid source citation: config_id=%s", config.id)
+        return None
+    return answer
 
 
 def _enum_value(value: object) -> str:
@@ -133,6 +198,9 @@ async def query_hermes(
     )
     sources = rank_candidates(body.query, candidates, body.limit)
     answer, mode = build_answer(sources)
+    llm_answer = await _llm_answer(db, project, body.query, sources)
+    if llm_answer:
+        answer, mode = llm_answer, "llm_grounded"
     return HermesQueryOut(
         project_id=body.project_id,
         query=body.query,

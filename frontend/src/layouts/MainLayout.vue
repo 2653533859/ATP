@@ -684,6 +684,7 @@ function onLocaleChange(value: unknown) {
   border: 1px solid var(--c-primary-glow);
   border-radius: var(--radius-full);
   font-size: 12px;
+  line-height: 1.2;
   font-weight: 600;
   white-space: nowrap;
 }

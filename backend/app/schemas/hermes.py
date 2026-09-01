@@ -39,7 +39,7 @@ class HermesSourceOut(BaseModel):
 class HermesQueryOut(BaseModel):
     project_id: int
     query: str
-    mode: Literal["project_retrieval", "no_results"]
+    mode: Literal["llm_grounded", "project_retrieval", "no_results"]
     answer: str
     sources: list[HermesSourceOut] = Field(default_factory=list, max_length=20)
     generated_at: datetime

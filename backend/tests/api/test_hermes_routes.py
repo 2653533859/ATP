@@ -44,6 +44,54 @@ def _user():
     return SimpleNamespace(id=7, username="engineer", role="engineer")
 
 
+def _matching_db(project):
+    knowledge_entry = SimpleNamespace(
+        id=2,
+        project_id=1,
+        title="登录排查手册",
+        summary="认证服务排查",
+        content="先检查认证服务和 Redis",
+        source_ref="SOP-LOGIN",
+        tags=["登录"],
+        updated_at=NOW,
+        created_at=NOW,
+    )
+    requirement = SimpleNamespace(
+        id=3,
+        project_id=1,
+        title="邮箱登录需求",
+        description="用户使用邮箱登录",
+        acceptance_criteria=[{"text": "登录成功进入首页"}],
+        requirement_code="REQ-001-00003",
+        priority="P1",
+        status="draft",
+        updated_at=NOW,
+        created_at=NOW,
+    )
+    case = SimpleNamespace(
+        id=4,
+        name="登录接口成功",
+        summary="校验登录成功响应",
+        description=None,
+        case_code="ATP-API-0004",
+        tags=["登录"],
+        case_type="api",
+        priority="P1",
+        case_level="core",
+        updated_at=NOW,
+        created_at=NOW,
+    )
+    module = SimpleNamespace(id=5, project_id=1, name="认证")
+    return _DB(
+        results=[
+            _Result([(knowledge_entry, "核心项目")]),
+            _Result([(requirement, "核心项目")]),
+            _Result([(case, module)]),
+        ],
+        project=project,
+    )
+
+
 def test_query_schema_trims_and_limits_input():
     result = HermesQueryIn(project_id=1, query="  登录  ", limit=3)
 
@@ -153,6 +201,151 @@ def test_query_hermes_returns_project_sources_and_citations(monkeypatch):
     assert {item.source_type for item in result.sources} == {"knowledge", "requirement", "case"}
     assert "SOP-LOGIN" in result.answer
     assert result.sources[0].path.startswith("/")
+
+
+def test_query_hermes_uses_enabled_project_llm_for_grounded_answer(monkeypatch):
+    async def allow_access(*_args):
+        return None
+
+    config = SimpleNamespace(
+        id=9,
+        provider="openai_compatible",
+        api_key_encrypted="encrypted-key",
+        model_name="test-model",
+        endpoint="https://llm.example.test/v1",
+        enabled=True,
+        default_params={},
+    )
+    project = SimpleNamespace(id=1, name="核心项目", ai_llm_config_id=9)
+
+    class ConfigDB(_DB):
+        async def get(self, model, entity_id):
+            if getattr(model, "__name__", "") == "AILLMConfig" and entity_id == config.id:
+                return config
+            return await super().get(model, entity_id)
+
+    requests = []
+
+    async def allow_quota(*, config, capability):
+        assert config is not None
+        assert capability == "hermes_query"
+        return True
+
+    async def fake_call(request):
+        requests.append(request)
+        return SimpleNamespace(
+            text='结论：登录接口受认证服务影响。[S1] provider_payload={"api_key":"sk-live","password":"pw-live"}'
+        )
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    monkeypatch.setattr(hermes, "decrypt", lambda value: f"decrypted:{value}")
+    monkeypatch.setattr(hermes, "check_and_incr_daily_limit", allow_quota)
+    monkeypatch.setattr(hermes, "call_llm", fake_call)
+
+    result = asyncio.run(
+        hermes.query_hermes(
+            HermesQueryIn(project_id=1, query="登录"),
+            ConfigDB(results=_matching_db(project).results, project=project),
+            _user(),
+        )
+    )
+
+    assert result.mode == "llm_grounded"
+    assert result.answer.startswith("结论：登录接口受认证服务影响。[S1]")
+    assert "sk-live" not in result.answer
+    assert "pw-live" not in result.answer
+    assert requests and requests[0].api_key == "decrypted:encrypted-key"
+    assert "[S1]" in requests[0].prompt
+    assert "登录排查手册" in requests[0].prompt
+
+
+def test_query_hermes_falls_back_to_retrieval_when_llm_fails(monkeypatch):
+    async def allow_access(*_args):
+        return None
+
+    config = SimpleNamespace(
+        id=9,
+        provider="openai_compatible",
+        api_key_encrypted="encrypted-key",
+        model_name="test-model",
+        endpoint="https://llm.example.test/v1",
+        enabled=True,
+        default_params={},
+    )
+    project = SimpleNamespace(id=1, name="核心项目", ai_llm_config_id=9)
+
+    class ConfigDB(_DB):
+        async def get(self, model, entity_id):
+            if getattr(model, "__name__", "") == "AILLMConfig" and entity_id == config.id:
+                return config
+            return await super().get(model, entity_id)
+
+    async def fail_call(_request):
+        raise RuntimeError("provider unavailable")
+
+    async def allow_quota(**_kwargs):
+        return True
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    monkeypatch.setattr(hermes, "decrypt", lambda _value: "decrypted-key")
+    monkeypatch.setattr(hermes, "check_and_incr_daily_limit", allow_quota)
+    monkeypatch.setattr(hermes, "call_llm", fail_call)
+
+    result = asyncio.run(
+        hermes.query_hermes(
+            HermesQueryIn(project_id=1, query="登录"),
+            ConfigDB(results=_matching_db(project).results, project=project),
+            _user(),
+        )
+    )
+
+    assert result.mode == "project_retrieval"
+    assert "SOP-LOGIN" in result.answer
+
+
+def test_query_hermes_falls_back_when_llm_answer_has_no_valid_source_citation(monkeypatch):
+    async def allow_access(*_args):
+        return None
+
+    config = SimpleNamespace(
+        id=9,
+        provider="openai_compatible",
+        api_key_encrypted="encrypted-key",
+        model_name="test-model",
+        endpoint="https://llm.example.test/v1",
+        enabled=True,
+        default_params={},
+    )
+    project = SimpleNamespace(id=1, name="核心项目", ai_llm_config_id=9)
+
+    class ConfigDB(_DB):
+        async def get(self, model, entity_id):
+            if getattr(model, "__name__", "") == "AILLMConfig" and entity_id == config.id:
+                return config
+            return await super().get(model, entity_id)
+
+    async def fake_call(_request):
+        return SimpleNamespace(text="结论：这是没有来源引用的模型回答。")
+
+    async def allow_quota(**_kwargs):
+        return True
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    monkeypatch.setattr(hermes, "decrypt", lambda _value: "decrypted-key")
+    monkeypatch.setattr(hermes, "check_and_incr_daily_limit", allow_quota)
+    monkeypatch.setattr(hermes, "call_llm", fake_call)
+
+    result = asyncio.run(
+        hermes.query_hermes(
+            HermesQueryIn(project_id=1, query="登录"),
+            ConfigDB(results=_matching_db(project).results, project=project),
+            _user(),
+        )
+    )
+
+    assert result.mode == "project_retrieval"
+    assert "没有来源引用的模型回答" not in result.answer
+    assert "SOP-LOGIN" in result.answer
 
 
 def test_query_hermes_returns_explicit_no_result_state(monkeypatch):

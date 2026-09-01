@@ -77,6 +77,7 @@
                   <span>{{ formatTime(message.createdAt) }}</span>
                 </div>
                 <p class="message-text">{{ message.text }}</p>
+                <span v-if="message.mode" class="message-mode">{{ modeLabel(message.mode) }}</span>
                 <div v-if="message.taskIds?.length" class="message-task-list">
                   <button
                     v-for="taskId in message.taskIds"
@@ -289,6 +290,7 @@ import {
   statisticsApi,
   workbenchApi,
   type FailureDiagnosisResult,
+  type HermesQueryResult,
   type ModuleTreeItem,
   type ProjectItem,
   type WorkbenchTaskItem,
@@ -303,6 +305,7 @@ type HermesMessage = {
   createdAt: string
   sources?: HermesSource[]
   taskIds?: string[]
+  mode?: HermesQueryResult['mode']
 }
 type PromptKey = 'failed_tasks' | 'explain_failure' | 'test_plan' | 'quality'
 type PlanDraft = { name: string; objective: string; testPoints: string[] }
@@ -363,6 +366,10 @@ function flattenModules(items: ModuleTreeItem[]): ModuleTreeItem[] {
 
 function formatTime(value?: string | null) {
   return value ? value.slice(0, 19).replace('T', ' ') : t('hermes.not_available')
+}
+
+function modeLabel(mode: HermesQueryResult['mode']) {
+  return t(`hermes.modes.${mode}`)
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -472,7 +479,13 @@ async function refreshWorkbench() {
   await loadProjectData()
 }
 
-function appendMessage(role: HermesMessage['role'], text: string, sources?: HermesSource[], taskIds?: string[]) {
+function appendMessage(
+  role: HermesMessage['role'],
+  text: string,
+  sources?: HermesSource[],
+  taskIds?: string[],
+  mode?: HermesQueryResult['mode'],
+) {
   messages.value.push({
     id: ++messageSequence,
     role,
@@ -480,6 +493,7 @@ function appendMessage(role: HermesMessage['role'], text: string, sources?: Herm
     createdAt: new Date().toISOString(),
     sources,
     taskIds,
+    mode,
   })
 }
 
@@ -526,7 +540,7 @@ async function queryHermes(text: string) {
       label: [item.source_ref || item.source_type, item.title].join(' · '),
       path: item.path,
     }))
-    appendMessage('assistant', result.answer, sources)
+    appendMessage('assistant', result.answer, sources, undefined, result.mode)
   } catch (error) {
     appendMessage('assistant', t('hermes.query_failed', { error: errorMessage(error, t('hermes.query_unavailable')) }))
   } finally {
@@ -1015,6 +1029,19 @@ h2 {
   border-radius: 4px 16px 16px 16px;
   background: var(--c-bg-elevated);
   box-shadow: var(--shadow-xs);
+}
+
+.message-mode {
+  display: inline-flex;
+  margin-top: 8px;
+  padding: 3px 8px;
+  border: 1px solid var(--c-primary-glow);
+  border-radius: 999px;
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  font-size: 10px;
+  font-weight: 600;
+  line-height: 1.2;
 }
 
 .message-user .message-text {
