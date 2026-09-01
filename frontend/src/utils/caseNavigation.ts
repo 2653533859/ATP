@@ -7,6 +7,7 @@ type RouteValue = string | number | null | undefined | Array<string | null>
 export type CaseRouteSelection = {
   projectId: number | null
   moduleId: number | null
+  keyword: string | undefined
   reviewStatus: CaseNavigationReviewStatus | undefined
   aiGenerate: boolean
   aiDatasetId: number | null
@@ -17,6 +18,7 @@ export type CaseRouteSelection = {
 export type CaseNavigationContext = {
   projectId?: number | null
   moduleId?: number | null
+  keyword?: string
   reviewStatus?: CaseNavigationReviewStatus
   aiGenerate?: boolean
   aiDatasetId?: number | null
@@ -35,6 +37,12 @@ export function parseReviewStatus(value: RouteValue): CaseNavigationReviewStatus
   return raw === 'pending' || raw === 'approved' || raw === 'rejected' ? raw : undefined
 }
 
+export function parseRouteText(value: RouteValue): string | undefined {
+  const raw = Array.isArray(value) ? value[0] : value
+  const text = typeof raw === 'string' ? raw.trim() : ''
+  return text || undefined
+}
+
 export function parsePositiveIntList(value: RouteValue): number[] {
   const rawValues = Array.isArray(value) ? value : [value]
   return rawValues
@@ -50,6 +58,9 @@ export function buildCasesQuery(context: CaseNavigationContext): Record<string, 
   }
   if (context.moduleId) {
     query.module_id = String(context.moduleId)
+  }
+  if (context.keyword?.trim()) {
+    query.keyword = context.keyword.trim()
   }
   if (context.reviewStatus) {
     query.review_status = context.reviewStatus
@@ -76,6 +87,7 @@ export function readCaseRouteSelection(route: {
   return {
     projectId: parsePositiveInt(route.query.project_id) ?? parsePositiveInt(route.params.projectId),
     moduleId: parsePositiveInt(route.query.module_id),
+    keyword: parseRouteText(route.query.keyword),
     reviewStatus: parseReviewStatus(route.query.review_status),
     aiGenerate: route.query.ai_generate === '1' || route.query.ai_generate === 'true',
     aiDatasetId: parsePositiveInt(route.query.ai_dataset_id),

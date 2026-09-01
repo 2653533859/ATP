@@ -186,6 +186,38 @@ export default {
     theme_dark: '深色',
     theme_toggle: '切换主题',
     project_context: '项目 #{id}',
+    role_engineer: '工程师',
+    worker: {
+      title: 'Web 录制 Worker',
+      states: {
+        checking: '检查中',
+        ready: '可用',
+        degraded: '部分可用',
+        unavailable: '不可用',
+        local: '本地模式',
+      },
+      checking_detail: '正在检查节点',
+      local_mode: '本地执行模式',
+      nodes: '节点就绪: {available}/{registered}',
+      queue: '执行中: {count} 个任务',
+    },
+    quick_search: {
+      trigger: '快速检索用例、接口、执行任务或报告…',
+      input_placeholder: '输入用例名称、模块、路由或关键字…',
+      section_title: '常用页面快速跳转',
+      pages: {
+        dashboard: '质量洞察大盘',
+        api_workbench: '接口与自动化工作台',
+        cases: '测试用例与资产库',
+        hermes: 'Hermes AI 智能助手',
+      },
+      hints: {
+        overview: '概览',
+        api_runner: '接口运行',
+        cases: '用例',
+        ai_copilot: 'AI 助手',
+      },
+    },
   },
   navigation: {
     placeholder: {

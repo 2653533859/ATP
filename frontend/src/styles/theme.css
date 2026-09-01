@@ -1,5 +1,5 @@
 /* ============================================================
-   ATP 设计系统 — 现代 SaaS 精致风 · 双主题
+   ATP 设计系统 — 参考知识库平台风格 · 双主题
    切换方式：<html data-theme="light|dark">（由 stores/theme.ts 写入）。
    AntD 组件由 App.vue 的 ConfigProvider token/algorithm 驱动；
    本文件负责自定义层（布局/卡片/页面外壳）的设计变量与全局基础样式。
@@ -7,44 +7,59 @@
 
 :root,
 :root[data-theme='light'] {
-  /* 强调色 — Indigo */
-  --c-primary: #4f46e5;
-  --c-primary-hover: #4338ca;
-  --c-primary-soft: rgba(79, 70, 229, 0.08);
+  /* 强调色 — 参考页 Cobalt Blue */
+  --c-primary: #1677ff;
+  --c-primary-hover: #4096ff;
+  --c-primary-active: #0958d9;
+  --c-primary-soft: rgba(22, 119, 255, 0.08);
+  --c-primary-glow: rgba(22, 119, 255, 0.2);
 
-  /* 中性 — 背景 / 卡片 / 边框 */
-  --c-bg-body: #f8fafc;
+  /* 中性 — 背景 / 卡片 / 边框 (Reference Light) */
+  --c-bg-body: #f5f5f5;
   --c-bg-elevated: #ffffff;
-  --c-bg-subtle: #f1f5f9;
-  --c-border: #e2e8f0;
-  --c-border-strong: #cbd5e1;
+  --c-bg-subtle: #f0f3fc;
+  --c-bg-muted: #e6ebf5;
+  --c-border: rgba(112, 107, 107, 0.15);
+  --c-border-subtle: rgba(112, 107, 107, 0.08);
+  --c-border-strong: rgba(112, 107, 107, 0.25);
 
   /* 文字三级 */
-  --c-text: #0f172a;
-  --c-text-secondary: #64748b;
-  --c-text-tertiary: #94a3b8;
+  --c-text: #111017;
+  --c-text-secondary: #595959;
+  --c-text-tertiary: #8c8c8c;
 
-  /* 语义色 */
-  --c-success: #16a34a;
-  --c-warning: #d97706;
-  --c-error: #dc2626;
-  --c-info: #0891b2;
+  /* 语义色 — 对齐参考页 Ant Design 色阶 */
+  --c-success: #52c41a;
+  --c-warning: #faad14;
+  --c-error: #ff4d4f;
+  --c-info: #1677ff;
+  --c-ai: #13c2c2;
 
-  /* 语义浅背景 — 标签/告警块底色 */
-  --c-success-soft: rgba(22, 163, 74, 0.1);
-  --c-warning-soft: rgba(217, 119, 6, 0.1);
-  --c-error-soft: rgba(220, 38, 38, 0.1);
-  --c-info-soft: rgba(8, 145, 178, 0.1);
+  /* 语义浅背景 */
+  --c-success-soft: rgba(82, 196, 26, 0.12);
+  --c-warning-soft: rgba(250, 173, 20, 0.12);
+  --c-error-soft: rgba(255, 77, 79, 0.12);
+  --c-info-soft: rgba(22, 119, 255, 0.12);
+  --c-ai-soft: rgba(19, 194, 194, 0.12);
 
-  /* 圆角层级 */
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
+  /* 毛玻璃与背景 */
+  --c-glass-bg: rgba(255, 255, 255, 0.85);
+  --c-glass-border: rgba(112, 107, 107, 0.15);
+
+  /* 圆角层级 — 轻量化后台 */
+  --radius-xs: 4px;
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-full: 9999px;
 
   /* 阴影层级 */
-  --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 3px rgba(15, 23, 42, 0.06);
-  --shadow-md: 0 4px 12px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 12px 32px rgba(15, 23, 42, 0.12);
+  --shadow-xs: 0 1px 2px rgba(17, 16, 23, 0.04);
+  --shadow-sm: 0 1px 3px rgba(17, 16, 23, 0.06), 0 1px 2px rgba(17, 16, 23, 0.04);
+  --shadow-md: 0 4px 14px rgba(17, 16, 23, 0.06);
+  --shadow-lg: 0 12px 32px rgba(17, 16, 23, 0.08);
+  --shadow-glow: 0 0 20px -3px rgba(22, 119, 255, 0.24);
 
   /* 间距节奏 */
   --space-1: 4px;
@@ -54,50 +69,69 @@
   --space-5: 24px;
   --space-6: 32px;
 
-  /* 框架 — 侧栏 / 顶栏（浅色主题采用浅色侧栏，现代 SaaS 风） */
-  --c-sider-bg: #ffffff;
-  --c-sider-border: #e2e8f0;
-  --c-sider-text: #475569;
-  --c-sider-text-active: #4f46e5;
-  --c-sider-active-bg: rgba(79, 70, 229, 0.08);
-  --c-header-bg: rgba(255, 255, 255, 0.72);
+  /* 框架 — 侧栏 / 顶栏 */
+  --c-sider-bg: #f0f3fc;
+  --c-sider-border: rgba(112, 107, 107, 0.15);
+  --c-sider-text: #595959;
+  --c-sider-text-active: #ffffff;
+  --c-sider-active-bg: #1677ff;
+  --c-header-bg: #f0f3fc;
 }
 
 :root[data-theme='dark'] {
-  --c-primary: #818cf8;
-  --c-primary-hover: #a5b4fc;
-  --c-primary-soft: rgba(129, 140, 248, 0.16);
+  /* 强调色 — Knowledge Base Deep Obsidian Violet & Purple */
+  --c-primary: #897eff;
+  --c-primary-hover: #9893ff;
+  --c-primary-active: #7f69ff;
+  --c-primary-soft: rgba(137, 126, 255, 0.15);
+  --c-primary-glow: rgba(117, 97, 255, 0.4);
 
-  --c-bg-body: #0f172a;
-  --c-bg-elevated: #1e293b;
-  --c-bg-subtle: #334155;
-  --c-border: #334155;
-  --c-border-strong: #475569;
+  /* 中性 — 背景 / 卡片 / 边框 (Obsidian & Deep Violet Slate) */
+  --c-bg-body: #0b0a12;
+  --c-bg-elevated: #1d1a2c;
+  --c-bg-subtle: #161424;
+  --c-bg-muted: #28243d;
+  --c-border: rgba(255, 255, 255, 0.08);
+  --c-border-subtle: rgba(255, 255, 255, 0.04);
+  --c-border-strong: rgba(230, 227, 246, 0.15);
 
-  --c-text: #f1f5f9;
-  --c-text-secondary: #94a3b8;
-  --c-text-tertiary: #64748b;
+  /* 文字三级 */
+  --c-text: #ffffff;
+  --c-text-secondary: #b8b5cb;
+  --c-text-tertiary: #716b88;
 
-  --c-success: #22c55e;
-  --c-warning: #f59e0b;
-  --c-error: #f87171;
-  --c-info: #22d3ee;
+  /* 语义色 */
+  --c-success: #4ae191;
+  --c-warning: #ffd05e;
+  --c-error: #ff395c;
+  --c-info: #40ebe3;
+  --c-ai: #897eff;
 
-  --c-success-soft: rgba(34, 197, 94, 0.16);
-  --c-warning-soft: rgba(245, 158, 11, 0.16);
-  --c-error-soft: rgba(248, 113, 113, 0.16);
-  --c-info-soft: rgba(34, 211, 238, 0.16);
+  /* 语义浅背景 */
+  --c-success-soft: rgba(74, 225, 145, 0.16);
+  --c-warning-soft: rgba(255, 208, 94, 0.16);
+  --c-error-soft: rgba(255, 57, 92, 0.16);
+  --c-info-soft: rgba(64, 235, 227, 0.16);
+  --c-ai-soft: rgba(137, 126, 255, 0.16);
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3), 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.4);
-  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.5);
+  /* 毛玻璃与背景 */
+  --c-glass-bg: rgba(29, 26, 44, 0.85);
+  --c-glass-border: rgba(230, 227, 246, 0.15);
 
-  --c-sider-bg: #1e293b;
-  --c-sider-border: #334155;
-  --c-sider-text: #cbd5e1;
-  --c-sider-text-active: #a5b4fc;
-  --c-sider-active-bg: rgba(129, 140, 248, 0.16);
-  --c-header-bg: rgba(15, 23, 42, 0.72);
+  /* 阴影层级 */
+  --shadow-xs: 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.6), 0 1px 2px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 12px 32px rgba(0, 0, 0, 0.7);
+  --shadow-glow: 0 0 25px -5px rgba(117, 97, 255, 0.45);
+
+  /* 框架 — 侧栏 / 顶栏 */
+  --c-sider-bg: #111017;
+  --c-sider-border: rgba(255, 255, 255, 0.08);
+  --c-sider-text: #b8b5cb;
+  --c-sider-text-active: #897eff;
+  --c-sider-active-bg: rgba(137, 126, 255, 0.15);
+  --c-header-bg: rgba(11, 10, 18, 0.85);
 }
 
 /* ---------------- 全局基础 ---------------- */
@@ -110,11 +144,11 @@ body {
 body {
   background: var(--c-bg-body);
   color: var(--c-text);
-  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+  font-family: 'Plus Jakarta Sans', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
     'Hiragino Sans GB', 'Microsoft YaHei', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  transition: background-color 0.3s ease, color 0.3s ease;
+  transition: background-color 0.25s ease, color 0.25s ease;
 }
 
 /* 滚动条美化 */
@@ -123,12 +157,12 @@ body {
   scrollbar-color: var(--c-border-strong) transparent;
 }
 *::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
+  width: 6px;
+  height: 6px;
 }
 *::-webkit-scrollbar-thumb {
   background: var(--c-border-strong);
-  border-radius: 999px;
+  border-radius: 9999px;
 }
 *::-webkit-scrollbar-thumb:hover {
   background: var(--c-text-tertiary);
@@ -140,4 +174,36 @@ body {
 /* 卡片柔和阴影（现代 SaaS 质感）：零特异性，便于页面覆盖 */
 :where(.ant-card) {
   box-shadow: var(--shadow-sm);
+  border-color: var(--c-border);
+  background: var(--c-bg-elevated);
+}
+
+/* 现代卡片与按钮交互微光效果 */
+:where(.ant-btn) {
+  font-weight: 500;
+  border-radius: var(--radius-sm);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+:where(.ant-btn-primary) {
+  box-shadow: 0 2px 8px var(--c-primary-glow);
+}
+
+:where(.ant-table-wrapper .ant-table) {
+  background: var(--c-bg-elevated);
+  border-radius: var(--radius-md);
+}
+
+:where(.ant-table-thead > tr > th) {
+  font-weight: 600;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+  color: var(--c-text-secondary);
+}
+
+:where(.ant-tag) {
+  border-radius: var(--radius-sm);
+  font-weight: 500;
+  padding: 2px 8px;
 }

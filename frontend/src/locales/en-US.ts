@@ -186,6 +186,38 @@ export default {
     theme_dark: 'Dark',
     theme_toggle: 'Toggle theme',
     project_context: 'Project #{id}',
+    role_engineer: 'Engineer',
+    worker: {
+      title: 'Web Recording Worker',
+      states: {
+        checking: 'Checking',
+        ready: 'Ready',
+        degraded: 'Partially available',
+        unavailable: 'Unavailable',
+        local: 'Local mode',
+      },
+      checking_detail: 'Checking nodes',
+      local_mode: 'Local execution mode',
+      nodes: 'Nodes ready: {available}/{registered}',
+      queue: 'Running: {count} tasks',
+    },
+    quick_search: {
+      trigger: 'Search cases, APIs, tasks, or reports…',
+      input_placeholder: 'Enter a case name, module, route, or keyword…',
+      section_title: 'Common pages',
+      pages: {
+        dashboard: 'Quality insights dashboard',
+        api_workbench: 'API and automation workbench',
+        cases: 'Test cases and assets',
+        hermes: 'Hermes AI assistant',
+      },
+      hints: {
+        overview: 'Overview',
+        api_runner: 'API Runner',
+        cases: 'Cases',
+        ai_copilot: 'AI Copilot',
+      },
+    },
   },
   navigation: {
     placeholder: {

@@ -34,13 +34,13 @@ describe('theme store', () => {
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
   })
 
-  it('falls back to the system dark preference when no saved theme exists', () => {
+  it('falls back to the reference light theme when no saved theme exists', () => {
     mockSystemDark(true)
 
     const store = useThemeStore()
 
-    expect(store.mode).toBe('dark')
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
+    expect(store.mode).toBe('light')
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
   })
 
   it('persists explicit theme changes and toggles between modes', () => {

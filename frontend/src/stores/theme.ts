@@ -8,8 +8,7 @@ const STORAGE_KEY = 'atp-theme'
 function resolveInitial(): ThemeMode {
   const saved = localStorage.getItem(STORAGE_KEY)
   if (saved === 'light' || saved === 'dark') return saved
-  // 无历史选择时跟随系统
-  if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) return 'dark'
+  // 无历史选择时使用参考页的浅色主题，用户仍可手动切换深色模式。
   return 'light'
 }
 

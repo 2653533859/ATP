@@ -6,6 +6,7 @@ import {
   buildProjectCasesLocation,
   parsePositiveInt,
   parsePositiveIntList,
+  parseRouteText,
   parseReviewStatus,
   readCaseRouteSelection,
 } from './caseNavigation'
@@ -34,6 +35,7 @@ describe('case navigation utilities', () => {
     expect(buildCasesQuery({
       projectId: 12,
       moduleId: 34,
+      keyword: '  登录  ',
       reviewStatus: 'pending',
       aiGenerate: true,
       aiDatasetId: 56,
@@ -42,6 +44,7 @@ describe('case navigation utilities', () => {
     })).toEqual({
       project_id: '12',
       module_id: '34',
+      keyword: '登录',
       review_status: 'pending',
       ai_generate: '1',
       ai_dataset_id: '56',
@@ -62,11 +65,12 @@ describe('case navigation utilities', () => {
 
   it('prefers project_id query over projectId params when reading selection', () => {
     expect(readCaseRouteSelection({
-      query: { project_id: '11', module_id: '22', review_status: 'approved' },
+      query: { project_id: '11', module_id: '22', keyword: '  登录  ', review_status: 'approved' },
       params: { projectId: '33' },
     })).toEqual({
       projectId: 11,
       moduleId: 22,
+      keyword: '登录',
       reviewStatus: 'approved',
       aiGenerate: false,
       aiDatasetId: null,
@@ -80,6 +84,7 @@ describe('case navigation utilities', () => {
     })).toEqual({
       projectId: 33,
       moduleId: null,
+      keyword: undefined,
       reviewStatus: undefined,
       aiGenerate: false,
       aiDatasetId: null,
@@ -91,10 +96,18 @@ describe('case navigation utilities', () => {
       query: { project_id: '11', ai_generate: '1', ai_dataset_id: '56', ai_mock_rule_ids: '78,79,78' },
       params: {},
     })).toMatchObject({
+      keyword: undefined,
       aiGenerate: true,
       aiDatasetId: 56,
       aiDatasetVersion: null,
       aiMockRuleIds: [78, 79],
     })
+  })
+
+  it('normalizes a route keyword', () => {
+    expect(parseRouteText('  登录  ')).toBe('登录')
+    expect(parseRouteText(['接口', '用例'])).toBe('接口')
+    expect(parseRouteText('   ')).toBeUndefined()
+    expect(parseRouteText(undefined)).toBeUndefined()
   })
 })

@@ -16,16 +16,16 @@ const themeConfig = computed(() => {
   return {
     algorithm: dark ? antdTheme.darkAlgorithm : antdTheme.defaultAlgorithm,
     token: {
-      colorPrimary: dark ? '#818cf8' : '#4f46e5',
+      colorPrimary: dark ? '#897eff' : '#1677ff',
       borderRadius: 10,
       controlHeight: 36,
       fontSize: 14,
       fontFamily:
         "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC', 'Hiragino Sans GB', 'Microsoft YaHei', sans-serif",
-      colorSuccess: dark ? '#22c55e' : '#16a34a',
-      colorWarning: dark ? '#f59e0b' : '#d97706',
-      colorError: dark ? '#f87171' : '#dc2626',
-      colorInfo: dark ? '#22d3ee' : '#0891b2',
+      colorSuccess: dark ? '#4ae191' : '#52c41a',
+      colorWarning: dark ? '#ffd05e' : '#faad14',
+      colorError: dark ? '#ff395c' : '#ff4d4f',
+      colorInfo: dark ? '#40ebe3' : '#1677ff',
       wireframe: false,
     },
   }

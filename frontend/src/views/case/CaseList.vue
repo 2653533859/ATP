@@ -956,6 +956,7 @@ function syncRoute() {
   const query = buildCasesQuery({
     projectId: selectedProjectId.value,
     moduleId: selectedModuleId.value,
+    keyword: keyword.value,
     reviewStatus: filterReviewStatus.value,
     aiGenerate: !!generationContext,
     aiDatasetId: generationContext?.datasetId,
@@ -965,11 +966,13 @@ function syncRoute() {
   const {
     projectId: currentProjectId,
     moduleId: currentModuleId,
+    keyword: currentKeyword,
     reviewStatus: currentReviewStatus,
   } = readCaseRouteSelection(route)
   if (
     currentProjectId === selectedProjectId.value
     && currentModuleId === selectedModuleId.value
+    && currentKeyword === (keyword.value.trim() || undefined)
     && currentReviewStatus === filterReviewStatus.value
   ) {
     return
@@ -982,6 +985,7 @@ function replaceRouteWithoutAIGeneration() {
   const query = buildCasesQuery({
     projectId: selectedProjectId.value,
     moduleId: selectedModuleId.value,
+    keyword: keyword.value,
     reviewStatus: filterReviewStatus.value,
   })
   void router.replace({ name: 'cases', query })
@@ -1014,6 +1018,7 @@ async function applyRouteSelection(useDefaultProject = false) {
   const {
     projectId: routeProjectId,
     moduleId: routeModuleId,
+    keyword: routeKeyword,
     reviewStatus: routeReviewStatus,
     aiGenerate: routeAIGenerate,
     aiDatasetId: routeAIDatasetId,
@@ -1025,6 +1030,7 @@ async function applyRouteSelection(useDefaultProject = false) {
   const projectChanged = nextProjectId !== selectedProjectId.value
 
   selectedProjectId.value = nextProjectId
+  keyword.value = routeKeyword ?? ''
   filterReviewStatus.value = routeReviewStatus
   pendingAiGeneration.value = routeAIGenerate
     ? { datasetId: routeAIDatasetId, datasetVersion: routeAIDatasetVersion, mockRuleIds: routeAIMockRuleIds }
@@ -1087,6 +1093,7 @@ async function refreshCurrentProject() {
 
 function handleSearch() {
   void loadCases()
+  syncRoute()
 }
 
 function clearFilter(key: FilterKey) {
@@ -1436,7 +1443,7 @@ function handleHistoryRolled() {
 }
 
 watch(
-  () => [route.params.projectId, route.query.project_id, route.query.module_id, route.query.review_status].join('|'),
+  () => [route.params.projectId, route.query.project_id, route.query.module_id, route.query.keyword, route.query.review_status].join('|'),
   () => {
     void applyRouteSelection(false)
   },
@@ -1452,42 +1459,74 @@ onMounted(async () => {
 .case-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
 }
 
 .page-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 16px;
+  padding: 16px 20px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
 }
 
 .page-header h2 {
   margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  color: var(--c-text);
 }
 
 .page-header p {
-  margin: 6px 0 0;
+  margin: 4px 0 0;
   color: var(--c-text-secondary);
+  font-size: 13px;
+}
+
+.summary-row :deep(.ant-card) {
+  border-radius: var(--radius-md);
+  border: 1px solid var(--c-border);
+  box-shadow: var(--shadow-xs);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.summary-row :deep(.ant-card:hover) {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-sm);
+  border-color: var(--c-border-strong);
 }
 
 .summary-row :deep(.ant-statistic-content) {
   font-size: 24px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', monospace;
+  color: var(--c-text);
+}
+
+.summary-row :deep(.ant-statistic-title) {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text-secondary);
 }
 
 .workspace {
   display: grid;
   grid-template-columns: minmax(280px, 300px) minmax(0, 1fr);
-  gap: 16px;
+  gap: 18px;
   align-items: stretch;
-  min-height: 560px;
+  min-height: 580px;
 }
 
 .side-panel {
   min-width: 0;
   border: 1px solid var(--c-border);
-  border-radius: 12px;
-  padding: 14px;
+  border-radius: var(--radius-lg);
+  padding: 16px;
   overflow-y: auto;
   background: var(--c-bg-elevated);
   box-shadow: var(--shadow-sm);
@@ -1507,17 +1546,19 @@ onMounted(async () => {
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 14px;
 }
 
 .toolbar-card,
 .table-card {
-  border-radius: 12px;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--c-border);
   box-shadow: var(--shadow-sm);
+  background: var(--c-bg-elevated);
 }
 
 .toolbar-card :deep(.ant-card-body) {
-  padding: 14px 16px;
+  padding: 14px 18px;
 }
 
 .table-card :deep(.ant-card-body) {
@@ -1556,27 +1597,36 @@ onMounted(async () => {
 
 .ai-route-notice {
   margin-bottom: 16px;
+  border-radius: var(--radius-md);
 }
 
 .active-filter-label {
   color: var(--c-text-secondary);
   font-size: 12px;
+  font-weight: 500;
 }
 
 .case-name-cell {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 4px;
 }
 
 .case-link {
   padding-inline: 0;
   font-weight: 600;
+  font-size: 13px;
+  color: var(--c-primary);
+}
+
+.case-link:hover {
+  color: var(--c-primary-hover);
 }
 
 .case-summary {
   color: var(--c-text-secondary);
   font-size: 12px;
+  line-height: 1.4;
 }
 
 .case-tags {
@@ -1601,6 +1651,7 @@ onMounted(async () => {
 .run-tip {
   margin-bottom: 12px;
   color: var(--c-text-secondary);
+  font-size: 12px;
 }
 
 .import-preview-alert {
