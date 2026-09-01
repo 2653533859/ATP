@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+import asyncio
+from collections.abc import Sequence
 import logging
 from dataclasses import asdict
 from datetime import datetime, time, timedelta, timezone
+from time import perf_counter
+from typing import Any, Literal, cast
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import ValidationError
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -21,6 +26,7 @@ from app.models.requirement import TestRequirement
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.schemas.hermes import HermesQueryIn, HermesQueryOut, HermesSourceOut
+from app.schemas.hermes_tools import HermesToolCallIn, HermesToolCatalogOut, HermesToolOut, HermesToolStatus
 from app.services.ai_case.llm_client import LLMRequest, call_llm
 from app.services.ai_governance import (
     check_and_incr_daily_limit,
@@ -28,6 +34,7 @@ from app.services.ai_governance import (
     redact_llm_text,
     resolve_system_prompt,
 )
+from app.services.audit import write_audit_log
 from app.services.knowledge import redact_knowledge_text
 from app.services.hermes import (
     HERMES_SYSTEM_PROMPT,
@@ -39,6 +46,12 @@ from app.services.hermes import (
     build_history_context,
     has_valid_source_citation,
     rank_candidates,
+)
+from app.services.hermes_tools import (
+    HERMES_TOOL_TIMEOUT_MAX_MS,
+    execute_read_tool,
+    parse_tool_arguments,
+    tool_catalog,
 )
 
 
@@ -55,6 +68,83 @@ def _updated_bounds(body: HermesQueryIn) -> tuple[datetime | None, datetime | No
         else None
     )
     return start, end
+
+
+@router.get("/hermes/tools", response_model=HermesToolCatalogOut)
+async def list_hermes_tools(user: User = Depends(get_current_user)):
+    """Expose the allow-listed read-only tools to an authenticated client."""
+
+    _ = user
+    return HermesToolCatalogOut(tools=tool_catalog(), generated_at=datetime.now(timezone.utc))
+
+
+@router.post("/hermes/tools/execute", response_model=HermesToolOut)
+async def execute_hermes_tool(
+    body: HermesToolCallIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Run one bounded, project-scoped, read-only Hermes tool."""
+
+    await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
+    try:
+        arguments = parse_tool_arguments(body.tool, body.arguments)
+    except ValidationError as exc:
+        raise HTTPException(status_code=422, detail="工具参数无效") from exc
+
+    started_at = perf_counter()
+    execution = None
+    status: HermesToolStatus = "error"
+    message: str | None = "工具执行失败"
+    try:
+        timeout_seconds = min(body.timeout_ms, HERMES_TOOL_TIMEOUT_MAX_MS) / 1_000
+        execution = await asyncio.wait_for(
+            execute_read_tool(db, user, body.project_id, body.tool, arguments),
+            timeout=timeout_seconds,
+        )
+        status = execution.status
+        message = execution.message
+    except TimeoutError:
+        status = "timeout"
+        message = "工具执行超时，请缩小查询范围后重试"
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Hermes read tool failed: tool=%s project_id=%s error_type=%s",
+            body.tool,
+            body.project_id,
+            type(exc).__name__,
+        )
+    duration_ms = max(0, round((perf_counter() - started_at) * 1_000))
+
+    try:
+        await db.rollback()
+        await write_audit_log(
+            db,
+            action="hermes_read_tool",
+            resource_type="hermes_tool",
+            user_id=user.id,
+            username=user.username,
+            project_id=body.project_id,
+            ip_address=request.client.host if request.client else "",
+            detail=f"tool={body.tool};status={status};duration_ms={duration_ms}",
+        )
+        await db.commit()
+    except Exception:  # noqa: BLE001
+        await db.rollback()
+        logger.warning("Failed to persist Hermes read-tool audit", exc_info=True)
+
+    return HermesToolOut(
+        project_id=body.project_id,
+        conversation_id=body.conversation_id,
+        tool=body.tool,
+        status=status,
+        duration_ms=duration_ms,
+        message=message,
+        data=execution.data if execution else {},
+        evidence=execution.evidence if execution else [],
+        generated_at=datetime.now(timezone.utc),
+    )
 
 
 async def _llm_answer(
@@ -105,7 +195,7 @@ def _enum_value(value: object) -> str:
     return str(getattr(value, "value", value))
 
 
-def _knowledge_candidates(rows: list[tuple[KnowledgeEntry, str | None]], project_id: int) -> list[HermesCandidate]:
+def _knowledge_candidates(rows: Sequence[Any], project_id: int) -> list[HermesCandidate]:
     return [
         HermesCandidate(
             source_type="knowledge",
@@ -122,7 +212,7 @@ def _knowledge_candidates(rows: list[tuple[KnowledgeEntry, str | None]], project
     ]
 
 
-def _requirement_candidates(rows: list[tuple[TestRequirement, str]], project_id: int) -> list[HermesCandidate]:
+def _requirement_candidates(rows: Sequence[Any], project_id: int) -> list[HermesCandidate]:
     return [
         HermesCandidate(
             source_type="requirement",
@@ -146,7 +236,7 @@ def _requirement_candidates(rows: list[tuple[TestRequirement, str]], project_id:
     ]
 
 
-def _case_candidates(rows: list[tuple[TestCase, Module]]) -> list[HermesCandidate]:
+def _case_candidates(rows: Sequence[Any]) -> list[HermesCandidate]:
     return [
         HermesCandidate(
             source_type="case",
@@ -176,9 +266,9 @@ async def query_hermes(
 
     updated_from, updated_to = _updated_bounds(body)
     selected_types = set(body.source_types)
-    knowledge_rows: list[tuple[KnowledgeEntry, str | None]] = []
-    requirement_rows: list[tuple[TestRequirement, str]] = []
-    case_rows: list[tuple[TestCase, Module]] = []
+    knowledge_rows: Sequence[Any] = []
+    requirement_rows: Sequence[Any] = []
+    case_rows: Sequence[Any] = []
     if not selected_types or "knowledge" in selected_types:
         knowledge_query = (
             select(KnowledgeEntry, Project.name)
@@ -242,7 +332,10 @@ async def query_hermes(
         [(item.role, item.content) for item in body.history],
         body.context_budget,
     )
-    answer, mode = build_answer(sources)
+    answer, raw_mode = build_answer(sources)
+    mode: Literal["llm_grounded", "project_retrieval", "no_results"] = cast(
+        Literal["llm_grounded", "project_retrieval", "no_results"], raw_mode
+    )
     llm_answer = await _llm_answer(db, project, body.query, sources, history_context)
     if llm_answer:
         answer, mode = llm_answer, "llm_grounded"

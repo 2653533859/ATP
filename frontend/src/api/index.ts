@@ -1596,6 +1596,52 @@ export interface HermesQueryResult {
   generated_at: string
 }
 
+export type HermesToolName =
+  | 'failed_tasks'
+  | 'run_detail'
+  | 'quality_trend'
+  | 'requirement_case_links'
+  | 'knowledge_detail'
+export type HermesToolStatus = 'ok' | 'empty' | 'not_found' | 'timeout' | 'error'
+
+export interface HermesToolDescriptor {
+  name: HermesToolName
+  description: string
+  required_role: 'viewer'
+  read_only: true
+  timeout_max_ms: number
+  arguments_schema: Record<string, unknown>
+}
+
+export interface HermesToolEvidence {
+  evidence_id: string
+  source_type: 'hermes_tool'
+  source_ref: string
+  title: string
+  excerpt: string
+  path: string
+}
+
+export interface HermesToolResult {
+  project_id: number
+  conversation_id: string
+  tool: HermesToolName
+  status: HermesToolStatus
+  duration_ms: number
+  message?: string | null
+  data: Record<string, unknown>
+  evidence: HermesToolEvidence[]
+  generated_at: string
+}
+
+export interface HermesToolCall {
+  project_id: number
+  conversation_id: string
+  tool: HermesToolName
+  arguments?: Record<string, unknown>
+  timeout_ms?: number
+}
+
 export const authApi = {
   login: (username: string, password: string) =>
     http.post<unknown, { authenticated: boolean }>('/auth/login', { username, password }),
@@ -1940,6 +1986,8 @@ export const hermesApi = {
     context_budget?: number
   }) =>
     http.post<unknown, HermesQueryResult>('/hermes/query', body),
+  listTools: () => http.get<unknown, { tools: HermesToolDescriptor[]; generated_at: string }>('/hermes/tools'),
+  executeTool: (body: HermesToolCall) => http.post<unknown, HermesToolResult>('/hermes/tools/execute', body),
 }
 
 export const scriptApi = {

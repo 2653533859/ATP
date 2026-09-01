@@ -1,8 +1,8 @@
 # Hermes 助手开发文档
 
-> 版本：H2 / 2026-09-01
-> 状态：H1/H2 本地实现完成，真实模型、目标部署和生产角色矩阵待复核
-> 关联计划：[`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.4.25
+> 版本：H3 / 2026-09-01
+> 状态：H1～H3 本地实现完成，真实模型、目标部署和生产角色矩阵待复核
+> 关联计划：[`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.4.26
 
 ## 1. 产品定位
 
@@ -26,7 +26,7 @@ Hermes 的默认原则：
 | 项目证据检索 | 已完成 | 检索 Knowledge、Requirement、Case 三类来源 |
 | 证据约束 LLM 问答 | H1 已完成 | 有启用项目 AI 配置且命中来源时返回 `llm_grounded` |
 | 多轮对话 | H2 已完成 | 当前会话生成项目绑定 ID；历史按请求传递并在服务端脱敏、裁剪，不持久化 |
-| 工具调用 | H3 计划中 | 下一阶段先做权限保护的只读工具 |
+| 工具调用 | H3 已完成 | 五个项目级只读工具，统一权限、超时、审计和证据响应 |
 | 结构化草稿保存 | H4 计划中 | 必须先展示 diff、来源和影响范围，再由用户确认 |
 
 ## 3. H1 技术链路
@@ -75,6 +75,24 @@ Hermes 页面
 ```
 
 H2 不在数据库或 Redis 中保存会话。刷新页面、切换项目或点击“新会话”会生成新的 `conversation_id` 并清空旧历史；后端响应返回历史使用量、裁剪量和字符数，便于解释当前回答上下文。
+
+### H3 只读工具链路
+
+```text
+已认证客户端
+        │ GET /hermes/tools
+        ▼
+固定 allow-list（viewer / read_only）
+        │ POST /hermes/tools/execute
+        ▼
+项目 viewer 校验 → 参数白名单 → 最长 5 秒执行
+        │                         │
+        │                         └─ timeout / error 只返回通用状态
+        ▼
+脱敏数据 + 稳定来源路径 + hermes_read_tool 审计
+```
+
+H3 当前提供 `failed_tasks`、`run_detail`、`quality_trend`、`requirement_case_links` 和 `knowledge_detail` 五个工具。工具不会触发重试、终止、创建、修改、删除或外部网络操作；工具结果带有可复现的项目路径和 `HERMES-*` 来源编号。当前客户端通过显式工具 API 调用，LLM 根据自然语言自动选择/编排工具留到后续迭代。
 
 ## 4. API 契约
 
@@ -154,6 +172,31 @@ Content-Type: application/json
 - `no_results`：当前项目没有匹配来源。
 - `history_used` / `history_omitted` / `context_chars`：本次 prompt 实际带入的历史条数、被预算裁剪的条数和字符数。
 
+### H3 工具目录与执行
+
+```http
+GET /api/v1/hermes/tools
+```
+
+目录只返回固定的只读工具、`viewer` 最低角色、最长 5000 ms 和每个工具的 JSON 参数模式。执行请求示例：
+
+```http
+POST /api/v1/hermes/tools/execute
+Content-Type: application/json
+```
+
+```json
+{
+  "project_id": 1,
+  "conversation_id": "hermes-1-session",
+  "tool": "failed_tasks",
+  "arguments": {"limit": 10, "task_type": "case"},
+  "timeout_ms": 3000
+}
+```
+
+响应统一包含 `status`、`duration_ms`、有界 `data`、`evidence` 和 `generated_at`。`status` 可能为 `ok`、`empty`、`not_found`、`timeout` 或 `error`；参数不符合工具专属白名单时返回 422，项目权限不足时返回 403。审计只记录工具名、项目、状态和耗时，不记录原始 arguments、会话正文或工具返回正文。
+
 ## 5. AI 配置与安全边界
 
 Hermes 使用项目的 `ai_llm_config_id`，复用系统已有的 provider、模型、Endpoint、加密 API Key、默认参数、系统提示词和每日配额配置。
@@ -167,6 +210,7 @@ Hermes 使用项目的 `ai_llm_config_id`，复用系统已有的 provider、模
 5. 模型回答必须包含指向本次返回来源列表的有效 `[S#]` 引用；引用缺失、越界或格式无效时回退 `project_retrieval`。
 6. Hermes H1 只读，不执行重试、终止、创建、修改或删除操作。
 7. H2 的会话历史是客户端提供的不可信数据，只作为上下文参考，不获得系统指令权限，也不会成为来源证据；历史同样执行脱敏和长度预算。
+8. H3 只允许固定的只读工具名和工具参数；执行前校验当前项目 viewer 权限，服务端强制最长 5 秒，并将成功、空结果、未找到、超时和异常写入脱敏审计摘要。
 
 ## 6. 后续开发计划
 
@@ -174,7 +218,7 @@ Hermes 使用项目的 `ai_llm_config_id`，复用系统已有的 provider、模
 | --- | --- | --- |
 | H1 | 项目检索、脱敏、LLM 总结、引用、规则回退 | 本地测试通过；真实模型完成成功与失败回退 |
 | H2 | 会话 ID、历史摘要、项目/时间/来源筛选、上下文预算 | 本地测试通过；切换项目/新会话不串话；历史脱敏并可观察裁剪统计 |
-| H3 | 失败任务、运行详情、质量趋势、需求/用例关联、知识详情只读工具 | 每个工具具备权限、超时、审计和可复现实例 |
+| H3 | 失败任务、运行详情、质量趋势、需求/用例关联、知识详情只读工具 | 本地工具 API 具备权限、超时、审计、脱敏和可复现实例；自然语言自动编排另行验收 |
 | H4 | 测试计划、用例和回归范围结构化草稿 | 编辑前后 diff 可见；用户确认后才允许保存 |
 | H5 | 问题集、引用准确率、拒答率、延迟、成本、提示词版本和反馈 | 真实模型、角色矩阵、审计和目标部署证据齐全 |
 
@@ -216,12 +260,15 @@ Windows 没有 `make` 时，使用等价命令：
 # Hermes 后端定向测试
 .venv\Scripts\python.exe -m pytest backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py backend/tests/services/test_hermes.py -q
 
+# Hermes H3 工具定向测试
+.venv\Scripts\python.exe -m pytest backend/tests/api/test_hermes_tools.py backend/tests/services/test_hermes_read_tools.py -q
+
 # 后端非集成全量测试
 .venv\Scripts\python.exe -m pytest backend/tests -q --ignore=backend/tests/integration
 
 # Python 质量门禁
-.venv\Scripts\python.exe -m ruff check backend/app/api/v1/hermes.py backend/app/services/ai_governance.py backend/app/services/hermes.py backend/app/schemas/hermes.py backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py backend/tests/services/test_hermes.py
-.venv\Scripts\python.exe -m ruff format --check backend/app/api/v1/hermes.py backend/app/services/ai_governance.py backend/app/services/hermes.py backend/app/schemas/hermes.py backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py backend/tests/services/test_hermes.py
+.venv\Scripts\python.exe -m ruff check backend/app/api/v1/hermes.py backend/app/services/ai_governance.py backend/app/services/hermes.py backend/app/schemas/hermes.py backend/app/services/hermes_tools.py backend/app/schemas/hermes_tools.py backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py backend/tests/services/test_hermes.py backend/tests/api/test_hermes_tools.py backend/tests/services/test_hermes_read_tools.py
+.venv\Scripts\python.exe -m ruff format --check backend/app/api/v1/hermes.py backend/app/services/ai_governance.py backend/app/services/hermes.py backend/app/schemas/hermes.py backend/app/services/hermes_tools.py backend/app/schemas/hermes_tools.py backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py backend/tests/services/test_hermes.py backend/tests/api/test_hermes_tools.py backend/tests/services/test_hermes_read_tools.py
 .venv\Scripts\python.exe -m compileall -q backend/app backend/tests
 
 # 前端测试与构建
@@ -230,7 +277,7 @@ npm run test
 npm run build
 ```
 
-H2 当前验证记录：Hermes 后端 H1/H2 定向 `16 passed`（含 LLM 脱敏），后端非集成全量 `2400 passed`，前端 Hermes 定向 `11 passed`、前端全量 `69 files / 325 tests passed`；Ruff、Python 编译、TypeScript 检查、生产构建和差异检查通过。
+H3 当前验证记录：H3 工具 API/服务定向 `11 passed`，H1～H3 Hermes 组合回归 `27 passed`，后端非集成全量 `2411 passed`，前端全量 `69 files / 325 tests passed`；Ruff、格式检查、mypy、Python 编译、TypeScript 检查、生产构建和 `git diff --check` 通过。后端全量退出码为 0，Windows pytest 临时目录清理在进程退出时产生非致命 `WinError 5`，不影响测试结果。
 
 ## 9. 发布前检查清单
 
@@ -238,11 +285,19 @@ H2 当前验证记录：Hermes 后端 H1/H2 定向 `16 passed`（含 LLM 脱敏�
 - [ ] 真实模型异常、超时、限额及无有效 `[S#]` 引用场景仍能回退规则结果。
 - [ ] 管理员和 viewer 完成跨项目读写隔离验证。
 - [ ] 供应商请求、回答、审计日志中没有 API Key、Token、Cookie 或敏感正文。
-- [x] H2 会话隔离、历史脱敏和筛选预算已完成本地切片；H3 工具调用仍需权限、超时、审计和可复现实例。
+- [x] H2 会话隔离、历史脱敏和筛选预算已完成本地切片。
+- [x] H3 五个只读工具已完成项目权限、参数白名单、最长超时、脱敏结果、稳定证据和审计本地切片；自然语言自动编排仍待后续迭代。
 - [ ] H4 草稿保存必须经过人工确认，不允许后台静默落库。
 - [ ] P4 性能环境门禁和 P9 发布收口仍需单独完成，Hermes 本地通过不等价于整体发布通过。
 
 ## 10. 变更记录
+
+### 2026-09-01 / H3
+
+- 增加 Hermes 只读工具目录和执行接口，固定提供失败任务、运行详情、质量趋势、需求—用例关联和知识详情五个工具。
+- 所有工具要求当前项目 viewer 权限，参数按工具专属模型校验，最长执行 5 秒，异常和超时返回通用状态。
+- 工具结果统一脱敏并携带稳定项目路径和 `HERMES-*` 证据编号；执行审计只保留工具名、项目、状态和耗时。
+- 增加工具目录、参数白名单、跨项目隔离、错误脱敏、证据和超时回归；补齐前端 API 类型契约。
 
 ### 2026-09-01 / H2
 
