@@ -43,6 +43,15 @@ ATP_MIGRATION_RETRY_ATTEMPTS=12 ATP_MIGRATION_RETRY_DELAY_SECONDS=5 \
 
 部署前可运行 `make validate-deployment-readiness`；该命令会校验外部基础设施 Compose 的有界重启、迁移入口和 backend 健康依赖契约。它不连接或修改目标 Linux，目标环境仍需在部署后执行实际容器观察。
 
+对于已运行的目标目录，更新前先执行只读预检：
+
+```bash
+git status --short --branch
+git rev-parse HEAD
+```
+
+只有工作目录干净、分支/提交已由负责人确认时，才可拉取并重建服务。若发现 detached HEAD、未提交 Compose 变更或备份文件，先由负责人保留或处置这些现场文件；不要使用 `git reset --hard`、强制 checkout 或删除来“清理”目标目录。
+
 查看状态：
 
 ```bash

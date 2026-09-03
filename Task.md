@@ -28,7 +28,7 @@
 - [x] 本次发布范围决策：iOS、外部通知渠道和外部缺陷平台均标为 `[OUT]` 技术预览；未伪造真实设备、供应商送达或平台兼容性证据。
 - [x] N2 Karing 单设备闭环：低代码、录屏、稳定性/Monkey、性能/流畅度、事件、日志、报告和临时数据清理均已完成；多设备矩阵仍是独立边界。
 - [x] 本地开发联调：Windows 本地前端使用 `127.0.0.1:4173` 启动，通过 SSH 本地端口 `39083` 转发到 Linux 后端 `192.168.3.196:29080`；本轮前端 HTTP 200、后端 `/health` 均已复核。
-- [E] Linux 后端稳定性：已将 Alembic 迁移改为有界、脱敏的 DNS/数据库就绪重试；完整 Compose 以独立 `migrate` 服务成功为后端启动门，外部基础设施编排将后端失败重启限制为 3 次。仍需在目标 Linux 使用当前 SHA 连续观察 backend、Worker、Redis、PostgreSQL 和 MinIO 健康状态，不能以本地契约测试替代。
+- [E] Linux 后端稳定性：已将 Alembic 迁移改为有界、脱敏的 DNS/数据库就绪重试；完整 Compose 以独立 `migrate` 服务成功为后端启动门，外部基础设施编排将后端失败重启限制为 3 次。目标 Linux 的 ATP 目录当前仍是旧 SHA、detached HEAD，且有未提交 Compose 修改与备份文件；部署前须由负责人保留/确认这些现场变更，禁止强制覆盖。完成当前 SHA 部署后仍需连续观察 backend、Worker、Redis、PostgreSQL 和 MinIO 健康状态，不能以本地契约测试替代。
 - [x] 计划检查点 2.4.23：前端主题与交互收口已完成本地实现、独立审查和修复；统一 Apple 玻璃感主题、响应式头部/侧栏、快捷搜索关键词深链、实时 Web 录制 Worker 状态卡片、键盘语义按钮和中英文文案。前端全量 `69 files / 321 tests passed`，`type-check`、生产构建、移动端 390px 冒烟和 `git diff --check` 通过；本地提交 `aa1abfab` 作为本轮 H1 提交的前序提交一并推送。
 - [x] 计划检查点 2.4.24：Hermes H1 智能化已完成项目证据检索 → 脱敏 LLM 总结 → 引用来源 → 安全回退链路；模型成功返回 `llm_grounded`，未配置/超限/异常/无有效引用返回规则检索，混合文本中的 JSON 敏感字段由共享脱敏器处理，前端补齐生成模式标签和中英文欢迎语。后端 Hermes API `8 passed`、LLM 脱敏 `4 passed`、非集成全量 `2396 passed`，前端全量 `69 files / 321 tests passed`，Ruff、Python 编译、前端生产构建和 `git diff --check` 通过；H2 多轮上下文、H3 只读工具、H4 人工确认草稿、H5 评测治理列入后续计划，真实模型/角色/审计仍待环境复核。
 - [x] 计划检查点 2.4.25：Hermes H2 已完成项目/用户绑定会话、有限历史传递与脱敏裁剪、Knowledge/Requirement/Case 来源类型筛选、更新时间范围和上下文预算；刷新可恢复最近会话，切换项目/新会话会清空旧 Session ID，旧请求响应不会写入新会话。后端 H2 定向 `12 passed`、后端非集成全量 `2400 passed`、前端 Hermes `11 passed`、前端全量 `69 files / 325 tests passed`、TypeScript 检查通过；H3 权限保护只读工具、H4 人工确认草稿、H5 评测治理列入后续计划，真实多副本会话/模型/角色/审计仍待环境复核。
