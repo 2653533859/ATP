@@ -9,6 +9,8 @@ from app.services.hermes import (
     build_history_context,
     rank_candidates,
 )
+from app.services.hermes_orchestration import plan_read_tools, summarize_tool_outcomes
+from app.services.hermes_orchestration import HermesToolOutcome
 
 
 def _candidate(source_type: str, source_id: int, updated_at: datetime | None) -> HermesCandidate:
@@ -127,3 +129,39 @@ def test_build_governance_summary_uses_valid_citations_and_tolerates_legacy_rows
     assert result["average_latency_ms"] == 150
     assert result["p95_latency_ms"] == 300
     assert result["evaluation_set"]["size"] == 5
+
+
+def test_plan_read_tools_routes_bounded_multi_tool_queries_and_requires_explicit_targets():
+    routing = plan_read_tools("请同时查看失败任务和最近质量趋势")
+
+    assert routing.status == "matched"
+    assert [item.tool for item in routing.plans] == ["failed_tasks", "quality_trend"]
+    assert len(routing.plans) == 2
+
+    capped = plan_read_tools("失败任务、质量趋势以及知识 8")
+    assert capped.status == "matched"
+    assert len(capped.plans) == 2
+
+    detail = plan_read_tools("查看 case 12 的运行详情")
+    assert detail.status == "matched"
+    assert detail.plans[0].tool == "run_detail"
+    assert detail.plans[0].arguments == {"task_type": "case", "run_id": 12}
+
+    missing_target = plan_read_tools("查看运行详情")
+    assert missing_target.status == "needs_input"
+    assert missing_target.plans == ()
+
+
+def test_summarize_tool_outcomes_keeps_answer_short_and_uses_safe_counts():
+    answer = summarize_tool_outcomes(
+        [
+            HermesToolOutcome(tool="failed_tasks", status="ok", data={"count": 2}),
+            HermesToolOutcome(
+                tool="quality_trend",
+                status="ok",
+                data={"items": [{"rate": 88.5}]},
+            ),
+        ]
+    )
+
+    assert answer == "已根据你的问题自动读取：失败任务工具返回 2 条结果。质量趋势返回 1 个时间段，最近通过率为 88.5%。"

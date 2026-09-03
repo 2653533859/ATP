@@ -14,6 +14,7 @@ const {
   generateDiagnosis,
   governance,
   hermesQuery,
+  orchestrate,
   moduleList,
   projectList,
   reportOverview,
@@ -30,6 +31,7 @@ const {
   generateDiagnosis: vi.fn(),
   governance: vi.fn(),
   hermesQuery: vi.fn(),
+  orchestrate: vi.fn(),
   moduleList: vi.fn(),
   projectList: vi.fn(),
   reportOverview: vi.fn(),
@@ -56,7 +58,7 @@ vi.mock('ant-design-vue', () => ({
 }))
 vi.mock('@/api', () => ({
   caseApi: { list: caseList },
-  hermesApi: { query: hermesQuery, createSession, createDraft, confirmDraft, governance },
+  hermesApi: { query: hermesQuery, createSession, createDraft, confirmDraft, governance, orchestrate },
   projectApi: { list: projectList, getModules: moduleList },
   reportApi: { overview: reportOverview },
   runApi: { generateFailureDiagnosis: generateDiagnosis },
@@ -193,6 +195,38 @@ beforeEach(() => {
     p95_latency_ms: 220,
     cost_tracking: { available: false, reason: 'not configured' },
   })
+  orchestrate.mockResolvedValue({
+    project_id: 1,
+    conversation_id: 'hermes-session-1',
+    query: '失败任务和质量趋势',
+    status: 'matched',
+    plans: [
+      { tool: 'failed_tasks', arguments: { limit: 20 }, reason: '失败任务' },
+      { tool: 'quality_trend', arguments: { days: 30, aggregate: 'daily' }, reason: '质量趋势' },
+    ],
+    steps: [
+      {
+        tool: 'failed_tasks',
+        arguments: { limit: 20 },
+        status: 'ok',
+        duration_ms: 4,
+        data: { count: 1 },
+        evidence: [{ evidence_id: 'failed', source_ref: 'HERMES-TASK-1', title: '失败任务', excerpt: '脱敏', path: '/tasks/1' }],
+      },
+      {
+        tool: 'quality_trend',
+        arguments: { days: 30, aggregate: 'daily' },
+        status: 'ok',
+        duration_ms: 5,
+        data: { items: [{ rate: 91 }] },
+        evidence: [{ evidence_id: 'quality', source_ref: 'HERMES-QUALITY-DAILY-30', title: '质量趋势', excerpt: '脱敏', path: '/quality' }],
+      },
+    ],
+    answer: '已根据你的问题自动读取：失败任务工具返回 1 条结果。质量趋势返回 1 个时间段，最近通过率为 91%。',
+    generated_at: '2026-09-03T10:00:00Z',
+    session_id: 101,
+    message_index: 1,
+  })
   routerReplace.mockResolvedValue(undefined)
 })
 
@@ -258,6 +292,32 @@ describe('HermesAssistantView', () => {
     expect(vm.messages.at(-1).text).toBe('找到相关来源')
     expect(vm.messages.at(-1).sources[0].path).toBe('/knowledge?project_id=1&knowledge_id=2')
     expect(vm.querying).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('automatically orchestrates bounded read tools for a combined free-form request', async () => {
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.inputText = '失败任务和质量趋势'
+    await vm.submitPrompt()
+
+    expect(orchestrate).toHaveBeenCalledWith({
+      project_id: 1,
+      query: '失败任务和质量趋势',
+      conversation_id: expect.stringMatching(/^hermes-1-/),
+      session_id: undefined,
+    })
+    expect(vm.sessionId).toBe(101)
+    expect(vm.messages.at(-1).text).toContain('自动读取')
+    expect(vm.messages.at(-1).toolSteps).toEqual([
+      { tool: 'failed_tasks', status: 'ok' },
+      { tool: 'quality_trend', status: 'ok' },
+    ])
+    expect(wrapper.find('.message-tool-chain').exists()).toBe(true)
+    expect(hermesQuery).not.toHaveBeenCalled()
 
     wrapper.unmount()
   })
@@ -354,6 +414,26 @@ describe('HermesAssistantView', () => {
     await pending
 
     expect(vm.messages.some((message: { text: string }) => message.text.includes('旧会话失败'))).toBe(false)
+    expect(vm.querying).toBe(false)
+
+    wrapper.unmount()
+  })
+
+  it('does not fall back a stale orchestration error into a new conversation', async () => {
+    let rejectOrchestration!: (reason?: unknown) => void
+    orchestrate.mockImplementationOnce(() => new Promise((_resolve, reject) => { rejectOrchestration = reject }))
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    const pending = vm.orchestratePrompt('旧问题')
+
+    await flushPromises()
+    vm.startNewConversation()
+    rejectOrchestration(new Error('旧编排失败'))
+    await pending
+
+    expect(hermesQuery).not.toHaveBeenCalled()
+    expect(vm.messages.some((message: { text: string }) => message.text.includes('旧编排失败'))).toBe(false)
     expect(vm.querying).toBe(false)
 
     wrapper.unmount()

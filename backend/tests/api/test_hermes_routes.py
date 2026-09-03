@@ -9,6 +9,8 @@ from fastapi import HTTPException
 
 from app.api.v1 import hermes
 from app.schemas.hermes import HermesQueryIn, HermesSessionCreateIn
+from app.schemas.hermes_orchestration import HermesOrchestrationIn
+from app.schemas.hermes_tools import HermesToolEvidence, HermesToolOut
 from app.services.hermes import HermesCandidate, build_answer, rank_candidates
 from app.models.user_project import ProjectRole
 
@@ -210,6 +212,70 @@ def test_hermes_evaluation_set_is_bounded_and_authenticated():
     assert result["id"] == "hermes-core-v1"
     assert len(result["questions"]) == 5
     assert {item["expected_mode"] for item in result["questions"]} == {"project_retrieval", "no_results"}
+
+
+def test_hermes_orchestration_executes_at_most_two_read_tools_and_persists_safe_trace(monkeypatch):
+    calls = []
+
+    async def allow_access(*_args):
+        return None
+
+    async def execute_tool(body, _request, _db, _user):
+        calls.append(body)
+        return HermesToolOut(
+            project_id=body.project_id,
+            conversation_id=body.conversation_id,
+            tool=body.tool,
+            status="ok",
+            duration_ms=4,
+            data={"count": 2} if body.tool == "failed_tasks" else {"items": [{"rate": 91.0}]},
+            evidence=[
+                HermesToolEvidence(
+                    evidence_id=f"evidence-{body.tool}",
+                    source_ref=f"HERMES-{body.tool.upper()}",
+                    title=body.tool,
+                    excerpt="脱敏摘要",
+                    path=f"/{body.tool}",
+                )
+            ],
+            generated_at=NOW,
+        )
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    monkeypatch.setattr(hermes, "execute_hermes_tool", execute_tool)
+    db = _DB()
+    body = HermesOrchestrationIn(project_id=1, query="查看失败任务和质量趋势", conversation_id="hermes-h6-1")
+
+    result = asyncio.run(hermes.orchestrate_hermes(body, SimpleNamespace(), db, _user()))
+
+    assert [call.tool for call in calls] == ["failed_tasks", "quality_trend"]
+    assert len(result.steps) == 2
+    assert result.status == "matched"
+    assert result.session_id == 100
+    assert result.message_index == 1
+    assert db.added[0].messages[-1]["tool"] == "hermes_orchestrator"
+    assert db.added[0].messages[-1]["sources"][0]["source_ref"] == "HERMES-FAILED_TASKS"
+
+
+def test_hermes_orchestration_returns_clarification_without_executing_unknown_target(monkeypatch):
+    calls = []
+
+    async def allow_access(*_args):
+        return None
+
+    async def execute_tool(*_args):
+        calls.append(True)
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    monkeypatch.setattr(hermes, "execute_hermes_tool", execute_tool)
+    body = HermesOrchestrationIn(project_id=1, query="查看运行详情", conversation_id="hermes-h6-2")
+
+    result = asyncio.run(hermes.orchestrate_hermes(body, SimpleNamespace(), _DB(), _user()))
+
+    assert result.status == "needs_input"
+    assert result.clarification
+    assert result.steps == []
+    assert calls == []
 
 
 def test_rank_candidates_redacts_source_text_and_is_stable():

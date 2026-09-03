@@ -43,6 +43,12 @@ from app.schemas.hermes import (
     HermesSourceOut,
     HermesToolIn,
 )
+from app.schemas.hermes_orchestration import (
+    HermesOrchestrationIn,
+    HermesOrchestrationOut,
+    HermesOrchestrationPlanOut,
+    HermesOrchestrationStepOut,
+)
 from app.schemas.hermes_tools import HermesToolCallIn, HermesToolCatalogOut, HermesToolOut, HermesToolStatus
 from app.services.ai_case.llm_client import LLMRequest, call_llm
 from app.services.ai_governance import (
@@ -75,6 +81,7 @@ from app.services.hermes_tools import (
     parse_tool_arguments,
     tool_catalog,
 )
+from app.services.hermes_orchestration import HermesToolOutcome, plan_read_tools, summarize_tool_outcomes
 
 
 logger = logging.getLogger(__name__)
@@ -171,6 +178,120 @@ async def execute_hermes_tool(
     )
 
 
+@router.post("/hermes/orchestrate", response_model=HermesOrchestrationOut)
+async def orchestrate_hermes(
+    body: HermesOrchestrationIn,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """Route a natural-language request to at most two bounded read tools."""
+
+    await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
+    routing = plan_read_tools(body.query)
+    plans = [
+        HermesOrchestrationPlanOut(tool=item.tool, arguments=item.arguments, reason=item.reason)
+        for item in routing.plans
+    ]
+    if routing.status != "matched":
+        answer = routing.clarification or "当前问题未命中可自动读取的只读工具，我会改用项目证据检索继续回答。"
+        return HermesOrchestrationOut(
+            project_id=body.project_id,
+            conversation_id=body.conversation_id,
+            query=body.query,
+            status=routing.status,
+            clarification=routing.clarification,
+            plans=plans,
+            steps=[],
+            answer=answer,
+            generated_at=datetime.now(timezone.utc),
+        )
+
+    started_at = perf_counter()
+    steps: list[HermesOrchestrationStepOut] = []
+    outcomes: list[HermesToolOutcome] = []
+    for plan in routing.plans:
+        result = await execute_hermes_tool(
+            HermesToolCallIn(
+                project_id=body.project_id,
+                conversation_id=body.conversation_id,
+                tool=plan.tool,
+                arguments=plan.arguments,
+                timeout_ms=HERMES_TOOL_TIMEOUT_MAX_MS,
+            ),
+            request,
+            db,
+            user,
+        )
+        steps.append(
+            HermesOrchestrationStepOut(
+                tool=result.tool,
+                arguments=plan.arguments,
+                status=result.status,
+                duration_ms=result.duration_ms,
+                message=result.message,
+                data=result.data,
+                evidence=result.evidence,
+            )
+        )
+        outcomes.append(HermesToolOutcome(tool=result.tool, status=result.status, data=result.data))
+
+    answer = summarize_tool_outcomes(outcomes)
+    session = await _get_or_create_session(
+        db,
+        user,
+        HermesQueryIn(
+            project_id=body.project_id,
+            query=body.query,
+            conversation_id=body.conversation_id,
+            session_id=body.session_id,
+        ),
+    )
+    generated_at = datetime.now(timezone.utc)
+    latency_ms = max(0, round((perf_counter() - started_at) * 1_000))
+    evidence = [item.model_dump() for step in steps for item in step.evidence]
+    messages = list(session.messages) if isinstance(session.messages, list) else []
+    messages.extend(
+        [
+            {"role": "user", "content": redact_knowledge_text(body.query, limit=2_000), "at": generated_at.isoformat()},
+            {
+                "role": "assistant",
+                "content": answer,
+                "mode": "project_retrieval",
+                "sources": evidence,
+                "tool": "hermes_orchestrator",
+                "tool_steps": [{"tool": step.tool, "status": step.status} for step in steps],
+                "prompt_version": HERMES_PROMPT_VERSION,
+                "latency_ms": latency_ms,
+                "at": generated_at.isoformat(),
+            },
+        ]
+    )
+    session.messages = messages[-40:]
+    context_filters = dict(session.context_filters) if isinstance(session.context_filters, dict) else {}
+    context_filters["conversation_id"] = body.conversation_id
+    session.context_filters = context_filters
+    metrics = dict(session.metrics) if isinstance(session.metrics, dict) else {}
+    metrics["queries"] = _safe_increment(metrics.get("queries"), 1)
+    metrics["orchestration_calls"] = _safe_increment(metrics.get("orchestration_calls"), 1)
+    metrics["tool_calls"] = _safe_increment(metrics.get("tool_calls"), len(steps))
+    metrics["last_latency_ms"] = latency_ms
+    session.metrics = metrics
+    await db.commit()
+    return HermesOrchestrationOut(
+        project_id=body.project_id,
+        conversation_id=body.conversation_id,
+        query=body.query,
+        status="matched",
+        plans=plans,
+        steps=steps,
+        answer=answer,
+        generated_at=generated_at,
+        session_id=session.id,
+        message_index=len(session.messages) - 1,
+    )
+
+
 async def _llm_answer(
     db: AsyncSession,
     project: Project,
@@ -217,6 +338,14 @@ async def _llm_answer(
 
 def _enum_value(value: object) -> str:
     return str(getattr(value, "value", value))
+
+
+def _safe_increment(value: object, amount: int) -> int:
+    try:
+        current = int(value) if isinstance(value, (int, str)) else 0
+    except (TypeError, ValueError):
+        current = 0
+    return max(0, current) + max(0, amount)
 
 
 def _knowledge_candidates(rows: Sequence[Any], project_id: int) -> list[HermesCandidate]:

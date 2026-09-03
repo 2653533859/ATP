@@ -158,6 +158,12 @@
                 </div>
                 <p class="message-text">{{ message.text }}</p>
                 <span v-if="message.mode" class="message-mode">{{ modeLabel(message.mode) }}</span>
+                <div v-if="message.toolSteps?.length" class="message-tool-chain">
+                  <span class="tool-chain-label">{{ t('hermes.tool_chain') }}</span>
+                  <span v-for="step in message.toolSteps" :key="`${message.id}-${step.tool}`" class="tool-chain-step">
+                    {{ toolLabel(step.tool) }} · {{ toolStatusLabel(step.status) }}
+                  </span>
+                </div>
                 <div v-if="message.taskIds?.length" class="message-task-list">
                   <button
                     v-for="taskId in message.taskIds"
@@ -452,6 +458,7 @@ import {
   workbenchApi,
   type FailureDiagnosisResult,
   type HermesGovernanceSummary,
+  type HermesOrchestrationResult,
   type HermesSourceType,
   type HermesQueryResult,
   type ModuleTreeItem,
@@ -470,6 +477,7 @@ type HermesMessage = {
   sources?: HermesSource[]
   taskIds?: string[]
   mode?: HermesQueryResult['mode']
+  toolSteps?: Array<{ tool: string; status: string }>
   isWelcome?: boolean
   backendIndex?: number
 }
@@ -629,6 +637,14 @@ function modeLabel(mode: HermesQueryResult['mode']) {
   return t(`hermes.modes.${mode}`)
 }
 
+function toolLabel(tool: string) {
+  return t(`hermes.tool_labels.${tool}`)
+}
+
+function toolStatusLabel(status: string) {
+  return t(`hermes.tool_status.${status}`)
+}
+
 function errorMessage(error: unknown, fallback: string) {
   if (typeof error === 'object' && error !== null) {
     const response = (error as { response?: { data?: { detail?: unknown } }; message?: unknown }).response
@@ -738,6 +754,12 @@ async function loadProjectData() {
               return { label: String(sourceItem.source_ref || sourceItem.title || sourceItem.source_type || 'source'), path: String(sourceItem.path || '/') }
             }),
             mode: item.mode as HermesQueryResult['mode'] | undefined,
+            toolSteps: Array.isArray(item.tool_steps)
+              ? item.tool_steps
+                .filter((step): step is Record<string, unknown> => typeof step === 'object' && step !== null)
+                .map((step) => ({ tool: String(step.tool || ''), status: String(step.status || '') }))
+                .filter((step) => step.tool && step.status)
+              : undefined,
             backendIndex: role === 'assistant' ? index : undefined,
           }
         })
@@ -798,6 +820,7 @@ function appendMessage(
   sources?: HermesSource[],
   taskIds?: string[],
   mode?: HermesQueryResult['mode'],
+  toolSteps?: Array<{ tool: string; status: string }>,
 ) {
   messages.value.push({
     id: ++messageSequence,
@@ -807,6 +830,7 @@ function appendMessage(
     sources,
     taskIds,
     mode,
+    toolSteps,
     isWelcome: false,
   })
 }
@@ -924,6 +948,56 @@ async function queryHermes(text: string, history = conversationHistory()) {
       || conversationId.value !== requestConversationId
     ) return
     appendMessage('assistant', t('hermes.query_failed', { error: errorMessage(error, t('hermes.query_unavailable')) }))
+  } finally {
+    if (querySequence === requestSequence) querying.value = false
+  }
+}
+
+async function orchestratePrompt(text: string): Promise<boolean> {
+  const projectId = selectedProjectId.value
+  if (!projectId) return false
+  const requestConversationId = conversationId.value
+  const requestSequence = ++querySequence
+  querying.value = true
+  try {
+    const result: HermesOrchestrationResult = await hermesApi.orchestrate({
+      project_id: projectId,
+      query: text,
+      conversation_id: requestConversationId,
+      session_id: sessionId.value ?? undefined,
+    })
+    if (
+      querySequence !== requestSequence
+      || selectedProjectId.value !== projectId
+      || conversationId.value !== requestConversationId
+    ) return true
+    if (result.status === 'no_match') return false
+    if (result.status === 'needs_input') {
+      appendMessage('assistant', result.clarification || result.answer)
+      return true
+    }
+    sessionId.value = result.session_id ?? sessionId.value
+    const sources = result.steps.flatMap((step) => step.evidence.map((item) => ({
+      label: [item.source_ref, item.title].filter(Boolean).join(' · '),
+      path: item.path,
+    })))
+    appendMessage(
+      'assistant',
+      result.answer,
+      sources,
+      undefined,
+      undefined,
+      result.steps.map((step) => ({ tool: step.tool, status: step.status })),
+    )
+    messages.value[messages.value.length - 1].backendIndex = result.message_index ?? undefined
+    return true
+  } catch {
+    if (
+      querySequence !== requestSequence
+      || selectedProjectId.value !== projectId
+      || conversationId.value !== requestConversationId
+    ) return true
+    return false
   } finally {
     if (querySequence === requestSequence) querying.value = false
   }
@@ -1111,8 +1185,14 @@ async function submitPrompt() {
   inputText.value = ''
   appendMessage('user', text)
   const key = intentFor(text)
-  if (key) await executeIntent(key)
-  else await queryHermes(text, conversationHistory().slice(0, -1))
+  if (key === 'test_plan' || key === 'explain_failure') await executeIntent(key)
+  else {
+    const handled = await orchestratePrompt(text)
+    if (!handled) {
+      if (key) await executeIntent(key)
+      else await queryHermes(text, conversationHistory().slice(0, -1))
+    }
+  }
 }
 
 watch(planDraft, () => {
@@ -1697,6 +1777,30 @@ h2 {
   font-size: 10px;
   font-weight: 600;
   line-height: 1.2;
+}
+
+.message-tool-chain {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  margin-top: 9px;
+  color: var(--c-text-tertiary);
+  font-size: 10px;
+}
+
+.tool-chain-label {
+  color: var(--c-ai);
+  font-family: 'JetBrains Mono', monospace;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.tool-chain-step {
+  padding: 3px 7px;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-full);
+  background: var(--c-bg-subtle);
 }
 
 .message-user .message-text {

@@ -1712,6 +1712,36 @@ export interface HermesToolCall {
   timeout_ms?: number
 }
 
+export interface HermesOrchestrationPlan {
+  tool: HermesToolName
+  arguments: Record<string, unknown>
+  reason: string
+}
+
+export interface HermesOrchestrationStep {
+  tool: HermesToolName
+  arguments: Record<string, unknown>
+  status: HermesToolStatus
+  duration_ms: number
+  message?: string | null
+  data: Record<string, unknown>
+  evidence: HermesToolEvidence[]
+}
+
+export interface HermesOrchestrationResult {
+  project_id: number
+  conversation_id: string
+  query: string
+  status: 'matched' | 'no_match' | 'needs_input'
+  clarification?: string | null
+  plans: HermesOrchestrationPlan[]
+  steps: HermesOrchestrationStep[]
+  answer: string
+  generated_at: string
+  session_id?: number | null
+  message_index?: number | null
+}
+
 export const authApi = {
   login: (username: string, password: string) =>
     http.post<unknown, { authenticated: boolean }>('/auth/login', { username, password }),
@@ -2075,6 +2105,8 @@ export const hermesApi = {
     http.post<unknown, HermesQueryResult>('/hermes/query', body),
   listTools: () => http.get<unknown, { tools: HermesToolDescriptor[]; generated_at: string }>('/hermes/tools'),
   executeTool: (body: HermesToolCall) => http.post<unknown, HermesToolResult>('/hermes/tools/execute', body),
+  orchestrate: (body: { project_id: number; query: string; conversation_id?: string; session_id?: number }) =>
+    http.post<unknown, HermesOrchestrationResult>('/hermes/orchestrate', body),
   sessions: (projectId: number) => http.get<unknown, HermesSessionItem[]>('/hermes/sessions', { params: { project_id: projectId } }),
   createSession: (projectId: number, title: string) =>
     http.post<unknown, HermesSessionItem>('/hermes/sessions', { project_id: projectId, title }),
