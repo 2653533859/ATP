@@ -32,10 +32,20 @@ MINIO_BUCKET=atp
 docker compose -f docker-compose.app.yml up --build -d
 ```
 
+后端启动会先运行有界的 Alembic 迁移：默认最多 12 次、每次间隔 5 秒；仅对 PostgreSQL DNS、连接或“数据库正在启动”类错误重试。可按目标环境临时调整，但不会超过 24 次和 30 秒：
+
+```bash
+ATP_MIGRATION_RETRY_ATTEMPTS=12 ATP_MIGRATION_RETRY_DELAY_SECONDS=5 \
+  docker compose -f docker-compose.app.yml up --build -d
+```
+
+外部基础设施模式的 backend 只会在失败时额外重启 3 次；超过上限会停止，避免无穷重启。此时应先保留 `backend` 日志并检查数据库 DNS 与健康状态，而不是无限提高重试次数。frontend、worker、web-recorder、beat 和 flower 会等待 backend `/health` 成功后再启动。
+
 查看状态：
 
 ```bash
 docker compose -f docker-compose.app.yml ps
+docker compose -f docker-compose.app.yml logs --since=5m backend
 ```
 
 查看日志：
@@ -64,7 +74,7 @@ docker compose -f docker-compose.app.yml down
 
 ## 注意事项
 
-- `backend` 启动命令中已包含 `alembic upgrade head`，首次启动会自动迁移数据库。
+- `backend` 启动前会通过受限、脱敏的迁移入口执行 `alembic upgrade head`；若要在发布窗口显式先行迁移，可执行 `docker compose -f docker-compose.app.yml run --rm backend migrate`。
 - 应用启动时会先做一次 Alembic head 校验：若 DB revision 与 head 不一致或 `alembic_version` 表缺失，会在日志输出 WARNING。生产环境部署前请确保已 `alembic upgrade head`。
 - 应用启动时现在会自动确保 MinIO bucket 存在。
 - 如果只验证 API 和前端，这套配置已经足够。

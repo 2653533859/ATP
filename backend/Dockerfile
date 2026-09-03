@@ -13,5 +13,7 @@ RUN pip install --no-cache-dir -r requirements.txt \
 
 COPY . .
 
-# 启动前应用 Alembic 迁移；表结构不再通过 create_all 兜底生成。
-CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+# 默认启动前应用有界 Alembic 重试；完整 Compose 栈由独立 migrate 服务先行迁移。
+RUN chmod 0755 /app/docker-start.sh
+ENTRYPOINT ["/app/docker-start.sh"]
+CMD ["serve"]

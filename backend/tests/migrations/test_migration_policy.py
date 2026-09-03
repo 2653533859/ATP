@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import yaml
 
 ROOT = Path(__file__).resolve().parents[3]
 
@@ -14,19 +15,33 @@ def test_bootstrap_db_uses_alembic_not_metadata_create_all():
     assert "command.stamp" not in content
 
 
-def test_backend_image_runs_alembic_upgrade_before_uvicorn():
+def test_backend_image_uses_the_bounded_migration_entrypoint():
     content = (ROOT / "backend" / "Dockerfile").read_text(encoding="utf-8")
 
-    assert "alembic upgrade head" in content
+    assert 'ENTRYPOINT ["/app/docker-start.sh"]' in content
+    assert 'CMD ["serve"]' in content
     assert "app.bootstrap_db" not in content
 
 
 def test_compose_has_explicit_migration_gate():
-    content = (ROOT / "docker-compose.yml").read_text(encoding="utf-8")
+    compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    services = compose["services"]
 
-    assert "migrate:" in content
-    assert "command: alembic upgrade head" in content
-    assert "condition: service_completed_successfully" in content
+    assert services["migrate"]["command"] == ["migrate"]
+    assert services["backend"]["command"] == ["serve", "--skip-migrations"]
+    assert services["backend"]["depends_on"]["migrate"]["condition"] == "service_completed_successfully"
+    assert "/health" in services["backend"]["healthcheck"]["test"][-1]
+    assert services["worker"]["depends_on"]["backend"]["condition"] == "service_healthy"
+
+
+def test_external_infrastructure_compose_waits_for_backend_health():
+    compose = yaml.safe_load((ROOT / "docker-compose.app.yml").read_text(encoding="utf-8"))
+    services = compose["services"]
+
+    assert "/health" in services["backend"]["healthcheck"]["test"][-1]
+    assert services["backend"]["restart"] == "on-failure:3"
+    for service_name in ("frontend", "worker", "web-recorder", "beat", "flower"):
+        assert services[service_name]["depends_on"]["backend"]["condition"] == "service_healthy"
 
 
 def test_helm_chart_has_preinstall_migration_job():

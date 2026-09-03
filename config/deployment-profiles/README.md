@@ -13,13 +13,17 @@
 ```bash
 cp config/deployment-profiles/android-worker-backend.env.example .env
 # 填写 PostgreSQL、Redis、MinIO、APP_SECRET_KEY 和 ENCRYPTION_KEY
-docker compose -f docker-compose.app.yml run --rm backend alembic upgrade head
+docker compose -f docker-compose.app.yml run --rm backend migrate
 docker compose -f docker-compose.app.yml up -d backend worker beat frontend
 ```
 
 这里使用 `docker-compose.app.yml`，因为默认 `docker-compose.yml` 会同时启动本地
 PostgreSQL、Redis 和 MinIO，不适合连接外部基础设施的部署方式。Helm 部署则将同名
 变量注入对应的 Secret/ConfigMap，不要把该示例文件直接提交为生产 `.env`。
+
+`migrate` 会对短暂的 PostgreSQL DNS/就绪错误作有界、脱敏重试；backend 未通过
+`/health` 前，依赖它的应用服务不会启动。若迁移耗尽重试，保留日志并修复外部基础
+设施，不要用无限容器重启掩盖问题。
 
 Helm 可以直接使用仓库提供的 overlay：
 

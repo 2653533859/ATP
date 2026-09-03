@@ -6,7 +6,8 @@ services:
     ports:
       - "80:80"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   backend:
@@ -18,7 +19,15 @@ services:
       - APP_ENV=production
     ports:
       - "8000:8000"
-    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 20s
+    # External infrastructure can be temporarily unavailable. Keep failures
+    # diagnosable instead of restarting this migration-owning container forever.
+    restart: on-failure:3
 
   worker:
     build:
@@ -30,7 +39,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   web-recorder:
@@ -48,7 +58,8 @@ services:
     extra_hosts:
       - "host.docker.internal:host-gateway"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   beat:
@@ -58,7 +69,8 @@ services:
     command: celery -A app.worker.celery_app beat --loglevel=info
     env_file: .env
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
 
   flower:
@@ -70,5 +82,6 @@ services:
     ports:
       - "5555:5555"
     depends_on:
-      - backend
+      backend:
+        condition: service_healthy
     restart: unless-stopped
