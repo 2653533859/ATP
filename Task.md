@@ -39,6 +39,7 @@
 - [x] 计划检查点 2.4.30：H7 将 `needs_input` 的最小 allow-list 只读意图持久化到当前会话，下一轮只在同一用户、项目、会话和 `conversation_id` 下补齐该固定工具；页面恢复会校验并复用已保存的 `conversation_id`，所以刷新后仍可续接，项目切换时旧会话也不会迟到覆盖新项目。没有受控状态时，单独数字不触发工具。明确新意图会清除旧状态，新的追问会替换旧状态；控制性追问不计入 H5 回答质量，也不能评价。Hermes 编排/服务定向 `25 passed`、后端受影响文件独立 `18 passed`/`7 passed`、前端 Hermes `17 passed`，后端非集成全量 `2439 passed`、前端全量 `69 files / 332 tests passed`，TypeScript、mypy、生产构建、Python 编译、Ruff、格式/差异检查、密钥扫描及提交钩子均通过；真实模型工具选择、成本、角色、审计和目标部署继续独立复核。
 - [x] 计划检查点 2.4.31：H8 允许用户在同一受控 pending 会话中用精确取消词清除 `pending_orchestration`；取消返回 `cancelled`，不执行工具，也不会让无 pending 的取消词误触发失败任务读取。跨会话取消保留原状态，取消后可继续编排或 H1 项目证据检索；取消控制不计入 H5 回答质量，也不能评价。Hermes 编排/服务定向 `27 passed`、前端 Hermes `19 passed`，后端非集成全量 `2441 passed`、前端全量 `69 files / 334 tests passed`，TypeScript、mypy、生产构建、Python 编译、Ruff、格式/差异检查、密钥扫描及提交钩子均通过；真实模型工具选择、成本、角色、审计和目标部署继续独立复核。
 - [x] 计划检查点 2.4.32：Linux Compose 启动韧性将 Alembic 从后端固定 shell 命令拆为可测试的有界启动入口；仅对已知 PostgreSQL DNS/就绪故障重试，默认最多 12 次、每次 5 秒，上限为 24 次和 30 秒，日志不回显迁移错误原文。完整 Compose 的 `migrate` 成功后才启动 backend；外部基础设施编排等待 backend `/health`，并以 `on-failure:3` 防止迁移失败无限重启。定向迁移/部署契约 `15 passed`；目标 Linux 的连续稳定性仍需独立观察。
+- [x] 计划检查点 2.4.33：扩展 `validate-deployment-readiness` 为 Linux Compose 启动韧性的统一只读门禁：覆盖默认与外部基础设施 Compose 的 YAML/渲染入口、backend 迁移门、健康依赖、外部 backend 有界重启及迁移入口脚本语法；外部 backend 若错误跳过迁移会被拒绝。定向部署契约 `30 passed`、后端非集成全量 `2451 passed`；本机缺 Docker/Compose 时实际渲染明确 `SKIP`，目标 Linux 的当前 SHA 部署和持续稳定性仍需独立观察。
 
 > 下方逐项明细保留各检查点的原始描述；其中“仍待验收”属于当时快照，不覆盖以上截至 2026-09-01 的统一状态。
 

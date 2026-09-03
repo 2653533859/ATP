@@ -41,6 +41,8 @@ ATP_MIGRATION_RETRY_ATTEMPTS=12 ATP_MIGRATION_RETRY_DELAY_SECONDS=5 \
 
 外部基础设施模式的 backend 只会在失败时额外重启 3 次；超过上限会停止，避免无穷重启。此时应先保留 `backend` 日志并检查数据库 DNS 与健康状态，而不是无限提高重试次数。frontend、worker、web-recorder、beat 和 flower 会等待 backend `/health` 成功后再启动。
 
+部署前可运行 `make validate-deployment-readiness`；该命令会校验外部基础设施 Compose 的有界重启、迁移入口和 backend 健康依赖契约。它不连接或修改目标 Linux，目标环境仍需在部署后执行实际容器观察。
+
 查看状态：
 
 ```bash

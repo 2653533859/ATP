@@ -10,6 +10,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 import yaml
 
@@ -23,8 +24,12 @@ REQUIRED_FILES = (
     "deploy/grafana/alerts/atp-alerts.yaml",
     "docker/grafana/dashboards/atp-overview.json",
     "docker-compose.yml",
+    "docker-compose.app.yml",
     "docker-compose.dev.yml",
+    "backend/docker-start.sh",
+    "backend/app/migration_startup.py",
     "docs/deploy-helm.md",
+    "docs/external-infra-run.md",
     "docs/disaster-recovery.md",
     "docs/backup-restore-drill-record.md",
     "scripts/backup-postgres.sh",
@@ -61,6 +66,7 @@ def _check_data_files(failures: list[str]) -> None:
         "deploy/helm/atp/values.yaml",
         "deploy/helm/atp/values-performance-acceptance.example.yaml",
         "docker-compose.yml",
+        "docker-compose.app.yml",
         "docker-compose.dev.yml",
     )
     json_files = (
@@ -95,7 +101,7 @@ def _check_shell_scripts(require_shell: bool, skipped: list[str], failures: list
         (failures if require_shell else skipped).append(message)
         return
 
-    for relative in ("scripts/backup-postgres.sh", "scripts/restore-postgres.sh"):
+    for relative in ("backend/docker-start.sh", "scripts/backup-postgres.sh", "scripts/restore-postgres.sh"):
         ok, output = _run([shell, "-n", relative])
         if not ok:
             failures.append(f"shell syntax failed for {relative}: {output}")
@@ -183,6 +189,85 @@ def _check_android_worker_profiles(failures: list[str]) -> None:
         failures.append("Android Worker Helm overlay must keep Linux Worker queues separate from Android queues")
 
 
+def _compose_services(compose: Any, relative: str, failures: list[str]) -> dict[str, Any] | None:
+    if not isinstance(compose, dict) or not isinstance(compose.get("services"), dict):
+        failures.append(f"{relative} must define a services mapping")
+        return None
+    return compose["services"]
+
+
+def _depends_on_healthy(service: dict[str, Any], dependency: str) -> bool:
+    depends_on = service.get("depends_on")
+    return (
+        isinstance(depends_on, dict)
+        and isinstance(depends_on.get(dependency), dict)
+        and depends_on[dependency].get("condition") == "service_healthy"
+    )
+
+
+def _has_backend_healthcheck(service: dict[str, Any]) -> bool:
+    healthcheck = service.get("healthcheck")
+    if not isinstance(healthcheck, dict):
+        return False
+    probe = healthcheck.get("test")
+    return isinstance(probe, list) and "/health" in " ".join(str(part) for part in probe)
+
+
+def _validate_compose_startup_contracts(
+    default_services: dict[str, Any], external_services: dict[str, Any], failures: list[str]
+) -> None:
+    """Reject regressions that can recreate an unbounded startup restart loop."""
+    migrate = default_services.get("migrate")
+    backend = default_services.get("backend")
+    if not isinstance(migrate, dict) or migrate.get("command") != ["migrate"]:
+        failures.append("docker-compose.yml migrate service must use the bounded migrate entrypoint")
+    if not isinstance(backend, dict):
+        failures.append("docker-compose.yml must define a backend service")
+    else:
+        if backend.get("command") != ["serve", "--skip-migrations"]:
+            failures.append("docker-compose.yml backend must skip duplicate migrations after the migration gate")
+        depends_on = backend.get("depends_on")
+        migration_gate = (
+            isinstance(depends_on, dict)
+            and isinstance(depends_on.get("migrate"), dict)
+            and depends_on["migrate"].get("condition") == "service_completed_successfully"
+        )
+        if not migration_gate:
+            failures.append("docker-compose.yml backend must wait for a successful migration gate")
+        if not _has_backend_healthcheck(backend):
+            failures.append("docker-compose.yml backend must expose a /health healthcheck")
+
+    external_backend = external_services.get("backend")
+    if not isinstance(external_backend, dict):
+        failures.append("docker-compose.app.yml must define a backend service")
+    else:
+        if external_backend.get("command") is not None:
+            failures.append("docker-compose.app.yml backend must use the migration-owning image default command")
+        if external_backend.get("restart") != "on-failure:3":
+            failures.append("docker-compose.app.yml backend restart policy must remain bounded")
+        if not _has_backend_healthcheck(external_backend):
+            failures.append("docker-compose.app.yml backend must expose a /health healthcheck")
+
+    for service_name in ("frontend", "worker", "web-recorder", "beat", "flower"):
+        service = external_services.get(service_name)
+        if not isinstance(service, dict) or not _depends_on_healthy(service, "backend"):
+            failures.append(f"docker-compose.app.yml {service_name} must wait for backend health")
+
+
+def _check_compose_startup_contracts(failures: list[str]) -> None:
+    try:
+        default_compose = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+        external_compose = yaml.safe_load((ROOT / "docker-compose.app.yml").read_text(encoding="utf-8"))
+    except (OSError, yaml.YAMLError) as exc:
+        failures.append(f"cannot read Compose startup contracts: {exc}")
+        return
+
+    default_services = _compose_services(default_compose, "docker-compose.yml", failures)
+    external_services = _compose_services(external_compose, "docker-compose.app.yml", failures)
+    if default_services is not None and external_services is not None:
+        _validate_compose_startup_contracts(default_services, external_services, failures)
+
+
 def _resolve_compose() -> list[str] | None:
     configured = os.environ.get("COMPOSE")
     if configured:
@@ -210,9 +295,17 @@ def _check_compose(require_compose: bool, skipped: list[str], failures: list[str
         message = "Compose config (.env is not present; use deployment credentials locally)"
         (failures if require_compose else skipped).append(message)
         return
-    ok, output = _run([*compose, "-f", "docker-compose.yml", "-f", "docker-compose.dev.yml", "config", "--quiet"])
-    if not ok:
-        failures.append(f"docker-compose config failed: {output}")
+    commands = (
+        (
+            "docker-compose.yml with docker-compose.dev.yml",
+            ["-f", "docker-compose.yml", "-f", "docker-compose.dev.yml"],
+        ),
+        ("docker-compose.app.yml", ["-f", "docker-compose.app.yml"]),
+    )
+    for label, files in commands:
+        ok, output = _run([*compose, *files, "config", "--quiet"])
+        if not ok:
+            failures.append(f"docker-compose config failed for {label}: {output}")
 
 
 def _check_helm(require_helm: bool, skipped: list[str], failures: list[str]) -> None:
@@ -253,6 +346,7 @@ def main() -> int:
     _check_shell_scripts(strict or args.require_shell, skipped, failures)
     _check_document_contracts(failures)
     _check_android_worker_profiles(failures)
+    _check_compose_startup_contracts(failures)
     _check_compose(strict, skipped, failures)
     _check_helm(strict or args.require_helm, skipped, failures)
 

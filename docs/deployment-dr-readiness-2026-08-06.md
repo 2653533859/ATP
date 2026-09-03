@@ -12,9 +12,11 @@ Run from the repository root:
 make validate-deployment-readiness
 ```
 
-The check validates the chart values/schema, Compose YAML, Grafana JSON,
-backup/restore shell syntax, deployment and disaster-recovery checklist
-contracts, and—when installed—`docker-compose config` and `helm lint`.
+The check validates the chart values/schema, default and external-infrastructure
+Compose YAML, the bounded migration/startup contract, Grafana JSON,
+backup/restore and backend-entrypoint shell syntax, deployment and
+disaster-recovery checklist contracts, and—when installed—both
+`docker-compose config` variants and `helm lint`.
 On Windows without Git Bash, WSL, or another POSIX shell, shell syntax is
 reported as skipped so the repository checks remain usable; use
 `python scripts/validate-deployment-readiness.py --require-shell` on a release

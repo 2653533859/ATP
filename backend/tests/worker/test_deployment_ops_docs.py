@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from copy import deepcopy
 import importlib.util
 import json
 from pathlib import Path
@@ -66,6 +67,28 @@ def test_deployment_validator_optional_compose_is_explicitly_skipped(monkeypatch
 
     assert failures == []
     assert skipped == ["Compose config (neither COMPOSE, docker-compose, nor docker compose is available)"]
+
+
+def test_deployment_validator_enforces_compose_startup_resilience_contracts():
+    validator = _load_deployment_validator()
+    failures: list[str] = []
+
+    validator._check_compose_startup_contracts(failures)
+
+    assert failures == []
+
+
+def test_deployment_validator_rejects_an_external_backend_that_skips_migrations():
+    validator = _load_deployment_validator()
+    default = yaml.safe_load((ROOT / "docker-compose.yml").read_text(encoding="utf-8"))
+    external = yaml.safe_load((ROOT / "docker-compose.app.yml").read_text(encoding="utf-8"))
+    external_services = deepcopy(external["services"])
+    external_services["backend"]["command"] = ["serve", "--skip-migrations"]
+    failures: list[str] = []
+
+    validator._validate_compose_startup_contracts(default["services"], external_services, failures)
+
+    assert failures == ["docker-compose.app.yml backend must use the migration-owning image default command"]
 
 
 def test_deployment_validator_normalizes_missing_and_malformed_process_output(monkeypatch):

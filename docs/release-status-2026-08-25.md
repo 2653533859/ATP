@@ -4,7 +4,9 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
-> 当前计划跟踪版本为 2.4.0，最新同步检查点为 2.4.32：参考导航按工作台、测试能力、测试资产、智能中枢、系统五组跟踪，按 P0 工作台、P1 接口、P2 APP、P3 UI、P4 性能、P5 AI、P6 测试资产、P7 智能中枢、P8 系统和 P9 发布收口推进。P5～P8 已在 2.4.22 取得 q19 受控真实证据；2.4.23～2.4.31 已完成前端主题与 Hermes H1～H8 的本地交付，2.4.32 已完成 Linux Compose 启动韧性本地交付；这些本地交付不改变 P4 未完成真实环境复核前的“存在未关闭门禁”结论；Windows 与 Android Worker 的本地边界不影响 Web/API 使用。
+> 当前计划跟踪版本为 2.4.0，最新同步检查点为 2.4.33：参考导航按工作台、测试能力、测试资产、智能中枢、系统五组跟踪，按 P0 工作台、P1 接口、P2 APP、P3 UI、P4 性能、P5 AI、P6 测试资产、P7 智能中枢、P8 系统和 P9 发布收口推进。P5～P8 已在 2.4.22 取得 q19 受控真实证据；2.4.23～2.4.31 已完成前端主题与 Hermes H1～H8 的本地交付，2.4.32～2.4.33 已完成 Linux Compose 启动韧性及预检门禁本地交付；这些本地交付不改变 P4 未完成真实环境复核前的“存在未关闭门禁”结论；Windows 与 Android Worker 的本地边界不影响 Web/API 使用。
+
+> 2026-09-04 Linux Compose 启动预检门禁本地交付：`validate-deployment-readiness` 现在覆盖默认及外部基础设施 Compose、backend 迁移门、健康依赖、外部 backend 有界重启和入口脚本语法；外部 backend 一旦跳过镜像默认迁移入口即被拒绝。具备 Docker/Compose 的发布机将对两套配置执行 `compose config --quiet`；本机无该运行时会明确显示 `SKIP`。部署契约 `30 passed`，后端非集成全量 `2451 passed`。预检只验证仓库契约，不能替代当前 SHA 的 Linux 构建、部署、连续稳定性观察或 P4/P9 的真实环境门禁。
 
 > 2026-09-04 Linux Compose 启动韧性本地交付：Alembic 迁移从每次 backend 启动的固定 shell 命令拆分为可测试的 `migrate`/`serve` 入口。它只对已知 PostgreSQL DNS、连接和启动中故障有限重试（默认 12 次、5 秒间隔，上限 24 次、30 秒），并且不回显迁移命令错误原文。完整 Compose 必须等待独立 `migrate` 成功才启动 backend；外部基础设施 Compose 则让依赖服务等待 backend `/health`，并把 backend 失败重启限制为 3 次。定向迁移/部署契约 `15 passed`。这只关闭本地配置与回归门禁；当前提交仍须在目标 Linux 上持续观察依赖健康和容器状态，不能作为真实稳定性验收或 P4/P9 发布通过证据。
 
