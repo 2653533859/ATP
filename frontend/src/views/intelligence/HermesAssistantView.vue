@@ -633,6 +633,10 @@ function newConversationId() {
   return `hermes-${selectedProjectId.value || 'none'}-${randomPart}`
 }
 
+function isConversationId(value: unknown): value is string {
+  return typeof value === 'string' && /^[A-Za-z0-9._:-]{8,80}$/.test(value)
+}
+
 function modeLabel(mode: HermesQueryResult['mode']) {
   return t(`hermes.modes.${mode}`)
 }
@@ -736,9 +740,12 @@ async function loadProjectData() {
   resetConversation()
   try {
     const sessions = await hermesApi.sessions(projectId)
+    if (sequence !== loadSequence || selectedProjectId.value !== projectId) return
     const latest = sessions[0]
     if (latest) {
       sessionId.value = latest.id
+      const storedConversationId = latest.context_filters?.conversation_id
+      if (isConversationId(storedConversationId)) conversationId.value = storedConversationId
       const restored = latest.messages
         .map((item, index): HermesMessage | null => {
           const role = item.role === 'assistant' ? 'assistant' : item.role === 'user' ? 'user' : null
@@ -760,7 +767,7 @@ async function loadProjectData() {
                 .map((step) => ({ tool: String(step.tool || ''), status: String(step.status || '') }))
                 .filter((step) => step.tool && step.status)
               : undefined,
-            backendIndex: role === 'assistant' ? index : undefined,
+            backendIndex: role === 'assistant' && item.kind !== 'orchestration_clarification' ? index : undefined,
           }
         })
         .filter((item): item is HermesMessage => item !== null)
@@ -973,6 +980,7 @@ async function orchestratePrompt(text: string): Promise<boolean> {
     ) return true
     if (result.status === 'no_match') return false
     if (result.status === 'needs_input') {
+      sessionId.value = result.session_id ?? sessionId.value
       appendMessage('assistant', result.clarification || result.answer)
       return true
     }

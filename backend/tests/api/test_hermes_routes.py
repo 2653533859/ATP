@@ -278,6 +278,135 @@ def test_hermes_orchestration_returns_clarification_without_executing_unknown_ta
     assert calls == []
 
 
+def test_hermes_orchestration_persists_pending_intent_and_resumes_only_in_same_conversation(monkeypatch):
+    calls = []
+
+    async def allow_access(*_args):
+        return None
+
+    async def execute_tool(body, _request, _db, _user):
+        calls.append(body)
+        return HermesToolOut(
+            project_id=body.project_id,
+            conversation_id=body.conversation_id,
+            tool=body.tool,
+            status="ok",
+            duration_ms=4,
+            data={"task": {"id": body.arguments["run_id"]}},
+            evidence=[],
+            generated_at=NOW,
+        )
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    monkeypatch.setattr(hermes, "execute_hermes_tool", execute_tool)
+    db = _DB()
+    first = HermesOrchestrationIn(project_id=1, query="查看 case 的运行详情", conversation_id="hermes-h7-1")
+
+    clarification = asyncio.run(hermes.orchestrate_hermes(first, SimpleNamespace(), db, _user()))
+
+    assert clarification.status == "needs_input"
+    assert clarification.session_id == 100
+    assert clarification.message_index == 1
+    assert db.added[0].context_filters["pending_orchestration"] == {
+        "tool": "run_detail",
+        "arguments": {"task_type": "case"},
+    }
+    assert calls == []
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            hermes.submit_hermes_feedback(
+                clarification.session_id,
+                hermes.HermesFeedbackIn(project_id=1, message_index=clarification.message_index, rating="helpful"),
+                db,
+                _user(),
+            )
+        )
+    assert exc.value.status_code == 422
+    assert db.added[0].metrics["helpful"] == 0
+
+    wrong_conversation = asyncio.run(
+        hermes.orchestrate_hermes(
+            HermesOrchestrationIn(
+                project_id=1,
+                query="12",
+                conversation_id="hermes-h7-other",
+                session_id=clarification.session_id,
+            ),
+            SimpleNamespace(),
+            db,
+            _user(),
+        )
+    )
+    assert wrong_conversation.status == "no_match"
+    assert calls == []
+    assert "pending_orchestration" in db.added[0].context_filters
+
+    follow_up = HermesOrchestrationIn(
+        project_id=1,
+        query="12",
+        conversation_id="hermes-h7-1",
+        session_id=clarification.session_id,
+    )
+    resumed = asyncio.run(hermes.orchestrate_hermes(follow_up, SimpleNamespace(), db, _user()))
+
+    assert resumed.status == "matched"
+    assert [call.tool for call in calls] == ["run_detail"]
+    assert calls[0].arguments == {"task_type": "case", "run_id": 12}
+    assert "pending_orchestration" not in db.added[0].context_filters
+    assert len(db.added[0].messages) == 4
+
+
+def test_hermes_orchestration_direct_intent_supersedes_pending_intent(monkeypatch):
+    calls = []
+
+    async def allow_access(*_args):
+        return None
+
+    async def execute_tool(body, _request, _db, _user):
+        calls.append(body)
+        return HermesToolOut(
+            project_id=body.project_id,
+            conversation_id=body.conversation_id,
+            tool=body.tool,
+            status="ok",
+            duration_ms=4,
+            data={"id": body.arguments.get("knowledge_id")},
+            evidence=[],
+            generated_at=NOW,
+        )
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    monkeypatch.setattr(hermes, "execute_hermes_tool", execute_tool)
+    db = _DB()
+    first = asyncio.run(
+        hermes.orchestrate_hermes(
+            HermesOrchestrationIn(project_id=1, query="查看 case 的运行详情", conversation_id="hermes-h7-override"),
+            SimpleNamespace(),
+            db,
+            _user(),
+        )
+    )
+
+    direct = asyncio.run(
+        hermes.orchestrate_hermes(
+            HermesOrchestrationIn(
+                project_id=1,
+                query="查看知识 9",
+                conversation_id="hermes-h7-override",
+                session_id=first.session_id,
+            ),
+            SimpleNamespace(),
+            db,
+            _user(),
+        )
+    )
+
+    assert direct.status == "matched"
+    assert [call.tool for call in calls] == ["knowledge_detail"]
+    assert calls[0].arguments == {"knowledge_id": 9}
+    assert "pending_orchestration" not in db.added[0].context_filters
+
+
 def test_rank_candidates_redacts_source_text_and_is_stable():
     sources = rank_candidates(
         "登录",

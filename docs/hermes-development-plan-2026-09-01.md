@@ -1,8 +1,8 @@
 # Hermes 助手开发文档
 
-> 版本：H6 / 2026-09-03
-> 状态：H1～H6 本地实现完成，真实模型阈值、成本 usage、目标部署和生产角色矩阵待复核
-> 关联计划：[`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.4.29
+> 版本：H7 / 2026-09-03
+> 状态：H1～H7 本地实现完成，真实模型阈值、成本 usage、目标部署和生产角色矩阵待复核
+> 关联计划：[`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.4.30
 
 ## 1. 产品定位
 
@@ -30,6 +30,7 @@ Hermes 的默认原则：
 | 结构化草稿与人工确认 | H4 已完成 | 展示结构化 diff、来源和影响范围；显式确认后可创建禁用的手工 draft，也可将草稿交给现有计划保存页 |
 | 评测治理 | H5 已完成本地切片 | 固定 5 题评测集、有效引用覆盖率、拒答/无结果率、平均/P95 延迟、prompt 版本、反馈和成本不可用状态；真实模型阈值仍待环境验收 |
 | 自然语言只读编排 | H6 已完成本地切片 | 根据自然语言自动选择最多 2 个固定只读工具；目标编号不明确时先追问，未知问题回退原有项目证据检索 |
+| 多轮参数补全 | H7 已完成本地切片 | 将缺失目标的只读意图以受控状态保存到当前会话；同一用户、项目和 `conversation_id` 的下一轮只能补齐该固定工具，不能扩大为任意工具或写操作 |
 
 ## 3. H1 技术链路
 
@@ -144,6 +145,26 @@ H5 先提供可重复的静态问题集和只读治理汇总，不自动调用�
 
 H6 的编排器只从失败任务、运行详情、质量趋势、需求—用例追踪和知识详情五个 H3 工具中选择，最多执行两步；所有调用继续复用 viewer 权限、参数白名单、最长 5 秒、脱敏结果和审计链路。成功编排会把工具状态和稳定证据写入当前用户/项目会话，前端显示“自动读取链路”；不会触发重试、终止、创建、修改、删除或外部网络操作。
 
+### H7 多轮参数补全链路
+
+```text
+H6 返回 needs_input
+        │
+        ▼
+当前用户 / 项目会话保存脱敏追问与 allow-list pending_orchestration
+        │
+        ├─ 同一 project + user + conversation_id 的普通补充输入
+        │      └─ 仅补齐原来的 run_detail / requirement_case_links / knowledge_detail
+        │
+        ├─ 新的明确匹配意图
+        │      └─ 直接执行新计划并清除旧 pending 状态
+        │
+        └─ 新的 needs_input 意图
+               └─ 替换为新的受控 pending 状态，不执行猜测调用
+```
+
+H7 只持久化三个不完整只读意图及其最小参数：运行详情的 `task_type`/`run_id`、需求—用例追踪的目标类型，或知识详情的空参数。页面恢复最近会话时会校验并恢复已保存的 `conversation_id`，因此刷新后仍可续接该状态；恢复请求也受加载序列和项目 ID 保护，切换项目时的旧会话不会覆盖新项目。下一轮输入只会填充当前挂起工具的编号或任务类型；没有已验证的同一会话状态时，单独的数字不会触发工具。追问消息标记为 `orchestration_clarification`，不计入 H5 回答质量分母，也不能提交 helpful/not-helpful 反馈。
+
 ## 4. API 契约
 
 ### 请求
@@ -234,10 +255,11 @@ Content-Type: application/json
 - `GET /api/v1/hermes/governance/evaluation-set`：返回固定评测集 ID、版本、5 道只读问题及期望回答模式；不需要项目正文，也不会触发模型调用。
 - `GET /api/v1/hermes/governance/summary?project_id={id}`：在当前项目 viewer 权限下返回项目级聚合，包括 prompt 版本、评测集元数据、有效引用覆盖率、拒答/无结果率、平均/P95 延迟、人工反馈和成本不可用状态；不返回会话正文。
 
-### H6 自然语言编排
+### H6/H7 自然语言编排
 
 - `POST /api/v1/hermes/orchestrate`：在当前项目 viewer 权限下，根据自然语言选择最多两个固定只读工具；返回计划、每步状态、脱敏数据、稳定证据和会话消息索引。
 - 编排器未命中工具时返回 `no_match`，由前端继续调用 `/hermes/query`；缺少运行/需求/用例/知识显式目标时返回 `needs_input`，不执行猜测调用。
+- H7 对 `needs_input` 持久化受控的 `pending_orchestration`，并返回 `session_id`；只有同一用户、项目、会话和 `conversation_id` 的后续输入可以补齐该固定工具。明确的新意图会取代旧状态；追问消息不能通过反馈接口评价。
 
 ### H3 工具目录与执行
 
@@ -280,6 +302,7 @@ Hermes 使用项目的 `ai_llm_config_id`，复用系统已有的 provider、模
 8. H3 只允许固定的只读工具名和工具参数；执行前校验当前项目 viewer 权限，服务端强制最长 5 秒，并将成功、空结果、未找到、超时和异常写入脱敏审计摘要。
 9. H4 草稿只能通过当前用户/项目会话保存；首次保存可先创建空会话，但草稿和业务计划仍要求当前项目 editor 权限。确认前不创建业务计划，二次确认后只创建禁用的手工 draft，或打开现有计划页供用户继续选择套件。两条路径都不自动执行，项目和编辑权限由服务端强制校验。
 10. H6 只能从固定意图规则生成最多两个只读工具调用；用户自定义工具名、参数和目标不能直接透传，缺少显式编号时先追问，未命中则回退 H1 检索。
+11. H7 只接受服务端 allow-list 反序列化后的挂起状态，并要求当前用户、项目、会话与 `conversation_id` 一致；下一轮只能补齐该单一只读工具。控制性追问不能计入 H5 回答质量或获得人工回答反馈。
 
 ## 6. 后续开发计划
 
@@ -291,8 +314,9 @@ Hermes 使用项目的 `ai_llm_config_id`，复用系统已有的 provider、模
 | H4 | 测试计划、用例和回归范围结构化草稿 | 编辑前后 diff、来源和影响范围可见；确认后交给现有计划页，用户仍需选择套件并点击保存 |
 | H5 | 问题集、引用准确率、拒答率、延迟、成本、提示词版本和反馈 | 真实模型、角色矩阵、审计和目标部署证据齐全 |
 | H6 | 自然语言自动选择和编排固定只读工具 | 最多两步、目标明确、权限/超时/脱敏/审计保持有效；未知问题回退证据检索 |
+| H7 | 多轮参数补全 | 仅恢复同一用户/项目/会话/`conversation_id` 的受控只读意图；单独数字不越权触发工具，明确新意图可替代旧状态 |
 
-推荐顺序：H2 → H3 → H4 → H5 → H6。H3 的自动选择与编排在固定工具契约、项目隔离和会话上下文完成后推进；H6 不开放写工具。
+推荐顺序：H2 → H3 → H4 → H5 → H6 → H7。H3 的自动选择与编排在固定工具契约、项目隔离和会话上下文完成后推进；H6/H7 不开放写工具。
 
 ## 7. 本地开发与联调
 
@@ -339,8 +363,8 @@ Windows 没有 `make` 时，使用等价命令：
 .venv\Scripts\python.exe -m pytest backend/tests -q --ignore=backend/tests/integration
 
 # Python 质量门禁
-.venv\Scripts\python.exe -m ruff check backend/app/api/v1/hermes.py backend/app/services/ai_governance.py backend/app/services/hermes.py backend/app/schemas/hermes.py backend/app/services/hermes_tools.py backend/app/schemas/hermes_tools.py backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py backend/tests/services/test_hermes.py backend/tests/api/test_hermes_tools.py backend/tests/services/test_hermes_read_tools.py
-.venv\Scripts\python.exe -m ruff format --check backend/app/api/v1/hermes.py backend/app/services/ai_governance.py backend/app/services/hermes.py backend/app/schemas/hermes.py backend/app/services/hermes_tools.py backend/app/schemas/hermes_tools.py backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py backend/tests/services/test_hermes.py backend/tests/api/test_hermes_tools.py backend/tests/services/test_hermes_read_tools.py
+.venv\Scripts\python.exe -m ruff check backend/app/api/v1/hermes.py backend/app/services/ai_governance.py backend/app/services/hermes.py backend/app/services/hermes_orchestration.py backend/app/schemas/hermes.py backend/app/services/hermes_tools.py backend/app/schemas/hermes_tools.py backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py backend/tests/services/test_hermes.py backend/tests/api/test_hermes_tools.py backend/tests/services/test_hermes_read_tools.py
+.venv\Scripts\python.exe -m ruff format --check backend/app/api/v1/hermes.py backend/app/services/ai_governance.py backend/app/services/hermes.py backend/app/services/hermes_orchestration.py backend/app/schemas/hermes.py backend/app/services/hermes_tools.py backend/app/schemas/hermes_tools.py backend/tests/api/test_hermes_routes.py backend/tests/services/test_ai_governance.py backend/tests/services/test_hermes.py backend/tests/api/test_hermes_tools.py backend/tests/services/test_hermes_read_tools.py
 .venv\Scripts\python.exe -m compileall -q backend/app backend/tests
 
 # 前端测试与构建
@@ -365,6 +389,8 @@ H5 当前验证记录：治理与评测集定向后端 `18 passed`，Hermes 前�
 
 H6 当前验证记录：后端 Hermes 编排/服务定向 `22 passed`，前端 Hermes 定向 `14 passed`；后端非集成全量 `2436 passed`，前端全量 `69 files / 329 tests passed`，mypy、Ruff、TypeScript、生产构建、Python 编译、差异检查、密钥扫描和提交钩子均通过。后端全量退出码为 0，Windows pytest 临时目录清理在进程退出时产生非致命 `WinError 5`。H6 只证明固定规则下的最多两步只读编排、显式目标保护、会话证据记录和前端链路展示；自然语言覆盖率、真实模型工具选择、完整角色矩阵和目标部署仍待环境验收。
 
+H7 当前验证记录：Hermes 编排/服务定向 `25 passed`（受影响文件独立 `18 passed`、`7 passed`），前端 Hermes 定向 `17 passed`；后端非集成全量 `2439 passed`，前端全量 `69 files / 332 tests passed`，TypeScript、mypy、生产构建、Python 编译、Ruff、格式/差异检查、密钥扫描及提交钩子均通过。后端全量退出码为 0，Windows pytest 临时目录清理在进程退出时产生非致命 `WinError 5`。H7 只证明受控会话内的参数补全、跨 `conversation_id` 隔离、明确意图替代、项目切换的迟到会话隔离和治理口径保护；真实模型工具选择、角色矩阵、审计完整性和目标部署仍待环境验收。
+
 ## 9. 发布前检查清单
 
 - [ ] 目标环境配置启用的 AI 模型，并完成一次真实问答。
@@ -376,6 +402,7 @@ H6 当前验证记录：后端 Hermes 编排/服务定向 `22 passed`，前端 H
 - [x] H4 本地草稿保存链路经过人工确认：确认前不能进入计划页；确认后可预填现有计划页，或在二次确认后创建禁用手工 draft；两条路径均不自动执行。
 - [x] H5 本地评测与治理切片：固定 5 题评测集、有效引用覆盖率、拒答/无结果率、平均/P95 延迟、prompt 版本、反馈和成本不可用状态已具备后端 API 与 Hermes 页面展示。
 - [x] H6 本地自然语言只读编排切片：最多两步固定工具选择、显式编号/任务类型保护、未命中回退 H1 检索、会话链路记录和前端状态展示已完成。
+- [x] H7 本地多轮参数补全切片：受控 pending 状态仅限同一用户/项目/会话/`conversation_id`；明确新意图可覆盖旧状态，追问不计入回答质量且不可评价。
 - [ ] P4 性能环境门禁和 P9 发布收口仍需单独完成，Hermes 本地通过不等价于整体发布通过。
 
 ## 10. 变更记录
@@ -392,6 +419,12 @@ H6 当前验证记录：后端 Hermes 编排/服务定向 `22 passed`，前端 H
 - 增加版本化的 `hermes-core-v1` 五题静态评测集和只读元数据接口；评测题覆盖证据追溯、失败任务分诊、质量风险、无证据拒答和提示注入边界，不自动触发模型调用。
 - 将治理汇总抽成可测试的聚合服务，严格区分 `llm_grounded` 有效 `[S#]` 引用、规则检索来源和 `no_results`，增加拒答率、平均/P95 延迟、prompt 版本、反馈计数及成本不可用状态。
 - Hermes 页面新增紧凑治理状态卡片，展示评测集版本、引用覆盖、拒答/无结果、延迟、人工反馈和活动量；项目切换时丢弃过期治理响应，避免跨项目污染。
+
+### 2026-09-03 / H7
+
+- 在 `needs_input` 时持久化最小 allow-list 挂起只读意图，前端保留返回的会话 ID，用户可在下一轮直接补充运行、需求/用例或知识编号。
+- 恢复路径强制当前用户、项目、会话和 `conversation_id` 一致；明确的新意图会替代旧状态，单独数字在不存在受控 pending 状态时不执行工具。
+- 独立审查补充治理口径保护：参数追问不计入 H5 回答统计，也不会显示或接受人工 helpful/not-helpful 反馈；补齐会话恢复、跨会话隔离和新意图替代回归。
 
 ### 2026-09-03 / H6
 

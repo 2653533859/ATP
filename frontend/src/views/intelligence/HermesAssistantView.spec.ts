@@ -20,6 +20,7 @@ const {
   reportOverview,
   routerPush,
   routerReplace,
+  sessions,
   taskList,
   workbenchFailureDiagnosis,
 } = vi.hoisted(() => ({
@@ -37,6 +38,7 @@ const {
   reportOverview: vi.fn(),
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
+  sessions: vi.fn(),
   taskList: vi.fn(),
   workbenchFailureDiagnosis: vi.fn(),
 }))
@@ -58,7 +60,7 @@ vi.mock('ant-design-vue', () => ({
 }))
 vi.mock('@/api', () => ({
   caseApi: { list: caseList },
-  hermesApi: { query: hermesQuery, createSession, createDraft, confirmDraft, governance, orchestrate },
+  hermesApi: { query: hermesQuery, createSession, createDraft, confirmDraft, governance, orchestrate, sessions },
   projectApi: { list: projectList, getModules: moduleList },
   reportApi: { overview: reportOverview },
   runApi: { generateFailureDiagnosis: generateDiagnosis },
@@ -176,6 +178,7 @@ beforeEach(() => {
     generated_at: '2026-08-25T10:00:00Z',
   })
   createSession.mockResolvedValue({ id: 101 })
+  sessions.mockResolvedValue([])
   createDraft.mockResolvedValue({ id: 'draft-1', status: 'pending_confirmation' })
   confirmDraft.mockResolvedValue({ draft_id: 'draft-1', status: 'confirmed', plan_id: 22 })
   governance.mockResolvedValue({
@@ -318,6 +321,129 @@ describe('HermesAssistantView', () => {
     ])
     expect(wrapper.find('.message-tool-chain').exists()).toBe(true)
     expect(hermesQuery).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('keeps a clarification session and completes the pending read-only intent on the next turn', async () => {
+    orchestrate
+      .mockResolvedValueOnce({
+        project_id: 1,
+        conversation_id: 'hermes-session-1',
+        query: '查看 case 的运行详情',
+        status: 'needs_input',
+        clarification: '请提供运行编号，我再读取对应运行详情。',
+        plans: [],
+        steps: [],
+        answer: '请提供运行编号，我再读取对应运行详情。',
+        generated_at: '2026-09-03T10:00:00Z',
+        session_id: 101,
+        message_index: 1,
+      })
+      .mockResolvedValueOnce({
+        project_id: 1,
+        conversation_id: 'hermes-session-1',
+        query: '12',
+        status: 'matched',
+        plans: [{ tool: 'run_detail', arguments: { task_type: 'case', run_id: 12 }, reason: '补全运行详情' }],
+        steps: [{
+          tool: 'run_detail',
+          arguments: { task_type: 'case', run_id: 12 },
+          status: 'ok',
+          duration_ms: 4,
+          data: { task: { id: 12 } },
+          evidence: [],
+        }],
+        answer: '已读取运行记录的脱敏执行摘要。',
+        generated_at: '2026-09-03T10:00:01Z',
+        session_id: 101,
+        message_index: 3,
+      })
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.inputText = '查看 case 的运行详情'
+    await vm.submitPrompt()
+    expect(vm.sessionId).toBe(101)
+    expect(vm.messages.at(-1).text).toContain('运行编号')
+    expect(vm.messages.at(-1).backendIndex).toBeUndefined()
+
+    vm.inputText = '12'
+    await vm.submitPrompt()
+
+    expect(orchestrate).toHaveBeenNthCalledWith(2, expect.objectContaining({
+      project_id: 1,
+      query: '12',
+      session_id: 101,
+    }))
+    expect(vm.messages.at(-1).toolSteps).toEqual([{ tool: 'run_detail', status: 'ok' }])
+    expect(hermesQuery).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('restores a pending clarification conversation without a feedback target', async () => {
+    sessions.mockResolvedValueOnce([{
+      id: 101,
+      updated_at: '2026-09-03T10:00:00Z',
+      context_filters: { conversation_id: 'hermes-pending-1' },
+      messages: [{
+        role: 'assistant',
+        kind: 'orchestration_clarification',
+        content: '请提供运行编号，我再读取对应运行详情。',
+        at: '2026-09-03T10:00:00Z',
+      }],
+    }])
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(vm.messages).toHaveLength(1)
+    expect(vm.messages[0].backendIndex).toBeUndefined()
+    expect(vm.conversationId).toBe('hermes-pending-1')
+
+    vm.inputText = '12'
+    await vm.submitPrompt()
+
+    expect(orchestrate).toHaveBeenCalledWith(expect.objectContaining({
+      conversation_id: 'hermes-pending-1',
+      query: '12',
+      session_id: 101,
+    }))
+
+    wrapper.unmount()
+  })
+
+  it('drops a stale restored session after switching projects', async () => {
+    let resolveFirstSessions!: (value: unknown) => void
+    projectList.mockResolvedValue([
+      { id: 1, name: '核心项目', owner_id: 1, current_user_role: 'owner', ai_llm_config_id: 9 },
+      { id: 2, name: '隔离项目', owner_id: 1, current_user_role: 'owner', ai_llm_config_id: 9 },
+    ])
+    sessions.mockImplementationOnce(() => new Promise((resolve) => { resolveFirstSessions = resolve }))
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(sessions).toHaveBeenCalledWith(1)
+    await vm.handleProjectChange(2)
+    resolveFirstSessions([{
+      id: 101,
+      updated_at: '2026-09-03T10:00:00Z',
+      context_filters: { conversation_id: 'hermes-pending-1' },
+      messages: [{
+        role: 'assistant',
+        kind: 'orchestration_clarification',
+        content: '旧项目追问不应恢复。',
+      }],
+    }])
+    await flushPromises()
+
+    expect(vm.selectedProjectId).toBe(2)
+    expect(vm.sessionId).toBeNull()
+    expect(vm.conversationId).not.toBe('hermes-pending-1')
+    expect(vm.messages.some((message: { text: string }) => message.text === '旧项目追问不应恢复。')).toBe(false)
 
     wrapper.unmount()
   })

@@ -9,8 +9,12 @@ from app.services.hermes import (
     build_history_context,
     rank_candidates,
 )
-from app.services.hermes_orchestration import plan_read_tools, summarize_tool_outcomes
-from app.services.hermes_orchestration import HermesToolOutcome
+from app.services.hermes_orchestration import (
+    HermesToolOutcome,
+    plan_read_tools,
+    resume_pending_read_tool,
+    summarize_tool_outcomes,
+)
 
 
 def _candidate(source_type: str, source_id: int, updated_at: datetime | None) -> HermesCandidate:
@@ -111,6 +115,11 @@ def test_build_governance_summary_uses_valid_citations_and_tolerates_legacy_rows
                         "prompt_version": "hermes-v2",
                         "latency_ms": 50,
                     },
+                    {
+                        "role": "assistant",
+                        "kind": "orchestration_clarification",
+                        "content": "请提供运行编号",
+                    },
                 ],
             },
         )(),
@@ -150,6 +159,30 @@ def test_plan_read_tools_routes_bounded_multi_tool_queries_and_requires_explicit
     missing_target = plan_read_tools("查看运行详情")
     assert missing_target.status == "needs_input"
     assert missing_target.plans == ()
+
+
+def test_pending_read_tool_requires_a_known_intent_and_completes_only_that_intent():
+    missing_run = plan_read_tools("查看 case 的运行详情")
+
+    assert missing_run.status == "needs_input"
+    assert missing_run.pending is not None
+    assert missing_run.pending.tool == "run_detail"
+    assert missing_run.pending.arguments == {"task_type": "case"}
+
+    resumed_run = resume_pending_read_tool("12", missing_run.pending)
+    assert resumed_run.status == "matched"
+    assert resumed_run.plans[0].tool == "run_detail"
+    assert resumed_run.plans[0].arguments == {"task_type": "case", "run_id": 12}
+
+    invalid_run = resume_pending_read_tool("运行编号: 0", missing_run.pending)
+    assert invalid_run.status == "needs_input"
+    assert invalid_run.plans == ()
+
+    missing_trace = plan_read_tools("查看需求与用例追踪")
+    assert missing_trace.pending is not None
+    resumed_trace = resume_pending_read_tool("用例 9", missing_trace.pending)
+    assert resumed_trace.status == "matched"
+    assert resumed_trace.plans[0].arguments == {"case_id": 9}
 
 
 def test_summarize_tool_outcomes_keeps_answer_short_and_uses_safe_counts():

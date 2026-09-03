@@ -81,7 +81,14 @@ from app.services.hermes_tools import (
     parse_tool_arguments,
     tool_catalog,
 )
-from app.services.hermes_orchestration import HermesToolOutcome, plan_read_tools, summarize_tool_outcomes
+from app.services.hermes_orchestration import (
+    HermesToolOutcome,
+    pending_tool_from_mapping,
+    pending_tool_to_mapping,
+    plan_read_tools,
+    resume_pending_read_tool,
+    summarize_tool_outcomes,
+)
 
 
 logger = logging.getLogger(__name__)
@@ -188,11 +195,83 @@ async def orchestrate_hermes(
     """Route a natural-language request to at most two bounded read tools."""
 
     await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
+    pending = None
+    if body.session_id is not None:
+        existing_session = await db.get(HermesSession, body.session_id)
+        if (
+            existing_session is not None
+            and existing_session.project_id == body.project_id
+            and existing_session.user_id == user.id
+        ):
+            context_filters = (
+                existing_session.context_filters if isinstance(existing_session.context_filters, dict) else {}
+            )
+            if context_filters.get("conversation_id") == body.conversation_id:
+                pending = pending_tool_from_mapping(context_filters.get("pending_orchestration"))
     routing = plan_read_tools(body.query)
+    if routing.status == "no_match" and pending is not None:
+        routing = resume_pending_read_tool(body.query, pending)
     plans = [
         HermesOrchestrationPlanOut(tool=item.tool, arguments=item.arguments, reason=item.reason)
         for item in routing.plans
     ]
+    if routing.status == "needs_input":
+        session = await _get_or_create_session(
+            db,
+            user,
+            HermesQueryIn(
+                project_id=body.project_id,
+                query=body.query,
+                conversation_id=body.conversation_id,
+                session_id=body.session_id,
+            ),
+        )
+        generated_at = datetime.now(timezone.utc)
+        answer = routing.clarification or "请补充目标信息后，我再执行只读查询。"
+        messages = list(session.messages) if isinstance(session.messages, list) else []
+        messages.extend(
+            [
+                {
+                    "role": "user",
+                    "content": redact_knowledge_text(body.query, limit=2_000),
+                    "at": generated_at.isoformat(),
+                },
+                {
+                    "role": "assistant",
+                    "content": answer,
+                    "tool": "hermes_orchestration_clarification",
+                    "kind": "orchestration_clarification",
+                    "at": generated_at.isoformat(),
+                },
+            ]
+        )
+        session.messages = messages[-40:]
+        context_filters = dict(session.context_filters) if isinstance(session.context_filters, dict) else {}
+        context_filters["conversation_id"] = body.conversation_id
+        if routing.pending is not None:
+            context_filters["pending_orchestration"] = pending_tool_to_mapping(routing.pending)
+        else:
+            context_filters.pop("pending_orchestration", None)
+        session.context_filters = context_filters
+        metrics = dict(session.metrics) if isinstance(session.metrics, dict) else {}
+        metrics["queries"] = _safe_increment(metrics.get("queries"), 1)
+        metrics["orchestration_calls"] = _safe_increment(metrics.get("orchestration_calls"), 1)
+        metrics["last_latency_ms"] = 0
+        session.metrics = metrics
+        await db.commit()
+        return HermesOrchestrationOut(
+            project_id=body.project_id,
+            conversation_id=body.conversation_id,
+            query=body.query,
+            status="needs_input",
+            clarification=routing.clarification,
+            plans=plans,
+            steps=[],
+            answer=answer,
+            generated_at=generated_at,
+            session_id=session.id,
+            message_index=len(session.messages) - 1,
+        )
     if routing.status != "matched":
         answer = routing.clarification or "当前问题未命中可自动读取的只读工具，我会改用项目证据检索继续回答。"
         return HermesOrchestrationOut(
@@ -270,6 +349,7 @@ async def orchestrate_hermes(
     session.messages = messages[-40:]
     context_filters = dict(session.context_filters) if isinstance(session.context_filters, dict) else {}
     context_filters["conversation_id"] = body.conversation_id
+    context_filters.pop("pending_orchestration", None)
     session.context_filters = context_filters
     metrics = dict(session.metrics) if isinstance(session.metrics, dict) else {}
     metrics["queries"] = _safe_increment(metrics.get("queries"), 1)
@@ -778,10 +858,15 @@ async def submit_hermes_feedback(
     await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
     session = await _owned_session(db, user, session_id, body.project_id)
     messages = list(session.messages or [])
-    if body.message_index >= len(messages) or messages[body.message_index].get("role") != "assistant":
+    message = messages[body.message_index] if body.message_index < len(messages) else None
+    if (
+        not isinstance(message, dict)
+        or message.get("role") != "assistant"
+        or message.get("kind") == "orchestration_clarification"
+    ):
         raise HTTPException(status_code=422, detail="只能评价 Hermes 助手消息")
     messages[body.message_index] = {
-        **messages[body.message_index],
+        **message,
         "feedback": body.rating,
         "feedback_comment": body.comment,
     }

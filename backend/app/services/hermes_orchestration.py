@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Literal
 
 from app.schemas.hermes_tools import HermesToolName, HermesToolStatus
 
 
 HermesOrchestrationStatus = Literal["matched", "no_match", "needs_input"]
+HermesPendingToolName = Literal["run_detail", "requirement_case_links", "knowledge_detail"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -20,10 +21,19 @@ class HermesToolPlan:
 
 
 @dataclass(frozen=True, slots=True)
+class HermesPendingReadTool:
+    """A sanitized, incomplete read-only intent that may be resumed once."""
+
+    tool: HermesPendingToolName
+    arguments: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
 class HermesOrchestrationPlan:
     status: HermesOrchestrationStatus
     plans: tuple[HermesToolPlan, ...] = ()
     clarification: str | None = None
+    pending: HermesPendingReadTool | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,15 +51,20 @@ _KNOWLEDGE_PATTERN = re.compile(r"知识|knowledge", re.IGNORECASE)
 _RUN_PATTERN = re.compile(r"运行详情|执行详情|run\s*detail|run", re.IGNORECASE)
 _ID_PATTERN = re.compile(r"(?:编号|id|#|号)\s*[:：]?\s*(\d+)", re.IGNORECASE)
 _TARGET_ID_PATTERN = re.compile(r"(?:需求|用例|知识|knowledge|case|run|运行|执行)[^\d]{0,8}(\d+)", re.IGNORECASE)
+_PLAIN_ID_PATTERN = re.compile(r"\d+")
+_RUN_TASK_TYPES = ("case", "suite", "plan", "android", "performance")
 
 
 def _numeric_id(query: str) -> int | None:
     match = _ID_PATTERN.search(query) or _TARGET_ID_PATTERN.search(query)
-    return int(match.group(1)) if match else None
+    if match is None:
+        return None
+    value = int(match.group(1))
+    return value if value > 0 else None
 
 
 def _run_type(query: str) -> str | None:
-    for task_type in ("case", "suite", "plan", "android", "performance"):
+    for task_type in _RUN_TASK_TYPES:
         if re.search(rf"\b{task_type}\b", query, re.IGNORECASE):
             return task_type
     labels = {
@@ -63,6 +78,130 @@ def _run_type(query: str) -> str | None:
         if label in query:
             return task_type
     return None
+
+
+def _plain_numeric_id(query: str) -> int | None:
+    normalized = query.strip()
+    if not _PLAIN_ID_PATTERN.fullmatch(normalized):
+        return None
+    value = int(normalized)
+    return value if value > 0 else None
+
+
+def _resume_numeric_id(query: str) -> int | None:
+    return _numeric_id(query) or _plain_numeric_id(query)
+
+
+def _trace_target(
+    query: str, default: Literal["requirement", "case"] = "requirement"
+) -> Literal["requirement", "case"]:
+    if re.search(r"需求|requirement", query, re.IGNORECASE):
+        return "requirement"
+    if re.search(r"用例|\bcase\b", query, re.IGNORECASE):
+        return "case"
+    return default
+
+
+def _run_clarification(arguments: dict[str, Any]) -> str:
+    has_run_id = isinstance(arguments.get("run_id"), int) and not isinstance(arguments.get("run_id"), bool)
+    has_task_type = arguments.get("task_type") in _RUN_TASK_TYPES
+    if has_run_id and not has_task_type:
+        return "请提供任务类型（case、suite、plan、android 或 performance），我再读取对应运行详情。"
+    if has_task_type and not has_run_id:
+        return "请提供运行编号，我再读取对应运行详情。"
+    return "请提供运行编号和任务类型（case、suite、plan、android 或 performance）。"
+
+
+def pending_tool_from_mapping(value: object) -> HermesPendingReadTool | None:
+    """Deserialize only the small allow-listed pending state stored in a session."""
+
+    if not isinstance(value, dict):
+        return None
+    tool = value.get("tool")
+    arguments = value.get("arguments")
+    source = arguments if isinstance(arguments, dict) else {}
+    if tool == "run_detail":
+        safe: dict[str, Any] = {}
+        task_type = source.get("task_type")
+        if isinstance(task_type, str) and task_type in _RUN_TASK_TYPES:
+            safe["task_type"] = task_type
+        run_id = source.get("run_id")
+        if isinstance(run_id, int) and not isinstance(run_id, bool) and run_id > 0:
+            safe["run_id"] = run_id
+        return HermesPendingReadTool(tool="run_detail", arguments=safe)
+    if tool == "requirement_case_links":
+        target = source.get("target")
+        if target in {"requirement", "case"}:
+            return HermesPendingReadTool(tool="requirement_case_links", arguments={"target": target})
+        return None
+    if tool == "knowledge_detail":
+        return HermesPendingReadTool(tool="knowledge_detail")
+    return None
+
+
+def pending_tool_to_mapping(pending: HermesPendingReadTool) -> dict[str, Any]:
+    return {"tool": pending.tool, "arguments": dict(pending.arguments)}
+
+
+def resume_pending_read_tool(query: str, pending: HermesPendingReadTool) -> HermesOrchestrationPlan:
+    """Complete exactly one safe pending tool using the current turn only."""
+
+    normalized = " ".join(query.strip().split())
+    if pending.tool == "run_detail":
+        arguments = dict(pending.arguments)
+        run_id = _resume_numeric_id(normalized)
+        if run_id is not None:
+            arguments["run_id"] = run_id
+        task_type = _run_type(normalized)
+        if task_type:
+            arguments["task_type"] = task_type
+        if (
+            arguments.get("task_type") in _RUN_TASK_TYPES
+            and isinstance(arguments.get("run_id"), int)
+            and not isinstance(arguments.get("run_id"), bool)
+        ):
+            return HermesOrchestrationPlan(
+                status="matched",
+                plans=(
+                    HermesToolPlan(
+                        "run_detail",
+                        {"task_type": arguments["task_type"], "run_id": arguments["run_id"]},
+                        "根据当前会话补全运行编号和任务类型",
+                    ),
+                ),
+            )
+        next_pending = HermesPendingReadTool(tool="run_detail", arguments=arguments)
+        return HermesOrchestrationPlan(
+            status="needs_input",
+            clarification=_run_clarification(arguments),
+            pending=next_pending,
+        )
+
+    run_id = _resume_numeric_id(normalized)
+    if run_id is None:
+        clarification = "请提供知识条目编号，我再读取脱敏详情。"
+        if pending.tool == "requirement_case_links":
+            clarification = "请提供需求或用例编号，我再读取对应的追踪关系。"
+        return HermesOrchestrationPlan(status="needs_input", clarification=clarification, pending=pending)
+    if pending.tool == "requirement_case_links":
+        default_target = pending.arguments.get("target")
+        target = _trace_target(
+            normalized, default_target if default_target in {"requirement", "case"} else "requirement"
+        )
+        return HermesOrchestrationPlan(
+            status="matched",
+            plans=(
+                HermesToolPlan(
+                    "requirement_case_links",
+                    {f"{target}_id": run_id},
+                    "根据当前会话补全需求或用例编号",
+                ),
+            ),
+        )
+    return HermesOrchestrationPlan(
+        status="matched",
+        plans=(HermesToolPlan("knowledge_detail", {"knowledge_id": run_id}, "根据当前会话补全知识条目编号"),),
+    )
 
 
 def plan_read_tools(query: str) -> HermesOrchestrationPlan:
@@ -83,7 +222,8 @@ def plan_read_tools(query: str) -> HermesOrchestrationPlan:
 
     numeric_id = _numeric_id(normalized)
     if _TRACE_PATTERN.search(normalized) and numeric_id is not None:
-        argument = {"requirement_id": numeric_id} if "需求" in normalized else {"case_id": numeric_id}
+        target = _trace_target(normalized)
+        argument = {f"{target}_id": numeric_id}
         plans.append(HermesToolPlan("requirement_case_links", argument, "识别到需求与用例追踪问题，并使用显式编号"))
     elif _KNOWLEDGE_PATTERN.search(normalized) and numeric_id is not None:
         plans.append(
@@ -104,14 +244,29 @@ def plan_read_tools(query: str) -> HermesOrchestrationPlan:
         return HermesOrchestrationPlan(status="matched", plans=tuple(plans[:_MAX_PLANS]))
     if _TRACE_PATTERN.search(normalized) and numeric_id is None:
         return HermesOrchestrationPlan(
-            status="needs_input", clarification="请提供需求或用例编号，我再读取对应的追踪关系。"
+            status="needs_input",
+            clarification="请提供需求或用例编号，我再读取对应的追踪关系。",
+            pending=HermesPendingReadTool(
+                tool="requirement_case_links", arguments={"target": _trace_target(normalized)}
+            ),
         )
     if _KNOWLEDGE_PATTERN.search(normalized) and numeric_id is None:
-        return HermesOrchestrationPlan(status="needs_input", clarification="请提供知识条目编号，我再读取脱敏详情。")
-    if _RUN_PATTERN.search(normalized) and (numeric_id is None or _run_type(normalized) is None):
         return HermesOrchestrationPlan(
             status="needs_input",
-            clarification="请提供运行编号和任务类型（case、suite、plan、android 或 performance）。",
+            clarification="请提供知识条目编号，我再读取脱敏详情。",
+            pending=HermesPendingReadTool(tool="knowledge_detail"),
+        )
+    if _RUN_PATTERN.search(normalized) and (numeric_id is None or _run_type(normalized) is None):
+        arguments: dict[str, Any] = {}
+        if numeric_id is not None:
+            arguments["run_id"] = numeric_id
+        task_type = _run_type(normalized)
+        if task_type:
+            arguments["task_type"] = task_type
+        return HermesOrchestrationPlan(
+            status="needs_input",
+            clarification=_run_clarification(arguments),
+            pending=HermesPendingReadTool(tool="run_detail", arguments=arguments),
         )
     return HermesOrchestrationPlan(status="no_match")
 

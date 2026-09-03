@@ -220,7 +220,11 @@ def build_governance_summary(sessions: Sequence[object]) -> dict[str, object]:
         if not isinstance(raw_messages, list):
             continue
         assistant_messages.extend(
-            message for message in raw_messages if isinstance(message, dict) and message.get("role") == "assistant"
+            message
+            for message in raw_messages
+            if isinstance(message, dict)
+            and message.get("role") == "assistant"
+            and message.get("kind") != "orchestration_clarification"
         )
 
     cited = 0
