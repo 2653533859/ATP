@@ -40,7 +40,7 @@ APP 工作台新增“iOS 资产预览”，可注册 Appium 设备并按项目�
 
 iOS 仍不在本次正式支持范围；没有 macOS、Xcode、WebDriverAgent、签名 IPA 和真实 iPhone/Simulator 证据时，不得宣称 iOS 通过。
 
-## 6. Hermes H2～H7 最小链路
+## 6. Hermes H2～H8 最小链路
 
 迁移 `20260901_0068` 新增项目/用户隔离的 `hermes_sessions`：
 
@@ -50,6 +50,7 @@ iOS 仍不在本次正式支持范围；没有 macOS、Xcode、WebDriverAgent、
 - H5：提供版本化 `hermes-core-v1` 五题只读评测集与元数据接口；`/hermes/governance/summary` 返回项目级 prompt 版本、有效引用覆盖率、拒答/无结果率、平均/P95 延迟、helpful/not-helpful 反馈、活动量和成本不可用状态，Hermes 页面同步展示治理状态卡片。
 - H6：提供 `/hermes/orchestrate` 受控自然语言入口，从五个固定 H3 只读工具中最多选择两步；运行/需求/用例/知识目标缺失时先返回 `needs_input`，未命中时回退 H1 项目证据检索，成功执行写入脱敏会话证据并在页面展示自动读取链路。
 - H7：`needs_input` 会保存最小 allow-list 的挂起只读意图，只有同一用户、项目、会话和 `conversation_id` 的下一轮才能补齐原工具；页面恢复会校验并复用已保存的 `conversation_id`。明确新意图可替代旧状态。追问不计入 H5 回答质量，也不接受 helpful/not-helpful 反馈。
+- H8：已验证的同一 pending 会话可用精确取消控制清除 `pending_orchestration` 并返回 `cancelled`；取消不执行工具、不会写入业务数据，跨会话取消保留原状态。取消控制不计入 H5 回答质量，也不接受 helpful/not-helpful 反馈。
 
 这些是最小治理链路，不等同于真实模型工具选择效果、完整角色矩阵或目标部署验收。真实模型效果阈值、成本与更大评测集仍需环境证据。
 

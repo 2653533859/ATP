@@ -767,7 +767,9 @@ async function loadProjectData() {
                 .map((step) => ({ tool: String(step.tool || ''), status: String(step.status || '') }))
                 .filter((step) => step.tool && step.status)
               : undefined,
-            backendIndex: role === 'assistant' && item.kind !== 'orchestration_clarification' ? index : undefined,
+            backendIndex: role === 'assistant' && !['orchestration_clarification', 'orchestration_cancellation'].includes(String(item.kind))
+              ? index
+              : undefined,
           }
         })
         .filter((item): item is HermesMessage => item !== null)
@@ -982,6 +984,11 @@ async function orchestratePrompt(text: string): Promise<boolean> {
     if (result.status === 'needs_input') {
       sessionId.value = result.session_id ?? sessionId.value
       appendMessage('assistant', result.clarification || result.answer)
+      return true
+    }
+    if (result.status === 'cancelled') {
+      sessionId.value = result.session_id ?? sessionId.value
+      appendMessage('assistant', result.answer)
       return true
     }
     sessionId.value = result.session_id ?? sessionId.value

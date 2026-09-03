@@ -11,6 +11,7 @@ from app.services.hermes import (
 )
 from app.services.hermes_orchestration import (
     HermesToolOutcome,
+    is_pending_cancellation,
     plan_read_tools,
     resume_pending_read_tool,
     summarize_tool_outcomes,
@@ -120,6 +121,11 @@ def test_build_governance_summary_uses_valid_citations_and_tolerates_legacy_rows
                         "kind": "orchestration_clarification",
                         "content": "请提供运行编号",
                     },
+                    {
+                        "role": "assistant",
+                        "kind": "orchestration_cancellation",
+                        "content": "已取消当前待补充的只读查询。",
+                    },
                 ],
             },
         )(),
@@ -183,6 +189,14 @@ def test_pending_read_tool_requires_a_known_intent_and_completes_only_that_inten
     resumed_trace = resume_pending_read_tool("用例 9", missing_trace.pending)
     assert resumed_trace.status == "matched"
     assert resumed_trace.plans[0].arguments == {"case_id": 9}
+
+
+def test_pending_cancellation_requires_an_explicit_whole_turn_control():
+    assert is_pending_cancellation("  取消当前查询 ")
+    assert is_pending_cancellation("CANCEL CURRENT QUERY")
+    assert not is_pending_cancellation("取消查询后查看失败任务")
+    assert not is_pending_cancellation("停止")
+    assert plan_read_tools("取消当前查询").status == "no_match"
 
 
 def test_summarize_tool_outcomes_keeps_answer_short_and_uses_safe_counts():

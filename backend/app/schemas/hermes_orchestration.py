@@ -9,7 +9,7 @@ from pydantic import BaseModel, Field, field_validator
 from app.schemas.hermes_tools import HermesToolEvidence, HermesToolName, HermesToolStatus
 
 
-HermesOrchestrationStatus = Literal["matched", "no_match", "needs_input"]
+HermesOrchestrationStatus = Literal["matched", "no_match", "needs_input", "cancelled"]
 
 
 class HermesOrchestrationIn(BaseModel):

@@ -274,6 +274,7 @@ def test_hermes_orchestration_returns_clarification_without_executing_unknown_ta
 
     assert result.status == "needs_input"
     assert result.clarification
+    assert "取消当前查询" in result.clarification
     assert result.steps == []
     assert calls == []
 
@@ -305,6 +306,7 @@ def test_hermes_orchestration_persists_pending_intent_and_resumes_only_in_same_c
     clarification = asyncio.run(hermes.orchestrate_hermes(first, SimpleNamespace(), db, _user()))
 
     assert clarification.status == "needs_input"
+    assert "取消当前查询" in clarification.answer
     assert clarification.session_id == 100
     assert clarification.message_index == 1
     assert db.added[0].context_filters["pending_orchestration"] == {
@@ -405,6 +407,79 @@ def test_hermes_orchestration_direct_intent_supersedes_pending_intent(monkeypatc
     assert [call.tool for call in calls] == ["knowledge_detail"]
     assert calls[0].arguments == {"knowledge_id": 9}
     assert "pending_orchestration" not in db.added[0].context_filters
+
+
+def test_hermes_orchestration_cancels_pending_intent_only_in_its_bound_session(monkeypatch):
+    calls = []
+
+    async def allow_access(*_args):
+        return None
+
+    async def execute_tool(*_args):
+        calls.append(True)
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    monkeypatch.setattr(hermes, "execute_hermes_tool", execute_tool)
+    db = _DB()
+    clarification = asyncio.run(
+        hermes.orchestrate_hermes(
+            HermesOrchestrationIn(
+                project_id=1,
+                query="查看 case 的运行详情",
+                conversation_id="hermes-h8-1",
+            ),
+            SimpleNamespace(),
+            db,
+            _user(),
+        )
+    )
+
+    wrong_conversation = asyncio.run(
+        hermes.orchestrate_hermes(
+            HermesOrchestrationIn(
+                project_id=1,
+                query="取消当前查询",
+                conversation_id="hermes-h8-other",
+                session_id=clarification.session_id,
+            ),
+            SimpleNamespace(),
+            db,
+            _user(),
+        )
+    )
+    assert wrong_conversation.status == "no_match"
+    assert "pending_orchestration" in db.added[0].context_filters
+
+    cancelled = asyncio.run(
+        hermes.orchestrate_hermes(
+            HermesOrchestrationIn(
+                project_id=1,
+                query="取消当前查询",
+                conversation_id="hermes-h8-1",
+                session_id=clarification.session_id,
+            ),
+            SimpleNamespace(),
+            db,
+            _user(),
+        )
+    )
+
+    assert cancelled.status == "cancelled"
+    assert cancelled.session_id == clarification.session_id
+    assert cancelled.message_index == 3
+    assert calls == []
+    assert "pending_orchestration" not in db.added[0].context_filters
+    assert db.added[0].messages[-1]["kind"] == "orchestration_cancellation"
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            hermes.submit_hermes_feedback(
+                clarification.session_id,
+                hermes.HermesFeedbackIn(project_id=1, message_index=cancelled.message_index, rating="helpful"),
+                db,
+                _user(),
+            )
+        )
+    assert exc.value.status_code == 422
 
 
 def test_rank_candidates_redacts_source_text_and_is_stable():

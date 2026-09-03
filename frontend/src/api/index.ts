@@ -1732,7 +1732,7 @@ export interface HermesOrchestrationResult {
   project_id: number
   conversation_id: string
   query: string
-  status: 'matched' | 'no_match' | 'needs_input'
+  status: 'matched' | 'no_match' | 'needs_input' | 'cancelled'
   clarification?: string | null
   plans: HermesOrchestrationPlan[]
   steps: HermesOrchestrationStep[]

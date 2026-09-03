@@ -332,10 +332,10 @@ describe('HermesAssistantView', () => {
         conversation_id: 'hermes-session-1',
         query: '查看 case 的运行详情',
         status: 'needs_input',
-        clarification: '请提供运行编号，我再读取对应运行详情。',
+        clarification: '请提供运行编号，我再读取对应运行详情。 如不再查询，请输入“取消当前查询”。',
         plans: [],
         steps: [],
-        answer: '请提供运行编号，我再读取对应运行详情。',
+        answer: '请提供运行编号，我再读取对应运行详情。 如不再查询，请输入“取消当前查询”。',
         generated_at: '2026-09-03T10:00:00Z',
         session_id: 101,
         message_index: 1,
@@ -367,6 +367,7 @@ describe('HermesAssistantView', () => {
     await vm.submitPrompt()
     expect(vm.sessionId).toBe(101)
     expect(vm.messages.at(-1).text).toContain('运行编号')
+    expect(vm.messages.at(-1).text).toContain('取消当前查询')
     expect(vm.messages.at(-1).backendIndex).toBeUndefined()
 
     vm.inputText = '12'
@@ -379,6 +380,64 @@ describe('HermesAssistantView', () => {
     }))
     expect(vm.messages.at(-1).toolSteps).toEqual([{ tool: 'run_detail', status: 'ok' }])
     expect(hermesQuery).not.toHaveBeenCalled()
+
+    wrapper.unmount()
+  })
+
+  it('cancels a pending read-only intent without a retrieval fallback, then accepts a new question', async () => {
+    orchestrate
+      .mockResolvedValueOnce({
+        project_id: 1,
+        conversation_id: 'hermes-session-1',
+        query: '查看 case 的运行详情',
+        status: 'needs_input',
+        clarification: '请提供运行编号，我再读取对应运行详情。 如不再查询，请输入“取消当前查询”。',
+        plans: [],
+        steps: [],
+        answer: '请提供运行编号，我再读取对应运行详情。 如不再查询，请输入“取消当前查询”。',
+        generated_at: '2026-09-04T10:00:00Z',
+        session_id: 101,
+        message_index: 1,
+      })
+      .mockResolvedValueOnce({
+        project_id: 1,
+        conversation_id: 'hermes-session-1',
+        query: '取消当前查询',
+        status: 'cancelled',
+        plans: [],
+        steps: [],
+        answer: '已取消当前待补充的只读查询。你可以继续提出新的项目问题。',
+        generated_at: '2026-09-04T10:00:01Z',
+        session_id: 101,
+        message_index: 3,
+      })
+      .mockResolvedValueOnce({
+        project_id: 1,
+        conversation_id: 'hermes-session-1',
+        query: '登录排查',
+        status: 'no_match',
+        plans: [],
+        steps: [],
+        answer: '改用项目证据检索继续回答。',
+        generated_at: '2026-09-04T10:00:02Z',
+      })
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    vm.inputText = '查看 case 的运行详情'
+    await vm.submitPrompt()
+    vm.inputText = '取消当前查询'
+    await vm.submitPrompt()
+
+    expect(hermesQuery).not.toHaveBeenCalled()
+    expect(vm.messages.at(-1).text).toContain('已取消当前待补充的只读查询')
+    expect(vm.messages.at(-1).backendIndex).toBeUndefined()
+
+    vm.inputText = '登录排查'
+    await vm.submitPrompt()
+
+    expect(hermesQuery).toHaveBeenCalledWith(expect.objectContaining({ query: '登录排查', session_id: 101 }))
 
     wrapper.unmount()
   })
@@ -411,6 +470,29 @@ describe('HermesAssistantView', () => {
       query: '12',
       session_id: 101,
     }))
+
+    wrapper.unmount()
+  })
+
+  it('restores a cancellation control without a feedback target', async () => {
+    sessions.mockResolvedValueOnce([{
+      id: 101,
+      updated_at: '2026-09-04T10:00:00Z',
+      context_filters: { conversation_id: 'hermes-cancelled-1' },
+      messages: [{
+        role: 'assistant',
+        kind: 'orchestration_cancellation',
+        content: '已取消当前待补充的只读查询。',
+        at: '2026-09-04T10:00:00Z',
+      }],
+    }])
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(vm.messages).toHaveLength(1)
+    expect(vm.messages[0].backendIndex).toBeUndefined()
+    expect(vm.conversationId).toBe('hermes-cancelled-1')
 
     wrapper.unmount()
   })

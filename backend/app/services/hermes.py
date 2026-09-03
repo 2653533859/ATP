@@ -224,7 +224,7 @@ def build_governance_summary(sessions: Sequence[object]) -> dict[str, object]:
             for message in raw_messages
             if isinstance(message, dict)
             and message.get("role") == "assistant"
-            and message.get("kind") != "orchestration_clarification"
+            and message.get("kind") not in {"orchestration_clarification", "orchestration_cancellation"}
         )
 
     cited = 0

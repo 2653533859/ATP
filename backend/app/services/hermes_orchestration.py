@@ -9,7 +9,7 @@ from typing import Any, Literal
 from app.schemas.hermes_tools import HermesToolName, HermesToolStatus
 
 
-HermesOrchestrationStatus = Literal["matched", "no_match", "needs_input"]
+HermesOrchestrationStatus = Literal["matched", "no_match", "needs_input", "cancelled"]
 HermesPendingToolName = Literal["run_detail", "requirement_case_links", "knowledge_detail"]
 
 
@@ -53,6 +53,26 @@ _ID_PATTERN = re.compile(r"(?:编号|id|#|号)\s*[:：]?\s*(\d+)", re.IGNORECASE
 _TARGET_ID_PATTERN = re.compile(r"(?:需求|用例|知识|knowledge|case|run|运行|执行)[^\d]{0,8}(\d+)", re.IGNORECASE)
 _PLAIN_ID_PATTERN = re.compile(r"\d+")
 _RUN_TASK_TYPES = ("case", "suite", "plan", "android", "performance")
+_PENDING_CANCELLATIONS = frozenset(
+    {
+        "取消",
+        "取消当前查询",
+        "取消查询",
+        "算了",
+        "不用了",
+        "停止查询",
+        "cancel",
+        "cancel query",
+        "cancel current query",
+    }
+)
+
+
+def is_pending_cancellation(query: str) -> bool:
+    """Recognize only explicit, whole-turn cancellation controls."""
+
+    normalized = " ".join(query.strip().split()).casefold()
+    return normalized in _PENDING_CANCELLATIONS
 
 
 def _numeric_id(query: str) -> int | None:
@@ -212,6 +232,8 @@ def plan_read_tools(query: str) -> HermesOrchestrationPlan:
     """
 
     normalized = " ".join(query.strip().split())
+    if is_pending_cancellation(normalized):
+        return HermesOrchestrationPlan(status="no_match")
     plans: list[HermesToolPlan] = []
     if _FAILURE_PATTERN.search(normalized):
         plans.append(HermesToolPlan("failed_tasks", {"limit": 20}, "识别到失败、异常或任务相关问题"))

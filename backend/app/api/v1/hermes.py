@@ -83,6 +83,7 @@ from app.services.hermes_tools import (
 )
 from app.services.hermes_orchestration import (
     HermesToolOutcome,
+    is_pending_cancellation,
     pending_tool_from_mapping,
     pending_tool_to_mapping,
     plan_read_tools,
@@ -196,6 +197,7 @@ async def orchestrate_hermes(
 
     await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
     pending = None
+    pending_session = None
     if body.session_id is not None:
         existing_session = await db.get(HermesSession, body.session_id)
         if (
@@ -208,6 +210,52 @@ async def orchestrate_hermes(
             )
             if context_filters.get("conversation_id") == body.conversation_id:
                 pending = pending_tool_from_mapping(context_filters.get("pending_orchestration"))
+                if pending is not None:
+                    pending_session = existing_session
+    if pending_session is not None and is_pending_cancellation(body.query):
+        generated_at = datetime.now(timezone.utc)
+        answer = "已取消当前待补充的只读查询。你可以继续提出新的项目问题。"
+        messages = list(pending_session.messages) if isinstance(pending_session.messages, list) else []
+        messages.extend(
+            [
+                {
+                    "role": "user",
+                    "content": redact_knowledge_text(body.query, limit=2_000),
+                    "at": generated_at.isoformat(),
+                },
+                {
+                    "role": "assistant",
+                    "content": answer,
+                    "tool": "hermes_orchestration_cancellation",
+                    "kind": "orchestration_cancellation",
+                    "at": generated_at.isoformat(),
+                },
+            ]
+        )
+        pending_session.messages = messages[-40:]
+        context_filters = (
+            dict(pending_session.context_filters) if isinstance(pending_session.context_filters, dict) else {}
+        )
+        context_filters.pop("pending_orchestration", None)
+        pending_session.context_filters = context_filters
+        metrics = dict(pending_session.metrics) if isinstance(pending_session.metrics, dict) else {}
+        metrics["queries"] = _safe_increment(metrics.get("queries"), 1)
+        metrics["orchestration_calls"] = _safe_increment(metrics.get("orchestration_calls"), 1)
+        metrics["last_latency_ms"] = 0
+        pending_session.metrics = metrics
+        await db.commit()
+        return HermesOrchestrationOut(
+            project_id=body.project_id,
+            conversation_id=body.conversation_id,
+            query=body.query,
+            status="cancelled",
+            plans=[],
+            steps=[],
+            answer=answer,
+            generated_at=generated_at,
+            session_id=pending_session.id,
+            message_index=len(pending_session.messages) - 1,
+        )
     routing = plan_read_tools(body.query)
     if routing.status == "no_match" and pending is not None:
         routing = resume_pending_read_tool(body.query, pending)
@@ -227,7 +275,7 @@ async def orchestrate_hermes(
             ),
         )
         generated_at = datetime.now(timezone.utc)
-        answer = routing.clarification or "请补充目标信息后，我再执行只读查询。"
+        answer = f"{routing.clarification or '请补充目标信息后，我再执行只读查询。'} 如不再查询，请输入“取消当前查询”。"
         messages = list(session.messages) if isinstance(session.messages, list) else []
         messages.extend(
             [
@@ -264,7 +312,7 @@ async def orchestrate_hermes(
             conversation_id=body.conversation_id,
             query=body.query,
             status="needs_input",
-            clarification=routing.clarification,
+            clarification=answer,
             plans=plans,
             steps=[],
             answer=answer,
@@ -862,7 +910,7 @@ async def submit_hermes_feedback(
     if (
         not isinstance(message, dict)
         or message.get("role") != "assistant"
-        or message.get("kind") == "orchestration_clarification"
+        or message.get("kind") in {"orchestration_clarification", "orchestration_cancellation"}
     ):
         raise HTTPException(status_code=422, detail="只能评价 Hermes 助手消息")
     messages[body.message_index] = {
