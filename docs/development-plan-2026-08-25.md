@@ -638,7 +638,7 @@
 
 ### 当前边界
 
-- `[E]` Secret 已就绪，但临时连通性探针因镜像未在检查窗口内完成就绪，尚未证明 Pod 到三项宿主服务的实际 TCP 连通；必须在应用安装前补做并清理探针。
+- `[x]` Secret 已就绪；临时 Pod 到 PostgreSQL `5432`、Redis `6379`、MinIO `9000` 的实际 TCP 连通均通过，探针已清理。
 - 没有创建 Helm release、应用 Pod 或迁移 Job；K3s containerd 仍没有当前 SHA 的 ATP 镜像，P4 发布级 Prometheus、独立 MinIO、跨主机恢复和原发布范围多节点要求继续保持未关闭。脱敏记录见 [`k3s-single-node-secret-preflight-2026-09-04.json`](evidence/k3s-single-node-secret-preflight-2026-09-04.json)。
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
