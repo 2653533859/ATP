@@ -1,0 +1,49 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-04",
+  "scope": "target_linux_single_node_k3s_bootstrap",
+  "data_handling": {
+    "credentials_recorded": false,
+    "kubeconfig_recorded": false,
+    "registry_endpoints_recorded": false,
+    "registry_credentials_recorded": false,
+    "response_bodies_recorded": false
+  },
+  "installation": {
+    "k3s_version": "v1.36.3+k3s1",
+    "topology": "single_node",
+    "traefik_disabled": true,
+    "kubectl_client_version": "v1.37.0",
+    "k3s_service": "active"
+  },
+  "access": {
+    "context": "atp-single-node",
+    "root_kubeconfig_mode": "0600",
+    "api_readiness": "passed",
+    "node_read_permission": "passed"
+  },
+  "workload_readiness": {
+    "ready_nodes": 1,
+    "ready_kube_system_pods": 3,
+    "components": [
+      "coredns",
+      "local-path-provisioner",
+      "metrics-server"
+    ]
+  },
+  "registry_recovery": {
+    "initial_public_registry_pull": "timed_out",
+    "initial_local_system_image_cache": 0,
+    "reused_existing_docker_mirror": true,
+    "reachable_credential_free_mirror_count": 2
+  },
+  "conclusion": {
+    "development_cluster": "ready",
+    "p4_release_gate": "not_closed",
+    "remaining_requirements": [
+      "release-grade Prometheus",
+      "independent MinIO source and target",
+      "original multi-node load and recovery evidence if release scope requires it"
+    ]
+  }
+}

@@ -6,7 +6,7 @@
 
 本节是当前最新的计划跟踪入口，学习参考导航的“工作台 → 测试能力 → 测试资产 → 智能中枢 → 系统”结构，继续把高频测试动作从系统管理中移出。2.3.0 及更早内容保留为历史交付记录；后续开发、审查、文档同步和提交均以本节的阶段出口为准。
 
-> 当前状态统一说明（截至 2026-09-04）：2.4.1～2.4.21 是 2.4.22 之前的过程快照，若其中的待验收描述与本节总表冲突，以 2.4.0 总表和 2.4.22 受控真实验收为准；本轮本地联调记录见 2.4.0.6，前端主题与交互收口见 2.4.23，Hermes 智能化第一阶段见 2.4.24，Hermes 多轮上下文见 2.4.25，Hermes 只读工具执行层见 2.4.26，Hermes 结构化草稿审阅与人工确认见 2.4.27，Hermes 评测与治理见 2.4.28，Hermes 自然语言只读编排见 2.4.29，Hermes 多轮参数补全见 2.4.30，Hermes 挂起意图取消与安全恢复见 2.4.31，Linux Compose 启动韧性与预检门禁见 2.4.32～2.4.33，P4 目标资源只读预检见 2.4.34。
+> 当前状态统一说明（截至 2026-09-04）：2.4.1～2.4.21 是 2.4.22 之前的过程快照，若其中的待验收描述与本节总表冲突，以 2.4.0 总表和 2.4.22 受控真实验收为准；本轮本地联调记录见 2.4.0.6，前端主题与交互收口见 2.4.23，Hermes 智能化第一阶段见 2.4.24，Hermes 多轮上下文见 2.4.25，Hermes 只读工具执行层见 2.4.26，Hermes 结构化草稿审阅与人工确认见 2.4.27，Hermes 评测与治理见 2.4.28，Hermes 自然语言只读编排见 2.4.29，Hermes 多轮参数补全见 2.4.30，Hermes 挂起意图取消与安全恢复见 2.4.31，Linux Compose 启动韧性与预检门禁见 2.4.32～2.4.33，P4 目标资源预检与单节点 K3s 基础准备见 2.4.34～2.4.35。
 
 > 2026-09-01 发布范围决策：iOS/Appium、SMTP/企业微信/钉钉和 Jira/禅道/GitHub/GitLab 不纳入本次正式支持范围，已有代码与本地证据保留为技术预览，不作为本次发布阻塞项，也不代表真实环境通过。统一边界见 [`release-scope-2026-09-01.md`](release-scope-2026-09-01.md)。
 
@@ -587,14 +587,30 @@
 
 ### 只读证据与结论
 
-- [x] 初始只读预检时 `kubectl` 不存在；随后已按官方二进制路径安装并校验 `kubectl v1.37.0`，但当前 root 用户仍没有 Kubernetes 上下文。四个常用 kubeconfig 位置、`kubelet`/`k3s`/`microk8s` 服务和 Docker 本地控制面镜像均不存在，无法取得可调度节点或性能 Worker Deployment 副本；U-P4.1 仍未满足。
+- [x] 初始只读预检时 `kubectl` 不存在；随后已按官方二进制路径安装并校验 `kubectl v1.37.0`。该次初始快照中 root 用户没有 Kubernetes 上下文，四个常用 kubeconfig 位置、`kubelet`/`k3s`/`microk8s` 服务和 Docker 本地控制面镜像均不存在，无法取得可调度节点或性能 Worker Deployment 副本；后续单节点 K3s context 已在 2.4.35 记录，但当时的 U-P4.1 预检结论不因此改写。
 - [x] Docker 运行态仅统计到 1 个 Prometheus、2 个 MinIO 和 1 个性能相关容器。容器数量不证明 Prometheus 已按发布级 target/采样口径运行，也不能证明 MinIO source/target 位于不同主机或不同 IP；U-P4.2、U-P4.3 未满足。
 - [x] 已将初始预检与安装验证分别记录为 [`p4-environment-preflight-2026-09-04.json`](evidence/p4-environment-preflight-2026-09-04.json) 和 [`p4-kubectl-install-2026-09-04.json`](evidence/p4-kubectl-install-2026-09-04.json)，未记录凭据、kubeconfig、环境变量、Compose 配置值、容器名称或响应正文。
 
 ### 当前边界
 
-- `[-]` P4 继续阻塞。须由环境负责人提供受控 kubeconfig 或等效 Kubernetes 集群访问、发布级 Prometheus 和不同主机或不同 IP 的 MinIO source/target，随后严格按 U-P4.1 → U-P4.5 执行短压、取消、采样、告警、恢复和清理。
+- `[-]` P4 继续阻塞。单节点 K3s 仅补齐开发/联调用的 Kubernetes 访问，不构成 P4 真实性能环境；仍须具备发布级 Prometheus、不同主机或不同 IP 的 MinIO source/target，并在原发布范围要求多节点时严格按 U-P4.1 → U-P4.5 执行短压、取消、采样、告警、恢复和清理。
 - 单机 Docker Compose 资源只能用于部署排障或开发联调，不能替代 P4 的多节点、跨主机恢复或独立存储验收。
+
+## 2.4.35 目标 Linux 单节点 K3s 开发/联调基础准备（完成，2026-09-04）
+
+用户明确本轮不要求多节点，因此在目标 Linux 建立单节点 K3s 供 Kubernetes 开发与联调使用；它不改变 P4 原有的发布级多节点、Prometheus 与独立 MinIO 验收出口。
+
+### 交付内容与验收出口
+
+- [x] 只读预检确认 systemd、cgroup v2、CPU/内存/磁盘和 K3s 端口满足要求后，固定安装 K3s `v1.36.3+k3s1`，并禁用本轮不需要的 Traefik。
+- [x] K3s 节点为 Ready，CoreDNS、local-path-provisioner 与 Metrics Server 均为 Ready；Kubernetes API `/readyz` 通过，当前 root context 允许读取节点。
+- [x] root kubeconfig 使用独立 `0600` 私有副本，context 命名为 `atp-single-node`。不再使用 K3s 会在重启时改写的原配置文件符号链接。
+- [x] 公共镜像仓库初始请求超时；未添加新的第三方镜像站，而是只复用 Docker 已有、无凭据且连通的镜像源配置 K3s `docker.io` mirror。镜像源地址、认证信息和 kubeconfig 正文均未记录。
+
+### 当前边界
+
+- `[E]` 单节点 K3s 证明本机 Kubernetes、context、系统服务和基础网络已可用于开发/联调；它不证明多节点调度、跨主机恢复、发布级 Prometheus 或独立 MinIO。
+- P4 与 P9 仍保持原阻塞口径，直到其余真实环境条件具备并按 U-P4.1～U-P4.5 留存脱敏证据。完整记录见 [`k3s-single-node-bootstrap-2026-09-04.json`](evidence/k3s-single-node-bootstrap-2026-09-04.json)。
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 
