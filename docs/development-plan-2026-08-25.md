@@ -6,7 +6,7 @@
 
 本节是当前最新的计划跟踪入口，学习参考导航的“工作台 → 测试能力 → 测试资产 → 智能中枢 → 系统”结构，继续把高频测试动作从系统管理中移出。2.3.0 及更早内容保留为历史交付记录；后续开发、审查、文档同步和提交均以本节的阶段出口为准。
 
-> 当前状态统一说明（截至 2026-09-04）：2.4.1～2.4.21 是 2.4.22 之前的过程快照，若其中的待验收描述与本节总表冲突，以 2.4.0 总表和 2.4.22 受控真实验收为准；本轮本地联调记录见 2.4.0.6，前端主题与交互收口见 2.4.23，Hermes 智能化第一阶段见 2.4.24，Hermes 多轮上下文见 2.4.25，Hermes 只读工具执行层见 2.4.26，Hermes 结构化草稿审阅与人工确认见 2.4.27，Hermes 评测与治理见 2.4.28，Hermes 自然语言只读编排见 2.4.29，Hermes 多轮参数补全见 2.4.30，Hermes 挂起意图取消与安全恢复见 2.4.31，Linux Compose 启动韧性与预检门禁见 2.4.32～2.4.33，P4 目标资源预检、单节点 K3s、Helm、外部 Secret 与当前 SHA 镜像联调准备见 2.4.34～2.4.38，单节点 Helm 实际安装与迁移 Hook 修复见 2.4.39，Windows 本地前端代理到 Linux Backend 见 2.4.40（完成）。
+> 当前状态统一说明（截至 2026-09-04）：2.4.1～2.4.21 是 2.4.22 之前的过程快照，若其中的待验收描述与本节总表冲突，以 2.4.0 总表和 2.4.22 受控真实验收为准；本轮本地联调记录见 2.4.0.6，前端主题与交互收口见 2.4.23，Hermes 智能化第一阶段见 2.4.24，Hermes 多轮上下文见 2.4.25，Hermes 只读工具执行层见 2.4.26，Hermes 结构化草稿审阅与人工确认见 2.4.27，Hermes 评测与治理见 2.4.28，Hermes 自然语言只读编排见 2.4.29，Hermes 多轮参数补全见 2.4.30，Hermes 挂起意图取消与安全恢复见 2.4.31，Linux Compose 启动韧性与预检门禁见 2.4.32～2.4.33，P4 目标资源预检、单节点 K3s、Helm、外部 Secret 与当前 SHA 镜像联调准备见 2.4.34～2.4.38，单节点 Helm 实际安装与迁移 Hook 修复见 2.4.39，Windows 本地前端代理到 Linux Backend 见 2.4.40，P4 单节点目标环境只读复验见 2.4.41（阻塞条件已确认）。
 
 > 2026-09-01 发布范围决策：iOS/Appium、SMTP/企业微信/钉钉和 Jira/禅道/GitHub/GitLab 不纳入本次正式支持范围，已有代码与本地证据保留为技术预览，不作为本次发布阻塞项，也不代表真实环境通过。统一边界见 [`release-scope-2026-09-01.md`](release-scope-2026-09-01.md)。
 
@@ -691,6 +691,23 @@
 - [x] 通过本地代理访问受保护的 `/api/v1/health/dependencies` 返回 HTTP 401；这是未登录时的预期响应，证明请求已到达 Linux Backend，不记录响应正文或凭据。
 - [x] 前端全量测试为 `70 files / 336 tests passed`，`vue-tsc --noEmit` 和生产构建通过。
 - [x] 证据见 [`evidence/local-frontend-linux-backend-proxy-2026-09-04.json`](evidence/local-frontend-linux-backend-proxy-2026-09-04.json)。本项不覆盖登录后角色权限、真实 Worker/模型质量或 P4/P9 发布门禁。
+
+## 2.4.41 P4 单节点目标环境只读复验（阻塞条件已确认，2026-09-04）
+
+本项复核当前单节点 K3s 是否已经具备 P4 真实多节点验收的前置条件；只读检查不改变集群、不安装监控、不创建 MinIO 数据，也不把单节点开发安装写成 P4 通过。
+
+### 复验结果
+
+- [x] SSH 只读检查确认 Kubernetes context 为 `atp-single-node`，集群只有 1 个 Ready 节点；`atp-single-node-atp-performance-worker` 为 `desired=1 / available=1`，CPU/内存 requests 与 limits 已存在。
+- [x] 目标集群没有 `servicemonitors.monitoring.coreos.com` CRD，也没有 Prometheus 工作负载；因此无法执行发布级 ServiceMonitor target、readiness 和 PromQL 验收。
+- [x] 目标主机上可见的 MinIO 服务仍位于同一主机，不能证明独立 source/target、跨主机回读、恢复回源和生命周期清理。
+- [x] 独立审查未发现本次只读复验代码或证据结构问题；仓库验证继续保留 Compose 缺失时的 `SKIP` 边界。
+
+### 结论与下一入口
+
+- P4 继续保持 `[-]`，P9 继续保持 `[~]`；单节点 K3s 只作为开发/联调环境，不替代 U-P4.1～U-P4.5。
+- 下一执行条件是提供至少 2 个可调度 Kubernetes 节点、发布级 Prometheus/Operator、不同主机或 IP 的独立 MinIO source/target，再按性能验收 Runbook 执行容量、短压、取消、指标、恢复和清理。
+- 脱敏证据见 [`evidence/p4-single-node-blocker-2026-09-04.json`](evidence/p4-single-node-blocker-2026-09-04.json)。
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 

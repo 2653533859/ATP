@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-04",
+  "scope": "p4_target_environment_readonly_recheck",
+  "target": {
+    "host": "192.168.3.196",
+    "kubernetes_context": "atp-single-node",
+    "namespace": "atp-single-node",
+    "kubernetes_version": "v1.36.3+k3s1"
+  },
+  "kubernetes": {
+    "ready_schedulable_node_count": 1,
+    "performance_worker_deployment": "atp-single-node-atp-performance-worker",
+    "performance_worker_desired_replicas": 1,
+    "performance_worker_available_replicas": 1,
+    "performance_worker_resources": {
+      "requests_cpu": "1",
+      "requests_memory": "1Gi",
+      "limits_cpu": "2",
+      "limits_memory": "2Gi"
+    },
+    "servicemonitor_crd": "absent",
+    "prometheus_workload_count": 0
+  },
+  "minio": {
+    "independent_source_target": false,
+    "observation": "可见 MinIO 实例仍在同一目标主机，未提供跨主机 source/target 证据。"
+  },
+  "data_handling": {
+    "credential_values_recorded": false,
+    "response_bodies_recorded": false,
+    "cluster_mutated": false,
+    "temporary_resources_created": false
+  },
+  "conclusion": {
+    "p4_status": "blocked",
+    "p9_status": "open",
+    "blockers": [
+      "需要至少 2 个可调度 Kubernetes 节点和多副本性能 Worker",
+      "需要发布级 Prometheus/Operator 及 ServiceMonitor target/query 证据",
+      "需要不同主机或 IP 的独立 MinIO source/target 及跨主机恢复证据"
+    ],
+    "boundary": "单节点开发/联调安装不替代 P4 多节点、监控、灾备、短压和恢复验收。"
+  }
+}
