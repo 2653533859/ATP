@@ -1,0 +1,77 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-04",
+  "scope": "target_linux_single_node_k3s_current_sha_image_import_and_helm_server_dry_run",
+  "data_handling": {
+    "credentials_recorded": false,
+    "kubeconfig_recorded": false,
+    "registry_endpoints_recorded": false,
+    "registry_credentials_recorded": false,
+    "secret_values_recorded": false,
+    "response_bodies_recorded": false
+  },
+  "source": {
+    "git_sha": "1bccfef48e45acc66b1e54749ff93fff86c8d208",
+    "source_delivery": "git_archive",
+    "repository_dockerfiles_modified": false,
+    "build_strategy": "current_source_overlay_on_existing_dependency_browser_layers",
+    "requirements_sha256": "4e9ef487ac02f1c257f89f7cb6c1e19689673938ff2f27c0bc1c60a7ca39d115",
+    "build_network": "docker_host_network",
+    "source_file_hash_check": "passed"
+  },
+  "images": {
+    "backend": {
+      "reference": "registry.local/atp/backend:1bccfef4",
+      "image_id": "sha256:e088e10bca8de7d7f9653dfcc0a0706f999399740e4b8b42d55bb5197232b0e3",
+      "size_bytes": 692314332,
+      "built": true
+    },
+    "worker": {
+      "reference": "registry.local/atp/worker:1bccfef4",
+      "image_id": "sha256:cf06501c3b8781edc07f057e3a21cf83ff477b58265ee01685193afbe250ff6d",
+      "size_bytes": 1286409164,
+      "built": true
+    },
+    "frontend": {
+      "reference": "registry.local/atp/frontend:1bccfef4",
+      "image_id": "sha256:6405ff0f75a6e4fd743ff514dc08bae4aa270dc445c9adc7e28f202a1168b0eb",
+      "size_bytes": 30217181,
+      "built": true
+    },
+    "k3s_containerd_imported": true,
+    "exact_reference_count": 3
+  },
+  "helm": {
+    "version": "v4.2.4",
+    "chart_source": "current_sha_git_archive",
+    "server_dry_run": "passed",
+    "rendered_deployments": 5,
+    "rendered_services": 3,
+    "rendered_current_sha_image_reference_count": 6,
+    "placeholder_image_reference_count": 0,
+    "servicemonitor_count": 0,
+    "hpa_count": 0,
+    "ingress_count": 0,
+    "secret_manifest_count": 0
+  },
+  "post_dry_run": {
+    "namespace": "atp-single-node",
+    "helm_release_count": 0,
+    "application_pod_count": 0,
+    "migration_job_count": 0
+  },
+  "conclusion": {
+    "single_node_image_and_helm_preflight": "ready",
+    "application_installation": "not_performed",
+    "migration_started": false,
+    "p4_release_gate": "not_closed",
+    "remaining_requirements": [
+      "explicit approval for a controlled single-node application install",
+      "post-install migration and service readiness evidence",
+      "release-grade Prometheus",
+      "independent MinIO source and target",
+      "original multi-node load and recovery evidence if release scope requires it",
+      "reproducible release build provenance outside the single-node development preflight"
+    ]
+  }
+}

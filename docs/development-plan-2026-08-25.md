@@ -6,7 +6,7 @@
 
 本节是当前最新的计划跟踪入口，学习参考导航的“工作台 → 测试能力 → 测试资产 → 智能中枢 → 系统”结构，继续把高频测试动作从系统管理中移出。2.3.0 及更早内容保留为历史交付记录；后续开发、审查、文档同步和提交均以本节的阶段出口为准。
 
-> 当前状态统一说明（截至 2026-09-04）：2.4.1～2.4.21 是 2.4.22 之前的过程快照，若其中的待验收描述与本节总表冲突，以 2.4.0 总表和 2.4.22 受控真实验收为准；本轮本地联调记录见 2.4.0.6，前端主题与交互收口见 2.4.23，Hermes 智能化第一阶段见 2.4.24，Hermes 多轮上下文见 2.4.25，Hermes 只读工具执行层见 2.4.26，Hermes 结构化草稿审阅与人工确认见 2.4.27，Hermes 评测与治理见 2.4.28，Hermes 自然语言只读编排见 2.4.29，Hermes 多轮参数补全见 2.4.30，Hermes 挂起意图取消与安全恢复见 2.4.31，Linux Compose 启动韧性与预检门禁见 2.4.32～2.4.33，P4 目标资源预检、单节点 K3s、Helm 与外部 Secret 联调准备见 2.4.34～2.4.37。
+> 当前状态统一说明（截至 2026-09-04）：2.4.1～2.4.21 是 2.4.22 之前的过程快照，若其中的待验收描述与本节总表冲突，以 2.4.0 总表和 2.4.22 受控真实验收为准；本轮本地联调记录见 2.4.0.6，前端主题与交互收口见 2.4.23，Hermes 智能化第一阶段见 2.4.24，Hermes 多轮上下文见 2.4.25，Hermes 只读工具执行层见 2.4.26，Hermes 结构化草稿审阅与人工确认见 2.4.27，Hermes 评测与治理见 2.4.28，Hermes 自然语言只读编排见 2.4.29，Hermes 多轮参数补全见 2.4.30，Hermes 挂起意图取消与安全恢复见 2.4.31，Linux Compose 启动韧性与预检门禁见 2.4.32～2.4.33，P4 目标资源预检、单节点 K3s、Helm、外部 Secret 与当前 SHA 镜像联调准备见 2.4.34～2.4.38。
 
 > 2026-09-01 发布范围决策：iOS/Appium、SMTP/企业微信/钉钉和 Jira/禅道/GitHub/GitLab 不纳入本次正式支持范围，已有代码与本地证据保留为技术预览，不作为本次发布阻塞项，也不代表真实环境通过。统一边界见 [`release-scope-2026-09-01.md`](release-scope-2026-09-01.md)。
 
@@ -640,6 +640,22 @@
 
 - `[x]` Secret 已就绪；临时 Pod 到 PostgreSQL `5432`、Redis `6379`、MinIO `9000` 的实际 TCP 连通均通过，探针已清理。
 - 没有创建 Helm release、应用 Pod 或迁移 Job；K3s containerd 仍没有当前 SHA 的 ATP 镜像，P4 发布级 Prometheus、独立 MinIO、跨主机恢复和原发布范围多节点要求继续保持未关闭。脱敏记录见 [`k3s-single-node-secret-preflight-2026-09-04.json`](evidence/k3s-single-node-secret-preflight-2026-09-04.json)。
+
+## 2.4.38 单节点 K3s 当前 SHA 镜像导入与 Helm 服务端预检（完成，2026-09-04）
+
+本项把当前提交推进到“可受控安装前”的边界：只构建并导入镜像，执行 Helm server-side dry-run，不启动应用、不执行迁移。
+
+### 交付内容与验收出口
+
+- [x] 以当前 Git `HEAD` `1bccfef48e45acc66b1e54749ff93fff86c8d208` 为源码输入，构建 `registry.local/atp/backend:1bccfef4`、`registry.local/atp/worker:1bccfef4` 和 `registry.local/atp/frontend:1bccfef4`，并将三条精确引用导入 K3s containerd。
+- [x] Backend/Worker 使用目标机已有且 `requirements.txt` SHA-256 与当前提交一致的依赖/浏览器层做源码覆盖构建；Frontend 按当前 Dockerfile 构建。仓库 Dockerfile 未修改，构建使用 host 网络绕过目标 Docker 默认网络下载限制；该策略仅用于单节点开发/联调，不替代发布级可复现构建来源审计。
+- [x] 使用当前提交 Chart、单节点 overlay 和三个临时 tag 覆盖执行 `helm upgrade --install --dry-run=server --hide-secret`；dry-run 通过，渲染 5 个 Deployment、3 个 Service、6 处当前 SHA 镜像引用，未生成 ServiceMonitor、HPA、Ingress、Secret 或占位 tag。
+- [x] dry-run 后复核 `atp-single-node` namespace：Helm release、应用 Pod 和迁移 Job 数量均为 `0`；Secret 与 PostgreSQL/Redis/MinIO 连通性沿用 2.4.37 已通过证据。
+
+### 当前边界
+
+- `[E]` 当前只证明镜像已导入且 Chart 可服务端渲染，不证明应用启动、迁移成功、健康检查、Worker 注册或持续稳定性；下一步必须在明确批准后执行受控单节点安装并保留迁移/健康证据。
+- P4 与 P9 仍保持原阻塞口径；发布级 Prometheus、独立 MinIO、跨主机恢复和原发布范围多节点要求没有因本次单节点 dry-run 关闭。完整脱敏记录见 [`k3s-single-node-image-dry-run-2026-09-04.json`](evidence/k3s-single-node-image-dry-run-2026-09-04.json)。
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 
