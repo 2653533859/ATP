@@ -19,6 +19,9 @@
   },
   "cluster_access": {
     "current_context": "not_configured",
+    "standard_kubeconfig_locations_present": false,
+    "local_kubernetes_services_active": false,
+    "local_kubernetes_control_plane_detected": false,
     "cluster_connection_attempted": false
   },
   "conclusion": {

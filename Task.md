@@ -22,7 +22,7 @@
 - [E] P1 接口测试：本地能力和 q19 受控协议/报告证据已完成，生产协议服务仍独立复核。
 - [E] P2 APP 自动化：Karing 单设备闭环已完成，跨设备和持续运行仍待复核。
 - [E] P3 UI 自动化：本地闭环已完成，真实 Worker/浏览器矩阵仍待复核。
-- [-] P4 性能测试工作台：目标 Linux 已安装校验过的 `kubectl v1.37.0`，但尚未配置 Kubernetes 上下文；虽有 Prometheus、MinIO 和性能相关 Docker 容器，但仍缺 Kubernetes 集群访问、发布级 Prometheus 验收和独立 MinIO source/target，不能以单节点 Compose 或跳过项替代。
+- [-] P4 性能测试工作台：目标 Linux 已安装校验过的 `kubectl v1.37.0`，但尚未配置 Kubernetes 上下文，常用 kubeconfig 路径、Kubernetes 服务与本地控制面容器均不存在；虽有 Prometheus、MinIO 和性能相关 Docker 容器，但仍缺 Kubernetes 集群访问、发布级 Prometheus 验收和独立 MinIO source/target，不能以单节点 Compose 或跳过项替代。
 - [x] P5～P8 AI、测试资产、智能中枢和系统：q19 受控真实模型、临时项目、viewer 角色矩阵、来源、审计、回滚和清理均已验收（见开发计划 2.4.22）。
 - [~] P9 发布收口：仅等待 P4 性能真实环境门禁，然后绑定最终 SHA、汇总证据和发布边界。
 - [x] 本次发布范围决策：iOS、外部通知渠道和外部缺陷平台均标为 `[OUT]` 技术预览；未伪造真实设备、供应商送达或平台兼容性证据。
@@ -40,7 +40,7 @@
 - [x] 计划检查点 2.4.31：H8 允许用户在同一受控 pending 会话中用精确取消词清除 `pending_orchestration`；取消返回 `cancelled`，不执行工具，也不会让无 pending 的取消词误触发失败任务读取。跨会话取消保留原状态，取消后可继续编排或 H1 项目证据检索；取消控制不计入 H5 回答质量，也不能评价。Hermes 编排/服务定向 `27 passed`、前端 Hermes `19 passed`，后端非集成全量 `2441 passed`、前端全量 `69 files / 334 tests passed`，TypeScript、mypy、生产构建、Python 编译、Ruff、格式/差异检查、密钥扫描及提交钩子均通过；真实模型工具选择、成本、角色、审计和目标部署继续独立复核。
 - [x] 计划检查点 2.4.32：Linux Compose 启动韧性将 Alembic 从后端固定 shell 命令拆为可测试的有界启动入口；仅对已知 PostgreSQL DNS/就绪故障重试，默认最多 12 次、每次 5 秒，上限为 24 次和 30 秒，日志不回显迁移错误原文。完整 Compose 的 `migrate` 成功后才启动 backend；外部基础设施编排等待 backend `/health`，并以 `on-failure:3` 防止迁移失败无限重启。定向迁移/部署契约 `15 passed`；目标 Linux 的连续稳定性仍需独立观察。
 - [x] 计划检查点 2.4.33：扩展 `validate-deployment-readiness` 为 Linux Compose 启动韧性的统一只读门禁：覆盖默认与外部基础设施 Compose 的 YAML/渲染入口、backend 迁移门、健康依赖、外部 backend 有界重启及迁移入口脚本语法；外部 backend 若错误跳过迁移会被拒绝。定向部署契约 `30 passed`、后端非集成全量 `2451 passed`；本机缺 Docker/Compose 时实际渲染明确 `SKIP`，目标 Linux 的当前 SHA 部署和持续稳定性仍需独立观察。
-- [x] 计划检查点 2.4.34：对目标 Linux 进行脱敏、只读的 P4 资源预检后，已按官方二进制路径安装并校验 `kubectl v1.37.0`；客户端仍未配置 Kubernetes 上下文，无法取得 Ready 节点。Docker 中虽有 1 个 Prometheus、2 个 MinIO 和 1 个性能相关运行容器，均不能证明发布级采样或跨主机独立 MinIO。P4 保持 `[-]`，需提供 Kubernetes 集群访问、发布级 Prometheus 和不同主机或不同 IP 的 MinIO source/target 后再按 U-P4.1～U-P4.5 复验；预检与安装验证证据见 [`docs/evidence/p4-environment-preflight-2026-09-04.json`](docs/evidence/p4-environment-preflight-2026-09-04.json) 和 [`docs/evidence/p4-kubectl-install-2026-09-04.json`](docs/evidence/p4-kubectl-install-2026-09-04.json)。
+- [x] 计划检查点 2.4.34：对目标 Linux 进行脱敏、只读的 P4 资源预检后，已按官方二进制路径安装并校验 `kubectl v1.37.0`；客户端仍未配置 Kubernetes 上下文，常用 kubeconfig 路径、`kubelet`/`k3s`/`microk8s` 服务和本地控制面容器均不存在，无法取得 Ready 节点。Docker 中虽有 1 个 Prometheus、2 个 MinIO 和 1 个性能相关运行容器，均不能证明发布级采样或跨主机独立 MinIO。P4 保持 `[-]`，需提供 Kubernetes 集群访问、发布级 Prometheus 和不同主机或不同 IP 的 MinIO source/target 后再按 U-P4.1～U-P4.5 复验；预检与安装验证证据见 [`docs/evidence/p4-environment-preflight-2026-09-04.json`](docs/evidence/p4-environment-preflight-2026-09-04.json) 和 [`docs/evidence/p4-kubectl-install-2026-09-04.json`](docs/evidence/p4-kubectl-install-2026-09-04.json)。
 
 > 下方逐项明细保留各检查点的原始描述；其中“仍待验收”属于当时快照，不覆盖以上截至 2026-09-01 的统一状态。
 

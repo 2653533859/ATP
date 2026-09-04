@@ -587,7 +587,7 @@
 
 ### 只读证据与结论
 
-- [x] 初始只读预检时 `kubectl` 不存在；随后已按官方二进制路径安装并校验 `kubectl v1.37.0`，但当前 root 用户仍没有 Kubernetes 上下文，无法取得可调度节点或性能 Worker Deployment 副本；U-P4.1 仍未满足。
+- [x] 初始只读预检时 `kubectl` 不存在；随后已按官方二进制路径安装并校验 `kubectl v1.37.0`，但当前 root 用户仍没有 Kubernetes 上下文。四个常用 kubeconfig 位置、`kubelet`/`k3s`/`microk8s` 服务和 Docker 本地控制面镜像均不存在，无法取得可调度节点或性能 Worker Deployment 副本；U-P4.1 仍未满足。
 - [x] Docker 运行态仅统计到 1 个 Prometheus、2 个 MinIO 和 1 个性能相关容器。容器数量不证明 Prometheus 已按发布级 target/采样口径运行，也不能证明 MinIO source/target 位于不同主机或不同 IP；U-P4.2、U-P4.3 未满足。
 - [x] 已将初始预检与安装验证分别记录为 [`p4-environment-preflight-2026-09-04.json`](evidence/p4-environment-preflight-2026-09-04.json) 和 [`p4-kubectl-install-2026-09-04.json`](evidence/p4-kubectl-install-2026-09-04.json)，未记录凭据、kubeconfig、环境变量、Compose 配置值、容器名称或响应正文。
 
