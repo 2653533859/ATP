@@ -194,6 +194,19 @@ MinIO 或 Prometheus，也不包含真实凭据；source MinIO 由 `secret.exist
 ServiceMonitor target 查询和跨端点 MinIO smoke。Chart 渲染或契约测试通过不代表真实集群、监控或
 灾备验收通过。
 
+### 单节点 K3s 开发/联调 overlay
+
+`deploy/helm/atp/values-performance-single-node.example.yaml` 专用于当前单节点 K3s 的开发/联调：它固定为
+1 个性能 Worker，使用稳定的 `atp-single-node` 身份和 `performance.atp-single-node` 队列，普通 Worker 不消费
+性能队列；同时关闭跨节点反亲和、HPA、Ingress 与 ServiceMonitor。该组合适配没有 Ingress Controller、Prometheus
+Operator CRD 的单节点环境，**不关闭 P4**，也不替代多节点短压、发布级 Prometheus、独立 MinIO 或跨主机恢复证据。
+
+该 overlay 将三个组件的 `imagePullPolicy` 固定为 `Never`，防止从不受控的外部仓库隐式拉取。操作员必须先以同一
+不可变 tag 构建并核验 backend、worker、frontend 镜像，再使用与 values 中完全一致的镜像引用导入 K3s containerd；
+随后通过 ExternalSecret/SOPS 创建 `atp-single-node-secrets`，并把示例目标替换为可清理的联调目标。完整 Chart 会执行
+pre-install/pre-upgrade 迁移并启动核心服务，因此在确认镜像、外部 Secret 及 PostgreSQL/Redis/MinIO 联通前，只允许
+执行 `helm lint` 与 `helm template`，不得直接安装。
+
 ## 八、升级与回滚
 
 ```bash

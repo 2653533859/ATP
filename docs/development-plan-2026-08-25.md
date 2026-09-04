@@ -6,7 +6,7 @@
 
 本节是当前最新的计划跟踪入口，学习参考导航的“工作台 → 测试能力 → 测试资产 → 智能中枢 → 系统”结构，继续把高频测试动作从系统管理中移出。2.3.0 及更早内容保留为历史交付记录；后续开发、审查、文档同步和提交均以本节的阶段出口为准。
 
-> 当前状态统一说明（截至 2026-09-04）：2.4.1～2.4.21 是 2.4.22 之前的过程快照，若其中的待验收描述与本节总表冲突，以 2.4.0 总表和 2.4.22 受控真实验收为准；本轮本地联调记录见 2.4.0.6，前端主题与交互收口见 2.4.23，Hermes 智能化第一阶段见 2.4.24，Hermes 多轮上下文见 2.4.25，Hermes 只读工具执行层见 2.4.26，Hermes 结构化草稿审阅与人工确认见 2.4.27，Hermes 评测与治理见 2.4.28，Hermes 自然语言只读编排见 2.4.29，Hermes 多轮参数补全见 2.4.30，Hermes 挂起意图取消与安全恢复见 2.4.31，Linux Compose 启动韧性与预检门禁见 2.4.32～2.4.33，P4 目标资源预检与单节点 K3s 基础准备见 2.4.34～2.4.35。
+> 当前状态统一说明（截至 2026-09-04）：2.4.1～2.4.21 是 2.4.22 之前的过程快照，若其中的待验收描述与本节总表冲突，以 2.4.0 总表和 2.4.22 受控真实验收为准；本轮本地联调记录见 2.4.0.6，前端主题与交互收口见 2.4.23，Hermes 智能化第一阶段见 2.4.24，Hermes 多轮上下文见 2.4.25，Hermes 只读工具执行层见 2.4.26，Hermes 结构化草稿审阅与人工确认见 2.4.27，Hermes 评测与治理见 2.4.28，Hermes 自然语言只读编排见 2.4.29，Hermes 多轮参数补全见 2.4.30，Hermes 挂起意图取消与安全恢复见 2.4.31，Linux Compose 启动韧性与预检门禁见 2.4.32～2.4.33，P4 目标资源预检、单节点 K3s 与 Helm 联调准备见 2.4.34～2.4.36。
 
 > 2026-09-01 发布范围决策：iOS/Appium、SMTP/企业微信/钉钉和 Jira/禅道/GitHub/GitLab 不纳入本次正式支持范围，已有代码与本地证据保留为技术预览，不作为本次发布阻塞项，也不代表真实环境通过。统一边界见 [`release-scope-2026-09-01.md`](release-scope-2026-09-01.md)。
 
@@ -611,6 +611,21 @@
 
 - `[E]` 单节点 K3s 证明本机 Kubernetes、context、系统服务和基础网络已可用于开发/联调；它不证明多节点调度、跨主机恢复、发布级 Prometheus 或独立 MinIO。
 - P4 与 P9 仍保持原阻塞口径，直到其余真实环境条件具备并按 U-P4.1～U-P4.5 留存脱敏证据。完整记录见 [`k3s-single-node-bootstrap-2026-09-04.json`](evidence/k3s-single-node-bootstrap-2026-09-04.json)。
+
+## 2.4.36 单节点 K3s Helm 联调准备（完成，2026-09-04）
+
+本项只准备受控的 Helm 联调入口，避免把 P4 的双副本跨节点验收 overlay 误用在当前单节点 K3s。
+
+### 交付内容与验收出口
+
+- [x] 新增 [`values-performance-single-node.example.yaml`](../deploy/helm/atp/values-performance-single-node.example.yaml)：固定 1 个稳定身份为 `atp-single-node` 的性能 Worker 和专用队列，普通 Worker 排除性能队列；关闭跨节点反亲和、HPA、Ingress 与 ServiceMonitor。
+- [x] overlay 仅引用外部 `atp-single-node-secrets`，三个组件固定 `imagePullPolicy: Never`，要求先导入同一不可变 SHA 的 backend、worker、frontend 镜像，拒绝隐式外部拉取；不含 Secret、镜像端点、认证或 kubeconfig 内容。
+- [x] 仓库部署预检、部署契约定向 `24 passed`、本地 Helm lint 与 template 通过；目标 Linux 已按 SHA-256 校验安装 Helm `v4.2.4`，使用临时 Chart 副本复核远端 Helm lint/template 通过，临时目录已清理。
+
+### 当前边界
+
+- `[E]` 没有创建 namespace、Helm release、应用 Pod 或迁移 Job。完整 Chart 会连接外部 PostgreSQL/Redis/MinIO 并执行迁移，缺少同一 SHA 的已导入镜像和外部 Secret 前不得安装。
+- 目标集群没有 Prometheus Operator/ServiceMonitor CRD，且 K3s containerd 中没有 ATP 镜像；当前单节点联调与 P4 发布级多节点、Prometheus、独立 MinIO 和跨主机恢复继续分开记录。脱敏证据见 [`k3s-single-node-helm-preflight-2026-09-04.json`](evidence/k3s-single-node-helm-preflight-2026-09-04.json)。
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 

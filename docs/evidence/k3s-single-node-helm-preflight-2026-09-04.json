@@ -1,0 +1,45 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-04",
+  "scope": "target_linux_single_node_k3s_helm_preflight",
+  "data_handling": {
+    "credentials_recorded": false,
+    "kubeconfig_recorded": false,
+    "registry_endpoints_recorded": false,
+    "registry_credentials_recorded": false,
+    "response_bodies_recorded": false
+  },
+  "cluster": {
+    "context": "atp-single-node",
+    "k3s_service": "active",
+    "ready_nodes": 1,
+    "prometheus_operator_servicemonitor_crd": "absent",
+    "prometheus_pods": 0,
+    "non_system_namespaces": 0
+  },
+  "helm": {
+    "version": "v4.2.4",
+    "binary_sha256_verified": true,
+    "remote_lint": "passed",
+    "remote_template": "passed",
+    "temporary_chart_copy": "cleaned"
+  },
+  "application_preconditions": {
+    "k3s_containerd_atp_image_candidates": 0,
+    "namespace_created": false,
+    "helm_release_created": false,
+    "application_pods_created": false,
+    "migration_job_started": false
+  },
+  "conclusion": {
+    "single_node_helm_development_preflight": "ready",
+    "p4_release_gate": "not_closed",
+    "remaining_requirements": [
+      "verified ATP images imported under the overlay references",
+      "externally managed PostgreSQL Redis MinIO Secret",
+      "release-grade Prometheus",
+      "independent MinIO source and target",
+      "original multi-node load and recovery evidence if release scope requires it"
+    ]
+  }
+}

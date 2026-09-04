@@ -224,11 +224,46 @@ def test_helm_performance_acceptance_overlay_is_real_cluster_ready_without_secre
     assert "minio-dr.env.example" in content
 
 
+def test_helm_performance_single_node_overlay_keeps_development_separate_from_release_acceptance():
+    overlay = yaml.safe_load(
+        (ROOT / "deploy" / "helm" / "atp" / "values-performance-single-node.example.yaml").read_text(encoding="utf-8")
+    )
+    content = (ROOT / "docs" / "deploy-helm.md").read_text(encoding="utf-8")
+
+    assert overlay["performanceWorker"]["enabled"] is True
+    assert overlay["performanceWorker"]["replicas"] == 1
+    assert overlay["performanceWorker"]["autoIdentity"] is False
+    assert overlay["performanceWorker"]["spreadAcrossNodes"] is False
+    assert overlay["performanceWorker"]["nodeId"] == "atp-single-node"
+    assert overlay["performanceWorker"]["nodeQueue"] == "performance.atp-single-node"
+    assert overlay["performanceWorker"]["queues"] == "performance.atp-single-node,performance"
+    assert overlay["worker"]["queues"] == "default,ios,ai,maintenance"
+    assert overlay["config"]["CELERY_QUEUES"] == overlay["worker"]["queues"]
+    assert overlay["metrics"]["serviceMonitor"]["enabled"] is False
+    for component in ("backend", "worker", "performanceWorker"):
+        assert overlay["hpa"][component]["enabled"] is False
+    assert overlay["ingress"]["enabled"] is False
+    assert overlay["secret"] == {"create": False, "existingName": "atp-single-node-secrets"}
+    for component in ("backend", "worker", "frontend"):
+        assert overlay["image"][component]["pullPolicy"] == "Never"
+    assert "values-performance-single-node.example.yaml" in content
+    assert "不关闭 P4" in content
+
+
 def test_deployment_readiness_validates_android_worker_profile_contract():
     validator = _load_deployment_validator()
     failures: list[str] = []
 
     validator._check_android_worker_profiles(failures)
+
+    assert failures == []
+
+
+def test_deployment_readiness_validates_single_node_performance_overlay_contract():
+    validator = _load_deployment_validator()
+    failures: list[str] = []
+
+    validator._check_single_node_performance_overlay(failures)
 
     assert failures == []
 

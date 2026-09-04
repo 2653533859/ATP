@@ -1,0 +1,95 @@
+# ATP 单节点 K3s 开发/联调 overlay。
+#
+# 适用范围：仅用于单节点集群中的功能联调，不能替代 P4 的多节点、发布级
+# Prometheus 或独立 MinIO 灾备验收。使用前：
+# - 将所有 single-node-CHANGE-ME 替换为同一提交构建且已验证的不可变镜像 tag；
+# - 将这三个镜像按相同引用导入 K3s containerd；本 overlay 使用 Never，避免隐式拉取；
+# - 通过 ExternalSecret/SOPS 在 namespace 中创建 existingName 指向的 Secret；
+# - 将 example.test 目标替换为专门的、可清理的联调目标。
+# 本文件不包含密码、Token、证书或私钥。
+
+image:
+  repository: registry.local/atp
+  backend:
+    tag: single-node-CHANGE-ME
+    pullPolicy: Never
+  worker:
+    tag: single-node-CHANGE-ME
+    pullPolicy: Never
+  frontend:
+    tag: single-node-CHANGE-ME
+    pullPolicy: Never
+
+replicas:
+  backend: 1
+  worker: 1
+  beat: 1
+  flower: 1
+
+worker:
+  # 普通 Worker 不消费性能队列，避免联调负载干扰功能任务。
+  queues: default,ios,ai,maintenance
+  metricsPort: 9091
+
+config:
+  APP_ENV: development
+  APP_AUTO_CREATE_TABLES: "false"
+  CELERY_QUEUES: default,ios,ai,maintenance
+  DB_BACKUP_ENABLED: "false"
+  PERFORMANCE_EXECUTORS: k6,locust,grpc,jmeter
+  PERFORMANCE_TARGET_ALLOWLIST: http-target.example.test
+  PERFORMANCE_MAX_VUS: "10"
+  PERFORMANCE_MAX_DURATION_SECONDS: "120"
+  TARGET_PROMETHEUS_URL: https://target-prometheus.example.test
+
+performanceWorker:
+  enabled: true
+  replicas: 1
+  # 单节点采用稳定身份和专用队列；不启用多副本自动身份或跨节点反亲和。
+  queues: performance.atp-single-node,performance
+  concurrency: "1"
+  metricsPort: 9092
+  autoIdentity: false
+  spreadAcrossNodes: false
+  nodeEnabled: true
+  nodeId: atp-single-node
+  nodeName: ATP single-node performance worker
+  nodeQueue: performance.atp-single-node
+  nodeMaxVus: 10
+  nodeMaxConcurrency: 1
+  nodeEgressAllowlist: http-target.example.test
+  networkPolicy:
+    enabled: false
+    egress: []
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+# 单节点环境没有 Prometheus Operator，不能渲染不存在的 ServiceMonitor CRD。
+metrics:
+  serviceMonitor:
+    enabled: false
+
+# 固定副本；单节点联调不以 HPA 或多节点调度作为验收依据。
+hpa:
+  backend:
+    enabled: false
+  worker:
+    enabled: false
+  performanceWorker:
+    enabled: false
+
+# 当前 K3s 未部署 Ingress Controller，应用仅通过受控端口转发联调。
+ingress:
+  enabled: false
+
+secret:
+  create: false
+  existingName: atp-single-node-secrets
+
+storageLifecycle:
+  enabled: false
