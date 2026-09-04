@@ -1,0 +1,35 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-04",
+  "scope": "read_only_linux_target_preflight",
+  "data_handling": {
+    "credentials_recorded": false,
+    "environment_values_recorded": false,
+    "compose_values_recorded": false,
+    "container_names_recorded": false,
+    "response_bodies_recorded": false
+  },
+  "checks": {
+    "kubectl_binary": "absent",
+    "kubectl_context": "unavailable",
+    "kubernetes_node_query": "unavailable",
+    "docker_binary": "present",
+    "running_prometheus_containers": 1,
+    "running_minio_containers": 2,
+    "running_performance_containers": 1
+  },
+  "conclusion": {
+    "p4_status": "blocked",
+    "unmet_requirements": [
+      "Kubernetes cluster access with schedulable Ready nodes and a performance Worker Deployment",
+      "Release-grade Prometheus readiness, targets, queries, and metric coverage",
+      "Independent MinIO source and target on different hosts or IP addresses"
+    ],
+    "non_substitutes": [
+      "single-host Docker Compose",
+      "container inventory counts",
+      "mock or skipped checks"
+    ]
+  },
+  "reverification": "After the missing resources are provided, execute U-P4.1 through U-P4.5 and retain redacted evidence for short load, cancellation, sampling, alerts, recovery, and cleanup."
+}
