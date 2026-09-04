@@ -149,6 +149,18 @@ wsl -u root -e docker stop postgresql redis MinIO
 
 需要在多种运行方式（远程基础设施、Android Agent、性能 Agent）之间切换时，用下面的配置档案入口。
 
+### Windows 本地前端连接 Linux Backend
+
+如果只在 Windows 启动前端、Backend 已运行在 Linux 主机，可在当前 PowerShell 会话指定 Backend 地址。Vite 开发代理会把 `/api` 和 `/ws` 请求转发到该地址；前端源码和开发服务仍在 Windows：
+
+```powershell
+Set-Location (Join-Path $RepoRoot 'frontend')
+$env:VITE_BACKEND_ORIGIN = 'http://<linux-backend-host>:<backend-port>'
+npm run dev
+```
+
+例如本轮单节点联调使用 `http://192.168.3.196:8000`。该环境变量只影响当前 Vite 开发进程；未设置时代理默认回退到 `http://127.0.0.1:8000`。前端访问入口仍为 `http://127.0.0.1:5173`，登录和权限校验使用 Linux Backend 的真实数据。
+
 ## 单命令启动与配置档案
 
 如果需要在多种运行方式之间切换，不要反复覆盖根目录 `.env`，使用配置档案入口：

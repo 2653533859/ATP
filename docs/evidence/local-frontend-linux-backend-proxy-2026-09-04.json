@@ -1,0 +1,27 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-04",
+  "scope": "windows_local_frontend_to_linux_backend_dev_proxy",
+  "frontend": {
+    "server": "vite",
+    "local_url": "http://127.0.0.1:4173/",
+    "root_http_status": 200
+  },
+  "backend": {
+    "configured_origin": "http://192.168.3.196:8000",
+    "protected_probe": "/api/v1/health/dependencies",
+    "protected_probe_http_status": 401,
+    "interpretation": "未登录访问受保护接口的预期响应；证明本地 Vite 代理已到达 Linux Backend。"
+  },
+  "tests": {
+    "frontend_test_files": 70,
+    "frontend_tests": 336,
+    "type_check": "passed",
+    "production_build": "passed"
+  },
+  "data_handling": {
+    "credential_values_recorded": false,
+    "response_bodies_recorded": false
+  },
+  "boundary": "仅证明 Windows 本地开发代理链路，不证明登录后角色权限、真实 Worker/模型质量或 P4/P9 发布验收。"
+}
