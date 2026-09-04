@@ -27,9 +27,12 @@ spec:
           image: "{{ .Values.image.repository }}/backend:{{ .Values.image.backend.tag }}"
           imagePullPolicy: {{ .Values.image.backend.pullPolicy }}
           command: ["alembic", "upgrade", "head"]
+          env:
+          {{- range $key, $value := .Values.config }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+          {{- end }}
           envFrom:
-            - configMapRef:
-                name: {{ include "atp.fullname" . }}-config
             - secretRef:
                 name: {{ include "atp.secretName" . }}
           resources:

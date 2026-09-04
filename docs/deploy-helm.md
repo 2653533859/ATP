@@ -91,6 +91,10 @@ alembic upgrade head
 迁移失败时 Helm 发布会停止，先查看迁移 Job Pod 日志，再修复配置或迁移脚本后重试。手工迁移、回滚与 drift
 排查流程见 `docs/migrations.md`。
 
+迁移 Job 是 Helm Hook，会先于普通 ConfigMap 创建。为避免首装时出现资源顺序竞态，Job 将
+`.Values.config` 中的非敏感配置直接以内联环境变量注入，并只从已存在的 Secret 读取敏感配置；业务
+Deployment 仍通过 ConfigMap + Secret 读取同一套配置。
+
 ## 六、与 Compose 的差异
 
 | 维度 | Compose | Helm |

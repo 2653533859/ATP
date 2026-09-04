@@ -363,6 +363,15 @@ def test_helm_chart_can_render_dedicated_web_recording_worker():
     assert "webRecorder" in schema["properties"]
 
 
+def test_helm_migration_hook_does_not_depend_on_regular_configmap():
+    content = (ROOT / "deploy" / "helm" / "atp" / "templates" / "migrate-job.yaml").read_text(encoding="utf-8")
+
+    assert '"helm.sh/hook": pre-install,pre-upgrade' in content
+    assert "{{- range $key, $value := .Values.config }}" in content
+    assert "configMapRef" not in content
+    assert "secretRef" in content
+
+
 def test_worker_dockerfile_bundles_k6_for_performance_queue():
     content = (ROOT / "backend" / "Dockerfile.worker").read_text(encoding="utf-8")
 
