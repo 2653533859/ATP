@@ -211,7 +211,10 @@ Operator CRD 的单节点环境，**不关闭 P4**，也不替代多节点短压
 pre-install/pre-upgrade 迁移并启动核心服务，因此在确认镜像、外部 Secret 及 PostgreSQL/Redis/MinIO 联通前，只允许
 执行 `helm lint` 与 `helm template`，不得直接安装。
 
-当前目标 Linux 已按上述边界创建 `atp-single-node` namespace 和 `atp-single-node-secrets`。该 Secret 只复用主机当前运行服务的配置值，并将 PostgreSQL、Redis、MinIO Host 改为 K3s 节点内部地址；Secret 值未写入仓库。临时 Pod 到三项服务的 TCP 连通性已通过并清理。
+当前目标 Linux 已按上述边界创建 `atp-single-node` namespace 和 `atp-single-node-secrets`。目标 q19 Compose 的
+PostgreSQL、Redis、MinIO 端口仅绑定宿主机回环地址，因此单节点 overlay 开启 `podNetwork.hostNetwork`，并将
+Secret 的三个 Host/Port 指向宿主机回环端点；Secret 值未写入仓库。端点修改仅用于当前开发联调，不适用于普通
+多节点部署；临时 Pod 到三项服务的 TCP 连通性已通过并清理。
 
 当前提交 `1bccfef4` 的 backend、worker、frontend 镜像已分别按 overlay 中的精确引用构建并导入 K3s containerd。随后使用临时 tag 覆盖执行了服务端 dry-run：`helm upgrade --install atp-single-node ... --dry-run=server --hide-secret` 已通过，且 dry-run 后没有 Helm release、应用 Pod 或迁移 Job。该结果只表示单节点安装前置条件与 Chart 渲染就绪，不表示应用已运行；正式安装仍会执行迁移并启动服务，必须单独批准和留存健康/稳定性证据。
 

@@ -31,6 +31,17 @@
         "additionalProperties": true
       }
     },
+    "podNetwork": {
+      "type": "object",
+      "description": "Optional pod networking overrides for host-loopback single-node development.",
+      "additionalProperties": true,
+      "properties": {
+        "hostNetwork": {
+          "type": "boolean",
+          "description": "Run pods in the host network namespace; use only when dependencies bind host loopback."
+        }
+      }
+    },
     "replicas": {
       "type": "object",
       "description": "Deployment replica counts.",

@@ -25,6 +25,11 @@ image:
 # Optional image pull secrets for private registries.
 imagePullSecrets: []
 
+# Optional pod networking override. Keep false for normal cluster networking;
+# single-node development may enable it when dependencies are host-loopback only.
+podNetwork:
+  hostNetwork: false
+
 # Deployment replica counts. Keep beat at one replica to avoid duplicate
 # scheduled jobs.
 replicas:

@@ -15,6 +15,14 @@ helm.sh/chart: {{ .Chart.Name }}-{{ .Chart.Version }}
 app.kubernetes.io/component: {{ .component }}
 {{- end -}}
 
+{{/* Optional single-node mode for dependencies bound to the host loopback. */}}
+{{- define "atp.podNetwork" -}}
+{{- if .Values.podNetwork.hostNetwork }}
+hostNetwork: true
+dnsPolicy: ClusterFirstWithHostNet
+{{- end }}
+{{- end -}}
+
 {{/* Allow production to bind an ExternalSecret/SOPS-managed Secret. */}}
 {{- define "atp.secretName" -}}
 {{- if .Values.secret.existingName -}}

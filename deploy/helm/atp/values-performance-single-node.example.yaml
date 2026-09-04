@@ -20,6 +20,11 @@ image:
     tag: single-node-CHANGE-ME
     pullPolicy: Never
 
+# The existing q19 PostgreSQL/Redis/MinIO ports are bound to 127.0.0.1 on the
+# host. Use host networking only for this single-node development overlay.
+podNetwork:
+  hostNetwork: true
+
 replicas:
   backend: 1
   worker: 1

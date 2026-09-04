@@ -372,6 +372,30 @@ def test_helm_migration_hook_does_not_depend_on_regular_configmap():
     assert "secretRef" in content
 
 
+def test_single_node_helm_overlay_uses_host_network_for_loopback_dependencies():
+    overlay = (ROOT / "deploy" / "helm" / "atp" / "values-performance-single-node.example.yaml").read_text(
+        encoding="utf-8"
+    )
+    values = (ROOT / "deploy" / "helm" / "atp" / "values.yaml").read_text(encoding="utf-8")
+    schema = json.loads((ROOT / "deploy" / "helm" / "atp" / "values.schema.json").read_text(encoding="utf-8"))
+
+    assert "hostNetwork: true" in overlay
+    assert "hostNetwork: false" in values
+    assert schema["properties"]["podNetwork"]["properties"]["hostNetwork"]["type"] == "boolean"
+    for name in (
+        "backend-deployment.yaml",
+        "worker-deployment.yaml",
+        "beat-deployment.yaml",
+        "flower-deployment.yaml",
+        "performance-worker-deployment.yaml",
+        "web-recorder-deployment.yaml",
+        "migrate-job.yaml",
+        "minio-lifecycle-job.yaml",
+    ):
+        content = (ROOT / "deploy" / "helm" / "atp" / "templates" / name).read_text(encoding="utf-8")
+        assert 'include "atp.podNetwork"' in content
+
+
 def test_worker_dockerfile_bundles_k6_for_performance_queue():
     content = (ROOT / "backend" / "Dockerfile.worker").read_text(encoding="utf-8")
 

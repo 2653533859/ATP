@@ -665,7 +665,8 @@
 
 - [x] 首次安装的迁移 Pod 由 `pre-install` Hook 创建，但通过 `configMapRef` 读取的普通 ConfigMap 尚未创建；目标 Pod 事件确认为 `configmap ... not found`，不是镜像或 PostgreSQL/Redis/MinIO 连通问题。
 - [x] 迁移 Job 改为直接内联 `.Values.config` 中的非敏感配置，并仅从预先存在的 `atp-single-node-secrets` 读取敏感配置；普通业务 Deployment 继续使用 ConfigMap + Secret。
-- [x] 新增 Helm 模板回归测试，验证迁移 Hook 不再依赖普通 ConfigMap；部署契约定向回归为 `25 passed`，Helm lint 通过。
+- [x] 重试时确认目标 q19 Compose 的 PostgreSQL/Redis/MinIO 端口仅绑定宿主机回环；新增全局 `podNetwork.hostNetwork` 开关，单节点 overlay 开启该开关，并将联调 Secret 的三个 Host/Port 指向 q19 回环端点，不改动旧 Compose 文件。
+- [x] 新增 Helm 模板回归测试，验证迁移 Hook 不再依赖普通 ConfigMap 及单节点 overlay 的 host network 约束；部署契约定向回归为 `26 passed`，Helm lint 通过。
 
 ### 待完成出口
 
