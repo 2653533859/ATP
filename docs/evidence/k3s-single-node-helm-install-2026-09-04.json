@@ -1,0 +1,51 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-04",
+  "scope": "atp_single_node_k3s_helm_install",
+  "target": {
+    "host": "192.168.3.196",
+    "namespace": "atp-single-node",
+    "context": "atp-single-node"
+  },
+  "source": {
+    "chart_commit": "eafdd2e1",
+    "image_refs": [
+      "registry.local/atp/backend:1bccfef4",
+      "registry.local/atp/worker:1bccfef4",
+      "registry.local/atp/frontend:1bccfef4"
+    ],
+    "image_source_commit": "1bccfef4",
+    "note": "本次提交只改变 Helm Chart、测试和文档；应用镜像内容未改变，使用已导入的 1bccfef4 镜像。"
+  },
+  "install": {
+    "release": "atp-single-node",
+    "status": "deployed",
+    "revision": 1,
+    "migration_hook": "succeeded",
+    "migration_job_remaining": 0,
+    "alembic_head": "20260901_0068"
+  },
+  "workloads": {
+    "deployment_count": 5,
+    "desired_replicas": 5,
+    "available_replicas": 5,
+    "ready_pods": 5,
+    "restart_count_at_first_snapshot": 0,
+    "restart_count_after_30_seconds": 0
+  },
+  "health": {
+    "backend_health_http_status": 200,
+    "external_dependency_auth": "passed",
+    "secret_key_count": 18
+  },
+  "data_handling": {
+    "credential_values_recorded": false,
+    "kubeconfig_recorded": false,
+    "response_bodies_recorded": false
+  },
+  "conclusion": {
+    "single_node_development_install": "passed",
+    "p4_release_gate": "not_closed",
+    "remaining": "发布级 Prometheus、独立 MinIO、跨主机恢复和原发布范围多节点验收仍待完成。"
+  }
+}

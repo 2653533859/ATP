@@ -657,9 +657,9 @@
 - `[E]` 当前只证明镜像已导入且 Chart 可服务端渲染，不证明应用启动、迁移成功、健康检查、Worker 注册或持续稳定性；下一步必须在明确批准后执行受控单节点安装并保留迁移/健康证据。
 - P4 与 P9 仍保持原阻塞口径；发布级 Prometheus、独立 MinIO、跨主机恢复和原发布范围多节点要求没有因本次单节点 dry-run 关闭。完整脱敏记录见 [`k3s-single-node-image-dry-run-2026-09-04.json`](evidence/k3s-single-node-image-dry-run-2026-09-04.json)。
 
-## 2.4.39 单节点 K3s Helm 实际安装与迁移 Hook 修复（进行中，2026-09-04）
+## 2.4.39 单节点 K3s Helm 实际安装与迁移 Hook 修复（完成，2026-09-04）
 
-本项在已导入当前 SHA 镜像、外部 Secret 和依赖 TCP 连通均通过后执行受控 Helm 安装，补齐从“可渲染”到“实际迁移与启动”的联调证据。
+本项在已导入镜像、外部 Secret 和依赖 TCP 连通均通过后执行受控 Helm 安装，补齐从“可渲染”到“实际迁移与启动”的联调证据。
 
 ### 已发现与已修复
 
@@ -668,11 +668,12 @@
 - [x] 重试时确认目标 q19 Compose 的 PostgreSQL/Redis/MinIO 端口仅绑定宿主机回环；新增全局 `podNetwork.hostNetwork` 开关，单节点 overlay 开启该开关，并将联调 Secret 的三个 Host/Port 指向 q19 回环端点，不改动旧 Compose 文件。
 - [x] 新增 Helm 模板回归测试，验证迁移 Hook 不再依赖普通 ConfigMap 及单节点 overlay 的 host network 约束；部署契约定向回归为 `26 passed`，Helm lint 通过。
 
-### 待完成出口
+### 验收出口
 
-- [ ] 提交并推送修复后的 Chart，更新目标 Linux 的独立联调 Chart 后重新安装。
-- [ ] 复核迁移 Hook 成功、Helm release 为 `deployed`、核心 Deployment/Pod 健康，以及至少两次短时状态快照无新增重启；记录脱敏证据。
+- [x] 修复后的 Chart 已提交推送为 `eafdd2e1`，并更新目标 Linux 的独立联调 Chart；Release `atp-single-node` 为 `deployed`，迁移 Hook 成功，迁移 Job 按策略清理。
+- [x] 安装后与约 30 秒后各复核一次：5 个核心 Deployment 均 `1/1`，5 个 Pod 全部 Ready，重启数保持 0，Backend `/health` 均返回 200；迁移头为 `20260901_0068 (head)`。
 - P4/P9 仍不因单节点应用安装关闭；发布级 Prometheus、独立 MinIO、跨主机恢复和原多节点要求继续单独验收。
+- 脱敏记录见 [`evidence/k3s-single-node-helm-install-2026-09-04.json`](evidence/k3s-single-node-helm-install-2026-09-04.json)。
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 

@@ -216,7 +216,7 @@ PostgreSQL、Redis、MinIO 端口仅绑定宿主机回环地址，因此单节�
 Secret 的三个 Host/Port 指向宿主机回环端点；Secret 值未写入仓库。端点修改仅用于当前开发联调，不适用于普通
 多节点部署；临时 Pod 到三项服务的 TCP 连通性已通过并清理。
 
-当前提交 `1bccfef4` 的 backend、worker、frontend 镜像已分别按 overlay 中的精确引用构建并导入 K3s containerd。随后使用临时 tag 覆盖执行了服务端 dry-run：`helm upgrade --install atp-single-node ... --dry-run=server --hide-secret` 已通过，且 dry-run 后没有 Helm release、应用 Pod 或迁移 Job。该结果只表示单节点安装前置条件与 Chart 渲染就绪，不表示应用已运行；正式安装仍会执行迁移并启动服务，必须单独批准和留存健康/稳定性证据。
+当前提交 `1bccfef4` 的 backend、worker、frontend 镜像已分别按 overlay 中的精确引用构建并导入 K3s containerd。随后使用临时 tag 覆盖执行了服务端 dry-run，修复后的 Chart 已在目标单节点实际安装：Release `atp-single-node` 为 `deployed`，迁移 Hook 成功，5 个核心 Deployment 均为 `1/1`，Backend `/health` 返回 200，安装后约 30 秒复核无新增重启。该结果仅证明单节点开发/联调安装可用，不关闭 P4/P9；脱敏证据见 [`evidence/k3s-single-node-helm-install-2026-09-04.json`](evidence/k3s-single-node-helm-install-2026-09-04.json)。
 
 ## 八、升级与回滚
 
