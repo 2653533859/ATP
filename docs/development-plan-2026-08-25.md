@@ -587,13 +587,13 @@
 
 ### 只读证据与结论
 
-- [x] `kubectl` 不存在，无法取得 Kubernetes 上下文、可调度节点或性能 Worker Deployment 副本；U-P4.1 未满足。
+- [x] 初始只读预检时 `kubectl` 不存在；随后已按官方二进制路径安装并校验 `kubectl v1.37.0`，但当前 root 用户仍没有 Kubernetes 上下文，无法取得可调度节点或性能 Worker Deployment 副本；U-P4.1 仍未满足。
 - [x] Docker 运行态仅统计到 1 个 Prometheus、2 个 MinIO 和 1 个性能相关容器。容器数量不证明 Prometheus 已按发布级 target/采样口径运行，也不能证明 MinIO source/target 位于不同主机或不同 IP；U-P4.2、U-P4.3 未满足。
-- [x] 已将脱敏结果记录为 [`p4-environment-preflight-2026-09-04.json`](evidence/p4-environment-preflight-2026-09-04.json)，未记录凭据、环境变量、Compose 配置值、容器名称或响应正文。
+- [x] 已将初始预检与安装验证分别记录为 [`p4-environment-preflight-2026-09-04.json`](evidence/p4-environment-preflight-2026-09-04.json) 和 [`p4-kubectl-install-2026-09-04.json`](evidence/p4-kubectl-install-2026-09-04.json)，未记录凭据、kubeconfig、环境变量、Compose 配置值、容器名称或响应正文。
 
 ### 当前边界
 
-- `[-]` P4 继续阻塞。须由环境负责人提供 Kubernetes 集群访问、发布级 Prometheus 和不同主机或不同 IP 的 MinIO source/target，随后严格按 U-P4.1 → U-P4.5 执行短压、取消、采样、告警、恢复和清理。
+- `[-]` P4 继续阻塞。须由环境负责人提供受控 kubeconfig 或等效 Kubernetes 集群访问、发布级 Prometheus 和不同主机或不同 IP 的 MinIO source/target，随后严格按 U-P4.1 → U-P4.5 执行短压、取消、采样、告警、恢复和清理。
 - 单机 Docker Compose 资源只能用于部署排障或开发联调，不能替代 P4 的多节点、跨主机恢复或独立存储验收。
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）

@@ -1,0 +1,29 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-04",
+  "scope": "linux_kubectl_install_verification",
+  "data_handling": {
+    "credentials_recorded": false,
+    "kubeconfig_recorded": false,
+    "environment_values_recorded": false,
+    "response_bodies_recorded": false
+  },
+  "installation": {
+    "distribution_method": "official_kubernetes_binary",
+    "checksum_verified": true,
+    "client_version": "v1.37.0",
+    "install_path": "/usr/local/bin/kubectl",
+    "client_check": "passed",
+    "temporary_apt_source_removed": true,
+    "temporary_apt_keyring_removed": true
+  },
+  "cluster_access": {
+    "current_context": "not_configured",
+    "cluster_connection_attempted": false
+  },
+  "conclusion": {
+    "p4_status": "blocked",
+    "reason": "Installing the client does not provide Kubernetes cluster access, schedulable node evidence, or a performance Worker Deployment.",
+    "next_requirement": "Provide an authorized kubeconfig or equivalent cluster access before executing U-P4.1."
+  }
+}
