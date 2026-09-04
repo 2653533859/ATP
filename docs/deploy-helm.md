@@ -207,6 +207,8 @@ Operator CRD 的单节点环境，**不关闭 P4**，也不替代多节点短压
 pre-install/pre-upgrade 迁移并启动核心服务，因此在确认镜像、外部 Secret 及 PostgreSQL/Redis/MinIO 联通前，只允许
 执行 `helm lint` 与 `helm template`，不得直接安装。
 
+当前目标 Linux 已按上述边界创建 `atp-single-node` namespace 和 `atp-single-node-secrets`。该 Secret 只复用主机当前运行服务的配置值，并将 PostgreSQL、Redis、MinIO Host 改为 K3s 节点内部地址；Secret 值未写入仓库。Pod 级 TCP 连通性仍需用临时探针补验，且 K3s containerd 尚未导入当前 SHA 的 ATP 镜像，因此暂不执行 Helm 安装。
+
 ## 八、升级与回滚
 
 ```bash
