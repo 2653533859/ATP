@@ -1,0 +1,37 @@
+{
+  "scope": "single-node integration, not P4/P9 release acceptance",
+  "date": "2026-09-05",
+  "release": "atp-single-node",
+  "revision_before": 5,
+  "revision_after": 6,
+  "release_status": "deployed",
+  "application_image_tag_unchanged": "1bccfef4",
+  "before": {
+    "duplicate_celery_nodename_warning": true,
+    "two_kubernetes_workers_shared_host_identity": true,
+    "active_task_replies": [0, 0, 0, 0]
+  },
+  "after": {
+    "distinct_celery_ping_replies": 4,
+    "duplicate_celery_nodename_warning": false,
+    "regular_worker_destination_reply_count": 1,
+    "regular_worker_queues": ["default", "ios", "ai", "maintenance"],
+    "performance_worker_queues": ["performance.atp-single-node", "performance"],
+    "core_pods_ready": 5,
+    "core_pod_restarts": 0,
+    "replacement_worker_age_seconds_at_recheck": 67,
+    "backend_health_http_status": 200,
+    "migration_jobs_remaining": 0
+  },
+  "validation": {
+    "deployment_regression_tests_passed": 27,
+    "helm_lint": "PASS",
+    "default_and_single_node_template": "PASS",
+    "ruff_check_and_format": "PASS"
+  },
+  "remaining": [
+    "Select the dedicated node and queue for controlled tasks; the generic performance queue is shared with Compose",
+    "Actual short-task execution, report and cancellation recovery are not yet verified",
+    "This observation is not long-term stability evidence"
+  ]
+}

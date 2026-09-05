@@ -6,6 +6,14 @@ metadata:
     {{- include "atp.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "worker") | nindent 4 }}
 spec:
   replicas: {{ .Values.replicas.worker }}
+  {{- if .Values.podNetwork.hostNetwork }}
+  # 指标端口需要在创建替代 Pod 前释放。
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 100%
+      maxSurge: 0
+  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}
@@ -27,7 +35,19 @@ spec:
         - name: worker
           image: "{{ .Values.image.repository }}/worker:{{ .Values.image.worker.tag }}"
           imagePullPolicy: {{ .Values.image.worker.pullPolicy }}
-          command: ["sh", "-c", "celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q ${CELERY_QUEUES:-default,ios,ai,maintenance,performance}"]
+          command:
+            - sh
+            - -c
+            - exec celery -A app.worker.celery_app worker --hostname="worker@${POD_NAMESPACE}.${POD_NAME}" --loglevel=info --pool=solo -Q "${CELERY_QUEUES:-default,ios,ai,maintenance,performance}"
+          env:
+            - name: POD_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.name
+            - name: POD_NAMESPACE
+              valueFrom:
+                fieldRef:
+                  fieldPath: metadata.namespace
           envFrom:
             - configMapRef:
                 name: {{ include "atp.fullname" . }}-config

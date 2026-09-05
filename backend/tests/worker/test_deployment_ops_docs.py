@@ -312,6 +312,21 @@ def test_helm_production_overlays_have_secret_and_metrics_hooks():
     assert "force-ssl-redirect" in ingress
 
 
+def test_helm_workers_use_pod_identity_and_release_host_ports_before_replacement():
+    for component, prefix in (("worker", "worker"), ("performance-worker", "performance")):
+        content = (ROOT / "deploy" / "helm" / "atp" / "templates" / f"{component}-deployment.yaml").read_text(
+            encoding="utf-8"
+        )
+        assert f'--hostname="{prefix}@${{POD_NAMESPACE}}.${{POD_NAME}}"' in content
+        assert "fieldPath: metadata.name" in content
+        assert "fieldPath: metadata.namespace" in content
+        assert "${HOSTNAME}" not in content
+        network_strategy = content.split("{{- if .Values.podNetwork.hostNetwork }}", 1)[1].split("{{- end }}", 1)[0]
+        assert "maxSurge: 0" in network_strategy
+        assert "maxUnavailable: 100%" in network_strategy
+        assert "exec celery" in content
+
+
 def test_helm_chart_can_render_dedicated_performance_worker():
     content = (ROOT / "deploy" / "helm" / "atp" / "templates" / "performance-worker-deployment.yaml").read_text(
         encoding="utf-8"
@@ -328,8 +343,8 @@ def test_helm_chart_can_render_dedicated_performance_worker():
     assert ".Values.performanceWorker.nodeId" in content
     assert ".Values.performanceWorker.nodeQueue" in content
     assert ".Values.performanceWorker.autoIdentity" in content
-    assert 'export PERFORMANCE_NODE_ID="${HOSTNAME}"' in content
-    assert 'export PERFORMANCE_NODE_QUEUE="performance.${HOSTNAME}"' in content
+    assert 'export PERFORMANCE_NODE_ID="${POD_NAME}"' in content
+    assert 'export PERFORMANCE_NODE_QUEUE="performance.${POD_NAME}"' in content
     assert ".Values.performanceWorker.spreadAcrossNodes" in content
     assert 'queues="${CELERY_QUEUES:-performance}"' in content
     assert 'queues="${queues},performance"' in content

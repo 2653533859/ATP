@@ -746,6 +746,16 @@ python3 scripts/performance-environment-smoke.py \
 
 下一模块按用户要求继续单节点：核验专用队列路由、准备隔离测试资产和受控目标，执行有界短任务，检查报告与取消恢复并清理临时数据。不把建设多节点作为本轮开发前提；原 P4 发布级 Prometheus、独立 MinIO 和多节点门禁单独保留，P4/P9 未关闭。
 
+## 2.4.44 单节点 Worker 身份与队列复核（完成，2026-09-05）
+
+- 真实 `inspect active_queues` 发现两个 K3s Worker 在 `hostNetwork` 下共享宿主机名，触发 `DuplicateNodenameWarning`，导致检查回复被合并。Chart 改用 Downward API 注入 Pod 名称/命名空间，Celery 显式使用组件前缀及 Pod 身份；自动性能节点身份也不再依赖宿主机 `HOSTNAME`，固定单节点业务 ID/队列不变。
+- 普通 Worker 改为 `exec celery`，确保容器终止信号送达进程；两个 Worker 的宿主网络更新均设 `maxSurge=0/maxUnavailable=100%`，先释放指标端口。该模式更新有短暂不可用窗口；普通 Pod 网络仍使用默认滚动策略。
+- 部署契约独立 `27 passed`，Ruff、格式检查、Helm lint、默认/单节点实际渲染通过。审查覆盖身份唯一性、信号转发、自动/固定队列分支和网络模式更新差异。
+- 升级前收到的 4 个 active 回复均为空；复用现有 values 升级 release 至 revision 6，镜像保持 `1bccfef4`，未修改旧 Compose 目录或 Secret。复验 4 个不同 Celery 身份均回应 ping，无重复名称警告；普通 Worker 定向查询只有 1 个回复、不消费性能队列，性能 Worker 消费专用队列及 `performance`。
+- 更新后约 67 秒，5 个核心 Pod 全 Ready、0 重启，Backend `/health` 200。证据见 [`evidence/k3s-worker-identity-2026-09-05.json`](evidence/k3s-worker-identity-2026-09-05.json)。
+
+下一模块仍是受控短任务、报告和取消恢复：必须显式指定 `atp-single-node` 节点/专用队列，不能使用与旧 Compose 共用的通用 `performance` 队列来证明 K3s 执行。目标 allowlist、隔离资产与实际执行尚待核验；本模块不代表真实压测、长期稳定性或 P4/P9 通过。
+
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 
 本节是当前导航重构的最新执行游标，按参考侧栏的五组职责组织功能，不再把设备、APK、Mock、数据集、Web/API 资产和治理能力全部堆在“系统管理”下面。导航入口、旧 URL 兼容和业务闭环分别记录：入口存在只代表可访问，只有完成配置→执行→过程→报告/证据→清理才算模块闭环。
