@@ -779,6 +779,20 @@ python3 scripts/performance-environment-smoke.py \
 
 证据见 [`evidence/k3s-jmeter-process-group-2026-09-05.json`](evidence/k3s-jmeter-process-group-2026-09-05.json)。下一项优先补齐 Worker 的 init/孤儿子进程回收并复验连续取消不累计僵尸，再推进 Locust/gRPC 单节点矩阵；revision 8 更换 Pod 会移除旧僵尸记录，但不代表已修复回收机制。不能把“无存活负载进程”写成“无残留进程记录”，也不关闭 P4/P9。
 
+## 2.4.47 Worker 孤儿进程回收与连续取消复验（完成，2026-09-06）
+
+本项关闭 2.4.46 留下的 PID 1 回收缺口，不将更换 Pod 后暂时没有僵尸当作修复。
+
+- Worker 最终镜像阶段安装 Debian `tini`，默认 ENTRYPOINT 使用 `/usr/bin/tini --`，默认 shell CMD 以 `exec celery` 转交进程。Kubernetes `command` 会覆盖镜像 ENTRYPOINT，因此普通/性能 Worker 的 Helm 命令也显式 `exec /usr/bin/tini -- celery`；保留原节点身份、专用队列和宿主网络更新策略。Tini 的回收与信号转发语义参考[官方说明](https://github.com/krallin/tini)。
+- 基于上一轮 `process-group-b7fcd25390d5` 补丁镜像增加 Tini 和默认入口，构建 `init-reaper-0f553ae3e046`，并与当前 Chart 一起升级至 Helm revision 9。目标 Tini 包为 `0.19.0-1+b3`，两个 Worker 的 PID 1 均为 tini、Celery 为其子进程。该镜像是受控增量补丁，不是完整 main 构建，项目编码修复仍未因此部署。
+- **部署约束**：本轮 Chart 必须搭配含 `/usr/bin/tini` 的 Worker 镜像一起发布；不能仅更新 Chart 并继续使用旧的无 Tini 镜像。未改变宿主机服务、旧 Compose 目录、Secret 或全局 DNS。
+- 隔离容器中连续取消 3 次真实包装进程及忽略 SIGTERM 的子进程，每次都确认子进程的 `/proc` 记录消失，最后僵尸数 0。另向独立探针容器发送 SIGTERM，子进程指定退出码 23，Docker die 事件记录也是 23，确认信号与退出码传递。两个探针容器均自动清理。
+- 实际 JMeter Run `13` 短任务成功；Run `14/15/16` 在 running 后依次取消，均 cancelled；Run `17` 恢复任务成功。短任务/恢复各 3 次请求、错误率 0；五次 JSON 报告 ID/状态核对通过。每次任务终止后均检查 PID 1 为 tini、Java 进程为 0、僵尸为 0，而非仅核对 API 状态。
+- 项目 `74` 和 5 条运行记录已删除并核验 404；1 个 JMX 与 2 个结果对象共 3 个 MinIO 对象按精确名称清理，剩余为 0。原始临时产物已删除，仅保留脱敏摘要。部署约 174 秒后，5 个核心 Pod Ready、0 重启、Backend 健康。
+- 镜像/部署回归 `32 passed`，部署文件独立 `28 passed`，Helm lint、实际单节点渲染、Ruff/格式检查通过。审查覆盖镜像最终阶段包含 Tini、Kubernetes 入口覆盖、shell exec、节点/队列不变，以及镜像/Chart 必须配对发布的兼容边界。
+
+证据见 [`evidence/k3s-worker-init-reaper-2026-09-06.json`](evidence/k3s-worker-init-reaper-2026-09-06.json)。下一模块为 Locust/gRPC 单节点受控任务、报告和取消恢复；长期稳定性、发布级 Prometheus、独立 MinIO 和原 P4/P9 门禁仍独立保留。
+
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 
 本节是当前导航重构的最新执行游标，按参考侧栏的五组职责组织功能，不再把设备、APK、Mock、数据集、Web/API 资产和治理能力全部堆在“系统管理”下面。导航入口、旧 URL 兼容和业务闭环分别记录：入口存在只代表可访问，只有完成配置→执行→过程→报告/证据→清理才算模块闭环。

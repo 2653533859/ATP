@@ -63,7 +63,7 @@ spec:
                   *) queues="${queues},performance" ;;
                 esac
               fi
-              exec celery -A app.worker.celery_app worker --hostname="performance@${POD_NAMESPACE}.${POD_NAME}" --loglevel=info --pool=solo -Q "${queues}"
+              exec /usr/bin/tini -- celery -A app.worker.celery_app worker --hostname="performance@${POD_NAMESPACE}.${POD_NAME}" --loglevel=info --pool=solo -Q "${queues}"
           envFrom:
             - configMapRef:
                 name: {{ include "atp.fullname" . }}-config

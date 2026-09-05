@@ -1,0 +1,49 @@
+{
+  "scope": "single-node worker orphan reaping and repeated JMeter cancellation",
+  "date": "2026-09-06",
+  "release": "atp-single-node",
+  "helm_revision_before": 8,
+  "helm_revision_after": 9,
+  "worker_image": "registry.local/atp/worker:init-reaper-0f553ae3e046",
+  "worker_image_digest": "sha256:f66b4d9bce525ddfb181fee5345afd53d48cf934d998a7115f8074efec134f86",
+  "base_worker_image": "registry.local/atp/worker:process-group-b7fcd25390d5",
+  "tini_package": "0.19.0-1+b3",
+  "full_current_main_image_build": false,
+  "worker_pid1": "tini",
+  "performance_worker_pid1": "tini",
+  "isolated_image_checks": {
+    "sigterm_resistant_child_cancellation_rounds": 3,
+    "all_children_reaped": true,
+    "zombies": 0,
+    "sigterm_forwarded": true,
+    "expected_child_exit_code": 23,
+    "docker_die_event_exit_code": 23,
+    "probe_containers_auto_removed": true
+  },
+  "node": "atp-single-node",
+  "queue": "performance.atp-single-node",
+  "jmeter_runs": [
+    {"id": 13, "phase": "short", "status": "success", "iterations": 3, "error_rate": 0, "java_processes_after": 0, "zombies_after": 0},
+    {"id": 14, "phase": "cancel1", "status": "cancelled", "java_processes_after": 0, "zombies_after": 0},
+    {"id": 15, "phase": "cancel2", "status": "cancelled", "java_processes_after": 0, "zombies_after": 0},
+    {"id": 16, "phase": "cancel3", "status": "cancelled", "java_processes_after": 0, "zombies_after": 0},
+    {"id": 17, "phase": "recovery", "status": "success", "iterations": 3, "error_rate": 0, "java_processes_after": 0, "zombies_after": 0}
+  ],
+  "all_five_json_reports_verified": true,
+  "local_checks": {
+    "deployment_and_dockerfile_tests_passed": 32,
+    "deployment_file_standalone_tests_passed": 28,
+    "helm_lint": "PASS",
+    "single_node_render": "PASS",
+    "ruff": "PASS"
+  },
+  "cleanup": {
+    "project_id": 74,
+    "deleted_run_count": 5,
+    "project_and_runs_return_404": true,
+    "deleted_exact_minio_objects": 3,
+    "remaining_exact_minio_objects": 0
+  },
+  "post_check": {"ready_core_pods": 5, "restarts": 0, "worker_age_seconds": 174, "backend_health": "ok"},
+  "remaining": ["Locust and gRPC single-node tasks", "project-code fix target deployment", "original P4/P9 release requirements"]
+}

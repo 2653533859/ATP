@@ -324,7 +324,16 @@ def test_helm_workers_use_pod_identity_and_release_host_ports_before_replacement
         network_strategy = content.split("{{- if .Values.podNetwork.hostNetwork }}", 1)[1].split("{{- end }}", 1)[0]
         assert "maxSurge: 0" in network_strategy
         assert "maxUnavailable: 100%" in network_strategy
-        assert "exec celery" in content
+        # Kubernetes command replaces the image ENTRYPOINT: keep init explicit.
+        assert "exec /usr/bin/tini -- celery" in content
+
+
+def test_worker_image_installs_init_and_forwards_default_shell_to_celery():
+    dockerfile = (ROOT / "backend" / "Dockerfile.worker").read_text(encoding="utf-8")
+    runtime_stage = dockerfile.rsplit("FROM python:3.12-slim-bookworm", 1)[1]
+    assert "tar tini xvfb" in runtime_stage
+    assert 'ENTRYPOINT ["/usr/bin/tini", "--"]' in runtime_stage
+    assert 'CMD ["sh", "-c", "exec celery ' in runtime_stage
 
 
 def test_helm_chart_can_render_dedicated_performance_worker():

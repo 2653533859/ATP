@@ -38,7 +38,7 @@ spec:
           command:
             - sh
             - -c
-            - exec celery -A app.worker.celery_app worker --hostname="worker@${POD_NAMESPACE}.${POD_NAME}" --loglevel=info --pool=solo -Q "${CELERY_QUEUES:-default,ios,ai,maintenance,performance}"
+            - exec /usr/bin/tini -- celery -A app.worker.celery_app worker --hostname="worker@${POD_NAMESPACE}.${POD_NAME}" --loglevel=info --pool=solo -Q "${CELERY_QUEUES:-default,ios,ai,maintenance,performance}"
           env:
             - name: POD_NAME
               valueFrom:
