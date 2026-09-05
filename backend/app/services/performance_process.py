@@ -8,6 +8,7 @@ executor remains responsible for its command line and result adapter.
 from __future__ import annotations
 
 import os
+import signal
 import subprocess
 import time
 from collections.abc import Callable, Sequence
@@ -45,6 +46,9 @@ def run_performance_process(
             text=True,
             stdout=stdout_file,
             stderr=stderr_file,
+            # POSIX wrappers (notably JMeter's shell -> JVM) must share a
+            # dedicated group so cancellation cannot leave load injectors alive.
+            start_new_session=os.name != "nt",
         )
         started = time.monotonic()
         next_metric_at = started
@@ -96,6 +100,28 @@ def _terminate_process(process: subprocess.Popen) -> None:
         except subprocess.TimeoutExpired:
             process.kill()
             process.wait(timeout=5)
+        return
+
+    if os.name == "posix" and process_pid:
+        # Resolve POSIX-only symbols inside the platform branch so Windows
+        # type checking does not require APIs absent from its stdlib stubs.
+        kill_group = getattr(os, "killpg")
+        try:
+            kill_group(process_pid, signal.SIGTERM)
+        except ProcessLookupError:
+            pass
+        try:
+            process.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            pass
+        finally:
+            # The wrapper can exit before a child that ignores SIGTERM. Kill
+            # the group even when waiting for the leader returned successfully.
+            try:
+                kill_group(process_pid, getattr(signal, "SIGKILL"))
+            except ProcessLookupError:
+                pass
+        process.wait(timeout=5)
         return
 
     if process.poll() is not None:

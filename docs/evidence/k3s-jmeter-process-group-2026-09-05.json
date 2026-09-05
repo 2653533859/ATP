@@ -1,0 +1,55 @@
+{
+  "scope": "single-node JMeter functional acceptance and POSIX process-group termination",
+  "date": "2026-09-05",
+  "release": "atp-single-node",
+  "helm_revision_before": 6,
+  "helm_revision_after": 7,
+  "base_worker_image": "registry.local/atp/worker:1bccfef4",
+  "patched_worker_image": "registry.local/atp/worker:process-group-042b3267fd71",
+  "patched_file": "backend/app/services/performance_process.py",
+  "local_and_deployed_file_sha256": "042b3267fd71bf1ff794c357ab23fa68a21cb9b5bc402eb3b480d4bbaec5e5a7",
+  "full_current_main_deployment": false,
+  "node": "atp-single-node",
+  "queue": "performance.atp-single-node",
+  "target": "existing isolated acceptance container /healthz, JMX-local static DNS mapping",
+  "before_patch": {
+    "runs": [7, 8, 9],
+    "short_and_recovery_iterations": 3,
+    "short_and_recovery_error_rate": 0,
+    "cancel_terminal_state": "cancelled",
+    "api_connection_error": true,
+    "connection_error_recovered_by_status_check_and_stop": true,
+    "java_zombie_observed": true
+  },
+  "after_patch": {
+    "runs": [
+      {"id": 10, "phase": "short", "status": "success", "iterations": 3, "error_rate": 0, "json_report_verified": true},
+      {"id": 11, "phase": "cancel_after_running", "status": "cancelled", "json_report_verified": true},
+      {"id": 12, "phase": "recovery", "status": "success", "iterations": 3, "error_rate": 0, "json_report_verified": true}
+    ],
+    "remaining_live_java_processes": 0,
+    "remaining_java_zombies": 1,
+    "core_pods_ready": 5,
+    "core_pod_restarts": 0
+  },
+  "tests": {
+    "performance_services_passed": 93,
+    "linux_specific_test_skipped_on_windows": 1,
+    "process_file_standalone_passed": 6,
+    "process_file_standalone_skipped": 1,
+    "linux_standalone_real_sigterm_resistant_child_check": "PASS"
+  },
+  "cleanup": {
+    "deleted_project_ids": [72, 73],
+    "deleted_runs": 6,
+    "project_and_run_reads_after_deletion": 404,
+    "deleted_minio_objects": 6,
+    "remaining_exact_minio_objects": 0
+  },
+  "remaining": [
+    "PID 1 must reap exited orphan children; process-group termination is not zombie reaping",
+    "Do not claim full process cleanup or P4/P9 closure",
+    "Locust and gRPC single-node task matrix remains pending",
+    "Project-code collision fix remains local/pushed, not deployed by this single-file worker patch"
+  ]
+}
