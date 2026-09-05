@@ -3,11 +3,12 @@
   "date": "2026-09-05",
   "release": "atp-single-node",
   "helm_revision_before": 6,
-  "helm_revision_after": 7,
+  "helm_revision_after": 8,
   "base_worker_image": "registry.local/atp/worker:1bccfef4",
-  "patched_worker_image": "registry.local/atp/worker:process-group-042b3267fd71",
+  "initial_patched_worker_image": "registry.local/atp/worker:process-group-042b3267fd71",
+  "patched_worker_image": "registry.local/atp/worker:process-group-b7fcd25390d5",
   "patched_file": "backend/app/services/performance_process.py",
-  "local_and_deployed_file_sha256": "042b3267fd71bf1ff794c357ab23fa68a21cb9b5bc402eb3b480d4bbaec5e5a7",
+  "local_and_deployed_file_sha256": "b7fcd25390d5261eb7e07d89cda90a9fb815125513147b3e123c5fe23c4caef8",
   "full_current_main_deployment": false,
   "node": "atp-single-node",
   "queue": "performance.atp-single-node",
@@ -22,6 +23,7 @@
     "java_zombie_observed": true
   },
   "after_patch": {
+    "jmeter_task_verification_revision": 7,
     "runs": [
       {"id": 10, "phase": "short", "status": "success", "iterations": 3, "error_rate": 0, "json_report_verified": true},
       {"id": 11, "phase": "cancel_after_running", "status": "cancelled", "json_report_verified": true},
@@ -31,6 +33,17 @@
     "remaining_java_zombies": 1,
     "core_pods_ready": 5,
     "core_pod_restarts": 0
+  },
+  "final_typing_compatibility_sync": {
+    "revision": 8,
+    "change": "Resolve POSIX-only symbols inside the POSIX branch for Windows mypy compatibility",
+    "linux_real_child_check_repeated": "PASS",
+    "deployed_source_hash_verified": true,
+    "core_pods_ready": 5,
+    "core_pod_restarts": 0,
+    "backend_health": "ok",
+    "jmeter_tasks_repeated_at_revision_8": false,
+    "pod_replacement_is_not_zombie_reaping_fix": true
   },
   "tests": {
     "performance_services_passed": 93,

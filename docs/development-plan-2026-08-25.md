@@ -773,11 +773,11 @@ python3 scripts/performance-environment-smoke.py \
 - 修复前 Run `7/8/9` 已完成短任务、取消及恢复，短任务与恢复各 3 次请求、错误率 0、JSON 报告通过。取消阶段发生一次 API ConnectionError；重新查询确认仍在运行后发送停止，最终 cancelled。该异常保留为现场证据，不计为无异常通过。
 - 进程复核发现 Java 被 PID 1 接管并最终成为僵尸。Linux 旧实现只对包装进程调用 terminate，不能覆盖子进程树；当前修复为启动独立 session，取消/超时时向整个进程组发送 SIGTERM，即使组长已退出仍用 SIGKILL 处理剩余组成员，并等待直接子进程退出。Windows 仍保留 taskkill `/T` 路径。
 - 审查覆盖 session 隔离、包装进程先退出、子进程忽略 SIGTERM、进程组已消失及 Windows 分支。性能服务回归 `93 passed / 1 skipped`，进程文件独立 `6 passed / 1 skipped`；跳过项要求 Linux `/proc`，不算 Windows 实测通过。另在 Linux 运行真实包装进程与忽略 SIGTERM 的子进程验证程序，确认取消后无存活子进程。
-- 基于原 Worker `1bccfef4` 构建仅覆盖 `performance_process.py` 的补丁镜像 `process-group-042b3267fd71`，导入 containerd 后 Helm revision 7 部署成功；部署文件 SHA-256 与本地一致。此为单文件补丁，不是当前 main 全量部署，2.4.45 项目编码修复没有随之部署。
+- 基于原 Worker `1bccfef4` 构建仅覆盖 `performance_process.py` 的补丁镜像 `process-group-042b3267fd71`，导入 containerd 后 Helm revision 7 部署成功。提交钩子随后发现 Windows mypy 缺少 POSIX 专属符号类型，改为在 POSIX 分支内解析 `killpg/SIGKILL`；93 项回归与 Linux 真实子进程检查重新通过，再同步最终补丁 `process-group-b7fcd25390d5` 至 revision 8，部署文件 SHA-256 与最终代码一致、5 个 Pod Ready/0 重启、Backend 健康。JMeter 三段任务实测发生在 revision 7，revision 8 仅复核源码和启动状态，不混写测试版本。此为单文件补丁，不是当前 main 全量部署，2.4.45 项目编码修复没有随之部署。
 - 修复后 Run `10/11/12` 复验短任务、运行中取消和恢复：短任务/恢复均 3 次请求、错误率 0，取消为 cancelled，三次 JSON 报告通过；5 个核心 Pod Ready、0 重启。没有存活的 Java 负载进程，但仍有 1 个已退出的 Java 僵尸记录，说明进程组终止与 PID 1 回收是两个独立环节。
 - 项目 `72/73` 及 6 条运行记录均删除并核验 404，2 个上传 JMX 和 4 个结果对象共 6 个 MinIO 对象按精确名称清理、剩余为 0。原始临时产物已删除，仅保留脱敏证据。
 
-证据见 [`evidence/k3s-jmeter-process-group-2026-09-05.json`](evidence/k3s-jmeter-process-group-2026-09-05.json)。下一项优先补齐 Worker 的 init/孤儿子进程回收并复验连续取消不累计僵尸，再推进 Locust/gRPC 单节点矩阵；当前不能把“无存活负载进程”写成“无残留进程记录”，也不关闭 P4/P9。
+证据见 [`evidence/k3s-jmeter-process-group-2026-09-05.json`](evidence/k3s-jmeter-process-group-2026-09-05.json)。下一项优先补齐 Worker 的 init/孤儿子进程回收并复验连续取消不累计僵尸，再推进 Locust/gRPC 单节点矩阵；revision 8 更换 Pod 会移除旧僵尸记录，但不代表已修复回收机制。不能把“无存活负载进程”写成“无残留进程记录”，也不关闭 P4/P9。
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 
