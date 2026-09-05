@@ -50,7 +50,9 @@
 - [~] 计划检查点 2.4.41：对 `192.168.3.196` 的单节点 K3s 做 P4 只读复验；确认 context 为 `atp-single-node`、Ready 节点 1 个、性能 Worker 为 `1/1` 且资源限制存在，但 `ServiceMonitor` CRD/Prometheus 工作负载缺失，MinIO source/target 仍非独立，P4 继续保持 `[-]`。脱敏证据见 [`docs/evidence/p4-single-node-blocker-2026-09-04.json`](docs/evidence/p4-single-node-blocker-2026-09-04.json)。
 - [x] 计划检查点 2.4.42：修复单节点 `hostNetwork` 下 Flower 使用默认 `256Mi` 导致 `OOMKilled/137` 和默认 RollingUpdate 占用 5555 端口造成 pending 的问题；Flower limit 提升至 `512Mi`，单节点更新改为 `maxSurge=0/maxUnavailable=100%`，目标 Helm revision 5 升级成功，30 秒后 Flower 与其余核心 Pod 均 Ready 且 0 重启，Backend `/health` 为 200。脱敏证据见 [`docs/evidence/k3s-single-node-flower-oom-fix-2026-09-05.json`](docs/evidence/k3s-single-node-flower-oom-fix-2026-09-05.json)；P4/P9 仍未关闭。
 
-> 下方逐项明细保留各检查点的原始描述；其中“仍待验收”属于当时快照，不覆盖以上截至 2026-09-04 的统一状态。
+- [x] 计划检查点 2.4.43：修复 JMeter ASCII 版本图案引起的 Kubernetes/Docker 预检误报；独立回归 `41 passed`，Ruff 检查通过，Linux 单节点性能 Worker 6 项预检全部通过。Flower 约 30 分钟、0 重启；浏览器实际启动与真实任务执行尚未验收。下一步按单节点范围核验队列并开展受控短任务、报告和取消恢复，不要求用户建设多节点；原 P4/P9 发布门禁独立保留。详见开发计划 2.4.43。
+
+> 下方逐项明细保留各检查点的原始描述；其中“仍待验收”属于当时快照，不覆盖以上截至 2026-09-05 的统一状态。
 
 ### 2.4.0 历史检查点明细（截至 2.4.21）
 

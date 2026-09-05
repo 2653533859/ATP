@@ -583,6 +583,15 @@ def check_api_and_node(
     return node
 
 
+def is_jmeter_version_output(output: str) -> bool:
+    """Accept textual versions and the Apache JMeter ASCII version banner."""
+    if re.search(r"\bjmeter\s+\d+\.\d+(?:\.\d+)?\b", output, re.IGNORECASE):
+        return True
+    return bool(
+        "The Apache Software Foundation" in output and re.search(r"(?m)^[ _/\\|]+\s+\d+\.\d+(?:\.\d+)?\s*$", output)
+    )
+
+
 def check_kubernetes(
     report: CheckReport,
     *,
@@ -727,7 +736,7 @@ def check_kubernetes(
     if "k6" not in k6_output.lower():
         raise SmokeError("Worker 容器未确认 k6 可执行文件")
     jmeter_output = run([*exec_prefix, "--", "jmeter", "--version"])
-    if "jmeter" not in jmeter_output.lower():
+    if not is_jmeter_version_output(jmeter_output):
         raise SmokeError("Worker 容器未确认 JMeter 可执行文件")
     browser_code = (
         "from playwright.sync_api import sync_playwright; "
@@ -776,7 +785,7 @@ def check_docker_worker(
         if "k6" not in k6_output.lower():
             raise SmokeError(f"{label} 未确认 k6 可执行文件")
         jmeter_output = run([*exec_prefix, "jmeter", "--version"])
-        if "jmeter" not in jmeter_output.lower():
+        if not is_jmeter_version_output(jmeter_output):
             raise SmokeError(f"{label} 未确认 JMeter 可执行文件")
         browser_code = (
             "from playwright.sync_api import sync_playwright; "
@@ -820,7 +829,7 @@ def check_docker_worker(
         if "k6" not in k6_output.lower():
             raise SmokeError(f"镜像 {image} 未确认 k6 可执行文件")
         jmeter_output = run(["run", "--rm", "--entrypoint", "jmeter", image, "--version"])
-        if "jmeter" not in jmeter_output.lower():
+        if not is_jmeter_version_output(jmeter_output):
             raise SmokeError(f"镜像 {image} 未确认 JMeter 可执行文件")
         browser_code = (
             "from playwright.sync_api import sync_playwright; "

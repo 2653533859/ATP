@@ -715,7 +715,7 @@
 
 ### 修复与验证
 
-- [x] Chart 默认 Flower 内存 request/limit 调整为 `256Mi/512Mi`，单节点 overlay 显式保留同一资源边界。
+- [x] Chart 默认 Flower 内存 request/limit 为 `128Mi/512Mi`，单节点 overlay 显式设置为 `256Mi/512Mi`。
 - [x] `hostNetwork` 场景保留 `RollingUpdate` 类型并设置 `maxSurge=0`、`maxUnavailable=100%`，确保单副本先释放宿主机端口再创建新 Pod；普通网络模式不改变原有滚动策略。
 - [x] 定向部署契约 `26 passed`，Helm lint、单节点渲染和提交钩子通过；代码提交为 `88def83f`。
 - [x] 目标 release 的中断升级先回滚到 revision 3，修复后的实际升级到 revision 5 成功；Flower 新 Pod Ready、0 重启，5 个核心 Pod 均 Ready，Backend `/health` 返回 200，迁移 head 为 `20260901_0068 (head)`。
@@ -726,6 +726,25 @@
 - 这次修复只针对单节点 `hostNetwork` 的资源和端口更新竞态，不改变多节点生产 overlay 的调度要求。
 - P4 仍缺多节点 Kubernetes、发布级 Prometheus/ServiceMonitor、独立 MinIO source/target、真实短压与跨主机恢复；P9 继续保持开放。
 - 脱敏证据见 [`evidence/k3s-single-node-flower-oom-fix-2026-09-05.json`](evidence/k3s-single-node-flower-oom-fix-2026-09-05.json)。
+
+## 2.4.43 单节点性能 Worker 执行器预检（完成，2026-09-05）
+
+- 修复 JMeter 5.6.3 版本输出使用 ASCII 图案、没有普通 `JMeter` 字样导致的误报。Kubernetes、Docker 容器和 Docker 镜像共用版本识别，仍要求命令退出成功；空输出、错误提示、Java 版本和单独版权声明均不通过。
+- 回归文件独立运行 `41 passed`，Ruff 检查和格式检查通过。首次系统 Python 测试因 Windows 历史临时目录权限错误中断，改用项目虚拟环境和独立临时目录后退出码为 0。
+- 当前本地脚本通过 SSH 标准输入在目标 Linux 执行，未修改旧部署目录、Secret 或 release。节点、单副本、资源、rollout、Pod 和执行器依赖共 6 项预检通过。Flower 复核时已运行约 30 分钟、0 重启、内存约 125Mi。
+- 复核范围仅为依赖导入、k6/JMeter 版本命令与 Playwright 浏览器路径配置，不代表浏览器实际启动、真实任务短压、报告或取消恢复通过。
+
+复验命令（在目标机对本版本脚本执行）：
+
+```sh
+python3 scripts/performance-environment-smoke.py \
+  --kube-context atp-single-node --namespace atp-single-node \
+  --deployment atp-single-node-atp-performance-worker --container performance-worker \
+  --require-kubernetes --min-ready-nodes 1 --min-worker-replicas 1 \
+  --require-worker-resources --verify-worker-image
+```
+
+下一模块按用户要求继续单节点：核验专用队列路由、准备隔离测试资产和受控目标，执行有界短任务，检查报告与取消恢复并清理临时数据。不把建设多节点作为本轮开发前提；原 P4 发布级 Prometheus、独立 MinIO 和多节点门禁单独保留，P4/P9 未关闭。
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 

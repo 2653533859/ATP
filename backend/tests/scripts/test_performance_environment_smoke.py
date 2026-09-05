@@ -13,6 +13,12 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[3]
 
+JMETER_ASCII_VERSION = r"""WARN StatusConsoleListener Package scanning is deprecated
+/_/   \_\_| /_/   \_\____|_| |_|_____|  \___/|_|  |_|_____| |_| |_____|_| \_\ 5.6.3
+
+Copyright (c) 1999-2024 The Apache Software Foundation
+"""
+
 
 def _load_smoke_script():
     path = ROOT / "scripts" / "performance-environment-smoke.py"
@@ -258,7 +264,8 @@ def test_api_node_check_waits_for_worker_heartbeat(monkeypatch):
     assert not report.has_failures
 
 
-def test_kubernetes_check_can_prove_nodes_replicas_and_worker_resources(monkeypatch):
+@pytest.mark.parametrize("jmeter_version", ["Apache JMeter 5.6.3", JMETER_ASCII_VERSION])
+def test_kubernetes_check_can_prove_nodes_replicas_and_worker_resources(monkeypatch, jmeter_version):
     smoke = _load_smoke_script()
     deployment = {
         "spec": {
@@ -307,6 +314,16 @@ def test_kubernetes_check_can_prove_nodes_replicas_and_worker_resources(monkeypa
     }
 
     def fake_run(command, **_kwargs):
+        if "exec" in command:
+            if command[-2:] == ["jmeter", "--version"]:
+                output = jmeter_version
+            elif command[-2:] == ["k6", "version"]:
+                output = "k6 v2.1.0"
+            elif "sync_playwright" in command[-1]:
+                output = "chromium=/chromium\nfirefox=/firefox\nwebkit=/webkit"
+            else:
+                output = "python-dependencies-ok"
+            return SimpleNamespace(returncode=0, stdout=output, stderr="")
         if command[-5:] == ["get", "deployment", "atp-performance-worker", "-o", "json"]:
             return SimpleNamespace(returncode=0, stdout=json.dumps(deployment), stderr="")
         if command[-4:-1] == ["rollout", "status", "deployment/atp-performance-worker"]:
@@ -327,7 +344,7 @@ def test_kubernetes_check_can_prove_nodes_replicas_and_worker_resources(monkeypa
         deployment="atp-performance-worker",
         pod_selector="app=performance-worker",
         container="performance-worker",
-        verify_worker_image=False,
+        verify_worker_image=True,
         min_ready_nodes=2,
         min_worker_replicas=2,
         require_worker_resources=True,
@@ -341,6 +358,7 @@ def test_kubernetes_check_can_prove_nodes_replicas_and_worker_resources(monkeypa
         "kubernetes-nodes",
         "kubernetes-worker-resources",
         "kubernetes-pod",
+        "kubernetes-worker-image",
     }
 
 
@@ -678,7 +696,8 @@ def test_main_rejects_baseline_gate_for_cancel_only_acceptance():
         )
 
 
-def test_docker_worker_check_validates_running_container_and_runtime_dependencies(monkeypatch):
+@pytest.mark.parametrize("jmeter_version", ["Apache JMeter 5.6.3", JMETER_ASCII_VERSION])
+def test_docker_worker_check_validates_running_container_and_runtime_dependencies(monkeypatch, jmeter_version):
     smoke = _load_smoke_script()
     commands: list[list[str]] = []
 
@@ -702,7 +721,7 @@ def test_docker_worker_check_validates_running_container_and_runtime_dependencie
         if command[1:3] == ["exec", "worker-a"] and "k6" in command:
             return _Result("k6 v2.1.0")
         if command[1:3] == ["exec", "worker-a"] and "jmeter" in command:
-            return _Result("Apache JMeter 5.6.3")
+            return _Result(jmeter_version)
         raise AssertionError(command)
 
     monkeypatch.setattr(smoke.subprocess, "run", fake_run)
@@ -712,6 +731,51 @@ def test_docker_worker_check_validates_running_container_and_runtime_dependencie
 
     assert not report.has_failures
     assert any(command[1:3] == ["exec", "worker-a"] for command in commands)
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        "",
+        "jmeter not found",
+        "JMeter startup failed",
+        'openjdk version "17.0.1"',
+        "Copyright The Apache Software Foundation",
+        "WARN plugin version 5.6.3",
+    ],
+)
+def test_jmeter_version_detection_rejects_non_version_output(output):
+    assert not _load_smoke_script().is_jmeter_version_output(output)
+
+
+@pytest.mark.parametrize("exit_code", [0, 1])
+def test_docker_image_jmeter_ascii_banner_requires_successful_exit(monkeypatch, exit_code):
+    smoke = _load_smoke_script()
+
+    def fake_run(command, **_kwargs):
+        status = 0
+        if command[1:3] == ["image", "inspect"]:
+            output = "[{}]"
+        elif "jmeter" in command:
+            output, status = JMETER_ASCII_VERSION, exit_code
+        elif "k6" in command:
+            output = "k6 v2.1.0"
+        elif "sync_playwright" in command[-1]:
+            output = "chromium=/chromium\nfirefox=/firefox\nwebkit=/webkit"
+        elif "python-dependencies-ok" in command[-1]:
+            output = "python-dependencies-ok"
+        else:
+            raise AssertionError(command)
+        return SimpleNamespace(returncode=status, stdout=output, stderr="")
+
+    monkeypatch.setattr(smoke.subprocess, "run", fake_run)
+    report = smoke.CheckReport()
+    if exit_code:
+        with pytest.raises(smoke.SmokeError):
+            smoke.check_docker_worker(report, container=None, image="worker:test", timeout=5)
+    else:
+        smoke.check_docker_worker(report, container=None, image="worker:test", timeout=5)
+        assert report.checks[-1].name == "docker-image-dependencies"
 
 
 def test_jmeter_smoke_fixture_is_local_and_credential_free():
