@@ -119,7 +119,7 @@ resources:
     limits: {cpu: 200m, memory: 256Mi}
   flower:
     requests: {cpu: 50m, memory: 128Mi}
-    limits: {cpu: 200m, memory: 256Mi}
+    limits: {cpu: 200m, memory: 512Mi}
 
 # Secret ownership. Set create=false and existingName to bind a Secret managed
 # by ExternalSecrets, SOPS, or the platform secret manager in production.

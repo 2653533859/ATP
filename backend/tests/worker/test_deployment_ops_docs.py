@@ -380,6 +380,15 @@ def test_single_node_helm_overlay_uses_host_network_for_loopback_dependencies():
     schema = json.loads((ROOT / "deploy" / "helm" / "atp" / "values.schema.json").read_text(encoding="utf-8"))
 
     assert "hostNetwork: true" in overlay
+    flower_template = (ROOT / "deploy" / "helm" / "atp" / "templates" / "flower-deployment.yaml").read_text(
+        encoding="utf-8"
+    )
+    assert "type: RollingUpdate" in flower_template
+    assert "maxUnavailable: 100%" in flower_template
+    assert "maxSurge: 0" in flower_template
+    assert "memory: 256Mi" in overlay
+    assert "memory: 512Mi" in overlay
+    assert "limits: {cpu: 200m, memory: 512Mi}" in values
     assert "hostNetwork: false" in values
     assert schema["properties"]["podNetwork"]["properties"]["hostNetwork"]["type"] == "boolean"
     for name in (

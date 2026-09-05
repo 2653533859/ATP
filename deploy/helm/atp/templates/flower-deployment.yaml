@@ -6,6 +6,14 @@ metadata:
     {{- include "atp.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "flower") | nindent 4 }}
 spec:
   replicas: {{ .Values.replicas.flower }}
+  {{- if .Values.podNetwork.hostNetwork }}
+  # hostNetwork Pod 绑定宿主机端口；单副本升级必须先释放旧端口，再创建新 Pod。
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 100%
+      maxSurge: 0
+  {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ .Chart.Name }}

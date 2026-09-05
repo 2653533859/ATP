@@ -36,6 +36,17 @@ worker:
   queues: default,ios,ai,maintenance
   metricsPort: 9091
 
+# Flower 在长时间运行中可能超过默认 256Mi；单节点联调显式保留更高上限，
+# 避免监控页面因 OOMKilled 反复重启。生产 values 也使用相同的 512Mi 默认值。
+resources:
+  flower:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 200m
+      memory: 512Mi
+
 config:
   APP_ENV: development
   APP_AUTO_CREATE_TABLES: "false"
