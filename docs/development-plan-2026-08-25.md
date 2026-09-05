@@ -6,7 +6,7 @@
 
 本节是当前最新的计划跟踪入口，学习参考导航的“工作台 → 测试能力 → 测试资产 → 智能中枢 → 系统”结构，继续把高频测试动作从系统管理中移出。2.3.0 及更早内容保留为历史交付记录；后续开发、审查、文档同步和提交均以本节的阶段出口为准。
 
-> 当前状态统一说明（截至 2026-09-04）：2.4.1～2.4.21 是 2.4.22 之前的过程快照，若其中的待验收描述与本节总表冲突，以 2.4.0 总表和 2.4.22 受控真实验收为准；本轮本地联调记录见 2.4.0.6，前端主题与交互收口见 2.4.23，Hermes 智能化第一阶段见 2.4.24，Hermes 多轮上下文见 2.4.25，Hermes 只读工具执行层见 2.4.26，Hermes 结构化草稿审阅与人工确认见 2.4.27，Hermes 评测与治理见 2.4.28，Hermes 自然语言只读编排见 2.4.29，Hermes 多轮参数补全见 2.4.30，Hermes 挂起意图取消与安全恢复见 2.4.31，Linux Compose 启动韧性与预检门禁见 2.4.32～2.4.33，P4 目标资源预检、单节点 K3s、Helm、外部 Secret 与当前 SHA 镜像联调准备见 2.4.34～2.4.38，单节点 Helm 实际安装与迁移 Hook 修复见 2.4.39，Windows 本地前端代理到 Linux Backend 见 2.4.40，P4 单节点目标环境只读复验见 2.4.41（阻塞条件已确认）。
+> 当前状态统一说明（截至 2026-09-05）：2.4.1～2.4.21 是 2.4.22 之前的过程快照，若其中的待验收描述与本节总表冲突，以 2.4.0 总表和 2.4.22 受控真实验收为准；本轮本地联调记录见 2.4.0.6，前端主题与交互收口见 2.4.23，Hermes 智能化第一阶段见 2.4.24，Hermes 多轮上下文见 2.4.25，Hermes 只读工具执行层见 2.4.26，Hermes 结构化草稿审阅与人工确认见 2.4.27，Hermes 评测与治理见 2.4.28，Hermes 自然语言只读编排见 2.4.29，Hermes 多轮参数补全见 2.4.30，Hermes 挂起意图取消与安全恢复见 2.4.31，Linux Compose 启动韧性与预检门禁见 2.4.32～2.4.33，P4 目标资源预检、单节点 K3s、Helm、外部 Secret 与当前 SHA 镜像联调准备见 2.4.34～2.4.38，单节点 Helm 实际安装与迁移 Hook 修复见 2.4.39，Windows 本地前端代理到 Linux Backend 见 2.4.40，P4 单节点目标环境只读复验见 2.4.41（阻塞条件已确认），Flower OOM 与 hostNetwork 升级策略修复见 2.4.42（完成）。
 
 > 2026-09-01 发布范围决策：iOS/Appium、SMTP/企业微信/钉钉和 Jira/禅道/GitHub/GitLab 不纳入本次正式支持范围，已有代码与本地证据保留为技术预览，不作为本次发布阻塞项，也不代表真实环境通过。统一边界见 [`release-scope-2026-09-01.md`](release-scope-2026-09-01.md)。
 
@@ -708,6 +708,24 @@
 - P4 继续保持 `[-]`，P9 继续保持 `[~]`；单节点 K3s 只作为开发/联调环境，不替代 U-P4.1～U-P4.5。
 - 下一执行条件是提供至少 2 个可调度 Kubernetes 节点、发布级 Prometheus/Operator、不同主机或 IP 的独立 MinIO source/target，再按性能验收 Runbook 执行容量、短压、取消、指标、恢复和清理。
 - 脱敏证据见 [`evidence/p4-single-node-blocker-2026-09-04.json`](evidence/p4-single-node-blocker-2026-09-04.json)。
+
+## 2.4.42 单节点 Flower OOM 与 hostNetwork 升级策略修复（完成，2026-09-05）
+
+本项处理 2.4.41 复验后发现的实际运行故障：Flower 旧 Pod 曾因 `256Mi` 内存限制被 OOMKilled，且单节点 `hostNetwork` 下默认 RollingUpdate 会因旧 Pod 占用宿主机 5555 端口而使新 Pod Pending。
+
+### 修复与验证
+
+- [x] Chart 默认 Flower 内存 request/limit 调整为 `256Mi/512Mi`，单节点 overlay 显式保留同一资源边界。
+- [x] `hostNetwork` 场景保留 `RollingUpdate` 类型并设置 `maxSurge=0`、`maxUnavailable=100%`，确保单副本先释放宿主机端口再创建新 Pod；普通网络模式不改变原有滚动策略。
+- [x] 定向部署契约 `26 passed`，Helm lint、单节点渲染和提交钩子通过；代码提交为 `88def83f`。
+- [x] 目标 release 的中断升级先回滚到 revision 3，修复后的实际升级到 revision 5 成功；Flower 新 Pod Ready、0 重启，5 个核心 Pod 均 Ready，Backend `/health` 返回 200，迁移 head 为 `20260901_0068 (head)`。
+- [x] 升级后观察 30 秒，Flower 与其它核心 Pod 重启数均保持 0；该观察窗口不等同于长期生产稳定性或 P4/P9 通过。
+
+### 边界
+
+- 这次修复只针对单节点 `hostNetwork` 的资源和端口更新竞态，不改变多节点生产 overlay 的调度要求。
+- P4 仍缺多节点 Kubernetes、发布级 Prometheus/ServiceMonitor、独立 MinIO source/target、真实短压与跨主机恢复；P9 继续保持开放。
+- 脱敏证据见 [`evidence/k3s-single-node-flower-oom-fix-2026-09-05.json`](evidence/k3s-single-node-flower-oom-fix-2026-09-05.json)。
 
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 

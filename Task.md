@@ -48,6 +48,7 @@
 - [x] 计划检查点 2.4.39：单节点 K3s 首次 Helm 安装暴露迁移 Hook 在普通 ConfigMap 创建前读取配置的问题，修复为内联 `.Values.config` 并仅从既有 Secret 读取敏感配置；重试又确认 q19 依赖端口仅绑定宿主机回环，增加单节点 overlay 的 `hostNetwork` 开关并将联调 Secret 端点切至 q19 回环端口。修复后 Release `atp-single-node` 为 `deployed`，迁移头 `20260901_0068 (head)`，5 个核心 Deployment/Pod 全部 Ready，Backend `/health` 为 200，约 30 秒后无新增重启；部署契约 `26 passed`、Helm lint、默认/单节点渲染与提交钩子通过。脱敏证据见 [`docs/evidence/k3s-single-node-helm-install-2026-09-04.json`](docs/evidence/k3s-single-node-helm-install-2026-09-04.json)；P4/P9 仍未关闭。
 - [x] 计划检查点 2.4.40：修复本地 Vite `/api`、`/ws` 代理硬编码 Windows 回环地址的问题，统一由 `VITE_BACKEND_ORIGIN` 驱动并补充代理单测；使用真实 Linux Backend 地址启动本地前端，页面返回 200，受保护依赖接口返回预期 401，确认代理链路已到达 Linux。
 - [~] 计划检查点 2.4.41：对 `192.168.3.196` 的单节点 K3s 做 P4 只读复验；确认 context 为 `atp-single-node`、Ready 节点 1 个、性能 Worker 为 `1/1` 且资源限制存在，但 `ServiceMonitor` CRD/Prometheus 工作负载缺失，MinIO source/target 仍非独立，P4 继续保持 `[-]`。脱敏证据见 [`docs/evidence/p4-single-node-blocker-2026-09-04.json`](docs/evidence/p4-single-node-blocker-2026-09-04.json)。
+- [x] 计划检查点 2.4.42：修复单节点 `hostNetwork` 下 Flower 使用默认 `256Mi` 导致 `OOMKilled/137` 和默认 RollingUpdate 占用 5555 端口造成 pending 的问题；Flower limit 提升至 `512Mi`，单节点更新改为 `maxSurge=0/maxUnavailable=100%`，目标 Helm revision 5 升级成功，30 秒后 Flower 与其余核心 Pod 均 Ready 且 0 重启，Backend `/health` 为 200。脱敏证据见 [`docs/evidence/k3s-single-node-flower-oom-fix-2026-09-05.json`](docs/evidence/k3s-single-node-flower-oom-fix-2026-09-05.json)；P4/P9 仍未关闭。
 
 > 下方逐项明细保留各检查点的原始描述；其中“仍待验收”属于当时快照，不覆盖以上截至 2026-09-04 的统一状态。
 

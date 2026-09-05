@@ -1,0 +1,48 @@
+{
+  "schema_version": 1,
+  "observed_at": "2026-09-05",
+  "scope": "atp_single_node_flower_oom_and_host_network_rollout_fix",
+  "target": {
+    "host": "192.168.3.196",
+    "namespace": "atp-single-node",
+    "release": "atp-single-node",
+    "successful_revision": 5,
+    "chart_commit": "88def83f"
+  },
+  "incident": {
+    "previous_flower_restart_count": 1,
+    "previous_termination_reason": "OOMKilled",
+    "previous_exit_code": 137,
+    "previous_memory_limit": "256Mi",
+    "failed_upgrade_cause": "hostNetwork 单副本默认 RollingUpdate 先创建新 Pod，新 Pod 无法绑定已被旧 Pod 占用的宿主机 5555 端口。",
+    "recovery_revision": 3
+  },
+  "fix": {
+    "flower_resources": {
+      "requests_cpu": "50m",
+      "requests_memory": "256Mi",
+      "limits_cpu": "200m",
+      "limits_memory": "512Mi"
+    },
+    "host_network_rollout": {
+      "strategy": "RollingUpdate",
+      "max_unavailable": "100%",
+      "max_surge": 0
+    }
+  },
+  "verification": {
+    "release_status": "deployed",
+    "ready_core_pods": 5,
+    "core_pod_restart_count_after_30_seconds": 0,
+    "backend_health_http_status": 200,
+    "alembic_head": "20260901_0068",
+    "migration_job_remaining": 0
+  },
+  "data_handling": {
+    "credential_values_recorded": false,
+    "response_bodies_recorded": false,
+    "database_or_object_data_operation": false,
+    "cluster_change_scope": "仅更新 Helm release 的 Flower 资源和 Deployment rollout 策略。"
+  },
+  "boundary": "已验证单节点 Flower OOM 修复和 hostNetwork 更新竞态修复；30 秒观察不代表长期生产稳定性，也不关闭 P4/P9 多节点、Prometheus、独立 MinIO、短压和恢复门禁。"
+}
