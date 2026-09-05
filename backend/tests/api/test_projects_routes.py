@@ -171,6 +171,31 @@ def test_create_project_auto_assigns_owner_and_code():
     assert memberships and memberships[0].role is ProjectRole.owner
 
 
+@pytest.mark.parametrize(
+    "names",
+    [
+        ("single-node-smoke-one", "single-node-smoke-two"),
+        ("相同项目", "相同项目"),
+    ],
+)
+def test_create_project_generated_codes_do_not_collide_after_name_normalization(names):
+    projects = [
+        asyncio.run(prj.create_project(body=ProjectCreate(name=name), db=_FakeDB(), current_user=_user(21)))
+        for name in names
+    ]
+    assert projects[0].project_code != projects[1].project_code
+    assert all(len(project.project_code) <= 32 for project in projects)
+
+
+def test_create_project_preserves_explicit_project_code():
+    project = asyncio.run(
+        prj.create_project(
+            body=ProjectCreate(name="Acme", project_code="MANUAL-001"), db=_FakeDB(), current_user=_user(21)
+        )
+    )
+    assert project.project_code == "MANUAL-001"
+
+
 def test_create_project_template_seeds_modules_environment_and_dataset():
     db = _FakeDB()
     project = asyncio.run(

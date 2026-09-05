@@ -167,7 +167,10 @@ async def create_project(
 ):
     payload = body.model_dump()
     payload.pop("template", None)
-    payload["project_code"] = payload.get("project_code") or _normalize_code(body.name, "PROJECT")
+    # 名称归一化会截断且丢弃非 ASCII 字符；自动编码不能仅依赖名称。
+    payload["project_code"] = payload.get("project_code") or (
+        f"{_normalize_code(body.name, 'PROJECT')}-{uuid4().hex[:12].upper()}"
+    )
     project = Project(**payload, owner_id=current_user.id)
     db.add(project)
     await db.flush()

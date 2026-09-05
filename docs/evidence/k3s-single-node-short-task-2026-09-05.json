@@ -1,0 +1,43 @@
+{
+  "scope": "single-node k6 functional acceptance only",
+  "date": "2026-09-05",
+  "release": "atp-single-node",
+  "helm_revision": 6,
+  "runtime_image_tag": "1bccfef4",
+  "node_id": "atp-single-node",
+  "node_database_id": 2,
+  "queue": "performance.atp-single-node",
+  "target": "existing isolated acceptance container /healthz",
+  "network_mapping": "script-local k6 hosts mapping for the existing allowlisted test hostname; no global DNS or allowlist changes",
+  "runs": [
+    {"id": 4, "phase": "short", "vus": 1, "duration": "10s", "status": "success", "iterations": 10, "error_rate": 0, "json_report_verified": true},
+    {"id": 5, "phase": "cancel_after_running", "vus": 1, "configured_duration": "60s", "delay_after_observed_running_seconds": 3, "status": "cancelled", "json_report_verified": true},
+    {"id": 6, "phase": "recovery", "vus": 1, "duration": "5s", "status": "success", "iterations": 5, "error_rate": 0, "json_report_verified": true}
+  ],
+  "initial_attempt_not_accepted": {
+    "run_ids": [2, 3],
+    "cause": "Temporary test script did not consume ATP_K6_OPTIONS; completed one iteration before cancellation",
+    "stop_http_status": 409,
+    "remedy": "Read platform options in the temporary k6 script and rerun"
+  },
+  "additional_defect": {
+    "name": "generated project-code collision",
+    "observed_http_status": 500,
+    "constraint": "uq_projects_project_code",
+    "local_fix": "Append a random UUID suffix to generated codes, preserving explicit codes",
+    "related_tests_passed": 37,
+    "standalone_tests_passed": 28,
+    "fix_deployed_to_linux": false
+  },
+  "cleanup": {
+    "temporary_project_ids": [69, 71],
+    "project_and_run_api_reads_after_deletion": 404,
+    "deleted_run_count": 5,
+    "deleted_minio_object_count": 6,
+    "remaining_exact_minio_objects": 0,
+    "remaining_k6_processes": 0,
+    "business_projects_modified": false
+  },
+  "post_check": {"ready_core_pods": 5, "restarts": 0, "backend_health": "ok"},
+  "not_verified": ["Locust", "gRPC", "JMeter task execution", "release-grade Prometheus", "independent MinIO recovery", "multi-node capacity", "P4/P9 closure"]
+}
