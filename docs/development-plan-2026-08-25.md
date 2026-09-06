@@ -793,6 +793,16 @@ python3 scripts/performance-environment-smoke.py \
 
 证据见 [`evidence/k3s-worker-init-reaper-2026-09-06.json`](evidence/k3s-worker-init-reaper-2026-09-06.json)。下一模块为 Locust/gRPC 单节点受控任务、报告和取消恢复；长期稳定性、发布级 Prometheus、独立 MinIO 和原 P4/P9 门禁仍独立保留。
 
+## 2.4.48 Locust 单节点短任务、取消与恢复验收（完成，2026-09-06）
+
+- 沿用 Helm revision 9 的 Tini Worker 补丁镜像，本轮没有发布或调整基础设施。通过真实账户 API 创建临时项目和 Locust 脚本，显式选择数据库节点 `2`（`atp-single-node`），确认在线及专用队列 `performance.atp-single-node`，逐条核对运行的节点 ID。
+- 请求仅发往既有隔离验收目标的 `/healthz`；允许域名通过临时 Locust 进程内的精确 DNS 映射连接目标，不修改全局 DNS、Secret、白名单或旧 Compose 部署。负载为 1 用户、每秒启动 1 用户、请求间隔 1 秒、请求超时 3 秒。
+- Run `18`：配置 10 秒短任务，success、9 次请求、错误率 0。Run `19`：配置 60 秒，观察到 running 后等待 5 秒发起停止，最终 cancelled。Run `20`：配置 5 秒恢复任务，success、4 次请求、错误率 0。取消任务不宣称存在成功请求统计。
+- 三份 JSON 导出报告的运行 ID/状态均核对通过；每段结束后 PID 1 为 tini，执行器残留进程和僵尸进程均为 0。项目 `75`、3 条运行已删除并核验 404；脚本与两份结果共 3 个 MinIO 对象按精确名称删除，剩余 0。复核 5 个 Pod Ready、0 重启，Backend 健康，release 为 deployed。
+- Locust 与进程回归 `8 passed, 1 skipped`（Windows 跳过 Linux 专属测试），Locust 文件独立 `2 passed`。审查覆盖目标与映射一致性、专用队列、负载上限、running 后取消、报告身份、残留进程和清理范围；本轮未发现需要修改产品代码的新问题。
+
+证据见 [`evidence/k3s-locust-single-node-2026-09-06.json`](evidence/k3s-locust-single-node-2026-09-06.json)。下一步为 gRPC 单节点验收。当前仍是增量 Worker 镜像而非最新 main 全量部署，项目编码修复尚未部署；本轮不关闭 P4/P9 或宣称发布级性能、长期稳定性已验收。
+
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 
 本节是当前导航重构的最新执行游标，按参考侧栏的五组职责组织功能，不再把设备、APK、Mock、数据集、Web/API 资产和治理能力全部堆在“系统管理”下面。导航入口、旧 URL 兼容和业务闭环分别记录：入口存在只代表可访问，只有完成配置→执行→过程→报告/证据→清理才算模块闭环。

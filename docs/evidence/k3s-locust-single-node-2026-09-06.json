@@ -1,0 +1,26 @@
+{
+  "date": "2026-09-06",
+  "scope": "single-node Locust short task, cancellation and recovery",
+  "release": "atp-single-node",
+  "helm_revision": 9,
+  "worker_image": "registry.local/atp/worker:init-reaper-0f553ae3e046",
+  "full_current_main_image_build": false,
+  "node_database_id": 2,
+  "queue": "performance.atp-single-node",
+  "target": "existing isolated performance acceptance HTTP health service",
+  "dns_mapping": "exact allowed hostname mapped inside temporary Locust process only",
+  "load": {"users": 1, "spawn_rate": 1, "wait_seconds": 1, "request_timeout_seconds": 3},
+  "runs": [
+    {"id": 18, "phase": "short", "configured_seconds": 10, "status": "success", "iterations": 9, "error_rate": 0},
+    {"id": 19, "phase": "cancel", "configured_seconds": 60, "stop_after_running_seconds": 5, "status": "cancelled"},
+    {"id": 20, "phase": "recovery", "configured_seconds": 5, "status": "success", "iterations": 4, "error_rate": 0}
+  ],
+  "all_run_node_ids_verified": true,
+  "all_three_json_report_ids_and_statuses_verified": true,
+  "after_each_run": {"pid1": "tini", "executor_processes": 0, "zombie_processes": 0},
+  "local_checks": {"locust_and_process_tests_passed": 8, "linux_only_tests_skipped_on_windows": 1, "locust_standalone_tests_passed": 2},
+  "review": "Checked declared target and script-local mapping, dedicated queue selection, bounded load, actual running cancellation, report identity, residual processes and exact cleanup scope; no new actionable code defect found.",
+  "cleanup": {"project_id": 75, "test_id": 8, "deleted_run_count": 3, "project_and_runs_return_404": true, "deleted_exact_minio_objects": 3, "remaining_exact_minio_objects": 0},
+  "post_check": {"ready_core_pods": 5, "restarts": 0, "backend_health": "ok", "helm_status": "deployed"},
+  "remaining": ["gRPC single-node task acceptance", "project-code fix target deployment", "original P4/P9 release requirements"]
+}
