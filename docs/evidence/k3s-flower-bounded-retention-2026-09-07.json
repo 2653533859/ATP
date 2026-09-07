@@ -1,0 +1,23 @@
+{
+  "date": "2026-09-07",
+  "scope": "Bound Flower in-memory event retention without increasing memory limit",
+  "flower_version": "2.0.1",
+  "before": {"helm_revision": 9, "max_tasks": 100000, "max_workers": 5000, "purge_offline_workers": null, "persistent": false, "memory_limit_mib": 512, "last_exit_reason": "OOMKilled", "last_exit_code": 137, "restart_count": 1},
+  "isolated_checks": {
+    "network": "none",
+    "events_per_process": 110000,
+    "default_limit": {"retained_tasks": 100000, "peak_rss_kib": 280352},
+    "bounded_limit": {"retained_tasks": 1000, "peak_rss_kib": 52728},
+    "oldest_evicted_latest_retained": true,
+    "probe_setup_error": "Initial isolated probe omitted flower.options initialization; corrected before both measurements",
+    "containers_auto_removed": true,
+    "remote_probe_script_removed": true
+  },
+  "after": {"helm_revision": 10, "max_tasks": 1000, "max_workers": 100, "purge_offline_workers_seconds": 300, "memory_limit_mib": 512, "running_process_arguments_verified": true, "flower_health_http": 200, "backend_health": "ok", "ready_core_pods": 5, "new_flower_restarts": 0, "initial_snapshot_age_seconds": 26, "initial_metrics_server_memory_mib": 97},
+  "followup_snapshot": {"pod_age_seconds": 111, "ready": true, "restarts": 0, "metrics_server_memory_mib": 97, "health_http": 200},
+  "deployment": {"rendered_non_hook_resource_diff": "Flower args only", "images_and_other_resources_unchanged": true, "migration_hooks_skipped_for_config_only_update": true, "host_network_no_surge_preserved": true},
+  "local_checks": {"deployment_tests_passed_standalone": 29, "helm_lint_local_and_target": "PASS", "helm_rejects_zero_task_limit": true, "ruff_and_format": "PASS"},
+  "review": "Verified argument wiring, positive integer schema, installed Flower option names/units, bounded task eviction, preservation of host-network rollout strategy and comparison of all non-hook manifests. No additional actionable issue found in this change.",
+  "impact": "Flower recent monitoring history is bounded and non-persistent; restarting clears its history. ATP database tasks and object-store reports are not deleted.",
+  "limitations": ["Synthetic state memory is not full-service memory", "Historical OOM has no heap capture; cache retention is a verified memory contributor, not a proven exclusive root cause", "Short startup check does not establish long-term OOM resolution", "P4/P9 remain open"]
+}

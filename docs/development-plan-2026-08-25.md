@@ -815,6 +815,17 @@ python3 scripts/performance-environment-smoke.py \
 
 证据见 [`evidence/k3s-grpc-single-node-2026-09-07.json`](evidence/k3s-grpc-single-node-2026-09-07.json)。k6/JMeter/Locust/gRPC 的单节点功能验收已完成各自记录；下一步优先排查 Flower 内存增长及事件/任务保留上限，再推进项目编码修复的受控完整镜像部署。当前不是最新 main 全量部署，原 P4/P9 与长期稳定性仍独立保留。
 
+## 2.4.50 Flower 事件保留上限与 OOM 风险收敛（配置修复完成，长期观察待完成，2026-09-07）
+
+- 实测 Flower `2.0.1` 原使用默认 `max_tasks=100000`、`max_workers=5000`、无离线 Worker 清理、`persistent=false`，512Mi 限额下已发生 `OOMKilled/137`。未取得历史堆快照，不能认定缓存是唯一根因。
+- 同一 Worker 镜像的无网络隔离进程分别注入 11 万条合成事件，保留 10 万条时峰值 RSS `280352 KiB`，保留 1000 条时 `52728 KiB`；均核对旧任务淘汰、新任务保留。初次探针遗漏 Flower options 初始化而失败，补齐后两组均通过。此为状态缓存测试，不是完整 Flower 服务内存或生产 OOM 复现。
+- Chart 增加 `flower.maxTasks=1000`、`flower.maxWorkers=100`、`flower.purgeOfflineWorkers=300`（秒），通过 args 传递给 Flower，并用 JSON Schema 限制为正整数。资源仍为 request 256Mi / limit 512Mi，保留 hostNetwork 无 surge 更新策略；更大集群须结合内存预算调整上限。
+- 逐资源对比当前 release 与新渲染结果，非 Hook 资源只有 Flower args 变化，镜像、Secret 引用和其他服务不变。使用现有 release values 升级至 revision 10；本轮纯监控参数修改，通过 `--no-hooks` 跳过数据库迁移，不重建其他业务 Pod。刚启动时 5555 曾尚未监听，随后 `/healthcheck` 返回 200，Backend 健康；26 秒快照为 5 Pod Ready、新 Flower 0 重启、Metrics Server 97Mi。新 Pod 的零计数不能抹去旧 Pod 的 OOM 历史。
+- **运维影响**：Flower 只保留最近任务用于监控，超出上限会淘汰；非持久化 Flower 重建会清空其监控历史，不删除 ATP 数据库任务及 MinIO 报告。回退可恢复此前 Chart/revision，但会重新引入大缓存配置，且不会恢复已清空的 Flower 历史。不要仅为了保留监控记录盲目增大缓存。
+- 部署回归文件独立 `29 passed`，本地/目标 Helm lint、实际 release 渲染比较、零上限拒绝、Ruff/格式通过。审查覆盖参数名称与单位、schema、缓存淘汰和部署范围。隔离探针容器自动删除，远端探针文件已清理；没有对业务事件队列注入合成事件。
+
+证据见 [`evidence/k3s-flower-bounded-retention-2026-09-07.json`](evidence/k3s-flower-bounded-retention-2026-09-07.json)。下一步复核真实事件积累下 Flower RSS/重启趋势；若仍增长，继续分析任务载荷、指标标签基数和其他缓存，而非直接再加内存。长期稳定性尚未验收，当前镜像仍非最新 main 全量部署，P4/P9 不变。
+
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 
 本节是当前导航重构的最新执行游标，按参考侧栏的五组职责组织功能，不再把设备、APK、Mock、数据集、Web/API 资产和治理能力全部堆在“系统管理”下面。导航入口、旧 URL 兼容和业务闭环分别记录：入口存在只代表可访问，只有完成配置→执行→过程→报告/证据→清理才算模块闭环。

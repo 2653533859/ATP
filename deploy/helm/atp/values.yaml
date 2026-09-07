@@ -39,6 +39,13 @@ replicas:
   beat: 1
   flower: 1
 
+# Flower is a recent-event dashboard, not the durable task/report store.
+# Bound retained events separately from the container memory limit.
+flower:
+  maxTasks: 1000
+  maxWorkers: 100
+  purgeOfflineWorkers: 300
+
 # Worker-specific knobs (镜像 / 端口 / 调度差异化在此扩展)。
 worker:
   # 每个 worker 子进程暴露 Prometheus /metrics 的端口；与 backend:8000/metrics 区分。

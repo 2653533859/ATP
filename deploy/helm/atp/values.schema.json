@@ -4,6 +4,16 @@
   "type": "object",
   "additionalProperties": true,
   "properties": {
+    "flower": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["maxTasks", "maxWorkers", "purgeOfflineWorkers"],
+      "properties": {
+        "maxTasks": {"type": "integer", "minimum": 1, "maximum": 100000},
+        "maxWorkers": {"type": "integer", "minimum": 1, "maximum": 5000},
+        "purgeOfflineWorkers": {"type": "integer", "minimum": 1}
+      }
+    },
     "image": {
       "type": "object",
       "description": "Container image repository and per-component tags.",

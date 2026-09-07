@@ -387,6 +387,24 @@ def test_helm_chart_can_render_dedicated_web_recording_worker():
     assert "webRecorder" in schema["properties"]
 
 
+def test_flower_retention_limits_are_rendered_and_validated():
+    chart = ROOT / "deploy" / "helm" / "atp"
+    template = (chart / "templates" / "flower-deployment.yaml").read_text(encoding="utf-8")
+    values = (chart / "values.yaml").read_text(encoding="utf-8")
+    schema = json.loads((chart / "values.schema.json").read_text(encoding="utf-8"))
+    settings = schema["properties"]["flower"]
+    for name, flag, default in (
+        ("maxTasks", "max_tasks", 1000),
+        ("maxWorkers", "max_workers", 100),
+        ("purgeOfflineWorkers", "purge_offline_workers", 300),
+    ):
+        assert f'printf "--{flag}=%v" .Values.flower.{name} | quote' in template
+        assert f"  {name}: {default}" in values
+        assert name in settings["required"]
+        assert settings["properties"][name]["type"] == "integer"
+        assert settings["properties"][name]["minimum"] == 1
+
+
 def test_helm_migration_hook_does_not_depend_on_regular_configmap():
     content = (ROOT / "deploy" / "helm" / "atp" / "templates" / "migrate-job.yaml").read_text(encoding="utf-8")
 
