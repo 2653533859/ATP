@@ -803,6 +803,18 @@ python3 scripts/performance-environment-smoke.py \
 
 证据见 [`evidence/k3s-locust-single-node-2026-09-06.json`](evidence/k3s-locust-single-node-2026-09-06.json)。下一步为 gRPC 单节点验收。当前仍是增量 Worker 镜像而非最新 main 全量部署，项目编码修复尚未部署；本轮不关闭 P4/P9 或宣称发布级性能、长期稳定性已验收。
 
+## 2.4.49 gRPC 单节点 TLS 四模式、取消与恢复验收（完成，2026-09-07）
+
+- 沿用 revision 9 Worker，经真实账户 API 创建临时项目 `76` / 测试 `9`，明确选择节点 `2` 和 `performance.atp-single-node` 专用队列，核对全部运行的节点 ID；本轮没有发布产品代码。
+- 预检发现旧验收目标证书已于 `2026-08-31T02:29:57Z` 过期，保持旧证书与旧部署不变。使用同一验收镜像启动独立临时目标（0.5 CPU / 256Mi、无宿主端口发布），生成两天有效期的测试证书。仅在性能 Worker Pod 内临时映射允许域名，使用公开证书作为信任根，保留 TLS 证书与主机名校验；没有修改主机 DNS、Secret 或白名单。证书从 9 月 6 日创建至 9 月 7 日实测期间有效。
+- Run `21/22/23/24` 分别覆盖 unary、server_stream、client_stream、bidi_stream，各完成 5 次 RPC、`OK=5`、错误率 0；响应数分别为 5/10/5/10，区分调用数与流消息数。Run `25` 使用单并发、30 秒时限，观察到 running 后等待 1 秒停止，最终 cancelled；Run `26` 恢复成功，5 次 RPC、5 个响应、错误率 0。每次 RPC 超时 3 秒，取消任务不宣称成功请求统计。
+- 六份 JSON 报告 ID/状态均核对通过；每段终态后，宿主网络中到专用临时目标的 ESTABLISHED 连接数为 0。gRPC 使用 Worker 内线程/通道执行，此处记录连接释放和恢复证据，不套用外部执行器子进程数量作为线程清理证明。
+- 项目及 6 条运行已删除并核验 404，Proto 与 5 份结果共 6 个 MinIO 对象精确删除且剩余 0；临时容器、证书、私钥及远端设置脚本已删除，Worker hosts 按备份字节原样恢复。旧验收目标仍 running。
+- gRPC/进程相关回归 `20 passed, 1 skipped`（Windows 跳过 Linux 专属检查），gRPC 文件独立 `14 passed`。审查覆盖 TLS 信任、主机名、临时映射恢复、专用节点、RPC/响应统计、running 后取消、连接释放和清理范围；本轮验收未确认新的产品代码缺陷。
+- **稳定性例外**：结束时 5 个核心 Pod 均 Ready、Backend 健康，普通/性能 Worker 重启均为 0；Flower 为 1 次重启，终止原因为 `OOMKilled/137`，时间 `2026-09-07T06:52:39Z`，内存上限仍为 512Mi。不能宣称全栈零重启或此前提高内存上限已解决长期增长问题。
+
+证据见 [`evidence/k3s-grpc-single-node-2026-09-07.json`](evidence/k3s-grpc-single-node-2026-09-07.json)。k6/JMeter/Locust/gRPC 的单节点功能验收已完成各自记录；下一步优先排查 Flower 内存增长及事件/任务保留上限，再推进项目编码修复的受控完整镜像部署。当前不是最新 main 全量部署，原 P4/P9 与长期稳定性仍独立保留。
+
 ## 2.3.0 参考导航第二轮开发计划（2026-08-25）
 
 本节是当前导航重构的最新执行游标，按参考侧栏的五组职责组织功能，不再把设备、APK、Mock、数据集、Web/API 资产和治理能力全部堆在“系统管理”下面。导航入口、旧 URL 兼容和业务闭环分别记录：入口存在只代表可访问，只有完成配置→执行→过程→报告/证据→清理才算模块闭环。

@@ -1,0 +1,38 @@
+{
+  "date": "2026-09-07",
+  "scope": "single-node gRPC TLS four-mode, cancellation and recovery acceptance",
+  "release": "atp-single-node",
+  "helm_revision": 9,
+  "worker_image": "registry.local/atp/worker:init-reaper-0f553ae3e046",
+  "full_current_main_image_build": false,
+  "node_database_id": 2,
+  "queue": "performance.atp-single-node",
+  "tls": {
+    "existing_target_certificate_expired_at": "2026-08-31T02:29:57Z",
+    "existing_certificate_unchanged": true,
+    "temporary_target_uses_existing_acceptance_image": true,
+    "temporary_certificate_valid_from": "2026-09-06T13:09:30Z",
+    "temporary_certificate_valid_until": "2026-09-08T13:09:30Z",
+    "certificate_and_hostname_validation_enabled": true,
+    "temporary_mapping_scope": "performance Worker Pod hosts file only, restored byte-for-byte",
+    "global_dns_secrets_allowlist_unchanged": true
+  },
+  "load": {"concurrency": 1, "successful_run_iterations": 5, "per_call_timeout_seconds": 3, "cancel_run_duration_cap_seconds": 30, "stop_after_observed_running_seconds": 1, "target_cpu_limit": 0.5, "target_memory_limit_mib": 256},
+  "runs": [
+    {"id": 21, "phase": "unary", "status": "success", "iterations": 5, "responses": 5, "error_rate": 0, "grpc_statuses": {"OK": 5}},
+    {"id": 22, "phase": "server_stream", "status": "success", "iterations": 5, "responses": 10, "error_rate": 0, "grpc_statuses": {"OK": 5}},
+    {"id": 23, "phase": "client_stream", "status": "success", "iterations": 5, "responses": 5, "error_rate": 0, "grpc_statuses": {"OK": 5}},
+    {"id": 24, "phase": "bidi_stream", "status": "success", "iterations": 5, "responses": 10, "error_rate": 0, "grpc_statuses": {"OK": 5}},
+    {"id": 25, "phase": "cancel", "status": "cancelled"},
+    {"id": 26, "phase": "recovery", "status": "success", "iterations": 5, "responses": 5, "error_rate": 0, "grpc_statuses": {"OK": 5}}
+  ],
+  "all_run_node_ids_verified": true,
+  "all_six_json_report_ids_and_statuses_verified": true,
+  "established_connections_to_temporary_target_after_each_run": 0,
+  "local_checks": {"grpc_and_process_tests_passed": 20, "linux_only_tests_skipped_on_windows": 1, "grpc_standalone_tests_passed": 14},
+  "review": "Checked TLS trust and hostname validation, temporary mapping restoration, dedicated node, RPC versus response counts, running cancellation, connection release, recovery and exact cleanup. No new product-code defect established by this acceptance.",
+  "cleanup": {"project_id": 76, "test_id": 9, "deleted_run_count": 6, "project_and_runs_return_404": true, "deleted_exact_minio_objects": 6, "remaining_exact_minio_objects": 0, "temporary_container_removed": true, "temporary_certificate_and_private_key_removed": true, "worker_hosts_restored": true},
+  "post_check": {"ready_core_pods": 5, "worker_restarts": 0, "performance_worker_restarts": 0, "flower_restarts": 1, "flower_last_exit_reason": "OOMKilled", "flower_last_exit_code": 137, "flower_last_exit_at": "2026-09-07T06:52:39Z", "flower_memory_limit_mib": 512, "backend_health": "ok", "old_acceptance_target": "running"},
+  "limitations": ["Not full-current-main deployment", "Not long-duration stability or capacity acceptance", "P4/P9 remain open"],
+  "next": ["Investigate Flower memory growth and bounded event/task retention", "Deploy project-code fix with a verified full-source image workflow"]
+}
