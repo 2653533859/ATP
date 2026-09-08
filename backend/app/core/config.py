@@ -100,6 +100,11 @@ class Settings(BaseSettings):
     STALE_PENDING_CLEANUP_ENABLED: bool = True
     STALE_PENDING_TIMEOUT_MINUTES: int = 120
     STALE_PENDING_CLEANUP_INTERVAL_SECONDS: int = 600
+    EXECUTION_COMMAND_TIMEOUT_MINUTES: int = Field(default=15, ge=1, le=1440)
+    EXECUTION_COMMAND_RECONCILE_INTERVAL_SECONDS: int = Field(default=600, ge=60, le=86400)
+    EXECUTION_RUN_LEASE_TTL_SECONDS: int = Field(default=90, ge=30, le=3600)
+    EXECUTION_RUN_LEASE_HEARTBEAT_SECONDS: int = Field(default=30, ge=5, le=1200)
+    EXECUTION_RUN_LEASE_RECONCILE_INTERVAL_SECONDS: int = Field(default=60, ge=30, le=3600)
     # Run retention (终态运行记录清理)
     RUN_CLEANUP_ENABLED: bool = True
     RUN_RETENTION_DAYS: int = 90

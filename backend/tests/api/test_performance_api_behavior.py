@@ -686,13 +686,22 @@ def test_stop_performance_run_cascades_to_shards(monkeypatch):
     assert db.locked_gets == [("PerformanceRun", 20), ("PerformanceRun", 21), ("PerformanceRun", 22)]
 
 
-def test_stop_performance_run_rejects_terminal_run(monkeypatch):
+@pytest.mark.parametrize(
+    "run_status",
+    [
+        PerformanceRunStatus.success.value,
+        PerformanceRunStatus.failed.value,
+        PerformanceRunStatus.cancelled.value,
+        PerformanceRunStatus.cancelling.value,
+    ],
+)
+def test_stop_performance_run_rejects_non_stoppable_run(monkeypatch, run_status):
     now = datetime(2026, 5, 29, tzinfo=timezone.utc)
     run = PerformanceRun(
         id=8,
         performance_test_id=3,
         project_id=2,
-        status=PerformanceRunStatus.success.value,
+        status=run_status,
         options_snapshot={},
         summary={},
         created_at=now,
@@ -704,6 +713,8 @@ def test_stop_performance_run_rejects_terminal_run(monkeypatch):
     with pytest.raises(Exception) as caught:
         asyncio.run(performance.stop_performance_run(run_id=run.id, db=db, user=_User()))
     assert caught.value.status_code == 409
+    assert caught.value.detail == f"performance 任务当前状态为 {run_status}：当前状态不支持停止"
+    assert db.commits == 0
 
 
 def _performance_run_for_export(run_id: int = 10):

@@ -45,6 +45,7 @@ from app.api.deps import (
 )
 from app.models.user_project import ProjectRole
 from app.services.mobile_special_control import request_cancel
+from app.services.execution_state import decide_execution_action, execution_action_rejection_detail
 from app.services.mobile_special_events import sanitize_mobile_payload
 from app.services.project_scope import scope_to_visible_projects
 
@@ -152,8 +153,14 @@ async def _get_run_with_access(
     user,
     run_id: int,
     min_role: ProjectRole = ProjectRole.viewer,
+    *,
+    for_update: bool = False,
 ) -> MobileSpecialRun:
-    run = await db.get(MobileSpecialRun, run_id)
+    run = (
+        await db.get(MobileSpecialRun, run_id, with_for_update=True)
+        if for_update
+        else await db.get(MobileSpecialRun, run_id)
+    )
     if not run:
         raise HTTPException(status_code=404, detail="Run not found")
     task = await db.get(MobileSpecialTask, run.task_id)
@@ -335,10 +342,15 @@ async def stop_run(
     current_user=Depends(require_engineer),
 ):
     """Stop a running mobile special task."""
-    run = await _get_run_with_access(db, current_user, run_id, ProjectRole.editor)
+    run = await _get_run_with_access(db, current_user, run_id, ProjectRole.editor, for_update=True)
 
-    if run.status not in [RunStatus.pending, RunStatus.running]:
-        raise HTTPException(status_code=400, detail=f"Cannot stop run in status: {run.status.value}")
+    current_status = str(getattr(run.status, "value", run.status))
+    decision = decide_execution_action("android", current_status, "stop")
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=409,
+            detail=execution_action_rejection_detail("android", current_status, "stop", decision),
+        )
 
     try:
         await asyncio.to_thread(request_cancel, run.id)

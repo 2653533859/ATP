@@ -59,6 +59,8 @@ celery_app.conf.update(
         # 清理、备份、告警等后台维护任务
         "cleanup_expired_files": {"queue": "maintenance"},
         "cleanup_stale_pending_runs": {"queue": "maintenance"},
+        "reconcile_stale_execution_commands": {"queue": "maintenance"},
+        "reconcile_expired_execution_run_leases": {"queue": "maintenance"},
         "cleanup_old_completed_runs": {"queue": "maintenance"},
         "cleanup_old_notification_deliveries": {"queue": "maintenance"},
         "cleanup_old_audit_logs": {"queue": "maintenance"},
@@ -66,6 +68,15 @@ celery_app.conf.update(
         "check_dashboard_alerts": {"queue": "maintenance"},
         "backup_postgres_daily": {"queue": "maintenance"},
         "backup_postgres_weekly": {"queue": "maintenance"},
+    },
+    # These runs are fenced by renewable database leases. A fixed wall-clock
+    # limit would incorrectly terminate legitimate long suites and load tests.
+    task_annotations={
+        "run_test_case": {"soft_time_limit": 0, "time_limit": 0},
+        "run_test_suite": {"soft_time_limit": 0, "time_limit": 0},
+        "run_test_plan": {"soft_time_limit": 0, "time_limit": 0},
+        "run_mobile_special_task": {"soft_time_limit": 0, "time_limit": 0},
+        "run_performance_test": {"soft_time_limit": 0, "time_limit": 0},
     },
     timezone="Asia/Shanghai",
     enable_utc=True,
@@ -124,6 +135,14 @@ celery_app.conf.update(
         "cleanup-stale-pending-runs": {
             "task": "cleanup_stale_pending_runs",
             "schedule": settings.STALE_PENDING_CLEANUP_INTERVAL_SECONDS,
+        },
+        "reconcile-stale-execution-commands": {
+            "task": "reconcile_stale_execution_commands",
+            "schedule": settings.EXECUTION_COMMAND_RECONCILE_INTERVAL_SECONDS,
+        },
+        "reconcile-expired-execution-run-leases": {
+            "task": "reconcile_expired_execution_run_leases",
+            "schedule": settings.EXECUTION_RUN_LEASE_RECONCILE_INTERVAL_SECONDS,
         },
         "check-mobile-special-schedules": {
             "task": "check_mobile_special_schedules",

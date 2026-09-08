@@ -15,6 +15,7 @@ from app.services.device_leases import (
 from app.services.mobile_special_control import clear_cancel_request, is_cancel_requested
 from app.services.performance_control import create_control_client
 from app.services.mobile_special_events import MobileRunEventRecorder
+from app.services.execution_run_leases import ExecutionLeaseConflict, execution_run_lease
 import logging
 
 logger = logging.getLogger(__name__)
@@ -336,7 +337,11 @@ def run_mobile_special_task(self, run_id: int):
                         logger.exception("Failed to release device lease for mobile run %s", run_id)
 
     try:
-        run_async(_execute())
+        try:
+            with execution_run_lease("android", run_id, self):
+                run_async(_execute())
+        except ExecutionLeaseConflict as exc:
+            logger.warning("Skipped duplicate Android run delivery %s: %s", run_id, exc)
     finally:
         clear_cancel_request(run_id, client=control_client)
         control_client.close()
@@ -430,7 +435,7 @@ def check_mobile_special_schedules():
 
 @celery_app.task(name="cleanup_stale_mobile_special_runs")
 def cleanup_stale_mobile_special_runs():
-    """定期清理超时的 pending/running 状态的 run"""
+    """清理从未被 Worker 领取的过期 pending run；running 由执行租约回收。"""
     from app.core.database import AsyncSessionLocal
     from app.models.mobile_special import MobileSpecialRun, RunStatus
     from sqlalchemy import update
@@ -442,7 +447,7 @@ def cleanup_stale_mobile_special_runs():
             stmt = (
                 update(MobileSpecialRun)
                 .where(
-                    MobileSpecialRun.status.in_([RunStatus.pending, RunStatus.running]),
+                    MobileSpecialRun.status == RunStatus.pending,
                     MobileSpecialRun.created_at < threshold,
                 )
                 .values(

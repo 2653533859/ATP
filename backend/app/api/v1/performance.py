@@ -50,6 +50,7 @@ from app.schemas.performance import (
 from app.schemas.performance_node import PerformanceNodeCreate, PerformanceNodeOut, PerformanceNodeUpdate
 from app.services.performance_options import ENVIRONMENT_SNAPSHOT_KEY
 from app.services.performance_control import request_cancel
+from app.services.execution_state import decide_execution_action, execution_action_rejection_detail
 from app.services.performance_report import (
     apply_baseline_gate,
     build_baseline_comparison,
@@ -1096,8 +1097,13 @@ async def stop_performance_run(
     if run is None:
         raise HTTPException(status_code=404, detail="压测执行不存在")
     await assert_project_access(db, user, run.project_id, ProjectRole.editor)
-    if run.status not in {PerformanceRunStatus.pending.value, PerformanceRunStatus.running.value}:
-        raise HTTPException(status_code=409, detail="当前压测状态不支持停止")
+    current_status = str(getattr(run.status, "value", run.status))
+    decision = decide_execution_action("performance", current_status, "stop")
+    if not decision.allowed:
+        raise HTTPException(
+            status_code=409,
+            detail=execution_action_rejection_detail("performance", current_status, "stop", decision),
+        )
 
     shard_ids = (run.summary or {}).get("shard_ids") if isinstance(run.summary, dict) else None
     shards = []

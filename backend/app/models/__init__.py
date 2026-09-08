@@ -14,6 +14,8 @@ def load_all_models() -> None:
     from app.models.defect_external import DefectExternalLink
     from app.models.configuration_revision import ConfigurationRevision
     from app.models.audit import AuditLog
+    from app.models.execution_command import ExecutionCommand
+    from app.models.execution_run_lease import ExecutionRunLease
     from app.models.plan import TestPlan, PlanRun
     from app.models.mobile_special import (
         MobileSpecialTask,
@@ -60,6 +62,8 @@ def load_all_models() -> None:
         DefectExternalLink,
         ConfigurationRevision,
         AuditLog,
+        ExecutionCommand,
+        ExecutionRunLease,
         TestPlan,
         PlanRun,
         MobileSpecialTask,

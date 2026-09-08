@@ -209,6 +209,66 @@ def test_cleanup_stale_pending_runs_commits_and_closes_session(monkeypatch):
     assert session.closed is True
 
 
+def test_reconcile_stale_execution_commands_commits_and_closes_session(monkeypatch):
+    tasks_cleanup = _import_tasks_cleanup(monkeypatch)
+    monkeypatch.setattr(tasks_cleanup, "load_all_models", lambda: None)
+    monkeypatch.setattr(tasks_cleanup.settings, "EXECUTION_COMMAND_TIMEOUT_MINUTES", 15)
+
+    session = _FakeSession()
+    monkeypatch.setitem(
+        sys.modules,
+        "app.core.database",
+        types.SimpleNamespace(sync_session_factory=lambda: session),
+    )
+    seen = {}
+
+    def fake_reconcile(current_session, *, now, timeout_minutes):
+        seen["session"] = current_session
+        seen["now"] = now
+        seen["timeout_minutes"] = timeout_minutes
+        return 2
+
+    monkeypatch.setattr(tasks_cleanup, "reconcile_stale_commands", fake_reconcile)
+
+    result = tasks_cleanup.reconcile_stale_execution_commands()
+
+    assert result == {"reconciled": 2, "status": "indeterminate"}
+    assert seen["session"] is session
+    assert seen["timeout_minutes"] == 15
+    assert seen["now"].tzinfo is timezone.utc
+    assert session.committed is True
+    assert session.rolled_back is False
+    assert session.closed is True
+
+
+def test_reconcile_expired_execution_run_leases_commits_and_closes_session(monkeypatch):
+    tasks_cleanup = _import_tasks_cleanup(monkeypatch)
+    monkeypatch.setattr(tasks_cleanup, "load_all_models", lambda: None)
+    session = _FakeSession()
+    monkeypatch.setitem(
+        sys.modules,
+        "app.core.database",
+        types.SimpleNamespace(sync_session_factory=lambda: session),
+    )
+    expected = {
+        "android": 1,
+        "case": 0,
+        "performance": 0,
+        "plan": 0,
+        "suite": 0,
+        "leases": 1,
+        "runs": 1,
+    }
+    monkeypatch.setattr(tasks_cleanup, "reconcile_expired_run_leases", lambda current, now: expected)
+
+    result = tasks_cleanup.reconcile_expired_execution_run_leases()
+
+    assert result == expected
+    assert session.committed is True
+    assert session.rolled_back is False
+    assert session.closed is True
+
+
 def test_cleanup_old_completed_runs_skip_when_disabled(monkeypatch):
     tasks_cleanup = _import_tasks_cleanup(monkeypatch)
     monkeypatch.setattr(tasks_cleanup.settings, "RUN_CLEANUP_ENABLED", False)

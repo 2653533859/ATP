@@ -274,6 +274,9 @@ interface StartupConfig {
   STALE_PENDING_CLEANUP_ENABLED: boolean
   STALE_PENDING_TIMEOUT_MINUTES: number
   STALE_PENDING_CLEANUP_INTERVAL_SECONDS: number
+  EXECUTION_RUN_LEASE_TTL_SECONDS: number
+  EXECUTION_RUN_LEASE_HEARTBEAT_SECONDS: number
+  EXECUTION_RUN_LEASE_RECONCILE_INTERVAL_SECONDS: number
   RUN_CLEANUP_ENABLED: boolean
   RUN_RETENTION_DAYS: number
   RUN_CLEANUP_BATCH_SIZE: number
@@ -358,6 +361,7 @@ interface StartupConfig {
   OTEL_TRACES_SAMPLER_ARG: number
   JAEGER_UI_URL: string
   VITE_BACKEND_ORIGIN: string
+  VITE_ENABLE_PROTOTYPE_DATA: boolean
 }
 
 type StartupProfile = 'local-all' | 'remote-infra' | 'android-agent' | 'performance-agent'
@@ -424,6 +428,7 @@ const defaultConfig: StartupConfig = {
   FIRST_ADMIN_USERNAME: 'parado', FIRST_ADMIN_PASSWORD: 'change_me_before_use', FIRST_ADMIN_EMAIL: 'admin@example.com', WEBHOOK_API_KEY: 'change_this_to_a_random_webhook_key', ENCRYPTION_KEY: '',
   CELERY_CONCURRENCY: 4, CELERY_QUEUES: 'default,android,mobile_special,ios,ai,maintenance,performance', SUITE_CHILD_TASK_TIMEOUT_SECONDS: 3600, WORKER_METRICS_PORT: 9091,
   FILE_RETENTION_DAYS: 30, STALE_PENDING_CLEANUP_ENABLED: true, STALE_PENDING_TIMEOUT_MINUTES: 120, STALE_PENDING_CLEANUP_INTERVAL_SECONDS: 600,
+  EXECUTION_RUN_LEASE_TTL_SECONDS: 90, EXECUTION_RUN_LEASE_HEARTBEAT_SECONDS: 30, EXECUTION_RUN_LEASE_RECONCILE_INTERVAL_SECONDS: 60,
   RUN_CLEANUP_ENABLED: true, RUN_RETENTION_DAYS: 90, RUN_CLEANUP_BATCH_SIZE: 500,
   NOTIFICATION_DELIVERY_CLEANUP_ENABLED: true, NOTIFICATION_DELIVERY_RETENTION_DAYS: 30,
   AUDIT_LOG_CLEANUP_ENABLED: false, AUDIT_LOG_RETENTION_DAYS: 365,
@@ -443,7 +448,7 @@ const defaultConfig: StartupConfig = {
   RATE_LIMIT_LOGIN: '5/minute', RATE_LIMIT_WEBHOOK: '30/minute', LOG_LEVEL: '', SLOW_QUERY_LOG_ENABLED: true, SLOW_QUERY_THRESHOLD_MS: 1000,
   STORAGE_ALERT_SIZE_GB: 0, STORAGE_ALERT_INTERVAL_SECONDS: 3600, STORAGE_ALERT_MAX_SCAN_OBJECTS: 100000, DASHBOARD_ALERT_DEFAULT_SUPPRESS_MIN: 60,
   DB_BACKUP_ENABLED: false, DB_BACKUP_RETAIN_DAILY: 7, DB_BACKUP_RETAIN_WEEKLY: 4, DB_BACKUP_PREFIX: 'pg-backups',
-  OTEL_EXPORTER_OTLP_ENDPOINT: '', OTEL_SERVICE_NAME: 'atp-backend', OTEL_TRACES_SAMPLER: 'parentbased_traceidratio', OTEL_TRACES_SAMPLER_ARG: 0.1, JAEGER_UI_URL: '', VITE_BACKEND_ORIGIN: '',
+  OTEL_EXPORTER_OTLP_ENDPOINT: '', OTEL_SERVICE_NAME: 'atp-backend', OTEL_TRACES_SAMPLER: 'parentbased_traceidratio', OTEL_TRACES_SAMPLER_ARG: 0.1, JAEGER_UI_URL: '', VITE_BACKEND_ORIGIN: '', VITE_ENABLE_PROTOTYPE_DATA: false,
 }
 
 const config = ref<StartupConfig>({ ...defaultConfig })
@@ -481,7 +486,7 @@ const sections: ConfigSection[] = [
     key: 'execution', titleKey: 'system_pages.startup_config.sections.execution.title', subtitleKey: 'system_pages.startup_config.sections.execution.subtitle', icon: GlobalOutlined,
     fields: [
       number('CELERY_CONCURRENCY'), textarea('CELERY_QUEUES'), number('SUITE_CHILD_TASK_TIMEOUT_SECONDS'), number('WORKER_METRICS_PORT', { max: 65535 }), number('FILE_RETENTION_DAYS'),
-      toggle('STALE_PENDING_CLEANUP_ENABLED'), number('STALE_PENDING_TIMEOUT_MINUTES'), number('STALE_PENDING_CLEANUP_INTERVAL_SECONDS'), toggle('RUN_CLEANUP_ENABLED'), number('RUN_RETENTION_DAYS'), number('RUN_CLEANUP_BATCH_SIZE'), toggle('NOTIFICATION_DELIVERY_CLEANUP_ENABLED'), number('NOTIFICATION_DELIVERY_RETENTION_DAYS', { min: 1, max: 3650 }), toggle('AUDIT_LOG_CLEANUP_ENABLED'), number('AUDIT_LOG_RETENTION_DAYS', { min: 1, max: 3650 }),
+      toggle('STALE_PENDING_CLEANUP_ENABLED'), number('STALE_PENDING_TIMEOUT_MINUTES'), number('STALE_PENDING_CLEANUP_INTERVAL_SECONDS'), number('EXECUTION_RUN_LEASE_TTL_SECONDS'), number('EXECUTION_RUN_LEASE_HEARTBEAT_SECONDS'), number('EXECUTION_RUN_LEASE_RECONCILE_INTERVAL_SECONDS'), toggle('RUN_CLEANUP_ENABLED'), number('RUN_RETENTION_DAYS'), number('RUN_CLEANUP_BATCH_SIZE'), toggle('NOTIFICATION_DELIVERY_CLEANUP_ENABLED'), number('NOTIFICATION_DELIVERY_RETENTION_DAYS', { min: 1, max: 3650 }), toggle('AUDIT_LOG_CLEANUP_ENABLED'), number('AUDIT_LOG_RETENTION_DAYS', { min: 1, max: 3650 }),
       toggle('ADB_SCAN_ENABLED'), number('ADB_SCAN_INTERVAL'), select('ADB_SCAN_MODE', [{ label: 'local', value: 'local' }, { label: 'worker', value: 'worker' }]), text('ANDROID_WORKER_ID'), text('ANDROID_WORKER_QUEUE'), text('ANDROID_WORKER_REGISTRY_PREFIX'), number('ANDROID_WORKER_HEARTBEAT_SECONDS'), number('ANDROID_WORKER_TTL_SECONDS'), toggle('ADB_RECONNECT_ENABLED'), number('ADB_RECONNECT_MAX_ATTEMPTS'), text('ADB_RECONNECT_BACKOFF_MS'), toggle('ADB_HEARTBEAT_ENABLED'), number('ADB_HEARTBEAT_INTERVAL_SEC'), number('ADB_HEARTBEAT_FAILURE_THRESHOLD'),
       number('CASE_SNAPSHOT_MAX_PER_CASE'), number('MOCK_STANDALONE_PORT', { max: 65535 }), select('WEB_RECORDER_MODE', [{ label: 'local', value: 'local' }, { label: 'worker', value: 'worker' }]), textarea('WEB_RECORDER_WORKER_QUEUE_PREFIX'), text('WEB_RECORDER_WORKER_ID'), number('WEB_RECORDER_WORKER_MAX_SESSIONS'), number('WEB_RECORDER_WORKER_HEARTBEAT_SECONDS'), number('WEB_RECORDER_WORKER_TTL_SECONDS'), number('WEB_RECORDER_COMMAND_TIMEOUT_SECONDS'), number('WEB_RECORDER_REPLY_TTL_SECONDS'), number('WEB_RECORDER_SESSION_TTL_SECONDS'), text('WEB_RECORDER_DISPLAY'),
     ],
@@ -495,7 +500,7 @@ const sections: ConfigSection[] = [
       text('RATE_LIMIT_LOGIN'), text('RATE_LIMIT_WEBHOOK'), select('LOG_LEVEL', [{ label: '(auto)', value: '' }, { label: 'DEBUG', value: 'DEBUG' }, { label: 'INFO', value: 'INFO' }, { label: 'WARNING', value: 'WARNING' }, { label: 'ERROR', value: 'ERROR' }]),
       toggle('SLOW_QUERY_LOG_ENABLED'), number('SLOW_QUERY_THRESHOLD_MS'), number('STORAGE_ALERT_SIZE_GB', { step: 0.1 }), number('STORAGE_ALERT_INTERVAL_SECONDS'), number('STORAGE_ALERT_MAX_SCAN_OBJECTS'), number('DASHBOARD_ALERT_DEFAULT_SUPPRESS_MIN'),
       toggle('DB_BACKUP_ENABLED'), number('DB_BACKUP_RETAIN_DAILY'), number('DB_BACKUP_RETAIN_WEEKLY'), text('DB_BACKUP_PREFIX'),
-      text('OTEL_EXPORTER_OTLP_ENDPOINT'), text('OTEL_SERVICE_NAME'), select('OTEL_TRACES_SAMPLER', [{ label: 'parentbased_traceidratio', value: 'parentbased_traceidratio' }, { label: 'always_on', value: 'always_on' }, { label: 'always_off', value: 'always_off' }]), number('OTEL_TRACES_SAMPLER_ARG', { min: 0, max: 1, step: 0.01 }), text('JAEGER_UI_URL'), text('VITE_BACKEND_ORIGIN'),
+      text('OTEL_EXPORTER_OTLP_ENDPOINT'), text('OTEL_SERVICE_NAME'), select('OTEL_TRACES_SAMPLER', [{ label: 'parentbased_traceidratio', value: 'parentbased_traceidratio' }, { label: 'always_on', value: 'always_on' }, { label: 'always_off', value: 'always_off' }]), number('OTEL_TRACES_SAMPLER_ARG', { min: 0, max: 1, step: 0.01 }), text('JAEGER_UI_URL'), text('VITE_BACKEND_ORIGIN'), toggle('VITE_ENABLE_PROTOTYPE_DATA'),
     ],
   },
 ]

@@ -11,7 +11,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from sqlalchemy import false, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -25,7 +25,7 @@ from app.models.plan import PlanRun, PlanRunStatus, ScheduleType, TestPlan
 from app.models.project import Module, Project
 from app.models.suite import SuiteRun, SuiteRunStatus, TestSuite
 from app.models.user import User, UserRole
-from app.models.user_project import ProjectRole
+from app.models.user_project import ProjectRole, UserProject
 from app.schemas.case import FailureDiagnosisOut, RunTriggerRequest
 from app.schemas.mobile_special import RunTriggerRequest as MobileRunTriggerRequest
 from app.schemas.performance import PerformanceRunTrigger
@@ -43,28 +43,28 @@ from app.schemas.workbench import (
     WorkbenchTaskType,
     WorkbenchTodoItem,
 )
+from app.services.execution_state import (
+    EXECUTION_STATE_POLICIES,
+    can_execute_action,
+    decide_execution_action,
+    execution_action_rejection_detail,
+)
+from app.services.execution_commands import (
+    claim_execution_command,
+    complete_execution_command,
+    fail_execution_command,
+    mark_execution_command_indeterminate,
+    normalize_execution_command_id,
+)
 from app.services.project_scope import scope_to_visible_projects
 from app.services.workbench_diagnosis import generate_workbench_failure_diagnosis
 
 router = APIRouter(tags=["工作台"])
 
 _TASK_TYPES = {"case", "suite", "plan", "android", "performance"}
-_ACTIVE_STATUSES = {"pending", "running", "cancelling"}
-_FAILED_STATUSES = {"failed", "error", "cancelled", "stopped"}
-_STATUS_VALUES_BY_TYPE = {
-    "case": {status.value for status in RunStatus},
-    "suite": {status.value for status in SuiteRunStatus},
-    "plan": {status.value for status in PlanRunStatus},
-    "android": {status.value for status in MobileRunStatus},
-    "performance": {status.value for status in PerformanceRunStatus},
-}
-_RETRYABLE_STATUSES = {
-    "case": {"failed", "error", "skipped"},
-    "suite": {"failed", "error"},
-    "plan": {"failed", "error"},
-    "android": {"failed", "stopped"},
-    "performance": {"failed", "cancelled"},
-}
+_ACTIVE_STATUSES = set().union(*(policy.active for policy in EXECUTION_STATE_POLICIES.values()))
+_FAILED_STATUSES = set().union(*(policy.failed for policy in EXECUTION_STATE_POLICIES.values()))
+_STATUS_VALUES_BY_TYPE = {domain: policy.statuses for domain, policy in EXECUTION_STATE_POLICIES.items()}
 StatusFilter = str | set[str] | None
 
 
@@ -121,13 +121,8 @@ def _task_item(
     metadata: dict | None = None,
 ) -> WorkbenchTaskItem:
     status = _enum_value(status_value)
-    can_retry = status in _RETRYABLE_STATUSES.get(task_type, set())
-    can_stop = task_type in {"android", "performance"} and status in {"pending", "running"}
-    if task_type == "android":
-        can_stop = status in {"pending", "running"}
-    if task_type == "performance":
-        can_retry = status in {"failed", "cancelled"}
-        can_stop = status in {"pending", "running"}
+    can_retry = can_execute_action(task_type, status, "retry")
+    can_stop = can_execute_action(task_type, status, "stop")
 
     return WorkbenchTaskItem(
         id=f"{task_type}:{run_id}",
@@ -381,7 +376,44 @@ async def _collect_tasks(
     page_end = offset + limit
     if len(collected) > page_end:
         has_more = True
-    return collected[offset:page_end], has_more
+    page = collected[offset:page_end]
+    await _apply_task_action_permissions(db, user, page)
+    return page, has_more
+
+
+async def _apply_task_action_permissions(
+    db: AsyncSession,
+    user: User,
+    tasks: list[WorkbenchTaskItem],
+) -> None:
+    """Mask state-level actions that the current user cannot actually execute."""
+    actionable_tasks = [task for task in tasks if task.can_retry or task.can_stop]
+    project_ids = {task.project_id for task in actionable_tasks if task.project_id is not None}
+    if not project_ids:
+        return
+
+    if user.role == UserRole.admin:
+        stmt = select(Project.id).where(Project.id.in_(project_ids), Project.status != "archived")
+    else:
+        stmt = (
+            select(UserProject.project_id)
+            .join(Project, Project.id == UserProject.project_id)
+            .where(
+                UserProject.user_id == user.id,
+                UserProject.project_id.in_(project_ids),
+                UserProject.role.in_([ProjectRole.owner, ProjectRole.editor]),
+                Project.status != "archived",
+            )
+        )
+    writable_project_ids = set((await db.execute(stmt)).scalars().all())
+    can_operate_special = user.role in {UserRole.admin, UserRole.engineer}
+    for task in actionable_tasks:
+        if task.project_id not in writable_project_ids:
+            task.can_retry = False
+            task.can_stop = False
+        elif task.task_type in {"android", "performance"} and not can_operate_special:
+            task.can_retry = False
+            task.can_stop = False
 
 
 async def _count_tasks(
@@ -731,6 +763,18 @@ async def _workbench_task_project_id(db: AsyncSession, task_type: WorkbenchTaskT
     return run.project_id if run else None
 
 
+async def _workbench_task_status(db: AsyncSession, task_type: WorkbenchTaskType, run_id: int) -> str | None:
+    model: Any = {
+        "case": TestRun,
+        "suite": SuiteRun,
+        "plan": PlanRun,
+        "android": MobileSpecialRun,
+        "performance": PerformanceRun,
+    }[task_type]
+    run: Any = await db.get(model, run_id)
+    return _enum_value(run.status) if run is not None else None
+
+
 @router.post(
     "/workbench/tasks/{task_type}/{run_id}/failure-diagnosis",
     response_model=FailureDiagnosisOut,
@@ -845,10 +889,11 @@ async def _retry_task(ref: WorkbenchTaskRef, db: AsyncSession, user: User) -> Wo
 
 def _ensure_retryable(ref: WorkbenchTaskRef, status_value: Any) -> None:
     current_status = _enum_value(status_value)
-    if current_status not in _RETRYABLE_STATUSES[ref.task_type]:
+    decision = decide_execution_action(ref.task_type, current_status, "retry")
+    if not decision.allowed:
         raise HTTPException(
             status_code=409,
-            detail=f"{ref.task_type} 任务当前状态为 {current_status}，不可重试",
+            detail=execution_action_rejection_detail(ref.task_type, current_status, "retry", decision),
         )
 
 
@@ -887,24 +932,101 @@ async def _execute_action(
     return await _stop_task(ref, db, user)
 
 
+async def _execute_idempotent_action(
+    action: WorkbenchAction,
+    ref: WorkbenchTaskRef,
+    db: AsyncSession,
+    user: User,
+) -> WorkbenchTaskActionOut:
+    command_id = normalize_execution_command_id(
+        ref.command_id,
+        action=action,
+        task_type=ref.task_type,
+        run_id=ref.run_id,
+    )
+    project_id = await _workbench_task_project_id(db, ref.task_type, ref.run_id)
+    if project_id is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    await assert_project_access(db, user, project_id, ProjectRole.editor)
+    if ref.task_type in {"android", "performance"} and user.role not in {UserRole.admin, UserRole.engineer}:
+        raise HTTPException(status_code=403, detail="专项任务操作需要工程师权限")
+    source_status = await _workbench_task_status(db, ref.task_type, ref.run_id)
+    if source_status is None:
+        raise HTTPException(status_code=404, detail="任务不存在")
+    claim = await claim_execution_command(
+        db,
+        user_id=user.id,
+        command_id=command_id,
+        action=action,
+        task_type=ref.task_type,
+        run_id=ref.run_id,
+        project_id=project_id,
+        source_status=source_status,
+    )
+    if claim.replay_response is not None:
+        return WorkbenchTaskActionOut.model_validate(
+            {**claim.replay_response, "command_id": command_id, "replayed": True}
+        )
+
+    try:
+        result = await _execute_action(action, ref, db, user)
+    except HTTPException as exc:
+        await fail_execution_command(
+            db,
+            claim.command,
+            status_code=exc.status_code,
+            detail=str(exc.detail),
+            username=user.username,
+        )
+        raise
+    except Exception:
+        await mark_execution_command_indeterminate(
+            db,
+            claim.command,
+            username=user.username,
+        )
+        raise
+
+    result.command_id = command_id
+    await complete_execution_command(
+        db,
+        claim.command,
+        response=result.model_dump(mode="json"),
+        username=user.username,
+    )
+    return result
+
+
 @router.post("/workbench/tasks/{task_type}/{run_id}/retry", response_model=WorkbenchTaskActionOut)
 async def retry_workbench_task(
     task_type: WorkbenchTaskType,
     run_id: int,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return await _execute_action("retry", WorkbenchTaskRef(task_type=task_type, run_id=run_id), db, current_user)
+    return await _execute_idempotent_action(
+        "retry",
+        WorkbenchTaskRef(task_type=task_type, run_id=run_id, command_id=idempotency_key),
+        db,
+        current_user,
+    )
 
 
 @router.post("/workbench/tasks/{task_type}/{run_id}/stop", response_model=WorkbenchTaskActionOut)
 async def stop_workbench_task(
     task_type: WorkbenchTaskType,
     run_id: int,
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    return await _execute_action("stop", WorkbenchTaskRef(task_type=task_type, run_id=run_id), db, current_user)
+    return await _execute_idempotent_action(
+        "stop",
+        WorkbenchTaskRef(task_type=task_type, run_id=run_id, command_id=idempotency_key),
+        db,
+        current_user,
+    )
 
 
 @router.post("/workbench/tasks/batch-action", response_model=WorkbenchBatchActionOut)
@@ -917,9 +1039,16 @@ async def batch_workbench_action(
     failures: list[dict] = []
     for ref in body.tasks:
         try:
-            results.append(await _execute_action(body.action, ref, db, current_user))
+            results.append(await _execute_idempotent_action(body.action, ref, db, current_user))
         except HTTPException as exc:
-            failures.append({"task_type": ref.task_type, "run_id": ref.run_id, "detail": str(exc.detail)})
+            failures.append(
+                {
+                    "task_type": ref.task_type,
+                    "run_id": ref.run_id,
+                    "command_id": ref.command_id,
+                    "detail": str(exc.detail),
+                }
+            )
         except Exception:
             await db.rollback()
             failures.append({"task_type": ref.task_type, "run_id": ref.run_id, "detail": "执行统一任务操作失败"})

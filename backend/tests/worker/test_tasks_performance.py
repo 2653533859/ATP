@@ -9,6 +9,7 @@ celery_app、AsyncSessionLocal 与 `run_k6_script`，覆盖五条状态迁移：
 from __future__ import annotations
 
 import asyncio
+from contextlib import nullcontext
 import importlib
 import sys
 import types
@@ -87,6 +88,7 @@ def perf_task(monkeypatch):
     from app.worker import tasks_performance
 
     monkeypatch.setattr(tasks_performance, "create_control_client", lambda: _FakeControlClient())
+    monkeypatch.setattr(tasks_performance, "execution_run_lease", lambda *_args, **_kwargs: nullcontext())
     yield tasks_performance
 
     sys.modules.pop("app.worker.tasks_performance", None)

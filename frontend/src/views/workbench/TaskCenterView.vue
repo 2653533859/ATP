@@ -481,7 +481,11 @@ function handleAction(task: WorkbenchTaskItem, action: WorkbenchAction) {
 
 async function executeBatch(action: WorkbenchAction, eligible: WorkbenchTaskItem[]) {
   try {
-    const result = await workbenchApi.batchAction(action, eligible.map((task) => ({ task_type: task.task_type, run_id: task.run_id })))
+    const result = await workbenchApi.batchAction(action, eligible.map((task) => ({
+      task_type: task.task_type,
+      run_id: task.run_id,
+      command_id: `workbench:${action}:${task.task_type}:${task.run_id}`,
+    })))
     if (result.failures.length) {
       message.warning(t('task_center.batch_partial', { processed: result.processed, failed: result.failures.length }))
     } else {

@@ -47,6 +47,20 @@ def test_primary_execution_tasks_do_not_auto_retry():
         assert "autoretry_for" not in task_line
 
 
+def test_long_running_execution_tasks_use_renewable_leases_instead_of_fixed_time_limits():
+    content = _read("backend/app/worker/celery_app.py")
+
+    for task_name in (
+        "run_test_case",
+        "run_test_suite",
+        "run_test_plan",
+        "run_mobile_special_task",
+        "run_performance_test",
+    ):
+        assert f'"{task_name}": {{"soft_time_limit": 0, "time_limit": 0}}' in content
+    assert '"reconcile_expired_execution_run_leases": {"queue": "maintenance"}' in content
+
+
 def test_retryable_maintenance_tasks_are_explicit():
     backup_content = _read("backend/app/worker/tasks_db_backup.py")
     healing_content = _read("backend/app/worker/tasks_healing.py")

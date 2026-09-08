@@ -14,6 +14,7 @@ from app.core.tracing import (
 )
 from app.worker.async_runner import run_async
 from app.services.api_hooks import ApiHookError, execute_api_hooks
+from app.services.execution_run_leases import ExecutionLeaseConflict, execution_run_lease
 
 logger = logging.getLogger(__name__)
 
@@ -483,7 +484,11 @@ def run_test_case(self, run_id: int, extra_vars: dict, trace_id: str | None = No
         finally:
             reset_trace_id(token)
 
-    run_async(_execute())
+    try:
+        with execution_run_lease("case", run_id, self):
+            run_async(_execute())
+    except ExecutionLeaseConflict as exc:
+        logger.warning("Skipped duplicate case run delivery %s: %s", run_id, exc)
 
 
 async def _execute_parameterized(db, parent_run, case, extra_vars: dict) -> None:
@@ -811,7 +816,11 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict, trace_id: str | No
         finally:
             reset_trace_id(token)
 
-    run_async(_execute())
+    try:
+        with execution_run_lease("suite", suite_run_id, self):
+            run_async(_execute())
+    except ExecutionLeaseConflict as exc:
+        logger.warning("Skipped duplicate suite run delivery %s: %s", suite_run_id, exc)
 
 
 @celery_app.task(bind=True, name="run_test_plan")
@@ -1081,7 +1090,11 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
         finally:
             reset_trace_id(token)
 
-    run_async(_execute())
+    try:
+        with execution_run_lease("plan", plan_run_id, self):
+            run_async(_execute())
+    except ExecutionLeaseConflict as exc:
+        logger.warning("Skipped duplicate plan run delivery %s: %s", plan_run_id, exc)
 
 
 async def _execute_suite_inline(db, suite_run, suite, extra_vars, *, execution_queue: str = "default"):

@@ -72,11 +72,14 @@ class WorkbenchTaskActionOut(BaseModel):
     new_run_id: int | None = None
     status: str
     message: str
+    command_id: str = ""
+    replayed: bool = False
 
 
 class WorkbenchTaskRef(BaseModel):
     task_type: WorkbenchTaskType
     run_id: int = Field(ge=1)
+    command_id: str | None = Field(default=None, min_length=1, max_length=128)
 
 
 class WorkbenchBatchActionIn(BaseModel):

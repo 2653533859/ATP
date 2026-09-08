@@ -32,8 +32,10 @@ class _FakeDB:
         self.results = list(results or [])
         self.objects = dict(objects or {})
         self.rollback_count = 0
+        self.statements = []
 
-    async def execute(self, _statement):
+    async def execute(self, statement):
+        self.statements.append(statement)
         return self.results.pop(0) if self.results else _FakeResult()
 
     async def get(self, model, key):
@@ -134,11 +136,69 @@ def test_collect_tasks_applies_offset_after_merging_domains(monkeypatch):
     for task_type in task_types:
         monkeypatch.setattr(workbench, f"_collect_{task_type}_tasks", collector(task_type))
 
-    items, has_more = asyncio.run(workbench._collect_tasks(_FakeDB(), types.SimpleNamespace(), None, None, None, 2, 2))
+    user = types.SimpleNamespace(id=1, role=UserRole.admin)
+    items, has_more = asyncio.run(workbench._collect_tasks(_FakeDB(), user, None, None, None, 2, 2))
 
     assert seen_limits == [4] * len(task_types)
     assert [item.run_id for item in items] == [2, 10]
     assert has_more is True
+
+
+def test_task_actions_are_hidden_for_project_viewers():
+    task = _task("case", "failed")
+    db = _FakeDB([_FakeResult([])])
+    user = types.SimpleNamespace(id=7, role=UserRole.viewer)
+
+    asyncio.run(workbench._apply_task_action_permissions(db, user, [task]))
+
+    assert task.can_retry is False
+    assert task.can_stop is False
+
+
+def test_project_editor_can_retry_regular_tasks_but_needs_engineer_role_for_special_tasks():
+    case = _task("case", "failed")
+    android = _task("android", "stopped")
+    performance = _task("performance", "failed")
+    db = _FakeDB([_FakeResult([1])])
+    user = types.SimpleNamespace(id=7, role=UserRole.tester)
+
+    asyncio.run(workbench._apply_task_action_permissions(db, user, [case, android, performance]))
+
+    assert case.can_retry is True
+    assert android.can_retry is False
+    assert performance.can_retry is False
+
+
+def test_engineer_project_editor_can_operate_special_tasks():
+    android = _task("android", "stopped")
+    performance = _task("performance", "running")
+    db = _FakeDB([_FakeResult([1])])
+    user = types.SimpleNamespace(id=8, role=UserRole.engineer)
+
+    asyncio.run(workbench._apply_task_action_permissions(db, user, [android, performance]))
+
+    assert android.can_retry is True
+    assert performance.can_stop is True
+
+
+def test_archived_project_hides_actions_even_from_admin():
+    task = _task("suite", "failed")
+    db = _FakeDB([_FakeResult([])])
+    user = types.SimpleNamespace(id=1, role=UserRole.admin)
+
+    asyncio.run(workbench._apply_task_action_permissions(db, user, [task]))
+
+    assert task.can_retry is False
+
+
+def test_task_permission_mask_skips_query_when_page_has_no_actions():
+    task = _task("case", "passed")
+    db = _FakeDB()
+    user = types.SimpleNamespace(id=1, role=UserRole.admin)
+
+    asyncio.run(workbench._apply_task_action_permissions(db, user, [task]))
+
+    assert db.statements == []
 
 
 def test_retry_guard_rejects_non_retryable_status():
@@ -329,6 +389,179 @@ def test_retry_endpoint_does_not_dispatch_passed_run(monkeypatch):
         asyncio.run(workbench._retry_task(WorkbenchTaskRef(task_type="case", run_id=9), db, user))
 
     assert exc.value.status_code == 409
+
+
+def test_idempotent_action_replays_completed_response_without_dispatch(monkeypatch):
+    db = _FakeDB()
+    user = types.SimpleNamespace(id=7, username="tester", role=UserRole.tester)
+    seen = {"dispatch": 0}
+
+    async def project_id(*_args):
+        return 1
+
+    async def task_status(*_args):
+        return "failed"
+
+    async def claim(*_args, **_kwargs):
+        return types.SimpleNamespace(
+            command=types.SimpleNamespace(),
+            replay_response={
+                "action": "retry",
+                "task_type": "case",
+                "run_id": 9,
+                "new_run_id": 10,
+                "status": "pending",
+                "message": "已创建新的执行任务",
+                "command_id": "workbench:retry:case:9",
+                "replayed": False,
+            },
+        )
+
+    async def dispatch(*_args):
+        seen["dispatch"] += 1
+
+    monkeypatch.setattr(workbench, "_workbench_task_project_id", project_id)
+    monkeypatch.setattr(workbench, "_workbench_task_status", task_status)
+    monkeypatch.setattr(workbench, "claim_execution_command", claim)
+    monkeypatch.setattr(workbench, "_execute_action", dispatch)
+
+    result = asyncio.run(
+        workbench._execute_idempotent_action(
+            "retry",
+            WorkbenchTaskRef(task_type="case", run_id=9),
+            db,
+            user,
+        )
+    )
+
+    assert result.new_run_id == 10
+    assert result.replayed is True
+    assert seen["dispatch"] == 0
+
+
+def test_idempotent_action_completes_claim_after_dispatch(monkeypatch):
+    db = _FakeDB()
+    user = types.SimpleNamespace(id=7, username="tester", role=UserRole.tester)
+    command = types.SimpleNamespace()
+    completed = {}
+
+    async def project_id(*_args):
+        return 1
+
+    async def task_status(*_args):
+        return "failed"
+
+    async def claim(*_args, **_kwargs):
+        return types.SimpleNamespace(command=command, replay_response=None)
+
+    async def dispatch(*_args):
+        return workbench.WorkbenchTaskActionOut(
+            action="retry",
+            task_type="case",
+            run_id=9,
+            new_run_id=10,
+            status="pending",
+            message="已创建新的执行任务",
+        )
+
+    async def complete(_db, claimed, **kwargs):
+        completed["command"] = claimed
+        completed.update(kwargs)
+
+    monkeypatch.setattr(workbench, "_workbench_task_project_id", project_id)
+    monkeypatch.setattr(workbench, "_workbench_task_status", task_status)
+    monkeypatch.setattr(workbench, "claim_execution_command", claim)
+    monkeypatch.setattr(workbench, "_execute_action", dispatch)
+    monkeypatch.setattr(workbench, "complete_execution_command", complete)
+
+    result = asyncio.run(
+        workbench._execute_idempotent_action(
+            "retry",
+            WorkbenchTaskRef(task_type="case", run_id=9),
+            db,
+            user,
+        )
+    )
+
+    assert result.command_id == "workbench:retry:case:9"
+    assert completed["command"] is command
+    assert completed["response"]["new_run_id"] == 10
+
+
+def test_idempotent_action_checks_access_before_replaying(monkeypatch):
+    db = _FakeDB()
+    user = types.SimpleNamespace(id=7, username="viewer", role=UserRole.viewer)
+
+    async def project_id(*_args):
+        return 1
+
+    async def deny_access(*_args, **_kwargs):
+        raise HTTPException(status_code=403, detail="项目权限不足")
+
+    async def must_not_claim(*_args, **_kwargs):
+        pytest.fail("无权限请求不得读取或重放既有命令")
+
+    monkeypatch.setattr(workbench, "_workbench_task_project_id", project_id)
+    monkeypatch.setattr(workbench, "assert_project_access", deny_access)
+    monkeypatch.setattr(workbench, "claim_execution_command", must_not_claim)
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            workbench._execute_idempotent_action(
+                "retry",
+                WorkbenchTaskRef(task_type="case", run_id=9),
+                db,
+                user,
+            )
+        )
+
+    assert exc.value.status_code == 403
+
+
+def test_unexpected_dispatch_failure_is_marked_indeterminate(monkeypatch):
+    db = _FakeDB()
+    user = types.SimpleNamespace(id=7, username="tester", role=UserRole.tester)
+    command = types.SimpleNamespace()
+    marked = {}
+
+    async def project_id(*_args):
+        return 1
+
+    async def task_status(*_args):
+        return "failed"
+
+    async def allow_access(*_args, **_kwargs):
+        return None
+
+    async def claim(*_args, **_kwargs):
+        return types.SimpleNamespace(command=command, replay_response=None)
+
+    async def dispatch(*_args):
+        raise RuntimeError("connection dropped after dispatch")
+
+    async def mark(_db, claimed, **kwargs):
+        marked["command"] = claimed
+        marked.update(kwargs)
+
+    monkeypatch.setattr(workbench, "_workbench_task_project_id", project_id)
+    monkeypatch.setattr(workbench, "_workbench_task_status", task_status)
+    monkeypatch.setattr(workbench, "assert_project_access", allow_access)
+    monkeypatch.setattr(workbench, "claim_execution_command", claim)
+    monkeypatch.setattr(workbench, "_execute_action", dispatch)
+    monkeypatch.setattr(workbench, "mark_execution_command_indeterminate", mark)
+
+    with pytest.raises(RuntimeError, match="connection dropped"):
+        asyncio.run(
+            workbench._execute_idempotent_action(
+                "retry",
+                WorkbenchTaskRef(task_type="case", run_id=9),
+                db,
+                user,
+            )
+        )
+
+    assert marked["command"] is command
+    assert marked["username"] == "tester"
 
 
 def test_diagnosis_endpoint_scopes_and_dispatches_non_case_task(monkeypatch):

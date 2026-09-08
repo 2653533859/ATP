@@ -6,6 +6,7 @@ executor 路由与 .delay 边界按测试注入；config 合并/设备解析/调
 """
 
 import asyncio
+from contextlib import nullcontext
 import importlib
 import sys
 import types
@@ -137,6 +138,13 @@ def _stub_control_client(monkeypatch):
     """任务路由测试不得连接开发机上的真实 Redis。"""
 
     monkeypatch.setattr(tms, "create_control_client", lambda: _FakeControlClient())
+
+
+@pytest.fixture(autouse=True)
+def _stub_execution_run_lease(monkeypatch):
+    """租约本身由 service 单测覆盖；这里隔离任务体的异步数据库缝。"""
+
+    monkeypatch.setattr(tms, "execution_run_lease", lambda *_args, **_kwargs: nullcontext())
 
 
 # ── 纯 helper ───────────────────────────────────────────────

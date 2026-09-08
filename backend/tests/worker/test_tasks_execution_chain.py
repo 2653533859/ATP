@@ -9,6 +9,7 @@
 """
 
 import asyncio
+from contextlib import nullcontext
 import importlib
 import sys
 import types
@@ -62,6 +63,14 @@ sys.modules["app.models.bootstrap"] = _REAL_BOOTSTRAP
 sys.modules["app.core.tracing"] = _REAL_TRACING
 sys.modules["app.worker.case_dispatch"] = _REAL_DISPATCH
 sys.modules["app.core.encryption"] = _REAL_ENCRYPTION
+
+
+@pytest.fixture(autouse=True)
+def _stub_execution_run_lease(monkeypatch):
+    """执行链测试聚焦领域逻辑；租约生命周期由独立 service 用例覆盖。"""
+
+    monkeypatch.setattr(tasks, "execution_run_lease", lambda *_args, **_kwargs: nullcontext())
+
 
 # _create_case_run/_execute_plan_suite 会实例化真实 ORM 模型（TestRun/SuiteRun/PlanRun），
 # 需要完整的 mapper 注册（Project 等关系模型），因此恢复后真正加载一次。

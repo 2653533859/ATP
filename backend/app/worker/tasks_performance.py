@@ -32,6 +32,7 @@ from app.services.performance_executor import (
 from app.services.performance_sharding import aggregate_performance_summaries
 from app.services.performance_notifications import build_performance_notification_summary
 from app.services.performance_metric_boundary import build_metric_boundary
+from app.services.execution_run_leases import ExecutionLeaseConflict, execution_run_lease
 from app.services.performance_dataset import (
     PerformanceDatasetBindingError,
     load_dataset_rows,
@@ -426,7 +427,11 @@ def run_performance_test(self, run_id: int):
             else:
                 await _notify_performance_run(db, run, test, metric_samples)
 
-    run_async(_execute())
+    try:
+        with execution_run_lease("performance", run_id, self):
+            run_async(_execute())
+    except ExecutionLeaseConflict as exc:
+        logger.warning("Skipped duplicate performance run delivery %s: %s", run_id, exc)
 
 
 @celery_app.task(bind=True, name="heartbeat_performance_node")

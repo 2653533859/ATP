@@ -87,9 +87,12 @@ class _FakeDB:
         self.added = []
         self.deleted = []
         self.commits = 0
+        self.locked_gets = []
         self._next_id = 900
 
-    async def get(self, model, pk):
+    async def get(self, model, pk, **kwargs):
+        if kwargs.get("with_for_update"):
+            self.locked_gets.append((model.__name__, pk))
         return self.objects.get((model.__name__, pk))
 
     def add(self, obj):
@@ -132,8 +135,8 @@ def access_recorder(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _isolate_route_behavior_from_run_access_and_redis(monkeypatch):
-    async def get_run(db, _user, run_id, _role=None):
-        run = await db.get(MobileSpecialRun, run_id)
+    async def get_run(db, _user, run_id, _role=None, *, for_update=False):
+        run = await db.get(MobileSpecialRun, run_id, with_for_update=for_update)
         if run is None:
             raise HTTPException(status_code=404, detail="Run not found")
         return run
@@ -582,19 +585,31 @@ def test_trigger_task_run_rejects_apk_from_another_project(access_recorder, monk
     assert db.added == []
 
 
-def test_stop_run_transitions_and_guards():
+def test_stop_run_transitions_and_guards(monkeypatch):
     run = _run(status=RunStatus.running)
     db = _FakeDB({("MobileSpecialRun", 10): run})
+    requested = []
+    monkeypatch.setattr(ms, "request_cancel", requested.append)
 
     stopped = asyncio.run(ms.stop_run(10, db=db))
 
     assert stopped.status is RunStatus.stopped
     assert stopped.finished_at is not None
+    assert requested == [10]
+    assert db.locked_gets == [("MobileSpecialRun", 10)]
+
+    with pytest.raises(HTTPException) as repeated:
+        asyncio.run(ms.stop_run(10, db=db))
+    assert repeated.value.status_code == 409
+    assert repeated.value.detail == "android 任务当前状态为 stopped：当前状态不支持停止"
+    assert requested == [10]
+    assert db.commits == 1
+    assert db.locked_gets == [("MobileSpecialRun", 10), ("MobileSpecialRun", 10)]
 
     done = _run(run_id=11, status=RunStatus.completed)
     with pytest.raises(HTTPException) as exc:
         asyncio.run(ms.stop_run(11, db=_FakeDB({("MobileSpecialRun", 11): done})))
-    assert exc.value.status_code == 400
+    assert exc.value.status_code == 409
 
     with pytest.raises(HTTPException):
         asyncio.run(ms.stop_run(404, db=_FakeDB()))

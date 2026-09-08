@@ -4494,6 +4494,9 @@ export default {
         STALE_PENDING_CLEANUP_ENABLED: 'Clean up executions stuck in pending state',
         STALE_PENDING_TIMEOUT_MINUTES: 'Minutes before a pending execution is considered stale',
         STALE_PENDING_CLEANUP_INTERVAL_SECONDS: 'Interval in seconds for stale pending scans',
+        EXECUTION_RUN_LEASE_TTL_SECONDS: 'Execution Worker lease expiry in seconds',
+        EXECUTION_RUN_LEASE_HEARTBEAT_SECONDS: 'Execution Worker lease renewal interval in seconds',
+        EXECUTION_RUN_LEASE_RECONCILE_INTERVAL_SECONDS: 'Interval in seconds for expired execution lease recovery',
         RUN_CLEANUP_ENABLED: 'Enable scheduled cleanup of terminal run records',
         RUN_RETENTION_DAYS: 'Retention in days for terminal runs and their artifacts',
         RUN_CLEANUP_BATCH_SIZE: 'Maximum run records removed in one cleanup batch',
@@ -4578,6 +4581,7 @@ export default {
         OTEL_TRACES_SAMPLER_ARG: 'Trace sampling ratio argument from 0 to 1',
         JAEGER_UI_URL: 'Jaeger UI address for opening trace details',
         VITE_BACKEND_ORIGIN: 'Backend origin used by the frontend in dev mode; blank uses the default',
+        VITE_ENABLE_PROTOTYPE_DATA: 'Enable sample data only for isolated visual prototypes; never bypass authentication',
       },
     },
     environment: {

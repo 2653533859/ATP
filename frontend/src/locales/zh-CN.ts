@@ -4478,6 +4478,9 @@ export default {
         STALE_PENDING_CLEANUP_ENABLED: '是否清理长时间停留在 pending 的执行记录',
         STALE_PENDING_TIMEOUT_MINUTES: 'pending 执行超过多久后视为过期（分钟）',
         STALE_PENDING_CLEANUP_INTERVAL_SECONDS: '过期 pending 扫描间隔（秒）',
+        EXECUTION_RUN_LEASE_TTL_SECONDS: '执行 Worker 租约失效时间（秒）',
+        EXECUTION_RUN_LEASE_HEARTBEAT_SECONDS: '执行 Worker 租约续期间隔（秒）',
+        EXECUTION_RUN_LEASE_RECONCILE_INTERVAL_SECONDS: '失联执行租约回收扫描间隔（秒）',
         RUN_CLEANUP_ENABLED: '是否启用终态运行记录的定期清理',
         RUN_RETENTION_DAYS: '终态运行记录及其产物的保留天数',
         RUN_CLEANUP_BATCH_SIZE: '每批最多清理的运行记录数量',
@@ -4552,6 +4555,7 @@ export default {
         OTEL_TRACES_SAMPLER_ARG: 'trace 采样比例参数（0 到 1）',
         JAEGER_UI_URL: 'Jaeger UI 地址，用于打开链路详情',
         VITE_BACKEND_ORIGIN: '前端开发模式请求的后端地址；留空使用默认地址',
+        VITE_ENABLE_PROTOTYPE_DATA: '仅在隔离的视觉原型中启用示例数据；不得用于绕过鉴权',
       },
     },
     environment: {

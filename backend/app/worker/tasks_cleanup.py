@@ -18,6 +18,8 @@ from app.services.storage_cleanup import (
     preview_storage_cleanup,
 )
 from app.services.run_retention import execute_old_runs_cleanup
+from app.services.execution_commands import reconcile_stale_execution_commands as reconcile_stale_commands
+from app.services.execution_run_leases import reconcile_expired_execution_run_leases as reconcile_expired_run_leases
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +158,65 @@ def cleanup_stale_pending_runs():
         session.rollback()
         logger.exception("Stale pending cleanup task failed")
         return {"test_runs": 0, "suite_runs": 0, "plan_runs": 0, "total": 0}
+    finally:
+        session.close()
+
+
+@celery_app.task(name="reconcile_stale_execution_commands")
+def reconcile_stale_execution_commands():
+    """Turn abandoned command claims into auditable, non-replayable outcomes."""
+    from app.core.database import sync_session_factory
+
+    load_all_models()
+    session = sync_session_factory()
+    try:
+        reconciled = reconcile_stale_commands(
+            session,
+            now=datetime.now(timezone.utc),
+            timeout_minutes=settings.EXECUTION_COMMAND_TIMEOUT_MINUTES,
+        )
+        session.commit()
+        if reconciled:
+            logger.warning(
+                "Marked %d stale execution command(s) as indeterminate after %dmin",
+                reconciled,
+                settings.EXECUTION_COMMAND_TIMEOUT_MINUTES,
+            )
+        return {"reconciled": reconciled, "status": "indeterminate"}
+    except Exception:
+        session.rollback()
+        logger.exception("Execution command reconciliation failed")
+        return {"reconciled": 0, "status": "error"}
+    finally:
+        session.close()
+
+
+@celery_app.task(name="reconcile_expired_execution_run_leases")
+def reconcile_expired_execution_run_leases():
+    """Recover non-terminal runs whose owning worker stopped heartbeating."""
+    from app.core.database import sync_session_factory
+
+    load_all_models()
+    session = sync_session_factory()
+    try:
+        counts = reconcile_expired_run_leases(session, now=datetime.now(timezone.utc))
+        session.commit()
+        if counts["leases"]:
+            logger.warning("Reconciled expired execution run leases: %s", counts)
+        return counts
+    except Exception:
+        session.rollback()
+        logger.exception("Execution run lease reconciliation failed")
+        return {
+            "android": 0,
+            "case": 0,
+            "performance": 0,
+            "plan": 0,
+            "suite": 0,
+            "leases": 0,
+            "runs": 0,
+            "status": "error",
+        }
     finally:
         session.close()
 
