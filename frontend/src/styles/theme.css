@@ -15,18 +15,18 @@
   --c-primary-glow: rgba(22, 119, 255, 0.2);
 
   /* 中性 — 背景 / 卡片 / 边框 (Reference Light) */
-  --c-bg-body: #f5f5f5;
+  --c-bg-body: #f8fafc;
   --c-bg-elevated: #ffffff;
-  --c-bg-subtle: #f0f3fc;
-  --c-bg-muted: #e6ebf5;
-  --c-border: rgba(112, 107, 107, 0.15);
-  --c-border-subtle: rgba(112, 107, 107, 0.08);
-  --c-border-strong: rgba(112, 107, 107, 0.25);
+  --c-bg-subtle: #f1f5f9;
+  --c-bg-muted: #e2e8f0;
+  --c-border: #e2e8f0;
+  --c-border-subtle: #f1f5f9;
+  --c-border-strong: #cbd5e1;
 
   /* 文字三级 */
-  --c-text: #111017;
-  --c-text-secondary: #595959;
-  --c-text-tertiary: #8c8c8c;
+  --c-text: #0f172a;
+  --c-text-secondary: #475569;
+  --c-text-tertiary: #94a3b8;
 
   /* 语义色 — 对齐参考页 Ant Design 色阶 */
   --c-success: #52c41a;
@@ -69,13 +69,13 @@
   --space-5: 24px;
   --space-6: 32px;
 
-  /* 框架 — 侧栏 / 顶栏 */
-  --c-sider-bg: #f0f3fc;
-  --c-sider-border: rgba(112, 107, 107, 0.15);
-  --c-sider-text: #595959;
-  --c-sider-text-active: #ffffff;
-  --c-sider-active-bg: #1677ff;
-  --c-header-bg: #f0f3fc;
+  /* 框架 — 侧栏 / 顶栏 (简约白极简主题) */
+  --c-sider-bg: #ffffff;
+  --c-sider-border: #f1f5f9;
+  --c-sider-text: #64748b;
+  --c-sider-text-active: #2563eb;
+  --c-sider-active-bg: #eff6ff;
+  --c-header-bg: #ffffff;
 }
 
 :root[data-theme='dark'] {

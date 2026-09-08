@@ -92,6 +92,7 @@ function mountDashboard() {
         AlertOutlined: true,
         CheckCircleOutlined: true,
         ClockCircleOutlined: true,
+        DashboardOutlined: true,
         DownloadOutlined: true,
         ExclamationCircleOutlined: true,
         FileSearchOutlined: true,

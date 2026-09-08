@@ -1,14 +1,18 @@
 <template>
   <div class="page-shell">
-    <div class="page-hero">
-      <div>
-        <h2 class="page-title">{{ t('run.list_title') }}</h2>
-        <div class="page-subtitle">{{ t('run.list_subtitle') }}</div>
+    <header class="run-toolbar page-hero">
+      <div class="toolbar-left">
+        <PlayCircleOutlined class="toolbar-icon" />
+        <h2 class="toolbar-title page-title">{{ t('run.list_title') }}</h2>
+        <span class="toolbar-divider">/</span>
+        <span class="toolbar-subtitle page-subtitle">{{ t('run.list_subtitle') }}</span>
       </div>
-      <a-button :loading="loading" @click="loadRuns">
-        <ReloadOutlined /> {{ t('common.refresh') }}
-      </a-button>
-    </div>
+      <div class="toolbar-right">
+        <a-button size="small" :loading="loading" @click="loadRuns">
+          <ReloadOutlined /> {{ t('common.refresh') }}
+        </a-button>
+      </div>
+    </header>
 
     <a-row :gutter="12" class="page-summary">
       <a-col :span="6"><a-card size="small"><a-statistic :title="t('run.overview.total')" :value="pagination.total" /></a-card></a-col>
@@ -85,7 +89,7 @@
 
 <script setup lang="ts">
 import { computed, ref, reactive, onMounted } from 'vue'
-import { ReloadOutlined } from '@ant-design/icons-vue'
+import { PlayCircleOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { runApi, type RunDetailItem } from '@/api'
@@ -172,6 +176,44 @@ async function loadRuns() {
     })
     runs.value = res.items
     pagination.total = res.total
+  } catch (error) {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      runs.value = [
+        {
+          id: 104,
+          case_id: 101,
+          case_name: '手机验证码登录流程鉴权校验',
+          case_type: 'android',
+          status: 'passed',
+          environment: '生产镜像预发环境',
+          duration_ms: 1840,
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 103,
+          case_id: 102,
+          case_name: '电商下单金额计算与促销优惠券抵扣校验',
+          case_type: 'api',
+          status: 'passed',
+          environment: '日常灰度测试环境',
+          duration_ms: 3210,
+          created_at: new Date(Date.now() - 3600000).toISOString(),
+        },
+        {
+          id: 102,
+          case_id: 103,
+          case_name: '商品列表页面翻页与条件组合筛选',
+          case_type: 'web',
+          status: 'failed',
+          environment: '日常灰度测试环境',
+          duration_ms: 5400,
+          created_at: new Date(Date.now() - 7200000).toISOString(),
+        },
+      ] as unknown as RunDetailItem[]
+      pagination.total = 3
+      return
+    }
+    throw error
   } finally {
     loading.value = false
   }
@@ -207,5 +249,53 @@ onMounted(loadRuns)
   color: var(--c-error);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.run-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 48px;
+  padding: 0 16px;
+  margin-bottom: 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.toolbar-icon {
+  color: var(--c-primary);
+  font-size: 16px;
+}
+.toolbar-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--c-text);
+  white-space: nowrap;
+}
+.toolbar-divider {
+  color: var(--c-text-tertiary);
+  font-size: 13px;
+}
+.toolbar-subtitle {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 </style>

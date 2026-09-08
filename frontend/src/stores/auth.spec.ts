@@ -16,6 +16,7 @@ const mockedAuthApi = vi.mocked(authApi)
 
 describe('auth store', () => {
   beforeEach(() => {
+    vi.unstubAllEnvs()
     setActivePinia(createPinia())
   })
 
@@ -60,5 +61,14 @@ describe('auth store', () => {
     expect(store.refreshToken).toBeNull()
     expect(store.user).toBeNull()
     expect(store.initialized).toBe(true)
+  })
+
+  it('does not synthesize an admin when the development backend session check fails', async () => {
+    vi.stubEnv('MODE', 'development')
+    mockedAuthApi.me.mockRejectedValue(new Error('backend unavailable'))
+
+    const store = useAuthStore()
+    expect(await store.fetchMe()).toBe(false)
+    expect(store.user).toBeNull()
   })
 })

@@ -66,11 +66,6 @@ function mountDeviceList() {
           emits: ['click'],
           setup: (_p, { slots, emit }) => () => h('button', { onClick: () => emit('click') }, slots.default?.()),
         }),
-        AStatistic: defineComponent({
-          name: 'AStatistic',
-          props: ['value', 'title'],
-          setup: (props) => () => h('span', { 'data-test': 'stat', 'data-title': props.title }, String(props.value)),
-        }),
         ABadge: defineComponent({
           name: 'ABadge',
           props: ['status', 'text'],
@@ -105,6 +100,7 @@ const DEVICES = [
 ]
 
 beforeEach(() => {
+  vi.unstubAllEnvs()
   vi.clearAllMocks()
   deviceList.mockResolvedValue(DEVICES)
   deviceWorkers.mockResolvedValue([])
@@ -120,10 +116,32 @@ describe('DeviceList mount', () => {
     await flushPromises()
 
     expect(deviceList).toHaveBeenCalledWith(undefined)
-    const stats = wrapper.findAll('[data-test="stat"]').map((s) => s.text())
-    expect(stats).toContain('1') // online / busy / offline 各 1
+    const stats = wrapper.findAll('.pill-count').map((item) => item.text())
+    expect(stats).toEqual(['3', '1', '1', '1'])
     const badges = wrapper.findAll('[data-test="badge"]').map((b) => b.attributes('data-status'))
     expect(badges).toEqual(expect.arrayContaining(['success', 'default', 'processing']))
+  })
+
+  it('keeps a real empty device inventory empty when prototype data is disabled', async () => {
+    vi.stubEnv('VITE_ENABLE_PROTOTYPE_DATA', 'false')
+    deviceList.mockResolvedValue([])
+
+    const wrapper = mountDeviceList()
+    await flushPromises()
+
+    expect(wrapper.findAll('.device-card-item')).toHaveLength(0)
+    expect(wrapper.find('.empty-matrix-card').exists()).toBe(true)
+  })
+
+  it('does not display fabricated owner, agent, battery, or device defaults', async () => {
+    deviceList.mockResolvedValue([{ ...DEVICES[0], os_version: null, resolution: null }])
+    const wrapper = mountDeviceList()
+    await flushPromises()
+
+    expect(wrapper.find('.user-val').text()).toBe('--')
+    expect(wrapper.find('.agent-val').text()).toBe('--')
+    expect(wrapper.find('.device-specs-sheet').text()).not.toContain('85%')
+    expect(wrapper.find('.device-specs-sheet').text()).not.toContain('1080 × 2376')
   })
 
   it('filters devices by keyword across name/brand/model/serial', async () => {

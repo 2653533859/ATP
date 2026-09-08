@@ -187,6 +187,9 @@ export default {
     theme_dark: '深色',
     theme_toggle: '切换主题',
     project_context: '项目 #{id}',
+    project_unselected: '选择项目',
+    prototype_data_warning: '原型数据模式已启用，当前页面可能显示演示数据，业务写操作已禁用。',
+    project_switched: '已切换至项目：{name}',
     role_engineer: '工程师',
     worker: {
       title: 'Web 录制 Worker',

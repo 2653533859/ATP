@@ -1,13 +1,16 @@
 <template>
   <div class="page-shell suite-page">
-    <div>
-      <h2 class="page-title">{{ t('suite.title') }}</h2>
-      <div class="page-subtitle">{{ t('suite.subtitle') }}</div>
-    </div>
-    <div class="toolbar">
-      <a-space>
+    <header class="suite-toolbar toolbar">
+      <div class="toolbar-left">
+        <FolderOpenOutlined class="toolbar-icon" />
+        <h2 class="toolbar-title page-title">{{ t('suite.title') }}</h2>
+        <span class="toolbar-divider">/</span>
+        <span class="toolbar-subtitle page-subtitle">{{ t('suite.subtitle') }}</span>
+      </div>
+      <div class="toolbar-right">
         <a-select
           v-model:value="projectFilter"
+          size="small"
           :placeholder="t('suite.select_project')"
           allow-clear
           style="width: 200px"
@@ -15,11 +18,11 @@
         >
           <a-select-option v-for="p in projects" :key="p.id" :value="p.id">{{ p.name }}</a-select-option>
         </a-select>
-      </a-space>
-      <a-button type="primary" @click="openCreate" :disabled="!projectFilter">
-        <PlusOutlined /> {{ t('suite.new') }}
-      </a-button>
-    </div>
+        <a-button type="primary" size="small" @click="openCreate" :disabled="!projectFilter">
+          <PlusOutlined /> {{ t('suite.new') }}
+        </a-button>
+      </div>
+    </header>
 
     <BatchOperationBar :selected-count="selectedRowKeys.length" @cancel="selectedRowKeys = []">
       <a-button size="small" @click="handleBatchCopy">{{ t('suite.batch_copy') }}</a-button>
@@ -494,7 +497,7 @@
 <script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
-import { HolderOutlined, PlusOutlined } from '@ant-design/icons-vue'
+import { FolderOpenOutlined, HolderOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import draggable from 'vuedraggable'
@@ -919,6 +922,15 @@ async function loadProjects() {
     projects.value = await projectApi.list()
     projectFilter.value = selectAvailableProjectId(projectIdFromQuery(route.query.project_id), projects.value)
   } catch (error: unknown) {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      projects.value = [
+        { id: 1, name: 'LexGuard Mobile Clean' } as unknown as ProjectItem,
+        { id: 2, name: 'ATP 移动端核心业务' } as unknown as ProjectItem,
+      ]
+      projectFilter.value = 1
+      void loadSuites()
+      return
+    }
     projects.value = []
     message.error(getErrorMessage(error, t('suite.msg.load_projects_failed')))
   }
@@ -931,6 +943,33 @@ async function loadSuites() {
       projectFilter.value ? { project_id: projectFilter.value } : undefined,
     )
   } catch (error: unknown) {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      suites.value = [
+        {
+          id: 1,
+          name: '移动端全量冒烟测试套件',
+          description: '覆盖登录、个人中心、核心功能自检链路',
+          project_id: projectFilter.value || 1,
+          case_ids: [101, 102],
+          strategy: 'stop_on_failure',
+          execution_type: 'automated',
+          tags: ['smoke', 'android', 'daily'],
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 2,
+          name: '核心结算与支付反向异常用例集',
+          description: '覆盖超时、网络抖动、幂等与余额不足校验',
+          project_id: projectFilter.value || 1,
+          case_ids: [102],
+          strategy: 'continue',
+          execution_type: 'automated',
+          tags: ['regression', 'api'],
+          created_at: new Date(Date.now() - 86400000).toISOString(),
+        },
+      ] as unknown as SuiteItem[]
+      return
+    }
     message.error(getErrorMessage(error, t('suite.msg.load_suites_failed')))
   } finally {
     loading.value = false
@@ -1285,10 +1324,52 @@ onUnmounted(() => {
   flex-direction: column;
   gap: 16px;
 }
-.toolbar {
+.suite-toolbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 48px;
+  padding: 0 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.toolbar-icon {
+  color: var(--c-primary);
+  font-size: 16px;
+}
+.toolbar-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--c-text);
+  white-space: nowrap;
+}
+.toolbar-divider {
+  color: var(--c-text-tertiary);
+  font-size: 13px;
+}
+.toolbar-subtitle {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .suite-run-cases-panel {

@@ -8,6 +8,17 @@ const http = axios.create({
   withCredentials: true,
 })
 
+const prototypeWriteAllowedPaths = new Set(['/auth/login', '/auth/logout'])
+export const prototypeWriteBlockedCode = 'prototype_write_blocked'
+
+export function blocksPrototypeWrite(method?: string, url?: string) {
+  if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA !== 'true') return false
+  const normalizedMethod = (method || 'get').toLowerCase()
+  if (['get', 'head', 'options'].includes(normalizedMethod)) return false
+  const normalizedUrl = (url || '').split(/[?#]/, 1)[0]?.replace(/^\/api\/v1/, '') || ''
+  return !prototypeWriteAllowedPaths.has(normalizedUrl)
+}
+
 export function getBackendOrigin() {
   const configuredOrigin = import.meta.env.VITE_BACKEND_ORIGIN?.trim()
   if (configuredOrigin) {
@@ -24,6 +35,9 @@ export function getBackendOrigin() {
 
 // 浏览器使用 HttpOnly Cookie；Bearer 仅保留给显式注入的外部客户端场景。
 http.interceptors.request.use((config) => {
+  if (blocksPrototypeWrite(config.method, config.url)) {
+    return Promise.reject({ code: prototypeWriteBlockedCode })
+  }
   const auth = useAuthStore()
   config.headers['X-Requested-With'] = 'XMLHttpRequest'
   if (auth.token) {
@@ -36,6 +50,9 @@ http.interceptors.request.use((config) => {
 http.interceptors.response.use(
   (res) => res.data,
   async (error) => {
+    if (error?.code === prototypeWriteBlockedCode) {
+      return Promise.reject(error)
+    }
     if (error.response?.status === 401) {
       const auth = useAuthStore()
       auth.clearSession()

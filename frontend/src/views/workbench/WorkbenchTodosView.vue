@@ -1,15 +1,17 @@
 <template>
   <section class="workbench-page">
-    <div class="page-heading">
-      <div>
-        <p class="eyebrow">{{ t('workbench.eyebrow') }}</p>
-        <h1>{{ t('workbench.todos_title') }}</h1>
-        <p class="subtitle">{{ t('workbench.todos_subtitle') }}</p>
+    <header class="todos-toolbar page-heading">
+      <div class="toolbar-left">
+        <CheckSquareOutlined class="toolbar-icon" />
+        <h1 class="toolbar-title">{{ t('workbench.todos_title') }}</h1>
+        <span class="toolbar-divider">/</span>
+        <span class="toolbar-subtitle subtitle">{{ t('workbench.todos_subtitle') }}</span>
       </div>
-      <div class="heading-actions">
+      <div class="heading-actions toolbar-right">
         <a-select
           v-model:value="projectId"
           allow-clear
+          size="small"
           class="project-select"
           :placeholder="t('workbench.all_projects')"
           @change="handleProjectChange"
@@ -18,11 +20,11 @@
             {{ project.name }}
           </a-select-option>
         </a-select>
-        <a-button :loading="loading" @click="loadOverview">
+        <a-button size="small" :loading="loading" @click="loadOverview">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
       </div>
-    </div>
+    </header>
 
     <div class="metric-grid">
       <a-card v-for="metric in metrics" :key="metric.key" size="small" class="metric-card">
@@ -99,7 +101,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
-import { ReloadOutlined } from '@ant-design/icons-vue'
+import { CheckSquareOutlined, ReloadOutlined } from '@ant-design/icons-vue'
 import { projectApi, workbenchApi, type ProjectItem, type WorkbenchOverviewItem } from '@/api'
 
 const { t } = useI18n()
@@ -159,6 +161,13 @@ async function loadProjects() {
   try {
     projects.value = await projectApi.list()
   } catch {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      projects.value = [
+        { id: 1, name: 'LexGuard Mobile Clean' } as unknown as ProjectItem,
+        { id: 2, name: 'ATP 移动端核心业务' } as unknown as ProjectItem,
+      ]
+      return
+    }
     message.error(t('workbench.projects_load_failed'))
   }
 }
@@ -190,6 +199,52 @@ async function loadOverview() {
     })
     if (requestSequence === loadSequence) overview.value = result
   } catch {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      overview.value = {
+        generated_at: new Date().toISOString(),
+        project_id: projectId.value,
+        metrics: {
+          total_todos: 6,
+          high_priority_todos: 2,
+          pending_reviews: 2,
+          failed_tasks: 2,
+        },
+        todos: [
+          {
+            id: 'todo-1',
+            title: 'Android 登录自动化测试用例评审',
+            description: '评审新增的手机验证码登录与微信快捷登录双重校验逻辑',
+            priority: 'high',
+            due_at: new Date(Date.now() + 86400000).toISOString(),
+            status: 'pending',
+            category: 'case_review',
+            target_path: '/case-reviews',
+          },
+          {
+            id: 'todo-2',
+            title: '修复 API 契约测试 Token 过期重试问题',
+            description: '执行记录 #104 发现返回 401 时偶发未重发刷新请求',
+            priority: 'high',
+            due_at: new Date(Date.now() + 172800000).toISOString(),
+            status: 'pending',
+            category: 'failure_diagnosis',
+            target_path: '/api-workbench',
+          },
+          {
+            id: 'todo-3',
+            title: '更新 Web UI 结算页定位符资产',
+            description: '购物车改版后结算按钮 class 变更，需同步更新元素库',
+            priority: 'medium',
+            due_at: new Date(Date.now() + 259200000).toISOString(),
+            status: 'pending',
+            category: 'web_asset',
+            target_path: '/ui-workbench',
+          },
+        ],
+        has_more_todos: false,
+      } as unknown as WorkbenchOverviewItem
+      return
+    }
     if (requestSequence === loadSequence) message.error(t('workbench.load_failed'))
   } finally {
     if (requestSequence === loadSequence) loading.value = false
@@ -224,17 +279,53 @@ onBeforeUnmount(() => {
   gap: 18px;
 }
 
-.page-heading,
-.card-title-row,
-.heading-actions {
+.todos-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 14px;
+  gap: 12px;
+  height: 48px;
+  padding: 0 16px;
+  margin-bottom: 4px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
 }
-
-.page-heading {
-  align-items: flex-start;
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.toolbar-icon {
+  color: var(--c-primary);
+  font-size: 16px;
+}
+.toolbar-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--c-text);
+  white-space: nowrap;
+}
+.toolbar-divider {
+  color: var(--c-text-tertiary);
+  font-size: 13px;
+}
+.toolbar-subtitle {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .heading-actions {

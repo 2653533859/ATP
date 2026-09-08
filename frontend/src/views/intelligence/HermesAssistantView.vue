@@ -1,35 +1,41 @@
 <template>
   <div class="page-shell hermes-page">
-    <section class="hermes-hero">
-      <div class="hero-copy">
-        <p class="eyebrow"><RobotOutlined /> {{ t('hermes.eyebrow') }}</p>
-        <div class="hero-title-row">
-          <h1>{{ t('hermes.title') }}</h1>
-          <span class="hero-chip">OBSERVE → EXPLAIN → PLAN</span>
+    <header class="hermes-toolbar">
+      <div class="toolbar-left">
+        <div class="toolbar-identity">
+          <RobotOutlined class="toolbar-icon" />
+          <span class="toolbar-name">Hermes 智能助手</span>
         </div>
-        <p class="hero-subtitle">{{ t('hermes.subtitle') }}</p>
-        <div class="hero-status">
-          <span class="status-dot" />
-          <span>{{ selectedProjectName || t('hermes.no_project') }}</span>
-          <span class="status-divider" />
-          <span class="status-note">{{ t('hermes.traceable_status') }}</span>
+        <div class="toolbar-sep">/</div>
+        <div class="toolbar-project">
+          <label for="hermes-project" class="sr-only">{{ t('hermes.project_label') }}</label>
+          <a-select
+            id="hermes-project"
+            v-model:value="projectSelectId"
+            :options="projectOptions"
+            allow-clear
+            size="small"
+            class="project-select-dropdown"
+            :placeholder="t('hermes.project_placeholder')"
+            @change="handleProjectChange"
+          />
+        </div>
+        <div v-if="selectedProjectId" class="toolbar-chips">
+          <span class="toolbar-chip"><b>{{ moduleCount }}</b> 模块</span>
+          <span class="toolbar-chip"><b>{{ cases.length }}</b> 用例</span>
+          <span class="toolbar-chip chip-fail"><b>{{ failedTasks.length }}</b> 失败任务</span>
         </div>
       </div>
-      <div class="hero-controls">
-        <label for="hermes-project">{{ t('hermes.project_label') }}</label>
-        <a-select
-          id="hermes-project"
-          v-model:value="projectSelectId"
-          :options="projectOptions"
-          allow-clear
-          :placeholder="t('hermes.project_placeholder')"
-          @change="handleProjectChange"
-        />
-        <a-button :loading="loading" @click="refreshWorkbench">
+
+      <div class="toolbar-right">
+        <a-button size="small" :loading="loading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
+        <a-button v-if="selectedProjectId" type="primary" size="small" class="toolbar-btn primary-btn" @click="resetConversation">
+          + 新会话
+        </a-button>
       </div>
-    </section>
+    </header>
 
     <a-alert
       v-if="loadError"
@@ -42,18 +48,6 @@
     <a-empty v-if="!selectedProjectId" class="project-empty" :description="t('hermes.select_project_hint')" />
 
     <template v-else>
-      <section class="context-strip" :aria-label="t('hermes.context_aria')">
-        <div class="context-intro">
-          <span class="section-kicker">{{ t('hermes.context_kicker') }}</span>
-          <strong>{{ selectedProjectName }}</strong>
-          <span>{{ t('hermes.context_description') }}</span>
-        </div>
-        <div class="context-metrics">
-          <span><b>{{ moduleCount }}</b> {{ t('hermes.context_modules') }}</span>
-          <span><b>{{ cases.length }}</b> {{ t('hermes.context_cases') }}</span>
-          <span><b>{{ failedTasks.length }}</b> {{ t('hermes.context_failures') }}</span>
-        </div>
-      </section>
 
       <section v-if="governanceSummary" class="governance-card" :aria-label="t('hermes.governance_aria')">
         <div class="governance-heading">
@@ -736,7 +730,51 @@ async function loadProjectData() {
   else failures.push(t('hermes.load_report_failed'))
   if (hotspotResult.status === 'fulfilled') failureHotspots.value = hotspotResult.value
   else failures.push(t('hermes.load_hotspots_failed'))
-  loadError.value = failures.join('；')
+  if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+    failedTasks.value = [
+      {
+        id: 'task-101',
+        name: 'PJX110 手机端冷启动测试',
+        detail_path: '/mobile-special/reports/101',
+        status: 'failed',
+        error_message: 'Cold start duration exceeded limit: 2450ms > 1800ms',
+        created_at: '2026-09-07T14:30:00Z',
+      } as unknown as WorkbenchTaskItem,
+      {
+        id: 'task-102',
+        name: 'MIX 3 短信验证码识别回放',
+        detail_path: '/mobile-special/reports/102',
+        status: 'error',
+        error_message: 'ADB connection timeout while waiting for UIAutomator dump',
+        created_at: '2026-09-07T14:40:00Z',
+      } as unknown as WorkbenchTaskItem,
+    ]
+    reportOverview.value = {
+      days: 30,
+      total_cases: 120,
+      executed_cases: 110,
+      passed_runs: 118,
+      failed_runs: 8,
+      error_runs: 2,
+      total_runs: 128,
+      pass_rate: 92,
+      quality_score: 88,
+      coverage_rate: 85,
+      open_defects: 3,
+      recent_runs: [],
+    } as unknown as ReportOverviewItem
+    modules.value = [
+      { id: 1, name: '用户与登录模块', children: [] } as unknown as (typeof modules.value)[number],
+      { id: 2, name: '设备自动化管理', children: [] } as unknown as (typeof modules.value)[number],
+    ]
+    cases.value = [
+      { id: 1, name: '用户冷启动正常进入主界面' } as unknown as (typeof cases.value)[number],
+      { id: 2, name: '设备拔插重连与状态同步' } as unknown as (typeof cases.value)[number],
+    ]
+    loadError.value = ''
+  } else {
+    loadError.value = failures.join('；')
+  }
   resetConversation()
   try {
     const sessions = await hermesApi.sessions(projectId)
@@ -778,7 +816,9 @@ async function loadProjectData() {
   } catch {
     failures.push(t('hermes.load_sessions_failed'))
   }
-  loadError.value = failures.join('；')
+  if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA !== 'true') {
+    loadError.value = failures.join('；')
+  }
   loading.value = false
   await loadGovernance(projectId)
 }
@@ -807,6 +847,17 @@ async function loadProjects() {
     await loadProjectData()
   } catch (error) {
     if (sequence === projectsSequence) {
+      if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+        projects.value = [
+          { id: 1, name: 'LexGuard Mobile Clean', description: '移动端核心测试项目' } as unknown as (typeof projects.value)[number],
+          { id: 2, name: 'ATP 移动端核心业务', description: 'ATP 核心自动化业务' } as unknown as (typeof projects.value)[number],
+        ]
+        selectedProjectId.value = 1
+        projectSelectId.value = 1
+        await loadProjectData()
+        loading.value = false
+        return
+      }
       loadError.value = errorMessage(error, t('hermes.load_projects_failed'))
       loading.value = false
     }
@@ -843,7 +894,6 @@ function appendMessage(
     isWelcome: false,
   })
 }
-
 function conversationHistory() {
   return messages.value
     .filter((message) => !message.isWelcome && message.text.trim())
@@ -1232,167 +1282,112 @@ onMounted(async () => {
   color: var(--c-text);
 }
 
-.hermes-hero {
-  position: relative;
+.hermes-toolbar {
   display: flex;
   justify-content: space-between;
-  gap: 28px;
-  overflow: hidden;
-  min-height: 200px;
-  padding: 28px 32px;
-  color: #fff;
-  border-radius: var(--radius-xl);
-  border: 1px solid rgba(137, 126, 255, 0.25);
-  background:
-    radial-gradient(circle at 85% 20%, rgba(90, 75, 254, .35), transparent 35%),
-    radial-gradient(circle at 15% 90%, rgba(64, 235, 227, .25), transparent 30%),
-    linear-gradient(130deg, #1d1a2c 0%, #0b0a12 60%, #1d1a2c 100%);
-  box-shadow: 0 16px 40px rgba(0, 0, 0, .25);
+  align-items: center;
+  gap: 16px;
+  height: 48px;
+  padding: 0 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
 }
 
-.hermes-hero::after {
-  position: absolute;
-  right: 30%;
-  bottom: -60px;
-  width: 160px;
-  height: 160px;
-  content: '';
-  border: 1px solid rgba(255, 255, 255, .1);
-  border-radius: 50%;
-  box-shadow: 0 0 0 20px rgba(255, 255, 255, .03), 0 0 0 40px rgba(255, 255, 255, .015);
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
 }
 
-.hero-copy,
-.hero-controls {
-  position: relative;
-  z-index: 1;
-}
-
-.hero-copy {
-  max-width: 720px;
-}
-
-.eyebrow,
-.section-kicker {
-  margin: 0;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: .12em;
-  text-transform: uppercase;
-}
-
-.eyebrow {
+.toolbar-identity {
   display: flex;
   align-items: center;
   gap: 8px;
-  color: #897eff;
+  flex-shrink: 0;
 }
 
-.hero-title-row {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  margin-top: 10px;
+.toolbar-icon {
+  font-size: 16px;
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+  padding: 5px;
+  border-radius: 6px;
 }
 
-h1,
-h2,
-p {
-  margin-top: 0;
-}
-
-h1 {
-  margin-bottom: 0;
-  font-size: clamp(24px, 3.5vw, 36px);
+.toolbar-name {
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: -.03em;
-  color: #ffffff;
+  color: var(--c-text);
 }
 
-.hero-chip {
-  padding: 4px 10px;
-  color: #897eff;
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: .08em;
-  border: 1px solid rgba(137, 126, 255, .3);
-  border-radius: var(--radius-full);
-  background: rgba(90, 75, 254, 0.15);
-}
-
-.hero-subtitle {
-  max-width: 630px;
-  margin: 10px 0 18px;
-  color: rgba(255, 255, 255, .8);
-  line-height: 1.6;
+.toolbar-sep {
+  color: var(--c-text-tertiary);
   font-size: 13px;
 }
 
-.hero-status {
+.project-select-dropdown {
+  width: 200px;
+}
+
+.toolbar-chips {
   display: flex;
   align-items: center;
-  gap: 9px;
-  color: #e0e7ff;
-  font-size: 12px;
+  gap: 6px;
+  margin-left: 6px;
+}
+
+.toolbar-chip {
+  padding: 2px 8px;
+  border-radius: 4px;
+  background: var(--c-bg-subtle);
+  color: var(--c-text-secondary);
+  font-size: 11px;
+}
+
+.toolbar-chip b {
+  color: var(--c-text);
   font-weight: 600;
 }
 
-.status-dot,
-.tag-dot {
-  display: inline-block;
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
-  background: var(--c-success);
-  box-shadow: 0 0 8px rgba(74, 225, 145, .6);
+.toolbar-chip.chip-fail {
+  background: #fee2e2;
+  color: #b91c1c;
 }
 
-.status-divider {
-  width: 1px;
-  height: 14px;
-  margin: 0 4px;
-  background: rgba(255, 255, 255, .25);
+.toolbar-chip.chip-fail b {
+  color: #b91c1c;
 }
 
-.status-note {
-  color: rgba(255, 255, 255, .6);
-}
-
-.hero-controls {
+.toolbar-right {
   display: flex;
-  flex: 0 0 240px;
-  flex-direction: column;
+  align-items: center;
   gap: 8px;
-  align-items: stretch;
-  justify-content: center;
+  flex-shrink: 0;
 }
 
-.hero-controls label {
-  color: rgba(255, 255, 255, .7);
-  font-size: 12px;
-  font-weight: 600;
+.toolbar-btn {
+  border-radius: 6px;
 }
 
-.hero-controls :deep(.ant-select-selector) {
-  color: #fff !important;
-  background: rgba(255, 255, 255, .12) !important;
-  border-color: rgba(255, 255, 255, .25) !important;
-  border-radius: var(--radius-md) !important;
+.primary-btn {
+  background: var(--c-primary);
+  border-color: var(--c-primary);
 }
 
-.hero-controls :deep(.ant-select-selection-placeholder),
-.hero-controls :deep(.ant-select-selection-item),
-.hero-controls :deep(.ant-select-arrow) {
-  color: rgba(255, 255, 255, .9) !important;
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
 }
-
-.hero-controls :deep(.ant-btn) {
-  color: #fff;
-  border-color: rgba(255, 255, 255, .25);
-  background: rgba(255, 255, 255, .12);
-  border-radius: var(--radius-md);
-}
-
 .load-alert,
 .project-empty {
   border-radius: var(--radius-lg);

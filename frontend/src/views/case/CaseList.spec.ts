@@ -83,6 +83,7 @@ function mountCaseList() {
         AUpload: passthrough('AUpload'),
         BatchOperationBar: passthrough('BatchOperationBar'),
         DownOutlined: true,
+        FileTextOutlined: true,
         HistoryOutlined: true,
         PlusOutlined: true,
         ThunderboltOutlined: true,

@@ -1,22 +1,26 @@
 <template>
   <div class="configuration-page">
-    <header class="configuration-hero">
-      <div>
-        <p class="eyebrow">{{ t('configuration_center.eyebrow') }}</p>
-        <h1>{{ t('configuration_center.title') }}</h1>
-        <p class="hero-copy">{{ t('configuration_center.subtitle') }}</p>
+    <header class="configuration-toolbar">
+      <div class="toolbar-left">
+        <div class="toolbar-identity">
+          <SettingOutlined class="toolbar-icon" />
+          <span class="toolbar-name">{{ t('configuration_center.title') }}</span>
+        </div>
+        <div class="toolbar-sep">/</div>
+        <div class="toolbar-project">
+          <label class="project-filter">
+            <span class="sr-only">{{ t('configuration_center.project_filter') }}</span>
+            <select :value="selectedProjectId ?? ''" class="project-select-native" @change="changeProject">
+              <option value="">{{ t('configuration_center.all_projects') }}</option>
+              <option v-for="project in projects" :key="project.id" :value="project.id">
+                {{ project.name }}
+              </option>
+            </select>
+          </label>
+        </div>
       </div>
-      <div class="hero-actions">
-        <label class="project-filter">
-          <span>{{ t('configuration_center.project_filter') }}</span>
-          <select :value="selectedProjectId ?? ''" @change="changeProject">
-            <option value="">{{ t('configuration_center.all_projects') }}</option>
-            <option v-for="project in projects" :key="project.id" :value="project.id">
-              {{ project.name }}
-            </option>
-          </select>
-        </label>
-        <button class="button button-light" type="button" :disabled="loading" @click="loadOverview">
+      <div class="toolbar-actions">
+        <button class="button button-light toolbar-refresh-btn" type="button" :disabled="loading" @click="loadOverview">
           {{ t('configuration_center.refresh') }}
         </button>
       </div>
@@ -269,6 +273,7 @@
 
 <script setup lang="ts">
 import { message } from 'ant-design-vue'
+import { SettingOutlined } from '@ant-design/icons-vue'
 import { computed, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
@@ -429,6 +434,13 @@ async function loadProjects() {
   try {
     projects.value = await projectApi.list()
   } catch (error) {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      projects.value = [
+        { id: 1, name: 'LexGuard Mobile Clean' } as unknown as ProjectItem,
+        { id: 2, name: 'ATP 移动端核心业务' } as unknown as ProjectItem,
+      ]
+      return
+    }
     message.error(errorMessage(error, t('configuration_center.projects_load_failed')))
   }
 }
@@ -442,6 +454,21 @@ async function loadOverview() {
     if (!selectedStillExists) selectedDomainKey.value = availableSections.value[0]?.key || ''
     selectFirstResource()
   } catch (error) {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      overview.value = {
+        checked_at: new Date().toISOString(),
+        project_id: selectedProjectId.value,
+        sections: [
+          { key: 'environment', title: '环境配置', description: '项目运行环境', route: '/system/environments', project_scoped: true, readonly: false, available: true, count: 2, entries: [] },
+          { key: 'ai_llm', title: 'AI 模型配置', description: '大模型与推理参数', route: '/system/ai-llm-configs', project_scoped: false, readonly: false, available: true, count: 1, entries: [] },
+          { key: 'notifications', title: '通知渠道', description: '钉钉 / 飞书 / 邮件', route: '/system/notifications', project_scoped: true, readonly: false, available: true, count: 3, entries: [] },
+          { key: 'bug_trackers', title: '缺陷协同', description: 'Jira / TAPD / 禅道', route: '/system/bug-trackers', project_scoped: true, readonly: false, available: true, count: 1, entries: [] },
+        ],
+      }
+      loadError.value = ''
+      selectedDomainKey.value = 'environment'
+      return
+    }
     loadError.value = errorMessage(error, t('configuration_center.load_failed'))
   } finally {
     loading.value = false
@@ -564,27 +591,113 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-:global(body) { background: #eef4f2; }
-.configuration-page { --ink: #142e35; --muted: #728287; --line: #d8e5e2; --paper: #f8fbfa; --teal: #118889; --teal-dark: #0d5054; --amber: #c9812d; --red: #bd554d; color: var(--ink); min-height: calc(100vh - 80px); padding: 28px 30px 50px; background: radial-gradient(circle at 86% 0%, rgba(17, 136, 137, .12), transparent 32%), #eef4f2; }
-.configuration-hero { display: flex; justify-content: space-between; align-items: flex-end; gap: 24px; max-width: 1600px; margin: 0 auto 18px; }
-.eyebrow, .section-kicker { margin: 0; color: var(--teal); font-size: 11px; font-weight: 800; letter-spacing: .16em; text-transform: uppercase; }
-h1, h2, h3, p { margin-top: 0; }
-h1 { margin-bottom: 8px; font-size: clamp(30px, 4vw, 48px); letter-spacing: -.045em; line-height: 1; }
-.hero-copy { max-width: 650px; margin-bottom: 0; color: var(--muted); font-size: 14px; line-height: 1.65; }
-.hero-actions { display: flex; align-items: flex-end; gap: 10px; }
+.configuration-page {
+  --ink: var(--c-text);
+  --muted: var(--c-text-secondary);
+  --line: var(--c-border);
+  --paper: var(--c-bg-elevated);
+  --teal: #118889;
+  --teal-dark: #0d5054;
+  --amber: #c9812d;
+  --red: #bd554d;
+  color: var(--ink);
+  min-height: calc(100vh - 80px);
+  padding: 16px 20px 40px;
+  background: var(--c-bg-body);
+}
+.configuration-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  height: 48px;
+  max-width: 1600px;
+  margin: 0 auto 14px;
+  padding: 0 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+}
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+.toolbar-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.toolbar-icon {
+  font-size: 16px;
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+  padding: 5px;
+  border-radius: 6px;
+}
+.toolbar-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+}
+.toolbar-sep {
+  color: var(--c-text-tertiary);
+  font-size: 13px;
+}
+.project-select-native {
+  min-height: 32px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--c-bg-elevated);
+  color: var(--ink);
+  padding: 0 10px;
+  font-size: 12px;
+  outline: none;
+}
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.toolbar-refresh-btn {
+  min-height: 32px;
+  height: 32px;
+  padding: 0 12px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: var(--c-primary);
+  color: #ffffff;
+  border: none;
+}
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
 .governance-strip { display: flex; align-items: center; justify-content: space-between; gap: 18px; max-width: 1600px; margin: 0 auto 18px; border: 1px solid #cfe2de; border-radius: 12px; background: rgba(255,255,255,.68); padding: 12px 14px; }
 .governance-copy { margin: 4px 0 0; color: var(--muted); font-size: 11px; line-height: 1.45; }
 .governance-links { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
 .governance-link { border: 1px solid #c7ddd8; border-radius: 999px; background: #f5fbf9; padding: 7px 10px; color: var(--teal-dark); cursor: pointer; font: inherit; font-size: 11px; font-weight: 800; }
 .governance-link:hover { border-color: var(--teal); background: #eaf7f3; }
 .project-filter { display: grid; gap: 6px; color: var(--muted); font-size: 11px; font-weight: 700; }
-select, input { min-height: 38px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--ink); padding: 0 12px; font: inherit; outline: none; }
+select, input { min-height: 38px; border: 1px solid var(--line); border-radius: 8px; background: var(--c-bg-elevated); color: var(--ink); padding: 0 12px; font: inherit; outline: none; }
 select:focus, input:focus, button:focus-visible { border-color: var(--teal); box-shadow: 0 0 0 3px rgba(17, 136, 137, .16); outline: none; }
 .button { min-height: 38px; border: 1px solid transparent; border-radius: 8px; padding: 0 15px; cursor: pointer; font: inherit; font-size: 13px; font-weight: 800; transition: transform .18s ease, background .18s ease, border-color .18s ease; }
 .button:hover:not(:disabled) { transform: translateY(-1px); }
 .button:disabled { cursor: not-allowed; opacity: .52; }
 .button-light { border-color: rgba(255,255,255,.42); background: var(--teal-dark); color: #fff; }
-.button-secondary { border-color: var(--line); background: #fff; color: var(--ink); }
+.button-secondary { border-color: var(--line); background: var(--c-bg-elevated); color: var(--ink); }
 .button-teal { background: var(--teal); color: #fff; }
 .button-danger { background: var(--red); color: #fff; }
 .text-button, .icon-button { border: 0; background: transparent; color: var(--teal-dark); cursor: pointer; font: inherit; font-weight: 800; }
@@ -608,7 +721,7 @@ select:focus, input:focus, button:focus-visible { border-color: var(--teal); box
 .rail-count, .scope-badge { border-radius: 999px; background: #dcece8; padding: 4px 8px; color: var(--teal-dark); font-size: 11px; font-weight: 800; }
 .domain-item { display: grid; grid-template-columns: 25px 1fr auto; align-items: start; gap: 10px; width: 100%; margin-top: 9px; border: 1px solid transparent; border-radius: 10px; background: transparent; padding: 12px 8px; color: inherit; cursor: pointer; text-align: left; }
 .domain-item:hover:not(:disabled) { background: rgba(255,255,255,.72); }
-.domain-item.active { border-color: #acd2cc; background: #fff; box-shadow: 0 6px 16px rgba(20, 46, 53, .06); }
+.domain-item.active { border-color: #acd2cc; background: var(--c-bg-elevated); box-shadow: 0 6px 16px rgba(20, 46, 53, .06); }
 .domain-item:disabled { cursor: not-allowed; opacity: .45; }
 .domain-index { color: var(--teal); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 11px; }
 .domain-copy { display: grid; gap: 4px; }
@@ -651,9 +764,9 @@ select:focus, input:focus, button:focus-visible { border-color: var(--teal); box
 .empty-icon { color: #92b7b1; font-size: 48px; font-weight: 200; }
 .empty-panel strong, .detail-empty h2, .history-empty strong { margin-top: 9px; }
 .empty-panel p, .detail-empty p, .history-empty p { max-width: 280px; margin: 6px 0 18px; color: var(--muted); font-size: 12px; line-height: 1.55; }
-.detail-pane { background: #fbfcfa; }
+.detail-pane { background: var(--c-bg-elevated); }
 .detail-heading { align-items: flex-start; }
-.icon-button { width: 33px; height: 33px; border: 1px solid var(--line); border-radius: 8px; background: #fff; color: var(--teal); font-size: 17px; }
+.icon-button { width: 33px; height: 33px; border: 1px solid var(--line); border-radius: 8px; background: var(--c-bg-elevated); color: var(--teal); font-size: 17px; }
 .detail-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin: 16px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); padding: 12px 0; }
 .detail-summary div { display: grid; gap: 4px; min-width: 0; }
 .detail-summary span { color: var(--muted); font-size: 10px; }
@@ -675,7 +788,7 @@ select:focus, input:focus, button:focus-visible { border-color: var(--teal); box
 .revision-copy strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 12px; }
 .revision-copy small { color: var(--muted); font-size: 10px; }
 .revision-arrow { color: #8ca7a6; font-size: 18px; }
-.diff-card { margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: #fff; padding: 13px; }
+.diff-card { margin-top: 14px; border: 1px solid var(--line); border-radius: 10px; background: var(--c-bg-elevated); padding: 13px; }
 .diff-header h3 { margin: 4px 0 0; font-size: 15px; }
 .diff-state { color: var(--teal-dark); }
 .diff-message, .no-change-copy { margin: 11px 0 0; color: var(--muted); font-size: 11px; line-height: 1.5; }
@@ -692,7 +805,7 @@ select:focus, input:focus, button:focus-visible { border-color: var(--teal); box
 .redacted-value { color: var(--amber); font-weight: 800; }
 .diff-card .button-danger { width: 100%; margin-top: 4px; }
 .modal-backdrop { position: fixed; z-index: 30; inset: 0; display: grid; place-items: center; background: rgba(20, 46, 53, .46); padding: 20px; }
-.rollback-modal { width: min(450px, 100%); border: 1px solid #e7c3be; border-radius: 14px; background: #fff; padding: 25px; box-shadow: 0 24px 70px rgba(20, 46, 53, .24); }
+.rollback-modal { width: min(450px, 100%); border: 1px solid #e7c3be; border-radius: 14px; background: var(--c-bg-elevated); padding: 25px; box-shadow: 0 24px 70px rgba(20, 46, 53, .24); }
 .rollback-modal h2 { margin: 7px 0; font-size: 25px; letter-spacing: -.04em; }
 .rollback-modal > p:not(.section-kicker) { color: var(--muted); font-size: 13px; line-height: 1.6; }
 .rollback-source { display: flex; justify-content: space-between; gap: 10px; margin: 18px 0; border-radius: 8px; background: #f6f1ed; padding: 10px; color: var(--muted); font-size: 11px; }

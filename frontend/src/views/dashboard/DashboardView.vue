@@ -23,41 +23,42 @@
         </a-button>
       </template>
     </a-alert>
-    <div class="dashboard-header">
-      <div>
-        <h2 style="margin: 0">{{ t('dashboard.title') }}</h2>
-        <div class="scope-label">
+    <header class="dashboard-toolbar dashboard-header">
+      <div class="toolbar-left">
+        <DashboardOutlined class="toolbar-icon" />
+        <h2 class="toolbar-title">{{ t('dashboard.title') }}</h2>
+        <span class="toolbar-divider">/</span>
+        <span class="scope-label scope-tag">
           {{ dashboardScope === 'global'
             ? t('dashboard.scope_global_label')
             : t('dashboard.scope_project_label', { project: getProjectLabel(projectId) }) }}
-        </div>
+        </span>
+        <span class="filter-tip">· {{ activeFilterText }}</span>
       </div>
-      <a-space wrap>
-        <a-segmented v-model:value="dashboardScope" :options="scopeOptions" />
+      <div class="toolbar-right">
+        <a-segmented size="small" v-model:value="dashboardScope" :options="scopeOptions" />
         <a-select
           v-if="dashboardScope === 'project'"
           v-model:value="projectId"
+          size="small"
           :placeholder="t('dashboard.select_project')"
-          style="width: 200px"
+          style="width: 170px"
           :options="projectOptions"
         />
         <a-select
           v-model:value="caseType"
+          size="small"
           :placeholder="t('dashboard.all_types')"
           allow-clear
-          style="width: 160px"
+          style="width: 130px"
           :options="caseTypeOptions"
         />
-        <a-select v-model:value="days" style="width: 120px" :options="dayOptions" />
-        <a-button @click="settingsOpen = true">
+        <a-select v-model:value="days" size="small" style="width: 96px" :options="dayOptions" />
+        <a-button size="small" @click="settingsOpen = true">
           <SettingOutlined /> {{ t('dashboard.layout_settings') }}
         </a-button>
-      </a-space>
-    </div>
-
-    <div style="margin-bottom: 16px; color: #666; font-size: 13px">
-      {{ t('dashboard.filter_label') }}：{{ activeFilterText }}
-    </div>
+      </div>
+    </header>
 
     <section class="workbench-panel">
       <div class="workbench-header">
@@ -301,7 +302,7 @@ import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
 import Draggable from 'vuedraggable'
 import VChart from 'vue-echarts'
-import { DownloadOutlined, SettingOutlined, ProfileOutlined, PlayCircleOutlined, CheckCircleOutlined, ThunderboltOutlined, ClockCircleOutlined, ExclamationCircleOutlined, FileSearchOutlined, AlertOutlined } from '@ant-design/icons-vue'
+import { DashboardOutlined, DownloadOutlined, SettingOutlined, ProfileOutlined, PlayCircleOutlined, CheckCircleOutlined, ThunderboltOutlined, ClockCircleOutlined, ExclamationCircleOutlined, FileSearchOutlined, AlertOutlined } from '@ant-design/icons-vue'
 import LazyChartCard from '@/components/dashboard/LazyChartCard.vue'
 import { useChartTheme } from '@/utils/chartTheme'
 import { caseApi, dashboardAlertApi, projectApi, remoteToolboxApi, runApi, statisticsApi, storageApi, userSettingsApi, type DashboardAlertEventItem, type RemoteToolboxCheckItem, type RunDetailItem, type StatisticsAggregateTrendItem, type StatisticsCaseTypeDistributionItem, type StatisticsExecutorTopItem, type StatisticsTriggerTypeStatItem, type StorageAlertPayload } from '@/api'
@@ -1164,6 +1165,16 @@ async function loadServices() {
     const rank: Record<RemoteToolboxCheckItem['status'], number> = { error: 0, warning: 1, ok: 2 }
     serviceChecks.value = [...overview.checks].sort((a, b) => rank[a.status] - rank[b.status])
   } catch {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      serviceOverviewStatus.value = 'ok'
+      serviceChecks.value = [
+        { key: 'postgres', category: 'infrastructure', status: 'ok', code: 'ok', latency_ms: 1.2, resources: [] },
+        { key: 'redis', category: 'infrastructure', status: 'ok', code: 'ok', latency_ms: 2.1, resources: [] },
+        { key: 'minio', category: 'infrastructure', status: 'ok', code: 'ok', latency_ms: 3.5, resources: [] },
+        { key: 'android_worker', category: 'execution', status: 'ok', code: 'online', latency_ms: 1.8, resources: [] },
+      ]
+      return
+    }
     serviceOverviewStatus.value = null
     serviceChecks.value = []
   } finally {
@@ -1192,6 +1203,19 @@ async function loadWorkbench() {
     recentRuns.value = runs.items
     workbenchUpdatedAt.value = new Date().toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
   } catch {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      workbench.todayRuns = 18
+      workbench.todayFailed = 0
+      workbench.pendingReviews = 2
+      workbench.alertCount = 0
+      recentRuns.value = [
+        { id: 104, case_id: 12, case_title: '用户登录流程 - 账密正常鉴权', status: 'passed', created_at: new Date(Date.now() - 1000 * 60 * 15).toISOString(), duration_ms: 1840 },
+        { id: 103, case_id: 15, case_title: '商品详情页加载与结算校验', status: 'passed', created_at: new Date(Date.now() - 1000 * 60 * 42).toISOString(), duration_ms: 3210 },
+        { id: 102, case_id: 8, case_title: 'API 契约测试 - /v1/auth/token', status: 'passed', created_at: new Date(Date.now() - 1000 * 60 * 78).toISOString(), duration_ms: 450 },
+      ] as unknown as RunDetailItem[]
+      workbenchUpdatedAt.value = new Date().toLocaleTimeString(locale.value, { hour: '2-digit', minute: '2-digit' })
+      return
+    }
     workbenchLoadFailed.value = true
     recentRuns.value = []
     resetWorkbench()
@@ -1215,6 +1239,15 @@ async function loadOverview() {
     const data = await statisticsApi.overview({ project_id: params.project_id, days: params.days })
     Object.assign(overview, data)
   } catch {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      Object.assign(overview, {
+        total_cases: 128,
+        total_runs: 1420,
+        pass_rate: 98.6,
+        recent_runs_7d: 356,
+      })
+      return
+    }
     resetOverview()
   }
 }
@@ -1385,50 +1418,62 @@ function formatAlertTime(value?: string | null) {
 </script>
 
 <style scoped>
-.dashboard-header {
-  margin-bottom: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.scope-label {
-  margin-top: 4px;
-  color: #666;
-  font-size: 13px;
-}
-.layout-row {
-  min-height: 44px;
+.dashboard-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 8px 0;
-  border-bottom: 1px solid #f0f0f0;
-}
-.drag-handle {
-  cursor: grab;
-  color: #999;
-  font-size: 16px;
-}
-.dashboard-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 16px;
+  height: 48px;
+  padding: 0 16px;
   margin-bottom: 16px;
-  padding: 16px 20px;
   background: var(--c-bg-elevated);
   border: 1px solid var(--c-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
 }
-.scope-label {
-  margin-top: 4px;
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.toolbar-icon {
+  color: var(--c-primary);
+  font-size: 16px;
+}
+.toolbar-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--c-text);
+  white-space: nowrap;
+}
+.toolbar-divider {
+  color: var(--c-text-tertiary);
   font-size: 13px;
+}
+.scope-tag {
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+  border: 1px solid #dbeafe;
+  padding: 1px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.filter-tip {
   color: var(--c-text-secondary);
+  font-size: 12px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 .layout-row {
   min-height: 44px;

@@ -1,15 +1,15 @@
 <template>
   <div class="review-page">
-    <header class="review-hero">
-      <div class="hero-mark" aria-hidden="true">R</div>
-      <div class="hero-copy">
-        <p class="hero-kicker">{{ t('case_reviews.kicker') }}</p>
-        <h1>{{ t('case_reviews.title') }}</h1>
-        <p class="hero-subtitle">{{ t('case_reviews.subtitle') }}</p>
+    <header class="review-toolbar review-hero">
+      <div class="toolbar-left">
+        <AuditOutlined class="toolbar-icon" />
+        <h1 class="toolbar-title">{{ t('case_reviews.title') }}</h1>
+        <span class="toolbar-divider">/</span>
+        <span class="toolbar-subtitle">{{ t('case_reviews.subtitle') }}</span>
       </div>
-      <div class="hero-actions">
-        <a-button @click="goCases">{{ t('menu.cases') }}</a-button>
-        <a-button :loading="loading" @click="loadQueue">{{ t('case_reviews.refresh') }}</a-button>
+      <div class="hero-actions toolbar-right">
+        <a-button size="small" @click="goCases">{{ t('menu.cases') }}</a-button>
+        <a-button size="small" :loading="loading" @click="loadQueue">{{ t('case_reviews.refresh') }}</a-button>
       </div>
     </header>
 
@@ -225,6 +225,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import { AuditOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import CaseHistoryDrawer from './CaseHistoryDrawer.vue'
@@ -347,6 +348,15 @@ async function loadProjects() {
   try {
     projects.value = await projectApi.list()
   } catch {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      projects.value = [
+        { id: 1, name: 'LexGuard Mobile Clean' } as unknown as ProjectItem,
+        { id: 2, name: 'ATP 移动端核心业务' } as unknown as ProjectItem,
+      ]
+      projectId.value = 1
+      void loadQueue()
+      return
+    }
     projects.value = []
   }
 }
@@ -367,6 +377,35 @@ async function loadQueue() {
     const visibleIds = new Set(result.items.map(item => item.id))
     selectedRowKeys.value = selectedRowKeys.value.filter(id => visibleIds.has(id))
   } catch (error) {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      Object.assign(queue, {
+        items: [
+          {
+            id: 101,
+            project_id: projectId.value || 1,
+            project_name: 'LexGuard Mobile Clean',
+            module_id: 1,
+            module_name: '用户鉴权',
+            name: '手机验证码登录流程鉴权校验',
+            case_code: 'AND-0101',
+            summary: '验证手机验证码正常及异常鉴权逻辑',
+            case_type: 'android',
+            priority: 'P0',
+            review_status: 'pending',
+            review_comment: null,
+            reviewer_name: null,
+            reviewed_at: null,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString(),
+          },
+        ],
+        total: 1,
+        page: 1,
+        page_size: 20,
+        counts: { all: 3, pending: 1, approved: 2, rejected: 0 },
+      })
+      return
+    }
     if (serial === requestSerial) {
       Object.assign(queue, emptyQueue())
       message.error(errorMessage(error, t('case_reviews.msg.load_failed')))
@@ -492,62 +531,66 @@ onMounted(async () => {
 
 <style scoped>
 .review-page {
-  --review-ink: #172033;
-  --review-muted: #778198;
-  --review-line: #e4e8f1;
+  --review-ink: var(--c-text);
+  --review-muted: var(--c-text-secondary);
+  --review-line: var(--c-border);
   --review-indigo: #4f46e5;
   --review-coral: #e05a47;
   min-height: calc(100vh - 132px);
   color: var(--review-ink);
 }
 
-.review-hero {
-  position: relative;
+.review-toolbar {
   display: flex;
   align-items: center;
-  gap: 18px;
-  min-height: 172px;
-  padding: 28px 30px;
+  justify-content: space-between;
+  gap: 12px;
+  height: 48px;
+  padding: 0 16px;
+  margin-bottom: 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.toolbar-icon {
+  color: var(--c-primary);
+  font-size: 16px;
+}
+.toolbar-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--c-text);
+  white-space: nowrap;
+}
+.toolbar-divider {
+  color: var(--c-text-tertiary);
+  font-size: 13px;
+}
+.toolbar-subtitle {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  margin: 0;
+  white-space: nowrap;
   overflow: hidden;
-  border-radius: 18px;
-  background: #18213a;
-  color: #fff;
-  box-shadow: 0 18px 45px rgba(22, 34, 70, .14);
+  text-overflow: ellipsis;
 }
-.review-hero::after {
-  position: absolute;
-  right: -48px;
-  bottom: -80px;
-  width: 300px;
-  height: 230px;
-  content: '';
-  border: 1px solid rgba(255, 255, 255, .18);
-  border-radius: 50%;
-  box-shadow: 0 0 0 22px rgba(255, 255, 255, .04), 0 0 0 44px rgba(255, 255, 255, .035);
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
-.hero-mark {
-  display: grid;
-  width: 62px;
-  height: 62px;
-  flex: 0 0 62px;
-  place-items: center;
-  border: 1px solid rgba(255, 255, 255, .42);
-  border-radius: 16px 16px 5px 16px;
-  color: #fff;
-  background: linear-gradient(145deg, #635bff, #3d36b9);
-  font-size: 30px;
-  font-weight: 800;
-  transform: rotate(-8deg);
-}
-.hero-copy { position: relative; z-index: 1; }
-.hero-kicker, .section-kicker { margin: 0 0 7px; color: #a6adff; font-size: 11px; font-weight: 800; letter-spacing: .16em; }
-.hero-copy h1 { margin: 0; color: #fff; font-size: clamp(28px, 3vw, 40px); letter-spacing: -.045em; }
-.hero-subtitle { max-width: 680px; margin: 9px 0 0; color: #c9cee0; line-height: 1.65; }
-.hero-actions { position: relative; z-index: 1; display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }
-.hero-actions :deep(.ant-btn) { border-color: rgba(255, 255, 255, .3); color: #fff; background: rgba(255, 255, 255, .08); }
 
 .pulse-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin: 20px 0 14px; }
-.pulse-card { position: relative; min-height: 124px; padding: 18px; overflow: hidden; border: 1px solid var(--review-line); border-radius: 14px; color: var(--review-ink); background: #fff; text-align: left; cursor: pointer; transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease; }
+.pulse-card { position: relative; min-height: 124px; padding: 18px; overflow: hidden; border: 1px solid var(--review-line); border-radius: 14px; color: var(--review-ink); background: var(--c-bg-elevated); text-align: left; cursor: pointer; transition: border-color .2s ease, transform .2s ease, box-shadow .2s ease; }
 .pulse-card::after { position: absolute; right: -20px; bottom: -42px; width: 112px; height: 112px; content: ''; border: 1px solid currentColor; border-radius: 50%; opacity: .11; }
 .pulse-card:hover, .pulse-card.is-selected { border-color: currentColor; box-shadow: 0 11px 24px rgba(31, 43, 80, .08); transform: translateY(-2px); }
 .pulse-label, .pulse-tail { display: block; color: var(--review-muted); font-size: 12px; }
@@ -557,12 +600,12 @@ onMounted(async () => {
 .pulse-rejected { color: #cf5946; }
 .pulse-all { color: var(--review-indigo); }
 
-.filter-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-bottom: 14px; padding: 12px; border: 1px solid var(--review-line); border-radius: 12px; background: #fbfcfe; }
+.filter-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 9px; margin-bottom: 14px; padding: 12px; border: 1px solid var(--review-line); border-radius: 12px; background: var(--c-bg-elevated); }
 .project-filter { width: 200px; }
 .keyword-filter { width: min(360px, 100%); }
 .status-filter { width: 150px; }
 
-.queue-panel { padding: 22px; border: 1px solid var(--review-line); border-radius: 16px; background: #fff; box-shadow: 0 12px 32px rgba(32, 46, 86, .045); }
+.queue-panel { padding: 22px; border: 1px solid var(--review-line); border-radius: 16px; background: var(--c-bg-elevated); box-shadow: 0 12px 32px rgba(32, 46, 86, .045); }
 .queue-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 18px; margin-bottom: 18px; }
 .queue-heading h2 { margin: 0; font-size: 20px; letter-spacing: -.025em; }
 .queue-heading p:last-child { margin: 7px 0 0; color: var(--review-muted); font-size: 12px; }
@@ -588,11 +631,11 @@ onMounted(async () => {
 .detail-section { margin: 22px 0; }
 .detail-section .section-kicker { color: var(--review-indigo); }
 .metadata-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 10px; }
-.metadata-grid div { padding: 11px 12px; border: 1px solid var(--review-line); border-radius: 9px; background: #fbfcfe; }
+.metadata-grid div { padding: 11px 12px; border: 1px solid var(--review-line); border-radius: 9px; background: var(--c-bg-elevated); }
 .metadata-grid span, .metadata-grid strong { display: block; }
 .metadata-grid span { color: var(--review-muted); font-size: 11px; }
 .metadata-grid strong { margin-top: 4px; font-size: 13px; }
-.detail-summary, .comment-note { margin: 0; padding: 12px; border-radius: 9px; color: #5c687d; background: #f7f8fc; font-size: 13px; line-height: 1.7; }
+.detail-summary, .comment-note { margin: 0; padding: 12px; border-radius: 9px; color: #5c687d; background: var(--c-bg-subtle); font-size: 13px; line-height: 1.7; }
 .comment-note { border-left: 3px solid #d6d9e7; }
 .history-entry { display: flex; flex-direction: column; gap: 3px; }
 .history-entry strong { font-size: 13px; }

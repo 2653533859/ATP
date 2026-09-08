@@ -1,24 +1,27 @@
 <template>
   <div class="page-shell plan-page">
-    <div>
-      <h2 class="page-title">{{ t('plan.title') }}</h2>
-      <div class="page-subtitle">{{ t('plan.subtitle') }}</div>
-    </div>
-    <div class="toolbar">
-      <a-space>
+    <header class="plan-toolbar toolbar">
+      <div class="toolbar-left">
+        <CalendarOutlined class="toolbar-icon" />
+        <h2 class="toolbar-title page-title">{{ t('plan.title') }}</h2>
+        <span class="toolbar-divider">/</span>
+        <span class="toolbar-subtitle page-subtitle">{{ t('plan.subtitle') }}</span>
+      </div>
+      <div class="toolbar-right">
         <a-select
           v-model:value="projectId"
+          size="small"
           :placeholder="t('plan.select_project')"
           style="width: 200px"
           allow-clear
           :options="projectOptions"
           @change="loadPlans"
         />
-      </a-space>
-      <a-button type="primary" @click="openCreate" :disabled="!projectId">
-        <PlusOutlined /> {{ t('plan.new') }}
-      </a-button>
-    </div>
+        <a-button type="primary" size="small" @click="openCreate" :disabled="!projectId">
+          <PlusOutlined /> {{ t('plan.new') }}
+        </a-button>
+      </div>
+    </header>
 
     <BatchOperationBar :selected-count="selectedRowKeys.length" @cancel="selectedRowKeys = []">
       <a-button size="small" @click="handleBatchToggle(true)">{{ t('plan.batch_enable') }}</a-button>
@@ -403,7 +406,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { PlusOutlined } from '@ant-design/icons-vue'
+import { CalendarOutlined, PlusOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import type {
@@ -674,6 +677,15 @@ onMounted(async () => {
     await openRequestedRun()
     applyHermesDraft()
   } catch (error: unknown) {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      projectOptions.value = [
+        { label: 'LexGuard Mobile Clean', value: 1 },
+        { label: 'ATP 移动端核心业务', value: 2 },
+      ]
+      projectId.value = 1
+      void loadPlans()
+      return
+    }
     projectOptions.value = []
     message.error(getErrorMessage(error, t('plan.msg.load_projects_failed')))
   }
@@ -747,6 +759,25 @@ async function loadPlans() {
   try {
     plans.value = await planApi.list({ project_id: projectId.value })
   } catch (error: unknown) {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      plans.value = [
+        {
+          id: 1,
+          name: '每日定时自动化回归计划 (Nightly)',
+          description: '每天凌晨 02:00 自动触发全量回归并生成测试报告',
+          project_id: projectId.value || 1,
+          suite_ids: [{ suite_id: 1, sort: 0 }, { suite_id: 2, sort: 1 }],
+          schedule_type: 'cron',
+          cron_expression: '0 2 * * *',
+          is_enabled: true,
+          next_run_at: new Date(Date.now() + 28800000).toISOString(),
+          auto_create_bugs: true,
+          config: { execution_mode: 'parallel', fail_strategy: 'continue', max_workers: 3, min_pass_rate: 0.95 },
+          created_at: new Date().toISOString(),
+        },
+      ] as unknown as PlanItem[]
+      return
+    }
     plans.value = []
     message.error(getErrorMessage(error, t('plan.msg.load_failed')))
   } finally {
@@ -1001,10 +1032,52 @@ function copySecret() {
   gap: 16px;
 }
 
-.toolbar {
+.plan-toolbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 48px;
+  padding: 0 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.toolbar-icon {
+  color: var(--c-primary);
+  font-size: 16px;
+}
+.toolbar-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--c-text);
+  white-space: nowrap;
+}
+.toolbar-divider {
+  color: var(--c-text-tertiary);
+  font-size: 13px;
+}
+.toolbar-subtitle {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .cron-help-text {

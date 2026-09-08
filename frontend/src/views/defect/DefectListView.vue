@@ -1,24 +1,26 @@
 <template>
   <div class="defect-page">
-    <header class="defect-hero">
-      <div class="hero-copy">
-        <div class="hero-kicker">{{ t('defect.kicker') }}</div>
-        <h1>{{ t('defect.title') }}</h1>
-        <p>{{ t('defect.subtitle') }}</p>
+    <header class="defect-toolbar defect-hero">
+      <div class="toolbar-left">
+        <BugOutlined class="toolbar-icon" />
+        <h1 class="toolbar-title">{{ t('defect.title') }}</h1>
+        <span class="toolbar-divider">/</span>
+        <span class="toolbar-subtitle">{{ t('defect.subtitle') }}</span>
       </div>
-      <div class="hero-actions">
+      <div class="hero-actions toolbar-right">
         <a-select
           v-model:value="projectId"
           allow-clear
           show-search
+          size="small"
           :filter-option="filterProject"
           :placeholder="t('defect.project')"
           :options="projectOptions"
-          style="min-width: 190px"
+          style="min-width: 170px"
           @change="onProjectChange"
         />
-        <a-button @click="loadDefects">{{ t('defect.refresh') }}</a-button>
-        <a-button type="primary" @click="openCreate()">{{ t('defect.new') }}</a-button>
+        <a-button size="small" @click="loadDefects">{{ t('defect.refresh') }}</a-button>
+        <a-button type="primary" size="small" @click="openCreate()">{{ t('defect.new') }}</a-button>
       </div>
     </header>
 
@@ -259,6 +261,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
+import { BugOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
@@ -423,6 +426,15 @@ async function loadProjects() {
   try {
     projects.value = await projectApi.list()
   } catch {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      projects.value = [
+        { id: 1, name: 'LexGuard Mobile Clean' } as unknown as ProjectItem,
+        { id: 2, name: 'ATP 移动端核心业务' } as unknown as ProjectItem,
+      ]
+      projectId.value = 1
+      void loadDefects()
+      return
+    }
     projects.value = []
   }
 }
@@ -436,6 +448,12 @@ async function loadMembers(targetProjectId = projectId.value) {
   try {
     members.value = await projectMemberApi.list(targetProjectId)
   } catch {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      members.value = [
+        { user_id: 1, username: 'admin', email: 'admin@example.com', role: 'owner', created_at: new Date().toISOString() },
+      ] as unknown as ProjectMemberItem[]
+      return
+    }
     members.value = []
     message.error(t('defect.msg.assignee_load_failed'))
   } finally {
@@ -481,11 +499,41 @@ async function loadDefects() {
             requestedDefectId.value = undefined
           }
         } catch {
-          // 目标缺陷不可访问时保留列表，避免影响正常使用。
+          // ignore
         }
       }
     }
   } catch {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      defects.value = [
+        {
+          id: 1,
+          title: 'Android 客户端在弱网环境下 Token 刷新超时导致闪退',
+          status: 'open',
+          priority: 'P0',
+          severity: 'blocker',
+          project_id: projectId.value || 1,
+          assignee_name: 'qa-engineer',
+          external_links: [],
+          created_at: new Date().toISOString(),
+        },
+        {
+          id: 2,
+          title: '支付确认页连续快速点击触发重复请求',
+          status: 'in_progress',
+          priority: 'P1',
+          severity: 'critical',
+          project_id: projectId.value || 1,
+          assignee_name: 'dev-lead',
+          external_links: [],
+          created_at: new Date(Date.now() - 86400000).toISOString(),
+        },
+      ] as unknown as DefectItem[]
+      total.value = 2
+      return
+    }
+    defects.value = []
+    total.value = 0
     message.error(t('defect.msg.load_failed'))
   } finally {
     loading.value = false
@@ -756,20 +804,60 @@ onMounted(async () => {
 
 <style scoped>
 .defect-page {
-  --defect-ink: #19233f;
-  --defect-muted: #77809a;
-  --defect-line: #e7eaf2;
+  --defect-ink: var(--c-text);
+  --defect-muted: var(--c-text-secondary);
+  --defect-line: var(--c-border);
   min-height: calc(100vh - 132px);
   color: var(--defect-ink);
 }
 
-.defect-hero {
+.defect-toolbar {
   display: flex;
+  align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  align-items: flex-end;
-  padding: 24px 2px 22px;
-  border-bottom: 1px solid var(--defect-line);
+  gap: 12px;
+  height: 48px;
+  padding: 0 16px;
+  margin-bottom: 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.toolbar-icon {
+  color: var(--c-primary);
+  font-size: 16px;
+}
+.toolbar-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--c-text);
+  white-space: nowrap;
+}
+.toolbar-divider {
+  color: var(--c-text-tertiary);
+  font-size: 13px;
+}
+.toolbar-subtitle {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .hero-kicker {
@@ -968,7 +1056,7 @@ onMounted(async () => {
   padding: 11px 13px;
   border: 1px solid var(--defect-line);
   border-radius: 10px;
-  background: #fafbfe;
+  background: var(--c-bg-elevated);
 }
 
 .evidence-card-head { display: flex; align-items: center; gap: 7px; }

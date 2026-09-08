@@ -1,24 +1,26 @@
 <template>
   <div class="report-page">
-    <header class="report-hero">
-      <div class="hero-copy">
-        <div class="hero-kicker">QUALITY SIGNAL / N2.3</div>
-        <h1>{{ t('report_center.title') }}</h1>
-        <p>{{ t('report_center.subtitle') }}</p>
+    <header class="report-toolbar report-hero">
+      <div class="toolbar-left">
+        <BarChartOutlined class="toolbar-icon" />
+        <h1 class="toolbar-title">{{ t('report_center.title') }}</h1>
+        <span class="toolbar-divider">/</span>
+        <span class="toolbar-subtitle">{{ t('report_center.subtitle') }}</span>
       </div>
-      <div class="hero-controls">
+      <div class="hero-controls toolbar-right">
         <a-select
           v-model:value="projectId"
           allow-clear
           show-search
+          size="small"
           :filter-option="filterProject"
           :placeholder="t('report_center.all_projects')"
           :options="projectOptions"
           class="project-select"
         />
-        <a-select v-model:value="days" :options="dayOptions" class="days-select" />
-        <a-button :loading="loading" @click="loadReport">{{ t('report_center.refresh') }}</a-button>
-        <a-button :loading="exporting" @click="exportTrend">{{ t('report_center.export_trend') }}</a-button>
+        <a-select v-model:value="days" size="small" :options="dayOptions" class="days-select" />
+        <a-button size="small" :loading="loading" @click="loadReport">{{ t('report_center.refresh') }}</a-button>
+        <a-button size="small" :loading="exporting" @click="exportTrend">{{ t('report_center.export_trend') }}</a-button>
         <a-button size="small" @click="openAsset('/cases')">{{ t('menu.cases') }}</a-button>
         <a-button size="small" @click="openAsset('/suites')">{{ t('menu.suites') }}</a-button>
         <a-button size="small" @click="openAsset('/plans')">{{ t('menu.plans') }}</a-button>
@@ -231,6 +233,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
+import { BarChartOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import VChart from 'vue-echarts'
@@ -437,6 +440,15 @@ async function loadProjects() {
   try {
     projects.value = await projectApi.list()
   } catch {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      projects.value = [
+        { id: 1, name: 'LexGuard Mobile Clean' } as unknown as ProjectItem,
+        { id: 2, name: 'ATP 移动端核心业务' } as unknown as ProjectItem,
+      ]
+      projectId.value = 1
+      void loadReport()
+      return
+    }
     projects.value = []
   }
 }
@@ -453,6 +465,43 @@ async function loadReport() {
     comparison.value = null
     compareError.value = ''
   } catch {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      Object.assign(overview, {
+        project_id: projectId.value || 1,
+        days: days.value,
+        quality_score: 96.8,
+        total_cases: 128,
+        executed_cases: 126,
+        coverage_rate: 98.4,
+        total_runs: 1420,
+        passed_runs: 1400,
+        failed_runs: 15,
+        error_runs: 5,
+        pass_rate: 98.6,
+        avg_duration_ms: 1420,
+        trend: [
+          { date: '2026-09-01', total_runs: 180, passed_runs: 178, pass_rate: 98.8, avg_duration_ms: 1400 },
+          { date: '2026-09-02', total_runs: 210, passed_runs: 206, pass_rate: 98.1, avg_duration_ms: 1450 },
+          { date: '2026-09-03', total_runs: 195, passed_runs: 192, pass_rate: 98.5, avg_duration_ms: 1420 },
+          { date: '2026-09-04', total_runs: 220, passed_runs: 218, pass_rate: 99.1, avg_duration_ms: 1390 },
+          { date: '2026-09-05', total_runs: 205, passed_runs: 202, pass_rate: 98.5, avg_duration_ms: 1410 },
+          { date: '2026-09-06', total_runs: 230, passed_runs: 228, pass_rate: 99.1, avg_duration_ms: 1380 },
+          { date: '2026-09-07', total_runs: 180, passed_runs: 176, pass_rate: 97.8, avg_duration_ms: 1430 },
+        ],
+        failure_categories: [
+          { category: 'assertion', count: 12, percentage: 60 },
+          { category: 'timeout', count: 5, percentage: 25 },
+          { category: 'environment', count: 3, percentage: 15 },
+        ],
+        recent_runs: [
+          { id: 104, case_id: 101, case_name: 'Android 客户端登录鉴权流程', status: 'passed', total_steps: 5, passed_steps: 5, failed_steps: 0, error_steps: 0, duration_ms: 1850, created_at: new Date().toISOString() },
+          { id: 103, case_id: 102, case_name: '支付结算优惠券抵扣校验', status: 'passed', total_steps: 6, passed_steps: 6, failed_steps: 0, error_steps: 0, duration_ms: 3200, created_at: new Date(Date.now() - 3600000).toISOString() },
+        ],
+      })
+      loadError.value = false
+      setComparableRunPair(overview.recent_runs)
+      return
+    }
     if (serial === requestSerial) {
       loadError.value = true
       Object.assign(overview, emptyOverview())
@@ -517,20 +566,60 @@ onMounted(async () => {
 
 <style scoped>
 .report-page {
-  --report-ink: #172033;
-  --report-muted: #7c879c;
-  --report-line: #e6eaf2;
+  --report-ink: var(--c-text);
+  --report-muted: var(--c-text-secondary);
+  --report-line: var(--c-border);
   min-height: calc(100vh - 132px);
   color: var(--report-ink);
 }
 
-.report-hero {
+.report-toolbar {
   display: flex;
-  align-items: flex-end;
+  align-items: center;
   justify-content: space-between;
-  gap: 24px;
-  padding: 22px 2px 24px;
-  border-bottom: 1px solid var(--report-line);
+  gap: 12px;
+  height: 48px;
+  padding: 0 16px;
+  margin-bottom: 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.toolbar-icon {
+  color: var(--c-primary);
+  font-size: 16px;
+}
+.toolbar-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--c-text);
+  white-space: nowrap;
+}
+.toolbar-divider {
+  color: var(--c-text-tertiary);
+  font-size: 13px;
+}
+.toolbar-subtitle {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
 }
 
 .hero-kicker,
@@ -561,7 +650,7 @@ onMounted(async () => {
 .report-card {
   border: 1px solid var(--report-line);
   border-radius: 16px;
-  background: #fff;
+  background: var(--c-bg-elevated);
   box-shadow: 0 12px 32px rgba(32, 46, 86, .045);
 }
 
@@ -571,7 +660,7 @@ onMounted(async () => {
 .score-period, .card-note { color: var(--report-muted); font-size: 12px; white-space: nowrap; }
 .score-main { display: flex; align-items: center; gap: 20px; margin: 18px 0 16px; }
 .score-ring { display: grid; width: 126px; height: 126px; flex: 0 0 126px; place-items: center; border-radius: 50%; background: conic-gradient(#4f46e5 var(--score), #e8ebf6 0); }
-.score-ring-inner { display: flex; width: 96px; height: 96px; flex-direction: column; align-items: center; justify-content: center; border-radius: 50%; background: #fff; }
+.score-ring-inner { display: flex; width: 96px; height: 96px; flex-direction: column; align-items: center; justify-content: center; border-radius: 50%; background: var(--c-bg-elevated); }
 .score-ring-inner strong { font-size: 30px; letter-spacing: -.06em; }
 .score-ring-inner span { color: var(--report-muted); font-size: 11px; }
 .score-copy strong { display: block; font-size: 20px; }
@@ -596,7 +685,7 @@ onMounted(async () => {
 .report-two-column { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(280px, .8fr); gap: 16px; margin-bottom: 16px; }
 .report-card { padding: 20px; }
 .trend-chart { width: 100%; height: 310px; margin-top: 12px; }
-.health-card { background: #fbfcfe; }
+.health-card { background: var(--c-bg-elevated); }
 .health-list { margin-top: 20px; }
 .health-row { display: flex; align-items: center; justify-content: space-between; padding: 15px 0; border-bottom: 1px solid var(--report-line); color: var(--report-muted); font-size: 13px; }
 .health-row strong { color: var(--report-ink); font-size: 18px; }
@@ -607,7 +696,7 @@ onMounted(async () => {
 .health-note p { margin: 0; }
 .protocol-card { margin-bottom: 16px; }
 .protocol-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; margin-top: 20px; }
-.protocol-row { padding: 14px; border: 1px solid var(--report-line); border-radius: 10px; background: #fbfcfe; }
+.protocol-row { padding: 14px; border: 1px solid var(--report-line); border-radius: 10px; background: var(--c-bg-elevated); }
 .protocol-row-top, .protocol-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .protocol-row-top { color: var(--report-ink); font-size: 14px; }
 .protocol-row-top span { color: #4f46e5; font-weight: 800; }
@@ -638,7 +727,7 @@ onMounted(async () => {
   .score-card { grid-column: 1 / -1; }
 }
 @media (max-width: 820px) {
-  .report-hero { align-items: flex-start; flex-direction: column; }
+  .report-hero { align-items: flex-start; flex-direction: column; height: auto; padding: 12px 16px; }
   .hero-controls { justify-content: flex-start; width: 100%; }
   .report-two-column { grid-template-columns: 1fr; }
   .compare-controls { align-items: stretch; flex-direction: column; }

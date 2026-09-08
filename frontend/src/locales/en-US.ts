@@ -187,6 +187,9 @@ export default {
     theme_dark: 'Dark',
     theme_toggle: 'Toggle theme',
     project_context: 'Project #{id}',
+    project_unselected: 'Select project',
+    prototype_data_warning: 'Prototype data mode is enabled; pages may display demonstration data and business writes are disabled.',
+    project_switched: 'Switched to project: {name}',
     role_engineer: 'Engineer',
     worker: {
       title: 'Web Recording Worker',

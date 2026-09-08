@@ -187,6 +187,7 @@ function mountSuiteList() {
         ATreeSelect: selectStub,
         Draggable: passthrough('Draggable'),
         BatchOperationBar: passthrough('BatchOperationBar'),
+        FolderOpenOutlined: true,
         HolderOutlined: true,
         PlusOutlined: true,
       },

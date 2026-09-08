@@ -1,23 +1,26 @@
 <template>
   <div class="page-shell case-page">
-    <div class="page-header">
-      <div>
-        <h2 class="page-title">{{ t('case.title') }}</h2>
-        <div class="page-subtitle">{{ t('case.subtitle') }}</div>
+    <header class="case-toolbar page-header">
+      <div class="toolbar-left">
+        <FileTextOutlined class="toolbar-icon" />
+        <h2 class="toolbar-title page-title">{{ t('case.title') }}</h2>
+        <span class="toolbar-divider">/</span>
+        <span class="toolbar-subtitle page-subtitle">{{ t('case.subtitle') }}</span>
       </div>
-      <a-space wrap>
+      <div class="toolbar-right">
         <a-select
           v-model:value="(selectedProjectId as number | undefined)"
+          size="small"
           :placeholder="t('case.select_project')"
-          style="width: 240px"
+          style="width: 200px"
           :options="projectOptions"
           allow-clear
           @change="handleProjectChange"
         />
-        <a-button @click="router.push({ name: 'projects' })">{{ t('case.project_management') }}</a-button>
-        <a-button :disabled="!selectedProjectId" @click="refreshCurrentProject">{{ t('common.refresh') }}</a-button>
-      </a-space>
-    </div>
+        <a-button size="small" @click="router.push({ name: 'projects' })">{{ t('case.project_management') }}</a-button>
+        <a-button size="small" :disabled="!selectedProjectId" @click="refreshCurrentProject">{{ t('common.refresh') }}</a-button>
+      </div>
+    </header>
 
     <a-alert
       v-if="pendingAiGeneration"
@@ -523,7 +526,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
-import { DownOutlined, HistoryOutlined, PlusOutlined, ThunderboltOutlined } from '@ant-design/icons-vue'
+import { DownOutlined, FileTextOutlined, HistoryOutlined, PlusOutlined, ThunderboltOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { caseApi, environmentApi, projectApi } from '@/api'
 import type {
@@ -901,6 +904,17 @@ async function loadProjects() {
   try {
     projects.value = await projectApi.list()
   } catch (error: unknown) {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      projects.value = [
+        { id: 1, name: 'LexGuard Mobile Clean' } as unknown as ProjectItem,
+        { id: 2, name: 'ATP 移动端核心业务' } as unknown as ProjectItem,
+      ]
+      if (!selectedProjectId.value) {
+        selectedProjectId.value = 1
+        await handleProjectChange(1)
+      }
+      return
+    }
     message.error(errorMessage(error, t('case.msg.load_projects_failed')))
     projects.value = []
   }
@@ -919,6 +933,10 @@ async function loadModules() {
       selectedModuleId.value = null
     }
   } catch (error: unknown) {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      moduleNameMap.value = { 1: '用户鉴权', 2: '结算服务', 3: '商品中心' }
+      return
+    }
     moduleNameMap.value = {}
     message.error(errorMessage(error, t('case.msg.load_modules_failed')))
   }
@@ -944,6 +962,47 @@ async function loadCases() {
     }
     cases.value = await caseApi.list(params)
   } catch (error: unknown) {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      cases.value = [
+        {
+          id: 101,
+          name: '手机验证码登录流程鉴权校验',
+          case_type: 'android',
+          priority: 'P0',
+          status: 'active',
+          review_status: 'approved',
+          automation_status: 'automated',
+          module_id: 1,
+          module_name: '用户鉴权',
+          updated_at: new Date().toISOString(),
+        },
+        {
+          id: 102,
+          name: '电商下单金额计算与促销优惠券抵扣校验',
+          case_type: 'api',
+          priority: 'P0',
+          status: 'active',
+          review_status: 'approved',
+          automation_status: 'automated',
+          module_id: 2,
+          module_name: '结算服务',
+          updated_at: new Date(Date.now() - 3600000).toISOString(),
+        },
+        {
+          id: 103,
+          name: '商品列表页面翻页与条件组合筛选',
+          case_type: 'web',
+          priority: 'P1',
+          status: 'active',
+          review_status: 'pending',
+          automation_status: 'manual',
+          module_id: 3,
+          module_name: '商品中心',
+          updated_at: new Date(Date.now() - 7200000).toISOString(),
+        },
+      ] as unknown as CaseSummaryItem[]
+      return
+    }
     message.error(errorMessage(error, t('case.msg.load_cases_failed')))
     cases.value = []
   } finally {
@@ -1462,32 +1521,53 @@ onMounted(async () => {
   gap: 18px;
 }
 
-.page-header {
+.case-toolbar {
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  padding: 16px 20px;
+  justify-content: space-between;
+  gap: 12px;
+  height: 48px;
+  padding: 0 16px;
   background: var(--c-bg-elevated);
   border: 1px solid var(--c-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-xs);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
 }
-
-.page-header h2 {
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.toolbar-icon {
+  color: var(--c-primary);
+  font-size: 16px;
+}
+.toolbar-title {
   margin: 0;
-  font-size: 20px;
-  font-weight: 700;
-  letter-spacing: -0.02em;
+  font-size: 14px;
+  font-weight: 650;
   color: var(--c-text);
+  white-space: nowrap;
 }
-
-.page-header p {
-  margin: 4px 0 0;
-  color: var(--c-text-secondary);
+.toolbar-divider {
+  color: var(--c-text-tertiary);
   font-size: 13px;
 }
-
+.toolbar-subtitle {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .summary-row :deep(.ant-card) {
   border-radius: var(--radius-md);
   border: 1px solid var(--c-border);

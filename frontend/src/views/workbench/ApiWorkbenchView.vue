@@ -1,31 +1,37 @@
 <template>
   <div class="page-shell api-workbench">
-    <section class="api-hero">
-      <div class="hero-copy">
-        <div class="eyebrow"><ApiOutlined /> {{ t('api_workbench.eyebrow') }}</div>
-        <h1>{{ t('api_workbench.title') }}</h1>
-        <p>{{ t('api_workbench.subtitle') }}</p>
-        <div class="hero-rail">
+    <header class="api-toolbar">
+      <div class="toolbar-left">
+        <div class="toolbar-identity">
+          <ApiOutlined class="toolbar-icon" />
+          <span class="toolbar-name">{{ t('api_workbench.title') }}</span>
+        </div>
+        <div class="toolbar-sep">/</div>
+        <div class="toolbar-project">
+          <label class="sr-only">{{ t('api_workbench.project_label') }}</label>
+          <a-select
+            v-model:value="projectSelectId"
+            :options="projectOptions"
+            allow-clear
+            size="small"
+            class="project-select-dropdown"
+            :placeholder="t('api_workbench.project_placeholder')"
+            @change="handleProjectChange"
+          />
+        </div>
+        <div class="toolbar-status">
           <span class="live-dot" />
           <span>{{ t('api_workbench.execution_rail') }}</span>
-          <span class="rail-separator" />
-          <span class="rail-muted">{{ selectedProjectName || t('api_workbench.no_project') }}</span>
+          <span v-if="selectedProjectName" class="project-pill-tag">{{ selectedProjectName }}</span>
         </div>
       </div>
-      <div class="hero-controls">
-        <label>{{ t('api_workbench.project_label') }}</label>
-        <a-select
-          v-model:value="projectSelectId"
-          :options="projectOptions"
-          allow-clear
-          :placeholder="t('api_workbench.project_placeholder')"
-          @change="handleProjectChange"
-        />
-        <a-button :loading="loading || environmentsLoading" @click="refreshWorkbench">
+
+      <div class="toolbar-right">
+        <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
       </div>
-    </section>
+    </header>
 
     <a-alert
       v-if="selectedProjectId && !canModify"
@@ -644,32 +650,82 @@ onMounted(() => {
   color: var(--c-text);
 }
 
-.api-hero {
+.api-toolbar {
   display: flex;
   justify-content: space-between;
-  gap: 28px;
-  padding: 24px 28px;
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-lg);
+  align-items: center;
+  gap: 16px;
+  height: 48px;
+  padding: 0 16px;
   background: var(--c-bg-elevated);
-  box-shadow: var(--shadow-sm);
-  position: relative;
-  overflow: hidden;
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  margin-bottom: 14px;
 }
 
-.hero-copy { min-width: 0; }
-.eyebrow, .column-kicker { color: var(--c-info); font-size: 11px; font-weight: 700; letter-spacing: .1em; text-transform: uppercase; }
-.eyebrow { display: flex; align-items: center; gap: 7px; }
-.api-hero h1 { margin: 8px 0 6px; color: var(--c-text); font-size: 26px; font-weight: 700; letter-spacing: -.03em; }
-.api-hero p { max-width: 680px; margin: 0; color: var(--c-text-secondary); line-height: 1.6; font-size: 13px; }
-.hero-rail { display: flex; align-items: center; gap: 9px; margin-top: 16px; color: var(--c-text-secondary); font-size: 12px; font-weight: 600; }
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.toolbar-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.toolbar-icon {
+  font-size: 16px;
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+  padding: 5px;
+  border-radius: 6px;
+}
+
+.toolbar-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.toolbar-sep {
+  color: var(--c-text-tertiary);
+  font-size: 13px;
+}
+
+.project-select-dropdown {
+  width: 200px;
+}
+
+.toolbar-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--c-text-secondary);
+  margin-left: 6px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.toolbar-btn {
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
 .live-dot, .state-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--c-info); box-shadow: 0 0 8px var(--c-info-soft); }
-.rail-separator { width: 1px; height: 14px; margin: 0 2px; background: var(--c-border); }
-.rail-muted { color: var(--c-text-tertiary); font-weight: 500; }
-.hero-controls { display: flex; flex: 0 0 250px; flex-direction: column; align-items: stretch; gap: 8px; }
-.hero-controls label { color: var(--c-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.hero-controls .ant-select { width: 100%; }
-.hero-controls .ant-btn { margin-top: 4px; align-self: flex-start; }
 .readonly-alert { margin-top: 16px; }
 .project-empty { min-height: 320px; padding: 100px 0; }
 

@@ -118,10 +118,19 @@
           <a-breadcrumb class="header-breadcrumb">
             <a-breadcrumb-item v-for="key in breadcrumbKeys" :key="key">{{ t(key) }}</a-breadcrumb-item>
           </a-breadcrumb>
-          <span v-if="activeProjectId" class="project-context">
-            <span class="context-dot"></span>
-            {{ t('layout.project_context', { id: activeProjectId }) }}
-          </span>
+          <a-dropdown>
+            <span class="project-context cursor-pointer" :class="{ 'project-context-disabled': projectOptionsLoading }">
+              <span class="context-dot"></span>
+              {{ globalProjectName }}
+              <DownOutlined class="project-context-arrow" />
+            </span>
+            <template #overlay>
+              <a-menu @click="handleGlobalProjectSelect">
+                <a-menu-item v-for="project in projectOptions" :key="project.id">{{ project.name }}</a-menu-item>
+                <a-menu-item v-if="!projectOptions.length" key="empty" disabled>{{ t('common.no_data') }}</a-menu-item>
+              </a-menu>
+            </template>
+          </a-dropdown>
         </div>
 
         <!-- 顶部搜索与全局指令面板触发器 -->
@@ -178,8 +187,16 @@
 
       <!-- 内容区 -->
       <a-layout-content class="app-content">
+        <a-alert
+          v-if="prototypeDataEnabled"
+          class="prototype-data-alert"
+          type="warning"
+          show-icon
+          banner
+          :message="t('layout.prototype_data_warning')"
+        />
         <div class="content-card">
-          <RouterView />
+          <RouterView :key="projectContextKey" />
         </div>
       </a-layout-content>
     </a-layout>
@@ -255,11 +272,13 @@ import {
   ThunderboltFilled,
   SearchOutlined,
 } from '@ant-design/icons-vue'
+import { message } from 'ant-design-vue'
 import { useAuthStore } from '@/stores/auth'
 import { useThemeStore } from '@/stores/theme'
 import { getLocale, setLocale, type SupportedLocale } from '@/locales'
 import { hasAnyRole, type UserRole } from '@/utils/permissions'
-import { webRecordingApi, workbenchApi, type WebRecordingWorkersResponse } from '@/api'
+import { projectContextRenderKey, projectSelectionLocation } from '@/utils/projectContext'
+import { projectApi, webRecordingApi, workbenchApi, type ProjectItem, type WebRecordingWorkersResponse } from '@/api'
 import {
   getBreadcrumbKeys,
   getMenuOpenKeys,
@@ -272,11 +291,14 @@ const route = useRoute()
 const auth = useAuthStore()
 const themeStore = useThemeStore()
 const { t } = useI18n()
+const prototypeDataEnabled = import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true'
 
 const workbenchTodoCount = ref(0)
 const activeTaskCount = ref(0)
 const workerStatus = ref<WebRecordingWorkersResponse | null>(null)
 const workerStatusLoading = ref(true)
+const projectOptions = ref<ProjectItem[]>([])
+const projectOptionsLoading = ref(false)
 let workbenchRefreshTimer: number | undefined
 
 const collapsed = ref(false)
@@ -400,6 +422,7 @@ onMounted(() => {
   }
   void refreshWorkbenchSummary()
   void refreshWorkerStatus()
+  void refreshProjectOptions()
   workbenchRefreshTimer = window.setInterval(() => {
     void refreshWorkbenchSummary()
     void refreshWorkerStatus()
@@ -430,6 +453,30 @@ const activeProjectId = computed(() => {
   const projectId = route.query.project_id ?? route.params.projectId
   return projectId ? String(projectId) : ''
 })
+const projectContextKey = computed(() => projectContextRenderKey(route))
+const globalProjectName = computed(() => {
+  const selected = projectOptions.value.find((project) => String(project.id) === activeProjectId.value)
+  return selected?.name ?? (activeProjectId.value ? `项目 #${activeProjectId.value}` : t('layout.project_unselected'))
+})
+
+async function refreshProjectOptions() {
+  projectOptionsLoading.value = true
+  try {
+    projectOptions.value = await projectApi.list()
+  } catch {
+    projectOptions.value = []
+  } finally {
+    projectOptionsLoading.value = false
+  }
+}
+
+async function handleGlobalProjectSelect(info: { key: string | number }) {
+  const projectId = Number(info.key)
+  const project = projectOptions.value.find((item) => item.id === projectId)
+  if (!project || String(projectId) === activeProjectId.value) return
+  await router.push(projectSelectionLocation(route, projectId))
+  message.success(t('layout.project_switched', { name: project.name }))
+}
 
 function onMenuClick({ key }: { key: string | number }) {
   router.push(String(key))
@@ -548,7 +595,15 @@ function onLocaleChange(value: unknown) {
   font-weight: 600;
   font-size: 13px;
 }
-
+.app-menu :deep(.ant-menu-item) {
+  color: var(--c-text-secondary);
+  font-size: 13px;
+}
+.app-menu :deep(.ant-menu-item:hover),
+.app-menu :deep(.ant-menu-submenu-title:hover) {
+  color: var(--c-text) !important;
+  background-color: var(--c-bg-subtle) !important;
+}
 .app-menu :deep(.ant-menu-item-selected) {
   background-color: var(--c-sider-active-bg) !important;
   color: var(--c-sider-text-active) !important;
@@ -559,11 +614,12 @@ function onLocaleChange(value: unknown) {
 .sider-footer {
   padding: 12px;
   border-top: 1px solid var(--c-border-subtle);
+  background: var(--c-bg-elevated);
 }
 .worker-status-card {
   padding: 10px 12px;
   border-radius: var(--radius-md);
-  background: var(--c-bg-subtle);
+  background: var(--c-bg-body);
   border: 1px solid var(--c-border);
   display: flex;
   flex-direction: column;
@@ -687,6 +743,18 @@ function onLocaleChange(value: unknown) {
   line-height: 1.2;
   font-weight: 600;
   white-space: nowrap;
+}
+.project-context-disabled {
+  cursor: progress;
+  opacity: 0.65;
+}
+.project-context-arrow {
+  margin-left: 4px;
+  color: var(--c-text-tertiary);
+  font-size: 10px;
+}
+.prototype-data-alert {
+  margin: 12px 16px 0;
 }
 .context-dot {
   width: 6px;

@@ -175,6 +175,7 @@ function mountPlanList() {
         ATag: defineComponent({ name: 'ATag', setup: (_p, { slots }) => () => h('span', { 'data-test': 'tag' }, slots.default?.()) }),
         ATextarea: inputStub('ATextarea'),
         BatchOperationBar: passthrough('BatchOperationBar'),
+        CalendarOutlined: true,
         PlusOutlined: true,
       },
     },

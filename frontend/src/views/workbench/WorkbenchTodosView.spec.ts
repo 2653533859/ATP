@@ -42,7 +42,7 @@ vi.mock('ant-design-vue', () => ({
   message: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
   Modal: { confirm: modalConfirm },
 }))
-vi.mock('@ant-design/icons-vue', () => ({ ReloadOutlined: true }))
+vi.mock('@ant-design/icons-vue', () => ({ ReloadOutlined: true, CheckSquareOutlined: true, ScheduleOutlined: true }))
 vi.mock('@/api', () => ({
   projectApi: { list: projectList },
   runApi: { generateFailureDiagnosis },

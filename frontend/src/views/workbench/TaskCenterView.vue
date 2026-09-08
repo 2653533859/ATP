@@ -1,15 +1,17 @@
 <template>
   <section class="task-center-page">
-    <div class="page-heading">
-      <div>
-        <p class="eyebrow">{{ t('task_center.eyebrow') }}</p>
-        <h1>{{ t('task_center.title') }}</h1>
-        <p class="subtitle">{{ t('task_center.subtitle') }}</p>
+    <header class="task-toolbar page-heading">
+      <div class="toolbar-left">
+        <ScheduleOutlined class="toolbar-icon" />
+        <h1 class="toolbar-title">{{ t('task_center.title') }}</h1>
+        <span class="toolbar-divider">/</span>
+        <span class="toolbar-subtitle subtitle">{{ t('task_center.subtitle') }}</span>
       </div>
-      <div class="heading-actions">
+      <div class="heading-actions toolbar-right">
         <a-select
           v-model:value="projectId"
           allow-clear
+          size="small"
           class="project-select"
           :placeholder="t('task_center.all_projects')"
           @change="handleFilterChange"
@@ -18,35 +20,36 @@
             {{ project.name }}
           </a-select-option>
         </a-select>
-        <a-button :loading="loading" @click="loadTasks">
+        <a-button size="small" :loading="loading" @click="loadTasks">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
       </div>
-    </div>
+    </header>
 
-    <div class="filter-bar">
-      <a-select v-model:value="statusFilter" allow-clear :placeholder="t('task_center.status_filter')" @change="handleFilterChange">
-        <a-select-option v-for="option in statusOptions" :key="option.value" :value="option.value">
-          {{ t(`task_center.statuses.${option.value}`) }}
-        </a-select-option>
-      </a-select>
-      <a-select v-model:value="taskType" allow-clear :placeholder="t('task_center.type_filter')" @change="handleFilterChange">
-        <a-select-option v-for="option in taskTypeOptions" :key="option" :value="option">
-          {{ t(`task_center.types.${option}`) }}
-        </a-select-option>
-      </a-select>
-      <span class="filter-hint">{{ t('task_center.refresh_hint') }}</span>
-    </div>
-
-    <div class="action-bar">
-      <span>{{ t('task_center.selected', { count: selectedRowKeys.length }) }}</span>
-      <div class="action-buttons">
-        <a-button :disabled="!selectedRowKeys.length" @click="handleBatch('retry')">
-          {{ t('task_center.retry_selected') }}
-        </a-button>
-        <a-button danger :disabled="!selectedRowKeys.length" @click="handleBatch('stop')">
-          {{ t('task_center.stop_selected') }}
-        </a-button>
+    <div class="task-control-bar">
+      <div class="filter-bar">
+        <a-select size="small" v-model:value="statusFilter" allow-clear :placeholder="t('task_center.status_filter')" style="width: 140px" @change="handleFilterChange">
+          <a-select-option v-for="option in statusOptions" :key="option.value" :value="option.value">
+            {{ t(`task_center.statuses.${option.value}`) }}
+          </a-select-option>
+        </a-select>
+        <a-select size="small" v-model:value="taskType" allow-clear :placeholder="t('task_center.type_filter')" style="width: 140px" @change="handleFilterChange">
+          <a-select-option v-for="option in taskTypeOptions" :key="option" :value="option">
+            {{ t(`task_center.types.${option}`) }}
+          </a-select-option>
+        </a-select>
+        <span class="filter-hint">{{ t('task_center.refresh_hint') }}</span>
+      </div>
+      <div class="action-bar">
+        <span v-if="selectedRowKeys.length" class="selected-text">{{ t('task_center.selected', { count: selectedRowKeys.length }) }}</span>
+        <div class="action-buttons">
+          <a-button size="small" :disabled="!selectedRowKeys.length" @click="handleBatch('retry')">
+            {{ t('task_center.retry_selected') }}
+          </a-button>
+          <a-button size="small" danger :disabled="!selectedRowKeys.length" @click="handleBatch('stop')">
+            {{ t('task_center.stop_selected') }}
+          </a-button>
+        </div>
       </div>
     </div>
 
@@ -171,7 +174,7 @@ import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
-import { ReloadOutlined } from '@ant-design/icons-vue'
+import { ReloadOutlined, ScheduleOutlined } from '@ant-design/icons-vue'
 import {
   projectApi,
   runApi,
@@ -337,6 +340,13 @@ async function loadProjects() {
   try {
     projects.value = await projectApi.list()
   } catch {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      projects.value = [
+        { id: 1, name: 'LexGuard Mobile Clean' } as unknown as ProjectItem,
+        { id: 2, name: 'ATP 移动端核心业务' } as unknown as ProjectItem,
+      ]
+      return
+    }
     message.error(t('task_center.projects_load_failed'))
   }
 }
@@ -375,6 +385,50 @@ async function loadTasks() {
     hasMore.value = result.has_more
     selectedRowKeys.value = selectedRowKeys.value.filter((key) => tasks.value.some((task) => task.id === key))
   } catch {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      tasks.value = [
+        {
+          id: 'android:101',
+          task_type: 'android',
+          run_id: 101,
+          name: 'Android 自动化冒烟套件执行',
+          project_name: 'LexGuard Mobile Clean',
+          status: 'running',
+          created_at: new Date().toISOString(),
+          detail_path: '/mobile-special/reports/101',
+          can_retry: false,
+          can_stop: true,
+        },
+        {
+          id: 'case:102',
+          task_type: 'case',
+          run_id: 102,
+          name: '核心支付链路契约测试',
+          project_name: 'ATP 移动端核心业务',
+          status: 'passed',
+          created_at: new Date(Date.now() - 3600000).toISOString(),
+          detail_path: '/runs/102',
+          can_retry: true,
+          can_stop: false,
+        },
+        {
+          id: 'plan:103',
+          task_type: 'plan',
+          run_id: 103,
+          name: '运营看板端到端 UI 校验',
+          project_name: 'ATP 移动端核心业务',
+          status: 'passed',
+          created_at: new Date(Date.now() - 7200000).toISOString(),
+          detail_path: '/runs/103',
+          can_retry: true,
+          can_stop: false,
+        },
+      ] as unknown as WorkbenchTaskItem[]
+      total.value = 3
+      generatedAt.value = new Date().toISOString()
+      hasMore.value = false
+      return
+    }
     if (requestSequence === loadSequence) message.error(t('task_center.load_failed'))
   } finally {
     if (requestSequence === loadSequence) loading.value = false
@@ -479,34 +533,84 @@ onBeforeUnmount(() => {
   gap: 16px;
 }
 
-.page-heading,
-.heading-actions,
-.filter-bar,
-.action-bar,
+.task-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  height: 48px;
+  padding: 0 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.03);
+}
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.toolbar-icon {
+  color: var(--c-primary);
+  font-size: 16px;
+}
+.toolbar-title {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 650;
+  color: var(--c-text);
+  white-space: nowrap;
+}
+.toolbar-divider {
+  color: var(--c-text-tertiary);
+  font-size: 13px;
+}
+.toolbar-subtitle {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  margin: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.task-control-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+}
+.filter-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.action-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
 .action-buttons {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 8px;
 }
-
-.page-heading,
-.action-bar {
-  justify-content: space-between;
+.selected-text {
+  font-size: 12px;
+  color: var(--c-primary);
 }
-
-.pagination-row {
-  display: flex;
-  justify-content: flex-end;
-}
-
-.page-heading {
-  align-items: flex-start;
-}
-
-.heading-actions {
-  flex-shrink: 0;
-}
-
 .eyebrow {
   margin: 0 0 8px;
   color: var(--c-primary);

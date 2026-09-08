@@ -124,6 +124,7 @@ function mountView() {
 }
 
 beforeEach(() => {
+  vi.unstubAllEnvs()
   vi.clearAllMocks()
   projectList.mockResolvedValue([{ id: 1, name: '核心项目', owner_id: 1, current_user_role: 'owner' }])
   requirementList.mockResolvedValue({ items: [requirement], total: 1, page: 1, page_size: 50 })
@@ -144,6 +145,20 @@ describe('RequirementTraceabilityView', () => {
     expect(impact).toHaveBeenCalledWith(1)
     expect((wrapper.vm as any).selectedRequirement.title).toBe('登录需求')
     expect((wrapper.vm as any).coveredCriterionIds.has('AC-1')).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('finishes loading after falling back to prototype requirements', async () => {
+    vi.stubEnv('VITE_ENABLE_PROTOTYPE_DATA', 'true')
+    requirementList.mockRejectedValue(new Error('backend unavailable'))
+
+    const wrapper = mountView()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(vm.loading).toBe(false)
+    expect(vm.requirements).toHaveLength(1)
+    expect(vm.cases).toHaveLength(1)
     wrapper.unmount()
   })
 

@@ -1,37 +1,44 @@
 <template>
   <div class="page-shell app-workbench">
-    <section class="app-hero">
-      <div class="hero-copy">
-        <div class="eyebrow"><MobileOutlined /> {{ t('app_workbench.eyebrow') }}</div>
-        <div class="hero-title-row">
-          <h1>{{ t('app_workbench.title') }}</h1>
-          <span class="hero-chip">ADB / Windows lane</span>
+    <header class="app-toolbar">
+      <div class="toolbar-left">
+        <div class="toolbar-identity">
+          <MobileOutlined class="toolbar-icon" />
+          <span class="toolbar-name">{{ t('app_workbench.title') }}</span>
         </div>
-        <p>{{ t('app_workbench.subtitle') }}</p>
-        <div class="hero-rail">
+        <div class="toolbar-sep">/</div>
+        <div class="toolbar-project">
+          <label class="sr-only">{{ t('app_workbench.project_label') }}</label>
+          <a-select
+            v-model:value="projectSelectId"
+            :options="projectOptions"
+            allow-clear
+            size="small"
+            class="project-select-dropdown"
+            :disabled="Boolean(lease)"
+            :placeholder="t('app_workbench.project_placeholder')"
+            @change="handleProjectChange"
+          />
+        </div>
+        <div class="toolbar-status">
           <span class="live-dot" :class="{ muted: !workers.length }" />
           <span>{{ workers.length ? t('app_workbench.worker_online', { count: workers.length }) : t('app_workbench.worker_offline') }}</span>
-          <span class="rail-separator" />
-          <span class="rail-muted">{{ selectedProjectName || t('app_workbench.no_project') }}</span>
+          <span v-if="selectedProjectName" class="project-pill-tag">{{ selectedProjectName }}</span>
         </div>
       </div>
-      <div class="hero-controls">
-        <label>{{ t('app_workbench.project_label') }}</label>
-        <a-select
-          v-model:value="projectSelectId"
-          :options="projectOptions"
-          allow-clear
-          :disabled="Boolean(lease)"
-          :placeholder="t('app_workbench.project_placeholder')"
-          @change="handleProjectChange"
-        />
-        <div class="hero-control-row">
-          <a-button :loading="loading" @click="refreshAll"><ReloadOutlined /> {{ t('common.refresh') }}</a-button>
-          <a-button type="link" @click="openDevices"><ToolOutlined /> {{ t('app_workbench.device_management') }}</a-button>
-          <a-button type="link" @click="openIosAssets">{{ t('app_workbench.ios_preview') }}</a-button>
-        </div>
+
+      <div class="toolbar-right">
+        <a-button size="small" :loading="loading" class="toolbar-btn" @click="refreshAll">
+          <ReloadOutlined /> {{ t('common.refresh') }}
+        </a-button>
+        <a-button size="small" class="toolbar-btn" @click="openDevices">
+          <ToolOutlined /> {{ t('app_workbench.device_management') }}
+        </a-button>
+        <a-button size="small" class="toolbar-btn" @click="openIosAssets">
+          {{ t('app_workbench.ios_preview') }}
+        </a-button>
       </div>
-    </section>
+    </header>
 
     <a-alert
       v-if="selectedProjectId && !canModify"
@@ -520,7 +527,9 @@ async function loadProjects() {
     if (sequence !== projectSequence) return
   } catch (error: unknown) {
     if (sequence === projectSequence) {
-      message.error(errorMessage(error, t('app_workbench.load_failed')))
+      if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA !== 'true') {
+        message.error(errorMessage(error, t('app_workbench.load_failed')))
+      }
     }
   }
 }
@@ -870,68 +879,126 @@ onUnmounted(() => {
 
 <style scoped>
 .app-workbench {
-  --app-ink: #142238;
-  --app-muted: #718096;
-  --app-line: #dfe7ed;
+  --app-ink: var(--c-text);
+  --app-muted: var(--c-text-secondary);
+  --app-line: var(--c-border);
   --app-cyan: #37c4c6;
   --app-copper: #ee7557;
   color: var(--app-ink);
 }
 
-.app-hero {
+.app-toolbar {
   display: flex;
   justify-content: space-between;
-  gap: 30px;
-  padding: 30px 32px 26px;
-  overflow: hidden;
-  border: 1px solid #1f3144;
-  border-radius: 18px;
-  background: radial-gradient(circle at 82% 18%, rgba(55, 196, 198, .18), transparent 23%), linear-gradient(120deg, #121e2d, #172c3c 68%, #233543);
-  box-shadow: 0 16px 34px rgba(18, 35, 53, .16);
-  color: #f7fbfc;
+  align-items: center;
+  gap: 16px;
+  height: 48px;
+  padding: 0 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--app-line);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  margin-bottom: 14px;
 }
-.hero-copy { min-width: 0; }
-.eyebrow, .panel-kicker, .focus-kicker { color: var(--app-cyan); font-size: 11px; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
-.eyebrow { display: flex; align-items: center; gap: 7px; }
-.hero-title-row { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 7px 0 8px; }
-.app-hero h1 { margin: 0; color: #fff; font-size: 31px; letter-spacing: -.045em; }
-.hero-chip { padding: 4px 8px; border: 1px solid rgba(93, 210, 211, .34); border-radius: 5px; color: #9ce5e4; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; letter-spacing: .04em; }
-.app-hero p { max-width: 700px; margin: 0; color: #b7c9d0; line-height: 1.7; }
-.hero-rail { display: flex; align-items: center; gap: 9px; margin-top: 21px; color: #e2f2f0; font-size: 12px; font-weight: 650; }
+
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
+}
+
+.toolbar-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.toolbar-icon {
+  font-size: 16px;
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+  padding: 5px;
+  border-radius: 6px;
+}
+
+.toolbar-name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
+.toolbar-sep {
+  color: var(--c-text-tertiary);
+  font-size: 13px;
+}
+
+.project-select-dropdown {
+  width: 200px;
+}
+
+.toolbar-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--c-text-secondary);
+  margin-left: 6px;
+}
+
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.toolbar-btn {
+  border-radius: 6px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  border: 0;
+}
+
 .live-dot, .device-status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 50%; background: var(--app-cyan); box-shadow: 0 0 0 4px rgba(55, 196, 198, .14); }
 .live-dot.muted { background: #ef9a62; box-shadow: 0 0 0 4px rgba(239, 154, 98, .12); }
-.rail-separator { width: 1px; height: 14px; margin: 0 2px; background: #496274; }
-.rail-muted { color: #8fa7b2; font-weight: 500; }
-.hero-controls { display: flex; flex: 0 0 252px; flex-direction: column; gap: 8px; }
-.hero-controls label { color: #9eb7c0; font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
-.hero-controls .ant-select { width: 100%; }
-.hero-control-row { display: flex; align-items: center; gap: 5px; margin-top: 3px; }
-.hero-control-row .ant-btn { color: #e8f7f6; }
-.hero-control-row .ant-btn-link { padding-inline: 5px; color: #91d9d6; }
 .readonly-alert { margin-top: 16px; }
 .project-empty { min-height: 320px; padding: 100px 0; }
 
 .signal-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
-.signal-card { position: relative; min-height: 112px; overflow: hidden; padding: 17px 18px; border: 1px solid var(--app-line); border-radius: 12px; background: #fff; }
+.signal-card { position: relative; min-height: 112px; overflow: hidden; padding: 17px 18px; border: 1px solid var(--app-line); border-radius: 12px; background: var(--c-bg-elevated); }
 .signal-card::after { position: absolute; right: 0; bottom: 0; width: 45px; height: 3px; background: #d7e1e6; content: ''; }
 .signal-card-primary { border-color: #b7dfdf; background: #f2fcfb; }.signal-card-primary::after { background: var(--app-cyan); }.signal-card-run::after { background: var(--app-copper); }
 .signal-label { display: block; color: var(--app-muted); font-size: 11px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
-.signal-card strong { display: block; margin-top: 10px; color: #112c3e; font-size: 28px; letter-spacing: -.05em; }.signal-card strong small { margin-left: 3px; color: #8d9da5; font-size: 14px; font-weight: 600; letter-spacing: 0; }
+.signal-card strong { display: block; margin-top: 10px; color: var(--c-text); font-size: 28px; letter-spacing: -.05em; }.signal-card strong small { margin-left: 3px; color: #8d9da5; font-size: 14px; font-weight: 600; letter-spacing: 0; }
 .signal-note { display: block; margin-top: 6px; color: #8997a4; font-size: 11px; }
 
 .workspace-grid { display: grid; grid-template-columns: minmax(260px, 330px) minmax(0, 1fr); gap: 16px; }
 .lower-grid { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(320px, .85fr); gap: 16px; margin-top: 16px; }
-.panel { border: 1px solid var(--app-line); border-radius: 14px; background: #fff; box-shadow: 0 8px 24px rgba(31, 58, 77, .05); }
+.panel { border: 1px solid var(--app-line); border-radius: 14px; background: var(--c-bg-elevated); box-shadow: 0 8px 24px rgba(31, 58, 77, .05); }
 .device-panel, .launch-panel, .activity-panel, .asset-panel { padding: 20px; }
-.panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }.panel-head h2 { margin: 5px 0 0; color: #172f40; font-size: 20px; letter-spacing: -.03em; }.compact-head { align-items: center; }.compact-head h2 { font-size: 17px; }.panel-caption { display: flex; justify-content: space-between; gap: 8px; margin: 9px 0 12px; color: #84919d; font-size: 11px; line-height: 1.5; }.count-pill { padding: 3px 7px; border-radius: 999px; background: #eaf9f6; color: #208a7f; font-weight: 700; white-space: nowrap; }
+.panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }.panel-head h2 { margin: 5px 0 0; color: var(--c-text); font-size: 20px; letter-spacing: -.03em; }.compact-head { align-items: center; }.compact-head h2 { font-size: 17px; }.panel-caption { display: flex; justify-content: space-between; gap: 8px; margin: 9px 0 12px; color: #84919d; font-size: 11px; line-height: 1.5; }.count-pill { padding: 3px 7px; border-radius: 999px; background: #eaf9f6; color: #208a7f; font-weight: 700; white-space: nowrap; }
 .device-list { display: flex; flex-direction: column; gap: 6px; max-height: 330px; overflow: auto; }
-.device-row { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px 9px; border: 1px solid transparent; border-radius: 9px; background: #f8fafb; color: inherit; text-align: left; transition: border-color .16s, background .16s, transform .16s; }.device-row:hover, .device-row.selected { border-color: #a5d9d7; background: #effafa; }.device-row.selected { box-shadow: inset 3px 0 0 var(--app-cyan); }.device-row.locked { cursor: not-allowed; opacity: .55; }.device-row:focus-visible, .activity-row:focus-visible, .mode-switch button:focus-visible { outline: 2px solid var(--app-cyan); outline-offset: 2px; }
+.device-row { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px 9px; border: 1px solid transparent; border-radius: 9px; background: var(--c-bg-subtle); color: inherit; text-align: left; transition: border-color .16s, background .16s, transform .16s; }.device-row:hover, .device-row.selected { border-color: #a5d9d7; background: #effafa; }.device-row.selected { box-shadow: inset 3px 0 0 var(--app-cyan); }.device-row.locked { cursor: not-allowed; opacity: .55; }.device-row:focus-visible, .activity-row:focus-visible, .mode-switch button:focus-visible { outline: 2px solid var(--app-cyan); outline-offset: 2px; }
 .device-status-dot { flex: 0 0 auto; width: 8px; height: 8px; box-shadow: none; }.status-online { background: #35b890; }.status-busy { background: var(--app-copper); }.status-offline { background: #adb9c0; }
 .device-row-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }.device-row-main strong { overflow: hidden; color: #234051; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.device-row-main small { overflow: hidden; color: #91a0aa; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }.device-status-text { color: #96a3aa; font-size: 10px; white-space: nowrap; }
 .device-focus { margin-top: 16px; padding-top: 15px; border-top: 1px solid #edf1f3; }.focus-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }.focus-heading strong { display: block; margin-top: 4px; color: #254455; font-size: 13px; }.device-specs { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px; color: #84949f; font-size: 10px; }.lease-banner { display: flex; align-items: center; gap: 6px; margin-top: 11px; padding: 8px 9px; border: 1px solid #f5d5ad; border-radius: 7px; background: #fff8ed; color: #a66b27; font-size: 10px; }.focus-actions { display: flex; gap: 7px; margin-top: 13px; }
 
 .launch-panel { min-width: 0; }.launch-head p { max-width: 630px; margin: 7px 0 0; color: #84919f; font-size: 12px; line-height: 1.6; }.launch-signal { display: flex; align-items: center; gap: 7px; color: #78909a; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }.signal-line { width: 20px; height: 2px; background: var(--app-copper); box-shadow: 7px 0 0 rgba(238, 117, 87, .35), 14px 0 0 rgba(238, 117, 87, .16); }
-.mode-switch { display: inline-flex; gap: 4px; margin: 24px 0 20px; padding: 4px; border-radius: 9px; background: #f0f4f5; }.mode-switch button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border: 0; border-radius: 6px; background: transparent; color: #7a8994; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }.mode-switch button.active { background: #fff; color: #1e6f73; box-shadow: 0 2px 7px rgba(40, 76, 85, .12); }
+.mode-switch { display: inline-flex; gap: 4px; margin: 24px 0 20px; padding: 4px; border-radius: 9px; background: #f0f4f5; }.mode-switch button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border: 0; border-radius: 6px; background: transparent; color: #7a8994; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }.mode-switch button.active { background: var(--c-bg-elevated); color: #1e6f73; box-shadow: 0 2px 7px rgba(40, 76, 85, .12); }
 .launch-form { max-width: 730px; }.launch-form > label, .launch-two-col label { display: block; margin-bottom: 7px; color: #617481; font-size: 11px; font-weight: 750; letter-spacing: .04em; }.launch-form > .ant-select { width: 100%; }.selection-card { margin-top: 14px; padding: 14px; border: 1px solid #dce8ea; border-left: 3px solid var(--app-cyan); border-radius: 9px; background: #f8fcfc; }.selection-title { display: flex; align-items: center; justify-content: space-between; gap: 9px; }.selection-title strong { color: #244353; font-size: 13px; }.selection-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; color: #83929c; font-size: 11px; }.selection-meta span + span { position: relative; }.selection-meta span + span::before { position: absolute; top: 50%; left: -9px; width: 3px; height: 3px; border-radius: 50%; background: #b5c1c6; content: ''; transform: translateY(-50%); }.launch-actions { display: flex; align-items: center; gap: 8px; margin-top: 19px; }.launch-note { display: flex; align-items: center; gap: 6px; margin: 15px 0 0; color: #8b9aa3; font-size: 11px; line-height: 1.6; }.launch-note .anticon { color: #b28a4e; }.launch-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; }.launch-two-col .ant-select { width: 100%; }
 
 .activity-list, .apk-list { display: flex; flex-direction: column; gap: 5px; margin-top: 15px; }.activity-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 8px; border: 0; border-radius: 8px; background: transparent; color: inherit; text-align: left; cursor: pointer; }.activity-row:hover { background: #f4f8f8; }.activity-mark, .apk-mark { display: grid; flex: 0 0 auto; width: 28px; height: 28px; place-items: center; border-radius: 8px; background: #e8f7f6; color: #208b8b; font-size: 13px; }.activity-mark.activity-special { background: #fff0e9; color: #d86f48; }.activity-main, .apk-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }.activity-main strong, .apk-main strong { overflow: hidden; color: #2a4656; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.activity-main small, .apk-main small { overflow: hidden; color: #91a0a8; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }.activity-status { font-size: 10px; font-weight: 750; white-space: nowrap; }.activity-status-passed, .activity-status-completed { color: #229276; }.activity-status-failed, .activity-status-error { color: #ce6558; }.activity-status-running, .activity-status-pending { color: #b67a2f; }.activity-status-stopped, .activity-status-cancelled { color: #80909a; }

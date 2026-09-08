@@ -1,28 +1,29 @@
 <template>
   <div class="page-shell toolbox-page">
-    <header class="toolbox-hero">
-      <div class="toolbox-hero-glow" aria-hidden="true" />
-      <div class="toolbox-hero-content">
-        <div class="toolbox-eyebrow">{{ t('remote_toolbox.eyebrow') }}</div>
-        <h1>{{ t('remote_toolbox.title') }}</h1>
-        <p>{{ t('remote_toolbox.subtitle') }}</p>
+    <header class="toolbox-toolbar">
+      <div class="toolbar-left">
+        <div class="toolbar-identity">
+          <ToolOutlined class="toolbar-icon" />
+          <span class="toolbar-name">{{ t('remote_toolbox.title') }}</span>
+        </div>
+        <div class="toolbar-sep">/</div>
+        <div class="toolbar-note">
+          <span class="safe-tag">安全自愈模式</span>
+          <span class="note-text">{{ t('remote_toolbox.safe_note') }}</span>
+          <span v-if="overview" class="checked-time">· {{ t('remote_toolbox.checked_at', { time: formatDate(overview.checked_at) }) }}</span>
+        </div>
       </div>
-      <div class="toolbox-hero-actions">
-        <a-button class="toolbox-export" :disabled="!overview" @click="exportOverview">
-          {{ t('remote_toolbox.export') }}
+
+      <div class="toolbar-actions">
+        <a-button size="small" class="toolbox-export" :disabled="!overview" @click="exportOverview">
+          <DownloadOutlined /> {{ t('remote_toolbox.export') }}
         </a-button>
-        <a-button class="toolbox-refresh" :loading="loading" @click="loadOverview">
+        <a-button type="primary" size="small" class="toolbox-refresh" :loading="loading" @click="loadOverview">
           <ReloadOutlined :spin="loading" />
           {{ t('remote_toolbox.refresh') }}
         </a-button>
       </div>
     </header>
-
-    <div class="toolbox-safe-note">
-      <ToolOutlined />
-      <span>{{ t('remote_toolbox.safe_note') }}</span>
-      <span v-if="overview" class="toolbox-checked-at">{{ t('remote_toolbox.checked_at', { time: formatDate(overview.checked_at) }) }}</span>
-    </div>
 
     <section class="toolbox-overall" :class="`is-${overview?.status || 'degraded'}`" aria-live="polite">
       <div class="overall-mark" :class="`is-${overview?.status || 'degraded'}`">
@@ -99,6 +100,7 @@ import {
   ArrowRightOutlined,
   CheckCircleOutlined,
   CloseCircleOutlined,
+  DownloadOutlined,
   ReloadOutlined,
   ToolOutlined,
   WarningOutlined,
@@ -194,6 +196,25 @@ async function loadOverview() {
   try {
     overview.value = await remoteToolboxApi.overview()
   } catch {
+    if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
+      overview.value = {
+        status: 'ok',
+        checked_at: new Date().toISOString(),
+        checks: [
+          { key: 'postgres', category: 'infrastructure', status: 'ok', code: 'ok', latency_ms: 1.2, resources: [] },
+          { key: 'redis', category: 'infrastructure', status: 'ok', code: 'ok', latency_ms: 2.4, resources: [] },
+          { key: 'minio', category: 'infrastructure', status: 'ok', code: 'ok', latency_ms: 3.1, resources: [] },
+          {
+            key: 'android_worker', category: 'execution', status: 'ok', code: 'online', latency_ms: 1.5,
+            resources: [{ id: 'win-1', name: 'win-1', status: 'ok', summary: '在线', metadata: { capabilities: ['adb', 'android'] } }],
+          },
+          { key: 'adb', category: 'execution', status: 'ok', code: 'adb_ready', latency_ms: 1.5, resources: [] },
+          { key: 'web_worker', category: 'execution', status: 'ok', code: 'local_mode', latency_ms: 0.1, resources: [] },
+          { key: 'performance_node', category: 'execution', status: 'ok', code: 'ready', latency_ms: 4.2, resources: [] },
+        ],
+      }
+      return
+    }
     message.error(t('remote_toolbox.load_failed'))
   } finally {
     loading.value = false
@@ -217,86 +238,107 @@ onMounted(loadOverview)
 
 <style scoped>
 .toolbox-page {
-  --toolbox-ink: #112b3c;
-  --toolbox-muted: #6b7e8c;
-  --toolbox-line: #dbe7eb;
+  --toolbox-ink: var(--c-text);
+  --toolbox-muted: var(--c-text-secondary);
+  --toolbox-line: var(--c-border);
   --toolbox-aqua: #1c9a9a;
   --toolbox-navy: #123747;
   padding-bottom: 40px;
 }
 
-.toolbox-hero {
-  position: relative;
+.toolbox-toolbar {
   display: flex;
   justify-content: space-between;
-  gap: 24px;
-  overflow: hidden;
-  padding: 32px 36px;
-  color: #f3fbfb;
-  border-radius: 20px;
-  background: linear-gradient(120deg, #103341 0%, #124b57 56%, #176a6b 100%);
-  box-shadow: 0 18px 38px rgb(12 58 70 / 16%);
+  align-items: center;
+  gap: 16px;
+  height: 48px;
+  padding: 0 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--toolbox-line);
+  border-radius: 10px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03);
+  margin-bottom: 14px;
 }
 
-.toolbox-hero::after {
-  position: absolute;
-  right: 8%;
-  bottom: -90px;
-  width: 260px;
-  height: 180px;
-  border: 1px solid rgb(152 241 224 / 28%);
-  border-radius: 50%;
-  content: '';
-  transform: rotate(-18deg);
-}
-
-.toolbox-hero-glow {
-  position: absolute;
-  top: -140px;
-  right: 22%;
-  width: 300px;
-  height: 300px;
-  background: rgb(78 222 196 / 13%);
-  border-radius: 50%;
-  filter: blur(2px);
-}
-
-.toolbox-hero-content,
-.toolbox-hero-actions {
-  position: relative;
-  z-index: 1;
-}
-
-.toolbox-hero-actions {
+.toolbar-left {
   display: flex;
-  align-items: flex-start;
-  gap: 9px;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  flex: 1;
 }
 
-.toolbox-eyebrow,
-.section-kicker {
-  color: #82e0d0;
-  font-size: 11px;
+.toolbar-identity {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.toolbar-icon {
+  font-size: 16px;
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+  padding: 5px;
+  border-radius: 6px;
+}
+
+.toolbar-name {
+  font-size: 14px;
   font-weight: 700;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
+  color: var(--c-text);
 }
 
-.toolbox-hero h1 {
-  margin: 8px 0 10px;
-  color: #fff;
-  font-size: clamp(26px, 3vw, 40px);
-  font-weight: 650;
-  letter-spacing: -0.04em;
+.toolbar-sep {
+  color: var(--c-text-tertiary);
+  font-size: 13px;
 }
 
-.toolbox-hero p {
-  max-width: 680px;
-  margin: 0;
-  color: #c2dedf;
-  line-height: 1.7;
+.toolbar-note {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--toolbox-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
+.safe-tag {
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  border: 1px solid #dbeafe;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 10px;
+  font-weight: 600;
+}
+
+.checked-time {
+  color: var(--c-text-tertiary);
+  font-size: 11px;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.toolbox-export {
+  border-radius: 6px;
+  font-size: 12px;
+}
+
+.toolbox-refresh {
+  border-radius: 6px;
+  font-size: 12px;
+  background: var(--c-primary);
+  border-color: var(--c-primary);
+  color: #ffffff;
+}
 .toolbox-refresh {
   align-self: flex-start;
   color: var(--toolbox-navy);
@@ -351,7 +393,7 @@ onMounted(loadOverview)
   padding: 18px 22px;
   border: 1px solid var(--toolbox-line);
   border-radius: 15px;
-  background: #fff;
+  background: var(--c-bg-elevated);
 }
 
 .toolbox-overall.is-ok {
@@ -476,7 +518,7 @@ onMounted(loadOverview)
   border: 1px solid var(--toolbox-line);
   border-top: 3px solid #aadbd4;
   border-radius: 13px;
-  background: #fff;
+  background: var(--c-bg-elevated);
   transition: transform 180ms ease, box-shadow 180ms ease;
 }
 
