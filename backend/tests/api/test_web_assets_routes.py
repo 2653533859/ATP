@@ -3,6 +3,10 @@ import sys
 import types
 from types import SimpleNamespace
 
+from fastapi import HTTPException
+import pytest
+from sqlalchemy.exc import IntegrityError, OperationalError
+
 _deps = sys.modules.setdefault("app.api.deps", types.SimpleNamespace())
 
 
@@ -151,3 +155,34 @@ def test_repair_preview_returns_candidates_without_mutating_asset(monkeypatch):
     assert any(item.locator["strategy"] == "test_id" for item in result.candidates)
     assert element.locator["strategy"] == "role"
     assert db.commits == 0
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_status", "expected_detail"),
+    [
+        (IntegrityError("insert", {}, Exception("duplicate")), 409, "元素名称已存在"),
+        (OperationalError("insert", {}, Exception("database unavailable")), 500, "元素资产保存失败"),
+    ],
+)
+def test_create_element_distinguishes_duplicate_from_database_failure(
+    monkeypatch, error, expected_status, expected_detail
+):
+    _allow_access(monkeypatch)
+    db = _DB(objects={("Project", 1): SimpleNamespace(id=1)})
+
+    async def fail_commit():
+        raise error
+
+    db.commit = fail_commit
+    with pytest.raises(HTTPException) as caught:
+        asyncio.run(
+            web_assets.create_web_element(
+                1,
+                WebElementAssetCreate(name="login_button", locator={"strategy": "css", "value": "button"}),
+                db,
+                SimpleNamespace(id=8),
+            )
+        )
+
+    assert caught.value.status_code == expected_status
+    assert caught.value.detail == expected_detail

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import uuid
 from io import BytesIO
@@ -10,6 +11,7 @@ from io import BytesIO
 from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile, status
 from PIL import Image
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user, require_engineer
@@ -22,6 +24,7 @@ from app.models.web_assets import WebVisualBaseline
 from app.schemas.web_visuals import WebVisualBaselineOut, WebVisualBaselineSettings
 
 router = APIRouter(tags=["Web 视觉回归"])
+logger = logging.getLogger(__name__)
 
 _MAX_VISUAL_FILE_SIZE = 10 * 1024 * 1024
 _SAFE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
@@ -108,10 +111,15 @@ async def upload_web_visual_baseline(
     db.add(item)
     try:
         await db.commit()
-    except Exception as exc:
+    except IntegrityError as exc:
         await db.rollback()
         delete_file(object_name)
         raise HTTPException(status_code=409, detail="视觉基线名称已存在") from exc
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        delete_file(object_name)
+        logger.exception("Web visual baseline persistence failed")
+        raise HTTPException(status_code=500, detail="视觉基线保存失败") from exc
     await db.refresh(item)
     return item
 

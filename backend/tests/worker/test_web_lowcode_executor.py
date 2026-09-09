@@ -421,13 +421,17 @@ class _FakePlaywright:
     def __init__(self, browser, launch_error=None):
         self._browser = browser
         self._launch_error = launch_error
+        self.launch_kwargs = None
         self.stopped = False
         self.chromium = types.SimpleNamespace(launch=self._launch)
+        self.firefox = types.SimpleNamespace(launch=self._launch)
+        self.webkit = types.SimpleNamespace(launch=self._launch)
 
     async def start(self):
         return self
 
     async def _launch(self, **kw):
+        self.launch_kwargs = kw
         if self._launch_error:
             raise self._launch_error
         return self._browser
@@ -528,6 +532,23 @@ def test_run_web_lowcode_applies_single_browser_matrix_variant(wired, monkeypatc
     asyncio.run(wlc.run_web_lowcode(db, run, case, {}))
 
     assert browser.launch_context_kw["viewport"] == {"width": 1440, "height": 900}
+
+
+@pytest.mark.parametrize(
+    ("engine", "expected_args"),
+    [("chromium", ["--no-sandbox"]), ("firefox", None), ("webkit", None)],
+)
+def test_run_web_lowcode_only_passes_chromium_launch_switches(wired, monkeypatch, engine, expected_args):
+    page = _RunPage()
+    pw, _browser, _context = _wire_playwright(monkeypatch, page, wired["holder"], write_video=False)
+    db = _FakeDB()
+    run, case = _run_and_case([{"action": "goto", "params": {"url": "https://example.test"}}])
+    case.config["browser"] = engine
+
+    asyncio.run(wlc.run_web_lowcode(db, run, case, {}))
+
+    assert pw.launch_kwargs["headless"] is True
+    assert pw.launch_kwargs.get("args") == expected_args
 
 
 def test_run_web_lowcode_failed_step_stops_and_marks_failed(wired, monkeypatch):

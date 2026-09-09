@@ -12,6 +12,7 @@ from typing import Any
 
 from sqlalchemy import select
 
+from app.core.config import settings
 from app.models.case import CaseType, TestCase
 from app.models.plan import TestPlan
 from app.models.suite import TestSuite
@@ -29,6 +30,8 @@ def execution_queue_for_case_type(case_type: CaseType | str | None) -> str:
         return ANDROID_EXECUTION_QUEUE
     if value == CaseType.ios.value:
         return IOS_EXECUTION_QUEUE
+    if value == CaseType.web.value:
+        return settings.WEB_EXECUTION_QUEUE.strip() or DEFAULT_EXECUTION_QUEUE
     return DEFAULT_EXECUTION_QUEUE
 
 

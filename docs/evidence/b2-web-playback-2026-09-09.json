@@ -1,0 +1,91 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-09T07:07:19.024423+00:00",
+  "status": "passed",
+  "environment": {
+    "api_base_url": "http://192.168.3.196:8000",
+    "helm_release": "atp-single-node",
+    "helm_revision": 21,
+    "namespace": "atp-single-node",
+    "migration": "20260909_0071 (head)",
+    "pods_ready": 6,
+    "pods_total": 6,
+    "pod_restarts": 0,
+    "web_execution_queue": "web.atp-single-node"
+  },
+  "scope": {
+    "project_id": 77,
+    "module_id": 88,
+    "target_url": "https://example.com"
+  },
+  "assets": {
+    "element_id": 6,
+    "page_object_id": 6,
+    "baseline_id": 7,
+    "matrix_case_id": 51,
+    "visual_case_id": 52
+  },
+  "matrix": {
+    "parent_run_id": 66,
+    "status": "passed",
+    "variants": [
+      {
+        "run_id": 67,
+        "browser": "chromium",
+        "status": "passed",
+        "duration_ms": 3915,
+        "step_count": 2,
+        "screenshot_count": 2,
+        "trace": true,
+        "video": true,
+        "network_event_count": 2
+      },
+      {
+        "run_id": 68,
+        "browser": "firefox",
+        "status": "passed",
+        "duration_ms": 6677,
+        "step_count": 2,
+        "screenshot_count": 2,
+        "trace": true,
+        "video": true,
+        "network_event_count": 2
+      },
+      {
+        "run_id": 69,
+        "browser": "webkit",
+        "status": "passed",
+        "duration_ms": 5081,
+        "step_count": 2,
+        "screenshot_count": 2,
+        "trace": true,
+        "video": true,
+        "network_event_count": 2
+      }
+    ]
+  },
+  "visual": {
+    "run_id": 70,
+    "status": "passed",
+    "step_count": 2,
+    "screenshot_count": 2,
+    "trace": true,
+    "video": true,
+    "diff_ratio": 0.0,
+    "changed_pixels": 0,
+    "total_pixels": 921600
+  },
+  "diagnostics": {
+    "initial_webkit_failure_run_id": 46,
+    "initial_webkit_failure": "Chromium-only --no-sandbox switch was passed to WebKit",
+    "shared_queue_failure_run_id": 60,
+    "shared_queue_failure": "legacy Compose Worker consumed a default-queue Web run",
+    "resolution": "WebKit launch options were made engine-specific and current K3s Web execution was routed to an isolated queue"
+  },
+  "verification": {
+    "targeted_tests": "46 passed",
+    "ruff": "passed",
+    "helm_server_dry_run": "passed",
+    "worker_recent_errors": 0
+  }
+}

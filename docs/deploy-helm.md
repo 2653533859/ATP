@@ -250,6 +250,11 @@ Backend 策略为 `RollingUpdate(surge=0,unavailable=100%)`。升级后五个核
 Pod，以及 X11 `:99` 在旧 Pod 退出后可能短暂残留；Chart 已加入配置校验 rollout、Recorder 无 surge、Tini、Xvfb
 存活/socket 门禁和有界 display 回退。最终 Worker 池仅有 1 个当前 K3s Worker，三浏览器录制及目标不可达恢复通过。
 
+2026-09-09 B2.2 发现共享 Redis 时，遗留 ATP Worker 与当前 K3s Worker 同时监听 `default` 会导致 Web
+回放落到错误版本。可在 Backend 与当前 Worker 同时设置 `WEB_EXECUTION_QUEUE=web.<release>`，并把该队列加入
+当前 Worker 的 `CELERY_QUEUES`；其他部署不要监听这个队列。`default` 保持默认值以兼容未共享 Broker 的部署。
+单节点环境使用 `web.atp-single-node` 后，Chromium、Firefox、WebKit 回放及视觉基线闭环通过。
+
 ## 八、升级与回滚
 
 ```bash

@@ -635,10 +635,12 @@ async def run_web_lowcode(
     try:
         pw = await async_playwright().start()
         browser_launcher = getattr(pw, browser_name)
-        browser = await browser_launcher.launch(
-            headless=headless,
-            args=["--no-sandbox"],
-        )
+        launch_options: dict[str, Any] = {"headless": headless}
+        # --no-sandbox is a Chromium switch. WebKit rejects it during argument
+        # parsing, so passing it to every Playwright engine breaks matrix runs.
+        if browser_name == "chromium":
+            launch_options["args"] = ["--no-sandbox"]
+        browser = await browser_launcher.launch(**launch_options)
         context_options: dict[str, Any] = {
             "viewport": {"width": viewport_w, "height": viewport_h},
             "record_video_dir": str(video_dir),

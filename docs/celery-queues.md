@@ -15,7 +15,8 @@ celery -A app.worker.celery_app worker --loglevel=info --pool=solo -Q "$CELERY_Q
 
 | 队列 | 任务 | 说明 |
 |------|------|------|
-| `default` | 普通 Web/API 用例、混合 `run_test_suite`/`run_test_plan`、`check_cron_plans` | 高频主链路与混合执行编排 |
+| `default` | 普通 API 用例、默认配置下的 Web 用例、混合 `run_test_suite`/`run_test_plan`、`check_cron_plans` | 高频主链路与混合执行编排 |
+| `web.<deployment>` | 设置 `WEB_EXECUTION_QUEUE` 后的 Web 用例及纯 Web 套件/计划 | 共享 Broker 时隔离不同部署或不同版本的浏览器 Worker |
 | `android` | Android 用例，以及只包含 Android 用例的套件/计划 | 由 Windows Android Worker 消费，在本机调用 `adb` |
 | `ios` | iOS 用例，以及只包含 iOS 用例的套件/计划 | 由 macOS/iOS Worker 消费，在本机连接 Appium/XCUITest |
 | `mobile_special` | Android 专项任务、ADB 扫描、专项清理 | 受真机和网络资源约束，建议独立副本 |
@@ -67,6 +68,7 @@ environment:
 ```yaml
 config:
   CELERY_QUEUES: default,ios,ai,maintenance,performance
+  WEB_EXECUTION_QUEUE: default
 performanceWorker:
   enabled: false
   queues: performance
@@ -77,6 +79,8 @@ performanceWorker:
 生产隔离建议：
 
 - 普通执行 worker：`CELERY_QUEUES=default`，按业务吞吐扩容。
+- 共享 Broker 的 Web worker：Backend 设置 `WEB_EXECUTION_QUEUE=web.<deployment>`，对应 Worker 的
+  `CELERY_QUEUES` 必须包含同名队列；旧部署不要监听该队列。
 - Windows Android worker：`CELERY_QUEUES=android,mobile_special`，按可用真机数量扩容，详见 [`android-windows-worker.md`](android-windows-worker.md)。
 - AI worker：`CELERY_QUEUES=ai`，按 LLM 限额和成本控制副本。
 - 维护 worker：`CELERY_QUEUES=maintenance`，少量副本即可。

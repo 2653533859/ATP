@@ -3,9 +3,11 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user, require_engineer
@@ -20,6 +22,7 @@ from app.schemas.web_assets import (
     WebElementAssetUpdate,
     WebElementFailureIn,
     WebLocatorRepairIn,
+    WebLocatorRepairCandidate,
     WebLocatorRepairOut,
     WebPageObjectCreate,
     WebPageObjectOut,
@@ -28,6 +31,19 @@ from app.schemas.web_assets import (
 from app.services.web_locator_repair import build_locator_repair_suggestions
 
 router = APIRouter(tags=["Web 资产"])
+logger = logging.getLogger(__name__)
+
+
+async def _commit_created_asset(db: AsyncSession, *, duplicate_detail: str, failure_detail: str) -> None:
+    try:
+        await db.commit()
+    except IntegrityError as exc:
+        await db.rollback()
+        raise HTTPException(status_code=409, detail=duplicate_detail) from exc
+    except SQLAlchemyError as exc:
+        await db.rollback()
+        logger.exception("Web asset persistence failed")
+        raise HTTPException(status_code=500, detail=failure_detail) from exc
 
 
 async def _ensure_project(db: AsyncSession, user: User, project_id: int, role: ProjectRole) -> None:
@@ -65,11 +81,7 @@ async def create_web_element(
     await _ensure_project(db, user, project_id, ProjectRole.editor)
     item = WebElementAsset(project_id=project_id, owner_id=user.id, **body.model_dump())
     db.add(item)
-    try:
-        await db.commit()
-    except Exception as exc:
-        await db.rollback()
-        raise HTTPException(status_code=409, detail="元素名称已存在") from exc
+    await _commit_created_asset(db, duplicate_detail="元素名称已存在", failure_detail="元素资产保存失败")
     await db.refresh(item)
     return item
 
@@ -126,7 +138,10 @@ async def preview_web_element_repair(
     await _ensure_project(db, user, item.project_id, ProjectRole.editor)
     return WebLocatorRepairOut(
         element_id=item.id,
-        candidates=build_locator_repair_suggestions(item, body.observed_locators),
+        candidates=[
+            WebLocatorRepairCandidate.model_validate(candidate)
+            for candidate in build_locator_repair_suggestions(item, body.observed_locators)
+        ],
     )
 
 
@@ -173,11 +188,7 @@ async def create_web_page_object(
     await _ensure_project(db, user, project_id, ProjectRole.editor)
     item = WebPageObject(project_id=project_id, owner_id=user.id, **body.model_dump())
     db.add(item)
-    try:
-        await db.commit()
-    except Exception as exc:
-        await db.rollback()
-        raise HTTPException(status_code=409, detail="页面对象名称已存在") from exc
+    await _commit_created_asset(db, duplicate_detail="页面对象名称已存在", failure_detail="页面对象保存失败")
     await db.refresh(item)
     return item
 

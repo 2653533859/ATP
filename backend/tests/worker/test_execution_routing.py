@@ -29,9 +29,42 @@ class _DB:
         return types.SimpleNamespace(scalars=lambda: _ScalarResult(self.values))
 
 
-def test_android_case_uses_dedicated_queue():
+def test_android_case_uses_dedicated_queue(monkeypatch):
+    monkeypatch.setattr("app.services.execution_routing.settings.WEB_EXECUTION_QUEUE", "default")
     assert execution_queue_for_case_type(CaseType.android) == ANDROID_EXECUTION_QUEUE
     assert execution_queue_for_case_type(CaseType.api) == DEFAULT_EXECUTION_QUEUE
+    assert execution_queue_for_case_type(CaseType.web) == DEFAULT_EXECUTION_QUEUE
+
+
+def test_web_case_can_use_environment_isolated_queue(monkeypatch):
+    monkeypatch.setattr("app.services.execution_routing.settings.WEB_EXECUTION_QUEUE", "web.atp-single-node")
+
+    assert execution_queue_for_case_type(CaseType.web) == "web.atp-single-node"
+
+    calls = {}
+    task = types.SimpleNamespace(
+        delay=lambda *_args, **_kwargs: calls.update(kind="delay"),
+        apply_async=lambda **kwargs: calls.update(kind="apply_async", **kwargs),
+    )
+    queue = enqueue_case_run(task, 12, {}, "trace-12", CaseType.web)
+
+    assert queue == "web.atp-single-node"
+    assert calls == {"kind": "apply_async", "args": (12, {}, "trace-12"), "queue": "web.atp-single-node"}
+
+
+def test_web_case_empty_queue_falls_back_to_default(monkeypatch):
+    monkeypatch.setattr("app.services.execution_routing.settings.WEB_EXECUTION_QUEUE", "  ")
+
+    assert execution_queue_for_case_type(CaseType.web) == DEFAULT_EXECUTION_QUEUE
+
+
+def test_web_only_suite_uses_environment_isolated_queue(monkeypatch):
+    monkeypatch.setattr("app.services.execution_routing.settings.WEB_EXECUTION_QUEUE", "web.atp-single-node")
+    suite = types.SimpleNamespace(case_ids=[{"case_id": 1}, {"case_id": 2}])
+
+    queue = asyncio.run(resolve_suite_execution_queue(_DB([CaseType.web, CaseType.web]), suite))
+
+    assert queue == "web.atp-single-node"
 
 
 def test_enqueue_case_run_uses_explicit_queue_for_android():

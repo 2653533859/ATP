@@ -140,6 +140,9 @@ class Settings(BaseSettings):
     WORKER_METRICS_PORT: int = 9091
     # 当前 worker 实例监听的 Celery 队列，逗号分隔。默认监听全部队列，生产可按队列拆分 worker。
     CELERY_QUEUES: str = "default,android,mobile_special,ios,ai,maintenance,performance"
+    # Keep "default" for backwards compatibility. Deployments sharing a
+    # broker with older Workers should assign an isolated Web execution queue.
+    WEB_EXECUTION_QUEUE: str = "default"
     SUITE_CHILD_TASK_TIMEOUT_SECONDS: int = 3600
 
     # Performance Center guardrails

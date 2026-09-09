@@ -4,7 +4,10 @@ import asyncio
 from io import BytesIO
 from types import SimpleNamespace
 
+from fastapi import HTTPException
 from PIL import Image
+import pytest
+from sqlalchemy.exc import IntegrityError, OperationalError
 
 from app.models.bootstrap import load_all_models
 from app.api.v1 import web_visuals
@@ -48,6 +51,9 @@ class _DB:
     async def refresh(self, _item):
         return None
 
+    async def rollback(self):
+        return None
+
     async def delete(self, _item):
         return None
 
@@ -88,3 +94,42 @@ def test_upload_visual_baseline_records_dimensions_and_settings(monkeypatch):
 
 async def _none():
     return None
+
+
+@pytest.mark.parametrize(
+    ("error", "expected_status", "expected_detail"),
+    [
+        (IntegrityError("insert", {}, Exception("duplicate")), 409, "视觉基线名称已存在"),
+        (OperationalError("insert", {}, Exception("database unavailable")), 500, "视觉基线保存失败"),
+    ],
+)
+def test_upload_visual_baseline_distinguishes_duplicate_from_database_failure(
+    monkeypatch, error, expected_status, expected_detail
+):
+    monkeypatch.setattr(web_visuals, "assert_project_access", lambda *_args: _none())
+    monkeypatch.setattr(web_visuals, "ensure_bucket", lambda: None)
+    monkeypatch.setattr(web_visuals, "upload_bytes", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(web_visuals, "delete_file", lambda _name: None)
+    db = _DB()
+
+    async def fail_commit():
+        raise error
+
+    db.commit = fail_commit
+    with pytest.raises(HTTPException) as caught:
+        asyncio.run(
+            web_visuals.upload_web_visual_baseline(
+                1,
+                "home",
+                None,
+                0.02,
+                5,
+                "[]",
+                _FakeUpload(_png_bytes()),
+                db,
+                SimpleNamespace(id=8),
+            )
+        )
+
+    assert caught.value.status_code == expected_status
+    assert caught.value.detail == expected_detail
