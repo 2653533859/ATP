@@ -1,8 +1,9 @@
 """Execution queue routing shared by API entry points.
 
-Android execution must happen in the Worker that has access to the local
-Windows ADB daemon. Keeping the mapping here prevents one entry point from
-silently falling back to the default Linux worker queue.
+Device cases must reach Workers with their local automation dependencies,
+while Web and protocol cases may need deployment-specific queues when several
+ATP releases share one broker. Keeping the mapping here prevents entry points
+from silently bypassing those boundaries.
 """
 
 from __future__ import annotations
@@ -20,6 +21,12 @@ from app.models.suite import TestSuite
 DEFAULT_EXECUTION_QUEUE = "default"
 ANDROID_EXECUTION_QUEUE = "android"
 IOS_EXECUTION_QUEUE = "ios"
+PROTOCOL_CASE_TYPES = {
+    CaseType.api.value,
+    CaseType.graphql.value,
+    CaseType.websocket.value,
+    CaseType.grpc.value,
+}
 
 
 def execution_queue_for_case_type(case_type: CaseType | str | None) -> str:
@@ -32,16 +39,18 @@ def execution_queue_for_case_type(case_type: CaseType | str | None) -> str:
         return IOS_EXECUTION_QUEUE
     if value == CaseType.web.value:
         return settings.WEB_EXECUTION_QUEUE.strip() or DEFAULT_EXECUTION_QUEUE
+    if value in PROTOCOL_CASE_TYPES:
+        return settings.PROTOCOL_EXECUTION_QUEUE.strip() or DEFAULT_EXECUTION_QUEUE
     return DEFAULT_EXECUTION_QUEUE
 
 
 def enqueue_case_run(task: Any, run_id: int, extra_vars: dict, trace_id: str | None, case_type: Any) -> str:
     """Enqueue a case run and return the selected queue.
 
-    ``delay`` remains the default path for web/API cases so existing callers
-    and test doubles keep their backwards-compatible contract. Device-bound
-    cases use an explicit queue because Celery's task route cannot inspect the
-    case row after the task has already been published.
+    ``delay`` remains the default path when no dedicated queue is configured,
+    so existing callers and test doubles keep their backwards-compatible
+    contract. Explicitly routed cases cannot rely on Celery's static task route
+    because it cannot inspect the case row after publication.
     """
 
     queue = execution_queue_for_case_type(case_type)

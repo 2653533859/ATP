@@ -149,6 +149,9 @@ config:
   # Route Web cases to an isolated queue when this broker is shared with
   # another ATP deployment; add the same queue to CELERY_QUEUES.
   WEB_EXECUTION_QUEUE: default
+  # Route API, GraphQL, WebSocket, and gRPC cases to an isolated queue when
+  # this broker is shared with another ATP deployment.
+  PROTOCOL_EXECUTION_QUEUE: default
   # Set to worker together with webRecorder.enabled in a production overlay.
   WEB_RECORDER_MODE: local
   WEB_RECORDER_WORKER_QUEUE_PREFIX: atp:web-recording:commands

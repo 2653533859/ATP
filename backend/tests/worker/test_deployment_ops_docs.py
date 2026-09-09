@@ -149,6 +149,7 @@ def test_helm_values_expose_worker_queues_and_resources():
 
     assert values["worker"]["queues"] == "default,ios,ai,maintenance,performance"
     assert values["config"]["CELERY_QUEUES"] == "default,ios,ai,maintenance,performance"
+    assert values["config"]["PROTOCOL_EXECUTION_QUEUE"] == "default"
     assert values["performanceWorker"]["enabled"] is False
     assert values["performanceWorker"]["queues"] == "performance"
     assert values["performanceWorker"]["concurrency"] == "1"

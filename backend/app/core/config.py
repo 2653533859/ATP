@@ -143,6 +143,9 @@ class Settings(BaseSettings):
     # Keep "default" for backwards compatibility. Deployments sharing a
     # broker with older Workers should assign an isolated Web execution queue.
     WEB_EXECUTION_QUEUE: str = "default"
+    # API, GraphQL, WebSocket, and gRPC cases can use a deployment-specific
+    # queue when multiple ATP releases share the same broker.
+    PROTOCOL_EXECUTION_QUEUE: str = "default"
     SUITE_CHILD_TASK_TIMEOUT_SECONDS: int = 3600
 
     # Performance Center guardrails
