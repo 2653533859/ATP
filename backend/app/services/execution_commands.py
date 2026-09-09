@@ -169,8 +169,9 @@ async def fail_execution_command(
     detail: str,
     username: str,
 ) -> None:
+    command_pk = command.id
     await db.rollback()
-    reloaded_command = await db.get(ExecutionCommand, command.id)
+    reloaded_command = await db.get(ExecutionCommand, command_pk)
     if reloaded_command is None:
         return
     command = reloaded_command
@@ -208,8 +209,9 @@ async def mark_execution_command_indeterminate(
     detail: str = INDETERMINATE_COMMAND_DETAIL,
 ) -> None:
     """Persist an uncertain outcome when dispatch may have produced a side effect."""
+    command_pk = command.id
     await db.rollback()
-    reloaded_command = await db.get(ExecutionCommand, command.id)
+    reloaded_command = await db.get(ExecutionCommand, command_pk)
     if reloaded_command is None:
         return
     reloaded_command.status = "indeterminate"

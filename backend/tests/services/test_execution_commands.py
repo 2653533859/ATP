@@ -49,6 +49,28 @@ class _FakeDB:
         return None
 
 
+class _ExpiredAfterRollbackCommand:
+    def __init__(self, command_id):
+        self.command_id = command_id
+        self.expired = False
+
+    @property
+    def id(self):
+        if self.expired:
+            raise RuntimeError("expired attribute attempted implicit IO")
+        return self.command_id
+
+
+class _RollbackExpiringDB(_FakeDB):
+    def __init__(self, original, reloaded):
+        super().__init__(reloaded)
+        self.original = original
+
+    async def rollback(self):
+        self.rollbacks += 1
+        self.original.expired = True
+
+
 def _command(**overrides):
     values = {
         "id": 11,
@@ -159,6 +181,30 @@ def test_unknown_dispatch_outcome_is_indeterminate_and_audited():
     audit = next(value for value in db.added if isinstance(value, AuditLog))
     assert audit.action == "execution.retry.indeterminate"
     assert "dispatch_exception" in audit.detail
+
+
+@pytest.mark.parametrize("outcome", ["failed", "indeterminate"])
+def test_command_outcome_captures_id_before_rollback_expires_the_instance(outcome):
+    original = _ExpiredAfterRollbackCommand(11)
+    reloaded = _command()
+    db = _RollbackExpiringDB(original, reloaded)
+
+    if outcome == "failed":
+        asyncio.run(
+            fail_execution_command(
+                db,
+                original,
+                status_code=409,
+                detail="状态不允许重试",
+                username="tester",
+            )
+        )
+    else:
+        asyncio.run(mark_execution_command_indeterminate(db, original, username="tester"))
+
+    assert db.rollbacks == 1
+    assert db.commits == 1
+    assert reloaded.status == outcome
 
 
 class _ScalarResult:
