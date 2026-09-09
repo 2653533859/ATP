@@ -228,6 +228,9 @@ Secret 的三个 Host/Port 指向宿主机回环端点；Secret 值未写入仓�
 Debian 软件源临时不可达，同时保留既有系统依赖。Release revision 11 完成迁移到 `20260908_0070`，5 个核心 Pod
 均 Ready、零重启且 `/health` 返回 200。升级过程中发现 Backend 默认滚动策略与单节点宿主机 8000 端口冲突，现场
 修复后恢复升级；上述无 surge 策略及其回归测试已固化到 Chart。该证据仍不等于三角色或五域真实任务验收。
+提交 `74a15fa4` 的 Chart 随后通过服务端 dry-run，并以 `--rollback-on-failure --wait` 固化为 revision 12；集群中
+Backend 策略为 `RollingUpdate(surge=0,unavailable=100%)`。升级后五个核心 Pod 持续 30 秒 Ready、零重启，迁移
+仍为 `20260908_0070 (head)`，Backend `/health` 保持 200。
 
 ## 八、升级与回滚
 

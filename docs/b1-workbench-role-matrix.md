@@ -63,4 +63,4 @@ make b1-workbench-role-matrix ARGS="--base-url ... --project-id ... --foreign-pr
 
 API 探针通过后，仍需分别登录三个账号完成浏览器检查：项目切换与刷新保持 `project_id`，深链返回目标项目，侧栏折叠和窄屏不遮挡任务操作；Viewer 不展示重试/停止按钮，工程师仅能操作其可写项目，Android/Performance 还要求全局工程师角色。保留浏览器、提交 SHA、项目 ID 和时间戳证据，避免记录 Token 或密码。
 
-2026-09-09 前置检查：Windows Vite 到 Linux Backend 的代理传输正常，目标 K3s 五个核心 Pod 为 Ready；但目标 Backend 仍运行旧镜像 `1bccfef4`，没有包含本轮 B1 修复。本地改动也尚未提交，因此没有把登录页、HTTP 401 或旧版本 Pod 健康写成 B1.3 通过。应先提交并构建不可变镜像、升级目标部署，再执行三角色探针和浏览器矩阵。
+2026-09-09 部署前置已完成：Windows Vite 到 Linux Backend 的代理传输正常，目标 K3s revision 12 的五个核心 Pod 均 Ready、零重启，Backend/Worker 使用提交 `5c0f6908` 的不可变标签，迁移位于 `20260908_0070`。Backend 在单节点 `hostNetwork` 下的滚动策略已固化为 `maxSurge=0/maxUnavailable=100%`。只读数据核查同时确认目标环境缺少全局工程师、项目级 Viewer 成员关系和五类真实运行数据；在明确创建受控账号与运行数据前，登录页、HTTP 401、Pod 健康和空数据接口仍不得写成 B1.3 通过。
