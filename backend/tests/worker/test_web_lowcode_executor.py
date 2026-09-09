@@ -2,6 +2,7 @@
 _replace_vars / _replace_vars_in_params 变量替换走真实现。"""
 
 import asyncio
+import time
 import sys
 import types
 from pathlib import Path
@@ -405,9 +406,11 @@ class _FakeContext:
 
 
 class _FakeBrowser:
-    def __init__(self, context):
+    def __init__(self, context, close_error=None):
         self._context = context
+        self._close_error = close_error
         self.closed = False
+        self.connected = True
 
     async def new_context(self, **kw):
         self.launch_context_kw = kw
@@ -415,6 +418,12 @@ class _FakeBrowser:
 
     async def close(self):
         self.closed = True
+        self.connected = False
+        if self._close_error:
+            raise self._close_error
+
+    def is_connected(self):
+        return self.connected
 
 
 class _FakePlaywright:
@@ -456,12 +465,14 @@ def wired(monkeypatch, tmp_path):
     monkeypatch.setattr(wlc, "upload_file", lambda name, path, ct: uploads["files"].append((name, ct)))
     monkeypatch.setattr(wlc, "presigned_url", lambda name: f"https://minio/{name}")
     monkeypatch.setattr(wlc.tempfile, "mkdtemp", lambda prefix="": holder["dir"])
+    monkeypatch.setattr(wlc, "is_cancel_requested", lambda _run_id: False)
+    monkeypatch.setattr(wlc, "clear_cancel_request", lambda _run_id: None)
     return {"events": events, "uploads": uploads, "holder": holder}
 
 
-def _wire_playwright(monkeypatch, page, holder, *, write_video=True, launch_error=None):
+def _wire_playwright(monkeypatch, page, holder, *, write_video=True, launch_error=None, close_error=None):
     context = _FakeContext(page, holder, write_video=write_video)
-    browser = _FakeBrowser(context)
+    browser = _FakeBrowser(context, close_error=close_error)
     pw = _FakePlaywright(browser, launch_error=launch_error)
     monkeypatch.setattr(wlc, "async_playwright", lambda: pw)
     return pw, browser, context
@@ -603,6 +614,59 @@ def test_run_web_lowcode_launch_error_sets_error_message(wired, monkeypatch):
     assert run.status == RunStatus.failed and run.error_message == "chromium missing"
     assert [o for o in db.added if isinstance(o, StepResult)] == []
     assert wired["events"][-1]["status"] == "failed"
+
+
+def test_run_web_lowcode_cancellation_closes_resources_and_marks_cancelled(wired, monkeypatch):
+    page = _RunPage()
+    pw, browser, context = _wire_playwright(
+        monkeypatch, page, wired["holder"], write_video=False, close_error=RuntimeError("browser crashed")
+    )
+    requests = iter([False, True])
+    monkeypatch.setattr(wlc, "is_cancel_requested", lambda _run_id: next(requests, True))
+    cleared = []
+    monkeypatch.setattr(wlc, "clear_cancel_request", cleared.append)
+    db = _FakeDB()
+    run, case = _run_and_case([{"action": "wait", "params": {"ms": 5000}}])
+
+    asyncio.run(wlc.run_web_lowcode(db, run, case, {}))
+
+    assert run.status == RunStatus.cancelled
+    assert run.error_message == "用户取消执行"
+    assert context.closed and browser.closed and pw.stopped
+    assert cleared == [run.id]
+    assert wired["events"][-1]["status"] == "cancelled"
+
+
+def test_run_web_lowcode_browser_crash_cannot_be_reported_as_passed(wired, monkeypatch):
+    page = _RunPage()
+    _pw, browser, _context = _wire_playwright(monkeypatch, page, wired["holder"], write_video=False)
+
+    async def crash_browser(*_args):
+        browser.connected = False
+        return {"success": True}
+
+    monkeypatch.setattr(wlc, "_execute_step_with_asset_fallback", crash_browser)
+    db = _FakeDB()
+    run, case = _run_and_case([{"action": "wait", "params": {"ms": 1}}])
+
+    asyncio.run(wlc.run_web_lowcode(db, run, case, {}))
+
+    assert run.status == RunStatus.failed
+    step = [item for item in db.added if isinstance(item, StepResult)][0]
+    assert step.status == RunStatus.failed
+    assert step.error_message == "浏览器进程已断开"
+
+
+def test_await_with_cancel_detects_browser_disconnect_during_step(monkeypatch):
+    monkeypatch.setattr(wlc, "is_cancel_requested", lambda _run_id: False)
+    browser = _FakeBrowser(None)
+    browser.connected = False
+
+    started = time.monotonic()
+    with pytest.raises(RuntimeError, match="浏览器进程已断开"):
+        asyncio.run(wlc._await_with_cancel(7, asyncio.sleep(5), browser))
+
+    assert time.monotonic() - started < 1
 
 
 def test_take_screenshot_failure_returns_none(wired):

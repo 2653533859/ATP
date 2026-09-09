@@ -49,6 +49,7 @@ from app.services.web_network_guard import (
     guard_browser_request,
     sanitize_network_url,
 )
+from app.services.web_run_control import clear_cancel_request, is_cancel_requested
 
 logger = logging.getLogger(__name__)
 
@@ -56,6 +57,39 @@ logger = logging.getLogger(__name__)
 VAR_PATTERN = re.compile(r"\{\{(\w+)\}\}")
 WEB_FILE_PROJECT_PREFIX = "web-files/projects/"
 SAFE_FILE_NAME = re.compile(r"[^A-Za-z0-9._-]+")
+
+
+class WebRunCancelled(Exception):
+    """The user requested cooperative cancellation of a Web run."""
+
+
+async def _await_with_cancel(run_id: int, operation: Any, browser: Browser | None = None) -> Any:
+    task = asyncio.create_task(operation)
+    try:
+        while not task.done():
+            done, _pending = await asyncio.wait({task}, timeout=0.25)
+            if done:
+                break
+            is_connected = getattr(browser, "is_connected", None)
+            if callable(is_connected) and not is_connected():
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                raise RuntimeError("浏览器进程已断开")
+            if await asyncio.to_thread(is_cancel_requested, run_id):
+                task.cancel()
+                try:
+                    await task
+                except asyncio.CancelledError:
+                    pass
+                raise WebRunCancelled("用户取消执行")
+        return await task
+    except BaseException:
+        if not task.done():
+            task.cancel()
+        raise
 
 
 def _sanitize_network_url(url: str) -> str:
@@ -595,6 +629,7 @@ async def run_web_lowcode(
 
     total_start = time.monotonic()
     all_passed = True
+    was_cancelled = False
     browser: Browser | None = None
     browser_context: BrowserContext | None = None
     pw = None
@@ -716,19 +751,30 @@ async def run_web_lowcode(
                 if asset_error:
                     result = {"success": False, "error": asset_error}
                 elif action in file_actions:
-                    result = await _execute_web_file_step(
-                        page, action, params, step_timeout_ms, case_project_id, run.id
+                    result = await _await_with_cancel(
+                        run.id,
+                        _execute_web_file_step(page, action, params, step_timeout_ms, case_project_id, run.id),
+                        browser,
                     )
                 elif action in visual_actions:
-                    result = await _execute_visual_assert(db, page, params, case_project_id, run.id, idx)
+                    result = await _await_with_cancel(
+                        run.id, _execute_visual_assert(db, page, params, case_project_id, run.id, idx), browser
+                    )
                 else:
-                    result = await _execute_step_with_asset_fallback(page, action, params, step_timeout_ms)
+                    result = await _await_with_cancel(
+                        run.id, _execute_step_with_asset_fallback(page, action, params, step_timeout_ms), browser
+                    )
+                is_connected = getattr(browser, "is_connected", None)
+                if callable(is_connected) and not is_connected():
+                    result = {"success": False, "error": "浏览器进程已断开"}
                 if not result.get("success"):
                     status = RunStatus.failed
                     error_message = result.get("error")
                     all_passed = False
                     await _mark_element_asset_failed(db, asset, error_message)
                 response_data = result.get("data")
+            except WebRunCancelled:
+                raise
             except Exception as e:
                 status = RunStatus.failed
                 error_message = str(e)[:2000]
@@ -780,6 +826,10 @@ async def run_web_lowcode(
             if status == RunStatus.failed:
                 break
 
+    except WebRunCancelled as e:
+        all_passed = False
+        was_cancelled = True
+        run.error_message = str(e)
     except Exception as e:
         logger.exception("web_lowcode run %s error: %s", run.id, e)
         all_passed = False
@@ -800,7 +850,10 @@ async def run_web_lowcode(
             except Exception:
                 pass
         if browser:
-            await browser.close()
+            try:
+                await browser.close()
+            except Exception as e:
+                logger.warning("Browser close failed for run %s: %s", run.id, e)
         if pw:
             try:
                 await pw.stop()
@@ -830,12 +883,13 @@ async def run_web_lowcode(
             logger.warning("Trace upload failed for run %s: %s", run.id, e)
         finally:
             shutil.rmtree(video_dir, ignore_errors=True)
+            await asyncio.to_thread(clear_cancel_request, run.id)
 
     total_ms = int((time.monotonic() - total_start) * 1000)
     if blocked_requests and all_passed:
         all_passed = False
         run.error_message = "浏览器请求被网络安全策略阻止"
-    run.status = RunStatus.passed if all_passed else RunStatus.failed
+    run.status = RunStatus.cancelled if was_cancelled else RunStatus.passed if all_passed else RunStatus.failed
     run.duration_ms = total_ms
     run.result_summary = {
         **(run.result_summary or {}),

@@ -34,11 +34,11 @@ class ExecutionActionDecision:
 
 EXECUTION_STATE_POLICIES: dict[ExecutionDomain, ExecutionStatePolicy] = {
     "case": ExecutionStatePolicy(
-        statuses=frozenset({"pending", "running", "passed", "failed", "error", "skipped"}),
+        statuses=frozenset({"pending", "running", "passed", "failed", "error", "skipped", "cancelled"}),
         active=frozenset({"pending", "running"}),
-        terminal=frozenset({"passed", "failed", "error", "skipped"}),
-        failed=frozenset({"failed", "error"}),
-        retryable=frozenset({"failed", "error", "skipped"}),
+        terminal=frozenset({"passed", "failed", "error", "skipped", "cancelled"}),
+        failed=frozenset({"failed", "error", "cancelled"}),
+        retryable=frozenset({"failed", "error", "skipped", "cancelled"}),
         stoppable=frozenset(),
     ),
     "suite": ExecutionStatePolicy(

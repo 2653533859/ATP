@@ -330,6 +330,31 @@ def test_run_test_case_happy_path_publishes_running_event(monkeypatch):
     assert TestRun and TestCase  # 真模型可导入（防 stub 泄漏）
 
 
+def test_run_test_case_honors_web_cancel_before_dispatch(monkeypatch):
+    from app.models.case import CaseType, RunStatus
+    from app.services import web_run_control
+
+    run = _Obj(id=5, case_id=10, trace_id="t", parent_run_id=None, status=RunStatus.pending, error_message=None)
+    case = _Obj(id=10, dataset_id=None, case_type=CaseType.web)
+    db = _FakeDB({("TestRun", 5): run, ("TestCase", 10): case})
+    _install_session(monkeypatch, db)
+    events = _publish_recorder(monkeypatch)
+    monkeypatch.setattr(web_run_control, "is_cancel_requested", lambda _run_id: True)
+    cleared = []
+    monkeypatch.setattr(web_run_control, "clear_cancel_request", cleared.append)
+
+    async def unexpected_dispatch(*_args):
+        raise AssertionError("cancelled run must not dispatch")
+
+    monkeypatch.setattr(tasks, "dispatch_case", unexpected_dispatch)
+
+    tasks.run_test_case(None, 5, {})
+
+    assert run.status is RunStatus.cancelled
+    assert cleared == [5]
+    assert events[-1]["status"] == "cancelled"
+
+
 def test_run_test_case_publishes_error_when_dispatch_reports_failure(monkeypatch):
     from app.models.case import RunStatus
 

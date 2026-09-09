@@ -107,7 +107,7 @@ from .workflow import (
     rollback_case,
     submit_review,
 )
-from .runs import get_run, list_runs, trigger_run
+from .runs import get_run, list_runs, stop_web_run, trigger_run
 
 __all__ = [
     "router",
@@ -136,6 +136,7 @@ __all__ = [
     "trigger_run",
     "list_runs",
     "get_run",
+    "stop_web_run",
     "_validate_protocol_config",
     # 子模块（供测试访问 cases.batch / cases.workflow 等）
     "batch",

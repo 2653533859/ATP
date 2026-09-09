@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import base64
 import binascii
+import asyncio
 from datetime import datetime
 from typing import Union
 
@@ -27,11 +28,13 @@ from app.schemas.case import (
     PaginatedRunsOut,
     RunCursorPage,
     RunTriggerRequest,
+    TestRunListItem,
     TestRunOut,
 )
 from app.services.execution_routing import enqueue_case_run
 from app.services.failure_diagnosis import generate_failure_diagnosis
 from app.services.project_scope import visible_project_ids
+from app.services.web_run_control import request_cancel
 
 router = APIRouter(tags=["用例管理"])
 
@@ -50,7 +53,9 @@ def _decode_cursor(cursor: str) -> tuple[datetime, int]:
         raise HTTPException(status_code=400, detail="cursor 格式无效") from exc
 
 
-async def _get_run_with_access(db: AsyncSession, user: User, run_id: int) -> TestRun:
+async def _get_run_with_access(
+    db: AsyncSession, user: User, run_id: int, required_role: ProjectRole = ProjectRole.viewer
+) -> TestRun:
     result = await db.execute(select(TestRun).where(TestRun.id == run_id).options(selectinload(TestRun.steps)))
     run = result.scalar_one_or_none()
     if not run:
@@ -59,7 +64,7 @@ async def _get_run_with_access(db: AsyncSession, user: User, run_id: int) -> Tes
     module = await db.get(Module, case.module_id) if case else None
     if not module:
         raise HTTPException(status_code=404, detail="用例所属模块不存在")
-    await assert_project_access(db, user, module.project_id, ProjectRole.viewer)
+    await assert_project_access(db, user, module.project_id, required_role)
     return run
 
 
@@ -140,14 +145,18 @@ async def list_runs(
         has_more = len(rows) > limit
         rows = rows[:limit]
         next_cursor = _encode_cursor(rows[-1].created_at, rows[-1].id) if has_more and rows else None
-        return RunCursorPage(items=rows, next_cursor=next_cursor, has_more=has_more)
+        return RunCursorPage(
+            items=[TestRunListItem.model_validate(item) for item in rows],
+            next_cursor=next_cursor,
+            has_more=has_more,
+        )
 
     total = await db.scalar(select(func.count()).select_from(base.subquery()))
     query = base.order_by(TestRun.created_at.desc())
     query = query.offset((page - 1) * page_size).limit(page_size)
     result = await db.execute(query)
     return PaginatedRunsOut(
-        items=result.scalars().all(),
+        items=[TestRunListItem.model_validate(item) for item in result.scalars().all()],
         total=total or 0,
         page=page,
         page_size=page_size,
@@ -161,6 +170,34 @@ async def get_run(
     _: User = Depends(get_current_user),
 ):
     return await _get_run_with_access(db, _, run_id)
+
+
+@router.post("/runs/{run_id}/stop", response_model=TestRunOut)
+async def stop_web_run(
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    run = await _get_run_with_access(db, current_user, run_id, ProjectRole.editor)
+    case = await db.get(TestCase, run.case_id)
+    if case is None or case.case_type != _cases.CaseType.web:
+        raise HTTPException(status_code=409, detail="仅 Web 用例运行支持此停止入口")
+    if run.status not in {RunStatus.pending, RunStatus.running}:
+        raise HTTPException(status_code=409, detail=f"Web 运行当前状态为 {run.status.value}，无法停止")
+    try:
+        await asyncio.to_thread(request_cancel, run.id)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="无法发送 Web 运行停止信号") from exc
+    if run.status == RunStatus.pending:
+        run.status = RunStatus.cancelled
+        run.error_message = "用户在执行开始前取消"
+        await db.commit()
+    await db.refresh(run)
+    if run.status not in {RunStatus.pending, RunStatus.running, RunStatus.cancelled}:
+        from app.services.web_run_control import clear_cancel_request
+
+        await asyncio.to_thread(clear_cancel_request, run.id)
+    return run
 
 
 @router.post("/runs/{run_id}/failure-diagnosis", response_model=FailureDiagnosisOut)

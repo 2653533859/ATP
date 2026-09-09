@@ -31,6 +31,7 @@ class RunStatus(str, enum.Enum):
     failed = "failed"
     error = "error"
     skipped = "skipped"
+    cancelled = "cancelled"
 
 
 class TestCase(Base, TimestampMixin):

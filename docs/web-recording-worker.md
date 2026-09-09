@@ -108,6 +108,10 @@ Trace/HAR/运行报告与停止后查询均通过；可解析但不可访问目�
 [`b2-web-recording-unreachable-2026-09-09.json`](evidence/b2-web-recording-unreachable-2026-09-09.json)。该结果关闭 B2.1，
 不替代 B2.2 三浏览器用例回放，也不替代 B2.3 浏览器崩溃、登录失效和取消清理。
 
+B2.3 已在 2026-09-09 补齐 Web 回放协作式取消：`POST /api/v1/runs/{run_id}/stop` 仅接受编辑者可见的
+`pending`/`running` Web Run，通过 Redis 有界标记通知 Worker。Worker 在步骤执行期间轮询取消与浏览器连接状态，
+无论取消、浏览器崩溃或断言失败都进入同一 `finally` 收尾，关闭 context/browser/Playwright、上传可用证据并删除临时目录。
+
 ## 关键配置
 
 - `WEB_RECORDER_WORKER_QUEUE_PREFIX`：API 与 Worker 必须一致，默认 `atp:web-recording:commands`。

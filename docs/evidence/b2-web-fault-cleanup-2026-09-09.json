@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-09T08:14:00+00:00",
+  "status": "passed",
+  "environment": {
+    "helm_release": "atp-single-node",
+    "helm_revision": 25,
+    "namespace": "atp-single-node",
+    "migration": "20260909_0072 (head)",
+    "worker_ready": true,
+    "worker_restarts": 0,
+    "backend_health": "ok"
+  },
+  "checks": {
+    "cooperative_cancel": {
+      "run_id": 76,
+      "status": "cancelled",
+      "completed_steps": 1,
+      "trace": true,
+      "video": true,
+      "temporary_directory_present": false,
+      "cancel_marker_present": false
+    },
+    "browser_process_crash": {
+      "run_id": 81,
+      "status": "failed",
+      "failure": "浏览器进程已断开",
+      "detected_after_kill_seconds": 0.99,
+      "trace": false,
+      "video": true,
+      "temporary_directory_present": false,
+      "browser_process_present": false
+    },
+    "expired_login": {
+      "run_id": 78,
+      "status": "failed",
+      "completed_steps": 2,
+      "trace": true,
+      "video": true,
+      "temporary_directory_present": false
+    }
+  },
+  "verification": {
+    "targeted_tests": "81 passed",
+    "ruff": "passed"
+  }
+}

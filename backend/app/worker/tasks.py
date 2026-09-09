@@ -403,7 +403,7 @@ async def _safe_invalidate_stats_cache() -> None:
 def _record_run_outcome(entity_type: str, status: object) -> None:
     """Best-effort Prometheus signal for run success-rate SLOs."""
     status_value = status.value if hasattr(status, "value") else str(status)
-    if status_value not in {"passed", "failed", "error", "skipped"}:
+    if status_value not in {"passed", "failed", "error", "skipped", "cancelled"}:
         return
     try:
         from app.core.metrics import RUN_OUTCOMES
@@ -439,7 +439,21 @@ def run_test_case(self, run_id: int, extra_vars: dict, trace_id: str | None = No
                     run.trace_id = trace_id or generate_trace_id()
                     await db.commit()
 
+                from app.services.web_run_control import clear_cancel_request, is_cancel_requested
+
                 case = await db.get(TestCase, run.case_id)
+                case_type = getattr(case, "case_type", None)
+                case_type_value = getattr(case_type, "value", case_type)
+                web_cancel_requested = case_type_value == "web" and await asyncio.to_thread(is_cancel_requested, run_id)
+                if run.status == RunStatus.cancelled or web_cancel_requested:
+                    run.status = RunStatus.cancelled
+                    run.error_message = run.error_message or "用户取消执行"
+                    await db.commit()
+                    await asyncio.to_thread(clear_cancel_request, run_id)
+                    await _safe_publish_run_event(
+                        run_id, {"type": "completed", "run_id": run_id, "status": RunStatus.cancelled.value}
+                    )
+                    return
 
                 # ── P3.B 参数化分支 ──────────────────────────
                 if case is not None and case.dataset_id is not None and run.parent_run_id is None:
