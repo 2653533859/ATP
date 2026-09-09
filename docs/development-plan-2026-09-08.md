@@ -110,10 +110,10 @@ B1.3/B1.4 自动化与实测已覆盖任务中心从 URL 恢复项目、状态�
 ### B3：接口与对象生命周期 `[E]`
 
 - [x] `B3.1` 为 API、GraphQL、WebSocket、gRPC 增加部署级协议队列隔离，并在当前 K3s 发布上复核 HTTP、GraphQL、WebSocket 及 gRPC Unary/Server/Client/Bidi Streaming；覆盖变量提取、跨步骤依赖和 TLS。
-- [ ] `B3.2` 在当前 K3s 发布复核认证/会话复用、OpenAPI/Postman 导入预览、落库、回读、执行与清理。
+- [x] `B3.2` 在当前 K3s 发布复核认证/会话复用、OpenAPI/Postman 导入预览、落库、回读、执行与清理；运行时凭据不落用例配置，执行证据脱敏，项目删除同步清理加密 Redis 会话。
 - [ ] `B3.3` 串联运行详情及 HTML/JUnit/PDF 导出，验证 MinIO 报告和临时对象的保留、下载与清理策略。
 
-B3.1 证据见 [`docs/evidence/b3-protocol-isolation-2026-09-09.json`](evidence/b3-protocol-isolation-2026-09-09.json)。受控真实网络目标不替代生产 Provider 兼容性或 B3.2/B3.3 对象生命周期验收。
+B3.1/B3.2 证据见 [`docs/evidence/b3-protocol-isolation-2026-09-09.json`](evidence/b3-protocol-isolation-2026-09-09.json) 和 [`docs/evidence/b3-api-lifecycle-2026-09-09.json`](evidence/b3-api-lifecycle-2026-09-09.json)。受控真实网络目标不替代生产 Provider 兼容性或 B3.3 报告与 MinIO 对象生命周期验收。
 
 ### B4：Android 单机与可选多设备 `[E]`
 
@@ -203,3 +203,4 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 - 2026-09-09：完成 B2.2。真实创建元素资产、页面对象、视觉基线及两条 Web 用例；提交 `d400d22b` 的不可变 Backend/Worker 镜像部署到 Helm revision 22 后，矩阵 Run 71 和 Chromium/Firefox/WebKit 子运行 72/73/74 全部通过，每个子运行均含 2 个步骤、2 张截图、Trace、录像和网络事件；视觉 Run 75 通过，`diff_ratio=0`。实测同时修复三项缺陷：0049/0050 迁移遗漏时间戳默认值导致资产插入失败且被误报为 409；Chromium 专用 `--no-sandbox` 参数误传给 WebKit；共享 Redis 上遗留 Compose Worker 会抢占当前 K3s 的 `default` 回放任务。新增 `WEB_EXECUTION_QUEUE` 并将本环境路由到 `web.atp-single-node`，旧 Worker 不再消费当前 Web 用例。定向 `47 passed`、Ruff、Helm 服务端 dry-run通过，6/6 Pod Ready、零重启、迁移位于 `20260909_0071 (head)`；证据见 [`docs/evidence/b2-web-playback-2026-09-09.json`](evidence/b2-web-playback-2026-09-09.json)，开发游标进入 B2.3 异常与取消清理。
 - 2026-09-09：完成 B2.3。新增 Web Run 协作式停止 API、Redis 有界取消标记和 `cancelled` 终态；运行中取消 Run 76 在完成首步后收敛为 `cancelled`，Trace/录像保留，取消标记和临时目录均清除。真实杀死 Chromium 后，初次 Run 79 暴露“等待步骤不访问页面导致崩溃假通过”，修复后 Run 81 在 0.99 秒内识别断连并失败，浏览器进程和临时目录无残留、Worker 零重启。登录失效 Run 78 以预期断言失败结束并完成 Trace、录像和临时资源清理。提交 `494d43fd` 的 Backend/Worker 镜像部署到 Helm revision 26，定向 `81 passed`、Ruff 通过；证据见 [`docs/evidence/b2-web-fault-cleanup-2026-09-09.json`](evidence/b2-web-fault-cleanup-2026-09-09.json)，B2 关闭，开发游标进入 B3 API 协议链路。
 - 2026-09-09：完成 B3.1。新增 `PROTOCOL_EXECUTION_QUEUE`，API、GraphQL、WebSocket、gRPC 及纯协议套件/计划可路由到部署专用队列；提交 `96a754cf` 已部署到 Helm revision 27，当前 Worker 独占 `protocol.atp-single-node`，旧 Compose Worker 不监听该队列。受控 HTTP/GraphQL/WebSocket 与 gRPC TLS Unary、Server/Client/Bidi Streaming Run 86～92 全部通过，覆盖提取、跨步骤依赖、断言和 TLS 主机名校验。首次 gRPC 预检识别旧 q19 证书已于 2026-08-31 过期，改用临时新证书完整重跑；项目、目标容器、证书和私钥均已清理。定向 `53 passed`，Ruff、格式、差异检查及代码审查通过；6/6 Pod 连续 30 秒 Ready、零重启，迁移 `20260909_0072 (head)`。证据见 [`docs/evidence/b3-protocol-isolation-2026-09-09.json`](evidence/b3-protocol-isolation-2026-09-09.json)，开发游标进入 B3.2 认证/会话与导入生命周期。
+- 2026-09-09：完成 B3.2。修复 JSON/Form 请求体无法递归渲染运行时变量，以及项目删除后加密 API Cookie 会话继续驻留 Redis 的问题；提交 `7a3b2c90` 已部署到 Helm revision 28。当前 K3s 真实解析 OpenAPI/Postman 各 1 个端点，导入预览 `2/2` 有效、事务落库 2 条、回读后 Run 96/97 均通过；`session_lifecycle=reuse` 的 Run 98 使用仅随触发请求传入的凭据完成登录和 `/auth/me`，密码、access/refresh token、`Set-Cookie` 均脱敏。项目删除前 Redis 会话为 888 字节 Fernet 密文，删除后键不存在；项目 82 和临时 HTTP 目标已清理。受影响回归 `151 passed`，变更测试文件独立 `74/2/6 passed`，Ruff、格式、mypy、差异检查及代码审查通过；6/6 Pod 连续 30 秒 Ready、零重启。证据见 [`docs/evidence/b3-api-lifecycle-2026-09-09.json`](evidence/b3-api-lifecycle-2026-09-09.json)，开发游标进入 B3.3 报告导出与 MinIO 对象治理。

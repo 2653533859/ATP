@@ -119,12 +119,15 @@ Celery Worker 收到任务后，进入 `backend/app/worker/tasks.py`：
 
 ### 4.4 API 用例的可选登录态复用
 
-API 用例配置中的 `reuse_api_session` 用于控制 Cookie 登录态是否复用，默认值为 `false`：
+API 用例配置中的 `session_lifecycle=reuse` 用于控制 Cookie 登录态是否复用；旧配置
+`reuse_api_session=true` 继续兼容，默认模式为 `isolated`：
 
 - 开启后，同一项目中同样开启该选项的 API 用例共享项目级 Cookie 会话；
 - 会话以加密后的形式保存到 Redis，默认 TTL 为 8 小时，不同项目之间不会互相复用；
 - 关闭后，每个 API 用例按原有方式创建独立 HTTP 客户端，不读取或写入项目会话；
 - 如果后续请求收到服务端登出/删除 Cookie，执行结束时会把空会话写回 Redis，清除项目旧登录态；
+- 删除项目时会同时删除 Redis 中对应的加密 API 会话；Redis 暂时不可用时项目删除仍成功，会话依靠 8 小时 TTL 最终失效；
+- JSON/Form 请求体会递归渲染运行时变量；字段值完全等于单个占位符时保留数字、布尔值等原生类型，执行证据仍按 `dataset_redact_fields` 脱敏；
 - Bearer 等接口 Token 仍通过用例步骤中的提取变量和认证配置传递，不会因为开启 Cookie 复用而自动共享。
 
 前端在 API 用例编辑抽屉中勾选“复用项目 API 登录态”即可启用。通常应在登录步骤所在用例和需要登录的后续用例中同时开启该选项。

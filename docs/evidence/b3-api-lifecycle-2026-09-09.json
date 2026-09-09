@@ -1,0 +1,109 @@
+{
+  "evidence_type": "b3_api_import_session_lifecycle_acceptance",
+  "date": "2026-09-09",
+  "status": "passed",
+  "scope": "B3.2 authentication session reuse and OpenAPI/Postman import lifecycle on the current single-node K3s release",
+  "source_commit": "7a3b2c9021444249c08466aa31633e386f4272e1",
+  "deployment": {
+    "host": "192.168.3.196",
+    "namespace": "atp-single-node",
+    "helm_release": "atp-single-node",
+    "helm_revision": 28,
+    "backend_image": "registry.local/atp/backend:7a3b2c90",
+    "worker_image": "registry.local/atp/worker:7a3b2c90",
+    "protocol_queue": "protocol.atp-single-node",
+    "migration_head": "20260909_0072",
+    "backend_health": "ok"
+  },
+  "parsers": {
+    "openapi": {
+      "status": 200,
+      "endpoint_count": 1,
+      "warnings": []
+    },
+    "postman": {
+      "status": 200,
+      "endpoint_count": 1,
+      "warnings": []
+    }
+  },
+  "import_lifecycle": {
+    "preview_status": 200,
+    "total": 2,
+    "valid_count": 2,
+    "invalid_count": 0,
+    "conflicts": 0,
+    "import_status": 201,
+    "imported_count": 2,
+    "readback_case_type": "api",
+    "runs": [
+      {
+        "source": "openapi",
+        "run_id": 96,
+        "status": "passed",
+        "step_statuses": ["passed"]
+      },
+      {
+        "source": "postman",
+        "run_id": 97,
+        "status": "passed",
+        "step_statuses": ["passed"]
+      }
+    ]
+  },
+  "session_lifecycle": {
+    "mode": "reuse",
+    "run_id": 98,
+    "status": "passed",
+    "step_statuses": ["passed", "passed"],
+    "runtime_only_credentials": true,
+    "cookie_reused_by_current_user_request": true,
+    "authenticated_user_extracted": true,
+    "password_redacted": true,
+    "access_token_redacted": true,
+    "refresh_token_redacted": true,
+    "set_cookie_redacted": true,
+    "redis_before_project_delete": {
+      "exists": true,
+      "fernet_ciphertext": true,
+      "bytes": 888
+    },
+    "redis_after_project_delete": {
+      "exists": false,
+      "bytes": 0
+    }
+  },
+  "cleanup": {
+    "temporary_project_id": 82,
+    "project_delete_status": 204,
+    "database_readback_after_delete": {
+      "project_82_count": 0,
+      "cases_72_73_count": 0,
+      "runs_96_98_count": 0
+    },
+    "imported_cases_and_runs_removed_by_project_cascade": true,
+    "project_api_session_removed": true,
+    "temporary_http_target_removed": true
+  },
+  "stability": {
+    "observation_seconds": 30,
+    "ready_pods": "6/6",
+    "pod_restarts": 0,
+    "new_worker_errors": 0
+  },
+  "implementation_fixes": [
+    "render JSON and form runtime variables recursively while preserving exact-placeholder native types",
+    "redact rendered credentials before persisting or publishing execution evidence",
+    "delete the encrypted project API session from Redis after project deletion"
+  ],
+  "verification": {
+    "affected_regression": "151 passed",
+    "standalone_files": ["74 passed", "2 passed", "6 passed"],
+    "ruff": "passed",
+    "format_check": "passed",
+    "mypy": "passed",
+    "diff_check": "passed",
+    "review": "no remaining actionable findings"
+  },
+  "scope_note": "This evidence proves controlled OpenAPI/Postman parsing, transactional preview/import/readback/execution, runtime-only login credentials, encrypted project Cookie reuse, evidence redaction, and project-session cleanup on the current K3s release. It does not prove production identity providers, arbitrary external specifications, report exports, MinIO object retention, P4, or P9 closure."
+}
