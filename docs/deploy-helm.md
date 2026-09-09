@@ -111,8 +111,8 @@ Deployment 仍通过 ConfigMap + Secret 读取同一套配置。
 默认 Linux worker 监听 `default,ios,ai,maintenance,performance` 五类队列。Android 任务由 Windows Android Worker 监听 `android,mobile_special`；生产使用 Windows Android Worker 时，Linux Worker 必须排除这两个队列，并按队列拆分 worker 副本：
 
 - `default`：普通用例、套件、计划执行。
-- `android`：普通 Android 用例，由 Windows Android Worker 在本机调用 ADB。
-- `mobile_special`：Android 专项与 ADB 扫描，由 Windows Android Worker 消费。
+- `android`：Android 用例、ADB 扫描、Worker 心跳和设备操作，由 Windows Android Worker 消费。
+- `mobile_special`：仅承载 Android 专项执行；专项调度、清理和租约回收由 Linux `maintenance` Worker 消费。
 - `ai`：AI 自愈诊断与反馈聚合。
 - `maintenance`：清理、备份、告警。
 - `performance`：HTTP 压测任务，worker 镜像内置 k6，建议低并发独立 worker，避免挤占功能测试资源。

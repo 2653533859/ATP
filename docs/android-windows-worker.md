@@ -30,8 +30,8 @@ Windows 启动脚本和网络诊断脚本会复用同一套 ADB 路径发现逻�
 
 ## 队列和执行范围
 
-- `android`：普通 Android 用例，以及只包含 Android 用例的测试套件/计划。
-- `mobile_special`：移动专项任务、ADB 设备扫描、设备租约清理。
+- `android`：普通 Android 用例、只包含 Android 用例的测试套件/计划，以及 ADB 扫描、Worker 心跳和设备镜像操作。
+- `mobile_special`：需要真机执行的移动专项任务；专项调度检查、过期运行清理和设备租约回收由 Linux `maintenance` Worker 处理。
 - Windows Worker 默认只消费 `android,mobile_special`，并使用 `solo + concurrency=1`，避免多个任务同时操作同一台设备。
 - Web/API 用例继续由 `default` Worker 执行。包含 Web/API 与 Android 的混合套件仍由 `default` Worker 运行，不能依赖 Windows Android Worker。
 - 执行结果、运行状态、截图/录像和轨迹仍沿用现有 PostgreSQL/MinIO 回传链路，前端不需要新增查看入口。
@@ -68,6 +68,23 @@ Windows Worker 必须能够连接以下地址：
 | `MINIO_HOST:MINIO_PORT` | 上传和读取截图、录像、执行轨迹 |
 
 如果 MinIO 对外暴露的是浏览器访问地址，还要确认 Worker 使用的是 API 端口，而不是 Console 端口。
+
+如果 Linux 上的依赖只监听回环地址，可以用密钥认证建立 Windows 后台 SSH 转发，再让
+Backend/Agent 配对档案共同使用 `127.0.0.1`。以下示例会在 Windows 后台保留一个
+`ssh.exe` 进程；重启电脑后需要重新执行，并通过监听端口和 Worker doctor 复核：
+
+```powershell
+ssh -f -N -o BatchMode=yes -o ExitOnForwardFailure=yes `
+  -o ServerAliveInterval=15 -o ServerAliveCountMax=3 `
+  -L 127.0.0.1:25432:127.0.0.1:25432 `
+  -L 127.0.0.1:26379:127.0.0.1:26379 `
+  -L 127.0.0.1:29000:127.0.0.1:29000 `
+  root@192.168.3.196
+Get-NetTCPConnection -State Listen -LocalPort 25432,26379,29000
+```
+
+不要把 SSH 密码写入脚本或 Git；必须使用已授权的 SSH key。停止转发前先停止 Android
+Worker，再按命令行精确识别对应 `ssh.exe` PID，避免误停其他 SSH 会话。
 
 ## 2. 连接 Android 设备
 
@@ -114,9 +131,14 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows-android-worker.ps1 do
 设备管理页的 Android Worker 状态来自 `GET /api/v1/devices/workers`；停止进程后记录会在 `ANDROID_WORKER_TTL_SECONDS` 内自动过期。普通 Linux Worker 不配置 `ANDROID_WORKER_ID`，不会出现在这里。
 
 当后端配置 `ADB_SCAN_MODE=worker` 时，设备管理页面的“扫描设备”会把扫描任务投递到
-`mobile_special` 队列，接口先返回 `queued` 和扫描任务 ID；前端随后轮询
+`android` 控制队列，接口先返回 `queued` 和扫描任务 ID；前端随后轮询
 `GET /api/v1/devices/scan/{scan_id}`，直到 Windows Worker 将 ADB 结果写回 PostgreSQL。
 因此页面不会再把投递成功误报为扫描完成；Worker 未启动、任务失败或查询 Redis 结果后端异常时会显示对应错误。
+
+Celery Beat 不直接向 Android 队列持续投递扫描。它先在 Linux `maintenance` 队列检查
+TTL Worker 注册中心，只有存在在线 Android Worker 时才投递带过期时间的扫描；Worker
+离线时不会形成历史扫描积压。共享 Redis 的旧部署必须停止其 Beat 和消费相同队列的
+Worker，否则旧路由仍会污染当前部署。
 
 ## 4. 公网后端 Worker 队列配置
 

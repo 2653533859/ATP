@@ -115,9 +115,11 @@ B1.3/B1.4 自动化与实测已覆盖任务中心从 URL 恢复项目、状态�
 
 B3.1～B3.3 证据见 [`docs/evidence/b3-protocol-isolation-2026-09-09.json`](evidence/b3-protocol-isolation-2026-09-09.json)、[`docs/evidence/b3-api-lifecycle-2026-09-09.json`](evidence/b3-api-lifecycle-2026-09-09.json) 和 [`docs/evidence/b3-report-storage-lifecycle-2026-09-09.json`](evidence/b3-report-storage-lifecycle-2026-09-09.json)。受控真实网络目标不替代生产 Provider 兼容性或跨主机 MinIO 灾备验收。
 
-### B4：Android 单机与可选多设备 `[E]`
+### B4：Android 单机与可选多设备 `[~]`
 
-- 当前正式范围优先完成单设备持续运行、离线恢复、录像、日志和报告闭环。
+- [x] `B4.1` 完成 K3s Backend 与 Windows Android Worker 配对、双真机发现、控制队列隔离和 Worker 离线不积压验证；清理共享 Redis 中遗留 q19 Beat 造成的历史队列，并停止冲突的旧 Beat/Worker 计算容器，基础设施容器继续复用。
+- [ ] `B4.2` 选择一台在线设备完成 Android 低代码用例持续运行，验证截图、录像、logcat、步骤轨迹和报告闭环。
+- [ ] `B4.3` 在活动运行中验证设备离线、Worker 重启后的状态收敛和恢复边界，并完成有界稳定性观察。
 - 多设备租约冲突和兼容性矩阵在设备资源可用时执行，不阻塞单节点版本发布。
 - iOS/Appium 继续保持 `[OUT]` 技术预览。
 
@@ -205,3 +207,4 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 - 2026-09-09：完成 B3.1。新增 `PROTOCOL_EXECUTION_QUEUE`，API、GraphQL、WebSocket、gRPC 及纯协议套件/计划可路由到部署专用队列；提交 `96a754cf` 已部署到 Helm revision 27，当前 Worker 独占 `protocol.atp-single-node`，旧 Compose Worker 不监听该队列。受控 HTTP/GraphQL/WebSocket 与 gRPC TLS Unary、Server/Client/Bidi Streaming Run 86～92 全部通过，覆盖提取、跨步骤依赖、断言和 TLS 主机名校验。首次 gRPC 预检识别旧 q19 证书已于 2026-08-31 过期，改用临时新证书完整重跑；项目、目标容器、证书和私钥均已清理。定向 `53 passed`，Ruff、格式、差异检查及代码审查通过；6/6 Pod 连续 30 秒 Ready、零重启，迁移 `20260909_0072 (head)`。证据见 [`docs/evidence/b3-protocol-isolation-2026-09-09.json`](evidence/b3-protocol-isolation-2026-09-09.json)，开发游标进入 B3.2 认证/会话与导入生命周期。
 - 2026-09-09：完成 B3.2。修复 JSON/Form 请求体无法递归渲染运行时变量，以及项目删除后加密 API Cookie 会话继续驻留 Redis 的问题；提交 `7a3b2c90` 已部署到 Helm revision 28。当前 K3s 真实解析 OpenAPI/Postman 各 1 个端点，导入预览 `2/2` 有效、事务落库 2 条、回读后 Run 96/97 均通过；`session_lifecycle=reuse` 的 Run 98 使用仅随触发请求传入的凭据完成登录和 `/auth/me`，密码、access/refresh token、`Set-Cookie` 均脱敏。项目删除前 Redis 会话为 888 字节 Fernet 密文，删除后键不存在；项目 82 和临时 HTTP 目标已清理。受影响回归 `151 passed`，变更测试文件独立 `74/2/6 passed`，Ruff、格式、mypy、差异检查及代码审查通过；6/6 Pod 连续 30 秒 Ready、零重启。证据见 [`docs/evidence/b3-api-lifecycle-2026-09-09.json`](evidence/b3-api-lifecycle-2026-09-09.json)，开发游标进入 B3.3 报告导出与 MinIO 对象治理。
 - 2026-09-09：完成 B3.3。修复通用存储清理未识别 `TestRun.result_summary` 录像/Trace 引用、运行记录清理遗漏 HTML 缓存及运行产物、`cancelled` 未纳入终态保留清理的问题，并补齐 Web/协议专用队列的启动配置界面；提交 `5134eda9` 已部署到 Helm revision 30。当前 K3s Run 99 通过，HTML 首次导出 `miss`、再次 `hit`，JUnit XML 可解析，PDF 为 167432 字节有效文档；清理前数据库识别录像/Trace 引用，MinIO 存在 HTML/录像/Trace 3 个对象，精确删除运行后数据库记录和对象均归零。完整非集成后端 `2557 passed, 1 skipped`，前端 `362 passed`、类型检查和生产构建、Ruff、格式、mypy、差异检查及代码审查通过；6/6 Pod 连续 30 秒 Ready、零重启。临时项目 83、用例 75、Run 99 均已清理。证据见 [`docs/evidence/b3-report-storage-lifecycle-2026-09-09.json`](evidence/b3-report-storage-lifecycle-2026-09-09.json)，B3 关闭，开发游标进入 B4 Android 单设备持续运行。
+- 2026-09-10：完成 B4.1。Windows 通过持久 SSH 本地转发与 K3s Backend 复用 PostgreSQL、Redis、MinIO 和应用身份，配置配对与 Worker doctor 全部通过，两台无线设备 `172.16.102.15:5555`、`172.16.102.214:5555` 在线。实测发现无 Android Worker 时旧 Beat 在 `mobile_special` 累积 130778 条消息，并确认同机遗留 q19 Docker Beat/Worker 与 K3s 共用 Redis；提交 `432bead0` 将扫描、心跳和设备操作隔离到 `android`，将专项调度/清理/租约回收到 `maintenance`，Beat 仅在 TTL 注册中心存在在线 Worker 时投递带过期时间的扫描。停止 3 个冲突旧计算容器并精确清理历史周期消息后，离线期 `mobile_special/android` 均保持 0；恢复 Worker 后注册和 API 扫描完成，返回 2 台在线设备。提交已部署到 Helm revision 34，6/6 Pod Ready、零重启、迁移 `20260909_0072 (head)`；后端非集成 `2559 passed / 1 skipped`，受影响文件独立 `5/4/17 passed`，Ruff、格式、mypy、差异检查和代码审查通过。证据见 [`docs/evidence/b4-android-worker-control-plane-2026-09-10.json`](evidence/b4-android-worker-control-plane-2026-09-10.json)，开发游标进入 B4.2 单设备低代码持续运行和证据闭环。

@@ -1,0 +1,110 @@
+{
+  "evidence_type": "b4_android_worker_control_plane_acceptance",
+  "date": "2026-09-10",
+  "status": "passed",
+  "scope": "B4.1 K3s-to-Windows Android Worker pairing, bounded queue routing, offline behavior, recovery, and real ADB scan",
+  "source_commit": "432bead029f7c9ea717c63d135508dfcb2d2b67c",
+  "deployment": {
+    "host": "192.168.3.196",
+    "namespace": "atp-single-node",
+    "helm_release": "atp-single-node",
+    "helm_revision": 34,
+    "backend_image": "registry.local/atp/backend:432bead0",
+    "worker_image": "registry.local/atp/worker:432bead0",
+    "migration_head": "20260909_0072",
+    "backend_health": "ok",
+    "ready_pods": "6/6",
+    "pod_restarts": 0
+  },
+  "worker": {
+    "worker_id": "android-win-HPS",
+    "queues": [
+      "android",
+      "mobile_special"
+    ],
+    "doctor": "passed",
+    "configuration_pair": "passed",
+    "credential_values_recorded": false,
+    "dependency_transport": "Windows background SSH local forwarding with key authentication"
+  },
+  "devices": [
+    {
+      "serial": "172.16.102.15:5555",
+      "model": "rk3568_r",
+      "status": "online"
+    },
+    {
+      "serial": "172.16.102.214:5555",
+      "model": "rk3588",
+      "status": "online"
+    }
+  ],
+  "queue_incident": {
+    "initial_mobile_special_messages_observed": 130778,
+    "non_atomic_breakdown_during_drain": {
+      "scan_adb_devices": 86704,
+      "check_mobile_special_schedules": 21669,
+      "reclaim_expired_device_leases": 21669,
+      "cleanup_stale_mobile_special_runs": 716,
+      "heartbeat_android_worker": 12,
+      "run_mobile_special_task": 4
+    },
+    "messages_counted_in_non_atomic_breakdown": 130774,
+    "queued_run_ids": [14, 15, 16, 17],
+    "queued_run_database_status": "stopped",
+    "cause": "legacy q19 Docker Beat and Workers shared the current Redis broker and kept using the old mobile_special routing",
+    "stopped_conflicting_compute_containers": [
+      "atp-q19-acceptance-20260824-beat-1",
+      "atp-q19-acceptance-20260824-worker-1",
+      "atp-q19-acceptance-20260824-performance-worker-1"
+    ],
+    "preserved_infrastructure": [
+      "PostgreSQL",
+      "Redis",
+      "MinIO"
+    ],
+    "cleanup_passes": [
+      {
+        "observed": 130834,
+        "removed_periodic_messages": 130830,
+        "preserved_run_messages": 4
+      },
+      {
+        "observed_after_legacy_compute_shutdown": 26,
+        "removed_periodic_messages": 26,
+        "preserved_run_messages": 0
+      }
+    ]
+  },
+  "offline_recovery": {
+    "worker_registry_after_ttl": 0,
+    "offline_observation_seconds_after_cleanup": 25,
+    "mobile_special_queue_after_cleanup_and_one_beat_interval": 0,
+    "android_queue_after_cleanup_and_one_beat_interval": 0,
+    "worker_registry_after_restart": 1,
+    "queues_after_restart": {
+      "mobile_special": 0,
+      "android": 0,
+      "maintenance": 0
+    }
+  },
+  "api_scan": {
+    "authenticated_role": "engineer",
+    "status": "completed",
+    "online_device_count": 2
+  },
+  "verification": {
+    "backend_non_integration": "2559 passed, 1 skipped",
+    "standalone_changed_test_files": [
+      "5 passed",
+      "4 passed",
+      "17 passed"
+    ],
+    "ruff": "passed",
+    "format_check": "passed",
+    "mypy": "passed",
+    "diff_check": "passed",
+    "review": "queue isolation, offline gating, and deployment compatibility reviewed; no remaining actionable findings"
+  },
+  "scope_note": "This evidence closes the B4.1 control-plane and device-discovery slice. It does not yet prove a sustained Android low-code run, screenshots, video, logcat, step artifacts, report completeness, active-run disconnect recovery, or multi-device lease conflicts."
+}
