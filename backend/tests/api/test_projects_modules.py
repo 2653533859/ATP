@@ -163,13 +163,41 @@ def test_delete_project_invalidates_stats_cache(monkeypatch):
     async def fake_invalidate_stats_cache():
         invalidated.append(True)
 
+    deleted_sessions = []
+
+    async def fake_delete_project_api_session(project_id):
+        deleted_sessions.append(project_id)
+
     monkeypatch.setattr(projects, "invalidate_stats_cache", fake_invalidate_stats_cache)
+    monkeypatch.setattr(projects, "delete_project_api_session", fake_delete_project_api_session)
 
     asyncio.run(projects.delete_project(project_id=3, db=db, _=None))
 
     assert db.deleted == [project]
     assert db.commit_calls == 1
     assert invalidated == [True]
+    assert deleted_sessions == [3]
+
+
+def test_delete_project_keeps_database_delete_when_session_cleanup_fails(monkeypatch, caplog):
+    project = types.SimpleNamespace(id=3, name="ATP")
+    db = _DeleteDB(project)
+
+    async def fail_session_cleanup(_project_id):
+        raise RuntimeError("redis unavailable with sensitive details")
+
+    async def fake_invalidate_stats_cache():
+        return None
+
+    monkeypatch.setattr(projects, "delete_project_api_session", fail_session_cleanup)
+    monkeypatch.setattr(projects, "invalidate_stats_cache", fake_invalidate_stats_cache)
+
+    asyncio.run(projects.delete_project(project_id=3, db=db, _=None))
+
+    assert db.deleted == [project]
+    assert db.commit_calls == 1
+    assert "RuntimeError" in caplog.text
+    assert "sensitive details" not in caplog.text
 
 
 def test_delete_module_invalidates_stats_cache(monkeypatch):

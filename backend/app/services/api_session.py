@@ -107,3 +107,13 @@ async def save_project_api_session(project_id: int, cookies: list[dict[str, Any]
         await redis.set(_session_key(project_id), payload, ex=API_SESSION_TTL_SECONDS)
     finally:
         await close_async_redis(redis)
+
+
+async def delete_project_api_session(project_id: int) -> None:
+    """Remove the encrypted cookie session when its owning project is deleted."""
+
+    redis = get_async_redis()
+    try:
+        await redis.delete(_session_key(project_id))
+    finally:
+        await close_async_redis(redis)

@@ -66,6 +66,9 @@ def test_project_session_is_encrypted_and_saved_with_ttl(monkeypatch):
             self.value = value
             self.set_args = {"ex": ex}
 
+        async def delete(self, _key):
+            self.value = None
+
     redis = _FakeRedis()
     closed = []
 
@@ -91,3 +94,7 @@ def test_project_session_is_encrypted_and_saved_with_ttl(monkeypatch):
     redis.value = "old-key-ciphertext"
     assert asyncio.run(api_session.load_project_api_session(1)) == []
     assert closed == [redis, redis, redis, redis, redis]
+
+    asyncio.run(api_session.delete_project_api_session(1))
+    assert redis.value is None
+    assert closed == [redis, redis, redis, redis, redis, redis]

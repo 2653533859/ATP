@@ -237,6 +237,65 @@ def test_api_executor_redacts_dataset_fields_from_persisted_evidence(fake_http, 
     assert events[0]["step"]["response_data"] == step.response_data
 
 
+def test_api_executor_renders_nested_runtime_values_before_redacting_evidence(fake_http, monkeypatch, healing_recorder):
+    _events_recorder(monkeypatch, api_executor)
+    fake_http.script = [_FakeResponse(200, {"ok": True})]
+    case = _Obj(
+        config={
+            "dataset_redact_fields": ["password"],
+            "steps": [
+                {
+                    "url": "https://api.example.com/login",
+                    "method": "POST",
+                    "body_type": "json",
+                    "body": {
+                        "username": "{{username}}",
+                        "password": "{{password}}",
+                        "profile": {"roles": ["{{role}}"], "attempt": "{{attempt}}"},
+                    },
+                }
+            ],
+        }
+    )
+    db = _FakeDB()
+
+    asyncio.run(
+        api_executor.run_api_case(
+            db,
+            _run_stub(),
+            case,
+            {"username": "parado", "password": "runtime-secret", "role": "engineer", "attempt": 2},
+        )
+    )
+
+    assert fake_http.requests[0]["json"] == {
+        "username": "parado",
+        "password": "runtime-secret",
+        "profile": {"roles": ["engineer"], "attempt": 2},
+    }
+    assert db.added[0].request_data["body"] == {
+        "username": "parado",
+        "password": "***",
+        "profile": {"roles": ["engineer"], "attempt": 2},
+    }
+
+
+def test_api_request_builder_renders_form_runtime_values():
+    kwargs, record_body = asyncio.run(
+        api_executor._build_request_kwargs(
+            {"body_type": "form", "body": {"name": "prefix-{{name}}", "count": "{{count}}"}},
+            {"name": "ATP", "count": 3},
+            headers={},
+            params={},
+            cookies={},
+            project_id=1,
+        )
+    )
+
+    assert kwargs["data"] == {"name": "prefix-ATP", "count": 3}
+    assert record_body == kwargs["data"]
+
+
 def test_api_executor_applies_stop_failure_strategy_and_records_skipped_step(fake_http, monkeypatch, healing_recorder):
     _events_recorder(monkeypatch, api_executor)
     fake_http.script = [_FakeResponse(500, {"error": "boom"})]

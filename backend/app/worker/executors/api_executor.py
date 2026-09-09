@@ -3,6 +3,7 @@
 import asyncio
 import json
 import time
+from typing import Any
 from defusedxml import ElementTree as ET
 
 import httpx
@@ -407,6 +408,23 @@ def _render(template: str, context: dict) -> str:
     return template
 
 
+def _render_body_value(value: Any, context: dict[str, Any]) -> Any:
+    """Render placeholders recursively while preserving exact-placeholder types."""
+
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.startswith("{{") and stripped.endswith("}}") and stripped.count("{{") == 1:
+            key = stripped[2:-2].strip()
+            if key in context:
+                return context[key]
+        return _render(value, context)
+    if isinstance(value, dict):
+        return {key: _render_body_value(item, context) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_render_body_value(item, context) for item in value]
+    return value
+
+
 async def _build_request_kwargs(
     step: dict,
     context: dict,
@@ -423,9 +441,11 @@ async def _build_request_kwargs(
     record_body = body
 
     if body_type == "json":
-        kwargs["json"] = body
+        record_body = _render_body_value(body, context)
+        kwargs["json"] = record_body
     elif body_type == "form":
-        kwargs["data"] = body
+        record_body = _render_body_value(body, context)
+        kwargs["data"] = record_body
     elif body_type in {"raw", "xml"}:
         kwargs["content"] = _render(body if isinstance(body, str) else "", context)
         if body_type == "xml" and not any(key.lower() == "content-type" for key in headers):

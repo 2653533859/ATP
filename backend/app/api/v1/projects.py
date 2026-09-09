@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import logging
 import re
 from datetime import datetime
 from uuid import uuid4
@@ -58,8 +59,10 @@ from app.services.dataset_storage import (
     validate_dataset_rows_size,
 )
 from app.services.audit import write_audit_log
+from app.services.api_session import delete_project_api_session
 
 router = APIRouter(tags=["项目管理"])
+logger = logging.getLogger(__name__)
 
 
 def _normalize_code(name: str, fallback_prefix: str) -> str:
@@ -482,6 +485,10 @@ async def delete_project(
         raise HTTPException(status_code=404, detail="项目不存在")
     await db.delete(project)
     await db.commit()
+    try:
+        await delete_project_api_session(project_id)
+    except Exception as exc:
+        logger.warning("Failed to delete API session for project %s: %s", project_id, type(exc).__name__)
     await invalidate_stats_cache()
 
 
