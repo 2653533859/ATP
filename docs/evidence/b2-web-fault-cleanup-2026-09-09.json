@@ -4,12 +4,14 @@
   "status": "passed",
   "environment": {
     "helm_release": "atp-single-node",
-    "helm_revision": 25,
+    "helm_revision": 26,
     "namespace": "atp-single-node",
     "migration": "20260909_0072 (head)",
     "worker_ready": true,
     "worker_restarts": 0,
-    "backend_health": "ok"
+    "backend_health": "ok",
+    "backend_image": "registry.local/atp/backend:494d43fd",
+    "worker_image": "registry.local/atp/worker:494d43fd"
   },
   "checks": {
     "cooperative_cancel": {
