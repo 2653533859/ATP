@@ -236,6 +236,11 @@ Backend 策略为 `RollingUpdate(surge=0,unavailable=100%)`。升级后五个核
 属于旧 q19 Docker Backend；它可能复用同一 PostgreSQL 数据库，但不代表 revision 12 的应用代码。Windows 本地 Vite
 或验收脚本必须指向 `http://192.168.3.196:8000`，不得用 `29080` 作为当前 K3s 版本、角色矩阵或发布证据。
 
+2026-09-09 B1.4 过期确认实测发现，Backend 在领域 API 返回 HTTP 409 后会回滚事务；旧实现随后读取已过期的
+`ExecutionCommand.id`，可能触发 SQLAlchemy `MissingGreenlet` 并把首次拒绝升级为 HTTP 500。提交 `86668152`
+改为在回滚前保存命令主键，并以不可变 Backend 标签升级到 Helm revision 13。五个核心 Pod Ready、零重启，
+`/health` 返回 200；新建成功终态 Performance Run 后，首次停止与同键重放均返回 409，Backend 日志无新异常。
+
 ## 八、升级与回滚
 
 ```bash

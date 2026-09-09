@@ -1,0 +1,87 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-09T02:14:19Z",
+  "base_url": "http://192.168.3.196:8000/api/v1",
+  "project_id": 77,
+  "runtime_revision": "86668152",
+  "helm_revision": 13,
+  "status": "passed",
+  "checks": [
+    {
+      "name": "five-domain-batch-retry-and-polling",
+      "status": "passed",
+      "source_run_ids": {
+        "case": 39,
+        "suite": 9,
+        "plan": 8,
+        "android": 16,
+        "performance": 31
+      },
+      "new_run_ids": {
+        "case": 40,
+        "suite": 10,
+        "plan": 9,
+        "android": 17,
+        "performance": 33
+      },
+      "source_terminal_statuses": {
+        "case": "failed",
+        "suite": "failed",
+        "plan": "failed",
+        "android": "stopped",
+        "performance": "cancelled"
+      },
+      "new_terminal_statuses": {
+        "case": "passed",
+        "suite": "failed",
+        "plan": "passed",
+        "android": "stopped",
+        "performance": "success"
+      },
+      "details": "Case, Suite, Plan and Performance converged through workers; Android remained pending without an Android worker and converged through the supported stop path."
+    },
+    {
+      "name": "retry-idempotency",
+      "status": "passed",
+      "details": "Exact batch replay returned the original five new run ids without redispatch."
+    },
+    {
+      "name": "android-performance-batch-stop",
+      "status": "passed",
+      "run_ids": {
+        "android": 17,
+        "performance": 34
+      },
+      "terminal_statuses": {
+        "android": "stopped",
+        "performance": "cancelled"
+      }
+    },
+    {
+      "name": "stop-idempotency",
+      "status": "passed",
+      "details": "Exact batch replay returned both original stop results without sending another cancel signal."
+    },
+    {
+      "name": "rollback-expiry-regression",
+      "status": "fixed",
+      "initial_http_status": 500,
+      "initial_error_type": "sqlalchemy.exc.MissingGreenlet",
+      "fix_revision": "86668152",
+      "details": "The command primary key is now captured before rollback for failed and indeterminate outcomes."
+    },
+    {
+      "name": "stale-confirmation-after-fix",
+      "status": "passed",
+      "verification_run_id": 35,
+      "verification_run_status": "success",
+      "first_http_status": 409,
+      "replay_http_status": 409,
+      "error_detail_matches": true
+    }
+  ],
+  "environment_boundaries": [
+    "The single-node release has no Android execution worker; Android autonomous execution remains a B4 environment gate.",
+    "All actions targeted temporary project 77 only; the acceptance data was retained for follow-up verification."
+  ]
+}

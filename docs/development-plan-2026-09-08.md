@@ -89,16 +89,16 @@ pending -> queued -> running -> passed | failed | error
 
 ## 4. 真实能力闭环阶段
 
-### B1：工作台与角色矩阵 `[~]`
+### B1：工作台与角色矩阵 `[x]`
 
 - [x] `B1.1` 工作台任务能力声明叠加全局角色、项目角色和项目归档状态；Viewer 不再收到无效的重试/停止标记，Android/Performance 操作继续要求全局管理员或工程师。
 - [x] `B1.2` 提供三角色真实环境探针，验证项目成员关系、概览、五域筛选和相邻页、失败诊断、跨项目 403，以及可选 Viewer 写拒绝；凭据仅从环境变量读取，报告脱敏。
 - [x] `B1.3` 使用受控管理员、工程师、Viewer 账号和五域真实任务执行 Linux Backend 验收，并在 Windows 本地前端验证项目切换、刷新、深链、侧栏折叠和窄屏。
-- [ ] `B1.4` 验证五类任务轮询、重试、停止、批量操作、过期确认和执行后状态收敛，绑定同一提交 SHA 保存证据。
+- [x] `B1.4` 验证五类任务轮询、重试、停止、批量操作、过期确认和执行后状态收敛，绑定同一提交 SHA 保存证据。
 
-执行说明见 [`docs/b1-workbench-role-matrix.md`](b1-workbench-role-matrix.md)。B1.3 的三角色、五域数据、跨项目拒绝与浏览器矩阵已通过；B1 当前为 `[~]`，仅 B1.4 的真实动作与状态收敛仍待执行。
+执行说明见 [`docs/b1-workbench-role-matrix.md`](b1-workbench-role-matrix.md)。B1.3 的三角色、五域数据、跨项目拒绝与浏览器矩阵，以及 B1.4 的动作、幂等、过期确认与状态收敛均已通过；B1 已关闭。
 
-B1.3 自动化与实测已覆盖任务中心从 URL 恢复项目、状态、任务类型与有界页码，Viewer 操作标记不渲染重试/停止，以及只执行服务端明确授权的操作。受控账号与数据暂时保留，用于 B1.4，清理不属于本次步骤。
+B1.3/B1.4 自动化与实测已覆盖任务中心从 URL 恢复项目、状态、任务类型与有界页码，Viewer 操作标记不渲染重试/停止，以及只执行服务端明确授权的操作。受控账号与数据暂时保留给后续复核，清理不属于本次步骤。
 
 ### B2：UI 自动化失败链路 `[E]`
 
@@ -195,3 +195,4 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 - 2026-09-09：继续推进 B1.3 部署前置。A1～B1 前置代码以 `5c0f6908` 通过提交/推送钩子并推送到 `origin/main`；因目标机 Debian 软件源临时不可达，Backend/Worker 分别基于已验证的 `1bccfef4` 与 `init-reaper-0f553ae3e046` 镜像叠加该提交的完整 `/app` 源码，核对镜像 revision 标签、应用导入、Celery、Tini、k6 和 Alembic 单 head 后导入 K3s。Release revision 11 已升级到不可变标签 `5c0f6908`，迁移为 `20260908_0070`，五个核心 Pod 均 Ready、零重启，Backend `/health` 返回 200。实际升级暴露 Backend `hostNetwork` 单副本仍使用默认 surge、导致新 Pod 与旧 Pod 争用宿主机 8000 端口；现场改为 `maxSurge=0/maxUnavailable=100%` 后升级恢复，并将策略及回归测试固化到 Chart。部署健康不替代角色验收，B1.3 仍待受控管理员、工程师、Viewer 与真实项目数据。
 - 2026-09-09：完成 B1.3 部署前置收口。Backend 单节点无 surge 修复及回归以 `74a15fa4` 推送，精确提交归档校验后在目标机执行服务端 dry-run，并以 `--rollback-on-failure --wait` 升级到 revision 12；集群策略确认为 `RollingUpdate(surge=0,unavailable=100%)`，五个核心 Pod 持续 30 秒 Ready、零重启，迁移保持 `20260908_0070 (head)`，健康检查正常。只读数据库盘点发现目标仅有管理员和一个无项目成员关系的历史 Viewer，没有工程师；两个现有项目也没有 Case、Suite、Plan、Android、Performance 运行记录。B1.3 因受控角色与真实数据前提未满足继续保持 `[E]`，需明确授权创建临时验收账号、成员关系和五域运行数据后再执行探针与三角色浏览器矩阵。
 - 2026-09-09：完成 B1.3。经授权创建独立临时 Engineer/Viewer、目标项目 77、隔离项目 78，以及 Case、Suite、Plan、Android、Performance 各 2 条受控运行；脱敏探针直连 K3s Backend `192.168.3.196:8000/api/v1`，认证、成员关系、三角色工作台读取、五域分页、失败诊断、跨项目 403 和 Viewer 写拒绝 7 项全部通过。Windows 本地 Vite 改为代理 K3s 8000 端口，Admin/Engineer/Viewer 浏览器矩阵确认深链、刷新、项目切换、侧栏折叠、390 px 窄屏和角色操作边界正常。排查同时确认 `29080` 是共享数据库但代码较旧的 q19 Docker Backend，不再作为当前 K3s 验收入口。账号与数据保留给 B1.4；开发游标进入五类真实动作与状态收敛。
+- 2026-09-09：完成 B1.4 并关闭 B1。项目 77 的五域批量重试、轮询、源运行不变性、精确重放、Android/Performance 批量停止与跨命令去重均通过；Android 重试在当前无 Android Worker 的单节点环境保持 `pending`，随后由受支持的停止路径收敛为 `stopped`，其自主执行仍归 B4。过期确认实测发现失败命令在数据库回滚后读取已过期 ORM 主键会触发 `MissingGreenlet` 并首次返回 500；提交 `86668152` 改为回滚前保存主键并补充失败/不确定两条回归，定向 `36 passed`、Ruff、格式和 mypy 通过。修复镜像以不可变标签部署到 Helm revision 13，五个核心 Pod Ready/零重启、健康检查正常；五域动作矩阵在同一版本完整重跑，新建 Performance Run 35 成功后，首次过期停止及同键重放均直接返回 409，错误详情一致，Backend 最近日志无新异常。证据见 [`docs/evidence/b1-workbench-actions-2026-09-09.json`](evidence/b1-workbench-actions-2026-09-09.json)；开发游标进入 B2 UI 自动化失败链路。
