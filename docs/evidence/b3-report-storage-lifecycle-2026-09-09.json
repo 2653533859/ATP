@@ -1,0 +1,89 @@
+{
+  "evidence_type": "b3_report_storage_lifecycle_acceptance",
+  "date": "2026-09-09",
+  "status": "passed",
+  "scope": "B3.3 report export, cache, reference protection, and run-scoped MinIO cleanup on the current single-node K3s release",
+  "source_commit": "5134eda9811ccde2b623aeab4bf94373013cca5b",
+  "deployment": {
+    "host": "192.168.3.196",
+    "namespace": "atp-single-node",
+    "helm_release": "atp-single-node",
+    "helm_revision": 30,
+    "backend_image": "registry.local/atp/backend:5134eda9",
+    "worker_image": "registry.local/atp/worker:5134eda9",
+    "migration_head": "20260909_0072",
+    "backend_health": "ok"
+  },
+  "run": {
+    "temporary_project_id": 83,
+    "temporary_case_id": 75,
+    "run_id": 99,
+    "status": "passed"
+  },
+  "exports": {
+    "html": {
+      "first_cache": "miss",
+      "second_cache": "hit",
+      "bytes": 2562
+    },
+    "junit": {
+      "xml_parse": "passed",
+      "bytes": 217
+    },
+    "pdf": {
+      "magic": "%PDF",
+      "bytes": 167432
+    }
+  },
+  "storage_lifecycle": {
+    "protected_summary_objects": [
+      "traces/runs/99/b33.zip",
+      "videos/runs/99/b33.webm"
+    ],
+    "objects_before_run_delete": [
+      "reports/run-99/full-3abda0643e3b.html",
+      "traces/runs/99/b33.zip",
+      "videos/runs/99/b33.webm"
+    ],
+    "deleted_run_records": 1,
+    "deleted_objects": 3,
+    "run_after_delete": null,
+    "objects_after_delete": []
+  },
+  "cleanup": {
+    "project_delete_status": 204,
+    "project_83_count": 0,
+    "case_75_count": 0,
+    "run_99_count": 0,
+    "run_scoped_objects_remaining": 0
+  },
+  "stability": {
+    "observation_seconds": 30,
+    "ready_pods": "6/6",
+    "pod_restarts": 0,
+    "new_worker_errors": 0
+  },
+  "implementation_fixes": [
+    "protect current-run video, trace, visual diff, and mobile artifacts referenced by nested result summaries",
+    "reject cross-run artifact paths from reference protection and run cleanup",
+    "delete screenshots, summary artifacts, and all generated HTML report caches after the run record commit",
+    "include cancelled test runs in terminal retention cleanup",
+    "expose Web and protocol execution queues in the startup configuration UI"
+  ],
+  "verification": {
+    "backend_non_integration": "2557 passed, 1 skipped",
+    "frontend_vitest": "362 passed",
+    "frontend_build": "passed",
+    "standalone_changed_test_files": [
+      "4 passed",
+      "15 passed",
+      "16 passed"
+    ],
+    "ruff": "passed",
+    "format_check": "passed",
+    "mypy": "passed",
+    "diff_check": "passed",
+    "review": "cross-run deletion boundary fixed; no remaining actionable findings"
+  },
+  "scope_note": "This evidence proves controlled single-run HTML/JUnit/PDF export, HTML cache reuse, current-run artifact reference protection, and exact run-scoped object cleanup on the current K3s release. It does not prove arbitrary report templates, long-term production storage volume, cross-host MinIO disaster recovery, P4, or P9 closure."
+}
