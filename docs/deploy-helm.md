@@ -216,11 +216,18 @@ PostgreSQL、Redis、MinIO 端口仅绑定宿主机回环地址，因此单节�
 Secret 的三个 Host/Port 指向宿主机回环端点；Secret 值未写入仓库。端点修改仅用于当前开发联调，不适用于普通
 多节点部署；临时 Pod 到三项服务的 TCP 连通性已通过并清理。
 
-由于 `hostNetwork` Pod 会直接占用宿主机端口，单节点 overlay 的 Flower Deployment 使用
-`RollingUpdate(maxSurge=0,maxUnavailable=100%)`，确保单副本更新时先释放旧的 5555 端口再创建新 Pod；
-同时将 Flower 内存 limit 提升至 `512Mi`，避免长时间运行时因默认 `256Mi` limit 被 OOMKilled。
+由于 `hostNetwork` Pod 会直接占用宿主机端口，Backend 和 Flower Deployment 使用
+`RollingUpdate(maxSurge=0,maxUnavailable=100%)`，确保单副本更新时先释放旧的 8000/5555 端口再创建新 Pod；
+否则默认 `maxSurge` 会让新 Pod 因宿主机端口冲突持续 Pending，进而阻塞原子升级。Flower 内存 limit 同时提升至
+`512Mi`，避免长时间运行时因默认 `256Mi` limit 被 OOMKilled。
 
 当前提交 `1bccfef4` 的 backend、worker、frontend 镜像已分别按 overlay 中的精确引用构建并导入 K3s containerd。随后使用临时 tag 覆盖执行了服务端 dry-run，修复后的 Chart 已在目标单节点实际安装：Release `atp-single-node` 为 `deployed`，迁移 Hook 成功，5 个核心 Deployment 均为 `1/1`，Backend `/health` 返回 200，安装后约 30 秒复核无新增重启。该结果仅证明单节点开发/联调安装可用，不关闭 P4/P9；脱敏证据见 [`evidence/k3s-single-node-helm-install-2026-09-04.json`](evidence/k3s-single-node-helm-install-2026-09-04.json)。
+
+2026-09-09 将提交 `5c0f6908` 的完整 Backend 源码叠加到已验证的 `1bccfef4` 基础镜像，并将完整 Worker
+源码叠加到已验证的 `init-reaper-0f553ae3e046` 基础镜像，生成并导入不可变标签 `5c0f6908`；该方式用于规避构建时
+Debian 软件源临时不可达，同时保留既有系统依赖。Release revision 11 完成迁移到 `20260908_0070`，5 个核心 Pod
+均 Ready、零重启且 `/health` 返回 200。升级过程中发现 Backend 默认滚动策略与单节点宿主机 8000 端口冲突，现场
+修复后恢复升级；上述无 surge 策略及其回归测试已固化到 Chart。该证据仍不等于三角色或五域真实任务验收。
 
 ## 八、升级与回滚
 

@@ -328,6 +328,15 @@ def test_helm_workers_use_pod_identity_and_release_host_ports_before_replacement
         assert "exec /usr/bin/tini -- celery" in content
 
 
+def test_helm_backend_releases_host_port_before_replacement():
+    content = (ROOT / "deploy" / "helm" / "atp" / "templates" / "backend-deployment.yaml").read_text(encoding="utf-8")
+    network_strategy = content.split("{{- if .Values.podNetwork.hostNetwork }}", 1)[1].split("{{- end }}", 1)[0]
+
+    assert "type: RollingUpdate" in network_strategy
+    assert "maxSurge: 0" in network_strategy
+    assert "maxUnavailable: 100%" in network_strategy
+
+
 def test_worker_image_installs_init_and_forwards_default_shell_to_celery():
     dockerfile = (ROOT / "backend" / "Dockerfile.worker").read_text(encoding="utf-8")
     runtime_stage = dockerfile.rsplit("FROM python:3.12-slim-bookworm", 1)[1]
