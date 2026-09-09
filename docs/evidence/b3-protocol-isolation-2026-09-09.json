@@ -1,0 +1,107 @@
+{
+  "evidence_type": "b3_protocol_isolation_acceptance",
+  "date": "2026-09-09",
+  "status": "passed",
+  "scope": "B3.1 isolated HTTP, GraphQL, WebSocket, and gRPC execution on the current single-node K3s release",
+  "source_commit": "96a754cff22c9e2720260254a2fb7fd7007391ab",
+  "deployment": {
+    "host": "192.168.3.196",
+    "namespace": "atp-single-node",
+    "helm_release": "atp-single-node",
+    "helm_revision": 27,
+    "backend_image": "registry.local/atp/backend:96a754cf",
+    "worker_image": "registry.local/atp/worker:96a754cf",
+    "migration_head": "20260909_0072",
+    "backend_health": "ok"
+  },
+  "queue_isolation": {
+    "configured_queue": "protocol.atp-single-node",
+    "current_worker_consumer": "worker@atp-single-node.atp-single-node-atp-worker-5df7f6b9b4-f7lqv",
+    "legacy_worker_listens_to_queue": false,
+    "case_types": ["api", "graphql", "websocket", "grpc"]
+  },
+  "controlled_target": {
+    "kind": "temporary independent protocol target container",
+    "http_server": "ATP-Performance-Target/1.1",
+    "grpc_tls": true,
+    "grpc_server_name": "grpc-target",
+    "certificate_validity": "fresh two-day self-signed acceptance certificate",
+    "private_key_persisted_in_case_or_evidence": false
+  },
+  "runs": [
+    {
+      "protocol": "http",
+      "run_id": 86,
+      "status": "passed",
+      "step_statuses": ["passed", "passed"],
+      "verified": ["status 200", "JSONPath extraction", "cross-step URL variable rendering"]
+    },
+    {
+      "protocol": "graphql",
+      "run_id": 87,
+      "status": "passed",
+      "step_statuses": ["passed", "passed"],
+      "verified": ["no GraphQL errors", "JSONPath extraction", "cross-step variable rendering"]
+    },
+    {
+      "protocol": "websocket",
+      "run_id": 88,
+      "status": "passed",
+      "step_statuses": ["passed"],
+      "verified": ["connect", "JSON send and receive", "assertion", "extraction", "disconnect"]
+    },
+    {
+      "protocol": "grpc",
+      "mode": "unary",
+      "run_id": 89,
+      "status": "passed",
+      "grpc_status": "OK"
+    },
+    {
+      "protocol": "grpc",
+      "mode": "server_stream",
+      "run_id": 90,
+      "status": "passed",
+      "grpc_status": "OK"
+    },
+    {
+      "protocol": "grpc",
+      "mode": "client_stream",
+      "run_id": 91,
+      "status": "passed",
+      "grpc_status": "OK"
+    },
+    {
+      "protocol": "grpc",
+      "mode": "bidi_stream",
+      "run_id": 92,
+      "status": "passed",
+      "grpc_status": "OK"
+    }
+  ],
+  "diagnostic_preflight": {
+    "run_id": 85,
+    "result": "expected failure",
+    "reason": "the retained q19 target certificate expired on 2026-08-31",
+    "resolution": "created a temporary target with a fresh public certificate and reran the complete matrix"
+  },
+  "cleanup": {
+    "temporary_project_delete_status": 204,
+    "temporary_target_removed": true,
+    "temporary_certificate_and_private_key_removed": true
+  },
+  "stability": {
+    "observation_seconds": 30,
+    "ready_pods": "6/6",
+    "pod_restarts": 0,
+    "new_worker_errors_after_final_matrix": 0
+  },
+  "verification": {
+    "targeted_tests": "53 passed",
+    "ruff": "passed",
+    "format_check": "passed",
+    "diff_check": "passed",
+    "review": "outdated routing comments were corrected; no remaining actionable findings"
+  },
+  "scope_note": "This evidence proves the current K3s release consumes four protocol case types through a deployment-specific queue and executes them against a controlled real network target. It does not prove production provider compatibility, authentication/session reuse, import persistence, report export, MinIO retention, P4, or P9 closure."
+}
