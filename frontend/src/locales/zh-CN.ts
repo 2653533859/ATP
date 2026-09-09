@@ -4472,6 +4472,8 @@ export default {
         ENCRYPTION_KEY: 'Fernet 密钥，用于加密数据库中的敏感配置；留空则派生',
         CELERY_CONCURRENCY: 'Linux prefork Worker 的并发执行槽位；Windows solo Worker 固定单槽位',
         CELERY_QUEUES: 'Worker 监听的队列，多个队列用逗号分隔',
+        WEB_EXECUTION_QUEUE: 'Web 用例与仅包含 Web 用例的套件/计划使用的专用队列；默认使用 default',
+        PROTOCOL_EXECUTION_QUEUE: 'API、GraphQL、WebSocket、gRPC 用例与纯协议套件/计划使用的专用队列；默认使用 default',
         SUITE_CHILD_TASK_TIMEOUT_SECONDS: '混合套件把设备用例投递到专用 Worker 后的最长等待时间（秒）',
         WORKER_METRICS_PORT: 'Worker Prometheus 指标端口；0 表示关闭',
         FILE_RETENTION_DAYS: 'MinIO 截图、报告等文件的默认保留天数',

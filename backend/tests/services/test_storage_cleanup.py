@@ -148,6 +148,41 @@ def test_preview_storage_cleanup_includes_additional_db_reference_types(monkeypa
     assert result.deletable_count == 0
 
 
+def test_preview_storage_cleanup_protects_run_summary_artifacts(monkeypatch):
+    now = datetime(2026, 4, 3, tzinfo=timezone.utc)
+    old = now - timedelta(days=31)
+    video = "videos/runs/7/recording.webm"
+    trace = "traces/runs/7/trace.zip"
+
+    monkeypatch.setattr(
+        storage_cleanup.minio_client,
+        "list_objects",
+        lambda prefix: {
+            "videos/": [_FakeObject(video, old)],
+            "traces/": [_FakeObject(trace, old)],
+        }.get(prefix, []),
+    )
+    monkeypatch.setattr(storage_cleanup, "_cutoff", lambda retention_days=None: now - timedelta(days=30))
+    session = _FakeSession(
+        responses=[
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [],
+            [(7, {"video_url": f"https://minio/atp/{video}", "trace_url": trace})],
+        ]
+    )
+
+    result = storage_cleanup.preview_storage_cleanup(session, prefixes=["videos/", "traces/"])
+
+    assert result.deletable_count == 0
+    assert [item.object_name for item in result.blocked_objects] == [trace, video]
+
+
 def test_performance_artifacts_are_scanned_blocked_and_repairable(monkeypatch):
     now = datetime(2026, 5, 29, tzinfo=timezone.utc)
     old = now - timedelta(days=31)
@@ -181,8 +216,12 @@ def test_performance_artifacts_are_scanned_blocked_and_repairable(monkeypatch):
         [],
         [],
         [],
+        [],
         [(2, "performance/scripts/2/homepage.js")],
         [(8, "performance/runs/8/missing-summary.json")],
+        [],
+        [],
+        [],
     ]
     session = _FakeSession(
         responses=responses,
@@ -236,7 +275,11 @@ def test_preview_and_execute_cleanup_remain_consistent(monkeypatch):
         [],
         [],
         [],
+        [],
         [(11, "screenshots/runs/1/blocked.png"), (12, "screenshots/runs/1/orphan.png")],
+        [],
+        [],
+        [],
         [],
         [],
         [],

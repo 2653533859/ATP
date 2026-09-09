@@ -18,7 +18,7 @@ def _cutoff(days: int) -> datetime:
 def _terminal_test_run_statuses():
     from app.models.case import RunStatus
 
-    return (RunStatus.passed, RunStatus.failed, RunStatus.error, RunStatus.skipped)
+    return (RunStatus.passed, RunStatus.failed, RunStatus.error, RunStatus.skipped, RunStatus.cancelled)
 
 
 def _terminal_plan_run_statuses():
@@ -69,6 +69,33 @@ def _collect_screenshot_objects(session: Session, test_run_ids: list[int]) -> li
             continue
         seen.add(object_name)
         objects.append(object_name)
+    return objects
+
+
+def _collect_test_run_objects(session: Session, test_run_ids: list[int]) -> list[str]:
+    """Collect screenshots, summary artifacts, and generated report caches for test runs."""
+    from app.core import minio_client
+    from app.core.object_refs import collect_run_artifact_object_names
+    from app.models.case import TestRun
+
+    if not test_run_ids:
+        return []
+
+    objects = _collect_screenshot_objects(session, test_run_ids)
+    seen = set(objects)
+    rows = session.execute(select(TestRun.id, TestRun.result_summary).where(TestRun.id.in_(test_run_ids))).all()
+    for run_id, summary in rows:
+        for object_name in collect_run_artifact_object_names(summary, run_ids={run_id}):
+            if object_name not in seen:
+                seen.add(object_name)
+                objects.append(object_name)
+
+    for run_id in test_run_ids:
+        for item in minio_client.list_objects(prefix=f"reports/run-{run_id}/"):
+            cached_object_name = getattr(item, "object_name", None)
+            if isinstance(cached_object_name, str) and cached_object_name not in seen:
+                seen.add(cached_object_name)
+                objects.append(cached_object_name)
     return objects
 
 
@@ -161,7 +188,7 @@ def _estimate_objects(
     mobile_sample = [row[0] for row in session.execute(mobile_ids_stmt.limit(batch_size)).all()]
     performance_sample = [row[0] for row in session.execute(performance_ids_stmt.limit(batch_size)).all()]
     estimated_objects = (
-        len(_collect_screenshot_objects(session, test_sample))
+        len(_collect_test_run_objects(session, test_sample))
         + len(_collect_mobile_run_artifact_objects(session, mobile_sample))
         + len(_collect_performance_run_objects(session, performance_sample))
     )
@@ -342,7 +369,7 @@ def _cleanup_scope(
     plan_runs, _ = _batched_delete_runs(session, PlanRun, plan_ids_stmt, batch_size)
     suite_runs, _ = _batched_delete_runs(session, SuiteRun, suite_ids_stmt, batch_size)
     test_runs, test_objects = _batched_delete_runs(
-        session, TestRun, test_ids_stmt, batch_size, collect_objects=_collect_screenshot_objects
+        session, TestRun, test_ids_stmt, batch_size, collect_objects=_collect_test_run_objects
     )
     mobile_runs, mobile_objects = _batched_delete_runs(
         session,

@@ -10,9 +10,9 @@ from sqlalchemy.orm import Session
 
 from app.core import minio_client
 from app.core.config import settings
-from app.core.object_refs import extract_object_name
+from app.core.object_refs import collect_run_artifact_object_names, extract_object_name
 from app.models.apk import Apk
-from app.models.case import StepResult, TestCase
+from app.models.case import StepResult, TestCase, TestRun
 from app.models.mobile_special import MobileIncident, MobileRunArtifact
 from app.models.performance import PerformanceRun, PerformanceTest
 from app.models.storage_policy import StoragePolicy
@@ -250,6 +250,19 @@ def collect_db_references(session: Session) -> list[ObjectReference]:
                     field_name="file_path",
                     object_name=object_name,
                     repairable=True,
+                )
+            )
+
+    run_rows = session.execute(select(TestRun.id, TestRun.result_summary)).all()
+    for record_id, summary in run_rows:
+        for object_name in collect_run_artifact_object_names(summary, run_ids={record_id}):
+            references.append(
+                ObjectReference(
+                    reference_type="test_run",
+                    record_id=record_id,
+                    field_name="result_summary",
+                    object_name=object_name,
+                    repairable=False,
                 )
             )
 

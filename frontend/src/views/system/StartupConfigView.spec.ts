@@ -42,7 +42,7 @@ describe('StartupConfigView', () => {
     const wrapper = mountPage()
     const vm = wrapper.vm as any
 
-    expect(vm.fieldCount).toBe(128)
+    expect(vm.fieldCount).toBe(130)
     expect(vm.envContent).toContain('POSTGRES_HOST=postgres')
     expect(vm.envContent).toContain('POSTGRES_CONNECT_TIMEOUT_SECONDS=5')
     expect(vm.envContent).toContain('REDIS_CONNECT_TIMEOUT_SECONDS=5')
@@ -51,6 +51,8 @@ describe('StartupConfigView', () => {
     expect(vm.envContent).toContain('MINIO_LIFECYCLE_ABORT_INCOMPLETE_DAYS=1')
     expect(vm.envContent).toContain('MINIO_LIFECYCLE_EXPIRATION_RULES_JSON="[]"')
     expect(vm.envContent).toContain('CELERY_QUEUES=default,android,mobile_special,ios,ai,maintenance,performance')
+    expect(vm.envContent).toContain('WEB_EXECUTION_QUEUE=default')
+    expect(vm.envContent).toContain('PROTOCOL_EXECUTION_QUEUE=default')
     expect(vm.envContent).toContain('EXECUTION_RUN_LEASE_TTL_SECONDS=90')
     expect(vm.envContent).toContain('EXECUTION_RUN_LEASE_HEARTBEAT_SECONDS=30')
     expect(vm.envContent).toContain('EXECUTION_RUN_LEASE_RECONCILE_INTERVAL_SECONDS=60')

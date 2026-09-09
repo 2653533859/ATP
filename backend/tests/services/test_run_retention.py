@@ -47,6 +47,12 @@ class _FakeSession:
         self.commits += 1
 
 
+def test_cancelled_test_runs_are_terminal_retention_candidates():
+    from app.models.case import RunStatus
+
+    assert RunStatus.cancelled in run_retention._terminal_test_run_statuses()
+
+
 def test_preview_returns_counts_without_deleting():
     """5 个 count + 3 个 sample id 查询；无 delete 无 commit。"""
     fake_session = _FakeSession(
@@ -90,6 +96,7 @@ def test_preview_estimates_objects_from_sample(monkeypatch):
             _FakeResult(all_rows=[]),  # performance sample
             # screenshot query for test sample
             _FakeResult(all_rows=[("screenshots/runs/100/a.png",), ("screenshots/runs/101/b.png",)]),
+            _FakeResult(all_rows=[]),  # test run summary artifacts
             # mobile artifact query
             _FakeResult(all_rows=[("artifacts/200/log.txt",)]),
             # mobile incident query
@@ -165,6 +172,37 @@ def test_performance_retention_selects_root_runs_and_collects_shard_reports():
     assert run_retention._collect_performance_run_objects(session, [10]) == [
         "performance/runs/10/summary.json",
         "performance/runs/11/summary.json",
+    ]
+
+
+def test_collect_test_run_objects_includes_summary_artifacts_and_report_cache(monkeypatch):
+    session = _FakeSession(
+        responses=[
+            _FakeResult(all_rows=[("screenshots/runs/7/step_0.png",)]),
+            _FakeResult(
+                all_rows=[
+                    (
+                        7,
+                        {
+                            "video_url": "https://minio/atp/videos/runs/7/recording.webm",
+                            "trace_url": "traces/runs/7/trace.zip",
+                        },
+                    )
+                ]
+            ),
+        ]
+    )
+    monkeypatch.setattr(
+        _minio,
+        "list_objects",
+        lambda prefix: [types.SimpleNamespace(object_name=f"{prefix}full-cache.html")],
+    )
+
+    assert run_retention._collect_test_run_objects(session, [7]) == [
+        "screenshots/runs/7/step_0.png",
+        "videos/runs/7/recording.webm",
+        "traces/runs/7/trace.zip",
+        "reports/run-7/full-cache.html",
     ]
 
 

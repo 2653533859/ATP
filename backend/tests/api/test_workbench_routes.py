@@ -80,7 +80,7 @@ def test_task_item_exposes_domain_specific_actions():
 
 def test_status_filters_are_restricted_to_each_domain_enum():
     failed = workbench._status_filter_for_type(workbench._FAILED_STATUSES, "case")
-    assert failed == {"failed", "error"}
+    assert failed == {"failed", "error", "cancelled"}
     assert workbench._status_filter_for_type(workbench._FAILED_STATUSES, "android") == {"failed", "stopped"}
     assert workbench._status_filter_for_type(workbench._FAILED_STATUSES, "performance") == {"failed", "cancelled"}
     assert workbench._status_filter_for_type(workbench._ACTIVE_STATUSES, "case") == {"pending", "running"}
@@ -105,7 +105,7 @@ def test_collect_tasks_passes_domain_safe_status_filters(monkeypatch):
     )
 
     assert seen == {
-        "case": {"failed", "error"},
+        "case": {"failed", "error", "cancelled"},
         "suite": {"failed", "error"},
         "plan": {"failed", "error"},
         "android": {"failed", "stopped"},

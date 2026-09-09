@@ -3,7 +3,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from app.core.object_refs import extract_object_name
+from app.core.object_refs import collect_run_artifact_object_names, extract_object_name
 from app.core.tracing import build_trace_context, reset_trace_id, set_trace_id
 
 
@@ -19,6 +19,21 @@ def test_extract_object_name_trims_leading_slash_and_handles_empty():
     assert extract_object_name("/reports/run-1/report.html") == "reports/run-1/report.html"
     assert extract_object_name("") is None
     assert extract_object_name(None) is None
+
+
+def test_collect_run_artifacts_from_nested_summary_ignores_external_values():
+    summary = {
+        "video_url": "https://minio:9000/atp/videos/runs/7/recording.webm?X-Amz-Signature=x",
+        "nested": {"trace_url": "traces/runs/7/trace.zip"},
+        "unrelated": ["https://example.test/result", "plain text"],
+        "duplicate": "videos/runs/7/recording.webm",
+        "foreign_run": "videos/runs/8/recording.webm",
+    }
+
+    assert collect_run_artifact_object_names(summary, run_ids={7}) == [
+        "videos/runs/7/recording.webm",
+        "traces/runs/7/trace.zip",
+    ]
 
 
 def test_build_trace_context_reuses_existing_trace_id_and_merges_metadata():

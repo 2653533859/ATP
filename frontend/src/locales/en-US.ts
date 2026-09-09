@@ -4488,6 +4488,8 @@ export default {
         ENCRYPTION_KEY: 'Fernet key for database secrets; leave blank to derive it',
         CELERY_CONCURRENCY: 'Concurrent slots for Linux prefork Workers; Windows solo Workers use one slot',
         CELERY_QUEUES: 'Queues listened to by the Worker; separate multiple queues with commas',
+        WEB_EXECUTION_QUEUE: 'Dedicated queue for Web cases and Web-only suites or plans; defaults to default',
+        PROTOCOL_EXECUTION_QUEUE: 'Dedicated queue for API, GraphQL, WebSocket, and gRPC cases or protocol-only suites and plans; defaults to default',
         SUITE_CHILD_TASK_TIMEOUT_SECONDS: 'Maximum wait in seconds for device cases dispatched from a mixed suite to a dedicated Worker',
         WORKER_METRICS_PORT: 'Worker Prometheus metrics port; 0 disables it',
         FILE_RETENTION_DAYS: 'Default retention in days for MinIO screenshots and reports',
