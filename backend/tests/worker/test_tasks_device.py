@@ -71,8 +71,59 @@ def test_android_worker_heartbeat_registers_and_reschedules(monkeypatch):
     task = FakeTask()
     result = tasks_device.heartbeat_android_worker(task)
 
-    assert result == {"worker_id": "win-a", "status": "online", "queues": ["mobile_special"]}
-    assert task.calls == [{"countdown": 15, "queue": "mobile_special"}]
+    assert result == {"worker_id": "win-a", "status": "online", "queues": ["android", "mobile_special"]}
+    assert task.calls == [{"countdown": 15, "queue": "android"}]
+
+
+def test_periodic_scan_is_not_queued_without_remote_worker(monkeypatch):
+    from app.core import config as config_module
+    from app.worker import tasks_device
+
+    async def no_workers():
+        return []
+
+    calls = []
+    monkeypatch.setattr(config_module.settings, "ADB_SCAN_ENABLED", True)
+    monkeypatch.setattr(config_module.settings, "ADB_SCAN_MODE", "worker")
+    monkeypatch.setattr(tasks_device, "list_android_workers", no_workers)
+    monkeypatch.setattr(tasks_device, "run_async", lambda coroutine: __import__("asyncio").run(coroutine))
+    monkeypatch.setattr(
+        tasks_device.scan_adb_devices,
+        "apply_async",
+        lambda **kwargs: calls.append(kwargs),
+        raising=False,
+    )
+
+    result = tasks_device.dispatch_android_device_scan()
+
+    assert result == {"status": "no_worker"}
+    assert calls == []
+
+
+def test_periodic_scan_uses_expiring_android_control_queue(monkeypatch):
+    from app.core import config as config_module
+    from app.worker import tasks_device
+
+    async def online_workers():
+        return [{"worker_id": "win-a", "status": "online"}]
+
+    calls = []
+    monkeypatch.setattr(config_module.settings, "ADB_SCAN_ENABLED", True)
+    monkeypatch.setattr(config_module.settings, "ADB_SCAN_MODE", "worker")
+    monkeypatch.setattr(config_module.settings, "ADB_SCAN_INTERVAL", 15)
+    monkeypatch.setattr(tasks_device, "list_android_workers", online_workers)
+    monkeypatch.setattr(tasks_device, "run_async", lambda coroutine: __import__("asyncio").run(coroutine))
+    monkeypatch.setattr(
+        tasks_device.scan_adb_devices,
+        "apply_async",
+        lambda **kwargs: calls.append(kwargs),
+        raising=False,
+    )
+
+    result = tasks_device.dispatch_android_device_scan()
+
+    assert result == {"status": "queued"}
+    assert calls == [{"queue": "android", "ignore_result": True, "expires": 15}]
 
 
 def test_android_worker_device_operation_returns_json_safe_results(monkeypatch):

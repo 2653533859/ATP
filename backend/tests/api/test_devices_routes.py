@@ -143,7 +143,7 @@ def test_scan_devices_dispatches_to_worker_queue(monkeypatch):
     assert result.status == "queued"
     assert result.scan_id == "550e8400-e29b-41d4-a716-446655440000"
     assert [device.id for device in result.devices] == [latest.id]
-    assert calls == {"queue": "mobile_special", "ignore_result": False}
+    assert calls == {"queue": "android", "ignore_result": False}
     assert db.commits == 0
 
 

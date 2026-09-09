@@ -138,7 +138,7 @@ async def scan_devices(
     if settings.ADB_SCAN_MODE.strip().lower() == "worker":
         from app.worker.tasks_device import scan_adb_devices
 
-        task = scan_adb_devices.apply_async(queue="mobile_special", ignore_result=False)
+        task = scan_adb_devices.apply_async(queue="android", ignore_result=False)
         return DeviceScanOut(
             status="queued",
             scan_id=str(getattr(task, "id", "") or "") or None,

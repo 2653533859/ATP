@@ -10,7 +10,7 @@ import logging
 
 from app.worker.celery_app import celery_app
 from app.services.adb_service import scan_devices
-from app.services.android_worker_registry import register_android_worker
+from app.services.android_worker_registry import list_android_workers, register_android_worker
 from app.services.device_sync import sync_devices_to_db_sync
 from app.worker.async_runner import run_async
 
@@ -25,19 +25,53 @@ def heartbeat_android_worker(self):
     worker_id = settings.ANDROID_WORKER_ID.strip()
     if not worker_id:
         return {"status": "disabled"}
-    queue = settings.ANDROID_WORKER_QUEUE.strip() or "mobile_special"
+    execution_queue = settings.ANDROID_WORKER_QUEUE.strip() or "mobile_special"
 
     try:
-        payload = run_async(register_android_worker(worker_id, queues=[queue]))
+        payload = run_async(register_android_worker(worker_id, queues=["android", execution_queue]))
     except Exception:
         logger.exception("Android Worker heartbeat failed for %s", worker_id)
         payload = {"status": "failed", "worker_id": worker_id}
     finally:
         self.apply_async(
             countdown=max(5, int(settings.ANDROID_WORKER_HEARTBEAT_SECONDS)),
-            queue=queue,
+            queue="android",
         )
     return payload
+
+
+@celery_app.task(name="dispatch_android_device_scan", ignore_result=True)
+def dispatch_android_device_scan():
+    """Queue periodic scans only while an eligible worker can consume them.
+
+    Celery Beat runs on Linux where ADB is unavailable. In remote-worker mode
+    it checks the TTL registry first, preventing an unbounded Redis backlog
+    while the Windows Android Worker is offline. Local mode keeps periodic
+    scans for an all-in-one worker that consumes the ``android`` queue.
+    """
+    from app.core.config import settings
+
+    if not settings.ADB_SCAN_ENABLED:
+        return {"status": "disabled"}
+
+    mode = settings.ADB_SCAN_MODE.strip().lower()
+    if mode == "worker":
+        try:
+            workers = run_async(list_android_workers())
+        except Exception:
+            logger.exception("Unable to inspect Android Worker registry before periodic scan")
+            return {"status": "registry_unavailable"}
+        if not workers:
+            return {"status": "no_worker"}
+    elif mode != "local":
+        return {"status": "disabled"}
+
+    scan_adb_devices.apply_async(
+        queue="android",
+        ignore_result=True,
+        expires=max(5, int(settings.ADB_SCAN_INTERVAL)),
+    )
+    return {"status": "queued"}
 
 
 @celery_app.task(name="scan_adb_devices")

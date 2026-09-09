@@ -44,12 +44,13 @@ celery_app.conf.update(
         # Android 专项与设备扫描，通常受真机资源约束
         "run_mobile_special_task": {"queue": "mobile_special"},
         "reclaim_expired_ios_device_leases": {"queue": "ios"},
-        "check_mobile_special_schedules": {"queue": "mobile_special"},
-        "cleanup_stale_mobile_special_runs": {"queue": "mobile_special"},
-        "reclaim_expired_device_leases": {"queue": "mobile_special"},
-        "scan_adb_devices": {"queue": "mobile_special"},
-        "heartbeat_android_worker": {"queue": "mobile_special"},
-        "run_android_device_operation": {"queue": "mobile_special"},
+        "check_mobile_special_schedules": {"queue": "maintenance"},
+        "cleanup_stale_mobile_special_runs": {"queue": "maintenance"},
+        "reclaim_expired_device_leases": {"queue": "maintenance"},
+        "dispatch_android_device_scan": {"queue": "maintenance"},
+        "scan_adb_devices": {"queue": "android"},
+        "heartbeat_android_worker": {"queue": "android"},
+        "run_android_device_operation": {"queue": "android"},
         # 外部 LLM 调用，便于独立限流与降级
         "diagnose_step_failure": {"queue": "ai"},
         "diagnose_run_failure": {"queue": "ai"},
@@ -97,7 +98,7 @@ celery_app.conf.update(
     worker_max_tasks_per_child=50,
     beat_schedule={
         "scan-adb-devices": {
-            "task": "scan_adb_devices",
+            "task": "dispatch_android_device_scan",
             "schedule": settings.ADB_SCAN_INTERVAL,
         },
         "check-cron-plans": {
@@ -224,7 +225,7 @@ def _schedule_android_worker_heartbeat(**_kwargs):
         return
     from app.worker.tasks_device import heartbeat_android_worker
 
-    heartbeat_android_worker.apply_async(queue=settings.ANDROID_WORKER_QUEUE.strip() or "mobile_special")
+    heartbeat_android_worker.apply_async(queue="android")
 
 
 # Soft / Hard 超时告警桥接到独立 handler 模块（便于单测）
