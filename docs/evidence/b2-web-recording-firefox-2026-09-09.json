@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-09-09T06:15:22.538954+00:00",
+  "command": "scripts/web-recording-worker-smoke.py --api-base-url http://192.168.3.196:8000 --project-id 77 --start-url https://example.com --browser firefox --run-recording --screenshot --wait-seconds 60 --report docs/evidence/b2-web-recording-firefox-2026-09-09.json",
+  "inputs": {
+    "api_base_url": "http://192.168.3.196:8000",
+    "project_id": 77,
+    "start_url": "https://example.com",
+    "browser": "firefox",
+    "run_recording": true,
+    "expect_start_failure": false,
+    "expected_failure_text": null,
+    "screenshot": true,
+    "wait_seconds": 60.0,
+    "poll_interval": 1,
+    "timeout": 15,
+    "report": "docs\\evidence\\b2-web-recording-firefox-2026-09-09.json"
+  },
+  "status": "passed",
+  "checks": [
+    {
+      "name": "worker-preflight",
+      "status": "PASS",
+      "detail": "mode=worker, registered_count=1, available_count=1"
+    },
+    {
+      "name": "recording-start",
+      "status": "PASS",
+      "detail": "browser=firefox, status=recording"
+    },
+    {
+      "name": "recording-snapshot",
+      "status": "PASS",
+      "detail": "steps=2"
+    },
+    {
+      "name": "recording-screenshot",
+      "status": "PASS",
+      "detail": "content_type=image/png, bytes=19076"
+    },
+    {
+      "name": "recording-stop",
+      "status": "PASS",
+      "detail": "status=stopped"
+    },
+    {
+      "name": "recording-evidence",
+      "status": "PASS",
+      "detail": "trace/har/report=3, console=0, network=2"
+    },
+    {
+      "name": "recording-report-query",
+      "status": "PASS",
+      "detail": "stopped snapshot remains available"
+    }
+  ]
+}

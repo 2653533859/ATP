@@ -102,9 +102,10 @@ B1.3/B1.4 自动化与实测已覆盖任务中心从 URL 恢复项目、状态�
 
 ### B2：UI 自动化失败链路 `[E]`
 
-- Chromium、Firefox、WebKit 完成录制、回放和可控失败重现。
+- [x] `B2.1` 在当前单节点 K3s 发布上启用隔离的 Web Recorder，完成 Chromium、Firefox、WebKit 录制、截图、停止、Trace/HAR/报告和目标不可达后的资源恢复验证。
+- [ ] `B2.2` 在当前发布版本完成三浏览器 Web 用例回放，并串联元素库、页面对象和视觉基线。
+- [ ] `B2.3` 验证浏览器进程崩溃、登录失效、执行取消后的临时资源与会话路由清理。
 - 串联元素库、页面对象、视觉基线、Trace、HAR、Console、截图和录像。
-- 验证浏览器崩溃、目标不可达、登录失效和取消后的临时资源清理。
 
 ### B3：接口与对象生命周期 `[E]`
 
@@ -196,3 +197,4 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 - 2026-09-09：完成 B1.3 部署前置收口。Backend 单节点无 surge 修复及回归以 `74a15fa4` 推送，精确提交归档校验后在目标机执行服务端 dry-run，并以 `--rollback-on-failure --wait` 升级到 revision 12；集群策略确认为 `RollingUpdate(surge=0,unavailable=100%)`，五个核心 Pod 持续 30 秒 Ready、零重启，迁移保持 `20260908_0070 (head)`，健康检查正常。只读数据库盘点发现目标仅有管理员和一个无项目成员关系的历史 Viewer，没有工程师；两个现有项目也没有 Case、Suite、Plan、Android、Performance 运行记录。B1.3 因受控角色与真实数据前提未满足继续保持 `[E]`，需明确授权创建临时验收账号、成员关系和五域运行数据后再执行探针与三角色浏览器矩阵。
 - 2026-09-09：完成 B1.3。经授权创建独立临时 Engineer/Viewer、目标项目 77、隔离项目 78，以及 Case、Suite、Plan、Android、Performance 各 2 条受控运行；脱敏探针直连 K3s Backend `192.168.3.196:8000/api/v1`，认证、成员关系、三角色工作台读取、五域分页、失败诊断、跨项目 403 和 Viewer 写拒绝 7 项全部通过。Windows 本地 Vite 改为代理 K3s 8000 端口，Admin/Engineer/Viewer 浏览器矩阵确认深链、刷新、项目切换、侧栏折叠、390 px 窄屏和角色操作边界正常。排查同时确认 `29080` 是共享数据库但代码较旧的 q19 Docker Backend，不再作为当前 K3s 验收入口。账号与数据保留给 B1.4；开发游标进入五类真实动作与状态收敛。
 - 2026-09-09：完成 B1.4 并关闭 B1。项目 77 的五域批量重试、轮询、源运行不变性、精确重放、Android/Performance 批量停止与跨命令去重均通过；Android 重试在当前无 Android Worker 的单节点环境保持 `pending`，随后由受支持的停止路径收敛为 `stopped`，其自主执行仍归 B4。过期确认实测发现失败命令在数据库回滚后读取已过期 ORM 主键会触发 `MissingGreenlet` 并首次返回 500；提交 `86668152` 改为回滚前保存主键并补充失败/不确定两条回归，定向 `36 passed`、Ruff、格式和 mypy 通过。修复镜像以不可变标签部署到 Helm revision 13，五个核心 Pod Ready/零重启、健康检查正常；五域动作矩阵在同一版本完整重跑，新建 Performance Run 35 成功后，首次过期停止及同键重放均直接返回 409，错误详情一致，Backend 最近日志无新异常。证据见 [`docs/evidence/b1-workbench-actions-2026-09-09.json`](evidence/b1-workbench-actions-2026-09-09.json)；开发游标进入 B2 UI 自动化失败链路。
+- 2026-09-09：完成 B2.1。单节点 overlay 启用独立 Web Recorder，并用专用 Redis 前缀隔离宿主机遗留 Compose Recorder；Helm revision 18 上仅注册 1 个当前 Worker。Chromium、Firefox、WebKit 均完成录制、2 步快照、PNG 截图、停止、Trace/HAR/运行报告和停止后查询；Chromium 对可解析但不可访问的 `https://example.com:1` 返回预期 `ERR_UNSAFE_PORT` 后，活动会话从基线 0 恢复到 0。部署实测发现 ConfigMap 更新不触发 Pod 重建、Web Recorder 更新时 X11 display 争用和 PID 1 无法回收子进程；Chart 已加入配置/生成 Secret 校验注解、单节点无 surge、Tini、Xvfb 存活/socket 门禁及从 `:99` 起最多 11 个 display 的有界回退。定向 `77 passed`，Helm lint 与服务端 dry-run 通过；开发游标进入 B2.2 三浏览器回放及资产串联。

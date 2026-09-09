@@ -31,3 +31,11 @@ dnsPolicy: ClusterFirstWithHostNet
 {{ include "atp.fullname" . }}-secret
 {{- end -}}
 {{- end -}}
+
+{{/* Restart long-running Pods when their generated environment changes. */}}
+{{- define "atp.podConfigAnnotations" -}}
+checksum/config: {{ include (print .Template.BasePath "/configmap.yaml") . | sha256sum }}
+{{- if .Values.secret.create }}
+checksum/secret: {{ include (print .Template.BasePath "/secret.yaml") . | sha256sum }}
+{{- end }}
+{{- end -}}

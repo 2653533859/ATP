@@ -337,6 +337,26 @@ def test_helm_backend_releases_host_port_before_replacement():
     assert "maxUnavailable: 100%" in network_strategy
 
 
+def test_helm_deployments_roll_when_generated_environment_changes():
+    templates = ROOT / "deploy" / "helm" / "atp" / "templates"
+    helpers = (templates / "_helpers.tpl").read_text(encoding="utf-8")
+
+    assert 'define "atp.podConfigAnnotations"' in helpers
+    assert '"/configmap.yaml"' in helpers
+    assert '"/secret.yaml"' in helpers
+    assert ".Values.secret.create" in helpers
+    for name in (
+        "backend-deployment.yaml",
+        "worker-deployment.yaml",
+        "beat-deployment.yaml",
+        "flower-deployment.yaml",
+        "performance-worker-deployment.yaml",
+        "web-recorder-deployment.yaml",
+    ):
+        content = (templates / name).read_text(encoding="utf-8")
+        assert 'include "atp.podConfigAnnotations"' in content
+
+
 def test_worker_image_installs_init_and_forwards_default_shell_to_celery():
     dockerfile = (ROOT / "backend" / "Dockerfile.worker").read_text(encoding="utf-8")
     runtime_stage = dockerfile.rsplit("FROM python:3.12-slim-bookworm", 1)[1]
@@ -387,6 +407,12 @@ def test_helm_chart_can_render_dedicated_web_recording_worker():
     assert "app.kubernetes.io/component: web-recorder" in content
     assert "python -m app.web_recording_worker" in content
     assert "Xvfb" in content
+    assert 'command: ["/usr/bin/tini", "--", "sh", "-c"]' in content
+    assert "for display_offset in $(seq 0 10)" in content
+    assert 'rm -f "/tmp/.X${display_number}-lock"' in content
+    assert '[ -S "/tmp/.X11-unix/X${display_number}" ]' in content
+    assert 'kill -0 "${xvfb_pid}"' in content
+    assert 'export WEB_RECORDER_DISPLAY="${display}"' in content
     assert 'printf "%s-$(POD_NAME)" .Values.webRecorder.workerId' in content
     assert "fieldPath: metadata.name" in content
     assert ".Values.webRecorder.maxSessions" in content
@@ -394,6 +420,9 @@ def test_helm_chart_can_render_dedicated_web_recording_worker():
     assert "readinessProbe" in content
     assert "livenessProbe" in content
     assert "webRecorder" in schema["properties"]
+    network_strategy = content.split("{{- if .Values.podNetwork.hostNetwork }}", 1)[1].split("{{- end }}", 1)[0]
+    assert "maxSurge: 0" in network_strategy
+    assert "maxUnavailable: 100%" in network_strategy
 
 
 def test_flower_retention_limits_are_rendered_and_validated():

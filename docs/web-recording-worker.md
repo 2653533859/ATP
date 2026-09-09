@@ -94,6 +94,20 @@ webRecorder:
 
 Chart 会创建独立的 `web-recorder` Deployment，并自动把 Pod 名追加到 `workerId`，保证每个副本使用唯一 Worker ID。Worker 启动时会先清理上一次进程可能遗留的 `healthFile`，成功写入 Redis 心跳后才重新更新时间；初始注册或持续心跳遇到底层 Redis 客户端异常时会继续重试，并清理健康文件，直到下一次心跳成功。停止或 Redis 心跳失败超过 30 秒后探针会失败；API 根据 Redis 心跳和活动会话数选择 Worker，不要求 Ingress 粘性会话。Worker 心跳 key 过期后不会被选择承载新会话。
 
+单节点 overlay 还应为 API 与 K3s Recorder 设置独立的 `WEB_RECORDER_WORKER_QUEUE_PREFIX`，避免宿主机遗留 Compose
+Recorder 注册到同一 Worker 池。Chart 会对生成的 ConfigMap（以及由 Chart 创建的 Secret）计算 Pod template 校验值，配置
+变化会触发长期运行 Deployment 更新。`hostNetwork=true` 时 Recorder 使用无 surge 策略，启动脚本由 Tini 托管，并在
+配置 display 被旧 X11 抽象套接字短暂占用时，从该编号起进行最多 11 次有界回退；只有 Xvfb 进程和 socket 同时就绪后才
+启动 Worker。
+
+2026-09-09 当前 K3s Helm revision 18 已验证仅注册 1 个隔离 Worker。Chromium、Firefox、WebKit 的录制、截图、停止、
+Trace/HAR/运行报告与停止后查询均通过；可解析但不可访问目标失败后活动会话恢复到基线。脱敏证据见
+[`b2-web-recording-chromium-2026-09-09.json`](evidence/b2-web-recording-chromium-2026-09-09.json)、
+[`b2-web-recording-firefox-2026-09-09.json`](evidence/b2-web-recording-firefox-2026-09-09.json)、
+[`b2-web-recording-webkit-2026-09-09.json`](evidence/b2-web-recording-webkit-2026-09-09.json) 和
+[`b2-web-recording-unreachable-2026-09-09.json`](evidence/b2-web-recording-unreachable-2026-09-09.json)。该结果关闭 B2.1，
+不替代 B2.2 三浏览器用例回放，也不替代 B2.3 浏览器崩溃、登录失效和取消清理。
+
 ## 关键配置
 
 - `WEB_RECORDER_WORKER_QUEUE_PREFIX`：API 与 Worker 必须一致，默认 `atp:web-recording:commands`。

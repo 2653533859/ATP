@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import importlib.util
 from pathlib import Path
+from types import SimpleNamespace
 import sys
 
 import pytest
@@ -91,3 +92,32 @@ def test_worker_smoke_normalizes_response_header_names():
 
     assert headers == {"content-type": "image/png"}
     assert body == b"png"
+
+
+def test_worker_smoke_expected_start_failure_proves_worker_recovers():
+    module = _module()
+
+    class _Client:
+        def request_json(self, method, path, payload=None):
+            del payload
+            if method == "POST":
+                raise module.SmokeError(f"API POST {path} 返回 HTTP 400: navigation failed")
+            return {"mode": "worker", "registered_count": 1, "available_count": 1}
+
+    args = SimpleNamespace(
+        project_id=7,
+        start_url="https://unreachable.example.test",
+        browser="chromium",
+        expected_failure_text="navigation failed",
+        wait_seconds=0,
+        poll_interval=0.1,
+    )
+    report = module.CheckReport()
+
+    module._run_expected_start_failure(_Client(), args, report)
+
+    assert [item.name for item in report.checks] == [
+        "recording-start-failure",
+        "recording-failure-cleanup",
+    ]
+    assert all(item.status == "PASS" for item in report.checks)

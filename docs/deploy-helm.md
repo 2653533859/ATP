@@ -216,10 +216,14 @@ PostgreSQL、Redis、MinIO 端口仅绑定宿主机回环地址，因此单节�
 Secret 的三个 Host/Port 指向宿主机回环端点；Secret 值未写入仓库。端点修改仅用于当前开发联调，不适用于普通
 多节点部署；临时 Pod 到三项服务的 TCP 连通性已通过并清理。
 
-由于 `hostNetwork` Pod 会直接占用宿主机端口，Backend 和 Flower Deployment 使用
-`RollingUpdate(maxSurge=0,maxUnavailable=100%)`，确保单副本更新时先释放旧的 8000/5555 端口再创建新 Pod；
-否则默认 `maxSurge` 会让新 Pod 因宿主机端口冲突持续 Pending，进而阻塞原子升级。Flower 内存 limit 同时提升至
-`512Mi`，避免长时间运行时因默认 `256Mi` limit 被 OOMKilled。
+由于 `hostNetwork` Pod 会直接占用宿主机端口或 X11 抽象套接字，Backend、Worker、Flower、Performance Worker 和 Web
+Recorder Deployment 使用 `RollingUpdate(maxSurge=0,maxUnavailable=100%)`，确保单副本更新时先释放旧资源再创建新
+Pod；否则默认 `maxSurge` 会让新 Pod 因端口或 display 冲突阻塞原子升级。Beat 固定使用 `Recreate`。Flower 内存 limit
+同时提升至 `512Mi`，避免长时间运行时因默认 `256Mi` limit 被 OOMKilled。
+
+长期运行 Deployment 的 Pod template 包含生成 ConfigMap 的校验值；Chart 自建 Secret 时还包含生成 Secret 的校验值。
+因此 Helm 更新环境配置会触发进程重建，不会出现资源对象已更新但 Pod 仍读取旧环境的假升级。外部 Secret 的内容不在
+Chart 中，外部控制器更新后仍需由其 rollout 机制或显式重启承载 Pod。
 
 当前提交 `1bccfef4` 的 backend、worker、frontend 镜像已分别按 overlay 中的精确引用构建并导入 K3s containerd。随后使用临时 tag 覆盖执行了服务端 dry-run，修复后的 Chart 已在目标单节点实际安装：Release `atp-single-node` 为 `deployed`，迁移 Hook 成功，5 个核心 Deployment 均为 `1/1`，Backend `/health` 返回 200，安装后约 30 秒复核无新增重启。该结果仅证明单节点开发/联调安装可用，不关闭 P4/P9；脱敏证据见 [`evidence/k3s-single-node-helm-install-2026-09-04.json`](evidence/k3s-single-node-helm-install-2026-09-04.json)。
 
@@ -240,6 +244,11 @@ Backend 策略为 `RollingUpdate(surge=0,unavailable=100%)`。升级后五个核
 `ExecutionCommand.id`，可能触发 SQLAlchemy `MissingGreenlet` 并把首次拒绝升级为 HTTP 500。提交 `86668152`
 改为在回滚前保存命令主键，并以不可变 Backend 标签升级到 Helm revision 13。五个核心 Pod Ready、零重启，
 `/health` 返回 200；新建成功终态 Performance Run 后，首次停止与同键重放均返回 409，Backend 日志无新异常。
+
+2026-09-09 B2.1 在 revision 18 启用独立 Web Recorder，并以
+`atp:single-node:web-recording:commands` 与宿主机旧 Compose Recorder 隔离。部署过程发现 ConfigMap 更新不会自动重建
+Pod，以及 X11 `:99` 在旧 Pod 退出后可能短暂残留；Chart 已加入配置校验 rollout、Recorder 无 surge、Tini、Xvfb
+存活/socket 门禁和有界 display 回退。最终 Worker 池仅有 1 个当前 K3s Worker，三浏览器录制及目标不可达恢复通过。
 
 ## 八、升级与回滚
 

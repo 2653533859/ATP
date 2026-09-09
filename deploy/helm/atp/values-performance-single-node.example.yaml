@@ -28,6 +28,7 @@ podNetwork:
 replicas:
   backend: 1
   worker: 1
+  webRecorder: 1
   beat: 1
   flower: 1
 
@@ -57,6 +58,12 @@ config:
   PERFORMANCE_MAX_VUS: "10"
   PERFORMANCE_MAX_DURATION_SECONDS: "120"
   TARGET_PROMETHEUS_URL: https://target-prometheus.example.test
+  WEB_RECORDER_MODE: worker
+  # 与宿主机上可能保留的 Compose Worker 隔离，避免跨发布选择旧进程。
+  WEB_RECORDER_WORKER_QUEUE_PREFIX: atp:single-node:web-recording:commands
+
+webRecorder:
+  enabled: true
 
 performanceWorker:
   enabled: true

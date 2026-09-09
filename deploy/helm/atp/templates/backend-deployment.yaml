@@ -21,6 +21,8 @@ spec:
       app.kubernetes.io/component: backend
   template:
     metadata:
+      annotations:
+        {{- include "atp.podConfigAnnotations" . | nindent 8 }}
       labels:
         app.kubernetes.io/name: {{ .Chart.Name }}
         app.kubernetes.io/instance: {{ .Release.Name }}

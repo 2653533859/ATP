@@ -203,6 +203,15 @@ def _parse_args() -> argparse.Namespace:
     parser.add_argument("--start-url", help="真实录制目标 URL；只有 --run-recording 时必填")
     parser.add_argument("--browser", choices=("chromium", "firefox", "webkit"), default="chromium")
     parser.add_argument("--run-recording", action="store_true", help="显式启动并停止一次真实录制会话")
+    parser.add_argument(
+        "--expect-start-failure",
+        action="store_true",
+        help="要求浏览器启动或首屏导航以 HTTP 400 失败，并验证 Worker 恢复可用",
+    )
+    parser.add_argument(
+        "--expected-failure-text",
+        help="预期启动失败响应中必须包含的非敏感文本，防止把其他 HTTP 400 误判为通过",
+    )
     parser.add_argument("--screenshot", action="store_true", help="真实录制期间额外验证截图接口")
     parser.add_argument("--wait-seconds", type=float, default=30, help="等待 Worker 可用的最长时间，默认 30 秒")
     parser.add_argument("--poll-interval", type=float, default=1, help="Worker 状态轮询间隔，默认 1 秒")
@@ -223,6 +232,14 @@ def _parse_args() -> argparse.Namespace:
         parser.error("--run-recording 必须同时提供 --start-url")
     if args.screenshot and not args.run_recording:
         parser.error("--screenshot 必须与 --run-recording 一起使用")
+    if args.expect_start_failure and not args.run_recording:
+        parser.error("--expect-start-failure 必须与 --run-recording 一起使用")
+    if args.expect_start_failure and args.screenshot:
+        parser.error("预期启动失败时不能同时请求截图")
+    if args.expect_start_failure and not args.expected_failure_text:
+        parser.error("--expect-start-failure 必须同时提供 --expected-failure-text")
+    if args.expected_failure_text and not args.expect_start_failure:
+        parser.error("--expected-failure-text 必须与 --expect-start-failure 一起使用")
     if args.start_url:
         target = urlsplit(str(args.start_url))
         if target.scheme not in {"http", "https"} or not target.hostname or target.username or target.password:
@@ -305,13 +322,56 @@ def _run_recording(client: ApiClient, args: argparse.Namespace, report: CheckRep
                 report.failed("recording-cleanup", _safe_error(exc))
 
 
+def _run_expected_start_failure(client: ApiClient, args: argparse.Namespace, report: CheckReport) -> None:
+    payload = {
+        "project_id": args.project_id,
+        "start_url": args.start_url,
+        "browser": args.browser,
+    }
+    before = client.request_json("GET", "/api/v1/web-recordings/workers")
+    if not isinstance(before, dict):
+        raise SmokeError("Worker 状态响应无效")
+    baseline_active = sum(max(0, int(item.get("active_sessions") or 0)) for item in before.get("workers") or [])
+    try:
+        result = client.request_json("POST", "/api/v1/web-recordings", payload)
+    except SmokeError as exc:
+        detail = _safe_error(exc)
+        if "返回 HTTP 400:" not in detail or args.expected_failure_text not in detail:
+            raise
+        report.passed("recording-start-failure", f"browser={args.browser}, HTTP 400 returned as expected")
+        deadline = time.monotonic() + args.wait_seconds
+        while True:
+            current = client.request_json("GET", "/api/v1/web-recordings/workers")
+            if not isinstance(current, dict):
+                raise SmokeError("Worker 状态响应无效")
+            active = sum(max(0, int(item.get("active_sessions") or 0)) for item in current.get("workers") or [])
+            if int(current.get("available_count") or 0) > 0 and active <= baseline_active:
+                report.passed(
+                    "recording-failure-cleanup",
+                    f"Worker recovered, active_sessions={active}, baseline={baseline_active}",
+                )
+                return
+            if time.monotonic() >= deadline:
+                raise SmokeError(f"启动失败后 Worker 未恢复: active_sessions={active}, baseline={baseline_active}")
+            time.sleep(min(args.poll_interval, max(0.01, deadline - time.monotonic())))
+
+    if isinstance(result, dict) and result.get("id"):
+        try:
+            client.request_json("POST", f"/api/v1/web-recordings/{result['id']}/stop")
+        except SmokeError as exc:
+            report.failed("recording-cleanup", _safe_error(exc))
+    raise SmokeError("录制启动意外成功，未复现预期失败")
+
+
 def main() -> int:
     args = _parse_args()
     report = CheckReport()
     try:
         client = _client_from_environment(str(args.api_base_url), timeout=args.timeout)
         _wait_for_worker(client, args, report)
-        if args.run_recording:
+        if args.expect_start_failure:
+            _run_expected_start_failure(client, args, report)
+        elif args.run_recording:
             _run_recording(client, args, report)
         else:
             report.passed("recording-run", "未执行真实录制；如需验证浏览器启动、截图和停止，请显式传入 --run-recording")

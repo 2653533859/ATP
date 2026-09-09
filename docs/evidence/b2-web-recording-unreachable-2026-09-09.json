@@ -1,0 +1,36 @@
+{
+  "generated_at": "2026-09-09T06:15:27.649342+00:00",
+  "command": "scripts/web-recording-worker-smoke.py --api-base-url http://192.168.3.196:8000 --project-id 77 --start-url https://example.com:1 --browser chromium --run-recording --expect-start-failure --expected-failure-text ERR_UNSAFE_PORT --wait-seconds 60 --report docs/evidence/b2-web-recording-unreachable-2026-09-09.json",
+  "inputs": {
+    "api_base_url": "http://192.168.3.196:8000",
+    "project_id": 77,
+    "start_url": "https://example.com:1",
+    "browser": "chromium",
+    "run_recording": true,
+    "expect_start_failure": true,
+    "expected_failure_text": "ERR_UNSAFE_PORT",
+    "screenshot": false,
+    "wait_seconds": 60.0,
+    "poll_interval": 1,
+    "timeout": 15,
+    "report": "docs\\evidence\\b2-web-recording-unreachable-2026-09-09.json"
+  },
+  "status": "passed",
+  "checks": [
+    {
+      "name": "worker-preflight",
+      "status": "PASS",
+      "detail": "mode=worker, registered_count=1, available_count=1"
+    },
+    {
+      "name": "recording-start-failure",
+      "status": "PASS",
+      "detail": "browser=chromium, HTTP 400 returned as expected"
+    },
+    {
+      "name": "recording-failure-cleanup",
+      "status": "PASS",
+      "detail": "Worker recovered, active_sessions=0, baseline=0"
+    }
+  ]
+}
