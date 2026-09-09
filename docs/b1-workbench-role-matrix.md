@@ -63,4 +63,15 @@ make b1-workbench-role-matrix ARGS="--base-url ... --project-id ... --foreign-pr
 
 API 探针通过后，仍需分别登录三个账号完成浏览器检查：项目切换与刷新保持 `project_id`，深链返回目标项目，侧栏折叠和窄屏不遮挡任务操作；Viewer 不展示重试/停止按钮，工程师仅能操作其可写项目，Android/Performance 还要求全局工程师角色。保留浏览器、提交 SHA、项目 ID 和时间戳证据，避免记录 Token 或密码。
 
-2026-09-09 部署前置已完成：Windows Vite 到 Linux Backend 的代理传输正常，目标 K3s revision 12 的五个核心 Pod 均 Ready、零重启，Backend/Worker 使用提交 `5c0f6908` 的不可变标签，迁移位于 `20260908_0070`。Backend 在单节点 `hostNetwork` 下的滚动策略已固化为 `maxSurge=0/maxUnavailable=100%`。只读数据核查同时确认目标环境缺少全局工程师、项目级 Viewer 成员关系和五类真实运行数据；在明确创建受控账号与运行数据前，登录页、HTTP 401、Pod 健康和空数据接口仍不得写成 B1.3 通过。
+## 2026-09-09 实测结果
+
+B1.3 已在受控数据集上通过。运行版本为 Backend/Worker 不可变标签 `5c0f6908`、Helm revision 12、迁移 `20260908_0070 (head)`；目标项目为 `77`，隔离项目为 `78`。脱敏 API 证据见 [`evidence/b1-workbench-role-matrix-2026-09-09.json`](evidence/b1-workbench-role-matrix-2026-09-09.json)：管理员、工程师和 Viewer 三个独立身份均通过认证与项目成员关系检查，Case、Suite、Plan、Android、Performance 各有 2 条运行，失败诊断可读，非成员跨项目读取与 Viewer 写操作均返回 HTTP 403。证据不包含密码、Token 或响应正文。
+
+Windows 本地前端以 `http://127.0.0.1:4173` 运行，并通过 Vite 直接代理到 K3s Backend `http://192.168.3.196:8000`。三角色浏览器矩阵确认：
+
+- Admin 与 Engineer 在可写项目中可见失败任务的重试入口，Viewer 仅显示查看与失败诊断，批量重试和批量终止保持禁用；
+- `project_id=77&status=failed` 深链、手动刷新、侧栏折叠和 390 px 窄屏均保持目标项目和任务可用；
+- Admin 从项目 77 切换到隔离项目 78 时 URL 与空任务状态同步，切回项目 77 后失败筛选和六条可见任务恢复；
+- 临时验收账号、项目和运行数据为后续 B1.4 保留，未执行清理。
+
+端口边界必须保持明确：`8000` 是当前 K3s `hostNetwork` Backend；`29080` 属于旧 q19 Docker Backend。二者虽然连接同一数据库，但 `29080` 不包含本次部署代码，不能用于 B1 或当前 K3s 验收。B1.4 仍需对五类任务执行轮询、重试、停止、批量操作、过期确认和状态收敛实测；B1 整体尚未关闭。

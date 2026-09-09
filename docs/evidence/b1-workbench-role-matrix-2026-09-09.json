@@ -1,0 +1,56 @@
+{
+  "schema_version": 1,
+  "generated_at": "2026-09-09T00:49:51.482721+00:00",
+  "base_url": "http://192.168.3.196:8000/api/v1",
+  "project_id": 77,
+  "status": "passed",
+  "checks": [
+    {
+      "name": "authentication",
+      "status": "passed",
+      "details": "three distinct global roles authenticated; credentials were not recorded"
+    },
+    {
+      "name": "project-membership",
+      "status": "passed",
+      "details": "engineer is writable and viewer is read-only in the selected project"
+    },
+    {
+      "name": "workbench-read",
+      "status": "passed",
+      "details": "all roles read project-scoped task pages; viewer action flags were disabled",
+      "returned": {
+        "admin": 10,
+        "engineer": 10,
+        "viewer": 10
+      }
+    },
+    {
+      "name": "five-domain-pagination",
+      "status": "passed",
+      "details": "domain filters and bounded paging were valid",
+      "counts": {
+        "case": 2,
+        "suite": 2,
+        "plan": 2,
+        "android": 2,
+        "performance": 2
+      }
+    },
+    {
+      "name": "failure-diagnosis",
+      "status": "passed",
+      "details": "all roles read the same project-scoped failure diagnosis"
+    },
+    {
+      "name": "cross-project",
+      "status": "passed",
+      "details": "non-member engineer and viewer were denied with HTTP 403"
+    },
+    {
+      "name": "viewer-write-denial",
+      "status": "passed",
+      "details": "viewer action was rejected before dispatch with HTTP 403"
+    }
+  ]
+}

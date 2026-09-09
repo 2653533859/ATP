@@ -232,6 +232,10 @@ Debian 软件源临时不可达，同时保留既有系统依赖。Release revis
 Backend 策略为 `RollingUpdate(surge=0,unavailable=100%)`。升级后五个核心 Pod 持续 30 秒 Ready、零重启，迁移
 仍为 `20260908_0070 (head)`，Backend `/health` 保持 200。
 
+该单节点 overlay 使用 `hostNetwork`，因此当前 K3s Backend 的宿主机访问端口为 `8000`。宿主机上的 `29080`
+属于旧 q19 Docker Backend；它可能复用同一 PostgreSQL 数据库，但不代表 revision 12 的应用代码。Windows 本地 Vite
+或验收脚本必须指向 `http://192.168.3.196:8000`，不得用 `29080` 作为当前 K3s 版本、角色矩阵或发布证据。
+
 ## 八、升级与回滚
 
 ```bash
