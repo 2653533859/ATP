@@ -30,6 +30,7 @@ def test_run_k6_script_uploads_summary_on_success(monkeypatch):
     def fake_popen(cmd, **kwargs):
         captured["cmd"] = cmd
         captured["env"] = kwargs["env"]
+        captured["config"] = json.loads(Path(cmd[5]).read_text(encoding="utf-8"))
         result_path = Path(cmd[3])
         result_path.write_text(
             json.dumps(
@@ -65,7 +66,17 @@ def test_run_k6_script_uploads_summary_on_success(monkeypatch):
     )
 
     assert captured["cmd"][0:3] == ["k6", "run", "--summary-export"]
-    assert captured["cmd"][4].endswith("script.js")
+    assert captured["cmd"] == [
+        "k6",
+        "run",
+        "--summary-export",
+        captured["cmd"][3],
+        "--config",
+        captured["cmd"][5],
+        captured["cmd"][-1],
+    ]
+    assert captured["config"] == {"duration": "1s", "vus": 2}
+    assert captured["cmd"][-1].endswith("script.js")
     assert captured["env"]["TARGET_URL"] == "https://example.test"
     assert json.loads(captured["env"]["ATP_K6_OPTIONS"]) == {"duration": "1s", "vus": 2}
     assert summary["exit_code"] == 0
@@ -77,6 +88,42 @@ def test_run_k6_script_uploads_summary_on_success(monkeypatch):
         "content_type": "application/json",
     }
     assert duration_ms >= 0
+
+
+def test_run_k6_script_applies_thresholds_to_plain_uploaded_script(monkeypatch):
+    captured: dict = {}
+
+    def fake_popen(cmd, **kwargs):
+        captured["cmd"] = cmd
+        captured["config"] = json.loads(Path(cmd[5]).read_text(encoding="utf-8"))
+        result_path = Path(cmd[3])
+        result_path.write_text('{"metrics": {}}', encoding="utf-8")
+        return _fake_process(0, **kwargs)
+
+    monkeypatch.setattr(performance.minio_client, "download_file", _fake_download, raising=False)
+    monkeypatch.setattr(performance.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(performance.minio_client, "upload_file", lambda *args, **kwargs: args[0], raising=False)
+
+    performance.run_k6_script(
+        run_id=13,
+        script_object_name="performance/scripts/plain.js",
+        options={
+            "stages": [{"duration": "2s", "target": 2}, {"duration": "1s", "target": 0}],
+            "thresholds": {
+                "http_req_failed": ["rate<0.01"],
+                "http_req_duration": "p(95)<1000",
+            },
+        },
+    )
+
+    assert captured["cmd"][4:-1] == ["--config", captured["cmd"][5]]
+    assert captured["config"] == {
+        "stages": [{"duration": "2s", "target": 2}, {"duration": "1s", "target": 0}],
+        "thresholds": {
+            "http_req_failed": ["rate<0.01"],
+            "http_req_duration": "p(95)<1000",
+        },
+    }
 
 
 def test_run_k6_script_keeps_summary_when_k6_exits_nonzero(monkeypatch):

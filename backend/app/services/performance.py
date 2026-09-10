@@ -105,6 +105,7 @@ def run_k6_script(
         tmp_path = Path(tmp)
         script_path = tmp_path / "script.js"
         result_path = tmp_path / "result.json"
+        config_path = tmp_path / "options.json"
         minio_client.download_file(script_object_name, script_path)
 
         env = os.environ.copy()
@@ -112,9 +113,18 @@ def run_k6_script(
         k6_options = {key: merged_options[key] for key in _K6_OPTION_KEYS if key in merged_options}
         if k6_options:
             env["ATP_K6_OPTIONS"] = json.dumps(k6_options, ensure_ascii=False)
+            # A k6 config file applies platform options to ordinary uploaded
+            # scripts as well as ATP-generated scripts. The custom environment
+            # variable remains for generated scripts and backward compatibility.
+            config_path.write_text(json.dumps(k6_options, ensure_ascii=False), encoding="utf-8")
+
+        command = ["k6", "run", "--summary-export", str(result_path)]
+        if k6_options:
+            command.extend(["--config", str(config_path)])
+        command.append(str(script_path))
 
         completed, duration_ms = run_performance_process(
-            ["k6", "run", "--summary-export", str(result_path), str(script_path)],
+            command,
             cwd=tmp_path,
             env=env,
             timeout_seconds=timeout_seconds,
