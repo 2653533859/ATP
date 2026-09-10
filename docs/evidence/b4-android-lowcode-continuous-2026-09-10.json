@@ -1,0 +1,153 @@
+{
+  "evidence_type": "b4_android_lowcode_continuous_acceptance",
+  "date": "2026-09-10",
+  "status": "passed",
+  "scope": "B4.2 single-device Android low-code continuous execution, screenshots, device artifacts, video, step trace, and reports",
+  "source_commit": "432bead029f7c9ea717c63d135508dfcb2d2b67c",
+  "deployment": {
+    "host": "192.168.3.196",
+    "api_origin": "http://192.168.3.196:8000",
+    "namespace": "atp-single-node",
+    "helm_release": "atp-single-node",
+    "helm_revision": 34,
+    "backend_image": "registry.local/atp/backend:432bead0",
+    "worker_image": "registry.local/atp/worker:432bead0",
+    "ready_pods": "6/6",
+    "pod_restarts": 0,
+    "backend_health": "ok"
+  },
+  "worker": {
+    "worker_id": "android-win-HPS",
+    "registered_worker_count": 1,
+    "queues": [
+      "android",
+      "mobile_special"
+    ],
+    "status_after_runs": "running"
+  },
+  "case": {
+    "case_id": 76,
+    "status": "active",
+    "review_status": "approved",
+    "automation_status": "auto",
+    "device_serial": "172.16.102.15:5555",
+    "device_model": "rk3568_r",
+    "scenario": "non-destructive Android Settings navigation",
+    "steps_per_run": 8,
+    "record_video": true,
+    "collect_device_artifacts": true,
+    "retained_for_b4_3": true
+  },
+  "runs": [
+    {
+      "iteration": 1,
+      "run_id": 103,
+      "status": "passed",
+      "duration_ms": 24718,
+      "passed_steps": "8/8",
+      "screenshots": 8,
+      "screenshot_probe": {
+        "status": 200,
+        "bytes": 725501,
+        "content_type": "image/png"
+      },
+      "device_info_probe": {
+        "status": 200,
+        "bytes": 33112,
+        "content_type": "text/plain; charset=utf-8"
+      },
+      "logcat_probe": {
+        "status": 200,
+        "bytes": 1594324,
+        "content_type": "text/plain; charset=utf-8"
+      },
+      "screen_recording_probe": {
+        "status": 200,
+        "bytes": 487230,
+        "content_type": "video/mp4"
+      }
+    },
+    {
+      "iteration": 2,
+      "run_id": 104,
+      "status": "passed",
+      "duration_ms": 24921,
+      "passed_steps": "8/8",
+      "screenshots": 8,
+      "screenshot_probe": {
+        "status": 200,
+        "bytes": 726596,
+        "content_type": "image/png"
+      },
+      "device_info_probe": {
+        "status": 200,
+        "bytes": 33112,
+        "content_type": "text/plain; charset=utf-8"
+      },
+      "logcat_probe": {
+        "status": 200,
+        "bytes": 1586947,
+        "content_type": "text/plain; charset=utf-8"
+      },
+      "screen_recording_probe": {
+        "status": 200,
+        "bytes": 594662,
+        "content_type": "video/mp4"
+      }
+    },
+    {
+      "iteration": 3,
+      "run_id": 105,
+      "status": "passed",
+      "duration_ms": 25389,
+      "passed_steps": "8/8",
+      "screenshots": 8,
+      "screenshot_probe": {
+        "status": 200,
+        "bytes": 82490,
+        "content_type": "image/png"
+      },
+      "device_info_probe": {
+        "status": 200,
+        "bytes": 33112,
+        "content_type": "text/plain; charset=utf-8"
+      },
+      "logcat_probe": {
+        "status": 200,
+        "bytes": 1576465,
+        "content_type": "text/plain; charset=utf-8"
+      },
+      "screen_recording_probe": {
+        "status": 200,
+        "bytes": 559842,
+        "content_type": "video/mp4"
+      }
+    }
+  ],
+  "reports": {
+    "run_id": 105,
+    "html": {
+      "status": 200,
+      "bytes": 2602488,
+      "contains_video_player": true
+    },
+    "pdf": {
+      "status": 200,
+      "bytes": 1837733
+    }
+  },
+  "post_run_state": {
+    "android_queue": 0,
+    "mobile_special_queue": 0,
+    "maintenance_queue": 0,
+    "credential_values_recorded": false,
+    "presigned_urls_recorded": false
+  },
+  "review": {
+    "finding": "The initial acceptance state file still targeted legacy q19 Docker Backend port 29080.",
+    "resolution": "Repeated the complete three-run gate through the current K3s Backend port 8000; only runs 103-105 are counted.",
+    "source_code_changed": false,
+    "remaining_actionable_findings": 0
+  },
+  "scope_note": "This closes B4.2 for one real device and the current K3s/Windows Worker path. B4.3 active-run device disconnect, Worker restart convergence, bounded stability, and optional multi-device lease conflict remain separate."
+}

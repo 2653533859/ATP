@@ -118,7 +118,7 @@ B3.1～B3.3 证据见 [`docs/evidence/b3-protocol-isolation-2026-09-09.json`](ev
 ### B4：Android 单机与可选多设备 `[~]`
 
 - [x] `B4.1` 完成 K3s Backend 与 Windows Android Worker 配对、双真机发现、控制队列隔离和 Worker 离线不积压验证；清理共享 Redis 中遗留 q19 Beat 造成的历史队列，并停止冲突的旧 Beat/Worker 计算容器，基础设施容器继续复用。
-- [ ] `B4.2` 选择一台在线设备完成 Android 低代码用例持续运行，验证截图、录像、logcat、步骤轨迹和报告闭环。
+- [x] `B4.2` 选择一台在线设备完成 Android 低代码用例持续运行，验证截图、录像、logcat、步骤轨迹和报告闭环。
 - [ ] `B4.3` 在活动运行中验证设备离线、Worker 重启后的状态收敛和恢复边界，并完成有界稳定性观察。
 - 多设备租约冲突和兼容性矩阵在设备资源可用时执行，不阻塞单节点版本发布。
 - iOS/Appium 继续保持 `[OUT]` 技术预览。
@@ -182,6 +182,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 6. 经用户要求后使用 Conventional Commit 提交并推送。
 
 ## 9. 执行记录
+
+- 2026-09-10：完成 B4.2。通过当前 K3s Backend `http://192.168.3.196:8000` 触发保留用例 `76`，在 `172.16.102.15:5555` 连续完成 run 103～105；三轮均为 `passed`，每轮 8/8 步骤、8 张截图，截图、device-info、logcat 和 MP4 录像的受保护 URL 均返回 200 且媒体类型正确。run 105 的 HTML 报告返回 200、包含视频播放器，PDF 报告返回 200；收尾时 6/6 K3s Pod Ready、零重启、Android Worker 注册数为 1，`android`、`mobile_special`、`maintenance` 队列均为 0。审查发现最初验收状态文件仍指向遗留 q19 Docker Backend `:29080`，已改用 K3s `:8000` 完整重跑，旧入口结果未计入 B4.2 关闭证据。未修改生产代码，因此本切片不重复执行与源码无关的全量回归；证据 JSON 结构、Markdown 差异和无敏感值检查通过。开发游标进入 B4.3 活动运行故障恢复与有界稳定性观察。
 
 - 2026-09-08：完成现状分析，建立本执行计划；开发游标进入 A1 Hermes API 领域拆分。
 - 2026-09-08：完成 A1 首批交付。新增 `frontend/src/api/hermes.ts`，迁移 Hermes 类型和 API 方法；`frontend/src/api/index.ts` 保留兼容导出；新增契约测试。定向 Hermes API/页面 `22 passed`，前端全量 `71 files / 347 tests passed`，TypeScript 与生产构建通过；代码审查未发现可操作问题。开发游标进入 A2 Hermes 页面组件化。

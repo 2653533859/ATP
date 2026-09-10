@@ -9,7 +9,7 @@
 - [x] A3 统一执行状态机：A3.1/A3.2 已统一状态动作与停止守卫，A3.3 完成持久化命令账本和审计，A3.4.1 完成并发去重及不确定命令收口，A3.4.2 完成五类运行的 Worker 心跳、不可复用租约、失联恢复和旧 Worker 状态围栏；五类长任务不再被固定 25/30 分钟时限误杀。
 - [x] B1 工作台与角色矩阵：B1.1～B1.4 已完成。受控 Admin/Engineer/Viewer、项目 77/78、五域任务、跨项目拒绝与 Windows 浏览器矩阵通过；五域批量重试/轮询、幂等重放、Android/Performance 批量停止、过期确认和状态收敛已实测。过程中修复回滚后读取过期命令对象导致首次非法动作返回 500 的问题，提交 `86668152` 已部署到 K3s Helm revision 13，首次与重放均稳定返回 409。临时验收数据保留，Android 自主执行仍归 B4 环境门禁。
 - [x] B2 UI 自动化失败链路：B2.1 完成当前 K3s 独立 Recorder 与三浏览器录制；B2.2 完成隔离队列上的三浏览器回放和资产/证据闭环；B2.3 完成 Web 协作式取消、浏览器崩溃快速识别、登录失效，以及临时目录、浏览器进程和取消标记清理验证。开发游标进入 B3 API 协议链路。
-- [~] B4 Android 单设备持续运行：B4.1 已完成 K3s/Windows Worker 配对、Android 控制队列隔离、遗留 q19 双控制面清理、离线零积压、Worker 恢复注册和两台真机 API 扫描；提交 `432bead0` 已部署到 Helm revision 34。B4.2 继续完成一台设备的低代码持续运行、截图、录像、logcat、步骤轨迹和报告闭环。
+- [~] B4 Android 单设备持续运行：B4.1 已完成 K3s/Windows Worker 配对、Android 控制队列隔离、遗留 q19 双控制面清理、离线零积压、Worker 恢复注册和两台真机 API 扫描；提交 `432bead0` 已部署到 Helm revision 34。B4.2 已通过当前 K3s Backend `:8000` 在 `172.16.102.15:5555` 连续完成 3 轮低代码运行（run 103～105），每轮 8/8 步骤、8 张截图、device-info、logcat 和 MP4 录像均通过下载校验，HTML/PDF 报告返回 200；证据见 [`docs/evidence/b4-android-lowcode-continuous-2026-09-10.json`](docs/evidence/b4-android-lowcode-continuous-2026-09-10.json)。下一步进入 B4.3 活动运行中设备离线、Worker 重启、状态收敛和有界稳定性观察。
 - [ ] H9 Hermes 模型辅助只读规划、成本治理和质量评测。
 - [~] C1 单节点 K3s 性能与可观测性；多节点高可用及跨主机 MinIO 灾备调整为 `[OUT]`，不阻塞当前版本。
 - [ ] C3 迁移、备份恢复、SLO、证据索引和最终 SHA 发布收口。

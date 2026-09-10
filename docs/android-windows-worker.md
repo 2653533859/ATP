@@ -196,10 +196,16 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows-android-worker.ps1 do
 
 1. 在 Windows 执行 `adb devices`，确认目标设备状态为 `device`。
 2. 执行配置配对检查和 `windows-android-worker.ps1 doctor`，确认 Backend/Agent 配置一致，且 PostgreSQL、Redis、MinIO 和 ADB 检查通过。
-3. 在 ATP 中触发一个 Android 用例。
+3. 先用当前发布的 `/health` 和 `/api/v1/runs` 确认 API 入口确实属于目标部署，再在 ATP 中触发一个 Android 用例；不要复用旧验收状态文件中的历史端口。
 4. 查看 Windows Worker 日志，应出现 `android` 队列任务和对应的 `adb` 执行日志。
 5. 在运行详情查看状态、步骤结果和 MinIO 证据。
 6. 停止 Windows Worker 后再次触发，运行应保持 pending，恢复 Worker 后继续消费；不要让 Linux Worker 同时监听 Android 队列。
+
+2026-09-10 的单机持续验收使用 K3s Backend `:8000`，在
+`172.16.102.15:5555` 连续执行三轮无破坏的系统设置页低代码用例。run 103～105
+均为 8/8 步骤通过，每步截图以及 device-info、logcat、MP4 录像均可下载，HTML/PDF
+报告均返回 200。遗留 q19 Docker Backend `:29080` 不是本轮 K3s 验收入口；脱敏结果见
+[`evidence/b4-android-lowcode-continuous-2026-09-10.json`](evidence/b4-android-lowcode-continuous-2026-09-10.json)。
 
 ## 安全要求
 
