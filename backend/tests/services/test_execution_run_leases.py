@@ -7,7 +7,8 @@ import pytest
 from sqlalchemy.exc import IntegrityError
 
 from app.models.case import RunStatus as CaseRunStatus
-from app.models.case import TestRun
+from app.models.case import CaseType, TestCase, TestRun
+from app.models.device import Device, DeviceLease, DeviceStatus
 from app.models.bootstrap import load_all_models
 from app.models.execution_run_lease import ExecutionRunLease
 from app.models.mobile_special import MobileSpecialRun, RunStatus as MobileRunStatus, TaskType
@@ -203,7 +204,7 @@ class _RecoverySession:
         return self.leases
 
     def get(self, model, run_id):
-        return self.runs[(model, run_id)]
+        return self.runs.get((model, run_id))
 
 
 def test_reconcile_expired_leases_recovers_all_five_execution_domains():
@@ -269,6 +270,72 @@ def test_reconcile_expired_leases_recovers_all_five_execution_domains():
     assert mobile_run.status == MobileRunStatus.failed
     assert performance_run.status == PerformanceRunStatus.failed.value
     assert all(lease.status == "expired" for lease in leases)
+
+
+class _AndroidRecoverySession(_RecoverySession):
+    def __init__(self, execution_lease, run, case, device, device_lease):
+        super().__init__(
+            [execution_lease],
+            {
+                (TestRun, run.id): run,
+                (TestCase, case.id): case,
+            },
+        )
+        self.scalar_values = [device_lease, device, device_lease]
+        self.deleted = []
+
+    def scalar(self, _statement):
+        return self.scalar_values.pop(0)
+
+    def delete(self, value):
+        self.deleted.append(value)
+
+
+def test_reconcile_abandoned_android_case_releases_its_device_lease():
+    now = datetime(2026, 9, 10, 10, 0, tzinfo=timezone.utc)
+    run = TestRun(id=21, case_id=8, triggered_by=1, status=CaseRunStatus.running, result_summary={})
+    case = TestCase(
+        id=8,
+        name="Android recovery",
+        case_code="ANDROID-RECOVERY",
+        summary="Android recovery",
+        case_type=CaseType.android,
+        module_id=1,
+        creator_id=1,
+        config={"device_serial": "device-1"},
+    )
+    device = Device(id=5, serial="device-1", status=DeviceStatus.busy)
+    device_lease = DeviceLease(
+        id=13,
+        device_id=5,
+        lease_token="device-token",
+        owner_label="case-run:21",
+        acquired_at=now - timedelta(minutes=3),
+        heartbeat_at=now - timedelta(minutes=3),
+        expires_at=now + timedelta(minutes=12),
+    )
+    execution_lease = ExecutionRunLease(
+        task_type="case",
+        run_id=21,
+        lease_token="execution-token",
+        worker_id="dead-android-worker",
+        status="active",
+        acquired_at=now - timedelta(minutes=3),
+        heartbeat_at=now - timedelta(minutes=2),
+        expires_at=now - timedelta(minutes=1),
+    )
+    session = _AndroidRecoverySession(execution_lease, run, case, device, device_lease)
+
+    counts = reconcile_expired_execution_run_leases(session, now=now)
+
+    assert counts["case"] == 1
+    assert run.status == CaseRunStatus.error
+    assert run.result_summary["execution_recovery"] == {
+        "reason": "worker_heartbeat_expired",
+        "device_lease_released": True,
+    }
+    assert session.deleted == [device_lease]
+    assert device.status == DeviceStatus.online
 
 
 def test_guard_caps_heartbeat_interval_below_the_expiry_window(monkeypatch):

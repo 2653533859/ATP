@@ -170,6 +170,14 @@ def _recover_run(session: Session, task_type: str, run_id: int, *, force: bool =
             return False
         case_run.status = RunStatus.error
         case_run.error_message = _LOST_WORKER_ERROR
+        if _release_android_case_device_lease(session, case_run):
+            case_run.result_summary = {
+                **(case_run.result_summary or {}),
+                "execution_recovery": {
+                    "reason": "worker_heartbeat_expired",
+                    "device_lease_released": True,
+                },
+            }
     elif task_type == "suite":
         from app.models.suite import SuiteRun, SuiteRunStatus
 
@@ -216,6 +224,39 @@ def _recover_run(session: Session, task_type: str, run_id: int, *, force: bool =
         )
         performance_run.finished_at = now
         performance_run.error_message = _LOST_WORKER_ERROR
+    return True
+
+
+def _release_android_case_device_lease(session: Session, case_run: Any) -> bool:
+    """Release the exact Android device lease owned by an abandoned case run."""
+    from app.models.case import CaseType, TestCase
+    from app.models.device import Device, DeviceLease, DeviceStatus
+
+    case = session.get(TestCase, case_run.case_id)
+    if case is None or case.case_type != CaseType.android:
+        return False
+    owner_label = f"case-run:{case_run.id}"
+    lease_hint = session.scalar(select(DeviceLease).where(DeviceLease.owner_label == owner_label))
+    if lease_hint is None:
+        return False
+
+    # Match the acquisition path's Device -> DeviceLease lock order. The second
+    # lease lookup also protects against a concurrent explicit release after the hint.
+    device = session.scalar(select(Device).where(Device.id == lease_hint.device_id).with_for_update())
+    if device is None:
+        return False
+    device_lease = session.scalar(
+        select(DeviceLease).where(
+            DeviceLease.device_id == device.id,
+            DeviceLease.owner_label == owner_label,
+        )
+    )
+    if device_lease is None:
+        return False
+
+    session.delete(device_lease)
+    if device.status == DeviceStatus.busy:
+        device.status = DeviceStatus.online
     return True
 
 
