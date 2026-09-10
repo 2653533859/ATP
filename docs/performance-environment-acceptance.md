@@ -1,5 +1,7 @@
 # 性能 Worker 环境验收 Runbook
 
+> 2026-09-10 C1.2：当前 `atp-single-node` 已完成 k6 目标 allowlist 预检、短压、Threshold、基线比较、JSON/CSV/raw summary、资源采样、运行中取消和对象清理。实测发现并修复普通上传脚本未应用平台 options 的缺口，修复后通过原生临时 `--config` 加载。收尾 30 秒 4 次采样均为 6/6 Pod Ready、零重启、三指标端点覆盖且 0 告警。该结果只关闭单节点生命周期联调，不替代 Prometheus Operator/ServiceMonitor、长期 SLO、独立 MinIO 或多节点 P4 证据；详见 [`evidence/c1-performance-lifecycle-2026-09-10.json`](evidence/c1-performance-lifecycle-2026-09-10.json)。
+
 > 2026-08-24 N6.10：q19 性能预检和一次真实短压已通过：`worker-a` online，k6/Locust/gRPC/JMeter ready，1 VU/5 次迭代 k6 运行成功并产生 `performance-worker` 采样；Prometheus ready，Backend/通用 Worker/性能 Worker targets 均为 up。脱敏证据见 [`q19-performance-worker-smoke-2026-08-24.json`](evidence/q19-performance-worker-smoke-2026-08-24.json)。Android Worker 当前仅心跳在线、设备 offline，通知和外部通知/缺陷平台仍需单独验收。
 
 ## 2026-08-25 Kubernetes 多节点与 Worker 资源预检

@@ -30,7 +30,7 @@ Locust 暂作为后续备选，适合需要 Python 编排、复杂用户行为�
 1. API 创建 `PerformanceRun`，状态为 `pending`。
 2. API 将 `run_performance_test` 投递到 `performance` 队列。
 3. performance worker 从对象存储下载 k6 脚本到临时目录。
-4. worker 执行 `k6 run --summary-export result.json script.js`。
+4. worker 将平台允许的 k6 options 写入运行临时目录，并执行 `k6 run --summary-export result.json --config options.json script.js`；无平台 options 时省略 `--config`。
 5. worker 解析 `result.json`，上传原始结果产物，并写入摘要指标。
 
 生产环境建议将 `performance` worker 与功能测试 worker 分开部署：
@@ -368,7 +368,7 @@ API/worker 解析以 `result.json` 的 `metrics.http_req_duration`、`metrics.ht
 - Q16-10：支持分布式压测节点、节点级 VU/并发约束、应用层目标 allowlist 和可选 Kubernetes Egress NetworkPolicy；运行与定时任务可绑定节点队列，前端展示节点状态和资源容量。
 - 已接入 Locust/gRPC 执行器，并完成数据集参数化和复杂用户行为编排；后续重点是 Linux/Kubernetes 目标服务联调与真实压测基线。
 
-本次开发已落地 Phase 1，并完成 Q16-06/Q16-07/Q16-08/Q16-09：保持现有 PerformanceTest / PerformanceRun 数据模型和 k6 队列契约兼容；新增 performanceScriptGenerator 与可视化创建模式；触发 run 时校验环境归属，敏感环境变量不写入 options_snapshot，由 performance worker 在执行时解密注入；run_k6_script 通过 ATP_K6_OPTIONS 将可视化压力配置传给生成脚本。Q16-06 增加了 `cancelling` 状态、Redis 取消标记、k6 子进程安全终止、前端 2 秒轮询和进度估算；Q16-07 增加了安全 JSON/CSV 报告导出、脱敏快照、阈值门禁汇总和可读状态行；Q16-08 增加了持久化基线、核心指标回归对比、按时区的 Cron 调度、重叠运行保护、API Key CI 触发和门禁轮询脚本；Q16-09 增加了 worker 资源指标采样、按 run 关联的持久化样本、Prometheus gauge、资源查询 API 和详情时间线。
+本次开发已落地 Phase 1，并完成 Q16-06/Q16-07/Q16-08/Q16-09：保持现有 PerformanceTest / PerformanceRun 数据模型和 k6 队列契约兼容；新增 performanceScriptGenerator 与可视化创建模式；触发 run 时校验环境归属，敏感环境变量不写入 options_snapshot，由 performance worker 在执行时解密注入；`run_k6_script` 将 allowlist 内的压力配置写入临时 k6 config，使普通上传脚本和生成脚本都实际应用 VUs、duration、stages、scenarios 与 thresholds，同时保留 `ATP_K6_OPTIONS` 供生成脚本和旧契约使用。Q16-06 增加了 `cancelling` 状态、Redis 取消标记、k6 子进程安全终止、前端 2 秒轮询和进度估算；Q16-07 增加了安全 JSON/CSV 报告导出、脱敏快照、阈值门禁汇总和可读状态行；Q16-08 增加了持久化基线、核心指标回归对比、按时区的 Cron 调度、重叠运行保护、API Key CI 触发和门禁轮询脚本；Q16-09 增加了 worker 资源指标采样、按 run 关联的持久化样本、Prometheus gauge、资源查询 API 和详情时间线。
 
 ## 下一步计划
 
@@ -387,6 +387,7 @@ Q16-10/Q16-11 已完成：新增节点注册/心跳、节点队列路由、VU/�
 - [x] Q16-07 结果导出、报告摘要和阈值门禁可读性：新增 JSON/CSV 导出接口，导出复用脱敏运行快照，详情抽屉展示通过/失败门禁计数。
 - [x] Q16-08 基线对比、定时执行和 CI 阈值门禁：成功 run 可设置为性能基线，详情展示 RPS/P95/P99/错误率方向；定义级 Cron 使用配置时区、Environment 与 options；`scripts/performance-gate.py` 通过 `WEBHOOK_API_KEY` 触发压测并以退出码承接门禁结果，支持 `--require-baseline` 和 `--fail-on-baseline-regression`；运行记录清理同时覆盖终态 PerformanceRun 和分片报告对象。
 - [x] Q16-10 分布式压测节点：节点注册/心跳、队列绑定、VU/并发/目标出口约束、性能中心节点状态与节点选择、Helm NetworkPolicy 配置及回归测试。
+- [x] C1.2 单节点生命周期复验：目标 allowlist 预检、真实短压、Threshold、基线比较、JSON/CSV/raw summary、资源样本、运行中取消和精确对象清理全部通过；脱敏证据见 [`evidence/c1-performance-lifecycle-2026-09-10.json`](evidence/c1-performance-lifecycle-2026-09-10.json)。
 
 ## 2026-08-07 调度与执行器修复
 

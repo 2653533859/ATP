@@ -1,0 +1,133 @@
+{
+  "evidence_type": "c1_performance_lifecycle",
+  "generated_at": "2026-09-10T17:56:00+08:00",
+  "status": "passed",
+  "scope": {
+    "source_revision": "76115f349677eeaeafdd5938dbba8b1444e59960",
+    "cluster_context": "atp-single-node",
+    "namespace": "atp-single-node",
+    "release": "atp-single-node",
+    "helm_revision": 40,
+    "performance_node": "atp-single-node",
+    "queue": "performance.atp-single-node"
+  },
+  "deployment": {
+    "performance_components_revision": "76115f349677eeaeafdd5938dbba8b1444e59960",
+    "backend_revision": "ff14383c",
+    "migration_head": "20260909_0072",
+    "backend_health": "ok",
+    "pods_ready": 6,
+    "pods_total": 6,
+    "pod_restarts": 0
+  },
+  "guard_preflight": {
+    "status": "passed",
+    "result": "target rejected before traffic when absent from the node egress allowlist"
+  },
+  "defect_reproduction": {
+    "status": "confirmed",
+    "run_id": 37,
+    "run_status": "success",
+    "configured_thresholds": 2,
+    "gate_status": "not_configured",
+    "csv_included_thresholds": false,
+    "finding": "plain uploaded k6 scripts ignored platform options that were available only through ATP_K6_OPTIONS"
+  },
+  "fix": {
+    "implementation": "write allowlisted k6 options to a temporary JSON config and invoke k6 with --config while retaining ATP_K6_OPTIONS for generated scripts and compatibility",
+    "rejected_iteration": {
+      "run_id": 38,
+      "result": "failed safely",
+      "reason": "the installed k6 rejected the proposed --threshold CLI flag"
+    },
+    "review_result": "the CLI flag translation was replaced with the native k6 config contract and covered by regression tests"
+  },
+  "post_fix_short_run": {
+    "run_id": 39,
+    "status": "success",
+    "iterations": 974,
+    "error_rate": 0.0,
+    "p95_duration_ms": 2.63733395,
+    "thresholds_total": 2,
+    "thresholds_passed": 2,
+    "gate_status": "passed",
+    "baseline_run_id": 37,
+    "baseline_metrics_compared": 4,
+    "baseline_regressions": 0,
+    "resource_metric_samples": 1,
+    "resource_metric_source": "performance-worker",
+    "json_export": {
+      "status_code": 200,
+      "bytes": 1978
+    },
+    "csv_export": {
+      "status_code": 200,
+      "bytes": 484,
+      "included_thresholds": true
+    },
+    "raw_summary": {
+      "object_name": "performance/runs/39/summary.json",
+      "bytes": 3562,
+      "metrics": 17
+    }
+  },
+  "cancellation": {
+    "run_id": 40,
+    "status": "cancelled",
+    "cancel_after_seconds": 2,
+    "resource_metric_samples": 1,
+    "raw_result_created": false,
+    "remaining_executor_processes": 0,
+    "remaining_temporary_directories": 0
+  },
+  "cleanup": {
+    "test_options_restored": {
+      "vus": 1,
+      "duration": "2s",
+      "thresholds_configured": false,
+      "baseline_run_id": null
+    },
+    "node_egress_allowlist_restored": [
+      "http-target.example.test"
+    ],
+    "acceptance_runs_deleted": 5,
+    "acceptance_run_api_404": 5,
+    "objects_deleted": 3,
+    "objects_remaining": 0,
+    "performance_queue_depth": 0,
+    "node_queue_depth": 0
+  },
+  "bounded_stability": {
+    "duration_seconds": 30,
+    "interval_seconds": 10,
+    "sample_count": 4,
+    "alert_count": 0,
+    "nodes_ready_every_sample": 1,
+    "pods_ready_every_sample": "6/6",
+    "pod_restarts": 0,
+    "metrics_components_covered_every_sample": [
+      "backend",
+      "worker",
+      "performance-worker"
+    ]
+  },
+  "verification": {
+    "focused_tests": "22 passed",
+    "backend_non_integration": "2565 passed, 1 skipped",
+    "ruff": "passed",
+    "format_check": "passed",
+    "mypy": "passed",
+    "pre_commit": "passed"
+  },
+  "boundary": {
+    "c1_2": "closed for the current single-node integration scope",
+    "p4": "blocked",
+    "reasons": [
+      "single Kubernetes node",
+      "Prometheus Operator and ServiceMonitor target verification are unavailable",
+      "no long-term SLO history",
+      "MinIO source and target are not independent"
+    ]
+  },
+  "secrets_included": false
+}
