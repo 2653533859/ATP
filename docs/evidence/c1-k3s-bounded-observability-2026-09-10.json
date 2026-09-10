@@ -1,0 +1,647 @@
+{
+  "evidence_type": "k3s_bounded_observability",
+  "generated_at": "2026-09-10T04:45:32.923776+00:00",
+  "status": "passed",
+  "scope": {
+    "source_revision": "67ef34f4ef9be4e90c45dd47ae3d2c201c196e52",
+    "context": "atp-single-node",
+    "namespace": "atp-single-node",
+    "selector": "app.kubernetes.io/instance=atp-single-node",
+    "duration_seconds": 40.0,
+    "interval_seconds": 10.0
+  },
+  "summary": {
+    "sample_count": 5,
+    "alert_count": 0,
+    "metrics_components_covered_every_sample": [
+      "backend",
+      "performance-worker",
+      "worker"
+    ],
+    "missing_required_components": []
+  },
+  "samples": [
+    {
+      "sampled_at": "2026-09-10T04:44:53.271733+00:00",
+      "nodes": [
+        {
+          "name": "chinami-762p0p5",
+          "ready": true,
+          "pressure": [],
+          "usage": {
+            "cpu_millicores": 376,
+            "memory_bytes": 21001584640
+          }
+        }
+      ],
+      "pods": [
+        {
+          "name": "atp-single-node-atp-backend-6878676489-l2h8r",
+          "component": "backend",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 2,
+            "memory_bytes": 210296832
+          }
+        },
+        {
+          "name": "atp-single-node-atp-beat-978c6dfbd-lqrd8",
+          "component": "beat",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 0,
+            "memory_bytes": 110297088
+          }
+        },
+        {
+          "name": "atp-single-node-atp-flower-6b889f5fc6-x5h2w",
+          "component": "flower",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 3,
+            "memory_bytes": 120381440
+          }
+        },
+        {
+          "name": "atp-single-node-atp-performance-worker-7cd45c87b6-zz2xr",
+          "component": "performance-worker",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 14,
+            "memory_bytes": 151269376
+          }
+        },
+        {
+          "name": "atp-single-node-atp-web-recorder-57ffb76d65-82rd4",
+          "component": "web-recorder",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 4,
+            "memory_bytes": 209285120
+          }
+        },
+        {
+          "name": "atp-single-node-atp-worker-6b85b96c88-62zh7",
+          "component": "worker",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 2,
+            "memory_bytes": 118616064
+          }
+        }
+      ],
+      "metrics": {
+        "backend": {
+          "sample_count": 146,
+          "metric_family_count": 32,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        },
+        "worker": {
+          "sample_count": 31,
+          "metric_family_count": 16,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        },
+        "performance-worker": {
+          "sample_count": 31,
+          "metric_family_count": 16,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        }
+      },
+      "alerts": []
+    },
+    {
+      "sampled_at": "2026-09-10T04:45:03.643592+00:00",
+      "nodes": [
+        {
+          "name": "chinami-762p0p5",
+          "ready": true,
+          "pressure": [],
+          "usage": {
+            "cpu_millicores": 398,
+            "memory_bytes": 21018525696
+          }
+        }
+      ],
+      "pods": [
+        {
+          "name": "atp-single-node-atp-backend-6878676489-l2h8r",
+          "component": "backend",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 2,
+            "memory_bytes": 210296832
+          }
+        },
+        {
+          "name": "atp-single-node-atp-beat-978c6dfbd-lqrd8",
+          "component": "beat",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 0,
+            "memory_bytes": 110297088
+          }
+        },
+        {
+          "name": "atp-single-node-atp-flower-6b889f5fc6-x5h2w",
+          "component": "flower",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 3,
+            "memory_bytes": 120602624
+          }
+        },
+        {
+          "name": "atp-single-node-atp-performance-worker-7cd45c87b6-zz2xr",
+          "component": "performance-worker",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 4,
+            "memory_bytes": 151552000
+          }
+        },
+        {
+          "name": "atp-single-node-atp-web-recorder-57ffb76d65-82rd4",
+          "component": "web-recorder",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 2,
+            "memory_bytes": 209436672
+          }
+        },
+        {
+          "name": "atp-single-node-atp-worker-6b85b96c88-62zh7",
+          "component": "worker",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 2,
+            "memory_bytes": 119119872
+          }
+        }
+      ],
+      "metrics": {
+        "backend": {
+          "sample_count": 146,
+          "metric_family_count": 32,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        },
+        "worker": {
+          "sample_count": 31,
+          "metric_family_count": 16,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        },
+        "performance-worker": {
+          "sample_count": 31,
+          "metric_family_count": 16,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        }
+      },
+      "alerts": []
+    },
+    {
+      "sampled_at": "2026-09-10T04:45:14.002630+00:00",
+      "nodes": [
+        {
+          "name": "chinami-762p0p5",
+          "ready": true,
+          "pressure": [],
+          "usage": {
+            "cpu_millicores": 398,
+            "memory_bytes": 21018525696
+          }
+        }
+      ],
+      "pods": [
+        {
+          "name": "atp-single-node-atp-backend-6878676489-l2h8r",
+          "component": "backend",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 2,
+            "memory_bytes": 210296832
+          }
+        },
+        {
+          "name": "atp-single-node-atp-beat-978c6dfbd-lqrd8",
+          "component": "beat",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 0,
+            "memory_bytes": 110297088
+          }
+        },
+        {
+          "name": "atp-single-node-atp-flower-6b889f5fc6-x5h2w",
+          "component": "flower",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 3,
+            "memory_bytes": 120602624
+          }
+        },
+        {
+          "name": "atp-single-node-atp-performance-worker-7cd45c87b6-zz2xr",
+          "component": "performance-worker",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 4,
+            "memory_bytes": 151552000
+          }
+        },
+        {
+          "name": "atp-single-node-atp-web-recorder-57ffb76d65-82rd4",
+          "component": "web-recorder",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 2,
+            "memory_bytes": 209436672
+          }
+        },
+        {
+          "name": "atp-single-node-atp-worker-6b85b96c88-62zh7",
+          "component": "worker",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 2,
+            "memory_bytes": 119119872
+          }
+        }
+      ],
+      "metrics": {
+        "backend": {
+          "sample_count": 146,
+          "metric_family_count": 32,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        },
+        "worker": {
+          "sample_count": 31,
+          "metric_family_count": 16,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        },
+        "performance-worker": {
+          "sample_count": 31,
+          "metric_family_count": 16,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        }
+      },
+      "alerts": []
+    },
+    {
+      "sampled_at": "2026-09-10T04:45:24.361070+00:00",
+      "nodes": [
+        {
+          "name": "chinami-762p0p5",
+          "ready": true,
+          "pressure": [],
+          "usage": {
+            "cpu_millicores": 436,
+            "memory_bytes": 21014884352
+          }
+        }
+      ],
+      "pods": [
+        {
+          "name": "atp-single-node-atp-backend-6878676489-l2h8r",
+          "component": "backend",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 2,
+            "memory_bytes": 211079168
+          }
+        },
+        {
+          "name": "atp-single-node-atp-beat-978c6dfbd-lqrd8",
+          "component": "beat",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 0,
+            "memory_bytes": 110297088
+          }
+        },
+        {
+          "name": "atp-single-node-atp-flower-6b889f5fc6-x5h2w",
+          "component": "flower",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 4,
+            "memory_bytes": 120782848
+          }
+        },
+        {
+          "name": "atp-single-node-atp-performance-worker-7cd45c87b6-zz2xr",
+          "component": "performance-worker",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 4,
+            "memory_bytes": 151543808
+          }
+        },
+        {
+          "name": "atp-single-node-atp-web-recorder-57ffb76d65-82rd4",
+          "component": "web-recorder",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 2,
+            "memory_bytes": 209240064
+          }
+        },
+        {
+          "name": "atp-single-node-atp-worker-6b85b96c88-62zh7",
+          "component": "worker",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 2,
+            "memory_bytes": 118616064
+          }
+        }
+      ],
+      "metrics": {
+        "backend": {
+          "sample_count": 146,
+          "metric_family_count": 32,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        },
+        "worker": {
+          "sample_count": 31,
+          "metric_family_count": 16,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        },
+        "performance-worker": {
+          "sample_count": 31,
+          "metric_family_count": 16,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        }
+      },
+      "alerts": []
+    },
+    {
+      "sampled_at": "2026-09-10T04:45:32.923661+00:00",
+      "nodes": [
+        {
+          "name": "chinami-762p0p5",
+          "ready": true,
+          "pressure": [],
+          "usage": {
+            "cpu_millicores": 399,
+            "memory_bytes": 21024043008
+          }
+        }
+      ],
+      "pods": [
+        {
+          "name": "atp-single-node-atp-backend-6878676489-l2h8r",
+          "component": "backend",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 2,
+            "memory_bytes": 210825216
+          }
+        },
+        {
+          "name": "atp-single-node-atp-beat-978c6dfbd-lqrd8",
+          "component": "beat",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 1,
+            "memory_bytes": 110301184
+          }
+        },
+        {
+          "name": "atp-single-node-atp-flower-6b889f5fc6-x5h2w",
+          "component": "flower",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 4,
+            "memory_bytes": 120782848
+          }
+        },
+        {
+          "name": "atp-single-node-atp-performance-worker-7cd45c87b6-zz2xr",
+          "component": "performance-worker",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 12,
+            "memory_bytes": 151797760
+          }
+        },
+        {
+          "name": "atp-single-node-atp-web-recorder-57ffb76d65-82rd4",
+          "component": "web-recorder",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 3,
+            "memory_bytes": 209506304
+          }
+        },
+        {
+          "name": "atp-single-node-atp-worker-6b85b96c88-62zh7",
+          "component": "worker",
+          "phase": "Running",
+          "ready": true,
+          "restarts": 0,
+          "usage": {
+            "cpu_millicores": 4,
+            "memory_bytes": 118091776
+          }
+        }
+      ],
+      "metrics": {
+        "backend": {
+          "sample_count": 146,
+          "metric_family_count": 32,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        },
+        "worker": {
+          "sample_count": 31,
+          "metric_family_count": 16,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        },
+        "performance-worker": {
+          "sample_count": 31,
+          "metric_family_count": 16,
+          "atp_metric_families": [
+            "atp_adb_ensure_reachable_duration_seconds_bucket",
+            "atp_adb_ensure_reachable_duration_seconds_count",
+            "atp_adb_ensure_reachable_duration_seconds_created",
+            "atp_adb_ensure_reachable_duration_seconds_sum",
+            "atp_slow_queries_created",
+            "atp_slow_queries_total"
+          ],
+          "process_metric_present": true
+        }
+      },
+      "alerts": []
+    }
+  ],
+  "boundary": "Bounded single-node sampling is integration evidence, not release-grade Prometheus history or P4 closure.",
+  "secrets_included": false
+}

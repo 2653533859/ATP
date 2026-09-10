@@ -142,10 +142,10 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 
 ### C1：单节点性能与可观测性 `[~]`
 
-- 单节点 K3s 上完成 Backend、Worker、Beat、Flower 和 Performance Worker 稳定运行。
-- 部署发布级 Prometheus 或提供等价的可持续采样方案，覆盖节点、Worker 和目标服务。
-- 完成短压、取消、Threshold、基线比较、告警、报告和对象清理。
-- PostgreSQL、Redis 和 MinIO 可以复用 Linux 主机服务，但必须验证连接、权限、备份和恢复边界。
+- [x] `C1.1` 单节点 K3s 上稳定运行 Backend、Worker、Beat、Flower、Web Recorder 和 Performance Worker；提供可重复运行的有界采样器，覆盖节点/Pod 资源、Ready/重启/Pressure 与 Backend、普通 Worker、Performance Worker Prometheus 指标，并对缺失样本或端点失败收口。
+- [ ] `C1.2` 完成短压、取消、Threshold、基线比较、告警、报告和对象清理。
+- [ ] `C1.3` 验证 PostgreSQL、Redis 和 MinIO 的连接、权限、备份与恢复边界，并整理 C3 发布收口输入。
+- 发布级 Prometheus/Operator 与长期 SLO 历史仍是 P4/C3 独立门禁；C1.1 的单节点有界采样不能替代该结论。
 
 ### C2：当前范围外能力 `[OUT]`
 
@@ -182,6 +182,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 6. 经用户要求后使用 Conventional Commit 提交并推送。
 
 ## 9. 执行记录
+
+- 2026-09-10：完成 C1.1。新增 `scripts/k3s-observability-sampler.py`，仅通过 `kubectl` 和 Kubernetes API proxy 采集节点及 Pod 资源、Ready/重启/Pressure、Backend `:8000`、普通 Worker `:9091` 和 Performance Worker `:9092` 的 Prometheus 指标摘要；指标原文不落盘，报告不接受凭据参数，任一必需组件、Metrics API 条目或指标端点缺失都会记录告警并返回非零。自审修复 CPU `m` 单位被取整为 0、`kubectl` 超时未收口和资源样本不完整未报警的问题。相关脚本回归 `46 passed`，完整后端非集成回归 `2564 passed / 1 skipped`，Ruff、格式、mypy、提交钩子和差异检查通过。以精确提交 `67ef34f4` 在 `atp-single-node` 运行 40 秒、间隔 10 秒，共 5 个采样点；每次均为 1 节点 Ready、6/6 Pod Ready、零重启/Pressure，三个指标组件持续覆盖且 0 告警。该结果关闭 C1.1 单节点有界观测入口，不关闭发布级 Prometheus/P4；开发游标进入 C1.2 短压与生命周期闭环。
 
 - 2026-09-10：完成 B4.3 并收口 B4 单设备范围。run 107 在首步通过后将 `172.16.102.15:5555` 断开 22.4 秒，后续设备读取明确失败，重连和 Worker 扫描恢复；首次 Worker 中断 run 108 在执行租约过期后正确收敛为 `error`，但发现设备租约 `case-run:108` 仍使设备保持 `busy` 约 15 分钟。提交 `ff14383c` 在失联恢复时按运行 owner label 精确查找并释放 Android 设备租约，保持 Device → DeviceLease 锁顺序，并在 `result_summary.execution_recovery` 记录恢复结果。修复部署到 Helm revision 35 后，run 109 在首步完成时强制停止 Worker，新 Worker 9.6 秒恢复，运行在最后心跳后 142 秒由 Maintenance 收敛为 `error`，设备同步恢复 `online` 且租约数为 0；run 110 随即复用同一设备并完成 4/4 步骤、4 张截图、device-info、logcat 和录像。受影响回归 `82 passed`，完整后端在隔离 TEMP 下 `2560 passed / 1 skipped`，Ruff、格式、mypy、提交钩子和差异检查通过；默认 TEMP 首次完整回归的 54 个 setup error 均为既有 Windows `WinError 5`，隔离目录复跑无测试失败。50 秒六次采样均为 Worker 存活、6/6 Pod Ready、零重启，`android`、`mobile_special`、`maintenance` 队列均为 0。开发游标进入 C1 单节点性能与可观测性；H9 可按产品优先级并行启动。
 

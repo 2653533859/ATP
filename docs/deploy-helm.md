@@ -216,6 +216,25 @@ PostgreSQL、Redis、MinIO 端口仅绑定宿主机回环地址，因此单节�
 Secret 的三个 Host/Port 指向宿主机回环端点；Secret 值未写入仓库。端点修改仅用于当前开发联调，不适用于普通
 多节点部署；临时 Pod 到三项服务的 TCP 连通性已通过并清理。
 
+单节点没有 Prometheus Operator 时，可以使用仓库内有界采样器持续留存开发/联调证据：
+
+```bash
+python3 scripts/k3s-observability-sampler.py \
+  --source-revision "$(git rev-parse HEAD)" \
+  --context atp-single-node \
+  --namespace atp-single-node \
+  --selector app.kubernetes.io/instance=atp-single-node \
+  --duration-seconds 60 \
+  --interval-seconds 10 \
+  --output docs/evidence/c1-k3s-bounded-observability.json
+```
+
+脚本通过 Kubernetes Metrics API 采集节点和 Pod CPU/内存，通过 API proxy 读取 Backend、普通 Worker 和
+Performance Worker 的 `/metrics`，只保存指标族摘要，不保存指标原文。节点/Pod 不 Ready、发生重启或 Pressure、
+资源样本缺失、必需组件缺失、指标端点不可读都会生成告警并以非零状态退出。它适合可重复的单节点有界观察，不能
+替代 Prometheus TSDB、ServiceMonitor target、告警规则执行或长期 SLO 历史。2026-09-10 当前环境实测证据见
+[`evidence/c1-k3s-bounded-observability-2026-09-10.json`](evidence/c1-k3s-bounded-observability-2026-09-10.json)。
+
 由于 `hostNetwork` Pod 会直接占用宿主机端口或 X11 抽象套接字，Backend、Worker、Flower、Performance Worker 和 Web
 Recorder Deployment 使用 `RollingUpdate(maxSurge=0,maxUnavailable=100%)`，确保单副本更新时先释放旧资源再创建新
 Pod；否则默认 `maxSurge` 会让新 Pod 因端口或 display 冲突阻塞原子升级。Beat 固定使用 `Recreate`。Flower 内存 limit
