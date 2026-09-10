@@ -26,6 +26,29 @@ default. Object storage backup commands must exclude `pg-backups/*` when the
 target is intended to hold only application objects; database backups remain
 validated through the PostgreSQL restore flow below.
 
+## Current single-node acceptance boundary
+
+The 2026-09-10 C1.3 drill enabled scheduled PostgreSQL backup on
+`atp-single-node`, executed the real Celery maintenance task, and restored its
+MinIO object into an isolated database. It also restored an RDB snapshot in an
+isolated Redis container and verified a same-endpoint MinIO object round trip.
+See [`c1-data-services-recovery-2026-09-10.json`](evidence/c1-data-services-recovery-2026-09-10.json).
+
+That drill identified release blockers that connectivity cannot close:
+
+- The application PostgreSQL role must not be a superuser or retain
+  `CREATEDB`/`CREATEROLE` in production. Use a separate migration owner and a
+  runtime role limited to the application schema and required DML/sequences.
+- The authenticated Redis ACL user must be limited to ATP command categories,
+  key prefixes and Pub/Sub channels. RDB-only persistence has a non-zero RPO;
+  Redis is cache/control-plane recovery, not the authoritative test record.
+- The MinIO credentials injected through the legacy `MINIO_ROOT_*` setting
+  names should belong to a bucket-scoped application principal. A dump stored
+  in MinIO on the same host protects against logical database loss only; it
+  does not protect against host or primary-object-store loss.
+- MinIO versioning, a reviewed lifecycle policy and an independent backup
+  endpoint remain required release decisions. A same-endpoint copy is not DR.
+
 ## Lifecycle policy boundary
 
 Bucket lifecycle is separate from ATP's database-aware `StoragePolicy` cleanup.

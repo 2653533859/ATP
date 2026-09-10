@@ -52,7 +52,9 @@ config:
   APP_ENV: development
   APP_AUTO_CREATE_TABLES: "false"
   CELERY_QUEUES: default,ios,ai,maintenance
-  DB_BACKUP_ENABLED: "false"
+  # C1.3 已验证真实 maintenance 队列备份和隔离恢复；保持启用以免后续升级回退。
+  # 备份仍写入同机 MinIO，不能替代独立主机上的对象备份或灾备。
+  DB_BACKUP_ENABLED: "true"
   PERFORMANCE_EXECUTORS: k6,locust,grpc,jmeter
   PERFORMANCE_TARGET_ALLOWLIST: http-target.example.test
   PERFORMANCE_MAX_VUS: "10"

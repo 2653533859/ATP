@@ -54,3 +54,23 @@ ticket links when available.
 | Restored object key checked | to be filled during live drill |
 | Rollback needed | no repository changes require rollback |
 | Notes | Static tests verify database script references, MinIO backup/restore commands, drill checklist, and this record template. |
+
+## 2026-09-10 Single-node C1.3 Drill
+
+| Field | Value |
+|-------|-------|
+| Drill date | 2026-09-10 |
+| Environment | `atp-single-node` integration; host-local external data services |
+| Operator | Codex |
+| PostgreSQL backup object | `pg-backups/daily/atp-20260910-103140.sql.gz` |
+| PostgreSQL backup size | 65,254 bytes |
+| PostgreSQL restore target | isolated temporary database, removed after verification |
+| PostgreSQL restore check | 65 public tables, 4 projects, 4 users and `20260909_0072` matched source |
+| Redis backup | 34,165,810-byte RDB snapshot; SHA-256 recorded in linked evidence |
+| Redis restore check | isolated Redis container returned the exact probe; source probe and temporary snapshot/container removed |
+| MinIO object restore | same-endpoint probe source/restore SHA-256 matched; temporary prefix empty |
+| Migration result | restored database contained `20260909_0072`; live Backend remained at head |
+| Health check result | Helm revision 41 deployed, Backend `/health` returned `ok`, 6/6 Pods Ready and zero restarts |
+| Smoke test result | real maintenance queue backup completed; default/maintenance/performance/node queues returned to zero |
+| Rollback needed | no |
+| Notes | [`evidence/c1-data-services-recovery-2026-09-10.json`](evidence/c1-data-services-recovery-2026-09-10.json). C1.3 validation is complete, but over-privileged PostgreSQL/Redis/MinIO credentials, RDB-only Redis recovery and same-host MinIO keep C3/P4 blocked. |

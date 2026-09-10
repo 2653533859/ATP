@@ -140,11 +140,11 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 
 ## 6. 单节点部署与发布收口
 
-### C1：单节点性能与可观测性 `[~]`
+### C1：单节点性能与可观测性 `[x]`
 
 - [x] `C1.1` 单节点 K3s 上稳定运行 Backend、Worker、Beat、Flower、Web Recorder 和 Performance Worker；提供可重复运行的有界采样器，覆盖节点/Pod 资源、Ready/重启/Pressure 与 Backend、普通 Worker、Performance Worker Prometheus 指标，并对缺失样本或端点失败收口。
 - [x] `C1.2` 完成短压、取消、Threshold、基线比较、告警、报告和对象清理；修复上传 k6 脚本未应用平台 options 的执行缺口，并完成真实单节点复验与现场恢复。
-- [ ] `C1.3` 验证 PostgreSQL、Redis 和 MinIO 的连接、权限、备份与恢复边界，并整理 C3 发布收口输入。
+- [x] `C1.3` 验证 PostgreSQL、Redis 和 MinIO 的连接、权限、备份与恢复边界，并将最小权限、独立对象备份和 Redis 恢复点缺口整理为 C3 发布收口输入。
 - 发布级 Prometheus/Operator 与长期 SLO 历史仍是 P4/C3 独立门禁；C1.1 的单节点有界采样不能替代该结论。
 
 ### C2：当前范围外能力 `[OUT]`
@@ -182,6 +182,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 6. 经用户要求后使用 Conventional Commit 提交并推送。
 
 ## 9. 执行记录
+
+- 2026-09-10：完成 C1.3 单节点数据服务边界验收。Helm revision 41 持久启用 `DB_BACKUP_ENABLED=true`，真实 `maintenance` 队列任务通过 Worker 内 `pg_dump` 和 MinIO SDK 生成 `pg-backups/daily/` 备份；65,254 字节对象经 SHA-256 校验并恢复到隔离临时数据库，源/恢复库均为 65 张 public 表、4 个项目、4 个用户和迁移头 `20260909_0072`，临时数据库为 0。Redis 使用 BGSAVE 生成 RDB，在隔离 Redis 容器中恢复探针成功；随后源 key 删除并重做干净快照，临时容器和 34,165,810 字节快照均删除。MinIO 同端点 source/restore 对象哈希一致且临时前缀归零。权限审计未粉饰为通过：PostgreSQL 运行角色当前为 superuser 且有 CREATEDB/CREATEROLE，Redis `default` 用户拥有 `+@all`、`~*`、`&*`，MinIO 使用 root 命名凭据且 bucket 无 policy、versioning 或独立备份端点；Redis 仅有 RDB、AOF 关闭。这些项连同发布级 Prometheus/长期 SLO 一并进入 C3 阻断清单。收尾 release 为 revision 41 deployed，6/6 Pod Ready、零重启，Backend 健康，四队列为 0；30 秒 4 次采样保持三指标端点覆盖且 0 告警。脱敏证据见 [`evidence/c1-data-services-recovery-2026-09-10.json`](evidence/c1-data-services-recovery-2026-09-10.json)。C1 单节点范围关闭，开发游标进入 C3 发布关闭。
 
 - 2026-09-10：完成 C1.2。真实短压预检先验证节点出口 allowlist 会在发流量前拒绝未授权目标；随后 run 37 复现普通上传 k6 脚本只收到 `ATP_K6_OPTIONS`、未实际启用 Threshold 的缺陷。初版 CLI 参数映射在 run 38 被目标 k6 以不支持 `--threshold` 明确拒绝，审查后改为生成临时原生 options JSON 并通过 `k6 run --config` 加载，同时保留环境变量兼容生成脚本。提交 `76115f34` 部署至 Helm revision 40 后，run 39 完成 974 次迭代、错误率 0、P95 2.637 ms，2/2 Threshold 和门禁通过，与基线比较 4 项指标、0 回归；JSON/CSV/raw summary、17 项 k6 指标和 Performance Worker 资源样本均已核对。run 40 在 2 秒后取消并收敛为 `cancelled`，无 k6 进程、临时目录、对象或队列残留。5 条验收运行及 3 个对象已精确删除，原测试 options、baseline 和节点 allowlist 已恢复。完整非集成后端回归 `2565 passed / 1 skipped`，相关回归 `22 passed`，Ruff、格式、mypy、提交钩子通过；收尾 30 秒 4 次采样均为 1 节点 Ready、6/6 Pod Ready、零重启、三指标端点持续覆盖且 0 告警。脱敏证据见 [`evidence/c1-performance-lifecycle-2026-09-10.json`](evidence/c1-performance-lifecycle-2026-09-10.json)。开发游标进入 C1.3；单节点、无 Prometheus Operator/长期 SLO 和非独立 MinIO 使 P4 继续阻塞。
 

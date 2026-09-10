@@ -287,6 +287,11 @@ Helm values 默认启用 `DB_BACKUP_ENABLED=true`，由 Celery beat 调度 Postg
 
 恢复演练与生产恢复步骤见 `docs/disaster-recovery.md`。恢复脚本 `scripts/restore-postgres.sh` 必须显式传入 `--i-know-this-overwrites`，避免误覆盖数据库。
 
+2026-09-10 的单节点 C1.3 已验证真实维护队列备份、隔离 PostgreSQL/Redis 恢复和 MinIO 同端点回读，
+但不勾选下方生产 checklist：目标运行账号仍需收紧 PostgreSQL superuser/CREATEDB/CREATEROLE、Redis
+全命令/全 key/channel 和 MinIO root 级权限；Redis 仅有 RDB，MinIO 也没有独立备份端点。详见
+[`evidence/c1-data-services-recovery-2026-09-10.json`](evidence/c1-data-services-recovery-2026-09-10.json)。
+
 ### MinIO 生命周期（显式启用）
 
 Chart 不负责安装 MinIO，只在 `storageLifecycle.enabled=true` 时通过 Helm hook

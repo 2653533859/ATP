@@ -1,0 +1,154 @@
+{
+  "evidence_type": "c1_data_services_recovery",
+  "generated_at": "2026-09-10T18:34:38+08:00",
+  "status": "completed_with_release_blockers",
+  "scope": {
+    "source_revision": "19d6c27dcfb50ba12184346e6ef2aa31185f94da",
+    "cluster_context": "atp-single-node",
+    "namespace": "atp-single-node",
+    "release": "atp-single-node",
+    "helm_revision": 41,
+    "topology": "single-node K3s using host-local external PostgreSQL, Redis and MinIO"
+  },
+  "configuration": {
+    "scheduled_postgres_backup_before": false,
+    "scheduled_postgres_backup_after": true,
+    "backup_prefix": "pg-backups",
+    "daily_retention": 7,
+    "weekly_retention": 4,
+    "credentials_in_helm_secret": true,
+    "secret_values_recorded": false
+  },
+  "deployment_images": {
+    "backend": "registry.local/atp/backend:ff14383c",
+    "worker_components": "registry.local/atp/worker:76115f34"
+  },
+  "postgresql": {
+    "connection": "passed",
+    "server_version": "16.14",
+    "database": "atp_acceptance",
+    "migration_head": "20260909_0072",
+    "scheduled_task": {
+      "queue": "maintenance",
+      "status": "passed",
+      "object_name": "pg-backups/daily/atp-20260910-103140.sql.gz",
+      "size_bytes": 65254,
+      "sha256": "fb0e68d50a3fee6ae514fd246ace3ec14f83b5822109804e74d999798acf62ed",
+      "retention_deletions": 0
+    },
+    "restore": {
+      "status": "passed",
+      "target": "isolated temporary database",
+      "source_state": {
+        "public_tables": 65,
+        "projects": 4,
+        "users": 4,
+        "migration_head": "20260909_0072"
+      },
+      "restored_state": {
+        "public_tables": 65,
+        "projects": 4,
+        "users": 4,
+        "migration_head": "20260909_0072"
+      },
+      "states_match": true,
+      "temporary_databases_remaining": 0
+    },
+    "permission_boundary": {
+      "least_privilege": "failed",
+      "connect": true,
+      "public_schema_usage": true,
+      "public_schema_create": true,
+      "create_database": true,
+      "create_role": true,
+      "superuser": true,
+      "release_action": "split migration and runtime roles; remove superuser, CREATEROLE and CREATEDB from the runtime role"
+    }
+  },
+  "redis": {
+    "connection": "passed",
+    "ping": true,
+    "persistence": {
+      "aof_enabled": false,
+      "rdb_schedule": "3600 1 300 100 60 10000",
+      "last_bgsave_status": "ok"
+    },
+    "snapshot_restore": {
+      "status": "passed",
+      "snapshot_size_bytes": 34165810,
+      "snapshot_sha256": "4bad25c07246a3b22db1f9bcb4bbffc6a5e2cae690de478efa92cecff8fa251a",
+      "isolated_container_probe_match": true,
+      "source_probe_remaining": 0,
+      "temporary_container_remaining": false,
+      "temporary_snapshot_remaining": false
+    },
+    "permission_boundary": {
+      "least_privilege": "failed",
+      "acl_user": "default",
+      "commands": "+@all",
+      "keys": "~*",
+      "channels": "&*",
+      "release_action": "restrict the authenticated Redis ACL user to ATP commands, key prefixes and channels"
+    },
+    "recovery_boundary": "RDB is point-in-time recovery for cache and control state; AOF is disabled, so tasks and transient state after the latest snapshot can be lost"
+  },
+  "minio": {
+    "connection": "passed",
+    "bucket_exists": true,
+    "same_endpoint_round_trip": {
+      "status": "passed",
+      "sha256": "20232d22180f92786ea3a54f8e98d427ea1510d27006a8e1c9cf40c190704af5",
+      "hashes_match": true,
+      "temporary_objects_remaining": 0
+    },
+    "protection": {
+      "versioning": "Off",
+      "lifecycle_rules": 0,
+      "bucket_policy_present": false,
+      "independent_backup_endpoint": false
+    },
+    "permission_boundary": {
+      "least_privilege": "failed",
+      "credential_type": "root-named application credential",
+      "release_action": "use a bucket-scoped application principal and a separate backup target on another host"
+    },
+    "recovery_boundary": "same-endpoint object recovery and database dumps do not protect against loss of the host or primary MinIO"
+  },
+  "verification": {
+    "helm_status": "deployed",
+    "pods_ready": 6,
+    "pods_total": 6,
+    "pod_restarts": 0,
+    "backend_health": "ok",
+    "queue_depths": {
+      "default": 0,
+      "maintenance": 0,
+      "performance": 0,
+      "performance.atp-single-node": 0
+    },
+    "bounded_stability": {
+      "duration_seconds": 30,
+      "sample_count": 4,
+      "alert_count": 0,
+      "metrics_components_covered_every_sample": [
+        "backend",
+        "worker",
+        "performance-worker"
+      ]
+    }
+  },
+  "release_gate": {
+    "c1_3_validation": "complete",
+    "c3": "blocked",
+    "p4": "blocked",
+    "blockers": [
+      "PostgreSQL runtime role is a superuser with role and database creation privileges",
+      "Redis ACL grants all commands, keys and channels",
+      "MinIO application uses root-named credentials without a bucket policy",
+      "MinIO versioning is off and no independent backup endpoint exists",
+      "Redis AOF is disabled and recovery point is limited to the latest RDB snapshot",
+      "release-grade Prometheus and long-term SLO evidence are unavailable"
+    ]
+  },
+  "secrets_included": false
+}
