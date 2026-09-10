@@ -194,6 +194,14 @@
         "existingName": { "type": "string" }
       }
     },
+    "migrationSecret": {
+      "type": "object",
+      "description": "Optional externally managed PostgreSQL DDL credentials mounted only into the Alembic hook Job.",
+      "additionalProperties": false,
+      "properties": {
+        "existingName": { "type": "string" }
+      }
+    },
     "config": {
       "type": "object",
       "description": "Non-sensitive environment variables rendered to ConfigMap.",
@@ -255,11 +263,14 @@
         "POSTGRES_PASSWORD": { "type": "string" },
         "REDIS_HOST": { "type": "string", "minLength": 1 },
         "REDIS_PORT": { "type": ["string", "integer"] },
+        "REDIS_USERNAME": { "type": "string" },
         "REDIS_PASSWORD": { "type": "string" },
         "MINIO_HOST": { "type": "string", "minLength": 1 },
         "MINIO_PORT": { "type": ["string", "integer"] },
         "MINIO_ROOT_USER": { "type": "string", "minLength": 1 },
         "MINIO_ROOT_PASSWORD": { "type": "string" },
+        "MINIO_ACCESS_KEY": { "type": "string" },
+        "MINIO_SECRET_KEY": { "type": "string" },
         "MINIO_BUCKET": { "type": "string", "minLength": 1 },
         "ENCRYPTION_KEY": { "type": "string" },
         "WEBHOOK_API_KEY": { "type": "string" },

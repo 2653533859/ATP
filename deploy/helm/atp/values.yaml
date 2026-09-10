@@ -134,6 +134,12 @@ secret:
   create: true
   existingName: ""
 
+# Optional externally managed Secret used only by the Alembic hook Job. It
+# must contain POSTGRES_MIGRATION_USER and POSTGRES_MIGRATION_PASSWORD. Keeping
+# it separate prevents application Deployments from receiving DDL credentials.
+migrationSecret:
+  existingName: ""
+
 # Non-sensitive environment variables rendered into a ConfigMap.
 config:
   # Runtime environment name.
@@ -215,6 +221,7 @@ secrets:
   # Redis connection for Celery broker/result backend and cache.
   REDIS_HOST: redis
   REDIS_PORT: "6379"
+  REDIS_USERNAME: ""
   REDIS_PASSWORD: ""
   REDIS_CONNECT_TIMEOUT_SECONDS: "5"
   # MinIO or S3-compatible object storage.
@@ -222,6 +229,9 @@ secrets:
   MINIO_PORT: "9000"
   MINIO_ROOT_USER: minioadmin
   MINIO_ROOT_PASSWORD: "change-me"
+  # Preferred bucket-scoped application principal; legacy root fields remain fallbacks.
+  MINIO_ACCESS_KEY: ""
+  MINIO_SECRET_KEY: ""
   MINIO_BUCKET: atp
   MINIO_CONNECT_TIMEOUT_SECONDS: "5"
   # Optional Fernet key. Leave empty to derive from APP_SECRET_KEY.

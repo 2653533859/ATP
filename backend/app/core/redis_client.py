@@ -13,8 +13,7 @@ from app.core.config import settings
 
 
 def _redis_url(db: int = 2) -> str:
-    auth = f":{settings.REDIS_PASSWORD}@" if settings.REDIS_PASSWORD else ""
-    return f"redis://{auth}{settings.REDIS_HOST}:{settings.REDIS_PORT}/{db}"
+    return settings.redis_url(db)
 
 
 def get_async_redis(db: int = 2, *, socket_timeout: float | None = None) -> aioredis.Redis:

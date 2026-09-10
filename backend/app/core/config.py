@@ -1,6 +1,7 @@
 from functools import lru_cache
 from pathlib import Path
 from typing import Self
+from urllib.parse import quote
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -34,11 +35,16 @@ class Settings(BaseSettings):
     POSTGRES_DB: str = "atp"
     POSTGRES_USER: str = "atp"
     POSTGRES_PASSWORD: str = "atp_password_change_me"
+    # Optional DDL owner used only by Alembic. Empty values keep the legacy
+    # single-role deployment compatible.
+    POSTGRES_MIGRATION_USER: str = ""
+    POSTGRES_MIGRATION_PASSWORD: str = ""
     POSTGRES_CONNECT_TIMEOUT_SECONDS: int = Field(default=5, ge=1, le=120)
 
     # Redis
     REDIS_HOST: str = "localhost"
     REDIS_PORT: int = 6379
+    REDIS_USERNAME: str = ""
     REDIS_PASSWORD: str = ""
     REDIS_CONNECT_TIMEOUT_SECONDS: int = Field(default=5, ge=1, le=120)
 
@@ -47,6 +53,10 @@ class Settings(BaseSettings):
     MINIO_PORT: int = 9000
     MINIO_ROOT_USER: str = "minioadmin"
     MINIO_ROOT_PASSWORD: str = "minio_password_change_me"
+    # Preferred bucket-scoped application credentials. The legacy ROOT names
+    # remain as fallbacks so existing deployments do not break.
+    MINIO_ACCESS_KEY: str = ""
+    MINIO_SECRET_KEY: str = ""
     MINIO_BUCKET: str = "atp"
     MINIO_CONNECT_TIMEOUT_SECONDS: int = Field(default=5, ge=1, le=120)
     # Large APK/video multipart uploads may need more than the short connect timeout.
@@ -227,22 +237,56 @@ class Settings(BaseSettings):
         self.APP_AUTH_COOKIE_SAMESITE = samesite
         return self
 
+    @model_validator(mode="after")
+    def validate_split_credentials(self) -> Self:
+        if bool(self.POSTGRES_MIGRATION_USER) != bool(self.POSTGRES_MIGRATION_PASSWORD):
+            raise ValueError("POSTGRES_MIGRATION_USER and POSTGRES_MIGRATION_PASSWORD must be configured together")
+        if bool(self.MINIO_ACCESS_KEY) != bool(self.MINIO_SECRET_KEY):
+            raise ValueError("MINIO_ACCESS_KEY and MINIO_SECRET_KEY must be configured together")
+        return self
+
     @property
     def DATABASE_URL(self) -> str:
+        user = quote(self.POSTGRES_USER, safe="")
+        password = quote(self.POSTGRES_PASSWORD, safe="")
         return (
-            f"postgresql+asyncpg://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
-            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+            f"postgresql+asyncpg://{user}:{password}" f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 
     @property
+    def MIGRATION_DATABASE_URL(self) -> str:
+        user = quote(self.POSTGRES_MIGRATION_USER or self.POSTGRES_USER, safe="")
+        password = quote(self.POSTGRES_MIGRATION_PASSWORD or self.POSTGRES_PASSWORD, safe="")
+        return (
+            f"postgresql+asyncpg://{user}:{password}" f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
+
+    def redis_url(self, db: int) -> str:
+        username = quote(self.REDIS_USERNAME, safe="")
+        password = quote(self.REDIS_PASSWORD, safe="")
+        if username:
+            auth = f"{username}:{password}@"
+        elif password:
+            auth = f":{password}@"
+        else:
+            auth = ""
+        return f"redis://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/{db}"
+
+    @property
     def CELERY_BROKER_URL(self) -> str:
-        auth = f":{self.REDIS_PASSWORD}@" if self.REDIS_PASSWORD else ""
-        return f"redis://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/0"
+        return self.redis_url(0)
 
     @property
     def CELERY_RESULT_BACKEND(self) -> str:
-        auth = f":{self.REDIS_PASSWORD}@" if self.REDIS_PASSWORD else ""
-        return f"redis://{auth}{self.REDIS_HOST}:{self.REDIS_PORT}/1"
+        return self.redis_url(1)
+
+    @property
+    def MINIO_CLIENT_ACCESS_KEY(self) -> str:
+        return self.MINIO_ACCESS_KEY or self.MINIO_ROOT_USER
+
+    @property
+    def MINIO_CLIENT_SECRET_KEY(self) -> str:
+        return self.MINIO_SECRET_KEY or self.MINIO_ROOT_PASSWORD
 
     @property
     def CORS_ORIGINS(self) -> list[str]:

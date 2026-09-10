@@ -42,11 +42,16 @@ describe('StartupConfigView', () => {
     const wrapper = mountPage()
     const vm = wrapper.vm as any
 
-    expect(vm.fieldCount).toBe(130)
+    expect(vm.fieldCount).toBe(135)
     expect(vm.envContent).toContain('POSTGRES_HOST=postgres')
     expect(vm.envContent).toContain('POSTGRES_CONNECT_TIMEOUT_SECONDS=5')
+    expect(vm.envContent).toContain('POSTGRES_MIGRATION_USER=')
+    expect(vm.envContent).toContain('POSTGRES_MIGRATION_PASSWORD=')
     expect(vm.envContent).toContain('REDIS_CONNECT_TIMEOUT_SECONDS=5')
+    expect(vm.envContent).toContain('REDIS_USERNAME=')
     expect(vm.envContent).toContain('MINIO_CONNECT_TIMEOUT_SECONDS=5')
+    expect(vm.envContent).toContain('MINIO_ACCESS_KEY=')
+    expect(vm.envContent).toContain('MINIO_SECRET_KEY=')
     expect(vm.envContent).toContain('MINIO_READ_TIMEOUT_SECONDS=60')
     expect(vm.envContent).toContain('MINIO_LIFECYCLE_ABORT_INCOMPLETE_DAYS=1')
     expect(vm.envContent).toContain('MINIO_LIFECYCLE_EXPIRATION_RULES_JSON="[]"')
@@ -113,6 +118,8 @@ describe('StartupConfigView', () => {
       MINIO_ROOT_USER: '<minio-user>',
     })
     expect(saved.POSTGRES_PASSWORD).toBeUndefined()
+    expect(saved.POSTGRES_MIGRATION_PASSWORD).toBeUndefined()
+    expect(saved.MINIO_SECRET_KEY).toBeUndefined()
     expect(saved.APP_SECRET_KEY).toBeUndefined()
     expect(localStorage.getItem('atp-startup-profile-v1')).toBe('remote-infra')
     expect(vm.isDirty).toBe(false)
@@ -134,10 +141,31 @@ describe('StartupConfigView', () => {
     expect(vm.isReady).toBe(false)
   })
 
+  it('requires optional least-privilege credentials to be configured as pairs', async () => {
+    const wrapper = mountPage()
+    const vm = wrapper.vm as any
+
+    vm.config.POSTGRES_MIGRATION_USER = 'atp_migrator'
+    vm.config.MINIO_ACCESS_KEY = 'atp-app'
+    await wrapper.vm.$nextTick()
+
+    expect(vm.missingRequired).toContain('POSTGRES_MIGRATION_USER/POSTGRES_MIGRATION_PASSWORD')
+    expect(vm.missingRequired).toContain('MINIO_ACCESS_KEY/MINIO_SECRET_KEY')
+
+    vm.config.POSTGRES_MIGRATION_PASSWORD = 'migration-secret'
+    vm.config.MINIO_SECRET_KEY = 'minio-secret'
+    await wrapper.vm.$nextTick()
+
+    expect(vm.missingRequired).not.toContain('POSTGRES_MIGRATION_USER/POSTGRES_MIGRATION_PASSWORD')
+    expect(vm.missingRequired).not.toContain('MINIO_ACCESS_KEY/MINIO_SECRET_KEY')
+  })
+
   it('removes secrets left by an older browser draft format', () => {
     localStorage.setItem('atp-startup-config-draft-v1', JSON.stringify({
       POSTGRES_HOST: 'db.example.com',
       POSTGRES_PASSWORD: 'old-secret',
+      POSTGRES_MIGRATION_PASSWORD: 'old-migration-secret',
+      MINIO_SECRET_KEY: 'old-minio-secret',
       APP_SECRET_KEY: 'old-app-secret',
     }))
 
@@ -147,6 +175,8 @@ describe('StartupConfigView', () => {
 
     expect(vm.config.POSTGRES_HOST).toBe('db.example.com')
     expect(saved.POSTGRES_PASSWORD).toBeUndefined()
+    expect(saved.POSTGRES_MIGRATION_PASSWORD).toBeUndefined()
+    expect(saved.MINIO_SECRET_KEY).toBeUndefined()
     expect(saved.APP_SECRET_KEY).toBeUndefined()
   })
 

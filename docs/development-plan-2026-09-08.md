@@ -153,8 +153,10 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 - 跨主机 MinIO source/target 灾备演练。
 - iOS/Appium、SMTP、企业微信、钉钉、Jira、禅道、GitHub Issues 和 GitLab Issues 的正式供应商验收。
 
-### C3：发布关闭 `[ ]`
+### C3：发布关闭 `[~]`
 
+- [x] `C3.1` 建立最小权限凭据通道：分离 PostgreSQL 运行/迁移连接，支持 Redis ACL 用户名和 MinIO bucket 级应用凭据；Helm 使用独立迁移 Secret，仅向 Alembic hook Job 注入 DDL 凭据，启动配置页和示例配置同步支持且不持久化新增密码。
+- [ ] `C3.2` 在目标 Linux 创建受限 PostgreSQL、Redis、MinIO 身份，切换 K3s Secret 并完成迁移、业务读写、任务队列、对象读写和备份回归；保留可验证回退路径。
 - 执行数据库空库迁移、升级、备份恢复和回滚演练。
 - 收集 SLO、告警、服务重启和持续稳定性证据。
 - 绑定同一最终提交 SHA，更新能力矩阵、运行手册、证据索引和发布结论。
@@ -182,6 +184,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 6. 经用户要求后使用 Conventional Commit 提交并推送。
 
 ## 9. 执行记录
+
+- 2026-09-10：完成 C3.1 最小权限凭据代码通道。后端运行连接继续使用 `POSTGRES_USER/PASSWORD`，Alembic 可单独使用成对的 `POSTGRES_MIGRATION_USER/PASSWORD`；Redis URL 统一支持 ACL 用户名并对凭据编码，MinIO 客户端优先使用成对的 `MINIO_ACCESS_KEY/SECRET_KEY`，留空则兼容旧字段。Helm 将迁移身份放入独立 `migrationSecret.existingName`，只挂载到 pre-install/pre-upgrade Job，长期运行 Deployment 不接收 DDL 凭据。启动配置页同步新增 5 项字段、成对校验与敏感草稿清理。定向后端契约 `12 passed`，完整非集成后端在工作区独立临时目录下 `2573 passed / 1 skipped`，前端全量 `76 files / 363 tests passed`；Ruff、mypy、TypeScript、生产构建、Helm lint、提交钩子和差异检查通过，审查无剩余可操作问题。该切片只完成安全切换能力，不声称目标环境已收紧；下一步 C3.2 在 Linux 创建受限身份、更新 Secret、滚动部署并验证回退。
 
 - 2026-09-10：完成 C1.3 单节点数据服务边界验收。Helm revision 41 持久启用 `DB_BACKUP_ENABLED=true`，真实 `maintenance` 队列任务通过 Worker 内 `pg_dump` 和 MinIO SDK 生成 `pg-backups/daily/` 备份；65,254 字节对象经 SHA-256 校验并恢复到隔离临时数据库，源/恢复库均为 65 张 public 表、4 个项目、4 个用户和迁移头 `20260909_0072`，临时数据库为 0。Redis 使用 BGSAVE 生成 RDB，在隔离 Redis 容器中恢复探针成功；随后源 key 删除并重做干净快照，临时容器和 34,165,810 字节快照均删除。MinIO 同端点 source/restore 对象哈希一致且临时前缀归零。权限审计未粉饰为通过：PostgreSQL 运行角色当前为 superuser 且有 CREATEDB/CREATEROLE，Redis `default` 用户拥有 `+@all`、`~*`、`&*`，MinIO 使用 root 命名凭据且 bucket 无 policy、versioning 或独立备份端点；Redis 仅有 RDB、AOF 关闭。这些项连同发布级 Prometheus/长期 SLO 一并进入 C3 阻断清单。收尾 release 为 revision 41 deployed，6/6 Pod Ready、零重启，Backend 健康，四队列为 0；30 秒 4 次采样保持三指标端点覆盖且 0 告警。脱敏证据见 [`evidence/c1-data-services-recovery-2026-09-10.json`](evidence/c1-data-services-recovery-2026-09-10.json)。C1 单节点范围关闭，开发游标进入 C3 发布关闭。
 

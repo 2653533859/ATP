@@ -239,15 +239,20 @@ interface StartupConfig {
   POSTGRES_DB: string
   POSTGRES_USER: string
   POSTGRES_PASSWORD: string
+  POSTGRES_MIGRATION_USER: string
+  POSTGRES_MIGRATION_PASSWORD: string
   POSTGRES_CONNECT_TIMEOUT_SECONDS: number
   REDIS_HOST: string
   REDIS_PORT: number
+  REDIS_USERNAME: string
   REDIS_PASSWORD: string
   REDIS_CONNECT_TIMEOUT_SECONDS: number
   MINIO_HOST: string
   MINIO_PORT: number
   MINIO_ROOT_USER: string
   MINIO_ROOT_PASSWORD: string
+  MINIO_ACCESS_KEY: string
+  MINIO_SECRET_KEY: string
   MINIO_BUCKET: string
   MINIO_CONNECT_TIMEOUT_SECONDS: number
   MINIO_READ_TIMEOUT_SECONDS: number
@@ -400,8 +405,10 @@ const STORAGE_KEY = 'atp-startup-config-draft-v1'
 const PROFILE_STORAGE_KEY = 'atp-startup-profile-v1'
 const SENSITIVE_CONFIG_KEYS = new Set<FieldKey>([
   'POSTGRES_PASSWORD',
+  'POSTGRES_MIGRATION_PASSWORD',
   'REDIS_PASSWORD',
   'MINIO_ROOT_PASSWORD',
+  'MINIO_SECRET_KEY',
   'APP_SECRET_KEY',
   'FIRST_ADMIN_PASSWORD',
   'WEBHOOK_API_KEY',
@@ -411,9 +418,12 @@ const SENSITIVE_CONFIG_KEYS = new Set<FieldKey>([
 const PLACEHOLDER_VALUES: Partial<Record<FieldKey, string>> = {
   POSTGRES_HOST: '<server-host>',
   POSTGRES_USER: '<database-user>',
+  POSTGRES_MIGRATION_USER: '<migration-user>',
   REDIS_HOST: '<server-host>',
+  REDIS_USERNAME: '<redis-acl-user>',
   MINIO_HOST: '<server-host>',
   MINIO_ROOT_USER: '<minio-user>',
+  MINIO_ACCESS_KEY: '<minio-access-key>',
   POSTGRES_PASSWORD: 'atp_password_change_me',
   MINIO_ROOT_PASSWORD: 'minio_password_change_me',
   APP_SECRET_KEY: 'change_this_to_a_random_secret_key_at_least_32_chars',
@@ -422,9 +432,9 @@ const PLACEHOLDER_VALUES: Partial<Record<FieldKey, string>> = {
 }
 
 const defaultConfig: StartupConfig = {
-  POSTGRES_HOST: 'postgres', POSTGRES_PORT: 5432, POSTGRES_DB: 'atp', POSTGRES_USER: 'atp', POSTGRES_PASSWORD: 'atp_password_change_me', POSTGRES_CONNECT_TIMEOUT_SECONDS: 5,
-  REDIS_HOST: 'redis', REDIS_PORT: 6379, REDIS_PASSWORD: '', REDIS_CONNECT_TIMEOUT_SECONDS: 5,
-  MINIO_HOST: 'minio', MINIO_PORT: 9000, MINIO_ROOT_USER: 'minioadmin', MINIO_ROOT_PASSWORD: 'minio_password_change_me', MINIO_BUCKET: 'atp', MINIO_CONNECT_TIMEOUT_SECONDS: 5, MINIO_READ_TIMEOUT_SECONDS: 60, MINIO_LIFECYCLE_ABORT_INCOMPLETE_DAYS: 1, MINIO_LIFECYCLE_EXPIRATION_RULES_JSON: '[]',
+  POSTGRES_HOST: 'postgres', POSTGRES_PORT: 5432, POSTGRES_DB: 'atp', POSTGRES_USER: 'atp', POSTGRES_PASSWORD: 'atp_password_change_me', POSTGRES_MIGRATION_USER: '', POSTGRES_MIGRATION_PASSWORD: '', POSTGRES_CONNECT_TIMEOUT_SECONDS: 5,
+  REDIS_HOST: 'redis', REDIS_PORT: 6379, REDIS_USERNAME: '', REDIS_PASSWORD: '', REDIS_CONNECT_TIMEOUT_SECONDS: 5,
+  MINIO_HOST: 'minio', MINIO_PORT: 9000, MINIO_ROOT_USER: 'minioadmin', MINIO_ROOT_PASSWORD: 'minio_password_change_me', MINIO_ACCESS_KEY: '', MINIO_SECRET_KEY: '', MINIO_BUCKET: 'atp', MINIO_CONNECT_TIMEOUT_SECONDS: 5, MINIO_READ_TIMEOUT_SECONDS: 60, MINIO_LIFECYCLE_ABORT_INCOMPLETE_DAYS: 1, MINIO_LIFECYCLE_EXPIRATION_RULES_JSON: '[]',
   APP_ENV: 'development', APP_SECRET_KEY: 'change_this_to_a_random_secret_key_at_least_32_chars', APP_ACCESS_TOKEN_EXPIRE_MINUTES: 480,
   APP_REFRESH_TOKEN_EXPIRE_DAYS: 7, APP_CORS_ORIGINS: 'http://localhost,http://localhost:80,http://localhost:5173', APP_AUTH_COOKIE_SECURE: false, APP_AUTH_COOKIE_SAMESITE: 'lax', APP_AUTO_CREATE_TABLES: false,
   FIRST_ADMIN_USERNAME: 'parado', FIRST_ADMIN_PASSWORD: 'change_me_before_use', FIRST_ADMIN_EMAIL: 'admin@example.com', WEBHOOK_API_KEY: 'change_this_to_a_random_webhook_key', ENCRYPTION_KEY: '',
@@ -471,9 +481,9 @@ const sections: ConfigSection[] = [
   {
     key: 'infrastructure', titleKey: 'system_pages.startup_config.sections.infrastructure.title', subtitleKey: 'system_pages.startup_config.sections.infrastructure.subtitle', icon: CloudServerOutlined,
     fields: [
-      text('POSTGRES_HOST', { required: true }), number('POSTGRES_PORT', { max: 65535 }), text('POSTGRES_DB', { required: true }), text('POSTGRES_USER', { required: true }), password('POSTGRES_PASSWORD', { required: true }), number('POSTGRES_CONNECT_TIMEOUT_SECONDS', { min: 1, max: 120 }),
-      text('REDIS_HOST', { required: true }), number('REDIS_PORT', { max: 65535 }), password('REDIS_PASSWORD'), number('REDIS_CONNECT_TIMEOUT_SECONDS', { min: 1, max: 120 }),
-      text('MINIO_HOST', { required: true }), number('MINIO_PORT', { max: 65535 }), text('MINIO_ROOT_USER', { required: true }), password('MINIO_ROOT_PASSWORD', { required: true }), text('MINIO_BUCKET', { required: true }), number('MINIO_CONNECT_TIMEOUT_SECONDS', { min: 1, max: 120 }), number('MINIO_READ_TIMEOUT_SECONDS', { min: 1, max: 3600 }), number('MINIO_LIFECYCLE_ABORT_INCOMPLETE_DAYS', { min: 1, max: 3650 }), textarea('MINIO_LIFECYCLE_EXPIRATION_RULES_JSON', { rows: 3 }),
+      text('POSTGRES_HOST', { required: true }), number('POSTGRES_PORT', { max: 65535 }), text('POSTGRES_DB', { required: true }), text('POSTGRES_USER', { required: true }), password('POSTGRES_PASSWORD', { required: true }), text('POSTGRES_MIGRATION_USER'), password('POSTGRES_MIGRATION_PASSWORD'), number('POSTGRES_CONNECT_TIMEOUT_SECONDS', { min: 1, max: 120 }),
+      text('REDIS_HOST', { required: true }), number('REDIS_PORT', { max: 65535 }), text('REDIS_USERNAME'), password('REDIS_PASSWORD'), number('REDIS_CONNECT_TIMEOUT_SECONDS', { min: 1, max: 120 }),
+      text('MINIO_HOST', { required: true }), number('MINIO_PORT', { max: 65535 }), text('MINIO_ROOT_USER', { required: true }), password('MINIO_ROOT_PASSWORD', { required: true }), text('MINIO_ACCESS_KEY'), password('MINIO_SECRET_KEY'), text('MINIO_BUCKET', { required: true }), number('MINIO_CONNECT_TIMEOUT_SECONDS', { min: 1, max: 120 }), number('MINIO_READ_TIMEOUT_SECONDS', { min: 1, max: 3600 }), number('MINIO_LIFECYCLE_ABORT_INCOMPLETE_DAYS', { min: 1, max: 3650 }), textarea('MINIO_LIFECYCLE_EXPIRATION_RULES_JSON', { rows: 3 }),
     ],
   },
   {
@@ -540,6 +550,16 @@ const missingRequired = computed(() => {
   const appSecretKey = config.value.APP_SECRET_KEY.trim()
   if (appSecretKey && (appSecretKey.length < 32 || appSecretKey === PLACEHOLDER_VALUES.APP_SECRET_KEY)) {
     missing.add('APP_SECRET_KEY (>=32, not the example value)')
+  }
+
+  const credentialPairs: [FieldKey, FieldKey][] = [
+    ['POSTGRES_MIGRATION_USER', 'POSTGRES_MIGRATION_PASSWORD'],
+    ['MINIO_ACCESS_KEY', 'MINIO_SECRET_KEY'],
+  ]
+  for (const [usernameKey, passwordKey] of credentialPairs) {
+    if (Boolean(readValue(usernameKey).trim()) !== Boolean(readValue(passwordKey).trim())) {
+      missing.add(`${usernameKey}/${passwordKey}`)
+    }
   }
   return [...missing]
 })

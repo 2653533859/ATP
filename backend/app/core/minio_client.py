@@ -29,8 +29,8 @@ def get_client() -> Minio:
     if _client is None:
         _client = Minio(
             f"{settings.MINIO_HOST}:{settings.MINIO_PORT}",
-            access_key=settings.MINIO_ROOT_USER,
-            secret_key=settings.MINIO_ROOT_PASSWORD,
+            access_key=settings.MINIO_CLIENT_ACCESS_KEY,
+            secret_key=settings.MINIO_CLIENT_SECRET_KEY,
             secure=False,
             http_client=urllib3.PoolManager(
                 maxsize=10,

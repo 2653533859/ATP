@@ -11,8 +11,7 @@ _CANCEL_TTL_SECONDS = 3600
 
 
 def _redis_url(db: int = 2) -> str:
-    auth = f":{settings.REDIS_PASSWORD}@" if settings.REDIS_PASSWORD else ""
-    return f"redis://{auth}{settings.REDIS_HOST}:{settings.REDIS_PORT}/{db}"
+    return settings.redis_url(db)
 
 
 def create_control_client() -> redis.Redis:

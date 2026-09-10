@@ -30,8 +30,8 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # 使用同步 URL（alembic 不支持 asyncpg）
-sync_url = settings.DATABASE_URL.replace("postgresql+asyncpg", "postgresql+psycopg2")
-config.set_main_option("sqlalchemy.url", sync_url)
+sync_url = settings.MIGRATION_DATABASE_URL.replace("postgresql+asyncpg", "postgresql+psycopg2")
+config.set_main_option("sqlalchemy.url", sync_url.replace("%", "%%"))
 
 target_metadata = Base.metadata
 

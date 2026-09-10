@@ -33,6 +33,18 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
           {{- end }}
+          {{- with .Values.migrationSecret.existingName }}
+            - name: POSTGRES_MIGRATION_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: POSTGRES_MIGRATION_USER
+            - name: POSTGRES_MIGRATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: POSTGRES_MIGRATION_PASSWORD
+          {{- end }}
           envFrom:
             - secretRef:
                 name: {{ include "atp.secretName" . }}

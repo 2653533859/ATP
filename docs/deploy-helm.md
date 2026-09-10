@@ -95,6 +95,23 @@ alembic upgrade head
 `.Values.config` 中的非敏感配置直接以内联环境变量注入，并只从已存在的 Secret 读取敏感配置；业务
 Deployment 仍通过 ConfigMap + Secret 读取同一套配置。
 
+生产环境应将 DDL 身份与运行身份分离。普通 `secret.existingName` 只保存运行期
+`POSTGRES_USER/POSTGRES_PASSWORD`；另建仅含 `POSTGRES_MIGRATION_USER` 和
+`POSTGRES_MIGRATION_PASSWORD` 的 Secret，并通过下列 values 只挂载到 Alembic Job：
+
+```yaml
+secret:
+  create: false
+  existingName: atp-runtime-secrets
+migrationSecret:
+  existingName: atp-migration-secrets
+```
+
+`migrationSecret.existingName` 留空时迁移兼容复用运行账号。Redis 可在运行 Secret 中配置
+`REDIS_USERNAME` 与 `REDIS_PASSWORD` 使用 ACL 身份；MinIO 推荐配置成对的
+`MINIO_ACCESS_KEY` / `MINIO_SECRET_KEY` 作为 bucket 级应用身份。两类新增凭据只配置一半时，
+服务会在启动阶段拒绝配置。不要把迁移 Secret 挂载到 Backend、Worker、Beat 或其他长期运行 Pod。
+
 ## 六、与 Compose 的差异
 
 | 维度 | Compose | Helm |

@@ -171,8 +171,7 @@ def _collect_postgres_metrics(metrics: dict[str, float], errors: list[str]) -> N
 
 
 def _redis_url() -> str:
-    auth = f":{settings.REDIS_PASSWORD}@" if settings.REDIS_PASSWORD else ""
-    return f"redis://{auth}{settings.REDIS_HOST}:{settings.REDIS_PORT}/0"
+    return settings.redis_url(0)
 
 
 def _collect_redis_metrics(metrics: dict[str, float], errors: list[str]) -> None:

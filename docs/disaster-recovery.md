@@ -42,12 +42,19 @@ That drill identified release blockers that connectivity cannot close:
 - The authenticated Redis ACL user must be limited to ATP command categories,
   key prefixes and Pub/Sub channels. RDB-only persistence has a non-zero RPO;
   Redis is cache/control-plane recovery, not the authoritative test record.
-- The MinIO credentials injected through the legacy `MINIO_ROOT_*` setting
-  names should belong to a bucket-scoped application principal. A dump stored
-  in MinIO on the same host protects against logical database loss only; it
-  does not protect against host or primary-object-store loss.
+- Configure a bucket-scoped application principal through
+  `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`; the legacy `MINIO_ROOT_*` fields are a
+  compatibility fallback, not the recommended application identity. A dump
+  stored in MinIO on the same host protects against logical database loss only;
+  it does not protect against host or primary-object-store loss.
 - MinIO versioning, a reviewed lifecycle policy and an independent backup
   endpoint remain required release decisions. A same-endpoint copy is not DR.
+
+Use `POSTGRES_MIGRATION_USER`/`POSTGRES_MIGRATION_PASSWORD` only for schema
+migrations and keep them out of long-running application Pods. Backups and
+restores need a separately reviewed operator identity with the required dump,
+database-create and object permissions; do not broaden the ATP runtime role to
+make a recovery command convenient.
 
 ## Lifecycle policy boundary
 
