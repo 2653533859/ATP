@@ -207,6 +207,13 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows-android-worker.ps1 do
 报告均返回 200。遗留 q19 Docker Backend `:29080` 不是本轮 K3s 验收入口；脱敏结果见
 [`evidence/b4-android-lowcode-continuous-2026-09-10.json`](evidence/b4-android-lowcode-continuous-2026-09-10.json)。
 
+Worker 在活动 Android 用例中异常退出时，执行租约会在 TTL 和 Maintenance 对账周期后
+把运行收敛为 `error`。恢复逻辑同时按 `case-run:<run_id>` 精确释放该运行持有的 Android
+设备租约，并把 `execution_recovery.device_lease_released=true` 写入运行摘要；不要把设备
+继续保持 `busy` 到 15 分钟租约自然过期视为正常恢复。2026-09-10 的设备断连、Worker
+强制退出、租约释放、同设备立即复用和有界稳定性结果见
+[`evidence/b4-android-fault-recovery-2026-09-10.json`](evidence/b4-android-fault-recovery-2026-09-10.json)。
+
 ## 安全要求
 
 - 不要把 ADB 5037 端口或设备 5555 端口暴露到公网；Windows Worker 应通过出站连接访问受保护的服务端点。

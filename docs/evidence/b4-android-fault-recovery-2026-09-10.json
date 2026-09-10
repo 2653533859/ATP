@@ -1,0 +1,99 @@
+{
+  "evidence_type": "b4_android_fault_recovery_acceptance",
+  "date": "2026-09-10",
+  "status": "passed",
+  "scope": "B4.3 active-run device disconnect, Windows Worker restart, execution convergence, device lease recovery, immediate reuse, and bounded stability",
+  "source_commit": "ff14383cf01cfba7d98b8f21e1c9939e045c5d90",
+  "deployment": {
+    "host": "192.168.3.196",
+    "api_origin": "http://192.168.3.196:8000",
+    "namespace": "atp-single-node",
+    "helm_release": "atp-single-node",
+    "helm_revision": 35,
+    "backend_image": "registry.local/atp/backend:ff14383c",
+    "worker_image": "registry.local/atp/worker:ff14383c",
+    "migration_head": "20260909_0072",
+    "backend_health": "ok"
+  },
+  "device_disconnect": {
+    "device_serial": "172.16.102.15:5555",
+    "run_id": 107,
+    "steps_before_disconnect": 1,
+    "offline_seconds": 22.4,
+    "final_status": "failed",
+    "passed_steps": 2,
+    "failed_step": "confirm settings page remains readable",
+    "reconnect": "connected",
+    "scan_status": "completed",
+    "scope_note": "The failure was injected after the first real device step passed; the run did not report a false pass while ADB was unavailable."
+  },
+  "pre_fix_worker_restart": {
+    "run_id": 108,
+    "final_status": "error",
+    "execution_lease_status": "expired",
+    "run_recovered": true,
+    "device_status_after_run_recovery": "busy",
+    "remaining_device_lease_owner": "case-run:108",
+    "device_lease_natural_ttl_seconds": 900,
+    "finding": "Execution recovery did not release the Android device lease, blocking later runs until the independent device lease expired."
+  },
+  "fix": {
+    "commit": "ff14383cf01cfba7d98b8f21e1c9939e045c5d90",
+    "behavior": "For an abandoned Android case run, recovery finds the exact case-run owner label, locks Device before re-reading DeviceLease, deletes the lease, restores a busy device to online, and records execution_recovery in the run summary.",
+    "review": "The first implementation depended on the case's current device_serial. Review changed it to the immutable case-run owner label so an edit during execution cannot redirect cleanup.",
+    "schema_change": false
+  },
+  "post_fix_worker_restart": {
+    "run_id": 109,
+    "status_before_stop": "running",
+    "steps_before_stop": 1,
+    "old_worker_stopped": true,
+    "worker_pid_changed": true,
+    "worker_restart_seconds": 9.6,
+    "final_status": "error",
+    "error_message": "Execution worker heartbeat expired; the run was recovered as failed.",
+    "seconds_after_last_execution_heartbeat": 142.1,
+    "execution_lease_status": "expired",
+    "execution_recovery": {
+      "reason": "worker_heartbeat_expired",
+      "device_lease_released": true
+    },
+    "device_status_after_recovery": "online",
+    "active_device_leases_after_recovery": 0
+  },
+  "immediate_reuse": {
+    "run_id": 110,
+    "final_status": "passed",
+    "duration_ms": 12656,
+    "passed_steps": "4/4",
+    "screenshots": 4,
+    "device_info_present": true,
+    "logcat_present": true,
+    "screen_recording_present": true
+  },
+  "bounded_stability": {
+    "duration_seconds": 50,
+    "sample_count": 6,
+    "sample_interval_seconds": 10,
+    "worker_alive_samples": "6/6",
+    "k3s_ready_samples": "6/6 at every sample",
+    "pod_restarts": 0,
+    "queue_depths": {
+      "android": 0,
+      "mobile_special": 0,
+      "maintenance": 0
+    }
+  },
+  "verification": {
+    "affected_tests": "82 passed",
+    "backend_non_integration": "2560 passed, 1 skipped",
+    "ruff": "passed",
+    "format_check": "passed",
+    "mypy": "passed",
+    "diff_check": "passed",
+    "windows_temp_retry": "The first full run had 54 setup errors from WinError 5 on the default pytest temp root; an isolated writable TEMP/TMP full rerun had no test failures.",
+    "credential_values_recorded": false,
+    "presigned_urls_recorded": false
+  },
+  "scope_note": "This closes the B4 single-device release scope. Optional multi-device lease conflicts and compatibility matrices remain non-blocking; C1 observability and production performance remain separate."
+}

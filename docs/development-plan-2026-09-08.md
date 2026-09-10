@@ -115,11 +115,11 @@ B1.3/B1.4 自动化与实测已覆盖任务中心从 URL 恢复项目、状态�
 
 B3.1～B3.3 证据见 [`docs/evidence/b3-protocol-isolation-2026-09-09.json`](evidence/b3-protocol-isolation-2026-09-09.json)、[`docs/evidence/b3-api-lifecycle-2026-09-09.json`](evidence/b3-api-lifecycle-2026-09-09.json) 和 [`docs/evidence/b3-report-storage-lifecycle-2026-09-09.json`](evidence/b3-report-storage-lifecycle-2026-09-09.json)。受控真实网络目标不替代生产 Provider 兼容性或跨主机 MinIO 灾备验收。
 
-### B4：Android 单机与可选多设备 `[~]`
+### B4：Android 单机与可选多设备 `[x]`
 
 - [x] `B4.1` 完成 K3s Backend 与 Windows Android Worker 配对、双真机发现、控制队列隔离和 Worker 离线不积压验证；清理共享 Redis 中遗留 q19 Beat 造成的历史队列，并停止冲突的旧 Beat/Worker 计算容器，基础设施容器继续复用。
 - [x] `B4.2` 选择一台在线设备完成 Android 低代码用例持续运行，验证截图、录像、logcat、步骤轨迹和报告闭环。
-- [ ] `B4.3` 在活动运行中验证设备离线、Worker 重启后的状态收敛和恢复边界，并完成有界稳定性观察。
+- [x] `B4.3` 在活动运行中验证设备离线、Worker 重启后的状态收敛和恢复边界，并完成有界稳定性观察。
 - 多设备租约冲突和兼容性矩阵在设备资源可用时执行，不阻塞单节点版本发布。
 - iOS/Appium 继续保持 `[OUT]` 技术预览。
 
@@ -182,6 +182,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 6. 经用户要求后使用 Conventional Commit 提交并推送。
 
 ## 9. 执行记录
+
+- 2026-09-10：完成 B4.3 并收口 B4 单设备范围。run 107 在首步通过后将 `172.16.102.15:5555` 断开 22.4 秒，后续设备读取明确失败，重连和 Worker 扫描恢复；首次 Worker 中断 run 108 在执行租约过期后正确收敛为 `error`，但发现设备租约 `case-run:108` 仍使设备保持 `busy` 约 15 分钟。提交 `ff14383c` 在失联恢复时按运行 owner label 精确查找并释放 Android 设备租约，保持 Device → DeviceLease 锁顺序，并在 `result_summary.execution_recovery` 记录恢复结果。修复部署到 Helm revision 35 后，run 109 在首步完成时强制停止 Worker，新 Worker 9.6 秒恢复，运行在最后心跳后 142 秒由 Maintenance 收敛为 `error`，设备同步恢复 `online` 且租约数为 0；run 110 随即复用同一设备并完成 4/4 步骤、4 张截图、device-info、logcat 和录像。受影响回归 `82 passed`，完整后端在隔离 TEMP 下 `2560 passed / 1 skipped`，Ruff、格式、mypy、提交钩子和差异检查通过；默认 TEMP 首次完整回归的 54 个 setup error 均为既有 Windows `WinError 5`，隔离目录复跑无测试失败。50 秒六次采样均为 Worker 存活、6/6 Pod Ready、零重启，`android`、`mobile_special`、`maintenance` 队列均为 0。开发游标进入 C1 单节点性能与可观测性；H9 可按产品优先级并行启动。
 
 - 2026-09-10：完成 B4.2。通过当前 K3s Backend `http://192.168.3.196:8000` 触发保留用例 `76`，在 `172.16.102.15:5555` 连续完成 run 103～105；三轮均为 `passed`，每轮 8/8 步骤、8 张截图，截图、device-info、logcat 和 MP4 录像的受保护 URL 均返回 200 且媒体类型正确。run 105 的 HTML 报告返回 200、包含视频播放器，PDF 报告返回 200；收尾时 6/6 K3s Pod Ready、零重启、Android Worker 注册数为 1，`android`、`mobile_special`、`maintenance` 队列均为 0。审查发现最初验收状态文件仍指向遗留 q19 Docker Backend `:29080`，已改用 K3s `:8000` 完整重跑，旧入口结果未计入 B4.2 关闭证据。未修改生产代码，因此本切片不重复执行与源码无关的全量回归；证据 JSON 结构、Markdown 差异和无敏感值检查通过。开发游标进入 B4.3 活动运行故障恢复与有界稳定性观察。
 
