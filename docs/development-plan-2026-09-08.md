@@ -156,7 +156,7 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 ### C3：发布关闭 `[~]`
 
 - [x] `C3.1` 建立最小权限凭据通道：分离 PostgreSQL 运行/迁移连接，支持 Redis ACL 用户名和 MinIO bucket 级应用凭据；Helm 使用独立迁移 Secret，仅向 Alembic hook Job 注入 DDL 凭据，启动配置页和示例配置同步支持且不持久化新增密码。
-- [ ] `C3.2` 在目标 Linux 创建受限 PostgreSQL、Redis、MinIO 身份，切换 K3s Secret 并完成迁移、业务读写、任务队列、对象读写和备份回归；保留可验证回退路径。
+- [x] `C3.2` 在目标 Linux 创建受限 PostgreSQL、Redis、MinIO 身份，切换 K3s Secret 并完成迁移、业务读写、任务队列、对象读写和备份回归；保留可验证回退路径。
 - 执行数据库空库迁移、升级、备份恢复和回滚演练。
 - 收集 SLO、告警、服务重启和持续稳定性证据。
 - 绑定同一最终提交 SHA，更新能力矩阵、运行手册、证据索引和发布结论。
@@ -184,6 +184,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 6. 经用户要求后使用 Conventional Commit 提交并推送。
 
 ## 9. 执行记录
+
+- 2026-09-12：完成 C3.2 目标单节点最小权限切换。PostgreSQL 保留不挂载到工作负载的 bootstrap operator，业务库及 65 张 public 表、63 个序列由非 superuser 的 `atp_migrator` 持有，`atp_runtime` 仅获业务 DML/序列权限且 DDL 探针按预期拒绝；Redis `atp-runtime` 移除 admin/dangerous 命令并仅开放 ATP 与实测 Celery queue/reply/pidbox/event key/channel 模式，真实 Redis 重启后双 Worker ping、维护队列备份和 ACL 日志复核通过；MinIO bucket 级身份完成对象读写删除，建 bucket 被拒绝。运行、迁移和 operator Secret 分离，迁移与 operator Secret 均未挂载到长期 Deployment。升级前发现旧 release 使用 `--reuse-values` 缺少 `migrationSecret` map 会导致 Hook 模板空指针，已改为 nil-safe 嵌套判断并补回归；revision 43 最终为 6/6 Pod Ready、零重启、Backend 健康、迁移头 `20260909_0072`，真实 daily 备份 `pg-backups/daily/atp-20260911-181920.sql.gz`（65,259 字节）上传成功，40 秒 5 次采样 0 告警。定向回归 `8 passed`，完整非集成后端 `2573 passed / 1 skipped`，Helm lint、旧 values 的 null render、Ruff、格式、mypy、前端 Vitest、敏感信息和差异检查均通过；独立差异审查修正了证据版本字段歧义后无剩余可操作问题。脱敏证据见 [`evidence/c3-least-privilege-2026-09-12.json`](evidence/c3-least-privilege-2026-09-12.json) 与 [`evidence/c3-least-privilege-stability-2026-09-12.json`](evidence/c3-least-privilege-stability-2026-09-12.json)。C3 仍未关闭：下一步执行空库迁移/升级/回滚演练，随后补发布级 Prometheus/SLO、独立 MinIO 与最终 SHA/证据索引。
 
 - 2026-09-10：完成 C3.1 最小权限凭据代码通道。后端运行连接继续使用 `POSTGRES_USER/PASSWORD`，Alembic 可单独使用成对的 `POSTGRES_MIGRATION_USER/PASSWORD`；Redis URL 统一支持 ACL 用户名并对凭据编码，MinIO 客户端优先使用成对的 `MINIO_ACCESS_KEY/SECRET_KEY`，留空则兼容旧字段。Helm 将迁移身份放入独立 `migrationSecret.existingName`，只挂载到 pre-install/pre-upgrade Job，长期运行 Deployment 不接收 DDL 凭据。启动配置页同步新增 5 项字段、成对校验与敏感草稿清理。定向后端契约 `12 passed`，完整非集成后端在工作区独立临时目录下 `2573 passed / 1 skipped`，前端全量 `76 files / 363 tests passed`；Ruff、mypy、TypeScript、生产构建、Helm lint、提交钩子和差异检查通过，审查无剩余可操作问题。该切片只完成安全切换能力，不声称目标环境已收紧；下一步 C3.2 在 Linux 创建受限身份、更新 Secret、滚动部署并验证回退。
 

@@ -33,7 +33,8 @@ spec:
             - name: {{ $key }}
               value: {{ $value | quote }}
           {{- end }}
-          {{- with .Values.migrationSecret.existingName }}
+          {{- with .Values.migrationSecret }}
+          {{- with .existingName }}
             - name: POSTGRES_MIGRATION_USER
               valueFrom:
                 secretKeyRef:
@@ -44,6 +45,7 @@ spec:
                 secretKeyRef:
                   name: {{ . }}
                   key: POSTGRES_MIGRATION_PASSWORD
+          {{- end }}
           {{- end }}
           envFrom:
             - secretRef:

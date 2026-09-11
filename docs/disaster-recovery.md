@@ -34,19 +34,21 @@ MinIO object into an isolated database. It also restored an RDB snapshot in an
 isolated Redis container and verified a same-endpoint MinIO object round trip.
 See [`c1-data-services-recovery-2026-09-10.json`](evidence/c1-data-services-recovery-2026-09-10.json).
 
-That drill identified release blockers that connectivity cannot close:
+The 2026-09-12 C3.2 rollout closed the application-credential portion of that
+audit on the target single node. PostgreSQL now separates an unmounted
+bootstrap operator, a non-superuser migration owner and a DML-only runtime
+role; Redis uses a persisted restricted ACL user; MinIO uses a bucket-scoped
+application principal. The real Celery daily backup and a post-restart
+40-second stability sample passed. See
+[`c3-least-privilege-2026-09-12.json`](evidence/c3-least-privilege-2026-09-12.json).
 
-- The application PostgreSQL role must not be a superuser or retain
-  `CREATEDB`/`CREATEROLE` in production. Use a separate migration owner and a
-  runtime role limited to the application schema and required DML/sequences.
-- The authenticated Redis ACL user must be limited to ATP command categories,
-  key prefixes and Pub/Sub channels. RDB-only persistence has a non-zero RPO;
-  Redis is cache/control-plane recovery, not the authoritative test record.
-- Configure a bucket-scoped application principal through
-  `MINIO_ACCESS_KEY`/`MINIO_SECRET_KEY`; the legacy `MINIO_ROOT_*` fields are a
-  compatibility fallback, not the recommended application identity. A dump
-  stored in MinIO on the same host protects against logical database loss only;
-  it does not protect against host or primary-object-store loss.
+The following boundaries still prevent a production DR claim:
+
+- Redis RDB-only persistence has a non-zero RPO; Redis is cache/control-plane
+  recovery, not the authoritative test record. AOF remains disabled on this
+  target and requires an explicit durability/cost decision.
+- A dump stored in MinIO on the same host protects against logical database
+  loss only; it does not protect against host or primary-object-store loss.
 - MinIO versioning, a reviewed lifecycle policy and an independent backup
   endpoint remain required release decisions. A same-endpoint copy is not DR.
 

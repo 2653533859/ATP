@@ -110,7 +110,9 @@ def test_helm_mounts_migration_credentials_only_in_hook_job():
     assert values["migrationSecret"] == {"existingName": ""}
     assert "POSTGRES_MIGRATION_USER" not in values["secrets"]
     assert "POSTGRES_MIGRATION_PASSWORD" not in values["secrets"]
-    assert ".Values.migrationSecret.existingName" in migration
+    assert "with .Values.migrationSecret" in migration
+    assert "with .existingName" in migration
+    assert ".Values.migrationSecret.existingName" not in migration
     assert "POSTGRES_MIGRATION_USER" in migration
     assert "POSTGRES_MIGRATION_PASSWORD" in migration
 

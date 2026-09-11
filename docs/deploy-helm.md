@@ -298,16 +298,27 @@ helm upgrade atp deploy/helm/atp/ -n atp-staging -f my-values.yaml
 helm rollback atp <REVISION> -n atp-staging
 ```
 
+目标单节点 `atp-single-node` 在 2026-09-12 已完成最小权限切换并升级到 revision 43。运行 Secret 只包含
+PostgreSQL DML、Redis ACL 和 MinIO bucket 级身份；独立迁移 Secret 只供 Alembic hook 使用，operator Secret 不挂载到
+任何 Deployment。旧 release 配合 `--reuse-values` 可能完全没有新增的 `migrationSecret` map，因此模板必须对 map 和
+`existingName` 分层做 nil-safe 判断，不能直接解引用 `.Values.migrationSecret.existingName`。
+
+该主机的外部 Redis 通过 `/opt/atp-runtime-overrides/redis-acl.override.yml` 持久加载 `/data/users.acl`。回滚时必须把
+Helm revision 与其对应的运行 Secret 一起恢复，并在重启 Redis 后验证双 Worker ping、维护队列备份及 ACL denial 日志；
+不要通过放宽到全 key/channel 或 `+@all` 来临时绕过 Celery 权限错误。脱敏验证结果见
+[`evidence/c3-least-privilege-2026-09-12.json`](evidence/c3-least-privilege-2026-09-12.json)。
+
 ## 九、备份恢复
 
 Helm values 默认启用 `DB_BACKUP_ENABLED=true`，由 Celery beat 调度 PostgreSQL 备份任务，备份对象写入 MinIO 的 `pg-backups/` 前缀。
 
 恢复演练与生产恢复步骤见 `docs/disaster-recovery.md`。恢复脚本 `scripts/restore-postgres.sh` 必须显式传入 `--i-know-this-overwrites`，避免误覆盖数据库。
 
-2026-09-10 的单节点 C1.3 已验证真实维护队列备份、隔离 PostgreSQL/Redis 恢复和 MinIO 同端点回读，
-但不勾选下方生产 checklist：目标运行账号仍需收紧 PostgreSQL superuser/CREATEDB/CREATEROLE、Redis
-全命令/全 key/channel 和 MinIO root 级权限；Redis 仅有 RDB，MinIO 也没有独立备份端点。详见
-[`evidence/c1-data-services-recovery-2026-09-10.json`](evidence/c1-data-services-recovery-2026-09-10.json)。
+2026-09-10 的 C1.3 已验证真实维护队列备份与隔离恢复；2026-09-12 的 C3.2 又完成 PostgreSQL 运行/迁移身份、
+Redis ACL 和 MinIO bucket 身份切换并回归真实备份。仍不勾选下方完整生产 checklist：Redis 仅有 RDB，MinIO 没有
+独立备份端点，versioning/lifecycle 和发布级 Prometheus/SLO 也尚未关闭。详见
+[`evidence/c1-data-services-recovery-2026-09-10.json`](evidence/c1-data-services-recovery-2026-09-10.json) 与
+[`evidence/c3-least-privilege-2026-09-12.json`](evidence/c3-least-privilege-2026-09-12.json)。
 
 ### MinIO 生命周期（显式启用）
 

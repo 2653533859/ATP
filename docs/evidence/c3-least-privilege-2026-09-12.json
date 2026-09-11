@@ -1,0 +1,114 @@
+{
+  "schema_version": 1,
+  "evidence_type": "c3_least_privilege_live_rollout",
+  "generated_at": "2026-09-12",
+  "status": "passed",
+  "scope": {
+    "application_image_revision": "af71bd4de543a36c01d35139088b058ac0d4aec6",
+    "chart_change": "nil-safe migrationSecret compatibility fix in this evidence commit",
+    "target": "192.168.3.196",
+    "kubernetes_context": "atp-single-node",
+    "namespace": "atp-single-node",
+    "release": "atp-single-node",
+    "helm_revision": 43,
+    "topology": "single-node K3s with host-local external data services"
+  },
+  "deployment": {
+    "backend_image": "registry.local/atp/backend:af71bd4d",
+    "worker_image": "registry.local/atp/worker:af71bd4d",
+    "frontend_image": "registry.local/atp/frontend:af71bd4d",
+    "ready_pods": 6,
+    "expected_pods": 6,
+    "pod_restarts": 0,
+    "backend_health": "ok",
+    "migration_head": "20260909_0072"
+  },
+  "postgresql": {
+    "operator_role": {
+      "name": "atp",
+      "mounted_in_application_pods": false,
+      "note": "The bootstrap operator remains superuser because PostgreSQL will not allow it to demote itself."
+    },
+    "migration_role": {
+      "name": "atp_migrator",
+      "superuser": false,
+      "createdb": false,
+      "createrole": false,
+      "database_owner": true,
+      "owned_public_tables": 65,
+      "owned_public_sequences": 63,
+      "create_drop_probe": "passed"
+    },
+    "runtime_role": {
+      "name": "atp_runtime",
+      "superuser": false,
+      "createdb": false,
+      "createrole": false,
+      "schema_create": false,
+      "business_read": "passed",
+      "dml_privilege": "passed",
+      "ddl_probe": "denied_as_expected"
+    }
+  },
+  "redis": {
+    "runtime_user": "atp-runtime",
+    "allowed_commands": "+@all -@admin -@dangerous with explicit Celery requirements",
+    "keys_and_channels": "limited to ATP, Celery queues, replies, pidbox and celeryev patterns",
+    "allowed_round_trip": "passed",
+    "forbidden_key_probe": "denied_as_expected",
+    "config_set_probe": "denied_as_expected",
+    "worker_ping": "passed for default and performance workers",
+    "restart_probe": "passed",
+    "post_restart_acl_denials": 0,
+    "persistence": "RDB only; AOF remains disabled"
+  },
+  "minio": {
+    "runtime_user": "atp-runtime",
+    "policy": "bucket-scoped application object read/write/delete and multipart operations",
+    "object_round_trip": "passed",
+    "create_bucket_probe": "denied_as_expected",
+    "legacy_root_credentials_in_application_pod": false,
+    "independent_backup_endpoint": false
+  },
+  "secret_separation": {
+    "runtime_secret": "atp-single-node-secrets",
+    "migration_secret": "atp-single-node-migration-secrets",
+    "operator_secret": "atp-single-node-operator-secrets",
+    "migration_secret_long_running_mounts": 0,
+    "operator_secret_deployment_mounts": 0
+  },
+  "regression": {
+    "celery_backup_task": "passed",
+    "backup_object": "pg-backups/daily/atp-20260911-181920.sql.gz",
+    "backup_size_bytes": 65259,
+    "backup_uploaded": true,
+    "bounded_stability_evidence": "docs/evidence/c3-least-privilege-stability-2026-09-12.json",
+    "bounded_samples": 5,
+    "bounded_alerts": 0
+  },
+  "issues_found_and_fixed": [
+    {
+      "issue": "Helm --reuse-values omitted the newly introduced migrationSecret map and caused template evaluation to fail before an upgrade.",
+      "fix": "Guard migrationSecret and existingName with nested with blocks; add a regression contract and null-value render check.",
+      "result": "Revision 42 compatibility upgrade and revision 43 least-privilege upgrade succeeded."
+    },
+    {
+      "issue": "The initial Redis ACL omitted Celery priority-suffixed queue keys, reply/pidbox keys and celeryev channels.",
+      "fix": "Add only the observed queue, reply, pidbox and event patterns, persist users.acl and restart the real Redis service.",
+      "result": "Both worker pools respond, the backup task completes and the final ACL denial count is zero."
+    }
+  ],
+  "rollback": {
+    "previous_helm_revision": 42,
+    "operator_credentials_retained_outside_workloads": true,
+    "redis_acl_override": "/opt/atp-runtime-overrides/redis-acl.override.yml",
+    "note": "Rollback must restore the matching runtime Secret and Helm revision together; credentials are intentionally not recorded in this evidence."
+  },
+  "remaining_release_boundaries": [
+    "Redis is RDB-only and AOF remains disabled.",
+    "MinIO is on the same host and has no independent backup endpoint.",
+    "MinIO versioning and lifecycle policy remain release decisions.",
+    "Release-level Prometheus, long-term SLO and alert evidence are still missing.",
+    "C3 empty-database migration, upgrade and rollback drill remains open."
+  ]
+}
