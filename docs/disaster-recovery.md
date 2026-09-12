@@ -50,15 +50,26 @@ reconcile existing and default runtime grants. The post-fix restore passed with
 runtime DML and sequence access while schema `CREATE` remained denied. See
 [`c3-migration-restore-2026-09-12.json`](evidence/c3-migration-restore-2026-09-12.json).
 
+The 2026-09-13 C3.4.1 change enabled Redis AOF with `appendfsync everysec` and
+an RDB preamble. An isolated clone first proved that the RDB must be loaded
+before enabling AOF online; starting an existing RDB clone directly with AOF
+enabled selected an empty AOF data set. The accepted sequence survived a live
+Compose recreation and a second Redis restart. The same change enabled MinIO
+bucket versioning and verified two object versions, a delete marker, historical
+read and complete probe cleanup. See
+[`c3-release-observability-data-governance-2026-09-13.json`](evidence/c3-release-observability-data-governance-2026-09-13.json).
+
 The following boundaries still prevent a production DR claim:
 
-- Redis RDB-only persistence has a non-zero RPO; Redis is cache/control-plane
-  recovery, not the authoritative test record. AOF remains disabled on this
-  target and requires an explicit durability/cost decision.
+- Redis AOF every-second persistence reduces the control-plane RPO but does not
+  make Redis authoritative or protect against loss of the single host. Keep RDB
+  snapshots and verify both AOF and RDB status after every Redis change.
 - A dump stored in MinIO on the same host protects against logical database
   loss only; it does not protect against host or primary-object-store loss.
-- MinIO versioning, a reviewed lifecycle policy and an independent backup
-  endpoint remain required release decisions. A same-endpoint copy is not DR.
+- MinIO versioning protects overwrites and delete-marker mistakes on the same
+  endpoint. Automatic lifecycle expiration is intentionally not configured
+  until prefixes are reviewed against database references. An independent
+  backup endpoint remains required; same-host versioning is not DR.
 
 Use `POSTGRES_MIGRATION_USER`/`POSTGRES_MIGRATION_PASSWORD` only for schema
 migrations and keep them out of long-running application Pods. Backups and
@@ -89,10 +100,11 @@ Record the resulting rule set and operator approval with the backup/restore
 drill evidence. A successful object restore does not by itself prove that the
 production lifecycle policy is safe.
 
-The latest read-only audit of the configured target is recorded in
-`docs/evidence/minio-lifecycle-audit-2026-08-15.json`. It found no lifecycle
-rules and confirmed that the bucket contains objects covered by database
-retention/reference policies, so no expiration policy was enabled automatically.
+The latest target change is recorded in
+`docs/evidence/c3-release-observability-data-governance-2026-09-13.json`.
+Versioning is enabled, while the bucket still has no lifecycle rule because it
+contains objects covered by database retention/reference policies. Do not turn
+that deliberate absence into a blanket root-prefix expiration rule.
 
 ## Backup
 

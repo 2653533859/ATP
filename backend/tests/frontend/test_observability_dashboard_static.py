@@ -36,8 +36,9 @@ def test_grafana_dashboard_covers_s4_observability_targets():
     assert "MinIO object count" in panels
 
     api_expr = panels["API 5xx error rate"]["targets"][0]["expr"]
-    assert 'http_requests_total{job="atp-backend",status=~"5.."}' in api_expr
+    assert 'http_requests_total{job="atp-backend",status="5xx"}' in api_expr
     assert 'http_requests_total{job="atp-backend"}' in api_expr
+    assert "clamp_min" in api_expr and "1e-9" in api_expr
 
     assert panels["MinIO storage bytes"]["targets"][0]["expr"] == "atp_storage_total_bytes"
     assert panels["MinIO object count"]["targets"][0]["expr"] == "atp_storage_total_objects"

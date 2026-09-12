@@ -252,6 +252,31 @@ Performance Worker 的 `/metrics`，只保存指标族摘要，不保存指标�
 替代 Prometheus TSDB、ServiceMonitor target、告警规则执行或长期 SLO 历史。2026-09-10 当前环境实测证据见
 [`evidence/c1-k3s-bounded-observability-2026-09-10.json`](evidence/c1-k3s-bounded-observability-2026-09-10.json)。
 
+### 单节点发布历史采集
+
+目标集群没有 Prometheus Operator/ServiceMonitor CRD 时，可在同一 Linux 主机部署仓库中的独立发布采集器。它不修改
+Helm release，通过 host gateway 抓取 `hostNetwork` 暴露的 Backend `:8000`、普通 Worker `:9091` 和 Performance
+Worker `:9092`：
+
+```bash
+install -d -m 0755 /opt/atp-single-node-observability
+install -m 0644 deploy/observability/*.yml /opt/atp-single-node-observability/
+docker run --rm \
+  -v /opt/atp-single-node-observability/prometheus.single-node.yml:/etc/prometheus/prometheus.yml:ro \
+  -v /opt/atp-single-node-observability/prometheus.rules.yml:/etc/prometheus/rules/atp.rules.yml:ro \
+  --entrypoint promtool prom/prometheus:v2.55.0 \
+  check config /etc/prometheus/prometheus.yml
+docker compose -p atp-single-node-observability \
+  -f /opt/atp-single-node-observability/docker-compose.single-node.yml up -d
+curl -fsS http://127.0.0.1:39090/-/ready
+```
+
+该 profile 仅绑定回环地址，使用命名卷 `atp_single_node_prometheus_data` 并保留 15 天；规则覆盖目标下线、API 5xx、
+API P95 和运行成功率。升级配置前应比较仓库与 `/opt` 文件 SHA-256，执行 `promtool check config`，再重建容器并检查
+`/api/v1/targets` 和 `/api/v1/rules`。2026-09-13 起始证据为 4/4 target up、4 条规则 health=ok；仍需积累连续
+7 天后校准告警、14 天后才能考虑把 SLO 变为发布门禁。它是当前单节点范围的发布历史采集器，不等同于多节点
+Prometheus Operator 验收。
+
 由于 `hostNetwork` Pod 会直接占用宿主机端口或 X11 抽象套接字，Backend、Worker、Flower、Performance Worker 和 Web
 Recorder Deployment 使用 `RollingUpdate(maxSurge=0,maxUnavailable=100%)`，确保单副本更新时先释放旧资源再创建新
 Pod；否则默认 `maxSurge` 会让新 Pod 因端口或 display 冲突阻塞原子升级。Beat 固定使用 `Recreate`。Flower 内存 limit
@@ -303,10 +328,15 @@ PostgreSQL DML、Redis ACL 和 MinIO bucket 级身份；独立迁移 Secret 只�
 任何 Deployment。旧 release 配合 `--reuse-values` 可能完全没有新增的 `migrationSecret` map，因此模板必须对 map 和
 `existingName` 分层做 nil-safe 判断，不能直接解引用 `.Values.migrationSecret.existingName`。
 
-该主机的外部 Redis 通过 `/opt/atp-runtime-overrides/redis-acl.override.yml` 持久加载 `/data/users.acl`。回滚时必须把
+该主机的外部 Redis 通过 `/opt/atp-runtime-overrides/redis-acl-aof.override.yml` 持久加载 `/data/users.acl`，并启用
+`appendonly yes`、`appendfsync everysec` 和 RDB preamble。现有 RDB 数据切换 AOF 时必须先让 Redis 以 RDB 模式完整加载，
+再在线执行 `CONFIG SET appendonly yes`、等待 `aof_rewrite_in_progress=0` 与 `aof_last_bgrewrite_status=ok`，最后使用稳定
+override 重建并再次重启验证。不要直接让已有 RDB 卷首次以 AOF 模式启动：隔离预演已证明这可能选择空 AOF 数据集。
+回滚时必须把
 Helm revision 与其对应的运行 Secret 一起恢复，并在重启 Redis 后验证双 Worker ping、维护队列备份及 ACL denial 日志；
 不要通过放宽到全 key/channel 或 `+@all` 来临时绕过 Celery 权限错误。脱敏验证结果见
-[`evidence/c3-least-privilege-2026-09-12.json`](evidence/c3-least-privilege-2026-09-12.json)。
+[`evidence/c3-least-privilege-2026-09-12.json`](evidence/c3-least-privilege-2026-09-12.json) 与
+[`evidence/c3-release-observability-data-governance-2026-09-13.json`](evidence/c3-release-observability-data-governance-2026-09-13.json)。
 
 2026-09-12 的隔离恢复进一步确认：`pg_dump --no-acl` 不会携带运行角色授权，且 PostgreSQL 默认授权按数据库保存。
 因此 revision 44（提交 `6755ed9f`）起，在线 Alembic 迁移结束后会在运行角色与迁移角色分离时协调当前表、序列、
@@ -321,10 +351,11 @@ Helm values 默认启用 `DB_BACKUP_ENABLED=true`，由 Celery beat 调度 Postg
 恢复演练与生产恢复步骤见 `docs/disaster-recovery.md`。恢复脚本 `scripts/restore-postgres.sh` 必须显式传入 `--i-know-this-overwrites`，避免误覆盖数据库。
 
 2026-09-10 的 C1.3 已验证真实维护队列备份与隔离恢复；2026-09-12 的 C3.2 又完成 PostgreSQL 运行/迁移身份、
-Redis ACL 和 MinIO bucket 身份切换并回归真实备份。仍不勾选下方完整生产 checklist：Redis 仅有 RDB，MinIO 没有
-独立备份端点，versioning/lifecycle 和发布级 Prometheus/SLO 也尚未关闭。详见
+Redis ACL 和 MinIO bucket 身份切换并回归真实备份。2026-09-13 又启用 Redis AOF everysec 与 MinIO versioning，并启动
+15 天保留的发布 Prometheus。仍不勾选下方完整生产 checklist：MinIO 没有独立备份端点，自动 lifecycle 经风险评估保持
+未配置，Prometheus 也尚未形成 7/14 天 SLO 历史。详见
 [`evidence/c1-data-services-recovery-2026-09-10.json`](evidence/c1-data-services-recovery-2026-09-10.json) 与
-[`evidence/c3-least-privilege-2026-09-12.json`](evidence/c3-least-privilege-2026-09-12.json)。
+[`evidence/c3-release-observability-data-governance-2026-09-13.json`](evidence/c3-release-observability-data-governance-2026-09-13.json)。
 
 ### MinIO 生命周期（显式启用）
 

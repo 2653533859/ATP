@@ -27,9 +27,9 @@ groups:
               to: 0
             model:
               expr: |
-                sum(rate(http_requests_total{status=~"5.."}[5m]))
+                sum(rate(http_requests_total{status="5xx"}[5m]))
                 /
-                clamp_min(sum(rate(http_requests_total[5m])), 1)
+                clamp_min(sum(rate(http_requests_total[5m])), 1e-9)
               instant: true
               intervalMs: 1000
               maxDataPoints: 43200

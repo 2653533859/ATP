@@ -1,0 +1,94 @@
+{
+  "evidence_type": "c3_release_observability_data_governance",
+  "generated_at": "2026-09-12T17:42:57+00:00",
+  "status": "partial_pass",
+  "scope": {
+    "target": "single-node Linux K3s",
+    "namespace": "atp-single-node",
+    "helm_revision": 44,
+    "deployed_application_revision": "6755ed9f",
+    "repository_baseline_revision": "83f66e3e",
+    "secrets_included": false
+  },
+  "prometheus": {
+    "deployment": "standalone Docker Compose release collector",
+    "listen_address": "127.0.0.1:39090",
+    "persistent_volume": "atp_single_node_prometheus_data",
+    "retention": "15d",
+    "container_health": "healthy",
+    "container_restarts": 0,
+    "targets": {
+      "atp-backend": "up",
+      "atp-worker": "up",
+      "atp-performance-worker": "up",
+      "prometheus": "up"
+    },
+    "rules": {
+      "AtpReleaseTargetDown": "inactive/ok",
+      "AtpApiErrorRateHigh": "inactive/ok",
+      "AtpApiP95LatencyHigh": "inactive/ok",
+      "AtpRunSuccessRateLow": "inactive/ok"
+    },
+    "config_sha256": {
+      "docker-compose.single-node.yml": "025acbd753605688ad217414e124febe464e18cbca6e168423521b239ab87ab6",
+      "prometheus.single-node.yml": "c1d99ca09cfd5e67c84e3e68d84c44531112f2ba65b9b62cc15770eb590afb30",
+      "prometheus.rules.yml": "66bfd0a1d3aae3400bab848f01c83aece16dccdb05343ac913bf349ba7d92e74"
+    },
+    "history_gate": {
+      "collector_started_at": "2026-09-12T17:31:29.263560186+00:00",
+      "initial_7_day_calibration": "pending",
+      "stable_14_day_calibration": "pending",
+      "release_blocking_slo": false
+    }
+  },
+  "redis": {
+    "persistence": "AOF everysec with RDB preamble plus RDB snapshots",
+    "aof_enabled": true,
+    "aof_last_bgrewrite_status": "ok",
+    "aof_last_write_status": "ok",
+    "rdb_last_bgsave_status": "ok",
+    "aof_file_count": 3,
+    "keys_after_probe_cleanup": 19,
+    "acl_denials_last_10_minutes": 0,
+    "recovery_checks": [
+      "isolated RDB clone loaded 19 keys before online AOF conversion",
+      "probe survived isolated AOF restart",
+      "probe survived live Compose recreation and a second Redis restart",
+      "two Celery workers remained reachable"
+    ],
+    "operational_note": "Starting a cloned RDB volume directly with appendonly=yes selected an empty AOF data set; the accepted migration enables AOF online after loading the RDB, then verifies a restart."
+  },
+  "minio": {
+    "bucket_versioning": "enabled",
+    "probe_versions": 2,
+    "delete_marker_verified": true,
+    "historical_version_read_verified": true,
+    "probe_versions_remaining": 0,
+    "lifecycle": "not-configured",
+    "lifecycle_decision": "Do not enable automatic expiration until every prefix is reviewed against database object references.",
+    "independent_backup_endpoint": "missing"
+  },
+  "stability": {
+    "duration_seconds": 40,
+    "sample_count": 5,
+    "pods_ready_every_sample": "6/6",
+    "pod_restarts_every_sample": 0,
+    "prometheus_targets_up_every_sample": "4/4",
+    "firing_alerts_every_sample": 0,
+    "backend_health_every_sample": "ok",
+    "worker_nodes_online": 2
+  },
+  "result": {
+    "completed": [
+      "release-scoped persistent metrics collector and alert-rule execution",
+      "Redis AOF durability decision and live restart verification",
+      "MinIO versioning decision and reversible object-version smoke"
+    ],
+    "remaining": [
+      "7-day and 14-day Prometheus SLO calibration windows",
+      "MinIO backup and restore against a different host or failure domain",
+      "C3.5 final immutable SHA and evidence index"
+    ]
+  },
+  "boundary": "This evidence starts the release history window and closes same-host durability decisions. It is not yet 7/14-day SLO evidence and same-host MinIO versioning is not independent disaster recovery."
+}

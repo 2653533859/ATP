@@ -44,7 +44,7 @@ def test_collect_q12_evidence_writes_reports_and_artifacts(repo_root, tmp_path, 
                 return [_series(module, {}, [("2026-07-01T00:00:00", 1.0), ("2026-07-02T00:00:00", 1.0)])]
             if 'up{job="atp-worker"}' in query:
                 return [_series(module, {}, [("2026-07-01T00:00:00", 1.0), ("2026-07-02T00:00:00", 1.0)])]
-            if 'status=~"5.."' in query:
+            if 'status="5xx"' in query:
                 return [_series(module, {}, [("2026-07-01T00:00:00", 0.998), ("2026-07-02T00:00:00", 0.999)])]
             if "http_request_duration_seconds_bucket" in query and "[5m]" in query:
                 return [_series(module, {}, [("2026-07-01T00:00:00", 1.8), ("2026-07-02T00:00:00", 1.75)])]

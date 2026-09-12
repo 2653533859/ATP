@@ -1,0 +1,14 @@
+services:
+  redis:
+    command:
+      - redis-server
+      - --requirepass
+      - ${REDIS_PASSWORD}
+      - --aclfile
+      - /data/users.acl
+      - --appendonly
+      - "yes"
+      - --appendfsync
+      - everysec
+      - --aof-use-rdb-preamble
+      - "yes"

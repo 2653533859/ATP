@@ -9,16 +9,16 @@ Q11-10 calibration status: complete for the current pre-production baseline.
 Observed traffic window:
 
 - Current evidence source: local, CI, release-readiness, and short-lived staging-style runs captured during Q10/Q11 validation.
-- Production Prometheus history: not available in this repository snapshot.
-- Decision: keep the Q10 short-window SLOs as pre-production guardrails, but do not treat them as paging-grade production SLOs until continuous production scrape history exists.
+- Release Prometheus history: collection started on 2026-09-13 for the current single-node target. The standalone collector retains 15 days and currently scrapes Backend, ordinary Worker, Performance Worker and itself; initial 4/4 target and rule-health evidence is in [`c3-release-observability-data-governance-2026-09-13.json`](evidence/c3-release-observability-data-governance-2026-09-13.json).
+- Decision: keep the Q10 short-window SLOs as pre-production guardrails. Do not enable paging-grade alerts before 7 consecutive days or make SLOs release-blocking before the 14-day calibration is reviewed.
 
 Production adoption window:
 
 | Stage | Required history | Purpose | Decision |
 |-------|------------------|---------|----------|
 | Pre-production baseline | Current local/CI/staging-style validation | Keep dashboard and runbook language aligned before rollout | Active |
-| Initial production calibration | 7 consecutive days of Prometheus data | Check request volume, endpoint mix, 5xx shape, and P95 stability | Required before enabling alerts |
-| Stable production calibration | 14 consecutive days after first traffic week | Confirm targets are not too loose or too noisy | Required before making SLOs release-blocking |
+| Initial production calibration | 7 consecutive days of Prometheus data | Check request volume, endpoint mix, 5xx shape, and P95 stability | Collecting since 2026-09-13; required before enabling alerts |
+| Stable production calibration | 14 consecutive days after first traffic week | Confirm targets are not too loose or too noisy | Pending; required before making SLOs release-blocking |
 
 The current targets are intentionally conservative for an internal automation platform: they should catch backend instability without creating noise while request volume is still low and bursty.
 
@@ -60,7 +60,7 @@ Use this metric to start triage, then separate platform errors from expected tes
 
 ```promql
 1 - (
-  sum(rate(http_requests_total{job="atp-backend",status=~"5.."}[1h]))
+  sum(rate(http_requests_total{job="atp-backend",status="5xx"}[1h]))
   /
   clamp_min(sum(rate(http_requests_total{job="atp-backend"}[1h])), 1e-9)
 )
@@ -98,7 +98,7 @@ The Grafana short-window panel uses:
 clamp_min(
   1 - (
     (
-      sum(rate(http_requests_total{job="atp-backend",status=~"5.."}[1h]))
+      sum(rate(http_requests_total{job="atp-backend",status="5xx"}[1h]))
       /
       clamp_min(sum(rate(http_requests_total{job="atp-backend"}[1h])), 1e-9)
     )
@@ -150,7 +150,7 @@ First checks:
 1. Split 5xx by handler:
 
    ```promql
-   sum(rate(http_requests_total{job="atp-backend",status=~"5.."}[5m])) by (handler)
+   sum(rate(http_requests_total{job="atp-backend",status="5xx"}[5m])) by (handler)
    ```
 
 2. Check whether errors are isolated to execution/reporting endpoints or affect login, project, and case navigation too.

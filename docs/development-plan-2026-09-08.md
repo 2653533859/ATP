@@ -158,7 +158,9 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 - [x] `C3.1` 建立最小权限凭据通道：分离 PostgreSQL 运行/迁移连接，支持 Redis ACL 用户名和 MinIO bucket 级应用凭据；Helm 使用独立迁移 Secret，仅向 Alembic hook Job 注入 DDL 凭据，启动配置页和示例配置同步支持且不持久化新增密码。
 - [x] `C3.2` 在目标 Linux 创建受限 PostgreSQL、Redis、MinIO 身份，切换 K3s Secret 并完成迁移、业务读写、任务队列、对象读写和备份回归；保留可验证回退路径。
 - [x] `C3.3` 执行数据库空库迁移、升级、备份恢复和回滚演练；验证恢复后的运行角色权限，并清理全部隔离资源。
-- [ ] `C3.4` 收集发布级 SLO、告警、服务重启和持续稳定性证据，明确 Redis 与 MinIO 的剩余灾备决定。
+- [~] `C3.4` 收集发布级 SLO、告警、服务重启和持续稳定性证据，明确 Redis 与 MinIO 的剩余灾备决定。
+  - [x] `C3.4.1` 部署持久化单节点发布 Prometheus，验证 4 个 target、4 条告警规则和 40 秒稳定性；Redis 切换 AOF everysec 并通过双重重启；MinIO 启用 versioning，明确不自动启用未审查的 lifecycle。
+  - [ ] `C3.4.2` 累积并复核连续 7/14 天 SLO 历史；在不同主机或故障域配置 MinIO 备份端点并完成恢复演练。
 - [ ] `C3.5` 绑定同一最终提交 SHA，更新能力矩阵、运行手册、证据索引和发布结论。
 
 ## 7. 推荐执行顺序
@@ -184,6 +186,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 6. 经用户要求后使用 Conventional Commit 提交并推送。
 
 ## 9. 执行记录
+
+- 2026-09-13：完成 C3.4.1。目标 Linux 在独立 `/opt/atp-single-node-observability` 配置目录部署 `prom/prometheus:v2.55.0`，TSDB 使用命名卷、保留 15 天并仅监听 `127.0.0.1:39090`；Backend、普通 Worker、Performance Worker 和 Prometheus 自身 4/4 target 为 up，目标下线、API 5xx、P95 和运行成功率 4 条规则均为 inactive/ok。Redis 先在隔离 RDB 副本验证正确转换路径，再对真实服务在线启用 AOF everysec；Compose 重建和第二次容器重启后探针均持久，AOF/RDB 状态为 ok、双 Worker 在线且无 ACL 拒绝。直接以 `appendonly=yes` 启动已有 RDB 副本会优先选择空 AOF，因此运行手册固定为“先以 RDB 启动、在线开启 AOF、等待重写、再重建”。MinIO `atp` bucket 启用 versioning，双版本、删除标记、历史读取和清理通过；未配置自动 lifecycle，避免删除数据库仍引用对象。差异审查发现 Backend 的 Prometheus 状态标签实际为 `5xx` 分组而非三位状态码，已同步修复发布规则、Grafana 看板/告警、SLO 采集器和文档，并把低流量错误率分母下限从 `1` 修正为 `1e-9`；修复后定向 `18 passed`、完整非集成后端 `2584 passed / 1 skipped`，Ruff、格式、mypy、前端 Vitest、敏感信息和全量提交钩子通过。收尾 40 秒 5 次采样为 6/6 Pod Ready、零重启、4/4 target、0 firing alert。证据见 [`evidence/c3-release-observability-data-governance-2026-09-13.json`](evidence/c3-release-observability-data-governance-2026-09-13.json)。C3.4 尚未关闭：Prometheus 自 2026-09-13 起累计 7/14 天历史，且独立 MinIO 仍需不同主机或故障域。
 
 - 2026-09-12：完成 C3.3 隔离迁移与恢复演练。非超级 `atp_migrator` 在临时空库完成 base → `20260909_0072`，结果为 65 张 public 总表（其中 64 张业务表）；第二个临时库完成 `0071 → 0072 → downgrade -1 → 0072`，`cancelled` 枚举按已记录的兼容策略保留。随后把 C3.2 生成的 65,259 字节 daily 备份恢复到第三个隔离库，结构及 4 个项目、4 个用户均一致，但首次探针发现 `pg_dump --no-acl` 不携带授权且默认授权按数据库隔离，导致 `atp_runtime` 无法读取。提交 `6755ed9f` 增加迁移后授权协调：当前表/序列/函数和同库默认授权自动恢复，角色名与库名按 PostgreSQL 标识符引用；共享旧角色兼容跳过。定向 `23 passed`、完整非集成后端 `2580 passed / 1 skipped`，Ruff、格式、mypy、前端 Vitest、敏感信息和提交钩子通过。精确 Backend/Worker 镜像部署到 Helm revision 44 后，同一备份复测为 65 表、4 项目、4 用户、head `0072`，运行角色可读、具备表 DML/序列权限且 schema CREATE=false；全部临时库、目录与脚本归零。部署后 40 秒 5 次采样保持 6/6 Pod Ready、零重启、三指标组件全覆盖、0 告警。脱敏证据见 [`evidence/c3-migration-restore-2026-09-12.json`](evidence/c3-migration-restore-2026-09-12.json) 与 [`evidence/c3-migration-stability-2026-09-12.json`](evidence/c3-migration-stability-2026-09-12.json)。开发游标进入 C3.4；单节点有界采样不替代发布级 Prometheus/SLO，Redis RDB-only 和非独立 MinIO 仍不粉饰为已关闭。
 

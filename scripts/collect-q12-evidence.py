@@ -327,7 +327,7 @@ def _build_slo_bundle(
     record_type = "day-7 initial calibration" if total_days <= 7 else "day-14 stable calibration"
 
     availability_query = (
-        '1 - (sum(rate(http_requests_total{job="atp-backend",status=~"5.."}[1h])) '
+        '1 - (sum(rate(http_requests_total{job="atp-backend",status="5xx"}[1h])) '
         '/ clamp_min(sum(rate(http_requests_total{job="atp-backend"}[1h])), 1e-9))'
     )
     latency_5m_query = (

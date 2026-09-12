@@ -1,0 +1,29 @@
+services:
+  prometheus:
+    image: prom/prometheus:v2.55.0
+    container_name: atp-single-node-prometheus
+    restart: unless-stopped
+    command:
+      - --config.file=/etc/prometheus/prometheus.yml
+      - --storage.tsdb.path=/prometheus
+      - --storage.tsdb.retention.time=15d
+    ports:
+      - 127.0.0.1:39090:9090
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    volumes:
+      - ./prometheus.single-node.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus.rules.yml:/etc/prometheus/rules/atp.rules.yml:ro
+      - atp_single_node_prometheus_data:/prometheus
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:9090/-/ready"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    security_opt:
+      - no-new-privileges:true
+
+volumes:
+  atp_single_node_prometheus_data:
+    name: atp_single_node_prometheus_data

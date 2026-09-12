@@ -1,0 +1,61 @@
+groups:
+  - name: atp-single-node-release
+    interval: 30s
+    rules:
+      - alert: AtpReleaseTargetDown
+        expr: up{job=~"atp-backend|atp-worker|atp-performance-worker"} == 0
+        for: 2m
+        labels:
+          severity: critical
+          scope: atp-single-node
+        annotations:
+          summary: "ATP release metrics target is down"
+          description: "{{ $labels.job }} at {{ $labels.instance }} has not been scraped successfully for two minutes."
+
+      - alert: AtpApiErrorRateHigh
+        expr: |
+          sum(rate(http_requests_total{job="atp-backend",status="5xx"}[5m]))
+          /
+          clamp_min(sum(rate(http_requests_total{job="atp-backend"}[5m])), 1e-9)
+          > 0.05
+        for: 5m
+        labels:
+          severity: warning
+          scope: atp-single-node
+        annotations:
+          summary: "ATP API 5xx rate exceeds 5%"
+          description: "The five-minute API error ratio has remained above the release guardrail."
+
+      - alert: AtpApiP95LatencyHigh
+        expr: |
+          histogram_quantile(
+            0.95,
+            sum(rate(http_request_duration_seconds_bucket{job="atp-backend"}[5m])) by (le)
+          ) > 2
+        for: 5m
+        labels:
+          severity: warning
+          scope: atp-single-node
+        annotations:
+          summary: "ATP API P95 latency exceeds two seconds"
+          description: "The five-minute API P95 has remained above the release guardrail."
+
+      - alert: AtpRunSuccessRateLow
+        expr: |
+          (
+            sum(rate(atp_run_outcomes_total{job="atp-backend",status="passed"}[1h]))
+            /
+            clamp_min(
+              sum(rate(atp_run_outcomes_total{job="atp-backend",status=~"passed|failed|error"}[1h])),
+              1e-9
+            )
+          ) < 0.95
+          and
+          sum(rate(atp_run_outcomes_total{job="atp-backend",status=~"passed|failed|error"}[1h])) > 0
+        for: 10m
+        labels:
+          severity: warning
+          scope: atp-single-node
+        annotations:
+          summary: "ATP run success rate is below 95%"
+          description: "Inspect target-system failures separately before attributing the breach to ATP."
