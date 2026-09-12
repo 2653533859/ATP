@@ -1,0 +1,103 @@
+{
+  "schema_version": 1,
+  "evidence_type": "c3_empty_migration_upgrade_rollback_restore",
+  "generated_at": "2026-09-12",
+  "status": "passed",
+  "scope": {
+    "target": "192.168.3.196",
+    "context": "atp-single-node",
+    "namespace": "atp-single-node",
+    "release": "atp-single-node",
+    "helm_revision": 44,
+    "source_revision": "6755ed9ff66c3b9c2330da509a51fe5cf0f917eb",
+    "database_isolation": "temporary databases only; production database remained online"
+  },
+  "empty_database": {
+    "upgrade": "base to 20260909_0072",
+    "public_tables_total": 65,
+    "application_tables": 64,
+    "migration_role": "atp_migrator",
+    "migration_role_superuser": false,
+    "migration_role_createdb": false,
+    "migration_role_createrole": false,
+    "status": "passed"
+  },
+  "upgrade_rollback_cycle": {
+    "sequence": [
+      "20260909_0071",
+      "20260909_0072",
+      "20260909_0071",
+      "20260909_0072"
+    ],
+    "downgrade_behavior": "cancelled enum label retained as documented; cancelled rows would be mapped to failed",
+    "final_public_tables_total": 65,
+    "status": "passed"
+  },
+  "backup_restore": {
+    "object": "pg-backups/daily/atp-20260911-181920.sql.gz",
+    "size_bytes": 65259,
+    "restore_target": "isolated temporary database owned by atp_migrator",
+    "public_tables_total": 65,
+    "projects": 4,
+    "users": 4,
+    "migration_head": "20260909_0072",
+    "migrator_owned_public_tables": 65,
+    "runtime_read_count": 4,
+    "runtime_table_dml": true,
+    "runtime_sequence_usage": true,
+    "runtime_schema_create": false,
+    "status": "passed"
+  },
+  "defect_found_and_fixed": {
+    "symptom": "A restored --no-acl dump was structurally valid but atp_runtime could not read it.",
+    "cause": "PostgreSQL default privileges are database-local and --no-acl intentionally excludes grants.",
+    "fix": "Alembic now reconciles current table, sequence and function grants plus same-database default grants after every online migration.",
+    "security_boundary": "The runtime role receives DML, sequence and function access but no schema CREATE, CREATEDB, CREATEROLE or superuser capability.",
+    "regression_commit": "6755ed9ff66c3b9c2330da509a51fe5cf0f917eb"
+  },
+  "intermediate_checks": [
+    {
+      "result": "stopped safely",
+      "reason": "The first empty-database script expected 65 application tables instead of 65 total public tables including alembic_version.",
+      "cleanup": "zero temporary databases and zero temporary directories"
+    },
+    {
+      "result": "defect reproduced",
+      "reason": "The pre-fix restored database returned a nonzero runtime read exit code.",
+      "cleanup": "the isolated restore database was removed before implementation"
+    }
+  ],
+  "cleanup": {
+    "temporary_databases_remaining": 0,
+    "temporary_directories_remaining": 0,
+    "temporary_scripts_removed": true,
+    "production_migration_head": "20260909_0072"
+  },
+  "stability": {
+    "evidence": "docs/evidence/c3-migration-stability-2026-09-12.json",
+    "duration_seconds": 40,
+    "samples": 5,
+    "alerts": 0,
+    "ready_pods": "6/6",
+    "pod_restarts": 0,
+    "metrics_components": [
+      "backend",
+      "worker",
+      "performance-worker"
+    ]
+  },
+  "deployment_health": {
+    "backend_health": "ok",
+    "celery_nodes_online": 2,
+    "default_worker_ping": "pong",
+    "performance_worker_ping": "pong",
+    "backend_and_worker_image_revision": "6755ed9f"
+  },
+  "secrets_included": false,
+  "remaining_release_boundaries": [
+    "Redis remains RDB-only with AOF disabled.",
+    "MinIO still has no independent backup target, reviewed versioning or lifecycle decision.",
+    "Release-level Prometheus, long-term SLO and alert history remain open.",
+    "The final release evidence index and final SHA binding remain open."
+  ]
+}

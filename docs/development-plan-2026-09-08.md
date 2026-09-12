@@ -157,9 +157,9 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 
 - [x] `C3.1` 建立最小权限凭据通道：分离 PostgreSQL 运行/迁移连接，支持 Redis ACL 用户名和 MinIO bucket 级应用凭据；Helm 使用独立迁移 Secret，仅向 Alembic hook Job 注入 DDL 凭据，启动配置页和示例配置同步支持且不持久化新增密码。
 - [x] `C3.2` 在目标 Linux 创建受限 PostgreSQL、Redis、MinIO 身份，切换 K3s Secret 并完成迁移、业务读写、任务队列、对象读写和备份回归；保留可验证回退路径。
-- 执行数据库空库迁移、升级、备份恢复和回滚演练。
-- 收集 SLO、告警、服务重启和持续稳定性证据。
-- 绑定同一最终提交 SHA，更新能力矩阵、运行手册、证据索引和发布结论。
+- [x] `C3.3` 执行数据库空库迁移、升级、备份恢复和回滚演练；验证恢复后的运行角色权限，并清理全部隔离资源。
+- [ ] `C3.4` 收集发布级 SLO、告警、服务重启和持续稳定性证据，明确 Redis 与 MinIO 的剩余灾备决定。
+- [ ] `C3.5` 绑定同一最终提交 SHA，更新能力矩阵、运行手册、证据索引和发布结论。
 
 ## 7. 推荐执行顺序
 
@@ -184,6 +184,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 6. 经用户要求后使用 Conventional Commit 提交并推送。
 
 ## 9. 执行记录
+
+- 2026-09-12：完成 C3.3 隔离迁移与恢复演练。非超级 `atp_migrator` 在临时空库完成 base → `20260909_0072`，结果为 65 张 public 总表（其中 64 张业务表）；第二个临时库完成 `0071 → 0072 → downgrade -1 → 0072`，`cancelled` 枚举按已记录的兼容策略保留。随后把 C3.2 生成的 65,259 字节 daily 备份恢复到第三个隔离库，结构及 4 个项目、4 个用户均一致，但首次探针发现 `pg_dump --no-acl` 不携带授权且默认授权按数据库隔离，导致 `atp_runtime` 无法读取。提交 `6755ed9f` 增加迁移后授权协调：当前表/序列/函数和同库默认授权自动恢复，角色名与库名按 PostgreSQL 标识符引用；共享旧角色兼容跳过。定向 `23 passed`、完整非集成后端 `2580 passed / 1 skipped`，Ruff、格式、mypy、前端 Vitest、敏感信息和提交钩子通过。精确 Backend/Worker 镜像部署到 Helm revision 44 后，同一备份复测为 65 表、4 项目、4 用户、head `0072`，运行角色可读、具备表 DML/序列权限且 schema CREATE=false；全部临时库、目录与脚本归零。部署后 40 秒 5 次采样保持 6/6 Pod Ready、零重启、三指标组件全覆盖、0 告警。脱敏证据见 [`evidence/c3-migration-restore-2026-09-12.json`](evidence/c3-migration-restore-2026-09-12.json) 与 [`evidence/c3-migration-stability-2026-09-12.json`](evidence/c3-migration-stability-2026-09-12.json)。开发游标进入 C3.4；单节点有界采样不替代发布级 Prometheus/SLO，Redis RDB-only 和非独立 MinIO 仍不粉饰为已关闭。
 
 - 2026-09-12：完成 C3.2 目标单节点最小权限切换。PostgreSQL 保留不挂载到工作负载的 bootstrap operator，业务库及 65 张 public 表、63 个序列由非 superuser 的 `atp_migrator` 持有，`atp_runtime` 仅获业务 DML/序列权限且 DDL 探针按预期拒绝；Redis `atp-runtime` 移除 admin/dangerous 命令并仅开放 ATP 与实测 Celery queue/reply/pidbox/event key/channel 模式，真实 Redis 重启后双 Worker ping、维护队列备份和 ACL 日志复核通过；MinIO bucket 级身份完成对象读写删除，建 bucket 被拒绝。运行、迁移和 operator Secret 分离，迁移与 operator Secret 均未挂载到长期 Deployment。升级前发现旧 release 使用 `--reuse-values` 缺少 `migrationSecret` map 会导致 Hook 模板空指针，已改为 nil-safe 嵌套判断并补回归；revision 43 最终为 6/6 Pod Ready、零重启、Backend 健康、迁移头 `20260909_0072`，真实 daily 备份 `pg-backups/daily/atp-20260911-181920.sql.gz`（65,259 字节）上传成功，40 秒 5 次采样 0 告警。定向回归 `8 passed`，完整非集成后端 `2573 passed / 1 skipped`，Helm lint、旧 values 的 null render、Ruff、格式、mypy、前端 Vitest、敏感信息和差异检查均通过；独立差异审查修正了证据版本字段歧义后无剩余可操作问题。脱敏证据见 [`evidence/c3-least-privilege-2026-09-12.json`](evidence/c3-least-privilege-2026-09-12.json) 与 [`evidence/c3-least-privilege-stability-2026-09-12.json`](evidence/c3-least-privilege-stability-2026-09-12.json)。C3 仍未关闭：下一步执行空库迁移/升级/回滚演练，随后补发布级 Prometheus/SLO、独立 MinIO 与最终 SHA/证据索引。
 

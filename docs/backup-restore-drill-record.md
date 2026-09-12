@@ -74,3 +74,21 @@ ticket links when available.
 | Smoke test result | real maintenance queue backup completed; default/maintenance/performance/node queues returned to zero |
 | Rollback needed | no |
 | Notes | [`evidence/c1-data-services-recovery-2026-09-10.json`](evidence/c1-data-services-recovery-2026-09-10.json). C1.3 validation is complete, but over-privileged PostgreSQL/Redis/MinIO credentials, RDB-only Redis recovery and same-host MinIO keep C3/P4 blocked. |
+
+## 2026-09-12 Single-node C3.3 Migration and Restore Drill
+
+| Field | Value |
+|-------|-------|
+| Drill date | 2026-09-12 |
+| Environment | `atp-single-node` integration; isolated temporary databases on the host-local PostgreSQL service |
+| Operator | Codex |
+| PostgreSQL backup object | `pg-backups/daily/atp-20260911-181920.sql.gz` |
+| PostgreSQL backup size | 65,259 bytes |
+| Empty migration | base → `20260909_0072`; 65 public tables, including `alembic_version` |
+| Upgrade/rollback cycle | `20260909_0071 → 20260909_0072 → 20260909_0071 → 20260909_0072` |
+| Restore check | 65 public tables, 4 projects, 4 users and migration head `20260909_0072` |
+| Runtime privilege check | project read, table DML and sequence usage passed; schema `CREATE` denied |
+| Health check result | Helm revision 44 deployed; 6/6 Pods Ready, zero restarts and 40-second bounded sampling produced zero alerts |
+| Rollback needed | no; the schema downgrade was confined to an isolated database |
+| Cleanup | all temporary databases, directories and scripts removed |
+| Notes | The first restore reproduced missing runtime grants because `--no-acl` excludes ACLs. Commit `6755ed9f` reconciles grants after Alembic and the same backup then passed. Evidence: [`evidence/c3-migration-restore-2026-09-12.json`](evidence/c3-migration-restore-2026-09-12.json). This is still same-host backup evidence, not independent MinIO DR. |

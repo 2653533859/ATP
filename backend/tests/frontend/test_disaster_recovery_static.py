@@ -23,6 +23,9 @@ def test_disaster_recovery_runbook_has_drill_verification_steps():
 
     assert "Kubernetes Drill" in content
     assert "alembic upgrade head" in content
+    assert "helm upgrade atp deploy/helm/atp" in content
+    assert "migrationSecret.existingName" in content
+    assert "kubectl -n atp exec deploy/atp-atp-backend -- alembic" not in content
     assert "curl -fsS https://atp.example.com/health" in content
     assert "A recent daily backup exists in MinIO." in content
     assert "A recent MinIO application object backup exists outside the primary bucket." in content

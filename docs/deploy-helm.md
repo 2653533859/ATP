@@ -308,6 +308,12 @@ Helm revision 与其对应的运行 Secret 一起恢复，并在重启 Redis 后
 不要通过放宽到全 key/channel 或 `+@all` 来临时绕过 Celery 权限错误。脱敏验证结果见
 [`evidence/c3-least-privilege-2026-09-12.json`](evidence/c3-least-privilege-2026-09-12.json)。
 
+2026-09-12 的隔离恢复进一步确认：`pg_dump --no-acl` 不会携带运行角色授权，且 PostgreSQL 默认授权按数据库保存。
+因此 revision 44（提交 `6755ed9f`）起，在线 Alembic 迁移结束后会在运行角色与迁移角色分离时协调当前表、序列、
+函数授权及同库默认授权。恢复流程必须在导入 dump 后执行 `alembic upgrade head`，再用运行角色验证业务查询；不得只核对
+`alembic_version`。完整结果见
+[`evidence/c3-migration-restore-2026-09-12.json`](evidence/c3-migration-restore-2026-09-12.json)。
+
 ## 九、备份恢复
 
 Helm values 默认启用 `DB_BACKUP_ENABLED=true`，由 Celery beat 调度 PostgreSQL 备份任务，备份对象写入 MinIO 的 `pg-backups/` 前缀。

@@ -42,6 +42,14 @@ application principal. The real Celery daily backup and a post-restart
 40-second stability sample passed. See
 [`c3-least-privilege-2026-09-12.json`](evidence/c3-least-privilege-2026-09-12.json).
 
+The 2026-09-12 C3.3 drill then exercised an empty database, a one-revision
+upgrade/downgrade/re-upgrade cycle and the latest daily backup in isolated
+databases. It found that a structurally valid `--no-acl` restore did not grant
+the runtime role access. Revision `6755ed9f` makes every online Alembic run
+reconcile existing and default runtime grants. The post-fix restore passed with
+runtime DML and sequence access while schema `CREATE` remained denied. See
+[`c3-migration-restore-2026-09-12.json`](evidence/c3-migration-restore-2026-09-12.json).
+
 The following boundaries still prevent a production DR claim:
 
 - Redis RDB-only persistence has a non-zero RPO; Redis is cache/control-plane
@@ -266,18 +274,31 @@ the checked object key in `docs/backup-restore-drill-record.md`.
      "atp-minio/${MINIO_BUCKET}/"
    ```
 
-4. Run migrations after restore:
+4. Run migrations after restore through the release's pre-upgrade Hook. The
+   long-running Backend Pod intentionally does not mount the migration Secret,
+   so do not run Alembic with `kubectl exec` there:
 
    ```bash
-   kubectl -n atp exec deploy/atp-atp-backend -- alembic upgrade head
+   helm upgrade atp deploy/helm/atp \
+     -n atp \
+     -f production-values.yaml \
+     --reuse-values \
+     --rollback-on-failure \
+     --wait
    ```
 
-5. Scale services back:
+   Confirm `migrationSecret.existingName` still names the dedicated migration
+   Secret before running the command. The Hook also reconciles the separated
+   runtime role's current and default grants. Verify the application role can
+   query a business table and cannot create objects in `public`; checking only
+   the Alembic version is insufficient.
+
+5. Confirm Helm restored the desired replicas and every rollout completed:
 
    ```bash
-   kubectl -n atp scale deploy/atp-atp-backend --replicas=2
-   kubectl -n atp scale deploy/atp-atp-worker --replicas=3
-   kubectl -n atp scale deploy/atp-atp-beat --replicas=1
+   kubectl -n atp rollout status deploy/atp-atp-backend
+   kubectl -n atp rollout status deploy/atp-atp-worker
+   kubectl -n atp rollout status deploy/atp-atp-beat
    ```
 
 6. Verify:
