@@ -97,6 +97,8 @@ def test_alembic_and_redis_clients_use_split_credential_helpers():
 
     assert "settings.MIGRATION_DATABASE_URL" in alembic
     assert 'sync_url.replace("%", "%%")' in alembic
+    assert "grant_runtime_privileges(" in alembic
+    assert alembic.index("grant_runtime_privileges(", alembic.index("context.run_migrations()"))
     for path in redis_clients:
         assert "settings.redis_url(" in path.read_text(encoding="utf-8")
 

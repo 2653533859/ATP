@@ -8,6 +8,7 @@ import sys, os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from app.core.config import settings
+from app.core.database_privileges import grant_runtime_privileges
 from app.models.base import Base
 
 # 导入所有模型以确保 metadata 包含全部表
@@ -52,6 +53,12 @@ def run_migrations_online():
         context.configure(connection=connection, target_metadata=target_metadata)
         with context.begin_transaction():
             context.run_migrations()
+            grant_runtime_privileges(
+                connection,
+                database_name=settings.POSTGRES_DB,
+                runtime_user=settings.POSTGRES_USER,
+                migration_user=settings.POSTGRES_MIGRATION_USER,
+            )
 
 
 if context.is_offline_mode():
