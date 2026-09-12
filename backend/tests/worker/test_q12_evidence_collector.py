@@ -41,9 +41,29 @@ def test_collect_q12_evidence_writes_reports_and_artifacts(repo_root, tmp_path, 
 
         def query_range(self, query: str, start, end, step: str):
             if 'up{job="atp-backend"}' in query:
-                return [_series(module, {}, [("2026-07-01T00:00:00", 1.0), ("2026-07-02T00:00:00", 1.0)])]
+                return [
+                    _series(
+                        module,
+                        {},
+                        [
+                            (f"2026-07-{day:02d}T{minute // 60:02d}:{minute % 60:02d}:00", 1.0)
+                            for day in (1, 2)
+                            for minute in range(0, 24 * 60, 5)
+                        ],
+                    )
+                ]
             if 'up{job="atp-worker"}' in query:
-                return [_series(module, {}, [("2026-07-01T00:00:00", 1.0), ("2026-07-02T00:00:00", 1.0)])]
+                return [
+                    _series(
+                        module,
+                        {},
+                        [
+                            (f"2026-07-{day:02d}T{minute // 60:02d}:{minute % 60:02d}:00", 1.0)
+                            for day in (1, 2)
+                            for minute in range(0, 24 * 60, 5)
+                        ],
+                    )
+                ]
             if 'status="5xx"' in query:
                 return [_series(module, {}, [("2026-07-01T00:00:00", 0.998), ("2026-07-02T00:00:00", 0.999)])]
             if "http_request_duration_seconds_bucket" in query and "[5m]" in query:
@@ -198,10 +218,8 @@ class _StubPrometheus:
         self._day = day
 
     def _series(self, module, values):
-        samples = [
-            (datetime.fromisoformat(f"{self._day}T{hour:02d}:00:00").replace(tzinfo=timezone.utc), value)
-            for hour, value in enumerate(values)
-        ]
+        start = datetime.fromisoformat(f"{self._day}T00:00:00").replace(tzinfo=timezone.utc)
+        samples = [(start + timedelta(minutes=5 * index), value) for index, value in enumerate(values)]
         return [module.PrometheusSeries(labels={}, samples=samples)]
 
     def bind(self, module):
@@ -209,6 +227,8 @@ class _StubPrometheus:
         return self
 
     def query_range(self, query: str, start, end, step: str):
+        if query.startswith("up{"):
+            return self._series(self._module, [1.0] * 288)
         if "http_request_duration_seconds_bucket" in query:
             return self._series(self._module, self._latency)
         if query.startswith("1 - ("):
@@ -299,10 +319,13 @@ def test_window_without_samples_is_a_data_gap_not_a_pass(repo_root):
     )
 
     assert not evidence.breach_rows
-    # 14 days x 4 evaluated SLO series
-    assert len(evidence.data_gap_rows) == 56
+    # 14 days x (4 evaluated SLO series + backend/worker scrape continuity)
+    assert len(evidence.data_gap_rows) == 84
     assert evidence.alert_enablement == "deferred"
     assert evidence.release_blocking_gate == "deferred"
+
+    rendered = module._render_slo_markdown(evidence, grafana_verified=False)
+    assert "- [ ] Grafana `atp-overview` loaded" in rendered
     assert "could not evaluate" in evidence.rationale
 
     rendered = module._render_slo_markdown(evidence)
@@ -311,6 +334,33 @@ def test_window_without_samples_is_a_data_gap_not_a_pass(repo_root):
     assert "not evaluated; data gaps present" in rendered
     # Preconditions must not claim a full scrape history when days are missing.
     assert "- [ ] Prometheus continuously scraped" in rendered
+
+
+def test_prometheus_client_discards_nan_samples(repo_root, monkeypatch):
+    module = _load_collector(repo_root)
+    client = module.PrometheusClient("http://prom")
+    payloads = [
+        {
+            "status": "success",
+            "data": {"result": [{"metric": {}, "values": [[1, "NaN"], [2, "1.5"]]}]},
+        },
+        {
+            "status": "success",
+            "data": {"result": [{"metric": {}, "value": [2, "NaN"]}]},
+        },
+    ]
+    monkeypatch.setattr(client, "_request", lambda *_args, **_kwargs: payloads.pop(0))
+
+    ranged = client.query_range(
+        "metric",
+        datetime(2026, 7, 1, tzinfo=timezone.utc),
+        datetime(2026, 7, 2, tzinfo=timezone.utc),
+        "1h",
+    )
+    instant = client.query_instant("metric", datetime(2026, 7, 2, tzinfo=timezone.utc))
+
+    assert [value for _sampled_at, value in ranged[0].samples] == [1.5]
+    assert instant[0].samples == []
 
 
 def test_full_window_without_breaches_enables_the_gate(repo_root):
@@ -327,7 +377,10 @@ def test_full_window_without_breaches_enables_the_gate(repo_root):
         samples = []
         for day_offset in range(14):
             for index, (_ts, value) in enumerate(base[0].samples):
-                stamp = datetime(2026, 7, 1, index, tzinfo=timezone.utc) + timedelta(days=day_offset)
+                stamp = datetime(2026, 7, 1, tzinfo=timezone.utc) + timedelta(
+                    days=day_offset,
+                    minutes=5 * index,
+                )
                 samples.append((stamp, value))
         return [module.PrometheusSeries(labels={}, samples=samples)]
 
@@ -344,6 +397,68 @@ def test_full_window_without_breaches_enables_the_gate(repo_root):
     assert evidence.data_gap_rows == []
     assert evidence.alert_enablement == "enabled"
     assert evidence.release_blocking_gate == "enabled"
+
+
+def test_partial_five_minute_scrape_history_blocks_an_otherwise_clean_window(repo_root):
+    module = _load_collector(repo_root)
+    prometheus = _StubPrometheus(
+        availability=[0.999] * 24,
+        latency=[0.2] * 24,
+        success=[0.99] * 24,
+    ).bind(module)
+
+    original_query_range = prometheus.query_range
+
+    def query_range(query, start, end, step):
+        if query.startswith('up{job="atp-worker"}'):
+            return prometheus._series(module, [1.0])
+        return original_query_range(query, start, end, step)
+
+    prometheus.query_range = query_range
+    evidence, _artifacts = module._build_slo_bundle(
+        prometheus,
+        date(2026, 7, 1),
+        date(2026, 7, 1),
+        source_deployment="staging-prod",
+    )
+
+    assert any(row[1] == "Worker scrape continuity" for row in evidence.data_gap_rows)
+    assert evidence.scrape_rows[0][2] == "no"
+    assert "1/288 five-minute checkpoints" in evidence.scrape_rows[0][3]
+    assert evidence.record_type == "pre-calibration preflight"
+    assert evidence.alert_enablement == "deferred"
+    assert evidence.release_blocking_gate == "deferred"
+
+
+def test_slo_only_mode_does_not_require_atp_or_android_inputs(repo_root, tmp_path, monkeypatch, capsys):
+    module = _load_collector(repo_root)
+    recorded = {}
+
+    def fake_run_slo_only(**kwargs):
+        recorded.update(kwargs)
+        return [tmp_path / "docs" / "slo-history.md"]
+
+    monkeypatch.setattr(module, "run_slo_only", fake_run_slo_only)
+
+    result = module.main(
+        [
+            "--slo-only",
+            "--repo-root",
+            str(tmp_path),
+            "--start",
+            "2026-07-01",
+            "--end",
+            "2026-07-07",
+            "--prometheus-url",
+            "http://prometheus:9090",
+        ]
+    )
+
+    assert result == 0
+    assert recorded["start"] == date(2026, 7, 1)
+    assert recorded["end"] == date(2026, 7, 7)
+    assert recorded["prometheus_url"] == "http://prometheus:9090"
+    assert "slo-history.md" in capsys.readouterr().out
 
 
 def test_existing_evidence_aborts_before_any_collection(repo_root, tmp_path, monkeypatch):

@@ -135,6 +135,22 @@ collector logs in and exchanges them for a token). The variables are `ATP_`
 prefixed on purpose — bare `USERNAME`/`PASSWORD` collide with names the shell or
 CI runner may already export.
 
+SLO 历史与 Android 真机可以独立推进。当前发布 Prometheus 已就绪但真机条件未同时具备时，只采集 SLO，且不要求
+ATP Token、用户名/密码、任务或设备参数：
+
+```bash
+make collect-release-slo-evidence \
+  START=<start> \
+  END=<end> \
+  PROMETHEUS_URL=http://localhost:39090 \
+  SOURCE_DEPLOYMENT=atp-single-node
+```
+
+该入口每 5 分钟评估一次 Backend 与 Worker `up`，每个完整 UTC 日要求 288/288 个检查点且全部为 1；缺少任一检查点、
+返回 0 或 SLO 查询返回 `NaN`/无穷值，都会进入 `Data Gaps` 并保持告警和发布门禁为 `deferred`。不足 7 天的窗口标为
+`pre-calibration preflight`，不会伪装成 day-7 记录。SLO-only 不访问 Grafana，因此对应前置条件保持未勾选，须由操作员
+在同一数据源上人工确认。需要重新生成同名文件时显式传入 `FORCE=1`。
+
 To initialize all three draft files with consistent names and cross-links, run:
 
 ```bash
@@ -175,6 +191,7 @@ template placeholders. The underlying script is
 
 ## Status
 
-Both captures are blocked on environment access (a long-lived scraped
-deployment; a physical device). The formats above are frozen so either capture
-can be executed and reviewed without further scoping.
+The long-lived single-node Prometheus source started collecting on 2026-09-13;
+the 7-day and 14-day windows are accumulating. Physical-device evidence remains
+environment-dependent. The formats and the SLO-only entry point are frozen so
+each capture can proceed independently without fabricating the missing leg.

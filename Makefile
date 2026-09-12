@@ -11,7 +11,7 @@ LINT_SCRIPTS = scripts/scaffold-q12-evidence.py scripts/validate-q12-evidence.py
 PYTHON_BIN_DIR := $(shell p="$$(command -v $(PYTHON) 2>/dev/null)"; [ -n "$$p" ] && dirname "$$p" || true)
 PYTHON_PATH := $(if $(PYTHON_BIN_DIR),$(PYTHON_BIN_DIR):$(PATH),$(PATH))
 
-.PHONY: setup dev dev-down infra-up infra-down migrate backend worker beat frontend lint format format-check mypy security-bandit security-pip-audit security-npm-audit security-deps pre-commit test test-backend test-backend-coverage test-backend-standalone test-integration test-frontend-build test-frontend-e2e scaffold-q12-evidence collect-q12-evidence validate-q12-evidence validate-deployment-readiness validate-android-worker-config performance-environment-smoke minio-dr-acceptance web-recording-worker-smoke b1-workbench-role-matrix n6-project-asset-acceptance n7-intelligence-acceptance n8-system-governance-acceptance validate-release-evidence
+.PHONY: setup dev dev-down infra-up infra-down migrate backend worker beat frontend lint format format-check mypy security-bandit security-pip-audit security-npm-audit security-deps pre-commit test test-backend test-backend-coverage test-backend-standalone test-integration test-frontend-build test-frontend-e2e scaffold-q12-evidence collect-q12-evidence collect-release-slo-evidence validate-q12-evidence validate-deployment-readiness validate-android-worker-config performance-environment-smoke minio-dr-acceptance web-recording-worker-smoke b1-workbench-role-matrix n6-project-asset-acceptance n7-intelligence-acceptance n8-system-governance-acceptance validate-release-evidence
 
 setup:
 	@if command -v brew >/dev/null 2>&1 && brew --prefix libpq >/dev/null 2>&1; then \
@@ -137,6 +137,13 @@ collect-q12-evidence:
 		exit 2; \
 	fi
 	$(PYTHON) scripts/collect-q12-evidence.py
+
+collect-release-slo-evidence:
+	@if [ -z "$(START)" ] || [ -z "$(END)" ] || [ -z "$(PROMETHEUS_URL)" ]; then \
+		echo "Usage: make collect-release-slo-evidence START=YYYY-MM-DD END=YYYY-MM-DD PROMETHEUS_URL=http://... [SOURCE_DEPLOYMENT=...] [FORCE=1]"; \
+		exit 2; \
+	fi
+	$(PYTHON) scripts/collect-q12-evidence.py --slo-only
 
 validate-q12-evidence:
 	@if [ -z "$(SLO)" ] || [ -z "$(ANDROID)" ] || [ -z "$(ACCEPTANCE)" ]; then \

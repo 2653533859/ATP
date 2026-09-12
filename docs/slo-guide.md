@@ -20,6 +20,18 @@ Production adoption window:
 | Initial production calibration | 7 consecutive days of Prometheus data | Check request volume, endpoint mix, 5xx shape, and P95 stability | Collecting since 2026-09-13; required before enabling alerts |
 | Stable production calibration | 14 consecutive days after first traffic week | Confirm targets are not too loose or too noisy | Pending; required before making SLOs release-blocking |
 
+在第 7/14 天使用独立入口采集当前发布 Prometheus；日期按 UTC 完整日填写：
+
+```bash
+make collect-release-slo-evidence \
+  START=YYYY-MM-DD END=YYYY-MM-DD \
+  PROMETHEUS_URL=http://127.0.0.1:39090 \
+  SOURCE_DEPLOYMENT=atp-single-node
+```
+
+采集器按 5 分钟检查点验证 Backend/Worker 抓取连续性，并把 `NaN`、无穷值、无样本、少于 288 个日检查点或 `up=0`
+统一记录为数据缺口；任何缺口都会让 alert/release gate 保持 `deferred`。不足 7 天的运行只标记为 preflight。
+
 The current targets are intentionally conservative for an internal automation platform: they should catch backend instability without creating noise while request volume is still low and bursty.
 
 ## Scope

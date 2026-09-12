@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import os
 import sys
 import time
@@ -155,10 +156,11 @@ class PrometheusClient:
             raise RuntimeError(payload.get("error", "Prometheus query_range failed"))
         series: list[PrometheusSeries] = []
         for item in payload.get("data", {}).get("result", []):
-            samples = [
-                (datetime.fromtimestamp(float(ts), tz=timezone.utc), float(value))
-                for ts, value in item.get("values", [])
-            ]
+            samples = []
+            for ts, value in item.get("values", []):
+                parsed_value = float(value)
+                if math.isfinite(parsed_value):
+                    samples.append((datetime.fromtimestamp(float(ts), tz=timezone.utc), parsed_value))
             series.append(PrometheusSeries(labels=item.get("metric", {}), samples=samples))
         return series
 
@@ -177,7 +179,9 @@ class PrometheusClient:
             value = item.get("value")
             samples = []
             if value and len(value) == 2:
-                samples.append((datetime.fromtimestamp(float(value[0]), tz=timezone.utc), float(value[1])))
+                parsed_value = float(value[1])
+                if math.isfinite(parsed_value):
+                    samples.append((datetime.fromtimestamp(float(value[0]), tz=timezone.utc), parsed_value))
             series.append(PrometheusSeries(labels=item.get("metric", {}), samples=samples))
         return series
 
@@ -324,7 +328,12 @@ def _build_slo_bundle(
 ) -> tuple[SloEvidence, list[tuple[str, str, str]]]:
     window_start, window_end = _window_bounds(start_date, end_date)
     total_days = (end_date - start_date).days + 1
-    record_type = "day-7 initial calibration" if total_days <= 7 else "day-14 stable calibration"
+    if total_days < 7:
+        record_type = "pre-calibration preflight"
+    elif total_days < 14:
+        record_type = "day-7 initial calibration"
+    else:
+        record_type = "day-14 stable calibration"
 
     availability_query = (
         '1 - (sum(rate(http_requests_total{job="atp-backend",status="5xx"}[1h])) '
@@ -347,8 +356,8 @@ def _build_slo_bundle(
     latency_5m_series = prometheus.query_range(latency_5m_query, window_start, window_end, "5m")
     latency_1h_series = prometheus.query_range(latency_1h_query, window_start, window_end, "1h")
     success_series = prometheus.query_range(success_query, window_start, window_end, "1h")
-    backend_scrape_series = prometheus.query_range(scrape_backend_query, window_start, window_end, "1h")
-    worker_scrape_series = prometheus.query_range(scrape_worker_query, window_start, window_end, "1h")
+    backend_scrape_series = prometheus.query_range(scrape_backend_query, window_start, window_end, "5m")
+    worker_scrape_series = prometheus.query_range(scrape_worker_query, window_start, window_end, "5m")
 
     request_volume_series = prometheus.query_range(
         'sum(increase(http_requests_total{job="atp-backend"}[1d]))',
@@ -382,13 +391,25 @@ def _build_slo_bundle(
     run_volume_daily = _daily_increase_totals(run_volume_series, start_date, end_date)
 
     def scrape_rows(series: list[PrometheusSeries]) -> list[list[str]]:
-        buckets = _group_daily_samples(series)
+        buckets: dict[date, list[tuple[datetime, float]]] = {}
+        for item in series:
+            for sampled_at, value in item.samples:
+                buckets.setdefault(sampled_at.date(), []).append((sampled_at, value))
         rows: list[list[str]] = []
         day = start_date
         while day <= end_date:
-            values = buckets.get(day, [])
-            healthy = "yes" if values and all(value >= 1.0 for value in values) else "no"
-            notes = "complete scrape history" if healthy == "yes" else "gaps observed"
+            samples = buckets.get(day, [])
+            five_minute_slots = {(sampled_at.hour, sampled_at.minute // 5) for sampled_at, _value in samples}
+            all_up = bool(samples) and all(value >= 1.0 for _sampled_at, value in samples)
+            complete = len(five_minute_slots) == 288
+            healthy = "yes" if complete and all_up else "no"
+            if healthy == "yes":
+                notes = "288/288 five-minute checkpoints up"
+            else:
+                notes = (
+                    f"{len(five_minute_slots)}/288 five-minute checkpoints; "
+                    f"all returned samples up={str(all_up).lower()}"
+                )
             rows.append([day.isoformat(), healthy, healthy, notes])
             day += timedelta(days=1)
         return rows
@@ -400,7 +421,7 @@ def _build_slo_bundle(
         day = backend_row[0]
         backend_ok = backend_row[1]
         worker_ok = worker_row[2]
-        notes = backend_row[3] if backend_ok == "no" or worker_ok == "no" else "complete scrape history"
+        notes = f"backend: {backend_row[3]}; worker: {worker_row[3]}"
         combined_scrape_rows.append([day, backend_ok, worker_ok, notes])
 
     request_volume = sum(request_volume_daily.values())
@@ -414,6 +435,12 @@ def _build_slo_bundle(
     success_rows: list[list[str]] = []
     breach_rows: list[list[str]] = []
     data_gap_rows: list[list[str]] = []
+
+    for day, backend_ok, worker_ok, notes in combined_scrape_rows:
+        if backend_ok == "no":
+            data_gap_rows.append([day, "Backend scrape continuity", notes, "cannot validate full-day SLO history"])
+        if worker_ok == "no":
+            data_gap_rows.append([day, "Worker scrape continuity", notes, "cannot validate full-day SLO history"])
 
     day = start_date
     while day <= end_date:
@@ -604,7 +631,7 @@ def _render_daily_csv(headers: list[str], rows: list[list[str]]) -> str:
     return "".join(",".join(cell(str(value)) for value in row) + "\n" for row in csv_rows)
 
 
-def _render_slo_markdown(evidence: SloEvidence) -> str:
+def _render_slo_markdown(evidence: SloEvidence, *, grafana_verified: bool = True) -> str:
     breach_block = _markdown_table(
         ["Date/time", "SLO", "Observed value", "Cause", "Attribution", "Action / follow-up"],
         evidence.breach_rows or [["N/A", "N/A", "N/A", "No breaches", "N/A", "N/A"]],
@@ -623,6 +650,7 @@ def _render_slo_markdown(evidence: SloEvidence) -> str:
         decision_line = "met; keep target; alert or release-gate decision: " + evidence.alert_enablement
 
     scrape_preconditions = "- [ ]" if evidence.data_gap_rows else "- [x]"
+    grafana_precondition = "- [x]" if grafana_verified else "- [ ]"
 
     return f"""# SLO History Evidence
 
@@ -636,7 +664,7 @@ def _render_slo_markdown(evidence: SloEvidence) -> str:
 
 {scrape_preconditions} Prometheus continuously scraped `atp-backend` for the full window.
 {scrape_preconditions} Worker metrics were scraped on `WORKER_METRICS_PORT` for the full window.
-- [x] Grafana `atp-overview` loaded against the same Prometheus source.
+{grafana_precondition} Grafana `atp-overview` loaded against the same Prometheus source.
 - [x] Traffic profile is documented as real usage or synthetic profile.
 
 Traffic profile:
@@ -1212,6 +1240,32 @@ def run(
     return written
 
 
+def run_slo_only(
+    *,
+    repo_root: Path,
+    start: date,
+    end: date,
+    prometheus_url: str,
+    source_deployment: str,
+    force: bool,
+) -> list[Path]:
+    """Collect only SLO history without requiring ATP credentials or an Android device."""
+    slo_path = repo_root / "docs" / f"slo-history-{start.isoformat()}-{end.isoformat()}.md"
+    artifact_paths = [repo_root / rel_path for rel_path in _slo_artifact_paths(start, end)]
+    _ensure_absent([slo_path, *artifact_paths], force)
+
+    prometheus = PrometheusClient(prometheus_url)
+    slo_bundle, slo_artifacts = _build_slo_bundle(prometheus, start, end, source_deployment=source_deployment)
+
+    written = [slo_path]
+    _write_text(slo_path, _render_slo_markdown(slo_bundle, grafana_verified=False), force)
+    for _, rel_path, content in slo_artifacts:
+        path = repo_root / rel_path
+        _write_text(path, content, force)
+        written.append(path)
+    return written
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo-root", default=".", type=Path)
@@ -1239,58 +1293,77 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--skip-connect", action="store_true", default=os.environ.get("ADB_SKIP_CONNECT") == "true")
     parser.add_argument("--fixtures-dir", default=os.environ.get("FIXTURES_DIR", "docs/fixtures/q12"), type=Path)
     parser.add_argument("--force", action="store_true", default=os.environ.get("FORCE") == "1")
+    parser.add_argument(
+        "--slo-only",
+        action="store_true",
+        help="collect Prometheus SLO history without ATP credentials or Android evidence",
+    )
     parser.add_argument("--timeout-seconds", type=int, default=int(os.environ.get("RUN_TIMEOUT_SECONDS", "1800")))
     parser.add_argument("--poll-seconds", type=int, default=int(os.environ.get("RUN_POLL_SECONDS", "5")))
     args = parser.parse_args(argv)
 
-    missing = [
-        name
-        for name, value in (
-            ("START", args.start),
-            ("END", args.end),
-            ("ANDROID_DATE", args.android_date),
-            ("TASK_ID", args.task_id),
-            ("DEVICE_SERIAL", args.device_serial),
-            ("APP_PACKAGE", args.app_package),
-        )
-        if value in (None, "")
+    required_values = [
+        ("START", args.start),
+        ("END", args.end),
     ]
+    if not args.slo_only:
+        required_values.extend(
+            [
+                ("ANDROID_DATE", args.android_date),
+                ("TASK_ID", args.task_id),
+                ("DEVICE_SERIAL", args.device_serial),
+                ("APP_PACKAGE", args.app_package),
+            ]
+        )
+    missing = [name for name, value in required_values if value in (None, "")]
     if missing:
         print(f"ERROR: missing required values: {', '.join(missing)}", file=sys.stderr)
         return 2
 
-    if not args.token and (not args.username or not args.password):
+    if not args.slo_only and not args.token and (not args.username or not args.password):
         print("ERROR: supply either ATP_TOKEN or ATP_USERNAME/ATP_PASSWORD", file=sys.stderr)
         return 2
 
     try:
-        written = run(
-            repo_root=args.repo_root,
-            start=_parse_date(args.start, "start"),
-            end=_parse_date(args.end, "end"),
-            android_date=_parse_date(args.android_date, "android date"),
-            prometheus_url=args.prometheus_url,
-            api_base_url=args.api_base_url,
-            token=args.token,
-            username=args.username,
-            password=args.password,
-            task_id=int(args.task_id),
-            device_serial=args.device_serial,
-            app_package=args.app_package,
-            device_id=int(args.device_id) if args.device_id not in (None, "") else None,
-            doctor_target=args.doctor_target,
-            operator=args.operator,
-            source_deployment=args.source_deployment,
-            deployment=args.deployment,
-            topology=args.topology,
-            adb_server_socket=args.adb_server_socket,
-            skip_server_restart=args.skip_server_restart,
-            skip_connect=args.skip_connect,
-            fixtures_dir=args.fixtures_dir,
-            force=args.force,
-            timeout_seconds=args.timeout_seconds,
-            poll_seconds=args.poll_seconds,
-        )
+        start = _parse_date(args.start, "start")
+        end = _parse_date(args.end, "end")
+        if args.slo_only:
+            written = run_slo_only(
+                repo_root=args.repo_root,
+                start=start,
+                end=end,
+                prometheus_url=args.prometheus_url,
+                source_deployment=args.source_deployment,
+                force=args.force,
+            )
+        else:
+            written = run(
+                repo_root=args.repo_root,
+                start=start,
+                end=end,
+                android_date=_parse_date(args.android_date, "android date"),
+                prometheus_url=args.prometheus_url,
+                api_base_url=args.api_base_url,
+                token=args.token,
+                username=args.username,
+                password=args.password,
+                task_id=int(args.task_id),
+                device_serial=args.device_serial,
+                app_package=args.app_package,
+                device_id=int(args.device_id) if args.device_id not in (None, "") else None,
+                doctor_target=args.doctor_target,
+                operator=args.operator,
+                source_deployment=args.source_deployment,
+                deployment=args.deployment,
+                topology=args.topology,
+                adb_server_socket=args.adb_server_socket,
+                skip_server_restart=args.skip_server_restart,
+                skip_connect=args.skip_connect,
+                fixtures_dir=args.fixtures_dir,
+                force=args.force,
+                timeout_seconds=args.timeout_seconds,
+                poll_seconds=args.poll_seconds,
+            )
     except (FileExistsError, RuntimeError, TimeoutError, ValueError, OSError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1

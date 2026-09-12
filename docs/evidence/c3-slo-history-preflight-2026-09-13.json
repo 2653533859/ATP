@@ -1,0 +1,40 @@
+{
+  "evidence_type": "c3_slo_history_preflight",
+  "generated_at": "2026-09-12T17:55:00+00:00",
+  "status": "blocked_expected",
+  "source_revision": "c2e008e022ecea2700a58ad017b2b97427f5c71a",
+  "prometheus": {
+    "deployment": "atp-single-node",
+    "window": "2026-09-12 to 2026-09-12 UTC",
+    "record_type": "pre-calibration preflight",
+    "checkpoint_interval": "5m",
+    "expected_daily_checkpoints": 288,
+    "backend_checkpoints": 17,
+    "worker_checkpoints": 17,
+    "all_returned_targets_up": true,
+    "data_gaps": [
+      "Backend scrape continuity",
+      "Worker scrape continuity",
+      "API availability",
+      "API P95 latency 5m",
+      "API P95 latency 1h",
+      "Run success rate"
+    ],
+    "nan_values_treated_as_missing": true,
+    "alert_enablement": "deferred",
+    "release_blocking_gate": "deferred"
+  },
+  "independent_minio": {
+    "candidate_host": "172.31.27.133",
+    "ssh_from_windows": "timeout",
+    "ssh_from_release_host": "timeout",
+    "deployment_attempted": false
+  },
+  "verification": {
+    "slo_only_requires_atp_credentials": false,
+    "slo_only_requires_android_device": false,
+    "temporary_probe_output_committed": false,
+    "secrets_included": false
+  },
+  "boundary": "The collector correctly blocks incomplete and non-finite history. This preflight is not day-7/day-14 evidence, and no independent MinIO endpoint was reachable."
+}

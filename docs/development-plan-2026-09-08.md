@@ -160,7 +160,7 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 - [x] `C3.3` 执行数据库空库迁移、升级、备份恢复和回滚演练；验证恢复后的运行角色权限，并清理全部隔离资源。
 - [~] `C3.4` 收集发布级 SLO、告警、服务重启和持续稳定性证据，明确 Redis 与 MinIO 的剩余灾备决定。
   - [x] `C3.4.1` 部署持久化单节点发布 Prometheus，验证 4 个 target、4 条告警规则和 40 秒稳定性；Redis 切换 AOF everysec 并通过双重重启；MinIO 启用 versioning，明确不自动启用未审查的 lifecycle。
-  - [ ] `C3.4.2` 累积并复核连续 7/14 天 SLO 历史；在不同主机或故障域配置 MinIO 备份端点并完成恢复演练。
+  - [~] `C3.4.2` 已将 SLO 采集从 Android 真机演练中解耦，增加 5 分钟连续性、非有限值与数据缺口门禁并通过当前环境 preflight；继续累积并复核连续 7/14 天历史。候选异机 `172.31.27.133` 从 Windows 与发布主机 SSH 均超时，待网络恢复后配置 MinIO 备份端点并完成恢复演练。
 - [ ] `C3.5` 绑定同一最终提交 SHA，更新能力矩阵、运行手册、证据索引和发布结论。
 
 ## 7. 推荐执行顺序
@@ -186,6 +186,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 6. 经用户要求后使用 Conventional Commit 提交并推送。
 
 ## 9. 执行记录
+
+- 2026-09-13：推进 C3.4.2 历史采集门禁。`collect-q12-evidence.py --slo-only` 与 `make collect-release-slo-evidence` 允许在不具备 ATP 登录和 Android 真机时独立生成 SLO 文档、CSV 与端点分布；Backend 与 Worker `up` 改为每 5 分钟采样，一个完整 UTC 日必须达到 288/288 且全部为 1。修复原逻辑“任意一个小时样本即可标记整日连续”、Backend 完整但 Worker 缺口时备注错误，以及 Prometheus `NaN` 被当作有效延迟三个问题；不足 7 天明确标为 preflight，SLO-only 未访问 Grafana 时也不会自动勾选该前置条件。当前真实 Prometheus 对 2026-09-12 的探针得到 Backend/Worker 各 17/288，API 可用性、P95 与运行成功率无完整样本，告警启用和发布门禁均正确保持 deferred。候选异机 `172.31.27.133:22` 从 Windows 和 `192.168.3.196` 均超时，未尝试部署或修改。定向 `18 passed`、完整非集成后端 `2588 passed / 1 skipped`，Ruff 与格式检查通过；脱敏证据见 [`evidence/c3-slo-history-preflight-2026-09-13.json`](evidence/c3-slo-history-preflight-2026-09-13.json)。C3.4.2 继续等待 7/14 天完整历史和可达的异机 MinIO。
 
 - 2026-09-13：完成 C3.4.1。目标 Linux 在独立 `/opt/atp-single-node-observability` 配置目录部署 `prom/prometheus:v2.55.0`，TSDB 使用命名卷、保留 15 天并仅监听 `127.0.0.1:39090`；Backend、普通 Worker、Performance Worker 和 Prometheus 自身 4/4 target 为 up，目标下线、API 5xx、P95 和运行成功率 4 条规则均为 inactive/ok。Redis 先在隔离 RDB 副本验证正确转换路径，再对真实服务在线启用 AOF everysec；Compose 重建和第二次容器重启后探针均持久，AOF/RDB 状态为 ok、双 Worker 在线且无 ACL 拒绝。直接以 `appendonly=yes` 启动已有 RDB 副本会优先选择空 AOF，因此运行手册固定为“先以 RDB 启动、在线开启 AOF、等待重写、再重建”。MinIO `atp` bucket 启用 versioning，双版本、删除标记、历史读取和清理通过；未配置自动 lifecycle，避免删除数据库仍引用对象。差异审查发现 Backend 的 Prometheus 状态标签实际为 `5xx` 分组而非三位状态码，已同步修复发布规则、Grafana 看板/告警、SLO 采集器和文档，并把低流量错误率分母下限从 `1` 修正为 `1e-9`；修复后定向 `18 passed`、完整非集成后端 `2584 passed / 1 skipped`，Ruff、格式、mypy、前端 Vitest、敏感信息和全量提交钩子通过。收尾 40 秒 5 次采样为 6/6 Pod Ready、零重启、4/4 target、0 firing alert。证据见 [`evidence/c3-release-observability-data-governance-2026-09-13.json`](evidence/c3-release-observability-data-governance-2026-09-13.json)。C3.4 尚未关闭：Prometheus 自 2026-09-13 起累计 7/14 天历史，且独立 MinIO 仍需不同主机或故障域。
 

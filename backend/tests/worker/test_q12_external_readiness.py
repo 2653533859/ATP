@@ -87,12 +87,15 @@ def test_collect_target_documents_its_auth_requirement(repo_file):
     """照抄 Usage 必须能跑通：采集器要访问鉴权 API，缺凭据会在采集前退出 2。"""
     makefile = repo_file("Makefile")
     assert "collect-q12-evidence:" in makefile
+    assert "collect-release-slo-evidence:" in makefile
+    assert "scripts/collect-q12-evidence.py --slo-only" in makefile
     assert "ATP_TOKEN=..." in makefile
     assert "ATP_USERNAME=... ATP_PASSWORD=..." in makefile
 
     spec = repo_file("docs/q12-external-readiness-evidence.md")
     assert "ATP_TOKEN=<token>" in spec
     assert "ATP_USERNAME=<user> ATP_PASSWORD=<password>" in spec
+    assert "make collect-release-slo-evidence" in spec
 
     collector = repo_file("scripts/collect-q12-evidence.py")
     assert 'os.environ.get("ATP_USERNAME")' in collector
