@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import ValidationError
 from sqlalchemy import and_, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.exc import StaleDataError
 
 from app.api.deps import assert_project_access, get_current_user
 from app.core.encryption import decrypt
@@ -368,7 +369,7 @@ async def orchestrate_hermes(
         metrics["orchestration_calls"] = _safe_increment(metrics.get("orchestration_calls"), 1)
         metrics["last_latency_ms"] = 0
         pending_session.metrics = metrics
-        await db.commit()
+        await _commit_hermes_state(db)
         return HermesOrchestrationOut(
             project_id=body.project_id,
             conversation_id=body.conversation_id,
@@ -437,7 +438,7 @@ async def orchestrate_hermes(
         metrics["orchestration_calls"] = _safe_increment(metrics.get("orchestration_calls"), 1)
         metrics["last_latency_ms"] = 0
         session.metrics = metrics
-        await db.commit()
+        await _commit_hermes_state(db)
         return HermesOrchestrationOut(
             project_id=body.project_id,
             conversation_id=body.conversation_id,
@@ -467,7 +468,7 @@ async def orchestrate_hermes(
                 ),
             )
             _record_planner_metrics(session, planner)
-            await db.commit()
+            await _commit_hermes_state(db)
             session_id = session.id
         return HermesOrchestrationOut(
             project_id=body.project_id,
@@ -571,7 +572,7 @@ async def orchestrate_hermes(
     session.metrics = metrics
     _record_planner_metrics(session, planner)
     _record_evaluation_metrics(session, evaluation)
-    await db.commit()
+    await _commit_hermes_state(db)
     return HermesOrchestrationOut(
         project_id=body.project_id,
         conversation_id=body.conversation_id,
@@ -820,6 +821,19 @@ async def _owned_session(db: AsyncSession, user: User, session_id: int, project_
     return session
 
 
+async def _commit_hermes_state(db: AsyncSession) -> None:
+    """Commit one optimistic Hermes state transition without allowing lost updates."""
+
+    try:
+        await db.commit()
+    except StaleDataError as exc:
+        await db.rollback()
+        raise HTTPException(
+            status_code=409,
+            detail="Hermes 会话已在其他请求中更新，请刷新后重试",
+        ) from exc
+
+
 @router.post("/hermes/query", response_model=HermesQueryOut)
 async def query_hermes(
     body: HermesQueryIn,
@@ -957,7 +971,7 @@ async def query_hermes(
     metrics["last_latency_ms"] = latency_ms
     session.metrics = metrics
     _record_evaluation_metrics(session, evaluation)
-    await db.commit()
+    await _commit_hermes_state(db)
     return HermesQueryOut(
         project_id=body.project_id,
         query=body.query,
@@ -990,7 +1004,7 @@ async def list_hermes_sessions(
     query = (
         select(HermesSession)
         .where(HermesSession.project_id == project_id, HermesSession.user_id == user.id)
-        .order_by(HermesSession.updated_at.desc())
+        .order_by(HermesSession.updated_at.desc(), HermesSession.id.desc())
         .limit(50)
     )
     return (await db.execute(query)).scalars().all()
@@ -1026,7 +1040,14 @@ async def hermes_governance_summary(
 ):
     await assert_project_access(db, user, project_id, ProjectRole.viewer)
     rows = (
-        (await db.execute(select(HermesSession).where(HermesSession.project_id == project_id).limit(500)))
+        (
+            await db.execute(
+                select(HermesSession)
+                .where(HermesSession.project_id == project_id)
+                .order_by(HermesSession.updated_at.desc(), HermesSession.id.desc())
+                .limit(500)
+            )
+        )
         .scalars()
         .all()
     )
@@ -1103,7 +1124,7 @@ async def run_hermes_readonly_tool(
     metrics = dict(session.metrics or {})
     metrics["tool_calls"] = int(metrics.get("tool_calls", 0)) + 1
     session.metrics = metrics
-    await db.commit()
+    await _commit_hermes_state(db)
     return {"session_id": session.id, "tool": tool_name, "result": result}
 
 
@@ -1125,7 +1146,7 @@ async def create_hermes_draft(
         "created_at": datetime.now(timezone.utc).isoformat(),
     }
     session.drafts = [*(session.drafts or []), draft][-20:]
-    await db.commit()
+    await _commit_hermes_state(db)
     return draft
 
 
@@ -1219,7 +1240,7 @@ async def confirm_hermes_draft(
     draft["plan_id"] = plan.id
     draft["confirmed_at"] = datetime.now(timezone.utc).isoformat()
     session.drafts = drafts
-    await db.commit()
+    await _commit_hermes_state(db)
     return {"draft_id": draft["id"], "status": "confirmed", "plan_id": plan.id}
 
 
@@ -1249,5 +1270,5 @@ async def submit_hermes_feedback(
     metrics = dict(session.metrics or {})
     metrics[body.rating] = int(metrics.get(body.rating, 0)) + 1
     session.metrics = metrics
-    await db.commit()
+    await _commit_hermes_state(db)
     return {"session_id": session.id, "message_index": body.message_index, "rating": body.rating}

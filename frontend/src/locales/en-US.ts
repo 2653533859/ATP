@@ -941,6 +941,9 @@ export default {
     diagnosis_failed: 'Diagnosis service is unavailable',
     query_unavailable: 'Retrieval service is unavailable',
     query_failed: 'Project retrieval is unavailable: {error}',
+    session_conflict: 'Another request just updated this session. Refresh and retry; this request did not overwrite it.',
+    draft_save_failed: 'Failed to save the test plan draft',
+    feedback_save_failed: 'Failed to save feedback',
     user_explain: 'Explain the failed task “{name}”',
   },
   requirement_trace: {

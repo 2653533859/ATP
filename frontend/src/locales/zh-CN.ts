@@ -941,6 +941,9 @@ export default {
     diagnosis_failed: '诊断服务暂不可用',
     query_unavailable: '检索服务暂不可用',
     query_failed: '暂时无法完成项目检索：{error}',
+    session_conflict: '会话刚刚被另一项请求更新，请刷新后重试；本次不会覆盖已有内容。',
+    draft_save_failed: '测试计划草稿保存失败',
+    feedback_save_failed: '反馈保存失败',
     user_explain: '请解释失败任务“{name}”',
   },
   requirement_trace: {

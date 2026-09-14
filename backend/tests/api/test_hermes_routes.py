@@ -299,6 +299,8 @@ def test_hermes_governance_summary_is_aggregate_only_and_exposes_eval_metadata(m
     assert result["evaluation_set"]["id"] == "hermes-core-v2"
     assert result["evaluation_quality"]["runs"] == 0
     assert "content" not in result
+    statement = str(db.statements[0]).lower()
+    assert "order by hermes_sessions.updated_at desc, hermes_sessions.id desc" in statement
 
 
 def test_hermes_evaluation_set_is_bounded_and_authenticated():

@@ -283,6 +283,12 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback
 }
 
+function errorStatus(error: unknown) {
+  if (typeof error !== 'object' || error === null) return null
+  const status = (error as { response?: { status?: unknown } }).response?.status
+  return typeof status === 'number' ? status : null
+}
+
 function source(label: string, path: string): HermesSource {
   const projectId = selectedProjectId.value
   const separator = path.includes('?') ? '&' : '?'
@@ -643,7 +649,12 @@ async function queryHermes(text: string, history = conversationHistory()) {
       || selectedProjectId.value !== projectId
       || conversationId.value !== requestConversationId
     ) return
-    appendMessage('assistant', t('hermes.query_failed', { error: errorMessage(error, t('hermes.query_unavailable')) }))
+    appendMessage(
+      'assistant',
+      errorStatus(error) === 409
+        ? t('hermes.session_conflict')
+        : t('hermes.query_failed', { error: errorMessage(error, t('hermes.query_unavailable')) }),
+    )
   } finally {
     if (querySequence === requestSequence) querying.value = false
   }
@@ -702,12 +713,16 @@ async function orchestratePrompt(text: string): Promise<boolean> {
     messages.value[messages.value.length - 1].backendIndex = result.message_index ?? undefined
     if (result.evaluation) await loadGovernance(projectId)
     return true
-  } catch {
+  } catch (error) {
     if (
       querySequence !== requestSequence
       || selectedProjectId.value !== projectId
       || conversationId.value !== requestConversationId
     ) return true
+    if (errorStatus(error) === 409) {
+      appendMessage('assistant', t('hermes.session_conflict'))
+      return true
+    }
     return false
   } finally {
     if (querySequence === requestSequence) querying.value = false
@@ -716,8 +731,13 @@ async function orchestratePrompt(text: string): Promise<boolean> {
 
 async function rateMessage(item: HermesMessage, rating: 'helpful' | 'not_helpful') {
   if (!sessionId.value || item.backendIndex == null || !selectedProjectId.value) return
-  await hermesApi.feedback(sessionId.value, { project_id: selectedProjectId.value, message_index: item.backendIndex, rating })
-  message.success(t('hermes.feedback_saved'))
+  try {
+    await hermesApi.feedback(sessionId.value, { project_id: selectedProjectId.value, message_index: item.backendIndex, rating })
+    message.success(t('hermes.feedback_saved'))
+  } catch (error) {
+    if (errorStatus(error) === 409) message.warning(t('hermes.session_conflict'))
+    else message.error(errorMessage(error, t('hermes.feedback_save_failed')))
+  }
 }
 
 async function savePlanDraft() {
@@ -736,11 +756,20 @@ async function savePlanDraft() {
       title: t('hermes.confirm_draft_title'),
       content: t('hermes.confirm_draft_content'),
       async onOk() {
-        const result = await hermesApi.confirmDraft(currentSessionId, { project_id: selectedProjectId.value!, draft_id: draft.id, confirmation: 'CONFIRM' })
-        draftConfirmed.value = true
-        message.success(t('hermes.draft_saved', { id: result.plan_id }))
+        try {
+          const result = await hermesApi.confirmDraft(currentSessionId, { project_id: selectedProjectId.value!, draft_id: draft.id, confirmation: 'CONFIRM' })
+          draftConfirmed.value = true
+          message.success(t('hermes.draft_saved', { id: result.plan_id }))
+        } catch (error) {
+          if (errorStatus(error) === 409) message.warning(t('hermes.session_conflict'))
+          else message.error(errorMessage(error, t('hermes.draft_save_failed')))
+          throw error
+        }
       },
     })
+  } catch (error) {
+    if (errorStatus(error) === 409) message.warning(t('hermes.session_conflict'))
+    else message.error(errorMessage(error, t('hermes.draft_save_failed')))
   } finally {
     savingDraft.value = false
   }

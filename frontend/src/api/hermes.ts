@@ -57,6 +57,7 @@ export interface HermesSessionItem {
   messages: Array<Record<string, unknown>>
   drafts: Array<Record<string, unknown>>
   metrics: Record<string, unknown>
+  state_version: number
   created_at: string
   updated_at: string
 }

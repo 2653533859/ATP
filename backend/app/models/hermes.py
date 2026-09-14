@@ -1,6 +1,6 @@
 """Project-scoped Hermes session state and governance evidence."""
 
-from sqlalchemy import ForeignKey, JSON, String
+from sqlalchemy import ForeignKey, Integer, JSON, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models.base import Base, TimestampMixin
@@ -17,3 +17,6 @@ class HermesSession(Base, TimestampMixin):
     messages: Mapped[list] = mapped_column(JSON, default=list)
     drafts: Mapped[list] = mapped_column(JSON, default=list)
     metrics: Mapped[dict] = mapped_column(JSON, default=dict)
+    state_version: Mapped[int] = mapped_column(Integer, nullable=False, default=1, server_default="1")
+
+    __mapper_args__ = {"version_id_col": state_version}

@@ -11,11 +11,13 @@ const {
   createSession,
   confirmDraft,
   failureTop,
+  feedback,
   generateDiagnosis,
   governance,
   hermesQuery,
   orchestrate,
   moduleList,
+  messageWarning,
   planList,
   projectList,
   reportOverview,
@@ -31,11 +33,13 @@ const {
   createSession: vi.fn(),
   confirmDraft: vi.fn(),
   failureTop: vi.fn(),
+  feedback: vi.fn(),
   generateDiagnosis: vi.fn(),
   governance: vi.fn(),
   hermesQuery: vi.fn(),
   orchestrate: vi.fn(),
   moduleList: vi.fn(),
+  messageWarning: vi.fn(),
   planList: vi.fn(),
   projectList: vi.fn(),
   reportOverview: vi.fn(),
@@ -59,12 +63,12 @@ vi.mock('vue-i18n', () => ({
   }),
 }))
 vi.mock('ant-design-vue', () => ({
-  message: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
+  message: { error: vi.fn(), success: vi.fn(), warning: messageWarning },
   Modal: { confirm: vi.fn() },
 }))
 vi.mock('@/api', () => ({
   caseApi: { list: caseList },
-  hermesApi: { query: hermesQuery, createSession, createDraft, confirmDraft, governance, orchestrate, sessions },
+  hermesApi: { query: hermesQuery, createSession, createDraft, confirmDraft, feedback, governance, orchestrate, sessions },
   planApi: { list: planList },
   projectApi: { list: projectList, getModules: moduleList },
   reportApi: { overview: reportOverview },
@@ -720,6 +724,37 @@ describe('HermesAssistantView', () => {
     wrapper.unmount()
   })
 
+  it('does not turn a replica state conflict into a fallback query', async () => {
+    orchestrate.mockRejectedValueOnce({ response: { status: 409, data: { detail: 'state conflict' } } })
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.inputText = '分析当前风险'
+
+    await vm.submitPrompt()
+
+    expect(hermesQuery).not.toHaveBeenCalled()
+    expect(vm.messages.at(-1).text).toBe('hermes.session_conflict')
+    wrapper.unmount()
+  })
+
+  it('surfaces query and feedback conflicts without overwriting local state', async () => {
+    const conflict = { response: { status: 409, data: { detail: 'state conflict' } } }
+    hermesQuery.mockRejectedValueOnce(conflict)
+    feedback.mockRejectedValueOnce(conflict)
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    await vm.queryHermes('并发查询')
+    vm.sessionId = 101
+    await vm.rateMessage({ backendIndex: 1 }, 'helpful')
+
+    expect(vm.messages.at(-1).text).toBe('hermes.session_conflict')
+    expect(messageWarning).toHaveBeenCalledWith('hermes.session_conflict')
+    wrapper.unmount()
+  })
+
   it('creates an editable structured test plan draft and links to plans after confirmation', async () => {
     const wrapper = mountHermes()
     await flushPromises()
@@ -811,6 +846,21 @@ describe('HermesAssistantView', () => {
     expect(vm.sessionId).toBe(101)
     expect(createDraft).toHaveBeenCalledWith(101, expect.objectContaining({ project_id: 1, draft_type: 'test_plan' }))
 
+    wrapper.unmount()
+  })
+
+  it('surfaces a draft state conflict without confirming or retrying the write', async () => {
+    createDraft.mockRejectedValueOnce({ response: { status: 409, data: { detail: 'state conflict' } } })
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+    await vm.askPrompt('test_plan')
+
+    await vm.savePlanDraft()
+
+    expect(messageWarning).toHaveBeenCalledWith('hermes.session_conflict')
+    expect(confirmDraft).not.toHaveBeenCalled()
+    expect(vm.draftConfirmed).toBe(false)
     wrapper.unmount()
   })
 

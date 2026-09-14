@@ -126,6 +126,7 @@ class HermesSessionOut(BaseModel):
     messages: list[dict]
     drafts: list[dict]
     metrics: dict
+    state_version: int = Field(ge=1)
     created_at: datetime
     updated_at: datetime
 
