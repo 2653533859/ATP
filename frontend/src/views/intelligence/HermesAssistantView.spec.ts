@@ -225,6 +225,12 @@ beforeEach(() => {
         evidence: [{ evidence_id: 'quality', source_ref: 'HERMES-QUALITY-DAILY-30', title: '质量趋势', excerpt: '脱敏', path: '/quality' }],
       },
     ],
+    planner: {
+      source: 'model',
+      validation: 'accepted',
+      model_name: 'planner-model',
+      prompt_version: 'hermes-tool-planner-v1',
+    },
     answer: '已根据你的问题自动读取：失败任务工具返回 1 条结果。质量趋势返回 1 个时间段，最近通过率为 91%。',
     generated_at: '2026-09-03T10:00:00Z',
     session_id: 101,
@@ -316,9 +322,11 @@ describe('HermesAssistantView', () => {
     expect(vm.sessionId).toBe(101)
     expect(vm.messages.at(-1).text).toContain('自动读取')
     expect(vm.messages.at(-1).toolSteps).toEqual([
-      { tool: 'failed_tasks', status: 'ok' },
-      { tool: 'quality_trend', status: 'ok' },
+      { tool: 'failed_tasks', status: 'ok', reason: '失败任务' },
+      { tool: 'quality_trend', status: 'ok', reason: '质量趋势' },
     ])
+    expect(vm.messages.at(-1).planner).toEqual(expect.objectContaining({ source: 'model', validation: 'accepted' }))
+    expect(wrapper.find('.message-tool-chain').text()).toContain('hermes.planner_source.model')
     expect(wrapper.find('.message-tool-chain').exists()).toBe(true)
     expect(hermesQuery).not.toHaveBeenCalled()
 
@@ -378,7 +386,9 @@ describe('HermesAssistantView', () => {
       query: '12',
       session_id: 101,
     }))
-    expect(vm.messages.at(-1).toolSteps).toEqual([{ tool: 'run_detail', status: 'ok' }])
+    expect(vm.messages.at(-1).toolSteps).toEqual([
+      { tool: 'run_detail', status: 'ok', reason: '补全运行详情' },
+    ])
     expect(hermesQuery).not.toHaveBeenCalled()
 
     wrapper.unmount()

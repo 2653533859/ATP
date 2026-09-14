@@ -87,7 +87,13 @@ describe('Hermes workbench panels', () => {
           taskIds: ['case:5'],
           sources: [{ label: '运行详情', path: '/runs/77' }],
           mode: 'project_retrieval',
-          toolSteps: [{ tool: 'failed_tasks', status: 'ok' }],
+          toolSteps: [{ tool: 'failed_tasks', status: 'ok', reason: '识别为失败执行盘点' }],
+          planner: {
+            source: 'model',
+            validation: 'accepted',
+            model_name: 'planner-model',
+            prompt_version: 'hermes-tool-planner-v1',
+          },
           backendIndex: 3,
         }],
         promptOptions: [{ key: 'quality', mark: '%', title: '质量分析', description: '查看趋势' }],
@@ -103,6 +109,9 @@ describe('Hermes workbench panels', () => {
     expect(wrapper.text()).toContain('登录失败')
     expect(wrapper.text()).toContain('hermes.modes.project_retrieval')
     expect(wrapper.text()).toContain('hermes.tool_labels.failed_tasks')
+    expect(wrapper.text()).toContain('hermes.planner_source.model')
+    expect(wrapper.text()).toContain('hermes.planner_validated')
+    expect(wrapper.text()).toContain('识别为失败执行盘点')
 
     await wrapper.find('.message-task').trigger('click')
     await wrapper.find('.source-link').trigger('click')

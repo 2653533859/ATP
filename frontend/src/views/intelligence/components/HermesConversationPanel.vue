@@ -22,9 +22,14 @@
           <p class="message-text">{{ item.text }}</p>
           <span v-if="item.mode" class="message-mode">{{ t(`hermes.modes.${item.mode}`) }}</span>
           <div v-if="item.toolSteps?.length" class="message-tool-chain">
-            <span class="tool-chain-label">{{ t('hermes.tool_chain') }}</span>
+            <span class="tool-chain-label">
+              {{ t('hermes.tool_chain') }}
+              <span v-if="item.planner">· {{ t(`hermes.planner_source.${item.planner.source}`) }}</span>
+              <span v-if="item.planner?.validation === 'accepted'">· {{ t('hermes.planner_validated') }}</span>
+            </span>
             <span v-for="step in item.toolSteps" :key="`${item.id}-${step.tool}`" class="tool-chain-step">
               {{ t(`hermes.tool_labels.${step.tool}`) }} · {{ t(`hermes.tool_status.${step.status}`) }}
+              <small v-if="step.reason">{{ step.reason }}</small>
             </span>
           </div>
           <div v-if="item.taskIds?.length" class="message-task-list">
@@ -257,6 +262,7 @@ h2 {
 .message-tool-chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 9px; color: var(--c-text-tertiary); font-size: 10px; }
 .tool-chain-label { color: var(--c-ai); font-family: 'JetBrains Mono', monospace; letter-spacing: .04em; text-transform: uppercase; }
 .tool-chain-step { padding: 3px 7px; border: 1px solid var(--c-border); border-radius: var(--radius-full); background: var(--c-bg-subtle); }
+.tool-chain-step small { display: block; max-width: 360px; margin-top: 2px; color: var(--c-text-secondary); font-size: 10px; white-space: normal; }
 .message-task-list { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
 
 .message-task,

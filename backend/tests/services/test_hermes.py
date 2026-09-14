@@ -2,6 +2,8 @@
 
 from datetime import date, datetime, timezone
 
+import pytest
+
 from app.services.hermes import (
     HermesCandidate,
     build_governance_summary,
@@ -16,6 +18,7 @@ from app.services.hermes_orchestration import (
     resume_pending_read_tool,
     summarize_tool_outcomes,
 )
+from app.services.hermes_model_planner import build_model_planner_prompt, parse_model_planner_response
 
 
 def _candidate(source_type: str, source_id: int, updated_at: datetime | None) -> HermesCandidate:
@@ -165,6 +168,49 @@ def test_plan_read_tools_routes_bounded_multi_tool_queries_and_requires_explicit
     missing_target = plan_read_tools("查看运行详情")
     assert missing_target.status == "needs_input"
     assert missing_target.plans == ()
+
+
+def test_model_planner_prompt_redacts_user_secrets_and_exposes_only_read_tools():
+    prompt = build_model_planner_prompt("检查失败任务 password: plain-secret")
+
+    assert "plain-secret" not in prompt
+    assert "failed_tasks" in prompt
+    assert '"read_only":true' in prompt
+    assert "最多两步" in prompt
+
+
+def test_model_planner_response_normalizes_schema_defaults_and_rejects_policy_violations():
+    result = parse_model_planner_response(
+        """```json
+        {"plans":[{"tool":"quality_trend","arguments":{"aggregate":"weekly"},"reason":"查看长期质量变化"}]}
+        ```"""
+    )
+
+    assert result.routing.status == "matched"
+    assert result.routing.plans[0].arguments == {"days": 30, "aggregate": "weekly"}
+    assert "查看长期质量变化" in result.normalized_response
+
+    with pytest.raises(ValueError, match="结构无效"):
+        parse_model_planner_response(
+            '{"plans":['
+            '{"tool":"failed_tasks","arguments":{},"reason":"一"},'
+            '{"tool":"quality_trend","arguments":{},"reason":"二"},'
+            '{"tool":"knowledge_detail","arguments":{"knowledge_id":1},"reason":"三"}'
+            "]}"
+        )
+    with pytest.raises(ValueError, match="重复工具"):
+        parse_model_planner_response(
+            '{"plans":['
+            '{"tool":"failed_tasks","arguments":{},"reason":"一"},'
+            '{"tool":"failed_tasks","arguments":{"limit":2},"reason":"二"}'
+            "]}"
+        )
+    with pytest.raises(ValueError, match="Schema"):
+        parse_model_planner_response(
+            '{"plans":[{"tool":"run_detail","arguments":{"task_type":"case"},"reason":"缺少编号"}]}'
+        )
+    with pytest.raises(ValueError, match="结构无效"):
+        parse_model_planner_response('{"plans":[],"write_action":"delete"}')
 
 
 def test_pending_read_tool_requires_a_known_intent_and_completes_only_that_intent():

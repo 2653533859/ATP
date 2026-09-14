@@ -32,9 +32,10 @@ class _ScalarResult(_Result):
 
 
 class _DB:
-    def __init__(self, results=None, project=None):
+    def __init__(self, results=None, project=None, llm_config=None):
         self.results = list(results or [])
         self.project = project
+        self.llm_config = llm_config
         self.statements = []
         self.added = []
         self._next_id = 100
@@ -42,6 +43,8 @@ class _DB:
     async def get(self, model, entity_id):
         if getattr(model, "__name__", "") == "Project" and self.project and entity_id == self.project.id:
             return self.project
+        if getattr(model, "__name__", "") == "AILLMConfig" and self.llm_config and entity_id == self.llm_config.id:
+            return self.llm_config
         if getattr(model, "__name__", "") == "HermesSession":
             return next((item for item in self.added if getattr(item, "id", None) == entity_id), None)
         return None
@@ -255,6 +258,122 @@ def test_hermes_orchestration_executes_at_most_two_read_tools_and_persists_safe_
     assert result.message_index == 1
     assert db.added[0].messages[-1]["tool"] == "hermes_orchestrator"
     assert db.added[0].messages[-1]["sources"][0]["source_ref"] == "HERMES-FAILED_TASKS"
+
+
+def test_hermes_orchestration_accepts_only_server_validated_model_plan(monkeypatch):
+    calls = []
+
+    async def allow_access(*_args):
+        return None
+
+    async def allow_limit(**_kwargs):
+        return True
+
+    async def model_response(_request):
+        return SimpleNamespace(
+            text='{"plans":[{"tool":"failed_tasks","arguments":{"limit":5},"reason":"盘点近期异常执行"}]}',
+            raw={},
+        )
+
+    async def execute_tool(body, _request, _db, _user):
+        calls.append(body)
+        return HermesToolOut(
+            project_id=body.project_id,
+            conversation_id=body.conversation_id,
+            tool=body.tool,
+            status="ok",
+            duration_ms=3,
+            data={"count": 1},
+            evidence=[],
+            generated_at=NOW,
+        )
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    monkeypatch.setattr(hermes, "check_and_incr_daily_limit", allow_limit)
+    monkeypatch.setattr(hermes, "call_llm", model_response)
+    monkeypatch.setattr(hermes, "execute_hermes_tool", execute_tool)
+    project = SimpleNamespace(id=1, ai_llm_config_id=8)
+    config = SimpleNamespace(
+        id=8,
+        enabled=True,
+        provider="ollama",
+        api_key_encrypted="",
+        endpoint="http://model.internal",
+        model_name="planner-model",
+        default_params={"temperature": 0.9, "max_tokens": 9_999},
+    )
+    db = _DB(project=project, llm_config=config)
+
+    result = asyncio.run(
+        hermes.orchestrate_hermes(
+            HermesOrchestrationIn(
+                project_id=1,
+                query="帮我盘点近期不成功的执行",
+                conversation_id="hermes-h9-model",
+            ),
+            SimpleNamespace(),
+            db,
+            _user(),
+        )
+    )
+
+    assert result.status == "matched"
+    assert result.planner.source == "model"
+    assert result.planner.validation == "accepted"
+    assert result.planner.model_name == "planner-model"
+    assert result.plans[0].reason == "盘点近期异常执行"
+    assert calls[0].arguments == {"limit": 5}
+    assert db.added[0].messages[-1]["planner"]["validation"] == "accepted"
+    assert db.added[0].messages[-1]["tool_steps"][0]["reason"] == "盘点近期异常执行"
+
+
+def test_hermes_orchestration_rejects_invalid_model_plan_before_tool_execution(monkeypatch):
+    calls = []
+
+    async def allow_access(*_args):
+        return None
+
+    async def allow_limit(**_kwargs):
+        return True
+
+    async def model_response(_request):
+        return SimpleNamespace(
+            text='{"plans":[{"tool":"failed_tasks","arguments":{"limit":5,"project_id":2},"reason":"越权"}]}',
+            raw={},
+        )
+
+    async def execute_tool(*_args):
+        calls.append(True)
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    monkeypatch.setattr(hermes, "check_and_incr_daily_limit", allow_limit)
+    monkeypatch.setattr(hermes, "call_llm", model_response)
+    monkeypatch.setattr(hermes, "execute_hermes_tool", execute_tool)
+    project = SimpleNamespace(id=1, ai_llm_config_id=8)
+    config = SimpleNamespace(
+        id=8,
+        enabled=True,
+        provider="ollama",
+        api_key_encrypted="",
+        endpoint="http://model.internal",
+        model_name="planner-model",
+        default_params={},
+    )
+
+    result = asyncio.run(
+        hermes.orchestrate_hermes(
+            HermesOrchestrationIn(project_id=1, query="帮我做语义盘点", conversation_id="hermes-h9-reject"),
+            SimpleNamespace(),
+            _DB(project=project, llm_config=config),
+            _user(),
+        )
+    )
+
+    assert result.status == "no_match"
+    assert result.planner.source == "deterministic_fallback"
+    assert result.planner.validation == "rejected"
+    assert result.planner.fallback_reason == "policy_validation_failed"
+    assert calls == []
 
 
 def test_hermes_orchestration_returns_clarification_without_executing_unknown_target(monkeypatch):

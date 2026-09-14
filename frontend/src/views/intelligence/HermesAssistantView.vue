@@ -424,8 +424,15 @@ async function loadProjectData() {
             toolSteps: Array.isArray(item.tool_steps)
               ? item.tool_steps
                 .filter((step): step is Record<string, unknown> => typeof step === 'object' && step !== null)
-                .map((step) => ({ tool: String(step.tool || ''), status: String(step.status || '') }))
+                .map((step) => ({
+                  tool: String(step.tool || ''),
+                  status: String(step.status || ''),
+                  reason: typeof step.reason === 'string' ? step.reason : undefined,
+                }))
                 .filter((step) => step.tool && step.status)
+              : undefined,
+            planner: typeof item.planner === 'object' && item.planner !== null
+              ? item.planner as HermesMessage['planner']
               : undefined,
             backendIndex: role === 'assistant' && !['orchestration_clarification', 'orchestration_cancellation'].includes(String(item.kind))
               ? index
@@ -502,7 +509,8 @@ function appendMessage(
   sources?: HermesSource[],
   taskIds?: string[],
   mode?: HermesQueryResult['mode'],
-  toolSteps?: Array<{ tool: string; status: string }>,
+  toolSteps?: Array<{ tool: string; status: string; reason?: string }>,
+  planner?: HermesMessage['planner'],
 ) {
   messages.value.push({
     id: ++messageSequence,
@@ -513,6 +521,7 @@ function appendMessage(
     taskIds,
     mode,
     toolSteps,
+    planner,
     isWelcome: false,
   })
 }
@@ -662,7 +671,12 @@ async function orchestratePrompt(text: string): Promise<boolean> {
       sources,
       undefined,
       undefined,
-      result.steps.map((step) => ({ tool: step.tool, status: step.status })),
+      result.steps.map((step) => ({
+        tool: step.tool,
+        status: step.status,
+        reason: result.plans.find((plan) => plan.tool === step.tool)?.reason,
+      })),
+      result.planner,
     )
     messages.value[messages.value.length - 1].backendIndex = result.message_index ?? undefined
     return true

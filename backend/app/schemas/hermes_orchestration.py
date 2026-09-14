@@ -10,6 +10,8 @@ from app.schemas.hermes_tools import HermesToolEvidence, HermesToolName, HermesT
 
 
 HermesOrchestrationStatus = Literal["matched", "no_match", "needs_input", "cancelled"]
+HermesPlannerSource = Literal["deterministic", "model", "deterministic_fallback"]
+HermesPlannerValidation = Literal["not_attempted", "accepted", "unavailable", "rejected", "failed"]
 
 
 class HermesOrchestrationIn(BaseModel):
@@ -55,6 +57,14 @@ class HermesOrchestrationStepOut(BaseModel):
     evidence: list[HermesToolEvidence] = Field(default_factory=list, max_length=50)
 
 
+class HermesPlannerDecisionOut(BaseModel):
+    source: HermesPlannerSource = "deterministic"
+    validation: HermesPlannerValidation = "not_attempted"
+    model_name: str | None = None
+    prompt_version: str | None = None
+    fallback_reason: str | None = Field(default=None, max_length=300)
+
+
 class HermesOrchestrationOut(BaseModel):
     project_id: int
     conversation_id: str
@@ -63,6 +73,7 @@ class HermesOrchestrationOut(BaseModel):
     clarification: str | None = None
     plans: list[HermesOrchestrationPlanOut] = Field(default_factory=list, max_length=2)
     steps: list[HermesOrchestrationStepOut] = Field(default_factory=list, max_length=2)
+    planner: HermesPlannerDecisionOut = Field(default_factory=HermesPlannerDecisionOut)
     answer: str
     generated_at: datetime
     session_id: int | None = None

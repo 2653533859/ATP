@@ -1,4 +1,4 @@
-import type { FailureDiagnosisResult, HermesQueryResult } from '@/api'
+import type { FailureDiagnosisResult, HermesPlannerDecision, HermesQueryResult } from '@/api'
 
 export type HermesSource = { label: string; path: string }
 
@@ -10,7 +10,8 @@ export type HermesMessage = {
   sources?: HermesSource[]
   taskIds?: string[]
   mode?: HermesQueryResult['mode']
-  toolSteps?: Array<{ tool: string; status: string }>
+  toolSteps?: Array<{ tool: string; status: string; reason?: string }>
+  planner?: HermesPlannerDecision
   isWelcome?: boolean
   backendIndex?: number
 }

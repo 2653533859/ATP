@@ -777,6 +777,12 @@ export default {
     governance_feedback: '{count} human feedback items',
     governance_cost_unavailable: 'Cost: waiting for provider usage data',
     tool_chain: 'AUTO READ CHAIN',
+    planner_validated: 'Policy validated',
+    planner_source: {
+      deterministic: 'Rule planner',
+      model: 'Model-assisted planner',
+      deterministic_fallback: 'Rule fallback',
+    },
     tool_labels: {
       failed_tasks: 'Failed tasks',
       run_detail: 'Run detail',

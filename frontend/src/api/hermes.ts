@@ -128,6 +128,14 @@ export interface HermesOrchestrationStep {
   evidence: HermesToolEvidence[]
 }
 
+export interface HermesPlannerDecision {
+  source: 'deterministic' | 'model' | 'deterministic_fallback'
+  validation: 'not_attempted' | 'accepted' | 'unavailable' | 'rejected' | 'failed'
+  model_name?: string | null
+  prompt_version?: string | null
+  fallback_reason?: string | null
+}
+
 export interface HermesOrchestrationResult {
   project_id: number
   conversation_id: string
@@ -136,6 +144,7 @@ export interface HermesOrchestrationResult {
   clarification?: string | null
   plans: HermesOrchestrationPlan[]
   steps: HermesOrchestrationStep[]
+  planner: HermesPlannerDecision
   answer: string
   generated_at: string
   session_id?: number | null

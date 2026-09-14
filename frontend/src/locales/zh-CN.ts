@@ -777,6 +777,12 @@ export default {
     governance_feedback: '{count} 条人工反馈',
     governance_cost_unavailable: '成本：等待供应商 usage 接入',
     tool_chain: '自动读取链路',
+    planner_validated: '策略校验通过',
+    planner_source: {
+      deterministic: '规则规划',
+      model: '模型辅助规划',
+      deterministic_fallback: '规则回退',
+    },
     tool_labels: {
       failed_tasks: '失败任务',
       run_detail: '运行详情',

@@ -48,6 +48,7 @@ from app.schemas.hermes_orchestration import (
     HermesOrchestrationOut,
     HermesOrchestrationPlanOut,
     HermesOrchestrationStepOut,
+    HermesPlannerDecisionOut,
 )
 from app.schemas.hermes_tools import HermesToolCallIn, HermesToolCatalogOut, HermesToolOut, HermesToolStatus
 from app.services.ai_case.llm_client import LLMRequest, call_llm
@@ -82,6 +83,7 @@ from app.services.hermes_tools import (
     tool_catalog,
 )
 from app.services.hermes_orchestration import (
+    HermesOrchestrationPlan,
     HermesToolOutcome,
     is_pending_cancellation,
     pending_tool_from_mapping,
@@ -89,6 +91,12 @@ from app.services.hermes_orchestration import (
     plan_read_tools,
     resume_pending_read_tool,
     summarize_tool_outcomes,
+)
+from app.services.hermes_model_planner import (
+    HERMES_TOOL_PLANNER_PROMPT_VERSION,
+    HERMES_TOOL_PLANNER_SYSTEM_PROMPT,
+    build_model_planner_prompt,
+    parse_model_planner_response,
 )
 
 
@@ -107,6 +115,95 @@ def _updated_bounds(body: HermesQueryIn) -> tuple[datetime | None, datetime | No
         else None
     )
     return start, end
+
+
+async def _try_model_tool_plan(
+    db: AsyncSession,
+    project_id: int,
+    query: str,
+) -> tuple[HermesOrchestrationPlan, HermesPlannerDecisionOut]:
+    """Ask the project model for a candidate plan, then enforce server policy."""
+
+    fallback = HermesOrchestrationPlan(status="no_match")
+    project = await db.get(Project, project_id)
+    config_id = getattr(project, "ai_llm_config_id", None) if project is not None else None
+    if not config_id:
+        return fallback, HermesPlannerDecisionOut(
+            source="deterministic_fallback",
+            validation="unavailable",
+            fallback_reason="project_model_not_configured",
+        )
+    config = await db.get(AILLMConfig, config_id)
+    if config is None or not config.enabled:
+        return fallback, HermesPlannerDecisionOut(
+            source="deterministic_fallback",
+            validation="unavailable",
+            fallback_reason="project_model_unavailable",
+        )
+    model_name = redact_llm_text(config.model_name, limit=64).strip() or None
+    if not await check_and_incr_daily_limit(config=config, capability="hermes_tool_planning"):
+        return fallback, HermesPlannerDecisionOut(
+            source="deterministic_fallback",
+            validation="unavailable",
+            model_name=model_name,
+            prompt_version=HERMES_TOOL_PLANNER_PROMPT_VERSION,
+            fallback_reason="daily_limit_reached",
+        )
+    try:
+        api_key = (
+            "" if config.provider == "ollama" and not config.api_key_encrypted else decrypt(config.api_key_encrypted)
+        )
+        extra_params = dict(llm_extra_params(config) or {})
+        for key in ("max_tokens", "temperature", "response_format"):
+            extra_params.pop(key, None)
+        response = await call_llm(
+            LLMRequest(
+                provider=config.provider,
+                api_key=api_key,
+                model_name=config.model_name,
+                prompt=build_model_planner_prompt(query),
+                endpoint=config.endpoint,
+                temperature=0,
+                max_tokens=700,
+                system_prompt=resolve_system_prompt(
+                    config,
+                    "hermes_tool_planning",
+                    HERMES_TOOL_PLANNER_SYSTEM_PROMPT,
+                ),
+                timeout_seconds=15.0,
+                extra_params=extra_params or None,
+            )
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.warning(
+            "Hermes model planner failed: config_id=%s error_type=%s",
+            config.id,
+            type(exc).__name__,
+        )
+        return fallback, HermesPlannerDecisionOut(
+            source="deterministic_fallback",
+            validation="failed",
+            model_name=model_name,
+            prompt_version=HERMES_TOOL_PLANNER_PROMPT_VERSION,
+            fallback_reason="model_call_failed",
+        )
+    try:
+        validated = parse_model_planner_response(response.text)
+    except ValueError as exc:
+        logger.warning("Hermes model planner response rejected: config_id=%s reason=%s", config.id, str(exc))
+        return fallback, HermesPlannerDecisionOut(
+            source="deterministic_fallback",
+            validation="rejected",
+            model_name=model_name,
+            prompt_version=HERMES_TOOL_PLANNER_PROMPT_VERSION,
+            fallback_reason="policy_validation_failed",
+        )
+    return validated.routing, HermesPlannerDecisionOut(
+        source="model",
+        validation="accepted",
+        model_name=model_name,
+        prompt_version=HERMES_TOOL_PLANNER_PROMPT_VERSION,
+    )
 
 
 @router.get("/hermes/tools", response_model=HermesToolCatalogOut)
@@ -256,9 +353,12 @@ async def orchestrate_hermes(
             session_id=pending_session.id,
             message_index=len(pending_session.messages) - 1,
         )
+    planner = HermesPlannerDecisionOut()
     routing = plan_read_tools(body.query)
     if routing.status == "no_match" and pending is not None:
         routing = resume_pending_read_tool(body.query, pending)
+    elif routing.status == "no_match" and not is_pending_cancellation(body.query):
+        routing, planner = await _try_model_tool_plan(db, body.project_id, body.query)
     plans = [
         HermesOrchestrationPlanOut(tool=item.tool, arguments=item.arguments, reason=item.reason)
         for item in routing.plans
@@ -315,6 +415,7 @@ async def orchestrate_hermes(
             clarification=answer,
             plans=plans,
             steps=[],
+            planner=planner,
             answer=answer,
             generated_at=generated_at,
             session_id=session.id,
@@ -330,6 +431,7 @@ async def orchestrate_hermes(
             clarification=routing.clarification,
             plans=plans,
             steps=[],
+            planner=planner,
             answer=answer,
             generated_at=datetime.now(timezone.utc),
         )
@@ -387,7 +489,11 @@ async def orchestrate_hermes(
                 "mode": "project_retrieval",
                 "sources": evidence,
                 "tool": "hermes_orchestrator",
-                "tool_steps": [{"tool": step.tool, "status": step.status} for step in steps],
+                "tool_steps": [
+                    {"tool": step.tool, "status": step.status, "reason": plans[index].reason}
+                    for index, step in enumerate(steps)
+                ],
+                "planner": planner.model_dump(mode="json"),
                 "prompt_version": HERMES_PROMPT_VERSION,
                 "latency_ms": latency_ms,
                 "at": generated_at.isoformat(),
@@ -413,6 +519,7 @@ async def orchestrate_hermes(
         status="matched",
         plans=plans,
         steps=steps,
+        planner=planner,
         answer=answer,
         generated_at=generated_at,
         session_id=session.id,
