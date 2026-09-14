@@ -39,6 +39,18 @@ def _window_bounds(start_date: date, end_date: date) -> tuple[datetime, datetime
     return start, end
 
 
+def _validate_complete_utc_window(start_date: date, end_date: date, *, utc_today: date | None = None) -> None:
+    if start_date > end_date:
+        raise ValueError("start must not be after end")
+
+    current_utc_date = utc_today or datetime.now(timezone.utc).date()
+    if end_date >= current_utc_date:
+        raise ValueError(
+            f"end must be before the current UTC date {current_utc_date.isoformat()} "
+            "so every collected day is complete"
+        )
+
+
 def _fmt_float(value: float | None, digits: int = 2) -> str:
     if value is None:
         return ""
@@ -649,7 +661,12 @@ def _render_slo_markdown(evidence: SloEvidence, *, grafana_verified: bool = True
     else:
         decision_line = "met; keep target; alert or release-gate decision: " + evidence.alert_enablement
 
-    scrape_preconditions = "- [ ]" if evidence.data_gap_rows else "- [x]"
+    backend_scrape_precondition = (
+        "- [x]" if evidence.scrape_rows and all(row[1] == "yes" for row in evidence.scrape_rows) else "- [ ]"
+    )
+    worker_scrape_precondition = (
+        "- [x]" if evidence.scrape_rows and all(row[2] == "yes" for row in evidence.scrape_rows) else "- [ ]"
+    )
     grafana_precondition = "- [x]" if grafana_verified else "- [ ]"
 
     return f"""# SLO History Evidence
@@ -662,8 +679,8 @@ def _render_slo_markdown(evidence: SloEvidence, *, grafana_verified: bool = True
 
 ## Preconditions
 
-{scrape_preconditions} Prometheus continuously scraped `atp-backend` for the full window.
-{scrape_preconditions} Worker metrics were scraped on `WORKER_METRICS_PORT` for the full window.
+{backend_scrape_precondition} Prometheus continuously scraped `atp-backend` for the full window.
+{worker_scrape_precondition} Worker metrics were scraped on `WORKER_METRICS_PORT` for the full window.
 {grafana_precondition} Grafana `atp-overview` loaded against the same Prometheus source.
 - [x] Traffic profile is documented as real usage or synthetic profile.
 
@@ -1171,6 +1188,7 @@ def run(
     timeout_seconds: int,
     poll_seconds: int,
 ) -> list[Path]:
+    _validate_complete_utc_window(start, end)
     slo_path = repo_root / "docs" / f"slo-history-{start.isoformat()}-{end.isoformat()}.md"
     android_path = repo_root / "docs" / f"android-device-rehearsal-{android_date.isoformat()}.md"
     acceptance_path = repo_root / "docs" / "q12-acceptance-summary.md"
@@ -1250,6 +1268,7 @@ def run_slo_only(
     force: bool,
 ) -> list[Path]:
     """Collect only SLO history without requiring ATP credentials or an Android device."""
+    _validate_complete_utc_window(start, end)
     slo_path = repo_root / "docs" / f"slo-history-{start.isoformat()}-{end.isoformat()}.md"
     artifact_paths = [repo_root / rel_path for rel_path in _slo_artifact_paths(start, end)]
     _ensure_absent([slo_path, *artifact_paths], force)
@@ -1327,6 +1346,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         start = _parse_date(args.start, "start")
         end = _parse_date(args.end, "end")
+        _validate_complete_utc_window(start, end)
         if args.slo_only:
             written = run_slo_only(
                 repo_root=args.repo_root,

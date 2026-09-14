@@ -4,6 +4,8 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
+> 2026-09-15 C3.4.2 取得首个完整 UTC 日 scrape 证据：修复后的采集器拒绝当前/未来 UTC 日和反向范围，并把 Backend/Worker 连续性与业务指标缺样分开判定。2026-09-13 的真实发布 Prometheus 中 Backend/Worker 均为 288/288；复核时 Prometheus readiness 200、K3s revision 46、6/6 Pod Ready、零重启。但该日请求量为 0，API 可用性、P95 与运行成功率没有样本，所以告警和发布门禁仍为 deferred。候选独立主机 `172.31.27.133` 仅从 Windows 可建立候选四端口 TCP，SSH/MinIO 协议不可用，发布主机到四端口均不可达，未部署或写入。定向 `17 passed`、非集成后端全量 `2608 passed / 1 skipped`。详见 [`slo-history-2026-09-13-2026-09-13.md`](slo-history-2026-09-13-2026-09-13.md) 与 [`evidence/c3-slo-history-day1-2026-09-15.json`](evidence/c3-slo-history-day1-2026-09-15.json)；这不替代有流量的 7/14 天校准、独立 MinIO 恢复或 P4/P9 验收。
+
 > 2026-09-14 Hermes H9.5 多副本状态一致性完成本地及目标同节点双 Backend 验收：`hermes_sessions` 增加数据库乐观版本，消息、挂起意图、取消、草稿、规划/评测指标和反馈的陈旧写入统一回滚并返回 `409`；草稿确认冲突不会留下重复计划，会话与治理窗口使用稳定排序。目标首次实测发现原 `0068` 漏配非空时间戳默认值导致 Session 创建 500，已由 `bdb84286`/迁移 `0074` 修复。K3s revision 46 的两个 Backend 进程完成跨副本读取及 40 次并发反馈，8 次提交、32 次稳定 `409`、版本 2→10、丢失更新 0；临时副本、会话和 Job 清理后，30 秒内 6/6 正式 Pod Ready、零重启、Backend 健康。定向后端 `52 passed`、前端 `2 files / 26 tests passed`；后端非集成全量 `2602 passed / 1 skipped`，前端全量 `76 files / 367 tests passed`，TypeScript、mypy、Ruff 和生产构建通过。脱敏证据见 [`evidence/hermes-multi-replica-2026-09-14.json`](evidence/hermes-multi-replica-2026-09-14.json)；同节点双进程不替代多节点故障域、P4 或 P9 验收。
 
 > 2026-09-14 Hermes H9.4 失败任务回归建议完成本地交付：失败 Case/Suite/Plan 可映射到当前项目活动套件，建议有界、可编辑并显示理由和 diff；计划页交接只预填且默认禁用，持久会话二次确认还会由后端复核项目归属和活动状态，只创建禁用手工 draft，不自动执行。定向后端 `25 passed`、前端 `33 passed`；后端非集成全量在项目内临时目录重跑为 `2599 passed / 1 skipped`，前端全量 `76 files / 363 tests passed`，TypeScript、mypy、Ruff 和生产构建通过。该本地交付不替代 H9.5 多副本一致性、真实角色/模型或 P4/P9 发布证据。

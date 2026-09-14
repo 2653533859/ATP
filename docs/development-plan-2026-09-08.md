@@ -159,7 +159,7 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 - [x] `C3.3` 执行数据库空库迁移、升级、备份恢复和回滚演练；验证恢复后的运行角色权限，并清理全部隔离资源。
 - [~] `C3.4` 收集发布级 SLO、告警、服务重启和持续稳定性证据，明确 Redis 与 MinIO 的剩余灾备决定。
   - [x] `C3.4.1` 部署持久化单节点发布 Prometheus，验证 4 个 target、4 条告警规则和 40 秒稳定性；Redis 切换 AOF everysec 并通过双重重启；MinIO 启用 versioning，明确不自动启用未审查的 lifecycle。
-  - [~] `C3.4.2` 已将 SLO 采集从 Android 真机演练中解耦，增加 5 分钟连续性、非有限值与数据缺口门禁并通过当前环境 preflight；继续累积并复核连续 7/14 天历史。候选异机 `172.31.27.133` 从 Windows 与发布主机 SSH 均超时，待网络恢复后配置 MinIO 备份端点并完成恢复演练。
+  - [~] `C3.4.2` 已将 SLO 采集从 Android 真机演练中解耦，增加 5 分钟连续性、非有限值、完整 UTC 日和数据缺口门禁；2026-09-13 首个完整日的 Backend/Worker 均为 288/288，但无真实请求或运行结果样本，继续累积并复核有流量的连续 7/14 天历史。候选异机 `172.31.27.133` 从 Windows 仅 TCP 建连、SSH/MinIO 协议不可用，发布主机到候选四端口不可达；待路由和服务恢复后配置 MinIO 备份端点并完成恢复演练。
 - [ ] `C3.5` 绑定同一最终提交 SHA，更新能力矩阵、运行手册、证据索引和发布结论。
 
 ## 7. 推荐执行顺序
@@ -185,6 +185,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 6. 经用户要求后使用 Conventional Commit 提交并推送。
 
 ## 9. 执行记录
+
+- 2026-09-15：推进 C3.4.2 首个完整 UTC 日采集。真实运行发现采集器允许把当前未结束 UTC 日计入报告，并且把 API/运行指标缺样误当作 Backend/Worker 抓取不连续；现已统一拒绝当前、未来及反向日期范围，直接调用 `run`/`run_slo_only` 也执行相同门禁，同时按每日 scrape 行分别渲染 Backend 和 Worker 前置条件。回归覆盖完整 scrape 但业务指标缺样、当前 UTC 日、未来日和反向范围。使用修复后脚本从 `192.168.3.196` 的发布 Prometheus 重采 2026-09-13：Backend/Worker 均为 288/288，目标 Prometheus readiness 200、K3s revision 46、6/6 Pod Ready 且零重启；请求量为 0，API 可用性、5m/1h P95 和运行成功率没有样本，告警与发布门禁保持 deferred。候选异机 `172.31.27.133` 的 Windows TCP 22/9000/5432/6379 可建连，但 SSH 主动关闭、MinIO HTTP 返回空响应且 HTTPS 超时；发布主机到四端口均不可达，未写入或部署。定向 `17 passed`、非集成后端全量 `2608 passed / 1 skipped`，Ruff、格式与差异检查通过；审查无剩余可操作问题。证据见 [`slo-history-2026-09-13-2026-09-13.md`](slo-history-2026-09-13-2026-09-13.md) 与 [`evidence/c3-slo-history-day1-2026-09-15.json`](evidence/c3-slo-history-day1-2026-09-15.json)。这只是 1 个完整 scrape 日且无业务流量，不替代 7/14 天校准、独立 MinIO 恢复或 P4/P9 验收。
 
 - 2026-09-14：完成 H9.5 目标 K3s 双 Backend 实例验收。目标原 revision 44 仍运行 `6755ed9f`/迁移 `0072`；在独立 SHA 构建目录以已验证基础镜像叠加当前源码，Helm lint、服务端 dry-run 和原子升级通过。首次真实创建 Session 暴露 `0068` 建表迁移漏配非空时间戳数据库默认值、导致 PostgreSQL 返回 500；新增 `0074` 为 `created_at/updated_at` 补 `now()`，增加迁移回归并以独立提交 `bdb84286` 修复。revision 46 部署精确 Backend 镜像后，正式 8000 与临时 8001 两个进程共享同一 PostgreSQL：跨副本 Session 读取通过，40 次并发反馈为 8 次成功、32 次稳定 `409`，状态版本由 2 增至 10，成功计数 8、丢失更新 0。临时副本、验收 Session 和迁移 Job 全部归零；30 秒后 6/6 正式 Pod Ready、零重启、Backend 健康，迁移头 `20260914_0074`。脱敏证据见 [`evidence/hermes-multi-replica-2026-09-14.json`](evidence/hermes-multi-replica-2026-09-14.json)。该验收确认两个应用进程的一致性，不粉饰为多节点故障域、P4 或 P9 通过。
 

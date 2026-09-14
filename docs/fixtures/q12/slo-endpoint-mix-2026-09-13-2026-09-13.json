@@ -1,0 +1,9 @@
+{
+  "total_requests": 0.0,
+  "handlers": [
+    {
+      "handler": "/api/v1/projects",
+      "requests": 0.0
+    }
+  ]
+}

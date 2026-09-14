@@ -9,7 +9,7 @@ Q11-10 calibration status: complete for the current pre-production baseline.
 Observed traffic window:
 
 - Current evidence source: local, CI, release-readiness, and short-lived staging-style runs captured during Q10/Q11 validation.
-- Release Prometheus history: collection started on 2026-09-13 for the current single-node target. The standalone collector retains 15 days and currently scrapes Backend, ordinary Worker, Performance Worker and itself; initial 4/4 target and rule-health evidence is in [`c3-release-observability-data-governance-2026-09-13.json`](evidence/c3-release-observability-data-governance-2026-09-13.json).
+- Release Prometheus history: collection started on 2026-09-13 for the current single-node target. The standalone collector retains 15 days and currently scrapes Backend, ordinary Worker, Performance Worker and itself. The first complete UTC day, 2026-09-13, has 288/288 Backend and Worker checkpoints, but zero request/run traffic leaves the API and run SLOs unevaluated; see [`slo-history-2026-09-13-2026-09-13.md`](slo-history-2026-09-13-2026-09-13.md). The collector rejects the current or a future UTC day rather than recording a partial day as history.
 - Decision: keep the Q10 short-window SLOs as pre-production guardrails. Do not enable paging-grade alerts before 7 consecutive days or make SLOs release-blocking before the 14-day calibration is reviewed.
 
 Production adoption window:
@@ -17,7 +17,7 @@ Production adoption window:
 | Stage | Required history | Purpose | Decision |
 |-------|------------------|---------|----------|
 | Pre-production baseline | Current local/CI/staging-style validation | Keep dashboard and runbook language aligned before rollout | Active |
-| Initial production calibration | 7 consecutive days of Prometheus data | Check request volume, endpoint mix, 5xx shape, and P95 stability | Collecting since 2026-09-13; required before enabling alerts |
+| Initial production calibration | 7 consecutive days of Prometheus data with representative traffic | Check request volume, endpoint mix, 5xx shape, and P95 stability | 1 complete scrape day captured, but it has no request/run samples; required before enabling alerts |
 | Stable production calibration | 14 consecutive days after first traffic week | Confirm targets are not too loose or too noisy | Pending; required before making SLOs release-blocking |
 
 在第 7/14 天使用独立入口采集当前发布 Prometheus；日期按 UTC 完整日填写：

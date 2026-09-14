@@ -1,0 +1,69 @@
+{
+  "evidence_type": "c3_slo_history_complete_day",
+  "generated_at": "2026-09-14T17:35:23Z",
+  "status": "partial_pass",
+  "source": {
+    "repository_baseline_revision": "b05557ceccdf920b6deaa136ca04e07ff6f470ad",
+    "collector_change": "finalized by the commit containing this evidence",
+    "target_host": "192.168.3.196",
+    "deployment": "atp-single-node",
+    "helm_revision": 46,
+    "prometheus_url": "http://127.0.0.1:39090",
+    "secrets_included": false
+  },
+  "prometheus": {
+    "window": "2026-09-13 to 2026-09-13 UTC",
+    "record_type": "pre-calibration preflight",
+    "checkpoint_interval": "5m",
+    "expected_daily_checkpoints": 288,
+    "backend_checkpoints_up": 288,
+    "worker_checkpoints_up": 288,
+    "request_volume": 0,
+    "api_availability": "no samples",
+    "api_p95_latency_5m": "no samples",
+    "api_p95_latency_1h": "no samples",
+    "run_success_rate": "no samples",
+    "alert_enablement": "deferred",
+    "release_blocking_gate": "deferred",
+    "readiness_http_status": 200
+  },
+  "target_stability_snapshot": {
+    "pods_ready": "6/6",
+    "pod_restarts": 0,
+    "helm_status": "deployed"
+  },
+  "collector_repairs": [
+    "reject reversed date ranges",
+    "reject current and future UTC days",
+    "apply the complete-day guard to direct run and run_slo_only calls",
+    "derive Backend and Worker scrape preconditions independently from scrape rows"
+  ],
+  "independent_minio_candidate": {
+    "host": "172.31.27.133",
+    "windows_tcp": {
+      "22": "connected",
+      "9000": "connected",
+      "5432": "connected",
+      "6379": "connected"
+    },
+    "windows_ssh_protocol": "connection closed by remote host",
+    "windows_minio_http_health": "empty reply",
+    "windows_minio_https_health": "timeout",
+    "release_host_tcp": {
+      "22": "unreachable",
+      "9000": "unreachable",
+      "5432": "unreachable",
+      "6379": "unreachable"
+    },
+    "deployment_attempted": false,
+    "write_attempted": false
+  },
+  "artifacts": [
+    "docs/slo-history-2026-09-13-2026-09-13.md",
+    "docs/fixtures/q12/slo-availability-2026-09-13-2026-09-13.csv",
+    "docs/fixtures/q12/slo-latency-2026-09-13-2026-09-13.csv",
+    "docs/fixtures/q12/slo-success-2026-09-13-2026-09-13.csv",
+    "docs/fixtures/q12/slo-endpoint-mix-2026-09-13-2026-09-13.json"
+  ],
+  "boundary": "This is one complete scrape day with no business traffic. It does not satisfy the representative-traffic 7/14-day calibration, independent MinIO restore, multi-node fault-domain, P4, or P9 release gates."
+}

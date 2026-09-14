@@ -336,6 +336,26 @@ def test_window_without_samples_is_a_data_gap_not_a_pass(repo_root):
     assert "- [ ] Prometheus continuously scraped" in rendered
 
 
+def test_metric_gaps_do_not_clear_complete_scrape_preconditions(repo_root):
+    module = _load_collector(repo_root)
+    prometheus = _StubPrometheus(availability=[], latency=[], success=[]).bind(module)
+
+    evidence, _artifacts = module._build_slo_bundle(
+        prometheus,
+        date(2026, 7, 1),
+        date(2026, 7, 1),
+        source_deployment="staging-prod",
+    )
+
+    assert evidence.data_gap_rows
+    assert evidence.scrape_rows[0][1:3] == ["yes", "yes"]
+
+    rendered = module._render_slo_markdown(evidence)
+    assert "- [x] Prometheus continuously scraped" in rendered
+    assert "- [x] Worker metrics were scraped" in rendered
+    assert "not evaluated; data gaps present" in rendered
+
+
 def test_prometheus_client_discards_nan_samples(repo_root, monkeypatch):
     module = _load_collector(repo_root)
     client = module.PrometheusClient("http://prom")
@@ -459,6 +479,47 @@ def test_slo_only_mode_does_not_require_atp_or_android_inputs(repo_root, tmp_pat
     assert recorded["end"] == date(2026, 7, 7)
     assert recorded["prometheus_url"] == "http://prometheus:9090"
     assert "slo-history.md" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    ("start", "end", "message"),
+    [
+        (date(2026, 7, 2), date(2026, 7, 1), "start must not be after end"),
+        (date(2026, 7, 1), date(2026, 7, 3), "end must be before the current UTC date 2026-07-03"),
+    ],
+)
+def test_complete_utc_window_rejects_invalid_ranges(repo_root, start, end, message):
+    module = _load_collector(repo_root)
+
+    with pytest.raises(ValueError, match=message):
+        module._validate_complete_utc_window(start, end, utc_today=date(2026, 7, 3))
+
+
+def test_complete_utc_window_accepts_the_previous_day(repo_root):
+    module = _load_collector(repo_root)
+
+    module._validate_complete_utc_window(date(2026, 7, 2), date(2026, 7, 2), utc_today=date(2026, 7, 3))
+
+
+def test_main_rejects_the_current_utc_day_before_collection(repo_root, tmp_path, monkeypatch, capsys):
+    module = _load_collector(repo_root)
+    today = datetime.now(timezone.utc).date().isoformat()
+    monkeypatch.setattr(module, "run_slo_only", lambda **_kwargs: pytest.fail("collection must not start"))
+
+    result = module.main(
+        [
+            "--slo-only",
+            "--repo-root",
+            str(tmp_path),
+            "--start",
+            today,
+            "--end",
+            today,
+        ]
+    )
+
+    assert result == 1
+    assert "end must be before the current UTC date" in capsys.readouterr().err
 
 
 def test_existing_evidence_aborts_before_any_collection(repo_root, tmp_path, monkeypatch):
