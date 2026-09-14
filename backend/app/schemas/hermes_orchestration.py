@@ -63,6 +63,14 @@ class HermesPlannerDecisionOut(BaseModel):
     model_name: str | None = None
     prompt_version: str | None = None
     fallback_reason: str | None = Field(default=None, max_length=300)
+    model_calls: int = Field(default=0, ge=0, le=1)
+    latency_ms: int = Field(default=0, ge=0)
+    usage_available: bool = False
+    input_tokens: int | None = Field(default=None, ge=0)
+    output_tokens: int | None = Field(default=None, ge=0)
+    total_tokens: int | None = Field(default=None, ge=0)
+    estimated_cost: float | None = Field(default=None, ge=0)
+    currency: str | None = Field(default=None, min_length=3, max_length=3, pattern=r"^[A-Z]{3}$")
 
 
 class HermesOrchestrationOut(BaseModel):

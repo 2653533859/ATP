@@ -145,7 +145,30 @@ class HermesEvaluationSetMetaOut(BaseModel):
 
 class HermesCostTrackingOut(BaseModel):
     available: bool
-    reason: str
+    reason: (
+        Literal[
+            "no_model_calls",
+            "usage_unavailable",
+            "pricing_not_configured",
+            "partially_unpriced",
+        ]
+        | None
+    ) = None
+    amounts_by_currency: dict[str, float] = Field(default_factory=dict)
+    priced_calls: int = Field(default=0, ge=0)
+    unpriced_calls: int = Field(default=0, ge=0)
+
+
+class HermesModelPlanningGovernanceOut(BaseModel):
+    attempts: int = Field(ge=0)
+    model_calls: int = Field(ge=0)
+    usage_calls: int = Field(ge=0)
+    input_tokens: int = Field(ge=0)
+    output_tokens: int = Field(ge=0)
+    total_tokens: int = Field(ge=0)
+    average_latency_ms: int = Field(ge=0)
+    fallback_count: int = Field(ge=0)
+    fallback_reasons: dict[str, int] = Field(default_factory=dict)
 
 
 class HermesGovernanceSummaryOut(BaseModel):
@@ -163,6 +186,7 @@ class HermesGovernanceSummaryOut(BaseModel):
     helpful_rate: float | None = Field(default=None, ge=0, le=1)
     average_latency_ms: int = Field(ge=0)
     p95_latency_ms: int = Field(ge=0)
+    model_planning: HermesModelPlanningGovernanceOut
     cost_tracking: HermesCostTrackingOut
 
 

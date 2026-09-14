@@ -63,7 +63,24 @@ export interface HermesGovernanceSummary {
   helpful_rate: number | null
   average_latency_ms: number
   p95_latency_ms: number
-  cost_tracking: { available: boolean; reason: string }
+  model_planning: {
+    attempts: number
+    model_calls: number
+    usage_calls: number
+    input_tokens: number
+    output_tokens: number
+    total_tokens: number
+    average_latency_ms: number
+    fallback_count: number
+    fallback_reasons: Record<string, number>
+  }
+  cost_tracking: {
+    available: boolean
+    reason?: 'no_model_calls' | 'usage_unavailable' | 'pricing_not_configured' | 'partially_unpriced' | null
+    amounts_by_currency: Record<string, number>
+    priced_calls: number
+    unpriced_calls: number
+  }
 }
 
 export type HermesToolName =
@@ -134,6 +151,14 @@ export interface HermesPlannerDecision {
   model_name?: string | null
   prompt_version?: string | null
   fallback_reason?: string | null
+  model_calls: number
+  latency_ms: number
+  usage_available: boolean
+  input_tokens?: number | null
+  output_tokens?: number | null
+  total_tokens?: number | null
+  estimated_cost?: number | null
+  currency?: string | null
 }
 
 export interface HermesOrchestrationResult {

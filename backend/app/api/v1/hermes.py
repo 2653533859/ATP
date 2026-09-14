@@ -96,6 +96,8 @@ from app.services.hermes_model_planner import (
     HERMES_TOOL_PLANNER_PROMPT_VERSION,
     HERMES_TOOL_PLANNER_SYSTEM_PROMPT,
     build_model_planner_prompt,
+    estimate_model_cost,
+    extract_model_usage,
     parse_model_planner_response,
 )
 
@@ -149,6 +151,7 @@ async def _try_model_tool_plan(
             prompt_version=HERMES_TOOL_PLANNER_PROMPT_VERSION,
             fallback_reason="daily_limit_reached",
         )
+    started_at = perf_counter()
     try:
         api_key = (
             "" if config.provider == "ollama" and not config.api_key_encrypted else decrypt(config.api_key_encrypted)
@@ -175,6 +178,7 @@ async def _try_model_tool_plan(
             )
         )
     except Exception as exc:  # noqa: BLE001
+        latency_ms = max(0, round((perf_counter() - started_at) * 1_000))
         logger.warning(
             "Hermes model planner failed: config_id=%s error_type=%s",
             config.id,
@@ -186,7 +190,25 @@ async def _try_model_tool_plan(
             model_name=model_name,
             prompt_version=HERMES_TOOL_PLANNER_PROMPT_VERSION,
             fallback_reason="model_call_failed",
+            model_calls=1,
+            latency_ms=latency_ms,
         )
+    latency_ms = max(0, round((perf_counter() - started_at) * 1_000))
+    usage = extract_model_usage(response.raw)
+    estimated_cost = estimate_model_cost(config, usage)
+    usage_fields: dict[str, Any] = {
+        "model_calls": 1,
+        "latency_ms": latency_ms,
+        "usage_available": usage is not None,
+    }
+    if usage is not None:
+        usage_fields.update(
+            input_tokens=usage.input_tokens,
+            output_tokens=usage.output_tokens,
+            total_tokens=usage.total_tokens,
+        )
+    if estimated_cost is not None:
+        usage_fields.update(estimated_cost=estimated_cost.amount, currency=estimated_cost.currency)
     try:
         validated = parse_model_planner_response(response.text)
     except ValueError as exc:
@@ -197,12 +219,15 @@ async def _try_model_tool_plan(
             model_name=model_name,
             prompt_version=HERMES_TOOL_PLANNER_PROMPT_VERSION,
             fallback_reason="policy_validation_failed",
+            **usage_fields,
         )
     return validated.routing, HermesPlannerDecisionOut(
         source="model",
         validation="accepted",
         model_name=model_name,
         prompt_version=HERMES_TOOL_PLANNER_PROMPT_VERSION,
+        fallback_reason="model_no_plan" if validated.routing.status == "no_match" else None,
+        **usage_fields,
     )
 
 
@@ -423,6 +448,21 @@ async def orchestrate_hermes(
         )
     if routing.status != "matched":
         answer = routing.clarification or "当前问题未命中可自动读取的只读工具，我会改用项目证据检索继续回答。"
+        session_id = None
+        if planner.validation != "not_attempted":
+            session = await _get_or_create_session(
+                db,
+                user,
+                HermesQueryIn(
+                    project_id=body.project_id,
+                    query=body.query,
+                    conversation_id=body.conversation_id,
+                    session_id=body.session_id,
+                ),
+            )
+            _record_planner_metrics(session, planner)
+            await db.commit()
+            session_id = session.id
         return HermesOrchestrationOut(
             project_id=body.project_id,
             conversation_id=body.conversation_id,
@@ -434,6 +474,7 @@ async def orchestrate_hermes(
             planner=planner,
             answer=answer,
             generated_at=datetime.now(timezone.utc),
+            session_id=session_id,
         )
 
     started_at = perf_counter()
@@ -511,6 +552,7 @@ async def orchestrate_hermes(
     metrics["tool_calls"] = _safe_increment(metrics.get("tool_calls"), len(steps))
     metrics["last_latency_ms"] = latency_ms
     session.metrics = metrics
+    _record_planner_metrics(session, planner)
     await db.commit()
     return HermesOrchestrationOut(
         project_id=body.project_id,
@@ -581,6 +623,53 @@ def _safe_increment(value: object, amount: int) -> int:
     except (TypeError, ValueError):
         current = 0
     return max(0, current) + max(0, amount)
+
+
+def _safe_metric_float(value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return 0
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    return max(0, number) if number == number and number != float("inf") else 0
+
+
+def _record_planner_metrics(session: HermesSession, planner: HermesPlannerDecisionOut) -> None:
+    """Merge bounded planner telemetry into one project's user-scoped session."""
+
+    if planner.validation == "not_attempted":
+        return
+    metrics = dict(session.metrics) if isinstance(session.metrics, dict) else {}
+    metrics["planner_attempts"] = _safe_increment(metrics.get("planner_attempts"), 1)
+    metrics["planner_model_calls"] = _safe_increment(metrics.get("planner_model_calls"), planner.model_calls)
+    metrics["planner_latency_ms_total"] = _safe_increment(metrics.get("planner_latency_ms_total"), planner.latency_ms)
+    if planner.usage_available:
+        metrics["planner_usage_calls"] = _safe_increment(metrics.get("planner_usage_calls"), 1)
+        metrics["planner_input_tokens"] = _safe_increment(
+            metrics.get("planner_input_tokens"), planner.input_tokens or 0
+        )
+        metrics["planner_output_tokens"] = _safe_increment(
+            metrics.get("planner_output_tokens"), planner.output_tokens or 0
+        )
+        metrics["planner_total_tokens"] = _safe_increment(
+            metrics.get("planner_total_tokens"), planner.total_tokens or 0
+        )
+    if planner.fallback_reason:
+        raw_reasons = metrics.get("planner_fallback_reasons")
+        reasons = dict(raw_reasons) if isinstance(raw_reasons, dict) else {}
+        reasons[planner.fallback_reason] = _safe_increment(reasons.get(planner.fallback_reason), 1)
+        metrics["planner_fallback_reasons"] = reasons
+    if planner.estimated_cost is not None and planner.currency:
+        raw_costs = metrics.get("planner_cost_by_currency")
+        costs = dict(raw_costs) if isinstance(raw_costs, dict) else {}
+        costs[planner.currency] = round(
+            _safe_metric_float(costs.get(planner.currency)) + planner.estimated_cost,
+            8,
+        )
+        metrics["planner_cost_by_currency"] = costs
+        metrics["planner_priced_calls"] = _safe_increment(metrics.get("planner_priced_calls"), 1)
+    session.metrics = metrics
 
 
 def _knowledge_candidates(rows: Sequence[Any], project_id: int) -> list[HermesCandidate]:

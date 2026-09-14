@@ -18,7 +18,12 @@ from app.services.hermes_orchestration import (
     resume_pending_read_tool,
     summarize_tool_outcomes,
 )
-from app.services.hermes_model_planner import build_model_planner_prompt, parse_model_planner_response
+from app.services.hermes_model_planner import (
+    build_model_planner_prompt,
+    estimate_model_cost,
+    extract_model_usage,
+    parse_model_planner_response,
+)
 
 
 def _candidate(source_type: str, source_id: int, updated_at: datetime | None) -> HermesCandidate:
@@ -93,7 +98,20 @@ def test_build_governance_summary_uses_valid_citations_and_tolerates_legacy_rows
             "Session",
             (),
             {
-                "metrics": {"helpful": "2", "not_helpful": 1},
+                "metrics": {
+                    "helpful": "2",
+                    "not_helpful": 1,
+                    "planner_attempts": 3,
+                    "planner_model_calls": 2,
+                    "planner_usage_calls": 1,
+                    "planner_input_tokens": 100,
+                    "planner_output_tokens": 20,
+                    "planner_total_tokens": 120,
+                    "planner_latency_ms_total": 400,
+                    "planner_priced_calls": 1,
+                    "planner_cost_by_currency": {"usd": 0.000014},
+                    "planner_fallback_reasons": {"model_call_failed": 1},
+                },
                 "messages": [
                     {
                         "role": "assistant",
@@ -147,6 +165,24 @@ def test_build_governance_summary_uses_valid_citations_and_tolerates_legacy_rows
     assert result["average_latency_ms"] == 150
     assert result["p95_latency_ms"] == 300
     assert result["evaluation_set"]["size"] == 5
+    assert result["model_planning"] == {
+        "attempts": 3,
+        "model_calls": 2,
+        "usage_calls": 1,
+        "input_tokens": 100,
+        "output_tokens": 20,
+        "total_tokens": 120,
+        "average_latency_ms": 200,
+        "fallback_count": 1,
+        "fallback_reasons": {"model_call_failed": 1},
+    }
+    assert result["cost_tracking"] == {
+        "available": True,
+        "reason": "partially_unpriced",
+        "amounts_by_currency": {"USD": 0.000014},
+        "priced_calls": 1,
+        "unpriced_calls": 1,
+    }
 
 
 def test_plan_read_tools_routes_bounded_multi_tool_queries_and_requires_explicit_targets():
@@ -177,6 +213,57 @@ def test_model_planner_prompt_redacts_user_secrets_and_exposes_only_read_tools()
     assert "failed_tasks" in prompt
     assert '"read_only":true' in prompt
     assert "最多两步" in prompt
+
+
+def test_model_planner_normalizes_usage_and_estimates_only_configured_costs():
+    openai_usage = extract_model_usage({"usage": {"prompt_tokens": 120, "completion_tokens": 30, "total_tokens": 150}})
+    claude_usage = extract_model_usage({"usage": {"input_tokens": 80, "output_tokens": 20}})
+    ollama_usage = extract_model_usage({"prompt_eval_count": 40, "eval_count": 10})
+
+    assert openai_usage and openai_usage.total_tokens == 150
+    assert claude_usage and claude_usage.total_tokens == 100
+    assert ollama_usage and ollama_usage.total_tokens == 50
+    assert extract_model_usage({"usage": {"prompt_tokens": -1}}) is None
+    assert extract_model_usage({"usage": {"prompt_tokens": 1.5}}) is None
+    assert extract_model_usage({"usage": {"prompt_tokens": 20}}) is None
+    inferred_usage = extract_model_usage({"usage": {"prompt_tokens": 20, "total_tokens": 25}})
+    assert inferred_usage and inferred_usage.output_tokens == 5
+
+    config = type(
+        "Config",
+        (),
+        {
+            "default_params": {
+                "usage_pricing": {
+                    "hermes_tool_planning": {
+                        "input_per_million": "0.50",
+                        "output_per_million": "1.50",
+                        "currency": "usd",
+                    }
+                }
+            }
+        },
+    )()
+    cost = estimate_model_cost(config, openai_usage)
+
+    assert cost is not None
+    assert cost.currency == "USD"
+    assert cost.amount == 0.000105
+    assert estimate_model_cost(type("Config", (), {"default_params": {}})(), openai_usage) is None
+    unsafe_config = type(
+        "Config",
+        (),
+        {
+            "default_params": {
+                "usage_pricing": {
+                    "input_per_million": "1e100000",
+                    "output_per_million": "1",
+                    "currency": "USD",
+                }
+            }
+        },
+    )()
+    assert estimate_model_cost(unsafe_config, openai_usage) is None
 
 
 def test_model_planner_response_normalizes_schema_defaults_and_rejects_policy_violations():

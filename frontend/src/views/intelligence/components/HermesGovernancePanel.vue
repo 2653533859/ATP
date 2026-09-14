@@ -31,7 +31,19 @@
     <div class="governance-footer">
       <span>{{ t('hermes.governance_activity', { sessions: summary.sessions, messages: summary.assistant_messages }) }}</span>
       <span>{{ t('hermes.governance_feedback', { count: summary.feedback_total }) }}</span>
-      <span v-if="!summary.cost_tracking.available" class="governance-cost-note">{{ t('hermes.governance_cost_unavailable') }}</span>
+      <span>{{ t('hermes.governance_planner_calls', { count: summary.model_planning.model_calls }) }}</span>
+      <span>{{ t('hermes.governance_planner_tokens', { count: summary.model_planning.total_tokens }) }}</span>
+      <span>{{ t('hermes.governance_planner_latency', { value: summary.model_planning.average_latency_ms }) }}</span>
+      <span>{{ t('hermes.governance_planner_fallbacks', { count: summary.model_planning.fallback_count }) }}</span>
+      <span v-if="summary.model_planning.fallback_count">
+        {{ t('hermes.governance_planner_fallback_detail', { value: formatFallbackReasons(summary.model_planning.fallback_reasons) }) }}
+      </span>
+      <span v-if="summary.cost_tracking.available" class="governance-cost-note governance-cost-ready">
+        {{ t('hermes.governance_cost', { value: formatCosts(summary.cost_tracking.amounts_by_currency) }) }}
+      </span>
+      <span v-else class="governance-cost-note">
+        {{ summary.cost_tracking.reason ? t(`hermes.cost_reasons.${summary.cost_tracking.reason}`) : t('hermes.governance_cost_unavailable') }}
+      </span>
     </div>
   </section>
 </template>
@@ -43,9 +55,33 @@ import type { HermesGovernanceSummary } from '@/api'
 defineProps<{ summary: HermesGovernanceSummary }>()
 
 const { t } = useI18n()
+const knownFallbackReasons = new Set([
+  'project_model_not_configured',
+  'project_model_unavailable',
+  'daily_limit_reached',
+  'model_call_failed',
+  'policy_validation_failed',
+  'model_no_plan',
+])
 
 function governanceRate(value: number | null | undefined) {
   return value == null ? '—' : `${Math.round(value * 100)}%`
+}
+
+function formatCosts(costs: Record<string, number>) {
+  const values = Object.entries(costs).map(([currency, amount]) => `${currency} ${amount.toFixed(8)}`)
+  return values.join(' / ') || '—'
+}
+
+function formatFallbackReasons(reasons: Record<string, number>) {
+  return Object.entries(reasons)
+    .sort((left, right) => right[1] - left[1])
+    .slice(0, 3)
+    .map(([reason, count]) => {
+      const key = `hermes.planner_fallback_reasons.${reason}`
+      return `${knownFallbackReasons.has(reason) ? t(key) : reason} ×${count}`
+    })
+    .join(' / ')
 }
 </script>
 
@@ -173,6 +209,8 @@ h2 {
   margin-left: auto;
   color: var(--c-warning);
 }
+
+.governance-cost-ready { color: var(--c-success); }
 
 @media (max-width: 680px) {
   .governance-heading {

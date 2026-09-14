@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass
+from decimal import Decimal, InvalidOperation
 from typing import Any
 
 from pydantic import BaseModel, Field, ValidationError
@@ -41,6 +42,103 @@ class _CandidateEnvelope(BaseModel):
 class HermesValidatedModelPlan:
     routing: HermesOrchestrationPlan
     normalized_response: str
+
+
+@dataclass(frozen=True, slots=True)
+class HermesModelUsage:
+    input_tokens: int
+    output_tokens: int
+    total_tokens: int
+
+
+@dataclass(frozen=True, slots=True)
+class HermesEstimatedCost:
+    amount: float
+    currency: str
+
+
+def _non_negative_int(value: object) -> int | None:
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, int):
+        return value if value >= 0 else None
+    if isinstance(value, float):
+        return int(value) if value >= 0 and value < float("inf") and value.is_integer() else None
+    if not isinstance(value, str) or not value.strip().isdigit():
+        return None
+    number = int(value.strip())
+    return number if number >= 0 else None
+
+
+def extract_model_usage(raw: object) -> HermesModelUsage | None:
+    """Normalize token usage from OpenAI-compatible, Claude, and Ollama responses."""
+
+    if not isinstance(raw, dict):
+        return None
+    usage = raw.get("usage")
+    source = usage if isinstance(usage, dict) else raw
+    input_tokens = _non_negative_int(
+        source.get("prompt_tokens", source.get("input_tokens", source.get("prompt_eval_count")))
+    )
+    output_tokens = _non_negative_int(
+        source.get("completion_tokens", source.get("output_tokens", source.get("eval_count")))
+    )
+    total_tokens = _non_negative_int(source.get("total_tokens"))
+    if input_tokens is None and output_tokens is None:
+        return None
+    if input_tokens is None:
+        if total_tokens is None or output_tokens is None or total_tokens < output_tokens:
+            return None
+        input_tokens = total_tokens - output_tokens
+    if output_tokens is None:
+        if total_tokens is None or total_tokens < input_tokens:
+            return None
+        output_tokens = total_tokens - input_tokens
+    input_value = input_tokens
+    output_value = output_tokens
+    computed_total = input_value + output_value
+    total_value = total_tokens if total_tokens is not None and total_tokens >= computed_total else computed_total
+    return HermesModelUsage(input_tokens=input_value, output_tokens=output_value, total_tokens=total_value)
+
+
+def estimate_model_cost(config: object, usage: HermesModelUsage | None) -> HermesEstimatedCost | None:
+    """Estimate planning cost only from explicitly configured per-million-token rates."""
+
+    if usage is None:
+        return None
+    default_params = getattr(config, "default_params", None)
+    params = default_params if isinstance(default_params, dict) else {}
+    pricing = params.get("usage_pricing")
+    if not isinstance(pricing, dict):
+        return None
+    capability = pricing.get("hermes_tool_planning")
+    values = capability if isinstance(capability, dict) else pricing
+    currency = values.get("currency")
+    if not isinstance(currency, str) or len(currency.strip()) != 3 or not currency.strip().isalpha():
+        return None
+    try:
+        input_rate = Decimal(str(values.get("input_per_million")))
+        output_rate = Decimal(str(values.get("output_per_million")))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+    maximum_rate = Decimal("1000000")
+    if (
+        not input_rate.is_finite()
+        or not output_rate.is_finite()
+        or input_rate < 0
+        or output_rate < 0
+        or input_rate > maximum_rate
+        or output_rate > maximum_rate
+    ):
+        return None
+    try:
+        amount = (Decimal(usage.input_tokens) * input_rate + Decimal(usage.output_tokens) * output_rate) / Decimal(
+            1_000_000
+        )
+        normalized_amount = float(amount.quantize(Decimal("0.00000001")))
+    except (InvalidOperation, OverflowError):
+        return None
+    return HermesEstimatedCost(amount=normalized_amount, currency=currency.upper())
 
 
 def build_model_planner_prompt(query: str) -> str:

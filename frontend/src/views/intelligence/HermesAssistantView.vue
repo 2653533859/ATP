@@ -649,7 +649,10 @@ async function orchestratePrompt(text: string): Promise<boolean> {
       || selectedProjectId.value !== projectId
       || conversationId.value !== requestConversationId
     ) return true
-    if (result.status === 'no_match') return false
+    if (result.status === 'no_match') {
+      sessionId.value = result.session_id ?? sessionId.value
+      return false
+    }
     if (result.status === 'needs_input') {
       sessionId.value = result.session_id ?? sessionId.value
       appendMessage('assistant', result.clarification || result.answer)

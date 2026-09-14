@@ -272,7 +272,7 @@ def test_hermes_orchestration_accepts_only_server_validated_model_plan(monkeypat
     async def model_response(_request):
         return SimpleNamespace(
             text='{"plans":[{"tool":"failed_tasks","arguments":{"limit":5},"reason":"盘点近期异常执行"}]}',
-            raw={},
+            raw={"usage": {"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120}},
         )
 
     async def execute_tool(body, _request, _db, _user):
@@ -300,7 +300,17 @@ def test_hermes_orchestration_accepts_only_server_validated_model_plan(monkeypat
         api_key_encrypted="",
         endpoint="http://model.internal",
         model_name="planner-model",
-        default_params={"temperature": 0.9, "max_tokens": 9_999},
+        default_params={
+            "temperature": 0.9,
+            "max_tokens": 9_999,
+            "usage_pricing": {
+                "hermes_tool_planning": {
+                    "input_per_million": 0.5,
+                    "output_per_million": 1.5,
+                    "currency": "USD",
+                }
+            },
+        },
     )
     db = _DB(project=project, llm_config=config)
 
@@ -321,10 +331,18 @@ def test_hermes_orchestration_accepts_only_server_validated_model_plan(monkeypat
     assert result.planner.source == "model"
     assert result.planner.validation == "accepted"
     assert result.planner.model_name == "planner-model"
+    assert result.planner.model_calls == 1
+    assert result.planner.usage_available is True
+    assert result.planner.total_tokens == 120
+    assert result.planner.estimated_cost == 0.00008
+    assert result.planner.currency == "USD"
     assert result.plans[0].reason == "盘点近期异常执行"
     assert calls[0].arguments == {"limit": 5}
     assert db.added[0].messages[-1]["planner"]["validation"] == "accepted"
     assert db.added[0].messages[-1]["tool_steps"][0]["reason"] == "盘点近期异常执行"
+    assert db.added[0].metrics["planner_model_calls"] == 1
+    assert db.added[0].metrics["planner_total_tokens"] == 120
+    assert db.added[0].metrics["planner_cost_by_currency"] == {"USD": 0.00008}
 
 
 def test_hermes_orchestration_rejects_invalid_model_plan_before_tool_execution(monkeypatch):
@@ -360,11 +378,12 @@ def test_hermes_orchestration_rejects_invalid_model_plan_before_tool_execution(m
         default_params={},
     )
 
+    db = _DB(project=project, llm_config=config)
     result = asyncio.run(
         hermes.orchestrate_hermes(
             HermesOrchestrationIn(project_id=1, query="帮我做语义盘点", conversation_id="hermes-h9-reject"),
             SimpleNamespace(),
-            _DB(project=project, llm_config=config),
+            db,
             _user(),
         )
     )
@@ -373,7 +392,11 @@ def test_hermes_orchestration_rejects_invalid_model_plan_before_tool_execution(m
     assert result.planner.source == "deterministic_fallback"
     assert result.planner.validation == "rejected"
     assert result.planner.fallback_reason == "policy_validation_failed"
+    assert result.planner.model_calls == 1
+    assert result.planner.usage_available is False
+    assert result.session_id == 100
     assert calls == []
+    assert db.added[0].metrics["planner_fallback_reasons"] == {"policy_validation_failed": 1}
 
 
 def test_hermes_orchestration_returns_clarification_without_executing_unknown_target(monkeypatch):

@@ -211,11 +211,43 @@ def build_governance_summary(sessions: Sequence[object]) -> dict[str, object]:
     prompt_versions: set[str] = set()
     helpful = 0
     not_helpful = 0
+    planner_attempts = 0
+    planner_model_calls = 0
+    planner_usage_calls = 0
+    planner_input_tokens = 0
+    planner_output_tokens = 0
+    planner_total_tokens = 0
+    planner_latency_ms_total = 0
+    planner_priced_calls = 0
+    planner_fallback_reasons: dict[str, int] = {}
+    planner_cost_by_currency: dict[str, float] = {}
     for session in session_list:
         raw_metrics = getattr(session, "metrics", {})
         metrics = raw_metrics if isinstance(raw_metrics, dict) else {}
         helpful += max(0, _safe_metric_int(metrics.get("helpful")))
         not_helpful += max(0, _safe_metric_int(metrics.get("not_helpful")))
+        planner_attempts += max(0, _safe_metric_int(metrics.get("planner_attempts")))
+        planner_model_calls += max(0, _safe_metric_int(metrics.get("planner_model_calls")))
+        planner_usage_calls += max(0, _safe_metric_int(metrics.get("planner_usage_calls")))
+        planner_input_tokens += max(0, _safe_metric_int(metrics.get("planner_input_tokens")))
+        planner_output_tokens += max(0, _safe_metric_int(metrics.get("planner_output_tokens")))
+        planner_total_tokens += max(0, _safe_metric_int(metrics.get("planner_total_tokens")))
+        planner_latency_ms_total += max(0, _safe_metric_int(metrics.get("planner_latency_ms_total")))
+        planner_priced_calls += max(0, _safe_metric_int(metrics.get("planner_priced_calls")))
+        raw_fallback_reasons = metrics.get("planner_fallback_reasons")
+        if isinstance(raw_fallback_reasons, dict):
+            for key, value in list(raw_fallback_reasons.items())[:20]:
+                if isinstance(key, str) and 0 < len(key) <= 64:
+                    planner_fallback_reasons[key] = planner_fallback_reasons.get(key, 0) + max(
+                        0, _safe_metric_int(value)
+                    )
+        raw_costs = metrics.get("planner_cost_by_currency")
+        if isinstance(raw_costs, dict):
+            for currency, value in list(raw_costs.items())[:10]:
+                amount = _safe_metric_float(value)
+                if isinstance(currency, str) and len(currency) == 3 and currency.isalpha():
+                    code = currency.upper()
+                    planner_cost_by_currency[code] = round(planner_cost_by_currency.get(code, 0) + amount, 8)
         raw_messages = getattr(session, "messages", [])
         if not isinstance(raw_messages, list):
             continue
@@ -258,6 +290,18 @@ def build_governance_summary(sessions: Sequence[object]) -> dict[str, object]:
         if HERMES_PROMPT_VERSION in prompt_versions
         else (max(prompt_versions) if prompt_versions else HERMES_PROMPT_VERSION)
     )
+    planner_usage_calls = min(planner_model_calls, planner_usage_calls)
+    planner_priced_calls = min(planner_model_calls, planner_priced_calls)
+    fallback_count = min(planner_attempts, sum(planner_fallback_reasons.values()))
+    unpriced_calls = max(0, planner_model_calls - planner_priced_calls)
+    if planner_priced_calls:
+        cost_reason = "partially_unpriced" if unpriced_calls else None
+    elif planner_model_calls == 0:
+        cost_reason = "no_model_calls"
+    elif planner_usage_calls == 0:
+        cost_reason = "usage_unavailable"
+    else:
+        cost_reason = "pricing_not_configured"
     return {
         "prompt_version": current_prompt_version,
         "prompt_versions": sorted(prompt_versions) or [HERMES_PROMPT_VERSION],
@@ -277,7 +321,24 @@ def build_governance_summary(sessions: Sequence[object]) -> dict[str, object]:
         "helpful_rate": round(helpful / feedback_total, 4) if feedback_total else None,
         "average_latency_ms": round(sum(latencies) / len(latencies)) if latencies else 0,
         "p95_latency_ms": p95_latency,
-        "cost_tracking": {"available": False, "reason": "当前 provider 客户端未统一暴露 token usage 与费用"},
+        "model_planning": {
+            "attempts": planner_attempts,
+            "model_calls": planner_model_calls,
+            "usage_calls": planner_usage_calls,
+            "input_tokens": planner_input_tokens,
+            "output_tokens": planner_output_tokens,
+            "total_tokens": planner_total_tokens,
+            "average_latency_ms": (round(planner_latency_ms_total / planner_model_calls) if planner_model_calls else 0),
+            "fallback_count": fallback_count,
+            "fallback_reasons": dict(sorted(planner_fallback_reasons.items())),
+        },
+        "cost_tracking": {
+            "available": planner_priced_calls > 0,
+            "reason": cost_reason,
+            "amounts_by_currency": dict(sorted(planner_cost_by_currency.items())),
+            "priced_calls": planner_priced_calls,
+            "unpriced_calls": unpriced_calls,
+        },
     }
 
 
@@ -288,6 +349,16 @@ def _safe_metric_int(value: object) -> int:
         return int(value)
     except (TypeError, ValueError):
         return 0
+
+
+def _safe_metric_float(value: object) -> float:
+    if isinstance(value, bool) or not isinstance(value, (int, float, str)):
+        return 0
+    try:
+        number = float(value)
+    except (TypeError, ValueError, OverflowError):
+        return 0
+    return number if number >= 0 and number < float("inf") else 0
 
 
 def build_grounded_prompt(
