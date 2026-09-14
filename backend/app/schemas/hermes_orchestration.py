@@ -6,6 +6,7 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator
 
+from app.schemas.hermes import HermesEvaluationResultOut
 from app.schemas.hermes_tools import HermesToolEvidence, HermesToolName, HermesToolStatus
 
 
@@ -86,3 +87,4 @@ class HermesOrchestrationOut(BaseModel):
     generated_at: datetime
     session_id: int | None = None
     message_index: int | None = None
+    evaluation: HermesEvaluationResultOut | None = None

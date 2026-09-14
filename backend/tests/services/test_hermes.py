@@ -5,11 +5,16 @@ from datetime import date, datetime, timezone
 import pytest
 
 from app.services.hermes import (
+    HERMES_EVALUATION_SET,
+    HERMES_EVALUATION_SET_ID,
+    HERMES_EVALUATION_SET_VERSION,
     HermesCandidate,
     build_governance_summary,
     build_grounded_prompt,
     build_history_context,
+    hermes_evaluation_case,
     rank_candidates,
+    score_hermes_evaluation,
 )
 from app.services.hermes_orchestration import (
     HermesToolOutcome,
@@ -111,6 +116,25 @@ def test_build_governance_summary_uses_valid_citations_and_tolerates_legacy_rows
                     "planner_priced_calls": 1,
                     "planner_cost_by_currency": {"usd": 0.000014},
                     "planner_fallback_reasons": {"model_call_failed": 1},
+                    "evaluation_results": {
+                        "set_id": HERMES_EVALUATION_SET_ID,
+                        "set_version": HERMES_EVALUATION_SET_VERSION,
+                        "run_count": 2,
+                        "cases": {
+                            "grounded-evidence": {
+                                "tool_selection": None,
+                                "citation_relevance": True,
+                                "answer_completeness": None,
+                                "refusal_correctness": True,
+                            },
+                            "missing-evidence": {
+                                "tool_selection": None,
+                                "citation_relevance": None,
+                                "answer_completeness": False,
+                                "refusal_correctness": True,
+                            },
+                        },
+                    },
                 },
                 "messages": [
                     {
@@ -120,6 +144,17 @@ def test_build_governance_summary_uses_valid_citations_and_tolerates_legacy_rows
                         "sources": [{"path": "/knowledge/1"}],
                         "prompt_version": "hermes-v2",
                         "latency_ms": 100,
+                        "evaluation": {
+                            "set_id": HERMES_EVALUATION_SET_ID,
+                            "set_version": HERMES_EVALUATION_SET_VERSION,
+                            "case_id": "grounded-evidence",
+                            "scores": {
+                                "tool_selection": None,
+                                "citation_relevance": True,
+                                "answer_completeness": None,
+                                "refusal_correctness": True,
+                            },
+                        },
                     },
                     {
                         "role": "assistant",
@@ -136,6 +171,17 @@ def test_build_governance_summary_uses_valid_citations_and_tolerates_legacy_rows
                         "sources": [],
                         "prompt_version": "hermes-v2",
                         "latency_ms": 50,
+                        "evaluation": {
+                            "set_id": HERMES_EVALUATION_SET_ID,
+                            "set_version": HERMES_EVALUATION_SET_VERSION,
+                            "case_id": "missing-evidence",
+                            "scores": {
+                                "tool_selection": None,
+                                "citation_relevance": None,
+                                "answer_completeness": False,
+                                "refusal_correctness": True,
+                            },
+                        },
                     },
                     {
                         "role": "assistant",
@@ -164,7 +210,15 @@ def test_build_governance_summary_uses_valid_citations_and_tolerates_legacy_rows
     assert result["not_helpful_count"] == 1
     assert result["average_latency_ms"] == 150
     assert result["p95_latency_ms"] == 300
-    assert result["evaluation_set"]["size"] == 5
+    assert result["evaluation_set"]["size"] == 10
+    assert result["evaluation_quality"] == {
+        "runs": 2,
+        "cases_covered": 2,
+        "tool_selection": {"evaluated": 0, "passed": 0, "rate": None},
+        "citation_relevance": {"evaluated": 1, "passed": 1, "rate": 1.0},
+        "answer_completeness": {"evaluated": 1, "passed": 0, "rate": 0.0},
+        "refusal_correctness": {"evaluated": 2, "passed": 2, "rate": 1.0},
+    }
     assert result["model_planning"] == {
         "attempts": 3,
         "model_calls": 2,
@@ -183,6 +237,75 @@ def test_build_governance_summary_uses_valid_citations_and_tolerates_legacy_rows
         "priced_calls": 1,
         "unpriced_calls": 1,
     }
+
+
+def test_h9_evaluation_set_scores_only_exact_fixed_prompts_and_applicable_metrics():
+    assert len(HERMES_EVALUATION_SET) == 10
+    prompt = "请同时查看当前项目失败任务和最近质量趋势。"
+    assert hermes_evaluation_case(f" {prompt} ", "orchestrate")["id"] == "failed-and-quality"
+    assert hermes_evaluation_case(prompt, "query") is None
+    assert (
+        score_hermes_evaluation(
+            "普通问题",
+            execution="orchestrate",
+            mode="project_retrieval",
+            answer="失败任务与质量趋势",
+            selected_tools=["failed_tasks", "quality_trend"],
+        )
+        is None
+    )
+
+    result = score_hermes_evaluation(
+        prompt,
+        execution="orchestrate",
+        mode="project_retrieval",
+        answer="已读取失败任务，但缺少趋势摘要。",
+        selected_tools=["quality_trend", "failed_tasks"],
+    )
+
+    assert result == {
+        "set_id": HERMES_EVALUATION_SET_ID,
+        "set_version": HERMES_EVALUATION_SET_VERSION,
+        "case_id": "failed-and-quality",
+        "scores": {
+            "tool_selection": True,
+            "citation_relevance": None,
+            "answer_completeness": False,
+            "refusal_correctness": True,
+        },
+    }
+
+
+def test_h9_evaluation_scores_grounded_citations_and_unsupported_refusal():
+    grounded = score_hermes_evaluation(
+        "登录。请依据当前项目需求给出可追溯结论。",
+        execution="query",
+        mode="llm_grounded",
+        answer="结论来自项目需求。[S1]",
+        sources=[{"source_type": "requirement", "match_score": 12}],
+    )
+    refusal = score_hermes_evaluation(
+        "请查找评测专用不存在资产 HERMES-EVAL-MISSING-9F3A。",
+        execution="query",
+        mode="no_results",
+        answer="当前项目没有找到匹配来源。",
+    )
+    irrelevant_citation = score_hermes_evaluation(
+        "登录。请依据当前项目需求给出可追溯结论。",
+        execution="query",
+        mode="llm_grounded",
+        answer="结论只引用了知识来源。[S2]",
+        sources=[
+            {"source_type": "requirement", "match_score": 12},
+            {"source_type": "knowledge", "match_score": 8},
+        ],
+    )
+
+    assert grounded and grounded["scores"]["citation_relevance"] is True
+    assert grounded["scores"]["refusal_correctness"] is True
+    assert refusal and refusal["scores"]["answer_completeness"] is True
+    assert refusal["scores"]["refusal_correctness"] is True
+    assert irrelevant_citation and irrelevant_citation["scores"]["citation_relevance"] is False
 
 
 def test_plan_read_tools_routes_bounded_multi_tool_queries_and_requires_explicit_targets():

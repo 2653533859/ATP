@@ -184,7 +184,7 @@ beforeEach(() => {
   governance.mockResolvedValue({
     prompt_version: 'hermes-v2',
     prompt_versions: ['hermes-v2'],
-    evaluation_set: { id: 'hermes-core-v1', version: '2026-09-01', size: 5 },
+    evaluation_set: { id: 'hermes-core-v2', version: '2026-09-14', size: 10 },
     sessions: 2,
     assistant_messages: 3,
     citation_coverage: 0.8,
@@ -196,6 +196,14 @@ beforeEach(() => {
     helpful_rate: 0.6667,
     average_latency_ms: 120,
     p95_latency_ms: 220,
+    evaluation_quality: {
+      runs: 6,
+      cases_covered: 5,
+      tool_selection: { evaluated: 3, passed: 3, rate: 1 },
+      citation_relevance: { evaluated: 2, passed: 1, rate: 0.5 },
+      answer_completeness: { evaluated: 4, passed: 3, rate: 0.75 },
+      refusal_correctness: { evaluated: 6, passed: 6, rate: 1 },
+    },
     model_planning: {
       attempts: 3,
       model_calls: 2,
@@ -260,6 +268,17 @@ beforeEach(() => {
     generated_at: '2026-09-03T10:00:00Z',
     session_id: 101,
     message_index: 1,
+    evaluation: {
+      set_id: 'hermes-core-v2',
+      set_version: '2026-09-14',
+      case_id: 'failed-and-quality',
+      scores: {
+        tool_selection: true,
+        citation_relevance: null,
+        answer_completeness: true,
+        refusal_correctness: true,
+      },
+    },
   })
   routerReplace.mockResolvedValue(undefined)
 })
@@ -283,7 +302,7 @@ describe('HermesAssistantView', () => {
     expect(governance).toHaveBeenCalledWith(1)
     expect(wrapper.find('.governance-card').exists()).toBe(true)
     expect(wrapper.find('.governance-card').text()).toContain('80%')
-    expect(wrapper.find('.governance-card').text()).toContain('2026-09-01')
+    expect(wrapper.find('.governance-card').text()).toContain('2026-09-14')
     expect(vm.qualityScore).toBe(78)
     expect(vm.failedTasks).toHaveLength(1)
     expect(vm.messages[0].sources).toHaveLength(2)
@@ -354,6 +373,7 @@ describe('HermesAssistantView', () => {
     expect(wrapper.find('.message-tool-chain').text()).toContain('hermes.planner_source.model')
     expect(wrapper.find('.message-tool-chain').exists()).toBe(true)
     expect(hermesQuery).not.toHaveBeenCalled()
+    expect(governance).toHaveBeenCalledTimes(2)
 
     wrapper.unmount()
   })

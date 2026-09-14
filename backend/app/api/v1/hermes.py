@@ -74,7 +74,9 @@ from app.services.hermes import (
     build_grounded_prompt,
     build_history_context,
     has_valid_source_citation,
+    hermes_evaluation_case,
     rank_candidates,
+    score_hermes_evaluation,
 )
 from app.services.hermes_tools import (
     HERMES_TOOL_TIMEOUT_MAX_MS,
@@ -379,10 +381,13 @@ async def orchestrate_hermes(
             message_index=len(pending_session.messages) - 1,
         )
     planner = HermesPlannerDecisionOut()
-    routing = plan_read_tools(body.query)
-    if routing.status == "no_match" and pending is not None:
+    query_evaluation = hermes_evaluation_case(body.query, "query")
+    routing = (
+        HermesOrchestrationPlan(status="no_match") if query_evaluation is not None else plan_read_tools(body.query)
+    )
+    if routing.status == "no_match" and pending is not None and query_evaluation is None:
         routing = resume_pending_read_tool(body.query, pending)
-    elif routing.status == "no_match" and not is_pending_cancellation(body.query):
+    elif routing.status == "no_match" and not is_pending_cancellation(body.query) and query_evaluation is None:
         routing, planner = await _try_model_tool_plan(db, body.project_id, body.query)
     plans = [
         HermesOrchestrationPlanOut(tool=item.tool, arguments=item.arguments, reason=item.reason)
@@ -520,25 +525,36 @@ async def orchestrate_hermes(
     generated_at = datetime.now(timezone.utc)
     latency_ms = max(0, round((perf_counter() - started_at) * 1_000))
     evidence = [item.model_dump() for step in steps for item in step.evidence]
+    evaluation = score_hermes_evaluation(
+        body.query,
+        execution="orchestrate",
+        mode="project_retrieval",
+        answer=answer,
+        sources=evidence,
+        selected_tools=[step.tool for step in steps],
+    )
+    assistant_message: dict[str, Any] = {
+        "role": "assistant",
+        "content": answer,
+        "mode": "project_retrieval",
+        "sources": evidence,
+        "tool": "hermes_orchestrator",
+        "tool_steps": [
+            {"tool": step.tool, "status": step.status, "reason": plans[index].reason}
+            for index, step in enumerate(steps)
+        ],
+        "planner": planner.model_dump(mode="json"),
+        "prompt_version": HERMES_PROMPT_VERSION,
+        "latency_ms": latency_ms,
+        "at": generated_at.isoformat(),
+    }
+    if evaluation is not None:
+        assistant_message["evaluation"] = evaluation
     messages = list(session.messages) if isinstance(session.messages, list) else []
     messages.extend(
         [
             {"role": "user", "content": redact_knowledge_text(body.query, limit=2_000), "at": generated_at.isoformat()},
-            {
-                "role": "assistant",
-                "content": answer,
-                "mode": "project_retrieval",
-                "sources": evidence,
-                "tool": "hermes_orchestrator",
-                "tool_steps": [
-                    {"tool": step.tool, "status": step.status, "reason": plans[index].reason}
-                    for index, step in enumerate(steps)
-                ],
-                "planner": planner.model_dump(mode="json"),
-                "prompt_version": HERMES_PROMPT_VERSION,
-                "latency_ms": latency_ms,
-                "at": generated_at.isoformat(),
-            },
+            assistant_message,
         ]
     )
     session.messages = messages[-40:]
@@ -553,6 +569,7 @@ async def orchestrate_hermes(
     metrics["last_latency_ms"] = latency_ms
     session.metrics = metrics
     _record_planner_metrics(session, planner)
+    _record_evaluation_metrics(session, evaluation)
     await db.commit()
     return HermesOrchestrationOut(
         project_id=body.project_id,
@@ -566,6 +583,7 @@ async def orchestrate_hermes(
         generated_at=generated_at,
         session_id=session.id,
         message_index=len(session.messages) - 1,
+        evaluation=evaluation,
     )
 
 
@@ -669,6 +687,50 @@ def _record_planner_metrics(session: HermesSession, planner: HermesPlannerDecisi
         )
         metrics["planner_cost_by_currency"] = costs
         metrics["planner_priced_calls"] = _safe_increment(metrics.get("planner_priced_calls"), 1)
+    session.metrics = metrics
+
+
+def _record_evaluation_metrics(session: HermesSession, evaluation: dict[str, object] | None) -> None:
+    """Persist current-set latest case scores independently from bounded message history."""
+
+    if evaluation is None:
+        return
+    case_id = evaluation.get("case_id")
+    scores = evaluation.get("scores")
+    if (
+        evaluation.get("set_id") != HERMES_EVALUATION_SET_ID
+        or evaluation.get("set_version") != HERMES_EVALUATION_SET_VERSION
+        or not isinstance(case_id, str)
+        or case_id not in {item["id"] for item in HERMES_EVALUATION_SET}
+        or not isinstance(scores, dict)
+    ):
+        return
+    safe_scores = {
+        metric: value
+        for metric in ("tool_selection", "citation_relevance", "answer_completeness", "refusal_correctness")
+        if isinstance((value := scores.get(metric)), bool) or value is None
+    }
+    if "refusal_correctness" not in safe_scores or not isinstance(safe_scores["refusal_correctness"], bool):
+        return
+    metrics = dict(session.metrics) if isinstance(session.metrics, dict) else {}
+    raw_results = metrics.get("evaluation_results")
+    if (
+        isinstance(raw_results, dict)
+        and raw_results.get("set_id") == HERMES_EVALUATION_SET_ID
+        and raw_results.get("set_version") == HERMES_EVALUATION_SET_VERSION
+    ):
+        cases = dict(raw_results.get("cases")) if isinstance(raw_results.get("cases"), dict) else {}
+        run_count = _safe_increment(raw_results.get("run_count"), 1)
+    else:
+        cases = {}
+        run_count = 1
+    cases[case_id] = safe_scores
+    metrics["evaluation_results"] = {
+        "set_id": HERMES_EVALUATION_SET_ID,
+        "set_version": HERMES_EVALUATION_SET_VERSION,
+        "run_count": run_count,
+        "cases": cases,
+    }
     session.metrics = metrics
 
 
@@ -851,23 +913,34 @@ async def query_hermes(
         answer, mode = llm_answer, "llm_grounded"
     generated_at = datetime.now(timezone.utc)
     latency_ms = int((perf_counter() - started_at) * 1000)
+    source_payloads = [
+        {**asdict(source), "updated_at": source.updated_at.isoformat() if source.updated_at else None}
+        for source in sources
+    ]
+    evaluation = score_hermes_evaluation(
+        body.query,
+        execution="query",
+        mode=mode,
+        answer=answer,
+        sources=source_payloads,
+    )
+    assistant_message: dict[str, Any] = {
+        "role": "assistant",
+        "content": answer,
+        "mode": mode,
+        "sources": source_payloads,
+        "tool": "project_evidence_search",
+        "prompt_version": HERMES_PROMPT_VERSION,
+        "latency_ms": latency_ms,
+        "at": generated_at.isoformat(),
+    }
+    if evaluation is not None:
+        assistant_message["evaluation"] = evaluation
     messages = list(session.messages or [])
     messages.extend(
         [
             {"role": "user", "content": redact_knowledge_text(body.query, limit=2_000), "at": generated_at.isoformat()},
-            {
-                "role": "assistant",
-                "content": answer,
-                "mode": mode,
-                "sources": [
-                    {**asdict(source), "updated_at": source.updated_at.isoformat() if source.updated_at else None}
-                    for source in sources
-                ],
-                "tool": "project_evidence_search",
-                "prompt_version": HERMES_PROMPT_VERSION,
-                "latency_ms": latency_ms,
-                "at": generated_at.isoformat(),
-            },
+            assistant_message,
         ]
     )
     session.messages = messages[-40:]
@@ -882,6 +955,7 @@ async def query_hermes(
     metrics["queries"] = int(metrics.get("queries", 0)) + 1
     metrics["last_latency_ms"] = latency_ms
     session.metrics = metrics
+    _record_evaluation_metrics(session, evaluation)
     await db.commit()
     return HermesQueryOut(
         project_id=body.project_id,
@@ -901,6 +975,7 @@ async def query_hermes(
         session_id=session.id,
         message_index=len(session.messages) - 1,
         latency_ms=latency_ms,
+        evaluation=evaluation,
     )
 
 

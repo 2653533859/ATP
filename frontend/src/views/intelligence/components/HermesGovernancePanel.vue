@@ -28,9 +28,28 @@
         <span>{{ t('hermes.governance_helpful') }}</span>
       </div>
     </div>
+    <div class="governance-metrics governance-evaluation-metrics">
+      <div class="governance-metric">
+        <strong>{{ governanceRate(summary.evaluation_quality.tool_selection.rate) }}</strong>
+        <span>{{ t('hermes.governance_tool_accuracy', { count: summary.evaluation_quality.tool_selection.evaluated }) }}</span>
+      </div>
+      <div class="governance-metric governance-metric-citation">
+        <strong>{{ governanceRate(summary.evaluation_quality.citation_relevance.rate) }}</strong>
+        <span>{{ t('hermes.governance_citation_relevance', { count: summary.evaluation_quality.citation_relevance.evaluated }) }}</span>
+      </div>
+      <div class="governance-metric">
+        <strong>{{ governanceRate(summary.evaluation_quality.answer_completeness.rate) }}</strong>
+        <span>{{ t('hermes.governance_answer_completeness', { count: summary.evaluation_quality.answer_completeness.evaluated }) }}</span>
+      </div>
+      <div class="governance-metric governance-metric-refusal">
+        <strong>{{ governanceRate(summary.evaluation_quality.refusal_correctness.rate) }}</strong>
+        <span>{{ t('hermes.governance_refusal_correctness', { count: summary.evaluation_quality.refusal_correctness.evaluated }) }}</span>
+      </div>
+    </div>
     <div class="governance-footer">
       <span>{{ t('hermes.governance_activity', { sessions: summary.sessions, messages: summary.assistant_messages }) }}</span>
       <span>{{ t('hermes.governance_feedback', { count: summary.feedback_total }) }}</span>
+      <span>{{ t('hermes.governance_evaluation_runs', { runs: summary.evaluation_quality.runs, covered: summary.evaluation_quality.cases_covered, total: summary.evaluation_set.size }) }}</span>
       <span>{{ t('hermes.governance_planner_calls', { count: summary.model_planning.model_calls }) }}</span>
       <span>{{ t('hermes.governance_planner_tokens', { count: summary.model_planning.total_tokens }) }}</span>
       <span>{{ t('hermes.governance_planner_latency', { value: summary.model_planning.average_latency_ms }) }}</span>
@@ -196,6 +215,7 @@ h2 {
 
 .governance-metric-citation { border-left-color: var(--c-success); }
 .governance-metric-refusal { border-left-color: var(--c-warning); }
+.governance-evaluation-metrics { margin-top: 10px; }
 
 .governance-footer {
   justify-content: flex-start;

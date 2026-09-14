@@ -43,7 +43,7 @@ describe('Hermes extracted panels', () => {
         summary: {
           prompt_version: 'hermes-v2',
           prompt_versions: ['hermes-v2'],
-          evaluation_set: { id: 'core', version: '2026-09-01', size: 5 },
+          evaluation_set: { id: 'hermes-core-v2', version: '2026-09-14', size: 10 },
           sessions: 2,
           assistant_messages: 3,
           citation_coverage: 0.8,
@@ -55,6 +55,14 @@ describe('Hermes extracted panels', () => {
           helpful_rate: null,
           average_latency_ms: 120,
           p95_latency_ms: 220,
+          evaluation_quality: {
+            runs: 6,
+            cases_covered: 5,
+            tool_selection: { evaluated: 3, passed: 3, rate: 1 },
+            citation_relevance: { evaluated: 2, passed: 1, rate: 0.5 },
+            answer_completeness: { evaluated: 4, passed: 3, rate: 0.75 },
+            refusal_correctness: { evaluated: 6, passed: 6, rate: 1 },
+          },
           model_planning: {
             attempts: 2,
             model_calls: 1,
@@ -79,6 +87,10 @@ describe('Hermes extracted panels', () => {
 
     expect(wrapper.text()).toContain('80%')
     expect(wrapper.text()).toContain('20%')
+    expect(wrapper.text()).toContain('50%')
+    expect(wrapper.text()).toContain('75%')
+    expect(wrapper.text()).toContain('hermes.governance_tool_accuracy')
+    expect(wrapper.text()).toContain('hermes.governance_evaluation_runs')
     expect(wrapper.text()).toContain('—')
     expect(wrapper.find('.governance-cost-note').exists()).toBe(true)
     expect(wrapper.text()).toContain('hermes.governance_planner_calls')

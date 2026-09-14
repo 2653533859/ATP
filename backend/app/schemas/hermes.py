@@ -7,9 +7,25 @@ from uuid import uuid4
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
+from app.schemas.hermes_tools import HermesToolName
+
 
 HermesSourceType = Literal["knowledge", "requirement", "case"]
 HermesMessageRole = Literal["user", "assistant"]
+
+
+class HermesEvaluationScoresOut(BaseModel):
+    tool_selection: bool | None = None
+    citation_relevance: bool | None = None
+    answer_completeness: bool | None = None
+    refusal_correctness: bool
+
+
+class HermesEvaluationResultOut(BaseModel):
+    set_id: str
+    set_version: str
+    case_id: str
+    scores: HermesEvaluationScoresOut
 
 
 class HermesHistoryItem(BaseModel):
@@ -99,6 +115,7 @@ class HermesQueryOut(BaseModel):
     message_index: int
     prompt_version: str = "hermes-v2"
     latency_ms: int = Field(ge=0)
+    evaluation: HermesEvaluationResultOut | None = None
 
 
 class HermesSessionOut(BaseModel):
@@ -129,6 +146,12 @@ class HermesEvaluationQuestionOut(BaseModel):
     id: str
     prompt: str
     expected_mode: Literal["llm_grounded", "project_retrieval", "no_results"]
+    execution: Literal["query", "orchestrate"]
+    expected_tools: list[HermesToolName] = Field(default_factory=list, max_length=2)
+    expected_source_types: list[HermesSourceType] = Field(default_factory=list, max_length=3)
+    requires_citation: bool
+    required_answer_terms: list[str] = Field(default_factory=list, max_length=5)
+    expected_refusal: bool
 
 
 class HermesEvaluationSetOut(BaseModel):
@@ -171,6 +194,21 @@ class HermesModelPlanningGovernanceOut(BaseModel):
     fallback_reasons: dict[str, int] = Field(default_factory=dict)
 
 
+class HermesEvaluationMetricOut(BaseModel):
+    evaluated: int = Field(ge=0)
+    passed: int = Field(ge=0)
+    rate: float | None = Field(default=None, ge=0, le=1)
+
+
+class HermesEvaluationQualityOut(BaseModel):
+    runs: int = Field(ge=0)
+    cases_covered: int = Field(ge=0)
+    tool_selection: HermesEvaluationMetricOut
+    citation_relevance: HermesEvaluationMetricOut
+    answer_completeness: HermesEvaluationMetricOut
+    refusal_correctness: HermesEvaluationMetricOut
+
+
 class HermesGovernanceSummaryOut(BaseModel):
     prompt_version: str
     prompt_versions: list[str] = Field(default_factory=list, max_length=20)
@@ -186,6 +224,7 @@ class HermesGovernanceSummaryOut(BaseModel):
     helpful_rate: float | None = Field(default=None, ge=0, le=1)
     average_latency_ms: int = Field(ge=0)
     p95_latency_ms: int = Field(ge=0)
+    evaluation_quality: HermesEvaluationQualityOut
     model_planning: HermesModelPlanningGovernanceOut
     cost_tracking: HermesCostTrackingOut
 

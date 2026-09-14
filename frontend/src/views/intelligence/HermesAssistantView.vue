@@ -619,6 +619,7 @@ async function queryHermes(text: string, history = conversationHistory()) {
     }))
     appendMessage('assistant', result.answer, sources, undefined, result.mode)
     messages.value[messages.value.length - 1].backendIndex = result.message_index
+    if (result.evaluation) await loadGovernance(projectId)
   } catch (error) {
     if (
       querySequence !== requestSequence
@@ -682,6 +683,7 @@ async function orchestratePrompt(text: string): Promise<boolean> {
       result.planner,
     )
     messages.value[messages.value.length - 1].backendIndex = result.message_index ?? undefined
+    if (result.evaluation) await loadGovernance(projectId)
     return true
   } catch {
     if (

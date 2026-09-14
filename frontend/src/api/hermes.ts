@@ -2,6 +2,18 @@ import http from './http'
 
 export type HermesSourceType = 'knowledge' | 'requirement' | 'case'
 
+export interface HermesEvaluationResult {
+  set_id: string
+  set_version: string
+  case_id: string
+  scores: {
+    tool_selection: boolean | null
+    citation_relevance: boolean | null
+    answer_completeness: boolean | null
+    refusal_correctness: boolean
+  }
+}
+
 export interface HermesSourceItem {
   source_type: HermesSourceType
   source_id: number
@@ -34,6 +46,7 @@ export interface HermesQueryResult {
   message_index: number
   prompt_version: string
   latency_ms: number
+  evaluation?: HermesEvaluationResult | null
 }
 
 export interface HermesSessionItem {
@@ -63,6 +76,14 @@ export interface HermesGovernanceSummary {
   helpful_rate: number | null
   average_latency_ms: number
   p95_latency_ms: number
+  evaluation_quality: {
+    runs: number
+    cases_covered: number
+    tool_selection: HermesEvaluationMetric
+    citation_relevance: HermesEvaluationMetric
+    answer_completeness: HermesEvaluationMetric
+    refusal_correctness: HermesEvaluationMetric
+  }
   model_planning: {
     attempts: number
     model_calls: number
@@ -81,6 +102,12 @@ export interface HermesGovernanceSummary {
     priced_calls: number
     unpriced_calls: number
   }
+}
+
+export interface HermesEvaluationMetric {
+  evaluated: number
+  passed: number
+  rate: number | null
 }
 
 export type HermesToolName =
@@ -174,6 +201,7 @@ export interface HermesOrchestrationResult {
   generated_at: string
   session_id?: number | null
   message_index?: number | null
+  evaluation?: HermesEvaluationResult | null
 }
 
 export interface HermesQueryRequest {
