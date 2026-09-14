@@ -1,0 +1,54 @@
+{
+  "checked_at": "2026-09-14T13:25:35Z",
+  "target": "192.168.3.196",
+  "cluster_context": "atp-single-node",
+  "namespace": "atp-single-node",
+  "release": {
+    "name": "atp-single-node",
+    "revision": 46,
+    "status": "deployed",
+    "backend_image": "registry.local/atp/backend:bdb84286",
+    "source_commit": "bdb84286173fea402c509c5198064eb0c7debee0",
+    "source_archive_sha256": "8cacd7587f341be142f336fefb069135e856e4aeb8461f3d3187b7b5cc8f7131"
+  },
+  "migration": {
+    "head": "20260914_0074",
+    "hermes_session_defaults": {
+      "created_at": "now()",
+      "updated_at": "now()",
+      "state_version": "1"
+    }
+  },
+  "multi_replica_smoke": {
+    "backend_instances": 2,
+    "placement": "same-node temporary second backend on host port 8001",
+    "cross_replica_session_read": "passed",
+    "concurrent_feedback_attempts": 40,
+    "successful_updates": 8,
+    "conflict_responses": 32,
+    "conflict_status": 409,
+    "initial_state_version_after_query": 2,
+    "final_state_version": 10,
+    "lost_updates": 0
+  },
+  "cleanup": {
+    "temporary_backend_pods": 0,
+    "acceptance_sessions": 0,
+    "migration_jobs": 0
+  },
+  "stability": {
+    "observation_seconds": 30,
+    "ready_pods": "6/6",
+    "pod_restarts": 0,
+    "backend_health": "ok"
+  },
+  "review_fix": {
+    "issue": "The original Hermes session migration omitted database defaults for non-null timestamps, causing session creation to return HTTP 500 on PostgreSQL.",
+    "resolution": "Migration 20260914_0074 adds now() defaults to created_at and updated_at; a migration regression test was added."
+  },
+  "boundaries": [
+    "The temporary second backend validates shared PostgreSQL session consistency between two application processes.",
+    "Both instances ran on one K3s node, so this evidence does not satisfy multi-node fault-domain, P4, or P9 acceptance.",
+    "The target could not reach Debian package mirrors; the exact source was layered on the previously verified backend image without changing dependencies."
+  ]
+}
