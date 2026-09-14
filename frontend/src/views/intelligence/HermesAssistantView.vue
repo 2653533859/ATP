@@ -107,6 +107,7 @@
         :selected-module-count="selectedDraftModuleCount"
         :selected-case-count="selectedDraftCaseCount"
         :selected-regression-count="selectedDraftRegressionCount"
+        :selected-suite-count="selectedDraftSuiteCount"
         :failed-task-count="failedTasks.length"
         :diff-rows="planDraftDiffRows"
         @save="savePlanDraft"
@@ -135,7 +136,9 @@ import {
   projectApi,
   reportApi,
   runApi,
+  planApi,
   statisticsApi,
+  suiteApi,
   workbenchApi,
   type HermesGovernanceSummary,
   type HermesOrchestrationResult,
@@ -143,6 +146,8 @@ import {
   type HermesQueryResult,
   type ModuleTreeItem,
   type ProjectItem,
+  type PlanItem,
+  type SuiteItem,
   type WorkbenchTaskItem,
   type ReportOverviewItem,
 } from '@/api'
@@ -164,6 +169,7 @@ import {
   type DraftCase,
   type DraftModule,
   type DraftRegressionItem,
+  type DraftSuiteSuggestion,
   type PlanDraft,
 } from './composables/useHermesPlanDraft'
 
@@ -178,7 +184,9 @@ const projectSelectId = computed<number | undefined>({
   set: (value) => { selectedProjectId.value = positiveInt(value) },
 })
 const modules = ref<ModuleTreeItem[]>([])
-const cases = ref<Array<{ id?: number; name?: string; automation_status?: string | null }>>([])
+const cases = ref<Array<{ id?: number; name?: string; module_id?: number; automation_status?: string | null }>>([])
+const suites = ref<SuiteItem[]>([])
+const plans = ref<PlanItem[]>([])
 const failedTasks = ref<WorkbenchTaskItem[]>([])
 const reportOverview = ref<ReportOverviewItem | null>(null)
 const failureHotspots = ref<Array<{ case_name: string; failure_count: number }>>([])
@@ -206,6 +214,7 @@ const {
   selectedModuleCount: selectedDraftModuleCount,
   selectedCaseCount: selectedDraftCaseCount,
   selectedRegressionCount: selectedDraftRegressionCount,
+  selectedSuiteCount: selectedDraftSuiteCount,
   diffRows: planDraftDiffRows,
   changedCount: draftChangedCount,
   addPoint: addPlanPoint,
@@ -305,6 +314,8 @@ function startNewConversation() {
 function clearProjectData() {
   modules.value = []
   cases.value = []
+  suites.value = []
+  plans.value = []
   failedTasks.value = []
   reportOverview.value = null
   failureHotspots.value = []
@@ -334,17 +345,23 @@ async function loadProjectData() {
   const results = await Promise.allSettled([
     projectApi.getModules(projectId),
     caseApi.list({ project_id: projectId }),
+    suiteApi.list({ project_id: projectId }),
+    planApi.list({ project_id: projectId }),
     workbenchApi.tasks({ project_id: projectId, limit: 100 }),
     reportApi.overview({ project_id: projectId, days: 30, recent_limit: 20 }),
     statisticsApi.failureTop({ project_id: projectId, days: 30, top: 8 }),
   ])
   if (sequence !== loadSequence) return
   const failures: string[] = []
-  const [moduleResult, caseResult, taskResult, reportResult, hotspotResult] = results
+  const [moduleResult, caseResult, suiteResult, planResult, taskResult, reportResult, hotspotResult] = results
   if (moduleResult.status === 'fulfilled') modules.value = moduleResult.value
   else failures.push(t('hermes.load_modules_failed'))
   if (caseResult.status === 'fulfilled') cases.value = caseResult.value
   else failures.push(t('hermes.load_cases_failed'))
+  if (suiteResult.status === 'fulfilled') suites.value = suiteResult.value
+  else failures.push(t('hermes.load_suites_failed'))
+  if (planResult.status === 'fulfilled') plans.value = planResult.value
+  else failures.push(t('hermes.load_plans_failed'))
   if (taskResult.status === 'fulfilled') {
     failedTasks.value = taskResult.value.items.filter((item) => ['failed', 'error'].includes(item.status))
   } else failures.push(t('hermes.load_tasks_failed'))
@@ -757,13 +774,63 @@ function buildQualityAnswer() {
 }
 
 function buildPlanDraft() {
+  type SuiteCandidate = { suite: SuiteItem; taskIds: Set<string>; taskNames: Set<string>; caseIds: Set<number> }
+  const candidates = new Map<number, SuiteCandidate>()
+  const suitesById = new Map(suites.value.filter((suite) => suite.status === 'active').map((suite) => [suite.id, suite]))
+  const addSuiteCandidate = (suiteId: number, task: WorkbenchTaskItem, caseId?: number) => {
+    const suite = suitesById.get(suiteId)
+    if (!suite) return
+    const candidate = candidates.get(suiteId) || {
+      suite,
+      taskIds: new Set<string>(),
+      taskNames: new Set<string>(),
+      caseIds: new Set<number>(),
+    }
+    candidate.taskIds.add(task.id)
+    candidate.taskNames.add(task.name)
+    if (caseId) candidate.caseIds.add(caseId)
+    candidates.set(suiteId, candidate)
+  }
+  failedTasks.value.slice(0, 20).forEach((task) => {
+    if (task.task_type === 'case') {
+      suites.value
+        .filter((suite) => suite.case_ids.some((item) => item.case_id === task.source_id))
+        .forEach((suite) => addSuiteCandidate(suite.id, task, task.source_id))
+    } else if (task.task_type === 'suite') {
+      addSuiteCandidate(task.source_id, task)
+    } else if (task.task_type === 'plan') {
+      plans.value
+        .find((plan) => plan.id === task.source_id)
+        ?.suite_ids.forEach((item) => addSuiteCandidate(item.suite_id, task))
+    }
+  })
+  const suiteSuggestions: DraftSuiteSuggestion[] = [...candidates.values()]
+    .sort((left, right) => right.taskIds.size - left.taskIds.size || left.suite.id - right.suite.id)
+    .slice(0, 8)
+    .map((item) => ({
+      id: item.suite.id,
+      name: item.suite.name,
+      reason: t('hermes.plan_suite_reason', {
+        count: item.taskIds.size,
+        tasks: [...item.taskNames].slice(0, 3).join('、'),
+      }),
+      matchedTaskIds: [...item.taskIds],
+      matchedCaseIds: [...item.caseIds],
+      selected: true,
+      path: source(t('hermes.source_suites'), `/suites?suite_id=${item.suite.id}`).path,
+    }))
+  const suggestedCaseIds = new Set([
+    ...failedTasks.value.filter((item) => item.task_type === 'case').map((item) => item.source_id),
+    ...suiteSuggestions.flatMap((item) => item.matchedCaseIds),
+  ])
   const moduleDrafts: DraftModule[] = flattenModules(modules.value).slice(0, 8).map((item) => ({
     id: item.id,
     name: item.name,
     selected: true,
     path: source(t('hermes.source_cases'), `/cases?module_id=${item.id}`).path,
   }))
-  const caseDrafts: DraftCase[] = cases.value
+  const caseDrafts: DraftCase[] = [...cases.value]
+    .sort((left, right) => Number(suggestedCaseIds.has(positiveInt(right.id) || 0)) - Number(suggestedCaseIds.has(positiveInt(left.id) || 0)))
     .map((item) => ({ id: positiveInt(item.id), name: item.name || '' }))
     .filter((item): item is { id: number; name: string } => item.id !== null)
     .slice(0, 8)
@@ -791,6 +858,7 @@ function buildPlanDraft() {
     source(t('hermes.source_reports'), '/reports'),
     source(t('hermes.source_statistics'), '/dashboard'),
   ]
+  if (suiteSuggestions.length) sources.push(source(t('hermes.source_suites'), '/suites'))
   const draft: PlanDraft = {
     name: t('hermes.plan_default_name', { project: selectedProjectName.value }),
     objective: t('hermes.plan_default_objective', { cases: cases.value.length, passRate: passRate.value }),
@@ -798,6 +866,7 @@ function buildPlanDraft() {
     scopeModules: moduleDrafts,
     caseDrafts,
     regressionScope,
+    suiteSuggestions,
     sources,
     baseline: {
       name: t('hermes.plan_default_name', { project: selectedProjectName.value }),
@@ -807,6 +876,8 @@ function buildPlanDraft() {
       caseTitles: caseDrafts.filter((item) => item.selected).map((item) => item.title),
       regressionTaskIds: regressionScope.filter((item) => item.selected).map((item) => item.taskId),
       regressionTaskNames: regressionScope.filter((item) => item.selected).map((item) => item.name),
+      suiteIds: suiteSuggestions.filter((item) => item.selected).map((item) => item.id),
+      suiteNames: suiteSuggestions.filter((item) => item.selected).map((item) => item.name),
     },
   }
   planDraft.value = draft

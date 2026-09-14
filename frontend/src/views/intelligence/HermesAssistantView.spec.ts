@@ -16,11 +16,13 @@ const {
   hermesQuery,
   orchestrate,
   moduleList,
+  planList,
   projectList,
   reportOverview,
   routerPush,
   routerReplace,
   sessions,
+  suiteList,
   taskList,
   workbenchFailureDiagnosis,
 } = vi.hoisted(() => ({
@@ -34,11 +36,13 @@ const {
   hermesQuery: vi.fn(),
   orchestrate: vi.fn(),
   moduleList: vi.fn(),
+  planList: vi.fn(),
   projectList: vi.fn(),
   reportOverview: vi.fn(),
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
   sessions: vi.fn(),
+  suiteList: vi.fn(),
   taskList: vi.fn(),
   workbenchFailureDiagnosis: vi.fn(),
 }))
@@ -61,10 +65,12 @@ vi.mock('ant-design-vue', () => ({
 vi.mock('@/api', () => ({
   caseApi: { list: caseList },
   hermesApi: { query: hermesQuery, createSession, createDraft, confirmDraft, governance, orchestrate, sessions },
+  planApi: { list: planList },
   projectApi: { list: projectList, getModules: moduleList },
   reportApi: { overview: reportOverview },
   runApi: { generateFailureDiagnosis: generateDiagnosis },
   statisticsApi: { failureTop },
+  suiteApi: { list: suiteList },
   workbenchApi: { tasks: taskList, failureDiagnosis: workbenchFailureDiagnosis },
 }))
 vi.mock('@ant-design/icons-vue', () => {
@@ -110,6 +116,18 @@ beforeEach(() => {
   projectList.mockResolvedValue([{ id: 1, name: '核心项目', owner_id: 1, current_user_role: 'owner', ai_llm_config_id: 9 }])
   moduleList.mockResolvedValue([{ id: 10, name: '登录', project_id: 1, parent_id: null, sort_order: 0, created_at: '', children: [] }])
   caseList.mockResolvedValue([{ id: 5, name: '登录失败', automation_status: 'auto' }])
+  suiteList.mockResolvedValue([{
+    id: 12,
+    name: '登录回归套件',
+    project_id: 1,
+    status: 'active',
+    creator_id: 1,
+    case_ids: [{ case_id: 5, sort: 0 }],
+    config: {},
+    created_at: '',
+    updated_at: '',
+  }])
+  planList.mockResolvedValue([])
   taskList.mockResolvedValue({ items: [failedCase], total: 1, has_more: false })
   reportOverview.mockResolvedValue({
     project_id: 1,
@@ -713,7 +731,10 @@ describe('HermesAssistantView', () => {
     expect(vm.planDraft.scopeModules).toHaveLength(1)
     expect(vm.planDraft.caseDrafts).toHaveLength(1)
     expect(vm.planDraft.regressionScope).toHaveLength(1)
-    expect(vm.planDraft.sources).toHaveLength(4)
+    expect(vm.planDraft.suiteSuggestions).toEqual([
+      expect.objectContaining({ id: 12, matchedTaskIds: ['case:5'], matchedCaseIds: [5], selected: true }),
+    ])
+    expect(vm.planDraft.sources).toHaveLength(5)
     expect(vm.draftChangedCount).toBe(0)
     vm.addPlanPoint()
     expect(vm.planDraft.testPoints).toHaveLength(3)
@@ -735,10 +756,46 @@ describe('HermesAssistantView', () => {
           caseIds: [5],
           moduleIds: [10],
           regressionTaskIds: ['case:5'],
+          suiteIds: [12],
         }),
       }),
     }))
 
+    wrapper.unmount()
+  })
+
+  it('maps failed case, suite and plan tasks to active suite suggestions', async () => {
+    const failedSuite = { ...failedCase, id: 'suite:81', task_type: 'suite', run_id: 81, source_id: 13, name: '认证套件失败' }
+    const failedPlan = { ...failedCase, id: 'plan:91', task_type: 'plan', run_id: 91, source_id: 20, name: '夜间计划失败' }
+    taskList.mockResolvedValue({ items: [failedCase, failedSuite, failedPlan], total: 3, has_more: false })
+    suiteList.mockResolvedValue([
+      { id: 12, name: '登录回归', project_id: 1, status: 'active', creator_id: 1, case_ids: [{ case_id: 5, sort: 0 }], config: {}, created_at: '', updated_at: '' },
+      { id: 13, name: '认证回归', project_id: 1, status: 'active', creator_id: 1, case_ids: [], config: {}, created_at: '', updated_at: '' },
+      { id: 14, name: '夜间回归', project_id: 1, status: 'active', creator_id: 1, case_ids: [], config: {}, created_at: '', updated_at: '' },
+      { id: 15, name: '历史回归', project_id: 1, status: 'archived', creator_id: 1, case_ids: [], config: {}, created_at: '', updated_at: '' },
+    ])
+    planList.mockResolvedValue([{
+      id: 20,
+      name: '夜间计划',
+      project_id: 1,
+      status: 'active',
+      creator_id: 1,
+      suite_ids: [{ suite_id: 14, sort: 0 }, { suite_id: 15, sort: 1 }],
+      schedule_type: 'manual',
+      is_enabled: true,
+      auto_create_bugs: false,
+      created_at: '',
+      updated_at: '',
+    }])
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    await vm.askPrompt('test_plan')
+
+    expect(vm.planDraft.suiteSuggestions.map((item: { id: number }) => item.id)).toEqual([12, 13, 14])
+    expect(vm.planDraft.suiteSuggestions.find((item: { id: number }) => item.id === 14).matchedTaskIds).toEqual(['plan:91'])
+    expect(vm.planDraft.suiteSuggestions.some((item: { id: number }) => item.id === 15)).toBe(false)
     wrapper.unmount()
   })
 

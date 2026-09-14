@@ -4,6 +4,8 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
+> 2026-09-14 Hermes H9.4 失败任务回归建议完成本地交付：失败 Case/Suite/Plan 可映射到当前项目活动套件，建议有界、可编辑并显示理由和 diff；计划页交接只预填且默认禁用，持久会话二次确认还会由后端复核项目归属和活动状态，只创建禁用手工 draft，不自动执行。定向后端 `25 passed`、前端 `33 passed`；后端非集成全量在项目内临时目录重跑为 `2599 passed / 1 skipped`，前端全量 `76 files / 363 tests passed`，TypeScript、mypy、Ruff 和生产构建通过。该本地交付不替代 H9.5 多副本一致性、真实角色/模型或 P4/P9 发布证据。
+
 > 当前计划跟踪版本为 2.4.0，最新同步检查点为 2.4.42（Flower OOM 修复完成，P4 阻塞仍在）：参考导航按工作台、测试能力、测试资产、智能中枢、系统五组跟踪，按 P0 工作台、P1 接口、P2 APP、P3 UI、P4 性能、P5 AI、P6 测试资产、P7 智能中枢、P8 系统和 P9 发布收口推进。P5～P8 已在 2.4.22 取得 q19 受控真实证据；2.4.23～2.4.31 已完成前端主题与 Hermes H1～H8 的本地交付，2.4.32～2.4.33 已完成 Linux Compose 启动韧性及预检门禁本地交付，2.4.34～2.4.38 已完成目标 Kubernetes 客户端、单节点 K3s、Helm、外部 Secret、当前 SHA 镜像导入和服务端 dry-run 联调准备，2.4.39 已完成迁移 Hook/ConfigMap 顺序修复、回环依赖联调配置和单节点 Helm 实际安装复核，2.4.40 已完成 Windows 本地 Vite 代理到 Linux Backend 的真实地址联调，2.4.41 已完成目标 Linux 单节点 P4 条件只读复验并确认外部门禁仍缺失，2.4.42 已修复 Flower OOM 与 hostNetwork 升级端口竞态并完成目标 release 复核；这些本地交付不改变 P4 未完成真实环境复核前的“存在未关闭门禁”结论；Windows 与 Android Worker 的本地边界不影响 Web/API 使用。
 
 > 2026-09-10 C1.3 单节点数据服务边界完成：Helm revision 41 启用自动 PostgreSQL 备份，真实维护队列任务生成的 65,254 字节备份在隔离数据库恢复后，65 张表、项目/用户计数和迁移头与源库一致；Redis RDB 在隔离容器恢复探针成功，MinIO 同端点对象恢复哈希一致，全部临时资源已清理。收尾 6/6 Pod Ready、零重启、四队列归零、30 秒 4 次采样 0 告警。权限审计同时确认 PostgreSQL runtime 是 superuser 且有建库/建角色权限，Redis ACL 覆盖全部命令/key/channel，MinIO 使用 root 命名凭据且没有 policy/versioning/独立备份端；Redis AOF 关闭。因此 C1 单节点验证关闭，但 C3/P4 继续阻塞。详见 [`evidence/c1-data-services-recovery-2026-09-10.json`](evidence/c1-data-services-recovery-2026-09-10.json)。

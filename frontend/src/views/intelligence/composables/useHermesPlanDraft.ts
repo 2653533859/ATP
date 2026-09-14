@@ -5,6 +5,15 @@ import type { HermesSource } from '../components/hermesPanelTypes'
 export type DraftModule = { id: number; name: string; selected: boolean; path: string }
 export type DraftCase = { id: number; title: string; expected: string; selected: boolean; path: string }
 export type DraftRegressionItem = { taskId: string; name: string; reason: string; selected: boolean; path: string }
+export type DraftSuiteSuggestion = {
+  id: number
+  name: string
+  reason: string
+  matchedTaskIds: string[]
+  matchedCaseIds: number[]
+  selected: boolean
+  path: string
+}
 
 export type PlanDraftSnapshot = {
   name: string
@@ -14,6 +23,8 @@ export type PlanDraftSnapshot = {
   caseTitles: string[]
   regressionTaskIds: string[]
   regressionTaskNames: string[]
+  suiteIds: number[]
+  suiteNames: string[]
 }
 
 export type PlanDraft = {
@@ -23,6 +34,7 @@ export type PlanDraft = {
   scopeModules: DraftModule[]
   caseDrafts: DraftCase[]
   regressionScope: DraftRegressionItem[]
+  suiteSuggestions: DraftSuiteSuggestion[]
   sources: HermesSource[]
   baseline: PlanDraftSnapshot
 }
@@ -35,6 +47,7 @@ export type HermesPlanDraftHandoff = {
   moduleIds: number[]
   caseIds: number[]
   regressionTaskIds: string[]
+  suiteIds: number[]
 }
 
 export type PlanDraftDiffRow = {
@@ -51,6 +64,7 @@ export function useHermesPlanDraft(planDraft: Ref<PlanDraft | null>) {
   const selectedModuleCount = computed(() => planDraft.value?.scopeModules.filter((item) => item.selected).length ?? 0)
   const selectedCaseCount = computed(() => planDraft.value?.caseDrafts.filter((item) => item.selected).length ?? 0)
   const selectedRegressionCount = computed(() => planDraft.value?.regressionScope.filter((item) => item.selected).length ?? 0)
+  const selectedSuiteCount = computed(() => planDraft.value?.suiteSuggestions.filter((item) => item.selected).length ?? 0)
   const diffRows = computed<PlanDraftDiffRow[]>(() => {
     const draft = planDraft.value
     if (!draft) return []
@@ -62,6 +76,8 @@ export function useHermesPlanDraft(planDraft: Ref<PlanDraft | null>) {
       caseTitles: draft.caseDrafts.filter((item) => item.selected).map((item) => item.title.trim()).filter(Boolean),
       regressionTaskIds: draft.regressionScope.filter((item) => item.selected).map((item) => item.taskId),
       regressionTaskNames: draft.regressionScope.filter((item) => item.selected).map((item) => item.name),
+      suiteIds: draft.suiteSuggestions.filter((item) => item.selected).map((item) => item.id),
+      suiteNames: draft.suiteSuggestions.filter((item) => item.selected).map((item) => item.name),
     }
     const display = (value: string | string[]) => Array.isArray(value)
       ? value.join('、') || t('hermes.plan_none_selected')
@@ -73,6 +89,7 @@ export function useHermesPlanDraft(planDraft: Ref<PlanDraft | null>) {
       { key: 'modules', label: t('hermes.plan_diff_modules'), before: display(draft.baseline.moduleNames), after: display(current.moduleNames), changed: JSON.stringify(draft.baseline.moduleNames) !== JSON.stringify(current.moduleNames) },
       { key: 'cases', label: t('hermes.plan_diff_cases'), before: display(draft.baseline.caseTitles), after: display(current.caseTitles), changed: JSON.stringify(draft.baseline.caseTitles) !== JSON.stringify(current.caseTitles) },
       { key: 'regression', label: t('hermes.plan_diff_regression'), before: display(draft.baseline.regressionTaskNames), after: display(current.regressionTaskNames), changed: JSON.stringify(draft.baseline.regressionTaskIds) !== JSON.stringify(current.regressionTaskIds) },
+      { key: 'suites', label: t('hermes.plan_diff_suites'), before: display(draft.baseline.suiteNames), after: display(current.suiteNames), changed: JSON.stringify(draft.baseline.suiteIds) !== JSON.stringify(current.suiteIds) },
     ]
   })
   const changedCount = computed(() => diffRows.value.filter((row) => row.changed).length)
@@ -96,6 +113,7 @@ export function useHermesPlanDraft(planDraft: Ref<PlanDraft | null>) {
       moduleIds: draft.scopeModules.filter((item) => item.selected).map((item) => item.id).slice(0, 16),
       caseIds: draft.caseDrafts.filter((item) => item.selected).map((item) => item.id).slice(0, 16),
       regressionTaskIds: draft.regressionScope.filter((item) => item.selected).map((item) => item.taskId).slice(0, 16),
+      suiteIds: draft.suiteSuggestions.filter((item) => item.selected).map((item) => item.id).slice(0, 16),
     }
   }
 
@@ -108,5 +126,6 @@ export function useHermesPlanDraft(planDraft: Ref<PlanDraft | null>) {
     selectedCaseCount,
     selectedModuleCount,
     selectedRegressionCount,
+    selectedSuiteCount,
   }
 }

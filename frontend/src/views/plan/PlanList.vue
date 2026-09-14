@@ -456,6 +456,7 @@ type HermesPlanDraftHandoff = {
   moduleIds: number[]
   caseIds: number[]
   regressionTaskIds: string[]
+  suiteIds: number[]
 }
 type HermesDraftScopeSummary = {
   modules: number
@@ -722,6 +723,7 @@ function readHermesPlanDraft(): HermesPlanDraftHandoff | null {
     moduleIds: boundedNumberArray(value.moduleIds, 16),
     caseIds: boundedNumberArray(value.caseIds, 16),
     regressionTaskIds: boundedStringArray(value.regressionTaskIds, 16),
+    suiteIds: boundedNumberArray(value.suiteIds, 16),
   }
 }
 
@@ -741,6 +743,8 @@ function applyHermesDraft() {
   openCreate()
   form.value.name = draft.name
   form.value.description = [draft.objective, ...draft.testPoints.map((point) => `• ${point}`)].filter(Boolean).join('\n')
+  form.value.is_enabled = false
+  selectedSuiteIds.value = draft.suiteIds
   hermesDraftScope.value = {
     modules: draft.moduleIds.length,
     cases: draft.caseIds.length,

@@ -48,9 +48,22 @@
       <div><span>{{ t('hermes.plan_impact_modules') }}</span><strong>{{ selectedModuleCount }}</strong></div>
       <div><span>{{ t('hermes.plan_impact_cases') }}</span><strong>{{ selectedCaseCount }}</strong></div>
       <div><span>{{ t('hermes.plan_impact_regression') }}</span><strong>{{ selectedRegressionCount }}</strong></div>
+      <div><span>{{ t('hermes.plan_impact_suites') }}</span><strong>{{ selectedSuiteCount }}</strong></div>
       <div><span>{{ t('hermes.plan_impact_failures') }}</span><strong>{{ failedTaskCount }}</strong></div>
     </div>
     <div class="draft-structure-grid">
+      <section class="draft-block">
+        <div class="draft-block-heading">
+          <span>{{ t('hermes.plan_suite_suggestions') }}</span>
+          <small>{{ t('hermes.plan_suite_hint') }}</small>
+        </div>
+        <label v-for="item in draft.suiteSuggestions" :key="item.id" class="draft-regression-row">
+          <input v-model="item.selected" type="checkbox" />
+          <span class="draft-regression-copy"><strong>{{ item.name }}</strong><small>{{ item.reason }}</small></span>
+          <button type="button" class="text-action" @click="emit('open-path', item.path)">{{ t('hermes.view_evidence') }}</button>
+        </label>
+        <p v-if="!draft.suiteSuggestions.length" class="draft-empty">{{ t('hermes.plan_no_suite_suggestions') }}</p>
+      </section>
       <section class="draft-block">
         <div class="draft-block-heading">
           <span>{{ t('hermes.plan_scope_modules') }}</span>
@@ -134,6 +147,7 @@ defineProps<{
   selectedModuleCount: number
   selectedCaseCount: number
   selectedRegressionCount: number
+  selectedSuiteCount: number
   failedTaskCount: number
   diffRows: PlanDraftDiffRow[]
 }>()
@@ -195,7 +209,7 @@ h2 { margin: 4px 0 0; color: var(--c-text); font-size: 18px; font-weight: 700; l
 .plan-form-grid input:focus,
 .plan-form-grid textarea:focus,
 .point-row input:focus { border-color: var(--c-ai); box-shadow: 0 0 0 3px var(--c-ai-soft); }
-.draft-impact-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
+.draft-impact-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 10px; margin-top: 18px; }
 .draft-impact-grid > div { display: grid; gap: 4px; padding: 11px 12px; border: 1px solid var(--c-border); border-radius: var(--radius-md); background: var(--c-bg-subtle); }
 .draft-impact-grid span, .draft-block-heading small, .draft-diff-row small { color: var(--c-text-tertiary); font-size: 10px; }
 .draft-impact-grid strong { color: var(--c-text); font-size: 18px; font-family: 'JetBrains Mono', monospace; }

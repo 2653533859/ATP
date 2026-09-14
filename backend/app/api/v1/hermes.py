@@ -28,6 +28,7 @@ from app.models.knowledge import KnowledgeEntry
 from app.models.project import Module, Project
 from app.models.requirement import TestRequirement
 from app.models.plan import PlanStatus, ScheduleType, TestPlan
+from app.models.suite import SuiteStatus, TestSuite
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.schemas.hermes import (
@@ -1128,6 +1129,47 @@ async def create_hermes_draft(
     return draft
 
 
+def _selected_suite_ids(payload: dict[str, Any]) -> list[int]:
+    raw_suggestions = payload.get("suiteSuggestions")
+    if raw_suggestions is None:
+        return []
+    if not isinstance(raw_suggestions, list) or len(raw_suggestions) > 16:
+        raise HTTPException(status_code=422, detail="测试套件建议格式无效")
+    suite_ids: list[int] = []
+    for suggestion in raw_suggestions:
+        if not isinstance(suggestion, dict) or suggestion.get("selected") is not True:
+            continue
+        suite_id = suggestion.get("id")
+        if not isinstance(suite_id, int) or isinstance(suite_id, bool) or suite_id < 1:
+            raise HTTPException(status_code=422, detail="测试套件建议格式无效")
+        suite_ids.append(suite_id)
+    if len(suite_ids) != len(set(suite_ids)):
+        raise HTTPException(status_code=422, detail="测试套件建议包含重复项")
+    return suite_ids
+
+
+async def _validated_draft_suite_items(db: AsyncSession, project_id: int, payload: dict[str, Any]) -> list[dict]:
+    suite_ids = _selected_suite_ids(payload)
+    if not suite_ids:
+        return []
+    rows = (
+        (
+            await db.execute(
+                select(TestSuite.id).where(
+                    TestSuite.project_id == project_id,
+                    TestSuite.status == SuiteStatus.active,
+                    TestSuite.id.in_(suite_ids),
+                )
+            )
+        )
+        .scalars()
+        .all()
+    )
+    if set(rows) != set(suite_ids):
+        raise HTTPException(status_code=422, detail="测试套件建议已失效或不属于当前项目，请重新生成草稿")
+    return [{"suite_id": suite_id, "sort": index} for index, suite_id in enumerate(suite_ids)]
+
+
 @router.post("/hermes/sessions/{session_id}/drafts/confirm")
 async def confirm_hermes_draft(
     session_id: int,
@@ -1145,16 +1187,30 @@ async def confirm_hermes_draft(
     name = str(payload.get("name") or "").strip()
     if not name:
         raise HTTPException(status_code=422, detail="测试计划草稿缺少名称")
+    suite_items = await _validated_draft_suite_items(db, body.project_id, payload)
+    regression_scope = payload.get("regressionScope") if isinstance(payload.get("regressionScope"), list) else []
+    regression_task_ids = [
+        str(item.get("taskId"))[:128]
+        for item in regression_scope[:16]
+        if isinstance(item, dict) and item.get("selected") is True and str(item.get("taskId") or "").strip()
+    ]
     plan = TestPlan(
         name=name[:256],
         description=str(payload.get("objective") or "")[:4000] or None,
         project_id=body.project_id,
-        suite_ids=[],
+        suite_ids=suite_items,
         schedule_type=ScheduleType.manual,
         status=PlanStatus.draft,
         is_enabled=False,
         auto_create_bugs=False,
-        config={"hermes_sources": draft.get("sources") or [], "test_points": payload.get("testPoints") or []},
+        config={
+            "hermes_sources": draft.get("sources") or [],
+            "test_points": payload.get("testPoints") or [],
+            "hermes_regression": {
+                "task_ids": regression_task_ids,
+                "suggested_suite_ids": [item["suite_id"] for item in suite_items],
+            },
+        },
         creator_id=user.id,
     )
     db.add(plan)

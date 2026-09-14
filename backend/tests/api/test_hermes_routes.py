@@ -8,7 +8,7 @@ import pytest
 from fastapi import HTTPException
 
 from app.api.v1 import hermes
-from app.schemas.hermes import HermesQueryIn, HermesSessionCreateIn
+from app.schemas.hermes import HermesDraftConfirmIn, HermesQueryIn, HermesSessionCreateIn
 from app.schemas.hermes_orchestration import HermesOrchestrationIn
 from app.schemas.hermes_tools import HermesToolEvidence, HermesToolOut
 from app.services.hermes import HermesCandidate, build_answer, rank_candidates
@@ -178,6 +178,97 @@ def test_create_hermes_session_is_project_scoped_and_starts_empty(monkeypatch):
     assert result.messages == []
     assert result.drafts == []
     assert result.metrics["queries"] == 0
+
+
+def test_confirm_draft_persists_only_validated_selected_suites_as_disabled_manual_plan(monkeypatch):
+    access = []
+
+    async def allow_access(_db, _user, project_id, role):
+        access.append((project_id, role))
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    session = SimpleNamespace(
+        id=41,
+        project_id=1,
+        user_id=7,
+        drafts=[
+            {
+                "id": "draft-1",
+                "status": "pending_confirmation",
+                "sources": [{"path": "/runs/77"}],
+                "payload": {
+                    "name": "登录回归",
+                    "objective": "验证失败修复",
+                    "testPoints": ["复测登录"],
+                    "regressionScope": [{"taskId": "case:77", "selected": True}],
+                    "suiteSuggestions": [
+                        {"id": 12, "selected": True},
+                        {"id": 13, "selected": False},
+                        {"id": 14, "selected": True},
+                    ],
+                },
+            }
+        ],
+    )
+    db = _DB(results=[_ScalarResult([12, 14])])
+    db.added.append(session)
+
+    result = asyncio.run(
+        hermes.confirm_hermes_draft(
+            41,
+            HermesDraftConfirmIn(project_id=1, draft_id="draft-1", confirmation="CONFIRM"),
+            db,
+            _user(),
+        )
+    )
+
+    plan = db.added[-1]
+    assert access == [(1, ProjectRole.editor)]
+    assert result["plan_id"] == plan.id
+    assert plan.suite_ids == [{"suite_id": 12, "sort": 0}, {"suite_id": 14, "sort": 1}]
+    assert plan.schedule_type.value == "manual"
+    assert plan.status.value == "draft"
+    assert plan.is_enabled is False
+    assert plan.config["hermes_regression"] == {
+        "task_ids": ["case:77"],
+        "suggested_suite_ids": [12, 14],
+    }
+
+
+def test_confirm_draft_rejects_stale_or_cross_project_suite_suggestion(monkeypatch):
+    async def allow_access(*_args):
+        return None
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    session = SimpleNamespace(
+        id=42,
+        project_id=1,
+        user_id=7,
+        drafts=[
+            {
+                "id": "draft-2",
+                "status": "pending_confirmation",
+                "payload": {
+                    "name": "越界套件草稿",
+                    "suiteSuggestions": [{"id": 99, "selected": True}],
+                },
+            }
+        ],
+    )
+    db = _DB(results=[_ScalarResult([])])
+    db.added.append(session)
+
+    with pytest.raises(HTTPException, match="测试套件建议已失效或不属于当前项目"):
+        asyncio.run(
+            hermes.confirm_hermes_draft(
+                42,
+                HermesDraftConfirmIn(project_id=1, draft_id="draft-2", confirmation="CONFIRM"),
+                db,
+                _user(),
+            )
+        )
+
+    assert db.added == [session]
 
 
 def test_hermes_governance_summary_is_aggregate_only_and_exposes_eval_metadata(monkeypatch):

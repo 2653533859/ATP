@@ -61,6 +61,15 @@ function createPlanDraft(): PlanDraft {
     scopeModules: [{ id: 10, name: '登录', selected: true, path: '/cases?module_id=10' }],
     caseDrafts: [{ id: 5, title: '登录失败', expected: '显示错误', selected: true, path: '/cases?case_id=5' }],
     regressionScope: [{ taskId: 'case:5', name: '登录失败', reason: 'status 500', selected: true, path: '/runs/77' }],
+    suiteSuggestions: [{
+      id: 12,
+      name: '登录回归套件',
+      reason: '覆盖登录失败',
+      matchedTaskIds: ['case:5'],
+      matchedCaseIds: [5],
+      selected: true,
+      path: '/suites?suite_id=12',
+    }],
     sources: [{ label: '运行报告', path: '/reports' }],
     baseline: {
       name: '原计划',
@@ -70,6 +79,8 @@ function createPlanDraft(): PlanDraft {
       caseTitles: ['登录失败'],
       regressionTaskIds: ['case:5'],
       regressionTaskNames: ['登录失败'],
+      suiteIds: [13],
+      suiteNames: ['原套件'],
     },
   }
 }
@@ -206,7 +217,8 @@ describe('Hermes workbench panels', () => {
     expect(state.selectedModuleCount.value).toBe(1)
     expect(state.selectedCaseCount.value).toBe(1)
     expect(state.selectedRegressionCount.value).toBe(1)
-    expect(state.changedCount.value).toBe(3)
+    expect(state.selectedSuiteCount.value).toBe(1)
+    expect(state.changedCount.value).toBe(4)
 
     state.addPoint()
     expect(draft.value?.testPoints).toHaveLength(3)
@@ -221,6 +233,7 @@ describe('Hermes workbench panels', () => {
       moduleIds: [10],
       caseIds: [5],
       regressionTaskIds: ['case:5'],
+      suiteIds: [12],
     })
   })
 
@@ -235,6 +248,7 @@ describe('Hermes workbench panels', () => {
         selectedModuleCount: 1,
         selectedCaseCount: 1,
         selectedRegressionCount: 1,
+        selectedSuiteCount: 1,
         failedTaskCount: 1,
         diffRows: [{ key: 'name', label: '名称', before: '原计划', after: '回归计划', changed: true }],
       },
@@ -242,6 +256,7 @@ describe('Hermes workbench panels', () => {
     })
 
     expect(wrapper.find('.draft-diff-row.changed').text()).toContain('回归计划')
+    expect(wrapper.text()).toContain('登录回归套件')
     const headingButtons = wrapper.find('.plan-draft-heading').findAllComponents(passthrough)
     await headingButtons[0].trigger('click')
     await headingButtons[1].trigger('click')

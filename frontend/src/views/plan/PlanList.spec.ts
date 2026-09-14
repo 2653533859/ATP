@@ -246,6 +246,7 @@ describe('PlanList mount', () => {
         moduleIds: [3],
         caseIds: [21],
         regressionTaskIds: ['task-1'],
+        suiteIds: [7],
       },
     }, '', '/plans?project_id=10&hermes_draft=1')
 
@@ -257,6 +258,8 @@ describe('PlanList mount', () => {
     expect((wrapper.vm as any).form.description).toContain('验证核心登录链路')
     expect((wrapper.vm as any).form.description).toContain('• 校验失败提示')
     expect((wrapper.vm as any).hermesDraftScope).toEqual({ modules: 1, cases: 1, regressions: 1 })
+    expect((wrapper.vm as any).selectedSuiteIds).toEqual([7])
+    expect((wrapper.vm as any).form.is_enabled).toBe(false)
     expect(planCreate).not.toHaveBeenCalled()
     expect(routerReplace).toHaveBeenCalledWith({ query: { project_id: '10' } })
     wrapper.unmount()
