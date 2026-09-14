@@ -10,6 +10,7 @@ Observed traffic window:
 
 - Current evidence source: local, CI, release-readiness, and short-lived staging-style runs captured during Q10/Q11 validation.
 - Release Prometheus history: collection started on 2026-09-13 for the current single-node target. The standalone collector retains 15 days and currently scrapes Backend, ordinary Worker, Performance Worker and itself. The first complete UTC day, 2026-09-13, has 288/288 Backend and Worker checkpoints, but zero request/run traffic leaves the API and run SLOs unevaluated; see [`slo-history-2026-09-13-2026-09-13.md`](slo-history-2026-09-13-2026-09-13.md). The collector rejects the current or a future UTC day rather than recording a partial day as history.
+- Metric-chain canary: on 2026-09-15, bounded authenticated read traffic and two self-targeted API case runs established HTTP request, latency histogram, and `atp_run_outcomes_total{entity_type="case",status="passed"}` growth across Prometheus scrapes. This verifies instrumentation only; the in-progress UTC day and synthetic traffic are excluded from complete-day calibration evidence.
 - Decision: keep the Q10 short-window SLOs as pre-production guardrails. Do not enable paging-grade alerts before 7 consecutive days or make SLOs release-blocking before the 14-day calibration is reviewed.
 
 Production adoption window:

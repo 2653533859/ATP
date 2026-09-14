@@ -1,0 +1,80 @@
+{
+  "evidence_type": "c3_slo_traffic_canary",
+  "generated_at": "2026-09-14T17:54:46Z",
+  "status": "partial_pass",
+  "scope": {
+    "target_host": "192.168.3.196",
+    "deployment": "atp-single-node",
+    "helm_revision": 46,
+    "prometheus_url": "http://127.0.0.1:39090",
+    "traffic_profile": "bounded synthetic authenticated reads plus self-targeted API case canary",
+    "secrets_included": false
+  },
+  "authenticated_read_probe": {
+    "username_recorded": false,
+    "credential_transport": "hidden interactive input to a temporary process",
+    "credential_written_to_disk": false,
+    "project_list_and_workbench_overview_requests": 37,
+    "business_response_content_recorded": false
+  },
+  "case_canary": {
+    "project_id": 77,
+    "case_id": 42,
+    "case_type": "api",
+    "request_method": "GET",
+    "target": "http://127.0.0.1:8000",
+    "preconditions": [
+      "active",
+      "approved",
+      "auto",
+      "one step",
+      "ready for execution"
+    ],
+    "runs": [
+      {
+        "run_id": 111,
+        "status": "passed"
+      },
+      {
+        "run_id": 112,
+        "status": "passed"
+      }
+    ],
+    "run_records_retained_for_audit": true,
+    "temporary_project_created": false,
+    "case_modified": false
+  },
+  "prometheus_after_two_scrape_intervals": {
+    "query_window": "1h",
+    "http_request_increase_extrapolated": 22.857451469007124,
+    "api_p95_seconds": 0.095,
+    "run_outcome_increase_extrapolated": 1.2311217482899772,
+    "run_outcome_series": {
+      "entity_type": "case",
+      "status": "passed"
+    },
+    "readiness_http_status": 200
+  },
+  "target_stability": {
+    "pods_ready": "6/6",
+    "pod_restarts": 0
+  },
+  "independent_minio_candidate": {
+    "host": "172.31.27.133",
+    "windows_path": "Karing TUN accepts TCP then resets SSH before key exchange",
+    "windows_ssh_keyscan": "connection reset",
+    "windows_minio_http": "empty reply",
+    "windows_minio_https": "timeout",
+    "release_host_route": "via 192.168.3.1 dev eth0",
+    "release_host_icmp": "100% packet loss",
+    "release_host_ports": {
+      "22": "timeout",
+      "9000": "timeout",
+      "5432": "timeout",
+      "6379": "timeout"
+    },
+    "deployment_attempted": false,
+    "write_attempted": false
+  },
+  "boundary": "The canary proves that HTTP, latency, and case outcome metrics can grow across Prometheus scrapes. The UTC day is still in progress and the traffic is synthetic, so this is not complete-day, representative 7/14-day, independent MinIO recovery, P4, or P9 acceptance evidence."
+}
