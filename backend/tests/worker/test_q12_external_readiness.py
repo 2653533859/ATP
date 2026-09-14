@@ -102,6 +102,22 @@ def test_collect_target_documents_its_auth_requirement(repo_file):
     assert 'os.environ.get("ATP_PASSWORD")' in collector
 
 
+def test_slo_traffic_canary_is_bounded_and_documented(repo_file):
+    makefile = repo_file("Makefile")
+    assert "slo-traffic-canary:" in makefile
+    assert "scripts/slo-traffic-canary.py" in makefile
+
+    canary = repo_file("scripts/slo-traffic-canary.py")
+    assert 'os.environ.get("ATP_TOKEN"' in canary
+    assert 'os.environ.get("ATP_PASSWORD"' in canary
+    assert "--confirm-case-run" in canary
+    assert "SAFE_CANARY_HOSTS" in canary
+
+    slo_guide = repo_file("docs/slo-guide.md")
+    assert "make slo-traffic-canary" in slo_guide
+    assert "--confirm-case-run" in slo_guide
+
+
 def test_external_readiness_spec_matches_platform_surfaces(repo_file):
     """口径引用的平台能力必须真实存在，防止演练单先于实现漂移。"""
     doctor = repo_file("scripts/android-network-doctor.sh")

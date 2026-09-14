@@ -1,0 +1,49 @@
+{
+  "evidence_type": "c3_slo_traffic_canary_tool",
+  "generated_at": "2026-09-14T23:27:24.401860+00:00",
+  "status": "passed",
+  "source": {
+    "repository_baseline_revision": "c900ec8e540c5fe0c209ae1aa9873b0c79bda0f0",
+    "implementation_revision": "the commit containing this evidence",
+    "target_host": "192.168.3.196",
+    "deployment": "atp-single-node",
+    "secrets_included": false
+  },
+  "tool": {
+    "path": "scripts/slo-traffic-canary.py",
+    "make_target": "slo-traffic-canary",
+    "default_mode": "bounded authenticated project and workbench reads",
+    "case_run_requires": [
+      "explicit case id",
+      "explicit --confirm-case-run",
+      "case belongs to selected project",
+      "active and approved",
+      "auto or semi_auto",
+      "ready for execution",
+      "single-step GET API case",
+      "HTTP loopback target"
+    ],
+    "credentials": "environment only",
+    "business_response_content_recorded": false,
+    "default_report": ".local-run/slo-traffic-canary.json"
+  },
+  "live_verification": {
+    "project_id": 77,
+    "case_id": 42,
+    "authenticated_read_requests": 4,
+    "runs": [
+      {
+        "run_id": 113,
+        "status": "passed"
+      },
+      {
+        "run_id": 114,
+        "status": "passed"
+      }
+    ],
+    "scrape_wait_seconds_after_each_run": 20,
+    "temporary_report_git_ignored": true,
+    "credentials_in_report": false
+  },
+  "boundary": "This tool safely generates bounded synthetic evidence traffic. Its successful run does not make an in-progress UTC day complete and does not satisfy representative 7/14-day SLO, independent MinIO recovery, P4, or P9 acceptance."
+}

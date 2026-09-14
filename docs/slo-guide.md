@@ -30,6 +30,26 @@ make collect-release-slo-evidence \
   SOURCE_DEPLOYMENT=atp-single-node
 ```
 
+在等待完整 UTC 日期间，可用有界 canary 验证指标链。凭据必须先放入当前进程环境；不要把密码写入命令行或 `ARGS`：
+
+```bash
+export ATP_USERNAME='<current-account>'
+export ATP_PASSWORD='<read-securely>'
+make slo-traffic-canary \
+  API_BASE_URL=http://192.168.3.196:8000 \
+  ARGS='--project-id 77 --iterations 6 --source-deployment atp-single-node'
+```
+
+默认入口只登录并读取项目列表和工作台概览。只有显式同时传入 `--case-id` 与 `--confirm-case-run` 才会新增运行记录；运行前会重新确认用例属于所选项目，并要求 API 用例为 active、approved、可自动执行、单步、GET 且目标为本机 HTTP 回环地址。默认执行两次，并在每次终态后等待一个 20 秒 Prometheus 抓取周期：
+
+```bash
+make slo-traffic-canary \
+  API_BASE_URL=http://192.168.3.196:8000 \
+  ARGS='--project-id 77 --case-id 42 --confirm-case-run --source-deployment atp-single-node'
+```
+
+报告默认写入忽略目录 `.local-run/slo-traffic-canary.json`，不记录账号、密码、Token 或业务响应正文。Canary 只验证指标能增长；仍必须在 UTC 日结束后用 `collect-release-slo-evidence` 生成完整日证据。
+
 采集器按 5 分钟检查点验证 Backend/Worker 抓取连续性，并把 `NaN`、无穷值、无样本、少于 288 个日检查点或 `up=0`
 统一记录为数据缺口；任何缺口都会让 alert/release gate 保持 `deferred`。不足 7 天的运行只标记为 preflight。
 

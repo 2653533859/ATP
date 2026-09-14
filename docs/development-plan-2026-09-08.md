@@ -159,7 +159,7 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 - [x] `C3.3` 执行数据库空库迁移、升级、备份恢复和回滚演练；验证恢复后的运行角色权限，并清理全部隔离资源。
 - [~] `C3.4` 收集发布级 SLO、告警、服务重启和持续稳定性证据，明确 Redis 与 MinIO 的剩余灾备决定。
   - [x] `C3.4.1` 部署持久化单节点发布 Prometheus，验证 4 个 target、4 条告警规则和 40 秒稳定性；Redis 切换 AOF everysec 并通过双重重启；MinIO 启用 versioning，明确不自动启用未审查的 lifecycle。
-  - [~] `C3.4.2` 已将 SLO 采集从 Android 真机演练中解耦，增加 5 分钟连续性、非有限值、完整 UTC 日和数据缺口门禁；2026-09-13 首个完整日的 Backend/Worker 均为 288/288，但无业务样本。2026-09-15 已用认证只读流量与两次自回环 API canary 验证 HTTP、P95 和 `case/passed` 指标跨抓取周期增长；当前 UTC 日未结束，继续累积并复核有代表性流量的连续 7/14 天历史。候选异机 `172.31.27.133` 从 Windows 经 Karing TUN 在 SSH 握手前重置、MinIO 协议不可用，发布主机有网关路由但 ICMP 与候选四端口超时；待 VPN/路由和服务恢复后配置 MinIO 备份端点并完成恢复演练。
+  - [~] `C3.4.2` 已将 SLO 采集从 Android 真机演练中解耦，增加 5 分钟连续性、非有限值、完整 UTC 日和数据缺口门禁，并固化安全的认证读/可选本机 API 运行 canary。2026-09-13 首个完整日的 Backend/Worker 均为 288/288，但无业务样本；后续 canary 已验证 HTTP、P95 和 `case/passed` 指标跨抓取周期增长。继续累积并复核有代表性流量的连续 7/14 天历史。候选异机 `172.31.27.133` 的 VPN/路由和服务仍不可用；待恢复后配置 MinIO 备份端点并完成恢复演练。
 - [ ] `C3.5` 绑定同一最终提交 SHA，更新能力矩阵、运行手册、证据索引和发布结论。
 
 ## 7. 推荐执行顺序
@@ -185,6 +185,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 6. 经用户要求后使用 Conventional Commit 提交并推送。
 
 ## 9. 执行记录
+
+- 2026-09-15：完成 C3.4.2 可复用流量 canary。新增 `scripts/slo-traffic-canary.py` 与 `make slo-traffic-canary`；凭据只接受环境变量，默认仅循环读取项目列表和工作台概览。运行用例必须同时给出 `--case-id` 与 `--confirm-case-run`，脚本会从当前账号可见项目重新验证用例归属，并强制 API 类型、active、approved、auto/semi-auto、ready、单步 GET 和 HTTP 回环目标；外部目标或非法端口在触发前拒绝。运行默认两次且每次终态后等待 20 秒抓取周期，失败、超时或非 passed 会使报告/退出码失败。报告只记录脱敏 ID、状态和目标主机，不记录账号、凭据或业务响应。新脚本已同步 Makefile、CI 和 pre-commit 的统一 Ruff 清单；代码审查修复第二次运行后未等待抓取导致最后增量可能丢失的竞态，补齐非法端口的可审计失败，并收敛默认模式测试为禁止触发业务 run。真实目标以项目 77、`case_id=42` 执行 4 次认证读和 Run 113/114，两条运行均 passed，临时报告位于 Git 忽略目录且 `credentials_in_report=false`。定向/契约 `23 passed`、非集成后端全量 `2615 passed / 1 skipped`，Ruff、格式和差异检查通过。脱敏证据见 [`evidence/c3-slo-traffic-canary-tool-2026-09-15.json`](evidence/c3-slo-traffic-canary-tool-2026-09-15.json)。该工具只解决后续采样可重复性，不替代完整 UTC 日、代表性 7/14 天、独立 MinIO 或 P4/P9 验收。
 
 - 2026-09-15：完成 C3.4.2 合成流量数据链 canary。目标 Prometheus 最近 1 小时初始请求增量为 0；使用当前受控账号分两轮执行 37 次项目列表/工作台概览只读请求，凭据仅通过隐藏交互进入临时进程，未写入命令、文件、输出或证据。跨两个抓取周期后，HTTP `increase` 约 15.93、P95 约 95ms。只读筛选 4 个可见项目的可执行用例后，选择项目 77 中 active/approved/auto 的单步 GET API `case_id=42`，其目标为发布机自身 `127.0.0.1:8000`；Run 111/112 均 passed。首个运行只建立计数器基线，第二个运行后 Prometheus 最近 1 小时 `atp_run_outcomes_total` 外推增量约 1.23，唯一分组为 `case/passed`；最终 HTTP 外推增量约 22.86、P95 约 95ms、Prometheus readiness 200，6/6 Pod Ready 且零重启。两条运行记录保留用于审计，没有创建临时项目或修改用例。网络分层复核确认 `172.31.27.133` 在 Windows 经 Karing TUN 建连后于 SSH KEX 前重置，9000 HTTP 为空响应、HTTPS 超时；发布主机路由为 `via 192.168.3.1 dev eth0`，但 ICMP 和 22/9000/5432/6379 均超时。未尝试写入或部署。脱敏证据见 [`evidence/c3-slo-traffic-canary-2026-09-15.json`](evidence/c3-slo-traffic-canary-2026-09-15.json)。当前 UTC 日尚未结束且流量是有界合成 canary，不替代完整日、代表性 7/14 天历史、独立 MinIO 恢复或 P4/P9 验收。
 
