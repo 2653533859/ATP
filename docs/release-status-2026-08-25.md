@@ -4,6 +4,8 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
+> 2026-09-15 C3.4.2 第二个完整 UTC 日证据完成：首次 2026-09-14 报告发现无运行小时被错误算作 0% 成功率，且单项 breach 污染三个 SLO 章节结论；采集器现只统计存在业务活动的比率小时，并分别判断可用性、延迟和运行成功率，抓取缺口仍阻断全部分项。修复后 Backend/Worker 均为 288/288，请求量 34，可用性 100%、5m/1h P95 95ms，运行量 3、成功率 100%，无 breach/data gap；复核时 Prometheus readiness 200、K3s revision 46、6/6 Pod Ready 且零重启。定向 `19 passed`、非集成后端全量 `2617 passed / 1 skipped`，Ruff、格式和差异检查通过。详见 [`slo-history-2026-09-14-2026-09-14.md`](slo-history-2026-09-14-2026-09-14.md) 与 [`evidence/c3-slo-history-day2-2026-09-15.json`](evidence/c3-slo-history-day2-2026-09-15.json)。当前只有两个完整 scrape 日、其中一个可评估的合成流量日，告警/发布门禁仍 deferred；不替代代表性 7/14 天、独立 MinIO 或 P4/P9 验收。
+
 > 2026-09-15 C3.4.2 可复用流量入口完成：`make slo-traffic-canary` 默认只产生有界认证读流量；只有显式提供 `--case-id --confirm-case-run`，且用例经项目归属、状态、自动化、单步 GET 与 HTTP 回环目标检查后才会新增运行。每个 canary 终态后等待 Prometheus 抓取，报告不记录账号、凭据或业务响应。真实目标的 4 次读请求与 Run 113/114 均通过；审查修复最后一次运行后未等待抓取的竞态及非法端口异常路径。定向/契约 `23 passed`、非集成后端全量 `2615 passed / 1 skipped`。详见 [`evidence/c3-slo-traffic-canary-tool-2026-09-15.json`](evidence/c3-slo-traffic-canary-tool-2026-09-15.json)；该工具不替代完整日、7/14 天历史或独立 MinIO 验收。
 
 > 2026-09-15 C3.4.2 合成流量 canary 验证 SLO 三条数据链：37 次认证项目列表/工作台概览只读请求跨抓取周期后产生 HTTP 请求与 P95 序列；项目 77 的单步自回环 GET API `case_id=42` 产生 Run 111/112，均为 passed，第二次运行后 `atp_run_outcomes_total` 出现 `case/passed` 增量。最终最近 1 小时 HTTP 外推增量约 22.86、P95 约 95ms、运行结果外推增量约 1.23，Prometheus readiness 200，6/6 Pod Ready、零重启。凭据未落盘或输出，两条运行记录保留审计。当前 UTC 日未结束且这是有界合成流量，不能作为完整日或代表性 7/14 天校准。`172.31.27.133` 在 Windows 经 Karing TUN 于 SSH 握手前重置，发布机虽有默认路由但 ICMP 与四个候选端口均超时；独立 MinIO 仍未部署。详见 [`evidence/c3-slo-traffic-canary-2026-09-15.json`](evidence/c3-slo-traffic-canary-2026-09-15.json)。

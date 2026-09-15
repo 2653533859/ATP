@@ -347,9 +347,10 @@ def _build_slo_bundle(
     else:
         record_type = "day-14 stable calibration"
 
+    request_rate_query = 'sum(rate(http_requests_total{job="atp-backend"}[1h]))'
     availability_query = (
-        '1 - (sum(rate(http_requests_total{job="atp-backend",status="5xx"}[1h])) '
-        '/ clamp_min(sum(rate(http_requests_total{job="atp-backend"}[1h])), 1e-9))'
+        f'(1 - (sum(rate(http_requests_total{{job="atp-backend",status="5xx"}}[1h])) '
+        f"/ clamp_min({request_rate_query}, 1e-9))) and on() ({request_rate_query} > 0)"
     )
     latency_5m_query = (
         'histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="atp-backend"}[5m])) by (le))'
@@ -357,9 +358,10 @@ def _build_slo_bundle(
     latency_1h_query = (
         'histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket{job="atp-backend"}[1h])) by (le))'
     )
+    run_outcome_rate_query = 'sum(rate(atp_run_outcomes_total{status=~"passed|failed|error"}[1h]))'
     success_query = (
-        'sum(rate(atp_run_outcomes_total{status="passed"}[1h])) / '
-        'clamp_min(sum(rate(atp_run_outcomes_total{status=~"passed|failed|error"}[1h])), 1e-9)'
+        f'(sum(rate(atp_run_outcomes_total{{status="passed"}}[1h])) '
+        f"/ clamp_min({run_outcome_rate_query}, 1e-9)) and on() ({run_outcome_rate_query} > 0)"
     )
     scrape_backend_query = 'up{job="atp-backend"}'
     scrape_worker_query = 'up{job="atp-worker"}'
@@ -654,12 +656,22 @@ def _render_slo_markdown(evidence: SloEvidence, *, grafana_verified: bool = True
     )
     artifact_block = _markdown_table(["Artifact", "Path", "Source"], evidence.artifact_rows)
 
-    if evidence.data_gap_rows:
-        decision_line = "not evaluated; data gaps present; alert or release-gate decision: " + evidence.alert_enablement
-    elif evidence.breach_rows:
-        decision_line = "missed; keep target; alert or release-gate decision: " + evidence.release_blocking_gate
-    else:
-        decision_line = "met; keep target; alert or release-gate decision: " + evidence.alert_enablement
+    shared_gap_labels = {"Backend scrape continuity", "Worker scrape continuity"}
+
+    def metric_decision(*, gap_labels: set[str], breach_label: str) -> str:
+        affected_gap_labels = shared_gap_labels | gap_labels
+        if any(row[1] in affected_gap_labels for row in evidence.data_gap_rows):
+            return "not evaluated; data gaps present; alert or release-gate decision: " + evidence.alert_enablement
+        if any(row[1] == breach_label for row in evidence.breach_rows):
+            return "missed; keep target; alert or release-gate decision: " + evidence.release_blocking_gate
+        return "met; keep target; alert or release-gate decision: " + evidence.alert_enablement
+
+    availability_decision = metric_decision(gap_labels={"API availability"}, breach_label="API availability")
+    latency_decision = metric_decision(
+        gap_labels={"API P95 latency (5m)", "API P95 latency (1h)"},
+        breach_label="API P95 latency",
+    )
+    success_decision = metric_decision(gap_labels={"Run success rate"}, breach_label="Run success rate")
 
     backend_scrape_precondition = (
         "- [x]" if evidence.scrape_rows and all(row[1] == "yes" for row in evidence.scrape_rows) else "- [ ]"
@@ -703,7 +715,7 @@ Target from `docs/slo-guide.md`: {SLO_TARGETS["availability"]}%
 Decision:
 
 ```text
-{decision_line}
+{availability_decision}
 ```
 
 ## API P95 Latency
@@ -715,7 +727,7 @@ Target from `docs/slo-guide.md`: {SLO_TARGETS["latency_ms"]} ms
 Decision:
 
 ```text
-{decision_line}
+{latency_decision}
 ```
 
 ## Run Success Rate
@@ -727,7 +739,7 @@ Target from `docs/slo-guide.md`: {SLO_TARGETS["run_success"]}%
 Decision:
 
 ```text
-{decision_line}
+{success_decision}
 ```
 
 ## Breaches

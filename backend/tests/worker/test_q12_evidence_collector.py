@@ -216,6 +216,7 @@ class _StubPrometheus:
         self._latency = latency
         self._success = success
         self._day = day
+        self.queries = []
 
     def _series(self, module, values):
         start = datetime.fromisoformat(f"{self._day}T00:00:00").replace(tzinfo=timezone.utc)
@@ -227,11 +228,12 @@ class _StubPrometheus:
         return self
 
     def query_range(self, query: str, start, end, step: str):
+        self.queries.append(query)
         if query.startswith("up{"):
             return self._series(self._module, [1.0] * 288)
         if "http_request_duration_seconds_bucket" in query:
             return self._series(self._module, self._latency)
-        if query.startswith("1 - ("):
+        if "http_requests_total" in query and 'status="5xx"' in query:
             return self._series(self._module, self._availability)
         if "atp_run_outcomes_total" in query and 'status="passed"' in query:
             return self._series(self._module, self._success)
@@ -292,6 +294,55 @@ def test_availability_and_success_worst_stay_the_daily_trough(repo_root):
     assert evidence.success_rows[0][1] == "90"
     breached = {row[1] for row in evidence.breach_rows}
     assert breached == {"API availability", "Run success rate"}
+
+
+def test_ratio_queries_exclude_hours_without_business_activity(repo_root):
+    module = _load_collector(repo_root)
+    prometheus = _StubPrometheus(
+        availability=[0.999],
+        latency=[0.2],
+        success=[0.99],
+    ).bind(module)
+
+    module._build_slo_bundle(
+        prometheus,
+        date(2026, 7, 1),
+        date(2026, 7, 1),
+        source_deployment="staging-prod",
+    )
+
+    availability_query = next(query for query in prometheus.queries if 'status="5xx"' in query)
+    success_query = next(
+        query for query in prometheus.queries if "atp_run_outcomes_total" in query and 'status="passed"' in query
+    )
+    assert "and on()" in availability_query
+    assert 'sum(rate(http_requests_total{job="atp-backend"}[1h])) > 0' in availability_query
+    assert "and on()" in success_query
+    assert 'sum(rate(atp_run_outcomes_total{status=~"passed|failed|error"}[1h])) > 0' in success_query
+
+
+def test_rendered_slo_decisions_are_independent(repo_root):
+    module = _load_collector(repo_root)
+    prometheus = _StubPrometheus(
+        availability=[0.999],
+        latency=[0.2],
+        success=[0.50],
+    ).bind(module)
+
+    evidence, _artifacts = module._build_slo_bundle(
+        prometheus,
+        date(2026, 7, 1),
+        date(2026, 7, 1),
+        source_deployment="staging-prod",
+    )
+    rendered = module._render_slo_markdown(evidence)
+
+    availability_section = rendered.split("## API Availability", 1)[1].split("## API P95 Latency", 1)[0]
+    latency_section = rendered.split("## API P95 Latency", 1)[1].split("## Run Success Rate", 1)[0]
+    success_section = rendered.split("## Run Success Rate", 1)[1].split("## Breaches", 1)[0]
+    assert "met; keep target" in availability_section
+    assert "met; keep target" in latency_section
+    assert "missed; keep target" in success_section
 
 
 def test_window_without_samples_is_a_data_gap_not_a_pass(repo_root):

@@ -1,0 +1,49 @@
+{
+  "total_requests": 34.03051436116963,
+  "handlers": [
+    {
+      "handler": "/api/v1/projects",
+      "requests": 11.009970265125549
+    },
+    {
+      "handler": "/api/v1/workbench/overview",
+      "requests": 8.00725110190949
+    },
+    {
+      "handler": "/api/v1/auth/login",
+      "requests": 6.0054383264321185
+    },
+    {
+      "handler": "/api/v1/cases/{case_id}/run",
+      "requests": 3.002748840303518
+    },
+    {
+      "handler": "/api/v1/runs/{run_id}",
+      "requests": 3.002748840303518
+    },
+    {
+      "handler": "/api/v1/cases/{case_id}",
+      "requests": 1.0009150317631956
+    },
+    {
+      "handler": "/api/v1/cases",
+      "requests": 1.0009137868220568
+    },
+    {
+      "handler": "/api/v1/hermes/sessions",
+      "requests": 1.0005281685101841
+    },
+    {
+      "handler": "/api/v1/hermes/query",
+      "requests": 0.0
+    },
+    {
+      "handler": "/api/v1/hermes/sessions/{session_id}/feedback",
+      "requests": 0.0
+    },
+    {
+      "handler": "/api/v1/runs",
+      "requests": 0.0
+    }
+  ]
+}

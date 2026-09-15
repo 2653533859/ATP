@@ -1,0 +1,63 @@
+{
+  "evidence_type": "c3_slo_history_complete_day",
+  "generated_at": "2026-09-15T00:44:17Z",
+  "status": "partial_pass",
+  "source": {
+    "repository_baseline_revision": "19dcde40e192b167c2a6653934577b4db0e39870",
+    "collector_change": "finalized by the commit containing this evidence",
+    "target_host": "192.168.3.196",
+    "deployment": "atp-single-node",
+    "helm_revision": 46,
+    "prometheus_url": "http://127.0.0.1:39090",
+    "secrets_included": false
+  },
+  "prometheus": {
+    "window": "2026-09-14 to 2026-09-14 UTC",
+    "record_type": "pre-calibration preflight",
+    "checkpoint_interval": "5m",
+    "expected_daily_checkpoints": 288,
+    "backend_checkpoints_up": 288,
+    "worker_checkpoints_up": 288,
+    "request_volume": 34,
+    "api_availability_percent": 100,
+    "api_p95_latency_5m_ms": 95,
+    "api_p95_latency_1h_ms": 95,
+    "run_volume": 3,
+    "run_success_rate_percent": 100,
+    "breaches": 0,
+    "data_gaps": 0,
+    "alert_enablement": "deferred",
+    "release_blocking_gate": "deferred",
+    "readiness_http_status": 200
+  },
+  "target_stability_snapshot": {
+    "pods_ready": "6/6",
+    "pod_restarts": 0,
+    "helm_status": "deployed"
+  },
+  "collector_repairs": [
+    "exclude no-request hours from the availability ratio",
+    "exclude no-run hours from the run-success ratio",
+    "render availability, latency, and run-success decisions independently",
+    "retain Backend or Worker scrape gaps as shared blockers for every SLO"
+  ],
+  "traffic_profile": {
+    "classification": "bounded synthetic canary",
+    "top_handlers": [
+      "/api/v1/projects",
+      "/api/v1/workbench/overview",
+      "/api/v1/auth/login",
+      "/api/v1/cases/{case_id}/run",
+      "/api/v1/runs/{run_id}"
+    ],
+    "representative_production_traffic": false
+  },
+  "artifacts": [
+    "docs/slo-history-2026-09-14-2026-09-14.md",
+    "docs/fixtures/q12/slo-availability-2026-09-14-2026-09-14.csv",
+    "docs/fixtures/q12/slo-latency-2026-09-14-2026-09-14.csv",
+    "docs/fixtures/q12/slo-success-2026-09-14-2026-09-14.csv",
+    "docs/fixtures/q12/slo-endpoint-mix-2026-09-14-2026-09-14.json"
+  ],
+  "boundary": "This is the second complete scrape day but only the first evaluable day, and its traffic is a bounded synthetic canary. It does not satisfy the representative-traffic 7/14-day calibration, independent MinIO restore, multi-node fault-domain, P4, or P9 release gates."
+}

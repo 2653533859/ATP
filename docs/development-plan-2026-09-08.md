@@ -159,7 +159,7 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 - [x] `C3.3` 执行数据库空库迁移、升级、备份恢复和回滚演练；验证恢复后的运行角色权限，并清理全部隔离资源。
 - [~] `C3.4` 收集发布级 SLO、告警、服务重启和持续稳定性证据，明确 Redis 与 MinIO 的剩余灾备决定。
   - [x] `C3.4.1` 部署持久化单节点发布 Prometheus，验证 4 个 target、4 条告警规则和 40 秒稳定性；Redis 切换 AOF everysec 并通过双重重启；MinIO 启用 versioning，明确不自动启用未审查的 lifecycle。
-  - [~] `C3.4.2` 已将 SLO 采集从 Android 真机演练中解耦，增加 5 分钟连续性、非有限值、完整 UTC 日和数据缺口门禁，并固化安全的认证读/可选本机 API 运行 canary。2026-09-13 首个完整日的 Backend/Worker 均为 288/288，但无业务样本；后续 canary 已验证 HTTP、P95 和 `case/passed` 指标跨抓取周期增长。继续累积并复核有代表性流量的连续 7/14 天历史。候选异机 `172.31.27.133` 的 VPN/路由和服务仍不可用；待恢复后配置 MinIO 备份端点并完成恢复演练。
+  - [~] `C3.4.2` 已将 SLO 采集从 Android 真机演练中解耦，增加 5 分钟连续性、非有限值、完整 UTC 日和数据缺口门禁，并固化安全的认证读/可选本机 API 运行 canary。比率查询只保留存在业务活动的小时，报告按三项 SLO 独立判定。2026-09-13 与 2026-09-14 的 Backend/Worker 均为 288/288；首日无业务样本，次日在有界合成流量下可用性 100%、P95 95ms、运行成功率 100%。继续累积并复核有代表性流量的连续 7/14 天历史。候选异机 `172.31.27.133` 的 VPN/路由和服务仍不可用；待恢复后配置 MinIO 备份端点并完成恢复演练。
 - [ ] `C3.5` 绑定同一最终提交 SHA，更新能力矩阵、运行手册、证据索引和发布结论。
 
 ## 7. 推荐执行顺序
@@ -185,6 +185,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 6. 经用户要求后使用 Conventional Commit 提交并推送。
 
 ## 9. 执行记录
+
+- 2026-09-15：推进 C3.4.2 第二个完整 UTC 日采集。首次生成的 2026-09-14 报告暴露两个统计缺陷：运行计数器出现后，无运行的小时会因分母保护被算作 0% 成功率；任一 SLO breach 又会使三个章节共用同一 `missed` 结论。采集器现用活动率条件过滤无请求/无运行小时，并按可用性、P95 延迟和运行成功率分别判断 gap/breach；Backend/Worker 抓取缺口仍共同阻断全部分项。回归增加 PromQL 活动掩码和分项结论隔离，定向 `19 passed`、非集成后端全量 `2617 passed / 1 skipped`，Ruff、格式与差异检查通过。修复后从 revision 46 的发布 Prometheus 重采：2026-09-14 Backend/Worker 均为 288/288，请求量 34，可用性 100%、5m/1h P95 95ms，运行量 3、成功率 100%，无 breach/data gap；复核时 readiness 200、6/6 Pod Ready 且零重启。告警和发布门禁因窗口不足 14 天继续 deferred，且流量为有界合成 canary，不替代代表性 7/14 天。证据见 [`slo-history-2026-09-14-2026-09-14.md`](slo-history-2026-09-14-2026-09-14.md) 与 [`evidence/c3-slo-history-day2-2026-09-15.json`](evidence/c3-slo-history-day2-2026-09-15.json)；独立 MinIO 和 P4/P9 仍未关闭。
 
 - 2026-09-15：完成 C3.4.2 可复用流量 canary。新增 `scripts/slo-traffic-canary.py` 与 `make slo-traffic-canary`；凭据只接受环境变量，默认仅循环读取项目列表和工作台概览。运行用例必须同时给出 `--case-id` 与 `--confirm-case-run`，脚本会从当前账号可见项目重新验证用例归属，并强制 API 类型、active、approved、auto/semi-auto、ready、单步 GET 和 HTTP 回环目标；外部目标或非法端口在触发前拒绝。运行默认两次且每次终态后等待 20 秒抓取周期，失败、超时或非 passed 会使报告/退出码失败。报告只记录脱敏 ID、状态和目标主机，不记录账号、凭据或业务响应。新脚本已同步 Makefile、CI 和 pre-commit 的统一 Ruff 清单；代码审查修复第二次运行后未等待抓取导致最后增量可能丢失的竞态，补齐非法端口的可审计失败，并收敛默认模式测试为禁止触发业务 run。真实目标以项目 77、`case_id=42` 执行 4 次认证读和 Run 113/114，两条运行均 passed，临时报告位于 Git 忽略目录且 `credentials_in_report=false`。定向/契约 `23 passed`、非集成后端全量 `2615 passed / 1 skipped`，Ruff、格式和差异检查通过。脱敏证据见 [`evidence/c3-slo-traffic-canary-tool-2026-09-15.json`](evidence/c3-slo-traffic-canary-tool-2026-09-15.json)。该工具只解决后续采样可重复性，不替代完整 UTC 日、代表性 7/14 天、独立 MinIO 或 P4/P9 验收。
 
