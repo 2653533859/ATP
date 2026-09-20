@@ -1,0 +1,48 @@
+{
+  "evidence_type": "c3_slo_candidate_window_canary",
+  "generated_at": "2026-09-20T05:49:42Z",
+  "status": "passed_incomplete_utc_day",
+  "source": {
+    "repository_revision": "44739843066ce74f5c5bcefca81a91a34002b6e3",
+    "target_host": "192.168.3.196",
+    "deployment": "atp-single-node",
+    "helm_revision": 46,
+    "credentials_in_evidence": false
+  },
+  "target_health": {
+    "backend_http_status": 200,
+    "prometheus_http_status": 200,
+    "pods_ready": "6/6",
+    "pod_restart_count_each": 1,
+    "new_restarts_during_canary": 0,
+    "host_started_at": "2026-09-20T04:06:49Z"
+  },
+  "canary": {
+    "project_id": 77,
+    "case_id": 42,
+    "method": "GET",
+    "target_host": "127.0.0.1",
+    "target_port": 8000,
+    "step_count": 1,
+    "read_only_preflight_requests": 8,
+    "formal_canary_read_requests": 12,
+    "runs": [
+      {
+        "run_id": 115,
+        "status": "passed"
+      },
+      {
+        "run_id": 116,
+        "status": "passed"
+      }
+    ],
+    "credentials_in_report": false
+  },
+  "prometheus_after_scrape": {
+    "http_request_increase_1h": 21.6241,
+    "api_p95_latency_5m_ms": 95,
+    "run_outcome_series": "case/passed",
+    "run_outcome_increase_1h": 1.4908666666666666
+  },
+  "boundary": "This seeds the 2026-09-20 candidate day but the UTC day is still in progress. It is not complete-day, representative 7/14-day, independent MinIO, P4, or P9 acceptance evidence."
+}
