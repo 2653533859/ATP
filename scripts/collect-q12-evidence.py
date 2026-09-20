@@ -282,11 +282,23 @@ def _ensure_absent(paths: list[Path], force: bool) -> None:
         raise FileExistsError(f"{joined} already exists; pass --force to overwrite")
 
 
-def _group_daily_samples(series: list[PrometheusSeries]) -> dict[date, list[float]]:
+def _group_daily_samples(
+    series: list[PrometheusSeries],
+    *,
+    samples_are_range_ends: bool = False,
+) -> dict[date, list[float]]:
+    """Group samples by the UTC day they measure.
+
+    Prometheus range functions stamp a sample at the right edge of the range.
+    A sample at midnight therefore closes the preceding day instead of opening
+    the next one. Shift only the day attribution by one microsecond so boundary
+    samples do not leak activity into an otherwise idle following day.
+    """
     buckets: dict[date, list[float]] = {}
     for item in series:
         for ts, value in item.samples:
-            buckets.setdefault(ts.date(), []).append(value)
+            bucket_time = ts - timedelta(microseconds=1) if samples_are_range_ends else ts
+            buckets.setdefault(bucket_time.date(), []).append(value)
     return buckets
 
 
@@ -391,7 +403,7 @@ def _build_slo_bundle(
     )
 
     def daily_stats(series: list[PrometheusSeries], scale: float = 1.0) -> dict[date, DailyMetricRow]:
-        buckets = _group_daily_samples(series)
+        buckets = _group_daily_samples(series, samples_are_range_ends=True)
         rows: dict[date, DailyMetricRow] = {}
         for day, values in buckets.items():
             rows[day] = DailyMetricRow(day=day, values=[value * scale for value in values])

@@ -1,0 +1,64 @@
+{
+  "evidence_type": "c3_slo_history_day_7_initial_calibration",
+  "generated_at": "2026-09-20T04:58:07Z",
+  "status": "not_accepted",
+  "source": {
+    "repository_baseline_revision": "106eba957087a3cc52a288b0575f769c10f6d2b6",
+    "collector_change": "finalized by the commit containing this evidence",
+    "target_host": "192.168.3.196",
+    "deployment": "atp-single-node",
+    "helm_revision": 46,
+    "prometheus_url": "http://127.0.0.1:39090",
+    "secrets_included": false
+  },
+  "prometheus": {
+    "window": "2026-09-13 to 2026-09-19 UTC",
+    "record_type": "day-7 initial calibration",
+    "complete_scrape_days": 7,
+    "backend_checkpoints_per_day": "288/288",
+    "worker_checkpoints_per_day": "288/288",
+    "evaluable_business_days": 1,
+    "no_business_sample_days": 6,
+    "request_volume": 34,
+    "run_volume": 3,
+    "evaluable_day": {
+      "date": "2026-09-14",
+      "api_availability_percent": 100,
+      "api_p95_latency_5m_ms": 95,
+      "api_p95_latency_1h_ms": 95,
+      "run_success_rate_percent": 100
+    },
+    "breaches": 0,
+    "data_gaps": 24,
+    "alert_enablement": "deferred",
+    "release_blocking_gate": "deferred",
+    "readiness_http_status": 200
+  },
+  "target_after_host_restart": {
+    "host_started_at": "2026-09-20T04:06:49Z",
+    "pods_ready": "6/6",
+    "pod_restart_count_each": 1,
+    "pod_last_termination": "Unknown/255 during WSL host restart",
+    "prometheus_container_started_at": "2026-09-20T04:07:03.988496183Z",
+    "prometheus_container_restart_count": 0,
+    "backend_http_status": 200,
+    "helm_status": "deployed"
+  },
+  "collector_repair": {
+    "problem": "Prometheus range samples stamped at midnight were grouped into the following UTC day, producing a success-rate sample on a day with zero runs.",
+    "resolution": "Treat range samples as right-edge timestamps and attribute midnight boundaries to the preceding measured day.",
+    "regression_test": "test_midnight_range_sample_is_attributed_to_the_day_it_closes"
+  },
+  "traffic_profile": {
+    "classification": "bounded synthetic canary on one day only",
+    "representative_production_traffic": false
+  },
+  "artifacts": [
+    "docs/slo-history-2026-09-13-2026-09-19.md",
+    "docs/fixtures/q12/slo-availability-2026-09-13-2026-09-19.csv",
+    "docs/fixtures/q12/slo-latency-2026-09-13-2026-09-19.csv",
+    "docs/fixtures/q12/slo-success-2026-09-13-2026-09-19.csv",
+    "docs/fixtures/q12/slo-endpoint-mix-2026-09-13-2026-09-19.json"
+  ],
+  "boundary": "The seven-day window proves scrape continuity only. Six days have no business samples and the sole evaluable day is bounded synthetic traffic, so initial calibration, alert enablement, release blocking, independent MinIO restore, P4, and P9 remain open."
+}

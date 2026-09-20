@@ -65,13 +65,13 @@ def test_collect_q12_evidence_writes_reports_and_artifacts(repo_root, tmp_path, 
                     )
                 ]
             if 'status="5xx"' in query:
-                return [_series(module, {}, [("2026-07-01T00:00:00", 0.998), ("2026-07-02T00:00:00", 0.999)])]
+                return [_series(module, {}, [("2026-07-01T12:00:00", 0.998), ("2026-07-02T12:00:00", 0.999)])]
             if "http_request_duration_seconds_bucket" in query and "[5m]" in query:
-                return [_series(module, {}, [("2026-07-01T00:00:00", 1.8), ("2026-07-02T00:00:00", 1.75)])]
+                return [_series(module, {}, [("2026-07-01T12:00:00", 1.8), ("2026-07-02T12:00:00", 1.75)])]
             if "http_request_duration_seconds_bucket" in query and "[1h]" in query:
-                return [_series(module, {}, [("2026-07-01T00:00:00", 1.7), ("2026-07-02T00:00:00", 1.65)])]
+                return [_series(module, {}, [("2026-07-01T12:00:00", 1.7), ("2026-07-02T12:00:00", 1.65)])]
             if "atp_run_outcomes_total" in query and 'status="passed"' in query:
-                return [_series(module, {}, [("2026-07-01T00:00:00", 0.96), ("2026-07-02T00:00:00", 0.97)])]
+                return [_series(module, {}, [("2026-07-01T12:00:00", 0.96), ("2026-07-02T12:00:00", 0.97)])]
             if 'sum(increase(http_requests_total{job="atp-backend"}[1d]))' in query:
                 return [_series(module, {}, [("2026-07-01T00:00:00", 100.0), ("2026-07-02T00:00:00", 120.0)])]
             if 'sum(increase(atp_run_outcomes_total{status=~"passed|failed|error"}[1d]))' in query:
@@ -223,6 +223,11 @@ class _StubPrometheus:
         samples = [(start + timedelta(minutes=5 * index), value) for index, value in enumerate(values)]
         return [module.PrometheusSeries(labels={}, samples=samples)]
 
+    def _metric_series(self, module, values):
+        start = datetime.fromisoformat(f"{self._day}T00:05:00").replace(tzinfo=timezone.utc)
+        samples = [(start + timedelta(minutes=5 * index), value) for index, value in enumerate(values)]
+        return [module.PrometheusSeries(labels={}, samples=samples)]
+
     def bind(self, module):
         self._module = module
         return self
@@ -232,11 +237,11 @@ class _StubPrometheus:
         if query.startswith("up{"):
             return self._series(self._module, [1.0] * 288)
         if "http_request_duration_seconds_bucket" in query:
-            return self._series(self._module, self._latency)
+            return self._metric_series(self._module, self._latency)
         if "http_requests_total" in query and 'status="5xx"' in query:
-            return self._series(self._module, self._availability)
+            return self._metric_series(self._module, self._availability)
         if "atp_run_outcomes_total" in query and 'status="passed"' in query:
-            return self._series(self._module, self._success)
+            return self._metric_series(self._module, self._success)
         return self._series(self._module, [1.0, 1.0])
 
     def query_instant(self, query: str, at):
@@ -319,6 +324,23 @@ def test_ratio_queries_exclude_hours_without_business_activity(repo_root):
     assert 'sum(rate(http_requests_total{job="atp-backend"}[1h])) > 0' in availability_query
     assert "and on()" in success_query
     assert 'sum(rate(atp_run_outcomes_total{status=~"passed|failed|error"}[1h])) > 0' in success_query
+
+
+def test_midnight_range_sample_is_attributed_to_the_day_it_closes(repo_root):
+    module = _load_collector(repo_root)
+    series = [
+        module.PrometheusSeries(
+            labels={},
+            samples=[
+                (datetime(2026, 7, 2, tzinfo=timezone.utc), 0.99),
+                (datetime(2026, 7, 2, 1, tzinfo=timezone.utc), 0.98),
+            ],
+        )
+    ]
+
+    buckets = module._group_daily_samples(series, samples_are_range_ends=True)
+
+    assert buckets == {date(2026, 7, 1): [0.99], date(2026, 7, 2): [0.98]}
 
 
 def test_rendered_slo_decisions_are_independent(repo_root):
@@ -446,11 +468,12 @@ def test_full_window_without_breaches_enables_the_gate(repo_root):
     def query_range(query, start, end, step):
         base = _StubPrometheus.query_range(prometheus, query, start, end, step)
         samples = []
+        minute_offset = 0 if query.startswith("up{") else 5
         for day_offset in range(14):
             for index, (_ts, value) in enumerate(base[0].samples):
                 stamp = datetime(2026, 7, 1, tzinfo=timezone.utc) + timedelta(
                     days=day_offset,
-                    minutes=5 * index,
+                    minutes=minute_offset + 5 * index,
                 )
                 samples.append((stamp, value))
         return [module.PrometheusSeries(labels={}, samples=samples)]
