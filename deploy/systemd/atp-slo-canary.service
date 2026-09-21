@@ -1,0 +1,26 @@
+[Unit]
+Description=ATP bounded SLO traffic canary
+Documentation=file:/opt/atp-slo-canary/slo-traffic-canary.py
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+DynamicUser=yes
+StateDirectory=atp-slo-canary
+LoadCredential=atp_password:/etc/atp-slo-canary/password
+Environment=ATP_USERNAME=atp-slo-canary
+Environment=ATP_PASSWORD_FILE=/run/credentials/atp-slo-canary.service/atp_password
+ExecStart=/usr/bin/python3 /opt/atp-slo-canary/slo-traffic-canary.py --api-base-url http://127.0.0.1:8000 --project-id 77 --iterations 6 --case-id 42 --confirm-case-run --run-count 2 --scrape-wait-seconds 20 --source-deployment atp-single-node --report /var/lib/atp-slo-canary/latest.json
+TimeoutStartSec=10min
+UMask=0077
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+RestrictAddressFamilies=AF_INET AF_INET6

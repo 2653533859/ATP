@@ -1,0 +1,71 @@
+{
+  "evidence_type": "c3_slo_daily_canary_automation",
+  "generated_at": "2026-09-21T00:55:24Z",
+  "status": "passed_candidate_day_in_progress",
+  "source": {
+    "repository_base_revision": "2d882892",
+    "delivery_revision": null,
+    "delivery_revision_status": "unbound until this evidence and the automation changes are committed",
+    "target_host": "192.168.3.196",
+    "deployment": "atp-single-node",
+    "credentials_in_evidence": false
+  },
+  "previous_candidate_day": {
+    "date": "2026-09-20",
+    "accepted": false,
+    "backend_scrape_checkpoints": "276/288",
+    "worker_scrape_checkpoints": "276/288",
+    "request_volume": 30,
+    "api_availability": "no samples",
+    "api_p95_latency_ms": 95,
+    "run_volume": 2,
+    "run_success_rate_percent": 100,
+    "reason": "A host restart left 12 missing five-minute checkpoints, so the day cannot seed a consecutive calibration window."
+  },
+  "automation": {
+    "service": "atp-slo-canary.service",
+    "timer": "atp-slo-canary.timer",
+    "schedule": "daily 08:30 Asia/Shanghai with up to five minutes randomized delay",
+    "persistent": true,
+    "dedicated_user_id": 21,
+    "global_role": "tester",
+    "project_id": 77,
+    "project_role": "editor",
+    "credential_transport": "systemd LoadCredential",
+    "credential_source_mode": "0600",
+    "report_contains_credentials": false
+  },
+  "manual_verification": {
+    "generated_at": "2026-09-21T00:53:14.174370Z",
+    "status": "passed",
+    "authenticated_read_requests": 12,
+    "case_id": 42,
+    "runs": [
+      {
+        "run_id": 117,
+        "status": "passed"
+      },
+      {
+        "run_id": 118,
+        "status": "passed"
+      }
+    ],
+    "service_result": "success",
+    "timer_active": true,
+    "timer_enabled": true
+  },
+  "prometheus_after_scrape": {
+    "http_request_increase_1h": 21.08786610878661,
+    "api_p95_latency_5m_ms": 95,
+    "run_outcome_series": "case/passed",
+    "run_outcome_increase_1h": 2.00836820083682
+  },
+  "target_health": {
+    "backend_http_status": 200,
+    "prometheus_http_status": 200,
+    "pods_ready": "6/6",
+    "pod_restart_sum": 6,
+    "new_restarts_during_verification": 0
+  },
+  "boundary": "The 2026-09-21 UTC day is still in progress. Automation preserves one bounded daily traffic sample but does not itself prove a complete 7/14-day window, independent MinIO recovery, P4, or P9 acceptance."
+}

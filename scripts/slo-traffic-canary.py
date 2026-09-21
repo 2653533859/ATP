@@ -9,6 +9,7 @@ from http.cookiejar import CookieJar
 import json
 import os
 from pathlib import Path
+import stat
 import time
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -22,6 +23,36 @@ SAFE_CANARY_HOSTS = {"127.0.0.1", "localhost", "::1"}
 
 class CanaryError(RuntimeError):
     """The bounded traffic canary could not prove a required condition."""
+
+
+def _secret_from_environment(name: str) -> str:
+    """Read a secret from NAME or NAME_FILE without exposing its value."""
+    direct_value = os.environ.get(name, "")
+    file_name = os.environ.get(f"{name}_FILE", "").strip()
+    if direct_value and file_name:
+        raise CanaryError(f"set only one of {name} and {name}_FILE")
+    if not file_name:
+        return direct_value
+
+    path = Path(file_name)
+    try:
+        metadata = path.stat()
+        credential_directory = os.environ.get("CREDENTIALS_DIRECTORY", "").strip()
+        systemd_credential = bool(
+            credential_directory and path.resolve(strict=True).parent == Path(credential_directory).resolve(strict=True)
+        )
+        if not stat.S_ISREG(metadata.st_mode):
+            raise CanaryError(f"{name}_FILE must be a regular file")
+        if os.name == "posix" and stat.S_IMODE(metadata.st_mode) & 0o077 and not systemd_credential:
+            raise CanaryError(f"{name}_FILE must not be accessible by group or other users")
+        value = path.read_text(encoding="utf-8").strip()
+    except CanaryError:
+        raise
+    except OSError as exc:
+        raise CanaryError(f"cannot read {name}_FILE: {type(exc).__name__}") from exc
+    if not value:
+        raise CanaryError(f"{name}_FILE is empty")
+    return value
 
 
 class ApiClient:
@@ -62,12 +93,12 @@ class ApiClient:
 
 
 def _client_from_environment(base_url: str, *, timeout: float) -> ApiClient:
-    token = os.environ.get("ATP_TOKEN", "").strip()
+    token = _secret_from_environment("ATP_TOKEN").strip()
     if token:
         return ApiClient(base_url, token=token, timeout=timeout)
 
     username = os.environ.get("ATP_USERNAME", "").strip()
-    password = os.environ.get("ATP_PASSWORD", "")
+    password = _secret_from_environment("ATP_PASSWORD")
     if not username or not password:
         raise CanaryError("set ATP_TOKEN or both ATP_USERNAME and ATP_PASSWORD")
     client = ApiClient(base_url, token=None, timeout=timeout)

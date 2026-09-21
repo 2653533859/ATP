@@ -108,14 +108,17 @@ def test_slo_traffic_canary_is_bounded_and_documented(repo_file):
     assert "scripts/slo-traffic-canary.py" in makefile
 
     canary = repo_file("scripts/slo-traffic-canary.py")
-    assert 'os.environ.get("ATP_TOKEN"' in canary
-    assert 'os.environ.get("ATP_PASSWORD"' in canary
+    assert '_secret_from_environment("ATP_TOKEN")' in canary
+    assert '_secret_from_environment("ATP_PASSWORD")' in canary
+    assert 'f"{name}_FILE"' in canary
+    assert '"credentials_in_report": False' in canary
     assert "--confirm-case-run" in canary
     assert "SAFE_CANARY_HOSTS" in canary
 
     slo_guide = repo_file("docs/slo-guide.md")
     assert "make slo-traffic-canary" in slo_guide
     assert "--confirm-case-run" in slo_guide
+    assert "LoadCredential" in slo_guide
 
 
 def test_external_readiness_spec_matches_platform_surfaces(repo_file):

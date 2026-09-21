@@ -11,7 +11,7 @@ Observed traffic window:
 - Current evidence source: local, CI, release-readiness, and short-lived staging-style runs captured during Q10/Q11 validation.
 - Release Prometheus history: collection started on 2026-09-13 for the current single-node target. The standalone collector retains 15 days and currently scrapes Backend, ordinary Worker, Performance Worker and itself. The first seven-day window, 2026-09-13 through 2026-09-19, has 288/288 Backend and Worker checkpoints every day, but only 2026-09-14 contains traffic: 34 bounded synthetic requests and 3 runs, with 100% availability, 95ms P95 and 100% run success. The other six days have no business samples, so the initial calibration is not accepted; see [`slo-history-2026-09-13-2026-09-19.md`](slo-history-2026-09-13-2026-09-19.md). Ratio queries exclude hours without matching business activity, each SLO receives an independent decision, and midnight range samples are attributed to the day their right-closed interval measures. The collector rejects the current or a future UTC day rather than recording a partial day as history.
 - Metric-chain canary: on 2026-09-15, bounded authenticated read traffic and two self-targeted API case runs established HTTP request, latency histogram, and `atp_run_outcomes_total{entity_type="case",status="passed"}` growth across Prometheus scrapes. This verifies instrumentation only; the in-progress UTC day and synthetic traffic are excluded from complete-day calibration evidence.
-- New candidate window: on 2026-09-20, 20 bounded authenticated reads and two passed self-targeted API runs seeded the first candidate day. The day remains incomplete until the following UTC midnight, and the same controlled traffic profile must be maintained daily before a new 7/14-day decision.
+- New candidate window: 2026-09-20 was rejected because a host restart left Backend and Worker at 276/288 five-minute checkpoints, despite 30 requests, 95ms P95 and two passed runs. A dedicated `tester` account with project 77 `editor` access now runs the bounded canary through a persistent systemd timer. The replacement window starts on 2026-09-21 and still requires complete UTC-day evidence before each day is accepted.
 - Decision: keep the Q10 short-window SLOs as pre-production guardrails. Do not enable paging-grade alerts before 7 consecutive days or make SLOs release-blocking before the 14-day calibration is reviewed.
 
 Production adoption window:
@@ -31,7 +31,7 @@ make collect-release-slo-evidence \
   SOURCE_DEPLOYMENT=atp-single-node
 ```
 
-在等待完整 UTC 日期间，可用有界 canary 验证指标链。凭据必须先放入当前进程环境；不要把密码写入命令行或 `ARGS`：
+在等待完整 UTC 日期间，可用有界 canary 验证指标链。交互运行时可把凭据放入当前进程环境；自动运行应使用 `ATP_PASSWORD_FILE` / `ATP_TOKEN_FILE`。不要把密码写入命令行或 `ARGS`：
 
 ```bash
 export ATP_USERNAME='<current-account>'
@@ -50,6 +50,8 @@ make slo-traffic-canary \
 ```
 
 报告默认写入忽略目录 `.local-run/slo-traffic-canary.json`，不记录账号、密码、Token 或业务响应正文。Canary 只验证指标能增长；仍必须在 UTC 日结束后用 `collect-release-slo-evidence` 生成完整日证据。
+
+Linux 发布机使用仓库中的 [`deploy/systemd/atp-slo-canary.service`](../deploy/systemd/atp-slo-canary.service) 和 [`deploy/systemd/atp-slo-canary.timer`](../deploy/systemd/atp-slo-canary.timer)。服务通过 `LoadCredential` 将 root 管理的 `0600` 密码映射到受保护的运行时目录，使用专用低权限 ATP 账号，不在 unit、命令行、日志或报告中记录密码。Timer 每日 08:30（Asia/Shanghai）触发并带最多 5 分钟随机延迟；`Persistent=true` 会在错过计划后补跑。安装后必须执行 `systemd-analyze verify`、手动启动一次 service，并核对退出码、脱敏报告、Prometheus 三条指标链和下一次 timer 时间。
 
 采集器按 5 分钟检查点验证 Backend/Worker 抓取连续性，并把 `NaN`、无穷值、无样本、少于 288 个日检查点或 `up=0`
 统一记录为数据缺口；任何缺口都会让 alert/release gate 保持 `deferred`。不足 7 天的运行只标记为 preflight。

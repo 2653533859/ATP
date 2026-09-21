@@ -1,0 +1,12 @@
+[Unit]
+Description=Run ATP bounded SLO traffic canary daily
+
+[Timer]
+OnCalendar=*-*-* 08:30:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=5min
+AccuracySec=1min
+Unit=atp-slo-canary.service
+
+[Install]
+WantedBy=timers.target

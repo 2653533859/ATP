@@ -79,6 +79,84 @@ def test_default_mode_generates_only_bounded_read_traffic(repo_root, tmp_path, m
     assert not any(path.endswith("/run") for _method, path, _payload in client.requests)
 
 
+def test_client_reads_password_from_credential_file(repo_root, tmp_path, monkeypatch):
+    module = _load_canary(repo_root)
+    password_file = tmp_path / "password"
+    password_file.write_text("file-secret\n", encoding="utf-8")
+    if module.os.name == "posix":
+        password_file.chmod(0o600)
+    requests = []
+
+    def fake_request(self, method, path, payload=None):
+        requests.append((method, path, payload))
+        return {"authenticated": True}
+
+    monkeypatch.setenv("ATP_USERNAME", "slo-canary")
+    monkeypatch.setenv("ATP_PASSWORD_FILE", str(password_file))
+    monkeypatch.delenv("ATP_PASSWORD", raising=False)
+    monkeypatch.delenv("ATP_TOKEN", raising=False)
+    monkeypatch.delenv("ATP_TOKEN_FILE", raising=False)
+    monkeypatch.setattr(module.ApiClient, "request", fake_request)
+
+    client = module._client_from_environment("http://atp.test", timeout=3)
+
+    assert isinstance(client, module.ApiClient)
+    assert requests == [("POST", "/api/v1/auth/login", {"username": "slo-canary", "password": "file-secret"})]
+
+
+def test_secret_rejects_direct_and_file_sources(repo_root, tmp_path, monkeypatch):
+    module = _load_canary(repo_root)
+    password_file = tmp_path / "password"
+    password_file.write_text("file-secret\n", encoding="utf-8")
+    monkeypatch.setenv("ATP_PASSWORD", "direct-secret")
+    monkeypatch.setenv("ATP_PASSWORD_FILE", str(password_file))
+
+    with pytest.raises(module.CanaryError, match="set only one of ATP_PASSWORD and ATP_PASSWORD_FILE"):
+        module._secret_from_environment("ATP_PASSWORD")
+
+
+def test_secret_errors_do_not_include_secret_value(repo_root, tmp_path, monkeypatch):
+    module = _load_canary(repo_root)
+    password_file = tmp_path / "password"
+    password_file.write_text("", encoding="utf-8")
+    monkeypatch.setenv("ATP_PASSWORD_FILE", str(password_file))
+    monkeypatch.delenv("ATP_PASSWORD", raising=False)
+
+    with pytest.raises(module.CanaryError) as error:
+        module._secret_from_environment("ATP_PASSWORD")
+
+    assert "ATP_PASSWORD_FILE is empty" == str(error.value)
+    assert str(password_file) not in str(error.value)
+
+
+def test_systemd_credential_directory_is_accepted(repo_root, tmp_path, monkeypatch):
+    module = _load_canary(repo_root)
+    credential_directory = tmp_path / "credentials"
+    credential_directory.mkdir()
+    password_file = credential_directory / "password"
+    password_file.write_text("systemd-secret\n", encoding="utf-8")
+    password_file.chmod(0o644)
+    monkeypatch.setenv("CREDENTIALS_DIRECTORY", str(credential_directory))
+    monkeypatch.setenv("ATP_PASSWORD_FILE", str(password_file))
+    monkeypatch.delenv("ATP_PASSWORD", raising=False)
+
+    assert module._secret_from_environment("ATP_PASSWORD") == "systemd-secret"
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="POSIX file modes are required")
+def test_non_systemd_secret_rejects_group_readable_file(repo_root, tmp_path, monkeypatch):
+    module = _load_canary(repo_root)
+    password_file = tmp_path / "password"
+    password_file.write_text("unsafe-secret\n", encoding="utf-8")
+    password_file.chmod(0o644)
+    monkeypatch.setenv("ATP_PASSWORD_FILE", str(password_file))
+    monkeypatch.delenv("ATP_PASSWORD", raising=False)
+    monkeypatch.delenv("CREDENTIALS_DIRECTORY", raising=False)
+
+    with pytest.raises(module.CanaryError, match="must not be accessible"):
+        module._secret_from_environment("ATP_PASSWORD")
+
+
 @pytest.mark.parametrize(
     "arguments",
     [
