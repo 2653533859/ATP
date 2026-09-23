@@ -132,6 +132,14 @@ MinIO 存储 Gauge 由 `/api/v1/storage/stats` 刷新；管理员打开系统存
 
 Compose 本地栈可将该文件挂载到 Grafana 的 `/etc/grafana/provisioning/alerting/`；生产环境建议由平台侧统一管理 contact point、notification policy 与 mute timing。
 
+### 单节点发布 Grafana
+
+单节点发布配置在 `deploy/observability/docker-compose.single-node.yml` 中增加独立 Grafana，只绑定宿主机 `127.0.0.1:33000`。它与持久化发布 Prometheus 位于同一 Compose 网络，预置数据源 `http://prometheus:9090` 和 `atp-overview` 仪表盘。当前不挂载上方的 Grafana 告警模板；正式启用告警仍须完成 SLO 校准和人工审查。
+
+发布机将随机生成的 `grafana-admin-password` 和 `grafana-secret-key` 放在 `/opt/atp-single-node-observability/`，权限为 `root:root 0640`。镜像以 UID 472、GID 0 运行，通过 Compose secrets 和 `GF_SECURITY_*__FILE` 读取，不把值写进仓库或容器环境变量。修改仪表盘或 provisioning 文件后，需同步到该目录并重建 Grafana 容器；仅推送 Git 不会更新运行中的面板。
+
+部署后核对 `http://127.0.0.1:33000/api/health`、数据源 UID `prometheus`、仪表盘 UID `atp-overview`，并通过 Grafana 数据源代理查询 `up{job="atp-backend"}`。使用 SSH 隧道访问本机回环端口，不开放公网监听。
+
 ## 六、添加新指标的范式
 
 ```python

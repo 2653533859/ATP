@@ -34,6 +34,25 @@ def test_single_node_prometheus_retains_calibration_window_and_is_loopback_only(
     assert "no-new-privileges:true" in service["security_opt"]
 
 
+def test_single_node_grafana_reads_the_release_prometheus_without_public_exposure():
+    compose = yaml.safe_load(
+        (ROOT / "deploy" / "observability" / "docker-compose.single-node.yml").read_text(encoding="utf-8")
+    )
+    service = compose["services"]["grafana"]
+    datasource = yaml.safe_load(
+        (ROOT / "docker" / "grafana" / "provisioning" / "datasources" / "prometheus.yml").read_text(encoding="utf-8")
+    )["datasources"][0]
+
+    assert service["ports"] == ["127.0.0.1:33000:3000"]
+    assert service["environment"]["GF_AUTH_ANONYMOUS_ENABLED"] == "false"
+    assert service["environment"]["GF_SECURITY_ADMIN_PASSWORD__FILE"] == "/run/secrets/grafana_admin_password"
+    assert service["secrets"] == ["grafana_admin_password", "grafana_secret_key"]
+    assert compose["secrets"]["grafana_admin_password"]["file"] == "./grafana-admin-password"
+    assert "./grafana/dashboards/atp-overview.json:/etc/grafana/dashboards/atp-overview.json:ro" in service["volumes"]
+    assert service["depends_on"]["prometheus"]["condition"] == "service_healthy"
+    assert datasource["url"] == "http://prometheus:9090"
+
+
 def test_single_node_prometheus_rules_cover_targets_and_slo_guardrails():
     rules = yaml.safe_load((ROOT / "deploy" / "observability" / "prometheus.rules.yml").read_text(encoding="utf-8"))
     alerts = {item["alert"]: item for group in rules["groups"] for item in group["rules"]}

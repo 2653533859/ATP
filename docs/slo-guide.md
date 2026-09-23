@@ -13,6 +13,7 @@ Observed traffic window:
 - Metric-chain canary: on 2026-09-15, bounded authenticated read traffic and two self-targeted API case runs established HTTP request, latency histogram, and `atp_run_outcomes_total{entity_type="case",status="passed"}` growth across Prometheus scrapes. This verifies instrumentation only; the in-progress UTC day and synthetic traffic are excluded from complete-day calibration evidence.
 - New candidate window: 2026-09-20 was rejected because a host restart left Backend and Worker at 276/288 five-minute checkpoints, despite 30 requests, 95ms P95 and two passed runs. A dedicated `tester` account with project 77 `editor` access now runs the bounded canary through a persistent systemd timer. The replacement window starts on 2026-09-21 and still requires complete UTC-day evidence before each day is accepted.
 - 2026-09-21 and 2026-09-22 now have complete UTC-day preflight reports with Backend/Worker at 288/288 each day, API availability 100%, P95 95ms, and run success 100%. Each day contains only bounded synthetic canary traffic (21 and 20 requests; two runs each). The 2026-09-21 scheduled invocation failed its credential-file permission check and was manually retried; 2026-09-22 completed unattended. These reports verify collection and metric continuity, but neither day qualifies as representative traffic for the 7/14-day calibration. See [`slo-history-2026-09-21-2026-09-21.md`](slo-history-2026-09-21-2026-09-21.md) and [`slo-history-2026-09-22-2026-09-22.md`](slo-history-2026-09-22-2026-09-22.md).
+- Release Grafana was added on 2026-09-23 at `127.0.0.1:33000`. Its provisioned `prometheus` data source reaches the release collector, and `atp-overview` loads all 17 panels. No Grafana alert rules were provisioned while calibration remains pending. This verifies the dashboard precondition from this date onward; it does not retroactively complete the 2026-09-21/22 reports or establish representative traffic. See [`evidence/c3-slo-grafana-2026-09-23.json`](evidence/c3-slo-grafana-2026-09-23.json).
 - Decision: keep the Q10 short-window SLOs as pre-production guardrails. Do not enable paging-grade alerts before 7 consecutive days or make SLOs release-blocking before the 14-day calibration is reviewed.
 
 Production adoption window:
@@ -325,7 +326,7 @@ Rationale:
 
 - The current evidence window is local, CI, release-readiness, and short-lived staging-style validation. It is enough for dashboard guardrails, but not enough to tune alert noise.
 - The SLO panels use short windows (`1h` availability/error budget, `5m` P95). These are useful for triage, but can be noisy under low traffic.
-- The repository already includes platform health warning alerts in `deploy/grafana/alerts/atp-alerts.yaml`, including API 5xx, queue backlog, DB connection pressure, Celery failures, timeouts, and ADB health. Those remain the active alert layer until SLO-specific production history is available.
+- The repository includes platform health warning alerts in `deploy/grafana/alerts/atp-alerts.yaml`, including API 5xx, queue backlog, DB connection pressure, Celery failures, timeouts, and ADB health. The single-node release Grafana does not provision these rules while calibration is pending; the release Prometheus rules remain available for operational review.
 
 Deferred SLO alert candidates:
 

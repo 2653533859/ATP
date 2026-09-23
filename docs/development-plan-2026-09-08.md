@@ -186,6 +186,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 
 ## 9. 执行记录
 
+- 2026-09-23：补齐 C3.4.2 的 Grafana 同源前置条件。单节点发布 Compose 增加回环绑定的 Grafana 11.3.0，沿用发布 Prometheus 的 Docker 网络，并加载 `atp-overview` 的 17 个面板；通过数据源代理查询到 `atp-backend up=1`，Grafana 告警规则仍为 0。密码与服务密钥由目标机 root 文件经 Compose secrets 传入，未写入仓库。初次以 `0600` 挂载时非 root 容器无法读取，改为 `root:root 0640` 后 API 健康检查通过；Prometheus 未重建，4/4 target up、容器重启计数 0。配置契约 `6 passed`，证据见 [`evidence/c3-slo-grafana-2026-09-23.json`](evidence/c3-slo-grafana-2026-09-23.json)。9 月 21/22 日报告的 Grafana 复选框不追溯勾选，7/14 日代表性流量校准继续待定。
+
 - 2026-09-23：复核 14 日门槛发现采集器原先仅凭无 breach/无缺口就会自动将告警和发布门禁写成 `enabled`，完整 Q12 采集甚至会把两日合成流量加 Android 演练标为 `accepted`。现将自动结果保守标为 `deferred`，Grafana 与流量来源复选框留待核对，Q12 摘要在人工校准评审前为 `not accepted`；14 日干净窗口和完整 Q12 的回归均覆盖该边界，定向 `20 passed`、Ruff/格式检查通过。9 月 23 日 00:33 UTC 定时 canary 无人值守成功，Run 121/122 passed、12 次认证读取，Prometheus 4/4 target up；当日仍未完成，不能采集正式 UTC 日。
 
 - 2026-09-23：通过 Linux-MCP 查询发布 Prometheus 并修正 C3.4.2 的可用性采集空序列：无 5xx 标签时用 `or vector(0)` 计为零错误，仍以总请求率大于零限制有效样本；Grafana 面板和错误率告警同步。对完整 UTC 日 2026-09-21、22 分别运行正式采集器，Backend/Worker 每日均为 `288/288`，请求量分别为 21/20，API 可用性均为 100%、P95 95ms、运行成功率 100%、运行量均为 2，均无数据缺口。9 月 21 日 timer 首次因凭据文件权限检查失败，人工重试成功；9 月 22 日无人值守成功。两日流量均为有界合成 canary，只验证指标链，不满足代表性流量和 7/14 日校准；告警与发布门禁继续 `deferred`。定向 `29 passed`，Ruff 和格式检查通过。证据见 [`slo-history-2026-09-21-2026-09-21.md`](slo-history-2026-09-21-2026-09-21.md) 与 [`slo-history-2026-09-22-2026-09-22.md`](slo-history-2026-09-22-2026-09-22.md)。

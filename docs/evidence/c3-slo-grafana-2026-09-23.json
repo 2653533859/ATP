@@ -1,0 +1,50 @@
+{
+  "evidence_type": "c3_slo_release_grafana",
+  "generated_at": "2026-09-23T06:20:48Z",
+  "status": "current_dashboard_precondition_verified",
+  "source": {
+    "repository_base_revision": "ee1148e1",
+    "delivery_revision": null,
+    "deployment": "atp-single-node",
+    "target_host": "192.168.3.196",
+    "credentials_in_evidence": false
+  },
+  "grafana": {
+    "image": "grafana/grafana:11.3.0",
+    "image_digest": "sha256:a0f881232a6fb71a0554a47d0fe2203b6888fe77f4cefb7ea62bed7eb54e13c3",
+    "listen_address": "127.0.0.1:33000",
+    "container_status": "running",
+    "started_at": "2026-09-23T06:18:46.968770316Z",
+    "restart_count": 10,
+    "restart_cause": "Initial root:root 0600 secret mounts were unreadable by container UID 472; root:root 0640 allowed its GID 0 to read them. No subsequent restart was observed.",
+    "secret_transport": "Docker Compose secrets with GF_SECURITY_*__FILE",
+    "secret_source_mode": "root:root 0640",
+    "persistent_volume": "atp_single_node_grafana_data",
+    "api_health": "database ok, version 11.3.0",
+    "datasource": {
+      "uid": "prometheus",
+      "url": "http://prometheus:9090",
+      "is_default": true,
+      "proxy_query": "up{job=\"atp-backend\"} = 1",
+      "historical_availability_at_2026_09_22T00_35Z": 1
+    },
+    "dashboard": {
+      "uid": "atp-overview",
+      "panel_count": 17,
+      "availability_error_rate_and_budget_queries_loaded": true
+    },
+    "provisioned_alert_rule_count": 0
+  },
+  "prometheus_after_grafana_start": {
+    "readiness_http_status": 200,
+    "started_at": "2026-09-20T04:07:03.988496183Z",
+    "restart_count": 0,
+    "targets": {
+      "atp-backend": "up",
+      "atp-worker": "up",
+      "atp-performance-worker": "up",
+      "prometheus": "up"
+    }
+  },
+  "boundary": "Grafana is verified from 2026-09-23 onward. The 2026-09-21/22 SLO reports retain their historical unchecked Grafana precondition. The current UTC day is incomplete; representative 7/14-day traffic calibration and alert/release decisions remain deferred."
+}

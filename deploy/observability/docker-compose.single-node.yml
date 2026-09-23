@@ -24,6 +24,40 @@ services:
     security_opt:
       - no-new-privileges:true
 
+  grafana:
+    image: grafana/grafana:11.3.0
+    container_name: atp-single-node-grafana
+    restart: unless-stopped
+    ports:
+      - 127.0.0.1:33000:3000
+    environment:
+      GF_SECURITY_ADMIN_USER: admin
+      GF_SECURITY_ADMIN_PASSWORD__FILE: /run/secrets/grafana_admin_password
+      GF_SECURITY_SECRET_KEY__FILE: /run/secrets/grafana_secret_key
+      GF_AUTH_ANONYMOUS_ENABLED: "false"
+      GF_USERS_ALLOW_SIGN_UP: "false"
+    secrets:
+      - grafana_admin_password
+      - grafana_secret_key
+    volumes:
+      - ./grafana/provisioning/datasources/prometheus.yml:/etc/grafana/provisioning/datasources/prometheus.yml:ro
+      - ./grafana/provisioning/dashboards/dashboards.yml:/etc/grafana/provisioning/dashboards/dashboards.yml:ro
+      - ./grafana/dashboards/atp-overview.json:/etc/grafana/dashboards/atp-overview.json:ro
+      - atp_single_node_grafana_data:/var/lib/grafana
+    depends_on:
+      prometheus:
+        condition: service_healthy
+    security_opt:
+      - no-new-privileges:true
+
+secrets:
+  grafana_admin_password:
+    file: ./grafana-admin-password
+  grafana_secret_key:
+    file: ./grafana-secret-key
+
 volumes:
   atp_single_node_prometheus_data:
     name: atp_single_node_prometheus_data
+  atp_single_node_grafana_data:
+    name: atp_single_node_grafana_data
