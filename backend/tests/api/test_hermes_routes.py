@@ -307,9 +307,13 @@ def test_hermes_evaluation_set_is_bounded_and_authenticated():
     result = asyncio.run(hermes.hermes_evaluation_set(_user()))
 
     assert result["id"] == "hermes-core-v2"
-    assert result["version"] == "2026-09-23"
+    assert result["version"] == "2026-09-23.1"
     assert len(result["questions"]) == 10
-    assert {item["expected_mode"] for item in result["questions"]} == {"project_retrieval", "no_results"}
+    assert {item["expected_mode"] for item in result["questions"]} == {
+        "llm_grounded",
+        "project_retrieval",
+        "no_results",
+    }
     assert {item["execution"] for item in result["questions"]} == {"query", "orchestrate"}
     assert max(len(item["expected_tools"]) for item in result["questions"]) == 2
 
@@ -353,7 +357,7 @@ def test_evaluation_metrics_keep_latest_case_score_and_durable_run_count():
     session = SimpleNamespace(metrics={})
     base = {
         "set_id": "hermes-core-v2",
-        "set_version": "2026-09-23",
+        "set_version": "2026-09-23.1",
         "case_id": "failed-task-triage",
     }
 
@@ -442,6 +446,58 @@ def test_hermes_orchestration_executes_at_most_two_read_tools_and_persists_safe_
     }
     assert db.added[0].metrics["evaluation_results"]["run_count"] == 1
     assert db.added[0].metrics["evaluation_results"]["cases"]["failed-and-quality"]["tool_selection"] is True
+
+
+@pytest.mark.parametrize("tool_status", ["empty", "not_found", "timeout", "error", "ok"])
+def test_hermes_orchestration_does_not_score_unusable_tool_evidence(monkeypatch, tool_status):
+    async def allow_access(*_args):
+        return None
+
+    async def execute_tool(body, _request, _db, _user):
+        is_valid = body.tool == "failed_tasks"
+        return HermesToolOut(
+            project_id=body.project_id,
+            conversation_id=body.conversation_id,
+            tool=body.tool,
+            status="ok" if is_valid else tool_status,
+            duration_ms=4,
+            data={"count": 1} if is_valid else {"items": []},
+            evidence=(
+                [
+                    HermesToolEvidence(
+                        evidence_id="failed-task:case:1",
+                        source_ref="HERMES-TASK-CASE-1",
+                        title="失败任务",
+                        excerpt="脱敏摘要",
+                        path="/runs/1",
+                    )
+                ]
+                if is_valid
+                else []
+            ),
+            generated_at=NOW,
+        )
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    monkeypatch.setattr(hermes, "execute_hermes_tool", execute_tool)
+    db = _DB()
+    result = asyncio.run(
+        hermes.orchestrate_hermes(
+            HermesOrchestrationIn(
+                project_id=1,
+                query="请同时查看当前项目失败任务和最近质量趋势。",
+                conversation_id="hermes-h9-unusable-evidence",
+            ),
+            SimpleNamespace(),
+            db,
+            _user(),
+        )
+    )
+
+    assert result.status == "matched"
+    assert result.evaluation is None
+    assert "evaluation" not in db.added[0].messages[-1]
+    assert "evaluation_results" not in db.added[0].metrics
 
 
 def test_hermes_orchestration_accepts_only_server_validated_model_plan(monkeypatch):
@@ -1109,6 +1165,46 @@ def test_query_hermes_returns_explicit_no_result_state(monkeypatch):
     assert db.added[0].messages[-1]["evaluation"]["case_id"] == "missing-evidence"
     assert db.added[0].messages[-1]["evaluation"]["scores"]["refusal_correctness"] is True
     assert db.added[0].metrics["evaluation_results"]["cases"]["missing-evidence"]["refusal_correctness"] is True
+
+
+def test_query_hermes_does_not_score_positive_evaluation_without_sources(monkeypatch):
+    async def allow_access(*_args):
+        return None
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    db = _DB(results=[_Result(), _Result(), _Result()], project=SimpleNamespace(id=1, name="核心项目"))
+    result = asyncio.run(
+        hermes.query_hermes(
+            HermesQueryIn(project_id=1, query="登录。请只依据当前项目证据总结一个可追溯结论。"),
+            db,
+            _user(),
+        )
+    )
+
+    assert result.mode == "no_results"
+    assert result.evaluation is None
+    assert "evaluation" not in db.added[0].messages[-1]
+    assert "evaluation_results" not in db.added[0].metrics
+
+
+def test_query_hermes_fallback_does_not_pass_citation_relevance(monkeypatch):
+    async def allow_access(*_args):
+        return None
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    project = SimpleNamespace(id=1, name="核心项目")
+    db = _matching_db(project)
+    result = asyncio.run(
+        hermes.query_hermes(
+            HermesQueryIn(project_id=1, query="登录。请依据当前项目需求给出可追溯结论。"),
+            db,
+            _user(),
+        )
+    )
+
+    assert result.mode == "project_retrieval"
+    assert result.evaluation and result.evaluation.scores.citation_relevance is False
+    assert db.added[0].metrics["evaluation_results"]["cases"]["requirement-evidence"]["citation_relevance"] is False
 
 
 def test_query_hermes_rejects_missing_project(monkeypatch):

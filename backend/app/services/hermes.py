@@ -23,7 +23,7 @@ HERMES_SYSTEM_PROMPT = (
 class HermesEvaluationCase(TypedDict):
     id: str
     prompt: str
-    expected_mode: Literal["project_retrieval", "no_results"]
+    expected_mode: Literal["llm_grounded", "project_retrieval", "no_results"]
     execution: Literal["query", "orchestrate"]
     expected_tools: list[str]
     expected_source_types: list[str]
@@ -34,12 +34,12 @@ class HermesEvaluationCase(TypedDict):
 
 HERMES_PROMPT_VERSION = "hermes-v2"
 HERMES_EVALUATION_SET_ID = "hermes-core-v2"
-HERMES_EVALUATION_SET_VERSION = "2026-09-23"
+HERMES_EVALUATION_SET_VERSION = "2026-09-23.1"
 HERMES_EVALUATION_SET: tuple[HermesEvaluationCase, ...] = (
     {
         "id": "grounded-evidence",
         "prompt": "登录。请只依据当前项目证据总结一个可追溯结论。",
-        "expected_mode": "project_retrieval",
+        "expected_mode": "llm_grounded",
         "execution": "query",
         "expected_tools": [],
         "expected_source_types": [],
@@ -116,7 +116,7 @@ HERMES_EVALUATION_SET: tuple[HermesEvaluationCase, ...] = (
     {
         "id": "requirement-evidence",
         "prompt": "登录。请依据当前项目需求给出可追溯结论。",
-        "expected_mode": "project_retrieval",
+        "expected_mode": "llm_grounded",
         "execution": "query",
         "expected_tools": [],
         "expected_source_types": ["requirement"],
@@ -168,32 +168,44 @@ def score_hermes_evaluation(
     mode: str,
     answer: str,
     sources: Sequence[object] = (),
-    selected_tools: Sequence[str] = (),
+    tool_results: Sequence[tuple[str, str, int]] = (),
 ) -> dict[str, object] | None:
-    """Score one exact fixed-set response without model-based judging."""
+    """Score one exact fixed-set response only when its required evidence is available."""
 
     case = hermes_evaluation_case(query, execution)
     if case is None:
         return None
     expected_tools = {str(item) for item in case["expected_tools"]}
-    actual_tools = {str(item) for item in selected_tools}
-    tool_selection = actual_tools == expected_tools if execution == "orchestrate" else None
+    actual_tools = {tool for tool, _, _ in tool_results}
+    tool_selection = (
+        len(tool_results) == len(expected_tools) and actual_tools == expected_tools
+        if execution == "orchestrate"
+        else None
+    )
+
+    source_rows = [item for item in sources if isinstance(item, dict)]
+    expected_types = {str(item) for item in case["expected_source_types"]}
+    relevant_indices = {
+        index
+        for index, item in enumerate(source_rows, start=1)
+        if _safe_metric_int(item.get("match_score")) > 0
+        and (not expected_types or item.get("source_type") in expected_types)
+    }
+    if not case["expected_refusal"]:
+        if execution == "query" and not relevant_indices:
+            return None
+        if execution == "orchestrate" and (
+            not tool_results or any(status != "ok" or evidence_count <= 0 for _, status, evidence_count in tool_results)
+        ):
+            return None
 
     citation_relevance: bool | None = None
     if case["requires_citation"]:
-        source_rows = [item for item in sources if isinstance(item, dict)]
-        expected_types = {str(item) for item in case["expected_source_types"]}
-        relevant_indices = {
-            index
-            for index, item in enumerate(source_rows, start=1)
-            if _safe_metric_int(item.get("match_score")) > 0
-            and (not expected_types or item.get("source_type") in expected_types)
-        }
-        citation_relevance = bool(relevant_indices)
-        if mode == "llm_grounded":
-            citation_relevance = has_valid_source_citation(answer, len(source_rows)) and bool(
-                source_citation_indices(answer) & relevant_indices
-            )
+        citation_relevance = (
+            mode == "llm_grounded"
+            and has_valid_source_citation(answer, len(source_rows))
+            and bool(source_citation_indices(answer) & relevant_indices)
+        )
 
     required_terms = [str(item).casefold() for item in case["required_answer_terms"]]
     completeness = all(term in answer.casefold() for term in required_terms) if required_terms else None

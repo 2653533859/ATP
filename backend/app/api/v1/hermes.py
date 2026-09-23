@@ -531,7 +531,7 @@ async def orchestrate_hermes(
         mode="project_retrieval",
         answer=answer,
         sources=evidence,
-        selected_tools=[step.tool for step in steps],
+        tool_results=[(step.tool, step.status, len(step.evidence)) for step in steps],
     )
     assistant_message: dict[str, Any] = {
         "role": "assistant",

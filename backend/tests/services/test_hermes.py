@@ -250,7 +250,7 @@ def test_h9_evaluation_set_scores_only_exact_fixed_prompts_and_applicable_metric
             execution="orchestrate",
             mode="project_retrieval",
             answer="失败任务与质量趋势",
-            selected_tools=["failed_tasks", "quality_trend"],
+            tool_results=[("failed_tasks", "ok", 1), ("quality_trend", "ok", 1)],
         )
         is None
     )
@@ -260,7 +260,7 @@ def test_h9_evaluation_set_scores_only_exact_fixed_prompts_and_applicable_metric
         execution="orchestrate",
         mode="project_retrieval",
         answer="已读取失败任务，但缺少趋势摘要。",
-        selected_tools=["quality_trend", "failed_tasks"],
+        tool_results=[("quality_trend", "ok", 1), ("failed_tasks", "ok", 1)],
     )
 
     assert result == {
@@ -320,6 +320,60 @@ def test_h9_evaluation_scores_grounded_citations_and_unsupported_refusal():
     assert refusal and refusal["scores"]["answer_completeness"] is True
     assert refusal["scores"]["refusal_correctness"] is True
     assert irrelevant_citation and irrelevant_citation["scores"]["citation_relevance"] is False
+
+
+@pytest.mark.parametrize(
+    ("prompt", "sources"),
+    [
+        ("登录。请只依据当前项目证据总结一个可追溯结论。", []),
+        ("登录。请依据当前项目需求给出可追溯结论。", [{"source_type": "knowledge", "match_score": 12}]),
+        ("登录。请依据当前项目需求给出可追溯结论。", [{"source_type": "requirement", "match_score": 0}]),
+    ],
+)
+def test_h9_positive_query_without_relevant_source_is_not_scored(prompt, sources):
+    assert (
+        score_hermes_evaluation(
+            prompt,
+            execution="query",
+            mode="no_results",
+            answer="当前项目没有找到匹配来源。",
+            sources=sources,
+        )
+        is None
+    )
+
+
+def test_h9_positive_query_fallback_cannot_pass_citation_relevance():
+    prompt = "登录。请依据当前项目需求给出可追溯结论。"
+    result = score_hermes_evaluation(
+        prompt,
+        execution="query",
+        mode="project_retrieval",
+        answer="已检索到需求来源。[S1]",
+        sources=[{"source_type": "requirement", "match_score": 12}],
+    )
+
+    assert result and result["scores"]["citation_relevance"] is False
+    assert hermes_evaluation_case(prompt, "query")["expected_mode"] == "llm_grounded"
+    assert (
+        hermes_evaluation_case("登录。请只依据当前项目证据总结一个可追溯结论。", "query")["expected_mode"]
+        == "llm_grounded"
+    )
+
+
+@pytest.mark.parametrize(
+    ("status", "evidence_count"), [("empty", 0), ("not_found", 0), ("timeout", 0), ("error", 0), ("ok", 0)]
+)
+def test_h9_positive_orchestration_with_failed_or_empty_tool_is_not_scored(status, evidence_count):
+    result = score_hermes_evaluation(
+        "请同时查看当前项目失败任务和最近质量趋势。",
+        execution="orchestrate",
+        mode="project_retrieval",
+        answer="失败任务与质量趋势",
+        tool_results=[("failed_tasks", "ok", 1), ("quality_trend", status, evidence_count)],
+    )
+
+    assert result is None
 
 
 def test_plan_read_tools_routes_bounded_multi_tool_queries_and_requires_explicit_targets():

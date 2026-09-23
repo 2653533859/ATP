@@ -186,6 +186,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 
 ## 9. 执行记录
 
+- 2026-09-23：继续准备 Hermes 真实验收。独立审查确认十题中六道是确定性工具编排、两道无来源拒答，仅两道正向检索可能调用回答模型，且旧评分会在缺资产或规则回退时产生误导性通过。现升级 `hermes-core-v2` 至 `2026-09-23.1`：正向题必须有相关来源或状态为 `ok` 的工具证据才计分，回答模型引用只在 `llm_grounded` 且引用实际相关来源时通过。新增显式项目的默认只读预检及 `--execute` 验收脚本，十题与模型规划挑战题分开报告，不落回答/来源正文。后端相关文件独立测试 `11 + 23 + 36 passed`、非集成全量 `2656 passed / 2 skipped`、前端全量 `76 files / 369 tests passed`，Ruff、mypy、TypeScript 和生产构建通过。目标 K3s 六个 Pod Ready，Backend 镜像仍为 `bdb84286`，未部署新代码或调用真实模型；发布库 0 项目模型绑定、固定编号资产缺失，仍需隔离数据库、夹具和模型配置。见 [`hermes-evaluation-acceptance.md`](hermes-evaluation-acceptance.md)。
+
 - 2026-09-23：完成 Hermes H9 安全与评测加固。会话助手消息增加稳定 ID，反馈提交同时核对 ID/下标；裁剪后的失效目标统一 `409`，重复评价不增加治理计数、改评按差量更新。移除前端旧快捷工具调用及后端宽泛参数会话工具路由，保留工作台快捷回答和 H3 固定只读工具链。修正固定 `run-detail` 题缺任务类型的问题，题集版本改为 `2026-09-23`，旧版本评分不混算。独立审查发现并修复旧下标落到控制消息时错误返回 `422` 的边界。后端 Hermes 定向 `57 passed`、非集成全量 `2629 passed / 2 skipped`，前端全量 `76 files / 369 tests passed`，TypeScript、生产构建、Ruff、格式及 mypy 通过。发布环境只读核对有 1 个启用模型配置，但无项目绑定，固定题依赖的运行/需求/知识编号 1 均不存在；未调用真实模型或更改目标数据，角色与审计验收仍待隔离项目及数据准备。见 [`hermes-development-plan-2026-09-01.md`](hermes-development-plan-2026-09-01.md) 和 [`evidence/hermes-evaluation-readiness-2026-09-23.json`](evidence/hermes-evaluation-readiness-2026-09-23.json)。
 
 - 2026-09-23：补齐 C3.4.2 的 Grafana 同源前置条件。单节点发布 Compose 增加回环绑定的 Grafana 11.3.0，沿用发布 Prometheus 的 Docker 网络，并加载 `atp-overview` 的 17 个面板；通过数据源代理查询到 `atp-backend up=1`，Grafana 告警规则仍为 0。密码与服务密钥由目标机 root 文件经 Compose secrets 传入，未写入仓库。初次以 `0600` 挂载时非 root 容器无法读取，改为 `root:root 0640` 后 API 健康检查通过；Prometheus 未重建，4/4 target up、容器重启计数 0。配置契约 `6 passed`，证据见 [`evidence/c3-slo-grafana-2026-09-23.json`](evidence/c3-slo-grafana-2026-09-23.json)。9 月 21/22 日报告的 Grafana 复选框不追溯勾选，7/14 日代表性流量校准继续待定。
