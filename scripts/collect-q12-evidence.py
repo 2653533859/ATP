@@ -361,7 +361,7 @@ def _build_slo_bundle(
 
     request_rate_query = 'sum(rate(http_requests_total{job="atp-backend"}[1h]))'
     availability_query = (
-        f'(1 - (sum(rate(http_requests_total{{job="atp-backend",status="5xx"}}[1h])) '
+        f'(1 - ((sum(rate(http_requests_total{{job="atp-backend",status="5xx"}}[1h])) or vector(0)) '
         f"/ clamp_min({request_rate_query}, 1e-9))) and on() ({request_rate_query} > 0)"
     )
     latency_5m_query = (
@@ -560,9 +560,10 @@ def _build_slo_bundle(
 
         day += timedelta(days=1)
 
-    window_clean = not breach_rows and not data_gap_rows
-    alert_enablement = "enabled" if window_clean and total_days >= 14 else "deferred"
-    release_gate = "enabled" if window_clean and total_days >= 14 else "deferred"
+    # Prometheus cannot establish whether the traffic represents real usage or
+    # whether the operator reviewed Grafana and the target decisions.
+    alert_enablement = "deferred"
+    release_gate = "deferred"
     if data_gap_rows:
         rationale = (
             "Automated collection could not evaluate every SLO for every day in the window; "
@@ -576,7 +577,10 @@ def _build_slo_bundle(
             "stable calibration period; decisions stay deferred."
         )
     else:
-        rationale = "Automated collection found no breaches in the requested window."
+        rationale = (
+            "Automated collection found no breaches, but representative traffic, the Grafana source, "
+            "and target decisions still require operator review before enabling alerts or release gates."
+        )
 
     artifact_paths = _slo_artifact_paths(start_date, end_date)
     artifact_rows = [
@@ -628,7 +632,7 @@ def _build_slo_bundle(
         (
             "endpoint_mix",
             artifact_paths[3],
-            json.dumps(_endpoint_mix_json(endpoint_mix_series), indent=2, ensure_ascii=False),
+            json.dumps(_endpoint_mix_json(endpoint_mix_series), indent=2, ensure_ascii=False) + "\n",
         ),
     ]
 
@@ -657,7 +661,7 @@ def _render_daily_csv(headers: list[str], rows: list[list[str]]) -> str:
     return "".join(",".join(cell(str(value)) for value in row) + "\n" for row in csv_rows)
 
 
-def _render_slo_markdown(evidence: SloEvidence, *, grafana_verified: bool = True) -> str:
+def _render_slo_markdown(evidence: SloEvidence, *, grafana_verified: bool = False) -> str:
     breach_block = _markdown_table(
         ["Date/time", "SLO", "Observed value", "Cause", "Attribution", "Action / follow-up"],
         evidence.breach_rows or [["N/A", "N/A", "N/A", "No breaches", "N/A", "N/A"]],
@@ -706,7 +710,7 @@ def _render_slo_markdown(evidence: SloEvidence, *, grafana_verified: bool = True
 {backend_scrape_precondition} Prometheus continuously scraped `atp-backend` for the full window.
 {worker_scrape_precondition} Worker metrics were scraped on `WORKER_METRICS_PORT` for the full window.
 {grafana_precondition} Grafana `atp-overview` loaded against the same Prometheus source.
-- [x] Traffic profile is documented as real usage or synthetic profile.
+- [ ] Traffic profile is documented as real usage or synthetic profile.
 
 Traffic profile:
 
@@ -1120,7 +1124,7 @@ def _render_acceptance_markdown(
     android_ok: bool,
     follow_ups: list[list[str]] | None = None,
 ) -> str:
-    status = "accepted" if slo_ok and android_ok else "accepted with follow-ups"
+    status = "accepted" if slo_ok and android_ok else "not accepted"
     follow_rows = follow_ups or [["P0", "Review generated SLO/Android outputs", "Automation", date_text]]
     return f"""# Q12 Acceptance Summary
 
@@ -1145,13 +1149,13 @@ Q12 acceptance closes the external evidence carried through Q13/Q14:
 Alert enablement:
 
 ```text
-{"deferred until automated collection confirms a clean window." if not slo_ok else "enabled for the current stable window."}
+{"deferred pending complete calibration and operator review." if not slo_ok else "enabled for the reviewed stable window."}
 ```
 
 Release-blocking gate:
 
 ```text
-{"deferred until automated collection confirms a clean window." if not slo_ok else "enabled for the current stable window."}
+{"deferred pending complete calibration and operator review." if not slo_ok else "enabled for the reviewed stable window."}
 ```
 
 ## Android Rehearsal Decision
@@ -1165,7 +1169,7 @@ Release-blocking gate:
 ## Acceptance Statement
 
 ```text
-{"Q12 external evidence is accepted with the documented follow-up." if slo_ok and android_ok else "Q12 evidence was generated automatically but still needs manual review of failures or gaps."}
+{"Q12 external evidence is accepted with the documented follow-up." if slo_ok and android_ok else "Q12 evidence was generated automatically; complete calibration and operator review are still required."}
 ```
 """
 
@@ -1259,12 +1263,12 @@ def run(
         date_text=android_date.isoformat(),
         slo_path=slo_path.relative_to(repo_root),
         android_path=android_path.relative_to(repo_root),
-        slo_ok=not slo_bundle.breach_rows and not slo_bundle.data_gap_rows,
+        slo_ok=slo_bundle.release_blocking_gate == "enabled",
         android_ok=all(row[1] == "yes" for row in android_bundle.pass_rows),
     )
 
     written: list[Path] = []
-    _write_text(slo_path, _render_slo_markdown(slo_bundle), force)
+    _write_text(slo_path, _render_slo_markdown(slo_bundle, grafana_verified=False), force)
     written.append(slo_path)
     _write_text(android_path, _render_android_markdown(android_bundle), force)
     written.append(android_path)

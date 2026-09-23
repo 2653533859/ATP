@@ -12,6 +12,7 @@ Observed traffic window:
 - Release Prometheus history: collection started on 2026-09-13 for the current single-node target. The standalone collector retains 15 days and currently scrapes Backend, ordinary Worker, Performance Worker and itself. The first seven-day window, 2026-09-13 through 2026-09-19, has 288/288 Backend and Worker checkpoints every day, but only 2026-09-14 contains traffic: 34 bounded synthetic requests and 3 runs, with 100% availability, 95ms P95 and 100% run success. The other six days have no business samples, so the initial calibration is not accepted; see [`slo-history-2026-09-13-2026-09-19.md`](slo-history-2026-09-13-2026-09-19.md). Ratio queries exclude hours without matching business activity, each SLO receives an independent decision, and midnight range samples are attributed to the day their right-closed interval measures. The collector rejects the current or a future UTC day rather than recording a partial day as history.
 - Metric-chain canary: on 2026-09-15, bounded authenticated read traffic and two self-targeted API case runs established HTTP request, latency histogram, and `atp_run_outcomes_total{entity_type="case",status="passed"}` growth across Prometheus scrapes. This verifies instrumentation only; the in-progress UTC day and synthetic traffic are excluded from complete-day calibration evidence.
 - New candidate window: 2026-09-20 was rejected because a host restart left Backend and Worker at 276/288 five-minute checkpoints, despite 30 requests, 95ms P95 and two passed runs. A dedicated `tester` account with project 77 `editor` access now runs the bounded canary through a persistent systemd timer. The replacement window starts on 2026-09-21 and still requires complete UTC-day evidence before each day is accepted.
+- 2026-09-21 and 2026-09-22 now have complete UTC-day preflight reports with Backend/Worker at 288/288 each day, API availability 100%, P95 95ms, and run success 100%. Each day contains only bounded synthetic canary traffic (21 and 20 requests; two runs each). The 2026-09-21 scheduled invocation failed its credential-file permission check and was manually retried; 2026-09-22 completed unattended. These reports verify collection and metric continuity, but neither day qualifies as representative traffic for the 7/14-day calibration. See [`slo-history-2026-09-21-2026-09-21.md`](slo-history-2026-09-21-2026-09-21.md) and [`slo-history-2026-09-22-2026-09-22.md`](slo-history-2026-09-22-2026-09-22.md).
 - Decision: keep the Q10 short-window SLOs as pre-production guardrails. Do not enable paging-grade alerts before 7 consecutive days or make SLOs release-blocking before the 14-day calibration is reviewed.
 
 Production adoption window:
@@ -55,6 +56,7 @@ Linux 发布机使用仓库中的 [`deploy/systemd/atp-slo-canary.service`](../d
 
 采集器按 5 分钟检查点验证 Backend/Worker 抓取连续性，并把 `NaN`、无穷值、无样本、少于 288 个日检查点或 `up=0`
 统一记录为数据缺口；任何缺口都会让 alert/release gate 保持 `deferred`。不足 7 天的运行只标记为 preflight。
+即使 14 天窗口的自动查询全部达标，采集器也保持告警和发布门禁为 `deferred`：请求量与端点分布无法单独证明流量具有代表性，Grafana 数据源及 SLO 目标取舍需要操作员审查。生成报告中的 Grafana 和流量来源复选框默认未勾选，须结合实际证据核对后完成。
 
 The current targets are intentionally conservative for an internal automation platform: they should catch backend instability without creating noise while request volume is still low and bursty.
 
@@ -95,12 +97,14 @@ Use this metric to start triage, then separate platform errors from expected tes
 ### API Availability
 
 ```promql
-1 - (
-  sum(rate(http_requests_total{job="atp-backend",status="5xx"}[1h]))
+(1 - (
+  (sum(rate(http_requests_total{job="atp-backend",status="5xx"}[1h])) or vector(0))
   /
   clamp_min(sum(rate(http_requests_total{job="atp-backend"}[1h])), 1e-9)
-)
+)) and on() (sum(rate(http_requests_total{job="atp-backend"}[1h])) > 0)
 ```
+
+Prometheus omits a `status="5xx"` series when no 5xx request has occurred. `or vector(0)` counts that absence as zero errors only when the total request rate is positive; hours without requests remain unevaluable.
 
 ### API P95 Latency
 
@@ -134,14 +138,14 @@ The Grafana short-window panel uses:
 clamp_min(
   1 - (
     (
-      sum(rate(http_requests_total{job="atp-backend",status="5xx"}[1h]))
+      (sum(rate(http_requests_total{job="atp-backend",status="5xx"}[1h])) or vector(0))
       /
       clamp_min(sum(rate(http_requests_total{job="atp-backend"}[1h])), 1e-9)
     )
     / 0.005
   ),
   0
-)
+) and on() (sum(rate(http_requests_total{job="atp-backend"}[1h])) > 0)
 ```
 
 Interpretation:

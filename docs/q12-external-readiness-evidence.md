@@ -151,6 +151,9 @@ make collect-release-slo-evidence \
 `pre-calibration preflight`，不会伪装成 day-7 记录。SLO-only 不访问 Grafana，因此对应前置条件保持未勾选，须由操作员
 在同一数据源上人工确认。需要重新生成同名文件时显式传入 `FORCE=1`。
 
+自动采集只提供观测数据，不会仅凭 14 天无 breach 就启用告警或发布门禁；流量是否具有代表性、Grafana 是否使用同一数据源，以及目标值是否保持，均须操作员核对。生成的 Q12 验收摘要在完成校准与审查前标为 `not accepted`，结构校验也会指出未勾选的前置条件。
+完成审查后，在有日期的 SLO 报告中记录流量来源、Grafana 核对结果和各目标决策，再更新验收摘要并运行 `make validate-q12-evidence`；仅修改自动生成的 `deferred` 文本不能代替这些证据。
+
 To initialize all three draft files with consistent names and cross-links, run:
 
 ```bash

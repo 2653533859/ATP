@@ -57,7 +57,9 @@ def test_grafana_api_error_alert_uses_grouped_status_and_low_traffic_ratio():
     expression = next(item["model"]["expr"] for item in api_rule["data"] if item["refId"] == "A")
 
     assert 'http_requests_total{status="5xx"}' in expression
+    assert 'sum(rate(http_requests_total{status="5xx"}[5m])) or vector(0)' in expression
     assert "clamp_min(sum(rate(http_requests_total[5m])), 1e-9)" in expression
+    assert "and on() (sum(rate(http_requests_total[5m])) > 0)" in expression
 
 
 def test_redis_override_enables_acl_and_every_second_aof():

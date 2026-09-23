@@ -193,17 +193,18 @@ def test_collect_q12_evidence_writes_reports_and_artifacts(repo_root, tmp_path, 
     assert "Window: 2026-07-01 to 2026-07-02" in slo
     assert "Pixel 8" in android
     assert "192.168.1.8:5555" in android
-    assert "Q12 external evidence is accepted" in acceptance
+    assert "> Status: not accepted" in acceptance
+    assert "- [ ] Grafana `atp-overview` loaded" in slo
+    assert "- [ ] Traffic profile is documented" in slo
 
     validator = _load_validator(repo_root)
-    assert (
-        validator.validate_all(
-            tmp_path / "docs/slo-history-2026-07-01-2026-07-02.md",
-            tmp_path / "docs/android-device-rehearsal-2026-07-02.md",
-            tmp_path / "docs/q12-acceptance-summary.md",
-        )
-        == []
+    errors = validator.validate_all(
+        tmp_path / "docs/slo-history-2026-07-01-2026-07-02.md",
+        tmp_path / "docs/android-device-rehearsal-2026-07-02.md",
+        tmp_path / "docs/q12-acceptance-summary.md",
     )
+    assert "SLO: contains unchecked checklist items" in errors
+    assert "Acceptance: status still says not accepted" in errors
 
 
 class _StubPrometheus:
@@ -321,6 +322,7 @@ def test_ratio_queries_exclude_hours_without_business_activity(repo_root):
         query for query in prometheus.queries if "atp_run_outcomes_total" in query and 'status="passed"' in query
     )
     assert "and on()" in availability_query
+    assert 'sum(rate(http_requests_total{job="atp-backend",status="5xx"}[1h])) or vector(0)' in availability_query
     assert 'sum(rate(http_requests_total{job="atp-backend"}[1h])) > 0' in availability_query
     assert "and on()" in success_query
     assert 'sum(rate(atp_run_outcomes_total{status=~"passed|failed|error"}[1h])) > 0' in success_query
@@ -456,8 +458,8 @@ def test_prometheus_client_discards_nan_samples(repo_root, monkeypatch):
     assert instant[0].samples == []
 
 
-def test_full_window_without_breaches_enables_the_gate(repo_root):
-    """The clean 14-day path still reaches enabled, so the gap guard is not a blanket block."""
+def test_full_window_without_breaches_requires_operator_review(repo_root):
+    """Clean metrics cannot certify representative traffic or approve a release gate."""
     module = _load_collector(repo_root)
     prometheus = _StubPrometheus(
         availability=[0.999, 0.999],
@@ -489,8 +491,12 @@ def test_full_window_without_breaches_enables_the_gate(repo_root):
 
     assert evidence.breach_rows == []
     assert evidence.data_gap_rows == []
-    assert evidence.alert_enablement == "enabled"
-    assert evidence.release_blocking_gate == "enabled"
+    assert evidence.alert_enablement == "deferred"
+    assert evidence.release_blocking_gate == "deferred"
+    assert "representative traffic" in evidence.rationale
+    rendered = module._render_slo_markdown(evidence)
+    assert "- [ ] Grafana `atp-overview` loaded" in rendered
+    assert "- [ ] Traffic profile is documented" in rendered
 
 
 def test_partial_five_minute_scrape_history_blocks_an_otherwise_clean_window(repo_root):

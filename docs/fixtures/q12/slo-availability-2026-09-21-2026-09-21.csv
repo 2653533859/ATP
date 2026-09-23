@@ -1,0 +1,2 @@
+date,worst,mean,request_volume,notes
+2026-09-21,100,100,21,daily request volume from Prometheus
