@@ -1,6 +1,6 @@
 # Hermes 助手开发文档
 
-> 版本：H9.5 / 2026-09-14
+> 版本：H9.5 加固 / 2026-09-23
 > 状态：H1～H9.5 本地开发及目标同节点双 Backend 一致性验收已完成；真实模型、角色、多节点故障域与发布门禁待独立验收
 > 关联计划：[`development-plan-2026-09-08.md`](development-plan-2026-09-08.md) H9
 
@@ -67,7 +67,7 @@ Hermes 页面
 - 检索与提示词：`backend/app/services/hermes.py`
 - 数据契约：`backend/app/schemas/hermes.py`
 - 前端页面：`frontend/src/views/intelligence/HermesAssistantView.vue`
-- 前端接口类型：`frontend/src/api/index.ts`
+- 前端接口类型：`frontend/src/api/hermes.ts`（`index.ts` 保留兼容导出）
 
 ### H2 多轮上下文链路
 
@@ -290,6 +290,7 @@ Content-Type: application/json
 - `POST /api/v1/hermes/sessions`：当前项目 `viewer` 可创建空会话，标题长度最多 80；用于首次保存草稿时建立持久会话。
 - `POST /api/v1/hermes/sessions/{session_id}/drafts`：当前项目 `editor` 才能保存 H4 有界草稿。
 - `POST /api/v1/hermes/sessions/{session_id}/drafts/confirm`：必须显式提交 `confirmation=CONFIRM`，只创建禁用的手工计划草稿。
+- `POST /api/v1/hermes/sessions/{session_id}/feedback`：只接受当前会话仍保留的助手消息，提交 `message_index` 与服务端生成的 `message_id`；两者不一致返回 `409`。重复同一评价不重复计数，改评时调整旧、新计数。旧会话中没有消息 ID 的回复不再显示评价按钮。
 
 ### H5 / H9.3 评测与治理
 
@@ -297,6 +298,7 @@ Content-Type: application/json
 - 评测题必须原样提交到声明的 `/hermes/query` 或 `/hermes/orchestrate` 入口。服务端只对当前版本精确题目评分；查询题先绕过模型工具规划，编排题仍执行原固定只读工具和权限链路。
 - `GET /api/v1/hermes/governance/summary?project_id={id}`：在当前项目 viewer 权限下返回项目级聚合，包括四项评测准确率及各自样本数、运行次数、题目覆盖、prompt 版本、引用覆盖、拒答/无结果率、延迟、人工反馈和 H9.2 成本；不返回会话正文。
 - 评测结果保存到 Session `metrics.evaluation_results`：累计 `run_count`，同一 Session 的同一道题只保留当前版本最新评分。正文裁剪不删除结果，重复题也不会重复增加质量指标分母；新版本与旧版本不混算。
+- 当前固定集版本为 `2026-09-23`。`run-detail` 题显式指定 `case` 类型；旧题文本不再作为当前版本评测输入。
 
 ### H6/H7/H8 自然语言编排
 
@@ -329,6 +331,8 @@ Content-Type: application/json
 ```
 
 响应统一包含 `status`、`duration_ms`、有界 `data`、`evidence` 和 `generated_at`。`status` 可能为 `ok`、`empty`、`not_found`、`timeout` 或 `error`；参数不符合工具专属白名单时返回 422，项目权限不足时返回 403。审计只记录工具名、项目、状态和耗时，不记录原始 arguments、会话正文或工具返回正文。
+
+旧 `/hermes/sessions/{session_id}/tools/{tool_name}` 快捷接口已移除；页面中的快捷回答继续使用已加载的项目工作台数据。需要后端工具证据和审计时，调用本节固定的 H3 接口或自然语言编排入口。
 
 ## 5. AI 配置与安全边界
 
@@ -418,6 +422,10 @@ H9.2 不内置模型价格。需要成本估算时，在项目绑定模型的 `d
 
 单价单位为“每百万 Token”，币种使用三位字母。供应商未返回 usage 时显示 `usage_unavailable`；有 usage 但没有价格时显示 `pricing_not_configured`；部分调用未计价时显示 `partially_unpriced`。这些状态不会伪造为零成本。
 
+运行当前十题评测前，先在受控隔离项目核实：项目绑定已启用模型；同一项目可访问 `case` 运行编号 1、需求编号 1 和知识编号 1；并有匹配“登录”的知识或需求来源。编号是当前固定题目的精确输入，不应在已有业务项目中强行改写主键来凑齐。缺少任一资产时，记录该题未覆盖，不把 `not_found`、追问或空数据算作真实模型通过。若需在任意项目使用其他编号，应另行设计项目绑定的评测题模板和服务端评分契约。
+
+2026-09-23 对发布环境的只读核对显示：启用模型配置 1 个，绑定模型的项目 0 个，固定题所需的运行/需求/知识编号 1 均不存在。因此该环境目前不具备十题真实模型验收前置条件；未调用模型或改动项目配置。脱敏记录见 [`evidence/hermes-evaluation-readiness-2026-09-23.json`](evidence/hermes-evaluation-readiness-2026-09-23.json)。
+
 生成测试计划时，Hermes 先在当前页编辑结构化草稿；“确认并打开计划页”会打开 `plans?project_id=<id>` 的预填保存页，刷新或关闭页面不会恢复该路径的未保存草稿；“确认后保存草稿”则在二次确认后创建禁用手工计划，不会自动执行。
 
 ## 8. 验证命令
@@ -474,6 +482,7 @@ H9.3 当前验证记录：评测、治理与路由定向后端 `36 passed`，Her
 ## 9. 发布前检查清单
 
 - [ ] 目标环境配置启用的 AI 模型，并完成一次真实问答。
+- [ ] 在隔离项目核实当前十题所需资产归属，运行 `2026-09-23` 版本评测并记录真实模型质量阈值、样本数与失败题。
 - [ ] 真实模型异常、超时、限额及无有效 `[S#]` 引用场景仍能回退规则结果。
 - [ ] 管理员和 viewer 完成跨项目读写隔离验证。
 - [ ] 供应商请求、回答、审计日志中没有 API Key、Token、Cookie 或敏感正文。
@@ -492,6 +501,13 @@ H9.3 当前验证记录：评测、治理与路由定向后端 `36 passed`，Her
 - [ ] P4 性能环境门禁和 P9 发布收口仍需单独完成，Hermes 本地通过不等价于整体发布通过。
 
 ## 10. 变更记录
+
+### 2026-09-23 / H9 加固
+
+- 对可评价回复增加服务端生成的稳定 `message_id`。反馈请求同时验证 ID 与当前位置，避免最近 40 条历史裁剪后旧下标误评另一条消息；同评分重复提交保持幂等，改评按差量更新计数。旧无 ID 消息不再展示反馈按钮，失效下标返回 `409` 并提示刷新。既往已累计的重复反馈因历史消息可能已裁剪，无法可靠重建，本次不回写历史统计。
+- 移除仍被页面调用的旧快捷工具接口和宽泛参数会话写入；后端受控工具入口统一为 H3 `/hermes/tools/execute`，快捷回答继续读取工作台已加载的数据。
+- `run-detail` 固定题补 `case` 任务类型，评测集版本升至 `2026-09-23`，旧版本结果不混入新版本分母。增加所有编排题命中声明工具的回归契约。
+- 独立审查发现并修复旧下标落到用户或控制消息时错误返回 `422` 的边界；所有目标错位统一返回 `409`。Hermes 后端定向 `57 passed`、后端非集成全量 `2629 passed / 2 skipped`，前端全量 `76 files / 369 tests passed`，TypeScript、生产构建、Ruff、格式和 mypy 通过。发布环境只读核对发现项目模型绑定和固定资产均缺失，真实模型、管理员/Viewer 角色矩阵及供应商审计仍待单独验收。
 
 ### 2026-09-14 / H9.5
 

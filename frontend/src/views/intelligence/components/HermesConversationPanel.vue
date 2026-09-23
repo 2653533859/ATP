@@ -57,7 +57,7 @@
               {{ source.label }} <ArrowRightOutlined />
             </button>
           </div>
-          <a-space v-if="item.role === 'assistant' && item.backendIndex != null" size="small">
+          <a-space v-if="item.role === 'assistant' && item.backendIndex != null && item.backendMessageId" size="small">
             <a-button type="text" size="small" @click="emit('rate-message', item, 'helpful')">{{ t('hermes.helpful') }}</a-button>
             <a-button type="text" size="small" @click="emit('rate-message', item, 'not_helpful')">{{ t('hermes.not_helpful') }}</a-button>
           </a-space>

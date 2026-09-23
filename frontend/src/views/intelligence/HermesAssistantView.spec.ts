@@ -198,6 +198,9 @@ beforeEach(() => {
       updated_at: '2026-08-25T10:00:00Z',
     }],
     generated_at: '2026-08-25T10:00:00Z',
+    session_id: 101,
+    message_index: 1,
+    message_id: 'a'.repeat(32),
   })
   createSession.mockResolvedValue({ id: 101 })
   sessions.mockResolvedValue([])
@@ -206,7 +209,7 @@ beforeEach(() => {
   governance.mockResolvedValue({
     prompt_version: 'hermes-v2',
     prompt_versions: ['hermes-v2'],
-    evaluation_set: { id: 'hermes-core-v2', version: '2026-09-14', size: 10 },
+    evaluation_set: { id: 'hermes-core-v2', version: '2026-09-23', size: 10 },
     sessions: 2,
     assistant_messages: 3,
     citation_coverage: 0.8,
@@ -290,9 +293,10 @@ beforeEach(() => {
     generated_at: '2026-09-03T10:00:00Z',
     session_id: 101,
     message_index: 1,
+    message_id: 'b'.repeat(32),
     evaluation: {
       set_id: 'hermes-core-v2',
-      set_version: '2026-09-14',
+      set_version: '2026-09-23',
       case_id: 'failed-and-quality',
       scores: {
         tool_selection: true,
@@ -324,7 +328,7 @@ describe('HermesAssistantView', () => {
     expect(governance).toHaveBeenCalledWith(1)
     expect(wrapper.find('.governance-card').exists()).toBe(true)
     expect(wrapper.find('.governance-card').text()).toContain('80%')
-    expect(wrapper.find('.governance-card').text()).toContain('2026-09-14')
+    expect(wrapper.find('.governance-card').text()).toContain('2026-09-23')
     expect(vm.qualityScore).toBe(78)
     expect(vm.failedTasks).toHaveLength(1)
     expect(vm.messages[0].sources).toHaveLength(2)
@@ -368,6 +372,47 @@ describe('HermesAssistantView', () => {
     expect(vm.messages.at(-1).sources[0].path).toBe('/knowledge?project_id=1&knowledge_id=2')
     expect(vm.querying).toBe(false)
 
+    wrapper.unmount()
+  })
+
+  it('sends feedback with the persisted message ID and refreshes governance', async () => {
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    await vm.queryHermes('登录排查')
+    const target = vm.messages.at(-1)
+    expect(target.backendIndex).toBe(1)
+    expect(target.backendMessageId).toBe('a'.repeat(32))
+    const governanceCalls = governance.mock.calls.length
+
+    await vm.rateMessage(target, 'helpful')
+
+    expect(feedback).toHaveBeenCalledWith(101, {
+      project_id: 1,
+      message_index: 1,
+      message_id: 'a'.repeat(32),
+      rating: 'helpful',
+    })
+    expect(governance).toHaveBeenCalledTimes(governanceCalls + 1)
+    wrapper.unmount()
+  })
+
+  it('keeps legacy messages without a persisted ID out of feedback', async () => {
+    sessions.mockResolvedValueOnce([{
+      id: 101,
+      context_filters: {},
+      messages: [{ role: 'assistant', content: '旧回答', at: '2026-09-01T10:00:00Z' }],
+      updated_at: '2026-09-01T10:00:00Z',
+    }])
+    const wrapper = mountHermes()
+    await flushPromises()
+    const vm = wrapper.vm as any
+
+    expect(vm.messages[0].backendIndex).toBeUndefined()
+    expect(vm.messages[0].backendMessageId).toBeUndefined()
+    await vm.rateMessage(vm.messages[0], 'helpful')
+    expect(feedback).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 
@@ -748,10 +793,19 @@ describe('HermesAssistantView', () => {
 
     await vm.queryHermes('并发查询')
     vm.sessionId = 101
-    await vm.rateMessage({ backendIndex: 1 }, 'helpful')
+    const target = { backendIndex: 1, backendMessageId: 'a'.repeat(32) }
+    await vm.rateMessage(target, 'helpful')
 
     expect(vm.messages.at(-1).text).toBe('hermes.session_conflict')
     expect(messageWarning).toHaveBeenCalledWith('hermes.session_conflict')
+    expect(feedback).toHaveBeenCalledWith(101, {
+      project_id: 1,
+      message_index: 1,
+      message_id: 'a'.repeat(32),
+      rating: 'helpful',
+    })
+    expect(target.backendIndex).toBeUndefined()
+    expect(target.backendMessageId).toBeUndefined()
     wrapper.unmount()
   })
 

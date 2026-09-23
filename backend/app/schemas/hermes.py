@@ -113,6 +113,7 @@ class HermesQueryOut(BaseModel):
     generated_at: datetime
     session_id: int
     message_index: int
+    message_id: str
     prompt_version: str = "hermes-v2"
     latency_ms: int = Field(ge=0)
     evaluation: HermesEvaluationResultOut | None = None
@@ -230,11 +231,6 @@ class HermesGovernanceSummaryOut(BaseModel):
     cost_tracking: HermesCostTrackingOut
 
 
-class HermesToolIn(BaseModel):
-    project_id: int = Field(ge=1)
-    arguments: dict = Field(default_factory=dict)
-
-
 class HermesDraftIn(BaseModel):
     project_id: int = Field(ge=1)
     draft_type: Literal["test_plan"] = "test_plan"
@@ -258,5 +254,6 @@ class HermesDraftConfirmIn(BaseModel):
 class HermesFeedbackIn(BaseModel):
     project_id: int = Field(ge=1)
     message_index: int = Field(ge=0)
+    message_id: str = Field(min_length=32, max_length=32, pattern=r"^[0-9a-f]{32}$")
     rating: Literal["helpful", "not_helpful"]
     comment: str | None = Field(default=None, max_length=1000)

@@ -276,6 +276,20 @@ def test_h9_evaluation_set_scores_only_exact_fixed_prompts_and_applicable_metric
     }
 
 
+def test_h9_orchestration_evaluation_prompts_route_to_the_declared_tools():
+    for case in HERMES_EVALUATION_SET:
+        if case["execution"] != "orchestrate":
+            continue
+        routing = plan_read_tools(case["prompt"])
+        assert routing.status == "matched", case["id"]
+        assert {plan.tool for plan in routing.plans} == set(case["expected_tools"]), case["id"]
+
+    run_detail = next(case for case in HERMES_EVALUATION_SET if case["id"] == "run-detail")
+    routing = plan_read_tools(run_detail["prompt"])
+    assert routing.plans[0].arguments == {"task_type": "case", "run_id": 1}
+    assert hermes_evaluation_case("请查看运行 1 的执行详情。", "orchestrate") is None
+
+
 def test_h9_evaluation_scores_grounded_citations_and_unsupported_refusal():
     grounded = score_hermes_evaluation(
         "登录。请依据当前项目需求给出可追溯结论。",

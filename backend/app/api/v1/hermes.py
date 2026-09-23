@@ -22,7 +22,6 @@ from app.core.encryption import decrypt
 from app.core.database import get_db
 from app.models.ai_llm_config import AILLMConfig
 from app.models.case import TestCase
-from app.models.case import TestRun
 from app.models.hermes import HermesSession
 from app.models.bootstrap import load_all_models
 from app.models.knowledge import KnowledgeEntry
@@ -43,7 +42,6 @@ from app.schemas.hermes import (
     HermesSessionCreateIn,
     HermesSessionOut,
     HermesSourceOut,
-    HermesToolIn,
 )
 from app.schemas.hermes_orchestration import (
     HermesOrchestrationIn,
@@ -537,6 +535,7 @@ async def orchestrate_hermes(
     )
     assistant_message: dict[str, Any] = {
         "role": "assistant",
+        "message_id": uuid.uuid4().hex,
         "content": answer,
         "mode": "project_retrieval",
         "sources": evidence,
@@ -585,6 +584,7 @@ async def orchestrate_hermes(
         generated_at=generated_at,
         session_id=session.id,
         message_index=len(session.messages) - 1,
+        message_id=assistant_message["message_id"],
         evaluation=evaluation,
     )
 
@@ -941,6 +941,7 @@ async def query_hermes(
     )
     assistant_message: dict[str, Any] = {
         "role": "assistant",
+        "message_id": uuid.uuid4().hex,
         "content": answer,
         "mode": mode,
         "sources": source_payloads,
@@ -989,6 +990,7 @@ async def query_hermes(
         generated_at=generated_at,
         session_id=session.id,
         message_index=len(session.messages) - 1,
+        message_id=assistant_message["message_id"],
         latency_ms=latency_ms,
         evaluation=evaluation,
     )
@@ -1064,68 +1066,6 @@ async def hermes_evaluation_set(user: User = Depends(get_current_user)):
         "version": HERMES_EVALUATION_SET_VERSION,
         "questions": list(HERMES_EVALUATION_SET),
     }
-
-
-@router.post("/hermes/sessions/{session_id}/tools/{tool_name}")
-async def run_hermes_readonly_tool(
-    session_id: int,
-    tool_name: str,
-    body: HermesToolIn,
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
-    session = await _owned_session(db, user, session_id, body.project_id)
-    if tool_name == "failed_runs":
-        query = (
-            select(TestRun)
-            .join(TestCase, TestCase.id == TestRun.case_id)
-            .join(Module, Module.id == TestCase.module_id)
-            .where(Module.project_id == body.project_id, TestRun.status.in_(["failed", "error"]))
-            .order_by(TestRun.created_at.desc())
-            .limit(max(1, min(int(body.arguments.get("limit", 10)), 50)))
-        )
-        rows = (await db.execute(query)).scalars().all()
-        result = [
-            {
-                "run_id": row.id,
-                "case_id": row.case_id,
-                "status": _enum_value(row.status),
-                "error": redact_llm_text(row.error_message or "", limit=500),
-            }
-            for row in rows
-        ]
-    elif tool_name == "quality_summary":
-        query = (
-            select(TestRun)
-            .join(TestCase, TestCase.id == TestRun.case_id)
-            .join(Module, Module.id == TestCase.module_id)
-            .where(Module.project_id == body.project_id)
-            .order_by(TestRun.created_at.desc())
-            .limit(500)
-        )
-        rows = (await db.execute(query)).scalars().all()
-        statuses = [_enum_value(row.status) for row in rows]
-        passed = statuses.count("passed")
-        result = {"total": len(rows), "passed": passed, "pass_rate": round(passed / len(rows) * 100, 2) if rows else 0}
-    else:
-        raise HTTPException(status_code=404, detail="Hermes 只读工具不存在")
-    messages = list(session.messages or [])
-    messages.append(
-        {
-            "role": "tool",
-            "tool": tool_name,
-            "arguments": body.arguments,
-            "result": result,
-            "at": datetime.now(timezone.utc).isoformat(),
-        }
-    )
-    session.messages = messages[-40:]
-    metrics = dict(session.metrics or {})
-    metrics["tool_calls"] = int(metrics.get("tool_calls", 0)) + 1
-    session.metrics = metrics
-    await _commit_hermes_state(db)
-    return {"session_id": session.id, "tool": tool_name, "result": result}
 
 
 @router.post("/hermes/sessions/{session_id}/drafts")
@@ -1255,12 +1195,23 @@ async def submit_hermes_feedback(
     session = await _owned_session(db, user, session_id, body.project_id)
     messages = list(session.messages or [])
     message = messages[body.message_index] if body.message_index < len(messages) else None
-    if (
-        not isinstance(message, dict)
-        or message.get("role") != "assistant"
-        or message.get("kind") in {"orchestration_clarification", "orchestration_cancellation"}
-    ):
+    if not isinstance(message, dict):
+        raise HTTPException(status_code=409, detail="Hermes 消息已更新，请刷新会话后重试")
+    if message.get("message_id") != body.message_id:
+        raise HTTPException(status_code=409, detail="Hermes 消息已更新，请刷新会话后重试")
+    if message.get("role") != "assistant" or message.get("kind") in {
+        "orchestration_clarification",
+        "orchestration_cancellation",
+    }:
         raise HTTPException(status_code=422, detail="只能评价 Hermes 助手消息")
+    previous_rating = message.get("feedback")
+    if previous_rating == body.rating and message.get("feedback_comment") == body.comment:
+        return {
+            "session_id": session.id,
+            "message_index": body.message_index,
+            "message_id": body.message_id,
+            "rating": body.rating,
+        }
     messages[body.message_index] = {
         **message,
         "feedback": body.rating,
@@ -1268,7 +1219,15 @@ async def submit_hermes_feedback(
     }
     session.messages = messages
     metrics = dict(session.metrics or {})
-    metrics[body.rating] = int(metrics.get(body.rating, 0)) + 1
+    if previous_rating != body.rating:
+        if previous_rating in {"helpful", "not_helpful"}:
+            metrics[previous_rating] = max(0, _safe_increment(metrics.get(previous_rating), 0) - 1)
+        metrics[body.rating] = _safe_increment(metrics.get(body.rating), 1)
     session.metrics = metrics
     await _commit_hermes_state(db)
-    return {"session_id": session.id, "message_index": body.message_index, "rating": body.rating}
+    return {
+        "session_id": session.id,
+        "message_index": body.message_index,
+        "message_id": body.message_id,
+        "rating": body.rating,
+    }

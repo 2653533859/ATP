@@ -307,7 +307,7 @@ def test_hermes_evaluation_set_is_bounded_and_authenticated():
     result = asyncio.run(hermes.hermes_evaluation_set(_user()))
 
     assert result["id"] == "hermes-core-v2"
-    assert result["version"] == "2026-09-14"
+    assert result["version"] == "2026-09-23"
     assert len(result["questions"]) == 10
     assert {item["expected_mode"] for item in result["questions"]} == {"project_retrieval", "no_results"}
     assert {item["execution"] for item in result["questions"]} == {"query", "orchestrate"}
@@ -353,7 +353,7 @@ def test_evaluation_metrics_keep_latest_case_score_and_durable_run_count():
     session = SimpleNamespace(metrics={})
     base = {
         "set_id": "hermes-core-v2",
-        "set_version": "2026-09-14",
+        "set_version": "2026-09-23",
         "case_id": "failed-task-triage",
     }
 
@@ -644,12 +644,17 @@ def test_hermes_orchestration_persists_pending_intent_and_resumes_only_in_same_c
         asyncio.run(
             hermes.submit_hermes_feedback(
                 clarification.session_id,
-                hermes.HermesFeedbackIn(project_id=1, message_index=clarification.message_index, rating="helpful"),
+                hermes.HermesFeedbackIn(
+                    project_id=1,
+                    message_index=clarification.message_index,
+                    message_id="f" * 32,
+                    rating="helpful",
+                ),
                 db,
                 _user(),
             )
         )
-    assert exc.value.status_code == 422
+    assert exc.value.status_code == 409
     assert db.added[0].metrics["helpful"] == 0
 
     wrong_conversation = asyncio.run(
@@ -800,12 +805,17 @@ def test_hermes_orchestration_cancels_pending_intent_only_in_its_bound_session(m
         asyncio.run(
             hermes.submit_hermes_feedback(
                 clarification.session_id,
-                hermes.HermesFeedbackIn(project_id=1, message_index=cancelled.message_index, rating="helpful"),
+                hermes.HermesFeedbackIn(
+                    project_id=1,
+                    message_index=cancelled.message_index,
+                    message_id="f" * 32,
+                    rating="helpful",
+                ),
                 db,
                 _user(),
             )
         )
-    assert exc.value.status_code == 422
+    assert exc.value.status_code == 409
 
 
 def test_rank_candidates_redacts_source_text_and_is_stable():
@@ -1124,12 +1134,96 @@ def test_hermes_feedback_is_project_and_message_scoped(monkeypatch):
     feedback = asyncio.run(
         hermes.submit_hermes_feedback(
             result.session_id,
-            hermes.HermesFeedbackIn(project_id=1, message_index=result.message_index, rating="helpful"),
+            hermes.HermesFeedbackIn(
+                project_id=1,
+                message_index=result.message_index,
+                message_id=result.message_id,
+                rating="helpful",
+            ),
             db,
             _user(),
         )
     )
 
     assert feedback["rating"] == "helpful"
+    assert feedback["message_id"] == result.message_id
+    assert db.added[0].messages[result.message_index]["message_id"] == result.message_id
     assert db.added[0].messages[result.message_index]["feedback"] == "helpful"
     assert db.added[0].metrics["helpful"] == 1
+
+
+def test_hermes_feedback_is_idempotent_and_replaces_previous_rating(monkeypatch):
+    async def allow_access(*_args):
+        return None
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    db = _matching_db(SimpleNamespace(id=1, name="核心项目"))
+    result = asyncio.run(hermes.query_hermes(HermesQueryIn(project_id=1, query="登录"), db, _user()))
+
+    def rate(rating, comment=None):
+        return asyncio.run(
+            hermes.submit_hermes_feedback(
+                result.session_id,
+                hermes.HermesFeedbackIn(
+                    project_id=1,
+                    message_index=result.message_index,
+                    message_id=result.message_id,
+                    rating=rating,
+                    comment=comment,
+                ),
+                db,
+                _user(),
+            )
+        )
+
+    rate("helpful")
+    rate("helpful")
+    rate("helpful", "补充了引用")
+    assert db.added[0].metrics["helpful"] == 1
+    assert db.added[0].metrics["not_helpful"] == 0
+
+    rate("not_helpful")
+    rate("not_helpful")
+    assert db.added[0].metrics["helpful"] == 0
+    assert db.added[0].metrics["not_helpful"] == 1
+    assert db.added[0].messages[result.message_index]["feedback"] == "not_helpful"
+
+
+@pytest.mark.parametrize(
+    ("new_role", "new_kind"),
+    [("assistant", None), ("user", None), ("assistant", "orchestration_clarification")],
+)
+def test_hermes_feedback_rejects_stale_index_after_history_trim(monkeypatch, new_role, new_kind):
+    async def allow_access(*_args):
+        return None
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    db = _matching_db(SimpleNamespace(id=1, name="核心项目"))
+    result = asyncio.run(hermes.query_hermes(HermesQueryIn(project_id=1, query="登录"), db, _user()))
+    session = db.added[0]
+    session.messages = [
+        *session.messages,
+        *[{"role": "assistant", "message_id": f"{index:032x}", "content": "后续回复"} for index in range(40)],
+    ][-40:]
+    assert session.messages[result.message_index]["message_id"] != result.message_id
+    session.messages[result.message_index]["role"] = new_role
+    if new_kind is not None:
+        session.messages[result.message_index]["kind"] = new_kind
+
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(
+            hermes.submit_hermes_feedback(
+                result.session_id,
+                hermes.HermesFeedbackIn(
+                    project_id=1,
+                    message_index=result.message_index,
+                    message_id=result.message_id,
+                    rating="helpful",
+                ),
+                db,
+                _user(),
+            )
+        )
+    assert exc.value.status_code == 409
+    assert session.metrics["helpful"] == 0
+    assert "feedback" not in session.messages[result.message_index]

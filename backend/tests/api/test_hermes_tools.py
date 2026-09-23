@@ -45,6 +45,13 @@ def test_list_hermes_tools_exposes_only_read_only_catalog():
     }
 
 
+def test_legacy_session_tool_endpoint_is_not_registered():
+    paths = {route.path for route in hermes.router.routes}
+
+    assert "/hermes/tools/execute" in paths
+    assert "/hermes/sessions/{session_id}/tools/{tool_name}" not in paths
+
+
 def test_execute_hermes_tool_checks_project_access_and_commits_safe_audit(monkeypatch):
     access_calls = []
     audit_calls = []

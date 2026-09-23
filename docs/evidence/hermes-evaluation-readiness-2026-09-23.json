@@ -1,0 +1,17 @@
+{
+  "evidence_type": "hermes_real_model_evaluation_readiness",
+  "observed_at": "2026-09-23T06:59:22Z",
+  "deployment": "atp-single-node",
+  "method": "read-only aggregate SQL from the running Backend container via Linux-MCP",
+  "enabled_model_config_count": 1,
+  "project_model_binding_count": 0,
+  "fixed_evaluation_asset_check": {
+    "observed_at": "2026-09-23T07:11:32Z",
+    "case_run_id_1_exists": false,
+    "requirement_id_1_exists": false,
+    "knowledge_id_1_exists": false
+  },
+  "real_model_evaluation": "not_run",
+  "role_matrix_and_audit_evaluation": "not_run_for_this_change",
+  "boundary": "The release target has an enabled model configuration but no project is bound to it, and the current fixed question target IDs do not exist. A real Hermes model run and complete ten-question evaluation require an explicitly chosen isolated project and fixture assets. This readiness check did not read model keys, endpoints, project content, or credentials."
+}

@@ -114,6 +114,7 @@ describe('Hermes workbench panels', () => {
             currency: 'USD',
           },
           backendIndex: 3,
+          backendMessageId: '0123456789abcdef0123456789abcdef',
         }],
         promptOptions: [{ key: 'quality', mark: '%', title: '质量分析', description: '查看趋势' }],
         taskNames: { 'case:5': '登录失败' },

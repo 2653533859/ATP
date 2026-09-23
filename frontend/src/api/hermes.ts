@@ -44,6 +44,7 @@ export interface HermesQueryResult {
   generated_at: string
   session_id: number
   message_index: number
+  message_id: string
   prompt_version: string
   latency_ms: number
   evaluation?: HermesEvaluationResult | null
@@ -202,6 +203,7 @@ export interface HermesOrchestrationResult {
   generated_at: string
   session_id?: number | null
   message_index?: number | null
+  message_id?: string | null
   evaluation?: HermesEvaluationResult | null
 }
 
@@ -235,6 +237,7 @@ export interface HermesDraftRequest {
 export interface HermesFeedbackRequest {
   project_id: number
   message_index: number
+  message_id: string
   rating: 'helpful' | 'not_helpful'
   comment?: string
 }
@@ -258,11 +261,6 @@ export const hermesApi = {
     ),
   feedback: (sessionId: number, body: HermesFeedbackRequest) =>
     http.post(`/hermes/sessions/${sessionId}/feedback`, body),
-  tool: (
-    sessionId: number,
-    toolName: 'failed_runs' | 'quality_summary',
-    body: { project_id: number; arguments?: Record<string, unknown> },
-  ) => http.post(`/hermes/sessions/${sessionId}/tools/${toolName}`, body),
   governance: (projectId: number) =>
     http.get<unknown, HermesGovernanceSummary>('/hermes/governance/summary', { params: { project_id: projectId } }),
 }

@@ -87,4 +87,5 @@ class HermesOrchestrationOut(BaseModel):
     generated_at: datetime
     session_id: int | None = None
     message_index: int | None = None
+    message_id: str | None = None
     evaluation: HermesEvaluationResultOut | None = None

@@ -48,7 +48,7 @@ describe('hermesApi', () => {
       payload: { name: '回归计划' },
     })
     hermesApi.confirmDraft(11, { project_id: 7, draft_id: 'draft-1', confirmation: 'CONFIRM' })
-    hermesApi.feedback(11, { project_id: 7, message_index: 3, rating: 'helpful' })
+    hermesApi.feedback(11, { project_id: 7, message_index: 3, message_id: 'a'.repeat(32), rating: 'helpful' })
     hermesApi.governance(7)
 
     expect(httpMock.get).toHaveBeenNthCalledWith(1, '/hermes/sessions', { params: { project_id: 7 } })
@@ -66,6 +66,7 @@ describe('hermesApi', () => {
     expect(httpMock.post).toHaveBeenNthCalledWith(4, '/hermes/sessions/11/feedback', {
       project_id: 7,
       message_index: 3,
+      message_id: 'a'.repeat(32),
       rating: 'helpful',
     })
     expect(httpMock.get).toHaveBeenNthCalledWith(2, '/hermes/governance/summary', {

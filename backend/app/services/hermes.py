@@ -34,7 +34,7 @@ class HermesEvaluationCase(TypedDict):
 
 HERMES_PROMPT_VERSION = "hermes-v2"
 HERMES_EVALUATION_SET_ID = "hermes-core-v2"
-HERMES_EVALUATION_SET_VERSION = "2026-09-14"
+HERMES_EVALUATION_SET_VERSION = "2026-09-23"
 HERMES_EVALUATION_SET: tuple[HermesEvaluationCase, ...] = (
     {
         "id": "grounded-evidence",
@@ -82,7 +82,7 @@ HERMES_EVALUATION_SET: tuple[HermesEvaluationCase, ...] = (
     },
     {
         "id": "run-detail",
-        "prompt": "请查看运行 1 的执行详情。",
+        "prompt": "请查看 case 运行 1 的执行详情。",
         "expected_mode": "project_retrieval",
         "execution": "orchestrate",
         "expected_tools": ["run_detail"],

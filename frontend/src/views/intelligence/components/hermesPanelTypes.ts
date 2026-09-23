@@ -14,6 +14,7 @@ export type HermesMessage = {
   planner?: HermesPlannerDecision
   isWelcome?: boolean
   backendIndex?: number
+  backendMessageId?: string
 }
 
 export type HermesPromptKey = 'failed_tasks' | 'explain_failure' | 'test_plan' | 'quality'

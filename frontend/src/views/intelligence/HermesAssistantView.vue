@@ -458,7 +458,11 @@ async function loadProjectData() {
               ? item.planner as HermesMessage['planner']
               : undefined,
             backendIndex: role === 'assistant' && !['orchestration_clarification', 'orchestration_cancellation'].includes(String(item.kind))
+              && typeof item.message_id === 'string' && /^[0-9a-f]{32}$/.test(item.message_id)
               ? index
+              : undefined,
+            backendMessageId: typeof item.message_id === 'string' && /^[0-9a-f]{32}$/.test(item.message_id)
+              ? item.message_id
               : undefined,
           }
         })
@@ -642,6 +646,7 @@ async function queryHermes(text: string, history = conversationHistory()) {
     }))
     appendMessage('assistant', result.answer, sources, undefined, result.mode)
     messages.value[messages.value.length - 1].backendIndex = result.message_index
+    messages.value[messages.value.length - 1].backendMessageId = result.message_id
     if (result.evaluation) await loadGovernance(projectId)
   } catch (error) {
     if (
@@ -711,6 +716,7 @@ async function orchestratePrompt(text: string): Promise<boolean> {
       result.planner,
     )
     messages.value[messages.value.length - 1].backendIndex = result.message_index ?? undefined
+    messages.value[messages.value.length - 1].backendMessageId = result.message_id ?? undefined
     if (result.evaluation) await loadGovernance(projectId)
     return true
   } catch (error) {
@@ -730,12 +736,22 @@ async function orchestratePrompt(text: string): Promise<boolean> {
 }
 
 async function rateMessage(item: HermesMessage, rating: 'helpful' | 'not_helpful') {
-  if (!sessionId.value || item.backendIndex == null || !selectedProjectId.value) return
+  if (!sessionId.value || item.backendIndex == null || !item.backendMessageId || !selectedProjectId.value) return
   try {
-    await hermesApi.feedback(sessionId.value, { project_id: selectedProjectId.value, message_index: item.backendIndex, rating })
+    await hermesApi.feedback(sessionId.value, {
+      project_id: selectedProjectId.value,
+      message_index: item.backendIndex,
+      message_id: item.backendMessageId,
+      rating,
+    })
     message.success(t('hermes.feedback_saved'))
+    await loadGovernance(selectedProjectId.value)
   } catch (error) {
-    if (errorStatus(error) === 409) message.warning(t('hermes.session_conflict'))
+    if (errorStatus(error) === 409) {
+      item.backendIndex = undefined
+      item.backendMessageId = undefined
+      message.warning(t('hermes.session_conflict'))
+    }
     else message.error(errorMessage(error, t('hermes.feedback_save_failed')))
   }
 }
@@ -947,11 +963,9 @@ function intentFor(text: string): PromptKey | null {
 
 async function executeIntent(key: PromptKey) {
   if (key === 'failed_tasks') {
-    if (sessionId.value && selectedProjectId.value) await hermesApi.tool(sessionId.value, 'failed_runs', { project_id: selectedProjectId.value, arguments: { limit: 20 } }).catch(() => undefined)
     buildFailedTaskAnswer()
   }
   else if (key === 'quality') {
-    if (sessionId.value && selectedProjectId.value) await hermesApi.tool(sessionId.value, 'quality_summary', { project_id: selectedProjectId.value }).catch(() => undefined)
     buildQualityAnswer()
   }
   else if (key === 'test_plan') buildPlanDraft()
