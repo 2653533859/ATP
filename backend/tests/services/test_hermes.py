@@ -535,4 +535,29 @@ def test_summarize_tool_outcomes_keeps_answer_short_and_uses_safe_counts():
         ]
     )
 
-    assert answer == "已根据你的问题自动读取：失败任务工具返回 2 条结果。质量趋势返回 1 个时间段，最近通过率为 88.5%。"
+    assert answer == (
+        "已根据你的问题自动读取：失败任务工具返回 2 条结果。"
+        "质量趋势只有 1 个有效时间段，最近通过率为 88.5%；无法判断是否有变化。"
+    )
+
+
+def test_summarize_tool_outcomes_compares_two_valid_quality_periods():
+    answer = summarize_tool_outcomes(
+        [
+            HermesToolOutcome(
+                tool="quality_trend",
+                status="ok",
+                data={"items": [{"rate": 88.5}, {"rate": 79.0}]},
+            )
+        ]
+    )
+    assert answer == (
+        "已根据你的问题自动读取：质量趋势返回 2 个有效时间段，" "最近通过率为 79.0%；较上一时间段下降 9.5 个百分点。"
+    )
+
+
+def test_summarize_tool_outcomes_rejects_invalid_quality_rates():
+    answer = summarize_tool_outcomes(
+        [HermesToolOutcome(tool="quality_trend", status="ok", data={"items": [{"rate": True}, {"rate": 150}]})]
+    )
+    assert answer == "已根据你的问题自动读取：质量趋势工具暂未返回结果。"

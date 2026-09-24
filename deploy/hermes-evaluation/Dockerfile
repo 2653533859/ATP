@@ -14,4 +14,5 @@ COPY app/api/deps.py /app/app/api/deps.py
 COPY app/schemas/hermes.py /app/app/schemas/hermes.py
 COPY app/schemas/hermes_orchestration.py /app/app/schemas/hermes_orchestration.py
 COPY app/services/hermes.py /app/app/services/hermes.py
+COPY app/services/hermes_orchestration.py /app/app/services/hermes_orchestration.py
 COPY app/services/audit.py /app/app/services/audit.py

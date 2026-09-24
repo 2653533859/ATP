@@ -4,7 +4,7 @@
 
 ## 准备
 
-1. 在目标 Linux 保留目录结构 `deploy/hermes-evaluation/` 和 `backend/app/...`。`backend/` 构建上下文需要六个运行文件：`app/api/v1/hermes.py`、`app/api/deps.py`、`app/schemas/hermes.py`、`app/schemas/hermes_orchestration.py`、`app/services/hermes.py`、`app/services/audit.py`。Dockerfile 从已核对的 `registry.local/atp/backend:bdb84286` 叠加它们；构建前确认该基础镜像在目标 Docker 中存在。该基础镜像的 `/app/docker-start.sh` 已确认权限为 `0664`，会使 `migrate` 因 OCI `permission denied` 无法启动；叠加层将其修正为 `0755`。构建时将 `HERMES_EVAL_REVISION` 设为这六个文件对应的 Git 提交号，镜像标签固定为本次验收环境的 `20260924`。
+1. 在目标 Linux 保留目录结构 `deploy/hermes-evaluation/` 和 `backend/app/...`。`backend/` 构建上下文需要七个运行文件：`app/api/v1/hermes.py`、`app/api/deps.py`、`app/schemas/hermes.py`、`app/schemas/hermes_orchestration.py`、`app/services/hermes.py`、`app/services/hermes_orchestration.py`、`app/services/audit.py`。Dockerfile 从已核对的 `registry.local/atp/backend:bdb84286` 叠加它们；构建前确认该基础镜像在目标 Docker 中存在。该基础镜像的 `/app/docker-start.sh` 已确认权限为 `0664`，会使 `migrate` 因 OCI `permission denied` 无法启动；叠加层将其修正为 `0755`。构建时将 `HERMES_EVAL_REVISION` 设为这七个文件对应的 Git 提交号，镜像标签固定为本次验收环境的 `20260924`。
 2. 将 `secrets.env.example` 复制到仓库外的 `/opt/atp-hermes-eval-20260924/secrets.env`，限制权限为 `0600`，填写八个必填变量和 `HERMES_EVAL_REVISION`。每个密码与应用密钥独立生成高熵值；`HERMES_EVAL_MINIO_ROOT_USER` 使用专用用户名，管理员邮箱使用验收专用地址。不要将凭据放入命令行、提交到仓库或执行会展开凭据的 `docker compose config`。
 3. 确认本机存在 `postgres:16-alpine`、`redis:7-alpine` 和 `minio/minio:RELEASE.2025-09-07T16-13-09Z`，或在受控窗口拉取；记录实际镜像摘要。
 

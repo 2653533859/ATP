@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field
+from math import isfinite
 from typing import Any, Literal
 
 from app.schemas.hermes_tools import HermesToolName, HermesToolStatus
@@ -307,11 +308,30 @@ def summarize_tool_outcomes(outcomes: list[HermesToolOutcome]) -> str:
             )
         elif outcome.tool == "quality_trend":
             items = outcome.data.get("items", [])
-            latest = items[-1] if isinstance(items, list) and items else None
-            if isinstance(latest, dict):
-                summaries.append(f"质量趋势返回 {len(items)} 个时间段，最近通过率为 {latest.get('rate', 0)}%。")
-            else:
+            rates = []
+            if outcome.status == "ok" and isinstance(items, list):
+                for item in items:
+                    value = item.get("rate") if isinstance(item, dict) else None
+                    if (
+                        isinstance(value, (int, float))
+                        and not isinstance(value, bool)
+                        and isfinite(value)
+                        and 0 <= value <= 100
+                    ):
+                        rates.append(float(value))
+            if not rates:
                 summaries.append("质量趋势工具暂未返回结果。")
+            elif len(rates) == 1:
+                summaries.append(f"质量趋势只有 1 个有效时间段，最近通过率为 {rates[-1]:.1f}%；无法判断是否有变化。")
+            else:
+                change = round(rates[-1] - rates[-2], 1)
+                if change > 0:
+                    comparison = f"较上一时间段上升 {change:.1f} 个百分点。"
+                elif change < 0:
+                    comparison = f"较上一时间段下降 {abs(change):.1f} 个百分点。"
+                else:
+                    comparison = "较上一时间段持平。"
+                summaries.append(f"质量趋势返回 {len(rates)} 个有效时间段，最近通过率为 {rates[-1]:.1f}%；{comparison}")
         elif outcome.tool == "requirement_case_links":
             summaries.append(f"需求—用例追踪工具返回 {outcome.data.get('count', 0)} 条关联。")
         elif outcome.tool == "knowledge_detail":
