@@ -73,6 +73,18 @@ def score_text(query: str | None, title: str, body: str, tags: list[str] | None 
             matched.append(term)
     if query and query.strip().lower() in normalized_title:
         score += 8
+    if score == 0 and query:
+        # Long Chinese questions may be captured as one 20-character token.
+        # Recover a specific shared phrase without matching single common characters.
+        phrases = re.findall(r"[\u4e00-\u9fff]{4,}", query.lower())
+        fragments = list(
+            dict.fromkeys(phrase[index : index + 4] for phrase in phrases for index in range(len(phrase) - 3))
+        )[:64]
+        for text, weight in ((normalized_title, 8), (normalized_tags, 4), (normalized_body, 3)):
+            match = next((fragment for fragment in fragments if fragment in text), None)
+            if match:
+                score, matched = weight, [match]
+                break
     return score, list(dict.fromkeys(matched))[:6]
 
 

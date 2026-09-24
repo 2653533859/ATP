@@ -64,6 +64,29 @@ def test_rank_candidates_applies_source_and_updated_date_filters():
     assert [(source.source_type, source.source_id) for source in sources] == [("knowledge", 1)]
 
 
+def test_rank_candidates_recovers_shared_chinese_phrase_in_long_question():
+    source = HermesCandidate(
+        source_type="requirement",
+        source_id=9,
+        project_id=1,
+        title="登录锁定策略验收规则",
+        body="同一账号连续失败五次后锁定十五分钟。没有说明解锁通知方式。",
+        source_ref="REQ-9",
+        path="/requirements/9",
+    )
+
+    ranked = rank_candidates(
+        "登录锁定策略的失败次数和锁定时长是什么？证据是否说明解锁通知方式？",
+        [source],
+        limit=8,
+    )
+
+    assert [(item.source_type, item.source_id) for item in ranked] == [("requirement", 9)]
+    assert ranked[0].match_score > 0
+    assert ranked[0].match_terms == ("登录锁定",)
+    assert rank_candidates("完全无关的支付流程问题", [source], limit=8) == []
+
+
 def test_build_history_context_keeps_recent_redacted_turns_within_budget():
     context = build_history_context(
         [
