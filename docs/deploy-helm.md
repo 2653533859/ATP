@@ -1,5 +1,7 @@
 # ATP Kubernetes Helm Chart 部署指南
 
+发布机现有 ATP 账号及密码文件位置见 [账号与密码取回](credential-access.md)。
+
 ## 发布前仓库校验
 
 `make validate-deployment-readiness` 只验证仓库内的配置契约，不代表真实集群已经验收。
