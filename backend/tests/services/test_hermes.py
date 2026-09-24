@@ -185,6 +185,25 @@ def test_build_grounded_prompt_keeps_application_approval_and_unknown_policy_sep
     assert "下一步建议也不能补造未定义的流程" in prompt
 
 
+def test_build_grounded_prompt_does_not_invent_sequence_for_equivalence_question():
+    source = HermesCandidate(
+        source_type="knowledge",
+        source_id=13,
+        project_id=1,
+        title="退款工单指引",
+        body="客服核对订单号仅确认对应订单，不代表退款获批准。",
+        source_ref="SOP-13",
+        path="/knowledge/13",
+    )
+    ranked = rank_candidates("核对订单号等于批准吗？", [source], limit=1)
+
+    prompt = build_grounded_prompt("客服核对订单号等于退款批准吗？", ranked)
+
+    assert "直接说明关系和来源" in prompt
+    assert "不要编号列出阶段" in prompt
+    assert "不要把可能的后续动作写成项目既定步骤" in prompt
+
+
 def test_build_governance_summary_uses_valid_citations_and_tolerates_legacy_rows():
     sessions = [
         type(
