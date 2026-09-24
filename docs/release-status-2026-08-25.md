@@ -4,6 +4,8 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
+> 2026-09-24 Hermes 隔离环境已使用 Gemini 3.8 Flash 的兼容服务模型 ID `gemini-3.8-flash-high` 完成第二轮真实模型验收：固定十题 10/10、规划挑战题通过，两条模型生成回答与一条趋势回答经过内容抽查；原模型配置保留，隔离项目当前绑定新配置。密钥未进入仓库或报告。该结果不代替现有 K3s 项目级模型关联与认证验收；详见 [`evidence/hermes-gemini38-isolated-acceptance-2026-09-24.md`](evidence/hermes-gemini38-isolated-acceptance-2026-09-24.md)。
+
 > 2026-09-24 Hermes K3s 认证冒烟：专用 canary 账号登录、项目及题集读取均为 200；项目 77 的两步确定性只读编排返回 `failed_tasks`、`quality_trend` 均 `ok`，两条审计持久化，Backend 无新 `MissingGreenlet`。真实模型规划挑战在该项目返回 `project_model_not_configured`、模型调用 0；数据库虽有 1 份已启用模型配置，却没有项目关联，因此 K3s 真实模型链路尚未验收。详见 [`evidence/hermes-k3s-authenticated-smoke-2026-09-24.md`](evidence/hermes-k3s-authenticated-smoke-2026-09-24.md)。
 
 > 2026-09-24 Hermes 七文件修复经隔离环境真实模型与权限/反馈验收后，已部署到现有 `atp-single-node` K3s 联调 Release：Backend 镜像 `71b0b0b3`、Helm revision 47 `deployed`，迁移头仍为 `20260914_0074`。升级后 30 秒四次采样均为 6/6 Pod Ready、Backend `/health` 200 且无新增重启；匿名评测入口返回预期 401。发布过程一次宿主机端口调度告警已自行恢复。目标业务库未重复运行认证后的 Hermes 题集；本次不关闭多节点、长期 SLO、独立 MinIO 或 P4/P9 门禁。详见 [`evidence/hermes-k3s-rollout-2026-09-24.md`](evidence/hermes-k3s-rollout-2026-09-24.md) 与 [`evidence/hermes-isolated-acceptance-2026-09-24.md`](evidence/hermes-isolated-acceptance-2026-09-24.md)。
