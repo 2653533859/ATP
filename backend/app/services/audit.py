@@ -8,6 +8,7 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.database import AsyncSessionLocal
 from app.models.audit import AuditLog
 
 logger = logging.getLogger(__name__)
@@ -41,3 +42,30 @@ async def write_audit_log(
         await db.flush()
     except Exception:
         logger.warning("Failed to write audit log", exc_info=True)
+
+
+async def write_access_denied_audit(
+    *,
+    project_id: int,
+    user_id: int,
+    username: str,
+    detail: str,
+) -> None:
+    """Commit a denied-access event without committing the rejected request's work."""
+
+    try:
+        async with AsyncSessionLocal() as audit_db:
+            audit_db.add(
+                AuditLog(
+                    action="access_denied",
+                    resource_type="project",
+                    resource_id=project_id,
+                    user_id=user_id,
+                    username=username,
+                    project_id=project_id,
+                    detail=detail,
+                )
+            )
+            await audit_db.commit()
+    except Exception:
+        logger.warning("Failed to persist access_denied audit", exc_info=True)

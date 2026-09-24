@@ -9,15 +9,21 @@
 3. Backend 部署当前题集版本 `2026-09-23.1`。旧 Backend 会被版本门禁拦下。发布机在 2026-09-23 的只读核对仍为 `bdb84286`，尚未部署本契约。
 4. 使用独立账号或短期令牌，并核对已发布的全局知识不会误充当前项目的预期来源。
 
+全新独立数据库可按 [夹具准备说明](hermes-evaluation-seed.md) 使用正常 API 创建并核对固定编号资产。隔离 Compose 的 Backend 仅在 Linux 宿主机 `127.0.0.1:39184` 监听；从 Windows 运行时，先用 SSH 本地转发该端口到本机 `127.0.0.1:39184`。下面的地址是此隔离环境示例，其他部署按实际转发端口替换。
+
 ## 运行
 
-在 Windows 工作区，先把短期令牌放在当前终端环境变量中；也可改用 `ATP_USERNAME` 与 `ATP_PASSWORD`。不要把认证值放在命令行、报告路径或仓库中。
+在 Windows 工作区，使用 `ATP_TOKEN`，或使用 `ATP_USERNAME` 与 `ATP_PASSWORD`。不要把认证值放在命令行、报告路径或仓库中。若夹具脚本使用了 `ATP_TOKEN_FILE` 或 `ATP_PASSWORD_FILE`，先在当前终端把文件内容读入对应环境变量；验收脚本本身只读取 `ATP_TOKEN` 和 `ATP_PASSWORD`。下面从成功的夹具报告读取项目编号；如由其他流程准备项目，手动给 `$projectId` 赋值。
 
 ```powershell
-$env:ATP_TOKEN = '<short-lived-token>'
+if ($env:ATP_TOKEN_FILE) { $env:ATP_TOKEN = (Get-Content $env:ATP_TOKEN_FILE -Raw).Trim() }
+if (-not $env:ATP_TOKEN -and $env:ATP_PASSWORD_FILE) {
+  $env:ATP_PASSWORD = (Get-Content $env:ATP_PASSWORD_FILE -Raw).Trim()
+}
+$projectId = (Get-Content '.local-run/hermes-evaluation-seed.json' -Raw | ConvertFrom-Json).resources.project_id
 .\.venv\Scripts\python.exe scripts/hermes-evaluation-acceptance.py `
-  --base-url 'http://127.0.0.1:39083/api/v1' `
-  --project-id <isolated-project-id> `
+  --base-url 'http://127.0.0.1:39184/api/v1' `
+  --project-id $projectId `
   --report '.local-run/hermes-evaluation-preflight.json'
 ```
 
@@ -25,8 +31,8 @@ $env:ATP_TOKEN = '<short-lived-token>'
 
 ```powershell
 .\.venv\Scripts\python.exe scripts/hermes-evaluation-acceptance.py `
-  --base-url 'http://127.0.0.1:39083/api/v1' `
-  --project-id <isolated-project-id> `
+  --base-url 'http://127.0.0.1:39184/api/v1' `
+  --project-id $projectId `
   --execute --timeout 150 `
   --report '.local-run/hermes-evaluation-result.json'
 ```

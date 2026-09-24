@@ -50,6 +50,7 @@ sys.modules.setdefault(
 import importlib
 
 from fastapi import HTTPException
+import pytest
 
 # 其他 api 测试在模块加载期把 app.api.deps stub 成 SimpleNamespace，
 # 这里强制清理后再导入真实模块
@@ -138,6 +139,17 @@ def _user(role=UserRole.engineer, uid=10) -> User:
     return User(id=uid, username=f"u{uid}", email=f"u{uid}@x", hashed_password="x", role=role, is_active=True)
 
 
+@pytest.fixture
+def denied_audits(monkeypatch):
+    records = []
+
+    async def record_denial(**fields):
+        records.append(fields)
+
+    monkeypatch.setattr(deps, "write_access_denied_audit", record_denial)
+    return records
+
+
 def test_get_current_user_accepts_http_only_cookie(monkeypatch):
     user = _user(uid=11)
     monkeypatch.setattr(deps, "decode_token", lambda token: {"type": "access", "sub": user.username})
@@ -204,7 +216,7 @@ def test_require_project_access_passes_when_role_sufficient():
     assert db.audit_records == []
 
 
-def test_require_project_access_denies_lower_role_and_writes_audit():
+def test_require_project_access_denies_lower_role_and_writes_audit(denied_audits):
     db = _FakeDB({(10, 5): ProjectRole.viewer})
     user = _user(uid=10)
     checker = deps.require_project_access(ProjectRole.editor)
@@ -215,15 +227,15 @@ def test_require_project_access_denies_lower_role_and_writes_audit():
         raised = True
         assert exc.status_code == 403
     assert raised
-    assert len(db.audit_records) == 1
-    record = db.audit_records[0]
-    assert record["action"] == "access_denied"
+    assert len(denied_audits) == 1
+    record = denied_audits[0]
     assert record["project_id"] == 5
     assert record["user_id"] == 10
     assert "min_role=editor" in record["detail"]
+    assert db.audit_records == []
 
 
-def test_require_project_access_denies_non_member():
+def test_require_project_access_denies_non_member(denied_audits):
     db = _FakeDB()  # 无任何成员关系
     user = _user(uid=10)
     checker = deps.require_project_access(ProjectRole.viewer)
@@ -234,7 +246,8 @@ def test_require_project_access_denies_non_member():
         raised = True
         assert exc.status_code == 403
     assert raised
-    assert db.audit_records[0]["detail"].endswith("actual=none")
+    assert denied_audits[0]["detail"].endswith("actual=none")
+    assert db.audit_records == []
 
 
 def test_assert_project_access_works_outside_path_param():
@@ -244,7 +257,7 @@ def test_assert_project_access_works_outside_path_param():
     assert db.audit_records == []
 
 
-def test_assert_project_access_denies_and_writes_audit():
+def test_assert_project_access_denies_and_writes_audit(denied_audits):
     db = _FakeDB()
     user = _user(uid=10)
     raised = False
@@ -254,7 +267,52 @@ def test_assert_project_access_denies_and_writes_audit():
         raised = True
         assert exc.status_code == 403
     assert raised
-    assert len(db.audit_records) == 1
+    assert len(denied_audits) == 1
+    assert db.audit_records == []
+
+
+@pytest.mark.parametrize("via_path_dependency", [False, True])
+def test_denied_audit_commits_separately_without_committing_request(monkeypatch, via_path_dependency):
+    from app.services import audit
+
+    class _AuditDB:
+        def __init__(self):
+            self.added = []
+            self.commits = 0
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+        def add(self, row):
+            self.added.append(row)
+
+        async def commit(self):
+            self.commits += 1
+
+    audit_db = _AuditDB()
+    monkeypatch.setattr(audit, "AsyncSessionLocal", lambda: audit_db)
+    request_db = _FakeDB()
+    request_db.staged_business_write = object()
+    user = _user(uid=10)
+
+    with pytest.raises(HTTPException) as exc:
+        if via_path_dependency:
+            checker = deps.require_project_access(ProjectRole.viewer)
+            asyncio.run(checker(project_id=5, current_user=user, db=request_db))
+        else:
+            asyncio.run(deps.assert_project_access(request_db, user, project_id=5))
+
+    assert exc.value.status_code == 403
+    assert audit_db.commits == 1
+    assert len(audit_db.added) == 1
+    assert audit_db.added[0].action == "access_denied"
+    assert audit_db.added[0].project_id == 5
+    assert audit_db.added[0].user_id == 10
+    assert request_db.audit_records == []
+    assert request_db.staged_business_write is not None
 
 
 def test_assert_project_access_blocks_writes_to_archived_project():

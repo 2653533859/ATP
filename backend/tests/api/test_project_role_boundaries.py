@@ -57,6 +57,17 @@ def _user(uid=10, role=UserRole.engineer) -> User:
     return User(id=uid, username=f"u{uid}", email=f"u{uid}@x", hashed_password="x", role=role, is_active=True)
 
 
+@pytest.fixture
+def denied_audits(monkeypatch):
+    records = []
+
+    async def record_denial(**fields):
+        records.append(fields)
+
+    monkeypatch.setattr(deps, "write_access_denied_audit", record_denial)
+    return records
+
+
 class _FakeDB:
     def __init__(self, role_for: dict[tuple[int, int], ProjectRole] | None = None):
         self.user_projects = role_for or {}
@@ -126,7 +137,7 @@ def test_role_partial_order():
         (ProjectRole.owner, ProjectRole.owner, True),
     ],
 )
-def test_require_project_access_matrix(user_role, min_role, should_pass):
+def test_require_project_access_matrix(user_role, min_role, should_pass, denied_audits):
     db = _FakeDB({(10, 5): user_role})
     user = _user(uid=10)
     checker = deps.require_project_access(min_role)
@@ -142,7 +153,8 @@ def test_require_project_access_matrix(user_role, min_role, should_pass):
         except HTTPException as exc:
             raised = exc.status_code == 403
         assert raised
-        assert len(db.audit_records) == 1
+        assert len(denied_audits) == 1
+        assert db.audit_records == []
 
 
 # ========================================================================
@@ -160,7 +172,7 @@ def test_require_project_access_matrix(user_role, min_role, should_pass):
         (ProjectRole.owner, ProjectRole.owner, True),
     ],
 )
-def test_assert_project_access_matrix(user_role, min_role, should_pass):
+def test_assert_project_access_matrix(user_role, min_role, should_pass, denied_audits):
     db = _FakeDB({(10, 5): user_role})
     user = _user(uid=10)
 
@@ -174,6 +186,7 @@ def test_assert_project_access_matrix(user_role, min_role, should_pass):
         except HTTPException as exc:
             raised = exc.status_code == 403
         assert raised
+        assert len(denied_audits) == 1
 
 
 # ========================================================================
@@ -204,7 +217,7 @@ def test_admin_bypasses_all_min_roles(min_role):
     "min_role",
     [ProjectRole.viewer, ProjectRole.editor, ProjectRole.owner],
 )
-def test_non_member_denied_for_all_levels(min_role):
+def test_non_member_denied_for_all_levels(min_role, denied_audits):
     db = _FakeDB()
     user = _user(uid=10)
     checker = deps.require_project_access(min_role)
@@ -215,13 +228,13 @@ def test_non_member_denied_for_all_levels(min_role):
     except HTTPException as exc:
         raised = exc.status_code == 403
     assert raised
-    assert len(db.audit_records) == 1
-    record = db.audit_records[0]
-    assert record.action == "access_denied"
-    assert record.project_id == 5
-    assert record.user_id == 10
-    assert f"min_role={min_role.value}" in record.detail
-    assert "actual=none" in record.detail
+    assert len(denied_audits) == 1
+    record = denied_audits[0]
+    assert record["project_id"] == 5
+    assert record["user_id"] == 10
+    assert f"min_role={min_role.value}" in record["detail"]
+    assert "actual=none" in record["detail"]
+    assert db.audit_records == []
 
 
 # ========================================================================
@@ -229,7 +242,7 @@ def test_non_member_denied_for_all_levels(min_role):
 # ========================================================================
 
 
-def test_editor_can_edit_but_not_manage_settings():
+def test_editor_can_edit_but_not_manage_settings(denied_audits):
     db = _FakeDB({(10, 5): ProjectRole.editor})
     user = _user(uid=10)
 
@@ -242,9 +255,10 @@ def test_editor_can_edit_but_not_manage_settings():
     except HTTPException as exc:
         raised = exc.status_code == 403
     assert raised
+    assert len(denied_audits) == 1
 
 
-def test_viewer_cannot_create_or_modify():
+def test_viewer_cannot_create_or_modify(denied_audits):
     db = _FakeDB({(10, 5): ProjectRole.viewer})
     user = _user(uid=10)
 
@@ -257,3 +271,4 @@ def test_viewer_cannot_create_or_modify():
         except HTTPException as exc:
             raised = exc.status_code == 403
         assert raised
+    assert len(denied_audits) == 2

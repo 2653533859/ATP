@@ -9,7 +9,7 @@ from app.core.security import decode_token
 from app.models.project import Project
 from app.models.user import User, UserRole
 from app.models.user_project import ProjectRole, UserProject, role_satisfies
-from app.services.audit import write_audit_log
+from app.services.audit import write_access_denied_audit
 
 bearer = HTTPBearer(auto_error=False)
 
@@ -75,14 +75,10 @@ def require_project_access(min_role: ProjectRole = ProjectRole.viewer):
     ) -> User:
         role = await get_project_role(db, current_user, project_id)
         if role is None or not role_satisfies(role, min_role):
-            await write_audit_log(
-                db,
-                action="access_denied",
-                resource_type="project",
-                resource_id=project_id,
+            await write_access_denied_audit(
+                project_id=project_id,
                 user_id=current_user.id,
                 username=current_user.username,
-                project_id=project_id,
                 detail=f"min_role={min_role.value}, actual={role.value if role else 'none'}",
             )
             raise HTTPException(
@@ -114,14 +110,10 @@ async def assert_project_role(
     """仅断言项目角色，不把高权限读取误判为归档项目写入。"""
     role = await get_project_role(db, user, project_id)
     if role is None or not role_satisfies(role, min_role):
-        await write_audit_log(
-            db,
-            action="access_denied",
-            resource_type="project",
-            resource_id=project_id,
+        await write_access_denied_audit(
+            project_id=project_id,
             user_id=user.id,
             username=user.username,
-            project_id=project_id,
             detail=f"min_role={min_role.value}, actual={role.value if role else 'none'}",
         )
         raise HTTPException(

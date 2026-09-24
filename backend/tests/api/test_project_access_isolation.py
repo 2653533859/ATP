@@ -157,10 +157,14 @@ def test_create_project_assigns_creator_as_owner():
     assert user_proj.role == ProjectRole.owner
 
 
-def test_get_project_denies_non_member():
+def test_get_project_denies_non_member(monkeypatch):
     db = _FakeDB()
     from app.models.project import Project
 
+    async def record_denial(**fields):
+        db.audit_records.append(types.SimpleNamespace(action="access_denied", **fields))
+
+    monkeypatch.setattr(deps, "write_access_denied_audit", record_denial)
     db.store[("Project", 99)] = Project(id=99, name="X", project_code="X", owner_id=1)
     user = _user(uid=10)
 

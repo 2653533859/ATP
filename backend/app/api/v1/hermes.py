@@ -251,6 +251,7 @@ async def execute_hermes_tool(
     """Run one bounded, project-scoped, read-only Hermes tool."""
 
     await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
+    user_id, username = user.id, user.username
     try:
         arguments = parse_tool_arguments(body.tool, body.arguments)
     except ValidationError as exc:
@@ -286,8 +287,8 @@ async def execute_hermes_tool(
             db,
             action="hermes_read_tool",
             resource_type="hermes_tool",
-            user_id=user.id,
-            username=user.username,
+            user_id=user_id,
+            username=username,
             project_id=body.project_id,
             ip_address=request.client.host if request.client else "",
             detail=f"tool={body.tool};status={status};duration_ms={duration_ms}",
@@ -296,6 +297,10 @@ async def execute_hermes_tool(
     except Exception:  # noqa: BLE001
         await db.rollback()
         logger.warning("Failed to persist Hermes read-tool audit", exc_info=True)
+    finally:
+        # rollback expires ORM instances, including the authenticated user reused
+        # by the next tool or the enclosing orchestration session write.
+        await db.refresh(user)
 
     return HermesToolOut(
         project_id=body.project_id,

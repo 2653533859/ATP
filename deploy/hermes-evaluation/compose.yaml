@@ -1,0 +1,165 @@
+name: atp-hermes-eval-20260924
+
+x-app-env: &app-env
+  APP_ENV: production
+  APP_AUTO_CREATE_TABLES: "false"
+  APP_SECRET_KEY: ${HERMES_EVAL_APP_SECRET_KEY:?set HERMES_EVAL_APP_SECRET_KEY}
+  APP_CORS_ORIGINS: http://localhost:5173,http://127.0.0.1:5173
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_DB: hermes_eval
+  POSTGRES_USER: hermes_eval
+  POSTGRES_PASSWORD: ${HERMES_EVAL_POSTGRES_PASSWORD:?set HERMES_EVAL_POSTGRES_PASSWORD}
+  POSTGRES_MIGRATION_USER: hermes_eval
+  POSTGRES_MIGRATION_PASSWORD: ${HERMES_EVAL_POSTGRES_PASSWORD:?set HERMES_EVAL_POSTGRES_PASSWORD}
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: ${HERMES_EVAL_REDIS_PASSWORD:?set HERMES_EVAL_REDIS_PASSWORD}
+  MINIO_HOST: minio
+  MINIO_PORT: "9000"
+  MINIO_ROOT_USER: ${HERMES_EVAL_MINIO_ROOT_USER:?set HERMES_EVAL_MINIO_ROOT_USER}
+  MINIO_ROOT_PASSWORD: ${HERMES_EVAL_MINIO_ROOT_PASSWORD:?set HERMES_EVAL_MINIO_ROOT_PASSWORD}
+  MINIO_BUCKET: hermes-eval
+  ADB_SCAN_ENABLED: "false"
+  AI_HEALING_ENABLED: "false"
+  DB_BACKUP_ENABLED: "false"
+  RUN_CLEANUP_ENABLED: "false"
+  PERFORMANCE_NODE_ENABLED: "false"
+  APP_AUTH_COOKIE_SECURE: "false"
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: hermes_eval
+      POSTGRES_USER: hermes_eval
+      POSTGRES_PASSWORD: ${HERMES_EVAL_POSTGRES_PASSWORD:?set HERMES_EVAL_POSTGRES_PASSWORD}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: "no"
+    mem_limit: 512m
+
+  redis:
+    image: redis:7-alpine
+    environment:
+      REDIS_PASSWORD: ${HERMES_EVAL_REDIS_PASSWORD:?set HERMES_EVAL_REDIS_PASSWORD}
+    command:
+      - sh
+      - -ec
+      - |
+        umask 077
+        printf 'requirepass %s\nappendonly yes\n' "$$REDIS_PASSWORD" > /tmp/redis.conf
+        exec redis-server /tmp/redis.conf
+    volumes:
+      - redis_data:/data
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD-SHELL", "REDISCLI_AUTH=\"$$REDIS_PASSWORD\" redis-cli ping | grep -q PONG"]
+      interval: 5s
+      timeout: 3s
+      retries: 12
+    restart: "no"
+    mem_limit: 256m
+
+  minio:
+    image: minio/minio:RELEASE.2025-09-07T16-13-09Z
+    command: server /data --console-address :9001
+    environment:
+      MINIO_ROOT_USER: ${HERMES_EVAL_MINIO_ROOT_USER:?set HERMES_EVAL_MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${HERMES_EVAL_MINIO_ROOT_PASSWORD:?set HERMES_EVAL_MINIO_ROOT_PASSWORD}
+    volumes:
+      - minio_data:/data
+    networks:
+      - private
+    healthcheck:
+      test: ["CMD", "mc", "ready", "local"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+    restart: "no"
+    mem_limit: 768m
+
+  migrate:
+    image: registry.local/atp/hermes-evaluation-backend:20260924
+    pull_policy: never
+    command: ["migrate"]
+    environment: *app-env
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - private
+    restart: "no"
+    mem_limit: 1g
+
+  backend:
+    image: registry.local/atp/hermes-evaluation-backend:20260924
+    pull_policy: never
+    build:
+      context: ../../backend
+      dockerfile: ../deploy/hermes-evaluation/Dockerfile
+      args:
+        ATP_BACKEND_BASE_IMAGE: registry.local/atp/backend:bdb84286
+        ATP_HERMES_REVISION: ${HERMES_EVAL_REVISION:-uncommitted}
+    command: ["serve", "--skip-migrations"]
+    environment:
+      <<: *app-env
+      FIRST_ADMIN_USERNAME: ${HERMES_EVAL_ADMIN_USERNAME:?set HERMES_EVAL_ADMIN_USERNAME}
+      FIRST_ADMIN_EMAIL: ${HERMES_EVAL_ADMIN_EMAIL:?set HERMES_EVAL_ADMIN_EMAIL}
+      FIRST_ADMIN_PASSWORD: ${HERMES_EVAL_ADMIN_PASSWORD:?set HERMES_EVAL_ADMIN_PASSWORD}
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+      redis:
+        condition: service_healthy
+      minio:
+        condition: service_healthy
+    ports:
+      - 127.0.0.1:39184:8000
+    networks:
+      - private
+      - outbound
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3).read()"]
+      interval: 10s
+      timeout: 5s
+      retries: 8
+      start_period: 20s
+    restart: "no"
+    mem_limit: 1g
+
+  worker:
+    image: registry.local/atp/hermes-evaluation-backend:20260924
+    pull_policy: never
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "--loglevel=info", "--pool=solo", "--concurrency=1", "-Q", "default"]
+    environment:
+      <<: *app-env
+      CELERY_QUEUES: default
+      WORKER_METRICS_PORT: "0"
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - private
+      - outbound
+    restart: "no"
+    mem_limit: 1g
+
+volumes:
+  postgres_data:
+  redis_data:
+  minio_data:
+
+networks:
+  private:
+    internal: true
+  outbound:
