@@ -163,7 +163,7 @@ def test_build_grounded_prompt_does_not_treat_missing_excerpt_as_missing_project
     prompt = build_grounded_prompt("总结登录需求", ranked)
 
     assert "不能由片段中未出现某项资产推断整个项目没有该资产" in prompt
-    assert "先查询现有记录再决定是否补充" in prompt
+    assert "只能说本次来源未显示，不能说项目不存在" in prompt
 
 
 def test_build_grounded_prompt_keeps_application_approval_and_unknown_policy_separate():
@@ -182,7 +182,7 @@ def test_build_grounded_prompt_keeps_application_approval_and_unknown_policy_sep
 
     assert "不要从可申请推断自动批准或自动执行" in prompt
     assert "不要从需审核推断拒绝" in prompt
-    assert "下一步建议也不能补造未定义的流程" in prompt
+    assert "不能补造未定义的流程" in prompt
 
 
 def test_build_grounded_prompt_does_not_invent_sequence_for_equivalence_question():
@@ -202,6 +202,18 @@ def test_build_grounded_prompt_does_not_invent_sequence_for_equivalence_question
     assert "直接说明关系和来源" in prompt
     assert "不要编号列出阶段" in prompt
     assert "不要把可能的后续动作写成项目既定步骤" in prompt
+
+
+def test_build_grounded_prompt_limits_unsolicited_scope_expansion():
+    source = _candidate("requirement", 14, datetime(2026, 9, 1, tzinfo=timezone.utc))
+    ranked = rank_candidates("登录", [source], limit=1)
+
+    prompt = build_grounded_prompt("登录规则是什么？", ranked)
+
+    assert "每句项目事实都必须由本次来源直接支持" in prompt
+    assert "不用常识补造流程、时间差或执行结果" in prompt
+    assert "仅在用户要求建议时给下一步建议" in prompt
+    assert "回答控制在 200 字以内" in prompt
 
 
 def test_build_governance_summary_uses_valid_citations_and_tolerates_legacy_rows():
