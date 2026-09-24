@@ -4,6 +4,8 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
+> 2026-09-24 Hermes 七文件修复经隔离环境真实模型与权限/反馈验收后，已部署到现有 `atp-single-node` K3s 联调 Release：Backend 镜像 `71b0b0b3`、Helm revision 47 `deployed`，迁移头仍为 `20260914_0074`。升级后 30 秒四次采样均为 6/6 Pod Ready、Backend `/health` 200 且无新增重启；匿名评测入口返回预期 401。发布过程一次宿主机端口调度告警已自行恢复。目标业务库未重复运行认证后的 Hermes 题集；本次不关闭多节点、长期 SLO、独立 MinIO 或 P4/P9 门禁。详见 [`evidence/hermes-k3s-rollout-2026-09-24.md`](evidence/hermes-k3s-rollout-2026-09-24.md) 与 [`evidence/hermes-isolated-acceptance-2026-09-24.md`](evidence/hermes-isolated-acceptance-2026-09-24.md)。
+
 > 2026-09-21 C3.4.2 每日 canary 已自动化：9 月 20 日完整日重采只有 Backend/Worker `276/288`，主机重启留下 12 个缺点，因此即使 30 次请求、95ms P95 和 2/2 passed 运行正常，该日仍被拒绝。发布机现使用专用 `tester`/项目 `editor` 账号、root `0600` 凭据源、systemd `LoadCredential` 和每日 08:30 持久 timer；首次手动验证产生 12 次认证读取与 Run 117/118，均 passed，Prometheus 观察到 HTTP 增量约 21.09、P95 95ms 和唯一 `case/passed` 增量约 2.01。Backend/Prometheus 为 200、6/6 Pod Ready、无新增重启，报告无凭据。详见 [`slo-history-2026-09-20-2026-09-20.md`](slo-history-2026-09-20-2026-09-20.md) 与 [`evidence/c3-slo-daily-canary-2026-09-21.json`](evidence/c3-slo-daily-canary-2026-09-21.json)。新窗口从 9 月 21 日重新计数，当前日尚未结束，告警/发布门禁及独立 MinIO、P4/P9 结论不变。
 
 > 2026-09-20 C3.4.2 新候选窗口已启动：目标没有发生第二次重启，Backend/Prometheus 均为 200、revision 46 deployed、6/6 Pod Ready，重启计数保持 1。`parado` 凭据通过隐藏输入只进入临时环境；8 次只读预检后，正式入口产生 12 次认证读取并执行项目 77 的本机单步 GET `case_id=42`，Run 115/116 均 passed。Prometheus 最近 1 小时观察到 HTTP 增量约 21.62、P95 95ms、唯一 `case/passed` 增量约 1.49；报告不含凭据。详见 [`evidence/c3-slo-new-window-day1-canary-2026-09-20.json`](evidence/c3-slo-new-window-day1-canary-2026-09-20.json)。当前 UTC 日尚未结束，不能计为完整日，告警/发布门禁及独立 MinIO、P4/P9 结论不变。
