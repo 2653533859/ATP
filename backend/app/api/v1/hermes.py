@@ -76,6 +76,7 @@ from app.services.hermes import (
     has_valid_source_citation,
     hermes_evaluation_case,
     rank_candidates,
+    retrieval_query_for_followup,
     score_hermes_evaluation,
 )
 from app.services.hermes_tools import (
@@ -908,21 +909,22 @@ async def query_hermes(
         + _requirement_candidates(requirement_rows, body.project_id)
         + _case_candidates(case_rows)
     )
-    sources = rank_candidates(
-        body.query,
-        candidates,
-        body.limit,
-        source_types=body.source_types,
-        updated_from=body.updated_from,
-        updated_to=body.updated_to,
-    )
-    history_turns = [(item.role, item.content) for item in body.history]
+    history_turns: list[tuple[str, str]] = [(item.role, item.content) for item in body.history]
     if not history_turns:
         history_turns = [
             (str(item.get("role")), str(item.get("content")))
             for item in (session.messages or [])[-12:]
             if item.get("role") in {"user", "assistant"} and str(item.get("content") or "").strip()
         ]
+    retrieval_query = retrieval_query_for_followup(body.query, history_turns)
+    sources = rank_candidates(
+        retrieval_query,
+        candidates,
+        body.limit,
+        source_types=body.source_types,
+        updated_from=body.updated_from,
+        updated_to=body.updated_to,
+    )
     history_context = build_history_context(history_turns, body.context_budget)
     answer, raw_mode = build_answer(sources)
     mode: Literal["llm_grounded", "project_retrieval", "no_results"] = cast(

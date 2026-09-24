@@ -979,6 +979,49 @@ def test_query_hermes_returns_project_sources_and_citations(monkeypatch):
     assert result.sources[0].path.startswith("/")
 
 
+def test_query_hermes_retrieves_previous_topic_for_session_followup(monkeypatch):
+    async def allow_access(*_args):
+        return None
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    project = SimpleNamespace(id=1, name="退款项目", ai_llm_config_id=None)
+    requirement = SimpleNamespace(
+        id=3,
+        project_id=1,
+        title="退款处理规则",
+        description="支付后7日内原路退款，超过7日人工审核。",
+        acceptance_criteria=[],
+        requirement_code="REQ-001-00003",
+        priority="P1",
+        status="active",
+        updated_at=NOW,
+        created_at=NOW,
+    )
+    db = _DB(
+        results=[
+            _Result(),
+            _Result([(requirement, "退款项目")]),
+            _Result(),
+            _Result(),
+            _Result([(requirement, "退款项目")]),
+            _Result(),
+        ],
+        project=project,
+    )
+
+    first = asyncio.run(hermes.query_hermes(HermesQueryIn(project_id=1, query="本项目退款窗口是多久？"), db, _user()))
+    followup = asyncio.run(
+        hermes.query_hermes(
+            HermesQueryIn(project_id=1, session_id=first.session_id, query="超过这个时间呢？"), db, _user()
+        )
+    )
+
+    assert first.sources[0].source_type == "requirement"
+    assert followup.mode == "project_retrieval"
+    assert [(source.source_type, source.source_id) for source in followup.sources] == [("requirement", 3)]
+    assert followup.history_used == 2
+
+
 def test_query_hermes_uses_enabled_project_llm_for_grounded_answer(monkeypatch):
     async def allow_access(*_args):
         return None

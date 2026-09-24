@@ -305,6 +305,15 @@ def rank_candidates(
         safe_tags = tuple(redact_knowledge_tags(list(candidate.tags)))
         score, terms = score_text(query, safe_title, safe_body, list(safe_tags))
         if score <= 0:
+            # Long Chinese questions can hide a short business noun such as "退款"
+            # inside a token. Match title nouns only; generic title words must not
+            # make unrelated project assets look relevant.
+            title_pairs = set(re.findall(r"(?=([\u4e00-\u9fff]{2}))", safe_title))
+            query_pairs = set(re.findall(r"(?=([\u4e00-\u9fff]{2}))", query))
+            shared = sorted((title_pairs & query_pairs) - {"项目", "规则", "时间", "说明", "问题"})
+            if shared:
+                score, terms = 2 * len(shared), shared[:6]
+        if score <= 0:
             continue
         ranked.append(
             HermesRankedSource(
@@ -329,6 +338,17 @@ def rank_candidates(
         )
     )
     return ranked[:limit]
+
+
+def retrieval_query_for_followup(query: str, history: Sequence[tuple[str, str]]) -> str:
+    """Carry the previous user topic into an elliptical follow-up search."""
+    if not re.search(r"这个|那个|上述|前面|刚才|此前|这一|那一", query):
+        return query
+    previous = next((content for role, content in reversed(history) if role == "user" and content.strip()), None)
+    if not previous:
+        return query
+    safe_previous = redact_knowledge_text(previous, limit=200) or ""
+    return f"{safe_previous} {query}"
 
 
 def build_history_context(

@@ -14,6 +14,7 @@ from app.services.hermes import (
     build_history_context,
     hermes_evaluation_case,
     rank_candidates,
+    retrieval_query_for_followup,
     score_hermes_evaluation,
 )
 from app.services.hermes_orchestration import (
@@ -85,6 +86,41 @@ def test_rank_candidates_recovers_shared_chinese_phrase_in_long_question():
     assert ranked[0].match_score > 0
     assert ranked[0].match_terms == ("登录锁定",)
     assert rank_candidates("完全无关的支付流程问题", [source], limit=8) == []
+
+
+def test_rank_candidates_recovers_short_chinese_business_noun_without_generic_rule_match():
+    refund = HermesCandidate(
+        source_type="requirement",
+        source_id=10,
+        project_id=1,
+        title="退款处理规则",
+        body="支付后7日内原路退款，超过7日人工审核。",
+        source_ref="REQ-10",
+        path="/requirements/10",
+    )
+    login = HermesCandidate(
+        source_type="requirement",
+        source_id=11,
+        project_id=1,
+        title="登录锁定规则",
+        body="连续5次失败后锁定。",
+        source_ref="REQ-11",
+        path="/requirements/11",
+    )
+
+    ranked = rank_candidates("本项目退款窗口是多久？", [refund, login], limit=8)
+
+    assert [(item.source_type, item.source_id) for item in ranked] == [("requirement", 10)]
+    assert "退款" in ranked[0].match_terms
+    assert rank_candidates("这些规则是什么？", [refund, login], limit=8) == []
+
+
+def test_followup_retrieval_uses_previous_user_topic_only_for_elliptical_question():
+    history = [("user", "本项目退款窗口是多久？"), ("assistant", "7日 [S1]")]
+
+    assert retrieval_query_for_followup("超过这个时间呢？", history) == "本项目退款窗口是多久？ 超过这个时间呢？"
+    assert retrieval_query_for_followup("登录锁定多久？", history) == "登录锁定多久？"
+    assert retrieval_query_for_followup("超过这个时间呢？", []) == "超过这个时间呢？"
 
 
 def test_build_history_context_keeps_recent_redacted_turns_within_budget():
