@@ -4,6 +4,8 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
+> 2026-09-24 Hermes K3s 认证冒烟：专用 canary 账号登录、项目及题集读取均为 200；项目 77 的两步确定性只读编排返回 `failed_tasks`、`quality_trend` 均 `ok`，两条审计持久化，Backend 无新 `MissingGreenlet`。真实模型规划挑战在该项目返回 `project_model_not_configured`、模型调用 0；数据库虽有 1 份已启用模型配置，却没有项目关联，因此 K3s 真实模型链路尚未验收。详见 [`evidence/hermes-k3s-authenticated-smoke-2026-09-24.md`](evidence/hermes-k3s-authenticated-smoke-2026-09-24.md)。
+
 > 2026-09-24 Hermes 七文件修复经隔离环境真实模型与权限/反馈验收后，已部署到现有 `atp-single-node` K3s 联调 Release：Backend 镜像 `71b0b0b3`、Helm revision 47 `deployed`，迁移头仍为 `20260914_0074`。升级后 30 秒四次采样均为 6/6 Pod Ready、Backend `/health` 200 且无新增重启；匿名评测入口返回预期 401。发布过程一次宿主机端口调度告警已自行恢复。目标业务库未重复运行认证后的 Hermes 题集；本次不关闭多节点、长期 SLO、独立 MinIO 或 P4/P9 门禁。详见 [`evidence/hermes-k3s-rollout-2026-09-24.md`](evidence/hermes-k3s-rollout-2026-09-24.md) 与 [`evidence/hermes-isolated-acceptance-2026-09-24.md`](evidence/hermes-isolated-acceptance-2026-09-24.md)。
 
 > 2026-09-21 C3.4.2 每日 canary 已自动化：9 月 20 日完整日重采只有 Backend/Worker `276/288`，主机重启留下 12 个缺点，因此即使 30 次请求、95ms P95 和 2/2 passed 运行正常，该日仍被拒绝。发布机现使用专用 `tester`/项目 `editor` 账号、root `0600` 凭据源、systemd `LoadCredential` 和每日 08:30 持久 timer；首次手动验证产生 12 次认证读取与 Run 117/118，均 passed，Prometheus 观察到 HTTP 增量约 21.09、P95 95ms 和唯一 `case/passed` 增量约 2.01。Backend/Prometheus 为 200、6/6 Pod Ready、无新增重启，报告无凭据。详见 [`slo-history-2026-09-20-2026-09-20.md`](slo-history-2026-09-20-2026-09-20.md) 与 [`evidence/c3-slo-daily-canary-2026-09-21.json`](evidence/c3-slo-daily-canary-2026-09-21.json)。新窗口从 9 月 21 日重新计数，当前日尚未结束，告警/发布门禁及独立 MinIO、P4/P9 结论不变。

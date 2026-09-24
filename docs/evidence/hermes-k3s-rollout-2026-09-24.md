@@ -20,3 +20,5 @@
 本次完成已独立验收的 Hermes 七文件镜像在现有单节点 K3s Release 上的发布和有界健康核对。真实模型 10/10 题、规划挑战题、权限与反馈行为的验收证据仍以[独立环境记录](hermes-isolated-acceptance-2026-09-24.md)为准；本次没有在现有业务库重复执行认证后的 Hermes 题集，也没有验证长期运行、多节点故障域、7/14 天 SLO 校准或独立 MinIO 灾备。P4/P9 发布门禁保持原状态。
 
 可回滚目标为 Helm revision 46；本次未执行回滚。若需要回滚，先核对当前 Secret 与 revision 46 的兼容性，再执行 `helm rollback atp-single-node 46 -n atp-single-node --wait` 并复核迁移版本、健康、工作队列和权限审计。
+
+后续认证请求及只读工具链核对见[认证冒烟记录](hermes-k3s-authenticated-smoke-2026-09-24.md)。
