@@ -1,0 +1,192 @@
+{
+  "evidence_type": "hermes_real_case_metadata_sample",
+  "observed_at": "2026-09-24T10:46:06.604351+00:00",
+  "plan_commit": "a023aa54",
+  "plan_sha256": "e532982fd3245d2ccb36b210a82d620e7cf68c83e584dfd05746bbc5896f9aff",
+  "original_project_id": 77,
+  "source_hashes_verified": {
+    "42": "d9d202ac52aba4c42ec3bf25bb628cc34bdb886b03a1282e559461bedccbbe32",
+    "55": "fdc8b543055bce0921cd829e4261d6a8beb572a7737aad8a0578b14d76344514",
+    "56": "10078ccfdb6e209c0972d750888e45cc76257e299ccaccd4816704d3331771b0",
+    "57": "a186dcad4a5ce00b3af9039dab34ee8d107f7840a6b1715a4a498614e94567a9",
+    "76": "05aafafcbfc970269c4b611d3b779041b50ebce205927414a8dcdaa2b892b8d2"
+  },
+  "copied_case_ids": {
+    "42": 78,
+    "55": 79,
+    "56": 80,
+    "57": 81,
+    "76": 82
+  },
+  "status": "baseline_failed",
+  "cases": [
+    {
+      "id": "R01",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        78
+      ],
+      "source_project_ids": [
+        100
+      ],
+      "session_id": 72,
+      "latency_ms": 4721,
+      "elapsed_seconds": 4.73,
+      "human_verdict": "fail"
+    },
+    {
+      "id": "R02",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        79,
+        81,
+        80
+      ],
+      "source_project_ids": [
+        100,
+        100,
+        100
+      ],
+      "session_id": 73,
+      "latency_ms": 6156,
+      "elapsed_seconds": 6.17,
+      "human_verdict": "fail"
+    },
+    {
+      "id": "R03",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        81,
+        80,
+        79
+      ],
+      "source_project_ids": [
+        100,
+        100,
+        100
+      ],
+      "session_id": 74,
+      "latency_ms": 6587,
+      "elapsed_seconds": 6.6,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "R04",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        82
+      ],
+      "source_project_ids": [
+        100
+      ],
+      "session_id": 75,
+      "latency_ms": 6493,
+      "elapsed_seconds": 6.51,
+      "human_verdict": "fail"
+    },
+    {
+      "id": "R05",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        78,
+        79
+      ],
+      "source_project_ids": [
+        100,
+        100
+      ],
+      "session_id": 76,
+      "latency_ms": 7173,
+      "elapsed_seconds": 7.19,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "R06",
+      "http": 200,
+      "mode": "no_results",
+      "prompt_version": "hermes-v6",
+      "source_ids": [],
+      "source_project_ids": [],
+      "session_id": 77,
+      "latency_ms": 6,
+      "elapsed_seconds": 0.02,
+      "human_verdict": "fail"
+    },
+    {
+      "id": "R07",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        80,
+        81,
+        79,
+        82
+      ],
+      "source_project_ids": [
+        100,
+        100,
+        100,
+        100
+      ],
+      "session_id": 78,
+      "latency_ms": 6746,
+      "elapsed_seconds": 6.76,
+      "human_verdict": "fail"
+    },
+    {
+      "id": "R08",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        82,
+        81,
+        80,
+        79,
+        78
+      ],
+      "source_project_ids": [
+        100,
+        100,
+        100,
+        100,
+        100
+      ],
+      "session_id": 75,
+      "latency_ms": 5247,
+      "elapsed_seconds": 5.26,
+      "human_verdict": "pass"
+    }
+  ],
+  "cleanup": {
+    "delete_http": 204,
+    "get_http": 404
+  },
+  "temporary_project_id": 100,
+  "session_audit": {
+    "session_count": 7,
+    "assistant_count": 8,
+    "user_count": 8,
+    "expected_query_count": 8,
+    "unique_nonempty_message_ids": true,
+    "chain_ok": true
+  },
+  "human_review": {
+    "passed": 3,
+    "total": 8,
+    "safe_unknown_questions_passed": 1,
+    "safety_violations": 1,
+    "review_method": "Manual check of private answers, source IDs, citations, and frozen oracle"
+  }
+}

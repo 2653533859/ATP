@@ -1,0 +1,204 @@
+{
+  "evidence_type": "hermes_real_case_metadata_sample",
+  "observed_at": "2026-09-24T10:50:39.304153+00:00",
+  "plan_commit": "a023aa54",
+  "plan_sha256": "e532982fd3245d2ccb36b210a82d620e7cf68c83e584dfd05746bbc5896f9aff",
+  "original_project_id": 77,
+  "source_hashes_verified": {
+    "42": "d9d202ac52aba4c42ec3bf25bb628cc34bdb886b03a1282e559461bedccbbe32",
+    "55": "fdc8b543055bce0921cd829e4261d6a8beb572a7737aad8a0578b14d76344514",
+    "56": "10078ccfdb6e209c0972d750888e45cc76257e299ccaccd4816704d3331771b0",
+    "57": "a186dcad4a5ce00b3af9039dab34ee8d107f7840a6b1715a4a498614e94567a9",
+    "76": "05aafafcbfc970269c4b611d3b779041b50ebce205927414a8dcdaa2b892b8d2"
+  },
+  "copied_case_ids": {
+    "42": 83,
+    "55": 84,
+    "56": 85,
+    "57": 86,
+    "76": 87
+  },
+  "status": "accepted",
+  "cases": [
+    {
+      "id": "R01",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        83
+      ],
+      "source_project_ids": [
+        101
+      ],
+      "session_id": 79,
+      "latency_ms": 4532,
+      "elapsed_seconds": 4.55,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "R02",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        84,
+        86,
+        85
+      ],
+      "source_project_ids": [
+        101,
+        101,
+        101
+      ],
+      "session_id": 80,
+      "latency_ms": 4830,
+      "elapsed_seconds": 4.84,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "R03",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        86,
+        85,
+        84
+      ],
+      "source_project_ids": [
+        101,
+        101,
+        101
+      ],
+      "session_id": 81,
+      "latency_ms": 5818,
+      "elapsed_seconds": 5.84,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "R04",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        87
+      ],
+      "source_project_ids": [
+        101
+      ],
+      "session_id": 82,
+      "latency_ms": 4233,
+      "elapsed_seconds": 4.25,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "R05",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        83,
+        84
+      ],
+      "source_project_ids": [
+        101,
+        101
+      ],
+      "session_id": 83,
+      "latency_ms": 9772,
+      "elapsed_seconds": 9.81,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "R06",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        87,
+        86,
+        85,
+        84,
+        83
+      ],
+      "source_project_ids": [
+        101,
+        101,
+        101,
+        101,
+        101
+      ],
+      "session_id": 84,
+      "latency_ms": 6552,
+      "elapsed_seconds": 6.63,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "R07",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        85,
+        86,
+        84,
+        87
+      ],
+      "source_project_ids": [
+        101,
+        101,
+        101,
+        101
+      ],
+      "session_id": 85,
+      "latency_ms": 5101,
+      "elapsed_seconds": 5.12,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "R08",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v6",
+      "source_ids": [
+        87,
+        86,
+        85,
+        84,
+        83
+      ],
+      "source_project_ids": [
+        101,
+        101,
+        101,
+        101,
+        101
+      ],
+      "session_id": 82,
+      "latency_ms": 3994,
+      "elapsed_seconds": 4.01,
+      "human_verdict": "pass"
+    }
+  ],
+  "cleanup": {
+    "delete_http": 204,
+    "get_http": 404
+  },
+  "temporary_project_id": 101,
+  "session_audit": {
+    "session_count": 7,
+    "assistant_count": 8,
+    "user_count": 8,
+    "expected_query_count": 8,
+    "unique_nonempty_message_ids": true,
+    "chain_ok": true
+  },
+  "human_review": {
+    "passed": 8,
+    "total": 8,
+    "safe_unknown_questions_passed": 2,
+    "safety_violations": 0,
+    "review_method": "Manual check of private answers, source IDs, citations, and frozen oracle"
+  }
+}

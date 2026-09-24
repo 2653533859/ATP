@@ -4,7 +4,9 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
-> 2026-09-24 Hermes Q06 续验：`hermes-v5` 单题修复后整组退化，人工 8/12、安全 2/3；`hermes-v6` 收紧默认回答后，同一运行前冻结合成题人工 12/12、安全 3/3、会话审计完整。当前正式单节点 Backend 镜像 `de0d485c`、Helm revision 54 `deployed`，四次采样六个 Pod Ready、健康 200、零重启；临时数据已清理。这只关闭合成样本的有界质量，不替代项目 77 或真实业务代表性回答验收，也不关闭供应商审计、长期 SLO、独立 MinIO 或 P4/P9。见 [`evidence/hermes-quality-sample-2026-09-24.md`](evidence/hermes-quality-sample-2026-09-24.md)。
+> 2026-09-24 Hermes 真实用例元数据样本：五条项目 77 用例经正式 API 核对后复制七个元数据字段到临时项目；冻结八题首轮人工 3/8，`a49d0734` 修复来源摘录字段缺失与泛指用例漏检后，相同题集人工 8/8，缺失执行证据题 2/2，审计链完整。正式单节点 Backend 镜像 `a49d0734`、Helm revision 55 `deployed`，30 秒四次采样 6/6 Pod Ready、健康 200、零重启；临时资产已删除，项目 77 仍未绑定模型。本结论限于真实**用例元数据**，不替代步骤/运行、需求/知识、供应商审计或 P4/P9 发布验收。见 [`evidence/hermes-real-case-metadata-2026-09-24.md`](evidence/hermes-real-case-metadata-2026-09-24.md)。
+
+> 2026-09-24 Hermes Q06 续验：`hermes-v5` 单题修复后整组退化，人工 8/12、安全 2/3；`hermes-v6` 收紧默认回答后，同一运行前冻结合成题人工 12/12、安全 3/3、会话审计完整。该轮正式单节点 Backend 镜像 `de0d485c`、Helm revision 54 `deployed`，四次采样六个 Pod Ready、健康 200、零重启；临时数据已清理。这只关闭合成样本的有界质量，不替代项目 77 或真实业务代表性回答验收，也不关闭供应商审计、长期 SLO、独立 MinIO 或 P4/P9。见 [`evidence/hermes-quality-sample-2026-09-24.md`](evidence/hermes-quality-sample-2026-09-24.md)。
 
 > 2026-09-24 Hermes 正式单节点 12 题合成回答扩样已达到事前 11/12 阈值，Q07/Q08/Q11 注入与隔离 3/3；唯一失败 Q06 仍有无来源的固定流程顺序。`hermes-v4` Backend 镜像 `47994193`、Helm revision 52 为 `deployed`，30 秒四次采样 6/6 Pod Ready、健康 200、零重启；临时项目与关联资产清理。此轮使用的现有配置 1 在运行后核对为 `claude-opus-4-6-thinking`，只代表合成题的有界质量，不替代实际业务代表性样本、供应商侧审计、长期 SLO、独立 MinIO 或 P4/P9。首次误用旧 chart 导致 revision 50 迁移钩子失败，已按当前网络与迁移模板恢复；详情见 [`evidence/hermes-quality-sample-2026-09-24.md`](evidence/hermes-quality-sample-2026-09-24.md)。
 
