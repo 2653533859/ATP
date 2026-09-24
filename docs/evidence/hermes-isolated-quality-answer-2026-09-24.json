@@ -1,0 +1,18 @@
+{
+  "http_status": 200,
+  "planner_source": "model",
+  "planner_validation": "accepted",
+  "tool_statuses": [
+    [
+      "failed_tasks",
+      "ok"
+    ],
+    [
+      "quality_trend",
+      "ok"
+    ]
+  ],
+  "says_change_undetermined": true,
+  "says_latest_rate": true,
+  "session_id": 17
+}
