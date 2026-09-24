@@ -121,6 +121,30 @@ def _matching_db(project):
     )
 
 
+def test_case_candidates_include_answerable_metadata_in_grounded_excerpt():
+    case = SimpleNamespace(
+        id=76,
+        name="B4.2 Android 单设备持续运行",
+        summary="持续运行验收",
+        description="单设备链路",
+        case_code="ATP-ANDROID-0076",
+        tags=["real-device"],
+        case_type="android",
+        priority="P0",
+        case_level="smoke",
+        updated_at=NOW,
+        created_at=NOW,
+    )
+    module = SimpleNamespace(project_id=77)
+
+    ranked = rank_candidates("B4.2 Android 的类型、优先级和级别", hermes._case_candidates([(case, module)]), 8)
+
+    assert len(ranked) == 1
+    assert ranked[0].project_id == 77
+    assert "用例类型: android; 优先级: P0; 用例级别: smoke" in ranked[0].excerpt
+    assert "标签: real-device" in ranked[0].excerpt
+
+
 def test_query_schema_trims_and_limits_input():
     result = HermesQueryIn(project_id=1, query="  登录  ", limit=3)
 

@@ -790,7 +790,16 @@ def _case_candidates(rows: Sequence[Any]) -> list[HermesCandidate]:
             source_id=case.id,
             project_id=module.project_id,
             title=case.name,
-            body="\n".join(value for value in (case.summary, case.description) if value),
+            body="\n".join(
+                value
+                for value in (
+                    f"用例类型: {_enum_value(case.case_type)}; 优先级: {case.priority}; 用例级别: {case.case_level}",
+                    f"标签: {', '.join(case.tags or [])}" if case.tags else None,
+                    case.summary,
+                    case.description,
+                )
+                if value
+            ),
             source_ref=case.case_code,
             path=f"/cases?project_id={module.project_id}&case_id={case.id}",
             tags=tuple(case.tags or []) + (_enum_value(case.case_type), case.priority, case.case_level),

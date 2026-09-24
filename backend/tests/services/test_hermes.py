@@ -65,6 +65,17 @@ def test_rank_candidates_applies_source_and_updated_date_filters():
     assert [(source.source_type, source.source_id) for source in sources] == [("knowledge", 1)]
 
 
+def test_rank_candidates_collective_case_question_returns_only_cases():
+    case = _candidate("case", 3, datetime(2026, 9, 3, tzinfo=timezone.utc))
+    requirement = _candidate("requirement", 2, datetime(2026, 9, 2, tzinfo=timezone.utc))
+
+    ranked = rank_candidates("这些用例是否全部执行通过？", [case, requirement], limit=8)
+
+    assert [(item.source_type, item.source_id) for item in ranked] == [("case", 3)]
+    assert ranked[0].match_terms == ("用例",)
+    assert rank_candidates("是否全部执行通过？", [case], limit=8) == []
+
+
 def test_rank_candidates_recovers_shared_chinese_phrase_in_long_question():
     source = HermesCandidate(
         source_type="requirement",

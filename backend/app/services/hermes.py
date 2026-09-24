@@ -321,6 +321,14 @@ def rank_candidates(
             shared = sorted((title_pairs & query_pairs) - {"项目", "规则", "时间", "说明", "问题"})
             if shared:
                 score, terms = 2 * len(shared), shared[:6]
+        if (
+            score <= 0
+            and candidate.source_type == "case"
+            and re.search(r"(?:这些|所有|全部|本项目的|本项目)(?:测试)?用例", query)
+        ):
+            # Collective case questions need project-scoped case evidence even
+            # when no individual title appears in the question.
+            score, terms = 1, ["用例"]
         if score <= 0:
             continue
         ranked.append(
