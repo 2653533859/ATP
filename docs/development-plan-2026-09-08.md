@@ -186,6 +186,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 
 ## 9. 执行记录
 
+- 2026-09-24：继续 K3s Hermes 真实问答与受控回退验收。临时合成需求的固定短问句获得带有效 `[S1]` 的模型回答，人工核对锁定阈值、时长及通知缺口；受控桩无引用、模型本机连接失败时回退项目检索，规划失败稳定记录 `model_call_failed`。原长中文问句漏检已由 `9f161362` 的有界四字片段兜底修复，定向 `32 passed`、单文件独立 `26 passed`、非集成后端全量 `2664 passed / 2 skipped`。单节点 Helm revision 48 复测原问句得到正确来源、有效引用和模型回答，无关资产仍为 `no_results`；四次采样六个 Pod Ready、Backend 健康，临时项目与配置全部清理。固定十题、超时/限额、供应商侧审计和发布门禁仍待独立验收。见 [`evidence/hermes-k3s-answer-fallback-cjk-2026-09-24.md`](evidence/hermes-k3s-answer-fallback-cjk-2026-09-24.md)。
+
 - 2026-09-23：继续准备 Hermes 真实验收。独立审查确认十题中六道是确定性工具编排、两道无来源拒答，仅两道正向检索可能调用回答模型，且旧评分会在缺资产或规则回退时产生误导性通过。现升级 `hermes-core-v2` 至 `2026-09-23.1`：正向题必须有相关来源或状态为 `ok` 的工具证据才计分，回答模型引用只在 `llm_grounded` 且引用实际相关来源时通过。新增显式项目的默认只读预检及 `--execute` 验收脚本，十题与模型规划挑战题分开报告，不落回答/来源正文。后端相关文件独立测试 `11 + 23 + 36 passed`、非集成全量 `2656 passed / 2 skipped`、前端全量 `76 files / 369 tests passed`，Ruff、mypy、TypeScript 和生产构建通过。目标 K3s 六个 Pod Ready，Backend 镜像仍为 `bdb84286`，未部署新代码或调用真实模型；发布库 0 项目模型绑定、固定编号资产缺失，仍需隔离数据库、夹具和模型配置。见 [`hermes-evaluation-acceptance.md`](hermes-evaluation-acceptance.md)。
 
 - 2026-09-23：完成 Hermes H9 安全与评测加固。会话助手消息增加稳定 ID，反馈提交同时核对 ID/下标；裁剪后的失效目标统一 `409`，重复评价不增加治理计数、改评按差量更新。移除前端旧快捷工具调用及后端宽泛参数会话工具路由，保留工作台快捷回答和 H3 固定只读工具链。修正固定 `run-detail` 题缺任务类型的问题，题集版本改为 `2026-09-23`，旧版本评分不混算。独立审查发现并修复旧下标落到控制消息时错误返回 `422` 的边界。后端 Hermes 定向 `57 passed`、非集成全量 `2629 passed / 2 skipped`，前端全量 `76 files / 369 tests passed`，TypeScript、生产构建、Ruff、格式及 mypy 通过。发布环境只读核对有 1 个启用模型配置，但无项目绑定，固定题依赖的运行/需求/知识编号 1 均不存在；未调用真实模型或更改目标数据，角色与审计验收仍待隔离项目及数据准备。见 [`hermes-development-plan-2026-09-01.md`](hermes-development-plan-2026-09-01.md) 和 [`evidence/hermes-evaluation-readiness-2026-09-23.json`](evidence/hermes-evaluation-readiness-2026-09-23.json)。

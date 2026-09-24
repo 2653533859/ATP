@@ -4,6 +4,8 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
+> 2026-09-24 Hermes K3s 回答与回退补验发现长中文问句漏检：同名需求最初返回 `no_results`。提交 `9f161362` 以有界四字片段兜底修复并通过非集成后端全量 `2664 passed / 2 skipped`；单节点 Helm revision 48 部署后原问句返回真实模型 `llm_grounded`、正确来源和有效 `[S1]`，无关问题仍为 `no_results`。另以一条合成需求人工核对真实模型的阈值/时长与证据缺口；本机桩无引用和模型连接失败时查询退回检索摘要，连接失败规划记录 `model_call_failed`。临时项目、模型配置已清理，四次健康采样均为六个 Pod 就绪、Backend 200。该证据不关闭固定十题、供应商异常/账单、长期 SLO、独立 MinIO 或 P4/P9。见 [`evidence/hermes-k3s-answer-fallback-cjk-2026-09-24.md`](evidence/hermes-k3s-answer-fallback-cjk-2026-09-24.md)。
+
 > 2026-09-24 Hermes K3s 真实模型规划补验：通过正式 API 创建、绑定并清理临时项目 84；现有已启用配置的连接测试为 HTTP 200，有证据的规划请求由模型选出 `failed_tasks` 和 `quality_trend`，两步均 `ok` 且各有 1 条证据，usage 已记录但无成本估算。临时 Viewer 可读、写入和跨项目读取均 403，工具与拒绝审计持久化；清理后项目、用例、运行均 404，项目 77 未改动，revision 47、六个 Pod 和 Backend 健康保持正常。此结果只关闭 K3s 有界模型规划链路，不关闭固定十题、完整回答质量、异常回退、供应商账单、多节点、SLO、独立 MinIO 或 P4/P9。见 [`evidence/hermes-k3s-real-model-acceptance-2026-09-24.md`](evidence/hermes-k3s-real-model-acceptance-2026-09-24.md)。
 
 > 2026-09-24 Hermes 隔离环境已使用 Gemini 3.8 Flash 的兼容服务模型 ID `gemini-3.8-flash-high` 完成第二轮真实模型验收：固定十题 10/10、规划挑战题通过，两条模型生成回答与一条趋势回答经过内容抽查；原模型配置保留，隔离项目当前绑定新配置。密钥未进入仓库或报告。该结果不代替现有 K3s 项目级模型关联与认证验收；详见 [`evidence/hermes-gemini38-isolated-acceptance-2026-09-24.md`](evidence/hermes-gemini38-isolated-acceptance-2026-09-24.md)。
