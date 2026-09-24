@@ -120,6 +120,16 @@ def test_build_grounded_prompt_labels_history_as_untrusted_data():
     assert "[S1]" in prompt
 
 
+def test_build_grounded_prompt_does_not_treat_missing_excerpt_as_missing_project_asset():
+    source = _candidate("requirement", 1, datetime(2026, 9, 1, tzinfo=timezone.utc))
+    ranked = rank_candidates("登录", [source], limit=1)
+
+    prompt = build_grounded_prompt("总结登录需求", ranked)
+
+    assert "不能由片段中未出现某项资产推断整个项目没有该资产" in prompt
+    assert "先查询现有记录再决定是否补充" in prompt
+
+
 def test_build_governance_summary_uses_valid_citations_and_tolerates_legacy_rows():
     sessions = [
         type(
