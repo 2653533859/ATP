@@ -1,0 +1,149 @@
+{
+  "evidence_type": "hermes_target_role_audit",
+  "observed_at": "2026-09-24T17:43:38.724371+00:00",
+  "plan_commit": "87a2cda9",
+  "plan_sha256": "61a1fdfb4ea7aad8f699be3e5737e49116a19cb4848f2920a5762a74076253aa",
+  "status": "passed",
+  "checks": [
+    {
+      "id": "P01",
+      "passed": true,
+      "admin_http": [
+        200,
+        200
+      ],
+      "viewer_http": 200,
+      "assigned_role": "viewer"
+    },
+    {
+      "id": "P02",
+      "passed": true,
+      "http": 200,
+      "mode": "llm_grounded",
+      "source_project_ids": [
+        104
+      ],
+      "source_ids": [
+        31
+      ],
+      "citation_indexes": [
+        1
+      ],
+      "session_list_http": 200,
+      "answer_marker_correct": true,
+      "known_credential_echo": false
+    },
+    {
+      "id": "P03",
+      "passed": true,
+      "http": 200,
+      "tool_status": "empty",
+      "audit_before": 0,
+      "audit_after": 1
+    },
+    {
+      "id": "P04",
+      "passed": true,
+      "http": [
+        403,
+        403
+      ],
+      "denied_before": 0,
+      "denied_after": 2
+    },
+    {
+      "id": "P05",
+      "passed": true,
+      "http": [
+        403,
+        403,
+        403,
+        403,
+        403
+      ],
+      "denied_before": 0,
+      "denied_after": 5
+    },
+    {
+      "id": "P06",
+      "passed": true,
+      "cross_feedback_http": [
+        404,
+        404
+      ],
+      "viewer_session_list_http": 200,
+      "own_only": true
+    },
+    {
+      "id": "P07",
+      "passed": true,
+      "feedback_http": [
+        200,
+        200
+      ],
+      "helpful": 1
+    },
+    {
+      "id": "P08",
+      "passed": true,
+      "viewer_http": 403,
+      "admin_http": 200,
+      "denied_before": 2,
+      "denied_after": 3
+    },
+    {
+      "id": "P09",
+      "passed": true,
+      "A_delete_http": 204,
+      "A_get_http": 404,
+      "A_requirement_get_http": 404,
+      "B_delete_http": 204,
+      "B_get_http": 404,
+      "B_requirement_get_http": 404,
+      "original_77_http": 200,
+      "original_77_binding_after": null
+    }
+  ],
+  "cleanup": {
+    "A_delete_http": 204,
+    "A_get_http": 404,
+    "A_requirement_get_http": 404,
+    "B_delete_http": 204,
+    "B_get_http": 404,
+    "B_requirement_get_http": 404,
+    "original_77_http": 200,
+    "original_77_binding_after": null
+  },
+  "identities": {
+    "admin_role": "admin",
+    "viewer_global_role": "tester",
+    "viewer_id": 21
+  },
+  "original_project_77_model_binding_before": null,
+  "temporary_projects": {
+    "A": 104,
+    "B": 105
+  },
+  "temporary_requirement_ids": {
+    "A": 31,
+    "B": 32
+  },
+  "viewer_session_id": 88,
+  "post_cleanup_verification": {
+    "project_104_access_denied_audit": 3,
+    "project_104_hermes_read_tool_audit": 1,
+    "project_105_access_denied_audit": 5,
+    "project_105_hermes_read_tool_audit": 0,
+    "project_104_session_count": 0,
+    "project_105_session_count": 0,
+    "helm_revision": 55,
+    "helm_status": "deployed",
+    "pod_samples": 4,
+    "ready_pods_each_sample": 6,
+    "total_pods_each_sample": 6,
+    "pod_restarts_each_sample": 0,
+    "health_http_each_sample": 200
+  },
+  "passed": 9,
+  "total": 9
+}
