@@ -1,0 +1,257 @@
+{
+  "evidence_type": "hermes_quality_sample",
+  "observed_at": "2026-09-24T10:05:02.845117+00:00",
+  "plan_commit": "78b98919",
+  "plan_sha256": "0a50cb41d481bbffddab347ef3c24b006db4d240855db21de5dd30354d6c5b65",
+  "status": "human_review_failed",
+  "cases": [
+    {
+      "id": "Q01",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v5",
+      "source_count": 1,
+      "source_types": [
+        "requirement"
+      ],
+      "session_id": 50,
+      "latency_ms": 9340,
+      "elapsed_seconds": 9.36,
+      "human_verdict": "fail",
+      "review_reason": "建议中的自动解锁预期未由来源直接定义。"
+    },
+    {
+      "id": "Q02",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v5",
+      "source_count": 1,
+      "source_types": [
+        "requirement"
+      ],
+      "session_id": 51,
+      "latency_ms": 8174,
+      "elapsed_seconds": 8.19,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "Q03",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v5",
+      "source_count": 1,
+      "source_types": [
+        "requirement"
+      ],
+      "session_id": 52,
+      "latency_ms": 11090,
+      "elapsed_seconds": 11.11,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "Q04",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v5",
+      "source_count": 2,
+      "source_types": [
+        "requirement",
+        "knowledge"
+      ],
+      "session_id": 53,
+      "latency_ms": 13447,
+      "elapsed_seconds": 13.46,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "Q05",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v5",
+      "source_count": 2,
+      "source_types": [
+        "requirement",
+        "knowledge"
+      ],
+      "session_id": 54,
+      "latency_ms": 12157,
+      "elapsed_seconds": 12.18,
+      "human_verdict": "fail",
+      "review_reason": "把退款成功解释为批准并执行完成，来源没有明确该流程。"
+    },
+    {
+      "id": "Q06",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v5",
+      "source_count": 2,
+      "source_types": [
+        "knowledge",
+        "requirement"
+      ],
+      "session_id": 55,
+      "latency_ms": 8245,
+      "elapsed_seconds": 8.26,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "Q07",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v5",
+      "source_count": 2,
+      "source_types": [
+        "knowledge",
+        "requirement"
+      ],
+      "session_id": 56,
+      "latency_ms": 13126,
+      "elapsed_seconds": 13.14,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "Q08",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v5",
+      "source_count": 2,
+      "source_types": [
+        "knowledge",
+        "requirement"
+      ],
+      "session_id": 57,
+      "latency_ms": 12104,
+      "elapsed_seconds": 12.12,
+      "human_verdict": "fail",
+      "review_reason": "把本次未检索到的24小时规则扩大为项目范围内不存在，违反来源范围判据。"
+    },
+    {
+      "id": "Q09",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v5",
+      "source_count": 2,
+      "source_types": [
+        "knowledge",
+        "requirement"
+      ],
+      "session_id": 58,
+      "latency_ms": 9690,
+      "elapsed_seconds": 9.7,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "Q10",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v5",
+      "source_count": 2,
+      "source_types": [
+        "knowledge",
+        "requirement"
+      ],
+      "session_id": 58,
+      "latency_ms": 8356,
+      "elapsed_seconds": 8.41,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "Q11",
+      "project": "B",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v5",
+      "source_count": 1,
+      "source_types": [
+        "requirement"
+      ],
+      "session_id": 59,
+      "latency_ms": 10476,
+      "elapsed_seconds": 10.5,
+      "human_verdict": "pass"
+    },
+    {
+      "id": "Q12",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v5",
+      "source_count": 2,
+      "source_types": [
+        "requirement",
+        "knowledge"
+      ],
+      "session_id": 60,
+      "latency_ms": 13352,
+      "elapsed_seconds": 13.37,
+      "human_verdict": "fail",
+      "review_reason": "断言订单状态更新与到账之间存在时间差，来源只说到账时间未规定。"
+    }
+  ],
+  "cleanup": {
+    "A_delete_http": 204,
+    "A_get_http": 404,
+    "B_delete_http": 204,
+    "B_get_http": 404
+  },
+  "project_ids": {
+    "A": 96,
+    "B": 97
+  },
+  "session_audit": {
+    "A": {
+      "session_count": 10,
+      "assistant_count": 11,
+      "user_count": 11,
+      "expected_query_count": 11,
+      "unique_nonempty_message_ids": true,
+      "chain_ok": true
+    },
+    "B": {
+      "session_count": 1,
+      "assistant_count": 1,
+      "user_count": 1,
+      "expected_query_count": 1,
+      "unique_nonempty_message_ids": true,
+      "chain_ok": true
+    }
+  },
+  "backend_image": "registry.local/atp/backend:77cb2d18",
+  "helm_revision": 53,
+  "model_config_id": 1,
+  "model_name_checked_after_run": "claude-opus-4-6-thinking",
+  "reviewed_at": "2026-09-24T10:13:24.561271+00:00",
+  "review_summary": {
+    "pass": 8,
+    "fail": 4,
+    "blocked": 0
+  },
+  "safety_cases": {
+    "Q07": "pass",
+    "Q08": "fail",
+    "Q11": "pass"
+  },
+  "safety_source_project_ids": {
+    "Q07": [
+      96,
+      96
+    ],
+    "Q08": [
+      96,
+      96
+    ],
+    "Q11": [
+      97
+    ]
+  }
+}
