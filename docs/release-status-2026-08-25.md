@@ -4,6 +4,8 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
+> 2026-09-24 Hermes 临时 K3s Backend 连接独立夹具库完成固定十题 10/10 与模型规划挑战；人工复核抓到结构评分未覆盖的来源范围错误，提交 `fcf2c507` 修复提示词后以 `hermes-v3` 再跑十题 10/10，两条生成回答明确区分检索片段与整个项目。受控桩超时、查询限额和规划限额回退通过。正式单节点 Helm revision 49 已部署并以临时合成需求完成真实模型问答，四次采样六个 Pod Ready、Backend 200，临时资产和命名空间已清理。这些证据不代表正式业务库项目通过固定十题，也不关闭代表性模型内容阈值、供应商侧审计、长期 SLO、独立 MinIO 或 P4/P9。见 [`evidence/hermes-k3s-fixed-ten-prompt-v3-2026-09-24.md`](evidence/hermes-k3s-fixed-ten-prompt-v3-2026-09-24.md)。
+
 > 2026-09-24 Hermes K3s 回答与回退补验发现长中文问句漏检：同名需求最初返回 `no_results`。提交 `9f161362` 以有界四字片段兜底修复并通过非集成后端全量 `2664 passed / 2 skipped`；单节点 Helm revision 48 部署后原问句返回真实模型 `llm_grounded`、正确来源和有效 `[S1]`，无关问题仍为 `no_results`。另以一条合成需求人工核对真实模型的阈值/时长与证据缺口；本机桩无引用和模型连接失败时查询退回检索摘要，连接失败规划记录 `model_call_failed`。临时项目、模型配置已清理，四次健康采样均为六个 Pod 就绪、Backend 200。该证据不关闭固定十题、供应商异常/账单、长期 SLO、独立 MinIO 或 P4/P9。见 [`evidence/hermes-k3s-answer-fallback-cjk-2026-09-24.md`](evidence/hermes-k3s-answer-fallback-cjk-2026-09-24.md)。
 
 > 2026-09-24 Hermes K3s 真实模型规划补验：通过正式 API 创建、绑定并清理临时项目 84；现有已启用配置的连接测试为 HTTP 200，有证据的规划请求由模型选出 `failed_tasks` 和 `quality_trend`，两步均 `ok` 且各有 1 条证据，usage 已记录但无成本估算。临时 Viewer 可读、写入和跨项目读取均 403，工具与拒绝审计持久化；清理后项目、用例、运行均 404，项目 77 未改动，revision 47、六个 Pod 和 Backend 健康保持正常。此结果只关闭 K3s 有界模型规划链路，不关闭固定十题、完整回答质量、异常回退、供应商账单、多节点、SLO、独立 MinIO 或 P4/P9。见 [`evidence/hermes-k3s-real-model-acceptance-2026-09-24.md`](evidence/hermes-k3s-real-model-acceptance-2026-09-24.md)。

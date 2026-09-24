@@ -1,0 +1,17 @@
+{
+  "evidence_type": "hermes_business_k3s_prompt_v3_smoke",
+  "observed_at": "2026-09-24T09:07:31.788321+00:00",
+  "status": "passed",
+  "query_http": 200,
+  "mode": "llm_grounded",
+  "prompt_version": "hermes-v3",
+  "source_count": 1,
+  "source_type": "requirement",
+  "has_valid_citation": true,
+  "mentions_five": true,
+  "mentions_fifteen": true,
+  "mentions_notification_gap": true,
+  "session_id": 16,
+  "project_delete_http": 204,
+  "project_get_http": 404
+}

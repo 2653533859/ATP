@@ -186,6 +186,8 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 
 ## 9. 执行记录
 
+- 2026-09-24：临时 K3s Backend 连接独立夹具库完成 Hermes `2026-09-23.1` 固定十题与真实模型规划，结构评分 10/10；人工复核发现模型把“本次检索没显示用例”误写成“项目缺少用例”。`fcf2c507` 将提示范围限定为检索片段并升至 `hermes-v3`，再跑十题 10/10，两条生成回答已先建议查询存量关联。受控桩验证 60 秒查询超时、查询限额和规划限额回退；定向 `63 passed`、后端非集成全量 `2665 passed / 2 skipped`。正式单节点 Helm revision 49 合成需求冒烟通过，四次采样六个 Pod Ready/Backend 200；临时命名空间和业务项目清理。代表性内容阈值、供应商侧审计、C3.4/P4/P9 仍待独立验收。见 [`evidence/hermes-k3s-fixed-ten-prompt-v3-2026-09-24.md`](evidence/hermes-k3s-fixed-ten-prompt-v3-2026-09-24.md)。
+
 - 2026-09-24：继续 K3s Hermes 真实问答与受控回退验收。临时合成需求的固定短问句获得带有效 `[S1]` 的模型回答，人工核对锁定阈值、时长及通知缺口；受控桩无引用、模型本机连接失败时回退项目检索，规划失败稳定记录 `model_call_failed`。原长中文问句漏检已由 `9f161362` 的有界四字片段兜底修复，定向 `32 passed`、单文件独立 `26 passed`、非集成后端全量 `2664 passed / 2 skipped`。单节点 Helm revision 48 复测原问句得到正确来源、有效引用和模型回答，无关资产仍为 `no_results`；四次采样六个 Pod Ready、Backend 健康，临时项目与配置全部清理。固定十题、超时/限额、供应商侧审计和发布门禁仍待独立验收。见 [`evidence/hermes-k3s-answer-fallback-cjk-2026-09-24.md`](evidence/hermes-k3s-answer-fallback-cjk-2026-09-24.md)。
 
 - 2026-09-23：继续准备 Hermes 真实验收。独立审查确认十题中六道是确定性工具编排、两道无来源拒答，仅两道正向检索可能调用回答模型，且旧评分会在缺资产或规则回退时产生误导性通过。现升级 `hermes-core-v2` 至 `2026-09-23.1`：正向题必须有相关来源或状态为 `ok` 的工具证据才计分，回答模型引用只在 `llm_grounded` 且引用实际相关来源时通过。新增显式项目的默认只读预检及 `--execute` 验收脚本，十题与模型规划挑战题分开报告，不落回答/来源正文。后端相关文件独立测试 `11 + 23 + 36 passed`、非集成全量 `2656 passed / 2 skipped`、前端全量 `76 files / 369 tests passed`，Ruff、mypy、TypeScript 和生产构建通过。目标 K3s 六个 Pod Ready，Backend 镜像仍为 `bdb84286`，未部署新代码或调用真实模型；发布库 0 项目模型绑定、固定编号资产缺失，仍需隔离数据库、夹具和模型配置。见 [`hermes-evaluation-acceptance.md`](hermes-evaluation-acceptance.md)。

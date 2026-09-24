@@ -39,4 +39,6 @@ $projectId = (Get-Content '.local-run/hermes-evaluation-seed.json' -Raw | Conver
 
 `passed` 表示脚本的结构与确定性评分断言通过；`blocked` 表示项目来源或工具夹具缺失；`failed` 表示模型、工具、路由或评分条件失败。固定十题分别使用独立会话，报告另外列出模型规划挑战题。预检的 `pending_fixture_review` 仅表示题集版本与项目模型绑定字段可用，不表示验收通过。
 
+2026-09-24 已在临时 K3s Backend 复用独立夹具库运行此脚本，修复回答来源范围错误后固定十题 `10 passed`、独立规划挑战 `passed`；详见[当次验收与人工复核](evidence/hermes-k3s-fixed-ten-prompt-v3-2026-09-24.md)。该 Pod 和正式单节点 Release 使用同一修复镜像，但固定题没有在正式业务库项目执行。
+
 固定十题中六道编排题验证确定性规则，两道无结果题验证拒答，仅两道有来源查询题可能调用回答模型。挑战题必须报告 `planner.source=model`、`validation=accepted`、`model_calls=1`，并选出预期的两个只读工具。脚本不把十题的工具选择率解释成模型规划准确率。自动评分只检查路由、状态、证据、模式、引用和必要词，不能判定结论事实是否正确；仍需人工阅读对应 Hermes 会话，核对来源事实、供应商用量与脱敏审计，再记录角色矩阵和异常回退结果。会话不会由脚本自动清理，以便审阅；验收后按隔离环境的数据保留策略处理。

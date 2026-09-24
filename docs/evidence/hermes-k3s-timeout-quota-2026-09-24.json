@@ -1,0 +1,67 @@
+{
+  "evidence_type": "hermes_k3s_controlled_timeout_quota",
+  "observed_at": "2026-09-24T08:57:51.039472+00:00",
+  "status": "passed",
+  "results": [
+    {
+      "scenario": "mock_success",
+      "http": 200,
+      "mode": "llm_grounded",
+      "source_count": 1,
+      "has_citation": true,
+      "elapsed_seconds": 0.03,
+      "mock_calls": 1
+    },
+    {
+      "scenario": "mock_timeout",
+      "http": 200,
+      "mode": "project_retrieval",
+      "source_count": 1,
+      "has_citation": false,
+      "elapsed_seconds": 60.04,
+      "mock_calls": 2
+    },
+    {
+      "scenario": "quota_exceeded",
+      "http": 200,
+      "mode": "project_retrieval",
+      "source_count": 1,
+      "has_citation": false,
+      "elapsed_seconds": 0.02,
+      "mock_calls": 2
+    },
+    {
+      "scenario": "planner_first_attempt",
+      "http": 200,
+      "status": "no_match",
+      "planner_source": "deterministic_fallback",
+      "planner_validation": "rejected",
+      "fallback_reason": "policy_validation_failed",
+      "model_calls": 1,
+      "mock_calls": 3
+    },
+    {
+      "scenario": "planner_quota_exceeded",
+      "http": 200,
+      "status": "no_match",
+      "planner_source": "deterministic_fallback",
+      "planner_validation": "unavailable",
+      "fallback_reason": "daily_limit_reached",
+      "model_calls": 0,
+      "mock_calls": 3
+    }
+  ],
+  "cleanup": {
+    "project_delete_http": 204,
+    "project_get_http": 404,
+    "config_delete_http": 204,
+    "config_get_http": 404
+  },
+  "cleanup_initial": {
+    "project_delete_http": 403,
+    "project_get_http": 401,
+    "config_delete_http": 403,
+    "config_get_http": 401
+  },
+  "cleanup_reason": "initial_cleanup_requests_omitted_authorization_header"
+}
