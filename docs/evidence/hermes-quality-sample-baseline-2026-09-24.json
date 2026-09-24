@@ -1,0 +1,213 @@
+{
+  "evidence_type": "hermes_quality_sample",
+  "observed_at": "2026-09-24T09:22:51.589886+00:00",
+  "plan_commit": "78b98919",
+  "plan_sha256": "0a50cb41d481bbffddab347ef3c24b006db4d240855db21de5dd30354d6c5b65",
+  "status": "diagnostic_audit_blocked",
+  "cases": [
+    {
+      "id": "Q01",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v3",
+      "source_count": 1,
+      "source_types": [
+        "requirement"
+      ],
+      "session_id": 17,
+      "latency_ms": 13603,
+      "elapsed_seconds": 13.62,
+      "human_verdict": "blocked",
+      "review_reason": "该轮未保存会话审计快照，仅作检索诊断。"
+    },
+    {
+      "id": "Q02",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v3",
+      "source_count": 1,
+      "source_types": [
+        "requirement"
+      ],
+      "session_id": 18,
+      "latency_ms": 12623,
+      "elapsed_seconds": 12.64,
+      "human_verdict": "blocked",
+      "review_reason": "该轮未保存会话审计快照，仅作检索诊断。"
+    },
+    {
+      "id": "Q03",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v3",
+      "source_count": 1,
+      "source_types": [
+        "requirement"
+      ],
+      "session_id": 19,
+      "latency_ms": 13290,
+      "elapsed_seconds": 13.3,
+      "human_verdict": "blocked",
+      "review_reason": "该轮未保存会话审计快照，仅作检索诊断。"
+    },
+    {
+      "id": "Q04",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v3",
+      "source_count": 1,
+      "source_types": [
+        "requirement"
+      ],
+      "session_id": 20,
+      "latency_ms": 17769,
+      "elapsed_seconds": 17.78,
+      "human_verdict": "blocked",
+      "review_reason": "该轮未保存会话审计快照，仅作检索诊断。"
+    },
+    {
+      "id": "Q05",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v3",
+      "source_count": 1,
+      "source_types": [
+        "requirement"
+      ],
+      "session_id": 21,
+      "latency_ms": 14893,
+      "elapsed_seconds": 14.91,
+      "human_verdict": "blocked",
+      "review_reason": "该轮未保存会话审计快照，仅作检索诊断。"
+    },
+    {
+      "id": "Q06",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v3",
+      "source_count": 1,
+      "source_types": [
+        "knowledge"
+      ],
+      "session_id": 22,
+      "latency_ms": 10526,
+      "elapsed_seconds": 10.54,
+      "human_verdict": "blocked",
+      "review_reason": "该轮未保存会话审计快照，仅作检索诊断。"
+    },
+    {
+      "id": "Q07",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v3",
+      "source_count": 1,
+      "source_types": [
+        "knowledge"
+      ],
+      "session_id": 23,
+      "latency_ms": 15321,
+      "elapsed_seconds": 15.35,
+      "human_verdict": "blocked",
+      "review_reason": "该轮未保存会话审计快照，仅作检索诊断。"
+    },
+    {
+      "id": "Q08",
+      "project": "A",
+      "http": 200,
+      "mode": "no_results",
+      "prompt_version": "hermes-v3",
+      "source_count": 0,
+      "source_types": [],
+      "session_id": 24,
+      "latency_ms": 6,
+      "elapsed_seconds": 0.02,
+      "human_verdict": "blocked",
+      "review_reason": "该轮未保存会话审计快照，仅作检索诊断。"
+    },
+    {
+      "id": "Q09",
+      "project": "A",
+      "http": 200,
+      "mode": "no_results",
+      "prompt_version": "hermes-v3",
+      "source_count": 0,
+      "source_types": [],
+      "session_id": 25,
+      "latency_ms": 6,
+      "elapsed_seconds": 0.02,
+      "human_verdict": "blocked",
+      "review_reason": "该轮未保存会话审计快照，仅作检索诊断。"
+    },
+    {
+      "id": "Q10",
+      "project": "A",
+      "http": 200,
+      "mode": "no_results",
+      "prompt_version": "hermes-v3",
+      "source_count": 0,
+      "source_types": [],
+      "session_id": 25,
+      "latency_ms": 7,
+      "elapsed_seconds": 0.02,
+      "human_verdict": "blocked",
+      "review_reason": "该轮未保存会话审计快照，仅作检索诊断。"
+    },
+    {
+      "id": "Q11",
+      "project": "B",
+      "http": 200,
+      "mode": "no_results",
+      "prompt_version": "hermes-v3",
+      "source_count": 0,
+      "source_types": [],
+      "session_id": 26,
+      "latency_ms": 5,
+      "elapsed_seconds": 0.02,
+      "human_verdict": "blocked",
+      "review_reason": "该轮未保存会话审计快照，仅作检索诊断。"
+    },
+    {
+      "id": "Q12",
+      "project": "A",
+      "http": 200,
+      "mode": "llm_grounded",
+      "prompt_version": "hermes-v3",
+      "source_count": 1,
+      "source_types": [
+        "requirement"
+      ],
+      "session_id": 27,
+      "latency_ms": 16455,
+      "elapsed_seconds": 16.47,
+      "human_verdict": "blocked",
+      "review_reason": "该轮未保存会话审计快照，仅作检索诊断。"
+    }
+  ],
+  "cleanup": {
+    "A_delete_http": 204,
+    "A_get_http": 404,
+    "B_delete_http": 204,
+    "B_get_http": 404
+  },
+  "project_ids": {
+    "A": 90,
+    "B": 91
+  },
+  "backend_image": "registry.local/atp/backend:fcf2c507",
+  "helm_revision": 49,
+  "model_config_id": 1,
+  "model_name_checked_after_run": "claude-opus-4-6-thinking",
+  "reviewed_at": "2026-09-24T09:54:04.112831+00:00",
+  "review_summary": {
+    "pass": 0,
+    "fail": 0,
+    "blocked": 12
+  }
+}

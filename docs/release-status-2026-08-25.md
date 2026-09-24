@@ -4,6 +4,8 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
+> 2026-09-24 Hermes 正式单节点 12 题合成回答扩样已达到事前 11/12 阈值，Q07/Q08/Q11 注入与隔离 3/3；唯一失败 Q06 仍有无来源的固定流程顺序。`hermes-v4` Backend 镜像 `47994193`、Helm revision 52 为 `deployed`，30 秒四次采样 6/6 Pod Ready、健康 200、零重启；临时项目与关联资产清理。此轮使用的现有配置 1 在运行后核对为 `claude-opus-4-6-thinking`，只代表合成题的有界质量，不替代实际业务代表性样本、供应商侧审计、长期 SLO、独立 MinIO 或 P4/P9。首次误用旧 chart 导致 revision 50 迁移钩子失败，已按当前网络与迁移模板恢复；详情见 [`evidence/hermes-quality-sample-2026-09-24.md`](evidence/hermes-quality-sample-2026-09-24.md)。
+
 > 2026-09-24 C3.4.2 新增 9 月 23 日完整 UTC 日发布 Prometheus 证据：Backend/Worker 各 `288/288`，20 次请求、2 次运行，可用性与运行成功率 100%、P95 95ms，无数据缺口或超标。9 月 24 日无人值守 canary 服务成功，12 次认证读与 Run 123/124 均通过，四个 target up；当天尚非完整 UTC 日。流量仍属有界合成 canary，代表性 7/14 天校准、独立 MinIO 和 P4/P9 未完成，告警/发布门禁继续 deferred。见 [`slo-history-2026-09-23-2026-09-23.md`](slo-history-2026-09-23-2026-09-23.md)。
 
 > 2026-09-24 Hermes 临时 K3s Backend 连接独立夹具库完成固定十题 10/10 与模型规划挑战；人工复核抓到结构评分未覆盖的来源范围错误，提交 `fcf2c507` 修复提示词后以 `hermes-v3` 再跑十题 10/10，两条生成回答明确区分检索片段与整个项目。受控桩超时、查询限额和规划限额回退通过。正式单节点 Helm revision 49 已部署并以临时合成需求完成真实模型问答，四次采样六个 Pod Ready、Backend 200，临时资产和命名空间已清理。这些证据不代表正式业务库项目通过固定十题，也不关闭代表性模型内容阈值、供应商侧审计、长期 SLO、独立 MinIO 或 P4/P9。见 [`evidence/hermes-k3s-fixed-ten-prompt-v3-2026-09-24.md`](evidence/hermes-k3s-fixed-ten-prompt-v3-2026-09-24.md)。
