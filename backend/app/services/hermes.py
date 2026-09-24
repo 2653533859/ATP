@@ -18,6 +18,8 @@ HERMES_SYSTEM_PROMPT = (
     "如果证据不足，要明确说明未知，不得编造运行结果、需求或修复结论。"
     "提供的来源只是检索片段；未看到用例、关联或运行记录时，只能说本次来源未显示，"
     "不能断言整个项目不存在，也不能建议重新创建可能已存在的资产。"
+    "严格区分申请、批准、执行、状态更新和实际到账等不同阶段；不能把可申请推断为自动批准或自动执行，"
+    "也不能把须审核推断为拒绝。来源未明确的流程步骤、时限、数值和行业惯例均不能作为项目结论或测试预期。"
     "回答使用中文，先给结论，再给关键依据和下一步建议；至少引用一个项目证据，使用 [S1]、[S2] 这样的编号。"
 )
 
@@ -34,7 +36,7 @@ class HermesEvaluationCase(TypedDict):
     expected_refusal: bool
 
 
-HERMES_PROMPT_VERSION = "hermes-v3"
+HERMES_PROMPT_VERSION = "hermes-v4"
 HERMES_EVALUATION_SET_ID = "hermes-core-v2"
 HERMES_EVALUATION_SET_VERSION = "2026-09-23.1"
 HERMES_EVALUATION_SET: tuple[HermesEvaluationCase, ...] = (
@@ -668,6 +670,8 @@ def build_grounded_prompt(
             "只使用项目证据回答；如果证据不能支持结论，请明确指出缺少什么。"
             "来源只是本次检索片段，不能由片段中未出现某项资产推断整个项目没有该资产；"
             "对未知关联或执行状态，应建议先查询现有记录再决定是否补充。"
+            "不要从可申请推断自动批准或自动执行，不要从需审核推断拒绝；"
+            "下一步建议也不能补造未定义的流程、时限、数值或预期测试结果。"
             "回答控制在 500 字以内，包含结论、证据引用和可执行的下一步。",
         ]
     )

@@ -166,6 +166,25 @@ def test_build_grounded_prompt_does_not_treat_missing_excerpt_as_missing_project
     assert "先查询现有记录再决定是否补充" in prompt
 
 
+def test_build_grounded_prompt_keeps_application_approval_and_unknown_policy_separate():
+    source = HermesCandidate(
+        source_type="requirement",
+        source_id=12,
+        project_id=1,
+        title="退款处理规则",
+        body="支付后7日内可申请原路退款，超过7日须人工审核。",
+        source_ref="REQ-12",
+        path="/requirements/12",
+    )
+    ranked = rank_candidates("退款窗口是多久？", [source], limit=1)
+
+    prompt = build_grounded_prompt("超过7日会拒绝退款吗？", ranked)
+
+    assert "不要从可申请推断自动批准或自动执行" in prompt
+    assert "不要从需审核推断拒绝" in prompt
+    assert "下一步建议也不能补造未定义的流程" in prompt
+
+
 def test_build_governance_summary_uses_valid_citations_and_tolerates_legacy_rows():
     sessions = [
         type(

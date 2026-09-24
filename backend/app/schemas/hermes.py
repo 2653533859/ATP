@@ -114,7 +114,7 @@ class HermesQueryOut(BaseModel):
     session_id: int
     message_index: int
     message_id: str
-    prompt_version: str = "hermes-v3"
+    prompt_version: str = "hermes-v4"
     latency_ms: int = Field(ge=0)
     evaluation: HermesEvaluationResultOut | None = None
 
