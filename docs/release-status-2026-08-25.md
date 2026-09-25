@@ -4,6 +4,8 @@
 
 > 当前开发顺序与模块状态以 [`development-plan-2026-09-08.md`](development-plan-2026-09-08.md) 为准；本文件只维护发布证据、环境边界和收口结论。
 
+> 2026-09-25 Hermes Engineer/Editor 目标环境：冻结十项 **10/10**，涵盖真实模型引用、禁用手工计划、Owner/跨项目拒绝、会话所有权、降权、撤销和停用。复跑使用同一临时账号，项目、需求、计划和会话均清理；账号 22 依正式 API 停用、作为审计身份留存。正式单节点 Helm revision 55 仍 `deployed`、四次 6/6 Pod Ready、Backend 健康 200，但 Flower 于本轮前 `OOMKilled` 一次，当前总重启 1，故 C3.4 稳定性门禁未关闭。供应商账单、代表性业务内容、长期 SLO 与 P4/P9 继续待验。见 [`evidence/hermes-engineer-editor-2026-09-25.md`](evidence/hermes-engineer-editor-2026-09-25.md)。
+
 > 2026-09-25 Hermes 目标环境项目 Viewer 与管理员边界：两个临时项目的九项冻结检查 **9/9 通过**，真实模型来源限定于授权项目，越权写入/跨项目访问 403 且审计留存，跨用户反馈 404，同值反馈幂等。临时项目、需求和会话清理，原项目 77 模型绑定未变。正式单节点 Backend 镜像 `a49d0734`、Helm revision 55 `deployed`，四次采样 6/6 Pod Ready、健康 200、零重启。全局 Engineer/项目 Editor、供应商侧调用与账单、代表性业务内容、长期 SLO 及 P4/P9 仍未因此关闭。见 [`evidence/hermes-role-audit-2026-09-25.md`](evidence/hermes-role-audit-2026-09-25.md)。
 
 > 2026-09-24 Hermes 真实用例元数据样本：五条项目 77 用例经正式 API 核对后复制七个元数据字段到临时项目；冻结八题首轮人工 3/8，`a49d0734` 修复来源摘录字段缺失与泛指用例漏检后，相同题集人工 8/8，缺失执行证据题 2/2，审计链完整。正式单节点 Backend 镜像 `a49d0734`、Helm revision 55 `deployed`，30 秒四次采样 6/6 Pod Ready、健康 200、零重启；临时资产已删除，项目 77 仍未绑定模型。本结论限于真实**用例元数据**，不替代步骤/运行、需求/知识、供应商审计或 P4/P9 发布验收。见 [`evidence/hermes-real-case-metadata-2026-09-24.md`](evidence/hermes-real-case-metadata-2026-09-24.md)。

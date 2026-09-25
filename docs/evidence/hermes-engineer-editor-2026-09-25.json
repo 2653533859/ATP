@@ -1,0 +1,170 @@
+{
+  "evidence_type": "hermes_engineer_editor_acceptance",
+  "observed_at": "2026-09-25T07:58:44.913397+00:00",
+  "plan_commit": "88890ce7",
+  "plan_sha256": "aa905529b97380e39a61595cda5ad0db13cef966e46faf08f3eba14fd41298ae",
+  "status": "passed",
+  "checks": [
+    {
+      "id": "E01",
+      "passed": true,
+      "global_role": "engineer",
+      "project_role": "editor",
+      "project_read_http": 200
+    },
+    {
+      "id": "E02",
+      "passed": true,
+      "http": 200,
+      "mode": "llm_grounded",
+      "source_project_ids": [
+        108
+      ],
+      "source_ids": [
+        33
+      ],
+      "citation_indexes": [
+        1
+      ],
+      "answer_marker_correct": true,
+      "known_credential_echo": false
+    },
+    {
+      "id": "E03",
+      "passed": true,
+      "draft_http": 200,
+      "confirm_http": 200,
+      "plan_read_http": 200,
+      "plan_is_disabled_manual_draft": true
+    },
+    {
+      "id": "E04",
+      "passed": true,
+      "http": [
+        403,
+        403
+      ],
+      "denied_before": 0,
+      "denied_after": 2
+    },
+    {
+      "id": "E05",
+      "passed": true,
+      "http": [
+        403,
+        403,
+        403,
+        403,
+        403
+      ],
+      "denied_before": 0,
+      "denied_after": 5
+    },
+    {
+      "id": "E06",
+      "passed": true,
+      "pending_draft_http": 200,
+      "cross_user_confirm_http": 404
+    },
+    {
+      "id": "E07",
+      "passed": true,
+      "role_http": 200,
+      "new_role": "viewer",
+      "read_http": 200,
+      "draft_http": 403,
+      "denied_before": 2,
+      "denied_after": 3
+    },
+    {
+      "id": "E08",
+      "passed": true,
+      "engineer_http": 403,
+      "admin_http": 200,
+      "denied_before": 3,
+      "denied_after": 4
+    },
+    {
+      "id": "E09",
+      "passed": true,
+      "deactivate_http": 200,
+      "login_http": 403,
+      "old_token_http": 401,
+      "user_inactive": true
+    },
+    {
+      "id": "E10",
+      "passed": true,
+      "A_delete_http": 204,
+      "A_get_http": 404,
+      "A_requirement_get_http": 404,
+      "A_session_list_http": 200,
+      "A_session_count": 0,
+      "B_delete_http": 204,
+      "B_get_http": 404,
+      "B_requirement_get_http": 404,
+      "B_session_list_http": 200,
+      "B_session_count": 0,
+      "plan_get_http": 404,
+      "original_77_http": 200,
+      "original_77_binding_after": null,
+      "engineer_user_lookup_http": 200,
+      "engineer_user_inactive": true,
+      "A_access_denied_audit": 4,
+      "A_read_tool_audit": 0,
+      "B_access_denied_audit": 5,
+      "B_read_tool_audit": 0
+    }
+  ],
+  "cleanup": {
+    "A_delete_http": 204,
+    "A_get_http": 404,
+    "A_requirement_get_http": 404,
+    "A_session_list_http": 200,
+    "A_session_count": 0,
+    "B_delete_http": 204,
+    "B_get_http": 404,
+    "B_requirement_get_http": 404,
+    "B_session_list_http": 200,
+    "B_session_count": 0,
+    "plan_get_http": 404,
+    "original_77_http": 200,
+    "original_77_binding_after": null,
+    "engineer_user_lookup_http": 200,
+    "engineer_user_inactive": true,
+    "A_access_denied_audit": 4,
+    "A_read_tool_audit": 0,
+    "B_access_denied_audit": 5,
+    "B_read_tool_audit": 0
+  },
+  "original_77_model_binding_before": null,
+  "reused_inactive_setup_user": true,
+  "temporary_engineer_user_id": 22,
+  "temporary_projects": {
+    "A": 108,
+    "B": 109
+  },
+  "temporary_requirement_ids": {
+    "A": 33,
+    "B": 34
+  },
+  "engineer_session_id": 90,
+  "temporary_plan_id": 8,
+  "post_cleanup_runtime": {
+    "helm_revision": 55,
+    "helm_status": "deployed",
+    "pod_samples": 4,
+    "ready_pods_each_sample": 6,
+    "total_pods_each_sample": 6,
+    "pod_restarts_each_sample": 1,
+    "health_http_each_sample": 200,
+    "backend_restart_count": 0,
+    "flower_restart_count": 1,
+    "flower_last_reason": "OOMKilled",
+    "flower_last_finished_at": "2026-09-25T05:24:52Z",
+    "flower_memory_limit": "512Mi",
+    "flower_memory_at_inspection": "158Mi"
+  },
+  "passed": 10,
+  "total": 10
+}
