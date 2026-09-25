@@ -284,6 +284,8 @@ Recorder Deployment 使用 `RollingUpdate(maxSurge=0,maxUnavailable=100%)`，确
 Pod；否则默认 `maxSurge` 会让新 Pod 因端口或 display 冲突阻塞原子升级。Beat 固定使用 `Recreate`。Flower 内存 limit
 同时提升至 `512Mi`，避免长时间运行时因默认 `256Mi` limit 被 OOMKilled。
 
+Flower 还必须通过 Chart 传入 `--max_tasks=1000 --max_workers=100 --purge_offline_workers=300`，限制仪表盘内存中的近期事件。2026-09-25 发现发布机旧 Chart 副本在后续升级时移除了这些参数，revision 55 再次出现 512Mi `OOMKilled`；revision 56 已恢复参数。发布前应使用当前仓库 Chart 对照目标 release 的渲染结果，至少核对 Flower `args`、内存 limit、`hostNetwork` 单副本更新策略及其他非 Hook 资源的变化范围；发布后再核对运行进程参数、Pod 重启和健康检查。只增加内存 limit 或只检查仓库 Chart 都不足以发现这类运行配置漂移；详见 [`evidence/k3s-flower-chart-drift-2026-09-25.md`](evidence/k3s-flower-chart-drift-2026-09-25.md)。
+
 长期运行 Deployment 的 Pod template 包含生成 ConfigMap 的校验值；Chart 自建 Secret 时还包含生成 Secret 的校验值。
 因此 Helm 更新环境配置会触发进程重建，不会出现资源对象已更新但 Pod 仍读取旧环境的假升级。外部 Secret 的内容不在
 Chart 中，外部控制器更新后仍需由其 rollout 机制或显式重启承载 Pod。
