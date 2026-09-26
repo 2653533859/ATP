@@ -1,0 +1,141 @@
+{
+  "total_requests": 437.0660282767397,
+  "handlers": [
+    {
+      "handler": "/api/v1/hermes/query",
+      "requests": 89.01286611119599
+    },
+    {
+      "handler": "/api/v1/projects/{project_id}",
+      "requests": 78.01096192092695
+    },
+    {
+      "handler": "/api/v1/auth/login",
+      "requests": 49.0042538414793
+    },
+    {
+      "handler": "/api/v1/audit-logs",
+      "requests": 42.00661300546434
+    },
+    {
+      "handler": "/api/v1/projects",
+      "requests": 34.00393821658828
+    },
+    {
+      "handler": "/api/v1/cases/{case_id}",
+      "requests": 31.003216219915895
+    },
+    {
+      "handler": "/api/v1/hermes/sessions",
+      "requests": 18.002740531542734
+    },
+    {
+      "handler": "/api/v1/requirements",
+      "requests": 15.002303652453511
+    },
+    {
+      "handler": "/api/v1/ai/llm-configs",
+      "requests": 12.00169972907065
+    },
+    {
+      "handler": "/api/v1/workbench/overview",
+      "requests": 12.00104175709697
+    },
+    {
+      "handler": "/api/v1/auth/me",
+      "requests": 8.001487934896906
+    },
+    {
+      "handler": "/api/v1/hermes/orchestrate",
+      "requests": 7.008890535727298
+    },
+    {
+      "handler": "/api/v1/cases",
+      "requests": 6.000753103583013
+    },
+    {
+      "handler": "/api/v1/users",
+      "requests": 5.000434065457071
+    },
+    {
+      "handler": "/api/v1/hermes/sessions/{session_id}/feedback",
+      "requests": 4.00074529632683
+    },
+    {
+      "handler": "/api/v1/requirements/{requirement_id}",
+      "requests": 4.00074529632683
+    },
+    {
+      "handler": "/api/v1/cases/{case_id}/run",
+      "requests": 4.000347252365657
+    },
+    {
+      "handler": "/api/v1/projects/{project_id}/members",
+      "requests": 4.000347252365657
+    },
+    {
+      "handler": "/api/v1/runs/{run_id}",
+      "requests": 4.000347252365657
+    },
+    {
+      "handler": "/api/v1/hermes/sessions/{session_id}/drafts",
+      "requests": 3.0005589722451225
+    },
+    {
+      "handler": "/api/v1/hermes/tools/execute",
+      "requests": 3.0005589722451225
+    },
+    {
+      "handler": "/api/v1/users/{user_id}",
+      "requests": 2.000704999566762
+    },
+    {
+      "handler": "/api/v1/projects/{project_id}/members/{user_id}",
+      "requests": 2.0003149050221114
+    },
+    {
+      "handler": "/api/v1/modules",
+      "requests": 1.0001574525110557
+    },
+    {
+      "handler": "/api/v1/ai/llm-configs/test-connection",
+      "requests": 0.0
+    },
+    {
+      "handler": "/api/v1/ai/llm-configs/{config_id}",
+      "requests": 0.0
+    },
+    {
+      "handler": "/api/v1/cases/{case_id}/approve",
+      "requests": 0.0
+    },
+    {
+      "handler": "/api/v1/hermes/governance/evaluation-set",
+      "requests": 0.0
+    },
+    {
+      "handler": "/api/v1/hermes/governance/summary",
+      "requests": 0.0
+    },
+    {
+      "handler": "/api/v1/hermes/sessions/{session_id}/drafts/confirm",
+      "requests": 0.0
+    },
+    {
+      "handler": "/api/v1/knowledge",
+      "requests": 0.0
+    },
+    {
+      "handler": "/api/v1/plans/{plan_id}",
+      "requests": 0.0
+    },
+    {
+      "handler": "/api/v1/users/lookup",
+      "requests": 0.0
+    },
+    {
+      "handler": "/openapi.json",
+      "requests": 0.0
+    }
+  ]
+}

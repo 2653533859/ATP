@@ -78,6 +78,18 @@ RUN_OUTCOMES = _counter(
     ("entity_type", "status"),
 )
 
+
+def _initialize_run_outcome_series(counter: Any) -> None:
+    """Expose zero-valued terminal outcomes before the first run completes.
+
+    Prometheus cannot infer the first increment if a labeled series only appears
+    after that event, so rate/increase would otherwise omit that outcome.
+    """
+    for entity_type in ("case", "suite", "plan"):
+        for status in ("passed", "failed", "error", "skipped", "cancelled"):
+            counter.labels(entity_type=entity_type, status=status).inc(0)
+
+
 # Q7 A.3.2 — ADB 自愈可观测性
 # result: success | failure | not_tcp_serial | adb_not_found
 ADB_RECONNECT_TOTAL = _counter(
@@ -134,6 +146,7 @@ def start_worker_metrics_server(port: int) -> bool:
     try:
         from prometheus_client import start_http_server
 
+        _initialize_run_outcome_series(RUN_OUTCOMES)
         start_http_server(port)
         logger.info("Worker Prometheus /metrics enabled at :%d", port)
         return True

@@ -1,0 +1,3 @@
+date,worst_5m_ms,worst_1h_ms,mean_1h_ms,notes
+2026-09-24,1000,1000,435.04,handler mix stable
+2026-09-25,96.1,96.08,95.54,handler mix stable

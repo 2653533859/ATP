@@ -88,8 +88,12 @@ def test_start_worker_metrics_server_returns_true_on_success(monkeypatch):
     import prometheus_client
 
     called = {"port": None}
+    primed = []
+
+    monkeypatch.setattr(metrics, "_initialize_run_outcome_series", lambda counter: primed.append(counter))
 
     def _fake_start(port):
+        assert primed == [metrics.RUN_OUTCOMES]
         called["port"] = port
 
     monkeypatch.setattr(prometheus_client, "start_http_server", _fake_start)
