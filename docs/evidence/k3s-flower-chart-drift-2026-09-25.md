@@ -17,3 +17,9 @@ Hermes Engineer/Editor 验收后追查到正式单节点 Helm revision 55 的 Fl
 ## 边界与后续
 
 本次关闭发布环境的**配置漂移**，不抹去 revision 55 的 OOM 历史，也不凭启动时 104Mi 宣称长期 OOM 问题已经解决。继续观察真实事件积累下 Flower 内存和重启；若再增长，检查任务载荷及其他缓存。后续每次 Helm 发布须使用当前仓库 Chart，预检渲染结果的 Flower 参数与 `hostNetwork` 更新策略，避免旧发布副本再次覆盖。C3.4 的代表性 7/14 日 SLO 与长期稳定性门禁仍未关闭。
+
+## 次日复核（2026-09-26 11:48 UTC）
+
+- revision 56 仍为 `deployed`。Flower 新 Pod 从 2026-09-25 13:29:01 UTC 已运行约 22 小时 19 分，Ready、重启 0、最后终止原因为空，`kubectl top` 内存 123Mi；另外五个 Pod 也在运行且重启 0。三个参数仍在 Deployment 中，内存 limit 512Mi。Backend `/health` 与 Flower `/healthcheck` 均为 200，发布 Prometheus 的 Backend、普通 Worker、Performance Worker 和 Prometheus 四个 target 均为 `up`。
+- 发布 Prometheus 对最近 22 小时的 `increase` 查询约为 Backend HTTP 请求 20 次、普通 Worker 运行结果 2 次；这是低负载窗口，计数因 Prometheus 区间外推为近似值。Prometheus 当前未抓取 Flower 内存，只有升级后两次 `kubectl top` 点位（约 2 分钟时 104～105Mi、约 22 小时时 123Mi），不能构成连续增长曲线或证明高负载稳定。
+- 本次为只读复核，无集群变更。下一个有意义的验收点是更长窗口和有代表性的真实任务流量；如再次接近 512Mi 或发生重启，需采集当时进程/任务状态，定位除任务保留之外的内存来源。
