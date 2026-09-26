@@ -3,7 +3,7 @@ groups:
     interval: 30s
     rules:
       - alert: AtpReleaseTargetDown
-        expr: up{job=~"atp-backend|atp-worker|atp-performance-worker"} == 0
+        expr: up{job=~"atp-backend|atp-worker|atp-performance-worker|atp-flower"} == 0
         for: 2m
         labels:
           severity: critical
@@ -11,6 +11,26 @@ groups:
         annotations:
           summary: "ATP release metrics target is down"
           description: "{{ $labels.job }} at {{ $labels.instance }} has not been scraped successfully for two minutes."
+
+      - alert: AtpFlowerRssHigh
+        expr: process_resident_memory_bytes{job="atp-flower"} > 400 * 1024 * 1024
+        for: 10m
+        labels:
+          severity: warning
+          scope: atp-single-node
+        annotations:
+          summary: "ATP Flower RSS exceeds 400MiB"
+          description: "Flower process RSS has stayed above 400MiB; inspect task volume and container memory before its 512MiB limit."
+
+      - alert: AtpFlowerProcessRestart
+        expr: changes(process_start_time_seconds{job="atp-flower"}[15m]) > 0
+        for: 1m
+        labels:
+          severity: warning
+          scope: atp-single-node
+        annotations:
+          summary: "ATP Flower process restarted"
+          description: "Flower process start time changed; determine whether this was a planned rollout or an unexpected restart."
 
       - alert: AtpApiErrorRateHigh
         expr: |
@@ -43,15 +63,15 @@ groups:
       - alert: AtpRunSuccessRateLow
         expr: |
           (
-            sum(rate(atp_run_outcomes_total{job="atp-backend",status="passed"}[1h]))
+            sum(rate(atp_run_outcomes_total{job="atp-worker",status="passed"}[1h]))
             /
             clamp_min(
-              sum(rate(atp_run_outcomes_total{job="atp-backend",status=~"passed|failed|error"}[1h])),
+              sum(rate(atp_run_outcomes_total{job="atp-worker",status=~"passed|failed|error"}[1h])),
               1e-9
             )
           ) < 0.95
           and
-          sum(rate(atp_run_outcomes_total{job="atp-backend",status=~"passed|failed|error"}[1h])) > 0
+          sum(rate(atp_run_outcomes_total{job="atp-worker",status=~"passed|failed|error"}[1h])) > 0
         for: 10m
         labels:
           severity: warning

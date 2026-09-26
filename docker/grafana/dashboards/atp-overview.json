@@ -524,6 +524,36 @@
           "refId": "A"
         }
       ]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "bytes"}, "overrides": []},
+      "type": "timeseries",
+      "id": 18,
+      "title": "Flower process RSS",
+      "description": "Process RSS from Flower /metrics. Compare with the 512MiB container limit; this is not cgroup total memory.",
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 76},
+      "targets": [{"expr": "process_resident_memory_bytes{job=\"atp-flower\"}", "refId": "A"}]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "type": "timeseries",
+      "id": 19,
+      "title": "Flower task events (5m)",
+      "description": "Observed Flower event volume; use alongside RSS when investigating memory growth.",
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 76},
+      "targets": [{"expr": "sum(increase(flower_events_total{job=\"atp-flower\"}[5m]))", "refId": "A"}]
+    },
+    {
+      "datasource": {"type": "prometheus", "uid": "prometheus"},
+      "fieldConfig": {"defaults": {"unit": "short"}, "overrides": []},
+      "type": "timeseries",
+      "id": 20,
+      "title": "Flower process start changes (24h)",
+      "description": "A start-time change can be a planned rollout or an unexpected process restart.",
+      "gridPos": {"h": 8, "w": 24, "x": 0, "y": 84},
+      "targets": [{"expr": "changes(process_start_time_seconds{job=\"atp-flower\"}[24h])", "refId": "A"}]
     }
   ]
 }

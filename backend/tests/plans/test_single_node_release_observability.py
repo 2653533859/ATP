@@ -1,5 +1,6 @@
 """Contracts for the standalone single-node release observability profile."""
 
+import json
 from pathlib import Path
 
 import yaml
@@ -14,10 +15,11 @@ def test_single_node_prometheus_scrapes_current_host_network_components():
     )
 
     jobs = {item["job_name"]: item for item in config["scrape_configs"]}
-    assert set(jobs) == {"atp-backend", "atp-worker", "atp-performance-worker", "prometheus"}
+    assert set(jobs) == {"atp-backend", "atp-worker", "atp-performance-worker", "atp-flower", "prometheus"}
     assert jobs["atp-backend"]["static_configs"][0]["targets"] == ["host.docker.internal:8000"]
     assert jobs["atp-worker"]["static_configs"][0]["targets"] == ["host.docker.internal:9091"]
     assert jobs["atp-performance-worker"]["static_configs"][0]["targets"] == ["host.docker.internal:9092"]
+    assert jobs["atp-flower"]["static_configs"][0]["targets"] == ["host.docker.internal:5555"]
     assert config["rule_files"] == ["/etc/prometheus/rules/atp.rules.yml"]
 
 
@@ -53,20 +55,39 @@ def test_single_node_grafana_reads_the_release_prometheus_without_public_exposur
     assert datasource["url"] == "http://prometheus:9090"
 
 
+def test_single_node_grafana_shows_flower_memory_restarts_and_event_volume():
+    dashboard = json.loads(
+        (ROOT / "docker" / "grafana" / "dashboards" / "atp-overview.json").read_text(encoding="utf-8")
+    )
+    panels = {panel["id"]: panel for panel in dashboard["panels"]}
+
+    assert "process_resident_memory_bytes" in panels[18]["targets"][0]["expr"]
+    assert "flower_events_total" in panels[19]["targets"][0]["expr"]
+    assert "changes(process_start_time_seconds" in panels[20]["targets"][0]["expr"]
+
+
 def test_single_node_prometheus_rules_cover_targets_and_slo_guardrails():
     rules = yaml.safe_load((ROOT / "deploy" / "observability" / "prometheus.rules.yml").read_text(encoding="utf-8"))
     alerts = {item["alert"]: item for group in rules["groups"] for item in group["rules"]}
 
     assert set(alerts) == {
         "AtpReleaseTargetDown",
+        "AtpFlowerRssHigh",
+        "AtpFlowerProcessRestart",
         "AtpApiErrorRateHigh",
         "AtpApiP95LatencyHigh",
         "AtpRunSuccessRateLow",
     }
     assert alerts["AtpReleaseTargetDown"]["for"] == "2m"
+    assert "atp-flower" in alerts["AtpReleaseTargetDown"]["expr"]
+    assert alerts["AtpFlowerRssHigh"]["expr"] == 'process_resident_memory_bytes{job="atp-flower"} > 400 * 1024 * 1024'
+    assert alerts["AtpFlowerRssHigh"]["for"] == "10m"
+    assert alerts["AtpFlowerProcessRestart"]["expr"] == 'changes(process_start_time_seconds{job="atp-flower"}[15m]) > 0'
     assert 'http_requests_total{job="atp-backend",status="5xx"}' in alerts["AtpApiErrorRateHigh"]["expr"]
     assert "http_request_duration_seconds_bucket" in alerts["AtpApiP95LatencyHigh"]["expr"]
     assert "atp_run_outcomes_total" in alerts["AtpRunSuccessRateLow"]["expr"]
+    assert 'atp_run_outcomes_total{job="atp-worker"' in alerts["AtpRunSuccessRateLow"]["expr"]
+    assert 'atp_run_outcomes_total{job="atp-backend"' not in alerts["AtpRunSuccessRateLow"]["expr"]
 
 
 def test_grafana_api_error_alert_uses_grouped_status_and_low_traffic_ratio():

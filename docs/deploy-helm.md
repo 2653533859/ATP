@@ -258,7 +258,7 @@ Performance Worker 的 `/metrics`，只保存指标族摘要，不保存指标�
 
 目标集群没有 Prometheus Operator/ServiceMonitor CRD 时，可在同一 Linux 主机部署仓库中的独立发布采集器。它不修改
 Helm release，通过 host gateway 抓取 `hostNetwork` 暴露的 Backend `:8000`、普通 Worker `:9091` 和 Performance
-Worker `:9092`：
+Worker `:9092` 和 Flower `:5555/metrics`：
 
 ```bash
 install -d -m 0755 /opt/atp-single-node-observability
@@ -274,8 +274,8 @@ curl -fsS http://127.0.0.1:39090/-/ready
 ```
 
 该 profile 仅绑定回环地址，使用命名卷 `atp_single_node_prometheus_data` 并保留 15 天；规则覆盖目标下线、API 5xx、
-API P95 和运行成功率。升级配置前应比较仓库与 `/opt` 文件 SHA-256，执行 `promtool check config`，再重建容器并检查
-`/api/v1/targets` 和 `/api/v1/rules`。2026-09-13 起始证据为 4/4 target up、4 条规则 health=ok；仍需积累连续
+API P95、运行成功率、Flower 进程 RSS 高于 400MiB 和进程启动时间变化。Flower 的 `process_resident_memory_bytes` 是进程 RSS，**不是**容器总内存；`changes(process_start_time_seconds[15m])` 同时包括计划内更新和异常重启，应结合 Helm 与 Pod 事件判读。Flower 事件计数来自 `flower_events_total`，不等于 ATP 运行完成数。升级配置前应比较仓库与 `/opt` 文件 SHA-256，执行 `promtool check config`，再向 Prometheus 发送 HUP 并检查
+`/api/v1/targets`、`/api/v1/rules` 和 Flower RSS 实际序列。Grafana 的文件面板应通过 API 回读确认。2026-09-13 起始证据为 4/4 target up、4 条规则 health=ok；2026-09-26 扩至 5/5 target、6 条规则和 20 个 Grafana 面板，Prometheus 容器未重建，Helm revision 56 未变。三份旧配置保存在目标目录的 `.bak-20260926` 文件；回退时恢复原文件并再次 HUP，Grafana 文件提供器会读取恢复后的看板。完整证据见 [`evidence/c3-flower-preflight-observability-2026-09-26.md`](evidence/c3-flower-preflight-observability-2026-09-26.md)。仍需积累连续
 7 天后校准告警、14 天后才能考虑把 SLO 变为发布门禁。它是当前单节点范围的发布历史采集器，不等同于多节点
 Prometheus Operator 验收。
 
@@ -285,6 +285,8 @@ Pod；否则默认 `maxSurge` 会让新 Pod 因端口或 display 冲突阻塞原
 同时提升至 `512Mi`，避免长时间运行时因默认 `256Mi` limit 被 OOMKilled。
 
 Flower 还必须通过 Chart 传入 `--max_tasks=1000 --max_workers=100 --purge_offline_workers=300`，限制仪表盘内存中的近期事件。2026-09-25 发现发布机旧 Chart 副本在后续升级时移除了这些参数，revision 55 再次出现 512Mi `OOMKilled`；revision 56 已恢复参数。发布前应使用当前仓库 Chart 对照目标 release 的渲染结果，至少核对 Flower `args`、内存 limit、`hostNetwork` 单副本更新策略及其他非 Hook 资源的变化范围；发布后再核对运行进程参数、Pod 重启和健康检查。只增加内存 limit 或只检查仓库 Chart 都不足以发现这类运行配置漂移；详见 [`evidence/k3s-flower-chart-drift-2026-09-25.md`](evidence/k3s-flower-chart-drift-2026-09-25.md)。
+
+在发布机检出预定提交后，先运行 `python scripts/validate-deployment-readiness.py --release atp-single-node --namespace atp-single-node --chart deploy/helm/atp`。该模式逐文件确认候选 Chart 与当前仓库一致，使用 release 的用户 values 在内存中渲染候选，检查 Flower 上限、512Mi limit 和 `hostNetwork` 更新策略，并仅输出变更资源、字段路径和镜像 tag，不输出 values 或 Secret 内容。镜像更新用 `--image-tag backend=<tag>` / `--image-tag worker=<tag>` 传入预定 tag；其他非敏感覆盖可用 `--values-file`。每个预期资源须显式重复传入 `--allow-change Kind/name`，迁移 Hook 变化须传入 `--allow-hook-change Kind/name`；只有实际升级将使用 `--no-hooks` 时才传 `--skip-hooks`。退出码非零表示禁止继续升级。预检不替代相同参数的 Helm 服务端 dry-run 和人工检查。2026-09-26 对 revision 56 的预检证明旧发布 Chart 被拒绝；完整仓库 Chart 会同时改动 6 个 Deployment，故未为本次监控变更升级业务 release。
 
 长期运行 Deployment 的 Pod template 包含生成 ConfigMap 的校验值；Chart 自建 Secret 时还包含生成 Secret 的校验值。
 因此 Helm 更新环境配置会触发进程重建，不会出现资源对象已更新但 Pod 仍读取旧环境的假升级。外部 Secret 的内容不在

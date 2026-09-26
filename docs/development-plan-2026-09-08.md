@@ -160,6 +160,7 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 - [~] `C3.4` 收集发布级 SLO、告警、服务重启和持续稳定性证据，明确 Redis 与 MinIO 的剩余灾备决定。
   - [x] `C3.4.1` 部署持久化单节点发布 Prometheus，验证 4 个 target、4 条告警规则和 40 秒稳定性；Redis 切换 AOF everysec 并通过双重重启；MinIO 启用 versioning，明确不自动启用未审查的 lifecycle。
   - [~] `C3.4.2` 已将 SLO 采集从 Android 真机演练中解耦，增加 5 分钟连续性、非有限值、完整 UTC 日和数据缺口门禁，并固化安全的认证读/可选本机 API 运行 canary。2026-09-13～19 的首个 7 日 scrape 窗口因 6 日无业务样本而未通过；9 月 20 日又因主机重启只有 `276/288` 抓取点而被拒绝。9 月 21～23 日完整 UTC 日均为 Backend/Worker `288/288`，可用性 100%、P95 95ms、运行成功率 100%，但仅有有界合成流量，尚不满足代表性流量和 7/14 日校准。9 月 21 日定时服务首次因凭据文件权限检查失败，人工重试通过；9 月 22 日起无人值守成功。候选异机 `172.31.27.133` 的 VPN/路由和服务仍不可用；待恢复后配置 MinIO 备份端点并完成恢复演练。
+  - [~] `C3.4.3` 完成发布前 Chart/资源/迁移 Hook 差异预检，旧 Chart 漂移与未审查的 6 个 Deployment 变更均被拒绝；Flower RSS、进程启动时间和事件量纳入发布 Prometheus/Grafana，目标运行中的规则与样本已核验。9 月 24 日 Backend `287/288`，不满足完整日连续性；25 日 Backend/Worker `288/288` 但业务运行量低。继续积累代表性流量与长期 Flower 趋势，暂不关闭 C3.4。
 - [ ] `C3.5` 绑定同一最终提交 SHA，更新能力矩阵、运行手册、证据索引和发布结论。
 
 ## 7. 推荐执行顺序
@@ -186,6 +187,7 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 
 ## 9. 执行记录
 
+- 2026-09-26：新增 release Chart 预检，候选 Chart 必须与当前仓库逐文件一致；对照 Helm 当前用户 values 渲染后的非 Hook 资源、镜像 tag、Hook 变化，并对未明确批准的资源/迁移改动返回失败。目标机旧 Chart 有 10 个文件与仓库不一致；当前仓库 Chart 与 revision 56 相比会改动 6 个 Deployment（含 Worker/Recorder 命令及环境），本轮未升级业务 Helm。独立发布 Prometheus 增加 Flower 抓取、RSS 与进程重启告警，Grafana 增至 20 面板；5/5 target up、6 条规则健康，运行成功率规则从错误的 Backend job 改为实际有指标的 Worker job。9 月 24 日 Backend 在 10:10 UTC 一次 `up=0` 导致 `287/288`，25 日 Backend/Worker `288/288` 但请求/运行量仍低；C3.4 保持开放。见 [`evidence/c3-flower-preflight-observability-2026-09-26.md`](evidence/c3-flower-preflight-observability-2026-09-26.md)。
 - 2026-09-26：对 revision 56 的 Flower 做约 22 小时 19 分只读复核：新 Pod Ready、0 重启、内存 123Mi，6/6 Pod Running，Backend/Flower 健康 200，发布 Prometheus 四个 target 均 up。最近 22 小时只有约 20 次 Backend HTTP 请求、2 次 Worker 运行结果，且无 Flower 连续内存序列；因此仅记录低负载窗口的恢复情况，不关闭 C3.4 长期稳定性或代表性 7/14 日 SLO 门禁。见 [`evidence/k3s-flower-chart-drift-2026-09-25.md`](evidence/k3s-flower-chart-drift-2026-09-25.md)。
 - 2026-09-25：C3.4 追查 Hermes 验收前 Flower 的 512Mi `OOMKilled`，确认发布机旧 Chart 覆盖了 9 月 7 日已实施的有界保留设置。revision 55 运行时采用 Flower 2.0.1 默认 `100000/5000/无离线清理`；从该 Chart 复制并仅补 Flower `1000/100/300 秒` 和与现场一致的 `Recreate` 后，预检全部 10 个非 Hook 资源只有 Flower Deployment 变化。revision 56 已部署，进程参数、6/6 Ready、Backend/Flower 200、新 Pod 0 重启得到核验。配置漂移已修复，历史 OOM 原因尚无堆快照，长期内存/重启和代表性 SLO 仍归 C3.4；见 [`evidence/k3s-flower-chart-drift-2026-09-25.md`](evidence/k3s-flower-chart-drift-2026-09-25.md)。
 - 2026-09-25：Hermes 全局 Engineer + 项目 Editor 在正式单节点完成十项冻结验收 **10/10**，涵盖模型来源、禁用计划草稿、Owner/跨项目拒绝、会话所有权、角色降级、成员撤销和账号停用。初次夹具准备失败已通过正式 API 清理；复跑项目、需求、计划和会话清理，账号按 API 停用并留作审计身份。Helm revision 55 四次采样 6/6 Pod Ready、健康 200，但 Flower 在验收前发生一次 512Mi 限额 `OOMKilled`，当前总重启 1；C3.4 稳定性门禁继续待办。供应商侧审计、业务代表性内容和 P4/P9 仍未关闭。见 [`evidence/hermes-engineer-editor-2026-09-25.md`](evidence/hermes-engineer-editor-2026-09-25.md)。

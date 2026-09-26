@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
+import re
 import shlex
 import shutil
 import subprocess
@@ -370,6 +372,231 @@ def _check_helm(require_helm: bool, skipped: list[str], failures: list[str]) -> 
         failures.append(f"helm lint failed: {output}")
 
 
+def _chart_fingerprint(chart: Path) -> dict[str, str]:
+    if not chart.is_dir():
+        raise ValueError("chart directory is missing")
+    return {
+        path.relative_to(chart).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
+        for path in chart.rglob("*")
+        if path.is_file()
+    }
+
+
+def _helm_capture(command: list[str], *, input_text: str | None = None) -> str:
+    completed = subprocess.run(
+        command,
+        input=input_text,
+        capture_output=True,
+        text=True,
+        errors="replace",
+        check=False,
+        timeout=60,
+    )
+    if completed.returncode:
+        # Helm output may include rendered Secrets or values; never print it.
+        raise RuntimeError(f"Helm {command[1]} failed with exit {completed.returncode}")
+    return completed.stdout
+
+
+def _manifest_index(content: str) -> dict[str, dict[str, Any]]:
+    result: dict[str, dict[str, Any]] = {}
+    for resource in yaml.safe_load_all(content):
+        if not isinstance(resource, dict):
+            continue
+        metadata = resource.get("metadata") or {}
+        name = metadata.get("name")
+        kind = resource.get("kind")
+        if not isinstance(name, str) or not isinstance(kind, str):
+            raise ValueError("rendered resource has no kind/name")
+        identity = f"{kind}/{name}"
+        if identity in result:
+            raise ValueError(f"duplicate rendered resource: {identity}")
+        result[identity] = resource
+    return result
+
+
+def _is_hook(resource: dict[str, Any]) -> bool:
+    return bool(((resource.get("metadata") or {}).get("annotations") or {}).get("helm.sh/hook"))
+
+
+def _memory_bytes(quantity: str) -> int:
+    match = re.fullmatch(r"(\d+)(Mi|Gi)", quantity)
+    if match is None:
+        raise ValueError("Flower memory limit must use Mi or Gi")
+    return int(match.group(1)) * (1024**2 if match.group(2) == "Mi" else 1024**3)
+
+
+def _check_flower_manifest(resources: dict[str, dict[str, Any]]) -> list[str]:
+    failures: list[str] = []
+    flowers = [
+        item
+        for item in resources.values()
+        if item.get("kind") == "Deployment"
+        and (item.get("metadata", {}).get("labels") or {}).get("app.kubernetes.io/component") == "flower"
+    ]
+    if len(flowers) != 1:
+        return ["candidate must render exactly one Flower Deployment"]
+    flower = flowers[0]
+    spec = flower.get("spec") or {}
+    pod = (spec.get("template") or {}).get("spec") or {}
+    containers = [item for item in pod.get("containers", []) if item.get("name") == "flower"]
+    if len(containers) != 1:
+        return ["Flower Deployment must have exactly one Flower container"]
+    container = containers[0]
+    args = container.get("args") or []
+    for flag, maximum in (("max_tasks", 1000), ("max_workers", 100), ("purge_offline_workers", 300)):
+        values = [
+            arg.removeprefix(f"--{flag}=") for arg in args if isinstance(arg, str) and arg.startswith(f"--{flag}=")
+        ]
+        if len(values) != 1 or not values[0].isdigit() or not 1 <= int(values[0]) <= maximum:
+            failures.append(f"Flower --{flag} must be bounded between 1 and {maximum}")
+    limit = ((container.get("resources") or {}).get("limits") or {}).get("memory")
+    try:
+        if not isinstance(limit, str) or _memory_bytes(limit) < 512 * 1024**2:
+            failures.append("Flower memory limit must be at least 512Mi")
+    except ValueError as exc:
+        failures.append(str(exc))
+    if pod.get("hostNetwork"):
+        strategy = spec.get("strategy") or {}
+        rollout = strategy.get("rollingUpdate") or {}
+        safe = strategy.get("type") == "Recreate" or (
+            strategy.get("type") == "RollingUpdate"
+            and rollout.get("maxSurge") == 0
+            and rollout.get("maxUnavailable") == "100%"
+        )
+        if not safe:
+            failures.append("hostNetwork Flower must release port 5555 before starting its replacement")
+    return failures
+
+
+def _image_tags(resource: dict[str, Any] | None) -> tuple[tuple[str, str], ...]:
+    if resource is None:
+        return ()
+    spec = resource.get("spec") or {}
+    containers = ((spec.get("template") or {}).get("spec") or {}).get("containers") or []
+    tags = []
+    for item in containers:
+        basename = item.get("image", "").rsplit("/", 1)[-1]
+        tags.append((item.get("name", ""), basename.rsplit(":", 1)[-1] if ":" in basename else "(untagged)"))
+    return tuple(sorted(tags))
+
+
+def _changes(
+    before: dict[str, dict[str, Any]], after: dict[str, dict[str, Any]]
+) -> list[tuple[str, str, tuple[tuple[str, str], ...], tuple[tuple[str, str], ...]]]:
+    result = []
+    for identity in sorted(before.keys() | after.keys()):
+        old, new = before.get(identity), after.get(identity)
+        if old != new:
+            status = "added" if old is None else "removed" if new is None else "changed"
+            result.append((status, identity, _image_tags(old), _image_tags(new)))
+    return result
+
+
+def _changed_paths(old: Any, new: Any, prefix: str = "") -> list[str]:
+    if isinstance(old, dict) and isinstance(new, dict):
+        paths = []
+        for key in sorted(old.keys() | new.keys()):
+            paths.extend(_changed_paths(old.get(key), new.get(key), f"{prefix}.{key}" if prefix else key))
+        return paths
+    if isinstance(old, list) and isinstance(new, list) and len(old) == len(new):
+        paths = []
+        for index, (before, after) in enumerate(zip(old, new, strict=True)):
+            paths.extend(_changed_paths(before, after, f"{prefix}[{index}]"))
+        return paths
+    return [prefix] if old != new else []
+
+
+def _image_tag_overrides(items: list[str]) -> dict[str, str]:
+    tags: dict[str, str] = {}
+    for item in items:
+        component, separator, tag = item.partition("=")
+        if (
+            not separator
+            or component not in {"backend", "worker", "frontend"}
+            or not re.fullmatch(r"[A-Za-z0-9_][A-Za-z0-9_.-]{0,127}", tag)
+            or tag.lower() == "latest"
+            or component in tags
+        ):
+            raise ValueError("--image-tag must be a unique backend/worker/frontend=tag (latest is rejected)")
+        tags[component] = tag
+    return tags
+
+
+def _check_release_chart(
+    *,
+    release: str,
+    namespace: str,
+    chart: Path,
+    allowed_changes: set[str],
+    allowed_hooks: set[str],
+    skip_hooks: bool,
+    image_tags: dict[str, str] | None = None,
+    values_files: list[Path] | None = None,
+) -> tuple[list[str], list[str]]:
+    failures: list[str] = []
+    report: list[str] = []
+    source = ROOT / "deploy" / "helm" / "atp"
+    try:
+        source_files = _chart_fingerprint(source)
+        candidate_files = _chart_fingerprint(chart)
+    except (OSError, ValueError) as exc:
+        return [f"Chart cannot be read: {exc}"], report
+    if source_files != candidate_files:
+        changed = sorted(
+            source_files.keys() ^ candidate_files.keys()
+            | {
+                name
+                for name in source_files.keys() & candidate_files.keys()
+                if source_files[name] != candidate_files[name]
+            }
+        )
+        return ["staged Chart differs from this repository: " + ", ".join(changed)], report
+    report.append(f"PASS Chart matches repository ({len(source_files)} files)")
+
+    helm = shutil.which("helm")
+    if helm is None:
+        return ["Helm is not installed"], report
+    try:
+        values = _helm_capture([helm, "get", "values", release, "-n", namespace, "-o", "yaml"])
+        current_text = _helm_capture([helm, "get", "manifest", release, "-n", namespace])
+        hooks_text = _helm_capture([helm, "get", "hooks", release, "-n", namespace])
+        template_command = [helm, "template", release, str(chart), "-n", namespace, "-f", "-"]
+        for path in values_files or []:
+            template_command.extend(["-f", str(path)])
+        for component, tag in sorted((image_tags or {}).items()):
+            template_command.extend(["--set-string", f"image.{component}.tag={tag}"])
+        candidate_text = _helm_capture(template_command, input_text=values)
+        current = _manifest_index(current_text)
+        old_hooks = _manifest_index(hooks_text)
+        candidate_all = _manifest_index(candidate_text)
+    except (OSError, subprocess.TimeoutExpired, RuntimeError, yaml.YAMLError, ValueError):
+        return ["Helm release preflight could not render or parse manifests; inspect secure operator logs"], report
+    candidate = {key: item for key, item in candidate_all.items() if not _is_hook(item)}
+    new_hooks = {key: item for key, item in candidate_all.items() if _is_hook(item)}
+    flower_failures = _check_flower_manifest(candidate)
+    failures.extend(flower_failures)
+    if not flower_failures:
+        report.append("PASS Flower bounds and hostNetwork rollout strategy")
+    for status, identity, old_images, new_images in _changes(current, candidate):
+        report.append(f"RESOURCE {status} {identity}")
+        if identity.startswith("Deployment/") and identity in current and identity in candidate:
+            paths = _changed_paths(current[identity], candidate[identity])
+            report.append(f"FIELDS {identity} " + ", ".join(paths[:20]) + (", ..." if len(paths) > 20 else ""))
+        if old_images != new_images:
+            report.append(f"IMAGE_TAG {identity} {old_images} -> {new_images}")
+        if identity not in allowed_changes:
+            failures.append(f"unreviewed resource change: {identity}")
+    for status, identity, old_images, new_images in _changes(old_hooks, new_hooks):
+        report.append(f"HOOK {status} {identity}" + (" (upgrade --no-hooks)" if skip_hooks else ""))
+        if old_images != new_images:
+            report.append(f"HOOK_IMAGE_TAG {identity} {old_images} -> {new_images}")
+        if not skip_hooks and identity not in allowed_hooks:
+            failures.append(f"unreviewed migration hook change: {identity}")
+    report.append(f"PASS rendered resource inventory: {len(candidate)} regular, {len(new_hooks)} hooks")
+    return failures, report
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
@@ -387,7 +614,36 @@ def main() -> int:
         action="store_true",
         help="fail when any environment-dependent check is skipped; use this before a real release",
     )
+    parser.add_argument("--release", help="preflight an existing Helm release against the repository Chart")
+    parser.add_argument("--namespace", default="atp-single-node", help="Helm release namespace")
+    parser.add_argument("--chart", type=Path, default=ROOT / "deploy" / "helm" / "atp")
+    parser.add_argument("--allow-change", action="append", default=[], metavar="KIND/NAME")
+    parser.add_argument("--allow-hook-change", action="append", default=[], metavar="KIND/NAME")
+    parser.add_argument("--skip-hooks", action="store_true", help="preflight an upgrade that will use --no-hooks")
+    parser.add_argument("--image-tag", action="append", default=[], metavar="COMPONENT=TAG")
+    parser.add_argument("--values-file", action="append", type=Path, default=[], metavar="PATH")
     args = parser.parse_args()
+
+    if args.release:
+        try:
+            image_tags = _image_tag_overrides(args.image_tag)
+        except ValueError as exc:
+            parser.error(str(exc))
+        failures, report = _check_release_chart(
+            release=args.release,
+            namespace=args.namespace,
+            chart=args.chart,
+            allowed_changes=set(args.allow_change),
+            allowed_hooks=set(args.allow_hook_change),
+            skip_hooks=args.skip_hooks,
+            image_tags=image_tags,
+            values_files=args.values_file,
+        )
+        for item in report:
+            print(item)
+        for item in failures:
+            print(f"FAIL {item}", file=sys.stderr)
+        return 1 if failures else 0
 
     failures: list[str] = []
     skipped: list[str] = []
