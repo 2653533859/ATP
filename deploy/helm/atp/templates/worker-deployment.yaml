@@ -35,7 +35,7 @@ spec:
       {{- end }}
       containers:
         - name: worker
-          image: "{{ .Values.image.repository }}/worker:{{ .Values.image.worker.tag }}"
+          image: "{{ .Values.image.repository }}/worker:{{ default .Values.image.worker.tag .Values.worker.imageTag }}"
           imagePullPolicy: {{ .Values.image.worker.pullPolicy }}
           command:
             - sh

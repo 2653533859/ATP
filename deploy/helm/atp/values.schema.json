@@ -74,6 +74,10 @@
       "description": "Worker-specific tuning knobs.",
       "additionalProperties": true,
       "properties": {
+        "imageTag": {
+          "type": "string",
+          "description": "Optional ordinary Worker image tag; empty inherits image.worker.tag."
+        },
         "metricsPort": {
           "type": "integer",
           "minimum": 0,

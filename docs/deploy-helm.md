@@ -288,6 +288,8 @@ Flower 还必须通过 Chart 传入 `--max_tasks=1000 --max_workers=100 --purge_
 
 在发布机检出预定提交后，先运行 `python scripts/validate-deployment-readiness.py --release atp-single-node --namespace atp-single-node --chart deploy/helm/atp`。该模式逐文件确认候选 Chart 与当前仓库一致，使用 release 的用户 values 在内存中渲染候选，检查 Flower 上限、512Mi limit 和 `hostNetwork` 更新策略，并仅输出变更资源、字段路径和镜像 tag，不输出 values 或 Secret 内容。镜像更新用 `--image-tag backend=<tag>` / `--image-tag worker=<tag>` 传入预定 tag；其他非敏感覆盖可用 `--values-file`。每个预期资源须显式重复传入 `--allow-change Kind/name`，迁移 Hook 变化须传入 `--allow-hook-change Kind/name`；只有实际升级将使用 `--no-hooks` 时才传 `--skip-hooks`。退出码非零表示禁止继续升级。预检不替代相同参数的 Helm 服务端 dry-run 和人工检查。2026-09-26 对 revision 56 的预检证明旧发布 Chart 被拒绝；完整仓库 Chart 会同时改动 6 个 Deployment，故未为本次监控变更升级业务 release。
 
+`image.worker.tag` 是普通 Worker、Beat、Flower、Performance Worker 和 Web Recorder 共用的镜像 tag。若仅更换普通 Worker 的镜像，可在非敏感 values 覆盖文件中设置 `worker.imageTag: <immutable-tag>`；默认空值继承共享 tag。预检与正式 `helm upgrade` 必须使用**同一个**覆盖文件；下一次恢复同步镜像发布时还须明确清空该覆盖值，避免普通 Worker 被旧 tag 固定。此字段只限制镜像选择，不消除 Chart 其他模板漂移：2026-09-27 对 revision 56 的预检仍显示 6 个 Deployment 会改变，只有普通 Worker 的镜像 tag 改变；不能把这次候选称为 Worker-only 升级，也不得在未审查时用 `--allow-change` 放行。工件、字段差异和隔离 Pod 验证见 [`evidence/c3-worker-metric-release-preflight-2026-09-27.md`](evidence/c3-worker-metric-release-preflight-2026-09-27.md)。
+
 长期运行 Deployment 的 Pod template 包含生成 ConfigMap 的校验值；Chart 自建 Secret 时还包含生成 Secret 的校验值。
 因此 Helm 更新环境配置会触发进程重建，不会出现资源对象已更新但 Pod 仍读取旧环境的假升级。外部 Secret 的内容不在
 Chart 中，外部控制器更新后仍需由其 rollout 机制或显式重启承载 Pod。

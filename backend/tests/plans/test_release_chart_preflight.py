@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import importlib.util
+import shutil
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -88,6 +90,33 @@ def test_image_tag_overrides_accept_only_unique_immutable_tags():
     for invalid in (["backend=latest"], ["backend=latest,secret=x"], ["other=ab12"], ["backend=a", "backend=b"]):
         with pytest.raises(ValueError):
             module._image_tag_overrides(invalid)
+
+
+def test_worker_image_override_changes_only_ordinary_worker_manifest():
+    helm = shutil.which("helm")
+    if helm is None:
+        pytest.skip("helm is not installed")
+    module = _module()
+    chart = ROOT / "deploy" / "helm" / "atp"
+    overlay = chart / "values-performance-single-node.example.yaml"
+    command = [helm, "template", "atp-single-node", str(chart), "-f", str(overlay)]
+    baseline = module._manifest_index(
+        subprocess.run(command, check=True, capture_output=True, text=True, encoding="utf-8").stdout
+    )
+    candidate = module._manifest_index(
+        subprocess.run(
+            [*command, "--set-string", "worker.imageTag=b1828220"],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        ).stdout
+    )
+
+    assert [(status, identity) for status, identity, *_ in module._changes(baseline, candidate)] == [
+        ("changed", "Deployment/atp-single-node-atp-worker")
+    ]
+    assert module._image_tags(candidate["Deployment/atp-single-node-atp-worker"]) == (("worker", "b1828220"),)
 
 
 def test_release_preflight_requires_explicit_resource_and_migration_review(monkeypatch):
