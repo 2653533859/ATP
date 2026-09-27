@@ -12,7 +12,7 @@
 
 仓库 Chart 新增 `worker.imageTag`：空值继承共享的 `image.worker.tag`；非空时仅普通 Worker Deployment 使用覆盖 tag。Helm 模板定向回归确认，使用单节点示例 values 时，设置 `worker.imageTag=b1828220` 只改变普通 Worker 的 manifest 镜像字段。`helm lint` 通过。
 
-目标机另将本次 Chart 与预检脚本暂存于 `/opt/atp-release-preflight-20260927`，归档 SHA-256 为 `d7da9547a76bc9b675934b155fcd09cac601b6250db2ff2637e402ba9f094441`。用当前 release 用户 values 与仅含 `worker.imageTag: 6755ed9f-runmetrics-b1828220` 的非敏感覆盖文件执行只读预检，Chart 22 文件指纹一致、Flower 边界与迁移 Hook 不变，但仍返回退出码 1：
+目标机另将本次 Chart（随后提交为 `54f99a46`）与预检脚本暂存于 `/opt/atp-release-preflight-20260927`，归档 SHA-256 为 `d7da9547a76bc9b675934b155fcd09cac601b6250db2ff2637e402ba9f094441`。用当前 release 用户 values 与仅含 `worker.imageTag: 6755ed9f-runmetrics-b1828220` 的非敏感覆盖文件执行只读预检，Chart 22 文件指纹一致、Flower 边界与迁移 Hook 不变，但仍返回退出码 1：
 
 | Deployment | 相对 revision 56 的变化 |
 | --- | --- |
@@ -24,6 +24,8 @@
 | 普通 Worker | 更新策略、注解、命令、Pod 身份环境变量，以及唯一改变的镜像 tag |
 
 这些变化会导致 6 个 Pod template 更新；`image.worker.tag` 共享值若直接覆盖，还会让另外四个 Worker 镜像工作负载换用新镜像。本次仅做镜像构建、隔离验证与只读 release 预检；**没有执行 Helm upgrade、数据库迁移或业务 Pod 更新**。不得通过旧 Chart、`kubectl set image` 或无审核的 `--allow-change` 绕过发布门禁。
+
+使用同一暂存 Chart 和覆盖文件运行 `helm upgrade ... --reuse-values --no-hooks --dry-run=server` 返回 0，渲染 manifest 仅在进程内检查，未保存或输出其中的 values/Secret。服务端 dry-run 证明候选可由集群解析，不会改变预检对六个待审资源的拒绝结论。
 
 ## 后续发布判据
 
