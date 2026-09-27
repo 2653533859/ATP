@@ -1,4 +1,4 @@
-# C3.4 普通 Worker 单镜像候选与发布门槛（2026-09-27）
+# C3.4 普通 Worker 单镜像发布与计数复核（2026-09-27）
 
 ## 范围与来源
 
@@ -10,13 +10,18 @@
 
 目标机使用 revision 56 的当前 Helm 用户 values 渲染该快照：未设置覆盖时，10 个普通资源和 1 个 Hook 与 revision 56 manifest 全部一致。仅设置 `worker.imageTag: 6755ed9f-runmetrics-b1828220` 后，10 个普通资源中只有 `Deployment/atp-single-node-atp-worker` 变化，唯一字段是 `spec.template.spec.containers[0].image`；Hook 无变化。目标机和本地的 `helm lint` 均通过。目标机使用 `--require-baseline-match --image-only --allow-change Deployment/atp-single-node-atp-worker --skip-hooks` 执行仓库/暂存 Chart 指纹与 release 差异预检，退出码 0；同一 Chart/覆盖文件运行 `helm upgrade --reuse-values --no-hooks --dry-run=server` 返回 0，预演目标 revision 57 的 manifest 也仅改变普通 Worker 镜像字段。比较与 dry-run 的 manifest、用户 values 只在进程中处理，没有写入仓库或证据文件。
 
-运行中的普通 Worker Deployment 策略为 `Recreate`，该字段由现场 `kubectl-patch` 持有，revision 56 Helm manifest 未显式记录。以 Helm 字段管理器对只改镜像的 Deployment 执行 Kubernetes server-side dry-run，结果保留 `Recreate`；正式升级后仍须重新核对策略。普通 Worker 只有一个副本，替换时存在短暂任务消费中断；发布前必须确认 Celery active、reserved、scheduled 任务及相关队列处于安全状态。
+升级前普通 Worker Deployment 策略为 `Recreate`，该字段由现场 `kubectl-patch` 持有，revision 56 Helm manifest 未显式记录。以 Helm 字段管理器对只改镜像的 Deployment 执行 Kubernetes server-side dry-run，结果保留 `Recreate`。普通 Worker 只有一个副本，替换时存在短暂任务消费中断。
 
-## 正式发布门槛与复核
+## 正式发布与范围核验
 
-1. 仓库快照与目标机暂存 Chart 的逐文件指纹核对、基线完全一致及仅镜像字段变化的预检已通过；正式升级时必须使用同一 Chart 和覆盖文件，放行资源仍只能是 `Deployment/atp-single-node-atp-worker`，Hook 不变。
-2. 记录升级前 Helm revision、六个业务 Pod 身份与状态、普通 Worker `Recreate` 策略，以及 Celery active/reserved/scheduled 和队列状态。确认热修复镜像在 K3s 可用，普通 Worker 的 `imagePullPolicy=Never`。
-3. 仅按已预检的 Chart 和覆盖文件执行 `helm upgrade --reuse-values --no-hooks --wait`；`--no-hooks` 防止这次镜像修复触发 Alembic Job。升级后核对新 Helm manifest 与预检候选一致、只替换普通 Worker Pod、其余五个业务 Pod 未重建、策略仍为 `Recreate`、六个业务 Pod Ready 且没有新增异常重启。若策略或范围漂移，按升级前 revision 回滚。
-4. 在首个受控任务事件前确认正式 Worker 指标端点和发布 Prometheus 已见到 15 条零值序列；随后运行受控任务，核对实际完成数与 Prometheus 增量及 Worker/Flower/Backend 健康。清理临时验证资源，并记录最终 revision 与时间。
+升级前数据库检查显示五类运行的活动任务、执行租约和 Hermes 活动项均为 0；Redis 普通 Worker 的六条队列均为 0。两个 Celery responder 的 active/reserved 均为 0，普通 Worker scheduled 为 0；Performance Worker responder 另有 45 条 scheduled。现场仍有约每分钟 4 次维护扫描流量，因此这里只确认普通 Worker 可进行有界替换，不宣称整个平台完全静默。raw broadcast 保留两个同名回复，按 `active_queues` 队列归属区分。
 
-截至本节只读验证结束，正式 Helm 升级、迁移 Job 和业务 Pod 替换尚未执行。`worker.imageTag` 会被 `--reuse-values` 保留；下一次完整发布须显式清除覆盖并审查六项 Deployment 漂移。普通 Worker 与 Performance Worker 当前存在同名 Celery 节点，队列检查须按 raw broadcast 回复与对应 Pod 区分；后续应为两者配置独立 hostname。即使单镜像发布与受控计数通过，代表性流量下连续 7/14 个完整 UTC 日 SLO、Flower 长期稳定性及 C3.5 最终 SHA 收口仍待独立完成。
+使用已通过预检的 Chart 与覆盖文件完成 `helm upgrade --reuse-values --no-hooks --rollback-on-failure --wait --timeout 5m`。Helm revision 57 于 **2026-09-27 18:41:47 北京时间**达到 `deployed`。升级前后 release manifest 差异只有 `Deployment/atp-single-node-atp-worker` 的镜像字段；没有新建 Alembic Job。普通 Worker Pod UID 从 `817de...` 变为 `708f6...`，其余五个业务 Pod UID 未变。普通 Worker 的 `Recreate` 策略仍在；六个业务 Pod 均 Ready、重启计数 0。正式 Worker 运行时 image ID 为 `sha256:300ce4d2dc1e2f02288a400363336abbddbfb61c02afd430d6632de38bfe5f2b`。
+
+## 指标与受控任务复核
+
+受控任务前，正式 Worker `/metrics` 中 `case/suite/plan` × 五种终态共 15 条结果序列均为 0；发布 Prometheus 也查询到 15 条序列。canary service 于 18:44:31 北京时间以退出码 0 完成，执行了 12 次认证读取和 2 条 `passed` 的 case run。任务后直接读取 Worker 的 `case/passed` 计数为 2；Prometheus 在新 Pod 的 UTC 样本从 10:42:25 的 0，经 10:44:05 的 1，到 10:44:25 的 2，与两次受控运行一致。发布 Prometheus 五个 target 均 `up`，六条规则健康；Backend 与 Flower 健康接口均返回 HTTP 200。
+
+## 后续边界
+
+如后续发现本次热修复引发异常，应急回滚路径为 `helm rollback atp-single-node 56 -n atp-single-node --wait`；本次未执行回滚。`worker.imageTag` 会被 `--reuse-values` 保留，正常下一次完整发布须显式清理该覆盖，并先审查主 Chart 相对 revision 56 的六个 Deployment 漂移。`atp-rev56-hotfix` 仅供这次精确热修复，不作为后续主 Chart。普通 Worker 与 Performance Worker 当前存在同名 Celery 节点，后续应为两者配置独立 hostname。此次只证明单节点、受控低流量下的零值序列和两次运行计数；代表性流量下连续 7/14 个完整 UTC 日 SLO、Flower 长期稳定性及 C3.5 最终 SHA 收口仍待独立完成。
