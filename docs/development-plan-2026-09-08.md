@@ -160,7 +160,7 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 - [~] `C3.4` 收集发布级 SLO、告警、服务重启和持续稳定性证据，明确 Redis 与 MinIO 的剩余灾备决定。
   - [x] `C3.4.1` 部署持久化单节点发布 Prometheus，验证 4 个 target、4 条告警规则和 40 秒稳定性；Redis 切换 AOF everysec 并通过双重重启；MinIO 启用 versioning，明确不自动启用未审查的 lifecycle。
   - [~] `C3.4.2` 已将 SLO 采集从 Android 真机演练中解耦，增加 5 分钟连续性、非有限值、完整 UTC 日和数据缺口门禁，并固化安全的认证读/可选本机 API 运行 canary。2026-09-13～19 的首个 7 日 scrape 窗口因 6 日无业务样本而未通过；9 月 20 日又因主机重启只有 `276/288` 抓取点而被拒绝。9 月 21～23 日完整 UTC 日均为 Backend/Worker `288/288`，可用性 100%、P95 95ms、运行成功率 100%，但仅有有界合成流量，尚不满足代表性流量和 7/14 日校准。9 月 21 日定时服务首次因凭据文件权限检查失败，人工重试通过；9 月 22 日起无人值守成功。候选异机 `172.31.27.133` 的 VPN/路由和服务仍不可用；待恢复后配置 MinIO 备份端点并完成恢复演练。
-  - [~] `C3.4.3` 完成发布前 Chart/资源/迁移 Hook 差异预检，旧 Chart 漂移与未审查的 6 个 Deployment 变更均被拒绝；Flower RSS、进程启动时间和事件量纳入发布 Prometheus/Grafana，目标运行中的规则与样本已核验。9 月 24～26 日完整 UTC 报告确认 24 日 Backend 一次 `up=0`，25～26 日虽然 `288/288` 但业务运行量低。首次 Worker 结果序列从 1 才出现导致日增量漏算，仓库零值初始化修复已完成；基于线上基础镜像的单文件热修复镜像已经隔离验证并导入 K3s，但 revision 56 尚未升级。普通 Worker 专用镜像覆盖已加入 Chart，当前候选仍有 6 个非镜像模板差异，须经范围审查后才能发布。继续积累代表性流量与长期 Flower 趋势，暂不关闭 C3.4。
+  - [~] `C3.4.3` 完成发布前 Chart/资源/迁移 Hook 差异预检，旧 Chart 漂移与仓库主 Chart 的 6 个 Deployment 变更均被拒绝；Flower RSS、进程启动时间和事件量纳入发布 Prometheus/Grafana，目标规则与样本已核验。9 月 24～26 日完整 UTC 报告确认 24 日 Backend 一次 `up=0`，25～26 日虽然 `288/288` 但业务运行量低。首次 Worker 结果序列从 1 才出现导致日增量漏算；基于线上基础镜像的单文件热修复镜像已隔离验证并导入 K3s。现已从 revision 56 固化有界 Chart 快照：当前 values 下的 10 个普通资源和 1 个 Hook 与线上全等，增加专用镜像覆盖后仅普通 Worker 的镜像字段变化，服务端 dry-run 通过。正式发布及发布后计数尚待执行；继续积累代表性流量与长期 Flower 趋势，暂不关闭 C3.4。
 - [ ] `C3.5` 绑定同一最终提交 SHA，更新能力矩阵、运行手册、证据索引和发布结论。
 
 ## 7. 推荐执行顺序
@@ -187,6 +187,7 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
 
 ## 9. 执行记录
 
+- 2026-09-27：为修复普通 Worker 首次结果漏算，从 revision 56 的有界 Chart 固化 22 文件快照，仅改三个文件加入普通 Worker 专用 tag。目标机当前 values 渲染与 revision 56 的 10 个普通资源、1 个 Hook 全等；覆盖热修复 tag 后只有普通 Worker 镜像字段不同，Hook 不变，基线与仅镜像变化预检退出 0，Helm lint 与服务端 dry-run 通过。现场 Worker `Recreate` 策略在 Kubernetes server-side dry-run 中保留，正式升级后必须重查。单副本替换前须核对任务和队列，正式发布与运行计数验收待继续；见 [`evidence/c3-worker-only-release-2026-09-27.md`](evidence/c3-worker-only-release-2026-09-27.md)。
 - 2026-09-27：审查 revision 56 与仓库 Chart 的 6 个 Deployment 差异；新增普通 Worker 专用的 `worker.imageTag` 覆盖，单节点 Helm 模板验证只改变普通 Worker 的镜像。基于目标旧 Worker 镜像叠加 `b1828220` 的指标文件，构建并导入固定标签热修复镜像，隔离容器及已清理的临时 K3s Pod 均验证 15 条零值序列。候选 release 预检仍返回 6 个未审核 Deployment 变更（仅普通 Worker 换镜像），正式 revision 56 未升级；见 [`evidence/c3-worker-metric-release-preflight-2026-09-27.md`](evidence/c3-worker-metric-release-preflight-2026-09-27.md)。
 - 2026-09-27：完成 9 月 26 日完整 UTC 日 SLO 报告：Backend/Worker `288/288`，约 20 次请求、2 次运行、P95 95ms，无数据缺口，但流量仍是受控 canary。9 月 27 日北京早间定时 canary 再次成功；Flower 累计 3339 个原始 RSS 样本、RSS 约 154MiB、进程启动变化 0，5/5 target up、6 条规则健康，Helm revision 56 与 6 Pod 零重启未变。仍需完成 Worker 指标修复发布与代表性 7/14 日校准；见 [`evidence/c3-slo-flower-checkpoint-2026-09-27.md`](evidence/c3-slo-flower-checkpoint-2026-09-27.md)。
 - 2026-09-27：从发布 Prometheus 生成 9 月 24～25 日完整 UTC 日报告及四份摘要；采集器判为 `pre-calibration preflight`，数据缺口和代表性不足使门禁继续 `deferred`。9 月 25 日 canary 两次成功与 Prometheus 日增量约 1 次不一致，确认结果指标首次标记序列出现时已为 1；仓库现预初始化 15 个零值结果序列，revision 56 尚未部署。Flower 新序列 718 个原始 RSS 样本、约 154MiB、进程启动变化 0，目标 5/5 target up、6 条规则健康，Helm 56、6 Pod 零重启。见 [`evidence/c3-slo-flower-checkpoint-2026-09-27.md`](evidence/c3-slo-flower-checkpoint-2026-09-27.md)。

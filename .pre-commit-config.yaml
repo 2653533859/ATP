@@ -6,7 +6,8 @@ repos:
     rev: v5.0.0
     hooks:
       - id: check-yaml
-        exclude: ^deploy/helm/atp/templates/
+        # Helm templates contain Go directives and are not standalone YAML.
+        exclude: ^deploy/helm/[^/]+/templates/
       - id: end-of-file-fixer
       - id: trailing-whitespace
 

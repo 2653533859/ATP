@@ -1,0 +1,392 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "ATP Helm values",
+  "type": "object",
+  "additionalProperties": true,
+  "properties": {
+    "image": {
+      "type": "object",
+      "description": "Container image repository and per-component tags.",
+      "required": ["repository", "backend", "worker", "frontend"],
+      "properties": {
+        "repository": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Shared image repository prefix, for example registry.local/atp."
+        },
+        "backend": { "$ref": "#/definitions/imageComponent" },
+        "worker": { "$ref": "#/definitions/imageComponent" },
+        "frontend": { "$ref": "#/definitions/imageComponent" }
+      }
+    },
+    "imagePullSecrets": {
+      "type": "array",
+      "description": "Optional Kubernetes imagePullSecrets.",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": { "type": "string", "minLength": 1 }
+        },
+        "additionalProperties": true
+      }
+    },
+    "podNetwork": {
+      "type": "object",
+      "description": "Optional pod networking overrides for host-loopback single-node development.",
+      "additionalProperties": true,
+      "properties": {
+        "hostNetwork": {
+          "type": "boolean",
+          "description": "Run pods in the host network namespace; use only when dependencies bind host loopback."
+        }
+      }
+    },
+    "replicas": {
+      "type": "object",
+      "description": "Deployment replica counts.",
+      "required": ["backend", "worker", "beat", "flower"],
+      "properties": {
+        "backend": { "$ref": "#/definitions/nonNegativeInteger" },
+        "worker": { "$ref": "#/definitions/nonNegativeInteger" },
+        "webRecorder": { "$ref": "#/definitions/nonNegativeInteger" },
+        "beat": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1,
+          "description": "Celery beat must stay single-replica to avoid duplicate schedules."
+        },
+        "flower": { "$ref": "#/definitions/nonNegativeInteger" }
+      }
+    },
+    "worker": {
+      "type": "object",
+      "description": "Worker-specific tuning knobs.",
+      "additionalProperties": true,
+      "properties": {
+        "imageTag": {
+          "type": "string",
+          "description": "Optional ordinary Worker hotfix tag; empty inherits image.worker.tag."
+        },
+        "metricsPort": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "Port exposed by each Celery worker child process for Prometheus /metrics. Set to 0 to disable."
+        },
+        "queues": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Comma-separated Celery queues listened by the default worker deployment."
+        }
+      }
+    },
+    "webRecorder": {
+      "type": "object",
+      "description": "Optional independent Playwright Web recording worker.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "workerId": { "type": "string", "minLength": 1 },
+        "display": { "type": "string", "minLength": 1 },
+        "maxSessions": { "$ref": "#/definitions/positiveInteger" },
+        "heartbeatSeconds": { "$ref": "#/definitions/positiveInteger" },
+        "workerTtlSeconds": { "$ref": "#/definitions/positiveInteger" },
+        "healthFile": { "type": "string", "minLength": 1 },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "performanceWorker": {
+      "type": "object",
+      "description": "Optional dedicated Celery worker Deployment for performance test tasks.",
+      "additionalProperties": true,
+      "properties": {
+        "enabled": {
+          "type": "boolean",
+          "description": "Enable a separate worker that only consumes the performance queue."
+        },
+        "replicas": { "$ref": "#/definitions/nonNegativeInteger" },
+        "queues": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Comma-separated queues for the dedicated performance worker."
+        },
+        "concurrency": {
+          "type": ["string", "integer"],
+          "description": "Celery concurrency for the dedicated performance worker."
+        },
+        "metricsPort": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 65535,
+          "description": "Prometheus metrics port for the dedicated performance worker."
+        },
+        "autoIdentity": {
+          "type": "boolean",
+          "description": "Derive a unique node ID and Celery queue from the Kubernetes Pod hostname for each replica."
+        },
+        "spreadAcrossNodes": {
+          "type": "boolean",
+          "description": "Require dedicated performance Worker replicas to run on different Kubernetes nodes."
+        },
+        "nodeEnabled": { "type": "boolean", "description": "Enable performance-node heartbeat registration for the dedicated worker." },
+        "nodeId": { "type": "string", "maxLength": 128, "description": "Stable performance node ID. Empty disables explicit node registration." },
+        "nodeName": { "type": "string", "maxLength": 128, "description": "Display name for the performance node." },
+        "nodeQueue": { "type": "string", "minLength": 1, "description": "Celery queue used by this performance node." },
+        "nodeMaxVus": { "type": "integer", "minimum": 0, "description": "Maximum peak VUs accepted by this node; zero means unlimited." },
+        "nodeMaxConcurrency": { "type": "integer", "minimum": 0, "description": "Maximum active runs accepted by this node; zero means unlimited." },
+        "nodeEgressAllowlist": { "type": "string", "description": "Comma-separated hostnames allowed by the application-level egress guardrail." },
+        "networkPolicy": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "egress": { "type": "array", "items": { "type": "object" } }
+          }
+        },
+        "resources": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "storageLifecycle": {
+      "type": "object",
+      "description": "Optional post-install hook that reconciles lifecycle rules on an externally managed MinIO bucket.",
+      "additionalProperties": false,
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "jobImage": { "type": "string" },
+        "abortIncompleteMultipartDays": { "$ref": "#/definitions/positiveInteger" },
+        "expirationRules": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "prefix", "days"],
+            "properties": {
+              "id": { "type": "string", "minLength": 1 },
+              "prefix": { "type": "string", "minLength": 1 },
+              "days": { "$ref": "#/definitions/positiveInteger" }
+            }
+          }
+        }
+      }
+    },
+    "resources": {
+      "type": "object",
+      "description": "Kubernetes resource requests and limits by component.",
+      "properties": {
+        "backend": { "$ref": "#/definitions/resources" },
+        "worker": { "$ref": "#/definitions/resources" },
+        "beat": { "$ref": "#/definitions/resources" },
+        "flower": { "$ref": "#/definitions/resources" }
+      }
+    },
+    "secret": {
+      "type": "object",
+      "description": "Secret ownership. Use an existing externally managed Secret in production.",
+      "properties": {
+        "create": { "type": "boolean" },
+        "existingName": { "type": "string" }
+      }
+    },
+    "config": {
+      "type": "object",
+      "description": "Non-sensitive environment variables rendered to ConfigMap.",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean"]
+      },
+      "properties": {
+        "APP_ENV": { "type": "string", "description": "Runtime environment name." },
+        "APP_AUTO_CREATE_TABLES": { "type": ["string", "boolean"], "description": "Whether startup may create tables automatically." },
+        "LOG_LEVEL": { "type": "string", "description": "Application log level." },
+        "CELERY_CONCURRENCY": { "type": ["string", "integer"], "description": "Celery worker concurrency." },
+        "CELERY_QUEUES": { "type": "string", "description": "Comma-separated Celery queues listened by this worker." },
+        "WEB_RECORDER_MODE": { "type": "string", "enum": ["local", "worker"], "description": "Web recording control-plane mode." },
+        "WEB_RECORDER_WORKER_QUEUE_PREFIX": { "type": "string", "minLength": 1, "description": "Redis key prefix for Web recording commands." },
+        "WEB_RECORDER_SESSION_TTL_SECONDS": { "type": ["string", "integer"], "minimum": 60, "description": "TTL for remote recording session routing metadata." },
+        "ADB_SCAN_ENABLED": { "type": ["string", "boolean"], "description": "Enable periodic ADB device scanning." },
+        "OTEL_SERVICE_NAME": { "type": "string", "description": "OpenTelemetry service name." },
+        "OTEL_EXPORTER_OTLP_ENDPOINT": { "type": "string", "description": "Optional OTLP collector endpoint." },
+        "SLOW_QUERY_THRESHOLD_MS": { "type": ["string", "integer"], "description": "Slow SQL threshold in milliseconds." },
+        "DB_BACKUP_ENABLED": { "type": ["string", "boolean"], "description": "Enable scheduled PostgreSQL backups." },
+        "DB_BACKUP_PREFIX": { "type": "string", "description": "MinIO object prefix for backups." },
+        "DB_BACKUP_RETAIN_DAILY": { "type": ["string", "integer"], "description": "Daily backup retention count." },
+        "DB_BACKUP_RETAIN_WEEKLY": { "type": ["string", "integer"], "description": "Weekly backup retention count." },
+        "AI_HEALING_ENABLED": { "type": ["string", "boolean"], "description": "Enable automatic AI healing diagnostics." },
+        "AI_HEALING_TIMEOUT_SECONDS": { "type": ["string", "integer"], "description": "LLM call timeout for AI healing." },
+        "AI_HEALING_DAILY_LIMIT": { "type": ["string", "integer"], "description": "Daily LLM call limit for AI healing." },
+        "AI_HEALING_CACHE_TTL_SECONDS": { "type": ["string", "integer"], "description": "Cache TTL for identical AI healing suggestions." },
+        "AI_HEALING_FEW_SHOT_ENABLED": { "type": ["string", "boolean"], "description": "Enable curated few-shot examples in AI healing prompts." },
+        "AI_HEALING_FEW_SHOT_TOP_N": { "type": ["string", "integer"], "description": "Maximum curated examples injected per prompt." },
+        "AI_HEALING_VISION_ENABLED": { "type": ["string", "boolean"], "description": "Enable screenshot image blocks for AI healing prompts." },
+        "AI_HEALING_VISION_DAILY_LIMIT": { "type": ["string", "integer"], "description": "Daily limit for screenshot-based AI healing calls." },
+        "PERFORMANCE_NODE_ENABLED": { "type": ["string", "boolean"], "description": "Enable performance node heartbeat registration." },
+        "PERFORMANCE_NODE_ID": { "type": "string", "description": "Stable performance node ID." },
+        "PERFORMANCE_NODE_NAME": { "type": "string", "description": "Performance node display name." },
+        "PERFORMANCE_NODE_QUEUE": { "type": "string", "description": "Performance node Celery queue." },
+        "PERFORMANCE_NODE_MAX_VUS": { "type": ["string", "integer"], "description": "Maximum peak VUs for the node; zero means unlimited." },
+        "PERFORMANCE_NODE_MAX_CONCURRENCY": { "type": ["string", "integer"], "description": "Maximum active runs for the node; zero means unlimited." },
+        "PERFORMANCE_NODE_EGRESS_ALLOWLIST": { "type": "string", "description": "Comma-separated application-level egress hostname allowlist." },
+        "PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS": { "type": ["string", "integer"], "description": "Seconds before a node heartbeat is considered stale." },
+        "PERFORMANCE_EXECUTORS": { "type": "string", "description": "Comma-separated load injectors advertised by the performance worker." },
+        "PERFORMANCE_TARGET_ALLOWLIST": { "type": "string", "description": "Comma-separated hostnames permitted as performance test targets." },
+        "PERFORMANCE_MAX_VUS": { "type": ["string", "integer"], "minimum": 0, "description": "Maximum VUs accepted by performance test validation." },
+        "PERFORMANCE_MAX_DURATION_SECONDS": { "type": ["string", "integer"], "minimum": 0, "description": "Maximum performance test duration in seconds." },
+        "TARGET_PROMETHEUS_URL": { "type": "string", "description": "Optional target-service Prometheus URL used by performance test definitions via url_env." }
+      }
+    },
+    "secrets": {
+      "type": "object",
+      "description": "Sensitive environment variables rendered to Secret.",
+      "additionalProperties": {
+        "type": ["string", "number", "boolean"]
+      },
+      "properties": {
+        "APP_SECRET_KEY": { "type": "string", "minLength": 1 },
+        "POSTGRES_HOST": { "type": "string", "minLength": 1 },
+        "POSTGRES_PORT": { "type": ["string", "integer"] },
+        "POSTGRES_DB": { "type": "string", "minLength": 1 },
+        "POSTGRES_USER": { "type": "string", "minLength": 1 },
+        "POSTGRES_PASSWORD": { "type": "string" },
+        "REDIS_HOST": { "type": "string", "minLength": 1 },
+        "REDIS_PORT": { "type": ["string", "integer"] },
+        "REDIS_PASSWORD": { "type": "string" },
+        "MINIO_HOST": { "type": "string", "minLength": 1 },
+        "MINIO_PORT": { "type": ["string", "integer"] },
+        "MINIO_ROOT_USER": { "type": "string", "minLength": 1 },
+        "MINIO_ROOT_PASSWORD": { "type": "string" },
+        "MINIO_BUCKET": { "type": "string", "minLength": 1 },
+        "ENCRYPTION_KEY": { "type": "string" },
+        "WEBHOOK_API_KEY": { "type": "string" },
+        "PERFORMANCE_METRICS_ENABLED": { "type": ["string", "boolean"] },
+        "PERFORMANCE_METRICS_INTERVAL_SECONDS": { "type": ["string", "number"] },
+        "PERFORMANCE_METRICS_MAX_SAMPLES": { "type": ["string", "integer"] },
+        "PERFORMANCE_MINIO_INVENTORY_INTERVAL_SECONDS": { "type": ["string", "integer"] }
+      }
+    },
+    "service": {
+      "type": "object",
+      "description": "Kubernetes Service settings.",
+      "properties": {
+        "backend": { "$ref": "#/definitions/service" },
+        "performanceWorker": { "$ref": "#/definitions/service" },
+        "flower": { "$ref": "#/definitions/service" }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "description": "Prometheus Operator integration settings.",
+      "properties": {
+        "serviceMonitor": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "interval": { "type": "string", "minLength": 1 },
+            "scrapeTimeout": { "type": "string", "minLength": 1 },
+            "additionalLabels": {
+              "type": "object",
+              "additionalProperties": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
+    "ingress": {
+      "type": "object",
+      "description": "Ingress settings for API, WebSocket, mock, and metrics routes.",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "className": { "type": "string" },
+        "host": { "type": "string" },
+        "tls": {
+          "type": "object",
+          "properties": {
+            "enabled": { "type": "boolean" },
+            "secretName": { "type": "string" }
+          }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      }
+    },
+    "hpa": {
+      "type": "object",
+      "description": "HorizontalPodAutoscaler settings.",
+      "properties": {
+        "backend": { "$ref": "#/definitions/hpa" },
+        "worker": { "$ref": "#/definitions/hpa" },
+        "performanceWorker": { "$ref": "#/definitions/hpa" }
+      }
+    }
+  },
+  "definitions": {
+    "imageComponent": {
+      "type": "object",
+      "required": ["tag", "pullPolicy"],
+      "properties": {
+        "tag": { "type": "string", "minLength": 1 },
+        "pullPolicy": {
+          "type": "string",
+          "enum": ["Always", "IfNotPresent", "Never"]
+        }
+      }
+    },
+    "nonNegativeInteger": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "positiveInteger": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "resources": {
+      "type": "object",
+      "properties": {
+        "requests": { "$ref": "#/definitions/resourceMap" },
+        "limits": { "$ref": "#/definitions/resourceMap" }
+      }
+    },
+    "resourceMap": {
+      "type": "object",
+      "properties": {
+        "cpu": { "type": ["string", "number"] },
+        "memory": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "service": {
+      "type": "object",
+      "properties": {
+        "type": {
+          "type": "string",
+          "enum": ["ClusterIP", "NodePort", "LoadBalancer", "ExternalName"]
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      }
+    },
+    "hpa": {
+      "type": "object",
+      "properties": {
+        "enabled": { "type": "boolean" },
+        "minReplicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "maxReplicas": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "targetCPUUtilizationPercentage": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100
+        }
+      }
+    }
+  }
+}

@@ -382,6 +382,18 @@ def _chart_fingerprint(chart: Path) -> dict[str, str]:
     }
 
 
+def _repository_chart(path: Path) -> Path:
+    """Resolve a chart source inside this repository's Helm directory."""
+    source = (ROOT / path).resolve() if not path.is_absolute() else path.resolve()
+    if not source.is_relative_to((ROOT / "deploy" / "helm").resolve()):
+        raise ValueError("--repo-chart must be inside this repository's deploy/helm directory")
+    if not source.is_dir() or not (source / "Chart.yaml").is_file():
+        raise ValueError("--repo-chart must name a Chart directory")
+    if any(item.is_symlink() for item in source.rglob("*")):
+        raise ValueError("--repo-chart must not contain symlinks")
+    return source
+
+
 def _helm_capture(command: list[str], *, input_text: str | None = None) -> str:
     completed = subprocess.run(
         command,
@@ -507,6 +519,15 @@ def _changed_paths(old: Any, new: Any, prefix: str = "") -> list[str]:
     return [prefix] if old != new else []
 
 
+def _is_image_only_change(old: dict[str, Any] | None, new: dict[str, Any] | None) -> bool:
+    if old is None or new is None or old.get("kind") != "Deployment" or new.get("kind") != "Deployment":
+        return False
+    paths = _changed_paths(old, new)
+    return bool(paths) and all(
+        re.fullmatch(r"spec\.template\.spec\.(?:containers|initContainers)\[\d+\]\.image", path) for path in paths
+    )
+
+
 def _image_tag_overrides(items: list[str]) -> dict[str, str]:
     tags: dict[str, str] = {}
     for item in items:
@@ -533,11 +554,16 @@ def _check_release_chart(
     skip_hooks: bool,
     image_tags: dict[str, str] | None = None,
     values_files: list[Path] | None = None,
+    repo_chart: Path | None = None,
+    require_baseline_match: bool = False,
+    image_only: bool = False,
 ) -> tuple[list[str], list[str]]:
     failures: list[str] = []
     report: list[str] = []
-    source = ROOT / "deploy" / "helm" / "atp"
+    if image_only and not require_baseline_match:
+        return ["--image-only requires --require-baseline-match"], report
     try:
+        source = _repository_chart(repo_chart or ROOT / "deploy" / "helm" / "atp")
         source_files = _chart_fingerprint(source)
         candidate_files = _chart_fingerprint(chart)
     except (OSError, ValueError) as exc:
@@ -562,13 +588,24 @@ def _check_release_chart(
         current_text = _helm_capture([helm, "get", "manifest", release, "-n", namespace])
         hooks_text = _helm_capture([helm, "get", "hooks", release, "-n", namespace])
         template_command = [helm, "template", release, str(chart), "-n", namespace, "-f", "-"]
+        current = _manifest_index(current_text)
+        old_hooks = _manifest_index(hooks_text)
+        if require_baseline_match:
+            baseline_all = _manifest_index(_helm_capture(template_command, input_text=values))
+            baseline = {key: item for key, item in baseline_all.items() if not _is_hook(item)}
+            baseline_hooks = {key: item for key, item in baseline_all.items() if _is_hook(item)}
+            baseline_changes = _changes(current, baseline)
+            baseline_hook_changes = _changes(old_hooks, baseline_hooks)
+            if baseline_changes or baseline_hook_changes:
+                changed = [identity for _, identity, *_ in baseline_changes]
+                changed.extend(identity for _, identity, *_ in baseline_hook_changes)
+                return ["baseline render differs from release: " + ", ".join(changed)], report
+            report.append("PASS unmodified Chart matches release resources and hooks")
         for path in values_files or []:
             template_command.extend(["-f", str(path)])
         for component, tag in sorted((image_tags or {}).items()):
             template_command.extend(["--set-string", f"image.{component}.tag={tag}"])
         candidate_text = _helm_capture(template_command, input_text=values)
-        current = _manifest_index(current_text)
-        old_hooks = _manifest_index(hooks_text)
         candidate_all = _manifest_index(candidate_text)
     except (OSError, subprocess.TimeoutExpired, RuntimeError, yaml.YAMLError, ValueError):
         return ["Helm release preflight could not render or parse manifests; inspect secure operator logs"], report
@@ -585,12 +622,16 @@ def _check_release_chart(
             report.append(f"FIELDS {identity} " + ", ".join(paths[:20]) + (", ..." if len(paths) > 20 else ""))
         if old_images != new_images:
             report.append(f"IMAGE_TAG {identity} {old_images} -> {new_images}")
+        if image_only and not _is_image_only_change(current.get(identity), candidate.get(identity)):
+            failures.append(f"non-image-only resource change: {identity}")
         if identity not in allowed_changes:
             failures.append(f"unreviewed resource change: {identity}")
     for status, identity, old_images, new_images in _changes(old_hooks, new_hooks):
         report.append(f"HOOK {status} {identity}" + (" (upgrade --no-hooks)" if skip_hooks else ""))
         if old_images != new_images:
             report.append(f"HOOK_IMAGE_TAG {identity} {old_images} -> {new_images}")
+        if image_only:
+            failures.append(f"hook change is forbidden by --image-only: {identity}")
         if not skip_hooks and identity not in allowed_hooks:
             failures.append(f"unreviewed migration hook change: {identity}")
     report.append(f"PASS rendered resource inventory: {len(candidate)} regular, {len(new_hooks)} hooks")
@@ -617,6 +658,15 @@ def main() -> int:
     parser.add_argument("--release", help="preflight an existing Helm release against the repository Chart")
     parser.add_argument("--namespace", default="atp-single-node", help="Helm release namespace")
     parser.add_argument("--chart", type=Path, default=ROOT / "deploy" / "helm" / "atp")
+    parser.add_argument("--repo-chart", type=Path, help="repository Chart source for staged-file fingerprint matching")
+    parser.add_argument(
+        "--require-baseline-match",
+        action="store_true",
+        help="require the Chart without overrides to match the release including hooks",
+    )
+    parser.add_argument(
+        "--image-only", action="store_true", help="permit only image field changes in existing Deployments"
+    )
     parser.add_argument("--allow-change", action="append", default=[], metavar="KIND/NAME")
     parser.add_argument("--allow-hook-change", action="append", default=[], metavar="KIND/NAME")
     parser.add_argument("--skip-hooks", action="store_true", help="preflight an upgrade that will use --no-hooks")
@@ -638,6 +688,9 @@ def main() -> int:
             skip_hooks=args.skip_hooks,
             image_tags=image_tags,
             values_files=args.values_file,
+            repo_chart=args.repo_chart,
+            require_baseline_match=args.require_baseline_match,
+            image_only=args.image_only,
         )
         for item in report:
             print(item)

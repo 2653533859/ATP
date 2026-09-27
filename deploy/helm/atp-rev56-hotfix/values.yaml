@@ -1,0 +1,299 @@
+# ATP Helm values - production-oriented baseline.
+
+# Container image settings. The chart renders images as:
+#   {image.repository}/backend:{image.backend.tag}
+#   {image.repository}/worker:{image.worker.tag}
+#   {image.repository}/frontend:{image.frontend.tag}
+image:
+  # Shared registry/repository prefix for all ATP runtime images.
+  repository: registry.local/atp
+  backend:
+    # Backend API image tag.
+    tag: latest
+    # Kubernetes imagePullPolicy for the backend container.
+    pullPolicy: IfNotPresent
+  worker:
+    # Worker image tag. This image should include Playwright, Chromium, ADB,
+    # pg_dump, and MinIO mc when database backup tasks are enabled.
+    tag: latest
+    pullPolicy: IfNotPresent
+  frontend:
+    # Frontend static-site image tag.
+    tag: latest
+    pullPolicy: IfNotPresent
+
+# Optional image pull secrets for private registries.
+imagePullSecrets: []
+
+# Optional pod networking override. Keep false for normal cluster networking;
+# single-node development may enable it when dependencies are host-loopback only.
+podNetwork:
+  hostNetwork: false
+
+# Deployment replica counts. Keep beat at one replica to avoid duplicate
+# scheduled jobs.
+replicas:
+  backend: 2
+  worker: 3
+  webRecorder: 1
+  beat: 1
+  flower: 1
+
+flower:
+  maxTasks: 1000
+  maxWorkers: 100
+  purgeOfflineWorkers: 300
+
+# Worker-specific knobs (镜像 / 端口 / 调度差异化在此扩展)。
+worker:
+  # Empty preserves the revision-56 shared worker image tag. Set only for the
+  # ordinary Worker hotfix; all other worker-image workloads keep the base tag.
+  imageTag: ""
+  # 每个 worker 子进程暴露 Prometheus /metrics 的端口；与 backend:8000/metrics 区分。
+  # 设为 0 可关闭（仅当 Prometheus 不抓取 worker 时）
+  metricsPort: 9091
+  # Queues listened by the default worker deployment. For production isolation,
+  # deploy separate worker releases or overlay this value per Deployment.
+  queues: default,ios,ai,maintenance,performance
+
+webRecorder:
+  # Enable an independent Playwright recording process. The API must also use
+  # config.WEB_RECORDER_MODE=worker when this deployment is enabled.
+  enabled: false
+  workerId: web-recorder-1
+  display: ":99"
+  maxSessions: 2
+  heartbeatSeconds: 5
+  workerTtlSeconds: 20
+  healthFile: /tmp/atp-web-recorder.ready
+  resources:
+    requests: {cpu: 500m, memory: 1Gi}
+    limits: {cpu: 2000m, memory: 3Gi}
+
+performanceWorker:
+  # Enable a dedicated Celery worker Deployment for HTTP performance tests.
+  # When enabled, consider removing "performance" from worker.queues/config.CELERY_QUEUES.
+  enabled: false
+  replicas: 1
+  queues: performance
+  concurrency: "1"
+  metricsPort: 9092
+  # Node identity and application-level performance guardrails. Leave nodeId
+  # empty to keep this worker on the shared performance queue without pinning runs.
+  # Set true when replicas > 1. Each Pod registers its hostname as a distinct
+  # node and consumes its own performance.<pod> queue.
+  autoIdentity: false
+  # Require performance Worker replicas to land on different Kubernetes nodes.
+  spreadAcrossNodes: false
+  nodeEnabled: true
+  nodeId: ""
+  nodeName: ""
+  nodeQueue: performance
+  nodeMaxVus: 0
+  nodeMaxConcurrency: 0
+  nodeEgressAllowlist: ""
+  # Optional Kubernetes egress isolation. When enabled, only the listed
+  # NetworkPolicy egress rules are allowed; include DNS explicitly if needed.
+  networkPolicy:
+    enabled: false
+    egress: []
+  resources:
+    requests: {cpu: 1000m, memory: 1Gi}
+    limits: {cpu: 2000m, memory: 2Gi}
+
+# Optional MinIO lifecycle reconciler. The chart does not install MinIO; this
+# hook configures the externally managed bucket when explicitly enabled.
+# Enabling it always aborts incomplete multipart uploads. Expiration rules are
+# opt-in and must target a dedicated prefix whose retention is coordinated
+# with the database/object cleanup policy.
+storageLifecycle:
+  enabled: false
+  # Defaults to the ATP backend image so the Python MinIO client is available.
+  # Override only when the replacement image contains app.ops_minio_lifecycle.
+  jobImage: ""
+  abortIncompleteMultipartDays: 1
+  expirationRules: []
+
+# Resource requests and limits for ATP workloads.
+resources:
+  backend:
+    requests: {cpu: 200m, memory: 512Mi}
+    limits: {cpu: 1000m, memory: 1Gi}
+  worker:
+    requests: {cpu: 500m, memory: 1Gi}
+    limits: {cpu: 2000m, memory: 4Gi}
+  beat:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {cpu: 200m, memory: 256Mi}
+  flower:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {cpu: 200m, memory: 256Mi}
+
+# Secret ownership. Set create=false and existingName to bind a Secret managed
+# by ExternalSecrets, SOPS, or the platform secret manager in production.
+secret:
+  create: true
+  existingName: ""
+
+# Non-sensitive environment variables rendered into a ConfigMap.
+config:
+  # Runtime environment name.
+  APP_ENV: production
+  # Production should run migrations explicitly, not create tables on startup.
+  APP_AUTO_CREATE_TABLES: "false"
+  # Logging level for backend, worker, beat, and flower.
+  LOG_LEVEL: INFO
+  # Celery worker concurrency used by worker containers.
+  CELERY_CONCURRENCY: "4"
+  # Celery queues listened by the default worker container.
+  CELERY_QUEUES: default,ios,ai,maintenance,performance
+  # Set to worker together with webRecorder.enabled in a production overlay.
+  WEB_RECORDER_MODE: local
+  WEB_RECORDER_WORKER_QUEUE_PREFIX: atp:web-recording:commands
+  WEB_RECORDER_SESSION_TTL_SECONDS: "3600"
+  # Kubernetes clusters usually do not have direct ADB-attached devices.
+  ADB_SCAN_ENABLED: "false"
+  # OpenTelemetry service name and optional OTLP endpoint.
+  OTEL_SERVICE_NAME: atp-backend
+  OTEL_EXPORTER_OTLP_ENDPOINT: ""
+  # Slow SQL query threshold in milliseconds.
+  SLOW_QUERY_THRESHOLD_MS: "1000"
+  # Enable scheduled PostgreSQL backups through Celery beat.
+  DB_BACKUP_ENABLED: "true"
+  # Backup object prefix in MinIO.
+  DB_BACKUP_PREFIX: pg-backups
+  # Daily backup retention count.
+  DB_BACKUP_RETAIN_DAILY: "7"
+  # Weekly backup retention count.
+  DB_BACKUP_RETAIN_WEEKLY: "4"
+  # Enable automatic AI healing diagnostics when project LLM config is present.
+  AI_HEALING_ENABLED: "false"
+  # Maximum seconds for one AI healing LLM call.
+  AI_HEALING_TIMEOUT_SECONDS: "60"
+  # Daily LLM call limit for AI healing. 0 means unlimited.
+  AI_HEALING_DAILY_LIMIT: "100"
+  # TTL for identical AI healing suggestions.
+  AI_HEALING_CACHE_TTL_SECONDS: "3600"
+  # Inject admin-curated examples into AI healing prompts.
+  AI_HEALING_FEW_SHOT_ENABLED: "true"
+  # Maximum high-quality examples injected per prompt.
+  AI_HEALING_FEW_SHOT_TOP_N: "3"
+  # Enable screenshot image blocks for AI healing when an LLM config supports vision.
+  AI_HEALING_VISION_ENABLED: "false"
+  # Daily limit for screenshot-based AI healing calls. 0 means unlimited.
+  AI_HEALING_VISION_DAILY_LIMIT: "50"
+  # Performance load-injector node settings. Node ID is intentionally empty
+  # until a dedicated worker is registered.
+  PERFORMANCE_NODE_ENABLED: "true"
+  PERFORMANCE_NODE_ID: ""
+  PERFORMANCE_NODE_NAME: ""
+  PERFORMANCE_NODE_QUEUE: performance
+  PERFORMANCE_NODE_MAX_VUS: "0"
+  PERFORMANCE_NODE_MAX_CONCURRENCY: "0"
+  PERFORMANCE_NODE_EGRESS_ALLOWLIST: ""
+  PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS: "90"
+  PERFORMANCE_EXECUTORS: "k6,locust,grpc"
+
+# Sensitive values rendered into a Kubernetes Secret by this chart. Production
+# deployments should prefer ExternalSecrets, SOPS, or a platform secret manager
+# and avoid committing real credentials.
+secrets:
+  # JWT signing secret.
+  APP_SECRET_KEY: "change-me-in-production"
+  # PostgreSQL connection.
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: "5432"
+  POSTGRES_CONNECT_TIMEOUT_SECONDS: "5"
+  POSTGRES_DB: atp
+  POSTGRES_USER: atp
+  POSTGRES_PASSWORD: "change-me"
+  # Redis connection for Celery broker/result backend and cache.
+  REDIS_HOST: redis
+  REDIS_PORT: "6379"
+  REDIS_PASSWORD: ""
+  REDIS_CONNECT_TIMEOUT_SECONDS: "5"
+  # MinIO or S3-compatible object storage.
+  MINIO_HOST: minio
+  MINIO_PORT: "9000"
+  MINIO_ROOT_USER: minioadmin
+  MINIO_ROOT_PASSWORD: "change-me"
+  MINIO_BUCKET: atp
+  MINIO_CONNECT_TIMEOUT_SECONDS: "5"
+  # Optional Fernet key. Leave empty to derive from APP_SECRET_KEY.
+  ENCRYPTION_KEY: ""
+  # API key for CI/CD webhook trigger endpoint.
+  WEBHOOK_API_KEY: "change-me"
+  # Performance-run resource sampling. Samples are linked to each run in PostgreSQL.
+  PERFORMANCE_METRICS_ENABLED: "true"
+  PERFORMANCE_METRICS_INTERVAL_SECONDS: "5"
+  PERFORMANCE_METRICS_MAX_SAMPLES: "7200"
+  PERFORMANCE_MINIO_INVENTORY_INTERVAL_SECONDS: "30"
+
+# Prometheus Operator integration. Keep disabled when the cluster does not
+# install the ServiceMonitor CRD; enable it in the production overlay.
+metrics:
+  serviceMonitor:
+    enabled: false
+    interval: 30s
+    scrapeTimeout: 10s
+    additionalLabels: {}
+
+# Kubernetes Services.
+service:
+  backend:
+    # Backend Service type.
+    type: ClusterIP
+    # Backend Service port.
+    port: 8000
+  performanceWorker:
+    # Internal metrics Service for the dedicated performance Worker.
+    # It is created only when performanceWorker.enabled is true.
+    type: ClusterIP
+    port: 9092
+  flower:
+    # Flower Service type.
+    type: ClusterIP
+    # Flower Service port.
+    port: 5555
+
+# Ingress for backend routes. The frontend image is expected to be exposed by
+# the platform or an adjacent chart; this chart routes API-style paths.
+ingress:
+  # Set false when another gateway owns external routing.
+  enabled: true
+  # IngressClass name, usually nginx.
+  className: nginx
+  # Public host name.
+  host: atp.example.com
+  tls:
+    # Enable TLS stanza on the Ingress.
+    enabled: false
+    # Existing TLS secret name.
+    secretName: atp-tls
+  # Nginx annotations tuned for large uploads and long-running report requests.
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-body-size: 200m
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "600"
+
+# HorizontalPodAutoscaler settings for API and worker deployments.
+hpa:
+  backend:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 10
+    targetCPUUtilizationPercentage: 70
+  worker:
+    enabled: true
+    minReplicas: 3
+    maxReplicas: 20
+    targetCPUUtilizationPercentage: 80
+  performanceWorker:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    targetCPUUtilizationPercentage: 70
+
+# External dependencies:
+# - This chart does not install PostgreSQL, Redis, or MinIO.
+# - Point secrets.POSTGRES_*, secrets.REDIS_*, and secrets.MINIO_* to managed
+#   services or separately operated in-cluster services.

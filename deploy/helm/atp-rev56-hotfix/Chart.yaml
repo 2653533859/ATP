@@ -1,0 +1,14 @@
+apiVersion: v2
+name: atp
+description: Automated Testing Platform - API/Web/Android 测试一体化平台
+type: application
+version: 0.1.0
+appVersion: "1.0.0"
+keywords:
+  - testing
+  - automation
+  - playwright
+  - api-testing
+home: https://example.com/atp
+maintainers:
+  - name: ATP Team

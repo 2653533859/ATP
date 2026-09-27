@@ -1,0 +1,107 @@
+# ATP P4 真实 Kubernetes 性能验收 overlay。
+#
+# 这是验收部署包，不是生产默认值：
+# - 将 image.*.tag 替换为待验收的不可变镜像 tag；
+# - 使用 ExternalSecret/SOPS 创建 existingName 指向的 Secret；
+# - 将所有 example.test 主机替换为真实目标，并按实际 Prometheus selector
+#   调整 metrics.serviceMonitor.additionalLabels；
+# - 本文件不包含密码、Token、证书或私钥。
+
+image:
+  repository: registry.example.test/atp
+  backend:
+    tag: acceptance-CHANGE-ME
+    pullPolicy: IfNotPresent
+  worker:
+    tag: acceptance-CHANGE-ME
+    pullPolicy: IfNotPresent
+  frontend:
+    tag: acceptance-CHANGE-ME
+    pullPolicy: IfNotPresent
+
+replicas:
+  backend: 1
+  # 普通 Worker 不承载 performance 队列；性能任务由下方专用 Deployment 消费。
+  worker: 1
+  beat: 1
+  flower: 1
+
+worker:
+  queues: default,ios,ai,maintenance
+  metricsPort: 9091
+
+config:
+  APP_ENV: acceptance
+  APP_AUTO_CREATE_TABLES: "false"
+  CELERY_QUEUES: default,ios,ai,maintenance
+  DB_BACKUP_ENABLED: "false"
+  PERFORMANCE_EXECUTORS: k6,locust,grpc,jmeter
+  PERFORMANCE_TARGET_ALLOWLIST: grpc-target.example.test,http-target.example.test
+  PERFORMANCE_MAX_VUS: "20"
+  PERFORMANCE_MAX_DURATION_SECONDS: "300"
+  # 压测定义可使用 {"target_metrics":{"url_env":"TARGET_PROMETHEUS_URL",...}}；
+  # 该 URL 必须是目标服务所属的真实 Prometheus，且能从 Worker Pod 访问。
+  TARGET_PROMETHEUS_URL: https://target-prometheus.example.test
+
+performanceWorker:
+  enabled: true
+  # 两个 Pod 分别注册为独立节点，配合 --min-worker-replicas 2 验证真实容量。
+  replicas: 2
+  queues: performance
+  concurrency: "1"
+  metricsPort: 9092
+  autoIdentity: true
+  # 与 --min-ready-nodes 2 配套，避免两个副本落在同一节点。
+  spreadAcrossNodes: true
+  nodeEnabled: true
+  # autoIdentity=true 时由 Pod hostname 注入 nodeId/nodeQueue。
+  nodeId: ""
+  nodeName: ""
+  nodeQueue: performance
+  nodeMaxVus: 20
+  nodeMaxConcurrency: 1
+  nodeEgressAllowlist: grpc-target.example.test,http-target.example.test,target-prometheus.example.test
+  # 不猜测集群 Pod/Service CIDR。启用时必须按目标集群补齐 DNS、依赖和目标出口。
+  networkPolicy:
+    enabled: false
+    egress: []
+  resources:
+    requests:
+      cpu: 1000m
+      memory: 1Gi
+    limits:
+      cpu: 2000m
+      memory: 2Gi
+
+# 验收期间固定副本，避免 HPA 改变容量证据；Metrics Server 仍可用于其他组件。
+hpa:
+  backend:
+    enabled: false
+  worker:
+    enabled: false
+  performanceWorker:
+    enabled: false
+
+metrics:
+  serviceMonitor:
+    enabled: true
+    interval: 15s
+    scrapeTimeout: 5s
+    # 若 Prometheus 的 serviceMonitorSelector 要求标签，在这里填写真实值。
+    additionalLabels: {}
+
+service:
+  performanceWorker:
+    type: ClusterIP
+    port: 9092
+
+# Chart 只连接 ATP 的 source MinIO，不安装或配置 target MinIO。
+# source 的 MINIO_HOST/MINIO_PORT/MINIO_BUCKET 必须由下方 existingName Secret 提供；
+# target 由 deploy/performance-acceptance/minio-dr.env.example 单独注入验收脚本。
+secret:
+  create: false
+  existingName: atp-performance-acceptance-secrets
+
+storageLifecycle:
+  # 不在发布 hook 中擅自修改外部 MinIO 策略；两端生命周期由环境管理员确认。
+  enabled: false
