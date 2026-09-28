@@ -2,7 +2,7 @@
 
 ## 结果
 
-Helm release `atp-single-node` 已在 `atp` namespace 升级至 revision **62**，以仓库主 Chart 对齐此前由精确旧 Chart 快照发布的六个 Deployment。revision 62 为 `deployed`，六个 Deployment 均 Ready，容器重启数为 0。升级期间首次尝试因历史 Server-Side Apply 字段管理冲突自动回滚到 revision 61；复核冲突仅涉及已审查的 Deployment 更新策略后，第二次升级显式使用 `--force-conflicts` 成功。不能据此声称升级过程零中断：Backend、Beat、Web Recorder Pod 在第一次失败/回滚过程中曾重建。
+Helm release `atp-single-node` 已在 `atp-single-node` namespace 升级至 revision **62**，以仓库主 Chart 对齐此前由精确旧 Chart 快照发布的六个 Deployment。revision 62 为 `deployed`，六个 Deployment 均 Ready，容器重启数为 0。升级期间首次尝试因历史 Server-Side Apply 字段管理冲突自动回滚到 revision 61；复核冲突仅涉及已审查的 Deployment 更新策略后，第二次升级显式使用 `--force-conflicts` 成功。不能据此声称升级过程零中断：Backend、Beat、Web Recorder Pod 在第一次失败/回滚过程中曾重建。
 
 ## Chart 变更范围
 
