@@ -21,4 +21,4 @@
 
 ## 边界
 
-此为单节点 Backend 单文件热修复，不是 `4d451431` 完整 Backend/Chart 发布，也不代表完整源码 Chart 漂移已解决。主 Chart 六个 Deployment 的模板漂移仍需单独审查和收口；C3.4 代表性 7/14 日 SLO、完整发布后 UTC 日以及 Flower 长期稳定性仍开放。
+此为单节点 Backend 单文件热修复，不是 `4d451431` 完整 Backend/Chart 发布。主 Chart 六个 Deployment 后续已于 revision 62 审查并对齐，过程与核验见 [`c3-main-chart-drift-resolution-2026-09-28.md`](c3-main-chart-drift-resolution-2026-09-28.md)。C3.4 代表性 7/14 日 SLO、完整源码镜像发布后 UTC 日以及 Flower 长期稳定性仍开放。
