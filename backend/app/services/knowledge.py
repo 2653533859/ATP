@@ -14,6 +14,9 @@ _URL_QUERY_SECRET = re.compile(
     r"(?i)([?&](?:token|secret|password|passwd|api[_-]?key|access[_-]?key|signature)=)[^&#\s]+"
 )
 _URL_USERINFO = re.compile(r"(?i)(https?://)[^/@\s:]+:[^/@\s]+@")
+_SENSITIVE_KEY = re.compile(
+    r"(?i)(authorization|cookie|password|passwd|token|secret|api[_-]?key|access[_-]?key|credential|signature)"
+)
 
 
 def redact_knowledge_text(value: str | None, *, limit: int = 50_000) -> str | None:
@@ -33,7 +36,17 @@ def redact_knowledge_value(value: Any, *, limit: int = 8_000) -> str:
     else:
         import json
 
-        text = json.dumps(value, ensure_ascii=False, default=str)
+        def redact_fields(item: Any) -> Any:
+            if isinstance(item, dict):
+                return {
+                    key: "[已脱敏]" if _SENSITIVE_KEY.search(str(key)) else redact_fields(child)
+                    for key, child in item.items()
+                }
+            if isinstance(item, (list, tuple)):
+                return [redact_fields(child) for child in item]
+            return redact_knowledge_text(item) if isinstance(item, str) else item
+
+        text = json.dumps(redact_fields(value), ensure_ascii=False, default=str)
     return redact_knowledge_text(text, limit=limit) or ""
 
 
