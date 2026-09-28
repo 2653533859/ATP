@@ -150,6 +150,42 @@ def test_rev56_hotfix_chart_worker_override_changes_only_ordinary_worker_manifes
     assert module._image_tags(worker) == (("worker", "6755ed9f-runmetrics-b1828220"),)
 
 
+@pytest.mark.parametrize("chart_name", ["atp", "atp-rev57-heartbeat-hotfix"])
+def test_performance_worker_image_override_changes_only_performance_deployment(chart_name):
+    helm = shutil.which("helm")
+    if helm is None:
+        pytest.skip("helm is not installed")
+    module = _module()
+    chart = ROOT / "deploy" / "helm" / chart_name
+    overlay = chart / "values-performance-single-node.example.yaml"
+    command = [helm, "template", "atp-single-node", str(chart), "-f", str(overlay)]
+    baseline = module._manifest_index(
+        subprocess.run(command, check=True, capture_output=True, text=True, encoding="utf-8").stdout
+    )
+    candidate = module._manifest_index(
+        subprocess.run(
+            [*command, "--set-string", "performanceWorker.imageTag=heartbeat-fixed"],
+            check=True,
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+        ).stdout
+    )
+
+    identity = "Deployment/atp-single-node-atp-performance-worker"
+    assert [(status, name) for status, name, *_ in module._changes(baseline, candidate)] == [("changed", identity)]
+    assert module._changed_paths(baseline[identity], candidate[identity]) == ["spec.template.spec.containers[0].image"]
+    assert module._image_tags(candidate[identity]) == (("performance-worker", "heartbeat-fixed"),)
+
+
+def test_rev57_hotfix_chart_uses_unique_performance_worker_hostname():
+    chart = ROOT / "deploy" / "helm" / "atp-rev57-heartbeat-hotfix"
+    template = (chart / "templates" / "performance-worker-deployment.yaml").read_text(encoding="utf-8")
+    assert '--hostname="performance@${POD_NAMESPACE}.${POD_NAME}"' in template
+    assert "fieldPath: metadata.name" in template
+    assert "fieldPath: metadata.namespace" in template
+
+
 def test_repository_chart_source_must_stay_inside_deploy_helm(tmp_path, monkeypatch):
     module = _module()
     monkeypatch.setattr(module, "ROOT", tmp_path)

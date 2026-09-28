@@ -4,16 +4,6 @@
   "type": "object",
   "additionalProperties": true,
   "properties": {
-    "flower": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["maxTasks", "maxWorkers", "purgeOfflineWorkers"],
-      "properties": {
-        "maxTasks": {"type": "integer", "minimum": 1, "maximum": 100000},
-        "maxWorkers": {"type": "integer", "minimum": 1, "maximum": 5000},
-        "purgeOfflineWorkers": {"type": "integer", "minimum": 1}
-      }
-    },
     "image": {
       "type": "object",
       "description": "Container image repository and per-component tags.",
@@ -76,7 +66,7 @@
       "properties": {
         "imageTag": {
           "type": "string",
-          "description": "Optional ordinary Worker image tag; empty inherits image.worker.tag."
+          "description": "Optional ordinary Worker hotfix tag; empty inherits image.worker.tag."
         },
         "metricsPort": {
           "type": "integer",
@@ -113,7 +103,7 @@
       "properties": {
         "imageTag": {
           "type": "string",
-          "description": "Optional performance Worker image tag; empty inherits image.worker.tag."
+          "description": "Optional performance Worker heartbeat hotfix tag; empty inherits image.worker.tag."
         },
         "enabled": {
           "type": "boolean",
@@ -202,14 +192,6 @@
         "existingName": { "type": "string" }
       }
     },
-    "migrationSecret": {
-      "type": "object",
-      "description": "Optional externally managed PostgreSQL DDL credentials mounted only into the Alembic hook Job.",
-      "additionalProperties": false,
-      "properties": {
-        "existingName": { "type": "string" }
-      }
-    },
     "config": {
       "type": "object",
       "description": "Non-sensitive environment variables rendered to ConfigMap.",
@@ -271,14 +253,11 @@
         "POSTGRES_PASSWORD": { "type": "string" },
         "REDIS_HOST": { "type": "string", "minLength": 1 },
         "REDIS_PORT": { "type": ["string", "integer"] },
-        "REDIS_USERNAME": { "type": "string" },
         "REDIS_PASSWORD": { "type": "string" },
         "MINIO_HOST": { "type": "string", "minLength": 1 },
         "MINIO_PORT": { "type": ["string", "integer"] },
         "MINIO_ROOT_USER": { "type": "string", "minLength": 1 },
         "MINIO_ROOT_PASSWORD": { "type": "string" },
-        "MINIO_ACCESS_KEY": { "type": "string" },
-        "MINIO_SECRET_KEY": { "type": "string" },
         "MINIO_BUCKET": { "type": "string", "minLength": 1 },
         "ENCRYPTION_KEY": { "type": "string" },
         "WEBHOOK_API_KEY": { "type": "string" },

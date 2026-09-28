@@ -127,6 +127,12 @@ def _refresh_common_test_stubs() -> None:
             "engine": types.SimpleNamespace(dispose=lambda: None, sync_engine=None),
         },
     )
+
+    # Several legacy API files replace app.core.database with a narrower stub
+    # before importing routes. Cache the audit module while the shared default
+    # is complete so those files remain independently collectable.
+    import app.services.audit  # noqa: F401
+
     _ensure_stub_attrs(
         "app.api.deps",
         {

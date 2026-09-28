@@ -121,5 +121,6 @@ performanceWorker:
 `windows-local.ps1` 在检测到 `PERFORMANCE_NODE_ENABLED=true` 且有节点 ID 时也会自动补齐这两个队列。队列名称允许字母、数字、点号、下划线和短横线；Chart
 启动命令会自动补上共享队列。worker 启动后会主动注册 `nodeId` 并持续刷新心跳。`nodeEgressAllowlist` 是应用层目标域名限制，Kubernetes 原生出口隔离请通过
 `performanceWorker.networkPolicy.enabled/egress` 配置，并显式放行 DNS、数据库、Redis、MinIO 和目标服务。
+性能节点心跳通过 Redis 控制库短租约抑制旧 ETA 消息形成的重复续链；Worker ready 会播种即时与租约过期后的兜底任务。正常单节点 30 秒间隔下，`inspect scheduled` 应接近 1 条心跳，持续累积代表去重或调度异常。K3s Performance Worker 使用包含 namespace/Pod 名称的 Celery 节点名，使其与普通 Worker 的 control 回复可区分；2026-09-28 的单节点修复和观察见 [`evidence/c3-performance-heartbeat-hotfix-2026-09-28.md`](evidence/c3-performance-heartbeat-hotfix-2026-09-28.md)。
 发布后的真实队列、节点心跳和 Worker 镜像验收可使用
 [`docs/performance-environment-acceptance.md`](performance-environment-acceptance.md) 中的命令。

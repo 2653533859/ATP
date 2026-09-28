@@ -290,6 +290,8 @@ Flower 还必须通过 Chart 传入 `--max_tasks=1000 --max_workers=100 --purge_
 
 `image.worker.tag` 是普通 Worker、Beat、Flower、Performance Worker 和 Web Recorder 共用的镜像 tag。若仅更换普通 Worker 的镜像，可在非敏感 values 覆盖文件中设置 `worker.imageTag: <immutable-tag>`；默认空值继承共享 tag。预检与正式 `helm upgrade` 必须使用**同一个**覆盖文件；下一次恢复同步镜像发布时还须明确清空该覆盖值，避免普通 Worker 被旧 tag 固定。此字段只限制镜像选择，不消除 Chart 其他模板漂移：2026-09-27 对 revision 56 的预检仍显示 6 个 Deployment 会改变，只有普通 Worker 的镜像 tag 改变；不能把这次候选称为 Worker-only 升级，也不得在未审查时用 `--allow-change` 放行。工件、字段差异和隔离 Pod 验证见 [`evidence/c3-worker-metric-release-preflight-2026-09-27.md`](evidence/c3-worker-metric-release-preflight-2026-09-27.md)。
 
+`performanceWorker.imageTag` 同样默认空值继承共享 Worker tag，可为专用 Performance Worker 选择独立补丁镜像。2026-09-28 的 revision 58 使用针对 revision 57 的一次性快照，仅改变 Performance Worker 的镜像、Pod 唯一 Celery 节点名和 downward API 环境变量；另两个镜像覆盖值会被 `--reuse-values` 保留，后续完整发布须显式清空并重新审查主 Chart 漂移。详见 [`evidence/c3-performance-heartbeat-hotfix-2026-09-28.md`](evidence/c3-performance-heartbeat-hotfix-2026-09-28.md)。
+
 长期运行 Deployment 的 Pod template 包含生成 ConfigMap 的校验值；Chart 自建 Secret 时还包含生成 Secret 的校验值。
 因此 Helm 更新环境配置会触发进程重建，不会出现资源对象已更新但 Pod 仍读取旧环境的假升级。外部 Secret 的内容不在
 Chart 中，外部控制器更新后仍需由其 rollout 机制或显式重启承载 Pod。

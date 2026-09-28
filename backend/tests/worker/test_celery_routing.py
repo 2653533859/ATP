@@ -1,5 +1,7 @@
 import ast
 from pathlib import Path
+import sys
+import types
 
 
 ROOT = Path(__file__).resolve().parents[3]
@@ -61,6 +63,36 @@ def test_performance_task_is_included_by_worker():
 def test_default_queue_remains_default():
     assert _conf_keyword("task_default_queue") == "default"
     assert _conf_keyword("task_create_missing_queues") is True
+
+
+def test_performance_worker_ready_seeds_after_heartbeat_lease_expiry(monkeypatch):
+    from app.core.config import settings
+
+    tree = ast.parse((ROOT / "backend" / "app" / "worker" / "celery_app.py").read_text(encoding="utf-8"))
+    heartbeat = next(
+        node
+        for node in tree.body
+        if isinstance(node, ast.FunctionDef) and node.name == "_schedule_performance_node_heartbeat"
+    )
+    heartbeat.decorator_list = []
+    namespace = {"settings": settings}
+    exec(compile(ast.Module(body=[heartbeat], type_ignores=[]), "celery_app.py", "exec"), namespace)
+    monkeypatch.setattr(settings, "PERFORMANCE_NODE_ENABLED", True)
+    monkeypatch.setattr(settings, "PERFORMANCE_NODE_ID", "worker-a")
+    monkeypatch.setattr(settings, "PERFORMANCE_NODE_QUEUE", "performance.worker-a")
+    monkeypatch.setattr(settings, "PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS", 90)
+    calls = []
+    task = types.SimpleNamespace(apply_async=lambda **kwargs: calls.append(kwargs))
+    monkeypatch.setitem(
+        sys.modules, "app.worker.tasks_performance", types.SimpleNamespace(heartbeat_performance_node=task)
+    )
+
+    namespace["_schedule_performance_node_heartbeat"]()
+
+    assert calls == [
+        {"queue": "performance.worker-a"},
+        {"countdown": 31, "queue": "performance.worker-a"},
+    ]
 
 
 def test_android_scan_task_keeps_result_for_worker_callback_polling():

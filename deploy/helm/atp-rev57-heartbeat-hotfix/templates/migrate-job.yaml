@@ -1,0 +1,54 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "atp.fullname" . }}-migrate
+  labels:
+    {{- include "atp.componentLabels" (dict "Chart" .Chart "Release" .Release "component" "migrate") | nindent 4 }}
+  annotations:
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ .Chart.Name }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: migrate
+    spec:
+      {{- include "atp.podNetwork" . | nindent 6 }}
+      restartPolicy: Never
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      containers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}/backend:{{ .Values.image.backend.tag }}"
+          imagePullPolicy: {{ .Values.image.backend.pullPolicy }}
+          command: ["alembic", "upgrade", "head"]
+          env:
+          {{- range $key, $value := .Values.config }}
+            - name: {{ $key }}
+              value: {{ $value | quote }}
+          {{- end }}
+          {{- with .Values.migrationSecret }}
+          {{- with .existingName }}
+            - name: POSTGRES_MIGRATION_USER
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: POSTGRES_MIGRATION_USER
+            - name: POSTGRES_MIGRATION_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ . }}
+                  key: POSTGRES_MIGRATION_PASSWORD
+          {{- end }}
+          {{- end }}
+          envFrom:
+            - secretRef:
+                name: {{ include "atp.secretName" . }}
+          resources:
+            {{- toYaml .Values.resources.backend | nindent 12 }}

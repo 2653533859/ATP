@@ -39,8 +39,6 @@ replicas:
   beat: 1
   flower: 1
 
-# Flower is a recent-event dashboard, not the durable task/report store.
-# Bound retained events separately from the container memory limit.
 flower:
   maxTasks: 1000
   maxWorkers: 100
@@ -48,8 +46,8 @@ flower:
 
 # Worker-specific knobs (镜像 / 端口 / 调度差异化在此扩展)。
 worker:
-  # Empty inherits image.worker.tag. Set an immutable tag to update only the
-  # ordinary Worker Deployment without changing Beat/Flower/other worker images.
+  # Empty preserves the revision-56 shared worker image tag. Set only for the
+  # ordinary Worker hotfix; all other worker-image workloads keep the base tag.
   imageTag: ""
   # 每个 worker 子进程暴露 Prometheus /metrics 的端口；与 backend:8000/metrics 区分。
   # 设为 0 可关闭（仅当 Prometheus 不抓取 worker 时）
@@ -75,7 +73,7 @@ webRecorder:
 performanceWorker:
   # Enable a dedicated Celery worker Deployment for HTTP performance tests.
   # When enabled, consider removing "performance" from worker.queues/config.CELERY_QUEUES.
-  # Empty inherits image.worker.tag; set a dedicated tag for a bounded performance Worker rollout.
+  # Empty preserves the revision-57 image; set only for the heartbeat hotfix.
   imageTag: ""
   enabled: false
   replicas: 1
@@ -131,18 +129,12 @@ resources:
     limits: {cpu: 200m, memory: 256Mi}
   flower:
     requests: {cpu: 50m, memory: 128Mi}
-    limits: {cpu: 200m, memory: 512Mi}
+    limits: {cpu: 200m, memory: 256Mi}
 
 # Secret ownership. Set create=false and existingName to bind a Secret managed
 # by ExternalSecrets, SOPS, or the platform secret manager in production.
 secret:
   create: true
-  existingName: ""
-
-# Optional externally managed Secret used only by the Alembic hook Job. It
-# must contain POSTGRES_MIGRATION_USER and POSTGRES_MIGRATION_PASSWORD. Keeping
-# it separate prevents application Deployments from receiving DDL credentials.
-migrationSecret:
   existingName: ""
 
 # Non-sensitive environment variables rendered into a ConfigMap.
@@ -157,12 +149,6 @@ config:
   CELERY_CONCURRENCY: "4"
   # Celery queues listened by the default worker container.
   CELERY_QUEUES: default,ios,ai,maintenance,performance
-  # Route Web cases to an isolated queue when this broker is shared with
-  # another ATP deployment; add the same queue to CELERY_QUEUES.
-  WEB_EXECUTION_QUEUE: default
-  # Route API, GraphQL, WebSocket, and gRPC cases to an isolated queue when
-  # this broker is shared with another ATP deployment.
-  PROTOCOL_EXECUTION_QUEUE: default
   # Set to worker together with webRecorder.enabled in a production overlay.
   WEB_RECORDER_MODE: local
   WEB_RECORDER_WORKER_QUEUE_PREFIX: atp:web-recording:commands
@@ -226,7 +212,6 @@ secrets:
   # Redis connection for Celery broker/result backend and cache.
   REDIS_HOST: redis
   REDIS_PORT: "6379"
-  REDIS_USERNAME: ""
   REDIS_PASSWORD: ""
   REDIS_CONNECT_TIMEOUT_SECONDS: "5"
   # MinIO or S3-compatible object storage.
@@ -234,9 +219,6 @@ secrets:
   MINIO_PORT: "9000"
   MINIO_ROOT_USER: minioadmin
   MINIO_ROOT_PASSWORD: "change-me"
-  # Preferred bucket-scoped application principal; legacy root fields remain fallbacks.
-  MINIO_ACCESS_KEY: ""
-  MINIO_SECRET_KEY: ""
   MINIO_BUCKET: atp
   MINIO_CONNECT_TIMEOUT_SECONDS: "5"
   # Optional Fernet key. Leave empty to derive from APP_SECRET_KEY.

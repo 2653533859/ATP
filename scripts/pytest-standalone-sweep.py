@@ -16,6 +16,7 @@ CLAUDE.md 把 `pytest backend/tests/api/test_auth.py` 列为文档化的入口�
 from __future__ import annotations
 
 import argparse
+import hashlib
 import subprocess
 import sys
 from concurrent.futures import ThreadPoolExecutor
@@ -41,7 +42,10 @@ def discover(targets: list[Path]) -> list[Path]:
 
 def run_one(path: Path, timeout: int) -> tuple[Path, int, str]:
     relative = path.relative_to(REPO_ROOT).as_posix()
-    command = [sys.executable, "-m", "pytest", relative, "-q", "-p", "no:cacheprovider"]
+    key = hashlib.sha256(relative.encode("utf-8")).hexdigest()[:16]
+    basetemp = REPO_ROOT / ".local-run" / "pytest-standalone" / key
+    basetemp.parent.mkdir(parents=True, exist_ok=True)
+    command = [sys.executable, "-m", "pytest", relative, "-q", "-p", "no:cacheprovider", "--basetemp", str(basetemp)]
     try:
         completed = subprocess.run(
             command,

@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 import logging
 
+import redis
 from sqlalchemy import select
 
 from app.core.config import settings
@@ -439,6 +440,27 @@ def heartbeat_performance_node(self):
     """Refresh this worker's node heartbeat and schedule the next refresh locally."""
     from app.core.database import AsyncSessionLocal
 
+    interval = max(5, settings.PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS // 3)
+    client = None
+    try:
+        client = create_control_client()
+        # ETA messages survive Worker replacements. Only one of the old chains
+        # may refresh and enqueue a successor in each heartbeat interval.
+        claimed = bool(client.set(f"atp:performance:heartbeat:lease:{worker_node_id()}", "1", nx=True, ex=interval - 1))
+    except redis.RedisError:
+        # The broker may still be usable when the control DB is not. Preserve
+        # node liveness and retry deduplication on the next heartbeat.
+        logger.warning("Performance heartbeat deduplication unavailable; continuing without it")
+        claimed = True
+    finally:
+        if client is not None:
+            try:
+                client.close()
+            except redis.RedisError:
+                pass
+    if not claimed:
+        return
+
     async def _heartbeat():
         async with AsyncSessionLocal() as db:
             await _heartbeat_worker_node(db)
@@ -451,7 +473,6 @@ def heartbeat_performance_node(self):
         logger.exception("Performance node heartbeat failed")
     finally:
         if settings.PERFORMANCE_NODE_ENABLED and settings.PERFORMANCE_NODE_ID.strip():
-            interval = max(5, settings.PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS // 3)
             self.apply_async(countdown=interval, queue=worker_node_queue())
 
 

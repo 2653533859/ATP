@@ -15,6 +15,7 @@ import sys
 import types
 
 import pytest
+import redis
 
 
 class _FakeCeleryApp:
@@ -54,6 +55,15 @@ class _DatasetResult:
 
 
 class _FakeControlClient:
+    def __init__(self, claimed=True):
+        self.claimed = claimed
+        self.set_calls = []
+        self.closed = False
+
+    def set(self, key, value, **kwargs):
+        self.set_calls.append((key, value, kwargs))
+        return self.claimed
+
     def get(self, _key):
         return None
 
@@ -61,6 +71,7 @@ class _FakeControlClient:
         return 1
 
     def close(self):
+        self.closed = True
         return None
 
 
@@ -448,6 +459,8 @@ def test_performance_worker_heartbeat_refreshes_and_reschedules(perf_task, monke
     database = importlib.import_module("app.core.database")
     session = _HeartbeatSession()
     monkeypatch.setattr(database, "AsyncSessionLocal", lambda: session, raising=False)
+    client = _FakeControlClient()
+    monkeypatch.setattr(perf_task, "create_control_client", lambda: client)
 
     class _Task:
         def __init__(self):
@@ -461,3 +474,65 @@ def test_performance_worker_heartbeat_refreshes_and_reschedules(perf_task, monke
 
     assert session.commits == 1
     assert task.calls == [{"countdown": 30, "queue": "performance.worker-a"}]
+    assert client.set_calls == [("atp:performance:heartbeat:lease:worker-a", "1", {"nx": True, "ex": 29})]
+    assert client.closed
+
+
+def test_duplicate_performance_heartbeat_does_not_refresh_or_reschedule(perf_task, monkeypatch):
+    from app.core import config
+
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_ENABLED", True)
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_ID", "worker-a")
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS", 90)
+    database = importlib.import_module("app.core.database")
+    session = _HeartbeatSession()
+    monkeypatch.setattr(database, "AsyncSessionLocal", lambda: session, raising=False)
+    client = _FakeControlClient(claimed=False)
+    monkeypatch.setattr(perf_task, "create_control_client", lambda: client)
+
+    class _Task:
+        def __init__(self):
+            self.calls = []
+
+        def apply_async(self, **kwargs):
+            self.calls.append(kwargs)
+
+    task = _Task()
+    perf_task.heartbeat_performance_node(task)
+
+    assert session.commits == 0
+    assert task.calls == []
+    assert client.set_calls == [("atp:performance:heartbeat:lease:worker-a", "1", {"nx": True, "ex": 29})]
+    assert client.closed
+
+
+def test_performance_heartbeat_keeps_chain_when_deduplication_redis_fails(perf_task, monkeypatch):
+    from app.core import config
+
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_ENABLED", True)
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_ID", "worker-a")
+    monkeypatch.setattr(config.settings, "PERFORMANCE_NODE_QUEUE", "performance.worker-a")
+    database = importlib.import_module("app.core.database")
+    session = _HeartbeatSession()
+    monkeypatch.setattr(database, "AsyncSessionLocal", lambda: session, raising=False)
+
+    class _UnavailableClient(_FakeControlClient):
+        def set(self, *_args, **_kwargs):
+            raise redis.RedisError("temporary outage")
+
+    client = _UnavailableClient()
+    monkeypatch.setattr(perf_task, "create_control_client", lambda: client)
+
+    class _Task:
+        def __init__(self):
+            self.calls = []
+
+        def apply_async(self, **kwargs):
+            self.calls.append(kwargs)
+
+    task = _Task()
+    perf_task.heartbeat_performance_node(task)
+
+    assert session.commits == 1
+    assert task.calls == [{"countdown": 30, "queue": "performance.worker-a"}]
+    assert client.closed

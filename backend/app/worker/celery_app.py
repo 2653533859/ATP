@@ -215,7 +215,12 @@ def _schedule_performance_node_heartbeat(**_kwargs):
     from app.services.performance_node import worker_node_queue
     from app.worker.tasks_performance import heartbeat_performance_node
 
-    heartbeat_performance_node.apply_async(queue=worker_node_queue())
+    queue = worker_node_queue()
+    heartbeat_performance_node.apply_async(queue=queue)
+    # A prior Worker may have claimed the short Redis lease and then exited
+    # before enqueuing its successor. Seed once more after lease expiry.
+    interval = max(5, settings.PERFORMANCE_NODE_HEARTBEAT_TIMEOUT_SECONDS // 3)
+    heartbeat_performance_node.apply_async(countdown=interval + 1, queue=queue)
 
 
 @worker_ready.connect
