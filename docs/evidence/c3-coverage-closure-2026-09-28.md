@@ -15,4 +15,4 @@ Performance Worker 心跳热修复的完整后端回归为 `2693 passed / 2 skip
 
 ## 现场边界与下一步
 
-只读复核目标 namespace 的 6 个 Deployment 均为 `1/1`，6 个 Pod 均 Ready、零重启，Performance Worker 热修复仍在运行。该观察只证明当时的运行状态；本轮知识脱敏代码未包含在 revision 58 的双文件 Worker 镜像中，也未替换 Backend。后续完整源码发布前仍须按现网 Chart 漂移预检处理，部署后再复核知识搜索脱敏和跨项目访问。C3.4 的完整发布后 UTC 日、代表性 7/14 日 SLO 和 Flower 长期稳定性继续开放。
+覆盖率收口时的只读复核为 6/6 Ready、零重启；知识脱敏代码当时尚未部署。随后依据 revision 58 精确 Chart 快照把 Backend 单文件补丁发布到 Helm revision 59，并在运行容器中验证嵌套字段脱敏，具体发布证据见 [`c3-knowledge-redaction-hotfix-2026-09-28.md`](c3-knowledge-redaction-hotfix-2026-09-28.md)。主 Chart 漂移、C3.4 完整发布后 UTC 日、代表性 7/14 日 SLO 和 Flower 长期稳定性继续开放。
