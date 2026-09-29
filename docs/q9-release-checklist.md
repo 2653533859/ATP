@@ -2,9 +2,11 @@
 
 > 当前发布状态索引：[`docs/release-status-2026-08-25.md`](release-status-2026-08-25.md)。该索引优先记录本次候选的真实边界；本清单中的所有“通过”仍需绑定同一提交 SHA 和目标环境证据。
 
+> 2026-09-29 C3.5 准备状态与当前单节点范围见 [`c3-release-readiness-2026-09-29.md`](c3-release-readiness-2026-09-29.md) 和 [`release-scope-2026-09-01.md`](release-scope-2026-09-01.md)。下述旧版机器索引仍保存历史门禁，不可将其中的多节点/跨主机 MinIO 依赖直接作为本次范围的唯一发布结论。
+
 > 机器可校验的门禁索引：[`docs/release-evidence-index-2026-08-25.json`](release-evidence-index-2026-08-25.json)。滚动索引不保存候选 SHA；发布候选必须用实际 SHA 执行：
 
-> 当前开发计划跟踪版本为 2.3.0；模块顺序、状态和验收出口以 [`docs/development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 2.3.0 为准，未关闭的真实环境门禁不得被本地 mock 或跳过项覆盖。
+> 当前模块顺序、状态和验收出口以 [`development-plan-2026-09-08.md`](development-plan-2026-09-08.md) 为准；[`development-plan-2026-08-25.md`](development-plan-2026-08-25.md) 保留历史计划与证据。未关闭的真实环境门禁不得被本地 mock 或跳过项覆盖。
 
 ```bash
 python scripts/validate-release-evidence.py --candidate-sha "$(git rev-parse HEAD)" --require-candidate-sha --require-clean

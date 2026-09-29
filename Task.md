@@ -4,6 +4,8 @@
 
 ## 2026-09-08 后续开发计划
 
+- [~] 2026-09-29 C3.5 发布收口准备：复核 A3、B2、B3 已完成的目标环境证据并同步开发计划标题，修正发布范围文档中的旧 P4 多节点/跨主机 MinIO 口径；建立当前单节点候选的能力、质量、Chart、SLO 与镜像门禁清单。最终 SHA 尚未绑定，正式主机管理连接和完整源码镜像构建仍待恢复；9 月 29 日完整 UTC 日须在 9 月 30 日 00:00 UTC 后判定，代表性 7/14 日 SLO 与 Flower 长期稳定性仍开放。见 [`docs/c3-release-readiness-2026-09-29.md`](docs/c3-release-readiness-2026-09-29.md)。
+
 - [~] 2026-09-28 C3.4 Performance Worker 心跳去重热修复：revision 57 的原始 Celery 回复显示 45 条待调度心跳、两个 Worker 节点同名；Redis 短租约抑制旧 ETA 链续生，ready 兜底播种并赋予 Performance Worker Pod 唯一节点名。双文件补丁镜像通过导入/导入检查，rev57 精确 Chart 预检只改 Performance Worker 的镜像、命令、环境；Helm revision 58 `deployed`，6/6 Ready、零重启，待调度心跳首次观察降为 1，Flower 新节点五分钟约 10 次心跳。后端 2693 passed/2 skipped、334 个文件独立通过，但覆盖率 80.54% 未达 82% 门槛；仍待补测、完整日与长期稳定性观察。详见 [`docs/evidence/c3-performance-heartbeat-hotfix-2026-09-28.md`](docs/evidence/c3-performance-heartbeat-hotfix-2026-09-28.md)。
 - [x] 2026-09-28 C3.4 后端覆盖率补测：针对需求、知识、缺陷运行上下文和工作台补充真实路由回归，发现并修复知识结构化摘要中嵌套敏感字段未遮盖的问题。后端完整非集成 **2725 passed/2 skipped、82.04%**，达到 82% 门槛；337 个测试文件独立运行通过，Ruff、mypy 与差异检查通过。该代码随后以 Backend 单文件补丁部署至 revision 59，运行容器脱敏断言通过；当时未收口的主 Chart 漂移随后已于 revision 62 对齐。详见 [`docs/evidence/c3-coverage-closure-2026-09-28.md`](docs/evidence/c3-coverage-closure-2026-09-28.md)。
 - [x] 2026-09-28 C3.4 Backend 知识结构化摘要脱敏热修复：主 Chart 漂移预检拒绝了六个 Deployment 和迁移 Hook 的变化；改用与 revision 58 基线精确匹配的 22 文件快照，仅更新 Backend 镜像，跳过无迁移需求的 Hook。热修复部署至 revision 59，6/6 Ready、零重启、健康 HTTP 200，运行容器内嵌套字段脱敏断言通过。主 Chart 漂移随后已于 revision 62 收口，完整源码发布和长期 SLO 仍开放。见 [`docs/evidence/c3-knowledge-redaction-hotfix-2026-09-28.md`](docs/evidence/c3-knowledge-redaction-hotfix-2026-09-28.md)。

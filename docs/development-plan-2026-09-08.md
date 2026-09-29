@@ -56,7 +56,7 @@
 
 验收出口：页面公开行为不变；每个子组件单一职责；迟到请求、项目切换和权限状态有回归测试。
 
-### A3：统一执行状态机 `[~]`
+### A3：统一执行状态机 `[x]`
 
 目标：让 Case、Suite、Plan、Android 和 Performance 使用一致的状态转换、幂等和审计约束。
 
@@ -100,14 +100,14 @@ pending -> queued -> running -> passed | failed | error
 
 B1.3/B1.4 自动化与实测已覆盖任务中心从 URL 恢复项目、状态、任务类型与有界页码，Viewer 操作标记不渲染重试/停止，以及只执行服务端明确授权的操作。受控账号与数据暂时保留给后续复核，清理不属于本次步骤。
 
-### B2：UI 自动化失败链路 `[E]`
+### B2：UI 自动化失败链路 `[x]`
 
 - [x] `B2.1` 在当前单节点 K3s 发布上启用隔离的 Web Recorder，完成 Chromium、Firefox、WebKit 录制、截图、停止、Trace/HAR/报告和目标不可达后的资源恢复验证。
 - [x] `B2.2` 在当前发布版本完成三浏览器 Web 用例回放，并串联元素库、页面对象和视觉基线。
 - [x] `B2.3` 验证浏览器进程崩溃、登录失效、执行取消后的临时资源与会话路由清理。
-- 串联元素库、页面对象、视觉基线、Trace、HAR、Console、截图和录像。
+元素库、页面对象、视觉基线、Trace、HAR、Console、截图和录像已在 B2.1～B2.3 的单节点目标环境链路中串联；录制、回放、崩溃与取消证据见 [`evidence/b2-web-fault-cleanup-2026-09-09.json`](evidence/b2-web-fault-cleanup-2026-09-09.json) 及同日 B2 证据文件。生产站点兼容性仍须按具体接入目标另行验证。
 
-### B3：接口与对象生命周期 `[E]`
+### B3：接口与对象生命周期 `[x]`
 
 - [x] `B3.1` 为 API、GraphQL、WebSocket、gRPC 增加部署级协议队列隔离，并在当前 K3s 发布上复核 HTTP、GraphQL、WebSocket 及 gRPC Unary/Server/Client/Bidi Streaming；覆盖变量提取、跨步骤依赖和 TLS。
 - [x] `B3.2` 在当前 K3s 发布复核认证/会话复用、OpenAPI/Postman 导入预览、落库、回读、执行与清理；运行时凭据不落用例配置，执行证据脱敏，项目删除同步清理加密 Redis 会话。
@@ -166,7 +166,7 @@ H9 在 H1～H8 的只读安全边界上增加模型辅助规划，不开放未�
     - 2026-09-28 检查点：9 月 27 日完整 UTC 日 Backend/Worker 五分钟点各 `288/288`，原始 `up` 样本各 `5760` 且无失败；约 40 次请求、4 次运行，三项日指标达标。该日跨 revision 56/57，两轮 canary 共 4 次 `passed`，仍非代表性流量。Flower 当日 5760 个原始 RSS 样本约 154MiB，`up` 最低 1、启动时间变化 0；Helm 57、6/6 Ready、零重启。详见 [`evidence/c3-slo-flower-checkpoint-2026-09-28.md`](evidence/c3-slo-flower-checkpoint-2026-09-28.md)，C3.4 继续开放。
     - 2026-09-28 心跳热修复：现场原始 Celery 回复显示 Performance Worker 积累 45 条心跳 ETA 链，与普通 Worker 节点同名；增加 Redis 短租约和 ready 兜底播种，Pod 唯一节点名。一次性 Chart 候选只改 Performance Worker 三个字段；双文件镜像部署至 Helm revision 58 后，待调度心跳保持 1，节点在线、6/6 Ready/零重启、5/5 target/六规则健康。五分钟 Flower 心跳约 10 次；后端 2693 passed/2 skipped、334 个文件独立通过，但覆盖率 80.54% 未达 82% 门槛。仍需补测、完整日和长期趋势。详见 [`evidence/c3-performance-heartbeat-hotfix-2026-09-28.md`](evidence/c3-performance-heartbeat-hotfix-2026-09-28.md)。
     - 2026-09-28 覆盖率补测：需求、知识、缺陷运行证据和工作台路由回归使完整非集成后端达到 2725 passed/2 skipped、82.04%，重新通过 82% 门槛。嵌套知识摘要敏感字段脱敏缺陷已修复并增加回归；随后以 revision 58 精确 Chart 快照部署 Backend 单文件补丁至 revision 59，运行容器脱敏断言通过。主 Chart 六个 Deployment 后续已在 revision 62 审查并对齐；代表性 7/14 日 SLO、Flower 长期稳定性及完整源码镜像发布仍开放。详见 [`evidence/c3-coverage-closure-2026-09-28.md`](evidence/c3-coverage-closure-2026-09-28.md)、[`evidence/c3-knowledge-redaction-hotfix-2026-09-28.md`](evidence/c3-knowledge-redaction-hotfix-2026-09-28.md) 和 [`evidence/c3-main-chart-drift-resolution-2026-09-28.md`](evidence/c3-main-chart-drift-resolution-2026-09-28.md)。
-- [ ] `C3.5` 绑定同一最终提交 SHA，更新能力矩阵、运行手册、证据索引和发布结论。
+- [ ] `C3.5` 绑定同一最终提交 SHA，更新能力矩阵、运行手册、证据索引和发布结论。当前准备清单与未关闭门禁见 [`c3-release-readiness-2026-09-29.md`](c3-release-readiness-2026-09-29.md)；尚未指定最终候选 SHA。
 
 ## 7. 推荐执行顺序
 
