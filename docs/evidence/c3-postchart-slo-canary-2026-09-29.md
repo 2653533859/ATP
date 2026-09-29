@@ -13,3 +13,7 @@
 当天 UTC 尚未结束，184 个原始抓取样本只是截至检查时的中间状态，不能据此声称 Backend/Worker 已完成 `288/288` 个五分钟检查点，也不能生成完整日报告。完整的 revision 62 部署后 UTC 日须等到 2026-09-30 00:00 UTC 后采集；代表性 7/14 日 SLO 校准和 Flower 长期稳定性仍开放。
 
 2026-09-29 00:51 UTC 预检日报采集器：发布机 `/opt/atp-slo-collect-20260924/collect-q12-evidence.py` 的 SHA-256 为 `bcc450ebc5fd33238d6c83a7c98b8218b0112b743cb17acfc49f4bb08445b084`，与仓库版本一致；CLI 已确认可用 `--slo-only`，仅需完整起止日期及本机 Prometheus URL，无需业务账号凭据。此处只核验版本和用法，未提前生成未完成 UTC 日的日报。
+
+## 请求量序列边界
+
+2026-09-29 00:55 UTC 检查 Prometheus 原始序列发现，Backend HTTP route counter 在 canary 后首次被抓取时已经是非零值（例如 `/api/v1/projects=7`、`/api/v1/workbench/overview=6`、`/api/v1/auth/login=1`）。对在区间内首次出现的 Counter 序列，`increase()` 无法还原首次采样前已累积的增量；本次 00:00～00:55 UTC 的路由请求量因此不能按 Prometheus 增量当作精确总数。canary 自身日志仍精确记录其 12 次受控读取；独立的 `atp_run_outcomes_total` 预置零值序列，Prometheus `increase()` 与日志均记录两次 passed case run。这个边界影响低流量窗口的请求量/端点分布解释，不改变 `up` 抓取连续性判断；代表性业务流量门槛仍未满足。
