@@ -4,6 +4,8 @@
 
 ## 2026-09-08 后续开发计划
 
+- [~] 2026-09-29 Windows 本机独立栈：按本地与服务器两套独立数据源的使用方式，新建隔离的 WSL Docker PostgreSQL/Redis/MinIO Compose、Windows 一键初始化/启动/停止/状态/备份/恢复入口和移机说明；本机私有 `local-all.env` 已生成且被 Git 忽略。Compose 配置预检通过，但当前 WSL Docker Engine 的卷元数据库打开超时，尚未运行本地迁移、Backend/Worker/Beat 或完整业务验收。见 [`docs/windows-standalone.md`](docs/windows-standalone.md)。
+
 - [~] 2026-09-29 C3.5 发布收口准备：复核 A3、B2、B3 已完成的目标环境证据并同步开发计划标题，修正发布范围文档中的旧 P4 多节点/跨主机 MinIO 口径；建立当前单节点候选的能力、质量、Chart、SLO 与镜像门禁清单。最终 SHA 尚未绑定，正式主机管理连接和完整源码镜像构建仍待恢复；9 月 29 日完整 UTC 日须在 9 月 30 日 00:00 UTC 后判定，代表性 7/14 日 SLO 与 Flower 长期稳定性仍开放。见 [`docs/c3-release-readiness-2026-09-29.md`](docs/c3-release-readiness-2026-09-29.md)。
 
 - [~] 2026-09-28 C3.4 Performance Worker 心跳去重热修复：revision 57 的原始 Celery 回复显示 45 条待调度心跳、两个 Worker 节点同名；Redis 短租约抑制旧 ETA 链续生，ready 兜底播种并赋予 Performance Worker Pod 唯一节点名。双文件补丁镜像通过导入/导入检查，rev57 精确 Chart 预检只改 Performance Worker 的镜像、命令、环境；Helm revision 58 `deployed`，6/6 Ready、零重启，待调度心跳首次观察降为 1，Flower 新节点五分钟约 10 次心跳。后端 2693 passed/2 skipped、334 个文件独立通过，但覆盖率 80.54% 未达 82% 门槛；仍待补测、完整日与长期稳定性观察。详见 [`docs/evidence/c3-performance-heartbeat-hotfix-2026-09-28.md`](docs/evidence/c3-performance-heartbeat-hotfix-2026-09-28.md)。
