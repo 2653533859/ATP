@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import copy
 import json
+import asyncio
 
 import app.api.v1.cases as _cases
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -17,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.case import CaseStatus, RunStatus, TestCase, TestRun
 from app.models.dataset import TestDataset, TestDatasetVersion
 from app.models.project import Module
@@ -24,6 +26,7 @@ from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.schemas.case import TestCaseCreate, TestCaseDetailOut, TestCaseOut, TestCaseUpdate
 from app.services.project_scope import scope_to_visible_projects
+from app.services.local_artifact_cleanup import case_run_ids, delete_run_artifacts
 
 router = APIRouter(tags=["用例管理"])
 
@@ -383,6 +386,7 @@ async def delete_case(
     if module:
         await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
     case_name = case.name
+    local_run_ids = await case_run_ids(db, [case_id]) if settings.ATP_LOCAL_MODE else []
     await db.delete(case)
     await _cases.write_audit_log(
         db,
@@ -394,4 +398,6 @@ async def delete_case(
         detail=f"删除用例: {case_name}",
     )
     await db.commit()
+    if local_run_ids:
+        await asyncio.to_thread(delete_run_artifacts, local_run_ids)
     await _cases.invalidate_stats_cache()
