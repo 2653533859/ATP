@@ -181,6 +181,7 @@ export default {
     },
   },
   layout: {
+    local_mode: 'Local SQLite',
     sider_title_full: 'ATP Test Platform',
     sider_title_short: 'ATP',
     theme_light: 'Light',

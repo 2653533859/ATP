@@ -181,6 +181,7 @@ export default {
     },
   },
   layout: {
+    local_mode: '本地 SQLite',
     sider_title_full: 'ATP 测试平台',
     sider_title_short: 'ATP',
     theme_light: '浅色',

@@ -30,14 +30,14 @@
               <template #icon><DashboardOutlined /></template>
               <template #title>{{ t('menu.groups.workbench') }}</template>
               <a-menu-item key="/dashboard">{{ t('menu.workbench.home') }}</a-menu-item>
-              <a-menu-item key="/workbench/todos">
+              <a-menu-item v-if="!localMode" key="/workbench/todos">
                 <span class="menu-item-with-badge">
                   <span>{{ t('menu.workbench.todos') }}</span>
                   <a-badge v-if="workbenchTodoCount > 0" :count="workbenchTodoCount" :overflow-count="99" />
                 </span>
               </a-menu-item>
               <a-menu-item key="/projects">{{ t('menu.workbench.projects') }}</a-menu-item>
-              <a-menu-item key="/tasks">
+              <a-menu-item v-if="!localMode" key="/tasks">
                 <span class="menu-item-with-badge">
                   <span>{{ t('menu.workbench.tasks') }}</span>
                   <a-badge v-if="activeTaskCount > 0" :count="activeTaskCount" :overflow-count="99" />
@@ -49,24 +49,24 @@
               <template #icon><PlayCircleOutlined /></template>
               <template #title>{{ t('menu.groups.test_capabilities') }}</template>
               <a-menu-item key="/api-workbench">{{ t('menu.capabilities.api') }}</a-menu-item>
-              <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/mobile-special/workbench">{{ t('menu.capabilities.app') }}</a-menu-item>
+              <a-menu-item v-if="!localMode && canAccess(['admin', 'engineer'])" key="/mobile-special/workbench">{{ t('menu.capabilities.app') }}</a-menu-item>
               <a-menu-item key="/ui-workbench">{{ t('menu.capabilities.ui') }}</a-menu-item>
-              <a-menu-item key="/performance-workbench">{{ t('menu.capabilities.performance') }}</a-menu-item>
-              <a-menu-item key="/ai-workbench">{{ t('menu.capabilities.ai') }}</a-menu-item>
+              <a-menu-item v-if="!localMode" key="/performance-workbench">{{ t('menu.capabilities.performance') }}</a-menu-item>
+              <a-menu-item v-if="!localMode" key="/ai-workbench">{{ t('menu.capabilities.ai') }}</a-menu-item>
             </a-sub-menu>
 
             <a-sub-menu key="test-assets">
               <template #icon><AppstoreOutlined /></template>
               <template #title>{{ t('menu.groups.test_assets_new') }}</template>
               <a-menu-item key="/cases">{{ t('menu.assets.cases') }}</a-menu-item>
-              <a-menu-item key="/suites">{{ t('menu.assets.suites') }}</a-menu-item>
-              <a-menu-item key="/plans">{{ t('menu.assets.plans') }}</a-menu-item>
-              <a-menu-item key="/bugs">{{ t('menu.assets.bugs') }}</a-menu-item>
+              <a-menu-item v-if="!localMode" key="/suites">{{ t('menu.assets.suites') }}</a-menu-item>
+              <a-menu-item v-if="!localMode" key="/plans">{{ t('menu.assets.plans') }}</a-menu-item>
+              <a-menu-item v-if="!localMode" key="/bugs">{{ t('menu.assets.bugs') }}</a-menu-item>
               <a-menu-item key="/reports">{{ t('menu.assets.reports') }}</a-menu-item>
               <a-menu-item key="/case-reviews">{{ t('menu.assets.reviews') }}</a-menu-item>
             </a-sub-menu>
 
-            <a-sub-menu key="intelligence-center">
+            <a-sub-menu v-if="!localMode" key="intelligence-center">
               <template #icon><ApiOutlined /></template>
               <template #title>{{ t('menu.groups.intelligence_center') }}</template>
               <a-menu-item key="/hermes">{{ t('menu.intelligence.hermes') }}</a-menu-item>
@@ -74,7 +74,7 @@
               <a-menu-item key="/knowledge">{{ t('menu.intelligence.knowledge') }}</a-menu-item>
             </a-sub-menu>
 
-            <a-sub-menu v-if="canAccess(['admin', 'engineer'])" key="system-center">
+            <a-sub-menu v-if="!localMode && canAccess(['admin', 'engineer'])" key="system-center">
               <template #icon><SettingOutlined /></template>
               <template #title>{{ t('menu.groups.system_center') }}</template>
               <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/toolbox">{{ t('menu.system_center.toolbox') }}</a-menu-item>
@@ -84,7 +84,7 @@
         </div>
 
         <!-- 侧边栏底部 Web 录制 Worker 状态 -->
-        <div v-if="!collapsed" class="sider-footer">
+        <div v-if="!collapsed && !localMode" class="sider-footer">
           <div class="worker-status-card">
             <div class="worker-status-header">
               <span class="worker-indicator">
@@ -118,7 +118,11 @@
           <a-breadcrumb class="header-breadcrumb">
             <a-breadcrumb-item v-for="key in breadcrumbKeys" :key="key">{{ t(key) }}</a-breadcrumb-item>
           </a-breadcrumb>
-          <a-dropdown>
+          <span v-if="localMode" class="project-context">
+            <span class="context-dot"></span>
+            {{ globalProjectName }}
+          </span>
+          <a-dropdown v-else>
             <span class="project-context cursor-pointer" :class="{ 'project-context-disabled': projectOptionsLoading }">
               <span class="context-dot"></span>
               {{ globalProjectName }}
@@ -143,6 +147,7 @@
         </div>
 
         <div class="header-right">
+          <a-tag v-if="localMode" color="blue">{{ t('layout.local_mode') }}</a-tag>
           <a-tooltip :title="t('layout.theme_toggle')">
             <a-button type="text" class="icon-btn" @click="themeStore.toggle()">
               <BulbFilled v-if="isDark" />
@@ -171,7 +176,7 @@
                   <UserOutlined />
                   <span>{{ t('account.menu') }}</span>
                 </a-menu-item>
-                <a-menu-item v-if="canAccess(['admin'])" key="users" @click="router.push('/system/users')">
+                <a-menu-item v-if="!localMode && canAccess(['admin'])" key="users" @click="router.push('/system/users')">
                   <UserOutlined />
                   <span>{{ t('menu.system.users') }}</span>
                 </a-menu-item>
@@ -240,7 +245,7 @@
               <span>{{ t('layout.quick_search.pages.cases') }}</span>
               <span class="quick-nav-hint">{{ t('layout.quick_search.hints.cases') }}</span>
             </button>
-            <button type="button" class="quick-nav-item" @click="navTo('/hermes')">
+            <button v-if="!localMode" type="button" class="quick-nav-item" @click="navTo('/hermes')">
               <ThunderboltFilled style="color: var(--c-ai);" />
               <span>{{ t('layout.quick_search.pages.hermes') }}</span>
               <span class="quick-nav-hint">{{ t('layout.quick_search.hints.ai_copilot') }}</span>
@@ -279,6 +284,7 @@ import { getLocale, setLocale, type SupportedLocale } from '@/locales'
 import { hasAnyRole, type UserRole } from '@/utils/permissions'
 import { projectContextRenderKey, projectSelectionLocation } from '@/utils/projectContext'
 import { projectApi, webRecordingApi, workbenchApi, type ProjectItem, type WebRecordingWorkersResponse } from '@/api'
+import { getRuntimeMode } from '@/runtimeMode'
 import {
   getBreadcrumbKeys,
   getMenuOpenKeys,
@@ -287,6 +293,7 @@ import {
 } from './navigation'
 
 const router = useRouter()
+const localMode = getRuntimeMode()?.mode === 'local'
 const route = useRoute()
 const auth = useAuthStore()
 const themeStore = useThemeStore()
@@ -455,6 +462,7 @@ const activeProjectId = computed(() => {
 })
 const projectContextKey = computed(() => projectContextRenderKey(route))
 const globalProjectName = computed(() => {
+  if (localMode && projectOptions.value.length === 1) return projectOptions.value[0].name
   const selected = projectOptions.value.find((project) => String(project.id) === activeProjectId.value)
   return selected?.name ?? (activeProjectId.value ? `项目 #${activeProjectId.value}` : t('layout.project_unselected'))
 })

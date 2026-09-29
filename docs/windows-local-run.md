@@ -2,7 +2,7 @@
 
 本文档说明如何在 Windows 本地用一条命令启动 ATP 的前后端开发栈，同时连接运行在 WSL / Linux Docker 主机上的 PostgreSQL、Redis、MinIO。
 
-需要与服务器完全独立、便于换电脑的本机服务时，使用 [`windows-standalone.md`](windows-standalone.md) 中的独立 WSL Docker + Windows 应用入口；本页历史 `local-up.ps1` 依赖根目录 `.env` 指向的基础设施，不能自动切换为独立本地数据。
+需要与服务器完全独立、便于换电脑的本机服务时，使用 [`windows-standalone.md`](windows-standalone.md) 中的 SQLite + 本地目录轻量模式；本页历史 `local-up.ps1` 依赖根目录 `.env` 指向的基础设施，不能自动切换为独立本地数据。
 
 性能执行器说明：Windows 启动脚本会自动发现 `%LOCALAPPDATA%\ATP\tools\k6\k6.exe`，也支持通过用户级 `ATP_K6_HOME` 指定 k6 目录。发现路径只注入本次启动的 Worker 子进程，不会修改仓库中的 `.env` 或机器级 PATH；执行 `doctor` 可确认 k6、Locust、gRPC 和 JMeter 的可用性。k6 的 Windows 安装方式参见 [Grafana k6 安装文档](https://grafana.com/docs/k6/latest/set-up/install-k6/)。
 

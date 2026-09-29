@@ -18,6 +18,8 @@ def _redis_url(db: int = 2) -> str:
 
 def get_async_redis(db: int = 2, *, socket_timeout: float | None = None) -> aioredis.Redis:
     """返回一个新的异步 Redis 连接（调用方负责关闭）"""
+    if settings.ATP_LOCAL_MODE:
+        raise RuntimeError("Redis is unavailable in Windows local mode")
     timeout = settings.REDIS_CONNECT_TIMEOUT_SECONDS
     read_timeout = timeout if socket_timeout is None else max(0.1, float(socket_timeout))
     return aioredis.from_url(
@@ -41,6 +43,8 @@ async def publish_run_event(run_id: int, payload: dict, run_type: str = "case") 
     """
     if run_type not in {"case", "mobile"}:
         raise ValueError(f"unsupported run type: {run_type}")
+    if settings.ATP_LOCAL_MODE:
+        return
     r = get_async_redis()
     try:
         await r.publish(f"atp:run:{run_type}:{run_id}", json.dumps(payload, ensure_ascii=False))
@@ -49,6 +53,8 @@ async def publish_run_event(run_id: int, payload: dict, run_type: str = "case") 
 
 
 async def get_json_cache(key: str, db: int = 2):
+    if settings.ATP_LOCAL_MODE:
+        return None
     r = get_async_redis(db)
     try:
         value = await r.get(key)
@@ -58,6 +64,8 @@ async def get_json_cache(key: str, db: int = 2):
 
 
 async def set_json_cache(key: str, value, ttl_seconds: int = 300, db: int = 2) -> None:
+    if settings.ATP_LOCAL_MODE:
+        return
     r = get_async_redis(db)
     try:
         await r.set(key, json.dumps(value, ensure_ascii=False), ex=ttl_seconds)
@@ -66,6 +74,8 @@ async def set_json_cache(key: str, value, ttl_seconds: int = 300, db: int = 2) -
 
 
 async def delete_json_cache(key: str, db: int = 2) -> None:
+    if settings.ATP_LOCAL_MODE:
+        return
     r = get_async_redis(db)
     try:
         await r.delete(key)
@@ -74,6 +84,8 @@ async def delete_json_cache(key: str, db: int = 2) -> None:
 
 
 async def delete_json_cache_pattern(pattern: str, db: int = 2) -> None:
+    if settings.ATP_LOCAL_MODE:
+        return
     r = get_async_redis(db)
     try:
         keys = [key async for key in r.scan_iter(match=pattern)]

@@ -10,6 +10,7 @@ from cryptography.fernet import InvalidToken
 import httpx
 
 from app.core.encryption import decrypt, encrypt
+from app.core.config import settings
 from app.core import redis_client as _redis_client
 
 get_async_redis = _redis_client.get_async_redis
@@ -31,6 +32,10 @@ API_SESSION_TTL_SECONDS = 8 * 60 * 60
 
 def _session_key(project_id: int) -> str:
     return f"atp:api-session:project:{project_id}"
+
+
+def _local_session_path(project_id: int):
+    return settings.LOCAL_DATA_PATH / "sessions" / f"project-{project_id}.bin"
 
 
 def serialize_cookies(cookies: httpx.Cookies) -> list[dict[str, Any]]:
@@ -85,6 +90,15 @@ def apply_cookies(cookies: httpx.Cookies, serialized: list[dict[str, Any]]) -> N
 
 async def load_project_api_session(project_id: int) -> list[dict[str, Any]]:
     """Load a project cookie session; unreadable data degrades to empty."""
+    if settings.ATP_LOCAL_MODE:
+        path = _local_session_path(project_id)
+        if not path.exists():
+            return []
+        try:
+            value = json.loads(decrypt(path.read_text(encoding="utf-8")))
+        except (InvalidToken, TypeError, ValueError, json.JSONDecodeError, OSError):
+            return []
+        return value if isinstance(value, list) else []
     redis = get_async_redis()
     try:
         encrypted = await redis.get(_session_key(project_id))
@@ -101,6 +115,11 @@ async def load_project_api_session(project_id: int) -> list[dict[str, Any]]:
 
 async def save_project_api_session(project_id: int, cookies: list[dict[str, Any]]) -> None:
     """Persist a project cookie session encrypted in Redis with a bounded TTL."""
+    if settings.ATP_LOCAL_MODE:
+        path = _local_session_path(project_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(encrypt(json.dumps(cookies, ensure_ascii=False)), encoding="utf-8")
+        return
     redis = get_async_redis()
     try:
         payload = encrypt(json.dumps(cookies, ensure_ascii=False))
@@ -111,6 +130,9 @@ async def save_project_api_session(project_id: int, cookies: list[dict[str, Any]
 
 async def delete_project_api_session(project_id: int) -> None:
     """Remove the encrypted cookie session when its owning project is deleted."""
+    if settings.ATP_LOCAL_MODE:
+        _local_session_path(project_id).unlink(missing_ok=True)
+        return
 
     redis = get_async_redis()
     try:

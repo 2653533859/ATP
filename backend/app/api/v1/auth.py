@@ -29,8 +29,8 @@ from jwt import InvalidTokenError
 router = APIRouter(prefix="/auth", tags=["认证"])
 
 
-ACCESS_COOKIE = "atp_access_token"
-REFRESH_COOKIE = "atp_refresh_token"
+ACCESS_COOKIE = settings.ACCESS_COOKIE_NAME
+REFRESH_COOKIE = settings.REFRESH_COOKIE_NAME
 
 
 def _cookie_samesite() -> str:

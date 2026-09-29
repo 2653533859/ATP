@@ -1,4 +1,5 @@
 from functools import lru_cache
+import os
 from pathlib import Path
 from typing import Self
 from urllib.parse import quote
@@ -10,6 +11,24 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 _BACKEND_ROOT = Path(__file__).resolve().parents[2]
 _REPOSITORY_ENV_FILE = (
     _BACKEND_ROOT.parent / ".env" if (_BACKEND_ROOT.parent / "backend").is_dir() else _BACKEND_ROOT / ".env"
+)
+_LOCAL_PROFILE_KEYS = frozenset(
+    {
+        "ATP_LOCAL_MODE",
+        "ATP_LOCAL_DATA_DIR",
+        "APP_ENV",
+        "APP_SECRET_KEY",
+        "APP_CORS_ORIGINS",
+        "APP_AUTH_COOKIE_SECURE",
+        "APP_AUTH_COOKIE_SAMESITE",
+        "APP_AUTO_CREATE_TABLES",
+        "FIRST_ADMIN_USERNAME",
+        "FIRST_ADMIN_PASSWORD",
+        "FIRST_ADMIN_EMAIL",
+        "ENCRYPTION_KEY",
+        "ADB_SCAN_ENABLED",
+        "PERFORMANCE_NODE_ENABLED",
+    }
 )
 
 
@@ -28,6 +47,8 @@ class Settings(BaseSettings):
     APP_AUTH_COOKIE_SECURE: bool = False
     APP_AUTH_COOKIE_SAMESITE: str = "lax"
     APP_AUTO_CREATE_TABLES: bool = False
+    ATP_LOCAL_MODE: bool = False
+    ATP_LOCAL_DATA_DIR: str = ".local-data"
 
     # Database
     POSTGRES_HOST: str = "localhost"
@@ -245,8 +266,20 @@ class Settings(BaseSettings):
             raise ValueError("MINIO_ACCESS_KEY and MINIO_SECRET_KEY must be configured together")
         return self
 
+    @model_validator(mode="after")
+    def validate_local_profile(self) -> Self:
+        if self.ATP_LOCAL_MODE and (
+            self.APP_ENV != "local"
+            or self.APP_SECRET_KEY == "dev-secret-key-change-in-production"
+            or self.FIRST_ADMIN_PASSWORD == "Admin@123456"
+        ):
+            raise ValueError("local profile requires APP_ENV=local and private app/admin secrets")
+        return self
+
     @property
     def DATABASE_URL(self) -> str:
+        if self.ATP_LOCAL_MODE:
+            return f"sqlite+aiosqlite:///{self.LOCAL_DATABASE_PATH.as_posix()}"
         user = quote(self.POSTGRES_USER, safe="")
         password = quote(self.POSTGRES_PASSWORD, safe="")
         return (
@@ -255,13 +288,32 @@ class Settings(BaseSettings):
 
     @property
     def MIGRATION_DATABASE_URL(self) -> str:
+        if self.ATP_LOCAL_MODE:
+            return self.SYNC_DATABASE_URL
         user = quote(self.POSTGRES_MIGRATION_USER or self.POSTGRES_USER, safe="")
         password = quote(self.POSTGRES_MIGRATION_PASSWORD or self.POSTGRES_PASSWORD, safe="")
         return (
             f"postgresql+asyncpg://{user}:{password}" f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
 
+    @property
+    def LOCAL_DATA_PATH(self) -> Path:
+        configured = Path(self.ATP_LOCAL_DATA_DIR).expanduser()
+        return (configured if configured.is_absolute() else _BACKEND_ROOT.parent / configured).resolve()
+
+    @property
+    def LOCAL_DATABASE_PATH(self) -> Path:
+        return self.LOCAL_DATA_PATH / "atp.sqlite3"
+
+    @property
+    def SYNC_DATABASE_URL(self) -> str:
+        if self.ATP_LOCAL_MODE:
+            return f"sqlite+pysqlite:///{self.LOCAL_DATABASE_PATH.as_posix()}"
+        return self.DATABASE_URL.replace("+asyncpg", "+psycopg2")
+
     def redis_url(self, db: int) -> str:
+        if self.ATP_LOCAL_MODE:
+            raise RuntimeError("Redis is unavailable in Windows local mode")
         username = quote(self.REDIS_USERNAME, safe="")
         password = quote(self.REDIS_PASSWORD, safe="")
         if username:
@@ -274,11 +326,11 @@ class Settings(BaseSettings):
 
     @property
     def CELERY_BROKER_URL(self) -> str:
-        return self.redis_url(0)
+        return "memory://" if self.ATP_LOCAL_MODE else self.redis_url(0)
 
     @property
     def CELERY_RESULT_BACKEND(self) -> str:
-        return self.redis_url(1)
+        return "cache+memory://" if self.ATP_LOCAL_MODE else self.redis_url(1)
 
     @property
     def MINIO_CLIENT_ACCESS_KEY(self) -> str:
@@ -292,9 +344,34 @@ class Settings(BaseSettings):
     def CORS_ORIGINS(self) -> list[str]:
         return [o.strip() for o in self.APP_CORS_ORIGINS.split(",")]
 
+    @property
+    def ACCESS_COOKIE_NAME(self) -> str:
+        return "atp_local_access_token" if self.ATP_LOCAL_MODE else "atp_access_token"
+
+    @property
+    def REFRESH_COOKIE_NAME(self) -> str:
+        return "atp_local_refresh_token" if self.ATP_LOCAL_MODE else "atp_refresh_token"
+
+
+class _IsolatedLocalSettings(Settings):
+    @classmethod
+    def settings_customise_sources(
+        cls, settings_cls, init_settings, env_settings, dotenv_settings, file_secret_settings
+    ):
+        return (init_settings,)
+
 
 @lru_cache
 def get_settings() -> Settings:
+    # The Windows launcher supplies the isolated local profile through process
+    # environment variables. Never merge the repository/server dotenv into it.
+    local_mode = os.environ.get("ATP_LOCAL_MODE", "").strip().lower() in {"1", "true", "yes", "on"}
+    if local_mode:
+        values = {key: os.environ[key] for key in _LOCAL_PROFILE_KEYS if key in os.environ}
+        # Only explicitly allowed values enter this model. BaseSettings' env,
+        # dotenv and file-secret sources are disabled even when inherited
+        # process variables happen to use a matching prefix.
+        return _IsolatedLocalSettings.model_validate(values)
     return Settings()
 
 

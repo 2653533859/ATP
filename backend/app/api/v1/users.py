@@ -6,6 +6,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user, require_admin
+from app.api.local_scope import require_server_workspace
 from app.core.database import get_db
 from app.core.security import hash_password
 from app.models.user import User, UserRole
@@ -88,6 +89,7 @@ async def create_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
+    require_server_workspace("添加用户")
     username = body.username.strip()
     email = str(body.email)
     await _assert_unique(db, username, email)
@@ -125,6 +127,7 @@ async def update_user(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_admin),
 ):
+    require_server_workspace("管理其他用户")
     user = await db.get(User, user_id)
     if not user:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="用户不存在")

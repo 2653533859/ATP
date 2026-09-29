@@ -11,6 +11,7 @@ from app.api.v1 import reports
 from app.models.bootstrap import load_all_models
 from app.models.case import CaseType, RunStatus
 from app.schemas.reports import ReportRunSnapshot
+from app.services import date_bucket as date_bucket_module
 
 load_all_models()
 
@@ -55,6 +56,15 @@ def _admin():
 def test_quality_score_is_transparent_and_empty_runs_are_zero():
     assert reports._quality_score(80, 60, 1, 10, 4) == (76.5, 90.0)
     assert reports._quality_score(0, 0, 0, 10, 0) == (0.0, 100.0)
+
+
+def test_report_date_grouping_uses_sqlite_string_result(monkeypatch):
+    from sqlalchemy import create_engine, literal, select
+
+    monkeypatch.setattr(date_bucket_module, "settings", SimpleNamespace(ATP_LOCAL_MODE=True))
+    with create_engine("sqlite://").connect() as connection:
+        result = connection.scalar(select(reports.date_bucket(literal("2026-09-29 12:00:00"), "daily")))
+    assert result == "2026-09-29"
 
 
 def test_safe_error_redacts_credentials():

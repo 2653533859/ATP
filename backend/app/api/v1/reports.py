@@ -7,7 +7,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import Date, case as sql_case, cast, func, select
+from sqlalchemy import case as sql_case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user
@@ -27,6 +27,7 @@ from app.schemas.reports import (
     ReportTrendItem,
 )
 from app.services.project_scope import scope_to_visible_projects
+from app.services.date_bucket import date_bucket
 
 router = APIRouter(tags=["测试报告"])
 
@@ -206,7 +207,7 @@ async def get_report_overview(
     open_defects = int((await db.execute(defect_query)).scalar_one() or 0)
     quality_score, defect_health = _quality_score(pass_rate, coverage_rate, open_defects, total_cases, total_runs)
 
-    date_col = cast(run_columns.created_at, Date).label("date")
+    date_col = date_bucket(run_columns.created_at, "daily").label("date")
     trend_query = (
         select(
             date_col,

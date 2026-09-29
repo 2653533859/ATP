@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, cast
 
 from pydantic import BaseModel
-from sqlalchemy import Date, case as sql_case, cast as sql_cast, func, select
+from sqlalchemy import case as sql_case, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access
@@ -265,11 +265,9 @@ async def _quality_trend(
     arguments: HermesQualityTrendArguments,
 ) -> HermesToolExecution:
     since = datetime.now(timezone.utc) - timedelta(days=arguments.days)
-    date_column = (
-        func.date_trunc("week", TestRun.created_at)
-        if arguments.aggregate == "weekly"
-        else sql_cast(TestRun.created_at, Date)
-    ).label("date")
+    from app.services.date_bucket import date_bucket
+
+    date_column = date_bucket(TestRun.created_at, arguments.aggregate).label("date")
     statement = (
         select(
             date_column,

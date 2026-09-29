@@ -20,8 +20,12 @@ def test_infrastructure_connection_timeouts_are_bounded_and_wired() -> None:
     assert 1 <= settings.MINIO_READ_TIMEOUT_SECONDS <= 3600
 
     database_source = Path(__file__).parents[2].joinpath("app", "core", "database.py").read_text(encoding="utf-8")
-    assert 'connect_args={"timeout": settings.POSTGRES_CONNECT_TIMEOUT_SECONDS}' in database_source
-    assert 'connect_args={"connect_timeout": settings.POSTGRES_CONNECT_TIMEOUT_SECONDS}' in database_source
+    assert (
+        'connect_args={"timeout": 30 if settings.ATP_LOCAL_MODE else settings.POSTGRES_CONNECT_TIMEOUT_SECONDS}'
+        in database_source
+    )
+    assert 'connect_args={"timeout": 30}' in database_source
+    assert 'else {"connect_timeout": settings.POSTGRES_CONNECT_TIMEOUT_SECONDS}' in database_source
 
     redis_source = Path(__file__).parents[2].joinpath("app", "core", "redis_client.py").read_text(encoding="utf-8")
     assert "socket_connect_timeout=timeout" in redis_source

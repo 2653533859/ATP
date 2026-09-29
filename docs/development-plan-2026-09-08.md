@@ -7,7 +7,7 @@
 - 基线提交：`a7df8e11`。
 - 产品主线已经覆盖工作台、接口测试、APP 自动化、UI 自动化、性能测试、AI 智能测试、测试资产、智能中枢和系统治理。
 - 当前问题已经从“缺少主线模块”转为“大型模块耦合、执行状态分散、真实场景证据和发布口径未完全收口”。
-- 正式单节点 K3s 环境由 Linux 承载 Backend、Worker 和数据服务，Windows 保留前端源码与 Vite。日常使用新增独立 Windows 本机栈（本机 Backend/Worker/Beat/Frontend + WSL Docker 数据服务），与服务器数据不自动同步；当前搭建与阻塞见 [`windows-standalone.md`](windows-standalone.md)。
+- 正式单节点 K3s 环境由 Linux 承载 Backend、Worker 和数据服务。Windows 本地版按单用户单项目、SQLite 与本地目录建设，与服务器数据不自动同步；双模式切换、实施阶段和共同验收门槛见 [`windows-dual-mode-development-plan-2026-09-29.md`](windows-dual-mode-development-plan-2026-09-29.md)，当前原型操作见 [`windows-standalone.md`](windows-standalone.md)。
 - 当前正式部署目标为单节点 K3s；多节点高可用、跨节点调度和跨主机 MinIO 灾备调整为后续增强，不阻塞当前版本。
 
 ## 2. 状态口径

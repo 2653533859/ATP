@@ -18,6 +18,7 @@ from app.api.deps import (
     require_project_access,
     require_project_writable_access,
 )
+from app.api.local_scope import require_server_workspace
 from app.api.v1.statistics import invalidate_stats_cache
 from app.core.database import get_db
 from app.models.audit import AuditLog
@@ -168,6 +169,7 @@ async def create_project(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_engineer),
 ):
+    require_server_workspace("创建额外项目")
     payload = body.model_dump()
     payload.pop("template", None)
     # 名称归一化会截断且丢弃非 ASCII 字符；自动编码不能仅依赖名称。
@@ -227,6 +229,7 @@ async def import_project(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_engineer),
 ):
+    require_server_workspace("导入额外项目")
     preview = await _preview_project_import(db, body)
     if not preview.valid:
         raise HTTPException(status_code=409, detail={"message": "项目编码冲突", "conflicts": preview.conflicts})
@@ -393,6 +396,7 @@ async def copy_project(
     current_user: User = Depends(get_current_user),
     _=Depends(require_project_writable_access(ProjectRole.owner)),
 ):
+    require_server_workspace("复制项目")
     source = await db.get(Project, project_id)
     if not source:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -480,6 +484,7 @@ async def delete_project(
     db: AsyncSession = Depends(get_db),
     _=Depends(require_project_access(ProjectRole.owner)),
 ):
+    require_server_workspace("删除唯一项目")
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
@@ -498,6 +503,7 @@ async def archive_project(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_project_access(ProjectRole.owner)),
 ):
+    require_server_workspace("归档唯一项目")
     project = await db.get(Project, project_id)
     if not project:
         raise HTTPException(status_code=404, detail="Project not found")
@@ -654,6 +660,7 @@ async def add_project_member(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_project_writable_access(ProjectRole.owner)),
 ):
+    require_server_workspace("添加项目成员")
     user = await db.get(User, body.user_id)
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
@@ -697,6 +704,7 @@ async def update_project_member(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_project_writable_access(ProjectRole.owner)),
 ):
+    require_server_workspace("修改项目成员")
     stmt = select(UserProject).where(UserProject.user_id == user_id, UserProject.project_id == project_id)
     result = await db.execute(stmt)
     up = result.scalar_one_or_none()
@@ -744,6 +752,7 @@ async def remove_project_member(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(require_project_writable_access(ProjectRole.owner)),
 ):
+    require_server_workspace("移除项目成员")
     stmt = select(UserProject).where(UserProject.user_id == user_id, UserProject.project_id == project_id)
     result = await db.execute(stmt)
     up = result.scalar_one_or_none()
