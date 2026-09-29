@@ -351,8 +351,8 @@ def _reset_review_after_edit(case: TestCase) -> None:
 
 
 def _assert_can_trigger_run(case: TestCase) -> None:
-    if settings.ATP_LOCAL_MODE and case.case_type not in {CaseType.api, CaseType.web}:
-        raise HTTPException(status_code=409, detail="本地模式首版仅支持 API 和 Web 用例手动执行")
+    if settings.ATP_LOCAL_MODE and case.case_type not in {CaseType.api, CaseType.web, CaseType.android}:
+        raise HTTPException(status_code=409, detail="本地模式支持 API、Web 和 Android 用例手动执行")
     if case.status != CaseStatus.active:
         raise HTTPException(status_code=409, detail="仅 active 状态用例可执行")
     if case.review_status != "approved":

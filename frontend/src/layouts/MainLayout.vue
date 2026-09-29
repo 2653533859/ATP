@@ -49,7 +49,7 @@
               <template #icon><PlayCircleOutlined /></template>
               <template #title>{{ t('menu.groups.test_capabilities') }}</template>
               <a-menu-item key="/api-workbench">{{ t('menu.capabilities.api') }}</a-menu-item>
-              <a-menu-item v-if="!localMode && canAccess(['admin', 'engineer'])" key="/mobile-special/workbench">{{ t('menu.capabilities.app') }}</a-menu-item>
+              <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/mobile-special/workbench">{{ t('menu.capabilities.app') }}</a-menu-item>
               <a-menu-item key="/ui-workbench">{{ t('menu.capabilities.ui') }}</a-menu-item>
               <a-menu-item v-if="!localMode" key="/performance-workbench">{{ t('menu.capabilities.performance') }}</a-menu-item>
               <a-menu-item v-if="!localMode" key="/ai-workbench">{{ t('menu.capabilities.ai') }}</a-menu-item>

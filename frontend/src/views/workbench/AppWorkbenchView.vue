@@ -21,8 +21,9 @@
           />
         </div>
         <div class="toolbar-status">
-          <span class="live-dot" :class="{ muted: !workers.length }" />
-          <span>{{ workers.length ? t('app_workbench.worker_online', { count: workers.length }) : t('app_workbench.worker_offline') }}</span>
+          <span class="live-dot" :class="{ muted: !localMode && !workers.length }" />
+          <span v-if="localMode">{{ t('app_workbench.local_execution') }}</span>
+          <span v-else>{{ workers.length ? t('app_workbench.worker_online', { count: workers.length }) : t('app_workbench.worker_offline') }}</span>
           <span v-if="selectedProjectName" class="project-pill-tag">{{ selectedProjectName }}</span>
         </div>
       </div>
@@ -34,7 +35,7 @@
         <a-button size="small" class="toolbar-btn" @click="openDevices">
           <ToolOutlined /> {{ t('app_workbench.device_management') }}
         </a-button>
-        <a-button size="small" class="toolbar-btn" @click="openIosAssets">
+        <a-button v-if="!localMode" size="small" class="toolbar-btn" @click="openIosAssets">
           {{ t('app_workbench.ios_preview') }}
         </a-button>
       </div>
@@ -70,7 +71,7 @@
         <div class="signal-card signal-card-run">
           <span class="signal-label">{{ t('app_workbench.signals.active_runs') }}</span>
           <strong>{{ activeRunCount }}</strong>
-          <span class="signal-note">{{ t('app_workbench.signals.worker_queue') }}</span>
+          <span class="signal-note">{{ t(localMode ? 'app_workbench.signals.local_queue' : 'app_workbench.signals.worker_queue') }}</span>
         </div>
       </section>
 
@@ -107,7 +108,7 @@
               <span class="device-status-text">{{ deviceStatusLabel(device.status) }}</span>
             </button>
           </div>
-          <a-empty v-else :description="t('app_workbench.no_devices')" />
+          <a-empty v-else :description="t(localMode ? 'app_workbench.no_devices_local' : 'app_workbench.no_devices')" />
 
           <div v-if="selectedDevice" class="device-focus">
             <div class="focus-heading">
@@ -149,7 +150,7 @@
             <div>
               <div class="panel-kicker">{{ t('app_workbench.launch_kicker') }}</div>
               <h2>{{ t('app_workbench.launch_title') }}</h2>
-              <p>{{ t('app_workbench.launch_description') }}</p>
+              <p>{{ t(localMode ? 'app_workbench.launch_description_local' : 'app_workbench.launch_description') }}</p>
             </div>
             <div class="launch-signal"><span class="signal-line" />{{ t('app_workbench.local_execution') }}</div>
           </div>
@@ -336,8 +337,10 @@ import {
 } from '@/api'
 import { canEditProjectByRole } from '@/utils/permissions'
 import { useAuthStore } from '@/stores/auth'
+import { getRuntimeMode } from '@/runtimeMode'
 
 type LaunchMode = 'case' | 'special'
+const localMode = getRuntimeMode()?.mode === 'local'
 type ErrorLike = { response?: { data?: { detail?: unknown } }; message?: unknown }
 type SelectOption<T extends string | number> = { label: string; value: T }
 type ActivityItem = {
@@ -592,6 +595,10 @@ async function loadDevices(projectId: number, sequence: number) {
 }
 
 async function loadWorkers(projectId: number, sequence: number) {
+  if (localMode) {
+    if (isCurrentProjectData(sequence, projectId)) workers.value = []
+    return
+  }
   try {
     const result = await deviceApi.workers()
     if (isCurrentProjectData(sequence, projectId)) workers.value = result

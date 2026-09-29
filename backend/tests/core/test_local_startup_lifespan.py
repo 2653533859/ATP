@@ -78,6 +78,12 @@ async def test_local_unsupported_write_guard_does_not_affect_reads_or_server(mon
     blocked = await main.reject_unsupported_local_writes(request, next_response)
     assert blocked.status_code == 409
 
+    for path in ("/api/v1/devices/scan", "/api/v1/mobile-special/tasks"):
+        request.url.path = path
+        assert await main.reject_unsupported_local_writes(request, next_response) == "next"
+    request.url.path = "/api/v1/ios-apps"
+    assert (await main.reject_unsupported_local_writes(request, next_response)).status_code == 409
+
     request.method = "GET"
     assert await main.reject_unsupported_local_writes(request, next_response) == "next"
     request.method = "POST"

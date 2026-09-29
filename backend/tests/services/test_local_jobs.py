@@ -48,6 +48,78 @@ def test_interrupted_run_is_marked_error_without_replay(tmp_path, monkeypatch) -
         assert connection.execute(text("SELECT status FROM local_jobs WHERE id=1")).scalar_one() == "interrupted"
 
 
+def test_interrupted_android_special_run_is_failed_without_replay(tmp_path, monkeypatch) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'android-recovery.sqlite3'}")
+    monkeypatch.setattr(local_jobs, "_engine", lambda: engine)
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE mobile_special_runs (id INTEGER PRIMARY KEY, created_at TEXT, status TEXT, device_id INTEGER, "
+            "summary_json TEXT, finished_at TEXT)"
+        )
+        connection.exec_driver_sql("CREATE TABLE device_leases (device_id INTEGER, owner_label TEXT)")
+        connection.exec_driver_sql(
+            "CREATE TABLE execution_run_leases (task_type TEXT, run_id INTEGER, status TEXT, released_at TEXT)"
+        )
+        connection.exec_driver_sql(
+            "CREATE TABLE local_jobs (id INTEGER PRIMARY KEY, task_name TEXT, run_id INTEGER, "
+            "run_created_at TEXT, status TEXT, error TEXT, finished_at TEXT)"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO mobile_special_runs VALUES (8, '2026-09-29 10:00:00', 'running', 3, '{}', NULL)"
+        )
+        connection.exec_driver_sql("INSERT INTO device_leases VALUES (3, 'mobile-run:8')")
+        connection.exec_driver_sql("INSERT INTO execution_run_leases VALUES ('android', 8, 'active', NULL)")
+        connection.exec_driver_sql(
+            "INSERT INTO local_jobs(id, task_name, run_id, run_created_at, status) "
+            "VALUES (1, 'run_mobile_special_task', 8, '2026-09-29 10:00:00', 'running')"
+        )
+    assert local_jobs.recover_interrupted_jobs() == 1
+    with engine.connect() as connection:
+        status, summary = connection.execute(
+            text("SELECT status, summary_json FROM mobile_special_runs WHERE id=8")
+        ).one()
+        assert status == "failed"
+        assert "error_message" in summary
+        assert connection.execute(text("SELECT status FROM local_jobs WHERE id=1")).scalar_one() == "interrupted"
+        assert connection.execute(text("SELECT COUNT(*) FROM device_leases")).scalar_one() == 0
+        assert connection.execute(text("SELECT status FROM execution_run_leases")).scalar_one() == "released"
+
+
+def test_local_android_special_job_runs_without_celery_broker(tmp_path, monkeypatch) -> None:
+    import app.worker as worker_package
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'android-queue.sqlite3'}")
+    monkeypatch.setattr(local_jobs, "_engine", lambda: engine)
+    with engine.begin() as connection:
+        connection.exec_driver_sql(
+            "CREATE TABLE mobile_special_runs (id INTEGER PRIMARY KEY, created_at TEXT, status TEXT, "
+            "summary_json TEXT, finished_at TEXT)"
+        )
+        connection.exec_driver_sql(
+            "CREATE TABLE local_jobs (id INTEGER PRIMARY KEY, task_name TEXT, run_id INTEGER, "
+            "run_created_at TEXT, args_json TEXT, status TEXT DEFAULT 'queued', error TEXT, "
+            "started_at TEXT, finished_at TEXT)"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO mobile_special_runs VALUES (8, '2026-09-29 10:00:00', 'pending', '{}', NULL)"
+        )
+
+    def apply(*, args):
+        with engine.begin() as connection:
+            connection.execute(text("UPDATE mobile_special_runs SET status='completed' WHERE id=:id"), {"id": args[0]})
+        return SimpleNamespace(failed=lambda: False)
+
+    fake_task = SimpleNamespace(name="run_mobile_special_task", apply=apply)
+    monkeypatch.setattr(
+        worker_package, "tasks_mobile_special", SimpleNamespace(run_mobile_special_task=fake_task), raising=False
+    )
+    local_jobs.enqueue_local_job(fake_task, (8,))
+    assert local_jobs._run_next_job() is True
+    with engine.connect() as connection:
+        assert connection.execute(text("SELECT status FROM local_jobs")).scalar_one() == "finished"
+        assert connection.execute(text("SELECT status FROM mobile_special_runs")).scalar_one() == "completed"
+
+
 @pytest.mark.parametrize("task_failed", [False, True])
 def test_task_that_returns_without_final_state_is_failed(tmp_path, monkeypatch, task_failed) -> None:
     import app.worker as worker_package

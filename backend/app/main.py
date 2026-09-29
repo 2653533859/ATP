@@ -125,10 +125,8 @@ app.add_middleware(TraceMiddleware)
 _LOCAL_UNSUPPORTED_WRITE_PREFIXES = (
     "/api/v1/suites",
     "/api/v1/plans",
-    "/api/v1/devices",
     "/api/v1/device-mirror",
     "/api/v1/ios",
-    "/api/v1/mobile-special",
     "/api/v1/performance",
     "/api/v1/hermes",
     "/api/v1/ai-",

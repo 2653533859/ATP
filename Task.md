@@ -6,7 +6,8 @@
 
 ## 2026-09-08 后续开发计划
 
-- [~] 2026-09-29 Windows 本地轻量模式：单用户单项目、SQLite + 本地目录与服务器模式并存；专项计划 M0–M8 见 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md)。本地专用配置、独立 Cookie、版本化 SQLite 升级、持久单机队列、文件读写、静态前端及 `local/server/status/open` 入口已实现；本机 API/Web 执行、报告、文件下载与同机恢复已有真实证据。正式服务器业务、双会话切换及异机移机仍待验收，因此专项阶段暂不标记完成。当前操作见 [`docs/windows-standalone.md`](docs/windows-standalone.md)。
+- [~] 2026-09-29 Windows 本地轻量模式：单用户单项目、SQLite + 本地目录与服务器模式并存；专项计划 M0–M9 见 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md)。本地专用配置、独立 Cookie、版本化 SQLite 升级、持久单机队列、文件读写、静态前端及 `local/server/status/open` 入口已实现；本机 API/Web 执行、报告、文件下载与同机恢复已有真实证据。正式服务器业务、双会话切换及异机移机仍待验收，因此专项阶段暂不标记完成。当前操作见 [`docs/windows-standalone.md`](docs/windows-standalone.md)。
+- [~] 2026-09-29 Windows 本地 Android（M9）：按用户最新范围只做 Android，不做本地 iOS。已接入本机 ADB 设备扫描/预览、Android 用例和专项手动任务的 SQLite 队列、专项停止信号与中断失败收敛；服务器 Android Worker 投递分支保持原样。定向回归 66 项、非集成后端 2789 passed/2 skipped、覆盖率 82.04%、前端类型检查/静态构建和 Ruff 通过；当前未连接真机，Android 脚本、APK 安装、三类专项、截图/报告及服务器现场回归仍待验收。范围与门禁见 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md)。
 
 - [~] 2026-09-29 C3.5 发布收口准备：复核 A3、B2、B3 已完成的目标环境证据并同步开发计划标题，修正发布范围文档中的旧 P4 多节点/跨主机 MinIO 口径；建立当前单节点候选的能力、质量、Chart、SLO 与镜像门禁清单。最终 SHA 尚未绑定，正式主机管理连接和完整源码镜像构建仍待恢复；9 月 29 日完整 UTC 日须在 9 月 30 日 00:00 UTC 后判定，代表性 7/14 日 SLO 与 Flower 长期稳定性仍开放。见 [`docs/c3-release-readiness-2026-09-29.md`](docs/c3-release-readiness-2026-09-29.md)。
 

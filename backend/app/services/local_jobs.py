@@ -14,11 +14,12 @@ from app.core.encryption import decrypt, encrypt
 logger = logging.getLogger(__name__)
 _stop = Event()
 _thread: Thread | None = None
-_TASKS = {"run_test_case", "run_test_suite", "run_test_plan"}
+_TASKS = {"run_test_case", "run_test_suite", "run_test_plan", "run_mobile_special_task"}
 _RUN_TABLES = {
     "run_test_case": "test_runs",
     "run_test_suite": "suite_runs",
     "run_test_plan": "plan_runs",
+    "run_mobile_special_task": "mobile_special_runs",
 }
 _INTERRUPTED = "本地 ATP 在执行期间退出；请检查副作用后重新运行"
 
@@ -54,16 +55,22 @@ def enqueue_local_job(task: Any, args: tuple[Any, ...]) -> None:
 
 def _mark_run_error(
     connection: Any, task_name: str, run_id: int, message: str, run_created_at: str | None = None
-) -> None:
+) -> bool:
     table = _RUN_TABLES[task_name]
     identity_clause = " AND created_at=:created_at" if run_created_at is not None else ""
-    connection.execute(
-        text(
+    if task_name == "run_mobile_special_task":
+        statement = (
+            f"UPDATE {table} SET status='failed', summary_json=:message, finished_at=CURRENT_TIMESTAMP "
+            f"WHERE id=:run_id AND status IN ('pending', 'running'){identity_clause}"
+        )
+        message = json.dumps({"error_message": message}, ensure_ascii=False)
+    else:
+        statement = (
             f"UPDATE {table} SET status='error', error_message=:message "
             f"WHERE id=:run_id AND status IN ('pending', 'running'){identity_clause}"
-        ),
-        {"run_id": run_id, "message": message, "created_at": run_created_at},
-    )
+        )
+    result = connection.execute(text(statement), {"run_id": run_id, "message": message, "created_at": run_created_at})
+    return bool(result.rowcount)
 
 
 def recover_interrupted_jobs() -> int:
@@ -73,7 +80,22 @@ def recover_interrupted_jobs() -> int:
             text("SELECT id, task_name, run_id, run_created_at FROM local_jobs WHERE status='running'")
         ).all()
         for job_id, task_name, run_id, run_created_at in rows:
-            _mark_run_error(connection, task_name, run_id, _INTERRUPTED, run_created_at)
+            marked = _mark_run_error(connection, task_name, run_id, _INTERRUPTED, run_created_at)
+            if marked and task_name == "run_mobile_special_task":
+                connection.execute(
+                    text(
+                        "DELETE FROM device_leases WHERE owner_label=:label AND device_id=("
+                        "SELECT device_id FROM mobile_special_runs WHERE id=:run_id AND created_at=:created_at)"
+                    ),
+                    {"run_id": run_id, "created_at": run_created_at, "label": f"mobile-run:{run_id}"},
+                )
+                connection.execute(
+                    text(
+                        "UPDATE execution_run_leases SET status='released', released_at=CURRENT_TIMESTAMP "
+                        "WHERE task_type='android' AND run_id=:run_id AND status='active'"
+                    ),
+                    {"run_id": run_id},
+                )
             connection.execute(
                 text(
                     "UPDATE local_jobs SET status='interrupted', error=:error, "
@@ -110,13 +132,24 @@ def _run_next_job() -> bool:
                 text("UPDATE local_jobs SET status='skipped', finished_at=CURRENT_TIMESTAMP WHERE id=:id"),
                 {"id": job_id},
             )
+            if task_name == "run_mobile_special_task":
+                from app.services.mobile_special_control import clear_cancel_request
+
+                clear_cancel_request(run_id)
             return True
 
     try:
-        from app.worker import tasks
+        if task_name == "run_mobile_special_task":
+            from app.worker import tasks_mobile_special
+
+            task = tasks_mobile_special.run_mobile_special_task
+        else:
+            from app.worker import tasks
+
+            task = getattr(tasks, task_name)
 
         args = json.loads(decrypt(payload))
-        result = getattr(tasks, task_name).apply(args=args)
+        result = task.apply(args=args)
         if result.failed():
             raise RuntimeError(str(result.result))
         table = _RUN_TABLES[task_name]

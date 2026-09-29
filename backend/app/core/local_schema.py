@@ -72,6 +72,7 @@ def _create_run_id_allocator(connection: Connection) -> None:
         "SELECT COALESCE(MAX(id), 0) AS value FROM test_runs UNION ALL "
         "SELECT COALESCE(MAX(id), 0) FROM suite_runs UNION ALL "
         "SELECT COALESCE(MAX(id), 0) FROM plan_runs UNION ALL "
+        "SELECT COALESCE(MAX(id), 0) FROM mobile_special_runs UNION ALL "
         "SELECT COALESCE(MAX(run_id), 0) FROM local_jobs UNION ALL "
         "SELECT COALESCE(MAX(run_id), 0) FROM execution_run_leases)"
     ).scalar_one()

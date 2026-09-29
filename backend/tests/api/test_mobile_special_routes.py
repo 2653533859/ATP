@@ -212,6 +212,46 @@ def test_refresh_schedule_state_sets_and_clears_next_run():
     assert task.next_run_at is None
 
 
+def test_local_android_run_uses_sqlite_queue_and_disables_schedule(monkeypatch):
+    queued = []
+    monkeypatch.setattr(ms.settings, "ATP_LOCAL_MODE", True)
+    monkeypatch.setattr(ms, "enqueue_task", lambda task, args, queue: queued.append((task.name, args, queue)))
+    monkeypatch.setitem(
+        sys.modules,
+        "app.worker.tasks_mobile_special",
+        types.SimpleNamespace(run_mobile_special_task=types.SimpleNamespace(name="run_mobile_special_task")),
+    )
+    task = _task(schedule_enabled=True, cron_expression="*/10 * * * *")
+    ms._refresh_schedule_state(task)
+    assert task.schedule_enabled is False
+    assert task.next_run_at is None
+    ms._enqueue_mobile_run(42)
+    assert queued == [("run_mobile_special_task", (42,), "android")]
+
+
+def test_local_android_run_requires_scanned_device(access_recorder, monkeypatch):
+    monkeypatch.setattr(ms.settings, "ATP_LOCAL_MODE", True)
+    task = _task(device_id=None, config_json={})
+    db = _FakeDB({("MobileSpecialTask", 1): task})
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(ms.trigger_task_run(1, body=RunTriggerRequest(), db=db, current_user=_user()))
+    assert exc.value.status_code == 409
+    assert db.commits == 0
+
+
+def test_local_android_enqueue_failure_marks_run_failed(monkeypatch):
+    monkeypatch.setattr(ms.settings, "ATP_LOCAL_MODE", True)
+    monkeypatch.setattr(ms, "_enqueue_mobile_run", lambda _rid: (_ for _ in ()).throw(OSError("disk locked")))
+    run = _Obj(id=42, status=RunStatus.pending, finished_at=None, summary_json={})
+    db = _FakeDB({})
+    with pytest.raises(HTTPException) as exc:
+        asyncio.run(ms._enqueue_mobile_run_or_fail(run, db))
+    assert exc.value.status_code == 503
+    assert run.status is RunStatus.failed
+    assert run.summary_json["error_message"] == "本地执行任务投递失败"
+    assert db.commits == 1
+
+
 def test_mobile_stats_cache_key_is_order_stable_and_safe(monkeypatch):
     key = ms._mobile_stats_cache_key("overview", b=2, a=1)
     assert key == "atp:mobile-stats:overview:a=1:b=2"
