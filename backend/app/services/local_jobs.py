@@ -80,8 +80,16 @@ def recover_interrupted_jobs() -> int:
             text("SELECT id, task_name, run_id, run_created_at FROM local_jobs WHERE status='running'")
         ).all()
         for job_id, task_name, run_id, run_created_at in rows:
-            marked = _mark_run_error(connection, task_name, run_id, _INTERRUPTED, run_created_at)
-            if marked and task_name == "run_mobile_special_task":
+            _mark_run_error(connection, task_name, run_id, _INTERRUPTED, run_created_at)
+            same_mobile_run = (
+                task_name == "run_mobile_special_task"
+                and connection.execute(
+                    text("SELECT id FROM mobile_special_runs WHERE id=:run_id AND created_at=:created_at"),
+                    {"run_id": run_id, "created_at": run_created_at},
+                ).scalar_one_or_none()
+                is not None
+            )
+            if same_mobile_run:
                 connection.execute(
                     text(
                         "DELETE FROM device_leases WHERE owner_label=:label AND device_id=("

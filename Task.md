@@ -6,6 +6,8 @@
 
 ## 2026-09-08 后续开发计划
 
+- [~] 2026-09-30 Windows 本地 Android 恢复补强：本地静态服务重新启动且健康；专项终态下异常退出的设备/执行租约释放与身份保护已修复，队列定向回归 15 项通过。M9/M8 的真机、APK 和正式服务器现场验收继续开放。
+
 - [~] 2026-09-29 Windows 本地轻量模式：单用户单项目、SQLite + 本地目录与服务器模式并存；专项计划 M0–M9 见 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md)。本地专用配置、独立 Cookie、版本化 SQLite 升级、持久单机队列、文件读写、静态前端及 `local/server/status/open` 入口已实现；本机 API/Web 执行、报告、文件下载与同机恢复已有真实证据。正式服务器业务、双会话切换及异机移机仍待验收，因此专项阶段暂不标记完成。当前操作见 [`docs/windows-standalone.md`](docs/windows-standalone.md)。
 - [~] 2026-09-29 Windows 本地 Android（M9）：按用户最新范围只做 Android，不做本地 iOS。已接入本机 ADB 设备扫描/预览、Android 用例和专项手动任务的 SQLite 队列、专项停止信号与中断失败收敛；服务器 Android Worker 投递分支保持原样。定向回归 66 项、非集成后端 2789 passed/2 skipped、覆盖率 82.04%、前端类型检查/静态构建和 Ruff 通过；当前未连接真机，Android 脚本、APK 安装、三类专项、截图/报告及服务器现场回归仍待验收。范围与门禁见 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md)。
 

@@ -48,7 +48,11 @@ def test_interrupted_run_is_marked_error_without_replay(tmp_path, monkeypatch) -
         assert connection.execute(text("SELECT status FROM local_jobs WHERE id=1")).scalar_one() == "interrupted"
 
 
-def test_interrupted_android_special_run_is_failed_without_replay(tmp_path, monkeypatch) -> None:
+@pytest.mark.parametrize("initial_status", ["running", "stopped", "completed"])
+@pytest.mark.parametrize("same_identity", [True, False])
+def test_interrupted_android_special_run_is_failed_without_replay(
+    tmp_path, monkeypatch, initial_status, same_identity
+) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'android-recovery.sqlite3'}")
     monkeypatch.setattr(local_jobs, "_engine", lambda: engine)
     with engine.begin() as connection:
@@ -64,25 +68,31 @@ def test_interrupted_android_special_run_is_failed_without_replay(tmp_path, monk
             "CREATE TABLE local_jobs (id INTEGER PRIMARY KEY, task_name TEXT, run_id INTEGER, "
             "run_created_at TEXT, status TEXT, error TEXT, finished_at TEXT)"
         )
-        connection.exec_driver_sql(
-            "INSERT INTO mobile_special_runs VALUES (8, '2026-09-29 10:00:00', 'running', 3, '{}', NULL)"
+        connection.execute(
+            text("INSERT INTO mobile_special_runs VALUES (8, '2026-09-29 10:00:00', :status, 3, '{}', NULL)"),
+            {"status": initial_status},
         )
         connection.exec_driver_sql("INSERT INTO device_leases VALUES (3, 'mobile-run:8')")
         connection.exec_driver_sql("INSERT INTO execution_run_leases VALUES ('android', 8, 'active', NULL)")
         connection.exec_driver_sql(
             "INSERT INTO local_jobs(id, task_name, run_id, run_created_at, status) "
-            "VALUES (1, 'run_mobile_special_task', 8, '2026-09-29 10:00:00', 'running')"
+            "VALUES (1, 'run_mobile_special_task', 8, :created_at, 'running')",
+            {"created_at": "2026-09-29 10:00:00" if same_identity else "2026-09-28 10:00:00"},
         )
     assert local_jobs.recover_interrupted_jobs() == 1
     with engine.connect() as connection:
         status, summary = connection.execute(
             text("SELECT status, summary_json FROM mobile_special_runs WHERE id=8")
         ).one()
-        assert status == "failed"
-        assert "error_message" in summary
+        assert status == ("failed" if same_identity and initial_status == "running" else initial_status)
+        assert ("error_message" in summary) == (same_identity and initial_status == "running")
         assert connection.execute(text("SELECT status FROM local_jobs WHERE id=1")).scalar_one() == "interrupted"
-        assert connection.execute(text("SELECT COUNT(*) FROM device_leases")).scalar_one() == 0
-        assert connection.execute(text("SELECT status FROM execution_run_leases")).scalar_one() == "released"
+        assert connection.execute(text("SELECT COUNT(*) FROM device_leases")).scalar_one() == (
+            0 if same_identity else 1
+        )
+        assert connection.execute(text("SELECT status FROM execution_run_leases")).scalar_one() == (
+            "released" if same_identity else "active"
+        )
 
 
 def test_local_android_special_job_runs_without_celery_broker(tmp_path, monkeypatch) -> None:
