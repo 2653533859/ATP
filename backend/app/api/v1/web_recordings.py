@@ -38,7 +38,7 @@ from app.models.project import Project
 from app.models.user import User
 from app.models.user_project import ProjectRole
 from app.models.web_assets import WebElementAsset
-from app.services.web_network_guard import guard_browser_request, sanitize_network_url
+from app.services.web_network_guard import guard_browser_request, sanitize_network_url, validate_browser_request_url
 from app.services.web_recording_transport import (
     RemoteWebRecordingManager,
     WebRecordingTransportError,
@@ -198,6 +198,12 @@ class WebRecordingStart(BaseModel):
     @field_validator("start_url")
     @classmethod
     def validate_start_url(cls, value: str) -> str:
+        if settings.ATP_LOCAL_MODE:
+            from urllib.parse import urlsplit
+
+            if urlsplit(value.strip()).scheme not in {"http", "https"}:
+                raise ValueError("地址必须是 http 或 https URL")
+            return validate_browser_request_url(value)
         return validate_http_url_syntax(value)
 
 
@@ -782,7 +788,8 @@ async def start_recording(
     user: User = Depends(get_current_user),
 ):
     try:
-        payload.start_url = await asyncio.to_thread(validate_public_http_url, payload.start_url)
+        validator = validate_browser_request_url if settings.ATP_LOCAL_MODE else validate_public_http_url
+        payload.start_url = await asyncio.to_thread(validator, payload.start_url)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     await assert_project_access(db, user, payload.project_id, ProjectRole.editor)

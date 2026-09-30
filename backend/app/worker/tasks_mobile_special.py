@@ -13,7 +13,7 @@ from app.services.device_leases import (
     release_device_lease,
 )
 from app.services.mobile_special_control import clear_cancel_request, is_cancel_requested
-from app.services.performance_control import create_control_client
+from app.services.mobile_special_control import create_control_client
 from app.services.mobile_special_events import MobileRunEventRecorder
 from app.services.execution_run_leases import ExecutionLeaseConflict, execution_run_lease
 import logging

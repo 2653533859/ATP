@@ -2,9 +2,14 @@
 
 > 2026-09-08 起的后续开发与状态口径统一维护在 [`docs/development-plan-2026-09-08.md`](docs/development-plan-2026-09-08.md)；[`docs/development-plan-2026-08-25.md`](docs/development-plan-2026-08-25.md) 保留为历史交付与环境证据记录。本文件保留任务勾选和历史交付记录。每个模块均须完成实现、测试、代码审查、修复和文档同步后再进入下一项，提交推送按用户要求执行。
 
+> Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
+
 ## 2026-09-08 后续开发计划
 
-- [~] 2026-09-29 Windows 本机独立栈：按本地与服务器两套独立数据源的使用方式，新建隔离的 WSL Docker PostgreSQL/Redis/MinIO Compose、Windows 一键初始化/启动/停止/状态/备份/恢复入口和移机说明；本机私有 `local-all.env` 已生成且被 Git 忽略。Compose 配置预检通过，但当前 WSL Docker Engine 的卷元数据库打开超时，尚未运行本地迁移、Backend/Worker/Beat 或完整业务验收。见 [`docs/windows-standalone.md`](docs/windows-standalone.md)。
+- [~] 2026-09-30 Windows 本地 Android 恢复补强：本地静态服务重新启动且健康；专项终态下异常退出的设备/执行租约释放与身份保护已修复，队列定向回归 15 项通过。M9/M8 的真机、APK 和正式服务器现场验收继续开放。
+
+- [~] 2026-09-29 Windows 本地轻量模式：单用户单项目、SQLite + 本地目录与服务器模式并存；专项计划 M0–M9 见 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md)。本地专用配置、独立 Cookie、版本化 SQLite 升级、持久单机队列、文件读写、静态前端及 `local/server/status/open` 入口已实现；本机 API/Web 执行、报告、文件下载与同机恢复已有真实证据。正式服务器业务、双会话切换及异机移机仍待验收，因此专项阶段暂不标记完成。当前操作见 [`docs/windows-standalone.md`](docs/windows-standalone.md)。
+- [~] 2026-09-29 Windows 本地 Android（M9）：按用户最新范围只做 Android，不做本地 iOS。已接入本机 ADB 设备扫描/预览、Android 用例和专项手动任务的 SQLite 队列、专项停止信号与中断失败收敛；服务器 Android Worker 投递分支保持原样。定向回归 66 项、非集成后端 2789 passed/2 skipped、覆盖率 82.04%、前端类型检查/静态构建和 Ruff 通过；当前未连接真机，Android 脚本、APK 安装、三类专项、截图/报告及服务器现场回归仍待验收。范围与门禁见 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md)。
 
 - [~] 2026-09-29 C3.5 发布收口准备：复核 A3、B2、B3 已完成的目标环境证据并同步开发计划标题，修正发布范围文档中的旧 P4 多节点/跨主机 MinIO 口径；建立当前单节点候选的能力、质量、Chart、SLO 与镜像门禁清单。最终 SHA 尚未绑定，正式主机管理连接和完整源码镜像构建仍待恢复；9 月 29 日完整 UTC 日须在 9 月 30 日 00:00 UTC 后判定，代表性 7/14 日 SLO 与 Flower 长期稳定性仍开放。见 [`docs/c3-release-readiness-2026-09-29.md`](docs/c3-release-readiness-2026-09-29.md)。
 
@@ -2519,3 +2524,15 @@ N5.2 验收口径：管理员/工程师能从统一入口定位可见配置，�
 - [x] 临时项目 `50` 清理：删除 204、删除后查询 404、匹配项目 0；证据见 [`docs/evidence/android-karing-special-task-2026-08-25.json`](docs/evidence/android-karing-special-task-2026-08-25.json)。
 - [x] 代码审查与问题修复后，定向回归 82 项，后端非集成全量 2306 项，Ruff、格式检查和 `git diff --check` 通过。
 - [ ] N2 总体验收仍未完成：下一步验证同一 Worker/设备上的性能专项 CPU/内存/电池/网络样本与报告，再验证流畅度专项 FPS/jank 阶段采样。
+
+## 2026-09-29 Windows SQLite／服务器双模式（进行中）
+
+- [~] 按 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 推进 M0–M8；所有阶段仍需服务器侧业务回归才可标记完成。
+- [x] 本地配置只读取私有档案允许的键；本地认证 Cookie 与服务器名称分离；本地 SQLite 版本 1→4 升级、单调运行 ID、唯一默认项目/模块初始化及新增用户/项目后端限制已落地。
+- [x] SQLite 加密持久任务队列已替代临时线程提交；真实 API 用例创建 201、批准 200、执行提交 202，最终 `passed`、1 条步骤结果；Web 用例最终 `passed`、2 条步骤结果，临时用例均清理 204。曾发现删除用例后 SQLite 复用运行 ID 与旧租约冲突，已由版本 4 单调 ID 修复。
+- [x] 静态本地入口由单个 Python 服务在 `8001` 提供页面/API，不依赖运行中的 Vite；备份 SHA-256 清单 4 文件校验一致。
+- [x] 本地文件实际上传 200、签名下载 200、内容一致、过期签名 403，临时对象及元数据清理；报告与截图仍未验收。
+- [x] 统一入口 `scripts/windows-mode.ps1` 的状态检查显示本地 `ready`、服务器页面 `ready`；打开动作及双登录回切仍待交互验收。
+- [x] 版本 4 停机备份在独立目录恢复成功，SQLite `integrity_check=ok`、版本 4、项目数 1；服务器路径定向回归 50 项通过，Ruff 与 `git diff --check` 通过。
+- [x] Web 运行进入 `running` 后停止接口 200、最终 `cancelled`；停机预置的 SQLite 待执行任务在重启后 `passed`、1 条步骤、任务 `finished`。含一条通过运行的报告总览 200（总运行 1、通过 1、趋势 1），周趋势 200、CSV 200；修复 SQLite 日期转换导致的报告 500。
+- [ ] 服务器业务回归、双会话切换、异机恢复、截图与完整附件矩阵、运行中断恢复和交付验收仍待完成；当前本地服务在静态模式运行。

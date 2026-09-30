@@ -5,7 +5,7 @@ from typing import Literal
 
 from fastapi import APIRouter, Depends, Query
 from fastapi.responses import StreamingResponse
-from sqlalchemy import select, func, case as sql_case, cast, Date
+from sqlalchemy import select, func, case as sql_case
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_current_user
@@ -124,10 +124,10 @@ async def invalidate_stats_cache() -> None:
 
 
 def _resolve_date_col(created_at_col, aggregate: str):
-    """daily → 按日 cast Date；weekly → 按周 date_trunc。返回值统一 label 为 'date'。"""
-    if aggregate == "weekly":
-        return func.date_trunc("week", created_at_col).label("date")
-    return cast(created_at_col, Date).label("date")
+    """按当前数据库方言生成日或周分组列。"""
+    from app.services.date_bucket import date_bucket
+
+    return date_bucket(created_at_col, aggregate).label("date")
 
 
 def _apply_project_filter(stmt, project_id: int | None, user: User):

@@ -209,13 +209,13 @@
           </a-form-item>
         </template>
 
-        <a-divider>{{ t('mobile_special.form.schedule_config') }}</a-divider>
+        <a-divider v-if="!localMode">{{ t('mobile_special.form.schedule_config') }}</a-divider>
 
-        <a-form-item :label="t('mobile_special.form.schedule_enabled')">
+        <a-form-item v-if="!localMode" :label="t('mobile_special.form.schedule_enabled')">
           <a-switch v-model:checked="form.schedule_enabled" />
         </a-form-item>
 
-        <a-form-item v-if="form.schedule_enabled" :label="t('mobile_special.form.cron')">
+        <a-form-item v-if="!localMode && form.schedule_enabled" :label="t('mobile_special.form.cron')">
           <a-input v-model:value="form.cron_expression" :placeholder="t('mobile_special.form.cron_placeholder')" />
         </a-form-item>
       </a-form>
@@ -247,12 +247,14 @@ import {
   type DeviceScopeType,
 } from '@/api'
 import { buildMobileApkOptions, findMobileApkPackage, type MobileApkOption } from '@/utils/mobileSpecialForm'
+import { getRuntimeMode } from '@/runtimeMode'
 
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asTask = (record: unknown) => record as MobileSpecialTaskItem
 
 const { t } = useI18n()
 const router = useRouter()
+const localMode = getRuntimeMode()?.mode === 'local'
 
 type SelectOption<T extends string | number> = {
   label: string

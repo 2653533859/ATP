@@ -12,11 +12,20 @@ import './styles/page-shell.css'
 import App from './App.vue'
 import router from './router'
 import { i18n } from './locales'
+import { verifyRuntimeMode } from './runtimeMode'
 
-const app = createApp(App)
-
-app.use(createPinia())
-app.use(router)
-app.use(i18n)
-
-app.mount('#app')
+void verifyRuntimeMode().then(() => {
+  const app = createApp(App)
+  app.use(createPinia())
+  app.use(router)
+  app.use(i18n)
+  app.mount('#app')
+}).catch((error: unknown) => {
+  const target = document.getElementById('app')
+  if (target) {
+    const message = document.createElement('p')
+    message.textContent = error instanceof Error ? error.message : '无法确认后端运行模式。'
+    message.style.cssText = 'margin:3rem auto;max-width:40rem;padding:1.5rem;color:#9f2d20;font:16px sans-serif'
+    target.replaceChildren(message)
+  }
+})

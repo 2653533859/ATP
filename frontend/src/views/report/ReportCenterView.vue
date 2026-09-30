@@ -9,6 +9,7 @@
       </div>
       <div class="hero-controls toolbar-right">
         <a-select
+          v-if="!localMode"
           v-model:value="projectId"
           allow-clear
           show-search
@@ -22,8 +23,8 @@
         <a-button size="small" :loading="loading" @click="loadReport">{{ t('report_center.refresh') }}</a-button>
         <a-button size="small" :loading="exporting" @click="exportTrend">{{ t('report_center.export_trend') }}</a-button>
         <a-button size="small" @click="openAsset('/cases')">{{ t('menu.cases') }}</a-button>
-        <a-button size="small" @click="openAsset('/suites')">{{ t('menu.suites') }}</a-button>
-        <a-button size="small" @click="openAsset('/plans')">{{ t('menu.plans') }}</a-button>
+        <a-button v-if="!localMode" size="small" @click="openAsset('/suites')">{{ t('menu.suites') }}</a-button>
+        <a-button v-if="!localMode" size="small" @click="openAsset('/plans')">{{ t('menu.plans') }}</a-button>
       </div>
     </header>
 
@@ -239,7 +240,9 @@ import { useRoute, useRouter } from 'vue-router'
 import VChart from 'vue-echarts'
 import { statisticsApi, projectApi, reportApi, type ProjectItem, type ReportCompareItem, type ReportOverviewItem } from '@/api'
 import { useChartTheme } from '@/utils/chartTheme'
+import { getRuntimeMode } from '@/runtimeMode'
 
+const localMode = getRuntimeMode()?.mode === 'local'
 const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()

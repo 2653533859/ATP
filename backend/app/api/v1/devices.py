@@ -199,6 +199,8 @@ async def list_android_worker_status(
     _=Depends(require_engineer),
 ):
     """返回当前通过 Redis 心跳注册的 Windows Android Worker。"""
+    if settings.ATP_LOCAL_MODE:
+        return []
     try:
         return await list_android_workers()
     except AndroidWorkerRegistryError as exc:

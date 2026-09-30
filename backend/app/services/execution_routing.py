@@ -60,6 +60,11 @@ def enqueue_case_run(task: Any, run_id: int, extra_vars: dict, trace_id: str | N
 
 def enqueue_task(task: Any, args: tuple[Any, ...], queue: str) -> None:
     """Publish a task using the default compatibility path or an explicit queue."""
+    if settings.ATP_LOCAL_MODE:
+        from app.services.local_jobs import enqueue_local_job
+
+        enqueue_local_job(task, args)
+        return
 
     if queue == DEFAULT_EXECUTION_QUEUE:
         task.delay(*args)

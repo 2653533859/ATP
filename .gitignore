@@ -18,6 +18,7 @@ node_modules/
 .venv/
 frontend/dist/
 .local-run/
+.local-data/
 .env.windows-wsl-backup
 config/startup-profiles/*.env
 !config/startup-profiles/*.env.example

@@ -8,7 +8,8 @@
 from datetime import datetime, timezone
 
 from sqlalchemy import case, func, literal, update
-from sqlalchemy.dialects.postgresql import insert
+from sqlalchemy.dialects.postgresql import insert as postgres_insert
+from sqlalchemy.dialects.sqlite import insert as sqlite_insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import Session
 
@@ -16,9 +17,10 @@ from app.models.device import Device, DeviceStatus
 from app.services.adb_service import AdbDeviceInfo
 
 
-def _build_upsert_stmt(info: AdbDeviceInfo, now: datetime):
-    """构建按 serial 原子 upsert 的 SQL 语句（PostgreSQL ON CONFLICT）"""
+def _build_upsert_stmt(info: AdbDeviceInfo, now: datetime, dialect_name: str = "postgresql"):
+    """构建按 serial 原子 upsert 的 SQL 语句。"""
     new_status = DeviceStatus.online if info.status == "device" else DeviceStatus.offline
+    insert = sqlite_insert if dialect_name == "sqlite" else postgres_insert
     stmt = insert(Device).values(
         serial=info.serial,
         name=info.model or info.serial,
@@ -57,8 +59,9 @@ def sync_devices_to_db_sync(session: Session, scanned: list[AdbDeviceInfo]) -> N
     now = datetime.now(timezone.utc)
     scanned_serials = {info.serial for info in scanned}
 
+    dialect_name = session.get_bind().dialect.name
     for info in scanned:
-        session.execute(_build_upsert_stmt(info, now))
+        session.execute(_build_upsert_stmt(info, now, dialect_name))
 
     # 将未扫描到的非 offline 设备标记为 offline（批量 UPDATE）
     if scanned_serials:
@@ -77,8 +80,9 @@ async def sync_devices_to_db_async(db: AsyncSession, scanned: list[AdbDeviceInfo
     now = datetime.now(timezone.utc)
     scanned_serials = {info.serial for info in scanned}
 
+    dialect_name = db.get_bind().dialect.name
     for info in scanned:
-        await db.execute(_build_upsert_stmt(info, now))
+        await db.execute(_build_upsert_stmt(info, now, dialect_name))
 
     if scanned_serials:
         await db.execute(

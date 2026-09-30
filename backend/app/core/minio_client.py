@@ -18,6 +18,7 @@ from minio import Minio
 from minio.error import S3Error
 import urllib3
 from app.core.config import settings
+from app.core import local_object_store
 
 logger = logging.getLogger(__name__)
 
@@ -25,6 +26,8 @@ _client: Minio | None = None
 
 
 def get_client() -> Minio:
+    if settings.ATP_LOCAL_MODE:
+        raise RuntimeError("MinIO is unavailable in Windows local mode")
     global _client
     if _client is None:
         _client = Minio(
@@ -47,6 +50,9 @@ def get_client() -> Minio:
 
 def ensure_bucket() -> None:
     """确保默认 Bucket 存在，应用启动时调用一次"""
+    if settings.ATP_LOCAL_MODE:
+        local_object_store.ensure_store()
+        return
     client = get_client()
     bucket = settings.MINIO_BUCKET
     try:
@@ -61,6 +67,8 @@ def ensure_bucket() -> None:
 
 def upload_bytes(object_name: str, data: bytes, content_type: str = "application/octet-stream") -> str:
     """上传字节内容，返回 object_name"""
+    if settings.ATP_LOCAL_MODE:
+        return local_object_store.upload_bytes(object_name, data, content_type)
     client = get_client()
     client.put_object(
         settings.MINIO_BUCKET,
@@ -74,6 +82,8 @@ def upload_bytes(object_name: str, data: bytes, content_type: str = "application
 
 def upload_file(object_name: str, local_path: str | Path, content_type: str = "application/octet-stream") -> str:
     """上传本地文件，返回 object_name"""
+    if settings.ATP_LOCAL_MODE:
+        return local_object_store.upload_file(object_name, local_path, content_type)
     client = get_client()
     client.fput_object(settings.MINIO_BUCKET, object_name, str(local_path), content_type=content_type)
     return object_name
@@ -81,12 +91,17 @@ def upload_file(object_name: str, local_path: str | Path, content_type: str = "a
 
 def download_file(object_name: str, local_path: str | Path) -> None:
     """下载对象到本地路径"""
+    if settings.ATP_LOCAL_MODE:
+        local_object_store.download_file(object_name, local_path)
+        return
     client = get_client()
     client.fget_object(settings.MINIO_BUCKET, object_name, str(local_path))
 
 
 def read_bytes(object_name: str) -> bytes:
     """读取对象内容为字节"""
+    if settings.ATP_LOCAL_MODE:
+        return local_object_store.read_bytes(object_name)
     client = get_client()
     resp = client.get_object(settings.MINIO_BUCKET, object_name)
     try:
@@ -98,6 +113,8 @@ def read_bytes(object_name: str) -> bytes:
 
 def presigned_url(object_name: str, expires_seconds: int = 3600 * 24) -> str:
     """生成预签名访问 URL（默认 24 小时有效）"""
+    if settings.ATP_LOCAL_MODE:
+        return local_object_store.signed_url(object_name, expires_seconds)
     from datetime import timedelta
 
     client = get_client()
@@ -109,11 +126,16 @@ def presigned_url(object_name: str, expires_seconds: int = 3600 * 24) -> str:
 
 
 def delete_file(object_name: str) -> None:
+    if settings.ATP_LOCAL_MODE:
+        local_object_store.delete_file(object_name)
+        return
     client = get_client()
     client.remove_object(settings.MINIO_BUCKET, object_name)
 
 
 def list_objects(prefix: str = "") -> list:
     """列出指定前缀下的所有对象"""
+    if settings.ATP_LOCAL_MODE:
+        return local_object_store.list_objects(prefix)
     client = get_client()
     return list(client.list_objects(settings.MINIO_BUCKET, prefix=prefix, recursive=True))

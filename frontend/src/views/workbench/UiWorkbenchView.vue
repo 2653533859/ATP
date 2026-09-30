@@ -736,6 +736,45 @@ onMounted(() => { void loadProjects() })
 </script>
 
 <style scoped>
+.ui-workbench {
+  width: 100%;
+  min-width: 0;
+  container-type: inline-size;
+}
+.signal-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.signal-card {
+  min-width: 0;
+  padding: 16px;
+  border: 1px solid var(--c-border);
+  border-radius: 10px;
+  background: var(--c-bg-elevated);
+}
+.signal-label, .signal-note { display: block; }
+.signal-label { font-size: 12px; color: var(--c-text-secondary); }
+.signal-card strong { display: block; margin: 8px 0; font-size: 26px; line-height: 1.2; }
+.signal-note { font-size: 11px; color: var(--c-text-secondary); overflow-wrap: anywhere; }
+@container (max-width: 1200px) {
+  .studio-grid { grid-template-columns: 210px minmax(0, 1fr) !important; }
+  .observe-rail { grid-column: 1 / -1; }
+  .browser-launch-bar { grid-template-columns: minmax(0, 1fr) auto auto !important; }
+  .browser-launch-copy { grid-column: 1 / -1; }
+}
+@container (max-width: 760px) {
+  .signal-grid, .asset-band-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .studio-grid { grid-template-columns: minmax(0, 1fr) !important; }
+  .ui-toolbar, .toolbar-left { flex-wrap: wrap; height: auto; }
+  .ui-toolbar { padding: 12px; }
+  .console-head { flex-wrap: wrap; }
+}
+@container (max-width: 480px) {
+  .signal-grid, .asset-band-grid, .browser-launch-bar { grid-template-columns: minmax(0, 1fr) !important; }
+  .toolbar-status { flex-wrap: wrap; }
+}
 .ui-workbench { --ui-ink: var(--c-text); --ui-muted: var(--c-text-secondary); --ui-line: var(--c-border); --ui-paper: var(--c-bg-body); --ui-panel: var(--c-bg-elevated); --ui-coral: #ed765e; --ui-mint: #6bb9ae; --ui-violet: #8b82b8; color: var(--ui-ink); }
 .ui-toolbar {
   display: flex;

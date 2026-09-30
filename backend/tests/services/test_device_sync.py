@@ -2,7 +2,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-from sqlalchemy.dialects import postgresql
+from sqlalchemy.dialects import postgresql, sqlite
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
@@ -24,3 +24,12 @@ def test_build_upsert_stmt_uses_postgres_on_conflict():
     assert "ON CONFLICT (SERIAL) DO UPDATE" in sql_upper
     assert "COALESCE" in sql_upper
     assert "CASE WHEN" in sql_upper
+
+
+def test_build_upsert_stmt_uses_sqlite_on_conflict():
+    info = AdbDeviceInfo(serial="emulator-5554", status="device", model="Pixel")
+    stmt = _build_upsert_stmt(info, datetime.now(timezone.utc), "sqlite")
+    sql = str(stmt.compile(dialect=sqlite.dialect(), compile_kwargs={"literal_binds": True})).upper()
+
+    assert "ON CONFLICT (SERIAL) DO UPDATE" in sql
+    assert "COALESCE" in sql

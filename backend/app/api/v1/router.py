@@ -50,6 +50,8 @@ from app.api.v1 import (
     hermes,
     remote_toolbox,
     configuration_center,
+    local_files,
+    runtime,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -96,6 +98,8 @@ router.include_router(api_contract_assets.router)
 router.include_router(ios.router)
 router.include_router(users.router)
 router.include_router(health.router)
+router.include_router(local_files.router)
+router.include_router(runtime.router)
 router.include_router(workbench.router)
 router.include_router(defects.router)
 router.include_router(requirements.router)

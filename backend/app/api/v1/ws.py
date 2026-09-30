@@ -6,12 +6,14 @@ WebSocket 端点：订阅 Redis Pub/Sub，将执行事件实时推送给前端
 """
 
 import asyncio
+import json
 import logging
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from jwt import InvalidTokenError
 from sqlalchemy import select
 
 from app.core.database import AsyncSessionLocal
+from app.core.config import settings
 from app.core.security import decode_token
 from app.core.redis_client import get_async_redis
 from app.models.case import TestCase, TestRun
@@ -28,7 +30,7 @@ ws_router = APIRouter(prefix="/ws")
 async def _get_ws_user(websocket: WebSocket) -> User | None:
     # Browser clients use the HttpOnly cookie. Keep query-token support temporarily for
     # non-browser integrations, but the UI must never put a JWT in a URL.
-    token = getattr(websocket, "cookies", {}).get("atp_access_token") or websocket.query_params.get("token")
+    token = getattr(websocket, "cookies", {}).get(settings.ACCESS_COOKIE_NAME) or websocket.query_params.get("token")
     if not token:
         return None
 
@@ -123,6 +125,30 @@ async def ws_run_events(websocket: WebSocket, run_id: int):
         return
 
     await websocket.accept()
+    if settings.ATP_LOCAL_MODE:
+        # SQLite profile has no Redis broker. Poll persisted run status so the
+        # existing UI receives its terminal event and can refresh run details.
+        previous_status = None
+        try:
+            while True:
+                async with AsyncSessionLocal() as db:
+                    run = await db.get(TestRun if run_type == "case" else MobileSpecialRun, run_id)
+                    status = run.status.value if run is not None else "error"
+                if status != previous_status:
+                    await websocket.send_text(json.dumps({"type": "run_status", "run_id": run_id, "status": status}))
+                    previous_status = status
+                if status in {"passed", "failed", "error", "skipped", "cancelled", "completed", "stopped"}:
+                    await websocket.send_text(json.dumps({"type": "completed", "run_id": run_id, "status": status}))
+                    break
+                await asyncio.sleep(0.5)
+        except WebSocketDisconnect:
+            pass
+        finally:
+            try:
+                await websocket.close()
+            except Exception:
+                pass
+        return
     redis = None
     pubsub = None
     channel = f"atp:run:{run_type}:{run_id}"

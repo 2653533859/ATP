@@ -216,6 +216,16 @@ def test_list_android_worker_status_returns_registered_workers(monkeypatch):
     assert result[0]["status"] == "online"
 
 
+def test_local_android_status_does_not_query_worker_registry(monkeypatch):
+    monkeypatch.setattr(devices.settings, "ATP_LOCAL_MODE", True)
+    monkeypatch.setattr(
+        devices,
+        "list_android_workers",
+        lambda: (_ for _ in ()).throw(AssertionError("registry must not be queried")),
+    )
+    assert asyncio.run(devices.list_android_worker_status(_=None)) == []
+
+
 def test_list_android_worker_status_returns_503_when_registry_is_unavailable(monkeypatch):
     async def broken_list():
         raise devices.AndroidWorkerRegistryError("redis down")

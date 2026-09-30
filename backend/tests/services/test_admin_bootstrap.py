@@ -1,6 +1,7 @@
 """默认管理员初始化的幂等性回归。"""
 
 import pytest
+from sqlalchemy.exc import IntegrityError
 
 from app import main
 
@@ -67,3 +68,36 @@ async def test_init_admin_creates_missing_identity(monkeypatch):
     assert session.added[0].email == main.settings.FIRST_ADMIN_EMAIL
     assert session.added[0].role == main.UserRole.admin
     assert session.commit_count == 1
+
+
+@pytest.mark.asyncio
+async def test_local_init_admin_keeps_existing_single_user(monkeypatch):
+    session = _Session()
+
+    async def count_users(_query):
+        return 1
+
+    session.scalar = count_users
+    monkeypatch.setattr(main, "AsyncSessionLocal", lambda: session)
+    monkeypatch.setattr(main.settings, "ATP_LOCAL_MODE", True)
+
+    await main._init_admin()
+
+    assert session.statements == []
+    assert session.added == []
+
+
+@pytest.mark.asyncio
+async def test_init_admin_accepts_concurrent_bootstrap_winner(monkeypatch):
+    session = _Session(None, object())
+
+    async def losing_commit():
+        raise IntegrityError("insert", {}, Exception("unique"))
+
+    session.commit = losing_commit
+    monkeypatch.setattr(main, "AsyncSessionLocal", lambda: session)
+
+    await main._init_admin()
+
+    assert len(session.added) == 1
+    assert len(session.statements) == 2

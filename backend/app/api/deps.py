@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.security import decode_token
 from app.models.project import Project
 from app.models.user import User, UserRole
@@ -20,7 +21,7 @@ async def get_current_user(
     db: AsyncSession = Depends(get_db),
 ) -> User:
     # Bearer remains supported for CLI/API clients; the browser uses an HttpOnly cookie.
-    token = credentials.credentials if credentials else request.cookies.get("atp_access_token")
+    token = credentials.credentials if credentials else request.cookies.get(settings.ACCESS_COOKIE_NAME)
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:

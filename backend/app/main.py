@@ -1,11 +1,13 @@
 from contextlib import asynccontextmanager
+from pathlib import Path
 from fastapi import FastAPI, Request
+from fastapi import HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import FileResponse, JSONResponse
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 
 from app.api.v1.router import router
@@ -31,6 +33,8 @@ load_all_models()
 async def _init_admin():
     """首次启动时创建默认管理员，并对用户名/邮箱保持幂等。"""
     async with AsyncSessionLocal() as db:
+        if settings.ATP_LOCAL_MODE and await db.scalar(select(func.count(User.id))):
+            return
         admin_lookup = select(User).where(
             (User.username == settings.FIRST_ADMIN_USERNAME) | (User.email == settings.FIRST_ADMIN_EMAIL)
         )
@@ -57,7 +61,15 @@ async def _init_admin():
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_logging()
-    verify_alembic_head_or_warn()
+    if settings.ATP_LOCAL_MODE:
+        from app.core.database import sync_engine
+        from app.core.local_schema import ensure_local_schema
+        from app.core.local_run_ids import install_local_run_id_allocator
+
+        ensure_local_schema(sync_engine)
+        install_local_run_id_allocator()
+    else:
+        verify_alembic_head_or_warn()
     init_tracer(settings.OTEL_SERVICE_NAME)
 
     # 默认只通过 Alembic 管理表结构；仅在显式允许时才执行兜底建表。
@@ -72,8 +84,18 @@ async def lifespan(app: FastAPI):
 
     # 启动时执行业务初始化
     await _init_admin()
+    if settings.ATP_LOCAL_MODE:
+        from app.core.local_workspace import ensure_local_workspace
+        from app.services.local_jobs import start_local_runner
+
+        await ensure_local_workspace()
+        start_local_runner()
     yield
     # 关闭时执行
+    if settings.ATP_LOCAL_MODE:
+        from app.services.local_jobs import stop_local_runner
+
+        stop_local_runner()
     from app.api.v1.web_recordings import close_all_recordings
 
     await close_all_recordings()
@@ -100,6 +122,28 @@ app.add_middleware(
 app.add_middleware(CSRFMiddleware)
 app.add_middleware(TraceMiddleware)
 
+_LOCAL_UNSUPPORTED_WRITE_PREFIXES = (
+    "/api/v1/suites",
+    "/api/v1/plans",
+    "/api/v1/device-mirror",
+    "/api/v1/ios",
+    "/api/v1/performance",
+    "/api/v1/hermes",
+    "/api/v1/ai-",
+)
+
+
+@app.middleware("http")
+async def reject_unsupported_local_writes(request: Request, call_next):
+    if (
+        settings.ATP_LOCAL_MODE
+        and request.method not in {"GET", "HEAD", "OPTIONS"}
+        and request.url.path.startswith(_LOCAL_UNSUPPORTED_WRITE_PREFIXES)
+    ):
+        return JSONResponse(status_code=409, content={"detail": "此功能尚未纳入 Windows 本地模式首版"})
+    return await call_next(request)
+
+
 # Prometheus 指标必须在 include_router 之前，确保 instrumentator 覆盖所有 endpoint
 enable_metrics_for(app)
 
@@ -116,3 +160,20 @@ if settings.OTEL_EXPORTER_OTLP_ENDPOINT:
 @app.get("/health")
 async def health():
     return {"status": "ok"}
+
+
+if settings.ATP_LOCAL_MODE:
+    _local_frontend_dist = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+    @app.get("/{path:path}", include_in_schema=False)
+    async def local_frontend(path: str) -> FileResponse:
+        if not _local_frontend_dist.is_dir() or path.startswith(("api/", "ws/", "mock/")):
+            raise HTTPException(status_code=404)
+        asset = (_local_frontend_dist / path).resolve()
+        if not asset.is_relative_to(_local_frontend_dist.resolve()):
+            raise HTTPException(status_code=404)
+        if asset.is_file():
+            return FileResponse(asset)
+        if "." in Path(path).name:
+            raise HTTPException(status_code=404)
+        return FileResponse(_local_frontend_dist / "index.html")

@@ -97,6 +97,22 @@ async def _probe_minio() -> DependencyCheck:
 
 @router.get("/dependencies", response_model=DependencyHealthResponse)
 async def get_dependency_health(_admin=Depends(require_admin)) -> DependencyHealthResponse:
+    if settings.ATP_LOCAL_MODE:
+        database = await _probe_postgres()
+        started = perf_counter()
+        try:
+            from app.core.local_object_store import ensure_store
+
+            await asyncio.to_thread(ensure_store)
+            storage = _success(started)
+        except Exception:
+            storage = _failure(started, "unreachable")
+        dependencies = {"sqlite": database, "local_storage": storage}
+        return DependencyHealthResponse(
+            status="ok" if all(item.status == "ok" for item in dependencies.values()) else "degraded",
+            checked_at=datetime.now(timezone.utc),
+            dependencies=dependencies,
+        )
     postgres, redis, minio = await asyncio.gather(
         _probe_postgres(),
         _probe_redis(),

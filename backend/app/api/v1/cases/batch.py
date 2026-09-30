@@ -6,6 +6,7 @@ import csv
 import io
 import json
 import zipfile
+import asyncio
 from datetime import datetime, timezone
 
 import app.api.v1.cases as _cases
@@ -17,6 +18,7 @@ from sqlalchemy.orm import selectinload
 
 from app.api.deps import assert_project_access, get_current_user
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.case import CaseStatus, CaseStep, CaseType, TestCase
 from app.models.project import Module
 from app.models.user import User
@@ -29,6 +31,7 @@ from app.schemas.case import (
     CaseBatchMoveIn,
     CaseBatchOpOut,
 )
+from app.services.local_artifact_cleanup import case_run_ids, delete_run_artifacts
 
 router = APIRouter(tags=["用例管理"])
 
@@ -104,6 +107,7 @@ async def batch_delete_cases(
     await _assert_cases_access(db, current_user, list(rows), ProjectRole.editor)
     found_ids = {row.id for row in rows}
     skipped_ids = [cid for cid in requested_ids if cid not in found_ids]
+    local_run_ids = await case_run_ids(db, [row.id for row in rows]) if settings.ATP_LOCAL_MODE else []
 
     for case in rows:
         await db.delete(case)
@@ -119,6 +123,8 @@ async def batch_delete_cases(
             detail=f"批量删除用例 {len(rows)} 个: {[case.id for case in rows]}",
         )
     await db.commit()
+    if local_run_ids:
+        await asyncio.to_thread(delete_run_artifacts, local_run_ids)
     if rows:
         await _cases.invalidate_stats_cache()
 

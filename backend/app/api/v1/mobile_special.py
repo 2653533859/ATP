@@ -14,7 +14,7 @@ from app.core.database import get_db
 from app.core.minio_client import presigned_url
 from app.core.redis_client import get_json_cache, set_json_cache
 from app.models.apk import Apk
-from app.models.device import Device
+from app.models.device import Device, DeviceStatus
 from app.models.mobile_special import (
     MobileSpecialTask,
     MobileSpecialRun,
@@ -46,6 +46,8 @@ from app.api.deps import (
 from app.models.user_project import ProjectRole
 from app.services.mobile_special_control import request_cancel
 from app.services.execution_state import decide_execution_action, execution_action_rejection_detail
+from app.services.execution_routing import ANDROID_EXECUTION_QUEUE, enqueue_task
+from app.core.config import settings
 from app.services.mobile_special_events import sanitize_mobile_payload
 from app.services.project_scope import scope_to_visible_projects
 
@@ -67,10 +69,36 @@ def _calc_next_run(cron_expression: str | None) -> datetime | None:
 
 
 def _refresh_schedule_state(task: MobileSpecialTask) -> None:
+    if settings.ATP_LOCAL_MODE:
+        task.schedule_enabled = False
+        task.next_run_at = None
+        return
     if task.schedule_enabled and task.cron_expression:
         task.next_run_at = _calc_next_run(task.cron_expression)
     else:
         task.next_run_at = None
+
+
+def _enqueue_mobile_run(run_id: int) -> None:
+    from app.worker.tasks_mobile_special import run_mobile_special_task
+
+    if settings.ATP_LOCAL_MODE:
+        enqueue_task(run_mobile_special_task, (run_id,), ANDROID_EXECUTION_QUEUE)
+    else:
+        run_mobile_special_task.delay(run_id)
+
+
+async def _enqueue_mobile_run_or_fail(run: MobileSpecialRun, db: AsyncSession) -> None:
+    try:
+        _enqueue_mobile_run(run.id)
+    except Exception as exc:
+        if settings.ATP_LOCAL_MODE:
+            run.status = RunStatus.failed
+            run.finished_at = datetime.now(timezone.utc)
+            run.summary_json = {"error_message": "本地执行任务投递失败"}
+            await db.commit()
+            raise HTTPException(status_code=503, detail="本地执行任务投递失败，请检查 SQLite 状态") from exc
+        raise
 
 
 async def _resolve_apk_package(
@@ -200,6 +228,8 @@ async def create_task(
 ):
     """Create a new mobile special task."""
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
+    if settings.ATP_LOCAL_MODE and body.schedule_enabled:
+        raise HTTPException(status_code=409, detail="本地 Android 模式仅支持手动执行")
     data = body.model_dump(exclude={"created_by"})
     await _validate_device(db, body.device_id)
     apk_package = await _resolve_apk_package(db, body.project_id, body.apk_id)
@@ -247,6 +277,8 @@ async def update_task(
     await assert_project_access(db, current_user, task.project_id, ProjectRole.editor)
 
     update_data = body.model_dump(exclude_unset=True)
+    if settings.ATP_LOCAL_MODE and update_data.get("schedule_enabled"):
+        raise HTTPException(status_code=409, detail="本地 Android 模式仅支持手动执行")
     if "device_id" in update_data:
         await _validate_device(db, update_data["device_id"])
     selected_apk_id = update_data.get("apk_id", task.apk_id)
@@ -301,6 +333,13 @@ async def trigger_task_run(
     selected_device_id = body.device_id if body.device_id is not None else task.device_id
     selected_apk_id = body.apk_id if body.apk_id is not None else task.apk_id
     await _validate_device(db, selected_device_id)
+    if settings.ATP_LOCAL_MODE:
+        if selected_device_id is None and not config.get("device_serial"):
+            raise HTTPException(status_code=409, detail="请先连接 Android 设备并在 APP 工作台扫描后选择设备")
+        if selected_device_id is not None:
+            selected_device = await db.get(Device, selected_device_id)
+            if selected_device is None or selected_device.status != DeviceStatus.online:
+                raise HTTPException(status_code=409, detail="所选 Android 设备不在线，请重新扫描")
     selected_apk_package = await _resolve_apk_package(db, task.project_id, selected_apk_id)
     if body.device_id is not None:
         config["device_id"] = body.device_id
@@ -327,10 +366,7 @@ async def trigger_task_run(
     await db.commit()
     await db.refresh(run)
 
-    # 异步触发 Celery 任务
-    from app.worker.tasks_mobile_special import run_mobile_special_task
-
-    run_mobile_special_task.delay(run.id)
+    await _enqueue_mobile_run_or_fail(run, db)
 
     return run
 
@@ -396,9 +432,7 @@ async def replay_run(
     await db.commit()
     await db.refresh(replay)
 
-    from app.worker.tasks_mobile_special import run_mobile_special_task
-
-    run_mobile_special_task.delay(replay.id)
+    await _enqueue_mobile_run_or_fail(replay, db)
     return replay
 
 
@@ -814,10 +848,10 @@ async def get_mobile_special_trend(
 ):
     """Get daily trend statistics for mobile special testing."""
     from datetime import timedelta
-    from sqlalchemy import cast, Date
+    from app.services.date_bucket import date_bucket
 
     since = datetime.now(timezone.utc) - timedelta(days=days)
-    date_col = cast(MobileSpecialRun.created_at, Date).label("date")
+    date_col = date_bucket(MobileSpecialRun.created_at, "daily").label("date")
 
     completed_filter = MobileSpecialRun.status == RunStatus.completed
     failed_filter = MobileSpecialRun.status == RunStatus.failed

@@ -7,6 +7,7 @@ import re
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
+from app.core.config import settings
 from app.core.url_security import validate_public_http_url
 
 
@@ -52,6 +53,10 @@ def validate_browser_request_url(value: str) -> str:
         return normalized
     if scheme not in _BROWSER_NETWORK_SCHEMES or not parsed.hostname:
         raise ValueError("浏览器请求协议不被允许")
+    if settings.ATP_LOCAL_MODE and parsed.hostname.lower() in {"localhost", "127.0.0.1", "::1"}:
+        if parsed.username or parsed.password:
+            raise ValueError("本地浏览器地址不能包含凭据")
+        return normalized
     if scheme in {"ws", "wss"}:
         http_scheme = "https" if scheme == "wss" else "http"
         normalized_for_http = urlunsplit((http_scheme, parsed.netloc, parsed.path, parsed.query, ""))
