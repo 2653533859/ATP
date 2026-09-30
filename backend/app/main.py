@@ -130,7 +130,6 @@ _LOCAL_UNSUPPORTED_WRITE_PREFIXES = (
     "/api/v1/performance",
     "/api/v1/hermes",
     "/api/v1/ai-",
-    "/api/v1/web-recordings",
 )
 
 
