@@ -890,11 +890,13 @@ function onLocaleChange(value: unknown) {
 }
 
 .app-content {
+  min-width: 0;
   padding: 20px;
   background: var(--c-bg-body);
   min-height: calc(100vh - 60px);
 }
 .content-card {
+  min-width: 0;
   background: var(--c-bg-elevated);
   border: 1px solid var(--c-border);
   border-radius: var(--radius-lg);
