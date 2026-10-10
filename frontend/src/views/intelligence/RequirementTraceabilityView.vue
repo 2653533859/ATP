@@ -6,7 +6,6 @@
           <LinkOutlined class="toolbar-icon" />
           <span class="toolbar-name">{{ t('requirement_trace.title') }}</span>
         </div>
-        <div class="toolbar-sep">/</div>
         <div class="toolbar-project">
           <label for="requirement-project" class="sr-only">{{ t('requirement_trace.project_label') }}</label>
           <a-select

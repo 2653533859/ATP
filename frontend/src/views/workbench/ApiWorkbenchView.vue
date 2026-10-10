@@ -6,7 +6,6 @@
           <ApiOutlined class="toolbar-icon" />
           <span class="toolbar-name">{{ t('api_workbench.title') }}</span>
         </div>
-        <div class="toolbar-sep">/</div>
         <div class="toolbar-project">
           <label class="sr-only">{{ t('api_workbench.project_label') }}</label>
           <a-select
@@ -44,34 +43,39 @@
     <a-empty v-if="!selectedProjectId" class="project-empty" :description="t('api_workbench.select_project_hint')" />
 
     <template v-else>
-      <section class="signal-grid" aria-label="API workspace summary">
-        <div class="signal-card signal-card-primary">
-          <span class="signal-label">{{ t('api_workbench.signals.api_cases') }}</span>
-          <strong>{{ filteredCases.length }}</strong>
-          <span class="signal-note">{{ selectedModuleId ? t('api_workbench.signals.module_scope') : t('api_workbench.signals.project_scope') }}</span>
-        </div>
-        <div class="signal-card">
-          <span class="signal-label">{{ t('api_workbench.signals.ready') }}</span>
-          <strong>{{ readyCount }}</strong>
-          <span class="signal-note">{{ t('api_workbench.signals.ready_note') }}</span>
-        </div>
-        <div class="signal-card">
-          <span class="signal-label">{{ t('api_workbench.signals.recent_pass_rate') }}</span>
-          <strong>{{ recentPassRate }}%</strong>
-          <span class="signal-note">{{ t('api_workbench.signals.recent_note') }}</span>
-        </div>
-        <div class="signal-card signal-card-run">
-          <span class="signal-label">{{ t('api_workbench.signals.last_activity') }}</span>
-          <strong>{{ lastActivityLabel }}</strong>
-          <span class="signal-note">{{ lastActivityTime }}</span>
-        </div>
-      </section>
+      <section class="workspace-frame">
+        <aside class="collections-pane">
+          <!-- 顶部双胶囊分段模式切换器 -->
+          <div class="workbench-mode-pill-container">
+            <div class="workbench-mode-pill">
+              <button
+                type="button"
+                class="mode-pill-item"
+                :class="{ 'is-active': !isAutomationMode }"
+                @click="setAutomationMode(false)"
+              >
+                <ApiOutlined class="mode-pill-icon" />
+                <span>{{ t('api_workbench.mode_debug') }}</span>
+              </button>
+              <button
+                type="button"
+                class="mode-pill-item mode-pill-automation"
+                :class="{ 'is-active': isAutomationMode }"
+                @click="setAutomationMode(true)"
+              >
+                <ThunderboltOutlined class="mode-pill-icon" />
+                <span>{{ t('api_workbench.mode_automation') }}</span>
+              </button>
+            </div>
+          </div>
 
-      <section class="workbench-frame">
-        <aside class="module-column">
-          <div class="column-kicker">{{ t('api_workbench.module_kicker') }}</div>
-          <h2>{{ t('api_workbench.module_title') }}</h2>
-          <p class="column-description">{{ t('api_workbench.module_description') }}</p>
+          <div class="collections-heading">
+            <div>
+              <span class="column-kicker">{{ t('api_workbench.console.collection') }}</span>
+              <h2>{{ t('api_workbench.module_title') }}</h2>
+            </div>
+            <a-button size="small" type="text" :title="t('api_workbench.console.new_request')" @click="startNewRequest"><PlusOutlined /></a-button>
+          </div>
           <ModuleTree
             :key="selectedProjectId"
             :project-id="selectedProjectId"
@@ -81,85 +85,90 @@
             @select="handleModuleSelect"
             @reset="handleModuleReset"
           />
-          <div class="protocol-key">
-            <div class="column-kicker">{{ t('api_workbench.protocol_kicker') }}</div>
-            <div v-for="protocol in API_CASE_TYPES" :key="protocol" class="protocol-key-row">
-              <span class="protocol-mark" :class="`protocol-${protocol}`" />
-              <span>{{ protocolLabel(protocol) }}</span>
+          <div class="collection-separator">
+            <div class="separator-left-meta">
+              <span>{{ isAutomationMode ? '待编排接口列表' : t('api_workbench.console.saved_requests') }}</span>
+              <span class="count-tag">{{ filteredCases.length }}</span>
             </div>
+            <div v-if="isAutomationMode" class="separator-right-meta">
+              <span class="automation-badge-indicator">⚡ 多选编排中</span>
+            </div>
+          </div>
+          <div class="collection-filters">
+            <a-input-search v-model:value="keyword" allow-clear :placeholder="t('api_workbench.search_placeholder')" @search="loadCases" />
+            <a-select v-model:value="protocolFilter" :options="protocolOptions" @change="loadCases" />
+          </div>
+          <div class="request-list" :aria-label="t('api_workbench.console.saved_requests')">
+            <a-spin :spinning="loading">
+              <div v-if="!filteredCases.length" class="request-list-empty">{{ t('api_workbench.empty_cases') }}</div>
+              <div
+                v-for="item in filteredCases"
+                :key="item.id"
+                class="request-list-item"
+                :class="{ 'is-selected': selectedCase?.id === item.id, 'is-batch-checked': selectedBatchCaseIds.includes(item.id) }"
+                @click="handleRequestItemClick(item)"
+              >
+                <a-checkbox
+                  v-if="isAutomationMode"
+                  :checked="selectedBatchCaseIds.includes(item.id)"
+                  class="batch-checkbox"
+                  @click.stop="toggleBatchSelectCase(item.id)"
+                />
+                <span v-if="item.is_scenario" class="request-list-method method-scenario">场景</span>
+                <span v-else class="request-list-method" :class="`method-${item.case_type}`">{{ requestMethod(item) }}</span>
+                <span class="request-list-text"><strong>{{ item.name }}</strong><small>{{ item.case_code }}</small></span>
+                <span class="request-list-state" :class="`run-${lastRunStatus(item)}`" />
+              </div>
+            </a-spin>
+          </div>
+
+          <!-- 自动化编排模式悬浮操作栏 -->
+          <div v-if="isAutomationMode && selectedBatchCaseIds.length" class="workbench-automation-bar">
+            <div class="automation-bar-header">
+              <span class="automation-selected-count">{{ t('api_workbench.batch_selected_count', { count: selectedBatchCaseIds.length }) }}</span>
+              <a-space size="small">
+                <a-button type="link" size="small" @click="selectAllFiltered">{{ t('api_workbench.batch_select_all') }}</a-button>
+                <a-button type="link" size="small" @click="selectedBatchCaseIds = []">{{ t('api_workbench.batch_clear_all') }}</a-button>
+              </a-space>
+            </div>
+            <div class="automation-bar-buttons">
+              <a-button
+                block
+                type="primary"
+                size="small"
+                :disabled="!canModify"
+                :loading="orchestratingLoading"
+                @click="orchestrateSelectedIntoScenario"
+              >
+                <ClusterOutlined /> {{ t('api_workbench.batch_orchestrate_scenario') }}
+              </a-button>
+              <a-button
+                block
+                size="small"
+                :disabled="!canModify"
+                :loading="batchRunning"
+                @click="openBatchRunModal"
+              >
+                <PlayCircleOutlined /> {{ t('api_workbench.batch_run_selected') }}
+              </a-button>
+            </div>
+          </div>
+          <div class="collection-actions">
+            <a-button block :disabled="!selectedModuleId || !canModify" @click="openCreate"><PlusOutlined />{{ t('api_workbench.new_case') }}</a-button>
+            <a-button block :disabled="!selectedModuleId || !canModify" @click="openImport"><ThunderboltOutlined />{{ t('api_workbench.import_generate') }}</a-button>
           </div>
         </aside>
-
-        <main class="case-column">
-          <div class="case-toolbar">
-            <div>
-              <div class="column-kicker">{{ t('api_workbench.case_kicker') }}</div>
-              <h2>{{ selectedModuleName || t('api_workbench.all_modules') }}</h2>
-              <p>{{ t('api_workbench.case_description') }}</p>
-            </div>
-            <div class="toolbar-actions">
-              <a-button :disabled="!selectedModuleId || !canModify" @click="openImport">
-                <ThunderboltOutlined /> {{ t('api_workbench.import_generate') }}
-              </a-button>
-              <a-button type="primary" :disabled="!selectedModuleId || !canModify" @click="openCreate">
-                <PlusOutlined /> {{ t('api_workbench.new_case') }}
-              </a-button>
-            </div>
-          </div>
-
-          <div class="filter-strip">
-            <a-input-search
-              v-model:value="keyword"
-              allow-clear
-              :placeholder="t('api_workbench.search_placeholder')"
-              @search="loadCases"
-            />
-            <a-select v-model:value="protocolFilter" :options="protocolOptions" @change="loadCases" />
-            <a-button type="text" @click="resetFilters"><FilterOutlined /> {{ t('common.reset') }}</a-button>
-          </div>
-
-          <a-table
-            :data-source="filteredCases"
-            :columns="columns"
-            :loading="loading"
-            row-key="id"
-            :pagination="{ pageSize: 10, hideOnSinglePage: true }"
-            :locale="{ emptyText: t('api_workbench.empty_cases') }"
-            class="api-case-table"
-          >
-            <template #bodyCell="{ column, record }">
-              <template v-if="column.key === 'name'">
-                <button class="case-name-button" type="button" @click="openDetail(asCase(record))">
-                  {{ asCase(record).name }}
-                </button>
-                <div class="case-code">{{ asCase(record).case_code }}</div>
-              </template>
-              <template v-else-if="column.key === 'protocol'">
-                <a-tag :color="protocolColor(asCase(record).case_type)">{{ protocolLabel(asCase(record).case_type as ApiCaseType) }}</a-tag>
-              </template>
-              <template v-else-if="column.key === 'level'">
-                <span class="level-chip">{{ t(`case.levels.${asCase(record).case_level}`) }}</span>
-              </template>
-              <template v-else-if="column.key === 'last_run'">
-                <span class="run-state" :class="`run-${lastRunStatus(asCase(record))}`">
-                  <span class="state-dot" /> {{ runStatusLabel(lastRunStatus(asCase(record))) }}
-                </span>
-              </template>
-              <template v-else-if="column.key === 'updated_at'">
-                <span class="muted-cell">{{ formatTime(asCase(record).updated_at) }}</span>
-              </template>
-              <template v-else-if="column.key === 'action'">
-                <a-space size="small">
-                  <a-button type="link" size="small" @click="openDetail(asCase(record))">{{ t('common.view_detail') }}</a-button>
-                  <a-button type="link" size="small" :disabled="!canModify" @click="openEdit(asCase(record))">{{ t('common.edit') }}</a-button>
-                  <a-button type="link" size="small" :disabled="!canModify || !asCase(record).is_ready_for_execution" @click="openRun(asCase(record))">
-                    <PlayCircleOutlined /> {{ t('api_workbench.run') }}
-                  </a-button>
-                </a-space>
-              </template>
-            </template>
-          </a-table>
-        </main>
+        <ApiRequestConsole
+          :project-id="selectedProjectId"
+          :module-id="selectedModuleId"
+          :can-modify="canModify"
+          :case-detail="selectedCaseDetail"
+          :reset-key="consoleResetKey"
+          @save-draft="saveDraftAsCase"
+          @edit="editSelectedCase"
+          @detail="viewSelectedCase"
+          @run="runSelectedCase"
+        />
       </section>
     </template>
 
@@ -234,7 +243,9 @@
       :project-id="selectedProjectId"
       :module-id="selectedModuleId"
       :edit-case="editingCase"
-      :default-case-type="defaultCaseType"
+      :draft-request="draftRequest"
+      :default-case-type="draftRequest ? 'api' : defaultCaseType"
+      :initial-scenario-steps="initialScenarioSteps"
       @close="closeCaseForm"
       @saved="handleSaved"
     />
@@ -247,6 +258,33 @@
       @close="importDrawerOpen = false"
       @saved="handleSaved"
     />
+
+    <a-modal
+      v-model:open="batchRunModalOpen"
+      :title="t('api_workbench.batch_run_confirm_title')"
+      :confirm-loading="batchRunning"
+      @ok="confirmBatchRun"
+    >
+      <a-form layout="vertical">
+        <a-form-item :label="t('api_workbench.batch_selected_count', { count: selectedBatchCaseIds.length })">
+          <div class="batch-run-cases-preview">
+            <a-tag v-for="id in selectedBatchCaseIds" :key="id" color="blue">
+              {{ cases.find(c => c.id === id)?.name || `#${id}` }}
+            </a-tag>
+          </div>
+        </a-form-item>
+        <a-form-item :label="t('api_workbench.environment_label')">
+          <a-select
+            v-model:value="batchRunEnvironmentId"
+            allow-clear
+            :options="environmentOptions"
+            :placeholder="t('api_workbench.environment_placeholder')"
+            style="width: 100%"
+          />
+          <div class="form-hint">{{ t('api_workbench.environment_hint') }}</div>
+        </a-form-item>
+      </a-form>
+    </a-modal>
   </div>
 </template>
 
@@ -255,12 +293,13 @@ import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   ApiOutlined,
-  FilterOutlined,
   PlayCircleOutlined,
   PlusOutlined,
   ReloadOutlined,
   ThunderboltOutlined,
+  ClusterOutlined,
 } from '@ant-design/icons-vue'
+import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
@@ -268,6 +307,7 @@ import {
   environmentApi,
   projectApi,
   runApi,
+  type ApiRequestPreviewPayload,
   type CaseDetailItem,
   type CaseSummaryItem,
   type CaseType,
@@ -277,6 +317,7 @@ import {
 } from '@/api'
 import ModuleTree from '@/components/common/ModuleTree.vue'
 import CaseFormDrawer from '@/components/common/CaseFormDrawer.vue'
+import ApiRequestConsole from './components/ApiRequestConsole.vue'
 import AIGenerateDrawer from '@/views/case/AIGenerateDrawer.vue'
 import { canEditProjectByRole } from '@/utils/permissions'
 import { useAuthStore } from '@/stores/auth'
@@ -312,11 +353,134 @@ const selectedCase = ref<CaseSummaryItem | null>(null)
 const selectedCaseDetail = ref<CaseDetailItem | null>(null)
 const caseFormOpen = ref(false)
 const editingCase = ref<CaseDetailItem | null>(null)
+const draftRequest = ref<ApiRequestPreviewPayload | null>(null)
+const consoleResetKey = ref(0)
 const importDrawerOpen = ref(false)
 const runModalOpen = ref(false)
 const runLoading = ref(false)
 const pendingRunCase = ref<CaseSummaryItem | null>(null)
 const runEnvironmentId = ref<number | undefined>(undefined)
+const isAutomationMode = ref(false)
+const selectedBatchCaseIds = ref<number[]>([])
+const orchestratingLoading = ref(false)
+const batchRunning = ref(false)
+const initialScenarioSteps = ref<ApiScenarioStep[] | null>(null)
+const batchRunModalOpen = ref(false)
+const batchRunEnvironmentId = ref<number | undefined>(undefined)
+
+function setAutomationMode(val: boolean) {
+  isAutomationMode.value = val
+  if (!val) {
+    selectedBatchCaseIds.value = []
+  }
+}
+
+function toggleBatchSelectCase(id: number) {
+  const idx = selectedBatchCaseIds.value.indexOf(id)
+  if (idx > -1) {
+    selectedBatchCaseIds.value.splice(idx, 1)
+  } else {
+    selectedBatchCaseIds.value.push(id)
+  }
+}
+
+function selectAllFiltered() {
+  selectedBatchCaseIds.value = filteredCases.value.map((c) => c.id)
+}
+
+function handleRequestItemClick(item: CaseSummaryItem) {
+  if (isAutomationMode.value) {
+    toggleBatchSelectCase(item.id)
+  } else {
+    selectRequest(item)
+  }
+}
+
+async function orchestrateSelectedIntoScenario() {
+  if (!selectedBatchCaseIds.value.length) return
+  orchestratingLoading.value = true
+  try {
+    const steps: ApiScenarioStep[] = []
+    let resolvedModuleId = selectedModuleId.value
+    for (let i = 0; i < selectedBatchCaseIds.value.length; i++) {
+      const id = selectedBatchCaseIds.value[i]
+      try {
+        const detail = await caseApi.get(id)
+        if (!resolvedModuleId && detail.module_id) {
+          resolvedModuleId = detail.module_id
+        }
+        const parsed = parseStepFromCase(detail)
+        steps.push({
+          ...parsed,
+          depends_on: i > 0 ? [i - 1] : [],
+        })
+      } catch {
+        const fallback = filteredCases.value.find((c) => c.id === id)
+        if (fallback) {
+          if (!resolvedModuleId && fallback.module_id) {
+            resolvedModuleId = fallback.module_id
+          }
+          steps.push({
+            name: fallback.name,
+            method: requestMethod(fallback),
+            url: '',
+            headers: {},
+            params: {},
+            cookies: {},
+            body_type: 'none',
+            body: '',
+            assertions: [],
+            extractions: [],
+            depends_on: i > 0 ? [i - 1] : [],
+          })
+        }
+      }
+    }
+    if (!resolvedModuleId && filteredCases.value.length) {
+      resolvedModuleId = filteredCases.value[0]?.module_id ?? null
+    }
+    if (resolvedModuleId) {
+      selectedModuleId.value = resolvedModuleId
+    }
+    initialScenarioSteps.value = steps
+    editingCase.value = null
+    draftRequest.value = null
+    caseFormOpen.value = true
+  } finally {
+    orchestratingLoading.value = false
+  }
+}
+
+function openBatchRunModal() {
+  if (!selectedBatchCaseIds.value.length) return
+  batchRunModalOpen.value = true
+  batchRunEnvironmentId.value = undefined
+}
+
+async function confirmBatchRun() {
+  if (!selectedBatchCaseIds.value.length) return
+  batchRunning.value = true
+  try {
+    let triggered = 0
+    for (const id of selectedBatchCaseIds.value) {
+      try {
+        await caseApi.run(id, { env_id: batchRunEnvironmentId.value })
+        triggered++
+      } catch {
+        // continue running other selected cases
+      }
+    }
+    message.success(t('api_workbench.batch_run_success', { count: triggered }))
+    batchRunModalOpen.value = false
+    selectedBatchCaseIds.value = []
+    if (selectedProjectId.value) {
+      void loadRecentRuns(filteredCases.value.map((c) => c.id))
+    }
+  } finally {
+    batchRunning.value = false
+  }
+}
+
 let loadSequence = 0
 let detailSequence = 0
 let environmentSequence = 0
@@ -328,7 +492,6 @@ const projectOptions = computed(() => projects.value.map((project) => ({
 })) )
 const selectedProject = computed(() => projects.value.find((project) => project.id === selectedProjectId.value))
 const selectedProjectName = computed(() => selectedProject.value?.name || '')
-const selectedModuleName = computed(() => selectedModuleId.value ? t('api_workbench.selected_module', { id: selectedModuleId.value }) : '')
 const canModify = computed(() => canEditProjectByRole(auth.user?.role, selectedProject.value?.current_user_role))
 const defaultCaseType = computed<CaseType>(() => protocolFilter.value === 'all' ? 'api' : protocolFilter.value)
 const protocolOptions = computed(() => [
@@ -339,17 +502,17 @@ const environmentOptions = computed(() => environments.value.map((environment) =
   label: environment.name,
   value: environment.id,
 })) )
-const filteredCases = computed(() => cases.value.filter((item) => protocolFilter.value === 'all' || item.case_type === protocolFilter.value))
-const readyCount = computed(() => filteredCases.value.filter((item) => item.is_ready_for_execution).length)
-const recentApiRuns = computed(() => recentRuns.value.filter((run) => cases.value.some((item) => item.id === run.case_id)))
-const recentPassRate = computed(() => {
-  if (!recentApiRuns.value.length) return 0
-  const passed = recentApiRuns.value.filter((run) => run.status === 'passed').length
-  return Math.round((passed / recentApiRuns.value.length) * 100)
+const filteredCases = computed(() => {
+  return cases.value.filter((item) => {
+    if (protocolFilter.value !== 'all' && item.case_type !== protocolFilter.value) {
+      return false
+    }
+    if (isAutomationMode.value && item.is_scenario) {
+      return false
+    }
+    return true
+  })
 })
-const lastActivity = computed(() => recentApiRuns.value[0])
-const lastActivityLabel = computed(() => lastActivity.value ? runStatusLabel(lastActivity.value.status) : t('api_workbench.no_activity'))
-const lastActivityTime = computed(() => lastActivity.value ? formatTime(lastActivity.value.created_at) : t('api_workbench.no_activity_hint'))
 const selectedSteps = computed(() => {
   const raw = selectedCaseDetail.value?.config?.steps
   return Array.isArray(raw) ? raw as Array<Record<string, unknown>> : []
@@ -363,24 +526,11 @@ const selectedRequest = computed(() => {
 })
 const selectedAssertionCount = computed(() => selectedSteps.value.reduce((sum, step) => sum + (Array.isArray(step.assertions) ? step.assertions.length : 0), 0))
 const selectedRunHistory = computed(() => selectedCase.value ? recentRuns.value.filter((run) => run.case_id === selectedCase.value?.id).slice(0, 8) : [])
-const columns = computed(() => [
-  { title: t('api_workbench.columns.name'), key: 'name', width: 250 },
-  { title: t('api_workbench.columns.protocol'), key: 'protocol', width: 120 },
-  { title: t('api_workbench.columns.priority'), dataIndex: 'priority', key: 'priority', width: 90 },
-  { title: t('api_workbench.columns.level'), key: 'level', width: 100 },
-  { title: t('api_workbench.columns.last_run'), key: 'last_run', width: 130 },
-  { title: t('api_workbench.columns.updated_at'), key: 'updated_at', width: 150 },
-  { title: t('api_workbench.columns.action'), key: 'action', width: 250 },
-])
 
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
-}
-
-function asCase(record: unknown) {
-  return record as CaseSummaryItem
 }
 
 function errorMessage(error: unknown, fallback: string) {
@@ -398,6 +548,10 @@ function protocolLabel(protocol: ApiCaseType | CaseType) {
 
 function protocolColor(protocol: CaseType) {
   return ({ api: 'blue', graphql: 'orange', websocket: 'cyan', grpc: 'purple' } as Record<string, string>)[protocol] || 'default'
+}
+
+function requestMethod(item: CaseSummaryItem) {
+  return ({ api: 'HTTP', graphql: 'GQL', websocket: 'WS', grpc: 'RPC' } as Record<string, string>)[item.case_type] || 'API'
 }
 
 function formatTime(value?: string | null) {
@@ -511,12 +665,17 @@ async function loadProjects() {
 async function handleProjectChange(value: unknown) {
   selectedProjectId.value = positiveInt(value)
   selectedModuleId.value = null
+  startNewRequest()
   await Promise.all([loadEnvironments(), loadCases()])
   syncRoute()
 }
 
 async function handleModuleSelect(moduleId: number | null) {
   selectedModuleId.value = moduleId
+  if (selectedCase.value && selectedCase.value.module_id !== moduleId) {
+    selectedCase.value = null
+    selectedCaseDetail.value = null
+  }
   await loadCases()
   syncRoute()
 }
@@ -532,12 +691,6 @@ async function refreshWorkbench() {
   await loadProjects()
 }
 
-function resetFilters() {
-  keyword.value = ''
-  protocolFilter.value = 'all'
-  void loadCases()
-}
-
 function openCreate() {
   if (!selectedModuleId.value) {
     message.warning(t('api_workbench.select_module_first'))
@@ -549,7 +702,60 @@ function openCreate() {
   }
   invalidateDetailRequest()
   editingCase.value = null
+  draftRequest.value = null
   caseFormOpen.value = true
+}
+
+function startNewRequest() {
+  invalidateDetailRequest()
+  selectedCase.value = null
+  selectedCaseDetail.value = null
+  detailOpen.value = false
+  consoleResetKey.value += 1
+}
+
+async function selectRequest(item: CaseSummaryItem) {
+  if (item.case_type !== 'api') {
+    startNewRequest()
+    await openDetail(item)
+    return
+  }
+  const sequence = ++detailSequence
+  selectedCase.value = item
+  selectedCaseDetail.value = null
+  detailOpen.value = false
+  detailLoading.value = true
+  try {
+    const detail = await caseApi.get(item.id)
+    if (sequence !== detailSequence) return
+    selectedCaseDetail.value = detail
+  } catch (error: unknown) {
+    if (sequence === detailSequence) message.error(errorMessage(error, t('api_workbench.detail_failed')))
+  } finally {
+    if (sequence === detailSequence) detailLoading.value = false
+  }
+}
+
+function saveDraftAsCase(value: ApiRequestPreviewPayload) {
+  if (!selectedModuleId.value || !canModify.value) {
+    message.warning(t('api_workbench.select_module_first'))
+    return
+  }
+  editingCase.value = null
+  draftRequest.value = value
+  caseFormOpen.value = true
+}
+
+function editSelectedCase() {
+  if (selectedCase.value) void openEdit(selectedCase.value)
+}
+
+function viewSelectedCase() {
+  if (selectedCase.value) void openDetail(selectedCase.value)
+}
+
+function runSelectedCase() {
+  if (selectedCase.value) openRun(selectedCase.value)
 }
 
 function invalidateDetailRequest() {
@@ -561,10 +767,13 @@ function closeCaseForm() {
   invalidateDetailRequest()
   caseFormOpen.value = false
   editingCase.value = null
+  draftRequest.value = null
+  initialScenarioSteps.value = null
 }
 
 async function openEdit(item: CaseSummaryItem) {
   if (!canModify.value) return
+  draftRequest.value = null
   const sequence = ++detailSequence
   detailLoading.value = true
   try {
@@ -607,6 +816,8 @@ function openImport() {
 function handleSaved() {
   invalidateDetailRequest()
   caseFormOpen.value = false
+  draftRequest.value = null
+  initialScenarioSteps.value = null
   importDrawerOpen.value = false
   void loadCases()
 }
@@ -729,38 +940,31 @@ onMounted(() => {
 .readonly-alert { margin-top: 16px; }
 .project-empty { min-height: 320px; padding: 100px 0; }
 
-.signal-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin: 20px 0; }
-.signal-card { position: relative; min-height: 104px; overflow: hidden; padding: 16px 18px; border: 1px solid var(--c-border); border-radius: var(--radius-md); background: var(--c-bg-elevated); box-shadow: var(--shadow-xs); transition: all 0.2s ease; }
-.signal-card:hover { border-color: var(--c-border-strong); transform: translateY(-2px); box-shadow: var(--shadow-md); }
-.signal-card::after { position: absolute; right: 0; bottom: 0; width: 44px; height: 3px; background: var(--c-border-strong); content: ''; }
-.signal-card-primary { border-color: var(--c-primary-glow); background: var(--c-primary-soft); }
-.signal-card-primary::after { background: var(--c-primary); }
-.signal-card-run::after { background: var(--c-warning); }
-.signal-label { display: block; color: var(--c-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
-.signal-card strong { display: block; margin-top: 8px; color: var(--c-text); font-size: 26px; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
-.signal-note { display: block; margin-top: 4px; color: var(--c-text-tertiary); font-size: 11px; }
-
-.workbench-frame { display: grid; grid-template-columns: 240px minmax(0, 1fr); min-height: 540px; overflow: hidden; border: 1px solid var(--c-border); border-radius: var(--radius-lg); background: var(--c-bg-elevated); box-shadow: var(--shadow-sm); }
-.module-column { padding: 20px 16px; border-right: 1px solid var(--c-border); background: var(--c-bg-subtle); }
-.module-column h2, .case-column h2 { margin: 5px 0 4px; color: var(--c-text); font-size: 17px; font-weight: 700; letter-spacing: -.02em; }
-.column-description { margin: 0 0 16px; color: var(--c-text-secondary); font-size: 12px; line-height: 1.5; }
-.protocol-key { margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--c-border); }
-.protocol-key-row { display: flex; align-items: center; gap: 8px; margin-top: 8px; color: var(--c-text-secondary); font-size: 12px; }
-.protocol-mark { width: 8px; height: 8px; border-radius: 2px; background: var(--c-text-tertiary); }
-.protocol-api { background: var(--c-info); }.protocol-graphql { background: var(--c-warning); }.protocol-websocket { background: var(--c-success); }.protocol-grpc { background: var(--c-ai); }
-.case-column { min-width: 0; padding: 22px 24px; }
-.case-toolbar { display: flex; justify-content: space-between; gap: 18px; padding-bottom: 16px; border-bottom: 1px solid var(--c-border); }
-.case-toolbar p { margin: 0; color: var(--c-text-secondary); font-size: 12px; }
-.toolbar-actions { display: flex; flex-shrink: 0; align-items: flex-start; gap: 8px; }
-.filter-strip { display: flex; align-items: center; gap: 10px; padding: 16px 0; }
-.filter-strip .ant-input-search { width: 260px; }
-.filter-strip .ant-select { width: 150px; }
-.api-case-table :deep(.ant-table-thead > tr > th) { color: var(--c-text-secondary); background: var(--c-bg-subtle); font-size: 11px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.api-case-table :deep(.ant-table-tbody > tr > td) { padding-top: 14px; padding-bottom: 14px; }
-.case-name-button { display: block; max-width: 250px; overflow: hidden; padding: 0; border: 0; background: transparent; color: var(--c-primary); cursor: pointer; font-size: 13px; font-weight: 600; text-align: left; text-overflow: ellipsis; white-space: nowrap; transition: color 0.15s ease; }
-.case-name-button:hover, .case-name-button:focus-visible { color: var(--c-primary-hover); text-decoration: underline; outline: none; }
+.workspace-frame { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 710px; overflow: hidden; border: 1px solid var(--c-border); border-radius: var(--radius-lg); background: var(--c-bg-elevated); box-shadow: var(--shadow-sm); }
+.collections-pane { min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--c-border); background: var(--c-bg-subtle); }
+.collections-heading { display: flex; align-items: center; justify-content: space-between; padding: 17px 16px 12px; }
+.collections-heading h2 { margin: 3px 0 0; color: var(--c-text); font-size: 15px; font-weight: 700; }
+.column-kicker { color: var(--c-text-tertiary); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
+.collections-pane :deep(.module-tree) { padding: 0 12px; }
+.collection-separator { display: flex; justify-content: space-between; padding: 15px 16px 8px; color: var(--c-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .04em; }
+.collection-filters { display: grid; gap: 8px; padding: 0 12px 12px; }
+.collection-filters :deep(.ant-select) { width: 100%; }
+.request-list { min-height: 220px; max-height: 48vh; flex: 1; overflow: auto; border-top: 1px solid var(--c-border-subtle); }
+.request-list-empty { padding: 27px 18px; color: var(--c-text-tertiary); font-size: 12px; line-height: 1.6; }
+.request-list-item { display: flex; align-items: center; width: 100%; gap: 9px; padding: 10px 13px; border: 0; border-bottom: 1px solid var(--c-border-subtle); background: transparent; text-align: left; cursor: pointer; color: var(--c-text); }
+.request-list-item:hover, .request-list-item:focus-visible { background: var(--c-bg-muted); outline: none; }
+.request-list-item.is-selected { background: var(--c-primary-soft); box-shadow: inset 3px 0 var(--c-primary); color: var(--c-primary); }
+.request-list-method { width: 36px; flex-shrink: 0; color: var(--c-primary); font: 700 10px 'JetBrains Mono', Consolas, monospace; }
+.request-list-method.method-graphql { color: #a87913; }.request-list-method.method-websocket { color: #208372; }.request-list-method.method-grpc { color: #7662bb; }
+.request-list-text { min-width: 0; flex: 1; }
+.request-list-text strong, .request-list-text small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.request-list-text strong { color: var(--c-text); font-size: 12px; font-weight: 600; }
+.request-list-text small { margin-top: 3px; color: var(--c-text-tertiary); font: 10px 'JetBrains Mono', Consolas, monospace; }
+.request-list-state { width: 6px; height: 6px; flex-shrink: 0; border-radius: 50%; background: var(--c-border-strong); }
+.request-list-state.run-passed { background: var(--c-success); }.request-list-state.run-failed, .request-list-state.run-error { background: var(--c-error); }
+.collection-actions { display: grid; gap: 7px; padding: 12px; border-top: 1px solid var(--c-border); background: var(--c-bg-subtle); }
+.collection-actions :deep(.ant-btn) { margin: 0; text-align: left; }
 .case-code { margin-top: 4px; color: var(--c-text-tertiary); font-family: 'JetBrains Mono', monospace; font-size: 11px; }
-.level-chip, .muted-cell { color: var(--c-text-secondary); font-size: 12px; }
 .run-state { display: inline-flex; align-items: center; gap: 7px; color: var(--c-text-secondary); font-size: 12px; white-space: nowrap; }
 .run-state .state-dot { width: 6px; height: 6px; background: var(--c-text-tertiary); box-shadow: none; }
 .run-passed { color: var(--c-success); }.run-passed .state-dot { background: var(--c-success); }.run-failed, .run-error { color: var(--c-error); }.run-failed .state-dot, .run-error .state-dot { background: var(--c-error); }.run-running, .run-pending { color: var(--c-warning); }.run-running .state-dot, .run-pending .state-dot { background: var(--c-warning); }
@@ -780,23 +984,150 @@ onMounted(() => {
 .form-hint { margin-top: 6px; color: var(--c-text-tertiary); font-size: 12px; line-height: 1.5; }
 
 @media (max-width: 960px) {
-  .api-hero, .case-toolbar { flex-direction: column; }
-  .hero-controls { flex-basis: auto; width: min(100%, 360px); }
-  .signal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .toolbar-actions { align-self: flex-start; }
+  .toolbar-status { display: none; }
+  .workspace-frame { grid-template-columns: 235px minmax(0, 1fr); }
 }
 
 @media (max-width: 700px) {
-  .api-hero { padding: 20px; }
-  .workbench-frame { display: block; }
-  .module-column { border-right: 0; border-bottom: 1px solid var(--c-border); }
-  .signal-grid { grid-template-columns: 1fr 1fr; }
-  .case-column { padding: 18px 14px; }
-  .filter-strip { flex-wrap: wrap; }
-  .filter-strip .ant-input-search { width: 100%; }
+  .api-toolbar { height: auto; min-height: 48px; flex-wrap: wrap; padding: 10px 12px; }
+  .workspace-frame { display: block; }
+  .collections-pane { border-right: 0; border-bottom: 1px solid #e4eaf0; }
+  .request-list { max-height: 220px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .case-name-button { transition: none; }
+  .request-list-item { scroll-behavior: auto; }
+}
+.separator-left-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.count-tag {
+  padding: 1px 6px;
+  font-size: 11px;
+  background: var(--c-bg-muted);
+  border-radius: 4px;
+  color: var(--c-text-tertiary);
+}
+
+.workbench-mode-pill-container {
+  padding: 14px 14px 4px;
+}
+
+.workbench-mode-pill {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  padding: 3px;
+  background: var(--c-bg-muted, #f1f5f9);
+  border: 1px solid var(--c-border, #e2e8f0);
+  border-radius: 8px;
+  gap: 4px;
+}
+
+.mode-pill-item {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--c-text-secondary, #64748b);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  white-space: nowrap;
+}
+
+.mode-pill-item:hover {
+  color: var(--c-text, #1e293b);
+}
+
+.mode-pill-item.is-active {
+  background: var(--c-bg-elevated, #fff);
+  color: var(--c-text, #1e293b);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.mode-pill-item.mode-pill-automation.is-active {
+  background: var(--c-primary-soft, #e6f4ff);
+  color: var(--c-primary, #1677ff);
+  border: 1px solid var(--c-primary-soft, #bae0ff);
+  box-shadow: 0 1px 3px rgba(22, 119, 255, 0.12);
+}
+
+.mode-pill-icon {
+  font-size: 13px;
+}
+
+.mode-pill-item.is-active .mode-pill-icon {
+  color: var(--c-primary, #1677ff);
+}
+
+.automation-badge-indicator {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--c-primary, #1677ff);
+  background: var(--c-primary-soft, #e6f4ff);
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid var(--c-primary-soft, #bae0ff);
+}
+
+.batch-checkbox {
+  margin-right: 6px;
+}
+
+.request-list-item.is-batch-checked {
+  background: var(--c-primary-soft);
+}
+
+.workbench-automation-bar {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 10px 12px;
+  background: var(--c-bg-subtle, #f8fafc);
+  border-top: 1px solid var(--c-border);
+}
+
+.automation-bar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12px;
+}
+
+.automation-selected-count {
+  font-weight: 700;
+  color: var(--c-primary);
+}
+
+.automation-bar-buttons {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.batch-run-cases-preview {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  max-height: 120px;
+  overflow-y: auto;
+  padding: 6px;
+  background: var(--c-bg-subtle);
+  border-radius: 6px;
+  border: 1px solid var(--c-border);
+}
+.request-list-method.method-scenario {
+  color: #722ed1;
+  background: rgba(114, 46, 209, 0.1);
+  font-weight: 600;
 }
 </style>

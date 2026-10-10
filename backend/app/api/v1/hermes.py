@@ -631,12 +631,68 @@ async def _llm_answer(
     except Exception as exc:  # noqa: BLE001
         logger.warning("Hermes LLM query failed: config_id=%s error_type=%s", config.id, type(exc).__name__)
         return None
-
-    answer = redact_llm_text(response.text, limit=4_000).strip()
+    answer = redact_llm_text(response.text, limit=4_000, preserve_newlines=True).strip()
     if not has_valid_source_citation(answer, len(sources)):
         logger.warning("Hermes LLM query returned no valid source citation: config_id=%s", config.id)
         return None
     return answer
+
+
+async def _chat_llm_answer(
+    db: AsyncSession,
+    project: Project,
+    query: str,
+    history_turns: list[tuple[str, str]],
+) -> str | None:
+    """Generate a free-form conversational response using project or system LLM."""
+    config_id = getattr(project, "ai_llm_config_id", None)
+    config = None
+    if config_id:
+        config = await db.get(AILLMConfig, config_id)
+        if config and not config.enabled:
+            config = None
+    if not config:
+        res = await db.execute(
+            select(AILLMConfig).where(AILLMConfig.enabled == True).order_by(AILLMConfig.id.desc()).limit(1)
+        )
+        config = res.scalars().first()
+    if not config or not config.enabled:
+        return None
+
+    api_key = "" if config.provider == "ollama" and not config.api_key_encrypted else decrypt(config.api_key_encrypted)
+    if not await check_and_incr_daily_limit(config=config, capability="hermes_query"):
+        return None
+
+    history_lines = []
+    for role, content in history_turns[-8:]:
+        prefix = "用户" if role == "user" else "助手"
+        history_lines.append(f"{prefix}: {content}")
+    history_block = "\n".join(history_lines)
+
+    system_prompt = (
+        "你是一个专业、智能、随和的全栈测试与软件工程 AI 助手（Hermes）。"
+        "你可以与用户自由畅聊，解答关于测试策略、用例设计、Python/TypeScript 编程、自动化架构、排障调试等各类技术疑问，"
+        "也可以进行轻松的日常闲聊交流。请语言亲切自然、条理清晰、言简意赅。"
+    )
+    user_prompt = f"历史对话：\n{history_block}\n\n当前用户问题：{query}" if history_block else query
+
+    try:
+        response = await call_llm(
+            LLMRequest(
+                provider=config.provider,
+                api_key=api_key,
+                model_name=config.model_name,
+                prompt=user_prompt,
+                endpoint=config.endpoint,
+                system_prompt=system_prompt,
+                timeout_seconds=60.0,
+                extra_params=llm_extra_params(config),
+            )
+        )
+        return redact_llm_text(response.text, limit=4_000, preserve_newlines=True).strip()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("Hermes free chat LLM failed: config_id=%s error=%s", config.id, type(exc).__name__)
+        return None
 
 
 def _enum_value(value: object) -> str:
@@ -856,12 +912,80 @@ async def query_hermes(
     user: User = Depends(get_current_user),
 ):
     started_at = perf_counter()
+    if body.project_id is None:
+        fallback_pid = await db.scalar(select(Project.id).order_by(Project.id.asc()).limit(1))
+        body.project_id = fallback_pid or 1
+
     await assert_project_access(db, user, body.project_id, ProjectRole.viewer)
     project = await db.get(Project, body.project_id)
-    if project is None:
+    if project is None and not body.chat_mode:
         raise HTTPException(status_code=404, detail="项目不存在")
     session = await _get_or_create_session(db, user, body)
 
+    if body.chat_mode:
+        history_turns: list[tuple[str, str]] = [(item.role, item.content) for item in body.history]
+        if not history_turns:
+            history_turns = [
+                (str(item.get("role")), str(item.get("content")))
+                for item in (session.messages or [])[-12:]
+                if item.get("role") in {"user", "assistant"} and str(item.get("content") or "").strip()
+            ]
+        chat_answer = await _chat_llm_answer(db, project, body.query, history_turns)
+        answer = chat_answer or (
+            "当前平台尚未配置可用的大语言模型。请管理员前往「系统设置 ➔ AI 模型配置」添加并启用模型（支持通义千问、DeepSeek、OpenAI 或本地 Ollama），即可开启自然闲聊。"
+        )
+        generated_at = datetime.now(timezone.utc)
+        latency_ms = int((perf_counter() - started_at) * 1000)
+        assistant_message = {
+            "role": "assistant",
+            "message_id": uuid.uuid4().hex,
+            "content": answer,
+            "mode": "free_chat",
+            "sources": [],
+            "tool": "free_chat",
+            "prompt_version": HERMES_PROMPT_VERSION,
+            "latency_ms": latency_ms,
+            "at": generated_at.isoformat(),
+        }
+        messages = list(session.messages or [])
+        messages.extend(
+            [
+                {
+                    "role": "user",
+                    "content": redact_knowledge_text(body.query, limit=2_000),
+                    "at": generated_at.isoformat(),
+                },
+                assistant_message,
+            ]
+        )
+        session.messages = messages[-40:]
+        metrics = dict(session.metrics or {})
+        metrics["queries"] = int(metrics.get("queries", 0)) + 1
+        metrics["chat_queries"] = int(metrics.get("chat_queries", 0)) + 1
+        metrics["last_latency_ms"] = latency_ms
+        session.metrics = metrics
+        await _commit_hermes_state(db)
+        return HermesQueryOut(
+            project_id=body.project_id,
+            query=body.query,
+            conversation_id=body.conversation_id,
+            history_used=len(history_turns),
+            history_omitted=0,
+            context_chars=sum(len(c) for _, c in history_turns),
+            context_budget=body.context_budget,
+            source_types=list(body.source_types),
+            updated_from=body.updated_from,
+            updated_to=body.updated_to,
+            mode="free_chat",
+            answer=answer,
+            sources=[],
+            generated_at=generated_at,
+            session_id=session.id,
+            message_index=len(session.messages) - 1,
+            message_id=assistant_message["message_id"],
+            latency_ms=latency_ms,
+            evaluation=None,
+        )
     updated_from, updated_to = _updated_bounds(body)
     selected_types = set(body.source_types)
     knowledge_rows: Sequence[Any] = []

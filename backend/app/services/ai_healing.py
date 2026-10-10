@@ -24,6 +24,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import logging
@@ -64,6 +65,16 @@ def apply_healing_hook(step_result: StepResult) -> bool:
 def enqueue_diagnosis(step_result_id: int) -> None:
     """入队失败的兜底：执行不中断；下次手动触发即可（本期不实现重试）。"""
     try:
+        if settings.ATP_LOCAL_MODE:
+            from app.worker.tasks_healing import _run_step
+            import threading
+
+            def _bg() -> None:
+                asyncio.run(_run_step(step_result_id))
+
+            threading.Thread(target=_bg, daemon=True).start()
+            return
+
         from app.worker.tasks_healing import diagnose_step_failure
 
         diagnose_step_failure.delay(step_result_id)
@@ -438,6 +449,16 @@ def apply_run_healing_hook(run: TestRun, failed_step_count: int) -> bool:
 
 def enqueue_run_diagnosis(run_id: int) -> None:
     try:
+        if settings.ATP_LOCAL_MODE:
+            from app.worker.tasks_healing import _run_run
+            import threading
+
+            def _bg() -> None:
+                asyncio.run(_run_run(run_id))
+
+            threading.Thread(target=_bg, daemon=True).start()
+            return
+
         from app.worker.tasks_healing import diagnose_run_failure
 
         diagnose_run_failure.delay(run_id)

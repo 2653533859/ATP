@@ -65,6 +65,10 @@ async def _get_run_with_access(
     if not module:
         raise HTTPException(status_code=404, detail="用例所属模块不存在")
     await assert_project_access(db, user, module.project_id, required_role)
+    run.project_id = module.project_id
+    c_type = getattr(case, "case_type", None) if case else None
+    if c_type is not None:
+        run.case_type = c_type.value if hasattr(c_type, "value") else str(c_type)
     return run
 
 
@@ -115,6 +119,7 @@ async def trigger_run(
 @router.get("/runs", response_model=Union[PaginatedRunsOut, RunCursorPage])
 async def list_runs(
     case_id: int | None = Query(None),
+    project_id: int | None = Query(None, description="按用例所属模块的项目过滤"),
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     cursor: str | None = Query(None, description="Keyset 分页游标；传则忽略 page/page_size"),
@@ -130,6 +135,12 @@ async def list_runs(
     base = select(TestRun).where(TestRun.case_id.in_(visible_cases))
     if case_id:
         base = base.where(TestRun.case_id == case_id)
+    if project_id:
+        base = base.where(
+            TestRun.case_id.in_(
+                select(TestCase.id).join(Module, TestCase.module_id == Module.id).where(Module.project_id == project_id)
+            )
+        )
 
     if cursor is not None:
         cursor_ts, cursor_id = _decode_cursor(cursor)

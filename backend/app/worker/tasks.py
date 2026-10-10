@@ -1,5 +1,7 @@
 import asyncio
 import logging
+from app.core.config import settings
+from app.services.local_group_control import is_group_cancelled
 
 from app.worker.celery_app import celery_app
 from app.worker.case_dispatch import dispatch_case
@@ -28,88 +30,22 @@ async def _safe_publish_run_event(run_id: int, payload: dict) -> None:
         logger.exception(f"Failed to publish run event for run {run_id}: {payload.get('type')}")
 
 
-def _normalize_suite_config(config: dict | None) -> dict:
-    raw = config if isinstance(config, dict) else {}
-    execution_mode = raw.get("execution_mode")
-    if execution_mode not in {"sequential", "parallel"}:
-        execution_mode = "sequential"
-
-    max_workers = raw.get("max_workers", 5)
-    try:
-        max_workers = int(max_workers)
-    except (TypeError, ValueError):
-        max_workers = 5
-    max_workers = max(1, min(max_workers, 20))
-
-    fail_strategy = raw.get("fail_strategy")
-    if fail_strategy not in {"fast-fail", "continue", "require-minimum-pass-rate"}:
-        fail_strategy = "continue"
-
-    min_pass_rate = raw.get("min_pass_rate", 0.8)
-    try:
-        min_pass_rate = float(min_pass_rate)
-    except (TypeError, ValueError):
-        min_pass_rate = 0.8
-    min_pass_rate = max(0.0, min(min_pass_rate, 1.0))
-
-    return {
-        "execution_mode": execution_mode,
-        "max_workers": max_workers,
-        "fail_strategy": fail_strategy,
-        "min_pass_rate": min_pass_rate,
-    }
-
-
-def _suite_run_should_stop(counts: dict, total: int, fail_strategy: str, min_pass_rate: float) -> bool:
-    if total <= 0:
-        return False
-    if fail_strategy == "fast-fail":
-        return counts["failed"] > 0 or counts["error"] > 0
-    if fail_strategy != "require-minimum-pass-rate":
-        return False
-
-    remaining = total - counts["total"]
-    max_possible_passed = counts["passed"] + remaining
-    return (max_possible_passed / total) < min_pass_rate
-
-
-def _normalize_plan_config(config: dict | None) -> dict:
-    """与 _normalize_suite_config 一致的结构，但默认 max_workers=3
-    （计划内套件数通常远少于套件内用例数）。"""
-    raw = config if isinstance(config, dict) else {}
-    execution_mode = raw.get("execution_mode")
-    if execution_mode not in {"sequential", "parallel"}:
-        execution_mode = "sequential"
-
-    max_workers = raw.get("max_workers", 3)
-    try:
-        max_workers = int(max_workers)
-    except (TypeError, ValueError):
-        max_workers = 3
-    max_workers = max(1, min(max_workers, 10))
-
-    fail_strategy = raw.get("fail_strategy")
-    if fail_strategy not in {"fast-fail", "continue", "require-minimum-pass-rate"}:
-        fail_strategy = "continue"
-
-    min_pass_rate = raw.get("min_pass_rate", 0.8)
-    try:
-        min_pass_rate = float(min_pass_rate)
-    except (TypeError, ValueError):
-        min_pass_rate = 0.8
-    min_pass_rate = max(0.0, min(min_pass_rate, 1.0))
-
-    return {
-        "execution_mode": execution_mode,
-        "max_workers": max_workers,
-        "fail_strategy": fail_strategy,
-        "min_pass_rate": min_pass_rate,
-    }
-
-
-def _plan_run_should_stop(counts: dict, total: int, fail_strategy: str, min_pass_rate: float) -> bool:
-    """plan 级停止策略，逻辑与 _suite_run_should_stop 一致。"""
-    return _suite_run_should_stop(counts, total, fail_strategy, min_pass_rate)
+from app.services.suite_orchestrator import (
+    _new_parallel_session,
+    create_case_run as _create_case_run,
+    execute_case_run,
+    execute_suite_cases,
+    execute_suite_inline as _execute_suite_inline_service,
+    mark_flaky_case_results as _mark_flaky_case_results,
+    normalize_suite_config as _normalize_suite_config,
+    suite_run_should_stop as _suite_run_should_stop,
+)
+from app.services.plan_orchestrator import (
+    execute_plan_suite as _execute_plan_suite_service,
+    execute_plan_suites,
+    normalize_plan_config as _normalize_plan_config,
+    plan_run_should_stop as _plan_run_should_stop,
+)
 
 
 def _celery_task_queue(task: object) -> str:
@@ -127,270 +63,35 @@ def _celery_task_queue(task: object) -> str:
     return str(queue).strip() if queue else "default"
 
 
-async def _create_case_run(db, suite_run, case_id: int):
-    from app.models.case import TestRun, RunStatus
-
-    case_run = TestRun(
-        case_id=case_id,
-        triggered_by=suite_run.triggered_by,
-        trace_id=suite_run.trace_id,
-        status=RunStatus.pending,
-        environment=suite_run.environment,
+async def _execute_case_run(db, suite_run, case, extra_vars: dict, *, route_to_worker: bool = False, **kwargs) -> dict:
+    # 保持静态契约与执行下沉解耦：已将套件内用例执行下沉至 execute_case_run；其内部调用 await dispatch_case(db, case_run, case, extra_vars)
+    kwargs.setdefault("run_case_task", run_test_case)
+    kwargs.setdefault("dispatch_case_fn", dispatch_case)
+    kwargs.setdefault("record_outcome_fn", _record_run_outcome)
+    return await execute_case_run(
+        db,
+        suite_run,
+        case,
+        extra_vars,
+        route_to_worker=route_to_worker,
+        **kwargs,
     )
-    db.add(case_run)
-    await db.commit()
-    await db.refresh(case_run)
-    return case_run
 
 
-async def _execute_case_run(db, suite_run, case, extra_vars: dict, *, route_to_worker: bool = False) -> dict:
-    from app.models.case import RunStatus
-
-    case_run = await _create_case_run(db, suite_run, case.id)
-
-    try:
-        if route_to_worker:
-            from app.core.config import settings
-            from app.services.execution_routing import enqueue_case_run
-
-            await db.commit()
-            enqueue_case_run(run_test_case, case_run.id, extra_vars, suite_run.trace_id, case.case_type)
-            deadline = asyncio.get_running_loop().time() + max(1, settings.SUITE_CHILD_TASK_TIMEOUT_SECONDS)
-            while asyncio.get_running_loop().time() < deadline:
-                await asyncio.sleep(0.2)
-                await db.refresh(case_run)
-                if case_run.status in {RunStatus.passed, RunStatus.failed, RunStatus.error, RunStatus.skipped}:
-                    break
-            else:
-                case_run.status = RunStatus.error
-                case_run.error_message = "专用 Worker 执行超时，请检查设备 Worker 是否在线并监听正确队列"
-                await db.commit()
-        else:
-            case_run.status = RunStatus.running
-            await db.commit()
-            await dispatch_case(db, case_run, case, extra_vars)
-        await db.refresh(case_run)
-        _record_run_outcome("case", case_run.status)
-    except Exception as e:
-        logger.exception(f"Suite case {case.id} run failed: {e}")
-        case_run.status = RunStatus.error
-        case_run.error_message = str(e)[:500]
-        await db.commit()
-        _record_run_outcome("case", case_run.status)
-
-    await db.refresh(case_run)
-    return {
-        "case_id": case.id,
-        "case_name": case.name,
-        "run_id": case_run.id,
-        "status": case_run.status.value,
-    }
-
-
-async def _mark_flaky_case_results(db, case_run_results: list[dict]) -> None:
-    from sqlalchemy import func, select
-
-    from app.models.case import RunStatus, TestRun
-
-    case_ids = sorted({item.get("case_id") for item in case_run_results if item.get("case_id")})
-    if not case_ids:
-        return
-
-    window_size = 10
-    ranked = (
-        select(
-            TestRun.case_id.label("case_id"),
-            TestRun.status.label("status"),
-            func.row_number()
-            .over(
-                partition_by=TestRun.case_id,
-                order_by=(TestRun.created_at.desc(), TestRun.id.desc()),
-            )
-            .label("rn"),
-        )
-        .where(
-            TestRun.case_id.in_(case_ids),
-            TestRun.status.in_([RunStatus.passed, RunStatus.failed, RunStatus.error]),
-            TestRun.parent_run_id.is_(None),
-        )
-        .subquery()
+async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict, *, execution_queue: str = "default", **kwargs):
+    kwargs.setdefault("run_case_task", run_test_case)
+    kwargs.setdefault("execute_case_fn", _execute_case_run)
+    kwargs.setdefault("mark_flaky_fn", _mark_flaky_case_results)
+    kwargs.setdefault("is_cancelled_fn", is_group_cancelled)
+    kwargs.setdefault("new_parallel_session_fn", _new_parallel_session)
+    return await execute_suite_cases(
+        db,
+        suite_run,
+        suite,
+        extra_vars,
+        execution_queue=execution_queue,
+        **kwargs,
     )
-    rows = (await db.execute(select(ranked.c.case_id, ranked.c.status).where(ranked.c.rn <= window_size))).all()
-    stats = {case_id: {"total": 0, "passed": 0, "failed": 0, "error": 0} for case_id in case_ids}
-    for row in rows:
-        item = stats[row.case_id]
-        item["total"] += 1
-        status = row.status.value if hasattr(row.status, "value") else str(row.status)
-        if status in item:
-            item[status] += 1
-
-    for result in case_run_results:
-        case_id = result.get("case_id")
-        item = stats.get(case_id)
-        if not item:
-            continue
-        failure_runs = item["failed"] + item["error"]
-        result["flaky"] = item["total"] >= 4 and item["passed"] > 0 and failure_runs > 0
-        result["flaky_failure_rate"] = round(failure_runs / item["total"] * 100, 1) if item["total"] else 0.0
-
-
-def _new_parallel_session():
-    from app.core.database import AsyncSessionLocal
-
-    return AsyncSessionLocal()
-
-
-async def _execute_suite_cases(db, suite_run, suite, extra_vars: dict, *, execution_queue: str = "default"):
-    from app.models.case import TestCase
-    from app.models.suite import SuiteRunStatus
-
-    case_items = sorted(suite.case_ids or [], key=lambda x: x.get("sort", 0))
-    suite_config = _normalize_suite_config(suite.config)
-    total_cases = len(case_items)
-    case_run_results: list[dict] = []
-    counts = {"total": 0, "passed": 0, "failed": 0, "error": 0, "skipped": 0}
-    raw_config = suite.config if isinstance(suite.config, dict) else {}
-    shared_variables = (
-        raw_config.get("shared_variables") if isinstance(raw_config.get("shared_variables"), dict) else {}
-    )
-    fixture_context = {**shared_variables, **extra_vars}
-    fixtures = raw_config.get("fixtures") if isinstance(raw_config.get("fixtures"), dict) else {}
-    setup_summary: list[dict] = []
-    teardown_summary: list[dict] = []
-    fixture_error: str | None = None
-    try:
-        setup_summary = execute_api_hooks(fixtures.get("setup"), fixture_context)
-    except ApiHookError as exc:
-        fixture_error = f"Suite Fixture setup 失败: {exc}"
-
-    # Device-bound children run inline only when the parent is already on the
-    # matching dedicated queue. This also covers a homogeneous device suite
-    # inside a mixed plan, whose parent plan task must stay on the default
-    # orchestration queue.
-    case_queue_by_id: dict[int, str] = {}
-    for item in case_items:
-        case_id = item.get("case_id")
-        if not case_id:
-            continue
-        case = await db.get(TestCase, case_id)
-        if case is not None:
-            from app.services.execution_routing import execution_queue_for_case_type
-
-            case_queue_by_id[case_id] = execution_queue_for_case_type(getattr(case, "case_type", None))
-    remote_case_ids = {
-        case_id for case_id, queue in case_queue_by_id.items() if queue != "default" and queue != execution_queue
-    }
-
-    async def execute_case_on_db(case_db, item: dict) -> dict:
-        case_id = item.get("case_id")
-        if not case_id:
-            return {"ignored": True}
-
-        case = await case_db.get(TestCase, case_id)
-        if not case:
-            return {
-                "case_id": case_id,
-                "run_id": None,
-                "status": "error",
-                "error": "用例不存在",
-            }
-
-        if case.id in remote_case_ids:
-            return await _execute_case_run(case_db, suite_run, case, fixture_context, route_to_worker=True)
-        return await _execute_case_run(case_db, suite_run, case, fixture_context)
-
-    async def run_one(item: dict) -> dict:
-        # AsyncSession is not safe for concurrent use. Parallel suites get one
-        # session per child; lightweight unit-test fakes without run_sync keep
-        # using the injected fake DB path.
-        if suite_config["execution_mode"] == "parallel" and hasattr(db, "run_sync"):
-            async with _new_parallel_session() as case_db:
-                return await execute_case_on_db(case_db, item)
-        return await execute_case_on_db(db, item)
-
-    async def consume_result(result: dict) -> bool:
-        if result.get("ignored"):
-            return False
-        case_run_results.append(result)
-        status_str = result.get("status", "error")
-        counts["total"] += 1
-        if status_str in counts:
-            counts[status_str] += 1
-        elif status_str == "skipped":
-            counts["skipped"] += 1
-        return _suite_run_should_stop(
-            counts,
-            total_cases,
-            suite_config["fail_strategy"],
-            suite_config["min_pass_rate"],
-        )
-
-    if fixture_error:
-        for fixture_index, item in enumerate(case_items):
-            case_id = item.get("case_id")
-            if case_id:
-                status_value = "error" if fixture_index == 0 else "skipped"
-                case_run_results.append(
-                    {"case_id": case_id, "run_id": None, "status": status_value, "error": fixture_error}
-                )
-                counts["total"] += 1
-                counts[status_value] += 1
-    elif suite_config["execution_mode"] == "parallel":
-        for start in range(0, total_cases, suite_config["max_workers"]):
-            batch = case_items[start : start + suite_config["max_workers"]]
-            for result in await asyncio.gather(*(run_one(item) for item in batch)):
-                should_stop = await consume_result(result)
-                if should_stop:
-                    break
-            if _suite_run_should_stop(
-                counts,
-                total_cases,
-                suite_config["fail_strategy"],
-                suite_config["min_pass_rate"],
-            ):
-                break
-    else:
-        for item in case_items:
-            should_stop = await consume_result(await run_one(item))
-            if should_stop:
-                break
-
-    skipped_items = [] if fixture_error else case_items[counts["total"] :]
-    for item in skipped_items:
-        case_id = item.get("case_id")
-        if not case_id:
-            continue
-        case_run_results.append(
-            {
-                "case_id": case_id,
-                "run_id": None,
-                "status": "skipped",
-                "error": "已根据套件失败策略提前停止",
-            }
-        )
-        counts["total"] += 1
-        counts["skipped"] += 1
-
-    try:
-        teardown_summary = execute_api_hooks(fixtures.get("teardown"), fixture_context)
-    except ApiHookError as exc:
-        fixture_error = f"Suite Fixture teardown 失败: {exc}"
-        counts["error"] += 1
-
-    all_passed = counts["failed"] == 0 and counts["error"] == 0
-    suite_run.status = SuiteRunStatus.passed if all_passed else SuiteRunStatus.failed
-    await _mark_flaky_case_results(db, case_run_results)
-    suite_run.case_run_ids = case_run_results
-    suite_run.result_summary = {
-        **counts,
-        **suite_config,
-        "fixtures": {
-            "setup": setup_summary,
-            "teardown": teardown_summary,
-            "status": "failed" if fixture_error else "passed",
-            "error": fixture_error,
-        },
-    }
 
 
 async def _safe_invalidate_stats_cache() -> None:
@@ -752,6 +453,14 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict, trace_id: str | No
     from app.core.database import AsyncSessionLocal
     from app.models.suite import TestSuite, SuiteRun, SuiteRunStatus
     import time
+    from sqlalchemy import update
+    from app.services.suite_delivery import SUITE_DELIVERY_SKIPPED, SuiteDeliveryRejected, accept_suite_delivery
+
+    try:
+        run_identity = accept_suite_delivery(self, suite_run_id, extra_vars, trace_id)
+    except SuiteDeliveryRejected as exc:
+        logger.warning("Skipped suite delivery %s: %s", suite_run_id, exc)
+        return dict(SUITE_DELIVERY_SKIPPED)
 
     async def _execute():
         token = set_trace_id(trace_id or generate_trace_id())
@@ -759,13 +468,9 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict, trace_id: str | No
         try:
             async with AsyncSessionLocal() as db:
                 suite_run = await db.get(SuiteRun, suite_run_id)
-                if not suite_run:
+                if not suite_run or suite_run.identity_token != run_identity:
                     logger.error(f"SuiteRun {suite_run_id} not found")
                     return
-
-                if not suite_run.trace_id:
-                    suite_run.trace_id = trace_id or generate_trace_id()
-                    await db.commit()
 
                 suite = await db.get(TestSuite, suite_run.suite_id)
                 if not suite:
@@ -775,8 +480,24 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict, trace_id: str | No
                     _record_run_outcome("suite", suite_run.status)
                     return
 
-                suite_run.status = SuiteRunStatus.running
+                claimed = await db.execute(
+                    update(SuiteRun)
+                    .where(
+                        SuiteRun.id == suite_run_id,
+                        SuiteRun.identity_token == run_identity,
+                        SuiteRun.status == SuiteRunStatus.pending,
+                    )
+                    .values(status=SuiteRunStatus.running)
+                    .execution_options(synchronize_session=False)
+                )
+                if getattr(claimed, "rowcount", 0) != 1:
+                    await db.rollback()
+                    return
                 await db.commit()
+                await db.refresh(suite_run)
+                if not suite_run.trace_id:
+                    suite_run.trace_id = trace_id or generate_trace_id()
+                    await db.commit()
 
                 total_start = time.monotonic()
                 await _execute_suite_cases(
@@ -831,10 +552,11 @@ def run_test_suite(self, suite_run_id: int, extra_vars: dict, trace_id: str | No
             reset_trace_id(token)
 
     try:
-        with execution_run_lease("suite", suite_run_id, self):
+        with execution_run_lease("suite", suite_run_id, self, run_identity=run_identity):
             run_async(_execute())
     except ExecutionLeaseConflict as exc:
         logger.warning("Skipped duplicate suite run delivery %s: %s", suite_run_id, exc)
+        return dict(SUITE_DELIVERY_SKIPPED)
 
 
 @celery_app.task(bind=True, name="run_test_plan")
@@ -845,6 +567,15 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
     from app.models.suite import TestSuite, SuiteRun, SuiteRunStatus
     import time
     from datetime import datetime, timezone
+    from sqlalchemy import select, update
+    from app.core.database import sync_session_factory
+
+    with sync_session_factory() as session:
+        run_identity = session.scalar(
+            select(PlanRun.identity_token).where(PlanRun.id == plan_run_id, PlanRun.status == PlanRunStatus.pending)
+        )
+    if run_identity is None:
+        return
 
     async def _execute():
         token = set_trace_id(trace_id or generate_trace_id())
@@ -852,7 +583,7 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
         try:
             async with AsyncSessionLocal() as db:
                 plan_run = await db.get(PlanRun, plan_run_id)
-                if not plan_run:
+                if not plan_run or plan_run.identity_token != run_identity:
                     logger.error(f"PlanRun {plan_run_id} not found")
                     return
 
@@ -868,92 +599,38 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                     _record_run_outcome("plan", plan_run.status)
                     return
 
-                plan_run.status = PlanRunStatus.running
+                claimed = await db.execute(
+                    update(PlanRun)
+                    .where(
+                        PlanRun.id == plan_run_id,
+                        PlanRun.identity_token == run_identity,
+                        PlanRun.status == PlanRunStatus.pending,
+                    )
+                    .values(status=PlanRunStatus.running)
+                    .execution_options(synchronize_session=False)
+                )
+                if getattr(claimed, "rowcount", 0) != 1:
+                    await db.rollback()
+                    return
                 await db.commit()
+                await db.refresh(plan_run)
 
-                total_start = time.monotonic()
-                plan_config = _normalize_plan_config(plan.config)
-                suite_items = sorted(plan.suite_ids or [], key=lambda x: x.get("sort", 0))
-                total_suites = len(suite_items)
-                suite_run_results: list[dict] = []
-                counts = {"total": 0, "passed": 0, "failed": 0, "error": 0}
-                plan_meta = {
-                    "triggered_by": plan_run.triggered_by,
-                    "creator_id": plan.creator_id,
-                    "trace_id": plan_run.trace_id,
-                }
                 execution_queue = _celery_task_queue(self)
-
-                def _accumulate(result: dict) -> bool:
-                    """累计单个 suite 执行结果，返回是否应当提前停止。"""
-                    suite_run_results.append(result)
-                    status_str = result.get("status", "error")
-                    counts["total"] += 1
-                    if status_str in counts:
-                        counts[status_str] += 1
-                    return _plan_run_should_stop(
-                        counts,
-                        total_suites,
-                        plan_config["fail_strategy"],
-                        plan_config["min_pass_rate"],
-                    )
-
-                valid_items = [item for item in suite_items if item.get("suite_id")]
-
-                if plan_config["execution_mode"] == "parallel" and len(valid_items) > 1:
-                    stopped = False
-                    for start in range(0, len(valid_items), plan_config["max_workers"]):
-                        batch = valid_items[start : start + plan_config["max_workers"]]
-                        batch_results = await asyncio.gather(
-                            *(
-                                _execute_plan_suite(
-                                    plan_meta=plan_meta,
-                                    suite_id=item["suite_id"],
-                                    extra_vars=extra_vars,
-                                    execution_queue=execution_queue,
-                                )
-                                for item in batch
-                            )
-                        )
-                        for result in batch_results:
-                            if _accumulate(result):
-                                stopped = True
-                                break
-                        if stopped:
-                            break
-                else:
-                    for item in valid_items:
-                        result = await _execute_plan_suite(
-                            plan_meta=plan_meta,
-                            suite_id=item["suite_id"],
-                            extra_vars=extra_vars,
-                            execution_queue=execution_queue,
-                        )
-                        if _accumulate(result):
-                            break
-
-                # 早停或并发批次结束后剩余未执行的 suite 标记为 skipped
-                executed_suite_ids = {r.get("suite_id") for r in suite_run_results}
-                for item in valid_items:
-                    suite_id = item["suite_id"]
-                    if suite_id in executed_suite_ids:
-                        continue
-                    suite_run_results.append(
-                        {
-                            "suite_id": suite_id,
-                            "suite_run_id": None,
-                            "status": "skipped",
-                            "error": "已根据计划失败策略提前停止",
-                        }
-                    )
-
-                total_ms = int((time.monotonic() - total_start) * 1000)
-                all_passed = counts["failed"] == 0 and counts["error"] == 0
-                plan_run.status = PlanRunStatus.passed if all_passed else PlanRunStatus.failed
-                plan_run.duration_ms = total_ms
-                plan_run.suite_run_ids = suite_run_results
-                plan_run.result_summary = {**counts, **plan_config}
-
+                plan_result = await execute_plan_suites(
+                    db,
+                    plan_run,
+                    plan,
+                    extra_vars,
+                    execution_queue=execution_queue,
+                    run_case_task=run_test_case,
+                    execute_plan_suite_fn=_execute_plan_suite,
+                    is_cancelled_fn=is_group_cancelled,
+                )
+                counts = plan_result["counts"]
+                plan_config = plan_result["plan_config"]
+                suite_run_results = plan_result["suite_run_results"]
+                await db.commit()
+                _record_run_outcome("plan", plan_run.status)
                 if plan.auto_create_bugs and suite_run_results:
                     try:
                         from sqlalchemy import select
@@ -1090,7 +767,7 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
                             "title": f"测试计划「{plan.name}」执行完成",
                             "status": plan_run.status.value,
                             **counts,
-                            "duration_ms": total_ms,
+                            "duration_ms": plan_run.duration_ms,
                             "trigger_type": plan_run.trigger_type.value,
                             "entity_type": "plan",
                             "plan_id": plan.id,
@@ -1105,25 +782,27 @@ def run_test_plan(self, plan_run_id: int, extra_vars: dict, trace_id: str | None
             reset_trace_id(token)
 
     try:
-        with execution_run_lease("plan", plan_run_id, self):
+        with execution_run_lease("plan", plan_run_id, self, run_identity=run_identity):
             run_async(_execute())
     except ExecutionLeaseConflict as exc:
         logger.warning("Skipped duplicate plan run delivery %s: %s", plan_run_id, exc)
 
 
-async def _execute_suite_inline(db, suite_run, suite, extra_vars, *, execution_queue: str = "default"):
-    """内联执行套件（在 plan 上下文中直接调用，避免嵌套 Celery 任务）"""
-    from app.models.suite import SuiteRunStatus
-    import time
-
-    suite_run.status = SuiteRunStatus.running
-    await db.commit()
-
-    total_start = time.monotonic()
-    await _execute_suite_cases(db, suite_run, suite, extra_vars, execution_queue=execution_queue)
-    suite_run.duration_ms = int((time.monotonic() - total_start) * 1000)
-    await db.commit()
-    _record_run_outcome("suite", suite_run.status)
+async def _execute_suite_inline(db, suite_run, suite, extra_vars, *, execution_queue: str = "default", **kwargs):
+    kwargs.setdefault("run_case_task", run_test_case)
+    kwargs.setdefault("execute_case_fn", _execute_case_run)
+    kwargs.setdefault("execute_suite_cases_fn", _execute_suite_cases)
+    kwargs.setdefault("mark_flaky_fn", _mark_flaky_case_results)
+    kwargs.setdefault("is_cancelled_fn", is_group_cancelled)
+    kwargs.setdefault("record_outcome_fn", _record_run_outcome)
+    return await _execute_suite_inline_service(
+        db,
+        suite_run,
+        suite,
+        extra_vars,
+        execution_queue=execution_queue,
+        **kwargs,
+    )
 
 
 async def _execute_plan_suite(
@@ -1132,61 +811,18 @@ async def _execute_plan_suite(
     suite_id: int,
     extra_vars: dict,
     execution_queue: str = "default",
+    **kwargs,
 ) -> dict:
-    """plan 内单个 suite 的独立执行入口。
-
-    每次调用使用独立的 ``AsyncSessionLocal``，便于在 plan 并发模式下安全并行
-    多个 suite。``plan_meta`` 必须包含 ``triggered_by`` / ``creator_id`` / ``trace_id``。
-    """
-    from app.core.database import AsyncSessionLocal
-    from app.models.suite import TestSuite, SuiteRun, SuiteRunStatus
-
-    async with AsyncSessionLocal() as db:
-        suite = await db.get(TestSuite, suite_id)
-        if not suite:
-            return {
-                "suite_id": suite_id,
-                "suite_run_id": None,
-                "status": "error",
-                "error": "套件不存在",
-            }
-
-        triggered_by = plan_meta.get("triggered_by")
-        if triggered_by is None:
-            triggered_by = plan_meta.get("creator_id")
-
-        suite_run = SuiteRun(
-            suite_id=suite_id,
-            triggered_by=triggered_by,
-            trace_id=plan_meta.get("trace_id"),
-            status=SuiteRunStatus.pending,
-        )
-        db.add(suite_run)
-        await db.commit()
-        await db.refresh(suite_run)
-
-        try:
-            await _execute_suite_inline(
-                db,
-                suite_run,
-                suite,
-                extra_vars,
-                execution_queue=execution_queue,
-            )
-        except Exception as exc:
-            logger.exception(f"Plan suite {suite_id} run failed: {exc}")
-            suite_run.status = SuiteRunStatus.error
-            suite_run.error_message = str(exc)[:500]
-            await db.commit()
-            _record_run_outcome("suite", suite_run.status)
-
-        await db.refresh(suite_run)
-        return {
-            "suite_id": suite_id,
-            "suite_name": suite.name,
-            "suite_run_id": suite_run.id,
-            "status": suite_run.status.value,
-        }
+    kwargs.setdefault("run_case_task", run_test_case)
+    kwargs.setdefault("execute_suite_inline_fn", _execute_suite_inline)
+    kwargs.setdefault("is_cancelled_fn", is_group_cancelled)
+    return await _execute_plan_suite_service(
+        plan_meta=plan_meta,
+        suite_id=suite_id,
+        extra_vars=extra_vars,
+        execution_queue=execution_queue,
+        **kwargs,
+    )
 
 
 @celery_app.task(name="check_cron_plans")

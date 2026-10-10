@@ -4,8 +4,6 @@
       <div class="toolbar-left">
         <AuditOutlined class="toolbar-icon" />
         <h1 class="toolbar-title">{{ t('case_reviews.title') }}</h1>
-        <span class="toolbar-divider">/</span>
-        <span class="toolbar-subtitle">{{ t('case_reviews.subtitle') }}</span>
       </div>
       <div class="hero-actions toolbar-right">
         <a-button size="small" @click="goCases">{{ t('menu.cases') }}</a-button>

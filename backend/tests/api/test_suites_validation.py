@@ -53,6 +53,7 @@ class _ExecuteResult:
 
 class _FakeSuiteRun:
     def __init__(self, **kwargs):
+        self.identity_token = "test-suite-identity"
         self.id = kwargs.get("id")
         self.created_at = kwargs.get("created_at")
         self.duration_ms = kwargs.get("duration_ms")
@@ -98,6 +99,11 @@ class _FakeDB:
     async def commit(self):
         if self.suite is not None and self.suite.id is None:
             self.suite.id = 501
+
+    async def flush(self):
+        for obj in self.added:
+            if getattr(obj, "id", None) is None:
+                obj.id = 501
 
     async def refresh(self, obj):
         if getattr(obj, "id", None) is None:
@@ -334,7 +340,7 @@ def test_update_suite_updates_execution_config():
 
 def test_trigger_suite_run_persists_and_dispatches_trace_id(monkeypatch):
     load_all_models()
-    delayed = {}
+    delayed = _wire_dispatch(monkeypatch)
     suite = _FakeSuiteRun(
         id=33,
         case_ids=[{"case_id": 12, "sort": 0}],
@@ -378,8 +384,18 @@ def test_trigger_suite_run_persists_and_dispatches_trace_id(monkeypatch):
 
 
 def _wire_dispatch(monkeypatch):
-    """替换 SuiteRun ORM 与 Celery delay，返回 delayed 记录。"""
+    """替换投递意图记录；Celery 发布已经移到独立投递器。"""
     delayed = {}
+
+    def record(_db, *, run, project_id, extra_vars, queue):
+        delayed.update(run_id=run.id, extra_vars=extra_vars, trace_id=run.trace_id)
+
+    async def resolve(_db, _suite):
+        return "default"
+
+    monkeypatch.setattr(suites, "record_suite_dispatch", record)
+    monkeypatch.setattr(suites, "resolve_suite_execution_queue", resolve)
+    monkeypatch.setattr(suites, "wake_dispatcher", lambda: None)
     monkeypatch.setattr(suites, "SuiteRun", _FakeSuiteRun)
     monkeypatch.setattr(suites, "get_trace_id", lambda: None)
     monkeypatch.setitem(

@@ -7,12 +7,12 @@
           <div class="page-header-title-row">
             <h2>{{ detailTitle }}</h2>
             <a-space v-if="caseDetail" wrap size="small">
+              <a-tag :color="statusColor(caseDetail.status)">{{ statusLabel(caseDetail.status) }}</a-tag>
+              <a-tag :color="reviewStatusColor(caseDetail.review_status)">{{ reviewStatusLabel(caseDetail.review_status) }}</a-tag>
               <a-tag :color="caseTypeColor(caseDetail.case_type)">{{ caseTypeLabel(caseDetail.case_type) }}</a-tag>
               <a-tag v-if="caseDetail.ai_generated" color="purple">{{ t('case.detail.ai_generated') }}</a-tag>
-              <a-tag :color="scriptStatusColor(caseDetail.script_status)">{{ scriptStatusLabel(caseDetail.script_status) }}</a-tag>
-              <a-tag :color="reviewStatusColor(caseDetail.review_status)">{{ reviewStatusLabel(caseDetail.review_status) }}</a-tag>
-              <a-tag :color="automationStatusColor(caseDetail.automation_status)">{{ automationStatusLabel(caseDetail.automation_status) }}</a-tag>
-              <a-tag :color="statusColor(caseDetail.status)">{{ statusLabel(caseDetail.status) }}</a-tag>
+              <a-tag v-if="caseDetail.script_status" :color="scriptStatusColor(caseDetail.script_status)">{{ scriptStatusLabel(caseDetail.script_status) }}</a-tag>
+              <a-tag v-if="caseDetail.automation_status" :color="automationStatusColor(caseDetail.automation_status)">{{ automationStatusLabel(caseDetail.automation_status) }}</a-tag>
             </a-space>
           </div>
           <p class="page-header-code">{{ detailCode }}</p>
@@ -26,10 +26,23 @@
             <a-button :loading="copying" @click="handleCopy">{{ t('case.actions.copy') }}</a-button>
             <a-button :disabled="!caseDetail" @click="openHistory">{{ t('case.actions.history') }}</a-button>
             <a-button v-if="canSubmitReview" @click="handleWorkflow('submitReview')">{{ t('case.actions.submit_review') }}</a-button>
-            <a-button v-if="canApprove" @click="handleWorkflow('approve')">{{ t('case.actions.approve') }}</a-button>
-            <a-button v-if="canReject" @click="handleWorkflow('reject')">{{ t('case.actions.reject') }}</a-button>
-            <a-button v-if="canDeprecate" @click="handleWorkflow('deprecate')">{{ t('case.actions.deprecate') }}</a-button>
-            <a-button v-if="canReactivate" @click="handleWorkflow('reactivate')">{{ t('case.actions.reactivate') }}</a-button>
+            <a-button v-if="canApprove" type="primary" ghost @click="handleWorkflow('approve')">{{ t('case.actions.approve') }}</a-button>
+            <a-button v-if="canReject" danger @click="handleWorkflow('reject')">{{ t('case.actions.reject') }}</a-button>
+            <a-dropdown v-if="canDeprecate || canReactivate">
+              <a-button>
+                {{ t('common.more') }} <DownOutlined />
+              </a-button>
+              <template #overlay>
+                <a-menu>
+                  <a-menu-item v-if="canDeprecate" danger @click="handleWorkflow('deprecate')">
+                    {{ t('case.actions.deprecate') }}
+                  </a-menu-item>
+                  <a-menu-item v-if="canReactivate" @click="handleWorkflow('reactivate')">
+                    {{ t('case.actions.reactivate') }}
+                  </a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
             <a-tooltip :title="caseDetail?.is_ready_for_execution ? t('case.detail.run_tooltip') : t('case.detail.run_disabled_tooltip')">
               <a-button type="primary" :disabled="!caseDetail?.is_ready_for_execution" @click="openRunModal">
                 {{ t('case.actions.run') }}
@@ -155,7 +168,38 @@
             </a-card>
           </a-col>
 
-          <a-col :span="24">
+          <!-- API 自动化场景步骤流水线 -->
+          <a-col v-if="apiScenarioSteps.length" :span="24">
+            <a-card class="detail-card table-card" :title="`⚡ 自动化场景执行流 (${apiScenarioSteps.length} 步骤)`" :bordered="false">
+              <div class="api-steps-flow">
+                <div v-for="(step, idx) in apiScenarioSteps" :key="idx" class="api-step-row">
+                  <div class="step-badge-col">
+                    <span class="step-num-pill">Step {{ idx + 1 }}</span>
+                    <span class="method-tag" :class="`method-${String(step.method || 'GET').toUpperCase()}`">
+                      {{ String(step.method || 'GET').toUpperCase() }}
+                    </span>
+                  </div>
+                  <div class="step-info-col">
+                    <div class="step-name"><strong>{{ String(step.name || `步骤 ${idx + 1}`) }}</strong></div>
+                    <code class="step-url">{{ String(step.url || step.endpoint || '—') }}</code>
+                  </div>
+                  <div class="step-meta-col">
+                    <a-tag v-if="Array.isArray(step.depends_on) && step.depends_on.length" color="orange">
+                      依赖: {{ step.depends_on.map((d: unknown) => `Step ${Number(d) + 1}`).join(', ') }}
+                    </a-tag>
+                    <a-tag v-for="ext in (Array.isArray(step.extractions) ? step.extractions : [])" :key="String(ext.variable)" color="green">
+                      📤 {{ String(ext.variable) }}
+                    </a-tag>
+                    <a-tag v-if="Array.isArray(step.assertions) && step.assertions.length" color="blue">
+                      ✓ {{ step.assertions.length }} 条断言
+                    </a-tag>
+                  </div>
+                </div>
+              </div>
+            </a-card>
+          </a-col>
+
+          <a-col v-else :span="24">
             <a-card class="detail-card table-card" :title="t('case.detail.standard_steps')" :bordered="false">
               <a-table
                 v-if="caseDetail.steps.length"
@@ -228,6 +272,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
+import { DownOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { caseApi, environmentApi, projectApi } from '@/api'
 import type {
@@ -328,6 +373,10 @@ const executionStatusHint = computed(() => caseDetail.value?.is_ready_for_execut
   ? t('case.detail.execution_ready_hint')
   : t('case.detail.run_disabled_tooltip')
 )
+const apiScenarioSteps = computed<Array<Record<string, unknown>>>(() => {
+  const steps = caseDetail.value?.config?.steps
+  return Array.isArray(steps) ? steps as Array<Record<string, unknown>> : []
+})
 const prettyConfig = computed(() => JSON.stringify(caseDetail.value?.config ?? {}, null, 2))
 const aiSourceSummary = computed(() => {
   const raw = caseDetail.value?.config?._ai_source
@@ -753,15 +802,97 @@ onMounted(async () => {
 .config-block {
   margin: 0;
   padding: 16px;
-  border-radius: 12px;
-  background: #f8fafc;
-  border: 1px solid #e5e7eb;
+  border-radius: var(--radius-md);
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border);
   overflow-x: auto;
-  font-family: Consolas, Monaco, monospace;
+  font-family: var(--font-mono, Consolas, monospace);
   font-size: 12px;
   line-height: 1.6;
-  color: #1f2937;
+  color: var(--c-text);
 }
+.api-steps-flow {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+}
+
+.api-step-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 10px 14px;
+  background: var(--c-bg-subtle, #f8fafc);
+  border: 1px solid var(--c-border, #e2e8f0);
+  border-radius: 8px;
+}
+
+.step-badge-col {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.step-num-pill {
+  font-size: 11px;
+  font-weight: 700;
+  color: #fa8c16;
+  background: #fff7e6;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid #ffd591;
+}
+
+.step-info-col {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.step-name {
+  font-size: 13px;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-url {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--c-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-meta-col {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  flex-wrap: wrap;
+}
+
+.method-tag {
+  display: inline-block;
+  padding: 2px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  border-radius: 4px;
+  text-align: center;
+  min-width: 44px;
+}
+
+.method-GET { background: #e6f4ff; color: #0958d9; border: 1px solid #91caff; }
+.method-POST { background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f; }
+.method-PUT { background: #fff7e6; color: #d46b08; border: 1px solid #ffd591; }
+.method-DELETE { background: #fff1f0; color: #cf1322; border: 1px solid #ffa39e; }
 
 .empty-card :deep(.ant-card-body) {
   padding: 40px 24px;
@@ -769,7 +900,7 @@ onMounted(async () => {
 
 .run-tip {
   margin-bottom: 12px;
-  color: #666;
+  color: var(--c-text-tertiary);
 }
 
 @media (max-width: 1280px) {

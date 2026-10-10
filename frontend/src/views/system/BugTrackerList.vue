@@ -2,7 +2,6 @@
   <div class="page-shell bug-tracker-page">
     <div>
       <h2 class="page-title">{{ t('system_pages.bug_tracker.title') }}</h2>
-      <div class="page-subtitle">{{ t('system_pages.bug_tracker.subtitle') }}</div>
     </div>
     <div class="toolbar">
       <a-space>

@@ -142,6 +142,10 @@ def test_plan_run_should_stop_returns_false_for_continue():
 
 
 def test_execute_plan_suite_returns_error_when_suite_missing(monkeypatch):
+    # N1.5 起，_execute_plan_suite 先核对父计划身份仍为 running，再查套件；
+    # 这里给一个可核对的父计划，验证"套件不存在"仍返回 error 且不创建子运行。
+    parent = types.SimpleNamespace(id=60, identity_token="plan-identity", status=types.SimpleNamespace(value="running"))
+
     class _FakeSession:
         def __init__(self):
             self.added = []
@@ -152,8 +156,8 @@ def test_execute_plan_suite_returns_error_when_suite_missing(monkeypatch):
         async def __aexit__(self, *exc):
             return False
 
-        async def get(self, _model, _pk):
-            return None
+        async def get(self, model, pk):
+            return parent if model.__name__ == "PlanRun" and pk == 60 else None
 
         def add(self, obj):
             self.added.append(obj)
@@ -174,8 +178,16 @@ def test_execute_plan_suite_returns_error_when_suite_missing(monkeypatch):
     )
     monkeypatch.setitem(sys.modules, "app.core.database", fake_db_module)
     monkeypatch.setitem(sys.modules, "app.models.suite", fake_suite_module)
+    # 组取消检查需要真实同步引擎，由 test_group_execution_recovery 覆盖；此处只关心套件缺失分支。
+    monkeypatch.setattr(tasks, "is_group_cancelled", lambda *_args, **_kwargs: False)
 
-    plan_meta = {"triggered_by": 9, "creator_id": 1, "trace_id": "trace-x"}
+    plan_meta = {
+        "plan_run_id": 60,
+        "plan_identity": "plan-identity",
+        "triggered_by": 9,
+        "creator_id": 1,
+        "trace_id": "trace-x",
+    }
 
     result = asyncio.run(tasks._execute_plan_suite(plan_meta=plan_meta, suite_id=42, extra_vars={}))
 

@@ -9,7 +9,7 @@ import { createBackendProxy, resolveBackendOrigin } from './src/utils/backendPro
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
-export default defineConfig(({ mode }) => {
+export default defineConfig(({ mode, command }) => {
   const backendOrigin = resolveBackendOrigin(loadEnv(mode, process.cwd(), ''))
 
   return {
@@ -20,7 +20,8 @@ export default defineConfig(({ mode }) => {
       // dts 生成 src/components.d.ts（已提交），让 vue-tsc 对 a-* 组件做真实 props 类型检查。
       Components({
         resolvers: [AntDesignVueResolver({ importStyle: false })],
-        dts: 'src/components.d.ts',
+        // 开发进程负责更新已提交的声明；并行构建时不再争写同一个文件。
+        dts: command === 'serve' ? 'src/components.d.ts' : false,
       }),
     ],
     resolve: {

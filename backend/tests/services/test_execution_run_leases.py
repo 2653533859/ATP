@@ -207,7 +207,7 @@ class _RecoverySession:
         return self.runs.get((model, run_id))
 
 
-def test_reconcile_expired_leases_recovers_all_five_execution_domains():
+def test_reconcile_expired_leases_does_not_guess_legacy_group_identity():
     now = datetime(2026, 9, 8, 10, 0, tzinfo=timezone.utc)
     task_types = ["case", "suite", "plan", "android", "performance"]
     leases = [
@@ -259,14 +259,14 @@ def test_reconcile_expired_leases_recovers_all_five_execution_domains():
         "android": 1,
         "case": 1,
         "performance": 1,
-        "plan": 1,
-        "suite": 1,
+        "plan": 0,
+        "suite": 0,
         "leases": 5,
-        "runs": 5,
+        "runs": 3,
     }
     assert case_run.status == CaseRunStatus.error
-    assert suite_run.status == SuiteRunStatus.error
-    assert plan_run.status == PlanRunStatus.error
+    assert suite_run.status == SuiteRunStatus.running
+    assert plan_run.status == PlanRunStatus.running
     assert mobile_run.status == MobileRunStatus.failed
     assert performance_run.status == PerformanceRunStatus.failed.value
     assert all(lease.status == "expired" for lease in leases)
@@ -369,7 +369,9 @@ def test_guard_fences_a_late_worker_when_its_lease_was_already_recovered(monkeyp
     monkeypatch.setattr(
         lease_service,
         "_recover_run",
-        lambda current, task_type, run_id, force=False: recovered.append((current, task_type, run_id, force)),
+        lambda current, task_type, run_id, force=False, run_identity=None: recovered.append(
+            (current, task_type, run_id, force)
+        ),
     )
     guard = ExecutionRunLeaseGuard("performance", 41)
 

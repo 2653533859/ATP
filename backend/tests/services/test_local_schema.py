@@ -12,6 +12,22 @@ from app.models.bootstrap import load_all_models
 load_all_models()
 
 
+def _legacy_mapped_schema(engine) -> None:
+    """Reconstruct pre-version-7 mapped fields, rather than mislabel current DDL as v1."""
+    Base.metadata.create_all(bind=engine)
+    with engine.begin() as connection:
+        for table in ("group_run_children", "execution_dispatches", "hermes_actions"):
+            connection.exec_driver_sql(f"DROP TABLE {table}")
+        for table, columns in {
+            "test_suites": ["identity_token"],
+            "suite_runs": ["identity_token", "cancel_requested_at"],
+            "plan_runs": ["identity_token", "cancel_requested_at"],
+            "execution_run_leases": ["run_identity"],
+        }.items():
+            for column in columns:
+                connection.exec_driver_sql(f"ALTER TABLE {table} DROP COLUMN {column}")
+
+
 def test_fresh_local_database_gets_versioned_schema(tmp_path) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'fresh.sqlite3'}")
 
@@ -28,7 +44,7 @@ def test_existing_unversioned_prototype_is_adopted(tmp_path) -> None:
 
 def test_version_one_database_gets_durable_queue(tmp_path) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'v1.sqlite3'}")
-    Base.metadata.create_all(bind=engine)
+    _legacy_mapped_schema(engine)
     with engine.begin() as connection:
         connection.exec_driver_sql("PRAGMA user_version=1")
 
@@ -39,7 +55,7 @@ def test_version_one_database_gets_durable_queue(tmp_path) -> None:
 
 def test_version_two_queue_upgrade_allows_reused_run_id(tmp_path) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'v2.sqlite3'}")
-    Base.metadata.create_all(bind=engine)
+    _legacy_mapped_schema(engine)
     with engine.begin() as connection:
         connection.exec_driver_sql("PRAGMA user_version=2")
         connection.exec_driver_sql(
@@ -80,7 +96,7 @@ def test_database_from_newer_version_is_rejected(tmp_path) -> None:
 
 def test_version_two_queue_interrupts_inflight_jobs_on_identity_upgrade(tmp_path) -> None:
     engine = create_engine(f"sqlite:///{tmp_path / 'v2-inflight.sqlite3'}")
-    Base.metadata.create_all(bind=engine)
+    _legacy_mapped_schema(engine)
     with engine.begin() as connection:
         connection.exec_driver_sql("PRAGMA user_version=2")
         connection.exec_driver_sql(

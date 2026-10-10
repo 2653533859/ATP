@@ -49,6 +49,12 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/web-recordings", tags=["Web 用例录制"])
 
+# 断点续录回放的请求体完全由调用方可控，必须限制单步等待/超时与回放总时长，
+# 否则一个超大的 wait 或超时会话会长期卡在 starting 状态，占用浏览器与 worker 槽位。
+_REPLAY_MAX_WAIT_MS = 60_000
+_REPLAY_MAX_STEP_TIMEOUT_MS = 60_000
+_REPLAY_TOTAL_BUDGET_S = 300.0
+
 
 _SENSITIVE_TEXT_RE = re.compile(
     r"(?i)(?P<key>[\"']?(?:token|secret|password|passwd|api[_-]?key|authorization|cookie|credential)[\"']?)"
@@ -108,19 +114,44 @@ _RECORDING_SCRIPT = r"""
 (() => {
   const quote = (value) => String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"');
 
+  function isDynamicId(id) {
+    if (!id || typeof id !== 'string') return true;
+    if (/^el-(?:id|tooltip|popper)-/i.test(id)) return true;
+    if (/^(?:rc[_-]|ant-|_|:r[0-9a-z]+:)/i.test(id)) return true;
+    if (/^[0-9a-f]{8}-[0-9a-f]{4}/i.test(id) || /^[a-z]+[-_][0-9]{4,}/i.test(id)) return true;
+    return false;
+  }
+
   function selectorFor(element) {
     if (!(element instanceof Element)) return '';
-    if (element.id) return `#${CSS.escape(element.id)}`;
+    const tag = element.tagName.toLowerCase();
 
     const testId = element.getAttribute('data-testid') || element.getAttribute('data-test-id');
     if (testId) return `[data-testid="${quote(testId)}"]`;
 
+    if (element.id && !isDynamicId(element.id)) return `#${CSS.escape(element.id)}`;
+
     const name = element.getAttribute('name');
-    if (name) return `${element.tagName.toLowerCase()}[name="${quote(name)}"]`;
+    if (name) return `${tag}[name="${quote(name)}"]`;
+
+    const placeholder = element.getAttribute('placeholder');
+    if (placeholder) return `${tag}[placeholder="${quote(placeholder)}"]`;
+
+    const autocomplete = element.getAttribute('autocomplete');
+    if (autocomplete && autocomplete !== 'off') return `${tag}[autocomplete="${quote(autocomplete)}"]`;
 
     const ariaLabel = element.getAttribute('aria-label');
-    if (ariaLabel) return `${element.tagName.toLowerCase()}[aria-label="${quote(ariaLabel)}"]`;
+    if (ariaLabel) return `${tag}[aria-label="${quote(ariaLabel)}"]`;
 
+    if (tag === 'button' && element.className && typeof element.className === 'string') {
+      const cls = element.className.split(/\s+/);
+      if (cls.includes('submit-btn')) return 'button.submit-btn';
+    }
+
+    const type = element.getAttribute('type');
+    if (tag === 'input' && type && ['submit', 'button', 'checkbox', 'radio'].includes(type)) {
+      return `${tag}[type="${quote(type)}"]`;
+    }
     const parts = [];
     let node = element;
     while (node && node !== document.body && parts.length < 6) {
@@ -147,34 +178,61 @@ _RECORDING_SCRIPT = r"""
       window.atpRecordEvent(payload).catch(() => {});
     }
   }
+  function handleInputTarget(target) {
+    if (!target) return;
+    if (
+      !(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable)
+    ) return;
+    const isPassword = target instanceof HTMLInputElement && target.type === 'password';
+    const val = isPassword ? '' : (target.isContentEditable ? target.textContent || '' : target.value);
+    const selector = selectorFor(target);
+    if (selector) {
+      send({
+        type: 'input',
+        selector,
+        value: val,
+        is_password: isPassword,
+        sensitive: isPassword,
+      });
+    }
+  }
 
+  // 当用户点击登录按钮或提交表单前，预先扫描表单内带有非空值的输入项（捕获浏览器自动填充）
   document.addEventListener('click', (event) => {
     const target = targetFor(event);
+    if (target && (target.tagName.toLowerCase() === 'button' || target.getAttribute('type') === 'submit' || target.getAttribute('role') === 'button')) {
+      const form = target.closest('form');
+      if (form) {
+        const inputs = form.querySelectorAll('input, textarea');
+        inputs.forEach((inp) => {
+          if (inp.value) {
+            handleInputTarget(inp);
+          }
+        });
+      }
+    }
     const selector = target ? selectorFor(target) : '';
     if (selector) send({ type: 'click', selector });
   }, true);
 
   document.addEventListener('input', (event) => {
-    const target = targetFor(event);
-    if (
-      !(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement || target.isContentEditable)
-    ) return;
-    const sensitive = target instanceof HTMLInputElement && target.type === 'password';
-    send({
-      type: 'input',
-      selector: selectorFor(target),
-      value: sensitive ? '' : (target.isContentEditable ? target.textContent || '' : target.value),
-      sensitive,
-    });
+    handleInputTarget(targetFor(event));
+  }, true);
+
+  document.addEventListener('paste', (event) => {
+    setTimeout(() => {
+      handleInputTarget(targetFor(event));
+    }, 20);
   }, true);
 
   document.addEventListener('change', (event) => {
     const target = targetFor(event);
     if (target instanceof HTMLSelectElement) {
       send({ type: 'select', selector: selectorFor(target), value: target.value });
+    } else {
+      handleInputTarget(target);
     }
   }, true);
-
   document.addEventListener('keydown', (event) => {
     const key = event.key;
     if (!['Enter', 'Tab', 'Escape'].includes(key)) return;
@@ -194,6 +252,7 @@ class WebRecordingStart(BaseModel):
     browser: WebRecordingBrowser = "chromium"
     viewport_width: int = Field(default=1280, ge=320, le=3840)
     viewport_height: int = Field(default=720, ge=240, le=2160)
+    replay_steps: list[dict[str, Any]] = Field(default_factory=list)
 
     @field_validator("start_url")
     @classmethod
@@ -218,6 +277,9 @@ class WebRecordingSession:
     browser_name: str = "chromium"
     status: str = "starting"
     error: str | None = None
+    replay_steps: list[dict[str, Any]] = field(default_factory=list)
+    replayed_step_count: int = 0
+    is_resuming: bool = False
     steps: list[dict[str, Any]] = field(default_factory=list)
     blocked_requests: list[dict[str, Any]] = field(default_factory=list)
     console_messages: list[dict[str, Any]] = field(default_factory=list)
@@ -280,16 +342,36 @@ class WebRecordingSession:
                 self.trace_started = True
             await self.context.route("**/*", self._guard_route)
             self.page = await self.context.new_page()
+            if self.replay_steps:
+                self.is_resuming = True
+                replay_deadline = time.monotonic() + _REPLAY_TOTAL_BUDGET_S
+                for step_data in self.replay_steps:
+                    if time.monotonic() > replay_deadline:
+                        logger.warning("断点续录回放超过总时长上限，跳过剩余前置步骤")
+                        break
+                    action = str(step_data.get("action") or "").strip()
+                    params = dict(step_data.get("params") or {})
+                    try:
+                        await self._replay_single_step(action, params)
+                        self.replayed_step_count += 1
+                    except Exception as replay_err:
+                        logger.warning("断点续录回放前置步骤 %s 失败: %s", action, replay_err)
+                        break
+            else:
+                self._append_step("goto", f"打开 {self.start_url}", {"url": self.start_url})
+                await self.page.goto(self.start_url, wait_until="domcontentloaded", timeout=30_000)
+
             await self.page.expose_binding("atpRecordEvent", self._handle_binding)
             await self.page.add_init_script(_RECORDING_SCRIPT)
+            if self.is_resuming:
+                with contextlib.suppress(Exception):
+                    await self.page.evaluate(_RECORDING_SCRIPT)
             self.page.on("framenavigated", self._handle_navigation)
             self.page.on("console", self._handle_console)
             self.page.on("pageerror", self._handle_page_error)
             self.page.on("request", self._handle_request)
             self.page.on("requestfailed", self._handle_request_failed)
             self.page.on("response", self._handle_response)
-            self._append_step("goto", f"打开 {self.start_url}", {"url": self.start_url})
-            await self.page.goto(self.start_url, wait_until="domcontentloaded", timeout=30_000)
             self.status = "recording"
         except Exception as exc:
             self.status = "error"
@@ -297,6 +379,43 @@ class WebRecordingSession:
             self.finished_at = time.monotonic()
             await self.close()
             raise
+
+    async def _replay_single_step(self, action: str, params: dict[str, Any]) -> None:
+        if self.page is None:
+            return
+        timeout_ms = int(params.get("timeout_ms") or 15_000)
+        timeout_ms = min(max(timeout_ms, 1_000), _REPLAY_MAX_STEP_TIMEOUT_MS)
+        if action == "goto":
+            url = str(params.get("url") or "").strip()
+            if url:
+                await self.page.goto(url, wait_until="domcontentloaded", timeout=timeout_ms)
+        elif action == "click":
+            selector = str(params.get("selector") or "").strip()
+            if selector:
+                await self.page.click(selector, timeout=timeout_ms)
+        elif action == "fill":
+            selector = str(params.get("selector") or "").strip()
+            value = str(params.get("value") or "")
+            if selector:
+                await self.page.fill(selector, value, timeout=timeout_ms)
+        elif action == "select":
+            selector = str(params.get("selector") or "").strip()
+            value = str(params.get("value") or "")
+            if selector:
+                await self.page.select_option(selector, value=value, timeout=timeout_ms)
+        elif action == "wait":
+            ms = int(params.get("ms") or 1000)
+            ms = min(max(ms, 0), _REPLAY_MAX_WAIT_MS)
+            await asyncio.sleep(ms / 1000)
+        elif action == "hover":
+            selector = str(params.get("selector") or "").strip()
+            if selector:
+                await self.page.hover(selector, timeout=timeout_ms)
+        elif action == "press":
+            key = str(params.get("key") or "").strip()
+            if key:
+                await self.page.keyboard.press(key)
+        await asyncio.sleep(0.2)
 
     async def stop(self) -> None:
         if self.status not in {"stopped", "error"}:
@@ -537,6 +656,8 @@ class WebRecordingSession:
             "artifacts": self.artifacts,
             "artifact_error": self.artifact_error,
             "error": self.error,
+            "replayed_step_count": self.replayed_step_count,
+            "is_resuming": self.is_resuming,
         }
 
     def _handle_navigation(self, frame: Frame) -> None:
@@ -547,6 +668,17 @@ class WebRecordingSession:
             return
         if self.steps and self.steps[-1].get("action") == "goto" and self.steps[-1].get("params", {}).get("url") == url:
             return
+        if self.is_resuming and not self.steps:
+            last_replayed_url = ""
+            for step in reversed(self.replay_steps):
+                if step.get("action") == "goto" or (step.get("params") or {}).get("url"):
+                    last_replayed_url = str((step.get("params") or {}).get("url") or "").strip()
+                    if last_replayed_url:
+                        break
+            if not last_replayed_url:
+                last_replayed_url = self.start_url
+            if url.rstrip("/") == last_replayed_url.rstrip("/"):
+                return
         self._append_step("goto", f"打开 {url}", {"url": url})
 
     def _handle_binding(self, _source: object, payload: Any) -> None:
@@ -559,8 +691,10 @@ class WebRecordingSession:
         if event_type == "click" and selector:
             self._append_step("click", f"点击 {selector}", {"selector": selector})
         elif event_type == "input" and selector:
-            value = str(event.get("value") or "")
-            name = "输入敏感值（请手动填写）" if event.get("sensitive") else f"输入 {selector}"
+            is_pwd = bool(event.get("is_password") or event.get("sensitive"))
+            # Browser clients may be stale or bypassed; never retain a password value.
+            value = "" if is_pwd else str(event.get("value") or "")
+            name = "输入敏感值（请手动填写）" if is_pwd else f"输入 {selector}"
             params = {"selector": selector, "value": value}
             if (
                 self.steps
@@ -615,6 +749,7 @@ class WebRecordingManager:
                 viewport_height=payload.viewport_height,
                 project_id=payload.project_id,
                 browser_name=payload.browser,
+                replay_steps=payload.replay_steps,
             )
             self.sessions[session.session_id] = session
         try:

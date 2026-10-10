@@ -4,8 +4,6 @@
       <div class="toolbar-left">
         <FolderOpenOutlined class="toolbar-icon" />
         <h2 class="toolbar-title page-title">{{ t('suite.title') }}</h2>
-        <span class="toolbar-divider">/</span>
-        <span class="toolbar-subtitle page-subtitle">{{ t('suite.subtitle') }}</span>
       </div>
       <div class="toolbar-right">
         <a-select
@@ -23,6 +21,28 @@
         </a-button>
       </div>
     </header>
+    <div class="suite-bento-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">套件总数</div>
+        <div class="kpi-num">{{ suites.length }}</div>
+        <div class="kpi-sub">当前工程测试套件</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">串行执行套件</div>
+        <div class="kpi-num">{{ serialSuiteCount }}</div>
+        <div class="kpi-sub">按序稳定执行</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">并行加速套件</div>
+        <div class="kpi-num" style="color: var(--c-primary)">{{ parallelSuiteCount }}</div>
+        <div class="kpi-sub">多 Worker 并发</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">覆盖用例总数</div>
+        <div class="kpi-num" style="color: var(--c-success)">{{ totalCoveredCaseCount }}</div>
+        <div class="kpi-sub">跨套件去重统计</div>
+      </div>
+    </div>
 
     <BatchOperationBar :selected-count="selectedRowKeys.length" @cancel="selectedRowKeys = []">
       <a-button size="small" @click="handleBatchCopy">{{ t('suite.batch_copy') }}</a-button>
@@ -36,7 +56,8 @@
       </a-popconfirm>
     </BatchOperationBar>
 
-    <a-table
+    <div class="table-panel">
+      <a-table
       :columns="columns"
       :data-source="suites"
       :loading="loading"
@@ -90,17 +111,15 @@
           </a-space>
         </template>
       </template>
-    </a-table>
-
-    <!-- 创建/编辑 Modal -->
-    <a-modal
+      </a-table>
+    </div>
+    <!-- 创建/编辑 Drawer -->
+    <a-drawer
       v-model:open="formOpen"
       :title="editingId ? t('suite.edit') : t('suite.new')"
-      width="1080"
-      :ok-text="t('common.save')"
-      :cancel-text="t('common.cancel')"
-      :confirm-loading="saving"
-      @ok="handleSave"
+      width="960"
+      :destroy-on-close="true"
+      @close="formOpen = false"
     >
       <a-form layout="vertical">
         <a-form-item :label="t('suite.form.name_label')" required>
@@ -155,11 +174,40 @@
           <a-collapse-panel key="fixtures" :header="t('suite.form.fixtures_label')">
             <a-alert :message="t('suite.form.fixtures_hint')" type="info" show-icon style="margin-bottom: 12px" />
             <a-form-item :label="t('suite.form.shared_variables_label')">
+              <template #extra>
+                <div style="display: flex; justify-content: flex-end; margin-top: 4px">
+                  <a-button size="small" type="link" style="padding: 0" @click="form.sharedVariablesText = tryFormatJson(form.sharedVariablesText)">
+                    <FormatPainterOutlined /> 格式化 JSON
+                  </a-button>
+                </div>
+              </template>
               <a-textarea v-model:value="form.sharedVariablesText" :rows="4" placeholder='{"tenant":"staging"}' />
             </a-form-item>
             <a-row :gutter="16">
-              <a-col :span="12"><a-form-item :label="t('suite.form.fixture_setup_label')"><a-textarea v-model:value="form.fixtureSetupText" :rows="6" placeholder='[{"action":"set_variable","variable":"token","value":"demo"}]' /></a-form-item></a-col>
-              <a-col :span="12"><a-form-item :label="t('suite.form.fixture_teardown_label')"><a-textarea v-model:value="form.fixtureTeardownText" :rows="6" placeholder='[{"action":"delete_variable","variable":"token"}]' /></a-form-item></a-col>
+              <a-col :span="12">
+                <a-form-item :label="t('suite.form.fixture_setup_label')">
+                  <template #extra>
+                    <div style="display: flex; justify-content: flex-end; margin-top: 4px">
+                      <a-button size="small" type="link" style="padding: 0" @click="form.fixtureSetupText = tryFormatJson(form.fixtureSetupText)">
+                        <FormatPainterOutlined /> 格式化 JSON
+                      </a-button>
+                    </div>
+                  </template>
+                  <a-textarea v-model:value="form.fixtureSetupText" :rows="6" placeholder='[{"action":"set_variable","variable":"token","value":"demo"}]' />
+                </a-form-item>
+              </a-col>
+              <a-col :span="12">
+                <a-form-item :label="t('suite.form.fixture_teardown_label')">
+                  <template #extra>
+                    <div style="display: flex; justify-content: flex-end; margin-top: 4px">
+                      <a-button size="small" type="link" style="padding: 0" @click="form.fixtureTeardownText = tryFormatJson(form.fixtureTeardownText)">
+                        <FormatPainterOutlined /> 格式化 JSON
+                      </a-button>
+                    </div>
+                  </template>
+                  <a-textarea v-model:value="form.fixtureTeardownText" :rows="6" placeholder='[{"action":"delete_variable","variable":"token"}]' />
+                </a-form-item>
+              </a-col>
             </a-row>
           </a-collapse-panel>
         </a-collapse>
@@ -321,7 +369,13 @@
           </a-row>
         </a-form-item>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <div class="drawer-footer-actions">
+          <a-button @click="formOpen = false">{{ t('common.cancel') }}</a-button>
+          <a-button type="primary" :loading="saving" @click="handleSave">{{ t('common.save') }}</a-button>
+        </div>
+      </template>
+    </a-drawer>
 
     <!-- 执行环境选择 -->
     <a-modal
@@ -365,6 +419,7 @@
         @expand="onSuiteRunExpand"
       >
         <template #expandedRowRender="{ record }">
+          <GroupRecoveryPanel kind="suite" :run-id="record.id" :active="runsDrawerOpen" @changed="loadSuiteRuns()" />
           <div class="aggregate-report-panel suite-run-cases-panel">
             <div class="aggregate-report-title">{{ t('suite.report.title') }}</div>
             <div class="aggregate-report-grid">
@@ -495,9 +550,12 @@
 </template>
 
 <script setup lang="ts">
+import { getRuntimeMode } from '@/runtimeMode'
+const localMode = getRuntimeMode()?.mode === 'local'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { message, Modal } from 'ant-design-vue'
-import { FolderOpenOutlined, HolderOutlined, PlusOutlined } from '@ant-design/icons-vue'
+import { FolderOpenOutlined, HolderOutlined, PlusOutlined, FormatPainterOutlined } from '@ant-design/icons-vue'
+import { tryFormatJson } from '@/utils/jsonFormat'
 import { useI18n } from 'vue-i18n'
 import { useRoute } from 'vue-router'
 import draggable from 'vuedraggable'
@@ -518,6 +576,7 @@ import type {
 import { suiteApi, projectApi, caseApi, environmentApi } from '@/api'
 import { buildRunPayload } from '@/utils/caseExecution'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
+import GroupRecoveryPanel from '@/components/common/GroupRecoveryPanel.vue'
 import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
 import {
   createDefaultSuiteConfig,
@@ -589,6 +648,20 @@ function createDefaultForm(): SuiteFormState {
 }
 
 const suites = ref<SuiteItem[]>([])
+const serialSuiteCount = computed(() => suites.value.filter((s) => s.config?.execution_mode !== 'parallel').length)
+const parallelSuiteCount = computed(() => suites.value.filter((s) => s.config?.execution_mode === 'parallel').length)
+const totalCoveredCaseCount = computed(() => {
+  const ids = new Set<number>()
+  suites.value.forEach((s) => {
+    (s.case_ids || []).forEach((item: unknown) => {
+      if (typeof item === 'number') ids.add(item)
+      else if (item && typeof item === 'object' && 'case_id' in item) {
+        ids.add(Number((item as { case_id: unknown }).case_id))
+      }
+    })
+  })
+  return ids.size
+})
 const route = useRoute()
 // a-table #bodyCell 的 record 是 Record<string, any>；三张表的数据源类型在此断言收窄
 const asSuite = (record: unknown) => record as SuiteItem
@@ -697,7 +770,7 @@ const caseReadyFilterOptions = computed<Array<{ label: string; value: CaseReadyF
 
 const executionModeOptions = computed<Array<{ label: string; value: SuiteExecutionMode }>>(() => [
   { label: t('suite.execution_modes.sequential'), value: 'sequential' },
-  { label: t('suite.execution_modes.parallel'), value: 'parallel' },
+  ...(localMode ? [] : [{ label: t('suite.execution_modes.parallel'), value: 'parallel' as const }]),
 ])
 
 const failStrategyOptions = computed<Array<{ label: string; value: SuiteFailStrategy }>>(() => [
@@ -1316,6 +1389,7 @@ onMounted(async () => {
 onUnmounted(() => {
   stopSuiteRunsRefresh()
 })
+
 </script>
 
 <style scoped>
@@ -1364,6 +1438,22 @@ onUnmounted(() => {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+.suite-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
+}
+@media (max-width: 900px) {
+  .suite-bento-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .suite-bento-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .toolbar-right {
   display: flex;
@@ -1495,5 +1585,11 @@ onUnmounted(() => {
   margin-top: 8px;
   font-size: 12px;
   color: var(--c-text-tertiary);
+}
+
+.drawer-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 </style>

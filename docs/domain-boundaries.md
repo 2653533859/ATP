@@ -24,6 +24,15 @@ This document defines the backend domain ownership rules for ATP. The codebase i
 
 ## Domain Contracts
 
+### ai -> execution commands
+
+- `services/hermes_commands.py` owns command hashes, user-scoped receipts and resource identity checks; API entrypoints check current project permissions before every lookup/replay.
+- `TestSuite.identity_token` and `SuiteRun.identity_token` are internal immutable resource identities. `HermesAction` binds a command to its result ID and identity; replay reads that result without recreating or dispatching it.
+- Missing identities on historical receipts require manual verification. The command result is separate from execution and dispatch status; reliable delivery is specified in [the command/dispatch contract](command-dispatch-contract-2026-10-07.md).
+- `services/execution_dispatch.py` owns durable publication intents. Suite APIs add an intent to the run/command transaction; the API lifecycle starts its publisher. Local queue insertion/submission is atomic, while uncertain broker publication is recorded without automatic replay. `ExecutionDispatch` does not own execution outcomes. Current coverage is manual suite entrypoints; other dispatch callers retain their existing contract.
+- `services/suite_delivery.py` owns suite message validation and permanent first acceptance before the execution lease. An accepted intent is never automatically reclaimed; `accepted_at` confirms message acceptance only. Suite lease recovery matches the durable run UUID and preserves terminal results. Legacy suite leases without a UUID require explicit reconciliation.
+- `services/group_execution.py` owns shared read-only explanations, conditional cooperative cancellation and durable child ownership before execution. Group routes apply viewer/editor project access; cancellation binds an opaque identity revision. Child lookup checks current identity and project. Local recovery consumes verified ownership records and must not infer legacy JSON child identities from current numeric IDs. The publisher does not own cancellation outcomes.
+
 ### case -> execution
 
 - `TestCase.is_ready_for_execution` is the shared readiness contract.
@@ -66,7 +75,7 @@ This document defines the backend domain ownership rules for ATP. The codebase i
 
 ## Known Boundary Debt
 
-- `worker/tasks.py` still owns broad suite and plan orchestration in one file. When touching retry/cancel/recovery logic, split shared execution policy into service helpers first.
+- [已消减] `worker/tasks.py` 编排大单体已拆解下沉：套件执行编排下沉至 `services/suite_orchestrator.py`，测试计划编排下沉至 `services/plan_orchestrator.py`，`tasks.py` 仅作为 Celery Task 租约包装与适配入口。
 - `api/v1/exports.py` mixes report rendering and export transport. Future reporting work should separate data extraction, rendering, and response building.
 - Notification strategy currently lives inside `NotificationConfig.config` JSON for compatibility. If strategy becomes more complex, promote it to typed schema/model fields with a migration.
 - Flaky case detection is computed dynamically from recent `TestRun` history. Persist it only if query cost or trend reporting requires it.

@@ -6,7 +6,6 @@
           <MobileOutlined class="toolbar-icon" />
           <span class="toolbar-name">{{ t('app_workbench.title') }}</span>
         </div>
-        <div class="toolbar-sep">/</div>
         <div class="toolbar-project">
           <label class="sr-only">{{ t('app_workbench.project_label') }}</label>
           <a-select
@@ -987,8 +986,25 @@ onUnmounted(() => {
 
 .signal-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin: 18px 0; }
 .signal-card { position: relative; min-height: 112px; overflow: hidden; padding: 17px 18px; border: 1px solid var(--app-line); border-radius: 12px; background: var(--c-bg-elevated); }
-.signal-card::after { position: absolute; right: 0; bottom: 0; width: 45px; height: 3px; background: #d7e1e6; content: ''; }
-.signal-card-primary { border-color: #b7dfdf; background: #f2fcfb; }.signal-card-primary::after { background: var(--app-cyan); }.signal-card-run::after { background: var(--app-copper); }
+.signal-card::after {
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  width: 45px;
+  height: 3px;
+  background: var(--c-border-strong);
+  content: '';
+}
+.signal-card-primary {
+  border-color: var(--c-primary-glow);
+  background: var(--c-primary-soft);
+}
+.signal-card-primary::after {
+  background: var(--app-cyan);
+}
+.signal-card-run::after {
+  background: var(--app-copper);
+}
 .signal-label { display: block; color: var(--app-muted); font-size: 11px; font-weight: 750; letter-spacing: .05em; text-transform: uppercase; }
 .signal-card strong { display: block; margin-top: 10px; color: var(--c-text); font-size: 28px; letter-spacing: -.05em; }.signal-card strong small { margin-left: 3px; color: #8d9da5; font-size: 14px; font-weight: 600; letter-spacing: 0; }
 .signal-note { display: block; margin-top: 6px; color: #8997a4; font-size: 11px; }
@@ -999,16 +1015,265 @@ onUnmounted(() => {
 .device-panel, .launch-panel, .activity-panel, .asset-panel { padding: 20px; }
 .panel-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; }.panel-head h2 { margin: 5px 0 0; color: var(--c-text); font-size: 20px; letter-spacing: -.03em; }.compact-head { align-items: center; }.compact-head h2 { font-size: 17px; }.panel-caption { display: flex; justify-content: space-between; gap: 8px; margin: 9px 0 12px; color: #84919d; font-size: 11px; line-height: 1.5; }.count-pill { padding: 3px 7px; border-radius: 999px; background: #eaf9f6; color: #208a7f; font-weight: 700; white-space: nowrap; }
 .device-list { display: flex; flex-direction: column; gap: 6px; max-height: 330px; overflow: auto; }
-.device-row { display: flex; align-items: center; gap: 9px; width: 100%; padding: 10px 9px; border: 1px solid transparent; border-radius: 9px; background: var(--c-bg-subtle); color: inherit; text-align: left; transition: border-color .16s, background .16s, transform .16s; }.device-row:hover, .device-row.selected { border-color: #a5d9d7; background: #effafa; }.device-row.selected { box-shadow: inset 3px 0 0 var(--app-cyan); }.device-row.locked { cursor: not-allowed; opacity: .55; }.device-row:focus-visible, .activity-row:focus-visible, .mode-switch button:focus-visible { outline: 2px solid var(--app-cyan); outline-offset: 2px; }
-.device-status-dot { flex: 0 0 auto; width: 8px; height: 8px; box-shadow: none; }.status-online { background: #35b890; }.status-busy { background: var(--app-copper); }.status-offline { background: #adb9c0; }
-.device-row-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }.device-row-main strong { overflow: hidden; color: #234051; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.device-row-main small { overflow: hidden; color: #91a0aa; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }.device-status-text { color: #96a3aa; font-size: 10px; white-space: nowrap; }
-.device-focus { margin-top: 16px; padding-top: 15px; border-top: 1px solid #edf1f3; }.focus-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }.focus-heading strong { display: block; margin-top: 4px; color: #254455; font-size: 13px; }.device-specs { display: flex; flex-wrap: wrap; gap: 6px 12px; margin-top: 10px; color: #84949f; font-size: 10px; }.lease-banner { display: flex; align-items: center; gap: 6px; margin-top: 11px; padding: 8px 9px; border: 1px solid #f5d5ad; border-radius: 7px; background: #fff8ed; color: #a66b27; font-size: 10px; }.focus-actions { display: flex; gap: 7px; margin-top: 13px; }
+.device-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 10px 9px;
+  border: 1px solid transparent;
+  border-radius: 9px;
+  background: var(--c-bg-subtle);
+  color: inherit;
+  text-align: left;
+  transition: border-color .16s, background .16s, transform .16s;
+}
+.device-row:hover {
+  border-color: var(--app-cyan);
+  background: var(--c-primary-soft);
+}
+.device-row.selected {
+  border-color: var(--app-cyan);
+  background: var(--c-primary-soft);
+  box-shadow: inset 3px 0 0 var(--app-cyan);
+}
+.device-row.locked {
+  cursor: not-allowed;
+  opacity: .55;
+}
+.device-row:focus-visible,
+.activity-row:focus-visible,
+.mode-switch button:focus-visible {
+  outline: 2px solid var(--app-cyan);
+  outline-offset: 2px;
+}
+.device-status-dot {
+  flex: 0 0 auto;
+  width: 8px;
+  height: 8px;
+  box-shadow: none;
+}
+.status-online {
+  background: #35b890;
+}
+.status-busy {
+  background: var(--app-copper);
+}
+.status-offline {
+  background: #adb9c0;
+}
+.device-row-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+.device-row-main strong {
+  overflow: hidden;
+  color: var(--c-text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.device-row-main small {
+  overflow: hidden;
+  color: var(--c-text-tertiary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.device-status-text {
+  color: var(--c-text-secondary);
+  font-size: 10px;
+  white-space: nowrap;
+}
+.device-focus {
+  margin-top: 16px;
+  padding-top: 15px;
+  border-top: 1px solid var(--c-border);
+}
+.focus-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.focus-heading strong {
+  display: block;
+  margin-top: 4px;
+  color: var(--c-text);
+  font-size: 13px;
+}
+.device-specs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  margin-top: 10px;
+  color: var(--c-text-secondary);
+  font-size: 10px;
+}
+.lease-banner {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 11px;
+  padding: 8px 9px;
+  border: 1px solid var(--c-warning);
+  border-radius: 7px;
+  background: var(--c-warning-soft);
+  color: var(--c-warning);
+  font-size: 10px;
+}
+.focus-actions {
+  display: flex;
+  gap: 7px;
+  margin-top: 13px;
+}
 
 .launch-panel { min-width: 0; }.launch-head p { max-width: 630px; margin: 7px 0 0; color: #84919f; font-size: 12px; line-height: 1.6; }.launch-signal { display: flex; align-items: center; gap: 7px; color: #78909a; font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; white-space: nowrap; }.signal-line { width: 20px; height: 2px; background: var(--app-copper); box-shadow: 7px 0 0 rgba(238, 117, 87, .35), 14px 0 0 rgba(238, 117, 87, .16); }
-.mode-switch { display: inline-flex; gap: 4px; margin: 24px 0 20px; padding: 4px; border-radius: 9px; background: #f0f4f5; }.mode-switch button { display: inline-flex; align-items: center; gap: 7px; padding: 8px 13px; border: 0; border-radius: 6px; background: transparent; color: #7a8994; cursor: pointer; font: inherit; font-size: 12px; font-weight: 700; }.mode-switch button.active { background: var(--c-bg-elevated); color: #1e6f73; box-shadow: 0 2px 7px rgba(40, 76, 85, .12); }
-.launch-form { max-width: 730px; }.launch-form > label, .launch-two-col label { display: block; margin-bottom: 7px; color: #617481; font-size: 11px; font-weight: 750; letter-spacing: .04em; }.launch-form > .ant-select { width: 100%; }.selection-card { margin-top: 14px; padding: 14px; border: 1px solid #dce8ea; border-left: 3px solid var(--app-cyan); border-radius: 9px; background: #f8fcfc; }.selection-title { display: flex; align-items: center; justify-content: space-between; gap: 9px; }.selection-title strong { color: #244353; font-size: 13px; }.selection-meta { display: flex; flex-wrap: wrap; gap: 6px 16px; margin-top: 8px; color: #83929c; font-size: 11px; }.selection-meta span + span { position: relative; }.selection-meta span + span::before { position: absolute; top: 50%; left: -9px; width: 3px; height: 3px; border-radius: 50%; background: #b5c1c6; content: ''; transform: translateY(-50%); }.launch-actions { display: flex; align-items: center; gap: 8px; margin-top: 19px; }.launch-note { display: flex; align-items: center; gap: 6px; margin: 15px 0 0; color: #8b9aa3; font-size: 11px; line-height: 1.6; }.launch-note .anticon { color: #b28a4e; }.launch-two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 15px; }.launch-two-col .ant-select { width: 100%; }
+.mode-switch {
+  display: inline-flex;
+  gap: 4px;
+  margin: 24px 0 20px;
+  padding: 4px;
+  border-radius: 9px;
+  background: var(--c-bg-subtle);
+}
+.mode-switch button {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 8px 13px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--c-text-secondary);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+}
+.mode-switch button.active {
+  background: var(--c-bg-elevated);
+  color: var(--app-cyan);
+  box-shadow: var(--shadow-sm);
+}
+.launch-form {
+  max-width: 730px;
+}
+.launch-form > label,
+.launch-two-col label {
+  display: block;
+  margin-bottom: 7px;
+  color: var(--c-text-secondary);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .04em;
+}
+.launch-form > .ant-select {
+  width: 100%;
+}
+.selection-card {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--c-border);
+  border-left: 3px solid var(--app-cyan);
+  border-radius: 9px;
+  background: var(--c-bg-subtle);
+}
+.selection-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 9px;
+}
+.selection-title strong {
+  color: var(--c-text);
+  font-size: 13px;
+}
+.selection-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 8px;
+  color: var(--c-text-secondary);
+  font-size: 11px;
+}
+.selection-meta span + span {
+  position: relative;
+}
+.selection-meta span + span::before {
+  position: absolute;
+  left: -9px;
+  color: var(--c-border-strong);
+  content: '·';
+}
 
-.activity-list, .apk-list { display: flex; flex-direction: column; gap: 5px; margin-top: 15px; }.activity-row { display: flex; align-items: center; gap: 10px; width: 100%; padding: 9px 8px; border: 0; border-radius: 8px; background: transparent; color: inherit; text-align: left; cursor: pointer; }.activity-row:hover { background: #f4f8f8; }.activity-mark, .apk-mark { display: grid; flex: 0 0 auto; width: 28px; height: 28px; place-items: center; border-radius: 8px; background: #e8f7f6; color: #208b8b; font-size: 13px; }.activity-mark.activity-special { background: #fff0e9; color: #d86f48; }.activity-main, .apk-main { display: flex; min-width: 0; flex: 1; flex-direction: column; gap: 3px; }.activity-main strong, .apk-main strong { overflow: hidden; color: #2a4656; font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }.activity-main small, .apk-main small { overflow: hidden; color: #91a0a8; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }.activity-status { font-size: 10px; font-weight: 750; white-space: nowrap; }.activity-status-passed, .activity-status-completed { color: #229276; }.activity-status-failed, .activity-status-error { color: #ce6558; }.activity-status-running, .activity-status-pending { color: #b67a2f; }.activity-status-stopped, .activity-status-cancelled { color: #80909a; }
+.activity-list,
+.apk-list {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 15px;
+}
+.activity-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 9px 8px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.activity-row:hover {
+  background: var(--c-bg-subtle);
+}
+.activity-mark,
+.apk-mark {
+  display: grid;
+  flex: 0 0 auto;
+  width: 28px;
+  height: 28px;
+  place-items: center;
+  border-radius: 8px;
+  background: var(--c-primary-soft);
+  color: var(--app-cyan);
+  font-size: 13px;
+}
+.activity-mark.activity-special {
+  background: rgba(238, 117, 87, 0.12);
+  color: var(--app-copper);
+}
+.activity-main,
+.apk-main {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  flex-direction: column;
+  gap: 3px;
+}
+.activity-main strong,
+.apk-main strong {
+  overflow: hidden;
+  color: var(--c-text);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.activity-main small,
+.apk-main small {
+  overflow: hidden;
+  color: var(--c-text-tertiary);
+  font-size: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .apk-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #eef2f3; }.apk-row:last-child { border-bottom: 0; }.apk-mark { background: #edf2ff; color: #6875c5; }.apk-code { color: #a0abb1; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; }.compatibility-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 14px; padding-top: 13px; border-top: 1px solid #edf1f2; }.strip-label { display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; color: #71828c; font-size: 10px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }.compatibility-chip { padding: 4px 7px; border-radius: 5px; background: #f1f5f6; color: #72858f; font-size: 10px; }.compatibility-empty { color: #9ba8af; font-size: 10px; }
 .preview-stage { display: flex; min-height: 480px; align-items: center; justify-content: center; border-radius: 8px; background: #111c25; }.preview-stage img { display: block; max-width: 100%; max-height: 560px; object-fit: contain; }.preview-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 12px; color: #85939c; font-size: 11px; }.preview-footer > span { display: inline-flex; align-items: center; gap: 7px; }.preview-footer .live-dot { width: 6px; height: 6px; box-shadow: none; }
 

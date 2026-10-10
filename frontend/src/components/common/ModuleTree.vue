@@ -30,10 +30,14 @@
       >
         <template #title="node">
           <div class="tree-node">
-            <span class="node-name">{{ node.name }}</span>
+            <span class="node-icon">
+              <FolderOpenOutlined v-if="selectedKeys.includes(node.id)" />
+              <FolderOutlined v-else />
+            </span>
+            <span class="node-name" :title="node.name">{{ node.name }}</span>
             <span v-if="editable" class="node-actions" @click.stop>
               <a-tooltip :title="t('case.module_tree.new_child')">
-                <PlusOutlined @click="showAddModal(node)" />
+                <PlusOutlined class="action-btn-mini" @click="showAddModal(node)" />
               </a-tooltip>
               <a-tooltip :title="t('case.module_tree.delete_module')">
                 <a-popconfirm
@@ -42,7 +46,7 @@
                   ok-type="danger"
                   @confirm="handleDelete(node)"
                 >
-                  <DeleteOutlined style="color: #ff4d4f; margin-left: 8px" />
+                  <DeleteOutlined class="action-btn-mini delete-btn" />
                 </a-popconfirm>
               </a-tooltip>
             </span>
@@ -71,7 +75,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { Empty, message, type TreeProps } from 'ant-design-vue'
-import { PlusOutlined, DeleteOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DeleteOutlined, FolderOutlined, FolderOpenOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { projectApi, moduleApi, type ModuleTreeItem } from '@/api'
 
@@ -171,42 +175,85 @@ defineExpose({ reload: loadModules })
   justify-content: space-between;
   align-items: center;
   gap: 8px;
-  padding: 0 4px 12px;
-  font-weight: 600;
-  color: #1f1f1f;
+  padding: 0 4px 10px;
+  font-weight: 700;
+  font-size: 13px;
+  color: var(--c-text);
+  border-bottom: 1px solid var(--c-border-subtle);
+  margin-bottom: 8px;
+}
+.tree-title {
+  color: var(--c-text);
+  font-weight: 700;
+  font-size: 13px;
 }
 .tree-header-actions {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 8px;
 }
 .tree-reset-btn {
   padding-inline: 0;
+  font-size: 12px;
+  color: var(--c-primary);
 }
 .tree-add-btn {
   cursor: pointer;
-  color: #1677ff;
-  font-size: 14px;
+  color: var(--c-primary);
+  font-size: 13px;
+  padding: 3px 5px;
+  border-radius: var(--radius-xs);
+  transition: all 0.16s ease;
+}
+.tree-add-btn:hover {
+  background: var(--c-primary-soft);
 }
 .tree-node {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 6px;
   width: 100%;
+}
+.node-icon {
+  color: var(--c-primary);
+  font-size: 13px;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
 }
 .node-name {
   flex: 1;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-size: 12.5px;
+  color: var(--c-text);
 }
 .node-actions {
   display: none;
   align-items: center;
   flex-shrink: 0;
+  gap: 4px;
   padding-left: 4px;
 }
 .tree-node:hover .node-actions {
   display: flex;
+}
+.action-btn-mini {
+  color: var(--c-text-secondary);
+  font-size: 12px;
+  padding: 2px 4px;
+  border-radius: var(--radius-xs);
+  transition: all 0.16s ease;
+}
+.action-btn-mini:hover {
+  color: var(--c-primary);
+  background: var(--c-primary-soft);
+}
+.action-btn-mini.delete-btn {
+  color: var(--c-error);
+}
+.action-btn-mini.delete-btn:hover {
+  background: var(--c-error-soft);
 }
 </style>

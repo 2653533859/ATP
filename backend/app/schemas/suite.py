@@ -9,6 +9,7 @@ class SuiteCaseItem(BaseModel):
 
 
 class TestSuiteCreate(BaseModel):
+    command_id: str | None = Field(default=None, min_length=16, max_length=64, pattern=r"^[a-zA-Z0-9-]+$")
     name: str
     description: str | None = None
     project_id: int
@@ -43,6 +44,7 @@ class TestSuiteOut(BaseModel):
 
 
 class SuiteRunTrigger(BaseModel):
+    command_id: str | None = Field(default=None, min_length=16, max_length=64, pattern=r"^[a-zA-Z0-9-]+$")
     env_id: int | None = None
     extra_vars: dict = Field(default_factory=dict)
 
@@ -53,6 +55,7 @@ class SuiteRunOut(BaseModel):
     triggered_by: int
     trace_id: str | None = None
     status: SuiteRunStatus
+    cancel_requested_at: datetime | None = None
     environment: str | None
     duration_ms: int | None
     error_message: str | None

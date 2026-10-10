@@ -29,8 +29,12 @@ def test_layout_hides_non_operable_role_entries():
 
     assert "canAccess(['admin', 'engineer'])" in content
     assert 'key="/system/config"' in content
-    assert 'key="/system/ai-llm-configs"' not in content
     assert 'key="/system/dashboard-alerts"' not in content
+    # Windows 本地模式补充的系统入口只在 localMode 模板块内渲染，且整个
+    # 系统中心子菜单仍由 canAccess 角色门控；服务器模式不得把它们暴露给全部角色。
+    local_block = content.split('<template v-if="localMode">', 1)[1].split("</a-sub-menu>", 1)[0]
+    assert 'key="/system/ai-llm-configs"' in local_block
+    assert content.count('key="/system/ai-llm-configs"') == 1
 
 
 def test_case_list_exposes_disabled_read_only_actions():

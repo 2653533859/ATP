@@ -1,6 +1,11 @@
 import http from './http'
 
 export * from './hermes'
+export * from './aiChat'
+export const localGroupApi = {
+  cancel: (kind: 'suite' | 'plan', runId: number) =>
+    http.post<unknown, { requested: boolean; message: string }>(`/local-groups/${kind}/${runId}/cancel`),
+}
 
 export type CasePriority = 'P0' | 'P1' | 'P2' | 'P3'
 export type CaseLevel = 'smoke' | 'core' | 'regression' | 'extended'
@@ -355,6 +360,7 @@ export interface CaseSummaryItem {
   automation_status: AutomationStatus
   tags: string[]
   module_id: number
+  project_id?: number | null
   creator_id: number
   owner_id?: number | null
   is_ready_for_execution: boolean
@@ -363,6 +369,9 @@ export interface CaseSummaryItem {
   dataset_id?: number | null
   dataset_version?: number | null
   flaky_stats?: CaseFlakyStats
+  step_count?: number
+  is_scenario?: boolean
+  case_mode?: 'single' | 'scenario'
   created_at: string
   updated_at: string
 }
@@ -493,6 +502,17 @@ export interface WebRecordingItem {
   artifacts?: Record<string, WebRecordingArtifact>
   artifact_error?: string | null
   error?: string | null
+  replayed_step_count?: number
+  is_resuming?: boolean
+}
+
+export interface WebRecordingStartPayload {
+  start_url: string
+  project_id: number
+  browser?: 'chromium' | 'firefox' | 'webkit'
+  viewport_width?: number
+  viewport_height?: number
+  replay_steps?: Array<Record<string, unknown>>
 }
 
 export interface WebRecordingWorkerStatus {
@@ -526,9 +546,12 @@ export interface CaseQueryParams {
   owner_id?: number
   tag?: string
   keyword?: string
+  case_mode?: 'single' | 'scenario'
 }
 
 export interface CaseSavePayload {
+  expected_updated_at?: string
+  expected_config?: Record<string, unknown>
   name: string
   description?: string
   summary?: string
@@ -545,6 +568,7 @@ export interface CaseSavePayload {
   config?: Record<string, unknown>
   dataset_id?: number | null
   dataset_version?: number | null
+  auto_approve?: boolean
 }
 
 export interface CaseImportConflict {
@@ -777,6 +801,7 @@ export interface SuiteItem {
 }
 
 export interface SuiteSavePayload {
+  command_id?: string
   name: string
   description?: string | null
   project_id?: number
@@ -1497,6 +1522,7 @@ export interface RunDetailItem {
   created_at: string
   steps: RunStepItem[]
   case_name?: string
+  case_type?: string | null
   project_id?: number
   case?: { name?: string }
 }
@@ -1724,10 +1750,71 @@ export const moduleApi = {
   delete: (id: number) => http.delete(`/modules/${id}`),
 }
 
+export interface ApiRequestPreviewPayload {
+  method: string
+  url: string
+  headers: Record<string, string>
+  params: Record<string, string>
+  cookies: Record<string, string>
+  body_type: string
+  body: unknown
+  multipart: Array<Record<string, unknown>>
+  auth: Record<string, unknown>
+  timeout: number
+  status_code?: number
+  response_body?: unknown
+  response_headers?: Record<string, string>
+}
+
+export interface ApiRequestPreviewResult {
+  status_code: number
+  reason: string
+  duration_ms: number
+  size_bytes: number
+  truncated: boolean
+  headers: Record<string, string>
+  body: string
+}
+
+export interface AIAssertionSuggestion {
+  target: 'status_code' | 'body' | 'header' | 'duration'
+  operator: 'eq' | 'ne' | 'contains' | 'gt' | 'lt' | 'exists'
+  expected: string
+  expression: string
+  description: string
+}
+
+export interface AIExtractionSuggestion {
+  variable: string
+  type: 'jsonpath' | 'regex' | 'header'
+  expression: string
+  description: string
+}
+
+export interface AIAssertionSuggestPayload {
+  project_id?: number | null
+  method: string
+  url: string
+  status_code?: number | null
+  response_body?: unknown
+  response_headers?: Record<string, string> | null
+  request_body?: unknown
+}
+
+export interface AIAssertionSuggestResult {
+  assertions: AIAssertionSuggestion[]
+  extractions: AIExtractionSuggestion[]
+  source: 'llm' | 'heuristic'
+}
+
 export const caseApi = {
   list: (params?: CaseQueryParams) =>
     http.get<unknown, CaseSummaryItem[]>('/cases', { params }),
   create: (data: CaseSavePayload) => http.post<unknown, CaseDetailItem>('/cases', data),
+  previewRequest: (projectId: number, data: ApiRequestPreviewPayload, signal?: AbortSignal) =>
+    http.post<unknown, ApiRequestPreviewResult>(`/projects/${projectId}/api-request-preview`, data, { signal, timeout: 65000 }),
+  suggestAssertions: (data: AIAssertionSuggestPayload) =>
+    http.post<unknown, AIAssertionSuggestResult>('/ai/cases/suggest-assertions', data),
   previewImport: (projectId: number, cases: CaseSavePayload[]) =>
     http.post<unknown, CaseImportPreview>(`/projects/${projectId}/cases/import-preview`, { cases }),
   importCases: (projectId: number, cases: CaseSavePayload[], conflict_policy: 'fail' | 'skip' | 'replace' = 'fail') =>
@@ -1735,7 +1822,7 @@ export const caseApi = {
       `/projects/${projectId}/cases/import`, { cases, conflict_policy },
     ),
   get: (id: number) => http.get<unknown, CaseDetailItem>(`/cases/${id}`),
-  update: (id: number, data: CaseSavePayload) => http.patch<unknown, CaseDetailItem>(`/cases/${id}`, data),
+  update: (id: number, data: Partial<CaseSavePayload>) => http.patch<unknown, CaseDetailItem>(`/cases/${id}`, data),
   uploadRequestFile: (projectId: number, file: File) => {
     const form = new FormData()
     form.append('file', file)
@@ -1921,7 +2008,7 @@ export const apiSchemaAssetApi = {
 }
 
 export const runApi = {
-  list: (params?: { case_id?: number; page?: number; page_size?: number }) =>
+  list: (params?: { case_id?: number; project_id?: number; page?: number; page_size?: number }) =>
     http.get<unknown, { items: RunDetailItem[]; total: number; page: number; page_size: number }>('/runs', { params }),
   get: (id: number) => http.get<unknown, RunDetailItem>(`/runs/${id}`),
   generateFailureDiagnosis: (id: number) =>
@@ -1982,7 +2069,7 @@ export const scriptApi = {
 
 export const webRecordingApi = {
   workers: () => http.get<unknown, WebRecordingWorkersResponse>('/web-recordings/workers'),
-  start: (data: { start_url: string; project_id: number; browser?: 'chromium' | 'firefox' | 'webkit'; viewport_width?: number; viewport_height?: number }) =>
+  start: (data: WebRecordingStartPayload) =>
     http.post<unknown, WebRecordingItem>('/web-recordings', data),
   get: (id: string) => http.get<unknown, WebRecordingItem>(`/web-recordings/${id}`),
   screenshot: (id: string) => http.post<unknown, Blob>(`/web-recordings/${id}/screenshot`, undefined, { responseType: 'blob' }),
@@ -2083,7 +2170,7 @@ export const suiteApi = {
   create: (data: SuiteSavePayload) => http.post<unknown, SuiteItem>('/suites', data),
   update: (id: number, data: SuiteSavePayload) => http.patch<unknown, SuiteItem>(`/suites/${id}`, data),
   delete: (id: number) => http.delete(`/suites/${id}`),
-  run: (id: number, data?: { env_id?: number; extra_vars?: object }) =>
+  run: (id: number, data?: { env_id?: number; extra_vars?: object; command_id?: string }) =>
     http.post<unknown, SuiteRunItem>(`/suites/${id}/run`, data ?? {}),
   listRuns: (params?: { suite_id?: number }) =>
     http.get<unknown, SuiteRunItem[]>('/suite-runs', { params }),
@@ -2102,6 +2189,31 @@ export const suiteApi = {
       '/suites/batch/copy',
       { suite_ids: suiteIds, suffix },
     ),
+}
+
+export interface GroupExecutionState {
+  kind: 'suite' | 'plan'
+  run_id: number
+  revision: string
+  run_status: string
+  reason: string
+  requires_reconciliation: boolean
+  cancel_requested_at: string | null
+  can_cancel: boolean
+  dispatch: null | { status: string; error_code: string | null; accepted_at: string | null; queue: string }
+  lease_status: string | null
+  lease_expires_at: string | null
+  children: Array<{ kind: string; run_id: number; verified: boolean; status: string | null; execution_uncertain: boolean }>
+  child_count: number
+  children_truncated: boolean
+  legacy_children_unverified: boolean
+}
+
+export const groupExecutionApi = {
+  state: (kind: 'suite' | 'plan', runId: number) =>
+    http.get<unknown, GroupExecutionState>(`/execution-groups/${kind}/${runId}`),
+  cancel: (kind: 'suite' | 'plan', runId: number, revision: string) =>
+    http.post<unknown, { requested: boolean; pending: boolean }>(`/execution-groups/${kind}/${runId}/cancel`, { expected_revision: revision }),
 }
 
 export const planApi = {
@@ -3031,8 +3143,21 @@ export const webAssetsApi = {
     http.post<unknown, WebPageObjectItem>(`/projects/${projectId}/web-page-objects`, body),
   updatePageObject: (id: number, body: Record<string, unknown>) => http.patch<unknown, WebPageObjectItem>(`/web-page-objects/${id}`, body),
   deletePageObject: (id: number) => http.delete<unknown, void>(`/web-page-objects/${id}`),
+  listStorageStates: (projectId: number) => http.get<unknown, WebStorageStateItem[]>(`/projects/${projectId}/web-storage-states`),
+  deleteStorageState: (projectId: number, name: string) => http.delete<unknown, void>(`/projects/${projectId}/web-storage-states/${name}`),
 }
 
+export interface WebStorageStateItem {
+  name: string
+  size: number
+  updated_at?: string | null
+  object_name: string
+}
+
+export const webStorageStateApi = {
+  list: (projectId: number) => http.get<unknown, WebStorageStateItem[]>(`/projects/${projectId}/web-storage-states`),
+  delete: (projectId: number, name: string) => http.delete<unknown, void>(`/projects/${projectId}/web-storage-states/${name}`),
+}
 export interface WebFileUploadResponse {
   object_name: string
   filename: string

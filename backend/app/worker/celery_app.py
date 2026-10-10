@@ -1,3 +1,5 @@
+import logging
+
 from celery import Celery
 from celery.schedules import crontab
 from celery.signals import (
@@ -10,6 +12,8 @@ from celery.signals import (
 
 from app.core.config import settings
 from app.worker.timeout_alerts import on_task_failure, on_task_revoked
+
+logger = logging.getLogger(__name__)
 
 celery_app = Celery(
     "atp",
@@ -205,6 +209,18 @@ def _shutdown_otel(**_kwargs):
     from app.core.otel import shutdown_tracer
 
     shutdown_tracer()
+
+
+@worker_process_shutdown.connect
+def _shutdown_browser_pool(**_kwargs):
+    """关闭池化浏览器进程，避免 worker 退出后残留 Chromium/Playwright 子进程。"""
+    try:
+        from app.services.browser_pool import close_all_browsers
+        from app.worker.async_runner import run_async
+
+        run_async(close_all_browsers())
+    except Exception:
+        logger.warning("Browser pool shutdown failed", exc_info=True)
 
 
 @worker_ready.connect

@@ -1,4 +1,5 @@
 from fastapi import APIRouter
+from app.api.v1 import local_groups
 from app.api.v1 import (
     auth,
     projects,
@@ -52,9 +53,11 @@ from app.api.v1 import (
     configuration_center,
     local_files,
     runtime,
+    ai_chat,
 )
 
 router = APIRouter(prefix="/api/v1")
+router.include_router(local_groups.router)
 router.include_router(auth.router)
 router.include_router(projects.router)
 router.include_router(cases.router)
@@ -105,5 +108,6 @@ router.include_router(defects.router)
 router.include_router(requirements.router)
 router.include_router(knowledge.router)
 router.include_router(hermes.router)
+router.include_router(ai_chat.router)
 router.include_router(remote_toolbox.router)
 router.include_router(configuration_center.router)

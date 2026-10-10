@@ -61,9 +61,12 @@ class TestCaseCreate(BaseModel):
     config: dict = Field(default_factory=dict)
     dataset_version: int | None = Field(default=None, ge=1)
     dataset_id: int | None = None  # P3.B 绑定数据集后参数化执行
+    auto_approve: bool | None = None
 
 
 class TestCaseUpdate(BaseModel):
+    expected_updated_at: datetime | None = None
+    expected_config: dict | None = None
     name: str | None = None
     description: str | None = None
     summary: str | None = None
@@ -78,6 +81,7 @@ class TestCaseUpdate(BaseModel):
     config: dict | None = None
     dataset_version: int | None = Field(default=None, ge=1)
     dataset_id: int | None = None  # 传 None 显式清除绑定
+    auto_approve: bool | None = None
 
 
 class TestCaseOut(BaseModel):
@@ -102,6 +106,10 @@ class TestCaseOut(BaseModel):
     dataset_id: int | None = None
     dataset_version: int | None = None
     flaky_stats: CaseFlakyStats = Field(default_factory=CaseFlakyStats)
+    project_id: int | None = None
+    step_count: int = 0
+    is_scenario: bool = False
+    case_mode: str = "single"
     created_at: datetime
     updated_at: datetime
 
@@ -249,6 +257,8 @@ class TestRunOut(BaseModel):
     iteration_data: dict | None = None
     parent_run_id: int | None = None
     created_at: datetime
+    project_id: int | None = None
+    case_type: str | None = None
     steps: list[StepResultOut] = Field(default_factory=list)
 
     model_config = {"from_attributes": True}

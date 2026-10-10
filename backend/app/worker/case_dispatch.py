@@ -7,6 +7,18 @@ _tracer = get_tracer("atp.dispatch")
 _STEP_REQUIRED_PROTOCOLS = {CaseType.graphql, CaseType.websocket, CaseType.grpc}
 
 
+def _is_multiprotocol_case(case: object) -> bool:
+    cfg = getattr(case, "config", None) or {}
+    if cfg.get("multi_protocol") or cfg.get("protocol_pipeline"):
+        return True
+    steps = cfg.get("steps")
+    if isinstance(steps, list):
+        protocols = {str(step.get("protocol", "")).lower().strip() for step in steps if isinstance(step, dict)}
+        if len(protocols.intersection({"websocket", "ws", "grpc", "graphql"})) > 0:
+            return True
+    return False
+
+
 async def _reject_empty_protocol_case(db, run, case) -> bool:
     """Fail protocol cases before dispatch when no executable step is configured."""
     if case.case_type not in _STEP_REQUIRED_PROTOCOLS:
@@ -52,6 +64,12 @@ async def dispatch_case(db, run, case, extra_vars: dict) -> bool:
             return False
 
         if case.case_type == CaseType.api:
+            if _is_multiprotocol_case(case):
+                from app.worker.executors.multiprotocol_executor import run_multiprotocol_case
+
+                await run_multiprotocol_case(db, run, case, extra_vars)
+                return True
+
             from app.worker.executors.api_executor import run_api_case
 
             await run_api_case(db, run, case, extra_vars)

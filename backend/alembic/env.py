@@ -18,6 +18,9 @@ from app.models.case import TestCase, CaseStep, TestRun, StepResult, CaseSnapsho
 from app.models.bug_tracker import BugTracker  # noqa
 from app.models.environment import Environment, EnvVariable  # noqa
 from app.models.suite import TestSuite, SuiteRun  # noqa
+from app.models.hermes_action import HermesAction  # noqa
+from app.models.execution_dispatch import ExecutionDispatch  # noqa
+from app.models.group_run_child import GroupRunChild  # noqa
 from app.models.plan import TestPlan, PlanRun  # noqa
 from app.models.notification import NotificationConfig  # noqa
 from app.models.ios import IosApp, IosDevice, IosDeviceLease  # noqa
@@ -57,7 +60,7 @@ def run_migrations_online():
                 connection,
                 database_name=settings.POSTGRES_DB,
                 runtime_user=settings.POSTGRES_USER,
-                migration_user=settings.POSTGRES_MIGRATION_USER,
+                migration_user=settings.POSTGRES_MIGRATION_USER or settings.POSTGRES_USER,
             )
 
 

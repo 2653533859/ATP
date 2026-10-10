@@ -14,6 +14,7 @@ from app.core.redis_client import publish_run_event
 from app.services.dataset_execution import redact_execution_evidence
 from app.services.api_auth import build_digest_auth, resolve_oauth2_client_credentials_token
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
+from app.services.step_result_collector import StepResultBatchCollector
 
 
 async def _safe_publish_run_event(run_id: int, payload: dict) -> None:
@@ -32,7 +33,7 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
     all_passed = True
     total_start = time.monotonic()
     oauth_token_cache: dict[str, tuple[str, float]] = {}
-
+    step_collector = StepResultBatchCollector(db)
     for idx, step in enumerate(steps):
         step_start = time.monotonic()
         step_result = StepResult(
@@ -40,9 +41,8 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
             step_index=idx,
             name=step.get("name", f"Step {idx + 1}"),
             status=RunStatus.running,
+            duration_ms=0,
         )
-        db.add(step_result)
-        await db.commit()
 
         request_data = {}
         response_data = {}
@@ -183,7 +183,7 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
         step_result.request_data = persisted_request_data
         step_result.response_data = persisted_response_data
         step_result.error_message = error_msg
-        await db.commit()
+        await step_collector.add(step_result)
 
         await _safe_publish_run_event(
             run.id,
@@ -202,6 +202,7 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
             },
         )
 
+    await step_collector.flush()
     total_ms = int((time.monotonic() - total_start) * 1000)
     run.status = RunStatus.passed if all_passed else RunStatus.failed
     run.duration_ms = total_ms

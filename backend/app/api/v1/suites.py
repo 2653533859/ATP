@@ -12,11 +12,14 @@ GET    /suite-runs/{id}     套件执行记录详情
 """
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from sqlalchemy.exc import IntegrityError
+from app.models.hermes_action import HermesAction
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.encryption import decrypt_env_vars
 from app.core.tracing import get_trace_id
 from app.models.case import TestCase
@@ -36,11 +39,43 @@ from app.schemas.suite import (
 )
 from app.api.deps import assert_project_access, get_current_user
 from app.models.user_project import ProjectRole
-from app.services.execution_routing import enqueue_task, resolve_suite_execution_queue
+from app.services.execution_routing import resolve_suite_execution_queue
 from app.services.api_scenario import ApiScenarioError, build_api_scenario_policy
 from app.services.project_scope import scope_to_visible_projects
+from app.services.hermes_commands import (
+    CommandAction,
+    CommandConflict,
+    command_request_hash,
+    command_resource,
+    record_command,
+    replay_command,
+)
+from app.schemas.execution_dispatch import ExecutionDispatchOut
+from app.services.execution_dispatch import get_suite_dispatch, record_suite_dispatch, wake_dispatcher
 
 router = APIRouter(tags=["测试套件"])
+
+
+async def _replay_suite_command(
+    db: AsyncSession,
+    *,
+    user_id: int,
+    project_id: int,
+    command_id: str | None,
+    action: CommandAction,
+    request_hash: str,
+) -> TestSuite | SuiteRun | None:
+    try:
+        return await replay_command(
+            db,
+            user_id=user_id,
+            project_id=project_id,
+            command_id=command_id,
+            action=action,
+            request_hash=request_hash,
+        )
+    except CommandConflict as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
 
 
 def _validate_suite_fixtures(config: object) -> None:
@@ -77,6 +112,10 @@ async def _validate_suite_case_ids(db: AsyncSession, project_id: int, case_items
 
     result = await db.execute(select(TestCase).options(selectinload(TestCase.module)).where(TestCase.id.in_(case_ids)))
     cases = result.scalars().all()
+    if settings.ATP_LOCAL_MODE and any(
+        str(getattr(case.case_type, "value", case.case_type)) == "ios" for case in cases
+    ):
+        raise HTTPException(status_code=409, detail="本地套件不支持 iOS 用例")
     case_map = {case.id: case for case in cases}
 
     missing_case_id = next((case_id for case_id in case_ids if case_id not in case_map), None)
@@ -134,9 +173,21 @@ async def create_suite(
     current_user: User = Depends(get_current_user),
 ):
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
+    user_id = current_user.id
     project = await db.get(Project, body.project_id)
     if not project:
         raise HTTPException(status_code=404, detail="项目不存在")
+    request_hash = command_request_hash(body.model_dump(exclude={"command_id"}))
+    command_args = {
+        "user_id": user_id,
+        "project_id": body.project_id,
+        "command_id": body.command_id,
+        "action": "create_suite",
+        "request_hash": request_hash,
+    }
+    existing = await _replay_suite_command(db, **command_args)
+    if existing is not None:
+        return existing
     case_ids = await _validate_suite_case_ids(db, body.project_id, body.case_ids)
     _validate_suite_fixtures(body.config)
     await _validate_parallel_api_session_reuse(db, case_ids, body.config)
@@ -151,9 +202,59 @@ async def create_suite(
         creator_id=current_user.id,
     )
     db.add(suite)
-    await db.commit()
+    if body.command_id:
+        await db.flush()
+        record_command(db, **command_args, resource=suite)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        if not body.command_id:
+            raise
+        existing = await _replay_suite_command(db, **command_args)
+        if existing is None:
+            raise HTTPException(status_code=409, detail="操作提交冲突，请检查处理记录") from None
+        return existing
     await db.refresh(suite)
     return suite
+
+
+@router.get("/hermes/action-records")
+async def list_hermes_action_records(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await assert_project_access(db, user, project_id, ProjectRole.viewer)
+    records = (
+        await db.scalars(
+            select(HermesAction)
+            .where(HermesAction.project_id == project_id, HermesAction.user_id == user.id)
+            .order_by(HermesAction.id.desc())
+            .limit(20)
+        )
+    ).all()
+    output = []
+    for item in records:
+        resource, resource_state = await command_resource(db, item)
+        run = resource if isinstance(resource, SuiteRun) else None
+        dispatch = await get_suite_dispatch(db, run) if run is not None else None
+        output.append(
+            {
+                "command_id": item.command_id,
+                "action": item.action,
+                "resource_id": item.resource_id,
+                "created_at": item.created_at,
+                "status": "completed",
+                "run_status": run.status if run else None,
+                "resource_state": resource_state,
+                "resource_unverified": resource_state == "unverified",
+                "resource_missing": resource_state in {"missing", "replaced"},
+                "dispatch_status": dispatch.status if dispatch is not None else None,
+                "dispatch_error_code": dispatch.error_code if dispatch is not None else None,
+            }
+        )
+    return output
 
 
 @router.get("/suites", response_model=list[TestSuiteOut])
@@ -296,6 +397,25 @@ async def trigger_suite_run(
     if not suite:
         raise HTTPException(status_code=404, detail="套件不存在")
     await assert_project_access(db, current_user, suite.project_id, ProjectRole.editor)
+    user_id = current_user.id
+    project_id = suite.project_id
+    request_hash = command_request_hash(
+        {
+            "suite_id": suite_id,
+            "suite_identity": suite.identity_token,
+            **body.model_dump(exclude={"command_id"}),
+        }
+    )
+    command_args = {
+        "user_id": user_id,
+        "project_id": project_id,
+        "command_id": body.command_id,
+        "action": "run_suite",
+        "request_hash": request_hash,
+    }
+    original = await _replay_suite_command(db, **command_args)
+    if original is not None:
+        return original
     if not suite.case_ids:
         raise HTTPException(status_code=400, detail="套件中没有用例")
 
@@ -321,16 +441,43 @@ async def trigger_suite_run(
         environment=env_name,
     )
     db.add(suite_run)
-    await db.commit()
+    # 先解析路由，避免路由失败留下无法投递的新运行。
+    queue = await resolve_suite_execution_queue(db, suite)
+    await db.flush()
+    record_command(db, **command_args, resource=suite_run)
+    record_suite_dispatch(db, run=suite_run, project_id=project_id, extra_vars=merged_vars, queue=queue)
+    try:
+        await db.commit()
+    except IntegrityError:
+        await db.rollback()
+        if not body.command_id:
+            raise
+        original = await _replay_suite_command(db, **command_args)
+        if original is None:
+            raise HTTPException(status_code=409, detail="运行提交冲突，请查看处理记录") from None
+        return original
     await db.refresh(suite_run)
 
-    # 触发 Celery 任务
-    from app.worker.tasks import run_test_suite
-
-    queue = await resolve_suite_execution_queue(db, suite)
-    enqueue_task(run_test_suite, (suite_run.id, merged_vars, suite_run.trace_id), queue)
+    # 唤醒只是延迟优化；即使此处退出，后台/重启扫描仍能发现已提交意图。
+    wake_dispatcher()
 
     return suite_run
+
+
+@router.get("/suite-runs/{run_id}/dispatch", response_model=ExecutionDispatchOut | None)
+async def get_suite_run_dispatch(
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    run = await db.get(SuiteRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="套件执行记录不存在")
+    suite = await db.get(TestSuite, run.suite_id)
+    if suite is None:
+        raise HTTPException(status_code=404, detail="套件不存在")
+    await assert_project_access(db, user, suite.project_id, ProjectRole.viewer)
+    return await get_suite_dispatch(db, run)
 
 
 @router.get("/suite-runs", response_model=list[SuiteRunOut])

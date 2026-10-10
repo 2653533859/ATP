@@ -86,6 +86,7 @@ vi.mock('@ant-design/icons-vue', () => {
     CloseOutlined: iconStub,
     ExclamationCircleOutlined: iconStub,
     PlusOutlined: iconStub,
+    MessageOutlined: iconStub,
     ReloadOutlined: iconStub,
     RobotOutlined: iconStub,
   }
@@ -96,7 +97,7 @@ const passthrough = defineComponent({
 })
 
 const globalStubs = Object.fromEntries(
-  ['AAlert', 'AButton', 'AEmpty', 'ARangePicker', 'ASelect', 'ATag'].map((name) => [name, passthrough]),
+  ['AAlert', 'AButton', 'AEmpty', 'ARangePicker', 'ASelect', 'ATag', 'ARadioGroup', 'ARadioButton'].map((name) => [name, passthrough]),
 )
 
 const failedCase = {
@@ -374,6 +375,7 @@ describe('HermesAssistantView', () => {
 
     wrapper.unmount()
   })
+
 
   it('sends feedback with the persisted message ID and refreshes governance', async () => {
     const wrapper = mountHermes()

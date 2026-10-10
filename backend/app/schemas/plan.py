@@ -74,6 +74,7 @@ class PlanRunOut(BaseModel):
     trace_id: str | None = None
     trigger_type: TriggerType
     status: PlanRunStatus
+    cancel_requested_at: datetime | None = None
     duration_ms: int | None
     error_message: str | None
     suite_run_ids: list[dict]
@@ -81,6 +82,24 @@ class PlanRunOut(BaseModel):
     created_at: datetime
 
     model_config = {"from_attributes": True}
+
+
+class PlanSubRunsSummary(BaseModel):
+    total: int = 0
+    pending: int = 0
+    passed: int = 0
+    failed: int = 0
+    error: int = 0
+    running: int = 0
+    skipped: int = 0
+
+
+class PlanSubRunsPageOut(BaseModel):
+    total: int
+    offset: int
+    limit: int
+    items: list[dict]
+    summary: PlanSubRunsSummary
 
 
 class PlanBatchDeleteIn(BaseModel):

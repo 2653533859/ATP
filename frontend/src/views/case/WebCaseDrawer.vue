@@ -116,6 +116,42 @@
         <a-switch v-model:checked="matrixEnabled" />
         <span style="margin-left: 8px; color: #999; font-size: 12px">{{ t('case.drawer.web.matrix_hint') }}</span>
       </a-form-item>
+      <a-row :gutter="16">
+        <a-col :span="12">
+          <a-form-item :label="t('case.drawer.web.save_storage_state')">
+            <a-space>
+              <a-switch v-model:checked="saveStorageStateEnabled" />
+              <a-input
+                v-if="saveStorageStateEnabled"
+                v-model:value="saveStorageStateName"
+                size="small"
+                style="width: 150px"
+                :placeholder="t('case.drawer.web.storage_state_name_placeholder')"
+              />
+            </a-space>
+            <div style="margin-top: 4px; color: #999; font-size: 12px">
+              {{ t('case.drawer.web.save_storage_state_hint') }}
+            </div>
+          </a-form-item>
+        </a-col>
+        <a-col :span="12">
+          <a-form-item :label="t('case.drawer.web.use_storage_state')">
+            <a-space>
+              <a-switch v-model:checked="useStorageStateEnabled" />
+              <a-input
+                v-if="useStorageStateEnabled"
+                v-model:value="useStorageStateName"
+                size="small"
+                style="width: 150px"
+                :placeholder="t('case.drawer.web.storage_state_name_placeholder')"
+              />
+            </a-space>
+            <div style="margin-top: 4px; color: #999; font-size: 12px">
+              {{ t('case.drawer.web.use_storage_state_hint') }}
+            </div>
+          </a-form-item>
+        </a-col>
+      </a-row>
       <div v-if="matrixEnabled" class="matrix-editor">
         <div v-for="(variant, index) in matrixVariants" :key="index" class="matrix-row">
           <a-select v-model:value="variant.browser" style="width: 120px">
@@ -154,7 +190,7 @@
           </a-space>
           <span>{{ t('case.drawer.web.record_hint') }}</span>
         </div>
-        <LowcodeStepEditor v-model="lowcodeSteps" :project-id="projectId" />
+        <LowcodeStepEditor v-model="lowcodeSteps" :project-id="projectId" @resume-recording="handleResumeRecording" />
       </template>
 
       <template v-else>
@@ -216,7 +252,10 @@
     <WebRecorderModal
       :open="recorderOpen"
       :project-id="projectId"
-      @close="recorderOpen = false"
+      :initial-url="resumeStartUrl"
+      :replay-steps="resumeReplaySteps"
+      :resume-target-index="resumeTargetIndex"
+      @close="closeRecorderModal"
       @recorded="handleRecordedSteps"
     />
     <GeneratedScriptModal
@@ -229,12 +268,17 @@
     />
 
     <template #footer>
-      <a-space style="float: right">
-        <a-button @click="emit('close')">{{ t('common.cancel') }}</a-button>
-        <a-button type="primary" :loading="saving" @click="handleSave">
-          {{ localCaseId ? t('case.drawer.save_config') : t('case.drawer.create_case') }}
-        </a-button>
-      </a-space>
+      <div style="display: flex; justify-content: space-between; align-items: center">
+        <a-checkbox v-model:checked="autoApproveChecked">
+          {{ t('case.drawer.auto_approve_label') }}
+        </a-checkbox>
+        <a-space>
+          <a-button @click="emit('close')">{{ t('common.cancel') }}</a-button>
+          <a-button type="primary" :loading="saving" @click="handleSave">
+            {{ localCaseId ? t('case.drawer.save_config') : t('case.drawer.create_case') }}
+          </a-button>
+        </a-space>
+      </div>
     </template>
   </a-drawer>
 </template>
@@ -293,6 +337,7 @@ const props = defineProps<{
   initialName?: string
   initialDescription?: string
   initialSteps?: LowcodeStep[]
+  initialResumeStepIndex?: number | null
 }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
 const { t } = useI18n()
@@ -330,6 +375,11 @@ type WebMatrixVariant = {
 const matrixEnabled = ref(false)
 const matrixVariants = ref<WebMatrixVariant[]>([])
 
+const saveStorageStateEnabled = ref(false)
+const saveStorageStateName = ref('default')
+const useStorageStateEnabled = ref(false)
+const useStorageStateName = ref('default')
+const autoApproveChecked = ref(true)
 const lowcodeSteps = ref<LowcodeStep[]>([])
 const recorderOpen = ref(false)
 const scriptPreviewOpen = ref(false)
@@ -375,6 +425,11 @@ function resetDrawerState() {
   cfg.viewportHeight = 720
   matrixEnabled.value = false
   matrixVariants.value = []
+  saveStorageStateEnabled.value = false
+  saveStorageStateName.value = 'default'
+  useStorageStateEnabled.value = false
+  useStorageStateName.value = 'default'
+  autoApproveChecked.value = true
   scriptContent.value = ''
   scriptPath.value = null
   lowcodeSteps.value = []
@@ -487,8 +542,14 @@ watch(() => props.open, async (v) => {
       scriptPath.value = c.script_path ?? null
       lowcodeSteps.value = Array.isArray(c.steps) ? c.steps : []
       editMode.value = resolveEditMode(c)
+      saveStorageStateEnabled.value = Boolean(c.save_storage_state)
+      saveStorageStateName.value = typeof c.save_storage_state === 'string' ? c.save_storage_state : 'default'
+      useStorageStateEnabled.value = Boolean(c.use_storage_state)
+      useStorageStateName.value = typeof c.use_storage_state === 'string' ? c.use_storage_state : 'default'
+      if (props.initialResumeStepIndex != null && editMode.value === 'lowcode') {
+        handleResumeRecording(props.initialResumeStepIndex)
+      }
     } catch {
-      if (seq !== initSeq.value || !props.open) return
       message.error(t('case.drawer.web.msg.load_failed_cancel'))
       emit('close')
       return
@@ -619,6 +680,8 @@ function buildConfig() {
         ...(variant.device ? { device: variant.device } : {}),
       })),
     } : {}),
+    ...(saveStorageStateEnabled.value ? { save_storage_state: saveStorageStateName.value.trim() || 'default' } : {}),
+    ...(useStorageStateEnabled.value ? { use_storage_state: useStorageStateName.value.trim() || 'default' } : {}),
   }
 
   if (editMode.value === 'lowcode') {
@@ -642,10 +705,69 @@ function addMatrixVariant() {
     device: '',
   })
 }
+const resumeTargetIndex = ref<number | null>(null)
+const resumeReplaySteps = ref<Array<Record<string, unknown>>>([])
+const resumeStartUrl = ref('')
+
+function handleResumeRecording(index: number) {
+  if (index < 0 || index >= lowcodeSteps.value.length) return
+  resumeTargetIndex.value = index
+  const beforeSteps = lowcodeSteps.value.slice(0, index)
+  resumeReplaySteps.value = beforeSteps.map((s) => ({
+    action: s.action,
+    name: s.name,
+    params: { ...s.params },
+  }))
+  const firstGoto = beforeSteps.find((s) => s.action === 'goto' || (s.params as Record<string, unknown> | undefined)?.url)
+  resumeStartUrl.value = firstGoto ? String((firstGoto.params as Record<string, unknown> | undefined)?.url || '') : 'https://example.com'
+  recorderOpen.value = true
+}
+
+function closeRecorderModal() {
+  recorderOpen.value = false
+  resumeTargetIndex.value = null
+  resumeReplaySteps.value = []
+  resumeStartUrl.value = ''
+}
 
 function handleRecordedSteps(steps: LowcodeStep[]) {
-  lowcodeSteps.value = [...lowcodeSteps.value, ...steps]
-  message.success(t('case.drawer.web.recorder.imported', { count: steps.length }))
+  if (resumeTargetIndex.value != null) {
+    const idx = resumeTargetIndex.value
+    const before = lowcodeSteps.value.slice(0, idx)
+    const after = lowcodeSteps.value.slice(idx + 1)
+
+    // 清洗新录制的步骤，防止包含已存在的前置冗余步骤
+    let cleanSteps = steps.map((s) => ({ ...s, params: { ...s.params } }))
+
+    // 1. 如果录制结果第一步是 goto，且 before 已经包含了相同的打开网页步骤，则剔除录制结果开头的该 goto
+    if (cleanSteps.length > 0 && cleanSteps[0].action === 'goto' && before.length > 0) {
+      const recordedGotoUrl = String(cleanSteps[0].params?.url || '').trim().replace(/\/$/, '')
+      const hasMatchingGoto = before.some(
+        (b) => b.action === 'goto' && String(b.params?.url || '').trim().replace(/\/$/, '') === recordedGotoUrl,
+      )
+      if (hasMatchingGoto) {
+        cleanSteps = cleanSteps.slice(1)
+      }
+    }
+
+    // 2. 检查 cleanSteps 是否有前缀与 before 结尾步骤完全相同（防止用户手动重做前序动作）
+    while (cleanSteps.length > 0 && before.length > 0) {
+      const firstNew = cleanSteps[0]
+      const lastBefore = before[before.length - 1]
+      if (firstNew.action === lastBefore.action && JSON.stringify(firstNew.params) === JSON.stringify(lastBefore.params)) {
+        cleanSteps = cleanSteps.slice(1)
+      } else {
+        break
+      }
+    }
+
+    lowcodeSteps.value = [...before, ...cleanSteps, ...after]
+    message.success(t('case.drawer.web.recorder.resume_apply_success') || '已成功将现场续录的新步骤插入到用例中')
+    closeRecorderModal()
+  } else {
+    lowcodeSteps.value = [...lowcodeSteps.value, ...steps]
+    message.success(t('case.drawer.web.recorder.imported', { count: steps.length }))
+  }
 }
 
 async function handleSave() {
@@ -669,6 +791,7 @@ async function handleSave() {
         dataset_id: datasetBinding.value.datasetId,
         dataset_version: datasetBinding.value.datasetVersion,
         config,
+        auto_approve: autoApproveChecked.value,
       })
       message.success(t('common.success'))
       emit('saved')
@@ -685,6 +808,7 @@ async function handleSave() {
         dataset_id: datasetBinding.value.datasetId,
         dataset_version: datasetBinding.value.datasetVersion,
         config,
+        auto_approve: autoApproveChecked.value,
       })
       localCaseId.value = newCase.id
       isEdit.value = true

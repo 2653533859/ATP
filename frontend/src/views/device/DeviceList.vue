@@ -1,33 +1,10 @@
 <template>
   <div class="page-shell device-page">
     <!-- 顶部场景化上下文与二级导航条 (对齐参考图：首页 / APP 自动化 / 设备管理 + 二级功能Tab) -->
-    <div class="prototype-context-bar">
-      <div class="context-breadcrumb">
-        <span class="crumb-link" @click="router.push('/dashboard')">首页</span>
-        <span class="crumb-sep">/</span>
-        <span class="crumb-link" @click="router.push('/mobile-special/workbench')">APP 自动化</span>
-        <span class="crumb-sep">/</span>
-        <span class="crumb-current">{{ t('device.title') }}</span>
-      </div>
-
-      <!-- APP 自动化 二级场景水平导航 -->
-      <div class="subnav-tabs">
-        <span class="subnav-tab" @click="router.push('/mobile-special/workbench')">APP 自动化</span>
-        <span class="subnav-tab" @click="router.push('/mobile-special/workbench')">工作台</span>
-        <span class="subnav-tab" @click="router.push('/cases')">用例库</span>
-        <span class="subnav-tab" @click="router.push('/suites')">流程套件</span>
-        <span class="subnav-tab" @click="router.push('/ios-assets')">资产中心</span>
-        <span class="subnav-tab" @click="router.push('/apks')">应用包管理</span>
-        <span class="subnav-tab active">设备管理</span>
-        <span class="subnav-tab" @click="router.push('/mobile-special/reports')">执行结果</span>
-      </div>
-    </div>
-
     <!-- 页面标题与全局操作栏 -->
-    <div class="page-header-row">
+    <header class="page-header-row page-header">
       <div class="header-titles">
-        <h1 class="main-title">{{ t('device.title') }}</h1>
-        <p class="main-subtitle">统一查看 Agent 托管设备，直接进入远程控制工作台。</p>
+        <h1 class="main-title toolbar-title">{{ t('device.title') }}</h1>
       </div>
       <div class="header-actions">
         <!-- 第一个按钮为 handleScan，保证既有测试 wrapper.findAll('button')[0] 行为一致 -->
@@ -64,7 +41,7 @@
           </a-tooltip>
         </div>
       </div>
-    </div>
+    </header>
 
     <!-- Worker 状态与设备分组简报 -->
     <div class="worker-status-bar">
@@ -303,7 +280,6 @@
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import {
   ReloadOutlined,
@@ -321,7 +297,7 @@ import DeviceMatrixPanel from './components/DeviceMatrixPanel.vue'
 
 const asDevice = (record: unknown) => record as DeviceItem
 
-const router = useRouter()
+
 const { t } = useI18n()
 const devices = ref<DeviceItem[]>([])
 const workers = ref<AndroidWorkerItem[]>([])
@@ -805,23 +781,22 @@ onUnmounted(() => {
 .page-header-row {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
+  align-items: center;
+  margin-bottom: 14px;
   gap: 16px;
+  padding: 12px 18px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
 }
 
 .main-title {
-  font-size: 22px;
+  font-size: 18px;
   font-weight: 700;
   color: var(--c-text);
   margin: 0;
   letter-spacing: -0.02em;
-}
-
-.main-subtitle {
-  font-size: 13px;
-  color: var(--c-text-secondary);
-  margin: 4px 0 0;
 }
 
 .header-actions {

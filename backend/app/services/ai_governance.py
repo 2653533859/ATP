@@ -48,7 +48,7 @@ _URL_QUERY_SECRET_RE = re.compile(
 _URL_USERINFO_RE = re.compile(r"(?i)(https?://)([^/@\s]+):([^/@\s]+)@")
 
 
-def redact_llm_text(value: object, *, limit: int = 12_000) -> str:
+def redact_llm_text(value: object, *, limit: int = 12_000, preserve_newlines: bool = False) -> str:
     """Return bounded LLM text safe to expose in an API response.
 
     JSON responses are redacted by field name first, while plain-text responses
@@ -56,7 +56,11 @@ def redact_llm_text(value: object, *, limit: int = 12_000) -> str:
     bodies are untrusted input and must never be returned verbatim.
     """
 
-    normalized = ("" if value is None else str(value)).replace("\r", " ").replace("\n", " ").replace("\x00", " ")
+    raw_str = "" if value is None else str(value)
+    if preserve_newlines:
+        normalized = raw_str.replace("\r\n", "\n").replace("\r", "\n").replace("\x00", " ")
+    else:
+        normalized = raw_str.replace("\r", " ").replace("\n", " ").replace("\x00", " ")
     try:
         from app.services.ai_case.context import redact_context
 

@@ -2,7 +2,6 @@
   <div class="page-shell mock-page">
     <div>
       <h2 class="page-title">{{ t('mock.title') }}</h2>
-      <div class="page-subtitle">{{ t('mock.subtitle') }}</div>
     </div>
     <div class="toolbar">
       <a-space>
@@ -212,17 +211,29 @@
 
         <a-divider orientation="left" style="font-size: 13px">{{ t('mock.form.conditional_response') }}</a-divider>
         <a-form-item :label="t('mock.form.query_conditions')">
+          <template #extra>
+            <a-button size="small" type="link" style="padding: 0" @click="queryConditionsText = tryFormatJson(queryConditionsText)">{{ t('mock.format_json') }}</a-button>
+          </template>
           <a-textarea v-model:value="queryConditionsText" :rows="2" class="code-textarea" placeholder='{"scene": "success"}' />
         </a-form-item>
         <a-form-item :label="t('mock.form.header_conditions')">
+          <template #extra>
+            <a-button size="small" type="link" style="padding: 0" @click="headerConditionsText = tryFormatJson(headerConditionsText)">{{ t('mock.format_json') }}</a-button>
+          </template>
           <a-textarea v-model:value="headerConditionsText" :rows="2" class="code-textarea" placeholder='{"x-env": "test"}' />
         </a-form-item>
         <a-form-item :label="t('mock.form.body_conditions')">
+          <template #extra>
+            <a-button size="small" type="link" style="padding: 0" @click="bodyConditionsText = tryFormatJson(bodyConditionsText)">{{ t('mock.format_json') }}</a-button>
+          </template>
           <a-textarea v-model:value="bodyConditionsText" :rows="2" class="code-textarea" placeholder='{"status": "paid"}' />
         </a-form-item>
         <div class="condition-hint">{{ t('mock.form.condition_hint') }}</div>
 
         <a-form-item :label="t('mock.form.response_headers')">
+          <template #extra>
+            <a-button size="small" type="link" style="padding: 0" @click="headersText = tryFormatJson(headersText)">{{ t('mock.format_json') }}</a-button>
+          </template>
           <a-textarea
             v-model:value="headersText"
             :rows="2"
@@ -287,6 +298,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import { PlusOutlined, ThunderboltOutlined, UnorderedListOutlined } from '@ant-design/icons-vue'
+import { tryFormatJson } from '@/utils/jsonFormat'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import { mockRuleApi, projectApi, type MockAIGeneratedRule, type MockRuleItem, type ProjectItem } from '@/api'

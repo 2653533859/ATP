@@ -227,7 +227,7 @@
               </template>
               <template v-else-if="column.key === 'title'">
                 <span style="font-weight: 500">{{ record.title }}</span>
-                <div v-if="record.detail" style="color: #999; font-size: 12px; margin-top: 2px">
+                <div v-if="record.detail" style="color: var(--c-text-secondary); font-size: 12px; margin-top: 2px">
                   {{ record.detail }}
                 </div>
               </template>
@@ -306,8 +306,8 @@ const MetricKpiCard = {
   props: { label: String, value: [String, Number], unit: String, color: String },
   template: `
     <a-card :body-style="{ padding: '12px 16px' }" size="small">
-      <div style="color: #999; font-size: 12px; margin-bottom: 4px">{{ label }}</div>
-      <div style="font-size: 22px; font-weight: 600; color: {{ color || '#333' }}">
+      <div style="color: var(--c-text-secondary); font-size: 12px; margin-bottom: 4px">{{ label }}</div>
+      <div :style="{ fontSize: '22px', fontWeight: '600', color: color || 'var(--c-text)' }">
         {{ value !== null && value !== undefined ? value : '-' }}<span style="font-size: 13px; font-weight: 400; margin-left: 2px">{{ unit || '' }}</span>
       </div>
     </a-card>

@@ -6,7 +6,6 @@
           <BookOutlined class="toolbar-icon" />
           <span class="toolbar-name">{{ t('knowledge_hub.title') }}</span>
         </div>
-        <div class="toolbar-sep">/</div>
         <div class="toolbar-project">
           <label for="knowledge-project" class="sr-only">{{ t('knowledge_hub.project_label') }}</label>
           <a-select
@@ -34,10 +33,12 @@
 
       <div class="toolbar-right">
         <a-button type="primary" size="small" :loading="loading" class="toolbar-btn" @click="loadKnowledge">
-          <SearchOutlined /> {{ t('knowledge_hub.search_action') }}
+          <template #icon><SearchOutlined /></template>
+          {{ t('knowledge_hub.search_action') }}
         </a-button>
         <a-button v-if="canCreate" size="small" class="toolbar-btn" @click="openCreate">
-          + {{ t('knowledge_hub.create_action') || '新建' }}
+          <template #icon><PlusOutlined /></template>
+          {{ t('knowledge_hub.create_action') }}
         </a-button>
       </div>
     </header>
@@ -50,63 +51,40 @@
         <strong>{{ total }}</strong>
         <span>{{ t('knowledge_hub.result_count', { count: total }) }}</span>
       </div>
-      <button
-        type="button"
-        class="source-pill source-pill-all"
-        :class="{ active: !sourceFilter }"
-        @click="selectSource(undefined)"
-      >
-        <span class="source-icon"><AppstoreOutlined /></span>
-        <span><b>{{ t('knowledge_hub.source_all') }}</b><small>{{ total }}</small></span>
-      </button>
-      <button
+      <a-tooltip :title="t('knowledge_hub.source_all')" placement="bottom">
+        <button
+          type="button"
+          class="source-pill source-pill-all"
+          :class="{ active: !sourceFilter }"
+          @click="selectSource(undefined)"
+        >
+          <span class="source-icon"><AppstoreOutlined /></span>
+          <span><b>{{ t('knowledge_hub.source_all') }}</b><small>{{ total }}</small></span>
+        </button>
+      </a-tooltip>
+      <a-tooltip
         v-for="source in sourceTypes"
         :key="source"
-        type="button"
-        class="source-pill"
-        :class="[`source-${source}`, { active: sourceFilter === source }]"
-        @click="selectSource(source)"
+        :title="sourceDescription(source)"
+        placement="bottom"
       >
-        <span class="source-icon"><component :is="sourceIcon(source)" /></span>
-        <span><b>{{ t(`knowledge_hub.source.${source}`) }}</b><small>{{ sourceCounts[source] || 0 }}</small></span>
-      </button>
+        <button
+          type="button"
+          class="source-pill"
+          :class="[`source-${source}`, { active: sourceFilter === source }]"
+          @click="selectSource(source)"
+        >
+          <span class="source-icon"><component :is="sourceIcon(source)" /></span>
+          <span><b>{{ t(`knowledge_hub.source.${source}`) }}</b><small>{{ sourceCounts[source] || 0 }}</small></span>
+        </button>
+      </a-tooltip>
     </section>
 
     <section class="knowledge-grid">
-      <aside class="source-panel panel">
-        <div class="panel-heading">
-          <div>
-            <span class="panel-kicker">SOURCE INDEX</span>
-            <h2>{{ t('knowledge_hub.source_index') }}</h2>
-          </div>
-          <span class="index-mark">A</span>
-        </div>
-        <p class="panel-description">{{ t('knowledge_hub.source_index_hint') }}</p>
-        <div class="source-list">
-          <button
-            v-for="source in sourceTypes"
-            :key="`index-${source}`"
-            type="button"
-            class="source-row"
-            :class="{ active: sourceFilter === source }"
-            @click="selectSource(sourceFilter === source ? undefined : source)"
-          >
-            <span class="source-row-icon" :class="`source-${source}`"><component :is="sourceIcon(source)" /></span>
-            <span class="source-row-copy"><strong>{{ t(`knowledge_hub.source.${source}`) }}</strong><small>{{ sourceDescription(source) }}</small></span>
-            <b>{{ sourceCounts[source] || 0 }}</b>
-          </button>
-        </div>
-        <div class="scope-note">
-          <GlobalOutlined />
-          <span>{{ t('knowledge_hub.reader_global') }}</span>
-        </div>
-        <a-button v-if="canCreate" class="new-entry-button" block @click="openCreate"><PlusOutlined /> {{ t('knowledge_hub.new_entry') }}</a-button>
-      </aside>
 
       <main class="result-panel panel">
         <div class="result-heading">
           <div>
-            <span class="panel-kicker">KNOWLEDGE STREAM</span>
             <h2>{{ t('knowledge_hub.result_title') }}</h2>
           </div>
           <div class="result-actions">
@@ -613,6 +591,8 @@ onMounted(() => { void loadProjects() })
   border-radius: 6px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
+  min-width: 68px;
   gap: 4px;
 }
 
@@ -627,19 +607,18 @@ onMounted(() => { void loadProjects() })
   border: 0;
 }
 .load-alert { margin-top: 16px; }
-.signal-strip { display: flex; align-items: stretch; gap: 10px; margin: 18px 0; overflow-x: auto; } .signal-summary { display: flex; min-width: 150px; flex-direction: column; justify-content: center; padding: 8px 17px; border-right: 1px solid var(--line); } .signal-label { color: var(--muted); font-size: 11px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; } .signal-summary strong { margin: 3px 0; font-size: 25px; letter-spacing: -.05em; } .signal-summary > span:last-child { color: #a0a9a8; font-size: 10px; }
-.source-pill { display: flex; min-width: 137px; align-items: center; gap: 9px; padding: 9px 12px; border: 1px solid var(--line); border-radius: 9px; background: var(--c-bg-elevated); color: var(--ink); text-align: left; cursor: pointer; transition: border-color .2s, transform .2s, box-shadow .2s; } .source-pill:hover, .source-pill.active { border-color: var(--aqua); box-shadow: 0 5px 13px rgba(42, 168, 154, .12); transform: translateY(-1px); } .source-pill > span:last-child { display: grid; gap: 2px; } .source-pill b { font-size: 11px; white-space: nowrap; } .source-pill small { color: var(--muted); font-size: 10px; } .source-icon, .source-row-icon { display: grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; border-radius: 7px; background: #eef4f2; color: var(--aqua); } .source-pill-all .source-icon { background: #eef0f8; color: var(--blue); }
+.signal-strip { display: flex; align-items: stretch; gap: 8px; margin: 12px 0 16px; overflow-x: auto; } .signal-summary { display: flex; min-width: 120px; flex-direction: column; justify-content: center; padding: 4px 12px; border-right: 1px solid var(--line); } .signal-label { color: var(--muted); font-size: 10px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; } .signal-summary strong { margin: 1px 0; font-size: 18px; letter-spacing: -.03em; line-height: 1.2; } .signal-summary > span:last-child { color: var(--muted); font-size: 10px; }
+.source-pill { display: flex; min-width: 116px; align-items: center; gap: 8px; padding: 5px 10px; border: 1px solid var(--c-border); border-radius: 8px; background: var(--c-bg-elevated); color: var(--ink); text-align: left; cursor: pointer; transition: border-color .2s, transform .2s, box-shadow .2s; } .source-pill:hover { border-color: var(--c-primary); transform: translateY(-1px); } .source-pill.active { border-color: var(--c-primary); background: var(--c-primary-soft); color: var(--c-primary); } .source-pill > span:last-child { display: grid; gap: 1px; } .source-pill b { font-size: 11px; white-space: nowrap; line-height: 1.2; } .source-pill.active b { color: var(--c-primary); } .source-pill small { color: var(--muted); font-size: 10px; line-height: 1.1; } .source-icon { display: grid; place-items: center; flex: 0 0 auto; width: 24px; height: 24px; border-radius: 6px; font-size: 12px; background: #eef4f2; color: var(--aqua); } .source-row-icon { display: grid; place-items: center; flex: 0 0 auto; width: 28px; height: 28px; border-radius: 7px; background: #eef4f2; color: var(--aqua); } .source-pill-all .source-icon { background: #eef0f8; color: var(--blue); }
 .source-standard .source-icon, .source-row-icon.source-standard { background: #eef0f8; color: var(--blue); } .source-solution .source-icon, .source-row-icon.source-solution { background: #fff4e8; color: var(--copper); } .source-runbook .source-icon, .source-row-icon.source-runbook { background: #eef4f2; color: var(--aqua); } .source-experience .source-icon, .source-row-icon.source-experience { background: #f2f4e8; color: var(--olive); } .source-defect .source-icon, .source-row-icon.source-defect { background: #fff0eb; color: #c95d4c; } .source-requirement .source-icon, .source-row-icon.source-requirement { background: #f1eef9; color: #7a67ae; } .source-execution .source-icon, .source-row-icon.source-execution { background: #edf2f4; color: #56717d; }
-.knowledge-grid { display: grid; grid-template-columns: minmax(225px, .72fr) minmax(420px, 1.48fr) minmax(270px, .9fr); gap: 15px; align-items: start; } .panel { border: 1px solid var(--line); border-radius: 16px; background: var(--c-bg-elevated); box-shadow: 0 7px 22px rgba(31, 49, 50, .045); } .source-panel, .reader-panel { min-height: 650px; padding: 20px; } .result-panel { min-height: 650px; padding: 22px 20px; }
-.panel-heading, .result-heading, .reader-heading, .result-footer, .result-topline { display: flex; align-items: center; justify-content: space-between; gap: 10px; } .panel-heading h2, .result-heading h2 { margin: 4px 0 0; font-size: 19px; letter-spacing: -.03em; } .index-mark { color: #c8d3d0; font-size: 12px; font-weight: 800; } .panel-description { margin: 13px 0 18px; color: var(--muted); font-size: 11px; line-height: 1.65; }
-.source-list { display: grid; gap: 5px; } .source-row { display: flex; align-items: center; gap: 9px; width: 100%; padding: 9px 8px; border: 1px solid transparent; border-radius: 9px; background: transparent; color: var(--ink); text-align: left; cursor: pointer; } .source-row:hover, .source-row.active { border-color: #c9e6e0; background: #f4fbf9; } .source-row-copy { display: grid; flex: 1; min-width: 0; gap: 3px; } .source-row-copy strong { overflow: hidden; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; } .source-row-copy small { overflow: hidden; color: var(--muted); font-size: 9px; text-overflow: ellipsis; white-space: nowrap; } .source-row > b { color: var(--muted); font-size: 11px; }
-.scope-note { display: flex; gap: 7px; margin-top: 22px; padding-top: 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; line-height: 1.55; } .scope-note .anticon { flex: 0 0 auto; color: var(--aqua); } .new-entry-button { margin-top: 20px; border-color: #aeddd5; color: #207d73; }
-.result-actions { display: flex; align-items: center; gap: 7px; } .result-actions .ant-select { width: 120px; } .result-meta { display: flex; gap: 9px; align-items: center; min-height: 35px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; } .active-filter { padding: 3px 7px; border-radius: 4px; background: #edf7f5; color: #258b80; }
+.knowledge-grid { display: grid; grid-template-columns: minmax(380px, 1.15fr) minmax(380px, 1fr); gap: 16px; align-items: start; } .panel { border: 1px solid var(--c-border); border-radius: 16px; background: var(--c-bg-elevated); box-shadow: var(--shadow-sm); } .reader-panel, .result-panel { min-height: 650px; padding: 22px 20px; }
+.panel-heading, .result-heading, .reader-heading, .result-footer, .result-topline { display: flex; align-items: center; justify-content: space-between; gap: 10px; } .result-heading h2 { margin: 4px 0 0; font-size: 19px; letter-spacing: -.03em; }
+.scope-note { display: flex; gap: 7px; margin-top: 22px; padding-top: 15px; border-top: 1px solid var(--line); color: var(--muted); font-size: 10px; line-height: 1.55; } .scope-note .anticon { flex: 0 0 auto; color: var(--aqua); }
+.result-actions { display: flex; align-items: center; gap: 7px; } .result-actions .ant-select { width: 120px; } .result-meta { display: flex; gap: 9px; align-items: center; min-height: 35px; border-bottom: 1px solid var(--line); color: var(--muted); font-size: 11px; } .active-filter { padding: 3px 7px; border-radius: 4px; background: var(--c-primary-soft); color: var(--c-primary); }
 .result-loading, .reader-loading { display: grid; min-height: 260px; place-items: center; } .result-empty { display: flex; min-height: 410px; flex-direction: column; align-items: center; justify-content: center; gap: 8px; color: var(--muted); text-align: center; } .result-empty > :first-child { color: var(--aqua); font-size: 28px; } .result-empty strong { color: var(--ink); }
-.result-list { display: grid; gap: 8px; padding-top: 12px; } .result-card { position: relative; display: flex; gap: 12px; min-height: 117px; overflow: hidden; padding: 13px 12px 12px 15px; border: 1px solid #edf0ed; border-radius: 10px; outline: none; background: var(--c-bg-elevated); cursor: pointer; transition: border-color .2s, background .2s, box-shadow .2s, transform .2s; } .result-card:hover, .result-card:focus-visible { border-color: #aadbd3; background: var(--c-bg-elevated); box-shadow: 0 8px 18px rgba(42, 168, 154, .09); transform: translateY(-1px); } .result-card.selected { border-color: #73c8bc; background: #f6fcfa; } .result-card-spine { flex: 0 0 3px; min-height: 82px; border-radius: 99px; background: var(--aqua); } .result-card-spine.source-standard { background: var(--blue); } .result-card-spine.source-solution { background: var(--copper); } .result-card-spine.source-experience { background: var(--olive); } .result-card-spine.source-defect { background: #c95d4c; } .result-card-spine.source-requirement { background: #7a67ae; } .result-card-spine.source-execution { background: #56717d; } .result-card-body { flex: 1; min-width: 0; } .result-source { display: flex; align-items: center; gap: 5px; color: #4d8c84; font-size: 10px; font-weight: 800; letter-spacing: .05em; text-transform: uppercase; } .result-card h3 { overflow: hidden; margin: 8px 0 5px; font-size: 14px; text-overflow: ellipsis; white-space: nowrap; } .result-card p { display: -webkit-box; overflow: hidden; margin: 0; color: var(--muted); font-size: 11px; line-height: 1.55; -webkit-box-orient: vertical; -webkit-line-clamp: 2; } .result-footer { justify-content: flex-start; margin-top: 10px; color: #9ba5a3; font-size: 9px; } .result-footer span { overflow: hidden; max-width: 48%; text-overflow: ellipsis; white-space: nowrap; } .result-footer span:last-child { margin-left: auto; } .result-arrow { align-self: center; color: #b6c5c2; }
-.reader-panel { background: var(--paper); } .reader-heading { align-items: flex-start; } .reader-actions { display: flex; gap: 2px; } .reader-source-line { display: flex; align-items: center; gap: 8px; margin-top: 24px; color: #4d8c84; font-size: 11px; font-weight: 700; } .reader-panel h2 { margin: 12px 0 9px; font-size: 22px; line-height: 1.25; letter-spacing: -.04em; } .reader-summary { padding: 11px 12px; border-left: 3px solid var(--aqua); background: #eaf6f3; color: #4d6764; font-size: 11px; line-height: 1.65; } .reader-content { max-height: 390px; overflow: auto; padding: 13px; border: 1px solid #e2e9e5; border-radius: 8px; background: var(--c-bg-elevated); color: #4d5757; font-size: 12px; line-height: 1.75; white-space: pre-line; } .reader-tags { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 13px; } .reader-meta { display: grid; gap: 8px; margin: 19px 0 0; } .reader-meta div { display: flex; justify-content: space-between; gap: 10px; padding-bottom: 7px; border-bottom: 1px solid #e0e5e1; } .reader-meta dt { color: var(--muted); font-size: 10px; } .reader-meta dd { overflow: hidden; margin: 0; color: var(--ink); font-size: 10px; text-align: right; text-overflow: ellipsis; white-space: nowrap; } .open-source-button { margin-top: 16px; border-color: #a7d8d0; color: #278b80; } .reader-scope { margin-top: 16px; }
+.result-list { display: grid; gap: 8px; padding-top: 12px; } .result-card { position: relative; display: flex; gap: 12px; min-height: 117px; overflow: hidden; padding: 13px 12px 12px 15px; border: 1px solid var(--c-border); border-radius: 10px; outline: none; background: var(--c-bg-elevated); cursor: pointer; transition: border-color .2s, background .2s, box-shadow .2s, transform .2s; } .result-card:hover, .result-card:focus-visible { border-color: var(--c-primary); background: var(--c-bg-elevated); box-shadow: var(--shadow-sm); transform: translateY(-1px); } .result-card.selected { border-color: var(--c-primary); background: var(--c-primary-soft); } .result-card-spine { flex: 0 0 3px; min-height: 82px; border-radius: 99px; background: var(--aqua); } .result-card-spine.source-standard { background: var(--blue); }
+.reader-panel { background: var(--paper); } .reader-heading { align-items: flex-start; } .reader-actions { display: flex; gap: 2px; } .reader-source-line { display: flex; align-items: center; gap: 8px; margin-top: 24px; color: var(--c-primary); font-size: 11px; font-weight: 700; } .reader-panel h2 { margin: 12px 0 9px; font-size: 22px; line-height: 1.25; letter-spacing: -.04em; } .reader-summary { padding: 11px 12px; border-left: 3px solid var(--c-primary); background: var(--c-primary-soft); color: var(--c-text); font-size: 11px; line-height: 1.65; } .reader-content { max-height: 390px; overflow: auto; padding: 13px; border: 1px solid var(--c-border); border-radius: 8px; background: var(--c-bg-elevated); color: var(--c-text); font-size: 12px; line-height: 1.75; white-space: pre-line; } .reader-tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 14px; }
 .editor-note { display: flex; gap: 9px; margin-bottom: 20px; padding: 12px; border-radius: 9px; background: #eaf6f3; color: #3f8178; font-size: 11px; line-height: 1.6; } .editor-note .anticon { flex: 0 0 auto; margin-top: 2px; } .drawer-footer { display: flex; justify-content: flex-end; gap: 8px; }
-@media (max-width: 1240px) { .knowledge-grid { grid-template-columns: minmax(220px, .7fr) minmax(420px, 1.5fr); } .reader-panel { grid-column: 1 / -1; min-height: auto; } .reader-content { max-height: 250px; } }
-@media (max-width: 800px) { .knowledge-hero { flex-direction: column; padding: 23px; } .hero-controls { flex-basis: auto; } .signal-strip { margin-right: -12px; } .knowledge-grid { grid-template-columns: 1fr; } .source-panel, .reader-panel, .result-panel { min-height: auto; } .source-panel { order: 2; } .result-panel { order: 1; } .reader-panel { grid-column: auto; order: 3; } .result-heading { align-items: flex-start; flex-direction: column; } .result-actions { width: 100%; } .result-actions .ant-select { flex: 1; width: auto; } }
+@media (max-width: 1024px) { .knowledge-grid { grid-template-columns: 1fr; } .reader-panel { min-height: auto; } .reader-content { max-height: 250px; } }
+@media (max-width: 800px) { .knowledge-hero { flex-direction: column; padding: 23px; } .hero-controls { flex-basis: auto; } .signal-strip { margin-right: -12px; } .reader-panel, .result-panel { min-height: auto; } .result-panel { order: 1; } .reader-panel { order: 2; } .result-heading { align-items: flex-start; flex-direction: column; } .result-actions { width: 100%; } .result-actions .ant-select { flex: 1; width: auto; } }
 @media (prefers-reduced-motion: reduce) { .source-pill, .result-card { transition: none; } }
 </style>

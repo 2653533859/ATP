@@ -25,10 +25,15 @@ class _Result:
     def all(self):
         return self.rows
 
+    def first(self):
+        return self.rows[0] if self.rows else None
 
-class _ScalarResult(_Result):
     def scalars(self):
         return self
+
+
+class _ScalarResult(_Result):
+    pass
 
 
 class _DB:
@@ -51,7 +56,9 @@ class _DB:
 
     async def execute(self, statement):
         self.statements.append(statement)
-        return self.results.pop(0) if self.results else _Result()
+        if "ai_llm_configs" in str(statement):
+            return _ScalarResult([self.llm_config] if self.llm_config else [])
+        return self.results.pop(0) if self.results else _ScalarResult()
 
     def add(self, item):
         if getattr(item, "id", None) is None:
@@ -73,7 +80,7 @@ def _user():
     return SimpleNamespace(id=7, username="engineer", role="engineer")
 
 
-def _matching_db(project):
+def _matching_db(project, llm_config=None):
     knowledge_entry = SimpleNamespace(
         id=2,
         project_id=1,
@@ -118,6 +125,7 @@ def _matching_db(project):
             _Result([(case, module)]),
         ],
         project=project,
+        llm_config=llm_config,
     )
 
 
@@ -1390,3 +1398,56 @@ def test_hermes_feedback_rejects_stale_index_after_history_trim(monkeypatch, new
     assert exc.value.status_code == 409
     assert session.metrics["helpful"] == 0
     assert "feedback" not in session.messages[result.message_index]
+
+
+def test_hermes_query_free_chat_mode_success(monkeypatch):
+    async def allow_access(*_args):
+        return None
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    project = SimpleNamespace(id=1, name="核心项目", ai_llm_config_id=10)
+    config = SimpleNamespace(
+        id=10,
+        provider="openai",
+        api_key_encrypted="enc",
+        enabled=True,
+        model_name="gpt-4o",
+        endpoint=None,
+        default_params={},
+        daily_limit=1000,
+        monthly_limit=50000,
+    )
+    db = _matching_db(project, llm_config=config)
+
+    async def mock_call_llm(_request):
+        return SimpleNamespace(text="你好！我是 Hermes，很高兴与你交流，请问有什么可以帮助你？")
+
+    async def mock_limit(*_args, **_kwargs):
+        return True
+
+    monkeypatch.setattr(hermes, "call_llm", mock_call_llm)
+    monkeypatch.setattr(hermes, "decrypt", lambda _x: "secret")
+    monkeypatch.setattr(hermes, "check_and_incr_daily_limit", mock_limit)
+    result = asyncio.run(
+        hermes.query_hermes(HermesQueryIn(project_id=1, query="你好，随便聊聊", chat_mode=True), db, _user())
+    )
+    assert result.mode == "free_chat"
+    assert "Hermes" in result.answer
+    assert result.sources == []
+    assert len(db.added[0].messages) == 2
+
+
+def test_hermes_query_free_chat_mode_no_llm_fallback(monkeypatch):
+    async def allow_access(*_args):
+        return None
+
+    monkeypatch.setattr(hermes, "assert_project_access", allow_access)
+    project = SimpleNamespace(id=1, name="核心项目", ai_llm_config_id=None)
+    db = _matching_db(project, llm_config=None)
+
+    result = asyncio.run(
+        hermes.query_hermes(HermesQueryIn(project_id=1, query="你好，随便聊聊", chat_mode=True), db, _user())
+    )
+    assert result.mode == "free_chat"
+    assert "尚未配置可用的大语言模型" in result.answer
+    assert result.sources == []

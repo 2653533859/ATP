@@ -4,8 +4,6 @@
       <div class="toolbar-left">
         <BarChartOutlined class="toolbar-icon" />
         <h1 class="toolbar-title">{{ t('report_center.title') }}</h1>
-        <span class="toolbar-divider">/</span>
-        <span class="toolbar-subtitle">{{ t('report_center.subtitle') }}</span>
       </div>
       <div class="hero-controls toolbar-right">
         <a-select
@@ -42,7 +40,6 @@
         <article class="score-card">
           <div class="score-card-top">
             <div>
-              <span class="eyebrow">{{ t('report_center.score.eyebrow') }}</span>
               <h2>{{ t('report_center.score.title') }}</h2>
             </div>
             <span class="score-period">{{ t('report_center.period', { days: overview.days }) }}</span>
@@ -657,22 +654,22 @@ onMounted(async () => {
   box-shadow: 0 12px 32px rgba(32, 46, 86, .045);
 }
 
-.score-card { padding: 20px; background: linear-gradient(135deg, #f8f9ff 0%, #fff 58%, #f9fbff 100%); }
+.score-card { padding: 20px; background: var(--c-bg-elevated); }
 .score-card-top, .card-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
 .score-card h2, .card-heading h2 { margin: 5px 0 0; font-size: 19px; letter-spacing: -.02em; }
 .score-period, .card-note { color: var(--report-muted); font-size: 12px; white-space: nowrap; }
 .score-main { display: flex; align-items: center; gap: 20px; margin: 18px 0 16px; }
-.score-ring { display: grid; width: 126px; height: 126px; flex: 0 0 126px; place-items: center; border-radius: 50%; background: conic-gradient(#4f46e5 var(--score), #e8ebf6 0); }
+.score-ring { display: grid; width: 126px; height: 126px; flex: 0 0 126px; place-items: center; border-radius: 50%; background: conic-gradient(var(--c-primary) var(--score), var(--c-bg-subtle) 0); }
 .score-ring-inner { display: flex; width: 96px; height: 96px; flex-direction: column; align-items: center; justify-content: center; border-radius: 50%; background: var(--c-bg-elevated); }
-.score-ring-inner strong { font-size: 30px; letter-spacing: -.06em; }
+.score-ring-inner strong { font-size: 30px; letter-spacing: -.06em; color: var(--c-text); }
 .score-ring-inner span { color: var(--report-muted); font-size: 11px; }
 .score-copy strong { display: block; font-size: 20px; }
 .score-copy p { max-width: 260px; margin: 7px 0 12px; color: var(--report-muted); font-size: 12px; line-height: 1.6; }
 .score-breakdown { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .breakdown-label { display: flex; justify-content: space-between; gap: 8px; color: var(--report-muted); font-size: 11px; }
 .breakdown-label strong { color: var(--report-ink); }
-.breakdown-track { height: 5px; margin-top: 7px; overflow: hidden; border-radius: 4px; background: #e9ecf5; }
-.breakdown-track span { display: block; height: 100%; border-radius: inherit; background: #4f46e5; transition: width .35s ease; }
+.breakdown-track { height: 5px; margin-top: 7px; overflow: hidden; border-radius: 4px; background: var(--c-bg-subtle); }
+.breakdown-track span { display: block; height: 100%; border-radius: inherit; background: var(--c-primary); transition: width .35s ease; }
 
 .metric-card { display: flex; min-height: 178px; flex-direction: column; padding: 19px; overflow: hidden; }
 .metric-card::after { width: 100px; height: 100px; margin: auto -40px -48px auto; content: ''; border: 1px solid rgba(255, 255, 255, .28); border-radius: 50%; }
@@ -703,8 +700,8 @@ onMounted(async () => {
 .protocol-row-top, .protocol-meta { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .protocol-row-top { color: var(--report-ink); font-size: 14px; }
 .protocol-row-top span { color: #4f46e5; font-weight: 800; }
-.protocol-track { height: 7px; margin: 13px 0 10px; overflow: hidden; border-radius: 5px; background: #e9ecf5; }
-.protocol-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #4f46e5, #16a085); transition: width .35s ease; }
+.protocol-track { height: 7px; margin: 13px 0 10px; overflow: hidden; border-radius: 5px; background: var(--c-bg-subtle); }
+.protocol-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, var(--c-primary), var(--c-success)); transition: width .35s ease; }
 .protocol-meta { color: var(--report-muted); font-size: 11px; }
 .runs-card, .compare-card { margin-bottom: 16px; }
 .runs-heading { margin-bottom: 16px; }

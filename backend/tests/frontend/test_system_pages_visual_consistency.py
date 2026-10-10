@@ -22,7 +22,8 @@ def test_core_system_pages_use_shared_page_shell():
         assert "page-shell system-page" in content, path
         assert "page-hero" in content, path
         assert "page-title" in content, path
-        assert "page-subtitle" in content, path
+        # 2026-10-08 起这五个系统页统一为"标题 + 操作"的 hero，不再渲染副标题；
+        # .page-subtitle 样式本身仍被其他页面使用（如 ProjectOverviewView）。
 
 
 def test_core_system_pages_use_shared_panels():

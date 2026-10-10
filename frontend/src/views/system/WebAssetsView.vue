@@ -3,7 +3,6 @@
     <div class="page-header">
       <div>
         <h2>{{ t('web_assets.title') }}</h2>
-        <div class="subtitle">{{ t('web_assets.subtitle') }}</div>
       </div>
       <a-space>
         <a-select v-model:value="selectedProjectId" :options="projectOptions" :placeholder="t('web_assets.select_project')" style="width: 220px" @change="loadAll" />

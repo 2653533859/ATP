@@ -3,7 +3,6 @@
     <div class="page-hero">
       <div>
         <h2 class="page-title">{{ t('project.title') }}</h2>
-        <div class="page-subtitle">{{ t('project.subtitle') }}</div>
       </div>
       <a-space>
         <a-upload v-if="canCreateProjects" :show-upload-list="false" accept=".json" :before-upload="handleImportFile">
@@ -13,12 +12,23 @@
       </a-space>
     </div>
 
-    <a-row :gutter="12" class="page-summary">
-      <a-col :span="8"><a-card size="small"><a-statistic :title="t('project.summary.total')" :value="projects.length" /></a-card></a-col>
-      <a-col :span="8"><a-card size="small"><a-statistic :title="t('project.summary.ai_bound')" :value="aiBoundCount" /></a-card></a-col>
-      <a-col :span="8"><a-card size="small"><a-statistic :title="t('project.summary.unbound')" :value="projects.length - aiBoundCount" /></a-card></a-col>
-    </a-row>
-
+    <div class="project-bento-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">{{ t('project.summary.total') }}</div>
+        <div class="kpi-num">{{ projects.length }}</div>
+        <div class="kpi-sub">工程空间总数</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">{{ t('project.summary.ai_bound') }}</div>
+        <div class="kpi-num" style="color: var(--c-primary)">{{ aiBoundCount }}</div>
+        <div class="kpi-sub">已绑定 AI 推理模型</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">{{ t('project.summary.unbound') }}</div>
+        <div class="kpi-num" style="color: var(--c-text-tertiary)">{{ projects.length - aiBoundCount }}</div>
+        <div class="kpi-sub">未关联智能体</div>
+      </div>
+    </div>
     <div class="page-toolbar">
       <a-input-search
         v-model:value="keyword"
@@ -31,8 +41,8 @@
 
     <a-spin :spinning="loading">
       <a-row :gutter="[16, 16]">
-        <a-col v-for="p in filteredProjects" :key="p.id" :span="8">
-          <a-card hoverable @click="router.push({ name: 'project-overview', params: { projectId: p.id } })">
+        <a-col v-for="p in filteredProjects" :key="p.id" :xs="24" :sm="12" :md="8">
+          <a-card hoverable class="project-bento-card" @click="router.push({ name: 'project-overview', params: { projectId: p.id } })">
             <template #title>
               <a-space>
                 <span>{{ p.name }}</span>
@@ -496,3 +506,29 @@ onMounted(() => {
   loadLLMConfigs()
 })
 </script>
+
+<style scoped>
+.project-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
+}
+.project-bento-card {
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--c-border);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+  height: 100%;
+}
+.project-bento-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--c-border-strong);
+}
+@media (max-width: 768px) {
+  .project-bento-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

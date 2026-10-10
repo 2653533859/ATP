@@ -65,11 +65,60 @@ sys.modules["app.worker.case_dispatch"] = _REAL_DISPATCH
 sys.modules["app.core.encryption"] = _REAL_ENCRYPTION
 
 
+# run_test_plan 在进入异步主体前用同步会话读取父计划身份；领域替身统一返回这个
+# 值，_plan_run_stub 里的 identity_token 必须与它一致，否则会按"待执行"提前返回。
+_PLAN_RUN_IDENTITY = "plan-run-identity"
+
+
+class _IdentitySession:
+    """只为 run_test_plan 的身份预读提供固定答案的同步会话替身。"""
+
+    def scalar(self, *_args, **_kwargs):
+        return _PLAN_RUN_IDENTITY
+
+    def execute(self, *_args, **_kwargs):
+        return None
+
+    def commit(self):
+        return None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+
 @pytest.fixture(autouse=True)
 def _stub_execution_run_lease(monkeypatch):
     """执行链测试聚焦领域逻辑；租约生命周期由独立 service 用例覆盖。"""
 
     monkeypatch.setattr(tasks, "execution_run_lease", lambda *_args, **_kwargs: nullcontext())
+
+
+@pytest.fixture(autouse=True)
+def _stub_group_execution_contracts(monkeypatch):
+    """聚焦执行链领域逻辑；组归属、投递接受与取消检查由独立数据库用例覆盖。
+
+    - group_execution.record_child 在 _create_case_run / _execute_plan_suite 内
+      以函数级导入使用，须打在来源模块上。
+    - suite_delivery.accept_suite_delivery 同理；返回 None 让替身对象的
+      identity_token（None）自洽，从而走到后续执行分支。
+    - run_test_plan 的身份预读需要同步会话；这里给出固定身份，真实读取由
+      test_group_execution_recovery 覆盖。
+    """
+
+    from app.services import group_execution, suite_delivery
+
+    async def _noop_record_child(*_args, **_kwargs):
+        return None
+
+    monkeypatch.setattr(tasks, "is_group_cancelled", lambda *_args, **_kwargs: False)
+    monkeypatch.setattr(group_execution, "record_child", _noop_record_child)
+    monkeypatch.setattr(suite_delivery, "accept_suite_delivery", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(
+        sys.modules["app.core.database"], "sync_session_factory", lambda: _IdentitySession(), raising=False
+    )
 
 
 # _create_case_run/_execute_plan_suite 会实例化真实 ORM 模型（TestRun/SuiteRun/PlanRun），
@@ -85,6 +134,10 @@ class _Obj(types.SimpleNamespace):
 
 
 class _FakeResult:
+    # UPDATE ... WHERE status='pending' 这类条件领取会读 rowcount 判断是否抢到，
+    # 领域替身默认视为领取成功。
+    rowcount = 1
+
     def __init__(self, rows):
         self._rows = rows
 
@@ -119,6 +172,12 @@ class _FakeDB:
 
     async def commit(self):
         self.commits += 1
+
+    async def flush(self):
+        return None
+
+    async def rollback(self):
+        return None
 
     async def refresh(self, obj):
         return None
@@ -488,19 +547,42 @@ def test_run_test_suite_swallows_notification_failures(monkeypatch):
 # ── _execute_plan_suite / _execute_suite_inline ────────────
 
 
-def test_execute_plan_suite_returns_error_for_missing_suite(monkeypatch):
+def _running_plan_run(plan_run_id=60, identity="plan-identity"):
+    """N1.5 起，计划内套件必须能核对到仍在 running 的父计划身份。"""
+    PlanRunStatus = _plan_models()
+    return _Obj(id=plan_run_id, identity_token=identity, status=PlanRunStatus.running)
+
+
+def _plan_meta_for(parent, **extra):
+    return {"plan_run_id": parent.id, "plan_identity": parent.identity_token, "trace_id": "t", **extra}
+
+
+def test_execute_plan_suite_skips_when_parent_identity_is_unverifiable(monkeypatch):
     db = _FakeDB()
     _install_session(monkeypatch, db)
 
+    # 旧式 plan_meta 没有父计划身份：不得创建或执行子套件，只能返回 skipped。
     result = asyncio.run(tasks._execute_plan_suite(plan_meta={"trace_id": "t"}, suite_id=404, extra_vars={}))
+
+    assert result["status"] == "skipped" and result["suite_run_id"] is None
+    assert db.added == [] and db.commits == 0
+
+
+def test_execute_plan_suite_returns_error_for_missing_suite(monkeypatch):
+    parent = _running_plan_run()
+    db = _FakeDB({("PlanRun", 60): parent})
+    _install_session(monkeypatch, db)
+
+    result = asyncio.run(tasks._execute_plan_suite(plan_meta=_plan_meta_for(parent), suite_id=404, extra_vars={}))
 
     assert result == {"suite_id": 404, "suite_run_id": None, "status": "error", "error": "套件不存在"}
 
 
 def test_execute_plan_suite_creates_run_and_falls_back_to_creator(monkeypatch):
     SuiteRunStatus = _suite_models()
+    parent = _running_plan_run()
     suite = _Obj(id=6, name="Regression", project_id=3)
-    db = _FakeDB({("TestSuite", 6): suite})
+    db = _FakeDB({("PlanRun", 60): parent, ("TestSuite", 6): suite})
     _install_session(monkeypatch, db)
 
     async def fake_inline(_db, suite_run, _suite, _extra, **_kwargs):
@@ -510,7 +592,7 @@ def test_execute_plan_suite_creates_run_and_falls_back_to_creator(monkeypatch):
 
     result = asyncio.run(
         tasks._execute_plan_suite(
-            plan_meta={"triggered_by": None, "creator_id": 42, "trace_id": "t"},
+            plan_meta=_plan_meta_for(parent, triggered_by=None, creator_id=42),
             suite_id=6,
             extra_vars={},
         )
@@ -523,7 +605,8 @@ def test_execute_plan_suite_creates_run_and_falls_back_to_creator(monkeypatch):
 
 def test_execute_plan_suite_marks_error_when_inline_execution_raises(monkeypatch):
     SuiteRunStatus = _suite_models()
-    db = _FakeDB({("TestSuite", 7): _Obj(id=7, name="Broken", project_id=3)})
+    parent = _running_plan_run()
+    db = _FakeDB({("PlanRun", 60): parent, ("TestSuite", 7): _Obj(id=7, name="Broken", project_id=3)})
     _install_session(monkeypatch, db)
 
     async def broken_inline(_db, _suite_run, _suite, _extra, **_kwargs):
@@ -532,7 +615,7 @@ def test_execute_plan_suite_marks_error_when_inline_execution_raises(monkeypatch
     monkeypatch.setattr(tasks, "_execute_suite_inline", broken_inline)
 
     result = asyncio.run(
-        tasks._execute_plan_suite(plan_meta={"triggered_by": 1, "trace_id": "t"}, suite_id=7, extra_vars={})
+        tasks._execute_plan_suite(plan_meta=_plan_meta_for(parent, triggered_by=1), suite_id=7, extra_vars={})
     )
 
     assert result["status"] == "error"
@@ -540,8 +623,13 @@ def test_execute_plan_suite_marks_error_when_inline_execution_raises(monkeypatch
 
 
 def test_execute_suite_inline_sets_duration_and_outcome(monkeypatch):
-    SuiteRunStatus = _suite_models()
-    suite_run = _Obj(id=30, status=SuiteRunStatus.pending)
+    from app.models.suite import SuiteRun, SuiteRunStatus
+
+    # _execute_suite_inline 会按 type(suite_run) 发出条件 UPDATE 领取运行，
+    # 因此这里必须用真实 ORM 实例而不是鸭子类型替身。
+    suite_run = SuiteRun(suite_id=1, triggered_by=7, status=SuiteRunStatus.pending)
+    suite_run.id = 30
+    suite_run.identity_token = "inline-suite-identity"
     outcomes = []
 
     async def fake_execute_suite_cases(_db, run_obj, _suite, _extra, **_kwargs):
@@ -570,6 +658,7 @@ def _plan_run_stub(plan_id=70):
     return _Obj(
         id=60,
         plan_id=plan_id,
+        identity_token=_PLAN_RUN_IDENTITY,
         trace_id="trace-plan",
         triggered_by=9,
         status=PlanRunStatus.pending,
@@ -685,9 +774,12 @@ def test_run_test_plan_records_auto_bug_pipeline_failure(monkeypatch):
     plan_run = _plan_run_stub()
     plan = _plan_stub(auto_create_bugs=True)
 
-    # auto_bugs 分支第一步 db.execute 查询 BugTracker —— 让它爆炸走 auto_bugs_error 路径
+    # auto_bugs 分支第一步 db.execute 查询 BugTracker —— 让它爆炸走 auto_bugs_error 路径。
+    # 运行领取（UPDATE PlanRun）必须放行，否则会在进入 auto_bugs 之前就抛出。
     class _ExplodingDB(_FakeDB):
-        async def execute(self, _query):
+        async def execute(self, query):
+            if type(query).__name__ == "Update":
+                return await super().execute(query)
             raise RuntimeError("tracker query failed")
 
     db = _ExplodingDB({("PlanRun", 60): plan_run, ("TestPlan", 70): plan})

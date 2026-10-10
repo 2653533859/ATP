@@ -3,7 +3,6 @@
     <div class="page-hero">
       <div>
         <h2 class="page-title">{{ t('system_pages.ai_llm.title') }}</h2>
-        <div class="page-subtitle">{{ t('system_pages.ai_llm.subtitle') }}</div>
       </div>
       <a-button type="primary" @click="openCreate">{{ t('system_pages.ai_llm.new') }}</a-button>
     </div>
@@ -109,6 +108,13 @@
           </div>
         </a-form-item>
         <a-form-item :label="t('system_pages.ai_llm.default_params')">
+          <template #extra>
+            <div style="display: flex; justify-content: flex-end; margin-top: 4px">
+              <a-button size="small" type="link" style="padding: 0" @click="defaultParamsText = tryFormatJson(defaultParamsText)">
+                <FormatPainterOutlined /> 格式化 JSON
+              </a-button>
+            </div>
+          </template>
           <a-textarea
             v-model:value="defaultParamsText"
             :rows="3"
@@ -158,7 +164,9 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
+import { FormatPainterOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { tryFormatJson } from '@/utils/jsonFormat'
 import {
   aiLLMConfigApi,
   type AILLMConfigItem,

@@ -6,7 +6,6 @@
           <LineChartOutlined class="toolbar-icon" />
           <span class="toolbar-name">{{ t('performance_workbench.title') }}</span>
         </div>
-        <div class="toolbar-sep">/</div>
         <div class="toolbar-project">
           <label class="sr-only">{{ t('performance_workbench.project_label') }}</label>
           <a-select
@@ -20,8 +19,9 @@
           />
         </div>
         <div class="toolbar-status">
-          <span class="live-dot" :class="{ muted: !onlineNodeCount }" />
-          <span>{{ onlineNodeCount ? t('performance_workbench.worker_ready', { count: onlineNodeCount }) : t('performance_workbench.worker_waiting') }}</span>
+          <span class="live-dot" :class="{ muted: localMode ? !readyExecutorCount : !onlineNodeCount }" />
+          <span v-if="localMode">{{ readyExecutorCount ? t('local_execution.performance_ready', { count: readyExecutorCount }) : t('local_execution.performance_unavailable') }}</span>
+          <span v-else>{{ onlineNodeCount ? t('performance_workbench.worker_ready', { count: onlineNodeCount }) : t('performance_workbench.worker_waiting') }}</span>
           <span v-if="selectedProjectName" class="project-pill-tag">{{ selectedProjectName }} ({{ readyExecutorCount }} 执行器)</span>
         </div>
       </div>
@@ -67,9 +67,10 @@
           <span class="signal-note">{{ t('performance_workbench.signals.active_note') }}</span>
         </div>
         <div class="signal-card signal-card-amber">
-          <span class="signal-label">{{ t('performance_workbench.signals.online_nodes') }}</span>
-          <strong>{{ onlineNodeCount }}<small>/{{ nodes.length }}</small></strong>
-          <span class="signal-note">{{ t('performance_workbench.signals.nodes_note') }}</span>
+          <span class="signal-label">{{ t(localMode ? 'local_execution.executors_label' : 'performance_workbench.signals.online_nodes') }}</span>
+          <strong v-if="localMode">{{ readyExecutorCount }}</strong>
+          <strong v-else>{{ onlineNodeCount }}<small>/{{ nodes.length }}</small></strong>
+          <span class="signal-note">{{ t(localMode ? 'local_execution.executors_hint' : 'performance_workbench.signals.nodes_note') }}</span>
         </div>
         <div class="signal-card signal-card-run">
           <span class="signal-label">{{ t('performance_workbench.signals.pass_rate') }}</span>
@@ -150,7 +151,7 @@
             <div>
               <div class="panel-kicker">{{ t('performance_workbench.launch_kicker') }}</div>
               <h2>{{ selectedTest?.name || t('performance_workbench.launch_title') }}</h2>
-              <p>{{ selectedTest ? selectedTest.description || t('performance_workbench.no_description') : t('performance_workbench.launch_description') }}</p>
+              <p>{{ selectedTest ? selectedTest.description || t('performance_workbench.no_description') : t(localMode ? 'local_execution.performance_launch_hint' : 'performance_workbench.launch_description') }}</p>
             </div>
             <div class="launch-badge"><span class="signal-line" />{{ selectedTest?.executor || '—' }}</div>
           </div>
@@ -187,7 +188,7 @@
                 />
                 <small>{{ t('performance.environment_hint') }}</small>
               </div>
-              <div>
+              <div v-if="!localMode">
                 <label>{{ t('performance_workbench.node_label') }}</label>
                 <a-select
                   v-model:value="launchNodeIds"
@@ -311,7 +312,7 @@
             </div>
           </div>
           <div class="context-divider" />
-          <div class="context-block">
+          <div v-if="!localMode" class="context-block">
             <div class="context-block-head"><span>{{ t('performance.nodes') }}</span><span class="count-pill">{{ onlineNodeCount }} {{ t('performance_workbench.online') }}</span></div>
             <div v-if="nodes.length" class="mini-node-list">
               <div v-for="node in nodes.slice(0, 4)" :key="node.id" class="mini-node-row">
@@ -351,6 +352,8 @@
 </template>
 
 <script setup lang="ts">
+import { getRuntimeMode } from '@/runtimeMode'
+const localMode = getRuntimeMode()?.mode === 'local'
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import {
@@ -894,7 +897,77 @@ onBeforeUnmount(stopPolling)
 </script>
 
 <style scoped>
-.performance-workbench { --perf-ink: var(--c-text); --perf-muted: var(--c-text-secondary); --perf-line: var(--c-border); --perf-paper: var(--c-bg-body); --perf-panel: var(--c-bg-elevated); --perf-blue: #4a91d9; --perf-amber: #d69a3a; --perf-teal: #43aa9c; --perf-red: #dc6b5d; color: var(--perf-ink); }
+.performance-workbench { --perf-ink: var(--c-text); --perf-muted: var(--c-text-secondary); --perf-line: var(--c-border); --perf-paper: var(--c-bg-body); --perf-panel: var(--c-bg-elevated); --perf-blue: var(--c-primary); --perf-amber: var(--c-warning); --perf-teal: var(--c-ai); --perf-red: var(--c-error); color: var(--perf-ink); }
+.performance-workbench { min-width: 0; padding: 20px; background: var(--perf-paper); }
+.performance-workbench *, .performance-workbench *::before, .performance-workbench *::after { box-sizing: border-box; }
+.signal-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
+.signal-card { display: flex; flex-direction: column; gap: 8px; min-width: 0; padding: 18px 20px; background: var(--perf-panel); border: 1px solid var(--perf-line); border-radius: 12px; border-top: 3px solid var(--perf-teal); }
+.signal-card-blue { border-top-color: var(--perf-blue); }
+.signal-card-amber { border-top-color: var(--perf-amber); }
+.signal-card-run { border-top-color: #9182be; }
+.signal-label { font-size: 12px; color: var(--perf-muted); }
+.signal-card > strong { font-size: 28px; line-height: 1.2; font-variant-numeric: tabular-nums; }
+.signal-card strong small { margin-left: 4px; font-size: 14px; color: var(--perf-muted); }
+.signal-note { font-size: 12px; color: var(--perf-muted); }
+.panel { min-width: 0; padding: 20px; background: var(--perf-panel); border: 1px solid var(--perf-line); border-radius: 12px; }
+.panel-head { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 12px; margin-bottom: 16px; }
+.panel-head > div { min-width: 0; }
+.panel h2 { margin: 4px 0 8px; font-size: 18px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+.panel-kicker, .selection-kicker, .section-label { font-size: 11px; font-weight: 600; color: var(--perf-muted); }
+.panel-description, .launch-head p { margin: 0; font-size: 12px; line-height: 1.7; color: var(--perf-muted); }
+.panel :deep(.ant-empty) { margin: 24px 0; }
+.trend-panel :deep(.ant-empty) { margin: 16px 0; }
+.runway { display: flex; align-items: center; gap: 16px; padding: 16px 20px; margin-bottom: 16px; border: 1px solid var(--perf-line); border-radius: 12px; background: var(--perf-panel); }
+.runway-step { display: flex; align-items: center; gap: 8px; white-space: nowrap; color: var(--perf-muted); font-size: 13px; }
+.runway-step b { display: grid; place-items: center; width: 28px; height: 28px; border-radius: 8px; background: var(--perf-paper); color: var(--perf-muted); font-size: 11px; }
+.runway-step.active b { color: var(--c-primary); background: var(--c-primary-soft); }
+.runway-step small { font-size: 11px; }
+.runway-line { flex: 1; min-width: 16px; height: 1px; background: var(--perf-line); }
+.control-grid { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(0, 2fr) minmax(220px, 1fr); align-items: start; gap: 16px; margin-bottom: 16px; }
+.evidence-grid { display: grid; grid-template-columns: minmax(0, 3fr) minmax(240px, 1fr); align-items: start; gap: 16px; }
+.scenario-list, .run-list { display: grid; gap: 8px; max-height: 460px; overflow-y: auto; }
+.scenario-row, .run-row { display: flex; align-items: center; gap: 10px; width: 100%; min-width: 0; padding: 12px; border: 1px solid transparent; border-radius: 8px; background: var(--perf-paper); color: var(--perf-ink); text-align: left; cursor: pointer; transition: border-color .15s, background .15s; }
+.scenario-row:hover, .run-row:hover, .scenario-row.selected, .run-row.selected { border-color: var(--c-primary); background: var(--c-primary-soft); }
+.scenario-row-main, .run-row-main { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 5px; }
+.scenario-row-main strong, .run-row-main strong { font-size: 13px; overflow-wrap: anywhere; }
+.scenario-row-main small, .run-row-main small { font-size: 11px; color: var(--perf-muted); overflow-wrap: anywhere; }
+.scenario-row-meta { display: flex; align-items: flex-end; flex-direction: column; gap: 5px; font-size: 10px; color: var(--perf-muted); }
+.scenario-mark { width: 4px; height: 32px; flex-shrink: 0; border-radius: 4px; background: var(--perf-teal); }
+.executor-locust { background: var(--perf-blue); }.executor-grpc { background: #9182be; }.executor-jmeter { background: var(--perf-amber); }
+.panel-footer-actions { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--perf-line); }
+.launch-badge { padding: 5px 10px; border-radius: 6px; background: var(--perf-paper); font-size: 12px; }
+.selection-card { padding: 14px; margin-bottom: 18px; border: 1px solid var(--perf-line); border-radius: 8px; background: var(--perf-paper); }
+.selection-title { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px; }
+.selection-title strong { display: block; margin-top: 5px; font-size: 14px; }
+.selection-meta { display: flex; flex-wrap: wrap; gap: 8px 16px; margin-top: 10px; font-size: 11px; color: var(--perf-muted); overflow-wrap: anywhere; }
+.launch-form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 14px; margin-bottom: 16px; }
+.launch-form label { display: block; margin-bottom: 8px; font-size: 12px; font-weight: 600; }
+.launch-form-grid :deep(.ant-select) { width: 100%; }
+.launch-form-grid small, .field-hint { display: block; margin-top: 6px; font-size: 11px; color: var(--perf-muted); line-height: 1.6; }
+.launch-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 16px; }
+.launch-note { display: flex; gap: 6px; margin: 12px 0 0; font-size: 11px; line-height: 1.6; color: var(--perf-muted); }
+.mono { font-family: Consolas, monospace; }
+.count-pill { padding: 3px 8px; border-radius: 6px; font-size: 11px; background: var(--perf-paper); color: var(--perf-muted); }
+.run-status-dot, .node-dot { display: inline-block; width: 7px; height: 7px; flex-shrink: 0; border-radius: 50%; background: var(--perf-muted); }
+.status-success, .node-online { background: var(--perf-teal); }.status-running, .status-cancelling { background: var(--perf-blue); }.status-failed, .node-offline { background: var(--perf-red); }
+.run-progress-label { font-size: 11px; font-variant-numeric: tabular-nums; }
+.evidence-status-row { display: grid; grid-template-columns: 1fr 1fr auto; gap: 12px; margin-bottom: 16px; }
+.run-state-card, .gate-card { padding: 14px; border-radius: 8px; border: 1px solid var(--perf-line); background: var(--perf-paper); }
+.run-state-card strong { margin-left: 8px; }
+.run-state-card small, .gate-card small { display: block; margin-top: 8px; font-size: 11px; color: var(--perf-muted); }
+.gate-card strong { display: block; margin-top: 6px; }.gate-card > span { font-size: 11px; color: var(--perf-muted); }
+.evidence-actions { display: flex; flex-direction: column; justify-content: center; gap: 8px; }
+.metric-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 12px; margin-bottom: 18px; }
+.metric-grid > div { display: flex; flex-direction: column; gap: 8px; padding: 14px; border: 1px solid var(--perf-line); border-radius: 8px; }
+.metric-grid span, .metric-grid small { color: var(--perf-muted); font-size: 11px; }.metric-grid strong { font-size: 21px; overflow-wrap: anywhere; }
+.resource-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding-top: 16px; border-top: 1px solid var(--perf-line); }
+.resource-chart { height: 280px; width: 100%; }.evidence-foot { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 12px; color: var(--perf-muted); font-size: 11px; }
+.context-block { display: flex; flex-direction: column; align-items: flex-start; gap: 10px; padding-top: 12px; }.context-block small { font-size: 11px; color: var(--perf-muted); line-height: 1.6; }.context-block-head { display: flex; justify-content: space-between; align-items: center; gap: 8px; width: 100%; font-size: 12px; }
+.context-divider { margin-top: 18px; border-top: 1px solid var(--perf-line); }.baseline-row { display: flex; justify-content: space-between; gap: 8px; margin-top: 12px; font-size: 12px; }
+.direction-regression { color: var(--perf-red); }.direction-improvement { color: var(--perf-teal); }
+.mini-node-list { width: 100%; }.mini-node-row { display: flex; align-items: center; gap: 8px; padding: 8px 0; }.mini-node-row strong, .mini-node-row small { display: block; font-size: 12px; }
+.readonly-alert, .load-alert { margin-bottom: 16px; }
+@media (max-width: 800px) { .performance-workbench { padding: 12px; }.perf-toolbar { height: auto; min-height: 48px; flex-wrap: wrap; padding: 12px; }.toolbar-left { flex-wrap: wrap; }.toolbar-status { flex-wrap: wrap; }.toolbar-right { flex-wrap: wrap; }.project-select-dropdown { max-width: 100%; }.runway { gap: 10px; }.panel { padding: 16px; } }
 .trend-panel { margin-bottom: 14px; padding: 18px 20px; }
 .trend-panel .panel-description { margin-bottom: 0; }
 .trend-chart { width: 100%; height: 240px; margin-top: 10px; }
@@ -903,7 +976,8 @@ onBeforeUnmount(stopPolling)
   justify-content: space-between;
   align-items: center;
   gap: 16px;
-  height: 48px;
+  min-height: 48px;
+  flex-wrap: wrap;
   padding: 0 16px;
   background: var(--c-bg-elevated);
   border: 1px solid var(--c-border);
@@ -914,6 +988,7 @@ onBeforeUnmount(stopPolling)
 
 .toolbar-left {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 10px;
   min-width: 0;
@@ -952,6 +1027,7 @@ onBeforeUnmount(stopPolling)
 
 .toolbar-status {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 6px;
   font-size: 12px;

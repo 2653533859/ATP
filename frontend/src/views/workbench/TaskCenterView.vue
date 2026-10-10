@@ -4,8 +4,6 @@
       <div class="toolbar-left">
         <ScheduleOutlined class="toolbar-icon" />
         <h1 class="toolbar-title">{{ t('task_center.title') }}</h1>
-        <span class="toolbar-divider">/</span>
-        <span class="toolbar-subtitle subtitle">{{ t('task_center.subtitle') }}</span>
       </div>
       <div class="heading-actions toolbar-right">
         <a-select

@@ -19,9 +19,11 @@
             <strong>{{ item.role === 'assistant' ? 'Hermes' : t('hermes.you') }}</strong>
             <span>{{ formatTime(item.createdAt) }}</span>
           </div>
-          <p class="message-text">{{ item.text }}</p>
+          <div v-if="item.role === 'assistant'" class="markdown-body" v-html="renderMarkdown(item.text)" />
+          <p v-else class="message-text">{{ item.text }}</p>
           <span v-if="item.mode" class="message-mode">{{ t(`hermes.modes.${item.mode}`) }}</span>
-          <div v-if="item.toolSteps?.length" class="message-tool-chain">
+          <details v-if="item.toolSteps?.length" class="message-tool-chain">
+            <summary>{{ t('hermes.tool_chain') }}</summary>
             <span class="tool-chain-label">
               {{ t('hermes.tool_chain') }}
               <span v-if="item.planner">· {{ t(`hermes.planner_source.${item.planner.source}`) }}</span>
@@ -31,7 +33,7 @@
               {{ t(`hermes.tool_labels.${step.tool}`) }} · {{ t(`hermes.tool_status.${step.status}`) }}
               <small v-if="step.reason">{{ step.reason }}</small>
             </span>
-          </div>
+          </details>
           <div v-if="item.taskIds?.length" class="message-task-list">
             <button
               v-for="taskId in item.taskIds"
@@ -94,16 +96,21 @@
       </div>
     </div>
 
-    <form class="composer" @submit.prevent="emit('submit')">
-      <input
-        v-model="inputText"
+    <form class="composer" @submit.prevent="submitMessage">
+      <a-textarea
+        v-model:value="inputText"
+        :auto-size="{ minRows: 3, maxRows: 10 }"
         :disabled="busy"
         :placeholder="t('hermes.input_placeholder')"
         :aria-label="t('hermes.input_aria')"
+        @keydown="handleComposerKeydown"
       />
-      <a-button type="primary" html-type="submit" :disabled="!inputText.trim() || busy">
-        {{ t('hermes.send') }} <ArrowRightOutlined />
-      </a-button>
+      <div class="composer-actions">
+        <span>{{ t('hermes.input_shortcut') }}</span>
+        <a-button type="primary" html-type="submit" :disabled="!inputText.trim() || busy">
+          {{ t('hermes.send') }} <ArrowRightOutlined />
+        </a-button>
+      </div>
     </form>
     <p class="composer-note"><BulbOutlined /> {{ t('hermes.composer_note') }}</p>
   </section>
@@ -114,6 +121,7 @@ import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowRightOutlined, BulbOutlined } from '@ant-design/icons-vue'
 import type { HermesMessage, HermesPromptKey, HermesPromptOption, HermesSource } from './hermesPanelTypes'
+import { renderMarkdown } from '@/utils/markdown'
 
 const props = defineProps<{
   messages: HermesMessage[]
@@ -132,8 +140,18 @@ const emit = defineEmits<{
   submit: []
 }>()
 const inputText = defineModel<string>('inputText', { required: true })
-const busy = computed(() => props.loading || props.diagnosing || props.querying)
 const { t } = useI18n()
+const busy = computed(() => props.loading || props.diagnosing || props.querying)
+
+function submitMessage() {
+  if (!busy.value && inputText.value.trim()) emit('submit')
+}
+
+function handleComposerKeydown(event: KeyboardEvent) {
+  if (event.isComposing || event.key !== 'Enter' || !(event.ctrlKey || event.metaKey)) return
+  event.preventDefault()
+  submitMessage()
+}
 
 function formatTime(value?: string | null) {
   return value ? value.slice(0, 19).replace('T', ' ') : t('hermes.not_available')
@@ -153,7 +171,7 @@ function formatTime(value?: string | null) {
 .conversation-header,
 .prompt-stations,
 .composer {
-  padding: 18px 22px;
+  padding: 14px 20px;
 }
 
 .conversation-header {
@@ -163,6 +181,7 @@ function formatTime(value?: string | null) {
   gap: 16px;
   border-bottom: 1px solid var(--c-border);
 }
+
 
 .section-kicker { color: var(--c-ai); }
 
@@ -185,10 +204,10 @@ h2 {
 .message-list {
   display: flex;
   flex-direction: column;
-  gap: 20px;
-  min-height: 340px;
-  max-height: 580px;
-  padding: 22px;
+  gap: 16px;
+  height: clamp(220px, 34vh, 400px);
+  min-height: 220px;
+  padding: 18px 20px;
   overflow: auto;
   background: var(--c-bg-subtle);
 }
@@ -228,7 +247,8 @@ h2 {
 
 .message-meta strong { color: var(--c-text); font-size: 12px; font-weight: 600; }
 
-.message-text {
+.message-text,
+.markdown-body {
   margin-bottom: 0;
   padding: 12px 16px;
   color: var(--c-text);
@@ -238,7 +258,60 @@ h2 {
   border-radius: 4px 16px 16px 16px;
   background: var(--c-bg-elevated);
   box-shadow: var(--shadow-xs);
+  word-break: break-word;
 }
+
+.markdown-body :deep(h1),
+.markdown-body :deep(h2),
+.markdown-body :deep(h3),
+.markdown-body :deep(h4) {
+  margin: 12px 0 6px;
+  font-weight: 700;
+  color: var(--c-text);
+  line-height: 1.35;
+}
+
+.markdown-body :deep(h1) { font-size: 16px; }
+.markdown-body :deep(h2) { font-size: 15px; border-bottom: 1px solid var(--c-border); padding-bottom: 4px; }
+.markdown-body :deep(h3) { font-size: 14px; }
+.markdown-body :deep(h4) { font-size: 13px; }
+
+.markdown-body :deep(p) { margin: 0 0 8px; }
+.markdown-body :deep(p:last-child) { margin-bottom: 0; }
+.markdown-body :deep(ul), .markdown-body :deep(ol) { margin: 0 0 8px; padding-left: 20px; }
+.markdown-body :deep(li) { margin-bottom: 3px; }
+.markdown-body :deep(blockquote) {
+  margin: 6px 0;
+  padding: 6px 12px;
+  border-left: 3px solid var(--c-primary);
+  background: var(--c-primary-soft);
+  color: var(--c-text-secondary);
+  border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+}
+.markdown-body :deep(pre) {
+  margin: 8px 0;
+  padding: 10px 12px;
+  overflow-x: auto;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-subtle);
+  font-family: 'JetBrains Mono', Consolas, Monaco, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+}
+.markdown-body :deep(code) {
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+  font-family: 'JetBrains Mono', Consolas, Monaco, monospace;
+  font-size: 12px;
+}
+.markdown-body :deep(pre code) { padding: 0; background: transparent; color: var(--c-text); font-size: 12px; }
+.markdown-body :deep(table) { width: 100%; margin: 8px 0; border-collapse: collapse; }
+.markdown-body :deep(th), .markdown-body :deep(td) { padding: 5px 8px; border: 1px solid var(--c-border); font-size: 12px; }
+.markdown-body :deep(th) { background: var(--c-bg-subtle); font-weight: 600; }
+.markdown-body :deep(hr) { margin: 12px 0; border: 0; border-top: 1px solid var(--c-border); }
 
 .message-user .message-text {
   border-color: var(--c-primary-glow);
@@ -259,9 +332,9 @@ h2 {
   background: var(--c-primary-soft);
 }
 
-.message-tool-chain { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 9px; color: var(--c-text-tertiary); font-size: 10px; }
+.message-tool-chain { margin-top: 9px; color: var(--c-text-tertiary); font-size: 10px; }
 .tool-chain-label { color: var(--c-ai); font-family: 'JetBrains Mono', monospace; letter-spacing: .04em; text-transform: uppercase; }
-.tool-chain-step { padding: 3px 7px; border: 1px solid var(--c-border); border-radius: var(--radius-full); background: var(--c-bg-subtle); }
+.tool-chain-step { display: inline-block; margin: 4px 4px 0 0; padding: 3px 7px; border: 1px solid var(--c-border); border-radius: var(--radius-full); background: var(--c-bg-subtle); }
 .tool-chain-step small { display: block; max-width: 360px; margin-top: 2px; color: var(--c-text-secondary); font-size: 10px; white-space: normal; }
 .message-task-list { display: flex; flex-direction: column; gap: 7px; margin-top: 10px; }
 
@@ -299,15 +372,15 @@ h2 {
   animation: pulse 1.1s ease-in-out infinite;
 }
 
-.prompt-stations { border-top: 1px solid var(--c-border); }
-.prompt-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; margin-top: 12px; }
+.prompt-stations { border-top: 1px solid var(--c-border); padding: 12px 22px; }
+.prompt-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 0; }
 
 .prompt-card {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   gap: 10px;
   align-items: center;
-  padding: 12px 14px;
+  padding: 8px 10px;
   color: var(--c-text);
   text-align: left;
   border: 1px solid var(--c-border);
@@ -317,25 +390,24 @@ h2 {
   transition: transform .18s ease, border-color .18s ease, box-shadow .18s ease;
 }
 
-.prompt-card:hover:not(:disabled) { border-color: var(--c-ai); box-shadow: var(--shadow-sm); transform: translateY(-2px); }
+.prompt-card:hover:not(:disabled) { border-color: var(--c-ai); background: var(--c-bg-subtle); }
 .prompt-card:disabled { cursor: wait; opacity: .55; }
-.prompt-icon { display: grid; place-items: center; width: 30px; height: 30px; color: #fff; font-size: 13px; font-weight: 800; border-radius: var(--radius-sm); background: var(--c-ai); }
-.prompt-icon-explain_failure { background: var(--c-error); }
-.prompt-icon-test_plan { background: var(--c-info); }
-.prompt-icon-quality { background: var(--c-primary); }
+.prompt-icon { display: grid; place-items: center; width: 20px; height: 20px; color: var(--c-text-secondary); font-size: 11px; font-weight: 600; border-radius: 4px; background: var(--c-bg-subtle); }
+.prompt-icon-explain_failure, .prompt-icon-test_plan, .prompt-icon-quality { background: var(--c-bg-subtle); }
 .prompt-card strong, .prompt-card small { display: block; }
 .prompt-card strong { font-size: 12px; font-weight: 600; }
-.prompt-card small { margin-top: 2px; overflow: hidden; color: var(--c-text-tertiary); font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.prompt-card small { display: none; }
 .prompt-card > .anticon { color: var(--c-text-tertiary); }
-.composer { display: flex; gap: 10px; border-top: 1px solid var(--c-border); }
+.composer { display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--c-border); }
 
-.composer input {
+.composer :deep(textarea) {
   min-width: 0;
   width: 100%;
   padding: 10px 14px;
   color: var(--c-text);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
+  line-height: 1.7;
   border: 1px solid var(--c-border);
   border-radius: var(--radius-md);
   outline: none;
@@ -343,10 +415,14 @@ h2 {
   transition: border-color .18s ease, box-shadow .18s ease;
 }
 
-.composer input:focus { border-color: var(--c-ai); box-shadow: 0 0 0 3px var(--c-ai-soft); }
+.composer :deep(textarea:focus) { border-color: var(--c-ai); box-shadow: 0 0 0 3px var(--c-ai-soft); }
+.composer-actions { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; }
+.composer-actions > span { font-size: 11px; color: var(--c-text-tertiary); }
 .composer .ant-btn { flex-shrink: 0; border-radius: var(--radius-md); }
 .composer-note { margin: -6px 24px 16px; color: var(--c-text-tertiary); font-size: 11px; }
-button:focus-visible, input:focus-visible { outline: 2px solid var(--c-ai); outline-offset: 2px; }
+button:focus-visible, :deep(textarea:focus-visible), summary:focus-visible { outline: 2px solid var(--c-ai); outline-offset: 2px; }
+.message-tool-chain > summary { cursor: pointer; font-size: 11px; color: var(--c-text-tertiary); }
+.message-tool-chain[open] > summary { margin-bottom: 6px; }
 
 @keyframes pulse {
   0%, 100% { opacity: .35; transform: scale(.8); }

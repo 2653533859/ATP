@@ -127,3 +127,34 @@ class AICaseFunnelStatsOut(BaseModel):
     warning_count: int
     save_rate: float
     latest_event_at: str | None = None
+
+
+class AIAssertionSuggestion(BaseModel):
+    target: Literal["status_code", "body", "header", "duration"] = "body"
+    operator: Literal["eq", "ne", "contains", "gt", "lt", "exists"] = "eq"
+    expected: str = ""
+    expression: str = ""
+    description: str = ""
+
+
+class AIExtractionSuggestion(BaseModel):
+    variable: str = ""
+    type: Literal["jsonpath", "regex", "header"] = "jsonpath"
+    expression: str = ""
+    description: str = ""
+
+
+class AIAssertionSuggestIn(BaseModel):
+    project_id: int | None = None
+    method: str = "GET"
+    url: str = ""
+    status_code: int | None = None
+    response_body: object | None = None
+    response_headers: dict[str, str] | None = None
+    request_body: object | None = None
+
+
+class AIAssertionSuggestOut(BaseModel):
+    assertions: list[AIAssertionSuggestion] = Field(default_factory=list)
+    extractions: list[AIExtractionSuggestion] = Field(default_factory=list)
+    source: Literal["llm", "heuristic"] = "heuristic"

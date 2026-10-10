@@ -17,7 +17,7 @@ def test_local_job_payload_is_encrypted_and_queued(tmp_path, monkeypatch) -> Non
     with engine.begin() as connection:
         connection.exec_driver_sql(
             "CREATE TABLE local_jobs (id INTEGER PRIMARY KEY, task_name TEXT, run_id INTEGER, "
-            "run_created_at TEXT, args_json TEXT, status TEXT DEFAULT 'queued')"
+            "run_created_at TEXT, run_identity TEXT, dispatch_id TEXT, args_json TEXT, status TEXT DEFAULT 'queued')"
         )
         connection.exec_driver_sql("CREATE TABLE test_runs (id INTEGER PRIMARY KEY, created_at TEXT)")
         connection.exec_driver_sql("INSERT INTO test_runs VALUES (7, '2026-09-29 10:00:00')")
@@ -33,14 +33,19 @@ def test_interrupted_run_is_marked_error_without_replay(tmp_path, monkeypatch) -
     engine = create_engine(f"sqlite:///{tmp_path / 'recovery.sqlite3'}")
     monkeypatch.setattr(local_jobs, "_engine", lambda: engine)
     with engine.begin() as connection:
-        connection.exec_driver_sql("CREATE TABLE test_runs (id INTEGER PRIMARY KEY, status TEXT, error_message TEXT)")
+        connection.exec_driver_sql(
+            "CREATE TABLE test_runs (id INTEGER PRIMARY KEY, created_at TEXT, status TEXT, error_message TEXT)"
+        )
         connection.exec_driver_sql(
             "CREATE TABLE local_jobs (id INTEGER PRIMARY KEY, task_name TEXT, run_id INTEGER, "
-            "run_created_at TEXT, status TEXT, error TEXT, finished_at TEXT)"
+            "run_created_at TEXT, run_identity TEXT, dispatch_id TEXT, status TEXT, error TEXT, finished_at TEXT)"
         )
-        connection.exec_driver_sql("INSERT INTO test_runs(id, status) VALUES (7, 'running')")
         connection.exec_driver_sql(
-            "INSERT INTO local_jobs(id, task_name, run_id, status) VALUES (1, 'run_test_case', 7, 'running')"
+            "INSERT INTO test_runs(id, created_at, status) VALUES (7, '2026-09-29 10:00:00', 'running')"
+        )
+        connection.exec_driver_sql(
+            "INSERT INTO local_jobs(id, task_name, run_id, run_created_at, status) "
+            "VALUES (1, 'run_test_case', 7, '2026-09-29 10:00:00', 'running')"
         )
     assert local_jobs.recover_interrupted_jobs() == 1
     with engine.connect() as connection:
@@ -66,7 +71,7 @@ def test_interrupted_android_special_run_is_failed_without_replay(
         )
         connection.exec_driver_sql(
             "CREATE TABLE local_jobs (id INTEGER PRIMARY KEY, task_name TEXT, run_id INTEGER, "
-            "run_created_at TEXT, status TEXT, error TEXT, finished_at TEXT)"
+            "run_created_at TEXT, run_identity TEXT, dispatch_id TEXT, status TEXT, error TEXT, finished_at TEXT)"
         )
         connection.execute(
             text("INSERT INTO mobile_special_runs VALUES (8, '2026-09-29 10:00:00', :status, 3, '{}', NULL)"),
@@ -107,7 +112,7 @@ def test_local_android_special_job_runs_without_celery_broker(tmp_path, monkeypa
         )
         connection.exec_driver_sql(
             "CREATE TABLE local_jobs (id INTEGER PRIMARY KEY, task_name TEXT, run_id INTEGER, "
-            "run_created_at TEXT, args_json TEXT, status TEXT DEFAULT 'queued', error TEXT, "
+            "run_created_at TEXT, run_identity TEXT, dispatch_id TEXT, args_json TEXT, status TEXT DEFAULT 'queued', error TEXT, "
             "started_at TEXT, finished_at TEXT)"
         )
         connection.exec_driver_sql(
@@ -117,7 +122,7 @@ def test_local_android_special_job_runs_without_celery_broker(tmp_path, monkeypa
     def apply(*, args):
         with engine.begin() as connection:
             connection.execute(text("UPDATE mobile_special_runs SET status='completed' WHERE id=:id"), {"id": args[0]})
-        return SimpleNamespace(failed=lambda: False)
+        return SimpleNamespace(failed=lambda: False, result=None)
 
     fake_task = SimpleNamespace(name="run_mobile_special_task", apply=apply)
     monkeypatch.setattr(
@@ -145,7 +150,7 @@ def test_task_that_returns_without_final_state_is_failed(tmp_path, monkeypatch, 
         )
         connection.exec_driver_sql(
             "CREATE TABLE local_jobs (id INTEGER PRIMARY KEY, task_name TEXT, run_id INTEGER, "
-            "run_created_at TEXT, args_json TEXT, status TEXT DEFAULT 'queued', error TEXT, "
+            "run_created_at TEXT, run_identity TEXT, dispatch_id TEXT, args_json TEXT, status TEXT DEFAULT 'queued', error TEXT, "
             "started_at TEXT, finished_at TEXT)"
         )
         connection.exec_driver_sql("INSERT INTO test_runs VALUES (7, '2026-09-29 10:00:00', 'pending', NULL)")
@@ -182,7 +187,7 @@ def test_local_queue_skips_deleted_run_and_finishes_valid_run(tmp_path, monkeypa
         )
         connection.exec_driver_sql(
             "CREATE TABLE local_jobs (id INTEGER PRIMARY KEY, task_name TEXT, run_id INTEGER, "
-            "run_created_at TEXT, args_json TEXT, status TEXT DEFAULT 'queued', error TEXT, "
+            "run_created_at TEXT, run_identity TEXT, dispatch_id TEXT, args_json TEXT, status TEXT DEFAULT 'queued', error TEXT, "
             "started_at TEXT, finished_at TEXT)"
         )
         connection.exec_driver_sql("INSERT INTO test_runs VALUES (7, '2026-09-29 10:00:00', 'pending', NULL)")
@@ -190,7 +195,7 @@ def test_local_queue_skips_deleted_run_and_finishes_valid_run(tmp_path, monkeypa
     def apply(*, args):
         with engine.begin() as connection:
             connection.execute(text("UPDATE test_runs SET status='passed' WHERE id=:id"), {"id": args[0]})
-        return SimpleNamespace(failed=lambda: False)
+        return SimpleNamespace(failed=lambda: False, result=None)
 
     fake_task = SimpleNamespace(name="run_test_case", apply=apply)
     monkeypatch.setattr(worker_package, "tasks", SimpleNamespace(run_test_case=fake_task), raising=False)

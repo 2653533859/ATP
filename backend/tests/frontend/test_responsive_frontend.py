@@ -22,7 +22,8 @@ def test_main_layout_uses_mobile_overlay_sidebar():
     assert ".app-sider.ant-layout-sider-collapsed" in content
     assert "transform: translateX(-100%)" in content
     assert ".content-card" in content
-    assert "padding: 14px" in content
+    # 移动端内容区内边距（12px）；原断言的 14px 已随布局统一调整。
+    assert ".app-content {\n    padding: 12px;\n  }" in content
 
 
 def test_case_list_has_narrow_screen_controls():

@@ -1,75 +1,84 @@
 <template>
-  <div style="display: flex; flex-direction: column; height: 100%">
-    <!-- Header -->
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px; flex-wrap: wrap">
-      <h2 style="margin: 0">{{ t('mobile_special.reports.title') }}</h2>
-      <a-select
-        v-model:value="(selectedProjectId as number | undefined)"
-        :placeholder="t('mobile_special.select_project')"
-        style="width: 200px"
-        :options="projectOptions"
-        allow-clear
-        @change="onProjectChange"
-      />
-      <a-select
-        v-model:value="(selectedTaskType as TaskType | undefined)"
-        :placeholder="t('mobile_special.task_type')"
-        style="width: 140px"
-        :options="taskTypeOptions"
-        allow-clear
-        @change="loadRuns"
-      />
-      <a-select
-        v-model:value="(selectedStatus as MobileRunStatus | undefined)"
-        :placeholder="t('mobile_special.reports.status')"
-        style="width: 120px"
-        :options="statusOptions"
-        allow-clear
-        @change="loadRuns"
-      />
-      <a-range-picker
-        v-model:value="(dateRange as [Dayjs, Dayjs] | undefined)"
-        :placeholder="[t('mobile_special.reports.start_date'), t('mobile_special.reports.end_date')]"
-        style="width: 260px"
-        @change="loadRuns"
-      />
-    </div>
+  <div class="page-shell mobile-report-page">
+    <!-- 顶部紧凑工具栏 -->
+    <header class="page-header mobile-report-toolbar">
+      <div class="toolbar-left">
+        <h2 class="toolbar-title">{{ t('mobile_special.reports.title') }}</h2>
+      </div>
+      <div class="toolbar-right">
+        <a-select
+          v-model:value="(selectedProjectId as number | undefined)"
+          :placeholder="t('mobile_special.select_project')"
+          style="width: 180px"
+          :options="projectOptions"
+          allow-clear
+          size="small"
+          @change="onProjectChange"
+        />
+        <a-select
+          v-model:value="(selectedTaskType as TaskType | undefined)"
+          :placeholder="t('mobile_special.task_type')"
+          style="width: 130px"
+          :options="taskTypeOptions"
+          allow-clear
+          size="small"
+          @change="loadRuns"
+        />
+        <a-select
+          v-model:value="(selectedStatus as MobileRunStatus | undefined)"
+          :placeholder="t('mobile_special.reports.status')"
+          style="width: 110px"
+          :options="statusOptions"
+          allow-clear
+          size="small"
+          @change="loadRuns"
+        />
+        <a-range-picker
+          v-model:value="(dateRange as [Dayjs, Dayjs] | undefined)"
+          :placeholder="[t('mobile_special.reports.start_date'), t('mobile_special.reports.end_date')]"
+          style="width: 240px"
+          size="small"
+          @change="loadRuns"
+        />
+      </div>
+    </header>
 
     <!-- Overview KPI Cards -->
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; margin-bottom: 16px">
-      <a-card size="small" :body-style="{ padding: '12px 16px' }">
-        <div style="color: #999; font-size: 12px; margin-bottom: 4px">{{ t('mobile_special.reports.total_runs') }}</div>
-        <div style="font-size: 24px; font-weight: 600; color: #1890ff">{{ overview.total_runs }}</div>
-      </a-card>
-      <a-card size="small" :body-style="{ padding: '12px 16px' }">
-        <div style="color: #999; font-size: 12px; margin-bottom: 4px">{{ t('mobile_special.reports.completion_rate') }}</div>
-        <div style="font-size: 24px; font-weight: 600; color: #52c41a">{{ overview.pass_rate }}%</div>
-      </a-card>
-      <a-card size="small" :body-style="{ padding: '12px 16px' }">
-        <div style="color: #999; font-size: 12px; margin-bottom: 4px">{{ t('mobile_special.reports.recent_runs_7d') }}</div>
-        <div style="font-size: 24px; font-weight: 600; color: #722ed1">{{ overview.recent_runs_7d }}</div>
-      </a-card>
-      <a-card size="small" :body-style="{ padding: '12px 16px' }">
-        <div style="color: #999; font-size: 12px; margin-bottom: 4px">{{ t('mobile_special.reports.failed_runs') }}</div>
-        <div style="font-size: 24px; font-weight: 600; color: #ff4d4f">{{ overview.failed_runs }}</div>
-      </a-card>
-      <a-card size="small" :body-style="{ padding: '12px 16px' }">
-        <div style="color: #999; font-size: 12px; margin-bottom: 4px">{{ t('mobile_special.reports.incidents') }}</div>
-        <div style="font-size: 24px; font-weight: 600; color: #faad14">{{ overview.total_incidents }}</div>
-      </a-card>
-      <a-card size="small" :body-style="{ padding: '12px 16px' }">
-        <div style="color: #999; font-size: 12px; margin-bottom: 4px">{{ t('mobile_special.reports.avg_duration') }}</div>
-        <div style="font-size: 24px; font-weight: 600; color: #13c2c2">
+    <!-- Overview Bento KPI Cards -->
+    <div class="mobile-kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">{{ t('mobile_special.reports.total_runs') }}</div>
+        <div class="kpi-num" style="color: var(--c-primary)">{{ overview.total_runs }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">{{ t('mobile_special.reports.completion_rate') }}</div>
+        <div class="kpi-num" style="color: var(--c-success)">{{ overview.pass_rate }}%</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">{{ t('mobile_special.reports.recent_runs_7d') }}</div>
+        <div class="kpi-num" style="color: #a855f7">{{ overview.recent_runs_7d }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">{{ t('mobile_special.reports.failed_runs') }}</div>
+        <div class="kpi-num" style="color: var(--c-error)">{{ overview.failed_runs }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">{{ t('mobile_special.reports.incidents') }}</div>
+        <div class="kpi-num" style="color: var(--c-warning)">{{ overview.total_incidents }}</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">{{ t('mobile_special.reports.avg_duration') }}</div>
+        <div class="kpi-num" style="color: var(--c-info)">
           {{ overview.avg_duration_ms ? (overview.avg_duration_ms / 1000).toFixed(1) + 's' : '-' }}
         </div>
-      </a-card>
+      </div>
     </div>
 
     <!-- Trend Chart -->
     <a-card style="margin-bottom: 16px" :body-style="{ padding: '12px 16px' }">
       <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px">
         <span style="font-size: 14px; font-weight: 500">{{ t('mobile_special.reports.trend_title') }}</span>
-        <span style="font-size: 12px; color: #999">
+        <span style="font-size: 12px; color: var(--c-text-secondary)">
           {{ t('mobile_special.reports.trend_summary', { completed: trendCompleted, failed: trendFailed }) }}
         </span>
       </div>
@@ -78,12 +87,14 @@
 
     <!-- Run Table -->
     <a-spin :spinning="loading">
-      <a-table
-        :data-source="runs"
-        :columns="columns"
-        :pagination="{ pageSize: 15 }"
-        row-key="id"
-      >
+      <div class="table-panel">
+        <a-table
+          :data-source="runs"
+          :columns="columns"
+          :pagination="{ pageSize: 15 }"
+          row-key="id"
+          size="middle"
+        >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'task_type'">
             <a-tag :color="taskTypeColor(record.task_type)">{{ taskTypeLabel(record.task_type) }}</a-tag>
@@ -117,10 +128,56 @@
             >{{ t('mobile_special.reports.stop') }}</a-button>
           </template>
         </template>
-      </a-table>
+        </a-table>
+      </div>
     </a-spin>
   </div>
 </template>
+
+<style scoped>
+.mobile-report-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 14px;
+}
+.toolbar-left .toolbar-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--c-text);
+  letter-spacing: -0.02em;
+}
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.mobile-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 12px;
+  margin-bottom: 14px;
+}
+@media (max-width: 1200px) {
+  .mobile-kpi-grid {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+@media (max-width: 600px) {
+  .mobile-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+</style>
 
 <script setup lang="ts">
 import { computed, ref, onMounted, onUnmounted, watch } from 'vue'

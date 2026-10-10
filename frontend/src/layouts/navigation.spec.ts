@@ -54,6 +54,25 @@ describe('layout navigation state', () => {
     expect(getMenuOpenKeys('/system/healing-examples')).toEqual(['test-capabilities'])
   })
 
+  it('keeps intelligence center routes open and resolves their breadcrumbs', () => {
+    expect(getMenuOpenKeys('/knowledge')).toEqual(['intelligence-center'])
+    expect(getMenuOpenKeys('/hermes')).toEqual(['intelligence-center'])
+    expect(getMenuOpenKeys('/ai-chat')).toEqual(['intelligence-center'])
+    expect(getMenuOpenKeys('/requirements')).toEqual(['intelligence-center'])
+    expect(getSelectedMenuKey('/knowledge')).toBe('/knowledge')
+    expect(getSelectedMenuKey('/ai-chat')).toBe('/ai-chat')
+    expect(getRouteTitleKey('/knowledge')).toBe('menu.intelligence.knowledge')
+    expect(getRouteTitleKey('/ai-chat')).toBe('menu.intelligence.ai_chat')
+    expect(getBreadcrumbKeys('/knowledge', 'menu.intelligence.knowledge')).toEqual([
+      'menu.groups.intelligence_center',
+      'menu.intelligence.knowledge',
+    ])
+    expect(getBreadcrumbKeys('/ai-chat', 'menu.intelligence.ai_chat')).toEqual([
+      'menu.groups.intelligence_center',
+      'menu.intelligence.ai_chat',
+    ])
+  })
+
   it('does not duplicate a group when the route title is the group title', () => {
     expect(getBreadcrumbKeys('/unknown', 'menu.groups.workbench')).toEqual(['menu.groups.workbench'])
   })

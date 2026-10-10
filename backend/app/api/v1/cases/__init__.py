@@ -64,7 +64,7 @@ from .common import (
 )
 
 # === 3. 子模块（此时它们 import app.api.v1.cases 时已能看到所有外部依赖与 common 函数） ===
-from . import batch, crud, importing, runs, workflow
+from . import batch, crud, importing, preview, runs, workflow
 
 # === 4. router 装配 ===
 router = APIRouter(tags=["用例管理"])
@@ -73,6 +73,7 @@ router.include_router(batch.router)
 router.include_router(importing.router)
 router.include_router(workflow.router)
 router.include_router(runs.router)
+router.include_router(preview.router)
 
 # === 5. 兼容层：re-export endpoint 函数与子模块私有符号 ===
 from .crud import (

@@ -17,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.core.encryption import decrypt_env_vars
 from app.core.tracing import get_trace_id
 from app.models.environment import Environment, EnvVariable
@@ -34,6 +35,8 @@ from app.schemas.plan import (
     PlanBatchDeleteIn,
     PlanBatchToggleIn,
     PlanBatchOpOut,
+    PlanSubRunsPageOut,
+    PlanSubRunsSummary,
 )
 from app.api.deps import assert_project_access, get_current_user
 from app.models.user_project import ProjectRole
@@ -92,6 +95,8 @@ async def create_plan(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    if settings.ATP_LOCAL_MODE and body.schedule_type != ScheduleType.manual:
+        raise HTTPException(status_code=409, detail="本地模式仅支持手动计划")
     await assert_project_access(db, current_user, body.project_id, ProjectRole.editor)
     project = await db.get(Project, body.project_id)
     if not project:
@@ -166,6 +171,12 @@ async def update_plan(
     await assert_project_access(db, user, plan.project_id, ProjectRole.editor)
 
     update_data = body.model_dump(exclude_none=True)
+    if (
+        settings.ATP_LOCAL_MODE
+        and "schedule_type" in update_data
+        and update_data["schedule_type"] != ScheduleType.manual
+    ):
+        raise HTTPException(status_code=409, detail="本地模式仅支持手动计划")
     if "suite_ids" in update_data:
         update_data["suite_ids"] = await _validate_plan_suite_ids(db, plan.project_id, update_data["suite_ids"])
     if "env_id" in update_data:
@@ -375,6 +386,49 @@ async def get_plan_run(
         raise HTTPException(status_code=404, detail="测试计划不存在")
     await assert_project_access(db, _, plan.project_id, ProjectRole.viewer)
     return plan_run
+
+
+@router.get("/plan-runs/{run_id}/sub-runs", response_model=PlanSubRunsPageOut)
+async def get_plan_run_sub_runs(
+    run_id: int,
+    limit: int = Query(50, ge=1, le=500, description="单页最大子套件数量"),
+    offset: int = Query(0, ge=0, description="子套件偏移量"),
+    status_filter: str | None = Query(None, description="子套件状态过滤"),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    plan_run = await db.get(PlanRun, run_id)
+    if not plan_run:
+        raise HTTPException(status_code=404, detail="计划执行记录不存在")
+    plan = await db.get(TestPlan, plan_run.plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="测试计划不存在")
+    await assert_project_access(db, user, plan.project_id, ProjectRole.viewer)
+
+    raw_items = list(plan_run.suite_run_ids or [])
+    summary = PlanSubRunsSummary(
+        total=len(raw_items),
+        pending=sum(1 for item in raw_items if item.get("status") == "pending"),
+        passed=sum(1 for item in raw_items if item.get("status") == "passed"),
+        failed=sum(1 for item in raw_items if item.get("status") == "failed"),
+        error=sum(1 for item in raw_items if item.get("status") == "error"),
+        running=sum(1 for item in raw_items if item.get("status") == "running"),
+        skipped=sum(1 for item in raw_items if item.get("status") == "skipped"),
+    )
+
+    filtered_items = raw_items
+    if status_filter:
+        filtered_items = [item for item in filtered_items if item.get("status") == status_filter]
+
+    paged_items = filtered_items[offset : offset + limit]
+
+    return PlanSubRunsPageOut(
+        total=len(filtered_items),
+        offset=offset,
+        limit=limit,
+        items=paged_items,
+        summary=summary,
+    )
 
 
 def _calc_next_run(cron_expression: str):

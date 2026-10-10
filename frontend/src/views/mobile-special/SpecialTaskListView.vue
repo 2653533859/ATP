@@ -1,36 +1,44 @@
 <template>
-  <div style="display: flex; flex-direction: column; height: 100%">
-    <!-- Header -->
-    <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px">
-      <h2 style="margin: 0">{{ t('mobile_special.tasks_title') }}</h2>
-      <a-select
-        v-model:value="(selectedProjectId as number | undefined)"
-        :placeholder="t('mobile_special.select_project')"
-        style="width: 220px"
-        :options="projectOptions"
-        allow-clear
-        @change="onProjectChange"
-      />
-      <a-select
-        v-model:value="(selectedTaskType as TaskType | undefined)"
-        :placeholder="t('mobile_special.task_type')"
-        style="width: 140px"
-        :options="taskTypeOptions"
-        allow-clear
-        @change="loadTasks"
-      />
-      <a-button type="primary" :disabled="!selectedProjectId" @click="openCreate">
-        {{ t('mobile_special.new_task') }}
-      </a-button>
-    </div>
+  <div class="page-shell special-task-page">
+    <!-- 顶部紧凑工具栏 -->
+    <header class="page-header special-task-toolbar">
+      <div class="toolbar-left">
+        <h2 class="toolbar-title">{{ t('mobile_special.tasks_title') }}</h2>
+      </div>
+      <div class="toolbar-right">
+        <a-select
+          v-model:value="(selectedProjectId as number | undefined)"
+          :placeholder="t('mobile_special.select_project')"
+          style="width: 200px"
+          :options="projectOptions"
+          allow-clear
+          size="small"
+          @change="onProjectChange"
+        />
+        <a-select
+          v-model:value="(selectedTaskType as TaskType | undefined)"
+          :placeholder="t('mobile_special.task_type')"
+          style="width: 140px"
+          :options="taskTypeOptions"
+          allow-clear
+          size="small"
+          @change="loadTasks"
+        />
+        <a-button type="primary" size="small" :disabled="!selectedProjectId" @click="openCreate">
+          + {{ t('mobile_special.new_task') }}
+        </a-button>
+      </div>
+    </header>
 
     <a-spin :spinning="loading">
-      <a-table
-        :data-source="tasks"
-        :columns="columns"
-        :pagination="{ pageSize: 20 }"
-        row-key="id"
-      >
+      <div class="table-panel">
+        <a-table
+          :data-source="tasks"
+          :columns="columns"
+          :pagination="{ pageSize: 20 }"
+          row-key="id"
+          size="middle"
+        >
         <template #bodyCell="{ column, record }">
           <template v-if="column.key === 'name'">
             <a style="font-weight: 500" @click="openEdit(asTask(record))">{{ record.name }}</a>
@@ -54,9 +62,9 @@
             </a-popconfirm>
           </template>
         </template>
-      </a-table>
+        </a-table>
+      </div>
     </a-spin>
-
     <!-- Create/Edit Drawer -->
     <a-drawer
       v-model:open="drawerVisible"
@@ -229,6 +237,35 @@
     </a-drawer>
   </div>
 </template>
+
+<style scoped>
+.special-task-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 18px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 14px;
+}
+.toolbar-left .toolbar-title {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--c-text);
+  letter-spacing: -0.02em;
+}
+.toolbar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+</style>
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'

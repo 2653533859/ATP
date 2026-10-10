@@ -42,7 +42,7 @@ class HermesHistoryItem(BaseModel):
 
 
 class HermesQueryIn(BaseModel):
-    project_id: int = Field(ge=1)
+    project_id: int | None = Field(default=None, ge=1)
     query: str = Field(min_length=1, max_length=2_000)
     limit: int = Field(default=8, ge=1, le=20)
     conversation_id: str = Field(
@@ -57,6 +57,7 @@ class HermesQueryIn(BaseModel):
     updated_to: date | None = None
     context_budget: int = Field(default=6_000, ge=1_000, le=12_000)
     session_id: int | None = Field(default=None, ge=1)
+    chat_mode: bool = False
 
     @field_validator("query")
     @classmethod
@@ -77,7 +78,9 @@ class HermesQueryIn(BaseModel):
         return list(dict.fromkeys(values))
 
     @model_validator(mode="after")
-    def validate_date_range(self) -> "HermesQueryIn":
+    def validate_query_mode(self) -> "HermesQueryIn":
+        if not self.chat_mode and not self.project_id:
+            raise ValueError("工程检索模式必须指定 project_id")
         if self.updated_from and self.updated_to and self.updated_from > self.updated_to:
             raise ValueError("更新时间范围无效")
         return self
@@ -97,7 +100,7 @@ class HermesSourceOut(BaseModel):
 
 
 class HermesQueryOut(BaseModel):
-    project_id: int
+    project_id: int | None = None
     query: str
     conversation_id: str
     history_used: int = Field(ge=0)
@@ -107,7 +110,7 @@ class HermesQueryOut(BaseModel):
     source_types: list[HermesSourceType] = Field(default_factory=list, max_length=3)
     updated_from: date | None = None
     updated_to: date | None = None
-    mode: Literal["llm_grounded", "project_retrieval", "no_results"]
+    mode: Literal["llm_grounded", "project_retrieval", "no_results", "free_chat"]
     answer: str
     sources: list[HermesSourceOut] = Field(default_factory=list, max_length=20)
     generated_at: datetime

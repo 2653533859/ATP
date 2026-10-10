@@ -37,10 +37,14 @@ vi.mock('ant-design-vue', () => ({
 vi.mock('@ant-design/icons-vue', () => ({
   ApiOutlined: true,
   FilterOutlined: true,
+  MinusCircleOutlined: true,
   PlayCircleOutlined: true,
   PlusOutlined: true,
   ReloadOutlined: true,
   ThunderboltOutlined: true,
+  ClusterOutlined: true,
+  DownOutlined: true,
+  FormatPainterOutlined: true,
 }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
@@ -363,6 +367,32 @@ describe('ApiWorkbenchView', () => {
     await flushPromises()
 
     expect(vm.cases).toEqual([])
+    wrapper.unmount()
+  })
+
+  it('preserves request console reset key when selecting or resetting module', async () => {
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      handleModuleSelect: (moduleId: number | null) => Promise<void>
+      handleModuleReset: () => Promise<void>
+      consoleResetKey: number
+      selectedModuleId: number | null
+    }
+
+    const initialResetKey = vm.consoleResetKey
+    await vm.handleModuleSelect(5)
+    await flushPromises()
+
+    expect(vm.selectedModuleId).toBe(5)
+    expect(vm.consoleResetKey).toBe(initialResetKey)
+
+    await vm.handleModuleReset()
+    await flushPromises()
+    expect(vm.selectedModuleId).toBe(null)
+    expect(vm.consoleResetKey).toBe(initialResetKey)
+
     wrapper.unmount()
   })
 })

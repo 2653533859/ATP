@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
+import importlib.util
+import shutil
 from collections.abc import Mapping
 
 from app.core.config import settings
@@ -79,7 +81,7 @@ _CAPABILITIES: dict[str, PerformanceExecutorCapability] = {
 
 
 def list_executor_capabilities(*, include_unready: bool = True) -> list[PerformanceExecutorCapability]:
-    values = list(_CAPABILITIES.values())
+    values = [get_executor_capability(name) for name in _CAPABILITIES]
     if include_unready:
         return values
     return [item for item in values if item.ready]
@@ -90,6 +92,14 @@ def get_executor_capability(name: str) -> PerformanceExecutorCapability:
     capability = _CAPABILITIES.get(normalized)
     if capability is None:
         raise PerformanceExecutorError(f"不支持的性能执行器: {name}")
+    if settings.ATP_LOCAL_MODE:
+        available = {
+            "k6": lambda: shutil.which("k6") is not None,
+            "jmeter": lambda: shutil.which("jmeter") is not None,
+            "locust": lambda: importlib.util.find_spec("locust") is not None,
+            "grpc": lambda: importlib.util.find_spec("grpc") is not None,
+        }
+        capability = replace(capability, ready=available[normalized]())
     return capability
 
 
@@ -102,6 +112,8 @@ def ensure_ready_executor(name: str) -> PerformanceExecutorCapability:
 
 def configured_performance_executors() -> list[str]:
     """Return executors this worker advertises in its heartbeat."""
+    if settings.ATP_LOCAL_MODE:
+        return [item.name for item in list_executor_capabilities(include_unready=False)]
     configured = [item.strip().lower() for item in settings.PERFORMANCE_EXECUTORS.split(",") if item.strip()]
     return [name for name in configured if name in _CAPABILITIES and _CAPABILITIES[name].ready] or ["k6"]
 

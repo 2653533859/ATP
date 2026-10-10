@@ -110,12 +110,12 @@ function formatDate(value: string) {
 </script>
 
 <style scoped>
-.node-strip { margin-bottom: 20px; padding: 14px 16px; border: 1px solid #e8e8e8; border-radius: 8px; background: #fafafa; }
+.node-strip { margin-bottom: 20px; padding: 14px 16px; border: 1px solid var(--c-border); border-radius: var(--radius-md); background: var(--c-bg-subtle); }
 .node-strip-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
-.section-label { margin-bottom: 6px; color: #595959; font-weight: 600; }
-.field-hint { margin-top: 6px; color: #8c8c8c; font-size: 12px; }
+.section-label { margin-bottom: 6px; color: var(--c-text-secondary); font-weight: 600; }
+.field-hint { margin-top: 6px; color: var(--c-text-tertiary); font-size: 12px; }
 .node-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 10px; }
-.node-card { min-width: 0; padding: 10px 12px; border: 1px solid #e8e8e8; border-radius: 6px; background: #fff; }
+.node-card { min-width: 0; padding: 10px 12px; border: 1px solid var(--c-border); border-radius: var(--radius-sm); background: var(--c-bg-elevated); color: var(--c-text); }
 .node-card-online { border-color: #b7eb8f; }
 .node-card-title { display: flex; align-items: center; gap: 6px; margin-bottom: 5px; }
 .node-card-title strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

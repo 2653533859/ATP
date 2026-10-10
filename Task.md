@@ -1,10 +1,38 @@
 # ATP 项目任务跟踪
 
-> 2026-09-08 起的后续开发与状态口径统一维护在 [`docs/development-plan-2026-09-08.md`](docs/development-plan-2026-09-08.md)；[`docs/development-plan-2026-08-25.md`](docs/development-plan-2026-08-25.md) 保留为历史交付与环境证据记录。本文件保留任务勾选和历史交付记录。每个模块均须完成实现、测试、代码审查、修复和文档同步后再进入下一项，提交推送按用户要求执行。
+> 2026-10-07 起剩余工作的统一任务入口为 [`docs/development-task-plan-2026-10-07.md`](docs/development-task-plan-2026-10-07.md)，包含 N0–N6 共 28 项任务。此前 [`docs/development-plan-2026-09-08.md`](docs/development-plan-2026-09-08.md) 保留专项标准及服务器阶段记录；[`docs/development-plan-2026-08-25.md`](docs/development-plan-2026-08-25.md) 保留历史交付与环境证据。本文件保留任务勾选和历史交付记录。每个模块均须完成实现、测试、代码审查、修复和文档同步后再进入下一项，提交推送按用户要求执行。
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
 ## 2026-09-08 后续开发计划
+
+- [~] 2026-10-08 N1.6 事务与双模式隔离验收：修复子套件旧 UUID 租约误报、单角色 Alembic 权限同步和超过 200 条子运行时的安全终态误报；25 项定向回归通过。Windows SQLite 重复确认、取消、进程重启恢复及浏览器确认取消，Linux PostgreSQL/Redis/MinIO/Celery 重复确认、取消、Worker 失联/租约到期、服务器浏览器及角色矩阵均完成隔离验收；Windows 8 个真实并发确认只新增一条运行。PostgreSQL 201 条子运行边界及页面人工核对提示通过。跨浏览器/多副本与独立审查仍开放；未发布生产，见 [`docs/reliable-execution-regression-2026-10-08.md`](docs/reliable-execution-regression-2026-10-08.md)。
+- [~] 2026-10-08 N1.6 追加双副本/三浏览器：同库双 API 副本交错接收 8 个并发确认，均复用同一运行；两侧终态、状态版本、投递和角色权限一致。Chromium/Firefox/WebKit 的服务器模式套件恢复面板均通过。双 Worker、浏览器跨副本会话路由及独立审查仍开放；隔离环境已清理，未发布生产。证据见 [`docs/reliable-execution-regression-2026-10-08.md`](docs/reliable-execution-regression-2026-10-08.md)。
+- [~] 2026-10-08 N1.6 双 Worker 后续尝试：25 项定向事务回归复跑通过，浏览器跨副本会话脚本已准备；Linux SSH 在协议 banner 前持续断开，隔离 API 健康请求超时，双 Worker/浏览器切换未获验收证据。首次重建隔离栈的临时资源状态待连接恢复后核对清理；未发布生产，见 [`docs/reliable-execution-regression-2026-10-08.md`](docs/reliable-execution-regression-2026-10-08.md)。
+- [~] 2026-10-08 N1.6 指定主机续验：`CHINAMI-762P0P5` 的 SSH 2222 可用；新隔离栈完成双 Worker 同消息防重、双 API 并发确认和同源浏览器跨副本会话检查。2 条运行/用例/接受记录及 2 次目标请求一一对应，Worker 2 执行而 Worker 1 跳过重复消息；容器与凭据已清理。上一不可达地址残留状态、独立审查和生产多节点验收仍开放，见 [`docs/reliable-execution-regression-2026-10-08.md`](docs/reliable-execution-regression-2026-10-08.md)。
+
+- [~] 2026-10-08 N1.5 状态/取消/恢复：新增双模式共用状态查询、带运行身份版本的协作取消、计划 UUID和子运行归属记录，前端执行记录增加恢复面板；修正并发批次漏汇总及取消子用例误判通过。SQLite 11 / Alembic 0079，本地备份后升级、结构/接口契约和健康 200 已确认；Ruff、格式、mypy 181 文件、语法和两种前端构建通过。实际取消/重启/异常、浏览器及服务器验收开放，下一步 N1.6，见 [`docs/group-recovery-development-2026-10-08.md`](docs/group-recovery-development-2026-10-08.md)。
+
+- [~] 2026-10-08 N1.4 套件消息接受：接入消息 UUID/参数/模式核对、永久首次接受记录、本地队列条件领取与身份传递、套件租约 UUID及终态保护。SQLite 10 / Alembic 0078；本地备份升级与健康 200，Ruff、格式、mypy 179 文件、语法检查通过。实际重复消息、并发领取、失联与服务器验收开放；下一步 N1.5 未知结果核对/取消/恢复，见 [`docs/suite-delivery-development-2026-10-08.md`](docs/suite-delivery-development-2026-10-08.md)。
+
+- [~] 2026-10-08 N1.3 套件持久投递：手动套件 API 将运行、可选命令和加密投递意图同事务提交；新增后台条件领取、本地队列原子交付、服务器未知结果保留及只读状态查询，Hermes 处理记录显示投递状态。SQLite 9 / Alembic 0077；本地备份后升级，投递表/索引/接口契约和健康 200 已确认。Ruff、mypy 178 文件、语法及两种前端构建通过；未运行自动化测试或实际套件，异常与服务器验收开放。下一步 N1.4 执行端去重，见 [`docs/suite-dispatch-development-2026-10-08.md`](docs/suite-dispatch-development-2026-10-08.md)。
+
+- [x] 2026-10-07 N0 / N1.1：建立当前支持与验收缺口矩阵、未提交改动分组及风险清单，统一本地手册/专项/服务器范围口径，保存可复现源码基线；定义命令、投递、执行及资源身份契约。此处完成的是基线和设计交付，业务验收继续开放。见 [`docs/current-capability-baseline-2026-10-07.md`](docs/current-capability-baseline-2026-10-07.md) 和 [`docs/command-dispatch-contract-2026-10-07.md`](docs/command-dispatch-contract-2026-10-07.md)。
+- [~] 2026-10-07 N1.2：抽取共用命令服务，套件/运行及命令加入独立资源身份，重放与历史查询校验身份/项目，旧命令显示待核对。新增 SQLite 8 和 Alembic 0076；本地升级前备份，升级及健康 200 已确认。Ruff、mypy 176 文件、语法和两种前端构建通过；未运行自动化测试或业务重演，服务器迁移与命令业务验收仍开放。下一步 N1.3 持久投递意图。
+
+- [x] 2026-10-07 新任务计划建立：按整体路线整理 N0 范围/基线、N1 可靠执行、N2 本地业务、N3 转移/切换、N4 Hermes、N5 Linux 发布与 N6 候选交付。仅文档交付完成，28 项开发/验收任务保持开放。详见 [`docs/development-task-plan-2026-10-07.md`](docs/development-task-plan-2026-10-07.md)。
+
+- [~] 2026-10-04 Hermes 套件执行保护：可选命令编号与运行同事务保存，重复请求返回原运行；助手读取服务端运行状态，保留投递不确定状态。可靠投递及恢复核对仍开放，见 [`docs/hermes-local-assistance-development-2026-09-30.md`](docs/hermes-local-assistance-development-2026-09-30.md)。
+
+- [~] 2026-10-03 Hermes 持久命令第一阶段：套件创建接入同事务操作记录、可选命令编号与内容冲突检查，助手合并服务端个人项目记录；SQLite 版本 7 与服务器 Alembic 0075 配套。套件执行、其余动作和草稿恢复仍开放，见 [`docs/hermes-local-assistance-development-2026-09-30.md`](docs/hermes-local-assistance-development-2026-09-30.md)。
+
+- [~] 2026-10-02 Hermes 编辑与恢复补强：保留并开放 Web 超时编辑，完善数字/JSON/Schema/Header 断言检查，限制浏览器处理记录恢复字段与结果路径。前端静态构建检查，未执行真实业务或自动化测试；服务端幂等命令仍开放。见 [`docs/hermes-local-assistance-development-2026-09-30.md`](docs/hermes-local-assistance-development-2026-09-30.md)。
+
+- [~] 2026-09-30 Hermes 第二轮完善：保存前增加 Web 步骤编辑、接口请求和断言编辑及必要字段检查；增加按用户/项目区分的浏览器会话处理记录，刷新后未知提交不自动重试。服务端持久幂等命令与真实业务验收仍开放，见 [`docs/hermes-local-assistance-development-2026-09-30.md`](docs/hermes-local-assistance-development-2026-09-30.md)。
+
+- [~] 2026-09-30 Hermes 测试助手功能完善：接入完善录制、接口用例生成、组织回归、定位器修复、安卓执行、缺陷整理、知识草稿与总结导出八个操作面板，聊天相关请求可打开面板；保存与执行需确认。Web 修改增加版本与配置校验，保留双模式 API 和审核流程。真实模型、真机及双模式业务验收仍开放。见 [`docs/hermes-local-assistance-development-2026-09-30.md`](docs/hermes-local-assistance-development-2026-09-30.md)。本次不自动推送。
+
+- [~] 2026-09-30 Windows 本地功能扩展：接入手动串行套件/计划、需求/缺陷/知识与资产入口、AI 配置与生成、协议用例、Hermes 及单机性能队列；SQLite 升级到版本 6，增加持久取消及父子运行恢复。审查后补齐 cancelling 恢复、终态租约清理、参数化子运行递归和设备状态收敛。类型检查、构建、Ruff、mypy 通过；业务执行和双模式验收仍开放。详见 [`docs/windows-local-feature-extension-2026-09-30.md`](docs/windows-local-feature-extension-2026-09-30.md)。本次不自动推送。
 
 - [~] 2026-09-30 Windows 本地 Android 恢复补强：本地静态服务重新启动且健康；专项终态下异常退出的设备/执行租约释放与身份保护已修复，队列定向回归 15 项通过。M9/M8 的真机、APK 和正式服务器现场验收继续开放。
 

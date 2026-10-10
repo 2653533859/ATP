@@ -22,6 +22,7 @@ vi.mock('@ant-design/icons-vue', () => {
     CloseOutlined: iconStub,
     ExclamationCircleOutlined: iconStub,
     PlusOutlined: iconStub,
+    MessageOutlined: iconStub,
   }
 })
 
@@ -35,6 +36,8 @@ const globalStubs = {
   AEmpty: true,
   ASpace: defineComponent({ setup: (_props, { slots }) => () => h('div', slots.default?.()) }),
   ATag: defineComponent({ setup: (_props, { slots }) => () => h('span', slots.default?.()) }),
+  ARadioGroup: defineComponent({ props: ['value'], emits: ['update:value'], setup: (_props, { slots }) => () => h('div', slots.default?.()) }),
+  ARadioButton: defineComponent({ props: ['value'], setup: (_props, { slots }) => () => h('button', slots.default?.()) }),
 }
 
 const failedTask: WorkbenchTaskItem = {

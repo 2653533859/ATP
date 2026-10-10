@@ -38,7 +38,7 @@ export interface HermesQueryResult {
   source_types: HermesSourceType[]
   updated_from?: string | null
   updated_to?: string | null
-  mode: 'llm_grounded' | 'project_retrieval' | 'no_results'
+  mode: 'llm_grounded' | 'project_retrieval' | 'no_results' | 'free_chat'
   answer: string
   sources: HermesSourceItem[]
   generated_at: string
@@ -208,7 +208,7 @@ export interface HermesOrchestrationResult {
 }
 
 export interface HermesQueryRequest {
-  project_id: number
+  project_id?: number
   query: string
   limit?: number
   conversation_id?: string
@@ -218,6 +218,7 @@ export interface HermesQueryRequest {
   updated_to?: string
   context_budget?: number
   session_id?: number
+  chat_mode?: boolean
 }
 
 export interface HermesOrchestrationRequest {
@@ -244,6 +245,11 @@ export interface HermesFeedbackRequest {
 
 export const hermesApi = {
   query: (body: HermesQueryRequest) => http.post<unknown, HermesQueryResult>('/hermes/query', body),
+  chat: (body: { query: string; project_id?: number; history?: Array<{ role: 'user' | 'assistant'; content: string }>; conversation_id?: string; session_id?: number }) =>
+    http.post<unknown, HermesQueryResult>('/hermes/query', {
+      ...body,
+      chat_mode: true,
+    }),
   listTools: () => http.get<unknown, { tools: HermesToolDescriptor[]; generated_at: string }>('/hermes/tools'),
   executeTool: (body: HermesToolCall) => http.post<unknown, HermesToolResult>('/hermes/tools/execute', body),
   orchestrate: (body: HermesOrchestrationRequest) =>

@@ -1,3 +1,5 @@
+import asyncio
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from fastapi import FastAPI, Request
@@ -26,6 +28,8 @@ from app.middleware.trace import TraceMiddleware
 from app.core.security import hash_password
 from app.models.bootstrap import load_all_models
 from app.models.user import User, UserRole
+
+logger = logging.getLogger(__name__)
 
 load_all_models()
 
@@ -90,17 +94,33 @@ async def lifespan(app: FastAPI):
 
         await ensure_local_workspace()
         start_local_runner()
-    yield
-    # 关闭时执行
-    if settings.ATP_LOCAL_MODE:
-        from app.services.local_jobs import stop_local_runner
+    from app.services.execution_dispatch import start_dispatcher, stop_dispatcher
 
-        stop_local_runner()
-    from app.api.v1.web_recordings import close_all_recordings
+    start_dispatcher()
+    try:
+        yield
+    finally:
+        # 先停止投递，再停止执行队列；异常关闭也走相同清理路径。
+        stop_dispatcher()
+        if settings.ATP_LOCAL_MODE:
+            from app.services.local_jobs import stop_local_runner
 
-    await close_all_recordings()
-    await engine.dispose()
-    shutdown_tracer()
+            stop_local_runner()
+        from app.api.v1.web_recordings import close_all_recordings
+
+        await close_all_recordings()
+        if settings.ATP_LOCAL_MODE:
+            # 本地模式下 Web 执行跑在 atp-local-jobs 线程的 worker loop 上，
+            # 需回到同一 loop 关闭池化浏览器，避免退出后残留浏览器进程。
+            try:
+                from app.services.browser_pool import close_all_browsers
+                from app.worker.async_runner import run_async
+
+                await asyncio.get_running_loop().run_in_executor(None, run_async, close_all_browsers())
+            except Exception:
+                logger.warning("Browser pool shutdown failed", exc_info=True)
+        await engine.dispose()
+        shutdown_tracer()
 
 
 app = FastAPI(
@@ -123,13 +143,12 @@ app.add_middleware(CSRFMiddleware)
 app.add_middleware(TraceMiddleware)
 
 _LOCAL_UNSUPPORTED_WRITE_PREFIXES = (
-    "/api/v1/suites",
-    "/api/v1/plans",
+    "/api/v1/plans/webhook",
     "/api/v1/device-mirror",
     "/api/v1/ios",
-    "/api/v1/performance",
-    "/api/v1/hermes",
-    "/api/v1/ai-",
+    "/api/v1/performance/nodes",
+    "/api/v1/performance/resources",
+    "/api/v1/ai-cases",
 )
 
 

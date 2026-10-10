@@ -394,6 +394,8 @@ async def _resolve_performance_node(
     runtime_options: dict,
     executor: str = "k6",
 ) -> PerformanceNode | None:
+    if settings.ATP_LOCAL_MODE and node_id is not None:
+        raise HTTPException(status_code=409, detail="本地性能测试仅在本机运行，不支持选择远程节点")
     if node_id is None:
         return None
     # Keep the node row locked until the caller commits the newly created run.
@@ -750,6 +752,8 @@ async def update_performance_schedule(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    if settings.ATP_LOCAL_MODE and body.enabled:
+        raise HTTPException(status_code=409, detail="本地性能测试仅支持手动执行")
     item = await db.get(PerformanceTest, test_id)
     if item is None:
         raise HTTPException(status_code=404, detail="压测定义不存在")

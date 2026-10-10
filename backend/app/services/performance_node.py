@@ -180,6 +180,11 @@ async def node_has_capacity(db: Any, node: Any, *, exclude_run_id: int | None = 
 
 def enqueue_performance_run(task: Any, run_id: int, queue_name: str | None = None) -> None:
     """Route a run to a node queue while keeping the default task contract intact."""
+    if settings.ATP_LOCAL_MODE:
+        from app.services.local_jobs import enqueue_local_job
+
+        enqueue_local_job(task, (run_id,))
+        return
     if queue_name and hasattr(task, "apply_async"):
         task.apply_async(args=(run_id,), queue=queue_name)
     else:

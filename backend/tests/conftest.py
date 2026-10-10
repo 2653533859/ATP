@@ -79,6 +79,70 @@ def _ensure_stub_attrs(module_name: str, defaults: dict) -> None:
             setattr(existing, name, value)
 
 
+# ── app.core.database 的同步入口替身 ─────────────────────────────
+# N1 可靠执行批次起，生产代码在调用点延迟导入 sync_session_factory / sync_engine
+# （投递器、套件接受、组取消检查、应用生命周期）。单元测试没有真实引擎，这里给出
+# 形状正确但什么都不做的替身，避免退化成 `ImportError: cannot import name ...`。
+# 注意：is_group_cancelled 读到 first() is None 会判定为"已取消"，这是刻意的保守
+# 默认值——需要真实执行的用例应 monkeypatch is_group_cancelled，或换成真实引擎
+# （见 test_suite_execution_config.py / test_group_execution_recovery.py）。
+class _InertSyncResult:
+    def first(self):
+        return None
+
+    def scalar_one(self):
+        return None
+
+    def scalar_one_or_none(self):
+        return None
+
+
+class _InertSyncConnection:
+    def execute(self, *_a, **_kw):
+        return _InertSyncResult()
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+
+class _InertSyncEngine:
+    def connect(self):
+        return _InertSyncConnection()
+
+    def begin(self):
+        return _InertSyncConnection()
+
+
+class _InertSyncSession:
+    def execute(self, *_a, **_kw):
+        return None
+
+    def scalar(self, *_a, **_kw):
+        return None
+
+    def commit(self):
+        return None
+
+    def rollback(self):
+        return None
+
+    def close(self):
+        return None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *_exc):
+        return False
+
+
+def _inert_sync_session_factory():
+    return _InertSyncSession()
+
+
 # ── 集成模式早退：不注入任何 stub ─────────────────────────────────
 _INTEGRATION_MODE = os.getenv("ATP_INTEGRATION_TESTS") == "1"
 
@@ -125,6 +189,8 @@ def _refresh_common_test_stubs() -> None:
             "get_db": lambda: None,
             "AsyncSessionLocal": lambda *_a, **_kw: None,
             "engine": types.SimpleNamespace(dispose=lambda: None, sync_engine=None),
+            "sync_session_factory": _inert_sync_session_factory,
+            "sync_engine": _InertSyncEngine(),
         },
     )
 
@@ -223,5 +289,7 @@ if not _INTEGRATION_MODE:
             "get_db": lambda: None,
             "AsyncSessionLocal": lambda *_a, **_kw: None,
             "engine": types.SimpleNamespace(dispose=lambda: None, sync_engine=None),
+            "sync_session_factory": _inert_sync_session_factory,
+            "sync_engine": _InertSyncEngine(),
         },
     )

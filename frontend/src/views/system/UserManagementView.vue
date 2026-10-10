@@ -3,7 +3,6 @@
     <div class="page-hero">
       <div>
         <h2 class="page-title">{{ t('user_management.title') }}</h2>
-        <div class="page-subtitle">{{ t('user_management.subtitle') }}</div>
       </div>
       <a-button type="primary" @click="openCreate">
         <PlusOutlined /> {{ t('user_management.create') }}

@@ -96,6 +96,30 @@ class TestCase(Base, TimestampMixin):
             return "not_applicable"
         return "generated" if (self.config or {}).get("script_path") else "missing"
 
+    @property
+    def step_count(self) -> int:
+        """Return the count of configured execution steps."""
+        steps = (self.config or {}).get("steps")
+        if isinstance(steps, list):
+            return len(steps)
+        return 1 if (self.config or {}).get("url") else 0
+
+    @property
+    def is_scenario(self) -> bool:
+        """Whether this case is a multi-step orchestrated scenario pipeline."""
+        steps = (self.config or {}).get("steps")
+        if isinstance(steps, list) and len(steps) > 1:
+            return True
+        return bool((self.config or {}).get("is_scenario") or (self.config or {}).get("scenario"))
+
+    @property
+    def case_mode(self) -> str:
+        """Case paradigm: 'single' (atomic single-request/single-action) vs 'scenario' (multi-step pipeline)."""
+        explicit = (self.config or {}).get("case_mode")
+        if explicit in ("single", "scenario"):
+            return explicit
+        return "scenario" if self.is_scenario else "single"
+
 
 class CaseStep(Base, TimestampMixin):
     __tablename__ = "case_steps"

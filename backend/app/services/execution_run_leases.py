@@ -50,21 +50,34 @@ def acquire_execution_run_lease(
     celery_task_id: str | None,
     ttl_seconds: int,
     now: datetime | None = None,
+    run_identity: str | None = None,
 ) -> ExecutionRunLease:
     """Claim a run, rejecting a duplicate delivery while its lease is live."""
     _validate_task_type(task_type)
     current_time = now or _utcnow()
+    if run_identity is not None:
+        from app.models.suite import SuiteRun
+        from app.models.plan import PlanRun
+
+        if task_type not in {"suite", "plan"}:
+            raise ValueError("UUID-aware lease currently supports groups only")
+        model: Any = SuiteRun if task_type == "suite" else PlanRun
+        same_run = session.scalar(select(model.id).where(model.id == run_id, model.identity_token == run_identity))
+        if same_run is None:
+            raise ExecutionLeaseConflict("suite run identity changed before lease acquisition")
     lease = session.scalar(
         select(ExecutionRunLease)
         .where(ExecutionRunLease.task_type == task_type, ExecutionRunLease.run_id == run_id)
         .with_for_update()
     )
     if lease is not None:
+        if task_type in {"suite", "plan"} and run_identity is not None and lease.run_identity != run_identity:
+            raise ExecutionLeaseConflict("existing suite lease identity cannot be verified; reconcile explicitly")
         if lease.status == "active" and _as_utc(lease.expires_at) <= current_time:
             lease.status = "expired"
             lease.released_at = current_time
             lease.failure_reason = _LOST_WORKER_ERROR
-            _recover_run(session, task_type, run_id)
+            _recover_run(session, task_type, run_id, run_identity=run_identity)
             session.commit()
             raise ExecutionLeaseConflict(
                 f"{task_type} run {run_id} has an expired lease; create a new run for an explicit retry"
@@ -77,6 +90,7 @@ def acquire_execution_run_lease(
     lease = ExecutionRunLease(
         task_type=task_type,
         run_id=run_id,
+        run_identity=run_identity,
         lease_token=lease_token,
         worker_id=worker_id,
         celery_task_id=celery_task_id,
@@ -158,7 +172,9 @@ def release_execution_run_lease(
     return (result.rowcount or 0) == 1
 
 
-def _recover_run(session: Session, task_type: str, run_id: int, *, force: bool = False) -> bool:
+def _recover_run(
+    session: Session, task_type: str, run_id: int, *, force: bool = False, run_identity: str | None = None
+) -> bool:
     """Move one domain run to its safe terminal state."""
     now = _utcnow()
     if task_type == "case":
@@ -181,6 +197,20 @@ def _recover_run(session: Session, task_type: str, run_id: int, *, force: bool =
     elif task_type == "suite":
         from app.models.suite import SuiteRun, SuiteRunStatus
 
+        if run_identity is not None:
+            # A stale guard must not overwrite a replacement or a known terminal
+            # result, even when its heartbeat/release failed.
+            result = session.execute(
+                update(SuiteRun)
+                .where(
+                    SuiteRun.id == run_id,
+                    SuiteRun.identity_token == run_identity,
+                    SuiteRun.status.in_([SuiteRunStatus.pending, SuiteRunStatus.running]),
+                )
+                .values(status=SuiteRunStatus.error, error_message=_LOST_WORKER_ERROR)
+                .execution_options(synchronize_session=False)
+            )
+            return getattr(result, "rowcount", 0) == 1
         suite_run = session.get(SuiteRun, run_id)
         suite_active = {SuiteRunStatus.pending, SuiteRunStatus.running}
         if suite_run is None or (not force and suite_run.status not in suite_active):
@@ -190,6 +220,18 @@ def _recover_run(session: Session, task_type: str, run_id: int, *, force: bool =
     elif task_type == "plan":
         from app.models.plan import PlanRun, PlanRunStatus
 
+        if run_identity is not None:
+            result = session.execute(
+                update(PlanRun)
+                .where(
+                    PlanRun.id == run_id,
+                    PlanRun.identity_token == run_identity,
+                    PlanRun.status.in_([PlanRunStatus.pending, PlanRunStatus.running]),
+                )
+                .values(status=PlanRunStatus.error, error_message=_LOST_WORKER_ERROR)
+                .execution_options(synchronize_session=False)
+            )
+            return getattr(result, "rowcount", 0) == 1
         plan_run = session.get(PlanRun, run_id)
         plan_active = {PlanRunStatus.pending, PlanRunStatus.running}
         if plan_run is None or (not force and plan_run.status not in plan_active):
@@ -282,7 +324,10 @@ def reconcile_expired_execution_run_leases(
         lease.status = "expired"
         lease.released_at = current_time
         lease.failure_reason = _LOST_WORKER_ERROR
-        if _recover_run(session, lease.task_type, lease.run_id):
+        # Old suite leases have no durable UUID. Do not infer their ownership
+        # from the current numeric ID after deletion/replacement.
+        verified = lease.task_type not in {"suite", "plan"} or lease.run_identity is not None
+        if verified and _recover_run(session, lease.task_type, lease.run_id, run_identity=lease.run_identity):
             counts[lease.task_type] += 1
     counts["leases"] = len(leases)
     counts["runs"] = sum(counts[task_type] for task_type in SUPPORTED_TASK_TYPES)
@@ -292,10 +337,13 @@ def reconcile_expired_execution_run_leases(
 class ExecutionRunLeaseGuard(AbstractContextManager["ExecutionRunLeaseGuard"]):
     """Maintain a run lease from a daemon thread while a worker body executes."""
 
-    def __init__(self, task_type: str, run_id: int, celery_task: Any = None) -> None:
+    def __init__(
+        self, task_type: str, run_id: int, celery_task: Any = None, *, run_identity: str | None = None
+    ) -> None:
         _validate_task_type(task_type)
         self.task_type = task_type
         self.run_id = run_id
+        self.run_identity = run_identity
         self.lease_token = uuid.uuid4().hex
         request = getattr(celery_task, "request", None)
         task_id = getattr(request, "id", None)
@@ -326,6 +374,7 @@ class ExecutionRunLeaseGuard(AbstractContextManager["ExecutionRunLeaseGuard"]):
                 worker_id=self.worker_id,
                 celery_task_id=self.celery_task_id,
                 ttl_seconds=settings.EXECUTION_RUN_LEASE_TTL_SECONDS,
+                run_identity=self.run_identity,
             )
         self._thread = threading.Thread(
             target=self._heartbeat_loop,
@@ -369,12 +418,14 @@ class ExecutionRunLeaseGuard(AbstractContextManager["ExecutionRunLeaseGuard"]):
                     lease_token=self.lease_token,
                 )
                 if exc_type is not None or self._lost.is_set() or not released:
-                    _recover_run(session, self.task_type, self.run_id, force=True)
+                    _recover_run(session, self.task_type, self.run_id, force=True, run_identity=self.run_identity)
                     session.commit()
         except Exception:
             logger.exception("Execution lease finalization failed for %s run %s", self.task_type, self.run_id)
         return None
 
 
-def execution_run_lease(task_type: str, run_id: int, celery_task: Any = None) -> ExecutionRunLeaseGuard:
-    return ExecutionRunLeaseGuard(task_type, run_id, celery_task)
+def execution_run_lease(
+    task_type: str, run_id: int, celery_task: Any = None, *, run_identity: str | None = None
+) -> ExecutionRunLeaseGuard:
+    return ExecutionRunLeaseGuard(task_type, run_id, celery_task, run_identity=run_identity)

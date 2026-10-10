@@ -4,8 +4,6 @@
       <div class="toolbar-left">
         <CalendarOutlined class="toolbar-icon" />
         <h2 class="toolbar-title page-title">{{ t('plan.title') }}</h2>
-        <span class="toolbar-divider">/</span>
-        <span class="toolbar-subtitle page-subtitle">{{ t('plan.subtitle') }}</span>
       </div>
       <div class="toolbar-right">
         <a-select
@@ -22,6 +20,28 @@
         </a-button>
       </div>
     </header>
+    <div class="plan-bento-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">计划总数</div>
+        <div class="kpi-num">{{ plans.length }}</div>
+        <div class="kpi-sub">当前项目调度计划</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">已激活调度</div>
+        <div class="kpi-num" style="color: var(--c-success)">{{ enabledPlanCount }}</div>
+        <div class="kpi-sub">自动触发激活</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Cron 周期任务</div>
+        <div class="kpi-num" style="color: var(--c-primary)">{{ cronPlanCount }}</div>
+        <div class="kpi-sub">定时表达式执行</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">聚合套件总数</div>
+        <div class="kpi-num">{{ totalLinkedSuiteCount }}</div>
+        <div class="kpi-sub">跨计划去重统计</div>
+      </div>
+    </div>
 
     <BatchOperationBar :selected-count="selectedRowKeys.length" @cancel="selectedRowKeys = []">
       <a-button size="small" @click="handleBatchToggle(true)">{{ t('plan.batch_enable') }}</a-button>
@@ -36,7 +56,8 @@
       </a-popconfirm>
     </BatchOperationBar>
 
-    <a-table
+    <div class="table-panel">
+      <a-table
       :columns="columns"
       :data-source="plans"
       :loading="loading"
@@ -77,14 +98,14 @@
           </a-space>
         </template>
       </template>
-    </a-table>
-
-    <a-modal
+      </a-table>
+    </div>
+    <a-drawer
       v-model:open="formOpen"
       :title="isEdit ? t('plan.edit_full') : t('plan.new_full')"
-      :confirm-loading="saving"
-      width="640px"
-      @ok="handleSave"
+      width="680"
+      :destroy-on-close="true"
+      @close="formOpen = false"
     >
       <a-alert
         v-if="hermesDraftLoaded"
@@ -117,8 +138,8 @@
         <a-form-item :label="t('plan.form.schedule_type')">
           <a-radio-group v-model:value="form.schedule_type">
             <a-radio-button value="manual">{{ t('plan.schedule_types.manual_trigger') }}</a-radio-button>
-            <a-radio-button value="cron">{{ t('plan.schedule_types.cron_full') }}</a-radio-button>
-            <a-radio-button value="webhook">Webhook</a-radio-button>
+            <a-radio-button v-if="!localMode" value="cron">{{ t('plan.schedule_types.cron_full') }}</a-radio-button>
+            <a-radio-button v-if="!localMode" value="webhook">Webhook</a-radio-button>
           </a-radio-group>
         </a-form-item>
 
@@ -254,7 +275,13 @@
           </a-row>
         </a-form-item>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <div class="drawer-footer-actions">
+          <a-button @click="formOpen = false">{{ t('common.cancel') }}</a-button>
+          <a-button type="primary" :loading="saving" @click="handleSave">{{ t('common.save') }}</a-button>
+        </div>
+      </template>
+    </a-drawer>
 
     <a-modal v-model:open="runsOpen" :title="t('plan.runs_modal_title')" width="800px" :footer="null">
       <a-table
@@ -268,6 +295,7 @@
         @expand="onRunExpand"
       >
         <template #expandedRowRender="{ record }">
+          <GroupRecoveryPanel kind="plan" :run-id="record.id" :active="runsOpen" @changed="refreshPlanRecovery" />
           <div class="aggregate-report-panel auto-bugs-panel">
             <div class="aggregate-report-title">{{ t('plan.report.title') }}</div>
             <div class="aggregate-report-grid">
@@ -404,6 +432,8 @@
 </template>
 
 <script setup lang="ts">
+import { getRuntimeMode } from '@/runtimeMode'
+const localMode = getRuntimeMode()?.mode === 'local'
 import { computed, onMounted, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { CalendarOutlined, PlusOutlined } from '@ant-design/icons-vue'
@@ -421,6 +451,7 @@ import type {
 } from '@/api'
 import { environmentApi, planApi, projectApi, suiteApi } from '@/api'
 import BatchOperationBar from '@/components/common/BatchOperationBar.vue'
+import GroupRecoveryPanel from '@/components/common/GroupRecoveryPanel.vue'
 import { projectIdFromQuery, selectAvailableProjectId } from '@/utils/projectContext'
 import {
   buildPlanMutationPayload,
@@ -466,7 +497,7 @@ type HermesDraftScopeSummary = {
 
 const planExecutionModeOptions = computed<Array<{ label: string; value: SuiteExecutionMode }>>(() => [
   { label: t('suite.execution_modes.sequential'), value: 'sequential' },
-  { label: t('suite.execution_modes.parallel'), value: 'parallel' },
+  ...(localMode ? [] : [{ label: t('suite.execution_modes.parallel'), value: 'parallel' as const }]),
 ])
 
 const planFailStrategyOptions = computed<Array<{ label: string; value: SuiteFailStrategy }>>(() => [
@@ -512,6 +543,20 @@ function validateCronExpression(expression: string) {
 }
 
 const plans = ref<PlanItem[]>([])
+const enabledPlanCount = computed(() => plans.value.filter((p) => p.is_enabled).length)
+const cronPlanCount = computed(() => plans.value.filter((p) => p.schedule_type === 'cron').length)
+const totalLinkedSuiteCount = computed(() => {
+  const ids = new Set<number>()
+  plans.value.forEach((p) => {
+    (p.suite_ids || []).forEach((item: unknown) => {
+      if (typeof item === 'number') ids.add(item)
+      else if (item && typeof item === 'object' && 'suite_id' in item) {
+        ids.add(Number((item as { suite_id: unknown }).suite_id))
+      }
+    })
+  })
+  return ids.size
+})
 const loading = ref(false)
 const selectedRowKeys = ref<number[]>([])
 const projectId = ref<number | undefined>(undefined)
@@ -594,6 +639,7 @@ watch(
 
 const runsOpen = ref(false)
 const planRuns = ref<PlanRunItem[]>([])
+const activeRunPlanId = ref<number | null>(null)
 const runsLoading = ref(false)
 const expandedRunKeys = ref<number[]>([])
 const exportingPlanRunHtmlId = ref<number | null>(null)
@@ -951,6 +997,7 @@ async function handleDelete(id: number) {
 }
 
 async function viewRuns(record: PlanItem) {
+  activeRunPlanId.value = record.id
   runsOpen.value = true
   runsLoading.value = true
   expandedRunKeys.value = []
@@ -1027,6 +1074,14 @@ function copySecret() {
     message.success(t('plan.msg.secret_copied'))
   }
 }
+
+async function refreshPlanRecovery() {
+  try {
+    if (activeRunPlanId.value) planRuns.value = await planApi.listRuns({ plan_id: activeRunPlanId.value })
+  } catch (error: unknown) {
+    message.error(error instanceof Error ? error.message : String(error))
+  }
+}
 </script>
 
 <style scoped>
@@ -1083,6 +1138,22 @@ function copySecret() {
   gap: 8px;
   flex-shrink: 0;
 }
+.plan-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
+}
+@media (max-width: 900px) {
+  .plan-bento-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .plan-bento-grid {
+    grid-template-columns: 1fr;
+  }
+}
 
 .cron-help-text {
   margin-top: 4px;
@@ -1098,5 +1169,11 @@ function copySecret() {
   font-weight: 600;
   margin-bottom: 8px;
   color: var(--c-text-secondary);
+}
+
+.drawer-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 </style>

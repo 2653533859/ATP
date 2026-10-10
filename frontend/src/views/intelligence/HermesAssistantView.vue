@@ -48,22 +48,6 @@
     <a-empty v-if="!selectedProjectId" class="project-empty" :description="t('hermes.select_project_hint')" />
 
     <template v-else>
-
-      <HermesGovernancePanel v-if="governanceSummary" :summary="governanceSummary" />
-
-      <HermesConversationContextPanel
-        v-model:source-types="sourceTypes"
-        v-model:date-range="dateRange"
-        v-model:context-budget="contextBudget"
-        :short-conversation-id="shortConversationId"
-        :source-type-options="sourceTypeOptions"
-        :context-budget-options="contextBudgetOptions"
-        :history-used="historyUsed"
-        :history-omitted="historyOmitted"
-        :context-chars="contextChars"
-        @new-conversation="startNewConversation"
-      />
-
       <div class="assistant-layout">
         <HermesConversationPanel
           v-model:input-text="inputText"
@@ -117,6 +101,33 @@
         @open-path="openPath"
         @open-source="openSource"
       />
+
+      <details class="hermes-disclosure context-disclosure">
+        <summary>
+          <span>{{ t('hermes.context_settings') }}</span>
+          <span class="disclosure-note">{{ t('hermes.context_summary', { count: sourceTypes.length, budget: contextBudget }) }}</span>
+        </summary>
+        <HermesConversationContextPanel
+          v-model:source-types="sourceTypes"
+          v-model:date-range="dateRange"
+          v-model:context-budget="contextBudget"
+          :short-conversation-id="shortConversationId"
+          :source-type-options="sourceTypeOptions"
+          :context-budget-options="contextBudgetOptions"
+          :history-used="historyUsed"
+          :history-omitted="historyOmitted"
+          :context-chars="contextChars"
+          @new-conversation="startNewConversation"
+        />
+      </details>
+
+      <details v-if="governanceSummary" class="hermes-disclosure governance-disclosure">
+        <summary>
+          <span>{{ t('hermes.governance_title') }}</span>
+          <span class="disclosure-note">{{ t('hermes.evaluation_hint') }}</span>
+        </summary>
+        <HermesGovernancePanel :summary="governanceSummary" />
+      </details>
     </template>
   </div>
 </template>
@@ -1001,6 +1012,10 @@ watch(planDraft, () => {
 
 onMounted(async () => {
   await loadProjects()
+  if (!selectedProjectId.value && projects.value.length > 0) {
+    selectedProjectId.value = projects.value[0].id
+    await refreshWorkbench()
+  }
 })
 </script>
 
@@ -1015,6 +1030,54 @@ onMounted(async () => {
   flex-direction: column;
   gap: 20px;
   color: var(--c-text);
+}
+.hermes-disclosure {
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  background: var(--c-bg-elevated);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+  transition: all 0.2s ease;
+}
+
+.hermes-disclosure summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  cursor: pointer;
+  user-select: none;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text);
+  background: var(--c-bg-subtle);
+  transition: background 0.15s ease;
+}
+
+.hermes-disclosure summary:hover {
+  background: var(--c-primary-soft);
+  color: var(--c-primary);
+}
+
+.disclosure-note {
+  font-size: 11px;
+  font-weight: 400;
+  color: var(--c-text-tertiary);
+}
+
+.hermes-disclosure[open] {
+  border-color: var(--c-border-strong);
+}
+
+.hermes-disclosure[open] summary {
+  border-bottom: 1px solid var(--c-border);
+}
+
+.hermes-disclosure :deep(.governance-card),
+.hermes-disclosure :deep(.conversation-context-card) {
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 .hermes-toolbar {

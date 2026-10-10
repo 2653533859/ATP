@@ -16,6 +16,10 @@ def _redis_url(db: int = 2) -> str:
 
 def create_control_client() -> redis.Redis:
     """Create a synchronous client used by the blocking k6 worker."""
+    if settings.ATP_LOCAL_MODE:
+        from app.services.mobile_special_control import _LocalControlClient
+
+        return _LocalControlClient()  # type: ignore[return-value]
     timeout = settings.REDIS_CONNECT_TIMEOUT_SECONDS
     return redis.Redis.from_url(
         _redis_url(),

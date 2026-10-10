@@ -357,10 +357,11 @@
           <div v-if="runHealing.status === 'pending'" class="healing-pending">
             <LoadingOutlined /> <span style="margin-left: 6px">{{ t('run.healing.run_diagnosing') }}</span>
           </div>
-          <pre
+          <div
             v-else-if="runHealing.status === 'done' && runHealing.suggestion"
-            class="healing-text"
-          >{{ runHealing.suggestion }}</pre>
+            class="healing-text markdown-body"
+            v-html="renderMarkdown(runHealing.suggestion)"
+          />
           <a-empty
             v-else-if="runHealing.status === 'failed'"
             :description="t('run.healing.run_failed_fallback')"
@@ -410,13 +411,24 @@
             </template>
             <template #extra>
               <a-space>
+                <a-tooltip v-if="(step.status === 'failed' || step.status === 'error') && run?.case_id && run?.case_type === 'web'" :title="t('case.drawer.web.recorder.resume_from_here_tip')">
+                  <a-button
+                    size="small"
+                    type="primary"
+                    ghost
+                    class="repair-record-btn"
+                    :loading="resumeLoading && resumeStepIndex === step.step_index"
+                    @click.stop="openResumeCaseEditor(step.step_index)"
+                  >
+                    <PlayCircleOutlined /> {{ t('case.drawer.web.recorder.resume_from_here') }}
+                  </a-button>
+                </a-tooltip>
                 <a-tag :color="statusColor(step.status)">{{ step.status }}</a-tag>
                 <span v-if="step.duration_ms != null" class="step-duration">
                   {{ step.duration_ms }} ms
                 </span>
               </a-space>
             </template>
-
             <!-- 错误信息优先展示 -->
             <a-alert
               v-if="step.error_message"
@@ -465,10 +477,11 @@
                 <div v-if="step.healing_status === 'pending'" class="healing-body healing-pending">
                   <LoadingOutlined /> <span style="margin-left: 6px">{{ t('run.healing.diagnosing') }}</span>
                 </div>
-                <pre
+                <div
                   v-else-if="step.healing_status === 'done' && step.healing_suggestion"
-                  class="healing-text"
-                >{{ step.healing_suggestion }}</pre>
+                  class="healing-text markdown-body"
+                  v-html="renderMarkdown(step.healing_suggestion)"
+                />
                 <!-- iter3 反馈按钮：仅 done 态显示 -->
                 <div
                   v-if="step.healing_status === 'done' && step.healing_suggestion"
@@ -657,6 +670,16 @@
         <pre class="bug-preview-value bug-preview-desc">{{ formatJson(healingPatchPreview.preview_config) }}</pre>
       </div>
     </a-modal>
+
+    <WebCaseDrawer
+      :open="resumeDrawerOpen"
+      :module-id="resumeCaseItem?.module_id ?? null"
+      :project-id="resumeProjectId"
+      :edit-case="resumeCaseItem"
+      :initial-resume-step-index="resumeStepIndex"
+      @close="closeResumeDrawer"
+      @saved="handleResumeCaseSaved"
+    />
   </div>
 </template>
 
@@ -664,11 +687,13 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
-import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined } from '@ant-design/icons-vue'
+import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined, PlayCircleOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { runApi, bugTrackerApi, defectApi, tracingApi, aiHealingPatchApi, type BugLinkInfo, type BugTrackerItem, type DefectItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem } from '@/api'
+import { runApi, caseApi, projectApi, bugTrackerApi, defectApi, tracingApi, aiHealingPatchApi, type BugLinkInfo, type BugTrackerItem, type CaseSummaryItem, type DefectItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem } from '@/api'
+import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
 import { useAuthStore } from '@/stores/auth'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
+import { renderMarkdown } from '@/utils/markdown'
 import {
   computeExpandedKeys as computeExpandedStepKeys,
   countScreenshotSteps,
@@ -819,6 +844,71 @@ function healingStatusLabel(status?: string | null) {
   const key = `run.healing.status_${status}`
   return t(key)
 }
+const resumeDrawerOpen = ref(false)
+const resumeCaseItem = ref<CaseSummaryItem | null>(null)
+const resumeProjectId = ref<number | null>(null)
+const resumeStepIndex = ref<number | null>(null)
+const resumeLoading = ref(false)
+
+async function openResumeCaseEditor(stepIndex: number) {
+  if (!run.value?.case_id) return
+  resumeLoading.value = true
+  resumeStepIndex.value = stepIndex
+  try {
+    const caseData = await caseApi.get(run.value.case_id)
+    if (caseData.case_type === 'web') {
+      let effectiveProjectId: number | null = (caseData as { project_id?: number | null }).project_id ?? run.value?.project_id ?? null
+      if (!effectiveProjectId && route.query.project_id) {
+        effectiveProjectId = Number(route.query.project_id)
+      }
+      if (!effectiveProjectId) {
+        try {
+          const projects = await projectApi.list()
+          if (projects.length === 1) {
+            effectiveProjectId = projects[0].id
+          } else if (projects.length > 1) {
+            for (const p of projects) {
+              const modules = await projectApi.getModules(p.id)
+              const hasMod = (items: Array<{ id: number; children?: Array<{ id: number }> }>): boolean =>
+                items.some(m => m.id === caseData.module_id || hasMod(m.children || []))
+              if (hasMod(modules)) {
+                effectiveProjectId = p.id
+                break
+              }
+            }
+            if (!effectiveProjectId) effectiveProjectId = projects[0].id
+          }
+        } catch { /* fallback */ }
+      }
+      resumeProjectId.value = effectiveProjectId
+      resumeCaseItem.value = caseData
+      resumeDrawerOpen.value = true
+    } else {
+      void router.push({
+        name: 'case-detail',
+        params: { caseId: String(run.value.case_id) },
+        query: { resume_step: String(stepIndex) },
+      })
+    }
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('case.drawer.msg.load_failed') || '获取用例详情失败'))
+  } finally {
+    resumeLoading.value = false
+  }
+}
+
+function closeResumeDrawer() {
+  resumeDrawerOpen.value = false
+  resumeCaseItem.value = null
+  resumeProjectId.value = null
+  resumeStepIndex.value = null
+}
+
+function handleResumeCaseSaved() {
+  closeResumeDrawer()
+  message.success(t('case.drawer.msg.save_success') || '用例已更新保存')
+}
+
 
 async function onHealingFeedback(step: RunStepItem, action: 'adopted' | 'rejected') {
   if (!run.value || step.id == null) return
@@ -866,8 +956,8 @@ async function openHealingPatchPreview(step: RunStepItem) {
       raw_suggestion: step.healing_suggestion,
     })
     healingPatchModalOpen.value = true
-  } catch {
-    // axios 拦截器已弹出错误
+  } catch (error: unknown) {
+    message.warning(errorMessage(error, '生成修复预览失败，请根据上方诊断建议手动调整用例'))
   } finally {
     healingPatchLoading.value = false
   }
@@ -1730,11 +1820,12 @@ onUnmounted(() => {
   margin-bottom: 4px;
 }
 .bug-preview-value {
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
-  border-radius: 4px;
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-xs);
   padding: 8px 12px;
   font-size: 13px;
+  color: var(--c-text);
 }
 .bug-preview-desc {
   font-family: 'JetBrains Mono', 'Fira Code', monospace;
@@ -1765,13 +1856,31 @@ onUnmounted(() => {
 
 .healing-text {
   margin: 0;
-  padding: 8px 12px;
-  background: #f6f8fa;
+  padding: 10px 14px;
+  background: var(--c-bg-subtle, #f6f8fa);
   border-left: 3px solid #1677ff;
-  white-space: pre-wrap;
-  word-break: break-word;
+  border-radius: 0 6px 6px 0;
   font-size: 13px;
   line-height: 1.6;
+  color: var(--c-text);
+  word-break: break-word;
+}
+.healing-text :deep(p) {
+  margin: 0 0 8px 0;
+}
+.healing-text :deep(p:last-child) {
+  margin-bottom: 0;
+}
+.healing-text :deep(code) {
+  background: rgba(0, 0, 0, 0.06);
+  padding: 2px 5px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+}
+.healing-text :deep(strong) {
+  font-weight: 600;
+  color: var(--c-text);
 }
 
 .healing-feedback-row {
@@ -1798,10 +1907,11 @@ onUnmounted(() => {
 .healing-patch-reasons {
   margin: 0;
   padding: 8px 12px 8px 28px;
-  background: #fafafa;
-  border: 1px solid #f0f0f0;
-  border-radius: 4px;
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-xs);
   font-size: 13px;
+  color: var(--c-text);
 }
 @media (max-width: 768px) {
   .investigation-header {

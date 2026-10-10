@@ -4,8 +4,6 @@
       <div class="toolbar-left">
         <CheckSquareOutlined class="toolbar-icon" />
         <h1 class="toolbar-title">{{ t('workbench.todos_title') }}</h1>
-        <span class="toolbar-divider">/</span>
-        <span class="toolbar-subtitle subtitle">{{ t('workbench.todos_subtitle') }}</span>
       </div>
       <div class="heading-actions toolbar-right">
         <a-select

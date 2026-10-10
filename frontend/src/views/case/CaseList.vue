@@ -4,8 +4,6 @@
       <div class="toolbar-left">
         <FileTextOutlined class="toolbar-icon" />
         <h2 class="toolbar-title page-title">{{ t('case.title') }}</h2>
-        <span class="toolbar-divider">/</span>
-        <span class="toolbar-subtitle page-subtitle">{{ t('case.subtitle') }}</span>
       </div>
       <div class="toolbar-right">
         <a-select
@@ -34,33 +32,59 @@
     />
 
     <template v-if="selectedProjectId">
-      <a-row :gutter="[16, 16]" class="summary-row">
-        <a-col :xs="24" :sm="6">
-          <a-card>
-            <a-statistic :title="t('case.stats.project')" :value="currentProjectName" />
-          </a-card>
-        </a-col>
-        <a-col :xs="12" :sm="6">
-          <a-card>
-            <a-statistic :title="t('case.stats.module_count')" :value="moduleCount" />
-          </a-card>
-        </a-col>
-        <a-col :xs="12" :sm="6">
-          <a-card>
-            <a-statistic :title="t('case.stats.visible_cases')" :value="filteredCases.length" />
-          </a-card>
-        </a-col>
-        <a-col :xs="12" :sm="6">
-          <a-card>
-            <a-statistic :title="t('case.stats.pending_reviews')" :value="pendingReviewCount" />
-          </a-card>
-        </a-col>
-        <a-col :xs="12" :sm="6">
-          <a-card>
-            <a-statistic :title="t('case.stats.flaky_cases')" :value="flakyCaseCount" />
-          </a-card>
-        </a-col>
-      </a-row>
+      <div class="case-bento-grid">
+        <div class="case-bento-tile">
+          <div class="tile-header">
+            <span class="tile-label">{{ t('case.stats.visible_cases') }}</span>
+            <span class="tag-pill tag-blue">当前视图</span>
+          </div>
+          <div class="tile-value">{{ filteredCases.length }}</div>
+          <div class="tile-footer">
+            <span>{{ currentProjectName }} · 共 <b>{{ cases.length }}</b> 条</span>
+          </div>
+        </div>
+
+        <div class="case-bento-tile">
+          <div class="tile-header">
+            <span class="tile-label">{{ t('case.stats.module_count') }}</span>
+            <span class="tag-pill tag-gray">业务划分</span>
+          </div>
+          <div class="tile-value">{{ moduleCount }}</div>
+          <div class="tile-footer">
+            <span>已选: <b>{{ selectedModuleId ? (moduleNameMap[selectedModuleId] || '指定模块') : '全部模块' }}</b></span>
+          </div>
+        </div>
+
+        <div class="case-bento-tile">
+          <div class="tile-header">
+            <span class="tile-label">{{ t('case.stats.pending_reviews') }}</span>
+            <span class="tag-pill" :class="pendingReviewCount > 0 ? 'tag-yellow' : 'tag-gray'">
+              {{ pendingReviewCount > 0 ? '待处理' : '已清空' }}
+            </span>
+          </div>
+          <div class="tile-value" :class="{ 'value-warn': pendingReviewCount > 0 }">
+            {{ pendingReviewCount }}
+          </div>
+          <div class="tile-footer">
+            <span>团队用例评审</span>
+          </div>
+        </div>
+
+        <div class="case-bento-tile">
+          <div class="tile-header">
+            <span class="tile-label">{{ t('case.stats.flaky_cases') }}</span>
+            <span class="tag-pill" :class="flakyCaseCount > 0 ? 'tag-red' : 'tag-green'">
+              {{ flakyCaseCount > 0 ? '需干预' : '稳定性良好' }}
+            </span>
+          </div>
+          <div class="tile-value" :class="{ 'value-danger': flakyCaseCount > 0 }">
+            {{ flakyCaseCount }}
+          </div>
+          <div class="tile-footer">
+            <span>抖动异常监测</span>
+          </div>
+        </div>
+      </div>
 
       <div class="workspace">
         <div class="side-panel">
@@ -78,68 +102,71 @@
           <a-card class="toolbar-card" :bordered="false">
             <div class="toolbar">
               <div class="toolbar-main">
-                <a-space wrap>
-                <a-input-search
-                  v-model:value="keyword"
-                  :placeholder="t('case.search_placeholder')"
-                  style="width: 260px"
-                  allow-clear
-                  @search="handleSearch"
-                />
-                <a-select
-                  v-model:value="filterType"
-                  :placeholder="t('case.filters.type')"
-                  allow-clear
-                  style="width: 130px"
-                  :options="caseTypeOptions"
-                  @change="loadCases"
-                />
-                <a-select
-                  v-model:value="filterPriority"
-                  :placeholder="t('case.filters.priority')"
-                  allow-clear
-                  style="width: 120px"
-                  :options="priorityOptions"
-                  @change="loadCases"
-                />
-                <a-select
-                  v-model:value="filterLevel"
-                  :placeholder="t('case.filters.level')"
-                  allow-clear
-                  style="width: 140px"
-                >
-                  <a-select-option value="smoke">{{ t('case.levels.smoke') }}</a-select-option>
-                  <a-select-option value="core">{{ t('case.levels.core') }}</a-select-option>
-                  <a-select-option value="regression">{{ t('case.levels.regression') }}</a-select-option>
-                  <a-select-option value="extended">{{ t('case.levels.extended') }}</a-select-option>
-                </a-select>
-                <a-select
-                  v-model:value="filterStatus"
-                  :placeholder="t('case.filters.status')"
-                  allow-clear
-                  style="width: 120px"
-                  :options="statusOptions"
-                  @change="loadCases"
-                />
-                <a-select
-                  v-model:value="filterReviewStatus"
-                  :placeholder="t('case.filters.review_status')"
-                  allow-clear
-                  style="width: 140px"
-                  :options="reviewStatusOptions"
-                  @change="loadCases"
-                />
-                <a-select
-                  v-model:value="filterAutomationStatus"
-                  :placeholder="t('case.filters.automation_status')"
-                  allow-clear
-                  style="width: 140px"
-                  :options="automationStatusOptions"
-                  @change="loadCases"
-                />
-                <a-button @click="handleSearch">{{ t('common.search') }}</a-button>
-                <a-button @click="handleResetFilters">{{ t('common.reset') }}</a-button>
-              </a-space>
+                <div class="filter-primary-row">
+                  <a-input-search
+                    v-model:value="keyword"
+                    :placeholder="t('case.search_placeholder')"
+                    style="width: 260px"
+                    allow-clear
+                    @search="handleSearch"
+                  />
+                  <a-select
+                    v-model:value="filterPriority"
+                    :placeholder="t('case.filters.priority')"
+                    allow-clear
+                    style="width: 110px"
+                    :options="priorityOptions"
+                    @change="loadCases"
+                  />
+                  <a-select
+                    v-model:value="filterLevel"
+                    :placeholder="t('case.filters.level')"
+                    allow-clear
+                    style="width: 120px"
+                  >
+                    <a-select-option value="smoke">{{ t('case.levels.smoke') }}</a-select-option>
+                    <a-select-option value="core">{{ t('case.levels.core') }}</a-select-option>
+                    <a-select-option value="regression">{{ t('case.levels.regression') }}</a-select-option>
+                    <a-select-option value="extended">{{ t('case.levels.extended') }}</a-select-option>
+                  </a-select>
+                  <a-button
+                    size="middle"
+                    :type="showAdvancedFilters ? 'primary' : 'default'"
+                    ghost
+                    class="adv-filter-btn"
+                    @click="showAdvancedFilters = !showAdvancedFilters"
+                  >
+                    <FilterOutlined /> 高级筛选 <DownOutlined :class="{ 'rotate-180': showAdvancedFilters }" />
+                  </a-button>
+                  <a-button @click="handleResetFilters">{{ t('common.reset') }}</a-button>
+                </div>
+
+                <div v-if="showAdvancedFilters" class="filter-advanced-row">
+                  <a-select
+                    v-model:value="filterStatus"
+                    :placeholder="t('case.filters.status')"
+                    allow-clear
+                    style="width: 120px"
+                    :options="statusOptions"
+                    @change="loadCases"
+                  />
+                  <a-select
+                    v-model:value="filterReviewStatus"
+                    :placeholder="t('case.filters.review_status')"
+                    allow-clear
+                    style="width: 130px"
+                    :options="reviewStatusOptions"
+                    @change="loadCases"
+                  />
+                  <a-select
+                    v-model:value="filterAutomationStatus"
+                    :placeholder="t('case.filters.automation_status')"
+                    allow-clear
+                    style="width: 130px"
+                    :options="automationStatusOptions"
+                    @change="loadCases"
+                  />
+                </div>
               <div v-if="activeFilterTags.length" class="active-filter-row">
                 <span class="active-filter-label">{{ t('case.active_filters') }}</span>
                 <a-tag
@@ -159,7 +186,7 @@
                 <a-tag color="blue">
                   {{ t('case.current_module', { name: selectedModuleId ? activeModuleName : t('common.all') }) }}
                 </a-tag>
-                <a-dropdown :disabled="!selectedModuleId || !canModifyCases">
+                <a-dropdown :disabled="!canModifyCases">
                   <template #overlay>
                     <a-menu>
                       <a-menu-item key="api" @click="openCreate('api')">{{ t('case.types.api') }}</a-menu-item>
@@ -171,12 +198,12 @@
                       <a-menu-item key="ios" @click="openCreate('ios')">{{ t('case.types.ios') }}</a-menu-item>
                     </a-menu>
                   </template>
-                  <a-button type="primary" :disabled="!selectedModuleId || !canModifyCases">
+                  <a-button type="primary" :disabled="!canModifyCases">
                     <PlusOutlined /> {{ t('case.new_case') }} <DownOutlined />
                   </a-button>
                 </a-dropdown>
                 <a-tooltip :title="caseCreateDisabledTip">
-                  <a-button :disabled="!selectedModuleId || !canModifyCases" @click="aiDrawerOpen = true">
+                  <a-button :disabled="!canModifyCases" @click="openAiGenerate">
                     <ThunderboltOutlined /> {{ t('case.ai_generate') }}
                   </a-button>
                 </a-tooltip>
@@ -186,6 +213,103 @@
           </a-card>
 
           <a-card class="table-card" :bordered="false">
+            <div class="case-category-tabs-bar">
+              <div class="category-tabs-pill">
+                <button
+                  type="button"
+                  class="category-pill-btn"
+                  :class="{ 'is-active': activeCategoryTab === 'all' }"
+                  @click="handleCategoryTabChange('all')"
+                >
+                  <AppstoreOutlined class="pill-icon" />
+                  <span>全部用例</span>
+                  <span class="pill-count">{{ categoryCounts.all }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="category-pill-btn pill-api"
+                  :class="{ 'is-active': activeCategoryTab === 'api' }"
+                  @click="handleCategoryTabChange('api')"
+                >
+                  <ApiOutlined class="pill-icon" />
+                  <span>接口测试</span>
+                  <span class="pill-count">{{ categoryCounts.api }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="category-pill-btn pill-web"
+                  :class="{ 'is-active': activeCategoryTab === 'web' }"
+                  @click="handleCategoryTabChange('web')"
+                >
+                  <GlobalOutlined class="pill-icon" />
+                  <span>Web UI</span>
+                  <span class="pill-count">{{ categoryCounts.web }}</span>
+                </button>
+                <button
+                  type="button"
+                  class="category-pill-btn pill-mobile"
+                  :class="{ 'is-active': activeCategoryTab === 'mobile' }"
+                  @click="handleCategoryTabChange('mobile')"
+                >
+                  <MobileOutlined class="pill-icon" />
+                  <span>APP 移动端</span>
+                  <span class="pill-count">{{ categoryCounts.mobile }}</span>
+                </button>
+              </div>
+
+              <!-- 仅在接口测试分类下，展示单接口 vs 场景链路的分流筛选 -->
+              <div v-if="activeCategoryTab === 'api'" class="api-sub-category-pills">
+                <button
+                  type="button"
+                  class="sub-pill-btn"
+                  :class="{ 'is-active': apiSubFilter === 'all' }"
+                  @click="apiSubFilter = 'all'"
+                >
+                  全部接口 ({{ apiCategoryCount }})
+                </button>
+                <button
+                  type="button"
+                  class="sub-pill-btn btn-scenario"
+                  :class="{ 'is-active': apiSubFilter === 'scenario' }"
+                  @click="apiSubFilter = 'scenario'"
+                >
+                  <ClusterOutlined /> 场景链路 ({{ apiScenarioCount }})
+                </button>
+                <button
+                  type="button"
+                  class="sub-pill-btn btn-single"
+                  :class="{ 'is-active': apiSubFilter === 'single' }"
+                  @click="apiSubFilter = 'single'"
+                >
+                  <ThunderboltOutlined /> 单接口 ({{ apiSingleCount }})
+                </button>
+              </div>
+              <div class="category-bar-right">
+                <a-button
+                  v-if="activeCategoryTab === 'api'"
+                  size="small"
+                  type="link"
+                  class="goto-workbench-link"
+                  @click="router.push('/api-workbench')"
+                >
+                  <ArrowRightOutlined /> 接口资产库/工作台
+                </a-button>
+                <a-button size="small" type="text" :disabled="!canModifyCases" class="sub-tool-btn" @click="handleDownloadImportTemplate">
+                  <DownloadOutlined /> {{ t('case.import_template') }}
+                </a-button>
+                <a-upload
+                  :show-upload-list="false"
+                  :before-upload="handleBatchImportBeforeUpload"
+                  accept=".zip"
+                  :disabled="!canModifyCases"
+                >
+                  <a-button size="small" type="text" :loading="importPreviewLoading" :disabled="!canModifyCases" class="sub-tool-btn">
+                    <UploadOutlined /> {{ t('case.import_zip') }}
+                  </a-button>
+                </a-upload>
+              </div>
+            </div>
+
             <BatchOperationBar :selected-count="selectedRowKeys.length" @cancel="selectedRowKeys = []">
               <a-button size="small" @click="handleBatchExport">{{ t('case.export_csv') }}</a-button>
               <a-button size="small" @click="handleBatchExportZip">{{ t('case.export_zip') }}</a-button>
@@ -201,22 +325,6 @@
                 <a-button size="small" danger :disabled="!canModifyCases">{{ t('case.batch_delete') }}</a-button>
               </a-popconfirm>
             </BatchOperationBar>
-            <div class="batch-bar" style="margin-bottom: 12px">
-              <span style="color: var(--c-text-tertiary)">{{ t('case.import_zip_label', { module: activeModuleName }) }}</span>
-              <a-button size="small" :disabled="!canModifyCases" @click="handleDownloadImportTemplate">
-                {{ t('case.import_template') }}
-              </a-button>
-              <a-upload
-                :show-upload-list="false"
-                :before-upload="handleBatchImportBeforeUpload"
-                accept=".zip"
-                :disabled="!selectedModuleId || !canModifyCases"
-              >
-                <a-button size="small" :loading="importPreviewLoading" :disabled="!selectedModuleId || !canModifyCases">
-                  {{ t('case.import_zip') }}
-                </a-button>
-              </a-upload>
-            </div>
             <a-table
               :columns="columns"
               :data-source="filteredCases"
@@ -224,90 +332,107 @@
               row-key="id"
               size="middle"
               :pagination="{ pageSize: 20, showSizeChanger: true }"
-              :scroll="cases.length ? { x: 1500 } : undefined"
-              :row-selection="{ selectedRowKeys, onChange: (keys: (string | number)[]) => (selectedRowKeys = keys as number[]) }"
+              :scroll="cases.length ? { x: 1050 } : undefined"
+              :row-selection="{ selectedRowKeys, columnWidth: 36, onChange: (keys: (string | number)[]) => (selectedRowKeys = keys as number[]) }"
             >
             <template #bodyCell="{ column, record }">
               <template v-if="column.key === 'name'">
                 <div class="case-name-cell">
-                  <a-button type="link" class="case-link" @click="openDetail(record.id)">
-                    {{ record.name }}
-                  </a-button>
-                  <div class="case-summary">
-                    {{ record.case_code }} ｜ {{ record.summary || t('case.no_summary') }}
+                  <div class="case-title-row">
+                    <span class="case-type-badge" :class="`badge-${record.case_type}`">
+                      <ApiOutlined v-if="isApiType(record.case_type)" />
+                      <GlobalOutlined v-else-if="record.case_type === 'web'" />
+                      <AndroidOutlined v-else-if="record.case_type === 'android'" />
+                      <AppleOutlined v-else-if="record.case_type === 'ios'" />
+                      <span>{{ caseTypeShortLabel(record.case_type) }}</span>
+                    </span>
+                    <span
+                      class="case-link-title"
+                      role="button"
+                      tabindex="0"
+                      :title="record.name"
+                      @click="openDetail(record.id)"
+                    >
+                      {{ record.name }}
+                    </span>
                   </div>
-                  <div v-if="record.tags.length || record.ai_generated" class="case-tags">
-                    <a-tag v-if="record.ai_generated" color="purple">
-                      <ThunderboltOutlined /> {{ t('case.ai_generated') }}
-                    </a-tag>
-                    <a-tag v-for="tag in record.tags.slice(0, 3)" :key="tag" color="blue">
-                      {{ tag }}
-                    </a-tag>
-                    <a-tag v-if="record.tags.length > 3">+{{ record.tags.length - 3 }}</a-tag>
+                  <div class="case-meta-row">
+                    <code class="case-code-badge">{{ record.case_code }}</code>
+                    <template v-if="isApiType(record.case_type)">
+                      <span
+                        v-if="record.case_mode === 'scenario' || record.is_scenario"
+                        class="scenario-pipeline-tag"
+                        :title="'多接口串联执行链路，共 ' + (record.step_count || 2) + ' 个步骤'"
+                      >
+                        <ClusterOutlined /> 场景链路 · {{ record.step_count || 2 }} 步
+                      </span>
+                      <span
+                        v-else
+                        class="single-api-tag"
+                      >
+                        单接口
+                      </span>
+                    </template>
+                    <span v-if="getApiMethod(record)" class="method-tag" :class="`method-${getApiMethod(record)}`">
+                      {{ getApiMethod(record) }}
+                    </span>
+                    <span v-if="getApiPath(record)" class="path-text" :title="getApiPath(record)">
+                      {{ getApiPath(record) }}
+                    </span>
+                    <span v-if="record.automation_status === 'auto'" class="automation-chip">
+                      <ThunderboltOutlined /> 自动化
+                    </span>
+                    <span v-if="record.ai_generated" class="ai-chip">
+                      ✨ AI
+                    </span>
+                    <span v-if="cleanSummary(record)" class="summary-text" :title="cleanSummary(record)">
+                      {{ cleanSummary(record) }}
+                    </span>
+                    <template v-if="record.tags && record.tags.length">
+                      <span v-for="tag in record.tags.slice(0, 2)" :key="tag" class="tag-chip" @click.stop="quickFilterKeyword(tag)">
+                        #{{ tag }}
+                      </span>
+                    </template>
                   </div>
                 </div>
               </template>
-
               <template v-else-if="column.key === 'module'">
                 <span>{{ moduleNameMap[record.module_id] ?? t('case.module_fallback', { id: record.module_id }) }}</span>
               </template>
-
-              <template v-else-if="column.key === 'case_type'">
-                <a-tag :color="caseTypeColor(record.case_type)">{{ caseTypeLabel(record.case_type) }}</a-tag>
-              </template>
-
-              <template v-else-if="column.key === 'priority'">
-                <a-tag :color="priorityColor(record.priority)">{{ record.priority }}</a-tag>
-              </template>
-
-              <template v-else-if="column.key === 'case_level'">
-                <a-tag>{{ caseLevelLabel(record.case_level) }}</a-tag>
-              </template>
-
-              <template v-else-if="column.key === 'review_status'">
-                <div class="review-cell">
-                  <a-tag :color="reviewStatusColor(record.review_status)">
-                    {{ reviewStatusLabel(record.review_status) }}
-                  </a-tag>
-                  <a-space v-if="record.review_status === 'pending'" size="small">
-                    <a-button type="link" size="small" :disabled="!canApproveCases" @click="handleWorkflow(asCase(record), 'approve')">
-                      {{ t('case.actions.approve') }}
-                    </a-button>
-                    <a-button type="link" size="small" danger :disabled="!canApproveCases" @click="handleWorkflow(asCase(record), 'reject')">
-                      {{ t('case.actions.reject') }}
-                    </a-button>
-                  </a-space>
+              <template v-else-if="column.key === 'level_priority'">
+                <div class="level-priority-cell">
+                  <a-tag :color="priorityColor(record.priority)" class="priority-tag" @click.stop="quickFilterPriority(record.priority)">{{ record.priority }}</a-tag>
+                  <span class="level-sub-text" @click.stop="quickFilterLevel(record.case_level)">{{ caseLevelLabel(record.case_level) }}</span>
                 </div>
               </template>
-
-              <template v-else-if="column.key === 'status'">
-                <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
+              <template v-else-if="column.key === 'latest_run'">
+                <div class="run-status-cell">
+                  <template v-if="getLatestRun(record.id)">
+                    <div class="run-badge-line">
+                      <span
+                        class="run-tag"
+                        :class="`tag-${getLatestRun(record.id)?.status}`"
+                      >
+                        <CheckCircleOutlined v-if="getLatestRun(record.id)?.status === 'passed'" />
+                        <CloseCircleOutlined v-else-if="getLatestRun(record.id)?.status === 'failed' || getLatestRun(record.id)?.status === 'error'" />
+                        <SyncOutlined v-else-if="getLatestRun(record.id)?.status === 'running'" spin />
+                        <span>{{ getLatestRun(record.id)?.status?.toUpperCase() }}</span>
+                      </span>
+                      <span v-if="getLatestRun(record.id)?.duration_ms" class="run-duration">
+                        {{ formatDuration(getLatestRun(record.id)?.duration_ms) }}
+                      </span>
+                    </div>
+                    <div class="run-date-line">
+                      {{ formatShortTime(getLatestRun(record.id)?.created_at) }}
+                    </div>
+                  </template>
+                  <span v-else class="run-tag tag-none">未执行</span>
+                </div>
               </template>
-
-              <template v-else-if="column.key === 'automation_status'">
-                <a-tag :color="automationStatusColor(record.automation_status)">
-                  {{ automationStatusLabel(record.automation_status) }}
+              <template v-else-if="column.key === 'review_status'">
+                <a-tag :color="reviewStatusColor(record.review_status)" class="review-status-tag">
+                  {{ reviewStatusLabel(record.review_status) }}
                 </a-tag>
-              </template>
-
-              <template v-else-if="column.key === 'script_status'">
-                <a-tooltip :title="scriptStatusLabel(record.script_status)">
-                  <a-tag :color="scriptStatusColor(record.script_status)">
-                    {{ scriptStatusLabel(record.script_status) }}
-                  </a-tag>
-                </a-tooltip>
-              </template>
-
-              <template v-else-if="column.key === 'stability'">
-                <a-tooltip :title="flakyTooltip(asCase(record))">
-                  <a-tag :color="record.flaky_stats?.is_flaky ? 'volcano' : 'green'">
-                    {{ record.flaky_stats?.is_flaky ? t('case.flaky.flaky') : t('case.flaky.stable') }}
-                  </a-tag>
-                </a-tooltip>
-              </template>
-
-              <template v-else-if="column.key === 'updated_at'">
-                {{ formatDateTime(record.updated_at) }}
               </template>
 
               <template v-else-if="column.key === 'action'">
@@ -338,48 +463,57 @@
                           <HistoryOutlined /> {{ t('case.actions.history') }}
                         </a-menu-item>
                         <a-menu-divider />
-                        <a-menu-item
-                          v-if="canSubmitReview(asCase(record))"
-                          key="submit-review"
-                          @click="handleWorkflow(asCase(record), 'submitReview')"
-                        >
+                        <a-menu-item v-if="canSubmitReview(asCase(record))" key="submit-review" @click="handleWorkflow(asCase(record), 'submitReview')">
                           {{ t('case.actions.submit_review') }}
                         </a-menu-item>
-                        <a-menu-item
-                          v-if="canApprove(asCase(record))"
-                          key="approve"
-                          @click="handleWorkflow(asCase(record), 'approve')"
-                        >
+                        <a-menu-item v-if="canApprove(asCase(record))" key="approve" @click="handleWorkflow(asCase(record), 'approve')">
                           {{ t('case.actions.approve') }}
                         </a-menu-item>
-                        <a-menu-item
-                          v-if="canReject(asCase(record))"
-                          key="reject"
-                          @click="handleWorkflow(asCase(record), 'reject')"
-                        >
+                        <a-menu-item v-if="canReject(asCase(record))" key="reject" @click="handleWorkflow(asCase(record), 'reject')">
                           {{ t('case.actions.reject') }}
                         </a-menu-item>
-                        <a-menu-item
-                          v-if="canDeprecate(asCase(record))"
-                          key="deprecate"
-                          @click="handleWorkflow(asCase(record), 'deprecate')"
-                        >
+                        <a-menu-item v-if="canDeprecate(asCase(record))" key="deprecate" @click="handleWorkflow(asCase(record), 'deprecate')">
                           {{ t('case.actions.deprecate') }}
                         </a-menu-item>
-                        <a-menu-item
-                          v-if="canReactivate(asCase(record))"
-                          key="reactivate"
-                          @click="handleWorkflow(asCase(record), 'reactivate')"
-                        >
+                        <a-menu-item v-if="canReactivate(asCase(record))" key="reactivate" @click="handleWorkflow(asCase(record), 'reactivate')">
                           {{ t('case.actions.reactivate') }}
                         </a-menu-item>
                         <a-menu-divider />
-                        <a-menu-item key="delete" :disabled="!canModifyCases" @click="confirmDelete(asCase(record))">{{ t('case.actions.delete') }}</a-menu-item>
+                        <a-menu-item key="delete" :disabled="!canModifyCases" @click="confirmDelete(asCase(record))">
+                          {{ t('case.actions.delete') }}
+                        </a-menu-item>
                       </a-menu>
                     </template>
                   </a-dropdown>
                 </a-space>
               </template>
+            </template>
+            <template #emptyText>
+              <div v-if="activeCategoryTab === 'web'" class="category-empty-guide">
+                <GlobalOutlined class="empty-guide-icon" style="color: #722ed1" />
+                <h4>当前暂无 Web UI 自动化用例</h4>
+                <p>使用 Playwright 浏览器录制或低代码编排 Web 自动化端到端测试用例。</p>
+                <a-button type="primary" size="small" :disabled="!canModifyCases" @click="openCreate('web')">
+                  + 新建第一个 Web UI 用例
+                </a-button>
+              </div>
+              <div v-else-if="activeCategoryTab === 'mobile'" class="category-empty-guide">
+                <MobileOutlined class="empty-guide-icon" style="color: #389e0d" />
+                <h4>当前暂无 APP 移动端自动化用例</h4>
+                <p>连接真机设备或使用低代码录制器创建 Android / iOS 移动端测试。</p>
+                <a-button type="primary" size="small" :disabled="!canModifyCases" @click="openCreate('android')">
+                  + 新建第一个移动端用例
+                </a-button>
+              </div>
+              <div v-else-if="activeCategoryTab === 'api'" class="category-empty-guide">
+                <ApiOutlined class="empty-guide-icon" style="color: #1677ff" />
+                <h4>当前暂无接口自动化用例</h4>
+                <p>支持 HTTP、GraphQL、WebSocket 与 gRPC 多接口流转与自动化测试。</p>
+                <a-button type="primary" size="small" :disabled="!canModifyCases" @click="openCreate('api')">
+                  + 新建第一个接口用例
+                </a-button>
+              </div>
+              <a-empty v-else :description="t('common.no_data')" />
             </template>
           </a-table>
           </a-card>
@@ -392,7 +526,22 @@
       status="info"
       :title="t('case.select_project_result')"
       :sub-title="t('case.select_project_subtitle')"
-    />
+    >
+      <template #extra>
+        <a-space>
+          <a-button
+            v-if="projectOptions.length"
+            type="primary"
+            @click="handleSelectFirstProject"
+          >
+            {{ projectOptions[0]?.label ? t('case.enter_project', { name: projectOptions[0]?.label }) : t('case.select_project') }}
+          </a-button>
+          <a-button @click="router.push({ name: 'projects' })">
+            {{ t('case.project_management') }}
+          </a-button>
+        </a-space>
+      </template>
+    </a-result>
 
     <CaseFormDrawer
       :open="drawerOpen"
@@ -526,9 +675,29 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { message, Modal } from 'ant-design-vue'
-import { DownOutlined, FileTextOutlined, HistoryOutlined, PlusOutlined, ThunderboltOutlined } from '@ant-design/icons-vue'
+import {
+  DownOutlined,
+  FileTextOutlined,
+  HistoryOutlined,
+  PlusOutlined,
+  ThunderboltOutlined,
+  AppstoreOutlined,
+  ApiOutlined,
+  GlobalOutlined,
+  MobileOutlined,
+  AndroidOutlined,
+  AppleOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  SyncOutlined,
+  FilterOutlined,
+  DownloadOutlined,
+  UploadOutlined,
+  ClusterOutlined,
+  ArrowRightOutlined,
+} from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { caseApi, environmentApi, projectApi } from '@/api'
+import { caseApi, environmentApi, projectApi, runApi, type RunDetailItem } from '@/api'
 import type {
   AutomationStatus,
   CaseLevel,
@@ -560,7 +729,6 @@ import {
   countFlakyCases,
   countPendingReviews,
   filterCasesByLevel,
-  flakyTooltipParams,
   flattenModules,
 } from '@/utils/caseList'
 import { useAuthStore } from '@/stores/auth'
@@ -671,19 +839,106 @@ const runConfirming = ref(false)
 const pendingRunCase = ref<CaseSummaryItem | null>(null)
 
 const columns = computed(() => [
-  { title: t('case.columns.case'), key: 'name', width: 320 },
-  { title: t('case.columns.module'), key: 'module', width: 160 },
-  { title: t('case.columns.type'), key: 'case_type', width: 110 },
-  { title: t('case.columns.priority'), key: 'priority', width: 100 },
-  { title: t('case.columns.level'), key: 'case_level', width: 120 },
-  { title: t('case.columns.review_status'), key: 'review_status', width: 120 },
-  { title: t('case.columns.lifecycle'), key: 'status', width: 120 },
-  { title: t('case.columns.automation'), key: 'automation_status', width: 130 },
-  { title: t('case.columns.script_status'), key: 'script_status', width: 140 },
-  { title: t('case.columns.stability'), key: 'stability', width: 120 },
-  { title: t('case.columns.updated_at'), key: 'updated_at', width: 180 },
-  { title: t('case.columns.action'), key: 'action', width: 280, fixed: 'right' as const },
+  { title: t('case.columns.case'), key: 'name', minWidth: 420 },
+  { title: t('case.columns.module'), key: 'module', width: 130 },
+  { title: '用例分级', key: 'level_priority', width: 95, align: 'center' as const },
+  { title: '最新执行', key: 'latest_run', width: 140 },
+  { title: t('case.columns.review_status'), key: 'review_status', width: 90, align: 'center' as const },
+  { title: t('case.columns.action'), key: 'action', width: 180, fixed: 'right' as const },
 ])
+
+function formatShortTime(value?: string | null): string {
+  if (!value) return ''
+  return value.slice(5, 16).replace('T', ' ')
+}
+
+type CaseCategory = 'all' | 'api' | 'web' | 'mobile'
+const activeCategoryTab = ref<CaseCategory>('all')
+const showAdvancedFilters = ref(false)
+const recentRuns = ref<RunDetailItem[]>([])
+
+const categoryCounts = computed(() => {
+  const all = cases.value.length
+  let api = 0
+  let web = 0
+  let mobile = 0
+  cases.value.forEach((c) => {
+    if (['api', 'graphql', 'websocket', 'grpc'].includes(c.case_type)) api++
+    else if (c.case_type === 'web') web++
+    else if (['android', 'ios'].includes(c.case_type)) mobile++
+  })
+  return { all, api, web, mobile }
+})
+
+function handleCategoryTabChange(cat: CaseCategory) {
+  activeCategoryTab.value = cat
+  apiSubFilter.value = 'all'
+}
+function isApiType(type: string): boolean {
+  return ['api', 'graphql', 'websocket', 'grpc'].includes(type)
+}
+
+function caseTypeShortLabel(type?: unknown): string {
+  if (typeof type !== 'string') return ''
+  if (type === 'api') return 'API'
+  if (type === 'graphql') return 'GQL'
+  if (type === 'websocket') return 'WS'
+  if (type === 'grpc') return 'gRPC'
+  if (type === 'web') return 'Web'
+  if (type === 'android') return 'Android'
+  if (type === 'ios') return 'iOS'
+  return type.toUpperCase()
+}
+
+function getApiMethod(record: unknown): string {
+  const c = record as CaseSummaryItem
+  if (!isApiType(c?.case_type)) return ''
+  if (c.case_type === 'graphql') return 'GRAPHQL'
+  if (c.case_type === 'websocket') return 'WS'
+  const summary = c.summary || ''
+  const m = summary.match(/^(GET|POST|PUT|DELETE|PATCH|HEAD|OPTIONS)/i)
+  return m ? m[1].toUpperCase() : ''
+}
+
+function getApiPath(record: unknown): string {
+  const c = record as CaseSummaryItem
+  if (!isApiType(c?.case_type)) return ''
+  const summary = c.summary || ''
+  const parts = summary.split(' ')
+  if (parts.length > 1 && (parts[1].startsWith('/') || parts[1].startsWith('http'))) {
+    return parts[1]
+  }
+  return ''
+}
+
+function cleanSummary(record: unknown): string {
+  const c = record as CaseSummaryItem
+  const s = (c?.summary || '').trim()
+  if (!s || s === c?.name) return ''
+  return s
+}
+
+function getLatestRun(caseId: number): RunDetailItem | undefined {
+  return recentRuns.value.find((r) => r.case_id === caseId)
+}
+
+function formatDuration(value?: number | null) {
+  if (value == null) return ''
+  return value < 1000 ? `${value}ms` : `${(value / 1000).toFixed(1)}s`
+}
+
+async function loadRecentRuns() {
+  if (!selectedProjectId.value) {
+    recentRuns.value = []
+    return
+  }
+  try {
+    const res = await runApi.list({ page_size: 100, project_id: selectedProjectId.value })
+    recentRuns.value = res.items || []
+  } catch {
+    recentRuns.value = []
+  }
+}
 
 const importPreviewColumns = computed(() => [
   { title: t('case.import_preview.columns.row'), dataIndex: 'row', key: 'row', width: 80 },
@@ -707,7 +962,33 @@ const activeModuleName = computed(() =>
   selectedModuleId.value ? (moduleNameMap.value[selectedModuleId.value] ?? t('case.module_fallback', { id: selectedModuleId.value })) : t('common.all'),
 )
 
-const filteredCases = computed(() => filterCasesByLevel(cases.value, filterLevel.value))
+const apiSubFilter = ref<'all' | 'scenario' | 'single'>('all')
+
+const apiCategoryCases = computed(() => cases.value.filter((c) => isApiType(c.case_type)))
+const apiCategoryCount = computed(() => apiCategoryCases.value.length)
+const apiScenarioCount = computed(() =>
+  apiCategoryCases.value.filter((c) => c.case_mode === 'scenario' || Boolean(c.is_scenario)).length,
+)
+const apiSingleCount = computed(() =>
+  apiCategoryCases.value.filter((c) => c.case_mode !== 'scenario' && !c.is_scenario).length,
+)
+
+const filteredCases = computed(() => {
+  let list = cases.value
+  if (activeCategoryTab.value === 'api') {
+    list = list.filter((c) => isApiType(c.case_type))
+    if (apiSubFilter.value === 'scenario') {
+      list = list.filter((c) => c.case_mode === 'scenario' || Boolean(c.is_scenario))
+    } else if (apiSubFilter.value === 'single') {
+      list = list.filter((c) => c.case_mode !== 'scenario' && !c.is_scenario)
+    }
+  } else if (activeCategoryTab.value === 'web') {
+    list = list.filter((c) => c.case_type === 'web')
+  } else if (activeCategoryTab.value === 'mobile') {
+    list = list.filter((c) => ['android', 'ios'].includes(c.case_type))
+  }
+  return filterCasesByLevel(list, filterLevel.value)
+})
 
 const pendingReviewCount = computed(() => countPendingReviews(filteredCases.value))
 
@@ -770,25 +1051,11 @@ const moduleSelectOptions = computed(() =>
   })),
 )
 
-function formatDateTime(value?: string | null) {
-  return value ? value.slice(0, 19).replace('T', ' ') : '-'
-}
 
 function caseTypeLabel(type: CaseType) {
   return caseTypeOptions.value.find((item) => item.value === type)?.label ?? type
 }
 
-function caseTypeColor(type: CaseType) {
-  return {
-    api: 'geekblue',
-    graphql: 'orange',
-    websocket: 'cyan',
-    grpc: 'red',
-    web: 'purple',
-    android: 'green',
-    ios: 'blue',
-  }[type] ?? 'default'
-}
 
 function caseLevelLabel(level: CaseLevel) {
   return {
@@ -832,13 +1099,6 @@ function statusLabel(status: CaseStatus) {
   }[status]
 }
 
-function statusColor(status: CaseStatus) {
-  return {
-    draft: 'default',
-    active: 'success',
-    deprecated: 'warning',
-  }[status]
-}
 
 function automationStatusLabel(status: AutomationStatus) {
   return {
@@ -848,30 +1108,7 @@ function automationStatusLabel(status: AutomationStatus) {
   }[status]
 }
 
-function automationStatusColor(status: AutomationStatus) {
-  return {
-    manual: 'default',
-    semi_auto: 'processing',
-    auto: 'success',
-  }[status]
-}
 
-function scriptStatusLabel(status: CaseSummaryItem['script_status']) {
-  return t(`case.script_statuses.${status ?? 'not_applicable'}`)
-}
-
-function scriptStatusColor(status: CaseSummaryItem['script_status']) {
-  return {
-    generated: 'success',
-    missing: 'warning',
-    not_applicable: 'default',
-  }[status ?? 'not_applicable']
-}
-
-function flakyTooltip(testCase: CaseSummaryItem) {
-  const params = flakyTooltipParams(testCase.flaky_stats)
-  return params ? t('case.flaky.tooltip', params) : t('case.flaky.no_runs')
-}
 
 const workflowAbility = computed(() => ({ canModify: canModifyCases.value, canApprove: canApproveCases.value }))
 
@@ -961,6 +1198,7 @@ async function loadCases() {
       keyword: keyword.value.trim() || undefined,
     }
     cases.value = await caseApi.list(params)
+    void loadRecentRuns()
   } catch (error: unknown) {
     if (import.meta.env.VITE_ENABLE_PROTOTYPE_DATA === 'true') {
       cases.value = [
@@ -1130,6 +1368,14 @@ function handleProjectChange(projectId: unknown) {
   syncRoute()
 }
 
+function handleSelectFirstProject() {
+  if (projectOptions.value.length) {
+    const firstOption = projectOptions.value[0]
+    if (firstOption && typeof firstOption.value === 'number') {
+      handleProjectChange(firstOption.value)
+    }
+  }
+}
 function onModuleSelect(moduleId: number | null) {
   selectedModuleId.value = moduleId
   if (moduleId && pendingAiGeneration.value) {
@@ -1179,11 +1425,22 @@ function handleResetFilters() {
   syncRoute()
 }
 
+function resolveActiveModuleId(): number | null {
+  if (selectedModuleId.value) return selectedModuleId.value
+  const firstId = Object.keys(moduleNameMap.value)[0]
+  if (firstId) {
+    selectedModuleId.value = Number(firstId)
+    return Number(firstId)
+  }
+  return null
+}
+
 function openCreate(type: CaseType) {
   if (!canModifyCases.value) {
     message.warning(t('case.msg.read_only_role'))
     return
   }
+  resolveActiveModuleId()
   if (!selectedModuleId.value) {
     message.warning(t('case.msg.select_module_first'))
     return
@@ -1201,21 +1458,50 @@ function openCreate(type: CaseType) {
     drawerOpen.value = true
   }
 }
-
-function openEdit(testCase: CaseSummaryItem) {
+function openAiGenerate() {
   if (!canModifyCases.value) {
     message.warning(t('case.msg.read_only_role'))
     return
   }
-  if (testCase.case_type === 'web') {
-    webEditingCase.value = testCase
-    webDrawerOpen.value = true
-  } else if (testCase.case_type === 'android') {
-    androidEditingCase.value = testCase
-    androidDrawerOpen.value = true
-  } else {
-    editingCase.value = testCase
-    drawerOpen.value = true
+  resolveActiveModuleId()
+  aiDrawerOpen.value = true
+}
+
+function quickFilterPriority(p: CasePriority) {
+  filterPriority.value = p
+  void loadCases()
+}
+
+function quickFilterLevel(lvl: CaseLevel) {
+  filterLevel.value = lvl
+  void loadCases()
+}
+
+function quickFilterKeyword(kw: string) {
+  keyword.value = kw
+  void loadCases()
+}
+
+
+async function openEdit(testCase: CaseSummaryItem) {
+  if (!canModifyCases.value) {
+    message.warning(t('case.msg.read_only_role'))
+    return
+  }
+  try {
+    const detail = await caseApi.get(testCase.id)
+    if (testCase.case_type === 'web') {
+      webEditingCase.value = detail
+      webDrawerOpen.value = true
+    } else if (testCase.case_type === 'android') {
+      androidEditingCase.value = detail
+      androidDrawerOpen.value = true
+    } else {
+      editingCase.value = detail
+      drawerOpen.value = true
+    }
+  } catch (e: unknown) {
+    message.error(errorMessage(e, t('case.msg.load_failed') || '加载用例详情失败'))
   }
 }
 
@@ -1421,6 +1707,7 @@ function handleBatchImportBeforeUpload(file: File) {
     message.warning(t('case.msg.read_only_role'))
     return false
   }
+  resolveActiveModuleId()
   if (!selectedModuleId.value) {
     message.warning(t('case.msg.select_target_module_first'))
     return false
@@ -1568,30 +1855,64 @@ onMounted(async () => {
   gap: 8px;
   flex-shrink: 0;
 }
-.summary-row :deep(.ant-card) {
-  border-radius: var(--radius-md);
-  border: 1px solid var(--c-border);
-  box-shadow: var(--shadow-xs);
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
+.case-bento-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 16px;
 }
-
-.summary-row :deep(.ant-card:hover) {
-  transform: translateY(-2px);
+.case-bento-tile {
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-md);
+  padding: 14px 16px;
   box-shadow: var(--shadow-sm);
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+.case-bento-tile:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
   border-color: var(--c-border-strong);
 }
-
-.summary-row :deep(.ant-statistic-content) {
-  font-size: 24px;
-  font-weight: 700;
-  font-family: 'JetBrains Mono', monospace;
-  color: var(--c-text);
+.tile-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
 }
-
-.summary-row :deep(.ant-statistic-title) {
-  font-size: 12px;
+.tile-label {
+  font-size: 11px;
   font-weight: 600;
   color: var(--c-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.tile-value {
+  font-size: 26px;
+  font-weight: 700;
+  font-family: 'JetBrains Mono', var(--font-sans);
+  color: var(--c-text);
+  line-height: 1.15;
+  margin: 2px 0;
+}
+.tile-value.value-warn {
+  color: var(--c-warning);
+}
+.tile-value.value-danger {
+  color: var(--c-error);
+}
+.tile-footer {
+  font-size: 11px;
+  color: var(--c-text-tertiary);
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.tile-footer b {
+  color: var(--c-text);
+  font-weight: 600;
 }
 
 .workspace {
@@ -1620,8 +1941,24 @@ onMounted(async () => {
 
 .side-panel :deep(.ant-tree) {
   background: transparent;
+  color: var(--c-text);
 }
-
+.side-panel :deep(.ant-tree .ant-tree-node-content-wrapper) {
+  border-radius: var(--radius-sm);
+  padding: 3px 6px;
+  transition: all 0.16s ease;
+}
+.side-panel :deep(.ant-tree .ant-tree-node-content-wrapper:hover) {
+  background: var(--c-bg-subtle);
+}
+.side-panel :deep(.ant-tree .ant-tree-node-selected) {
+  background: var(--c-primary-soft) !important;
+  color: var(--c-primary) !important;
+  font-weight: 600;
+}
+.side-panel :deep(.ant-tree-switcher) {
+  line-height: 28px;
+}
 .main-panel {
   min-width: 0;
   display: flex;
@@ -1745,9 +2082,417 @@ onMounted(async () => {
   margin-top: 12px;
 }
 
+.filter-primary-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.filter-advanced-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 10px;
+  padding: 8px 12px;
+  background: var(--c-bg-subtle, #f8fafc);
+  border: 1px dashed var(--c-border, #e2e8f0);
+  border-radius: 6px;
+}
+
+.adv-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.case-category-tabs-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--c-border);
+  background: var(--c-bg-subtle, #f8fafc);
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.category-tabs-pill {
+  display: inline-flex;
+  align-items: center;
+  background: var(--c-bg-muted, #f1f5f9);
+  border: 1px solid var(--c-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 3px;
+  gap: 3px;
+}
+
+.category-pill-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 12px;
+  height: 28px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--c-text-secondary, #64748b);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.18s ease;
+  white-space: nowrap;
+}
+
+.category-pill-btn:hover {
+  color: var(--c-text, #1e293b);
+}
+
+.category-pill-btn.is-active {
+  background: var(--c-bg-elevated, #fff);
+  color: var(--c-text, #1e293b);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04);
+}
+
+.category-pill-btn.pill-api.is-active { color: #1677ff; }
+.category-pill-btn.pill-web.is-active { color: #722ed1; }
+.category-pill-btn.pill-mobile.is-active { color: #389e0d; }
+
+.pill-icon {
+  font-size: 13px;
+}
+
+.pill-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 8px;
+  font-size: 10.5px;
+  font-weight: 700;
+  background: var(--c-border, #e2e8f0);
+  color: var(--c-text-tertiary, #94a3b8);
+}
+
+.category-pill-btn.is-active .pill-count {
+  background: var(--c-primary-soft, #e6f4ff);
+  color: var(--c-primary, #1677ff);
+}
+
+.category-bar-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sub-tool-btn {
+  font-size: 12px;
+  color: var(--c-text-secondary, #64748b);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 8px;
+  height: 28px;
+}
+
+.sub-tool-btn:hover {
+  color: var(--c-primary, #1677ff);
+}
+
+.case-name-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 2px 0;
+}
+
+.case-title-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.case-type-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 5px;
+  font-size: 10.5px;
+  font-weight: 700;
+  border-radius: 3px;
+  border: 1px solid transparent;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.badge-api, .badge-graphql, .badge-websocket, .badge-grpc {
+  background: #e6f4ff;
+  color: #0958d9;
+  border-color: #91caff;
+}
+
+.badge-web {
+  background: #f9f0ff;
+  color: #722ed1;
+  border-color: #d3adf7;
+}
+
+.badge-android, .badge-ios {
+  background: #f6ffed;
+  color: #389e0d;
+  border-color: #b7eb8f;
+}
+
+.case-link-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--c-text, #1e293b);
+  cursor: pointer;
+  transition: color 0.15s ease;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex-shrink: 1;
+  padding: 0;
+  margin: 0;
+}
+
+.case-link-title:hover {
+  color: var(--c-primary, #1677ff);
+  text-decoration: underline;
+}
+
+.case-code-badge {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--c-text-tertiary, #94a3b8);
+  background: var(--c-bg-subtle, #f1f5f9);
+  padding: 1px 5px;
+  border-radius: 3px;
+  border: 1px solid var(--c-border, #e2e8f0);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.case-meta-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: nowrap;
+  font-size: 11.5px;
+  min-width: 0;
+}
+
+.method-tag {
+  display: inline-block;
+  padding: 1px 5px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 3px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.method-GET { background: #e6f4ff; color: #0958d9; }
+.method-POST { background: #f6ffed; color: #389e0d; }
+.method-PUT { background: #fff7e6; color: #d46b08; }
+.method-DELETE { background: #fff1f0; color: #cf1322; }
+
+.path-text {
+  font-size: 11px;
+  font-family: monospace;
+  color: var(--c-text-secondary, #64748b);
+  background: var(--c-bg-subtle, #f8fafc);
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.summary-text {
+  font-size: 11.5px;
+  color: var(--c-text-tertiary, #94a3b8);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.automation-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #1677ff;
+  background: #e6f4ff;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.ai-chip {
+  font-size: 10px;
+  font-weight: 600;
+  color: #722ed1;
+  background: #f9f0ff;
+  padding: 1px 5px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.tag-chip {
+  font-size: 10px;
+  color: var(--c-text-tertiary, #94a3b8);
+  background: var(--c-bg-muted, #f1f5f9);
+  padding: 1px 4px;
+  border-radius: 3px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.tag-chip-more {
+  font-size: 10px;
+  color: var(--c-text-tertiary, #94a3b8);
+  flex-shrink: 0;
+}
+
+.run-status-cell {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.run-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.tag-passed { background: #f6ffed; color: #389e0d; border: 1px solid #b7eb8f; }
+.tag-failed { background: #fff1f0; color: #cf1322; border: 1px solid #ffa39e; }
+.tag-running { background: #fffbe6; color: #d46b08; border: 1px solid #ffe58f; }
+.tag-none { color: var(--c-text-tertiary, #94a3b8); font-size: 11px; }
+
+.run-duration {
+  font-size: 11px;
+  color: var(--c-text-tertiary, #94a3b8);
+  font-family: monospace;
+  white-space: nowrap;
+}
+.case-title-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  line-height: 1.4;
+}
+
+.case-link-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--c-text, #1e293b);
+  cursor: pointer;
+  transition: color 0.15s ease;
+  line-height: 1.35;
+  padding: 0;
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.case-link-title:hover {
+  color: var(--c-primary, #1677ff);
+  text-decoration: underline;
+}
+
+.level-priority-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+}
+
+.priority-tag {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 18px;
+  padding: 0 6px;
+}
+
+.level-sub-text {
+  font-size: 11px;
+  color: var(--c-text-tertiary, #94a3b8);
+}
+
+.run-badge-line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.run-date-line {
+  font-size: 11px;
+  color: var(--c-text-tertiary, #94a3b8);
+  margin-top: 2px;
+  font-family: monospace;
+}
+
+.review-status-tag {
+  margin: 0;
+  font-size: 11px;
+}
+
+.module-text {
+  display: block;
+  font-size: 12px;
+  color: var(--c-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.table-card :deep(.ant-table-selection-column) {
+  width: 36px !important;
+  min-width: 36px !important;
+  max-width: 36px !important;
+  padding-left: 12px !important;
+  padding-right: 0 !important;
+  text-align: center;
+}
+
+.table-card :deep(.ant-table-tbody > tr > td:nth-child(2)),
+.table-card :deep(.ant-table-thead > tr > th:nth-child(2)) {
+  padding-left: 6px !important;
+}
+
 .import-error-title {
   color: var(--c-text-secondary);
   font-size: 12px;
+}
+
+@media (max-width: 1024px) {
+  .case-bento-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
 }
 
 @media (max-width: 960px) {
@@ -1760,7 +2505,6 @@ onMounted(async () => {
   .workspace {
     grid-template-columns: 1fr;
   }
-
   .toolbar-main,
   .toolbar-actions {
     flex: 1 1 auto;
@@ -1795,12 +2539,123 @@ onMounted(async () => {
     max-height: 320px;
   }
 
-  .summary-row :deep(.ant-statistic-content) {
-    font-size: 20px;
+  .case-bento-grid {
+    grid-template-columns: 1fr;
   }
-
   .table-card {
     overflow: hidden;
   }
+}
+.category-empty-guide {
+  padding: 36px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.empty-guide-icon {
+  font-size: 36px;
+  margin-bottom: 4px;
+}
+
+.category-empty-guide h4 {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--c-text);
+  margin: 0;
+}
+
+.category-empty-guide p {
+  font-size: 13px;
+  color: var(--c-text-secondary);
+  max-width: 460px;
+  margin: 0 0 8px;
+}
+
+.priority-tag,
+.level-sub-text {
+  cursor: pointer;
+  transition: opacity 0.15s ease;
+}
+
+.priority-tag:hover,
+.level-sub-text:hover {
+  opacity: 0.8;
+  text-decoration: underline;
+}
+.api-sub-category-pills {
+  display: inline-flex;
+  align-items: center;
+  background: var(--c-bg-subtle, #f0f2f5);
+  padding: 2px 4px;
+  border-radius: 8px;
+  margin-left: 12px;
+  gap: 2px;
+}
+.sub-pill-btn {
+  border: none;
+  background: transparent;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  color: var(--c-text-secondary, #666);
+  transition: all 0.2s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.sub-pill-btn:hover {
+  color: var(--c-text, #14142b);
+}
+.sub-pill-btn.is-active {
+  background: #ffffff;
+  color: var(--c-primary, #5850ec);
+  font-weight: 600;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+.sub-pill-btn.btn-scenario.is-active {
+  color: #722ed1;
+}
+.sub-pill-btn.btn-single.is-active {
+  color: #0958d9;
+}
+.scenario-pipeline-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 7px;
+  border-radius: 9999px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #722ed1;
+  background: rgba(114, 46, 209, 0.08);
+  border: 1px solid rgba(114, 46, 209, 0.25);
+}
+.single-api-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #0958d9;
+  background: rgba(22, 119, 255, 0.08);
+}
+.goto-workbench-link {
+  font-size: 12px;
+  padding: 0 6px;
+}
+.single-point-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: 4px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #389e0d;
+  background: rgba(82, 196, 26, 0.08);
 }
 </style>

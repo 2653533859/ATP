@@ -31,6 +31,17 @@ from app.services.execution_routing import enqueue_case_run
 
 router = APIRouter(prefix="/ai-healing", tags=["AI 自愈 iter5"])
 
+REASON_LABELS: dict[str, str] = {
+    "missing_patch": "当前诊断建议为文字分析，未包含可直接自动应用的结构化补丁。建议根据上方诊断建议手动调整用例。",
+    "unsupported_case_type": "当前用例类型非低代码 Web/Android，自动修补目前仅支持可视化低代码用例。建议根据诊断建议手动修改用例。",
+    "patch_case_type_mismatch": "补丁适用的用例类型与当前用例不一致",
+    "case_config_steps_missing": "用例缺少步骤配置",
+    "step_index_out_of_range": "补丁目标步骤序号超出范围",
+    "target_step_invalid": "目标步骤无效",
+    "unsupported_action": "补丁包含不支持的操作类型",
+    "action_replacement_requires_manual_design": "替换整个动作类型需要人工设计确认",
+}
+
 
 @router.post("/patch-preview", response_model=HealingPatchPreviewOut)
 async def preview_healing_patch(
@@ -46,8 +57,8 @@ async def preview_healing_patch(
     case, _module = await _get_case_and_assert_access(db, user, body.case_id)
     try:
         patch = _resolve_patch(body)
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc))
+    except ValueError:
+        patch = None
 
     case_type = case.case_type.value if hasattr(case.case_type, "value") else str(case.case_type)
     result = validate_lowcode_patch(
@@ -63,11 +74,12 @@ async def preview_healing_patch(
             "action": result.normalized_patch.action,
             "params": result.normalized_patch.params,
         }
+    reasons = [REASON_LABELS.get(r, r) for r in result.reasons]
     return HealingPatchPreviewOut(
         accepted=result.accepted,
-        reasons=result.reasons,
+        reasons=reasons,
         normalized_patch=normalized_patch,
-        preview_config=result.preview_config,
+        preview_config=result.preview_config or case.config or {},
     )
 
 

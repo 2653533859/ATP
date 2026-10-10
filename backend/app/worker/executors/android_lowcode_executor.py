@@ -52,6 +52,7 @@ from app.services.device_compatibility import DeviceCompatibilityError, build_an
 from app.services.device_leases import DeviceLeaseConflict, acquire_device_lease, release_device_lease
 from app.services.dataset_execution import redact_execution_evidence
 from app.services.mobile_special.preflight import AndroidPreflightError, run_android_preflight
+from app.services.step_result_collector import StepResultBatchCollector
 
 logger = logging.getLogger(__name__)
 
@@ -768,6 +769,7 @@ async def _run_android_lowcode_steps(
         if recording_process is None:
             recording_error = "设备不支持或无法启动录屏"
 
+    step_collector = StepResultBatchCollector(db)
     try:
         for idx, step_def in enumerate(steps):
             step_start = time.monotonic()
@@ -814,8 +816,7 @@ async def _run_android_lowcode_steps(
                 error_message=error_message,
                 screenshot_url=screenshot_url,
             )
-            db.add(step_result)
-            await db.commit()
+            await step_collector.add(step_result)
 
             await _safe_publish(
                 run.id,
@@ -843,6 +844,8 @@ async def _run_android_lowcode_steps(
         logger.exception("android_lowcode run %s error: %s", run.id, e)
         all_passed = False
         run.error_message = str(e)[:500]
+    finally:
+        await step_collector.flush()
 
     if cfg.get("collect_device_artifacts", True):
         device_info_url = await _capture_android_text_artifact(

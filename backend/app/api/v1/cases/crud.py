@@ -8,12 +8,13 @@ _get_case_detail_or_404 等）通过 ``app.api.v1.cases`` 模块访问，确保
 from __future__ import annotations
 
 import copy
+from datetime import datetime, timezone
 import json
 import asyncio
-
 import app.api.v1.cases as _cases
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, or_, select
+from sqlalchemy import update as sql_update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import assert_project_access, get_current_user
@@ -82,49 +83,9 @@ def _empty_flaky_stats() -> dict:
 
 
 async def _attach_flaky_stats(db: AsyncSession, cases: list[TestCase]) -> None:
-    case_ids = [case.id for case in cases]
-    if not case_ids:
-        return
+    from app.services.flaky_detector import attach_flaky_stats
 
-    ranked = (
-        select(
-            TestRun.case_id.label("case_id"),
-            TestRun.status.label("status"),
-            func.row_number()
-            .over(
-                partition_by=TestRun.case_id,
-                order_by=(TestRun.created_at.desc(), TestRun.id.desc()),
-            )
-            .label("rn"),
-        )
-        .where(
-            TestRun.case_id.in_(case_ids),
-            TestRun.status.in_(FLAKY_TERMINAL_STATUSES),
-            TestRun.parent_run_id.is_(None),
-        )
-        .subquery()
-    )
-    rows = (await db.execute(select(ranked.c.case_id, ranked.c.status).where(ranked.c.rn <= FLAKY_WINDOW_SIZE))).all()
-
-    stats_by_case = {case_id: _empty_flaky_stats() for case_id in case_ids}
-    for row in rows:
-        stats = stats_by_case[row.case_id]
-        stats["total_runs"] += 1
-        status = row.status.value if hasattr(row.status, "value") else str(row.status)
-        if status == "passed":
-            stats["passed_runs"] += 1
-        elif status == "failed":
-            stats["failed_runs"] += 1
-        elif status == "error":
-            stats["error_runs"] += 1
-
-    for case in cases:
-        stats = stats_by_case.get(case.id, _empty_flaky_stats())
-        failure_runs = stats["failed_runs"] + stats["error_runs"]
-        if stats["total_runs"]:
-            stats["failure_rate"] = round(failure_runs / stats["total_runs"] * 100, 1)
-        stats["is_flaky"] = stats["total_runs"] >= FLAKY_MIN_RUNS and stats["passed_runs"] > 0 and failure_runs > 0
-        setattr(case, "flaky_stats", stats)
+    await attach_flaky_stats(db, cases)
 
 
 @router.get("/cases", response_model=list[TestCaseOut])
@@ -139,6 +100,7 @@ async def list_cases(
     automation_status: str | None = None,
     tag: str | None = None,
     keyword: str | None = None,
+    case_mode: str | None = None,
     db: AsyncSession = Depends(get_db),
     user=Depends(get_current_user),
 ):
@@ -181,6 +143,8 @@ async def list_cases(
     items = result.scalars().all()
     if tag:
         items = [case for case in items if tag in (case.tags or [])]
+    if case_mode in ("single", "scenario"):
+        items = [case for case in items if case.case_mode == case_mode]
     await _attach_flaky_stats(db, items)
     return items
 
@@ -199,16 +163,17 @@ async def create_case(
     config = copy.deepcopy(body.config)
     _cases._validate_protocol_config(body.case_type, config)
     steps_payload = _cases._normalize_steps(body.steps, body.case_type, body.config, body.name)
+    can_auto_approve = body.auto_approve is True
     case = TestCase(
         name=body.name,
         description=body.description,
         case_code=await _cases._generate_case_code(db, module, body.case_type),
         summary=body.summary or body.description or body.name,
         case_type=body.case_type,
-        status=CaseStatus.draft,
+        status=CaseStatus.active if can_auto_approve else CaseStatus.draft,
         priority=body.priority,
         case_level=body.case_level,
-        review_status="pending",
+        review_status="approved" if can_auto_approve else "pending",
         automation_status=body.automation_status,
         tags=list(body.tags),
         module_id=body.module_id,
@@ -219,6 +184,8 @@ async def create_case(
         config=config,
         dataset_id=dataset_id,
         dataset_version=dataset_version,
+        reviewed_at=datetime.now(timezone.utc) if can_auto_approve else None,
+        reviewed_by=current_user.id if can_auto_approve else None,
     )
     await _cases._replace_case_steps(db, case, steps_payload)
     db.add(case)
@@ -263,6 +230,7 @@ async def get_case(case_id: int, db: AsyncSession = Depends(get_db), user=Depend
     module = await db.get(Module, case.module_id)
     if module:
         await assert_project_access(db, user, module.project_id, ProjectRole.viewer)
+        case.project_id = module.project_id
     await _attach_flaky_stats(db, [case])
     return case
 
@@ -279,6 +247,34 @@ async def update_case(
     if module:
         await assert_project_access(db, current_user, module.project_id, ProjectRole.editor)
     payload = body.model_dump(exclude_unset=True)
+    expected_updated_at = payload.pop("expected_updated_at", None)
+    auto_approve = payload.pop("auto_approve", None)
+    expected_config = payload.pop("expected_config", None)
+    if expected_config is not None and expected_updated_at is None:
+        raise HTTPException(status_code=422, detail="配置预览校验必须同时提供 expected_updated_at")
+    if expected_updated_at is not None:
+        # 先取得 SQLite 写锁或 PostgreSQL 行锁，再读取并校验预览版本。
+        await db.execute(
+            sql_update(TestCase)
+            .where(TestCase.id == case_id)
+            .values(updated_at=TestCase.updated_at)
+            .execution_options(synchronize_session=False)
+        )
+        await db.refresh(case, attribute_names=list(TestCase.__table__.columns.keys()))
+        dt_curr = (
+            case.updated_at.replace(tzinfo=timezone.utc)
+            if case.updated_at and case.updated_at.tzinfo is None
+            else case.updated_at
+        )
+        dt_exp = (
+            expected_updated_at.replace(tzinfo=timezone.utc)
+            if expected_updated_at.tzinfo is None
+            else expected_updated_at
+        )
+        if dt_curr != dt_exp:
+            raise HTTPException(status_code=409, detail="用例已被修改，请重新生成预览后再提交")
+        if expected_config is not None and case.config != expected_config:
+            raise HTTPException(status_code=409, detail="用例配置已被修改，请重新生成预览后再提交")
     if "config" in payload:
         _cases._validate_protocol_config(case.case_type, payload["config"])
     db.add(_cases._build_snapshot(case, await _cases._next_snapshot_version(db, case_id), current_user.id))
@@ -329,9 +325,14 @@ async def update_case(
             db, case, _cases._normalize_steps([], case.case_type, case.config or {}, case.name)
         )
 
-    if case.review_status == "approved":
+    if auto_approve is True:
+        case.review_status = "approved"
+        case.status = CaseStatus.active
+        case.reviewed_at = datetime.now(timezone.utc)
+        case.reviewed_by = current_user.id
+        case.review_comment = "修改并直接生效免审"
+    elif case.review_status == "approved":
         _cases._reset_review_after_edit(case)
-
     await db.commit()
     return await _cases._get_case_detail_or_404(db, case_id)
 

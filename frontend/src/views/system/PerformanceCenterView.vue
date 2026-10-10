@@ -3,7 +3,6 @@
     <div class="header">
       <div>
         <h2>{{ t('performance.title') }}</h2>
-        <div class="subtitle">{{ t('performance.subtitle') }}</div>
       </div>
       <a-space>
         <a-select
@@ -24,7 +23,7 @@
       </a-space>
     </div>
 
-    <PerformanceNodePanel
+    <PerformanceNodePanel v-if="!localMode"
       :nodes="nodes"
       :loading="nodesLoading"
       @refresh="loadNodes"
@@ -67,7 +66,7 @@
                 <template #icon><EditOutlined /></template>
               </a-button>
             </a-tooltip>
-            <a-tooltip :title="t('performance.schedule')">
+            <a-tooltip v-if="!localMode" :title="t('performance.schedule')">
               <a-button size="small" @click="openSchedule(asPerfTest(record))">
                 <template #icon><ClockCircleOutlined /></template>
               </a-button>
@@ -839,6 +838,8 @@
 </template>
 
 <script setup lang="ts">
+import { getRuntimeMode } from '@/runtimeMode'
+const localMode = getRuntimeMode()?.mode === 'local'
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
@@ -1375,6 +1376,10 @@ async function loadDatasets() {
 }
 
 async function loadNodes() {
+  if (localMode) {
+    nodes.value = []
+    return
+  }
   nodesLoading.value = true
   try {
     nodes.value = await performanceApi.listNodes()
@@ -2341,9 +2346,9 @@ onBeforeUnmount(stopRunPolling)
 
 .stages-editor {
   padding: 12px;
-  border: 1px solid #f0f0f0;
-  border-radius: 8px;
-  background: #fafafa;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-bg-subtle);
 }
 
 .behavior-editor {
@@ -2361,9 +2366,9 @@ onBeforeUnmount(stopRunPolling)
 .behavior-step {
   margin-bottom: 10px;
   padding: 12px;
-  border: 1px solid #e8e8e8;
-  border-radius: 6px;
-  background: #fff;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-bg-subtle);
 }
 
 .behavior-step-header {
@@ -2451,9 +2456,10 @@ onBeforeUnmount(stopRunPolling)
   margin: 0;
   padding: 10px 12px;
   overflow: auto;
-  border: 1px solid #f0f0f0;
-  border-radius: 4px;
-  background: #fafafa;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  background: var(--c-bg-subtle);
+  color: var(--c-text);
   font-size: 12px;
   white-space: pre-wrap;
   word-break: break-word;

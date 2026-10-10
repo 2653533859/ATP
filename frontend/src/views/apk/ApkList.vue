@@ -3,7 +3,6 @@
     <div class="page-hero">
       <div>
         <h2 class="page-title">{{ t('apk.title') }}</h2>
-        <div class="page-subtitle">{{ t('apk.subtitle') }}</div>
       </div>
       <a-button type="primary" @click="uploadOpen = true">
         <UploadOutlined /> {{ t('apk.upload') }}

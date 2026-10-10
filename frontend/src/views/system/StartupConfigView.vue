@@ -1,10 +1,9 @@
 <template>
   <div class="page-shell startup-config system-page">
-    <section class="config-hero">
-      <div class="hero-copy">
-        <div class="eyebrow"><SettingOutlined /> {{ t('system_pages.startup_config.eyebrow') }}</div>
-        <h1>{{ t('system_pages.startup_config.title') }}</h1>
-        <p>{{ t('system_pages.startup_config.subtitle') }}</p>
+    <header class="config-toolbar page-header">
+      <div class="toolbar-left">
+        <SettingOutlined class="toolbar-icon" />
+        <h2 class="toolbar-title page-title">{{ t('system_pages.startup_config.title') }}</h2>
       </div>
       <div class="hero-status">
         <a-tag :color="isReady ? 'success' : 'warning'">
@@ -14,7 +13,7 @@
         </a-tag>
         <span class="draft-state">{{ isDirty ? t('system_pages.startup_config.draft_unsaved') : t('system_pages.startup_config.draft_saved') }}</span>
       </div>
-    </section>
+    </header>
 
     <section class="boot-runway" :aria-label="t('system_pages.startup_config.steps.aria')">
       <div class="runway-step active">
@@ -759,32 +758,34 @@ onMounted(loadDraft)
   padding-bottom: 20px;
 }
 
-.config-hero {
-  position: relative;
+.config-toolbar {
   display: flex;
   justify-content: space-between;
-  gap: 20px;
-  overflow: hidden;
-  padding: 28px 30px;
-  border-radius: 18px;
-  color: #fff;
-  background:
-    radial-gradient(circle at 84% 10%, rgba(165, 180, 252, 0.34), transparent 32%),
-    linear-gradient(120deg, #111827 0%, #1e1b4b 56%, #4338ca 100%);
-  box-shadow: 0 14px 32px rgba(30, 27, 75, 0.2);
+  align-items: center;
+  gap: 16px;
+  height: 48px;
+  padding: 0 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 16px;
 }
-
-.config-hero::after {
-  position: absolute;
-  right: 9%;
-  bottom: -48px;
-  width: 180px;
-  height: 180px;
-  border: 1px solid rgba(255, 255, 255, 0.18);
-  border-radius: 50%;
-  content: '';
+.toolbar-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
-
+.toolbar-icon {
+  color: var(--c-primary);
+  font-size: 16px;
+}
+.toolbar-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--c-text);
+}
 .hero-copy,
 .hero-status {
   position: relative;
@@ -817,13 +818,13 @@ onMounted(loadDraft)
 
 .hero-status {
   display: flex;
-  flex-direction: column;
-  align-items: flex-end;
-  gap: 10px;
+  flex-direction: row;
+  align-items: center;
+  gap: 12px;
 }
 
 .draft-state {
-  color: #c7d2fe;
+  color: var(--c-text-secondary);
   font-size: 12px;
 }
 

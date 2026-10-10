@@ -31,6 +31,7 @@ from app.services.api_scenario import ApiScenarioError, build_api_scenario_polic
 from app.services.dataset_execution import redact_execution_evidence
 from app.services.safe_expressions import SafeExpressionError, evaluate_safe_expression
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
+from app.services.step_result_collector import StepResultBatchCollector
 
 _tracer = get_tracer("atp.executor.api")
 
@@ -89,6 +90,7 @@ async def _record_skipped_scenario_step(
     index: int,
     name: str,
     reason: str,
+    collector: StepResultBatchCollector | None = None,
 ) -> None:
     result = StepResult(
         run_id=run.id,
@@ -99,8 +101,11 @@ async def _record_skipped_scenario_step(
         response_data={"orchestration": {"skipped": True, "reason": reason}},
         error_message=reason,
     )
-    db.add(result)
-    await db.commit()
+    if collector is not None:
+        await collector.add(result)
+    else:
+        db.add(result)
+        await db.commit()
     await _safe_publish_run_event(
         run.id,
         {
@@ -149,6 +154,7 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
     stop_remaining = False
     oauth_token_cache: dict[str, tuple[str, float]] = {}
 
+    step_collector = StepResultBatchCollector(db)
     for idx, step in enumerate(steps):
         step_name = step.get("name", f"Step {idx + 1}")
         dependencies = step_dependencies(step, idx)
@@ -163,7 +169,7 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                 if stop_remaining
                 else f"依赖步骤未通过: {', '.join(str(item + 1) for item in failed_dependencies)}"
             )
-            await _record_skipped_scenario_step(db, run, idx, step_name, reason)
+            await _record_skipped_scenario_step(db, run, idx, step_name, reason, collector=step_collector)
             completed_status[idx] = RunStatus.skipped
             all_passed = False
             continue
@@ -179,8 +185,6 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                 name=step_name,
                 status=RunStatus.running,
             )
-            db.add(step_result)
-            await db.commit()
 
             request_data = {}
             response_data = {}
@@ -340,7 +344,7 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
             step_result.response_data = persisted_response_data
             step_result.error_message = error_msg
             needs_healing = apply_healing_hook(step_result)
-            await db.commit()
+            await step_collector.add(step_result, flush=needs_healing)
             if needs_healing:
                 enqueue_diagnosis(step_result.id)
 
@@ -370,6 +374,8 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                     },
                 },
             )
+
+    await step_collector.flush()
 
     if shared_client is not None:
         try:

@@ -9,11 +9,11 @@ export function createBackendProxy(backendOrigin: string) {
   const websocketOrigin = normalizedOrigin.replace(/^http/, 'ws')
 
   return {
-    '/api': {
+    '^/api(?:[/?#]|$)': {
       target: normalizedOrigin,
       changeOrigin: true,
     },
-    '/ws': {
+    '^/ws(?:[/?#]|$)': {
       target: websocketOrigin,
       changeOrigin: true,
       ws: true,

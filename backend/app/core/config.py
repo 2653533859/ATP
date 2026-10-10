@@ -28,6 +28,9 @@ _LOCAL_PROFILE_KEYS = frozenset(
         "ENCRYPTION_KEY",
         "ADB_SCAN_ENABLED",
         "PERFORMANCE_NODE_ENABLED",
+        "PERFORMANCE_EXECUTORS",
+        "WEB_BROWSER_POOLING_ENABLED",
+        "WEB_BROWSER_POOL_MAX_CONTEXTS",
     }
 )
 
@@ -212,6 +215,9 @@ class Settings(BaseSettings):
     WEB_RECORDER_SESSION_TTL_SECONDS: int = 3600
     # Web recorder display (Linux remote deployments need an accessible X display)
     WEB_RECORDER_DISPLAY: str = ""
+    # Playwright 浏览器实例池化复用（阶段二性能优化，生产环境下开启）
+    WEB_BROWSER_POOLING_ENABLED: bool = False
+    WEB_BROWSER_POOL_MAX_CONTEXTS: int = 50
 
     # Case snapshot retention
     CASE_SNAPSHOT_MAX_PER_CASE: int = 50
@@ -227,7 +233,7 @@ class Settings(BaseSettings):
     DB_BACKUP_PREFIX: str = "pg-backups"  # MinIO 对象前缀
 
     # P3.A AI 用例自愈：失败 step 异步诊断（依赖项目 ai_llm_config 已配置）
-    AI_HEALING_ENABLED: bool = False  # 默认关闭，启用后失败 step 自动入队 LLM 诊断
+    AI_HEALING_ENABLED: bool = True  # 启用后失败 step 自动入队 LLM 诊断（需项目配置 AI LLM）
     AI_HEALING_TIMEOUT_SECONDS: int = 60  # LLM 调用超时，避免诊断任务长时间挂起
     AI_HEALING_DAILY_LIMIT: int = 100  # 每日 LLM 调用上限（0 = 不限）；超限走 skipped
     AI_HEALING_CACHE_TTL_SECONDS: int = 3600  # 相同错误特征缓存复用 TTL（0 = 关闭缓存）

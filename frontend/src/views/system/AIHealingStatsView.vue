@@ -1,40 +1,63 @@
 <template>
-  <div class="ai-healing-stats">
-    <div class="toolbar">
-      <h2>AI 自愈采纳率</h2>
-      <a-space>
-        <a-select v-model:value="days" style="width: 120px" :options="dayOptions" @change="loadStats" />
-        <a-button @click="loadStats">刷新</a-button>
-      </a-space>
-    </div>
+  <div class="page-shell ai-healing-page">
+    <header class="page-header healing-stats-toolbar">
+      <div class="toolbar-left">
+        <h2 class="toolbar-title">AI 自愈采纳率</h2>
+      </div>
+      <div class="toolbar-right">
+        <a-space>
+          <a-select v-model:value="days" size="small" style="width: 120px" :options="dayOptions" @change="loadStats" />
+          <a-button size="small" @click="loadStats">刷新</a-button>
+        </a-space>
+      </div>
+    </header>
 
     <a-spin :spinning="loading">
-      <a-row :gutter="[16, 16]">
-        <a-col :xs="12" :md="6">
-          <a-card><a-statistic title="总反馈数" :value="stats.total_feedback_count" /></a-card>
-        </a-col>
-        <a-col :xs="12" :md="6">
-          <a-card><a-statistic title="总采纳率" :value="stats.adopted_rate" suffix="%" :precision="2" /></a-card>
-        </a-col>
-        <a-col :xs="12" :md="6">
-          <a-card><a-statistic title="已采纳" :value="stats.adopted_count" /></a-card>
-        </a-col>
-        <a-col :xs="12" :md="6">
-          <a-card><a-statistic title="高质量示例" :value="stats.high_quality_example_count" /></a-card>
-        </a-col>
-        <a-col :xs="12" :md="6">
-          <a-card><a-statistic title="回归触发" :value="stats.production_feedback.regression_triggered_count" /></a-card>
-        </a-col>
-        <a-col :xs="12" :md="6">
-          <a-card><a-statistic title="回归通过率" :value="stats.production_feedback.regression_success_rate" suffix="%" :precision="2" /></a-card>
-        </a-col>
-        <a-col :xs="12" :md="6">
-          <a-card><a-statistic title="回归通过" :value="stats.production_feedback.regression_success_count" /></a-card>
-        </a-col>
-        <a-col :xs="12" :md="6">
-          <a-card><a-statistic title="聚合刷新" :value="formatAggregateTime(stats.production_feedback.latest_feedback_aggregated_at)" /></a-card>
-        </a-col>
-      </a-row>
+      <div class="healing-kpi-grid">
+        <div class="kpi-card">
+          <div class="kpi-label">总反馈数</div>
+          <div class="kpi-num">{{ stats.total_feedback_count }}</div>
+          <div class="kpi-sub">线上故障捕获统计</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">总采纳率</div>
+          <div class="kpi-num" style="color: var(--c-success)">{{ (stats.adopted_rate || 0).toFixed(2) }}%</div>
+          <div class="kpi-sub">自愈方案有效采纳</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">已采纳自愈</div>
+          <div class="kpi-num" style="color: var(--c-primary)">{{ stats.adopted_count }}</div>
+          <div class="kpi-sub">已闭环自动修复</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">高质量示例</div>
+          <div class="kpi-num">{{ stats.high_quality_example_count }}</div>
+          <div class="kpi-sub">经验知识库沉淀</div>
+        </div>
+      </div>
+
+      <div class="healing-kpi-grid" style="margin-top: 14px">
+        <div class="kpi-card">
+          <div class="kpi-label">回归触发</div>
+          <div class="kpi-num">{{ stats.production_feedback.regression_triggered_count }}</div>
+          <div class="kpi-sub">触发线上验证</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">回归通过率</div>
+          <div class="kpi-num" style="color: var(--c-success)">{{ (stats.production_feedback.regression_success_rate || 0).toFixed(2) }}%</div>
+          <div class="kpi-sub">通过率达标</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">回归通过数</div>
+          <div class="kpi-num" style="color: var(--c-success)">{{ stats.production_feedback.regression_success_count }}</div>
+          <div class="kpi-sub">自愈后稳定运行</div>
+        </div>
+        <div class="kpi-card">
+          <div class="kpi-label">最近聚合时间</div>
+          <div class="kpi-num" style="font-size: 16px; margin-top: 6px">{{ formatAggregateTime(stats.production_feedback.latest_feedback_aggregated_at) }}</div>
+          <div class="kpi-sub">指标定时刷新</div>
+        </div>
+      </div>
 
       <a-card class="section" title="AI 用例生成漏斗">
         <a-row :gutter="[16, 16]">
@@ -199,19 +222,40 @@ onMounted(loadStats)
 </script>
 
 <style scoped>
-.ai-healing-stats {
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-.toolbar {
+.healing-stats-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  padding: 12px 18px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 14px;
 }
-.toolbar h2 {
+.toolbar-left .toolbar-title {
   margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--c-text);
+  letter-spacing: -0.02em;
+}
+.healing-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 14px;
+  margin-bottom: 14px;
+}
+@media (max-width: 900px) {
+  .healing-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+@media (max-width: 480px) {
+  .healing-kpi-grid {
+    grid-template-columns: 1fr;
+  }
 }
 .section {
   margin-top: 16px;

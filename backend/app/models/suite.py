@@ -1,5 +1,7 @@
 import enum
-from sqlalchemy import String, Text, ForeignKey, JSON, Enum, Integer
+from datetime import datetime
+from uuid import uuid4
+from sqlalchemy import String, Text, ForeignKey, JSON, Enum, Integer, DateTime
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, TimestampMixin
 
@@ -13,6 +15,7 @@ class TestSuite(Base, TimestampMixin):
     __tablename__ = "test_suites"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    identity_token: Mapped[str] = mapped_column(String(32), default=lambda: uuid4().hex, nullable=False)
     name: Mapped[str] = mapped_column(String(256), nullable=False)
     description: Mapped[str | None] = mapped_column(Text)
     project_id: Mapped[int] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False)
@@ -46,6 +49,8 @@ class SuiteRun(Base, TimestampMixin):
     __tablename__ = "suite_runs"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    identity_token: Mapped[str] = mapped_column(String(32), default=lambda: uuid4().hex, nullable=False)
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     suite_id: Mapped[int] = mapped_column(ForeignKey("test_suites.id", ondelete="CASCADE"), nullable=False)
     triggered_by: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
     trace_id: Mapped[str | None] = mapped_column(String(64), index=True)

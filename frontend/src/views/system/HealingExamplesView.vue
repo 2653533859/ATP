@@ -1,38 +1,47 @@
 <template>
-  <div class="healing-examples">
-    <div class="toolbar">
-      <h2>AI 自愈示例库</h2>
-      <a-space>
-        <a-input
-          v-model:value="filters.error_fingerprint"
-          allow-clear
-          placeholder="错误特征"
-          style="width: 220px"
-          @press-enter="loadExamples"
-        />
-        <a-select
-          v-model:value="filters.case_type"
-          allow-clear
-          placeholder="用例类型"
-          style="width: 140px"
-          :options="caseTypeOptions"
-        />
-        <a-select
-          v-model:value="qualityFilter"
-          style="width: 140px"
-          :options="qualityOptions"
-        />
-        <a-button @click="loadExamples">刷新</a-button>
-      </a-space>
-    </div>
+  <div class="page-shell healing-examples">
+    <header class="page-header healing-toolbar">
+      <div class="toolbar-left">
+        <h2 class="toolbar-title">AI 自愈示例库</h2>
+      </div>
+      <div class="toolbar-right">
+        <a-space>
+          <a-input
+            v-model:value="filters.error_fingerprint"
+            allow-clear
+            placeholder="错误特征"
+            style="width: 200px"
+            size="small"
+            @press-enter="loadExamples"
+          />
+          <a-select
+            v-model:value="filters.case_type"
+            allow-clear
+            placeholder="用例类型"
+            style="width: 130px"
+            size="small"
+            :options="caseTypeOptions"
+          />
+          <a-select
+            v-model:value="qualityFilter"
+            style="width: 130px"
+            size="small"
+            :options="qualityOptions"
+          />
+          <a-button size="small" @click="loadExamples">刷新</a-button>
+        </a-space>
+      </div>
+    </header>
 
-    <a-table
-      :loading="loading"
-      :data-source="examples"
-      :columns="columns"
-      :pagination="{ pageSize: 20 }"
-      row-key="id"
-    >
+    <div class="table-panel">
+      <a-table
+        :loading="loading"
+        :data-source="examples"
+        :columns="columns"
+        :pagination="{ pageSize: 20 }"
+        row-key="id"
+        size="middle"
+      >
       <template #bodyCell="{ column, record }">
         <template v-if="column.key === 'case_type'">
           <a-tag color="blue">{{ record.case_type }}</a-tag>
@@ -57,7 +66,8 @@
           </a-popconfirm>
         </template>
       </template>
-    </a-table>
+      </a-table>
+    </div>
 
     <a-modal v-model:open="detailOpen" title="示例详情" width="760px" :footer="null">
       <template v-if="selected">
@@ -195,14 +205,24 @@ onMounted(loadExamples)
   flex-direction: column;
   gap: 16px;
 }
-.toolbar {
+.healing-toolbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+  padding: 12px 18px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 14px;
 }
-.toolbar h2 {
+.toolbar-left .toolbar-title {
   margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--c-text);
+  letter-spacing: -0.02em;
 }
 .suggestion {
   max-width: 520px;
@@ -214,9 +234,10 @@ onMounted(loadExamples)
   max-height: 280px;
   overflow: auto;
   padding: 12px;
-  background: #f6f8fa;
-  border: 1px solid #e5e7eb;
-  border-radius: 6px;
+  background: var(--c-bg-subtle);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-sm);
+  color: var(--c-text);
 }
 .modal-actions {
   display: flex;

@@ -51,34 +51,43 @@
               <a-menu-item key="/api-workbench">{{ t('menu.capabilities.api') }}</a-menu-item>
               <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/mobile-special/workbench">{{ t('menu.capabilities.app') }}</a-menu-item>
               <a-menu-item key="/ui-workbench">{{ t('menu.capabilities.ui') }}</a-menu-item>
-              <a-menu-item v-if="!localMode" key="/performance-workbench">{{ t('menu.capabilities.performance') }}</a-menu-item>
-              <a-menu-item v-if="!localMode" key="/ai-workbench">{{ t('menu.capabilities.ai') }}</a-menu-item>
+              <a-menu-item v-if="supportsFeature('performance')" key="/performance-workbench">{{ t('menu.capabilities.performance') }}</a-menu-item>
+              <a-menu-item v-if="supportsFeature('ai_generation')" key="/ai-workbench">{{ t('menu.capabilities.ai') }}</a-menu-item>
             </a-sub-menu>
 
             <a-sub-menu key="test-assets">
               <template #icon><AppstoreOutlined /></template>
               <template #title>{{ t('menu.groups.test_assets_new') }}</template>
               <a-menu-item key="/cases">{{ t('menu.assets.cases') }}</a-menu-item>
-              <a-menu-item v-if="!localMode" key="/suites">{{ t('menu.assets.suites') }}</a-menu-item>
-              <a-menu-item v-if="!localMode" key="/plans">{{ t('menu.assets.plans') }}</a-menu-item>
-              <a-menu-item v-if="!localMode" key="/bugs">{{ t('menu.assets.bugs') }}</a-menu-item>
+              <a-menu-item v-if="supportsFeature('suites')" key="/suites">{{ t('menu.assets.suites') }}</a-menu-item>
+              <a-menu-item v-if="supportsFeature('plans')" key="/plans">{{ t('menu.assets.plans') }}</a-menu-item>
+              <a-menu-item v-if="supportsFeature('defects')" key="/bugs">{{ t('menu.assets.bugs') }}</a-menu-item>
               <a-menu-item key="/reports">{{ t('menu.assets.reports') }}</a-menu-item>
               <a-menu-item key="/case-reviews">{{ t('menu.assets.reviews') }}</a-menu-item>
             </a-sub-menu>
 
-            <a-sub-menu v-if="!localMode" key="intelligence-center">
+            <a-sub-menu key="intelligence-center">
               <template #icon><ApiOutlined /></template>
               <template #title>{{ t('menu.groups.intelligence_center') }}</template>
               <a-menu-item key="/hermes">{{ t('menu.intelligence.hermes') }}</a-menu-item>
+              <a-menu-item key="/ai-chat">{{ t('menu.intelligence.ai_chat') }}</a-menu-item>
               <a-menu-item key="/requirements">{{ t('menu.intelligence.requirements') }}</a-menu-item>
               <a-menu-item key="/knowledge">{{ t('menu.intelligence.knowledge') }}</a-menu-item>
             </a-sub-menu>
 
-            <a-sub-menu v-if="!localMode && canAccess(['admin', 'engineer'])" key="system-center">
+            <a-sub-menu v-if="canAccess(['admin', 'engineer'])" key="system-center">
               <template #icon><SettingOutlined /></template>
               <template #title>{{ t('menu.groups.system_center') }}</template>
-              <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/toolbox">{{ t('menu.system_center.toolbox') }}</a-menu-item>
+              <a-menu-item v-if="!localMode && canAccess(['admin', 'engineer'])" key="/system/toolbox">{{ t('menu.system_center.toolbox') }}</a-menu-item>
               <a-menu-item v-if="canAccess(['admin', 'engineer'])" key="/system/config">{{ t('menu.system_center.config') }}</a-menu-item>
+              <template v-if="localMode">
+                <a-menu-item key="/system/environments">{{ t('menu.system.environments') }}</a-menu-item>
+                <a-menu-item key="/system/global-variables">{{ t('menu.system.global_variables') }}</a-menu-item>
+                <a-menu-item key="/system/datasets">{{ t('menu.system.datasets') }}</a-menu-item>
+                <a-menu-item key="/system/web-assets">{{ t('menu.system.web_assets') }}</a-menu-item>
+                <a-menu-item key="/system/api-contract-assets">{{ t('menu.system.api_contract_assets') }}</a-menu-item>
+                <a-menu-item key="/system/ai-llm-configs">{{ t('menu.system.ai_llm_configs') }}</a-menu-item>
+              </template>
             </a-sub-menu>
           </a-menu>
         </div>
@@ -284,7 +293,7 @@ import { getLocale, setLocale, type SupportedLocale } from '@/locales'
 import { hasAnyRole, type UserRole } from '@/utils/permissions'
 import { projectContextRenderKey, projectSelectionLocation } from '@/utils/projectContext'
 import { projectApi, webRecordingApi, workbenchApi, type ProjectItem, type WebRecordingWorkersResponse } from '@/api'
-import { getRuntimeMode } from '@/runtimeMode'
+import { getRuntimeMode, supportsFeature } from '@/runtimeMode'
 import {
   getBreadcrumbKeys,
   getMenuOpenKeys,
@@ -310,8 +319,8 @@ let workbenchRefreshTimer: number | undefined
 
 const collapsed = ref(false)
 
-const selectedKeys = ref([getSelectedMenuKey(route.path)])
-const openKeys = ref<string[]>(getMenuOpenKeys(route.path))
+const selectedKeys = ref([getSelectedMenuKey(route.path, localMode)])
+const openKeys = ref<string[]>(getMenuOpenKeys(route.path, localMode))
 
 // 快捷搜索状态
 const quickSearchOpen = ref(false)
@@ -382,8 +391,9 @@ function onGlobalKeydown(e: KeyboardEvent) {
 }
 
 watch(() => route.path, (path) => {
-  selectedKeys.value = [getSelectedMenuKey(path)]
-  openKeys.value = getMenuOpenKeys(path)
+  selectedKeys.value = [getSelectedMenuKey(path, localMode)]
+  const activeKeys = getMenuOpenKeys(path, localMode)
+  openKeys.value = Array.from(new Set([...openKeys.value, ...activeKeys]))
 })
 
 function queryProjectId(value: unknown) {
@@ -542,15 +552,15 @@ function onLocaleChange(value: unknown) {
 .brand-logo {
   width: 32px;
   height: 32px;
-  border-radius: 10px;
-  background: linear-gradient(135deg, #1677ff 0%, #13c2c2 100%);
+  border-radius: var(--radius-md);
+  background: linear-gradient(135deg, #6366f1 0%, #ec4899 100%);
   color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 17px;
   flex-shrink: 0;
-  box-shadow: 0 2px 10px rgba(22, 119, 255, 0.24);
+  box-shadow: 0 4px 14px var(--c-primary-glow);
 }
 .brand-text {
   display: flex;
@@ -699,7 +709,7 @@ function onLocaleChange(value: unknown) {
 }
 .worker-progress-bar {
   height: 100%;
-  background: linear-gradient(90deg, #1677ff, #13c2c2);
+  background: linear-gradient(90deg, #6366f1, #06b6d4);
   border-radius: 999px;
 }
 .worker-meta {
@@ -742,15 +752,16 @@ function onLocaleChange(value: unknown) {
   display: inline-flex;
   align-items: center;
   gap: 6px;
-  padding: 3px 10px;
+  padding: 4px 10px;
   color: var(--c-primary);
   background: var(--c-primary-soft);
   border: 1px solid var(--c-primary-glow);
-  border-radius: var(--radius-full);
+  border-radius: var(--radius-sm);
   font-size: 12px;
   line-height: 1.2;
   font-weight: 600;
   white-space: nowrap;
+  box-shadow: var(--shadow-xs);
 }
 .project-context-disabled {
   cursor: progress;
@@ -897,13 +908,7 @@ function onLocaleChange(value: unknown) {
 }
 .content-card {
   min-width: 0;
-  background: var(--c-bg-elevated);
-  border: 1px solid var(--c-border);
-  border-radius: var(--radius-lg);
-  box-shadow: var(--shadow-sm);
-  padding: 24px;
   min-height: calc(100vh - 100px);
-  transition: background-color 0.25s ease, border-color 0.25s ease;
 }
 
 /* 快捷搜索模态框 */
@@ -1069,8 +1074,6 @@ function onLocaleChange(value: unknown) {
   }
 
   .content-card {
-    padding: 14px;
-    border-radius: var(--radius-md);
     min-height: calc(100vh - 80px);
   }
 }

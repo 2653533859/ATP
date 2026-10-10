@@ -1,4 +1,5 @@
 import enum
+from uuid import uuid4
 import secrets
 from datetime import datetime
 from sqlalchemy import String, Text, ForeignKey, JSON, Enum, Integer, Boolean, DateTime
@@ -78,6 +79,8 @@ class PlanRun(Base, TimestampMixin):
     __tablename__ = "plan_runs"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    identity_token: Mapped[str] = mapped_column(String(32), default=lambda: uuid4().hex, nullable=False)
+    cancel_requested_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     plan_id: Mapped[int] = mapped_column(ForeignKey("test_plans.id", ondelete="CASCADE"), nullable=False)
     triggered_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     trace_id: Mapped[str | None] = mapped_column(String(64), index=True)

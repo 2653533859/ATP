@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import json
 from http.cookiejar import Cookie
-from typing import Any
+from typing import Any, Callable
 
 from cryptography.fernet import InvalidToken
 import httpx
@@ -13,7 +13,15 @@ from app.core.encryption import decrypt, encrypt
 from app.core.config import settings
 from app.core import redis_client as _redis_client
 
-get_async_redis = _redis_client.get_async_redis
+
+def _get_async_redis(*args: Any, **kwargs: Any) -> Any:
+    getter = getattr(_redis_client, "get_async_redis", None)
+    if getter is not None:
+        return getter(*args, **kwargs)
+    raise RuntimeError("Redis is unavailable")
+
+
+get_async_redis: Callable[..., Any] = _get_async_redis
 
 
 async def close_async_redis(redis: Any) -> None:

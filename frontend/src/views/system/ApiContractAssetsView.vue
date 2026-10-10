@@ -1,27 +1,29 @@
 <template>
   <div class="contract-page">
-    <section class="contract-hero">
-      <div class="hero-copy">
-        <div class="eyebrow">{{ t('api_contract_assets.eyebrow') }}</div>
-        <h2>{{ t('api_contract_assets.title') }}</h2>
-        <p>{{ t('api_contract_assets.subtitle') }}</p>
+    <header class="contract-toolbar page-header">
+      <div class="toolbar-left">
+        <FileProtectOutlined class="toolbar-icon" />
+        <h2 class="toolbar-title page-title">{{ t('api_contract_assets.title') }}</h2>
       </div>
-      <div class="hero-actions">
+      <div class="toolbar-right">
         <a-select
           v-model:value="projectId"
           :options="projectOptions"
           :placeholder="t('api_contract_assets.select_project')"
           class="project-select"
+          size="small"
+          style="width: 200px"
+          allow-clear
           @change="loadAssets"
         />
-        <a-button ghost :loading="loading" :disabled="!projectId" @click="loadAssets">
-          {{ t('common.refresh') }}
+        <a-button size="small" :loading="loading" :disabled="!projectId" @click="loadAssets">
+          <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
-        <a-button type="primary" class="new-button" :disabled="!projectId" @click="openCreate">
+        <a-button type="primary" size="small" :disabled="!projectId" @click="openCreate">
           + {{ t('api_contract_assets.new_asset') }}
         </a-button>
       </div>
-    </section>
+    </header>
 
     <a-alert
       v-if="!projectId"
@@ -225,6 +227,13 @@
           <a-textarea v-model:value="form.description" :rows="2" />
         </a-form-item>
         <a-form-item :label="t('api_contract_assets.definition')" required>
+          <template #extra>
+            <div style="display: flex; justify-content: flex-end; margin-top: 4px">
+              <a-button size="small" type="link" style="padding: 0" @click="form.definitionText = tryFormatJson(form.definitionText)">
+                <FormatPainterOutlined /> 格式化 JSON / 契约
+              </a-button>
+            </div>
+          </template>
           <a-textarea v-model:value="form.definitionText" class="json-editor" :rows="18" :placeholder="t('api_contract_assets.definition_placeholder')" />
           <div v-if="definitionError" class="input-error">{{ definitionError }}</div>
           <div v-else class="form-hint">{{ t('api_contract_assets.definition_hint') }}</div>
@@ -243,7 +252,9 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
+import { FileProtectOutlined, ReloadOutlined, FormatPainterOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
+import { tryFormatJson } from '@/utils/jsonFormat'
 import { useRoute } from 'vue-router'
 import {
   apiContractApi,
@@ -456,21 +467,31 @@ onMounted(loadProjects)
 </script>
 
 <style scoped>
-.contract-page { padding: 18px; }
-.contract-hero { display: flex; justify-content: space-between; gap: 24px; align-items: flex-end; padding: 28px 30px; color: #fff; background: linear-gradient(118deg, #12233f 0%, #1c4566 64%, #237c88 100%); border-radius: 16px; box-shadow: 0 14px 34px rgba(18, 35, 63, 0.18); }
-.eyebrow, .card-kicker { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; }
-.eyebrow { color: #8ed8d4; margin-bottom: 8px; }
-.hero-copy h2 { margin: 0; color: #fff; font-size: 28px; letter-spacing: -0.02em; }
-.hero-copy p { max-width: 650px; margin: 8px 0 0; color: rgba(255, 255, 255, 0.74); }
-.hero-actions { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
-.project-select { min-width: 210px; }
-.new-button { color: #12233f; background: #8ed8d4; border-color: #8ed8d4; }
-.page-notice { margin: 18px 0; }
-.summary-row { margin: 18px 0; }
-.summary-card { min-height: 116px; padding: 18px 20px; border: 1px solid #e8edf1; border-radius: 12px; background: #fff; box-shadow: 0 6px 18px rgba(28, 51, 77, 0.06); display: flex; flex-direction: column; }
-.summary-card strong { margin: 4px 0; color: #12233f; font-size: 30px; line-height: 1; }
-.summary-label { color: #34445b; font-size: 13px; font-weight: 700; }
-.summary-foot { color: #8a96a6; font-size: 12px; }
+.contract-page { padding: 0; }
+.contract-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  height: 48px;
+  padding: 0 16px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-xs);
+  margin-bottom: 16px;
+}
+.toolbar-left { display: flex; align-items: center; gap: 8px; }
+.toolbar-icon { color: var(--c-primary); font-size: 16px; }
+.toolbar-title { margin: 0; font-size: 16px; font-weight: 700; color: var(--c-text); }
+.toolbar-right { display: flex; align-items: center; gap: 8px; }
+.card-kicker { font-size: 11px; letter-spacing: 0.14em; text-transform: uppercase; font-weight: 700; }
+.page-notice { margin: 16px 0; }
+.summary-row { margin: 16px 0; }
+.summary-card { min-height: 100px; padding: 16px 18px; border: 1px solid var(--c-border); border-radius: var(--radius-lg); background: var(--c-bg-elevated); box-shadow: var(--shadow-xs); display: flex; flex-direction: column; }
+.summary-card strong { margin: 4px 0; color: var(--c-text); font-size: 26px; line-height: 1; }
+.summary-label { color: var(--c-text-secondary); font-size: 12px; font-weight: 600; }
+.summary-foot { color: var(--c-text-tertiary); font-size: 11px; }
 .provider-summary { border-top: 3px solid #42c6be; }
 .consumer-summary { border-top: 3px solid #9672d8; }
 .neutral-summary { border-top: 3px solid #5c7ca5; }

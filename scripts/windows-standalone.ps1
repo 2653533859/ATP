@@ -60,7 +60,10 @@ function Stop-OwnProcesses {
   foreach ($entry in @($state.backend, $state.frontend)) {
     if ($null -eq $entry) { continue }
     $process = Get-OwnProcess -ProcessId ([int]$entry.pid) -Marker ([string]$entry.marker)
-    if ($process) { Stop-Process -Id $process.ProcessId -Force }
+    if ($process) {
+      # Kill this verified process tree so browser/load-injector children cannot outlive local ATP.
+      & taskkill.exe /PID $process.ProcessId /T /F 2>&1 | Out-Null
+    }
   }
   Remove-Item -LiteralPath $StatePath -Force
 }
@@ -72,7 +75,7 @@ function Assert-FreePort {
 }
 
 function Wait-Ready {
-  param([string]$Url, [int]$Seconds = 40)
+  param([string]$Url, [int]$Seconds = 120)
   $deadline = (Get-Date).AddSeconds($Seconds)
   while ((Get-Date) -lt $deadline) {
     try {
@@ -174,14 +177,14 @@ $backend = Start-Process -FilePath $BackendPython -ArgumentList @('-m', 'uvicorn
 try {
   Wait-Ready -Url 'http://127.0.0.1:8001/health'
   if ($Frontend -eq 'dev') {
-    $frontend = Start-Process -FilePath 'node.exe' -ArgumentList @($ViteEntry, '--host', '127.0.0.1', '--port', '5174', '--strictPort') -WorkingDirectory (Join-Path $RepoRoot 'frontend') -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $RunDir 'frontend.out.log') -RedirectStandardError (Join-Path $RunDir 'frontend.err.log')
+    $frontendProcess = Start-Process -FilePath 'node.exe' -ArgumentList @($ViteEntry, '--host', '127.0.0.1', '--port', '5174', '--strictPort') -WorkingDirectory (Join-Path $RepoRoot 'frontend') -PassThru -WindowStyle Hidden -RedirectStandardOutput (Join-Path $RunDir 'frontend.out.log') -RedirectStandardError (Join-Path $RunDir 'frontend.err.log')
     try {
       Wait-Ready -Url 'http://127.0.0.1:5174/login'
     } catch {
-      Stop-Process -Id $frontend.Id -Force -ErrorAction SilentlyContinue
+      & taskkill.exe /PID $frontendProcess.Id /T /F 2>&1 | Out-Null
       throw
     }
-    $frontendState = @{ name = 'frontend'; pid = $frontend.Id; marker = 'vite.js' }
+    $frontendState = @{ name = 'frontend'; pid = $frontendProcess.Id; marker = 'vite.js' }
     $localUrl = 'http://127.0.0.1:5174/'
   } else {
     Wait-Ready -Url 'http://127.0.0.1:8001/login'
@@ -191,6 +194,6 @@ try {
   @{ backend = @{ name = 'backend'; pid = $backend.Id; marker = 'app.main:app' }; frontend = $frontendState; url = $localUrl } | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $StatePath -Encoding UTF8
   Write-Host "Local ATP is running at $localUrl"
 } catch {
-  Stop-Process -Id $backend.Id -Force -ErrorAction SilentlyContinue
+  & taskkill.exe /PID $backend.Id /T /F 2>&1 | Out-Null
   throw
 }

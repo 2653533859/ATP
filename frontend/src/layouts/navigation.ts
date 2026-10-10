@@ -17,6 +17,10 @@ export const routeMenuGroups: Record<string, NavigationGroup> = {
   '/reports': 'test-assets',
   '/case-reviews': 'test-assets',
   '/suites': 'test-assets',
+  '/hermes': 'intelligence-center',
+  '/ai-chat': 'intelligence-center',
+  '/requirements': 'intelligence-center',
+  '/knowledge': 'intelligence-center',
   '/system/datasets': 'test-capabilities',
   '/system/web-assets': 'test-capabilities',
   '/system/api-contract-assets': 'test-capabilities',
@@ -67,18 +71,31 @@ export function findRouteEntry<T>(entries: Record<string, T>, path: string): T |
   return Object.entries(entries).find(([prefix]) => path.startsWith(prefix))?.[1]
 }
 
-export function getMenuOpenKeys(path: string): string[] {
+export function getMenuOpenKeys(path: string, localMode = false): string[] {
+  if (localMode && path.startsWith('/system/')) {
+    return ['system-center']
+  }
   const group = findRouteEntry(routeMenuGroups, path)
   return group ? [group] : []
 }
 
-export function getSelectedMenuKey(path: string): string {
+export function getSelectedMenuKey(path: string, localMode = false): string {
   if (path.startsWith('/projects/') && path.endsWith('/cases')) return '/cases'
   if (path.startsWith('/projects/')) return '/projects'
   if (path.startsWith('/cases/')) return '/cases'
   if (path === '/runs' || path.startsWith('/runs/')) return '/tasks'
   if (path.startsWith('/mobile-special/')) return '/mobile-special/workbench'
   if (path.startsWith('/devices') || path.startsWith('/apks') || path.startsWith('/ios-assets')) return '/mobile-special/workbench'
+
+  if (localMode) {
+    if (path.startsWith('/system/environments')) return '/system/environments'
+    if (path.startsWith('/system/global-variables')) return '/system/global-variables'
+    if (path.startsWith('/system/datasets')) return '/system/datasets'
+    if (path.startsWith('/system/web-assets')) return '/system/web-assets'
+    if (path.startsWith('/system/api-contract-assets')) return '/system/api-contract-assets'
+    if (path.startsWith('/system/ai-llm-configs')) return '/system/ai-llm-configs'
+  }
+
   if (path.startsWith('/system/performance')) return '/performance-workbench'
   if (path.startsWith('/system/web-assets')) return '/ui-workbench'
   if (path.startsWith('/system/api-contract-assets')) return '/api-workbench'
@@ -87,7 +104,10 @@ export function getSelectedMenuKey(path: string): string {
   // 会被下面的 '/system/' 兜底高亮成配置中心。
   if (path.startsWith('/system/ai-healing-stats') || path.startsWith('/system/healing-examples')) return '/ai-workbench'
   if (path.startsWith('/suites')) return '/suites'
-  if (path.startsWith('/system/toolbox')) return '/system/toolbox'
+  if (path.startsWith('/hermes')) return '/hermes'
+  if (path.startsWith('/ai-chat')) return '/ai-chat'
+  if (path.startsWith('/requirements')) return '/requirements'
+  if (path.startsWith('/knowledge')) return '/knowledge'
   if (path.startsWith('/system/config') || path.startsWith('/system/')) return '/system/config'
   return path
 }
@@ -103,8 +123,10 @@ export function getRouteTitleKey(path: string, menuTitleKey?: unknown): string {
   if (path.startsWith('/runs')) return 'menu.runs'
   if (path.startsWith('/suites')) return 'menu.suites'
   if (path.startsWith('/plans')) return 'menu.plans'
-  if (path.startsWith('/devices')) return 'menu.devices'
-  if (path.startsWith('/apks')) return 'menu.apks'
+  if (path.startsWith('/hermes')) return 'menu.intelligence.hermes'
+  if (path.startsWith('/ai-chat')) return 'menu.intelligence.ai_chat'
+  if (path.startsWith('/requirements')) return 'menu.intelligence.requirements'
+  if (path.startsWith('/knowledge')) return 'menu.intelligence.knowledge'
   if (path.startsWith('/ios-assets')) return 'menu.ios_assets'
   if (path.startsWith('/mock')) return 'menu.mock_rules'
   if (path.startsWith('/mobile-special')) return 'menu.mobile_special.title'

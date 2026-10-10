@@ -3,7 +3,6 @@
     <div class="page-hero">
       <div>
         <h2 class="page-title">{{ t('system_pages.notification.title') }}</h2>
-        <div class="page-subtitle">{{ t('system_pages.notification.subtitle') }}</div>
       </div>
       <a-button type="primary" :disabled="!projectId" @click="openCreate">
         <PlusOutlined /> {{ t('system_pages.notification.add') }}

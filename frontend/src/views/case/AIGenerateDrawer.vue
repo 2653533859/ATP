@@ -37,6 +37,9 @@
         <a-button :loading="parsing" :disabled="!schemaText.trim()" @click="handleParse">
           {{ t('case.ai.parse') }}
         </a-button>
+        <a-button v-if="sourceType === 'openapi' || sourceType === 'postman'" :disabled="!schemaText.trim()" @click="schemaText = tryFormatJson(schemaText)">
+          <FormatPainterOutlined /> 格式化 JSON
+        </a-button>
         <a-button v-if="parsedEndpoints.length" size="small" @click="clearParsed">
           {{ t('case.ai.clear_parsed') }}
         </a-button>
@@ -286,6 +289,13 @@
         />
       </a-form-item>
       <a-form-item :label="t('case.ai.steps_json')">
+        <template #extra>
+          <div style="display: flex; justify-content: flex-end; margin-top: 4px">
+            <a-button size="small" type="link" style="padding: 0" @click="draftEditorStepsJson = tryFormatJson(draftEditorStepsJson)">
+              <FormatPainterOutlined /> 格式化 JSON
+            </a-button>
+          </div>
+        </template>
         <a-textarea
           v-model:value="draftEditorStepsJson"
           :rows="8"
@@ -299,6 +309,8 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { message, Modal } from 'ant-design-vue'
+import { FormatPainterOutlined } from '@ant-design/icons-vue'
+import { tryFormatJson } from '@/utils/jsonFormat'
 import { useI18n } from 'vue-i18n'
 import {
   aiCaseGenerationApi,

@@ -194,3 +194,43 @@ def test_cursor_encode_decode_roundtrip():
     decoded_ts, decoded_id = runs_module._decode_cursor(cursor)
     assert decoded_ts == ts
     assert decoded_id == 42
+
+
+def test_project_filter_adds_case_scope_subquery():
+    load_all_models()
+    db_plain = _FakeDB(items=[_make_run(1)])
+    # 直接调用时 Query 默认值不会被 FastAPI 解析，必须显式传 None 才代表"不过滤"
+    asyncio.run(
+        runs_module.list_runs(
+            case_id=None,
+            project_id=None,
+            page=1,
+            page_size=20,
+            cursor=None,
+            limit=20,
+            db=db_plain,
+            _=None,
+        )
+    )
+
+    db_scoped = _FakeDB(items=[_make_run(1)])
+    asyncio.run(
+        runs_module.list_runs(
+            case_id=None,
+            project_id=7,
+            page=1,
+            page_size=20,
+            cursor=None,
+            limit=20,
+            db=db_scoped,
+            _=None,
+        )
+    )
+
+    plain_sql = str(db_plain.statements[0])
+    scoped_sql = str(db_scoped.statements[0])
+    # 可见性过滤自带 1 个关联 modules 的用例子查询；项目过滤会再追加 1 个按 Module.project_id 相等收敛的子查询
+    assert plain_sql.count("JOIN modules") == 1
+    assert "modules.project_id =" not in plain_sql
+    assert scoped_sql.count("JOIN modules") == 2
+    assert "modules.project_id =" in scoped_sql

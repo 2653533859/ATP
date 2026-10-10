@@ -18,6 +18,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import assert_project_access, require_admin, require_engineer
 from app.models.user_project import ProjectRole
 from app.core.database import get_db
+from app.core.encryption import decrypt
 from app.models.ai_llm_config import AILLMConfig
 from app.models.audit import AuditLog
 from app.models.dataset import TestDataset, TestDatasetVersion
@@ -25,6 +26,8 @@ from app.models.mock import MockRule
 from app.models.project import Module, Project
 from app.models.user import User
 from app.schemas.ai_case import (
+    AIAssertionSuggestIn,
+    AIAssertionSuggestOut,
     AICaseFunnelStatsOut,
     AICaseGenerateIn,
     AICaseGenerateOut,
@@ -36,6 +39,7 @@ from app.services.ai_case.funnel import AICaseFunnelEvent, build_funnel_stats
 from app.services.ai_case.context import build_dataset_context, build_mock_rule_context
 from app.services.ai_case.generator import generate_case_drafts
 from app.services.ai_case.parsers import parse_schema
+from app.services.ai_case.suggestion import suggest_assertions_and_extractions
 from app.services.ai_governance import redact_llm_text
 
 router = APIRouter(prefix="/ai/cases", tags=["AI 用例生成"])
@@ -254,3 +258,33 @@ async def _record_generation_event(
     )
     if hasattr(db, "commit"):
         await db.commit()
+
+
+@router.post("/suggest-assertions", response_model=AIAssertionSuggestOut)
+async def suggest_assertions_endpoint(
+    body: AIAssertionSuggestIn,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_engineer),
+):
+    """AI / 规则混合智能推荐测试断言与变量提取。"""
+    config: AILLMConfig | None = None
+    if body.project_id:
+        project = await db.get(Project, body.project_id)
+        if project and project.ai_llm_config_id:
+            candidate = await db.get(AILLMConfig, project.ai_llm_config_id)
+            if candidate and candidate.enabled:
+                config = candidate
+
+    if not config:
+        res = await db.execute(
+            select(AILLMConfig).where(AILLMConfig.enabled == True).order_by(AILLMConfig.id.desc()).limit(1)
+        )
+        config = res.scalars().first()
+
+    api_key = ""
+    if config:
+        api_key = (
+            "" if config.provider == "ollama" and not config.api_key_encrypted else decrypt(config.api_key_encrypted)
+        )
+
+    return await suggest_assertions_and_extractions(body, config, api_key)

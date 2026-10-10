@@ -134,7 +134,7 @@ export function getSuiteRunCompletedCount(run: SuiteListRunItem): number {
   if (summaryCompleted > 0) {
     return summaryCompleted
   }
-  return run.case_run_ids?.length ?? 0
+  return run.case_run_ids?.filter(item => ['passed', 'failed', 'error', 'skipped'].includes(String(item.status))).length ?? 0
 }
 
 export function getSuiteRunProgressPercent(run: SuiteListRunItem): number {

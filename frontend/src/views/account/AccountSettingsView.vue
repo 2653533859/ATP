@@ -3,7 +3,6 @@
     <div class="page-hero">
       <div>
         <h2 class="page-title">{{ t('account.title') }}</h2>
-        <div class="page-subtitle">{{ t('account.subtitle') }}</div>
       </div>
     </div>
 

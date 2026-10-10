@@ -23,6 +23,7 @@ Web UI 低代码执行器（Playwright 直接 API 调用）
 
 import asyncio
 import copy
+import json
 import logging
 import re
 import shutil
@@ -50,6 +51,9 @@ from app.services.web_network_guard import (
     sanitize_network_url,
 )
 from app.services.web_run_control import clear_cancel_request, is_cancel_requested
+from app.services.step_result_collector import StepResultBatchCollector
+from app.services.browser_pool import acquire_browser_context, release_browser_context
+from app.services.runtime_locator_healer import is_locator_failure, runtime_locator_healer
 
 logger = logging.getLogger(__name__)
 
@@ -271,6 +275,20 @@ async def _execute_step(
     elif action == "hover":
         selector = params.get("selector", "")
         await page.hover(selector, timeout=timeout_ms)
+        return {"success": True}
+
+    elif action == "save_storage_state":
+        name = str(params.get("name") or "default").strip()
+        project_id = params.get("_project_id")
+        if project_id and page.context:
+            try:
+                state_dict = await page.context.storage_state()
+                obj_name = f"storage-states/projects/{project_id}/{name}.json"
+                data = json.dumps(state_dict, ensure_ascii=False).encode("utf-8")
+                await asyncio.get_event_loop().run_in_executor(None, upload_bytes, obj_name, data, "application/json")
+                return {"success": True, "data": {"saved_name": name, "bytes": len(data)}}
+            except Exception as exc:
+                return {"success": False, "error": f"保存登录态失败: {exc}"}
         return {"success": True}
 
     else:
@@ -638,12 +656,14 @@ async def run_web_lowcode(
     file_actions = {"upload", "download"}
     visual_actions = {"visual_assert"}
     page_object_actions = {"page_object"}
-    requires_project = any(
+    storage_state_actions = {"save_storage_state"}
+    requires_project = bool(cfg.get("use_storage_state") or cfg.get("save_storage_state")) or any(
         isinstance(step.get("params"), dict)
         and (
             step.get("action") in file_actions
             or step.get("action") in visual_actions
             or step.get("action") in page_object_actions
+            or step.get("action") in storage_state_actions
             or step["params"].get("element_asset_id") is not None
         )
         for step in steps
@@ -666,16 +686,12 @@ async def run_web_lowcode(
     network_events: list[dict] = []
     console_events: list[dict] = []
     blocked_requests: list[dict] = []
+    browser_context: Any | None = None
+    browser: Any | None = None
+    pw: Any | None = None
+    is_pooled: bool = False
 
     try:
-        pw = await async_playwright().start()
-        browser_launcher = getattr(pw, browser_name)
-        launch_options: dict[str, Any] = {"headless": headless}
-        # --no-sandbox is a Chromium switch. WebKit rejects it during argument
-        # parsing, so passing it to every Playwright engine breaks matrix runs.
-        if browser_name == "chromium":
-            launch_options["args"] = ["--no-sandbox"]
-        browser = await browser_launcher.launch(**launch_options)
         context_options: dict[str, Any] = {
             "viewport": {"width": viewport_w, "height": viewport_h},
             "record_video_dir": str(video_dir),
@@ -687,7 +703,26 @@ async def run_web_lowcode(
             context_options["locale"] = str(cfg["locale"])
         if cfg.get("user_agent"):
             context_options["user_agent"] = str(cfg["user_agent"])
-        browser_context: BrowserContext = await browser.new_context(**context_options)
+        if cfg.get("use_storage_state"):
+            storage_name = str(cfg["use_storage_state"]).strip()
+            if storage_name.lower() in ("true", "1"):
+                storage_name = "default"
+            if case_project_id:
+                obj_name = f"storage-states/projects/{case_project_id}/{storage_name}.json"
+                try:
+                    state_bytes = await asyncio.get_event_loop().run_in_executor(None, read_bytes, obj_name)
+                    if state_bytes:
+                        context_options["storage_state"] = json.loads(state_bytes.decode("utf-8"))
+                        logger.info("Loaded Web storage state '%s' for project %s", storage_name, case_project_id)
+                except Exception as exc:
+                    logger.warning("Failed to load Web storage state '%s': %s", storage_name, exc)
+
+        browser_context, browser, pw, is_pooled = await acquire_browser_context(
+            browser_name=browser_name,
+            headless=headless,
+            context_options=context_options,
+            async_playwright_fn=async_playwright,
+        )
 
         async def _guard_route(route: Any) -> bool:
             return await guard_browser_request(route, blocked_requests)
@@ -733,6 +768,7 @@ async def run_web_lowcode(
                 else None,
             )
 
+        step_collector = StepResultBatchCollector(db)
         for idx, step_def in enumerate(steps):
             step_start = time.monotonic()
             action = step_def.get("action", "")
@@ -740,6 +776,8 @@ async def run_web_lowcode(
             raw_params = step_def.get("params", {})
             params = _replace_vars_in_params(raw_params, context_vars)
             params, asset, asset_error = await _resolve_element_asset(db, case, params)
+            if case_project_id:
+                params["_project_id"] = case_project_id
             persisted_params = {key: value for key, value in params.items() if not key.startswith("_")}
 
             status = RunStatus.passed
@@ -768,10 +806,28 @@ async def run_web_lowcode(
                 if callable(is_connected) and not is_connected():
                     result = {"success": False, "error": "浏览器进程已断开"}
                 if not result.get("success"):
-                    status = RunStatus.failed
-                    error_message = result.get("error")
-                    all_passed = False
-                    await _mark_element_asset_failed(db, asset, error_message)
+                    is_conn = getattr(browser, "is_connected", None)
+                    if callable(is_conn):
+                        browser_live = bool(is_conn())
+                    else:
+                        browser_live = bool(getattr(browser, "connected", True))
+                    if browser_live and is_locator_failure(result.get("error")):
+                        healed_res = await runtime_locator_healer.attempt_heal_and_retry(
+                            page,
+                            action,
+                            params,
+                            step_timeout_ms,
+                            run_id=run.id,
+                            step_index=idx,
+                            execute_step_fn=_execute_step,
+                        )
+                        if healed_res and healed_res.get("success"):
+                            result = healed_res
+                    if not result.get("success"):
+                        status = RunStatus.failed
+                        error_message = result.get("error")
+                        all_passed = False
+                        await _mark_element_asset_failed(db, asset, error_message)
                 response_data = result.get("data")
             except WebRunCancelled:
                 raise
@@ -801,8 +857,7 @@ async def run_web_lowcode(
                 error_message=error_message,
                 screenshot_url=screenshot_url,
             )
-            db.add(step_result)
-            await db.commit()
+            await step_collector.add(step_result)
 
             await _safe_publish(
                 run.id,
@@ -836,6 +891,11 @@ async def run_web_lowcode(
         run.error_message = _format_exception_message(e)[:500]
 
     finally:
+        if "step_collector" in locals():
+            try:
+                await step_collector.flush()
+            except Exception as e:
+                logger.warning("Step collector flush failed in finally for run %s: %s", run.id, e)
         # Trace 必须在 context close 前停止，否则 trace.zip 可能不完整。
         tracing = getattr(browser_context, "tracing", None) if browser_context else None
         if tracing is not None:
@@ -843,23 +903,31 @@ async def run_web_lowcode(
                 await tracing.stop(path=str(trace_path))
             except Exception as e:
                 logger.warning("Trace export failed for run %s: %s", run.id, e)
-        # 关闭 context 以确保录像写入完成
-        if browser_context:
-            try:
-                await browser_context.close()
-            except Exception:
-                pass
-        if browser:
-            try:
-                await browser.close()
-            except Exception as e:
-                logger.warning("Browser close failed for run %s: %s", run.id, e)
-        if pw:
-            try:
-                await pw.stop()
-            except Exception:
-                pass
-
+        # 如果用例执行成功且配置了保存登录态，在 release_browser_context 前提取并保存 storage_state
+        if all_passed and browser_context and cfg.get("save_storage_state"):
+            storage_name = str(cfg["save_storage_state"]).strip()
+            if storage_name.lower() in ("true", "1"):
+                storage_name = "default"
+            if case_project_id:
+                try:
+                    state_dict = await browser_context.storage_state()
+                    obj_name = f"storage-states/projects/{case_project_id}/{storage_name}.json"
+                    data = json.dumps(state_dict, ensure_ascii=False).encode("utf-8")
+                    await asyncio.get_event_loop().run_in_executor(
+                        None, upload_bytes, obj_name, data, "application/json"
+                    )
+                    logger.info(
+                        "Successfully saved Web storage state '%s' for project %s (%d bytes)",
+                        storage_name,
+                        case_project_id,
+                        len(data),
+                    )
+                except Exception as exc:
+                    logger.warning("Failed to save Web storage state '%s': %s", storage_name, exc)
+        # 释放 BrowserContext，池化状态下复用 Browser 进程
+        await release_browser_context(browser_context, browser, pw, is_pooled)
+        # 运行结束即释放该 run 的自愈配额计数，避免长生命周期 worker 里字典无界增长
+        runtime_locator_healer.reset_run(run.id)
         # 上传录像到 MinIO
         try:
             video_files = list(video_dir.glob("*.webm"))

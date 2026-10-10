@@ -4,8 +4,6 @@
       <div class="toolbar-left">
         <BugOutlined class="toolbar-icon" />
         <h1 class="toolbar-title">{{ t('defect.title') }}</h1>
-        <span class="toolbar-divider">/</span>
-        <span class="toolbar-subtitle">{{ t('defect.subtitle') }}</span>
       </div>
       <div class="hero-actions toolbar-right">
         <a-select
@@ -98,15 +96,12 @@
       </div>
     </a-card>
 
-    <a-modal
+    <a-drawer
       v-model:open="createOpen"
       :title="t('defect.form.new_title')"
-      :ok-text="t('defect.form.save')"
-      :confirm-loading="saving"
-      :ok-button-props="{ disabled: !canSubmitCreate }"
-      width="620px"
-      @ok="submitCreate"
-      @cancel="closeCreate"
+      width="640"
+      :destroy-on-close="true"
+      @close="closeCreate"
     >
       <a-alert v-if="contextRunId" class="context-alert" type="success" show-icon :message="contextRunLabel" :description="t('defect.form.run_context_hint')" />
       <a-form layout="vertical">
@@ -135,7 +130,20 @@
           <a-textarea v-model:value="createForm.description" :rows="5" :placeholder="t('defect.form.description_placeholder')" />
         </a-form-item>
       </a-form>
-    </a-modal>
+      <template #footer>
+        <div class="drawer-footer-actions">
+          <a-button @click="closeCreate">{{ t('defect.form.cancel') }}</a-button>
+          <a-button
+            type="primary"
+            :loading="saving"
+            :disabled="!canSubmitCreate"
+            @click="submitCreate"
+          >
+            {{ t('defect.form.save') }}
+          </a-button>
+        </div>
+      </template>
+    </a-drawer>
 
     <a-drawer v-model:open="detailOpen" :title="t('defect.detail.title')" width="620px">
       <template v-if="selectedDefect">
@@ -889,9 +897,11 @@ onMounted(async () => {
 }
 
 .defect-note {
-  margin: 18px 0;
-  border: 0;
-  background: #f4f7ff;
+  margin: 14px 0;
+  border: 1px solid var(--c-primary-glow);
+  border-radius: var(--radius-sm);
+  background: var(--c-primary-soft);
+  color: var(--c-text);
 }
 
 .defect-summary {
@@ -903,12 +913,20 @@ onMounted(async () => {
 
 .summary-card {
   position: relative;
-  min-height: 112px;
-  padding: 17px 19px;
+  min-height: 104px;
+  padding: 16px 18px;
   overflow: hidden;
-  border: 1px solid var(--defect-line);
-  border-radius: 14px;
-  background: linear-gradient(135deg, #fff, #fafbff);
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
+  background: var(--c-bg-elevated);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.2s cubic-bezier(0.16, 1, 0.3, 1), border-color 0.2s ease;
+}
+
+.summary-card:hover {
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
+  border-color: var(--c-border-strong);
 }
 
 .summary-card::after {
@@ -918,13 +936,13 @@ onMounted(async () => {
   width: 110px;
   height: 110px;
   content: '';
-  border: 1px solid #edf0fa;
+  border: 1px solid var(--c-border-subtle);
   border-radius: 50%;
 }
 
 .summary-card-accent {
-  border-color: #d8e0ff;
-  background: linear-gradient(135deg, #f4f6ff, #fff);
+  border-color: var(--c-primary);
+  background: var(--c-bg-elevated);
 }
 
 .summary-label,
@@ -1041,7 +1059,7 @@ onMounted(async () => {
 .detail-description { white-space: pre-wrap; color: var(--defect-muted); line-height: 1.7; }
 .external-title-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .external-actions { display: flex; flex-wrap: wrap; gap: 6px; }
-.external-card { margin-bottom: 10px; padding: 12px 13px; border: 1px solid #dfe5f3; border-radius: 10px; background: linear-gradient(135deg, #fbfcff, #f7f9ff); }
+.external-card { margin-bottom: 10px; padding: 12px 13px; border: 1px solid var(--c-border); border-radius: 10px; background: var(--c-bg-subtle); }
 .external-card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
 .external-card-head > div { display: flex; align-items: center; gap: 7px; min-width: 0; }
 .external-card-head strong { overflow: hidden; color: var(--defect-ink); font-family: ui-monospace, SFMono-Regular, Consolas, monospace; text-overflow: ellipsis; white-space: nowrap; }
@@ -1072,5 +1090,10 @@ onMounted(async () => {
 
 @media (prefers-reduced-motion: reduce) {
   .title-button { transition: none; }
+}
+.drawer-footer-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
 }
 </style>

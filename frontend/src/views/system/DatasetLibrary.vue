@@ -3,7 +3,6 @@
     <div class="page-hero header">
       <div>
         <h2 class="page-title">{{ t('dataset.title') }}</h2>
-        <div class="page-subtitle subtitle">{{ t('dataset.subtitle') }}</div>
       </div>
       <a-space>
         <a-select

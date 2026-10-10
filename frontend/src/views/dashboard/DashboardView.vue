@@ -27,7 +27,6 @@
       <div class="toolbar-left">
         <DashboardOutlined class="toolbar-icon" />
         <h2 class="toolbar-title">{{ t('dashboard.title') }}</h2>
-        <span class="toolbar-divider">/</span>
         <span class="scope-label scope-tag">
           {{ dashboardScope === 'global'
             ? t('dashboard.scope_global_label')
@@ -215,16 +214,20 @@
     </a-row>
 
     <template v-if="!loading && overview.total_runs === 0">
-      <a-card>
+      <a-card class="dashboard-empty-card">
         <a-empty :description="emptyDescription">
-          <a-button type="primary" @click="goToCaseManagement(projectId)">{{ t('dashboard.go_cases') }}</a-button>
+          <a-space>
+            <a-button type="primary" @click="goToCaseManagement(projectId)">{{ t('dashboard.go_cases') }}</a-button>
+            <a-button @click="loadFirstScreen">{{ t('common.refresh') }}</a-button>
+          </a-space>
         </a-empty>
       </a-card>
     </template>
-
     <template v-else>
       <a-spin :spinning="loading">
-        <a-empty v-if="visibleChartConfigs.length === 0" :description="t('dashboard.layout_empty')" />
+        <a-empty v-if="visibleChartConfigs.length === 0" :description="t('dashboard.layout_empty')">
+          <a-button type="primary" @click="resetDashboardLayout">{{ t('dashboard.layout_reset') }}</a-button>
+        </a-empty>
         <a-row v-else :gutter="[16, 16]">
           <a-col
             v-for="chart in visibleChartConfigs"
@@ -252,7 +255,7 @@
                 :ref="el => setChartRef(chart.exportKey, el)"
                 :option="chart.option.value"
                 :theme="chartTheme"
-                style="height: 320px"
+                class="dashboard-chart-canvas"
                 autoresize
                 @click="params => handleChartClick(chart.key, params)"
               />
@@ -1750,5 +1753,16 @@ function formatAlertTime(value?: string | null) {
   .recent-run-list {
     grid-template-columns: 1fr;
   }
+}
+.dashboard-chart-canvas {
+  width: 100%;
+  height: clamp(280px, 32vh, 420px);
+  min-height: 260px;
+}
+.dashboard-empty-card {
+  text-align: center;
+  padding: 32px 0;
+  border: 1px solid var(--c-border);
+  border-radius: var(--radius-lg);
 }
 </style>

@@ -1,6 +1,9 @@
 def load_all_models() -> None:
     """Import every mapped model so SQLAlchemy metadata is complete before use."""
     from app.models.user import User, UserRole
+    from app.models.hermes_action import HermesAction
+    from app.models.execution_dispatch import ExecutionDispatch
+    from app.models.group_run_child import GroupRunChild
     from app.models.project import Project, Module
     from app.models.case import TestCase, CaseStep, TestRun, StepResult, CaseSnapshot
     from app.models.environment import Environment, EnvVariable
@@ -37,6 +40,9 @@ def load_all_models() -> None:
     from app.models.ios import IosApp, IosDevice, IosDeviceLease
 
     _ = (
+        HermesAction,
+        ExecutionDispatch,
+        GroupRunChild,
         User,
         UserRole,
         Project,

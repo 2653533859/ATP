@@ -9,7 +9,9 @@
 
 from __future__ import annotations
 
+import json
 import logging
+from collections.abc import AsyncIterator
 from dataclasses import dataclass
 from typing import Any
 
@@ -168,3 +170,56 @@ async def call_llm(request: LLMRequest) -> LLMResponse:
     if provider in ("deepseek", "openai", "openai_compatible", "qwen", "ollama"):
         return await _call_openai_compatible(request)
     raise ValueError(f"不支持的 provider: {provider}")
+
+
+async def stream_openai_compatible(request: LLMRequest) -> AsyncIterator[str]:
+    base = _resolve_endpoint(request.provider, request.endpoint)
+    url = _v1_url(base, "chat/completions")
+    messages: list[dict] = []
+    if request.system_prompt:
+        messages.append({"role": "system", "content": request.system_prompt})
+    messages.append({"role": "user", "content": request.prompt})
+
+    payload: dict[str, Any] = {
+        "model": request.model_name,
+        "messages": messages,
+        "temperature": request.temperature,
+        "max_tokens": request.max_tokens,
+        "stream": True,
+    }
+    if request.extra_params:
+        payload.update(request.extra_params)
+
+    headers = {"Content-Type": "application/json"}
+    if request.api_key:
+        headers["Authorization"] = f"Bearer {request.api_key}"
+
+    async with httpx.AsyncClient(timeout=request.timeout_seconds) as client:
+        async with client.stream("POST", url, json=payload, headers=headers) as resp:
+            resp.raise_for_status()
+            async for line in resp.aiter_lines():
+                if not line or not line.strip():
+                    continue
+                if line.startswith("data: "):
+                    data_str = line[6:].strip()
+                    if data_str == "[DONE]":
+                        break
+                    try:
+                        data = json.loads(data_str)
+                        delta = data["choices"][0].get("delta", {}).get("content", "")
+                        if delta:
+                            yield delta
+                    except (KeyError, IndexError, TypeError, json.JSONDecodeError):
+                        continue
+
+
+async def stream_llm(request: LLMRequest) -> AsyncIterator[str]:
+    """统一流式入口：根据 provider 逐 token 产生回复。"""
+    provider = request.provider.lower()
+    if provider in ("deepseek", "openai", "openai_compatible", "qwen", "ollama"):
+        async for token in stream_openai_compatible(request):
+            yield token
+    else:
+        resp = await call_llm(request)
+        if resp.text:
+            yield resp.text

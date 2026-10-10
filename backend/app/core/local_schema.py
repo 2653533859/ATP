@@ -9,13 +9,14 @@ versioned migration here; ``create_all`` must never silently patch old data.
 from __future__ import annotations
 
 from collections.abc import Callable
+from uuid import uuid4
 
 from sqlalchemy import Engine, inspect
 from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 4
+CURRENT_LOCAL_SCHEMA_VERSION = 11
 
 
 def _create_job_queue(connection: Connection, table_name: str = "local_jobs") -> None:
@@ -87,6 +88,174 @@ LOCAL_MIGRATIONS: dict[int, Callable[[Connection], None]] = {
 }
 
 
+def _extend_run_id_allocator(connection: Connection) -> None:
+    highest = connection.exec_driver_sql(
+        "SELECT MAX(value) FROM (SELECT COALESCE(MAX(id), 0) AS value FROM performance_runs "
+        "UNION ALL SELECT COALESCE(MAX(id), 0) FROM mobile_special_runs "
+        "UNION ALL SELECT COALESCE(MAX(id), 0) FROM local_run_ids)"
+    ).scalar_one()
+    if highest:
+        connection.exec_driver_sql("INSERT OR IGNORE INTO local_run_ids(id) VALUES (?)", (highest,))
+
+
+LOCAL_MIGRATIONS[5] = _extend_run_id_allocator
+
+
+def _deprecated_group_cancellations(connection: Connection) -> None:
+    """版本 6 曾创建 local_group_cancellations 表；该表与 request_group_cancel 均无调用方，已删除。
+
+    保留空迁移维持版本链连续：老库从版本 5 升级时不会因缺号失败；已建过该表的
+    开发库保留一张空表，不影响末尾的 _assert_current_schema 校验（只覆盖映射模型）。
+    """
+
+
+LOCAL_MIGRATIONS[6] = _deprecated_group_cancellations
+
+
+def _create_hermes_actions(connection: Connection) -> None:
+    # Freeze version 7's shape; using current model metadata would add version
+    # 8's identity column early and make the following migration fail.
+    connection.exec_driver_sql("""CREATE TABLE hermes_actions (
+        id INTEGER NOT NULL PRIMARY KEY,
+        user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        command_id VARCHAR(64) NOT NULL,
+        action VARCHAR(32) NOT NULL,
+        request_hash VARCHAR(64) NOT NULL,
+        resource_id INTEGER NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT uq_hermes_action_command UNIQUE(user_id, command_id)
+    )""")
+
+
+LOCAL_MIGRATIONS[7] = _create_hermes_actions
+
+
+def _create_command_resource_identities(connection: Connection) -> None:
+    for table_name in ("test_suites", "suite_runs"):
+        connection.exec_driver_sql(
+            f"ALTER TABLE {table_name} ADD COLUMN identity_token VARCHAR(32) NOT NULL DEFAULT ''"
+        )
+        last_id = -1
+        while True:
+            ids = (
+                connection.exec_driver_sql(
+                    f"SELECT id FROM {table_name} WHERE id > ? ORDER BY id LIMIT 1000", (last_id,)
+                )
+                .scalars()
+                .all()
+            )
+            if not ids:
+                break
+            for resource_id in ids:
+                connection.exec_driver_sql(
+                    f"UPDATE {table_name} SET identity_token=? WHERE id=?", (uuid4().hex, resource_id)
+                )
+            last_id = ids[-1]
+    # Old receipts remain unverified; looking up the current ID could bind the wrong resource.
+    connection.exec_driver_sql("ALTER TABLE hermes_actions ADD COLUMN resource_identity VARCHAR(32)")
+
+
+LOCAL_MIGRATIONS[8] = _create_command_resource_identities
+
+
+def _create_execution_dispatches(connection: Connection) -> None:
+    # Freeze version 9's shape so later mapped fields cannot leak into this migration.
+    connection.exec_driver_sql("""CREATE TABLE execution_dispatches (
+        id VARCHAR(32) NOT NULL PRIMARY KEY,
+        project_id INTEGER NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+        run_id INTEGER NOT NULL,
+        run_identity VARCHAR(32) NOT NULL,
+        task_name VARCHAR(64) NOT NULL,
+        queue VARCHAR(128) NOT NULL,
+        mode VARCHAR(16) NOT NULL,
+        args_ciphertext TEXT NOT NULL,
+        status VARCHAR(16) NOT NULL DEFAULT 'pending',
+        attempt_count INTEGER NOT NULL DEFAULT 0,
+        claim_token VARCHAR(32),
+        claimed_at DATETIME,
+        submitted_at DATETIME,
+        error_code VARCHAR(64),
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT uq_execution_dispatches_task_identity UNIQUE(task_name, run_identity)
+    )""")
+    connection.exec_driver_sql(
+        "CREATE INDEX ix_execution_dispatches_mode_status_created " "ON execution_dispatches(mode, status, created_at)"
+    )
+
+
+LOCAL_MIGRATIONS[9] = _create_execution_dispatches
+
+
+def _extend_execution_acceptance(connection: Connection) -> None:
+    connection.exec_driver_sql("ALTER TABLE execution_dispatches ADD COLUMN execution_token VARCHAR(32)")
+    connection.exec_driver_sql("ALTER TABLE execution_dispatches ADD COLUMN accepted_at DATETIME")
+    connection.exec_driver_sql("ALTER TABLE execution_run_leases ADD COLUMN run_identity VARCHAR(32)")
+    _extend_job_dispatch_identity(connection)
+
+
+def _extend_job_dispatch_identity(connection: Connection) -> None:
+    connection.exec_driver_sql("ALTER TABLE local_jobs ADD COLUMN dispatch_id VARCHAR(32)")
+    connection.exec_driver_sql("ALTER TABLE local_jobs ADD COLUMN run_identity VARCHAR(32)")
+    # Only bind queue records whose existing timestamp still identifies this run.
+    connection.exec_driver_sql("""UPDATE local_jobs SET run_identity=(
+        SELECT identity_token FROM suite_runs
+        WHERE suite_runs.id=local_jobs.run_id AND suite_runs.created_at=local_jobs.run_created_at
+    ) WHERE task_name='run_test_suite'""")
+    connection.exec_driver_sql("""UPDATE local_jobs SET dispatch_id=(
+        SELECT id FROM execution_dispatches WHERE task_name='run_test_suite'
+        AND mode='local' AND run_id=local_jobs.run_id AND run_identity=local_jobs.run_identity
+    ) WHERE task_name='run_test_suite' AND run_identity IS NOT NULL""")
+    connection.exec_driver_sql(
+        "CREATE UNIQUE INDEX uq_local_jobs_dispatch ON local_jobs(dispatch_id) WHERE dispatch_id IS NOT NULL"
+    )
+
+
+LOCAL_MIGRATIONS[10] = _extend_execution_acceptance
+
+
+def _create_group_recovery(connection: Connection) -> None:
+    connection.exec_driver_sql("ALTER TABLE suite_runs ADD COLUMN cancel_requested_at DATETIME")
+    connection.exec_driver_sql("ALTER TABLE plan_runs ADD COLUMN cancel_requested_at DATETIME")
+    connection.exec_driver_sql("ALTER TABLE plan_runs ADD COLUMN identity_token VARCHAR(32) NOT NULL DEFAULT ''")
+    last_id = -1
+    while True:
+        ids = (
+            connection.exec_driver_sql("SELECT id FROM plan_runs WHERE id > ? ORDER BY id LIMIT 1000", (last_id,))
+            .scalars()
+            .all()
+        )
+        if not ids:
+            break
+        for run_id in ids:
+            connection.exec_driver_sql("UPDATE plan_runs SET identity_token=? WHERE id=?", (uuid4().hex, run_id))
+        last_id = ids[-1]
+    connection.exec_driver_sql("""UPDATE local_jobs SET run_identity=(
+        SELECT identity_token FROM plan_runs WHERE plan_runs.id=local_jobs.run_id
+        AND plan_runs.created_at=local_jobs.run_created_at
+    ) WHERE task_name='run_test_plan'""")
+    connection.exec_driver_sql("""CREATE TABLE group_run_children (
+        id INTEGER NOT NULL PRIMARY KEY,
+        parent_kind VARCHAR(16) NOT NULL,
+        parent_run_id INTEGER NOT NULL,
+        parent_identity VARCHAR(32) NOT NULL,
+        child_kind VARCHAR(16) NOT NULL,
+        child_id INTEGER NOT NULL,
+        child_identity VARCHAR(128) NOT NULL,
+        created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        CONSTRAINT uq_group_run_children_identity UNIQUE(parent_kind, parent_identity, child_id, child_identity)
+    )""")
+    connection.exec_driver_sql(
+        "CREATE INDEX ix_group_run_children_parent_identity ON group_run_children(parent_identity)"
+    )
+
+
+LOCAL_MIGRATIONS[11] = _create_group_recovery
+
+
 def _read_version(connection: Connection) -> int:
     return int(connection.exec_driver_sql("PRAGMA user_version").scalar_one())
 
@@ -121,14 +290,18 @@ def ensure_local_schema(engine: Engine) -> int:
         if not existing_tables:
             Base.metadata.create_all(bind=connection)
             _create_job_queue(connection)
+            _extend_job_dispatch_identity(connection)
             _create_run_id_allocator(connection)
+            _extend_run_id_allocator(connection)
             _set_version(connection, CURRENT_LOCAL_SCHEMA_VERSION)
         elif version == 0:
             # Adopt only a complete prototype database. Incomplete databases
             # stay untouched so the user can restore a prior backup.
             _assert_current_schema(connection)
             _create_job_queue(connection)
+            _extend_job_dispatch_identity(connection)
             _create_run_id_allocator(connection)
+            _extend_run_id_allocator(connection)
             _set_version(connection, CURRENT_LOCAL_SCHEMA_VERSION)
         else:
             for next_version in range(version + 1, CURRENT_LOCAL_SCHEMA_VERSION + 1):

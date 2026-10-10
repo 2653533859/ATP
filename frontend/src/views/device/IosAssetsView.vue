@@ -3,7 +3,6 @@
     <div class="page-hero">
       <div>
         <h2 class="page-title">{{ t('ios_assets.title') }}</h2>
-        <div class="page-subtitle">{{ t('ios_assets.subtitle') }}</div>
       </div>
       <a-tag color="orange">{{ t('ios_assets.preview') }}</a-tag>
     </div>

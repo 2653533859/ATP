@@ -98,6 +98,26 @@ def test_recording_does_not_store_password_value():
     assert "敏感值" in session.steps[0]["name"]
 
 
+def test_recording_discards_password_value_even_when_client_sends_it():
+    session = WebRecordingSession(
+        session_id="test-session",
+        owner_id=1,
+        start_url="https://example.com",
+        viewport_width=1280,
+        viewport_height=720,
+        status="recording",
+    )
+
+    session._append_event(
+        {"type": "input", "selector": "input[type=password]", "value": "secret123", "is_password": True}
+    )
+
+    assert session.steps[0]["params"] == {"selector": "input[type=password]", "value": ""}
+    assert "敏感值" in session.steps[0]["name"]
+    assert "secret123" not in json.dumps(session.snapshot())
+    assert "secret123" not in json.dumps(session._report_steps())
+
+
 def test_recording_har_evidence_is_redacted_before_persistence():
     raw = json.dumps(
         {

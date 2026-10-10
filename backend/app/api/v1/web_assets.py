@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timezone
 import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel
+from app.core.minio_client import delete_file, list_objects
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -226,3 +229,49 @@ async def delete_web_page_object(
     await _ensure_project(db, user, item.project_id, ProjectRole.editor)
     await db.delete(item)
     await db.commit()
+
+
+class WebStorageStateOut(BaseModel):
+    name: str
+    size: int
+    updated_at: str | None = None
+    object_name: str
+
+
+@router.get("/projects/{project_id}/web-storage-states", response_model=list[WebStorageStateOut])
+async def list_web_storage_states(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    await _ensure_project(db, user, project_id, ProjectRole.viewer)
+    prefix = f"storage-states/projects/{project_id}/"
+    raw_objs = await asyncio.to_thread(list_objects, prefix)
+    items = []
+    for obj in raw_objs:
+        obj_name = getattr(obj, "object_name", None) or getattr(obj, "name", "")
+        if not obj_name.endswith(".json"):
+            continue
+        base_name = obj_name[len(prefix) : -5]
+        last_mod = getattr(obj, "last_modified", None)
+        items.append(
+            WebStorageStateOut(
+                name=base_name,
+                size=int(getattr(obj, "size", 0) or 0),
+                updated_at=last_mod.isoformat() if hasattr(last_mod, "isoformat") else None,
+                object_name=obj_name,
+            )
+        )
+    return items
+
+
+@router.delete("/projects/{project_id}/web-storage-states/{name}", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_web_storage_state(
+    project_id: int,
+    name: str,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+):
+    await _ensure_project(db, user, project_id, ProjectRole.editor)
+    obj_name = f"storage-states/projects/{project_id}/{name}.json"
+    await asyncio.to_thread(delete_file, obj_name)

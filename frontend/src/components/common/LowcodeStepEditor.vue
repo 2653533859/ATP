@@ -44,6 +44,16 @@
                 :options="actionOptions"
                 @change="() => onActionChange(step)"
               />
+              <a-tooltip :title="t('case.drawer.web.recorder.resume_from_here_tip')">
+                <a-button
+                  type="link"
+                  size="small"
+                  class="resume-record-btn"
+                  @click="emit('resume-recording', index)"
+                >
+                  <PlayCircleOutlined /> {{ t('case.drawer.web.recorder.resume_from_here') }}
+                </a-button>
+              </a-tooltip>
               <a-button
                 type="text"
                 danger
@@ -274,6 +284,21 @@
             </a-form-item>
           </template>
 
+          <!-- save_storage_state -->
+          <template v-else-if="step.action === 'save_storage_state'">
+            <a-form-item :label="t('case.lowcode_editor.storage_state_name')" :label-col="{ span: 4 }">
+              <a-input
+                v-model:value="step.params.name"
+                :placeholder="t('case.lowcode_editor.storage_state_name_placeholder')"
+                style="width: 240px"
+                @input="emitUpdate"
+              />
+              <span style="margin-left: 8px; color: #999; font-size: 12px">
+                {{ t('case.lowcode_editor.save_storage_state_tip') }}
+              </span>
+            </a-form-item>
+          </template>
+
           <a-form-item
             v-if="selectorActions.includes(step.action)"
             :label="t('case.lowcode_editor.element_asset')"
@@ -299,7 +324,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { PlusOutlined, DeleteOutlined, HolderOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, DeleteOutlined, HolderOutlined, PlayCircleOutlined } from '@ant-design/icons-vue'
 import draggable from 'vuedraggable'
 import { useI18n } from 'vue-i18n'
 import { environmentApi, webAssetsApi, webFilesApi, webVisualApi, type EnvironmentItem, type WebElementAssetItem, type WebPageObjectItem, type WebVisualBaselineItem } from '@/api'
@@ -321,6 +346,7 @@ const props = defineProps<{
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: ExternalStep[]]
+  'resume-recording': [stepIndex: number]
 }>()
 const { t } = useI18n()
 const variableSyntax = '{{VAR}}'
@@ -352,6 +378,7 @@ const actionOptions = computed(() => [
   { label: t('case.lowcode_editor.actions.select'), value: 'select' },
   { label: t('case.lowcode_editor.actions.press'), value: 'press' },
   { label: t('case.lowcode_editor.actions.hover'), value: 'hover' },
+  { label: t('case.lowcode_editor.actions.save_storage_state'), value: 'save_storage_state' },
 ])
 const selectorActions = ['click', 'fill', 'assert_visible', 'select', 'press', 'hover']
 const elementAssetOptions = computed(() => elementAssets.value.map((asset) => ({
@@ -382,6 +409,7 @@ const defaultParams: Record<string, () => StepParams> = {
   select: () => ({ selector: '', value: '' }),
   press: () => ({ key: 'Enter', selector: '' }),
   hover: () => ({ selector: '' }),
+  save_storage_state: () => ({ name: 'default' }),
 }
 
 function toInternal(items: ExternalStep[]): StepDef[] {
@@ -634,5 +662,12 @@ async function uploadWebFile(file: File, step: StepDef) {
   font-weight: 600;
   color: #666;
   min-width: 28px;
+}
+.resume-record-btn {
+  font-size: 12px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0 4px;
 }
 </style>

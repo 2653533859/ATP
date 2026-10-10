@@ -4,8 +4,6 @@
       <div class="toolbar-left">
         <PlayCircleOutlined class="toolbar-icon" />
         <h2 class="toolbar-title page-title">{{ t('run.list_title') }}</h2>
-        <span class="toolbar-divider">/</span>
-        <span class="toolbar-subtitle page-subtitle">{{ t('run.list_subtitle') }}</span>
       </div>
       <div class="toolbar-right">
         <a-button size="small" :loading="loading" @click="loadRuns">
@@ -60,7 +58,15 @@
       @change="handleTableChange"
     >
       <template #bodyCell="{ column, record }">
-        <template v-if="column.key === 'status'">
+        <template v-if="column.key === 'case_id'">
+          <div class="case-cell">
+            <span class="case-name" :title="record.case_name || record.case?.name || `#${record.case_id}`">
+              {{ record.case_name || record.case?.name || `#${record.case_id}` }}
+            </span>
+            <span v-if="record.case_name || record.case?.name" class="case-id-sub">#{{ record.case_id }}</span>
+          </div>
+        </template>
+        <template v-else-if="column.key === 'status'">
           <a-tag :color="statusColor(record.status)">{{ statusLabel(record.status) }}</a-tag>
         </template>
         <template v-else-if="column.key === 'environment'">
@@ -118,14 +124,14 @@ const statusOptions = computed(() =>
 )
 
 const columns = computed(() => [
-  { title: t('run.columns.id'), dataIndex: 'id', key: 'id', width: 80 },
-  { title: t('run.columns.case_id'), dataIndex: 'case_id', key: 'case_id', width: 100 },
-  { title: t('run.columns.status'), key: 'status', width: 100 },
-  { title: t('run.columns.environment'), dataIndex: 'environment', key: 'environment', width: 140 },
-  { title: t('run.columns.duration_ms'), dataIndex: 'duration_ms', key: 'duration_ms', width: 120 },
-  { title: t('run.columns.error_message'), dataIndex: 'error_message', key: 'error_message', width: 280 },
-  { title: t('run.columns.created_at'), dataIndex: 'created_at', key: 'created_at', width: 180 },
-  { title: t('run.columns.action'), key: 'action', width: 100, fixed: 'right' as const },
+  { title: t('run.columns.id'), dataIndex: 'id', key: 'id', width: 70 },
+  { title: t('run.columns.case_id'), key: 'case_id', width: 220 },
+  { title: t('run.columns.status'), key: 'status', width: 110 },
+  { title: t('run.columns.environment'), dataIndex: 'environment', key: 'environment', width: 120 },
+  { title: t('run.columns.duration_ms'), dataIndex: 'duration_ms', key: 'duration_ms', width: 110 },
+  { title: t('run.columns.error_message'), dataIndex: 'error_message', key: 'error_message', width: 260 },
+  { title: t('run.columns.created_at'), dataIndex: 'created_at', key: 'created_at', width: 170 },
+  { title: t('run.columns.action'), key: 'action', width: 90, fixed: 'right' as const },
 ])
 
 const filteredRuns = computed(() => {
@@ -133,7 +139,8 @@ const filteredRuns = computed(() => {
   return runs.value.filter((run) => {
     if (statusFilter.value && run.status !== statusFilter.value) return false
     if (!needle) return true
-    return [String(run.id), String(run.case_id), run.environment ?? '', run.error_message ?? '']
+    const caseName = (run as { case_name?: string; case?: { name?: string } }).case_name ?? (run as { case?: { name?: string } }).case?.name ?? ''
+    return [String(run.id), String(run.case_id), caseName, run.environment ?? '', run.error_message ?? '']
       .some((value) => value.toLowerCase().includes(needle))
   })
 })
@@ -242,6 +249,23 @@ onMounted(loadRuns)
 </script>
 
 <style scoped>
+.case-cell {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.case-name {
+  font-weight: 500;
+  color: var(--c-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.case-id-sub {
+  font-size: 11px;
+  color: var(--c-text-tertiary);
+  font-family: ui-monospace, monospace;
+}
 .error-summary {
   display: block;
   max-width: 260px;

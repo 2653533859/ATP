@@ -6,6 +6,16 @@
     :footer="null"
     @cancel="handleClose"
   >
+    <a-alert
+      v-if="props.replaySteps && props.replaySteps.length"
+      type="info"
+      show-icon
+      class="resume-mode-banner"
+      :message="t('case.drawer.web.recorder.resume_mode_title')"
+      :description="t('case.drawer.web.recorder.resume_mode_desc', { count: props.replaySteps.length })"
+      style="margin-bottom: 16px"
+    />
+
     <a-form layout="vertical">
       <a-form-item :label="t('case.drawer.web.recorder.start_url')" required>
         <a-input
@@ -51,7 +61,9 @@
       v-if="active"
       type="info"
       show-icon
-      :message="status === 'starting' ? t('case.drawer.web.recorder.starting') : t('case.drawer.web.recorder.recording')"
+      :message="status === 'starting'
+        ? (props.replaySteps?.length ? t('case.drawer.web.recorder.resuming_state') : t('case.drawer.web.recorder.starting'))
+        : (props.replaySteps?.length ? t('case.drawer.web.recorder.resume_ready') : t('case.drawer.web.recorder.recording'))"
       :description="t('case.drawer.web.recorder.recording_hint')"
       style="margin-bottom: 16px"
     />
@@ -122,6 +134,7 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
+import { normalizeRecordingUrl, recordingErrorMessage } from '@/utils/webRecording'
 import { webRecordingApi, type WebRecordingStatus, type WebRecordingStep, type WebRecordingWorkersResponse } from '@/api'
 
 const props = defineProps<{
@@ -130,6 +143,8 @@ const props = defineProps<{
   projectId?: number | null
   showCapture?: boolean
   autoApply?: boolean
+  replaySteps?: Array<Record<string, unknown>>
+  resumeTargetIndex?: number | null
 }>()
 const emit = defineEmits<{
   close: []
@@ -186,7 +201,14 @@ const evidenceEventCount = computed(() =>
 
 function reset() {
   clearPoll()
-  startUrl.value = props.initialUrl ?? ''
+  let initial = props.initialUrl ?? ''
+  if (!initial && props.replaySteps && props.replaySteps.length) {
+    const firstGoto = props.replaySteps.find((s) => s.action === 'goto' || (s.params as Record<string, unknown> | undefined)?.url)
+    if (firstGoto) {
+      initial = String((firstGoto.params as Record<string, unknown> | undefined)?.url || '')
+    }
+  }
+  startUrl.value = initial
   browser.value = 'chromium'
   recordingId.value = null
   status.value = 'stopped'
@@ -238,7 +260,7 @@ async function loadWorkerStatus() {
     workerStatus.value = await webRecordingApi.workers()
   } catch (e: unknown) {
     workerStatus.value = null
-    workerStatusError.value = e instanceof Error ? e.message : String(e)
+    workerStatusError.value = recordingErrorMessage(e, t('case.drawer.web.recorder.error'))
   } finally {
     workerStatusLoading.value = false
   }
@@ -261,10 +283,16 @@ async function startRecording() {
   error.value = ''
   steps.value = []
   try {
+    try {
+      startUrl.value = normalizeRecordingUrl(startUrl.value)
+    } catch {
+      throw new Error(t('case.drawer.web.recorder.start_url_invalid'))
+    }
     const result = await webRecordingApi.start({
       start_url: startUrl.value.trim(),
       project_id: props.projectId,
       browser: browser.value,
+      replay_steps: props.replaySteps,
     })
     recordingId.value = result.id
     assetIds.value = []
@@ -272,7 +300,7 @@ async function startRecording() {
     currentUrl.value = result.current_url ?? result.start_url
     schedulePoll()
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : String(e)
+    error.value = recordingErrorMessage(e, t('case.drawer.web.recorder.error'))
     status.value = 'error'
   } finally {
     starting.value = false
@@ -292,7 +320,7 @@ async function pollRecording() {
     applyRecordingResult(result)
     schedulePoll()
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : String(e)
+    error.value = recordingErrorMessage(e, t('case.drawer.web.recorder.error'))
     status.value = 'error'
   }
 }
@@ -310,7 +338,7 @@ async function stopRecording(closeAfter = false) {
     stopSucceeded = true
     applyRecordingResult(result)
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : String(e)
+    error.value = recordingErrorMessage(e, t('case.drawer.web.recorder.error'))
     status.value = 'error'
   } finally {
     stopping.value = false
@@ -340,7 +368,7 @@ async function captureScreenshot() {
     emit('captured', file, currentUrl.value || startUrl.value)
     await stopRecording(true)
   } catch (e: unknown) {
-    error.value = e instanceof Error ? e.message : String(e)
+    error.value = recordingErrorMessage(e, t('case.drawer.web.recorder.error'))
   } finally {
     capturing.value = false
   }

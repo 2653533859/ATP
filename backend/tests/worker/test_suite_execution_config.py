@@ -2,6 +2,7 @@ import asyncio
 import importlib
 import sys
 import types
+import pytest
 from pathlib import Path
 
 _REAL_BOOTSTRAP = importlib.import_module("app.models.bootstrap")
@@ -99,12 +100,21 @@ class _AsyncSessionContext:
 
 class _FakeSuiteRun:
     def __init__(self):
+        self.id = 31
+        self.identity_token = "suite-config-test"
         self.status = None
         self.case_run_ids = []
         self.result_summary = {}
         self.trace_id = "trace-suite"
         self.triggered_by = 7
         self.environment = None
+
+
+@pytest.fixture(autouse=True)
+def _active_group(monkeypatch):
+    # These tests isolate execution configuration. Identity/cancel persistence
+    # is exercised against a real database in test_group_execution_recovery.
+    monkeypatch.setattr(tasks, "is_group_cancelled", lambda *_args: False)
 
 
 class _FakeSuite:

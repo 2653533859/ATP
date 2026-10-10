@@ -22,6 +22,7 @@ class ExecutionRunLease(Base, TimestampMixin):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     task_type: Mapped[str] = mapped_column(String(32), nullable=False)
     run_id: Mapped[int] = mapped_column(Integer, nullable=False)
+    run_identity: Mapped[str | None] = mapped_column(String(32), nullable=True)
     lease_token: Mapped[str] = mapped_column(String(64), nullable=False)
     worker_id: Mapped[str] = mapped_column(String(255), nullable=False)
     celery_task_id: Mapped[str | None] = mapped_column(String(255), nullable=True)

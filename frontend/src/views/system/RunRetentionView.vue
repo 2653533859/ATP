@@ -3,7 +3,6 @@
     <div class="page-hero">
       <div>
         <h2 class="page-title">{{ t('system_pages.run_retention.title') }}</h2>
-        <div class="page-subtitle">{{ t('system_pages.run_retention.subtitle') }}</div>
       </div>
     </div>
 

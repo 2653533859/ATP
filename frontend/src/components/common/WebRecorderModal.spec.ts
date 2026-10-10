@@ -92,7 +92,7 @@ describe('WebRecorderModal', () => {
     await flushPromises()
 
     expect(recordingStart).toHaveBeenCalledWith({
-      start_url: 'https://example.com',
+      start_url: 'https://example.com/',
       project_id: 1,
       browser: 'firefox',
     })

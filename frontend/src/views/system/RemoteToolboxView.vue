@@ -6,7 +6,6 @@
           <ToolOutlined class="toolbar-icon" />
           <span class="toolbar-name">{{ t('remote_toolbox.title') }}</span>
         </div>
-        <div class="toolbar-sep">/</div>
         <div class="toolbar-note">
           <span class="safe-tag">安全自愈模式</span>
           <span class="note-text">{{ t('remote_toolbox.safe_note') }}</span>

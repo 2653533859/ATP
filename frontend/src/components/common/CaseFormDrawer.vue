@@ -2,7 +2,8 @@
   <a-drawer
     :open="open"
     :title="isEdit ? t('case_form.title_edit') : t('case_form.title_create')"
-    width="760"
+    :width="880"
+    :body-style="{ overflowX: 'hidden' }"
     :destroy-on-close="true"
     @close="emit('close')"
   >
@@ -21,7 +22,7 @@
               <a-select-option value="graphql">{{ t('case_form.case_types.graphql') }}</a-select-option>
               <a-select-option value="websocket">{{ t('case_form.case_types.websocket') }}</a-select-option>
               <a-select-option value="grpc">{{ t('case_form.case_types.grpc') }}</a-select-option>
-              <a-select-option value="ios">{{ t('case_form.case_types.ios') }}</a-select-option>
+              <a-select-option v-if="!localMode" value="ios">{{ t('case_form.case_types.ios') }}</a-select-option>
             </a-select>
           </a-form-item>
         </a-col>
@@ -129,6 +130,11 @@
           </a-col>
         </a-row>
         <a-form-item v-if="form.case_type === 'api'" :label="t('case_form.basic.dataset_prepare_actions')">
+          <template #extra>
+            <a-button size="small" type="link" style="padding: 0" @click="form.dataset_prepare_actions_text = tryFormatJson(form.dataset_prepare_actions_text)">
+              <FormatPainterOutlined /> 格式化 JSON
+            </a-button>
+          </template>
           <a-textarea
             v-model:value="form.dataset_prepare_actions_text"
             :rows="5"
@@ -140,24 +146,63 @@
       </a-form-item>
 
       <template v-if="form.case_type === 'api'">
-        <a-divider orientation="left">{{ t('case_form.sections.request_config') }}</a-divider>
+        <a-tabs v-model:activeKey="apiConfigTab" class="api-case-main-tabs" size="small">
+          <a-tab-pane key="request" :tab="t('case_form.sections.request_config')">
+        <div class="url-config-section">
+          <div class="url-label-row">
+            <span class="url-label-title"><span class="required-star">*</span> {{ t('case_form.api.url_label') }}</span>
+            <a-dropdown :trigger="['click']">
+              <template #overlay>
+                <a-menu @click="handleApplyRequestTemplate">
+                  <a-menu-item key="rest_json_get">
+                    <div class="preset-menu-item">
+                      <span class="preset-label">📋 标准 REST 查询 (GET + Accept JSON)</span>
+                      <small class="preset-code">配置 GET 方式、Accept 请求头与分页参数</small>
+                    </div>
+                  </a-menu-item>
+                  <a-menu-item key="jwt_form_login">
+                    <div class="preset-menu-item">
+                      <span class="preset-label">🔑 表单登录获取 Token (POST + urlencoded)</span>
+                      <small class="preset-code">配置 POST、urlencoded 头与表单凭据</small>
+                    </div>
+                  </a-menu-item>
+                  <a-menu-item key="auth_json_post">
+                    <div class="preset-menu-item">
+                      <span class="preset-label">🛡️ 鉴权业务调用 (POST + Bearer Token)</span>
+                      <small class="preset-code">配置 POST、JSON 头、Authorization 头与 Body</small>
+                    </div>
+                  </a-menu-item>
+                  <a-menu-item key="healthcheck_get">
+                    <div class="preset-menu-item">
+                      <span class="preset-label">🩺 服务探活配置 (GET)</span>
+                      <small class="preset-code">配置 GET 方式</small>
+                    </div>
+                  </a-menu-item>
+                </a-menu>
+              </template>
+              <a-button size="small" class="request-template-pill-btn">
+                <ThunderboltOutlined /> {{ t('api_scenario.request_template_label') }} <DownOutlined style="font-size: 9px" />
+              </a-button>
+            </a-dropdown>
+          </div>
 
-        <a-form-item :label="t('case_form.api.url_label')" :rules="[{ required: true, message: t('case_form.api.url_required') }]">
-          <a-input-group compact>
-            <a-select v-model:value="cfg.method" style="width: 110px">
-              <a-select-option v-for="m in HTTP_METHODS" :key="m" :value="m">{{ m }}</a-select-option>
-            </a-select>
-            <a-input v-model:value="cfg.url" style="width: calc(100% - 110px)" placeholder="https://api.example.com/v1/..." />
-          </a-input-group>
-        </a-form-item>
+          <a-form-item :rules="[{ required: true, message: t('case_form.api.url_required') }]" style="margin-bottom: 14px">
+            <a-input-group compact style="display: flex; width: 100%">
+              <a-select v-model:value="cfg.method" style="width: 110px; flex-shrink: 0">
+                <a-select-option v-for="m in HTTP_METHODS" :key="m" :value="m">{{ m }}</a-select-option>
+              </a-select>
+              <a-input v-model:value="cfg.url" style="flex: 1" placeholder="https://api.example.com/v1/..." />
+            </a-input-group>
+          </a-form-item>
+        </div>
 
         <a-tabs v-model:activeKey="activeTab" size="small">
           <a-tab-pane key="headers" :tab="t('case_form.tabs.headers')">
-            <KvEditor v-model:value="cfg.headers" />
+            <KvEditor v-model:value="cfg.headers" preset-kind="headers" />
           </a-tab-pane>
 
           <a-tab-pane key="params" :tab="t('case_form.tabs.params')">
-            <KvEditor v-model:value="cfg.params" />
+            <KvEditor v-model:value="cfg.params" preset-kind="params" />
           </a-tab-pane>
 
           <a-tab-pane key="body" :tab="t('case_form.tabs.body')">
@@ -196,17 +241,68 @@
               </a-button>
               <div class="form-hint">{{ t('case_form.multipart.hint') }}</div>
             </template>
-            <a-textarea
-              v-else-if="cfg.body_type !== 'none'"
-              v-model:value="cfg.body"
-              :rows="8"
-              :placeholder="cfg.body_type === 'xml' ? '<request><id>{{id}}</id></request>' : 'JSON body'"
-              style="font-family: monospace; font-size: 13px"
-            />
+            <template v-else-if="cfg.body_type !== 'none'">
+              <div v-if="cfg.body_type === 'json' || cfg.body_type === 'raw'" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px">
+                <a-dropdown :trigger="['click']">
+                  <template #overlay>
+                    <a-menu @click="handleApplyBodyTemplate">
+                      <a-menu-item key="empty_object">
+                        <div class="preset-menu-item">
+                          <span class="preset-label">空 JSON 对象</span>
+                          <code class="preset-code">{}</code>
+                        </div>
+                      </a-menu-item>
+                      <a-menu-item key="pagination">
+                        <div class="preset-menu-item">
+                          <span class="preset-label">分页检索参数</span>
+                          <code class="preset-code">{"page": 1, "page_size": 20, "keyword": ""}</code>
+                        </div>
+                      </a-menu-item>
+                      <a-menu-item key="login_credentials">
+                        <div class="preset-menu-item">
+                          <span class="preset-label">登录凭证结构</span>
+                          <code class="preset-code">{"username": "admin", "password": "password"}</code>
+                        </div>
+                      </a-menu-item>
+                      <a-menu-item key="id_update">
+                        <div class="preset-menu-item">
+                          <span class="preset-label">状态更新模板</span>
+                          <code class="preset-code">&#123;&quot;id&quot;: &quot;&#123;&#123;id&#125;&#125;&quot;, &quot;status&quot;: &quot;active&quot;&#125;</code>
+                        </div>
+                      </a-menu-item>
+                      <a-menu-item key="object_array">
+                        <div class="preset-menu-item">
+                          <span class="preset-label">对象数组结构</span>
+                          <code class="preset-code">[{"name": "item1"}]</code>
+                        </div>
+                      </a-menu-item>
+                    </a-menu>
+                  </template>
+                  <a-button size="small">
+                    <ThunderboltOutlined /> {{ t('api_scenario.body_template_label') }} <DownOutlined style="font-size: 9px" />
+                  </a-button>
+                </a-dropdown>
+
+                <a-space size="small">
+                  <a-button size="small" @click="cfg.body = tryFormatJson(cfg.body)">
+                    <FormatPainterOutlined /> 格式化 JSON
+                  </a-button>
+                  <a-button size="small" @click="cfg.body = tryCompressJson(cfg.body)">
+                    压缩
+                  </a-button>
+                </a-space>
+              </div>
+              <a-textarea
+                v-model:value="cfg.body"
+                :rows="8"
+                :placeholder="cfg.body_type === 'xml' ? '<request><id>{{id}}</id></request>' : 'JSON body'"
+                style="font-family: monospace; font-size: 13px"
+              />
+            </template>
           </a-tab-pane>
 
           <a-tab-pane key="cookies" :tab="t('case_form.tabs.cookies')">
-            <KvEditor v-model:value="cfg.cookies" />
+            <KvEditor v-model:value="cfg.cookies" preset-kind="cookies" />
             <div class="form-hint">{{ t('case_form.api.cookies_hint') }}</div>
           </a-tab-pane>
 
@@ -276,99 +372,84 @@
           </a-tab-pane>
         </a-tabs>
 
-        <a-divider orientation="left">{{ t('case_form.api.orchestration_title') }}</a-divider>
-        <a-alert
-          v-if="apiScenarioSteps.length <= 1"
-          type="info"
-          show-icon
-          :message="t('case_form.api.orchestration_single_step')"
-          style="margin-bottom: 12px"
-        />
-        <a-list v-else size="small" bordered :data-source="apiScenarioSteps">
-          <template #renderItem="{ item, index }">
-            <a-list-item>
-              <div style="display: flex; width: 100%; align-items: center; gap: 12px; flex-wrap: wrap">
-                <a-tag color="blue">{{ index + 1 }}</a-tag>
-                <span style="min-width: 150px; flex: 1">{{ item.name || t('case_form.api.orchestration_step_fallback', { index: index + 1 }) }}</span>
-                <a-select
-                  v-if="index > 0"
-                  v-model:value="item.depends_on"
-                  mode="multiple"
-                  allow-clear
-                  :options="scenarioDependencyOptions(index)"
-                  :placeholder="t('case_form.api.depends_on_placeholder')"
-                  style="min-width: 260px"
-                />
-                <span v-else class="form-hint">{{ t('case_form.api.orchestration_entry_step') }}</span>
-              </div>
-            </a-list-item>
-          </template>
-        </a-list>
-        <a-button type="dashed" size="small" style="margin: 10px 0 4px" @click="addScenarioStep">
-          <PlusOutlined /> {{ t('case_form.api.add_scenario_step') }}
-        </a-button>
-        <div class="form-hint">{{ t('case_form.api.orchestration_steps_hint') }}</div>
-
-        <a-form-item style="margin-top: 16px; margin-bottom: 0">
-          <a-checkbox v-model:checked="cfg.reuse_api_session">
-            {{ t('case_form.api.reuse_session_label') }}
-          </a-checkbox>
-          <div style="color: #999; font-size: 12px; margin-top: 4px">
-            {{ t('case_form.api.reuse_session_hint') }}
+        <section class="request-preview" aria-label="API request preview">
+          <div class="request-preview-toolbar">
+            <div>
+              <strong>{{ t('case_form.preview.title') }}</strong>
+              <div class="form-hint">{{ t('case_form.preview.hint') }}</div>
+            </div>
+            <a-space>
+              <a-button v-if="previewLoading" @click="cancelPreview">{{ t('case_form.preview.cancel') }}</a-button>
+              <a-button type="primary" :loading="previewLoading" :disabled="!cfg.url.trim() || !props.projectId" @click="sendPreview">
+                {{ t('case_form.preview.send') }}
+              </a-button>
+            </a-space>
           </div>
-        </a-form-item>
+          <a-alert v-if="previewError" type="error" show-icon :message="previewError" style="margin-top: 12px" />
+          <div v-if="previewResult" class="request-preview-result">
+            <div class="request-preview-metrics">
+              <a-tag :color="previewResult.status_code < 400 ? 'green' : 'red'">
+                {{ previewResult.status_code }} {{ previewResult.reason }}
+              </a-tag>
+              <span>{{ previewResult.duration_ms }} ms</span>
+              <span>{{ formatPreviewSize(previewResult.size_bytes) }}</span>
+              <a-tag v-if="previewResult.truncated" color="orange">{{ t('case_form.preview.truncated') }}</a-tag>
+            </div>
+            <a-tabs v-model:activeKey="previewTab" size="small">
+              <a-tab-pane key="body" :tab="t('case_form.preview.response_body')">
+                <pre class="request-preview-content">{{ formattedPreviewBody }}</pre>
+              </a-tab-pane>
+              <a-tab-pane key="headers" :tab="t('case_form.preview.response_headers')">
+                <pre class="request-preview-content">{{ formattedPreviewHeaders }}</pre>
+              </a-tab-pane>
+            </a-tabs>
+          </div>
+        </section>
 
-        <a-row :gutter="12" style="margin-top: 16px">
-          <a-col :span="8">
-            <a-form-item :label="t('case_form.api.failure_strategy_label')">
-              <a-select v-model:value="cfg.failure_strategy">
-                <a-select-option value="continue">{{ t('case_form.api.failure_strategies.continue') }}</a-select-option>
-                <a-select-option value="stop">{{ t('case_form.api.failure_strategies.stop') }}</a-select-option>
-                <a-select-option value="skip_dependents">{{ t('case_form.api.failure_strategies.skip_dependents') }}</a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item :label="t('case_form.api.context_scope_label')">
-              <a-select v-model:value="cfg.context_scope">
-                <a-select-option value="scenario">{{ t('case_form.api.context_scopes.scenario') }}</a-select-option>
-                <a-select-option value="step">{{ t('case_form.api.context_scopes.step') }}</a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col :span="8">
-            <a-form-item :label="t('case_form.api.session_lifecycle_label')">
-              <a-select v-model:value="cfg.session_lifecycle">
-                <a-select-option value="isolated">{{ t('case_form.api.session_lifecycles.isolated') }}</a-select-option>
-                <a-select-option value="reuse">{{ t('case_form.api.session_lifecycles.reuse') }}</a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-        </a-row>
-        <div class="form-hint">{{ t('case_form.api.orchestration_hint') }}</div>
+        <div class="scenario-pipeline-quick-banner">
+          <div class="banner-text">
+            <strong>🔗 {{ t('api_scenario.pipeline_title') }} ({{ apiScenarioSteps.length }})</strong>
+            <span>{{ t('api_scenario.pipeline_desc') }}</span>
+          </div>
+          <a-space>
+            <a-button type="primary" ghost size="small" @click="libraryPickerOpen = true">
+              <ApiOutlined /> {{ t('api_scenario.import_from_library') }}
+            </a-button>
+            <a-button size="small" @click="apiConfigTab = 'scenario'">
+              查看场景流水线 ({{ apiScenarioSteps.length }})
+            </a-button>
+          </a-space>
+        </div>
+      </a-tab-pane>
 
-        <a-form-item :label="t('case_form.api.timeout_label')" style="margin-top: 16px">
-          <a-input-number v-model:value="cfg.timeout" :min="1" :max="300" style="width: 120px" />
-        </a-form-item>
-        <a-row :gutter="16">
-          <a-col :span="12">
-            <a-form-item :label="t('case_form.api.response_type_label')">
-              <a-select v-model:value="cfg.response_type" style="width: 180px">
-                <a-select-option value="auto">{{ t('case_form.api.response_types.auto') }}</a-select-option>
-                <a-select-option value="json">JSON</a-select-option>
-                <a-select-option value="xml">XML</a-select-option>
-                <a-select-option value="sse">SSE</a-select-option>
-              </a-select>
-            </a-form-item>
-          </a-col>
-          <a-col v-if="cfg.response_type === 'sse'" :span="12">
-            <a-form-item :label="t('case_form.api.sse_max_events_label')">
-              <a-input-number v-model:value="cfg.sse_max_events" :min="1" :max="1000" style="width: 120px" />
-            </a-form-item>
-          </a-col>
-        </a-row>
+      <!-- Tab 2: 场景自动化流水线 -->
+      <a-tab-pane key="scenario" :tab="`⚡ 场景流水线 (${apiScenarioSteps.length})`">
+        <ApiScenarioPipeline
+          v-model:steps="apiScenarioSteps"
+          :project-id="projectId"
+          :can-modify="true"
+          @open-library-picker="libraryPickerOpen = true"
+        />
+      </a-tab-pane>
 
-        <a-divider orientation="left">{{ t('case_form.sections.assertions') }}</a-divider>
+      <!-- Tab 2: 断言与变量提取 -->
+      <a-tab-pane key="validations" :tab="t('case_form.tab_validations')">
+        <div class="section-header-bar">
+          <div class="section-header-left">
+            <span class="section-header-title">{{ t('case_form.sections.assertions') }}</span>
+            <span class="section-header-line" />
+          </div>
+          <a-button
+            type="primary"
+            ghost
+            size="small"
+            class="ai-suggest-btn"
+            :loading="aiSuggesting"
+            @click="openAiSuggestModal"
+          >
+            <ThunderboltOutlined /> {{ t('case_form.ai_suggest_action') }}
+          </a-button>
+        </div>
         <div v-for="(a, i) in cfg.assertions" :key="i" class="assertion-row">
           <a-select v-model:value="a.target" style="width: 130px" :placeholder="t('case_form.assertion.target_placeholder')">
             <a-select-option value="status_code">{{ t('case_form.assertion.targets.status_code') }}</a-select-option>
@@ -432,7 +513,12 @@
           <PlusOutlined /> {{ t('case_form.assertion.add') }}
         </a-button>
 
-        <a-divider orientation="left">{{ t('case_form.sections.extractions') }}</a-divider>
+        <div class="section-header-bar">
+          <div class="section-header-left">
+            <span class="section-header-title">{{ t('case_form.sections.extractions') }}</span>
+            <span class="section-header-line" />
+          </div>
+        </div>
         <div v-for="(e, i) in cfg.extractions" :key="i" class="assertion-row">
           <a-input v-model:value="e.variable" :placeholder="t('case_form.extraction.variable_placeholder')" style="width: 140px" />
           <span style="padding: 0 8px; color: #999">=</span>
@@ -446,26 +532,99 @@
         <a-button type="dashed" size="small" @click="cfg.extractions.push({ variable: '', expression: '' })">
           <PlusOutlined /> {{ t('case_form.extraction.add') }}
         </a-button>
+      </a-tab-pane>
 
-        <a-divider orientation="left">{{ t('case_form.sections.hooks') }}</a-divider>
+      <!-- Tab 3: 执行策略与高级 -->
+      <a-tab-pane key="strategy" :tab="t('case_form.tab_strategy')">
+        <a-form-item style="margin-top: 16px; margin-bottom: 0">
+          <a-checkbox v-model:checked="cfg.reuse_api_session">
+            {{ t('case_form.api.reuse_session_label') }}
+          </a-checkbox>
+          <div style="color: #999; font-size: 12px; margin-top: 4px">
+            {{ t('case_form.api.reuse_session_hint') }}
+          </div>
+        </a-form-item>
+
+        <a-row :gutter="12" style="margin-top: 16px">
+          <a-col :span="8">
+            <a-form-item :label="t('case_form.api.failure_strategy_label')">
+              <a-select v-model:value="cfg.failure_strategy">
+                <a-select-option value="continue">{{ t('case_form.api.failure_strategies.continue') }}</a-select-option>
+                <a-select-option value="stop">{{ t('case_form.api.failure_strategies.stop') }}</a-select-option>
+                <a-select-option value="skip_dependents">{{ t('case_form.api.failure_strategies.skip_dependents') }}</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :span="8">
+            <a-form-item :label="t('case_form.api.context_scope_label')">
+              <a-select v-model:value="cfg.context_scope">
+                <a-select-option value="scenario">{{ t('case_form.api.context_scopes.scenario') }}</a-select-option>
+                <a-select-option value="step">{{ t('case_form.api.context_scopes.step') }}</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col :span="8">
+            <a-form-item :label="t('case_form.api.session_lifecycle_label')">
+              <a-select v-model:value="cfg.session_lifecycle">
+                <a-select-option value="isolated">{{ t('case_form.api.session_lifecycles.isolated') }}</a-select-option>
+                <a-select-option value="reuse">{{ t('case_form.api.session_lifecycles.reuse') }}</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+        </a-row>
+        <div class="form-hint">{{ t('case_form.api.orchestration_hint') }}</div>
+
+        <a-form-item :label="t('case_form.api.timeout_label')" style="margin-top: 16px">
+          <a-input-number v-model:value="cfg.timeout" :min="1" :max="300" style="width: 120px" />
+        </a-form-item>
+        <a-row :gutter="16">
+          <a-col :span="12">
+            <a-form-item :label="t('case_form.api.response_type_label')">
+              <a-select v-model:value="cfg.response_type" style="width: 180px">
+                <a-select-option value="auto">{{ t('case_form.api.response_types.auto') }}</a-select-option>
+                <a-select-option value="json">JSON</a-select-option>
+                <a-select-option value="xml">XML</a-select-option>
+                <a-select-option value="sse">SSE</a-select-option>
+              </a-select>
+            </a-form-item>
+          </a-col>
+          <a-col v-if="cfg.response_type === 'sse'" :span="12">
+            <a-form-item :label="t('case_form.api.sse_max_events_label')">
+              <a-input-number v-model:value="cfg.sse_max_events" :min="1" :max="1000" style="width: 120px" />
+            </a-form-item>
+          </a-col>
+        </a-row>
+
         <a-form-item :label="t('case_form.hooks.pre_label')">
+          <template #extra>
+            <a-button size="small" type="link" style="padding: 0" @click="cfg.pre_actions_text = tryFormatJson(cfg.pre_actions_text)">
+              <FormatPainterOutlined /> 格式化 JSON
+            </a-button>
+          </template>
           <a-textarea
             v-model:value="cfg.pre_actions_text"
             :rows="3"
-            :placeholder="t('case_form.hooks.placeholder')"
+            :placeholder="hookActionPlaceholder"
             style="font-family: monospace; font-size: 12px"
           />
           <div class="form-hint">{{ t('case_form.hooks.hint') }}</div>
         </a-form-item>
         <a-form-item :label="t('case_form.hooks.post_label')">
+          <template #extra>
+            <a-button size="small" type="link" style="padding: 0" @click="cfg.post_actions_text = tryFormatJson(cfg.post_actions_text)">
+              <FormatPainterOutlined /> 格式化 JSON
+            </a-button>
+          </template>
           <a-textarea
             v-model:value="cfg.post_actions_text"
             :rows="3"
-            :placeholder="t('case_form.hooks.placeholder')"
+            :placeholder="hookActionPlaceholder"
             style="font-family: monospace; font-size: 12px"
           />
         </a-form-item>
-      </template>
+        </a-tab-pane>
+      </a-tabs>
+    </template>
 
       <template v-else-if="form.case_type === 'graphql'">
         <a-divider orientation="left">{{ t('case_form.sections.graphql_config') }}</a-divider>
@@ -513,6 +672,11 @@
         </a-form-item>
 
         <a-form-item :label="t('case_form.graphql.variables_label')">
+          <template #extra>
+            <a-button size="small" type="link" style="padding: 0" @click="gqlCfg.variables_text = tryFormatJson(gqlCfg.variables_text)">
+              <FormatPainterOutlined /> 格式化 JSON
+            </a-button>
+          </template>
           <a-textarea
             v-model:value="gqlCfg.variables_text"
             :rows="4"
@@ -526,6 +690,11 @@
             <a-input v-model:value="gqlCfg.subscription_url" placeholder="wss://api.example.com/graphql" />
           </a-form-item>
           <a-form-item :label="t('case_form.graphql.connection_payload_label')">
+            <template #extra>
+              <a-button size="small" type="link" style="padding: 0" @click="gqlCfg.connection_payload_text = tryFormatJson(gqlCfg.connection_payload_text)">
+                <FormatPainterOutlined /> 格式化 JSON
+              </a-button>
+            </template>
             <a-textarea v-model:value="gqlCfg.connection_payload_text" :rows="3" placeholder='{"authToken":"{{token}}"}' />
           </a-form-item>
           <a-row :gutter="16">
@@ -875,6 +1044,11 @@
         </a-form-item>
 
         <a-form-item :label="t('case_form.grpc.request_json_label')">
+          <template #extra>
+            <a-button size="small" type="link" style="padding: 0" @click="grpcCfg.request_json = tryFormatJson(grpcCfg.request_json)">
+              <FormatPainterOutlined /> 格式化 JSON
+            </a-button>
+          </template>
           <a-textarea
             v-model:value="grpcCfg.request_json"
             :rows="5"
@@ -978,14 +1152,131 @@
       </a-space>
     </template>
   </a-drawer>
+
+  <!-- AI 智能推荐断言与变量提取弹窗 -->
+  <a-modal
+    v-model:open="aiSuggestModalOpen"
+    :title="t('case_form.ai_suggest_modal_title')"
+    width="720px"
+    :ok-text="t('case_form.ai_suggest_apply')"
+    :ok-button-props="{ disabled: selectedAssertIndexes.length === 0 && selectedExtractIndexes.length === 0 }"
+    @ok="applyAiSuggestions"
+  >
+    <a-alert
+      type="info"
+      show-icon
+      :message="t('case_form.ai_suggest_modal_desc')"
+      style="margin-bottom: 16px"
+    />
+
+    <div class="ai-suggest-sample-box">
+      <div class="sample-label-row">
+        <label>{{ t('case_form.ai_suggest_paste_resp') }}</label>
+        <a-button size="small" type="link" :loading="aiSuggesting" @click="fetchAiSuggestions">
+          <ReloadOutlined /> 重新推荐
+        </a-button>
+      </div>
+      <a-textarea
+        v-model:value="customResponseSampleText"
+        :rows="3"
+        placeholder='例如: {"code": 0, "message": "success", "data": {"token": "eyJ...", "user_id": 10086}}'
+        style="font-family: monospace; font-size: 12px; margin-bottom: 16px"
+      />
+    </div>
+
+    <div v-if="aiSuggesting" class="ai-suggest-loading">
+      <a-spin />
+      <span style="margin-left: 8px">AI 正在深度解析接口数据并生成推荐规则...</span>
+    </div>
+
+    <div v-else>
+      <!-- 推荐断言 -->
+      <div class="suggest-section">
+        <div class="suggest-section-head">
+          <strong>推荐断言 ({{ selectedAssertIndexes.length }}/{{ suggestedAssertions.length }})</strong>
+          <a-button type="link" size="small" @click="toggleAllAsserts">
+            {{ selectedAssertIndexes.length === suggestedAssertions.length ? '全部取消' : '全选' }}
+          </a-button>
+        </div>
+        <div v-if="suggestedAssertions.length === 0" class="suggest-empty-tip">未生成断言建议</div>
+        <div v-else class="suggest-items-grid">
+          <div
+            v-for="(item, idx) in suggestedAssertions"
+            :key="`assert-${idx}`"
+            class="suggest-card"
+            :class="{ 'is-selected': selectedAssertIndexes.includes(idx) }"
+            @click="toggleAssertIndex(idx)"
+          >
+            <a-checkbox
+              :checked="selectedAssertIndexes.includes(idx)"
+              @click.stop="toggleAssertIndex(idx)"
+            />
+            <div class="suggest-card-body">
+              <div class="suggest-card-top">
+                <a-tag color="blue">{{ item.target }}</a-tag>
+                <code class="suggest-card-code">{{ item.expression || item.target }} {{ item.operator }} {{ item.expected || 'exists' }}</code>
+              </div>
+              <small class="suggest-card-desc">{{ item.description }}</small>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 推荐变量提取 -->
+      <div class="suggest-section" style="margin-top: 16px">
+        <div class="suggest-section-head">
+          <strong>推荐变量提取 ({{ selectedExtractIndexes.length }}/{{ suggestedExtractions.length }})</strong>
+          <a-button type="link" size="small" @click="toggleAllExtracts">
+            {{ selectedExtractIndexes.length === suggestedExtractions.length ? '全部取消' : '全选' }}
+          </a-button>
+        </div>
+        <div v-if="suggestedExtractions.length === 0" class="suggest-empty-tip">未生成变量提取建议</div>
+        <div v-else class="suggest-items-grid">
+          <div
+            v-for="(item, idx) in suggestedExtractions"
+            :key="`extract-${idx}`"
+            class="suggest-card"
+            :class="{ 'is-selected': selectedExtractIndexes.includes(idx) }"
+            @click="toggleExtractIndex(idx)"
+          >
+            <a-checkbox
+              :checked="selectedExtractIndexes.includes(idx)"
+              @click.stop="toggleExtractIndex(idx)"
+            />
+            <div class="suggest-card-body">
+              <div class="suggest-card-top">
+                <span class="suggest-var-badge">${{ item.variable }}</span>
+                <span style="color: var(--c-text-tertiary); margin: 0 4px">=</span>
+                <code class="suggest-card-code">{{ item.expression }}</code>
+              </div>
+              <small class="suggest-card-desc">{{ item.description }}</small>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </a-modal>
+
+  <ApiLibraryPickerDrawer
+    v-model:open="libraryPickerOpen"
+    :project-id="projectId"
+    :current-step-count="apiScenarioSteps.length"
+    @import="handleImportLibrarySteps"
+  />
 </template>
 
+
 <script setup lang="ts">
-import { computed, ref, reactive, watch } from 'vue'
+import { getRuntimeMode } from '@/runtimeMode'
+import { computed, onBeforeUnmount, ref, reactive, watch } from 'vue'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
-import { PlusOutlined, MinusCircleOutlined } from '@ant-design/icons-vue'
-import { apiSchemaAssetApi, caseApi, datasetApi, type ApiSchemaAssetItem, type GraphqlIntrospectionField } from '@/api'
+import { PlusOutlined, MinusCircleOutlined, FormatPainterOutlined, ThunderboltOutlined, ReloadOutlined, ApiOutlined, DownOutlined } from '@ant-design/icons-vue'
+import ApiLibraryPickerDrawer from '@/components/common/ApiLibraryPickerDrawer.vue'
+import ApiScenarioPipeline from '@/components/common/ApiScenarioPipeline.vue'
+import type { ApiScenarioStep } from '@/types/apiScenario'
+import { tryFormatJson, tryCompressJson } from '@/utils/jsonFormat'
+import { apiSchemaAssetApi, caseApi, projectApi, datasetApi, type AIAssertionSuggestion, type AIExtractionSuggestion, type ApiRequestPreviewPayload, type ApiRequestPreviewResult, type ApiSchemaAssetItem, type GraphqlIntrospectionField } from '@/api'
 import type { CaseDetailItem, CaseLevel, CasePriority, CaseSavePayload, CaseSummaryItem, CaseType } from '@/api'
 import {
   getFirstStep,
@@ -998,7 +1289,219 @@ import {
 import { GrpcProtoFileError, readGrpcProtoFile, validateGrpcProtoBundle } from '@/utils/grpcProtoFile'
 import KvEditor from '@/components/common/KvEditor.vue'
 
+const localMode = getRuntimeMode()?.mode === 'local'
 const { t } = useI18n()
+const hookActionPlaceholder = JSON.stringify([{ action: 'set_variable', variable: 'request_id', value: 'demo' }])
+const apiConfigTab = ref('request')
+
+const libraryPickerOpen = ref(false)
+
+function handleImportLibrarySteps(importedSteps: ApiScenarioStep[]) {
+  if (!importedSteps.length) return
+  if (!apiScenarioSteps.value.length) {
+    const first = importedSteps[0]
+    if (first.url) cfg.url = first.url
+    if (first.method) cfg.method = first.method
+    if (first.headers) cfg.headers = { ...first.headers }
+    if (first.params) cfg.params = { ...first.params }
+    if (first.cookies) cfg.cookies = { ...first.cookies }
+    if (first.body_type) cfg.body_type = first.body_type as typeof cfg.body_type
+    if (first.body != null) cfg.body = typeof first.body === 'string' ? first.body : JSON.stringify(first.body, null, 2)
+    if (first.assertions) {
+      cfg.assertions = first.assertions.map((a) => ({
+        target: a.target,
+        operator: a.operator,
+        expected: a.expected,
+        expression: a.expression,
+        schema_asset_id: a.schema_asset_id,
+      }))
+    }
+    if (first.extractions) {
+      cfg.extractions = first.extractions.map((e) => ({
+        variable: e.variable,
+        expression: e.expression,
+        type: e.type,
+      }))
+    }
+    if (!form.name && first.name) form.name = first.name
+    apiScenarioSteps.value = [...importedSteps]
+  } else {
+    const offset = apiScenarioSteps.value.length
+    const withDeps = importedSteps.map((step, idx) => ({
+      ...step,
+      depends_on: [offset + idx - 1],
+    }))
+    apiScenarioSteps.value.push(...withDeps)
+  }
+  apiConfigTab.value = 'scenario'
+}
+function handleApplyRequestTemplate({ key }: { key: string | number }) {
+  if (key === 'rest_json_get') {
+    cfg.method = 'GET'
+    cfg.headers = { ...cfg.headers, Accept: 'application/json' }
+    cfg.params = { ...cfg.params, page: '1', page_size: '20' }
+    message.success(t('api_scenario.template_applied', { name: '标准 REST 查询' }))
+  } else if (key === 'jwt_form_login') {
+    cfg.method = 'POST'
+    cfg.headers = { ...cfg.headers, 'Content-Type': 'application/x-www-form-urlencoded' }
+    cfg.body_type = 'form'
+    formBody.value = { username: 'admin', password: 'password' }
+    message.success(t('api_scenario.template_applied', { name: '表单登录获取 Token' }))
+  } else if (key === 'auth_json_post') {
+    cfg.method = 'POST'
+    cfg.headers = {
+      ...cfg.headers,
+      'Content-Type': 'application/json',
+      Authorization: 'Bearer {{token}}',
+    }
+    cfg.body_type = 'json'
+    if (!cfg.body) cfg.body = JSON.stringify({ name: 'demo', status: 'active' }, null, 2)
+    message.success(t('api_scenario.template_applied', { name: '鉴权业务调用' }))
+  } else if (key === 'healthcheck_get') {
+    cfg.method = 'GET'
+    message.success(t('api_scenario.template_applied', { name: '服务探活心跳' }))
+  }
+}
+function handleApplyBodyTemplate({ key }: { key: string | number }) {
+  if (key === 'empty_object') {
+    cfg.body = '{\n  \n}'
+  } else if (key === 'pagination') {
+    cfg.body = JSON.stringify({ page: 1, page_size: 20, keyword: '' }, null, 2)
+  } else if (key === 'login_credentials') {
+    cfg.body = JSON.stringify({ username: 'admin', password: 'password' }, null, 2)
+  } else if (key === 'id_update') {
+    cfg.body = JSON.stringify({ id: '{{id}}', status: 'active' }, null, 2)
+  } else if (key === 'object_array') {
+    cfg.body = JSON.stringify([{ name: 'item1' }], null, 2)
+  }
+  message.success(t('api_scenario.template_applied', { name: 'Body 结构' }))
+}
+
+
+const aiSuggestModalOpen = ref(false)
+const aiSuggesting = ref(false)
+const customResponseSampleText = ref('')
+const cachedResponseSample = ref<unknown>(null)
+const cachedStatusCode = ref<number | null>(null)
+const suggestedAssertions = ref<AIAssertionSuggestion[]>([])
+const suggestedExtractions = ref<AIExtractionSuggestion[]>([])
+const selectedAssertIndexes = ref<number[]>([])
+const selectedExtractIndexes = ref<number[]>([])
+
+async function openAiSuggestModal() {
+  aiSuggestModalOpen.value = true
+  if (suggestedAssertions.value.length === 0 && suggestedExtractions.value.length === 0) {
+    await fetchAiSuggestions()
+  }
+}
+
+async function fetchAiSuggestions() {
+  aiSuggesting.value = true
+  try {
+    let parsedBody: unknown = undefined
+    const text = customResponseSampleText.value.trim()
+    if (text) {
+      try {
+        parsedBody = JSON.parse(text)
+      } catch {
+        parsedBody = text
+      }
+    } else if (cachedResponseSample.value !== null) {
+      parsedBody = cachedResponseSample.value
+    } else if (cfg.body) {
+      try {
+        parsedBody = JSON.parse(cfg.body)
+      } catch {
+        parsedBody = cfg.body
+      }
+    }
+
+    const res = await caseApi.suggestAssertions({
+      project_id: props.projectId,
+      method: cfg.method || 'GET',
+      url: cfg.url || '',
+      status_code: cachedStatusCode.value ?? 200,
+      response_body: parsedBody,
+      request_body: cfg.body || undefined,
+    })
+
+    suggestedAssertions.value = res.assertions
+    suggestedExtractions.value = res.extractions
+    selectedAssertIndexes.value = res.assertions.map((_, i) => i)
+    selectedExtractIndexes.value = res.extractions.map((_, i) => i)
+  } catch (err: unknown) {
+    message.error(err instanceof Error ? err.message : '获取 AI 建议失败')
+  } finally {
+    aiSuggesting.value = false
+  }
+}
+
+function toggleAllAsserts() {
+  if (selectedAssertIndexes.value.length === suggestedAssertions.value.length) {
+    selectedAssertIndexes.value = []
+  } else {
+    selectedAssertIndexes.value = suggestedAssertions.value.map((_, i) => i)
+  }
+}
+
+function toggleAssertIndex(idx: number) {
+  const i = selectedAssertIndexes.value.indexOf(idx)
+  if (i >= 0) {
+    selectedAssertIndexes.value.splice(i, 1)
+  } else {
+    selectedAssertIndexes.value.push(idx)
+  }
+}
+
+function toggleAllExtracts() {
+  if (selectedExtractIndexes.value.length === suggestedExtractions.value.length) {
+    selectedExtractIndexes.value = []
+  } else {
+    selectedExtractIndexes.value = suggestedExtractions.value.map((_, i) => i)
+  }
+}
+
+function toggleExtractIndex(idx: number) {
+  const i = selectedExtractIndexes.value.indexOf(idx)
+  if (i >= 0) {
+    selectedExtractIndexes.value.splice(i, 1)
+  } else {
+    selectedExtractIndexes.value.push(idx)
+  }
+}
+
+function applyAiSuggestions() {
+  const addedAsserts: AssertionItem[] = selectedAssertIndexes.value.map((idx) => {
+    const s = suggestedAssertions.value[idx]
+    return {
+      target: s.target,
+      operator: s.operator,
+      expected: s.expected,
+      expression: s.expression,
+      expression_type: 'jsonpath' as const,
+    }
+  })
+
+  const addedExtracts: ExtractionItem[] = selectedExtractIndexes.value.map((idx) => {
+    const s = suggestedExtractions.value[idx]
+    return {
+      variable: s.variable,
+      type: 'jsonpath' as const,
+      expression: s.expression,
+    }
+  })
+
+  cfg.assertions.push(...addedAsserts)
+  cfg.extractions.push(...addedExtracts)
+
+  aiSuggestModalOpen.value = false
+  message.success(
+    t('case_form.ai_suggest_applied', {
+      assertions: addedAsserts.length,
+      extractions: addedExtracts.length,
+    })
+  )
+}
 
 const HTTP_METHODS = ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'HEAD', 'OPTIONS']
 
@@ -1030,7 +1533,7 @@ type AssertionItem = {
 type ExtractionItem = {
   variable: string
   expression: string
-  type?: 'jsonpath' | 'xpath'
+  type?: 'jsonpath' | 'xpath' | 'regex' | 'header'
 }
 
 type HookAction = Record<string, unknown> & { action: string; variable?: string }
@@ -1054,39 +1557,15 @@ type WsMessage = {
   extractions: ExtractionItem[]
 }
 
-type CaseConfigStep = Record<string, unknown> & {
-  url?: string
-  method?: string
-  headers?: Record<string, string>
-  params?: Record<string, string>
-  body_type?: 'none' | 'json' | 'form' | 'multipart' | 'xml' | 'raw'
-  body?: unknown
+type CaseConfigStep = ApiScenarioStep & {
   multipart?: MultipartPart[]
-  cookies?: Record<string, string>
   auth?: Partial<AuthConfig>
-  timeout?: number
+  messages?: WsMessage[]
   assertions?: AssertionItem[]
   extractions?: ExtractionItem[]
   pre_actions?: HookAction[]
   post_actions?: HookAction[]
-  endpoint?: string
-  operation_type?: 'query' | 'mutation' | 'subscription'
-  query?: string
-  variables?: unknown
-  operation_name?: string
-  messages?: WsMessage[]
-  target?: string
-  use_tls?: boolean
-  tls_server_name?: string
-  tls_root_certificates?: string
-  proto_content?: string
-  proto_files?: Record<string, string>
-  service?: string
-  request_json?: string
-  metadata?: Record<string, string>
-  depends_on?: number[]
 }
-
 type EditableCase = Pick<CaseSummaryItem, 'id' | 'name' | 'description' | 'case_type' | 'tags' | 'dataset_id' | 'dataset_version' | 'priority' | 'case_level'> &
   Partial<Pick<CaseDetailItem, 'config'>>
 
@@ -1096,6 +1575,8 @@ const props = defineProps<{
   projectId?: number | null
   editCase?: EditableCase | null
   defaultCaseType?: CaseType
+  draftRequest?: ApiRequestPreviewPayload | null
+  initialScenarioSteps?: ApiScenarioStep[] | null
 }>()
 const emit = defineEmits<{ close: []; saved: [] }>()
 
@@ -1151,7 +1632,7 @@ const datasetVersionLoadSeq = ref(0)
 const schemaAssets = ref<ApiSchemaAssetItem[]>([])
 const savingSchemaAssetIndex = ref<number | null>(null)
 const schemaAssetOptions = computed(() => schemaAssets.value.map((item) => ({ label: `${item.name} v${item.version}`, value: item.id })))
-const apiScenarioSteps = ref<CaseConfigStep[]>([])
+const apiScenarioSteps = ref<ApiScenarioStep[]>([])
 
 const cfg = reactive({
   url: '',
@@ -1189,6 +1670,91 @@ const cfg = reactive({
   post_actions_text: '[]',
 })
 const formBody = ref<Record<string, string>>({})
+const previewLoading = ref(false)
+const previewError = ref('')
+const previewResult = ref<ApiRequestPreviewResult | null>(null)
+const previewTab = ref('body')
+let previewController: AbortController | null = null
+
+const formattedPreviewBody = computed(() => {
+  const result = previewResult.value
+  if (!result?.body) return t('case_form.preview.empty_body')
+  if (!result.headers['content-type']?.toLowerCase().includes('json')) return result.body
+  try {
+    return JSON.stringify(JSON.parse(result.body), null, 2)
+  } catch {
+    return result.body
+  }
+})
+const formattedPreviewHeaders = computed(() =>
+  Object.entries(previewResult.value?.headers ?? {}).map(([key, value]) => `${key}: ${value}`).join('\n'),
+)
+
+function formatPreviewSize(bytes: number): string {
+  return bytes < 1024 ? `${bytes} B` : `${(bytes / 1024).toFixed(1)} KB`
+}
+
+function cancelPreview() {
+  previewController?.abort()
+  previewController = null
+  previewLoading.value = false
+}
+
+function resetPreview() {
+  cancelPreview()
+  previewResult.value = null
+  previewError.value = ''
+}
+
+watch(cfg, resetPreview, { deep: true })
+watch(formBody, resetPreview, { deep: true })
+onBeforeUnmount(cancelPreview)
+
+async function sendPreview() {
+  if (!props.projectId || previewLoading.value) return
+  const url = cfg.url.trim()
+  if (!url) {
+    previewError.value = t('case_form.msg.url_required')
+    return
+  }
+  if (cfg.body_type === 'json' && cfg.body.trim()) {
+    try {
+      JSON.parse(cfg.body)
+    } catch {
+      previewError.value = t('case_form.preview.invalid_json')
+      return
+    }
+  }
+  const controller = new AbortController()
+  previewController = controller
+  previewLoading.value = true
+  previewError.value = ''
+  previewResult.value = null
+  try {
+    previewResult.value = await caseApi.previewRequest(props.projectId, {
+      method: cfg.method,
+      url,
+      headers: { ...cfg.headers },
+      params: { ...cfg.params },
+      cookies: { ...cfg.cookies },
+      body_type: cfg.body_type,
+      body: resolveRequestBody(cfg.body_type, cfg.body, formBody.value),
+      multipart: cfg.multipart.map((part) => ({ ...part })),
+      auth: { ...cfg.auth },
+      timeout: Math.min(Math.max(cfg.timeout || 30, 1), 60),
+    }, controller.signal)
+    previewTab.value = 'body'
+  } catch (error) {
+    if (!controller.signal.aborted) {
+      previewError.value = typeof error === 'string' ? error : error instanceof Error ? error.message : JSON.stringify(error)
+    }
+  } finally {
+    if (previewController === controller) {
+      previewController = null
+      previewLoading.value = false
+    }
+  }
+}
 
 const gqlCfg = reactive({
   endpoint: '',
@@ -1365,13 +1931,22 @@ async function loadSchemaAssetOptions() {
   }
 }
 
-watch(() => props.open, (v) => {
+watch(() => props.open, async (v) => {
+  resetPreview()
   if (!v) return
   loadDatasetOptions()
   loadSchemaAssetOptions()
   if (props.editCase) {
     isEdit.value = true
-    const c = props.editCase
+    let c = props.editCase
+    if (c.id && (!c.config || Object.keys(c.config).length === 0)) {
+      try {
+        const full = await caseApi.get(c.id)
+        if (full) c = full
+      } catch {
+        // keep c
+      }
+    }
     form.name = c.name
     form.description = c.description ?? ''
     form.case_type = c.case_type
@@ -1391,8 +1966,13 @@ watch(() => props.open, (v) => {
     form.dataset_prepare_actions_text = JSON.stringify(c.config?.dataset_prepare_actions ?? [], null, 2)
     const step = getFirstStep(c.config) as CaseConfigStep
     apiScenarioSteps.value = Array.isArray(c.config?.steps)
-      ? c.config.steps.map((item) => ({ ...item, depends_on: Array.isArray(item.depends_on) ? [...item.depends_on] : [] }))
+      ? (c.config.steps as ApiScenarioStep[]).map((item) => ({ ...item, depends_on: Array.isArray(item.depends_on) ? [...item.depends_on] : [] }))
       : []
+    if (apiScenarioSteps.value.length > 1) {
+      apiConfigTab.value = 'scenario'
+    } else {
+      apiConfigTab.value = 'request'
+    }
     const bodyType = step.body_type ?? 'none'
     formBody.value = bodyType === 'form' ? parseFormBody(step.body) : {}
 
@@ -1520,7 +2100,57 @@ watch(() => props.open, (v) => {
       pre_actions_text: '[]', post_actions_text: '[]',
     })
     formBody.value = {}
+    if (props.draftRequest) {
+      const draft = props.draftRequest
+      Object.assign(cfg, {
+        method: draft.method,
+        url: draft.url,
+        headers: { ...draft.headers },
+        params: { ...draft.params },
+        cookies: { ...draft.cookies },
+        body_type: draft.body_type,
+        body: draft.body == null ? '' : typeof draft.body === 'string' ? draft.body : JSON.stringify(draft.body, null, 2),
+        multipart: draft.multipart.map((part) => ({ ...part })),
+        auth: { ...cfg.auth, ...draft.auth },
+        timeout: draft.timeout,
+      })
+      if (draft.body_type === 'form' && draft.body && typeof draft.body === 'object' && !Array.isArray(draft.body)) {
+        formBody.value = { ...(draft.body as Record<string, string>) }
+      }
+      if (draft.response_body !== undefined) {
+        cachedResponseSample.value = draft.response_body
+        customResponseSampleText.value = typeof draft.response_body === 'string'
+          ? draft.response_body
+          : JSON.stringify(draft.response_body, null, 2)
+      } else {
+        cachedResponseSample.value = null
+        customResponseSampleText.value = ''
+      }
+      if (draft.status_code !== undefined) {
+        cachedStatusCode.value = draft.status_code
+      } else {
+        cachedStatusCode.value = null
+      }
+    } else {
+      cachedResponseSample.value = null
+      customResponseSampleText.value = ''
+      cachedStatusCode.value = null
+      suggestedAssertions.value = []
+      suggestedExtractions.value = []
+    }
     apiScenarioSteps.value = []
+    if (props.initialScenarioSteps && props.initialScenarioSteps.length) {
+      handleImportLibrarySteps(props.initialScenarioSteps)
+      apiConfigTab.value = 'scenario'
+      if (!form.name.trim()) {
+        const stepNames = props.initialScenarioSteps.map((s) => s.name || 'API').filter(Boolean)
+        form.name = `自动化场景 - ${stepNames.slice(0, 2).join(' + ')}${stepNames.length > 2 ? ` 等${stepNames.length}个接口` : ''}`
+      }
+      if (apiScenarioSteps.value[0]?.url) {
+        cfg.url = apiScenarioSteps.value[0].url
+        cfg.method = apiScenarioSteps.value[0].method || 'GET'
+      }
+    }
     Object.assign(gqlCfg, {
       endpoint: '', operation_type: 'query', query: '', variables_text: '',
       subscription_url: '', connection_payload_text: '', max_messages: 1, reconnect_attempts: 0, reconnect_delay_ms: 500,
@@ -1550,12 +2180,6 @@ function addAssertion() {
   cfg.assertions.push({ target: 'status_code', operator: 'eq', expected: '200', expression: '', expression_type: 'jsonpath' })
 }
 
-function scenarioDependencyOptions(index: number) {
-  return apiScenarioSteps.value.slice(0, index).map((step, stepIndex) => ({
-    label: `${stepIndex + 1}. ${step.name || t('case_form.api.orchestration_step_fallback', { index: stepIndex + 1 })}`,
-    value: stepIndex,
-  }))
-}
 
 function buildCurrentApiStep(): CaseConfigStep {
   const body = resolveRequestBody(cfg.body_type, cfg.body, formBody.value)
@@ -1581,20 +2205,6 @@ function buildCurrentApiStep(): CaseConfigStep {
   }
 }
 
-function addScenarioStep() {
-  const current = buildCurrentApiStep()
-  if (!apiScenarioSteps.value.length) {
-    apiScenarioSteps.value.push(current)
-  } else {
-    apiScenarioSteps.value[0] = { ...apiScenarioSteps.value[0], ...current }
-  }
-  const nextIndex = apiScenarioSteps.value.length
-  apiScenarioSteps.value.push({
-    ...JSON.parse(JSON.stringify(current)) as CaseConfigStep,
-    name: `${form.name || t('case_form.api.orchestration_step_fallback', { index: 1 })} ${nextIndex + 1}`,
-    depends_on: [nextIndex - 1],
-  })
-}
 
 function applySchemaAsset(assertion: AssertionItem, assetId?: number) {
   if (assetId == null) {
@@ -1836,10 +2446,27 @@ function buildConfig() {
   if (form.case_type === 'ios') {
     return withDatasetStrictFlag(buildIosConfig())
   }
-  const currentStep = buildCurrentApiStep()
-  const steps = apiScenarioSteps.value.length > 1
-    ? apiScenarioSteps.value.map((step, index) => index === 0 ? { ...step, ...currentStep } : { ...step, depends_on: step.depends_on ?? [] })
-    : [currentStep]
+  let steps: CaseConfigStep[]
+  if (apiScenarioSteps.value.length > 0) {
+    steps = apiScenarioSteps.value.map((step) => ({
+      name: step.name || form.name || 'API 步骤',
+      method: (step.method || 'GET').toUpperCase(),
+      url: step.url || '',
+      headers: step.headers ?? {},
+      params: step.params ?? {},
+      cookies: step.cookies ?? {},
+      body_type: step.body_type ?? 'none',
+      body: step.body ?? '',
+      assertions: (step.assertions as any) ?? [],
+      extractions: (step.extractions as any) ?? [],
+      depends_on: step.depends_on ?? [],
+      timeout: step.timeout ?? 30,
+      pre_actions: Array.isArray(step.pre_actions) ? (step.pre_actions as any) : [],
+      post_actions: Array.isArray(step.post_actions) ? (step.post_actions as any) : [],
+    }))
+  } else {
+    steps = [buildCurrentApiStep()]
+  }
   return withDatasetStrictFlag({
     reuse_api_session: cfg.session_lifecycle === 'reuse' || cfg.reuse_api_session,
     failure_strategy: cfg.failure_strategy,
@@ -1850,9 +2477,52 @@ function buildConfig() {
 }
 
 async function handleSave() {
-  try { await formRef.value?.validate() } catch { return }
-  if (form.case_type === 'api' && !cfg.url) {
-    message.warning(t('case_form.msg.url_required'))
+  try {
+    await formRef.value?.validate()
+  } catch {
+    message.warning(t('case_form.basic.name_required') || '请先填写用例名称')
+    return
+  }
+  if (!form.name.trim()) {
+    message.warning(t('case_form.basic.name_required') || '请先填写用例名称')
+    return
+  }
+  if (localMode && form.case_type === 'ios') {
+    message.warning(t('case_form.case_types.ios') + ' 在本地单机模式下不受支持')
+    return
+  }
+  if (form.case_type === 'api') {
+    if (apiScenarioSteps.value.length > 0) {
+      const emptyUrlStep = apiScenarioSteps.value.find((s) => !s.url?.trim())
+      if (emptyUrlStep) {
+        message.warning(`场景步骤【${emptyUrlStep.name || '未命名'}】缺少请求 URL`)
+        return
+      }
+    } else if (!cfg.url?.trim()) {
+      message.warning(t('case_form.msg.url_required') || '请输入请求 URL')
+      return
+    }
+  }
+
+  let targetModuleId = props.moduleId || (props.editCase as any)?.module_id || null
+  if (!targetModuleId && props.projectId) {
+    try {
+      const modules = await projectApi.getModules(props.projectId)
+      const findFirst = (list: any[]): number | null => {
+        for (const m of list) {
+          if (m.id) return m.id
+          if (m.children?.length) {
+            const cId = findFirst(m.children)
+            if (cId) return cId
+          }
+        }
+        return null
+      }
+      targetModuleId = findFirst(modules)
+    } catch { /* ignore */ }
+  }
+  if (!targetModuleId) {
+    message.warning('请选择用例所属模块')
     return
   }
   if (form.case_type === 'api' && cfg.body_type === 'multipart') {
@@ -1892,28 +2562,23 @@ async function handleSave() {
       tags: form.tags,
       priority: form.priority,
       case_level: form.case_level,
-      module_id: props.moduleId!,
+      module_id: targetModuleId,
       config,
       dataset_id: form.dataset_id,
       dataset_version: form.dataset_version,
+      auto_approve: true,
     }
     if (isEdit.value && props.editCase) {
-      await caseApi.update(props.editCase.id, {
-        name: payload.name,
-        description: payload.description,
-        tags: payload.tags,
-        priority: payload.priority,
-        case_level: payload.case_level,
-        config: payload.config,
-        dataset_id: form.dataset_id,
-        dataset_version: form.dataset_version,
-      })
+      await caseApi.update(props.editCase.id, payload)
     } else {
       await caseApi.create(payload)
     }
     message.success(isEdit.value ? t('case_form.msg.updated') : t('case_form.msg.created'))
     emit('saved')
     emit('close')
+  } catch (err: unknown) {
+    const msg = (err as any)?.response?.data?.detail || (err instanceof Error ? err.message : '')
+    message.error(msg ? `保存用例失败: ${msg}` : '保存用例失败，请检查填写内容')
   } finally {
     saving.value = false
   }
@@ -1921,11 +2586,218 @@ async function handleSave() {
 </script>
 
 <style scoped>
+.section-header-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin: 16px 0 12px;
+  width: 100%;
+}
+
+.section-header-left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 1;
+  min-width: 0;
+}
+
+.section-header-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-text);
+  white-space: nowrap;
+}
+
+.section-header-line {
+  flex: 1;
+  height: 1px;
+  background: var(--c-border);
+}
+
+.ai-suggest-btn {
+  flex-shrink: 0;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.ai-suggest-sample-box {
+  background: var(--c-bg-subtle, #f8fafc);
+  padding: 12px;
+  border-radius: 8px;
+  border: 1px solid var(--c-border, #e2e8f0);
+}
+
+.sample-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text, #1e293b);
+}
+
+.ai-suggest-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 0;
+  color: var(--c-text-secondary, #64748b);
+  font-size: 13px;
+}
+
+.suggest-section {
+  background: var(--c-bg-elevated, #fff);
+  border: 1px solid var(--c-border, #e2e8f0);
+  border-radius: 8px;
+  padding: 12px;
+}
+
+.suggest-section-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 13px;
+  color: var(--c-text, #1e293b);
+}
+
+.suggest-items-grid {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.suggest-card {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 8px 12px;
+  border: 1px solid var(--c-border, #e2e8f0);
+  border-radius: 6px;
+  background: var(--c-bg-subtle, #f8fafc);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.suggest-card:hover {
+  border-color: var(--c-primary, #1677ff);
+  background: var(--c-primary-soft, #f0f7ff);
+}
+
+.suggest-card.is-selected {
+  border-color: var(--c-primary, #1677ff);
+  background: var(--c-primary-soft, #f0f7ff);
+}
+
+.suggest-card-body {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+
+.suggest-card-top {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.suggest-card-code {
+  font-family: 'JetBrains Mono', Consolas, Monaco, monospace;
+  font-size: 12px;
+  color: var(--c-text, #1e293b);
+  background: transparent;
+}
+
+.suggest-card-desc {
+  color: var(--c-text-secondary, #64748b);
+  font-size: 11px;
+}
+
+.suggest-var-badge {
+  display: inline-block;
+  padding: 1px 6px;
+  border-radius: 4px;
+  background: var(--c-primary-soft, #f0f7ff);
+  color: var(--c-primary, #1677ff);
+  font-weight: 700;
+  font-size: 11px;
+}
+
+.suggest-empty-tip {
+  color: var(--c-text-tertiary, #94a3b8);
+  font-size: 12px;
+  text-align: center;
+  padding: 14px 0;
+}
+.request-preview {
+  margin: 18px 0 24px;
+  padding: 16px;
+  border: 1px solid #d9e3ee;
+  border-radius: 10px;
+  background: #f8fbff;
+}
+.request-preview-toolbar,
+.request-preview-metrics {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.request-preview-metrics {
+  justify-content: flex-start;
+  margin-top: 14px;
+  color: #475569;
+  font-size: 12px;
+}
+.request-preview-content {
+  min-height: 72px;
+  max-height: 320px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid #e2e8f0;
+  border-radius: 6px;
+  background: #fff;
+  color: #1e293b;
+  font-size: 12px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.api-case-main-tabs {
+  margin-top: 10px;
+}
+
+.api-case-main-tabs :deep(.ant-tabs-nav) {
+  margin-bottom: 18px;
+}
+
+.sub-tab-heading {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--c-text);
+}
+
 .assertion-row {
   display: flex;
   gap: 8px;
   margin-bottom: 10px;
   align-items: center;
+  flex-wrap: wrap;
+}
+
+.assertion-row > * {
+  min-width: 0;
 }
 .remove-btn {
   color: #ff4d4f;
@@ -1956,5 +2828,85 @@ async function handleSave() {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.scenario-pipeline-quick-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 16px;
+  margin-top: 16px;
+  background: var(--c-primary-soft, #f0f7ff);
+  border: 1px solid var(--c-primary-soft, #bae0ff);
+  border-radius: 8px;
+}
+
+.scenario-pipeline-quick-banner .banner-text {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  font-size: 12px;
+}
+
+.scenario-pipeline-quick-banner .banner-text strong {
+  font-size: 13px;
+  color: var(--c-primary, #1677ff);
+}
+
+.scenario-pipeline-quick-banner .banner-text span {
+  color: var(--c-text-secondary, #64748b);
+}
+.url-config-section {
+  margin-bottom: 14px;
+}
+
+.url-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+
+.url-label-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--c-text, #1e293b);
+}
+
+.required-star {
+  color: #ff4d4f;
+  margin-right: 4px;
+}
+
+.request-template-pill-btn {
+  height: 26px;
+  font-size: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-weight: 600;
+  color: var(--c-primary, #1677ff);
+  background: var(--c-primary-soft, #f0f7ff);
+  border: 1px solid var(--c-primary-soft, #bae0ff);
+  border-radius: 4px;
+}
+
+.preset-menu-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 2px 0;
+}
+
+.preset-label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--c-text, #1e293b);
+}
+
+.preset-code {
+  font-size: 11px;
+  color: var(--c-text-tertiary, #94a3b8);
+  font-family: monospace;
 }
 </style>

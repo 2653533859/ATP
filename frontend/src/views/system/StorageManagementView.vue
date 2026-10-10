@@ -3,7 +3,6 @@
     <div class="page-hero">
       <div>
         <h2 class="page-title">{{ t('system_pages.storage.title') }}</h2>
-        <div class="page-subtitle">{{ t('system_pages.storage.subtitle') }}</div>
       </div>
       <a-space wrap>
         <a-input-number
