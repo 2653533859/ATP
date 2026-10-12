@@ -118,3 +118,18 @@ def test_version_two_queue_interrupts_inflight_jobs_on_identity_upgrade(tmp_path
         rows = connection.exec_driver_sql("SELECT status, error FROM local_jobs ORDER BY id").all()
     assert [row[0] for row in rows] == ["interrupted", "interrupted"]
     assert all("重新提交" in row[1] for row in rows)
+
+
+def test_version_eleven_to_twelve_drops_group_cancellations(tmp_path) -> None:
+    engine = create_engine(f"sqlite:///{tmp_path / 'v11.sqlite3'}")
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.begin() as connection:
+        connection.exec_driver_sql("PRAGMA user_version=11")
+        connection.exec_driver_sql("CREATE TABLE IF NOT EXISTS local_group_cancellations (id INTEGER PRIMARY KEY)")
+
+    with engine.connect() as connection:
+        assert "local_group_cancellations" in inspect(connection).get_table_names()
+
+    assert ensure_local_schema(engine) == CURRENT_LOCAL_SCHEMA_VERSION
+    with engine.connect() as connection:
+        assert "local_group_cancellations" not in inspect(connection).get_table_names()

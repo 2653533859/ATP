@@ -344,19 +344,7 @@ class WebRecordingSession:
             self.page = await self.context.new_page()
             if self.replay_steps:
                 self.is_resuming = True
-                replay_deadline = time.monotonic() + _REPLAY_TOTAL_BUDGET_S
-                for step_data in self.replay_steps:
-                    if time.monotonic() > replay_deadline:
-                        logger.warning("断点续录回放超过总时长上限，跳过剩余前置步骤")
-                        break
-                    action = str(step_data.get("action") or "").strip()
-                    params = dict(step_data.get("params") or {})
-                    try:
-                        await self._replay_single_step(action, params)
-                        self.replayed_step_count += 1
-                    except Exception as replay_err:
-                        logger.warning("断点续录回放前置步骤 %s 失败: %s", action, replay_err)
-                        break
+                await self._replay_recorded_prefix()
             else:
                 self._append_step("goto", f"打开 {self.start_url}", {"url": self.start_url})
                 await self.page.goto(self.start_url, wait_until="domcontentloaded", timeout=30_000)
@@ -372,6 +360,12 @@ class WebRecordingSession:
             self.page.on("request", self._handle_request)
             self.page.on("requestfailed", self._handle_request_failed)
             self.page.on("response", self._handle_response)
+            if hasattr(self.page, "on"):
+                self.page.on("close", self._handle_page_close)
+            if self.context and hasattr(self.context, "on"):
+                self.context.on("close", self._handle_context_close)
+            if self.browser and hasattr(self.browser, "on"):
+                self.browser.on("disconnected", self._handle_browser_disconnect)
             self.status = "recording"
         except Exception as exc:
             self.status = "error"
@@ -379,6 +373,22 @@ class WebRecordingSession:
             self.finished_at = time.monotonic()
             await self.close()
             raise
+
+    async def _replay_recorded_prefix(self) -> None:
+        """断点续录：回放已录制的前置步骤，受单步钳制与总时长预算双重约束。"""
+        replay_deadline = time.monotonic() + _REPLAY_TOTAL_BUDGET_S
+        for step_data in self.replay_steps:
+            if time.monotonic() > replay_deadline:
+                logger.warning("断点续录回放超过总时长上限，跳过剩余前置步骤")
+                break
+            action = str(step_data.get("action") or "").strip()
+            params = dict(step_data.get("params") or {})
+            try:
+                await self._replay_single_step(action, params)
+                self.replayed_step_count += 1
+            except Exception as replay_err:
+                logger.warning("断点续录回放前置步骤 %s 失败: %s", action, replay_err)
+                break
 
     async def _replay_single_step(self, action: str, params: dict[str, Any]) -> None:
         if self.page is None:
@@ -444,19 +454,58 @@ class WebRecordingSession:
         self._cleanup_artifacts()
 
     async def screenshot(self) -> bytes:
-        if self.page is None or self.status not in {"starting", "recording", "stopping"}:
+        if (
+            self.page is None
+            or getattr(self.page, "is_closed", lambda: False)()
+            or self.status not in {"starting", "recording", "stopping"}
+        ):
             raise RuntimeError("录制浏览器当前不可截图")
-        return await self.page.screenshot(type="png")
+        try:
+            return await self.page.screenshot(type="png")
+        except Exception as exc:
+            raise RuntimeError(f"录制浏览器当前不可截图: {exc}") from exc
 
     def current_url(self) -> str:
-        if self.page is not None and self.page.url.startswith(("http://", "https://")):
-            return self.page.url
+        if self.page is not None and not getattr(self.page, "is_closed", lambda: False)():
+            try:
+                url = self.page.url
+                if url.startswith(("http://", "https://")):
+                    return url
+            except Exception:
+                pass
         for step in reversed(self.steps):
             params = step.get("params") if isinstance(step.get("params"), dict) else {}
             url = str(params.get("url") or "").strip()
             if url.startswith(("http://", "https://")):
                 return url
         return self.start_url
+
+    def _handle_page_close(self, _page: Any = None) -> None:
+        if self.status in {"starting", "recording"}:
+            logger.info("录制页面被外部或用户关闭，自动收敛状态: session_id=%s", self.session_id)
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.stop())
+            except RuntimeError:
+                pass
+
+    def _handle_context_close(self, _context: Any = None) -> None:
+        if self.status in {"starting", "recording"}:
+            logger.info("录制上下文被外部或用户关闭，自动收敛状态: session_id=%s", self.session_id)
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.stop())
+            except RuntimeError:
+                pass
+
+    def _handle_browser_disconnect(self, _browser: Any = None) -> None:
+        if self.status in {"starting", "recording"}:
+            logger.info("录制浏览器连接断开，自动收敛状态: session_id=%s", self.session_id)
+            try:
+                loop = asyncio.get_running_loop()
+                loop.create_task(self.stop())
+            except RuntimeError:
+                pass
 
     async def _guard_route(self, route: Any) -> bool:
         return await guard_browser_request(route, self.blocked_requests)

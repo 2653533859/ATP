@@ -13,10 +13,22 @@ from typing import Any, Literal
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.models.case import TestCase, TestRun
+from app.models.defect import Defect
 from app.models.hermes_action import HermesAction
+from app.models.knowledge import KnowledgeEntry
+from app.models.project import Module
 from app.models.suite import SuiteRun, TestSuite
 
-CommandAction = Literal["create_suite", "run_suite"]
+CommandAction = Literal[
+    "create_suite",
+    "run_suite",
+    "update_case",
+    "create_defect",
+    "create_knowledge",
+    "import_cases",
+    "run_case",
+]
 ResourceState = Literal["available", "missing", "replaced", "unverified"]
 
 
@@ -35,9 +47,7 @@ async def find_command(db: AsyncSession, *, user_id: int, command_id: str) -> He
     )
 
 
-async def command_resource(
-    db: AsyncSession, command: HermesAction
-) -> tuple[TestSuite | SuiteRun | None, ResourceState]:
+async def command_resource(db: AsyncSession, command: HermesAction) -> tuple[Any, ResourceState]:
     if not command.resource_identity:
         return None, "unverified"
     if command.action == "create_suite":
@@ -55,6 +65,45 @@ async def command_resource(
         if run.identity_token != command.resource_identity or suite is None or suite.project_id != command.project_id:
             return None, "replaced"
         return run, "available"
+    if command.action == "update_case":
+        case = await db.get(TestCase, command.resource_id)
+        if case is None:
+            return None, "missing"
+        module = await db.get(Module, case.module_id)
+        if (
+            module is None
+            or module.project_id != command.project_id
+            or command.resource_identity != f"update_case-{case.id}"
+        ):
+            return None, "replaced"
+        return case, "available"
+    if command.action == "create_defect":
+        defect = await db.get(Defect, command.resource_id)
+        if defect is None:
+            return None, "missing"
+        if defect.project_id != command.project_id:
+            return None, "replaced"
+        return defect, "available"
+    if command.action == "create_knowledge":
+        entry = await db.get(KnowledgeEntry, command.resource_id)
+        if entry is None:
+            return None, "missing"
+        if entry.project_id != command.project_id:
+            return None, "replaced"
+        return entry, "available"
+    if command.action == "run_case":
+        case_run = await db.get(TestRun, command.resource_id)
+        if case_run is None:
+            return None, "missing"
+        case = await db.get(TestCase, case_run.case_id)
+        module = await db.get(Module, case.module_id) if case is not None else None
+        if (
+            module is None
+            or module.project_id != command.project_id
+            or command.resource_identity != f"run_case-{case_run.id}"
+        ):
+            return None, "replaced"
+        return case_run, "available"
     return None, "unverified"
 
 
@@ -66,7 +115,7 @@ async def replay_command(
     command_id: str | None,
     action: CommandAction,
     request_hash: str,
-) -> TestSuite | SuiteRun | None:
+) -> Any | None:
     if command_id is None:
         return None
     command = await find_command(db, user_id=user_id, command_id=command_id)
@@ -90,16 +139,14 @@ def record_command(
     command_id: str | None,
     action: CommandAction,
     request_hash: str,
-    resource: TestSuite | SuiteRun,
+    resource: Any,
 ) -> None:
     if command_id is None:
         return
-    if not resource.identity_token:
+    resource_id = getattr(resource, "id", None)
+    if resource_id is None:
         raise ValueError("command resource must be flushed before recording")
-    if (action == "create_suite" and not isinstance(resource, TestSuite)) or (
-        action == "run_suite" and not isinstance(resource, SuiteRun)
-    ):
-        raise ValueError("command action does not match resource type")
+    identity = getattr(resource, "identity_token", None) or f"{action}-{resource_id}"
     db.add(
         HermesAction(
             user_id=user_id,
@@ -107,7 +154,7 @@ def record_command(
             command_id=command_id,
             action=action,
             request_hash=request_hash,
-            resource_id=resource.id,
-            resource_identity=resource.identity_token,
+            resource_id=resource_id,
+            resource_identity=identity,
         )
     )

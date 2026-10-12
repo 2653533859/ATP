@@ -15,12 +15,15 @@ def test_case_list_shows_active_filter_tags():
     assert "case.clear_filters" in content
 
 
-def test_case_list_exposes_review_workflow_in_status_column():
+def test_case_list_exposes_review_status_and_workflow_actions():
     content = repo_path("frontend/src/views/case/CaseList.vue").read_text(encoding="utf-8")
 
-    assert "record.review_status === 'pending'" in content
+    # 状态列只渲染评审标签；审批/驳回等流转动作收口到行内"更多"菜单，并带权限守卫
+    assert "column.key === 'review_status'" in content
+    assert "reviewStatusLabel(record.review_status)" in content
     assert "handleWorkflow(asCase(record), 'approve')" in content
     assert "handleWorkflow(asCase(record), 'reject')" in content
+    assert "canApprove(asCase(record))" in content
     assert "pendingReviewCount" in content
 
 

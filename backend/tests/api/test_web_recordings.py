@@ -822,3 +822,107 @@ def test_recording_worker_status_is_ready_in_local_mode(monkeypatch):
         "registered_count": 0,
         "available_count": 0,
     }
+
+
+def test_recording_page_close_triggers_stop():
+    session = WebRecordingSession(
+        session_id="close-session",
+        owner_id=1,
+        start_url="https://example.com",
+        viewport_width=1280,
+        viewport_height=720,
+        status="recording",
+    )
+    stopped = []
+
+    async def fake_stop():
+        stopped.append(True)
+        session.status = "stopped"
+
+    session.stop = fake_stop
+
+    async def run_close():
+        session._handle_page_close()
+        await asyncio.sleep(0)
+
+    asyncio.run(run_close())
+    assert stopped == [True]
+    assert session.status == "stopped"
+
+
+def test_recording_context_close_and_browser_disconnect_trigger_stop():
+    session = WebRecordingSession(
+        session_id="ctx-close-session",
+        owner_id=1,
+        start_url="https://example.com",
+        viewport_width=1280,
+        viewport_height=720,
+        status="recording",
+    )
+    stopped_count = 0
+
+    async def fake_stop():
+        nonlocal stopped_count
+        stopped_count += 1
+        session.status = "stopped"
+
+    session.stop = fake_stop
+
+    async def run_context_close():
+        session._handle_context_close()
+        await asyncio.sleep(0)
+
+    asyncio.run(run_context_close())
+    assert stopped_count == 1
+
+    session.status = "recording"
+
+    async def run_disconnect():
+        session._handle_browser_disconnect()
+        await asyncio.sleep(0)
+
+    asyncio.run(run_disconnect())
+    assert stopped_count == 2
+
+
+def test_recording_screenshot_on_closed_page_raises_runtime_error():
+    session = WebRecordingSession(
+        session_id="closed-screenshot",
+        owner_id=1,
+        start_url="https://example.com",
+        viewport_width=1280,
+        viewport_height=720,
+        status="recording",
+    )
+
+    class DummyClosedPage:
+        def is_closed(self):
+            return True
+
+    session.page = DummyClosedPage()  # type: ignore[assignment]
+
+    with pytest.raises(RuntimeError, match="不可截图"):
+        asyncio.run(session.screenshot())
+
+
+def test_recording_current_url_falls_back_when_page_is_closed():
+    session = WebRecordingSession(
+        session_id="url-fallback",
+        owner_id=1,
+        start_url="https://example.com",
+        viewport_width=1280,
+        viewport_height=720,
+        status="recording",
+    )
+
+    class DummyClosedPage:
+        @property
+        def url(self):
+            raise RuntimeError("target page closed")
+
+        def is_closed(self):
+            return True
+
+    session.page = DummyClosedPage()  # type: ignore[assignment]
+    session.steps = [{"action": "goto", "name": "step 1", "params": {"url": "https://example.com/login"}}]
+    assert session.current_url() == "https://example.com/login"

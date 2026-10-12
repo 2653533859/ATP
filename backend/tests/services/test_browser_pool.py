@@ -150,7 +150,7 @@ def test_browser_pool_recycles_after_max_tasks():
             assert b2 is b1
             await pool.release_context(ctx2, b2, pw2, True)
 
-            # Task 3 (exceeded max_contexts 2 -> recycles b1 and launches b2)
+            # Task 3 (exceeded WEB_BROWSER_POOL_MAX_CONTEXTS=2 cumulative acquisitions -> recycles b1, launches b2)
             ctx3, b3, pw3, _ = await pool.acquire_context("firefox", True, {}, async_playwright_fn=lambda: pw_instance)
             assert b3 is not b1
             assert b1.closed

@@ -22,7 +22,7 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.core.encryption import decrypt_env_vars
 from app.core.tracing import get_trace_id
-from app.models.case import TestCase
+from app.models.case import TestCase, TestRun
 from app.models.environment import Environment, EnvVariable
 from app.models.project import Project
 from app.models.suite import SuiteRun, SuiteRunStatus, TestSuite
@@ -237,16 +237,30 @@ async def list_hermes_action_records(
     output = []
     for item in records:
         resource, resource_state = await command_resource(db, item)
-        run = resource if isinstance(resource, SuiteRun) else None
-        dispatch = await get_suite_dispatch(db, run) if run is not None else None
+        suite_run = resource if isinstance(resource, SuiteRun) else None
+        case_run = resource if isinstance(resource, TestRun) else None
+        dispatch = await get_suite_dispatch(db, suite_run) if suite_run is not None else None
+        run_status = suite_run.status if suite_run else (case_run.status if case_run else None)
+
+        path = f"/suites?project_id={project_id}"
+        if item.action in {"update_case", "import_cases"}:
+            path = f"/cases/{item.resource_id}" if item.action == "update_case" else f"/cases?project_id={project_id}"
+        elif item.action == "create_defect":
+            path = f"/bugs?project_id={project_id}"
+        elif item.action == "create_knowledge":
+            path = f"/knowledge?project_id={project_id}"
+        elif item.action == "run_case":
+            path = f"/runs/{item.resource_id}"
+
         output.append(
             {
                 "command_id": item.command_id,
                 "action": item.action,
                 "resource_id": item.resource_id,
+                "path": path,
                 "created_at": item.created_at,
                 "status": "completed",
-                "run_status": run.status if run else None,
+                "run_status": run_status,
                 "resource_state": resource_state,
                 "resource_unverified": resource_state == "unverified",
                 "resource_missing": resource_state in {"missing", "replaced"},

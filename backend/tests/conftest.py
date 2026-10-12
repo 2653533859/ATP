@@ -66,13 +66,20 @@ def pytest_pycollect_makeitem(collector, name, obj):
 
 
 def _ensure_stub_attrs(module_name: str, defaults: dict) -> None:
-    """模块不在 sys.modules 时创建空 SimpleNamespace；已存在则只补缺失字段。
+    """模块不在 sys.modules 时创建真实 ModuleType；已存在则补齐缺失字段并确保具备模块身份。
 
     永远不覆盖已 hard-set 的属性值——这是与早期测试文件 hard-set 行为共存的关键。
     """
     existing = sys.modules.get(module_name)
-    if existing is None:
-        sys.modules[module_name] = types.SimpleNamespace(**defaults)
+    if existing is None or not isinstance(existing, types.ModuleType):
+        mod = types.ModuleType(module_name)
+        if existing is not None:
+            for k, v in getattr(existing, "__dict__", {}).items():
+                setattr(mod, k, v)
+        for name, value in defaults.items():
+            if not hasattr(mod, name):
+                setattr(mod, name, value)
+        sys.modules[module_name] = mod
         return
     for name, value in defaults.items():
         if not hasattr(existing, name):
@@ -212,6 +219,11 @@ def _refresh_common_test_stubs() -> None:
             "require_project_writable_access": lambda *_a, **_kw: _noop_async,
         },
     )
+
+
+@pytest.hookimpl(tryfirst=True)
+def pytest_collectstart(collector):
+    _refresh_common_test_stubs()
 
 
 @pytest.hookimpl(tryfirst=True)

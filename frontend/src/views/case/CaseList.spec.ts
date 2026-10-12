@@ -41,6 +41,12 @@ const buttonStub = defineComponent({
   setup: (_p, { slots, emit }) => () => h('button', { onClick: () => emit('click') }, slots.default?.()),
 })
 
+const tagStub = defineComponent({
+  name: 'ATag',
+  props: ['color'],
+  setup: (props, { slots }) => () => h('span', { 'data-tag-color': props.color || 'default' }, slots.default?.()),
+})
+
 const tableStub = defineComponent({
   name: 'ATable',
   props: ['dataSource'],
@@ -52,6 +58,7 @@ const tableStub = defineComponent({
           h('div', { class: 'case-row' }, [
             slots.bodyCell?.({ column: { key: 'name' }, record }),
             slots.bodyCell?.({ column: { key: 'case_type' }, record }),
+            slots.bodyCell?.({ column: { key: 'stability' }, record }),
             slots.bodyCell?.({ column: { key: 'action' }, record }),
           ]),
         ),
@@ -78,7 +85,7 @@ function mountCaseList() {
         ASpace: passthrough('ASpace'),
         AStatistic: defineComponent({ name: 'AStatistic', props: ['value'], setup: (props) => () => h('span', { 'data-test': 'stat' }, String(props.value)) }),
         ATable: tableStub,
-        ATag: passthrough('ATag'),
+        ATag: tagStub,
         ATooltip: passthrough('ATooltip'),
         AUpload: passthrough('AUpload'),
         BatchOperationBar: passthrough('BatchOperationBar'),
@@ -135,5 +142,39 @@ describe('CaseList mount', () => {
     await flushPromises()
 
     expect(routerReplace).toHaveBeenCalledWith(expect.objectContaining({ name: 'cases' }))
+  })
+
+  it('shows a neutral status before the first run and colors measured stability', async () => {
+    const baseCase = (id: number, stats?: Record<string, unknown>) => ({
+      id,
+      name: `Case ${id}`,
+      case_code: `API-${id}`,
+      module_id: 5,
+      case_type: 'api',
+      priority: 'P1',
+      case_level: 'smoke',
+      status: 'active',
+      review_status: 'approved',
+      automation_status: 'auto',
+      tags: [],
+      summary: '',
+      flaky_stats: stats,
+    })
+    caseList.mockResolvedValue([
+      baseCase(1, { total_runs: 0, is_flaky: false }),
+      baseCase(2, { total_runs: 3, is_flaky: false }),
+      baseCase(3, { total_runs: 3, is_flaky: true }),
+      baseCase(4),
+    ])
+
+    const wrapper = mountCaseList()
+    await flushPromises()
+
+    const rows = wrapper.findAll('.case-row')
+    expect(rows).toHaveLength(4)
+    expect(rows[0].findAll('[data-tag-color="default"]').some((tag) => tag.text() === 'case.flaky.no_runs')).toBe(true)
+    expect(rows[1].find('[data-tag-color="green"]').text()).toBe('case.flaky.stable')
+    expect(rows[2].find('[data-tag-color="volcano"]').text()).toBe('case.flaky.flaky')
+    expect(rows[3].findAll('[data-tag-color="default"]').some((tag) => tag.text() === 'case.flaky.no_runs')).toBe(true)
   })
 })

@@ -106,20 +106,74 @@ const historyUserId = auth.user?.id
 const history = ref<HermesActionReceipt[]>(historyUserId ? readActionHistory(historyUserId, props.projectId) : [])
 const historyLoading = ref(false)
 const historyError = ref('')
+let historyRequestId = 0
+let historyLoadingProjectId: number | undefined
 async function refreshHistory() {
-  if (historyLoading.value) return
+  const projectId = props.projectId
+  if (historyLoading.value && historyLoadingProjectId === projectId) return
+  const requestId = ++historyRequestId
+  historyLoadingProjectId = projectId
   historyLoading.value = true
   historyError.value = ''
   try {
-    const persisted = await http.get<unknown, Array<{ command_id: string; action: string; resource_id: number; created_at: string; run_status?: string; resource_missing?: boolean; resource_unverified?: boolean; dispatch_status?: string }>>('/hermes/action-records', { params: { project_id: props.projectId } })
-    if (!live || auth.user?.id !== historyUserId) return
+    const persisted = await http.get<
+      unknown,
+      Array<{
+        command_id: string
+        action: string
+        resource_id: number
+        path?: string
+        created_at: string
+        run_status?: string
+        resource_missing?: boolean
+        resource_unverified?: boolean
+        dispatch_status?: string
+      }>
+    >('/hermes/action-records', { params: { project_id: projectId } })
+    if (!live || auth.user?.id !== historyUserId || props.projectId !== projectId || requestId !== historyRequestId) return
     const ids = new Set(persisted.map(item => item.command_id))
-    history.value = [...persisted.map(item => ({ id: item.command_id, action: 'regression', status: 'completed' as const, resourceId: item.resource_id, createdAt: item.created_at, path: `/suites?project_id=${props.projectId}`, runStatus: item.resource_unverified ? 'unverified' : item.resource_missing ? 'missing' : item.run_status || undefined, dispatchStatus: normalizeDispatchStatus(item.dispatch_status) })), ...history.value.filter(item => !ids.has(item.id))].slice(0, 20)
+    history.value = [
+      ...persisted.map(item => ({
+        id: item.command_id,
+        action: (item.action || 'regression') as Action,
+        status: 'completed' as const,
+        resourceId: item.resource_id,
+        createdAt: item.created_at,
+        path:
+          item.path ||
+          (item.action === 'knowledge'
+            ? `/knowledge?project_id=${projectId}`
+            : item.action === 'defect'
+              ? `/bugs?project_id=${projectId}`
+              : item.action === 'run_case'
+                ? `/runs/${item.resource_id}`
+                : item.action === 'update_case'
+                  ? `/cases/${item.resource_id}`
+                  : `/suites?project_id=${projectId}`),
+        runStatus: item.resource_unverified
+          ? 'unverified'
+          : item.resource_missing
+            ? 'missing'
+            : item.run_status || undefined,
+        dispatchStatus: normalizeDispatchStatus(item.dispatch_status),
+      })),
+      ...history.value.filter(item => !ids.has(item.id)),
+    ].slice(0, 20)
     saveHistory()
-  } catch (reason) { if (live) historyError.value = recordingErrorMessage(reason, t('hermes.actions.failed')) }
-  finally { historyLoading.value = false }
+  } catch (reason) {
+    if (live && props.projectId === projectId && requestId === historyRequestId) historyError.value = recordingErrorMessage(reason, t('hermes.actions.failed'))
+  } finally {
+    if (requestId === historyRequestId) {
+      historyLoading.value = false
+      historyLoadingProjectId = undefined
+    }
+  }
 }
 watch(() => auth.user?.id, userId => { if (userId !== historyUserId) history.value = [] })
+watch(() => props.projectId, newPid => {
+  history.value = historyUserId ? readActionHistory(historyUserId, newPid) : []
+  refreshHistory()
+})
 function saveHistory() {
   if (historyUserId && auth.user?.id === historyUserId && !writeActionHistory(historyUserId, props.projectId, history.value)) error.value = t('hermes.actions.history_unavailable')
 }

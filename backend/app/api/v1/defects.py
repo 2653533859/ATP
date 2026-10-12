@@ -686,6 +686,7 @@ async def create_defect_from_run(
         fingerprint=fingerprint,
         creator_id=user.id,
         assignee_id=body.assignee_id,
+        occurrence_count=1,
         last_seen_at=datetime.now(timezone.utc),
     )
     db.add(defect)

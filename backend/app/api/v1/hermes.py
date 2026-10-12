@@ -1208,6 +1208,9 @@ async def hermes_evaluation_set(user: User = Depends(get_current_user)):
     }
 
 
+_CONFIRMABLE_DRAFT_TYPES = {"test_plan", "record", "repair", "defect", "knowledge"}
+
+
 @router.post("/hermes/sessions/{session_id}/drafts")
 async def create_hermes_draft(
     session_id: int,
@@ -1217,6 +1220,8 @@ async def create_hermes_draft(
 ):
     await assert_project_access(db, user, body.project_id, ProjectRole.editor)
     session = await _owned_session(db, user, session_id, body.project_id)
+    if body.draft_type not in _CONFIRMABLE_DRAFT_TYPES:
+        raise HTTPException(status_code=422, detail="该类型草稿暂不支持确认")
     draft = {
         "id": uuid.uuid4().hex,
         "draft_type": body.draft_type,
@@ -1282,46 +1287,165 @@ async def confirm_hermes_draft(
     session = await _owned_session(db, user, session_id, body.project_id)
     drafts = list(session.drafts or [])
     draft = next((item for item in drafts if item.get("id") == body.draft_id), None)
-    if draft is None or draft.get("status") != "pending_confirmation":
-        raise HTTPException(status_code=409, detail="Hermes 草稿不存在或已处理")
+    if draft is None:
+        raise HTTPException(status_code=409, detail="Hermes 草稿不存在")
+    draft_type = draft.get("draft_type", "test_plan")
+    if draft_type not in _CONFIRMABLE_DRAFT_TYPES:
+        raise HTTPException(status_code=422, detail="该类型草稿暂不支持确认")
+    if draft.get("status") == "confirmed":
+        return {
+            "draft_id": draft["id"],
+            "status": "confirmed",
+            "plan_id": draft.get("plan_id"),
+            "resource_id": draft.get("resource_id") or draft.get("plan_id"),
+            "resource_type": draft.get("resource_type", "test_plan"),
+        }
+    if draft.get("status") != "pending_confirmation":
+        raise HTTPException(status_code=409, detail="Hermes 草稿已处理或不可确认")
+
     payload = draft.get("payload") if isinstance(draft.get("payload"), dict) else {}
-    name = str(payload.get("name") or "").strip()
-    if not name:
-        raise HTTPException(status_code=422, detail="测试计划草稿缺少名称")
-    suite_items = await _validated_draft_suite_items(db, body.project_id, payload)
-    regression_scope = payload.get("regressionScope") if isinstance(payload.get("regressionScope"), list) else []
-    regression_task_ids = [
-        str(item.get("taskId"))[:128]
-        for item in regression_scope[:16]
-        if isinstance(item, dict) and item.get("selected") is True and str(item.get("taskId") or "").strip()
-    ]
-    plan = TestPlan(
-        name=name[:256],
-        description=str(payload.get("objective") or "")[:4000] or None,
-        project_id=body.project_id,
-        suite_ids=suite_items,
-        schedule_type=ScheduleType.manual,
-        status=PlanStatus.draft,
-        is_enabled=False,
-        auto_create_bugs=False,
-        config={
-            "hermes_sources": draft.get("sources") or [],
-            "test_points": payload.get("testPoints") or [],
-            "hermes_regression": {
-                "task_ids": regression_task_ids,
-                "suggested_suite_ids": [item["suite_id"] for item in suite_items],
+    if draft_type == "defect":
+        title = str(payload.get("title") or "").strip()
+        if not title:
+            raise HTTPException(status_code=422, detail="缺陷草稿缺少标题")
+        from app.models.defect import Defect, DefectRunLink
+
+        defect = Defect(
+            project_id=body.project_id,
+            title=title[:256],
+            description=str(payload.get("content") or payload.get("description") or "")[:20000],
+            status="open",
+            priority=str(payload.get("priority") or "P1"),
+            severity=str(payload.get("severity") or "major"),
+            creator_id=user.id,
+            occurrence_count=1,
+            last_seen_at=datetime.now(timezone.utc),
+        )
+        db.add(defect)
+        await db.flush()
+        run_id = payload.get("run_id") or payload.get("runId")
+        if run_id:
+            db.add(DefectRunLink(defect_id=defect.id, run_type="case", run_id=int(run_id), linked_by=user.id))
+        draft["status"] = "confirmed"
+        draft["resource_id"] = defect.id
+        draft["resource_type"] = "defect"
+        draft["confirmed_at"] = datetime.now(timezone.utc).isoformat()
+        session.drafts = drafts
+        await _commit_hermes_state(db)
+        return {
+            "draft_id": draft["id"],
+            "status": "confirmed",
+            "resource_id": defect.id,
+            "resource_type": "defect",
+        }
+
+    elif draft_type == "knowledge":
+        title = str(payload.get("title") or "").strip()
+        if not title:
+            raise HTTPException(status_code=422, detail="知识草稿缺少标题")
+        content = str(payload.get("content") or "").strip()
+        if not content:
+            raise HTTPException(status_code=422, detail="知识草稿缺少内容")
+        entry = KnowledgeEntry(
+            project_id=body.project_id,
+            source_type=str(payload.get("source_type") or "experience"),
+            title=title[:256],
+            content=content[:50000],
+            tags=payload.get("tags") or ["Hermes"],
+            status="draft",
+            author_id=user.id,
+        )
+        db.add(entry)
+        await db.flush()
+        draft["status"] = "confirmed"
+        draft["resource_id"] = entry.id
+        draft["resource_type"] = "knowledge"
+        draft["confirmed_at"] = datetime.now(timezone.utc).isoformat()
+        session.drafts = drafts
+        await _commit_hermes_state(db)
+        return {
+            "draft_id": draft["id"],
+            "status": "confirmed",
+            "resource_id": entry.id,
+            "resource_type": "knowledge",
+        }
+
+    elif draft_type in {"record", "repair"}:
+        case_id = payload.get("case_id") or payload.get("caseId")
+        if not case_id:
+            raise HTTPException(status_code=422, detail="用例草稿缺少用例编号")
+        case = await db.get(TestCase, int(case_id))
+        if case is None:
+            raise HTTPException(status_code=404, detail="目标用例不存在")
+        module = await db.get(Module, case.module_id)
+        if module is None or module.project_id != body.project_id:
+            raise HTTPException(status_code=404, detail="目标用例不存在")
+        expected_updated_at = payload.get("expected_updated_at")
+        if expected_updated_at and case.updated_at:
+            if case.updated_at.isoformat() != expected_updated_at:
+                raise HTTPException(status_code=409, detail="用例已被其他操作修改，请重新核对草稿")
+        new_config = payload.get("config")
+        if isinstance(new_config, dict):
+            case.config = new_config
+        draft["status"] = "confirmed"
+        draft["resource_id"] = case.id
+        draft["resource_type"] = "case"
+        draft["confirmed_at"] = datetime.now(timezone.utc).isoformat()
+        session.drafts = drafts
+        await _commit_hermes_state(db)
+        return {
+            "draft_id": draft["id"],
+            "status": "confirmed",
+            "resource_id": case.id,
+            "resource_type": "case",
+        }
+
+    elif draft_type == "test_plan":
+        name = str(payload.get("name") or "").strip()
+        if not name:
+            raise HTTPException(status_code=422, detail="测试计划草稿缺少名称")
+        suite_items = await _validated_draft_suite_items(db, body.project_id, payload)
+        regression_scope = payload.get("regressionScope") if isinstance(payload.get("regressionScope"), list) else []
+        regression_task_ids = [
+            str(item.get("taskId"))[:128]
+            for item in regression_scope[:16]
+            if isinstance(item, dict) and item.get("selected") is True and str(item.get("taskId") or "").strip()
+        ]
+        plan = TestPlan(
+            name=name[:256],
+            description=str(payload.get("objective") or "")[:4000] or None,
+            project_id=body.project_id,
+            suite_ids=suite_items,
+            schedule_type=ScheduleType.manual,
+            status=PlanStatus.draft,
+            is_enabled=False,
+            auto_create_bugs=False,
+            config={
+                "hermes_sources": draft.get("sources") or [],
+                "test_points": payload.get("testPoints") or [],
+                "hermes_regression": {
+                    "task_ids": regression_task_ids,
+                    "suggested_suite_ids": [item["suite_id"] for item in suite_items],
+                },
             },
-        },
-        creator_id=user.id,
-    )
-    db.add(plan)
-    await db.flush()
-    draft["status"] = "confirmed"
-    draft["plan_id"] = plan.id
-    draft["confirmed_at"] = datetime.now(timezone.utc).isoformat()
-    session.drafts = drafts
-    await _commit_hermes_state(db)
-    return {"draft_id": draft["id"], "status": "confirmed", "plan_id": plan.id}
+            creator_id=user.id,
+        )
+        db.add(plan)
+        await db.flush()
+        draft["status"] = "confirmed"
+        draft["plan_id"] = plan.id
+        draft["resource_id"] = plan.id
+        draft["resource_type"] = "test_plan"
+        draft["confirmed_at"] = datetime.now(timezone.utc).isoformat()
+        session.drafts = drafts
+        await _commit_hermes_state(db)
+        return {
+            "draft_id": draft["id"],
+            "status": "confirmed",
+            "plan_id": plan.id,
+            "resource_id": plan.id,
+            "resource_type": "test_plan",
+        }
 
 
 @router.post("/hermes/sessions/{session_id}/feedback")

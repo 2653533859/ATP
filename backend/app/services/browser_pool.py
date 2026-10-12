@@ -12,10 +12,11 @@ class _PooledBrowser:
         self.headless = headless
         self.pw = pw
         self.browser = browser
-        self.context_count = 0
+        # 累计分配过的上下文数：按生命周期计数、不随释放递减；达到上限后整个浏览器进程回收重建
+        self.acquisitions = 0
 
-    def is_healthy(self, max_contexts: int) -> bool:
-        if self.context_count >= max_contexts:
+    def is_healthy(self, max_acquisitions: int) -> bool:
+        if self.acquisitions >= max_acquisitions:
             return False
         is_conn = getattr(self.browser, "is_connected", None)
         if callable(is_conn):
@@ -50,7 +51,8 @@ class BrowserContextPool:
 
     在 Worker 进程中维护常驻 Browser 实例，消除每次测试用例启动 Chromium/Firefox/WebKit
     的冷启动（~1.5s）开销。为每个测试用例分配完全隔离的 BrowserContext（~20ms）。
-    并在达到最大上下文数或发生崩溃时安全回收重构。
+    当累计分配的上下文数达到 WEB_BROWSER_POOL_MAX_CONTEXTS（类比 Celery 的
+    worker_max_tasks_per_child，按生命周期计数、不随释放递减）或浏览器崩溃时，安全回收重建。
     """
 
     def __init__(self) -> None:
@@ -75,9 +77,9 @@ class BrowserContextPool:
 
         key = (browser_name, headless)
         async with self._lock:
-            max_contexts = int(getattr(settings, "WEB_BROWSER_POOL_MAX_CONTEXTS", 50))
+            max_acquisitions = int(getattr(settings, "WEB_BROWSER_POOL_MAX_CONTEXTS", 50))
             pooled = self._pools.get(key)
-            if pooled is not None and not pooled.is_healthy(max_contexts):
+            if pooled is not None and not pooled.is_healthy(max_acquisitions):
                 await pooled.close()
                 pooled = None
                 self._pools.pop(key, None)
@@ -86,7 +88,7 @@ class BrowserContextPool:
                 pooled = _PooledBrowser(browser_name, headless, pw, browser)
                 self._pools[key] = pooled
 
-            pooled.context_count += 1
+            pooled.acquisitions += 1
             browser = pooled.browser
             pw = pooled.pw
 

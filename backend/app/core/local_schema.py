@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 11
+CURRENT_LOCAL_SCHEMA_VERSION = 12
 
 
 def _create_job_queue(connection: Connection, table_name: str = "local_jobs") -> None:
@@ -105,7 +105,7 @@ def _deprecated_group_cancellations(connection: Connection) -> None:
     """版本 6 曾创建 local_group_cancellations 表；该表与 request_group_cancel 均无调用方，已删除。
 
     保留空迁移维持版本链连续：老库从版本 5 升级时不会因缺号失败；已建过该表的
-    开发库保留一张空表，不影响末尾的 _assert_current_schema 校验（只覆盖映射模型）。
+    开发库由版本 12 负责把它删掉。
     """
 
 
@@ -254,6 +254,14 @@ def _create_group_recovery(connection: Connection) -> None:
 
 
 LOCAL_MIGRATIONS[11] = _create_group_recovery
+
+
+def _drop_group_cancellations(connection: Connection) -> None:
+    # 版本 6 曾建表、后确认无任何调用方；只有经历过版本 6..11 升级的开发库才带着这张空表。
+    connection.exec_driver_sql("DROP TABLE IF EXISTS local_group_cancellations")
+
+
+LOCAL_MIGRATIONS[12] = _drop_group_cancellations
 
 
 def _read_version(connection: Connection) -> int:

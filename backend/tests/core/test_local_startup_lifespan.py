@@ -40,6 +40,13 @@ async def test_local_lifespan_starts_schema_workspace_and_queue(monkeypatch):
     monkeypatch.setattr(
         web_recordings, "close_all_recordings", AsyncMock(side_effect=lambda: events.append("recordings"))
     )
+    from app.services import browser_pool
+
+    async def _close_browsers() -> None:
+        events.append("browsers")
+
+    # 池化浏览器在 worker loop 上创建，lifespan 结束须经 run_async 回到同一 loop 关闭。
+    monkeypatch.setattr(browser_pool, "close_all_browsers", _close_browsers)
     # 投递器在 lifespan 内以函数级导入启动/停止，替身须打在来源模块上；
     # 它应在本地队列之后启动，并在本地队列之前停止。
     monkeypatch.setattr(execution_dispatch, "start_dispatcher", lambda: events.append("dispatch_start"))
@@ -49,7 +56,7 @@ async def test_local_lifespan_starts_schema_workspace_and_queue(monkeypatch):
         assert ("schema", sync_engine) in events
         assert events.index("workspace") < events.index("start") < events.index("dispatch_start")
 
-    assert events[-5:] == ["dispatch_stop", "stop", "recordings", "dispose", "shutdown"]
+    assert events[-6:] == ["dispatch_stop", "stop", "recordings", "browsers", "dispose", "shutdown"]
 
 
 @pytest.mark.asyncio
@@ -73,9 +80,19 @@ async def test_server_lifespan_checks_alembic_without_local_queue(monkeypatch):
     monkeypatch.setattr(execution_dispatch, "start_dispatcher", lambda: events.append("dispatch_start"))
     monkeypatch.setattr(execution_dispatch, "stop_dispatcher", lambda: None)
 
+    from app.services import browser_pool
+
+    async def _close_browsers() -> None:
+        events.append("browsers")
+
+    monkeypatch.setattr(browser_pool, "close_all_browsers", _close_browsers)
+
     async with main.lifespan(main.app):
         # 服务器模式不启动本地队列，但共用投递器仍随 API 生命周期启动。
         assert events == ["alembic", "dispatch_start"]
+
+    # 服务器模式的 API 进程不持有池化浏览器，退出时不应触发关闭。
+    assert "browsers" not in events
 
 
 @pytest.mark.asyncio

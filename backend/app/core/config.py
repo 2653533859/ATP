@@ -217,6 +217,7 @@ class Settings(BaseSettings):
     WEB_RECORDER_DISPLAY: str = ""
     # Playwright 浏览器实例池化复用（阶段二性能优化，生产环境下开启）
     WEB_BROWSER_POOLING_ENABLED: bool = False
+    # 单个池化浏览器累计分配的上下文数上限（生命周期计数，不随释放递减），达到后整进程回收重建
     WEB_BROWSER_POOL_MAX_CONTEXTS: int = 50
 
     # Case snapshot retention

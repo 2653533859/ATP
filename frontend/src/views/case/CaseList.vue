@@ -434,6 +434,14 @@
                   {{ reviewStatusLabel(record.review_status) }}
                 </a-tag>
               </template>
+              <template v-else-if="column.key === 'stability'">
+                <a-tooltip :title="flakyTooltip(asCase(record))">
+                  <a-tag v-if="!record.flaky_stats?.total_runs">{{ t('case.flaky.no_runs') }}</a-tag>
+                  <a-tag v-else :color="record.flaky_stats?.is_flaky ? 'volcano' : 'green'">
+                    {{ record.flaky_stats?.is_flaky ? t('case.flaky.flaky') : t('case.flaky.stable') }}
+                  </a-tag>
+                </a-tooltip>
+              </template>
 
               <template v-else-if="column.key === 'action'">
                 <a-space wrap size="small">
@@ -730,6 +738,7 @@ import {
   countPendingReviews,
   filterCasesByLevel,
   flattenModules,
+  flakyTooltipParams,
 } from '@/utils/caseList'
 import { useAuthStore } from '@/stores/auth'
 
@@ -844,6 +853,7 @@ const columns = computed(() => [
   { title: '用例分级', key: 'level_priority', width: 95, align: 'center' as const },
   { title: '最新执行', key: 'latest_run', width: 140 },
   { title: t('case.columns.review_status'), key: 'review_status', width: 90, align: 'center' as const },
+  { title: t('case.columns.stability'), key: 'stability', width: 90, align: 'center' as const },
   { title: t('case.columns.action'), key: 'action', width: 180, fixed: 'right' as const },
 ])
 
@@ -1130,6 +1140,11 @@ function canDeprecate(testCase: CaseSummaryItem) {
 
 function canReactivate(testCase: CaseSummaryItem) {
   return caseWorkflowGuards(testCase, workflowAbility.value).reactivate
+}
+
+function flakyTooltip(testCase: CaseSummaryItem) {
+  const params = flakyTooltipParams(testCase.flaky_stats)
+  return params ? t('case.flaky.tooltip', params) : t('case.flaky.no_runs')
 }
 
 function runDisabledTip(testCase: CaseSummaryItem) {

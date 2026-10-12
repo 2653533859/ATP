@@ -234,9 +234,22 @@ class HermesGovernanceSummaryOut(BaseModel):
     cost_tracking: HermesCostTrackingOut
 
 
+HermesDraftType = Literal[
+    "test_plan",
+    "record",
+    "api",
+    "regression",
+    "repair",
+    "android",
+    "defect",
+    "knowledge",
+    "summary",
+]
+
+
 class HermesDraftIn(BaseModel):
     project_id: int = Field(ge=1)
-    draft_type: Literal["test_plan"] = "test_plan"
+    draft_type: HermesDraftType = "test_plan"
     payload: dict
     sources: list[dict] = Field(default_factory=list, max_length=20)
 

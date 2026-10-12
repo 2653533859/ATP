@@ -45,4 +45,8 @@ def test_case_list_exposes_disabled_read_only_actions():
     assert "caseCreateDisabledTip" in content
     assert "runDisabledTip(asCase(record))" in content
     assert "case.msg.read_only_role" in content
-    assert ':disabled="!selectedModuleId || !canModifyCases"' in content
+    # 新建按钮只按角色禁用；模块在点击时由 resolveActiveModuleId 自动解析，缺失时提示而非禁用按钮
+    assert ':disabled="!canModifyCases" @click="openCreate(' in content
+    assert ':disabled="!selectedModuleId || !canModifyCases"' not in content
+    assert "resolveActiveModuleId()" in content
+    assert "case.msg.select_module_first" in content

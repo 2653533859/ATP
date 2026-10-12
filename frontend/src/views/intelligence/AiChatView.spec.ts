@@ -136,4 +136,39 @@ describe('AiChatView', () => {
 
     wrapper.unmount()
   })
+
+  it('keeps the partial answer and reports no failure when generation is stopped', async () => {
+    streamAiChatMock.mockImplementationOnce(
+      (_payload: { query: string }, onToken: (token: string) => void, signal?: AbortSignal) => {
+        onToken('部分回答')
+        return new Promise<string>((_resolve, reject) => {
+          signal?.addEventListener('abort', () =>
+            reject(new DOMException('The operation was aborted', 'AbortError'))
+          )
+        })
+      }
+    )
+    const wrapper = mount(AiChatView, {
+      global: { stubs: globalStubs },
+    })
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      sendPrompt: (text: string) => void
+      stopGeneration: () => void
+      currentMessages: Array<{ role: string; text: string }>
+    }
+
+    vm.sendPrompt('讲个笑话')
+    await flushPromises()
+    vm.stopGeneration()
+    await flushPromises()
+
+    const assistantMessages = vm.currentMessages.filter((m) => m.role === 'assistant')
+    expect(assistantMessages).toHaveLength(1)
+    expect(assistantMessages[0].text).toBe('部分回答')
+    expect(vm.currentMessages.some((m) => m.text.includes('发送失败'))).toBe(false)
+
+    wrapper.unmount()
+  })
 })
