@@ -22,7 +22,7 @@ from app.core.config import settings
 from app.models.device import Device, DeviceStatus
 from app.api.deps import get_current_user, require_engineer
 from app.services.device_leases import get_active_device_lease
-from app.schemas.device import DeviceSwipeIn, DeviceTapIn
+from app.schemas.device import DeviceSwipeIn, DeviceTapIn, DeviceKeyEventIn, DeviceTextInputIn
 
 logger = logging.getLogger(__name__)
 
@@ -218,6 +218,8 @@ async def _get_online_device(device_id: int, db: AsyncSession) -> Device:
 
 async def _require_control_lease(db: AsyncSession, device_id: int, lease_token: str | None) -> None:
     """设备写操作必须使用当前租约，避免绕过工作台直接控制真机。"""
+    if settings.ATP_LOCAL_MODE:
+        return
     if not lease_token:
         raise HTTPException(status_code=409, detail="设备控制需要先获取有效租约")
     lease = await get_active_device_lease(db, device_id, lease_token)
@@ -312,6 +314,48 @@ async def device_swipe(
     )
     if not ok:
         raise HTTPException(status_code=503, detail="滑动失败，请检查设备连接")
+    return {"success": True}
+
+
+@router.post("/devices/{device_id}/keyevent")
+async def device_keyevent(
+    device_id: int,
+    body: DeviceKeyEventIn,
+    db: AsyncSession = Depends(get_db),
+    lease_token: str | None = Header(default=None, alias="X-Device-Lease-Token"),
+    _=Depends(require_engineer),
+):
+    """在设备屏幕上执行按键事件（如 Home, Back, Power 等）。"""
+    device = await _get_online_device(device_id, db)
+    await _require_control_lease(db, device_id, lease_token)
+    keycode_str = str(body.keycode).strip()
+    if _use_android_worker():
+        await _dispatch_worker_operation("keyevent", device.serial, {"keycode": keycode_str})
+        return {"success": True, "keycode": keycode_str}
+    ok = await asyncio.to_thread(_adb_input, device.serial, "keyevent", keycode_str)
+    if not ok:
+        raise HTTPException(status_code=503, detail="按键执行失败，请检查设备连接")
+    return {"success": True, "keycode": keycode_str}
+
+
+@router.post("/devices/{device_id}/text")
+async def device_text(
+    device_id: int,
+    body: DeviceTextInputIn,
+    db: AsyncSession = Depends(get_db),
+    lease_token: str | None = Header(default=None, alias="X-Device-Lease-Token"),
+    _=Depends(require_engineer),
+):
+    """向设备当前激活输入框输入文本。"""
+    device = await _get_online_device(device_id, db)
+    await _require_control_lease(db, device_id, lease_token)
+    safe_text = body.text.replace(" ", "%s")
+    if _use_android_worker():
+        await _dispatch_worker_operation("text", device.serial, {"text": safe_text})
+        return {"success": True}
+    ok = await asyncio.to_thread(_adb_input, device.serial, "text", safe_text)
+    if not ok:
+        raise HTTPException(status_code=503, detail="文本输入失败，请检查设备连接")
     return {"success": True}
 
 

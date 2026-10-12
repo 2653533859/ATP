@@ -97,3 +97,11 @@ class RemoteDeviceConnectOut(BaseModel):
     message: str
     serial: str
     device: DeviceOut | None = None
+
+
+class DeviceKeyEventIn(BaseModel):
+    keycode: str | int = Field(description="Android 按键码，如 3 (HOME), 4 (BACK), 26 (POWER)")
+
+
+class DeviceTextInputIn(BaseModel):
+    text: str = Field(min_length=1, max_length=1000, description="向设备输入的文本")

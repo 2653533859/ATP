@@ -2165,6 +2165,10 @@ export const deviceApi = {
     http.get<unknown, { target: AndroidUiTarget | null; diagnostic?: AndroidUiTargetDiagnostic }>(`/devices/${id}/ui-target`, { params: data }),
   swipe: (id: number, data: { x1: number; y1: number; x2: number; y2: number; duration_ms?: number }, leaseToken?: string | null) =>
     http.post(`/devices/${id}/swipe`, data, leaseToken ? { headers: { 'X-Device-Lease-Token': leaseToken } } : undefined),
+  keyevent: (id: number, keycode: string | number, leaseToken?: string | null) =>
+    http.post(`/devices/${id}/keyevent`, { keycode }, leaseToken ? { headers: { 'X-Device-Lease-Token': leaseToken } } : undefined),
+  inputText: (id: number, text: string, leaseToken?: string | null) =>
+    http.post(`/devices/${id}/text`, { text }, leaseToken ? { headers: { 'X-Device-Lease-Token': leaseToken } } : undefined),
   screenshotUrl: (id: number) => `/api/v1/devices/${id}/screenshot`,
   screenStreamUrl: (id: number, fps?: number) =>
     `/api/v1/devices/${id}/screen${fps ? `?fps=${fps}` : ''}`,
