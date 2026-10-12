@@ -16,7 +16,7 @@ from sqlalchemy.engine import Connection
 
 from app.models.base import Base
 
-CURRENT_LOCAL_SCHEMA_VERSION = 12
+CURRENT_LOCAL_SCHEMA_VERSION = 13
 
 
 def _create_job_queue(connection: Connection, table_name: str = "local_jobs") -> None:
@@ -262,6 +262,46 @@ def _drop_group_cancellations(connection: Connection) -> None:
 
 
 LOCAL_MIGRATIONS[12] = _drop_group_cancellations
+
+
+def _create_device_agents_tables(connection: Connection) -> None:
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS remote_agents ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "name VARCHAR(128) NOT NULL UNIQUE, "
+        "status VARCHAR(32) NOT NULL DEFAULT 'OFFLINE', "
+        "agent_version VARCHAR(32), "
+        "os_info VARCHAR(256), "
+        "last_seen_at DATETIME, "
+        "created_at DATETIME NOT NULL, "
+        "updated_at DATETIME NOT NULL"
+        ")"
+    )
+    connection.exec_driver_sql("CREATE INDEX IF NOT EXISTS ix_remote_agents_name ON remote_agents(name)")
+    connection.exec_driver_sql(
+        "CREATE TABLE IF NOT EXISTS remote_agent_devices ("
+        "id INTEGER PRIMARY KEY AUTOINCREMENT, "
+        "agent_id INTEGER NOT NULL REFERENCES remote_agents(id) ON DELETE CASCADE, "
+        "usb_serial VARCHAR(128) NOT NULL, "
+        "tunnel_port INTEGER NOT NULL UNIQUE, "
+        "model VARCHAR(128), "
+        "brand VARCHAR(128), "
+        "os_version VARCHAR(64), "
+        "last_seen_at DATETIME, "
+        "created_at DATETIME NOT NULL, "
+        "updated_at DATETIME NOT NULL, "
+        "CONSTRAINT uq_remote_agent_device_agent_serial UNIQUE(agent_id, usb_serial)"
+        ")"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_remote_agent_devices_agent_id ON remote_agent_devices(agent_id)"
+    )
+    connection.exec_driver_sql(
+        "CREATE INDEX IF NOT EXISTS ix_remote_agent_devices_usb_serial ON remote_agent_devices(usb_serial)"
+    )
+
+
+LOCAL_MIGRATIONS[13] = _create_device_agents_tables
 
 
 def _read_version(connection: Connection) -> int:

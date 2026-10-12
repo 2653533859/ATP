@@ -531,6 +531,41 @@ export interface WebRecordingWorkersResponse {
   available_count: number
 }
 
+export interface RemoteAgentItem {
+  id: number
+  name: string
+  status: 'ONLINE' | 'OFFLINE'
+  agent_version?: string
+  os_info?: string
+  last_seen_at?: string
+  created_at?: string
+  device_count: number
+  online_device_count: number
+  devices: Array<{
+    usb_serial: string
+    tunnel_port: number
+    serial: string
+    model?: string
+    brand?: string
+    os_version?: string
+    online: boolean
+    error?: string
+    last_seen_at?: string
+  }>
+  link_quality?: {
+    rtt_ms?: number
+    rtt_avg_ms?: number
+    up_bps: number
+    down_bps: number
+    bandwidth_probe?: {
+      bps: number
+      bytes: number
+      elapsed_ms: number
+      at: string
+    }
+  }
+}
+
 export interface CaseRunStartResponse {
   id: number
 }
@@ -2143,6 +2178,10 @@ export const deviceApi = {
     http.post<unknown, { success: boolean; message: string; serial: string; device?: DeviceItem }>('/devices/connect', data),
   disconnect: (data: { serial: string }) =>
     http.post<unknown, { success: boolean; message: string; serial: string }>('/devices/disconnect', data),
+  getAgents: () => http.get<unknown, { items: RemoteAgentItem[] }>('/device-agents/'),
+  deleteAgent: (agentId: number) => http.delete<{ message: string; released_ports: number[] }>(`/device-agents/${agentId}`),
+  probeAgentLink: (agentId: number) => http.post<unknown, { bps: number; bytes: number; elapsed_ms: number; at: string }>(`/device-agents/${agentId}/link-probe`),
+  downloadAgentScript: () => http.get('/device-agents/agent-script', { responseType: 'blob' }),
 }
 
 export const iosApi = {

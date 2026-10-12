@@ -45,12 +45,15 @@ def load_all_models() -> None:
     from app.models.configuration_revision import ConfigurationRevision
     from app.models.ios import IosApp, IosDevice, IosDeviceLease
     from app.models.hermes import HermesSession
+    from app.models.device_agent import RemoteAgent, RemoteAgentDevice
 
     _ = (
         User,
         HermesAction,
         ExecutionDispatch,
         GroupRunChild,
+        RemoteAgent,
+        RemoteAgentDevice,
         UserRole,
         Project,
         Module,

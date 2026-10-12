@@ -38,11 +38,14 @@ def load_all_models() -> None:
     from app.models.api_schema import ApiSchemaAsset
     from app.models.api_contract_asset import ApiContractAsset
     from app.models.ios import IosApp, IosDevice, IosDeviceLease
+    from app.models.device_agent import RemoteAgent, RemoteAgentDevice
 
     _ = (
         HermesAction,
         ExecutionDispatch,
         GroupRunChild,
+        RemoteAgent,
+        RemoteAgentDevice,
         User,
         UserRole,
         Project,

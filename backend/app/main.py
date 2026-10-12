@@ -15,6 +15,7 @@ from sqlalchemy.exc import IntegrityError
 from app.api.v1.router import router
 from app.api.v1.ws import ws_router
 from app.api.v1.mock_server import router as mock_router
+from app.api.v1.device_agents import ws_router as device_agents_ws_router
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine
 from app.core.logging import setup_logging
@@ -98,6 +99,16 @@ async def lifespan(app: FastAPI):
 
     start_dispatcher()
     try:
+        from app.device_agents.adb_keeper import adb_keeper
+        from app.device_agents.tunnel_hub import tunnel_hub
+
+        tunnel_hub.set_keeper(adb_keeper)
+        tunnel_hub.startup_reset()
+        adb_keeper.configure(tunnel_hub.desired_ports)
+        adb_keeper.start_in_loop()
+    except Exception:
+        logger.warning("Device agent tunnel hub startup failed", exc_info=True)
+    try:
         yield
     finally:
         # 先停止投递，再停止执行队列；异常关闭也走相同清理路径。
@@ -119,6 +130,14 @@ async def lifespan(app: FastAPI):
                 await asyncio.get_running_loop().run_in_executor(None, run_async, close_all_browsers())
             except Exception:
                 logger.warning("Browser pool shutdown failed", exc_info=True)
+        try:
+            from app.device_agents.adb_keeper import adb_keeper
+            from app.device_agents.tunnel_hub import tunnel_hub
+
+            await tunnel_hub.shutdown()
+            adb_keeper.stop()
+        except Exception:
+            logger.warning("Device agent tunnel hub shutdown failed", exc_info=True)
         await engine.dispose()
         shutdown_tracer()
 
@@ -168,6 +187,7 @@ enable_metrics_for(app)
 
 app.include_router(router)
 app.include_router(ws_router)  # WebSocket 路由，路径以 /ws/ 开头
+app.include_router(device_agents_ws_router)
 app.include_router(mock_router)  # Mock 服务，路径以 /mock/ 开头
 
 # 必须在路由注册后调用，以便自动埋 server span（包含路径模板）。

@@ -70,6 +70,47 @@
       </div>
     </div>
 
+    <!-- 远程工位接入点条 (对齐 AutoDroid) -->
+    <div v-if="remoteAgents.length > 0" class="agent-strip">
+      <div class="agent-strip-header" @click="agentsExpanded = !agentsExpanded">
+        <span class="agent-strip-title">
+          <LinkOutlined style="color: var(--c-primary)" /> 远程工位接入点 · {{ remoteAgents.length }}
+        </span>
+        <span class="agent-strip-toggle">{{ agentsExpanded ? '收起' : '展开' }}</span>
+      </div>
+      <div v-if="agentsExpanded" class="agent-chips-wrap">
+        <div
+          v-for="agent in remoteAgents"
+          :key="agent.id"
+          class="agent-card-chip"
+          :class="{ offline: agent.status !== 'ONLINE' }"
+        >
+          <span class="agent-dot" :class="{ online: agent.status === 'ONLINE' }"></span>
+          <span class="agent-name">{{ agent.name }}</span>
+          <span class="agent-badge">{{ agent.status === 'ONLINE' ? `${agent.online_device_count} 台在线` : '离线' }}</span>
+          <span v-if="agent.link_quality?.rtt_ms != null" class="agent-rtt">
+            RTT {{ Math.round(agent.link_quality.rtt_ms) }}ms
+          </span>
+          <a-button
+            v-if="agent.status === 'ONLINE'"
+            type="link"
+            size="small"
+            class="agent-btn"
+            :loading="agentProbeLoadingId === agent.id"
+            @click="handleProbeAgent(agent)"
+          >
+            测带宽
+          </a-button>
+          <a-popconfirm
+            v-if="agent.status !== 'ONLINE'"
+            title="确定删除此离线接入点并释放端口吗？"
+            @confirm="handleDeleteAgent(agent)"
+          >
+            <a-button type="link" size="small" danger class="agent-btn">删除</a-button>
+          </a-popconfirm>
+        </div>
+      </div>
+    </div>
     <!-- 状态胶囊统计过滤器 (参考图：全部 5 | 空闲 1 | 在线 0 | 已锁定 0 | 离线 4) -->
     <div class="status-pill-row">
       <div class="status-pills">
@@ -348,26 +389,25 @@
         <a-tab-pane key="workstation" tab="工位代理接入指引（B机代理）">
           <div class="remote-connect-pane">
             <p class="guide-intro">
-              在插有手机的工位电脑（B 机）上开启网络 ADB，设备即可直接接入本平台，支持屏幕镜像、自动化执行与专项巡检。
+              在插有手机的工位电脑（B 机）上运行「设备接入助手」脚本，插在 B 机上的 Android 设备会通过反向隧道自动注册到本平台，全功能可用（屏幕镜像、自动化执行、专项巡检）。
             </p>
             <div class="guide-steps">
               <div class="guide-step-item">
                 <div class="step-num">1</div>
                 <div class="step-body">
                   <strong>准备环境</strong>
-                  <p>B 机需安装 Android platform-tools (adb)，手机通过 USB 连接 B 机并开启「开发者选项」与「USB 调试」。</p>
+                  <p>B 机安装 Python 3.8+ 与 Android platform-tools (adb)，手机通过 USB 连接 B 机并开启「USB 调试」。</p>
                 </div>
               </div>
 
               <div class="guide-step-item">
                 <div class="step-num">2</div>
                 <div class="step-body">
-                  <strong>在 B 机命令行切换为网络调试</strong>
-                  <p>在 B 机终端执行以下命令，将手机切换至 5555 端口网络监听：</p>
-                  <div class="code-box">
-                    <code>adb tcpip 5555</code>
-                    <a-button type="link" size="small" @click="copyText('adb tcpip 5555')">
-                      <CopyOutlined /> 复制
+                  <strong>下载接入助手脚本</strong>
+                  <p>下载纯 Python 标准库实现的轻量设备接入代理脚本：</p>
+                  <div style="margin-top: 6px">
+                    <a-button type="primary" size="small" @click="downloadAgentScript">
+                      <DownloadOutlined /> 下载 device_agent.py
                     </a-button>
                   </div>
                 </div>
@@ -376,8 +416,22 @@
               <div class="guide-step-item">
                 <div class="step-num">3</div>
                 <div class="step-body">
-                  <strong>获取手机局域网 IP 并直连</strong>
-                  <p>拔下 USB 线，在手机「设置 → WLAN → 点击已连接的 Wi-Fi」查看手机 IP（例如 <code>192.168.x.x</code>），切换回「网络 ADB 直连」标签页输入该 IP 点击连接即可！</p>
+                  <strong>在 B 机命令行运行代理脚本</strong>
+                  <p>执行以下命令启动反向隧道接入（自动捕获并映射插在 B 机上的 Android 设备）：</p>
+                  <div class="code-box">
+                    <code>python device_agent.py --server {{ currentOrigin }} --name 工位B</code>
+                    <a-button type="link" size="small" @click="copyText(`python device_agent.py --server ${currentOrigin} --name 工位B`)">
+                      <CopyOutlined /> 复制命令
+                    </a-button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="guide-step-item">
+                <div class="step-num">4</div>
+                <div class="step-body">
+                  <strong>手机授权并同步</strong>
+                  <p>首次接入时手机若弹出「允许 USB 调试」请勾选并点击允许。之后回到本页点击【同步 ADB】即可看到远程工位设备！</p>
                 </div>
               </div>
             </div>
@@ -402,10 +456,11 @@ import {
   DisconnectOutlined,
   WifiOutlined,
   CopyOutlined,
+  DownloadOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { deviceApi } from '@/api'
-import type { AndroidWorkerItem, DeviceGroupItem, DeviceItem, DeviceStatus } from '@/api'
+import type { AndroidWorkerItem, DeviceGroupItem, DeviceItem, DeviceStatus, RemoteAgentItem } from '@/api'
 import DeviceMatrixPanel from './components/DeviceMatrixPanel.vue'
 
 const asDevice = (record: unknown) => record as DeviceItem
@@ -444,6 +499,60 @@ const remoteConnectModalVisible = ref(false)
 const remoteConnectTab = ref('direct')
 const remoteConnecting = ref(false)
 const remoteForm = ref({ host: '', port: 5555 })
+
+const remoteAgents = ref<RemoteAgentItem[]>([])
+const agentProbeLoadingId = ref<number | null>(null)
+const agentsExpanded = ref(true)
+const currentOrigin = computed(() => {
+  if (typeof window !== 'undefined' && window.location) {
+    return window.location.origin.replace(':5174', ':8001')
+  }
+  return 'http://127.0.0.1:8001'
+})
+
+async function fetchRemoteAgents() {
+  try {
+    const res = await deviceApi.getAgents()
+    remoteAgents.value = res.items || []
+  } catch (err) {
+    // 静默忽略
+  }
+}
+
+async function handleProbeAgent(agent: RemoteAgentItem) {
+  agentProbeLoadingId.value = agent.id
+  try {
+    const data = await deviceApi.probeAgentLink(agent.id)
+    message.success(`${agent.name} 实测吞吐 ${formatBps(data.bps)}（${Math.round(data.bytes / 1024)}KB / ${data.elapsed_ms}ms）`)
+    await fetchRemoteAgents()
+  } catch (err: any) {
+    message.error(`带宽探测失败: ${err?.response?.data?.detail || err?.message || err}`)
+  } finally {
+    agentProbeLoadingId.value = null
+  }
+}
+
+async function handleDeleteAgent(agent: RemoteAgentItem) {
+  try {
+    await deviceApi.deleteAgent(agent.id)
+    message.success(`已删除接入点 ${agent.name}`)
+    await fetchRemoteAgents()
+    await loadDevices()
+  } catch (err: any) {
+    message.error(`删除失败: ${err?.response?.data?.detail || err?.message || err}`)
+  }
+}
+
+function formatBps(bps?: number) {
+  const value = Number(bps) || 0
+  if (value >= 1_000_000) return `${(value / 1_000_000).toFixed(1)} Mbps`
+  if (value >= 1_000) return `${Math.round(value / 1_000)} Kbps`
+  return `${value} bps`
+}
+
+function downloadAgentScript() {
+  window.open('/api/v1/device-agents/agent-script', '_blank')
+}
 
 function openRemoteConnectModal() {
   remoteForm.value = { host: '', port: 5555 }
@@ -834,6 +943,7 @@ onMounted(() => {
   loadDevices()
   loadWorkers()
   loadGroups()
+  fetchRemoteAgents()
 })
 
 onUnmounted(() => {
@@ -1247,5 +1357,76 @@ onUnmounted(() => {
   font-family: monospace;
   font-size: 13px;
   color: var(--c-primary);
+}
+
+/* 远程工位接入点条目 */
+.agent-strip {
+  margin-bottom: 16px;
+  padding: 10px 14px;
+  background: var(--c-bg-elevated);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+}
+.agent-strip-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  cursor: pointer;
+  user-select: none;
+}
+.agent-strip-title {
+  font-size: 13px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.agent-strip-toggle {
+  font-size: 12px;
+  color: var(--c-text-tertiary);
+}
+.agent-chips-wrap {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed var(--c-border);
+}
+.agent-card-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 10px;
+  background: rgba(0, 0, 0, 0.02);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  font-size: 12px;
+}
+.agent-card-chip.offline {
+  opacity: 0.65;
+}
+.agent-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff4d4f;
+}
+.agent-dot.online {
+  background: #52c41a;
+}
+.agent-name {
+  font-weight: 600;
+}
+.agent-badge {
+  color: var(--c-text-secondary);
+}
+.agent-rtt {
+  color: var(--c-primary);
+  font-size: 11px;
+}
+.agent-btn {
+  padding: 0 4px;
+  font-size: 12px;
 }
 </style>

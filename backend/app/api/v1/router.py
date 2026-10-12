@@ -54,6 +54,7 @@ from app.api.v1 import (
     local_files,
     runtime,
     ai_chat,
+    device_agents,
 )
 
 router = APIRouter(prefix="/api/v1")
@@ -64,6 +65,7 @@ router.include_router(cases.router)
 router.include_router(environments.router)
 router.include_router(scripts.router)
 router.include_router(devices.router)
+router.include_router(device_agents.router, prefix="/device-agents", tags=["远程设备接入点"])
 router.include_router(apks.router)
 router.include_router(device_mirror.router)
 router.include_router(suites.router)
