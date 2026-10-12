@@ -81,3 +81,19 @@ class DeviceSwipeIn(BaseModel):
     x2: int
     y2: int
     duration_ms: int = 300
+
+
+class RemoteDeviceConnectIn(BaseModel):
+    host: str = Field(min_length=1, max_length=256, description="远程设备 IP 或主机名")
+    port: int = Field(default=5555, ge=1, le=65535, description="ADB 网络调试端口，默认 5555")
+
+
+class RemoteDeviceDisconnectIn(BaseModel):
+    serial: str = Field(min_length=1, max_length=256, description="远程设备标识（格式 host:port）")
+
+
+class RemoteDeviceConnectOut(BaseModel):
+    success: bool
+    message: str
+    serial: str
+    device: DeviceOut | None = None

@@ -8,10 +8,24 @@ from app.core.database import get_db
 from app.core.config import settings
 from app.models.device import Device, DeviceGroup, DeviceStatus
 from app.models.user import User
-from app.schemas.device import AndroidWorkerOut, DeviceGroupOut, DeviceGroupSave, DeviceOut, DeviceScanOut, DeviceUpdate
+from app.schemas.device import (
+    AndroidWorkerOut,
+    DeviceGroupOut,
+    DeviceGroupSave,
+    DeviceOut,
+    DeviceScanOut,
+    DeviceUpdate,
+    RemoteDeviceConnectIn,
+    RemoteDeviceDisconnectIn,
+    RemoteDeviceConnectOut,
+)
 from app.schemas.device_lease import DeviceLeaseAcquireIn, DeviceLeaseOut, DeviceLeaseTokenIn
 from app.api.deps import get_current_user, require_engineer
-from app.services.adb_service import async_scan_devices
+from app.services.adb_service import (
+    async_scan_devices,
+    async_connect_remote_device,
+    async_disconnect_remote_device,
+)
 from app.services.android_worker_registry import AndroidWorkerRegistryError, list_android_workers
 from app.services.device_sync import sync_devices_to_db_async
 from app.services.device_leases import (
@@ -155,6 +169,65 @@ async def scan_devices(
     await db.commit()
 
     return DeviceScanOut(status="completed", devices=await _list_device_rows(db))
+
+
+@router.post("/devices/connect", response_model=RemoteDeviceConnectOut)
+async def connect_remote_adb_device(
+    body: RemoteDeviceConnectIn,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_engineer),
+):
+    """通过网络 ADB (adb connect) 接入远程物理或云设备。"""
+    host = body.host.strip()
+    port = body.port
+    if ":" in host:
+        parts = host.split(":", 1)
+        host = parts[0].strip()
+        try:
+            port = int(parts[1])
+        except ValueError:
+            pass
+    serial = f"{host}:{port}"
+    success, message = await async_connect_remote_device(host, port)
+    if not success:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"远程设备连接失败: {message}",
+        )
+
+    scanned = await async_scan_devices()
+    if scanned:
+        await sync_devices_to_db_async(db, scanned)
+        await db.commit()
+
+    device = await db.scalar(select(Device).where(Device.serial == serial))
+    return RemoteDeviceConnectOut(
+        success=True,
+        message=message,
+        serial=serial,
+        device=device,
+    )
+
+
+@router.post("/devices/disconnect")
+async def disconnect_remote_adb_device(
+    body: RemoteDeviceDisconnectIn,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_engineer),
+):
+    """通过 adb disconnect 断开远程设备的网络连接。"""
+    serial = body.serial.strip()
+    success, message = await async_disconnect_remote_device(serial)
+    scanned = await async_scan_devices()
+    if scanned is not None:
+        await sync_devices_to_db_async(db, scanned)
+        await db.commit()
+    else:
+        device = await db.scalar(select(Device).where(Device.serial == serial))
+        if device:
+            device.status = DeviceStatus.offline
+            await db.commit()
+    return {"success": success, "message": message, "serial": serial}
 
 
 @router.get("/devices/scan/{scan_id}", response_model=DeviceScanOut)

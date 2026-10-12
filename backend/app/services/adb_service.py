@@ -167,3 +167,43 @@ def scan_devices() -> list[AdbDeviceInfo] | None:
 async def async_scan_devices() -> list[AdbDeviceInfo] | None:
     """异步版本：在线程池中执行扫描"""
     return await asyncio.get_running_loop().run_in_executor(None, scan_devices)
+
+
+def connect_remote_device(host: str, port: int = 5555) -> tuple[bool, str]:
+    """通过 adb connect <host>:<port> 接入远程设备，返回 (success, message)。"""
+    cleaned_host = host.strip()
+    target_port = port
+    if ":" in cleaned_host:
+        parts = cleaned_host.split(":", 1)
+        cleaned_host = parts[0].strip()
+        try:
+            target_port = int(parts[1])
+        except ValueError:
+            pass
+    address = f"{cleaned_host}:{target_port}"
+    output = _run_adb("connect", address, timeout=15)
+    if output is None:
+        return False, f"ADB connect 命令执行失败或超时: {address}"
+    lower = output.lower()
+    if "connected to" in lower and "cannot connect" not in lower and "failed" not in lower:
+        return True, output
+    return False, output
+
+
+async def async_connect_remote_device(host: str, port: int = 5555) -> tuple[bool, str]:
+    """异步版本：在线程池中执行 adb connect"""
+    return await asyncio.get_running_loop().run_in_executor(None, connect_remote_device, host, port)
+
+
+def disconnect_remote_device(serial: str) -> tuple[bool, str]:
+    """通过 adb disconnect <serial> 断开远程设备连接。"""
+    address = serial.strip()
+    output = _run_adb("disconnect", address, timeout=10)
+    if output is None:
+        return False, f"ADB disconnect 命令执行失败: {address}"
+    return True, output
+
+
+async def async_disconnect_remote_device(serial: str) -> tuple[bool, str]:
+    """异步版本：在线程池中执行 adb disconnect"""
+    return await asyncio.get_running_loop().run_in_executor(None, disconnect_remote_device, serial)

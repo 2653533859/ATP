@@ -2139,6 +2139,10 @@ export const deviceApi = {
   updateGroup: (id: number, data: { name: string; description?: string; device_ids: number[] }) =>
     http.put<unknown, DeviceGroupItem>(`/device-groups/${id}`, data),
   deleteGroup: (id: number) => http.delete(`/device-groups/${id}`),
+  connect: (data: { host: string; port?: number }) =>
+    http.post<unknown, { success: boolean; message: string; serial: string; device?: DeviceItem }>('/devices/connect', data),
+  disconnect: (data: { serial: string }) =>
+    http.post<unknown, { success: boolean; message: string; serial: string }>('/devices/disconnect', data),
 }
 
 export const iosApi = {

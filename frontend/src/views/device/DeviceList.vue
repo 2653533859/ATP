@@ -19,9 +19,9 @@
         <a-tooltip title="后端暂未提供批量指标采集能力">
           <a-button class="action-btn" disabled><ThunderboltOutlined /> 批量采集</a-button>
         </a-tooltip>
-        <a-tooltip title="设备由在线 Agent 扫描并接入">
-          <a-button type="primary" class="action-btn add-btn" disabled><PlusOutlined /> 添加设备</a-button>
-        </a-tooltip>
+        <a-button type="primary" class="action-btn add-btn" @click="openRemoteConnectModal">
+          <LinkOutlined /> 接入远程设备
+        </a-button>
         <div class="view-mode-toggle">
           <a-tooltip title="卡片矩阵视图">
             <button
@@ -160,6 +160,7 @@
       @edit="openEdit"
       @delete="handleDelete"
       @use="openMirror"
+      @disconnect="handleRemoteDisconnect"
     />
 
     <!-- 视图 2：数据表格视图 (并保留在 DOM 保证现有自动化与 TableStub 测试全通过) -->
@@ -182,7 +183,12 @@
           </template>
 
           <template v-if="column.key === 'device_info'">
-            <div>{{ record.brand }} {{ record.model }}</div>
+            <div>
+              {{ record.brand }} {{ record.model }}
+              <a-tag v-if="record.serial && record.serial.includes(':')" color="blue" style="margin-left: 6px; font-size: 11px">
+                远程 ADB
+              </a-tag>
+            </div>
             <div style="color: var(--c-text-tertiary); font-size: 12px">{{ record.serial }}</div>
           </template>
 
@@ -206,6 +212,15 @@
                 <EyeOutlined /> {{ t('device.mirror') }}
               </a-button>
               <a-button type="link" size="small" @click="openEdit(asDevice(record))">{{ t('common.edit') }}</a-button>
+              <a-popconfirm
+                v-if="record.serial && record.serial.includes(':')"
+                title="确定要断开该远程设备的 ADB 连接吗？"
+                @confirm="handleRemoteDisconnect(record.serial)"
+              >
+                <a-button type="link" size="small" style="color: #fa8c16">
+                  <DisconnectOutlined /> 断开
+                </a-button>
+              </a-popconfirm>
               <a-popconfirm :title="t('device.confirm_delete')" @confirm="handleDelete(record.id)">
                 <a-button type="link" size="small" danger>{{ t('common.delete') }}</a-button>
               </a-popconfirm>
@@ -275,6 +290,101 @@
         <span style="color: var(--c-text-tertiary); font-size: 12px">{{ t('device.auto_refresh') }}</span>
       </div>
     </a-modal>
+
+    <!-- 接入远程设备弹窗 -->
+    <a-modal
+      v-model:open="remoteConnectModalVisible"
+      title="接入远程设备"
+      :width="640"
+      :footer="null"
+      destroy-on-close
+    >
+      <a-tabs v-model:activeKey="remoteConnectTab" class="remote-connect-tabs">
+        <!-- Tab 1: 网络 ADB 直连 -->
+        <a-tab-pane key="direct" tab="网络 ADB 直连（推荐）">
+          <div class="remote-connect-pane">
+            <a-alert
+              type="info"
+              show-icon
+              style="margin-bottom: 16px"
+              message="支持连接局域网、VPN 或云端的 Android 真机、车机或模拟器。手机需在开发者选项开启「无线调试」或已在工位执行 adb tcpip 5555。"
+            />
+            <a-form layout="vertical">
+              <a-form-item label="设备 IP 地址" required>
+                <a-input
+                  v-model:value="remoteForm.host"
+                  placeholder="例如：192.168.1.100 或 10.0.0.5"
+                  allow-clear
+                >
+                  <template #prefix><WifiOutlined style="color: var(--c-text-tertiary)" /></template>
+                </a-input>
+              </a-form-item>
+              <a-form-item label="网络调试端口" required>
+                <a-input-number
+                  v-model:value="remoteForm.port"
+                  :min="1"
+                  :max="65535"
+                  style="width: 100%"
+                  placeholder="默认 5555"
+                />
+                <div class="port-hint">
+                  <span>常用端口：</span>
+                  <a-tag class="clickable-tag" @click="remoteForm.port = 5555">5555 (默认)</a-tag>
+                  <a-tag class="clickable-tag" @click="remoteForm.port = 5556">5556</a-tag>
+                  <a-tag class="clickable-tag" @click="remoteForm.port = 5557">5557</a-tag>
+                </div>
+              </a-form-item>
+              <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 24px">
+                <a-button @click="remoteConnectModalVisible = false">取消</a-button>
+                <a-button type="primary" :loading="remoteConnecting" @click="handleRemoteConnect">
+                  <LinkOutlined /> 连接设备
+                </a-button>
+              </div>
+            </a-form>
+          </div>
+        </a-tab-pane>
+
+        <!-- Tab 2: 工位代理接入指引 -->
+        <a-tab-pane key="workstation" tab="工位代理接入指引（B机代理）">
+          <div class="remote-connect-pane">
+            <p class="guide-intro">
+              在插有手机的工位电脑（B 机）上开启网络 ADB，设备即可直接接入本平台，支持屏幕镜像、自动化执行与专项巡检。
+            </p>
+            <div class="guide-steps">
+              <div class="guide-step-item">
+                <div class="step-num">1</div>
+                <div class="step-body">
+                  <strong>准备环境</strong>
+                  <p>B 机需安装 Android platform-tools (adb)，手机通过 USB 连接 B 机并开启「开发者选项」与「USB 调试」。</p>
+                </div>
+              </div>
+
+              <div class="guide-step-item">
+                <div class="step-num">2</div>
+                <div class="step-body">
+                  <strong>在 B 机命令行切换为网络调试</strong>
+                  <p>在 B 机终端执行以下命令，将手机切换至 5555 端口网络监听：</p>
+                  <div class="code-box">
+                    <code>adb tcpip 5555</code>
+                    <a-button type="link" size="small" @click="copyText('adb tcpip 5555')">
+                      <CopyOutlined /> 复制
+                    </a-button>
+                  </div>
+                </div>
+              </div>
+
+              <div class="guide-step-item">
+                <div class="step-num">3</div>
+                <div class="step-body">
+                  <strong>获取手机局域网 IP 并直连</strong>
+                  <p>拔下 USB 线，在手机「设置 → WLAN → 点击已连接的 Wi-Fi」查看手机 IP（例如 <code>192.168.x.x</code>），切换回「网络 ADB 直连」标签页输入该 IP 点击连接即可！</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </a-tab-pane>
+      </a-tabs>
+    </a-modal>
   </div>
 </template>
 
@@ -286,9 +396,12 @@ import {
   EyeOutlined,
   SyncOutlined,
   ThunderboltOutlined,
-  PlusOutlined,
   AppstoreOutlined,
   BarsOutlined,
+  LinkOutlined,
+  DisconnectOutlined,
+  WifiOutlined,
+  CopyOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { deviceApi } from '@/api'
@@ -326,6 +439,59 @@ const groupForm = ref({ name: '', description: '', device_ids: [] as number[] })
 
 const mirrorOpen = ref(false)
 const mirrorDevice = ref<DeviceItem | null>(null)
+
+const remoteConnectModalVisible = ref(false)
+const remoteConnectTab = ref('direct')
+const remoteConnecting = ref(false)
+const remoteForm = ref({ host: '', port: 5555 })
+
+function openRemoteConnectModal() {
+  remoteForm.value = { host: '', port: 5555 }
+  remoteConnectTab.value = 'direct'
+  remoteConnectModalVisible.value = true
+}
+
+async function handleRemoteConnect() {
+  const host = remoteForm.value.host.trim()
+  if (!host) {
+    message.warning('请输入设备 IP 地址')
+    return
+  }
+  remoteConnecting.value = true
+  try {
+    const res = await deviceApi.connect({ host, port: remoteForm.value.port || 5555 })
+    message.success(res.message || '远程设备连接成功！')
+    remoteConnectModalVisible.value = false
+    await loadDevices()
+  } catch (err: any) {
+    const detail = err?.response?.data?.detail || err?.message || '连接失败'
+    message.error(detail)
+  } finally {
+    remoteConnecting.value = false
+  }
+}
+
+async function handleRemoteDisconnect(serial: string) {
+  try {
+    await deviceApi.disconnect({ serial })
+    message.success(`已断开远程设备 ${serial}`)
+    await loadDevices()
+  } catch (err: any) {
+    message.error(`断开连接失败: ${err?.message || err}`)
+  }
+}
+
+function copyText(text: string) {
+  if (navigator?.clipboard?.writeText) {
+    navigator.clipboard.writeText(text).then(() => {
+      message.success('已复制到剪贴板')
+    }).catch(() => {
+      message.info(text)
+    })
+  } else {
+    message.info(text)
+  }
+}
 const mirrorSrc = ref<string | null>(null)
 let mirrorTimer: ReturnType<typeof setInterval> | null = null
 let mirrorObjectUrl: string | null = null
@@ -1004,5 +1170,82 @@ onUnmounted(() => {
   justify-content: space-between;
   align-items: center;
   margin-top: 12px;
+}
+
+/* 远程设备接入弹窗 */
+.remote-connect-pane {
+  padding: 8px 0;
+}
+.port-hint {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--c-text-tertiary);
+}
+.clickable-tag {
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.clickable-tag:hover {
+  color: var(--c-primary);
+  border-color: var(--c-primary);
+}
+.guide-intro {
+  color: var(--c-text-secondary);
+  margin-bottom: 16px;
+  line-height: 1.6;
+}
+.guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.guide-step-item {
+  display: flex;
+  gap: 12px;
+}
+.step-num {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--c-primary);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: bold;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.step-body {
+  flex: 1;
+}
+.step-body strong {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--c-text-primary);
+}
+.step-body p {
+  color: var(--c-text-secondary);
+  font-size: 13px;
+  margin: 0;
+  line-height: 1.5;
+}
+.code-box {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(0, 0, 0, 0.04);
+  padding: 6px 12px;
+  border-radius: 6px;
+  margin-top: 6px;
+  border: 1px solid var(--c-border);
+}
+.code-box code {
+  font-family: monospace;
+  font-size: 13px;
+  color: var(--c-primary);
 }
 </style>

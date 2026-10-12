@@ -14,6 +14,7 @@
           <span class="device-brand-subtitle">{{ device.brand || '品牌未上报' }}</span>
         </div>
         <div class="card-tags">
+          <span v-if="device.serial && device.serial.includes(':')" class="protocol-tag" style="background: rgba(22, 119, 255, 0.15); color: #1677ff">远程</span>
           <span class="protocol-tag">ADB</span>
           <span :class="['status-chip', `chip-${device.status}`]">{{ statusText(device.status) }}</span>
         </div>
@@ -64,6 +65,13 @@
           <a-tooltip title="后端暂未提供远程重启能力">
             <a-button type="link" size="small" class="footer-link" disabled>重启</a-button>
           </a-tooltip>
+          <a-popconfirm
+            v-if="device.serial && device.serial.includes(':')"
+            title="确定要断开该远程设备的 ADB 连接吗？"
+            @confirm="emit('disconnect', device.serial)"
+          >
+            <a-button type="link" size="small" class="footer-link" style="color: #fa8c16">断开</a-button>
+          </a-popconfirm>
           <a-popconfirm :title="t('device.confirm_delete')" @confirm="emit('delete', device.id)">
             <a-button type="link" size="small" danger class="footer-link">删除</a-button>
           </a-popconfirm>
@@ -94,6 +102,7 @@ const emit = defineEmits<{
   edit: [device: DeviceItem]
   delete: [id: number]
   use: [device: DeviceItem]
+  disconnect: [serial: string]
 }>()
 const { t } = useI18n()
 
