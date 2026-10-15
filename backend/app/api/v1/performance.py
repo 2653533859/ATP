@@ -88,6 +88,10 @@ from app.services.performance_trend import build_performance_trend
 from app.services.performance_ramp import PerformanceRampError, expand_auto_ramp
 from app.services.performance_metric_boundary import PerformanceMetricBoundaryError, build_metric_boundary
 from app.worker.tasks_performance import run_performance_test
+from app.services.performance_baseline_alignment import (
+    calculate_baseline_drift_alert,
+    evaluate_baseline_candidate,
+)
 
 router = APIRouter(tags=["性能压测"])
 
@@ -1227,6 +1231,64 @@ async def get_performance_baseline_comparison(
     if baseline is None or baseline.performance_test_id != test.id:
         raise HTTPException(status_code=409, detail="当前基线已不存在，请重新设置")
     return build_baseline_comparison(baseline.id, run.id, baseline.summary, run.summary)
+
+
+@router.post("/performance/runs/{run_id}/drift-alert")
+async def get_performance_drift_alert(
+    run_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """计算当前压测运行相对于历史基准的性能漂移度（RPS、P95、错误率）并输出告警评估。"""
+    run = await db.get(PerformanceRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="压测执行不存在")
+    await assert_project_access(db, user, run.project_id, ProjectRole.viewer)
+    test = await db.get(PerformanceTest, run.performance_test_id)
+    if test is None or test.baseline_run_id is None:
+        raise HTTPException(status_code=409, detail="当前压测尚未设置基线，无法进行漂移比对")
+    baseline = await db.get(PerformanceRun, test.baseline_run_id)
+    if baseline is None:
+        raise HTTPException(status_code=409, detail="当前基线运行已失效，请重新设置")
+    return calculate_baseline_drift_alert(baseline.summary, run.summary)
+
+
+@router.post("/performance/tests/{test_id}/align-baseline")
+async def evaluate_test_baseline_candidate_endpoint(
+    test_id: int,
+    auto_promote: bool = Query(default=False),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+):
+    """评估当前压测最新成功运行是否具备晋升为新基准的资格，支持一键自动打标晋升。"""
+    test = await db.get(PerformanceTest, test_id)
+    if test is None:
+        raise HTTPException(status_code=404, detail="性能压测不存在")
+    await assert_project_access(db, user, test.project_id, ProjectRole.editor)
+
+    q_latest = (
+        select(PerformanceRun)
+        .where(PerformanceRun.performance_test_id == test_id, PerformanceRun.status == "success")
+        .order_by(PerformanceRun.created_at.desc())
+        .limit(1)
+    )
+    latest_run = (await db.execute(q_latest)).scalar_one_or_none()
+    if not latest_run:
+        raise HTTPException(status_code=409, detail="未找到可用于比对的成功运行记录")
+
+    baseline_run = await db.get(PerformanceRun, test.baseline_run_id) if test.baseline_run_id else None
+    evaluation = evaluate_baseline_candidate(test, latest_run, baseline_run=baseline_run)
+
+    if auto_promote and evaluation.get("eligible"):
+        test.baseline_run_id = latest_run.id
+        await db.commit()
+        await db.refresh(test)
+        evaluation["promoted"] = True
+        evaluation["new_baseline_run_id"] = test.baseline_run_id
+    else:
+        evaluation["promoted"] = False
+
+    return evaluation
 
 
 @router.get("/performance/runs/{run_id}/export/json")
