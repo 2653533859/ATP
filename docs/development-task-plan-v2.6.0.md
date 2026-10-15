@@ -45,7 +45,7 @@
 |---|---|---|---|
 | P3.1 `[x]` | **K8s 动态性能压测 Pod 弹性扩缩容调度** | K3s 集群 | 实现基于 batch/v1 Job 的动态弹性算力分片调度与自动回收（ttlSecondsAfterFinished）；支持 k6/Locust 负载精确拆分；见 docs/evidence/k8s-dynamic-performance-pod-operator-p3-1-2026-10-15.md |
 | P3.2 `[x]` | **分布式性能指标实时汇总与基线比对** | P3.1 | 聚合多 Pod 产生的实时 TPS、响应时间分位数与错误率；压测完成自动与历史最佳基线对比并输出判定结论；见 docs/evidence/distributed-performance-metrics-aggregation-and-baseline-p3-2-2026-10-15.md |
-| P3.3 `[ ]` | **多节点高可用与 Prometheus 报警规则集成** | P3.2, 观测系统 | 压测期间动态采集被测目标与压力机本身的 CPU/内存/网络饱和度，超限自动熔断保护。 |
+| P3.3 `[x]` | **多节点高可用与 Prometheus 报警规则集成** | P3.2, 观测系统 | 压测期间动态采集被测目标与压力机本身的 CPU/内存/网络饱和度，超限自动熔断保护；见 docs/evidence/multi-node-ha-prometheus-alerting-circuit-breaker-p3-3-2026-10-15.md |
 
 ---
 
