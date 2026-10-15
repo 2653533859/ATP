@@ -87,6 +87,30 @@ def cleanup_expired_files():
         session.close()
 
 
+@celery_app.task(name="cleanup_expired_test_assets")
+def cleanup_expired_test_assets():
+    """按资产类别生命周期（视频/截图/报告/日志）执行自动归档与过期清理 (Q4.2)。"""
+    from app.core.database import sync_session_factory
+    from app.services.asset_lifecycle_cleaner import scan_and_clean_expired_assets
+
+    load_all_models()
+    session = sync_session_factory()
+    try:
+        res = scan_and_clean_expired_assets(session, dry_run=False)
+        logger.info(
+            "Asset lifecycle cleanup completed: deleted=%d, reclaim_mb=%s",
+            res["deleted_count"],
+            res["total_reclaimable_mb"],
+        )
+        return res
+    except Exception:
+        session.rollback()
+        logger.exception("Asset lifecycle cleanup task failed")
+        return {"deleted_count": 0, "total_reclaimable_mb": 0.0}
+    finally:
+        session.close()
+
+
 def _cleanup_stale_pending_with_session(session, now: datetime) -> dict[str, int]:
     from app.models.case import TestRun, RunStatus
     from app.models.suite import SuiteRun, SuiteRunStatus

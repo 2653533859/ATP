@@ -13,6 +13,8 @@ from app.schemas.storage import (
     StorageCleanupPreviewIn,
     StorageCleanupPreviewOut,
     StorageStatsOut,
+    AssetLifecycleScanIn,
+    AssetLifecycleScanOut,
 )
 from app.schemas.storage_policy import (
     StoragePolicyCreateIn,
@@ -26,6 +28,7 @@ from app.services.storage_cleanup import (
     load_active_policies,
     preview_storage_cleanup,
 )
+from app.services.asset_lifecycle_cleaner import scan_and_clean_expired_assets
 
 router = APIRouter(tags=["存储治理"])
 
@@ -163,3 +166,42 @@ async def storage_alert(
     """返回当前存储告警状态，未告警时 alert 为 null。"""
     alert = await get_current_alert()
     return {"alert": alert}
+
+
+# ── Asset Storage Lifecycle Endpoints (Q4.2) ─────────────
+@router.post("/storage/lifecycle/scan", response_model=AssetLifecycleScanOut)
+async def scan_asset_lifecycle(
+    body: AssetLifecycleScanIn,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_engineer),
+):
+    """扫描过期的测试视频、截图、报告与日志资产，预测可释放空间（Dry-Run）。"""
+
+    def _run(session):
+        return scan_and_clean_expired_assets(
+            session=session,
+            dry_run=True,
+            custom_retention_days=body.custom_retention_days,
+            target_categories=body.categories,
+        )
+
+    return await db.run_sync(_run)
+
+
+@router.post("/storage/lifecycle/execute", response_model=AssetLifecycleScanOut)
+async def execute_asset_lifecycle_cleanup(
+    body: AssetLifecycleScanIn,
+    db: AsyncSession = Depends(get_db),
+    _: User = Depends(require_admin),
+):
+    """依据保留天数策略执行自动化资产归档清理，释放 MinIO 存储并同步清理数据库孤儿引用。"""
+
+    def _run(session):
+        return scan_and_clean_expired_assets(
+            session=session,
+            dry_run=False,
+            custom_retention_days=body.custom_retention_days,
+            target_categories=body.categories,
+        )
+
+    return await db.run_sync(_run)

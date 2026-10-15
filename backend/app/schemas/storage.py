@@ -76,3 +76,35 @@ class StorageCleanupExecuteOut(BaseModel):
     deleted_objects: list[str]
     skipped_objects: list[str]
     repaired_references: list[StorageReferenceItem]
+
+
+# ── Asset Storage Lifecycle (Q4.2) ───────────────────────
+class AssetLifecycleScanIn(BaseModel):
+    dry_run: bool = True
+    categories: list[str] | None = None
+    custom_retention_days: dict[str, int] | None = None
+
+
+class CategoryScanOut(BaseModel):
+    category: str
+    prefix: str
+    retention_days: int
+    scanned_count: int
+    expired_count: int
+    reclaimable_bytes: int
+    reclaimable_mb: float
+    sample_expired_files: list[str] = Field(default_factory=list)
+
+
+class AssetLifecycleScanOut(BaseModel):
+    dry_run: bool
+    scanned_at: str
+    total_scanned_count: int
+    total_expired_count: int
+    total_reclaimable_bytes: int
+    total_reclaimable_mb: float
+    total_reclaimable_gb: float
+    deleted_count: int
+    deletion_errors_count: int
+    db_cleanup_summary: dict[str, int] = Field(default_factory=dict)
+    categories: list[CategoryScanOut]
