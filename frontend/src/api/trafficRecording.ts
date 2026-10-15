@@ -13,6 +13,28 @@ export interface RecordedTrafficEntry {
   response_body?: Record<string, any> | string
 }
 
+export interface ParamDependency {
+  producer_step: number
+  consumer_step: number
+  variable: string
+  jsonpath: string
+  matched_value: string
+  location: 'url_path' | 'query_param' | 'header' | 'request_body'
+}
+
+export interface ExtractionRule {
+  variable: string
+  type: string
+  expression: string
+  description?: string
+}
+
+export interface ExtractParamsResponse {
+  parameterized_entries: RecordedTrafficEntry[]
+  discovered_dependencies: ParamDependency[]
+  total_dependencies_count: number
+}
+
 export interface TrafficRecordingSession {
   session_id: string
   project_id: number
@@ -57,5 +79,13 @@ export const trafficRecordingApi = {
 
   ingestEntry(sessionId: string, data: IngestTrafficEntryRequest): Promise<{ status: string; total_captured: number }> {
     return http.post(`/traffic-recording/sessions/${sessionId}/record`, data)
+  },
+
+  extractSessionParams(sessionId: string): Promise<ExtractParamsResponse> {
+    return http.post(`/traffic-recording/sessions/${sessionId}/extract-params`)
+  },
+
+  extractParams(entries: RecordedTrafficEntry[]): Promise<ExtractParamsResponse> {
+    return http.post('/traffic-recording/extract-params', { entries })
   },
 }

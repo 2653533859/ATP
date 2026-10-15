@@ -9,7 +9,7 @@
 > v3.1.0 规划入口为 [`docs/development-task-plan-v3.1.0.md`](docs/development-task-plan-v3.1.0.md)，覆盖 UI1（微服务流量录制与用例逆向生成工作台）、UI2（移动端真机回放与视频关键帧逐帧排障器）、UI3（微服务网关混沌演练与爆炸半径控制台）、UI4（企业级 OIDC/SSO 与不可篡改审计安全中心）。
 
 - [x] 2026-10-16 UI1.1 微服务流量录制会话管理与实时抓包面板：落地 trafficRecording API 客户端与 TrafficRecordingDrawer 组件；支持录制会话启停、静音清洗开关、脱敏流水展开与模拟抓包注入；挂载至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/traffic-recording-drawer-ui1-1-2026-10-16.md`](docs/evidence/traffic-recording-drawer-ui1-1-2026-10-16.md)。
-- [ ] UI1.2 动态参数提取与上下文占位符规则配置抽屉（DynamicParamExtractorDrawer.vue）
+- [x] 2026-10-16 UI1.2 动态参数提取与上下文占位符规则配置抽屉：扩展 trafficRecording API 客户端并创建 DynamicParamExtractorDrawer 组件；实现跨步依赖发现、占位符对比预览与 Extractions 规则动态注入；与 TrafficRecordingDrawer 深度集成；单测独立通过，见 [`docs/evidence/dynamic-param-extractor-drawer-ui1-2-2026-10-16.md`](docs/evidence/dynamic-param-extractor-drawer-ui1-2-2026-10-16.md)。
 - [ ] UI1.3 录制流量一键逆向合成用例与套件向导弹窗（TrafficToCaseWizard.vue）
 - [ ] UI2.1 真机回放动作编排执行抽屉与变量上下文配置（DevicePlaybackDrawer.vue）
 - [ ] UI2.2 视觉/DOM 混合自愈与 OCR 物理边界比对器（VisualSelfHealingInspector.vue）

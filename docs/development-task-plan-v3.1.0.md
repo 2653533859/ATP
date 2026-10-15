@@ -25,7 +25,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI1.1 `[x]` | **微服务流量录制会话管理与实时抓包面板** | traffic_recording | 落地 `TrafficRecordingDrawer.vue` 组件与 API 客户端方法；支持录制会话启停、清洗规则配置、脱敏请求流水流式展示与状态卡片；见 docs/evidence/traffic-recording-drawer-ui1-1-2026-10-16.md |
-| UI1.2 `[ ]` | **动态参数提取与上下文占位符规则配置抽屉** | UI1.1 | 落地 `DynamicParamExtractorDrawer.vue` 组件；支持响应体 JSONPath 递归遍历候选、占位符预览与提取器规则动态注入。 |
+| UI1.2 `[x]` | **动态参数提取与上下文占位符规则配置抽屉** | UI1.1 | 落地 `DynamicParamExtractorDrawer.vue` 组件；支持响应体 JSONPath 递归遍历候选、占位符预览与提取器规则动态注入；见 docs/evidence/dynamic-param-extractor-drawer-ui1-2-2026-10-16.md |
 | UI1.3 `[ ]` | **录制流量一键逆向合成用例与套件向导弹窗** | UI1.2 | 落地 `TrafficToCaseWizard.vue` 组件；支持按状态码/SLA 自动生成断言并一键持久化保存为 TestCase / TestSuite 资产。 |
 
 ---

@@ -101,9 +101,20 @@
       <a-card size="small" title="实时抓包流量流水与敏感凭据脱敏" class="traffic-table-card">
         <template #extra>
           <a-space>
+            <a-button
+              size="small"
+              type="primary"
+              ghost
+              class="extract-params-btn"
+              :disabled="!session?.recorded_entries?.length"
+              @click="showParamExtractor = true"
+            >
+              参数依赖分析与提取
+            </a-button>
             <a-tag color="blue">Authorization 已脱敏</a-tag>
             <a-tag color="purple">Cookie 已脱敏</a-tag>
           </a-space>
+
         </template>
 
         <a-table
@@ -158,6 +169,12 @@
           </template>
         </a-table>
       </a-card>
+    <DynamicParamExtractorDrawer
+      v-model:open="showParamExtractor"
+      :session-id="session?.session_id"
+      :entries="session?.recorded_entries ?? []"
+      @extracted="handleParamsExtracted"
+    />
     </div>
   </a-drawer>
 </template>
@@ -169,6 +186,8 @@ import {
   trafficRecordingApi,
   type TrafficRecordingSession,
 } from '@/api/trafficRecording'
+import DynamicParamExtractorDrawer from './DynamicParamExtractorDrawer.vue'
+import type { ExtractParamsResponse } from '@/api/trafficRecording'
 
 const props = withDefaults(
   defineProps<{
@@ -180,6 +199,13 @@ const props = withDefaults(
     projectId: 1,
   }
 )
+const showParamExtractor = ref(false)
+
+function handleParamsExtracted(res: ExtractParamsResponse) {
+  if (session.value) {
+    session.value.recorded_entries = res.parameterized_entries
+  }
+}
 
 const emit = defineEmits<{
   (e: 'update:open', val: boolean): void
