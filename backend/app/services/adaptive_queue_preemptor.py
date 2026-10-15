@@ -45,6 +45,8 @@ class QueuedTaskItem:
     estimated_duration_sec: float = 30.0
     preempted_count: int = 0
     preempted_by_task_id: str | None = None
+    retry_count: int = 0
+    last_failed_worker_id: str | None = None
 
     @property
     def priority_rank(self) -> int:
@@ -63,6 +65,8 @@ class QueuedTaskItem:
             "estimated_duration_sec": self.estimated_duration_sec,
             "preempted_count": self.preempted_count,
             "preempted_by_task_id": self.preempted_by_task_id,
+            "retry_count": self.retry_count,
+            "last_failed_worker_id": self.last_failed_worker_id,
         }
 
 

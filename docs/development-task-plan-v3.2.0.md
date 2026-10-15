@@ -26,7 +26,7 @@
 |---|---|---|---|
 | C1.1 `[x]` | **跨节点 Worker 节点动态负载监控与容量评分算法** | 调度模块 | 落地 `cluster_load_balancer` 服务与 `/cluster/workers/*` API；支持加权并发、内存与 CPU 负载评分算法，自动选取最优 Worker 节点；见 docs/evidence/cluster-load-balancer-c1-1-2026-10-16.md |
 | C1.2 `[x]` | **基于执行队列水位与优先级自适应弹性抢占调度器** | C1.1 | 落地 `adaptive_queue_preemptor` 服务；支持高优先级任务（P0）抢占插队与低优先级自适应挂起，实时计算排队预计等待时长；见 docs/evidence/adaptive-queue-preemptor-c1-2-2026-10-16.md |
-| C1.3 `[ ]` | **节点失联与心跳超时自动化任务故障转移与断点重试** | C1.2 | 落地 `worker_failover_recovery` 服务；检测心跳超时的僵死 Worker 节点，自动剥离并原子重调度中断的任务，防止执行丢失。 |
+| C1.3 `[x]` | **节点失联与心跳超时自动化任务故障转移与断点重试** | C1.2 | 落地 `worker_failover_recovery` 服务；检测心跳超时的僵死 Worker 节点，自动剥离并原子重调度中断的任务，防止执行丢失；见 docs/evidence/worker-failover-recovery-c1-3-2026-10-16.md |
 
 ---
 

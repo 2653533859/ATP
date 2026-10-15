@@ -20,6 +20,11 @@ from app.services.adaptive_queue_preemptor import (
     enqueue_task,
     list_queued_tasks,
 )
+from app.services.worker_failover_recovery import (
+    failover_worker_tasks,
+    list_failover_history,
+    scan_and_recover_dead_workers,
+)
 
 router = APIRouter(prefix="/cluster/workers", tags=["跨节点 Worker 集群负载与调度"])
 
@@ -179,3 +184,40 @@ async def get_task_eta_endpoint(
         return calculate_queue_eta_seconds(task_id)
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.post("/failover/scan")
+async def trigger_failover_scan_endpoint(
+    timeout_seconds: float = Query(default=30.0, ge=5.0, le=300.0, description="判定心跳超时的秒数"),
+    max_retries: int = Query(default=3, ge=1, le=10, description="最大允许故障转移重试次数"),
+    _user: User = Depends(require_engineer),
+):
+    """扫描集群中失联超时的僵死 Worker 节点并自动触发任务故障转移与重新调度。"""
+    _ = _user
+    reports = scan_and_recover_dead_workers(
+        timeout_seconds=timeout_seconds,
+        max_retries=max_retries,
+    )
+    return {"total_dead_workers": len(reports), "reports": [r.to_dict() for r in reports]}
+
+
+@router.post("/failover/worker/{worker_id}")
+async def trigger_worker_failover_endpoint(
+    worker_id: str,
+    max_retries: int = Query(default=3, ge=1, le=10),
+    _user: User = Depends(require_engineer),
+):
+    """针对指定异常 Worker 节点强制触发孤儿任务抢救与故障转移重试。"""
+    _ = _user
+    report = failover_worker_tasks(worker_id, max_retries=max_retries)
+    return report.to_dict()
+
+
+@router.get("/failover/history")
+async def get_failover_history_endpoint(
+    _user: User = Depends(get_current_user),
+):
+    """获取集群历史故障转移与孤儿任务救援审计事件日志。"""
+    _ = _user
+    history = list_failover_history()
+    return {"total": len(history), "history": [h.to_dict() for h in history]}
