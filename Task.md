@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-15 v2.6.0 研发任务规划（进行中）
+## 2026-10-15 v2.6.0 研发任务规划（已全量闭环）
 
 > v2.6.0 规划入口为 [`docs/development-task-plan-v2.6.0.md`](docs/development-task-plan-v2.6.0.md)，覆盖 P1（Hermes MCP & 多模态）、P2（真机池化与 AutoDroid）、P3（K8s 动态性能算力池）、P4（企业级协同生态）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-15 P3.3 多节点高可用与 Prometheus 报警规则集成：落地 performance_circuit_breaker 服务，实现 Prometheus 报警规则组自动构建与双向饱和度评估；实现压力机与目标过载自动熔断保护（trip_circuit_breaker_if_saturated）；实现多节点高可用调度与 Standby 冗余分流；6 项单测独立通过，见 [`docs/evidence/multi-node-ha-prometheus-alerting-circuit-breaker-p3-3-2026-10-15.md`](docs/evidence/multi-node-ha-prometheus-alerting-circuit-breaker-p3-3-2026-10-15.md)。
 - [x] 2026-10-15 P4.1 企业微信 / 钉钉 / 飞书 富卡片通知模板：落地 rich_notification_cards 服务，实现企业微信 template_card、钉钉 actionCard 与飞书 interactive 交互式富卡片通知构建；支持状态色彩徽标、通过率大号看板与直达测试报告 Action 按钮；新增 feishu 渠道与 20261015_0080 迁移；7 项单测独立通过，见 [`docs/evidence/rich-notification-cards-wechat-dingtalk-feishu-p4-1-2026-10-15.md`](docs/evidence/rich-notification-cards-wechat-dingtalk-feishu-p4-1-2026-10-15.md)。
 - [x] 2026-10-15 P4.2 Jira / 禅道 双向缺陷生命周期状态机同步：实现 map_internal_to_external_status 与 parse_external_webhook_payload；开放 /api/v1/defects/webhook/{tracker_id} 接收 Jira/禅道状态变更并自动收敛内部缺陷生命周期状态；提供 /api/v1/defects/{id}/external-links/{link_id}/push 主动推送接口；4 项单测独立通过，见 [`docs/evidence/jira-zentao-bidirectional-defect-state-machine-p4-2-2026-10-15.md`](docs/evidence/jira-zentao-bidirectional-defect-state-machine-p4-2-2026-10-15.md)。
-- [ ] P4.3 跨网络环境通知投递重试与安全审计（指数退避重试与敏感参数脱敏）
+- [x] 2026-10-15 P4.3 跨网络环境通知投递重试与安全审计：强化 _is_retryable_error 瞬时错误与 HTTP 502/503/429 判定；实现带 Jitter 抖动的指数退避重试算法；落地 sanitize_webhook_url 与 sanitize_notification_config 深度脱敏；打通 write_audit_log 安全审计；7 项单测独立通过，见 [`docs/evidence/cross-network-notification-retry-and-security-audit-p4-3-2026-10-15.md`](docs/evidence/cross-network-notification-retry-and-security-audit-p4-3-2026-10-15.md)。
 
 ## 2026-09-08 后续开发计划（已全量闭环）
 

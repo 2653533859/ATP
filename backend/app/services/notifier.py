@@ -18,6 +18,7 @@ import re
 import smtplib
 import time
 import urllib.parse
+from typing import Any
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from email.utils import parseaddr
@@ -31,6 +32,7 @@ from app.core.config import settings
 from app.core.encryption import decrypt_config
 from app.core.url_security import validate_http_url_syntax, validate_public_http_url
 from app.models.notification import NotificationConfig, NotificationDelivery, NotifyChannel
+from app.services.audit import write_audit_log
 
 from app.services.rich_notification_cards import (
     build_dingtalk_action_card,
@@ -186,6 +188,14 @@ async def send_notifications(
                     project_id=project_id,
                 )
             )
+            await write_audit_log(
+                db,
+                action="notification_delivery_sent",
+                resource_type="notification_delivery",
+                resource_id=cfg.id,
+                project_id=project_id,
+                detail=_format_notification_audit_detail(cfg, attempts, status="sent"),
+            )
         except Exception as error:
             attempts = getattr(error, "attempts", 1)
             logger.error(
@@ -204,7 +214,14 @@ async def send_notifications(
                     error_message=str(error),
                 )
             )
-
+            await write_audit_log(
+                db,
+                action="notification_delivery_failed",
+                resource_type="notification_delivery",
+                resource_id=cfg.id,
+                project_id=project_id,
+                detail=_format_notification_audit_detail(cfg, attempts, status="failed", error=error),
+            )
     if delivery_logs:
         try:
             db.add_all(delivery_logs)
@@ -238,6 +255,61 @@ def _safe_delivery_error(error_message: str | None) -> str | None:
     redacted = _URL_QUERY_SECRET_RE.sub(r"\g<prefix><redacted>", redacted)
     redacted = _URL_USERINFO_RE.sub(r"\1<redacted>@", redacted)
     return redacted[:1000]
+
+
+def sanitize_webhook_url(url: str | None) -> str:
+    """Mask credentials, tokens, and keys in webhook URLs for logs and audit records."""
+    if not url:
+        return ""
+    masked = _URL_QUERY_SECRET_RE.sub(r"\g<prefix>******", url)
+    masked = _URL_USERINFO_RE.sub(r"\1<redacted>@", masked)
+    if "open.feishu.cn/open-apis/bot/v2/hook/" in masked:
+        prefix, _, token = masked.partition("/open-apis/bot/v2/hook/")
+        if token and len(token) > 6:
+            masked = f"{prefix}/open-apis/bot/v2/hook/{token[:4]}******"
+    return masked
+
+
+def sanitize_notification_config(config: dict) -> dict:
+    """Return a sanitized copy of a notification config safe for audit logging and display."""
+    if not isinstance(config, dict):
+        return {}
+    sanitized: dict[str, Any] = {}
+    for key, val in config.items():
+        if key in ("api_token", "password", "secret", "token", "sign"):
+            sanitized[key] = "******"
+        elif key == "webhook_url":
+            sanitized[key] = sanitize_webhook_url(str(val))
+        elif isinstance(val, dict):
+            sanitized[key] = sanitize_notification_config(val)
+        else:
+            sanitized[key] = val
+    return sanitized
+
+
+def _format_notification_audit_detail(
+    cfg: NotificationConfig,
+    attempts: int,
+    *,
+    status: str,
+    error: BaseException | None = None,
+) -> str:
+    channel_name = getattr(cfg.channel, "value", str(cfg.channel))
+    raw_cfg = decrypt_config(cfg.config or {})
+    sanitized_url = sanitize_webhook_url(raw_cfg.get("webhook_url"))
+    dest = sanitized_url or (", ".join(raw_cfg.get("recipients", []))[:100] if raw_cfg.get("recipients") else "")
+    cfg_name = getattr(cfg, "name", "")
+    cfg_desc = f"配置: #{getattr(cfg, 'id', None)}" + (f" ({cfg_name})" if cfg_name else "")
+    parts = [
+        f"渠道: {channel_name}",
+        cfg_desc,
+        f"目标: {dest}",
+        f"状态: {status}",
+        f"重试尝试: {attempts} 次",
+    ]
+    if error:
+        parts.append(f"错误: {_safe_exception_message(error)}")
+    return " · ".join(parts)
 
 
 def _safe_exception_message(error: BaseException) -> str:
@@ -316,14 +388,28 @@ def _retry_policy(config: dict) -> tuple[int, float]:
 
 def _is_retryable_error(error: Exception) -> bool:
     """只对网络/服务端错误重试，配置错误和供应商拒绝不重复发送。"""
-
     if isinstance(
         error,
-        (httpx.TimeoutException, httpx.NetworkError, OSError, smtplib.SMTPConnectError, smtplib.SMTPServerDisconnected),
+        (
+            httpx.TimeoutException,
+            httpx.NetworkError,
+            httpx.ConnectError,
+            httpx.ConnectTimeout,
+            httpx.ReadTimeout,
+            httpx.WriteTimeout,
+            ConnectionResetError,
+            ConnectionRefusedError,
+            ConnectionError,
+            OSError,
+            smtplib.SMTPConnectError,
+            smtplib.SMTPServerDisconnected,
+        ),
     ):
         return True
     text = str(error)
-    return "HTTP 5" in text or "HTTP 429" in text
+    return any(
+        code in text for code in ("HTTP 5", "HTTP 429", "HTTP 502", "HTTP 503", "HTTP 504", "timed out", "timeout")
+    )
 
 
 async def _send_with_retries(config: dict, sender, *args, **kwargs) -> int:
@@ -337,7 +423,9 @@ async def _send_with_retries(config: dict, sender, *args, **kwargs) -> int:
             is_last_attempt = attempt >= total_attempts - 1
             if is_last_attempt or not _is_retryable_error(error):
                 raise NotificationDeliveryError(_safe_exception_message(error), attempts=attempt + 1) from error
-            delay = min(backoff * (2**attempt), MAX_RETRY_BACKOFF_SECONDS)
+            base_delay = backoff * (2**attempt)
+            jitter_factor = 1.0 + (hash(f"{attempt}:{base_delay}") % 21 - 10) / 100.0
+            delay = min(base_delay * jitter_factor, MAX_RETRY_BACKOFF_SECONDS)
             logger.warning(
                 "通知发送失败，将重试 [%s/%s] in %.1fs: %s",
                 attempt + 1,
