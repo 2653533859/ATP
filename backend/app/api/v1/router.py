@@ -63,6 +63,7 @@ from app.api.v1 import (
     finops,
     traffic_recording,
     device_playback,
+    mesh_chaos,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -131,3 +132,4 @@ router.include_router(exploration.router)
 router.include_router(finops.router)
 router.include_router(traffic_recording.router)
 router.include_router(device_playback.router)
+router.include_router(mesh_chaos.router)
