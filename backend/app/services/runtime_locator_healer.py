@@ -123,9 +123,10 @@ class RuntimeLocatorHealer:
             return None
 
         candidates = generate_candidate_selectors(action, params)
-        if not candidates:
+        if not candidates and not (
+            params.get("ocr_text") or params.get("image_template") or params.get("template_image")
+        ):
             return None
-
         original_selector = str(params.get("selector", ""))
         logger.info(
             "Attempting runtime self-healing for run %s step %s (original='%s', %s candidates)",
@@ -164,7 +165,107 @@ class RuntimeLocatorHealer:
                 )
                 return result
 
+        # 启发式选择器尝试完毕后，尝试多模态视觉定位与坐标回退
+        visual_result = await self.attempt_visual_healing(
+            page,
+            action,
+            params,
+            retry_timeout,
+            run_id=run_id,
+            step_index=step_index,
+            original_selector=original_selector,
+        )
+        if visual_result:
+            self._heals_count_by_run[run_id] = current_heals + 1
+            return visual_result
+
         logger.info("Runtime self-healing exhausted all candidates for run %s step %s", run_id, step_index)
+        return None
+
+    async def attempt_visual_healing(
+        self,
+        page: Any,
+        action: str,
+        params: dict[str, Any],
+        timeout_ms: int,
+        *,
+        run_id: int,
+        step_index: int,
+        original_selector: str,
+    ) -> dict[str, Any] | None:
+        """多模态视觉自愈：利用 OCR 文本定位或视觉模板坐标回退救活用例。"""
+        if action not in {"click", "hover"}:
+            return None
+
+        # 1. OCR 文本定位与坐标回退
+        ocr_text = str(params.get("ocr_text") or params.get("text") or "").strip()
+        if ocr_text and hasattr(page, "get_by_text"):
+            try:
+                locator = page.get_by_text(ocr_text).first
+                box = await locator.bounding_box()
+                if box and box.get("width", 0) > 0 and box.get("height", 0) > 0:
+                    center_x = box["x"] + box["width"] / 2
+                    center_y = box["y"] + box["height"] / 2
+                    if hasattr(page, "mouse") and hasattr(page.mouse, "click"):
+                        if action == "click":
+                            await page.mouse.click(center_x, center_y)
+                        else:
+                            await page.mouse.move(center_x, center_y)
+
+                        healed_info = {
+                            "healed": True,
+                            "method": "ocr_text",
+                            "ocr_text": ocr_text,
+                            "coordinates": {"x": center_x, "y": center_y},
+                            "original_selector": original_selector,
+                            "step_index": step_index,
+                        }
+                        logger.info(
+                            "Visual OCR self-healing SUCCEEDED for run %s step %s: text='%s' at (%s, %s)",
+                            run_id,
+                            step_index,
+                            ocr_text,
+                            center_x,
+                            center_y,
+                        )
+                        return {"success": True, "data": {"healed_info": healed_info}}
+            except Exception as exc:
+                logger.debug("OCR visual healing attempt failed: %s", exc)
+
+        # 2. 视觉模板匹配与坐标回退
+        template_input = params.get("image_template") or params.get("template_image")
+        if template_input and hasattr(page, "screenshot"):
+            try:
+                screenshot_bytes = await page.screenshot(timeout=timeout_ms)
+                from app.services.visual_assertion import find_visual_coordinates
+
+                coords = find_visual_coordinates(screenshot_bytes, template_input)
+                if coords:
+                    cx, cy = coords
+                    if hasattr(page, "mouse") and hasattr(page.mouse, "click"):
+                        if action == "click":
+                            await page.mouse.click(cx, cy)
+                        else:
+                            await page.mouse.move(cx, cy)
+
+                        healed_info = {
+                            "healed": True,
+                            "method": "visual_coordinates",
+                            "coordinates": {"x": cx, "y": cy},
+                            "original_selector": original_selector,
+                            "step_index": step_index,
+                        }
+                        logger.info(
+                            "Visual template self-healing SUCCEEDED for run %s step %s: coords=(%s, %s)",
+                            run_id,
+                            step_index,
+                            cx,
+                            cy,
+                        )
+                        return {"success": True, "data": {"healed_info": healed_info}}
+            except Exception as exc:
+                logger.debug("Visual template healing attempt failed: %s", exc)
+
         return None
 
 

@@ -248,6 +248,43 @@ async def _execute_step(
             return {"success": True}
         except Exception:
             return {"success": False, "error": f"元素不可见: {selector}"}
+    elif action == "assert_visual_element":
+        selector = params.get("selector", "")
+        expected_text = params.get("expected_text") or params.get("text")
+        image_template = params.get("image_template") or params.get("template_image")
+        threshold = float(params.get("threshold", 0.85))
+
+        if expected_text:
+            try:
+                locator = page.locator(selector) if selector else page.locator("body")
+                await locator.wait_for(state="visible", timeout=timeout_ms)
+                txt = await locator.inner_text()
+                if expected_text not in txt:
+                    return {"success": False, "error": f"视觉断言未匹配到预期文本: {expected_text}"}
+            except Exception as exc:
+                return {"success": False, "error": f"视觉元素定位异常: {exc}"}
+
+        if image_template:
+            from app.services.visual_assertion import evaluate_visual_assertion
+
+            try:
+                if selector:
+                    loc = page.locator(selector)
+                    await loc.wait_for(state="visible", timeout=timeout_ms)
+                    screenshot_bytes = await loc.screenshot(timeout=timeout_ms)
+                else:
+                    screenshot_bytes = await page.screenshot(timeout=timeout_ms)
+
+                passed, similarity, err = evaluate_visual_assertion(
+                    screenshot_bytes, image_template, threshold=threshold
+                )
+                if not passed:
+                    return {"success": False, "error": err, "data": {"similarity": similarity, "threshold": threshold}}
+                return {"success": True, "data": {"similarity": similarity, "threshold": threshold}}
+            except Exception as exc:
+                return {"success": False, "error": f"视觉截图与比对异常: {exc}"}
+
+        return {"success": True}
 
     elif action == "wait":
         ms = int(params.get("ms", 1000))

@@ -24,7 +24,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | P1.1 `[x]` | **ATP 核心工具 MCP Server 标准化暴露** | v2.5.0 底座 | JSON-RPC 2.0 / HTTP / Stdio 适配器落地；开放 7 项标准 Tools；实机与 8 项单测全通过；见 docs/evidence/mcp-server-protocol-standardization-p1-1-2026-10-15.md |
-| P1.2 `[ ]` | **多模态视觉断言与元素视觉自愈** | P1.1, AI 模块 | 支持 `assert_visual_element(selector, image_template)` 与 OCR 文本定位；当 DOM 定位器失效时自动调用视觉模型进行坐标回退修复。 |
+| P1.2 `[x]` | **多模态视觉断言与元素视觉自愈** | P1.1, AI 模块 | 支持 assert_visual_element 相似度与 OCR 文本断言；DOM 定位器失效时自动触发 OCR 与视觉模板物理坐标回退点击自愈；见 docs/evidence/multi-modal-visual-assertion-and-healing-p1-2-2026-10-15.md |
 | P1.3 `[ ]` | **双向规格同步与测试资产自动对齐** | P1.1 | 支持 OpenAPI / Swagger 变更时，Hermes 自动比对用例差异并生成增量用例补丁草稿。 |
 
 ---

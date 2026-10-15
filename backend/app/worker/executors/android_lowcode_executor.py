@@ -591,6 +591,28 @@ def _execute_step_sync(serial: str, action: str, params: dict) -> dict[str, Any]
             return {"success": True}
         return {"success": False, "error": f"未找到元素: {resource_id}"}
 
+    elif action == "assert_visual_element":
+        expected_text = params.get("expected_text") or params.get("text")
+        if expected_text:
+            ok, dump = _uiautomator_dump(serial, timeout=10)
+            if not ok or expected_text not in dump:
+                return {"success": False, "error": f"视觉断言页面中未找到预期文本: {expected_text}"}
+
+        image_template = params.get("image_template") or params.get("template_image")
+        if image_template:
+            screenshot_bytes = _adb_screenshot(serial)
+            if not screenshot_bytes:
+                return {"success": False, "error": "获取设备截图失败"}
+            from app.services.visual_assertion import evaluate_visual_assertion
+
+            threshold = float(params.get("threshold", 0.85))
+            passed, similarity, err = evaluate_visual_assertion(screenshot_bytes, image_template, threshold=threshold)
+            if not passed:
+                return {"success": False, "error": err, "data": {"similarity": similarity, "threshold": threshold}}
+            return {"success": True, "data": {"similarity": similarity, "threshold": threshold}}
+
+        return {"success": True}
+
     elif action == "wait":
         ms = int(params.get("ms", 1000))
         import time as _time
