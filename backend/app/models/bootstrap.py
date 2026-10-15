@@ -47,6 +47,7 @@ def load_all_models() -> None:
     from app.models.hermes import HermesSession
     from app.models.device_agent import RemoteAgent, RemoteAgentDevice
     from app.models.api_key import ApiKey
+    from app.models.project_quota import ProjectQuota
 
     _ = (
         User,
@@ -56,6 +57,7 @@ def load_all_models() -> None:
         RemoteAgent,
         RemoteAgentDevice,
         ApiKey,
+        ProjectQuota,
         UserRole,
         Project,
         Module,

@@ -41,6 +41,9 @@ from app.schemas.project import (
     ProjectImportPreviewOut,
     ProjectOut,
     ProjectUpdate,
+    ProjectQuotaEvaluationOut,
+    ProjectQuotaOut,
+    ProjectQuotaUpdate,
 )
 from app.schemas.user_project import (
     AuditLogOut,
@@ -51,6 +54,12 @@ from app.schemas.user_project import (
 )
 from app.services.project_templates import get_project_template
 from app.services.project_transfer import build_project_export, sanitize_json_value
+from app.services.project_quota_manager import (
+    evaluate_project_dispatch_quota,
+    get_or_default_project_quota,
+    scan_and_reap_timed_out_runs,
+    upsert_project_quota,
+)
 from app.services.dataset_storage import (
     DATASET_STORAGE_MINIO,
     DatasetStorageError,
@@ -927,3 +936,63 @@ async def export_audit_logs(
         media_type="text/csv; charset=utf-8",
         headers={"Content-Disposition": 'attachment; filename="audit-logs.csv"'},
     )
+
+
+# ── Project Quotas Endpoints (Q4.1) ──────────────────────
+@router.get("/projects/{project_id}/quota", response_model=ProjectQuotaOut)
+async def get_project_quota_endpoint(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """获取项目资源配额配置（并发任务上限、每日执行时长上限、单任务硬超时）。"""
+    await assert_project_access(db, user, project_id, ProjectRole.viewer)
+    return await get_or_default_project_quota(db, project_id)
+
+
+@router.put("/projects/{project_id}/quota", response_model=ProjectQuotaOut)
+async def update_project_quota_endpoint(
+    project_id: int,
+    payload: ProjectQuotaUpdate,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_admin),
+):
+    """管理员更新项目资源配额与超额调度策略（reject/queue）。"""
+    await assert_project_access(db, user, project_id, ProjectRole.admin)
+    try:
+        return await upsert_project_quota(
+            db,
+            project_id,
+            max_concurrent_runs=payload.max_concurrent_runs,
+            daily_duration_limit_seconds=payload.daily_duration_limit_seconds,
+            max_single_run_timeout_seconds=payload.max_single_run_timeout_seconds,
+            over_quota_policy=payload.over_quota_policy,
+            is_enabled=payload.is_enabled,
+            description=payload.description,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/projects/{project_id}/quota/evaluation", response_model=ProjectQuotaEvaluationOut)
+async def evaluate_project_quota_endpoint(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """实时评估当前项目资源配额状态（并发使用量、今日累计执行时长、是否准许调度）。"""
+    await assert_project_access(db, user, project_id, ProjectRole.viewer)
+    eval_res = await evaluate_project_dispatch_quota(db, project_id)
+    return eval_res.to_dict()
+
+
+@router.post("/projects/{project_id}/quota/reap-timeouts")
+async def reap_project_timeouts_endpoint(
+    project_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+):
+    """主动扫描并清理当前项目超过执行硬时限的僵尸长任务。"""
+    await assert_project_access(db, user, project_id, ProjectRole.editor)
+    reaped = await scan_and_reap_timed_out_runs(db, project_id=project_id)
+    return {"project_id": project_id, "reaped_count": len(reaped), "reaped_runs": reaped}

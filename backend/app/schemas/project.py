@@ -156,3 +156,38 @@ class ModuleOut(BaseModel):
 
 class ModuleTree(ModuleOut):
     children: list["ModuleTree"] = []
+
+
+# ── Project Quotas (Q4.1) ────────────────────────────────
+class ProjectQuotaOut(BaseModel):
+    id: int | None = None
+    project_id: int
+    max_concurrent_runs: int
+    daily_duration_limit_seconds: int
+    max_single_run_timeout_seconds: int
+    over_quota_policy: str
+    is_enabled: bool
+    description: str | None = None
+
+    model_config = {"from_attributes": True}
+
+
+class ProjectQuotaUpdate(BaseModel):
+    max_concurrent_runs: int | None = Field(default=None, ge=1, le=100)
+    daily_duration_limit_seconds: int | None = Field(default=None, ge=60, le=864000)
+    max_single_run_timeout_seconds: int | None = Field(default=None, ge=10, le=86400)
+    over_quota_policy: Literal["reject", "queue"] | None = None
+    is_enabled: bool | None = None
+    description: str | None = None
+
+
+class ProjectQuotaEvaluationOut(BaseModel):
+    allowed: bool
+    should_queue: bool
+    reason: str
+    current_active_runs: int
+    max_concurrent_runs: int
+    daily_duration_seconds: float
+    daily_duration_limit_seconds: int
+    policy: str
+    details: dict[str, Any] = Field(default_factory=dict)
