@@ -25,6 +25,7 @@ from sqlalchemy.orm import Session
 from starlette.websockets import WebSocket, WebSocketDisconnect
 
 from app.core.database import sync_engine as engine
+from app.models.device import Device, DeviceStatus
 from app.models.device_agent import RemoteAgent, RemoteAgentDevice
 from app.device_agents.protocol import (
     AGENT_PROTOCOL_VERSION,
@@ -34,6 +35,7 @@ from app.device_agents.protocol import (
     TUNNEL_PORT_RANGE_START,
     decode_data_frame,
     encode_data_frame,
+    parse_tunnel_serial,
     tunnel_serial,
 )
 
@@ -290,6 +292,12 @@ class TunnelHub:
                         agent.status = "OFFLINE"
                         agent.updated_at = now
                         session.add(agent)
+                remote_devs = session.scalars(select(Device).where(Device.ip_address == "127.0.0.1")).all()
+                for dev in remote_devs:
+                    if parse_tunnel_serial(dev.serial) is not None:
+                        dev.status = DeviceStatus.offline
+                        dev.last_seen_at = now
+                        session.add(dev)
                 session.commit()
         except Exception:
             logger.exception("重置远程接入点状态失败")
@@ -818,6 +826,15 @@ class TunnelHub:
                 agent.last_seen_at = now
                 agent.updated_at = now
                 session.add(agent)
+                mappings = session.scalars(
+                    select(RemoteAgentDevice).where(RemoteAgentDevice.agent_id == agent_id)
+                ).all()
+                serials = [tunnel_serial(m.tunnel_port) for m in mappings]
+                if serials:
+                    for dev in session.scalars(select(Device).where(Device.serial.in_(serials))).all():
+                        dev.status = DeviceStatus.offline
+                        dev.last_seen_at = now
+                        session.add(dev)
                 session.commit()
         except Exception:
             logger.exception("更新接入点离线状态失败: agent_id=%s", agent_id)
@@ -857,6 +874,29 @@ class TunnelHub:
                     mapping.os_version = meta.get("os_version")
                     mapping.last_seen_at = now
                     session.add(mapping)
+                serial_str = tunnel_serial(mapping.tunnel_port)
+                dev = session.scalar(select(Device).where(Device.serial == serial_str))
+                dev_name = f"{meta.get('brand') or 'Remote'} {meta.get('model') or 'Android'} ({usb_serial[:6]})"
+                if dev is None:
+                    dev = Device(
+                        serial=serial_str,
+                        name=dev_name,
+                        model=meta.get("model"),
+                        brand=meta.get("brand"),
+                        os_version=meta.get("os_version"),
+                        ip_address="127.0.0.1",
+                        status=DeviceStatus.online,
+                        last_seen_at=now,
+                    )
+                    session.add(dev)
+                else:
+                    dev.name = dev.name or dev_name
+                    dev.model = meta.get("model") or dev.model
+                    dev.brand = meta.get("brand") or dev.brand
+                    dev.os_version = meta.get("os_version") or dev.os_version
+                    dev.status = DeviceStatus.online
+                    dev.last_seen_at = now
+                    session.add(dev)
                 port_map[usb_serial] = int(mapping.tunnel_port)
             session.commit()
         return port_map, errors

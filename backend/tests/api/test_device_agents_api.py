@@ -114,3 +114,118 @@ def test_authenticate_ws_token():
     ws_mock_query.headers = {}
     ws_mock_query.query_params = {"token": settings.APP_SECRET_KEY}
     assert device_agents._authenticate_ws_token(ws_mock_query) == "admin"
+
+
+# ==================== 4. 远程设备自动入池与状态收敛 ====================
+
+
+def test_tunnel_hub_syncs_devices_to_central_pool(monkeypatch):
+    import sys
+    from app.device_agents.protocol import tunnel_serial
+    from app.models.device import Device, DeviceStatus
+
+    th_module = sys.modules["app.device_agents.tunnel_hub"]
+
+    saved_entities = []
+
+    class FakeSession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def scalars(self, stmt):
+            class _Res:
+                def all(self):
+                    return []
+
+                def first(self):
+                    return None
+
+            return _Res()
+
+        def scalar(self, stmt):
+            return None
+
+        def add(self, entity):
+            saved_entities.append(entity)
+
+        def commit(self):
+            pass
+
+    monkeypatch.setattr(th_module, "Session", lambda *args: FakeSession())
+    tunnel_hub = th_module.tunnel_hub
+
+    reported = {
+        "usb_serial_01": {
+            "model": "Pixel 7",
+            "brand": "Google",
+            "os_version": "14",
+        }
+    }
+
+    port_map, errors = tunnel_hub._persist_device_mappings(agent_id=10, reported=reported)
+    assert "usb_serial_01" in port_map
+    assert not errors
+
+    mapping = next(e for e in saved_entities if isinstance(e, RemoteAgentDevice))
+    device = next(e for e in saved_entities if isinstance(e, Device))
+
+    assert mapping.usb_serial == "usb_serial_01"
+    assert device.serial == tunnel_serial(mapping.tunnel_port)
+    assert device.model == "Pixel 7"
+    assert device.brand == "Google"
+    assert device.status == DeviceStatus.online
+
+
+def test_tunnel_hub_persist_agent_offline_marks_devices_offline(monkeypatch):
+    import sys
+    from app.device_agents.protocol import tunnel_serial
+    from app.models.device import Device, DeviceStatus
+
+    th_module = sys.modules["app.device_agents.tunnel_hub"]
+
+    mock_agent = RemoteAgent(id=10, name="Agent-10", status="ONLINE")
+    mock_mapping = RemoteAgentDevice(id=1, agent_id=10, usb_serial="usb_01", tunnel_port=28105)
+    mock_dev = Device(id=1, serial=tunnel_serial(28105), status=DeviceStatus.online)
+
+    class FakeSession:
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            pass
+
+        def scalar(self, stmt):
+            sql = str(stmt).lower()
+            if "remote_agents" in sql:
+                return mock_agent
+            return None
+
+        def scalars(self, stmt):
+            class _Res:
+                def __init__(self, items):
+                    self._items = items
+
+                def all(self):
+                    return self._items
+
+            sql = str(stmt).lower()
+            if "remote_agent_devices" in sql:
+                return _Res([mock_mapping])
+            if "devices" in sql:
+                return _Res([mock_dev])
+            return _Res([])
+
+        def add(self, entity):
+            pass
+
+        def commit(self):
+            pass
+
+    monkeypatch.setattr(th_module, "Session", lambda *args: FakeSession())
+    tunnel_hub = th_module.tunnel_hub
+    tunnel_hub._persist_agent_offline(agent_id=10)
+    assert mock_agent.status == "OFFLINE"
+    assert mock_dev.status == DeviceStatus.offline

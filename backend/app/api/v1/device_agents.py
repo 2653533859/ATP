@@ -23,6 +23,8 @@ from app.core.config import settings
 from app.core.database import sync_engine as engine
 from app.core.security import decode_token
 from app.device_agents.tunnel_hub import tunnel_hub
+from app.device_agents.protocol import tunnel_serial
+from app.models.device import Device
 from app.models.device_agent import RemoteAgent, RemoteAgentDevice
 from app.models.user import User
 
@@ -144,6 +146,10 @@ def delete_device_agent(
         operator = str(getattr(current_user, "username", "?") or "?")
         mappings = session.scalars(select(RemoteAgentDevice).where(RemoteAgentDevice.agent_id == agent_id)).all()
         released_ports = sorted(int(m.tunnel_port) for m in mappings)
+        serials = [tunnel_serial(m.tunnel_port) for m in mappings]
+        if serials:
+            for dev in session.scalars(select(Device).where(Device.serial.in_(serials))).all():
+                session.delete(dev)
         for mapping in mappings:
             session.delete(mapping)
         session.delete(agent)
