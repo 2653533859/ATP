@@ -46,6 +46,9 @@ vi.mock('@/api/networkSimulation', () => ({
     getScheduleConfig: vi.fn(),
   },
 }))
+vi.mock('vue-echarts', () => ({
+  default: { name: 'VChart', template: '<div class="echarts-stub" />' },
+}))
 
 describe('NetworkProfileDrawer', () => {
   beforeEach(() => {
@@ -58,6 +61,8 @@ describe('NetworkProfileDrawer', () => {
       global: {
         stubs: {
           'a-drawer': { template: '<div><slot /></div>' },
+          'a-tabs': { template: '<div><slot /></div>' },
+          'a-tab-pane': { template: '<div><slot /></div>' },
           'a-spin': { template: '<div><slot /></div>' },
           'a-tag': { template: '<span><slot /></span>' },
           'a-divider': { template: '<hr />' },

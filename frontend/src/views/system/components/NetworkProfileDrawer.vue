@@ -7,8 +7,10 @@
     @close="handleClose"
   >
     <div class="network-profile-drawer">
-      <!-- 预设档案概览 -->
-      <div class="section-title">预设仿真网络档案</div>
+      <a-tabs v-model:activeKey="activeTab">
+        <a-tab-pane key="profile" tab="弱网配置与参数试算">
+          <!-- 预设档案概览 -->
+          <div class="section-title">预设仿真网络档案</div>
       <a-spin :spinning="loading">
         <div class="profile-grid">
           <div
@@ -105,18 +107,26 @@
             $ {{ cmd.join(' ') }}
           </div>
         </div>
-      </div>
+          </div>
+        </a-tab-pane>
+        <a-tab-pane key="resilience" tab="抗弱网韧性雷达与故障注入">
+          <NetworkResilienceRadar
+            :profile-name="profiles[selectedProfileId]?.name || '自定义弱网'"
+          />
+        </a-tab-pane>
+      </a-tabs>
     </div>
   </a-drawer>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, defineAsyncComponent } from 'vue'
 import {
   networkSimulationApi,
   type NetworkProfile,
   type NetworkEvaluateResponse,
 } from '@/api/networkSimulation'
+const NetworkResilienceRadar = defineAsyncComponent(() => import('./NetworkResilienceRadar.vue'))
 
 const props = defineProps<{
   visible: boolean
@@ -132,6 +142,7 @@ const profiles = ref<Record<string, NetworkProfile>>({})
 const selectedProfileId = ref('2g_edge')
 const payloadBytes = ref(65536)
 const evaluationResult = ref<NetworkEvaluateResponse | null>(null)
+const activeTab = ref('profile')
 
 const fetchProfiles = async () => {
   loading.value = true

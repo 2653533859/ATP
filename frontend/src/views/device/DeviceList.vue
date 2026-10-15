@@ -426,7 +426,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted, onUnmounted } from 'vue'
+import { computed, defineAsyncComponent, ref, onMounted, onUnmounted } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   ReloadOutlined,
@@ -446,7 +446,7 @@ import { deviceApi } from '@/api'
 import type { AndroidWorkerItem, DeviceGroupItem, DeviceItem, DeviceStatus, RemoteAgentItem } from '@/api'
 import DeviceMatrixPanel from './components/DeviceMatrixPanel.vue'
 import DeviceMirrorModal from './components/DeviceMirrorModal.vue'
-import NetworkProfileDrawer from '@/views/system/components/NetworkProfileDrawer.vue'
+const NetworkProfileDrawer = defineAsyncComponent(() => import('@/views/system/components/NetworkProfileDrawer.vue'))
 
 const networkDrawerVisible = ref(false)
 

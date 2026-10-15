@@ -25,7 +25,7 @@
 |---|---|---|---|
 | F1.1 `[x]` | **弱网仿真档案管理与参数试算抽屉** | Q1.1 | 支持 7 类弱网档案（2G/3G/4G/丢包/离线）可视化展示与动态试算延迟丢包参数；见 docs/evidence/weak-network-profile-drawer-f1-1-2026-10-16.md |
 | F1.2 `[x]` | **HAR 抓包流量瀑布流与慢请求 Top5 诊断卡片** | Q1.3 | 可视化呈现 HAR 抓包文件大小、请求耗时瀑布流与慢请求 Top 5 诊断详情；见 docs/evidence/har-traffic-waterfall-and-slow-requests-f1-2-2026-10-16.md |
-| F1.3 `[ ]` | **弱网抗性评分雷达图与故障注入评估面板** | Q1.2 | 展示弱网专项调度实测延迟、丢包率与抗弱网韧性评分雷达图，支持在线故障评估。 |
+| F1.3 `[x]` | **弱网抗性评分雷达图与故障注入评估面板** | Q1.2 | 展示弱网专项调度实测延迟、丢包率与抗弱网韧性评分雷达图，支持在线故障评估；见 docs/evidence/network-resilience-radar-and-fault-simulator-f1-3-2026-10-16.md |
 
 ---
 
