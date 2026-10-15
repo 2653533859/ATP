@@ -46,6 +46,7 @@ def load_all_models() -> None:
     from app.models.ios import IosApp, IosDevice, IosDeviceLease
     from app.models.hermes import HermesSession
     from app.models.device_agent import RemoteAgent, RemoteAgentDevice
+    from app.models.api_key import ApiKey
 
     _ = (
         User,
@@ -54,6 +55,7 @@ def load_all_models() -> None:
         GroupRunChild,
         RemoteAgent,
         RemoteAgentDevice,
+        ApiKey,
         UserRole,
         Project,
         Module,

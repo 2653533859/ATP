@@ -22,6 +22,18 @@ async def get_current_user(
 ) -> User:
     # Bearer remains supported for CLI/API clients; the browser uses an HttpOnly cookie.
     token = credentials.credentials if credentials else request.cookies.get(settings.ACCESS_COOKIE_NAME)
+    api_key_header = request.headers.get("X-ATP-Api-Key") or request.headers.get("X-API-Key")
+    if api_key_header:
+        from app.services.api_key_governance import validate_api_key
+
+        client_ip = request.client.host if request.client else None
+        valid_key = await validate_api_key(db, api_key_header, client_ip=client_ip)
+        if valid_key:
+            user = await db.get(User, valid_key.user_id)
+            if user and user.is_active:
+                return user
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired API Key")
+
     if not token:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Not authenticated")
     try:

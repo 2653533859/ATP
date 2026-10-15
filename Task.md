@@ -18,7 +18,7 @@
 - [x] 2026-10-15 T3.2 节点间上下文变量双向数据流拓扑校验：落地 workflow_dataflow_validator 服务，基于 DAG 祖先传递闭包实现未声明幽灵变量检测与下游逆向引用拦截；生成变量完整血缘映射与冗余产出告警；开放 /api/v1/api-scenarios/validate-dataflow；6 项单测独立通过，见 [`docs/evidence/workflow-dataflow-topology-validator-t3-2-2026-10-15.md`](docs/evidence/workflow-dataflow-topology-validator-t3-2-2026-10-15.md)。
 - [x] 2026-10-15 T3.3 画布单步断点调试与实时数据流观察器：落地 workflow_debugger 调试状态机，支持节点断点标记、单步步过（Step Over）与恢复运行（Resume）；实现实时数据流变量观察器与 context_diff 差分计算；开放 /api/v1/api-scenarios/debug/* 端点；2 项单测独立通过，见 [`docs/evidence/workflow-debugger-step-over-and-watchers-t3-3-2026-10-15.md`](docs/evidence/workflow-debugger-step-over-and-watchers-t3-3-2026-10-15.md)。
 - [x] 2026-10-15 T4.1 敏感测试数据与测试凭据动态脱敏网关：落地 sensitive_data_redactor 服务，支持 11 位手机号、18 位身份证、16-19 位银行卡、邮箱及自定义黑名单敏感词保形掩码；实现密码/密钥等凭据字段递归全遮蔽与深拷贝零污染；开放 POST /api/v1/security/mask-pii；7 项单测独立通过，见 [`docs/evidence/sensitive-test-data-pii-redaction-gateway-t4-1-2026-10-15.md`](docs/evidence/sensitive-test-data-pii-redaction-gateway-t4-1-2026-10-15.md)。
-- [ ] T4.2 API Key / 租户令牌细粒度权限管控与审计导出（项目级令牌有效期与白名单审计）
+- [x] 2026-10-15 T4.2 API Key / 租户令牌细粒度权限管控与审计导出：设计 ApiKey 数据模型与 20261015_0081 迁移；实现 SHA-256 存储、CIDR/IP 白名单与过期拦截；在 deps.py 中打通 X-ATP-Api-Key 请求头直连认证；开放 /api/v1/security/api-keys/*；4 项单测独立通过，见 [`docs/evidence/api-key-tenant-governance-and-audit-export-t4-2-2026-10-15.md`](docs/evidence/api-key-tenant-governance-and-audit-export-t4-2-2026-10-15.md)。
 - [ ] T4.3 平台核心资产定时快照备份与灾备恢复演练（多数据库与对象存储增量灾备与演练）
 
 ## 2026-10-15 v2.6.0 研发任务规划（已全量闭环）
