@@ -20,6 +20,10 @@
           <template #icon><DashboardOutlined /></template>
           基线漂移监控
         </a-button>
+        <a-button :disabled="!projectId" class="mesh-chaos-btn" @click="meshChaosDrawerVisible = true">
+          <template #icon><ThunderboltOutlined /></template>
+          网关混沌演练
+        </a-button>
         <a-button type="primary" :disabled="!projectId" @click="openCreate">
           <template #icon><PlusOutlined /></template>
           {{ t('performance.create') }}
@@ -856,6 +860,15 @@
         </a-tab-pane>
       </a-tabs>
     </a-modal>
+    <a-drawer
+      v-model:open="meshChaosDrawerVisible"
+      title="微服务网关分布式混沌演练控制台"
+      :width="860"
+      placement="right"
+      destroy-on-close
+    >
+      <MeshChaosRuleCard />
+    </a-drawer>
   </div>
 </template>
 
@@ -866,12 +879,14 @@ import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
-import { BugOutlined, ClockCircleOutlined, DashboardOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileSearchOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, StarOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons-vue'
+import { BugOutlined, ClockCircleOutlined, DashboardOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileSearchOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, StarOutlined, StopOutlined, ThunderboltOutlined, UploadOutlined } from '@ant-design/icons-vue'
 const BaselineDriftMonitor = defineAsyncComponent(() => import('./components/BaselineDriftMonitor.vue'))
 const driftModalVisible = ref(false)
 const ChaosRtoTimeline = defineAsyncComponent(() => import('./components/ChaosRtoTimeline.vue'))
 const perfToolTab = ref('drift')
 const CapacityRegressionChart = defineAsyncComponent(() => import('./components/CapacityRegressionChart.vue'))
+const MeshChaosRuleCard = defineAsyncComponent(() => import('@/views/workbench/components/MeshChaosRuleCard.vue'))
+const meshChaosDrawerVisible = ref(false)
 import type { AxiosError } from 'axios'
 import VChart from 'vue-echarts'
 import type { EChartsOption } from 'echarts'
