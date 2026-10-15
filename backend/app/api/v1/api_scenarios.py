@@ -31,6 +31,14 @@ from app.services.workflow_dataflow_validator import (
     WorkflowDataflowError,
     validate_workflow_dataflow_topology,
 )
+from app.services.workflow_debugger import (
+    WorkflowDebuggerError,
+    create_debug_session,
+    get_debug_session,
+    resume_debug_session,
+    step_debug_session,
+    stop_debug_session,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -312,3 +320,75 @@ async def validate_workflow_dataflow_endpoint(
         )
     except (WorkflowDataflowError, WorkflowDagError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+class WorkflowDebugStartIn(BaseModel):
+    nodes: list[dict[str, Any]] = Field(default_factory=list)
+    breakpoints: list[str] = Field(default_factory=list)
+    initial_context: dict[str, Any] = Field(default_factory=dict)
+    watchers: list[str] = Field(default_factory=list)
+
+
+@router.post("/debug/start")
+async def start_workflow_debug_endpoint(
+    body: WorkflowDebugStartIn,
+    _user: User = Depends(get_current_user),
+):
+    """启动工作流画布断点调试会话，在入口处暂停并初始化变量观察器。"""
+    try:
+        return create_debug_session(
+            {"nodes": body.nodes},
+            breakpoints=body.breakpoints,
+            initial_context=body.initial_context,
+            watchers=body.watchers,
+        )
+    except (WorkflowDebuggerError, WorkflowDagError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/debug/{session_id}/step")
+async def step_workflow_debug_endpoint(
+    session_id: str,
+    _user: User = Depends(get_current_user),
+):
+    """单步步过（Step Over）执行当前节点，并在下一个节点前暂停，返回最新的变量差分快照。"""
+    try:
+        return await step_debug_session(session_id)
+    except WorkflowDebuggerError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/debug/{session_id}/resume")
+async def resume_workflow_debug_endpoint(
+    session_id: str,
+    _user: User = Depends(get_current_user),
+):
+    """继续执行（Resume）调试会话，直到命中下一个断点或执行完毕。"""
+    try:
+        return await resume_debug_session(session_id)
+    except WorkflowDebuggerError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/debug/{session_id}")
+async def get_workflow_debug_endpoint(
+    session_id: str,
+    _user: User = Depends(get_current_user),
+):
+    """获取指定调试会话当前运行状态、上下文变量快照与变量观察器数据。"""
+    try:
+        return get_debug_session(session_id)
+    except WorkflowDebuggerError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("/debug/{session_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def stop_workflow_debug_endpoint(
+    session_id: str,
+    _user: User = Depends(get_current_user),
+):
+    """终止并释放工作流调试会话。"""
+    stopped = stop_debug_session(session_id)
+    if not stopped:
+        raise HTTPException(status_code=404, detail="调试会话不存在或已释放")
+    return None

@@ -174,6 +174,24 @@ async def _execute_mobile_node(config: dict[str, Any], context: dict[str, Any]) 
     }
 
 
+async def execute_single_node(node: dict[str, Any], context: dict[str, Any]) -> dict[str, Any]:
+    """Execute a single workflow node against current context and return output dict."""
+    ntype = str(node.get("type") or "http").lower()
+    config = node.get("config") or {}
+
+    if ntype == "http":
+        return await _execute_http_node(config, context)
+    elif ntype in ("delay", "wait"):
+        return await _execute_delay_node(config, context)
+    elif ntype in ("sql", "db"):
+        return await _execute_sql_node(config, context)
+    elif ntype in ("redis", "cache"):
+        return await _execute_redis_node(config, context)
+    elif ntype in ("mobile", "app", "ui"):
+        return await _execute_mobile_node(config, context)
+    return {"success": True, "type": ntype, "note": "custom_step_passthrough"}
+
+
 async def execute_workflow_dag(
     workflow_graph: dict[str, Any],
     initial_context: dict[str, Any] | None = None,
@@ -198,19 +216,7 @@ async def execute_workflow_dag(
         node_res: dict[str, Any] = {"id": nid, "name": nname, "type": ntype}
 
         try:
-            if ntype == "http":
-                result_data = await _execute_http_node(config, context)
-            elif ntype in ("delay", "wait"):
-                result_data = await _execute_delay_node(config, context)
-            elif ntype in ("sql", "db"):
-                result_data = await _execute_sql_node(config, context)
-            elif ntype in ("redis", "cache"):
-                result_data = await _execute_redis_node(config, context)
-            elif ntype in ("mobile", "app", "ui"):
-                result_data = await _execute_mobile_node(config, context)
-            else:
-                result_data = {"success": True, "type": ntype, "note": "custom_step_passthrough"}
-
+            result_data = await execute_single_node(node, context)
             node_res["status"] = "passed" if result_data.get("success", True) else "failed"
             node_res["output"] = result_data
 
