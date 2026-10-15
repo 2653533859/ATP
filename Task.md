@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-16 v2.9.0 研发任务规划（进行中）
+
+> v2.9.0 规划入口为 [`docs/development-task-plan-v2.9.0.md`](docs/development-task-plan-v2.9.0.md)，覆盖 F1（弱网与网络仿真交互工作台）、F2（AI 自主探索与用例生成可视化控制台）、F3（持续性能混沌与容量预测图表视图）、F4（多租户资源配额与企业 FinOps 成本中心）。
+
+- [x] 2026-10-16 F1.1 弱网仿真档案管理与参数试算抽屉：落地 networkSimulation API 客户端与 NetworkProfileDrawer 组件；支持 7 类预设档案展示、自定义数据包大小试算、预期传输耗时与 CDP/ADB 命令实时预览；挂载至 DeviceList 头部操作区；单测独立通过，见 [`docs/evidence/weak-network-profile-drawer-f1-1-2026-10-16.md`](docs/evidence/weak-network-profile-drawer-f1-1-2026-10-16.md)。
+- [ ] F1.2 HAR 抓包流量瀑布流与慢请求 Top5 诊断卡片（HarTrafficViewer）
+- [ ] F1.3 弱网抗性评分雷达图与故障注入评估面板（NetworkResilienceRadar）
+- [ ] F2.1 页面状态树（FSM）拓扑与状态指纹视图（ExplorationGraphViewer）
+- [ ] F2.2 探索事件流实时轨迹与一键生成 TestCase（ExplorationTraceSynthesizer）
+- [ ] F2.3 异常假死与死循环振荡熔断告警卡片（ExplorationCircuitBreakerCard）
+- [ ] F3.1 基线自动打标、漂移偏离度比对与指标告警（BaselineDriftMonitor）
+- [ ] F3.2 压力下混沌故障注入时间线与自愈 RTO 测定曲线（ChaosRtoTimeline）
+- [ ] F3.3 回归容量预测、饱和拐点与并发上限预测图（CapacityRegressionChart）
+- [ ] F4.1 项目资源配额配置与并发/时长硬限制仪表板（ProjectQuotaDashboard）
+- [ ] F4.2 测试资产 MinIO 生命周期与自动清理交互抽屉（AssetStorageLifecycleDrawer）
+- [ ] F4.3 企业级 FinOps 成本分摊看板与 CSV 导出（FinOpsCostCenterView）
+
 ## 2026-10-16 v2.8.0 研发任务规划（已全量闭环）
 
 > v2.8.0 规划入口为 [`docs/development-task-plan-v2.8.0.md`](docs/development-task-plan-v2.8.0.md)，覆盖 Q1（弱网与网络仿真）、Q2（AI 探索与用例合成）、Q3（持续性能与混沌演练）、Q4（多租户配额与 FinOps）。

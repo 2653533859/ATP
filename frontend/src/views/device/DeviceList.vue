@@ -22,6 +22,9 @@
         <a-button type="primary" class="action-btn add-btn" @click="openRemoteConnectModal">
           <LinkOutlined /> 接入远程设备
         </a-button>
+        <a-button class="action-btn" @click="networkDrawerVisible = true">
+          <WifiOutlined /> 弱网仿真
+        </a-button>
         <div class="view-mode-toggle">
           <a-tooltip title="卡片矩阵视图">
             <button
@@ -418,6 +421,7 @@
         </a-tab-pane>
       </a-tabs>
     </a-modal>
+    <NetworkProfileDrawer v-model:visible="networkDrawerVisible" />
   </div>
 </template>
 
@@ -442,6 +446,9 @@ import { deviceApi } from '@/api'
 import type { AndroidWorkerItem, DeviceGroupItem, DeviceItem, DeviceStatus, RemoteAgentItem } from '@/api'
 import DeviceMatrixPanel from './components/DeviceMatrixPanel.vue'
 import DeviceMirrorModal from './components/DeviceMirrorModal.vue'
+import NetworkProfileDrawer from '@/views/system/components/NetworkProfileDrawer.vue'
+
+const networkDrawerVisible = ref(false)
 
 const asDevice = (record: unknown) => record as DeviceItem
 
