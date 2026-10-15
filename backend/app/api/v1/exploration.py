@@ -6,12 +6,15 @@ import threading
 from typing import Any
 import uuid
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.api.deps import get_current_user
+from app.api.deps import get_current_user, require_engineer
+from app.core.database import get_db
 from app.models.user import User
 from app.services.autonomous_exploration_engine import AutonomousExplorationGraph
+from app.services.exploration_case_synthesizer import synthesize_test_case_payload
 
 router = APIRouter(prefix="/exploration", tags=["智能探索遍历与用例生成"])
 
@@ -70,3 +73,36 @@ async def get_exploration_session_endpoint(
     if not graph:
         raise HTTPException(status_code=404, detail="探索会话不存在")
     return graph.get_coverage_metrics()
+
+
+class SynthesizeCaseIn(BaseModel):
+    name: str = Field(min_length=1, max_length=128)
+    module_id: int = Field(ge=1)
+    case_type: str = "android"  # android | web | ios
+    events: list[dict[str, Any]] = Field(default_factory=list)
+    description: str | None = None
+    persist: bool = False
+
+
+@router.post("/synthesize-case", status_code=status.HTTP_200_OK)
+async def synthesize_case_endpoint(
+    body: SynthesizeCaseIn,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(require_engineer),
+):
+    """将探索遍历沉淀的有效事件流自动去噪、压缩并合成为 TestCase 用例资产。"""
+    payload = synthesize_test_case_payload(
+        name=body.name,
+        module_id=body.module_id,
+        events=body.events,
+        case_type=body.case_type,
+        description=body.description,
+        platform=body.case_type,
+    )
+    if not body.persist:
+        return payload
+
+    from app.api.v1.cases import create_case
+
+    created = await create_case(payload, db=db, current_user=current_user)
+    return created

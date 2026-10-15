@@ -12,7 +12,7 @@
 - [x] 2026-10-16 Q1.2 弱网专项任务调度与用例指标采集：落地 network_simulation_scheduler 服务，自动生成环境注入与安全复原指令序列；实现 NetworkMetricsCollector 采集实测延迟、丢包、重试与超时计数，并输出抗弱网韧性评分；3 项单测独立通过，见 [`docs/evidence/weak-network-simulation-scheduler-and-metrics-q1-2-2026-10-16.md`](docs/evidence/weak-network-simulation-scheduler-and-metrics-q1-2-2026-10-16.md)。
 - [x] 2026-10-16 Q1.3 网络流量抓包与故障注入分析：落地 network_fault_injector 服务，解析 HAR 1.2 标准抓包日志并统计流量与慢请求；支持 DNS 劫持/NXDOMAIN、连接重置、超时与 HTTP 5xx 故障模拟与结构化事件归档；开放 /api/v1/network-profiles/parse-har 与 /fault-injection/evaluate；5 项单测独立通过，见 [`docs/evidence/network-capture-analysis-and-fault-injection-q1-3-2026-10-16.md`](docs/evidence/network-capture-analysis-and-fault-injection-q1-3-2026-10-16.md)。
 - [x] 2026-10-16 Q2.1 基于状态树的智能探索遍历引擎：落地 autonomous_exploration_engine 服务，实现 DOM/Accessibility 树置换不变指纹哈希；构建有限状态机探索图模型，实现 2 节点/3 节点乒乓死循环自动识别与 Back 脱困自愈；开放 /api/v1/exploration/*；4 项单测独立通过，见 [`docs/evidence/state-tree-autonomous-exploration-engine-q2-1-2026-10-16.md`](docs/evidence/state-tree-autonomous-exploration-engine-q2-1-2026-10-16.md)。
-- [ ] Q2.2 探索事件序列自动合成为 TestCase（有效事件流自动合并为标准用例资产）
+- [x] 2026-10-16 Q2.2 探索事件序列自动合成为 TestCase：落地 exploration_case_synthesizer 服务，实现探索事件流重复点击消除与输入折叠压缩；自动提炼 CaseStepCreate 步骤、生成执行器配置与目标页面终态断言；开放 /api/v1/exploration/synthesize-case；3 项单测独立通过，见 [`docs/evidence/exploration-event-sequence-case-synthesizer-q2-2-2026-10-16.md`](docs/evidence/exploration-event-sequence-case-synthesizer-q2-2-2026-10-16.md)。
 - [ ] Q2.3 异常崩溃与死循环探索熔断保护（黑屏死循环检测与自动探索熔断）
 - [ ] Q3.1 定时自动化性能基准打标与趋势偏移告警（基线定时对齐与性能漂移告警）
 - [ ] Q3.2 压力下故障注入与混沌恢复时长测定（混沌注入与 RTO 自愈恢复时长测定）
