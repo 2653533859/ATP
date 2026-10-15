@@ -16,6 +16,10 @@ from app.services.ephemeral_sandbox_manager import (
     reap_expired_sandboxes,
     terminate_ephemeral_sandbox,
 )
+from app.services.cross_protocol_session_bus import (
+    get_or_create_session_bus,
+    get_session_bus,
+)
 
 router = APIRouter(prefix="/sandboxes", tags=["瞬时多协议仿真沙箱与端口调度"])
 
@@ -31,6 +35,19 @@ class ProvisionSandboxIn(BaseModel):
 class MockDispatchIn(BaseModel):
     method: str = Field(default="GET", description="请求方法")
     path: str = Field(default="/api/v1/resource", description="请求路径")
+
+
+class SetVarIn(BaseModel):
+    key: str = Field(min_length=1, max_length=128)
+    value: Any
+
+
+class PropagateIn(BaseModel):
+    direction: str = Field(default="http_to_grpc", description="http_to_grpc | http_to_websocket")
+
+
+class RenderPayloadIn(BaseModel):
+    payload: Any
 
 
 @router.post("")
@@ -114,3 +131,77 @@ async def mock_dispatch_endpoint(
         return dispatch_sandbox_mock_request(sandbox_id, body.method, body.path)
     except (ValueError, RuntimeError) as exc:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
+
+
+@router.post("/bus/init")
+async def init_session_bus_endpoint(
+    bus_id: str | None = Query(default=None),
+    _user: User = Depends(get_current_user),
+):
+    """初始化或获取跨协议会话级数据共享与透传总线 (Session Bus)。"""
+    _ = _user
+    bus = get_or_create_session_bus(bus_id)
+    return bus.to_dict()
+
+
+@router.post("/bus/{bus_id}/set-var")
+async def set_bus_var_endpoint(
+    bus_id: str,
+    body: SetVarIn,
+    _user: User = Depends(get_current_user),
+):
+    """向指定跨协议会话总线写入通用变量 (供 HTTP、gRPC、WebSocket 共享)。"""
+    _ = _user
+    bus = get_session_bus(bus_id)
+    if not bus:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"会话总线不存在: {bus_id}")
+    bus.set_variable(body.key, body.value)
+    return {"message": "变量写入成功", "key": body.key, "value": body.value}
+
+
+@router.get("/bus/{bus_id}/vars")
+async def get_bus_vars_endpoint(
+    bus_id: str,
+    _user: User = Depends(get_current_user),
+):
+    """查询会话总线当前存放的所有跨协议共享变量集合。"""
+    _ = _user
+    bus = get_session_bus(bus_id)
+    if not bus:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"会话总线不存在: {bus_id}")
+    return {"bus_id": bus_id, "variables": bus.variables}
+
+
+@router.post("/bus/{bus_id}/propagate")
+async def propagate_bus_context_endpoint(
+    bus_id: str,
+    body: PropagateIn,
+    _user: User = Depends(get_current_user),
+):
+    """触发跨协议凭据与上下文主动透传 (如 HTTP Auth -> gRPC Metadata / WS Handshake)。"""
+    _ = _user
+    bus = get_session_bus(bus_id)
+    if not bus:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"会话总线不存在: {bus_id}")
+    if body.direction == "http_to_grpc":
+        meta = bus.propagate_http_to_grpc()
+        return {"direction": body.direction, "grpc_metadata": meta}
+    elif body.direction == "http_to_websocket":
+        ws_ctx = bus.propagate_http_to_websocket()
+        return {"direction": body.direction, "websocket_context": ws_ctx}
+    raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"不支持的透传方向: {body.direction}")
+
+
+@router.post("/bus/{bus_id}/render")
+async def render_bus_payload_endpoint(
+    bus_id: str,
+    body: RenderPayloadIn,
+    _user: User = Depends(get_current_user),
+):
+    """利用会话总线变量对目标报文/路径中的 {{variable}} 执行动态插值渲染。"""
+    _ = _user
+    bus = get_session_bus(bus_id)
+    if not bus:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"会话总线不存在: {bus_id}")
+    rendered = bus.render_template(body.payload)
+    return {"rendered": rendered}

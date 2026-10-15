@@ -45,7 +45,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | C3.1 `[x]` | **瞬时轻量级仿真沙箱与动态端口生命周期调度** | 调度模块 | 落地 `ephemeral_sandbox_manager` 服务；支持秒级拉起隔离的 Mock 仿真容器/进程与生命周期回收；见 docs/evidence/ephemeral-sandbox-manager-c3-1-2026-10-16.md |
-| C3.2 `[ ]` | **跨协议数据透传与会话级上下文共享总线** | C3.1 | 落地 `cross_protocol_session_bus` 服务；打通 HTTP、gRPC、WebSocket 间统一上下文共享与数据跨协议传递。 |
+| C3.2 `[x]` | **跨协议数据透传与会话级上下文共享总线** | C3.1 | 落地 `cross_protocol_session_bus` 服务；打通 HTTP、gRPC、WebSocket 间统一上下文共享与数据跨协议传递；见 docs/evidence/cross-protocol-session-bus-c3-2-2026-10-16.md |
 | C3.3 `[ ]` | **沙箱网络流量镜像与回放实时隔离检测** | C3.2 | 落地 `sandbox_traffic_mirror` 服务；支持将指定测试流量无损镜像至沙箱环境，隔离真实下游副作用。 |
 
 ---
