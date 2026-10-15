@@ -17,7 +17,7 @@ import json
 import logging
 import subprocess
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 from asyncio import CancelledError
 from typing import Callable, Optional
 
@@ -194,7 +194,7 @@ async def _run_logcat_monitor(
     serial: str,
     run_id: int,
     duration_seconds: int,
-) -> tuple[list[dict], list[dict]]:
+) -> tuple[list[dict], list[dict], str]:
     """后台运行 logcat，收集 crash 和 ANR"""
     raw_lines: list[str] = []
     start_time = time.monotonic()
@@ -233,7 +233,7 @@ async def _run_logcat_monitor(
 
     raw_log = "".join(raw_lines)
     crashes = _parse_logcat_crashes(raw_log)
-    return crashes, []
+    return crashes, [], raw_log
 
 
 async def run_mobile_special_stability(
@@ -378,8 +378,9 @@ async def run_mobile_special_stability(
         await asyncio.sleep(3)
 
     # 4. 启动 logcat 监控 crash/ANR
+    raw_log = ""
+    recording_local_path: str | None = None
     logcat_task = asyncio.create_task(_run_logcat_monitor(device_serial, run.id, duration_seconds))
-
     # 5. 执行 monkey 命令（外包心跳监控；掉线时同时取消 monkey 和 logcat）
     monkey_cmd = _build_monkey_cmd(
         serial=device_serial,
@@ -510,18 +511,13 @@ async def run_mobile_special_stability(
         execution_error = f"Monkey 执行失败: {str(e)[:500]}"
 
     # 6. 等待 logcat 完成；取消时立即终止 logcat 子进程。
-    if execution_error:
+    if execution_error or cancelled:
         logcat_task.cancel()
         with suppress(CancelledError):
             await logcat_task
-        crashes, anrs = [], []
-    elif cancelled:
-        logcat_task.cancel()
-        with suppress(CancelledError):
-            await logcat_task
-        crashes, anrs = [], []
+        crashes, anrs, raw_log = [], [], ""
     else:
-        crashes, anrs = await asyncio.wait_for(logcat_task, timeout=30)
+        crashes, anrs, raw_log = await asyncio.wait_for(logcat_task, timeout=30)
     total_ms = int((time.monotonic() - start_time) * 1000)
 
     # 7. 保存 incidents
@@ -571,6 +567,21 @@ async def run_mobile_special_stability(
             thread_name=inc.get("thread_name"),
         )
         db.add(incident)
+        await db.flush()
+
+        try:
+            from app.services.android_incident_archiver import archive_incident_artifacts
+
+            await archive_incident_artifacts(
+                db,
+                run_id=run.id,
+                incident=incident,
+                full_logcat=raw_log,
+                video_path=recording_local_path if "recording_local_path" in locals() else None,
+                run_start_time=datetime.fromtimestamp(start_time, tz=timezone.utc),
+            )
+        except Exception as exc:
+            logger.warning("Failed to archive incident artifacts for run %s: %s", run.id, exc)
     await db.commit()
 
     # 8. 构建 summary

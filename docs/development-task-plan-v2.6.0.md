@@ -35,7 +35,7 @@
 |---|---|---|---|
 | P2.1 `[x]` | **AutoDroid 远程反向隧道 Agent 注册与心跳** | Schema 13 表 | 完善 remote_agents 与 remote_agent_devices 动态绑定，实现跨网设备自动入池同步至 central devices 表并自动联动在线/离线状态；见 docs/evidence/autodroid-reverse-tunnel-device-pool-p2-1-2026-10-15.md |
 | P2.2 `[x]` | **真机矩阵并发执行与智能租约队列** | P2.1 | 支持套件 Android 用例按真机矩阵并发分发展开；设备池智能抢占未占用设备；掉线自动释放租约并收敛在途任务；见 docs/evidence/device-matrix-execution-lease-queue-p2-2-2026-10-15.md |
-| P2.3 `[ ]` | **Android 录屏分段与 Logcat 故障现场自动归档** | P2.2 | 结合稳定性/Monkey 专项，在发生 ANR / Crash 时自动按时间戳截取前后 30 秒 MP4 视频与对齐的 Logcat 崩溃堆栈。 |
+| P2.3 `[x]` | **Android 录屏分段与 Logcat 故障现场自动归档** | P2.2 | 结合稳定性/Monkey 专项，在发生 ANR / Crash 时自动按时间戳截取前后 30 秒 MP4 视频与对齐的 Logcat 崩溃堆栈；见 docs/evidence/android-incident-video-segment-and-logcat-alignment-p2-3-2026-10-15.md |
 
 ---
 
