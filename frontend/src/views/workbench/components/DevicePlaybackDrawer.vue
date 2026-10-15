@@ -148,6 +148,17 @@
 
       <!-- 实时执行步骤明细流水 -->
       <a-card size="small" title="实时真机回放执行结果明细" class="results-card">
+        <template #extra>
+          <a-button
+            size="small"
+            type="primary"
+            ghost
+            class="timeline-report-btn"
+            @click="showTimelineReporter = true"
+          >
+            MP4 录屏时间线报告
+          </a-button>
+        </template>
         <a-table
           :data-source="session?.step_records?.length ? session.step_records : executedSteps"
           :columns="resultColumns"
@@ -181,6 +192,11 @@
         </a-table>
       </a-card>
       <VisualSelfHealingInspector v-model:open="showHealingInspector" />
+      <PlaybackKeyframeTimeline
+        v-model:open="showTimelineReporter"
+        :session-id="session?.session_id"
+        :platform="formPlatform"
+      />
     </div>
   </a-drawer>
 </template>
@@ -194,6 +210,7 @@ import {
   type PlaybackStepRecord,
 } from '@/api/devicePlayback'
 import VisualSelfHealingInspector from './VisualSelfHealingInspector.vue'
+import PlaybackKeyframeTimeline from './PlaybackKeyframeTimeline.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -212,6 +229,7 @@ const props = withDefaults(
   }
 )
 const showHealingInspector = ref(false)
+const showTimelineReporter = ref(false)
 
 const emit = defineEmits<{
   (e: 'update:open', val: boolean): void
