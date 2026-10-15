@@ -134,6 +134,13 @@ class ChaosRtoEvaluateRequest(BaseModel):
     sustain_seconds: float = Field(default=3.0, ge=0.0)
 
 
+class PerformanceCapacityForecastRequest(BaseModel):
+    run_ids: list[int] = Field(..., min_length=2, max_length=128)
+    sla_max_p95_ms: float = Field(default=500.0, ge=1.0)
+    sla_max_error_rate: float = Field(default=0.01, ge=0.0, le=1.0)
+    min_samples: int = Field(default=3, ge=2, le=32)
+
+
 class PerformanceGateOut(BaseModel):
     status: PerformanceGateStatus
     ready: bool

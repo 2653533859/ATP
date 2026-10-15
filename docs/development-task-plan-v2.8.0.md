@@ -44,7 +44,7 @@
 |---|---|---|---|
 | Q3.1 `[x]` | **定时自动化性能基准打标与趋势偏移告警** | 性能模块 | 定时自动触发基线对齐任务，对比 RPS 偏离度并输出基准漂移告警；见 docs/evidence/performance-baseline-alignment-and-drift-alerts-q3-1-2026-10-16.md |
 | Q3.2 `[x]` | **压力下故障注入与混沌恢复时长测定** | Q3.1 | 支持在压测期间注入模拟下游故障与网络抖动，精准测定系统服务自愈恢复时长（RTO）；见 docs/evidence/performance-chaos-fault-injection-and-rto-measurement-q3-2-2026-10-16.md |
-| Q3.3 `[ ]` | **多维性能对比与容量预测模型** | Q3.2 | 提供多轮压测报告的横向横截面比对，基于线性/多项式回归预测集群最大承载容量。 |
+| Q3.3 `[x]` | **多维性能对比与容量预测模型** | Q3.2 | 提供多轮压测报告的横向横截面比对，基于线性/多项式回归预测集群最大承载容量；见 docs/evidence/performance-multidimensional-comparison-and-capacity-forecast-q3-3-2026-10-16.md |
 
 ---
 

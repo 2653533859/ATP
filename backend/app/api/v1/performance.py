@@ -13,7 +13,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from fastapi import APIRouter, Body, Depends, File, HTTPException, Query, UploadFile, status
 from fastapi.responses import Response
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -48,6 +48,7 @@ from app.schemas.performance import (
     PerformanceExecutorOut,
     ChaosPlanRequest,
     ChaosRtoEvaluateRequest,
+    PerformanceCapacityForecastRequest,
 )
 from app.schemas.performance_node import PerformanceNodeCreate, PerformanceNodeOut, PerformanceNodeUpdate
 from app.services.performance_options import ENVIRONMENT_SNAPSHOT_KEY
@@ -97,6 +98,10 @@ from app.services.performance_baseline_alignment import (
 from app.services.performance_chaos_rto import (
     build_chaos_injection_plan,
     calculate_chaos_rto,
+)
+from app.services.performance_capacity_forecaster import (
+    build_multi_run_comparison,
+    forecast_cluster_capacity,
 )
 
 router = APIRouter(tags=["性能压测"])
@@ -1335,6 +1340,67 @@ async def evaluate_performance_chaos_rto_endpoint(
         recovery_error_margin=payload.recovery_error_margin,
         recovery_latency_ratio=payload.recovery_latency_ratio,
         sustain_seconds=payload.sustain_seconds,
+    )
+
+
+@router.post("/performance/runs/compare")
+async def compare_performance_runs_endpoint(
+    run_ids: list[int] = Body(..., min_length=2, max_length=128),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """横向多轮压测报告横截面比对（并发、RPS、P95、错误率、扩展效能比）。"""
+    q = select(PerformanceRun).where(PerformanceRun.id.in_(run_ids))
+    runs = (await db.execute(q)).scalars().all()
+    if len(runs) < 2:
+        raise HTTPException(status_code=400, detail="至少需要 2 轮存在的压测记录才能进行横向比对")
+    project_ids = {r.project_id for r in runs}
+    for pid in project_ids:
+        await assert_project_access(db, user, pid, ProjectRole.viewer)
+
+    run_dicts = [
+        {
+            "id": r.id,
+            "status": r.status,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "summary": r.summary,
+            "options_snapshot": r.options_snapshot,
+        }
+        for r in runs
+    ]
+    return build_multi_run_comparison(run_dicts)
+
+
+@router.post("/performance/capacity-forecast")
+async def forecast_performance_capacity_endpoint(
+    payload: PerformanceCapacityForecastRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """基于多项式与线性回归算法，精准预测集群最大安全承载容量（VU）与峰值 RPS 极限。"""
+    q = select(PerformanceRun).where(PerformanceRun.id.in_(payload.run_ids))
+    runs = (await db.execute(q)).scalars().all()
+    if len(runs) < 2:
+        raise HTTPException(status_code=400, detail="至少需要 2 轮存在的压测记录进行容量预测")
+    project_ids = {r.project_id for r in runs}
+    for pid in project_ids:
+        await assert_project_access(db, user, pid, ProjectRole.viewer)
+
+    run_dicts = [
+        {
+            "id": r.id,
+            "status": r.status,
+            "created_at": r.created_at.isoformat() if r.created_at else None,
+            "summary": r.summary,
+            "options_snapshot": r.options_snapshot,
+        }
+        for r in runs
+    ]
+    return forecast_cluster_capacity(
+        run_dicts,
+        sla_max_p95_ms=payload.sla_max_p95_ms,
+        sla_max_error_rate=payload.sla_max_error_rate,
+        min_samples=payload.min_samples,
     )
 
 
