@@ -121,6 +121,15 @@ class DefectExternalSyncOut(BaseModel):
     defect_status: DefectStatus
 
 
+class DefectWebhookSyncOut(BaseModel):
+    success: bool
+    defect_id: int | None = None
+    external_key: str
+    external_status: str
+    internal_status: DefectStatus | None = None
+    message: str
+
+
 class DefectOut(BaseModel):
     id: int
     project_id: int

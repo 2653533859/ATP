@@ -10,7 +10,7 @@ from datetime import datetime, timezone
 from typing import Any
 from urllib.parse import urlsplit, urlunsplit
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -42,10 +42,17 @@ from app.schemas.defect import (
     DefectRunLinkCreate,
     DefectRunLinkOut,
     DefectUpdate,
+    DefectWebhookSyncOut,
 )
 from app.services.audit import write_audit_log
 from app.services.bug_reporter import create_bug, find_duplicate_bug, get_bug_status
-from app.services.defect_external import EXTERNAL_SYNC_ERROR, build_external_defect_description, map_external_status
+from app.services.defect_external import (
+    EXTERNAL_SYNC_ERROR,
+    build_external_defect_description,
+    map_external_status,
+    parse_external_webhook_payload,
+    push_defect_status_transition,
+)
 from app.core.encryption import decrypt_config
 from app.services.project_scope import scope_to_visible_projects
 
@@ -997,3 +1004,128 @@ async def unlink_defect_external_issue(
         detail=f"解除外部 Issue 关联: {link.tracker.tracker_type.value}:{link.external_key}",
     )
     await db.commit()
+
+
+@router.post(
+    "/defects/webhook/{tracker_id}",
+    response_model=DefectWebhookSyncOut,
+)
+async def handle_defect_external_webhook(
+    tracker_id: int,
+    request: Request,
+    db: AsyncSession = Depends(get_db),
+):
+    """Webhook 接收外部缺陷跟踪系统（Jira/禅道）的状态变更通知，自动双向同步内部缺陷生命周期。"""
+    tracker = await db.get(BugTracker, tracker_id)
+    if tracker is None:
+        raise HTTPException(status_code=404, detail="缺陷跟踪配置不存在")
+    if not tracker.is_enabled:
+        raise HTTPException(status_code=409, detail="该缺陷跟踪配置已禁用")
+
+    try:
+        payload = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="无效的 JSON 请求体")
+
+    parsed = parse_external_webhook_payload(tracker.tracker_type.value, payload)
+    if not parsed:
+        return DefectWebhookSyncOut(
+            success=False,
+            external_key="",
+            external_status="",
+            message="未在 Webhook Payload 中识别到有效 Issue 状态或标识",
+        )
+
+    external_key = parsed["external_key"]
+    external_status = parsed["external_status"]
+
+    result = await db.execute(
+        select(DefectExternalLink).where(
+            DefectExternalLink.tracker_id == tracker.id,
+            DefectExternalLink.external_key == external_key,
+        )
+    )
+    link = result.scalar_one_or_none()
+    if link is None:
+        return DefectWebhookSyncOut(
+            success=False,
+            external_key=external_key,
+            external_status=external_status,
+            message="未找到关联的内部缺陷",
+        )
+
+    defect = await db.get(Defect, link.defect_id)
+    if defect is None:
+        return DefectWebhookSyncOut(
+            success=False,
+            external_key=external_key,
+            external_status=external_status,
+            message="关联的内部缺陷已被删除",
+        )
+
+    mapped_status = map_external_status(external_status)
+    old_status = defect.status
+    if mapped_status:
+        defect.status = mapped_status  # type: ignore[assignment]
+
+    link.external_status = external_status
+    link.sync_state = "synced"
+    link.last_synced_at = datetime.now(timezone.utc)
+    link.last_error = None
+
+    await write_audit_log(
+        db,
+        action="defect_external_webhook_sync",
+        resource_type="defect",
+        resource_id=defect.id,
+        project_id=defect.project_id,
+        detail=f"Webhook 外部状态双向对齐: {tracker.tracker_type.value}:{external_key} [{external_status}] -> 内部缺陷 #{defect.id} [{defect.status}]",
+    )
+    await db.commit()
+
+    return DefectWebhookSyncOut(
+        success=True,
+        defect_id=defect.id,
+        external_key=external_key,
+        external_status=external_status,
+        internal_status=defect.status,  # type: ignore[arg-type]
+        message=f"状态成功对齐：{old_status} -> {defect.status}",
+    )
+
+
+@router.post(
+    "/defects/{defect_id}/external-links/{link_id}/push",
+    response_model=dict[str, Any],
+)
+async def push_defect_to_external_issue(
+    defect_id: int,
+    link_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+):
+    """主动将平台内部缺陷当前状态推送到外部关联 Issue（Jira / 禅道）。"""
+    defect = await _get_defect(db, defect_id, user, ProjectRole.editor)
+    link = await _get_external_link(db, defect.id, link_id)
+    tracker = link.tracker
+    if not tracker.is_enabled:
+        raise HTTPException(status_code=409, detail="该缺陷跟踪配置已禁用")
+
+    config = decrypt_config(tracker.config or {})
+    result = await push_defect_status_transition(
+        tracker_type=tracker.tracker_type.value,
+        config=config,
+        bug_id=link.external_key,
+        internal_status=defect.status,
+    )
+    await write_audit_log(
+        db,
+        action="defect_external_push_status",
+        resource_type="defect",
+        resource_id=defect.id,
+        user_id=user.id,
+        username=user.username,
+        project_id=defect.project_id,
+        detail=f"内部状态主动推送到外部平台: #{defect.id} [{defect.status}] -> {tracker.tracker_type.value}:{link.external_key}",
+    )
+    await db.commit()
+    return result
