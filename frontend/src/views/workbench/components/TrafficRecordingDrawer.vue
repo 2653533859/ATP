@@ -111,6 +111,15 @@
             >
               参数依赖分析与提取
             </a-button>
+            <a-button
+              size="small"
+              type="primary"
+              class="synthesize-case-btn"
+              :disabled="!session?.recorded_entries?.length"
+              @click="showCaseWizard = true"
+            >
+              一键逆向合成用例
+            </a-button>
             <a-tag color="blue">Authorization 已脱敏</a-tag>
             <a-tag color="purple">Cookie 已脱敏</a-tag>
           </a-space>
@@ -175,6 +184,12 @@
       :entries="session?.recorded_entries ?? []"
       @extracted="handleParamsExtracted"
     />
+    <TrafficToCaseWizard
+      v-model:open="showCaseWizard"
+      :session-id="session?.session_id"
+      :project-id="projectId"
+      @synthesized="handleCaseSynthesized"
+    />
     </div>
   </a-drawer>
 </template>
@@ -187,6 +202,7 @@ import {
   type TrafficRecordingSession,
 } from '@/api/trafficRecording'
 import DynamicParamExtractorDrawer from './DynamicParamExtractorDrawer.vue'
+import TrafficToCaseWizard from './TrafficToCaseWizard.vue'
 import type { ExtractParamsResponse } from '@/api/trafficRecording'
 
 const props = withDefaults(
@@ -200,6 +216,11 @@ const props = withDefaults(
   }
 )
 const showParamExtractor = ref(false)
+const showCaseWizard = ref(false)
+
+function handleCaseSynthesized() {
+  message.success('用例已成功逆向合成入库！')
+}
 
 function handleParamsExtracted(res: ExtractParamsResponse) {
   if (session.value) {

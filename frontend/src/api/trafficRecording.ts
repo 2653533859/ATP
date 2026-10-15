@@ -35,6 +35,50 @@ export interface ExtractParamsResponse {
   total_dependencies_count: number
 }
 
+export interface SynthesizeCaseRequest {
+  case_name: string
+  module_id: number
+  description?: string
+  priority?: string
+  case_level?: string
+  persist?: boolean
+}
+
+export interface SynthesizeCaseResponse {
+  case_id: number | null
+  name: string
+  module_id: number
+  project_id: number
+  total_steps: number
+  steps: Array<{
+    step_no: number
+    action: string
+    test_data?: string
+    expected_result?: string
+    is_key_step?: boolean
+  }>
+  config: Record<string, any>
+  dependencies_extracted: ParamDependency[]
+  persisted: boolean
+}
+
+export interface SynthesizeSuiteRequest {
+  suite_name: string
+  module_id: number
+  persist?: boolean
+}
+
+export interface SynthesizeSuiteResponse {
+  suite_id: number | null
+  suite_name: string
+  case_id: number | null
+  case_name: string
+  project_id: number
+  module_id: number
+  total_steps: number
+  persisted: boolean
+}
+
 export interface TrafficRecordingSession {
   session_id: string
   project_id: number
@@ -87,5 +131,13 @@ export const trafficRecordingApi = {
 
   extractParams(entries: RecordedTrafficEntry[]): Promise<ExtractParamsResponse> {
     return http.post('/traffic-recording/extract-params', { entries })
+  },
+
+  synthesizeCase(sessionId: string, data: SynthesizeCaseRequest): Promise<SynthesizeCaseResponse> {
+    return http.post(`/traffic-recording/sessions/${sessionId}/synthesize-case`, data)
+  },
+
+  synthesizeSuite(sessionId: string, data: SynthesizeSuiteRequest): Promise<SynthesizeSuiteResponse> {
+    return http.post(`/traffic-recording/sessions/${sessionId}/synthesize-suite`, data)
   },
 }
