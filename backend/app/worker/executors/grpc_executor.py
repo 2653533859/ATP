@@ -24,6 +24,7 @@ from app.services.dataset_execution import redact_execution_evidence
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
 from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.services.step_result_collector import StepResultBatchCollector
+from app.core.tracing import inject_w3c_trace_headers
 
 
 _MAX_TLS_ROOT_CERTIFICATE_BYTES = 1024 * 1024
@@ -295,6 +296,12 @@ async def run_grpc_case(db: AsyncSession, run: TestRun, case: TestCase, extra_va
             metadata = {}
             for k, v in metadata_cfg.items():
                 metadata[k] = _render(v, context)
+            metadata = inject_w3c_trace_headers(
+                metadata,
+                run_id=getattr(run, "id", None),
+                case_id=getattr(case, "id", None),
+                trace_id=getattr(run, "trace_id", None),
+            )
 
             request_data = {
                 "target": target,

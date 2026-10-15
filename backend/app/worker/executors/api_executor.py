@@ -32,6 +32,7 @@ from app.services.dataset_execution import redact_execution_evidence
 from app.services.safe_expressions import SafeExpressionError, evaluate_safe_expression
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
 from app.services.step_result_collector import StepResultBatchCollector
+from app.core.tracing import inject_w3c_trace_headers
 
 _tracer = get_tracer("atp.executor.api")
 
@@ -221,6 +222,12 @@ async def run_api_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                     header_value = _render(auth_cfg.get("value", ""), context)
                     if header_name:
                         headers[header_name] = header_value
+                headers = inject_w3c_trace_headers(
+                    headers,
+                    run_id=getattr(run, "id", None),
+                    case_id=getattr(case, "id", None),
+                    trace_id=getattr(run, "trace_id", None),
+                )
 
                 request_kwargs, request_body_for_record = await _build_request_kwargs(
                     step,

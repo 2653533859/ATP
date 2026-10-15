@@ -13,6 +13,7 @@ from app.models.case import RunStatus, StepResult, TestCase, TestRun
 from app.services.dataset_execution import redact_execution_evidence
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
 from app.services.step_result_collector import StepResultBatchCollector
+from app.core.tracing import inject_w3c_trace_headers
 
 logger = logging.getLogger(__name__)
 _tracer = get_tracer("atp.executor.multiprotocol")
@@ -166,6 +167,7 @@ async def _execute_http_step(step: dict[str, Any], context: dict[str, Any]) -> d
     timeout = float(step.get("timeout", 15.0))
 
     extra_kwargs = await _apply_http_auth(step, headers, context)
+    headers = inject_w3c_trace_headers(headers, trace_id=context.get("trace_id"))
     request_kwargs, record_body = _build_http_request_kwargs(step, context, headers, params)
     request_kwargs.update(extra_kwargs)
     if cookies:
@@ -274,6 +276,7 @@ async def _execute_graphql_step(step: dict[str, Any], context: dict[str, Any]) -
     query = render_template(step.get("query", ""), context)
     variables = render_dict(step.get("variables", {}), context)
     headers = render_dict(step.get("headers", {}), context)
+    headers = inject_w3c_trace_headers(headers, trace_id=context.get("trace_id"))
     timeout = float(step.get("timeout", 15.0))
 
     start = time.monotonic()

@@ -1307,7 +1307,9 @@ def test_grpc_executor_compiles_proto_and_asserts_response(monkeypatch):
     assert run.status is RunStatus.passed
     assert channel.closed is True
     assert channel.calls[0]["path"] == "/demo.Echo/Say"
-    assert channel.calls[0]["metadata"] == [("x-tenant", "hello")]
+    meta_dict = dict(channel.calls[0]["metadata"])
+    assert meta_dict["x-tenant"] == "hello"
+    assert "traceparent" in meta_dict
     assert events[-1]["status"] == "passed"
 
 

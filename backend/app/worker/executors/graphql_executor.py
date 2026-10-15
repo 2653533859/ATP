@@ -15,6 +15,7 @@ from app.services.dataset_execution import redact_execution_evidence
 from app.services.api_auth import build_digest_auth, resolve_oauth2_client_credentials_token
 from app.services.execution_contract import assertion_result, extraction_result, response_contract
 from app.services.step_result_collector import StepResultBatchCollector
+from app.core.tracing import inject_w3c_trace_headers
 
 
 async def _safe_publish_run_event(run_id: int, payload: dict) -> None:
@@ -92,6 +93,12 @@ async def run_graphql_case(db: AsyncSession, run: TestRun, case: TestCase, extra
                     float(timeout),
                     oauth_token_cache,
                 )
+            headers = inject_w3c_trace_headers(
+                headers,
+                run_id=getattr(run, "id", None),
+                case_id=getattr(case, "id", None),
+                trace_id=getattr(run, "trace_id", None),
+            )
 
             # 构造 GraphQL 请求体
             gql_body: dict = {"query": query}
