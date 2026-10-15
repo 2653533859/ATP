@@ -56,7 +56,7 @@ def normalize_w3c_trace_id(raw_id: str | None = None) -> str:
         return f"{cleaned}{cleaned}"
     import hashlib
 
-    return hashlib.md5(cleaned.encode("utf-8")).hexdigest()
+    return hashlib.sha256(cleaned.encode("utf-8")).hexdigest()[:32]
 
 
 def generate_w3c_span_id() -> str:
