@@ -20,6 +20,10 @@ from app.services.network_simulation_scheduler import (
     NetworkMetricsCollector,
     build_network_run_configuration,
 )
+from app.services.network_fault_injector import (
+    parse_har_capture,
+    simulate_network_fault,
+)
 
 router = APIRouter(prefix="/network-profiles", tags=["网络仿真与弱网治理"])
 
@@ -117,3 +121,33 @@ async def aggregate_network_metrics_endpoint(
             custom_latency_ms=s.custom_latency_ms,
         )
     return collector.compute_summary()
+
+
+class HarParseIn(BaseModel):
+    har_content: Any = Field(..., description="HAR 1.2 抓包日志 JSON 文本或对象")
+
+
+class FaultInjectionEvaluateIn(BaseModel):
+    request_url: str = Field(..., description="请求目标 URL 地址")
+    fault_policy: dict[str, Any] = Field(..., description="故障注入策略配置")
+
+
+@router.post("/parse-har")
+async def parse_har_endpoint(
+    body: HarParseIn,
+    _user: User = Depends(get_current_user),
+):
+    """解析 HTTP Archive (HAR 1.2) 抓包日志，统计请求流量、成功率与慢请求瀑布。"""
+    res = parse_har_capture(body.har_content)
+    if not res.get("valid", True):
+        raise HTTPException(status_code=400, detail=res.get("error", "无效的 HAR 数据"))
+    return res
+
+
+@router.post("/fault-injection/evaluate")
+async def evaluate_fault_injection_endpoint(
+    body: FaultInjectionEvaluateIn,
+    _user: User = Depends(get_current_user),
+):
+    """评估网络故障注入策略（DNS 劫持、NXDOMAIN 失败、连接重置、HTTP 5xx、响应篡改）。"""
+    return simulate_network_fault(body.request_url, body.fault_policy)
