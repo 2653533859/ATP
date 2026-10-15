@@ -9,7 +9,7 @@
 > v2.7.0 规划入口为 [`docs/development-task-plan-v2.7.0.md`](docs/development-task-plan-v2.7.0.md)，覆盖 T1（iOS 移动真机池化）、T2（全链路 Trace 追踪）、T3（多端多协议可视化画布）、T4（企业风控与灾备演练）。
 
 - [x] 2026-10-15 T1.1 iOS 统一设备资产与在线心跳模型：落地 ios_device_manager 服务，实现 iOS 设备注册、心跳刷新与超时离线自愈；扩展 UnifiedDeviceOut 跨端数据模型；开放 GET /api/v1/devices/unified 与 POST /api/v1/ios-devices/{id}/heartbeat；6 项单测独立通过，见 [`docs/evidence/unified-ios-device-asset-and-heartbeat-model-t1-1-2026-10-15.md`](docs/evidence/unified-ios-device-asset-and-heartbeat-model-t1-1-2026-10-15.md)。
-- [ ] T1.2 W3C/Appium 2 XCUITest 会话自愈与租约队列（建立 iOS 专属租约调度与 WDA 断连恢复）
+- [x] 2026-10-15 T1.2 W3C/Appium 2 XCUITest 会话自愈与租约队列：实现 acquire_available_ios_device_from_pool 动态行锁跳过忙碌/离线设备抢占候选 iOS 真机；实现 handle_ios_device_disconnection_recovery 掉线安全释放租约与在途用例收敛；落地 ios_wda_session_healer 自动识别 WDA 崩溃断连并重建 W3C 会话；5 项单测独立通过，见 [`docs/evidence/w3c-appium-xcuitest-session-healer-and-leases-t1-2-2026-10-15.md`](docs/evidence/w3c-appium-xcuitest-session-healer-and-leases-t1-2-2026-10-15.md)。
 - [ ] T1.3 IPA 资产解析与低代码步骤执行（IPA 签名包 Bundle ID 解析与受控步骤执行）
 - [ ] T2.1 W3C TraceContext 与 traceparent 协议自动注入（用例流量自动注入分布式追踪头）
 - [ ] T2.2 OpenTelemetry / Jaeger 分布式调用链检索（TraceID 自动拉取跨服务调用拓扑与瀑布图）

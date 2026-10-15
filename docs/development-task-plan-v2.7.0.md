@@ -23,7 +23,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T1.1 `[x]` | **iOS 统一设备资产与在线心跳模型** | 设备模块 | 扩展 `devices` 统一模型支持 `platform='ios'`、UDID、iOS 版本与 WDA 状态；实现 iOS 设备注册与心跳刷新；见 docs/evidence/unified-ios-device-asset-and-heartbeat-model-t1-1-2026-10-15.md |
-| T1.2 `[ ]` | **W3C/Appium 2 XCUITest 会话自愈与租约队列** | T1.1 | 建立 iOS 专用设备租约调度与行锁抢占；实现 WebDriverAgent 会话异常断连自动重连与恢复。 |
+| T1.2 `[x]` | **W3C/Appium 2 XCUITest 会话自愈与租约队列** | T1.1 | 建立 iOS 专用设备租约调度与行锁抢占；实现 WebDriverAgent 会话异常断连自动重连与恢复；见 docs/evidence/w3c-appium-xcuitest-session-healer-and-leases-t1-2-2026-10-15.md |
 | T1.3 `[ ]` | **IPA 资产解析与低代码步骤执行** | T1.2 | 支持 IPA 签名包 Bundle ID 与版本自动读取；接入点击/输入/滑动/断言与录屏/Syslog 归档。 |
 
 ---
