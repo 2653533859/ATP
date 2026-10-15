@@ -14,7 +14,7 @@
 - [x] 2026-10-15 T2.1 W3C TraceContext 与 traceparent 协议自动注入：在 app.core.tracing 实现标准 W3C traceparent 与 tracestate 规范生成；全面接入 api_executor、graphql_executor、grpc_executor 与 multiprotocol_executor 出站请求自动注入；6 项单测独立通过，见 [`docs/evidence/w3c-trace-context-traceparent-auto-injection-t2-1-2026-10-15.md`](docs/evidence/w3c-trace-context-traceparent-auto-injection-t2-1-2026-10-15.md)。
 - [x] 2026-10-15 T2.2 OpenTelemetry / Jaeger 分布式调用链检索：落地 apm_trace_retriever 服务，解析 Jaeger JSON 结构为分层 Span 瀑布树；支持相对时间偏移与多微服务拓扑统计；扩展 GET /api/v1/traces/{id}/waterfall 与 TraceDetailOut；5 项单测独立通过，见 [`docs/evidence/jaeger-opentelemetry-distributed-trace-waterfall-t2-2-2026-10-15.md`](docs/evidence/jaeger-opentelemetry-distributed-trace-waterfall-t2-2-2026-10-15.md)。
 - [x] 2026-10-15 T2.3 失败步骤慢调用瓶颈与异常 Span 自动标红聚类：落地 trace_anomaly_clustering 服务，自动检测慢 SQL（>=100ms）、下游 5xx 故障与 RPC 超时；实现 Span 树递归聚类与首要根因服务/节点自动归因；开放 GET /api/v1/traces/{id}/anomalies；6 项单测独立通过，见 [`docs/evidence/trace-anomaly-clustering-and-root-cause-t2-3-2026-10-15.md`](docs/evidence/trace-anomaly-clustering-and-root-cause-t2-3-2026-10-15.md)。
-- [ ] T3.1 多端多协议混合编排流程图引擎（HTTP -> SQL -> 移动端多节点 DAG 编排）
+- [x] 2026-10-15 T3.1 多端多协议混合编排流程图引擎：落地 workflow_dag_engine 服务，实现基于卡恩算法的线性拓扑排序与循环依赖检测；支持 HTTP/SQL/Redis/移动端/延时五类节点异构混合调度与上下文变量渗透；开放 /api/v1/api-scenarios/validate-dag 与 execute-dag；6 项单测独立通过，见 [`docs/evidence/multi-protocol-mixed-workflow-dag-engine-t3-1-2026-10-15.md`](docs/evidence/multi-protocol-mixed-workflow-dag-engine-t3-1-2026-10-15.md)。
 - [ ] T3.2 节点间上下文变量双向数据流拓扑校验（依赖有效性与死循环静态校验）
 - [ ] T3.3 画布单步断点调试与实时数据流观察器（节点断点暂停、入参及局部变量实时查看）
 - [ ] T4.1 敏感测试数据与测试凭据动态脱敏网关（自动检测与脱敏用例出参 PII 数据）

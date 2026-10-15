@@ -22,6 +22,12 @@ from app.core.database import get_db
 from app.models.user import User, UserRole
 from app.models.user_project import ProjectRole
 
+from app.services.workflow_dag_engine import (
+    WorkflowDagError,
+    execute_workflow_dag,
+    validate_and_toposort_workflow,
+)
+
 logger = logging.getLogger(__name__)
 
 router = APIRouter(
@@ -236,3 +242,47 @@ async def delete_api_scenario(
         filtered = [item for item in items if item.get("id") != scenario_id]
         _save_all(filtered)
     return None
+
+
+class WorkflowDagValidateIn(BaseModel):
+    nodes: list[dict[str, Any]] = Field(default_factory=list)
+
+
+class WorkflowDagExecuteIn(BaseModel):
+    nodes: list[dict[str, Any]] = Field(default_factory=list)
+    initial_context: dict[str, Any] = Field(default_factory=dict)
+    failure_strategy: str = "stop"
+
+
+@router.post("/validate-dag")
+async def validate_workflow_dag_endpoint(
+    body: WorkflowDagValidateIn,
+    _user: User = Depends(get_current_user),
+):
+    """校验混合工作流流程图的依赖合法性与拓扑结构，检测环路依赖并输出执行顺序。"""
+    try:
+        sorted_nodes = validate_and_toposort_workflow(body.nodes)
+        return {
+            "valid": True,
+            "total_nodes": len(sorted_nodes),
+            "execution_order": [str(n.get("id")) for n in sorted_nodes],
+            "sorted_nodes": sorted_nodes,
+        }
+    except WorkflowDagError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/execute-dag")
+async def execute_workflow_dag_endpoint(
+    body: WorkflowDagExecuteIn,
+    _user: User = Depends(get_current_user),
+):
+    """执行多协议混合工作流有向无环图（DAG），支持 HTTP -> SQL -> Redis -> 移动端节点调度。"""
+    try:
+        return await execute_workflow_dag(
+            {"nodes": body.nodes},
+            initial_context=body.initial_context,
+            failure_strategy=body.failure_strategy,
+        )
+    except WorkflowDagError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
