@@ -14,6 +14,9 @@
         />
         <a-button :loading="statsLoading" @click="loadStats">{{ t('system_pages.storage.refresh_stats') }}</a-button>
         <a-button type="primary" :loading="previewLoading" @click="loadPreview">{{ t('system_pages.storage.generate_preview') }}</a-button>
+        <a-button type="primary" @click="lifecycleDrawerVisible = true">
+          资产生命周期归档
+        </a-button>
       </a-space>
     </div>
 
@@ -281,11 +284,14 @@
         </a-space>
       </template>
     </a-drawer>
+    <AssetStorageLifecycleDrawer v-model:visible="lifecycleDrawerVisible" />
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, reactive, ref } from 'vue'
+const AssetStorageLifecycleDrawer = defineAsyncComponent(() => import('./components/AssetStorageLifecycleDrawer.vue'))
+const lifecycleDrawerVisible = ref(false)
 import { message, Modal } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import {

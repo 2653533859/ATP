@@ -18,7 +18,7 @@
 - [x] 2026-10-16 F3.2 压力下混沌故障注入时间线与自愈 RTO 测定曲线：落地 createChaosPlan 与 evaluateChaosRto API 客户端；创建 ChaosRtoTimeline 组件；实现三段式故障注入时序图、吞吐量/延迟双 Y 轴曲线、持续健康窗口自愈确认点与 Grade A-F 韧性评级；集成至 PerformanceCenterView；单测独立通过，见 [`docs/evidence/performance-chaos-rto-timeline-f3-2-2026-10-16.md`](docs/evidence/performance-chaos-rto-timeline-f3-2-2026-10-16.md)。
 - [x] 2026-10-16 F3.3 回归容量预测、饱和拐点与并发上限预测图：落地 compareRuns 与 forecastCapacity API 客户端；创建 CapacityRegressionChart 组件；实现 ECharts 双轴拟合曲线（并发-吞吐量线性拟合与并发-延迟二次多项式拟合）、SLA 红线与饱和拐点标注；展示横向比对矩阵；集成至 PerformanceCenterView；单测独立通过，见 [`docs/evidence/performance-capacity-regression-chart-f3-3-2026-10-16.md`](docs/evidence/performance-capacity-regression-chart-f3-3-2026-10-16.md)。至此 v2.9.0 Phase 3 全量闭环！
 - [x] 2026-10-16 F4.1 项目资源配额配置与并发/时长硬限制仪表板：落地 projectApi 配额相关客户端方法；创建 ProjectQuotaDashboard 组件；实现并发与每日时长实时水线进度条、配额参数调优与僵尸任务一键收割日志展示；集成至 ConfigurationCenterView；单测独立通过，见 [`docs/evidence/project-quota-dashboard-and-reaper-f4-1-2026-10-16.md`](docs/evidence/project-quota-dashboard-and-reaper-f4-1-2026-10-16.md)。
-- [ ] F4.2 测试资产 MinIO 生命周期与自动清理交互抽屉（AssetStorageLifecycleDrawer）
+- [x] 2026-10-16 F4.2 测试资产 MinIO 生命周期与自动清理交互抽屉：落地 scanLifecycle 与 executeLifecycleCleanup API 客户端；创建 AssetStorageLifecycleDrawer 组件；支持视频、截图、报告与日志多分类资产过期预览（Dry-Run）、容量释放预估与数据库孤儿引用安全收敛；集成至 StorageManagementView；单测独立通过，见 [`docs/evidence/asset-storage-lifecycle-drawer-f4-2-2026-10-16.md`](docs/evidence/asset-storage-lifecycle-drawer-f4-2-2026-10-16.md)。
 - [ ] F4.3 企业级 FinOps 成本分摊看板与 CSV 导出（FinOpsCostCenterView）
 
 ## 2026-10-16 v2.8.0 研发任务规划（已全量闭环）

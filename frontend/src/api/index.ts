@@ -2587,6 +2587,35 @@ export const storageApi = {
     http.patch<unknown, StoragePolicyItem>(`/storage/policies/${id}`, data),
   deletePolicy: (id: number) => http.delete(`/storage/policies/${id}`),
   getAlert: () => http.get<unknown, StorageAlertResponse>('/storage/alert'),
+  scanLifecycle: (data?: { categories?: string[]; custom_retention_days?: Record<string, number> }) =>
+    http.post<unknown, AssetLifecycleScanResponse>('/storage/lifecycle/scan', { dry_run: true, ...(data ?? {}) }),
+  executeLifecycleCleanup: (data?: { categories?: string[]; custom_retention_days?: Record<string, number> }) =>
+    http.post<unknown, AssetLifecycleScanResponse>('/storage/lifecycle/execute', { dry_run: false, ...(data ?? {}) }),
+}
+
+export interface CategoryScanItem {
+  category: string
+  prefix: string
+  retention_days: number
+  scanned_count: number
+  expired_count: number
+  reclaimable_bytes: number
+  reclaimable_mb: number
+  sample_expired_files: string[]
+}
+
+export interface AssetLifecycleScanResponse {
+  dry_run: boolean
+  scanned_at: string
+  total_scanned_count: number
+  total_expired_count: number
+  total_reclaimable_bytes: number
+  total_reclaimable_mb: number
+  total_reclaimable_gb: number
+  deleted_count: number
+  deletion_errors_count: number
+  db_cleanup_summary: Record<string, number>
+  categories: CategoryScanItem[]
 }
 
 export const dashboardAlertApi = {
