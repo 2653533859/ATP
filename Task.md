@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-16 v3.1.0 研发任务规划（进行中）
+
+> v3.1.0 规划入口为 [`docs/development-task-plan-v3.1.0.md`](docs/development-task-plan-v3.1.0.md)，覆盖 UI1（微服务流量录制与用例逆向生成工作台）、UI2（移动端真机回放与视频关键帧逐帧排障器）、UI3（微服务网关混沌演练与爆炸半径控制台）、UI4（企业级 OIDC/SSO 与不可篡改审计安全中心）。
+
+- [x] 2026-10-16 UI1.1 微服务流量录制会话管理与实时抓包面板：落地 trafficRecording API 客户端与 TrafficRecordingDrawer 组件；支持录制会话启停、静音清洗开关、脱敏流水展开与模拟抓包注入；挂载至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/traffic-recording-drawer-ui1-1-2026-10-16.md`](docs/evidence/traffic-recording-drawer-ui1-1-2026-10-16.md)。
+- [ ] UI1.2 动态参数提取与上下文占位符规则配置抽屉（DynamicParamExtractorDrawer.vue）
+- [ ] UI1.3 录制流量一键逆向合成用例与套件向导弹窗（TrafficToCaseWizard.vue）
+- [ ] UI2.1 真机回放动作编排执行抽屉与变量上下文配置（DevicePlaybackDrawer.vue）
+- [ ] UI2.2 视觉/DOM 混合自愈与 OCR 物理边界比对器（VisualSelfHealingInspector.vue）
+- [ ] UI2.3 MP4 录屏毫秒级时间线对齐与异常高亮播放器（PlaybackKeyframeTimeline.vue）
+- [ ] UI3.1 微服务网关混沌故障注入规则编排卡片与抽样调节器（MeshChaosRuleCard.vue）
+- [ ] UI3.2 微服务调用依赖拓扑与爆炸半径逆向 BFS 级联阻断图（BlastRadiusTopologyGraph.vue）
+- [ ] UI3.3 全链路高可用 SLA 韧性评分与自愈 RTO 评级看板（MeshResilienceReportView.vue）
+- [ ] UI4.1 企业级 OIDC / OAuth2 身份提供商接入与单点登录卡片（OidcProviderConfigCard.vue）
+- [ ] UI4.2 细粒度资源操作 RBAC 策略模拟器与 Anti-IDOR 诊断抽屉（IamPolicySimulatorDrawer.vue）
+- [ ] UI4.3 类区块链 SHA-256 审计日志哈希链完整性校验与合规证明导出（AuditTamperEvidentChainView.vue）
+
 ## 2026-10-16 v3.0.0 研发任务规划（已全量闭环）
 
 > v3.0.0 规划入口为 [`docs/development-task-plan-v3.0.0.md`](docs/development-task-plan-v3.0.0.md)，覆盖 T1（全协议智能流量录制与用例逆向生成）、T2（移动端真机智能回放与视觉 DOM 混合自愈）、T3（分布式网关混沌演练与爆炸半径控制）、T4（企业级 OIDC/SSO 认证与合规审计安全中心）。

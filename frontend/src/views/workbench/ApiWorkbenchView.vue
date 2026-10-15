@@ -26,6 +26,9 @@
       </div>
 
       <div class="toolbar-right">
+        <a-button size="small" class="toolbar-btn" @click="showTrafficRecording = true">
+          <ThunderboltOutlined /> 流量录制工作台
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -369,6 +372,10 @@
         </a-form-item>
       </a-form>
     </a-modal>
+    <TrafficRecordingDrawer
+      v-model:open="showTrafficRecording"
+      :project-id="selectedProjectId || 1"
+    />
   </div>
 </template>
 
@@ -409,6 +416,7 @@ import ApiRequestConsole from './components/ApiRequestConsole.vue'
 import ApiScenarioOrchestrator from './components/ApiScenarioOrchestrator.vue'
 import AIGenerateDrawer from '@/views/case/AIGenerateDrawer.vue'
 import { canEditProjectByRole } from '@/utils/permissions'
+import TrafficRecordingDrawer from './components/TrafficRecordingDrawer.vue'
 import { useAuthStore } from '@/stores/auth'
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -421,6 +429,7 @@ type ProtocolFilter = 'all' | ApiCaseType
 type ErrorLike = { response?: { data?: { detail?: unknown } }; message?: unknown }
 
 const API_CASE_TYPES: CaseType[] = ['api', 'graphql', 'websocket', 'grpc']
+const showTrafficRecording = ref(false)
 
 const { t } = useI18n()
 const route = useRoute()
