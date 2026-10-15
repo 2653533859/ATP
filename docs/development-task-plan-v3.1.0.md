@@ -34,7 +34,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| UI2.1 `[ ]` | **真机回放动作编排执行抽屉与变量上下文配置** | device_playback | 落地 `DevicePlaybackDrawer.vue` 组件；支持跨平台动作序列编排、运行时变量上下文配置与回放执行状态追踪。 |
+| UI2.1 `[x]` | **真机回放动作编排执行抽屉与变量上下文配置** | device_playback | 落地 `DevicePlaybackDrawer.vue` 组件；支持跨平台动作序列编排、运行时变量上下文配置与回放执行状态追踪；见 docs/evidence/device-playback-drawer-ui2-1-2026-10-16.md |
 | UI2.2 `[ ]` | **视觉/DOM 混合自愈与 OCR 物理边界比对器** | UI2.1 | 落地 `VisualSelfHealingInspector.vue` 组件；呈现 Tier 1~3 启发相似度评分、OCR 点击坐标补偿与自愈前后快照比对。 |
 | UI2.3 `[ ]` | **MP4 录屏毫秒级时间线对齐与异常高亮播放器** | UI2.2 | 落地 `PlaybackKeyframeTimeline.vue` 组件；呈现视频时间轴与执行步骤毫秒级对齐、异常高亮与关键帧一键跳转。 |
 

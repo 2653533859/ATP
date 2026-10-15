@@ -41,6 +41,9 @@
         >
           <PlusOutlined /> {{ t('app_workbench.new_android_case') }}
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showDevicePlayback = true">
+          <PlayCircleOutlined /> 真机智能回放
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openDevices">
           <ToolOutlined /> {{ t('app_workbench.device_management') }}
         </a-button>
@@ -352,6 +355,12 @@
       @close="caseDrawerOpen = false"
       @saved="handleCaseSaved"
     />
+    <DevicePlaybackDrawer
+      v-model:open="showDevicePlayback"
+      :device-id="1"
+      serial-or-udid="emulator-5554"
+      platform="android"
+    />
   </div>
 </template>
 
@@ -418,6 +427,8 @@ const { t } = useI18n()
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+import DevicePlaybackDrawer from './components/DevicePlaybackDrawer.vue'
+const showDevicePlayback = ref(false)
 
 const projects = ref<ProjectItem[]>([])
 const selectedProjectId = ref<number | null>(positiveInt(route.query.project_id))

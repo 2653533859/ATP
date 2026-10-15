@@ -36,10 +36,14 @@ const {
   runList: vi.fn(),
 }))
 
-vi.mock('vue-router', () => ({
-  useRoute: () => ({ query: { project_id: '1' } }),
-  useRouter: () => ({ push: routerPush, replace: routerReplace }),
-}))
+vi.mock('vue-router', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('vue-router')>()
+  return {
+    ...actual,
+    useRoute: () => ({ query: { project_id: '1' } }),
+    useRouter: () => ({ push: routerPush, replace: routerReplace }),
+  }
+})
 vi.mock('vue-i18n', () => ({
   useI18n: () => ({ locale: ref('zh-CN'), t: (key: string) => key }),
 }))
