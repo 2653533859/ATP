@@ -22,6 +22,9 @@
         <button class="button button-light toolbar-refresh-btn" type="button" @click="quotaDrawerVisible = true">
           租户配额管控
         </button>
+        <button class="button button-light toolbar-refresh-btn" type="button" @click="oidcDrawerVisible = true">
+          企业 SSO 身份源
+        </button>
         <button class="button button-light toolbar-refresh-btn" type="button" :disabled="loading" @click="loadOverview">
           {{ t('configuration_center.refresh') }}
         </button>
@@ -278,6 +281,15 @@
     >
       <ProjectQuotaDashboard :project-id="Number(selectedProjectId || 1)" />
     </a-drawer>
+    <a-drawer
+      v-model:open="oidcDrawerVisible"
+      title="企业级 OIDC / SSO 身份提供商管理"
+      :width="920"
+      placement="right"
+      destroy-on-close
+    >
+      <OidcProviderConfigCard />
+    </a-drawer>
   </div>
 </template>
 
@@ -290,6 +302,8 @@ import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
+const OidcProviderConfigCard = defineAsyncComponent(() => import('@/views/workbench/components/OidcProviderConfigCard.vue'))
+const oidcDrawerVisible = ref(false)
 import { useAuthStore } from '@/stores/auth'
 import { hasAnyRole, type UserRole } from '@/utils/permissions'
 import {

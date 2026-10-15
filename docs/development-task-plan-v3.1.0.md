@@ -54,7 +54,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| UI4.1 `[ ]` | **企业级 OIDC / OAuth2 身份提供商接入与单点登录卡片** | oidc_sso | 落地 `OidcProviderConfigCard.vue` 组件；展示 Keycloak/Okta/ADFS 提供商列表、敏感凭据脱敏显示与一键 SSO 跳转。 |
+| UI4.1 `[x]` | **企业级 OIDC / OAuth2 身份提供商接入与单点登录卡片** | oidc_sso | 落地 `OidcProviderConfigCard.vue` 组件；展示 Keycloak/Okta/ADFS 提供商列表、敏感凭据脱敏显示与一键 SSO 跳转；见 docs/evidence/oidc-provider-config-card-ui4-1-2026-10-16.md |
 | UI4.2 `[ ]` | **细粒度资源操作 RBAC 策略模拟器与 Anti-IDOR 诊断抽屉** | UI4.1 | 落地 `IamPolicySimulatorDrawer.vue` 组件；支持按资源与操作在线模拟 PDP 策略判定、Explicit Deny 提示与跨项目越权诊断。 |
 | UI4.3 `[ ]` | **类区块链 SHA-256 审计日志哈希链完整性校验与合规证明导出** | UI4.2 | 落地 `AuditTamperEvidentChainView.vue` 页面；支持链式连续性在线自检、篡改记录高亮定位与带数字签名的合规报表一键导出。 |
 
