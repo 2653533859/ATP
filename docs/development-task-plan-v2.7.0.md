@@ -43,7 +43,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T3.1 `[x]` | **多端多协议混合编排流程图引擎** | 用例模块 | 支持 HTTP $\rightarrow$ SQL $\rightarrow$ Redis $\rightarrow$ Android/iOS 节点的流式有向无环图（DAG）混合编排；见 docs/evidence/multi-protocol-mixed-workflow-dag-engine-t3-1-2026-10-15.md |
-| T3.2 `[ ]` | **节点间上下文变量双向数据流拓扑校验** | T3.1 | 自动分析节点间入参/出参变量拓扑依赖，防止循环依赖与未声明变量引用。 |
+| T3.2 `[x]` | **节点间上下文变量双向数据流拓扑校验** | T3.1 | 自动分析节点间入参/出参变量拓扑依赖，防止循环依赖与未声明变量引用；见 docs/evidence/workflow-dataflow-topology-validator-t3-2-2026-10-15.md |
 | T3.3 `[ ]` | **画布单步断点调试与实时数据流观察器** | T3.2 | 支持在任意编排节点设置断点，单步执行并实时观察各节点入参与输出结果。 |
 
 ---

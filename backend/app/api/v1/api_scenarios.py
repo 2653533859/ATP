@@ -27,6 +27,10 @@ from app.services.workflow_dag_engine import (
     execute_workflow_dag,
     validate_and_toposort_workflow,
 )
+from app.services.workflow_dataflow_validator import (
+    WorkflowDataflowError,
+    validate_workflow_dataflow_topology,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -285,4 +289,26 @@ async def execute_workflow_dag_endpoint(
             failure_strategy=body.failure_strategy,
         )
     except WorkflowDagError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+class WorkflowDataflowValidateIn(BaseModel):
+    nodes: list[dict[str, Any]] = Field(default_factory=list)
+    initial_context: dict[str, Any] = Field(default_factory=dict)
+    strict: bool = False
+
+
+@router.post("/validate-dataflow")
+async def validate_workflow_dataflow_endpoint(
+    body: WorkflowDataflowValidateIn,
+    _user: User = Depends(get_current_user),
+):
+    """静态校验工作流节点间上下文变量双向数据流拓扑，检测未声明变量与逆向引用。"""
+    try:
+        return validate_workflow_dataflow_topology(
+            body.nodes,
+            initial_context=body.initial_context,
+            strict=body.strict,
+        )
+    except (WorkflowDataflowError, WorkflowDagError) as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
