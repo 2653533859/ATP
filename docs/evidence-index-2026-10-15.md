@@ -26,6 +26,7 @@
 | **N4.1~N4.5 Hermes 智能中枢** | 8 类操作面板持久草稿与会话恢复；并发版本冲突拦截；共用命令服务接入 | [`docs/evidence/windows-hermes-recoverable-operations-2026-10-12.md`](docs/evidence/windows-hermes-recoverable-operations-2026-10-12.md) | Hermes 专项回归全量 (87 passed) |
 | **N5.1 现场环境基线** | 经 SSH 2222 连通 CHINAMI-762P0P5；K3s revision 62、6 Pod 稳定运行 17 天 0 重启；Prometheus 5/5 目标在线；线上 0074 迁移核验 | [`docs/evidence/linux-site-baseline-verification-n5-1-2026-10-15.md`](docs/evidence/linux-site-baseline-verification-n5-1-2026-10-15.md) | 现场 Pod、Prometheus、Flower 实测探针全通过 |
 | **N5.2 现场 14 日连续 SLO** | 现场 Prometheus 抽取 2026-10-01~2026-10-14 连续 14 日 288/288 采样点；API 可用性 100%、P95 95ms、成功率 100%、0 违约与 0 缺口；Flower 稳定运行 | [`docs/evidence/linux-site-14day-slo-flower-trend-n5-2-2026-10-15.md`](docs/evidence/linux-site-14day-slo-flower-trend-n5-2-2026-10-15.md) | 14 日 4032 抓取点高精度采样全量达标 |
+| **N5.3 现场迁移与回滚演练** | 现场 579KB PostgreSQL 备份先行；真实执行 0074->0079 全量升级链达最新头；实测执行反向回滚降级回 0074 双向验证通过 | [`docs/evidence/linux-site-migration-upgrade-rollback-n5-3-2026-10-15.md`](docs/evidence/linux-site-migration-upgrade-rollback-n5-3-2026-10-15.md) | 线上真实数据库升降级双向 100% 验证 |
 | **N6.1 发布门禁与独立审查** | 全门禁扫描：Ruff规范/格式、Mypy、Bandit SAST、vue-tsc、生产构建与 pytest-standalone 独立单测扫描 | [`docs/evidence/windows-release-candidate-quality-n6-1-2026-10-15.md`](docs/evidence/windows-release-candidate-quality-n6-1-2026-10-15.md) | Ruff 0 错误、Mypy 188 源码 0 错误、Bandit 0 告警、Build 20.72s 通过 |
 
 ---
@@ -67,6 +68,5 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows-standalone.ps1 -Actio
 ---
 
 ## 4. 显式限制与未开放边界声明
-
-1. **Linux 现场环境（N5.3）**：受控 Linux 节点 `CHINAMI-762P0P5` 连接已就绪且 14 日 SLO 门禁通过（N5.1、N5.2 闭环）；版本镜像升级（从 0074 迁移至 0079）按步骤推进；
+1. **Linux 现场环境（N5.1~N5.3）**：受控 Linux 节点 `CHINAMI-762P0P5` 连接已就绪、14 日 SLO 门禁通过、0074->0079 升级与 0079->0074 回滚双向演练完成；
 2. **多节点分布式性能压测（P4）**：单机模式已收敛 k6 / Locust / JMeter 的能力探测与安全执行；真实的生产 Kubernetes 多节点调度与 Prometheus 采集仍需具备生产集群时验收。
