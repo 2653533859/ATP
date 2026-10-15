@@ -57,6 +57,7 @@ from app.api.v1 import (
     device_agents,
     api_scenarios,
     mcp,
+    security,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -119,3 +120,4 @@ router.include_router(configuration_center.router)
 router.include_router(api_scenarios.router)
 router.include_router(device_stream_router)
 router.include_router(mcp.router)
+router.include_router(security.router)
