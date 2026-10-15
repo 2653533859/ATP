@@ -851,6 +851,9 @@
         <a-tab-pane key="chaos" tab="混沌故障注入与自愈 RTO 测定">
           <ChaosRtoTimeline />
         </a-tab-pane>
+        <a-tab-pane key="capacity" tab="回归容量预测与饱和拐点">
+          <CapacityRegressionChart />
+        </a-tab-pane>
       </a-tabs>
     </a-modal>
   </div>
@@ -868,6 +871,7 @@ const BaselineDriftMonitor = defineAsyncComponent(() => import('./components/Bas
 const driftModalVisible = ref(false)
 const ChaosRtoTimeline = defineAsyncComponent(() => import('./components/ChaosRtoTimeline.vue'))
 const perfToolTab = ref('drift')
+const CapacityRegressionChart = defineAsyncComponent(() => import('./components/CapacityRegressionChart.vue'))
 import type { AxiosError } from 'axios'
 import VChart from 'vue-echarts'
 import type { EChartsOption } from 'echarts'

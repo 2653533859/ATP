@@ -3192,6 +3192,10 @@ export const performanceApi = {
     http.post<unknown, ChaosPlanResponse>(`/performance/runs/${runId}/chaos-plan`, body),
   evaluateChaosRto: (runId: number, body: ChaosRtoEvaluateRequest) =>
     http.post<unknown, ChaosRtoEvaluateResponse>(`/performance/runs/${runId}/chaos-rto/evaluate`, body),
+  compareRuns: (runIds: number[]) =>
+    http.post<unknown, PerformanceCompareResponse>('/performance/runs/compare', runIds),
+  forecastCapacity: (body: PerformanceCapacityForecastRequest) =>
+    http.post<unknown, PerformanceCapacityForecastResponse>('/performance/capacity-forecast', body),
 }
 
 export interface PerformanceDriftAlertResponse {
@@ -3267,6 +3271,65 @@ export interface ChaosRtoEvaluateResponse {
   resilience_grade: string
   recommendation: string
   message?: string
+}
+
+export interface ComparisonMatrixItem {
+  run_id: number
+  status: string
+  created_at: string
+  concurrency: number
+  rps: number
+  p95_ms: number
+  p99_ms?: number
+  avg_latency_ms?: number
+  error_rate: number
+  scaling_efficiency: number
+}
+
+export interface PerformanceCompareResponse {
+  total_runs: number
+  valid_points_count: number
+  comparison_matrix: ComparisonMatrixItem[]
+  best_throughput: { run_id?: number; max_rps?: number; at_concurrency?: number }
+  peak_efficiency: { run_id?: number; scaling_efficiency?: number; at_concurrency?: number }
+}
+
+export interface PerformanceCapacityForecastRequest {
+  run_ids: number[]
+  sla_max_p95_ms?: number
+  sla_max_error_rate?: number
+  min_samples?: number
+}
+
+export interface RegressionModelResult {
+  slope?: number
+  intercept?: number
+  a?: number
+  b?: number
+  c?: number
+  r_squared: number
+  valid: boolean
+  model_type?: string
+}
+
+export interface PerformanceCapacityForecastResponse {
+  status: 'ready' | 'insufficient_data'
+  sample_count?: number
+  message?: string
+  sla_criteria?: { max_p95_ms: number; max_error_rate: number }
+  regression_models?: {
+    rps_linear: RegressionModelResult
+    p95_polynomial: RegressionModelResult
+    confidence: 'High' | 'Medium' | 'Low'
+    avg_r_squared: number
+  }
+  capacity_limit?: {
+    max_safe_concurrency: number
+    predicted_max_rps: number
+    knee_point?: Partial<ComparisonMatrixItem>
+  }
+  recommendation?: string
+  comparison?: PerformanceCompareResponse
 }
 
 // ---- Reusable Web assets ----
