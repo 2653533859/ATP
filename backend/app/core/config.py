@@ -254,6 +254,7 @@ class Settings(BaseSettings):
     OTEL_TRACES_SAMPLER_ARG: float = 0.1
     # Jaeger UI 基础 URL，前端展示"在 Jaeger 中打开"链接时使用；为空则不显示按钮
     JAEGER_UI_URL: str = ""
+    JAEGER_QUERY_URL: str = ""
 
     @model_validator(mode="after")
     def validate_auth_cookie_settings(self) -> Self:

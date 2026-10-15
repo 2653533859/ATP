@@ -11,7 +11,8 @@ from app.models.case import TestRun
 from app.models.plan import PlanRun
 from app.models.suite import SuiteRun
 from app.models.user import User
-from app.schemas.trace import TraceDetailOut
+from app.schemas.trace import DistributedTraceWaterfallOut, TraceDetailOut
+from app.services.apm_trace_retriever import fetch_external_distributed_trace
 
 router = APIRouter(tags=["链路追踪"])
 
@@ -74,6 +75,7 @@ async def get_trace(
 
     timestamps = [run.created_at for run in [*case_runs, *suite_runs, *plan_runs] if run.created_at is not None]
 
+    dist_trace = await fetch_external_distributed_trace(trace_id)
     return TraceDetailOut(
         trace_id=trace_id,
         total_runs=total_runs,
@@ -82,4 +84,17 @@ async def get_trace(
         case_runs=case_runs,
         suite_runs=suite_runs,
         plan_runs=plan_runs,
+        distributed_trace=dist_trace,
     )
+
+
+@router.get("/traces/{trace_id}/waterfall", response_model=DistributedTraceWaterfallOut)
+async def get_trace_waterfall(
+    trace_id: str,
+    _: User = Depends(get_current_user),
+):
+    """从 APM / Jaeger 后端直接查询分布式 Span 瀑布图数据。"""
+    trace_data = await fetch_external_distributed_trace(trace_id)
+    if trace_data is None:
+        raise HTTPException(status_code=404, detail="未查询到外部 APM 链路追踪数据或 Jaeger 服务不可用")
+    return trace_data

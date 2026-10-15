@@ -12,7 +12,7 @@
 - [x] 2026-10-15 T1.2 W3C/Appium 2 XCUITest 会话自愈与租约队列：实现 acquire_available_ios_device_from_pool 动态行锁跳过忙碌/离线设备抢占候选 iOS 真机；实现 handle_ios_device_disconnection_recovery 掉线安全释放租约与在途用例收敛；落地 ios_wda_session_healer 自动识别 WDA 崩溃断连并重建 W3C 会话；5 项单测独立通过，见 [`docs/evidence/w3c-appium-xcuitest-session-healer-and-leases-t1-2-2026-10-15.md`](docs/evidence/w3c-appium-xcuitest-session-healer-and-leases-t1-2-2026-10-15.md)。
 - [x] 2026-10-15 T1.3 IPA 资产解析与低代码步骤执行：落地 ipa_parser 服务安全提取 Info.plist 静态签名元数据（Bundle ID、版本、支持设备）；ios_executor 全面支持点击、输入、滑动、断言受控步骤并联动 WDA 崩溃自愈；5 项单测独立通过，见 [`docs/evidence/ipa-metadata-parsing-and-ios-lowcode-steps-t1-3-2026-10-15.md`](docs/evidence/ipa-metadata-parsing-and-ios-lowcode-steps-t1-3-2026-10-15.md)。
 - [x] 2026-10-15 T2.1 W3C TraceContext 与 traceparent 协议自动注入：在 app.core.tracing 实现标准 W3C traceparent 与 tracestate 规范生成；全面接入 api_executor、graphql_executor、grpc_executor 与 multiprotocol_executor 出站请求自动注入；6 项单测独立通过，见 [`docs/evidence/w3c-trace-context-traceparent-auto-injection-t2-1-2026-10-15.md`](docs/evidence/w3c-trace-context-traceparent-auto-injection-t2-1-2026-10-15.md)。
-- [ ] T2.2 OpenTelemetry / Jaeger 分布式调用链检索（TraceID 自动拉取跨服务调用拓扑与瀑布图）
+- [x] 2026-10-15 T2.2 OpenTelemetry / Jaeger 分布式调用链检索：落地 apm_trace_retriever 服务，解析 Jaeger JSON 结构为分层 Span 瀑布树；支持相对时间偏移与多微服务拓扑统计；扩展 GET /api/v1/traces/{id}/waterfall 与 TraceDetailOut；5 项单测独立通过，见 [`docs/evidence/jaeger-opentelemetry-distributed-trace-waterfall-t2-2-2026-10-15.md`](docs/evidence/jaeger-opentelemetry-distributed-trace-waterfall-t2-2-2026-10-15.md)。
 - [ ] T2.3 失败步骤慢调用瓶颈与异常 Span 自动标红聚类（自动定界微服务异常 Span 与慢调用）
 - [ ] T3.1 多端多协议混合编排流程图引擎（HTTP -> SQL -> 移动端多节点 DAG 编排）
 - [ ] T3.2 节点间上下文变量双向数据流拓扑校验（依赖有效性与死循环静态校验）
