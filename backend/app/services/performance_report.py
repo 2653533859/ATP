@@ -135,10 +135,40 @@ def build_baseline_comparison(
                 "direction": direction,
             }
         )
+    has_severe_regression = False
+    has_improvement = False
+    for m in metrics:
+        metric_name = m["metric"]
+        direction = m["direction"]
+        delta = m.get("delta")
+        delta_percent = m.get("delta_percent")
+
+        if direction == "regression":
+            if metric_name == "error_rate" and delta is not None and delta > 0.02:
+                has_severe_regression = True
+            elif metric_name == "rps" and delta_percent is not None and delta_percent < -15.0:
+                has_severe_regression = True
+            elif metric_name in {"p95_ms", "p99_ms"} and delta_percent is not None and delta_percent > 20.0:
+                has_severe_regression = True
+        elif direction == "improvement":
+            has_improvement = True
+
+    if has_severe_regression:
+        verdict = "regression"
+        summary_verdict = "性能较基线发生显著劣化，未通过质量门禁"
+    elif has_improvement:
+        verdict = "improvement"
+        summary_verdict = "性能较基线有显著提升"
+    else:
+        verdict = "passed"
+        summary_verdict = "性能处于基线容差范围内，判定通过"
+
     return {
         "baseline_run_id": baseline_run_id,
         "run_id": run_id,
         "metrics": metrics,
+        "verdict": verdict,
+        "summary_verdict": summary_verdict,
     }
 
 

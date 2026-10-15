@@ -15,7 +15,7 @@
 - [x] 2026-10-15 P2.2 真机矩阵并发执行与智能租约队列：实现 expand_case_items_for_device_matrix 支持套件中 Android 用例按真机矩阵设备列表并发分发展开；实现 acquire_available_device_from_pool 动态行锁抢占空闲设备并跳过忙碌设备；实现 handle_device_disconnection_recovery，在设备拔线或掉线时自动释放租约并收敛在途 TestRun/MobileSpecialRun 为错误终态；3 项单测独立通过，见 [`docs/evidence/device-matrix-execution-lease-queue-p2-2-2026-10-15.md`](docs/evidence/device-matrix-execution-lease-queue-p2-2-2026-10-15.md)。
 - [x] 2026-10-15 P2.3 Android 录屏分段与 Logcat 故障现场自动归档：落地 android_incident_archiver 服务，实现 Logcat 时间戳对齐提取与前后 30 秒 MP4 录屏分段截取；自动关联回填 MobileIncident 与 MobileRunArtifact 实体；稳定性执行器在捕获 Crash/ANR 时全自动触发归档；5 项单测独立通过，见 [`docs/evidence/android-incident-video-segment-and-logcat-alignment-p2-3-2026-10-15.md`](docs/evidence/android-incident-video-segment-and-logcat-alignment-p2-3-2026-10-15.md)。
 - [x] 2026-10-15 P3.1 K8s 动态性能压测 Pod 弹性扩缩容调度：落地 k8s_performance_operator 服务，实现基于 Kubernetes batch/v1 标准规范的性能算力 Job 自动调度；支持根据分片数自动均衡拆分负载并注入 Pod 资源约束与 ttlSecondsAfterFinished 自动回收机制；3 项单测独立通过，见 [`docs/evidence/k8s-dynamic-performance-pod-operator-p3-1-2026-10-15.md`](docs/evidence/k8s-dynamic-performance-pod-operator-p3-1-2026-10-15.md)。
-- [ ] P3.2 分布式性能指标实时汇总与基线比对（多 Pod 实时 TPS / P95 与基线对比）
+- [x] 2026-10-15 P3.2 分布式性能指标实时汇总与基线比对：落地 aggregate_distributed_timeseries_samples 实现多 Pod 时序吞吐汇总与延迟峰值合并；增强 build_baseline_comparison 输出自动化质量门禁判定（verdict 与 summary_verdict），支持 TPS 下降 >15%、延迟上升 >20%、错误率增量 >2% 判定劣化；5 项单测独立通过，见 [`docs/evidence/distributed-performance-metrics-aggregation-and-baseline-p3-2-2026-10-15.md`](docs/evidence/distributed-performance-metrics-aggregation-and-baseline-p3-2-2026-10-15.md)。
 - [ ] P3.3 多节点高可用与 Prometheus 报警规则集成（压力机与目标机资源熔断保护）
 - [ ] P4.1 企业微信 / 钉钉 / 飞书 富卡片通知模板（Interactive Message Card）
 - [ ] P4.2 Jira / 禅道 双向缺陷生命周期状态机同步（内部缺陷推送到外部，外部修复回填平台）

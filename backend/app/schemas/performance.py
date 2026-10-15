@@ -139,6 +139,8 @@ class PerformanceBaselineComparisonOut(BaseModel):
     baseline_run_id: int
     run_id: int
     metrics: list[PerformanceBaselineMetricOut]
+    verdict: Literal["passed", "regression", "improvement", "no_baseline"] = "passed"
+    summary_verdict: str | None = None
 
 
 class PerformanceMetricSampleOut(BaseModel):

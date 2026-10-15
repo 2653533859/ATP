@@ -67,6 +67,63 @@ def aggregate_performance_summaries(summaries: list[dict[str, Any]]) -> dict[str
     return result
 
 
+def aggregate_distributed_timeseries_samples(
+    shard_samples: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """Aggregate time-series metric samples across distributed K8s performance Pods.
+
+    Groups samples by timestamp / epoch:
+    - Throughput metrics (rps, tps, requests, data_received_bytes, data_sent_bytes) are summed across shards;
+    - Latency percentiles (p50_ms, p90_ms, p95_ms, p99_ms, max_ms) take peak value across shards;
+    - Error rate is averaged across reporting shards.
+    """
+    if not shard_samples:
+        return []
+
+    bucket_by_time: dict[str, list[dict[str, Any]]] = {}
+    for sample in shard_samples:
+        ts = str(sample.get("captured_at") or sample.get("time") or "")
+        if ts:
+            bucket_by_time.setdefault(ts, []).append(sample)
+
+    aggregated: list[dict[str, Any]] = []
+    for ts, samples in sorted(bucket_by_time.items()):
+        entry: dict[str, Any] = {"captured_at": ts, "shard_count": len(samples)}
+
+        # 1. Sum throughput metrics
+        for key in ("rps", "tps", "requests", "data_received_bytes", "data_sent_bytes"):
+            vals = [
+                float(s[key])
+                for s in samples
+                if isinstance(s.get(key), (int, float)) and not isinstance(s.get(key), bool)
+            ]
+            if vals:
+                entry[key] = round(sum(vals), 2)
+
+        # 2. Peak / Max latency percentiles
+        for key in ("p50_ms", "p90_ms", "p95_ms", "p99_ms", "max_ms"):
+            vals = [
+                float(s[key])
+                for s in samples
+                if isinstance(s.get(key), (int, float)) and not isinstance(s.get(key), bool)
+            ]
+            if vals:
+                entry[key] = round(max(vals), 2)
+
+        # 3. Mean error rate
+        err_vals = [
+            float(s["error_rate"])
+            for s in samples
+            if isinstance(s.get("error_rate"), (int, float)) and not isinstance(s.get("error_rate"), bool)
+        ]
+        if err_vals:
+            entry["error_rate"] = round(sum(err_vals) / len(err_vals), 4)
+
+        aggregated.append(entry)
+
+    return aggregated
+
+
 def _positive_int(value: object) -> bool:
     try:
         return int(str(value)) > 0 if value is not None else False
