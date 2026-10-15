@@ -69,6 +69,7 @@ from app.api.v1 import (
     audit_chain,
     cluster_workers,
     asset_graph,
+    ephemeral_sandboxes,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -143,3 +144,4 @@ router.include_router(iam_policy.router)
 router.include_router(audit_chain.router)
 router.include_router(cluster_workers.router)
 router.include_router(asset_graph.router)
+router.include_router(ephemeral_sandboxes.router)
