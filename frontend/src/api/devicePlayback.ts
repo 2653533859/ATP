@@ -41,6 +41,26 @@ export interface ExecutePlaybackStepRequest {
   }
 }
 
+export interface HybridLocateRequest {
+  target_params: Record<string, any>
+  ax_elements?: Array<Record<string, any>>
+  ocr_blocks?: Array<{
+    text: string
+    bounds?: [number, number, number, number] | string | number[]
+    confidence?: number
+  }>
+}
+
+export interface HybridLocateResponse {
+  success: boolean
+  matched_strategy: 'exact_dom' | 'fuzzy_ax_tree' | 'visual_ocr' | 'none'
+  confidence_score: number
+  healed: boolean
+  click_coordinates: [number, number] | null
+  target_element: Record<string, any> | null
+  healing_details: string | null
+}
+
 export const devicePlaybackApi = {
   initSession(data: InitPlaybackSessionRequest): Promise<PlaybackSessionSummary> {
     return http.post('/device-playback/sessions/init', data)
@@ -56,5 +76,9 @@ export const devicePlaybackApi = {
 
   getSession(sessionId: string): Promise<PlaybackSessionSummary> {
     return http.get(`/device-playback/sessions/${sessionId}`)
+  },
+
+  hybridLocate(data: HybridLocateRequest): Promise<HybridLocateResponse> {
+    return http.post('/device-playback/hybrid-locate', data)
   },
 }

@@ -12,7 +12,7 @@
 - [x] 2026-10-16 UI1.2 动态参数提取与上下文占位符规则配置抽屉：扩展 trafficRecording API 客户端并创建 DynamicParamExtractorDrawer 组件；实现跨步依赖发现、占位符对比预览与 Extractions 规则动态注入；与 TrafficRecordingDrawer 深度集成；单测独立通过，见 [`docs/evidence/dynamic-param-extractor-drawer-ui1-2-2026-10-16.md`](docs/evidence/dynamic-param-extractor-drawer-ui1-2-2026-10-16.md)。
 - [x] 2026-10-16 UI1.3 录制流量一键逆向合成用例与套件向导弹窗：扩展 trafficRecording API 客户端并创建 TrafficToCaseWizard 组件；支持 TestCase/TestSuite 三步走向导、多维自动断言与数据库原子持久化落库；与 TrafficRecordingDrawer 挂载集成；单测独立通过，见 [`docs/evidence/traffic-to-case-wizard-ui1-3-2026-10-16.md`](docs/evidence/traffic-to-case-wizard-ui1-3-2026-10-16.md)。至此 v3.1.0 Phase 1 全量闭环！
 - [x] 2026-10-16 UI2.1 真机回放动作编排执行抽屉与变量上下文配置：落地 devicePlayback API 客户端与 DevicePlaybackDrawer 组件；支持真机连接初始化与安全回收、动作编排与 {{var}} 上下文注入；挂载至 AppWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/device-playback-drawer-ui2-1-2026-10-16.md`](docs/evidence/device-playback-drawer-ui2-1-2026-10-16.md)。
-- [ ] UI2.2 视觉/DOM 混合自愈与 OCR 物理边界比对器（VisualSelfHealingInspector.vue）
+- [x] 2026-10-16 UI2.2 视觉/DOM 混合自愈与 OCR 物理边界比对器：扩展 devicePlayback API 客户端并创建 VisualSelfHealingInspector 组件；实现 Tier 1~3 多层级决策时间线、OCR 物理包围盒与中心坐标十字准星模拟画布；挂载至 DevicePlaybackDrawer；单测独立通过，见 [`docs/evidence/visual-self-healing-inspector-ui2-2-2026-10-16.md`](docs/evidence/visual-self-healing-inspector-ui2-2-2026-10-16.md)。
 - [ ] UI2.3 MP4 录屏毫秒级时间线对齐与异常高亮播放器（PlaybackKeyframeTimeline.vue）
 - [ ] UI3.1 微服务网关混沌故障注入规则编排卡片与抽样调节器（MeshChaosRuleCard.vue）
 - [ ] UI3.2 微服务调用依赖拓扑与爆炸半径逆向 BFS 级联阻断图（BlastRadiusTopologyGraph.vue）

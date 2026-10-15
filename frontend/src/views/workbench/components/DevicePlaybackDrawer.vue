@@ -106,6 +106,9 @@
             <a-button size="small" @click="loadPresetSteps">
               载入标准回放动作
             </a-button>
+            <a-button size="small" type="primary" ghost class="healing-inspector-btn" @click="showHealingInspector = true">
+              视觉/DOM 混合自愈排查
+            </a-button>
             <a-button
               size="small"
               type="primary"
@@ -177,6 +180,7 @@
           </template>
         </a-table>
       </a-card>
+      <VisualSelfHealingInspector v-model:open="showHealingInspector" />
     </div>
   </a-drawer>
 </template>
@@ -189,6 +193,7 @@ import {
   type PlaybackSessionSummary,
   type PlaybackStepRecord,
 } from '@/api/devicePlayback'
+import VisualSelfHealingInspector from './VisualSelfHealingInspector.vue'
 
 const props = withDefaults(
   defineProps<{
@@ -206,6 +211,7 @@ const props = withDefaults(
     targetApp: 'com.example.app',
   }
 )
+const showHealingInspector = ref(false)
 
 const emit = defineEmits<{
   (e: 'update:open', val: boolean): void
