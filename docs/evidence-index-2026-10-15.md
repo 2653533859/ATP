@@ -24,6 +24,7 @@
 | **N3.1~N3.3 升级与便携交付** | SQLite 版本 12 自动迁移；`manifest.json` SHA-256 完整性校验；Windows 独立绿色便携包打包脚本 | [`docs/evidence/windows-sqlite-upgrade-backup-restore-2026-10-12.md`](docs/evidence/windows-sqlite-upgrade-backup-restore-2026-10-12.md) | `test_sqlite_upgrade_and_backup.py` (14 passed) |
 | **N3.4 模式隔离与保护** | 动态 Cookie 隔离解析（`atp_local_*` vs `atp_*`）；单侧登出无影响；WebSocket 专属令牌鉴权；`X-ATP-Client-Mode` 409 拦截 | [`docs/evidence/windows-dual-mode-switching-auth-isolation-2026-10-15.md`](docs/evidence/windows-dual-mode-switching-auth-isolation-2026-10-15.md) | `test_dual_mode_isolation.py` (5 passed), `runtimeMode.spec.ts` (5 passed) |
 | **N4.1~N4.5 Hermes 智能中枢** | 8 类操作面板持久草稿与会话恢复；并发版本冲突拦截；共用命令服务接入 | [`docs/evidence/windows-hermes-recoverable-operations-2026-10-12.md`](docs/evidence/windows-hermes-recoverable-operations-2026-10-12.md) | Hermes 专项回归全量 (87 passed) |
+| **N5.1 现场环境基线** | 经 SSH 2222 连通 CHINAMI-762P0P5；K3s revision 62、6 Pod 稳定运行 17 天 0 重启；Prometheus 5/5 目标在线；线上 0074 迁移核验 | [`docs/evidence/linux-site-baseline-verification-n5-1-2026-10-15.md`](docs/evidence/linux-site-baseline-verification-n5-1-2026-10-15.md) | 现场 Pod、Prometheus、Flower 实测探针全通过 |
 | **N6.1 发布门禁与独立审查** | 全门禁扫描：Ruff规范/格式、Mypy、Bandit SAST、vue-tsc、生产构建与 pytest-standalone 独立单测扫描 | [`docs/evidence/windows-release-candidate-quality-n6-1-2026-10-15.md`](docs/evidence/windows-release-candidate-quality-n6-1-2026-10-15.md) | Ruff 0 错误、Mypy 188 源码 0 错误、Bandit 0 告警、Build 20.72s 通过 |
 
 ---
@@ -66,5 +67,5 @@ powershell -ExecutionPolicy Bypass -File .\scripts\windows-standalone.ps1 -Actio
 
 ## 4. 显式限制与未开放边界声明
 
-1. **Linux 现场环境（N5.1~N5.3）**：受控 Linux 节点 `172.31.27.133` 目前由于网络断开不可达；正式线上镜像构建部署与 14 日长期 SLO 门禁保持待环境恢复后闭环；
+1. **Linux 现场环境（N5.2~N5.3）**：受控 Linux 节点 `CHINAMI-762P0P5`（`192.168.3.196:2222`）连接已验证就绪（N5.1 通过）；长期 14 日 SLO 门禁判定与版本镜像升级（从 0074 迁移至 0079）按步骤推进；
 2. **多节点分布式性能压测（P4）**：单机模式已收敛 k6 / Locust / JMeter 的能力探测与安全执行；真实的生产 Kubernetes 多节点调度与 Prometheus 采集仍需具备生产集群时验收。
