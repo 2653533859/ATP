@@ -16,6 +16,10 @@ from app.services.network_simulation import (
     get_preset_network_profiles,
     is_packet_dropped,
 )
+from app.services.network_simulation_scheduler import (
+    NetworkMetricsCollector,
+    build_network_run_configuration,
+)
 
 router = APIRouter(prefix="/network-profiles", tags=["网络仿真与弱网治理"])
 
@@ -67,3 +71,49 @@ async def evaluate_network_profile_endpoint(
         cdp_conditions=cdp,
         adb_commands=adb,
     )
+
+
+class NetworkRunConfigIn(BaseModel):
+    profile_id: str = "2g_edge"
+    custom_profile: dict[str, Any] | None = None
+
+
+class NetworkSampleIn(BaseModel):
+    payload_bytes: int = Field(default=1024, ge=0)
+    is_retry: bool = False
+    timed_out: bool = False
+    error: str | None = None
+    custom_latency_ms: float | None = None
+
+
+class NetworkMetricsAggregateIn(BaseModel):
+    profile_id: str = "2g_edge"
+    custom_profile: dict[str, Any] | None = None
+    samples: list[NetworkSampleIn] = Field(default_factory=list)
+
+
+@router.post("/schedule-config")
+async def get_network_schedule_config_endpoint(
+    body: NetworkRunConfigIn,
+    _user: User = Depends(get_current_user),
+):
+    """生成用例执行器适配的弱网环境注入与复原指令（CDP 与 ADB 命令序列）。"""
+    return build_network_run_configuration(body.profile_id, body.custom_profile)
+
+
+@router.post("/metrics/aggregate")
+async def aggregate_network_metrics_endpoint(
+    body: NetworkMetricsAggregateIn,
+    _user: User = Depends(get_current_user),
+):
+    """聚合弱网用例运行中采集的网络样本，计算平均延迟、P95 延迟、重试率及应用抗弱网韧性评分。"""
+    collector = NetworkMetricsCollector(body.profile_id, body.custom_profile)
+    for s in body.samples:
+        collector.record_request(
+            payload_bytes=s.payload_bytes,
+            is_retry=s.is_retry,
+            timed_out=s.timed_out,
+            error=s.error,
+            custom_latency_ms=s.custom_latency_ms,
+        )
+    return collector.compute_summary()

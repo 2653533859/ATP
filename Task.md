@@ -9,7 +9,7 @@
 > v2.8.0 规划入口为 [`docs/development-task-plan-v2.8.0.md`](docs/development-task-plan-v2.8.0.md)，覆盖 Q1（弱网与网络仿真）、Q2（AI 探索与用例合成）、Q3（持续性能与混沌演练）、Q4（多租户配额与 FinOps）。
 
 - [x] 2026-10-16 Q1.1 弱网仿真配置与延迟丢包模型：落地 network_simulation 服务，建立 2G/3G/4G/离线/高丢包等 7 类预设档案；实现传输延迟与丢包判定算法；生成 CDP Network.emulateNetworkConditions 与 Android ADB tc netem 指令；开放 /api/v1/network-profiles/*；5 项单测独立通过，见 [`docs/evidence/mobile-network-simulation-and-throttling-q1-1-2026-10-16.md`](docs/evidence/mobile-network-simulation-and-throttling-q1-1-2026-10-16.md)。
-- [ ] Q1.2 弱网专项任务调度与用例指标采集（弱网下请求耗时、重试次数与超时容错指标）
+- [x] 2026-10-16 Q1.2 弱网专项任务调度与用例指标采集：落地 network_simulation_scheduler 服务，自动生成环境注入与安全复原指令序列；实现 NetworkMetricsCollector 采集实测延迟、丢包、重试与超时计数，并输出抗弱网韧性评分；3 项单测独立通过，见 [`docs/evidence/weak-network-simulation-scheduler-and-metrics-q1-2-2026-10-16.md`](docs/evidence/weak-network-simulation-scheduler-and-metrics-q1-2-2026-10-16.md)。
 - [ ] Q1.3 网络流量抓包与故障注入分析（抓包元数据解析与 DNS 劫持/中断故障归档）
 - [ ] Q2.1 基于状态树的智能探索遍历引擎（DOM/Accessibility 树状态机探索算法）
 - [ ] Q2.2 探索事件序列自动合成为 TestCase（有效事件流自动合并为标准用例资产）
