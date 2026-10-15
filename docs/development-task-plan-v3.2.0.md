@@ -35,7 +35,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | C2.1 `[x]` | **测试资产全景引用拓扑图谱与反向索引引擎** | 资产模块 | 落地 `asset_graph_indexer` 服务；解析用例-套件-计划-环境变量多层依赖链条，输出完整有向引用图谱；见 docs/evidence/asset-graph-indexer-c2-1-2026-10-16.md |
-| C2.2 `[ ]` | **接口契约变更影响面逆向推导与受影响用例标记** | C2.1 | 落地 `contract_change_impact_analyzer` 服务；对比 OpenAPI / JSON Schema 字段增删变动，自动逆向定位受损用例清单。 |
+| C2.2 `[x]` | **接口契约变更影响面逆向推导与受影响用例标记** | C2.1 | 落地 `contract_change_impact_analyzer` 服务；对比 OpenAPI / JSON Schema 字段增删变动，自动逆向定位受损用例清单；见 docs/evidence/contract-change-impact-analyzer-c2-2-2026-10-16.md |
 | C2.3 `[ ]` | **变更影响用例自动化精准回归套件合成与触发** | C2.2 | 落地 `targeted_regression_trigger` 服务；一键将受波及的用例自动重组为精准最小化回归测试套件并下发执行。 |
 
 ---

@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from typing import Any
 from fastapi import APIRouter, Depends, HTTPException, Query, status
+from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,8 +20,17 @@ from app.services.asset_graph_indexer import (
     RelationType,
     get_global_asset_indexer,
 )
+from app.services.contract_change_impact_analyzer import analyze_contract_change_impact
 
 router = APIRouter(prefix="/asset-graph", tags=["测试资产全景依赖图谱与反向索引"])
+
+
+class AnalyzeContractImpactIn(BaseModel):
+    method: str = Field(default="POST", description="HTTP 请求方法")
+    path: str = Field(default="/api/v1/orders", description="接口路由路径")
+    baseline_schema: dict[str, Any] = Field(..., description="基线旧版接口契约 Schema")
+    current_schema: dict[str, Any] = Field(..., description="当前新版接口契约 Schema")
+    project_id: int | None = Field(default=None, description="所属项目 ID")
 
 
 @router.get("/project/{project_id}")
@@ -148,3 +159,20 @@ async def trigger_reindex_assets_endpoint(
         "total_nodes": len(indexer.nodes),
         "total_forward_edges": sum(len(e) for e in indexer.forward_edges.values()),
     }
+
+
+@router.post("/contract-impact/analyze")
+async def analyze_contract_impact_endpoint(
+    body: AnalyzeContractImpactIn,
+    _user: User = Depends(get_current_user),
+):
+    """对比接口契约前后版本 Schema 变动，并逆向推导波及受损的测试用例与套件影响面。"""
+    _ = _user
+    report = analyze_contract_change_impact(
+        method=body.method,
+        path=body.path,
+        baseline_schema=body.baseline_schema,
+        current_schema=body.current_schema,
+        project_id=body.project_id,
+    )
+    return report.to_dict()

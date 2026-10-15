@@ -12,7 +12,7 @@
 - [x] 2026-10-16 C1.2 基于执行队列水位与优先级自适应弹性抢占调度器：落地 adaptive_queue_preemptor 服务与 /tasks/* API；实现 P0/P1 高优先级自适应弹性抢占插队、任务挂起与自动恢复、以及基于吞吐的实时等待 ETA 测算；4 项单测独立通过，见 [`docs/evidence/adaptive-queue-preemptor-c1-2-2026-10-16.md`](docs/evidence/adaptive-queue-preemptor-c1-2-2026-10-16.md)。
 - [x] 2026-10-16 C1.3 节点失联与心跳超时自动化任务故障转移与断点重试：落地 worker_failover_recovery 服务与 /failover/* API；实现心跳超时自动收割、孤儿任务抢救重入队与超限熔断终止；4 项单测独立通过，见 [`docs/evidence/worker-failover-recovery-c1-3-2026-10-16.md`](docs/evidence/worker-failover-recovery-c1-3-2026-10-16.md)。至此 v3.2.0 Phase 1 全量闭环！
 - [x] 2026-10-16 C2.1 测试资产全景引用拓扑图谱与反向索引引擎：落地 asset_graph_indexer 服务与 /asset-graph/* API；建立 Plan-Suite-Case-API-Dataset 七维有向图谱与双向反向索引；支持孤儿资产自动探测；5 项单测独立通过，见 [`docs/evidence/asset-graph-indexer-c2-1-2026-10-16.md`](docs/evidence/asset-graph-indexer-c2-1-2026-10-16.md)。
-- [ ] C2.2 接口契约变更影响面逆向推导与受影响用例标记（contract_change_impact_analyzer）
+- [x] 2026-10-16 C2.2 接口契约变更影响面逆向推导与受影响用例标记：落地 contract_change_impact_analyzer 服务与 /contract-impact/analyze API；支持契约 Diff 对比、受损用例逆向推导与 Breaking/Warning/Compatible 严重度打标；4 项单测独立通过，见 [`docs/evidence/contract-change-impact-analyzer-c2-2-2026-10-16.md`](docs/evidence/contract-change-impact-analyzer-c2-2-2026-10-16.md)。
 - [ ] C2.3 变更影响用例自动化精准回归套件合成与触发（targeted_regression_trigger）
 - [ ] C3.1 瞬时轻量级仿真沙箱与动态端口生命周期调度（ephemeral_sandbox_manager）
 - [ ] C3.2 跨协议数据透传与会话级上下文共享总线（cross_protocol_session_bus）
