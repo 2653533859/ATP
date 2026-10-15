@@ -32,6 +32,13 @@ from app.core.encryption import decrypt_config
 from app.core.url_security import validate_http_url_syntax, validate_public_http_url
 from app.models.notification import NotificationConfig, NotificationDelivery, NotifyChannel
 
+from app.services.rich_notification_cards import (
+    build_dingtalk_action_card,
+    build_feishu_interactive_card,
+    build_wechat_template_card,
+    sign_feishu_payload,
+)
+
 logger = logging.getLogger(__name__)
 
 MAX_RETRY_ATTEMPTS = 3
@@ -365,6 +372,8 @@ async def send_notification_channel(
         return await _send_with_retries(config, _send_wechat, summary)
     elif channel_value == NotifyChannel.dingtalk.value:
         return await _send_with_retries(config, _send_dingtalk, summary)
+    elif channel_value == NotifyChannel.feishu.value:
+        return await _send_with_retries(config, _send_feishu, summary)
     else:
         raise ValueError(f"不支持的通知渠道: {channel_value}")
 
@@ -405,7 +414,7 @@ def validate_notification_channel_config(channel: NotifyChannel | str, config: d
     if channel_value == NotifyChannel.email.value:
         normalize_email_recipients(config.get("recipients"))
         return
-    if channel_value in {NotifyChannel.wechat.value, NotifyChannel.dingtalk.value}:
+    if channel_value in {NotifyChannel.wechat.value, NotifyChannel.dingtalk.value, NotifyChannel.feishu.value}:
         webhook_url = config.get("webhook_url")
         if not isinstance(webhook_url, str) or not webhook_url.strip() or webhook_url == "******":
             raise ValueError("Webhook 通知需要 webhook_url")
@@ -683,19 +692,23 @@ def _smtp_send(msg: MIMEMultipart, recipients: list[str]):
 
 
 async def _send_wechat(config: dict, summary: dict):
-    """通过企业微信机器人 Webhook 发送通知"""
+    """通过企业微信机器人 Webhook 发送通知（支持 Markdown 与 template_card 富卡片）"""
     webhook_url = config.get("webhook_url", "")
     if not webhook_url:
         raise ValueError("企业微信通知缺少 webhook_url")
-    # DNS 解析是阻塞调用，放到线程池执行，避免占用事件循环。
     webhook_url = await asyncio.to_thread(validate_public_http_url, webhook_url)
 
-    payload = {
-        "msgtype": "markdown",
-        "markdown": {
-            "content": _build_markdown(summary, _normalize_language(config.get("language"))),
-        },
-    }
+    msgtype = config.get("msgtype")
+    report_url = config.get("report_url") or summary.get("report_url")
+    if msgtype == "template_card" or config.get("use_rich_card"):
+        payload = build_wechat_template_card(summary, report_url=report_url)
+    else:
+        payload = {
+            "msgtype": "markdown",
+            "markdown": {
+                "content": _build_markdown(summary, _normalize_language(config.get("language"))),
+            },
+        }
 
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(webhook_url, json=payload)
@@ -714,16 +727,13 @@ async def _send_wechat(config: dict, summary: dict):
 
 
 async def _send_dingtalk(config: dict, summary: dict):
-    """通过钉钉机器人 Webhook 发送通知（支持签名验证）"""
+    """通过钉钉机器人 Webhook 发送通知（支持 Markdown 与 actionCard 富卡片，支持签名验证）"""
     webhook_url = config.get("webhook_url", "")
     if not webhook_url:
         raise ValueError("钉钉通知缺少 webhook_url")
-    # DNS 解析是阻塞调用，放到线程池执行，避免占用事件循环。
     webhook_url = await asyncio.to_thread(validate_public_http_url, webhook_url)
 
     secret = config.get("secret", "")
-
-    # 钉钉签名
     if secret:
         timestamp = str(int(time.time() * 1000))
         string_to_sign = f"{timestamp}\n{secret}"
@@ -735,13 +745,18 @@ async def _send_dingtalk(config: dict, summary: dict):
         sign = urllib.parse.quote_plus(base64.b64encode(hmac_code))
         webhook_url = f"{webhook_url}&timestamp={timestamp}&sign={sign}"
 
-    payload = {
-        "msgtype": "markdown",
-        "markdown": {
-            "title": summary.get("title", _labels(config.get("language"))["default_title"]),
-            "text": _build_markdown(summary, _normalize_language(config.get("language"))),
-        },
-    }
+    msgtype = config.get("msgtype")
+    report_url = config.get("report_url") or summary.get("report_url")
+    if msgtype == "actionCard" or config.get("use_rich_card"):
+        payload = build_dingtalk_action_card(summary, report_url=report_url)
+    else:
+        payload = {
+            "msgtype": "markdown",
+            "markdown": {
+                "title": summary.get("title", _labels(config.get("language"))["default_title"]),
+                "text": _build_markdown(summary, _normalize_language(config.get("language"))),
+            },
+        }
 
     async with httpx.AsyncClient(timeout=10) as client:
         resp = await client.post(webhook_url, json=payload)
@@ -757,3 +772,33 @@ async def _send_dingtalk(config: dict, summary: dict):
             raise RuntimeError(safe_message)
 
         logger.info("钉钉通知发送成功")
+
+
+async def _send_feishu(config: dict, summary: dict):
+    """通过飞书机器人 Webhook 发送交互式富卡片通知（支持签名验证）"""
+    webhook_url = config.get("webhook_url", "")
+    if not webhook_url:
+        raise ValueError("飞书通知缺少 webhook_url")
+    webhook_url = await asyncio.to_thread(validate_public_http_url, webhook_url)
+
+    secret = config.get("secret", "")
+    report_url = config.get("report_url") or summary.get("report_url")
+    payload = build_feishu_interactive_card(summary, report_url=report_url)
+    if secret:
+        payload = sign_feishu_payload(payload, secret)
+
+    async with httpx.AsyncClient(timeout=10) as client:
+        resp = await client.post(webhook_url, json=payload)
+        if resp.status_code != 200:
+            message = f"飞书请求失败: HTTP {resp.status_code}"
+            logger.error(message)
+            raise RuntimeError(message)
+
+        data = resp.json()
+        code = data.get("code") if data.get("code") is not None else data.get("StatusCode")
+        if code != 0:
+            safe_message = _safe_exception_message(RuntimeError(data.get("msg") or str(data)))
+            logger.error("飞书通知失败: %s", safe_message)
+            raise RuntimeError(safe_message)
+
+        logger.info("飞书富卡片通知发送成功")

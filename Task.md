@@ -17,7 +17,7 @@
 - [x] 2026-10-15 P3.1 K8s 动态性能压测 Pod 弹性扩缩容调度：落地 k8s_performance_operator 服务，实现基于 Kubernetes batch/v1 标准规范的性能算力 Job 自动调度；支持根据分片数自动均衡拆分负载并注入 Pod 资源约束与 ttlSecondsAfterFinished 自动回收机制；3 项单测独立通过，见 [`docs/evidence/k8s-dynamic-performance-pod-operator-p3-1-2026-10-15.md`](docs/evidence/k8s-dynamic-performance-pod-operator-p3-1-2026-10-15.md)。
 - [x] 2026-10-15 P3.2 分布式性能指标实时汇总与基线比对：落地 aggregate_distributed_timeseries_samples 实现多 Pod 时序吞吐汇总与延迟峰值合并；增强 build_baseline_comparison 输出自动化质量门禁判定（verdict 与 summary_verdict），支持 TPS 下降 >15%、延迟上升 >20%、错误率增量 >2% 判定劣化；5 项单测独立通过，见 [`docs/evidence/distributed-performance-metrics-aggregation-and-baseline-p3-2-2026-10-15.md`](docs/evidence/distributed-performance-metrics-aggregation-and-baseline-p3-2-2026-10-15.md)。
 - [x] 2026-10-15 P3.3 多节点高可用与 Prometheus 报警规则集成：落地 performance_circuit_breaker 服务，实现 Prometheus 报警规则组自动构建与双向饱和度评估；实现压力机与目标过载自动熔断保护（trip_circuit_breaker_if_saturated）；实现多节点高可用调度与 Standby 冗余分流；6 项单测独立通过，见 [`docs/evidence/multi-node-ha-prometheus-alerting-circuit-breaker-p3-3-2026-10-15.md`](docs/evidence/multi-node-ha-prometheus-alerting-circuit-breaker-p3-3-2026-10-15.md)。
-- [ ] P4.1 企业微信 / 钉钉 / 飞书 富卡片通知模板（Interactive Message Card）
+- [x] 2026-10-15 P4.1 企业微信 / 钉钉 / 飞书 富卡片通知模板：落地 rich_notification_cards 服务，实现企业微信 template_card、钉钉 actionCard 与飞书 interactive 交互式富卡片通知构建；支持状态色彩徽标、通过率大号看板与直达测试报告 Action 按钮；新增 feishu 渠道与 20261015_0080 迁移；7 项单测独立通过，见 [`docs/evidence/rich-notification-cards-wechat-dingtalk-feishu-p4-1-2026-10-15.md`](docs/evidence/rich-notification-cards-wechat-dingtalk-feishu-p4-1-2026-10-15.md)。
 - [ ] P4.2 Jira / 禅道 双向缺陷生命周期状态机同步（内部缺陷推送到外部，外部修复回填平台）
 - [ ] P4.3 跨网络环境通知投递重试与安全审计（指数退避重试与敏感参数脱敏）
 

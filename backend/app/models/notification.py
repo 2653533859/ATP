@@ -8,6 +8,7 @@ class NotifyChannel(str, enum.Enum):
     email = "email"
     wechat = "wechat"
     dingtalk = "dingtalk"
+    feishu = "feishu"
 
 
 class NotificationConfig(Base, TimestampMixin):
