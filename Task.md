@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-16 v3.0.0 研发任务规划（进行中）
+
+> v3.0.0 规划入口为 [`docs/development-task-plan-v3.0.0.md`](docs/development-task-plan-v3.0.0.md)，覆盖 T1（全协议智能流量录制与用例逆向生成）、T2（移动端真机智能回放与视觉 DOM 混合自愈）、T3（分布式网关混沌演练与爆炸半径控制）、T4（企业级 OIDC/SSO 认证与合规审计安全中心）。
+
+- [x] 2026-10-16 T1.1 微服务反向代理流量录制与清洗服务：落地 traffic_recorder_gateway 服务与 /api/v1/traffic-recording/* 端点；支持微服务反向代理流量拦截与会话管理；实现静态资源与健康心跳自动清洗过滤及 Authorization/Cookie 凭据脱敏；4 项单测独立通过，见 [`docs/evidence/traffic-recorder-gateway-and-noise-filter-t1-1-2026-10-16.md`](docs/evidence/traffic-recorder-gateway-and-noise-filter-t1-1-2026-10-16.md)。
+- [ ] T1.2 动态参数变量提取与占位符替换算法（dynamic_param_extractor）
+- [ ] T1.3 流量录制会话自动逆向合成为用例套件（traffic_to_case_converter）
+- [ ] T2.1 Android/iOS 统一回放驱动器与生命周期（device_playback_driver）
+- [ ] T2.2 视觉与 DOM 混合智能定位器与失效自愈（visual_dom_hybrid_locator）
+- [ ] T2.3 回放步骤视频逐帧对齐与异常高亮报告（playback_timeline_reporter）
+- [ ] T3.1 多协议微服务网关级混沌故障编排引擎（mesh_chaos_orchestrator）
+- [ ] T3.2 混沌演练影响拓扑与爆炸半径控制（blast_radius_controller）
+- [ ] T3.3 全链路服务级高可用 SLA 韧性评分报告（service_mesh_resilience_report）
+- [ ] T4.1 企业级 OIDC / OAuth2 身份提供商集成（oidc_sso_provider）
+- [ ] T4.2 基于 RBAC + 细粒度操作资源鉴权边界（fine_grained_iam_policy）
+- [ ] T4.3 企业合规审计日志完整性哈希链与安全报表（audit_tamper_evident_chain）
+
 ## 2026-10-16 v2.9.0 研发任务规划（已全量闭环）
 
 > v2.9.0 规划入口为 [`docs/development-task-plan-v2.9.0.md`](docs/development-task-plan-v2.9.0.md)，覆盖 F1（弱网与网络仿真交互工作台）、F2（AI 自主探索与用例生成可视化控制台）、F3（持续性能混沌与容量预测图表视图）、F4（多租户资源配额与企业 FinOps 成本中心）。
