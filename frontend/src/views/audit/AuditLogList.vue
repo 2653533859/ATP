@@ -38,6 +38,9 @@
           <a-button style="margin-left: 8px" :loading="exporting" @click="exportLogs">
             {{ t('audit_logs.export') }}
           </a-button>
+          <a-button style="margin-left: 8px" type="dashed" @click="router.push('/system/audit-chain')">
+            防篡改哈希链校验
+          </a-button>
         </a-form-item>
       </a-form>
     </a-card>
@@ -78,12 +81,14 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { useI18n } from 'vue-i18n'
 import type { Dayjs } from 'dayjs'
 import { auditLogApi, type AuditLogItem } from '@/api'
 
 const { t } = useI18n()
+const router = useRouter()
 
 const filter = reactive<{ project_id?: number; user_id?: number; action?: string }>({})
 const logs = ref<AuditLogItem[]>([])

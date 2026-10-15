@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-16 v3.1.0 研发任务规划（进行中）
+## 2026-10-16 v3.1.0 研发任务规划（已全量闭环）
 
 > v3.1.0 规划入口为 [`docs/development-task-plan-v3.1.0.md`](docs/development-task-plan-v3.1.0.md)，覆盖 UI1（微服务流量录制与用例逆向生成工作台）、UI2（移动端真机回放与视频关键帧逐帧排障器）、UI3（微服务网关混沌演练与爆炸半径控制台）、UI4（企业级 OIDC/SSO 与不可篡改审计安全中心）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-16 UI3.3 全链路高可用 SLA 韧性评分与自愈 RTO 评级看板：创建 MeshResilienceReportView 页面与 /system/mesh-resilience 路由；呈现微服务 SLA 达成度、基线跌幅、RTO 秒级自愈与四维韧性评分（Grade A-F）；单测独立通过，见 [`docs/evidence/mesh-resilience-report-view-ui3-3-2026-10-16.md`](docs/evidence/mesh-resilience-report-view-ui3-3-2026-10-16.md)。至此 v3.1.0 Phase 3 全量闭环！
 - [x] 2026-10-16 UI4.1 企业级 OIDC / OAuth2 身份提供商接入与单点登录卡片：落地 oidcSso API 客户端与 OidcProviderConfigCard 组件；展示 IdP 列表、敏感凭据脱敏与一键生成防重放 SSO 跳转；挂载至 ConfigurationCenterView；单测独立通过，见 [`docs/evidence/oidc-provider-config-card-ui4-1-2026-10-16.md`](docs/evidence/oidc-provider-config-card-ui4-1-2026-10-16.md)。
 - [x] 2026-10-16 UI4.2 细粒度资源操作 RBAC 策略模拟器与 Anti-IDOR 诊断抽屉：落地 iamPolicy API 客户端与 IamPolicySimulatorDrawer 组件；支持 4 类预设攻防场景、在线策略决策点（PDP）判定与跨项目越权诊断；挂载至 ConfigurationCenterView；单测独立通过，见 [`docs/evidence/iam-policy-simulator-drawer-ui4-2-2026-10-16.md`](docs/evidence/iam-policy-simulator-drawer-ui4-2-2026-10-16.md)。
-- [ ] UI4.3 类区块链 SHA-256 审计日志哈希链完整性校验与合规证明导出（AuditTamperEvidentChainView.vue）
+- [x] 2026-10-16 UI4.3 类区块链 SHA-256 审计日志哈希链完整性校验与合规证明导出：落地 auditChain API 客户端并创建 AuditTamperEvidentChainView 视图与 /system/audit-chain 路由；实现密码学哈希指针链条渲染、模拟篡改定位排障与带 HMAC-SHA256 印章的合规报表一键导出；单测独立通过，见 [`docs/evidence/audit-tamper-evident-chain-view-ui4-3-2026-10-16.md`](docs/evidence/audit-tamper-evident-chain-view-ui4-3-2026-10-16.md)。至此 v3.1.0 全部 12 项交互工作台与控制台任务 100% 全量大闭环！
 
 ## 2026-10-16 v3.0.0 研发任务规划（已全量闭环）
 

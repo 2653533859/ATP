@@ -305,6 +305,12 @@ const router = createRouter({
           meta: { requireAdmin: true, roles: ADMIN_ONLY },
         },
         {
+          path: 'system/audit-chain',
+          name: 'system-audit-chain',
+          component: () => import('@/views/audit/AuditTamperEvidentChainView.vue'),
+          meta: { requireAdmin: true, roles: ADMIN_ONLY },
+        },
+        {
           path: 'system/users',
           name: 'system-users',
           component: () => import('@/views/system/UserManagementView.vue'),
