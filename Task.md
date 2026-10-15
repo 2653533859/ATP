@@ -13,7 +13,7 @@
 - [x] 2026-10-16 F1.3 弱网抗性评分雷达图与故障注入评估面板：落地 NetworkResilienceRadar 组件；实现五维抗弱网指标 ECharts 雷达图（响应/成功率/重试/超时/综合分）与 Grade A-D 评级徽章；支持目标接口正则匹配与故障注入在线试算；与 NetworkProfileDrawer 深度集成；单测独立通过，见 [`docs/evidence/network-resilience-radar-and-fault-simulator-f1-3-2026-10-16.md`](docs/evidence/network-resilience-radar-and-fault-simulator-f1-3-2026-10-16.md)。
 - [x] 2026-10-16 F2.1 页面状态树（FSM）拓扑与状态指纹视图：升级后端 get_exploration_session_endpoint 返回 nodes/links 拓扑；落地 exploration API 与 ExplorationGraphViewer 组件；实现力导向状态机拓扑图、置换不变状态指纹查看与动作槽明细；挂载至 AIWorkbenchView；单测独立通过，见 [`docs/evidence/exploration-fsm-graph-and-state-fingerprint-f2-1-2026-10-16.md`](docs/evidence/exploration-fsm-graph-and-state-fingerprint-f2-1-2026-10-16.md)。
 - [x] 2026-10-16 F2.2 探索事件流实时轨迹与一键生成 TestCase：落地 ExplorationTraceSynthesizer 组件与 synthesizeCase API 交互；支持原始事件流去噪折叠轨迹展示、自动生成终态文本断言与关键交互标记；支持一键落库保存 TestCase 资产；单测独立通过，见 [`docs/evidence/exploration-trace-and-case-synthesizer-f2-2-2026-10-16.md`](docs/evidence/exploration-trace-and-case-synthesizer-f2-2-2026-10-16.md)。
-- [ ] F2.3 异常假死与死循环振荡熔断告警卡片（ExplorationCircuitBreakerCard）
+- [x] 2026-10-16 F2.3 异常假死与死循环振荡熔断告警卡片：落地 ExplorationCircuitBreakerCard 组件；实现黑屏假死、连续失败、死循环振荡与最大步数 4 大健康探针进度监控；支持异常模拟与事故终止快照归档展示；集成至 AI 工作台探索控制台；单测独立通过，见 [`docs/evidence/exploration-circuit-breaker-card-f2-3-2026-10-16.md`](docs/evidence/exploration-circuit-breaker-card-f2-3-2026-10-16.md)。至此 v2.9.0 Phase 2 全量闭环！
 - [ ] F3.1 基线自动打标、漂移偏离度比对与指标告警（BaselineDriftMonitor）
 - [ ] F3.2 压力下混沌故障注入时间线与自愈 RTO 测定曲线（ChaosRtoTimeline）
 - [ ] F3.3 回归容量预测、饱和拐点与并发上限预测图（CapacityRegressionChart）

@@ -257,6 +257,9 @@
           <a-tab-pane key="synthesizer" tab="事件流轨迹与用例自动合成">
             <ExplorationTraceSynthesizer />
           </a-tab-pane>
+          <a-tab-pane key="circuit_breaker" tab="假死与死循环熔断保护">
+            <ExplorationCircuitBreakerCard />
+          </a-tab-pane>
         </a-tabs>
       </section>
     </template>
@@ -284,6 +287,7 @@ import {
 } from '@ant-design/icons-vue'
 const ExplorationGraphViewer = defineAsyncComponent(() => import('./components/ExplorationGraphViewer.vue'))
 const ExplorationTraceSynthesizer = defineAsyncComponent(() => import('./components/ExplorationTraceSynthesizer.vue'))
+const ExplorationCircuitBreakerCard = defineAsyncComponent(() => import('./components/ExplorationCircuitBreakerCard.vue'))
 const explorationTab = ref('fsm')
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
