@@ -8,7 +8,7 @@
 
 > v2.6.0 规划入口为 [`docs/development-task-plan-v2.6.0.md`](docs/development-task-plan-v2.6.0.md)，覆盖 P1（Hermes MCP & 多模态）、P2（真机池化与 AutoDroid）、P3（K8s 动态性能算力池）、P4（企业级协同生态）。
 
-- [ ] P1.1 ATP 核心工具 MCP Server 标准化暴露（JSON-RPC 2.0 / SSE 适配器）
+- [x] 2026-10-15 P1.1 ATP 核心工具 MCP Server 标准化暴露：落地 JSON-RPC 2.0 / Stdio（python -m app.mcp）与 HTTP（/api/v1/mcp/rpc）双模适配器；开放 atp_list_cases, atp_get_case_detail, atp_run_case, atp_get_run_status, atp_diagnose_failure, atp_create_defect, atp_get_project_summary 共 7 项标准 Tools；通过 test_mcp_server.py 8 项单测独立扫描；实机在 8001 端口完成认证、initialize、tools/list 与 tools/call 真实调用闭环，见 [`docs/evidence/mcp-server-protocol-standardization-p1-1-2026-10-15.md`](docs/evidence/mcp-server-protocol-standardization-p1-1-2026-10-15.md)。
 - [ ] P1.2 多模态视觉断言与元素视觉自愈（assert_visual_element / OCR 坐标回退）
 - [ ] P1.3 双向规格同步与测试资产自动对齐（OpenAPI / Swagger 自动生成增量补丁）
 - [ ] P2.1 AutoDroid 远程反向隧道 Agent 注册与心跳（Schema 13 remote_agents 动态绑定）

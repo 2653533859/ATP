@@ -56,6 +56,7 @@ from app.api.v1 import (
     ai_chat,
     device_agents,
     api_scenarios,
+    mcp,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -117,3 +118,4 @@ router.include_router(remote_toolbox.router)
 router.include_router(configuration_center.router)
 router.include_router(api_scenarios.router)
 router.include_router(device_stream_router)
+router.include_router(mcp.router)
