@@ -237,15 +237,29 @@ async def execute_suite_cases(
         fixture_error = f"Suite Fixture setup 失败: {exc}"
 
     case_queue_by_id: dict[int, str] = {}
+    android_case_ids: set[int] = set()
     for item in case_items:
         case_id = item.get("case_id")
         if not case_id:
             continue
         case = await db.get(TestCase, case_id)
         if case is not None:
+            ctype = getattr(case, "case_type", None)
+            from app.models.case import CaseType
+
+            if ctype == CaseType.android:
+                android_case_ids.add(case_id)
             from app.services.execution_routing import execution_queue_for_case_type
 
-            case_queue_by_id[case_id] = execution_queue_for_case_type(getattr(case, "case_type", None))
+            case_queue_by_id[case_id] = execution_queue_for_case_type(ctype)
+
+    device_matrix = raw_config.get("device_matrix")
+    if isinstance(device_matrix, list) and device_matrix and android_case_ids:
+        from app.services.device_leases import expand_case_items_for_device_matrix
+
+        case_items = expand_case_items_for_device_matrix(case_items, android_case_ids, device_matrix)
+        total_cases = len(case_items)
+
     remote_case_ids = {
         case_id for case_id, queue in case_queue_by_id.items() if queue != "default" and queue != execution_queue
     }
@@ -268,7 +282,10 @@ async def execute_suite_cases(
 
         if case.id in remote_case_ids:
             return await execute_case_fn(case_db, suite_run, case, fixture_context, route_to_worker=True)
-        return await execute_case_fn(case_db, suite_run, case, fixture_context)
+        extra_case_vars = {**fixture_context}
+        if item.get("device_id"):
+            extra_case_vars["device_id"] = item["device_id"]
+        return await execute_case_fn(case_db, suite_run, case, extra_case_vars)
 
     async def run_one(item: dict) -> dict:
         if is_cancelled_fn("suite", suite_run.id, suite_run.identity_token):

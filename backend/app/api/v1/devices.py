@@ -225,9 +225,25 @@ async def disconnect_remote_adb_device(
     else:
         device = await db.scalar(select(Device).where(Device.serial == serial))
         if device:
-            device.status = DeviceStatus.offline
+            from app.services.device_leases import handle_device_disconnection_recovery
+
+            await handle_device_disconnection_recovery(db, device.id, reason="manual_disconnect")
             await db.commit()
     return {"success": success, "message": message, "serial": serial}
+
+
+@router.post("/devices/{device_id}/disconnection-recovery")
+async def trigger_device_disconnection_recovery(
+    device_id: int,
+    db: AsyncSession = Depends(get_db),
+    _=Depends(require_engineer),
+):
+    """手动或掉线事件触发设备租约清理与在途任务收敛。"""
+    from app.services.device_leases import handle_device_disconnection_recovery
+
+    recovery = await handle_device_disconnection_recovery(db, device_id, reason="disconnection_trigger")
+    await db.commit()
+    return recovery
 
 
 @router.get("/devices/scan/{scan_id}", response_model=DeviceScanOut)

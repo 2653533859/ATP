@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from typing import Any
 import secrets
 from datetime import datetime, timedelta, timezone
 
@@ -121,3 +122,102 @@ async def reclaim_expired_device_leases(db: AsyncSession) -> int:
         count += 1
     await db.flush()
     return count
+
+
+async def acquire_available_device_from_pool(
+    db: AsyncSession,
+    device_ids: list[int] | None = None,
+    *,
+    owner_id: int | None,
+    owner_label: str,
+    ttl_seconds: int = 900,
+) -> tuple[Device, DeviceLease] | None:
+    """从设备池中寻找第一个可用的在线设备并锁定获取租约。"""
+    query = select(Device).where(Device.status != DeviceStatus.offline)
+    if device_ids:
+        query = query.where(Device.id.in_(device_ids))
+
+    devices = (await db.execute(query)).scalars().all()
+    for dev in devices:
+        try:
+            lease = await acquire_device_lease(
+                db,
+                dev.id,
+                owner_id=owner_id,
+                owner_label=owner_label,
+                ttl_seconds=ttl_seconds,
+            )
+            return dev, lease
+        except DeviceLeaseConflict:
+            continue
+    return None
+
+
+async def handle_device_disconnection_recovery(
+    db: AsyncSession, device_id: int, reason: str = "设备异常断开"
+) -> dict[str, Any]:
+    """当设备掉线或失联时：强制标记 offline、清除活动租约、收敛在途执行记录。"""
+    now = _now()
+    device = await db.get(Device, device_id)
+    if device is not None:
+        device.status = DeviceStatus.offline
+        device.last_seen_at = now
+
+    # 1. 清理活动租约
+    leases_res = await db.execute(select(DeviceLease).where(DeviceLease.device_id == device_id))
+    leases = leases_res.scalars().all()
+    for lease in leases:
+        await db.delete(lease)
+
+    # 2. 收敛在途 TestRun
+    recovered_runs_count = 0
+    if device is not None:
+        from app.models.case import RunStatus, TestRun
+
+        runs_res = await db.execute(
+            select(TestRun).where(
+                TestRun.status.in_([RunStatus.pending, RunStatus.running]),
+            )
+        )
+        runs = runs_res.scalars().all()
+        for run in runs:
+            summary = run.result_summary or {}
+            if summary.get("device_serial") == device.serial or summary.get("device_id") == device.id:
+                run.status = RunStatus.error
+                run.error_message = f"执行设备异常掉线或失联: {reason}"
+                recovered_runs_count += 1
+
+    await db.flush()
+    return {
+        "device_id": device_id,
+        "released_leases": len(leases),
+        "recovered_runs": recovered_runs_count,
+    }
+
+
+def expand_case_items_for_device_matrix(
+    case_items: list[dict[str, Any]],
+    android_case_ids: set[int],
+    device_ids: list[Any],
+) -> list[dict[str, Any]]:
+    """将套件中 Android 用例按真机矩阵设备列表展开。"""
+    if not device_ids or not android_case_ids:
+        return list(case_items)
+
+    expanded: list[dict[str, Any]] = []
+    for item in case_items:
+        cid = item.get("case_id")
+        if cid in android_case_ids:
+            for dev_item in device_ids:
+                dev_id = dev_item if isinstance(dev_item, int) else dev_item.get("device_id")
+                if dev_id:
+                    expanded.append(
+                        {
+                            **item,
+                            "device_id": dev_id,
+                            "extra_vars": {**(item.get("extra_vars") or {}), "device_id": dev_id},
+                        }
+                    )
+        else:
+            expanded.append(item)
+    return expanded
