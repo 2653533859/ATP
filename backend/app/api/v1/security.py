@@ -16,6 +16,10 @@ from app.services.api_key_governance import (
     generate_api_key,
     revoke_api_key,
 )
+from app.services.disaster_recovery import (
+    create_disaster_recovery_snapshot,
+    perform_disaster_recovery_drill,
+)
 from app.services.sensitive_data_redactor import apply_pii_redaction_gateway
 
 router = APIRouter(prefix="/security", tags=["安全与合规"])
@@ -119,3 +123,35 @@ async def revoke_api_key_endpoint(
         raise HTTPException(status_code=404, detail="API Key 不存在或无权限操作")
     await db.commit()
     return None
+
+
+class DrSnapshotCreateIn(BaseModel):
+    snapshot_tag: str = "manual"
+
+
+@router.post("/disaster-recovery/snapshot")
+async def create_dr_snapshot_endpoint(
+    body: DrSnapshotCreateIn,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_admin),
+):
+    """创建平台全量核心资产灾备快照（包含数据库表统计、SHA-256 校验清单与元数据）。"""
+    manifest, _archive_bytes = await create_disaster_recovery_snapshot(
+        db,
+        snapshot_tag=body.snapshot_tag,
+    )
+    return manifest
+
+
+@router.post("/disaster-recovery/drill")
+async def perform_dr_drill_endpoint(
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_admin),
+):
+    """执行自动化灾备恢复演练（测试解压、SHA-256 完整性核对与关键表数量核对）。"""
+    manifest, archive_bytes = await create_disaster_recovery_snapshot(db, snapshot_tag="drill")
+    report = perform_disaster_recovery_drill(
+        archive_bytes,
+        expected_table_counts=manifest.get("table_counts"),
+    )
+    return report
