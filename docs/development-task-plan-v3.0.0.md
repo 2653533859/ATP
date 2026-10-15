@@ -24,7 +24,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T1.1 `[x]` | **微服务反向代理流量录制与清洗服务** | 网络模块 | 代理拦截真实 HTTP/REST 请求，自动滤除静态资源与心跳并提取请求/响应元数据；见 docs/evidence/traffic-recorder-gateway-and-noise-filter-t1-1-2026-10-16.md |
-| T1.2 `[ ]` | **动态参数变量提取与占位符替换算法** | T1.1 | 识别上下游请求参数依赖（Token/ID），自动提取并替换为 `{{var}}` 动态变量占位符。 |
+| T1.2 `[x]` | **动态参数变量提取与占位符替换算法** | T1.1 | 识别上下游请求参数依赖（Token/ID），自动提取并替换为 `{{var}}` 动态变量占位符；见 docs/evidence/dynamic-param-extractor-and-placeholder-t1-2-2026-10-16.md |
 | T1.3 `[ ]` | **流量录制会话自动逆向合成为用例套件** | T1.2 | 将清洗参数化后的录制会话批量转换为标准 TestCase、CaseStep 步骤与 JSONPath 断言。 |
 
 ---

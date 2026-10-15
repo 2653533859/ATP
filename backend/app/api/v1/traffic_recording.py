@@ -13,6 +13,7 @@ from app.services.traffic_recorder_gateway import (
     start_recording_session,
     stop_recording_session,
 )
+from app.services.dynamic_param_extractor import extract_and_parameterize_traffic_stream
 
 router = APIRouter(prefix="/traffic-recording", tags=["全协议流量录制与用例逆向生成"])
 
@@ -33,6 +34,10 @@ class RecordTrafficEntryIn(BaseModel):
     response_headers: dict[str, str] = Field(default_factory=dict, description="响应头")
     response_body: Any = Field(default=None, description="响应 Body")
     duration_ms: float = Field(default=50.0, ge=0.0, description="接口执行耗时(毫秒)")
+
+
+class ExtractParamsIn(BaseModel):
+    entries: list[dict[str, Any]] = Field(default_factory=list, description="清洗后的流量抓包条目列表")
 
 
 @router.post("/sessions/start")
@@ -101,3 +106,25 @@ async def record_entry_endpoint(
         duration_ms=body.duration_ms,
     )
     return entry.to_dict()
+
+
+@router.post("/sessions/{session_id}/extract-params")
+async def extract_session_params_endpoint(
+    session_id: str,
+    _user: User = Depends(get_current_user),
+):
+    """分析指定录制会话中上下游请求参数依赖，自动提取并替换为 {{variable}} 动态参数。"""
+    session = get_recording_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="录制会话不存在")
+    clean_entries = session.get_clean_entries()
+    return extract_and_parameterize_traffic_stream(clean_entries)
+
+
+@router.post("/extract-params")
+async def extract_params_endpoint(
+    body: ExtractParamsIn,
+    _user: User = Depends(get_current_user),
+):
+    """直接对传入的流量条目列表执行依赖分析与占位符变量参数化。"""
+    return extract_and_parameterize_traffic_stream(body.entries)

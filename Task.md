@@ -9,7 +9,7 @@
 > v3.0.0 规划入口为 [`docs/development-task-plan-v3.0.0.md`](docs/development-task-plan-v3.0.0.md)，覆盖 T1（全协议智能流量录制与用例逆向生成）、T2（移动端真机智能回放与视觉 DOM 混合自愈）、T3（分布式网关混沌演练与爆炸半径控制）、T4（企业级 OIDC/SSO 认证与合规审计安全中心）。
 
 - [x] 2026-10-16 T1.1 微服务反向代理流量录制与清洗服务：落地 traffic_recorder_gateway 服务与 /api/v1/traffic-recording/* 端点；支持微服务反向代理流量拦截与会话管理；实现静态资源与健康心跳自动清洗过滤及 Authorization/Cookie 凭据脱敏；4 项单测独立通过，见 [`docs/evidence/traffic-recorder-gateway-and-noise-filter-t1-1-2026-10-16.md`](docs/evidence/traffic-recorder-gateway-and-noise-filter-t1-1-2026-10-16.md)。
-- [ ] T1.2 动态参数变量提取与占位符替换算法（dynamic_param_extractor）
+- [x] 2026-10-16 T1.2 动态参数变量提取与占位符替换算法：落地 dynamic_param_extractor 服务与 extract-params 端点；实现递归叶子标量与 JSONPath 提取；支持 URL 路径、Query 参数、Headers 与 JSON 请求体依赖识别并替换为 {{variable}}；前置步骤自动注入 extractions 规则；4 项单测独立通过，见 [`docs/evidence/dynamic-param-extractor-and-placeholder-t1-2-2026-10-16.md`](docs/evidence/dynamic-param-extractor-and-placeholder-t1-2-2026-10-16.md)。
 - [ ] T1.3 流量录制会话自动逆向合成为用例套件（traffic_to_case_converter）
 - [ ] T2.1 Android/iOS 统一回放驱动器与生命周期（device_playback_driver）
 - [ ] T2.2 视觉与 DOM 混合智能定位器与失效自愈（visual_dom_hybrid_locator）
