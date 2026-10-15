@@ -17,6 +17,9 @@
         <a-button size="small" class="toolbox-export" :disabled="!overview" @click="exportOverview">
           <DownloadOutlined /> {{ t('remote_toolbox.export') }}
         </a-button>
+        <a-button size="small" @click="harModalVisible = true">
+          <FileSearchOutlined /> HAR 抓包诊断
+        </a-button>
         <a-button type="primary" size="small" class="toolbox-refresh" :loading="loading" @click="loadOverview">
           <ReloadOutlined :spin="loading" />
           {{ t('remote_toolbox.refresh') }}
@@ -88,11 +91,19 @@
         </article>
       </div>
     </section>
+    <a-modal
+      v-model:open="harModalVisible"
+      title="HTTP 抓包流量与慢请求瀑布流分析"
+      width="1000px"
+      :footer="null"
+    >
+      <HarTrafficViewer />
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 import {
@@ -103,6 +114,7 @@ import {
   ReloadOutlined,
   ToolOutlined,
   WarningOutlined,
+  FileSearchOutlined,
 } from '@ant-design/icons-vue'
 import { message } from 'ant-design-vue'
 import {
@@ -110,12 +122,14 @@ import {
   type RemoteToolboxCheckStatus,
   type RemoteToolboxOverview,
 } from '@/api'
+const HarTrafficViewer = defineAsyncComponent(() => import('./components/HarTrafficViewer.vue'))
 
 const { t, locale } = useI18n()
 const router = useRouter()
 const loading = ref(false)
 const overview = ref<RemoteToolboxOverview | null>(null)
 
+const harModalVisible = ref(false)
 const checkGroups = computed(() => [
   {
     index: 1,

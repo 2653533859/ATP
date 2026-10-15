@@ -9,7 +9,7 @@
 > v2.9.0 规划入口为 [`docs/development-task-plan-v2.9.0.md`](docs/development-task-plan-v2.9.0.md)，覆盖 F1（弱网与网络仿真交互工作台）、F2（AI 自主探索与用例生成可视化控制台）、F3（持续性能混沌与容量预测图表视图）、F4（多租户资源配额与企业 FinOps 成本中心）。
 
 - [x] 2026-10-16 F1.1 弱网仿真档案管理与参数试算抽屉：落地 networkSimulation API 客户端与 NetworkProfileDrawer 组件；支持 7 类预设档案展示、自定义数据包大小试算、预期传输耗时与 CDP/ADB 命令实时预览；挂载至 DeviceList 头部操作区；单测独立通过，见 [`docs/evidence/weak-network-profile-drawer-f1-1-2026-10-16.md`](docs/evidence/weak-network-profile-drawer-f1-1-2026-10-16.md)。
-- [ ] F1.2 HAR 抓包流量瀑布流与慢请求 Top5 诊断卡片（HarTrafficViewer）
+- [x] 2026-10-16 F1.2 HAR 抓包流量瀑布流与慢请求 Top5 诊断卡片：落地 HarTrafficViewer 组件与 parseHar API 调用；实现抓包文件大小统计、动态耗时瀑布流、慢请求 Top 5 下钻卡片与 URL/异常状态即时过滤；集成至 RemoteToolboxView 顶部操作区；单测独立通过，见 [`docs/evidence/har-traffic-waterfall-and-slow-requests-f1-2-2026-10-16.md`](docs/evidence/har-traffic-waterfall-and-slow-requests-f1-2-2026-10-16.md)。
 - [ ] F1.3 弱网抗性评分雷达图与故障注入评估面板（NetworkResilienceRadar）
 - [ ] F2.1 页面状态树（FSM）拓扑与状态指纹视图（ExplorationGraphViewer）
 - [ ] F2.2 探索事件流实时轨迹与一键生成 TestCase（ExplorationTraceSynthesizer）
