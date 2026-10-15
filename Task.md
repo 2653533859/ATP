@@ -13,7 +13,7 @@
 - [x] 2026-10-16 T1.3 流量录制会话自动逆向合成为用例套件：落地 traffic_to_case_converter 服务；实现 HTTP 状态码、JSONPath 业务状态与耗时 SLA 多维断言生成；支持录制流量逆向转换为 TestCase、CaseStep 与 TestSuite 套件资产及数据库原子落库；开放 /sessions/{id}/synthesize-case 与 /synthesize-suite 端点；5 项单测独立通过，见 [`docs/evidence/traffic-to-case-and-suite-converter-t1-3-2026-10-16.md`](docs/evidence/traffic-to-case-and-suite-converter-t1-3-2026-10-16.md)。至此 v3.0.0 Phase 1 全量闭环！
 - [x] 2026-10-16 T2.1 Android/iOS 统一回放驱动器与生命周期：落地 device_playback_driver 服务与 /device-playback/* API；实现跨平台移动动作标准化分发（点击/输入/滑动/等待/断言）；支持真机连接生命周期与 {{var}} 上下文变量动态渲染；5 项单测独立通过，见 [`docs/evidence/device-playback-driver-and-lifecycle-t2-1-2026-10-16.md`](docs/evidence/device-playback-driver-and-lifecycle-t2-1-2026-10-16.md)。
 - [x] 2026-10-16 T2.2 视觉与 DOM 混合智能定位器与失效自愈：落地 visual_dom_hybrid_locator 服务与 /hybrid-locate 端点；实现 Tier 1 绝对 DOM、Tier 2 无障碍树模糊启发评分与 Tier 3 视觉 OCR 边界物理坐标自愈补偿；5 项单测独立通过，见 [`docs/evidence/visual-dom-hybrid-locator-and-self-healing-t2-2-2026-10-16.md`](docs/evidence/visual-dom-hybrid-locator-and-self-healing-t2-2-2026-10-16.md)。
-- [ ] T2.3 回放步骤视频逐帧对齐与异常高亮报告（playback_timeline_reporter）
+- [x] 2026-10-16 T2.3 回放步骤视频逐帧对齐与异常高亮报告：落地 playback_timeline_reporter 服务；实现 MP4 视频毫秒级相对偏移与绝对帧号对齐；自动生成失败与自愈步骤关键帧高亮标记与播放器时间线进度跳转；开放 /device-playback/sessions/{id}/timeline-report 端点；4 项单测独立通过，见 [`docs/evidence/playback-step-video-keyframe-alignment-t2-3-2026-10-16.md`](docs/evidence/playback-step-video-keyframe-alignment-t2-3-2026-10-16.md)。至此 v3.0.0 Phase 2 全量闭环！
 - [ ] T3.1 多协议微服务网关级混沌故障编排引擎（mesh_chaos_orchestrator）
 - [ ] T3.2 混沌演练影响拓扑与爆炸半径控制（blast_radius_controller）
 - [ ] T3.3 全链路服务级高可用 SLA 韧性评分报告（service_mesh_resilience_report）

@@ -35,7 +35,7 @@
 |---|---|---|---|
 | T2.1 `[x]` | **Android/iOS 统一回放驱动器与生命周期** | 设备模块 | 在真实 Android (uiautomator2) 与 iOS (XCUITest) 物理设备上受控回放用例步骤；见 docs/evidence/device-playback-driver-and-lifecycle-t2-1-2026-10-16.md |
 | T2.2 `[x]` | **视觉与 DOM 混合智能定位器与失效自愈** | T2.1 | 当元素定位失效时，动态结合屏幕截图 OCR 文本与无障碍树特征进行自愈匹配与重试；见 docs/evidence/visual-dom-hybrid-locator-and-self-healing-t2-2-2026-10-16.md |
-| T2.3 `[ ]` | **回放步骤视频逐帧对齐与异常高亮报告** | T2.2 | 自动将执行步骤与 MP4 录像时间戳对齐，生成带失败现场关键帧标注的交互回放报告。 |
+| T2.3 `[x]` | **回放步骤视频逐帧对齐与异常高亮报告** | T2.2 | 自动将执行步骤与 MP4 录像时间戳对齐，生成带失败现场关键帧标注的交互回放报告；见 docs/evidence/playback-step-video-keyframe-alignment-t2-3-2026-10-16.md |
 
 ---
 

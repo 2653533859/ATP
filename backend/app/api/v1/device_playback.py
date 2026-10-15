@@ -14,6 +14,10 @@ from app.services.device_playback_driver import (
     teardown_playback_session,
 )
 from app.services.visual_dom_hybrid_locator import heal_and_locate_element
+from app.services.playback_timeline_reporter import (
+    compile_playback_timeline_report,
+    compile_report_for_active_session,
+)
 
 router = APIRouter(prefix="/device-playback", tags=["移动端真机回放与自愈驱动"])
 
@@ -34,6 +38,21 @@ class HybridLocateIn(BaseModel):
     target_params: dict[str, Any] = Field(..., description="目标元素定位特征 (text, resource_id, accessibility_id)")
     ax_elements: list[dict[str, Any]] = Field(default_factory=list, description="当前屏幕无障碍树节点列表")
     ocr_blocks: list[dict[str, Any]] = Field(default_factory=list, description="当前屏幕 OCR 文本块与边界列表")
+
+
+class CompileSessionReportIn(BaseModel):
+    video_url: str = Field(default="", description="MP4 录屏访问 URL")
+    video_duration_seconds: float = Field(default=60.0, ge=1.0)
+
+
+class CompileRawReportIn(BaseModel):
+    session_id: str
+    platform: str = "android"
+    step_records: list[dict[str, Any]] = Field(default_factory=list)
+    video_url: str = ""
+    video_start_time: str | None = None
+    video_duration_seconds: float = 60.0
+    fps: float = 30.0
 
 
 @router.post("/sessions/init")
@@ -107,3 +126,37 @@ async def hybrid_locate_endpoint(
         ocr_blocks=body.ocr_blocks,
     )
     return result.to_dict()
+
+
+@router.post("/sessions/{session_id}/timeline-report")
+async def compile_session_timeline_report_endpoint(
+    session_id: str,
+    body: CompileSessionReportIn,
+    _user: User = Depends(get_current_user),
+):
+    """为当前活跃或完成的回放会话编译音画逐帧对齐的交互时间线报告。"""
+    report = compile_report_for_active_session(
+        session_id=session_id,
+        video_url=body.video_url,
+        video_duration_seconds=body.video_duration_seconds,
+    )
+    if report is None:
+        raise HTTPException(status_code=404, detail="回放会话不存在")
+    return report
+
+
+@router.post("/timeline-report/compile")
+async def compile_raw_timeline_report_endpoint(
+    body: CompileRawReportIn,
+    _user: User = Depends(get_current_user),
+):
+    """直接基于传入的步骤记录与视频元数据生成带关键帧与失败现场的对齐报告。"""
+    return compile_playback_timeline_report(
+        session_id=body.session_id,
+        platform=body.platform,
+        step_records=body.step_records,
+        video_url=body.video_url,
+        video_start_time=body.video_start_time,
+        video_duration_seconds=body.video_duration_seconds,
+        fps=body.fps,
+    )
