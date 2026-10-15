@@ -6,14 +6,22 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
-from app.api.deps import get_current_user
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from app.api.deps import assert_project_access, get_current_user, require_engineer
+from app.core.database import get_db
 from app.models.user import User
+from app.models.user_project import ProjectRole
 from app.services.traffic_recorder_gateway import (
     get_recording_session,
     start_recording_session,
     stop_recording_session,
 )
 from app.services.dynamic_param_extractor import extract_and_parameterize_traffic_stream
+from app.services.traffic_to_case_converter import (
+    synthesize_case_from_traffic,
+    synthesize_suite_from_session,
+)
 
 router = APIRouter(prefix="/traffic-recording", tags=["全协议流量录制与用例逆向生成"])
 
@@ -38,6 +46,21 @@ class RecordTrafficEntryIn(BaseModel):
 
 class ExtractParamsIn(BaseModel):
     entries: list[dict[str, Any]] = Field(default_factory=list, description="清洗后的流量抓包条目列表")
+
+
+class SynthesizeCaseFromSessionIn(BaseModel):
+    case_name: str = Field(min_length=1, max_length=128)
+    module_id: int = Field(ge=1)
+    persist: bool = Field(default=False)
+    description: str | None = None
+    priority: str = Field(default="P1")
+    case_level: str = Field(default="core")
+
+
+class SynthesizeSuiteFromSessionIn(BaseModel):
+    suite_name: str = Field(min_length=1, max_length=128)
+    module_id: int = Field(ge=1)
+    persist: bool = Field(default=False)
 
 
 @router.post("/sessions/start")
@@ -128,3 +151,59 @@ async def extract_params_endpoint(
 ):
     """直接对传入的流量条目列表执行依赖分析与占位符变量参数化。"""
     return extract_and_parameterize_traffic_stream(body.entries)
+
+
+@router.post("/sessions/{session_id}/synthesize-case")
+async def synthesize_case_from_session_endpoint(
+    session_id: str,
+    body: SynthesizeCaseFromSessionIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+):
+    """将指定录制会话的清洗流量逆向合成为标准的 TestCase 与 CaseStep 资产。"""
+    session = get_recording_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="录制会话不存在")
+    await assert_project_access(db, user, session.project_id, ProjectRole.editor)
+    try:
+        raw_entries = [e.to_dict() for e in session.entries]
+        return await synthesize_case_from_traffic(
+            raw_entries,
+            case_name=body.case_name,
+            module_id=body.module_id,
+            owner_id=user.id,
+            project_id=session.project_id,
+            description=body.description,
+            priority=body.priority,  # type: ignore[arg-type]
+            case_level=body.case_level,  # type: ignore[arg-type]
+            persist=body.persist,
+            db=db,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/sessions/{session_id}/synthesize-suite")
+async def synthesize_suite_from_session_endpoint(
+    session_id: str,
+    body: SynthesizeSuiteFromSessionIn,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+):
+    """将指定录制会话的清洗流量逆向合成为标准的 TestSuite 套件资产。"""
+    session = get_recording_session(session_id)
+    if session is None:
+        raise HTTPException(status_code=404, detail="录制会话不存在")
+    await assert_project_access(db, user, session.project_id, ProjectRole.editor)
+    try:
+        return await synthesize_suite_from_session(
+            session_id=session_id,
+            suite_name=body.suite_name,
+            module_id=body.module_id,
+            project_id=session.project_id,
+            owner_id=user.id,
+            persist=body.persist,
+            db=db,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
