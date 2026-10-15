@@ -6,7 +6,7 @@
 
 - **候选 SHA**：`f06c4ec5d460e05b37061c87f08a014080e23ac0`
 - **便携包归档**：`.local-run/atp-windows-standalone-20261015-181718.zip`（SHA-256: `1ef2f45374102695439287e51ed86ca710b38eab9257912a496bfa0029cc2672`）
-- **数据库版本**：SQLite 版本 12 / PostgreSQL Alembic `20261008_0079 (head)`
+- **数据库版本**：SQLite 版本 13 / PostgreSQL Alembic `20261008_0079 (head)`
 - **支持架构**：Windows 单机轻量模式（SQLite + 本地文件 + 内存任务）与 Linux 服务器模式（PostgreSQL + Redis + Celery + MinIO）
 
 ---

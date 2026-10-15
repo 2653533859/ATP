@@ -4,7 +4,7 @@
 
 ## 启动
 
-当前功能与验收缺口见 [`current-capability-baseline-2026-10-07.md`](current-capability-baseline-2026-10-07.md)，剩余任务见 [`development-task-plan-2026-10-07.md`](development-task-plan-2026-10-07.md)。本地已接入 Web 录制、手动串行套件/计划、需求、缺陷、知识、资产、AI 配置、协议测试、Hermes 与单机性能。AI 需要自行配置联网模型；计划/性能不支持定时或远程节点。当前代码 SQLite 版本为 12，启动时显式升级；版本 8 增加资源身份，版本 9 增加套件投递意图，版本 10 增加首次接受凭据及套件队列/租约 UUID，版本 11 增加计划 UUID、取消时间及子归属记录，版本 12 增加备份校验与便携包完整性支持。套件/计划执行记录展开后可查询恢复状态和请求协作取消。旧命令/旧运行不自动猜测或补投；已接受但失联的运行须核对，不能自动重跑。详见 [N1.5 记录](group-recovery-development-2026-10-08.md) 与 [N3.1~N3.3 记录](evidence/windows-sqlite-upgrade-backup-restore-2026-10-12.md)。实现接入与业务验收分别记录。
+当前功能与验收缺口见 [`current-capability-baseline-2026-10-07.md`](current-capability-baseline-2026-10-07.md)，剩余任务见 [`development-task-plan-2026-10-07.md`](development-task-plan-2026-10-07.md)。本地已接入 Web 录制、手动串行套件/计划、需求、缺陷、知识、资产、AI 配置、协议测试、Hermes 与单机性能。AI 需要自行配置联网模型；计划/性能不支持定时或远程节点。当前代码 SQLite 版本为 13，启动时显式升级；版本 8 增加资源身份，版本 9 增加套件投递意图，版本 10 增加首次接受凭据及套件队列/租约 UUID，版本 11 增加计划 UUID、取消时间及子归属记录，版本 12 移除冗余表并加固备份完整性，版本 13 接入 AutoDroid 远程 Agent 隧道与设备表。套件/计划执行记录展开后可查询恢复状态和请求协作取消。旧命令/旧运行不自动猜测或补投；已接受但失联的运行须核对，不能自动重跑。详见 [N1.5 记录](group-recovery-development-2026-10-08.md) 与 [N3.1~N3.3 记录](evidence/windows-sqlite-upgrade-backup-restore-2026-10-12.md)。实现接入与业务验收分别记录。
 
 需要 Python 3.12、Node 20+、`backend/.venv` 和 `frontend/node_modules`。首次使用先安装后端依赖：
 
@@ -64,4 +64,4 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\scripts\windows-standalone
 
 ## 2026-10-15 交付状态
 
-当前本地 SQLite 版本为 12；以静态模式运行，页面和 API 均由 `8001` 提供。开发模式可另启 `5174` Vite。全套 CI 对应门禁（Ruff 规范/格式、Mypy 188 源码文件、Bandit SAST、vue-tsc 与生产构建）均已通过。统一交付证据索引见 [`evidence-index-2026-10-15.md`](evidence-index-2026-10-15.md)。
+当前本地 SQLite 版本为 13；以静态模式运行，页面和 API 均由 `8001` 提供。开发模式可另启 `5174` Vite。全套 CI 对应门禁（Ruff 规范/格式、Mypy 188 源码文件、Bandit SAST、vue-tsc 与生产构建）均已通过。统一交付证据索引见 [`evidence-index-2026-10-15.md`](evidence-index-2026-10-15.md)。
