@@ -15,6 +15,12 @@ from app.services.mesh_chaos_orchestrator import (
     list_chaos_experiments,
     set_experiment_status,
 )
+from app.services.blast_radius_controller import (
+    BlastRadiusConstraint,
+    enforce_blast_radius_safety,
+    evaluate_blast_radius,
+    get_default_topology,
+)
 
 router = APIRouter(prefix="/mesh-chaos", tags=["分布式微服务网关混沌演练"])
 
@@ -47,6 +53,18 @@ class EvaluateMeshRequestIn(BaseModel):
     path: str
     method: str = "GET"
     headers: dict[str, str] = Field(default_factory=dict)
+
+
+class EvaluateBlastRadiusIn(BaseModel):
+    injected_service: str
+    max_impacted_services: int = 3
+    max_depth: int = 2
+    max_error_rate: float = 0.15
+    protected_services: list[str] = Field(default_factory=lambda: ["user-auth", "billing-core"])
+
+
+class EnforceBlastRadiusIn(EvaluateBlastRadiusIn):
+    experiment_id: str
 
 
 @router.post("/experiments")
@@ -116,3 +134,51 @@ async def evaluate_mesh_request_endpoint(
         headers=body.headers,
     )
     return decision.to_dict()
+
+
+@router.post("/blast-radius/evaluate")
+async def evaluate_blast_radius_endpoint(
+    body: EvaluateBlastRadiusIn,
+    _user: User = Depends(get_current_user),
+):
+    """评估目标微服务在故障注入下的潜在爆炸半径与级联上下游影响链。"""
+    constraints = BlastRadiusConstraint(
+        max_impacted_services=body.max_impacted_services,
+        max_depth=body.max_depth,
+        max_error_rate=body.max_error_rate,
+        protected_services=body.protected_services,
+    )
+    report = evaluate_blast_radius(body.injected_service, constraints=constraints)
+    return report.to_dict()
+
+
+@router.post("/blast-radius/enforce")
+async def enforce_blast_radius_endpoint(
+    body: EnforceBlastRadiusIn,
+    _user: User = Depends(require_engineer),
+):
+    """评估爆炸半径并在突破安全边界时自动紧急终止（Emergency Abort）混沌实验。"""
+    constraints = BlastRadiusConstraint(
+        max_impacted_services=body.max_impacted_services,
+        max_depth=body.max_depth,
+        max_error_rate=body.max_error_rate,
+        protected_services=body.protected_services,
+    )
+    report = enforce_blast_radius_safety(
+        experiment_id=body.experiment_id,
+        injected_service=body.injected_service,
+        constraints=constraints,
+    )
+    return report.to_dict()
+
+
+@router.get("/blast-radius/topology")
+async def get_mesh_topology_endpoint(
+    _user: User = Depends(get_current_user),
+):
+    """获取当前服务网格中已注册的微服务拓扑节点与调用依赖有向边。"""
+    topo = get_default_topology()
+    edges = [
+        {"caller": caller, "callee": callee} for caller, callees in topo.downstream_adj.items() for callee in callees
+    ]
+    return {"services": sorted(topo.services), "dependencies": edges}
