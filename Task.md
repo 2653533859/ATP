@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-16 v2.9.0 研发任务规划（进行中）
+## 2026-10-16 v2.9.0 研发任务规划（已全量闭环）
 
 > v2.9.0 规划入口为 [`docs/development-task-plan-v2.9.0.md`](docs/development-task-plan-v2.9.0.md)，覆盖 F1（弱网与网络仿真交互工作台）、F2（AI 自主探索与用例生成可视化控制台）、F3（持续性能混沌与容量预测图表视图）、F4（多租户资源配额与企业 FinOps 成本中心）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-16 F3.3 回归容量预测、饱和拐点与并发上限预测图：落地 compareRuns 与 forecastCapacity API 客户端；创建 CapacityRegressionChart 组件；实现 ECharts 双轴拟合曲线（并发-吞吐量线性拟合与并发-延迟二次多项式拟合）、SLA 红线与饱和拐点标注；展示横向比对矩阵；集成至 PerformanceCenterView；单测独立通过，见 [`docs/evidence/performance-capacity-regression-chart-f3-3-2026-10-16.md`](docs/evidence/performance-capacity-regression-chart-f3-3-2026-10-16.md)。至此 v2.9.0 Phase 3 全量闭环！
 - [x] 2026-10-16 F4.1 项目资源配额配置与并发/时长硬限制仪表板：落地 projectApi 配额相关客户端方法；创建 ProjectQuotaDashboard 组件；实现并发与每日时长实时水线进度条、配额参数调优与僵尸任务一键收割日志展示；集成至 ConfigurationCenterView；单测独立通过，见 [`docs/evidence/project-quota-dashboard-and-reaper-f4-1-2026-10-16.md`](docs/evidence/project-quota-dashboard-and-reaper-f4-1-2026-10-16.md)。
 - [x] 2026-10-16 F4.2 测试资产 MinIO 生命周期与自动清理交互抽屉：落地 scanLifecycle 与 executeLifecycleCleanup API 客户端；创建 AssetStorageLifecycleDrawer 组件；支持视频、截图、报告与日志多分类资产过期预览（Dry-Run）、容量释放预估与数据库孤儿引用安全收敛；集成至 StorageManagementView；单测独立通过，见 [`docs/evidence/asset-storage-lifecycle-drawer-f4-2-2026-10-16.md`](docs/evidence/asset-storage-lifecycle-drawer-f4-2-2026-10-16.md)。
-- [ ] F4.3 企业级 FinOps 成本分摊看板与 CSV 导出（FinOpsCostCenterView）
+- [x] 2026-10-16 F4.3 企业级 FinOps 成本分摊看板与 CSV 导出：落地 finopsApi 客户端；创建 FinOpsCostCenterView 页面；实现单价动态调节、多租户 CPU-核时与存储空间开销透视表、费用占比饼图及 Excel 兼容 CSV 下载；挂载至系统路由 /system/finops；单测独立通过，见 [`docs/evidence/enterprise-finops-cost-center-view-f4-3-2026-10-16.md`](docs/evidence/enterprise-finops-cost-center-view-f4-3-2026-10-16.md)。至此 v2.9.0 规划 12 项全栈前端任务 100% 全量大闭环！
 
 ## 2026-10-16 v2.8.0 研发任务规划（已全量闭环）
 

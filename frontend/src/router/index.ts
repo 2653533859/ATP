@@ -360,6 +360,12 @@ const router = createRouter({
           name: 'system-api-contract-assets',
           component: () => import('@/views/system/ApiContractAssetsView.vue'),
         },
+        {
+          path: 'system/finops',
+          name: 'system-finops',
+          component: () => import('@/views/system/FinOpsCostCenterView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
