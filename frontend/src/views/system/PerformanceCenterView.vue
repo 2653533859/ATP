@@ -16,6 +16,10 @@
           <template #icon><ReloadOutlined /></template>
           {{ t('common.refresh') }}
         </a-button>
+        <a-button :disabled="!projectId" @click="driftModalVisible = true">
+          <template #icon><DashboardOutlined /></template>
+          基线漂移监控
+        </a-button>
         <a-button type="primary" :disabled="!projectId" @click="openCreate">
           <template #icon><PlusOutlined /></template>
           {{ t('performance.create') }}
@@ -834,17 +838,27 @@
         </div>
       </template>
     </a-drawer>
+    <a-modal
+      v-model:open="driftModalVisible"
+      title="性能基准 Baseline 漂移监控与智能晋升"
+      width="960px"
+      :footer="null"
+    >
+      <BaselineDriftMonitor />
+    </a-modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { getRuntimeMode } from '@/runtimeMode'
 const localMode = getRuntimeMode()?.mode === 'local'
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { message } from 'ant-design-vue'
-import { BugOutlined, ClockCircleOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileSearchOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, StarOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons-vue'
+import { BugOutlined, ClockCircleOutlined, DashboardOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileSearchOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, StarOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons-vue'
+const BaselineDriftMonitor = defineAsyncComponent(() => import('./components/BaselineDriftMonitor.vue'))
+const driftModalVisible = ref(false)
 import type { AxiosError } from 'axios'
 import VChart from 'vue-echarts'
 import type { EChartsOption } from 'echarts'

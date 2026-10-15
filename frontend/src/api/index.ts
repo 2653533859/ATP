@@ -3174,6 +3174,12 @@ export const performanceApi = {
   getGate: (id: number) => http.get<unknown, PerformanceGateItem>(`/performance/runs/${id}/gate`),
   getBaselineComparison: (id: number) =>
     http.get<unknown, PerformanceBaselineComparisonItem>(`/performance/runs/${id}/baseline-comparison`),
+  getDriftAlert: (runId: number) =>
+    http.post<unknown, PerformanceDriftAlertResponse>(`/performance/runs/${runId}/drift-alert`),
+  alignBaseline: (testId: number, autoPromote = false) =>
+    http.post<unknown, PerformanceAlignBaselineResponse>(`/performance/tests/${testId}/align-baseline`, null, {
+      params: { auto_promote: autoPromote },
+    }),
   getMetrics: (id: number, limit = 2000) =>
     http.get<unknown, PerformanceMetricSampleItem[]>(`/performance/runs/${id}/metrics`, { params: { limit } }),
   exportRunJson: (id: number) =>
@@ -3182,6 +3188,29 @@ export const performanceApi = {
     http.get<unknown, Blob>(`/performance/runs/${id}/export/csv`, { responseType: 'blob' }),
   getRawResult: (id: number) =>
     http.get<unknown, { url: string; filename: string; object_name: string }>(`/performance/runs/${id}/raw-result`),
+}
+
+export interface PerformanceDriftAlertResponse {
+  is_drifted: boolean
+  should_alert: boolean
+  severity: 'none' | 'warning' | 'critical'
+  alert_reasons: string[]
+  deltas: {
+    rps_delta_pct: number
+    p95_delta_pct: number
+    error_rate_delta_pct: number
+  }
+  baseline_summary?: { rps?: number; p95_ms?: number; error_rate?: number }
+  current_summary?: { rps?: number; p95_ms?: number; error_rate?: number }
+}
+
+export interface PerformanceAlignBaselineResponse {
+  eligible: boolean
+  is_first_baseline: boolean
+  reasons: string[]
+  promoted: boolean
+  new_baseline_run_id?: number | null
+  candidate_run_id?: number
 }
 
 // ---- Reusable Web assets ----
