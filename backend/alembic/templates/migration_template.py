@@ -4,6 +4,7 @@ Copy the relevant block(s) into a new revision and remove unused examples.
 Every upgrade operation should have a matching downgrade operation unless the
 revision explicitly documents why downgrade is unsafe.
 """
+
 from __future__ import annotations
 
 from typing import Sequence, Union
