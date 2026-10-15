@@ -1777,6 +1777,50 @@ export const projectApi = {
   importProject: (data: { payload: ProjectExportPayload; conflict_policy: 'fail' | 'rename' }) =>
     http.post<unknown, { project: ProjectItem; imported: Record<string, number>; warnings: string[] }>('/projects/import', data),
   getModules: (projectId: number) => http.get<unknown, ModuleTreeItem[]>(`/projects/${projectId}/modules`),
+  getQuota: (projectId: number) =>
+    http.get<unknown, ProjectQuotaItem>(`/projects/${projectId}/quota`),
+  updateQuota: (projectId: number, data: Partial<ProjectQuotaItem>) =>
+    http.put<unknown, ProjectQuotaItem>(`/projects/${projectId}/quota`, data),
+  evaluateQuota: (projectId: number) =>
+    http.get<unknown, ProjectQuotaEvaluation>(`/projects/${projectId}/quota/evaluation`),
+  reapTimeouts: (projectId: number) =>
+    http.post<unknown, ProjectReapResult>(`/projects/${projectId}/quota/reap-timeouts`),
+}
+
+export interface ProjectQuotaItem {
+  id?: number | null
+  project_id: number
+  max_concurrent_runs: number
+  daily_duration_limit_seconds: number
+  max_single_run_timeout_seconds: number
+  over_quota_policy: 'reject' | 'queue'
+  is_enabled: boolean
+  description?: string | null
+}
+
+export interface ProjectQuotaEvaluation {
+  allowed: boolean
+  should_queue: boolean
+  reason: string
+  current_active_runs: number
+  max_concurrent_runs: number
+  daily_duration_seconds: number
+  daily_duration_limit_seconds: number
+  policy: string
+  details?: Record<string, unknown>
+}
+
+export interface ProjectReapResult {
+  project_id: number
+  reaped_count: number
+  reaped_runs: Array<{
+    run_type: string
+    run_id: number
+    project_id: number
+    created_at?: string | null
+    timeout_limit_seconds: number
+    reason: string
+  }>
 }
 
 export const moduleApi = {

@@ -19,6 +19,9 @@
         </div>
       </div>
       <div class="toolbar-actions">
+        <button class="button button-light toolbar-refresh-btn" type="button" @click="quotaDrawerVisible = true">
+          租户配额管控
+        </button>
         <button class="button button-light toolbar-refresh-btn" type="button" :disabled="loading" @click="loadOverview">
           {{ t('configuration_center.refresh') }}
         </button>
@@ -267,6 +270,14 @@
         </div>
       </section>
     </div>
+    <a-drawer
+      v-model:open="quotaDrawerVisible"
+      title="多租户项目资源配额与并发硬限制"
+      width="820px"
+      placement="right"
+    >
+      <ProjectQuotaDashboard :project-id="Number(selectedProjectId || 1)" />
+    </a-drawer>
   </div>
 </template>
 
@@ -275,7 +286,7 @@ import { getRuntimeMode } from '@/runtimeMode'
 const localMode = getRuntimeMode()?.mode === 'local'
 import { message } from 'ant-design-vue'
 import { SettingOutlined } from '@ant-design/icons-vue'
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useRouter } from 'vue-router'
 
@@ -292,6 +303,9 @@ import {
   type ConfigurationSectionItem,
   type ProjectItem,
 } from '@/api'
+
+const ProjectQuotaDashboard = defineAsyncComponent(() => import('./components/ProjectQuotaDashboard.vue'))
+const quotaDrawerVisible = ref(false)
 
 const { t } = useI18n()
 const router = useRouter()
