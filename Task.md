@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-15 v2.7.0 研发任务规划（进行中）
+
+> v2.7.0 规划入口为 [`docs/development-task-plan-v2.7.0.md`](docs/development-task-plan-v2.7.0.md)，覆盖 T1（iOS 移动真机池化）、T2（全链路 Trace 追踪）、T3（多端多协议可视化画布）、T4（企业风控与灾备演练）。
+
+- [ ] T1.1 iOS 统一设备资产与在线心跳模型（扩展 devices 统一模型支持 platform='ios' 与 WDA 动态状态）
+- [ ] T1.2 W3C/Appium 2 XCUITest 会话自愈与租约队列（建立 iOS 专属租约调度与 WDA 断连恢复）
+- [ ] T1.3 IPA 资产解析与低代码步骤执行（IPA 签名包 Bundle ID 解析与受控步骤执行）
+- [ ] T2.1 W3C TraceContext 与 traceparent 协议自动注入（用例流量自动注入分布式追踪头）
+- [ ] T2.2 OpenTelemetry / Jaeger 分布式调用链检索（TraceID 自动拉取跨服务调用拓扑与瀑布图）
+- [ ] T2.3 失败步骤慢调用瓶颈与异常 Span 自动标红聚类（自动定界微服务异常 Span 与慢调用）
+- [ ] T3.1 多端多协议混合编排流程图引擎（HTTP -> SQL -> 移动端多节点 DAG 编排）
+- [ ] T3.2 节点间上下文变量双向数据流拓扑校验（依赖有效性与死循环静态校验）
+- [ ] T3.3 画布单步断点调试与实时数据流观察器（节点断点暂停、入参及局部变量实时查看）
+- [ ] T4.1 敏感测试数据与测试凭据动态脱敏网关（自动检测与脱敏用例出参 PII 数据）
+- [ ] T4.2 API Key / 租户令牌细粒度权限管控与审计导出（项目级令牌有效期与白名单审计）
+- [ ] T4.3 平台核心资产定时快照备份与灾备恢复演练（多数据库与对象存储增量灾备与演练）
+
 ## 2026-10-15 v2.6.0 研发任务规划（已全量闭环）
 
 > v2.6.0 规划入口为 [`docs/development-task-plan-v2.6.0.md`](docs/development-task-plan-v2.6.0.md)，覆盖 P1（Hermes MCP & 多模态）、P2（真机池化与 AutoDroid）、P3（K8s 动态性能算力池）、P4（企业级协同生态）。
