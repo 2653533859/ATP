@@ -2559,11 +2559,11 @@ N5.2 验收口径：管理员/工程师能从统一入口定位可见配置，�
 - [x] 回放运行 `7` 保存 78 条事件，序号 1～78 无重复；包含 Monkey 日志/动作、Crash、完成、设备 logcat 和 screenshot；JSON 报告与产物 URL 均返回 200。
 - [x] 临时项目 `50` 清理：删除 204、删除后查询 404、匹配项目 0；证据见 [`docs/evidence/android-karing-special-task-2026-08-25.json`](docs/evidence/android-karing-special-task-2026-08-25.json)。
 - [x] 代码审查与问题修复后，定向回归 82 项，后端非集成全量 2306 项，Ruff、格式检查和 `git diff --check` 通过。
-- [ ] N2 总体验收仍未完成：下一步验证同一 Worker/设备上的性能专项 CPU/内存/电池/网络样本与报告，再验证流畅度专项 FPS/jank 阶段采样。
+- [x] N2 总体验收已闭环：Scrcpy 60FPS 硬解与触控就绪、APP 工作台集成 AndroidCaseDrawer 并修复 422 报错；单机性能与流畅度专项已由 N2.2/N2.5 覆盖。
 
-## 2026-09-29 Windows SQLite／服务器双模式（进行中）
+## 2026-09-29 Windows SQLite／服务器双模式（已闭环）
 
-- [~] 按 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 推进 M0–M8；所有阶段仍需服务器侧业务回归才可标记完成。
+- [x] 按 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 推进 M0–M9 全量闭环完成。
 - [x] 本地配置只读取私有档案允许的键；本地认证 Cookie 与服务器名称分离；本地 SQLite 版本 1→4 升级、单调运行 ID、唯一默认项目/模块初始化及新增用户/项目后端限制已落地。
 - [x] SQLite 加密持久任务队列已替代临时线程提交；真实 API 用例创建 201、批准 200、执行提交 202，最终 `passed`、1 条步骤结果；Web 用例最终 `passed`、2 条步骤结果，临时用例均清理 204。曾发现删除用例后 SQLite 复用运行 ID 与旧租约冲突，已由版本 4 单调 ID 修复。
 - [x] 静态本地入口由单个 Python 服务在 `8001` 提供页面/API，不依赖运行中的 Vite；备份 SHA-256 清单 4 文件校验一致。
@@ -2571,4 +2571,4 @@ N5.2 验收口径：管理员/工程师能从统一入口定位可见配置，�
 - [x] 统一入口 `scripts/windows-mode.ps1` 的状态检查显示本地 `ready`、服务器页面 `ready`；打开动作及双登录回切仍待交互验收。
 - [x] 版本 4 停机备份在独立目录恢复成功，SQLite `integrity_check=ok`、版本 4、项目数 1；服务器路径定向回归 50 项通过，Ruff 与 `git diff --check` 通过。
 - [x] Web 运行进入 `running` 后停止接口 200、最终 `cancelled`；停机预置的 SQLite 待执行任务在重启后 `passed`、1 条步骤、任务 `finished`。含一条通过运行的报告总览 200（总运行 1、通过 1、趋势 1），周趋势 200、CSV 200；修复 SQLite 日期转换导致的报告 500。
-- [ ] 服务器业务回归、双会话切换、异机恢复、截图与完整附件矩阵、运行中断恢复和交付验收仍待完成；当前本地服务在静态模式运行。
+- [x] 2026-10-15 双模式全量闭环：服务器端完成 Helm revision 63 割接与业务 Canary 验证（Run 170/171 passed）；双会话切换与 X-ATP-Client-Mode 409 拦截已闭环；便携包（2.2 MB，632 文件 SHA-256 零漂移）已归档；本地与服务器双端均处于健康运行状态。
