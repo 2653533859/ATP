@@ -33,6 +33,7 @@ from app.services.ios_device_leases import (
     heartbeat_ios_device_lease,
     release_ios_device_lease,
 )
+from app.services.ipa_parser import extract_ipa_metadata
 
 router = APIRouter(tags=["iOS/Appium"])
 
@@ -68,37 +69,8 @@ def _ipa_object_name(project_id: int, filename: str) -> str:
 
 
 def _read_ipa_metadata(path: str) -> dict[str, str]:
-    """Read bundle metadata from the first ``Payload/*.app/Info.plist``.
-
-    IPA uploads remain valid when the archive is incomplete or the caller
-    explicitly supplies the fields; metadata extraction is deliberately
-    best-effort and never executes anything from the archive.
-    """
-
-    try:
-        with zipfile.ZipFile(path) as archive:
-            plist_names = sorted(
-                name
-                for name in archive.namelist()
-                if name.startswith("Payload/") and name.count("/") == 2 and name.endswith(".app/Info.plist")
-            )
-            if not plist_names:
-                return {}
-            with archive.open(plist_names[0]) as plist_file:
-                metadata = plistlib.load(plist_file)
-    except (OSError, KeyError, zipfile.BadZipFile, plistlib.InvalidFileException, ValueError, TypeError):
-        return {}
-    if not isinstance(metadata, dict):
-        return {}
-
-    bundle_id = str(metadata.get("CFBundleIdentifier") or "").strip()
-    version = str(metadata.get("CFBundleShortVersionString") or metadata.get("CFBundleVersion") or "").strip()
-    result: dict[str, str] = {}
-    if bundle_id:
-        result["bundle_id"] = bundle_id[:256]
-    if version:
-        result["version_name"] = version[:64]
-    return result
+    """Read bundle metadata from the first ``Payload/*.app/Info.plist``."""
+    return extract_ipa_metadata(path)
 
 
 @router.get("/ios-devices", response_model=list[IosDeviceOut])

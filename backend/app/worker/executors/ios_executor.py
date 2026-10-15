@@ -29,6 +29,7 @@ from app.services.ios_device_leases import (
     heartbeat_ios_device_lease,
     release_ios_device_lease,
 )
+from app.services.ios_wda_session_healer import is_wda_session_crash, recover_wda_session
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +46,7 @@ class IosAppiumClient:
         self.http = http_client or httpx.AsyncClient(timeout=timeout)
         self._owns_client = http_client is None
         self.session_id: str | None = None
+        self.capabilities: dict[str, Any] = {}
 
     async def close(self) -> None:
         if self._owns_client:
@@ -101,6 +103,7 @@ class IosAppiumClient:
         self.session_id = str(value.get("sessionId") or value.get("session_id") or "")
         if not self.session_id:
             raise AppiumProtocolError("Appium 响应缺少 sessionId")
+        self.capabilities = always_match
         return self.session_id
 
     async def quit(self) -> None:
@@ -326,8 +329,25 @@ async def run_ios_case(db: AsyncSession, run: TestRun, case: TestCase, extra_var
                     status = RunStatus.failed
                     error_message = f"iOS 断言失败: {response_data}"
             except Exception as exc:
-                status = RunStatus.failed
-                error_message = str(exc)[:2000]
+                if is_wda_session_crash(exc):
+                    logger.warning("WDA session crash detected on step %s, attempting self-healing...", index)
+                    rec = await recover_wda_session(server_url, client.capabilities)
+                    if rec.get("recovered"):
+                        client.session_id = rec.get("session_id")
+                        try:
+                            response_data = await client.execute_step(action, params)
+                            if response_data.get("success") is False:
+                                status = RunStatus.failed
+                                error_message = f"iOS 断言失败: {response_data}"
+                        except Exception as retry_exc:
+                            status = RunStatus.failed
+                            error_message = f"WDA 会话自愈后重试失败: {str(retry_exc)[:1000]}"
+                    else:
+                        status = RunStatus.failed
+                        error_message = f"WDA 会话崩溃且自愈失败: {rec.get('error')}"
+                else:
+                    status = RunStatus.failed
+                    error_message = str(exc)[:2000]
             if cfg.get("capture_screenshot", True) or action == "screenshot":
                 try:
                     screenshot = response_data.get("screenshot_base64") if response_data else await client.screenshot()
