@@ -29,6 +29,14 @@ from jwt import InvalidTokenError
 router = APIRouter(prefix="/auth", tags=["认证"])
 
 
+def _access_cookie_name() -> str:
+    return settings.ACCESS_COOKIE_NAME
+
+
+def _refresh_cookie_name() -> str:
+    return settings.REFRESH_COOKIE_NAME
+
+
 ACCESS_COOKIE = settings.ACCESS_COOKIE_NAME
 REFRESH_COOKIE = settings.REFRESH_COOKIE_NAME
 
@@ -45,10 +53,10 @@ def _set_auth_cookies(response: Response, access_token: str, refresh_token: str)
         "samesite": _cookie_samesite(),
     }
     response.set_cookie(
-        ACCESS_COOKIE, access_token, max_age=settings.APP_ACCESS_TOKEN_EXPIRE_MINUTES * 60, path="/", **common
+        _access_cookie_name(), access_token, max_age=settings.APP_ACCESS_TOKEN_EXPIRE_MINUTES * 60, path="/", **common
     )
     response.set_cookie(
-        REFRESH_COOKIE,
+        _refresh_cookie_name(),
         refresh_token,
         max_age=settings.APP_REFRESH_TOKEN_EXPIRE_DAYS * 24 * 60 * 60,
         path="/api/v1/auth",
@@ -71,8 +79,8 @@ def _build_auth_response(
 
 
 def _clear_auth_cookies(response: Response) -> None:
-    response.delete_cookie(ACCESS_COOKIE, path="/")
-    response.delete_cookie(REFRESH_COOKIE, path="/api/v1/auth")
+    response.delete_cookie(_access_cookie_name(), path="/")
+    response.delete_cookie(_refresh_cookie_name(), path="/api/v1/auth")
 
 
 @router.post("/login", response_model=AuthSessionResponse | TokenResponse)
@@ -105,7 +113,7 @@ async def refresh(
     body: RefreshRequest | None = None,
     db: AsyncSession = Depends(get_db),
 ):
-    refresh_token = (body.refresh_token if body else None) or request.cookies.get(REFRESH_COOKIE)
+    refresh_token = (body.refresh_token if body else None) or request.cookies.get(_refresh_cookie_name())
     try:
         if not refresh_token:
             raise InvalidTokenError("missing refresh token")

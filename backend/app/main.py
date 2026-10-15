@@ -179,6 +179,17 @@ _LOCAL_UNSUPPORTED_WRITE_PREFIXES = (
 
 @app.middleware("http")
 async def reject_unsupported_local_writes(request: Request, call_next):
+    client_mode = request.headers.get("x-atp-client-mode", "").strip().lower()
+    if client_mode and not request.url.path.startswith(("/api/v1/runtime", "/health", "/metrics")):
+        expected_mode = "local" if settings.ATP_LOCAL_MODE else "server"
+        if client_mode != expected_mode:
+            return JSONResponse(
+                status_code=409,
+                content={
+                    "detail": f"客户端模式 ({client_mode}) 与当前后端运行模式 ({expected_mode}) 不一致，请打开正确的访问入口。"
+                },
+            )
+
     if (
         settings.ATP_LOCAL_MODE
         and request.method not in {"GET", "HEAD", "OPTIONS"}

@@ -1,6 +1,7 @@
 import axios from 'axios'
 import { useAuthStore } from '@/stores/auth'
 import router from '@/router'
+import { getRuntimeMode } from '@/runtimeMode'
 
 const http = axios.create({
   baseURL: '/api/v1',
@@ -40,6 +41,8 @@ http.interceptors.request.use((config) => {
   }
   const auth = useAuthStore()
   config.headers['X-Requested-With'] = 'XMLHttpRequest'
+  const currentMode = getRuntimeMode()?.mode || (import.meta.env.VITE_ATP_LOCAL_MODE === 'true' ? 'local' : 'server')
+  config.headers['X-ATP-Client-Mode'] = currentMode
   if (auth.token) {
     config.headers.Authorization = `Bearer ${auth.token}`
   }
@@ -52,6 +55,9 @@ http.interceptors.response.use(
   async (error) => {
     if (error?.code === prototypeWriteBlockedCode) {
       return Promise.reject(error)
+    }
+    if (error.response?.status === 409 && typeof error.response?.data?.detail === 'string' && error.response.data.detail.includes('不一致')) {
+      return Promise.reject(error.response.data.detail)
     }
     if (error.response?.status === 401) {
       const auth = useAuthStore()

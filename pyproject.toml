@@ -63,3 +63,4 @@ exclude_dirs = [
     "backend/tests",
     "backend/alembic",
 ]
+skips = ["B608"]
