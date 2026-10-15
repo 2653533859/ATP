@@ -1,0 +1,66 @@
+# ATP v2.6.0 研发任务与演进规划（2026-10-15）
+
+> 规划起点：`v2.5.0`（提交 `f6e679aa`）
+> 基线状态：N0 ~ N6 全量 28 项任务已在本地与生产环境（K3s rev63 / SQLite 13）双侧闭环
+> 关联索引：[`docs/evidence-index-2026-10-15.md`](docs/evidence-index-2026-10-15.md) 与 [`docs/v2.5.0-release-notes.md`](docs/v2.5.0-release-notes.md)
+
+---
+
+## 1. 规划目标与演进背景
+
+在 v2.5.0 全面确立了“Windows 独立轻量单机”与“Linux 生产集群”的双模式隔离底座、Scrcpy 60FPS 实时流、多步场景编排与协议执行体系后，**v2.6.0 将重点从“测试底座与模式闭环”迈向“智能化、设备池化与分布式云原生扩展”**：
+
+1. **AI 智能中枢与协议标准化 (Hermes MCP & Multi-modal)**：接入开放标准的 Model Context Protocol (MCP)，将 ATP 核心测试能力以标准 Tools 形式向 Cursor / Claude / 本地大模型暴露；结合视觉模型深化多模态 UI 元素断言与自愈；
+2. **移动端真机池化与 AutoDroid 隧道治理 (Device Pool & Remote Tunnel)**：基于 SQLite 13 / PostgreSQL 0079 中的 Agent 隧道协议，实现多品牌 Android 真机池化调度、并发套件分配与拔线自动容灾；
+3. **云原生分布式性能压测 (Dynamic K8s Performance Operator)**：突破单节点压测瓶颈，实现基于 Kubernetes 动态 Job 的分布式 k6 / Locust 算力分片调度与实时指标聚合；
+4. **企业级协作生态闭环 (Enterprise Notifications & Defect Tracker)**：正式落地钉钉/企业微信/飞书富交互卡片通知，以及 Jira / 禅道 / GitHub Issues 的双向缺陷生命周期同步。
+
+---
+
+## 2. 任务清单 (Phase 1 ~ Phase 4)
+
+### P1：Hermes AI 智能中枢与 MCP 协议标准 (AI & Tool Protocol)
+
+| ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
+|---|---|---|---|
+| P1.1 `[ ]` | **ATP 核心工具 MCP Server 标准化暴露** | v2.5.0 底座 | 实现基于 JSON-RPC 2.0 / SSE 的 MCP 适配器，向外部或 Hermes 暴露用例检索、计划创建、用例执行、失败诊断等标准 Tools。 |
+| P1.2 `[ ]` | **多模态视觉断言与元素视觉自愈** | P1.1, AI 模块 | 支持 `assert_visual_element(selector, image_template)` 与 OCR 文本定位；当 DOM 定位器失效时自动调用视觉模型进行坐标回退修复。 |
+| P1.3 `[ ]` | **双向规格同步与测试资产自动对齐** | P1.1 | 支持 OpenAPI / Swagger 变更时，Hermes 自动比对用例差异并生成增量用例补丁草稿。 |
+
+---
+
+### P2：Android 真机池化调度与远程 Agent 治理 (Device Pool & Matrix)
+
+| ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
+|---|---|---|---|
+| P2.1 `[ ]` | **AutoDroid 远程反向隧道 Agent 注册与心跳** | Schema 13 表 | 完善 `remote_agents` 与 `remote_agent_devices` 动态绑定；跨内网 Android 真实设备通过 Agent 自动打通反向隧道并列入可用设备池。 |
+| P2.2 `[ ]` | **真机矩阵并发执行与智能租约队列** | P2.1 | 支持单套件在多台设备（不同品牌/OS版本）并发执行；设备掉线时自动释放租约并标记用例重试或收敛。 |
+| P2.3 `[ ]` | **Android 录屏分段与 Logcat 故障现场自动归档** | P2.2 | 结合稳定性/Monkey 专项，在发生 ANR / Crash 时自动按时间戳截取前后 30 秒 MP4 视频与对齐的 Logcat 崩溃堆栈。 |
+
+---
+
+### P3：云原生 Kubernetes 分布式性能算力池 (Cloud-Native Distributed Performance)
+
+| ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
+|---|---|---|---|
+| P3.1 `[ ]` | **K8s 动态性能压测 Pod 弹性扩缩容调度** | K3s 集群 | 压测任务下发时自动在 Kubernetes 中拉起多个 k6 / Locust 算力分片 Pod，压测结束自动回收计算资源。 |
+| P3.2 `[ ]` | **分布式性能指标实时汇总与基线比对** | P3.1 | 聚合多 Pod 产生的实时 TPS、响应时间分位数与错误率；压测完成自动与历史最佳基线对比并输出判定结论。 |
+| P3.3 `[ ]` | **多节点高可用与 Prometheus 报警规则集成** | P3.2, 观测系统 | 压测期间动态采集被测目标与压力机本身的 CPU/内存/网络饱和度，超限自动熔断保护。 |
+
+---
+
+### P4：企业级通知协同与外部缺陷平台双向同步 (Ecosystem & Integrations)
+
+| ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
+|---|---|---|---|
+| P4.1 `[ ]` | **企业微信 / 钉钉 / 飞书 富卡片通知模板** | 通知模块 | 统一支持带状态颜色、通过率看板、直达链接与操作按钮的 Interactive Message Card，脱离简单纯文本 Webhook。 |
+| P4.2 `[ ]` | **Jira / 禅道 双向缺陷生命周期状态机同步** | 缺陷模块 | 平台内部缺陷一键推送到外部 Jira / 禅道；外部状态变更为已修复/已关闭时，自动更新平台内缺陷状态。 |
+| P4.3 `[ ]` | **跨网络环境通知投递重试与安全审计** | P4.1, P4.2 | 投递失败自动指数退避重试，密钥与敏感请求参数完全脱敏并记录审计日志。 |
+
+---
+
+## 3. 质量门禁与实施规则
+
+1. **双模式兼容性铁律**：所有新功能必须保障 Windows 本地单机与 Linux 生产集群双轨兼容；
+2. **代码审查与门禁规范**：每个阶段严格执行实现 -> 定向测试 -> 独立代码审查 -> 修复 -> 证据归档 -> Git Commit/Push 闭环；
+3. **真实环境取证**：拒绝伪造外部集成证据，每个外部平台与真机必须具备带日期的真实环境验证记录。

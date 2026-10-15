@@ -4,7 +4,24 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-09-08 后续开发计划
+## 2026-10-15 v2.6.0 研发任务规划（进行中）
+
+> v2.6.0 规划入口为 [`docs/development-task-plan-v2.6.0.md`](docs/development-task-plan-v2.6.0.md)，覆盖 P1（Hermes MCP & 多模态）、P2（真机池化与 AutoDroid）、P3（K8s 动态性能算力池）、P4（企业级协同生态）。
+
+- [ ] P1.1 ATP 核心工具 MCP Server 标准化暴露（JSON-RPC 2.0 / SSE 适配器）
+- [ ] P1.2 多模态视觉断言与元素视觉自愈（assert_visual_element / OCR 坐标回退）
+- [ ] P1.3 双向规格同步与测试资产自动对齐（OpenAPI / Swagger 自动生成增量补丁）
+- [ ] P2.1 AutoDroid 远程反向隧道 Agent 注册与心跳（Schema 13 remote_agents 动态绑定）
+- [ ] P2.2 真机矩阵并发执行与智能租约队列（跨品牌/版本设备并发与掉线容灾）
+- [ ] P2.3 Android 录屏分段与 Logcat 故障现场自动归档（前后 30 秒 MP4 + 对齐堆栈）
+- [ ] P3.1 K8s 动态性能压测 Pod 弹性扩缩容调度（动态分片 Job 调度与回收）
+- [ ] P3.2 分布式性能指标实时汇总与基线比对（多 Pod 实时 TPS / P95 与基线对比）
+- [ ] P3.3 多节点高可用与 Prometheus 报警规则集成（压力机与目标机资源熔断保护）
+- [ ] P4.1 企业微信 / 钉钉 / 飞书 富卡片通知模板（Interactive Message Card）
+- [ ] P4.2 Jira / 禅道 双向缺陷生命周期状态机同步（内部缺陷推送到外部，外部修复回填平台）
+- [ ] P4.3 跨网络环境通知投递重试与安全审计（指数退避重试与敏感参数脱敏）
+
+## 2026-09-08 后续开发计划（已全量闭环）
 
 - [x] 2026-10-15 v2.5.0 Linux 现场生产部署与版本割接上线闭环：基于 Release v2.5.0 在 Linux 受控主机构建生产镜像 registry.local/atp/backend:v2.5.0（Image ID 21340ec8c0de）并导入 K3s containerd；真实数据库 atp_acceptance 成功由 atp_migrator 执行 0074->0079 全量升级至最新头；Helm upgrade atp-single-node 推进至 revision 63（deployed）；新 Pod 平滑启动，集群 6 个核心 Pod 均为 1/1 Running 且 0 重启；GET /health 返回 200，GET /api/v1/runtime 成功返回 mode="server"，携带 local 客户端模式访问受保护接口成功被 409 拦截，Prometheus 5/5 监控目标全部在线；生产割接上线 100% 成功，见 [`docs/evidence/linux-site-production-cutover-v2-5-0-2026-10-15.md`](docs/evidence/linux-site-production-cutover-v2-5-0-2026-10-15.md)。
 - [x] 2026-10-15 N5.3 Linux 现场迁移升级、回滚演练与发布验证闭环：现场 pg_dump 备份（/opt/atp_acceptance_backup_20261015.sql，579 KB）先行；源码基线同步至 10c5a553；由专用迁移角色 atp_migrator 在真实 PostgreSQL 实例实测执行自 0074 到 0079 全量升级链（0075 Hermes持久命令、0076 套件身份、0077 投递意图、0078 首次接受与租约、0079 协作取消与计划归属）成功达到最新头；实测执行反向回滚降级回 0074 全流程通过；形成现场演练证据，见 [`docs/evidence/linux-site-migration-upgrade-rollback-n5-3-2026-10-15.md`](docs/evidence/linux-site-migration-upgrade-rollback-n5-3-2026-10-15.md)。
