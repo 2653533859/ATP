@@ -25,6 +25,9 @@
         <button class="button button-light toolbar-refresh-btn" type="button" @click="oidcDrawerVisible = true">
           企业 SSO 身份源
         </button>
+        <button class="button button-light toolbar-refresh-btn" type="button" @click="iamDrawerVisible = true">
+          IAM 策略模拟器
+        </button>
         <button class="button button-light toolbar-refresh-btn" type="button" :disabled="loading" @click="loadOverview">
           {{ t('configuration_center.refresh') }}
         </button>
@@ -290,6 +293,7 @@
     >
       <OidcProviderConfigCard />
     </a-drawer>
+    <IamPolicySimulatorDrawer v-model:open="iamDrawerVisible" />
   </div>
 </template>
 
@@ -304,6 +308,8 @@ import { useRouter } from 'vue-router'
 
 const OidcProviderConfigCard = defineAsyncComponent(() => import('@/views/workbench/components/OidcProviderConfigCard.vue'))
 const oidcDrawerVisible = ref(false)
+const IamPolicySimulatorDrawer = defineAsyncComponent(() => import('@/views/workbench/components/IamPolicySimulatorDrawer.vue'))
+const iamDrawerVisible = ref(false)
 import { useAuthStore } from '@/stores/auth'
 import { hasAnyRole, type UserRole } from '@/utils/permissions'
 import {

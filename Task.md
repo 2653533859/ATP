@@ -18,7 +18,7 @@
 - [x] 2026-10-16 UI3.2 微服务调用依赖拓扑与爆炸半径逆向 BFS 级联阻断图：创建 BlastRadiusTopologyGraph 组件；基于 ECharts 力导向图渲染微服务依赖网络、逆向 BFS 级联受损与 Emergency Abort 红色告警；挂载至 PerformanceCenterView；单测独立通过，见 [`docs/evidence/blast-radius-topology-graph-ui3-2-2026-10-16.md`](docs/evidence/blast-radius-topology-graph-ui3-2-2026-10-16.md)。
 - [x] 2026-10-16 UI3.3 全链路高可用 SLA 韧性评分与自愈 RTO 评级看板：创建 MeshResilienceReportView 页面与 /system/mesh-resilience 路由；呈现微服务 SLA 达成度、基线跌幅、RTO 秒级自愈与四维韧性评分（Grade A-F）；单测独立通过，见 [`docs/evidence/mesh-resilience-report-view-ui3-3-2026-10-16.md`](docs/evidence/mesh-resilience-report-view-ui3-3-2026-10-16.md)。至此 v3.1.0 Phase 3 全量闭环！
 - [x] 2026-10-16 UI4.1 企业级 OIDC / OAuth2 身份提供商接入与单点登录卡片：落地 oidcSso API 客户端与 OidcProviderConfigCard 组件；展示 IdP 列表、敏感凭据脱敏与一键生成防重放 SSO 跳转；挂载至 ConfigurationCenterView；单测独立通过，见 [`docs/evidence/oidc-provider-config-card-ui4-1-2026-10-16.md`](docs/evidence/oidc-provider-config-card-ui4-1-2026-10-16.md)。
-- [ ] UI4.2 细粒度资源操作 RBAC 策略模拟器与 Anti-IDOR 诊断抽屉（IamPolicySimulatorDrawer.vue）
+- [x] 2026-10-16 UI4.2 细粒度资源操作 RBAC 策略模拟器与 Anti-IDOR 诊断抽屉：落地 iamPolicy API 客户端与 IamPolicySimulatorDrawer 组件；支持 4 类预设攻防场景、在线策略决策点（PDP）判定与跨项目越权诊断；挂载至 ConfigurationCenterView；单测独立通过，见 [`docs/evidence/iam-policy-simulator-drawer-ui4-2-2026-10-16.md`](docs/evidence/iam-policy-simulator-drawer-ui4-2-2026-10-16.md)。
 - [ ] UI4.3 类区块链 SHA-256 审计日志哈希链完整性校验与合规证明导出（AuditTamperEvidentChainView.vue）
 
 ## 2026-10-16 v3.0.0 研发任务规划（已全量闭环）
