@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-16 v2.8.0 研发任务规划（进行中）
+## 2026-10-16 v2.8.0 研发任务规划（已全量闭环）
 
 > v2.8.0 规划入口为 [`docs/development-task-plan-v2.8.0.md`](docs/development-task-plan-v2.8.0.md)，覆盖 Q1（弱网与网络仿真）、Q2（AI 探索与用例合成）、Q3（持续性能与混沌演练）、Q4（多租户配额与 FinOps）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-16 Q3.3 多维性能对比与容量预测模型：落地 performance_capacity_forecaster 服务，支持多轮压测报告横截面比对与扩展效能比计算；基于一阶线性与二阶多项式回归高斯消元算法反解 SLA 约束容量上限并定位饱和拐点；开放 /api/v1/performance/runs/compare 与 /capacity-forecast；6 项单测独立通过，见 [`docs/evidence/performance-multidimensional-comparison-and-capacity-forecast-q3-3-2026-10-16.md`](docs/evidence/performance-multidimensional-comparison-and-capacity-forecast-q3-3-2026-10-16.md)。
 - [x] 2026-10-16 Q4.1 项目级并发配额与执行时长硬限制：建立 ProjectQuota 实体与 20261016_0082 迁移；落地 project_quota_manager 服务，支持跨套件/用例/压测活跃任务并发控制与每日执行累计时长限制；实现单任务硬超时自动收割；开放 /api/v1/projects/{id}/quota/*；7 项单测独立通过，见 [`docs/evidence/project-concurrency-quota-and-execution-duration-limit-q4-1-2026-10-16.md`](docs/evidence/project-concurrency-quota-and-execution-duration-limit-q4-1-2026-10-16.md)。
 - [x] 2026-10-16 Q4.2 测试资产存储生命周期与自动归档清理：落地 asset_lifecycle_cleaner 服务，建立视频 (7d)、截图 (14d)、Traces (14d)、报告与日志 (30d) 分级保留生命周期；实现 MinIO 存储扫描、Dry-Run 预测、物理清理与数据库孤儿引用自动清除；开放 /api/v1/storage/lifecycle/* 与 Celery 定时任务；4 项单测独立通过，见 [`docs/evidence/test-asset-storage-lifecycle-and-archive-cleanup-q4-2-2026-10-16.md`](docs/evidence/test-asset-storage-lifecycle-and-archive-cleanup-q4-2-2026-10-16.md)。
-- [ ] Q4.3 平台计算与存储资源成本统计报表导出（CPU-小时与存储空间 FinOps 成本报表）
+- [x] 2026-10-16 Q4.3 平台计算与存储资源成本统计报表导出：落地 finops_cost_reporter 服务，建立 Worker CPU-小时数等效折算与 MinIO 存储分摊成本模型；输出多租户成本占比与 FinOps 降本建议；开放 /api/v1/finops/cost-report 与 Excel CSV 导出；4 项单测独立通过，见 [`docs/evidence/platform-compute-and-storage-finops-cost-report-q4-3-2026-10-16.md`](docs/evidence/platform-compute-and-storage-finops-cost-report-q4-3-2026-10-16.md)。至此 v2.8.0 规划 12 项任务 100% 全量大闭环！
 
 ## 2026-10-15 v2.7.0 研发任务规划（已全量闭环）
 

@@ -60,6 +60,7 @@ from app.api.v1 import (
     security,
     network_simulation,
     exploration,
+    finops,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -125,3 +126,4 @@ router.include_router(mcp.router)
 router.include_router(security.router)
 router.include_router(network_simulation.router)
 router.include_router(exploration.router)
+router.include_router(finops.router)
