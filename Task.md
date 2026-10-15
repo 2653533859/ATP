@@ -13,7 +13,7 @@
 - [x] 2026-10-16 C1.3 节点失联与心跳超时自动化任务故障转移与断点重试：落地 worker_failover_recovery 服务与 /failover/* API；实现心跳超时自动收割、孤儿任务抢救重入队与超限熔断终止；4 项单测独立通过，见 [`docs/evidence/worker-failover-recovery-c1-3-2026-10-16.md`](docs/evidence/worker-failover-recovery-c1-3-2026-10-16.md)。至此 v3.2.0 Phase 1 全量闭环！
 - [x] 2026-10-16 C2.1 测试资产全景引用拓扑图谱与反向索引引擎：落地 asset_graph_indexer 服务与 /asset-graph/* API；建立 Plan-Suite-Case-API-Dataset 七维有向图谱与双向反向索引；支持孤儿资产自动探测；5 项单测独立通过，见 [`docs/evidence/asset-graph-indexer-c2-1-2026-10-16.md`](docs/evidence/asset-graph-indexer-c2-1-2026-10-16.md)。
 - [x] 2026-10-16 C2.2 接口契约变更影响面逆向推导与受影响用例标记：落地 contract_change_impact_analyzer 服务与 /contract-impact/analyze API；支持契约 Diff 对比、受损用例逆向推导与 Breaking/Warning/Compatible 严重度打标；4 项单测独立通过，见 [`docs/evidence/contract-change-impact-analyzer-c2-2-2026-10-16.md`](docs/evidence/contract-change-impact-analyzer-c2-2-2026-10-16.md)。
-- [ ] C2.3 变更影响用例自动化精准回归套件合成与触发（targeted_regression_trigger）
+- [x] 2026-10-16 C2.3 变更影响用例自动化精准回归套件合成与触发：落地 targeted_regression_trigger 服务与 /contract-impact/synthesize-and-trigger API；支持用例去重排序、TestSuite 原子持久化与 P0 弹性抢占调度；4 项单测独立通过，见 [`docs/evidence/targeted-regression-trigger-c2-3-2026-10-16.md`](docs/evidence/targeted-regression-trigger-c2-3-2026-10-16.md)。至此 v3.2.0 Phase 2 全量闭环！
 - [ ] C3.1 瞬时轻量级仿真沙箱与动态端口生命周期调度（ephemeral_sandbox_manager）
 - [ ] C3.2 跨协议数据透传与会话级上下文共享总线（cross_protocol_session_bus）
 - [ ] C3.3 沙箱网络流量镜像与回放实时隔离检测（sandbox_traffic_mirror）

@@ -21,6 +21,7 @@ from app.services.asset_graph_indexer import (
     get_global_asset_indexer,
 )
 from app.services.contract_change_impact_analyzer import analyze_contract_change_impact
+from app.services.targeted_regression_trigger import synthesize_and_trigger_targeted_regression
 
 router = APIRouter(prefix="/asset-graph", tags=["测试资产全景依赖图谱与反向索引"])
 
@@ -31,6 +32,17 @@ class AnalyzeContractImpactIn(BaseModel):
     baseline_schema: dict[str, Any] = Field(..., description="基线旧版接口契约 Schema")
     current_schema: dict[str, Any] = Field(..., description="当前新版接口契约 Schema")
     project_id: int | None = Field(default=None, description="所属项目 ID")
+
+
+class SynthesizeRegressionIn(BaseModel):
+    impacted_case_ids: list[int] = Field(min_length=1, description="受影响的用例 ID 列表")
+    project_id: int = Field(ge=1, description="归属项目 ID")
+    suite_name: str | None = Field(default=None, description="生成的精准回归套件名称")
+    priority: str | None = Field(default=None, description="任务优先级 P0 | P1 | P2 | P3")
+    is_breaking_change: bool = Field(default=False, description="是否破坏性变更 (为 True 则自动触发 P0 弹性抢占)")
+    persist: bool = Field(default=True, description="是否持久化写入数据库")
+    auto_trigger: bool = Field(default=True, description="是否自动向调度队列投递执行任务")
+    queue_name: str = Field(default="default", description="目标执行队列")
 
 
 @router.get("/project/{project_id}")
@@ -176,3 +188,28 @@ async def analyze_contract_impact_endpoint(
         project_id=body.project_id,
     )
     return report.to_dict()
+
+
+@router.post("/contract-impact/synthesize-and-trigger")
+async def synthesize_and_trigger_regression_endpoint(
+    body: SynthesizeRegressionIn,
+    user: User = Depends(require_engineer),
+    db: AsyncSession = Depends(get_db),
+):
+    """将契约受波及用例自动重组合成为精准回归套件，并向自适应调度队列弹性投递执行。"""
+    try:
+        result = await synthesize_and_trigger_targeted_regression(
+            impacted_case_ids=body.impacted_case_ids,
+            project_id=body.project_id,
+            owner_id=user.id,
+            suite_name=body.suite_name,
+            priority=body.priority,
+            is_breaking_change=body.is_breaking_change,
+            persist=body.persist,
+            auto_trigger=body.auto_trigger,
+            queue_name=body.queue_name,
+            db=db,
+        )
+        return result.to_dict()
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc))
