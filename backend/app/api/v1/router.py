@@ -65,6 +65,7 @@ from app.api.v1 import (
     device_playback,
     mesh_chaos,
     oidc_sso,
+    iam_policy,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -135,3 +136,4 @@ router.include_router(traffic_recording.router)
 router.include_router(device_playback.router)
 router.include_router(mesh_chaos.router)
 router.include_router(oidc_sso.router)
+router.include_router(iam_policy.router)
