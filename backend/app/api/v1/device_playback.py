@@ -13,6 +13,7 @@ from app.services.device_playback_driver import (
     initialize_playback_session,
     teardown_playback_session,
 )
+from app.services.visual_dom_hybrid_locator import heal_and_locate_element
 
 router = APIRouter(prefix="/device-playback", tags=["移动端真机回放与自愈驱动"])
 
@@ -27,6 +28,12 @@ class InitPlaybackSessionIn(BaseModel):
 class ExecutePlaybackStepIn(BaseModel):
     step_no: int = Field(default=1, ge=1, description="步骤编号")
     step_dict: dict[str, Any] = Field(..., description="包含 action 和 params 的步骤配置")
+
+
+class HybridLocateIn(BaseModel):
+    target_params: dict[str, Any] = Field(..., description="目标元素定位特征 (text, resource_id, accessibility_id)")
+    ax_elements: list[dict[str, Any]] = Field(default_factory=list, description="当前屏幕无障碍树节点列表")
+    ocr_blocks: list[dict[str, Any]] = Field(default_factory=list, description="当前屏幕 OCR 文本块与边界列表")
 
 
 @router.post("/sessions/init")
@@ -86,3 +93,17 @@ async def get_session_endpoint(
     if session is None:
         raise HTTPException(status_code=404, detail="回放会话不存在")
     return session.get_summary()
+
+
+@router.post("/hybrid-locate")
+async def hybrid_locate_endpoint(
+    body: HybridLocateIn,
+    _user: User = Depends(require_engineer),
+):
+    """多层级智能定位与元素失效自愈评估 (精准DOM -> 模糊无障碍树 -> 视觉OCR)。"""
+    result = heal_and_locate_element(
+        body.target_params,
+        ax_elements=body.ax_elements,
+        ocr_blocks=body.ocr_blocks,
+    )
+    return result.to_dict()
