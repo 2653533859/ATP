@@ -58,6 +58,7 @@ from app.api.v1 import (
     api_scenarios,
     mcp,
     security,
+    network_simulation,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -121,3 +122,4 @@ router.include_router(api_scenarios.router)
 router.include_router(device_stream_router)
 router.include_router(mcp.router)
 router.include_router(security.router)
+router.include_router(network_simulation.router)
