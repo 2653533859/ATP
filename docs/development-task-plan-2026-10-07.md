@@ -154,6 +154,15 @@ Windows 目录交付可在 N0–N4 与 N6.1 的本地门禁通过后单独形成
 | 2026-10-07 | N1.2：抽取命令服务，套件/运行 UUID，命令身份校验、历史待核对提示，SQLite 8 / Alembic 0076 | Ruff、mypy 176 文件、Python 语法、本地/服务器前端类型与构建通过；本地先备份后升级至 8、身份列存在、健康 200；没有自动化测试或业务重演，PostgreSQL 迁移和两侧命令验收开放 |
 | 2026-10-08 | 首批静态审查补强：冻结 SQLite 版本 7 的建表结构，避免版本 6→7→8 路径重复添加身份列 | 修复已纳入源码；本轮实际本地升级为 7→8，旧库连续升级与 PostgreSQL 路径仍待验收 |
 | 2026-10-08 | N1.3：套件运行/命令/意图同事务、后台条件领取、本地队列原子交付、服务器未知结果保留、只读查询及处理记录状态 | 实现接入；Ruff/mypy 178 文件/语法和两种前端构建通过。本地先备份后升至 SQLite 9，投递表/索引及新接口契约已确认，健康 200；没有实际套件、异常或服务器迁移验收，见 [本批记录](suite-dispatch-development-2026-10-08.md) |
+| 2026-10-15 | N2.2/N2.5：Scrcpy 60FPS 实时流、APP 工作台用例闭环、API 场景编排 | 全门禁通过，见 [证据](evidence/windows-scrcpy-stream-scenario-orchestration-app-workbench-2026-10-15.md) |
+| 2026-10-15 | N3.4：双模式切换、动态 Cookie 隔离解析、X-ATP-Client-Mode 409 拦截 | 本地实机探针与定向回归通过，见 [证据](evidence/windows-dual-mode-switching-auth-isolation-2026-10-15.md) |
+| 2026-10-15 | N2.5：GraphQL/WebSocket/gRPC 执行器收口与空步骤防御 | 74 项执行器测试通过，见 [证据](evidence/windows-protocol-subitems-acceptance-2026-10-15.md) |
+| 2026-10-15 | N6.1/N6.2：质量检查、候选 SHA 固化、统一交付证据索引与操作手册收口 | CI 全门禁全绿，见 [证据](evidence/windows-release-candidate-quality-n6-1-2026-10-15.md) 与 [总索引](evidence-index-2026-10-15.md) |
+| 2026-10-15 | N3.3：Windows 便携包打包与 632 核心文件 SHA-256 清单零漂移校验 | 打包脚本与清单哈希校验通过，产物 2.2 MB |
+| 2026-10-15 | N5.1：Linux 现场基线核查（CHINAMI-762P0P5 稳定运行 17 天 0 重启） | 实机探针全通过，见 [证据](evidence/linux-site-baseline-verification-n5-1-2026-10-15.md) |
+| 2026-10-15 | N5.2：Linux 现场 14 日连续 SLO（288/288 采样，0 违约与 0 缺口） | 实测抽取 4032 采样点全部达标，见 [证据](evidence/linux-site-14day-slo-flower-trend-n5-2-2026-10-15.md) |
+| 2026-10-15 | N5.3：现场真实 PostgreSQL 0074->0079 升级链与 0079->0074 回滚演练 | 真实数据库升降级双向 100% 验证，见 [证据](evidence/linux-site-migration-upgrade-rollback-n5-3-2026-10-15.md) |
+| 2026-10-15 | v2.5.0：生产部署割接至 Helm rev63 与业务 Canary 探针（Run 170/171 passed） | K3s 线上升级割接与业务 Canary 验证通过，见 [证据](evidence/linux-site-production-cutover-v2-5-0-2026-10-15.md) |
 
 N0/N1.2 批次源码保存到 Git 忽略目录 `.local-run/development-baselines/20261008-n0-n1-identity-final/`，含 HEAD 归档、改动覆盖文件、差异和哈希清单；10 月 7 日首轮快照另行保留。该批升级前数据库备份为 `.local-run/pre-command-identity-schema8.sqlite3`。未提交、推送、合并或部署 Linux。该批之后继续 N1.3 的同事务投递意图，并保留 N1.2 的验收缺口。
 
