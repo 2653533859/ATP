@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-16 v3.0.0 研发任务规划（进行中）
+## 2026-10-16 v3.0.0 研发任务规划（已全量闭环）
 
 > v3.0.0 规划入口为 [`docs/development-task-plan-v3.0.0.md`](docs/development-task-plan-v3.0.0.md)，覆盖 T1（全协议智能流量录制与用例逆向生成）、T2（移动端真机智能回放与视觉 DOM 混合自愈）、T3（分布式网关混沌演练与爆炸半径控制）、T4（企业级 OIDC/SSO 认证与合规审计安全中心）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-16 T3.3 全链路服务级高可用 SLA 韧性评分报告：落地 service_mesh_resilience_report 服务与 /resilience-report/compile 端点；建立微服务级可用性 SLA 跌幅、RTO 恢复用时与四维架构韧性加权评分（Grade A-F）；3 项单测独立通过，见 [`docs/evidence/service-mesh-resilience-report-t3-3-2026-10-16.md`](docs/evidence/service-mesh-resilience-report-t3-3-2026-10-16.md)。至此 v3.0.0 Phase 3 全量闭环！
 - [x] 2026-10-16 T4.1 企业级 OIDC / OAuth2 身份提供商集成：落地 oidc_sso_provider 服务与 /auth/sso/* API；支持标准 OIDC/OAuth2 协议（Keycloak、Okta、ADFS 等）；实现防 CSRF/防重放 state 机制、ID Token Claims 多维校验与企业员工账户自动映射；4 项单测独立通过，见 [`docs/evidence/enterprise-oidc-sso-provider-t4-1-2026-10-16.md`](docs/evidence/enterprise-oidc-sso-provider-t4-1-2026-10-16.md)。
 - [x] 2026-10-16 T4.2 基于 RBAC + 细粒度操作资源鉴权边界：落地 fine_grained_iam_policy 服务与 /iam/* API；构建企业级策略决策点（PDP）；实现 Anti-IDOR 跨项目横向越权拦截与 Explicit Deny 优先原则；5 项单测独立通过，见 [`docs/evidence/fine-grained-iam-policy-t4-2-2026-10-16.md`](docs/evidence/fine-grained-iam-policy-t4-2-2026-10-16.md)。
-- [ ] T4.3 企业合规审计日志完整性哈希链与安全报表（audit_tamper_evident_chain）
+- [x] 2026-10-16 T4.3 企业合规审计日志完整性哈希链与安全报表：落地 audit_tamper_evident_chain 服务与 /audit/chain/* API；实现类区块链 SHA-256 审计链条构建、篡改/删改实时自检与附带数字签名印章的合规证明报表生成；5 项单测独立通过，见 [`docs/evidence/audit-tamper-evident-chain-t4-3-2026-10-16.md`](docs/evidence/audit-tamper-evident-chain-t4-3-2026-10-16.md)。至此 v3.0.0 全部 12 项任务 100% 全量大闭环！
 
 ## 2026-10-16 v2.9.0 研发任务规划（已全量闭环）
 

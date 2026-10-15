@@ -55,7 +55,7 @@
 |---|---|---|---|
 | T4.1 `[x]` | **企业级 OIDC / OAuth2 身份提供商集成** | 认证模块 | 支持集成标准 OpenID Connect / OAuth2 (Keycloak, Okta, ADFS) 实现企业员工单点登录；见 docs/evidence/enterprise-oidc-sso-provider-t4-1-2026-10-16.md |
 | T4.2 `[x]` | **基于 RBAC + 细粒度操作资源鉴权边界** | T4.1 | 实现项目内资源级（用例/套件/设备）细粒度操作权限校验，杜绝越权访问；见 docs/evidence/fine-grained-iam-policy-t4-2-2026-10-16.md |
-| T4.3 `[ ]` | **企业合规审计日志完整性哈希链与安全报表** | T4.2 | 建立不可篡改的 SHA-256 审计日志区块链式校验链条，支持导出防篡改合规证明。 |
+| T4.3 `[x]` | **企业合规审计日志完整性哈希链与安全报表** | T4.2 | 建立不可篡改的 SHA-256 审计日志区块链式校验链条，支持导出防篡改合规证明；见 docs/evidence/audit-tamper-evident-chain-t4-3-2026-10-16.md |
 
 ---
 

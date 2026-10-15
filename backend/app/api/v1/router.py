@@ -66,6 +66,7 @@ from app.api.v1 import (
     mesh_chaos,
     oidc_sso,
     iam_policy,
+    audit_chain,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -137,3 +138,4 @@ router.include_router(device_playback.router)
 router.include_router(mesh_chaos.router)
 router.include_router(oidc_sso.router)
 router.include_router(iam_policy.router)
+router.include_router(audit_chain.router)
