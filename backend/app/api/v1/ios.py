@@ -11,6 +11,7 @@ import plistlib
 import tempfile
 import uuid
 import zipfile
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy import select
@@ -159,6 +160,24 @@ async def delete_ios_device(
         raise HTTPException(status_code=404, detail="iOS 设备不存在")
     await db.delete(device)
     await db.commit()
+
+
+@router.post("/ios-devices/{device_id}/heartbeat", response_model=IosDeviceOut)
+async def heartbeat_ios_device_endpoint(
+    device_id: int,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(require_engineer),
+):
+    """为指定 iOS 设备刷新心跳时间与在线状态。"""
+    device = await db.get(IosDevice, device_id)
+    if device is None:
+        raise HTTPException(status_code=404, detail="iOS 设备不存在")
+    device.last_seen_at = datetime.now(timezone.utc)
+    if device.status != IosDeviceStatus.busy:
+        device.status = IosDeviceStatus.online
+    await db.commit()
+    await db.refresh(device)
+    return device
 
 
 @router.post("/ios-devices/{device_id}/lease", response_model=DeviceLeaseOut)

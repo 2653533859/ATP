@@ -24,6 +24,26 @@ class DeviceOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class UnifiedDeviceOut(BaseModel):
+    id: int
+    platform: Literal["android", "ios"]
+    name: str
+    brand: str
+    model: str
+    identifier: str
+    os_version: str
+    status: Literal["online", "offline", "busy"]
+    appium_server_url: str | None = None
+    wda_local_port: int | None = None
+    ip_address: str | None = None
+    port: int | None = None
+    last_seen_at: datetime | None = None
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
 class DeviceUpdate(BaseModel):
     name: str | None = None
     description: str | None = None

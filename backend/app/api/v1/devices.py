@@ -18,7 +18,9 @@ from app.schemas.device import (
     RemoteDeviceConnectIn,
     RemoteDeviceDisconnectIn,
     RemoteDeviceConnectOut,
+    UnifiedDeviceOut,
 )
+from app.services.ios_device_manager import get_unified_device_list
 from app.schemas.device_lease import DeviceLeaseAcquireIn, DeviceLeaseOut, DeviceLeaseTokenIn
 from app.api.deps import get_current_user, require_engineer
 from app.services.adb_service import (
@@ -121,6 +123,17 @@ async def list_devices(
         q = q.where(Device.status == status_filter)
     result = await db.execute(q)
     return result.scalars().all()
+
+
+@router.get("/devices/unified", response_model=list[UnifiedDeviceOut])
+async def list_unified_devices(
+    platform: str | None = None,
+    status: str | None = None,
+    db: AsyncSession = Depends(get_db),
+    _user: User = Depends(get_current_user),
+):
+    """获取 Android 与 iOS 统一设备列表，支持跨平台设备资产聚合。"""
+    return await get_unified_device_list(db, platform_filter=platform, status_filter=status)
 
 
 async def _list_device_rows(db: AsyncSession) -> list[Device]:
