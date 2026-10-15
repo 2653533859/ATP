@@ -5,7 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from datetime import timezone
 import re
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, Field, computed_field, field_serializer
 
@@ -114,6 +114,24 @@ class PerformanceScheduleUpdate(BaseModel):
 
 class PerformanceBaselineUpdate(BaseModel):
     run_id: int = Field(..., ge=1)
+
+
+class ChaosPlanRequest(BaseModel):
+    fault_type: str = Field(default="service_unavailable")
+    target_service: str = Field(default="downstream-service")
+    start_delay_seconds: float = Field(default=10.0, ge=0.0)
+    duration_seconds: float = Field(default=30.0, gt=0.0)
+    fault_params: dict[str, Any] = Field(default_factory=dict)
+
+
+class ChaosRtoEvaluateRequest(BaseModel):
+    time_series: list[dict[str, Any]]
+    fault_start_offset: float = Field(default=10.0, ge=0.0)
+    fault_duration: float = Field(default=30.0, gt=0.0)
+    recovery_rps_ratio: float = Field(default=0.85, gt=0.0)
+    recovery_error_margin: float = Field(default=0.03, ge=0.0)
+    recovery_latency_ratio: float = Field(default=1.30, gt=0.0)
+    sustain_seconds: float = Field(default=3.0, ge=0.0)
 
 
 class PerformanceGateOut(BaseModel):

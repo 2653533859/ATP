@@ -46,6 +46,8 @@ from app.schemas.performance import (
     PerformanceTestUpdate,
     PerformanceExecutor,
     PerformanceExecutorOut,
+    ChaosPlanRequest,
+    ChaosRtoEvaluateRequest,
 )
 from app.schemas.performance_node import PerformanceNodeCreate, PerformanceNodeOut, PerformanceNodeUpdate
 from app.services.performance_options import ENVIRONMENT_SNAPSHOT_KEY
@@ -91,6 +93,10 @@ from app.worker.tasks_performance import run_performance_test
 from app.services.performance_baseline_alignment import (
     calculate_baseline_drift_alert,
     evaluate_baseline_candidate,
+)
+from app.services.performance_chaos_rto import (
+    build_chaos_injection_plan,
+    calculate_chaos_rto,
 )
 
 router = APIRouter(tags=["性能压测"])
@@ -1289,6 +1295,47 @@ async def evaluate_test_baseline_candidate_endpoint(
         evaluation["promoted"] = False
 
     return evaluation
+
+
+@router.post("/performance/runs/{run_id}/chaos-plan")
+async def create_performance_chaos_plan(
+    run_id: int,
+    payload: ChaosPlanRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_engineer),
+):
+    """为指定性能压测运行编排混沌故障注入计划（503 服务不可用、延迟突增、丢包、连接重置）。"""
+    run = await db.get(PerformanceRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="压测执行不存在")
+    await assert_project_access(db, user, run.project_id, ProjectRole.editor)
+    try:
+        return build_chaos_injection_plan(run_id, payload.model_dump())
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+
+@router.post("/performance/runs/{run_id}/chaos-rto/evaluate")
+async def evaluate_performance_chaos_rto_endpoint(
+    run_id: int,
+    payload: ChaosRtoEvaluateRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """基于压测时序指标数据，精确计算系统在故障撤销后的自愈恢复时长（RTO）与韧性评级。"""
+    run = await db.get(PerformanceRun, run_id)
+    if run is None:
+        raise HTTPException(status_code=404, detail="压测执行不存在")
+    await assert_project_access(db, user, run.project_id, ProjectRole.viewer)
+    return calculate_chaos_rto(
+        payload.time_series,
+        fault_start_offset=payload.fault_start_offset,
+        fault_duration=payload.fault_duration,
+        recovery_rps_ratio=payload.recovery_rps_ratio,
+        recovery_error_margin=payload.recovery_error_margin,
+        recovery_latency_ratio=payload.recovery_latency_ratio,
+        sustain_seconds=payload.sustain_seconds,
+    )
 
 
 @router.get("/performance/runs/{run_id}/export/json")

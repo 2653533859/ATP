@@ -15,7 +15,7 @@
 - [x] 2026-10-16 Q2.2 探索事件序列自动合成为 TestCase：落地 exploration_case_synthesizer 服务，实现探索事件流重复点击消除与输入折叠压缩；自动提炼 CaseStepCreate 步骤、生成执行器配置与目标页面终态断言；开放 /api/v1/exploration/synthesize-case；3 项单测独立通过，见 [`docs/evidence/exploration-event-sequence-case-synthesizer-q2-2-2026-10-16.md`](docs/evidence/exploration-event-sequence-case-synthesizer-q2-2-2026-10-16.md)。
 - [x] 2026-10-16 Q2.3 异常崩溃与死循环探索熔断保护：落地 exploration_circuit_breaker 状态机，实现连续黑屏、死循环振荡、连续动作失败与步数超限熔断保护；图模型自动终止并下发 abort 动作；开放 /api/v1/exploration/circuit-breaker/evaluate；6 项单测独立通过，见 [`docs/evidence/exploration-crash-and-infinite-loop-circuit-breaker-q2-3-2026-10-16.md`](docs/evidence/exploration-crash-and-infinite-loop-circuit-breaker-q2-3-2026-10-16.md)。
 - [x] 2026-10-16 Q3.1 定时自动化性能基准打标与趋势偏移告警：落地 performance_baseline_alignment 服务，建立吞吐量、延迟与错误率多维偏离度判定；支持基准优质候选自动打标晋升与项目级基线对齐扫描；开放 /api/v1/performance/runs/{id}/drift-alert；6 项单测独立通过，见 [`docs/evidence/performance-baseline-alignment-and-drift-alerts-q3-1-2026-10-16.md`](docs/evidence/performance-baseline-alignment-and-drift-alerts-q3-1-2026-10-16.md)。
-- [ ] Q3.2 压力下故障注入与混沌恢复时长测定（混沌注入与 RTO 自愈恢复时长测定）
+- [x] 2026-10-16 Q3.2 压力下故障注入与混沌恢复时长测定：落地 performance_chaos_rto 服务，支持 4 类混沌故障计划编排；实现持续健康窗口防抖自愈 RTO 测定算法与 Grade A-F 韧性评级；开放 /api/v1/performance/runs/{id}/chaos-plan 与 /chaos-rto/evaluate；6 项单测独立通过，见 [`docs/evidence/performance-chaos-fault-injection-and-rto-measurement-q3-2-2026-10-16.md`](docs/evidence/performance-chaos-fault-injection-and-rto-measurement-q3-2-2026-10-16.md)。
 - [ ] Q3.3 多维性能对比与容量预测模型（横向比对与回归容量预测）
 - [ ] Q4.1 项目级并发配额与执行时长硬限制（并发任务上限与执行时长硬限制）
 - [ ] Q4.2 测试资产存储生命周期与自动归档清理（MinIO 视频/截图/日志按策略自动清理）
