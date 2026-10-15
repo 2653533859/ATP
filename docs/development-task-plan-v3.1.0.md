@@ -46,7 +46,7 @@
 |---|---|---|---|
 | UI3.1 `[x]` | **微服务网关混沌故障注入规则编排卡片与抽样调节器** | mesh_chaos | 落地 `MeshChaosRuleCard.vue` 组件；支持 503/熔断/延迟/畸形报文 4 类故障动作配置与流量采样比例动态滑块；见 docs/evidence/mesh-chaos-rule-card-ui3-1-2026-10-16.md |
 | UI3.2 `[x]` | **微服务调用依赖拓扑与爆炸半径逆向 BFS 级联阻断图** | UI3.1 | 落地 `BlastRadiusTopologyGraph.vue` 组件；基于 ECharts 力导向图呈现调用拓扑、级联波及链路与紧急熔断告警；见 docs/evidence/blast-radius-topology-graph-ui3-2-2026-10-16.md |
-| UI3.3 `[ ]` | **全链路高可用 SLA 韧性评分与自愈 RTO 评级看板** | UI3.2 | 落地 `MeshResilienceReportView.vue` 页面；呈现微服务 SLA 达成度跌幅、RTO 恢复耗时、四维韧性评分（Grade A-F）与加固建议。 |
+| UI3.3 `[x]` | **全链路高可用 SLA 韧性评分与自愈 RTO 评级看板** | UI3.2 | 落地 `MeshResilienceReportView.vue` 页面；呈现微服务 SLA 达成度跌幅、RTO 恢复耗时、四维韧性评分（Grade A-F）与加固建议；见 docs/evidence/mesh-resilience-report-view-ui3-3-2026-10-16.md |
 
 ---
 

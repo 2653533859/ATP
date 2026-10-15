@@ -366,6 +366,12 @@ const router = createRouter({
           component: () => import('@/views/system/FinOpsCostCenterView.vue'),
           meta: { roles: ENGINEER_ONLY },
         },
+        {
+          path: 'system/mesh-resilience',
+          name: 'system-mesh-resilience',
+          component: () => import('@/views/system/MeshResilienceReportView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
       ],
     },
     { path: '/:pathMatch(.*)*', redirect: '/' },
