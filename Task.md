@@ -15,7 +15,7 @@
 - [x] 2026-10-16 UI2.2 视觉/DOM 混合自愈与 OCR 物理边界比对器：扩展 devicePlayback API 客户端并创建 VisualSelfHealingInspector 组件；实现 Tier 1~3 多层级决策时间线、OCR 物理包围盒与中心坐标十字准星模拟画布；挂载至 DevicePlaybackDrawer；单测独立通过，见 [`docs/evidence/visual-self-healing-inspector-ui2-2-2026-10-16.md`](docs/evidence/visual-self-healing-inspector-ui2-2-2026-10-16.md)。
 - [x] 2026-10-16 UI2.3 MP4 录屏毫秒级时间线对齐与异常高亮播放器：扩展 devicePlayback API 客户端并创建 PlaybackKeyframeTimeline 组件；实现交互式多色书签时间轴轨道、毫秒级位点跳转与异常排障告警；与 DevicePlaybackDrawer 挂载集成；单测独立通过，见 [`docs/evidence/playback-keyframe-timeline-ui2-3-2026-10-16.md`](docs/evidence/playback-keyframe-timeline-ui2-3-2026-10-16.md)。至此 v3.1.0 Phase 2 全量闭环！
 - [x] 2026-10-16 UI3.1 微服务网关混沌故障注入规则编排卡片与抽样调节器：落地 meshChaos API 客户端并创建 MeshChaosRuleCard 组件；支持 503/熔断/延迟/畸形报文 4 类故障动作配置与流量采样比例动态滑块；挂载至 PerformanceCenterView；单测独立通过，见 [`docs/evidence/mesh-chaos-rule-card-ui3-1-2026-10-16.md`](docs/evidence/mesh-chaos-rule-card-ui3-1-2026-10-16.md)。
-- [ ] UI3.2 微服务调用依赖拓扑与爆炸半径逆向 BFS 级联阻断图（BlastRadiusTopologyGraph.vue）
+- [x] 2026-10-16 UI3.2 微服务调用依赖拓扑与爆炸半径逆向 BFS 级联阻断图：创建 BlastRadiusTopologyGraph 组件；基于 ECharts 力导向图渲染微服务依赖网络、逆向 BFS 级联受损与 Emergency Abort 红色告警；挂载至 PerformanceCenterView；单测独立通过，见 [`docs/evidence/blast-radius-topology-graph-ui3-2-2026-10-16.md`](docs/evidence/blast-radius-topology-graph-ui3-2-2026-10-16.md)。
 - [ ] UI3.3 全链路高可用 SLA 韧性评分与自愈 RTO 评级看板（MeshResilienceReportView.vue）
 - [ ] UI4.1 企业级 OIDC / OAuth2 身份提供商接入与单点登录卡片（OidcProviderConfigCard.vue）
 - [ ] UI4.2 细粒度资源操作 RBAC 策略模拟器与 Anti-IDOR 诊断抽屉（IamPolicySimulatorDrawer.vue）

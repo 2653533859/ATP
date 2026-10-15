@@ -858,16 +858,26 @@
         <a-tab-pane key="capacity" tab="回归容量预测与饱和拐点">
           <CapacityRegressionChart />
         </a-tab-pane>
+        <a-tab-pane key="topology" tab="微服务拓扑与爆炸半径控制">
+          <BlastRadiusTopologyGraph />
+        </a-tab-pane>
       </a-tabs>
     </a-modal>
     <a-drawer
       v-model:open="meshChaosDrawerVisible"
-      title="微服务网关分布式混沌演练控制台"
-      :width="860"
+      title="微服务网关分布式混沌演练与拓扑控制台"
+      :width="960"
       placement="right"
       destroy-on-close
     >
-      <MeshChaosRuleCard />
+      <a-tabs default-active-key="rules">
+        <a-tab-pane key="rules" tab="故障注入规则编排">
+          <MeshChaosRuleCard />
+        </a-tab-pane>
+        <a-tab-pane key="topology" tab="微服务拓扑与爆炸半径">
+          <BlastRadiusTopologyGraph />
+        </a-tab-pane>
+      </a-tabs>
     </a-drawer>
   </div>
 </template>
@@ -887,6 +897,7 @@ const perfToolTab = ref('drift')
 const CapacityRegressionChart = defineAsyncComponent(() => import('./components/CapacityRegressionChart.vue'))
 const MeshChaosRuleCard = defineAsyncComponent(() => import('@/views/workbench/components/MeshChaosRuleCard.vue'))
 const meshChaosDrawerVisible = ref(false)
+const BlastRadiusTopologyGraph = defineAsyncComponent(() => import('@/views/workbench/components/BlastRadiusTopologyGraph.vue'))
 import type { AxiosError } from 'axios'
 import VChart from 'vue-echarts'
 import type { EChartsOption } from 'echarts'
