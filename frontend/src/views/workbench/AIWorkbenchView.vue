@@ -246,11 +246,18 @@
       <section class="exploration-section panel" style="margin-top: 20px">
         <div class="panel-head" style="margin-bottom: 12px">
           <div>
-            <div class="panel-kicker">AI AUTONOMOUS EXPLORATION</div>
-            <h2>页面状态树拓扑与状态指纹视图 (FSM Topology)</h2>
+            <div class="panel-kicker">AI AUTONOMOUS EXPLORATION CONSOLE</div>
+            <h2>智能探索遍历、事件轨迹与用例合成控制台</h2>
           </div>
         </div>
-        <ExplorationGraphViewer />
+        <a-tabs v-model:activeKey="explorationTab">
+          <a-tab-pane key="fsm" tab="页面状态机 (FSM) 拓扑与指纹">
+            <ExplorationGraphViewer />
+          </a-tab-pane>
+          <a-tab-pane key="synthesizer" tab="事件流轨迹与用例自动合成">
+            <ExplorationTraceSynthesizer />
+          </a-tab-pane>
+        </a-tabs>
       </section>
     </template>
   </div>
@@ -276,6 +283,8 @@ import {
   WarningOutlined,
 } from '@ant-design/icons-vue'
 const ExplorationGraphViewer = defineAsyncComponent(() => import('./components/ExplorationGraphViewer.vue'))
+const ExplorationTraceSynthesizer = defineAsyncComponent(() => import('./components/ExplorationTraceSynthesizer.vue'))
+const explorationTab = ref('fsm')
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {

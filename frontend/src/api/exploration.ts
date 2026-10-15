@@ -58,6 +58,25 @@ export interface SynthesizeCaseRequest {
   persist?: boolean
 }
 
+export interface SynthesizedCaseStep {
+  name: string
+  action: string
+  params: Record<string, unknown>
+  is_key_step?: boolean
+}
+
+export interface SynthesizeCaseResponse {
+  id?: number
+  name: string
+  module_id: number
+  case_type: string
+  description?: string
+  priority?: string
+  case_level?: string
+  steps?: SynthesizedCaseStep[]
+  config?: Record<string, unknown>
+}
+
 export interface CircuitBreakerEvaluateRequest {
   element_count: number
   last_action_success?: boolean
@@ -82,7 +101,7 @@ export const explorationApi = {
   getSession: (sessionId: string) =>
     http.get<unknown, ExplorationCoverageMetrics>(`/exploration/sessions/${sessionId}`),
   synthesizeCase: (payload: SynthesizeCaseRequest) =>
-    http.post<unknown, Record<string, unknown>>('/exploration/synthesize-case', payload),
+    http.post<unknown, SynthesizeCaseResponse>('/exploration/synthesize-case', payload),
   evaluateCircuitBreaker: (payload: CircuitBreakerEvaluateRequest) =>
     http.post<unknown, CircuitBreakerEvaluateResponse>('/exploration/circuit-breaker/evaluate', payload),
 }

@@ -34,7 +34,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | F2.1 `[x]` | **页面状态树（FSM）拓扑与状态指纹视图** | Q2.1 | 可视化展示有限状态机图模型、页面置换不变指纹哈希与已探索覆盖度指标；见 docs/evidence/exploration-fsm-graph-and-state-fingerprint-f2-1-2026-10-16.md |
-| F2.2 `[ ]` | **探索事件流实时轨迹与一键生成 TestCase** | Q2.2 | 展示事件流去噪折叠轨迹，支持一键合成包含断言的 TestCaseCreate 资产并实时跳转。 |
+| F2.2 `[x]` | **探索事件流实时轨迹与一键生成 TestCase** | Q2.2 | 展示事件流去噪折叠轨迹，支持一键合成包含断言的 TestCaseCreate 资产并实时跳转；见 docs/evidence/exploration-trace-and-case-synthesizer-f2-2-2026-10-16.md |
 | F2.3 `[ ]` | **异常假死与死循环振荡熔断告警卡片** | Q2.3 | 在触发黑屏假死或乒乓振荡熔断时展示明确告警卡片、事故快照与诊断详情。 |
 
 ---
