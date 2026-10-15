@@ -16,6 +16,8 @@ from app.api.v1.router import router
 from app.api.v1.ws import ws_router
 from app.api.v1.mock_server import router as mock_router
 from app.api.v1.device_agents import ws_router as device_agents_ws_router
+from app.device_stream.router import ws_router as scrcpy_ws_router
+from app.device_stream.manager import scrcpy_manager
 from app.core.config import settings
 from app.core.database import AsyncSessionLocal, engine
 from app.core.logging import setup_logging
@@ -138,6 +140,10 @@ async def lifespan(app: FastAPI):
             adb_keeper.stop()
         except Exception:
             logger.warning("Device agent tunnel hub shutdown failed", exc_info=True)
+        try:
+            scrcpy_manager.cleanup_all()
+        except Exception:
+            logger.warning("Scrcpy manager cleanup failed", exc_info=True)
         await engine.dispose()
         shutdown_tracer()
 
@@ -189,6 +195,7 @@ app.include_router(router)
 app.include_router(ws_router)  # WebSocket 路由，路径以 /ws/ 开头
 app.include_router(device_agents_ws_router)
 app.include_router(mock_router)  # Mock 服务，路径以 /mock/ 开头
+app.include_router(scrcpy_ws_router)  # Scrcpy WebSocket 视频流
 
 # 必须在路由注册后调用，以便自动埋 server span（包含路径模板）。
 # OTEL endpoint 未配置时不挂载 OTel ASGI 中间件，保持本地/CI 的 no-op 行为。

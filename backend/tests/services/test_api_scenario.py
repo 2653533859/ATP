@@ -38,3 +38,21 @@ def test_step_dependencies_only_allow_previous_steps_and_deduplicate():
 def test_policy_rejects_unknown_values(config):
     with pytest.raises(ApiScenarioError):
         build_api_scenario_policy(config)
+
+
+def test_api_scenario_atomic_save_and_corrupt_handling(tmp_path, monkeypatch):
+    import app.api.v1.api_scenarios as scn_mod
+
+    store_file = tmp_path / "api_scenarios.json"
+    monkeypatch.setattr(scn_mod, "_store_path", lambda: store_file)
+
+    assert scn_mod._load_all() == []
+
+    test_data = [{"id": 1, "scenario_code": "SCN-0001", "name": "测试场景", "project_id": 99}]
+    scn_mod._save_all(test_data)
+    assert scn_mod._load_all() == test_data
+
+    # 写入损坏数据，验证捕获并备份
+    store_file.write_text("invalid json {{{", encoding="utf-8")
+    assert scn_mod._load_all() == []
+    assert (tmp_path / "api_scenarios.corrupted").exists()

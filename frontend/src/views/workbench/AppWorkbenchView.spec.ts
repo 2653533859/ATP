@@ -7,6 +7,7 @@ import AppWorkbenchView from './AppWorkbenchView.vue'
 const {
   apkList,
   caseList,
+  caseGet,
   caseRun,
   deviceAcquireLease,
   deviceList,
@@ -21,6 +22,7 @@ const {
 } = vi.hoisted(() => ({
   apkList: vi.fn(),
   caseList: vi.fn(),
+  caseGet: vi.fn(),
   caseRun: vi.fn(),
   deviceAcquireLease: vi.fn(),
   deviceList: vi.fn(),
@@ -48,19 +50,42 @@ vi.mock('@ant-design/icons-vue', () => ({
   AndroidOutlined: true,
   AppstoreOutlined: true,
   EyeOutlined: true,
+  EditOutlined: true,
+  HomeOutlined: true,
+  LeftOutlined: true,
+  MinusOutlined: true,
   MobileOutlined: true,
   PlayCircleOutlined: true,
+  PlusOutlined: true,
+  PoweroffOutlined: true,
   ReloadOutlined: true,
   SafetyCertificateOutlined: true,
+  SendOutlined: true,
   ThunderboltOutlined: true,
   ToolOutlined: true,
+}))
+vi.mock('@/views/device/components/DeviceMirrorModal.vue', () => ({
+  default: defineComponent({
+    name: 'DeviceMirrorModal',
+    props: ['open', 'device', 'canModify'],
+    emits: ['update:open', 'close'],
+    setup: () => () => h('div', { class: 'device-mirror-modal-stub' }),
+  }),
+}))
+vi.mock('@/views/case/AndroidCaseDrawer.vue', () => ({
+  default: defineComponent({
+    name: 'AndroidCaseDrawer',
+    props: ['open', 'moduleId', 'projectId', 'editCase'],
+    emits: ['close', 'saved'],
+    setup: () => () => h('div', { class: 'android-case-drawer-stub' }),
+  }),
 }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
 }))
 vi.mock('@/api', () => ({
   apkApi: { list: apkList },
-  caseApi: { list: caseList, run: caseRun },
+  caseApi: { list: caseList, run: caseRun, get: caseGet },
   deviceApi: {
     acquireLease: deviceAcquireLease,
     list: deviceList,
@@ -72,7 +97,7 @@ vi.mock('@/api', () => ({
     listTasks: mobileListTasks,
     triggerTask: mobileTriggerTask,
   },
-  projectApi: { list: projectList },
+  projectApi: { list: projectList, getModules: vi.fn().mockResolvedValue([{ id: 10, name: '默认模块' }]) },
   runApi: { list: runList },
 }))
 
@@ -255,6 +280,77 @@ describe('AppWorkbenchView', () => {
 
     expect(vm.selectedProjectId).toBe(2)
     expect(vm.androidCases).toEqual([latestCase])
+
+    wrapper.unmount()
+  })
+
+  it('opens the case drawer to create a new Android case', async () => {
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      caseDrawerOpen: boolean
+      editingCase: unknown
+      openCreateCase: () => void
+    }
+
+    expect(vm.caseDrawerOpen).toBe(false)
+    vm.openCreateCase()
+    expect(vm.caseDrawerOpen).toBe(true)
+    expect(vm.editingCase).toBeNull()
+
+    wrapper.unmount()
+  })
+
+  it('opens the case drawer to edit the selected Android case', async () => {
+    caseGet.mockResolvedValueOnce({ id: 101, name: 'Android 登录用例详情', case_type: 'android' })
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      caseDrawerOpen: boolean
+      editingCase: { id: number; name: string } | null
+      selectedCaseId: number | undefined
+      openEditCase: () => Promise<void>
+    }
+
+    vm.selectedCaseId = 101
+    await vm.openEditCase()
+
+    expect(caseGet).toHaveBeenCalledWith(101)
+    expect(vm.caseDrawerOpen).toBe(true)
+    expect(vm.editingCase?.id).toBe(101)
+    expect(vm.editingCase?.name).toBe('Android 登录用例详情')
+
+    wrapper.unmount()
+  })
+
+  it('closes the drawer and refreshes cases when handleCaseSaved is called', async () => {
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      caseDrawerOpen: boolean
+      editingCase: unknown
+      handleCaseSaved: () => Promise<void>
+    }
+
+    vm.caseDrawerOpen = true
+    caseList.mockClear()
+    await vm.handleCaseSaved()
+
+    expect(vm.caseDrawerOpen).toBe(false)
+    expect(vm.editingCase).toBeNull()
+    expect(caseList).toHaveBeenCalledWith({ project_id: 1, case_type: 'android' })
+
+    wrapper.unmount()
+  })
+
+  it('displays the empty guidance card when there are zero Android cases', async () => {
+    caseList.mockResolvedValueOnce([])
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    expect(wrapper.find('.case-empty-card').exists()).toBe(true)
+    expect(wrapper.find('.case-empty-card').text()).toContain('app_workbench.no_cases_title')
+    expect(wrapper.find('.case-empty-card').text()).toContain('app_workbench.create_first_case')
 
     wrapper.unmount()
   })

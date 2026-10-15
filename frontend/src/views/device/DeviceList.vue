@@ -303,107 +303,13 @@
       </a-form>
     </a-modal>
 
-    <!-- 屏幕镜像与远程控制工作台弹窗 -->
-    <a-modal
+    <!-- 屏幕镜像与远程控制工作台模态框 (统一复用 DeviceMirrorModal 组件) -->
+    <DeviceMirrorModal
       v-model:open="mirrorOpen"
-      :title="t('device.mirror_title', { name: `${mirrorDevice?.brand ?? ''} ${mirrorDevice?.model ?? ''}`.trim() })"
-      width="480px"
-      :footer="null"
-      :destroy-on-close="true"
-      @cancel="closeMirror"
-    >
-      <div class="mirror-workspace">
-        <div class="mirror-container" ref="mirrorContainerRef">
-          <div v-if="mirrorSrc" class="mirror-screen-wrapper">
-            <img
-              ref="screenImgRef"
-              :src="mirrorSrc"
-              :alt="t('device.screen_alt')"
-              class="mirror-img"
-              draggable="false"
-              @load="onImgLoaded"
-              @mousedown="onScreenMouseDown"
-              @mouseup="onScreenMouseUp"
-              @error="onMirrorError"
-            />
-            <span
-              v-if="ripple.visible"
-              class="touch-ripple"
-              :style="{ left: `${ripple.x}px`, top: `${ripple.y}px` }"
-            ></span>
-          </div>
-          <div v-else class="mirror-placeholder">
-            <a-spin :tip="t('device.connecting')" />
-          </div>
-        </div>
-
-        <!-- 快捷导航栏 (Back, Home, Recents, Power, Vol+, Vol-) -->
-        <div class="mirror-nav-bar">
-          <a-tooltip title="返回键 (Back)">
-            <button class="nav-key-btn" @click="sendKeyEvent(4)">
-              <LeftOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="主屏幕 (Home)">
-            <button class="nav-key-btn" @click="sendKeyEvent(3)">
-              <HomeOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="多任务 (Recent Apps)">
-            <button class="nav-key-btn" @click="sendKeyEvent(187)">
-              <AppstoreOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="电源键 (Power)">
-            <button class="nav-key-btn" @click="sendKeyEvent(26)">
-              <PoweroffOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="音量加">
-            <button class="nav-key-btn" @click="sendKeyEvent(24)">
-              <PlusOutlined />
-            </button>
-          </a-tooltip>
-          <a-tooltip title="音量减">
-            <button class="nav-key-btn" @click="sendKeyEvent(25)">
-              <MinusOutlined />
-            </button>
-          </a-tooltip>
-        </div>
-
-        <!-- 快捷文本输入行 -->
-        <div class="mirror-text-bar">
-          <a-input
-            v-model:value="quickInputText"
-            placeholder="输入文字按回车发送到手机"
-            size="small"
-            allow-clear
-            @pressEnter="sendQuickText"
-          >
-            <template #suffix>
-              <a-button type="link" size="small" style="padding: 0" @click="sendQuickText">
-                <SendOutlined />
-              </a-button>
-            </template>
-          </a-input>
-        </div>
-
-        <!-- 底部状态栏 -->
-        <div class="mirror-footer">
-          <div class="mirror-footer-left">
-            <a-button size="small" @click="() => refreshMirror()">
-              <ReloadOutlined /> {{ t('device.refresh_screenshot') }}
-            </a-button>
-            <span class="res-info" v-if="realResolution.w">
-              {{ realResolution.w }}×{{ realResolution.h }}
-            </span>
-          </div>
-          <span style="color: var(--c-text-tertiary); font-size: 12px">
-            {{ isInteracting ? '正在执行触控...' : '支持鼠标点击与拖拽滑动' }}
-          </span>
-        </div>
-      </div>
-    </a-modal>
+      :device="mirrorDevice"
+      :can-modify="true"
+      @close="closeMirror"
+    />
 
     <!-- 接入远程设备弹窗 -->
     <a-modal
@@ -530,17 +436,12 @@ import {
   WifiOutlined,
   CopyOutlined,
   DownloadOutlined,
-  LeftOutlined,
-  HomeOutlined,
-  PoweroffOutlined,
-  SendOutlined,
-  PlusOutlined,
-  MinusOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { deviceApi } from '@/api'
 import type { AndroidWorkerItem, DeviceGroupItem, DeviceItem, DeviceStatus, RemoteAgentItem } from '@/api'
 import DeviceMatrixPanel from './components/DeviceMatrixPanel.vue'
+import DeviceMirrorModal from './components/DeviceMirrorModal.vue'
 
 const asDevice = (record: unknown) => record as DeviceItem
 
@@ -573,119 +474,6 @@ const groupForm = ref({ name: '', description: '', device_ids: [] as number[] })
 
 const mirrorOpen = ref(false)
 const mirrorDevice = ref<DeviceItem | null>(null)
-
-const screenImgRef = ref<HTMLImageElement | null>(null)
-const realResolution = ref({ w: 0, h: 0 })
-const quickInputText = ref('')
-const isInteracting = ref(false)
-const ripple = ref({ visible: false, x: 0, y: 0 })
-let dragStartPos = { x: 0, y: 0, time: 0 }
-
-function onImgLoaded() {
-  if (screenImgRef.value) {
-    const naturalW = screenImgRef.value.naturalWidth
-    const naturalH = screenImgRef.value.naturalHeight
-    if (naturalW && naturalH) {
-      realResolution.value = { w: naturalW, h: naturalH }
-    }
-  }
-}
-
-function showRipple(clientX: number, clientY: number) {
-  if (!screenImgRef.value) return
-  const rect = screenImgRef.value.getBoundingClientRect()
-  ripple.value = {
-    visible: true,
-    x: clientX - rect.left,
-    y: clientY - rect.top,
-  }
-  setTimeout(() => {
-    ripple.value.visible = false
-  }, 350)
-}
-
-function onScreenMouseDown(e: MouseEvent) {
-  if (!screenImgRef.value || !mirrorDevice.value) return
-  const rect = screenImgRef.value.getBoundingClientRect()
-  dragStartPos = {
-    x: e.clientX - rect.left,
-    y: e.clientY - rect.top,
-    time: Date.now(),
-  }
-}
-
-async function onScreenMouseUp(e: MouseEvent) {
-  if (!screenImgRef.value || !mirrorDevice.value) return
-  const rect = screenImgRef.value.getBoundingClientRect()
-  const endX = e.clientX - rect.left
-  const endY = e.clientY - rect.top
-  const duration = Math.max(100, Math.min(Date.now() - dragStartPos.time, 1500))
-
-  const devW = realResolution.value.w || screenImgRef.value.naturalWidth || 1080
-  const devH = realResolution.value.h || screenImgRef.value.naturalHeight || 1920
-
-  const scaleX = devW / rect.width
-  const scaleY = devH / rect.height
-
-  const dx = endX - dragStartPos.x
-  const dy = endY - dragStartPos.y
-  const distance = Math.hypot(dx, dy)
-
-  const realStartX = Math.round(dragStartPos.x * scaleX)
-  const realStartY = Math.round(dragStartPos.y * scaleY)
-  const realEndX = Math.round(endX * scaleX)
-  const realEndY = Math.round(endY * scaleY)
-
-  showRipple(e.clientX, e.clientY)
-
-  isInteracting.value = true
-  try {
-    if (distance < 10) {
-      await deviceApi.tap(mirrorDevice.value.id, { x: realStartX, y: realStartY })
-    } else {
-      await deviceApi.swipe(mirrorDevice.value.id, {
-        x1: realStartX,
-        y1: realStartY,
-        x2: realEndX,
-        y2: realEndY,
-        duration_ms: duration,
-      })
-    }
-    setTimeout(() => {
-      refreshMirror(mirrorSession)
-    }, 150)
-  } catch (err: any) {
-    message.warning(`操作未生效: ${err?.response?.data?.detail || err?.message || '请检查设备'}`)
-  } finally {
-    isInteracting.value = false
-  }
-}
-
-async function sendKeyEvent(keycode: number | string) {
-  if (!mirrorDevice.value) return
-  try {
-    await deviceApi.keyevent(mirrorDevice.value.id, keycode)
-    setTimeout(() => {
-      refreshMirror(mirrorSession)
-    }, 150)
-  } catch (err: any) {
-    message.warning(`按键未响应: ${err?.message || err}`)
-  }
-}
-
-async function sendQuickText() {
-  const text = quickInputText.value.trim()
-  if (!text || !mirrorDevice.value) return
-  try {
-    await deviceApi.inputText(mirrorDevice.value.id, text)
-    quickInputText.value = ''
-    setTimeout(() => {
-      refreshMirror(mirrorSession)
-    }, 200)
-  } catch (err: any) {
-    message.warning(`文字发送失败: ${err?.message || err}`)
-  }
-}
 
 const remoteConnectModalVisible = ref(false)
 const remoteConnectTab = ref('direct')
@@ -793,11 +581,6 @@ function copyText(text: string) {
     message.info(text)
   }
 }
-const mirrorSrc = ref<string | null>(null)
-let mirrorTimer: ReturnType<typeof setInterval> | null = null
-let mirrorObjectUrl: string | null = null
-let mirrorRefreshing = false
-let mirrorSession = 0
 
 const columns = computed(() => [
   { title: t('device.columns.device_info'), key: 'device_info', width: 240 },
@@ -1003,7 +786,8 @@ async function handleScan() {
       message.info(t('device.msg.scan_queued'))
       await waitForScan(result.scan_id)
     } else {
-      message.success(t('device.msg.scan_success', { count: devices.value.length }))
+      const onlineCount = devices.value.filter((d) => d.status !== 'offline').length
+      message.success(t('device.msg.scan_success', { count: onlineCount }))
       markSynced()
     }
   } catch (e: unknown) {
@@ -1020,7 +804,8 @@ async function waitForScan(scanId: string) {
     const status = await deviceApi.scanStatus(scanId)
     if (status.status === 'completed') {
       devices.value = status.devices
-      message.success(t('device.msg.scan_success', { count: status.devices.length }))
+      const onlineCount = status.devices.filter((d) => d.status !== 'offline').length
+      message.success(t('device.msg.scan_success', { count: onlineCount }))
       markSynced()
       return
     }
@@ -1073,71 +858,11 @@ async function handleDelete(id: number) {
 function openMirror(device: DeviceItem) {
   mirrorDevice.value = device
   mirrorOpen.value = true
-  mirrorSession += 1
-  if (device.resolution) {
-    const match = device.resolution.match(/(\d+)x(\d+)/)
-    if (match) {
-      realResolution.value = { w: parseInt(match[1]), h: parseInt(match[2]) }
-    }
-  } else {
-    realResolution.value = { w: 0, h: 0 }
-  }
-  refreshMirror(mirrorSession)
-  startMirrorPolling()
 }
 
 function closeMirror() {
   mirrorOpen.value = false
   mirrorDevice.value = null
-  mirrorSession += 1
-  realResolution.value = { w: 0, h: 0 }
-  stopMirrorPolling()
-  revokeMirrorUrl()
-}
-
-function revokeMirrorUrl() {
-  if (mirrorObjectUrl) {
-    URL.revokeObjectURL(mirrorObjectUrl)
-    mirrorObjectUrl = null
-  }
-  mirrorSrc.value = null
-}
-
-async function refreshMirror(session = mirrorSession) {
-  if (!mirrorDevice.value || mirrorRefreshing || session !== mirrorSession) return
-  mirrorRefreshing = true
-  try {
-    const blob = await deviceApi.screenshot(mirrorDevice.value.id)
-    if (session !== mirrorSession) return
-    const nextUrl = URL.createObjectURL(blob)
-    const prevUrl = mirrorObjectUrl
-    mirrorObjectUrl = nextUrl
-    mirrorSrc.value = nextUrl
-    if (prevUrl) URL.revokeObjectURL(prevUrl)
-  } catch (_e) {
-    // Keep the current screenshot visible on intermittent adb errors
-  } finally {
-    mirrorRefreshing = false
-  }
-}
-
-function onMirrorError() {
-  revokeMirrorUrl()
-}
-
-function startMirrorPolling() {
-  stopMirrorPolling()
-  const activeSession = mirrorSession
-  mirrorTimer = setInterval(() => {
-    refreshMirror(activeSession)
-  }, 350)
-}
-
-function stopMirrorPolling() {
-  if (mirrorTimer) {
-    clearInterval(mirrorTimer)
-    mirrorTimer = null
-  }
 }
 
 onMounted(() => {
@@ -1148,8 +873,7 @@ onMounted(() => {
 })
 
 onUnmounted(() => {
-  stopMirrorPolling()
-  revokeMirrorUrl()
+  closeMirror()
 })
 </script>
 
@@ -1451,107 +1175,6 @@ onUnmounted(() => {
   padding: 16px;
 }
 
-/* 屏幕镜像与实时操作控制台 */
-.mirror-workspace {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-.mirror-container {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  min-height: 480px;
-  max-height: 620px;
-  background: #111;
-  border-radius: 8px;
-  overflow: hidden;
-  user-select: none;
-  border: 1px solid var(--c-border);
-  width: 100%;
-}
-.mirror-screen-wrapper {
-  position: relative;
-  display: inline-block;
-  cursor: crosshair;
-  line-height: 0;
-}
-.mirror-img {
-  max-width: 100%;
-  max-height: 580px;
-  object-fit: contain;
-  display: block;
-}
-.touch-ripple {
-  position: absolute;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  background: rgba(22, 119, 255, 0.45);
-  border: 2px solid #fff;
-  transform: translate(-50%, -50%) scale(1);
-  pointer-events: none;
-  animation: ripple-anim 0.35s ease-out forwards;
-}
-@keyframes ripple-anim {
-  0% { transform: translate(-50%, -50%) scale(0.6); opacity: 0.9; }
-  100% { transform: translate(-50%, -50%) scale(1.6); opacity: 0; }
-}
-.mirror-nav-bar {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  width: 100%;
-  padding: 6px 12px;
-  background: var(--c-bg-elevated);
-  border-radius: 8px;
-  border: 1px solid var(--c-border);
-}
-.nav-key-btn {
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  font-size: 15px;
-  color: var(--c-text);
-  padding: 6px 12px;
-  border-radius: 6px;
-  transition: all 0.2s;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-.nav-key-btn:hover {
-  background: var(--c-bg-hover, rgba(0, 0, 0, 0.06));
-  color: var(--c-primary);
-}
-.mirror-text-bar {
-  width: 100%;
-}
-.mirror-placeholder {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  height: 480px;
-  color: var(--c-text-tertiary);
-}
-.mirror-footer {
-  width: 100%;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-top: 4px;
-}
-.mirror-footer-left {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.res-info {
-  font-size: 11px;
-  color: var(--c-text-tertiary);
-}
 /* 远程设备接入弹窗 */
 .remote-connect-pane {
   padding: 8px 0;

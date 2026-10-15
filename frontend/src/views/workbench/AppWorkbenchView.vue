@@ -31,6 +31,16 @@
         <a-button size="small" :loading="loading" class="toolbar-btn" @click="refreshAll">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
+        <a-button
+          v-if="selectedProjectId"
+          type="primary"
+          size="small"
+          class="toolbar-btn"
+          :disabled="!canModify"
+          @click="openCreateCase"
+        >
+          <PlusOutlined /> {{ t('app_workbench.new_android_case') }}
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openDevices">
           <ToolOutlined /> {{ t('app_workbench.device_management') }}
         </a-button>
@@ -164,7 +174,18 @@
           </div>
 
           <div v-if="launchMode === 'case'" class="launch-form">
-            <label>{{ t('app_workbench.case_label') }}</label>
+            <div class="form-header-row">
+              <label>{{ t('app_workbench.case_label') }}</label>
+              <a-button
+                v-if="canModify"
+                type="link"
+                size="small"
+                class="quick-create-btn"
+                @click="openCreateCase"
+              >
+                <PlusOutlined /> {{ t('app_workbench.new_android_case') }}
+              </a-button>
+            </div>
             <a-select
               v-model:value="selectedCaseId"
               :options="androidCaseOptions"
@@ -172,6 +193,23 @@
               :placeholder="t('app_workbench.case_placeholder')"
               :loading="loading"
             />
+            <div v-if="!androidCases.length && !loading" class="case-empty-card">
+              <div class="empty-card-content">
+                <MobileOutlined class="empty-card-icon" />
+                <div class="empty-card-text">
+                  <strong>{{ t('app_workbench.no_cases_title') }}</strong>
+                  <p>{{ t('app_workbench.no_cases_description') }}</p>
+                </div>
+              </div>
+              <a-button
+                type="primary"
+                size="small"
+                :disabled="!canModify"
+                @click="openCreateCase"
+              >
+                <PlusOutlined /> {{ t('app_workbench.create_first_case') }}
+              </a-button>
+            </div>
             <div v-if="selectedAndroidCase" class="selection-card">
               <div class="selection-title">
                 <strong>{{ selectedAndroidCase.name }}</strong>
@@ -189,6 +227,20 @@
             <div class="launch-actions">
               <a-button type="primary" :disabled="!canRunAndroidCase" :loading="runLoading" @click="runAndroidCase">
                 <PlayCircleOutlined /> {{ t('app_workbench.run_case') }}
+              </a-button>
+              <a-button
+                v-if="selectedAndroidCase"
+                :disabled="!canModify"
+                @click="openEditCase"
+              >
+                <EditOutlined /> {{ t('app_workbench.edit_case') }}
+              </a-button>
+              <a-button
+                v-else
+                :disabled="!canModify"
+                @click="openCreateCase"
+              >
+                <PlusOutlined /> {{ t('app_workbench.new_case') }}
               </a-button>
               <a-button type="link" @click="openAndroidCases">{{ t('app_workbench.manage_cases') }}</a-button>
             </div>
@@ -286,16 +338,20 @@
       </section>
     </template>
 
-    <a-modal v-model:open="previewOpen" :title="t('app_workbench.preview_title', { name: selectedDevice?.name || selectedDevice?.serial || '' })" :footer="null" width="430px" @cancel="closePreview">
-      <div class="preview-stage">
-        <img v-if="previewSrc" :src="previewSrc" :alt="t('app_workbench.preview_alt')" />
-        <a-spin v-else :tip="t('app_workbench.preview_loading')" />
-      </div>
-      <div class="preview-footer">
-        <span><span class="live-dot" />{{ t('app_workbench.preview_live') }}</span>
-        <a-button size="small" @click="() => refreshPreview()"><ReloadOutlined /> {{ t('app_workbench.refresh_preview') }}</a-button>
-      </div>
-    </a-modal>
+    <DeviceMirrorModal
+      v-model:open="previewOpen"
+      :device="selectedDevice"
+      :can-modify="canModify"
+      @close="closePreview"
+    />
+    <AndroidCaseDrawer
+      :open="caseDrawerOpen"
+      :module-id="defaultModuleId"
+      :project-id="selectedProjectId"
+      :edit-case="editingCase"
+      @close="caseDrawerOpen = false"
+      @saved="handleCaseSaved"
+    />
   </div>
 </template>
 
@@ -305,9 +361,11 @@ import { message } from 'ant-design-vue'
 import {
   AndroidOutlined,
   AppstoreOutlined,
+  EditOutlined,
   EyeOutlined,
   MobileOutlined,
   PlayCircleOutlined,
+  PlusOutlined,
   ReloadOutlined,
   SafetyCertificateOutlined,
   ThunderboltOutlined,
@@ -324,12 +382,14 @@ import {
   runApi,
   type ApkItem,
   type AndroidWorkerItem,
+  type CaseDetailItem,
   type CaseSummaryItem,
   type CaseType,
   type DeviceItem,
   type DeviceLeaseItem,
   type MobileSpecialRunItem,
   type MobileSpecialTaskItem,
+  type ModuleTreeItem,
   type ProjectItem,
   type RunDetailItem,
   type TaskType,
@@ -337,6 +397,8 @@ import {
 import { canEditProjectByRole } from '@/utils/permissions'
 import { useAuthStore } from '@/stores/auth'
 import { getRuntimeMode } from '@/runtimeMode'
+import DeviceMirrorModal from '@/views/device/components/DeviceMirrorModal.vue'
+import AndroidCaseDrawer from '@/views/case/AndroidCaseDrawer.vue'
 
 type LaunchMode = 'case' | 'special'
 const localMode = getRuntimeMode()?.mode === 'local'
@@ -386,10 +448,10 @@ const runLoading = ref(false)
 const leaseLoading = ref(false)
 const lease = ref<DeviceLeaseItem | null>(null)
 const previewOpen = ref(false)
-const previewSrc = ref<string | null>(null)
-let previewObjectUrl: string | null = null
-let previewTimer: number | null = null
-let previewSession = 0
+const caseDrawerOpen = ref(false)
+const editingCase = ref<CaseDetailItem | { id: number } | null>(null)
+const projectModules = ref<ModuleTreeItem[]>([])
+const defaultModuleId = computed<number | null>(() => projectModules.value[0]?.id ?? null)
 let leaseHeartbeatTimer: number | null = null
 let projectSequence = 0
 let projectDataSequence = 0
@@ -551,8 +613,8 @@ async function loadProjectData() {
     specialTasks.value = []
     specialRuns.value = []
     androidRuns.value = []
+    projectModules.value = []
     selectedDeviceId.value = null
-    loading.value = false
     return
   }
   loading.value = true
@@ -564,6 +626,7 @@ async function loadProjectData() {
       loadAndroidCases(projectId, sequence),
       loadSpecialTasks(projectId, sequence),
       loadSpecialRuns(projectId, sequence),
+      loadProjectModules(projectId, sequence),
     ])
     if (!isCurrentProjectData(sequence, projectId)) return
     await loadAndroidRuns(projectId, sequence)
@@ -643,6 +706,19 @@ async function loadSpecialRuns(projectId: number, sequence: number) {
     if (isCurrentProjectData(sequence, projectId)) specialRuns.value = []
   }
 }
+async function loadProjectModules(projectId: number, sequence: number) {
+  try {
+    const tree = await projectApi.getModules(projectId)
+    if (isCurrentProjectData(sequence, projectId)) {
+      projectModules.value = tree
+    }
+  } catch {
+    if (isCurrentProjectData(sequence, projectId)) {
+      projectModules.value = []
+    }
+  }
+}
+
 
 async function loadAndroidRuns(projectId: number, sequence: number) {
   if (!isCurrentProjectData(sequence, projectId)) return
@@ -830,6 +906,39 @@ function openSpecialReports() { void router.push('/mobile-special/reports') }
 function openAndroidCases() {
   void router.push({ path: '/cases', query: selectedProjectId.value ? { project_id: String(selectedProjectId.value), case_type: 'android' } : {} })
 }
+function openCreateCase() {
+  if (!canModify.value) return
+  if (!selectedProjectId.value) {
+    message.warning(t('app_workbench.select_project_first'))
+    return
+  }
+  editingCase.value = null
+  caseDrawerOpen.value = true
+}
+
+async function openEditCase() {
+  if (!canModify.value || !selectedAndroidCase.value) return
+  try {
+    const detail = await caseApi.get(selectedAndroidCase.value.id)
+    editingCase.value = detail
+    caseDrawerOpen.value = true
+  } catch (err: unknown) {
+    message.error(errorMessage(err, t('app_workbench.load_case_failed')))
+  }
+}
+
+async function handleCaseSaved() {
+  caseDrawerOpen.value = false
+  const wasEdit = Boolean(editingCase.value)
+  editingCase.value = null
+  if (selectedProjectId.value) {
+    if (!wasEdit) {
+      selectedCaseId.value = undefined
+    }
+    await loadProjectData()
+  }
+}
+
 
 function openPreview() {
   if (!lease.value) {
@@ -837,42 +946,10 @@ function openPreview() {
     return
   }
   previewOpen.value = true
-  previewSession += 1
-  void refreshPreview(previewSession)
-  previewTimer = window.setInterval(() => { void refreshPreview(previewSession) }, 700)
-}
-
-function revokePreviewUrl() {
-  if (previewObjectUrl) {
-    URL.revokeObjectURL(previewObjectUrl)
-    previewObjectUrl = null
-  }
 }
 
 function closePreview() {
-  previewSession += 1
   previewOpen.value = false
-  previewSrc.value = null
-  revokePreviewUrl()
-  if (previewTimer !== null) {
-    window.clearInterval(previewTimer)
-    previewTimer = null
-  }
-}
-
-async function refreshPreview(session = previewSession) {
-  const device = selectedDevice.value
-  if (!device || !previewOpen.value || session !== previewSession) return
-  try {
-    const blob = await deviceApi.screenshot(device.id)
-    if (session !== previewSession || !previewOpen.value) return
-    const nextUrl = URL.createObjectURL(blob)
-    revokePreviewUrl()
-    previewObjectUrl = nextUrl
-    previewSrc.value = nextUrl
-  } catch {
-    // Keep the last frame while the Worker is temporarily busy.
-  }
 }
 
 onMounted(() => { void loadProjects() })
@@ -1162,6 +1239,74 @@ onUnmounted(() => {
 .launch-form {
   max-width: 730px;
 }
+.form-header-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 7px;
+}
+.form-header-row label {
+  margin-bottom: 0;
+  color: var(--c-text-secondary);
+  font-size: 11px;
+  font-weight: 750;
+  letter-spacing: .04em;
+}
+.quick-create-btn {
+  padding: 0;
+  height: auto;
+  font-size: 11px;
+  cursor: pointer;
+}
+.case-empty-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  margin-top: 14px;
+  padding: 14px 16px;
+  border: 1px dashed var(--c-border);
+  border-radius: 9px;
+  background: var(--c-bg-subtle);
+  transition: border-color 0.2s ease;
+}
+.case-empty-card:hover {
+  border-color: var(--app-cyan);
+}
+.empty-card-content {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.empty-card-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
+  color: var(--app-cyan);
+  border-radius: 8px;
+  background: var(--c-bg-elevated);
+  box-shadow: var(--shadow-sm);
+}
+.empty-card-text strong {
+  display: block;
+  font-size: 13px;
+  color: var(--c-text);
+  margin-bottom: 2px;
+}
+.empty-card-text p {
+  margin: 0;
+  font-size: 11px;
+  color: var(--c-text-tertiary);
+  line-height: 1.4;
+}
+.launch-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 16px;
+}
 .launch-form > label,
 .launch-two-col label {
   display: block;
@@ -1275,7 +1420,7 @@ onUnmounted(() => {
 }
 
 .apk-row { display: flex; align-items: center; gap: 10px; padding: 8px; border-bottom: 1px solid #eef2f3; }.apk-row:last-child { border-bottom: 0; }.apk-mark { background: #edf2ff; color: #6875c5; }.apk-code { color: #a0abb1; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 10px; }.compatibility-strip { display: flex; align-items: center; flex-wrap: wrap; gap: 6px; margin-top: 14px; padding-top: 13px; border-top: 1px solid #edf1f2; }.strip-label { display: inline-flex; align-items: center; gap: 5px; margin-right: 4px; color: #71828c; font-size: 10px; font-weight: 750; letter-spacing: .04em; text-transform: uppercase; }.compatibility-chip { padding: 4px 7px; border-radius: 5px; background: #f1f5f6; color: #72858f; font-size: 10px; }.compatibility-empty { color: #9ba8af; font-size: 10px; }
-.preview-stage { display: flex; min-height: 480px; align-items: center; justify-content: center; border-radius: 8px; background: #111c25; }.preview-stage img { display: block; max-width: 100%; max-height: 560px; object-fit: contain; }.preview-footer { display: flex; align-items: center; justify-content: space-between; gap: 10px; padding-top: 12px; color: #85939c; font-size: 11px; }.preview-footer > span { display: inline-flex; align-items: center; gap: 7px; }.preview-footer .live-dot { width: 6px; height: 6px; box-shadow: none; }
+
 
 @media (max-width: 1050px) { .app-hero { flex-direction: column; }.hero-controls { flex-basis: auto; width: min(100%, 360px); }.signal-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }.lower-grid { grid-template-columns: 1fr; } }
 @media (max-width: 760px) { .workspace-grid { display: block; }.launch-panel { margin-top: 16px; }.app-hero { padding: 23px 20px; }.device-panel, .launch-panel, .activity-panel, .asset-panel { padding: 17px; }.launch-two-col { grid-template-columns: 1fr; }.signal-grid { gap: 8px; }.signal-card { min-height: 100px; padding: 14px; }.signal-card strong { font-size: 23px; }.launch-signal { display: none; } }

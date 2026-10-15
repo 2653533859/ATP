@@ -13,6 +13,7 @@ const {
   runList,
   routerPush,
   routerReplace,
+  apiScenarioList,
 } = vi.hoisted(() => ({
   caseGet: vi.fn(),
   caseList: vi.fn(),
@@ -22,6 +23,7 @@ const {
   runList: vi.fn(),
   routerPush: vi.fn(),
   routerReplace: vi.fn(),
+  apiScenarioList: vi.fn().mockResolvedValue([]),
 }))
 
 vi.mock('vue-router', () => ({
@@ -36,11 +38,13 @@ vi.mock('ant-design-vue', () => ({
 }))
 vi.mock('@ant-design/icons-vue', () => ({
   ApiOutlined: true,
+  FileAddOutlined: true,
   FilterOutlined: true,
   MinusCircleOutlined: true,
   PlayCircleOutlined: true,
   PlusOutlined: true,
   ReloadOutlined: true,
+  SendOutlined: true,
   ThunderboltOutlined: true,
   ClusterOutlined: true,
   DownOutlined: true,
@@ -50,6 +54,7 @@ vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
 }))
 vi.mock('@/api', () => ({
+  apiScenarioApi: { list: apiScenarioList, create: vi.fn(), delete: vi.fn() },
   caseApi: { get: caseGet, list: caseList, run: caseRun },
   environmentApi: { list: environmentList },
   projectApi: { list: projectList },
@@ -392,6 +397,87 @@ describe('ApiWorkbenchView', () => {
     await flushPromises()
     expect(vm.selectedModuleId).toBe(null)
     expect(vm.consoleResetKey).toBe(initialResetKey)
+    wrapper.unmount()
+  })
+
+  it('handles collection plus menu actions for debug, case, and scenario', async () => {
+    const wrapper = mountWorkbench()
+    await flushPromises()
+
+    const vm = wrapper.vm as unknown as {
+      handlePlusMenuClick: (payload: { key: string }) => void
+      isAutomationMode: boolean
+      consoleResetKey: number
+      initialScenarioSteps: unknown[] | null
+      selectedModuleId: number | null
+      caseFormOpen: boolean
+    }
+
+    // 1. debug option resets console and exits automation mode
+    vm.isAutomationMode = true
+    const resetKeyBefore = vm.consoleResetKey
+    vm.handlePlusMenuClick({ key: 'debug' })
+    expect(vm.isAutomationMode).toBe(false)
+    expect(vm.consoleResetKey).toBe(resetKeyBefore + 1)
+
+    // 2. case option validates module selection and opens creation drawer
+    vm.selectedModuleId = null
+    vm.handlePlusMenuClick({ key: 'case' })
+    expect(vm.caseFormOpen).toBe(false)
+
+    vm.selectedModuleId = 3
+    vm.handlePlusMenuClick({ key: 'case' })
+    expect(vm.caseFormOpen).toBe(true)
+
+    // 3. scenario option activates automation mode and initializes blank scenario
+    vm.handlePlusMenuClick({ key: 'scenario' })
+    expect(vm.isAutomationMode).toBe(true)
+    expect(vm.initialScenarioSteps).toHaveLength(1)
+
+    wrapper.unmount()
+  })
+
+  it('updates scenario in place on handleScenarioSaved to preserve step state', async () => {
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      activeScenarioRecord: { id: number; name: string } | null
+      scenarios: Array<{ id: number; name: string }>
+      handleScenarioSaved: (id: number) => Promise<void>
+    }
+
+    const existing = { id: 77, name: '原始名称' }
+    vm.activeScenarioRecord = existing
+    apiScenarioList.mockResolvedValueOnce([{ id: 77, name: '更新后的名称' }])
+
+    await vm.handleScenarioSaved(77)
+
+    expect(existing.name).toBe('更新后的名称')
+    expect(vm.activeScenarioRecord?.name).toBe('更新后的名称')
+
+    wrapper.unmount()
+  })
+
+  it('clears scenario state and reloads when switching projects in automation mode', async () => {
+    const wrapper = mountWorkbench()
+    await flushPromises()
+    const vm = wrapper.vm as unknown as {
+      isAutomationMode: boolean
+      activeScenarioRecord: { id: number } | null
+      selectedBatchCaseIds: number[]
+      handleProjectChange: (id: number) => Promise<void>
+    }
+
+    vm.isAutomationMode = true
+    vm.activeScenarioRecord = { id: 99 }
+    vm.selectedBatchCaseIds = [1, 2]
+
+    apiScenarioList.mockClear()
+    await vm.handleProjectChange(2)
+
+    expect(vm.activeScenarioRecord).toBeNull()
+    expect(vm.selectedBatchCaseIds).toEqual([])
+    expect(apiScenarioList).toHaveBeenCalledWith({ project_id: 2 })
 
     wrapper.unmount()
   })

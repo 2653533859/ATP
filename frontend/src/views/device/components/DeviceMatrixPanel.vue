@@ -81,7 +81,7 @@
           :disabled="device.status === 'offline'"
           @click="device.status !== 'offline' ? emit('use', device) : null"
         >
-          立即使用
+          {{ device.status === 'offline' ? '设备已离线' : '立即使用' }}
         </button>
       </div>
     </div>

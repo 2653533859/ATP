@@ -2186,6 +2186,51 @@ export const deviceApi = {
   deleteAgent: (agentId: number) => http.delete<{ message: string; released_ports: number[] }>(`/device-agents/${agentId}`),
   probeAgentLink: (agentId: number) => http.post<unknown, { bps: number; bytes: number; elapsed_ms: number; at: string }>(`/device-agents/${agentId}/link-probe`),
   downloadAgentScript: () => http.get('/device-agents/agent-script', { responseType: 'blob' }),
+  sendScrcpyTouch: (serial: string, data: { action: number; x: number; y: number; w?: number; h?: number }) =>
+    http.post(`/devices/${encodeURIComponent(serial)}/touch`, data),
+  reconnectScrcpy: (serial: string) =>
+    http.post(`/devices/${encodeURIComponent(serial)}/reconnect`),
+}
+
+export interface ApiScenarioRecord {
+  id: number
+  scenario_code: string
+  project_id: number
+  module_id?: number | null
+  name: string
+  description: string
+  env_id?: number | null
+  steps: Array<Record<string, unknown>>
+  step_count: number
+  last_run_status?: string | null
+  last_run_duration_ms?: number | null
+  last_run_at?: string | null
+  created_at: string
+  updated_at: string
+}
+
+export interface ApiScenarioSavePayload {
+  project_id: number
+  module_id?: number | null
+  name: string
+  description?: string
+  env_id?: number | null
+  steps: Array<Record<string, unknown>>
+}
+
+export const apiScenarioApi = {
+  list: (params?: { project_id?: number; module_id?: number; keyword?: string }) =>
+    http.get<unknown, ApiScenarioRecord[]>('/api-scenarios', { params }),
+  get: (id: number) =>
+    http.get<unknown, ApiScenarioRecord>(`/api-scenarios/${id}`),
+  create: (data: ApiScenarioSavePayload) =>
+    http.post<unknown, ApiScenarioRecord>('/api-scenarios', data),
+  update: (id: number, data: ApiScenarioSavePayload) =>
+    http.put<unknown, ApiScenarioRecord>(`/api-scenarios/${id}`, data),
+  recordRun: (id: number, data: { status: string; duration_ms: number }) =>
+    http.post<unknown, ApiScenarioRecord>(`/api-scenarios/${id}/record-run`, data),
+  delete: (id: number) =>
+    http.delete<unknown, void>(`/api-scenarios/${id}`),
 }
 
 export const iosApi = {

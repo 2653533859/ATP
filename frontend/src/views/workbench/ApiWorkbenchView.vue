@@ -74,7 +74,27 @@
               <span class="column-kicker">{{ t('api_workbench.console.collection') }}</span>
               <h2>{{ t('api_workbench.module_title') }}</h2>
             </div>
-            <a-button size="small" type="text" :title="t('api_workbench.console.new_request')" @click="startNewRequest"><PlusOutlined /></a-button>
+            <a-dropdown :trigger="['click']" placement="bottomRight">
+              <a-button size="small" type="text" class="collection-plus-btn" :title="t('api_workbench.console.new_request')">
+                <PlusOutlined />
+              </a-button>
+              <template #overlay>
+                <a-menu @click="handlePlusMenuClick">
+                  <a-menu-item key="debug">
+                    <SendOutlined style="margin-right: 8px; color: var(--c-primary, #1677ff)" />
+                    <span>{{ t('api_workbench.menu_new_debug') }}</span>
+                  </a-menu-item>
+                  <a-menu-item key="case" :disabled="!canModify">
+                    <FileAddOutlined style="margin-right: 8px; color: #52c41a" />
+                    <span>{{ t('api_workbench.menu_new_case') }}</span>
+                  </a-menu-item>
+                  <a-menu-item key="scenario" :disabled="!canModify">
+                    <ThunderboltOutlined style="margin-right: 8px; color: #fa8c16" />
+                    <span>{{ t('api_workbench.menu_new_scenario') }}</span>
+                  </a-menu-item>
+                </a-menu>
+              </template>
+            </a-dropdown>
           </div>
           <ModuleTree
             :key="selectedProjectId"
@@ -85,13 +105,61 @@
             @select="handleModuleSelect"
             @reset="handleModuleReset"
           />
+          <!-- 独立保存的自动化场景列表（不混入普通用例管理库） -->
+          <div v-if="isAutomationMode" class="saved-scenarios-section">
+            <div class="collection-separator scenario-list-header">
+              <div class="separator-left-meta">
+                <span>{{ t('api_workbench.scenario_list_title') }}</span>
+                <span class="count-tag">{{ scenarios.length }}</span>
+              </div>
+              <a-button v-if="canModify" type="link" size="small" style="padding: 0; font-size: 12px" @click="startNewBlankScenario">
+                {{ t('api_workbench.new_scenario_btn') }}
+              </a-button>
+            </div>
+            <div class="scenario-saved-list">
+              <div v-if="!scenarios.length" class="scenario-saved-empty">
+                {{ t('api_workbench.scenario_empty_tip') }}
+              </div>
+              <div
+                v-for="sc in scenarios"
+                :key="sc.id"
+                class="request-list-item scenario-saved-item"
+                :class="{ 'is-selected': activeScenarioRecord?.id === sc.id }"
+                @click="selectSavedScenario(sc)"
+              >
+                <span class="request-list-method method-scenario">场景</span>
+                <span class="request-list-text">
+                  <strong>{{ sc.name }}</strong>
+                  <small>{{ sc.scenario_code }} · {{ sc.step_count }} 步</small>
+                </span>
+                <span class="request-list-state" :class="`run-${sc.last_run_status || 'none'}`" />
+                <a-popconfirm
+                  v-if="canModify"
+                  :title="t('api_workbench.scenario_delete_confirm')"
+                  :ok-text="t('common.delete')"
+                  :cancel-text="t('common.cancel')"
+                  ok-type="danger"
+                  @confirm="handleDeleteScenario(sc.id)"
+                >
+                  <button
+                    type="button"
+                    class="scenario-del-btn"
+                    :title="t('common.delete')"
+                    @click.stop
+                  >
+                    ×
+                  </button>
+                </a-popconfirm>
+              </div>
+            </div>
+          </div>
           <div class="collection-separator">
             <div class="separator-left-meta">
-              <span>{{ isAutomationMode ? '待编排接口列表' : t('api_workbench.console.saved_requests') }}</span>
+              <span>{{ isAutomationMode ? t('api_workbench.pending_cases_title') : t('api_workbench.console.saved_requests') }}</span>
               <span class="count-tag">{{ filteredCases.length }}</span>
             </div>
             <div v-if="isAutomationMode" class="separator-right-meta">
-              <span class="automation-badge-indicator">⚡ 多选编排中</span>
+              <span class="automation-badge-indicator">{{ t('api_workbench.batch_orchestrating') }}</span>
             </div>
           </div>
           <div class="collection-filters">
@@ -158,7 +226,23 @@
             <a-button block :disabled="!selectedModuleId || !canModify" @click="openImport"><ThunderboltOutlined />{{ t('api_workbench.import_generate') }}</a-button>
           </div>
         </aside>
+        <ApiScenarioOrchestrator
+          v-show="isAutomationMode"
+          :project-id="selectedProjectId"
+          :module-id="selectedModuleId"
+          :can-modify="canModify"
+          :cases="filteredCases"
+          :scenarios="scenarios"
+          :environments="environments"
+          :initial-steps="initialScenarioSteps"
+          :initial-scenario="activeScenarioRecord"
+          :initial-case="scenarioEditingCase"
+          @exit="setAutomationMode(false)"
+          @saved="handleScenarioSaved"
+          @run-created="openRunDetail"
+        />
         <ApiRequestConsole
+          v-show="!isAutomationMode"
           :project-id="selectedProjectId"
           :module-id="selectedModuleId"
           :can-modify="canModify"
@@ -293,9 +377,11 @@ import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   ApiOutlined,
+  FileAddOutlined,
   PlayCircleOutlined,
   PlusOutlined,
   ReloadOutlined,
+  SendOutlined,
   ThunderboltOutlined,
   ClusterOutlined,
 } from '@ant-design/icons-vue'
@@ -303,11 +389,13 @@ import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {
+  apiScenarioApi,
   caseApi,
   environmentApi,
   projectApi,
   runApi,
   type ApiRequestPreviewPayload,
+  type ApiScenarioRecord,
   type CaseDetailItem,
   type CaseSummaryItem,
   type CaseType,
@@ -318,9 +406,15 @@ import {
 import ModuleTree from '@/components/common/ModuleTree.vue'
 import CaseFormDrawer from '@/components/common/CaseFormDrawer.vue'
 import ApiRequestConsole from './components/ApiRequestConsole.vue'
+import ApiScenarioOrchestrator from './components/ApiScenarioOrchestrator.vue'
 import AIGenerateDrawer from '@/views/case/AIGenerateDrawer.vue'
 import { canEditProjectByRole } from '@/utils/permissions'
 import { useAuthStore } from '@/stores/auth'
+function positiveInt(value: unknown): number | null {
+  const raw = Array.isArray(value) ? value[0] : value
+  const parsed = Number(raw)
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
+}
 
 type ApiCaseType = 'api' | 'graphql' | 'websocket' | 'grpc'
 type ProtocolFilter = 'all' | ApiCaseType
@@ -347,6 +441,67 @@ const keyword = ref('')
 const protocolFilter = ref<ProtocolFilter>('all')
 const loading = ref(false)
 const environmentsLoading = ref(false)
+
+const projectOptions = computed(() => projects.value.map((project) => ({
+  label: project.name,
+  value: project.id,
+})))
+const selectedProject = computed(() => projects.value.find((project) => project.id === selectedProjectId.value))
+const selectedProjectName = computed(() => selectedProject.value?.name || '')
+const canModify = computed(() => canEditProjectByRole(auth.user?.role, selectedProject.value?.current_user_role))
+function protocolLabel(protocol: ApiCaseType | CaseType) {
+  return t(`api_workbench.protocols.${protocol}`)
+}
+
+function protocolColor(protocol: CaseType) {
+  return ({ api: 'blue', graphql: 'orange', websocket: 'cyan', grpc: 'purple' } as Record<string, string>)[protocol] || 'default'
+}
+
+function requestMethod(item: CaseSummaryItem) {
+  return ({ api: 'HTTP', graphql: 'GQL', websocket: 'WS', grpc: 'RPC' } as Record<string, string>)[item.case_type] || 'API'
+}
+
+function formatTime(value?: string | null) {
+  return value ? value.slice(0, 19).replace('T', ' ') : '—'
+}
+
+function formatDuration(value?: number | null) {
+  if (value == null) return '—'
+  return value < 1000 ? `${value} ms` : `${(value / 1000).toFixed(2)} s`
+}
+
+function runStatusLabel(status?: string | null) {
+  if (!status) return t('api_workbench.run_status.none')
+  const key = ['pending', 'running', 'passed', 'failed', 'error', 'cancelled', 'stopped'].includes(status) ? status : 'unknown'
+  return t(`api_workbench.run_status.${key}`)
+}
+
+function lastRunStatus(item: CaseSummaryItem) {
+  return recentRuns.value.find((run) => run.case_id === item.id)?.status || 'none'
+}
+
+const defaultCaseType = computed<CaseType>(() => protocolFilter.value === 'all' ? 'api' : protocolFilter.value)
+const protocolOptions = computed(() => [
+  { label: t('api_workbench.protocol_all'), value: 'all' },
+  ...API_CASE_TYPES.map((protocol) => ({ label: protocolLabel(protocol), value: protocol })),
+])
+const environmentOptions = computed(() => environments.value.map((environment) => ({
+  label: environment.name,
+  value: environment.id,
+})))
+const isAutomationMode = ref(false)
+const filteredCases = computed(() => {
+  return cases.value.filter((item) => {
+    if (protocolFilter.value !== 'all' && item.case_type !== protocolFilter.value) {
+      return false
+    }
+    if (isAutomationMode.value && item.is_scenario) {
+      return false
+    }
+    return true
+  })
+})
+
 const detailOpen = ref(false)
 const detailLoading = ref(false)
 const selectedCase = ref<CaseSummaryItem | null>(null)
@@ -355,23 +510,112 @@ const caseFormOpen = ref(false)
 const editingCase = ref<CaseDetailItem | null>(null)
 const draftRequest = ref<ApiRequestPreviewPayload | null>(null)
 const consoleResetKey = ref(0)
+const selectedSteps = computed(() => {
+  const raw = selectedCaseDetail.value?.config?.steps
+  return Array.isArray(raw) ? (raw as Array<Record<string, unknown>>) : []
+})
+const selectedRequest = computed(() => {
+  const step = selectedSteps.value[0] || {}
+  const type = selectedCaseDetail.value?.case_type
+  if (type === 'graphql') return { method: 'POST', target: String(step.endpoint || '') }
+  if (type === 'grpc') return { method: 'RPC', target: `${String(step.target || '')}/${String(step.service || '')}/${String(step.method || '')}` }
+  return { method: String(step.method || (type === 'websocket' ? 'WS' : 'GET')), target: String(step.url || '') }
+})
+const selectedAssertionCount = computed(() =>
+  selectedSteps.value.reduce(
+    (sum, step) => sum + (Array.isArray(step.assertions) ? step.assertions.length : 0),
+    0,
+  ),
+)
+const selectedRunHistory = computed(() =>
+  selectedCase.value
+    ? recentRuns.value.filter((run) => run.case_id === selectedCase.value?.id).slice(0, 8)
+    : [],
+)
 const importDrawerOpen = ref(false)
 const runModalOpen = ref(false)
 const runLoading = ref(false)
 const pendingRunCase = ref<CaseSummaryItem | null>(null)
 const runEnvironmentId = ref<number | undefined>(undefined)
-const isAutomationMode = ref(false)
 const selectedBatchCaseIds = ref<number[]>([])
 const orchestratingLoading = ref(false)
 const batchRunning = ref(false)
 const initialScenarioSteps = ref<ApiScenarioStep[] | null>(null)
+const activeScenarioRecord = ref<ApiScenarioRecord | null>(null)
+const scenarios = ref<ApiScenarioRecord[]>([])
+const scenarioEditingCase = ref<CaseDetailItem | null>(null)
 const batchRunModalOpen = ref(false)
 const batchRunEnvironmentId = ref<number | undefined>(undefined)
+
+async function loadScenarios() {
+  if (!selectedProjectId.value || !apiScenarioApi?.list) {
+    scenarios.value = []
+    return
+  }
+  try {
+    scenarios.value = await apiScenarioApi.list({ project_id: selectedProjectId.value })
+  } catch {
+    scenarios.value = []
+  }
+}
+
+function selectSavedScenario(sc: ApiScenarioRecord) {
+  activeScenarioRecord.value = sc
+  initialScenarioSteps.value = null
+  scenarioEditingCase.value = null
+}
+
+function startNewBlankScenario() {
+  activeScenarioRecord.value = null
+  scenarioEditingCase.value = null
+  initialScenarioSteps.value = [
+    {
+      name: '请求步骤 1',
+      method: 'POST',
+      url: '/',
+      headers: { 'Content-Type': 'application/json' },
+      params: {},
+      cookies: {},
+      body_type: 'json',
+      body: { pageNo: 1, pageSize: 10 },
+      assertions: [{ target: 'status_code', operator: 'eq', expected: '200' }],
+      extractions: [],
+    },
+  ]
+}
+
+async function handleDeleteScenario(scenarioId: number) {
+  if (!canModify.value) return
+  try {
+    await apiScenarioApi.delete(scenarioId)
+    if (activeScenarioRecord.value?.id === scenarioId) {
+      startNewBlankScenario()
+    }
+    await loadScenarios()
+    message.success(t('api_workbench.scenario_delete_success'))
+  } catch {
+    message.error(t('api_workbench.scenario_delete_failed'))
+  }
+}
 
 function setAutomationMode(val: boolean) {
   isAutomationMode.value = val
   if (!val) {
     selectedBatchCaseIds.value = []
+  } else {
+    void loadScenarios()
+  }
+}
+
+async function handleScenarioSaved(scenarioId: number) {
+  await loadScenarios()
+  const found = scenarios.value.find((s) => s.id === scenarioId)
+  if (found) {
+    if (activeScenarioRecord.value && activeScenarioRecord.value.id === scenarioId) {
+      Object.assign(activeScenarioRecord.value, found)
+    } else {
+      activeScenarioRecord.value = found
+    }
   }
 }
 
@@ -388,16 +632,10 @@ function selectAllFiltered() {
   selectedBatchCaseIds.value = filteredCases.value.map((c) => c.id)
 }
 
-function handleRequestItemClick(item: CaseSummaryItem) {
-  if (isAutomationMode.value) {
-    toggleBatchSelectCase(item.id)
-  } else {
-    selectRequest(item)
-  }
-}
+
 
 async function orchestrateSelectedIntoScenario() {
-  if (!selectedBatchCaseIds.value.length) return
+  if (!canModify.value || !selectedBatchCaseIds.value.length || orchestratingLoading.value) return
   orchestratingLoading.value = true
   try {
     const steps: ApiScenarioStep[] = []
@@ -442,15 +680,36 @@ async function orchestrateSelectedIntoScenario() {
     if (resolvedModuleId) {
       selectedModuleId.value = resolvedModuleId
     }
-    initialScenarioSteps.value = steps
-    editingCase.value = null
-    draftRequest.value = null
-    caseFormOpen.value = true
+    const stepNames = steps.map((s) => s.name || 'API').filter(Boolean)
+    const autoName = `场景 - ${stepNames.slice(0, 2).join(' → ')}${stepNames.length > 2 ? ` 等${stepNames.length}步` : ''}`
+    if (apiScenarioApi?.create && selectedProjectId.value) {
+      const created = await apiScenarioApi.create({
+        project_id: selectedProjectId.value,
+        module_id: resolvedModuleId,
+        name: autoName,
+        description: `由 ${steps.length} 个接口编排生成`,
+        steps: steps as unknown as Array<Record<string, unknown>>,
+      })
+      await loadScenarios()
+      activeScenarioRecord.value = created
+      initialScenarioSteps.value = null
+      scenarioEditingCase.value = null
+      selectedBatchCaseIds.value = []
+      isAutomationMode.value = true
+      message.success(t('api_workbench.orchestrate_saved_success', { code: created.scenario_code, count: steps.length }))
+    } else {
+      scenarioEditingCase.value = null
+      activeScenarioRecord.value = null
+      initialScenarioSteps.value = steps
+      isAutomationMode.value = true
+      message.success(t('api_workbench.orchestrate_loaded_success', { count: steps.length }))
+    }
+  } catch (error: unknown) {
+    message.error(errorMessage(error, t('api_workbench.orchestrate_failed')))
   } finally {
     orchestratingLoading.value = false
   }
 }
-
 function openBatchRunModal() {
   if (!selectedBatchCaseIds.value.length) return
   batchRunModalOpen.value = true
@@ -485,54 +744,6 @@ let loadSequence = 0
 let detailSequence = 0
 let environmentSequence = 0
 let projectSequence = 0
-
-const projectOptions = computed(() => projects.value.map((project) => ({
-  label: project.name,
-  value: project.id,
-})) )
-const selectedProject = computed(() => projects.value.find((project) => project.id === selectedProjectId.value))
-const selectedProjectName = computed(() => selectedProject.value?.name || '')
-const canModify = computed(() => canEditProjectByRole(auth.user?.role, selectedProject.value?.current_user_role))
-const defaultCaseType = computed<CaseType>(() => protocolFilter.value === 'all' ? 'api' : protocolFilter.value)
-const protocolOptions = computed(() => [
-  { label: t('api_workbench.protocol_all'), value: 'all' },
-  ...API_CASE_TYPES.map((protocol) => ({ label: protocolLabel(protocol), value: protocol })),
-])
-const environmentOptions = computed(() => environments.value.map((environment) => ({
-  label: environment.name,
-  value: environment.id,
-})) )
-const filteredCases = computed(() => {
-  return cases.value.filter((item) => {
-    if (protocolFilter.value !== 'all' && item.case_type !== protocolFilter.value) {
-      return false
-    }
-    if (isAutomationMode.value && item.is_scenario) {
-      return false
-    }
-    return true
-  })
-})
-const selectedSteps = computed(() => {
-  const raw = selectedCaseDetail.value?.config?.steps
-  return Array.isArray(raw) ? raw as Array<Record<string, unknown>> : []
-})
-const selectedRequest = computed(() => {
-  const step = selectedSteps.value[0] || {}
-  const type = selectedCaseDetail.value?.case_type
-  if (type === 'graphql') return { method: 'POST', target: String(step.endpoint || '') }
-  if (type === 'grpc') return { method: 'RPC', target: `${String(step.target || '')}/${String(step.service || '')}/${String(step.method || '')}` }
-  return { method: String(step.method || (type === 'websocket' ? 'WS' : 'GET')), target: String(step.url || '') }
-})
-const selectedAssertionCount = computed(() => selectedSteps.value.reduce((sum, step) => sum + (Array.isArray(step.assertions) ? step.assertions.length : 0), 0))
-const selectedRunHistory = computed(() => selectedCase.value ? recentRuns.value.filter((run) => run.case_id === selectedCase.value?.id).slice(0, 8) : [])
-
-function positiveInt(value: unknown): number | null {
-  const raw = Array.isArray(value) ? value[0] : value
-  const parsed = Number(raw)
-  return Number.isInteger(parsed) && parsed > 0 ? parsed : null
-}
-
 function errorMessage(error: unknown, fallback: string) {
   if (typeof error === 'object' && error !== null) {
     const typed = error as ErrorLike
@@ -540,37 +751,6 @@ function errorMessage(error: unknown, fallback: string) {
     if (typeof typed.message === 'string') return typed.message
   }
   return error instanceof Error ? error.message : fallback
-}
-
-function protocolLabel(protocol: ApiCaseType | CaseType) {
-  return t(`api_workbench.protocols.${protocol}`)
-}
-
-function protocolColor(protocol: CaseType) {
-  return ({ api: 'blue', graphql: 'orange', websocket: 'cyan', grpc: 'purple' } as Record<string, string>)[protocol] || 'default'
-}
-
-function requestMethod(item: CaseSummaryItem) {
-  return ({ api: 'HTTP', graphql: 'GQL', websocket: 'WS', grpc: 'RPC' } as Record<string, string>)[item.case_type] || 'API'
-}
-
-function formatTime(value?: string | null) {
-  return value ? value.slice(0, 19).replace('T', ' ') : '—'
-}
-
-function formatDuration(value?: number | null) {
-  if (value == null) return '—'
-  return value < 1000 ? `${value} ms` : `${(value / 1000).toFixed(2)} s`
-}
-
-function runStatusLabel(status?: string | null) {
-  if (!status) return t('api_workbench.run_status.none')
-  const key = ['pending', 'running', 'passed', 'failed', 'error', 'cancelled', 'stopped'].includes(status) ? status : 'unknown'
-  return t(`api_workbench.run_status.${key}`)
-}
-
-function lastRunStatus(item: CaseSummaryItem) {
-  return recentRuns.value.find((run) => run.case_id === item.id)?.status || 'none'
 }
 
 function syncRoute() {
@@ -665,8 +845,16 @@ async function loadProjects() {
 async function handleProjectChange(value: unknown) {
   selectedProjectId.value = positiveInt(value)
   selectedModuleId.value = null
+  selectedBatchCaseIds.value = []
+  activeScenarioRecord.value = null
+  scenarioEditingCase.value = null
+  initialScenarioSteps.value = null
   startNewRequest()
-  await Promise.all([loadEnvironments(), loadCases()])
+  const tasks: Promise<unknown>[] = [loadEnvironments(), loadCases()]
+  if (isAutomationMode.value) {
+    tasks.push(loadScenarios())
+  }
+  await Promise.all(tasks)
   syncRoute()
 }
 
@@ -706,6 +894,51 @@ function openCreate() {
   caseFormOpen.value = true
 }
 
+function invalidateDetailRequest() {
+  detailSequence += 1
+  detailLoading.value = false
+}
+
+async function openDetail(item: CaseSummaryItem) {
+  const sequence = ++detailSequence
+  selectedCase.value = item
+  selectedCaseDetail.value = null
+  detailOpen.value = true
+  detailLoading.value = true
+  try {
+    const detail = await caseApi.get(item.id)
+    if (sequence !== detailSequence) return
+    selectedCaseDetail.value = detail
+  } catch (error: unknown) {
+    if (sequence === detailSequence) message.error(errorMessage(error, t('api_workbench.detail_failed')))
+  } finally {
+    if (sequence === detailSequence) detailLoading.value = false
+  }
+}
+
+async function handleRequestItemClick(item: CaseSummaryItem) {
+  if (isAutomationMode.value) {
+    toggleBatchSelectCase(item.id)
+  } else if (item.is_scenario) {
+    setAutomationMode(true)
+    const matched = scenarios.value.find((s) => s.id === item.id)
+    if (matched) {
+      selectSavedScenario(matched)
+    } else {
+      try {
+        const detail = await caseApi.get(item.id)
+        activeScenarioRecord.value = null
+        scenarioEditingCase.value = detail
+        initialScenarioSteps.value = null
+      } catch {
+        // ignore
+      }
+    }
+  } else {
+    selectRequest(item)
+  }
+}
+
 function startNewRequest() {
   invalidateDetailRequest()
   selectedCase.value = null
@@ -713,6 +946,26 @@ function startNewRequest() {
   detailOpen.value = false
   consoleResetKey.value += 1
 }
+function handlePlusMenuClick({ key }: { key: string | number }) {
+  if (key === 'debug') {
+    if (isAutomationMode.value) {
+      setAutomationMode(false)
+    }
+    startNewRequest()
+    message.success(t('api_workbench.new_debug_hint'))
+  } else if (key === 'case') {
+    if (!canModify.value) return
+    openCreate()
+  } else if (key === 'scenario') {
+    if (!canModify.value) return
+    if (!isAutomationMode.value) {
+      setAutomationMode(true)
+    }
+    startNewBlankScenario()
+    message.success(t('api_workbench.new_scenario_hint'))
+  }
+}
+
 
 async function selectRequest(item: CaseSummaryItem) {
   if (item.case_type !== 'api') {
@@ -758,11 +1011,6 @@ function runSelectedCase() {
   if (selectedCase.value) openRun(selectedCase.value)
 }
 
-function invalidateDetailRequest() {
-  detailSequence += 1
-  detailLoading.value = false
-}
-
 function closeCaseForm() {
   invalidateDetailRequest()
   caseFormOpen.value = false
@@ -788,22 +1036,6 @@ async function openEdit(item: CaseSummaryItem) {
   }
 }
 
-async function openDetail(item: CaseSummaryItem) {
-  const sequence = ++detailSequence
-  selectedCase.value = item
-  selectedCaseDetail.value = null
-  detailOpen.value = true
-  detailLoading.value = true
-  try {
-    const detail = await caseApi.get(item.id)
-    if (sequence !== detailSequence) return
-    selectedCaseDetail.value = detail
-  } catch (error: unknown) {
-    if (sequence === detailSequence) message.error(errorMessage(error, t('api_workbench.detail_failed')))
-  } finally {
-    if (sequence === detailSequence) detailLoading.value = false
-  }
-}
 
 function openImport() {
   if (!selectedModuleId.value) {
@@ -944,6 +1176,8 @@ onMounted(() => {
 .collections-pane { min-width: 0; display: flex; flex-direction: column; border-right: 1px solid var(--c-border); background: var(--c-bg-subtle); }
 .collections-heading { display: flex; align-items: center; justify-content: space-between; padding: 17px 16px 12px; }
 .collections-heading h2 { margin: 3px 0 0; color: var(--c-text); font-size: 15px; font-weight: 700; }
+.collection-plus-btn { color: var(--c-text-secondary); border-radius: 6px; transition: all 0.2s ease; }
+.collection-plus-btn:hover { color: var(--c-primary); background: var(--c-bg-hover, rgba(0, 0, 0, 0.04)); }
 .column-kicker { color: var(--c-text-tertiary); font-size: 10px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
 .collections-pane :deep(.module-tree) { padding: 0 12px; }
 .collection-separator { display: flex; justify-content: space-between; padding: 15px 16px 8px; color: var(--c-text-secondary); font-size: 11px; font-weight: 700; letter-spacing: .04em; }
@@ -1129,5 +1363,44 @@ onMounted(() => {
   color: #722ed1;
   background: rgba(114, 46, 209, 0.1);
   font-weight: 600;
+}
+
+.saved-scenarios-section {
+  border-bottom: 1px solid var(--c-border);
+  padding-bottom: 8px;
+  margin-bottom: 4px;
+}
+
+.scenario-saved-list {
+  max-height: 180px;
+  overflow-y: auto;
+  padding: 0 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.scenario-saved-empty {
+  padding: 10px 8px;
+  font-size: 11.5px;
+  color: var(--c-text-tertiary);
+  text-align: center;
+  background: var(--c-bg-subtle);
+  border-radius: 6px;
+}
+
+.scenario-del-btn {
+  border: none;
+  background: transparent;
+  color: var(--c-text-tertiary);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+.scenario-del-btn:hover {
+  color: var(--c-error);
+  background: var(--c-error-soft);
 }
 </style>

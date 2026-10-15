@@ -284,7 +284,7 @@ import { useRoute } from 'vue-router'
 import { message } from 'ant-design-vue'
 import { CheckCircleOutlined, CodeOutlined, UploadOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
-import { apkApi, caseApi, deviceApi, type DeviceGroupItem, type DeviceItem, type DeviceLeaseItem, scriptApi, type CaseStepItem } from '@/api'
+import { apkApi, caseApi, deviceApi, type DeviceGroupItem, type DeviceItem, type DeviceLeaseItem, projectApi, scriptApi, type CaseStepItem } from '@/api'
 import CaseStepEditor from '@/components/case/CaseStepEditor.vue'
 import { buildAndroidStandardSteps } from '@/utils/androidStandardSteps'
 import AndroidStepEditor from '@/components/common/AndroidStepEditor.vue'
@@ -825,7 +825,7 @@ async function handleSave() {
       preconditions: form.preconditions,
       postconditions: form.postconditions,
       steps: managementSteps.value,
-      module_id: props.moduleId ?? undefined,
+      module_id: (props.moduleId || (props.projectId ? (await projectApi.getModules(props.projectId).catch(() => []))[0]?.id : undefined)) ?? undefined,
       dataset_id: datasetBinding.value.datasetId,
       dataset_version: datasetBinding.value.datasetVersion,
       config: buildConfig(),
