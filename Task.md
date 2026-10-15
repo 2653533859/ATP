@@ -13,7 +13,7 @@
 - [x] 2026-10-16 Q1.3 网络流量抓包与故障注入分析：落地 network_fault_injector 服务，解析 HAR 1.2 标准抓包日志并统计流量与慢请求；支持 DNS 劫持/NXDOMAIN、连接重置、超时与 HTTP 5xx 故障模拟与结构化事件归档；开放 /api/v1/network-profiles/parse-har 与 /fault-injection/evaluate；5 项单测独立通过，见 [`docs/evidence/network-capture-analysis-and-fault-injection-q1-3-2026-10-16.md`](docs/evidence/network-capture-analysis-and-fault-injection-q1-3-2026-10-16.md)。
 - [x] 2026-10-16 Q2.1 基于状态树的智能探索遍历引擎：落地 autonomous_exploration_engine 服务，实现 DOM/Accessibility 树置换不变指纹哈希；构建有限状态机探索图模型，实现 2 节点/3 节点乒乓死循环自动识别与 Back 脱困自愈；开放 /api/v1/exploration/*；4 项单测独立通过，见 [`docs/evidence/state-tree-autonomous-exploration-engine-q2-1-2026-10-16.md`](docs/evidence/state-tree-autonomous-exploration-engine-q2-1-2026-10-16.md)。
 - [x] 2026-10-16 Q2.2 探索事件序列自动合成为 TestCase：落地 exploration_case_synthesizer 服务，实现探索事件流重复点击消除与输入折叠压缩；自动提炼 CaseStepCreate 步骤、生成执行器配置与目标页面终态断言；开放 /api/v1/exploration/synthesize-case；3 项单测独立通过，见 [`docs/evidence/exploration-event-sequence-case-synthesizer-q2-2-2026-10-16.md`](docs/evidence/exploration-event-sequence-case-synthesizer-q2-2-2026-10-16.md)。
-- [ ] Q2.3 异常崩溃与死循环探索熔断保护（黑屏死循环检测与自动探索熔断）
+- [x] 2026-10-16 Q2.3 异常崩溃与死循环探索熔断保护：落地 exploration_circuit_breaker 状态机，实现连续黑屏、死循环振荡、连续动作失败与步数超限熔断保护；图模型自动终止并下发 abort 动作；开放 /api/v1/exploration/circuit-breaker/evaluate；6 项单测独立通过，见 [`docs/evidence/exploration-crash-and-infinite-loop-circuit-breaker-q2-3-2026-10-16.md`](docs/evidence/exploration-crash-and-infinite-loop-circuit-breaker-q2-3-2026-10-16.md)。
 - [ ] Q3.1 定时自动化性能基准打标与趋势偏移告警（基线定时对齐与性能漂移告警）
 - [ ] Q3.2 压力下故障注入与混沌恢复时长测定（混沌注入与 RTO 自愈恢复时长测定）
 - [ ] Q3.3 多维性能对比与容量预测模型（横向比对与回归容量预测）

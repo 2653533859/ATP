@@ -10,6 +10,8 @@ import hashlib
 import logging
 from typing import Any
 
+from app.services.exploration_circuit_breaker import ExplorationCircuitBreaker
+
 logger = logging.getLogger(__name__)
 
 
@@ -69,6 +71,7 @@ class AutonomousExplorationGraph:
     def __init__(self, strategy: str = "bfs", max_depth: int = 6):
         self.strategy = strategy.lower()  # bfs | dfs
         self.max_depth = max_depth
+        self.circuit_breaker = ExplorationCircuitBreaker()
         self.states: dict[str, ExplorationState] = {}
         self.transitions: list[dict[str, Any]] = []
         self.current_state_id: str | None = None
@@ -109,6 +112,15 @@ class AutonomousExplorationGraph:
         if len(self.recent_state_history) > 10:
             self.recent_state_history.pop(0)
 
+        # Evaluate circuit breaker invariants
+        is_osc = self.detect_oscillation_loop()
+        self.circuit_breaker.evaluate_step(
+            element_count=len(elements),
+            last_action_success=True,
+            is_oscillation=is_osc,
+            _screen_name=screen_name,
+        )
+
         return state
 
     def detect_oscillation_loop(self) -> bool:
@@ -130,6 +142,18 @@ class AutonomousExplorationGraph:
             return None
 
         curr_state = self.states[self.current_state_id]
+
+        # 0. Check circuit breaker trip condition
+        cb_status = self.circuit_breaker.get_status()
+        if cb_status.get("tripped"):
+            logger.warning("Exploration circuit breaker tripped: %s", cb_status.get("reason"))
+            return {
+                "action_type": "abort",
+                "action_signature": "circuit_breaker_abort",
+                "reason": cb_status.get("reason"),
+                "category": cb_status.get("category"),
+                "element": None,
+            }
 
         # 1. Check anti-loop oscillation
         if self.detect_oscillation_loop():
@@ -175,4 +199,5 @@ class AutonomousExplorationGraph:
             "coverage_percent": coverage_pct,
             "total_transitions": len(self.transitions),
             "current_state_id": self.current_state_id,
+            "circuit_breaker": self.circuit_breaker.get_status(),
         }

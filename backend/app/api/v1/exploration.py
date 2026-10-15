@@ -14,6 +14,7 @@ from app.api.deps import get_current_user, require_engineer
 from app.core.database import get_db
 from app.models.user import User
 from app.services.autonomous_exploration_engine import AutonomousExplorationGraph
+from app.services.exploration_circuit_breaker import ExplorationCircuitBreaker
 from app.services.exploration_case_synthesizer import synthesize_test_case_payload
 
 router = APIRouter(prefix="/exploration", tags=["智能探索遍历与用例生成"])
@@ -106,3 +107,26 @@ async def synthesize_case_endpoint(
 
     created = await create_case(payload, db=db, current_user=current_user)
     return created
+
+
+class CircuitBreakerEvaluateIn(BaseModel):
+    element_count: int = Field(default=0, ge=0)
+    last_action_success: bool = True
+    is_oscillation: bool = False
+    screen_name: str = "CurrentScreen"
+
+
+@router.post("/circuit-breaker/evaluate")
+async def evaluate_exploration_circuit_breaker_endpoint(
+    body: CircuitBreakerEvaluateIn,
+    _user: User = Depends(get_current_user),
+):
+    """评估探索屏幕健康指标（黑屏、死循环振荡、连续动作失败）的熔断触发状态。"""
+    cb = ExplorationCircuitBreaker()
+    status_res = cb.evaluate_step(
+        element_count=body.element_count,
+        last_action_success=body.last_action_success,
+        is_oscillation=body.is_oscillation,
+        _screen_name=body.screen_name,
+    )
+    return status_res
