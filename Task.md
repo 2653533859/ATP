@@ -9,7 +9,7 @@
 > v3.2.0 规划入口为 [`docs/development-task-plan-v3.2.0.md`](docs/development-task-plan-v3.2.0.md)，覆盖 C1（跨节点 Worker 集群自适应负载与动态弹性调度）、C2（全域测试资产依赖拓扑与变更影响面智能分析）、C3（多协议测试执行动态沙箱与隔离环境编排）、C4（企业级测试质量度量大盘与质量门禁策略中心）。
 
 - [x] 2026-10-16 C1.1 跨节点 Worker 节点动态负载监控与容量评分算法：落地 cluster_load_balancer 服务与 /cluster/workers/* API；实现多维加权负载评分（并发/CPU/内存）、五级健康水位与自适应最优节点选举调度；4 项单测独立通过，见 [`docs/evidence/cluster-load-balancer-c1-1-2026-10-16.md`](docs/evidence/cluster-load-balancer-c1-1-2026-10-16.md)。
-- [ ] C1.2 基于执行队列水位与优先级自适应弹性抢占调度器（adaptive_queue_preemptor）
+- [x] 2026-10-16 C1.2 基于执行队列水位与优先级自适应弹性抢占调度器：落地 adaptive_queue_preemptor 服务与 /tasks/* API；实现 P0/P1 高优先级自适应弹性抢占插队、任务挂起与自动恢复、以及基于吞吐的实时等待 ETA 测算；4 项单测独立通过，见 [`docs/evidence/adaptive-queue-preemptor-c1-2-2026-10-16.md`](docs/evidence/adaptive-queue-preemptor-c1-2-2026-10-16.md)。
 - [ ] C1.3 节点失联与心跳超时自动化任务故障转移与断点重试（worker_failover_recovery）
 - [ ] C2.1 测试资产全景引用拓扑图谱与反向索引引擎（asset_graph_indexer）
 - [ ] C2.2 接口契约变更影响面逆向推导与受影响用例标记（contract_change_impact_analyzer）
