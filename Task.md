@@ -11,7 +11,7 @@
 - [x] 2026-10-16 F1.1 弱网仿真档案管理与参数试算抽屉：落地 networkSimulation API 客户端与 NetworkProfileDrawer 组件；支持 7 类预设档案展示、自定义数据包大小试算、预期传输耗时与 CDP/ADB 命令实时预览；挂载至 DeviceList 头部操作区；单测独立通过，见 [`docs/evidence/weak-network-profile-drawer-f1-1-2026-10-16.md`](docs/evidence/weak-network-profile-drawer-f1-1-2026-10-16.md)。
 - [x] 2026-10-16 F1.2 HAR 抓包流量瀑布流与慢请求 Top5 诊断卡片：落地 HarTrafficViewer 组件与 parseHar API 调用；实现抓包文件大小统计、动态耗时瀑布流、慢请求 Top 5 下钻卡片与 URL/异常状态即时过滤；集成至 RemoteToolboxView 顶部操作区；单测独立通过，见 [`docs/evidence/har-traffic-waterfall-and-slow-requests-f1-2-2026-10-16.md`](docs/evidence/har-traffic-waterfall-and-slow-requests-f1-2-2026-10-16.md)。
 - [x] 2026-10-16 F1.3 弱网抗性评分雷达图与故障注入评估面板：落地 NetworkResilienceRadar 组件；实现五维抗弱网指标 ECharts 雷达图（响应/成功率/重试/超时/综合分）与 Grade A-D 评级徽章；支持目标接口正则匹配与故障注入在线试算；与 NetworkProfileDrawer 深度集成；单测独立通过，见 [`docs/evidence/network-resilience-radar-and-fault-simulator-f1-3-2026-10-16.md`](docs/evidence/network-resilience-radar-and-fault-simulator-f1-3-2026-10-16.md)。
-- [ ] F2.1 页面状态树（FSM）拓扑与状态指纹视图（ExplorationGraphViewer）
+- [x] 2026-10-16 F2.1 页面状态树（FSM）拓扑与状态指纹视图：升级后端 get_exploration_session_endpoint 返回 nodes/links 拓扑；落地 exploration API 与 ExplorationGraphViewer 组件；实现力导向状态机拓扑图、置换不变状态指纹查看与动作槽明细；挂载至 AIWorkbenchView；单测独立通过，见 [`docs/evidence/exploration-fsm-graph-and-state-fingerprint-f2-1-2026-10-16.md`](docs/evidence/exploration-fsm-graph-and-state-fingerprint-f2-1-2026-10-16.md)。
 - [ ] F2.2 探索事件流实时轨迹与一键生成 TestCase（ExplorationTraceSynthesizer）
 - [ ] F2.3 异常假死与死循环振荡熔断告警卡片（ExplorationCircuitBreakerCard）
 - [ ] F3.1 基线自动打标、漂移偏离度比对与指标告警（BaselineDriftMonitor）

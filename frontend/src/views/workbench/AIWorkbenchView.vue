@@ -243,12 +243,21 @@
           <div v-else class="restricted-panel healing-restricted"><LockOutlined /><span>{{ isAdmin ? t('ai_workbench.healing_unavailable') : t('ai_workbench.admin_signal_hint') }}</span></div>
         </aside>
       </section>
+      <section class="exploration-section panel" style="margin-top: 20px">
+        <div class="panel-head" style="margin-bottom: 12px">
+          <div>
+            <div class="panel-kicker">AI AUTONOMOUS EXPLORATION</div>
+            <h2>页面状态树拓扑与状态指纹视图 (FSM Topology)</h2>
+          </div>
+        </div>
+        <ExplorationGraphViewer />
+      </section>
     </template>
   </div>
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, defineAsyncComponent, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   AppstoreOutlined,
@@ -266,6 +275,7 @@ import {
   SettingOutlined,
   WarningOutlined,
 } from '@ant-design/icons-vue'
+const ExplorationGraphViewer = defineAsyncComponent(() => import('./components/ExplorationGraphViewer.vue'))
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import {

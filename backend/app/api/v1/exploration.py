@@ -73,7 +73,19 @@ async def get_exploration_session_endpoint(
         graph = _GRAPHS.get(session_id)
     if not graph:
         raise HTTPException(status_code=404, detail="探索会话不存在")
-    return graph.get_coverage_metrics()
+    metrics = graph.get_coverage_metrics()
+    metrics["nodes"] = [
+        {
+            "id": s.state_id,
+            "name": s.screen_name,
+            "depth": s.depth,
+            "actions_count": len(s.candidate_actions),
+            "visited_count": len(s.visited_actions),
+        }
+        for s in graph.states.values()
+    ]
+    metrics["links"] = graph.transitions
+    return metrics
 
 
 class SynthesizeCaseIn(BaseModel):
