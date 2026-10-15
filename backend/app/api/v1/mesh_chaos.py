@@ -21,6 +21,7 @@ from app.services.blast_radius_controller import (
     evaluate_blast_radius,
     get_default_topology,
 )
+from app.services.service_mesh_resilience_report import compile_mesh_resilience_report
 
 router = APIRouter(prefix="/mesh-chaos", tags=["分布式微服务网关混沌演练"])
 
@@ -65,6 +66,14 @@ class EvaluateBlastRadiusIn(BaseModel):
 
 class EnforceBlastRadiusIn(EvaluateBlastRadiusIn):
     experiment_id: str
+
+
+class CompileMeshResilienceReportIn(BaseModel):
+    experiment_id: str
+    services_data: list[dict[str, Any]] = Field(default_factory=list)
+    sla_baseline_target: float = 99.9
+    blast_radius_breached: bool = False
+    emergency_aborted: bool = False
 
 
 @router.post("/experiments")
@@ -182,3 +191,18 @@ async def get_mesh_topology_endpoint(
         {"caller": caller, "callee": callee} for caller, callees in topo.downstream_adj.items() for callee in callees
     ]
     return {"services": sorted(topo.services), "dependencies": edges}
+
+
+@router.post("/resilience-report/compile")
+async def compile_mesh_resilience_report_endpoint(
+    body: CompileMeshResilienceReportIn,
+    _user: User = Depends(get_current_user),
+):
+    """聚合混沌演练期间微服务 SLA 达成度、跌幅与自愈用时，生成全链路高可用韧性评分报告。"""
+    return compile_mesh_resilience_report(
+        experiment_id=body.experiment_id,
+        services_data=body.services_data,
+        sla_baseline_target=body.sla_baseline_target,
+        blast_radius_breached=body.blast_radius_breached,
+        emergency_aborted=body.emergency_aborted,
+    )
