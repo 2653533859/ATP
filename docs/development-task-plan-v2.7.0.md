@@ -34,7 +34,7 @@
 |---|---|---|---|
 | T2.1 `[x]` | **W3C TraceContext 与 traceparent 协议自动注入** | 契约执行器 | 用例发出的所有 HTTP / gRPC 流量自动注入 W3C 标准 `traceparent` 上下文请求头；见 docs/evidence/w3c-trace-context-traceparent-auto-injection-t2-1-2026-10-15.md |
 | T2.2 `[x]` | **OpenTelemetry / Jaeger 分布式调用链检索** | T2.1 | 根据测试用例的 TraceID 自动检索目标微服务集群调用拓扑与 Span 耗时瀑布图；见 docs/evidence/jaeger-opentelemetry-distributed-trace-waterfall-t2-2-2026-10-15.md |
-| T2.3 `[ ]` | **失败步骤慢调用瓶颈与异常 Span 自动标红聚类** | T2.2 | 自动将用例失败点精准下钻定位至服务端微服务异常 Span（如慢 SQL、RPC 超时或锁竞争）。 |
+| T2.3 `[x]` | **失败步骤慢调用瓶颈与异常 Span 自动标红聚类** | T2.2 | 自动将用例失败点精准下钻定位至服务端微服务异常 Span（如慢 SQL、RPC 超时或锁竞争）；见 docs/evidence/trace-anomaly-clustering-and-root-cause-t2-3-2026-10-15.md |
 
 ---
 

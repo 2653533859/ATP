@@ -11,7 +11,7 @@ from app.models.case import TestRun
 from app.models.plan import PlanRun
 from app.models.suite import SuiteRun
 from app.models.user import User
-from app.schemas.trace import DistributedTraceWaterfallOut, TraceDetailOut
+from app.schemas.trace import DistributedTraceWaterfallOut, TraceAnomalyClusterOut, TraceDetailOut
 from app.services.apm_trace_retriever import fetch_external_distributed_trace
 
 router = APIRouter(tags=["链路追踪"])
@@ -98,3 +98,18 @@ async def get_trace_waterfall(
     if trace_data is None:
         raise HTTPException(status_code=404, detail="未查询到外部 APM 链路追踪数据或 Jaeger 服务不可用")
     return trace_data
+
+
+@router.get("/traces/{trace_id}/anomalies", response_model=TraceAnomalyClusterOut)
+async def get_trace_anomalies(
+    trace_id: str,
+    _: User = Depends(get_current_user),
+):
+    """获取指定 TraceID 对应的微服务异常 Span 聚类与根因归因诊断报告。"""
+    trace_data = await fetch_external_distributed_trace(trace_id)
+    if trace_data is None:
+        raise HTTPException(status_code=404, detail="未查询到外部 APM 链路追踪数据或 Jaeger 服务不可用")
+    cluster = trace_data.get("anomaly_cluster")
+    if cluster is None:
+        raise HTTPException(status_code=404, detail="未生成异常聚类数据")
+    return cluster

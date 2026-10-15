@@ -12,6 +12,7 @@ from typing import Any
 import httpx
 
 from app.core.config import settings
+from app.services.trace_anomaly_clustering import cluster_trace_anomalies
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +33,7 @@ def parse_jaeger_trace_data(raw_trace_item: dict[str, Any]) -> dict[str, Any]:
     trace_id = str(raw_trace_item.get("traceID") or "")
 
     if not spans_raw:
-        return {
+        fallback = {
             "trace_id": trace_id,
             "root_service": "unknown",
             "total_duration_ms": 0.0,
@@ -42,6 +43,8 @@ def parse_jaeger_trace_data(raw_trace_item: dict[str, Any]) -> dict[str, Any]:
             "has_errors": False,
             "spans": [],
         }
+        fallback["anomaly_cluster"] = cluster_trace_anomalies(fallback)
+        return fallback
 
     # Find trace baseline start time in microseconds
     min_start_us = min(int(s.get("startTime", 0)) for s in spans_raw)
@@ -110,7 +113,7 @@ def parse_jaeger_trace_data(raw_trace_item: dict[str, Any]) -> dict[str, Any]:
 
     root_service = root_spans[0]["service_name"] if root_spans else "unknown"
 
-    return {
+    waterfall = {
         "trace_id": trace_id,
         "root_service": root_service,
         "total_duration_ms": total_duration_ms,
@@ -120,6 +123,8 @@ def parse_jaeger_trace_data(raw_trace_item: dict[str, Any]) -> dict[str, Any]:
         "has_errors": has_any_error,
         "spans": root_spans,
     }
+    waterfall["anomaly_cluster"] = cluster_trace_anomalies(waterfall)
+    return waterfall
 
 
 async def fetch_external_distributed_trace(
