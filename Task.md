@@ -11,7 +11,7 @@
 - [x] 2026-10-16 Q1.1 弱网仿真配置与延迟丢包模型：落地 network_simulation 服务，建立 2G/3G/4G/离线/高丢包等 7 类预设档案；实现传输延迟与丢包判定算法；生成 CDP Network.emulateNetworkConditions 与 Android ADB tc netem 指令；开放 /api/v1/network-profiles/*；5 项单测独立通过，见 [`docs/evidence/mobile-network-simulation-and-throttling-q1-1-2026-10-16.md`](docs/evidence/mobile-network-simulation-and-throttling-q1-1-2026-10-16.md)。
 - [x] 2026-10-16 Q1.2 弱网专项任务调度与用例指标采集：落地 network_simulation_scheduler 服务，自动生成环境注入与安全复原指令序列；实现 NetworkMetricsCollector 采集实测延迟、丢包、重试与超时计数，并输出抗弱网韧性评分；3 项单测独立通过，见 [`docs/evidence/weak-network-simulation-scheduler-and-metrics-q1-2-2026-10-16.md`](docs/evidence/weak-network-simulation-scheduler-and-metrics-q1-2-2026-10-16.md)。
 - [x] 2026-10-16 Q1.3 网络流量抓包与故障注入分析：落地 network_fault_injector 服务，解析 HAR 1.2 标准抓包日志并统计流量与慢请求；支持 DNS 劫持/NXDOMAIN、连接重置、超时与 HTTP 5xx 故障模拟与结构化事件归档；开放 /api/v1/network-profiles/parse-har 与 /fault-injection/evaluate；5 项单测独立通过，见 [`docs/evidence/network-capture-analysis-and-fault-injection-q1-3-2026-10-16.md`](docs/evidence/network-capture-analysis-and-fault-injection-q1-3-2026-10-16.md)。
-- [ ] Q2.1 基于状态树的智能探索遍历引擎（DOM/Accessibility 树状态机探索算法）
+- [x] 2026-10-16 Q2.1 基于状态树的智能探索遍历引擎：落地 autonomous_exploration_engine 服务，实现 DOM/Accessibility 树置换不变指纹哈希；构建有限状态机探索图模型，实现 2 节点/3 节点乒乓死循环自动识别与 Back 脱困自愈；开放 /api/v1/exploration/*；4 项单测独立通过，见 [`docs/evidence/state-tree-autonomous-exploration-engine-q2-1-2026-10-16.md`](docs/evidence/state-tree-autonomous-exploration-engine-q2-1-2026-10-16.md)。
 - [ ] Q2.2 探索事件序列自动合成为 TestCase（有效事件流自动合并为标准用例资产）
 - [ ] Q2.3 异常崩溃与死循环探索熔断保护（黑屏死循环检测与自动探索熔断）
 - [ ] Q3.1 定时自动化性能基准打标与趋势偏移告警（基线定时对齐与性能漂移告警）
