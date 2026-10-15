@@ -15,7 +15,7 @@
 - [x] 2026-10-16 F2.2 探索事件流实时轨迹与一键生成 TestCase：落地 ExplorationTraceSynthesizer 组件与 synthesizeCase API 交互；支持原始事件流去噪折叠轨迹展示、自动生成终态文本断言与关键交互标记；支持一键落库保存 TestCase 资产；单测独立通过，见 [`docs/evidence/exploration-trace-and-case-synthesizer-f2-2-2026-10-16.md`](docs/evidence/exploration-trace-and-case-synthesizer-f2-2-2026-10-16.md)。
 - [x] 2026-10-16 F2.3 异常假死与死循环振荡熔断告警卡片：落地 ExplorationCircuitBreakerCard 组件；实现黑屏假死、连续失败、死循环振荡与最大步数 4 大健康探针进度监控；支持异常模拟与事故终止快照归档展示；集成至 AI 工作台探索控制台；单测独立通过，见 [`docs/evidence/exploration-circuit-breaker-card-f2-3-2026-10-16.md`](docs/evidence/exploration-circuit-breaker-card-f2-3-2026-10-16.md)。至此 v2.9.0 Phase 2 全量闭环！
 - [x] 2026-10-16 F3.1 基线自动打标、漂移偏离度比对与指标告警：落地 getDriftAlert 与 alignBaseline API 客户端；创建 BaselineDriftMonitor 组件展示吞吐量、延迟与错误率三维偏离卡片与等级告警；支持一键对齐与基线原子晋升；集成至 PerformanceCenterView；单测独立通过，见 [`docs/evidence/performance-baseline-drift-monitor-f3-1-2026-10-16.md`](docs/evidence/performance-baseline-drift-monitor-f3-1-2026-10-16.md)。
-- [ ] F3.2 压力下混沌故障注入时间线与自愈 RTO 测定曲线（ChaosRtoTimeline）
+- [x] 2026-10-16 F3.2 压力下混沌故障注入时间线与自愈 RTO 测定曲线：落地 createChaosPlan 与 evaluateChaosRto API 客户端；创建 ChaosRtoTimeline 组件；实现三段式故障注入时序图、吞吐量/延迟双 Y 轴曲线、持续健康窗口自愈确认点与 Grade A-F 韧性评级；集成至 PerformanceCenterView；单测独立通过，见 [`docs/evidence/performance-chaos-rto-timeline-f3-2-2026-10-16.md`](docs/evidence/performance-chaos-rto-timeline-f3-2-2026-10-16.md)。
 - [ ] F3.3 回归容量预测、饱和拐点与并发上限预测图（CapacityRegressionChart）
 - [ ] F4.1 项目资源配额配置与并发/时长硬限制仪表板（ProjectQuotaDashboard）
 - [ ] F4.2 测试资产 MinIO 生命周期与自动清理交互抽屉（AssetStorageLifecycleDrawer）

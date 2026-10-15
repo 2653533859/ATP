@@ -840,11 +840,18 @@
     </a-drawer>
     <a-modal
       v-model:open="driftModalVisible"
-      title="性能基准 Baseline 漂移监控与智能晋升"
-      width="960px"
+      title="性能持续监控、基线漂移与混沌 RTO 演练"
+      width="1000px"
       :footer="null"
     >
-      <BaselineDriftMonitor />
+      <a-tabs v-model:activeKey="perfToolTab">
+        <a-tab-pane key="drift" tab="基线漂移与指标告警">
+          <BaselineDriftMonitor />
+        </a-tab-pane>
+        <a-tab-pane key="chaos" tab="混沌故障注入与自愈 RTO 测定">
+          <ChaosRtoTimeline />
+        </a-tab-pane>
+      </a-tabs>
     </a-modal>
   </div>
 </template>
@@ -859,6 +866,8 @@ import { message } from 'ant-design-vue'
 import { BugOutlined, ClockCircleOutlined, DashboardOutlined, DeleteOutlined, DownloadOutlined, EditOutlined, FileSearchOutlined, PlayCircleOutlined, PlusOutlined, ReloadOutlined, StarOutlined, StopOutlined, UploadOutlined } from '@ant-design/icons-vue'
 const BaselineDriftMonitor = defineAsyncComponent(() => import('./components/BaselineDriftMonitor.vue'))
 const driftModalVisible = ref(false)
+const ChaosRtoTimeline = defineAsyncComponent(() => import('./components/ChaosRtoTimeline.vue'))
+const perfToolTab = ref('drift')
 import type { AxiosError } from 'axios'
 import VChart from 'vue-echarts'
 import type { EChartsOption } from 'echarts'

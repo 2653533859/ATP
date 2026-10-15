@@ -3188,6 +3188,10 @@ export const performanceApi = {
     http.get<unknown, Blob>(`/performance/runs/${id}/export/csv`, { responseType: 'blob' }),
   getRawResult: (id: number) =>
     http.get<unknown, { url: string; filename: string; object_name: string }>(`/performance/runs/${id}/raw-result`),
+  createChaosPlan: (runId: number, body: ChaosPlanRequest) =>
+    http.post<unknown, ChaosPlanResponse>(`/performance/runs/${runId}/chaos-plan`, body),
+  evaluateChaosRto: (runId: number, body: ChaosRtoEvaluateRequest) =>
+    http.post<unknown, ChaosRtoEvaluateResponse>(`/performance/runs/${runId}/chaos-rto/evaluate`, body),
 }
 
 export interface PerformanceDriftAlertResponse {
@@ -3211,6 +3215,58 @@ export interface PerformanceAlignBaselineResponse {
   promoted: boolean
   new_baseline_run_id?: number | null
   candidate_run_id?: number
+}
+
+export interface ChaosPlanRequest {
+  fault_type?: string
+  target_service?: string
+  start_delay_seconds?: number
+  duration_seconds?: number
+  fault_params?: Record<string, unknown>
+}
+
+export interface ChaosPlanResponse {
+  run_id: number
+  plan_id: string
+  fault_type: string
+  target_service: string
+  start_delay_seconds: number
+  duration_seconds: number
+  fault_params: Record<string, unknown>
+  status: string
+  created_at: string
+}
+
+export interface ChaosRtoTimeSeriesItem {
+  offset_seconds: number
+  rps: number
+  p95_ms: number
+  error_rate: number
+}
+
+export interface ChaosRtoEvaluateRequest {
+  time_series: ChaosRtoTimeSeriesItem[]
+  fault_start_offset?: number
+  fault_duration?: number
+  recovery_rps_ratio?: number
+  recovery_error_margin?: number
+  recovery_latency_ratio?: number
+  sustain_seconds?: number
+}
+
+export interface ChaosRtoEvaluateResponse {
+  recovered: boolean
+  rto_seconds: number | null
+  recovered_at_offset: number | null
+  fault_start_offset: number
+  fault_end_offset: number
+  baseline_metrics: { rps: number; p95_ms: number; error_rate: number }
+  in_fault_metrics: { min_rps: number; max_p95_ms: number; max_error_rate: number; rps_drop_pct: number }
+  recovery_targets: { target_rps: number; target_p95_ms: number; target_error_rate: number; sustain_seconds: number }
+  resilience_score: number
+  resilience_grade: string
+  recommendation: string
+  message?: string
 }
 
 // ---- Reusable Web assets ----
