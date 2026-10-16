@@ -10,7 +10,7 @@
 
 - [x] 2026-10-16 UI1.1 跨节点 Worker 负载监控抽屉与容量分级仪表板：落地 clusterWorkers API 客户端与 ClusterWorkerMonitorDrawer 组件；展示多节点负载、五级健康分级与最优调度选举模拟；挂载至 AppWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/cluster-worker-monitor-drawer-ui1-1-2026-10-16.md`](docs/evidence/cluster-worker-monitor-drawer-ui1-1-2026-10-16.md)。
 - [x] 2026-10-16 UI1.2 自适应任务排队水位与 P0 弹性抢占调度控制台：扩展 clusterWorkers API（enqueue/tasks/complete/eta），落地 AdaptiveTaskQueueDrawer 组件；展示四级优先级水位、P0 弹性抢占与预计等待时长 ETA；挂载至 AppWorkbenchView；单测独立通过，见 [`docs/evidence/adaptive-task-queue-drawer-ui1-2-2026-10-16.md`](docs/evidence/adaptive-task-queue-drawer-ui1-2-2026-10-16.md)。
-- [ ] UI1.3 节点失联超时检测与孤儿任务故障转移卡片（WorkerFailoverRecoveryCard.vue）
+- [x] 2026-10-16 UI1.3 节点失联超时检测与孤儿任务故障转移卡片：扩展 clusterWorkers API（failover/scan/history），落地 WorkerFailoverRecoveryCard 组件；支持一键全网 Sweep Scan 巡检、失联节点标记、孤儿任务抢救重调度与超限熔断保护；内嵌集成至 ClusterWorkerMonitorDrawer；单测独立通过，见 [`docs/evidence/worker-failover-recovery-card-ui1-3-2026-10-16.md`](docs/evidence/worker-failover-recovery-card-ui1-3-2026-10-16.md)。至此 v3.3.0 Phase 1 全量大闭环！
 - [ ] UI2.1 测试资产全景引用拓扑图谱与孤儿资产看板（AssetDependencyGraphViewer.vue）
 - [ ] UI2.2 接口契约变更影响面分析与受损用例抽屉（ContractChangeImpactDrawer.vue）
 - [ ] UI2.3 变更影响用例自动化精准回归套件合成向导（TargetedRegressionWizard.vue）

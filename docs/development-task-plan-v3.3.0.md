@@ -26,7 +26,7 @@
 |---|---|---|---|
 | UI1.1 `[x]` | **跨节点 Worker 负载监控抽屉与容量分级仪表板** | cluster_load_balancer | 落地 `ClusterWorkerMonitorDrawer.vue` 组件与 API 客户端；展示节点 CPU/内存/并发利用率、五级健康状态标签与最优节点择优调度；见 docs/evidence/cluster-worker-monitor-drawer-ui1-1-2026-10-16.md |
 | UI1.2 `[x]` | **自适应任务排队水位与 P0 弹性抢占调度控制台** | adaptive_queue_preemptor | 落地 `AdaptiveTaskQueueDrawer.vue` 组件；展示队列排队顺位、预计等待时长 ETA、P0 弹性抢占与任务挂起唤醒流水；见 docs/evidence/adaptive-task-queue-drawer-ui1-2-2026-10-16.md |
-| UI1.3 `[ ]` | **节点失联超时检测与孤儿任务故障转移卡片** | worker_failover_recovery | 落地 `WorkerFailoverRecoveryCard.vue` 组件；支持心跳超时全网巡检、失联节点自动收割与孤儿任务抢救重调度记录展示。 |
+| UI1.3 `[x]` | **节点失联超时检测与孤儿任务故障转移卡片** | worker_failover_recovery | 落地 `WorkerFailoverRecoveryCard.vue` 组件；支持心跳超时全网巡检、失联节点自动收割与孤儿任务抢救重调度记录展示；见 docs/evidence/worker-failover-recovery-card-ui1-3-2026-10-16.md |
 
 ---
 

@@ -162,6 +162,8 @@
           </template>
         </a-table>
       </a-card>
+      <!-- 容灾故障转移控制卡片 -->
+      <WorkerFailoverRecoveryCard />
     </div>
   </a-drawer>
 </template>
@@ -175,6 +177,7 @@ import {
   type ClusterCapacityOverview,
   type CapacityLevel,
 } from '@/api/clusterWorkers'
+import WorkerFailoverRecoveryCard from './WorkerFailoverRecoveryCard.vue'
 
 const props = withDefaults(
   defineProps<{

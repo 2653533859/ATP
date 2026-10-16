@@ -62,6 +62,25 @@ export interface EnqueueTaskRequest {
   allow_preemption?: boolean
 }
 
+export interface FailoverRecoveredTask {
+  task_id: string
+  task_name: string
+  dead_worker_id: string
+  action: 'rescheduled' | 'aborted'
+  retry_count?: number
+  max_retries?: number
+  reason?: string
+}
+
+export interface FailoverSummaryReport {
+  report_id: string
+  timestamp: string
+  dead_worker_ids: string[]
+  recovered_tasks: FailoverRecoveredTask[]
+  aborted_tasks: FailoverRecoveredTask[]
+  orphan_tasks_scanned: number
+}
+
 export interface ClusterCapacityOverview {
   total_nodes_registered: number
   total_alive_nodes: number
@@ -114,5 +133,15 @@ export const clusterWorkersApi = {
 
   getTaskEta(taskId: string): Promise<TaskEtaResult> {
     return http.get(`/cluster/workers/tasks/${taskId}/eta`)
+  },
+
+  triggerFailoverScan(maxHeartbeatAgeSec: number = 30.0): Promise<FailoverSummaryReport> {
+    return http.post('/cluster/workers/failover/scan', null, {
+      params: { max_heartbeat_age_sec: maxHeartbeatAgeSec },
+    })
+  },
+
+  listFailoverHistory(): Promise<{ total: number; history: FailoverSummaryReport[] }> {
+    return http.get('/cluster/workers/failover/history')
   },
 }
