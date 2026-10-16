@@ -18,7 +18,7 @@
 - [x] 2026-10-17 UI3.2 针对复杂业务边界条件的生产级测试合成数据生成卡片：落地 `SyntheticTestDataGeneratorCard.vue` 组件与 API 客户端；支持正向/边界/负向三模态切换、字段约束配置、数据表预览与多格式导出；单测独立通过，见 [`docs/evidence/synthetic-test-data-generator-card-ui3-2-2026-10-17.md`](docs/evidence/synthetic-test-data-generator-card-ui3-2-2026-10-17.md)。
 - [x] 2026-10-17 UI3.3 自主探索式 API 模糊变异与隐蔽缺陷探查及 cURL 复现控制台：落地 `AutonomousApiFuzzingExplorerDrawer.vue` 组件与 API 客户端；展示 6 大变异策略执行状态、5xx 崩溃与注入缺陷卡片、单行 cURL 复现命令；单测独立通过，见 [`docs/evidence/autonomous-api-fuzzing-explorer-drawer-ui3-3-2026-10-17.md`](docs/evidence/autonomous-api-fuzzing-explorer-drawer-ui3-3-2026-10-17.md)。至此 v4.3.0 Phase 3 全量大闭环！
 - [x] 2026-10-17 UI4.1 全生命周期多维质量健康综合评分仪表盘与 A+ 评级诊断卡片：落地 `QualityHealthCompositeScoreCard.vue` 组件与 API 客户端；展示 6 维雷达图/进度条、A+/A/B/C 等级微章、P0 一票否决标识与首要扣分项归因；单测独立通过，见 [`docs/evidence/quality-health-composite-score-card-ui4-1-2026-10-17.md`](docs/evidence/quality-health-composite-score-card-ui4-1-2026-10-17.md)。
-- [ ] 2026-10-17 UI4.2 自动化发版准入阻断裁决器 (Go/No-Go) 与特批豁免流转弹窗：落地 `ReleaseGateVerdictWaiverModal.vue` 弹窗与 API 客户端；展示 GO/CAUTION/NO_GO 裁决大横幅、阻断清单、架构师签署特批风险豁免与撤销流转；单测独立通过。
+- [x] 2026-10-17 UI4.2 自动化发版准入阻断裁决器 (Go/No-Go) 与特批豁免流转弹窗：落地 `ReleaseGateVerdictWaiverModal.vue` 弹窗与 API 客户端；展示 GO/CAUTION/NO_GO 裁决大横幅、阻断清单、架构师签署特批风险豁免与撤销流转；单测独立通过，见 [`docs/evidence/release-gate-verdict-waiver-modal-ui4-2-2026-10-17.md`](docs/evidence/release-gate-verdict-waiver-modal-ui4-2-2026-10-17.md)。
 - [ ] 2026-10-17 UI4.3 端到端测试执行与质量合规全景审计报告大盘页面：落地 `ComprehensiveAuditReportView.vue` 视图与路由；全景组装 5 大维度证据链、展示 64 位 SHA-256 防篡改指纹、在线验签与 Markdown 审计文档导出；单测独立通过。
 
 ## 2026-10-17 v4.2.0 研发任务规划（已全量闭环）

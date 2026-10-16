@@ -55,7 +55,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI4.1 `[x]` | **全生命周期多维质量健康综合评分仪表盘与 A+ 评级诊断卡片** | `quality_health_composite_score_engine` | 落地 `QualityHealthCompositeScoreCard.vue` 组件与 API 客户端；展示 6 维雷达图/进度条、A+/A/B/C 等级微章、P0 一票否决标识与首要扣分项归因；单测独立通过；见 docs/evidence/quality-health-composite-score-card-ui4-1-2026-10-17.md |
-| UI4.2 `[ ]` | **自动化发版准入阻断裁决器 (Go/No-Go) 与特批豁免流转弹窗** | `smart_release_go_no_go_decider` | 落地 `ReleaseGateVerdictWaiverModal.vue` 弹窗与 API 客户端；展示 GO/CAUTION/NO_GO 裁决大横幅、阻断清单、架构师签署特批风险豁免与撤销流转；单测独立通过。 |
+| UI4.2 `[x]` | **自动化发版准入阻断裁决器 (Go/No-Go) 与特批豁免流转弹窗** | `smart_release_go_no_go_decider` | 落地 `ReleaseGateVerdictWaiverModal.vue` 弹窗与 API 客户端；展示 GO/CAUTION/NO_GO 裁决大横幅、阻断清单、架构师签署特批风险豁免与撤销流转；单测独立通过；见 docs/evidence/release-gate-verdict-waiver-modal-ui4-2-2026-10-17.md |
 | UI4.3 `[ ]` | **端到端测试执行与质量合规全景审计报告大盘页面** | `comprehensive_test_audit_report_generator` | 落地 `ComprehensiveAuditReportView.vue` 视图与路由；全景组装 5 大维度证据链、展示 64 位 SHA-256 防篡改指纹、在线验签与 Markdown 审计文档导出；单测独立通过。 |
 
 ---

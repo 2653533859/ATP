@@ -143,6 +143,9 @@
         <a-button size="small" class="toolbar-btn" @click="showHealthScoreDrawer = true">
           <DashboardOutlined /> 质量健康大盘
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showReleaseGateModal = true">
+          <CheckCircleOutlined /> 发版准入门禁
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -610,6 +613,7 @@
     <SyntheticTestDataGeneratorCard v-model:open="showSyntheticDataDrawer" />
     <AutonomousApiFuzzingExplorerDrawer v-model:open="showFuzzingDrawer" />
     <QualityHealthCompositeScoreCard v-model:open="showHealthScoreDrawer" />
+    <ReleaseGateVerdictWaiverModal v-model:open="showReleaseGateModal" />
   </div>
 </template>
 
@@ -740,6 +744,8 @@ import AutonomousApiFuzzingExplorerDrawer from './components/AutonomousApiFuzzin
 const showFuzzingDrawer = ref(false)
 import QualityHealthCompositeScoreCard from './components/QualityHealthCompositeScoreCard.vue'
 const showHealthScoreDrawer = ref(false)
+import ReleaseGateVerdictWaiverModal from './components/ReleaseGateVerdictWaiverModal.vue'
+const showReleaseGateModal = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value

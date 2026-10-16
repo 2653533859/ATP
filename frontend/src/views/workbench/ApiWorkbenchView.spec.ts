@@ -210,6 +210,9 @@ vi.mock('./components/AutonomousApiFuzzingExplorerDrawer.vue', () => ({
 vi.mock('./components/QualityHealthCompositeScoreCard.vue', () => ({
   default: defineComponent({ name: 'QualityHealthCompositeScoreCard', setup: () => () => h('div', 'quality-health-composite-score-card') }),
 }))
+vi.mock('./components/ReleaseGateVerdictWaiverModal.vue', () => ({
+  default: defineComponent({ name: 'ReleaseGateVerdictWaiverModal', setup: () => () => h('div', 'release-gate-verdict-waiver-modal') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
