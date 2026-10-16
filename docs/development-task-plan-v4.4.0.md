@@ -26,7 +26,7 @@
 |---|---|---|---|
 | T1.1 `[x]` | **跨分辨率视口快照捕获与像素级 SSIM 结构相似度比对器** | `visual_pixel_ssim_diff_engine` | 落地 `visual_pixel_ssim_diff_engine` 服务与 `/visual/pixel-diff/*` API；支持 Desktop/Tablet/Mobile 多视口像素比对、计算结构相似度 (SSIM 0~1.0) 与差异像素高亮图生成；单测独立通过；见 docs/evidence/visual-pixel-ssim-diff-engine-t1-1-2026-10-17.md |
 | T1.2 `[x]` | **动态忽略区域掩码与抗锯齿渲染微噪声过滤去噪器** | `visual_anti_aliasing_noise_filter` | 落地 `visual_anti_aliasing_noise_filter` 服务与 `/visual/noise-filter/*` API；自动识别动态时间戳、轮播图区域并打标 Mask 掩码，过滤抗锯齿边缘引发的假阳性误报；单测独立通过；见 docs/evidence/visual-anti-aliasing-noise-filter-t1-2-2026-10-17.md |
-| T1.3 `[ ]` | **多版本视觉黄金基线快照管理与跨分支差异演变追踪器** | `visual_golden_baseline_branch_tracker` | 落地 `visual_golden_baseline_branch_tracker` 服务与 `/visual/baselines/*` API；支持多视口基线版本化打标、跨分支快照比对与历史视觉回归变迁审计；单测独立通过。 |
+| T1.3 `[x]` | **多版本视觉黄金基线快照管理与跨分支差异演变追踪器** | `visual_golden_baseline_branch_tracker` | 落地 `visual_golden_baseline_branch_tracker` 服务与 `/visual/baselines/*` API；支持多视口基线版本化打标、跨分支快照比对与历史视觉回归变迁审计；单测独立通过；见 docs/evidence/visual-golden-baseline-branch-tracker-t1-3-2026-10-17.md |
 
 ---
 

@@ -122,6 +122,7 @@ from app.api.v1 import (
     comprehensive_audit_report_api,
     visual_pixel_diff_api,
     visual_noise_filter_api,
+    visual_baseline_tracker_api,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -249,3 +250,4 @@ router.include_router(release_gate_verdict_api.router)
 router.include_router(comprehensive_audit_report_api.router)
 router.include_router(visual_pixel_diff_api.router)
 router.include_router(visual_noise_filter_api.router)
+router.include_router(visual_baseline_tracker_api.router)
