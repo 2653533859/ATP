@@ -78,6 +78,7 @@ from app.api.v1 import (
     ai_healing_assertions,
     ai_healing_audit,
     diagnostics_mobile_perf,
+    diagnostics_web_vitals,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -161,3 +162,4 @@ router.include_router(ai_healing_locators.router)
 router.include_router(ai_healing_assertions.router)
 router.include_router(ai_healing_audit.router)
 router.include_router(diagnostics_mobile_perf.router)
+router.include_router(diagnostics_web_vitals.router)
