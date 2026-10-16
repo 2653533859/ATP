@@ -34,7 +34,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T2.1 `[ ]` | **多可用区单元化 (Cell/Zone) 流量切流与路由策略控制器** | `cell_based_testing_traffic_controller` | 落地 `cell_based_testing_traffic_controller` 服务与 `/stress/cell-isolation/routing/*` API；支持多单元流量动态权重视流、灰度引流与压测单元受控隔离；单测独立通过。 |
+| T2.1 `[x]` | **多可用区单元化 (Cell/Zone) 流量切流与路由策略控制器** | `cell_based_testing_traffic_controller` | 落地 `cell_based_testing_traffic_controller` 服务与 `/stress/cell-isolation/routing/*` API；支持多单元流量动态权重视流、灰度引流与压测单元受控隔离；单测独立通过；见 docs/evidence/cell-based-testing-traffic-controller-t2-1-2026-10-17.md |
 | T2.2 `[ ]` | **跨单元服务依赖逃逸 (Cell Escape) 与拓扑孤岛检测器** | `cell_escape_dependency_detector` | 落地 `cell_escape_dependency_detector` 服务与 `/stress/cell-isolation/escape/*` API；自动探查流量跨越单元物理边界访问非隔离共享资源的越界泄漏隐患；单测独立通过。 |
 | T2.3 `[ ]` | **单元故障演练与常态化容灾接管自愈验证器** | `cell_failover_resilience_verifier` | 落地 `cell_failover_resilience_verifier` 服务与 `/stress/cell-isolation/failover/*` API；模拟单单元整体瘫痪，量化备用单元自动接管耗时、流量丢包率与自愈状态；单测独立通过。 |
 
