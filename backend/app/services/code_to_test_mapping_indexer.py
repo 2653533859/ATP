@@ -9,7 +9,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 import logging
 import re
-from typing import Any
+from typing import Any, Sequence
 
 logger = logging.getLogger(__name__)
 
@@ -132,9 +132,9 @@ class CodeToTestMappingIndexer:
 
     def query_affected_cases(
         self,
-        symbols: list[str] | None = None,
-        routes: list[tuple[str, str] | str] | None = None,
-        file_paths: list[str] | None = None,
+        symbols: Sequence[str] | None = None,
+        routes: Sequence[tuple[str, str] | str] | None = None,
+        file_paths: Sequence[str] | None = None,
         project_id: int | None = None,
     ) -> list[TestCaseRef]:
         """根据变更的符号、路由或文件，逆向反查全部波及的测试用例（去重并按优先级排序）。"""

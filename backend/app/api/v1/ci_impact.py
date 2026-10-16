@@ -18,6 +18,12 @@ from app.services.code_to_test_mapping_indexer import (
     TestCaseRef,
     get_mapping_indexer,
 )
+from app.services.smart_test_selection_engine import (
+    SelectionStrategy,
+    get_selection_report,
+    list_selection_reports,
+    select_tests_from_diff,
+)
 
 router = APIRouter(prefix="/ci-impact", tags=["CI 代码变更影响面与精准测试"])
 
@@ -161,3 +167,60 @@ async def get_mapping_stats_endpoint(
     _ = _user
     indexer = get_mapping_indexer()
     return indexer.get_stats()
+
+
+class SelectTestsIn(BaseModel):
+    diff_text: str = Field(min_length=1, description="Git Unified Diff 文本")
+    file_sources: dict[str, str] | None = Field(default=None, description="变更涉及的 Python 源码字典")
+    strategy: str = Field(default="balanced", description="选择策略: minimal | balanced | comprehensive")
+    max_cases: int = Field(default=100, ge=1, le=1000, description="最大推荐用例数量限制")
+    project_id: int | None = Field(default=None, description="项目隔离过滤")
+    total_repo_cases_override: int | None = Field(
+        default=None, ge=1, description="仓库全量用例数基准（用于计算裁剪率）"
+    )
+
+
+@router.post("/test-selection/select")
+async def select_tests_endpoint(
+    body: SelectTestsIn,
+    _user: User = Depends(require_engineer),
+) -> dict[str, Any]:
+    """基于 Git Diff 运行 TIA 算法，推导精准最小化回归测试子集 (需工程师权限)。"""
+    _ = _user
+    try:
+        strat_enum = SelectionStrategy(body.strategy.lower())
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"不支持的选择策略: {body.strategy}")
+
+    report = select_tests_from_diff(
+        diff_text=body.diff_text,
+        file_sources=body.file_sources,
+        strategy=strat_enum,
+        max_cases=body.max_cases,
+        project_id=body.project_id,
+        total_repo_cases_override=body.total_repo_cases_override,
+    )
+    return {"message": "精准测试用例集推荐推导完成", "report": report.to_dict()}
+
+
+@router.get("/test-selection/reports")
+async def list_selection_reports_endpoint(
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """查询历史精准测试集推荐报告列表。"""
+    _ = _user
+    reports = list_selection_reports()
+    return {"total": len(reports), "reports": [r.to_dict() for r in reports]}
+
+
+@router.get("/test-selection/reports/{selection_id}")
+async def get_selection_report_endpoint(
+    selection_id: str,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """获取指定精准测试集推荐报告详情。"""
+    _ = _user
+    report = get_selection_report(selection_id)
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"测试推荐报告不存在: {selection_id}")
+    return report.to_dict()
