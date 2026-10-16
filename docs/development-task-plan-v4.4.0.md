@@ -54,7 +54,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T4.1 `[ ]` | **前端运行时长任务 (Long Task) 与主线程掉帧卡顿诊断器** | `client_long_task_jank_profiler` | 落地 `client_long_task_jank_profiler` 服务与 `/client-perf/long-tasks/*` API；捕获超过 50ms 的 Long Task 堆栈，量化主线程阻塞时间 (TBT) 与 FPS 掉帧卡顿归因；单测独立通过。 |
+| T4.1 `[x]` | **前端运行时长任务 (Long Task) 与主线程掉帧卡顿诊断器** | `client_long_task_jank_profiler` | 落地 `client_long_task_jank_profiler` 服务与 `/client-perf/long-tasks/*` API；捕获超过 50ms 的 Long Task 堆栈，量化主线程阻塞时间 (TBT) 与 FPS 掉帧卡顿归因；单测独立通过；见 docs/evidence/client-long-task-jank-profiler-t4-1-2026-10-17.md |
 | T4.2 `[ ]` | **页面内存泄漏与 DOM 节点脱落幽灵引用智能探测器** | `client_memory_leak_dom_detachment_detector` | 落地 `client_memory_leak_dom_detachment_detector` 服务与 `/client-perf/memory-leak/*` API；监控 JS Heap 增长曲线、未解绑事件监听器与 Detached DOM 幽灵节点泄露；单测独立通过。 |
 | T4.3 `[ ]` | **核心体验 Web Vitals (LCP/INP/CLS) 全景审计报告生成器** | `web_vitals_experience_audit_reporter` | 落地 `web_vitals_experience_audit_reporter` 服务与 `/client-perf/web-vitals-report/*` API；汇总量化 Google Web Vitals 核心指标，输出体验达标率与针对性性能调优指引；单测独立通过。 |
 
