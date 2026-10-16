@@ -9,7 +9,7 @@
 > v3.8.0 规划入口为 [`docs/development-task-plan-v3.8.0.md`](docs/development-task-plan-v3.8.0.md)，覆盖 Phase 1（真实微服务网关生产流量镜像录制、智能脱敏与用例合成引擎）、Phase 2（影子流量无副作用双写回放、字段级智能差分与黄金基线校验）、Phase 3（实时接口契约动态漂移逆向推导与 Breaking 变更阻断卫士）、Phase 4（流量驱动的混沌工程故障注入编排与系统韧性验证）。
 
 - [x] 2026-10-16 T1.1 微服务网关旁路流量捕获与 HTTP/gRPC 多协议解析过滤服务：落地 traffic_capture_gateway 服务与 /traffic/capture/* API；支持 HTTP(REST)/gRPC 流量镜像捕获、路径/方法正则过滤、采样率控制及头部元数据标准化提取；5 项单测独立通过，见 [`docs/evidence/traffic-capture-gateway-t1-1-2026-10-16.md`](docs/evidence/traffic-capture-gateway-t1-1-2026-10-16.md)。
-- [ ] T1.2 生产敏感数据自适应规则脱敏与模式识别脱敏器（traffic_data_masker）
+- [x] 2026-10-16 T1.2 生产敏感数据自适应规则脱敏与模式识别脱敏器：落地 traffic_data_masker 服务与 /traffic/mask/* API；支持手机号/身份证/银行卡/邮箱/JWT 正则掩码、SHA-256 伪名化、多层嵌套 JSON 递归清洗与 CapturedTrafficItem 全局打标；5 项单测独立通过，见 [`docs/evidence/traffic-data-masker-t1-2-2026-10-16.md`](docs/evidence/traffic-data-masker-t1-2-2026-10-16.md)。
 - [ ] T1.3 真实流量请求聚类归一与自动化测试用例智能生成器（traffic_to_test_case_synthesizer）
 - [ ] T2.1 影子流量无副作用沙箱隔离回放与外部依赖 Mock 代理（shadow_traffic_replay_engine）
 - [ ] T2.2 响应体动态字段智能过滤与字段级精确差分比对器（traffic_diff_comparator）
