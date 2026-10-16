@@ -44,7 +44,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T3.1 `[ ]` | **多源基础设施 (DB池/Redis/MQ) 容量水位实时度量器** | `multisource_capacity_watermark_meter` | 落地 `multisource_capacity_watermark_meter` 服务与 `/stress/bottleneck-guardian/watermark/*` API；采集并聚合 DB 连接池水位、Redis 内存消耗率与 MQ 积压量，计算健康负荷指数；单测独立通过。 |
+| T3.1 `[x]` | **多源基础设施 (DB池/Redis/MQ) 容量水位实时度量器** | `multisource_capacity_watermark_meter` | 落地 `multisource_capacity_watermark_meter` 服务与 `/stress/bottleneck-guardian/watermark/*` API；采集并聚合 DB 连接池水位、Redis 内存消耗率与 MQ 积压量，计算健康负荷指数；单测独立通过；见 docs/evidence/multisource-capacity-watermark-meter-t3-1-2026-10-17.md |
 | T3.2 `[ ]` | **压测调用链下游热点慢调用与资源争用瓶颈归因器** | `distributed_bottleneck_root_cause_classifier` | 落地 `distributed_bottleneck_root_cause_classifier` 服务与 `/stress/bottleneck-guardian/bottlenecks/*` API；分析压测调用链 P99 抖动，自动归因至死锁、慢 SQL、线程池打满与带宽饱和；单测独立通过。 |
 | T3.3 `[ ]` | **生产防击穿自适应毫秒级分级限流与熔断保护大脑** | `adaptive_avalanche_circuit_breaker` | 落地 `adaptive_avalanche_circuit_breaker` 服务与 `/stress/bottleneck-guardian/circuit-breaker/*` API；当下游依赖容量超过 85% 预警水位时，毫秒级自适应阶梯限流与自动阻断压测；单测独立通过。 |
 
