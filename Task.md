@@ -18,7 +18,7 @@
 - [x] 2026-10-16 UI3.2 Web 性能 Core Web Vitals 雷达图与阻断资源分析视图：创建 webVitals API 客户端并在 chartTheme 中装配 Radar 图表，落地 WebVitalsDiagnosticsView 页面与路由；支持 Google 官方核心与辅助体验指标度量、六维雷达对比、渲染阻塞静态资源表与优化建议；单测独立通过，见 [`docs/evidence/web-vitals-diagnostics-view-ui3-2-2026-10-16.md`](docs/evidence/web-vitals-diagnostics-view-ui3-2-2026-10-16.md)。
 - [x] 2026-10-16 UI3.3 全链路分布式追踪 TraceID 慢调用火焰图交互组件：创建 distributedTraces API 客户端，落地 DistributedTraceFlamegraphViewer 组件；展示多层级 Span 调用树、独占耗时 (Self-Time) 阶梯火焰图、慢调用瓶颈高亮与调优建议，集成至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/distributed-trace-flamegraph-viewer-ui3-3-2026-10-16.md`](docs/evidence/distributed-trace-flamegraph-viewer-ui3-3-2026-10-16.md)。至此 v3.5.0 Phase 3 全量大闭环！
 - [x] 2026-10-16 UI4.1 测试报告多模态聚合打包导出弹窗：创建 reportBundler API 客户端，落地 ReportBundlerExportModal 组件；支持独立 HTML5、明细 Excel/CSV、合规 PDF 及多合一 ZIP 4 大格式选择、合规元数据配置、产物生成下载与历史记录管理；集成至 ReportCenterView 顶部工具栏；单测独立通过，见 [`docs/evidence/report-bundler-export-modal-ui4-1-2026-10-16.md`](docs/evidence/report-bundler-export-modal-ui4-1-2026-10-16.md)。
-- [ ] UI4.2 企微 / 钉钉 / 飞书富文本交互式卡片 Webhook 智能广播抽屉（NotificationHubBroadcastDrawer.vue）
+- [x] 2026-10-16 UI4.2 企微 / 钉钉 / 飞书富文本交互式卡片 Webhook 智能广播抽屉：创建 notificationHub API 客户端，落地 NotificationHubBroadcastDrawer 组件；支持 Webhook Token 自动脱敏、企微 template_card / 钉钉 actionCard / 飞书 interactive 三大卡片所见即所得实时预览、全网并发广播与投递审计流水；集成至 NotificationList 顶部操作区；单测独立通过，见 [`docs/evidence/notification-hub-broadcast-drawer-ui4-2-2026-10-16.md`](docs/evidence/notification-hub-broadcast-drawer-ui4-2-2026-10-16.md)。
 - [ ] UI4.3 团队研发效能 DORA 罗盘看板与成熟度评估页面（DoraMetricsCompassView.vue）
 
 ## 2026-10-16 v3.4.0 研发任务规划（已全量闭环）

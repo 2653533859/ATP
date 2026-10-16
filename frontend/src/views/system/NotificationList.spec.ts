@@ -49,6 +49,9 @@ vi.mock('@/api', () => ({
   suiteApi: { list: suiteList },
   planApi: { list: planList },
 }))
+vi.mock('./components/NotificationHubBroadcastDrawer.vue', () => ({
+  default: defineComponent({ name: 'NotificationHubBroadcastDrawer', setup: () => () => h('div', 'notification-hub-broadcast-drawer') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

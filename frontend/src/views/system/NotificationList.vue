@@ -4,9 +4,14 @@
       <div>
         <h2 class="page-title">{{ t('system_pages.notification.title') }}</h2>
       </div>
-      <a-button type="primary" :disabled="!projectId" @click="openCreate">
-        <PlusOutlined /> {{ t('system_pages.notification.add') }}
-      </a-button>
+      <a-space>
+        <a-button type="primary" ghost @click="showBroadcastDrawer = true">
+          <SendOutlined /> 交互卡片广播抽屉
+        </a-button>
+        <a-button type="primary" :disabled="!projectId" @click="openCreate">
+          <PlusOutlined /> {{ t('system_pages.notification.add') }}
+        </a-button>
+      </a-space>
     </div>
     <div class="page-toolbar">
       <a-space>
@@ -192,13 +197,14 @@
         </a-form-item>
       </a-form>
     </a-modal>
+    <NotificationHubBroadcastDrawer v-model:open="showBroadcastDrawer" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, onMounted } from 'vue'
 import { message } from 'ant-design-vue'
-import { PlusOutlined } from '@ant-design/icons-vue'
+import { PlusOutlined, SendOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import type { AxiosError } from 'axios'
 import {
@@ -211,9 +217,11 @@ import {
   type ProjectItem,
   type SuiteItem,
 } from '@/api'
+import NotificationHubBroadcastDrawer from './components/NotificationHubBroadcastDrawer.vue'
 // a-table #bodyCell 的 record 是 Record<string, any>；数据源类型在此断言收窄
 const asNotification = (record: unknown) => record as NotificationRecord
 
+const showBroadcastDrawer = ref(false)
 type NotificationChannel = 'email' | 'wechat' | 'dingtalk'
 type NotificationScope = 'all' | 'suites' | 'plans'
 type NotificationStatusFilter = 'passed' | 'failed' | 'error'

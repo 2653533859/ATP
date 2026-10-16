@@ -55,7 +55,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI4.1 `[x]` | **测试报告多模态聚合打包导出弹窗** | report_bundler_exporter | 落地 `ReportBundlerExportModal.vue` 组件与 API 客户端；支持一键生成并直接下载 HTML5 离线单文件报告、Excel 详报、PDF 凭据与全模态 ZIP 包；见 docs/evidence/report-bundler-export-modal-ui4-1-2026-10-16.md |
-| UI4.2 `[ ]` | **企微 / 钉钉 / 飞书富文本交互式卡片 Webhook 智能广播抽屉** | notification_hub_dispatcher | 落地 `NotificationHubBroadcastDrawer.vue` 组件；支持企微 template_card、钉钉 actionCard、飞书卡片实时预览、Webhook 密钥脱敏与一键广播。 |
+| UI4.2 `[x]` | **企微 / 钉钉 / 飞书富文本交互式卡片 Webhook 智能广播抽屉** | notification_hub_dispatcher | 落地 `NotificationHubBroadcastDrawer.vue` 组件与 API 客户端；支持企微 template_card、钉钉 actionCard、飞书卡片实时预览、Webhook 密钥脱敏与一键广播；见 docs/evidence/notification-hub-broadcast-drawer-ui4-2-2026-10-16.md |
 | UI4.3 `[ ]` | **团队研发效能 DORA 罗盘看板与成熟度评估页面** | dora_metrics_calculator | 落地 `DoraMetricsCompassView.vue` 页面与路由；量化部署频率、变更前置耗时、失败率、MTTR 四维效能指标与团队成熟度等级评定。 |
 
 ---
