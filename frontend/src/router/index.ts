@@ -417,6 +417,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/cross-db-audit',
+          name: 'cross-db-consistency-audit-dashboard',
+          component: () => import('@/views/quality/CrossDbConsistencyAuditDashboardView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),
