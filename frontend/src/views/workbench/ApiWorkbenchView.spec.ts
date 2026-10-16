@@ -227,6 +227,9 @@ vi.mock('./components/VLMVisualSemanticAssertionDrawer.vue', () => ({
 vi.mock('./components/UILayoutCollisionDetectorCard.vue', () => ({
   default: defineComponent({ name: 'UILayoutCollisionDetectorCard', setup: () => () => h('div', 'ui-layout-collision-detector-card') }),
 }))
+vi.mock('./components/DesignSystemTokenAuditDrawer.vue', () => ({
+  default: defineComponent({ name: 'DesignSystemTokenAuditDrawer', setup: () => () => h('div', 'design-system-token-audit-drawer') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
