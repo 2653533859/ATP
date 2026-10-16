@@ -12,7 +12,7 @@
 - [x] 2026-10-16 S1.2 代码函数/端点与自动化测试用例双向依赖映射索引引擎：落地 code_to_test_mapping_indexer 服务与 /ci-impact/mapping/* API；建立源码符号/路由/文件与用例的双向倒排图谱索引、步骤 URL 自动解析、去重与 P0-P3 优先级排序；4 项单测独立通过，见 [`docs/evidence/code-to-test-mapping-indexer-s1-2-2026-10-16.md`](docs/evidence/code-to-test-mapping-indexer-s1-2-2026-10-16.md)。
 - [x] 2026-10-16 S1.3 基于变更影响面的最小化必要测试集智能推导与选择引擎：落地 smart_test_selection_engine 服务与 /ci-impact/test-selection/* API；支持 MINIMAL/BALANCED/COMPREHENSIVE 三大推荐策略、置信度多维打分、选择归因溯源与 80%+ 冗余用例自动裁剪；2 项单测独立通过，见 [`docs/evidence/smart-test-selection-engine-s1-3-2026-10-16.md`](docs/evidence/smart-test-selection-engine-s1-3-2026-10-16.md)。至此 v3.6.0 Phase 1 全量大闭环！
 - [x] 2026-10-16 S2.1 多容器弹性 Worker 负载均衡动态测试切片分发器：落地 dynamic_test_shard_partitioner 服务与 /ci-impact/sharding/* API；基于 LPT 贪心算法实现测试用例按历史耗时在多 Worker 容器间最优均衡装箱、方差最小化与加速比量化；4 项单测独立通过，见 [`docs/evidence/dynamic-test-shard-partitioner-s2-1-2026-10-16.md`](docs/evidence/dynamic-test-shard-partitioner-s2-1-2026-10-16.md)。
-- [ ] S2.2 代码变更行数/圈复杂度与核心度多维风险指数模型（change_risk_scorer）
+- [x] 2026-10-16 S2.2 代码变更行数/圈复杂度与核心度多维风险指数模型：落地 change_risk_scorer 服务与 /ci-impact/risk-score/* API；构建代码规模 (30%)、AST 圈复杂度增量 (35%) 与核心涉敏资产 (35%) 三维风险量化模型，评定 CRITICAL/HIGH/MEDIUM/LOW 四级风险与准入动作建议；3 项单测独立通过，见 [`docs/evidence/change-risk-scorer-s2-2-2026-10-16.md`](docs/evidence/change-risk-scorer-s2-2-2026-10-16.md)。
 - [ ] S2.3 CI 选定测试集高频抖动 Flaky 用例自适应抑制隔离过滤器（flaky_test_suppression_filter）
 - [ ] S3.1 代码变更行一阶语法变异算子注入生成引擎（code_mutation_operator_engine）
 - [ ] S3.2 变异体执行检验与捕获/存活状态判定执行器（mutation_execution_runner）

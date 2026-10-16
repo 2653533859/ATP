@@ -29,6 +29,11 @@ from app.services.dynamic_test_shard_partitioner import (
     list_sharding_reports,
     partition_tests_dynamically,
 )
+from app.services.change_risk_scorer import (
+    evaluate_change_risk,
+    get_change_risk_report,
+    list_change_risk_reports,
+)
 
 router = APIRouter(prefix="/ci-impact", tags=["CI 代码变更影响面与精准测试"])
 
@@ -274,4 +279,54 @@ async def get_sharding_report_endpoint(
     report = get_sharding_report(sharding_id)
     if not report:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"分片报告不存在: {sharding_id}")
+    return report.to_dict()
+
+
+class EvaluateChangeRiskIn(BaseModel):
+    diff_text: str = Field(min_length=1, description="Git Unified Diff 文本")
+    file_sources: dict[str, str] | None = Field(default=None, description="变更涉及的 Python 源码字典")
+    critical_patterns: list[str] | None = Field(default=None, description="核心涉敏模块正则匹配模式列表")
+    weight_volume: float = Field(default=0.30, ge=0.0, le=1.0, description="代码体量权重")
+    weight_complexity: float = Field(default=0.35, ge=0.0, le=1.0, description="圈复杂度权重")
+    weight_criticality: float = Field(default=0.35, ge=0.0, le=1.0, description="核心资产敏感度权重")
+
+
+@router.post("/risk-score/evaluate")
+async def evaluate_change_risk_endpoint(
+    body: EvaluateChangeRiskIn,
+    _user: User = Depends(require_engineer),
+) -> dict[str, Any]:
+    """综合评估代码变更风险指数 (0-100) 与风险等级 (需工程师权限)。"""
+    _ = _user
+    report = evaluate_change_risk(
+        diff_text=body.diff_text,
+        file_sources=body.file_sources,
+        critical_patterns=body.critical_patterns,
+        weight_volume=body.weight_volume,
+        weight_complexity=body.weight_complexity,
+        weight_criticality=body.weight_criticality,
+    )
+    return {"message": "代码变更风险指数评估完成", "report": report.to_dict()}
+
+
+@router.get("/risk-score/reports")
+async def list_change_risk_reports_endpoint(
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """查询历史代码变更风险评估报告列表。"""
+    _ = _user
+    reports = list_change_risk_reports()
+    return {"total": len(reports), "reports": [r.to_dict() for r in reports]}
+
+
+@router.get("/risk-score/reports/{risk_id}")
+async def get_change_risk_report_endpoint(
+    risk_id: str,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """获取指定代码变更风险评估报告详情。"""
+    _ = _user
+    report = get_change_risk_report(risk_id)
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"风险评估报告不存在: {risk_id}")
     return report.to_dict()
