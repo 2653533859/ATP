@@ -113,6 +113,9 @@
         <a-button size="small" class="toolbar-btn" @click="showDefectDispatchDrawer = true">
           <AuditOutlined /> 缺陷工单网关
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showLocatorHealingDrawer = true">
+          <ToolOutlined /> 选择器自愈
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -570,6 +573,7 @@
       <DefectTicketDispatchCard />
     </a-drawer>
     <IncidentKnowledgeFingerprintDrawer v-model:open="showFingerprintDrawer" />
+    <SmartLocatorHealingConsoleDrawer v-model:open="showLocatorHealingDrawer" />
   </div>
 </template>
 
@@ -600,6 +604,7 @@ import {
   MailOutlined,
   AuditOutlined,
   BookOutlined,
+  ToolOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
@@ -675,6 +680,8 @@ const showRootCauseDrawer = ref(false)
 import IncidentKnowledgeFingerprintDrawer from './components/IncidentKnowledgeFingerprintDrawer.vue'
 import DefectTicketDispatchCard from './components/DefectTicketDispatchCard.vue'
 const showDefectDispatchDrawer = ref(false)
+import SmartLocatorHealingConsoleDrawer from './components/SmartLocatorHealingConsoleDrawer.vue'
+const showLocatorHealingDrawer = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value

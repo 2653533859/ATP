@@ -54,7 +54,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| UI4.1 `[ ]` | **UI 元素定位漂移动态自愈推导与降级重试控制台** | `smart_locator_multistrategy_healer` | 落地 `SmartLocatorHealingConsoleDrawer.vue` 组件；展示五维加权降级得分条、新选择器建议、代码补丁与自愈成功率统计。 |
+| UI4.1 `[x]` | **UI 元素定位漂移动态自愈推导与降级重试控制台** | `smart_locator_multistrategy_healer` | 落地 `SmartLocatorHealingConsoleDrawer.vue` 组件与 API 客户端；展示五维加权降级得分条、新选择器建议、代码补丁与自愈成功率统计；见 docs/evidence/smart-locator-healing-console-drawer-ui4-1-2026-10-16.md |
 | UI4.2 `[ ]` | **接口响应格式变迁自适应断言规则推导与代码 Diff 弹窗** | `adaptive_assertion_auto_patcher` | 落地 `AdaptiveAssertionPatchModal.vue` 弹窗；展示 JSONPath 迁移轨迹、外层拆包/重命名模式分类、Python 代码 Diff 与一键应用。 |
 | UI4.3 `[ ]` | **端到端测试自愈全流程审计追踪与一键回滚流水线全景大盘** | `self_healing_audit_patch_pipeline` | 落地 `SelfHealingAuditPatchPipelineView.vue` 页面与路由；展示四阶段卡点自愈流程、SHA-256 加密防篡改指纹与一键原子回滚控制台。 |
 

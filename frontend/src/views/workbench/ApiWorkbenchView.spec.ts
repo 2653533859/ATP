@@ -68,6 +68,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   MailOutlined: true,
   BookOutlined: true,
   AuditOutlined: true,
+  ToolOutlined: true,
 }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
@@ -174,6 +175,9 @@ vi.mock('./components/IncidentKnowledgeFingerprintDrawer.vue', () => ({
 }))
 vi.mock('./components/DefectTicketDispatchCard.vue', () => ({
   default: defineComponent({ name: 'DefectTicketDispatchCard', setup: () => () => h('div', 'defect-ticket-dispatch-card') }),
+}))
+vi.mock('./components/SmartLocatorHealingConsoleDrawer.vue', () => ({
+  default: defineComponent({ name: 'SmartLocatorHealingConsoleDrawer', setup: () => () => h('div', 'smart-locator-healing-console-drawer') }),
 }))
 
 const passthrough = (name: string) =>
