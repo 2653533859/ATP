@@ -10,7 +10,7 @@
 
 - [x] 2026-10-16 T1.1 动态 Worker 容器 Pod 弹性扩缩容与集群资源配额仲裁器：落地 `elastic_test_worker_autoscaler` 服务与 `/cluster/autoscaler/*` API；基于用例排队深度、预期 CPU/内存负载与配额阈值，动态计算 Worker 副本扩缩容决策并调度 Pod；单测独立通过，见 [`docs/evidence/elastic-test-worker-autoscaler-t1-1-2026-10-16.md`](docs/evidence/elastic-test-worker-autoscaler-t1-1-2026-10-16.md)。
 - [x] 2026-10-16 T1.2 大规模测试套件智能动态分片与跨节点负载均衡调度器：落地 `test_suite_dynamic_sharding_scheduler` 服务与 `/cluster/sharding/*` API；基于历史用例耗时与权重，执行动态分片切分 (Sharding)，实现多执行节点耗时均衡最大化；单测独立通过，见 [`docs/evidence/test-suite-dynamic-sharding-scheduler-t1-2-2026-10-16.md`](docs/evidence/test-suite-dynamic-sharding-scheduler-t1-2-2026-10-16.md)。
-- [ ] 2026-10-16 T1.3 临时沙箱测试环境生命周期自动化供给与快速回收器：落地 `ephemeral_test_env_lifecycle_manager` 服务与 `/cluster/ephemeral-env/*` API；自动化拉起隔离测试环境命名空间、注入路由规则、并在测试结束后原子级优雅回收；单测独立通过。
+- [x] 2026-10-16 T1.3 临时沙箱测试环境生命周期自动化供给与快速回收器：落地 `ephemeral_test_env_lifecycle_manager` 服务与 `/cluster/ephemeral-env/*` API；自动化拉起隔离测试环境命名空间、注入路由规则、并在测试结束后原子级优雅回收；单测独立通过，见 [`docs/evidence/ephemeral-test-env-lifecycle-manager-t1-3-2026-10-16.md`](docs/evidence/ephemeral-test-env-lifecycle-manager-t1-3-2026-10-16.md)。至此 v4.2.0 Phase 1 全量大闭环！
 - [ ] 2026-10-16 T2.1 跨多环境配置与环境变量差异比对探测器：落地 `multi_env_config_drift_detector` 服务与 `/env-drift/config/*` API；提取多环境 ConfigMap、环境变量与服务配置，执行深层差异差分比对并分级告警；单测独立通过。
 - [ ] 2026-10-16 T2.2 数据库 Schema 结构与索引变更漂移自动比对器：落地 `db_schema_drift_compatibility_checker` 服务与 `/env-drift/schema/*` API；逆向推导表字段、主外键、索引结构，探测未同步的破坏性变更并生成同步 DDL 脚本；单测独立通过。
 - [ ] 2026-10-16 T2.3 基础设施即代码 (IaC) 与网络策略安全合规巡检引擎：落地 `iac_network_policy_compliance_scanner` 服务与 `/env-drift/iac-compliance/*` API；扫描 K8s NetworkPolicy 与 Docker Compose 配置，检测未受限入方向、特权容器与合规缺陷；单测独立通过。
