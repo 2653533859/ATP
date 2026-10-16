@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-17 v4.3.0 研发任务规划（进行中）
+
+> v4.3.0 规划入口为 [`docs/development-task-plan-v4.3.0.md`](docs/development-task-plan-v4.3.0.md)，覆盖 UI1（云原生弹性测试执行集群与沙箱环境调度大盘）、UI2（跨环境配置漂移自动探测与数据库 Schema 演化一致性审计中心）、UI3（基于大模型 LLM 的测试用例智能生成、自主探索测试与合成数据控制台）、UI4（软件发布质量全景度量与智能发版门禁决策看板）。
+
+- [x] 2026-10-17 UI1.1 动态 Worker 容器 Pod 弹性扩缩容拓扑与配额监控抽屉：落地 `ElasticWorkerAutoscalerDrawer.vue` 组件与 API 客户端；展示排队深度滑块、HPA 期望副本数、动作状态徽章、集群 CPU/内存配额水位；单测独立通过，见 [`docs/evidence/elastic-worker-autoscaler-drawer-ui1-1-2026-10-17.md`](docs/evidence/elastic-worker-autoscaler-drawer-ui1-1-2026-10-17.md)。
+- [ ] 2026-10-17 UI1.2 大规模测试套件智能动态分片装箱矩阵与掉队重平衡面板：落地 `TestSuiteDynamicShardingPanel.vue` 组件与 API 客户端；展示 LPT 贪心装箱多节点耗时分布柱状图、均衡度得分 (0~100%) 与长尾掉队节点告警；单测独立通过。
+- [ ] 2026-10-17 UI1.3 临时沙箱测试环境生命周期拓扑与原子回收全景大盘页面：落地 `EphemeralTestEnvDashboardView.vue` 视图与路由；展示多租户隔离沙箱列表、租约 TTL 倒计时、一键延长租约与优雅原子销毁控制台；单测独立通过。
+- [ ] 2026-10-17 UI2.1 跨多环境配置差异比对卡片与敏感密钥泄漏告警抽屉：落地 `MultiEnvConfigDriftDrawer.vue` 组件与 API 客户端；展示基准 vs 目标环境配置差分树、CRITICAL 密钥高危标识、一致性得分与修复建议；单测独立通过。
+- [ ] 2026-10-17 UI2.2 数据库 Schema 结构与索引变更漂移双向比对大盘页面：落地 `DbSchemaDriftAuditDashboardView.vue` 视图与路由；展示表/列/索引差异矩阵、破坏性变更等级评定与合成修复 DDL 脚本一键复制导出；单测独立通过。
+- [ ] 2026-10-17 UI2.3 基础设施即代码 (IaC) 与网络策略安全合规巡检卡片：落地 `IaCComplianceScannerCard.vue` 组件与 API 客户端；展示特权容器/敏感卷挂载违规清单、安全扣分模型与准入阻断裁决结论；单测独立通过。
+- [ ] 2026-10-17 UI3.1 接口契约与业务 Spec 驱动的端到端用例智能生成编排抽屉：落地 `LLMSpecToE2ECaseSynthesizerDrawer.vue` 组件与 API 客户端；展示时序依赖 DAG 节点流转、上下文变量提取、Python 测试脚本实时预览与复制；单测独立通过。
+- [ ] 2026-10-17 UI3.2 针对复杂业务边界条件的生产级测试合成数据生成卡片：落地 `SyntheticTestDataGeneratorCard.vue` 组件与 API 客户端；支持正向/边界/负向三模态切换、字段约束配置、数据表预览与多格式导出；单测独立通过。
+- [ ] 2026-10-17 UI3.3 自主探索式 API 模糊变异与隐蔽缺陷探查及 cURL 复现控制台：落地 `AutonomousApiFuzzingExplorerDrawer.vue` 组件与 API 客户端；展示 6 大变异策略执行状态、5xx 崩溃与注入缺陷卡片、单行 cURL 复现命令；单测独立通过。
+- [ ] 2026-10-17 UI4.1 全生命周期多维质量健康综合评分仪表盘与 A+ 评级诊断卡片：落地 `QualityHealthCompositeScoreCard.vue` 组件与 API 客户端；展示 6 维雷达图/进度条、A+/A/B/C 等级微章、P0 一票否决标识与首要扣分项归因；单测独立通过。
+- [ ] 2026-10-17 UI4.2 自动化发版准入阻断裁决器 (Go/No-Go) 与特批豁免流转弹窗：落地 `ReleaseGateVerdictWaiverModal.vue` 弹窗与 API 客户端；展示 GO/CAUTION/NO_GO 裁决大横幅、阻断清单、架构师签署特批风险豁免与撤销流转；单测独立通过。
+- [ ] 2026-10-17 UI4.3 端到端测试执行与质量合规全景审计报告大盘页面：落地 `ComprehensiveAuditReportView.vue` 视图与路由；全景组装 5 大维度证据链、展示 64 位 SHA-256 防篡改指纹、在线验签与 Markdown 审计文档导出；单测独立通过。
+
 ## 2026-10-17 v4.2.0 研发任务规划（已全量闭环）
 
 > v4.2.0 规划入口为 [`docs/development-task-plan-v4.2.0.md`](docs/development-task-plan-v4.2.0.md)，覆盖 Phase 1（云原生动态弹性测试执行集群与工作流任务分片调度器）、Phase 2（跨环境配置漂移自动探测与数据库 Schema 演化一致性审计）、Phase 3（基于大模型 LLM 的测试用例智能生成、自主探索式测试与合成数据引擎）、Phase 4（软件发布质量全景度量与智能发版门禁决策大脑）。

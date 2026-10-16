@@ -69,6 +69,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   BookOutlined: true,
   AuditOutlined: true,
   ToolOutlined: true,
+  CloudServerOutlined: true,
 }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
@@ -181,6 +182,9 @@ vi.mock('./components/SmartLocatorHealingConsoleDrawer.vue', () => ({
 }))
 vi.mock('./components/AdaptiveAssertionPatchModal.vue', () => ({
   default: defineComponent({ name: 'AdaptiveAssertionPatchModal', setup: () => () => h('div', 'adaptive-assertion-patch-modal') }),
+}))
+vi.mock('./components/ElasticWorkerAutoscalerDrawer.vue', () => ({
+  default: defineComponent({ name: 'ElasticWorkerAutoscalerDrawer', setup: () => () => h('div', 'elastic-worker-autoscaler-drawer') }),
 }))
 
 const passthrough = (name: string) =>

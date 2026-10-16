@@ -119,6 +119,9 @@
         <a-button size="small" class="toolbar-btn" @click="showAssertionPatchDrawer = true">
           <CodeOutlined /> 断言自适应补丁
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showAutoscalerDrawer = true">
+          <CloudServerOutlined /> 弹性集群伸缩
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -578,6 +581,7 @@
     <IncidentKnowledgeFingerprintDrawer v-model:open="showFingerprintDrawer" />
     <SmartLocatorHealingConsoleDrawer v-model:open="showLocatorHealingDrawer" />
     <AdaptiveAssertionPatchModal v-model:open="showAssertionPatchDrawer" />
+    <ElasticWorkerAutoscalerDrawer v-model:open="showAutoscalerDrawer" />
   </div>
 </template>
 
@@ -609,6 +613,7 @@ import {
   AuditOutlined,
   BookOutlined,
   ToolOutlined,
+  CloudServerOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
@@ -688,6 +693,8 @@ import SmartLocatorHealingConsoleDrawer from './components/SmartLocatorHealingCo
 const showLocatorHealingDrawer = ref(false)
 import AdaptiveAssertionPatchModal from './components/AdaptiveAssertionPatchModal.vue'
 const showAssertionPatchDrawer = ref(false)
+import ElasticWorkerAutoscalerDrawer from './components/ElasticWorkerAutoscalerDrawer.vue'
+const showAutoscalerDrawer = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
