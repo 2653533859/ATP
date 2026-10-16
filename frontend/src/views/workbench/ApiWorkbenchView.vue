@@ -167,6 +167,9 @@
         <a-button size="small" class="toolbar-btn" @click="showKeyboardNavPanel = true">
           <BookOutlined /> 键盘流转仿真
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showLongTaskDrawer = true">
+          <ThunderboltOutlined /> 长任务诊断
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -642,6 +645,7 @@
     <DesignSystemTokenAuditDrawer v-model:open="showDesignTokensDrawer" />
     <WcagA11yDeepScannerDrawer v-model:open="showWcagDrawer" />
     <A11yKeyboardNavPathPanel v-model:open="showKeyboardNavPanel" />
+    <ClientLongTaskJankProfilerDrawer v-model:open="showLongTaskDrawer" />
   </div>
 </template>
 
@@ -790,6 +794,8 @@ import WcagA11yDeepScannerDrawer from './components/WcagA11yDeepScannerDrawer.vu
 const showWcagDrawer = ref(false)
 import A11yKeyboardNavPathPanel from './components/A11yKeyboardNavPathPanel.vue'
 const showKeyboardNavPanel = ref(false)
+import ClientLongTaskJankProfilerDrawer from './components/ClientLongTaskJankProfilerDrawer.vue'
+const showLongTaskDrawer = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
