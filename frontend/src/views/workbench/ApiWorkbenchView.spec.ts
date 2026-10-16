@@ -73,6 +73,9 @@ vi.mock('@/components/common/CaseFormDrawer.vue', () => ({
 vi.mock('@/views/case/AIGenerateDrawer.vue', () => ({
   default: defineComponent({ name: 'AIGenerateDrawer', setup: () => () => h('div') }),
 }))
+vi.mock('./components/AssetDependencyGraphViewer.vue', () => ({
+  default: defineComponent({ name: 'AssetDependencyGraphViewer', setup: () => () => h('div', 'asset-dependency-graph') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

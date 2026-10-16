@@ -29,6 +29,9 @@
         <a-button size="small" class="toolbar-btn" @click="showTrafficRecording = true">
           <ThunderboltOutlined /> 流量录制工作台
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showAssetGraph = true">
+          <ClusterOutlined /> 全景资产图谱
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -376,6 +379,14 @@
       v-model:open="showTrafficRecording"
       :project-id="selectedProjectId || 1"
     />
+    <a-drawer
+      v-model:open="showAssetGraph"
+      :width="1050"
+      title="全域测试资产依赖拓扑图谱与孤儿资产治理"
+      destroy-on-close
+    >
+      <AssetDependencyGraphViewer />
+    </a-drawer>
   </div>
 </template>
 
@@ -417,6 +428,7 @@ import ApiScenarioOrchestrator from './components/ApiScenarioOrchestrator.vue'
 import AIGenerateDrawer from '@/views/case/AIGenerateDrawer.vue'
 import { canEditProjectByRole } from '@/utils/permissions'
 import TrafficRecordingDrawer from './components/TrafficRecordingDrawer.vue'
+import AssetDependencyGraphViewer from './components/AssetDependencyGraphViewer.vue'
 import { useAuthStore } from '@/stores/auth'
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -430,6 +442,7 @@ type ErrorLike = { response?: { data?: { detail?: unknown } }; message?: unknown
 
 const API_CASE_TYPES: CaseType[] = ['api', 'graphql', 'websocket', 'grpc']
 const showTrafficRecording = ref(false)
+const showAssetGraph = ref(false)
 
 const { t } = useI18n()
 const route = useRoute()
