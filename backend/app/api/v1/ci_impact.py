@@ -24,6 +24,11 @@ from app.services.smart_test_selection_engine import (
     list_selection_reports,
     select_tests_from_diff,
 )
+from app.services.dynamic_test_shard_partitioner import (
+    get_sharding_report,
+    list_sharding_reports,
+    partition_tests_dynamically,
+)
 
 router = APIRouter(prefix="/ci-impact", tags=["CI 代码变更影响面与精准测试"])
 
@@ -223,4 +228,50 @@ async def get_selection_report_endpoint(
     report = get_selection_report(selection_id)
     if not report:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"测试推荐报告不存在: {selection_id}")
+    return report.to_dict()
+
+
+class PartitionTestsIn(BaseModel):
+    case_ids: list[int] = Field(min_length=1, description="需切片执行的测试用例 ID 列表")
+    target_shards_count: int = Field(default=4, ge=1, le=64, description="目标并发分片数 (Worker 容器数)")
+    case_duration_history: dict[int, float] | None = Field(default=None, description="用例历史执行耗时秒数字典")
+    default_case_duration_sec: float = Field(default=3.5, ge=0.1, description="无历史耗时记录时的兜底均值 (秒)")
+
+
+@router.post("/sharding/partition")
+async def partition_tests_endpoint(
+    body: PartitionTestsIn,
+    _user: User = Depends(require_engineer),
+) -> dict[str, Any]:
+    """基于贪心 LPT 算法对测试用例集执行动态负载均衡切片分发 (需工程师权限)。"""
+    _ = _user
+    report = partition_tests_dynamically(
+        case_ids=body.case_ids,
+        target_shards_count=body.target_shards_count,
+        case_duration_history=body.case_duration_history,
+        default_case_duration_sec=body.default_case_duration_sec,
+    )
+    return {"message": "动态测试切片分配完成", "report": report.to_dict()}
+
+
+@router.get("/sharding/reports")
+async def list_sharding_reports_endpoint(
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """查询历史动态分片报告列表。"""
+    _ = _user
+    reports = list_sharding_reports()
+    return {"total": len(reports), "reports": [r.to_dict() for r in reports]}
+
+
+@router.get("/sharding/reports/{sharding_id}")
+async def get_sharding_report_endpoint(
+    sharding_id: str,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """获取指定动态分片报告详情。"""
+    _ = _user
+    report = get_sharding_report(sharding_id)
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"分片报告不存在: {sharding_id}")
     return report.to_dict()
