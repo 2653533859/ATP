@@ -25,7 +25,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | D1.1 `[x]` | **K8s Job / Docker 瞬时动态 Worker 实例拉起与配额管控** | Docker/K8s Client | 落地 `k8s_worker_provisioner` 服务与 `/api/v1/cloud-native/workers/*` API；支持瞬时容器实例拉起、CPU/内存配额限制与生命周期销毁；见 docs/evidence/k8s-worker-provisioner-d1-1-2026-10-16.md |
-| D1.2 `[ ]` | **基于任务背压与队列等待时延的弹性 HPA 自动扩缩容算法** | queue_backpressure | 落地 `queue_backpressure_autoscaler` 服务与 `/api/v1/cloud-native/autoscaling/*` API；实现队列背压指标采集、目标副本数自适应计算与扩缩容决策。 |
+| D1.2 `[x]` | **基于任务背压与队列等待时延的弹性 HPA 自动扩缩容算法** | queue_backpressure | 落地 `queue_backpressure_autoscaler` 服务与 `/api/v1/cloud-native/autoscaling/*` API；实现队列背压指标采集、目标副本数自适应计算与扩缩容决策；见 docs/evidence/queue-backpressure-autoscaler-d1-2-2026-10-16.md |
 | D1.3 `[ ]` | **容器执行环境镜像版本矩阵与动态路由分发** | image_matrix_router | 落地 `worker_image_matrix_router` 服务与 `/api/v1/cloud-native/images/*` API；支持 Python/Node/Android SDK 多版本镜像矩阵注册与标签路由。 |
 
 ---

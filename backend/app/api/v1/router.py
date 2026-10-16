@@ -72,6 +72,7 @@ from app.api.v1 import (
     ephemeral_sandboxes,
     quality_governance,
     cloud_native_workers,
+    cloud_native_autoscaling,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -149,3 +150,4 @@ router.include_router(asset_graph.router)
 router.include_router(ephemeral_sandboxes.router)
 router.include_router(quality_governance.router)
 router.include_router(cloud_native_workers.router)
+router.include_router(cloud_native_autoscaling.router)
