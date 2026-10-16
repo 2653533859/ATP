@@ -408,6 +408,85 @@ export interface ServiceTopologyResponse {
   edges: ServiceDependencyEdgeItem[]
 }
 
+export type FaultType = 'LATENCY' | 'ERROR_RESPONSE' | 'CORRUPTION' | 'ABRUPT_DROP'
+export type CorruptionMode = 'TRUNCATE' | 'GARBLE'
+
+export interface TrafficMatchRuleItem {
+  endpoint_pattern?: string | null
+  methods?: string[]
+  header_match?: Record<string, string>
+  param_match?: Record<string, any>
+  traffic_ratio: number
+}
+
+export interface FaultInjectionRuleItem {
+  rule_id: string
+  rule_name: string
+  fault_type: FaultType
+  match_criteria: TrafficMatchRuleItem
+  latency_ms: number
+  latency_jitter_max_ms: number
+  error_status_code: number
+  error_response_body: string
+  corruption_mode: CorruptionMode
+  enabled: boolean
+  max_triggers_limit: number
+  current_triggers_count: number
+  created_at: string
+}
+
+export interface CreateFaultRuleRequest {
+  rule_name: string
+  fault_type: FaultType
+  endpoint_pattern?: string | null
+  methods?: string[]
+  header_match?: Record<string, string>
+  param_match?: Record<string, any>
+  traffic_ratio?: number
+  latency_ms?: number
+  latency_jitter_max_ms?: number
+  error_status_code?: number
+  error_response_body?: string
+  corruption_mode?: CorruptionMode
+  enabled?: boolean
+  max_triggers_limit?: number
+  rule_id?: string
+}
+
+export interface EvaluateFaultRequest {
+  method?: string
+  path_or_endpoint: string
+  headers?: Record<string, string>
+  request_body?: string
+  default_status_code?: number
+  default_response_body?: string
+  execute_actual_delay?: boolean
+}
+
+export interface FaultExecutionResultItem {
+  intercept_id: string
+  rule_id?: string | null
+  fault_triggered: boolean
+  fault_type?: FaultType | null
+  injected_latency_ms: number
+  effective_status_code: number
+  effective_response_body: string
+  log_message: string
+}
+
+export interface ChaosExperimentSessionItem {
+  experiment_id: string
+  name: string
+  description: string
+  rules: FaultInjectionRuleItem[]
+  total_requests_intercepted: number
+  total_faults_injected: number
+  fault_breakdown: Record<string, number>
+  is_active: boolean
+  started_at: string
+  stopped_at?: string | null
+}
+
 export const trafficCaptureApi = {
   getFilterConfig(): Promise<CaptureFilterConfig> {
     return http.get('/traffic/capture/config')
@@ -655,5 +734,39 @@ export const contractTopologyApi = {
 
   clearTopology(): Promise<{ message: string }> {
     return http.delete('/contract-guard/impact-topology/topology')
+  },
+}
+
+export const trafficChaosApi = {
+  createRule(data: CreateFaultRuleRequest): Promise<{ message: string; rule: FaultInjectionRuleItem }> {
+    return http.post('/chaos-traffic/inject/rules', data)
+  },
+
+  listRules(): Promise<{ total: number; rules: FaultInjectionRuleItem[] }> {
+    return http.get('/chaos-traffic/inject/rules')
+  },
+
+  deleteRule(ruleId: string): Promise<{ message: string; rule_id: string }> {
+    return http.delete(`/chaos-traffic/inject/rules/${ruleId}`)
+  },
+
+  evaluateFault(data: EvaluateFaultRequest): Promise<{ message: string; result: FaultExecutionResultItem }> {
+    return http.post('/chaos-traffic/inject/evaluate', data)
+  },
+
+  startSession(data: { name: string; description?: string; rule_ids?: string[] }): Promise<{ message: string; session: ChaosExperimentSessionItem }> {
+    return http.post('/chaos-traffic/inject/sessions/start', data)
+  },
+
+  stopSession(experimentId: string): Promise<{ message: string; session: ChaosExperimentSessionItem }> {
+    return http.post(`/chaos-traffic/inject/sessions/${experimentId}/stop`)
+  },
+
+  listSessions(): Promise<{ total: number; sessions: ChaosExperimentSessionItem[] }> {
+    return http.get('/chaos-traffic/inject/sessions')
+  },
+
+  getSession(experimentId: string): Promise<ChaosExperimentSessionItem> {
+    return http.get(`/chaos-traffic/inject/sessions/${experimentId}`)
   },
 }

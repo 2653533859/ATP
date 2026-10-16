@@ -17,7 +17,7 @@
 - [x] 2026-10-16 UI3.1 生产流量 OpenAPI 3.0 / Protobuf 3 动态逆向推导与代码预览抽屉：扩展 trafficGateway API 客户端，落地 LiveContractSchemaExtractorDrawer 组件并集成至 ApiWorkbenchView；支持生产多样本动态提取必填项/枚举/字段类型、OpenAPI 3.0 与 Protobuf 3 IDL 代码预览及复制；单测独立通过，见 [`docs/evidence/live-contract-schema-extractor-drawer-ui3-1-2026-10-16.md`](docs/evidence/live-contract-schema-extractor-drawer-ui3-1-2026-10-16.md)。
 - [x] 2026-10-16 UI3.2 接口契约非对称破坏性变更 Breaking 评级仲裁卡片：扩展 trafficGateway API 客户端，落地 ContractDriftBreakingEvaluatorCard 组件并集成至 ApiWorkbenchView；基于伯斯塔尔健壮性法则执行双向非对称破坏性评级、三级裁决大横幅与阻断行动指引；单测独立通过，见 [`docs/evidence/contract-drift-breaking-evaluator-card-ui3-2-2026-10-16.md`](docs/evidence/contract-drift-breaking-evaluator-card-ui3-2-2026-10-16.md)。
 - [x] 2026-10-16 UI3.3 契约漂移微服务级联依赖拓扑图谱与爆炸半径告警大盘：扩展 trafficGateway API 客户端，落地 ContractDriftImpactTopologyView 页面与路由；基于 ECharts 关系拓扑图呈现微服务节点/连线、字段消费碰撞高亮、爆炸半径指数评定与定点告警；单测独立通过，见 [`docs/evidence/contract-drift-impact-topology-view-ui3-3-2026-10-16.md`](docs/evidence/contract-drift-impact-topology-view-ui3-3-2026-10-16.md)。至此 v3.9.0 Phase 3 全量大闭环！
-- [ ] UI4.1 基于流量特征匹配的应用层混沌故障注入编排抽屉（TrafficChaosFaultInjectorDrawer.vue）
+- [x] 2026-10-16 UI4.1 基于流量特征匹配的应用层混沌故障注入编排抽屉：扩展 trafficGateway API 客户端，落地 TrafficChaosFaultInjectorDrawer 组件并集成至 ApiWorkbenchView；支持四大故障模式（LATENCY/ERROR_RESPONSE/CORRUPTION/ABRUPT_DROP）、在线沙箱流量演练与最大触发安全熔断保护；单测独立通过，见 [`docs/evidence/traffic-chaos-fault-injector-drawer-ui4-1-2026-10-16.md`](docs/evidence/traffic-chaos-fault-injector-drawer-ui4-1-2026-10-16.md)。
 - [ ] UI4.2 服务断路器熔断跳闸时延与 RTO 自愈时序分析看板（ResilienceRtoRecoveryDashboardCard.vue）
 - [ ] UI4.3 生产流量防线 Checkpoint 检查点端到端全景监控看板页面（TrafficGuardPipelineMonitorView.vue）
 

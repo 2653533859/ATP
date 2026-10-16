@@ -86,6 +86,9 @@
         <a-button size="small" class="toolbar-btn" @click="showBreakingEvaluatorDrawer = true">
           <SafetyCertificateOutlined /> 契约破坏仲裁
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showChaosInjectorDrawer = true">
+          <ThunderboltOutlined /> 混沌故障注入
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -506,6 +509,7 @@
     >
       <ContractDriftBreakingEvaluatorCard />
     </a-drawer>
+    <TrafficChaosFaultInjectorDrawer v-model:open="showChaosInjectorDrawer" />
   </div>
 </template>
 
@@ -590,6 +594,8 @@ import LiveContractSchemaExtractorDrawer from './components/LiveContractSchemaEx
 const showLiveContractDrawer = ref(false)
 import ContractDriftBreakingEvaluatorCard from './components/ContractDriftBreakingEvaluatorCard.vue'
 const showBreakingEvaluatorDrawer = ref(false)
+import TrafficChaosFaultInjectorDrawer from './components/TrafficChaosFaultInjectorDrawer.vue'
+const showChaosInjectorDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)
