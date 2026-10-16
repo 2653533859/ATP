@@ -161,6 +161,9 @@
         <a-button size="small" class="toolbar-btn" @click="showDesignTokensDrawer = true">
           <FormatPainterOutlined /> 设计系统审查
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showWcagDrawer = true">
+          <SafetyCertificateOutlined /> a11y 扫描
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -634,6 +637,7 @@
     <VLMVisualSemanticAssertionDrawer v-model:open="showVlmDrawer" />
     <UILayoutCollisionDetectorCard v-model:open="showLayoutCard" />
     <DesignSystemTokenAuditDrawer v-model:open="showDesignTokensDrawer" />
+    <WcagA11yDeepScannerDrawer v-model:open="showWcagDrawer" />
   </div>
 </template>
 
@@ -778,6 +782,8 @@ import UILayoutCollisionDetectorCard from './components/UILayoutCollisionDetecto
 const showLayoutCard = ref(false)
 import DesignSystemTokenAuditDrawer from './components/DesignSystemTokenAuditDrawer.vue'
 const showDesignTokensDrawer = ref(false)
+import WcagA11yDeepScannerDrawer from './components/WcagA11yDeepScannerDrawer.vue'
+const showWcagDrawer = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
