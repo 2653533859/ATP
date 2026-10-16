@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-16 v4.2.0 研发任务规划（进行中）
+
+> v4.2.0 规划入口为 [`docs/development-task-plan-v4.2.0.md`](docs/development-task-plan-v4.2.0.md)，覆盖 Phase 1（云原生动态弹性测试执行集群与工作流任务分片调度器）、Phase 2（跨环境配置漂移自动探测与数据库 Schema 演化一致性审计）、Phase 3（基于大模型 LLM 的测试用例智能生成、自主探索式测试与合成数据引擎）、Phase 4（软件发布质量全景度量与智能发版门禁决策大脑）。
+
+- [x] 2026-10-16 T1.1 动态 Worker 容器 Pod 弹性扩缩容与集群资源配额仲裁器：落地 `elastic_test_worker_autoscaler` 服务与 `/cluster/autoscaler/*` API；基于用例排队深度、预期 CPU/内存负载与配额阈值，动态计算 Worker 副本扩缩容决策并调度 Pod；单测独立通过，见 [`docs/evidence/elastic-test-worker-autoscaler-t1-1-2026-10-16.md`](docs/evidence/elastic-test-worker-autoscaler-t1-1-2026-10-16.md)。
+- [ ] 2026-10-16 T1.2 大规模测试套件智能动态分片与跨节点负载均衡调度器：落地 `test_suite_dynamic_sharding_scheduler` 服务与 `/cluster/sharding/*` API；基于历史用例耗时与权重，执行动态分片切分 (Sharding)，实现多执行节点耗时均衡最大化；单测独立通过。
+- [ ] 2026-10-16 T1.3 临时沙箱测试环境生命周期自动化供给与快速回收器：落地 `ephemeral_test_env_lifecycle_manager` 服务与 `/cluster/ephemeral-env/*` API；自动化拉起隔离测试环境命名空间、注入路由规则、并在测试结束后原子级优雅回收；单测独立通过。
+- [ ] 2026-10-16 T2.1 跨多环境配置与环境变量差异比对探测器：落地 `multi_env_config_drift_detector` 服务与 `/env-drift/config/*` API；提取多环境 ConfigMap、环境变量与服务配置，执行深层差异差分比对并分级告警；单测独立通过。
+- [ ] 2026-10-16 T2.2 数据库 Schema 结构与索引变更漂移自动比对器：落地 `db_schema_drift_compatibility_checker` 服务与 `/env-drift/schema/*` API；逆向推导表字段、主外键、索引结构，探测未同步的破坏性变更并生成同步 DDL 脚本；单测独立通过。
+- [ ] 2026-10-16 T2.3 基础设施即代码 (IaC) 与网络策略安全合规巡检引擎：落地 `iac_network_policy_compliance_scanner` 服务与 `/env-drift/iac-compliance/*` API；扫描 K8s NetworkPolicy 与 Docker Compose 配置，检测未受限入方向、特权容器与合规缺陷；单测独立通过。
+- [ ] 2026-10-16 T3.1 接口契约与业务 Spec 驱动的端到端用例智能生成编排器：落地 `llm_spec_to_e2e_case_synthesizer` 服务与 `/llm-testing/synthesize-cases/*` API；解析 OpenAPI 契约与业务流程描述，推导业务依赖上下文并生成标准测试用例；单测独立通过。
+- [ ] 2026-10-16 T3.2 针对复杂业务边界条件的生产级测试合成数据生成器：落地 `synthetic_test_data_generator` 服务与 `/llm-testing/synthetic-data/*` API；基于字段约束与边界特征，合成多样化符合校验规则的生产级测试数据包；单测独立通过。
+- [ ] 2026-10-16 T3.3 自主探索式 API 模糊变异与隐蔽缺陷深度探查器：落地 `autonomous_api_fuzzing_explorer` 服务与 `/llm-testing/fuzzing-explore/*` API；执行基于状态反馈的智能变异探测，探查未预期的 5xx 服务崩溃与逻辑旁路缺陷；单测独立通过。
+- [ ] 2026-10-16 T4.1 全生命周期多维质量健康综合评分引擎：落地 `quality_health_composite_score_engine` 服务与 `/gatekeeper/health-score/*` API；融合用例成功率、缺陷密度、变更风险、变异测试得分与覆盖率，量化系统质量健康得分；单测独立通过。
+- [ ] 2026-10-16 T4.2 自动化发版准入阻断裁决器 (Go/No-Go) 与豁免流转网关：落地 `smart_release_go_no_go_decider` 服务与 `/gatekeeper/release-verdict/*` API；根据门禁规则裁决 GO / CAUTION / NO-GO，支持特批阻断豁免流转与审计留痕；单测独立通过。
+- [ ] 2026-10-16 T4.3 端到端测试执行与质量合规全景审计报告生成器：落地 `comprehensive_test_audit_report_generator` 服务与 `/gatekeeper/audit-report/*` API；组装跨维度执行与门禁数据，生成带 SHA-256 防篡改指纹的发布质量审计报告；单测独立通过。
+
 ## 2026-10-16 v4.1.0 研发任务规划（已全量闭环）
 
 > v4.1.0 规划入口为 [`docs/development-task-plan-v4.1.0.md`](docs/development-task-plan-v4.1.0.md)，覆盖 UI1（分布式链路全息追踪、调用树与性能瓶颈火焰图控制台）、UI2（微服务分布式事务与跨系统数据最终一致性对账大盘）、UI3（自动化测试执行失败智能根因推导与缺陷工单指派控制台）、UI4（AI 驱动的用例脚本断言自愈与代码级自动修复补丁大盘）。
