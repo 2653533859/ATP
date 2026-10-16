@@ -111,6 +111,7 @@ from app.api.v1 import (
     elastic_worker_autoscaler_api,
     test_suite_sharding_api,
     ephemeral_test_env_api,
+    multi_env_config_drift_api,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -227,3 +228,4 @@ router.include_router(self_healing_pipeline_api.router)
 router.include_router(elastic_worker_autoscaler_api.router)
 router.include_router(test_suite_sharding_api.router)
 router.include_router(ephemeral_test_env_api.router)
+router.include_router(multi_env_config_drift_api.router)
