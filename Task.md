@@ -15,7 +15,7 @@
 - [x] 2026-10-16 T2.2 跨微服务异构数据源最终一致性双向稽核校验器：落地 cross_db_data_consistency_auditor 服务与 /consistency/audit/* API；支持业务主键对齐、字段级差分核对、补偿修正 SQL 提取与对账达标率量化；单测独立通过，见 [`docs/evidence/cross-db-data-consistency-auditor-t2-2-2026-10-16.md`](docs/evidence/cross-db-data-consistency-auditor-t2-2-2026-10-16.md)。
 - [x] 2026-10-16 T2.3 消息事件总线消费延迟、死信积压与幂等消费验证器：落地 event_bus_deadletter_idempotency_guard 服务与 /consistency/event-bus/* API；支持幂等凭证拦截、死信重发判定、Lag 积压监控与重复消息压测；单测独立通过，见 [`docs/evidence/event-bus-deadletter-idempotency-guard-t2-3-2026-10-16.md`](docs/evidence/event-bus-deadletter-idempotency-guard-t2-3-2026-10-16.md)。至此 v4.0.0 Phase 2 全量大闭环！
 - [x] 2026-10-16 T3.1 多模态测试失败日志与异常堆栈智能根因推导器：落地 test_failure_root_cause_reasoner 服务与 /diagnosis/root-cause/* API；融合控制台日志、HTTP状态、Span 异常栈与环境参数，输出因果失效链与首发位置定位；单测独立通过，见 [`docs/evidence/test-failure-root-cause-reasoner-t3-1-2026-10-16.md`](docs/evidence/test-failure-root-cause-reasoner-t3-1-2026-10-16.md)。
-- [ ] 2026-10-16 T3.2 历史已知缺陷向量指纹特征相似度匹配检索器：落地 incident_knowledge_fingerprint_matcher 服务与 /diagnosis/fingerprint/* API
+- [x] 2026-10-16 T3.2 历史已知缺陷向量指纹特征相似度匹配检索器：落地 incident_knowledge_fingerprint_matcher 服务与 /diagnosis/fingerprint/* API；支持抗噪声指纹提取、Simpson+余弦+Jaccard 模糊相似度加权检索与历史经验推荐；单测独立通过，见 [`docs/evidence/incident-knowledge-fingerprint-matcher-t3-2-2026-10-16.md`](docs/evidence/incident-knowledge-fingerprint-matcher-t3-2-2026-10-16.md)。
 - [ ] 2026-10-16 T3.3 缺陷严重度智能评级与第三方工单自动指派网关：落地 defect_auto_ticket_dispatcher 服务与 /diagnosis/ticket-dispatch/* API
 - [ ] 2026-10-16 T4.1 UI 元素定位漂移动态自愈与多策略加权降级重试执行器：落地 smart_locator_multistrategy_healer 服务与 /healing/locator/* API
 - [ ] 2026-10-16 T4.2 接口响应格式变迁自适应断言规则推导与自动打补丁器：落地 adaptive_assertion_auto_patcher 服务与 /healing/assertion-patch/* API
