@@ -44,6 +44,9 @@
         <a-button size="small" class="toolbar-btn" @click="showDevicePlayback = true">
           <PlayCircleOutlined /> 真机智能回放
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showClusterMonitor = true">
+          <ClusterOutlined /> 集群节点监控
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openDevices">
           <ToolOutlined /> {{ t('app_workbench.device_management') }}
         </a-button>
@@ -361,6 +364,7 @@
       serial-or-udid="emulator-5554"
       platform="android"
     />
+    <ClusterWorkerMonitorDrawer v-model:open="showClusterMonitor" />
   </div>
 </template>
 
@@ -370,6 +374,7 @@ import { message } from 'ant-design-vue'
 import {
   AndroidOutlined,
   AppstoreOutlined,
+  ClusterOutlined,
   EditOutlined,
   EyeOutlined,
   MobileOutlined,
@@ -429,6 +434,8 @@ const router = useRouter()
 const auth = useAuthStore()
 import DevicePlaybackDrawer from './components/DevicePlaybackDrawer.vue'
 const showDevicePlayback = ref(false)
+import ClusterWorkerMonitorDrawer from './components/ClusterWorkerMonitorDrawer.vue'
+const showClusterMonitor = ref(false)
 
 const projects = ref<ProjectItem[]>([])
 const selectedProjectId = ref<number | null>(positiveInt(route.query.project_id))

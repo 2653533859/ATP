@@ -53,6 +53,7 @@ vi.mock('ant-design-vue', () => ({
 vi.mock('@ant-design/icons-vue', () => ({
   AndroidOutlined: true,
   AppstoreOutlined: true,
+  ClusterOutlined: true,
   EyeOutlined: true,
   EditOutlined: true,
   HomeOutlined: true,

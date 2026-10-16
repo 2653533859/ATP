@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-16 v3.3.0 研发任务规划（进行中）
+
+> v3.3.0 规划入口为 [`docs/development-task-plan-v3.3.0.md`](docs/development-task-plan-v3.3.0.md)，覆盖 UI1（跨节点 Worker 集群协同调度与故障转移监控台）、UI2（全域测试资产依赖拓扑与变更影响面控制台）、UI3（多协议动态仿真沙箱与流量镜像控制台）、UI4（企业级测试质量度量大盘与质量门禁中心）。
+
+- [x] 2026-10-16 UI1.1 跨节点 Worker 负载监控抽屉与容量分级仪表板：落地 clusterWorkers API 客户端与 ClusterWorkerMonitorDrawer 组件；展示多节点负载、五级健康分级与最优调度选举模拟；挂载至 AppWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/cluster-worker-monitor-drawer-ui1-1-2026-10-16.md`](docs/evidence/cluster-worker-monitor-drawer-ui1-1-2026-10-16.md)。
+- [ ] UI1.2 自适应任务排队水位与 P0 弹性抢占调度控制台（AdaptiveTaskQueueDrawer.vue）
+- [ ] UI1.3 节点失联超时检测与孤儿任务故障转移卡片（WorkerFailoverRecoveryCard.vue）
+- [ ] UI2.1 测试资产全景引用拓扑图谱与孤儿资产看板（AssetDependencyGraphViewer.vue）
+- [ ] UI2.2 接口契约变更影响面分析与受损用例抽屉（ContractChangeImpactDrawer.vue）
+- [ ] UI2.3 变更影响用例自动化精准回归套件合成向导（TargetedRegressionWizard.vue）
+- [ ] UI3.1 瞬时轻量级仿真沙箱与端口生命周期管理抽屉（EphemeralSandboxManagerDrawer.vue）
+- [ ] UI3.2 跨协议数据透传与会话上下文共享总线面板（CrossProtocolSessionBusPanel.vue）
+- [ ] UI3.3 沙箱网络流量镜像与写操作副作用隔离卡片（SandboxTrafficMirrorCard.vue）
+- [ ] UI4.1 全生命周期测试质量度量多维评分大盘页面（QualityMetricsDashboardView.vue）
+- [ ] UI4.2 CI/CD 智能质量门禁规则配置与卡点决策抽屉（QualityGateRuleConfigDrawer.vue）
+- [ ] UI4.3 自动化发版准入合格证书与防伪数字印章弹窗（ReleaseCertificateModal.vue）
+
 ## 2026-10-16 v3.2.0 研发任务规划（已全量闭环）
 
 > v3.2.0 规划入口为 [`docs/development-task-plan-v3.2.0.md`](docs/development-task-plan-v3.2.0.md)，覆盖 C1（跨节点 Worker 集群自适应负载与动态弹性调度）、C2（全域测试资产依赖拓扑与变更影响面智能分析）、C3（多协议测试执行动态沙箱与隔离环境编排）、C4（企业级测试质量度量大盘与质量门禁策略中心）。
