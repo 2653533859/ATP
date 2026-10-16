@@ -74,6 +74,9 @@
         <a-button size="small" class="toolbar-btn" @click="showTrafficSynthesizerDrawer = true">
           <BuildOutlined /> 流量用例合成
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showShadowReplayDrawer = true">
+          <SendOutlined /> 影子流量回放
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -483,6 +486,7 @@
     >
       <TrafficToTestCaseSynthesizerCard />
     </a-drawer>
+    <ShadowTrafficReplayConsoleDrawer v-model:open="showShadowReplayDrawer" />
   </div>
 </template>
 
@@ -559,6 +563,8 @@ import TrafficDataMaskerModal from './components/TrafficDataMaskerModal.vue'
 const showTrafficMaskerModal = ref(false)
 import TrafficToTestCaseSynthesizerCard from './components/TrafficToTestCaseSynthesizerCard.vue'
 const showTrafficSynthesizerDrawer = ref(false)
+import ShadowTrafficReplayConsoleDrawer from './components/ShadowTrafficReplayConsoleDrawer.vue'
+const showShadowReplayDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)

@@ -125,6 +125,61 @@ export interface RunSynthesisRequest {
   limit_captured?: number
 }
 
+export type WriteGuardMode = 'BLOCK_WRITES' | 'SHADOW_HEADER_ONLY' | 'ALLOW_ALL' | 'DRY_RUN'
+
+export interface MockRuleConfigItem {
+  rule_id: string
+  name: string
+  pattern: string
+  mock_status_code: number
+  mock_response_body: string
+  mock_headers?: Record<string, string>
+  enabled: boolean
+}
+
+export interface ReplayItemResult {
+  item_id: string
+  traffic_id: string
+  method: string
+  path_or_endpoint: string
+  executed_url: string
+  original_status_code: number
+  replayed_status_code: number
+  duration_ms: number
+  was_mocked: boolean
+  mock_reason: string | null
+  was_write_blocked: boolean
+  replayed_response_body: string
+  success: boolean
+  error_message: string | null
+}
+
+export interface ReplaySessionReport {
+  session_id: string
+  target_base_url: string
+  write_guard_mode: string
+  total_items: number
+  success_count: number
+  failure_count: number
+  blocked_write_count: number
+  mocked_external_count: number
+  avg_duration_ms: number
+  results: ReplayItemResult[]
+  created_at: string
+}
+
+export interface RunShadowReplayRequest {
+  target_base_url?: string
+  write_guard_mode?: WriteGuardMode | string
+  rate_limit_qps?: number
+  timeout_sec?: number
+  inject_headers?: Record<string, string>
+  external_mock_rules?: MockRuleConfigItem[]
+  stop_on_error?: boolean
+  traffic_records?: Array<Record<string, any>>
+  limit_captured?: number
+}
+
 export const trafficCaptureApi = {
   getFilterConfig(): Promise<CaptureFilterConfig> {
     return http.get('/traffic/capture/config')
@@ -200,5 +255,27 @@ export const trafficSynthesizerApi = {
 
   getReport(reportId: string): Promise<SynthesisReportItem> {
     return http.get(`/traffic/synthesize/reports/${reportId}`)
+  },
+}
+
+export const shadowReplayApi = {
+  runReplay(data: RunShadowReplayRequest): Promise<{ message: string; report: ReplaySessionReport }> {
+    return http.post('/traffic/replay/run', data)
+  },
+
+  listSessions(): Promise<{ total: number; sessions: ReplaySessionReport[] }> {
+    return http.get('/traffic/replay/sessions')
+  },
+
+  getSession(sessionId: string): Promise<ReplaySessionReport> {
+    return http.get(`/traffic/replay/sessions/${sessionId}`)
+  },
+
+  getDefaultMockRules(): Promise<{ rules: MockRuleConfigItem[] }> {
+    return http.get('/traffic/replay/mock-rules/defaults')
+  },
+
+  clearSessions(): Promise<{ message: string; deleted_count: number }> {
+    return http.delete('/traffic/replay/sessions')
   },
 }

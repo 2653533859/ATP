@@ -132,6 +132,9 @@ vi.mock('./components/TrafficDataMaskerModal.vue', () => ({
 vi.mock('./components/TrafficToTestCaseSynthesizerCard.vue', () => ({
   default: defineComponent({ name: 'TrafficToTestCaseSynthesizerCard', setup: () => () => h('div', 'traffic-to-test-case-synthesizer-card') }),
 }))
+vi.mock('./components/ShadowTrafficReplayConsoleDrawer.vue', () => ({
+  default: defineComponent({ name: 'ShadowTrafficReplayConsoleDrawer', setup: () => () => h('div', 'shadow-traffic-replay-console-drawer') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
