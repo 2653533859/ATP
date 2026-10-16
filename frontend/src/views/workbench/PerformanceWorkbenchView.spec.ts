@@ -67,6 +67,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   ClusterOutlined: true,
   DashboardOutlined: true,
   BugOutlined: true,
+  ThunderboltOutlined: true,
 }))
 vi.mock('./components/CellBasedTrafficControllerDrawer.vue', () => ({
   default: defineComponent({ name: 'CellBasedTrafficControllerDrawer', setup: () => () => h('div', 'cell-based-traffic-controller-drawer') }),
@@ -79,6 +80,9 @@ vi.mock('./components/MultisourceCapacityWatermarkDrawer.vue', () => ({
 }))
 vi.mock('./components/DistributedBottleneckClassifierCard.vue', () => ({
   default: defineComponent({ name: 'DistributedBottleneckClassifierCard', setup: () => () => h('div', 'distributed-bottleneck-classifier-card') }),
+}))
+vi.mock('./components/AdaptiveAvalancheBreakerConsoleDrawer.vue', () => ({
+  default: defineComponent({ name: 'AdaptiveAvalancheBreakerConsoleDrawer', setup: () => () => h('div', 'adaptive-avalanche-breaker-console-drawer') }),
 }))
 vi.mock('@/api', () => ({
   datasetApi: { list: vi.fn() },

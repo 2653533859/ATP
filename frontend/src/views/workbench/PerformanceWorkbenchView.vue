@@ -42,6 +42,9 @@
         <a-button size="small" class="toolbar-btn" @click="showBottleneckCard = true">
           <BugOutlined /> 瓶颈归因诊断
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showBreakerDrawer = true">
+          <ThunderboltOutlined /> 防雪崩熔断
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openFullConsole">
           <SettingOutlined /> {{ t('performance_workbench.full_console') }}
         </a-button>
@@ -364,6 +367,7 @@
     <CellEscapeDependencyPanel v-model:open="showCellEscapePanel" />
     <MultisourceCapacityWatermarkDrawer v-model:open="showWatermarkDrawer" />
     <DistributedBottleneckClassifierCard v-model:open="showBottleneckCard" />
+    <AdaptiveAvalancheBreakerConsoleDrawer v-model:open="showBreakerDrawer" />
   </div>
 </template>
 
@@ -384,6 +388,7 @@ import {
   ClusterOutlined,
   DashboardOutlined,
   BugOutlined,
+  ThunderboltOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -396,6 +401,8 @@ import MultisourceCapacityWatermarkDrawer from './components/MultisourceCapacity
 const showWatermarkDrawer = ref(false)
 import DistributedBottleneckClassifierCard from './components/DistributedBottleneckClassifierCard.vue'
 const showBottleneckCard = ref(false)
+import AdaptiveAvalancheBreakerConsoleDrawer from './components/AdaptiveAvalancheBreakerConsoleDrawer.vue'
+const showBreakerDrawer = ref(false)
 import type { EChartsOption } from 'echarts'
 import {
   environmentApi,

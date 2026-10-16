@@ -46,7 +46,7 @@
 |---|---|---|---|
 | UI3.1 `[x]` | **多源基础设施 (DB池/Redis/MQ) 容量水位监控抽屉** | `multisource_capacity_watermark_meter` | 落地 `MultisourceCapacityWatermarkDrawer.vue` 组件与 API 客户端；展示 DB 连接池、Redis 内存、MQ 积压四阶仪表盘（SAFE, WARNING, SATURATED, EXHAUSTED）与木桶短板资源定位；单测独立通过；见 docs/evidence/multisource-capacity-watermark-drawer-ui3-1-2026-10-17.md |
 | UI3.2 `[x]` | **压测调用链热点慢调用与资源争用归因卡片** | `distributed_bottleneck_root_cause_classifier` | 落地 `DistributedBottleneckClassifierCard.vue` 组件与 API 客户端；展示 P50/P90/P99 响应时间、死锁/慢SQL/线程池打满/CPU饱和智能分类与优化建议；单测独立通过；见 docs/evidence/distributed-bottleneck-classifier-card-ui3-2-2026-10-17.md |
-| UI3.3 `[ ]` | **防击穿自适应分级限流与防雪崩熔断大脑控制台** | `adaptive_avalanche_circuit_breaker` | 落地 `AdaptiveAvalancheBreakerConsoleDrawer.vue` 组件与 API 客户端；展示 4 阶段熔断状态机（正常、一级缓速25%、二级急刹60%、硬核毫秒阻断 ABORT）、实时熔断触发广播与一键紧急重置；单测独立通过。 |
+| UI3.3 `[x]` | **防击穿自适应分级限流与防雪崩熔断大脑控制台** | `adaptive_avalanche_circuit_breaker` | 落地 `AdaptiveAvalancheBreakerConsoleDrawer.vue` 组件与 API 客户端；展示 4 阶段熔断状态机（正常、一级缓速25%、二级急刹60%、硬核毫秒阻断 ABORT）、实时熔断触发广播与一键紧急重置；单测独立通过；见 docs/evidence/adaptive-avalanche-breaker-console-drawer-ui3-3-2026-10-17.md |
 
 ---
 

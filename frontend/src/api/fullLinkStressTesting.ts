@@ -362,6 +362,7 @@ export interface AvalancheBreakerReport {
   current_p99_latency_ms: number
   current_error_rate_pct: number
   is_circuit_broken: boolean
+  circuit_state?: string
   final_decision: {
     decision_id: string
     breaker_state: string
