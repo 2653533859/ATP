@@ -186,6 +186,9 @@ vi.mock('./components/AdaptiveAssertionPatchModal.vue', () => ({
 vi.mock('./components/ElasticWorkerAutoscalerDrawer.vue', () => ({
   default: defineComponent({ name: 'ElasticWorkerAutoscalerDrawer', setup: () => () => h('div', 'elastic-worker-autoscaler-drawer') }),
 }))
+vi.mock('./components/TestSuiteDynamicShardingPanel.vue', () => ({
+  default: defineComponent({ name: 'TestSuiteDynamicShardingPanel', setup: () => () => h('div', 'test-suite-dynamic-sharding-panel') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

@@ -9,7 +9,7 @@
 > v4.3.0 规划入口为 [`docs/development-task-plan-v4.3.0.md`](docs/development-task-plan-v4.3.0.md)，覆盖 UI1（云原生弹性测试执行集群与沙箱环境调度大盘）、UI2（跨环境配置漂移自动探测与数据库 Schema 演化一致性审计中心）、UI3（基于大模型 LLM 的测试用例智能生成、自主探索测试与合成数据控制台）、UI4（软件发布质量全景度量与智能发版门禁决策看板）。
 
 - [x] 2026-10-17 UI1.1 动态 Worker 容器 Pod 弹性扩缩容拓扑与配额监控抽屉：落地 `ElasticWorkerAutoscalerDrawer.vue` 组件与 API 客户端；展示排队深度滑块、HPA 期望副本数、动作状态徽章、集群 CPU/内存配额水位；单测独立通过，见 [`docs/evidence/elastic-worker-autoscaler-drawer-ui1-1-2026-10-17.md`](docs/evidence/elastic-worker-autoscaler-drawer-ui1-1-2026-10-17.md)。
-- [ ] 2026-10-17 UI1.2 大规模测试套件智能动态分片装箱矩阵与掉队重平衡面板：落地 `TestSuiteDynamicShardingPanel.vue` 组件与 API 客户端；展示 LPT 贪心装箱多节点耗时分布柱状图、均衡度得分 (0~100%) 与长尾掉队节点告警；单测独立通过。
+- [x] 2026-10-17 UI1.2 大规模测试套件智能动态分片装箱矩阵与掉队重平衡面板：落地 `TestSuiteDynamicShardingPanel.vue` 组件与 API 客户端；展示 LPT 贪心装箱多节点耗时分布柱状图、均衡度得分 (0~100%) 与长尾掉队节点告警；单测独立通过，见 [`docs/evidence/test-suite-dynamic-sharding-panel-ui1-2-2026-10-17.md`](docs/evidence/test-suite-dynamic-sharding-panel-ui1-2-2026-10-17.md)。
 - [ ] 2026-10-17 UI1.3 临时沙箱测试环境生命周期拓扑与原子回收全景大盘页面：落地 `EphemeralTestEnvDashboardView.vue` 视图与路由；展示多租户隔离沙箱列表、租约 TTL 倒计时、一键延长租约与优雅原子销毁控制台；单测独立通过。
 - [ ] 2026-10-17 UI2.1 跨多环境配置差异比对卡片与敏感密钥泄漏告警抽屉：落地 `MultiEnvConfigDriftDrawer.vue` 组件与 API 客户端；展示基准 vs 目标环境配置差分树、CRITICAL 密钥高危标识、一致性得分与修复建议；单测独立通过。
 - [ ] 2026-10-17 UI2.2 数据库 Schema 结构与索引变更漂移双向比对大盘页面：落地 `DbSchemaDriftAuditDashboardView.vue` 视图与路由；展示表/列/索引差异矩阵、破坏性变更等级评定与合成修复 DDL 脚本一键复制导出；单测独立通过。
