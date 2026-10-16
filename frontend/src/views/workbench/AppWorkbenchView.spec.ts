@@ -52,6 +52,7 @@ vi.mock('ant-design-vue', () => ({
 }))
 vi.mock('@ant-design/icons-vue', () => ({
   AimOutlined: true,
+  DashboardOutlined: true,
   AndroidOutlined: true,
   AppstoreOutlined: true,
   ClockCircleOutlined: true,
@@ -89,6 +90,12 @@ vi.mock('@/views/case/AndroidCaseDrawer.vue', () => ({
     setup: () => () => h('div', { class: 'android-case-drawer-stub' }),
   }),
 }))
+vi.mock('./components/MobilePerfDiagnosticsViewer.vue', () => ({
+  default: defineComponent({
+    name: 'MobilePerfDiagnosticsViewer',
+    setup: () => () => h('div', { class: 'mobile-perf-diagnostics-viewer-stub' }),
+  }),
+}))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
 }))
@@ -117,6 +124,7 @@ const globalStubs = {
   AAlert: passthrough('AAlert'),
   AButton: passthrough('AButton'),
   AEmpty: passthrough('AEmpty'),
+  ADrawer: passthrough('ADrawer'),
   AModal: passthrough('AModal'),
   ASelect: passthrough('ASelect'),
   ASpin: passthrough('ASpin'),

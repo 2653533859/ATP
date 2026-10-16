@@ -3759,3 +3759,4 @@ export const knowledgeApi = {
   update: (id: number, body: KnowledgeUpdatePayload) => http.patch<unknown, KnowledgeDetailItem>(`/knowledge/${id}`, body),
   delete: (id: number) => http.delete<unknown, { deleted: boolean; id: number }>(`/knowledge/${id}`),
 }
+export * from './mobilePerf'

@@ -14,7 +14,7 @@
 - [x] 2026-10-16 UI2.1 失效选择器 DOM/UI 树多模态自愈推导抽屉：创建 aiHealing API 客户端，落地 SmartLocatorHealingDrawer 组件；展示四维加权打分（标识 35%、语义 25%、拓扑 20%、属性 20%）、最优推荐与自愈候选矩阵；挂载至 AppWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/smart-locator-healing-drawer-ui2-1-2026-10-16.md`](docs/evidence/smart-locator-healing-drawer-ui2-1-2026-10-16.md)。
 - [x] 2026-10-16 UI2.2 接口响应 Schema 动态漂移自适应修正与柔性断言调试器：扩展 aiHealing API（flexibleAssertionApi），落地 FlexibleSchemaAssertionDebugger 组件；支持 STRICT/COMPATIBLE/LENIENT 三级容差模式、冗余字段放行、漂移特征分类展示与自愈 Schema 实时复制导出；挂载至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/flexible-schema-assertion-debugger-ui2-2-2026-10-16.md`](docs/evidence/flexible-schema-assertion-debugger-ui2-2-2026-10-16.md)。
 - [x] 2026-10-16 UI2.3 异常故障簇智能聚合看板与自愈执行流水审计面板：扩展 aiHealing API（healingAuditTrailApi），落地 HealingAuditTrailPanel 组件；呈现节省工时与二次验证成效 KPI、异常堆栈特征归一化故障簇看板、用例自愈历史流水审计与在线演练；挂载集成至 AIWorkbenchView 与 AIHealingStatsView；单测独立通过，见 [`docs/evidence/healing-audit-trail-panel-ui2-3-2026-10-16.md`](docs/evidence/healing-audit-trail-panel-ui2-3-2026-10-16.md)。至此 v3.5.0 Phase 2 全量大闭环！
-- [ ] UI3.1 移动端性能时序曲线与卡顿/内存泄露体检报告看板（MobilePerfDiagnosticsViewer.vue）
+- [x] 2026-10-16 UI3.1 移动端性能时序曲线与卡顿/内存泄露体检报告看板：创建 mobilePerf API 客户端，落地 MobilePerfDiagnosticsViewer 组件；支持 CPU（App/系统）、物理内存（PSS/Native/Dalvik 带线性回归斜率泄露告警）、渲染帧率（FPS/Jank 双轴图）与网络 I/O 四大多维时序 ECharts 图表，集成至 AppWorkbenchView 顶部工具栏；单测独立通过，见 [`docs/evidence/mobile-perf-diagnostics-viewer-ui3-1-2026-10-16.md`](docs/evidence/mobile-perf-diagnostics-viewer-ui3-1-2026-10-16.md)。
 - [ ] UI3.2 Web 性能 Core Web Vitals (LCP, INP, CLS) 雷达图与阻断资源分析视图（WebVitalsDiagnosticsView.vue）
 - [ ] UI3.3 全链路分布式追踪 TraceID 慢调用火焰图交互组件（DistributedTraceFlamegraphViewer.vue）
 - [ ] UI4.1 测试报告多模态聚合打包导出弹窗（ReportBundlerExportModal.vue）
