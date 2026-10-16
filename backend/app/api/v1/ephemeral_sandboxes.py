@@ -20,6 +20,13 @@ from app.services.cross_protocol_session_bus import (
     get_or_create_session_bus,
     get_session_bus,
 )
+from app.services.sandbox_traffic_mirror import (
+    TrafficMirrorPolicy,
+    get_policy_isolation_audit,
+    list_mirror_policies,
+    process_mirrored_traffic_batch,
+    register_mirror_policy,
+)
 
 router = APIRouter(prefix="/sandboxes", tags=["瞬时多协议仿真沙箱与端口调度"])
 
@@ -47,6 +54,25 @@ class PropagateIn(BaseModel):
 
 
 class RenderPayloadIn(BaseModel):
+    payload: Any
+
+
+class CreateMirrorPolicyIn(BaseModel):
+    policy_id: str = Field(min_length=2, max_length=64, description="镜像策略唯一标识")
+    name: str = Field(min_length=1, max_length=128, description="策略名称")
+    source_service: str = Field(default="*", description="源微服务名称 (* 为全量)")
+    route_pattern: str = Field(default=".*", description="路由匹配正则表达式")
+    target_sandbox_id: str = Field(description="目标隔离沙箱 ID")
+    sample_ratio: float = Field(default=1.0, ge=0.0, le=1.0, description="镜像抽样比例")
+    isolate_side_effects: bool = Field(default=True, description="是否拦截并隔离所有破坏性写副作用")
+    blocked_outbound_patterns: list[str] = Field(default_factory=list, description="受阻断的外部目标规则清单")
+    enabled: bool = True
+
+
+class ProcessMirrorIn(BaseModel):
+    policy_id: str = Field(description="镜像策略 ID")
+    traffic_stream: list[dict[str, Any]] = Field(default_factory=list, description="被镜像的业务请求流")
+    outbound_calls: list[dict[str, Any]] | None = Field(default=None, description="模拟产生的外发调用")
     payload: Any
 
 
@@ -205,3 +231,65 @@ async def render_bus_payload_endpoint(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"会话总线不存在: {bus_id}")
     rendered = bus.render_template(body.payload)
     return {"rendered": rendered}
+
+
+@router.post("/mirror/policies")
+async def create_mirror_policy_endpoint(
+    body: CreateMirrorPolicyIn,
+    _user: User = Depends(require_engineer),
+):
+    """创建或更新沙箱网络流量镜像与副作用隔离策略。"""
+    _ = _user
+    policy = TrafficMirrorPolicy(
+        policy_id=body.policy_id,
+        name=body.name,
+        source_service=body.source_service,
+        route_pattern=body.route_pattern,
+        target_sandbox_id=body.target_sandbox_id,
+        sample_ratio=body.sample_ratio,
+        isolate_side_effects=body.isolate_side_effects,
+        blocked_outbound_patterns=body.blocked_outbound_patterns or ["*payment*", "*charge*", "*sms*"],
+        enabled=body.enabled,
+    )
+    register_mirror_policy(policy)
+    return {"message": "流量镜像策略配置成功", "policy": policy.to_dict()}
+
+
+@router.get("/mirror/policies")
+async def list_mirror_policies_endpoint(
+    only_enabled: bool = Query(default=False),
+    _user: User = Depends(get_current_user),
+):
+    """获取已注册的所有流量镜像分流与隔离策略列表。"""
+    _ = _user
+    policies = list_mirror_policies(only_enabled=only_enabled)
+    return {"total": len(policies), "policies": [p.to_dict() for p in policies]}
+
+
+@router.post("/mirror/process")
+async def process_mirror_traffic_endpoint(
+    body: ProcessMirrorIn,
+    _user: User = Depends(require_engineer),
+):
+    """向沙箱分发镜像流量批次，实时拦截破坏性外发副作用并输出安全验证凭证。"""
+    _ = _user
+    try:
+        result = process_mirrored_traffic_batch(
+            policy_id=body.policy_id,
+            traffic_stream=body.traffic_stream,
+            outbound_calls=body.outbound_calls,
+        )
+        return result.to_dict()
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.get("/mirror/{policy_id}/audit")
+async def get_mirror_audit_endpoint(
+    policy_id: str,
+    _user: User = Depends(get_current_user),
+):
+    """获取指定流量镜像策略的副作用拦截与隔离审计事件清单。"""
+    _ = _user
+    audit_events = get_policy_isolation_audit(policy_id)
+    return {"policy_id": policy_id, "total": len(audit_events), "audit_events": [e.to_dict() for e in audit_events]}

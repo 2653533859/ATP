@@ -16,7 +16,7 @@
 - [x] 2026-10-16 C2.3 变更影响用例自动化精准回归套件合成与触发：落地 targeted_regression_trigger 服务与 /contract-impact/synthesize-and-trigger API；支持用例去重排序、TestSuite 原子持久化与 P0 弹性抢占调度；4 项单测独立通过，见 [`docs/evidence/targeted-regression-trigger-c2-3-2026-10-16.md`](docs/evidence/targeted-regression-trigger-c2-3-2026-10-16.md)。至此 v3.2.0 Phase 2 全量闭环！
 - [x] 2026-10-16 C3.1 瞬时轻量级仿真沙箱与动态端口生命周期调度：落地 ephemeral_sandbox_manager 服务与 /sandboxes/* API；支持 20000-29999 端口动态无冲突分配、HTTP/gRPC/WS 多协议沙箱拉起、TTL 自动巡检收割与 Mock 隔离路由；5 项单测独立通过，见 [`docs/evidence/ephemeral-sandbox-manager-c3-1-2026-10-16.md`](docs/evidence/ephemeral-sandbox-manager-c3-1-2026-10-16.md)。
 - [x] 2026-10-16 C3.2 跨协议数据透传与会话级上下文共享总线：落地 cross_protocol_session_bus 服务与 /sandboxes/bus/* API；实现 HTTP-gRPC-WS 双向上下文共享、Token 自动透传与跨协议嵌套模板递归插值；5 项单测独立通过，见 [`docs/evidence/cross-protocol-session-bus-c3-2-2026-10-16.md`](docs/evidence/cross-protocol-session-bus-c3-2-2026-10-16.md)。
-- [ ] C3.3 沙箱网络流量镜像与回放实时隔离检测（sandbox_traffic_mirror）
+- [x] 2026-10-16 C3.3 沙箱网络流量镜像与回放实时隔离检测：落地 sandbox_traffic_mirror 服务与 /sandboxes/mirror/* API；支持影子流量镜像分流、敏感外发写操作拦截仿真与零泄露安全证明；3 项单测独立通过，见 [`docs/evidence/sandbox-traffic-mirror-c3-3-2026-10-16.md`](docs/evidence/sandbox-traffic-mirror-c3-3-2026-10-16.md)。至此 v3.2.0 Phase 3 全量闭环！
 - [ ] C4.1 全生命周期测试质量度量多维评分大盘（quality_metrics_engine）
 - [ ] C4.2 CI/CD 流水线智能质量门禁规则判定引擎（quality_gate_engine）
 - [ ] C4.3 自动化发布准入认证与防伪合格证书生成（release_readiness_certification）
