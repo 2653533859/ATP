@@ -36,7 +36,7 @@
 |---|---|---|---|
 | D2.1 `[x]` | **基于 DOM / UI 树差分与语义 Embedding 的失效选择器多模态自愈恢复** | locator_healing | 落地 `smart_locator_healing_engine` 服务与 `/api/v1/ai-healing/locators/*` API；实现失效选择器自动评分、相似度加权匹配与自愈选择器生成；见 docs/evidence/smart-locator-healing-engine-d2-1-2026-10-16.md |
 | D2.2 `[x]` | **接口响应 Schema 动态漂移自适应修正与智能柔性断言** | schema_assertion | 落地 `flexible_schema_assertion_engine` 服务与 `/api/v1/ai-healing/assertions/*` API；支持字段冗余/排序/类型兼容的动态柔性匹配与漂移报告；见 docs/evidence/flexible-schema-assertion-engine-d2-2-2026-10-16.md |
-| D2.3 `[ ]` | **异常失败根因智能聚类与自愈执行流水审计** | healing_audit | 落地 `healing_audit_trail_service` 服务与 `/api/v1/ai-healing/audit/*` API；提供执行错误栈向量聚类、用例自愈历史记录与自愈置信度评估。 |
+| D2.3 `[x]` | **异常失败根因智能聚类与自愈执行流水审计** | healing_audit | 落地 `healing_audit_trail_service` 服务与 `/api/v1/ai-healing/audit/*` API；提供执行错误栈向量聚类、用例自愈历史记录与自愈置信度评估；见 docs/evidence/healing-audit-trail-service-d2-3-2026-10-16.md |
 
 ---
 
