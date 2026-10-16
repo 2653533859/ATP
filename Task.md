@@ -17,7 +17,7 @@
 - [x] 2026-10-16 UI3.1 瞬时轻量级仿真沙箱与端口生命周期管理抽屉：创建 sandboxes API 客户端，落地 EphemeralSandboxManagerDrawer 组件；支持 20000-29999 端口动态防冲突分配、HTTP/gRPC/WS 多协议沙箱拉起、TTL 倒计时、过期自动收割与内联 Mock 测试；挂载至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/ephemeral-sandbox-manager-drawer-ui3-1-2026-10-16.md`](docs/evidence/ephemeral-sandbox-manager-drawer-ui3-1-2026-10-16.md)。
 - [x] 2026-10-16 UI3.2 跨协议数据透传与会话上下文共享总线面板：扩展 sandboxes API（sessionBusApi），落地 CrossProtocolSessionBusPanel 组件；实现全局共享变量树、HTTP 至 gRPC/WS 凭据主动透传与动态模板递归插值预览；挂载至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/cross-protocol-session-bus-panel-ui3-2-2026-10-16.md`](docs/evidence/cross-protocol-session-bus-panel-ui3-2-2026-10-16.md)。
 - [x] 2026-10-16 UI3.3 沙箱网络流量镜像与写操作副作用隔离卡片：扩展 sandboxes API（trafficMirrorApi），落地 SandboxTrafficMirrorCard 组件；支持影子流量分流配置、敏感写操作 100% 拦截与零泄露合规凭证呈现；内嵌集成至 EphemeralSandboxManagerDrawer；单测独立通过，见 [`docs/evidence/sandbox-traffic-mirror-card-ui3-3-2026-10-16.md`](docs/evidence/sandbox-traffic-mirror-card-ui3-3-2026-10-16.md)。至此 v3.3.0 Phase 3 全量大闭环！
-- [ ] UI4.1 全生命周期测试质量度量多维评分大盘页面（QualityMetricsDashboardView.vue）
+- [x] 2026-10-16 UI4.1 全生命周期测试质量度量多维评分大盘页面：创建 qualityGovernance API 客户端，落地 QualityMetricsDashboardView 页面；呈现综合评分 (0~100)、发版准入结论、四维指标卡片、ECharts 质量全景雷达图与指标推演模拟器；挂载 /quality/metrics 路由；单测独立通过，见 [`docs/evidence/quality-metrics-dashboard-view-ui4-1-2026-10-16.md`](docs/evidence/quality-metrics-dashboard-view-ui4-1-2026-10-16.md)。
 - [ ] UI4.2 CI/CD 智能质量门禁规则配置与卡点决策抽屉（QualityGateRuleConfigDrawer.vue）
 - [ ] UI4.3 自动化发版准入合格证书与防伪数字印章弹窗（ReleaseCertificateModal.vue）
 

@@ -373,6 +373,11 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/metrics',
+          name: 'quality-metrics',
+          component: () => import('@/views/quality/QualityMetricsDashboardView.vue'),
+        },
+        {
           path: 'system/mesh-resilience',
           name: 'system-mesh-resilience',
           component: () => import('@/views/system/MeshResilienceReportView.vue'),
