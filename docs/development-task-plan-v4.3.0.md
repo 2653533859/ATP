@@ -44,7 +44,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| UI3.1 `[ ]` | **接口契约与业务 Spec 驱动的端到端用例智能生成编排抽屉** | `llm_spec_to_e2e_case_synthesizer` | 落地 `LLMSpecToE2ECaseSynthesizerDrawer.vue` 组件与 API 客户端；展示时序依赖 DAG 节点流转、上下文变量提取、Python 测试脚本实时预览与复制；单测独立通过。 |
+| UI3.1 `[x]` | **接口契约与业务 Spec 驱动的端到端用例智能生成编排抽屉** | `llm_spec_to_e2e_case_synthesizer` | 落地 `LLMSpecToE2ECaseSynthesizerDrawer.vue` 组件与 API 客户端；展示时序依赖 DAG 节点流转、上下文变量提取、Python 测试脚本实时预览与复制；单测独立通过；见 docs/evidence/llm-spec-to-e2e-case-synthesizer-drawer-ui3-1-2026-10-17.md |
 | UI3.2 `[ ]` | **针对复杂业务边界条件的生产级测试合成数据生成卡片** | `synthetic_test_data_generator` | 落地 `SyntheticTestDataGeneratorCard.vue` 组件与 API 客户端；支持正向/边界/负向三模态切换、字段约束配置、数据表预览与多格式导出；单测独立通过。 |
 | UI3.3 `[ ]` | **自主探索式 API 模糊变异与隐蔽缺陷探查及 cURL 复现控制台** | `autonomous_api_fuzzing_explorer` | 落地 `AutonomousApiFuzzingExplorerDrawer.vue` 组件与 API 客户端；展示 6 大变异策略执行状态、5xx 崩溃与注入缺陷卡片、单行 cURL 复现命令；单测独立通过。 |
 

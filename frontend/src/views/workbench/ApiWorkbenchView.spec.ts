@@ -196,6 +196,9 @@ vi.mock('./components/MultiEnvConfigDriftDrawer.vue', () => ({
 vi.mock('./components/IaCComplianceScannerCard.vue', () => ({
   default: defineComponent({ name: 'IaCComplianceScannerCard', setup: () => () => h('div', 'iac-compliance-scanner-card') }),
 }))
+vi.mock('./components/LLMSpecToE2ECaseSynthesizerDrawer.vue', () => ({
+  default: defineComponent({ name: 'LLMSpecToE2ECaseSynthesizerDrawer', setup: () => () => h('div', 'llm-spec-to-e2e-case-synthesizer-drawer') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
