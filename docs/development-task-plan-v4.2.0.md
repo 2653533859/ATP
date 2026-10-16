@@ -35,7 +35,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T2.1 `[x]` | **跨多环境配置与环境变量差异比对探测器** | `multi_env_config_drift_detector` | 落地 `multi_env_config_drift_detector` 服务与 `/env-drift/config/*` API；提取多环境 ConfigMap、环境变量与服务配置，执行深层差异差分比对并分级告警；单测独立通过；见 docs/evidence/multi-env-config-drift-detector-t2-1-2026-10-17.md |
-| T2.2 `[ ]` | **数据库 Schema 结构与索引变更漂移自动比对器** | `db_schema_drift_compatibility_checker` | 落地 `db_schema_drift_compatibility_checker` 服务与 `/env-drift/schema/*` API；逆向推导表字段、主外键、索引结构，探测未同步的破坏性变更并生成同步 DDL 脚本；单测独立通过。 |
+| T2.2 `[x]` | **数据库 Schema 结构与索引变更漂移自动比对器** | `db_schema_drift_compatibility_checker` | 落地 `db_schema_drift_compatibility_checker` 服务与 `/env-drift/schema/*` API；逆向推导表字段、主外键、索引结构，探测未同步的破坏性变更并生成同步 DDL 脚本；单测独立通过；见 docs/evidence/db-schema-drift-compatibility-checker-t2-2-2026-10-17.md |
 | T2.3 `[ ]` | **基础设施即代码 (IaC) 与网络策略安全合规巡检引擎** | `iac_network_policy_compliance_scanner` | 落地 `iac_network_policy_compliance_scanner` 服务与 `/env-drift/iac-compliance/*` API；扫描 K8s NetworkPolicy 与 Docker Compose 配置，检测未受限入方向、特权容器与合规缺陷；单测独立通过。 |
 
 ---
