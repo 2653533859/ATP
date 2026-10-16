@@ -45,7 +45,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI3.1 `[x]` | **WCAG 2.2 无障碍可访问性 DOM 深度扫描与修复指引抽屉** | `wcag_accessibility_deep_scanner` | 落地 `WcagA11yDeepScannerDrawer.vue` 组件与 API 客户端；展示缺少 alt、表单无标签、触控热区 <24x24px、重复 ID 清单、一键复制修复代码；单测独立通过；见 docs/evidence/wcag-a11y-deep-scanner-drawer-ui3-1-2026-10-17.md |
-| UI3.2 `[ ]` | **屏幕阅读器焦点流转与键盘死锁全盲路径仿真面板** | `a11y_keyboard_navigation_path_verifier` | 落地 `A11yKeyboardNavPathPanel.vue` 组件与 API 客户端；展示虚拟键盘 Tab 步进流转轨迹图、Focus Trap 死锁告警、无高亮焦点环高亮警告；单测独立通过。 |
+| UI3.2 `[x]` | **屏幕阅读器焦点流转与键盘死锁全盲路径仿真面板** | `a11y_keyboard_navigation_path_verifier` | 落地 `A11yKeyboardNavPathPanel.vue` 组件与 API 客户端；展示虚拟键盘 Tab 步进流转轨迹图、Focus Trap 死锁告警、无高亮焦点环高亮警告；单测独立通过；见 docs/evidence/a11y-keyboard-nav-path-panel-ui3-2-2026-10-17.md |
 | UI3.3 `[ ]` | **色盲/色弱多模态视觉感知实时模拟与无障碍准入大盘页面** | `color_blindness_simulation_classifier` | 落地 `ColorBlindnessAuditDashboardView.vue` 视图与路由；提供红盲、绿盲、蓝盲、全色盲 4 分屏滤镜实时预览、WCAG 1.4.1 单色状态指示器违规警报；单测独立通过。 |
 
 ---

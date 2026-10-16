@@ -233,6 +233,9 @@ vi.mock('./components/DesignSystemTokenAuditDrawer.vue', () => ({
 vi.mock('./components/WcagA11yDeepScannerDrawer.vue', () => ({
   default: defineComponent({ name: 'WcagA11yDeepScannerDrawer', setup: () => () => h('div', 'wcag-a11y-deep-scanner-drawer') }),
 }))
+vi.mock('./components/A11yKeyboardNavPathPanel.vue', () => ({
+  default: defineComponent({ name: 'A11yKeyboardNavPathPanel', setup: () => () => h('div', 'a11y-keyboard-nav-path-panel') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
