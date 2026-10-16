@@ -119,6 +119,7 @@ from app.api.v1 import (
     autonomous_fuzzing_api,
     quality_health_score_api,
     release_gate_verdict_api,
+    comprehensive_audit_report_api,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -243,3 +244,4 @@ router.include_router(synthetic_test_data_api.router)
 router.include_router(autonomous_fuzzing_api.router)
 router.include_router(quality_health_score_api.router)
 router.include_router(release_gate_verdict_api.router)
+router.include_router(comprehensive_audit_report_api.router)
