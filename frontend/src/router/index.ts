@@ -453,6 +453,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/color-blindness',
+          name: 'color-blindness-audit-dashboard',
+          component: () => import('@/views/quality/ColorBlindnessAuditDashboardView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),

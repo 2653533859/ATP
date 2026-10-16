@@ -32,6 +32,7 @@ export const routeMenuGroups: Record<string, NavigationGroup> = {
   '/quality/db-schema-drift': 'test-capabilities',
   '/quality/audit-report': 'test-capabilities',
   '/quality/visual-regression': 'test-capabilities',
+  '/quality/color-blindness': 'test-capabilities',
   '/system': 'system-center',
   '/devices': 'test-capabilities',
   '/apks': 'test-capabilities',
