@@ -93,6 +93,7 @@ from app.api.v1 import (
     live_contract_guard,
     live_contract_evaluator,
     live_contract_topology,
+    chaos_traffic_inject,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -191,3 +192,4 @@ router.include_router(golden_baselines.router)
 router.include_router(live_contract_guard.router)
 router.include_router(live_contract_evaluator.router)
 router.include_router(live_contract_topology.router)
+router.include_router(chaos_traffic_inject.router)
