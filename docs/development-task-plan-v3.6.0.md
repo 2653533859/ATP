@@ -25,7 +25,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | S1.1 `[x]` | **Git Diff AST 语法树代码变更语义提取与符号差异解析服务** | 无 | 落地 `git_diff_ast_analyzer` 服务与 `/ci-impact/diff-ast/*` API；解析 Unified Diff，基于 Python AST 提取变更类、函数、路由装饰器与代码行范围；见 docs/evidence/git-diff-ast-analyzer-s1-1-2026-10-16.md |
-| S1.2 `[ ]` | **代码函数/端点与自动化测试用例双向依赖映射索引引擎** | S1.1 | 落地 `code_to_test_mapping_indexer` 服务与 `/ci-impact/mapping/*` API；建立源码符号（模块/类/函数/API路由）与测试用例的多对多血缘拓扑关系图。 |
+| S1.2 `[x]` | **代码函数/端点与自动化测试用例双向依赖映射索引引擎** | S1.1 | 落地 `code_to_test_mapping_indexer` 服务与 `/ci-impact/mapping/*` API；建立源码符号（模块/类/函数/API路由）与测试用例的多对多血缘拓扑关系图；见 docs/evidence/code-to-test-mapping-indexer-s1-2-2026-10-16.md |
 | S1.3 `[ ]` | **基于变更影响面的最小化必要测试集智能推导与选择引擎** | S1.2 | 落地 `smart_test_selection_engine` 服务与 `/ci-impact/test-selection/*` API；运行 TIA 算法，智能裁剪冗余用例，输出高置信度精准回归测试子集。 |
 
 ---

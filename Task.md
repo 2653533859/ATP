@@ -9,7 +9,7 @@
 > v3.6.0 规划入口为 [`docs/development-task-plan-v3.6.0.md`](docs/development-task-plan-v3.6.0.md)，覆盖 S1（代码变更差异 AST 语义分析与测试用例智能映射）、S2（动态测试切片并发调度与变更风险指数模型）、S3（代码变异测试与断言有效性评分引擎）、S4（CI/CD PR 自动化准入卡点与多平台 Webhook 机器人）。
 
 - [x] 2026-10-16 S1.1 Git Diff AST 语法树代码变更语义提取与符号差异解析服务：落地 git_diff_ast_analyzer 服务与 /ci-impact/diff-ast/* API；解析 Unified Diff 补丁并基于 Python AST 提取变更类、方法、函数与 FastAPI 路由端点范围；4 项单测独立通过，见 [`docs/evidence/git-diff-ast-analyzer-s1-1-2026-10-16.md`](docs/evidence/git-diff-ast-analyzer-s1-1-2026-10-16.md)。
-- [ ] S1.2 代码函数/端点与自动化测试用例双向依赖映射索引引擎（code_to_test_mapping_indexer）
+- [x] 2026-10-16 S1.2 代码函数/端点与自动化测试用例双向依赖映射索引引擎：落地 code_to_test_mapping_indexer 服务与 /ci-impact/mapping/* API；建立源码符号/路由/文件与用例的双向倒排图谱索引、步骤 URL 自动解析、去重与 P0-P3 优先级排序；4 项单测独立通过，见 [`docs/evidence/code-to-test-mapping-indexer-s1-2-2026-10-16.md`](docs/evidence/code-to-test-mapping-indexer-s1-2-2026-10-16.md)。
 - [ ] S1.3 基于变更影响面的最小化必要测试集智能推导与选择引擎（smart_test_selection_engine）
 - [ ] S2.1 多容器弹性 Worker 负载均衡动态测试切片分发器（dynamic_test_shard_partitioner）
 - [ ] S2.2 代码变更行数/圈复杂度与核心度多维风险指数模型（change_risk_scorer）
