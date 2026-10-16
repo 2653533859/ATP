@@ -18,7 +18,7 @@
 - [x] 2026-10-16 UI3.2 跨协议数据透传与会话上下文共享总线面板：扩展 sandboxes API（sessionBusApi），落地 CrossProtocolSessionBusPanel 组件；实现全局共享变量树、HTTP 至 gRPC/WS 凭据主动透传与动态模板递归插值预览；挂载至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/cross-protocol-session-bus-panel-ui3-2-2026-10-16.md`](docs/evidence/cross-protocol-session-bus-panel-ui3-2-2026-10-16.md)。
 - [x] 2026-10-16 UI3.3 沙箱网络流量镜像与写操作副作用隔离卡片：扩展 sandboxes API（trafficMirrorApi），落地 SandboxTrafficMirrorCard 组件；支持影子流量分流配置、敏感写操作 100% 拦截与零泄露合规凭证呈现；内嵌集成至 EphemeralSandboxManagerDrawer；单测独立通过，见 [`docs/evidence/sandbox-traffic-mirror-card-ui3-3-2026-10-16.md`](docs/evidence/sandbox-traffic-mirror-card-ui3-3-2026-10-16.md)。至此 v3.3.0 Phase 3 全量大闭环！
 - [x] 2026-10-16 UI4.1 全生命周期测试质量度量多维评分大盘页面：创建 qualityGovernance API 客户端，落地 QualityMetricsDashboardView 页面；呈现综合评分 (0~100)、发版准入结论、四维指标卡片、ECharts 质量全景雷达图与指标推演模拟器；挂载 /quality/metrics 路由；单测独立通过，见 [`docs/evidence/quality-metrics-dashboard-view-ui4-1-2026-10-16.md`](docs/evidence/quality-metrics-dashboard-view-ui4-1-2026-10-16.md)。
-- [ ] UI4.2 CI/CD 智能质量门禁规则配置与卡点决策抽屉（QualityGateRuleConfigDrawer.vue）
+- [x] 2026-10-16 UI4.2 CI/CD 智能质量门禁规则配置与卡点决策抽屉：扩展 qualityGovernance API，落地 QualityGateRuleConfigDrawer 组件；支持 Profile 预设切换、比较算子与 Blocker/Warning 规则配置、在线卡点决策实测与 exit_code 非零阻断；内嵌集成至 QualityMetricsDashboardView；单测独立通过，见 [`docs/evidence/quality-gate-rule-config-drawer-ui4-2-2026-10-16.md`](docs/evidence/quality-gate-rule-config-drawer-ui4-2-2026-10-16.md)。
 - [ ] UI4.3 自动化发版准入合格证书与防伪数字印章弹窗（ReleaseCertificateModal.vue）
 
 ## 2026-10-16 v3.2.0 研发任务规划（已全量闭环）

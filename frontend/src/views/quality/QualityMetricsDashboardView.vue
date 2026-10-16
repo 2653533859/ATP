@@ -24,6 +24,9 @@
           <a-button type="primary" size="small" @click="simulatorModalOpen = true">
             指标推演模拟器
           </a-button>
+          <a-button type="primary" danger size="small" @click="gateDrawerOpen = true">
+            CI/CD 质量门禁配置
+          </a-button>
         </a-space>
       </div>
     </header>
@@ -227,6 +230,7 @@
         </a-form>
       </div>
     </a-modal>
+    <QualityGateRuleConfigDrawer v-model:open="gateDrawerOpen" />
   </div>
 </template>
 
@@ -240,11 +244,13 @@ import {
   type QualityMetricsReport,
   type ReleaseVerdict,
 } from '@/api/qualityGovernance'
+import QualityGateRuleConfigDrawer from './components/QualityGateRuleConfigDrawer.vue'
 
 const projectId = ref<number>(1)
 const loading = ref<boolean>(false)
 const evaluating = ref<boolean>(false)
 const simulatorModalOpen = ref<boolean>(false)
+const gateDrawerOpen = ref<boolean>(false)
 
 const report = ref<QualityMetricsReport | null>(null)
 
