@@ -131,6 +131,7 @@ from app.api.v1 import (
     a11y_color_blindness_api,
     client_long_task_api,
     client_memory_leak_api,
+    client_web_vitals_api,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -267,3 +268,4 @@ router.include_router(a11y_keyboard_nav_api.router)
 router.include_router(a11y_color_blindness_api.router)
 router.include_router(client_long_task_api.router)
 router.include_router(client_memory_leak_api.router)
+router.include_router(client_web_vitals_api.router)
