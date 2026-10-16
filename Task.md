@@ -11,7 +11,7 @@
 - [x] 2026-10-16 T1.1 微服务网关旁路流量捕获与 HTTP/gRPC 多协议解析过滤服务：落地 traffic_capture_gateway 服务与 /traffic/capture/* API；支持 HTTP(REST)/gRPC 流量镜像捕获、路径/方法正则过滤、采样率控制及头部元数据标准化提取；5 项单测独立通过，见 [`docs/evidence/traffic-capture-gateway-t1-1-2026-10-16.md`](docs/evidence/traffic-capture-gateway-t1-1-2026-10-16.md)。
 - [x] 2026-10-16 T1.2 生产敏感数据自适应规则脱敏与模式识别脱敏器：落地 traffic_data_masker 服务与 /traffic/mask/* API；支持手机号/身份证/银行卡/邮箱/JWT 正则掩码、SHA-256 伪名化、多层嵌套 JSON 递归清洗与 CapturedTrafficItem 全局打标；5 项单测独立通过，见 [`docs/evidence/traffic-data-masker-t1-2-2026-10-16.md`](docs/evidence/traffic-data-masker-t1-2-2026-10-16.md)。
 - [x] 2026-10-16 T1.3 真实流量请求聚类归一与自动化测试用例智能生成器：落地 traffic_to_test_case_synthesizer 服务与 /traffic/synthesize/* API；实现 URL 动态参数归一化、Schema 结构指纹聚类、自动生成标准 ATP TestCase、状态码/SLA 智能断言与参数化数据集提取；5 项单测独立通过，见 [`docs/evidence/traffic-to-test-case-synthesizer-t1-3-2026-10-16.md`](docs/evidence/traffic-to-test-case-synthesizer-t1-3-2026-10-16.md)。至此 v3.8.0 Phase 1 全量大闭环！
-- [ ] T2.1 影子流量无副作用沙箱隔离回放与外部依赖 Mock 代理（shadow_traffic_replay_engine）
+- [x] 2026-10-16 T2.1 影子流量无副作用沙箱隔离回放与外部依赖 Mock 代理：落地 shadow_traffic_replay_engine 服务与 /traffic/replay/* API；实现 BLOCK_WRITES 严格拦截写请求、X-Shadow-Traffic 头部注入、外部第三方支付/短信 Mock 拦截代理与 QPS 节流；4 项单测独立通过，见 [`docs/evidence/shadow-traffic-replay-engine-t2-1-2026-10-16.md`](docs/evidence/shadow-traffic-replay-engine-t2-1-2026-10-16.md)。
 - [ ] T2.2 响应体动态字段智能过滤与字段级精确差分比对器（traffic_diff_comparator）
 - [ ] T2.3 接口黄金响应基线版本化管理与回归偏离判定器（golden_response_baseline_manager）
 - [ ] T3.1 生产流量 OpenAPI/Protobuf 契约动态逆向提取推导器（live_contract_schema_extractor）
