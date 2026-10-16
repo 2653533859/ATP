@@ -20,6 +20,9 @@
         <a-select v-model:value="days" size="small" :options="dayOptions" class="days-select" />
         <a-button size="small" :loading="loading" @click="loadReport">{{ t('report_center.refresh') }}</a-button>
         <a-button size="small" :loading="exporting" @click="exportTrend">{{ t('report_center.export_trend') }}</a-button>
+        <a-button type="primary" size="small" @click="showReportBundler = true">
+          <CloudDownloadOutlined /> 多模态聚合导出
+        </a-button>
         <a-button size="small" @click="openAsset('/cases')">{{ t('menu.cases') }}</a-button>
         <a-button v-if="!localMode" size="small" @click="openAsset('/suites')">{{ t('menu.suites') }}</a-button>
         <a-button v-if="!localMode" size="small" @click="openAsset('/plans')">{{ t('menu.plans') }}</a-button>
@@ -225,18 +228,23 @@
         </div>
       </section>
     </a-spin>
+    <ReportBundlerExportModal
+      v-model:open="showReportBundler"
+      :default-project-name="projects.find(p => p.id === projectId)?.name || 'ATP-Platform'"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { message } from 'ant-design-vue'
-import { BarChartOutlined } from '@ant-design/icons-vue'
+import { BarChartOutlined, CloudDownloadOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import VChart from 'vue-echarts'
 import { statisticsApi, projectApi, reportApi, type ProjectItem, type ReportCompareItem, type ReportOverviewItem } from '@/api'
 import { useChartTheme } from '@/utils/chartTheme'
+import ReportBundlerExportModal from './components/ReportBundlerExportModal.vue'
 import { getRuntimeMode } from '@/runtimeMode'
 
 const localMode = getRuntimeMode()?.mode === 'local'
@@ -251,6 +259,7 @@ const days = ref(reportDays(route.query.days))
 const loading = ref(false)
 const exporting = ref(false)
 const loadError = ref(false)
+const showReportBundler = ref(false)
 const compareLoading = ref(false)
 const compareError = ref('')
 const baselineRunId = ref<number | undefined>()

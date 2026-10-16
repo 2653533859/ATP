@@ -35,6 +35,9 @@ vi.mock('@/api', () => ({
   reportApi: { overview: reportOverview, compare: reportCompare },
   statisticsApi: { exportCsv },
 }))
+vi.mock('./components/ReportBundlerExportModal.vue', () => ({
+  default: defineComponent({ name: 'ReportBundlerExportModal', setup: () => () => h('div', 'report-bundler-modal') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
