@@ -221,6 +221,9 @@ vi.mock('./components/VisualPixelDiffInspectorDrawer.vue', () => ({
 vi.mock('./components/VisualGoldenBaselineEvolutionPanel.vue', () => ({
   default: defineComponent({ name: 'VisualGoldenBaselineEvolutionPanel', setup: () => () => h('div', 'visual-golden-baseline-evolution-panel') }),
 }))
+vi.mock('./components/VLMVisualSemanticAssertionDrawer.vue', () => ({
+  default: defineComponent({ name: 'VLMVisualSemanticAssertionDrawer', setup: () => () => h('div', 'vlm-visual-semantic-assertion-drawer') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

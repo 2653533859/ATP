@@ -152,6 +152,9 @@
         <a-button size="small" class="toolbar-btn" @click="showBaselinePanel = true">
           <StarOutlined /> 黄金基线演进
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showVlmDrawer = true">
+          <RobotOutlined /> VLM 语义断言
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -622,6 +625,7 @@
     <ReleaseGateVerdictWaiverModal v-model:open="showReleaseGateModal" />
     <VisualPixelDiffInspectorDrawer v-model:open="showVisualDiffDrawer" />
     <VisualGoldenBaselineEvolutionPanel v-model:open="showBaselinePanel" />
+    <VLMVisualSemanticAssertionDrawer v-model:open="showVlmDrawer" />
   </div>
 </template>
 
@@ -760,6 +764,8 @@ import VisualPixelDiffInspectorDrawer from './components/VisualPixelDiffInspecto
 const showVisualDiffDrawer = ref(false)
 import VisualGoldenBaselineEvolutionPanel from './components/VisualGoldenBaselineEvolutionPanel.vue'
 const showBaselinePanel = ref(false)
+import VLMVisualSemanticAssertionDrawer from './components/VLMVisualSemanticAssertionDrawer.vue'
+const showVlmDrawer = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
