@@ -186,6 +186,50 @@ export interface EvaluateChangeRiskRequest {
   weight_criticality?: number
 }
 
+export type SuppressionAction = 'normal_passthrough' | 'retry_attached' | 'isolated_to_quarantine' | 'tagged_observation'
+export type FlakyFilterMode = 'auto_adaptive' | 'quarantine_strict' | 'retry_only'
+
+export interface CaseSuppressionEvaluationItem {
+  case_id: number
+  case_name: string
+  is_flaky: boolean
+  flakiness_score: number
+  failure_rate: number
+  total_runs_analyzed: number
+  action: SuppressionAction
+  suppression_reason: string
+  retry_count_recommended: number
+}
+
+export interface FlakySuppressionReportItem {
+  filter_id: string
+  mode: FlakyFilterMode
+  total_cases_evaluated: number
+  stable_cases_count: number
+  flaky_cases_count: number
+  isolated_cases_count: number
+  retried_cases_count: number
+  suppression_ratio_pct: number
+  actionable_case_ids: number[]
+  quarantined_case_ids: number[]
+  evaluations: CaseSuppressionEvaluationItem[]
+  created_at: string
+}
+
+export interface FilterFlakyTestsRequest {
+  cases: Array<{ case_id: number; case_name?: string }>
+  mode?: FlakyFilterMode
+  flakiness_threshold?: number
+  historical_stats?: Record<number, any>
+}
+
+export interface GovernanceOverrideRequest {
+  case_id: number
+  action: SuppressionAction
+  reason: string
+  ticket_id?: string | null
+}
+
 export const ciImpactApi = {
   analyzeDiffAst(data: AnalyzeDiffAstRequest): Promise<{ message: string; report: DiffAstAnalysisReportItem }> {
     return http.post('/ci-impact/diff-ast/analyze', data)
@@ -245,5 +289,21 @@ export const ciImpactApi = {
 
   getRiskReport(riskId: string): Promise<ChangeRiskReportItem> {
     return http.get(`/ci-impact/risk-score/reports/${riskId}`)
+  },
+
+  filterFlakyTests(data: FilterFlakyTestsRequest): Promise<{ message: string; report: FlakySuppressionReportItem }> {
+    return http.post('/ci-impact/flaky-filter/filter', data)
+  },
+
+  listFlakyFilterReports(): Promise<{ total: number; reports: FlakySuppressionReportItem[] }> {
+    return http.get('/ci-impact/flaky-filter/reports')
+  },
+
+  getFlakyFilterReport(filterId: string): Promise<FlakySuppressionReportItem> {
+    return http.get(`/ci-impact/flaky-filter/reports/${filterId}`)
+  },
+
+  setGovernanceOverride(data: GovernanceOverrideRequest): Promise<{ message: string; case_id: number; action: string }> {
+    return http.post('/ci-impact/flaky-filter/governance/override', data)
   },
 }

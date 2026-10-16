@@ -65,6 +65,9 @@
         <a-button size="small" class="toolbar-btn" @click="showShardingDrawer = true">
           <BranchesOutlined /> 动态分片甘特
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showFlakyDrawer = true">
+          <FilterOutlined /> Flaky 抑制隔离
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openDevices">
           <ToolOutlined /> {{ t('app_workbench.device_management') }}
         </a-button>
@@ -403,6 +406,7 @@
     >
       <DynamicTestShardingGanttCard />
     </a-drawer>
+    <FlakyQuarantineManagementDrawer v-model:open="showFlakyDrawer" />
   </div>
 </template>
 
@@ -419,6 +423,7 @@ import {
   CloudServerOutlined,
   ClusterOutlined,
   EditOutlined,
+  FilterOutlined,
   EyeOutlined,
   PictureOutlined,
   MobileOutlined,
@@ -490,6 +495,8 @@ import MobilePerfDiagnosticsViewer from './components/MobilePerfDiagnosticsViewe
 const showMobilePerf = ref(false)
 import DynamicTestShardingGanttCard from './components/DynamicTestShardingGanttCard.vue'
 const showShardingDrawer = ref(false)
+import FlakyQuarantineManagementDrawer from './components/FlakyQuarantineManagementDrawer.vue'
+const showFlakyDrawer = ref(false)
 const showLocatorHealing = ref(false)
 const showImageMatrix = ref(false)
 

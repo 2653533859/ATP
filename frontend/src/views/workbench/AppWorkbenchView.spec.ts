@@ -60,6 +60,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   CloudServerOutlined: true,
   ClusterOutlined: true,
   EyeOutlined: true,
+  FilterOutlined: true,
   EditOutlined: true,
   HomeOutlined: true,
   LeftOutlined: true,
@@ -101,6 +102,12 @@ vi.mock('./components/DynamicTestShardingGanttCard.vue', () => ({
   default: defineComponent({
     name: 'DynamicTestShardingGanttCard',
     setup: () => () => h('div', { class: 'dynamic-test-sharding-gantt-stub' }),
+  }),
+}))
+vi.mock('./components/FlakyQuarantineManagementDrawer.vue', () => ({
+  default: defineComponent({
+    name: 'FlakyQuarantineManagementDrawer',
+    setup: () => () => h('div', { class: 'flaky-quarantine-drawer-stub' }),
   }),
 }))
 vi.mock('@/stores/auth', () => ({
