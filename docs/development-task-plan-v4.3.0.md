@@ -26,7 +26,7 @@
 |---|---|---|---|
 | UI1.1 `[x]` | **动态 Worker 容器 Pod 弹性扩缩容拓扑与配额监控抽屉** | `elastic_test_worker_autoscaler` | 落地 `ElasticWorkerAutoscalerDrawer.vue` 组件与 API 客户端；展示排队深度滑块、HPA 期望副本数、动作状态徽章、集群 CPU/内存配额水位；单测独立通过；见 docs/evidence/elastic-worker-autoscaler-drawer-ui1-1-2026-10-17.md |
 | UI1.2 `[x]` | **大规模测试套件智能动态分片装箱矩阵与掉队重平衡面板** | `test_suite_dynamic_sharding_scheduler` | 落地 `TestSuiteDynamicShardingPanel.vue` 组件与 API 客户端；展示 LPT 贪心装箱多节点耗时分布柱状图、均衡度得分 (0~100%) 与长尾掉队节点告警；单测独立通过；见 docs/evidence/test-suite-dynamic-sharding-panel-ui1-2-2026-10-17.md |
-| UI1.3 `[ ]` | **临时沙箱测试环境生命周期拓扑与原子回收全景大盘页面** | `ephemeral_test_env_lifecycle_manager` | 落地 `EphemeralTestEnvDashboardView.vue` 视图与路由；展示多租户隔离沙箱列表、租约 TTL 倒计时、一键延长租约与优雅原子销毁控制台；单测独立通过。 |
+| UI1.3 `[x]` | **临时沙箱测试环境生命周期拓扑与原子回收全景大盘页面** | `ephemeral_test_env_lifecycle_manager` | 落地 `EphemeralTestEnvDashboardView.vue` 视图与路由；展示多租户隔离沙箱列表、租约 TTL 倒计时、一键延长租约与优雅原子销毁控制台；单测独立通过；见 docs/evidence/ephemeral-test-env-dashboard-view-ui1-3-2026-10-17.md |
 
 ---
 

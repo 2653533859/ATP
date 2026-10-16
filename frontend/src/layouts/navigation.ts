@@ -28,6 +28,7 @@ export const routeMenuGroups: Record<string, NavigationGroup> = {
   '/system/ai-healing-stats': 'test-capabilities',
   '/system/healing-examples': 'test-capabilities',
   '/quality/self-healing-pipeline': 'test-capabilities',
+  '/quality/ephemeral-env': 'test-capabilities',
   '/system': 'system-center',
   '/devices': 'test-capabilities',
   '/apks': 'test-capabilities',

@@ -429,6 +429,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/ephemeral-env',
+          name: 'ephemeral-test-env-dashboard',
+          component: () => import('@/views/quality/EphemeralTestEnvDashboardView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),
