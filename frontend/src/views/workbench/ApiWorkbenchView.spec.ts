@@ -245,6 +245,9 @@ vi.mock('./components/ClientMemoryLeakDetectorCard.vue', () => ({
 vi.mock('./components/ShadowTrafficTaintPropagatorDrawer.vue', () => ({
   default: defineComponent({ name: 'ShadowTrafficTaintPropagatorDrawer', setup: () => () => h('div', 'shadow-traffic-taint-propagator-drawer') }),
 }))
+vi.mock('./components/ShadowDatabaseIsolationDrawer.vue', () => ({
+  default: defineComponent({ name: 'ShadowDatabaseIsolationDrawer', setup: () => () => h('div', 'shadow-database-isolation-drawer') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

@@ -9,7 +9,7 @@
 > v4.7.0 规划入口为 [`docs/development-task-plan-v4.7.0.md`](docs/development-task-plan-v4.7.0.md)，覆盖 Phase 1（全链路影子流量染色、库表防污染与 MQ 隔离控制台）、Phase 2（单元化架构测试隔离 Cell-based Testing 与容灾切流看板）、Phase 3（压测容量水位实时监控与防雪崩自适应熔断控制台）、Phase 4（全链路压测拐点分析、爆炸半径审计与复盘决策大盘）。
 
 - [x] 2026-10-17 UI1.1 跨协议影子流量染色透传注入与校验抽屉：落地 `ShadowTrafficTaintPropagatorDrawer.vue` 组件与 API 客户端；展示 HTTP/gRPC/MQ 染色头注入、多跳拓扑透传链路追踪与丢标泄漏预警；单测独立通过，见 [`docs/evidence/shadow-traffic-taint-propagator-drawer-ui1-1-2026-10-17.md`](docs/evidence/shadow-traffic-taint-propagator-drawer-ui1-1-2026-10-17.md)。
-- [ ] 2026-10-17 UI1.2 影子库表读写防污染安全隔离与拦截抽屉：落地 `ShadowDatabaseIsolationDrawer.vue` 组件与 API 客户端；展示生产表至影子表映射树、SQL 动态重写审计、高危写操作阻断警告与映射配置；单测独立通过。
+- [x] 2026-10-17 UI1.2 影子库表读写防污染安全隔离与拦截抽屉：落地 `ShadowDatabaseIsolationDrawer.vue` 组件与 API 客户端；展示生产表至影子表映射树、SQL 动态重写审计、高危写操作阻断警告与映射配置；单测独立通过，见 [`docs/evidence/shadow-database-isolation-drawer-ui1-2-2026-10-17.md`](docs/evidence/shadow-database-isolation-drawer-ui1-2-2026-10-17.md)。
 - [ ] 2026-10-17 UI1.3 全链路影子数据与 MQ 消息分流隔离全景大盘页面：落地 `FullLinkShadowIsolationDashboardView.vue` 视图与路由；汇总全链路影子流量隔离率（100%）、影子库表就绪数、MQ 影子分流数与旁路 Mock/Drop 监控；单测独立通过。
 - [ ] 2026-10-17 UI2.1 多可用区单元化切流权重控制与智能路由抽屉：落地 `CellBasedTrafficControllerDrawer.vue` 组件与 API 客户端；展示 Cell 状态（ACTIVE_PROD, STRESS_ONLY, DRAINING）、权重调节滑块、用户分片取模路由与压测专用单元隔离；单测独立通过。
 - [ ] 2026-10-17 UI2.2 跨单元服务依赖逃逸与拓扑孤岛检测面板：落地 `CellEscapeDependencyPanel.vue` 组件与 API 客户端；展示跨单元 RPC 调用拦截、共享数据源混用告警、拓扑依赖调用边可视化矩阵；单测独立通过。

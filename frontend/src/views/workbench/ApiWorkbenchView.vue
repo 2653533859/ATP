@@ -176,6 +176,9 @@
         <a-button size="small" class="toolbar-btn" @click="showShadowTaintDrawer = true">
           <BranchesOutlined /> 影子流量染色
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showShadowDbDrawer = true">
+          <DatabaseOutlined /> 影子库表隔离
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -653,6 +656,7 @@
     <A11yKeyboardNavPathPanel v-model:open="showKeyboardNavPanel" />
     <ClientLongTaskJankProfilerDrawer v-model:open="showLongTaskDrawer" />
     <ClientMemoryLeakDetectorCard v-model:open="showMemoryLeakDrawer" />
+    <ShadowDatabaseIsolationDrawer v-model:open="showShadowDbDrawer" />
     <ShadowTrafficTaintPropagatorDrawer v-model:open="showShadowTaintDrawer" />
   </div>
 </template>
@@ -807,6 +811,8 @@ const showLongTaskDrawer = ref(false)
 import ClientMemoryLeakDetectorCard from './components/ClientMemoryLeakDetectorCard.vue'
 const showMemoryLeakDrawer = ref(false)
 import ShadowTrafficTaintPropagatorDrawer from './components/ShadowTrafficTaintPropagatorDrawer.vue'
+import ShadowDatabaseIsolationDrawer from './components/ShadowDatabaseIsolationDrawer.vue'
+const showShadowDbDrawer = ref(false)
 const showShadowTaintDrawer = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
