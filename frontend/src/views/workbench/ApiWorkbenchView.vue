@@ -107,6 +107,9 @@
         <a-button size="small" class="toolbar-btn" @click="showRootCauseDrawer = true">
           <AimOutlined /> 失败根因推导
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showFingerprintDrawer = true">
+          <BookOutlined /> 缺陷经验库
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -555,6 +558,7 @@
       <EventBusDeadletterIdempotencyCard />
     </a-drawer>
     <TestFailureRootCauseDiagnosisModal v-model:open="showRootCauseDrawer" />
+    <IncidentKnowledgeFingerprintDrawer v-model:open="showFingerprintDrawer" />
   </div>
 </template>
 
@@ -583,6 +587,7 @@ import {
   BuildOutlined,
   SlidersOutlined,
   MailOutlined,
+  BookOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
@@ -655,6 +660,8 @@ import EventBusDeadletterIdempotencyCard from './components/EventBusDeadletterId
 const showEventBusDrawer = ref(false)
 import TestFailureRootCauseDiagnosisModal from './components/TestFailureRootCauseDiagnosisModal.vue'
 const showRootCauseDrawer = ref(false)
+import IncidentKnowledgeFingerprintDrawer from './components/IncidentKnowledgeFingerprintDrawer.vue'
+const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)

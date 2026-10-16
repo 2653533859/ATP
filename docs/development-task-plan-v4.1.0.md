@@ -45,7 +45,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI3.1 `[x]` | **多模态测试失败根因推导与因果失效链下钻面板** | `test_failure_root_cause_reasoner` | 落地 `TestFailureRootCauseDiagnosisModal.vue` 组件与 API 客户端；展示多模态证据源、因果失效传播链、首发代码位置高亮与置信度环；见 docs/evidence/test-failure-root-cause-diagnosis-modal-ui3-1-2026-10-16.md |
-| UI3.2 `[ ]` | **历史已知缺陷经验知识库与向量指纹匹配抽屉** | `incident_knowledge_fingerprint_matcher` | 落地 `IncidentKnowledgeFingerprintDrawer.vue` 抽屉；展示抗噪声语义指纹比对、历史相似度分级（EXACT/HIGH/MEDIUM）与已验证方案。 |
+| UI3.2 `[x]` | **历史已知缺陷经验知识库与向量指纹匹配抽屉** | `incident_knowledge_fingerprint_matcher` | 落地 `IncidentKnowledgeFingerprintDrawer.vue` 组件与 API 客户端；展示抗噪声语义指纹比对、历史相似度分级与已验证方案；见 docs/evidence/incident-knowledge-fingerprint-drawer-ui3-2-2026-10-16.md |
 | UI3.3 `[ ]` | **缺陷严重度评级与第三方工单自动指派卡片** | `defect_auto_ticket_dispatcher` | 落地 `DefectTicketDispatchCard.vue` 组件；展示 P0~P3 严重度徽章、Jira/GitHub 工单预览与工单状态生命周期流转。 |
 
 ---

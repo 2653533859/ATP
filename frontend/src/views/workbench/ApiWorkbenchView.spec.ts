@@ -66,6 +66,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   FormatPainterOutlined: true,
   SlidersOutlined: true,
   MailOutlined: true,
+  BookOutlined: true,
 }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
@@ -166,6 +167,9 @@ vi.mock('./components/EventBusDeadletterIdempotencyCard.vue', () => ({
 }))
 vi.mock('./components/TestFailureRootCauseDiagnosisModal.vue', () => ({
   default: defineComponent({ name: 'TestFailureRootCauseDiagnosisModal', setup: () => () => h('div', 'test-failure-root-cause-diagnosis-modal') }),
+}))
+vi.mock('./components/IncidentKnowledgeFingerprintDrawer.vue', () => ({
+  default: defineComponent({ name: 'IncidentKnowledgeFingerprintDrawer', setup: () => () => h('div', 'incident-knowledge-fingerprint-drawer') }),
 }))
 
 const passthrough = (name: string) =>
