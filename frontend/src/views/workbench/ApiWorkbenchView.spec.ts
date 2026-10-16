@@ -179,6 +179,9 @@ vi.mock('./components/DefectTicketDispatchCard.vue', () => ({
 vi.mock('./components/SmartLocatorHealingConsoleDrawer.vue', () => ({
   default: defineComponent({ name: 'SmartLocatorHealingConsoleDrawer', setup: () => () => h('div', 'smart-locator-healing-console-drawer') }),
 }))
+vi.mock('./components/AdaptiveAssertionPatchModal.vue', () => ({
+  default: defineComponent({ name: 'AdaptiveAssertionPatchModal', setup: () => () => h('div', 'adaptive-assertion-patch-modal') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

@@ -18,7 +18,7 @@
 - [x] 2026-10-16 UI3.2 历史已知缺陷经验知识库与向量指纹匹配抽屉：扩展 rootCauseDiagnosis API 客户端，落地 IncidentKnowledgeFingerprintDrawer 组件并集成至 ApiWorkbenchView；展示抗噪声语义指纹比对、历史相似度分级与已验证方案；单测独立通过，见 [`docs/evidence/incident-knowledge-fingerprint-drawer-ui3-2-2026-10-16.md`](docs/evidence/incident-knowledge-fingerprint-drawer-ui3-2-2026-10-16.md)。
 - [x] 2026-10-16 UI3.3 缺陷严重度评级与第三方工单自动指派卡片：扩展 rootCauseDiagnosis API 客户端，落地 DefectTicketDispatchCard 组件并集成至 ApiWorkbenchView；展示 P0~P3 严重度徽章、Jira/GitHub 工单预览与工单状态生命周期流转；单测独立通过，见 [`docs/evidence/defect-ticket-dispatch-card-ui3-3-2026-10-16.md`](docs/evidence/defect-ticket-dispatch-card-ui3-3-2026-10-16.md)。至此 v4.1.0 Phase 3 全量大闭环！
 - [x] 2026-10-16 UI4.1 UI 元素定位漂移动态自愈推导与降级重试控制台：扩展 testSelfHealing API 客户端，落地 SmartLocatorHealingConsoleDrawer 组件并集成至 ApiWorkbenchView；展示五维加权降级得分条、新选择器建议、代码补丁与自愈成功率统计；单测独立通过，见 [`docs/evidence/smart-locator-healing-console-drawer-ui4-1-2026-10-16.md`](docs/evidence/smart-locator-healing-console-drawer-ui4-1-2026-10-16.md)。
-- [ ] 2026-10-16 UI4.2 接口响应格式变迁自适应断言规则推导与代码 Diff 弹窗：扩展 testSelfHealing API 客户端，落地 AdaptiveAssertionPatchModal 组件并集成至 ApiWorkbenchView；展示 JSONPath 迁移轨迹、外层拆包/重命名模式分类与代码 Diff
+- [x] 2026-10-16 UI4.2 接口响应格式变迁自适应断言规则推导与代码 Diff 弹窗：扩展 testSelfHealing API 客户端，落地 AdaptiveAssertionPatchModal 组件并集成至 ApiWorkbenchView；展示 JSONPath 迁移轨迹、外层拆包/重命名模式分类、Python 代码 Diff 与一键应用；单测独立通过，见 [`docs/evidence/adaptive-assertion-patch-modal-ui4-2-2026-10-16.md`](docs/evidence/adaptive-assertion-patch-modal-ui4-2-2026-10-16.md)。
 - [ ] 2026-10-16 UI4.3 端到端测试自愈全流程审计追踪与一键回滚流水线全景大盘：扩展 testSelfHealing API 客户端，落地 SelfHealingAuditPatchPipelineView 视图与路由；展示四阶段卡点自愈流程、SHA-256 加密防篡改指纹与一键原子回滚控制台
 
 ## 2026-10-16 v4.0.0 研发任务规划（已全量闭环）

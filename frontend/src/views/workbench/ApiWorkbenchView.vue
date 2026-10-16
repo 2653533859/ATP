@@ -116,6 +116,9 @@
         <a-button size="small" class="toolbar-btn" @click="showLocatorHealingDrawer = true">
           <ToolOutlined /> 选择器自愈
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showAssertionPatchDrawer = true">
+          <CodeOutlined /> 断言自适应补丁
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -574,6 +577,7 @@
     </a-drawer>
     <IncidentKnowledgeFingerprintDrawer v-model:open="showFingerprintDrawer" />
     <SmartLocatorHealingConsoleDrawer v-model:open="showLocatorHealingDrawer" />
+    <AdaptiveAssertionPatchModal v-model:open="showAssertionPatchDrawer" />
   </div>
 </template>
 
@@ -682,6 +686,8 @@ import DefectTicketDispatchCard from './components/DefectTicketDispatchCard.vue'
 const showDefectDispatchDrawer = ref(false)
 import SmartLocatorHealingConsoleDrawer from './components/SmartLocatorHealingConsoleDrawer.vue'
 const showLocatorHealingDrawer = ref(false)
+import AdaptiveAssertionPatchModal from './components/AdaptiveAssertionPatchModal.vue'
+const showAssertionPatchDrawer = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
