@@ -63,6 +63,13 @@ from app.services.pr_quality_gatekeeper import (
     get_pr_gate_report,
     list_pr_gate_reports,
 )
+from app.services.pr_comment_bot_dispatcher import (
+    GitPlatformType,
+    dispatch_pr_comment,
+    generate_pr_comment_markdown,
+    get_pr_comment,
+    list_pr_comments,
+)
 
 router = APIRouter(prefix="/ci-impact", tags=["CI 代码变更影响面与精准测试"])
 
@@ -646,3 +653,79 @@ async def get_pr_gate_report_endpoint(
     if not report:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"门禁报告不存在: {gate_id}")
     return report.to_dict()
+
+
+class GeneratePrCommentIn(BaseModel):
+    gate_id: str = Field(description="关联的 PR 门禁报告 ID")
+    bot_header_title: str | None = Field(default=None, description="自定义评论卡片主标题")
+
+
+class DispatchPrCommentIn(BaseModel):
+    gate_id: str = Field(description="关联的 PR 门禁报告 ID")
+    repo_name: str = Field(default="2653533859/ATP", description="目标 Git 仓库全名 (owner/repo)")
+    platform: str = Field(default="github", description="平台: github | gitlab | gitea | generic_markdown")
+    bot_header_title: str | None = Field(default=None, description="自定义评论主标题")
+    simulate_success: bool = Field(default=True, description="是否模拟发送成功")
+
+
+@router.post("/pr-bot/generate-comment")
+async def generate_pr_comment_endpoint(
+    body: GeneratePrCommentIn,
+    _user: User = Depends(require_engineer),
+) -> dict[str, Any]:
+    """基于门禁裁决结果组装生成适用于 GitHub / GitLab 评论区的 Markdown 卡片 (需工程师权限)。"""
+    _ = _user
+    report = get_pr_gate_report(body.gate_id)
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"门禁报告不存在: {body.gate_id}")
+
+    markdown = generate_pr_comment_markdown(report, bot_header_title=body.bot_header_title)
+    return {"message": "PR 评论卡片 Markdown 生成成功", "gate_id": body.gate_id, "markdown": markdown}
+
+
+@router.post("/pr-bot/dispatch")
+async def dispatch_pr_comment_endpoint(
+    body: DispatchPrCommentIn,
+    _user: User = Depends(require_engineer),
+) -> dict[str, Any]:
+    """向 GitHub / GitLab PR 投递交互式 Markdown 审查评论 (需工程师权限)。"""
+    _ = _user
+    try:
+        plat_enum = GitPlatformType(body.platform.lower())
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"不支持的 Git 平台类型: {body.platform}")
+
+    try:
+        comment = dispatch_pr_comment(
+            gate_report_or_id=body.gate_id,
+            repo_name=body.repo_name,
+            platform=plat_enum,
+            bot_header_title=body.bot_header_title,
+            simulate_success=body.simulate_success,
+        )
+        return {"message": "PR 审查评论已投递", "comment": comment.to_dict()}
+    except ValueError as exc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.get("/pr-bot/comments")
+async def list_pr_comments_endpoint(
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """查询历史 PR 评论投递记录列表。"""
+    _ = _user
+    comments = list_pr_comments()
+    return {"total": len(comments), "comments": [c.to_dict() for c in comments]}
+
+
+@router.get("/pr-bot/comments/{comment_id}")
+async def get_pr_comment_endpoint(
+    comment_id: str,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """获取指定 PR 评论投递详情。"""
+    _ = _user
+    comment = get_pr_comment(comment_id)
+    if not comment:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"评论记录不存在: {comment_id}")
+    return comment.to_dict()
