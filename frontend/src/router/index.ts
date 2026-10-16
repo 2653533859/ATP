@@ -423,6 +423,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/self-healing-pipeline',
+          name: 'self-healing-audit-patch-pipeline',
+          component: () => import('@/views/quality/SelfHealingAuditPatchPipelineView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),
