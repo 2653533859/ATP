@@ -203,6 +203,9 @@ vi.mock('./components/LLMSpecToE2ECaseSynthesizerDrawer.vue', () => ({
 vi.mock('./components/SyntheticTestDataGeneratorCard.vue', () => ({
   default: defineComponent({ name: 'SyntheticTestDataGeneratorCard', setup: () => () => h('div', 'synthetic-test-data-generator-card') }),
 }))
+vi.mock('./components/AutonomousApiFuzzingExplorerDrawer.vue', () => ({
+  default: defineComponent({ name: 'AutonomousApiFuzzingExplorerDrawer', setup: () => () => h('div', 'autonomous-api-fuzzing-explorer-drawer') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

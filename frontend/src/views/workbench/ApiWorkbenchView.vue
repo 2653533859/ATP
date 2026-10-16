@@ -137,6 +137,9 @@
         <a-button size="small" class="toolbar-btn" @click="showSyntheticDataDrawer = true">
           <DatabaseOutlined /> 业务测试数据
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showFuzzingDrawer = true">
+          <BugOutlined /> API 变异探查
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -602,6 +605,7 @@
     <IaCComplianceScannerCard v-model:open="showIaCScannerDrawer" />
     <LLMSpecToE2ECaseSynthesizerDrawer v-model:open="showSynthesizerDrawer" />
     <SyntheticTestDataGeneratorCard v-model:open="showSyntheticDataDrawer" />
+    <AutonomousApiFuzzingExplorerDrawer v-model:open="showFuzzingDrawer" />
   </div>
 </template>
 
@@ -727,6 +731,8 @@ import LLMSpecToE2ECaseSynthesizerDrawer from './components/LLMSpecToE2ECaseSynt
 const showSynthesizerDrawer = ref(false)
 import SyntheticTestDataGeneratorCard from './components/SyntheticTestDataGeneratorCard.vue'
 const showSyntheticDataDrawer = ref(false)
+import AutonomousApiFuzzingExplorerDrawer from './components/AutonomousApiFuzzingExplorerDrawer.vue'
+const showFuzzingDrawer = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
