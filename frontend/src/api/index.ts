@@ -3760,3 +3760,4 @@ export const knowledgeApi = {
   delete: (id: number) => http.delete<unknown, { deleted: boolean; id: number }>(`/knowledge/${id}`),
 }
 export * from './mobilePerf'
+export * from './webVitals'

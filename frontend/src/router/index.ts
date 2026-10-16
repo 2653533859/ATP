@@ -357,6 +357,12 @@ const router = createRouter({
           component: () => import('@/views/system/PerformanceCenterView.vue'),
         },
         {
+          path: 'diagnostics/web-vitals',
+          name: 'web-vitals-diagnostics',
+          component: () => import('@/views/diagnostics/WebVitalsDiagnosticsView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),

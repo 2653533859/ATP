@@ -18,12 +18,14 @@ vi.mock('echarts/charts', () => ({
   BarChart: {},
   LineChart: {},
   PieChart: {},
+  RadarChart: {},
 }))
 vi.mock('echarts/components', () => ({
   GridComponent: {},
   LegendComponent: {},
   TitleComponent: {},
   TooltipComponent: {},
+  RadarComponent: {},
 }))
 vi.mock('echarts/renderers', () => ({
   CanvasRenderer: {},

@@ -45,7 +45,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI3.1 `[x]` | **移动端性能时序曲线与卡顿/内存泄露体检报告看板** | mobile_perf_profiler | 落地 `MobilePerfDiagnosticsViewer.vue` 组件与 API 客户端；支持 CPU/内存/FPS/网络流量多维时序图、线性回归内存泄露告警与 Jank 掉帧分析；见 docs/evidence/mobile-perf-diagnostics-viewer-ui3-1-2026-10-16.md |
-| UI3.2 `[ ]` | **Web 性能 Core Web Vitals (LCP, INP, CLS) 雷达图与阻断资源分析视图** | web_vitals_profiler | 落地 `WebVitalsDiagnosticsView.vue` 页面与路由；呈现 Google 官方三维核心与辅助体验指标、加权性能综合分与关键渲染阻断资源。 |
+| UI3.2 `[x]` | **Web 性能 Core Web Vitals (LCP, INP, CLS) 雷达图与阻断资源分析视图** | web_vitals_profiler | 落地 `WebVitalsDiagnosticsView.vue` 页面与路由；呈现 Google 官方三维核心与辅助体验指标、加权性能综合分与关键渲染阻断资源；见 docs/evidence/web-vitals-diagnostics-view-ui3-2-2026-10-16.md |
 | UI3.3 `[ ]` | **全链路分布式追踪 TraceID 慢调用火焰图交互组件** | distributed_trace_flamegraph | 落地 `DistributedTraceFlamegraphViewer.vue` 组件；展示多层级 Span 调用树、独占耗时 (Self-Time) 阶梯图、慢调用高亮与瓶颈摘要。 |
 
 ---
