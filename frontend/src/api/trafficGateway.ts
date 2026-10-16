@@ -487,6 +487,36 @@ export interface ChaosExperimentSessionItem {
   stopped_at?: string | null
 }
 
+export type ResilienceTier = 'EXCELLENT' | 'ADEQUATE' | 'INSUFFICIENT' | 'FRAGILE'
+export type BreakerState = 'CLOSED' | 'OPEN' | 'HALF_OPEN'
+
+export interface RtoSamplePointItem {
+  seq: number
+  offset_ms: number
+  status_code: number
+  duration_ms: number
+  is_fault_active: boolean
+  is_fallback: boolean
+  breaker_state: BreakerState
+}
+
+export interface ResilienceRtoReport {
+  report_id: string
+  target_service_id: string
+  endpoint: string
+  resilience_tier: ResilienceTier
+  breaker_trip_latency_ms: number
+  fallback_success_ratio_pct: number
+  rto_recovery_duration_ms: number
+  total_samples_analyzed: number
+  fault_period_requests_count: number
+  recovery_period_requests_count: number
+  sample_stream: RtoSamplePointItem[]
+  verdict_summary: string
+  remediation_suggestions: string[]
+  evaluated_at: string
+}
+
 export const trafficCaptureApi = {
   getFilterConfig(): Promise<CaptureFilterConfig> {
     return http.get('/traffic/capture/config')
@@ -768,5 +798,36 @@ export const trafficChaosApi = {
 
   getSession(experimentId: string): Promise<ChaosExperimentSessionItem> {
     return http.get(`/chaos-traffic/inject/sessions/${experimentId}`)
+  },
+}
+
+export const resilienceRtoApi = {
+  simulate(data: {
+    target_service_id?: string
+    endpoint?: string
+    tier_preset?: ResilienceTier
+  }): Promise<{ message: string; report: ResilienceRtoReport }> {
+    return http.post('/chaos-traffic/evaluate-rto/simulate', data)
+  },
+
+  analyze(data: {
+    target_service_id: string
+    endpoint: string
+    sample_points: any[]
+    expected_fallback_status?: number
+  }): Promise<{ message: string; report: ResilienceRtoReport }> {
+    return http.post('/chaos-traffic/evaluate-rto/analyze', data)
+  },
+
+  listReports(): Promise<{ total: number; reports: ResilienceRtoReport[] }> {
+    return http.get('/chaos-traffic/evaluate-rto/reports')
+  },
+
+  getReport(reportId: string): Promise<ResilienceRtoReport> {
+    return http.get(`/chaos-traffic/evaluate-rto/reports/${reportId}`)
+  },
+
+  clearReports(): Promise<{ message: string; deleted_count: number }> {
+    return http.delete('/chaos-traffic/evaluate-rto/reports')
   },
 }

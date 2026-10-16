@@ -55,7 +55,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI4.1 `[x]` | **基于流量特征匹配的应用层混沌故障注入编排抽屉** | `traffic_chaos_fault_injector` | 落地 `TrafficChaosFaultInjectorDrawer.vue` 组件与 API 客户端；支持针对流量特征精准注入时延/503错误/数据截断/丢包四大模式，带最大触发次数安全熔断保护；见 docs/evidence/traffic-chaos-fault-injector-drawer-ui4-1-2026-10-16.md |
-| UI4.2 `[ ]` | **服务断路器熔断跳闸时延与 RTO 自愈时序分析看板** | `resilience_rto_recovery_evaluator` | 落地 `ResilienceRtoRecoveryDashboardCard.vue` 组件；可视化呈现演练时序点、跳闸时延（ms）、降级成功率（%）、RTO 自愈时长与四级韧性评级。 |
+| UI4.2 `[x]` | **服务断路器熔断跳闸时延与 RTO 自愈时序分析看板** | `resilience_rto_recovery_evaluator` | 落地 `ResilienceRtoRecoveryDashboardCard.vue` 组件与 API 客户端；可视化呈现演练时序点、跳闸时延（ms）、降级成功率（%）、RTO 自愈时长与四级韧性评级；见 docs/evidence/resilience-rto-recovery-dashboard-card-ui4-2-2026-10-16.md |
 | UI4.3 `[ ]` | **生产流量防线 Checkpoint 检查点端到端全景监控看板页面** | `traffic_guard_pipeline_api` | 落地 `TrafficGuardPipelineMonitorView.vue` 页面与路由；展示端到端四阶段卡点流、Exit Code 0/1/2 裁决大横幅与高对比度 ANSI 终端控制台日志输出。 |
 
 ---

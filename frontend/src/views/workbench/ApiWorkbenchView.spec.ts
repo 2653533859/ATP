@@ -64,6 +64,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   DownOutlined: true,
   BuildOutlined: true,
   FormatPainterOutlined: true,
+  SlidersOutlined: true,
 }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
@@ -146,6 +147,9 @@ vi.mock('./components/ContractDriftBreakingEvaluatorCard.vue', () => ({
 }))
 vi.mock('./components/TrafficChaosFaultInjectorDrawer.vue', () => ({
   default: defineComponent({ name: 'TrafficChaosFaultInjectorDrawer', setup: () => () => h('div', 'traffic-chaos-fault-injector-drawer') }),
+}))
+vi.mock('./components/ResilienceRtoRecoveryDashboardCard.vue', () => ({
+  default: defineComponent({ name: 'ResilienceRtoRecoveryDashboardCard', setup: () => () => h('div', 'resilience-rto-recovery-dashboard-card') }),
 }))
 
 const passthrough = (name: string) =>

@@ -89,6 +89,9 @@
         <a-button size="small" class="toolbar-btn" @click="showChaosInjectorDrawer = true">
           <ThunderboltOutlined /> 混沌故障注入
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showRtoRecoveryDrawer = true">
+          <SlidersOutlined /> 断路自愈大盘
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -510,6 +513,14 @@
       <ContractDriftBreakingEvaluatorCard />
     </a-drawer>
     <TrafficChaosFaultInjectorDrawer v-model:open="showChaosInjectorDrawer" />
+    <a-drawer
+      v-model:open="showRtoRecoveryDrawer"
+      :width="1120"
+      title="服务断路器生效时延与 RTO 自愈量化评估控制台"
+      destroy-on-close
+    >
+      <ResilienceRtoRecoveryDashboardCard />
+    </a-drawer>
   </div>
 </template>
 
@@ -536,6 +547,7 @@ import {
   FileSearchOutlined,
   RobotOutlined,
   BuildOutlined,
+  SlidersOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
@@ -596,6 +608,8 @@ import ContractDriftBreakingEvaluatorCard from './components/ContractDriftBreaki
 const showBreakingEvaluatorDrawer = ref(false)
 import TrafficChaosFaultInjectorDrawer from './components/TrafficChaosFaultInjectorDrawer.vue'
 const showChaosInjectorDrawer = ref(false)
+import ResilienceRtoRecoveryDashboardCard from './components/ResilienceRtoRecoveryDashboardCard.vue'
+const showRtoRecoveryDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)
