@@ -295,6 +295,47 @@ export interface RunMutationExecutionRequest {
   timeout_sec_per_mutant?: number
 }
 
+export type AssertionAdequacyLevel = 'EXCELLENT' | 'ADEQUATE' | 'INSUFFICIENT' | 'WEAK'
+
+export interface OperatorScoreBreakdown {
+  operator_type: string
+  total_mutants: number
+  killed_mutants: number
+  survived_mutants: number
+  operator_mutation_score_pct: number
+}
+
+export interface AssertionBlindspotItem {
+  mutant_id: string
+  file_path: string
+  line_number: number
+  operator_type: string
+  original_line: string
+  mutated_line: string
+  description: string
+  suggested_assertion_fix: string
+}
+
+export interface MutationScoreReport {
+  score_id: string
+  execution_run_id: string
+  mutation_score_pct: number
+  adequacy_level: AssertionAdequacyLevel
+  total_mutants: number
+  killed_count: number
+  survived_count: number
+  timed_out_count: number
+  operator_breakdowns: Record<string, OperatorScoreBreakdown>
+  blindspots: AssertionBlindspotItem[]
+  summary_verdict: string
+  calculated_at: string
+}
+
+export interface CalculateMutationScoreRequest {
+  execution_run_id?: string
+  mutant_execution_results?: Array<Record<string, any>>
+}
+
 export const ciImpactApi = {
   analyzeDiffAst(data: AnalyzeDiffAstRequest): Promise<{ message: string; report: DiffAstAnalysisReportItem }> {
     return http.post('/ci-impact/diff-ast/analyze', data)
@@ -398,5 +439,17 @@ export const ciImpactApi = {
 
   getMutationExecutionReport(runId: string): Promise<MutationExecutionRunReport> {
     return http.get(`/ci-impact/mutations/execute/reports/${runId}`)
+  },
+
+  calculateMutationScore(data: CalculateMutationScoreRequest): Promise<{ message: string; report: MutationScoreReport }> {
+    return http.post('/ci-impact/mutations/score/calculate', data)
+  },
+
+  listMutationScoreReports(): Promise<{ total: number; reports: MutationScoreReport[] }> {
+    return http.get('/ci-impact/mutations/score/reports')
+  },
+
+  getMutationScoreReport(scoreId: string): Promise<MutationScoreReport> {
+    return http.get(`/ci-impact/mutations/score/reports/${scoreId}`)
   },
 }

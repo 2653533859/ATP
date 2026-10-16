@@ -46,7 +46,7 @@
 |---|---|---|---|
 | UI3.1 `[x]` | **一阶语法变异算子注入生成与变异代码对比弹窗** | code_mutation_operator_engine | 落地 `CodeMutationOperatorGeneratorModal.vue` 组件；支持 ROR/LCR/AOR/RVO/BVO 算子选择、单变异体独立隔离与代码双栏比对；见 docs/evidence/code-mutation-operator-generator-modal-ui3-1-2026-10-16.md |
 | UI3.2 `[x]` | **变异体沙箱执行实时进度与 Killed/Survived 监控抽屉** | mutation_execution_runner | 落地 `MutationExecutionLiveMonitorDrawer.vue` 组件；展示变异体执行状态流（Killed 绿标 / Survived 红标），定位击毙用例；见 docs/evidence/mutation-execution-live-monitor-drawer-ui3-2-2026-10-16.md |
-| UI3.3 `[ ]` | **变异得分 (Mutation Score) 与断言盲区热力报告页面** | mutation_score_calculator | 落地 `MutationScoreHeatmapReportView.vue` 视图与路由；量化变异得分百分比、算子细分雷达图、以及断言缺失代码行与修复指引。 |
+| UI3.3 `[x]` | **变异得分 (Mutation Score) 与断言盲区热力报告页面** | mutation_score_calculator | 落地 `MutationScoreHeatmapReportView.vue` 视图与路由；量化变异得分百分比、算子细分雷达图、以及断言缺失代码行与修复指引；见 docs/evidence/mutation-score-heatmap-report-view-ui3-3-2026-10-16.md |
 
 ---
 

@@ -381,6 +381,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/mutation-score',
+          name: 'mutation-score-heatmap-report',
+          component: () => import('@/views/quality/MutationScoreHeatmapReportView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),
