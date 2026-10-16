@@ -15,7 +15,7 @@
 - [x] 2026-10-16 S2.2 代码变更行数/圈复杂度与核心度多维风险指数模型：落地 change_risk_scorer 服务与 /ci-impact/risk-score/* API；构建代码规模 (30%)、AST 圈复杂度增量 (35%) 与核心涉敏资产 (35%) 三维风险量化模型，评定 CRITICAL/HIGH/MEDIUM/LOW 四级风险与准入动作建议；3 项单测独立通过，见 [`docs/evidence/change-risk-scorer-s2-2-2026-10-16.md`](docs/evidence/change-risk-scorer-s2-2-2026-10-16.md)。
 - [x] 2026-10-16 S2.3 CI 选定测试集高频抖动 Flaky 用例自适应抑制隔离过滤器：落地 flaky_test_suppression_filter 服务与 /ci-impact/flaky-filter/* API；支持统计性抖动指数计算、AUTO_ADAPTIVE 自适应轻度附加重试/重度移出主干隔离、人工治理策略优先级覆盖；4 项单测独立通过，见 [`docs/evidence/flaky-test-suppression-filter-s2-3-2026-10-16.md`](docs/evidence/flaky-test-suppression-filter-s2-3-2026-10-16.md)。至此 v3.6.0 Phase 2 全量大闭环！
 - [x] 2026-10-16 S3.1 代码变更行一阶语法变异算子注入生成引擎：落地 code_mutation_operator_engine 服务与 /ci-impact/mutations/* API；支持 ROR 关系反转、LCR 逻辑替换、AOR 算术操作、RVO 返回值篡改与 BVO 边界偏移，限定变更行注入与 ast.unparse 代码重构；4 项单测独立通过，见 [`docs/evidence/code-mutation-operator-engine-s3-1-2026-10-16.md`](docs/evidence/code-mutation-operator-engine-s3-1-2026-10-16.md)。
-- [ ] S3.2 变异体执行检验与捕获/存活状态判定执行器（mutation_execution_runner）
+- [x] 2026-10-16 S3.2 变异体执行检验与捕获/存活状态判定执行器：落地 mutation_execution_runner 服务与 /ci-impact/mutations/execute/* API；在动态沙箱中驱动测试集检验变异体，精准判定 KILLED/SURVIVED/TIMED_OUT 状态，定位断言盲区；3 项单测独立通过，见 [`docs/evidence/mutation-execution-runner-s3-2-2026-10-16.md`](docs/evidence/mutation-execution-runner-s3-2-2026-10-16.md)。
 - [ ] S3.3 用例断言有效性量化与变异得分计算器（mutation_score_calculator）
 - [ ] S4.1 PR 代码变更全要素质量门禁与合并准入判定仲裁器（pr_quality_gatekeeper）
 - [ ] S4.2 GitHub / GitLab 交互式 PR Reviewer 评论与卡片广播机器人（pr_comment_bot_dispatcher）

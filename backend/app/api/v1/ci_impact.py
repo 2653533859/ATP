@@ -48,6 +48,11 @@ from app.services.code_mutation_operator_engine import (
     get_mutation_report,
     list_mutation_reports,
 )
+from app.services.mutation_execution_runner import (
+    get_mutation_execution_report,
+    list_mutation_execution_reports,
+    run_mutation_execution,
+)
 
 router = APIRouter(prefix="/ci-impact", tags=["CI 代码变更影响面与精准测试"])
 
@@ -484,3 +489,47 @@ async def get_mutant_endpoint(
     if not mutant:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"变异体不存在: {mutant_id}")
     return mutant.to_dict()
+
+
+class RunMutationExecutionIn(BaseModel):
+    mutant_ids: list[str] = Field(min_length=1, description="待执行验证的变异体 ID 列表")
+    test_cases: list[dict[str, Any]] = Field(default_factory=list, description="用于验证变异体的测试用例列表")
+    timeout_sec_per_mutant: float = Field(default=3.0, ge=0.5, le=30.0, description="单个变异体验证执行超时上限")
+
+
+@router.post("/mutations/execute/run")
+async def run_mutation_execution_endpoint(
+    body: RunMutationExecutionIn,
+    _user: User = Depends(require_engineer),
+) -> dict[str, Any]:
+    """驱动测试用例集执行变异体检验并判定 Killed / Survived 状态 (需工程师权限)。"""
+    _ = _user
+    report = run_mutation_execution(
+        mutants=body.mutant_ids,
+        test_cases=body.test_cases,
+        _timeout_sec_per_mutant=body.timeout_sec_per_mutant,
+    )
+    return {"message": "变异体执行检验完成", "report": report.to_dict()}
+
+
+@router.get("/mutations/execute/reports")
+async def list_mutation_execution_reports_endpoint(
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """查询历史变异体验证执行报告列表。"""
+    _ = _user
+    reports = list_mutation_execution_reports()
+    return {"total": len(reports), "reports": [r.to_dict() for r in reports]}
+
+
+@router.get("/mutations/execute/reports/{run_id}")
+async def get_mutation_execution_report_endpoint(
+    run_id: str,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """获取指定变异体验证执行报告详情。"""
+    _ = _user
+    report = get_mutation_execution_report(run_id)
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"变异执行报告不存在: {run_id}")
+    return report.to_dict()

@@ -45,7 +45,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | S3.1 `[x]` | **代码变更行一阶语法变异算子注入生成引擎** | S1.1 | 落地 `code_mutation_operator_engine` 服务与 `/ci-impact/mutations/*` API；支持条件反转、边界偏移、返回值篡改等变异算子安全注入；见 docs/evidence/code-mutation-operator-engine-s3-1-2026-10-16.md |
-| S3.2 `[ ]` | **变异体执行检验与捕获/存活状态判定执行器** | S3.1 | 落地 `mutation_execution_runner` 服务与 `/ci-impact/mutations/execute/*` API；驱动选定测试用例执行变异体，统计 Killed / Survived 状态。 |
+| S3.2 `[x]` | **变异体执行检验与捕获/存活状态判定执行器** | S3.1 | 落地 `mutation_execution_runner` 服务与 `/ci-impact/mutations/execute/*` API；驱动选定测试用例执行变异体，统计 Killed / Survived 状态；见 docs/evidence/mutation-execution-runner-s3-2-2026-10-16.md |
 | S3.3 `[ ]` | **用例断言有效性量化与变异得分 (Mutation Score) 计算器** | S3.2 | 落地 `mutation_score_calculator` 服务与 `/ci-impact/mutations/score/*` API；计算变异得分百分比，精准定位"跑过但无实质断言"的脆弱用例。 |
 
 ---
