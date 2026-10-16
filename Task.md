@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-16 v3.8.0 研发任务规划（进行中）
+
+> v3.8.0 规划入口为 [`docs/development-task-plan-v3.8.0.md`](docs/development-task-plan-v3.8.0.md)，覆盖 Phase 1（真实微服务网关生产流量镜像录制、智能脱敏与用例合成引擎）、Phase 2（影子流量无副作用双写回放、字段级智能差分与黄金基线校验）、Phase 3（实时接口契约动态漂移逆向推导与 Breaking 变更阻断卫士）、Phase 4（流量驱动的混沌工程故障注入编排与系统韧性验证）。
+
+- [x] 2026-10-16 T1.1 微服务网关旁路流量捕获与 HTTP/gRPC 多协议解析过滤服务：落地 traffic_capture_gateway 服务与 /traffic/capture/* API；支持 HTTP(REST)/gRPC 流量镜像捕获、路径/方法正则过滤、采样率控制及头部元数据标准化提取；5 项单测独立通过，见 [`docs/evidence/traffic-capture-gateway-t1-1-2026-10-16.md`](docs/evidence/traffic-capture-gateway-t1-1-2026-10-16.md)。
+- [ ] T1.2 生产敏感数据自适应规则脱敏与模式识别脱敏器（traffic_data_masker）
+- [ ] T1.3 真实流量请求聚类归一与自动化测试用例智能生成器（traffic_to_test_case_synthesizer）
+- [ ] T2.1 影子流量无副作用沙箱隔离回放与外部依赖 Mock 代理（shadow_traffic_replay_engine）
+- [ ] T2.2 响应体动态字段智能过滤与字段级精确差分比对器（traffic_diff_comparator）
+- [ ] T2.3 接口黄金响应基线版本化管理与回归偏离判定器（golden_response_baseline_manager）
+- [ ] T3.1 生产流量 OpenAPI/Protobuf 契约动态逆向提取推导器（live_contract_schema_extractor）
+- [ ] T3.2 接口契约字段级兼容性差分与 Breaking 破坏性评级引擎（contract_drift_breaking_evaluator）
+- [ ] T3.3 契约漂移下游受影响服务级联拓扑探测与告警网关（contract_drift_impact_topology_router）
+- [ ] T4.1 基于流量特征匹配的微服务故障注入编排执行器（traffic_chaos_fault_injector）
+- [ ] T4.2 服务断路器/降级策略生效时延与 RTO 恢复指标量化器（resilience_rto_recovery_evaluator）
+- [ ] T4.3 生产流量录制回放与契约防线端到端 CLI 与 OpenAPI 编排（traffic_guard_pipeline_api）
+
 ## 2026-10-16 v3.7.0 研发任务规划（已全量闭环）
 
 > v3.7.0 规划入口为 [`docs/development-task-plan-v3.7.0.md`](docs/development-task-plan-v3.7.0.md)，覆盖 UI1（代码变更差异语法树与精准测试推荐工作台控制台）、UI2（动态切片并发看板与代码变更风险全景面板）、UI3（代码变异测试执行与断言盲区热力工作台）、UI4（CI/CD PR 全要素质量门禁与 Reviewer 机器人控制中心）。

@@ -84,6 +84,7 @@ from app.api.v1 import (
     reporting_notifications,
     reporting_dora,
     ci_impact,
+    traffic_capture,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -173,3 +174,4 @@ router.include_router(reporting_exports.router)
 router.include_router(reporting_notifications.router)
 router.include_router(reporting_dora.router)
 router.include_router(ci_impact.router)
+router.include_router(traffic_capture.router)
