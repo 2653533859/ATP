@@ -189,6 +189,9 @@ vi.mock('./components/ElasticWorkerAutoscalerDrawer.vue', () => ({
 vi.mock('./components/TestSuiteDynamicShardingPanel.vue', () => ({
   default: defineComponent({ name: 'TestSuiteDynamicShardingPanel', setup: () => () => h('div', 'test-suite-dynamic-sharding-panel') }),
 }))
+vi.mock('./components/MultiEnvConfigDriftDrawer.vue', () => ({
+  default: defineComponent({ name: 'MultiEnvConfigDriftDrawer', setup: () => () => h('div', 'multi-env-config-drift-drawer') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

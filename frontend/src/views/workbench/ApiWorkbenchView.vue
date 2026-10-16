@@ -125,6 +125,9 @@
         <a-button size="small" class="toolbar-btn" @click="showShardingDrawer = true">
           <ApartmentOutlined /> 用例动态分片
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showConfigDriftDrawer = true">
+          <BranchesOutlined /> 跨环境配置漂移
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -586,6 +589,7 @@
     <AdaptiveAssertionPatchModal v-model:open="showAssertionPatchDrawer" />
     <ElasticWorkerAutoscalerDrawer v-model:open="showAutoscalerDrawer" />
     <TestSuiteDynamicShardingPanel v-model:open="showShardingDrawer" />
+    <MultiEnvConfigDriftDrawer v-model:open="showConfigDriftDrawer" />
   </div>
 </template>
 
@@ -701,6 +705,8 @@ import ElasticWorkerAutoscalerDrawer from './components/ElasticWorkerAutoscalerD
 const showAutoscalerDrawer = ref(false)
 import TestSuiteDynamicShardingPanel from './components/TestSuiteDynamicShardingPanel.vue'
 const showShardingDrawer = ref(false)
+import MultiEnvConfigDriftDrawer from './components/MultiEnvConfigDriftDrawer.vue'
+const showConfigDriftDrawer = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
