@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-16 v4.0.0 研发任务规划（进行中）
+## 2026-10-16 v4.0.0 研发任务规划（已全量闭环）
 
 > v4.0.0 规划入口为 [`docs/development-task-plan-v4.0.0.md`](docs/development-task-plan-v4.0.0.md)，覆盖 Phase 1（分布式调用链全息追踪与拓扑性能瓶颈火焰图）、Phase 2（微服务分布式事务与跨系统数据最终一致性稽核）、Phase 3（自动化测试执行失败智能根因推导与故障图谱）、Phase 4（AI 驱动的用例脚本断言自愈与代码级自动修复补丁）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-16 T3.3 缺陷严重度智能评级与第三方工单自动指派网关：落地 defect_auto_ticket_dispatcher 服务与 /diagnosis/ticket-dispatch/* API；支持 P0~P3 严重度模型判定、责任团队自动映射与 Jira/GitHub/Webhook 工单直派；单测独立通过，见 [`docs/evidence/defect-auto-ticket-dispatcher-t3-3-2026-10-16.md`](docs/evidence/defect-auto-ticket-dispatcher-t3-3-2026-10-16.md)。至此 v4.0.0 Phase 3 全量大闭环！
 - [x] 2026-10-16 T4.1 UI 元素定位漂移动态自愈与多策略加权降级重试执行器：落地 smart_locator_multistrategy_healer 服务与 /healing/locator/* API；支持五维动态加权降级自愈、重试执行、补丁生成与自愈历史审计；单测独立通过，见 [`docs/evidence/smart-locator-multistrategy-healer-t4-1-2026-10-16.md`](docs/evidence/smart-locator-multistrategy-healer-t4-1-2026-10-16.md)。
 - [x] 2026-10-16 T4.2 接口响应格式变迁自适应断言规则推导与自动打补丁器：落地 adaptive_assertion_auto_patcher 服务与 /healing/assertion-patch/* API；支持 JSONPath 逆向探查、外层包装拆包/字段重命名识别、Python 代码补丁生成与一键应用；单测独立通过，见 [`docs/evidence/adaptive-assertion-auto-patcher-t4-2-2026-10-16.md`](docs/evidence/adaptive-assertion-auto-patcher-t4-2-2026-10-16.md)。
-- [ ] 2026-10-16 T4.3 端到端测试自愈审计追踪与修复补丁一键应用流水线：落地 self_healing_audit_patch_pipeline 服务与 /healing/pipeline/* API
+- [x] 2026-10-16 T4.3 端到端测试自愈审计追踪与修复补丁一键应用流水线：落地 self_healing_audit_patch_pipeline 服务与 /healing/pipeline/* API；实现四阶段端到端自愈流水线、SHA-256 加密防篡改指纹与一键原子级安全回滚；单测独立通过，见 [`docs/evidence/self-healing-audit-patch-pipeline-t4-3-2026-10-16.md`](docs/evidence/self-healing-audit-patch-pipeline-t4-3-2026-10-16.md)。至此 ATP v4.0.0 研发任务全量大闭环！
 
 ## 2026-10-16 v3.9.0 研发任务规划（已全量闭环）
 
