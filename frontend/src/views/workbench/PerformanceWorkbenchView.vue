@@ -33,6 +33,9 @@
         <a-button size="small" class="toolbar-btn" @click="showCellControllerDrawer = true">
           <PartitionOutlined /> 单元切流控制
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showCellEscapePanel = true">
+          <ClusterOutlined /> 单元逃逸探查
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openFullConsole">
           <SettingOutlined /> {{ t('performance_workbench.full_console') }}
         </a-button>
@@ -352,6 +355,7 @@
       </template>
     </a-drawer>
     <CellBasedTrafficControllerDrawer v-model:open="showCellControllerDrawer" />
+    <CellEscapeDependencyPanel v-model:open="showCellEscapePanel" />
   </div>
 </template>
 
@@ -369,12 +373,15 @@ import {
   SettingOutlined,
   StopOutlined,
   PartitionOutlined,
+  ClusterOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import VChart from 'vue-echarts'
 import CellBasedTrafficControllerDrawer from './components/CellBasedTrafficControllerDrawer.vue'
 const showCellControllerDrawer = ref(false)
+import CellEscapeDependencyPanel from './components/CellEscapeDependencyPanel.vue'
+const showCellEscapePanel = ref(false)
 import type { EChartsOption } from 'echarts'
 import {
   environmentApi,

@@ -64,9 +64,13 @@ vi.mock('@ant-design/icons-vue', () => ({
   SettingOutlined: true,
   StopOutlined: true,
   PartitionOutlined: true,
+  ClusterOutlined: true,
 }))
 vi.mock('./components/CellBasedTrafficControllerDrawer.vue', () => ({
   default: defineComponent({ name: 'CellBasedTrafficControllerDrawer', setup: () => () => h('div', 'cell-based-traffic-controller-drawer') }),
+}))
+vi.mock('./components/CellEscapeDependencyPanel.vue', () => ({
+  default: defineComponent({ name: 'CellEscapeDependencyPanel', setup: () => () => h('div', 'cell-escape-dependency-panel') }),
 }))
 vi.mock('@/api', () => ({
   datasetApi: { list: vi.fn() },
