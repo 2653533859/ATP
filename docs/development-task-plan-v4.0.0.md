@@ -26,7 +26,7 @@
 |---|---|---|---|
 | T1.1 `[x]` | **OpenTelemetry 全链路 Span 追踪采集中继与调用树重构器** | `distributed_trace_telemetry_relay` | 落地 `distributed_trace_telemetry_relay` 服务与 `/trace/telemetry/*` API；支持 TraceId/SpanId 级联树重构、父子依赖解析与多协议头部透传；见 docs/evidence/distributed-trace-telemetry-relay-t1-1-2026-10-16.md |
 | T1.2 `[x]` | **跨服务调用关键路径时延分析与火焰图性能瓶颈定位器** | `critical_path_flamegraph_profiler` | 落地 `critical_path_flamegraph_profiler` 服务与 `/trace/flamegraph/*` API；量化关键路径耗时占比（Critical Path Latency），输出标准化 Flamegraph 数据结构；见 docs/evidence/critical-path-flamegraph-profiler-t1-2-2026-10-16.md |
-| T1.3 `[ ]` | **分布式调用链路异常波动与高频慢调用智能聚类诊断器** | `trace_anomaly_slow_call_clusterer` | 落地 `trace_anomaly_slow_call_clusterer` 服务与 `/trace/anomaly-cluster/*` API；基于耗时分布与错误码自动识别慢调用簇，量化波动偏离度。 |
+| T1.3 `[x]` | **分布式调用链路异常波动与高频慢调用智能聚类诊断器** | `trace_anomaly_slow_call_clusterer` | 落地 `trace_anomaly_slow_call_clusterer` 服务与 `/trace/anomaly-cluster/*` API；基于耗时分布与错误码自动识别慢调用簇，量化波动偏离度；见 docs/evidence/trace-anomaly-slow-call-clusterer-t1-3-2026-10-16.md |
 
 ---
 
