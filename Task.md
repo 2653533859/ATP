@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-16 v3.7.0 研发任务规划（进行中）
+
+> v3.7.0 规划入口为 [`docs/development-task-plan-v3.7.0.md`](docs/development-task-plan-v3.7.0.md)，覆盖 UI1（代码变更差异语法树与精准测试推荐工作台控制台）、UI2（动态切片并发看板与代码变更风险全景面板）、UI3（代码变异测试执行与断言盲区热力工作台）、UI4（CI/CD PR 全要素质量门禁与 Reviewer 机器人控制中心）。
+
+- [x] 2026-10-16 UI1.1 Git Diff 代码变更语法高亮与符号路由映射抽屉：创建 ciImpact API 客户端，落地 GitDiffAstViewerDrawer 组件；展示增删代码行 KPI、Diff 编辑预览、AST 符号与受波及 API 路由端点双栏联动，集成至 ApiWorkbenchView 顶部工具栏；单测独立通过，见 [`docs/evidence/git-diff-ast-viewer-drawer-ui1-1-2026-10-16.md`](docs/evidence/git-diff-ast-viewer-drawer-ui1-1-2026-10-16.md)。
+- [ ] UI1.2 代码符号与自动化测试用例双向血缘图谱视图（CodeToTestDependencyGraphView.vue）
+- [ ] UI1.3 精准测试集推荐裁剪率与一键回归执行卡片（SmartTestSelectionWorkbenchCard.vue）
+- [ ] UI2.1 LPT 贪心装箱并发切片甘特图与负载均衡卡片（DynamicTestShardingGanttCard.vue）
+- [ ] UI2.2 代码变更规模/圈复杂度与核心敏感度三维风险雷达大盘（ChangeRiskRadarDashboard.vue）
+- [ ] UI2.3 CI 选定测试集高频抖动 Flaky 用例自适应抑制隔离抽屉（FlakyQuarantineManagementDrawer.vue）
+- [ ] UI3.1 一阶语法变异算子注入生成与变异代码对比弹窗（CodeMutationOperatorGeneratorModal.vue）
+- [ ] UI3.2 变异体沙箱执行实时进度与 Killed/Survived 监控抽屉（MutationExecutionLiveMonitorDrawer.vue）
+- [ ] UI3.3 变异得分 (Mutation Score) 与断言盲区热力报告页面（MutationScoreHeatmapReportView.vue）
+- [ ] UI4.1 PR 代码变更全要素质量门禁合并准入仲裁卡片（PrQualityGatekeeperDashboardCard.vue）
+- [ ] UI4.2 GitHub / GitLab 交互式 Reviewer 评论卡片预览与广播抽屉（PrCommentBotPreviewDrawer.vue）
+- [ ] UI4.3 CI/CD 流水线 Checkpoint 检查点全景监控看板页面（CiPipelineCheckpointMonitorView.vue）
+
 ## 2026-10-16 v3.6.0 研发任务规划（已全量闭环）
 
 > v3.6.0 规划入口为 [`docs/development-task-plan-v3.6.0.md`](docs/development-task-plan-v3.6.0.md)，覆盖 S1（代码变更差异 AST 语义分析与测试用例智能映射）、S2（动态测试切片并发调度与变更风险指数模型）、S3（代码变异测试与断言有效性评分引擎）、S4（CI/CD PR 自动化准入卡点与多平台 Webhook 机器人）。

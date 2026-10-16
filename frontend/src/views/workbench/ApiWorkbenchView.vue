@@ -50,6 +50,9 @@
         <a-button size="small" class="toolbar-btn" @click="showTraceFlamegraph = true">
           <ApartmentOutlined /> 全链路火焰图
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showDiffAstViewer = true">
+          <CodeOutlined /> Diff AST 语义
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -433,6 +436,7 @@
     >
       <DistributedTraceFlamegraphViewer />
     </a-drawer>
+    <GitDiffAstViewerDrawer v-model:open="showDiffAstViewer" />
   </div>
 </template>
 
@@ -442,6 +446,7 @@ import { message } from 'ant-design-vue'
 import {
   AimOutlined,
   ApartmentOutlined,
+  CodeOutlined,
   CheckCircleOutlined,
   BranchesOutlined,
   CodeSandboxOutlined,
@@ -487,6 +492,7 @@ import EphemeralSandboxManagerDrawer from './components/EphemeralSandboxManagerD
 import CrossProtocolSessionBusPanel from './components/CrossProtocolSessionBusPanel.vue'
 import FlexibleSchemaAssertionDebugger from './components/FlexibleSchemaAssertionDebugger.vue'
 import DistributedTraceFlamegraphViewer from './components/DistributedTraceFlamegraphViewer.vue'
+import GitDiffAstViewerDrawer from './components/GitDiffAstViewerDrawer.vue'
 import { useAuthStore } from '@/stores/auth'
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -507,6 +513,7 @@ const showSandboxManager = ref(false)
 const showSessionBus = ref(false)
 const showSchemaDebugger = ref(false)
 const showTraceFlamegraph = ref(false)
+const showDiffAstViewer = ref(false)
 const synthesizeCaseIds = ref<number[]>([])
 function handleSynthesizeFromImpact(caseIds: number[]) {
   synthesizeCaseIds.value = caseIds

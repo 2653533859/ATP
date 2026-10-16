@@ -43,6 +43,7 @@ vi.mock('ant-design-vue', () => ({
 vi.mock('@ant-design/icons-vue', () => ({
   AimOutlined: true,
   ApartmentOutlined: true,
+  CodeOutlined: true,
   CheckCircleOutlined: true,
   BranchesOutlined: true,
   CodeSandboxOutlined: true,
@@ -99,6 +100,9 @@ vi.mock('./components/FlexibleSchemaAssertionDebugger.vue', () => ({
 }))
 vi.mock('./components/DistributedTraceFlamegraphViewer.vue', () => ({
   default: defineComponent({ name: 'DistributedTraceFlamegraphViewer', setup: () => () => h('div', 'distributed-trace-flamegraph') }),
+}))
+vi.mock('./components/GitDiffAstViewerDrawer.vue', () => ({
+  default: defineComponent({ name: 'GitDiffAstViewerDrawer', setup: () => () => h('div', 'git-diff-ast-viewer') }),
 }))
 
 const passthrough = (name: string) =>
