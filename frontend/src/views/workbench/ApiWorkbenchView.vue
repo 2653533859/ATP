@@ -140,6 +140,9 @@
         <a-button size="small" class="toolbar-btn" @click="showFuzzingDrawer = true">
           <BugOutlined /> API 变异探查
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showHealthScoreDrawer = true">
+          <DashboardOutlined /> 质量健康大盘
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -606,6 +609,7 @@
     <LLMSpecToE2ECaseSynthesizerDrawer v-model:open="showSynthesizerDrawer" />
     <SyntheticTestDataGeneratorCard v-model:open="showSyntheticDataDrawer" />
     <AutonomousApiFuzzingExplorerDrawer v-model:open="showFuzzingDrawer" />
+    <QualityHealthCompositeScoreCard v-model:open="showHealthScoreDrawer" />
   </div>
 </template>
 
@@ -640,6 +644,7 @@ import {
   CloudServerOutlined,
   SecurityScanOutlined,
   DatabaseOutlined,
+  DashboardOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
@@ -733,6 +738,8 @@ import SyntheticTestDataGeneratorCard from './components/SyntheticTestDataGenera
 const showSyntheticDataDrawer = ref(false)
 import AutonomousApiFuzzingExplorerDrawer from './components/AutonomousApiFuzzingExplorerDrawer.vue'
 const showFuzzingDrawer = ref(false)
+import QualityHealthCompositeScoreCard from './components/QualityHealthCompositeScoreCard.vue'
+const showHealthScoreDrawer = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value

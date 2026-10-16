@@ -72,6 +72,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   CloudServerOutlined: true,
   SecurityScanOutlined: true,
   DatabaseOutlined: true,
+  DashboardOutlined: true,
 }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
@@ -205,6 +206,9 @@ vi.mock('./components/SyntheticTestDataGeneratorCard.vue', () => ({
 }))
 vi.mock('./components/AutonomousApiFuzzingExplorerDrawer.vue', () => ({
   default: defineComponent({ name: 'AutonomousApiFuzzingExplorerDrawer', setup: () => () => h('div', 'autonomous-api-fuzzing-explorer-drawer') }),
+}))
+vi.mock('./components/QualityHealthCompositeScoreCard.vue', () => ({
+  default: defineComponent({ name: 'QualityHealthCompositeScoreCard', setup: () => () => h('div', 'quality-health-composite-score-card') }),
 }))
 
 const passthrough = (name: string) =>
