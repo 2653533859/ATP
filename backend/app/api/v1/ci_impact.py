@@ -58,6 +58,11 @@ from app.services.mutation_score_calculator import (
     get_mutation_score_report,
     list_mutation_score_reports,
 )
+from app.services.pr_quality_gatekeeper import (
+    evaluate_pr_quality_gate,
+    get_pr_gate_report,
+    list_pr_gate_reports,
+)
 
 router = APIRouter(prefix="/ci-impact", tags=["CI 代码变更影响面与精准测试"])
 
@@ -578,4 +583,66 @@ async def get_mutation_score_report_endpoint(
     report = get_mutation_score_report(score_id)
     if not report:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"变异得分报告不存在: {score_id}")
+    return report.to_dict()
+
+
+class EvaluatePrGateIn(BaseModel):
+    pr_id: str | int = Field(description="PR / MR 编号或标识")
+    commit_sha: str = Field(min_length=6, description="待合流的 Git Commit SHA")
+    author: str = Field(default="developer", description="PR 创建者")
+    target_branch: str = Field(default="main", description="目标合流分支")
+    test_pass_rate_pct: float = Field(default=100.0, ge=0.0, le=100.0, description="自动化测试用例通过率")
+    test_failed_cases_count: int = Field(default=0, ge=0, description="失败用例数")
+    risk_score: float = Field(default=20.0, ge=0.0, le=100.0, description="代码变更风险指数 (来自 S2.2)")
+    risk_level: str = Field(default="LOW", description="风险等级: CRITICAL | HIGH | MEDIUM | LOW")
+    mutation_score_pct: float | None = Field(default=80.0, ge=0.0, le=100.0, description="变异测试得分 (来自 S3.3)")
+    has_dual_approvals: bool = Field(default=False, description="针对 CRITICAL 极高危变更是否具备双人复核审批")
+    min_pass_rate_threshold: float = Field(default=100.0, ge=0.0, le=100.0, description="硬性通过率门禁阈值")
+    min_mutation_score_threshold: float = Field(default=70.0, ge=0.0, le=100.0, description="硬性变异得分门禁阈值")
+
+
+@router.post("/pr-gate/evaluate")
+async def evaluate_pr_gate_endpoint(
+    body: EvaluatePrGateIn,
+    _user: User = Depends(require_engineer),
+) -> dict[str, Any]:
+    """综合全要素质量指标仲裁 PR 是否满足合并准入条件 (需工程师权限)。"""
+    _ = _user
+    report = evaluate_pr_quality_gate(
+        pr_id=body.pr_id,
+        commit_sha=body.commit_sha,
+        author=body.author,
+        target_branch=body.target_branch,
+        test_pass_rate_pct=body.test_pass_rate_pct,
+        test_failed_cases_count=body.test_failed_cases_count,
+        risk_score=body.risk_score,
+        risk_level=body.risk_level,
+        mutation_score_pct=body.mutation_score_pct,
+        has_dual_approvals=body.has_dual_approvals,
+        min_pass_rate_threshold=body.min_pass_rate_threshold,
+        min_mutation_score_threshold=body.min_mutation_score_threshold,
+    )
+    return {"message": "PR 质量门禁准入裁决完成", "report": report.to_dict()}
+
+
+@router.get("/pr-gate/reports")
+async def list_pr_gate_reports_endpoint(
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """查询历史 PR 质量门禁准入报告列表。"""
+    _ = _user
+    reports = list_pr_gate_reports()
+    return {"total": len(reports), "reports": [r.to_dict() for r in reports]}
+
+
+@router.get("/pr-gate/reports/{gate_id}")
+async def get_pr_gate_report_endpoint(
+    gate_id: str,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """获取指定 PR 质量门禁准入报告详情。"""
+    _ = _user
+    report = get_pr_gate_report(gate_id)
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"门禁报告不存在: {gate_id}")
     return report.to_dict()

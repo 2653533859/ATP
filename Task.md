@@ -17,7 +17,7 @@
 - [x] 2026-10-16 S3.1 代码变更行一阶语法变异算子注入生成引擎：落地 code_mutation_operator_engine 服务与 /ci-impact/mutations/* API；支持 ROR 关系反转、LCR 逻辑替换、AOR 算术操作、RVO 返回值篡改与 BVO 边界偏移，限定变更行注入与 ast.unparse 代码重构；4 项单测独立通过，见 [`docs/evidence/code-mutation-operator-engine-s3-1-2026-10-16.md`](docs/evidence/code-mutation-operator-engine-s3-1-2026-10-16.md)。
 - [x] 2026-10-16 S3.2 变异体执行检验与捕获/存活状态判定执行器：落地 mutation_execution_runner 服务与 /ci-impact/mutations/execute/* API；在动态沙箱中驱动测试集检验变异体，精准判定 KILLED/SURVIVED/TIMED_OUT 状态，定位断言盲区；3 项单测独立通过，见 [`docs/evidence/mutation-execution-runner-s3-2-2026-10-16.md`](docs/evidence/mutation-execution-runner-s3-2-2026-10-16.md)。
 - [x] 2026-10-16 S3.3 用例断言有效性量化与变异得分计算器：落地 mutation_score_calculator 服务与 /ci-impact/mutations/score/* API；依据 Killed/Survived/TimedOut 统计量化变异得分与四级断言充分度，精准定位存活变异体并输出断言修复建议；4 项单测独立通过，见 [`docs/evidence/mutation-score-calculator-s3-3-2026-10-16.md`](docs/evidence/mutation-score-calculator-s3-3-2026-10-16.md)。至此 v3.6.0 Phase 3 全量大闭环！
-- [ ] S4.1 PR 代码变更全要素质量门禁与合并准入判定仲裁器（pr_quality_gatekeeper）
+- [x] 2026-10-16 S4.1 PR 代码变更全要素质量门禁与合并准入判定仲裁器：落地 pr_quality_gatekeeper 服务与 /ci-impact/pr-gate/* API；综合自动化测试通过率、变异测试得分、CRITICAL 极高危双人复核审批多维度裁定 MERGE_APPROVED/MERGE_BLOCKED/CONDITIONAL_PASS；6 项单测独立通过，见 [`docs/evidence/pr-quality-gatekeeper-s4-1-2026-10-16.md`](docs/evidence/pr-quality-gatekeeper-s4-1-2026-10-16.md)。
 - [ ] S4.2 GitHub / GitLab 交互式 PR Reviewer 评论与卡片广播机器人（pr_comment_bot_dispatcher）
 - [ ] S4.3 CI/CD 流水线 Checkpoint 检查点通用集成 CLI 与 OpenAPI（ci_pipeline_checkpoint_api）
 

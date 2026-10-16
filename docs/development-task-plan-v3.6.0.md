@@ -54,7 +54,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| S4.1 `[ ]` | **PR 代码变更全要素质量门禁与合并准入判定仲裁器** | S2.2, S3.3 | 落地 `pr_quality_gatekeeper` 服务与 `/ci-impact/pr-gate/*` API；综合测试通过率、变异得分、风险指数判定 PR 是否准入通过。 |
+| S4.1 `[x]` | **PR 代码变更全要素质量门禁与合并准入判定仲裁器** | S2.2, S3.3 | 落地 `pr_quality_gatekeeper` 服务与 `/ci-impact/pr-gate/*` API；综合测试通过率、变异得分、风险指数判定 PR 是否准入通过；见 docs/evidence/pr-quality-gatekeeper-s4-1-2026-10-16.md |
 | S4.2 `[ ]` | **GitHub / GitLab 交互式 PR Reviewer 评论与卡片广播机器人** | S4.1 | 落地 `pr_comment_bot_dispatcher` 服务与 `/ci-impact/pr-bot/*` API；自动向 Git PR 评论区渲染高颜值影响面图谱与执行摘要。 |
 | S4.3 `[ ]` | **CI/CD 流水线 Checkpoint 检查点通用集成 CLI 与 OpenAPI** | S4.1 | 落地 `ci_pipeline_checkpoint_api` 服务与 `/ci-impact/checkpoint/*` API；提供 CLI 工具与流水线状态返回，支持 Jenkins/GitHub Actions 阻断。 |
 
