@@ -51,6 +51,7 @@ vi.mock('ant-design-vue', () => ({
   message: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn() },
 }))
 vi.mock('@ant-design/icons-vue', () => ({
+  AimOutlined: true,
   AndroidOutlined: true,
   AppstoreOutlined: true,
   ClockCircleOutlined: true,

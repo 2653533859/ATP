@@ -56,6 +56,9 @@
         <a-button size="small" class="toolbar-btn" @click="showImageMatrix = true">
           <PictureOutlined /> 镜像版本矩阵
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showLocatorHealing = true">
+          <AimOutlined /> 选择器自愈
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openDevices">
           <ToolOutlined /> {{ t('app_workbench.device_management') }}
         </a-button>
@@ -377,6 +380,7 @@
     <AdaptiveTaskQueueDrawer v-model:open="showTaskQueue" />
     <CloudNativeWorkerManagerDrawer v-model:open="showCloudNativeWorkers" />
     <WorkerImageMatrixDrawer v-model:open="showImageMatrix" />
+    <SmartLocatorHealingDrawer v-model:open="showLocatorHealing" />
   </div>
 </template>
 
@@ -384,6 +388,7 @@
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import {
+  AimOutlined,
   AndroidOutlined,
   AppstoreOutlined,
   ClockCircleOutlined,
@@ -456,6 +461,8 @@ const showTaskQueue = ref(false)
 import CloudNativeWorkerManagerDrawer from './components/CloudNativeWorkerManagerDrawer.vue'
 const showCloudNativeWorkers = ref(false)
 import WorkerImageMatrixDrawer from './components/WorkerImageMatrixDrawer.vue'
+import SmartLocatorHealingDrawer from './components/SmartLocatorHealingDrawer.vue'
+const showLocatorHealing = ref(false)
 const showImageMatrix = ref(false)
 
 const projects = ref<ProjectItem[]>([])
