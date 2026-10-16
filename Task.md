@@ -9,7 +9,7 @@
 > v4.1.0 规划入口为 [`docs/development-task-plan-v4.1.0.md`](docs/development-task-plan-v4.1.0.md)，覆盖 UI1（分布式链路全息追踪、调用树与性能瓶颈火焰图控制台）、UI2（微服务分布式事务与跨系统数据最终一致性对账大盘）、UI3（自动化测试执行失败智能根因推导与缺陷工单指派控制台）、UI4（AI 驱动的用例脚本断言自愈与代码级自动修复补丁大盘）。
 
 - [x] 2026-10-16 UI1.1 OpenTelemetry Span 追踪中继与层级调用树展开抽屉：扩展 traceObservability API 客户端，落地 DistributedTraceSpanTreeDrawer 组件并集成至 ApiWorkbenchView；支持 W3C TraceContext 解析展示、父子层级深度树展开、状态过滤与耗时统计；单测独立通过，见 [`docs/evidence/distributed-trace-span-tree-drawer-ui1-1-2026-10-16.md`](docs/evidence/distributed-trace-span-tree-drawer-ui1-1-2026-10-16.md)。
-- [ ] 2026-10-16 UI1.2 跨服务关键路径分析与慢调用火焰图性能大盘：扩展 traceObservability API 客户端，落地 CriticalPathFlamegraphDashboardView 视图与路由；基于分层火焰图渲染关键路径高亮、独占耗时与首要瓶颈定位
+- [x] 2026-10-16 UI1.2 跨服务关键路径分析与慢调用火焰图性能大盘：扩展 traceObservability API 客户端，落地 CriticalPathFlamegraphDashboardView 视图与路由；基于分层火焰图渲染关键路径高亮、独占耗时与首要瓶颈定位；单测独立通过，见 [`docs/evidence/critical-path-flamegraph-dashboard-view-ui1-2-2026-10-16.md`](docs/evidence/critical-path-flamegraph-dashboard-view-ui1-2-2026-10-16.md)。
 - [ ] 2026-10-16 UI1.3 分布式调用链路异常波动与慢调用智能聚类诊断卡片：扩展 traceObservability API 客户端，落地 TraceAnomalySlowCallClusterCard 组件并集成至 ApiWorkbenchView；展示 5 大异常模式聚类簇、Z-score 偏离度标签、P95 耗时与加固建议
 - [ ] 2026-10-16 UI2.1 Sagas/TCC 分布式事务状态机流转与悬挂事务探测抽屉：扩展 distributedConsistency API 客户端，落地 SagaTransactionStateTrackerDrawer 组件并集成至 ApiWorkbenchView；可视化呈现 Try/Confirm/Cancel 分支流转与悬挂事务警报
 - [ ] 2026-10-16 UI2.2 跨微服务异构数据源最终一致性双向稽核对账大盘页面：扩展 distributedConsistency API 客户端，落地 CrossDbConsistencyAuditDashboardView 视图与路由；展示主键对齐比对表、对账达标率仪表环、差异分类与补偿修复 SQL 预览

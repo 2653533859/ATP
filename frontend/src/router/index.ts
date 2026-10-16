@@ -411,6 +411,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/trace-flamegraph',
+          name: 'critical-path-flamegraph-dashboard',
+          component: () => import('@/views/quality/CriticalPathFlamegraphDashboardView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),

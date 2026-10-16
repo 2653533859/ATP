@@ -25,7 +25,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI1.1 `[x]` | **OpenTelemetry Span 追踪中继与层级调用树展开抽屉** | `distributed_trace_telemetry_relay` | 落地 `DistributedTraceSpanTreeDrawer.vue` 组件与 API 客户端；支持 W3C TraceContext 解析展示、父子层级深度树展开、状态过滤与耗时统计；见 docs/evidence/distributed-trace-span-tree-drawer-ui1-1-2026-10-16.md |
-| UI1.2 `[ ]` | **跨服务关键路径分析与慢调用火焰图性能大盘** | `critical_path_flamegraph_profiler` | 落地 `CriticalPathFlamegraphDashboardView.vue` 视图与路由；基于 ECharts/自定义分层渲染火焰图、关键路径高亮与瓶颈归类。 |
+| UI1.2 `[x]` | **跨服务关键路径分析与慢调用火焰图性能大盘** | `critical_path_flamegraph_profiler` | 落地 `CriticalPathFlamegraphDashboardView.vue` 视图与路由；基于分层火焰图渲染关键路径高亮、独占耗时与首要瓶颈定位；见 docs/evidence/critical-path-flamegraph-dashboard-view-ui1-2-2026-10-16.md |
 | UI1.3 `[ ]` | **分布式调用链路异常波动与慢调用智能聚类诊断卡片** | `trace_anomaly_slow_call_clusterer` | 落地 `TraceAnomalySlowCallClusterCard.vue` 组件；展示 5 大异常模式聚类簇、Z-score 偏离度标签、P95 耗时与加固建议。 |
 
 ---

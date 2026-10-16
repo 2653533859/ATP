@@ -71,6 +71,7 @@ export interface CriticalPathProfileReport {
   critical_path_duration_ms: number
   critical_path_spans_count: number
   critical_path: CriticalPathSpanItem[]
+  primary_bottleneck: CriticalPathSpanItem | null
   flamegraph_root: TraceFlamegraphNodeItem
   diagnosis_summary: string
   profiled_at: string
