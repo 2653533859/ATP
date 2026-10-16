@@ -220,6 +220,65 @@ export interface CompareResponsesRequest {
   }
 }
 
+export type DriftAlertLevel = 'NORMAL' | 'WARNING' | 'CRITICAL'
+
+export interface GoldenBaselineItem {
+  baseline_id: string
+  endpoint: string
+  protocol: string
+  version_tag: string
+  description: string
+  golden_request_body: string
+  golden_response_status: number
+  golden_response_body: string
+  tolerance_threshold_pct: number
+  is_active: boolean
+  tags: Record<string, string>
+  created_at: string
+  updated_at: string
+}
+
+export interface BaselineVerificationResult {
+  verification_id: string
+  baseline_id: string
+  version_tag: string
+  endpoint: string
+  actual_status_code: number
+  similarity_score_pct: number
+  tolerance_threshold_pct: number
+  passed: boolean
+  diff_report_id: string
+  critical_diffs_count: number
+  warning_diffs_count: number
+  alert_level: DriftAlertLevel
+  summary: string
+  verified_at: string
+}
+
+export interface BatchVerificationReport {
+  batch_id: string
+  total_verified: number
+  passed_count: number
+  drifted_count: number
+  pass_rate_pct: number
+  results: BaselineVerificationResult[]
+  created_at: string
+}
+
+export interface CreateGoldenBaselineRequest {
+  endpoint: string
+  golden_response_body: any
+  golden_response_status?: number
+  golden_request_body?: string
+  protocol?: string
+  version_tag?: string
+  description?: string
+  tolerance_threshold_pct?: number
+  is_active?: boolean
+  baseline_id?: string
+  tags?: Record<string, string>
+}
+
 export const trafficCaptureApi = {
   getFilterConfig(): Promise<CaptureFilterConfig> {
     return http.get('/traffic/capture/config')
@@ -343,5 +402,39 @@ export const trafficDiffApi = {
 
   clearReports(): Promise<{ message: string; deleted_count: number }> {
     return http.delete('/traffic/diff/reports')
+  },
+}
+
+export const goldenBaselineApi = {
+  createBaseline(data: CreateGoldenBaselineRequest): Promise<{ message: string; baseline: GoldenBaselineItem }> {
+    return http.post('/traffic/golden-baselines', data)
+  },
+
+  listBaselines(params?: { endpoint?: string; version_tag?: string; is_active?: boolean }): Promise<{ total: number; baselines: GoldenBaselineItem[] }> {
+    return http.get('/traffic/golden-baselines', { params })
+  },
+
+  getBaseline(baselineId: string): Promise<GoldenBaselineItem> {
+    return http.get(`/traffic/golden-baselines/${baselineId}`)
+  },
+
+  deleteBaseline(baselineId: string): Promise<{ message: string; baseline_id: string }> {
+    return http.delete(`/traffic/golden-baselines/${baselineId}`)
+  },
+
+  verifySingle(data: { baseline_id: string; actual_response_body: any; actual_status_code?: number; custom_tolerance_pct?: number }): Promise<{ message: string; result: BaselineVerificationResult }> {
+    return http.post('/traffic/golden-baselines/verify', data)
+  },
+
+  batchVerify(data: { items: any[]; default_version_tag?: string }): Promise<{ message: string; report: BatchVerificationReport }> {
+    return http.post('/traffic/golden-baselines/batch-verify', data)
+  },
+
+  listBatchReports(): Promise<{ total: number; reports: BatchVerificationReport[] }> {
+    return http.get('/traffic/golden-baselines/batch-reports')
+  },
+
+  getBatchReport(batchId: string): Promise<BatchVerificationReport> {
+    return http.get(`/traffic/golden-baselines/batch-reports/${batchId}`)
   },
 }
