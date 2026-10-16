@@ -42,6 +42,12 @@ from app.services.flaky_test_suppression_filter import (
     list_flaky_filter_reports,
     register_flaky_governance_override,
 )
+from app.services.code_mutation_operator_engine import (
+    generate_code_mutants,
+    get_mutant_by_id,
+    get_mutation_report,
+    list_mutation_reports,
+)
 
 router = APIRouter(prefix="/ci-impact", tags=["CI 代码变更影响面与精准测试"])
 
@@ -419,3 +425,62 @@ async def set_governance_override_endpoint(
         ticket_id=body.ticket_id,
     )
     return {"message": f"用例 #{body.case_id} 治理覆盖策略已生效", "case_id": body.case_id, "action": action_enum.value}
+
+
+class GenerateMutantsIn(BaseModel):
+    source_code: str = Field(min_length=1, description="待注入变异的 Python 源码")
+    file_path: str = Field(default="main.py", description="文件相对路径")
+    target_lines: list[int] | None = Field(default=None, description="限定注入变异的代码行号列表")
+    max_mutants: int = Field(default=25, ge=1, le=100, description="最大生成变异体数量上限")
+
+
+@router.post("/mutations/generate")
+async def generate_mutants_endpoint(
+    body: GenerateMutantsIn,
+    _user: User = Depends(require_engineer),
+) -> dict[str, Any]:
+    """在指定代码行安全生成一阶语法变异体 (需工程师权限)。"""
+    _ = _user
+    report = generate_code_mutants(
+        source_code=body.source_code,
+        file_path=body.file_path,
+        target_lines=body.target_lines,
+        max_mutants=body.max_mutants,
+    )
+    return {"message": "一阶代码语法变异体生成完成", "report": report.to_dict()}
+
+
+@router.get("/mutations/reports")
+async def list_mutation_reports_endpoint(
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """查询历史变异体生成报告列表。"""
+    _ = _user
+    reports = list_mutation_reports()
+    return {"total": len(reports), "reports": [r.to_dict() for r in reports]}
+
+
+@router.get("/mutations/reports/{generation_id}")
+async def get_mutation_report_endpoint(
+    generation_id: str,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """获取指定变异体生成报告详情。"""
+    _ = _user
+    report = get_mutation_report(generation_id)
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"变异体报告不存在: {generation_id}")
+    return report.to_dict()
+
+
+@router.get("/mutations/{mutant_id}")
+async def get_mutant_endpoint(
+    mutant_id: str,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """获取指定变异体代码与差异明细。"""
+    _ = _user
+    mutant = get_mutant_by_id(mutant_id)
+    if not mutant:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"变异体不存在: {mutant_id}")
+    return mutant.to_dict()
