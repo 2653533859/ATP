@@ -3761,3 +3761,4 @@ export const knowledgeApi = {
 }
 export * from './mobilePerf'
 export * from './webVitals'
+export * from './distributedTraces'

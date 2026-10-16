@@ -42,6 +42,7 @@ vi.mock('ant-design-vue', () => ({
 }))
 vi.mock('@ant-design/icons-vue', () => ({
   AimOutlined: true,
+  ApartmentOutlined: true,
   CheckCircleOutlined: true,
   BranchesOutlined: true,
   CodeSandboxOutlined: true,
@@ -95,6 +96,9 @@ vi.mock('./components/CrossProtocolSessionBusPanel.vue', () => ({
 }))
 vi.mock('./components/FlexibleSchemaAssertionDebugger.vue', () => ({
   default: defineComponent({ name: 'FlexibleSchemaAssertionDebugger', setup: () => () => h('div', 'flexible-schema-assertion') }),
+}))
+vi.mock('./components/DistributedTraceFlamegraphViewer.vue', () => ({
+  default: defineComponent({ name: 'DistributedTraceFlamegraphViewer', setup: () => () => h('div', 'distributed-trace-flamegraph') }),
 }))
 
 const passthrough = (name: string) =>
