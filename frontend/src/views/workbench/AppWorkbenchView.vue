@@ -53,6 +53,9 @@
         <a-button size="small" class="toolbar-btn" @click="showCloudNativeWorkers = true">
           <CloudServerOutlined /> 云原生 Pod 调度
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showImageMatrix = true">
+          <PictureOutlined /> 镜像版本矩阵
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openDevices">
           <ToolOutlined /> {{ t('app_workbench.device_management') }}
         </a-button>
@@ -373,6 +376,7 @@
     <ClusterWorkerMonitorDrawer v-model:open="showClusterMonitor" />
     <AdaptiveTaskQueueDrawer v-model:open="showTaskQueue" />
     <CloudNativeWorkerManagerDrawer v-model:open="showCloudNativeWorkers" />
+    <WorkerImageMatrixDrawer v-model:open="showImageMatrix" />
   </div>
 </template>
 
@@ -387,6 +391,7 @@ import {
   ClusterOutlined,
   EditOutlined,
   EyeOutlined,
+  PictureOutlined,
   MobileOutlined,
   PlayCircleOutlined,
   PlusOutlined,
@@ -450,6 +455,8 @@ import AdaptiveTaskQueueDrawer from './components/AdaptiveTaskQueueDrawer.vue'
 const showTaskQueue = ref(false)
 import CloudNativeWorkerManagerDrawer from './components/CloudNativeWorkerManagerDrawer.vue'
 const showCloudNativeWorkers = ref(false)
+import WorkerImageMatrixDrawer from './components/WorkerImageMatrixDrawer.vue'
+const showImageMatrix = ref(false)
 
 const projects = ref<ProjectItem[]>([])
 const selectedProjectId = ref<number | null>(positiveInt(route.query.project_id))

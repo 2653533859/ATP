@@ -10,7 +10,7 @@
 
 - [x] 2026-10-16 UI1.1 云原生弹性 Worker 容器 Pod 调度与配额管理抽屉：创建 cloudNativeWorkers API 客户端，落地 CloudNativeWorkerManagerDrawer 组件；支持 K8s/Docker 运行时选择、CPU/内存配额管控、运行水位 KPI、日志查看与优雅下线；挂载至 AppWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/cloud-native-worker-manager-drawer-ui1-1-2026-10-16.md`](docs/evidence/cloud-native-worker-manager-drawer-ui1-1-2026-10-16.md)。
 - [x] 2026-10-16 UI1.2 队列背压自适应 HPA 自动扩缩容策略与决策看板：扩展 cloudNativeWorkers API（hpaAutoscalingApi），落地 HpaAutoscalingDashboardCard 组件；展示队列积压深度、时延 SLO 惩罚计算、目标副本调节与一键扩缩容应用；内嵌集成至 CloudNativeWorkerManagerDrawer；单测独立通过，见 [`docs/evidence/hpa-autoscaling-dashboard-card-ui1-2-2026-10-16.md`](docs/evidence/hpa-autoscaling-dashboard-card-ui1-2-2026-10-16.md)。
-- [ ] UI1.3 容器执行环境镜像版本矩阵与标签路由解析抽屉（WorkerImageMatrixDrawer.vue）
+- [x] 2026-10-16 UI1.3 容器执行环境镜像版本矩阵与标签路由解析抽屉：扩展 cloudNativeWorkers API（workerImageMatrixApi），落地 WorkerImageMatrixDrawer 组件；展示多版本镜像矩阵、加权标签路由推演打分与平滑兜底回退；挂载至 AppWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/worker-image-matrix-drawer-ui1-3-2026-10-16.md`](docs/evidence/worker-image-matrix-drawer-ui1-3-2026-10-16.md)。至此 v3.5.0 Phase 1 全量大闭环！
 - [ ] UI2.1 失效选择器 DOM/UI 树多模态自愈推导抽屉（SmartLocatorHealingDrawer.vue）
 - [ ] UI2.2 接口响应 Schema 动态漂移自适应修正与柔性断言调试器（FlexibleSchemaAssertionDebugger.vue）
 - [ ] UI2.3 异常故障簇智能聚合看板与自愈执行流水审计面板（HealingAuditTrailPanel.vue）

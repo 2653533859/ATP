@@ -100,6 +100,52 @@ export interface ApplyHpaScalingRequest {
   target_queue?: string
 }
 
+export type ImageCategory = 'python' | 'nodejs' | 'android_sdk' | 'browser' | 'performance' | 'generic'
+
+export interface WorkerImageItem {
+  image_id: string
+  name: string
+  image_url: string
+  category: ImageCategory
+  tags: string[]
+  is_default: boolean
+  weight: number
+  min_cpu_cores: number
+  min_memory_mb: number
+  created_at: string
+  metadata?: Record<string, any>
+}
+
+export interface RegisterWorkerImageRequest {
+  image_id: string
+  name: string
+  image_url: string
+  category?: ImageCategory
+  tags?: string[]
+  is_default?: boolean
+  weight?: number
+  min_cpu_cores?: number
+  min_memory_mb?: number
+  metadata?: Record<string, any>
+}
+
+export interface ResolveWorkerImageRequest {
+  required_tags: string[]
+  category?: string
+  available_cpu_cores?: number
+  available_memory_mb?: number
+}
+
+export interface ImageRouteMatchResult {
+  matched: boolean
+  selected_image: WorkerImageItem
+  match_score: number
+  matched_tags: string[]
+  unmatched_tags: string[]
+  is_fallback: boolean
+  reason: string
+}
+
 export const cloudNativeWorkersApi = {
   provisionPod(data: ProvisionPodRequest): Promise<{ message: string; pod: EphemeralWorkerPodItem }> {
     return http.post('/cloud-native/workers/provision', data)
@@ -147,5 +193,27 @@ export const hpaAutoscalingApi = {
 
   listHistory(policyId?: string): Promise<{ total: number; history: HpaEvaluationDecisionItem[] }> {
     return http.get('/cloud-native/autoscaling/history', { params: { policy_id: policyId } })
+  },
+}
+
+export const workerImageMatrixApi = {
+  registerImage(data: RegisterWorkerImageRequest): Promise<{ message: string; image: WorkerImageItem }> {
+    return http.post('/cloud-native/images/register', data)
+  },
+
+  listImages(category?: string): Promise<{ total: number; images: WorkerImageItem[] }> {
+    return http.get('/cloud-native/images', { params: { category } })
+  },
+
+  getImage(imageId: string): Promise<WorkerImageItem> {
+    return http.get(`/cloud-native/images/${imageId}`)
+  },
+
+  deleteImage(imageId: string): Promise<{ message: string }> {
+    return http.delete(`/cloud-native/images/${imageId}`)
+  },
+
+  resolveImage(data: ResolveWorkerImageRequest): Promise<ImageRouteMatchResult> {
+    return http.post('/cloud-native/images/resolve', data)
   },
 }

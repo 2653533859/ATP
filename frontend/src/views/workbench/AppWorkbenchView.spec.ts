@@ -62,6 +62,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   LeftOutlined: true,
   MinusOutlined: true,
   MobileOutlined: true,
+  PictureOutlined: true,
   PlayCircleOutlined: true,
   PlusOutlined: true,
   PoweroffOutlined: true,
