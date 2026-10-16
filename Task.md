@@ -9,7 +9,7 @@
 > v4.6.0 规划入口为 [`docs/development-task-plan-v4.6.0.md`](docs/development-task-plan-v4.6.0.md)，覆盖 Phase 1（生产级全链路影子流量染色、透传与数据隔离引擎）、Phase 2（单元化/细胞化架构测试隔离 Cell-based Testing 与拓扑调度）、Phase 3（压测容量水位实时度量、下游瓶颈智能归因与防雪崩熔断器）、Phase 4（全链路压测仿真数字孪生演练报告与演练准入发布）。
 
 - [x] 2026-10-17 T1.1 跨协议影子流量染色标动态注入与透明透传校验器：落地 `shadow_traffic_taint_propagator` 服务与 `/stress/shadow-traffic/taint/*` API；支持 HTTP Header (`X-ATP-Shadow: true`)、gRPC Metadata 与 MQ Message Header 染色注入与端到端透传闭环；单测独立通过，见 [`docs/evidence/shadow-traffic-taint-propagator-t1-1-2026-10-17.md`](docs/evidence/shadow-traffic-taint-propagator-t1-1-2026-10-17.md)。
-- [ ] 2026-10-17 T1.2 影子数据库/影子表路由拦截与读写防污染安全隔离检查器：落地 `shadow_database_isolation_inspector` 服务与 `/stress/shadow-traffic/db-isolation/*` API；校验影子表命名规范与动态路由切换，严密拦截压测脏数据渗入生产真实表；单测独立通过。
+- [x] 2026-10-17 T1.2 影子数据库/影子表路由拦截与读写防污染安全隔离检查器：落地 `shadow_database_isolation_inspector` 服务与 `/stress/shadow-traffic/db-isolation/*` API；校验影子表命名规范与动态路由切换，严密拦截压测脏数据渗入生产真实表；单测独立通过，见 [`docs/evidence/shadow-database-isolation-inspector-t1-2-2026-10-17.md`](docs/evidence/shadow-database-isolation-inspector-t1-2-2026-10-17.md)。
 - [ ] 2026-10-17 T1.3 消息队列影子队列与死信重试分流隔离分流器：落地 `shadow_mq_queue_router` 服务与 `/stress/shadow-traffic/mq-shunting/*` API；自动重定向影子消息至 Shadow Topic，隔离消费与死信队列避免触发真实短信/第三方充值；单测独立通过。
 - [ ] 2026-10-17 T2.1 多可用区单元化 (Cell/Zone) 流量切流与路由策略控制器：落地 `cell_based_testing_traffic_controller` 服务与 `/stress/cell-isolation/routing/*` API；支持多单元流量动态权重视流、灰度引流与压测单元受控隔离；单测独立通过。
 - [ ] 2026-10-17 T2.2 跨单元服务依赖逃逸 (Cell Escape) 与拓扑孤岛检测器：落地 `cell_escape_dependency_detector` 服务与 `/stress/cell-isolation/escape/*` API；自动探查流量跨越单元物理边界访问非隔离共享资源的越界泄漏隐患；单测独立通过。

@@ -25,7 +25,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T1.1 `[x]` | **跨协议影子流量染色标动态注入与透明透传校验器** | `shadow_traffic_taint_propagator` | 落地 `shadow_traffic_taint_propagator` 服务与 `/stress/shadow-traffic/taint/*` API；支持 HTTP Header (`X-ATP-Shadow: true`)、gRPC Metadata 与 MQ Message Header 染色注入与端到端透传闭环；单测独立通过；见 docs/evidence/shadow-traffic-taint-propagator-t1-1-2026-10-17.md |
-| T1.2 `[ ]` | **影子数据库/影子表路由拦截与读写防污染安全隔离检查器** | `shadow_database_isolation_inspector` | 落地 `shadow_database_isolation_inspector` 服务与 `/stress/shadow-traffic/db-isolation/*` API；校验影子表命名规范与动态路由切换，严密拦截压测脏数据渗入生产真实表；单测独立通过。 |
+| T1.2 `[x]` | **影子数据库/影子表路由拦截与读写防污染安全隔离检查器** | `shadow_database_isolation_inspector` | 落地 `shadow_database_isolation_inspector` 服务与 `/stress/shadow-traffic/db-isolation/*` API；校验影子表命名规范与动态路由切换，严密拦截压测脏数据渗入生产真实表；单测独立通过；见 docs/evidence/shadow-database-isolation-inspector-t1-2-2026-10-17.md |
 | T1.3 `[ ]` | **消息队列影子队列与死信重试分流隔离分流器** | `shadow_mq_queue_router` | 落地 `shadow_mq_queue_router` 服务与 `/stress/shadow-traffic/mq-shunting/*` API；自动重定向影子消息至 Shadow Topic，隔离消费与死信队列避免触发真实短信/第三方充值；单测独立通过。 |
 
 ---
