@@ -82,6 +82,7 @@ from app.api.v1 import (
     diagnostics_traces,
     reporting_exports,
     reporting_notifications,
+    reporting_dora,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -169,3 +170,4 @@ router.include_router(diagnostics_web_vitals.router)
 router.include_router(diagnostics_traces.router)
 router.include_router(reporting_exports.router)
 router.include_router(reporting_notifications.router)
+router.include_router(reporting_dora.router)

@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-16 v3.4.0 研发任务规划（进行中）
+## 2026-10-16 v3.4.0 研发任务规划（已全量闭环）
 
 > v3.4.0 规划入口为 [`docs/development-task-plan-v3.4.0.md`](docs/development-task-plan-v3.4.0.md)，覆盖 D1（云原生动态容器化弹性 Worker 调度与生命周期编排）、D2（AI 驱动的测试用例自动化自愈与智能断言引擎）、D3（多端原生性能剖析与深度质量诊断分析）、D4（企业级测试报告归档与多渠道告警协同中心）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-16 D3.3 接口服务全链路分布式追踪 TraceID 贯通与慢调用火焰图分析：落地 distributed_trace_flamegraph 服务与 /diagnostics/traces/* API；实现多级 Span 树构建、独占耗时 (Self-Time) 递归计算、慢调用智能提取与标准火焰图数据格式生成；4 项单测独立通过，见 [`docs/evidence/distributed-trace-flamegraph-d3-3-2026-10-16.md`](docs/evidence/distributed-trace-flamegraph-d3-3-2026-10-16.md)。至此 v3.4.0 Phase 3 全量大闭环！
 - [x] 2026-10-16 D4.1 测试报告多模态聚合打包导出：落地 report_bundler_exporter 服务与 /reporting/exports/* API；支持独立 HTML5 离线单文件报告、Excel/CSV 详报、合规质检 PDF 与全模态 ZIP 压缩打包生成及流式下载；5 项单测独立通过，见 [`docs/evidence/report-bundler-exporter-d4-1-2026-10-16.md`](docs/evidence/report-bundler-exporter-d4-1-2026-10-16.md)。
 - [x] 2026-10-16 D4.2 企业微信 / 钉钉 / 飞书富文本交互式卡片 Webhook 智能投递：落地 notification_hub_dispatcher 服务与 /reporting/notifications/* API；实现企微 template_card、钉钉 actionCard、飞书 interactive 卡片多协议组装、Webhook 密钥脱敏与多通道广播审计；4 项单测独立通过，见 [`docs/evidence/notification-hub-dispatcher-d4-2-2026-10-16.md`](docs/evidence/notification-hub-dispatcher-d4-2-2026-10-16.md)。
-- [ ] D4.3 测试执行准时率与团队研发效能 DORA 指标量化分析（dora_metrics_calculator）
+- [x] 2026-10-16 D4.3 测试执行准时率与团队研发效能 DORA 指标量化分析：落地 dora_metrics_calculator 服务与 /reporting/dora/* API；实现四维 DORA 效能度量（部署频率、变更前置时间、失败率、恢复时长 MTTR）、测试准时率计算与团队成熟度评级；3 项单测独立通过，见 [`docs/evidence/dora-metrics-calculator-d4-3-2026-10-16.md`](docs/evidence/dora-metrics-calculator-d4-3-2026-10-16.md)。至此 v3.4.0 Phase 4 乃至全版本 12 项重大任务 100% 全量大圆满闭环！
 
 ## 2026-10-16 v3.3.0 研发任务规划（已全量闭环）
 

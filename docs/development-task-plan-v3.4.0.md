@@ -56,7 +56,7 @@
 |---|---|---|---|
 | D4.1 `[x]` | **测试报告多模态聚合打包导出 (PDF / HTML5 / Excel 详报)** | report_bundler | 落地 `report_bundler_exporter` 服务与 `/api/v1/reporting/exports/*` API；支持结构化数据组装与多格式归档文件生成；见 docs/evidence/report-bundler-exporter-d4-1-2026-10-16.md |
 | D4.2 `[x]` | **企业微信 / 钉钉 / 飞书富文本交互式卡片 Webhook 智能投递** | webhook_dispatcher | 落地 `notification_hub_dispatcher` 服务与 `/api/v1/reporting/notifications/*` API；支持多渠道模板组装、限流重试与发送状态审计；见 docs/evidence/notification-hub-dispatcher-d4-2-2026-10-16.md |
-| D4.3 `[ ]` | **测试执行准时率与团队研发效能 DORA 指标量化分析** | dora_calculator | 落地 `dora_metrics_calculator` 服务与 `/api/v1/reporting/dora/*` API；量化部署频率、变更失败率、MTTR 与前置交付时间四维效能指标。 |
+| D4.3 `[x]` | **测试执行准时率与团队研发效能 DORA 指标量化分析** | dora_calculator | 落地 `dora_metrics_calculator` 服务与 `/api/v1/reporting/dora/*` API；量化部署频率、变更失败率、MTTR 与前置交付时间四维效能指标；见 docs/evidence/dora-metrics-calculator-d4-3-2026-10-16.md |
 
 ---
 
