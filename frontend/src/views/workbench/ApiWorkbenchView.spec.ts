@@ -224,6 +224,9 @@ vi.mock('./components/VisualGoldenBaselineEvolutionPanel.vue', () => ({
 vi.mock('./components/VLMVisualSemanticAssertionDrawer.vue', () => ({
   default: defineComponent({ name: 'VLMVisualSemanticAssertionDrawer', setup: () => () => h('div', 'vlm-visual-semantic-assertion-drawer') }),
 }))
+vi.mock('./components/UILayoutCollisionDetectorCard.vue', () => ({
+  default: defineComponent({ name: 'UILayoutCollisionDetectorCard', setup: () => () => h('div', 'ui-layout-collision-detector-card') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

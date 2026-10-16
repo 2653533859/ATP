@@ -155,6 +155,9 @@
         <a-button size="small" class="toolbar-btn" @click="showVlmDrawer = true">
           <RobotOutlined /> VLM 语义断言
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showLayoutCard = true">
+          <ApartmentOutlined /> 布局碰撞检测
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -626,6 +629,7 @@
     <VisualPixelDiffInspectorDrawer v-model:open="showVisualDiffDrawer" />
     <VisualGoldenBaselineEvolutionPanel v-model:open="showBaselinePanel" />
     <VLMVisualSemanticAssertionDrawer v-model:open="showVlmDrawer" />
+    <UILayoutCollisionDetectorCard v-model:open="showLayoutCard" />
   </div>
 </template>
 
@@ -766,6 +770,8 @@ import VisualGoldenBaselineEvolutionPanel from './components/VisualGoldenBaselin
 const showBaselinePanel = ref(false)
 import VLMVisualSemanticAssertionDrawer from './components/VLMVisualSemanticAssertionDrawer.vue'
 const showVlmDrawer = ref(false)
+import UILayoutCollisionDetectorCard from './components/UILayoutCollisionDetectorCard.vue'
+const showLayoutCard = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value

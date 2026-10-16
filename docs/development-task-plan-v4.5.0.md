@@ -35,7 +35,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI2.1 `[x]` | **基于视觉大模型 (VLM) 的 UI 页面语义完整性推导断言配置抽屉** | `vlm_ui_semantic_assertion_reasoner` | 落地 `VLMVisualSemanticAssertionDrawer.vue` 组件与 API 客户端；展示白屏检测、断图检测、自然语言断言配置卡片、视觉语义综合得分雷达图；单测独立通过；见 docs/evidence/vlm-visual-semantic-assertion-drawer-ui2-1-2026-10-17.md |
-| UI2.2 `[ ]` | **跨视口文本截断、元素重叠碰撞与横向溢出检测卡片** | `ui_layout_overflow_collision_detector` | 落地 `UILayoutCollisionDetectorCard.vue` 组件与 API 客户端；展示空间 AABB 碰撞交叠区域高亮、文本截断省略告警、移动端横向滚动条溢出标注、修复 CSS 快捷复制；单测独立通过。 |
+| UI2.2 `[x]` | **跨视口文本截断、元素重叠碰撞与横向溢出检测卡片** | `ui_layout_overflow_collision_detector` | 落地 `UILayoutCollisionDetectorCard.vue` 组件与 API 客户端；展示空间 AABB 碰撞交叠区域高亮、文本截断省略告警、移动端横向滚动条溢出标注、修复 CSS 快捷复制；单测独立通过；见 docs/evidence/ui-layout-collision-detector-card-ui2-2-2026-10-17.md |
 | UI2.3 `[ ]` | **品牌设计系统 (Design System Token) 与色彩对比度合规审查抽屉** | `design_system_token_contrast_checker` | 落地 `DesignSystemTokenAuditDrawer.vue` 组件与 API 客户端；展示字号/间距/圆角偏离标准 Token 散点图、前背景色 WCAG AA (4.5:1) 对比度指示器、标准 Token 智能对齐建议；单测独立通过。 |
 
 ---
