@@ -345,6 +345,69 @@ export interface ContractDriftEvaluationReport {
   evaluated_at: string
 }
 
+export type BlastRadiusLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+export type ImpactTier = 'DIRECT' | 'TRANSITIVE'
+
+export interface ServiceNodeItem {
+  service_id: string
+  service_name: string
+  owner: string
+  notification_webhook?: string | null
+  is_critical_asset: boolean
+}
+
+export interface ServiceDependencyEdgeItem {
+  consumer_service_id: string
+  producer_service_id: string
+  endpoint: string
+  consumed_fields: string[]
+  call_frequency: string
+}
+
+export interface ImpactedServiceItem {
+  service_id: string
+  service_name: string
+  owner: string
+  impact_tier: ImpactTier
+  cascade_depth: number
+  hit_broken_fields: string[]
+  is_critical_asset: boolean
+  remediation_advice: string
+}
+
+export interface AlertDispatchRecord {
+  alert_id: string
+  target_service_id: string
+  recipient: string
+  endpoint: string
+  alert_channel: string
+  status: string
+  dispatched_at: string
+}
+
+export interface CascadeImpactAnalysisReport {
+  analysis_id: string
+  endpoint: string
+  producer_service: string
+  broken_fields: string[]
+  blast_radius_score: number
+  blast_radius_level: BlastRadiusLevel
+  total_impacted_services: number
+  direct_services_count: number
+  transitive_services_count: number
+  impacted_services: ImpactedServiceItem[]
+  dispatched_alerts: AlertDispatchRecord[]
+  verdict_summary: string
+  created_at: string
+}
+
+export interface ServiceTopologyResponse {
+  services_count: number
+  dependencies_count: number
+  nodes: ServiceNodeItem[]
+  edges: ServiceDependencyEdgeItem[]
+}
+
 export const trafficCaptureApi = {
   getFilterConfig(): Promise<CaptureFilterConfig> {
     return http.get('/traffic/capture/config')
@@ -557,5 +620,40 @@ export const contractBreakingApi = {
 
   clearReports(): Promise<{ message: string; deleted_count: number }> {
     return http.delete('/contract-guard/evaluate/reports')
+  },
+}
+
+export const contractTopologyApi = {
+  getTopology(): Promise<ServiceTopologyResponse> {
+    return http.get('/contract-guard/impact-topology/topology')
+  },
+
+  analyzeImpact(data: {
+    endpoint: string
+    broken_fields: string[]
+    producer_service_id?: string
+    dispatch_alerts?: boolean
+  }): Promise<{ message: string; report: CascadeImpactAnalysisReport }> {
+    return http.post('/contract-guard/impact-topology/analyze', data)
+  },
+
+  listReports(): Promise<{ total: number; reports: CascadeImpactAnalysisReport[] }> {
+    return http.get('/contract-guard/impact-topology/reports')
+  },
+
+  getReport(analysisId: string): Promise<CascadeImpactAnalysisReport> {
+    return http.get(`/contract-guard/impact-topology/reports/${analysisId}`)
+  },
+
+  registerService(data: ServiceNodeItem): Promise<{ message: string; service: ServiceNodeItem }> {
+    return http.post('/contract-guard/impact-topology/services', data)
+  },
+
+  registerDependency(data: ServiceDependencyEdgeItem): Promise<{ message: string; dependency: ServiceDependencyEdgeItem }> {
+    return http.post('/contract-guard/impact-topology/dependencies', data)
+  },
+
+  clearTopology(): Promise<{ message: string }> {
+    return http.delete('/contract-guard/impact-topology/topology')
   },
 }

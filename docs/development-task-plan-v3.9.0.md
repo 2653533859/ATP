@@ -46,7 +46,7 @@
 |---|---|---|---|
 | UI3.1 `[x]` | **生产流量 OpenAPI 3.0 / Protobuf 3 动态逆向推导与代码预览抽屉** | `live_contract_schema_extractor` | 落地 `LiveContractSchemaExtractorDrawer.vue` 组件与 API 客户端；展示多样本归纳推导的必填项、枚举、OpenAPI JSON 树与 Protobuf IDL 代码高亮及一键复制；见 docs/evidence/live-contract-schema-extractor-drawer-ui3-1-2026-10-16.md |
 | UI3.2 `[x]` | **接口契约非对称破坏性变更 Breaking 评级仲裁卡片** | `contract_drift_breaking_evaluator` | 落地 `ContractDriftBreakingEvaluatorCard.vue` 组件与 API 客户端；展示双向非对称破坏性规则比对（请求新增必填/响应删除字段判定为 BREAKING）、兼容性得分与阻断行动项；见 docs/evidence/contract-drift-breaking-evaluator-card-ui3-2-2026-10-16.md |
-| UI3.3 `[ ]` | **契约漂移微服务级联依赖拓扑图谱与爆炸半径告警大盘** | `contract_drift_impact_topology_router` | 落地 `ContractDriftImpactTopologyView.vue` 视图与路由；基于 ECharts 关系拓扑图呈现微服务节点、消费字段碰撞、多跳级联波及服务与爆炸半径告警。 |
+| UI3.3 `[x]` | **契约漂移微服务级联依赖拓扑图谱与爆炸半径告警大盘** | `contract_drift_impact_topology_router` | 落地 `ContractDriftImpactTopologyView.vue` 视图与路由；基于 ECharts 关系拓扑图呈现微服务节点、消费字段碰撞、多跳级联波及服务与爆炸半径告警；见 docs/evidence/contract-drift-impact-topology-view-ui3-3-2026-10-16.md |
 
 ---
 

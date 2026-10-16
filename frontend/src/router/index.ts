@@ -399,6 +399,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/contract-drift-topology',
+          name: 'contract-drift-impact-topology',
+          component: () => import('@/views/quality/ContractDriftImpactTopologyView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),
