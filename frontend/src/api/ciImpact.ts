@@ -230,6 +230,38 @@ export interface GovernanceOverrideRequest {
   ticket_id?: string | null
 }
 
+export type MutationOperatorType = 'ROR' | 'LCR' | 'AOR' | 'RVO' | 'BVO'
+
+export interface MutantItem {
+  mutant_id: string
+  file_path: string
+  line_number: number
+  operator_type: MutationOperatorType
+  original_token: string
+  mutated_token: string
+  original_line: string
+  mutated_line: string
+  mutated_code: string
+  description: string
+}
+
+export interface MutationGenerationReport {
+  generation_id: string
+  file_path: string
+  total_mutants_generated: number
+  operator_distribution: Record<string, number>
+  target_lines_count: number
+  mutants: MutantItem[]
+  created_at: string
+}
+
+export interface GenerateMutantsRequest {
+  source_code: string
+  file_path?: string
+  target_lines?: number[]
+  max_mutants?: number
+}
+
 export const ciImpactApi = {
   analyzeDiffAst(data: AnalyzeDiffAstRequest): Promise<{ message: string; report: DiffAstAnalysisReportItem }> {
     return http.post('/ci-impact/diff-ast/analyze', data)
@@ -305,5 +337,21 @@ export const ciImpactApi = {
 
   setGovernanceOverride(data: GovernanceOverrideRequest): Promise<{ message: string; case_id: number; action: string }> {
     return http.post('/ci-impact/flaky-filter/governance/override', data)
+  },
+
+  generateMutants(data: GenerateMutantsRequest): Promise<{ message: string; report: MutationGenerationReport }> {
+    return http.post('/ci-impact/mutations/generate', data)
+  },
+
+  listMutationReports(): Promise<{ total: number; reports: MutationGenerationReport[] }> {
+    return http.get('/ci-impact/mutations/reports')
+  },
+
+  getMutationReport(generationId: string): Promise<MutationGenerationReport> {
+    return http.get(`/ci-impact/mutations/reports/${generationId}`)
+  },
+
+  getMutant(mutantId: string): Promise<MutantItem> {
+    return http.get(`/ci-impact/mutations/${mutantId}`)
   },
 }

@@ -107,6 +107,9 @@ vi.mock('./components/GitDiffAstViewerDrawer.vue', () => ({
 vi.mock('./components/SmartTestSelectionWorkbenchCard.vue', () => ({
   default: defineComponent({ name: 'SmartTestSelectionWorkbenchCard', setup: () => () => h('div', 'smart-test-selection-card') }),
 }))
+vi.mock('./components/CodeMutationOperatorGeneratorModal.vue', () => ({
+  default: defineComponent({ name: 'CodeMutationOperatorGeneratorModal', setup: () => () => h('div', 'code-mutation-operator-generator-modal') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
