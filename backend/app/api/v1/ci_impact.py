@@ -70,6 +70,11 @@ from app.services.pr_comment_bot_dispatcher import (
     get_pr_comment,
     list_pr_comments,
 )
+from app.services.ci_pipeline_checkpoint_api import (
+    execute_ci_pipeline_checkpoint,
+    get_checkpoint_report,
+    list_checkpoint_reports,
+)
 
 router = APIRouter(prefix="/ci-impact", tags=["CI 代码变更影响面与精准测试"])
 
@@ -729,3 +734,70 @@ async def get_pr_comment_endpoint(
     if not comment:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"评论记录不存在: {comment_id}")
     return comment.to_dict()
+
+
+class RunPipelineCheckpointIn(BaseModel):
+    diff_text: str = Field(min_length=1, description="Git Unified Diff 文本")
+    pipeline_name: str = Field(default="CI-Pipeline-Worker", description="流水线作业名称")
+    commit_sha: str = Field(default="HEAD", description="当前待测 Commit SHA")
+    pr_id: str = Field(default="0", description="PR / MR 编号")
+    author: str = Field(default="developer", description="提交作者")
+    target_branch: str = Field(default="main", description="目标合流分支")
+    file_sources: dict[str, str] | None = Field(default=None, description="变更涉及的 Python 源码字典")
+    selection_strategy: str = Field(default="balanced", description="测试推荐策略: minimal | balanced | comprehensive")
+    mock_test_pass_rate_pct: float = Field(default=100.0, ge=0.0, le=100.0, description="用例通过率")
+    mock_test_failed_cases_count: int = Field(default=0, ge=0, description="失败用例数")
+    mutation_score_pct: float | None = Field(default=85.0, description="代码变异得分")
+    has_dual_approvals: bool = Field(default=False, description="高危变更双人签批")
+
+
+@router.post("/checkpoint/run")
+async def run_pipeline_checkpoint_endpoint(
+    body: RunPipelineCheckpointIn,
+    _user: User = Depends(require_engineer),
+) -> dict[str, Any]:
+    """端到端编排执行 CI 检查点并返回退出码与控制台日志 (需工程师权限)。"""
+    _ = _user
+    try:
+        strat_enum = SelectionStrategy(body.selection_strategy.lower())
+    except ValueError:
+        strat_enum = SelectionStrategy.BALANCED
+
+    report = execute_ci_pipeline_checkpoint(
+        diff_text=body.diff_text,
+        pipeline_name=body.pipeline_name,
+        commit_sha=body.commit_sha,
+        pr_id=body.pr_id,
+        author=body.author,
+        target_branch=body.target_branch,
+        file_sources=body.file_sources,
+        selection_strategy=strat_enum,
+        mock_test_pass_rate_pct=body.mock_test_pass_rate_pct,
+        mock_test_failed_cases_count=body.mock_test_failed_cases_count,
+        mutation_score_pct=body.mutation_score_pct,
+        has_dual_approvals=body.has_dual_approvals,
+    )
+    return {"message": "CI 流水线检查点执行完成", "report": report.to_dict()}
+
+
+@router.get("/checkpoint/reports")
+async def list_checkpoint_reports_endpoint(
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """查询历史 CI 检查点执行报告列表。"""
+    _ = _user
+    reports = list_checkpoint_reports()
+    return {"total": len(reports), "reports": [r.to_dict() for r in reports]}
+
+
+@router.get("/checkpoint/reports/{checkpoint_id}")
+async def get_checkpoint_report_endpoint(
+    checkpoint_id: str,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """获取指定 CI 检查点执行报告详情。"""
+    _ = _user
+    report = get_checkpoint_report(checkpoint_id)
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"检查点报告不存在: {checkpoint_id}")
+    return report.to_dict()

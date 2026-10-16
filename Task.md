@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-16 v3.6.0 研发任务规划（进行中）
+## 2026-10-16 v3.6.0 研发任务规划（已全量闭环）
 
 > v3.6.0 规划入口为 [`docs/development-task-plan-v3.6.0.md`](docs/development-task-plan-v3.6.0.md)，覆盖 S1（代码变更差异 AST 语义分析与测试用例智能映射）、S2（动态测试切片并发调度与变更风险指数模型）、S3（代码变异测试与断言有效性评分引擎）、S4（CI/CD PR 自动化准入卡点与多平台 Webhook 机器人）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-16 S3.3 用例断言有效性量化与变异得分计算器：落地 mutation_score_calculator 服务与 /ci-impact/mutations/score/* API；依据 Killed/Survived/TimedOut 统计量化变异得分与四级断言充分度，精准定位存活变异体并输出断言修复建议；4 项单测独立通过，见 [`docs/evidence/mutation-score-calculator-s3-3-2026-10-16.md`](docs/evidence/mutation-score-calculator-s3-3-2026-10-16.md)。至此 v3.6.0 Phase 3 全量大闭环！
 - [x] 2026-10-16 S4.1 PR 代码变更全要素质量门禁与合并准入判定仲裁器：落地 pr_quality_gatekeeper 服务与 /ci-impact/pr-gate/* API；综合自动化测试通过率、变异测试得分、CRITICAL 极高危双人复核审批多维度裁定 MERGE_APPROVED/MERGE_BLOCKED/CONDITIONAL_PASS；6 项单测独立通过，见 [`docs/evidence/pr-quality-gatekeeper-s4-1-2026-10-16.md`](docs/evidence/pr-quality-gatekeeper-s4-1-2026-10-16.md)。
 - [x] 2026-10-16 S4.2 GitHub / GitLab 交互式 PR Reviewer 评论与卡片广播机器人：落地 pr_comment_bot_dispatcher 服务与 /ci-impact/pr-bot/* API；自动向 GitHub/GitLab 渲染高保真三态 Banner、门禁规则表、阻断原因与整改指引并分发留痕；4 项单测独立通过，见 [`docs/evidence/pr-comment-bot-dispatcher-s4-2-2026-10-16.md`](docs/evidence/pr-comment-bot-dispatcher-s4-2-2026-10-16.md)。
-- [ ] S4.3 CI/CD 流水线 Checkpoint 检查点通用集成 CLI 与 OpenAPI（ci_pipeline_checkpoint_api）
+- [x] 2026-10-16 S4.3 CI/CD 流水线 Checkpoint 检查点通用集成 CLI 与 OpenAPI：落地 ci_pipeline_checkpoint_api 服务、/ci-impact/checkpoint/* API 与 scripts/ci_atp_checkpoint.py CLI 工具；实现 TIA 精准推荐、变更风险评估、Flaky 隔离与 PR 门禁全链路一键编排，输出 0/1/2 标准退出码与高保真 ANSI 控制台日志；5 项单测独立通过，见 [`docs/evidence/ci-pipeline-checkpoint-api-s4-3-2026-10-16.md`](docs/evidence/ci-pipeline-checkpoint-api-s4-3-2026-10-16.md)。至此 v3.6.0 全量 12 项重大任务 100% 圆满大闭环！
 
 ## 2026-10-16 v3.5.0 研发任务规划（已全量闭环）
 
