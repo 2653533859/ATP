@@ -109,6 +109,7 @@ from app.api.v1 import (
     adaptive_assertion_patch,
     self_healing_pipeline_api,
     elastic_worker_autoscaler_api,
+    test_suite_sharding_api,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -223,3 +224,4 @@ router.include_router(smart_locator_healing.router)
 router.include_router(adaptive_assertion_patch.router)
 router.include_router(self_healing_pipeline_api.router)
 router.include_router(elastic_worker_autoscaler_api.router)
+router.include_router(test_suite_sharding_api.router)

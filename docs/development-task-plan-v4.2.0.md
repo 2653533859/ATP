@@ -25,7 +25,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T1.1 `[x]` | **动态 Worker 容器 Pod 弹性扩缩容与集群资源配额仲裁器** | `elastic_test_worker_autoscaler` | 落地 `elastic_test_worker_autoscaler` 服务与 `/cluster/autoscaler/*` API；基于用例排队深度、预期 CPU/内存负载与配额阈值，动态计算 Worker 副本扩缩容决策并调度 Pod；单测独立通过；见 docs/evidence/elastic-test-worker-autoscaler-t1-1-2026-10-16.md |
-| T1.2 `[ ]` | **大规模测试套件智能动态分片与跨节点负载均衡调度器** | `test_suite_dynamic_sharding_scheduler` | 落地 `test_suite_dynamic_sharding_scheduler` 服务与 `/cluster/sharding/*` API；基于历史用例耗时与权重，执行动态分片切分 (Sharding)，实现多执行节点耗时均衡最大化；单测独立通过。 |
+| T1.2 `[x]` | **大规模测试套件智能动态分片与跨节点负载均衡调度器** | `test_suite_dynamic_sharding_scheduler` | 落地 `test_suite_dynamic_sharding_scheduler` 服务与 `/cluster/sharding/*` API；基于历史用例耗时与权重，执行动态分片切分 (Sharding)，实现多执行节点耗时均衡最大化；单测独立通过；见 docs/evidence/test-suite-dynamic-sharding-scheduler-t1-2-2026-10-16.md |
 | T1.3 `[ ]` | **临时沙箱测试环境生命周期自动化供给与快速回收器** | `ephemeral_test_env_lifecycle_manager` | 落地 `ephemeral_test_env_lifecycle_manager` 服务与 `/cluster/ephemeral-env/*` API；自动化拉起隔离测试环境命名空间、注入路由规则、并在测试结束后原子级优雅回收；单测独立通过。 |
 
 ---
