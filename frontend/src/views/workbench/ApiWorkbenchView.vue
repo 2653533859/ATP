@@ -134,6 +134,9 @@
         <a-button size="small" class="toolbar-btn" @click="showSynthesizerDrawer = true">
           <RobotOutlined /> E2E 用例合成
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showSyntheticDataDrawer = true">
+          <DatabaseOutlined /> 业务测试数据
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -598,6 +601,7 @@
     <MultiEnvConfigDriftDrawer v-model:open="showConfigDriftDrawer" />
     <IaCComplianceScannerCard v-model:open="showIaCScannerDrawer" />
     <LLMSpecToE2ECaseSynthesizerDrawer v-model:open="showSynthesizerDrawer" />
+    <SyntheticTestDataGeneratorCard v-model:open="showSyntheticDataDrawer" />
   </div>
 </template>
 
@@ -631,6 +635,7 @@ import {
   ToolOutlined,
   CloudServerOutlined,
   SecurityScanOutlined,
+  DatabaseOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
@@ -720,6 +725,8 @@ import IaCComplianceScannerCard from './components/IaCComplianceScannerCard.vue'
 const showIaCScannerDrawer = ref(false)
 import LLMSpecToE2ECaseSynthesizerDrawer from './components/LLMSpecToE2ECaseSynthesizerDrawer.vue'
 const showSynthesizerDrawer = ref(false)
+import SyntheticTestDataGeneratorCard from './components/SyntheticTestDataGeneratorCard.vue'
+const showSyntheticDataDrawer = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value

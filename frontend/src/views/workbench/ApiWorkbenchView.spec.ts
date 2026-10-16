@@ -71,6 +71,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   ToolOutlined: true,
   CloudServerOutlined: true,
   SecurityScanOutlined: true,
+  DatabaseOutlined: true,
 }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
@@ -198,6 +199,9 @@ vi.mock('./components/IaCComplianceScannerCard.vue', () => ({
 }))
 vi.mock('./components/LLMSpecToE2ECaseSynthesizerDrawer.vue', () => ({
   default: defineComponent({ name: 'LLMSpecToE2ECaseSynthesizerDrawer', setup: () => () => h('div', 'llm-spec-to-e2e-case-synthesizer-drawer') }),
+}))
+vi.mock('./components/SyntheticTestDataGeneratorCard.vue', () => ({
+  default: defineComponent({ name: 'SyntheticTestDataGeneratorCard', setup: () => () => h('div', 'synthetic-test-data-generator-card') }),
 }))
 
 const passthrough = (name: string) =>
