@@ -42,6 +42,7 @@ vi.mock('ant-design-vue', () => ({
 }))
 vi.mock('@ant-design/icons-vue', () => ({
   AimOutlined: true,
+  CheckCircleOutlined: true,
   BranchesOutlined: true,
   CodeSandboxOutlined: true,
   ApiOutlined: true,
@@ -91,6 +92,9 @@ vi.mock('./components/EphemeralSandboxManagerDrawer.vue', () => ({
 }))
 vi.mock('./components/CrossProtocolSessionBusPanel.vue', () => ({
   default: defineComponent({ name: 'CrossProtocolSessionBusPanel', setup: () => () => h('div', 'cross-protocol-session-bus') }),
+}))
+vi.mock('./components/FlexibleSchemaAssertionDebugger.vue', () => ({
+  default: defineComponent({ name: 'FlexibleSchemaAssertionDebugger', setup: () => () => h('div', 'flexible-schema-assertion') }),
 }))
 
 const passthrough = (name: string) =>

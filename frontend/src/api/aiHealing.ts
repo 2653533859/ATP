@@ -32,6 +32,40 @@ export interface LocatorHealingResultItem {
   healed_at: string
 }
 
+
+export type AssertionToleranceMode = 'strict' | 'compatible' | 'lenient'
+export type SchemaDriftType = 'extra_field' | 'missing_field' | 'type_drift' | 'nullable_drift'
+
+export interface SchemaDriftDetailItem {
+  field_path: string
+  drift_type: SchemaDriftType
+  expected: any
+  actual: any
+  is_breaking: boolean
+  description: string
+  suggested_autofix?: Record<string, any> | null
+}
+
+export interface FlexibleAssertionResultItem {
+  audit_id: string
+  passed: boolean
+  tolerance_mode: AssertionToleranceMode
+  total_drifts_count: number
+  drifts: SchemaDriftDetailItem[]
+  autofixed_schema: Record<string, any> | null
+  evaluated_at: string
+  summary: string
+}
+
+export interface EvaluateSchemaAssertionRequest {
+  expected_schema: Record<string, any>
+  actual_payload: any
+  mode?: AssertionToleranceMode
+  ignore_extra_fields?: boolean
+  ignore_array_order?: boolean
+  allow_numeric_string_coercion?: boolean
+  autofix_schema?: boolean
+}
 export interface HealLocatorRequest {
   original_locator: string
   locator_type?: LocatorType
@@ -48,5 +82,24 @@ export const aiHealingLocatorsApi = {
 
   listHistory(): Promise<{ total: number; history: LocatorHealingResultItem[] }> {
     return http.get('/ai-healing/locators/history')
+  },
+}
+
+export const flexibleAssertionApi = {
+  evaluate(data: EvaluateSchemaAssertionRequest): Promise<FlexibleAssertionResultItem> {
+    return http.post('/ai-healing/assertions/evaluate', data)
+  },
+
+  autofix(data: EvaluateSchemaAssertionRequest): Promise<{
+    message: string
+    has_drifts: boolean
+    drifts_count: number
+    autofixed_schema: Record<string, any>
+  }> {
+    return http.post('/ai-healing/assertions/autofix', data)
+  },
+
+  listHistory(): Promise<{ total: number; history: FlexibleAssertionResultItem[] }> {
+    return http.get('/ai-healing/assertions/history')
   },
 }

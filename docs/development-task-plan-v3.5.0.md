@@ -35,7 +35,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI2.1 `[x]` | **失效选择器 DOM/UI 树多模态自愈推导抽屉** | smart_locator_healing_engine | 落地 `SmartLocatorHealingDrawer.vue` 组件与 API 客户端；展示四维加权相似度打分（标识/语义/拓扑/属性）、稳固定位器生成与置信度；见 docs/evidence/smart-locator-healing-drawer-ui2-1-2026-10-16.md |
-| UI2.2 `[ ]` | **接口响应 Schema 动态漂移自适应修正与柔性断言调试器** | flexible_schema_assertion_engine | 落地 `FlexibleSchemaAssertionDebugger.vue` 组件；支持 STRICT/COMPATIBLE/LENIENT 模式调试、多余字段放行与自愈 Schema 实时导出。 |
+| UI2.2 `[x]` | **接口响应 Schema 动态漂移自适应修正与柔性断言调试器** | flexible_schema_assertion_engine | 落地 `FlexibleSchemaAssertionDebugger.vue` 组件；支持 STRICT/COMPATIBLE/LENIENT 模式调试、多余字段放行与自愈 Schema 实时导出；见 docs/evidence/flexible-schema-assertion-debugger-ui2-2-2026-10-16.md |
 | UI2.3 `[ ]` | **异常故障簇智能聚合看板与自愈执行流水审计面板** | healing_audit_trail_service | 落地 `HealingAuditTrailPanel.vue` 组件；展示错误栈特征聚合故障簇、用例自愈动作历史流水与节省工时成效量化。 |
 
 ---

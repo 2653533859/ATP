@@ -12,7 +12,7 @@
 - [x] 2026-10-16 UI1.2 队列背压自适应 HPA 自动扩缩容策略与决策看板：扩展 cloudNativeWorkers API（hpaAutoscalingApi），落地 HpaAutoscalingDashboardCard 组件；展示队列积压深度、时延 SLO 惩罚计算、目标副本调节与一键扩缩容应用；内嵌集成至 CloudNativeWorkerManagerDrawer；单测独立通过，见 [`docs/evidence/hpa-autoscaling-dashboard-card-ui1-2-2026-10-16.md`](docs/evidence/hpa-autoscaling-dashboard-card-ui1-2-2026-10-16.md)。
 - [x] 2026-10-16 UI1.3 容器执行环境镜像版本矩阵与标签路由解析抽屉：扩展 cloudNativeWorkers API（workerImageMatrixApi），落地 WorkerImageMatrixDrawer 组件；展示多版本镜像矩阵、加权标签路由推演打分与平滑兜底回退；挂载至 AppWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/worker-image-matrix-drawer-ui1-3-2026-10-16.md`](docs/evidence/worker-image-matrix-drawer-ui1-3-2026-10-16.md)。至此 v3.5.0 Phase 1 全量大闭环！
 - [x] 2026-10-16 UI2.1 失效选择器 DOM/UI 树多模态自愈推导抽屉：创建 aiHealing API 客户端，落地 SmartLocatorHealingDrawer 组件；展示四维加权打分（标识 35%、语义 25%、拓扑 20%、属性 20%）、最优推荐与自愈候选矩阵；挂载至 AppWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/smart-locator-healing-drawer-ui2-1-2026-10-16.md`](docs/evidence/smart-locator-healing-drawer-ui2-1-2026-10-16.md)。
-- [ ] UI2.2 接口响应 Schema 动态漂移自适应修正与柔性断言调试器（FlexibleSchemaAssertionDebugger.vue）
+- [x] 2026-10-16 UI2.2 接口响应 Schema 动态漂移自适应修正与柔性断言调试器：扩展 aiHealing API（flexibleAssertionApi），落地 FlexibleSchemaAssertionDebugger 组件；支持 STRICT/COMPATIBLE/LENIENT 三级容差模式、冗余字段放行、漂移特征分类展示与自愈 Schema 实时复制导出；挂载至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/flexible-schema-assertion-debugger-ui2-2-2026-10-16.md`](docs/evidence/flexible-schema-assertion-debugger-ui2-2-2026-10-16.md)。
 - [ ] UI2.3 异常故障簇智能聚合看板与自愈执行流水审计面板（HealingAuditTrailPanel.vue）
 - [ ] UI3.1 移动端性能时序曲线与卡顿/内存泄露体检报告看板（MobilePerfDiagnosticsViewer.vue）
 - [ ] UI3.2 Web 性能 Core Web Vitals (LCP, INP, CLS) 雷达图与阻断资源分析视图（WebVitalsDiagnosticsView.vue）

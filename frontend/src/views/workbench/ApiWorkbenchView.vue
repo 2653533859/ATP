@@ -44,6 +44,9 @@
         <a-button size="small" class="toolbar-btn" @click="showSessionBus = true">
           <BranchesOutlined /> 跨协议总线
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showSchemaDebugger = true">
+          <CheckCircleOutlined /> 柔性断言自愈
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -418,6 +421,7 @@
     >
       <CrossProtocolSessionBusPanel />
     </a-drawer>
+    <FlexibleSchemaAssertionDebugger v-model:open="showSchemaDebugger" />
   </div>
 </template>
 
@@ -426,6 +430,7 @@ import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   AimOutlined,
+  CheckCircleOutlined,
   BranchesOutlined,
   CodeSandboxOutlined,
   ApiOutlined,
@@ -468,6 +473,7 @@ import ContractChangeImpactDrawer from './components/ContractChangeImpactDrawer.
 import TargetedRegressionWizard from './components/TargetedRegressionWizard.vue'
 import EphemeralSandboxManagerDrawer from './components/EphemeralSandboxManagerDrawer.vue'
 import CrossProtocolSessionBusPanel from './components/CrossProtocolSessionBusPanel.vue'
+import FlexibleSchemaAssertionDebugger from './components/FlexibleSchemaAssertionDebugger.vue'
 import { useAuthStore } from '@/stores/auth'
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -486,6 +492,7 @@ const showContractImpact = ref(false)
 const showRegressionWizard = ref(false)
 const showSandboxManager = ref(false)
 const showSessionBus = ref(false)
+const showSchemaDebugger = ref(false)
 const synthesizeCaseIds = ref<number[]>([])
 function handleSynthesizeFromImpact(caseIds: number[]) {
   synthesizeCaseIds.value = caseIds
