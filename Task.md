@@ -4,7 +4,24 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-17 v4.4.0 研发任务规划（进行中）
+## 2026-10-17 v4.5.0 研发任务规划（进行中）
+
+> v4.5.0 规划入口为 [`docs/development-task-plan-v4.5.0.md`](docs/development-task-plan-v4.5.0.md)，覆盖 Phase 1（多模态视觉回归像素级 Diff 与黄金基线演进审视大盘）、Phase 2（页面语义完整性断言与布局越界/Design Tokens 审查抽屉）、Phase 3（深度无障碍访问 a11y WCAG 2.2 全面体检中心与色盲感知模拟控制台）、Phase 4（客户端运行时全息性能与 Web Vitals 体验监控大盘）。
+
+- [x] 2026-10-17 UI1.1 跨分辨率多视口像素级 SSIM 差异高亮与动态掩码忽略抽屉：落地 `VisualPixelDiffInspectorDrawer.vue` 组件与 API 客户端；展示 Desktop/Tablet/Mobile 视口切换、差异像素红亮 Heatmap 覆盖层、动态 Mask 忽略区域打标；单测独立通过，见 [`docs/evidence/visual-pixel-diff-inspector-drawer-ui1-1-2026-10-17.md`](docs/evidence/visual-pixel-diff-inspector-drawer-ui1-1-2026-10-17.md)。
+- [ ] 2026-10-17 UI1.2 黄金基线版本化演进追踪与跨分支视觉差异比对面板：落地 `VisualGoldenBaselineEvolutionPanel.vue` 组件与 API 客户端；展示主干 vs 特性分支视觉变迁流、基线晋升审批流（Promote to Golden Baseline）、差异类型徽章；单测独立通过。
+- [ ] 2026-10-17 UI1.3 多模态视觉回归与黄金基线管理全景大盘页面：落地 `VisualRegressionAuditDashboardView.vue` 视图与路由；汇总全站视觉 Diff 通过率、活跃黄金基线数、待审视视觉差异、一键全量回归；单测独立通过。
+- [ ] 2026-10-17 UI2.1 基于视觉大模型 (VLM) 的 UI 页面语义完整性推导断言配置抽屉：落地 `VLMVisualSemanticAssertionDrawer.vue` 组件与 API 客户端；展示白屏检测、断图检测、自然语言断言配置卡片、视觉语义综合得分雷达图；单测独立通过。
+- [ ] 2026-10-17 UI2.2 跨视口文本截断、元素重叠碰撞与横向溢出检测卡片：落地 `UILayoutCollisionDetectorCard.vue` 组件与 API 客户端；展示空间 AABB 碰撞交叠区域高亮、文本截断省略告警、移动端横向滚动条溢出标注、修复 CSS 快捷复制；单测独立通过。
+- [ ] 2026-10-17 UI2.3 品牌设计系统 (Design System Token) 与色彩对比度合规审查抽屉：落地 `DesignSystemTokenAuditDrawer.vue` 组件与 API 客户端；展示字号/间距/圆角偏离标准 Token 散点图、前背景色 WCAG AA (4.5:1) 对比度指示器、标准 Token 智能对齐建议；单测独立通过。
+- [ ] 2026-10-17 UI3.1 WCAG 2.2 无障碍可访问性 DOM 深度扫描与修复指引抽屉：落地 `WcagA11yDeepScannerDrawer.vue` 组件与 API 客户端；展示缺少 alt、表单无标签、触控热区 <24x24px、重复 ID 清单、一键复制修复代码；单测独立通过。
+- [ ] 2026-10-17 UI3.2 屏幕阅读器焦点流转与键盘死锁全盲路径仿真面板：落地 `A11yKeyboardNavPathPanel.vue` 组件与 API 客户端；展示虚拟键盘 Tab 步进流转轨迹图、Focus Trap 死锁告警、无高亮焦点环高亮警告；单测独立通过。
+- [ ] 2026-10-17 UI3.3 色盲/色弱多模态视觉感知实时模拟与无障碍准入大盘页面：落地 `ColorBlindnessAuditDashboardView.vue` 视图与路由；提供红盲、绿盲、蓝盲、全色盲 4 分屏滤镜实时预览、WCAG 1.4.1 单色状态指示器违规警报；单测独立通过。
+- [ ] 2026-10-17 UI4.1 前端运行时长任务 (Long Task) 堆栈下钻与 60 FPS 掉帧卡顿诊断抽屉：落地 `ClientLongTaskJankProfilerDrawer.vue` 组件与 API 客户端；展示超过 50ms 长任务耗时火焰图、总阻塞时间 (TBT) 评级仪表、掉帧率量化、强制布局与 Canvas 归因；单测独立通过。
+- [ ] 2026-10-17 UI4.2 页面内存泄漏监控与 Detached DOM 幽灵引用探测卡片：落地 `ClientMemoryLeakDetectorCard.vue` 组件与 API 客户端；展示 JS Heap 增长折线图、未释放事件监听器计数、脱落游离 DOM 树节点闭包样本；单测独立通过。
+- [ ] 2026-10-17 UI4.3 Google Core Web Vitals (LCP/INP/CLS) 全景体验审计大盘页面：落地 `ClientWebVitalsExperienceDashboardView.vue` 视图与路由；展示三大核心指标（LCP/INP/CLS）红黄绿评级、加权性能体验分、Markdown 报告一键导出；单测独立通过。
+
+## 2026-10-17 v4.4.0 研发任务规划（已全量闭环）
 
 > v4.4.0 规划入口为 [`docs/development-task-plan-v4.4.0.md`](docs/development-task-plan-v4.4.0.md)，覆盖 Phase 1（多模态视觉 UI 跨分辨率像素级 Diff 与动态智能去噪引擎）、Phase 2（基于大模型视觉多模态 VLM 的智能断言与 UI 布局越界/重叠检测）、Phase 3（深度无障碍访问 a11y 全面自动化扫描与 WCAG 2.2 合规准入审计）、Phase 4（客户端运行时全息性能分析与用户体验感知度量引擎）。
 

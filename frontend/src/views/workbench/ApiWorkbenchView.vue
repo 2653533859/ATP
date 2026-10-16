@@ -146,6 +146,9 @@
         <a-button size="small" class="toolbar-btn" @click="showReleaseGateModal = true">
           <CheckCircleOutlined /> 发版准入门禁
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showVisualDiffDrawer = true">
+          <EyeOutlined /> 视觉 Diff 审视
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -614,6 +617,7 @@
     <AutonomousApiFuzzingExplorerDrawer v-model:open="showFuzzingDrawer" />
     <QualityHealthCompositeScoreCard v-model:open="showHealthScoreDrawer" />
     <ReleaseGateVerdictWaiverModal v-model:open="showReleaseGateModal" />
+    <VisualPixelDiffInspectorDrawer v-model:open="showVisualDiffDrawer" />
   </div>
 </template>
 
@@ -649,6 +653,7 @@ import {
   SecurityScanOutlined,
   DatabaseOutlined,
   DashboardOutlined,
+  EyeOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
@@ -746,6 +751,8 @@ import QualityHealthCompositeScoreCard from './components/QualityHealthComposite
 const showHealthScoreDrawer = ref(false)
 import ReleaseGateVerdictWaiverModal from './components/ReleaseGateVerdictWaiverModal.vue'
 const showReleaseGateModal = ref(false)
+import VisualPixelDiffInspectorDrawer from './components/VisualPixelDiffInspectorDrawer.vue'
+const showVisualDiffDrawer = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value

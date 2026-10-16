@@ -73,6 +73,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   SecurityScanOutlined: true,
   DatabaseOutlined: true,
   DashboardOutlined: true,
+  EyeOutlined: true,
 }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
@@ -212,6 +213,9 @@ vi.mock('./components/QualityHealthCompositeScoreCard.vue', () => ({
 }))
 vi.mock('./components/ReleaseGateVerdictWaiverModal.vue', () => ({
   default: defineComponent({ name: 'ReleaseGateVerdictWaiverModal', setup: () => () => h('div', 'release-gate-verdict-waiver-modal') }),
+}))
+vi.mock('./components/VisualPixelDiffInspectorDrawer.vue', () => ({
+  default: defineComponent({ name: 'VisualPixelDiffInspectorDrawer', setup: () => () => h('div', 'visual-pixel-diff-inspector-drawer') }),
 }))
 
 const passthrough = (name: string) =>
