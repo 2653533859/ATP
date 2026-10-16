@@ -75,6 +75,56 @@ export interface SensitiveRuleItem {
   enabled: boolean
 }
 
+export interface TrafficClusterItem {
+  cluster_id: string
+  fingerprint: string
+  protocol: string
+  method: string
+  normalized_path: string
+  status_code: number
+  sample_count: number
+  representative_traffic_id: string
+  extracted_dataset_rows: Array<Record<string, any>>
+  source_traffic_ids: string[]
+  schema_signature: string
+}
+
+export interface SynthesizedCaseItem {
+  case_id: string
+  cluster_id: string
+  name: string
+  description: string
+  protocol: string
+  method: string
+  url_path: string
+  headers: Record<string, string>
+  query_params_template: Record<string, string>
+  request_body_template: string
+  assertions: Array<Record<string, any>>
+  dataset_rows: Array<Record<string, any>>
+  source_traffic_ids: string[]
+  created_at: string
+}
+
+export interface SynthesisReportItem {
+  report_id: string
+  total_traffic_evaluated: number
+  clusters_formed: number
+  deduplication_ratio_pct: number
+  synthesized_cases_count: number
+  cases: SynthesizedCaseItem[]
+  created_at: string
+}
+
+export interface RunSynthesisRequest {
+  traffic_records?: Array<Record<string, any>>
+  auto_mask_first?: boolean
+  max_dataset_rows_per_case?: number
+  case_name_prefix?: string
+  protocol_filter?: string
+  limit_captured?: number
+}
+
 export const trafficCaptureApi = {
   getFilterConfig(): Promise<CaptureFilterConfig> {
     return http.get('/traffic/capture/config')
@@ -132,5 +182,23 @@ export const trafficMaskerApi = {
 
   batchMaskTraffic(data: { items: any[]; custom_keywords?: string[] }): Promise<{ message: string; total: number; items: any[] }> {
     return http.post('/traffic/mask/batch', data)
+  },
+}
+
+export const trafficSynthesizerApi = {
+  runSynthesis(data: RunSynthesisRequest): Promise<{ message: string; report: SynthesisReportItem }> {
+    return http.post('/traffic/synthesize/run', data)
+  },
+
+  previewClusters(data: { traffic_records: any[] }): Promise<{ total_evaluated: number; clusters_formed: number; deduplication_ratio_pct: number; clusters: TrafficClusterItem[] }> {
+    return http.post('/traffic/synthesize/cluster-preview', data)
+  },
+
+  listReports(): Promise<{ total: number; reports: SynthesisReportItem[] }> {
+    return http.get('/traffic/synthesize/reports')
+  },
+
+  getReport(reportId: string): Promise<SynthesisReportItem> {
+    return http.get(`/traffic/synthesize/reports/${reportId}`)
   },
 }

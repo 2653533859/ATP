@@ -71,6 +71,9 @@
         <a-button size="small" class="toolbar-btn" @click="showTrafficMaskerModal = true">
           <SafetyCertificateOutlined /> 生产数据脱敏
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showTrafficSynthesizerDrawer = true">
+          <BuildOutlined /> 流量用例合成
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -472,6 +475,14 @@
     <PrCommentBotPreviewDrawer v-model:open="showBotDrawer" />
     <TrafficCaptureGatewayDrawer v-model:open="showTrafficCaptureDrawer" />
     <TrafficDataMaskerModal v-model:open="showTrafficMaskerModal" />
+    <a-drawer
+      v-model:open="showTrafficSynthesizerDrawer"
+      :width="1120"
+      title="真实流量特征聚类归一与自动化测试用例合成工作台"
+      destroy-on-close
+    >
+      <TrafficToTestCaseSynthesizerCard />
+    </a-drawer>
   </div>
 </template>
 
@@ -497,6 +508,7 @@ import {
   SafetyCertificateOutlined,
   FileSearchOutlined,
   RobotOutlined,
+  BuildOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
@@ -545,6 +557,8 @@ import TrafficCaptureGatewayDrawer from './components/TrafficCaptureGatewayDrawe
 const showTrafficCaptureDrawer = ref(false)
 import TrafficDataMaskerModal from './components/TrafficDataMaskerModal.vue'
 const showTrafficMaskerModal = ref(false)
+import TrafficToTestCaseSynthesizerCard from './components/TrafficToTestCaseSynthesizerCard.vue'
+const showTrafficSynthesizerDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)

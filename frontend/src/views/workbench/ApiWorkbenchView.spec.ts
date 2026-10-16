@@ -62,6 +62,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   FileSearchOutlined: true,
   RobotOutlined: true,
   DownOutlined: true,
+  BuildOutlined: true,
   FormatPainterOutlined: true,
 }))
 vi.mock('@/stores/auth', () => ({
@@ -127,6 +128,9 @@ vi.mock('./components/TrafficCaptureGatewayDrawer.vue', () => ({
 }))
 vi.mock('./components/TrafficDataMaskerModal.vue', () => ({
   default: defineComponent({ name: 'TrafficDataMaskerModal', setup: () => () => h('div', 'traffic-data-masker-modal') }),
+}))
+vi.mock('./components/TrafficToTestCaseSynthesizerCard.vue', () => ({
+  default: defineComponent({ name: 'TrafficToTestCaseSynthesizerCard', setup: () => () => h('div', 'traffic-to-test-case-synthesizer-card') }),
 }))
 
 const passthrough = (name: string) =>
