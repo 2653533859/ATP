@@ -41,6 +41,9 @@
         <a-button size="small" class="toolbar-btn" @click="showSandboxManager = true">
           <CodeSandboxOutlined /> 仿真沙箱管理
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showSessionBus = true">
+          <BranchesOutlined /> 跨协议总线
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -407,6 +410,14 @@
       :initial-case-ids="synthesizeCaseIds"
     />
     <EphemeralSandboxManagerDrawer v-model:open="showSandboxManager" />
+    <a-drawer
+      v-model:open="showSessionBus"
+      :width="980"
+      title="跨协议数据透传与会话上下文共享总线"
+      destroy-on-close
+    >
+      <CrossProtocolSessionBusPanel />
+    </a-drawer>
   </div>
 </template>
 
@@ -415,6 +426,7 @@ import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   AimOutlined,
+  BranchesOutlined,
   CodeSandboxOutlined,
   ApiOutlined,
   FileAddOutlined,
@@ -455,6 +467,7 @@ import AssetDependencyGraphViewer from './components/AssetDependencyGraphViewer.
 import ContractChangeImpactDrawer from './components/ContractChangeImpactDrawer.vue'
 import TargetedRegressionWizard from './components/TargetedRegressionWizard.vue'
 import EphemeralSandboxManagerDrawer from './components/EphemeralSandboxManagerDrawer.vue'
+import CrossProtocolSessionBusPanel from './components/CrossProtocolSessionBusPanel.vue'
 import { useAuthStore } from '@/stores/auth'
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -472,6 +485,7 @@ const showAssetGraph = ref(false)
 const showContractImpact = ref(false)
 const showRegressionWizard = ref(false)
 const showSandboxManager = ref(false)
+const showSessionBus = ref(false)
 const synthesizeCaseIds = ref<number[]>([])
 function handleSynthesizeFromImpact(caseIds: number[]) {
   synthesizeCaseIds.value = caseIds

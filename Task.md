@@ -15,7 +15,7 @@
 - [x] 2026-10-16 UI2.2 接口契约变更影响面分析与受损用例抽屉：扩展 assetGraph API（analyzeContractImpact），落地 ContractChangeImpactDrawer 组件；支持新旧 OpenAPI Schema Diff 对比、Breaking 破坏性逆向推导与受损用例分级标记；挂载至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/contract-change-impact-drawer-ui2-2-2026-10-16.md`](docs/evidence/contract-change-impact-drawer-ui2-2-2026-10-16.md)。
 - [x] 2026-10-16 UI2.3 变更影响用例自动化精准回归套件合成向导：扩展 assetGraph API（synthesizeAndTriggerRegression），落地 TargetedRegressionWizard 组件；支持受损用例去重组装、Breaking 提权 P0 抢占、套件持久化与自动调度；挂载至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/targeted-regression-wizard-ui2-3-2026-10-16.md`](docs/evidence/targeted-regression-wizard-ui2-3-2026-10-16.md)。至此 v3.3.0 Phase 2 全量大闭环！
 - [x] 2026-10-16 UI3.1 瞬时轻量级仿真沙箱与端口生命周期管理抽屉：创建 sandboxes API 客户端，落地 EphemeralSandboxManagerDrawer 组件；支持 20000-29999 端口动态防冲突分配、HTTP/gRPC/WS 多协议沙箱拉起、TTL 倒计时、过期自动收割与内联 Mock 测试；挂载至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/ephemeral-sandbox-manager-drawer-ui3-1-2026-10-16.md`](docs/evidence/ephemeral-sandbox-manager-drawer-ui3-1-2026-10-16.md)。
-- [ ] UI3.2 跨协议数据透传与会话上下文共享总线面板（CrossProtocolSessionBusPanel.vue）
+- [x] 2026-10-16 UI3.2 跨协议数据透传与会话上下文共享总线面板：扩展 sandboxes API（sessionBusApi），落地 CrossProtocolSessionBusPanel 组件；实现全局共享变量树、HTTP 至 gRPC/WS 凭据主动透传与动态模板递归插值预览；挂载至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/cross-protocol-session-bus-panel-ui3-2-2026-10-16.md`](docs/evidence/cross-protocol-session-bus-panel-ui3-2-2026-10-16.md)。
 - [ ] UI3.3 沙箱网络流量镜像与写操作副作用隔离卡片（SandboxTrafficMirrorCard.vue）
 - [ ] UI4.1 全生命周期测试质量度量多维评分大盘页面（QualityMetricsDashboardView.vue）
 - [ ] UI4.2 CI/CD 智能质量门禁规则配置与卡点决策抽屉（QualityGateRuleConfigDrawer.vue）

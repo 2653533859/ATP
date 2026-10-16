@@ -40,6 +40,26 @@ export interface MockDispatchResult {
   mock_match?: boolean
 }
 
+export interface InitSessionBusResponse {
+  bus_id: string
+  message: string
+}
+
+export interface SessionBusVarsResponse {
+  bus_id: string
+  variables: Record<string, any>
+}
+
+export interface PropagateContextResponse {
+  direction: string
+  grpc_metadata?: Record<string, any>
+  websocket_context?: Record<string, any>
+}
+
+export interface RenderTemplateResponse {
+  rendered: any
+}
+
 export const sandboxesApi = {
   provision(data: ProvisionSandboxRequest): Promise<{ message: string; sandbox: EphemeralSandboxItem }> {
     return http.post('/sandboxes/provision', data)
@@ -66,5 +86,30 @@ export const sandboxesApi = {
     data: { method?: string; path?: string }
   ): Promise<MockDispatchResult> {
     return http.post(`/sandboxes/${sandboxId}/mock-dispatch`, data)
+  },
+}
+
+export const sessionBusApi = {
+  initBus(busId?: string): Promise<InitSessionBusResponse> {
+    return http.post('/sandboxes/bus/init', null, { params: { bus_id: busId } })
+  },
+
+  setVar(busId: string, key: string, value: any): Promise<{ message: string; key: string; value: any }> {
+    return http.post(`/sandboxes/bus/${busId}/set-var`, { key, value })
+  },
+
+  getVars(busId: string): Promise<SessionBusVarsResponse> {
+    return http.get(`/sandboxes/bus/${busId}/vars`)
+  },
+
+  propagateContext(
+    busId: string,
+    direction: 'http_to_grpc' | 'http_to_websocket'
+  ): Promise<PropagateContextResponse> {
+    return http.post(`/sandboxes/bus/${busId}/propagate`, { direction })
+  },
+
+  renderTemplate(busId: string, payload: any): Promise<RenderTemplateResponse> {
+    return http.post(`/sandboxes/bus/${busId}/render`, { payload })
   },
 }

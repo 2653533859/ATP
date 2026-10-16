@@ -42,6 +42,7 @@ vi.mock('ant-design-vue', () => ({
 }))
 vi.mock('@ant-design/icons-vue', () => ({
   AimOutlined: true,
+  BranchesOutlined: true,
   CodeSandboxOutlined: true,
   ApiOutlined: true,
   FileAddOutlined: true,
@@ -87,6 +88,9 @@ vi.mock('./components/TargetedRegressionWizard.vue', () => ({
 }))
 vi.mock('./components/EphemeralSandboxManagerDrawer.vue', () => ({
   default: defineComponent({ name: 'EphemeralSandboxManagerDrawer', setup: () => () => h('div', 'ephemeral-sandbox-manager') }),
+}))
+vi.mock('./components/CrossProtocolSessionBusPanel.vue', () => ({
+  default: defineComponent({ name: 'CrossProtocolSessionBusPanel', setup: () => () => h('div', 'cross-protocol-session-bus') }),
 }))
 
 const passthrough = (name: string) =>
