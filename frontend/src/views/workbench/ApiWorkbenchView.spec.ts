@@ -154,6 +154,9 @@ vi.mock('./components/ResilienceRtoRecoveryDashboardCard.vue', () => ({
 vi.mock('./components/DistributedTraceSpanTreeDrawer.vue', () => ({
   default: defineComponent({ name: 'DistributedTraceSpanTreeDrawer', setup: () => () => h('div', 'distributed-trace-span-tree-drawer') }),
 }))
+vi.mock('./components/TraceAnomalySlowCallClusterCard.vue', () => ({
+  default: defineComponent({ name: 'TraceAnomalySlowCallClusterCard', setup: () => () => h('div', 'trace-anomaly-slow-call-cluster-card') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

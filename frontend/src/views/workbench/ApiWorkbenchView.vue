@@ -95,6 +95,9 @@
         <a-button size="small" class="toolbar-btn" @click="showTraceTreeDrawer = true">
           <ClusterOutlined /> 调用链追踪
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showTraceAnomalyDrawer = true">
+          <BugOutlined /> 慢调用聚类
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -525,6 +528,14 @@
       <ResilienceRtoRecoveryDashboardCard />
     </a-drawer>
     <DistributedTraceSpanTreeDrawer v-model:open="showTraceTreeDrawer" />
+    <a-drawer
+      v-model:open="showTraceAnomalyDrawer"
+      :width="1120"
+      title="分布式调用链异常波动与高频慢调用智能聚类诊断控制台"
+      destroy-on-close
+    >
+      <TraceAnomalySlowCallClusterCard />
+    </a-drawer>
   </div>
 </template>
 
@@ -616,6 +627,8 @@ import ResilienceRtoRecoveryDashboardCard from './components/ResilienceRtoRecove
 const showRtoRecoveryDrawer = ref(false)
 import DistributedTraceSpanTreeDrawer from './components/DistributedTraceSpanTreeDrawer.vue'
 const showTraceTreeDrawer = ref(false)
+import TraceAnomalySlowCallClusterCard from './components/TraceAnomalySlowCallClusterCard.vue'
+const showTraceAnomalyDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)
