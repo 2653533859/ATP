@@ -54,7 +54,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T4.1 `[ ]` | **全生命周期多维质量健康综合评分引擎** | `quality_health_composite_score_engine` | 落地 `quality_health_composite_score_engine` 服务与 `/gatekeeper/health-score/*` API；融合用例成功率、缺陷密度、变更风险、变异测试得分与覆盖率，量化系统质量健康得分；单测独立通过。 |
+| T4.1 `[x]` | **全生命周期多维质量健康综合评分引擎** | `quality_health_composite_score_engine` | 落地 `quality_health_composite_score_engine` 服务与 `/gatekeeper/health-score/*` API；融合用例成功率、缺陷密度、变更风险、变异测试得分与覆盖率，量化系统质量健康得分；单测独立通过；见 docs/evidence/quality-health-composite-score-engine-t4-1-2026-10-17.md |
 | T4.2 `[ ]` | **自动化发版准入阻断裁决器 (Go/No-Go) 与豁免流转网关** | `smart_release_go_no_go_decider` | 落地 `smart_release_go_no_go_decider` 服务与 `/gatekeeper/release-verdict/*` API；根据门禁规则裁决 GO / CAUTION / NO-GO，支持特批阻断豁免流转与审计留痕；单测独立通过。 |
 | T4.3 `[ ]` | **端到端测试执行与质量合规全景审计报告生成器** | `comprehensive_test_audit_report_generator` | 落地 `comprehensive_test_audit_report_generator` 服务与 `/gatekeeper/audit-report/*` API；组装跨维度执行与门禁数据，生成带 SHA-256 防篡改指纹的发布质量审计报告；单测独立通过。 |
 
