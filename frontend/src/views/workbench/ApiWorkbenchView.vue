@@ -173,6 +173,9 @@
         <a-button size="small" class="toolbar-btn" @click="showMemoryLeakDrawer = true">
           <SlidersOutlined /> 内存泄漏探测
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showShadowTaintDrawer = true">
+          <BranchesOutlined /> 影子流量染色
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -650,6 +653,7 @@
     <A11yKeyboardNavPathPanel v-model:open="showKeyboardNavPanel" />
     <ClientLongTaskJankProfilerDrawer v-model:open="showLongTaskDrawer" />
     <ClientMemoryLeakDetectorCard v-model:open="showMemoryLeakDrawer" />
+    <ShadowTrafficTaintPropagatorDrawer v-model:open="showShadowTaintDrawer" />
   </div>
 </template>
 
@@ -802,6 +806,8 @@ import ClientLongTaskJankProfilerDrawer from './components/ClientLongTaskJankPro
 const showLongTaskDrawer = ref(false)
 import ClientMemoryLeakDetectorCard from './components/ClientMemoryLeakDetectorCard.vue'
 const showMemoryLeakDrawer = ref(false)
+import ShadowTrafficTaintPropagatorDrawer from './components/ShadowTrafficTaintPropagatorDrawer.vue'
+const showShadowTaintDrawer = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value

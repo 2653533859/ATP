@@ -242,6 +242,9 @@ vi.mock('./components/ClientLongTaskJankProfilerDrawer.vue', () => ({
 vi.mock('./components/ClientMemoryLeakDetectorCard.vue', () => ({
   default: defineComponent({ name: 'ClientMemoryLeakDetectorCard', setup: () => () => h('div', 'client-memory-leak-detector-card') }),
 }))
+vi.mock('./components/ShadowTrafficTaintPropagatorDrawer.vue', () => ({
+  default: defineComponent({ name: 'ShadowTrafficTaintPropagatorDrawer', setup: () => () => h('div', 'shadow-traffic-taint-propagator-drawer') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

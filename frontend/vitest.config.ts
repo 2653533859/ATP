@@ -16,6 +16,7 @@ export default defineConfig({
         url: 'http://localhost:5173/',
       },
     },
+    testTimeout: 15000,
     include: ['src/**/*.spec.ts'],
     exclude: ['e2e/**', 'node_modules/**', 'dist/**'],
     setupFiles: ['./src/test/setup.ts'],

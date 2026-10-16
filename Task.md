@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-17 v4.7.0 研发任务规划（进行中）
+
+> v4.7.0 规划入口为 [`docs/development-task-plan-v4.7.0.md`](docs/development-task-plan-v4.7.0.md)，覆盖 Phase 1（全链路影子流量染色、库表防污染与 MQ 隔离控制台）、Phase 2（单元化架构测试隔离 Cell-based Testing 与容灾切流看板）、Phase 3（压测容量水位实时监控与防雪崩自适应熔断控制台）、Phase 4（全链路压测拐点分析、爆炸半径审计与复盘决策大盘）。
+
+- [x] 2026-10-17 UI1.1 跨协议影子流量染色透传注入与校验抽屉：落地 `ShadowTrafficTaintPropagatorDrawer.vue` 组件与 API 客户端；展示 HTTP/gRPC/MQ 染色头注入、多跳拓扑透传链路追踪与丢标泄漏预警；单测独立通过，见 [`docs/evidence/shadow-traffic-taint-propagator-drawer-ui1-1-2026-10-17.md`](docs/evidence/shadow-traffic-taint-propagator-drawer-ui1-1-2026-10-17.md)。
+- [ ] 2026-10-17 UI1.2 影子库表读写防污染安全隔离与拦截抽屉：落地 `ShadowDatabaseIsolationDrawer.vue` 组件与 API 客户端；展示生产表至影子表映射树、SQL 动态重写审计、高危写操作阻断警告与映射配置；单测独立通过。
+- [ ] 2026-10-17 UI1.3 全链路影子数据与 MQ 消息分流隔离全景大盘页面：落地 `FullLinkShadowIsolationDashboardView.vue` 视图与路由；汇总全链路影子流量隔离率（100%）、影子库表就绪数、MQ 影子分流数与旁路 Mock/Drop 监控；单测独立通过。
+- [ ] 2026-10-17 UI2.1 多可用区单元化切流权重控制与智能路由抽屉：落地 `CellBasedTrafficControllerDrawer.vue` 组件与 API 客户端；展示 Cell 状态（ACTIVE_PROD, STRESS_ONLY, DRAINING）、权重调节滑块、用户分片取模路由与压测专用单元隔离；单测独立通过。
+- [ ] 2026-10-17 UI2.2 跨单元服务依赖逃逸与拓扑孤岛检测面板：落地 `CellEscapeDependencyPanel.vue` 组件与 API 客户端；展示跨单元 RPC 调用拦截、共享数据源混用告警、拓扑依赖调用边可视化矩阵；单测独立通过。
+- [ ] 2026-10-17 UI2.3 单元故障切换与常态化容灾自愈全景大盘页面：落地 `CellFailoverResilienceDashboardView.vue` 视图与路由；模拟单机房/单元瘫痪、展示 4 阶段时序耗时（心跳超时、DNS 切换、数据追平、路由收敛）、金融级 RTO 实时度量；单测独立通过。
+- [ ] 2026-10-17 UI3.1 多源基础设施 (DB池/Redis/MQ) 容量水位监控抽屉：落地 `MultisourceCapacityWatermarkDrawer.vue` 组件与 API 客户端；展示 DB 连接池、Redis 内存、MQ 积压四阶仪表盘（SAFE, WARNING, SATURATED, EXHAUSTED）与木桶短板资源定位；单测独立通过。
+- [ ] 2026-10-17 UI3.2 压测调用链热点慢调用与资源争用归因卡片：落地 `DistributedBottleneckClassifierCard.vue` 组件与 API 客户端；展示 P50/P90/P99 响应时间、死锁/慢SQL/线程池打满/CPU饱和智能分类与优化建议；单测独立通过。
+- [ ] 2026-10-17 UI3.3 防击穿自适应分级限流与防雪崩熔断大脑控制台：落地 `AdaptiveAvalancheBreakerConsoleDrawer.vue` 组件与 API 客户端；展示 4 阶段熔断状态机（正常、一级缓速25%、二级急刹60%、硬核毫秒阻断 ABORT）、实时熔断触发广播与一键紧急重置；单测独立通过。
+- [ ] 2026-10-17 UI4.1 TPS 阶梯加压性能曲线与最大吞吐拐点分析抽屉：落地 `StepLoadThroughputKneeDrawer.vue` 组件与 API 客户端；展示并发 vs TPS 拟合曲线、Knee Point 最佳拐点、Cliff Point 崩溃点与日常生产最佳并发推荐；单测独立通过。
+- [ ] 2026-10-17 UI4.2 生产全链路压测安全审计与爆炸半径评估卡片：落地 `StressBlastRadiusEvaluatorCard.vue` 组件与 API 客户端；展示 4 级爆炸半径（局域可控到全局失控）、4 大安全护栏准入状态、64 位 SHA-256 审计指纹；单测独立通过。
+- [ ] 2026-10-17 UI4.3 全链路压力演练综合审计与数字孪生复盘大盘页面：落地 `FullLinkStressDrillSummaryDashboardView.vue` 视图与路由；汇聚吞吐指标、容量水位、熔断事件与准入评级，提供全景演练报告 Markdown 一键实时预览与复制导出；单测独立通过。
+
 ## 2026-10-17 v4.6.0 研发任务规划（已全量闭环）
 
 > v4.6.0 规划入口为 [`docs/development-task-plan-v4.6.0.md`](docs/development-task-plan-v4.6.0.md)，覆盖 Phase 1（生产级全链路影子流量染色、透传与数据隔离引擎）、Phase 2（单元化/细胞化架构测试隔离 Cell-based Testing 与拓扑调度）、Phase 3（压测容量水位实时度量、下游瓶颈智能归因与防雪崩熔断器）、Phase 4（全链路压测仿真数字孪生演练报告与演练准入发布）。
