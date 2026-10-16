@@ -30,6 +30,9 @@
         <a-button size="small" :loading="loading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showCellControllerDrawer = true">
+          <PartitionOutlined /> 单元切流控制
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openFullConsole">
           <SettingOutlined /> {{ t('performance_workbench.full_console') }}
         </a-button>
@@ -348,6 +351,7 @@
         </a-space>
       </template>
     </a-drawer>
+    <CellBasedTrafficControllerDrawer v-model:open="showCellControllerDrawer" />
   </div>
 </template>
 
@@ -364,10 +368,13 @@ import {
   SafetyCertificateOutlined,
   SettingOutlined,
   StopOutlined,
+  PartitionOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
 import VChart from 'vue-echarts'
+import CellBasedTrafficControllerDrawer from './components/CellBasedTrafficControllerDrawer.vue'
+const showCellControllerDrawer = ref(false)
 import type { EChartsOption } from 'echarts'
 import {
   environmentApi,

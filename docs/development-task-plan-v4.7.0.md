@@ -34,7 +34,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| UI2.1 `[ ]` | **多可用区单元化切流权重控制与智能路由抽屉** | `cell_based_testing_traffic_controller` | 落地 `CellBasedTrafficControllerDrawer.vue` 组件与 API 客户端；展示 Cell 状态（ACTIVE_PROD, STRESS_ONLY, DRAINING）、权重调节滑块、用户分片取模路由与压测专用单元隔离；单测独立通过。 |
+| UI2.1 `[x]` | **多可用区单元化切流权重控制与智能路由抽屉** | `cell_based_testing_traffic_controller` | 落地 `CellBasedTrafficControllerDrawer.vue` 组件与 API 客户端；展示 Cell 状态（ACTIVE_PROD, STRESS_ONLY, DRAINING）、权重调节滑块、用户分片取模路由与压测专用单元隔离；单测独立通过；见 docs/evidence/cell-based-traffic-controller-drawer-ui2-1-2026-10-17.md |
 | UI2.2 `[ ]` | **跨单元服务依赖逃逸与拓扑孤岛检测面板** | `cell_escape_dependency_detector` | 落地 `CellEscapeDependencyPanel.vue` 组件与 API 客户端；展示跨单元 RPC 调用拦截、共享数据源混用告警、拓扑依赖调用边可视化矩阵；单测独立通过。 |
 | UI2.3 `[ ]` | **单元故障切换与常态化容灾自愈全景大盘页面** | `cell_failover_dashboard` | 落地 `CellFailoverResilienceDashboardView.vue` 视图与路由；模拟单机房/单元瘫痪、展示 4 阶段时序耗时（心跳超时、DNS 切换、数据追平、路由收敛）、金融级 RTO 实时度量；单测独立通过。 |
 

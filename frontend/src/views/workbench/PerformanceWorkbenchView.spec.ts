@@ -63,6 +63,10 @@ vi.mock('@ant-design/icons-vue', () => ({
   SafetyCertificateOutlined: true,
   SettingOutlined: true,
   StopOutlined: true,
+  PartitionOutlined: true,
+}))
+vi.mock('./components/CellBasedTrafficControllerDrawer.vue', () => ({
+  default: defineComponent({ name: 'CellBasedTrafficControllerDrawer', setup: () => () => h('div', 'cell-based-traffic-controller-drawer') }),
 }))
 vi.mock('@/api', () => ({
   datasetApi: { list: vi.fn() },
