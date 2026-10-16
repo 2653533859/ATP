@@ -239,6 +239,9 @@ vi.mock('./components/A11yKeyboardNavPathPanel.vue', () => ({
 vi.mock('./components/ClientLongTaskJankProfilerDrawer.vue', () => ({
   default: defineComponent({ name: 'ClientLongTaskJankProfilerDrawer', setup: () => () => h('div', 'client-long-task-jank-profiler-drawer') }),
 }))
+vi.mock('./components/ClientMemoryLeakDetectorCard.vue', () => ({
+  default: defineComponent({ name: 'ClientMemoryLeakDetectorCard', setup: () => () => h('div', 'client-memory-leak-detector-card') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

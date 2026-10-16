@@ -482,6 +482,23 @@ export async function listLongTaskReports(limit = 50): Promise<{ total: number; 
   return resp.data
 }
 
+export interface MemoryLeakFinding {
+  finding_id: string
+  leak_type: string
+  severity: string
+  title: string
+  impact_description: string
+  remediation_suggestion: string
+}
+
+export interface DetachedDomSample {
+  node_id: string
+  tag_name: string
+  retained_size_bytes: number
+  retaining_closure_or_symbol: string
+  description: string
+}
+
 export interface MemoryLeakAuditReport {
   report_id: string
   page_or_scenario: string
@@ -492,21 +509,8 @@ export interface MemoryLeakAuditReport {
   total_unreleased_listeners_count: number
   has_critical_leak: boolean
   memory_health_score_pct: number
-  findings: Array<{
-    finding_id: string
-    leak_type: string
-    severity: string
-    title: string
-    impact_description: string
-    remediation_suggestion: string
-  }>
-  detached_nodes_sample: Array<{
-    node_id: string
-    tag_name: string
-    retained_size_bytes: number
-    retaining_closure_or_symbol: string
-    description: string
-  }>
+  findings: MemoryLeakFinding[]
+  detached_nodes_sample: DetachedDomSample[]
   created_at: string
 }
 

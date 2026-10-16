@@ -55,7 +55,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI4.1 `[x]` | **前端运行时长任务 (Long Task) 堆栈下钻与 60 FPS 掉帧卡顿诊断抽屉** | `client_long_task_jank_profiler` | 落地 `ClientLongTaskJankProfilerDrawer.vue` 组件与 API 客户端；展示超过 50ms 长任务耗时火焰图、总阻塞时间 (TBT) 评级仪表、掉帧率量化、强制布局与 Canvas 归因；单测独立通过；见 docs/evidence/client-long-task-jank-profiler-drawer-ui4-1-2026-10-17.md |
-| UI4.2 `[ ]` | **页面内存泄漏监控与 Detached DOM 幽灵引用探测卡片** | `client_memory_leak_dom_detachment_detector` | 落地 `ClientMemoryLeakDetectorCard.vue` 组件与 API 客户端；展示 JS Heap 增长折线图、未释放事件监听器计数、脱落游离 DOM 树节点闭包样本；单测独立通过。 |
+| UI4.2 `[x]` | **页面内存泄漏监控与 Detached DOM 幽灵引用探测卡片** | `client_memory_leak_dom_detachment_detector` | 落地 `ClientMemoryLeakDetectorCard.vue` 组件与 API 客户端；展示 JS Heap 增长折线图、未释放事件监听器计数、脱落游离 DOM 树节点闭包样本；单测独立通过；见 docs/evidence/client-memory-leak-detector-card-ui4-2-2026-10-17.md |
 | UI4.3 `[ ]` | **Google Core Web Vitals (LCP/INP/CLS) 全景体验审计大盘页面** | `web_vitals_experience_audit_reporter` | 落地 `ClientWebVitalsExperienceDashboardView.vue` 视图与路由；展示三大核心指标（LCP/INP/CLS）红黄绿评级、加权性能体验分、Markdown 报告一键导出；单测独立通过。 |
 
 ---
