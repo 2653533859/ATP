@@ -17,7 +17,7 @@
 - [x] 2026-10-16 UI3.1 一阶语法变异算子注入生成与变异代码对比弹窗：扩展 ciImpact API 客户端，落地 CodeMutationOperatorGeneratorModal 组件并挂载至 ApiWorkbenchView；支持 ROR/LCR/AOR/RVO/BVO 五大一阶算子、4 大 KPI 指标、单变异体独立隔离与行级双栏 Diff 比对；单测独立通过，见 [`docs/evidence/code-mutation-operator-generator-modal-ui3-1-2026-10-16.md`](docs/evidence/code-mutation-operator-generator-modal-ui3-1-2026-10-16.md)。
 - [x] 2026-10-16 UI3.2 变异体沙箱执行实时进度与 Killed/Survived 监控抽屉：扩展 ciImpact API 客户端，落地 MutationExecutionLiveMonitorDrawer 组件并挂载至 ApiWorkbenchView；展示 5 大 KPI 指标、变异状态筛选流（Killed/Survived/TimedOut）、以及击毙用例定位与断言拦截分析；单测独立通过，见 [`docs/evidence/mutation-execution-live-monitor-drawer-ui3-2-2026-10-16.md`](docs/evidence/mutation-execution-live-monitor-drawer-ui3-2-2026-10-16.md)。
 - [x] 2026-10-16 UI3.3 变异得分 (Mutation Score) 与断言盲区热力报告页面：扩展 ciImpact API 客户端，落地 MutationScoreHeatmapReportView 页面与路由；量化综合变异得分百分比、四级充分性裁决、五大算子击毙率雷达图与断言盲区代码行级热力清单；单测独立通过，见 [`docs/evidence/mutation-score-heatmap-report-view-ui3-3-2026-10-16.md`](docs/evidence/mutation-score-heatmap-report-view-ui3-3-2026-10-16.md)。至此 v3.7.0 Phase 3 全量大闭环！
-- [ ] UI4.1 PR 代码变更全要素质量门禁合并准入仲裁卡片（PrQualityGatekeeperDashboardCard.vue）
+- [x] 2026-10-16 UI4.1 PR 代码变更全要素质量门禁合并准入仲裁卡片：扩展 ciImpact API 客户端，落地 PrQualityGatekeeperDashboardCard 组件并集成至 ApiWorkbenchView；支持三态裁决徽章（APPROVED/BLOCKED/CONDITIONAL）、合规得分、规则裁决矩阵表格与整改行动项清单；单测独立通过，见 [`docs/evidence/pr-quality-gatekeeper-dashboard-card-ui4-1-2026-10-16.md`](docs/evidence/pr-quality-gatekeeper-dashboard-card-ui4-1-2026-10-16.md)。
 - [ ] UI4.2 GitHub / GitLab 交互式 Reviewer 评论卡片预览与广播抽屉（PrCommentBotPreviewDrawer.vue）
 - [ ] UI4.3 CI/CD 流水线 Checkpoint 检查点全景监控看板页面（CiPipelineCheckpointMonitorView.vue）
 

@@ -59,6 +59,9 @@
         <a-button size="small" class="toolbar-btn" @click="showMutationMonitor = true">
           <BugOutlined /> 变异沙箱监控
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showGatekeeperDrawer = true">
+          <SafetyCertificateOutlined /> PR 质量门禁
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -449,6 +452,14 @@
     <GitDiffAstViewerDrawer v-model:open="showDiffAstViewer" />
     <CodeMutationOperatorGeneratorModal v-model:open="showMutationGenerator" />
     <MutationExecutionLiveMonitorDrawer v-model:open="showMutationMonitor" />
+    <a-drawer
+      v-model:open="showGatekeeperDrawer"
+      :width="1080"
+      title="CI/CD PR 全要素质量门禁合并准入控制台"
+      destroy-on-close
+    >
+      <PrQualityGatekeeperDashboardCard />
+    </a-drawer>
   </div>
 </template>
 
@@ -471,6 +482,7 @@ import {
   SendOutlined,
   ThunderboltOutlined,
   ClusterOutlined,
+  SafetyCertificateOutlined,
   FileSearchOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
@@ -512,6 +524,8 @@ const showMutationGenerator = ref(false)
 import MutationExecutionLiveMonitorDrawer from './components/MutationExecutionLiveMonitorDrawer.vue'
 const showMutationMonitor = ref(false)
 import { useAuthStore } from '@/stores/auth'
+import PrQualityGatekeeperDashboardCard from './components/PrQualityGatekeeperDashboardCard.vue'
+const showGatekeeperDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)

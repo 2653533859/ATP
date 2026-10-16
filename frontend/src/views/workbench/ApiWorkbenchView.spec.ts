@@ -56,6 +56,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   PlusOutlined: true,
   ReloadOutlined: true,
   SendOutlined: true,
+  SafetyCertificateOutlined: true,
   ThunderboltOutlined: true,
   ClusterOutlined: true,
   FileSearchOutlined: true,
@@ -113,6 +114,9 @@ vi.mock('./components/CodeMutationOperatorGeneratorModal.vue', () => ({
 }))
 vi.mock('./components/MutationExecutionLiveMonitorDrawer.vue', () => ({
   default: defineComponent({ name: 'MutationExecutionLiveMonitorDrawer', setup: () => () => h('div', 'mutation-execution-live-monitor-drawer') }),
+}))
+vi.mock('./components/PrQualityGatekeeperDashboardCard.vue', () => ({
+  default: defineComponent({ name: 'PrQualityGatekeeperDashboardCard', setup: () => () => h('div', 'pr-quality-gatekeeper-dashboard-card') }),
 }))
 
 const passthrough = (name: string) =>

@@ -336,6 +336,48 @@ export interface CalculateMutationScoreRequest {
   mutant_execution_results?: Array<Record<string, any>>
 }
 
+export type MergeGateVerdict = 'MERGE_APPROVED' | 'MERGE_BLOCKED' | 'CONDITIONAL_PASS'
+
+export interface GateRuleEvaluation {
+  rule_id: string
+  rule_name: string
+  passed: boolean
+  severity: 'blocking' | 'warning'
+  measured_value: any
+  threshold_value: any
+  message: string
+}
+
+export interface PrGateVerdictReport {
+  gate_id: string
+  pr_id: string
+  commit_sha: string
+  author: string
+  target_branch: string
+  verdict: MergeGateVerdict
+  is_mergeable: boolean
+  overall_compliance_score: number
+  blocking_reasons: string[]
+  warning_reasons: string[]
+  evaluated_rules: GateRuleEvaluation[]
+  remediation_steps: string[]
+  evaluated_at: string
+}
+
+export interface EvaluatePrGateRequest {
+  pr_id: string
+  commit_sha: string
+  author?: string
+  target_branch?: string
+  test_pass_rate_pct?: number
+  test_failed_cases_count?: number
+  risk_level?: string
+  mutation_score_pct?: number | null
+  has_dual_approvals?: boolean
+  min_pass_rate_threshold?: number
+  min_mutation_score_threshold?: number
+}
+
 export const ciImpactApi = {
   analyzeDiffAst(data: AnalyzeDiffAstRequest): Promise<{ message: string; report: DiffAstAnalysisReportItem }> {
     return http.post('/ci-impact/diff-ast/analyze', data)
@@ -451,5 +493,17 @@ export const ciImpactApi = {
 
   getMutationScoreReport(scoreId: string): Promise<MutationScoreReport> {
     return http.get(`/ci-impact/mutations/score/reports/${scoreId}`)
+  },
+
+  evaluatePrGate(data: EvaluatePrGateRequest): Promise<{ message: string; report: PrGateVerdictReport }> {
+    return http.post('/ci-impact/pr-gate/evaluate', data)
+  },
+
+  listPrGateReports(): Promise<{ total: number; reports: PrGateVerdictReport[] }> {
+    return http.get('/ci-impact/pr-gate/reports')
+  },
+
+  getPrGateReport(gateId: string): Promise<PrGateVerdictReport> {
+    return http.get(`/ci-impact/pr-gate/reports/${gateId}`)
   },
 }
