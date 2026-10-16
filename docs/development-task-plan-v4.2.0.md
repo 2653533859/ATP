@@ -44,7 +44,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T3.1 `[ ]` | **接口契约与业务 Spec 驱动的端到端用例智能生成编排器** | `llm_spec_to_e2e_case_synthesizer` | 落地 `llm_spec_to_e2e_case_synthesizer` 服务与 `/llm-testing/synthesize-cases/*` API；解析 OpenAPI 契约与业务流程描述，推导业务依赖上下文并生成标准测试用例；单测独立通过。 |
+| T3.1 `[x]` | **接口契约与业务 Spec 驱动的端到端用例智能生成编排器** | `llm_spec_to_e2e_case_synthesizer` | 落地 `llm_spec_to_e2e_case_synthesizer` 服务与 `/llm-testing/synthesize-cases/*` API；解析 OpenAPI 契约与业务流程描述，推导业务依赖上下文并生成标准测试用例；单测独立通过；见 docs/evidence/llm-spec-to-e2e-case-synthesizer-t3-1-2026-10-17.md |
 | T3.2 `[ ]` | **针对复杂业务边界条件的生产级测试合成数据生成器** | `synthetic_test_data_generator` | 落地 `synthetic_test_data_generator` 服务与 `/llm-testing/synthetic-data/*` API；基于字段约束与边界特征，合成多样化符合校验规则的生产级测试数据包；单测独立通过。 |
 | T3.3 `[ ]` | **自主探索式 API 模糊变异与隐蔽缺陷深度探查器** | `autonomous_api_fuzzing_explorer` | 落地 `autonomous_api_fuzzing_explorer` 服务与 `/llm-testing/fuzzing-explore/*` API；执行基于状态反馈的智能变异探测，探查未预期的 5xx 服务崩溃与逻辑旁路缺陷；单测独立通过。 |
 
