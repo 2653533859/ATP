@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-16 v3.6.0 研发任务规划（进行中）
+
+> v3.6.0 规划入口为 [`docs/development-task-plan-v3.6.0.md`](docs/development-task-plan-v3.6.0.md)，覆盖 S1（代码变更差异 AST 语义分析与测试用例智能映射）、S2（动态测试切片并发调度与变更风险指数模型）、S3（代码变异测试与断言有效性评分引擎）、S4（CI/CD PR 自动化准入卡点与多平台 Webhook 机器人）。
+
+- [x] 2026-10-16 S1.1 Git Diff AST 语法树代码变更语义提取与符号差异解析服务：落地 git_diff_ast_analyzer 服务与 /ci-impact/diff-ast/* API；解析 Unified Diff 补丁并基于 Python AST 提取变更类、方法、函数与 FastAPI 路由端点范围；4 项单测独立通过，见 [`docs/evidence/git-diff-ast-analyzer-s1-1-2026-10-16.md`](docs/evidence/git-diff-ast-analyzer-s1-1-2026-10-16.md)。
+- [ ] S1.2 代码函数/端点与自动化测试用例双向依赖映射索引引擎（code_to_test_mapping_indexer）
+- [ ] S1.3 基于变更影响面的最小化必要测试集智能推导与选择引擎（smart_test_selection_engine）
+- [ ] S2.1 多容器弹性 Worker 负载均衡动态测试切片分发器（dynamic_test_shard_partitioner）
+- [ ] S2.2 代码变更行数/圈复杂度与核心度多维风险指数模型（change_risk_scorer）
+- [ ] S2.3 CI 选定测试集高频抖动 Flaky 用例自适应抑制隔离过滤器（flaky_test_suppression_filter）
+- [ ] S3.1 代码变更行一阶语法变异算子注入生成引擎（code_mutation_operator_engine）
+- [ ] S3.2 变异体执行检验与捕获/存活状态判定执行器（mutation_execution_runner）
+- [ ] S3.3 用例断言有效性量化与变异得分计算器（mutation_score_calculator）
+- [ ] S4.1 PR 代码变更全要素质量门禁与合并准入判定仲裁器（pr_quality_gatekeeper）
+- [ ] S4.2 GitHub / GitLab 交互式 PR Reviewer 评论与卡片广播机器人（pr_comment_bot_dispatcher）
+- [ ] S4.3 CI/CD 流水线 Checkpoint 检查点通用集成 CLI 与 OpenAPI（ci_pipeline_checkpoint_api）
+
 ## 2026-10-16 v3.5.0 研发任务规划（已全量闭环）
 
 > v3.5.0 规划入口为 [`docs/development-task-plan-v3.5.0.md`](docs/development-task-plan-v3.5.0.md)，覆盖 UI1（云原生动态容器化弹性 Worker 调度与镜像版本控制台）、UI2（AI 驱动的用例自愈与契约响应柔性断言控制台）、UI3（多端原生性能剖析与深度质量诊断控制台）、UI4（企业级报告归档多模态导出与研发效能 DORA 罗盘中心）。
