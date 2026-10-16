@@ -123,6 +123,35 @@ export interface SelectTestsRequest {
   total_repo_cases_override?: number
 }
 
+export interface TestShardItem {
+  shard_index: number
+  case_ids: number[]
+  cases_count: number
+  estimated_duration_sec: number
+  worker_assigned_id?: string | null
+}
+
+export interface DynamicShardingReportItem {
+  sharding_id: string
+  target_shards_count: number
+  actual_shards_count: number
+  total_cases_count: number
+  total_estimated_duration_sec: number
+  max_shard_duration_sec: number
+  min_shard_duration_sec: number
+  duration_variance: number
+  theoretical_speedup_ratio: number
+  shards: TestShardItem[]
+  created_at: string
+}
+
+export interface PartitionTestsRequest {
+  case_ids: number[]
+  target_shards_count?: number
+  case_duration_history?: Record<number, number>
+  default_case_duration_sec?: number
+}
+
 export const ciImpactApi = {
   analyzeDiffAst(data: AnalyzeDiffAstRequest): Promise<{ message: string; report: DiffAstAnalysisReportItem }> {
     return http.post('/ci-impact/diff-ast/analyze', data)
@@ -158,5 +187,17 @@ export const ciImpactApi = {
 
   getSelectionReport(selectionId: string): Promise<SmartTestSelectionReportItem> {
     return http.get(`/ci-impact/test-selection/reports/${selectionId}`)
+  },
+
+  partitionShards(data: PartitionTestsRequest): Promise<{ message: string; report: DynamicShardingReportItem }> {
+    return http.post('/ci-impact/sharding/partition', data)
+  },
+
+  listShardingReports(): Promise<{ total: number; reports: DynamicShardingReportItem[] }> {
+    return http.get('/ci-impact/sharding/reports')
+  },
+
+  getShardingReport(shardingId: string): Promise<DynamicShardingReportItem> {
+    return http.get(`/ci-impact/sharding/reports/${shardingId}`)
   },
 }

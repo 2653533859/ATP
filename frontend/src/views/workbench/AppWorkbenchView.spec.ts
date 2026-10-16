@@ -54,6 +54,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   AimOutlined: true,
   DashboardOutlined: true,
   AndroidOutlined: true,
+  BranchesOutlined: true,
   AppstoreOutlined: true,
   ClockCircleOutlined: true,
   CloudServerOutlined: true,
@@ -94,6 +95,12 @@ vi.mock('./components/MobilePerfDiagnosticsViewer.vue', () => ({
   default: defineComponent({
     name: 'MobilePerfDiagnosticsViewer',
     setup: () => () => h('div', { class: 'mobile-perf-diagnostics-viewer-stub' }),
+  }),
+}))
+vi.mock('./components/DynamicTestShardingGanttCard.vue', () => ({
+  default: defineComponent({
+    name: 'DynamicTestShardingGanttCard',
+    setup: () => () => h('div', { class: 'dynamic-test-sharding-gantt-stub' }),
   }),
 }))
 vi.mock('@/stores/auth', () => ({

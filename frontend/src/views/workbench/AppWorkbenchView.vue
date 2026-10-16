@@ -62,6 +62,9 @@
         <a-button size="small" class="toolbar-btn" @click="showMobilePerf = true">
           <DashboardOutlined /> 原生性能体检
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showShardingDrawer = true">
+          <BranchesOutlined /> 动态分片甘特
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openDevices">
           <ToolOutlined /> {{ t('app_workbench.device_management') }}
         </a-button>
@@ -392,6 +395,14 @@
     >
       <MobilePerfDiagnosticsViewer />
     </a-drawer>
+    <a-drawer
+      v-model:open="showShardingDrawer"
+      :width="1060"
+      title="多容器 Worker 负载均衡动态测试切片控制台"
+      destroy-on-close
+    >
+      <DynamicTestShardingGanttCard />
+    </a-drawer>
   </div>
 </template>
 
@@ -402,6 +413,7 @@ import {
   AimOutlined,
   DashboardOutlined,
   AndroidOutlined,
+  BranchesOutlined,
   AppstoreOutlined,
   ClockCircleOutlined,
   CloudServerOutlined,
@@ -476,6 +488,8 @@ import WorkerImageMatrixDrawer from './components/WorkerImageMatrixDrawer.vue'
 import SmartLocatorHealingDrawer from './components/SmartLocatorHealingDrawer.vue'
 import MobilePerfDiagnosticsViewer from './components/MobilePerfDiagnosticsViewer.vue'
 const showMobilePerf = ref(false)
+import DynamicTestShardingGanttCard from './components/DynamicTestShardingGanttCard.vue'
+const showShardingDrawer = ref(false)
 const showLocatorHealing = ref(false)
 const showImageMatrix = ref(false)
 
