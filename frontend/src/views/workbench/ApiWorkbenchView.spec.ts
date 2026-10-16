@@ -48,6 +48,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   BranchesOutlined: true,
   CodeSandboxOutlined: true,
   ApiOutlined: true,
+  BugOutlined: true,
   FileAddOutlined: true,
   FilterOutlined: true,
   MinusCircleOutlined: true,
@@ -109,6 +110,9 @@ vi.mock('./components/SmartTestSelectionWorkbenchCard.vue', () => ({
 }))
 vi.mock('./components/CodeMutationOperatorGeneratorModal.vue', () => ({
   default: defineComponent({ name: 'CodeMutationOperatorGeneratorModal', setup: () => () => h('div', 'code-mutation-operator-generator-modal') }),
+}))
+vi.mock('./components/MutationExecutionLiveMonitorDrawer.vue', () => ({
+  default: defineComponent({ name: 'MutationExecutionLiveMonitorDrawer', setup: () => () => h('div', 'mutation-execution-live-monitor-drawer') }),
 }))
 
 const passthrough = (name: string) =>

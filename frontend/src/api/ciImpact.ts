@@ -262,6 +262,39 @@ export interface GenerateMutantsRequest {
   max_mutants?: number
 }
 
+export type MutantStatus = 'KILLED' | 'SURVIVED' | 'TIMED_OUT' | 'ERROR'
+
+export interface MutantExecutionResult {
+  mutant_id: string
+  status: MutantStatus
+  killing_test_case_id: number | null
+  killing_test_case_name: string | null
+  execution_duration_ms: number
+  error_message: string | null
+  line_number: number
+  operator_type: string
+  description: string
+}
+
+export interface MutationExecutionRunReport {
+  run_id: string
+  total_mutants_tested: number
+  killed_count: number
+  survived_count: number
+  timed_out_count: number
+  error_count: number
+  kill_rate_pct: number
+  survived_mutant_ids: string[]
+  results: MutantExecutionResult[]
+  executed_at: string
+}
+
+export interface RunMutationExecutionRequest {
+  mutant_ids: string[]
+  test_cases?: Array<Record<string, any>>
+  timeout_sec_per_mutant?: number
+}
+
 export const ciImpactApi = {
   analyzeDiffAst(data: AnalyzeDiffAstRequest): Promise<{ message: string; report: DiffAstAnalysisReportItem }> {
     return http.post('/ci-impact/diff-ast/analyze', data)
@@ -353,5 +386,17 @@ export const ciImpactApi = {
 
   getMutant(mutantId: string): Promise<MutantItem> {
     return http.get(`/ci-impact/mutations/${mutantId}`)
+  },
+
+  runMutationExecution(data: RunMutationExecutionRequest): Promise<{ message: string; report: MutationExecutionRunReport }> {
+    return http.post('/ci-impact/mutations/execute/run', data)
+  },
+
+  listMutationExecutionReports(): Promise<{ total: number; reports: MutationExecutionRunReport[] }> {
+    return http.get('/ci-impact/mutations/execute/reports')
+  },
+
+  getMutationExecutionReport(runId: string): Promise<MutationExecutionRunReport> {
+    return http.get(`/ci-impact/mutations/execute/reports/${runId}`)
   },
 }

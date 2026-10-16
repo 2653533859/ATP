@@ -56,6 +56,9 @@
         <a-button size="small" class="toolbar-btn" @click="showMutationGenerator = true">
           <ThunderboltOutlined /> 代码变异注入
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showMutationMonitor = true">
+          <BugOutlined /> 变异沙箱监控
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -445,6 +448,7 @@
     </a-drawer>
     <GitDiffAstViewerDrawer v-model:open="showDiffAstViewer" />
     <CodeMutationOperatorGeneratorModal v-model:open="showMutationGenerator" />
+    <MutationExecutionLiveMonitorDrawer v-model:open="showMutationMonitor" />
   </div>
 </template>
 
@@ -454,6 +458,7 @@ import { message } from 'ant-design-vue'
 import {
   AimOutlined,
   ApartmentOutlined,
+  BugOutlined,
   CodeOutlined,
   CheckCircleOutlined,
   BranchesOutlined,
@@ -504,6 +509,8 @@ import GitDiffAstViewerDrawer from './components/GitDiffAstViewerDrawer.vue'
 import SmartTestSelectionWorkbenchCard from './components/SmartTestSelectionWorkbenchCard.vue'
 import CodeMutationOperatorGeneratorModal from './components/CodeMutationOperatorGeneratorModal.vue'
 const showMutationGenerator = ref(false)
+import MutationExecutionLiveMonitorDrawer from './components/MutationExecutionLiveMonitorDrawer.vue'
+const showMutationMonitor = ref(false)
 import { useAuthStore } from '@/stores/auth'
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
