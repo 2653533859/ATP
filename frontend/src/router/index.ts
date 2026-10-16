@@ -447,6 +447,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/visual-regression',
+          name: 'visual-regression-audit-dashboard',
+          component: () => import('@/views/quality/VisualRegressionAuditDashboardView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),
