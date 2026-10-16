@@ -36,7 +36,7 @@
 |---|---|---|---|
 | T2.1 `[x]` | **基于视觉大模型 (VLM) 的 UI 页面语义完整性断言推理器** | `vlm_ui_semantic_assertion_reasoner` | 落地 `vlm_ui_semantic_assertion_reasoner` 服务与 `/visual-ai/semantic-assertion/*` API；基于视觉多模态对全页截图执行元素完整性、白屏缺失与错位语义推导断言；单测独立通过；见 docs/evidence/vlm-ui-semantic-assertion-reasoner-t2-1-2026-10-17.md |
 | T2.2 `[x]` | **跨视口文本截断、元素重叠与布局溢出碰撞检测器** | `ui_layout_overflow_collision_detector` | 落地 `ui_layout_overflow_collision_detector` 服务与 `/visual-ai/layout-collision/*` API；基于 BoundingBox 空间坐标与盒模型计算，精准探查文本截断省略、组件层级碰撞重叠与视口水平溢出；单测独立通过；见 docs/evidence/ui-layout-overflow-collision-detector-t2-2-2026-10-17.md |
-| T2.3 `[ ]` | **品牌设计系统 (Design System Token) 与色彩对比度检查器** | `design_system_token_contrast_checker` | 落地 `design_system_token_contrast_checker` 服务与 `/visual-ai/design-tokens/*` API；验证字号间距圆角 Design Tokens 合规度，计算前景色/背景色 WCAG 对比度 (≥4.5:1)；单测独立通过。 |
+| T2.3 `[x]` | **品牌设计系统 (Design System Token) 与色彩对比度检查器** | `design_system_token_contrast_checker` | 落地 `design_system_token_contrast_checker` 服务与 `/visual-ai/design-tokens/*` API；验证字号间距圆角 Design Tokens 合规度，计算前景色/背景色 WCAG 对比度 (≥4.5:1)；单测独立通过；见 docs/evidence/design-system-token-contrast-checker-t2-3-2026-10-17.md |
 
 ---
 
