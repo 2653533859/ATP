@@ -517,6 +517,40 @@ export interface ResilienceRtoReport {
   evaluated_at: string
 }
 
+export type TrafficPipelineStageStatus = 'PASSED' | 'BLOCKED' | 'WARNING'
+
+export interface PipelineStageReportItem {
+  stage_index: number
+  stage_name: string
+  status: TrafficPipelineStageStatus
+  duration_ms: number
+  summary: string
+  metrics: Record<string, any>
+}
+
+export interface TrafficGuardPipelineReport {
+  pipeline_run_id: string
+  pipeline_name: string
+  endpoint: string
+  exit_code: number
+  overall_status: TrafficPipelineStageStatus
+  stages: PipelineStageReportItem[]
+  remediation_actions: string[]
+  console_log_output: string
+  executed_at: string
+}
+
+export interface RunTrafficGuardPipelineRequest {
+  endpoint?: string
+  raw_traffic_samples?: any[]
+  design_contract?: Record<string, any>
+  target_base_url?: string
+  pipeline_name?: string
+  write_guard_mode?: string
+  tolerance_threshold_pct?: number
+  simulate_chaos_resilience?: boolean
+}
+
 export const trafficCaptureApi = {
   getFilterConfig(): Promise<CaptureFilterConfig> {
     return http.get('/traffic/capture/config')
@@ -829,5 +863,23 @@ export const resilienceRtoApi = {
 
   clearReports(): Promise<{ message: string; deleted_count: number }> {
     return http.delete('/chaos-traffic/evaluate-rto/reports')
+  },
+}
+
+export const trafficGuardPipelineApi = {
+  run(data?: RunTrafficGuardPipelineRequest): Promise<{ message: string; report: TrafficGuardPipelineReport }> {
+    return http.post('/traffic-guard/pipeline/run', data || {})
+  },
+
+  listReports(): Promise<{ total: number; reports: TrafficGuardPipelineReport[] }> {
+    return http.get('/traffic-guard/pipeline/reports')
+  },
+
+  getReport(pipelineRunId: string): Promise<TrafficGuardPipelineReport> {
+    return http.get(`/traffic-guard/pipeline/reports/${pipelineRunId}`)
+  },
+
+  clearReports(): Promise<{ message: string; deleted_count: number }> {
+    return http.delete('/traffic-guard/pipeline/reports')
   },
 }

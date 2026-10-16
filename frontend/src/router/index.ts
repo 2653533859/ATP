@@ -405,6 +405,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/traffic-guard-pipeline',
+          name: 'traffic-guard-pipeline-monitor',
+          component: () => import('@/views/quality/TrafficGuardPipelineMonitorView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),
