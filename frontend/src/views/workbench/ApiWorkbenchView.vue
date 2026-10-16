@@ -149,6 +149,9 @@
         <a-button size="small" class="toolbar-btn" @click="showVisualDiffDrawer = true">
           <EyeOutlined /> 视觉 Diff 审视
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showBaselinePanel = true">
+          <StarOutlined /> 黄金基线演进
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -618,6 +621,7 @@
     <QualityHealthCompositeScoreCard v-model:open="showHealthScoreDrawer" />
     <ReleaseGateVerdictWaiverModal v-model:open="showReleaseGateModal" />
     <VisualPixelDiffInspectorDrawer v-model:open="showVisualDiffDrawer" />
+    <VisualGoldenBaselineEvolutionPanel v-model:open="showBaselinePanel" />
   </div>
 </template>
 
@@ -654,6 +658,7 @@ import {
   DatabaseOutlined,
   DashboardOutlined,
   EyeOutlined,
+  StarOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
@@ -753,6 +758,8 @@ import ReleaseGateVerdictWaiverModal from './components/ReleaseGateVerdictWaiver
 const showReleaseGateModal = ref(false)
 import VisualPixelDiffInspectorDrawer from './components/VisualPixelDiffInspectorDrawer.vue'
 const showVisualDiffDrawer = ref(false)
+import VisualGoldenBaselineEvolutionPanel from './components/VisualGoldenBaselineEvolutionPanel.vue'
+const showBaselinePanel = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value

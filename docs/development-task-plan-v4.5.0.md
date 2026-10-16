@@ -25,7 +25,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI1.1 `[x]` | **跨分辨率多视口像素级 SSIM 差异高亮与动态掩码忽略抽屉** | `visual_pixel_ssim_diff_engine` | 落地 `VisualPixelDiffInspectorDrawer.vue` 组件与 API 客户端；展示 Desktop/Tablet/Mobile 视口切换、差异像素红亮 Heatmap 覆盖层、动态 Mask 忽略区域打标；单测独立通过；见 docs/evidence/visual-pixel-diff-inspector-drawer-ui1-1-2026-10-17.md |
-| UI1.2 `[ ]` | **黄金基线版本化演进追踪与跨分支视觉差异比对面板** | `visual_golden_baseline_branch_tracker` | 落地 `VisualGoldenBaselineEvolutionPanel.vue` 组件与 API 客户端；展示主干 vs 特性分支视觉变迁流、基线晋升审批流（Promote to Golden Baseline）、差异类型徽章；单测独立通过。 |
+| UI1.2 `[x]` | **黄金基线版本化演进追踪与跨分支视觉差异比对面板** | `visual_golden_baseline_branch_tracker` | 落地 `VisualGoldenBaselineEvolutionPanel.vue` 组件与 API 客户端；展示主干 vs 特性分支视觉变迁流、基线晋升审批流（Promote to Golden Baseline）、差异类型徽章；单测独立通过；见 docs/evidence/visual-golden-baseline-evolution-panel-ui1-2-2026-10-17.md |
 | UI1.3 `[ ]` | **多模态视觉回归与黄金基线管理全景大盘页面** | `visual_regression_dashboard` | 落地 `VisualRegressionAuditDashboardView.vue` 视图与路由；汇总全站视觉 Diff 通过率、活跃黄金基线数、待审视视觉差异、一键全量回归；单测独立通过。 |
 
 ---

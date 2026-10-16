@@ -9,7 +9,7 @@
 > v4.5.0 规划入口为 [`docs/development-task-plan-v4.5.0.md`](docs/development-task-plan-v4.5.0.md)，覆盖 Phase 1（多模态视觉回归像素级 Diff 与黄金基线演进审视大盘）、Phase 2（页面语义完整性断言与布局越界/Design Tokens 审查抽屉）、Phase 3（深度无障碍访问 a11y WCAG 2.2 全面体检中心与色盲感知模拟控制台）、Phase 4（客户端运行时全息性能与 Web Vitals 体验监控大盘）。
 
 - [x] 2026-10-17 UI1.1 跨分辨率多视口像素级 SSIM 差异高亮与动态掩码忽略抽屉：落地 `VisualPixelDiffInspectorDrawer.vue` 组件与 API 客户端；展示 Desktop/Tablet/Mobile 视口切换、差异像素红亮 Heatmap 覆盖层、动态 Mask 忽略区域打标；单测独立通过，见 [`docs/evidence/visual-pixel-diff-inspector-drawer-ui1-1-2026-10-17.md`](docs/evidence/visual-pixel-diff-inspector-drawer-ui1-1-2026-10-17.md)。
-- [ ] 2026-10-17 UI1.2 黄金基线版本化演进追踪与跨分支视觉差异比对面板：落地 `VisualGoldenBaselineEvolutionPanel.vue` 组件与 API 客户端；展示主干 vs 特性分支视觉变迁流、基线晋升审批流（Promote to Golden Baseline）、差异类型徽章；单测独立通过。
+- [x] 2026-10-17 UI1.2 黄金基线版本化演进追踪与跨分支视觉差异比对面板：落地 `VisualGoldenBaselineEvolutionPanel.vue` 组件与 API 客户端；展示主干 vs 特性分支视觉变迁流、基线晋升审批流（Promote to Golden Baseline）、差异类型徽章；单测独立通过，见 [`docs/evidence/visual-golden-baseline-evolution-panel-ui1-2-2026-10-17.md`](docs/evidence/visual-golden-baseline-evolution-panel-ui1-2-2026-10-17.md)。
 - [ ] 2026-10-17 UI1.3 多模态视觉回归与黄金基线管理全景大盘页面：落地 `VisualRegressionAuditDashboardView.vue` 视图与路由；汇总全站视觉 Diff 通过率、活跃黄金基线数、待审视视觉差异、一键全量回归；单测独立通过。
 - [ ] 2026-10-17 UI2.1 基于视觉大模型 (VLM) 的 UI 页面语义完整性推导断言配置抽屉：落地 `VLMVisualSemanticAssertionDrawer.vue` 组件与 API 客户端；展示白屏检测、断图检测、自然语言断言配置卡片、视觉语义综合得分雷达图；单测独立通过。
 - [ ] 2026-10-17 UI2.2 跨视口文本截断、元素重叠碰撞与横向溢出检测卡片：落地 `UILayoutCollisionDetectorCard.vue` 组件与 API 客户端；展示空间 AABB 碰撞交叠区域高亮、文本截断省略告警、移动端横向滚动条溢出标注、修复 CSS 快捷复制；单测独立通过。

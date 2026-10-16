@@ -74,6 +74,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   DatabaseOutlined: true,
   DashboardOutlined: true,
   EyeOutlined: true,
+  StarOutlined: true,
 }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
@@ -216,6 +217,9 @@ vi.mock('./components/ReleaseGateVerdictWaiverModal.vue', () => ({
 }))
 vi.mock('./components/VisualPixelDiffInspectorDrawer.vue', () => ({
   default: defineComponent({ name: 'VisualPixelDiffInspectorDrawer', setup: () => () => h('div', 'visual-pixel-diff-inspector-drawer') }),
+}))
+vi.mock('./components/VisualGoldenBaselineEvolutionPanel.vue', () => ({
+  default: defineComponent({ name: 'VisualGoldenBaselineEvolutionPanel', setup: () => () => h('div', 'visual-golden-baseline-evolution-panel') }),
 }))
 
 const passthrough = (name: string) =>
