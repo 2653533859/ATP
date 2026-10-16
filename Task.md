@@ -18,7 +18,7 @@
 - [x] 2026-10-16 T3.2 接口契约字段级兼容性差分与 Breaking 破坏性评级引擎：落地 contract_drift_breaking_evaluator 服务与 /contract-guard/evaluate/* API；实现非对称兼容性规则比对（请求体新增必填/类型改变/枚举缩减与响应体删除字段均判定为 BREAKING）；4 项单测独立通过，见 [`docs/evidence/contract-drift-breaking-evaluator-t3-2-2026-10-16.md`](docs/evidence/contract-drift-breaking-evaluator-t3-2-2026-10-16.md)。
 - [x] 2026-10-16 T3.3 契约漂移下游受影响服务级联拓扑探测与告警网关：落地 contract_drift_impact_topology_router 服务与 /contract-guard/impact-topology/* API；实现微服务消费字段级拓扑匹配、多跳级联递归追溯、爆炸半径评级 (0~100) 与告警路由定向派发；4 项单测独立通过，见 [`docs/evidence/contract-drift-impact-topology-router-t3-3-2026-10-16.md`](docs/evidence/contract-drift-impact-topology-router-t3-3-2026-10-16.md)。至此 v3.8.0 Phase 3 全量大闭环！
 - [x] 2026-10-16 T4.1 基于流量特征匹配的微服务故障注入编排执行器：落地 traffic_chaos_fault_injector 服务与 /chaos-traffic/inject/* API；支持四类故障动作（时延/503错误/数据截断/丢包）、特征匹配过滤与触发上限熔断保护；5 项单测独立通过，见 [`docs/evidence/traffic-chaos-fault-injector-t4-1-2026-10-16.md`](docs/evidence/traffic-chaos-fault-injector-t4-1-2026-10-16.md)。
-- [ ] T4.2 服务断路器/降级策略生效时延与 RTO 恢复指标量化器（resilience_rto_recovery_evaluator）
+- [x] 2026-10-16 T4.2 服务断路器/降级策略生效时延与 RTO 恢复指标量化器：落地 resilience_rto_recovery_evaluator 服务与 /chaos-traffic/evaluate-rto/* API；实现断路器跳闸时延、降级合规率、RTO 自愈时长精准度量与四级韧性评级；4 项单测独立通过，见 [`docs/evidence/resilience-rto-recovery-evaluator-t4-2-2026-10-16.md`](docs/evidence/resilience-rto-recovery-evaluator-t4-2-2026-10-16.md)。
 - [ ] T4.3 生产流量录制回放与契约防线端到端 CLI 与 OpenAPI 编排（traffic_guard_pipeline_api）
 
 ## 2026-10-16 v3.7.0 研发任务规划（已全量闭环）

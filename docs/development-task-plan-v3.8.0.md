@@ -55,7 +55,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T4.1 `[x]` | **基于流量特征匹配的微服务故障注入编排执行器** | `traffic_chaos_fault_injector` | 落地 `traffic_chaos_fault_injector` 服务与 `/chaos-traffic/inject/*` API；支持针对特定流量特征精准注入网络延迟 (Latency)、错误响应 (500/503)、异常截断与丢包；见 docs/evidence/traffic-chaos-fault-injector-t4-1-2026-10-16.md |
-| T4.2 `[ ]` | **服务断路器/降级策略生效时延与 RTO 恢复指标量化器** | `resilience_rto_recovery_evaluator` | 落地 `resilience_rto_recovery_evaluator` 服务与 `/chaos-traffic/evaluate-rto/*` API；量化注入故障后断路器触发时延、降级响应正确率与故障消除后 RTO 自愈时长。 |
+| T4.2 `[x]` | **服务断路器/降级策略生效时延与 RTO 恢复指标量化器** | `resilience_rto_recovery_evaluator` | 落地 `resilience_rto_recovery_evaluator` 服务与 `/chaos-traffic/evaluate-rto/*` API；量化注入故障后断路器触发时延、降级响应正确率与故障消除后 RTO 自愈时长；见 docs/evidence/resilience-rto-recovery-evaluator-t4-2-2026-10-16.md |
 | T4.3 `[ ]` | **生产流量录制回放与契约防线端到端 CLI 与 OpenAPI 编排** | `traffic_guard_pipeline_api` | 落地 `traffic_guard_pipeline_api` 服务、`/traffic-guard/pipeline/*` API 与 `scripts/ci_atp_traffic_guard.py` CLI 工具；输出 0/1/2 标准状态码与全景执行报告。 |
 
 ---
