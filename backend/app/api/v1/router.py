@@ -115,6 +115,7 @@ from app.api.v1 import (
     db_schema_drift_api,
     iac_compliance_scanner_api,
     llm_spec_case_synthesizer_api,
+    synthetic_test_data_api,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -235,3 +236,4 @@ router.include_router(multi_env_config_drift_api.router)
 router.include_router(db_schema_drift_api.router)
 router.include_router(iac_compliance_scanner_api.router)
 router.include_router(llm_spec_case_synthesizer_api.router)
+router.include_router(synthetic_test_data_api.router)
