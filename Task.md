@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-16 v4.0.0 研发任务规划（进行中）
+
+> v4.0.0 规划入口为 [`docs/development-task-plan-v4.0.0.md`](docs/development-task-plan-v4.0.0.md)，覆盖 Phase 1（分布式调用链全息追踪与拓扑性能瓶颈火焰图）、Phase 2（微服务分布式事务与跨系统数据最终一致性稽核）、Phase 3（自动化测试执行失败智能根因推导与故障图谱）、Phase 4（AI 驱动的用例脚本断言自愈与代码级自动修复补丁）。
+
+- [ ] 2026-10-16 T1.1 OpenTelemetry 全链路 Span 追踪采集中继与调用树重构器：落地 distributed_trace_telemetry_relay 服务与 /trace/telemetry/* API
+- [ ] 2026-10-16 T1.2 跨服务调用关键路径时延分析与火焰图性能瓶颈定位器：落地 critical_path_flamegraph_profiler 服务与 /trace/flamegraph/* API
+- [ ] 2026-10-16 T1.3 分布式调用链路异常波动与高频慢调用智能聚类诊断器：落地 trace_anomaly_slow_call_clusterer 服务与 /trace/anomaly-cluster/* API
+- [ ] 2026-10-16 T2.1 Sagas/TCC 分布式事务流转跟踪与悬挂事务探测器：落地 saga_transaction_state_tracker 服务与 /consistency/saga/* API
+- [ ] 2026-10-16 T2.2 跨微服务异构数据源最终一致性双向稽核校验器：落地 cross_db_data_consistency_auditor 服务与 /consistency/audit/* API
+- [ ] 2026-10-16 T2.3 消息事件总线消费延迟、死信积压与幂等消费验证器：落地 event_bus_deadletter_idempotency_guard 服务与 /consistency/event-bus/* API
+- [ ] 2026-10-16 T3.1 多模态测试失败日志与异常堆栈智能根因推导器：落地 test_failure_root_cause_reasoner 服务与 /diagnosis/root-cause/* API
+- [ ] 2026-10-16 T3.2 历史已知缺陷向量指纹特征相似度匹配检索器：落地 incident_knowledge_fingerprint_matcher 服务与 /diagnosis/fingerprint/* API
+- [ ] 2026-10-16 T3.3 缺陷严重度智能评级与第三方工单自动指派网关：落地 defect_auto_ticket_dispatcher 服务与 /diagnosis/ticket-dispatch/* API
+- [ ] 2026-10-16 T4.1 UI 元素定位漂移动态自愈与多策略加权降级重试执行器：落地 smart_locator_multistrategy_healer 服务与 /healing/locator/* API
+- [ ] 2026-10-16 T4.2 接口响应格式变迁自适应断言规则推导与自动打补丁器：落地 adaptive_assertion_auto_patcher 服务与 /healing/assertion-patch/* API
+- [ ] 2026-10-16 T4.3 端到端测试自愈审计追踪与修复补丁一键应用流水线：落地 self_healing_audit_patch_pipeline 服务与 /healing/pipeline/* API
+
 ## 2026-10-16 v3.9.0 研发任务规划（已全量闭环）
 
 > v3.9.0 规划入口为 [`docs/development-task-plan-v3.9.0.md`](docs/development-task-plan-v3.9.0.md)，覆盖 UI1（生产流量网关镜像捕获、智能脱敏与用例聚类合成控制台）、UI2（影子流量无副作用沙箱回放、动态去噪差分与黄金基线大盘）、UI3（实时接口契约动态逆向提取与 Breaking 变更级联防线面板）、UI4（流量驱动的混沌工程故障注入编排与系统韧性监控中心）。
