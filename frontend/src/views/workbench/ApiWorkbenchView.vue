@@ -35,6 +35,9 @@
         <a-button size="small" class="toolbar-btn" @click="showContractImpact = true">
           <FileSearchOutlined /> 契约变更影响面
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showRegressionWizard = true">
+          <AimOutlined /> 精准回归向导
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -393,6 +396,12 @@
     <ContractChangeImpactDrawer
       v-model:open="showContractImpact"
       :default-project-id="selectedProjectId || 1"
+      @synthesize-regression="handleSynthesizeFromImpact"
+    />
+    <TargetedRegressionWizard
+      v-model:open="showRegressionWizard"
+      :project-id="selectedProjectId || 1"
+      :initial-case-ids="synthesizeCaseIds"
     />
   </div>
 </template>
@@ -401,6 +410,7 @@
 import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import {
+  AimOutlined,
   ApiOutlined,
   FileAddOutlined,
   PlayCircleOutlined,
@@ -438,6 +448,7 @@ import { canEditProjectByRole } from '@/utils/permissions'
 import TrafficRecordingDrawer from './components/TrafficRecordingDrawer.vue'
 import AssetDependencyGraphViewer from './components/AssetDependencyGraphViewer.vue'
 import ContractChangeImpactDrawer from './components/ContractChangeImpactDrawer.vue'
+import TargetedRegressionWizard from './components/TargetedRegressionWizard.vue'
 import { useAuthStore } from '@/stores/auth'
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -453,6 +464,12 @@ const API_CASE_TYPES: CaseType[] = ['api', 'graphql', 'websocket', 'grpc']
 const showTrafficRecording = ref(false)
 const showAssetGraph = ref(false)
 const showContractImpact = ref(false)
+const showRegressionWizard = ref(false)
+const synthesizeCaseIds = ref<number[]>([])
+function handleSynthesizeFromImpact(caseIds: number[]) {
+  synthesizeCaseIds.value = caseIds
+  showRegressionWizard.value = true
+}
 
 const { t } = useI18n()
 const route = useRoute()

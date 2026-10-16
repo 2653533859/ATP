@@ -41,6 +41,7 @@ vi.mock('ant-design-vue', () => ({
   message: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
 }))
 vi.mock('@ant-design/icons-vue', () => ({
+  AimOutlined: true,
   ApiOutlined: true,
   FileAddOutlined: true,
   FilterOutlined: true,
@@ -79,6 +80,9 @@ vi.mock('./components/AssetDependencyGraphViewer.vue', () => ({
 }))
 vi.mock('./components/ContractChangeImpactDrawer.vue', () => ({
   default: defineComponent({ name: 'ContractChangeImpactDrawer', setup: () => () => h('div', 'contract-change-impact') }),
+}))
+vi.mock('./components/TargetedRegressionWizard.vue', () => ({
+  default: defineComponent({ name: 'TargetedRegressionWizard', setup: () => () => h('div', 'targeted-regression-wizard') }),
 }))
 
 const passthrough = (name: string) =>

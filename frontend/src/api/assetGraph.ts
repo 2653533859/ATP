@@ -86,6 +86,30 @@ export interface AnalyzeContractImpactRequest {
   project_id?: number | null
 }
 
+export interface SynthesizeRegressionRequest {
+  impacted_case_ids: number[]
+  project_id?: number | null
+  suite_name?: string
+  is_breaking_change?: boolean
+  persist?: boolean
+  auto_trigger?: boolean
+}
+
+export interface TargetedRegressionResult {
+  synthesis_id: string
+  suite_id: number | null
+  suite_name: string
+  project_id: number | null
+  total_cases_count: number
+  included_case_ids: number[]
+  task_priority: string
+  auto_triggered: boolean
+  dispatched_task_id: string | null
+  task_preempted: boolean
+  created_at: string
+  message: string
+}
+
 export const assetGraphApi = {
   getProjectGraph(projectId: number): Promise<ProjectAssetGraphResponse> {
     return http.get(`/asset-graph/project/${projectId}`)
@@ -117,5 +141,9 @@ export const assetGraphApi = {
 
   analyzeContractImpact(data: AnalyzeContractImpactRequest): Promise<ContractImpactReport> {
     return http.post('/asset-graph/contract-impact/analyze', data)
+  },
+
+  synthesizeAndTriggerRegression(data: SynthesizeRegressionRequest): Promise<TargetedRegressionResult> {
+    return http.post('/asset-graph/contract-impact/synthesize-and-trigger', data)
   },
 }

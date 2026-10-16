@@ -36,7 +36,7 @@
 |---|---|---|---|
 | UI2.1 `[x]` | **测试资产全景引用拓扑图谱与孤儿资产看板** | asset_graph_indexer | 落地 `AssetDependencyGraphViewer.vue` 组件；基于 ECharts 力导向图呈现 Plan-Suite-Case-API-Dataset 依赖图谱与孤儿资产标记；见 docs/evidence/asset-dependency-graph-viewer-ui2-1-2026-10-16.md |
 | UI2.2 `[x]` | **接口契约变更影响面分析与受损用例抽屉** | contract_change_impact_analyzer | 落地 `ContractChangeImpactDrawer.vue` 组件；支持新旧 OpenAPI 契约 Diff 对比、Breaking 变更逆向推导与受损用例分级标记；见 docs/evidence/contract-change-impact-drawer-ui2-2-2026-10-16.md |
-| UI2.3 `[ ]` | **变更影响用例自动化精准回归套件合成向导** | targeted_regression_trigger | 落地 `TargetedRegressionWizard.vue` 组件；支持受损用例去重组装、P0 提权抢占与一键持久化落库。 |
+| UI2.3 `[x]` | **变更影响用例自动化精准回归套件合成向导** | targeted_regression_trigger | 落地 `TargetedRegressionWizard.vue` 组件；支持受损用例去重组装、P0 提权抢占与一键持久化落库；见 docs/evidence/targeted-regression-wizard-ui2-3-2026-10-16.md |
 
 ---
 
