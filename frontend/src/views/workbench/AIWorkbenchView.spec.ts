@@ -77,6 +77,12 @@ vi.mock('@ant-design/icons-vue', () => ({
   SafetyCertificateOutlined: iconStub,
   SettingOutlined: iconStub,
   WarningOutlined: iconStub,
+  ClusterOutlined: iconStub,
+  BugOutlined: iconStub,
+  PlusOutlined: iconStub,
+}))
+vi.mock('./components/HealingAuditTrailPanel.vue', () => ({
+  default: defineComponent({ name: 'HealingAuditTrailPanel', setup: () => () => h('div', 'healing-audit-trail-panel') }),
 }))
 
 const passthrough = defineComponent({
@@ -84,7 +90,7 @@ const passthrough = defineComponent({
 })
 
 const globalStubs = Object.fromEntries(
-  ['AAlert', 'AButton', 'AEmpty', 'ASelect', 'ATag'].map((name) => [name, passthrough]),
+  ['AAlert', 'AButton', 'AEmpty', 'ASelect', 'ATag', 'ADrawer'].map((name) => [name, passthrough]),
 )
 
 beforeEach(() => {

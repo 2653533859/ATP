@@ -239,6 +239,7 @@
             <div class="healing-counts"><span>{{ t('ai_workbench.adopted_count', { count: healingStats.adopted_count }) }}</span><span>{{ t('ai_workbench.example_count', { count: healingStats.high_quality_example_count }) }}</span></div>
             <a-button v-if="isAdmin" type="link" class="context-action" @click="openHealingStats">{{ t('ai_workbench.open_healing_stats') }} →</a-button>
             <a-button v-if="isAdmin" type="link" class="context-action" @click="openHealingExamples">{{ t('ai_workbench.open_healing_examples') }} →</a-button>
+            <a-button type="link" class="context-action" @click="showHealingAuditDrawer = true">自愈执行流水与故障簇审计 →</a-button>
           </template>
           <div v-else class="restricted-panel healing-restricted"><LockOutlined /><span>{{ isAdmin ? t('ai_workbench.healing_unavailable') : t('ai_workbench.admin_signal_hint') }}</span></div>
         </aside>
@@ -262,6 +263,14 @@
           </a-tab-pane>
         </a-tabs>
       </section>
+      <a-drawer
+        v-model:open="showHealingAuditDrawer"
+        :width="1040"
+        title="自愈执行流水与异常故障簇审计全景面板"
+        destroy-on-close
+      >
+        <HealingAuditTrailPanel />
+      </a-drawer>
     </template>
   </div>
 </template>
@@ -312,6 +321,7 @@ import {
 } from '@/api'
 import { canEditProjectByRole } from '@/utils/permissions'
 import { useAuthStore } from '@/stores/auth'
+import HealingAuditTrailPanel from './components/HealingAuditTrailPanel.vue'
 
 type FailureHotspot = {
   case_id: number
@@ -346,6 +356,7 @@ const healingStats = ref<AIHealingStats | null>(null)
 const modelConfigs = ref<AILLMConfigItem[]>([])
 const loading = ref(false)
 const loadError = ref('')
+const showHealingAuditDrawer = ref(false)
 let loadSequence = 0
 let projectsLoadSequence = 0
 

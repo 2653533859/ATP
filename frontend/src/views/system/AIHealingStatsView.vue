@@ -116,6 +116,7 @@
           </template>
         </a-table>
       </a-card>
+      <HealingAuditTrailPanel />
     </a-spin>
   </div>
 </template>
@@ -126,6 +127,7 @@ import VChart from 'vue-echarts'
 import { message } from 'ant-design-vue'
 import { aiCaseGenerationApi, aiHealingStatsApi, type AICaseFunnelStats, type AIHealingStats } from '@/api'
 import { useChartTheme } from '@/utils/chartTheme'
+import HealingAuditTrailPanel from '@/views/workbench/components/HealingAuditTrailPanel.vue'
 
 const { chartTheme } = useChartTheme()
 const loading = ref(false)

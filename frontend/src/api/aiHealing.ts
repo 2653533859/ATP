@@ -103,3 +103,90 @@ export const flexibleAssertionApi = {
     return http.get('/ai-healing/assertions/history')
   },
 }
+
+export type HealingActionType = 'locator_replaced' | 'schema_autofixed' | 'assertion_tolerated' | 'retry_with_backoff'
+export type HealingVerificationStatus = 'verified_success' | 'verified_failure' | 'pending_verify' | 'auto_accepted'
+
+export interface FaultClusterItem {
+  cluster_id: string
+  signature: string
+  primary_exception: string
+  root_cause_summary: string
+  occurrences_count: number
+  affected_case_ids: number[]
+  affected_run_ids: number[]
+  first_seen: string
+  last_seen: string
+  suggested_healing_action: string
+}
+
+export interface HealingAuditEntryItem {
+  audit_id: string
+  case_id: number
+  step_name: string
+  action_type: HealingActionType
+  original_value: any
+  healed_value: any
+  confidence_score: number
+  verification_status: HealingVerificationStatus
+  cluster_id?: string | null
+  duration_ms: number
+  metadata: Record<string, any>
+  created_at: string
+}
+
+export interface HealingMetricsSummary {
+  total_healing_actions_count: number
+  verification_success_rate_pct: number
+  average_confidence_score: number
+  total_fault_clusters_count: number
+  estimated_engineering_hours_saved: number
+}
+
+export interface ClusterErrorRequest {
+  case_id: number
+  run_id: number
+  exception_type: string
+  error_message: string
+  stack_trace?: string | null
+  root_cause_hint?: string | null
+}
+
+export interface RecordHealingActionRequest {
+  case_id: number
+  step_name: string
+  action_type: HealingActionType
+  original_value: any
+  healed_value: any
+  confidence_score?: number
+  verification_status?: HealingVerificationStatus
+  cluster_id?: string | null
+  duration_ms?: number
+  metadata?: Record<string, any>
+}
+
+export const healingAuditTrailApi = {
+  clusterError(data: ClusterErrorRequest): Promise<{ message: string; cluster: FaultClusterItem }> {
+    return http.post('/ai-healing/audit/cluster', data)
+  },
+
+  listClusters(): Promise<{ total: number; clusters: FaultClusterItem[] }> {
+    return http.get('/ai-healing/audit/clusters')
+  },
+
+  getCluster(clusterId: string): Promise<FaultClusterItem> {
+    return http.get(`/ai-healing/audit/clusters/${clusterId}`)
+  },
+
+  recordAction(data: RecordHealingActionRequest): Promise<{ message: string; entry: HealingAuditEntryItem }> {
+    return http.post('/ai-healing/audit/record-action', data)
+  },
+
+  listEntries(params?: { case_id?: number; action_type?: string }): Promise<{ total: number; entries: HealingAuditEntryItem[] }> {
+    return http.get('/ai-healing/audit/entries', { params })
+  },
+
+  getMetrics(): Promise<HealingMetricsSummary> {
+    return http.get('/ai-healing/audit/metrics')
+  },
+}
