@@ -46,7 +46,7 @@
 |---|---|---|---|
 | D3.1 `[x]` | **移动端 CPU/内存/FPS/网络流量实时采样与卡顿泄露检测** | mobile_profiler | 落地 `mobile_perf_profiler` 服务与 `/api/v1/diagnostics/mobile-perf/*` API；支持多指标时序采样、卡顿帧与内存泄露智能检测；见 docs/evidence/mobile-perf-profiler-d3-1-2026-10-16.md |
 | D3.2 `[x]` | **Web 性能 Core Web Vitals (LCP, FID/INP, CLS) 自动化深度诊断** | web_vitals | 落地 `web_vitals_profiler` 服务与 `/api/v1/diagnostics/web-vitals/*` API；自动评估三大核心指标并提供渲染阻断优化建议；见 docs/evidence/web-vitals-profiler-d3-2-2026-10-16.md |
-| D3.3 `[ ]` | **接口服务全链路分布式追踪 TraceID 贯通与慢调用火焰图分析** | trace_flamegraph | 落地 `distributed_trace_flamegraph` 服务与 `/api/v1/diagnostics/traces/*` API；支持 Trace 树多层级解析与火焰图耗时段自动提取。 |
+| D3.3 `[x]` | **接口服务全链路分布式追踪 TraceID 贯通与慢调用火焰图分析** | trace_flamegraph | 落地 `distributed_trace_flamegraph` 服务与 `/api/v1/diagnostics/traces/*` API；支持 Trace 树多层级解析与火焰图耗时段自动提取；见 docs/evidence/distributed-trace-flamegraph-d3-3-2026-10-16.md |
 
 ---
 
