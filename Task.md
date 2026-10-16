@@ -12,7 +12,7 @@
 - [x] 2026-10-16 UI1.2 自适应任务排队水位与 P0 弹性抢占调度控制台：扩展 clusterWorkers API（enqueue/tasks/complete/eta），落地 AdaptiveTaskQueueDrawer 组件；展示四级优先级水位、P0 弹性抢占与预计等待时长 ETA；挂载至 AppWorkbenchView；单测独立通过，见 [`docs/evidence/adaptive-task-queue-drawer-ui1-2-2026-10-16.md`](docs/evidence/adaptive-task-queue-drawer-ui1-2-2026-10-16.md)。
 - [x] 2026-10-16 UI1.3 节点失联超时检测与孤儿任务故障转移卡片：扩展 clusterWorkers API（failover/scan/history），落地 WorkerFailoverRecoveryCard 组件；支持一键全网 Sweep Scan 巡检、失联节点标记、孤儿任务抢救重调度与超限熔断保护；内嵌集成至 ClusterWorkerMonitorDrawer；单测独立通过，见 [`docs/evidence/worker-failover-recovery-card-ui1-3-2026-10-16.md`](docs/evidence/worker-failover-recovery-card-ui1-3-2026-10-16.md)。至此 v3.3.0 Phase 1 全量大闭环！
 - [x] 2026-10-16 UI2.1 测试资产全景引用拓扑图谱与孤儿资产看板：创建 assetGraph API 客户端，落地 AssetDependencyGraphViewer 组件；基于 ECharts 力导向图呈现 Plan-Suite-Case-API-Dataset 依赖图谱与孤儿资产标记，支持上下游双向依赖高亮追溯；挂载至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/asset-dependency-graph-viewer-ui2-1-2026-10-16.md`](docs/evidence/asset-dependency-graph-viewer-ui2-1-2026-10-16.md)。
-- [ ] UI2.2 接口契约变更影响面分析与受损用例抽屉（ContractChangeImpactDrawer.vue）
+- [x] 2026-10-16 UI2.2 接口契约变更影响面分析与受损用例抽屉：扩展 assetGraph API（analyzeContractImpact），落地 ContractChangeImpactDrawer 组件；支持新旧 OpenAPI Schema Diff 对比、Breaking 破坏性逆向推导与受损用例分级标记；挂载至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/contract-change-impact-drawer-ui2-2-2026-10-16.md`](docs/evidence/contract-change-impact-drawer-ui2-2-2026-10-16.md)。
 - [ ] UI2.3 变更影响用例自动化精准回归套件合成向导（TargetedRegressionWizard.vue）
 - [ ] UI3.1 瞬时轻量级仿真沙箱与端口生命周期管理抽屉（EphemeralSandboxManagerDrawer.vue）
 - [ ] UI3.2 跨协议数据透传与会话上下文共享总线面板（CrossProtocolSessionBusPanel.vue）

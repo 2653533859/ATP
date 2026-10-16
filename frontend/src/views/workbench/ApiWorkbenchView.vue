@@ -32,6 +32,9 @@
         <a-button size="small" class="toolbar-btn" @click="showAssetGraph = true">
           <ClusterOutlined /> 全景资产图谱
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showContractImpact = true">
+          <FileSearchOutlined /> 契约变更影响面
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -387,6 +390,10 @@
     >
       <AssetDependencyGraphViewer />
     </a-drawer>
+    <ContractChangeImpactDrawer
+      v-model:open="showContractImpact"
+      :default-project-id="selectedProjectId || 1"
+    />
   </div>
 </template>
 
@@ -402,6 +409,7 @@ import {
   SendOutlined,
   ThunderboltOutlined,
   ClusterOutlined,
+  FileSearchOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
@@ -429,6 +437,7 @@ import AIGenerateDrawer from '@/views/case/AIGenerateDrawer.vue'
 import { canEditProjectByRole } from '@/utils/permissions'
 import TrafficRecordingDrawer from './components/TrafficRecordingDrawer.vue'
 import AssetDependencyGraphViewer from './components/AssetDependencyGraphViewer.vue'
+import ContractChangeImpactDrawer from './components/ContractChangeImpactDrawer.vue'
 import { useAuthStore } from '@/stores/auth'
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -443,6 +452,7 @@ type ErrorLike = { response?: { data?: { detail?: unknown } }; message?: unknown
 const API_CASE_TYPES: CaseType[] = ['api', 'graphql', 'websocket', 'grpc']
 const showTrafficRecording = ref(false)
 const showAssetGraph = ref(false)
+const showContractImpact = ref(false)
 
 const { t } = useI18n()
 const route = useRoute()

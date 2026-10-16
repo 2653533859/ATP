@@ -51,6 +51,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   SendOutlined: true,
   ThunderboltOutlined: true,
   ClusterOutlined: true,
+  FileSearchOutlined: true,
   DownOutlined: true,
   FormatPainterOutlined: true,
 }))
@@ -75,6 +76,9 @@ vi.mock('@/views/case/AIGenerateDrawer.vue', () => ({
 }))
 vi.mock('./components/AssetDependencyGraphViewer.vue', () => ({
   default: defineComponent({ name: 'AssetDependencyGraphViewer', setup: () => () => h('div', 'asset-dependency-graph') }),
+}))
+vi.mock('./components/ContractChangeImpactDrawer.vue', () => ({
+  default: defineComponent({ name: 'ContractChangeImpactDrawer', setup: () => () => h('div', 'contract-change-impact') }),
 }))
 
 const passthrough = (name: string) =>

@@ -40,6 +40,52 @@ export interface OrphanAssetsResponse {
   total_orphans_count: number
 }
 
+export type ChangeSeverity = 'breaking' | 'warning' | 'compatible'
+
+export interface ContractSchemaChange {
+  change_type: ChangeSeverity
+  field_path: string
+  rule: string
+  description: string
+  baseline_value?: any
+  current_value?: any
+}
+
+export interface ImpactedCaseItem {
+  case_id: number
+  case_name: string
+  severity: ChangeSeverity
+  affected_steps: string[]
+  reasons: string[]
+  actionable_remediation: string
+}
+
+export interface ContractImpactReport {
+  method: string
+  path: string
+  has_breaking_changes: boolean
+  diff_summary: {
+    breaking_count: number
+    warning_count: number
+    compatible_count: number
+  }
+  breaking_changes: ContractSchemaChange[]
+  warnings: ContractSchemaChange[]
+  compatible_changes: ContractSchemaChange[]
+  impacted_cases: ImpactedCaseItem[]
+  total_impacted_cases_count: number
+  impacted_plans_count: number
+  impacted_suites_count: number
+}
+
+export interface AnalyzeContractImpactRequest {
+  method?: string
+  path?: string
+  baseline_schema: Record<string, any>
+  current_schema: Record<string, any>
+  project_id?: number | null
+}
+
 export const assetGraphApi = {
   getProjectGraph(projectId: number): Promise<ProjectAssetGraphResponse> {
     return http.get(`/asset-graph/project/${projectId}`)
@@ -67,5 +113,9 @@ export const assetGraphApi = {
     return http.post('/asset-graph/reindex', null, {
       params: { project_id: projectId },
     })
+  },
+
+  analyzeContractImpact(data: AnalyzeContractImpactRequest): Promise<ContractImpactReport> {
+    return http.post('/asset-graph/contract-impact/analyze', data)
   },
 }
