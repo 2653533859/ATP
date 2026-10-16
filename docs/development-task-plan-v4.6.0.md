@@ -56,7 +56,7 @@
 |---|---|---|---|
 | T4.1 `[x]` | **全链路压测 TPS 阶梯加压性能曲线与拐点检测器** | `step_load_throughput_knee_detector` | 落地 `step_load_throughput_knee_detector` 服务与 `/stress/drill-report/knee-detection/*` API；自动拟合并发线程 vs TPS 曲线，精准定位系统性能吞吐最大拐点 (Knee Point) 与崩溃点；单测独立通过；见 docs/evidence/step-load-throughput-knee-detector-t4-1-2026-10-17.md |
 | T4.2 `[x]` | **生产全链路压测安全审计与爆炸半径评估器** | `stress_blast_radius_safety_evaluator` | 落地 `stress_blast_radius_safety_evaluator` 服务与 `/stress/drill-report/blast-radius/*` API；量化演练潜在破坏半径，生成压测安全防篡改审计日志与熔断应急预案；单测独立通过；见 docs/evidence/stress-blast-radius-safety-evaluator-t4-2-2026-10-17.md |
-| T4.3 `[ ]` | **全链路压力演练综合审计报告生成器与 Markdown 导出** | `full_link_stress_drill_reporter` | 落地 `full_link_stress_drill_reporter` 服务与 `/stress/drill-report/summary/*` API；汇总量化并发、TPS、P99 延迟、熔断事件与资源水位，支持一键导出标准 Markdown 演练报告；单测独立通过。 |
+| T4.3 `[x]` | **全链路压力演练综合审计报告生成器与 Markdown 导出** | `full_link_stress_drill_reporter` | 落地 `full_link_stress_drill_reporter` 服务与 `/stress/drill-report/summary/*` API；汇总量化并发、TPS、P99 延迟、熔断事件与资源水位，支持一键导出标准 Markdown 演练报告；单测独立通过；见 docs/evidence/full-link-stress-drill-reporter-t4-3-2026-10-17.md |
 
 ---
 

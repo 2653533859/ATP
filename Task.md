@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-17 v4.6.0 研发任务规划（进行中）
+## 2026-10-17 v4.6.0 研发任务规划（已全量闭环）
 
 > v4.6.0 规划入口为 [`docs/development-task-plan-v4.6.0.md`](docs/development-task-plan-v4.6.0.md)，覆盖 Phase 1（生产级全链路影子流量染色、透传与数据隔离引擎）、Phase 2（单元化/细胞化架构测试隔离 Cell-based Testing 与拓扑调度）、Phase 3（压测容量水位实时度量、下游瓶颈智能归因与防雪崩熔断器）、Phase 4（全链路压测仿真数字孪生演练报告与演练准入发布）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-17 T3.3 生产防击穿自适应毫秒级分级限流与熔断保护大脑：落地 `adaptive_avalanche_circuit_breaker` 服务与 `/stress/bottleneck-guardian/circuit-breaker/*` API；当下游依赖容量超过 85% 预警水位时，毫秒级自适应阶梯限流与自动阻断压测；单测独立通过，见 [`docs/evidence/adaptive-avalanche-circuit-breaker-t3-3-2026-10-17.md`](docs/evidence/adaptive-avalanche-circuit-breaker-t3-3-2026-10-17.md)。至此 v4.6.0 Phase 3 全量大闭环！
 - [x] 2026-10-17 T4.1 全链路压测 TPS 阶梯加压性能曲线与拐点检测器：落地 `step_load_throughput_knee_detector` 服务与 `/stress/drill-report/knee-detection/*` API；自动拟合并发线程 vs TPS 曲线，精准定位系统性能吞吐最大拐点 (Knee Point) 与崩溃点；单测独立通过，见 [`docs/evidence/step-load-throughput-knee-detector-t4-1-2026-10-17.md`](docs/evidence/step-load-throughput-knee-detector-t4-1-2026-10-17.md)。
 - [x] 2026-10-17 T4.2 生产全链路压测安全审计与爆炸半径评估器：落地 `stress_blast_radius_safety_evaluator` 服务与 `/stress/drill-report/blast-radius/*` API；量化演练潜在破坏半径，生成压测安全防篡改审计日志与熔断应急预案；单测独立通过，见 [`docs/evidence/stress-blast-radius-safety-evaluator-t4-2-2026-10-17.md`](docs/evidence/stress-blast-radius-safety-evaluator-t4-2-2026-10-17.md)。
-- [ ] 2026-10-17 T4.3 全链路压力演练综合审计报告生成器与 Markdown 导出：落地 `full_link_stress_drill_reporter` 服务与 `/stress/drill-report/summary/*` API；汇总量化并发、TPS、P99 延迟、熔断事件与资源水位，支持一键导出标准 Markdown 演练报告；单测独立通过。
+- [x] 2026-10-17 T4.3 全链路压力演练综合审计报告生成器与 Markdown 导出：落地 `full_link_stress_drill_reporter` 服务与 `/stress/drill-report/summary/*` API；汇总量化并发、TPS、P99 延迟、熔断事件与资源水位，支持一键导出标准 Markdown 演练报告；单测独立通过，见 [`docs/evidence/full-link-stress-drill-reporter-t4-3-2026-10-17.md`](docs/evidence/full-link-stress-drill-reporter-t4-3-2026-10-17.md)。至此 v4.6.0 Phase 4 暨全量四大阶段 12 个重点功能大闭环！
 
 ## 2026-10-17 v4.5.0 研发任务规划（已全量闭环）
 
