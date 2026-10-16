@@ -101,6 +101,9 @@
         <a-button size="small" class="toolbar-btn" @click="showSagaTrackerDrawer = true">
           <ApartmentOutlined /> 分布式事务
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showEventBusDrawer = true">
+          <MailOutlined /> 消息总线防线
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -540,6 +543,14 @@
       <TraceAnomalySlowCallClusterCard />
     </a-drawer>
     <SagaTransactionStateTrackerDrawer v-model:open="showSagaTrackerDrawer" />
+    <a-drawer
+      v-model:open="showEventBusDrawer"
+      :width="1120"
+      title="消息事件总线死信积压、延迟监控与幂等防线控制台"
+      destroy-on-close
+    >
+      <EventBusDeadletterIdempotencyCard />
+    </a-drawer>
   </div>
 </template>
 
@@ -567,6 +578,7 @@ import {
   RobotOutlined,
   BuildOutlined,
   SlidersOutlined,
+  MailOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
@@ -635,6 +647,8 @@ import TraceAnomalySlowCallClusterCard from './components/TraceAnomalySlowCallCl
 const showTraceAnomalyDrawer = ref(false)
 import SagaTransactionStateTrackerDrawer from './components/SagaTransactionStateTrackerDrawer.vue'
 const showSagaTrackerDrawer = ref(false)
+import EventBusDeadletterIdempotencyCard from './components/EventBusDeadletterIdempotencyCard.vue'
+const showEventBusDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)

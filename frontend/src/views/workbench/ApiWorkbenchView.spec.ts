@@ -65,6 +65,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   BuildOutlined: true,
   FormatPainterOutlined: true,
   SlidersOutlined: true,
+  MailOutlined: true,
 }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
@@ -159,6 +160,9 @@ vi.mock('./components/TraceAnomalySlowCallClusterCard.vue', () => ({
 }))
 vi.mock('./components/SagaTransactionStateTrackerDrawer.vue', () => ({
   default: defineComponent({ name: 'SagaTransactionStateTrackerDrawer', setup: () => () => h('div', 'saga-transaction-state-tracker-drawer') }),
+}))
+vi.mock('./components/EventBusDeadletterIdempotencyCard.vue', () => ({
+  default: defineComponent({ name: 'EventBusDeadletterIdempotencyCard', setup: () => () => h('div', 'event-bus-deadletter-idempotency-card') }),
 }))
 
 const passthrough = (name: string) =>
