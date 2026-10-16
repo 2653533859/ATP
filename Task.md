@@ -14,7 +14,7 @@
 - [x] 2026-10-16 T2.1 影子流量无副作用沙箱隔离回放与外部依赖 Mock 代理：落地 shadow_traffic_replay_engine 服务与 /traffic/replay/* API；实现 BLOCK_WRITES 严格拦截写请求、X-Shadow-Traffic 头部注入、外部第三方支付/短信 Mock 拦截代理与 QPS 节流；4 项单测独立通过，见 [`docs/evidence/shadow-traffic-replay-engine-t2-1-2026-10-16.md`](docs/evidence/shadow-traffic-replay-engine-t2-1-2026-10-16.md)。
 - [x] 2026-10-16 T2.2 响应体动态字段智能过滤与字段级精确差分比对器：落地 traffic_diff_comparator 服务与 /traffic/diff/* API；实现动态时间戳/UUID/Token 噪声自动识别忽略、ADDED/DELETED/MODIFIED/TYPE_CHANGED 字段级差分与相似度得分量化；3 项单测独立通过，见 [`docs/evidence/traffic-diff-comparator-t2-2-2026-10-16.md`](docs/evidence/traffic-diff-comparator-t2-2-2026-10-16.md)。
 - [x] 2026-10-16 T2.3 接口黄金响应基线版本化管理与回归偏离判定器：落地 golden_response_baseline_manager 服务与 /traffic/golden-baselines/* API；实现基线快照打标、动态去噪比对、CRITICAL 严重阻断判定与多接口批量回归校验；5 项单测独立通过，见 [`docs/evidence/golden-response-baseline-manager-t2-3-2026-10-16.md`](docs/evidence/golden-response-baseline-manager-t2-3-2026-10-16.md)。至此 v3.8.0 Phase 2 全量大闭环！
-- [ ] T3.1 生产流量 OpenAPI/Protobuf 契约动态逆向提取推导器（live_contract_schema_extractor）
+- [x] 2026-10-16 T3.1 生产流量 OpenAPI/Protobuf 契约动态逆向提取推导器：落地 live_contract_schema_extractor 服务与 /contract-guard/extract/* API；实现多样本必填性判定、枚举归纳、数值类型安全提升、OpenAPI 3.0 与 Protobuf 3 自动生成；5 项单测独立通过，见 [`docs/evidence/live-contract-schema-extractor-t3-1-2026-10-16.md`](docs/evidence/live-contract-schema-extractor-t3-1-2026-10-16.md)。
 - [ ] T3.2 接口契约字段级兼容性差分与 Breaking 破坏性评级引擎（contract_drift_breaking_evaluator）
 - [ ] T3.3 契约漂移下游受影响服务级联拓扑探测与告警网关（contract_drift_impact_topology_router）
 - [ ] T4.1 基于流量特征匹配的微服务故障注入编排执行器（traffic_chaos_fault_injector）

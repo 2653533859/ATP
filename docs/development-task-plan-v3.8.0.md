@@ -44,7 +44,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T3.1 `[ ]` | **生产流量 OpenAPI/Protobuf 契约动态逆向提取推导器** | `live_contract_schema_extractor` | 落地 `live_contract_schema_extractor` 服务与 `/contract-guard/extract/*` API；从海量实时调用流量中自动推导推断接口 OpenAPI 3.0 / Protobuf Schema 结构。 |
+| T3.1 `[x]` | **生产流量 OpenAPI/Protobuf 契约动态逆向提取推导器** | `live_contract_schema_extractor` | 落地 `live_contract_schema_extractor` 服务与 `/contract-guard/extract/*` API；从海量实时调用流量中自动推导推断接口 OpenAPI 3.0 / Protobuf Schema 结构；见 docs/evidence/live-contract-schema-extractor-t3-1-2026-10-16.md |
 | T3.2 `[ ]` | **接口契约字段级兼容性差分与 Breaking 破坏性评级引擎** | `contract_drift_breaking_evaluator` | 落地 `contract_drift_breaking_evaluator` 服务与 `/contract-guard/evaluate/*` API；比较现网真实流量 Schema 与设计期契约，判定 BREAKING / WARNING / COMPATIBLE 等级。 |
 | T3.3 `[ ]` | **契约漂移下游受影响服务级联拓扑探测与告警网关** | `contract_drift_impact_topology_router` | 落地 `contract_drift_impact_topology_router` 服务与 `/contract-guard/impact-topology/*` API；根据受影响字段级联追溯调用方微服务依赖拓扑并触发安全告警。 |
 
