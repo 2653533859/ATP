@@ -53,6 +53,11 @@ from app.services.mutation_execution_runner import (
     list_mutation_execution_reports,
     run_mutation_execution,
 )
+from app.services.mutation_score_calculator import (
+    calculate_mutation_score,
+    get_mutation_score_report,
+    list_mutation_score_reports,
+)
 
 router = APIRouter(prefix="/ci-impact", tags=["CI 代码变更影响面与精准测试"])
 
@@ -532,4 +537,45 @@ async def get_mutation_execution_report_endpoint(
     report = get_mutation_execution_report(run_id)
     if not report:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"变异执行报告不存在: {run_id}")
+    return report.to_dict()
+
+
+class CalculateMutationScoreIn(BaseModel):
+    execution_run_id: str | None = Field(default=None, description="变异体验证执行 Run ID")
+    execution_results: list[dict[str, Any]] | None = Field(default=None, description="自定义变异体验证结果列表")
+
+
+@router.post("/mutations/score/calculate")
+async def calculate_mutation_score_endpoint(
+    body: CalculateMutationScoreIn,
+    _user: User = Depends(require_engineer),
+) -> dict[str, Any]:
+    """计算变异得分 (Mutation Score %) 并输出断言充分性等级与盲区定位 (需工程师权限)。"""
+    _ = _user
+    report = calculate_mutation_score(
+        execution_run_id=body.execution_run_id,
+    )
+    return {"message": "用例变异得分与断言充分性评估完成", "report": report.to_dict()}
+
+
+@router.get("/mutations/score/reports")
+async def list_mutation_score_reports_endpoint(
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """查询历史变异得分报告列表。"""
+    _ = _user
+    reports = list_mutation_score_reports()
+    return {"total": len(reports), "reports": [r.to_dict() for r in reports]}
+
+
+@router.get("/mutations/score/reports/{score_id}")
+async def get_mutation_score_report_endpoint(
+    score_id: str,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """获取指定变异得分报告详情。"""
+    _ = _user
+    report = get_mutation_score_report(score_id)
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"变异得分报告不存在: {score_id}")
     return report.to_dict()
