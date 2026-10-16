@@ -36,7 +36,7 @@
 |---|---|---|---|
 | S2.1 `[x]` | **多容器弹性 Worker 负载均衡动态测试切片分发器** | S1.3 | 落地 `dynamic_test_shard_partitioner` 服务与 `/ci-impact/sharding/*` API；依据历史执行耗时将推荐用例集贪心切片为 N 个均衡并发分片；见 docs/evidence/dynamic-test-shard-partitioner-s2-1-2026-10-16.md |
 | S2.2 `[x]` | **代码变更行数/圈复杂度与核心度多维风险指数模型** | S1.1 | 落地 `change_risk_scorer` 服务与 `/ci-impact/risk-score/*` API；量化变更风险分 (0-100)，自动判定代码变更危险等级；见 docs/evidence/change-risk-scorer-s2-2-2026-10-16.md |
-| S2.3 `[ ]` | **CI 选定测试集高频抖动 Flaky 用例自适应抑制隔离过滤器** | S1.3 | 落地 `flaky_test_suppression_filter` 服务与 `/ci-impact/flaky-filter/*` API；联动抖动治理库，自动标记并隔离偶发失败非致命用例。 |
+| S2.3 `[x]` | **CI 选定测试集高频抖动 Flaky 用例自适应抑制隔离过滤器** | S1.3 | 落地 `flaky_test_suppression_filter` 服务与 `/ci-impact/flaky-filter/*` API；联动抖动治理库，自动标记并隔离偶发失败非致命用例；见 docs/evidence/flaky-test-suppression-filter-s2-3-2026-10-16.md |
 
 ---
 

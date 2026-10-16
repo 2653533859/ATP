@@ -34,6 +34,14 @@ from app.services.change_risk_scorer import (
     get_change_risk_report,
     list_change_risk_reports,
 )
+from app.services.flaky_test_suppression_filter import (
+    FlakyFilterMode,
+    SuppressionAction,
+    filter_flaky_tests_for_ci,
+    get_flaky_filter_report,
+    list_flaky_filter_reports,
+    register_flaky_governance_override,
+)
 
 router = APIRouter(prefix="/ci-impact", tags=["CI 代码变更影响面与精准测试"])
 
@@ -330,3 +338,84 @@ async def get_change_risk_report_endpoint(
     if not report:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"风险评估报告不存在: {risk_id}")
     return report.to_dict()
+
+
+class FilterFlakyTestsIn(BaseModel):
+    cases: list[dict[str, Any]] = Field(min_length=1, description="需评估过滤的测试用例列表 (包含 case_id, case_name)")
+    mode: str = Field(default="auto_adaptive", description="过滤模式: auto_adaptive | quarantine_strict | retry_only")
+    flakiness_threshold: float = Field(default=0.20, ge=0.0, le=1.0, description="判定不稳定抖动的阈值")
+    historical_stats: dict[int, dict[str, Any]] | None = Field(default=None, description="历史运行统计字典")
+
+
+class GovernanceOverrideIn(BaseModel):
+    case_id: int = Field(ge=1, description="用例 ID")
+    action: str = Field(
+        description="处置动作: normal_passthrough | retry_attached | isolated_to_quarantine | tagged_observation"
+    )
+    reason: str = Field(min_length=1, description="治理原因描述")
+    ticket_id: str | None = Field(default=None, description="关联 Issue/工单编号")
+
+
+@router.post("/flaky-filter/filter")
+async def filter_flaky_tests_endpoint(
+    body: FilterFlakyTestsIn,
+    _user: User = Depends(require_engineer),
+) -> dict[str, Any]:
+    """对 CI 候选测试集执行 Flaky 抖动探测与自适应抑制隔离 (需工程师权限)。"""
+    _ = _user
+    try:
+        mode_enum = FlakyFilterMode(body.mode.lower())
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"不支持的过滤模式: {body.mode}")
+
+    report = filter_flaky_tests_for_ci(
+        cases_to_evaluate=body.cases,
+        mode=mode_enum,
+        flakiness_threshold=body.flakiness_threshold,
+        historical_stats=body.historical_stats,
+    )
+    return {"message": "Flaky 抖动用例自适应抑制隔离完成", "report": report.to_dict()}
+
+
+@router.get("/flaky-filter/reports")
+async def list_flaky_filter_reports_endpoint(
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """查询历史抖动隔离报告列表。"""
+    _ = _user
+    reports = list_flaky_filter_reports()
+    return {"total": len(reports), "reports": [r.to_dict() for r in reports]}
+
+
+@router.get("/flaky-filter/reports/{filter_id}")
+async def get_flaky_filter_report_endpoint(
+    filter_id: str,
+    _user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """获取指定抖动隔离报告详情。"""
+    _ = _user
+    report = get_flaky_filter_report(filter_id)
+    if not report:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"抖动隔离报告不存在: {filter_id}")
+    return report.to_dict()
+
+
+@router.post("/flaky-filter/governance/override")
+async def set_governance_override_endpoint(
+    body: GovernanceOverrideIn,
+    _user: User = Depends(require_engineer),
+) -> dict[str, Any]:
+    """注册用例级人工抖动治理策略覆盖 (需工程师权限)。"""
+    _ = _user
+    try:
+        action_enum = SuppressionAction(body.action.lower())
+    except ValueError:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"无效的处置动作: {body.action}")
+
+    register_flaky_governance_override(
+        case_id=body.case_id,
+        action=action_enum,
+        reason=body.reason,
+        ticket_id=body.ticket_id,
+    )
+    return {"message": f"用例 #{body.case_id} 治理覆盖策略已生效", "case_id": body.case_id, "action": action_enum.value}
