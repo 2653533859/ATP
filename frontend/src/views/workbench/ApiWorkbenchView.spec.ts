@@ -151,6 +151,9 @@ vi.mock('./components/TrafficChaosFaultInjectorDrawer.vue', () => ({
 vi.mock('./components/ResilienceRtoRecoveryDashboardCard.vue', () => ({
   default: defineComponent({ name: 'ResilienceRtoRecoveryDashboardCard', setup: () => () => h('div', 'resilience-rto-recovery-dashboard-card') }),
 }))
+vi.mock('./components/DistributedTraceSpanTreeDrawer.vue', () => ({
+  default: defineComponent({ name: 'DistributedTraceSpanTreeDrawer', setup: () => () => h('div', 'distributed-trace-span-tree-drawer') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

@@ -92,6 +92,9 @@
         <a-button size="small" class="toolbar-btn" @click="showRtoRecoveryDrawer = true">
           <SlidersOutlined /> 断路自愈大盘
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showTraceTreeDrawer = true">
+          <ClusterOutlined /> 调用链追踪
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -521,6 +524,7 @@
     >
       <ResilienceRtoRecoveryDashboardCard />
     </a-drawer>
+    <DistributedTraceSpanTreeDrawer v-model:open="showTraceTreeDrawer" />
   </div>
 </template>
 
@@ -610,6 +614,8 @@ import TrafficChaosFaultInjectorDrawer from './components/TrafficChaosFaultInjec
 const showChaosInjectorDrawer = ref(false)
 import ResilienceRtoRecoveryDashboardCard from './components/ResilienceRtoRecoveryDashboardCard.vue'
 const showRtoRecoveryDrawer = ref(false)
+import DistributedTraceSpanTreeDrawer from './components/DistributedTraceSpanTreeDrawer.vue'
+const showTraceTreeDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)

@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-16 v4.1.0 研发任务规划（进行中）
+
+> v4.1.0 规划入口为 [`docs/development-task-plan-v4.1.0.md`](docs/development-task-plan-v4.1.0.md)，覆盖 UI1（分布式链路全息追踪、调用树与性能瓶颈火焰图控制台）、UI2（微服务分布式事务与跨系统数据最终一致性对账大盘）、UI3（自动化测试执行失败智能根因推导与缺陷工单指派控制台）、UI4（AI 驱动的用例脚本断言自愈与代码级自动修复补丁大盘）。
+
+- [x] 2026-10-16 UI1.1 OpenTelemetry Span 追踪中继与层级调用树展开抽屉：扩展 traceObservability API 客户端，落地 DistributedTraceSpanTreeDrawer 组件并集成至 ApiWorkbenchView；支持 W3C TraceContext 解析展示、父子层级深度树展开、状态过滤与耗时统计；单测独立通过，见 [`docs/evidence/distributed-trace-span-tree-drawer-ui1-1-2026-10-16.md`](docs/evidence/distributed-trace-span-tree-drawer-ui1-1-2026-10-16.md)。
+- [ ] 2026-10-16 UI1.2 跨服务关键路径分析与慢调用火焰图性能大盘：扩展 traceObservability API 客户端，落地 CriticalPathFlamegraphDashboardView 视图与路由；基于分层火焰图渲染关键路径高亮、独占耗时与首要瓶颈定位
+- [ ] 2026-10-16 UI1.3 分布式调用链路异常波动与慢调用智能聚类诊断卡片：扩展 traceObservability API 客户端，落地 TraceAnomalySlowCallClusterCard 组件并集成至 ApiWorkbenchView；展示 5 大异常模式聚类簇、Z-score 偏离度标签、P95 耗时与加固建议
+- [ ] 2026-10-16 UI2.1 Sagas/TCC 分布式事务状态机流转与悬挂事务探测抽屉：扩展 distributedConsistency API 客户端，落地 SagaTransactionStateTrackerDrawer 组件并集成至 ApiWorkbenchView；可视化呈现 Try/Confirm/Cancel 分支流转与悬挂事务警报
+- [ ] 2026-10-16 UI2.2 跨微服务异构数据源最终一致性双向稽核对账大盘页面：扩展 distributedConsistency API 客户端，落地 CrossDbConsistencyAuditDashboardView 视图与路由；展示主键对齐比对表、对账达标率仪表环、差异分类与补偿修复 SQL 预览
+- [ ] 2026-10-16 UI2.3 消息事件总线消费延迟、死信重放与幂等压测卡片：扩展 distributedConsistency API 客户端，落地 EventBusDeadletterIdempotencyCard 组件并集成至 ApiWorkbenchView；展示 Topic 消费延迟积压指标、死信队列一键重放与幂等拦截压测
+- [ ] 2026-10-16 UI3.1 多模态测试失败根因推导与因果失效链下钻面板：扩展 rootCauseDiagnosis API 客户端，落地 TestFailureRootCauseDiagnosisModal 组件并集成至 ApiWorkbenchView；展示多模态证据源、因果失效传播链与首发代码位置高亮
+- [ ] 2026-10-16 UI3.2 历史已知缺陷经验知识库与向量指纹匹配抽屉：扩展 rootCauseDiagnosis API 客户端，落地 IncidentKnowledgeFingerprintDrawer 组件并集成至 ApiWorkbenchView；展示抗噪声语义指纹比对、历史相似度分级与已验证方案
+- [ ] 2026-10-16 UI3.3 缺陷严重度评级与第三方工单自动指派卡片：扩展 rootCauseDiagnosis API 客户端，落地 DefectTicketDispatchCard 组件并集成至 ApiWorkbenchView；展示 P0~P3 严重度徽章、Jira/GitHub 工单预览与工单状态生命周期流转
+- [ ] 2026-10-16 UI4.1 UI 元素定位漂移动态自愈推导与降级重试控制台：扩展 testSelfHealing API 客户端，落地 SmartLocatorHealingConsoleDrawer 组件并集成至 ApiWorkbenchView；展示五维加权降级得分条、新选择器建议、代码补丁与自愈成功率统计
+- [ ] 2026-10-16 UI4.2 接口响应格式变迁自适应断言规则推导与代码 Diff 弹窗：扩展 testSelfHealing API 客户端，落地 AdaptiveAssertionPatchModal 组件并集成至 ApiWorkbenchView；展示 JSONPath 迁移轨迹、外层拆包/重命名模式分类与代码 Diff
+- [ ] 2026-10-16 UI4.3 端到端测试自愈全流程审计追踪与一键回滚流水线全景大盘：扩展 testSelfHealing API 客户端，落地 SelfHealingAuditPatchPipelineView 视图与路由；展示四阶段卡点自愈流程、SHA-256 加密防篡改指纹与一键原子回滚控制台
+
 ## 2026-10-16 v4.0.0 研发任务规划（已全量闭环）
 
 > v4.0.0 规划入口为 [`docs/development-task-plan-v4.0.0.md`](docs/development-task-plan-v4.0.0.md)，覆盖 Phase 1（分布式调用链全息追踪与拓扑性能瓶颈火焰图）、Phase 2（微服务分布式事务与跨系统数据最终一致性稽核）、Phase 3（自动化测试执行失败智能根因推导与故障图谱）、Phase 4（AI 驱动的用例脚本断言自愈与代码级自动修复补丁）。
