@@ -127,6 +127,7 @@ from app.api.v1 import (
     ui_layout_collision_api,
     design_tokens_contrast_api,
     wcag_accessibility_api,
+    a11y_keyboard_nav_api,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -259,3 +260,4 @@ router.include_router(vlm_semantic_assertion_api.router)
 router.include_router(ui_layout_collision_api.router)
 router.include_router(design_tokens_contrast_api.router)
 router.include_router(wcag_accessibility_api.router)
+router.include_router(a11y_keyboard_nav_api.router)
