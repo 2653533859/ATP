@@ -15,6 +15,11 @@ from app.services.quality_gate_engine import (
     list_gate_profiles,
     register_gate_profile,
 )
+from app.services.release_readiness_certification import (
+    generate_release_certificate,
+    get_certificate,
+    verify_certificate_authenticity,
+)
 
 router = APIRouter(prefix="/quality", tags=["企业级测试质量度量与门禁中心"])
 
@@ -41,6 +46,25 @@ class CreateGateProfileIn(BaseModel):
 class EvaluateGateIn(BaseModel):
     profile_id: str = Field(default="gate_prod_release", description="执行判定的门禁策略 ID")
     metrics: dict[str, Any] = Field(..., description="待判定的各维度指标键值对")
+
+
+class GenerateCertificateIn(BaseModel):
+    project_id: int = Field(ge=1, description="项目 ID")
+    release_version: str = Field(min_length=1, max_length=64, description="待发布的版本号 (如 v3.2.0)")
+    commit_sha: str = Field(min_length=6, max_length=64, description="对应代码 Commit SHA")
+    target_environment: str = Field(default="production", description="目标发版环境")
+    gate_profile_id: str = Field(default="gate_prod_release", description="质量门禁策略 ID")
+    metrics_override: dict[str, Any] | None = None
+
+
+class VerifyCertificateIn(BaseModel):
+    certificate_id: str = Field(description="证书编号")
+    release_version: str = Field(description="版本号")
+    commit_sha: str = Field(description="Commit SHA")
+    verdict: str = Field(description="评定决议")
+    quality_score: float = Field(description="质量综合得分")
+    issued_at: str = Field(description="签发时间戳")
+    digital_seal_signature: str = Field(description="待验证的防伪数字印章签名")
 
 
 @router.get("/metrics/project/{project_id}")
@@ -125,3 +149,52 @@ async def evaluate_quality_gate_endpoint(
         return result.to_dict()
     except ValueError as exc:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(exc))
+
+
+@router.post("/certification/generate")
+async def generate_release_certificate_endpoint(
+    body: GenerateCertificateIn,
+    _user: User = Depends(require_engineer),
+):
+    """聚合全生命周期质量指标与门禁决策，生成防伪发版准入合格证书。"""
+    _ = _user
+    cert = generate_release_certificate(
+        project_id=body.project_id,
+        release_version=body.release_version,
+        commit_sha=body.commit_sha,
+        target_environment=body.target_environment,
+        gate_profile_id=body.gate_profile_id,
+        metrics_override=body.metrics_override,
+    )
+    return cert.to_dict()
+
+
+@router.post("/certification/verify")
+async def verify_certificate_authenticity_endpoint(
+    body: VerifyCertificateIn,
+    _user: User = Depends(get_current_user),
+):
+    """校验发版准入证书的 HMAC-SHA256 数字防伪印章真实性，杜绝伪造篡改。"""
+    _ = _user
+    return verify_certificate_authenticity(
+        certificate_id=body.certificate_id,
+        release_version=body.release_version,
+        commit_sha=body.commit_sha,
+        verdict=body.verdict,
+        quality_score=body.quality_score,
+        issued_at=body.issued_at,
+        digital_seal_signature=body.digital_seal_signature,
+    )
+
+
+@router.get("/certification/{certificate_id}")
+async def get_certificate_endpoint(
+    certificate_id: str,
+    _user: User = Depends(get_current_user),
+):
+    """获取指定发版准入合格证书的完整审计凭证与签名快照。"""
+    _ = _user
+    cert = get_certificate(certificate_id)
+    if not cert:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"发版证书不存在: {certificate_id}")
+    return cert.to_dict()

@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-16 v3.2.0 研发任务规划（进行中）
+## 2026-10-16 v3.2.0 研发任务规划（已全量闭环）
 
 > v3.2.0 规划入口为 [`docs/development-task-plan-v3.2.0.md`](docs/development-task-plan-v3.2.0.md)，覆盖 C1（跨节点 Worker 集群自适应负载与动态弹性调度）、C2（全域测试资产依赖拓扑与变更影响面智能分析）、C3（多协议测试执行动态沙箱与隔离环境编排）、C4（企业级测试质量度量大盘与质量门禁策略中心）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-16 C3.3 沙箱网络流量镜像与回放实时隔离检测：落地 sandbox_traffic_mirror 服务与 /sandboxes/mirror/* API；支持影子流量镜像分流、敏感外发写操作拦截仿真与零泄露安全证明；3 项单测独立通过，见 [`docs/evidence/sandbox-traffic-mirror-c3-3-2026-10-16.md`](docs/evidence/sandbox-traffic-mirror-c3-3-2026-10-16.md)。至此 v3.2.0 Phase 3 全量闭环！
 - [x] 2026-10-16 C4.1 全生命周期测试质量度量多维评分大盘：落地 quality_metrics_engine 服务与 /quality/metrics/* API；构建自动化覆盖度（30%）、缺陷逃逸率（25%）、执行稳定性（25%）与 MTTR（20%）四维健康度量与发版准入评级；5 项单测独立通过，见 [`docs/evidence/quality-metrics-engine-c4-1-2026-10-16.md`](docs/evidence/quality-metrics-engine-c4-1-2026-10-16.md)。
 - [x] 2026-10-16 C4.2 CI/CD 流水线智能质量门禁规则判定引擎：落地 quality_gate_engine 服务与 /quality/gates/* API；支持灵活算子比较、阻塞性发布卡点判定与 exit_code=1 阻断拦截；5 项单测独立通过，见 [`docs/evidence/quality-gate-engine-c4-2-2026-10-16.md`](docs/evidence/quality-gate-engine-c4-2-2026-10-16.md)。
-- [ ] C4.3 自动化发布准入认证与防伪合格证书生成（release_readiness_certification）
+- [x] 2026-10-16 C4.3 自动化发布准入认证与防伪合格证书生成：落地 release_readiness_certification 服务与 /certification/* API；实现多维度量与门禁决策聚合、HMAC-SHA256 防伪数字印章签署与篡改鉴伪检验；4 项单测独立通过，见 [`docs/evidence/release-readiness-certification-c4-3-2026-10-16.md`](docs/evidence/release-readiness-certification-c4-3-2026-10-16.md)。至此 v3.2.0 全部 12 项重大任务 100% 全量大闭环！
 
 ## 2026-10-16 v3.1.0 研发任务规划（已全量闭环）
 

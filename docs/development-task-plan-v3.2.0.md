@@ -56,7 +56,7 @@
 |---|---|---|---|
 | C4.1 `[x]` | **全生命周期测试质量度量多维评分大盘** | 报表模块 | 落地 `quality_metrics_engine` 服务；度量缺陷逃逸率、用例覆盖度、用例执行波动方差与 MTTR 指标；见 docs/evidence/quality-metrics-engine-c4-1-2026-10-16.md |
 | C4.2 `[x]` | **CI/CD 流水线智能质量门禁规则判定引擎** | C4.1 | 落地 `quality_gate_engine` 服务；支持配置阻塞发布卡点规则（如通过率 < 99%、存在未关闭严重缺陷直接拦截）；见 docs/evidence/quality-gate-engine-c4-2-2026-10-16.md |
-| C4.3 `[ ]` | **自动化发布准入认证与防伪合格证书生成** | C4.2 | 落地 `release_readiness_certification` 服务；自动汇总测试证据与门禁达标报告，生成发布准入合格证书。 |
+| C4.3 `[x]` | **自动化发布准入认证与防伪合格证书生成** | C4.2 | 落地 `release_readiness_certification` 服务；自动汇总测试证据与门禁达标报告，生成发布准入合格证书；见 docs/evidence/release-readiness-certification-c4-3-2026-10-16.md |
 
 ---
 
