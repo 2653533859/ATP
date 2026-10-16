@@ -141,6 +141,9 @@ vi.mock('./components/TrafficDiffComparatorViewer.vue', () => ({
 vi.mock('./components/LiveContractSchemaExtractorDrawer.vue', () => ({
   default: defineComponent({ name: 'LiveContractSchemaExtractorDrawer', setup: () => () => h('div', 'live-contract-schema-extractor-drawer') }),
 }))
+vi.mock('./components/ContractDriftBreakingEvaluatorCard.vue', () => ({
+  default: defineComponent({ name: 'ContractDriftBreakingEvaluatorCard', setup: () => () => h('div', 'contract-drift-breaking-evaluator-card') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

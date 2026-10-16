@@ -15,7 +15,7 @@
 - [x] 2026-10-16 UI2.2 响应体动态字段智能去噪与字段级精确差分比对视图：扩展 trafficGateway API 客户端，落地 TrafficDiffComparatorViewer 组件并集成至 ApiWorkbenchView；支持时间戳/UUID/Token 噪声自动过滤、红绿行级字段差分树与相似度得分 (0~100%)；单测独立通过，见 [`docs/evidence/traffic-diff-comparator-viewer-ui2-2-2026-10-16.md`](docs/evidence/traffic-diff-comparator-viewer-ui2-2-2026-10-16.md)。
 - [x] 2026-10-16 UI2.3 接口黄金响应基线版本化管理与回归偏离大盘页面：扩展 trafficGateway API 客户端，落地 GoldenResponseBaselineDashboardView 页面与路由；展示多版本基线快照管理、自适应容差阈值 (≥95%)、三级偏离报警大横幅与单/多接口回归校验；单测独立通过，见 [`docs/evidence/golden-response-baseline-dashboard-view-ui2-3-2026-10-16.md`](docs/evidence/golden-response-baseline-dashboard-view-ui2-3-2026-10-16.md)。至此 v3.9.0 Phase 2 全量大闭环！
 - [x] 2026-10-16 UI3.1 生产流量 OpenAPI 3.0 / Protobuf 3 动态逆向推导与代码预览抽屉：扩展 trafficGateway API 客户端，落地 LiveContractSchemaExtractorDrawer 组件并集成至 ApiWorkbenchView；支持生产多样本动态提取必填项/枚举/字段类型、OpenAPI 3.0 与 Protobuf 3 IDL 代码预览及复制；单测独立通过，见 [`docs/evidence/live-contract-schema-extractor-drawer-ui3-1-2026-10-16.md`](docs/evidence/live-contract-schema-extractor-drawer-ui3-1-2026-10-16.md)。
-- [ ] UI3.2 接口契约非对称破坏性变更 Breaking 评级仲裁卡片（ContractDriftBreakingEvaluatorCard.vue）
+- [x] 2026-10-16 UI3.2 接口契约非对称破坏性变更 Breaking 评级仲裁卡片：扩展 trafficGateway API 客户端，落地 ContractDriftBreakingEvaluatorCard 组件并集成至 ApiWorkbenchView；基于伯斯塔尔健壮性法则执行双向非对称破坏性评级、三级裁决大横幅与阻断行动指引；单测独立通过，见 [`docs/evidence/contract-drift-breaking-evaluator-card-ui3-2-2026-10-16.md`](docs/evidence/contract-drift-breaking-evaluator-card-ui3-2-2026-10-16.md)。
 - [ ] UI3.3 契约漂移微服务级联依赖拓扑图谱与爆炸半径告警大盘（ContractDriftImpactTopologyView.vue）
 - [ ] UI4.1 基于流量特征匹配的应用层混沌故障注入编排抽屉（TrafficChaosFaultInjectorDrawer.vue）
 - [ ] UI4.2 服务断路器熔断跳闸时延与 RTO 自愈时序分析看板（ResilienceRtoRecoveryDashboardCard.vue）

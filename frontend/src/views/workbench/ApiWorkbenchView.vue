@@ -83,6 +83,9 @@
         <a-button size="small" class="toolbar-btn" @click="showLiveContractDrawer = true">
           <BranchesOutlined /> 契约动态推导
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showBreakingEvaluatorDrawer = true">
+          <SafetyCertificateOutlined /> 契约破坏仲裁
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -495,6 +498,14 @@
     <ShadowTrafficReplayConsoleDrawer v-model:open="showShadowReplayDrawer" />
     <TrafficDiffComparatorViewer v-model:open="showTrafficDiffDrawer" />
     <LiveContractSchemaExtractorDrawer v-model:open="showLiveContractDrawer" />
+    <a-drawer
+      v-model:open="showBreakingEvaluatorDrawer"
+      :width="1120"
+      title="接口契约非对称破坏性变更 Breaking 评级仲裁控制台"
+      destroy-on-close
+    >
+      <ContractDriftBreakingEvaluatorCard />
+    </a-drawer>
   </div>
 </template>
 
@@ -577,6 +588,8 @@ import TrafficDiffComparatorViewer from './components/TrafficDiffComparatorViewe
 const showTrafficDiffDrawer = ref(false)
 import LiveContractSchemaExtractorDrawer from './components/LiveContractSchemaExtractorDrawer.vue'
 const showLiveContractDrawer = ref(false)
+import ContractDriftBreakingEvaluatorCard from './components/ContractDriftBreakingEvaluatorCard.vue'
+const showBreakingEvaluatorDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)

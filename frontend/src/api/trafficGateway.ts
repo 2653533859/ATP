@@ -308,6 +308,43 @@ export interface ExtractSingleContractRequest {
   protocol?: string
 }
 
+export type BreakingLevel = 'BREAKING' | 'WARNING' | 'COMPATIBLE'
+export type DriftChangeType =
+  | 'FIELD_REMOVED'
+  | 'FIELD_ADDED'
+  | 'TYPE_CHANGED'
+  | 'REQUIRED_ADDED'
+  | 'REQUIRED_REMOVED'
+  | 'ENUM_RESTRICTED'
+  | 'ENUM_EXPANDED'
+
+export interface DriftItem {
+  field_path: string
+  target: string
+  change_type: DriftChangeType
+  breaking_level: BreakingLevel
+  design_value: any
+  live_value: any
+  description: string
+  impact_summary: string
+}
+
+export interface ContractDriftEvaluationReport {
+  evaluation_id: string
+  endpoint?: string
+  overall_breaking_level: BreakingLevel
+  is_breaking: boolean
+  compatibility_score_pct: number
+  breaking_changes_count: number
+  warning_changes_count: number
+  compatible_changes_count: number
+  drift_items: DriftItem[]
+  verdict_summary: string
+  design_contract_id?: string
+  live_contract_id?: string
+  evaluated_at: string
+}
+
 export const trafficCaptureApi = {
   getFilterConfig(): Promise<CaptureFilterConfig> {
     return http.get('/traffic/capture/config')
@@ -491,5 +528,34 @@ export const liveContractApi = {
 
   clearContracts(): Promise<{ message: string; deleted_count: number }> {
     return http.delete('/contract-guard/extract/contracts')
+  },
+}
+
+export const contractBreakingApi = {
+  compare(data: {
+    design_contract: Record<string, any>
+    live_contract: Record<string, any>
+    endpoint?: string
+  }): Promise<{ message: string; report: ContractDriftEvaluationReport }> {
+    return http.post('/contract-guard/evaluate/compare', data)
+  },
+
+  compareByIds(data: {
+    design_contract_id: string
+    live_contract_id: string
+  }): Promise<{ message: string; report: ContractDriftEvaluationReport }> {
+    return http.post('/contract-guard/evaluate/by-contract-ids', data)
+  },
+
+  listReports(): Promise<{ total: number; reports: ContractDriftEvaluationReport[] }> {
+    return http.get('/contract-guard/evaluate/reports')
+  },
+
+  getReport(evaluationId: string): Promise<ContractDriftEvaluationReport> {
+    return http.get(`/contract-guard/evaluate/reports/${evaluationId}`)
+  },
+
+  clearReports(): Promise<{ message: string; deleted_count: number }> {
+    return http.delete('/contract-guard/evaluate/reports')
   },
 }
