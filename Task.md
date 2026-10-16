@@ -10,7 +10,7 @@
 
 - [x] 2026-10-16 D1.1 K8s Job / Docker 瞬时动态 Worker 实例拉起与配额管控：落地 k8s_worker_provisioner 服务与 /cloud-native/workers/* API；实现 CPU/内存安全配额校验、瞬时容器 Pod 调度拉起、日志追加、优雅终止与超时收割；5 项单测独立通过，见 [`docs/evidence/k8s-worker-provisioner-d1-1-2026-10-16.md`](docs/evidence/k8s-worker-provisioner-d1-1-2026-10-16.md)。
 - [x] 2026-10-16 D1.2 基于任务背压与队列等待时延的弹性 HPA 自动扩缩容算法：落地 queue_backpressure_autoscaler 服务与 /cloud-native/autoscaling/* API；实现多队列背压采集、时延 SLO 惩罚因子计算、目标副本数自适应夹紧与缩容防抖冷却抑制；5 项单测独立通过，见 [`docs/evidence/queue-backpressure-autoscaler-d1-2-2026-10-16.md`](docs/evidence/queue-backpressure-autoscaler-d1-2-2026-10-16.md)。
-- [ ] D1.3 容器执行环境镜像版本矩阵与动态路由分发（worker_image_matrix_router）
+- [x] 2026-10-16 D1.3 容器执行环境镜像版本矩阵与动态路由分发：落地 worker_image_matrix_router 服务与 /cloud-native/images/* API；内置多语言/多 SDK 开箱即用镜像矩阵，实现加权标签交集匹配打分与平滑兜底回退；6 项单测独立通过，见 [`docs/evidence/worker-image-matrix-router-d1-3-2026-10-16.md`](docs/evidence/worker-image-matrix-router-d1-3-2026-10-16.md)。至此 v3.4.0 Phase 1 全量大闭环！
 - [ ] D2.1 基于 DOM / UI 树差分与语义 Embedding 的失效选择器多模态自愈恢复（smart_locator_healing_engine）
 - [ ] D2.2 接口响应 Schema 动态漂移自适应修正与智能柔性断言（flexible_schema_assertion_engine）
 - [ ] D2.3 异常失败根因智能聚类与自愈执行流水审计（healing_audit_trail_service）
