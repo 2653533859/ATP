@@ -104,6 +104,9 @@
         <a-button size="small" class="toolbar-btn" @click="showEventBusDrawer = true">
           <MailOutlined /> 消息总线防线
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showRootCauseDrawer = true">
+          <AimOutlined /> 失败根因推导
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -551,6 +554,7 @@
     >
       <EventBusDeadletterIdempotencyCard />
     </a-drawer>
+    <TestFailureRootCauseDiagnosisModal v-model:open="showRootCauseDrawer" />
   </div>
 </template>
 
@@ -649,6 +653,8 @@ import SagaTransactionStateTrackerDrawer from './components/SagaTransactionState
 const showSagaTrackerDrawer = ref(false)
 import EventBusDeadletterIdempotencyCard from './components/EventBusDeadletterIdempotencyCard.vue'
 const showEventBusDrawer = ref(false)
+import TestFailureRootCauseDiagnosisModal from './components/TestFailureRootCauseDiagnosisModal.vue'
+const showRootCauseDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)

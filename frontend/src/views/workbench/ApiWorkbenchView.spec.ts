@@ -164,6 +164,9 @@ vi.mock('./components/SagaTransactionStateTrackerDrawer.vue', () => ({
 vi.mock('./components/EventBusDeadletterIdempotencyCard.vue', () => ({
   default: defineComponent({ name: 'EventBusDeadletterIdempotencyCard', setup: () => () => h('div', 'event-bus-deadletter-idempotency-card') }),
 }))
+vi.mock('./components/TestFailureRootCauseDiagnosisModal.vue', () => ({
+  default: defineComponent({ name: 'TestFailureRootCauseDiagnosisModal', setup: () => () => h('div', 'test-failure-root-cause-diagnosis-modal') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
