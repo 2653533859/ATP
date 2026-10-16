@@ -16,7 +16,7 @@
 - [x] 2026-10-16 T2.3 接口黄金响应基线版本化管理与回归偏离判定器：落地 golden_response_baseline_manager 服务与 /traffic/golden-baselines/* API；实现基线快照打标、动态去噪比对、CRITICAL 严重阻断判定与多接口批量回归校验；5 项单测独立通过，见 [`docs/evidence/golden-response-baseline-manager-t2-3-2026-10-16.md`](docs/evidence/golden-response-baseline-manager-t2-3-2026-10-16.md)。至此 v3.8.0 Phase 2 全量大闭环！
 - [x] 2026-10-16 T3.1 生产流量 OpenAPI/Protobuf 契约动态逆向提取推导器：落地 live_contract_schema_extractor 服务与 /contract-guard/extract/* API；实现多样本必填性判定、枚举归纳、数值类型安全提升、OpenAPI 3.0 与 Protobuf 3 自动生成；5 项单测独立通过，见 [`docs/evidence/live-contract-schema-extractor-t3-1-2026-10-16.md`](docs/evidence/live-contract-schema-extractor-t3-1-2026-10-16.md)。
 - [x] 2026-10-16 T3.2 接口契约字段级兼容性差分与 Breaking 破坏性评级引擎：落地 contract_drift_breaking_evaluator 服务与 /contract-guard/evaluate/* API；实现非对称兼容性规则比对（请求体新增必填/类型改变/枚举缩减与响应体删除字段均判定为 BREAKING）；4 项单测独立通过，见 [`docs/evidence/contract-drift-breaking-evaluator-t3-2-2026-10-16.md`](docs/evidence/contract-drift-breaking-evaluator-t3-2-2026-10-16.md)。
-- [ ] T3.3 契约漂移下游受影响服务级联拓扑探测与告警网关（contract_drift_impact_topology_router）
+- [x] 2026-10-16 T3.3 契约漂移下游受影响服务级联拓扑探测与告警网关：落地 contract_drift_impact_topology_router 服务与 /contract-guard/impact-topology/* API；实现微服务消费字段级拓扑匹配、多跳级联递归追溯、爆炸半径评级 (0~100) 与告警路由定向派发；4 项单测独立通过，见 [`docs/evidence/contract-drift-impact-topology-router-t3-3-2026-10-16.md`](docs/evidence/contract-drift-impact-topology-router-t3-3-2026-10-16.md)。至此 v3.8.0 Phase 3 全量大闭环！
 - [ ] T4.1 基于流量特征匹配的微服务故障注入编排执行器（traffic_chaos_fault_injector）
 - [ ] T4.2 服务断路器/降级策略生效时延与 RTO 恢复指标量化器（resilience_rto_recovery_evaluator）
 - [ ] T4.3 生产流量录制回放与契约防线端到端 CLI 与 OpenAPI 编排（traffic_guard_pipeline_api）
