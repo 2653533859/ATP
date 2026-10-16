@@ -35,7 +35,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI2.1 `[x]` | **跨多环境配置差异比对卡片与敏感密钥泄漏告警抽屉** | `multi_env_config_drift_detector` | 落地 `MultiEnvConfigDriftDrawer.vue` 组件与 API 客户端；展示基准 vs 目标环境配置差分树、CRITICAL 密钥高危标识、一致性得分与修复建议；单测独立通过；见 docs/evidence/multi-env-config-drift-drawer-ui2-1-2026-10-17.md |
-| UI2.2 `[ ]` | **数据库 Schema 结构与索引变更漂移双向比对大盘页面** | `db_schema_drift_compatibility_checker` | 落地 `DbSchemaDriftAuditDashboardView.vue` 视图与路由；展示表/列/索引差异矩阵、破坏性变更等级评定与合成修复 DDL 脚本一键复制导出；单测独立通过。 |
+| UI2.2 `[x]` | **数据库 Schema 结构与索引变更漂移双向比对大盘页面** | `db_schema_drift_compatibility_checker` | 落地 `DbSchemaDriftAuditDashboardView.vue` 视图与路由；展示表/列/索引差异矩阵、破坏性变更等级评定与合成修复 DDL 脚本一键复制导出；单测独立通过；见 docs/evidence/db-schema-drift-audit-dashboard-view-ui2-2-2026-10-17.md |
 | UI2.3 `[ ]` | **基础设施即代码 (IaC) 与网络策略安全合规巡检卡片** | `iac_network_policy_compliance_scanner` | 落地 `IaCComplianceScannerCard.vue` 组件与 API 客户端；展示特权容器/敏感卷挂载违规清单、安全扣分模型与准入阻断裁决结论；单测独立通过。 |
 
 ---

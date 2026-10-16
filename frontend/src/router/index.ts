@@ -435,6 +435,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/db-schema-drift',
+          name: 'db-schema-drift-audit-dashboard',
+          component: () => import('@/views/quality/DbSchemaDriftAuditDashboardView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),
