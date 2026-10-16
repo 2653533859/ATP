@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-16 v3.8.0 研发任务规划（进行中）
+## 2026-10-16 v3.8.0 研发任务规划（已全量闭环）
 
 > v3.8.0 规划入口为 [`docs/development-task-plan-v3.8.0.md`](docs/development-task-plan-v3.8.0.md)，覆盖 Phase 1（真实微服务网关生产流量镜像录制、智能脱敏与用例合成引擎）、Phase 2（影子流量无副作用双写回放、字段级智能差分与黄金基线校验）、Phase 3（实时接口契约动态漂移逆向推导与 Breaking 变更阻断卫士）、Phase 4（流量驱动的混沌工程故障注入编排与系统韧性验证）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-16 T3.3 契约漂移下游受影响服务级联拓扑探测与告警网关：落地 contract_drift_impact_topology_router 服务与 /contract-guard/impact-topology/* API；实现微服务消费字段级拓扑匹配、多跳级联递归追溯、爆炸半径评级 (0~100) 与告警路由定向派发；4 项单测独立通过，见 [`docs/evidence/contract-drift-impact-topology-router-t3-3-2026-10-16.md`](docs/evidence/contract-drift-impact-topology-router-t3-3-2026-10-16.md)。至此 v3.8.0 Phase 3 全量大闭环！
 - [x] 2026-10-16 T4.1 基于流量特征匹配的微服务故障注入编排执行器：落地 traffic_chaos_fault_injector 服务与 /chaos-traffic/inject/* API；支持四类故障动作（时延/503错误/数据截断/丢包）、特征匹配过滤与触发上限熔断保护；5 项单测独立通过，见 [`docs/evidence/traffic-chaos-fault-injector-t4-1-2026-10-16.md`](docs/evidence/traffic-chaos-fault-injector-t4-1-2026-10-16.md)。
 - [x] 2026-10-16 T4.2 服务断路器/降级策略生效时延与 RTO 恢复指标量化器：落地 resilience_rto_recovery_evaluator 服务与 /chaos-traffic/evaluate-rto/* API；实现断路器跳闸时延、降级合规率、RTO 自愈时长精准度量与四级韧性评级；4 项单测独立通过，见 [`docs/evidence/resilience-rto-recovery-evaluator-t4-2-2026-10-16.md`](docs/evidence/resilience-rto-recovery-evaluator-t4-2-2026-10-16.md)。
-- [ ] T4.3 生产流量录制回放与契约防线端到端 CLI 与 OpenAPI 编排（traffic_guard_pipeline_api）
+- [x] 2026-10-16 T4.3 生产流量录制回放与契约防线端到端 CLI 与 OpenAPI 编排：落地 traffic_guard_pipeline_api 服务、/traffic-guard/pipeline/* API 与 scripts/ci_atp_traffic_guard.py CLI 工具；实现四阶段端到端编排、Exit Code (0/1/2) 裁决与高对比度 ANSI 控制台日志输出；4 项单测独立通过，见 [`docs/evidence/traffic-guard-pipeline-api-t4-3-2026-10-16.md`](docs/evidence/traffic-guard-pipeline-api-t4-3-2026-10-16.md)。至此 ATP v3.8.0 全量大闭环！
 
 ## 2026-10-16 v3.7.0 研发任务规划（已全量闭环）
 
