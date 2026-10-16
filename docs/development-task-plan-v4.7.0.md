@@ -26,7 +26,7 @@
 |---|---|---|---|
 | UI1.1 `[x]` | **跨协议影子流量染色透传注入与校验抽屉** | `shadow_traffic_taint_propagator` | 落地 `ShadowTrafficTaintPropagatorDrawer.vue` 组件与 API 客户端；展示 HTTP/gRPC/MQ 染色头注入、多跳拓扑透传链路追踪与丢标泄漏预警；单测独立通过；见 docs/evidence/shadow-traffic-taint-propagator-drawer-ui1-1-2026-10-17.md |
 | UI1.2 `[x]` | **影子库表读写防污染安全隔离与拦截抽屉** | `shadow_database_isolation_inspector` | 落地 `ShadowDatabaseIsolationDrawer.vue` 组件与 API 客户端；展示生产表至影子表映射树、SQL 动态重写审计、高危写操作阻断警告与映射配置；单测独立通过；见 docs/evidence/shadow-database-isolation-drawer-ui1-2-2026-10-17.md |
-| UI1.3 `[ ]` | **全链路影子数据与 MQ 消息分流隔离全景大盘页面** | `shadow_isolation_dashboard` | 落地 `FullLinkShadowIsolationDashboardView.vue` 视图与路由；汇总全链路影子流量隔离率（100%）、影子库表就绪数、MQ 影子分流数与旁路 Mock/Drop 监控；单测独立通过。 |
+| UI1.3 `[x]` | **全链路影子数据与 MQ 消息分流隔离全景大盘页面** | `shadow_isolation_dashboard` | 落地 `FullLinkShadowIsolationDashboardView.vue` 视图与路由；汇总全链路影子流量隔离率（100%）、影子库表就绪数、MQ 影子分流数与旁路 Mock/Drop 监控；单测独立通过；见 docs/evidence/full-link-shadow-isolation-dashboard-ui1-3-2026-10-17.md |
 
 ---
 

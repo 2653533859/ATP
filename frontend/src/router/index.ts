@@ -465,6 +465,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/shadow-isolation',
+          name: 'full-link-shadow-isolation-dashboard',
+          component: () => import('@/views/quality/FullLinkShadowIsolationDashboardView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),
