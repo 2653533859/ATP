@@ -68,6 +68,9 @@
         <a-button size="small" class="toolbar-btn" @click="showTrafficCaptureDrawer = true">
           <ClusterOutlined /> 旁路流量捕获
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showTrafficMaskerModal = true">
+          <SafetyCertificateOutlined /> 生产数据脱敏
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -468,6 +471,7 @@
     </a-drawer>
     <PrCommentBotPreviewDrawer v-model:open="showBotDrawer" />
     <TrafficCaptureGatewayDrawer v-model:open="showTrafficCaptureDrawer" />
+    <TrafficDataMaskerModal v-model:open="showTrafficMaskerModal" />
   </div>
 </template>
 
@@ -539,6 +543,8 @@ import PrCommentBotPreviewDrawer from './components/PrCommentBotPreviewDrawer.vu
 const showBotDrawer = ref(false)
 import TrafficCaptureGatewayDrawer from './components/TrafficCaptureGatewayDrawer.vue'
 const showTrafficCaptureDrawer = ref(false)
+import TrafficDataMaskerModal from './components/TrafficDataMaskerModal.vue'
+const showTrafficMaskerModal = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)

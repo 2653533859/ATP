@@ -62,6 +62,19 @@ export interface ListTrafficParams {
   limit?: number
 }
 
+export type MaskingStrategy = 'MASK' | 'HASH' | 'REDACT'
+export type SensitiveCategory = 'PHONE' | 'ID_CARD' | 'BANK_CARD' | 'EMAIL' | 'JWT_TOKEN' | 'PASSWORD' | 'CUSTOM'
+
+export interface SensitiveRuleItem {
+  rule_id: string
+  name: string
+  category: SensitiveCategory
+  strategy: MaskingStrategy
+  field_key_patterns: string[]
+  custom_keywords?: string[]
+  enabled: boolean
+}
+
 export const trafficCaptureApi = {
   getFilterConfig(): Promise<CaptureFilterConfig> {
     return http.get('/traffic/capture/config')
@@ -89,5 +102,35 @@ export const trafficCaptureApi = {
 
   getMetrics(): Promise<CaptureMetrics> {
     return http.get('/traffic/capture/metrics')
+  },
+}
+
+export const trafficMaskerApi = {
+  getRules(): Promise<{ total: number; rules: SensitiveRuleItem[] }> {
+    return http.get('/traffic/mask/rules')
+  },
+
+  updateRules(rules: SensitiveRuleItem[]): Promise<{ message: string; rules: SensitiveRuleItem[] }> {
+    return http.put('/traffic/mask/rules', { rules })
+  },
+
+  resetRules(): Promise<{ message: string; rules: SensitiveRuleItem[] }> {
+    return http.post('/traffic/mask/rules/reset')
+  },
+
+  maskText(data: { text: string; custom_keywords?: string[] }): Promise<{ original: string; masked: string }> {
+    return http.post('/traffic/mask/text', data)
+  },
+
+  maskPayload(data: { payload: any; custom_keywords?: string[] }): Promise<{ masked_payload: any }> {
+    return http.post('/traffic/mask/payload', data)
+  },
+
+  maskTrafficItem(data: { traffic_item: any; custom_keywords?: string[] }): Promise<{ message: string; item: any }> {
+    return http.post('/traffic/mask/item', data)
+  },
+
+  batchMaskTraffic(data: { items: any[]; custom_keywords?: string[] }): Promise<{ message: string; total: number; items: any[] }> {
+    return http.post('/traffic/mask/batch', data)
   },
 }

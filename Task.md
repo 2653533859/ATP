@@ -9,7 +9,7 @@
 > v3.9.0 规划入口为 [`docs/development-task-plan-v3.9.0.md`](docs/development-task-plan-v3.9.0.md)，覆盖 UI1（生产流量网关镜像捕获、智能脱敏与用例聚类合成控制台）、UI2（影子流量无副作用沙箱回放、动态去噪差分与黄金基线大盘）、UI3（实时接口契约动态逆向提取与 Breaking 变更级联防线面板）、UI4（流量驱动的混沌工程故障注入编排与系统韧性监控中心）。
 
 - [x] 2026-10-16 UI1.1 微服务网关旁路流量捕获与动态采样过滤抽屉：创建 trafficGateway API 客户端，落地 TrafficCaptureGatewayDrawer 组件并集成至 ApiWorkbenchView；支持 HTTP/gRPC 多协议切换、路径/方法正则过滤、采样率滑块调节与实时流量流水展示；单测独立通过，见 [`docs/evidence/traffic-capture-gateway-drawer-ui1-1-2026-10-16.md`](docs/evidence/traffic-capture-gateway-drawer-ui1-1-2026-10-16.md)。
-- [ ] UI1.2 生产敏感数据自适应脱敏规则配置与实时清洗弹窗（TrafficDataMaskerModal.vue）
+- [x] 2026-10-16 UI1.2 生产敏感数据自适应脱敏规则配置与实时清洗弹窗：扩展 trafficGateway API 客户端，落地 TrafficDataMaskerModal 组件并集成至 ApiWorkbenchView；支持 7 大敏感分类、MASK/HASH/REDACT 策略切换与在线 JSON 沙箱实时清洗演练；单测独立通过，见 [`docs/evidence/traffic-data-masker-modal-ui1-2-2026-10-16.md`](docs/evidence/traffic-data-masker-modal-ui1-2-2026-10-16.md)。
 - [ ] UI1.3 真实流量特征聚类归一与自动化测试用例合成卡片（TrafficToTestCaseSynthesizerCard.vue）
 - [ ] UI2.1 影子流量无副作用沙箱隔离回放与外部 Mock 代理控制台（ShadowTrafficReplayConsoleDrawer.vue）
 - [ ] UI2.2 响应体动态字段智能去噪与字段级精确差分比对视图（TrafficDiffComparatorViewer.vue）

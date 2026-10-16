@@ -25,7 +25,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI1.1 `[x]` | **微服务网关旁路流量捕获与动态采样过滤抽屉** | `traffic_capture_gateway` | 落地 `TrafficCaptureGatewayDrawer.vue` 组件与 API 客户端；支持 HTTP/gRPC 协议切换、路径/方法正则过滤、动态采样率调节与实时捕获记录流展示；见 docs/evidence/traffic-capture-gateway-drawer-ui1-1-2026-10-16.md |
-| UI1.2 `[ ]` | **生产敏感数据自适应脱敏规则配置与实时清洗弹窗** | `traffic_data_masker` | 落地 `TrafficDataMaskerModal.vue` 组件；支持 MASK 掩码 / HASH 伪名化 / REDACT 策略切换、敏感字段关键词配置与文本/JSON 在线清洗演练。 |
+| UI1.2 `[x]` | **生产敏感数据自适应脱敏规则配置与实时清洗弹窗** | `traffic_data_masker` | 落地 `TrafficDataMaskerModal.vue` 组件；支持 MASK 掩码 / HASH 伪名化 / REDACT 策略切换、敏感字段关键词配置与文本/JSON 在线清洗演练；见 docs/evidence/traffic-data-masker-modal-ui1-2-2026-10-16.md |
 | UI1.3 `[ ]` | **真实流量特征聚类归一与自动化测试用例合成卡片** | `traffic_to_test_case_synthesizer` | 落地 `TrafficToTestCaseSynthesizerCard.vue` 组件；展示动态路径归一化、聚类去重率 KPI（50%~90%+ 削减冗余）、以及参数化测试数据集抽取与一键生成用例。 |
 
 ---
