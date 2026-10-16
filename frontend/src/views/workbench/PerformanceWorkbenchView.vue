@@ -36,6 +36,9 @@
         <a-button size="small" class="toolbar-btn" @click="showCellEscapePanel = true">
           <ClusterOutlined /> 单元逃逸探查
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showWatermarkDrawer = true">
+          <DashboardOutlined /> 容量水位监控
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openFullConsole">
           <SettingOutlined /> {{ t('performance_workbench.full_console') }}
         </a-button>
@@ -356,6 +359,7 @@
     </a-drawer>
     <CellBasedTrafficControllerDrawer v-model:open="showCellControllerDrawer" />
     <CellEscapeDependencyPanel v-model:open="showCellEscapePanel" />
+    <MultisourceCapacityWatermarkDrawer v-model:open="showWatermarkDrawer" />
   </div>
 </template>
 
@@ -374,6 +378,7 @@ import {
   StopOutlined,
   PartitionOutlined,
   ClusterOutlined,
+  DashboardOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -382,6 +387,8 @@ import CellBasedTrafficControllerDrawer from './components/CellBasedTrafficContr
 const showCellControllerDrawer = ref(false)
 import CellEscapeDependencyPanel from './components/CellEscapeDependencyPanel.vue'
 const showCellEscapePanel = ref(false)
+import MultisourceCapacityWatermarkDrawer from './components/MultisourceCapacityWatermarkDrawer.vue'
+const showWatermarkDrawer = ref(false)
 import type { EChartsOption } from 'echarts'
 import {
   environmentApi,
