@@ -44,7 +44,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T3.1 `[ ]` | **多模态测试失败日志与异常堆栈智能根因推导器** | `test_failure_root_cause_reasoner` | 落地 `test_failure_root_cause_reasoner` 服务与 `/diagnosis/root-cause/*` API；融合控制台日志、HTTP 状态与 Span 错误栈定位首发异常点。 |
+| T3.1 `[x]` | **多模态测试失败日志与异常堆栈智能根因推导器** | `test_failure_root_cause_reasoner` | 落地 `test_failure_root_cause_reasoner` 服务与 `/diagnosis/root-cause/*` API；融合控制台日志、HTTP 状态与 Span 错误栈定位首发异常点；见 docs/evidence/test-failure-root-cause-reasoner-t3-1-2026-10-16.md |
 | T3.2 `[ ]` | **历史已知缺陷向量指纹特征相似度匹配检索器** | `incident_knowledge_fingerprint_matcher` | 落地 `incident_knowledge_fingerprint_matcher` 服务与 `/diagnosis/fingerprint/*` API；提取失败特征向量，与历史问题知识库相似度匹配与经验推荐。 |
 | T3.3 `[ ]` | **缺陷严重度智能评级与第三方工单自动指派网关** | `defect_auto_ticket_dispatcher` | 落地 `defect_auto_ticket_dispatcher` 服务与 `/diagnosis/ticket-dispatch/*` API；输出缺陷等级判定，对接 Jira/GitHub/Webhook 自动建单。 |
 
