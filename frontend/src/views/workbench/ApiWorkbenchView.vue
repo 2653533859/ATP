@@ -418,6 +418,10 @@
       :project-id="selectedProjectId || 1"
       :initial-case-ids="synthesizeCaseIds"
     />
+    <SmartTestSelectionWorkbenchCard
+      :project-id="selectedProjectId"
+      @execute="handleSynthesizeFromImpact"
+    />
     <EphemeralSandboxManagerDrawer v-model:open="showSandboxManager" />
     <a-drawer
       v-model:open="showSessionBus"
@@ -493,6 +497,7 @@ import CrossProtocolSessionBusPanel from './components/CrossProtocolSessionBusPa
 import FlexibleSchemaAssertionDebugger from './components/FlexibleSchemaAssertionDebugger.vue'
 import DistributedTraceFlamegraphViewer from './components/DistributedTraceFlamegraphViewer.vue'
 import GitDiffAstViewerDrawer from './components/GitDiffAstViewerDrawer.vue'
+import SmartTestSelectionWorkbenchCard from './components/SmartTestSelectionWorkbenchCard.vue'
 import { useAuthStore } from '@/stores/auth'
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value

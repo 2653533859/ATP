@@ -26,7 +26,7 @@
 |---|---|---|---|
 | UI1.1 `[x]` | **Git Diff 代码变更语法高亮与符号路由映射抽屉** | git_diff_ast_analyzer | 落地 `GitDiffAstViewerDrawer.vue` 组件与 API 客户端；展示代码差异、AST 变更类/函数/装饰器列表与受影响 API 路由；见 docs/evidence/git-diff-ast-viewer-drawer-ui1-1-2026-10-16.md |
 | UI1.2 `[x]` | **代码符号与自动化测试用例双向血缘图谱视图** | code_to_test_mapping_indexer | 落地 `CodeToTestDependencyGraphView.vue` 视图与路由；基于 ECharts 关系力导向图呈现模块-函数-端点-用例的多维调用血缘；见 docs/evidence/code-to-test-dependency-graph-view-ui1-2-2026-10-16.md |
-| UI1.3 `[ ]` | **精准测试集推荐裁剪率与一键回归执行卡片** | smart_test_selection_engine | 落地 `SmartTestSelectionWorkbenchCard.vue` 组件；展示 TIA 策略选择、80%+ 冗余裁剪率、推荐用例置信度排序与一键执行。 |
+| UI1.3 `[x]` | **精准测试集推荐裁剪率与一键回归执行卡片** | smart_test_selection_engine | 落地 `SmartTestSelectionWorkbenchCard.vue` 组件与 API 客户端；展示 TIA 策略选择、80%+ 冗余裁剪率、推荐用例置信度排序与一键执行；见 docs/evidence/smart-test-selection-workbench-card-ui1-3-2026-10-16.md |
 
 ---
 

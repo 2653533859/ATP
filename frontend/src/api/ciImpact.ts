@@ -87,6 +87,42 @@ export interface QueryAffectedCasesRequest {
   project_id?: number | null
 }
 
+export type SelectionStrategy = 'minimal' | 'balanced' | 'comprehensive'
+
+export interface SelectedCaseItem {
+  case_id: number
+  case_name: string
+  priority: string
+  selection_reason: string
+  confidence_score: number
+  estimated_duration_sec: number
+  matched_symbols: string[]
+  matched_routes: string[]
+}
+
+export interface SmartTestSelectionReportItem {
+  selection_id: string
+  diff_analysis_id: string
+  strategy: SelectionStrategy
+  total_repository_cases_count: number
+  selected_cases_count: number
+  pruned_cases_count: number
+  pruning_ratio_pct: number
+  estimated_execution_time_sec: number
+  estimated_time_saved_sec: number
+  selected_cases: SelectedCaseItem[]
+  created_at: string
+}
+
+export interface SelectTestsRequest {
+  diff_text: string
+  file_sources?: Record<string, string>
+  strategy?: SelectionStrategy
+  max_cases?: number
+  project_id?: number | null
+  total_repo_cases_override?: number
+}
+
 export const ciImpactApi = {
   analyzeDiffAst(data: AnalyzeDiffAstRequest): Promise<{ message: string; report: DiffAstAnalysisReportItem }> {
     return http.post('/ci-impact/diff-ast/analyze', data)
@@ -110,5 +146,17 @@ export const ciImpactApi = {
 
   getMappingStats(): Promise<MappingStats> {
     return http.get('/ci-impact/mapping/stats')
+  },
+
+  selectTests(data: SelectTestsRequest): Promise<{ message: string; report: SmartTestSelectionReportItem }> {
+    return http.post('/ci-impact/test-selection/select', data)
+  },
+
+  listSelectionReports(): Promise<{ total: number; reports: SmartTestSelectionReportItem[] }> {
+    return http.get('/ci-impact/test-selection/reports')
+  },
+
+  getSelectionReport(selectionId: string): Promise<SmartTestSelectionReportItem> {
+    return http.get(`/ci-impact/test-selection/reports/${selectionId}`)
   },
 }

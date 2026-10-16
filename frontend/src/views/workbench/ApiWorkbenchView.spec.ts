@@ -104,6 +104,9 @@ vi.mock('./components/DistributedTraceFlamegraphViewer.vue', () => ({
 vi.mock('./components/GitDiffAstViewerDrawer.vue', () => ({
   default: defineComponent({ name: 'GitDiffAstViewerDrawer', setup: () => () => h('div', 'git-diff-ast-viewer') }),
 }))
+vi.mock('./components/SmartTestSelectionWorkbenchCard.vue', () => ({
+  default: defineComponent({ name: 'SmartTestSelectionWorkbenchCard', setup: () => () => h('div', 'smart-test-selection-card') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
