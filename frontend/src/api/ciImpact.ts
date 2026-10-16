@@ -53,6 +53,40 @@ export interface AnalyzeDiffAstRequest {
   file_sources?: Record<string, string>
 }
 
+export interface TestCaseRefItem {
+  case_id: number
+  case_name: string
+  case_type: string
+  project_id?: number | null
+  priority: string
+  target_endpoints: string[]
+  target_symbols: string[]
+}
+
+export interface MappingStats {
+  total_indexed_cases: number
+  total_indexed_symbols: number
+  total_indexed_routes: number
+  total_indexed_files: number
+}
+
+export interface RegisterBindingRequest {
+  case_id: number
+  case_name: string
+  case_type?: string
+  project_id?: number | null
+  priority?: string
+  bound_symbols?: string[]
+  bound_routes?: Array<[string, string]>
+}
+
+export interface QueryAffectedCasesRequest {
+  symbols?: string[]
+  routes?: string[]
+  file_paths?: string[]
+  project_id?: number | null
+}
+
 export const ciImpactApi = {
   analyzeDiffAst(data: AnalyzeDiffAstRequest): Promise<{ message: string; report: DiffAstAnalysisReportItem }> {
     return http.post('/ci-impact/diff-ast/analyze', data)
@@ -64,5 +98,17 @@ export const ciImpactApi = {
 
   getDiffAstReport(analysisId: string): Promise<DiffAstAnalysisReportItem> {
     return http.get(`/ci-impact/diff-ast/reports/${analysisId}`)
+  },
+
+  bindTestCase(data: RegisterBindingRequest): Promise<{ message: string; case: TestCaseRefItem }> {
+    return http.post('/ci-impact/mapping/bind', data)
+  },
+
+  queryAffectedCases(data: QueryAffectedCasesRequest): Promise<{ total: number; cases: TestCaseRefItem[] }> {
+    return http.post('/ci-impact/mapping/query-affected', data)
+  },
+
+  getMappingStats(): Promise<MappingStats> {
+    return http.get('/ci-impact/mapping/stats')
   },
 }

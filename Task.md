@@ -9,7 +9,7 @@
 > v3.7.0 规划入口为 [`docs/development-task-plan-v3.7.0.md`](docs/development-task-plan-v3.7.0.md)，覆盖 UI1（代码变更差异语法树与精准测试推荐工作台控制台）、UI2（动态切片并发看板与代码变更风险全景面板）、UI3（代码变异测试执行与断言盲区热力工作台）、UI4（CI/CD PR 全要素质量门禁与 Reviewer 机器人控制中心）。
 
 - [x] 2026-10-16 UI1.1 Git Diff 代码变更语法高亮与符号路由映射抽屉：创建 ciImpact API 客户端，落地 GitDiffAstViewerDrawer 组件；展示增删代码行 KPI、Diff 编辑预览、AST 符号与受波及 API 路由端点双栏联动，集成至 ApiWorkbenchView 顶部工具栏；单测独立通过，见 [`docs/evidence/git-diff-ast-viewer-drawer-ui1-1-2026-10-16.md`](docs/evidence/git-diff-ast-viewer-drawer-ui1-1-2026-10-16.md)。
-- [ ] UI1.2 代码符号与自动化测试用例双向血缘图谱视图（CodeToTestDependencyGraphView.vue）
+- [x] 2026-10-16 UI1.2 代码符号与自动化测试用例双向血缘图谱视图：扩展 ciImpact API 客户端并在 chartTheme 中装配 Graph 图表，落地 CodeToTestDependencyGraphView 视图与路由；呈现文件-符号-端点-用例四级力导向拓扑网络、节点属性剖析、快速反查与用例血缘注册；单测独立通过，见 [`docs/evidence/code-to-test-dependency-graph-view-ui1-2-2026-10-16.md`](docs/evidence/code-to-test-dependency-graph-view-ui1-2-2026-10-16.md)。
 - [ ] UI1.3 精准测试集推荐裁剪率与一键回归执行卡片（SmartTestSelectionWorkbenchCard.vue）
 - [ ] UI2.1 LPT 贪心装箱并发切片甘特图与负载均衡卡片（DynamicTestShardingGanttCard.vue）
 - [ ] UI2.2 代码变更规模/圈复杂度与核心敏感度三维风险雷达大盘（ChangeRiskRadarDashboard.vue）

@@ -369,6 +369,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/code-to-test-graph',
+          name: 'code-to-test-dependency-graph',
+          component: () => import('@/views/quality/CodeToTestDependencyGraphView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),

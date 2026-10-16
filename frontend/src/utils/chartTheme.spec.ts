@@ -19,6 +19,7 @@ vi.mock('echarts/charts', () => ({
   LineChart: {},
   PieChart: {},
   RadarChart: {},
+  GraphChart: {},
 }))
 vi.mock('echarts/components', () => ({
   GridComponent: {},
