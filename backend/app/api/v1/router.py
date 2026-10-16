@@ -104,6 +104,7 @@ from app.api.v1 import (
     event_bus_guard,
     test_failure_diagnosis,
     incident_fingerprint,
+    defect_ticket_dispatch,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -213,3 +214,4 @@ router.include_router(cross_db_consistency_audit.router)
 router.include_router(event_bus_guard.router)
 router.include_router(test_failure_diagnosis.router)
 router.include_router(incident_fingerprint.router)
+router.include_router(defect_ticket_dispatch.router)
