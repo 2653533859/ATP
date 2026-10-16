@@ -122,6 +122,9 @@ vi.mock('./components/PrQualityGatekeeperDashboardCard.vue', () => ({
 vi.mock('./components/PrCommentBotPreviewDrawer.vue', () => ({
   default: defineComponent({ name: 'PrCommentBotPreviewDrawer', setup: () => () => h('div', 'pr-comment-bot-preview-drawer') }),
 }))
+vi.mock('./components/TrafficCaptureGatewayDrawer.vue', () => ({
+  default: defineComponent({ name: 'TrafficCaptureGatewayDrawer', setup: () => () => h('div', 'traffic-capture-gateway-drawer') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

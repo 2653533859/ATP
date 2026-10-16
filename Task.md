@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-16 v3.9.0 研发任务规划（进行中）
+
+> v3.9.0 规划入口为 [`docs/development-task-plan-v3.9.0.md`](docs/development-task-plan-v3.9.0.md)，覆盖 UI1（生产流量网关镜像捕获、智能脱敏与用例聚类合成控制台）、UI2（影子流量无副作用沙箱回放、动态去噪差分与黄金基线大盘）、UI3（实时接口契约动态逆向提取与 Breaking 变更级联防线面板）、UI4（流量驱动的混沌工程故障注入编排与系统韧性监控中心）。
+
+- [x] 2026-10-16 UI1.1 微服务网关旁路流量捕获与动态采样过滤抽屉：创建 trafficGateway API 客户端，落地 TrafficCaptureGatewayDrawer 组件并集成至 ApiWorkbenchView；支持 HTTP/gRPC 多协议切换、路径/方法正则过滤、采样率滑块调节与实时流量流水展示；单测独立通过，见 [`docs/evidence/traffic-capture-gateway-drawer-ui1-1-2026-10-16.md`](docs/evidence/traffic-capture-gateway-drawer-ui1-1-2026-10-16.md)。
+- [ ] UI1.2 生产敏感数据自适应脱敏规则配置与实时清洗弹窗（TrafficDataMaskerModal.vue）
+- [ ] UI1.3 真实流量特征聚类归一与自动化测试用例合成卡片（TrafficToTestCaseSynthesizerCard.vue）
+- [ ] UI2.1 影子流量无副作用沙箱隔离回放与外部 Mock 代理控制台（ShadowTrafficReplayConsoleDrawer.vue）
+- [ ] UI2.2 响应体动态字段智能去噪与字段级精确差分比对视图（TrafficDiffComparatorViewer.vue）
+- [ ] UI2.3 接口黄金响应基线版本化管理与回归偏离大盘页面（GoldenResponseBaselineDashboardView.vue）
+- [ ] UI3.1 生产流量 OpenAPI 3.0 / Protobuf 3 动态逆向推导与代码预览抽屉（LiveContractSchemaExtractorDrawer.vue）
+- [ ] UI3.2 接口契约非对称破坏性变更 Breaking 评级仲裁卡片（ContractDriftBreakingEvaluatorCard.vue）
+- [ ] UI3.3 契约漂移微服务级联依赖拓扑图谱与爆炸半径告警大盘（ContractDriftImpactTopologyView.vue）
+- [ ] UI4.1 基于流量特征匹配的应用层混沌故障注入编排抽屉（TrafficChaosFaultInjectorDrawer.vue）
+- [ ] UI4.2 服务断路器熔断跳闸时延与 RTO 自愈时序分析看板（ResilienceRtoRecoveryDashboardCard.vue）
+- [ ] UI4.3 生产流量防线 Checkpoint 检查点端到端全景监控看板页面（TrafficGuardPipelineMonitorView.vue）
+
 ## 2026-10-16 v3.8.0 研发任务规划（已全量闭环）
 
 > v3.8.0 规划入口为 [`docs/development-task-plan-v3.8.0.md`](docs/development-task-plan-v3.8.0.md)，覆盖 Phase 1（真实微服务网关生产流量镜像录制、智能脱敏与用例合成引擎）、Phase 2（影子流量无副作用双写回放、字段级智能差分与黄金基线校验）、Phase 3（实时接口契约动态漂移逆向推导与 Breaking 变更阻断卫士）、Phase 4（流量驱动的混沌工程故障注入编排与系统韧性验证）。

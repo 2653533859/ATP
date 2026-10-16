@@ -65,6 +65,9 @@
         <a-button size="small" class="toolbar-btn" @click="showBotDrawer = true">
           <RobotOutlined /> PR Reviewer 机器人
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showTrafficCaptureDrawer = true">
+          <ClusterOutlined /> 旁路流量捕获
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -464,6 +467,7 @@
       <PrQualityGatekeeperDashboardCard />
     </a-drawer>
     <PrCommentBotPreviewDrawer v-model:open="showBotDrawer" />
+    <TrafficCaptureGatewayDrawer v-model:open="showTrafficCaptureDrawer" />
   </div>
 </template>
 
@@ -533,6 +537,8 @@ import PrQualityGatekeeperDashboardCard from './components/PrQualityGatekeeperDa
 const showGatekeeperDrawer = ref(false)
 import PrCommentBotPreviewDrawer from './components/PrCommentBotPreviewDrawer.vue'
 const showBotDrawer = ref(false)
+import TrafficCaptureGatewayDrawer from './components/TrafficCaptureGatewayDrawer.vue'
+const showTrafficCaptureDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)
