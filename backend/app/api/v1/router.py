@@ -106,6 +106,7 @@ from app.api.v1 import (
     incident_fingerprint,
     defect_ticket_dispatch,
     smart_locator_healing,
+    adaptive_assertion_patch,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -217,3 +218,4 @@ router.include_router(test_failure_diagnosis.router)
 router.include_router(incident_fingerprint.router)
 router.include_router(defect_ticket_dispatch.router)
 router.include_router(smart_locator_healing.router)
+router.include_router(adaptive_assertion_patch.router)

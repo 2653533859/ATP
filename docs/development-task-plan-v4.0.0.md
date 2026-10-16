@@ -55,7 +55,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T4.1 `[x]` | **UI 元素定位漂移动态自愈与多策略加权降级重试执行器** | `smart_locator_multistrategy_healer` | 落地 `smart_locator_multistrategy_healer` 服务与 `/healing/locator/*` API；结合文本/ID/XPath/语义距离加权推导备选定位，自愈成功率 ≥90%；见 docs/evidence/smart-locator-multistrategy-healer-t4-1-2026-10-16.md |
-| T4.2 `[ ]` | **接口响应格式变迁自适应断言规则推导与自动打补丁器** | `adaptive_assertion_auto_patcher` | 落地 `adaptive_assertion_auto_patcher` 服务与 `/healing/assertion-patch/*` API；针对向下兼容字段变迁自动修正断言表达式与默认值。 |
+| T4.2 `[x]` | **接口响应格式变迁自适应断言规则推导与自动打补丁器** | `adaptive_assertion_auto_patcher` | 落地 `adaptive_assertion_auto_patcher` 服务与 `/healing/assertion-patch/*` API；针对向下兼容字段变迁自动修正断言表达式与默认值；见 docs/evidence/adaptive-assertion-auto-patcher-t4-2-2026-10-16.md |
 | T4.3 `[ ]` | **端到端测试自愈审计追踪与修复补丁一键应用流水线** | `self_healing_audit_patch_pipeline` | 落地 `self_healing_audit_patch_pipeline` 服务与 `/healing/pipeline/*` API；提供自愈全流程不可篡改审计记录与补丁应用/回滚控制。 |
 
 ---

@@ -18,7 +18,7 @@
 - [x] 2026-10-16 T3.2 历史已知缺陷向量指纹特征相似度匹配检索器：落地 incident_knowledge_fingerprint_matcher 服务与 /diagnosis/fingerprint/* API；支持抗噪声指纹提取、Simpson+余弦+Jaccard 模糊相似度加权检索与历史经验推荐；单测独立通过，见 [`docs/evidence/incident-knowledge-fingerprint-matcher-t3-2-2026-10-16.md`](docs/evidence/incident-knowledge-fingerprint-matcher-t3-2-2026-10-16.md)。
 - [x] 2026-10-16 T3.3 缺陷严重度智能评级与第三方工单自动指派网关：落地 defect_auto_ticket_dispatcher 服务与 /diagnosis/ticket-dispatch/* API；支持 P0~P3 严重度模型判定、责任团队自动映射与 Jira/GitHub/Webhook 工单直派；单测独立通过，见 [`docs/evidence/defect-auto-ticket-dispatcher-t3-3-2026-10-16.md`](docs/evidence/defect-auto-ticket-dispatcher-t3-3-2026-10-16.md)。至此 v4.0.0 Phase 3 全量大闭环！
 - [x] 2026-10-16 T4.1 UI 元素定位漂移动态自愈与多策略加权降级重试执行器：落地 smart_locator_multistrategy_healer 服务与 /healing/locator/* API；支持五维动态加权降级自愈、重试执行、补丁生成与自愈历史审计；单测独立通过，见 [`docs/evidence/smart-locator-multistrategy-healer-t4-1-2026-10-16.md`](docs/evidence/smart-locator-multistrategy-healer-t4-1-2026-10-16.md)。
-- [ ] 2026-10-16 T4.2 接口响应格式变迁自适应断言规则推导与自动打补丁器：落地 adaptive_assertion_auto_patcher 服务与 /healing/assertion-patch/* API
+- [x] 2026-10-16 T4.2 接口响应格式变迁自适应断言规则推导与自动打补丁器：落地 adaptive_assertion_auto_patcher 服务与 /healing/assertion-patch/* API；支持 JSONPath 逆向探查、外层包装拆包/字段重命名识别、Python 代码补丁生成与一键应用；单测独立通过，见 [`docs/evidence/adaptive-assertion-auto-patcher-t4-2-2026-10-16.md`](docs/evidence/adaptive-assertion-auto-patcher-t4-2-2026-10-16.md)。
 - [ ] 2026-10-16 T4.3 端到端测试自愈审计追踪与修复补丁一键应用流水线：落地 self_healing_audit_patch_pipeline 服务与 /healing/pipeline/* API
 
 ## 2026-10-16 v3.9.0 研发任务规划（已全量闭环）
