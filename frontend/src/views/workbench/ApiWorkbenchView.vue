@@ -128,6 +128,9 @@
         <a-button size="small" class="toolbar-btn" @click="showConfigDriftDrawer = true">
           <BranchesOutlined /> 跨环境配置漂移
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showIaCScannerDrawer = true">
+          <SecurityScanOutlined /> IaC 安全巡检
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -590,6 +593,7 @@
     <ElasticWorkerAutoscalerDrawer v-model:open="showAutoscalerDrawer" />
     <TestSuiteDynamicShardingPanel v-model:open="showShardingDrawer" />
     <MultiEnvConfigDriftDrawer v-model:open="showConfigDriftDrawer" />
+    <IaCComplianceScannerCard v-model:open="showIaCScannerDrawer" />
   </div>
 </template>
 
@@ -622,6 +626,7 @@ import {
   BookOutlined,
   ToolOutlined,
   CloudServerOutlined,
+  SecurityScanOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
@@ -707,6 +712,8 @@ import TestSuiteDynamicShardingPanel from './components/TestSuiteDynamicSharding
 const showShardingDrawer = ref(false)
 import MultiEnvConfigDriftDrawer from './components/MultiEnvConfigDriftDrawer.vue'
 const showConfigDriftDrawer = ref(false)
+import IaCComplianceScannerCard from './components/IaCComplianceScannerCard.vue'
+const showIaCScannerDrawer = ref(false)
 const showFingerprintDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value

@@ -70,6 +70,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   AuditOutlined: true,
   ToolOutlined: true,
   CloudServerOutlined: true,
+  SecurityScanOutlined: true,
 }))
 vi.mock('@/stores/auth', () => ({
   useAuthStore: () => ({ user: { role: 'admin' } }),
@@ -191,6 +192,9 @@ vi.mock('./components/TestSuiteDynamicShardingPanel.vue', () => ({
 }))
 vi.mock('./components/MultiEnvConfigDriftDrawer.vue', () => ({
   default: defineComponent({ name: 'MultiEnvConfigDriftDrawer', setup: () => () => h('div', 'multi-env-config-drift-drawer') }),
+}))
+vi.mock('./components/IaCComplianceScannerCard.vue', () => ({
+  default: defineComponent({ name: 'IaCComplianceScannerCard', setup: () => () => h('div', 'iac-compliance-scanner-card') }),
 }))
 
 const passthrough = (name: string) =>
