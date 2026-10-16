@@ -8,7 +8,7 @@
 
 > v4.0.0 规划入口为 [`docs/development-task-plan-v4.0.0.md`](docs/development-task-plan-v4.0.0.md)，覆盖 Phase 1（分布式调用链全息追踪与拓扑性能瓶颈火焰图）、Phase 2（微服务分布式事务与跨系统数据最终一致性稽核）、Phase 3（自动化测试执行失败智能根因推导与故障图谱）、Phase 4（AI 驱动的用例脚本断言自愈与代码级自动修复补丁）。
 
-- [ ] 2026-10-16 T1.1 OpenTelemetry 全链路 Span 追踪采集中继与调用树重构器：落地 distributed_trace_telemetry_relay 服务与 /trace/telemetry/* API
+- [x] 2026-10-16 T1.1 OpenTelemetry 全链路 Span 追踪采集中继与调用树重构器：落地 distributed_trace_telemetry_relay 服务与 /trace/telemetry/* API；支持 W3C TraceContext 协议解析、父子 Span 级联树重构与多维链路检索；单测独立通过，见 [`docs/evidence/distributed-trace-telemetry-relay-t1-1-2026-10-16.md`](docs/evidence/distributed-trace-telemetry-relay-t1-1-2026-10-16.md)。
 - [ ] 2026-10-16 T1.2 跨服务调用关键路径时延分析与火焰图性能瓶颈定位器：落地 critical_path_flamegraph_profiler 服务与 /trace/flamegraph/* API
 - [ ] 2026-10-16 T1.3 分布式调用链路异常波动与高频慢调用智能聚类诊断器：落地 trace_anomaly_slow_call_clusterer 服务与 /trace/anomaly-cluster/* API
 - [ ] 2026-10-16 T2.1 Sagas/TCC 分布式事务流转跟踪与悬挂事务探测器：落地 saga_transaction_state_tracker 服务与 /consistency/saga/* API
