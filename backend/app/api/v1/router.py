@@ -97,6 +97,7 @@ from app.api.v1 import (
     chaos_rto_evaluator,
     traffic_guard_pipeline,
     distributed_trace_telemetry,
+    critical_path_flamegraph,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -199,3 +200,4 @@ router.include_router(chaos_traffic_inject.router)
 router.include_router(chaos_rto_evaluator.router)
 router.include_router(traffic_guard_pipeline.router)
 router.include_router(distributed_trace_telemetry.router)
+router.include_router(critical_path_flamegraph.router)
