@@ -139,6 +139,7 @@ from app.api.v1 import (
     cell_escape_api,
     cell_failover_api,
     capacity_watermark_api,
+    bottleneck_classifier_api,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -283,3 +284,4 @@ router.include_router(cell_isolation_api.router)
 router.include_router(cell_escape_api.router)
 router.include_router(cell_failover_api.router)
 router.include_router(capacity_watermark_api.router)
+router.include_router(bottleneck_classifier_api.router)
