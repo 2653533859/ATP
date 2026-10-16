@@ -30,6 +30,7 @@ export const routeMenuGroups: Record<string, NavigationGroup> = {
   '/quality/self-healing-pipeline': 'test-capabilities',
   '/quality/ephemeral-env': 'test-capabilities',
   '/quality/db-schema-drift': 'test-capabilities',
+  '/quality/audit-report': 'test-capabilities',
   '/system': 'system-center',
   '/devices': 'test-capabilities',
   '/apks': 'test-capabilities',

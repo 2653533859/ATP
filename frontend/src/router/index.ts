@@ -441,6 +441,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/audit-report',
+          name: 'comprehensive-quality-audit-report',
+          component: () => import('@/views/quality/ComprehensiveAuditReportView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),
