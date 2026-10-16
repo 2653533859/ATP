@@ -39,6 +39,9 @@
         <a-button size="small" class="toolbar-btn" @click="showWatermarkDrawer = true">
           <DashboardOutlined /> 容量水位监控
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showBottleneckCard = true">
+          <BugOutlined /> 瓶颈归因诊断
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openFullConsole">
           <SettingOutlined /> {{ t('performance_workbench.full_console') }}
         </a-button>
@@ -360,6 +363,7 @@
     <CellBasedTrafficControllerDrawer v-model:open="showCellControllerDrawer" />
     <CellEscapeDependencyPanel v-model:open="showCellEscapePanel" />
     <MultisourceCapacityWatermarkDrawer v-model:open="showWatermarkDrawer" />
+    <DistributedBottleneckClassifierCard v-model:open="showBottleneckCard" />
   </div>
 </template>
 
@@ -379,6 +383,7 @@ import {
   PartitionOutlined,
   ClusterOutlined,
   DashboardOutlined,
+  BugOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'
@@ -389,6 +394,8 @@ import CellEscapeDependencyPanel from './components/CellEscapeDependencyPanel.vu
 const showCellEscapePanel = ref(false)
 import MultisourceCapacityWatermarkDrawer from './components/MultisourceCapacityWatermarkDrawer.vue'
 const showWatermarkDrawer = ref(false)
+import DistributedBottleneckClassifierCard from './components/DistributedBottleneckClassifierCard.vue'
+const showBottleneckCard = ref(false)
 import type { EChartsOption } from 'echarts'
 import {
   environmentApi,
