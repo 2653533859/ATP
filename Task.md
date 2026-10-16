@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-17 v4.6.0 研发任务规划（进行中）
+
+> v4.6.0 规划入口为 [`docs/development-task-plan-v4.6.0.md`](docs/development-task-plan-v4.6.0.md)，覆盖 Phase 1（生产级全链路影子流量染色、透传与数据隔离引擎）、Phase 2（单元化/细胞化架构测试隔离 Cell-based Testing 与拓扑调度）、Phase 3（压测容量水位实时度量、下游瓶颈智能归因与防雪崩熔断器）、Phase 4（全链路压测仿真数字孪生演练报告与演练准入发布）。
+
+- [x] 2026-10-17 T1.1 跨协议影子流量染色标动态注入与透明透传校验器：落地 `shadow_traffic_taint_propagator` 服务与 `/stress/shadow-traffic/taint/*` API；支持 HTTP Header (`X-ATP-Shadow: true`)、gRPC Metadata 与 MQ Message Header 染色注入与端到端透传闭环；单测独立通过，见 [`docs/evidence/shadow-traffic-taint-propagator-t1-1-2026-10-17.md`](docs/evidence/shadow-traffic-taint-propagator-t1-1-2026-10-17.md)。
+- [ ] 2026-10-17 T1.2 影子数据库/影子表路由拦截与读写防污染安全隔离检查器：落地 `shadow_database_isolation_inspector` 服务与 `/stress/shadow-traffic/db-isolation/*` API；校验影子表命名规范与动态路由切换，严密拦截压测脏数据渗入生产真实表；单测独立通过。
+- [ ] 2026-10-17 T1.3 消息队列影子队列与死信重试分流隔离分流器：落地 `shadow_mq_queue_router` 服务与 `/stress/shadow-traffic/mq-shunting/*` API；自动重定向影子消息至 Shadow Topic，隔离消费与死信队列避免触发真实短信/第三方充值；单测独立通过。
+- [ ] 2026-10-17 T2.1 多可用区单元化 (Cell/Zone) 流量切流与路由策略控制器：落地 `cell_based_testing_traffic_controller` 服务与 `/stress/cell-isolation/routing/*` API；支持多单元流量动态权重视流、灰度引流与压测单元受控隔离；单测独立通过。
+- [ ] 2026-10-17 T2.2 跨单元服务依赖逃逸 (Cell Escape) 与拓扑孤岛检测器：落地 `cell_escape_dependency_detector` 服务与 `/stress/cell-isolation/escape/*` API；自动探查流量跨越单元物理边界访问非隔离共享资源的越界泄漏隐患；单测独立通过。
+- [ ] 2026-10-17 T2.3 单元故障演练与常态化容灾接管自愈验证器：落地 `cell_failover_resilience_verifier` 服务与 `/stress/cell-isolation/failover/*` API；模拟单单元整体瘫痪，量化备用单元自动接管耗时、流量丢包率与自愈状态；单测独立通过。
+- [ ] 2026-10-17 T3.1 多源基础设施 (DB池/Redis/MQ) 容量水位实时度量器：落地 `multisource_capacity_watermark_meter` 服务与 `/stress/bottleneck-guardian/watermark/*` API；采集并聚合 DB 连接池水位、Redis 内存消耗率与 MQ 积压量，计算健康负荷指数；单测独立通过。
+- [ ] 2026-10-17 T3.2 压测调用链下游热点慢调用与资源争用瓶颈归因器：落地 `distributed_bottleneck_root_cause_classifier` 服务与 `/stress/bottleneck-guardian/bottlenecks/*` API；分析压测调用链 P99 抖动，自动归因至死锁、慢 SQL、线程池打满与带宽饱和；单测独立通过。
+- [ ] 2026-10-17 T3.3 生产防击穿自适应毫秒级分级限流与熔断保护大脑：落地 `adaptive_avalanche_circuit_breaker` 服务与 `/stress/bottleneck-guardian/circuit-breaker/*` API；当下游依赖容量超过 85% 预警水位时，毫秒级自适应阶梯限流与自动阻断压测；单测独立通过。
+- [ ] 2026-10-17 T4.1 全链路压测 TPS 阶梯加压性能曲线与拐点检测器：落地 `step_load_throughput_knee_detector` 服务与 `/stress/drill-report/knee-detection/*` API；自动拟合并发线程 vs TPS 曲线，精准定位系统性能吞吐最大拐点 (Knee Point) 与崩溃点；单测独立通过。
+- [ ] 2026-10-17 T4.2 生产全链路压测安全审计与爆炸半径评估器：落地 `stress_blast_radius_safety_evaluator` 服务与 `/stress/drill-report/blast-radius/*` API；量化演练潜在破坏半径，生成压测安全防篡改审计日志与熔断应急预案；单测独立通过。
+- [ ] 2026-10-17 T4.3 全链路压力演练综合审计报告生成器与 Markdown 导出：落地 `full_link_stress_drill_reporter` 服务与 `/stress/drill-report/summary/*` API；汇总量化并发、TPS、P99 延迟、熔断事件与资源水位，支持一键导出标准 Markdown 演练报告；单测独立通过。
+
 ## 2026-10-17 v4.5.0 研发任务规划（已全量闭环）
 
 > v4.5.0 规划入口为 [`docs/development-task-plan-v4.5.0.md`](docs/development-task-plan-v4.5.0.md)，覆盖 Phase 1（多模态视觉回归像素级 Diff 与黄金基线演进审视大盘）、Phase 2（页面语义完整性断言与布局越界/Design Tokens 审查抽屉）、Phase 3（深度无障碍访问 a11y WCAG 2.2 全面体检中心与色盲感知模拟控制台）、Phase 4（客户端运行时全息性能与 Web Vitals 体验监控大盘）。
