@@ -44,7 +44,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T3.1 `[ ]` | **基于 WCAG 2.2 标准的无障碍可访问性 DOM 深度扫描器** | `wcag_accessibility_deep_scanner` | 落地 `wcag_accessibility_deep_scanner` 服务与 `/a11y/wcag-scanner/*` API；全面检查缺少 alt、表单无关联 label、aria 属性失效、空按钮链接等无障碍违规项并评级；单测独立通过。 |
+| T3.1 `[x]` | **基于 WCAG 2.2 标准的无障碍可访问性 DOM 深度扫描器** | `wcag_accessibility_deep_scanner` | 落地 `wcag_accessibility_deep_scanner` 服务与 `/a11y/wcag-scanner/*` API；全面检查缺少 alt、表单无关联 label、aria 属性失效、空按钮链接等无障碍违规项并评级；单测独立通过；见 docs/evidence/wcag-accessibility-deep-scanner-t3-1-2026-10-17.md |
 | T3.2 `[ ]` | **屏幕阅读器焦点流转与键盘全盲导航路径可达性验证器** | `a11y_keyboard_navigation_path_verifier` | 落地 `a11y_keyboard_navigation_path_verifier` 服务与 `/a11y/keyboard-nav/*` API；仿真 Tab 键序列化焦点流转，探测键盘陷阱 (Focus Trap)、跳过导航缺失与不可见焦点缺陷；单测独立通过。 |
 | T3.3 `[ ]` | **色盲/色弱多模态视觉感知模拟与低视力辅助缺陷分类器** | `color_blindness_simulation_classifier` | 落地 `color_blindness_simulation_classifier` 服务与 `/a11y/color-blindness/*` API；模拟红绿色盲、全色盲与低对比度视觉感知，检测仅依赖颜色传达关键状态的无障碍违规；单测独立通过。 |
 
