@@ -33,6 +33,7 @@ export const routeMenuGroups: Record<string, NavigationGroup> = {
   '/quality/audit-report': 'test-capabilities',
   '/quality/visual-regression': 'test-capabilities',
   '/quality/color-blindness': 'test-capabilities',
+  '/quality/web-vitals': 'test-capabilities',
   '/system': 'system-center',
   '/devices': 'test-capabilities',
   '/apks': 'test-capabilities',

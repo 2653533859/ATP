@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-17 v4.5.0 研发任务规划（进行中）
+## 2026-10-17 v4.5.0 研发任务规划（已全量闭环）
 
 > v4.5.0 规划入口为 [`docs/development-task-plan-v4.5.0.md`](docs/development-task-plan-v4.5.0.md)，覆盖 Phase 1（多模态视觉回归像素级 Diff 与黄金基线演进审视大盘）、Phase 2（页面语义完整性断言与布局越界/Design Tokens 审查抽屉）、Phase 3（深度无障碍访问 a11y WCAG 2.2 全面体检中心与色盲感知模拟控制台）、Phase 4（客户端运行时全息性能与 Web Vitals 体验监控大盘）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-17 UI3.3 色盲/色弱多模态视觉感知实时模拟与无障碍准入大盘页面：落地 `ColorBlindnessAuditDashboardView.vue` 视图与路由；提供红盲、绿盲、蓝盲、全色盲 4 分屏滤镜实时预览、WCAG 1.4.1 单色状态指示器违规警报；单测独立通过，见 [`docs/evidence/color-blindness-audit-dashboard-view-ui3-3-2026-10-17.md`](docs/evidence/color-blindness-audit-dashboard-view-ui3-3-2026-10-17.md)。至此 v4.5.0 Phase 3 全量大闭环！
 - [x] 2026-10-17 UI4.1 前端运行时长任务 (Long Task) 堆栈下钻与 60 FPS 掉帧卡顿诊断抽屉：落地 `ClientLongTaskJankProfilerDrawer.vue` 组件与 API 客户端；展示超过 50ms 长任务耗时火焰图、总阻塞时间 (TBT) 评级仪表、掉帧率量化、强制布局与 Canvas 归因；单测独立通过，见 [`docs/evidence/client-long-task-jank-profiler-drawer-ui4-1-2026-10-17.md`](docs/evidence/client-long-task-jank-profiler-drawer-ui4-1-2026-10-17.md)。
 - [x] 2026-10-17 UI4.2 页面内存泄漏监控与 Detached DOM 幽灵引用探测卡片：落地 `ClientMemoryLeakDetectorCard.vue` 组件与 API 客户端；展示 JS Heap 增长折线图、未释放事件监听器计数、脱落游离 DOM 树节点闭包样本；单测独立通过，见 [`docs/evidence/client-memory-leak-detector-card-ui4-2-2026-10-17.md`](docs/evidence/client-memory-leak-detector-card-ui4-2-2026-10-17.md)。
-- [ ] 2026-10-17 UI4.3 Google Core Web Vitals (LCP/INP/CLS) 全景体验审计大盘页面：落地 `ClientWebVitalsExperienceDashboardView.vue` 视图与路由；展示三大核心指标（LCP/INP/CLS）红黄绿评级、加权性能体验分、Markdown 报告一键导出；单测独立通过。
+- [x] 2026-10-17 UI4.3 Google Core Web Vitals (LCP/INP/CLS) 全景体验审计大盘页面：落地 `ClientWebVitalsExperienceDashboardView.vue` 视图与路由；展示三大核心指标（LCP/INP/CLS）红黄绿评级、加权性能体验分、Markdown 报告一键导出；单测独立通过，见 [`docs/evidence/client-web-vitals-experience-dashboard-view-ui4-3-2026-10-17.md`](docs/evidence/client-web-vitals-experience-dashboard-view-ui4-3-2026-10-17.md)。至此 v4.5.0 Phase 4 暨全量四大阶段 12 个重点功能大闭环！
 
 ## 2026-10-17 v4.4.0 研发任务规划（已全量闭环）
 

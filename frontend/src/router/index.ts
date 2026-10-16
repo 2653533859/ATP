@@ -459,6 +459,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/web-vitals',
+          name: 'client-web-vitals-experience-dashboard',
+          component: () => import('@/views/quality/ClientWebVitalsExperienceDashboardView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),
