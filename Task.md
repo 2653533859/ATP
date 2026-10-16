@@ -9,7 +9,7 @@
 > v3.5.0 规划入口为 [`docs/development-task-plan-v3.5.0.md`](docs/development-task-plan-v3.5.0.md)，覆盖 UI1（云原生动态容器化弹性 Worker 调度与镜像版本控制台）、UI2（AI 驱动的用例自愈与契约响应柔性断言控制台）、UI3（多端原生性能剖析与深度质量诊断控制台）、UI4（企业级报告归档多模态导出与研发效能 DORA 罗盘中心）。
 
 - [x] 2026-10-16 UI1.1 云原生弹性 Worker 容器 Pod 调度与配额管理抽屉：创建 cloudNativeWorkers API 客户端，落地 CloudNativeWorkerManagerDrawer 组件；支持 K8s/Docker 运行时选择、CPU/内存配额管控、运行水位 KPI、日志查看与优雅下线；挂载至 AppWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/cloud-native-worker-manager-drawer-ui1-1-2026-10-16.md`](docs/evidence/cloud-native-worker-manager-drawer-ui1-1-2026-10-16.md)。
-- [ ] UI1.2 队列背压自适应 HPA 自动扩缩容策略与决策看板（HpaAutoscalingDashboardCard.vue）
+- [x] 2026-10-16 UI1.2 队列背压自适应 HPA 自动扩缩容策略与决策看板：扩展 cloudNativeWorkers API（hpaAutoscalingApi），落地 HpaAutoscalingDashboardCard 组件；展示队列积压深度、时延 SLO 惩罚计算、目标副本调节与一键扩缩容应用；内嵌集成至 CloudNativeWorkerManagerDrawer；单测独立通过，见 [`docs/evidence/hpa-autoscaling-dashboard-card-ui1-2-2026-10-16.md`](docs/evidence/hpa-autoscaling-dashboard-card-ui1-2-2026-10-16.md)。
 - [ ] UI1.3 容器执行环境镜像版本矩阵与标签路由解析抽屉（WorkerImageMatrixDrawer.vue）
 - [ ] UI2.1 失效选择器 DOM/UI 树多模态自愈推导抽屉（SmartLocatorHealingDrawer.vue）
 - [ ] UI2.2 接口响应 Schema 动态漂移自适应修正与柔性断言调试器（FlexibleSchemaAssertionDebugger.vue）

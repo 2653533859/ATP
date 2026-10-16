@@ -196,6 +196,9 @@
         </a-table>
       </a-card>
 
+      <!-- 队列背压自适应 HPA 自动扩缩容看板 -->
+      <HpaAutoscalingDashboardCard />
+
       <!-- 容器日志弹窗 -->
       <a-modal
         v-model:open="logsModalOpen"
@@ -221,6 +224,7 @@ import {
   type EphemeralWorkerPodItem,
   type PodStatus,
 } from '@/api/cloudNativeWorkers'
+import HpaAutoscalingDashboardCard from './HpaAutoscalingDashboardCard.vue'
 
 const props = withDefaults(
   defineProps<{

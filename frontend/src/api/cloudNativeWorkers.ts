@@ -39,6 +39,67 @@ export interface ProvisionPodRequest {
   metadata?: Record<string, any>
 }
 
+export type HpaScalingDirection = 'scale_up' | 'scale_down' | 'maintain'
+
+export interface HpaPolicyItem {
+  policy_id: string
+  target_queue: string
+  min_replicas: number
+  max_replicas: number
+  target_concurrency_per_pod: number
+  target_latency_slo_sec: number
+  scale_up_stabilization_sec: number
+  scale_down_stabilization_sec: number
+  enabled: boolean
+}
+
+export interface CreateHpaPolicyRequest {
+  policy_id: string
+  target_queue?: string
+  min_replicas?: number
+  max_replicas?: number
+  target_concurrency_per_pod?: number
+  target_latency_slo_sec?: number
+  scale_up_stabilization_sec?: number
+  scale_down_stabilization_sec?: number
+  enabled?: boolean
+}
+
+export interface HpaEvaluationDecisionItem {
+  decision_id: string
+  policy_id: string
+  target_queue: string
+  direction: HpaScalingDirection
+  current_replicas: number
+  desired_replicas: number
+  replicas_delta: number
+  reason: string
+  evaluated_at: string
+  metrics_snapshot: {
+    queue_name?: string
+    current_queue_depth?: number
+    running_tasks_count?: number
+    p95_queue_latency_sec?: number
+    current_replicas?: number
+  }
+}
+
+export interface EvaluateHpaRequest {
+  policy_id: string
+  current_queue_depth: number
+  running_tasks_count: number
+  p95_queue_latency_sec: number
+  current_replicas: number
+}
+
+export interface ApplyHpaScalingRequest {
+  decision_id: string
+  policy_id: string
+  direction: string
+  replicas_delta: number
+  target_queue?: string
+}
+
 export const cloudNativeWorkersApi = {
   provisionPod(data: ProvisionPodRequest): Promise<{ message: string; pod: EphemeralWorkerPodItem }> {
     return http.post('/cloud-native/workers/provision', data)
@@ -58,5 +119,33 @@ export const cloudNativeWorkersApi = {
 
   reapStalePods(maxLifetimeSec: number = 3600.0): Promise<{ message: string; reaped_count: number; reaped_pod_ids: string[] }> {
     return http.post('/cloud-native/workers/reap', null, { params: { max_lifetime_sec: maxLifetimeSec } })
+  },
+}
+
+export const hpaAutoscalingApi = {
+  createPolicy(data: CreateHpaPolicyRequest): Promise<{ message: string; policy: HpaPolicyItem }> {
+    return http.post('/cloud-native/autoscaling/policies', data)
+  },
+
+  listPolicies(): Promise<{ total: number; policies: HpaPolicyItem[] }> {
+    return http.get('/cloud-native/autoscaling/policies')
+  },
+
+  evaluateHpa(data: EvaluateHpaRequest): Promise<HpaEvaluationDecisionItem> {
+    return http.post('/cloud-native/autoscaling/evaluate', data)
+  },
+
+  applyScaling(data: ApplyHpaScalingRequest): Promise<{
+    message: string
+    policy_id: string
+    direction: string
+    replicas_delta: number
+    executed_actions: string[]
+  }> {
+    return http.post('/cloud-native/autoscaling/apply', data)
+  },
+
+  listHistory(policyId?: string): Promise<{ total: number; history: HpaEvaluationDecisionItem[] }> {
+    return http.get('/cloud-native/autoscaling/history', { params: { policy_id: policyId } })
   },
 }

@@ -25,7 +25,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI1.1 `[x]` | **云原生弹性 Worker 容器 Pod 调度与配额管理抽屉** | k8s_worker_provisioner | 落地 `CloudNativeWorkerManagerDrawer.vue` 组件与 API 客户端；展示容器 Pod 实例运行流水、CPU/内存配额消耗与生命周期下线；见 docs/evidence/cloud-native-worker-manager-drawer-ui1-1-2026-10-16.md |
-| UI1.2 `[ ]` | **队列背压自适应 HPA 自动扩缩容策略与决策看板** | queue_backpressure_autoscaler | 落地 `HpaAutoscalingDashboardCard.vue` 组件；展示队列积压深度、时延 SLO 惩罚因子计算、副本数自适应调节与防抖冷却。 |
+| UI1.2 `[x]` | **队列背压自适应 HPA 自动扩缩容策略与决策看板** | queue_backpressure_autoscaler | 落地 `HpaAutoscalingDashboardCard.vue` 组件；展示队列积压深度、时延 SLO 惩罚因子计算、副本数自适应调节与防抖冷却；见 docs/evidence/hpa-autoscaling-dashboard-card-ui1-2-2026-10-16.md |
 | UI1.3 `[ ]` | **容器执行环境镜像版本矩阵与标签路由解析抽屉** | worker_image_matrix_router | 落地 `WorkerImageMatrixDrawer.vue` 组件；展示多版本镜像矩阵（Python/Node/Android/Perf）、标签交集打分匹配推演与回退兜底。 |
 
 ---
