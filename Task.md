@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-16 v3.4.0 研发任务规划（进行中）
+
+> v3.4.0 规划入口为 [`docs/development-task-plan-v3.4.0.md`](docs/development-task-plan-v3.4.0.md)，覆盖 D1（云原生动态容器化弹性 Worker 调度与生命周期编排）、D2（AI 驱动的测试用例自动化自愈与智能断言引擎）、D3（多端原生性能剖析与深度质量诊断分析）、D4（企业级测试报告归档与多渠道告警协同中心）。
+
+- [x] 2026-10-16 D1.1 K8s Job / Docker 瞬时动态 Worker 实例拉起与配额管控：落地 k8s_worker_provisioner 服务与 /cloud-native/workers/* API；实现 CPU/内存安全配额校验、瞬时容器 Pod 调度拉起、日志追加、优雅终止与超时收割；5 项单测独立通过，见 [`docs/evidence/k8s-worker-provisioner-d1-1-2026-10-16.md`](docs/evidence/k8s-worker-provisioner-d1-1-2026-10-16.md)。
+- [ ] D1.2 基于任务背压与队列等待时延的弹性 HPA 自动扩缩容算法（queue_backpressure_autoscaler）
+- [ ] D1.3 容器执行环境镜像版本矩阵与动态路由分发（worker_image_matrix_router）
+- [ ] D2.1 基于 DOM / UI 树差分与语义 Embedding 的失效选择器多模态自愈恢复（smart_locator_healing_engine）
+- [ ] D2.2 接口响应 Schema 动态漂移自适应修正与智能柔性断言（flexible_schema_assertion_engine）
+- [ ] D2.3 异常失败根因智能聚类与自愈执行流水审计（healing_audit_trail_service）
+- [ ] D3.1 移动端 CPU/内存/FPS/网络流量实时采样与卡顿泄露检测（mobile_perf_profiler）
+- [ ] D3.2 Web 性能 Core Web Vitals (LCP, FID/INP, CLS) 自动化深度诊断（web_vitals_profiler）
+- [ ] D3.3 接口服务全链路分布式追踪 TraceID 贯通与慢调用火焰图分析（distributed_trace_flamegraph）
+- [ ] D4.1 测试报告多模态聚合打包导出 (PDF / HTML5 / Excel 详报)（report_bundler_exporter）
+- [ ] D4.2 企业微信 / 钉钉 / 飞书富文本交互式卡片 Webhook 智能投递（notification_hub_dispatcher）
+- [ ] D4.3 测试执行准时率与团队研发效能 DORA 指标量化分析（dora_metrics_calculator）
+
 ## 2026-10-16 v3.3.0 研发任务规划（已全量闭环）
 
 > v3.3.0 规划入口为 [`docs/development-task-plan-v3.3.0.md`](docs/development-task-plan-v3.3.0.md)，覆盖 UI1（跨节点 Worker 集群协同调度与故障转移监控台）、UI2（全域测试资产依赖拓扑与变更影响面控制台）、UI3（多协议动态仿真沙箱与流量镜像控制台）、UI4（企业级测试质量度量大盘与质量门禁中心）。
