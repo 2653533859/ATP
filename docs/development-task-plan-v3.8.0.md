@@ -26,7 +26,7 @@
 |---|---|---|---|
 | T1.1 `[x]` | **微服务网关旁路流量捕获与 HTTP/gRPC 多协议解析过滤服务** | `traffic_capture_gateway` | 落地 `traffic_capture_gateway` 服务与 `/traffic/capture/*` API；支持 HTTP(REST)/gRPC 流量镜像捕获、路径/方法正则过滤、采样率控制及头部元数据标准化提取；见 docs/evidence/traffic-capture-gateway-t1-1-2026-10-16.md |
 | T1.2 `[x]` | **生产敏感数据自适应规则脱敏与模式识别脱敏器** | `traffic_data_masker` | 落地 `traffic_data_masker` 服务与 `/traffic/mask/*` API；支持手机号、身份证、银行卡、鉴权 Token、密码等高敏模式自动识别与可逆/不可逆哈希脱敏掩码；见 docs/evidence/traffic-data-masker-t1-2-2026-10-16.md |
-| T1.3 `[ ]` | **真实流量请求聚类归一与自动化测试用例智能生成器** | `traffic_to_test_case_synthesizer` | 落地 `traffic_to_test_case_synthesizer` 服务与 `/traffic/synthesize/*` API；基于入参模式聚类去重，自动转换为 ATP 标准 TestCase 与动态测试数据集。 |
+| T1.3 `[x]` | **真实流量请求聚类归一与自动化测试用例智能生成器** | `traffic_to_test_case_synthesizer` | 落地 `traffic_to_test_case_synthesizer` 服务与 `/traffic/synthesize/*` API；基于入参模式聚类去重，自动转换为 ATP 标准 TestCase 与动态测试数据集；见 docs/evidence/traffic-to-test-case-synthesizer-t1-3-2026-10-16.md |
 
 ---
 

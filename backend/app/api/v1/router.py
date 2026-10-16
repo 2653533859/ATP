@@ -86,6 +86,7 @@ from app.api.v1 import (
     ci_impact,
     traffic_capture,
     traffic_masker,
+    traffic_synthesizer,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -177,3 +178,4 @@ router.include_router(reporting_dora.router)
 router.include_router(ci_impact.router)
 router.include_router(traffic_capture.router)
 router.include_router(traffic_masker.router)
+router.include_router(traffic_synthesizer.router)
