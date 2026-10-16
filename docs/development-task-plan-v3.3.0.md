@@ -56,7 +56,7 @@
 |---|---|---|---|
 | UI4.1 `[x]` | **全生命周期测试质量度量多维评分大盘页面** | quality_metrics_engine | 落地 `QualityMetricsDashboardView.vue` 页面与路由；呈现四维加权雷达图、自动化覆盖率、缺陷逃逸率、执行稳定性与 MTTR 指标总览；见 docs/evidence/quality-metrics-dashboard-view-ui4-1-2026-10-16.md |
 | UI4.2 `[x]` | **CI/CD 智能质量门禁规则配置与卡点决策抽屉** | quality_gate_engine | 落地 `QualityGateRuleConfigDrawer.vue` 组件；支持配置指标比较算子、阻塞性发布卡点规则与在线实时判定结果展示；见 docs/evidence/quality-gate-rule-config-drawer-ui4-2-2026-10-16.md |
-| UI4.3 `[ ]` | **自动化发版准入合格证书与防伪数字印章弹窗** | release_readiness_certification | 落地 `ReleaseCertificateModal.vue` 组件；展示 ISO 27001 / SOC 2 官方绿盾徽标、HMAC-SHA256 数字印章验签与合格证明导出。 |
+| UI4.3 `[x]` | **自动化发版准入合格证书与防伪数字印章弹窗** | release_readiness_certification | 落地 `ReleaseCertificateModal.vue` 组件；展示 ISO 27001 / SOC 2 官方绿盾徽标、HMAC-SHA256 数字印章验签与合格证明导出；见 docs/evidence/release-certificate-modal-ui4-3-2026-10-16.md |
 
 ---
 

@@ -83,6 +83,46 @@ export interface CreateGateProfileRequest {
   block_on_failure?: boolean
 }
 
+export interface ReleaseCertificateItem {
+  certificate_id: string
+  project_id: number
+  release_version: string
+  commit_sha: string
+  target_environment: string
+  verdict: 'APPROVED' | 'REJECTED'
+  quality_score: number
+  gate_profile_id: string
+  blocked_reasons: string[]
+  issued_at: string
+  certificate_hash: string
+  digital_seal_signature: string
+}
+
+export interface GenerateCertificateRequest {
+  project_id: number
+  release_version: string
+  commit_sha: string
+  target_environment?: string
+  gate_profile_id?: string
+  metrics_override?: Record<string, any>
+}
+
+export interface VerifyCertificateRequest {
+  certificate_id: string
+  release_version: string
+  commit_sha: string
+  verdict: string
+  quality_score: number
+  issued_at: string
+  digital_seal_signature: string
+}
+
+export interface VerifyCertificateResponse {
+  is_authentic: boolean
+  message: string
+  certificate_id: string
+}
+
 export const qualityGovernanceApi = {
   getProjectMetrics(projectId: number): Promise<QualityMetricsReport> {
     return http.get(`/quality/metrics/project/${projectId}`)
@@ -102,5 +142,17 @@ export const qualityGovernanceApi = {
 
   evaluateQualityGate(profileId: string, metrics: Record<string, any>): Promise<GateEvaluationResponse> {
     return http.post('/quality/gates/evaluate', { profile_id: profileId, metrics })
+  },
+
+  generateCertificate(data: GenerateCertificateRequest): Promise<ReleaseCertificateItem> {
+    return http.post('/quality/certification/generate', data)
+  },
+
+  getCertificate(certificateId: string): Promise<ReleaseCertificateItem> {
+    return http.get(`/quality/certification/${certificateId}`)
+  },
+
+  verifyCertificate(data: VerifyCertificateRequest): Promise<VerifyCertificateResponse> {
+    return http.post('/quality/certification/verify', data)
   },
 }

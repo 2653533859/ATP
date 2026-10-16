@@ -27,6 +27,9 @@
           <a-button type="primary" danger size="small" @click="gateDrawerOpen = true">
             CI/CD 质量门禁配置
           </a-button>
+          <a-button type="primary" size="small" style="background: #10b981; border-color: #10b981" @click="certModalOpen = true">
+            签发发版合格证书
+          </a-button>
         </a-space>
       </div>
     </header>
@@ -231,6 +234,7 @@
       </div>
     </a-modal>
     <QualityGateRuleConfigDrawer v-model:open="gateDrawerOpen" />
+    <ReleaseCertificateModal v-model:open="certModalOpen" :project-id="projectId" />
   </div>
 </template>
 
@@ -245,12 +249,14 @@ import {
   type ReleaseVerdict,
 } from '@/api/qualityGovernance'
 import QualityGateRuleConfigDrawer from './components/QualityGateRuleConfigDrawer.vue'
+import ReleaseCertificateModal from './components/ReleaseCertificateModal.vue'
 
 const projectId = ref<number>(1)
 const loading = ref<boolean>(false)
 const evaluating = ref<boolean>(false)
 const simulatorModalOpen = ref<boolean>(false)
 const gateDrawerOpen = ref<boolean>(false)
+const certModalOpen = ref<boolean>(false)
 
 const report = ref<QualityMetricsReport | null>(null)
 
