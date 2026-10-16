@@ -404,6 +404,44 @@ export interface DispatchPrCommentRequest {
   simulate_success?: boolean
 }
 
+export type PipelineStageStatus = 'PASSED' | 'BLOCKED' | 'WARNING'
+
+export interface CheckpointStageResult {
+  stage_name: string
+  status: PipelineStageStatus
+  duration_ms: number
+  summary: string
+  details?: Record<string, any>
+}
+
+export interface CheckpointExecutionReport {
+  checkpoint_id: string
+  pipeline_name: string
+  commit_sha: string
+  pr_id: string
+  exit_code: number
+  overall_status: PipelineStageStatus
+  stages: CheckpointStageResult[]
+  remediation_summary: string[]
+  console_log_output: string
+  executed_at: string
+}
+
+export interface RunPipelineCheckpointRequest {
+  diff_text: string
+  pipeline_name?: string
+  commit_sha?: string
+  pr_id?: string
+  author?: string
+  target_branch?: string
+  file_sources?: Record<string, string>
+  selection_strategy?: string
+  mock_test_pass_rate_pct?: number
+  mock_test_failed_cases_count?: number
+  mutation_score_pct?: number | null
+  has_dual_approvals?: boolean
+}
+
 export const ciImpactApi = {
   analyzeDiffAst(data: AnalyzeDiffAstRequest): Promise<{ message: string; report: DiffAstAnalysisReportItem }> {
     return http.post('/ci-impact/diff-ast/analyze', data)
@@ -547,5 +585,17 @@ export const ciImpactApi = {
 
   getPrComment(commentId: string): Promise<PrCommentPayload> {
     return http.get(`/ci-impact/pr-bot/comments/${commentId}`)
+  },
+
+  runPipelineCheckpoint(data: RunPipelineCheckpointRequest): Promise<{ message: string; report: CheckpointExecutionReport }> {
+    return http.post('/ci-impact/checkpoint/run', data)
+  },
+
+  listCheckpointReports(): Promise<{ total: number; reports: CheckpointExecutionReport[] }> {
+    return http.get('/ci-impact/checkpoint/reports')
+  },
+
+  getCheckpointReport(checkpointId: string): Promise<CheckpointExecutionReport> {
+    return http.get(`/ci-impact/checkpoint/reports/${checkpointId}`)
   },
 }

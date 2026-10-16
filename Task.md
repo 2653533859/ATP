@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-16 v3.7.0 研发任务规划（进行中）
+## 2026-10-16 v3.7.0 研发任务规划（已全量闭环）
 
 > v3.7.0 规划入口为 [`docs/development-task-plan-v3.7.0.md`](docs/development-task-plan-v3.7.0.md)，覆盖 UI1（代码变更差异语法树与精准测试推荐工作台控制台）、UI2（动态切片并发看板与代码变更风险全景面板）、UI3（代码变异测试执行与断言盲区热力工作台）、UI4（CI/CD PR 全要素质量门禁与 Reviewer 机器人控制中心）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-16 UI3.3 变异得分 (Mutation Score) 与断言盲区热力报告页面：扩展 ciImpact API 客户端，落地 MutationScoreHeatmapReportView 页面与路由；量化综合变异得分百分比、四级充分性裁决、五大算子击毙率雷达图与断言盲区代码行级热力清单；单测独立通过，见 [`docs/evidence/mutation-score-heatmap-report-view-ui3-3-2026-10-16.md`](docs/evidence/mutation-score-heatmap-report-view-ui3-3-2026-10-16.md)。至此 v3.7.0 Phase 3 全量大闭环！
 - [x] 2026-10-16 UI4.1 PR 代码变更全要素质量门禁合并准入仲裁卡片：扩展 ciImpact API 客户端，落地 PrQualityGatekeeperDashboardCard 组件并集成至 ApiWorkbenchView；支持三态裁决徽章（APPROVED/BLOCKED/CONDITIONAL）、合规得分、规则裁决矩阵表格与整改行动项清单；单测独立通过，见 [`docs/evidence/pr-quality-gatekeeper-dashboard-card-ui4-1-2026-10-16.md`](docs/evidence/pr-quality-gatekeeper-dashboard-card-ui4-1-2026-10-16.md)。
 - [x] 2026-10-16 UI4.2 GitHub / GitLab 交互式 Reviewer 评论卡片预览与广播抽屉：扩展 ciImpact API 客户端，落地 PrCommentBotPreviewDrawer 组件并集成至 ApiWorkbenchView；支持四平台切换（GitHub/GitLab/Gitea/Markdown）、所见即所得双栏实时渲染、仿真评论卡片与一键 Webhook 广播；单测独立通过，见 [`docs/evidence/pr-comment-bot-preview-drawer-ui4-2-2026-10-16.md`](docs/evidence/pr-comment-bot-preview-drawer-ui4-2-2026-10-16.md)。
-- [ ] UI4.3 CI/CD 流水线 Checkpoint 检查点全景监控看板页面（CiPipelineCheckpointMonitorView.vue）
+- [x] 2026-10-16 UI4.3 CI/CD 流水线 Checkpoint 检查点全景监控看板页面：扩展 ciImpact API 客户端，落地 CiPipelineCheckpointMonitorView 页面与路由；展示端到端四阶段流水线执行状态、Exit Code (0/1/2) 与高对比度终端控制台日志；单测独立通过，见 [`docs/evidence/ci-pipeline-checkpoint-monitor-view-ui4-3-2026-10-16.md`](docs/evidence/ci-pipeline-checkpoint-monitor-view-ui4-3-2026-10-16.md)。至此 ATP v3.7.0 全量大闭环！
 
 ## 2026-10-16 v3.6.0 研发任务规划（已全量闭环）
 

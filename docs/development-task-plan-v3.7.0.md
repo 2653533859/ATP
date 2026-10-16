@@ -56,7 +56,7 @@
 |---|---|---|---|
 | UI4.1 `[x]` | **PR 代码变更全要素质量门禁合并准入仲裁卡片** | pr_quality_gatekeeper | 落地 `PrQualityGatekeeperDashboardCard.vue` 组件；展示通过/阻断/条件通过三态状态徽章、规则裁决表格与整改行动项；见 docs/evidence/pr-quality-gatekeeper-dashboard-card-ui4-1-2026-10-16.md |
 | UI4.2 `[x]` | **GitHub / GitLab 交互式 Reviewer 评论卡片预览与广播抽屉** | pr_comment_bot_dispatcher | 落地 `PrCommentBotPreviewDrawer.vue` 组件；支持 Markdown 实时所见即所得渲染与向 GitHub/GitLab 模拟/真实分发；见 docs/evidence/pr-comment-bot-preview-drawer-ui4-2-2026-10-16.md |
-| UI4.3 `[ ]` | **CI/CD 流水线 Checkpoint 检查点全景监控看板页面** | ci_pipeline_checkpoint_api | 落地 `CiPipelineCheckpointMonitorView.vue` 页面与路由；展示端到端四阶段流水线执行状态、Exit Code (0/1/2) 与高对比度控制台日志。 |
+| UI4.3 `[x]` | **CI/CD 流水线 Checkpoint 检查点全景监控看板页面** | ci_pipeline_checkpoint_api | 落地 `CiPipelineCheckpointMonitorView.vue` 页面与路由；展示端到端四阶段流水线执行状态、Exit Code (0/1/2) 与高对比度控制台日志；见 docs/evidence/ci-pipeline-checkpoint-monitor-view-ui4-3-2026-10-16.md |
 
 ---
 

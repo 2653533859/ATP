@@ -387,6 +387,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/ci-pipeline-checkpoint',
+          name: 'ci-pipeline-checkpoint-monitor',
+          component: () => import('@/views/quality/CiPipelineCheckpointMonitorView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),
