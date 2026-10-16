@@ -12,7 +12,7 @@
 - [x] 2026-10-16 D1.2 基于任务背压与队列等待时延的弹性 HPA 自动扩缩容算法：落地 queue_backpressure_autoscaler 服务与 /cloud-native/autoscaling/* API；实现多队列背压采集、时延 SLO 惩罚因子计算、目标副本数自适应夹紧与缩容防抖冷却抑制；5 项单测独立通过，见 [`docs/evidence/queue-backpressure-autoscaler-d1-2-2026-10-16.md`](docs/evidence/queue-backpressure-autoscaler-d1-2-2026-10-16.md)。
 - [x] 2026-10-16 D1.3 容器执行环境镜像版本矩阵与动态路由分发：落地 worker_image_matrix_router 服务与 /cloud-native/images/* API；内置多语言/多 SDK 开箱即用镜像矩阵，实现加权标签交集匹配打分与平滑兜底回退；6 项单测独立通过，见 [`docs/evidence/worker-image-matrix-router-d1-3-2026-10-16.md`](docs/evidence/worker-image-matrix-router-d1-3-2026-10-16.md)。至此 v3.4.0 Phase 1 全量大闭环！
 - [x] 2026-10-16 D2.1 基于 DOM / UI 树差分与语义特征匹配的多模态失效选择器自愈恢复：落地 smart_locator_healing_engine 服务与 /ai-healing/locators/* API；实现 4 维特征加权打分（精准标识 35%、文本语义 25%、标签拓扑 20%、业务属性 20%），自动推导最稳固替代选择器；4 项单测独立通过，见 [`docs/evidence/smart-locator-healing-engine-d2-1-2026-10-16.md`](docs/evidence/smart-locator-healing-engine-d2-1-2026-10-16.md)。
-- [ ] D2.2 接口响应 Schema 动态漂移自适应修正与智能柔性断言（flexible_schema_assertion_engine）
+- [x] 2026-10-16 D2.2 接口响应 Schema 动态漂移自适应修正与智能柔性断言：落地 flexible_schema_assertion_engine 服务与 /ai-healing/assertions/* API；支持 STRICT/COMPATIBLE/LENIENT 三级容差模式、冗余字段兼容放行、类型安全强转与 autofix_schema 自动生成；5 项单测独立通过，见 [`docs/evidence/flexible-schema-assertion-engine-d2-2-2026-10-16.md`](docs/evidence/flexible-schema-assertion-engine-d2-2-2026-10-16.md)。
 - [ ] D2.3 异常失败根因智能聚类与自愈执行流水审计（healing_audit_trail_service）
 - [ ] D3.1 移动端 CPU/内存/FPS/网络流量实时采样与卡顿泄露检测（mobile_perf_profiler）
 - [ ] D3.2 Web 性能 Core Web Vitals (LCP, FID/INP, CLS) 自动化深度诊断（web_vitals_profiler）

@@ -75,6 +75,7 @@ from app.api.v1 import (
     cloud_native_autoscaling,
     cloud_native_images,
     ai_healing_locators,
+    ai_healing_assertions,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -155,3 +156,4 @@ router.include_router(cloud_native_workers.router)
 router.include_router(cloud_native_autoscaling.router)
 router.include_router(cloud_native_images.router)
 router.include_router(ai_healing_locators.router)
+router.include_router(ai_healing_assertions.router)
