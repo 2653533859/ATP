@@ -91,6 +91,7 @@ from app.api.v1 import (
     traffic_diff,
     golden_baselines,
     live_contract_guard,
+    live_contract_evaluator,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -187,3 +188,4 @@ router.include_router(traffic_replay.router)
 router.include_router(traffic_diff.router)
 router.include_router(golden_baselines.router)
 router.include_router(live_contract_guard.router)
+router.include_router(live_contract_evaluator.router)
