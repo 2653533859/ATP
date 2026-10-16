@@ -101,6 +101,7 @@ from app.api.v1 import (
     trace_anomaly_cluster,
     saga_transaction_tracker,
     cross_db_consistency_audit,
+    event_bus_guard,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -207,3 +208,4 @@ router.include_router(critical_path_flamegraph.router)
 router.include_router(trace_anomaly_cluster.router)
 router.include_router(saga_transaction_tracker.router)
 router.include_router(cross_db_consistency_audit.router)
+router.include_router(event_bus_guard.router)

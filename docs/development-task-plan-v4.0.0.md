@@ -36,7 +36,7 @@
 |---|---|---|---|
 | T2.1 `[x]` | **Sagas/TCC 分布式事务流转跟踪与悬挂事务探测器** | `saga_transaction_state_tracker` | 落地 `saga_transaction_state_tracker` 服务与 `/consistency/saga/*` API；跟踪分布式事务分支 Try/Confirm/Cancel 状态，探测超时未决与悬挂事务；见 docs/evidence/saga-transaction-state-tracker-t2-1-2026-10-16.md |
 | T2.2 `[x]` | **跨微服务异构数据源最终一致性双向稽核校验器** | `cross_db_data_consistency_auditor` | 落地 `cross_db_data_consistency_auditor` 服务与 `/consistency/audit/*` API；基于业务主键对齐比对跨库字段数据，输出不一致差分记录与对账达标率；见 docs/evidence/cross-db-data-consistency-auditor-t2-2-2026-10-16.md |
-| T2.3 `[ ]` | **消息事件总线消费延迟、死信积压与幂等消费验证器** | `event_bus_deadletter_idempotency_guard` | 落地 `event_bus_deadletter_idempotency_guard` 服务与 `/consistency/event-bus/*` API；监控消息消费积压、死信重发判定与重复消息幂等执行校验。 |
+| T2.3 `[x]` | **消息事件总线消费延迟、死信积压与幂等消费验证器** | `event_bus_deadletter_idempotency_guard` | 落地 `event_bus_deadletter_idempotency_guard` 服务与 `/consistency/event-bus/*` API；监控消息消费积压、死信重发判定与重复消息幂等执行校验；见 docs/evidence/event-bus-deadletter-idempotency-guard-t2-3-2026-10-16.md |
 
 ---
 
