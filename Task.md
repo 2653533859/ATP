@@ -17,7 +17,7 @@
 - [x] 2026-10-16 D3.1 移动端 CPU/内存/FPS/网络流量实时采样与卡顿泄露检测：落地 mobile_perf_profiler 服务与 /diagnostics/mobile-perf/* API；实现多维时序采样、线性回归斜率内存泄露趋势分析与低帧率卡顿智能检测；5 项单测独立通过，见 [`docs/evidence/mobile-perf-profiler-d3-1-2026-10-16.md`](docs/evidence/mobile-perf-profiler-d3-1-2026-10-16.md)。
 - [x] 2026-10-16 D3.2 Web 性能 Core Web Vitals 自动化深度诊断：落地 web_vitals_profiler 服务与 /diagnostics/web-vitals/* API；实现 LCP/INP/CLS 三大核心指标与 FCP/TTFB/TBT 辅助指标多维评定、综合分加权、阻断资源识别与优化建议；4 项单测独立通过，见 [`docs/evidence/web-vitals-profiler-d3-2-2026-10-16.md`](docs/evidence/web-vitals-profiler-d3-2-2026-10-16.md)。
 - [x] 2026-10-16 D3.3 接口服务全链路分布式追踪 TraceID 贯通与慢调用火焰图分析：落地 distributed_trace_flamegraph 服务与 /diagnostics/traces/* API；实现多级 Span 树构建、独占耗时 (Self-Time) 递归计算、慢调用智能提取与标准火焰图数据格式生成；4 项单测独立通过，见 [`docs/evidence/distributed-trace-flamegraph-d3-3-2026-10-16.md`](docs/evidence/distributed-trace-flamegraph-d3-3-2026-10-16.md)。至此 v3.4.0 Phase 3 全量大闭环！
-- [ ] D4.1 测试报告多模态聚合打包导出 (PDF / HTML5 / Excel 详报)（report_bundler_exporter）
+- [x] 2026-10-16 D4.1 测试报告多模态聚合打包导出：落地 report_bundler_exporter 服务与 /reporting/exports/* API；支持独立 HTML5 离线单文件报告、Excel/CSV 详报、合规质检 PDF 与全模态 ZIP 压缩打包生成及流式下载；5 项单测独立通过，见 [`docs/evidence/report-bundler-exporter-d4-1-2026-10-16.md`](docs/evidence/report-bundler-exporter-d4-1-2026-10-16.md)。
 - [ ] D4.2 企业微信 / 钉钉 / 飞书富文本交互式卡片 Webhook 智能投递（notification_hub_dispatcher）
 - [ ] D4.3 测试执行准时率与团队研发效能 DORA 指标量化分析（dora_metrics_calculator）
 

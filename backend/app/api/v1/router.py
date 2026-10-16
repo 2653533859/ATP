@@ -80,6 +80,7 @@ from app.api.v1 import (
     diagnostics_mobile_perf,
     diagnostics_web_vitals,
     diagnostics_traces,
+    reporting_exports,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -165,3 +166,4 @@ router.include_router(ai_healing_audit.router)
 router.include_router(diagnostics_mobile_perf.router)
 router.include_router(diagnostics_web_vitals.router)
 router.include_router(diagnostics_traces.router)
+router.include_router(reporting_exports.router)
