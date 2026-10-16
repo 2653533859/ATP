@@ -18,7 +18,7 @@
 - [x] 2026-10-16 C3.2 跨协议数据透传与会话级上下文共享总线：落地 cross_protocol_session_bus 服务与 /sandboxes/bus/* API；实现 HTTP-gRPC-WS 双向上下文共享、Token 自动透传与跨协议嵌套模板递归插值；5 项单测独立通过，见 [`docs/evidence/cross-protocol-session-bus-c3-2-2026-10-16.md`](docs/evidence/cross-protocol-session-bus-c3-2-2026-10-16.md)。
 - [x] 2026-10-16 C3.3 沙箱网络流量镜像与回放实时隔离检测：落地 sandbox_traffic_mirror 服务与 /sandboxes/mirror/* API；支持影子流量镜像分流、敏感外发写操作拦截仿真与零泄露安全证明；3 项单测独立通过，见 [`docs/evidence/sandbox-traffic-mirror-c3-3-2026-10-16.md`](docs/evidence/sandbox-traffic-mirror-c3-3-2026-10-16.md)。至此 v3.2.0 Phase 3 全量闭环！
 - [x] 2026-10-16 C4.1 全生命周期测试质量度量多维评分大盘：落地 quality_metrics_engine 服务与 /quality/metrics/* API；构建自动化覆盖度（30%）、缺陷逃逸率（25%）、执行稳定性（25%）与 MTTR（20%）四维健康度量与发版准入评级；5 项单测独立通过，见 [`docs/evidence/quality-metrics-engine-c4-1-2026-10-16.md`](docs/evidence/quality-metrics-engine-c4-1-2026-10-16.md)。
-- [ ] C4.2 CI/CD 流水线智能质量门禁规则判定引擎（quality_gate_engine）
+- [x] 2026-10-16 C4.2 CI/CD 流水线智能质量门禁规则判定引擎：落地 quality_gate_engine 服务与 /quality/gates/* API；支持灵活算子比较、阻塞性发布卡点判定与 exit_code=1 阻断拦截；5 项单测独立通过，见 [`docs/evidence/quality-gate-engine-c4-2-2026-10-16.md`](docs/evidence/quality-gate-engine-c4-2-2026-10-16.md)。
 - [ ] C4.3 自动化发布准入认证与防伪合格证书生成（release_readiness_certification）
 
 ## 2026-10-16 v3.1.0 研发任务规划（已全量闭环）
