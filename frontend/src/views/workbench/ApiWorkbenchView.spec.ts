@@ -135,6 +135,9 @@ vi.mock('./components/TrafficToTestCaseSynthesizerCard.vue', () => ({
 vi.mock('./components/ShadowTrafficReplayConsoleDrawer.vue', () => ({
   default: defineComponent({ name: 'ShadowTrafficReplayConsoleDrawer', setup: () => () => h('div', 'shadow-traffic-replay-console-drawer') }),
 }))
+vi.mock('./components/TrafficDiffComparatorViewer.vue', () => ({
+  default: defineComponent({ name: 'TrafficDiffComparatorViewer', setup: () => () => h('div', 'traffic-diff-comparator-viewer') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

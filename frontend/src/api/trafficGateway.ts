@@ -180,6 +180,46 @@ export interface RunShadowReplayRequest {
   limit_captured?: number
 }
 
+export type DiffType = 'ADDED' | 'DELETED' | 'MODIFIED' | 'TYPE_CHANGED'
+export type DiffSeverity = 'CRITICAL' | 'WARNING' | 'INFO'
+
+export interface DiffItem {
+  path: string
+  diff_type: DiffType
+  severity: DiffSeverity
+  baseline_value: any
+  replayed_value: any
+  description: string
+}
+
+export interface TrafficDiffReport {
+  report_id: string
+  similarity_score_pct: number
+  is_identical: boolean
+  total_differences_count: number
+  critical_diffs_count: number
+  warning_diffs_count: number
+  ignored_noise_fields_count: number
+  differences: DiffItem[]
+  diff_summary: string
+  baseline_status_code: number
+  replayed_status_code: number
+  created_at: string
+}
+
+export interface CompareResponsesRequest {
+  baseline_response: any
+  replayed_response: any
+  baseline_status_code?: number
+  replayed_status_code?: number
+  noise_config?: {
+    ignore_keys?: string[]
+    ignore_paths?: string[]
+    auto_detect_uuid?: boolean
+    auto_detect_timestamp?: boolean
+  }
+}
+
 export const trafficCaptureApi = {
   getFilterConfig(): Promise<CaptureFilterConfig> {
     return http.get('/traffic/capture/config')
@@ -277,5 +317,31 @@ export const shadowReplayApi = {
 
   clearSessions(): Promise<{ message: string; deleted_count: number }> {
     return http.delete('/traffic/replay/sessions')
+  },
+}
+
+export const trafficDiffApi = {
+  compareResponses(data: CompareResponsesRequest): Promise<{ message: string; report: TrafficDiffReport }> {
+    return http.post('/traffic/diff/compare', data)
+  },
+
+  compareTrafficIds(data: { baseline_traffic_id: string; replayed_traffic_id: string; noise_config?: any }): Promise<{ message: string; report: TrafficDiffReport }> {
+    return http.post('/traffic/diff/compare-traffic-ids', data)
+  },
+
+  listReports(): Promise<{ total: number; reports: TrafficDiffReport[] }> {
+    return http.get('/traffic/diff/reports')
+  },
+
+  getReport(reportId: string): Promise<TrafficDiffReport> {
+    return http.get(`/traffic/diff/reports/${reportId}`)
+  },
+
+  getDefaultNoiseRules(): Promise<{ ignore_keys: string[]; ignore_paths: string[]; auto_detect_uuid: boolean; auto_detect_timestamp: boolean }> {
+    return http.get('/traffic/diff/noise-rules/defaults')
+  },
+
+  clearReports(): Promise<{ message: string; deleted_count: number }> {
+    return http.delete('/traffic/diff/reports')
   },
 }

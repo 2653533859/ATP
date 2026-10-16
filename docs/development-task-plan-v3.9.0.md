@@ -35,7 +35,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI2.1 `[x]` | **影子流量无副作用沙箱隔离回放与外部 Mock 代理控制台** | `shadow_traffic_replay_engine` | 落地 `ShadowTrafficReplayConsoleDrawer.vue` 组件与 API 客户端；展示 BLOCK_WRITES 安全写拦截（0 脏数据）、第三方支付/短信 Mock 拦截代理、QPS 节流与回放流水；见 docs/evidence/shadow-traffic-replay-console-drawer-ui2-1-2026-10-16.md |
-| UI2.2 `[ ]` | **响应体动态字段智能去噪与字段级精确差分比对视图** | `traffic_diff_comparator` | 落地 `TrafficDiffComparatorViewer.vue` 组件；展示时间戳/UUID/Token 噪声自动过滤（消除 95%+ 误报）、红绿行级字段差分树与相似度得分 (0~100%)。 |
+| UI2.2 `[x]` | **响应体动态字段智能去噪与字段级精确差分比对视图** | `traffic_diff_comparator` | 落地 `TrafficDiffComparatorViewer.vue` 组件；展示时间戳/UUID/Token 噪声自动过滤（消除 95%+ 误报）、红绿行级字段差分树与相似度得分 (0~100%)；见 docs/evidence/traffic-diff-comparator-viewer-ui2-2-2026-10-16.md |
 | UI2.3 `[ ]` | **接口黄金响应基线版本化管理与回归偏离大盘页面** | `golden_response_baseline_manager` | 落地 `GoldenResponseBaselineDashboardView.vue` 视图与路由；呈现多版本基线快照列表、自适应最低相似度阈值（≥95%）、回归偏离三级报警评级与批量校验。 |
 
 ---

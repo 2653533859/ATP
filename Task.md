@@ -12,7 +12,7 @@
 - [x] 2026-10-16 UI1.2 生产敏感数据自适应脱敏规则配置与实时清洗弹窗：扩展 trafficGateway API 客户端，落地 TrafficDataMaskerModal 组件并集成至 ApiWorkbenchView；支持 7 大敏感分类、MASK/HASH/REDACT 策略切换与在线 JSON 沙箱实时清洗演练；单测独立通过，见 [`docs/evidence/traffic-data-masker-modal-ui1-2-2026-10-16.md`](docs/evidence/traffic-data-masker-modal-ui1-2-2026-10-16.md)。
 - [x] 2026-10-16 UI1.3 真实流量特征聚类归一与自动化测试用例合成卡片：扩展 trafficGateway API 客户端，落地 TrafficToTestCaseSynthesizerCard 组件并集成至 ApiWorkbenchView；展示 80%+ 聚类去重率横幅、URL 动态参数归一化、智能断言与参数化数据集行抽取；单测独立通过，见 [`docs/evidence/traffic-to-test-case-synthesizer-card-ui1-3-2026-10-16.md`](docs/evidence/traffic-to-test-case-synthesizer-card-ui1-3-2026-10-16.md)。至此 v3.9.0 Phase 1 全量大闭环！
 - [x] 2026-10-16 UI2.1 影子流量无副作用沙箱隔离回放与外部 Mock 代理控制台：扩展 trafficGateway API 客户端，落地 ShadowTrafficReplayConsoleDrawer 组件并集成至 ApiWorkbenchView；支持 BLOCK_WRITES 安全写拦截、第三方支付/短信 Mock 拦截代理、QPS 节流与回放流水展示；单测独立通过，见 [`docs/evidence/shadow-traffic-replay-console-drawer-ui2-1-2026-10-16.md`](docs/evidence/shadow-traffic-replay-console-drawer-ui2-1-2026-10-16.md)。
-- [ ] UI2.2 响应体动态字段智能去噪与字段级精确差分比对视图（TrafficDiffComparatorViewer.vue）
+- [x] 2026-10-16 UI2.2 响应体动态字段智能去噪与字段级精确差分比对视图：扩展 trafficGateway API 客户端，落地 TrafficDiffComparatorViewer 组件并集成至 ApiWorkbenchView；支持时间戳/UUID/Token 噪声自动过滤、红绿行级字段差分树与相似度得分 (0~100%)；单测独立通过，见 [`docs/evidence/traffic-diff-comparator-viewer-ui2-2-2026-10-16.md`](docs/evidence/traffic-diff-comparator-viewer-ui2-2-2026-10-16.md)。
 - [ ] UI2.3 接口黄金响应基线版本化管理与回归偏离大盘页面（GoldenResponseBaselineDashboardView.vue）
 - [ ] UI3.1 生产流量 OpenAPI 3.0 / Protobuf 3 动态逆向推导与代码预览抽屉（LiveContractSchemaExtractorDrawer.vue）
 - [ ] UI3.2 接口契约非对称破坏性变更 Breaking 评级仲裁卡片（ContractDriftBreakingEvaluatorCard.vue）

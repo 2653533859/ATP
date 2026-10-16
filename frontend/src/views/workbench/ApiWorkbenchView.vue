@@ -77,6 +77,9 @@
         <a-button size="small" class="toolbar-btn" @click="showShadowReplayDrawer = true">
           <SendOutlined /> 影子流量回放
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showTrafficDiffDrawer = true">
+          <ApartmentOutlined /> 智能差分比对
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -487,6 +490,7 @@
       <TrafficToTestCaseSynthesizerCard />
     </a-drawer>
     <ShadowTrafficReplayConsoleDrawer v-model:open="showShadowReplayDrawer" />
+    <TrafficDiffComparatorViewer v-model:open="showTrafficDiffDrawer" />
   </div>
 </template>
 
@@ -565,6 +569,8 @@ import TrafficToTestCaseSynthesizerCard from './components/TrafficToTestCaseSynt
 const showTrafficSynthesizerDrawer = ref(false)
 import ShadowTrafficReplayConsoleDrawer from './components/ShadowTrafficReplayConsoleDrawer.vue'
 const showShadowReplayDrawer = ref(false)
+import TrafficDiffComparatorViewer from './components/TrafficDiffComparatorViewer.vue'
+const showTrafficDiffDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)
