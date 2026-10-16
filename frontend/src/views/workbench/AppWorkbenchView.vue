@@ -47,6 +47,9 @@
         <a-button size="small" class="toolbar-btn" @click="showClusterMonitor = true">
           <ClusterOutlined /> 集群节点监控
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showTaskQueue = true">
+          <ClockCircleOutlined /> 任务队列与抢占
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openDevices">
           <ToolOutlined /> {{ t('app_workbench.device_management') }}
         </a-button>
@@ -365,6 +368,7 @@
       platform="android"
     />
     <ClusterWorkerMonitorDrawer v-model:open="showClusterMonitor" />
+    <AdaptiveTaskQueueDrawer v-model:open="showTaskQueue" />
   </div>
 </template>
 
@@ -374,6 +378,7 @@ import { message } from 'ant-design-vue'
 import {
   AndroidOutlined,
   AppstoreOutlined,
+  ClockCircleOutlined,
   ClusterOutlined,
   EditOutlined,
   EyeOutlined,
@@ -436,6 +441,8 @@ import DevicePlaybackDrawer from './components/DevicePlaybackDrawer.vue'
 const showDevicePlayback = ref(false)
 import ClusterWorkerMonitorDrawer from './components/ClusterWorkerMonitorDrawer.vue'
 const showClusterMonitor = ref(false)
+import AdaptiveTaskQueueDrawer from './components/AdaptiveTaskQueueDrawer.vue'
+const showTaskQueue = ref(false)
 
 const projects = ref<ProjectItem[]>([])
 const selectedProjectId = ref<number | null>(positiveInt(route.query.project_id))

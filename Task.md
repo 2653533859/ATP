@@ -9,7 +9,7 @@
 > v3.3.0 规划入口为 [`docs/development-task-plan-v3.3.0.md`](docs/development-task-plan-v3.3.0.md)，覆盖 UI1（跨节点 Worker 集群协同调度与故障转移监控台）、UI2（全域测试资产依赖拓扑与变更影响面控制台）、UI3（多协议动态仿真沙箱与流量镜像控制台）、UI4（企业级测试质量度量大盘与质量门禁中心）。
 
 - [x] 2026-10-16 UI1.1 跨节点 Worker 负载监控抽屉与容量分级仪表板：落地 clusterWorkers API 客户端与 ClusterWorkerMonitorDrawer 组件；展示多节点负载、五级健康分级与最优调度选举模拟；挂载至 AppWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/cluster-worker-monitor-drawer-ui1-1-2026-10-16.md`](docs/evidence/cluster-worker-monitor-drawer-ui1-1-2026-10-16.md)。
-- [ ] UI1.2 自适应任务排队水位与 P0 弹性抢占调度控制台（AdaptiveTaskQueueDrawer.vue）
+- [x] 2026-10-16 UI1.2 自适应任务排队水位与 P0 弹性抢占调度控制台：扩展 clusterWorkers API（enqueue/tasks/complete/eta），落地 AdaptiveTaskQueueDrawer 组件；展示四级优先级水位、P0 弹性抢占与预计等待时长 ETA；挂载至 AppWorkbenchView；单测独立通过，见 [`docs/evidence/adaptive-task-queue-drawer-ui1-2-2026-10-16.md`](docs/evidence/adaptive-task-queue-drawer-ui1-2-2026-10-16.md)。
 - [ ] UI1.3 节点失联超时检测与孤儿任务故障转移卡片（WorkerFailoverRecoveryCard.vue）
 - [ ] UI2.1 测试资产全景引用拓扑图谱与孤儿资产看板（AssetDependencyGraphViewer.vue）
 - [ ] UI2.2 接口契约变更影响面分析与受损用例抽屉（ContractChangeImpactDrawer.vue）
