@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-16 v3.5.0 研发任务规划（进行中）
+
+> v3.5.0 规划入口为 [`docs/development-task-plan-v3.5.0.md`](docs/development-task-plan-v3.5.0.md)，覆盖 UI1（云原生动态容器化弹性 Worker 调度与镜像版本控制台）、UI2（AI 驱动的用例自愈与契约响应柔性断言控制台）、UI3（多端原生性能剖析与深度质量诊断控制台）、UI4（企业级报告归档多模态导出与研发效能 DORA 罗盘中心）。
+
+- [x] 2026-10-16 UI1.1 云原生弹性 Worker 容器 Pod 调度与配额管理抽屉：创建 cloudNativeWorkers API 客户端，落地 CloudNativeWorkerManagerDrawer 组件；支持 K8s/Docker 运行时选择、CPU/内存配额管控、运行水位 KPI、日志查看与优雅下线；挂载至 AppWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/cloud-native-worker-manager-drawer-ui1-1-2026-10-16.md`](docs/evidence/cloud-native-worker-manager-drawer-ui1-1-2026-10-16.md)。
+- [ ] UI1.2 队列背压自适应 HPA 自动扩缩容策略与决策看板（HpaAutoscalingDashboardCard.vue）
+- [ ] UI1.3 容器执行环境镜像版本矩阵与标签路由解析抽屉（WorkerImageMatrixDrawer.vue）
+- [ ] UI2.1 失效选择器 DOM/UI 树多模态自愈推导抽屉（SmartLocatorHealingDrawer.vue）
+- [ ] UI2.2 接口响应 Schema 动态漂移自适应修正与柔性断言调试器（FlexibleSchemaAssertionDebugger.vue）
+- [ ] UI2.3 异常故障簇智能聚合看板与自愈执行流水审计面板（HealingAuditTrailPanel.vue）
+- [ ] UI3.1 移动端性能时序曲线与卡顿/内存泄露体检报告看板（MobilePerfDiagnosticsViewer.vue）
+- [ ] UI3.2 Web 性能 Core Web Vitals (LCP, INP, CLS) 雷达图与阻断资源分析视图（WebVitalsDiagnosticsView.vue）
+- [ ] UI3.3 全链路分布式追踪 TraceID 慢调用火焰图交互组件（DistributedTraceFlamegraphViewer.vue）
+- [ ] UI4.1 测试报告多模态聚合打包导出弹窗（ReportBundlerExportModal.vue）
+- [ ] UI4.2 企微 / 钉钉 / 飞书富文本交互式卡片 Webhook 智能广播抽屉（NotificationHubBroadcastDrawer.vue）
+- [ ] UI4.3 团队研发效能 DORA 罗盘看板与成熟度评估页面（DoraMetricsCompassView.vue）
+
 ## 2026-10-16 v3.4.0 研发任务规划（已全量闭环）
 
 > v3.4.0 规划入口为 [`docs/development-task-plan-v3.4.0.md`](docs/development-task-plan-v3.4.0.md)，覆盖 D1（云原生动态容器化弹性 Worker 调度与生命周期编排）、D2（AI 驱动的测试用例自动化自愈与智能断言引擎）、D3（多端原生性能剖析与深度质量诊断分析）、D4（企业级测试报告归档与多渠道告警协同中心）。

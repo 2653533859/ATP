@@ -50,6 +50,9 @@
         <a-button size="small" class="toolbar-btn" @click="showTaskQueue = true">
           <ClockCircleOutlined /> 任务队列与抢占
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showCloudNativeWorkers = true">
+          <CloudServerOutlined /> 云原生 Pod 调度
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openDevices">
           <ToolOutlined /> {{ t('app_workbench.device_management') }}
         </a-button>
@@ -369,6 +372,7 @@
     />
     <ClusterWorkerMonitorDrawer v-model:open="showClusterMonitor" />
     <AdaptiveTaskQueueDrawer v-model:open="showTaskQueue" />
+    <CloudNativeWorkerManagerDrawer v-model:open="showCloudNativeWorkers" />
   </div>
 </template>
 
@@ -379,6 +383,7 @@ import {
   AndroidOutlined,
   AppstoreOutlined,
   ClockCircleOutlined,
+  CloudServerOutlined,
   ClusterOutlined,
   EditOutlined,
   EyeOutlined,
@@ -443,6 +448,8 @@ import ClusterWorkerMonitorDrawer from './components/ClusterWorkerMonitorDrawer.
 const showClusterMonitor = ref(false)
 import AdaptiveTaskQueueDrawer from './components/AdaptiveTaskQueueDrawer.vue'
 const showTaskQueue = ref(false)
+import CloudNativeWorkerManagerDrawer from './components/CloudNativeWorkerManagerDrawer.vue'
+const showCloudNativeWorkers = ref(false)
 
 const projects = ref<ProjectItem[]>([])
 const selectedProjectId = ref<number | null>(positiveInt(route.query.project_id))
