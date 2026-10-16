@@ -35,7 +35,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T2.1 `[x]` | **影子流量无副作用沙箱隔离回放与外部依赖 Mock 代理** | `shadow_traffic_replay_engine` | 落地 `shadow_traffic_replay_engine` 服务与 `/traffic/replay/*` API；支持并发流速控制、写操作拦截或影子标记、外部第三方下游请求自动拦截 Mock；见 docs/evidence/shadow-traffic-replay-engine-t2-1-2026-10-16.md |
-| T2.2 `[ ]` | **响应体动态字段智能过滤与字段级精确差分比对器** | `traffic_diff_comparator` | 落地 `traffic_diff_comparator` 服务与 `/traffic/diff/*` API；自动识别并忽略时间戳、UUID、随机 Token 等动态噪声字段，对核心业务响应体执行精确差分 (Diff)。 |
+| T2.2 `[x]` | **响应体动态字段智能过滤与字段级精确差分比对器** | `traffic_diff_comparator` | 落地 `traffic_diff_comparator` 服务与 `/traffic/diff/*` API；自动识别并忽略时间戳、UUID、随机 Token 等动态噪声字段，对核心业务响应体执行精确差分 (Diff)；见 docs/evidence/traffic-diff-comparator-t2-2-2026-10-16.md |
 | T2.3 `[ ]` | **接口黄金响应基线版本化管理与回归偏离判定器** | `golden_response_baseline_manager` | 落地 `golden_response_baseline_manager` 服务与 `/traffic/golden-baselines/*` API；支持基线版本快照打标、容差阈值配置与显著响应漂移报警。 |
 
 ---
