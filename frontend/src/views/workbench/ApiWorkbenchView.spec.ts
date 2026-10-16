@@ -42,6 +42,7 @@ vi.mock('ant-design-vue', () => ({
 }))
 vi.mock('@ant-design/icons-vue', () => ({
   AimOutlined: true,
+  CodeSandboxOutlined: true,
   ApiOutlined: true,
   FileAddOutlined: true,
   FilterOutlined: true,
@@ -83,6 +84,9 @@ vi.mock('./components/ContractChangeImpactDrawer.vue', () => ({
 }))
 vi.mock('./components/TargetedRegressionWizard.vue', () => ({
   default: defineComponent({ name: 'TargetedRegressionWizard', setup: () => () => h('div', 'targeted-regression-wizard') }),
+}))
+vi.mock('./components/EphemeralSandboxManagerDrawer.vue', () => ({
+  default: defineComponent({ name: 'EphemeralSandboxManagerDrawer', setup: () => () => h('div', 'ephemeral-sandbox-manager') }),
 }))
 
 const passthrough = (name: string) =>

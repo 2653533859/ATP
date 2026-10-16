@@ -38,6 +38,9 @@
         <a-button size="small" class="toolbar-btn" @click="showRegressionWizard = true">
           <AimOutlined /> 精准回归向导
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showSandboxManager = true">
+          <CodeSandboxOutlined /> 仿真沙箱管理
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -403,6 +406,7 @@
       :project-id="selectedProjectId || 1"
       :initial-case-ids="synthesizeCaseIds"
     />
+    <EphemeralSandboxManagerDrawer v-model:open="showSandboxManager" />
   </div>
 </template>
 
@@ -411,6 +415,7 @@ import { computed, onMounted, ref } from 'vue'
 import { message } from 'ant-design-vue'
 import {
   AimOutlined,
+  CodeSandboxOutlined,
   ApiOutlined,
   FileAddOutlined,
   PlayCircleOutlined,
@@ -449,6 +454,7 @@ import TrafficRecordingDrawer from './components/TrafficRecordingDrawer.vue'
 import AssetDependencyGraphViewer from './components/AssetDependencyGraphViewer.vue'
 import ContractChangeImpactDrawer from './components/ContractChangeImpactDrawer.vue'
 import TargetedRegressionWizard from './components/TargetedRegressionWizard.vue'
+import EphemeralSandboxManagerDrawer from './components/EphemeralSandboxManagerDrawer.vue'
 import { useAuthStore } from '@/stores/auth'
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
@@ -465,6 +471,7 @@ const showTrafficRecording = ref(false)
 const showAssetGraph = ref(false)
 const showContractImpact = ref(false)
 const showRegressionWizard = ref(false)
+const showSandboxManager = ref(false)
 const synthesizeCaseIds = ref<number[]>([])
 function handleSynthesizeFromImpact(caseIds: number[]) {
   synthesizeCaseIds.value = caseIds
