@@ -80,6 +80,9 @@
         <a-button size="small" class="toolbar-btn" @click="showTrafficDiffDrawer = true">
           <ApartmentOutlined /> 智能差分比对
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showLiveContractDrawer = true">
+          <BranchesOutlined /> 契约动态推导
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -491,6 +494,7 @@
     </a-drawer>
     <ShadowTrafficReplayConsoleDrawer v-model:open="showShadowReplayDrawer" />
     <TrafficDiffComparatorViewer v-model:open="showTrafficDiffDrawer" />
+    <LiveContractSchemaExtractorDrawer v-model:open="showLiveContractDrawer" />
   </div>
 </template>
 
@@ -571,6 +575,8 @@ import ShadowTrafficReplayConsoleDrawer from './components/ShadowTrafficReplayCo
 const showShadowReplayDrawer = ref(false)
 import TrafficDiffComparatorViewer from './components/TrafficDiffComparatorViewer.vue'
 const showTrafficDiffDrawer = ref(false)
+import LiveContractSchemaExtractorDrawer from './components/LiveContractSchemaExtractorDrawer.vue'
+const showLiveContractDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)

@@ -279,6 +279,35 @@ export interface CreateGoldenBaselineRequest {
   tags?: Record<string, string>
 }
 
+export interface ExtractedContractItem {
+  contract_id: string
+  endpoint: string
+  method: string
+  path: string
+  protocol: string
+  samples_count: number
+  request_schema: Record<string, any>
+  response_schemas: Record<string, any>
+  query_parameters: Array<{ name: string; type: string; required: boolean }>
+  header_parameters: Array<{ name: string; type: string; required: boolean }>
+  protobuf_definition: string
+  extracted_at: string
+}
+
+export interface ExtractionBatchReportItem {
+  report_id: string
+  total_traffic_analyzed: number
+  contracts_extracted_count: number
+  contracts: ExtractedContractItem[]
+  created_at: string
+}
+
+export interface ExtractSingleContractRequest {
+  endpoint: string
+  traffic_samples: Array<Record<string, any>>
+  protocol?: string
+}
+
 export const trafficCaptureApi = {
   getFilterConfig(): Promise<CaptureFilterConfig> {
     return http.get('/traffic/capture/config')
@@ -436,5 +465,31 @@ export const goldenBaselineApi = {
 
   getBatchReport(batchId: string): Promise<BatchVerificationReport> {
     return http.get(`/traffic/golden-baselines/batch-reports/${batchId}`)
+  },
+}
+
+export const liveContractApi = {
+  extractSingle(data: ExtractSingleContractRequest): Promise<{ message: string; contract: ExtractedContractItem }> {
+    return http.post('/contract-guard/extract/single', data)
+  },
+
+  extractBatch(data: { traffic_records?: any[]; limit_captured?: number }): Promise<{ message: string; report: ExtractionBatchReportItem }> {
+    return http.post('/contract-guard/extract/batch', data)
+  },
+
+  listContracts(): Promise<{ total: number; contracts: ExtractedContractItem[] }> {
+    return http.get('/contract-guard/extract/contracts')
+  },
+
+  getContract(contractId: string): Promise<ExtractedContractItem> {
+    return http.get(`/contract-guard/extract/contracts/${contractId}`)
+  },
+
+  getContractByEndpoint(endpoint: string): Promise<ExtractedContractItem> {
+    return http.get('/contract-guard/extract/contracts/by-endpoint', { params: { endpoint } })
+  },
+
+  clearContracts(): Promise<{ message: string; deleted_count: number }> {
+    return http.delete('/contract-guard/extract/contracts')
   },
 }

@@ -138,6 +138,9 @@ vi.mock('./components/ShadowTrafficReplayConsoleDrawer.vue', () => ({
 vi.mock('./components/TrafficDiffComparatorViewer.vue', () => ({
   default: defineComponent({ name: 'TrafficDiffComparatorViewer', setup: () => () => h('div', 'traffic-diff-comparator-viewer') }),
 }))
+vi.mock('./components/LiveContractSchemaExtractorDrawer.vue', () => ({
+  default: defineComponent({ name: 'LiveContractSchemaExtractorDrawer', setup: () => () => h('div', 'live-contract-schema-extractor-drawer') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })
