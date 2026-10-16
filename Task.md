@@ -18,7 +18,7 @@
 - [x] 2026-10-16 UI3.2 变异体沙箱执行实时进度与 Killed/Survived 监控抽屉：扩展 ciImpact API 客户端，落地 MutationExecutionLiveMonitorDrawer 组件并挂载至 ApiWorkbenchView；展示 5 大 KPI 指标、变异状态筛选流（Killed/Survived/TimedOut）、以及击毙用例定位与断言拦截分析；单测独立通过，见 [`docs/evidence/mutation-execution-live-monitor-drawer-ui3-2-2026-10-16.md`](docs/evidence/mutation-execution-live-monitor-drawer-ui3-2-2026-10-16.md)。
 - [x] 2026-10-16 UI3.3 变异得分 (Mutation Score) 与断言盲区热力报告页面：扩展 ciImpact API 客户端，落地 MutationScoreHeatmapReportView 页面与路由；量化综合变异得分百分比、四级充分性裁决、五大算子击毙率雷达图与断言盲区代码行级热力清单；单测独立通过，见 [`docs/evidence/mutation-score-heatmap-report-view-ui3-3-2026-10-16.md`](docs/evidence/mutation-score-heatmap-report-view-ui3-3-2026-10-16.md)。至此 v3.7.0 Phase 3 全量大闭环！
 - [x] 2026-10-16 UI4.1 PR 代码变更全要素质量门禁合并准入仲裁卡片：扩展 ciImpact API 客户端，落地 PrQualityGatekeeperDashboardCard 组件并集成至 ApiWorkbenchView；支持三态裁决徽章（APPROVED/BLOCKED/CONDITIONAL）、合规得分、规则裁决矩阵表格与整改行动项清单；单测独立通过，见 [`docs/evidence/pr-quality-gatekeeper-dashboard-card-ui4-1-2026-10-16.md`](docs/evidence/pr-quality-gatekeeper-dashboard-card-ui4-1-2026-10-16.md)。
-- [ ] UI4.2 GitHub / GitLab 交互式 Reviewer 评论卡片预览与广播抽屉（PrCommentBotPreviewDrawer.vue）
+- [x] 2026-10-16 UI4.2 GitHub / GitLab 交互式 Reviewer 评论卡片预览与广播抽屉：扩展 ciImpact API 客户端，落地 PrCommentBotPreviewDrawer 组件并集成至 ApiWorkbenchView；支持四平台切换（GitHub/GitLab/Gitea/Markdown）、所见即所得双栏实时渲染、仿真评论卡片与一键 Webhook 广播；单测独立通过，见 [`docs/evidence/pr-comment-bot-preview-drawer-ui4-2-2026-10-16.md`](docs/evidence/pr-comment-bot-preview-drawer-ui4-2-2026-10-16.md)。
 - [ ] UI4.3 CI/CD 流水线 Checkpoint 检查点全景监控看板页面（CiPipelineCheckpointMonitorView.vue）
 
 ## 2026-10-16 v3.6.0 研发任务规划（已全量闭环）

@@ -378,6 +378,32 @@ export interface EvaluatePrGateRequest {
   min_mutation_score_threshold?: number
 }
 
+export type GitPlatformType = 'github' | 'gitlab' | 'gitea' | 'generic_markdown'
+
+export interface PrCommentPayload {
+  comment_id: string
+  pr_id: string
+  platform: GitPlatformType
+  repo_name: string
+  markdown_body: string
+  verdict: MergeGateVerdict
+  delivered_successfully: boolean
+  created_at: string
+}
+
+export interface GeneratePrCommentRequest {
+  gate_id: string
+  bot_header_title?: string
+}
+
+export interface DispatchPrCommentRequest {
+  gate_id: string
+  repo_name?: string
+  platform?: GitPlatformType
+  bot_header_title?: string
+  simulate_success?: boolean
+}
+
 export const ciImpactApi = {
   analyzeDiffAst(data: AnalyzeDiffAstRequest): Promise<{ message: string; report: DiffAstAnalysisReportItem }> {
     return http.post('/ci-impact/diff-ast/analyze', data)
@@ -505,5 +531,21 @@ export const ciImpactApi = {
 
   getPrGateReport(gateId: string): Promise<PrGateVerdictReport> {
     return http.get(`/ci-impact/pr-gate/reports/${gateId}`)
+  },
+
+  generatePrComment(data: GeneratePrCommentRequest): Promise<{ message: string; gate_id: string; markdown: string }> {
+    return http.post('/ci-impact/pr-bot/generate-comment', data)
+  },
+
+  dispatchPrComment(data: DispatchPrCommentRequest): Promise<{ message: string; comment: PrCommentPayload }> {
+    return http.post('/ci-impact/pr-bot/dispatch', data)
+  },
+
+  listPrComments(): Promise<{ total: number; comments: PrCommentPayload[] }> {
+    return http.get('/ci-impact/pr-bot/comments')
+  },
+
+  getPrComment(commentId: string): Promise<PrCommentPayload> {
+    return http.get(`/ci-impact/pr-bot/comments/${commentId}`)
   },
 }

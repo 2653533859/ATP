@@ -62,6 +62,9 @@
         <a-button size="small" class="toolbar-btn" @click="showGatekeeperDrawer = true">
           <SafetyCertificateOutlined /> PR 质量门禁
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showBotDrawer = true">
+          <RobotOutlined /> PR Reviewer 机器人
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -460,6 +463,7 @@
     >
       <PrQualityGatekeeperDashboardCard />
     </a-drawer>
+    <PrCommentBotPreviewDrawer v-model:open="showBotDrawer" />
   </div>
 </template>
 
@@ -484,6 +488,7 @@ import {
   ClusterOutlined,
   SafetyCertificateOutlined,
   FileSearchOutlined,
+  RobotOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'
@@ -526,6 +531,8 @@ const showMutationMonitor = ref(false)
 import { useAuthStore } from '@/stores/auth'
 import PrQualityGatekeeperDashboardCard from './components/PrQualityGatekeeperDashboardCard.vue'
 const showGatekeeperDrawer = ref(false)
+import PrCommentBotPreviewDrawer from './components/PrCommentBotPreviewDrawer.vue'
+const showBotDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)
