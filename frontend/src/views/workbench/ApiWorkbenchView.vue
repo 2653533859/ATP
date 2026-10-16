@@ -98,6 +98,9 @@
         <a-button size="small" class="toolbar-btn" @click="showTraceAnomalyDrawer = true">
           <BugOutlined /> 慢调用聚类
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showSagaTrackerDrawer = true">
+          <ApartmentOutlined /> 分布式事务
+        </a-button>
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -536,6 +539,7 @@
     >
       <TraceAnomalySlowCallClusterCard />
     </a-drawer>
+    <SagaTransactionStateTrackerDrawer v-model:open="showSagaTrackerDrawer" />
   </div>
 </template>
 
@@ -629,6 +633,8 @@ import DistributedTraceSpanTreeDrawer from './components/DistributedTraceSpanTre
 const showTraceTreeDrawer = ref(false)
 import TraceAnomalySlowCallClusterCard from './components/TraceAnomalySlowCallClusterCard.vue'
 const showTraceAnomalyDrawer = ref(false)
+import SagaTransactionStateTrackerDrawer from './components/SagaTransactionStateTrackerDrawer.vue'
+const showSagaTrackerDrawer = ref(false)
 function positiveInt(value: unknown): number | null {
   const raw = Array.isArray(value) ? value[0] : value
   const parsed = Number(raw)

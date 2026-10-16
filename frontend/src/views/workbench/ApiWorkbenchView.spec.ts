@@ -157,6 +157,9 @@ vi.mock('./components/DistributedTraceSpanTreeDrawer.vue', () => ({
 vi.mock('./components/TraceAnomalySlowCallClusterCard.vue', () => ({
   default: defineComponent({ name: 'TraceAnomalySlowCallClusterCard', setup: () => () => h('div', 'trace-anomaly-slow-call-cluster-card') }),
 }))
+vi.mock('./components/SagaTransactionStateTrackerDrawer.vue', () => ({
+  default: defineComponent({ name: 'SagaTransactionStateTrackerDrawer', setup: () => () => h('div', 'saga-transaction-state-tracker-drawer') }),
+}))
 
 const passthrough = (name: string) =>
   defineComponent({ name, setup: (_props, { slots }) => () => h('div', slots.default?.()) })

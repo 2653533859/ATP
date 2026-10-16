@@ -34,7 +34,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| UI2.1 `[ ]` | **Sagas/TCC 分布式事务状态机流转与悬挂事务探测抽屉** | `saga_transaction_state_tracker` | 落地 `SagaTransactionStateTrackerDrawer.vue` 组件；可视化呈现 Try/Confirm/Cancel 分支流转、悬挂事务警报大横幅与防悬挂建议。 |
+| UI2.1 `[x]` | **Sagas/TCC 分布式事务状态机流转与悬挂事务探测抽屉** | `saga_transaction_state_tracker` | 落地 `SagaTransactionStateTrackerDrawer.vue` 组件与 API 客户端；可视化呈现 Try/Confirm/Cancel 分支流转、悬挂事务警报大横幅与防悬挂建议；见 docs/evidence/saga-transaction-state-tracker-drawer-ui2-1-2026-10-16.md |
 | UI2.2 `[ ]` | **跨微服务异构数据源最终一致性双向稽核对账大盘页面** | `cross_db_data_consistency_auditor` | 落地 `CrossDbConsistencyAuditDashboardView.vue` 视图与路由；展示主键对齐比对表、对账达标率仪表环、差异分类与补偿修复 SQL 预览。 |
 | UI2.3 `[ ]` | **消息事件总线消费延迟、死信重放与幂等压测卡片** | `event_bus_deadletter_idempotency_guard` | 落地 `EventBusDeadletterIdempotencyCard.vue` 组件；展示 Topic 消费延迟积压指标、死信队列一键重放与多轮投递幂等拦截压测。 |
 
