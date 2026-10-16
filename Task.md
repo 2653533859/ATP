@@ -9,7 +9,7 @@
 > v4.4.0 规划入口为 [`docs/development-task-plan-v4.4.0.md`](docs/development-task-plan-v4.4.0.md)，覆盖 Phase 1（多模态视觉 UI 跨分辨率像素级 Diff 与动态智能去噪引擎）、Phase 2（基于大模型视觉多模态 VLM 的智能断言与 UI 布局越界/重叠检测）、Phase 3（深度无障碍访问 a11y 全面自动化扫描与 WCAG 2.2 合规准入审计）、Phase 4（客户端运行时全息性能分析与用户体验感知度量引擎）。
 
 - [x] 2026-10-17 T1.1 跨分辨率视口快照捕获与像素级 SSIM 结构相似度比对器：落地 `visual_pixel_ssim_diff_engine` 服务与 `/visual/pixel-diff/*` API；支持 Desktop/Tablet/Mobile 多视口像素比对、计算结构相似度 (SSIM 0~1.0) 与差异像素高亮图生成；单测独立通过，见 [`docs/evidence/visual-pixel-ssim-diff-engine-t1-1-2026-10-17.md`](docs/evidence/visual-pixel-ssim-diff-engine-t1-1-2026-10-17.md)。
-- [ ] 2026-10-17 T1.2 动态忽略区域掩码与抗锯齿渲染微噪声过滤去噪器：落地 `visual_anti_aliasing_noise_filter` 服务与 `/visual/noise-filter/*` API；自动识别动态时间戳、轮播图区域并打标 Mask 掩码，过滤抗锯齿边缘引发的假阳性误报；单测独立通过。
+- [x] 2026-10-17 T1.2 动态忽略区域掩码与抗锯齿渲染微噪声过滤去噪器：落地 `visual_anti_aliasing_noise_filter` 服务与 `/visual/noise-filter/*` API；自动识别动态时间戳、轮播图区域并打标 Mask 掩码，过滤抗锯齿边缘引发的假阳性误报；单测独立通过，见 [`docs/evidence/visual-anti-aliasing-noise-filter-t1-2-2026-10-17.md`](docs/evidence/visual-anti-aliasing-noise-filter-t1-2-2026-10-17.md)。
 - [ ] 2026-10-17 T1.3 多版本视觉黄金基线快照管理与跨分支差异演变追踪器：落地 `visual_golden_baseline_branch_tracker` 服务与 `/visual/baselines/*` API；支持多视口基线版本化打标、跨分支快照比对与历史视觉回归变迁审计；单测独立通过。
 - [ ] 2026-10-17 T2.1 基于视觉大模型 (VLM) 的 UI 页面语义完整性断言推理器：落地 `vlm_ui_semantic_assertion_reasoner` 服务与 `/visual-ai/semantic-assertion/*` API；基于视觉多模态对全页截图执行元素完整性、白屏缺失与错位语义推导断言；单测独立通过。
 - [ ] 2026-10-17 T2.2 跨视口文本截断、元素重叠与布局溢出碰撞检测器：落地 `ui_layout_overflow_collision_detector` 服务与 `/visual-ai/layout-collision/*` API；基于 BoundingBox 空间坐标与盒模型计算，精准探查文本截断省略、组件层级碰撞重叠与视口水平溢出；单测独立通过。
