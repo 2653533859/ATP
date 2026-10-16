@@ -12,7 +12,7 @@
 - [x] 2026-10-16 UI1.2 代码符号与自动化测试用例双向血缘图谱视图：扩展 ciImpact API 客户端并在 chartTheme 中装配 Graph 图表，落地 CodeToTestDependencyGraphView 视图与路由；呈现文件-符号-端点-用例四级力导向拓扑网络、节点属性剖析、快速反查与用例血缘注册；单测独立通过，见 [`docs/evidence/code-to-test-dependency-graph-view-ui1-2-2026-10-16.md`](docs/evidence/code-to-test-dependency-graph-view-ui1-2-2026-10-16.md)。
 - [x] 2026-10-16 UI1.3 精准测试集推荐裁剪率与一键回归执行卡片：扩展 ciImpact API 客户端，落地 SmartTestSelectionWorkbenchCard 组件；展示 TIA 策略选择、80%+ 冗余裁剪率、推荐用例置信度排序与一键执行，集成至 ApiWorkbenchView；单测独立通过，见 [`docs/evidence/smart-test-selection-workbench-card-ui1-3-2026-10-16.md`](docs/evidence/smart-test-selection-workbench-card-ui1-3-2026-10-16.md)。至此 v3.7.0 Phase 1 全量大闭环！
 - [x] 2026-10-16 UI2.1 LPT 贪心装箱并发切片甘特图与负载均衡卡片：扩展 ciImpact API 客户端，落地 DynamicTestShardingGanttCard 组件；展示理论加速比 KPI、极小方差、甘特横向分片用例堆叠条与瓶颈分片高亮，集成至 AppWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/dynamic-test-sharding-gantt-card-ui2-1-2026-10-16.md`](docs/evidence/dynamic-test-sharding-gantt-card-ui2-1-2026-10-16.md)。
-- [ ] UI2.2 代码变更规模/圈复杂度与核心敏感度三维风险雷达大盘（ChangeRiskRadarDashboard.vue）
+- [x] 2026-10-16 UI2.2 代码变更规模/圈复杂度与核心敏感度三维风险雷达大盘：扩展 ciImpact API 客户端，落地 ChangeRiskRadarDashboard 页面与路由；量化代码体量、AST 圈复杂度与涉敏资产三维风险指标、CRITICAL-LOW 准入动作建议与三维雷达图对比；单测独立通过，见 [`docs/evidence/change-risk-radar-dashboard-ui2-2-2026-10-16.md`](docs/evidence/change-risk-radar-dashboard-ui2-2-2026-10-16.md)。
 - [ ] UI2.3 CI 选定测试集高频抖动 Flaky 用例自适应抑制隔离抽屉（FlakyQuarantineManagementDrawer.vue）
 - [ ] UI3.1 一阶语法变异算子注入生成与变异代码对比弹窗（CodeMutationOperatorGeneratorModal.vue）
 - [ ] UI3.2 变异体沙箱执行实时进度与 Killed/Survived 监控抽屉（MutationExecutionLiveMonitorDrawer.vue）

@@ -152,6 +152,40 @@ export interface PartitionTestsRequest {
   default_case_duration_sec?: number
 }
 
+export type RiskLevel = 'CRITICAL' | 'HIGH' | 'MEDIUM' | 'LOW'
+
+export interface RiskDimensionBreakdownItem {
+  dimension_name: string
+  score: number
+  weight: number
+  raw_metrics: Record<string, any>
+  description: string
+}
+
+export interface ChangeRiskReportItem {
+  risk_id: string
+  overall_risk_score: number
+  risk_level: RiskLevel
+  dimensions: {
+    volume: RiskDimensionBreakdownItem
+    complexity: RiskDimensionBreakdownItem
+    criticality: RiskDimensionBreakdownItem
+  }
+  high_risk_files: string[]
+  risk_factors_summary: string[]
+  recommended_action: string
+  evaluated_at: string
+}
+
+export interface EvaluateChangeRiskRequest {
+  diff_text: string
+  file_sources?: Record<string, string>
+  critical_patterns?: string[]
+  weight_volume?: number
+  weight_complexity?: number
+  weight_criticality?: number
+}
+
 export const ciImpactApi = {
   analyzeDiffAst(data: AnalyzeDiffAstRequest): Promise<{ message: string; report: DiffAstAnalysisReportItem }> {
     return http.post('/ci-impact/diff-ast/analyze', data)
@@ -199,5 +233,17 @@ export const ciImpactApi = {
 
   getShardingReport(shardingId: string): Promise<DynamicShardingReportItem> {
     return http.get(`/ci-impact/sharding/reports/${shardingId}`)
+  },
+
+  evaluateRisk(data: EvaluateChangeRiskRequest): Promise<{ message: string; report: ChangeRiskReportItem }> {
+    return http.post('/ci-impact/risk-score/evaluate', data)
+  },
+
+  listRiskReports(): Promise<{ total: number; reports: ChangeRiskReportItem[] }> {
+    return http.get('/ci-impact/risk-score/reports')
+  },
+
+  getRiskReport(riskId: string): Promise<ChangeRiskReportItem> {
+    return http.get(`/ci-impact/risk-score/reports/${riskId}`)
   },
 }

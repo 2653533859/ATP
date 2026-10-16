@@ -35,7 +35,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI2.1 `[x]` | **LPT 贪心装箱并发切片甘特图与负载均衡卡片** | dynamic_test_shard_partitioner | 落地 `DynamicTestShardingGanttCard.vue` 组件；呈现 N 个 Worker 分片用例装箱甘特图、总耗时方差极小化与理论加速比；见 docs/evidence/dynamic-test-sharding-gantt-card-ui2-1-2026-10-16.md |
-| UI2.2 `[ ]` | **代码变更规模/圈复杂度与核心敏感度三维风险雷达大盘** | change_risk_scorer | 落地 `ChangeRiskRadarDashboard.vue` 组件；呈现代码体量、圈复杂度增量与涉敏资产三维得分、CRITICAL-LOW 四级风险与准入建议。 |
+| UI2.2 `[x]` | **代码变更规模/圈复杂度与核心敏感度三维风险雷达大盘** | change_risk_scorer | 落地 `ChangeRiskRadarDashboard.vue` 组件与路由；呈现代码体量、圈复杂度增量与涉敏资产三维得分、CRITICAL-LOW 四级风险与准入建议；见 docs/evidence/change-risk-radar-dashboard-ui2-2-2026-10-16.md |
 | UI2.3 `[ ]` | **CI 选定测试集高频抖动 Flaky 用例自适应抑制隔离抽屉** | flaky_test_suppression_filter | 落地 `FlakyQuarantineManagementDrawer.vue` 组件；展示抖动指数、自适应重试/隔离标签、以及治理白名单工单覆盖录入。 |
 
 ---
