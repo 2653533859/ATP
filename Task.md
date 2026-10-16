@@ -11,7 +11,7 @@
 - [x] 2026-10-16 T1.1 OpenTelemetry 全链路 Span 追踪采集中继与调用树重构器：落地 distributed_trace_telemetry_relay 服务与 /trace/telemetry/* API；支持 W3C TraceContext 协议解析、父子 Span 级联树重构与多维链路检索；单测独立通过，见 [`docs/evidence/distributed-trace-telemetry-relay-t1-1-2026-10-16.md`](docs/evidence/distributed-trace-telemetry-relay-t1-1-2026-10-16.md)。
 - [x] 2026-10-16 T1.2 跨服务调用关键路径时延分析与火焰图性能瓶颈定位器：落地 critical_path_flamegraph_profiler 服务与 /trace/flamegraph/* API；支持动态规划关键路径识别、独占耗时量化、瓶颈类别判定与火焰图数据结构生成；单测独立通过，见 [`docs/evidence/critical-path-flamegraph-profiler-t1-2-2026-10-16.md`](docs/evidence/critical-path-flamegraph-profiler-t1-2-2026-10-16.md)。
 - [x] 2026-10-16 T1.3 分布式调用链路异常波动与高频慢调用智能聚类诊断器：落地 trace_anomaly_slow_call_clusterer 服务与 /trace/anomaly-cluster/* API；支持 5 大异常模式聚类、Z-Score 标准差偏离度量化与加权危害度诊断；单测独立通过，见 [`docs/evidence/trace-anomaly-slow-call-clusterer-t1-3-2026-10-16.md`](docs/evidence/trace-anomaly-slow-call-clusterer-t1-3-2026-10-16.md)。至此 v4.0.0 Phase 1 全量大闭环！
-- [ ] 2026-10-16 T2.1 Sagas/TCC 分布式事务流转跟踪与悬挂事务探测器：落地 saga_transaction_state_tracker 服务与 /consistency/saga/* API
+- [x] 2026-10-16 T2.1 Sagas/TCC 分布式事务流转跟踪与悬挂事务探测器：落地 saga_transaction_state_tracker 服务与 /consistency/saga/* API；支持 TCC/SAGA 状态机跟踪、悬挂事务/空补偿/超时未决探测与防悬挂加固建议；单测独立通过，见 [`docs/evidence/saga-transaction-state-tracker-t2-1-2026-10-16.md`](docs/evidence/saga-transaction-state-tracker-t2-1-2026-10-16.md)。
 - [ ] 2026-10-16 T2.2 跨微服务异构数据源最终一致性双向稽核校验器：落地 cross_db_data_consistency_auditor 服务与 /consistency/audit/* API
 - [ ] 2026-10-16 T2.3 消息事件总线消费延迟、死信积压与幂等消费验证器：落地 event_bus_deadletter_idempotency_guard 服务与 /consistency/event-bus/* API
 - [ ] 2026-10-16 T3.1 多模态测试失败日志与异常堆栈智能根因推导器：落地 test_failure_root_cause_reasoner 服务与 /diagnosis/root-cause/* API
