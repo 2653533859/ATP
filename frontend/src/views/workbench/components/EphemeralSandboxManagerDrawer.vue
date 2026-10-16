@@ -183,6 +183,9 @@
         </a-table>
       </a-card>
 
+      <!-- 流量镜像与写操作副作用安全隔离卡片 -->
+      <SandboxTrafficMirrorCard />
+
       <!-- 内联 Mock 派发测试弹窗 -->
       <a-modal
         v-model:open="mockModalOpen"
@@ -230,6 +233,7 @@ import {
   type SandboxStatus,
   type MockDispatchResult,
 } from '@/api/sandboxes'
+import SandboxTrafficMirrorCard from './SandboxTrafficMirrorCard.vue'
 
 const props = withDefaults(
   defineProps<{

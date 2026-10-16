@@ -46,7 +46,7 @@
 |---|---|---|---|
 | UI3.1 `[x]` | **瞬时轻量级仿真沙箱与端口生命周期管理抽屉** | ephemeral_sandbox_manager | 落地 `EphemeralSandboxManagerDrawer.vue` 组件；展示 20000-29999 端口动态分配、HTTP/gRPC/WS 多协议沙箱拉起、TTL 倒计时与 Mock 路由测试；见 docs/evidence/ephemeral-sandbox-manager-drawer-ui3-1-2026-10-16.md |
 | UI3.2 `[x]` | **跨协议数据透传与会话上下文共享总线面板** | cross_protocol_session_bus | 落地 `CrossProtocolSessionBusPanel.vue` 组件；展示 HTTP-gRPC-WS 跨协议变量共享、Token 自动透传与动态模板插值预览；见 docs/evidence/cross-protocol-session-bus-panel-ui3-2-2026-10-16.md |
-| UI3.3 `[ ]` | **沙箱网络流量镜像与写操作副作用隔离卡片** | sandbox_traffic_mirror | 落地 `SandboxTrafficMirrorCard.vue` 组件；支持影子流量分流配置、外发敏感写操作拦截检测与零泄露安全验证证明展示。 |
+| UI3.3 `[x]` | **沙箱网络流量镜像与写操作副作用隔离卡片** | sandbox_traffic_mirror | 落地 `SandboxTrafficMirrorCard.vue` 组件；支持影子流量分流配置、外发敏感写操作拦截检测与零泄露安全验证证明展示；见 docs/evidence/sandbox-traffic-mirror-card-ui3-3-2026-10-16.md |
 
 ---
 

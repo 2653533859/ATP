@@ -60,6 +60,48 @@ export interface RenderTemplateResponse {
   rendered: any
 }
 
+export interface TrafficMirrorPolicyItem {
+  policy_id: string
+  name: string
+  source_service: string
+  route_pattern: string
+  target_sandbox_id: string
+  sample_ratio: number
+  isolate_side_effects: boolean
+  blocked_outbound_patterns: string[]
+  enabled: boolean
+}
+
+export interface CreateMirrorPolicyRequest {
+  policy_id: string
+  name: string
+  source_service?: string
+  route_pattern?: string
+  target_sandbox_id: string
+  sample_ratio?: number
+  isolate_side_effects?: boolean
+  blocked_outbound_patterns?: string[]
+  enabled?: boolean
+}
+
+export interface IsolationAuditRecord {
+  call_id: string
+  target_destination: string
+  method: string
+  is_intercepted: boolean
+  intercept_reason?: string
+  mock_response?: Record<string, any>
+  timestamp?: string
+}
+
+export interface ProcessMirrorBatchResponse {
+  policy_id: string
+  traffic_processed: number
+  intercepted_side_effects_count: number
+  safety_verified: boolean
+  isolation_audit: IsolationAuditRecord[]
+}
+
 export const sandboxesApi = {
   provision(data: ProvisionSandboxRequest): Promise<{ message: string; sandbox: EphemeralSandboxItem }> {
     return http.post('/sandboxes/provision', data)
@@ -111,5 +153,27 @@ export const sessionBusApi = {
 
   renderTemplate(busId: string, payload: any): Promise<RenderTemplateResponse> {
     return http.post(`/sandboxes/bus/${busId}/render`, { payload })
+  },
+}
+
+export const trafficMirrorApi = {
+  createPolicy(data: CreateMirrorPolicyRequest): Promise<{ message: string; policy: TrafficMirrorPolicyItem }> {
+    return http.post('/sandboxes/mirror/policies', data)
+  },
+
+  listPolicies(onlyEnabled: boolean = false): Promise<{ total: number; policies: TrafficMirrorPolicyItem[] }> {
+    return http.get('/sandboxes/mirror/policies', { params: { only_enabled: onlyEnabled } })
+  },
+
+  processBatch(data: {
+    policy_id: string
+    traffic_stream?: any[]
+    outbound_calls?: any[]
+  }): Promise<ProcessMirrorBatchResponse> {
+    return http.post('/sandboxes/mirror/process', data)
+  },
+
+  getAudit(policyId: string): Promise<{ policy_id: string; total: number; audit_events: IsolationAuditRecord[] }> {
+    return http.get(`/sandboxes/mirror/${policyId}/audit`)
   },
 }
