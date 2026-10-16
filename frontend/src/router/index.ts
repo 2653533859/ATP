@@ -108,6 +108,12 @@ const router = createRouter({
           },
         },
         {
+          path: 'reports/dora',
+          name: 'dora-metrics-compass',
+          component: () => import('@/views/report/DoraMetricsCompassView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'case-reviews',
           name: 'case-reviews',
           component: () => import('@/views/case/CaseReviewWorkbench.vue'),

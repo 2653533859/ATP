@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-16 v3.5.0 研发任务规划（进行中）
+## 2026-10-16 v3.5.0 研发任务规划（已全量闭环）
 
 > v3.5.0 规划入口为 [`docs/development-task-plan-v3.5.0.md`](docs/development-task-plan-v3.5.0.md)，覆盖 UI1（云原生动态容器化弹性 Worker 调度与镜像版本控制台）、UI2（AI 驱动的用例自愈与契约响应柔性断言控制台）、UI3（多端原生性能剖析与深度质量诊断控制台）、UI4（企业级报告归档多模态导出与研发效能 DORA 罗盘中心）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-16 UI3.3 全链路分布式追踪 TraceID 慢调用火焰图交互组件：创建 distributedTraces API 客户端，落地 DistributedTraceFlamegraphViewer 组件；展示多层级 Span 调用树、独占耗时 (Self-Time) 阶梯火焰图、慢调用瓶颈高亮与调优建议，集成至 ApiWorkbenchView 顶部操作区；单测独立通过，见 [`docs/evidence/distributed-trace-flamegraph-viewer-ui3-3-2026-10-16.md`](docs/evidence/distributed-trace-flamegraph-viewer-ui3-3-2026-10-16.md)。至此 v3.5.0 Phase 3 全量大闭环！
 - [x] 2026-10-16 UI4.1 测试报告多模态聚合打包导出弹窗：创建 reportBundler API 客户端，落地 ReportBundlerExportModal 组件；支持独立 HTML5、明细 Excel/CSV、合规 PDF 及多合一 ZIP 4 大格式选择、合规元数据配置、产物生成下载与历史记录管理；集成至 ReportCenterView 顶部工具栏；单测独立通过，见 [`docs/evidence/report-bundler-export-modal-ui4-1-2026-10-16.md`](docs/evidence/report-bundler-export-modal-ui4-1-2026-10-16.md)。
 - [x] 2026-10-16 UI4.2 企微 / 钉钉 / 飞书富文本交互式卡片 Webhook 智能广播抽屉：创建 notificationHub API 客户端，落地 NotificationHubBroadcastDrawer 组件；支持 Webhook Token 自动脱敏、企微 template_card / 钉钉 actionCard / 飞书 interactive 三大卡片所见即所得实时预览、全网并发广播与投递审计流水；集成至 NotificationList 顶部操作区；单测独立通过，见 [`docs/evidence/notification-hub-broadcast-drawer-ui4-2-2026-10-16.md`](docs/evidence/notification-hub-broadcast-drawer-ui4-2-2026-10-16.md)。
-- [ ] UI4.3 团队研发效能 DORA 罗盘看板与成熟度评估页面（DoraMetricsCompassView.vue）
+- [x] 2026-10-16 UI4.3 团队研发效能 DORA 罗盘看板与成熟度评估页面：创建 doraMetrics API 客户端，落地 DoraMetricsCompassView 页面与路由；量化部署频率、变更前置耗时、失败率、MTTR 四维核心效能与测试准时交付率，结合四维罗盘雷达图评定团队成熟度等级并输出瓶颈治理建议；单测独立通过，见 [`docs/evidence/dora-metrics-compass-view-ui4-3-2026-10-16.md`](docs/evidence/dora-metrics-compass-view-ui4-3-2026-10-16.md)。至此 v3.5.0 全量 12 项重大任务 100% 圆满大闭环！
 
 ## 2026-10-16 v3.4.0 研发任务规划（已全量闭环）
 
