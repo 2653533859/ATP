@@ -136,6 +136,7 @@ from app.api.v1 import (
     shadow_db_isolation_api,
     shadow_mq_shunting_api,
     cell_isolation_api,
+    cell_escape_api,
 )
 from app.device_stream.router import rest_router as device_stream_router
 
@@ -277,3 +278,4 @@ router.include_router(shadow_traffic_api.router)
 router.include_router(shadow_db_isolation_api.router)
 router.include_router(shadow_mq_shunting_api.router)
 router.include_router(cell_isolation_api.router)
+router.include_router(cell_escape_api.router)
