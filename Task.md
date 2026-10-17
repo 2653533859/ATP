@@ -14,7 +14,7 @@
 - [x] 2026-10-17 T2.1 双端响应体深度结构 Diff 对比器：落地 `traffic_response_diff_comparator` 服务；键值丢失与状态码偏离深度比对；单测独立通过，见 [`docs/evidence/traffic-response-diff-comparator-t2-1-2026-10-17.md`](docs/evidence/traffic-response-diff-comparator-t2-1-2026-10-17.md)。
 - [x] 2026-10-17 T2.2 动态字段动态噪声自适应抑制器：落地 `dynamic_noise_suppressor` 服务；时间戳/UUID/TraceID 动态噪声自动平滑；单测独立通过，见 [`docs/evidence/dynamic-noise-suppressor-t2-2-2026-10-17.md`](docs/evidence/dynamic-noise-suppressor-t2-2-2026-10-17.md)。
 - [x] 2026-10-17 T2.3 回放偏离评分与 Breaking Change 裁决控制器：落地 `replay_drift_evaluator` 服务；回放偏离评分与 Breaking 破坏性评级；单测独立通过，见 [`docs/evidence/replay-drift-evaluator-t2-3-2026-10-17.md`](docs/evidence/replay-drift-evaluator-t2-3-2026-10-17.md)。至此 v5.6.0 Phase 2 全量大闭环！
-- [ ] 2026-10-17 UI3.1 双端响应结构差异透视对比抽屉：落地 `TrafficDiffInspectionDrawer.vue`；左右分栏高亮展示基线与回放响应及噪声标注；单测独立通过。
+- [x] 2026-10-17 UI3.1 双端响应结构差异透视对比抽屉：落地 `TrafficDiffInspectionDrawer.vue`；左右分栏高亮展示基线与回放响应及噪声标注；单测独立通过，见 [`docs/evidence/traffic-diff-inspection-drawer-ui3-1-2026-10-17.md`](docs/evidence/traffic-diff-inspection-drawer-ui3-1-2026-10-17.md)。
 - [ ] 2026-10-17 UI3.2 动态噪声过滤规则配置与模拟弹窗：落地 `NoiseFilterRuleModal.vue`；交互式规则配置与实时测试；单测独立通过。
 - [ ] 2026-10-17 UI3.3 生产流量回放与变异演练工作台中枢页面：落地 `TrafficReplayWorkbenchView.vue` 与 `/workbench/traffic-replay` 路由；单测独立通过。
 - [ ] 2026-10-17 T4.1 第三方服务防击穿与写操作拦截看门狗：落地 `traffic_write_blast_guard` 服务；防范回放写请求击穿外部系统；单测独立通过。
