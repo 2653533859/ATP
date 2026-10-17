@@ -196,3 +196,29 @@ def test_analyze_parity_endpoint_and_reports():
     get_resp = client.get(f"/api/v1/migration/parity/report/{report_id}", headers=HEADERS)
     assert get_resp.status_code == 200
     assert get_resp.json()["report"]["report_id"] == report_id
+
+
+def test_replay_guard_endpoint_and_violations():
+    client = TestClient(app)
+
+    # 1. 评估危险手势拦截
+    guard_resp = client.post(
+        "/api/v1/migration/replay/guard",
+        json={
+            "migration_id": "mig_test_guard",
+            "step_id": "step_danger",
+            "target_platform": "android",
+            "action_type": "TAP",
+            "element_label": "确认注销账号",
+            "target_locator_value": "com.shop.app:id/btn_delete_account",
+        },
+        headers=HEADERS,
+    )
+    assert guard_resp.status_code == 200
+    assert guard_resp.json()["is_blocked"] is True
+    assert guard_resp.json()["verdict"] == "BLOCK"
+
+    # 2. 查询违规拦截列表
+    viol_resp = client.get("/api/v1/migration/replay/violations", headers=HEADERS)
+    assert viol_resp.status_code == 200
+    assert viol_resp.json()["total"] >= 1

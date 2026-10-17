@@ -31,6 +31,11 @@ from app.services.parity_scoring_engine import (
     get_parity_audit_report,
     list_parity_audit_reports,
 )
+from app.services.cross_platform_replay_guard import (
+    ScreenViewport,
+    evaluate_replay_step_safety,
+    list_replay_violations,
+)
 
 router = APIRouter(prefix="/migration", tags=["Cross-Platform Test Migration"])
 
@@ -67,6 +72,19 @@ class AnalyzeParityRequest(BaseModel):
     target_platform: str = Field("android", description="目标端平台")
     source_elements: List[Dict[str, Any]] = Field(..., description="源端控件列表")
     target_elements: List[Dict[str, Any]] = Field(..., description="目标端控件列表")
+
+
+class EvaluateReplayStepRequest(BaseModel):
+    migration_id: str = Field(..., description="迁移任务 ID")
+    step_id: str = Field(..., description="步骤 ID")
+    target_platform: str = Field("android", description="目标平台")
+    action_type: str = Field("TAP", description="动作类型")
+    element_label: str = Field("", description="控件文案")
+    target_locator_value: str = Field("", description="目标定位器")
+    coordinates: Optional[List[int]] = Field(None, description="物理点击坐标 [x, y]")
+    confidence: float = Field(1.0, description="转译置信度")
+    screen_width: Optional[int] = Field(None, description="屏幕宽度")
+    screen_height: Optional[int] = Field(None, description="屏幕高度")
 
 
 def clear_migration_history() -> None:
@@ -288,3 +306,45 @@ def get_parity_report_endpoint(
     if not report:
         raise HTTPException(status_code=404, detail="未找到目标一致性审计报表")
     return {"report": report.to_dict()}
+
+
+@router.post("/replay/guard")
+def evaluate_replay_guard_endpoint(
+    payload: EvaluateReplayStepRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """在真实目标设备回放迁移步骤前执行多维安全看门狗审查"""
+    vp: Optional[ScreenViewport] = None
+    if payload.screen_width and payload.screen_height:
+        vp = ScreenViewport(width=payload.screen_width, height=payload.screen_height)
+
+    verdict, violation = evaluate_replay_step_safety(
+        migration_id=payload.migration_id,
+        step_id=payload.step_id,
+        target_platform=payload.target_platform,
+        action_type=payload.action_type,
+        element_label=payload.element_label,
+        target_locator_value=payload.target_locator_value,
+        coordinates=payload.coordinates,
+        confidence=payload.confidence,
+        viewport=vp,
+    )
+    return {
+        "verdict": verdict.value,
+        "is_blocked": verdict.value == "BLOCK",
+        "violation": violation.to_dict() if violation else None,
+    }
+
+
+@router.get("/replay/violations")
+def list_replay_violations_endpoint(
+    migration_id: Optional[str] = None,
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询跨端回放过程被拦截的违规事件记录"""
+    violations = list_replay_violations(migration_id=migration_id, limit=limit)
+    return {
+        "total": len(violations),
+        "violations": violations,
+    }
