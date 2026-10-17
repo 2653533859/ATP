@@ -18,7 +18,7 @@
 - [x] 2026-10-17 UI3.2 双端功能一致性对比透视抽屉组件：落地 `ParityAlignmentDiffDrawer.vue`；双端分栏对比状态树与高亮差异红斑；单测独立通过，见 [`docs/evidence/parity-alignment-diff-drawer-ui3-2-2026-10-17.md`](docs/evidence/parity-alignment-diff-drawer-ui3-2-2026-10-17.md)。
 - [x] 2026-10-17 UI3.3 跨端迁移与一致性对齐工作台页面：落地 `CrossPlatformParityWorkbenchView.vue` 与 `/workbench/cross-platform-parity` 路由；单测独立通过，见 [`docs/evidence/cross-platform-parity-workbench-view-ui3-3-2026-10-17.md`](docs/evidence/cross-platform-parity-workbench-view-ui3-3-2026-10-17.md)。至此 v5.3.0 Phase 3 全量大闭环！
 - [x] 2026-10-17 T4.1 跨端迁移回放安全防护看门狗：落地 `cross_platform_replay_guard` 服务；拦截目标平台执行时的敏感高危操作与坐标越界；单测独立通过，见 [`docs/evidence/cross-platform-replay-guard-t4-1-2026-10-17.md`](docs/evidence/cross-platform-replay-guard-t4-1-2026-10-17.md)。
-- [ ] 2026-10-17 T4.2 双端一致性 64 位 SHA-256 存证证书器：落地 `parity_evidence_signer` 服务；为迁移产物与一致性报告签发不可篡改存证证书；单测独立通过。
+- [x] 2026-10-17 T4.2 双端一致性 64 位 SHA-256 存证证书器：落地 `parity_evidence_signer` 服务；为迁移产物与一致性报告签发不可篡改存证证书；单测独立通过，见 [`docs/evidence/parity-evidence-signer-t4-2-2026-10-17.md`](docs/evidence/parity-evidence-signer-t4-2-2026-10-17.md)。
 - [ ] 2026-10-17 T4.3 v5.3.0 跨端迁移与一致性对齐中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.3.0-release-notes.md` 与专项交付证据。
 
 ## 2026-10-17 v5.2.0 研发任务规划（已全量闭环）

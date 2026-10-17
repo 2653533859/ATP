@@ -222,3 +222,56 @@ def test_replay_guard_endpoint_and_violations():
     viol_resp = client.get("/api/v1/migration/replay/violations", headers=HEADERS)
     assert viol_resp.status_code == 200
     assert viol_resp.json()["total"] >= 1
+
+
+def test_parity_evidence_signing_and_verification():
+    client = TestClient(app)
+
+    # 1. 先生成一次一致性报表
+    resp = client.post(
+        "/api/v1/migration/parity/analyze",
+        json={
+            "screen_name": "支付确认页",
+            "source_platform": "ios",
+            "target_platform": "android",
+            "source_elements": [{"node_id": "ios_1", "text": "支付", "role": "button"}],
+            "target_elements": [{"node_id": "and_1", "text": "支付", "role": "button"}],
+        },
+        headers=HEADERS,
+    )
+    assert resp.status_code == 200
+    report_id = resp.json()["report"]["report_id"]
+
+    # 2. 为该报表签发 64 位 SHA-256 存证证书
+    sign_resp = client.post(
+        "/api/v1/migration/evidence/sign",
+        json={
+            "artifact_type": "PARITY_REPORT",
+            "artifact_id": report_id,
+        },
+        headers=HEADERS,
+    )
+    assert sign_resp.status_code == 200
+    cert = sign_resp.json()["certificate"]
+    cert_id = cert["certificate_id"]
+    assert len(cert["evidence_sha256"]) == 64
+    assert len(cert["hmac_signature"]) == 64
+
+    # 3. 在线验签
+    verify_resp = client.post(
+        "/api/v1/migration/evidence/verify",
+        json={"certificate_id": cert_id},
+        headers=HEADERS,
+    )
+    assert verify_resp.status_code == 200
+    assert verify_resp.json()["is_valid"] is True
+    assert verify_resp.json()["verdict"] == "VALID"
+
+    # 4. 证书详情与列表
+    get_cert_resp = client.get(f"/api/v1/migration/evidence/{cert_id}", headers=HEADERS)
+    assert get_cert_resp.status_code == 200
+    assert get_cert_resp.json()["certificate"]["certificate_id"] == cert_id
+
+    list_certs_resp = client.get("/api/v1/migration/evidence/list", headers=HEADERS)
+    assert list_certs_resp.status_code == 200
+    assert list_certs_resp.json()["total"] >= 1

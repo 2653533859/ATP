@@ -36,6 +36,14 @@ from app.services.cross_platform_replay_guard import (
     evaluate_replay_step_safety,
     list_replay_violations,
 )
+from app.services.parity_evidence_signer import (
+    ParityArtifactType,
+    get_parity_certificate,
+    list_parity_certificates,
+    sign_case_migration_evidence,
+    sign_parity_report_evidence,
+    verify_parity_certificate,
+)
 
 router = APIRouter(prefix="/migration", tags=["Cross-Platform Test Migration"])
 
@@ -85,6 +93,16 @@ class EvaluateReplayStepRequest(BaseModel):
     confidence: float = Field(1.0, description="转译置信度")
     screen_width: Optional[int] = Field(None, description="屏幕宽度")
     screen_height: Optional[int] = Field(None, description="屏幕高度")
+
+
+class SignParityEvidenceRequest(BaseModel):
+    artifact_type: str = Field(..., description="产物类别 (CASE_MIGRATION | PARITY_REPORT)")
+    artifact_id: str = Field(..., description="产物 ID (mapping_id 或 report_id)")
+    signer_identity: Optional[str] = Field(None, description="签名者身份标识")
+
+
+class VerifyParityEvidenceRequest(BaseModel):
+    certificate_id: str = Field(..., description="存证证书 ID")
 
 
 def clear_migration_history() -> None:
@@ -348,3 +366,87 @@ def list_replay_violations_endpoint(
         "total": len(violations),
         "violations": violations,
     }
+
+
+@router.post("/evidence/sign")
+def sign_parity_evidence_endpoint(
+    payload: SignParityEvidenceRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """为跨端用例转译成果或双端一致性审计报表签发 64 位 SHA-256 存证证书"""
+    art_type = payload.artifact_type.upper()
+    if art_type == ParityArtifactType.CASE_MIGRATION.value:
+        rec = _MIGRATION_HISTORY.get(payload.artifact_id)
+        if not rec:
+            raise HTTPException(status_code=404, detail="未找到目标跨端迁移记录")
+        # 从历史数据重组轻量映射结果对象
+        from app.services.cross_platform_action_mapper import ActionMappingResult, PlatformType
+
+        mapping_res = ActionMappingResult(
+            mapping_id=rec["mapping_id"],
+            source_platform=PlatformType(rec["source_platform"]),
+            target_platform=PlatformType(rec["target_platform"]),
+            total_steps=rec["total_steps"],
+            mapped_steps_count=rec["mapped_steps_count"],
+            average_confidence=rec["average_confidence"],
+            mapped_steps=[],
+        )
+        cert = sign_case_migration_evidence(
+            mapping_result=mapping_res,
+            signer_identity=payload.signer_identity or "ATP_CROSS_PLATFORM_AUTHORITY_V5_3",
+        )
+    elif art_type == ParityArtifactType.PARITY_REPORT.value:
+        rep = get_parity_audit_report(payload.artifact_id)
+        if not rep:
+            raise HTTPException(status_code=404, detail="未找到目标一致性审计报表")
+        cert = sign_parity_report_evidence(
+            report=rep,
+            signer_identity=payload.signer_identity or "ATP_PARITY_AUDIT_AUTHORITY_V5_3",
+        )
+    else:
+        raise HTTPException(status_code=400, detail=f"不支持的存证类型: {payload.artifact_type}")
+
+    return {
+        "message": "已成功签发 64 位 SHA-256 不可篡改存证证书",
+        "certificate": cert.to_dict(),
+    }
+
+
+@router.post("/evidence/verify")
+def verify_parity_evidence_endpoint(
+    payload: VerifyParityEvidenceRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """在线核验跨端一致性 64 位 SHA-256 证书有效性与 HMAC 防篡改签名"""
+    verdict, reason = verify_parity_certificate(payload.certificate_id)
+    return {
+        "certificate_id": payload.certificate_id,
+        "verdict": verdict.value,
+        "is_valid": verdict.value == "VALID",
+        "reason": reason,
+    }
+
+
+@router.get("/evidence/list")
+def list_parity_evidence_endpoint(
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询已颁发的双端一致性存证证书历史列表"""
+    certs = list_parity_certificates(limit=limit)
+    return {
+        "total": len(certs),
+        "certificates": certs,
+    }
+
+
+@router.get("/evidence/{certificate_id}")
+def get_parity_evidence_endpoint(
+    certificate_id: str,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询单张双端一致性存证证书详情"""
+    cert = get_parity_certificate(certificate_id)
+    if not cert:
+        raise HTTPException(status_code=404, detail="存证证书不存在")
+    return {"certificate": cert.to_dict()}
