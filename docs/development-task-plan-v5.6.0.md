@@ -59,7 +59,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T2.1 `[ ]` | **双端响应体深度结构 Diff 对比器** | `backend/app/services/traffic_response_diff_comparator.py` | 深度比对基线与回放响应，精确识别键丢失、值变化、类型不匹配与状态码偏离；单测独立通过。 |
+| T2.1 `[x]` | **双端响应体深度结构 Diff 对比器** | `backend/app/services/traffic_response_diff_comparator.py` | 深度比对基线与回放响应，精确识别键丢失、值变化、类型不匹配与状态码偏离；单测独立通过；见 docs/evidence/traffic-response-diff-comparator-t2-1-2026-10-17.md |
 | T2.2 `[ ]` | **动态字段动态噪声自适应抑制器** | `backend/app/services/dynamic_noise_suppressor.py` | 自动识别时间戳、自增 ID、UUID、随机 Token 与 TraceID 等动态噪声字段，并支持基于正则与 JSONPath 自适应平滑忽略；单测独立通过。 |
 | T2.3 `[ ]` | **回放偏离评分与 Breaking Change 裁决控制器** | `backend/app/services/replay_drift_evaluator.py` | 输出 0~100 流量回放一致性综合评分，划分 Breaking / Non-Breaking 变迁等级，支持自动裁决；单测独立通过。 |
 
