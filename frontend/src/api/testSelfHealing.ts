@@ -164,3 +164,28 @@ export const selfHealingPipelineApi = {
     return http.delete('/healing/pipeline/reports')
   },
 }
+export const selfHealingCoreApi = {
+  diagnoseLocator(data: Record<string, any>): Promise<{ diagnosis: any }> {
+    return http.post('/self-healing/locator/diagnose', data)
+  },
+
+  healStep(data: Record<string, any>): Promise<{ message: string; result: any }> {
+    return http.post('/self-healing/locator/heal', data)
+  },
+
+  commitPatch(patchId: string): Promise<{ message: string; patch: any }> {
+    return http.post(`/self-healing/patch/${patchId}/commit`)
+  },
+
+  rejectPatch(patchId: string): Promise<{ message: string; patch: any }> {
+    return http.post(`/self-healing/patch/${patchId}/reject`)
+  },
+
+  getPatch(patchId: string): Promise<{ patch: any }> {
+    return http.get(`/self-healing/patch/${patchId}`)
+  },
+
+  listPatches(params?: { status?: string; limit?: number }): Promise<{ total: number; patches: any[] }> {
+    return http.get('/self-healing/patches', { params })
+  },
+}

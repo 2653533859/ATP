@@ -75,7 +75,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| UI3.1 `[ ]` | **定位器自愈对比与 DOM 变化透视抽屉** | `frontend/src/views/workbench/components/SelfHealingDiffInspectionDrawer.vue` | 左右分栏对比失效旧定位器与自愈推荐新定位器、DOM 树变化高亮与一键采纳；单测独立通过。 |
+| UI3.1 `[x]` | **定位器自愈对比与 DOM 变化透视抽屉** | `frontend/src/views/workbench/components/SelfHealingDiffInspectionDrawer.vue` | 左右分栏对比失效旧定位器与自愈推荐新定位器、DOM 树变化高亮与一键采纳；单测独立通过；见 docs/evidence/self-healing-diff-drawer-ui3-1-2026-10-17.md |
 | UI3.2 `[ ]` | **断言漂移演进对比与语法模拟弹窗** | `frontend/src/views/workbench/components/AssertionDriftEvolutionModal.vue` | 提供响应结构变迁对比、旧新断言代码 Diff 与在线断言语法演练；单测独立通过。 |
 | UI3.3 `[ ]` | **AI 用例自愈与断言演进工作台中枢页面** | `frontend/src/views/workbench/TestSelfHealingWorkbenchView.vue` | 落地路由 `/workbench/test-self-healing`，集成 4 大 Bento KPI、大盘列表与操作；单测独立通过。 |
 
