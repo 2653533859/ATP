@@ -77,7 +77,7 @@ flowchart TD
 |---|---|---|---|
 | UI3.1 `[x]` | **跨端测试智能迁移弹窗组件** | `frontend/src/views/workbench/components/CrossPlatformMigrationModal.vue` | 提供源平台与目标平台选择、步骤映射对比预览与一键转译生成；单测独立通过；见 docs/evidence/cross-platform-migration-modal-ui3-1-2026-10-17.md |
 | UI3.2 `[x]` | **双端功能一致性对比透视抽屉组件** | `frontend/src/views/workbench/components/ParityAlignmentDiffDrawer.vue` | 左右分栏对比双端页面控件树、高亮差异红斑与缺失控件；单测独立通过；见 docs/evidence/parity-alignment-diff-drawer-ui3-2-2026-10-17.md |
-| UI3.3 `[ ]` | **跨端迁移与一致性对齐工作台页面** | `frontend/src/views/workbench/CrossPlatformParityWorkbenchView.vue` | 落地路由 `/workbench/cross-platform-parity`，集成 4 大 Bento KPI、大盘列表与操作；单测独立通过。 |
+| UI3.3 `[x]` | **跨端迁移与一致性对齐工作台页面** | `frontend/src/views/workbench/CrossPlatformParityWorkbenchView.vue` | 落地路由 `/workbench/cross-platform-parity`，集成 4 大 Bento KPI、大盘列表与操作；单测独立通过；见 docs/evidence/cross-platform-parity-workbench-view-ui3-3-2026-10-17.md |
 
 ---
 

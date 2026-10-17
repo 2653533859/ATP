@@ -106,6 +106,14 @@ const router = createRouter({
           },
         },
         {
+          path: 'workbench/cross-platform-parity',
+          name: 'cross-platform-parity-workbench',
+          component: () => import('@/views/workbench/CrossPlatformParityWorkbenchView.vue'),
+          meta: {
+            roles: ENGINEER_ONLY,
+          },
+        },
+        {
           path: 'bugs',
           name: 'bugs',
           component: () => import('@/views/defect/DefectListView.vue'),
