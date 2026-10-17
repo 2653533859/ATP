@@ -14,7 +14,7 @@
 - [x] 2026-10-17 T2.1 真机故障热转移与断点续跑引擎：落地 `device_hot_failover_engine` 服务；500ms 内热迁移至同构设备断点续跑；单测独立通过，见 [`docs/evidence/device-hot-failover-engine-t2-1-2026-10-17.md`](docs/evidence/device-hot-failover-engine-t2-1-2026-10-17.md)。
 - [x] 2026-10-17 T2.2 设备过热保护与温备降载协调器：落地 `thermal_throttling_coordinator` 服务；超温静默降温与削减并发；单测独立通过，见 [`docs/evidence/thermal-throttling-coordinator-t2-2-2026-10-17.md`](docs/evidence/thermal-throttling-coordinator-t2-2-2026-10-17.md)。
 - [x] 2026-10-17 T2.3 动态反压与队列吞吐自适应均衡器：落地 `dynamic_backpressure_balancer` 服务；队列排队监控与自适应吞吐窗口；单测独立通过，见 [`docs/evidence/dynamic-backpressure-balancer-t2-3-2026-10-17.md`](docs/evidence/dynamic-backpressure-balancer-t2-3-2026-10-17.md)。至此 v5.4.0 Phase 2 全量大闭环！
-- [ ] 2026-10-17 UI3.1 设备集群实时健康与热力透视抽屉：落地 `DeviceFleetHealthDrawer.vue`；呈现设备温度热力图与电量梯度；单测独立通过。
+- [x] 2026-10-17 UI3.1 设备集群实时健康与热力透视抽屉：落地 `DeviceFleetHealthDrawer.vue`；呈现设备温度热力图与电量梯度；单测独立通过，见 [`docs/evidence/device-fleet-health-drawer-ui3-1-2026-10-17.md`](docs/evidence/device-fleet-health-drawer-ui3-1-2026-10-17.md)。
 - [ ] 2026-10-17 UI3.2 动态调度路由拓扑与队列模拟弹窗：落地 `SchedulerTopologyModal.vue`；提供模拟任务路由演算与匹配预览；单测独立通过。
 - [ ] 2026-10-17 UI3.3 真机集群并发调度中枢工作台页面：落地 `FleetSchedulerWorkbenchView.vue` 与 `/workbench/fleet-scheduler` 路由；单测独立通过。
 - [ ] 2026-10-17 T4.1 任务调度风暴熔断防雪崩看门狗：落地 `fleet_storm_guard` 服务；防范真机集群瞬间雪崩与重试风暴；单测独立通过。
