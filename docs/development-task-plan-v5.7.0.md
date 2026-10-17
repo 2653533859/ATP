@@ -59,7 +59,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T2.1 `[ ]` | **用例数据上下文有向无环图构建与环路检测器** | `backend/app/services/case_dag_dependency_builder.py` | 解析用例间显式/隐式数据依赖（如前置创建、Token共享），构建 DAG 并执行 Tarjan 算法环路死锁检测；单测独立通过。 |
+| T2.1 `[x]` | **用例数据上下文有向无环图构建与环路检测器** | `backend/app/services/case_dag_dependency_builder.py` | 解析用例间显式/隐式数据依赖（如前置创建、Token共享），构建 DAG 并执行 Tarjan 算法环路死锁检测；单测独立通过；见 docs/evidence/case-dag-dependency-builder-t2-1-2026-10-17.md |
 | T2.2 `[ ]` | **基于拓扑排序的并发波次分发与前置状态传递器** | `backend/app/services/dag_wave_execution_dispatcher.py` | 将 DAG 划分为多级独立波次（Waves），支持同波次最大并发调度与跨波次上下文变量安全管道传递；单测独立通过。 |
 | T2.3 `[ ]` | **拓扑中断级联跳过与孤立节点容错控制器** | `backend/app/services/dag_cascade_fault_controller.py` | 前置节点失败时智能级联跳过依赖下游（CASCADE_SKIPPED），同时安全调度无依赖孤立节点，防止雪崩误报；单测独立通过。 |
 
