@@ -26,159 +26,215 @@
       </div>
 
       <div class="toolbar-right">
-        <a-button size="small" class="toolbar-btn" @click="showTrafficRecording = true">
-          <ThunderboltOutlined /> 流量录制工作台
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showAssetGraph = true">
-          <ClusterOutlined /> 全景资产图谱
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showContractImpact = true">
-          <FileSearchOutlined /> 契约变更影响面
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showRegressionWizard = true">
-          <AimOutlined /> 精准回归向导
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showSandboxManager = true">
-          <CodeSandboxOutlined /> 仿真沙箱管理
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showSessionBus = true">
-          <BranchesOutlined /> 跨协议总线
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showSchemaDebugger = true">
-          <CheckCircleOutlined /> 柔性断言自愈
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showTraceFlamegraph = true">
-          <ApartmentOutlined /> 全链路火焰图
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showDiffAstViewer = true">
-          <CodeOutlined /> Diff AST 语义
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showMutationGenerator = true">
-          <ThunderboltOutlined /> 代码变异注入
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showMutationMonitor = true">
-          <BugOutlined /> 变异沙箱监控
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showGatekeeperDrawer = true">
-          <SafetyCertificateOutlined /> PR 质量门禁
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showBotDrawer = true">
-          <RobotOutlined /> PR Reviewer 机器人
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showTrafficCaptureDrawer = true">
-          <ClusterOutlined /> 旁路流量捕获
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showTrafficMaskerModal = true">
-          <SafetyCertificateOutlined /> 生产数据脱敏
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showTrafficSynthesizerDrawer = true">
-          <BuildOutlined /> 流量用例合成
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showShadowReplayDrawer = true">
-          <SendOutlined /> 影子流量回放
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showTrafficDiffDrawer = true">
-          <ApartmentOutlined /> 智能差分比对
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showLiveContractDrawer = true">
-          <BranchesOutlined /> 契约动态推导
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showBreakingEvaluatorDrawer = true">
-          <SafetyCertificateOutlined /> 契约破坏仲裁
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showChaosInjectorDrawer = true">
-          <ThunderboltOutlined /> 混沌故障注入
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showRtoRecoveryDrawer = true">
-          <SlidersOutlined /> 断路自愈大盘
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showTraceTreeDrawer = true">
-          <ClusterOutlined /> 调用链追踪
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showTraceAnomalyDrawer = true">
-          <BugOutlined /> 慢调用聚类
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showSagaTrackerDrawer = true">
-          <ApartmentOutlined /> 分布式事务
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showEventBusDrawer = true">
-          <MailOutlined /> 消息总线防线
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showRootCauseDrawer = true">
-          <AimOutlined /> 失败根因推导
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showFingerprintDrawer = true">
-          <BookOutlined /> 缺陷经验库
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showDefectDispatchDrawer = true">
-          <AuditOutlined /> 缺陷工单网关
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showLocatorHealingDrawer = true">
-          <ToolOutlined /> 选择器自愈
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showAssertionPatchDrawer = true">
-          <CodeOutlined /> 断言自适应补丁
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showAutoscalerDrawer = true">
-          <CloudServerOutlined /> 弹性集群伸缩
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showShardingDrawer = true">
-          <ApartmentOutlined /> 用例动态分片
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showConfigDriftDrawer = true">
-          <BranchesOutlined /> 跨环境配置漂移
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showIaCScannerDrawer = true">
-          <SecurityScanOutlined /> IaC 安全巡检
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showSynthesizerDrawer = true">
-          <RobotOutlined /> E2E 用例合成
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showSyntheticDataDrawer = true">
-          <DatabaseOutlined /> 业务测试数据
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showFuzzingDrawer = true">
-          <BugOutlined /> API 变异探查
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showHealthScoreDrawer = true">
-          <DashboardOutlined /> 质量健康大盘
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showReleaseGateModal = true">
-          <CheckCircleOutlined /> 发版准入门禁
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showVisualDiffDrawer = true">
-          <EyeOutlined /> 视觉 Diff 审视
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showBaselinePanel = true">
-          <StarOutlined /> 黄金基线演进
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showVlmDrawer = true">
-          <RobotOutlined /> VLM 语义断言
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showLayoutCard = true">
-          <ApartmentOutlined /> 布局碰撞检测
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showDesignTokensDrawer = true">
-          <FormatPainterOutlined /> 设计系统审查
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showWcagDrawer = true">
-          <SafetyCertificateOutlined /> a11y 扫描
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showKeyboardNavPanel = true">
-          <BookOutlined /> 键盘流转仿真
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showLongTaskDrawer = true">
-          <ThunderboltOutlined /> 长任务诊断
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showMemoryLeakDrawer = true">
-          <SlidersOutlined /> 内存泄漏探测
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showShadowTaintDrawer = true">
-          <BranchesOutlined /> 影子流量染色
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showShadowDbDrawer = true">
-          <DatabaseOutlined /> 影子库表隔离
-        </a-button>
+        <!-- 流量与契约工程下拉 -->
+        <a-dropdown>
+          <a-button size="small" class="toolbar-btn">
+            <BranchesOutlined /> 流量与契约 <DownOutlined />
+          </a-button>
+          <template #overlay>
+            <a-menu>
+              <a-menu-item @click="showTrafficRecording = true">
+                <ThunderboltOutlined /> 流量录制工作台
+              </a-menu-item>
+              <a-menu-item @click="showTrafficCaptureDrawer = true">
+                <ClusterOutlined /> 旁路流量捕获
+              </a-menu-item>
+              <a-menu-item @click="showTrafficMaskerModal = true">
+                <SafetyCertificateOutlined /> 生产数据脱敏
+              </a-menu-item>
+              <a-menu-item @click="showTrafficSynthesizerDrawer = true">
+                <BuildOutlined /> 流量用例合成
+              </a-menu-item>
+              <a-menu-item @click="showShadowReplayDrawer = true">
+                <SendOutlined /> 影子流量回放
+              </a-menu-item>
+              <a-menu-item @click="showTrafficDiffDrawer = true">
+                <ApartmentOutlined /> 智能差分比对
+              </a-menu-item>
+              <a-menu-item @click="showLiveContractDrawer = true">
+                <BranchesOutlined /> 契约动态推导
+              </a-menu-item>
+              <a-menu-item @click="showBreakingEvaluatorDrawer = true">
+                <SafetyCertificateOutlined /> 契约破坏仲裁
+              </a-menu-item>
+              <a-menu-item @click="showContractImpact = true">
+                <FileSearchOutlined /> 契约变更影响面
+              </a-menu-item>
+              <a-menu-item @click="showSessionBus = true">
+                <BranchesOutlined /> 跨协议总线
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
+
+        <!-- 架构混沌与全链路韧性下拉 -->
+        <a-dropdown>
+          <a-button size="small" class="toolbar-btn">
+            <ClusterOutlined /> 混沌与韧性 <DownOutlined />
+          </a-button>
+          <template #overlay>
+            <a-menu>
+              <a-menu-item @click="showChaosInjectorDrawer = true">
+                <ThunderboltOutlined /> 混沌故障注入
+              </a-menu-item>
+              <a-menu-item @click="showRtoRecoveryDrawer = true">
+                <SlidersOutlined /> 断路自愈大盘
+              </a-menu-item>
+              <a-menu-item @click="showTraceTreeDrawer = true">
+                <ClusterOutlined /> 调用链追踪
+              </a-menu-item>
+              <a-menu-item @click="showTraceAnomalyDrawer = true">
+                <BugOutlined /> 慢调用聚类
+              </a-menu-item>
+              <a-menu-item @click="showTraceFlamegraph = true">
+                <ApartmentOutlined /> 全链路火焰图
+              </a-menu-item>
+              <a-menu-item @click="showSagaTrackerDrawer = true">
+                <ApartmentOutlined /> 分布式事务
+              </a-menu-item>
+              <a-menu-item @click="showEventBusDrawer = true">
+                <MailOutlined /> 消息总线防线
+              </a-menu-item>
+              <a-menu-item @click="showShadowTaintDrawer = true">
+                <BranchesOutlined /> 影子流量染色
+              </a-menu-item>
+              <a-menu-item @click="showShadowDbDrawer = true">
+                <DatabaseOutlined /> 影子库表隔离
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
+
+        <!-- 变异注入与用例自愈下拉 -->
+        <a-dropdown>
+          <a-button size="small" class="toolbar-btn">
+            <CodeOutlined /> 变异与自愈 <DownOutlined />
+          </a-button>
+          <template #overlay>
+            <a-menu>
+              <a-menu-item @click="showMutationGenerator = true">
+                <ThunderboltOutlined /> 代码变异注入
+              </a-menu-item>
+              <a-menu-item @click="showMutationMonitor = true">
+                <BugOutlined /> 变异沙箱监控
+              </a-menu-item>
+              <a-menu-item @click="showDiffAstViewer = true">
+                <CodeOutlined /> Diff AST 语义
+              </a-menu-item>
+              <a-menu-item @click="showSchemaDebugger = true">
+                <CheckCircleOutlined /> 柔性断言自愈
+              </a-menu-item>
+              <a-menu-item @click="showLocatorHealingDrawer = true">
+                <ToolOutlined /> 选择器自愈
+              </a-menu-item>
+              <a-menu-item @click="showAssertionPatchDrawer = true">
+                <CodeOutlined /> 断言自适应补丁
+              </a-menu-item>
+              <a-menu-item @click="showFuzzingDrawer = true">
+                <BugOutlined /> API 变异探查
+              </a-menu-item>
+              <a-menu-item @click="showRootCauseDrawer = true">
+                <AimOutlined /> 失败根因推导
+              </a-menu-item>
+              <a-menu-item @click="showFingerprintDrawer = true">
+                <BookOutlined /> 缺陷经验库
+              </a-menu-item>
+              <a-menu-item @click="showDefectDispatchDrawer = true">
+                <AuditOutlined /> 缺陷工单网关
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
+
+        <!-- 前端体验与无障碍下拉 -->
+        <a-dropdown>
+          <a-button size="small" class="toolbar-btn">
+            <EyeOutlined /> 体验与 a11y <DownOutlined />
+          </a-button>
+          <template #overlay>
+            <a-menu>
+              <a-menu-item @click="showVisualDiffDrawer = true">
+                <EyeOutlined /> 视觉 Diff 审视
+              </a-menu-item>
+              <a-menu-item @click="showBaselinePanel = true">
+                <StarOutlined /> 黄金基线演进
+              </a-menu-item>
+              <a-menu-item @click="showVlmDrawer = true">
+                <RobotOutlined /> VLM 语义断言
+              </a-menu-item>
+              <a-menu-item @click="showLayoutCard = true">
+                <ApartmentOutlined /> 布局碰撞检测
+              </a-menu-item>
+              <a-menu-item @click="showDesignTokensDrawer = true">
+                <FormatPainterOutlined /> 设计系统审查
+              </a-menu-item>
+              <a-menu-item @click="showWcagDrawer = true">
+                <SafetyCertificateOutlined /> a11y 扫描
+              </a-menu-item>
+              <a-menu-item @click="showKeyboardNavPanel = true">
+                <BookOutlined /> 键盘流转仿真
+              </a-menu-item>
+              <a-menu-item @click="showLongTaskDrawer = true">
+                <ThunderboltOutlined /> 长任务诊断
+              </a-menu-item>
+              <a-menu-item @click="showMemoryLeakDrawer = true">
+                <SlidersOutlined /> 内存泄漏探测
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
+
+        <!-- 质量门禁与集群工程下拉 -->
+        <a-dropdown>
+          <a-button size="small" class="toolbar-btn">
+            <SafetyCertificateOutlined /> 门禁与集群 <DownOutlined />
+          </a-button>
+          <template #overlay>
+            <a-menu>
+              <a-menu-item @click="showGatekeeperDrawer = true">
+                <SafetyCertificateOutlined /> PR 质量门禁
+              </a-menu-item>
+              <a-menu-item @click="showBotDrawer = true">
+                <RobotOutlined /> PR Reviewer 机器人
+              </a-menu-item>
+              <a-menu-item @click="showHealthScoreDrawer = true">
+                <DashboardOutlined /> 质量健康大盘
+              </a-menu-item>
+              <a-menu-item @click="showReleaseGateModal = true">
+                <CheckCircleOutlined /> 发版准入门禁
+              </a-menu-item>
+              <a-menu-item @click="showAssetGraph = true">
+                <ClusterOutlined /> 全景资产图谱
+              </a-menu-item>
+              <a-menu-item @click="showRegressionWizard = true">
+                <AimOutlined /> 精准回归向导
+              </a-menu-item>
+              <a-menu-item @click="showSandboxManager = true">
+                <CodeSandboxOutlined /> 仿真沙箱管理
+              </a-menu-item>
+              <a-menu-item @click="showAutoscalerDrawer = true">
+                <CloudServerOutlined /> 弹性集群伸缩
+              </a-menu-item>
+              <a-menu-item @click="showShardingDrawer = true">
+                <ApartmentOutlined /> 用例动态分片
+              </a-menu-item>
+              <a-menu-item @click="showConfigDriftDrawer = true">
+                <BranchesOutlined /> 跨环境配置漂移
+              </a-menu-item>
+              <a-menu-item @click="showIaCScannerDrawer = true">
+                <SecurityScanOutlined /> IaC 安全巡检
+              </a-menu-item>
+              <a-menu-item @click="showSynthesizerDrawer = true">
+                <RobotOutlined /> E2E 用例合成
+              </a-menu-item>
+              <a-menu-item @click="showSyntheticDataDrawer = true">
+                <DatabaseOutlined /> 业务测试数据
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
+
+        <!-- 刷新常驻按钮 -->
         <a-button size="small" :loading="loading || environmentsLoading" class="toolbar-btn" @click="refreshWorkbench">
           <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
@@ -695,6 +751,7 @@ import {
   DashboardOutlined,
   EyeOutlined,
   StarOutlined,
+  DownOutlined,
 } from '@ant-design/icons-vue'
 import { parseStepFromCase, type ApiScenarioStep } from '@/types/apiScenario'
 import { useI18n } from 'vue-i18n'

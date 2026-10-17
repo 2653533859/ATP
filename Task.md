@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-17 v4.8.0 研发任务规划（进行中）
+
+> v4.8.0 规划入口为 [`docs/development-task-plan-v4.8.0.md`](docs/development-task-plan-v4.8.0.md)，覆盖 Phase 1（工具栏渐进式披露与操作认知降噪）、Phase 2（非标原生标签肃清与组件库基座归一化）、Phase 3（Bento 2.0 空间排版与交互加载质感升级）、Phase 4（数据大盘图表可解释性与穿透下钻）。
+
+- [x] 2026-10-17 UI1.1 API 工作台工具栏分组收纳与渐进式披露重构：将 35+ 平铺按钮重构为 5 大业务域分组下拉（流量契约、混沌韧性、变异自愈、体验a11y、门禁集群），彻底消除断行，1440px 视口无溢出；单测通过，见 [`docs/evidence/api-workbench-toolbar-progressive-disclosure-ui1-1-2026-10-17.md`](docs/evidence/api-workbench-toolbar-progressive-disclosure-ui1-1-2026-10-17.md)。
+- [ ] 2026-10-17 UI1.2 性能测试工作台工具栏动作分级与高维诊断折叠：将新增的 5 大高维容量与熔断抽屉收纳为“架构调度与自愈”与“容量水位与熔断”分组下拉菜单，保持顶栏清爽极简；单测通过。
+- [ ] 2026-10-17 UI1.3 报表中心与 Hermes 助手工具栏响应式与动作规范化：统一工具栏高度、按钮间距节奏与主次视觉权重，优化小屏分辨率弹性换行；单测通过。
+- [ ] 2026-10-17 UI2.1 配置中心原生 HTML 标签肃清与 AntD 样式对齐：移除原生 `<select class="project-select-native">` 与原生 `<button class="button-light">`，全量对齐 `<a-select>` 与 `<a-button>`；单测通过。
+- [ ] 2026-10-17 UI2.2 Hermes 计划草稿面板非标输入与复选框规范化：移除原生 `<input>` 与 `<input type="checkbox">`，替换为 `<a-input>` 与 `<a-checkbox>`，对齐 Bento 聚焦微光环；单测通过。
+- [ ] 2026-10-17 UI2.3 全站 WCAG 2.1 AA 级对比度校准与主题变量升级：调整浅色模式 `--c-text-tertiary` 从 `#6e6b7b` 升级为 `#475569`（Slate 600），确保浅色背景对比度 ≥ 4.5:1，微调暗色边框与卡片层级；单测通过。
+- [ ] 2026-10-17 UI3.1 全站 KPI 与统计卡片等宽数字字体与视觉锚点增强：为所有 `.kpi-value`, `.stat-card`, `.aggregate-report-value` 注入等宽数字 `font-variant-numeric: tabular-nums`，强化大号数值与辅助文字的反差梯度；单测通过。
+- [ ] 2026-10-17 UI3.2 用例列表 Bento 统计卡与下方表格交互联动闭环：实现点击顶部 4 个 Bento Tile（全部用例、业务模块、待评审、Flaky抖动）自动作为过滤器联动过滤下方表格；单测通过。
+- [ ] 2026-10-17 UI3.3 核心页面与卡片骨架屏 (Skeleton) 预占位接入：替换局部纯 Spinner 转圈为平滑骨架屏（`<a-skeleton>`），显著压降首屏异步渲染累积布局位移 (CLS)；单测通过。
+- [ ] 2026-10-17 UI4.1 质量大盘与报表折线图通过率/安全阈值基线接入：在趋势折线图中增加 90% 合格基线（绿色 MarkLine）与 75% 警戒带，提供直观的指标安全区间；单测通过。
+- [ ] 2026-10-17 UI4.2 图表点击穿透联动表格筛选 (Cross-filtering) 闭环：点击失败原因分布饼图扇区，自动联动跳转或过滤关联失败用例/执行明细；单测通过。
+- [ ] 2026-10-17 UI4.3 v4.8.0 UI/UX 体验重构综合验收与发布说明：执行全量前端测试与生产构建验证，归档发布说明与工程交付证据。
+
 ## 2026-10-17 v4.7.0 研发任务规划（已全量闭环）
 
 > v4.7.0 规划入口为 [`docs/development-task-plan-v4.7.0.md`](docs/development-task-plan-v4.7.0.md)，覆盖 Phase 1（全链路影子流量染色、库表防污染与 MQ 隔离控制台）、Phase 2（单元化架构测试隔离 Cell-based Testing 与容灾切流看板）、Phase 3（压测容量水位实时监控与防雪崩自适应熔断控制台）、Phase 4（全链路压测拐点分析、爆炸半径审计与复盘决策大盘）。

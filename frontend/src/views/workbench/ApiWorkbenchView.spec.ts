@@ -274,6 +274,13 @@ const tableStub = defineComponent({
 const globalStubs = {
   AAlert: passthrough('AAlert'),
   AButton: buttonStub,
+  ADropdown: defineComponent({ name: 'ADropdown', setup: (_props, { slots }) => () => h('div', [slots.default?.(), slots.overlay?.()]) }),
+  AMenu: passthrough('AMenu'),
+  AMenuItem: defineComponent({
+    name: 'AMenuItem',
+    emits: ['click'],
+    setup: (_props, { slots, emit }) => () => h('div', { class: 'ant-dropdown-menu-item', onClick: () => emit('click') }, slots.default?.()),
+  }),
   ADrawer: passthrough('ADrawer'),
   AEmpty: passthrough('AEmpty'),
   AForm: passthrough('AForm'),
@@ -287,6 +294,7 @@ const globalStubs = {
   ATag: passthrough('ATag'),
   ApiOutlined: true,
   FilterOutlined: true,
+  DownOutlined: true,
   PlayCircleOutlined: true,
   PlusOutlined: true,
   ReloadOutlined: true,
