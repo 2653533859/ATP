@@ -22,11 +22,11 @@
     <div class="plan-form-grid">
       <label>
         <span>{{ t('hermes.plan_name') }}</span>
-        <input v-model="draft.name" maxlength="256" />
+        <a-input v-model:value="draft.name" :maxlength="256" />
       </label>
       <label>
         <span>{{ t('hermes.plan_objective') }}</span>
-        <textarea v-model="draft.objective" maxlength="2000" rows="3" />
+        <a-textarea v-model:value="draft.objective" :maxlength="2000" :rows="3" />
       </label>
     </div>
     <div class="plan-points">
@@ -38,7 +38,7 @@
       </div>
       <div v-for="(_, index) in draft.testPoints" :key="`point-${index}`" class="point-row">
         <span>{{ String(index + 1).padStart(2, '0') }}</span>
-        <input v-model="draft.testPoints[index]" maxlength="512" />
+        <a-input v-model:value="draft.testPoints[index]" :maxlength="512" />
         <button type="button" class="icon-action" :aria-label="t('hermes.remove_point')" @click="emit('remove-point', index)">
           <CloseOutlined />
         </button>
@@ -58,7 +58,7 @@
           <small>{{ t('hermes.plan_suite_hint') }}</small>
         </div>
         <label v-for="item in draft.suiteSuggestions" :key="item.id" class="draft-regression-row">
-          <input v-model="item.selected" type="checkbox" />
+          <a-checkbox v-model:checked="item.selected" />
           <span class="draft-regression-copy"><strong>{{ item.name }}</strong><small>{{ item.reason }}</small></span>
           <button type="button" class="text-action" @click="emit('open-path', item.path)">{{ t('hermes.view_evidence') }}</button>
         </label>
@@ -70,7 +70,7 @@
           <small>{{ t('hermes.plan_scope_hint') }}</small>
         </div>
         <div v-for="module in draft.scopeModules" :key="module.id" class="draft-check-row">
-          <input v-model="module.selected" type="checkbox" />
+          <a-checkbox v-model:checked="module.selected" />
           <button type="button" class="draft-item-link" @click="emit('open-path', module.path)">
             {{ module.name }} <ArrowRightOutlined />
           </button>
@@ -83,12 +83,12 @@
           <small>{{ t('hermes.plan_case_hint') }}</small>
         </div>
         <div v-for="item in draft.caseDrafts" :key="item.id" class="draft-case-row">
-          <label class="draft-check-row"><input v-model="item.selected" type="checkbox" /></label>
+          <label class="draft-check-row"><a-checkbox v-model:checked="item.selected" /></label>
           <button type="button" class="draft-item-link" @click="emit('open-path', item.path)">
             {{ item.id }} <ArrowRightOutlined />
           </button>
-          <input v-model="item.title" class="draft-case-title" maxlength="256" :aria-label="t('hermes.plan_case_title')" />
-          <input v-model="item.expected" class="draft-case-expected" maxlength="512" :aria-label="t('hermes.plan_case_expected')" />
+          <a-input v-model:value="item.title" class="draft-case-title" :maxlength="256" :aria-label="t('hermes.plan_case_title')" />
+          <a-input v-model:value="item.expected" class="draft-case-expected" :maxlength="512" :aria-label="t('hermes.plan_case_expected')" />
         </div>
         <p v-if="!draft.caseDrafts.length" class="draft-empty">{{ t('hermes.plan_no_cases') }}</p>
       </section>
@@ -100,7 +100,7 @@
           <small>{{ t('hermes.plan_regression_hint') }}</small>
         </div>
         <label v-for="item in draft.regressionScope" :key="item.taskId" class="draft-regression-row">
-          <input v-model="item.selected" type="checkbox" />
+          <a-checkbox v-model:checked="item.selected" />
           <span class="draft-regression-copy"><strong>{{ item.name }}</strong><small>{{ item.reason }}</small></span>
           <button type="button" class="text-action" @click="emit('open-path', item.path)">{{ t('hermes.view_evidence') }}</button>
         </label>

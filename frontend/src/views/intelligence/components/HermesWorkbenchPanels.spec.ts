@@ -38,6 +38,24 @@ const globalStubs = {
   ATag: defineComponent({ setup: (_props, { slots }) => () => h('span', slots.default?.()) }),
   ARadioGroup: defineComponent({ props: ['value'], emits: ['update:value'], setup: (_props, { slots }) => () => h('div', slots.default?.()) }),
   ARadioButton: defineComponent({ props: ['value'], setup: (_props, { slots }) => () => h('button', slots.default?.()) }),
+  AInput: defineComponent({
+    props: ['value'],
+    emits: ['update:value'],
+    setup: (props, { emit }) => () => h('input', { value: props.value, onInput: (e: any) => emit('update:value', e.target.value) }),
+  }),
+  ATextarea: defineComponent({
+    props: ['value'],
+    emits: ['update:value'],
+    setup: (props, { emit }) => () => h('textarea', { value: props.value, onInput: (e: any) => emit('update:value', e.target.value) }),
+  }),
+  ACheckbox: defineComponent({
+    props: ['checked'],
+    emits: ['update:checked'],
+    setup: (props, { emit, slots }) => () => h('label', [
+      h('input', { type: 'checkbox', checked: props.checked, onChange: (e: any) => emit('update:checked', e.target.checked) }),
+      slots.default?.(),
+    ]),
+  }),
 }
 
 const failedTask: WorkbenchTaskItem = {
