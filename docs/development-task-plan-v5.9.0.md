@@ -61,7 +61,7 @@ flowchart TD
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T2.1 `[x]` | **未覆盖高危分支路径漏洞挖掘器** | `backend/app/services/uncovered_branch_risk_analyzer.py` | 深度识别未覆盖的支付异常、权限鉴权与重试分支，评估严重度（P0/P1/P2）；单测独立通过；见 docs/evidence/uncovered-branch-risk-analyzer-t2-1-2026-10-18.md |
-| T2.2 `[ ]` | **缺失用例场景反向合成与测试输入推导器** | `backend/app/services/coverage_gap_test_synthesizer.py` | 依据未覆盖分支逻辑，推导边界输入并生成用例建议草稿；单测独立通过。 |
+| T2.2 `[x]` | **缺失用例场景反向合成与测试输入推导器** | `backend/app/services/coverage_gap_test_synthesizer.py` | 依据未覆盖分支逻辑，推导边界输入并生成用例建议草稿；单测独立通过；见 docs/evidence/coverage-gap-test-synthesizer-t2-2-2026-10-18.md |
 | T2.3 `[ ]` | **增量覆盖率发布准入卡点与红线裁决器** | `backend/app/services/incremental_coverage_gate_evaluator.py` | 对标发布准入红线（如增量覆盖率 ≥ 85%），未达标自动出具阻断结论与整改清单；单测独立通过。 |
 
 ---
