@@ -10,7 +10,7 @@
 
 - [x] 2026-10-17 T1.1 跨端统一语义动作模型与映射器：落地 `cross_platform_action_mapper` 服务；统一抽象动作并实现 Web/iOS/Android 双向转译；单测独立通过，见 [`docs/evidence/cross-platform-action-mapper-t1-1-2026-10-17.md`](docs/evidence/cross-platform-action-mapper-t1-1-2026-10-17.md)。
 - [x] 2026-10-17 T1.2 跨端控件模糊语义匹配与转换器：落地 `cross_platform_element_translator` 服务；基于文本与上下文标签模糊推导目标平台控件；单测独立通过，见 [`docs/evidence/cross-platform-element-translator-t1-2-2026-10-17.md`](docs/evidence/cross-platform-element-translator-t1-2-2026-10-17.md)。
-- [ ] 2026-10-17 T1.3 用例跨端迁移与执行 REST API：落地 `cross_platform_migration_api` 路由；提供用例迁移转换与批量迁移端点；单测独立通过。
+- [x] 2026-10-17 T1.3 用例跨端迁移与执行 REST API：落地 `cross_platform_migration_api` 路由；提供用例迁移转换与批量迁移端点；单测独立通过，见 [`docs/evidence/cross-platform-migration-api-t1-3-2026-10-17.md`](docs/evidence/cross-platform-migration-api-t1-3-2026-10-17.md)。至此 v5.3.0 Phase 1 全量大闭环！
 - [ ] 2026-10-17 T2.1 双端 UI 与状态树对齐分析器：落地 `parity_alignment_analyzer` 服务；对比双端界面状态树并计算节点匹配矩阵；单测独立通过。
 - [ ] 2026-10-17 T2.2 双端功能差异与缺失控件侦测器：落地 `parity_gap_detector` 服务；自动识别单端缺失功能按钮与跳转链路差异；单测独立通过。
 - [ ] 2026-10-17 T2.3 双端一致性评分与兼容性报表引擎：落地 `parity_scoring_engine` 服务；计算一致性健康分与多维兼容合规数据；单测独立通过。

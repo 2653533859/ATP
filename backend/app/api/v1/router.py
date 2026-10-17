@@ -46,6 +46,7 @@ from app.api.v1 import (
     hybrid_workflow_api,
     coverage_lineage_api,
     intent_workflow_api,
+    cross_platform_migration_api,
     users,
     health,
     workbench,
@@ -200,6 +201,7 @@ router.include_router(ios_tunnel_api.router)
 router.include_router(hybrid_workflow_api.router)
 router.include_router(coverage_lineage_api.router)
 router.include_router(intent_workflow_api.router)
+router.include_router(cross_platform_migration_api.router)
 router.include_router(users.router)
 router.include_router(health.router)
 router.include_router(local_files.router)
