@@ -28,6 +28,10 @@ from app.services.exploration_anomaly_detector import (
 from app.services.exploration_to_workflow_converter import (
     convert_exploration_to_workflow,
 )
+from app.services.autonomous_exploration_safety_guard import (
+    evaluate_action_safety,
+    list_safety_violations,
+)
 
 router = APIRouter(prefix="/workflow/intent", tags=["Intent-Driven Workflow Synthesizer"])
 
@@ -62,6 +66,13 @@ class ConvertExplorationRequest(BaseModel):
     session_id: str = Field(..., description="探索会话 ID")
     workflow_id: Optional[str] = Field(None, description="工作流 ID")
     workflow_name: Optional[str] = Field(None, description="工作流名称")
+
+
+class EvaluateActionSafetyRequest(BaseModel):
+    session_id: str = Field(..., description="探索会话 ID")
+    action_type: str = Field(..., description="动作类型 (TAP | INPUT | SWIPE)")
+    target_element_label: str = Field("", description="目标控件文本")
+    input_text: Optional[str] = Field(None, description="输入文本 (若有)")
 
 
 @router.post("/generate")
@@ -231,4 +242,37 @@ def list_anomalies_endpoint(
     return {
         "total": len(anomalies),
         "anomalies": anomalies,
+    }
+
+
+@router.post("/exploration/safety/evaluate")
+def evaluate_safety_endpoint(
+    payload: EvaluateActionSafetyRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """审查待执行手势动作的安全性，防范高危破坏性操作"""
+    verdict, violation = evaluate_action_safety(
+        session_id=payload.session_id,
+        action_type=payload.action_type,
+        target_element_label=payload.target_element_label,
+        input_text=payload.input_text,
+    )
+    return {
+        "verdict": verdict.value,
+        "is_blocked": verdict.value == "BLOCK",
+        "violation": violation.to_dict() if violation else None,
+    }
+
+
+@router.get("/exploration/safety/violations")
+def list_safety_violations_endpoint(
+    session_id: Optional[str] = None,
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询探索中被看门狗阻断的高危敏感操作记录"""
+    violations = list_safety_violations(session_id=session_id, limit=limit)
+    return {
+        "total": len(violations),
+        "violations": violations,
     }

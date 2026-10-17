@@ -120,3 +120,25 @@ def test_autonomous_exploration_endpoints():
     anom_resp = client.get("/api/v1/workflow/intent/exploration/anomalies/list", headers=HEADERS)
     assert anom_resp.status_code == 200
     assert isinstance(anom_resp.json()["anomalies"], list)
+
+    # 7. 评估高危动作阻断
+    eval_resp = client.post(
+        "/api/v1/workflow/intent/exploration/safety/evaluate",
+        json={
+            "session_id": session_id,
+            "action_type": "TAP",
+            "target_element_label": "确认注销账号",
+        },
+        headers=HEADERS,
+    )
+    assert eval_resp.status_code == 200
+    assert eval_resp.json()["is_blocked"] is True
+    assert eval_resp.json()["verdict"] == "BLOCK"
+
+    # 8. 查询违规拦截记录
+    viol_resp = client.get(
+        "/api/v1/workflow/intent/exploration/safety/violations",
+        headers=HEADERS,
+    )
+    assert viol_resp.status_code == 200
+    assert viol_resp.json()["total"] >= 1

@@ -257,6 +257,7 @@ def decide_and_step_exploration(
 
     # 3. 启发式动作决策 (优先点击未探索过的按钮或输入框)
     clickable_elements = [e for e in elements if e.clickable]
+    decided_action: Dict[str, Any]
     if not clickable_elements:
         # 无可点击项时，尝试返回或上滑
         decided_action = {
@@ -283,6 +284,24 @@ def decide_and_step_exploration(
                 "coords": [cx, cy],
             }
 
+    # 3.5 高危动作防护看门狗介入 (Safety Guard Interception - T4.1)
+    from app.services.autonomous_exploration_safety_guard import SafetyVerdict, evaluate_action_safety
+
+    verdict, violation = evaluate_action_safety(
+        session_id=session.session_id,
+        action_type=decided_action["action_type"],
+        target_element_label=str(decided_action.get("target_label", "")),
+        input_text=decided_action.get("input_text"),
+    )
+    if verdict == SafetyVerdict.BLOCK and violation:
+        session.status = "CIRCUIT_BROKEN"
+        decided_action = {
+            "action_type": ExplorationActionType.TERMINATE.value,
+            "blocked": True,
+            "reason": violation.explanation,
+            "violation_id": violation.violation_id,
+        }
+        return session, decided_action
     # 4. 记录状态转移边 (Transition)
     edge = StateTransitionEdge(
         transition_id=f"trans_{uuid.uuid4().hex[:8]}",
