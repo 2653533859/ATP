@@ -17,7 +17,7 @@
 - [x] 2026-10-17 UI3.1 混沌故障注入拓扑与稳态指标透视抽屉：落地 `ChaosExperimentInspectionDrawer.vue`；实时拓扑图、稳态偏离曲线与注入控制；单测独立通过，见 [`docs/evidence/chaos-experiment-inspection-drawer-ui3-1-2026-10-17.md`](docs/evidence/chaos-experiment-inspection-drawer-ui3-1-2026-10-17.md)。
 - [x] 2026-10-17 UI3.2 爆炸半径围栏配置与紧急熔断监控弹窗：落地 `BlastRadiusConfigModal.vue`；爆炸半径红线交互配置与安全回滚；单测独立通过，见 [`docs/evidence/blast-radius-config-modal-ui3-2-2026-10-17.md`](docs/evidence/blast-radius-config-modal-ui3-2-2026-10-17.md)。
 - [x] 2026-10-17 UI3.3 分布式混沌工程与弹性韧性演练工作台中枢页面：落地 `ChaosEngineeringWorkbenchView.vue` 与 `/workbench/chaos-engineering` 路由；单测独立通过，见 [`docs/evidence/chaos-engineering-workbench-view-ui3-3-2026-10-17.md`](docs/evidence/chaos-engineering-workbench-view-ui3-3-2026-10-17.md)。至此 v5.8.0 Phase 3 全量大闭环！
-- [ ] 2026-10-17 T4.1 混沌演练非生产隔离与绝对安全围栏看门狗：落地 `chaos_safety_boundary_guard` 服务；防范生产关键库被误注入与权限阻断；单测独立通过。
+- [x] 2026-10-17 T4.1 混沌演练非生产隔离与绝对安全围栏看门狗：落地 `chaos_safety_boundary_guard` 服务；防范生产关键库被误注入与权限阻断；单测独立通过，见 [`docs/evidence/chaos-safety-boundary-guard-t4-1-2026-10-17.md`](docs/evidence/chaos-safety-boundary-guard-t4-1-2026-10-17.md)。
 - [ ] 2026-10-17 T4.2 混沌实验结论与韧性得分 64 位 SHA-256 存证证书器：落地 `chaos_evidence_signer` 服务；为演练记录与稳态报告签发存证证书；单测独立通过。
 - [ ] 2026-10-17 T4.3 v5.8.0 混沌工程与弹性韧性中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.8.0-release-notes.md` 与专项交付证据。
 
