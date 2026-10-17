@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-18 v5.9.0 研发任务规划（进行中）
+## 2026-10-18 v5.9.0 研发任务规划（已全量闭环）
 
 > v5.9.0 规划入口为 [`docs/development-task-plan-v5.9.0.md`](docs/development-task-plan-v5.9.0.md)，覆盖 Phase 1（多源覆盖率数据摄取与增量 Diff 行级染色引擎）、Phase 2（未覆盖高危分支分析与自动化测试补齐推荐器）、Phase 3（覆盖率全景染色看板与源码级透视工作台）、Phase 4（生产发布阻断安全沙箱、合规存证与全量发布）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-18 UI3.3 全链路代码覆盖率与质量门禁工作台中枢页面：落地 `CodeCoverageWorkbenchView.vue` 与 `/workbench/code-coverage` 路由；单测独立通过，见 [`docs/evidence/code-coverage-workbench-view-ui3-3-2026-10-18.md`](docs/evidence/code-coverage-workbench-view-ui3-3-2026-10-18.md)。至此 v5.9.0 Phase 3 全量大闭环！
 - [x] 2026-10-18 T4.1 质量门禁发布强阻断与非合规豁免审批看门狗：落地 `coverage_release_blocker_guard` 服务；CI/CD 发布阻断与合规审批单豁免；单测独立通过，见 [`docs/evidence/coverage-release-blocker-guard-t4-1-2026-10-18.md`](docs/evidence/coverage-release-blocker-guard-t4-1-2026-10-18.md)。
 - [x] 2026-10-18 T4.2 覆盖率评估报告与染色结果 64 位 SHA-256 存证证书器：落地 `coverage_evidence_signer` 服务；为覆盖率报告与染色数据签发存证证书；单测独立通过，见 [`docs/evidence/coverage-evidence-signer-t4-2-2026-10-18.md`](docs/evidence/coverage-evidence-signer-t4-2-2026-10-18.md)。
-- [ ] 2026-10-18 T4.3 v5.9.0 全链路代码覆盖率中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.9.0-release-notes.md` 与专项交付证据。
+- [x] 2026-10-18 T4.3 v5.9.0 全链路代码覆盖率中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.9.0-release-notes.md` 与专项交付证据，见 [`docs/evidence/v5-9-0-code-coverage-platform-acceptance-2026-10-18.md`](docs/evidence/v5-9-0-code-coverage-platform-acceptance-2026-10-18.md)。至此 v5.9.0 全量大闭环！
 
 ## 2026-10-17 v5.8.0 研发任务规划（已全量闭环）
 
