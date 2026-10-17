@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-17 v4.8.0 研发任务规划（进行中）
+## 2026-10-17 v4.8.0 研发任务规划（已全量闭环）
 
 > v4.8.0 规划入口为 [`docs/development-task-plan-v4.8.0.md`](docs/development-task-plan-v4.8.0.md)，覆盖 Phase 1（工具栏渐进式披露与操作认知降噪）、Phase 2（非标原生标签肃清与组件库基座归一化）、Phase 3（Bento 2.0 空间排版与交互加载质感升级）、Phase 4（数据大盘图表可解释性与穿透下钻）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-17 UI3.3 核心页面与卡片骨架屏 (Skeleton) 预占位接入：替换局部纯 Spinner 转圈为平滑骨架屏（`<a-skeleton>`），显著压降首屏异步渲染累积布局位移 (CLS)；单测通过，见 [`docs/evidence/dashboard-skeleton-loading-state-ui3-3-2026-10-17.md`](docs/evidence/dashboard-skeleton-loading-state-ui3-3-2026-10-17.md)。至此 v4.8.0 Phase 3 全量大闭环！
 - [x] 2026-10-17 UI4.1 质量大盘与报表折线图通过率/安全阈值基线接入：在趋势折线图中增加 90% 合格基线（绿色 MarkLine）与 75% 警戒红线，提供直观的指标安全区间；单测通过，见 [`docs/evidence/dashboard-and-report-threshold-baselines-ui4-1-2026-10-17.md`](docs/evidence/dashboard-and-report-threshold-baselines-ui4-1-2026-10-17.md)。
 - [x] 2026-10-17 UI4.2 图表点击穿透联动表格筛选 (Cross-filtering) 闭环：点击失败原因、趋势、用例类型分布等扇区与数据点，自动联动跳转至运行/用例明细；单测通过，见 [`docs/evidence/dashboard-chart-cross-filtering-drilldown-ui4-2-2026-10-17.md`](docs/evidence/dashboard-chart-cross-filtering-drilldown-ui4-2-2026-10-17.md)。
-- [ ] 2026-10-17 UI4.3 v4.8.0 UI/UX 体验重构综合验收与发布说明：执行全量前端测试与生产构建验证，归档发布说明与工程交付证据。
+- [x] 2026-10-17 UI4.3 v4.8.0 UI/UX 体验重构综合验收与发布说明：执行全量前端测试与生产构建验证，归档发布说明与工程交付证据，见 [`docs/evidence/v4-8-0-ui-ux-consolidation-summary-acceptance-2026-10-17.md`](docs/evidence/v4-8-0-ui-ux-consolidation-summary-acceptance-2026-10-17.md)。至此 v4.8.0 全版本 4 大阶段共 12 项重构任务全量大闭环！
 
 ## 2026-10-17 v4.7.0 研发任务规划（已全量闭环）
 

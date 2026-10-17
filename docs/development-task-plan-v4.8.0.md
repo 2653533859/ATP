@@ -50,7 +50,7 @@
 |---|---|---|---|
 | UI4.1 `[x]` | **质量大盘与报表折线图通过率/安全阈值基线接入** | `frontend/src/views/dashboard/DashboardView.vue`, `ReportCenterView.vue` | 在趋势折线图中增加 90% 合格基线（绿色 MarkLine）与 75% 警戒红线，提供直观的指标安全区间；单测通过；见 docs/evidence/dashboard-and-report-threshold-baselines-ui4-1-2026-10-17.md |
 | UI4.2 `[x]` | **图表点击穿透联动表格筛选 (Cross-filtering) 闭环** | `frontend/src/views/dashboard/DashboardView.vue` | 点击失败原因、趋势、用例类型分布等扇区与数据点，自动联动跳转至运行/用例明细；单测通过；见 docs/evidence/dashboard-chart-cross-filtering-drilldown-ui4-2-2026-10-17.md |
-| UI4.3 `[ ]` | **v4.8.0 UI/UX 体验重构综合验收与发布说明** | 全局体验回归 | 执行全量前端测试与生产构建验证，归档发布说明与工程交付证据。 |
+| UI4.3 `[x]` | **v4.8.0 UI/UX 体验重构综合验收与发布说明** | 全局体验回归 | 执行全量前端测试与生产构建验证，归档发布说明与工程交付证据；见 docs/evidence/v4-8-0-ui-ux-consolidation-summary-acceptance-2026-10-17.md |
 
 ---
 
