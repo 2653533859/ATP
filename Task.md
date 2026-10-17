@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-17 v5.7.0 研发任务规划（进行中）
+
+> v5.7.0 规划入口为 [`docs/development-task-plan-v5.7.0.md`](docs/development-task-plan-v5.7.0.md)，覆盖 Phase 1（代码变更 AST 影响面追踪与符号依赖映射器）、Phase 2（用例 DAG 依赖拓扑编排与执行波次调度器）、Phase 3（增量回归拓扑中枢与精准演练工作台）、Phase 4（漏测风险防护围栏看门狗、存证证书与全量发布）。
+
+- [ ] 2026-10-17 T1.1 Git Diff 与 AST 变更高危符号提取器：落地 `code_diff_symbol_extractor` 服务；解析代码 Diff 补丁并基于 AST 提取变更类与函数；单测独立通过。
+- [ ] 2026-10-17 T1.2 接口-函数-用例三维调用链拓扑映射引擎：落地 `symbol_call_graph_mapper` 服务；建立符号到端点及用例的调用拓扑血缘；单测独立通过。
+- [ ] 2026-10-17 T1.3 增量影响面计算与精准用例推荐 REST API：落地 `precision_regression_api` 路由；提供影响面分析与精准用例推荐端点；单测独立通过。
+- [ ] 2026-10-17 T2.1 用例数据上下文有向无环图构建与环路检测器：落地 `case_dag_dependency_builder` 服务；构建用例 DAG 并执行 Tarjan 算法环路死锁检测；单测独立通过。
+- [ ] 2026-10-17 T2.2 基于拓扑排序的并发波次分发与前置状态传递器：落地 `dag_wave_execution_dispatcher` 服务；DAG 波次划分与跨波次上下文变量传递；单测独立通过。
+- [ ] 2026-10-17 T2.3 拓扑中断级联跳过与孤立节点容错控制器：落地 `dag_cascade_fault_controller` 服务；前置失败级联跳过与孤立节点安全并发；单测独立通过。
+- [ ] 2026-10-17 UI3.1 用例依赖 DAG 拓扑可视化与影响面透视抽屉：落地 `CaseDagTopologyDrawer.vue`；呈现交互式 DAG 拓扑图与波次分级卡片；单测独立通过。
+- [ ] 2026-10-17 UI3.2 增量用例推荐与影响分析对比模拟弹窗：落地 `PrecisionSelectionDiffModal.vue`；全量 vs 增量推荐对比与 AST 符号树展示；单测独立通过。
+- [ ] 2026-10-17 UI3.3 智能增量回归编排工作台中枢页面：落地 `PrecisionRegressionWorkbenchView.vue` 与 `/workbench/precision-regression` 路由；单测独立通过。
+- [ ] 2026-10-17 T4.1 增量筛选漏测风险动态防线看门狗：落地 `regression_leak_safety_guard` 服务；防范核心模块被过度裁剪与漏测阻断；单测独立通过。
+- [ ] 2026-10-17 T4.2 增量用例推荐与拓扑调度 64 位 SHA-256 存证证书器：落地 `precision_evidence_signer` 服务；为增量决策与 DAG 调度签发存证证书；单测独立通过。
+- [ ] 2026-10-17 T4.3 v5.7.0 智能增量回归中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.7.0-release-notes.md` 与专项交付证据。
+
 ## 2026-10-17 v5.6.0 研发任务规划（已全量闭环）
 
 > v5.6.0 规划入口为 [`docs/development-task-plan-v5.6.0.md`](docs/development-task-plan-v5.6.0.md)，覆盖 Phase 1（生产流量脱敏镜像与分布式录制过滤器）、Phase 2（智能响应差异比对与自适应噪声消除器）、Phase 3（流量回放中枢与变异演练工作台）、Phase 4（外部调用防击穿安全沙箱、合规存证与全量发布）。
