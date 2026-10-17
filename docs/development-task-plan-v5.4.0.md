@@ -76,7 +76,7 @@ flowchart TD
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI3.1 `[x]` | **设备集群实时健康与热力透视抽屉** | `frontend/src/views/workbench/components/DeviceFleetHealthDrawer.vue` | 可视化展示真实设备池实时温度热力图、电池电量梯度与当前绑定任务拓扑；单测独立通过；见 docs/evidence/device-fleet-health-drawer-ui3-1-2026-10-17.md |
-| UI3.2 `[ ]` | **动态调度路由拓扑与队列模拟弹窗** | `frontend/src/views/workbench/components/SchedulerTopologyModal.vue` | 提供模拟任务路由演算、分配权重参数调节与节点匹配预览；单测独立通过。 |
+| UI3.2 `[x]` | **动态调度路由拓扑与队列模拟弹窗** | `frontend/src/views/workbench/components/SchedulerTopologyModal.vue` | 提供模拟任务路由演算、分配权重参数调节与节点匹配预览；单测独立通过；见 docs/evidence/scheduler-topology-modal-ui3-2-2026-10-17.md |
 | UI3.3 `[ ]` | **真机集群并发调度中枢工作台页面** | `frontend/src/views/workbench/FleetSchedulerWorkbenchView.vue` | 落地路由 `/workbench/fleet-scheduler`，集成 4 大 Bento KPI、大盘列表与操作；单测独立通过。 |
 
 ---
