@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-17 v5.1.0 研发任务规划（进行中）
+
+> v5.1.0 规划入口为 [`docs/development-task-plan-v5.1.0.md`](docs/development-task-plan-v5.1.0.md)，覆盖 Phase 1（拖拽式多协议多端工作流 DAG 编排引擎）、Phase 2（低代码可视化漏测血缘与测试间隙识别器）、Phase 3（可视化拖拽工作流画布与漏测血缘全景大盘）、Phase 4（容灾沙箱、执行签名与全量发布）。
+
+- [x] 2026-10-17 T1.1 多协议多端工作流拓扑 DAG 执行引擎：落地 `hybrid_workflow_dag_engine` 服务与拓扑排序调度器；支持 HTTP、gRPC、Web UI、Android、iOS、SQL 与分支判断节点协同执行；单测独立通过，见 [`docs/evidence/hybrid-workflow-dag-engine-t1-1-t1-3-2026-10-17.md`](docs/evidence/hybrid-workflow-dag-engine-t1-1-t1-3-2026-10-17.md)。
+- [x] 2026-10-17 T1.2 跨节点动态变量总线与表达式求值器：落地 `workflow_context_variable_bus` 服务；实现 `{{node.output.field}}` 跨端变量求值提取与动态注入；单测独立通过，见 [`docs/evidence/hybrid-workflow-dag-engine-t1-1-t1-3-2026-10-17.md`](docs/evidence/hybrid-workflow-dag-engine-t1-1-t1-3-2026-10-17.md)。
+- [x] 2026-10-17 T1.3 混合工作流编排与执行管理 REST API：落地 `hybrid_workflow_api` 路由；提供工作流草稿保存、一键触发执行与节点执行日志跟踪；单测独立通过，见 [`docs/evidence/hybrid-workflow-dag-engine-t1-1-t1-3-2026-10-17.md`](docs/evidence/hybrid-workflow-dag-engine-t1-1-t1-3-2026-10-17.md)。至此 v5.1.0 Phase 1 全量大闭环！
+- [ ] 2026-10-17 T2.1 业务分支与契约多维漏测血缘分析器：落地 `visual_coverage_lineage_analyzer` 服务；计算业务路径与接口分支覆盖率矩阵，标定漏测盲区节点；单测独立通过。
+- [ ] 2026-10-17 T2.2 漏测盲区智能补全用例草稿合成器：落地 `missing_test_case_synthesizer` 服务；针对漏测分支自动生成补测用例草稿；单测独立通过。
+- [ ] 2026-10-17 T2.3 漏测血缘与推荐补测管理 REST API：落地 `coverage_lineage_api` 路由；提供血缘拓扑树查询与一键合成补测用例端点；单测独立通过。
+- [ ] 2026-10-17 UI3.1 可视化拖拽工作流编排画布组件：落地 `HybridWorkflowDragCanvas.vue`；实现节点拖拽布局、端口连线、属性抽屉配置与执行状态流光动画；单测独立通过。
+- [ ] 2026-10-17 UI3.2 漏测血缘图谱与覆盖间隙下钻抽屉：落地 `VisualCoverageGapInspectorDrawer.vue`；呈现业务与接口血缘拓扑树、红斑漏测节点高亮与一键补测；单测独立通过。
+- [ ] 2026-10-17 UI3.3 混合工作流与漏测血缘中枢工作台页面：落地 `HybridWorkflowWorkbenchView.vue` 视图与 `/workbench/hybrid-orchestrator` 路由；全景管理混合编排与漏测大盘；单测独立通过。
+- [ ] 2026-10-17 T4.1 工作流执行死循环与超时熔断看门狗：落地 `workflow_execution_sandbox_guard` 服务；监控循环节点迭代次数与超时熔断保护；单测独立通过。
+- [ ] 2026-10-17 T4.2 工作流执行证据链 64 位 SHA-256 签名存证器：落地 `workflow_evidence_fingerprint_signer` 服务；为多端执行结果生成不可篡改 SHA-256 存证证书；单测独立通过。
+- [ ] 2026-10-17 T4.3 v5.1.0 混合编排与漏测血缘中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.1.0-release-notes.md` 与专项交付证据。
+
 ## 2026-10-17 v5.0.0 研发任务规划（已全量闭环）
 
 > v5.0.0 规划入口为 [`docs/development-task-plan-v5.0.0.md`](docs/development-task-plan-v5.0.0.md)，覆盖 Phase 1（iOS 设备反向隧道与 WDA 端口自动穿透桥接器）、Phase 2（iOS 真机租约调度与并发排他抢占控制）、Phase 3（iOS 真机交互式投屏与远程控制中枢）、Phase 4（iOS 自动化执行容灾、合规凭证与全量发布）。
