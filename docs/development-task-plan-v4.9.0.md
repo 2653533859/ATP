@@ -41,7 +41,7 @@ ATP v4.9.0 彻底打通这一壁垒：
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T3.1 `[x]` | **步骤级分布式调用链时序甘特图抽屉** | `frontend/src/views/run/components/StepTraceTimelineDrawer.vue` | 落地甘特图展示服务耗时条、Span 树状折叠、状态色彩徽标与点击查看请求/响应/SQL属性；单测独立通过；见 docs/evidence/step-trace-timeline-drawer-ui3-1-2026-10-17.md |
-| T3.2 `[ ]` | **慢跨度与服务依赖下钻火焰图卡片** | `frontend/src/views/run/components/SpanFlamegraphInspectorCard.vue` | 落地微服务调用火焰图卡片，支持放大/缩小、高耗时跨度红色高亮与一键筛选；单测独立通过。 |
+| T3.2 `[x]` | **慢跨度与服务依赖下钻火焰图卡片** | `frontend/src/views/run/components/SpanFlamegraphInspectorCard.vue` | 落地微服务调用火焰图卡片，支持放大/缩小、高耗时跨度红色高亮与一键筛选；单测独立通过；见 docs/evidence/span-flamegraph-inspector-card-ui3-2-2026-10-17.md |
 | T3.3 `[ ]` | **全局测试执行分布式追踪贯通全景大盘页面** | `frontend/src/views/quality/DistributedTraceAlignmentDashboardView.vue` | 落地路由 `/quality/trace-alignment`；汇总全站用例 Trace 对齐率（100%）、微服务平均跳数、慢跨度分布与拓扑列表；单测独立通过。 |
 
 ---

@@ -15,7 +15,7 @@
 - [x] 2026-10-17 T2.2 异常步骤调用链深潜下钻与首因归因器：落地 `step_trace_deep_dive_analyzer` 服务与 `/observability/trace/deep-dive` API；当测试步骤失败时自动捕获关联调用链首因 Span、慢 SQL 与异常堆栈；单测独立通过，见 [`docs/evidence/step-trace-deep-dive-analyzer-t2-2-2026-10-17.md`](docs/evidence/step-trace-deep-dive-analyzer-t2-2-2026-10-17.md)。
 - [x] 2026-10-17 T2.3 跨协议多跳调用链拓扑血缘重构器：落地 `cross_protocol_trace_lineage_builder` 服务与 `/observability/trace/lineage` API；解析多跳 Span 树构建跨协议拓扑与血缘依赖；单测独立通过，见 [`docs/evidence/cross-protocol-trace-lineage-builder-t2-3-2026-10-17.md`](docs/evidence/cross-protocol-trace-lineage-builder-t2-3-2026-10-17.md)。至此 v4.9.0 Phase 2 全量大闭环！
 - [x] 2026-10-17 UI3.1 步骤级分布式调用链时序甘特图抽屉：落地 `StepTraceTimelineDrawer.vue` 组件与 API 客户端；用例详情页一键展开微服务调用链甘特图与 Span 属性树；单测独立通过，见 [`docs/evidence/step-trace-timeline-drawer-ui3-1-2026-10-17.md`](docs/evidence/step-trace-timeline-drawer-ui3-1-2026-10-17.md)。
-- [ ] 2026-10-17 UI3.2 慢跨度与服务依赖下钻火焰图卡片：落地 `SpanFlamegraphInspectorCard.vue` 组件与 API 客户端；展示微服务调用火焰图卡片与慢跨度红斑告警；单测独立通过。
+- [x] 2026-10-17 UI3.2 慢跨度与服务依赖下钻火焰图卡片：落地 `SpanFlamegraphInspectorCard.vue` 组件与 API 客户端；展示微服务调用火焰图卡片与慢跨度红斑告警；单测独立通过，见 [`docs/evidence/span-flamegraph-inspector-card-ui3-2-2026-10-17.md`](docs/evidence/span-flamegraph-inspector-card-ui3-2-2026-10-17.md)。
 - [ ] 2026-10-17 UI3.3 全局测试执行分布式追踪贯通全景大盘页面：落地 `DistributedTraceAlignmentDashboardView.vue` 视图与路由；汇总全站用例 Trace 对齐率、平均跳数与拓扑列表；单测独立通过。
 - [ ] 2026-10-17 T4.1 Trace 采样率动态调谐与敏感数据脱敏过滤器：落地 `trace_sampler_and_sanitizer` 服务与 `/observability/trace/sampling` API；支持自适应采样与 Token/密码敏感参数脱敏；单测独立通过。
 - [ ] 2026-10-17 T4.2 追踪审计凭据 64 位 SHA-256 防篡改存证器：落地 `trace_evidence_fingerprint_signer` 服务与 `/observability/trace/sign` API；生成不可篡改 SHA-256 签名存证；单测独立通过。

@@ -401,6 +401,14 @@
           <div v-else class="video-error" role="alert">{{ videoError }}</div>
         </div>
 
+        <!-- 分布式追踪慢跨度火焰图卡片 (UI3.2) -->
+        <div v-if="run?.trace_id" class="trace-flamegraph-section" style="margin-bottom: 16px">
+          <SpanFlamegraphInspectorCard
+            :trace-id="run.trace_id"
+            :run-id="run.id"
+          />
+        </div>
+
         <a-collapse
           v-if="steps.length"
           :activeKey="expandedKeys"
@@ -715,6 +723,7 @@ import { useI18n } from 'vue-i18n'
 import { runApi, caseApi, projectApi, bugTrackerApi, defectApi, tracingApi, aiHealingPatchApi, type BugLinkInfo, type BugTrackerItem, type CaseSummaryItem, type DefectItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem } from '@/api'
 import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
 import StepTraceTimelineDrawer from './components/StepTraceTimelineDrawer.vue'
+import SpanFlamegraphInspectorCard from './components/SpanFlamegraphInspectorCard.vue'
 import { useAuthStore } from '@/stores/auth'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
 import { renderMarkdown } from '@/utils/markdown'

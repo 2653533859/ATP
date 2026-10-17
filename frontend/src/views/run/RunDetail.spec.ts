@@ -72,6 +72,9 @@ function mountRunDetail() {
         LoadingOutlined: true,
         VideoCameraOutlined: true,
         WarningOutlined: true,
+        ApartmentOutlined: true,
+        StepTraceTimelineDrawer: true,
+        SpanFlamegraphInspectorCard: true,
       },
     },
   })
