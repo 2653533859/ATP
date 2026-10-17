@@ -10,7 +10,7 @@
 
 - [x] 2026-10-17 T1.1 Git Diff 与 AST 变更高危符号提取器：落地 `code_diff_symbol_extractor` 服务；解析代码 Diff 补丁并基于 AST 提取变更类与函数；单测独立通过，见 [`docs/evidence/code-diff-symbol-extractor-t1-1-2026-10-17.md`](docs/evidence/code-diff-symbol-extractor-t1-1-2026-10-17.md)。
 - [x] 2026-10-17 T1.2 接口-函数-用例三维调用链拓扑映射引擎：落地 `symbol_call_graph_mapper` 服务；建立符号到端点及用例的调用拓扑血缘；单测独立通过，见 [`docs/evidence/symbol-call-graph-mapper-t1-2-2026-10-17.md`](docs/evidence/symbol-call-graph-mapper-t1-2-2026-10-17.md)。
-- [ ] 2026-10-17 T1.3 增量影响面计算与精准用例推荐 REST API：落地 `precision_regression_api` 路由；提供影响面分析与精准用例推荐端点；单测独立通过。
+- [x] 2026-10-17 T1.3 增量影响面计算与精准用例推荐 REST API：落地 `precision_regression_api` 路由；提供影响面分析与精准用例推荐端点；单测独立通过，见 [`docs/evidence/precision-regression-api-t1-3-2026-10-17.md`](docs/evidence/precision-regression-api-t1-3-2026-10-17.md)。至此 v5.7.0 Phase 1 全量大闭环！
 - [ ] 2026-10-17 T2.1 用例数据上下文有向无环图构建与环路检测器：落地 `case_dag_dependency_builder` 服务；构建用例 DAG 并执行 Tarjan 算法环路死锁检测；单测独立通过。
 - [ ] 2026-10-17 T2.2 基于拓扑排序的并发波次分发与前置状态传递器：落地 `dag_wave_execution_dispatcher` 服务；DAG 波次划分与跨波次上下文变量传递；单测独立通过。
 - [ ] 2026-10-17 T2.3 拓扑中断级联跳过与孤立节点容错控制器：落地 `dag_cascade_fault_controller` 服务；前置失败级联跳过与孤立节点安全并发；单测独立通过。

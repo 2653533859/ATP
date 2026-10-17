@@ -51,7 +51,7 @@ flowchart TD
 |---|---|---|---|
 | T1.1 `[x]` | **Git Diff 与 AST 变更高危符号提取器** | `backend/app/services/code_diff_symbol_extractor.py` | 解析代码 Diff 补丁，基于 Python AST 精确提取受影响的类、函数与方法签名变动及修改行号；单测独立通过；见 docs/evidence/code-diff-symbol-extractor-t1-1-2026-10-17.md |
 | T1.2 `[x]` | **接口-函数-用例三维调用链拓扑映射引擎** | `backend/app/services/symbol_call_graph_mapper.py` | 建立代码符号到接口端点、端点到测试用例的三维调用血缘关系树，实现双向拓扑可达性查询；单测独立通过；见 docs/evidence/symbol-call-graph-mapper-t1-2-2026-10-17.md |
-| T1.3 `[ ]` | **增量影响面计算与精准用例推荐 REST API** | `backend/app/api/v1/precision_regression_api.py` | 挂载 `/api/v1/precision-regression/*`，提供 Diff 解析、影响面计算、受影响用例精准推荐与覆盖率预估端点；单测独立通过。 |
+| T1.3 `[x]` | **增量影响面计算与精准用例推荐 REST API** | `backend/app/api/v1/precision_regression_api.py` | 挂载 `/api/v1/precision-regression/*`，提供 Diff 解析、影响面计算、受影响用例精准推荐与覆盖率预估端点；单测独立通过；见 docs/evidence/precision-regression-api-t1-3-2026-10-17.md |
 
 ---
 
