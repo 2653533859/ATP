@@ -12,7 +12,7 @@
 - [x] 2026-10-17 T1.2 分布式混沌实验编排与稳态探测引擎：落地 `chaos_steady_state_evaluator` 服务；基线稳态定义与指标偏离动态监控；单测独立通过，见 [`docs/evidence/chaos-steady-state-evaluator-t1-2-2026-10-17.md`](docs/evidence/chaos-steady-state-evaluator-t1-2-2026-10-17.md)。
 - [x] 2026-10-17 T1.3 混沌演练实验管理与触发 REST API：落地 `chaos_engineering_api` 路由；提供实验创建、实时注入/停止与稳态监控端点；单测独立通过，见 [`docs/evidence/chaos-engineering-api-t1-3-2026-10-17.md`](docs/evidence/chaos-engineering-api-t1-3-2026-10-17.md)。至此 v5.8.0 Phase 1 全量大闭环！
 - [x] 2026-10-17 T2.1 服务降级与熔断恢复时间 RTO/RPO 评估器：落地 `resilience_rto_evaluator` 服务；量化熔断响应与系统自愈恢复耗时；单测独立通过，见 [`docs/evidence/resilience-rto-evaluator-t2-1-2026-10-17.md`](docs/evidence/resilience-rto-evaluator-t2-1-2026-10-17.md)。
-- [ ] 2026-10-17 T2.2 演练爆炸半径实时监控与紧急熔断回滚看门狗：落地 `chaos_blast_radius_controller` 服务；错误率红线与自动熔断剥离；单测独立通过。
+- [x] 2026-10-17 T2.2 演练爆炸半径实时监控与紧急熔断回滚看门狗：落地 `chaos_blast_radius_controller` 服务；错误率红线与自动熔断剥离；单测独立通过，见 [`docs/evidence/chaos-blast-radius-controller-t2-2-2026-10-17.md`](docs/evidence/chaos-blast-radius-controller-t2-2-2026-10-17.md)。
 - [ ] 2026-10-17 T2.3 架构韧性弱点雷达分析与加固建议生成器：落地 `architecture_weakness_radar` 服务；输出多维韧性雷达分与加固调优建议；单测独立通过。
 - [ ] 2026-10-17 UI3.1 混沌故障注入拓扑与稳态指标透视抽屉：落地 `ChaosExperimentInspectionDrawer.vue`；实时拓扑图、稳态偏离曲线与注入控制；单测独立通过。
 - [ ] 2026-10-17 UI3.2 爆炸半径围栏配置与紧急熔断监控弹窗：落地 `BlastRadiusConfigModal.vue`；爆炸半径红线交互配置与安全回滚；单测独立通过。
