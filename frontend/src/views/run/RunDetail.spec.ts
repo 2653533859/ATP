@@ -17,6 +17,8 @@ const { createRunWebSocket, messageError, routerBack, runExportHtml, runExportJu
 vi.mock('vue-router', () => ({
   useRoute: () => ({ params: { runId: '42' } }),
   useRouter: () => ({ back: routerBack }),
+  createRouter: vi.fn(() => ({ beforeEach: vi.fn(), afterEach: vi.fn(), push: vi.fn(), replace: vi.fn(), back: routerBack })),
+  createWebHistory: vi.fn(),
 }))
 vi.mock('vue-i18n', () => ({ useI18n: () => ({ t: (key: string) => key }) }))
 vi.mock('ant-design-vue', () => ({ Empty: { PRESENTED_IMAGE_SIMPLE: 'empty' }, message: { error: messageError, success: vi.fn() } }))

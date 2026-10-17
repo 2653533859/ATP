@@ -44,6 +44,15 @@
           <a-descriptions-item :label="t('run.labels.case_id')">{{ run.case_id }}</a-descriptions-item>
           <a-descriptions-item :label="t('run.labels.trace_id')" :span="2">
             <code>{{ run.trace_id || '-' }}</code>
+            <a-button
+              v-if="run.trace_id"
+              type="link"
+              size="small"
+              style="margin-left: 8px"
+              @click="openStepTraceDrawer(null)"
+            >
+              <ApartmentOutlined /> {{ t('run.view_trace_timeline', '查看调用链甘特图') }}
+            </a-button>
             <a
               v-if="jaegerSearchUrl"
               :href="jaegerSearchUrl"
@@ -427,6 +436,13 @@
                 <span v-if="step.duration_ms != null" class="step-duration">
                   {{ step.duration_ms }} ms
                 </span>
+                <a-button
+                  size="small"
+                  type="link"
+                  @click.stop="openStepTraceDrawer(step)"
+                >
+                  <ApartmentOutlined /> Trace
+                </a-button>
               </a-space>
             </template>
             <!-- 错误信息优先展示 -->
@@ -680,6 +696,13 @@
       @close="closeResumeDrawer"
       @saved="handleResumeCaseSaved"
     />
+
+    <StepTraceTimelineDrawer
+      v-model:open="traceDrawerOpen"
+      :trace-id="run?.trace_id"
+      :step="activeTraceStep"
+      :run-id="run?.id"
+    />
   </div>
 </template>
 
@@ -687,10 +710,11 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { Empty, message } from 'ant-design-vue'
-import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined, PlayCircleOutlined } from '@ant-design/icons-vue'
+import { VideoCameraOutlined, CameraOutlined, FileTextOutlined, FilePdfOutlined, BugOutlined, LinkOutlined, BulbOutlined, LoadingOutlined, WarningOutlined, PlayCircleOutlined, ApartmentOutlined } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { runApi, caseApi, projectApi, bugTrackerApi, defectApi, tracingApi, aiHealingPatchApi, type BugLinkInfo, type BugTrackerItem, type CaseSummaryItem, type DefectItem, type FailureDiagnosisResult, type HealingPatchPreviewResult, type RunDetailItem, type RunStepItem } from '@/api'
 import WebCaseDrawer from '@/views/case/WebCaseDrawer.vue'
+import StepTraceTimelineDrawer from './components/StepTraceTimelineDrawer.vue'
 import { useAuthStore } from '@/stores/auth'
 import { createRunWebSocket, type WsMessage } from '@/utils/websocket'
 import { renderMarkdown } from '@/utils/markdown'
@@ -718,6 +742,13 @@ const runId = Number(route.params.runId)
 
 const run = ref<RunDetailItem | null>(null)
 const steps = ref<RunStepItem[]>([])
+const traceDrawerOpen = ref(false)
+const activeTraceStep = ref<RunStepItem | null>(null)
+
+function openStepTraceDrawer(step?: RunStepItem | null) {
+  activeTraceStep.value = step ?? null
+  traceDrawerOpen.value = true
+}
 const internalDefects = ref<DefectItem[]>([])
 
 type AndroidMatrixResult = {
