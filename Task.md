@@ -14,7 +14,7 @@
 - [x] 2026-10-18 T2.1 智能金丝雀健康度评分与多阶步进调度器：落地 `canary_health_scoring_stepper` 服务；多维健康度评分驱动阶梯步进割接；单测独立通过，见 [`docs/evidence/canary-health-scoring-stepper-t2-1-2026-10-18.md`](docs/evidence/canary-health-scoring-stepper-t2-1-2026-10-18.md)。
 - [x] 2026-10-18 T2.2 灰度击穿自动熔断与秒级一键回滚看门狗：落地 `canary_auto_rollback_guard` 服务；异常击穿毫秒级自动重置切流与版本回滚；单测独立通过，见 [`docs/evidence/canary-auto-rollback-guard-t2-2-2026-10-18.md`](docs/evidence/canary-auto-rollback-guard-t2-2-2026-10-18.md)。
 - [x] 2026-10-18 T2.3 灰度流量数据隔离与影子存储防污染校验器：落地 `canary_data_isolation_inspector` 服务；校验染色流量写操作影子隔离状态；单测独立通过，见 [`docs/evidence/canary-data-isolation-inspector-t2-3-2026-10-18.md`](docs/evidence/canary-data-isolation-inspector-t2-3-2026-10-18.md)。至此 v6.1.0 Phase 2 全量大闭环！
-- [ ] 2026-10-18 UI3.1 金丝雀全链路染色拓扑与流量分流透视抽屉：落地 `CanaryTopologyInspectionDrawer.vue`；多微服务分流拓扑与双轨曲线；单测独立通过。
+- [x] 2026-10-18 UI3.1 金丝雀全链路染色拓扑与流量分流透视抽屉：落地 `CanaryTopologyInspectionDrawer.vue`；多微服务分流拓扑与双轨曲线；单测独立通过，见 [`docs/evidence/canary-topology-inspection-drawer-ui3-1-2026-10-18.md`](docs/evidence/canary-topology-inspection-drawer-ui3-1-2026-10-18.md)。
 - [ ] 2026-10-18 UI3.2 灰度步进策略配置与自动回滚围栏弹窗：落地 `CanarySteppingConfigModal.vue`；阶梯步进计划与错误率红线交互配置；单测独立通过。
 - [ ] 2026-10-18 UI3.3 全链路金丝雀灰度校验工作台中枢页面：落地 `CanaryVerificationWorkbenchView.vue` 与 `/workbench/canary-verification` 路由；单测独立通过。
 - [ ] 2026-10-18 T4.1 生产环境灰度强准入与金丝雀发布审批看门狗：落地 `canary_safety_boundary_guard` 服务；生产灰度三要素审批与权限阻断；单测独立通过。
