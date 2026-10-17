@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 
@@ -23,6 +23,14 @@ from app.services.test_execution_trace_propagator import (
     get_execution_trace_session,
     list_execution_trace_sessions,
     propagate_step_trace,
+)
+from app.services.otlp_trace_exporter import (
+    OtlpSpan,
+    SpanKind,
+    StatusCode,
+    clear_otlp_export_buffer,
+    export_spans_to_otlp,
+    list_otlp_export_batches,
 )
 
 router = APIRouter(prefix="/observability/trace", tags=["Observability Trace"])
@@ -63,6 +71,13 @@ class PropagateStepRequest(BaseModel):
     step_name: str = Field(..., description="测试步骤名称")
     request_headers: Dict[str, Any] = Field(default_factory=dict, description="出站请求头字典")
     carrier_type: str = Field("http", description="出站协议类型")
+
+
+class ExportSpansRequest(BaseModel):
+    service_name: str = Field("atp-test-runner", description="服务名称标识")
+    target_endpoint: str = Field("http://localhost:4318/v1/traces", description="OTLP 接收端点")
+    spans: List[Dict[str, Any]] = Field(default_factory=list, description="待导出的 Span 列表")
+    extra_resource_attributes: Dict[str, Any] = Field(default_factory=dict, description="附加资源元数据")
 
 
 @router.post("/inject")
@@ -221,3 +236,58 @@ def clear_sessions_endpoint(
     """清空执行追踪会话历史"""
     clear_execution_trace_sessions()
     return {"message": "已清空执行追踪会话历史"}
+
+
+@router.post("/export")
+def export_spans_endpoint(
+    payload: ExportSpansRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """将用例 Span 序列化为 W3C OTLP 格式并导出"""
+    parsed_spans: List[OtlpSpan] = []
+    for s in payload.spans:
+        parsed_spans.append(
+            OtlpSpan(
+                trace_id=str(s.get("trace_id", "0" * 32)),
+                span_id=str(s.get("span_id", "0" * 16)),
+                parent_span_id=s.get("parent_span_id"),
+                name=str(s.get("name", "unnamed_span")),
+                kind=SpanKind(int(s.get("kind", 3))),
+                attributes=s.get("attributes", {}),
+                status_code=StatusCode(int(s.get("status_code", 1))),
+                status_message=str(s.get("status_message", "")),
+            )
+        )
+
+    res = export_spans_to_otlp(
+        spans=parsed_spans,
+        service_name=payload.service_name,
+        target_endpoint=payload.target_endpoint,
+        extra_resource_attributes=payload.extra_resource_attributes,
+    )
+    return {
+        "message": "OTLP 追踪数据导出成功",
+        "export_result": res,
+    }
+
+
+@router.get("/exports")
+def list_exports_endpoint(
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """列出当前已导出的 OTLP 批次"""
+    batches = list_otlp_export_batches(limit=limit)
+    return {
+        "total": len(batches),
+        "batches": batches,
+    }
+
+
+@router.delete("/exports")
+def clear_exports_endpoint(
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """清空 OTLP 导出缓冲区"""
+    clear_otlp_export_buffer()
+    return {"message": "已清空 OTLP 导出缓冲区"}

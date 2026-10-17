@@ -168,4 +168,45 @@ def test_execution_trace_propagation_api():
     del_resp = client.delete("/api/v1/observability/trace/sessions", headers=HEADERS)
     assert del_resp.status_code == 200
     empty_sess = client.get("/api/v1/observability/trace/sessions", headers=HEADERS)
-    assert empty_sess.json()["total"] == 0
+
+
+def test_otlp_export_api():
+    """测试将 Span 批量导出为 OTLP 格式、查询导出批次并清空缓冲区。"""
+    client = TestClient(app)
+
+    # 1. 导出 Spans
+    exp_resp = client.post(
+        "/api/v1/observability/trace/export",
+        json={
+            "service_name": "checkout-suite",
+            "target_endpoint": "http://jaeger:4318/v1/traces",
+            "spans": [
+                {
+                    "trace_id": "4bf92f3577b34da6a3ce929d0e0e4736",
+                    "span_id": "00f067aa0ba902b7",
+                    "name": "POST /order",
+                    "kind": 3,
+                    "attributes": {"http.status": 200},
+                    "status_code": 1,
+                }
+            ],
+            "extra_resource_attributes": {"cluster": "shanghai-zone-a"},
+        },
+        headers=HEADERS,
+    )
+    assert exp_resp.status_code == 200
+    exp_data = exp_resp.json()["export_result"]
+    assert exp_data["status"] == "SUCCESS"
+    assert exp_data["spans_count"] == 1
+    assert "otlp_payload" in exp_data
+
+    # 2. 查询导出的批次
+    list_resp = client.get("/api/v1/observability/trace/exports", headers=HEADERS)
+    assert list_resp.status_code == 200
+    assert list_resp.json()["total"] >= 1
+
+    # 3. 清空导出缓冲区
+    del_resp = client.delete("/api/v1/observability/trace/exports", headers=HEADERS)
+    assert del_resp.status_code == 200
+    empty_resp = client.get("/api/v1/observability/trace/exports", headers=HEADERS)
+    assert empty_resp.json()["total"] == 0

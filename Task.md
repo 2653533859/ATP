@@ -10,7 +10,7 @@
 
 - [x] 2026-10-17 T1.1 W3C TraceContext 标准协议注入与提取服务：落地 `w3c_trace_context_injector` 服务与 `/observability/trace/inject` API；实现 `traceparent` (version-trace_id-parent_id-flags) 与 `tracestate` 格式生成、解析与上下文注入；单测独立通过，见 [`docs/evidence/w3c-trace-context-injector-t1-1-2026-10-17.md`](docs/evidence/w3c-trace-context-injector-t1-1-2026-10-17.md)。
 - [x] 2026-10-17 T1.2 异步任务与执行器链路上下文传播拦截器：落地 `test_execution_trace_propagator` 服务与 `/observability/trace/propagate` API；确保 Celery Worker 与多步测试执行会话（REST/gRPC/WebSocket）跨线程/进程透明透传 TraceContext；单测独立通过，见 [`docs/evidence/test-execution-trace-propagator-t1-2-2026-10-17.md`](docs/evidence/test-execution-trace-propagator-t1-2-2026-10-17.md)。
-- [ ] 2026-10-17 T1.3 OTLP / Jaeger 追踪数据协议导出适配器：落地 `otlp_trace_exporter` 服务与 `/observability/trace/export` API；实现标准 OTLP JSON / Protobuf 格式 Span 数据打包与异步导出通道；单测独立通过。
+- [x] 2026-10-17 T1.3 OTLP / Jaeger 追踪数据协议导出适配器：落地 `otlp_trace_exporter` 服务与 `/observability/trace/export` API；实现标准 OTLP JSON / Protobuf 格式 Span 数据打包与异步导出通道；单测独立通过，见 [`docs/evidence/otlp-trace-exporter-t1-3-2026-10-17.md`](docs/evidence/otlp-trace-exporter-t1-3-2026-10-17.md)。至此 v4.9.0 Phase 1 全量大闭环！
 - [ ] 2026-10-17 T2.1 测试步骤与服务端调用链跨网络时钟对齐器：落地 `trace_timestamp_clock_skew_aligner` 服务与 `/observability/trace/skew-compensate` API；实现前后端跨网络时钟偏移补偿算法，精确定位步骤对应后端 Span；单测独立通过。
 - [ ] 2026-10-17 T2.2 异常步骤调用链深潜下钻与首因归因器：落地 `step_trace_deep_dive_analyzer` 服务与 `/observability/trace/deep-dive` API；当测试步骤失败时自动捕获关联调用链首因 Span、慢 SQL 与异常堆栈；单测独立通过。
 - [ ] 2026-10-17 T2.3 跨协议多跳调用链拓扑血缘重构器：落地 `cross_protocol_trace_lineage_builder` 服务与 `/observability/trace/lineage` API；解析多跳 Span 树构建跨协议拓扑与血缘依赖；单测独立通过。

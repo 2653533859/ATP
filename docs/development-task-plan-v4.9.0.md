@@ -22,7 +22,7 @@ ATP v4.9.0 彻底打通这一壁垒：
 |---|---|---|---|
 | T1.1 `[x]` | **W3C TraceContext 标准协议注入与提取服务** | `backend/app/services/w3c_trace_context_injector.py` | 实现 W3C `traceparent` (version-trace_id-parent_id-flags) 与 `tracestate` 格式生成、解析与上下文注入；单测独立通过；见 docs/evidence/w3c-trace-context-injector-t1-1-2026-10-17.md |
 | T1.2 `[x]` | **异步任务与执行器链路上下文传播拦截器** | `backend/app/services/test_execution_trace_propagator.py` | 确保 Celery Worker 与多步测试执行会话（REST/gRPC/WebSocket）跨线程/进程透明透传 TraceContext；单测独立通过；见 docs/evidence/test-execution-trace-propagator-t1-2-2026-10-17.md |
-| T1.3 `[ ]` | **OTLP / Jaeger 追踪数据协议导出适配器** | `backend/app/services/otlp_trace_exporter.py` | 实现标准 OTLP JSON / Protobuf 格式 Span 数据打包与异步导出通道，支持内存模拟器与外接 OpenTelemetry Collector；单测独立通过。 |
+| T1.3 `[x]` | **OTLP / Jaeger 追踪数据协议导出适配器** | `backend/app/services/otlp_trace_exporter.py` | 实现标准 OTLP JSON / Protobuf 格式 Span 数据打包与异步导出通道，支持内存模拟器与外接 OpenTelemetry Collector；单测独立通过；见 docs/evidence/otlp-trace-exporter-t1-3-2026-10-17.md |
 
 ---
 
