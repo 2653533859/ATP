@@ -52,7 +52,7 @@ flowchart TD
 |---|---|---|---|
 | T1.1 `[x]` | **多源覆盖率报告解析与合并器** | `backend/app/services/coverage_report_ingestor.py` | 支持 JaCoCo XML、Coverage.py JSON 与 LCOV 格式解析与多环境覆盖率并集融合；单测独立通过；见 docs/evidence/coverage-report-ingestor-t1-1-2026-10-18.md |
 | T1.2 `[x]` | **Git Diff 增量代码行覆盖率染色计算器** | `backend/app/services/diff_coverage_staining_engine.py` | 映射变更行号，精准计算增量行/分支覆盖率，生成红（未覆盖）、黄（部分覆盖）、绿（全覆盖）行级染色元数据；单测独立通过；见 docs/evidence/diff-coverage-staining-engine-t1-2-2026-10-18.md |
-| T1.3 `[ ]` | **代码覆盖率与增量染色 REST API** | `backend/app/api/v1/code_coverage_api.py` | 挂载 `/api/v1/code-coverage/*` 路由，提供覆盖率报告上报、增量 Diff 比对与文件逐行染色查询端点；单测独立通过。 |
+| T1.3 `[x]` | **代码覆盖率与增量染色 REST API** | `backend/app/api/v1/code_coverage_api.py` | 挂载 `/api/v1/code-coverage/*` 路由，提供覆盖率报告上报、增量 Diff 比对与文件逐行染色查询端点；单测独立通过；见 docs/evidence/code-coverage-api-t1-3-2026-10-18.md |
 
 ---
 
