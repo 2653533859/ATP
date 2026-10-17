@@ -8,7 +8,7 @@
 
 > v5.7.0 规划入口为 [`docs/development-task-plan-v5.7.0.md`](docs/development-task-plan-v5.7.0.md)，覆盖 Phase 1（代码变更 AST 影响面追踪与符号依赖映射器）、Phase 2（用例 DAG 依赖拓扑编排与执行波次调度器）、Phase 3（增量回归拓扑中枢与精准演练工作台）、Phase 4（漏测风险防护围栏看门狗、存证证书与全量发布）。
 
-- [ ] 2026-10-17 T1.1 Git Diff 与 AST 变更高危符号提取器：落地 `code_diff_symbol_extractor` 服务；解析代码 Diff 补丁并基于 AST 提取变更类与函数；单测独立通过。
+- [x] 2026-10-17 T1.1 Git Diff 与 AST 变更高危符号提取器：落地 `code_diff_symbol_extractor` 服务；解析代码 Diff 补丁并基于 AST 提取变更类与函数；单测独立通过，见 [`docs/evidence/code-diff-symbol-extractor-t1-1-2026-10-17.md`](docs/evidence/code-diff-symbol-extractor-t1-1-2026-10-17.md)。
 - [ ] 2026-10-17 T1.2 接口-函数-用例三维调用链拓扑映射引擎：落地 `symbol_call_graph_mapper` 服务；建立符号到端点及用例的调用拓扑血缘；单测独立通过。
 - [ ] 2026-10-17 T1.3 增量影响面计算与精准用例推荐 REST API：落地 `precision_regression_api` 路由；提供影响面分析与精准用例推荐端点；单测独立通过。
 - [ ] 2026-10-17 T2.1 用例数据上下文有向无环图构建与环路检测器：落地 `case_dag_dependency_builder` 服务；构建用例 DAG 并执行 Tarjan 算法环路死锁检测；单测独立通过。
