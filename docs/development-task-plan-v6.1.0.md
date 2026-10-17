@@ -60,7 +60,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T2.1 `[ ]` | **智能金丝雀健康度评分与多阶步进调度器** | `backend/app/services/canary_health_scoring_stepper.py` | 综合评估五维健康度得分（0~100），驱动流量自适应阶梯步进（5%~100%）；单测独立通过。 |
+| T2.1 `[x]` | **智能金丝雀健康度评分与多阶步进调度器** | `backend/app/services/canary_health_scoring_stepper.py` | 综合评估五维健康度得分（0~100），驱动流量自适应阶梯步进（5%~100%）；单测独立通过；见 docs/evidence/canary-health-scoring-stepper-t2-1-2026-10-18.md |
 | T2.2 `[ ]` | **灰度击穿自动熔断与秒级一键回滚看门狗** | `backend/app/services/canary_auto_rollback_guard.py` | 监控金丝雀相对基线指标偏离红线，超标毫秒级自动触发切流与版本回滚；单测独立通过。 |
 | T2.3 `[ ]` | **灰度流量数据隔离与影子存储防污染校验器** | `backend/app/services/canary_data_isolation_inspector.py` | 校验染色流量写操作是否严格路由至影子库表，防止生产脏数据污染；单测独立通过。 |
 
