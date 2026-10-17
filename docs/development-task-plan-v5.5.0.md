@@ -86,7 +86,7 @@ flowchart TD
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T4.1 `[x]` | **自愈补丁防篡改与安全围栏看门狗** | `backend/app/services/self_healing_safety_guard.py` | 严防恶意越权自愈补丁将关键断言篡改为 `assert True` 或注入破坏性恶意定位器；单测独立通过；见 docs/evidence/self-healing-safety-guard-t4-1-2026-10-17.md |
-| T4.2 `[ ]` | **自愈补丁与断言演进 64 位 SHA-256 存证证书器** | `backend/app/services/healing_evidence_signer.py` | 为定位器自愈补丁与断言演进记录签发不可篡改 SHA-256 + HMAC 存证证书；单测独立通过。 |
+| T4.2 `[x]` | **自愈补丁与断言演进 64 位 SHA-256 存证证书器** | `backend/app/services/healing_evidence_signer.py` | 为定位器自愈补丁与断言演进记录签发不可篡改 SHA-256 + HMAC 存证证书；单测独立通过；见 docs/evidence/healing-evidence-signer-t4-2-2026-10-17.md |
 | T4.3 `[ ]` | **v5.5.0 测试自愈与断言演进中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v5.5.0-release-notes.md` 与专项交付证据。 |
 
 ---
