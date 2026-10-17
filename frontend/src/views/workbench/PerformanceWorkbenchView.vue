@@ -48,6 +48,9 @@
         <a-button size="small" class="toolbar-btn" @click="showKneeDrawer = true">
           <LineChartOutlined /> 吞吐拐点分析
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showBlastDrawer = true">
+          <SafetyCertificateOutlined /> 爆炸半径评估
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openFullConsole">
           <SettingOutlined /> {{ t('performance_workbench.full_console') }}
         </a-button>
@@ -372,6 +375,7 @@
     <DistributedBottleneckClassifierCard v-model:open="showBottleneckCard" />
     <AdaptiveAvalancheBreakerConsoleDrawer v-model:open="showBreakerDrawer" />
     <StepLoadThroughputKneeDrawer v-model:open="showKneeDrawer" />
+    <StressBlastRadiusEvaluatorCard v-model:open="showBlastDrawer" />
   </div>
 </template>
 
@@ -409,6 +413,8 @@ import AdaptiveAvalancheBreakerConsoleDrawer from './components/AdaptiveAvalanch
 const showBreakerDrawer = ref(false)
 import StepLoadThroughputKneeDrawer from './components/StepLoadThroughputKneeDrawer.vue'
 const showKneeDrawer = ref(false)
+import StressBlastRadiusEvaluatorCard from './components/StressBlastRadiusEvaluatorCard.vue'
+const showBlastDrawer = ref(false)
 import type { EChartsOption } from 'echarts'
 import {
   environmentApi,
