@@ -383,3 +383,64 @@ def test_trace_lineage_api():
     assert del_resp.status_code == 200
     empty_resp = client.get("/api/v1/observability/trace/lineages", headers=HEADERS)
     assert empty_resp.json()["total"] == 0
+
+
+def test_trace_sampling_and_sanitizing_api():
+    """测试采样评估、Span 敏感信息脱敏、配置读取与动态更新 API。"""
+    client = TestClient(app)
+
+    # 1. 评估采样策略 (评估错误链路是否强制采样)
+    eval_resp = client.post(
+        "/api/v1/observability/trace/sampling/evaluate",
+        json={
+            "trace_id": "3af1234577b34da6a3ce929d0e0e1122",
+            "is_error": True,
+            "duration_ms": 120.0,
+        },
+        headers=HEADERS,
+    )
+    assert eval_resp.status_code == 200
+    assert eval_resp.json()["sampled"] is True
+    assert "ERROR_PRIORITY_FORCED" in eval_resp.json()["decision_reason"]
+
+    # 2. 批量执行 Span 脱敏过滤
+    sanitize_resp = client.post(
+        "/api/v1/observability/trace/sampling/sanitize",
+        json={
+            "spans": [
+                {
+                    "span_id": "span_test_01",
+                    "name": "GET /api/user?token=secret123",
+                    "attributes": {
+                        "authorization": "Bearer eyJhbGciOi...",
+                        "user_phone": "13912345678",
+                        "password": "my_password",
+                    },
+                }
+            ]
+        },
+        headers=HEADERS,
+    )
+    assert sanitize_resp.status_code == 200
+    cleaned = sanitize_resp.json()["sanitized_spans"][0]
+    assert "secret123" not in cleaned["name"]
+    assert cleaned["attributes"]["password"] == "******"
+    assert "139****5678" in cleaned["attributes"]["user_phone"]
+
+    # 3. 获取并更新采样配置
+    cfg_resp = client.get("/api/v1/observability/trace/sampling/config", headers=HEADERS)
+    assert cfg_resp.status_code == 200
+    assert "config" in cfg_resp.json()
+
+    up_resp = client.put(
+        "/api/v1/observability/trace/sampling/config",
+        json={
+            "strategy": "ERROR_PRIORITY",
+            "base_sample_rate": 0.35,
+            "slow_span_threshold_ms": 90.0,
+        },
+        headers=HEADERS,
+    )
+    assert up_resp.status_code == 200
+    assert up_resp.json()["config"]["strategy"] == "ERROR_PRIORITY"
+    assert up_resp.json()["config"]["base_sample_rate"] == 0.35

@@ -49,6 +49,12 @@ from app.services.cross_protocol_trace_lineage_builder import (
     get_topology_lineage,
     list_topology_lineages,
 )
+from app.services.trace_sampler_and_sanitizer import (
+    get_sampler_config,
+    sanitize_trace_payload,
+    should_sample_trace,
+    update_sampler_config,
+)
 
 router = APIRouter(prefix="/observability/trace", tags=["Observability Trace"])
 
@@ -112,6 +118,25 @@ class DeepDiveAnalysisRequest(BaseModel):
 class BuildTraceLineageRequest(BaseModel):
     trace_id: str = Field(..., description="调用链全局唯一 32 字符 TraceID")
     spans: List[Dict[str, Any]] = Field(default_factory=list, description="多协议跨度 Span 列表")
+
+
+class EvaluateSamplingRequest(BaseModel):
+    trace_id: str = Field(..., description="调用链唯一 32 字符 TraceID")
+    is_error: bool = Field(False, description="链路是否发生错误")
+    duration_ms: float = Field(0.0, description="全链路执行时延 (毫秒)")
+
+
+class SanitizeSpansRequest(BaseModel):
+    spans: List[Dict[str, Any]] = Field(default_factory=list, description="待脱敏的 Span 列表")
+
+
+class UpdateSamplerConfigRequest(BaseModel):
+    strategy: Optional[str] = Field(None, description="采样策略")
+    base_sample_rate: Optional[float] = Field(None, description="基础概率采样率")
+    slow_span_threshold_ms: Optional[float] = Field(None, description="慢 Span 判定阈值")
+    force_sample_errors: Optional[bool] = Field(None, description="是否强制 100% 采样错误链路")
+    mask_pii_enabled: Optional[bool] = Field(None, description="是否启用 PII 敏感信息脱敏")
+    mask_credentials_enabled: Optional[bool] = Field(None, description="是否启用凭证脱敏")
 
 
 @router.post("/inject")
@@ -467,3 +492,64 @@ def clear_lineages_endpoint(
     """清空拓扑血缘图谱"""
     clear_topology_lineage_store()
     return {"message": "已清空跨协议拓扑血缘图谱"}
+
+
+@router.post("/sampling/evaluate")
+def evaluate_sampling_endpoint(
+    payload: EvaluateSamplingRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """评估特定 TraceID 是否符合采样策略"""
+    sampled, reason = should_sample_trace(
+        trace_id=payload.trace_id,
+        is_error=payload.is_error,
+        duration_ms=payload.duration_ms,
+    )
+    return {
+        "trace_id": payload.trace_id,
+        "sampled": sampled,
+        "decision_reason": reason,
+    }
+
+
+@router.post("/sampling/sanitize")
+def sanitize_spans_endpoint(
+    payload: SanitizeSpansRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """对全链路 Span 字典执行合规脱敏过滤 (Token、密码、身份证、手机号)"""
+    cleaned_spans = sanitize_trace_payload(spans=payload.spans)
+    return {
+        "message": "Span 敏感数据脱敏完成",
+        "total_spans": len(cleaned_spans),
+        "sanitized_spans": cleaned_spans,
+    }
+
+
+@router.get("/sampling/config")
+def get_sampling_config_endpoint(
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """获取当前 Trace 采样策略与脱敏规则配置"""
+    cfg = get_sampler_config()
+    return {"config": cfg.to_dict()}
+
+
+@router.put("/sampling/config")
+def update_sampling_config_endpoint(
+    payload: UpdateSamplerConfigRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """动态更新 Trace 采样策略与脱敏配置"""
+    updated = update_sampler_config(
+        strategy=payload.strategy,
+        base_sample_rate=payload.base_sample_rate,
+        slow_span_threshold_ms=payload.slow_span_threshold_ms,
+        force_sample_errors=payload.force_sample_errors,
+        mask_pii_enabled=payload.mask_pii_enabled,
+        mask_credentials_enabled=payload.mask_credentials_enabled,
+    )
+    return {
+        "message": "Trace 采样与脱敏配置已动态更新",
+        "config": updated.to_dict(),
+    }
