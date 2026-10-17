@@ -41,6 +41,14 @@ from app.services.fleet_storm_guard import (
     get_storm_guard_status,
     reset_circuit_breaker,
 )
+from app.services.scheduler_evidence_signer import (
+    SchedulerArtifactType,
+    get_scheduler_certificate,
+    list_scheduler_certificates,
+    sign_capacity_snapshot_evidence,
+    sign_routing_decision_evidence,
+    verify_scheduler_certificate,
+)
 
 router = APIRouter(prefix="/scheduler", tags=["Fleet Concurrency Scheduler"])
 
@@ -81,6 +89,16 @@ class AdjustBackpressureRequest(BaseModel):
 
 class EvaluateStormRequest(BaseModel):
     task_id: str = Field(..., description="待派发任务 ID")
+
+
+class SignSchedulerEvidenceRequest(BaseModel):
+    artifact_type: str = Field(..., description="产物类别 (ROUTING_DECISION | CAPACITY_SNAPSHOT)")
+    artifact_id: str = Field(..., description="产物 ID (decision_id 或 snapshot_id)")
+    signer_identity: Optional[str] = Field(None, description="签名者身份标识")
+
+
+class VerifySchedulerEvidenceRequest(BaseModel):
+    certificate_id: str = Field(..., description="存证证书 ID")
 
 
 @router.post("/telemetry/report")
@@ -304,3 +322,83 @@ def reset_storm_endpoint(
     """手动复位风暴断路器至正常 CLOSED 状态"""
     reset_circuit_breaker()
     return {"message": "风暴熔断断路器已成功复位至正常 CLOSED 状态"}
+
+
+@router.post("/evidence/sign")
+def sign_scheduler_evidence_endpoint(
+    payload: SignSchedulerEvidenceRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """为调度决策记录或集群容量快照签发 64 位 SHA-256 存证证书"""
+    art_type = payload.artifact_type.upper()
+    if art_type == SchedulerArtifactType.ROUTING_DECISION.value:
+        dec = get_routing_decision(payload.artifact_id)
+        if not dec:
+            raise HTTPException(status_code=404, detail="未找到目标调度决策记录")
+        cert = sign_routing_decision_evidence(
+            decision=dec,
+            signer_identity=payload.signer_identity or "ATP_FLEET_SCHEDULER_AUTHORITY_V5_4",
+        )
+    elif art_type == SchedulerArtifactType.CAPACITY_SNAPSHOT.value:
+        # 现查当前集群快照进行存证
+        devices = list_fleet_telemetry()
+        cap_data = {
+            "total_devices": len(devices),
+            "healthy_count": sum(1 for d in devices if d.health_status == DeviceHealthStatus.HEALTHY),
+            "total_capacity": sum(d.max_concurrency for d in devices),
+            "used_concurrency": sum(d.current_concurrency for d in devices),
+            "available_capacity": sum(d.max_concurrency for d in devices) - sum(d.current_concurrency for d in devices),
+            "cluster_averages": {},
+        }
+        cert = sign_capacity_snapshot_evidence(
+            snapshot_id=payload.artifact_id,
+            capacity_data=cap_data,
+            signer_identity=payload.signer_identity or "ATP_CAPACITY_MONITOR_AUTHORITY_V5_4",
+        )
+    else:
+        raise HTTPException(status_code=400, detail=f"不支持的存证类型: {payload.artifact_type}")
+
+    return {
+        "message": "已成功签发 64 位 SHA-256 不可篡改调度存证证书",
+        "certificate": cert.to_dict(),
+    }
+
+
+@router.post("/evidence/verify")
+def verify_scheduler_evidence_endpoint(
+    payload: VerifySchedulerEvidenceRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """在线核验 64 位 SHA-256 调度存证证书与 HMAC 防篡改数字签名"""
+    verdict, reason = verify_scheduler_certificate(payload.certificate_id)
+    return {
+        "certificate_id": payload.certificate_id,
+        "verdict": verdict.value,
+        "is_valid": verdict.value == "VALID",
+        "reason": reason,
+    }
+
+
+@router.get("/evidence/list")
+def list_scheduler_evidence_endpoint(
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询已颁发的调度存证证书历史列表"""
+    certs = list_scheduler_certificates(limit=limit)
+    return {
+        "total": len(certs),
+        "certificates": certs,
+    }
+
+
+@router.get("/evidence/{certificate_id}")
+def get_scheduler_evidence_endpoint(
+    certificate_id: str,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询单张调度存证证书详情"""
+    cert = get_scheduler_certificate(certificate_id)
+    if not cert:
+        raise HTTPException(status_code=404, detail="调度存证证书不存在")
+    return {"certificate": cert.to_dict()}

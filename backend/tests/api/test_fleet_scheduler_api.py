@@ -223,3 +223,41 @@ def test_storm_guard_endpoints():
     reset_resp = client.post("/api/v1/scheduler/storm/reset", headers=HEADERS)
     assert reset_resp.status_code == 200
     assert "复位至正常" in reset_resp.json()["message"]
+
+
+def test_scheduler_evidence_endpoints():
+    client = TestClient(app)
+
+    # 1. 签发容量快照存证证书
+    sign_resp = client.post(
+        "/api/v1/scheduler/evidence/sign",
+        json={
+            "artifact_type": "CAPACITY_SNAPSHOT",
+            "artifact_id": "snap_test_cap_01",
+        },
+        headers=HEADERS,
+    )
+    assert sign_resp.status_code == 200
+    cert = sign_resp.json()["certificate"]
+    cert_id = cert["certificate_id"]
+    assert len(cert["evidence_sha256"]) == 64
+    assert len(cert["hmac_signature"]) == 64
+
+    # 2. 在线验签
+    verify_resp = client.post(
+        "/api/v1/scheduler/evidence/verify",
+        json={"certificate_id": cert_id},
+        headers=HEADERS,
+    )
+    assert verify_resp.status_code == 200
+    assert verify_resp.json()["is_valid"] is True
+    assert verify_resp.json()["verdict"] == "VALID"
+
+    # 3. 证书列表与单张详情
+    get_cert_resp = client.get(f"/api/v1/scheduler/evidence/{cert_id}", headers=HEADERS)
+    assert get_cert_resp.status_code == 200
+    assert get_cert_resp.json()["certificate"]["certificate_id"] == cert_id
+
+    list_certs_resp = client.get("/api/v1/scheduler/evidence/list", headers=HEADERS)
+    assert list_certs_resp.status_code == 200
+    assert list_certs_resp.json()["total"] >= 1
