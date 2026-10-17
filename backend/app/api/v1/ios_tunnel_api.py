@@ -43,6 +43,13 @@ from app.services.cross_platform_device_pool_allocator import (
     get_device_pool_capacity_summary,
     list_all_unified_devices,
 )
+from app.services.ios_crash_and_syslog_collector import (
+    get_crash_report,
+    get_recent_syslog,
+    ingest_syslog_lines,
+    list_crash_reports,
+    parse_and_record_crash,
+)
 
 router = APIRouter(prefix="/ios/tunnel", tags=["iOS Tunnel"])
 
@@ -124,6 +131,18 @@ class AllocateDeviceRequest(BaseModel):
     brand: Optional[str] = Field(None, description="机型品牌过滤")
     min_os_version: Optional[str] = Field(None, description="最低系统版本要求")
     auto_lease: bool = Field(False, description="匹配成功是否自动申请排他租约")
+
+
+class IngestSyslogRequest(BaseModel):
+    udid: str = Field(..., description="目标物理 iPhone UDID")
+    lines: List[str] = Field(default_factory=list, description="Syslog 控制台日志行列表")
+
+
+class UploadCrashReportRequest(BaseModel):
+    udid: str = Field(..., description="目标物理 iPhone UDID")
+    raw_crash_text: str = Field(..., description="iOS 原生 IPS / Crash 日志文本")
+    run_id: Optional[str] = Field(None, description="绑定的测试运行任务 RunID")
+    step_index: Optional[int] = Field(None, description="绑定的测试步骤索引")
 
 
 @router.post("/register")
@@ -481,4 +500,76 @@ def get_all_pool_devices_endpoint(
     return {
         "total": len(devices),
         "devices": [d.to_dict() for d in devices],
+    }
+
+
+@router.post("/syslog/ingest")
+def ingest_syslog_endpoint(
+    payload: IngestSyslogRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """接收 Agent 上报的 iOS 系统控制台 Syslog 流"""
+    count = ingest_syslog_lines(udid=payload.udid, raw_lines=payload.lines)
+    return {
+        "message": f"成功归档 {count} 行 Syslog",
+        "udid": payload.udid,
+        "ingested_lines": count,
+    }
+
+
+@router.get("/syslog/{udid}")
+def get_syslog_endpoint(
+    udid: str,
+    limit: int = 100,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """获取指定真机的实时 Syslog 缓冲记录"""
+    lines = get_recent_syslog(udid=udid, limit=limit)
+    return {
+        "total": len(lines),
+        "syslog": lines,
+    }
+
+
+@router.post("/crash/report")
+def upload_crash_endpoint(
+    payload: UploadCrashReportRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """解析并归档应用闪退 Crash 报告"""
+    report = parse_and_record_crash(
+        udid=payload.udid,
+        raw_crash_text=payload.raw_crash_text,
+        run_id=payload.run_id,
+        step_index=payload.step_index,
+    )
+    return {
+        "message": "iOS 崩溃堆栈解析归档成功",
+        "crash": report.to_dict(),
+    }
+
+
+@router.get("/crash/{crash_id}")
+def get_crash_endpoint(
+    crash_id: str,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询指定崩溃详情与符号化调用栈"""
+    report = get_crash_report(crash_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="未找到目标崩溃报告记录")
+    return {"crash": report.to_dict()}
+
+
+@router.get("/crashes")
+def list_crashes_endpoint(
+    udid: Optional[str] = None,
+    run_id: Optional[str] = None,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询全量已归档的 iOS 崩溃报告"""
+    reports = list_crash_reports(udid=udid, run_id=run_id)
+    return {
+        "total": len(reports),
+        "crashes": reports,
     }

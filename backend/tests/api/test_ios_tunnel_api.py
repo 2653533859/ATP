@@ -209,3 +209,62 @@ def test_ios_tunnel_phase2_endpoints():
         headers=HEADERS,
     )
     assert rel_resp.status_code == 200
+
+
+def test_ios_tunnel_crash_and_syslog_endpoints():
+    client = TestClient(app)
+
+    udid = "00008101-CRASH-TEST-API"
+
+    # 1. 上报 Syslog 流
+    syslog_resp = client.post(
+        "/api/v1/ios/tunnel/syslog/ingest",
+        json={
+            "udid": udid,
+            "lines": [
+                "[12:00:01] SpringBoard[52]: User tap home",
+                "[12:00:02] TargetApp[100]: Memory warning <Error>",
+            ],
+        },
+        headers=HEADERS,
+    )
+    assert syslog_resp.status_code == 200
+    assert syslog_resp.json()["ingested_lines"] == 2
+
+    # 2. 读取 Syslog 缓冲
+    get_syslog_resp = client.get(f"/api/v1/ios/tunnel/syslog/{udid}", headers=HEADERS)
+    assert get_syslog_resp.status_code == 200
+    assert get_syslog_resp.json()["total"] == 2
+
+    # 3. 上报 Crash 报告
+    crash_text = """
+    Process: MyApp [2048]
+    Identifier: com.example.myapp
+    Exception Type: EXC_CRASH (SIGABRT)
+    Termination Reason: SIGNAL 6 Abort trap: 6
+    Triggered by Thread: 0
+    Thread 0 Crashed:
+    0   MyApp 0x0000000100001234 main + 20
+    """
+    crash_resp = client.post(
+        "/api/v1/ios/tunnel/crash/report",
+        json={
+            "udid": udid,
+            "raw_crash_text": crash_text,
+            "run_id": "run_test_777",
+            "step_index": 2,
+        },
+        headers=HEADERS,
+    )
+    assert crash_resp.status_code == 200
+    crash_id = crash_resp.json()["crash"]["crash_id"]
+
+    # 4. 获取单条崩溃详情
+    get_crash_resp = client.get(f"/api/v1/ios/tunnel/crash/{crash_id}", headers=HEADERS)
+    assert get_crash_resp.status_code == 200
+    assert get_crash_resp.json()["crash"]["process_name"] == "MyApp"
+
+    # 5. 查询全量崩溃列表
+    list_crashes_resp = client.get(f"/api/v1/ios/tunnel/crashes?run_id=run_test_777", headers=HEADERS)
+    assert list_crashes_resp.status_code == 200
+    assert list_crashes_resp.json()["total"] == 1
