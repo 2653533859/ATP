@@ -9,7 +9,7 @@
 > v4.8.0 规划入口为 [`docs/development-task-plan-v4.8.0.md`](docs/development-task-plan-v4.8.0.md)，覆盖 Phase 1（工具栏渐进式披露与操作认知降噪）、Phase 2（非标原生标签肃清与组件库基座归一化）、Phase 3（Bento 2.0 空间排版与交互加载质感升级）、Phase 4（数据大盘图表可解释性与穿透下钻）。
 
 - [x] 2026-10-17 UI1.1 API 工作台工具栏分组收纳与渐进式披露重构：将 35+ 平铺按钮重构为 5 大业务域分组下拉（流量契约、混沌韧性、变异自愈、体验a11y、门禁集群），彻底消除断行，1440px 视口无溢出；单测通过，见 [`docs/evidence/api-workbench-toolbar-progressive-disclosure-ui1-1-2026-10-17.md`](docs/evidence/api-workbench-toolbar-progressive-disclosure-ui1-1-2026-10-17.md)。
-- [ ] 2026-10-17 UI1.2 性能测试工作台工具栏动作分级与高维诊断折叠：将新增的 5 大高维容量与熔断抽屉收纳为“架构调度与自愈”与“容量水位与熔断”分组下拉菜单，保持顶栏清爽极简；单测通过。
+- [x] 2026-10-17 UI1.2 性能测试工作台工具栏动作分级与高维诊断折叠：将新增的 5 大高维容量与熔断抽屉收纳为 3 大分组下拉菜单（单元调度容灾、容量熔断大脑、拐点爆炸半径），保持顶栏清爽极简；单测通过，见 [`docs/evidence/performance-workbench-toolbar-progressive-disclosure-ui1-2-2026-10-17.md`](docs/evidence/performance-workbench-toolbar-progressive-disclosure-ui1-2-2026-10-17.md)。
 - [ ] 2026-10-17 UI1.3 报表中心与 Hermes 助手工具栏响应式与动作规范化：统一工具栏高度、按钮间距节奏与主次视觉权重，优化小屏分辨率弹性换行；单测通过。
 - [ ] 2026-10-17 UI2.1 配置中心原生 HTML 标签肃清与 AntD 样式对齐：移除原生 `<select class="project-select-native">` 与原生 `<button class="button-light">`，全量对齐 `<a-select>` 与 `<a-button>`；单测通过。
 - [ ] 2026-10-17 UI2.2 Hermes 计划草稿面板非标输入与复选框规范化：移除原生 `<input>` 与 `<input type="checkbox">`，替换为 `<a-input>` 与 `<a-checkbox>`，对齐 Bento 聚焦微光环；单测通过。

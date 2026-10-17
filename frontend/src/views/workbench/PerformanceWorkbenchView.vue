@@ -27,32 +27,66 @@
       </div>
 
       <div class="toolbar-right">
-        <a-button size="small" :loading="loading" class="toolbar-btn" @click="refreshWorkbench">
-          <ReloadOutlined /> {{ t('common.refresh') }}
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showCellControllerDrawer = true">
-          <PartitionOutlined /> 单元切流控制
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showCellEscapePanel = true">
-          <ClusterOutlined /> 单元逃逸探查
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showWatermarkDrawer = true">
-          <DashboardOutlined /> 容量水位监控
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showBottleneckCard = true">
-          <BugOutlined /> 瓶颈归因诊断
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showBreakerDrawer = true">
-          <ThunderboltOutlined /> 防雪崩熔断
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showKneeDrawer = true">
-          <LineChartOutlined /> 吞吐拐点分析
-        </a-button>
-        <a-button size="small" class="toolbar-btn" @click="showBlastDrawer = true">
-          <SafetyCertificateOutlined /> 爆炸半径评估
-        </a-button>
+        <!-- 单元调度与容灾自愈下拉 -->
+        <a-dropdown>
+          <a-button size="small" class="toolbar-btn">
+            <PartitionOutlined /> 单元调度与容灾 <DownOutlined />
+          </a-button>
+          <template #overlay>
+            <a-menu>
+              <a-menu-item @click="showCellControllerDrawer = true">
+                <PartitionOutlined /> 单元切流控制
+              </a-menu-item>
+              <a-menu-item @click="showCellEscapePanel = true">
+                <ClusterOutlined /> 单元逃逸探查
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
+
+        <!-- 容量水位与熔断归因下拉 -->
+        <a-dropdown>
+          <a-button size="small" class="toolbar-btn">
+            <DashboardOutlined /> 容量与熔断大脑 <DownOutlined />
+          </a-button>
+          <template #overlay>
+            <a-menu>
+              <a-menu-item @click="showWatermarkDrawer = true">
+                <DashboardOutlined /> 容量水位监控
+              </a-menu-item>
+              <a-menu-item @click="showBottleneckCard = true">
+                <BugOutlined /> 瓶颈归因诊断
+              </a-menu-item>
+              <a-menu-item @click="showBreakerDrawer = true">
+                <ThunderboltOutlined /> 防雪崩分级熔断
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
+
+        <!-- 动力学拐点与安全审计下拉 -->
+        <a-dropdown>
+          <a-button size="small" class="toolbar-btn">
+            <LineChartOutlined /> 拐点与爆炸半径 <DownOutlined />
+          </a-button>
+          <template #overlay>
+            <a-menu>
+              <a-menu-item @click="showKneeDrawer = true">
+                <LineChartOutlined /> 吞吐拐点分析
+              </a-menu-item>
+              <a-menu-item @click="showBlastDrawer = true">
+                <SafetyCertificateOutlined /> 爆炸半径评估
+              </a-menu-item>
+            </a-menu>
+          </template>
+        </a-dropdown>
+
         <a-button size="small" class="toolbar-btn" @click="openFullConsole">
           <SettingOutlined /> {{ t('performance_workbench.full_console') }}
+        </a-button>
+
+        <a-button size="small" :loading="loading" class="toolbar-btn" @click="refreshWorkbench">
+          <ReloadOutlined /> {{ t('common.refresh') }}
         </a-button>
       </div>
     </header>
@@ -397,6 +431,7 @@ import {
   DashboardOutlined,
   BugOutlined,
   ThunderboltOutlined,
+  DownOutlined,
 } from '@ant-design/icons-vue'
 import { useI18n } from 'vue-i18n'
 import { useRoute, useRouter } from 'vue-router'

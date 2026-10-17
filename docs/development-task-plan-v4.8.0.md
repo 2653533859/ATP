@@ -19,7 +19,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI1.1 `[x]` | **API 工作台工具栏分组收纳与渐进式披露重构** | `frontend/src/views/workbench/ApiWorkbenchView.vue` | 将 35+ 平铺按钮重构为 5 大业务域分组下拉（流量契约、混沌韧性、变异自愈、体验a11y、门禁集群），彻底消除断行，1440px 视口无溢出；单测通过；见 docs/evidence/api-workbench-toolbar-progressive-disclosure-ui1-1-2026-10-17.md |
-| UI1.2 `[ ]` | **性能测试工作台工具栏动作分级与高维诊断折叠** | `frontend/src/views/workbench/PerformanceWorkbenchView.vue` | 将新增的 5 大高维容量与熔断抽屉收纳为“架构调度与自愈”与“容量水位与熔断”分组下拉菜单，保持顶栏清爽极简；单测通过。 |
+| UI1.2 `[x]` | **性能测试工作台工具栏动作分级与高维诊断折叠** | `frontend/src/views/workbench/PerformanceWorkbenchView.vue` | 将新增的 5 大高维容量与熔断抽屉收纳为 3 大分组下拉菜单（单元调度容灾、容量熔断大脑、拐点爆炸半径），保持顶栏清爽极简；单测通过；见 docs/evidence/performance-workbench-toolbar-progressive-disclosure-ui1-2-2026-10-17.md |
 | UI1.3 `[ ]` | **报表中心与 Hermes 助手工具栏响应式与动作规范化** | `frontend/src/views/report/ReportCenterView.vue`, `HermesAssistantView.vue` | 统一工具栏高度、按钮间距节奏与主次视觉权重，优化小屏分辨率弹性换行；单测通过。 |
 
 ---

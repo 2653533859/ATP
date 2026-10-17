@@ -68,6 +68,7 @@ vi.mock('@ant-design/icons-vue', () => ({
   DashboardOutlined: true,
   BugOutlined: true,
   ThunderboltOutlined: true,
+  DownOutlined: true,
 }))
 vi.mock('./components/CellBasedTrafficControllerDrawer.vue', () => ({
   default: defineComponent({ name: 'CellBasedTrafficControllerDrawer', setup: () => () => h('div', 'cell-based-traffic-controller-drawer') }),
@@ -114,7 +115,7 @@ const passthrough = defineComponent({
 
 const globalStubs = Object.fromEntries([
   'AAlert', 'AButton', 'ADrawer', 'AEmpty', 'AForm', 'AFormItem', 'AInput', 'ASelect', 'ASpin',
-  'ASpace', 'ATag', 'ATextarea',
+  'ASpace', 'ATag', 'ATextarea', 'ADropdown', 'AMenu', 'AMenuItem',
 ].map((name) => [name, passthrough]))
 
 const testItem = {
