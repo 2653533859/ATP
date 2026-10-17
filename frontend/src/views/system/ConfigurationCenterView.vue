@@ -7,30 +7,33 @@
           <span class="toolbar-name">{{ t('configuration_center.title') }}</span>
         </div>
         <div class="toolbar-project">
-          <label class="project-filter">
-            <span class="sr-only">{{ t('configuration_center.project_filter') }}</span>
-            <select :value="selectedProjectId ?? ''" class="project-select-native" @change="changeProject">
-              <option value="">{{ t('configuration_center.all_projects') }}</option>
-              <option v-for="project in projects" :key="project.id" :value="project.id">
-                {{ project.name }}
-              </option>
-            </select>
-          </label>
+          <label for="config-project" class="sr-only">{{ t('configuration_center.project_filter') }}</label>
+          <a-select
+            id="config-project"
+            :value="selectedProjectId ?? undefined"
+            size="small"
+            class="project-select-dropdown"
+            style="width: 200px"
+            allow-clear
+            :placeholder="t('configuration_center.all_projects')"
+            :options="projectOptions"
+            @change="(val: any) => changeProject(val)"
+          />
         </div>
       </div>
       <div class="toolbar-actions">
-        <button class="button button-light toolbar-refresh-btn" type="button" @click="quotaDrawerVisible = true">
+        <a-button size="small" class="button button-light toolbar-refresh-btn" @click="quotaDrawerVisible = true">
           租户配额管控
-        </button>
-        <button class="button button-light toolbar-refresh-btn" type="button" @click="oidcDrawerVisible = true">
+        </a-button>
+        <a-button size="small" class="button button-light toolbar-refresh-btn" @click="oidcDrawerVisible = true">
           企业 SSO 身份源
-        </button>
-        <button class="button button-light toolbar-refresh-btn" type="button" @click="iamDrawerVisible = true">
+        </a-button>
+        <a-button size="small" class="button button-light toolbar-refresh-btn" @click="iamDrawerVisible = true">
           IAM 策略模拟器
-        </button>
-        <button class="button button-light toolbar-refresh-btn" type="button" :disabled="loading" @click="loadOverview">
+        </a-button>
+        <a-button size="small" class="button button-light toolbar-refresh-btn" :loading="loading" @click="loadOverview">
           {{ t('configuration_center.refresh') }}
-        </button>
+        </a-button>
       </div>
     </header>
 
@@ -40,16 +43,16 @@
         <p class="governance-copy">{{ t('configuration_center.governance_description') }}</p>
       </div>
       <div class="governance-links">
-        <button v-for="link in governanceLinks" :key="link.path" type="button" class="governance-link" @click="openGovernance(link.path)">
+        <a-button v-for="link in governanceLinks" :key="link.path" size="small" class="governance-link" @click="openGovernance(link.path)">
           {{ t(link.labelKey) }} <span aria-hidden="true">↗</span>
-        </button>
+        </a-button>
       </div>
     </nav>
 
     <div v-if="loadError" class="state-banner state-error" role="alert">
       <span class="state-mark">!</span>
       <span>{{ loadError }}</span>
-      <button type="button" class="text-button" @click="loadOverview">{{ t('configuration_center.retry') }}</button>
+      <a-button size="small" type="link" class="text-button" @click="loadOverview">{{ t('configuration_center.retry') }}</a-button>
     </div>
 
     <section class="metric-strip" aria-label="configuration summary">
@@ -187,10 +190,10 @@
           <div v-if="selectedResource.can_manage && selectedResource.resource_id && isRevisionDomain(selectedResource.domain)" class="snapshot-box">
             <label for="revision-reason">{{ t('configuration_center.snapshot_label') }}</label>
             <div class="snapshot-action">
-              <input id="revision-reason" v-model="revisionReason" type="text" :placeholder="t('configuration_center.snapshot_placeholder')" maxlength="512" />
-              <button type="button" class="button button-teal" :disabled="snapshotLoading" @click="createSnapshot">
+              <a-input id="revision-reason" v-model:value="revisionReason" :placeholder="t('configuration_center.snapshot_placeholder')" :maxlength="512" style="flex: 1;" />
+              <a-button type="primary" class="button button-teal" :loading="snapshotLoading" @click="createSnapshot">
                 {{ snapshotLoading ? t('configuration_center.saving') : t('configuration_center.snapshot') }}
-              </button>
+              </a-button>
             </div>
           </div>
 
@@ -246,9 +249,9 @@
               </div>
             </div>
             <p v-else class="no-change-copy">{{ t('configuration_center.no_change_detail') }}</p>
-            <button v-if="selectedRevision && selectedResource.can_manage" type="button" class="button button-danger" @click="openRollback">
+            <a-button v-if="selectedRevision && selectedResource.can_manage" danger type="primary" class="button button-danger" @click="openRollback">
               {{ t('configuration_center.rollback') }}
-            </button>
+            </a-button>
           </section>
         </template>
       </aside>
@@ -266,13 +269,13 @@
         </div>
         <label class="confirmation-field">
           <span>{{ t('configuration_center.rollback_confirmation') }}</span>
-          <input v-model="rollbackToken" type="text" autocomplete="off" :placeholder="t('configuration_center.rollback_placeholder')" @keyup.esc="rollbackOpen = false" />
+          <a-input v-model:value="rollbackToken" autocomplete="off" :placeholder="t('configuration_center.rollback_placeholder')" @keyup.esc="rollbackOpen = false" />
         </label>
         <div class="modal-actions">
-          <button type="button" class="button button-secondary" @click="rollbackOpen = false">{{ t('configuration_center.cancel') }}</button>
-          <button type="button" class="button button-danger" :disabled="rollbackToken !== 'ROLLBACK' || rollbackLoading" @click="confirmRollback">
+          <a-button class="button button-secondary" @click="rollbackOpen = false">{{ t('configuration_center.cancel') }}</a-button>
+          <a-button danger type="primary" class="button button-danger" :disabled="rollbackToken !== 'ROLLBACK'" :loading="rollbackLoading" @click="confirmRollback">
             {{ rollbackLoading ? t('configuration_center.rolling_back') : t('configuration_center.confirm_rollback') }}
-          </button>
+          </a-button>
         </div>
       </section>
     </div>
@@ -611,9 +614,18 @@ async function confirmRollback() {
   }
 }
 
-function changeProject(event: Event) {
-  const value = (event.target as HTMLSelectElement).value
-  selectedProjectId.value = value ? Number(value) : null
+const projectOptions = computed(() => [
+  { label: t('configuration_center.all_projects'), value: null },
+  ...projects.value.map((p) => ({ label: p.name, value: p.id })),
+])
+
+function changeProject(eventOrValue: Event | number | null | undefined) {
+  if (eventOrValue && typeof eventOrValue === 'object' && 'target' in eventOrValue) {
+    const value = (eventOrValue.target as HTMLSelectElement).value
+    selectedProjectId.value = value ? Number(value) : null
+  } else {
+    selectedProjectId.value = eventOrValue ? Number(eventOrValue) : null
+  }
   void loadOverview()
 }
 
