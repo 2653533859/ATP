@@ -81,7 +81,7 @@ flowchart TD
 |---|---|---|---|
 | T4.1 `[x]` | **增量筛选漏测风险动态防线看门狗** | `backend/app/services/regression_leak_safety_guard.py` | 严防高危核心模块（如支付、权限、计费）被过度裁剪导致漏测，提供核心基线保底与风险阻断规则；单测独立通过；见 docs/evidence/regression-leak-safety-guard-t4-1-2026-10-17.md |
 | T4.2 `[x]` | **增量用例推荐与拓扑调度 64 位 SHA-256 存证证书器** | `backend/app/services/precision_evidence_signer.py` | 为增量筛选决策、变更符号清单与 DAG 波次执行记录签发不可篡改 SHA-256 + HMAC 存证证书；单测独立通过；见 docs/evidence/precision-evidence-signer-t4-2-2026-10-17.md |
-| T4.3 `[ ]` | **v5.7.0 智能增量回归中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v5.7.0-release-notes.md` 与专项交付证据。 |
+| T4.3 `[x]` | **v5.7.0 智能增量回归中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v5.7.0-release-notes.md` 与专项交付证据；见 docs/evidence/v5-7-0-precision-regression-platform-acceptance-2026-10-17.md |
 
 ---
 
