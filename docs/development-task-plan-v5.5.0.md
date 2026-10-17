@@ -55,7 +55,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T1.1 `[ ]` | **多模态弹性定位链与相似度推导器** | `backend/app/services/dynamic_locator_self_healer.py` | 建立定位回退链（ID ➔ Text ➔ Role ➔ Path ➔ Visual Proximity），自动计算最佳候选相似度；单测独立通过。 |
+| T1.1 `[x]` | **多模态弹性定位链与相似度推导器** | `backend/app/services/dynamic_locator_self_healer.py` | 建立定位回退链（ID ➔ Text ➔ Role ➔ Path ➔ Visual Proximity），自动计算最佳候选相似度；单测独立通过；见 docs/evidence/dynamic-locator-self-healer-t1-1-2026-10-17.md |
 | T1.2 `[ ]` | **运行时失败拦截与自愈补丁应用器** | `backend/app/services/runtime_healing_patcher.py` | 在 ElementNotFound 发生时拦截执行流、毫秒级尝试重定位并生成可回放补丁对象；单测独立通过。 |
 | T1.3 `[ ]` | **用例自愈决策与补丁持久化 REST API** | `backend/app/api/v1/test_self_healing_api.py` | 挂载 `/api/v1/self-healing/*`，提供定位器自愈诊断、补丁采纳与用例回写端点；单测独立通过。 |
 
