@@ -29,9 +29,9 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T2.1 | **业务分支与契约多维漏测血缘分析器** | `backend/app/services/visual_coverage_lineage_analyzer.py` | 计算业务路径、接口分支与测试用例覆盖矩阵，自动标定未测试漏测节点 (Coverage Gap)；单测独立通过。 |
-| T2.2 | **漏测盲区智能补全用例草稿合成器** | `backend/app/services/missing_test_case_synthesizer.py` | 基于未覆盖分支逆向推导前置条件与预期断言，一键生成补测用例草稿；单测独立通过。 |
-| T2.3 | **漏测血缘与推荐补测管理 REST API** | `backend/app/api/v1/coverage_lineage_api.py` | 暴露 `/coverage/lineage`, `/coverage/gaps`, `/coverage/synthesize` 等接口；单测独立通过。 |
+| T2.1 `[x]` | **业务分支与契约多维漏测血缘分析器** | `backend/app/services/visual_coverage_lineage_analyzer.py` | 计算业务路径、接口分支与测试用例覆盖矩阵，自动标定未测试漏测节点 (Coverage Gap)；单测独立通过；见 docs/evidence/visual-coverage-lineage-analyzer-t2-1-t2-3-2026-10-17.md |
+| T2.2 `[x]` | **漏测盲区智能补全用例草稿合成器** | `backend/app/services/missing_test_case_synthesizer.py` | 基于未覆盖分支逆向推导前置条件与预期断言，一键生成补测用例草稿；单测独立通过；见 docs/evidence/visual-coverage-lineage-analyzer-t2-1-t2-3-2026-10-17.md |
+| T2.3 `[x]` | **漏测血缘与推荐补测管理 REST API** | `backend/app/api/v1/coverage_lineage_api.py` | 暴露 `/coverage/lineage`, `/coverage/gaps`, `/coverage/synthesize` 等接口；单测独立通过；见 docs/evidence/visual-coverage-lineage-analyzer-t2-1-t2-3-2026-10-17.md |
 
 ---
 
