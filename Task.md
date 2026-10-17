@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-17 v5.4.0 研发任务规划（进行中）
+
+> v5.4.0 规划入口为 [`docs/development-task-plan-v5.4.0.md`](docs/development-task-plan-v5.4.0.md)，覆盖 Phase 1（真机健康多维感知与动态权重路由）、Phase 2（任务节点热漂移与无感自愈重平衡）、Phase 3（集群热力透视与调度工作台中枢）、Phase 4（调度风暴防范、合规存证与全量发布）。
+
+- [ ] 2026-10-17 T1.1 设备健康遥测与多维指标感知器：落地 `fleet_health_telemetry` 服务；实时感知真机温度、电量、水位与隧道时延；单测独立通过。
+- [ ] 2026-10-17 T1.2 动态多目标加权并发路由引擎：落地 `fleet_concurrency_router` 服务；基于平台亲和度与负载挑选最优设备；单测独立通过。
+- [ ] 2026-10-17 T1.3 集群调度与容量预测 REST API：落地 `fleet_scheduler_api` 路由；提供设备健康状态与路由决策端点；单测独立通过。
+- [ ] 2026-10-17 T2.1 真机故障热转移与断点续跑引擎：落地 `device_hot_failover_engine` 服务；500ms 内热迁移至同构设备断点续跑；单测独立通过。
+- [ ] 2026-10-17 T2.2 设备过热保护与温备降载协调器：落地 `thermal_throttling_coordinator` 服务；超温静默降温与削减并发；单测独立通过。
+- [ ] 2026-10-17 T2.3 动态反压与队列吞吐自适应均衡器：落地 `dynamic_backpressure_balancer` 服务；队列排队监控与自适应吞吐窗口；单测独立通过。
+- [ ] 2026-10-17 UI3.1 设备集群实时健康与热力透视抽屉：落地 `DeviceFleetHealthDrawer.vue`；呈现设备温度热力图与电量梯度；单测独立通过。
+- [ ] 2026-10-17 UI3.2 动态调度路由拓扑与队列模拟弹窗：落地 `SchedulerTopologyModal.vue`；提供模拟任务路由演算与匹配预览；单测独立通过。
+- [ ] 2026-10-17 UI3.3 真机集群并发调度中枢工作台页面：落地 `FleetSchedulerWorkbenchView.vue` 与 `/workbench/fleet-scheduler` 路由；单测独立通过。
+- [ ] 2026-10-17 T4.1 任务调度风暴熔断防雪崩看门狗：落地 `fleet_storm_guard` 服务；防范真机集群瞬间雪崩与重试风暴；单测独立通过。
+- [ ] 2026-10-17 T4.2 调度决策 64 位 SHA-256 存证证书器：落地 `scheduler_evidence_signer` 服务；为路由决策签发不可篡改存证证书；单测独立通过。
+- [ ] 2026-10-17 T4.3 v5.4.0 真机集群调度中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.4.0-release-notes.md` 与专项交付证据。
+
 ## 2026-10-17 v5.3.0 研发任务规划（已全量闭环）
 
 > v5.3.0 规划入口为 [`docs/development-task-plan-v5.3.0.md`](docs/development-task-plan-v5.3.0.md)，覆盖 Phase 1（跨端测试动作语义映射与智能迁移引擎）、Phase 2（双端功能一致性对齐与差异侦测分析器）、Phase 3（双端差异透视抽屉与跨端迁移工作台中枢）、Phase 4（跨端回放安全沙箱、合规存证与全量发布）。
