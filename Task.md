@@ -13,7 +13,7 @@
 - [x] 2026-10-17 T1.3 增量影响面计算与精准用例推荐 REST API：落地 `precision_regression_api` 路由；提供影响面分析与精准用例推荐端点；单测独立通过，见 [`docs/evidence/precision-regression-api-t1-3-2026-10-17.md`](docs/evidence/precision-regression-api-t1-3-2026-10-17.md)。至此 v5.7.0 Phase 1 全量大闭环！
 - [x] 2026-10-17 T2.1 用例数据上下文有向无环图构建与环路检测器：落地 `case_dag_dependency_builder` 服务；构建用例 DAG 并执行 Tarjan 算法环路死锁检测；单测独立通过，见 [`docs/evidence/case-dag-dependency-builder-t2-1-2026-10-17.md`](docs/evidence/case-dag-dependency-builder-t2-1-2026-10-17.md)。
 - [x] 2026-10-17 T2.2 基于拓扑排序的并发波次分发与前置状态传递器：落地 `dag_wave_execution_dispatcher` 服务；DAG 波次划分与跨波次上下文变量传递；单测独立通过，见 [`docs/evidence/dag-wave-execution-dispatcher-t2-2-2026-10-17.md`](docs/evidence/dag-wave-execution-dispatcher-t2-2-2026-10-17.md)。
-- [ ] 2026-10-17 T2.3 拓扑中断级联跳过与孤立节点容错控制器：落地 `dag_cascade_fault_controller` 服务；前置失败级联跳过与孤立节点安全并发；单测独立通过。
+- [x] 2026-10-17 T2.3 拓扑中断级联跳过与孤立节点容错控制器：落地 `dag_cascade_fault_controller` 服务；前置失败级联跳过与孤立节点安全并发；单测独立通过，见 [`docs/evidence/dag-cascade-fault-controller-t2-3-2026-10-17.md`](docs/evidence/dag-cascade-fault-controller-t2-3-2026-10-17.md)。至此 v5.7.0 Phase 2 全量大闭环！
 - [ ] 2026-10-17 UI3.1 用例依赖 DAG 拓扑可视化与影响面透视抽屉：落地 `CaseDagTopologyDrawer.vue`；呈现交互式 DAG 拓扑图与波次分级卡片；单测独立通过。
 - [ ] 2026-10-17 UI3.2 增量用例推荐与影响分析对比模拟弹窗：落地 `PrecisionSelectionDiffModal.vue`；全量 vs 增量推荐对比与 AST 符号树展示；单测独立通过。
 - [ ] 2026-10-17 UI3.3 智能增量回归编排工作台中枢页面：落地 `PrecisionRegressionWorkbenchView.vue` 与 `/workbench/precision-regression` 路由；单测独立通过。
