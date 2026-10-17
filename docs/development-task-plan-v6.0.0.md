@@ -71,7 +71,7 @@ flowchart TD
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI3.1 `[x]` | **堆栈指纹拓扑与同源缺陷聚类抽屉** | `frontend/src/views/workbench/components/DefectClusterInspectionDrawer.vue` | 呈现同源聚类用例列表、堆栈差异对比与一键合并主缺陷交互；单测独立通过；见 docs/evidence/defect-cluster-inspection-drawer-ui3-1-2026-10-18.md |
-| UI3.2 `[ ]` | **跨平台同步与 SLA 升级策略配置弹窗** | `frontend/src/views/workbench/components/DefectSyncConfigModal.vue` | 可视化交互配置 Jira/GitHub 集成凭据、SLA 响应与解决时限及广播通道；单测独立通过。 |
+| UI3.2 `[x]` | **跨平台同步与 SLA 升级策略配置弹窗** | `frontend/src/views/workbench/components/DefectSyncConfigModal.vue` | 可视化交互配置 Jira/GitHub 集成凭据、SLA 响应与解决时限及广播通道；单测独立通过；见 docs/evidence/defect-sync-config-modal-ui3-2-2026-10-18.md |
 | UI3.3 `[ ]` | **智能缺陷治理与全生命周期工作台中枢页面** | `frontend/src/views/workbench/DefectIntelligenceWorkbenchView.vue` | 落地路由 `/workbench/defect-intelligence`，集成 4 大 Bento KPI、聚类缺陷流水大盘与组件联动；单测独立通过。 |
 
 ---
