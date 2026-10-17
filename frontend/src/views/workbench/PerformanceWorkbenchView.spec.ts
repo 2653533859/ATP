@@ -84,6 +84,9 @@ vi.mock('./components/DistributedBottleneckClassifierCard.vue', () => ({
 vi.mock('./components/AdaptiveAvalancheBreakerConsoleDrawer.vue', () => ({
   default: defineComponent({ name: 'AdaptiveAvalancheBreakerConsoleDrawer', setup: () => () => h('div', 'adaptive-avalanche-breaker-console-drawer') }),
 }))
+vi.mock('./components/StepLoadThroughputKneeDrawer.vue', () => ({
+  default: defineComponent({ name: 'StepLoadThroughputKneeDrawer', setup: () => () => h('div', 'step-load-throughput-knee-drawer') }),
+}))
 vi.mock('@/api', () => ({
   datasetApi: { list: vi.fn() },
   environmentApi: { list: environmentList },

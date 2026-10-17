@@ -45,6 +45,9 @@
         <a-button size="small" class="toolbar-btn" @click="showBreakerDrawer = true">
           <ThunderboltOutlined /> 防雪崩熔断
         </a-button>
+        <a-button size="small" class="toolbar-btn" @click="showKneeDrawer = true">
+          <LineChartOutlined /> 吞吐拐点分析
+        </a-button>
         <a-button size="small" class="toolbar-btn" @click="openFullConsole">
           <SettingOutlined /> {{ t('performance_workbench.full_console') }}
         </a-button>
@@ -368,6 +371,7 @@
     <MultisourceCapacityWatermarkDrawer v-model:open="showWatermarkDrawer" />
     <DistributedBottleneckClassifierCard v-model:open="showBottleneckCard" />
     <AdaptiveAvalancheBreakerConsoleDrawer v-model:open="showBreakerDrawer" />
+    <StepLoadThroughputKneeDrawer v-model:open="showKneeDrawer" />
   </div>
 </template>
 
@@ -403,6 +407,8 @@ import DistributedBottleneckClassifierCard from './components/DistributedBottlen
 const showBottleneckCard = ref(false)
 import AdaptiveAvalancheBreakerConsoleDrawer from './components/AdaptiveAvalancheBreakerConsoleDrawer.vue'
 const showBreakerDrawer = ref(false)
+import StepLoadThroughputKneeDrawer from './components/StepLoadThroughputKneeDrawer.vue'
+const showKneeDrawer = ref(false)
 import type { EChartsOption } from 'echarts'
 import {
   environmentApi,
