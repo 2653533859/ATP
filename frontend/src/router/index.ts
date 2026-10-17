@@ -114,6 +114,14 @@ const router = createRouter({
           },
         },
         {
+          path: 'workbench/fleet-scheduler',
+          name: 'fleet-scheduler-workbench',
+          component: () => import('@/views/workbench/FleetSchedulerWorkbenchView.vue'),
+          meta: {
+            roles: ENGINEER_ONLY,
+          },
+        },
+        {
           path: 'bugs',
           name: 'bugs',
           component: () => import('@/views/defect/DefectListView.vue'),
