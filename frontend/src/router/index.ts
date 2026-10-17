@@ -98,6 +98,14 @@ const router = createRouter({
           },
         },
         {
+          path: 'workbench/ai-exploration',
+          name: 'ai-autonomous-exploration-workbench',
+          component: () => import('@/views/workbench/AiAutonomousExplorationView.vue'),
+          meta: {
+            roles: ENGINEER_ONLY,
+          },
+        },
+        {
           path: 'bugs',
           name: 'bugs',
           component: () => import('@/views/defect/DefectListView.vue'),
