@@ -69,7 +69,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| UI3.1 `[ ]` | **混沌故障注入拓扑与稳态指标透视抽屉** | `frontend/src/views/workbench/components/ChaosExperimentInspectionDrawer.vue` | 呈现故障注入实时拓扑流向、稳态偏离曲线图、降级状态与一键注入/恢复控制；单测独立通过。 |
+| UI3.1 `[x]` | **混沌故障注入拓扑与稳态指标透视抽屉** | `frontend/src/views/workbench/components/ChaosExperimentInspectionDrawer.vue` | 呈现故障注入实时拓扑流向、稳态偏离曲线图、降级状态与一键注入/恢复控制；单测独立通过；见 docs/evidence/chaos-experiment-inspection-drawer-ui3-1-2026-10-17.md |
 | UI3.2 `[ ]` | **爆炸半径围栏配置与紧急熔断监控弹窗** | `frontend/src/views/workbench/components/BlastRadiusConfigModal.vue` | 可视化交互配置允许受影响的最大服务数、错误率红线与自动熔断看门狗策略；单测独立通过。 |
 | UI3.3 `[ ]` | **分布式混沌工程与弹性韧性演练工作台中枢页面** | `frontend/src/views/workbench/ChaosEngineeringWorkbenchView.vue` | 落地路由 `/workbench/chaos-engineering`，集成 4 大 Bento KPI、大盘流水与演练编排操作；单测独立通过。 |
 
