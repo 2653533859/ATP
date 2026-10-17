@@ -79,7 +79,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T4.1 `[ ]` | **第三方服务防击穿与写操作拦截看门狗** | `backend/app/services/traffic_write_blast_guard.py` | 严防回放过程中对外部第三方支付、短信网关或写入端点造成真实外部调用，提供安全 Mock 旁路或强行拦截；单测独立通过。 |
+| T4.1 `[x]` | **第三方服务防击穿与写操作拦截看门狗** | `backend/app/services/traffic_write_blast_guard.py` | 严防回放过程中对外部第三方支付、短信网关或写入端点造成真实外部调用，提供安全 Mock 旁路或强行拦截；单测独立通过；见 docs/evidence/traffic-write-blast-guard-t4-1-2026-10-17.md |
 | T4.2 `[ ]` | **流量回放与 Diff 报告 64 位 SHA-256 存证证书器** | `backend/app/services/replay_evidence_signer.py` | 为流量回放执行记录与响应比对报告签发不可篡改 SHA-256 + HMAC 存证证书；单测独立通过。 |
 | T4.3 `[ ]` | **v5.6.0 生产流量回放中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v5.6.0-release-notes.md` 与专项交付证据。 |
 
