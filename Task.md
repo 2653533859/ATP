@@ -11,7 +11,7 @@
 - [x] 2026-10-18 T1.1 失败堆栈与异常语义指纹提取器：落地 `defect_failure_fingerprint_extractor` 服务；生成稳定归一化的 64 位异常指纹；单测独立通过，见 [`docs/evidence/defect-failure-fingerprint-extractor-t1-1-2026-10-18.md`](docs/evidence/defect-failure-fingerprint-extractor-t1-1-2026-10-18.md)。
 - [x] 2026-10-18 T1.2 缺陷相似度计算与海量失败聚类去重器：落地 `defect_similarity_deduplicator` 服务；自动聚合归类同源缺陷并去重防泛滥；单测独立通过，见 [`docs/evidence/defect-similarity-deduplicator-t1-2-2026-10-18.md`](docs/evidence/defect-similarity-deduplicator-t1-2-2026-10-18.md)。
 - [x] 2026-10-18 T1.3 缺陷智能去重与聚合管理 REST API：落地 `defect_intelligence_api` 路由；提供指纹提取、相似度去重与批次合并端点；单测独立通过，见 [`docs/evidence/defect-intelligence-api-t1-3-2026-10-18.md`](docs/evidence/defect-intelligence-api-t1-3-2026-10-18.md)。至此 v6.0.0 Phase 1 全量大闭环！
-- [ ] 2026-10-18 T2.1 故障责任微服务与团队智能归因路由器：落地 `defect_root_cause_router` 服务；基于调用链定位故障微服务并路由负责人；单测独立通过。
+- [x] 2026-10-18 T2.1 故障责任微服务与团队智能归因路由器：落地 `defect_root_cause_router` 服务；基于调用链定位故障微服务并路由负责人；单测独立通过，见 [`docs/evidence/defect-root-cause-router-t2-1-2026-10-18.md`](docs/evidence/defect-root-cause-router-t2-1-2026-10-18.md)。
 - [ ] 2026-10-18 T2.2 跨平台缺陷工单双向状态同步器：落地 `defect_bidirectional_sync_gateway` 服务；对接 Jira/GitHub 双向联动流转；单测独立通过。
 - [ ] 2026-10-18 T2.3 缺陷 SLA 超时预警与升级看门狗：落地 `defect_sla_escalation_watchdog` 服务；监控处理时效与超时升级阻断；单测独立通过。
 - [ ] 2026-10-18 UI3.1 堆栈指纹拓扑与同源缺陷聚类抽屉：落地 `DefectClusterInspectionDrawer.vue`；堆栈差异对比与一键合并操作；单测独立通过。

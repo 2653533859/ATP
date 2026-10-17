@@ -60,7 +60,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T2.1 `[ ]` | **故障责任微服务与团队智能归因路由器** | `backend/app/services/defect_root_cause_router.py` | 结合调用链与异常堆栈定位故障根因微服务，智能路由至代码责任人与处理团队；单测独立通过。 |
+| T2.1 `[x]` | **故障责任微服务与团队智能归因路由器** | `backend/app/services/defect_root_cause_router.py` | 结合调用链与异常堆栈定位故障根因微服务，智能路由至代码责任人与处理团队；单测独立通过；见 docs/evidence/defect-root-cause-router-t2-1-2026-10-18.md |
 | T2.2 `[ ]` | **跨平台缺陷工单双向状态同步器** | `backend/app/services/defect_bidirectional_sync_gateway.py` | 支持与 Jira/GitHub Issues 双向同步，回归通过自动关闭、失败自动重新激活 (Reopen)；单测独立通过。 |
 | T2.3 `[ ]` | **缺陷 SLA 超时预警与升级看门狗** | `backend/app/services/defect_sla_escalation_watchdog.py` | 针对 P0/P1/P2 各级缺陷监控解决 SLA 倒计时，超时毫秒级触发升级阻断告警；单测独立通过。 |
 
