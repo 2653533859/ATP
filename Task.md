@@ -12,7 +12,7 @@
 - [x] 2026-10-17 T1.2 动态多目标加权并发路由引擎：落地 `fleet_concurrency_router` 服务；基于平台亲和度与负载挑选最优设备；单测独立通过，见 [`docs/evidence/fleet-concurrency-router-t1-2-2026-10-17.md`](docs/evidence/fleet-concurrency-router-t1-2-2026-10-17.md)。
 - [x] 2026-10-17 T1.3 集群调度与容量预测 REST API：落地 `fleet_scheduler_api` 路由；提供设备健康状态与路由决策端点；单测独立通过，见 [`docs/evidence/fleet-scheduler-api-t1-3-2026-10-17.md`](docs/evidence/fleet-scheduler-api-t1-3-2026-10-17.md)。至此 v5.4.0 Phase 1 全量大闭环！
 - [x] 2026-10-17 T2.1 真机故障热转移与断点续跑引擎：落地 `device_hot_failover_engine` 服务；500ms 内热迁移至同构设备断点续跑；单测独立通过，见 [`docs/evidence/device-hot-failover-engine-t2-1-2026-10-17.md`](docs/evidence/device-hot-failover-engine-t2-1-2026-10-17.md)。
-- [ ] 2026-10-17 T2.2 设备过热保护与温备降载协调器：落地 `thermal_throttling_coordinator` 服务；超温静默降温与削减并发；单测独立通过。
+- [x] 2026-10-17 T2.2 设备过热保护与温备降载协调器：落地 `thermal_throttling_coordinator` 服务；超温静默降温与削减并发；单测独立通过，见 [`docs/evidence/thermal-throttling-coordinator-t2-2-2026-10-17.md`](docs/evidence/thermal-throttling-coordinator-t2-2-2026-10-17.md)。
 - [ ] 2026-10-17 T2.3 动态反压与队列吞吐自适应均衡器：落地 `dynamic_backpressure_balancer` 服务；队列排队监控与自适应吞吐窗口；单测独立通过。
 - [ ] 2026-10-17 UI3.1 设备集群实时健康与热力透视抽屉：落地 `DeviceFleetHealthDrawer.vue`；呈现设备温度热力图与电量梯度；单测独立通过。
 - [ ] 2026-10-17 UI3.2 动态调度路由拓扑与队列模拟弹窗：落地 `SchedulerTopologyModal.vue`；提供模拟任务路由演算与匹配预览；单测独立通过。

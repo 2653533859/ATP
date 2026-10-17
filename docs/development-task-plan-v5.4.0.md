@@ -66,7 +66,7 @@ flowchart TD
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T2.1 `[x]` | **真机故障热转移与断点续跑引擎** | `backend/app/services/device_hot_failover_engine.py` | 当执行中的真机掉线或假死时，在 500ms 内无感热迁移至温备同构设备并保留任务上下文继续执行；单测独立通过；见 docs/evidence/device-hot-failover-engine-t2-1-2026-10-17.md |
-| T2.2 `[ ]` | **设备过热保护与温备降载协调器** | `backend/app/services/thermal_throttling_coordinator.py` | 自动感知电池超温（>42°C）触发强制静默降温，动态削减并发分配；单测独立通过。 |
+| T2.2 `[x]` | **设备过热保护与温备降载协调器** | `backend/app/services/thermal_throttling_coordinator.py` | 自动感知电池超温（>42°C）触发强制静默降温，动态削减并发分配；单测独立通过；见 docs/evidence/thermal-throttling-coordinator-t2-2-2026-10-17.md |
 | T2.3 `[ ]` | **动态反压与队列吞吐自适应均衡器** | `backend/app/services/dynamic_backpressure_balancer.py` | 监控全局队列排队深度与执行延迟，自适应调整并发吞吐窗口（动态反压限流）；单测独立通过。 |
 
 ---
