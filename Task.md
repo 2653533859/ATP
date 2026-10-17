@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-17 v5.0.0 研发任务规划（进行中）
+## 2026-10-17 v5.0.0 研发任务规划（已全量闭环）
 
 > v5.0.0 规划入口为 [`docs/development-task-plan-v5.0.0.md`](docs/development-task-plan-v5.0.0.md)，覆盖 Phase 1（iOS 设备反向隧道与 WDA 端口自动穿透桥接器）、Phase 2（iOS 真机租约调度与并发排他抢占控制）、Phase 3（iOS 真机交互式投屏与远程控制中枢）、Phase 4（iOS 自动化执行容灾、合规凭证与全量发布）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-17 UI3.3 iOS 真机池化调度与远程管理中心页面：落地 `IosDeviceCenterView.vue` 视图与 `/devices/ios-center` 路由；全景管理真机池与租约；单测独立通过，见 [`docs/evidence/ios-device-center-view-ui3-3-2026-10-17.md`](docs/evidence/ios-device-center-view-ui3-3-2026-10-17.md)。至此 v5.0.0 Phase 3 全量大闭环！
 - [x] 2026-10-17 T4.1 iOS 崩溃堆栈捕获与 Syslog 实时归档器：落地 `ios_crash_and_syslog_collector` 服务与 `/ios/tunnel/crash` API；实现异常中断与闪退符号化堆栈捕获；单测独立通过，见 [`docs/evidence/ios-crash-and-syslog-collector-t4-1-2026-10-17.md`](docs/evidence/ios-crash-and-syslog-collector-t4-1-2026-10-17.md)。
 - [x] 2026-10-17 T4.2 IPA 签名合规与 Provisioning 描述文件验真器：落地 `ios_ipa_signing_validator` 服务与 `/ios/tunnel/ipa/validate` API；自动解析并校验证书有效期与 TeamID 匹配；单测独立通过，见 [`docs/evidence/ios-ipa-signing-validator-t4-2-2026-10-17.md`](docs/evidence/ios-ipa-signing-validator-t4-2-2026-10-17.md)。
-- [ ] 2026-10-17 T4.3 v5.0.0 iOS 移动真机中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.0.0-release-notes.md` 与专项交付证据。
+- [x] 2026-10-17 T4.3 v5.0.0 iOS 移动真机中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.0.0-release-notes.md` 与专项交付证据，见 [`docs/evidence/v5-0-0-ios-real-device-pooling-summary-acceptance-2026-10-17.md`](docs/evidence/v5-0-0-ios-real-device-pooling-summary-acceptance-2026-10-17.md)。至此 v5.0.0 全量大闭环！
 
 ## 2026-10-17 v4.9.0 研发任务规划（已全量闭环）
 
