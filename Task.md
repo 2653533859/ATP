@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-17 v5.1.0 研发任务规划（进行中）
+## 2026-10-17 v5.1.0 研发任务规划（已全量闭环）
 
 > v5.1.0 规划入口为 [`docs/development-task-plan-v5.1.0.md`](docs/development-task-plan-v5.1.0.md)，覆盖 Phase 1（拖拽式多协议多端工作流 DAG 编排引擎）、Phase 2（低代码可视化漏测血缘与测试间隙识别器）、Phase 3（可视化拖拽工作流画布与漏测血缘全景大盘）、Phase 4（容灾沙箱、执行签名与全量发布）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-17 UI3.3 混合工作流与漏测血缘中枢工作台页面：落地 `HybridWorkflowWorkbenchView.vue` 视图与 `/workbench/hybrid-orchestrator` 路由；全景管理混合编排与漏测大盘；单测独立通过，见 [`docs/evidence/hybrid-workflow-workbench-view-ui3-3-2026-10-17.md`](docs/evidence/hybrid-workflow-workbench-view-ui3-3-2026-10-17.md)。至此 v5.1.0 Phase 3 全量大闭环！
 - [x] 2026-10-17 T4.1 工作流执行死循环与超时熔断看门狗：落地 `workflow_execution_sandbox_guard` 服务与 `/workflow/guard/violations` API；监控循环节点迭代次数与超时熔断保护；单测独立通过，见 [`docs/evidence/workflow-sandbox-and-signer-t4-1-t4-2-2026-10-17.md`](docs/evidence/workflow-sandbox-and-signer-t4-1-t4-2-2026-10-17.md)。
 - [x] 2026-10-17 T4.2 工作流执行证据链 64 位 SHA-256 签名存证器：落地 `workflow_evidence_fingerprint_signer` 服务与 `/workflow/evidence/sign` API；为多端执行结果生成不可篡改 SHA-256 存证证书；单测独立通过，见 [`docs/evidence/workflow-sandbox-and-signer-t4-1-t4-2-2026-10-17.md`](docs/evidence/workflow-sandbox-and-signer-t4-1-t4-2-2026-10-17.md)。
-- [ ] 2026-10-17 T4.3 v5.1.0 混合编排与漏测血缘中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.1.0-release-notes.md` 与专项交付证据。
+- [x] 2026-10-17 T4.3 v5.1.0 混合编排与漏测血缘中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.1.0-release-notes.md` 与专项交付证据，见 [`docs/evidence/v5-1-0-hybrid-workflow-and-coverage-lineage-summary-acceptance-2026-10-17.md`](docs/evidence/v5-1-0-hybrid-workflow-and-coverage-lineage-summary-acceptance-2026-10-17.md)。至此 v5.1.0 全量大闭环！
 
 ## 2026-10-17 v5.0.0 研发任务规划（已全量闭环）
 
