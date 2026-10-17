@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-17 v5.5.0 研发任务规划（进行中）
+
+> v5.5.0 规划入口为 [`docs/development-task-plan-v5.5.0.md`](docs/development-task-plan-v5.5.0.md)，覆盖 Phase 1（多模态定位器动态自愈与弹性重定位器引擎）、Phase 2（响应结构漂移与语义断言自适应演进器）、Phase 3（用例自愈中枢与断言演进工作台）、Phase 4（自愈安全沙箱、合规存证与全量发布）。
+
+- [ ] 2026-10-17 T1.1 多模态弹性定位链与相似度推导器：落地 `dynamic_locator_self_healer` 服务；建立定位回退链并推导最优候选；单测独立通过。
+- [ ] 2026-10-17 T1.2 运行时失败拦截与自愈补丁应用器：落地 `runtime_healing_patcher` 服务；毫秒级拦截定位异常并生成补丁；单测独立通过。
+- [ ] 2026-10-17 T1.3 用例自愈决策与补丁持久化 REST API：落地 `test_self_healing_api` 路由；提供定位器自愈与用例回写端点；单测独立通过。
+- [ ] 2026-10-17 T2.1 接口响应结构变迁与漂移检测器：落地 `response_schema_drift_detector` 服务；识别字段重命名与层级展开；单测独立通过。
+- [ ] 2026-10-17 T2.2 语义断言智能演进与语法重写器：落地 `assertion_drift_evolution_synthesizer` 服务；重写现代断言并输出代码 Diff；单测独立通过。
+- [ ] 2026-10-17 T2.3 断言演进置信度评分与安全回滚控制器：落地 `assertion_evolution_controller` 服务；演进置信度评分与版本回滚；单测独立通过。
+- [ ] 2026-10-17 UI3.1 定位器自愈对比与 DOM 变化透视抽屉：落地 `SelfHealingDiffInspectionDrawer.vue`；分栏对比新旧定位器与 DOM 树；单测独立通过。
+- [ ] 2026-10-17 UI3.2 断言漂移演进对比与语法模拟弹窗：落地 `AssertionDriftEvolutionModal.vue`；提供结构对比与在线断言演练；单测独立通过。
+- [ ] 2026-10-17 UI3.3 AI 用例自愈与断言演进工作台中枢页面：落地 `TestSelfHealingWorkbenchView.vue` 与 `/workbench/test-self-healing` 路由；单测独立通过。
+- [ ] 2026-10-17 T4.1 自愈补丁防篡改与安全围栏看门狗：落地 `self_healing_safety_guard` 服务；防范恶意放宽断言与注入攻击；单测独立通过。
+- [ ] 2026-10-17 T4.2 自愈补丁与断言演进 64 位 SHA-256 存证证书器：落地 `healing_evidence_signer` 服务；为自愈记录签发不可篡改存证证书；单测独立通过。
+- [ ] 2026-10-17 T4.3 v5.5.0 测试自愈与断言演进中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.5.0-release-notes.md` 与专项交付证据。
+
 ## 2026-10-17 v5.4.0 研发任务规划（已全量闭环）
 
 > v5.4.0 规划入口为 [`docs/development-task-plan-v5.4.0.md`](docs/development-task-plan-v5.4.0.md)，覆盖 Phase 1（真机健康多维感知与动态权重路由）、Phase 2（任务节点热漂移与无感自愈重平衡）、Phase 3（集群热力透视与调度工作台中枢）、Phase 4（调度风暴防范、合规存证与全量发布）。
