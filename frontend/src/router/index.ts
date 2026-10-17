@@ -90,6 +90,14 @@ const router = createRouter({
           },
         },
         {
+          path: 'workbench/hybrid-orchestrator',
+          name: 'hybrid-workflow-workbench',
+          component: () => import('@/views/workbench/HybridWorkflowWorkbenchView.vue'),
+          meta: {
+            roles: ENGINEER_ONLY,
+          },
+        },
+        {
           path: 'bugs',
           name: 'bugs',
           component: () => import('@/views/defect/DefectListView.vue'),
