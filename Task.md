@@ -16,7 +16,7 @@
 - [x] 2026-10-18 T2.3 增量覆盖率发布准入卡点与红线裁决器：落地 `incremental_coverage_gate_evaluator` 服务；发布准入门槛评估与阻断整改清单；单测独立通过，见 [`docs/evidence/incremental-coverage-gate-evaluator-t2-3-2026-10-18.md`](docs/evidence/incremental-coverage-gate-evaluator-t2-3-2026-10-18.md)。至此 v5.9.0 Phase 2 全量大闭环！
 - [x] 2026-10-18 UI3.1 源码文件逐行覆盖率动态高亮染色抽屉：落地 `CoverageSourceStainingDrawer.vue`；源码在线红黄绿行级染色与未覆盖提示；单测独立通过，见 [`docs/evidence/coverage-source-staining-drawer-ui3-1-2026-10-18.md`](docs/evidence/coverage-source-staining-drawer-ui3-1-2026-10-18.md)。
 - [x] 2026-10-18 UI3.2 增量覆盖率发布门禁配置与高危分支补测弹窗：落地 `CoverageGateConfigModal.vue`；门禁阈值交互配置与缺失用例导出；单测独立通过，见 [`docs/evidence/coverage-gate-config-modal-ui3-2-2026-10-18.md`](docs/evidence/coverage-gate-config-modal-ui3-2-2026-10-18.md)。
-- [ ] 2026-10-18 UI3.3 全链路代码覆盖率与质量门禁工作台中枢页面：落地 `CodeCoverageWorkbenchView.vue` 与 `/workbench/code-coverage` 路由；单测独立通过。
+- [x] 2026-10-18 UI3.3 全链路代码覆盖率与质量门禁工作台中枢页面：落地 `CodeCoverageWorkbenchView.vue` 与 `/workbench/code-coverage` 路由；单测独立通过，见 [`docs/evidence/code-coverage-workbench-view-ui3-3-2026-10-18.md`](docs/evidence/code-coverage-workbench-view-ui3-3-2026-10-18.md)。至此 v5.9.0 Phase 3 全量大闭环！
 - [ ] 2026-10-18 T4.1 质量门禁发布强阻断与非合规豁免审批看门狗：落地 `coverage_release_blocker_guard` 服务；CI/CD 发布阻断与合规审批单豁免；单测独立通过。
 - [ ] 2026-10-18 T4.2 覆盖率评估报告与染色结果 64 位 SHA-256 存证证书器：落地 `coverage_evidence_signer` 服务；为覆盖率报告与染色数据签发存证证书；单测独立通过。
 - [ ] 2026-10-18 T4.3 v5.9.0 全链路代码覆盖率中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.9.0-release-notes.md` 与专项交付证据。
