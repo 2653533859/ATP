@@ -80,7 +80,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T4.1 `[ ]` | **偶发抖动缺陷提单防击穿安全沙箱看门狗** | `backend/app/services/flaky_defect_suppression_guard.py` | 识别偶发网络抖动与 Flaky 假失败，防范误建无效工单与警报疲劳；单测独立通过。 |
+| T4.1 `[x]` | **偶发抖动缺陷提单防击穿安全沙箱看门狗** | `backend/app/services/flaky_defect_suppression_guard.py` | 识别偶发网络抖动与 Flaky 假失败，防范误建无效工单与警报疲劳；单测独立通过；见 docs/evidence/flaky-defect-suppression-guard-t4-1-2026-10-18.md |
 | T4.2 `[ ]` | **缺陷归因结论与 SLA 履约 64 位 SHA-256 存证证书器** | `backend/app/services/defect_evidence_signer.py` | 规范化确定性 JSON，签发不可篡改的 64 位 SHA-256 指纹与 HMAC-SHA256 签名存证证书；单测独立通过。 |
 | T4.3 `[ ]` | **v6.0.0 智能缺陷治理中台全域综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v6.0.0-release-notes.md` 与专项交付证据。 |
 
