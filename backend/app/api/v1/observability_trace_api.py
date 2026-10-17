@@ -17,6 +17,13 @@ from app.services.w3c_trace_context_injector import (
     list_injected_trace_contexts,
     validate_traceparent,
 )
+from app.services.test_execution_trace_propagator import (
+    bind_execution_trace,
+    clear_execution_trace_sessions,
+    get_execution_trace_session,
+    list_execution_trace_sessions,
+    propagate_step_trace,
+)
 
 router = APIRouter(prefix="/observability/trace", tags=["Observability Trace"])
 
@@ -39,6 +46,23 @@ class ChildSpanRequest(BaseModel):
     parent_tracestate: str = Field("", description="父级 tracestate 字符串")
     new_span_id: Optional[str] = Field(None, description="可选指定新子 SpanID")
     new_tracestate_tag: Optional[str] = Field(None, description="新附加的 tracestate 标签")
+
+
+class BindExecutionTraceRequest(BaseModel):
+    run_id: str = Field(..., description="执行运行任务 ID")
+    case_id: str = Field(..., description="测试用例 ID")
+    parent_traceparent: Optional[str] = Field(None, description="上游传入的 traceparent")
+    parent_tracestate: str = Field("", description="上游传入的 tracestate")
+    carrier_type: str = Field("celery_async", description="载体通道类型")
+    metadata: Dict[str, Any] = Field(default_factory=dict, description="执行元数据")
+
+
+class PropagateStepRequest(BaseModel):
+    run_id: str = Field(..., description="执行运行任务 ID")
+    step_index: int = Field(..., description="测试步骤序号 (1, 2, 3...)")
+    step_name: str = Field(..., description="测试步骤名称")
+    request_headers: Dict[str, Any] = Field(default_factory=dict, description="出站请求头字典")
+    carrier_type: str = Field("http", description="出站协议类型")
 
 
 @router.post("/inject")
@@ -121,3 +145,79 @@ def clear_contexts_endpoint(
     """清空链路追踪上下文内存仓库"""
     clear_injected_trace_store()
     return {"message": "已清空追踪上下文历史"}
+
+
+@router.post("/execution/bind")
+def bind_execution_trace_endpoint(
+    payload: BindExecutionTraceRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """为测试执行任务绑定全局根 TraceContext"""
+    session = bind_execution_trace(
+        run_id=payload.run_id,
+        case_id=payload.case_id,
+        parent_traceparent=payload.parent_traceparent,
+        parent_tracestate=payload.parent_tracestate,
+        carrier_type=payload.carrier_type,
+        metadata=payload.metadata,
+    )
+    return {
+        "message": "执行链路跟踪会话已成功绑定",
+        "session": session.to_dict(),
+    }
+
+
+@router.post("/execution/step")
+def propagate_step_trace_endpoint(
+    payload: PropagateStepRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """为步骤分配子 Span 并在出站请求头中透明注入 traceparent"""
+    record = propagate_step_trace(
+        run_id=payload.run_id,
+        step_index=payload.step_index,
+        step_name=payload.step_name,
+        request_headers=payload.request_headers,
+        carrier_type=payload.carrier_type,
+    )
+    return {
+        "message": "步骤子 Span 追踪上下文已成功注入",
+        "step_record": record.to_dict(),
+    }
+
+
+@router.get("/trail/{run_id}")
+def get_execution_trail_endpoint(
+    run_id: str,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """获取指定执行任务的完整调用链痕迹 (Trail)"""
+    session = get_execution_trace_session(run_id)
+    if not session:
+        raise HTTPException(status_code=404, detail=f"未找到运行任务 {run_id} 的追踪会话")
+    return {
+        "run_id": run_id,
+        "session": session.to_dict(),
+    }
+
+
+@router.get("/sessions")
+def list_sessions_endpoint(
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """列出当前内存记录的执行追踪会话"""
+    items = list_execution_trace_sessions(limit=limit)
+    return {
+        "total": len(items),
+        "sessions": items,
+    }
+
+
+@router.delete("/sessions")
+def clear_sessions_endpoint(
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """清空执行追踪会话历史"""
+    clear_execution_trace_sessions()
+    return {"message": "已清空执行追踪会话历史"}

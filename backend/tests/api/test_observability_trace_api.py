@@ -97,3 +97,75 @@ def test_observability_trace_api_flow():
     assert del_resp.status_code == 200
     empty_resp = client.get("/api/v1/observability/trace/contexts", headers=HEADERS)
     assert empty_resp.json()["total"] == 0
+
+
+def test_execution_trace_propagation_api():
+    """测试任务执行上下文绑定、步骤多步衍生注入、Trail 查询与 Sessions 清空。"""
+    client = TestClient(app)
+
+    # 1. 绑定执行任务
+    bind_resp = client.post(
+        "/api/v1/observability/trace/execution/bind",
+        json={
+            "run_id": "run_api_test_001",
+            "case_id": "case_payment",
+            "carrier_type": "celery_async",
+            "metadata": {"executor": "httpx"},
+        },
+        headers=HEADERS,
+    )
+    assert bind_resp.status_code == 200
+    session_data = bind_resp.json()["session"]
+    root_trace_id = session_data["trace_id"]
+    assert len(root_trace_id) == 32
+
+    # 2. 步骤 1 衍生注入
+    step1_resp = client.post(
+        "/api/v1/observability/trace/execution/step",
+        json={
+            "run_id": "run_api_test_001",
+            "step_index": 1,
+            "step_name": "创建订单",
+            "request_headers": {"Content-Type": "application/json"},
+            "carrier_type": "http",
+        },
+        headers=HEADERS,
+    )
+    assert step1_resp.status_code == 200
+    step1_data = step1_resp.json()["step_record"]
+    assert root_trace_id in step1_data["traceparent"]
+    assert "traceparent" in step1_data["injected_headers"]
+
+    # 3. 步骤 2 衍生注入
+    step2_resp = client.post(
+        "/api/v1/observability/trace/execution/step",
+        json={
+            "run_id": "run_api_test_001",
+            "step_index": 2,
+            "step_name": "扣款支付",
+            "request_headers": {"Authorization": "Bearer pay_key"},
+            "carrier_type": "http",
+        },
+        headers=HEADERS,
+    )
+    assert step2_resp.status_code == 200
+    step2_data = step2_resp.json()["step_record"]
+    assert root_trace_id in step2_data["traceparent"]
+    assert step2_data["step_span_id"] != step1_data["step_span_id"]
+
+    # 4. 获取执行 Trail
+    trail_resp = client.get("/api/v1/observability/trace/trail/run_api_test_001", headers=HEADERS)
+    assert trail_resp.status_code == 200
+    trail_data = trail_resp.json()["session"]
+    assert trail_data["steps_count"] == 2
+    assert len(trail_data["steps"]) == 2
+
+    # 5. 查询 Sessions 列表并清空
+    sess_resp = client.get("/api/v1/observability/trace/sessions", headers=HEADERS)
+    assert sess_resp.status_code == 200
+    assert sess_resp.json()["total"] >= 1
+
+    del_resp = client.delete("/api/v1/observability/trace/sessions", headers=HEADERS)
+    assert del_resp.status_code == 200
+    empty_sess = client.get("/api/v1/observability/trace/sessions", headers=HEADERS)
+    assert empty_sess.json()["total"] == 0
