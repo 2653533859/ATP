@@ -55,6 +55,13 @@ from app.services.trace_sampler_and_sanitizer import (
     should_sample_trace,
     update_sampler_config,
 )
+from app.services.trace_evidence_fingerprint_signer import (
+    clear_evidence_store,
+    get_evidence_certificate,
+    list_evidence_certificates,
+    sign_trace_evidence,
+    verify_trace_evidence,
+)
 
 router = APIRouter(prefix="/observability/trace", tags=["Observability Trace"])
 
@@ -137,6 +144,18 @@ class UpdateSamplerConfigRequest(BaseModel):
     force_sample_errors: Optional[bool] = Field(None, description="是否强制 100% 采样错误链路")
     mask_pii_enabled: Optional[bool] = Field(None, description="是否启用 PII 敏感信息脱敏")
     mask_credentials_enabled: Optional[bool] = Field(None, description="是否启用凭证脱敏")
+
+
+class SignTraceEvidenceRequest(BaseModel):
+    trace_id: str = Field(..., description="调用链唯一 32 字符 TraceID")
+    run_id: str = Field(..., description="测试运行任务 RunID")
+    spans: List[Dict[str, Any]] = Field(default_factory=list, description="调用链 Span 列表")
+    signer: str = Field("atp-trace-auditor-v4.9", description="签名机构或主体标识")
+
+
+class VerifyTraceEvidenceRequest(BaseModel):
+    certificate: Dict[str, Any] = Field(..., description="待验签的存证证书字典")
+    spans: List[Dict[str, Any]] = Field(default_factory=list, description="待核验的实际 Span 列表")
 
 
 @router.post("/inject")
@@ -553,3 +572,71 @@ def update_sampling_config_endpoint(
         "message": "Trace 采样与脱敏配置已动态更新",
         "config": updated.to_dict(),
     }
+
+
+@router.post("/evidence/sign")
+def sign_evidence_endpoint(
+    payload: SignTraceEvidenceRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """为测试执行 Trace 生成 64 位 SHA-256 防篡改存证证书"""
+    cert = sign_trace_evidence(
+        trace_id=payload.trace_id,
+        run_id=payload.run_id,
+        spans=payload.spans,
+        signer=payload.signer,
+    )
+    return {
+        "message": "Trace 证据链 64 位 SHA-256 存证证书签名成功",
+        "certificate": cert.to_dict(),
+    }
+
+
+@router.post("/evidence/verify")
+def verify_evidence_endpoint(
+    payload: VerifyTraceEvidenceRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """核验实际 Span 列表是否被篡改"""
+    is_valid, msg = verify_trace_evidence(
+        certificate=payload.certificate,
+        spans=payload.spans,
+    )
+    return {
+        "is_valid": is_valid,
+        "message": msg,
+    }
+
+
+@router.get("/evidence/{trace_id}")
+def get_evidence_endpoint(
+    trace_id: str,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """获取指定 TraceID 的防篡改存证证书"""
+    cert = get_evidence_certificate(trace_id=trace_id)
+    if not cert:
+        raise HTTPException(status_code=404, detail="未找到该 TraceID 的防篡改存证凭据")
+    return {"certificate": cert}
+
+
+@router.get("/evidences")
+def list_evidences_endpoint(
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """列出存证证书列表"""
+    items = list_evidence_certificates(limit=limit)
+    return {
+        "total": len(items),
+        "certificates": items,
+    }
+
+
+@router.delete("/evidences")
+def clear_evidences_endpoint(
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """清空存证证书库"""
+    clear_evidence_store()
+    return {"message": "已清空 Trace 防篡改存证凭据库"}

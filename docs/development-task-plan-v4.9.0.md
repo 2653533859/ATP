@@ -51,7 +51,7 @@ ATP v4.9.0 彻底打通这一壁垒：
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T4.1 `[x]` | **Trace 采样率动态调谐与敏感数据脱敏过滤器** | `backend/app/services/trace_sampler_and_sanitizer.py` | 支持基于概率与失败优先的自适应采样（Adaptive Sampling），自动对 URL、Header 与 SQL 参数中的 Token/密码进行脱敏；单测独立通过；见 docs/evidence/trace-sampler-and-sanitizer-t4-1-2026-10-17.md |
-| T4.2 `[ ]` | **追踪审计凭据 64 位 SHA-256 防篡改存证器** | `backend/app/services/trace_evidence_fingerprint_signer.py` | 为全链路 Span 与用例步骤对齐记录生成不可篡改 SHA-256 签名，支持合规审计验签；单测独立通过。 |
+| T4.2 `[x]` | **追踪审计凭据 64 位 SHA-256 防篡改存证器** | `backend/app/services/trace_evidence_fingerprint_signer.py` | 为全链路 Span 与用例步骤对齐记录生成不可篡改 SHA-256 签名，支持合规审计验签；单测独立通过；见 docs/evidence/trace-evidence-fingerprint-signer-t4-2-2026-10-17.md |
 | T4.3 `[ ]` | **v4.9.0 全链路分布式追踪中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v4.9.0-release-notes.md` 与专项交付证据。 |
 
 ---

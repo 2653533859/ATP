@@ -444,3 +444,75 @@ def test_trace_sampling_and_sanitizing_api():
     assert up_resp.status_code == 200
     assert up_resp.json()["config"]["strategy"] == "ERROR_PRIORITY"
     assert up_resp.json()["config"]["base_sample_rate"] == 0.35
+
+
+def test_trace_evidence_signing_and_verification_api():
+    """测试 64 位 SHA-256 存证证书签名、在线防篡改验签、单条查询与清空 API。"""
+    client = TestClient(app)
+
+    trace_id = "55a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5"
+    run_id = "run_audit_999"
+    spans = [
+        {
+            "span_id": "span_root",
+            "service_name": "gateway",
+            "name": "POST /pay",
+            "duration_ms": 95.0,
+            "status": {"code": "OK"},
+            "attributes": {"http.status_code": 200},
+        }
+    ]
+
+    # 1. 签名存证
+    sign_resp = client.post(
+        "/api/v1/observability/trace/evidence/sign",
+        json={
+            "trace_id": trace_id,
+            "run_id": run_id,
+            "spans": spans,
+            "signer": "atp-qa-auditor",
+        },
+        headers=HEADERS,
+    )
+    assert sign_resp.status_code == 200
+    cert = sign_resp.json()["certificate"]
+    assert cert["trace_id"] == trace_id
+    assert len(cert["evidence_sha256"]) == 64
+
+    # 2. 正常验签
+    verify_resp = client.post(
+        "/api/v1/observability/trace/evidence/verify",
+        json={
+            "certificate": cert,
+            "spans": spans,
+        },
+        headers=HEADERS,
+    )
+    assert verify_resp.status_code == 200
+    assert verify_resp.json()["is_valid"] is True
+    assert "EVIDENCE_VERIFIED" in verify_resp.json()["message"]
+
+    # 3. 篡改验签失败
+    tampered_spans = [dict(spans[0], duration_ms=96.0)]
+    fail_verify_resp = client.post(
+        "/api/v1/observability/trace/evidence/verify",
+        json={
+            "certificate": cert,
+            "spans": tampered_spans,
+        },
+        headers=HEADERS,
+    )
+    assert fail_verify_resp.status_code == 200
+    assert fail_verify_resp.json()["is_valid"] is False
+    assert "TAMPERED_HASH_MISMATCH" in fail_verify_resp.json()["message"]
+
+    # 4. 单条证书查询
+    get_cert_resp = client.get(f"/api/v1/observability/trace/evidence/{trace_id}", headers=HEADERS)
+    assert get_cert_resp.status_code == 200
+    assert get_cert_resp.json()["certificate"]["evidence_sha256"] == cert["evidence_sha256"]
+
+    # 5. 清空存证库
+    del_resp = client.delete("/api/v1/observability/trace/evidences", headers=HEADERS)
+    assert del_resp.status_code == 200
+    empty_resp = client.get("/api/v1/observability/trace/evidences", headers=HEADERS)
+    assert empty_resp.json()["total"] == 0
