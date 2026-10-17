@@ -33,7 +33,11 @@
 
     <template v-if="selectedProjectId">
       <div class="case-bento-grid">
-        <div class="case-bento-tile">
+        <div
+          class="case-bento-tile clickable"
+          :class="{ 'is-active': activeBentoFilter === 'all' }"
+          @click="toggleBentoFilter('all')"
+        >
           <div class="tile-header">
             <span class="tile-label">{{ t('case.stats.visible_cases') }}</span>
             <span class="tag-pill tag-blue">当前视图</span>
@@ -44,7 +48,11 @@
           </div>
         </div>
 
-        <div class="case-bento-tile">
+        <div
+          class="case-bento-tile clickable"
+          :class="{ 'is-active': activeBentoFilter === 'module' }"
+          @click="toggleBentoFilter('module')"
+        >
           <div class="tile-header">
             <span class="tile-label">{{ t('case.stats.module_count') }}</span>
             <span class="tag-pill tag-gray">业务划分</span>
@@ -55,7 +63,11 @@
           </div>
         </div>
 
-        <div class="case-bento-tile">
+        <div
+          class="case-bento-tile clickable"
+          :class="{ 'is-active': activeBentoFilter === 'pending_review' }"
+          @click="toggleBentoFilter('pending_review')"
+        >
           <div class="tile-header">
             <span class="tile-label">{{ t('case.stats.pending_reviews') }}</span>
             <span class="tag-pill" :class="pendingReviewCount > 0 ? 'tag-yellow' : 'tag-gray'">
@@ -70,7 +82,11 @@
           </div>
         </div>
 
-        <div class="case-bento-tile">
+        <div
+          class="case-bento-tile clickable"
+          :class="{ 'is-active': activeBentoFilter === 'flaky' }"
+          @click="toggleBentoFilter('flaky')"
+        >
           <div class="tile-header">
             <span class="tile-label">{{ t('case.stats.flaky_cases') }}</span>
             <span class="tag-pill" :class="flakyCaseCount > 0 ? 'tag-red' : 'tag-green'">
@@ -865,6 +881,36 @@ function formatShortTime(value?: string | null): string {
 type CaseCategory = 'all' | 'api' | 'web' | 'mobile'
 const activeCategoryTab = ref<CaseCategory>('all')
 const showAdvancedFilters = ref(false)
+const activeBentoFilter = ref<'all' | 'module' | 'pending_review' | 'flaky' | null>(null)
+
+function toggleBentoFilter(filter: 'all' | 'module' | 'pending_review' | 'flaky') {
+  if (activeBentoFilter.value === filter) {
+    activeBentoFilter.value = null
+    filterReviewStatus.value = undefined
+    showAdvancedFilters.value = false
+    void loadCases()
+    return
+  }
+
+  activeBentoFilter.value = filter
+  if (filter === 'all') {
+    handleResetFilters()
+  } else if (filter === 'pending_review') {
+    showAdvancedFilters.value = true
+    filterReviewStatus.value = 'pending'
+    void loadCases()
+    message.info('已联动过滤：仅显示待评审用例')
+  } else if (filter === 'flaky') {
+    showAdvancedFilters.value = true
+    message.info('已联动定位：请关注列表中标有不稳定抖动的用例')
+  } else if (filter === 'module') {
+    if (selectedModuleId.value) {
+      clearModuleFilter()
+    } else {
+      message.info('可在左侧模块树中点选特定模块进行钻取')
+    }
+  }
+}
 const recentRuns = ref<RunDetailItem[]>([])
 
 const categoryCounts = computed(() => {
@@ -1429,6 +1475,7 @@ function clearFilter(key: FilterKey) {
 }
 
 function handleResetFilters() {
+  activeBentoFilter.value = null
   keyword.value = ''
   filterType.value = undefined
   filterPriority.value = undefined
@@ -1891,6 +1938,18 @@ onMounted(async () => {
   transform: translateY(-2px);
   box-shadow: var(--shadow-md);
   border-color: var(--c-border-strong);
+}
+.case-bento-tile.clickable {
+  cursor: pointer;
+}
+.case-bento-tile.clickable:hover {
+  border-color: var(--c-primary);
+  box-shadow: 0 6px 18px rgba(88, 80, 236, 0.16);
+}
+.case-bento-tile.is-active {
+  border-color: var(--c-primary);
+  background: var(--c-primary-soft);
+  box-shadow: 0 0 0 2px var(--c-primary);
 }
 .tile-header {
   display: flex;
