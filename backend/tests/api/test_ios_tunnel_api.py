@@ -268,3 +268,51 @@ def test_ios_tunnel_crash_and_syslog_endpoints():
     list_crashes_resp = client.get(f"/api/v1/ios/tunnel/crashes?run_id=run_test_777", headers=HEADERS)
     assert list_crashes_resp.status_code == 200
     assert list_crashes_resp.json()["total"] == 1
+
+
+def test_ios_ipa_validation_api():
+    client = TestClient(app)
+
+    udid = "00008101-VAL-API-UDID"
+
+    provisioning_data = {
+        "team_id": "ABC9988776",
+        "team_name": "QA Mobile Team",
+        "bundle_id": "com.atp.mobiletest",
+        "get_task_allow": True,
+        "ProvisionedDevices": [udid],
+    }
+
+    # 1. 提交合规验真请求 (合法设备)
+    val_resp = client.post(
+        "/api/v1/ios/tunnel/ipa/validate",
+        json={
+            "provisioning_data": provisioning_data,
+            "target_device_udid": udid,
+            "expected_bundle_id": "com.atp.mobiletest",
+        },
+        headers=HEADERS,
+    )
+    assert val_resp.status_code == 200
+    report = val_resp.json()["report"]
+    assert report["is_deployable"] is True
+    assert report["verdict"] == "VALID"
+    assert report["team_id"] == "ABC9988776"
+
+    # 2. 提交不匹配设备 (被阻断)
+    fail_resp = client.post(
+        "/api/v1/ios/tunnel/ipa/validate",
+        json={
+            "provisioning_data": provisioning_data,
+            "target_device_udid": "00008101-OTHER-UNAUTHORIZED",
+        },
+        headers=HEADERS,
+    )
+    assert fail_resp.status_code == 200
+    assert fail_resp.json()["report"]["is_deployable"] is False
+    assert fail_resp.json()["report"]["verdict"] == "DEVICE_NOT_PROVISIONED"
+
+    # 3. 校验历史查询
+    history_resp = client.get("/api/v1/ios/tunnel/ipa/validations", headers=HEADERS)
+    assert history_resp.status_code == 200
+    assert history_resp.json()["total"] >= 2

@@ -50,7 +50,7 @@
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T4.1 `[x]` | **iOS 崩溃堆栈捕获与 Syslog 实时归档器** | `backend/app/services/ios_crash_and_syslog_collector.py` | 当执行中断或 App 闪退时自动拉取 syslog 并提取 crashlog 符号化异常；单测独立通过；见 docs/evidence/ios-crash-and-syslog-collector-t4-1-2026-10-17.md |
-| T4.2 `[ ]` | **IPA 签名合规与 Provisioning 描述文件验真器** | `backend/app/services/ios_ipa_signing_validator.py` | 校验 IPA 包的 TeamID、BundleID 与证书有效期，防范因证书失效导致安装失败；单测独立通过。 |
+| T4.2 `[x]` | **IPA 签名合规与 Provisioning 描述文件验真器** | `backend/app/services/ios_ipa_signing_validator.py` | 校验 IPA 包的 TeamID、BundleID 与证书有效期，防范因证书失效导致安装失败；单测独立通过；见 docs/evidence/ios-ipa-signing-validator-t4-2-2026-10-17.md |
 | T4.3 `[ ]` | **v5.0.0 iOS 移动真机中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v5.0.0-release-notes.md` 与专项交付证据。 |
 
 ---

@@ -50,6 +50,10 @@ from app.services.ios_crash_and_syslog_collector import (
     list_crash_reports,
     parse_and_record_crash,
 )
+from app.services.ios_ipa_signing_validator import (
+    list_validation_reports,
+    validate_ipa_signing,
+)
 
 router = APIRouter(prefix="/ios/tunnel", tags=["iOS Tunnel"])
 
@@ -143,6 +147,12 @@ class UploadCrashReportRequest(BaseModel):
     raw_crash_text: str = Field(..., description="iOS 原生 IPS / Crash 日志文本")
     run_id: Optional[str] = Field(None, description="绑定的测试运行任务 RunID")
     step_index: Optional[int] = Field(None, description="绑定的测试步骤索引")
+
+
+class ValidateIpaSigningRequest(BaseModel):
+    provisioning_data: Dict[str, Any] = Field(..., description="IPA embedded.mobileprovision 元数据字典")
+    target_device_udid: Optional[str] = Field(None, description="拟部署目标真机 UDID")
+    expected_bundle_id: Optional[str] = Field(None, description="期望的测试应用 Bundle ID")
 
 
 @router.post("/register")
@@ -572,4 +582,34 @@ def list_crashes_endpoint(
     return {
         "total": len(reports),
         "crashes": reports,
+    }
+
+
+@router.post("/ipa/validate")
+def validate_ipa_endpoint(
+    payload: ValidateIpaSigningRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """校验 IPA 签名合规性、描述文件有效期与目标真机 UDID 白名单"""
+    report = validate_ipa_signing(
+        provisioning_data=payload.provisioning_data,
+        target_device_udid=payload.target_device_udid,
+        expected_bundle_id=payload.expected_bundle_id,
+    )
+    return {
+        "message": "IPA 签名合规校验完成",
+        "report": report.to_dict(),
+    }
+
+
+@router.get("/ipa/validations")
+def list_ipa_validations_endpoint(
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """列出近期 IPA 签名合规校验审计历史"""
+    items = list_validation_reports(limit=limit)
+    return {
+        "total": len(items),
+        "validations": items,
     }
