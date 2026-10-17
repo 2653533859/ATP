@@ -32,6 +32,12 @@ from app.services.otlp_trace_exporter import (
     export_spans_to_otlp,
     list_otlp_export_batches,
 )
+from app.services.trace_timestamp_clock_skew_aligner import (
+    align_span_tree_timestamps,
+    calculate_clock_skew,
+    clear_clock_skew_history,
+    list_clock_skew_history,
+)
 
 router = APIRouter(prefix="/observability/trace", tags=["Observability Trace"])
 
@@ -78,6 +84,12 @@ class ExportSpansRequest(BaseModel):
     target_endpoint: str = Field("http://localhost:4318/v1/traces", description="OTLP 接收端点")
     spans: List[Dict[str, Any]] = Field(default_factory=list, description="待导出的 Span 列表")
     extra_resource_attributes: Dict[str, Any] = Field(default_factory=dict, description="附加资源元数据")
+
+
+class ClockSkewCompensationRequest(BaseModel):
+    client_step_span: Dict[str, Any] = Field(..., description="客户端测试步骤 Span 数据字典")
+    server_spans: List[Dict[str, Any]] = Field(default_factory=list, description="服务端微服务 Span 列表")
+    service_name: str = Field("backend-gateway", description="首因服务端服务名")
 
 
 @router.post("/inject")
@@ -291,3 +303,56 @@ def clear_exports_endpoint(
     """清空 OTLP 导出缓冲区"""
     clear_otlp_export_buffer()
     return {"message": "已清空 OTLP 导出缓冲区"}
+
+
+@router.post("/skew-compensate")
+def compensate_clock_skew_endpoint(
+    payload: ClockSkewCompensationRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """跨网络时钟偏移补偿与服务端 Span 时间戳因果单调性校准"""
+    aligned_spans = align_span_tree_timestamps(
+        client_step_span=payload.client_step_span,
+        server_spans=payload.server_spans,
+    )
+    c_start = float(payload.client_step_span.get("start_time_ms", 0.0))
+    c_end = float(payload.client_step_span.get("end_time_ms", c_start + 100.0))
+    first_srv = payload.server_spans[0] if payload.server_spans else {}
+    s_start = float(first_srv.get("start_time_ms", c_start + 10.0))
+    s_end = float(first_srv.get("end_time_ms", s_start + 50.0))
+
+    comp = calculate_clock_skew(
+        client_send_time_ms=c_start,
+        client_receive_time_ms=c_end,
+        raw_server_start_ms=s_start,
+        raw_server_end_ms=s_end,
+        service_name=payload.service_name,
+    )
+
+    return {
+        "message": "时钟偏移校准与因果单调性收敛完成",
+        "calibration": comp.to_dict(),
+        "aligned_spans": aligned_spans,
+    }
+
+
+@router.get("/skew-calibrations")
+def list_skew_calibrations_endpoint(
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """列出当前时钟偏移补偿校准历史"""
+    items = list_clock_skew_history(limit=limit)
+    return {
+        "total": len(items),
+        "calibrations": items,
+    }
+
+
+@router.delete("/skew-calibrations")
+def clear_skew_calibrations_endpoint(
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """清空时钟偏移补偿历史"""
+    clear_clock_skew_history()
+    return {"message": "已清空时钟偏移校准历史"}

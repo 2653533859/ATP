@@ -210,3 +210,52 @@ def test_otlp_export_api():
     assert del_resp.status_code == 200
     empty_resp = client.get("/api/v1/observability/trace/exports", headers=HEADERS)
     assert empty_resp.json()["total"] == 0
+
+
+def test_clock_skew_compensation_api():
+    """测试跨网络时钟偏移补偿、Span 因果对齐、历史查询与清空 API。"""
+    client = TestClient(app)
+
+    # 1. 提交客户端测试步骤与服务调用链进行时钟校准
+    req_payload = {
+        "client_step_span": {
+            "span_id": "step_span_99",
+            "start_time_ms": 1000.0,
+            "end_time_ms": 1200.0,
+        },
+        "server_spans": [
+            {
+                "span_id": "server_span_01",
+                "service_name": "payment-api",
+                "start_time_ms": 1060.0,  # 存在 +40ms 偏移
+                "end_time_ms": 1220.0,
+            }
+        ],
+        "service_name": "payment-api",
+    }
+
+    resp = client.post(
+        "/api/v1/observability/trace/skew-compensate",
+        json=req_payload,
+        headers=HEADERS,
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert "calibration" in data
+    assert data["calibration"]["is_skew_detected"] is True
+    assert len(data["aligned_spans"]) == 1
+    aligned = data["aligned_spans"][0]
+    assert aligned["clock_skew_compensated"] is True
+    assert aligned["start_time_ms"] >= 1000.0
+    assert aligned["end_time_ms"] <= 1200.0
+
+    # 2. 查询校准记录
+    list_resp = client.get("/api/v1/observability/trace/skew-calibrations", headers=HEADERS)
+    assert list_resp.status_code == 200
+    assert list_resp.json()["total"] >= 1
+
+    # 3. 清空校准记录
+    del_resp = client.delete("/api/v1/observability/trace/skew-calibrations", headers=HEADERS)
+    assert del_resp.status_code == 200
+    empty_resp = client.get("/api/v1/observability/trace/skew-calibrations", headers=HEADERS)
+    assert empty_resp.json()["total"] == 0
