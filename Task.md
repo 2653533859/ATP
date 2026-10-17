@@ -4,6 +4,23 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
+## 2026-10-17 v5.3.0 研发任务规划（进行中）
+
+> v5.3.0 规划入口为 [`docs/development-task-plan-v5.3.0.md`](docs/development-task-plan-v5.3.0.md)，覆盖 Phase 1（跨端测试动作语义映射与智能迁移引擎）、Phase 2（双端功能一致性对齐与差异侦测分析器）、Phase 3（双端差异透视抽屉与跨端迁移工作台中枢）、Phase 4（跨端回放安全沙箱、合规存证与全量发布）。
+
+- [ ] 2026-10-17 T1.1 跨端统一语义动作模型与映射器：落地 `cross_platform_action_mapper` 服务；统一抽象动作并实现 Web/iOS/Android 双向转译；单测独立通过。
+- [ ] 2026-10-17 T1.2 跨端控件模糊语义匹配与转换器：落地 `cross_platform_element_translator` 服务；基于文本与上下文标签模糊推导目标平台控件；单测独立通过。
+- [ ] 2026-10-17 T1.3 用例跨端迁移与执行 REST API：落地 `cross_platform_migration_api` 路由；提供用例迁移转换与批量迁移端点；单测独立通过。
+- [ ] 2026-10-17 T2.1 双端 UI 与状态树对齐分析器：落地 `parity_alignment_analyzer` 服务；对比双端界面状态树并计算节点匹配矩阵；单测独立通过。
+- [ ] 2026-10-17 T2.2 双端功能差异与缺失控件侦测器：落地 `parity_gap_detector` 服务；自动识别单端缺失功能按钮与跳转链路差异；单测独立通过。
+- [ ] 2026-10-17 T2.3 双端一致性评分与兼容性报表引擎：落地 `parity_scoring_engine` 服务；计算一致性健康分与多维兼容合规数据；单测独立通过。
+- [ ] 2026-10-17 UI3.1 跨端测试智能迁移弹窗组件：落地 `CrossPlatformMigrationModal.vue`；提供源/目标端选择与转译预览；单测独立通过。
+- [ ] 2026-10-17 UI3.2 双端功能一致性对比透视抽屉组件：落地 `ParityAlignmentDiffDrawer.vue`；双端分栏对比状态树与高亮差异红斑；单测独立通过。
+- [ ] 2026-10-17 UI3.3 跨端迁移与一致性对齐工作台页面：落地 `CrossPlatformParityWorkbenchView.vue` 与 `/workbench/cross-platform-parity` 路由；单测独立通过。
+- [ ] 2026-10-17 T4.1 跨端迁移回放安全防护看门狗：落地 `cross_platform_replay_guard` 服务；拦截目标平台执行时的敏感高危操作与坐标越界；单测独立通过。
+- [ ] 2026-10-17 T4.2 双端一致性 64 位 SHA-256 存证证书器：落地 `parity_evidence_signer` 服务；为迁移产物与一致性报告签发不可篡改存证证书；单测独立通过。
+- [ ] 2026-10-17 T4.3 v5.3.0 跨端迁移与一致性对齐中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.3.0-release-notes.md` 与专项交付证据。
+
 ## 2026-10-17 v5.2.0 研发任务规划（已全量闭环）
 
 > v5.2.0 规划入口为 [`docs/development-task-plan-v5.2.0.md`](docs/development-task-plan-v5.2.0.md)，覆盖 Phase 1（自然语言意图驱动多端混合工作流智能合成引擎）、Phase 2（基于多模态 VLM 界面理解的移动与 Web 自主探索引擎）、Phase 3（意图对话生成抽屉与自主探索大盘中枢）、Phase 4（探索安全沙箱、合规签名与全量发布）。
