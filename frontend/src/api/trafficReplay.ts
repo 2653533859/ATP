@@ -70,4 +70,27 @@ export const trafficReplayApi = {
   clearRecords(): Promise<{ message: string }> {
     return http.post('/traffic-replay/clear')
   },
+  testNoiseRule(data: {
+    rule: Record<string, any>
+    test_json_path: string
+    test_baseline_value?: any
+    test_replayed_value?: any
+  }): Promise<{ matched: boolean; reason: string; rule_summary: any }> {
+    return http.post('/traffic-replay/noise-rule/test', data)
+  },
+
+  diffEvaluate(data: {
+    record_id: string
+    baseline_status_code: number
+    baseline_body: any
+    replayed_status_code: number
+    replayed_body: any
+    custom_rules?: any[]
+  }): Promise<{
+    raw_diff_report: any
+    suppressed_report: any
+    evaluation_result: any
+  }> {
+    return http.post('/traffic-replay/diff-evaluate', data)
+  },
 }

@@ -134,3 +134,52 @@ def test_record_not_found():
     client = TestClient(app)
     resp = client.get("/api/v1/traffic-replay/record/trf_non_existent", headers=HEADERS)
     assert resp.status_code == 404
+
+
+def test_noise_rule_and_diff_evaluate_endpoints():
+    client = TestClient(app)
+
+    # 1. 测试在线规则命中
+    rule_resp = client.post(
+        "/api/v1/traffic-replay/noise-rule/test",
+        json={
+            "rule": {
+                "name": "忽略时间戳",
+                "noise_type": "TIMESTAMP",
+                "path_pattern": "*.created_at",
+            },
+            "test_json_path": "$.data.created_at",
+            "test_baseline_value": "2026-10-17T10:00:00Z",
+            "test_replayed_value": "2026-10-17T10:00:01Z",
+        },
+        headers=HEADERS,
+    )
+    assert rule_resp.status_code == 200
+    assert rule_resp.json()["matched"] is True
+
+    # 2. 一站式比对与裁决
+    base_body = {"order_id": "OD_1", "created_at": "12:00:00", "amount": 100}
+    replayed_body = {"order_id": "OD_1", "created_at": "12:00:05", "amount": 105}
+
+    eval_resp = client.post(
+        "/api/v1/traffic-replay/diff-evaluate",
+        json={
+            "record_id": "rec_eval_test",
+            "baseline_status_code": 200,
+            "baseline_body": base_body,
+            "replayed_status_code": 200,
+            "replayed_body": replayed_body,
+            "custom_rules": [
+                {
+                    "name": "忽略时间戳",
+                    "path_pattern": "*.created_at",
+                }
+            ],
+        },
+        headers=HEADERS,
+    )
+    assert eval_resp.status_code == 200
+    data = eval_resp.json()
+    assert data["suppressed_report"]["effective_diff_count"] == 1
+    assert data["evaluation_result"]["consistency_score"] == 95.0
+    assert data["evaluation_result"]["verdict"] == "WARN_PERMISSIVE"
