@@ -483,6 +483,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'quality/trace-alignment',
+          name: 'distributed-trace-alignment-dashboard',
+          component: () => import('@/views/quality/DistributedTraceAlignmentDashboardView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'system/web-assets',
           name: 'system-web-assets',
           component: () => import('@/views/system/WebAssetsView.vue'),

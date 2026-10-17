@@ -37,6 +37,7 @@ export const routeMenuGroups: Record<string, NavigationGroup> = {
   '/quality/shadow-isolation': 'test-capabilities',
   '/quality/cell-failover': 'test-capabilities',
   '/quality/full-link-drill': 'test-capabilities',
+  '/quality/trace-alignment': 'test-capabilities',
   '/system': 'system-center',
   '/devices': 'test-capabilities',
   '/apks': 'test-capabilities',
