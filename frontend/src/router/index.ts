@@ -122,6 +122,14 @@ const router = createRouter({
           },
         },
         {
+          path: 'workbench/test-self-healing',
+          name: 'test-self-healing-workbench',
+          component: () => import('@/views/workbench/TestSelfHealingWorkbenchView.vue'),
+          meta: {
+            roles: ENGINEER_ONLY,
+          },
+        },
+        {
           path: 'bugs',
           name: 'bugs',
           component: () => import('@/views/defect/DefectListView.vue'),
