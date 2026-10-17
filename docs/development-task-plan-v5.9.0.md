@@ -81,7 +81,7 @@ flowchart TD
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T4.1 `[x]` | **质量门禁发布强阻断与非合规豁免审批看门狗** | `backend/app/services/coverage_release_blocker_guard.py` | CI/CD 流水线发布强阻断拦截，防范绕过门禁，支持合规审批单豁免；单测独立通过；见 docs/evidence/coverage-release-blocker-guard-t4-1-2026-10-18.md |
-| T4.2 `[ ]` | **覆盖率评估报告与染色结果 64 位 SHA-256 存证证书器** | `backend/app/services/coverage_evidence_signer.py` | 规范化确定性 JSON，签发不可篡改的 64 位 SHA-256 指纹与 HMAC-SHA256 签名存证证书；单测独立通过。 |
+| T4.2 `[x]` | **覆盖率评估报告与染色结果 64 位 SHA-256 存证证书器** | `backend/app/services/coverage_evidence_signer.py` | 规范化确定性 JSON，签发不可篡改的 64 位 SHA-256 指纹与 HMAC-SHA256 签名存证证书；单测独立通过；见 docs/evidence/coverage-evidence-signer-t4-2-2026-10-18.md |
 | T4.3 `[ ]` | **v5.9.0 全链路代码覆盖率中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v5.9.0-release-notes.md` 与专项交付证据。 |
 
 ---
