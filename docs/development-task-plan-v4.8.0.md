@@ -30,7 +30,7 @@
 |---|---|---|---|
 | UI2.1 `[x]` | **配置中心原生 HTML 标签肃清与 AntD 样式对齐** | `frontend/src/views/system/ConfigurationCenterView.vue` | 移除原生 `<select class="project-select-native">` 与原生 `<button class="button-light">`，全量对齐 `<a-select>` 与 `<a-button>`；单测通过；见 docs/evidence/configuration-center-antd-standardization-ui2-1-2026-10-17.md |
 | UI2.2 `[x]` | **Hermes 计划草稿面板非标输入与复选框规范化** | `frontend/src/views/intelligence/components/HermesPlanDraftPanel.vue` | 移除 8 处原生 `<input>` 与 `<input type="checkbox">`，全量替换为 `<a-input>`, `<a-textarea>` 与 `<a-checkbox>`；单测通过；见 docs/evidence/hermes-plan-draft-panel-antd-standardization-ui2-2-2026-10-17.md |
-| UI2.3 `[ ]` | **全站 WCAG 2.1 AA 级对比度校准与主题变量升级** | `frontend/src/styles/theme.css` | 调整浅色模式 `--c-text-tertiary` 从 `#6e6b7b` 升级为 `#475569`（Slate 600），确保浅色背景对比度 ≥ 4.5:1，微调暗色边框与卡片层级；单测通过。 |
+| UI2.3 `[x]` | **全站 WCAG 2.1 AA 级对比度校准与主题变量升级** | `frontend/src/styles/theme.css` | 调整浅色模式 `--c-text-tertiary` 从 `#6e6b7b` 升级为 `#475569`（Slate 600），确保浅色背景对比度 ≥ 4.5:1，微调暗色边框与卡片层级；单测通过；见 docs/evidence/wcag-a11y-contrast-and-theme-tokens-ui2-3-2026-10-17.md |
 
 ---
 

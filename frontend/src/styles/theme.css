@@ -23,11 +23,10 @@
   --c-border-subtle: #f0f0f8;
   --c-border-strong: #c8c8dc;
 
-  /* 文字三级 */
-  --c-text: #14142b;
-  --c-text-secondary: #4e4b66;
-  --c-text-tertiary: #6e6b7b;
-
+  /* 文字三级 — WCAG 2.1 AA 级对比度校准 (≥4.5:1) */
+  --c-text: #0f172a;
+  --c-text-secondary: #334155;
+  --c-text-tertiary: #475569;
   /* 语义色 — 翡翠绿 / 琥珀橙 / 玫瑰红 / 靛蓝 / 霓粉 */
   --c-success: #10b981;
   --c-warning: #f59e0b;
@@ -95,11 +94,10 @@
   --c-border-subtle: #1e1e32;
   --c-border-strong: #3f3f64;
 
-  /* 文字三级 */
-  --c-text: #ffffff;
-  --c-text-secondary: #b0b0cf;
-  --c-text-tertiary: #7979a0;
-
+  /* 文字三级 — WCAG 2.1 AA 级对比度校准 (≥4.5:1) */
+  --c-text: #f8fafc;
+  --c-text-secondary: #cbd5e1;
+  --c-text-tertiary: #94a3b8;
   /* 语义色 */
   --c-success: #10b981;
   --c-warning: #f59e0b;
