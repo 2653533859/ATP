@@ -9,7 +9,7 @@
 > v5.0.0 规划入口为 [`docs/development-task-plan-v5.0.0.md`](docs/development-task-plan-v5.0.0.md)，覆盖 Phase 1（iOS 设备反向隧道与 WDA 端口自动穿透桥接器）、Phase 2（iOS 真机租约调度与并发排他抢占控制）、Phase 3（iOS 真机交互式投屏与远程控制中枢）、Phase 4（iOS 自动化执行容灾、合规凭证与全量发布）。
 
 - [x] 2026-10-17 T1.1 WDA 反向 WebSocket 隧道与端口分配器：落地 `ios_tunnel_bridge` 服务与 `/ios/tunnel/register` API；实现远端物理机 WDA 8100 端口通过反向隧道穿透至 ATP 服务端动态端口映射；单测独立通过，见 [`docs/evidence/ios-tunnel-bridge-t1-1-2026-10-17.md`](docs/evidence/ios-tunnel-bridge-t1-1-2026-10-17.md)。
-- [ ] 2026-10-17 T1.2 iOS 设备心跳保活与状态巡检探针：落地 `ios_device_heartbeat_keeper` 服务与 `/ios/tunnel/heartbeat` API；实现秒级探针健康巡检与异常离线自愈；单测独立通过。
+- [x] 2026-10-17 T1.2 iOS 设备心跳保活与状态巡检探针：落地 `ios_device_heartbeat_keeper` 服务与 `/ios/tunnel/heartbeat` API；实现秒级探针健康巡检与异常离线自愈；单测独立通过，见 [`docs/evidence/ios-device-heartbeat-keeper-t1-2-2026-10-17.md`](docs/evidence/ios-device-heartbeat-keeper-t1-2-2026-10-17.md)。
 - [ ] 2026-10-17 T1.3 iOS 设备隧道连接与状态管理 REST API：落地 `ios_tunnel_api` 路由；提供设备反向隧道列表、连通性检查与连接会话维护；单测独立通过。
 - [ ] 2026-10-17 T2.1 iOS 真机排他性租约调度与自动续期管理器：落地 `ios_lease_scheduler` 服务；实现高并发防死锁排他性租约申请、释放与超时回收；单测独立通过。
 - [ ] 2026-10-17 T2.2 WDA 会话代理与生命周期初始化预热器：落地 `ios_wda_session_manager` 服务；实现 WDA 会话预热、前置环境清理与截屏分发；单测独立通过。
