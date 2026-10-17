@@ -9,7 +9,7 @@
 > v5.5.0 规划入口为 [`docs/development-task-plan-v5.5.0.md`](docs/development-task-plan-v5.5.0.md)，覆盖 Phase 1（多模态定位器动态自愈与弹性重定位器引擎）、Phase 2（响应结构漂移与语义断言自适应演进器）、Phase 3（用例自愈中枢与断言演进工作台）、Phase 4（自愈安全沙箱、合规存证与全量发布）。
 
 - [x] 2026-10-17 T1.1 多模态弹性定位链与相似度推导器：落地 `dynamic_locator_self_healer` 服务；建立定位回退链并推导最优候选；单测独立通过，见 [`docs/evidence/dynamic-locator-self-healer-t1-1-2026-10-17.md`](docs/evidence/dynamic-locator-self-healer-t1-1-2026-10-17.md)。
-- [ ] 2026-10-17 T1.2 运行时失败拦截与自愈补丁应用器：落地 `runtime_healing_patcher` 服务；毫秒级拦截定位异常并生成补丁；单测独立通过。
+- [x] 2026-10-17 T1.2 运行时失败拦截与自愈补丁应用器：落地 `runtime_healing_patcher` 服务；毫秒级拦截定位异常并生成补丁；单测独立通过，见 [`docs/evidence/runtime-healing-patcher-t1-2-2026-10-17.md`](docs/evidence/runtime-healing-patcher-t1-2-2026-10-17.md)。
 - [ ] 2026-10-17 T1.3 用例自愈决策与补丁持久化 REST API：落地 `test_self_healing_api` 路由；提供定位器自愈与用例回写端点；单测独立通过。
 - [ ] 2026-10-17 T2.1 接口响应结构变迁与漂移检测器：落地 `response_schema_drift_detector` 服务；识别字段重命名与层级展开；单测独立通过。
 - [ ] 2026-10-17 T2.2 语义断言智能演进与语法重写器：落地 `assertion_drift_evolution_synthesizer` 服务；重写现代断言并输出代码 Diff；单测独立通过。
