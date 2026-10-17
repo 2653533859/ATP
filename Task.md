@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-17 v5.5.0 研发任务规划（进行中）
+## 2026-10-17 v5.5.0 研发任务规划（已全量闭环）
 
 > v5.5.0 规划入口为 [`docs/development-task-plan-v5.5.0.md`](docs/development-task-plan-v5.5.0.md)，覆盖 Phase 1（多模态定位器动态自愈与弹性重定位器引擎）、Phase 2（响应结构漂移与语义断言自适应演进器）、Phase 3（用例自愈中枢与断言演进工作台）、Phase 4（自愈安全沙箱、合规存证与全量发布）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-17 UI3.3 AI 用例自愈与断言演进工作台中枢页面：落地 `TestSelfHealingWorkbenchView.vue` 与 `/workbench/test-self-healing` 路由；单测独立通过，见 [`docs/evidence/test-self-healing-workbench-view-ui3-3-2026-10-17.md`](docs/evidence/test-self-healing-workbench-view-ui3-3-2026-10-17.md)。至此 v5.5.0 Phase 3 全量大闭环！
 - [x] 2026-10-17 T4.1 自愈补丁防篡改与安全围栏看门狗：落地 `self_healing_safety_guard` 服务；防范恶意放宽断言与注入攻击；单测独立通过，见 [`docs/evidence/self-healing-safety-guard-t4-1-2026-10-17.md`](docs/evidence/self-healing-safety-guard-t4-1-2026-10-17.md)。
 - [x] 2026-10-17 T4.2 自愈补丁与断言演进 64 位 SHA-256 存证证书器：落地 `healing_evidence_signer` 服务；为自愈记录签发不可篡改存证证书；单测独立通过，见 [`docs/evidence/healing-evidence-signer-t4-2-2026-10-17.md`](docs/evidence/healing-evidence-signer-t4-2-2026-10-17.md)。
-- [ ] 2026-10-17 T4.3 v5.5.0 测试自愈与断言演进中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.5.0-release-notes.md` 与专项交付证据。
+- [x] 2026-10-17 T4.3 v5.5.0 测试自愈与断言演进中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.5.0-release-notes.md` 与专项交付证据，见 [`docs/evidence/v5-5-0-self-healing-assertion-evolution-acceptance-2026-10-17.md`](docs/evidence/v5-5-0-self-healing-assertion-evolution-acceptance-2026-10-17.md)。至此 v5.5.0 全量大闭环！
 
 ## 2026-10-17 v5.4.0 研发任务规划（已全量闭环）
 
