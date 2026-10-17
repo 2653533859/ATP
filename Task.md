@@ -9,7 +9,7 @@
 > v5.8.0 规划入口为 [`docs/development-task-plan-v5.8.0.md`](docs/development-task-plan-v5.8.0.md)，覆盖 Phase 1（故障注入算子与分布式混沌实验执行引擎）、Phase 2（弹性韧性自愈评估与爆炸半径动态收敛器）、Phase 3（混沌攻防演练中枢与韧性透视工作台）、Phase 4（生产防击穿安全沙箱、合规存证与全量发布）。
 
 - [x] 2026-10-17 T1.1 网络损伤与故障注入算子库：落地 `chaos_fault_injector_library` 服务；支持网络延迟抖动/丢包/HTTP状态码变异与超时模拟；单测独立通过，见 [`docs/evidence/chaos-fault-injector-library-t1-1-2026-10-17.md`](docs/evidence/chaos-fault-injector-library-t1-1-2026-10-17.md)。
-- [ ] 2026-10-17 T1.2 分布式混沌实验编排与稳态探测引擎：落地 `chaos_steady_state_evaluator` 服务；基线稳态定义与指标偏离动态监控；单测独立通过。
+- [x] 2026-10-17 T1.2 分布式混沌实验编排与稳态探测引擎：落地 `chaos_steady_state_evaluator` 服务；基线稳态定义与指标偏离动态监控；单测独立通过，见 [`docs/evidence/chaos-steady-state-evaluator-t1-2-2026-10-17.md`](docs/evidence/chaos-steady-state-evaluator-t1-2-2026-10-17.md)。
 - [ ] 2026-10-17 T1.3 混沌演练实验管理与触发 REST API：落地 `chaos_engineering_api` 路由；提供实验创建、实时注入/停止与稳态监控端点；单测独立通过。
 - [ ] 2026-10-17 T2.1 服务降级与熔断恢复时间 RTO/RPO 评估器：落地 `resilience_rto_evaluator` 服务；量化熔断响应与系统自愈恢复耗时；单测独立通过。
 - [ ] 2026-10-17 T2.2 演练爆炸半径实时监控与紧急熔断回滚看门狗：落地 `chaos_blast_radius_controller` 服务；错误率红线与自动熔断剥离；单测独立通过。
