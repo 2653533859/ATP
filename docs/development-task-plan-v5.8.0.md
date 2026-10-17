@@ -59,7 +59,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T2.1 `[ ]` | **服务降级与熔断恢复时间 RTO/RPO 评估器** | `backend/app/services/resilience_rto_evaluator.py` | 精准测量故障注入后系统熔断触发耗时、降级旁路响应与故障恢复时间 (RTO/RPO)；单测独立通过。 |
+| T2.1 `[x]` | **服务降级与熔断恢复时间 RTO/RPO 评估器** | `backend/app/services/resilience_rto_evaluator.py` | 精准测量故障注入后系统熔断触发耗时、降级旁路响应与故障恢复时间 (RTO/RPO)；单测独立通过；见 docs/evidence/resilience-rto-evaluator-t2-1-2026-10-17.md |
 | T2.2 `[ ]` | **演练爆炸半径实时监控与紧急熔断回滚看门狗** | `backend/app/services/chaos_blast_radius_controller.py` | 监控故障波及节点数与错误率阈值，当超出设定的爆炸半径时毫秒级自动触发紧急熔断与故障剥离；单测独立通过。 |
 | T2.3 `[ ]` | **架构韧性弱点雷达分析与加固建议生成器** | `backend/app/services/architecture_weakness_radar.py` | 输出多维韧性雷达评分 (0~100) 并生成断路器超时调优、重试退避策略与线程池隔离等架构加固建议；单测独立通过。 |
 
