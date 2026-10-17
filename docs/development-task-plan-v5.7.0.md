@@ -69,7 +69,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| UI3.1 `[ ]` | **用例依赖 DAG 拓扑可视化与影响面透视抽屉** | `frontend/src/views/workbench/components/CaseDagTopologyDrawer.vue` | 呈现交互式有向无环拓扑图、波次分级卡片、节点状态流转与数据依赖透视；单测独立通过。 |
+| UI3.1 `[x]` | **用例依赖 DAG 拓扑可视化与影响面透视抽屉** | `frontend/src/views/workbench/components/CaseDagTopologyDrawer.vue` | 呈现交互式有向无环拓扑图、波次分级卡片、节点状态流转与数据依赖透视；单测独立通过；见 docs/evidence/case-dag-topology-drawer-ui3-1-2026-10-17.md |
 | UI3.2 `[ ]` | **增量用例推荐与影响分析对比模拟弹窗** | `frontend/src/views/workbench/components/PrecisionSelectionDiffModal.vue` | 对比全量用例集 vs 增量精准推荐集，展示节省耗时比率、AST 符号变更树与一键试跑；单测独立通过。 |
 | UI3.3 `[ ]` | **智能增量回归编排工作台中枢页面** | `frontend/src/views/workbench/PrecisionRegressionWorkbenchView.vue` | 落地路由 `/workbench/precision-regression`，集成 4 大 Bento KPI、拓扑大盘与波次调度执行；单测独立通过。 |
 
