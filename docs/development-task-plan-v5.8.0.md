@@ -81,7 +81,7 @@ flowchart TD
 |---|---|---|---|
 | T4.1 `[x]` | **混沌演练非生产隔离与绝对安全围栏看门狗** | `backend/app/services/chaos_safety_boundary_guard.py` | 严防在生产非演练时段或对关键生产数据库执行破坏性故障注入，提供绝对环境强隔离与权限阻断；单测独立通过；见 docs/evidence/chaos-safety-boundary-guard-t4-1-2026-10-17.md |
 | T4.2 `[x]` | **混沌实验结论与韧性得分 64 位 SHA-256 存证证书器** | `backend/app/services/chaos_evidence_signer.py` | 为混沌演练实验记录、稳态评估报告与韧性加固证书签发不可篡改 SHA-256 + HMAC 存证证书；单测独立通过；见 docs/evidence/chaos-evidence-signer-t4-2-2026-10-17.md |
-| T4.3 `[ ]` | **v5.8.0 混沌工程与弹性韧性中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v5.8.0-release-notes.md` 与专项交付证据。 |
+| T4.3 `[x]` | **v5.8.0 混沌工程与弹性韧性中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v5.8.0-release-notes.md` 与专项交付证据；见 docs/evidence/v5-8-0-chaos-engineering-platform-acceptance-2026-10-18.md |
 
 ---
 
