@@ -18,7 +18,7 @@
 - [x] 2026-10-18 UI3.2 跨平台同步与 SLA 升级策略配置弹窗：落地 `DefectSyncConfigModal.vue`；Jira/GitHub 凭据与时限交互配置；单测独立通过，见 [`docs/evidence/defect-sync-config-modal-ui3-2-2026-10-18.md`](docs/evidence/defect-sync-config-modal-ui3-2-2026-10-18.md)。
 - [x] 2026-10-18 UI3.3 智能缺陷治理与全生命周期工作台中枢页面：落地 `DefectIntelligenceWorkbenchView.vue` 与 `/workbench/defect-intelligence` 路由；单测独立通过，见 [`docs/evidence/defect-intelligence-workbench-view-ui3-3-2026-10-18.md`](docs/evidence/defect-intelligence-workbench-view-ui3-3-2026-10-18.md)。至此 v6.0.0 Phase 3 全量大闭环！
 - [x] 2026-10-18 T4.1 偶发抖动缺陷提单防击穿安全沙箱看门狗：落地 `flaky_defect_suppression_guard` 服务；识别 Flaky 假失败与防误建垃圾工单；单测独立通过，见 [`docs/evidence/flaky-defect-suppression-guard-t4-1-2026-10-18.md`](docs/evidence/flaky-defect-suppression-guard-t4-1-2026-10-18.md)。
-- [ ] 2026-10-18 T4.2 缺陷归因结论与 SLA 履约 64 位 SHA-256 存证证书器：落地 `defect_evidence_signer` 服务；为缺陷聚类与归因签发存证证书；单测独立通过。
+- [x] 2026-10-18 T4.2 缺陷归因结论与 SLA 履约 64 位 SHA-256 存证证书器：落地 `defect_evidence_signer` 服务；为缺陷聚类与归因签发存证证书；单测独立通过，见 [`docs/evidence/defect-evidence-signer-t4-2-2026-10-18.md`](docs/evidence/defect-evidence-signer-t4-2-2026-10-18.md)。
 - [ ] 2026-10-18 T4.3 v6.0.0 智能缺陷治理中台全域综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v6.0.0-release-notes.md` 与专项交付证据。
 
 ## 2026-10-18 v5.9.0 研发任务规划（已全量闭环）
