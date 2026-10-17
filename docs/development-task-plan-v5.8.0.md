@@ -49,7 +49,7 @@ flowchart TD
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| T1.1 `[ ]` | **网络损伤与故障注入算子库** | `backend/app/services/chaos_fault_injector_library.py` | 支持网络延迟抖动 (Latency/Jitter)、丢包 (Packet Loss)、HTTP 状态码变异 (500/502/504) 与响应超时模拟；单测独立通过。 |
+| T1.1 `[x]` | **网络损伤与故障注入算子库** | `backend/app/services/chaos_fault_injector_library.py` | 支持网络延迟抖动 (Latency/Jitter)、丢包 (Packet Loss)、HTTP 状态码变异 (500/502/504) 与响应超时模拟；单测独立通过；见 docs/evidence/chaos-fault-injector-library-t1-1-2026-10-17.md |
 | T1.2 `[ ]` | **分布式混沌实验编排与稳态探测引擎** | `backend/app/services/chaos_steady_state_evaluator.py` | 定义演练前系统基线稳态 (Steady State Baseline) 与演练中实时指标波动监控 (成功率、P99延迟、探针健康)；单测独立通过。 |
 | T1.3 `[ ]` | **混沌演练实验管理与触发 REST API** | `backend/app/api/v1/chaos_engineering_api.py` | 挂载 `/api/v1/chaos-engineering/*`，提供故障注入配置、实验触发与停止、稳态指标监控与实时状态查询端点；单测独立通过。 |
 
