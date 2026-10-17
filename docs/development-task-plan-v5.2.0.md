@@ -51,7 +51,7 @@
 |---|---|---|---|
 | T4.1 `[x]` | **自主探索高危动作防护看门狗** | `backend/app/services/autonomous_exploration_safety_guard.py` | 自动识别并阻断注销账户、重置系统、清空数据库等破坏性指令；单测独立通过；见 docs/evidence/autonomous-exploration-safety-guard-t4-1-2026-10-17.md |
 | T4.2 `[x]` | **AI 生成与探索证据 64 位 SHA-256 存证器** | `backend/app/services/intent_synthesis_evidence_signer.py` | 为 AI 生成的用例工作流与探索轨迹生成不可篡改 SHA-256 存证证书；单测独立通过；见 docs/evidence/intent-synthesis-evidence-signer-t4-2-2026-10-17.md |
-| T4.3 `[ ]` | **v5.2.0 AI 探索与意图驱动生成中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v5.2.0-release-notes.md` 与专项交付证据。 |
+| T4.3 `[x]` | **v5.2.0 AI 探索与意图驱动生成中台综合验收与发布说明** | 全局回归与文档 | 全套后端与前端测试 100% PASS，归档 `docs/v5.2.0-release-notes.md` 与专项交付证据；见 docs/evidence/v5-2-0-ai-intent-exploration-platform-acceptance-2026-10-17.md |
 
 ---
 

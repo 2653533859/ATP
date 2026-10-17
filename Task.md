@@ -4,7 +4,7 @@
 
 > Windows 本地／服务器双模式的分阶段开发、切换和双模式验收以 [`docs/windows-dual-mode-development-plan-2026-09-29.md`](docs/windows-dual-mode-development-plan-2026-09-29.md) 为专项执行表。
 
-## 2026-10-17 v5.2.0 研发任务规划（进行中）
+## 2026-10-17 v5.2.0 研发任务规划（已全量闭环）
 
 > v5.2.0 规划入口为 [`docs/development-task-plan-v5.2.0.md`](docs/development-task-plan-v5.2.0.md)，覆盖 Phase 1（自然语言意图驱动多端混合工作流智能合成引擎）、Phase 2（基于多模态 VLM 界面理解的移动与 Web 自主探索引擎）、Phase 3（意图对话生成抽屉与自主探索大盘中枢）、Phase 4（探索安全沙箱、合规签名与全量发布）。
 
@@ -19,7 +19,7 @@
 - [x] 2026-10-17 UI3.3 AI 自主探索与意图生成工作台中枢页面：落地 `AiAutonomousExplorationView.vue` 视图与 `/workbench/ai-exploration` 路由；全景管理意图生成与探索大盘；单测独立通过，见 [`docs/evidence/ai-autonomous-exploration-view-ui3-3-2026-10-17.md`](docs/evidence/ai-autonomous-exploration-view-ui3-3-2026-10-17.md)。至此 v5.2.0 Phase 3 全量大闭环！
 - [x] 2026-10-17 T4.1 自主探索高危动作防护看门狗：落地 `autonomous_exploration_safety_guard` 服务；自动识别并阻断账户注销、系统重置等破坏性动作；单测独立通过，见 [`docs/evidence/autonomous-exploration-safety-guard-t4-1-2026-10-17.md`](docs/evidence/autonomous-exploration-safety-guard-t4-1-2026-10-17.md)。
 - [x] 2026-10-17 T4.2 AI 生成与探索证据 64 位 SHA-256 存证器：落地 `intent_synthesis_evidence_signer` 服务；为 AI 生成工作流与探索轨迹生成不可篡改 SHA-256 存证证书；单测独立通过，见 [`docs/evidence/intent-synthesis-evidence-signer-t4-2-2026-10-17.md`](docs/evidence/intent-synthesis-evidence-signer-t4-2-2026-10-17.md)。
-- [ ] 2026-10-17 T4.3 v5.2.0 AI 探索与意图驱动生成中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.2.0-release-notes.md` 与专项交付证据。
+- [x] 2026-10-17 T4.3 v5.2.0 AI 探索与意图驱动生成中台综合验收与发布说明：全套后端与前端测试 100% PASS，归档 `docs/v5.2.0-release-notes.md` 与专项交付证据，见 [`docs/evidence/v5-2-0-ai-intent-exploration-platform-acceptance-2026-10-17.md`](docs/evidence/v5-2-0-ai-intent-exploration-platform-acceptance-2026-10-17.md)。至此 v5.2.0 全量大闭环！
 
 ## 2026-10-17 v5.1.0 研发任务规划（已全量闭环）
 
