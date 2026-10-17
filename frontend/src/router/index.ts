@@ -248,6 +248,12 @@ const router = createRouter({
           meta: { roles: ENGINEER_ONLY },
         },
         {
+          path: 'devices/ios-center',
+          name: 'ios-device-center',
+          component: () => import('@/views/device/IosDeviceCenterView.vue'),
+          meta: { roles: ENGINEER_ONLY },
+        },
+        {
           path: 'apks',
           name: 'apks',
           component: () => import('@/views/apk/ApkList.vue'),

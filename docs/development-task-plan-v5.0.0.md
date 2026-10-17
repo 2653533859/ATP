@@ -41,7 +41,7 @@
 |---|---|---|---|
 | UI3.1 `[x]` | **iOS 交互式投屏与远程控制抽屉组件** | `frontend/src/views/device/components/IosScreenMirrorModal.vue` | 实现 iOS 屏幕实时画面展示、鼠标点击/拖拽滑动换算为 WDA 触控坐标并下发执行、支持 Home 键；单测独立通过；见 docs/evidence/ios-screen-mirror-modal-ui3-1-2026-10-17.md |
 | UI3.2 `[x]` | **iOS 真机资产池卡片与状态监控组件** | `frontend/src/views/device/components/IosDevicePoolCard.vue` | 呈现真机设备卡片（状态角标、租约持有人、系统版本、WDA 端口与一键租用）；单测独立通过；见 docs/evidence/ios-device-pool-card-ui3-2-2026-10-17.md |
-| UI3.3 `[ ]` | **iOS 真机池化调度与远程管理中心页面** | `frontend/src/views/device/IosDeviceCenterView.vue` | 落地路由 `/devices/ios-center`，集成设备池监控、快速租约申领与批量巡检；单测独立通过。 |
+| UI3.3 `[x]` | **iOS 真机池化调度与远程管理中心页面** | `frontend/src/views/device/IosDeviceCenterView.vue` | 落地路由 `/devices/ios-center`，集成设备池监控、快速租约申领与批量巡检；单测独立通过；见 docs/evidence/ios-device-center-view-ui3-3-2026-10-17.md |
 
 ---
 

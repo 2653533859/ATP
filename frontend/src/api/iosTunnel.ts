@@ -101,6 +101,17 @@ export const iosTunnelApi = {
   }): Promise<{ message: string }> {
     return http.post('/ios/tunnel/lease/release', payload)
   },
+  listLeases(): Promise<{ total: number; leases: IosLeaseItem[] }> {
+    return http.get('/ios/tunnel/leases')
+  },
+
+  sweepHeartbeats(payload?: { timeout_seconds?: number }): Promise<{
+    message: string
+    offline_udids: string[]
+  }> {
+    return http.post('/ios/tunnel/sweep', payload || { timeout_seconds: 15.0 })
+  },
+
 
   warmupWdaSession(payload: {
     udid: string
