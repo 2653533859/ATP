@@ -173,44 +173,53 @@
     </section>
 
     <a-row :gutter="16" style="margin-bottom: 24px">
-      <a-col :xs="12" :sm="12" :md="6">
-        <div class="kpi-card">
-          <div class="kpi-icon kpi-icon-primary"><ProfileOutlined /></div>
-          <div class="kpi-body">
-            <div class="kpi-value">{{ overview.total_cases }}</div>
-            <div class="kpi-label">{{ t('dashboard.total_cases') }}</div>
+      <template v-if="loading">
+        <a-col v-for="i in 4" :key="`skeleton-kpi-${i}`" :xs="12" :sm="12" :md="6">
+          <div class="kpi-card">
+            <a-skeleton active :paragraph="{ rows: 1 }" avatar />
           </div>
-        </div>
-      </a-col>
-      <a-col :xs="12" :sm="12" :md="6">
-        <div class="kpi-card">
-          <div class="kpi-icon kpi-icon-info"><PlayCircleOutlined /></div>
-          <div class="kpi-body">
-            <div class="kpi-value">{{ overview.total_runs }}</div>
-            <div class="kpi-label">{{ t('dashboard.total_runs') }}</div>
-          </div>
-        </div>
-      </a-col>
-      <a-col :xs="12" :sm="12" :md="6">
-        <div class="kpi-card">
-          <div class="kpi-icon" :class="overview.pass_rate >= 80 ? 'kpi-icon-success' : 'kpi-icon-error'"><CheckCircleOutlined /></div>
-          <div class="kpi-body">
-            <div class="kpi-value" :style="{ color: overview.pass_rate >= 80 ? 'var(--c-success)' : 'var(--c-error)' }">
-              {{ overview.pass_rate.toFixed(1) }}<span style="font-size: 15px; font-weight: 600; margin-left: 2px">%</span>
+        </a-col>
+      </template>
+      <template v-else>
+        <a-col :xs="12" :sm="12" :md="6">
+          <div class="kpi-card">
+            <div class="kpi-icon kpi-icon-primary"><ProfileOutlined /></div>
+            <div class="kpi-body">
+              <div class="kpi-value">{{ overview.total_cases }}</div>
+              <div class="kpi-label">{{ t('dashboard.total_cases') }}</div>
             </div>
-            <div class="kpi-label">{{ t('dashboard.pass_rate') }}</div>
           </div>
-        </div>
-      </a-col>
-      <a-col :xs="12" :sm="12" :md="6">
-        <div class="kpi-card">
-          <div class="kpi-icon kpi-icon-warning"><ThunderboltOutlined /></div>
-          <div class="kpi-body">
-            <div class="kpi-value">{{ overview.recent_runs_7d }}</div>
-            <div class="kpi-label">{{ t('dashboard.recent_runs_7d') }}</div>
+        </a-col>
+        <a-col :xs="12" :sm="12" :md="6">
+          <div class="kpi-card">
+            <div class="kpi-icon kpi-icon-info"><PlayCircleOutlined /></div>
+            <div class="kpi-body">
+              <div class="kpi-value">{{ overview.total_runs }}</div>
+              <div class="kpi-label">{{ t('dashboard.total_runs') }}</div>
+            </div>
           </div>
-        </div>
-      </a-col>
+        </a-col>
+        <a-col :xs="12" :sm="12" :md="6">
+          <div class="kpi-card">
+            <div class="kpi-icon" :class="overview.pass_rate >= 80 ? 'kpi-icon-success' : 'kpi-icon-error'"><CheckCircleOutlined /></div>
+            <div class="kpi-body">
+              <div class="kpi-value" :style="{ color: overview.pass_rate >= 80 ? 'var(--c-success)' : 'var(--c-error)' }">
+                {{ overview.pass_rate.toFixed(1) }}<span style="font-size: 15px; font-weight: 600; margin-left: 2px">%</span>
+              </div>
+              <div class="kpi-label">{{ t('dashboard.pass_rate') }}</div>
+            </div>
+          </div>
+        </a-col>
+        <a-col :xs="12" :sm="12" :md="6">
+          <div class="kpi-card">
+            <div class="kpi-icon kpi-icon-warning"><ThunderboltOutlined /></div>
+            <div class="kpi-body">
+              <div class="kpi-value">{{ overview.recent_runs_7d }}</div>
+              <div class="kpi-label">{{ t('dashboard.recent_runs_7d') }}</div>
+            </div>
+          </div>
+        </a-col>
+      </template>
     </a-row>
 
     <template v-if="!loading && overview.total_runs === 0">
@@ -224,7 +233,16 @@
       </a-card>
     </template>
     <template v-else>
-      <a-spin :spinning="loading">
+      <div v-if="loading" class="dashboard-chart-skeleton-grid">
+        <a-row :gutter="[16, 16]">
+          <a-col v-for="i in 4" :key="`skeleton-chart-${i}`" :xs="24" :md="12">
+            <a-card :bordered="false" class="skeleton-chart-card">
+              <a-skeleton active :paragraph="{ rows: 5 }" />
+            </a-card>
+          </a-col>
+        </a-row>
+      </div>
+      <a-spin v-else :spinning="loading">
         <a-empty v-if="visibleChartConfigs.length === 0" :description="t('dashboard.layout_empty')">
           <a-button type="primary" @click="resetDashboardLayout">{{ t('dashboard.layout_reset') }}</a-button>
         </a-empty>

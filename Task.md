@@ -16,7 +16,7 @@
 - [x] 2026-10-17 UI2.3 全站 WCAG 2.1 AA 级对比度校准与主题变量升级：调整浅色模式 `--c-text-tertiary` 从 `#6e6b7b` 升级为 `#475569`（Slate 600），确保浅色背景对比度 ≥ 4.5:1，微调暗色边框与卡片层级；单测通过，见 [`docs/evidence/wcag-a11y-contrast-and-theme-tokens-ui2-3-2026-10-17.md`](docs/evidence/wcag-a11y-contrast-and-theme-tokens-ui2-3-2026-10-17.md)。至此 v4.8.0 Phase 2 全量大闭环！
 - [x] 2026-10-17 UI3.1 全站 KPI 与统计卡片等宽数字字体与视觉锚点增强：为所有 `.kpi-value`, `.stat-card`, `.aggregate-report-value` 注入等宽数字 `font-variant-numeric: tabular-nums`，强化大号数值与辅助文字的反差梯度；单测通过，见 [`docs/evidence/bento-metric-tabular-numbers-typography-ui3-1-2026-10-17.md`](docs/evidence/bento-metric-tabular-numbers-typography-ui3-1-2026-10-17.md)。
 - [x] 2026-10-17 UI3.2 用例列表 Bento 统计卡与下方表格交互联动闭环：实现点击顶部 4 个 Bento Tile（全部用例、业务模块、待评审、Flaky抖动）自动作为过滤器联动过滤下方表格；单测通过，见 [`docs/evidence/caselist-bento-card-cross-filtering-ui3-2-2026-10-17.md`](docs/evidence/caselist-bento-card-cross-filtering-ui3-2-2026-10-17.md)。
-- [ ] 2026-10-17 UI3.3 核心页面与卡片骨架屏 (Skeleton) 预占位接入：替换局部纯 Spinner 转圈为平滑骨架屏（`<a-skeleton>`），显著压降首屏异步渲染累积布局位移 (CLS)；单测通过。
+- [x] 2026-10-17 UI3.3 核心页面与卡片骨架屏 (Skeleton) 预占位接入：替换局部纯 Spinner 转圈为平滑骨架屏（`<a-skeleton>`），显著压降首屏异步渲染累积布局位移 (CLS)；单测通过，见 [`docs/evidence/dashboard-skeleton-loading-state-ui3-3-2026-10-17.md`](docs/evidence/dashboard-skeleton-loading-state-ui3-3-2026-10-17.md)。至此 v4.8.0 Phase 3 全量大闭环！
 - [ ] 2026-10-17 UI4.1 质量大盘与报表折线图通过率/安全阈值基线接入：在趋势折线图中增加 90% 合格基线（绿色 MarkLine）与 75% 警戒带，提供直观的指标安全区间；单测通过。
 - [ ] 2026-10-17 UI4.2 图表点击穿透联动表格筛选 (Cross-filtering) 闭环：点击失败原因分布饼图扇区，自动联动跳转或过滤关联失败用例/执行明细；单测通过。
 - [ ] 2026-10-17 UI4.3 v4.8.0 UI/UX 体验重构综合验收与发布说明：执行全量前端测试与生产构建验证，归档发布说明与工程交付证据。
