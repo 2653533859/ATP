@@ -51,7 +51,7 @@ flowchart TD
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | T1.1 `[x]` | **全链路流量染色标规则配置与上下文透传器** | `backend/app/services/canary_traffic_coloration_engine.py` | 支持基于 Header/Cookie/租户/权重的染色标记及跨服务透明透传；单测独立通过；见 docs/evidence/canary-traffic-coloration-engine-t1-1-2026-10-18.md |
-| T1.2 `[ ]` | **金丝雀与基线双轨指标实时对比推演器** | `backend/app/services/canary_baseline_metric_comparator.py` | 毫秒级对比 Canary 与 Baseline 的错误率、P99 延迟及业务成功率偏离；单测独立通过。 |
+| T1.2 `[x]` | **金丝雀与基线双轨指标实时对比推演器** | `backend/app/services/canary_baseline_metric_comparator.py` | 毫秒级对比 Canary 与 Baseline 的错误率、P99 延迟及业务成功率偏离；单测独立通过；见 docs/evidence/canary-baseline-metric-comparator-t1-2-2026-10-18.md |
 | T1.3 `[ ]` | **金丝雀演进与染色管理 REST API** | `backend/app/api/v1/canary_verification_api.py` | 挂载 `/api/v1/canary-verification/*` 路由，提供染色规则配置、双轨对比查询与回滚端点；单测独立通过。 |
 
 ---
