@@ -38,7 +38,7 @@
 
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
-| UI3.1 `[ ]` | **全站 KPI 与统计卡片等宽数字字体与视觉锚点增强** | `frontend/src/styles/page-shell.css` | 为所有 `.kpi-value`, `.stat-card`, `.aggregate-report-value` 注入等宽数字 `font-variant-numeric: tabular-nums`，强化大号数值与辅助文字的反差梯度；单测通过。 |
+| UI3.1 `[x]` | **全站 KPI 与统计卡片等宽数字字体与视觉锚点增强** | `frontend/src/styles/page-shell.css` | 为所有 `.kpi-value`, `.stat-card`, `.aggregate-report-value` 注入等宽数字 `font-variant-numeric: tabular-nums`，强化大号数值与辅助文字的反差梯度；单测通过；见 docs/evidence/bento-metric-tabular-numbers-typography-ui3-1-2026-10-17.md |
 | UI3.2 `[ ]` | **用例列表 Bento 统计卡与下方表格交互联动闭环** | `frontend/src/views/case/CaseList.vue` | 实现点击顶部 4 个 Bento Tile（全部用例、业务模块、待评审、Flaky抖动）自动作为过滤器联动过滤下方表格；单测通过。 |
 | UI3.3 `[ ]` | **核心页面与卡片骨架屏 (Skeleton) 预占位接入** | `frontend/src/views/dashboard/DashboardView.vue` 等 | 替换局部纯 Spinner 转圈为平滑骨架屏（`<a-skeleton>`），显著压降首屏异步渲染累积布局位移 (CLS)；单测通过。 |
 
