@@ -25,6 +25,12 @@ from app.services.cross_platform_element_translator import (
     SemanticElementDescriptor,
     translate_element,
 )
+from app.services.parity_alignment_analyzer import ParityNode, ParityScreenTree
+from app.services.parity_scoring_engine import (
+    evaluate_screen_parity_end_to_end,
+    get_parity_audit_report,
+    list_parity_audit_reports,
+)
 
 router = APIRouter(prefix="/migration", tags=["Cross-Platform Test Migration"])
 
@@ -53,6 +59,14 @@ class BatchMigrationRequest(BaseModel):
     source_platform: str = Field(..., description="源平台")
     target_platform: str = Field(..., description="目标平台")
     target_device_id: Optional[str] = Field(None, description="目标执行设备 ID")
+
+
+class AnalyzeParityRequest(BaseModel):
+    screen_name: str = Field(..., description="业务页面名称")
+    source_platform: str = Field("ios", description="源端平台")
+    target_platform: str = Field("android", description="目标端平台")
+    source_elements: List[Dict[str, Any]] = Field(..., description="源端控件列表")
+    target_elements: List[Dict[str, Any]] = Field(..., description="目标端控件列表")
 
 
 def clear_migration_history() -> None:
@@ -213,3 +227,64 @@ def get_migration_endpoint(
     if not record:
         raise HTTPException(status_code=404, detail="未找到目标跨端迁移记录")
     return {"migration": record}
+
+
+@router.post("/parity/analyze")
+def analyze_parity_endpoint(
+    payload: AnalyzeParityRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """端到端分析双端 UI 状态树一致性并生成评分报表"""
+
+    def _build_tree(elements: List[Dict[str, Any]], platform: str) -> ParityScreenTree:
+        nodes = [
+            ParityNode(
+                node_id=e.get("node_id", f"{platform}_{i}"),
+                role=e.get("role") or e.get("element_type", "button"),
+                text=e.get("text"),
+                identifier=e.get("identifier"),
+                bounding_box=e.get("bounding_box"),
+            )
+            for i, e in enumerate(elements)
+        ]
+        root = ParityNode(node_id=f"root_{platform}", role="container", children=nodes)
+        return ParityScreenTree(
+            screen_id=f"screen_{platform}",
+            screen_name=payload.screen_name,
+            platform=platform,
+            root_node=root,
+        )
+
+    src_tree = _build_tree(payload.source_elements, payload.source_platform)
+    tgt_tree = _build_tree(payload.target_elements, payload.target_platform)
+
+    report = evaluate_screen_parity_end_to_end(src_tree, tgt_tree)
+    return {
+        "message": f"双端一致性综合分析完成，综合得分: {round(report.composite_score, 1)} 分 ({report.grade.value})",
+        "report": report.to_dict(),
+    }
+
+
+@router.get("/parity/reports")
+def list_parity_reports_endpoint(
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询历史双端一致性审计报表列表"""
+    reports = list_parity_audit_reports(limit=limit)
+    return {
+        "total": len(reports),
+        "reports": reports,
+    }
+
+
+@router.get("/parity/report/{report_id}")
+def get_parity_report_endpoint(
+    report_id: str,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询单张双端一致性审计报表详情"""
+    report = get_parity_audit_report(report_id)
+    if not report:
+        raise HTTPException(status_code=404, detail="未找到目标一致性审计报表")
+    return {"report": report.to_dict()}

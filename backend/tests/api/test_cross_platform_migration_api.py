@@ -155,3 +155,44 @@ def test_get_migration_not_found():
     client = TestClient(app)
     resp = client.get("/api/v1/migration/unknown_mig_id", headers=HEADERS)
     assert resp.status_code == 404
+
+
+def test_analyze_parity_endpoint_and_reports():
+    client = TestClient(app)
+
+    src_elements = [
+        {"node_id": "ios_1", "role": "button", "text": "立即支付", "identifier": "btn_pay"},
+        {"node_id": "ios_2", "role": "input", "text": "账号", "identifier": "acc_input"},
+    ]
+    tgt_elements = [
+        {"node_id": "and_1", "role": "button", "text": "确认付款", "identifier": "pay_btn"},
+        {"node_id": "and_2", "role": "input", "text": "账号", "identifier": "acc_field"},
+    ]
+
+    resp = client.post(
+        "/api/v1/migration/parity/analyze",
+        json={
+            "screen_name": "收银台页面",
+            "source_platform": "ios",
+            "target_platform": "android",
+            "source_elements": src_elements,
+            "target_elements": tgt_elements,
+        },
+        headers=HEADERS,
+    )
+    assert resp.status_code == 200
+    report = resp.json()["report"]
+    assert report["screen_name"] == "收银台页面"
+    assert report["grade"] in ("GRADE_A", "GRADE_B")
+    assert report["verdict"] in ("PASS", "WARN")
+    report_id = report["report_id"]
+
+    # 获取列表
+    list_resp = client.get("/api/v1/migration/parity/reports", headers=HEADERS)
+    assert list_resp.status_code == 200
+    assert list_resp.json()["total"] >= 1
+
+    # 获取单张详情
+    get_resp = client.get(f"/api/v1/migration/parity/report/{report_id}", headers=HEADERS)
+    assert get_resp.status_code == 200
+    assert get_resp.json()["report"]["report_id"] == report_id

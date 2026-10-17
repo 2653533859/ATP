@@ -67,7 +67,7 @@ flowchart TD
 |---|---|---|---|
 | T2.1 `[x]` | **双端 UI 与状态树对齐分析器** | `backend/app/services/parity_alignment_analyzer.py` | 对比 iOS 与 Android（或移动端与 Web 端）同一功能界面状态树，计算节点匹配矩阵；单测独立通过；见 docs/evidence/parity-alignment-analyzer-t2-1-2026-10-17.md |
 | T2.2 `[x]` | **双端功能差异与缺失控件侦测器** | `backend/app/services/parity_gap_detector.py` | 自动识别单端缺失关键功能按钮、文案不一致、跳转链路差异并输出差异清单；单测独立通过；见 docs/evidence/parity-gap-detector-t2-2-2026-10-17.md |
-| T2.3 `[ ]` | **双端一致性评分与兼容性报表引擎** | `backend/app/services/parity_scoring_engine.py` | 计算双端一致性综合健康分（0~100%）并输出多维度合规分析数据；单测独立通过。 |
+| T2.3 `[x]` | **双端一致性评分与兼容性报表引擎** | `backend/app/services/parity_scoring_engine.py` | 计算双端一致性综合健康分（0~100%）并输出多维度合规分析数据；单测独立通过；见 docs/evidence/parity-scoring-engine-t2-3-2026-10-17.md |
 
 ---
 
