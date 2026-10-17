@@ -71,7 +71,7 @@ flowchart TD
 | ID / 状态 | 任务名称与交付物 | 依赖 | 验收标准 |
 |---|---|---|---|
 | UI3.1 `[x]` | **源码文件逐行覆盖率动态高亮染色抽屉** | `frontend/src/views/workbench/components/CoverageSourceStainingDrawer.vue` | 源码在线红黄绿行级染色、分支命中指示与未覆盖悬浮提示；单测独立通过；见 docs/evidence/coverage-source-staining-drawer-ui3-1-2026-10-18.md |
-| UI3.2 `[ ]` | **增量覆盖率发布门禁配置与高危分支补测弹窗** | `frontend/src/views/workbench/components/CoverageGateConfigModal.vue` | 可视化交互配置增量门禁阈值、豁免白名单与缺失用例导出；单测独立通过。 |
+| UI3.2 `[x]` | **增量覆盖率发布门禁配置与高危分支补测弹窗** | `frontend/src/views/workbench/components/CoverageGateConfigModal.vue` | 可视化交互配置增量门禁阈值、豁免白名单与缺失用例导出；单测独立通过；见 docs/evidence/coverage-gate-config-modal-ui3-2-2026-10-18.md |
 | UI3.3 `[ ]` | **全链路代码覆盖率与质量门禁工作台中枢页面** | `frontend/src/views/workbench/CodeCoverageWorkbenchView.vue` | 落地路由 `/workbench/code-coverage`，集成 4 大 Bento KPI、文件覆盖率列表与交互联动；单测独立通过。 |
 
 ---
