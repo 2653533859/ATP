@@ -71,7 +71,7 @@ flowchart TD
 |---|---|---|---|
 | UI3.1 `[x]` | **双端响应结构差异透视对比抽屉** | `frontend/src/views/workbench/components/TrafficDiffInspectionDrawer.vue` | 左右分栏高亮展示生产基线响应与线下回放响应，清晰标注新增、修改、丢失及噪声忽略节点；单测独立通过；见 docs/evidence/traffic-diff-inspection-drawer-ui3-1-2026-10-17.md |
 | UI3.2 `[x]` | **动态噪声过滤规则配置与模拟弹窗** | `frontend/src/views/workbench/components/NoiseFilterRuleModal.vue` | 支持可视交互式配置 JSONPath/Regex 噪声规则并提供实时测试校验；单测独立通过；见 docs/evidence/noise-filter-rule-modal-ui3-2-2026-10-17.md |
-| UI3.3 `[ ]` | **生产流量回放与变异演练工作台中枢页面** | `frontend/src/views/workbench/TrafficReplayWorkbenchView.vue` | 落地路由 `/workbench/traffic-replay`，集成 4 大 Bento KPI、大盘流水与批量回放操作；单测独立通过。 |
+| UI3.3 `[x]` | **生产流量回放与变异演练工作台中枢页面** | `frontend/src/views/workbench/TrafficReplayWorkbenchView.vue` | 落地路由 `/workbench/traffic-replay`，集成 4 大 Bento KPI、大盘流水与批量回放操作；单测独立通过；见 docs/evidence/traffic-replay-workbench-view-ui3-3-2026-10-17.md |
 
 ---
 

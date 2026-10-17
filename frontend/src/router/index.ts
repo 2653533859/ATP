@@ -130,6 +130,14 @@ const router = createRouter({
           },
         },
         {
+          path: 'workbench/traffic-replay',
+          name: 'traffic-replay-workbench',
+          component: () => import('@/views/workbench/TrafficReplayWorkbenchView.vue'),
+          meta: {
+            roles: ENGINEER_ONLY,
+          },
+        },
+        {
           path: 'bugs',
           name: 'bugs',
           component: () => import('@/views/defect/DefectListView.vue'),
