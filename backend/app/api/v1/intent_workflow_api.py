@@ -32,6 +32,14 @@ from app.services.autonomous_exploration_safety_guard import (
     evaluate_action_safety,
     list_safety_violations,
 )
+from app.services.intent_synthesis_evidence_signer import (
+    ArtifactType,
+    get_evidence_certificate,
+    list_evidence_certificates,
+    sign_exploration_trajectory_evidence,
+    sign_intent_workflow_evidence,
+    verify_evidence_certificate,
+)
 
 router = APIRouter(prefix="/workflow/intent", tags=["Intent-Driven Workflow Synthesizer"])
 
@@ -73,6 +81,16 @@ class EvaluateActionSafetyRequest(BaseModel):
     action_type: str = Field(..., description="动作类型 (TAP | INPUT | SWIPE)")
     target_element_label: str = Field("", description="目标控件文本")
     input_text: Optional[str] = Field(None, description="输入文本 (若有)")
+
+
+class SignEvidenceRequest(BaseModel):
+    artifact_type: str = Field(..., description="产物类别 (INTENT_WORKFLOW | EXPLORATION_TRAJECTORY)")
+    artifact_id: str = Field(..., description="产物 ID (synthesis_id 或 session_id)")
+    signer_identity: Optional[str] = Field(None, description="签名者身份标识")
+
+
+class VerifyEvidenceRequest(BaseModel):
+    certificate_id: str = Field(..., description="存证证书 ID")
 
 
 @router.post("/generate")
@@ -276,3 +294,75 @@ def list_safety_violations_endpoint(
         "total": len(violations),
         "violations": violations,
     }
+
+
+@router.post("/evidence/sign")
+def sign_evidence_endpoint(
+    payload: SignEvidenceRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """为 AI 生成的工作流或自主探索轨迹签发 64 位 SHA-256 存证证书"""
+    art_type = payload.artifact_type.upper()
+    if art_type == ArtifactType.INTENT_WORKFLOW.value:
+        dag = get_synthesis_result(payload.artifact_id)
+        if not dag:
+            raise HTTPException(status_code=404, detail="未找到目标意图工作流记录")
+        cert = sign_intent_workflow_evidence(
+            workflow_dag=dag,
+            signer_identity=payload.signer_identity or "ATP_AI_INTENT_AUTHORITY_V5_2",
+        )
+    elif art_type == ArtifactType.EXPLORATION_TRAJECTORY.value:
+        sess = get_exploration_session(payload.artifact_id)
+        if not sess:
+            raise HTTPException(status_code=404, detail="未找到目标探索会话记录")
+        cert = sign_exploration_trajectory_evidence(
+            session=sess,
+            signer_identity=payload.signer_identity or "ATP_VLM_EXPLORER_AUTHORITY_V5_2",
+        )
+    else:
+        raise HTTPException(status_code=400, detail=f"不支持的存证产物类型: {payload.artifact_type}")
+
+    return {
+        "message": "已成功签发 64 位 SHA-256 不可篡改存证证书",
+        "certificate": cert.to_dict(),
+    }
+
+
+@router.post("/evidence/verify")
+def verify_evidence_endpoint(
+    payload: VerifyEvidenceRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """在线校验 64 位 SHA-256 存证证书与 HMAC 防篡改数字签名"""
+    verdict, reason = verify_evidence_certificate(payload.certificate_id)
+    return {
+        "certificate_id": payload.certificate_id,
+        "verdict": verdict.value,
+        "is_valid": verdict.value == "VALID",
+        "reason": reason,
+    }
+
+
+@router.get("/evidence/list")
+def list_evidence_certificates_endpoint(
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询已颁发的存证证书历史列表"""
+    certs = list_evidence_certificates(limit=limit)
+    return {
+        "total": len(certs),
+        "certificates": certs,
+    }
+
+
+@router.get("/evidence/{certificate_id}")
+def get_evidence_certificate_endpoint(
+    certificate_id: str,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询单张存证证书详情"""
+    cert = get_evidence_certificate(certificate_id)
+    if not cert:
+        raise HTTPException(status_code=404, detail="存证证书不存在")
+    return {"certificate": cert.to_dict()}

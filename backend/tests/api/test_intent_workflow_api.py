@@ -142,3 +142,37 @@ def test_autonomous_exploration_endpoints():
     )
     assert viol_resp.status_code == 200
     assert viol_resp.json()["total"] >= 1
+
+    # 9. 签发 64 位 SHA-256 存证证书
+    sign_resp = client.post(
+        "/api/v1/workflow/intent/evidence/sign",
+        json={
+            "artifact_type": "EXPLORATION_TRAJECTORY",
+            "artifact_id": session_id,
+        },
+        headers=HEADERS,
+    )
+    assert sign_resp.status_code == 200
+    cert = sign_resp.json()["certificate"]
+    cert_id = cert["certificate_id"]
+    assert len(cert["evidence_sha256"]) == 64
+    assert len(cert["hmac_signature"]) == 64
+
+    # 10. 在线验签
+    verify_resp = client.post(
+        "/api/v1/workflow/intent/evidence/verify",
+        json={"certificate_id": cert_id},
+        headers=HEADERS,
+    )
+    assert verify_resp.status_code == 200
+    assert verify_resp.json()["is_valid"] is True
+    assert verify_resp.json()["verdict"] == "VALID"
+
+    # 11. 获取单张证书与列表
+    get_cert_resp = client.get(f"/api/v1/workflow/intent/evidence/{cert_id}", headers=HEADERS)
+    assert get_cert_resp.status_code == 200
+    assert get_cert_resp.json()["certificate"]["certificate_id"] == cert_id
+
+    list_certs_resp = client.get("/api/v1/workflow/intent/evidence/list", headers=HEADERS)
+    assert list_certs_resp.status_code == 200
+    assert list_certs_resp.json()["total"] >= 1
