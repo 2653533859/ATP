@@ -27,6 +27,15 @@ from app.services.runtime_healing_patcher import (
     list_healing_patches,
     reject_healing_patch,
 )
+from app.services.response_schema_drift_detector import detect_response_schema_drift
+from app.services.assertion_drift_evolution_synthesizer import synthesize_assertion_evolution
+from app.services.assertion_evolution_controller import (
+    dry_run_evolved_assertion,
+    evaluate_assertion_evolution_confidence,
+    list_assertion_snapshots,
+    record_assertion_version_snapshot,
+    rollback_assertion_version,
+)
 
 router = APIRouter(prefix="/self-healing", tags=["Test Self-Healing & Assertion Evolution"])
 
@@ -177,4 +186,111 @@ def list_patches_endpoint(
     return {
         "total": len(patches),
         "patches": patches,
+    }
+
+
+class AssertionDriftDetectRequest(BaseModel):
+    baseline_response: Dict[str, Any] = Field(..., description="基线接口响应体")
+    actual_response: Dict[str, Any] = Field(..., description="实际最新接口响应体")
+    confidence_threshold: float = Field(0.70, ge=0.0, le=1.0, description="置信度门限")
+
+
+class AssertionEvolveRequest(BaseModel):
+    case_id: str = Field("case_api_01", description="用例 ID")
+    step_id: str = Field("step_assert_01", description="步骤 ID")
+    original_code: str = Field(..., description="原始 Python 断言代码")
+    baseline_response: Dict[str, Any] = Field(..., description="基线接口响应体")
+    actual_response: Dict[str, Any] = Field(..., description="实际接口响应体")
+
+
+class AssertionDryRunRequest(BaseModel):
+    assertion_code: str = Field(..., description="待试跑断言代码")
+    response_payload: Dict[str, Any] = Field(..., description="测试响应体数据")
+
+
+@router.post("/assertion/drift-detect")
+def detect_assertion_drift_endpoint(
+    payload: AssertionDriftDetectRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """比对基线与最新响应，返回 Schema 漂移报告"""
+    report = detect_response_schema_drift(
+        payload.baseline_response,
+        payload.actual_response,
+        payload.confidence_threshold,
+    )
+    return {
+        "message": f"结构漂移检测完成，识别到 {report.drifted_field_count} 处字段变迁",
+        "report": report.to_dict(),
+    }
+
+
+@router.post("/assertion/evolve")
+def evolve_assertion_endpoint(
+    payload: AssertionEvolveRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """基于 Schema 变迁自动演进断言代码并计算置信度健康评分"""
+    drift_report = detect_response_schema_drift(payload.baseline_response, payload.actual_response)
+    evolution_res = synthesize_assertion_evolution(payload.original_code, drift_report)
+    confidence_eval = evaluate_assertion_evolution_confidence(evolution_res, drift_report.drifts)
+
+    snapshot = record_assertion_version_snapshot(
+        case_id=payload.case_id,
+        step_id=payload.step_id,
+        original_assertion=payload.original_code,
+        evolved_assertion=evolution_res.evolved_code,
+        confidence_score=confidence_eval.score,
+        risk_level=confidence_eval.risk_level,
+        applied_drift_ids=evolution_res.applied_drift_ids,
+    )
+
+    return {
+        "message": "语义断言演进合成与置信度评估完成",
+        "evolution": evolution_res.to_dict(),
+        "confidence_evaluation": confidence_eval.to_dict(),
+        "snapshot": snapshot.to_dict(),
+    }
+
+
+@router.post("/assertion/dry-run")
+def dry_run_assertion_endpoint(
+    payload: AssertionDryRunRequest,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """在隔离沙箱环境中试跑验证演进后的断言"""
+    result = dry_run_evolved_assertion(payload.assertion_code, payload.response_payload)
+    return {
+        "message": "断言沙箱试跑执行完成",
+        "result": result.to_dict(),
+    }
+
+
+@router.post("/assertion/rollback/{version_id}")
+def rollback_assertion_endpoint(
+    version_id: str,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """一键回滚断言演进至旧基线版本"""
+    snap = rollback_assertion_version(version_id)
+    if not snap:
+        raise HTTPException(status_code=404, detail="未找到目标断言版本快照")
+    return {
+        "message": f"断言版本 [{version_id}] 已成功回滚至原基线！",
+        "snapshot": snap.to_dict(),
+    }
+
+
+@router.get("/assertion/snapshots")
+def list_snapshots_endpoint(
+    case_id: Optional[str] = None,
+    step_id: Optional[str] = None,
+    limit: int = 50,
+    _user: User = Depends(require_engineer),
+) -> Dict[str, Any]:
+    """查询断言版本快照历史流水"""
+    snapshots = list_assertion_snapshots(case_id=case_id, step_id=step_id, limit=limit)
+    return {
+        "total": len(snapshots),
+        "snapshots": [s.to_dict() for s in snapshots],
     }

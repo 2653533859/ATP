@@ -15,7 +15,7 @@
 - [x] 2026-10-17 T2.2 语义断言智能演进与语法重写器：落地 `assertion_drift_evolution_synthesizer` 服务；重写现代断言并输出代码 Diff；单测独立通过，见 [`docs/evidence/assertion-drift-evolution-synthesizer-t2-2-2026-10-17.md`](docs/evidence/assertion-drift-evolution-synthesizer-t2-2-2026-10-17.md)。
 - [x] 2026-10-17 T2.3 断言演进置信度评分与安全回滚控制器：落地 `assertion_evolution_controller` 服务；演进置信度评分与版本回滚；单测独立通过，见 [`docs/evidence/assertion-evolution-controller-t2-3-2026-10-17.md`](docs/evidence/assertion-evolution-controller-t2-3-2026-10-17.md)。至此 v5.5.0 Phase 2 全量大闭环！
 - [x] 2026-10-17 UI3.1 定位器自愈对比与 DOM 变化透视抽屉：落地 `SelfHealingDiffInspectionDrawer.vue`；分栏对比新旧定位器与 DOM 树；单测独立通过，见 [`docs/evidence/self-healing-diff-drawer-ui3-1-2026-10-17.md`](docs/evidence/self-healing-diff-drawer-ui3-1-2026-10-17.md)。
-- [ ] 2026-10-17 UI3.2 断言漂移演进对比与语法模拟弹窗：落地 `AssertionDriftEvolutionModal.vue`；提供结构对比与在线断言演练；单测独立通过。
+- [x] 2026-10-17 UI3.2 断言漂移演进对比与语法模拟弹窗：落地 `AssertionDriftEvolutionModal.vue`；提供结构对比与在线断言演练；单测独立通过，见 [`docs/evidence/assertion-drift-evolution-modal-ui3-2-2026-10-17.md`](docs/evidence/assertion-drift-evolution-modal-ui3-2-2026-10-17.md)。
 - [ ] 2026-10-17 UI3.3 AI 用例自愈与断言演进工作台中枢页面：落地 `TestSelfHealingWorkbenchView.vue` 与 `/workbench/test-self-healing` 路由；单测独立通过。
 - [ ] 2026-10-17 T4.1 自愈补丁防篡改与安全围栏看门狗：落地 `self_healing_safety_guard` 服务；防范恶意放宽断言与注入攻击；单测独立通过。
 - [ ] 2026-10-17 T4.2 自愈补丁与断言演进 64 位 SHA-256 存证证书器：落地 `healing_evidence_signer` 服务；为自愈记录签发不可篡改存证证书；单测独立通过。

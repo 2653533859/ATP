@@ -114,3 +114,63 @@ def test_patch_not_found():
     client = TestClient(app)
     resp = client.get("/api/v1/self-healing/patch/non_existent_patch", headers=HEADERS)
     assert resp.status_code == 404
+
+
+def test_assertion_evolution_and_dry_run_endpoints():
+    client = TestClient(app)
+
+    base = {"user_id": 1001, "pay_amount": 199.5}
+    actual = {"code": 200, "data": {"userId": 1001, "payAmount": 199.5}}
+
+    # 1. 检测漂移
+    drift_resp = client.post(
+        "/api/v1/self-healing/assertion/drift-detect",
+        json={
+            "baseline_response": base,
+            "actual_response": actual,
+            "confidence_threshold": 0.7,
+        },
+        headers=HEADERS,
+    )
+    assert drift_resp.status_code == 200
+    report = drift_resp.json()["report"]
+    assert report["is_drift_detected"] is True
+
+    # 2. 演进断言
+    evolve_resp = client.post(
+        "/api/v1/self-healing/assertion/evolve",
+        json={
+            "case_id": "case_pay_01",
+            "step_id": "step_assert_pay",
+            "original_code": 'assert res["user_id"] == 1001 and res["pay_amount"] > 100',
+            "baseline_response": base,
+            "actual_response": actual,
+        },
+        headers=HEADERS,
+    )
+    assert evolve_resp.status_code == 200
+    evo_data = evolve_resp.json()
+    assert evo_data["evolution"]["status"] == "EVOLVED"
+    assert "data" in evo_data["evolution"]["evolved_code"]
+    snap_id = evo_data["snapshot"]["version_id"]
+
+    # 3. 沙箱试跑
+    dry_resp = client.post(
+        "/api/v1/self-healing/assertion/dry-run",
+        json={
+            "assertion_code": evo_data["evolution"]["evolved_code"],
+            "response_payload": actual,
+        },
+        headers=HEADERS,
+    )
+    assert dry_resp.status_code == 200
+    assert dry_resp.json()["result"]["status"] == "PASS"
+
+    # 4. 快照查询与回滚
+    list_snaps = client.get("/api/v1/self-healing/assertion/snapshots", headers=HEADERS)
+    assert list_snaps.status_code == 200
+    assert list_snaps.json()["total"] >= 1
+
+    rb_resp = client.post(f"/api/v1/self-healing/assertion/rollback/{snap_id}", headers=HEADERS)
+    assert rb_resp.status_code == 200
+    assert rb_resp.json()["snapshot"]["status"] == "ROLLBACKED"

@@ -188,4 +188,28 @@ export const selfHealingCoreApi = {
   listPatches(params?: { status?: string; limit?: number }): Promise<{ total: number; patches: any[] }> {
     return http.get('/self-healing/patches', { params })
   },
+  detectAssertionDrift(data: Record<string, any>): Promise<{ message: string; report: any }> {
+    return http.post('/self-healing/assertion/drift-detect', data)
+  },
+
+  evolveAssertion(data: Record<string, any>): Promise<{
+    message: string
+    evolution: any
+    confidence_evaluation: any
+    snapshot: any
+  }> {
+    return http.post('/self-healing/assertion/evolve', data)
+  },
+
+  dryRunAssertion(data: Record<string, any>): Promise<{ message: string; result: any }> {
+    return http.post('/self-healing/assertion/dry-run', data)
+  },
+
+  rollbackAssertion(versionId: string): Promise<{ message: string; snapshot: any }> {
+    return http.post(`/self-healing/assertion/rollback/${versionId}`)
+  },
+
+  listAssertionSnapshots(params?: { case_id?: string; step_id?: string; limit?: number }): Promise<{ total: number; snapshots: any[] }> {
+    return http.get('/self-healing/assertion/snapshots', { params })
+  },
 }
