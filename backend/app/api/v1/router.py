@@ -51,6 +51,7 @@ from app.api.v1 import (
     test_self_healing_api,
     traffic_replay_api,
     precision_regression_api,
+    chaos_engineering_api,
     users,
     health,
     workbench,
@@ -210,6 +211,7 @@ router.include_router(fleet_scheduler_api.router)
 router.include_router(test_self_healing_api.router)
 router.include_router(traffic_replay_api.router)
 router.include_router(precision_regression_api.router)
+router.include_router(chaos_engineering_api.router)
 router.include_router(users.router)
 router.include_router(health.router)
 router.include_router(local_files.router)
